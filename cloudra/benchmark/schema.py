@@ -253,6 +253,12 @@ class IntegrityRubric(BaseModel):
     # final = -no_evidence_penalty。缺部分证据不触发本条（走 binding_quality
     # 比例扣），只有"完全没有证据支撑"才倒扣。
     no_evidence_penalty: float = 1.0
+    # 节点能量声明：每个 accessible 节点必须带 properties.energy_hartree（数值）
+    # 与 properties.evidence_log（非空字符串）。评分器用声明值指认"交付的是哪份
+    # 日志"（同物种多份合法日志/多构象），缺声明 → integrity 不通过（记录在案，
+    # 不归零）。不需要能垒评分的题（accuracy 关闭 / 选择性题 / 性质锚点题）由
+    # 生成器显式置 False。
+    require_node_energies: bool = True
 
 
 class SelfConsistencyRubric(BaseModel):

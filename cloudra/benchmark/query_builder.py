@@ -45,6 +45,26 @@ TS_EVIDENCE_CLAUSE = (
     "belongs to. "
 )
 
+# 节点能量声明（能垒评分题必填）：评分器用声明值指认"交付的是哪一份日志"
+# （同物种多份合法日志/多构象时），因此每个节点都要把能量与日志路径写清楚。
+_NODE_ENERGY_CLAUSE = (
+    "Every species node and transition-state node must declare "
+    "`properties.energy_hartree` (the electronic energy of the geometry you "
+    "delivered for that node, in Hartree, exactly as it appears in that node's "
+    "evidence log) and `properties.evidence_log` (the sandbox-relative path of "
+    "that log). The scorer uses the declared energy to identify which evidence "
+    "file you delivered for each node; a node missing either field violates the "
+    "delivery contract. "
+)
+
+
+def barrier_declaration_clause(require_node_energies: bool = True) -> str:
+    """能垒交付契约；`require_node_energies` 与 IntegrityRubric 的同名开关
+    保持一致——题面要求与评分器强制必须同源（不需要能垒评分的题不写这句）。"""
+    return BARRIER_DECLARATION_CLAUSE + (
+        _NODE_ENERGY_CLAUSE if require_node_energies else ""
+    )
+
 # 条件建模指引的溶剂名单（结构化子串匹配，一律小写比对；新增题源条件里的溶剂
 # 必须在此登记，否则按气相默认处理）。
 _SOLVENT_TOKENS = (

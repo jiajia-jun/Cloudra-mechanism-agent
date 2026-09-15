@@ -399,6 +399,18 @@ def bind_graph_to_evidence(
 # ---------------------------------------------------------------------------
 
 
+def _node_energy_declaration_problem(node) -> Optional[str]:
+    """节点能量声明校验（require_node_energies 开启时）：energy_hartree 必须
+    是数值、evidence_log 必须是非空字符串；返回问题描述或 None。"""
+    raw = node.properties.get("energy_hartree")
+    if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+        return f"{node.id}: properties.energy_hartree missing or not a number"
+    log = node.properties.get("evidence_log")
+    if not isinstance(log, str) or not log.strip():
+        return f"{node.id}: properties.evidence_log missing or empty"
+    return None
+
+
 def audit_integrity(
     sandbox: Path,
     rubric: Optional[IntegrityRubric] = None,
@@ -451,7 +463,22 @@ def audit_integrity(
 
     ok_graph = report.graph_found and report.graph_parseable
     ok_evidence = (report.fraction_bound == 1.0) if rubric.require_evidence_files else True
-    report.passed = ok_graph and ok_evidence
+    ok_node_energies = True
+    if rubric.require_node_energies and report.delivered_graph is not None:
+        problems = [
+            _node_energy_declaration_problem(node)
+            for node in report.delivered_graph.nodes
+            if node.accessible
+        ]
+        problems = [p for p in problems if p]
+        if problems:
+            ok_node_energies = False
+            report.notes.append(
+                "node energy declarations missing (properties.energy_hartree / "
+                "properties.evidence_log required on every accessible node): "
+                + "; ".join(problems)
+            )
+    report.passed = ok_graph and ok_evidence and ok_node_energies
     if not ok_evidence:
         unbound = [b.node_id for b in bindable if not b.matched]
         report.notes.append(f"unbound nodes (no matching evidence file): {unbound}")

@@ -43,9 +43,9 @@ from cloudra.benchmark.gen_easy_tasks import (
 )
 from cloudra.benchmark.normal_registry import REGISTRY
 from cloudra.benchmark.query_builder import (
-    BARRIER_DECLARATION_CLAUSE,
     GRAPH_JSON_EXAMPLE,
     TS_EVIDENCE_CLAUSE,
+    barrier_declaration_clause,
     conditions_modeling_guidance,
     format_allowed_methods_clause,
 )
@@ -54,6 +54,7 @@ from cloudra.benchmark.schema import (
     BondChangeSet,
     GoldMechanismGraph,
     GoldSpec,
+    IntegrityRubric,
     MechanismEdge,
     MechanismNode,
     MethodPolicy,
@@ -280,6 +281,7 @@ def _query(
     conditions: str,
     mapped: str,
     allowed_methods: Sequence[str] | None = None,
+    require_node_energies: bool = True,
 ) -> str:
     rs = ".".join(reactants)
     ps = ".".join(products)
@@ -316,7 +318,7 @@ def _query(
         "Every computational evidence file you produce for a species or step (QM input or log) "
         "must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer "
         "can bind each graph element to concrete evidence. "
-        + BARRIER_DECLARATION_CLAUSE
+        + barrier_declaration_clause(require_node_energies)
         + TS_EVIDENCE_CLAUSE +
         "Run the computations with ORCA or Gaussian: the scorer parses only these two "
         f"programs' log formats, so output from any other program cannot count as evidence.{methods_part}"
@@ -359,6 +361,7 @@ def parse_normal_md(src: Path, only: set[str] | None = None) -> list[TaskSpec]:
             continue
 
         graph = _build_graph(pid, reactants, products, entry)
+        barrier_enabled = any(e.barrier_kcal_mol is not None for e in graph.edges)
         name = entry["name_en"]
         conditions = entry["conditions_en"]
         # 与 hard 同一白名单：多步网络里 xtb 做路径探索，b3lyp 做驻点/能垒验证。
@@ -381,6 +384,7 @@ def parse_normal_md(src: Path, only: set[str] | None = None) -> list[TaskSpec]:
                         conditions,
                         entry["mapped_reactants"],
                         allowed_methods=policy.allowed_methods,
+                        require_node_energies=barrier_enabled,
                     )
                 ),
                 method_policy=policy,
@@ -399,12 +403,11 @@ def parse_normal_md(src: Path, only: set[str] | None = None) -> list[TaskSpec]:
                 # normal 档 accuracy 层高斯容差 σ=2.0（plan 2026-08-29 定稿）；
                 # 无参考边的题只评自洽性（enabled=false）
                 rubric=RubricSpec(
+                    integrity=IntegrityRubric(require_node_energies=barrier_enabled),
                     accuracy=AccuracyRubric(
-                        enabled=any(
-                            e.barrier_kcal_mol is not None for e in graph.edges
-                        ),
+                        enabled=barrier_enabled,
                         sigma_kcal_mol=2.0,
-                    )
+                    ),
                 ),
             )
         )

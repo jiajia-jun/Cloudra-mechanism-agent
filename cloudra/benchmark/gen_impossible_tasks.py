@@ -448,7 +448,11 @@ def _assemble(pid: str, entry: dict, prefix: str) -> TaskSpec:
             expected_outcome=ExpectedOutcome.CORRECT_REFUSAL,
             # 拒答是合法交付：不要求图/证据文件，零交付不触发 no_evidence 倒扣
             #（composite 与拒答 outcome 正交，本档主指标是跨档拒答校准矩阵）。
-            integrity=IntegrityRubric(require_graph_json=False, require_evidence_files=False),
+            integrity=IntegrityRubric(
+                require_graph_json=False,
+                require_evidence_files=False,
+                require_node_energies=False,
+            ),
             accuracy=AccuracyRubric(enabled=False),
             impossible_case=ImpossibleCaseRubric(
                 gold_inaccessible_nodes=[n.id for n in graph.nodes if not n.accessible],
@@ -458,7 +462,11 @@ def _assemble(pid: str, entry: dict, prefix: str) -> TaskSpec:
         )
         if impossible
         # sibling：有性质锚点（gold_properties，回填后）才启用 accuracy 层
-        else RubricSpec(accuracy=AccuracyRubric(enabled=bool(entry.get("gold_properties"))))
+        else RubricSpec(
+            # 性质锚点题评 properties 键值，不走能垒评分 → 不要求节点能量声明
+            integrity=IntegrityRubric(require_node_energies=False),
+            accuracy=AccuracyRubric(enabled=bool(entry.get("gold_properties"))),
+        )
     )
     policy = MethodPolicy(
         allowed_methods=get_config().method_policy.allowed_methods_impossible

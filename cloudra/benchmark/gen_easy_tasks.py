@@ -19,9 +19,9 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from cloudra.benchmark.query_builder import (
-    BARRIER_DECLARATION_CLAUSE,
     GRAPH_JSON_EXAMPLE,
     TS_EVIDENCE_CLAUSE,
+    barrier_declaration_clause,
     conditions_modeling_guidance,
     format_allowed_methods_clause,
 )
@@ -30,6 +30,7 @@ from cloudra.benchmark.schema import (
     BondChangeSet,
     GoldMechanismGraph,
     GoldSpec,
+    IntegrityRubric,
     MechanismEdge,
     MechanismNode,
     MethodPolicy,
@@ -310,6 +311,7 @@ def _query(
     mult: int,
     conditions: str,
     allowed_methods: Sequence[str] | None = None,
+    barrier: float | None = None,
 ) -> str:
     rs = ".".join(reactants)
     ps = ".".join(products) if products else rs
@@ -347,7 +349,7 @@ def _query(
         "Every computational evidence file you produce for a species or step (QM input or log) "
         "must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer "
         "can bind each graph element to concrete evidence. "
-        + BARRIER_DECLARATION_CLAUSE
+        + barrier_declaration_clause(barrier is not None)
         + TS_EVIDENCE_CLAUSE +
         "Run the computations with ORCA or Gaussian: the scorer parses only these two "
         f"programs' log formats, so output from any other program cannot count as evidence.{methods_part}"
@@ -403,6 +405,7 @@ def parse_easy_md(src: Path) -> list[TaskSpec]:
                     mult,
                     conditions,
                     allowed_methods=policy.allowed_methods,
+                    barrier=barrier,
                 )
             ),
             method_policy=policy,
@@ -418,8 +421,12 @@ def parse_easy_md(src: Path) -> list[TaskSpec]:
                 single_step=True,
             ),
             gold=GoldSpec(mechanism_graph=graph),
-            # accuracy 启用语义 = gold 机理图存在任一带参考值的边（无锚点题只评自洽）
-            rubric=RubricSpec(accuracy=AccuracyRubric(enabled=barrier is not None)),
+            # accuracy 启用语义 = gold 机理图存在任一带参考值的边（无锚点题只评自洽）；
+            # 节点能量声明与 accuracy 同步必填（评分器据此指认交付日志）
+            rubric=RubricSpec(
+                integrity=IntegrityRubric(require_node_energies=barrier is not None),
+                accuracy=AccuracyRubric(enabled=barrier is not None),
+            ),
         )
         tasks.append(spec)
     return tasks

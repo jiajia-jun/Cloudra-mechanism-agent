@@ -62,9 +62,9 @@ from cloudra.benchmark.gen_normal_tasks import (
 )
 from cloudra.benchmark.hard_registry import REGISTRY
 from cloudra.benchmark.query_builder import (
-    BARRIER_DECLARATION_CLAUSE,
     GRAPH_JSON_EXAMPLE,
     TS_EVIDENCE_CLAUSE,
+    barrier_declaration_clause,
     conditions_modeling_guidance,
     format_allowed_methods_clause,
 )
@@ -74,6 +74,7 @@ from cloudra.benchmark.schema import (
     GoldMechanismGraph,
     GoldSpec,
     GraphSimilarityRubric,
+    IntegrityRubric,
     MechanismEdge,
     MechanismNode,
     MethodPolicy,
@@ -292,6 +293,7 @@ def _query(
     conditions: str,
     mapped: str,
     allowed_methods: Sequence[str] | None = None,
+    require_node_energies: bool = True,
 ) -> str:
     rs = ".".join(reactants)
     ps = ".".join(products)
@@ -334,7 +336,7 @@ def _query(
         "Every computational evidence file you produce for a species or step (QM input or log) "
         "must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer "
         "can bind each graph element to concrete evidence. "
-        + BARRIER_DECLARATION_CLAUSE
+        + barrier_declaration_clause(require_node_energies)
         + TS_EVIDENCE_CLAUSE +
         "For each competing stereochemical channel, declare on that channel's edge a "
         "`channel` field (a short label identifying the channel) and `favored: true` on "
@@ -425,6 +427,9 @@ def parse_hard_md(src: Path, only: set[str] | None = None) -> list[TaskSpec]:
         accuracy = AccuracyRubric(
             enabled=bool(edge_barriers), sigma_kcal_mol=_BARRIER_SIGMA
         )
+        # 节点能量声明只在真正走逐边能垒评分的题必填（选择性题的 accuracy 槽位
+        # 由定性选择性占用，不需要指认能垒日志）
+        require_node_energies = accuracy.enabled and selectivity is None
         # v3：hard 开放 DFT（B3LYP-D3(BJ)/def2-SVP，ORCA/Gaussian 引擎）。白名单为组合
         # 条目：基组是许可的一部分，b3lyp 配其他基组（或缺基组）一律 fail-closed 拦截。
         # 内容源是全局 config（method_policy.allowed_methods），不是这里的字面量。
@@ -446,6 +451,7 @@ def parse_hard_md(src: Path, only: set[str] | None = None) -> list[TaskSpec]:
                         entry["conditions_en"],
                         entry["mapped_reactants"],
                         allowed_methods=policy.allowed_methods,
+                        require_node_energies=require_node_energies,
                     )
                 ),
                 method_policy=policy,
@@ -466,6 +472,7 @@ def parse_hard_md(src: Path, only: set[str] | None = None) -> list[TaskSpec]:
                 ),
                 rubric=RubricSpec(
                     graph_similarity=GraphSimilarityRubric(stereo_tier_rule="hard_stereo_costly"),
+                    integrity=IntegrityRubric(require_node_energies=require_node_energies),
                     accuracy=accuracy,
                 ),
             )

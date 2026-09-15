@@ -109,7 +109,8 @@
       "evidence_match": "smiles_annotation",
       "match_threshold": 0.2,
       "protonation_partial_quality": 0.7,
-      "no_evidence_penalty": 1.0
+      "no_evidence_penalty": 1.0,
+      "require_node_energies": false
     },
     "self_consistency": {
       "ts_first_order_saddle": true,

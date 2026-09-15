@@ -845,14 +845,14 @@ def test_integrity_audit_binds_evidence(tmp_path):
     (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
     (tmp_path / "r.log").write_text("smiles: C=CC=C\nsmiles: C=C\n")
     (tmp_path / "p.log").write_text("smiles: C1CC=CCC1\n")
-    rep = audit_integrity(tmp_path)
+    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
     assert rep.graph_found and rep.graph_parseable
     assert rep.fraction_bound == 1.0
     assert rep.passed
 
 
 def test_integrity_missing_graph_fails(tmp_path):
-    rep = audit_integrity(tmp_path)
+    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
     assert not rep.graph_found
     assert not rep.passed
 
@@ -871,14 +871,14 @@ def test_integrity_ts_bound_via_endpoints(tmp_path):
         json.dumps({"nodes": base_nodes, "edges": [edge]})
     )
     (tmp_path / "r.log").write_text("smiles: C=CC=C\nsmiles: C=C\n")
-    rep = audit_integrity(tmp_path)
+    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
     matched = {b.node_id: b.matched for b in rep.node_bindings}
     assert matched == {"R": True, "TS": False, "P": False}
     assert not rep.passed
 
     # 两端证据补齐后 TS 经端点间接绑定
     (tmp_path / "p.log").write_text("smiles: C1CC=CCC1\n")
-    rep = audit_integrity(tmp_path)
+    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
     matched = {b.node_id: b.matched for b in rep.node_bindings}
     assert matched == {"R": True, "TS": True, "P": True}
     assert rep.passed
@@ -889,7 +889,7 @@ def test_integrity_ts_bound_via_endpoints(tmp_path):
         "edges": [{"id": "E1", "from": "R", "to": "P", "via": None}],
     }
     (tmp_path / "mechanism_graph.json").write_text(json.dumps(orphan))
-    rep = audit_integrity(tmp_path)
+    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
     matched = {b.node_id: b.matched for b in rep.node_bindings}
     assert matched["TS"] is False
     assert not rep.passed
@@ -908,7 +908,7 @@ def test_integrity_evidence_smiles_tolerant_formats(tmp_path):
     (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
     (tmp_path / "r.log").write_text('title\n{"smiles": "C=CC=C"}\n# smiles: C=C\n')
     (tmp_path / "p.log").write_text("smiles: 'C1CC=CCC1'\n")
-    rep = audit_integrity(tmp_path)
+    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
     assert rep.passed, rep.notes
 
 
@@ -925,7 +925,7 @@ def test_integrity_evidence_bracket_smiles_not_truncated(tmp_path):
     (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
     (tmp_path / "r.gjf").write_text("# title\nsmiles: [F-]\nsmiles: CCl\n")
     (tmp_path / "p_summary.json").write_text(json.dumps({"smiles": ["CF", "[Cl-]"]}))
-    rep = audit_integrity(tmp_path)
+    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
     assert rep.passed, rep.notes
 
 
@@ -940,7 +940,7 @@ def test_integrity_empty_smiles_species_not_bound(tmp_path):
     }
     (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
     (tmp_path / "p.log").write_text("smiles: C1CC=CCC1\n")
-    rep = audit_integrity(tmp_path)
+    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
     matched = {b.node_id: b.matched for b in rep.node_bindings}
     assert matched["R"] is False
     assert not rep.passed
@@ -958,7 +958,7 @@ def test_integrity_delivered_graph_lenient_loading(tmp_path):
     }
     (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
     (tmp_path / "r.log").write_text("smiles: CC\n")
-    rep = audit_integrity(tmp_path)
+    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
     assert rep.graph_parseable
     assert rep.delivered_graph is not None
     assert rep.delivered_graph.edges[0].id  # 缺省 id 已自动补
@@ -979,7 +979,7 @@ def test_integrity_delivered_graph_postel_aliases(tmp_path):
         ],
     }
     (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
-    rep = audit_integrity(tmp_path)
+    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
     assert rep.graph_parseable, rep.notes
     assert rep.delivered_graph is not None
     nodes = {n.id: n for n in rep.delivered_graph.nodes}
@@ -1005,7 +1005,7 @@ def test_integrity_delivered_graph_free_text_role_falls_back_to_type(tmp_path):
         "edges": [{"id": "E1", "from": "R", "to": "P", "via": "TS"}],
     }
     (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
-    rep = audit_integrity(tmp_path)
+    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
     assert rep.graph_parseable, rep.notes
     assert rep.delivered_graph is not None
     nodes = {n.id: n for n in rep.delivered_graph.nodes}
@@ -1026,7 +1026,7 @@ def test_integrity_delivered_graph_unknown_node_type_fails_loud(tmp_path):
         "edges": [],
     }
     (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
-    rep = audit_integrity(tmp_path)
+    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
     assert not rep.graph_parseable
     assert "present but not parseable" in rep.notes[0]
 
@@ -1044,13 +1044,51 @@ def test_integrity_fallback_graph_cannot_self_bind(tmp_path):
     sub = tmp_path / "sub"
     sub.mkdir()
     (sub / "my_graph.json").write_text(json.dumps(g))
-    rep = audit_integrity(tmp_path)
+    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
     assert rep.graph_found and rep.graph_parseable
     assert rep.graph_path == "sub/my_graph.json"
     assert rep.evidence_files == []  # 交付图自身被排除出证据扫描
     assert rep.fraction_bound == 0.0
     assert not rep.passed
 
+
+
+def _no_node_energy_rubric():
+    """聚焦绑定/加载行为的单测用的 integrity rubric：这些合成沙箱不声明节点
+    能量，节点能量强制项另有专门用例覆盖。"""
+    from cloudra.benchmark.schema import IntegrityRubric
+
+    return IntegrityRubric(require_node_energies=False)
+
+
+
+def test_integrity_requires_node_energy_declarations(tmp_path):
+    """能垒评分题：每个 accessible 节点必须声明 properties.energy_hartree +
+    properties.evidence_log；缺失 → integrity 不通过并列出问题节点；补齐 → 通过。"""
+    def _write_graph(properties: dict | None) -> None:
+        node = {"id": "R", "role": "reactant", "smiles": ["O"], "accessible": True}
+        if properties is not None:
+            node["properties"] = properties
+        (tmp_path / "mechanism_graph.json").write_text(
+            json.dumps({"nodes": [node]}), encoding="utf-8"
+        )
+
+    (tmp_path / "r.log").write_text("gaussian log\nsmiles: O\n", encoding="utf-8")
+
+    _write_graph(None)
+    rep = audit_integrity(tmp_path)
+    assert not rep.passed
+    assert any(
+        "node energy declarations missing" in n and "R: properties.energy_hartree" in n
+        for n in rep.notes
+    ), rep.notes
+    # 只写能量、缺证据路径同样不过
+    _write_graph({"energy_hartree": -76.4})
+    assert not audit_integrity(tmp_path).passed
+
+    _write_graph({"energy_hartree": -76.4, "evidence_log": "r.log"})
+    rep_ok = audit_integrity(tmp_path)
+    assert rep_ok.passed, rep_ok.notes
 
 # --- self-consistency ---
 
@@ -2051,11 +2089,13 @@ def test_integrity_report_binding_quality_and_runner_multiplier(tmp_path):
     (tmp_path / "rc.log").write_text("gaussian log\n# smiles: O\n")
     (tmp_path / "pc.log").write_text("gaussian log\n# smiles: CC(=O)O\n")
 
-    rep = audit_integrity(tmp_path)
+    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
     assert rep.passed
     assert rep.fraction_bound == 1.0
     assert rep.binding_quality == pytest.approx((0.7 + 0.85 + 0.7) / 3)
     assert any("partial-credit" in n for n in rep.notes)
+
+    from cloudra.benchmark.schema import RubricSpec
 
     task = TaskSpec(
         task_id="PROTO_T",
@@ -2063,6 +2103,8 @@ def test_integrity_report_binding_quality_and_runner_multiplier(tmp_path):
         prompt=PromptSpec(query="q"),
         system=SystemSpec(reactants=["[OH3+]"]),
         gold=GoldSpec(mechanism_graph=graph),
+        # 本用例聚焦绑定质量；节点能量强制项由 require_node_energies 专项用例覆盖
+        rubric=RubricSpec(integrity=_no_node_energy_rubric()),
     )
     runner = BenchmarkRunner(tmp_path / "data")
     res = runner.score_sandbox(task, tmp_path)
@@ -2099,7 +2141,7 @@ def test_scan_excludes_graph_shaped_json_copies(tmp_path):
     (sub / "draft.json").write_text(payload)  # 改名拷贝
     files = scan_evidence_files(tmp_path, exclude=tmp_path / "mechanism_graph.json")
     assert files == []  # 拷贝被排除，没有任何证据文件
-    rep = audit_integrity(tmp_path)
+    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
     assert rep.fraction_bound == 0.0 and not rep.passed
 
 
@@ -2390,7 +2432,9 @@ def _evidence_task(**rubric_overrides):
             "rubric": task.rubric.model_copy(
                 update={
                     "integrity": IntegrityRubric(
-                        require_graph_json=True, require_evidence_files=True
+                        require_graph_json=True,
+                        require_evidence_files=True,
+                        require_node_energies=False,
                     ),
                     "self_consistency": sc,
                     "accuracy": AccuracyRubric(),
@@ -2536,7 +2580,7 @@ def test_input_and_graph_files_cannot_masquerade_as_evidence(tmp_path):
     assert "sub/my_graph.json" not in paths          # 图 JSON 不得自我绑定
     assert "input.gjf" in paths                      # 输入文件在扫描范围内……
     # ……但手写输入文件不带 smiles 注释、绑不上图节点，物理自检判未覆盖
-    integ = audit_integrity(sandbox)
+    integ = audit_integrity(sandbox, _no_node_energy_rubric())
     report = audit_self_consistency(
         integ.delivered_graph, integ.node_bindings, files, sandbox
     )
@@ -2563,7 +2607,7 @@ def test_xyz_smiles_annotation_second_line_binds(tmp_path):
     (ok_sandbox / "r.xyz").write_text(
         "3\nsmiles: O\nO 0.0 0.0 0.1173\nH 0.0 0.7572 -0.4692\nH 0.0 -0.7572 -0.4692\n"
     )
-    ok = audit_integrity(ok_sandbox)
+    ok = audit_integrity(ok_sandbox, _no_node_energy_rubric())
     assert ok.fraction_bound == 1.0, ok.notes
     assert ok.passed
 
@@ -2573,7 +2617,7 @@ def test_xyz_smiles_annotation_second_line_binds(tmp_path):
     (missing_sandbox / "r.xyz").write_text(
         "3\nwater\nO 0.0 0.0 0.1173\nH 0.0 0.7572 -0.4692\nH 0.0 -0.7572 -0.4692\n"
     )
-    missing = audit_integrity(missing_sandbox)
+    missing = audit_integrity(missing_sandbox, _no_node_energy_rubric())
     assert missing.fraction_bound == 0.0, missing.notes
     assert missing.passed is False
 
