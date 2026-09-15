@@ -142,3 +142,4 @@ frontend/*.zmat
 
 # 一次性实验/运行残留（从根目录归拢）
 /archive/
+cloudra.md
