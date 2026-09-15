@@ -18,9 +18,9 @@ Cloudra provides 8 specialized sub-agent roles (registered as `a-1` through `a-8
 | **a-1** | `explorer` | Read-only file discovery, codebase grepping, workspace mapping | Quick reconnaissance, locating log files, scanning directory trees |
 | **a-2** | `writer` | Writing/editing documents, formatting reports, Markdown | Drafting research reports, formatting summaries, organizing SI text |
 | **a-3** | `researcher` | Deep literature search (`search` with `source=openalex`/`arxiv`, `read`) | Paper retrieval, DOI extraction, surveying methodology, SI data lookup |
-| **a-4** | `small_mol` | Molecular processing, SMILES/3D generation, RDKit, conformer search | Ligand preparation, atom mapping, stereoisomer enumeration |
+| **a-4** | `small_mol` | Molecular/cluster QM (Gaussian, ORCA): conformers, TS, reaction mechanisms, spectra | Ligand preparation, atom mapping, TS search, IRC verification, barrier calculations |
 | **a-5** | `md` | Molecular dynamics setup, OpenMM, GROMACS, trajectory parsing | System solvation, topology generation, equilibration, MM-GBSA |
-| **a-6** | `dft` | Quantum chemistry calculations, Gaussian/ORCA/VASP/CP2K inputs | Submitting compute jobs, TS search, IRC verification, frequency parsing |
+| **a-6** | `dft` | Periodic first-principles (VASP, CP2K): bulk, surfaces, interfaces, defects | Submitting periodic compute jobs, band structure, adsorption energies |
 | **a-7** | `experiment` | Wet-lab protocols, synthetic routes, reagents, reaction safety | Designing experimental procedures, screening reagents, yield optimization |
 | **a-8** | `env` | Environment inspection, shell commands, dependency installation | Checking CLI binaries (`xtb`, `crest`, `vina`), setting environment paths |
 
@@ -54,14 +54,16 @@ When delegating complex tasks, structure the prompt using the **S.C.A.R.F.** fra
   *(e.g., "You are a specialized DFT sub-agent (dft). Focus strictly on setting up the Gaussian input for transition state TS1; do not perform literature searches.")*
 - **(C) Context & Established Facts**: Provide verified ground truth (molecular SMILES, working directory, previous calculation energies) so the sub-agent does not re-compute or guess.
   *(e.g., "The reactant complex energy is -450.2134 Hartree. The optimized coordinates are stored at /abs/path/to/reactant.xyz.")*
-- **(A) Actionable Atomic Goal**: Define unambiguous, verifiable goals.
-  *(e.g., "1. Run IDPP interpolation between reactant and product. 2. Prepare Gaussian input with opt=(ts,noeigen,calcfc). 3. Submit via submit_compute_job.")*
+- **(A) Actionable Atomic Goal**: Define unambiguous, verifiable goals as objectives with acceptance criteria.
+  *(e.g., "Locate the TS for step R→P and verify it: exactly one imaginary frequency whose mode matches the target bond rearrangement, and IRC connectivity back to the declared endpoints.")*
 - **(R) Restrictions & Workspace Isolation**:
   - **Absolute file paths**: Always specify absolute paths (e.g. `/home/user/project/.cloudra/tasks/<uuid>/output.log`).
   - **Isolated output directory**: Each async task must write to a unique path (`task_<uuid>/`) to prevent dirty writes and race conditions.
   - **Log size guardrails**: Forbid dumping raw logs ($> 500$ lines) into conversation context; require parsing tools (`log_parser`).
 - **(F) Format Contract**: Specify exact return schema (Markdown table, JSON, or key metrics).
   *(e.g., "Return: | Conformers | Final Energy (kcal/mol) | Imaginary Freq (cm^-1) |")*
+
+**S.C.A.R.F. defines goals and contracts, not tool whitelists.** Never enumerate the tools a specialist "may use" or prescribe a step-by-step method chain in the assignment — each role's prompt and mandatory skill already define its SOP, and a caller-supplied recipe silently overrides it (e.g. TS searches default to the durable `ts_prepare`/`ts_resume` process; a hand-written scan→OptTS chain demotes it to a manual run). Scope red lines ("do not do X") are for out-of-domain work, not for restricting in-domain tool choice.
 
 ---
 
