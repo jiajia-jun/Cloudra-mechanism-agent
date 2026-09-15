@@ -87,19 +87,24 @@ TASKS = {
         "name_en": "imine formation: formaldehyde + methylamine -> N-methylmethanimine + water",
         "conditions_en": "optimal around pH 4-6 (bell-shaped rate profile)",
         "mapped_reactants": "[CH2:1]=[O:2].[CH3:4][N:3]([H:5])([H:6])",
+        # barrier 为就地计算值（沙箱 delivery batch_4aa4cce4691d4a9f，B3LYP/def2-SVP
+        # 气相、ΔE‡ 相对该步起点极小值）：E1 = E(TS1 calc-314) − E(RC calc-304)
+        # = 29.33；E2 = E(TS4b calc-321) − E(CA_ep calc-323) = 58.22。两处均经
+        # 频率（恰 1 虚频）与 IRC 双侧验证。方法未加 D3(BJ)（早于色散口径决策），
+        # 如需与方法标准完全对齐，可重跑 RC/CA_ep/P + TS1/TS4 五项（约 1-2 小时）。
         "steps": [
             {
                 # 加成 + 分子内 PT 并入：成 C1-N3，断 C1=O2 pi、断 N3-H5、成 O2-H5 → 羟胺 HOCH2NHMe
                 "out": "[O:2]([H:5])[CH2:1][N:3]([H:6])[CH3:4]",
                 "type": "amine addition to the carbonyl with merged intramolecular N-H -> O-H proton transfer -> carbinolamine (capturable)",
-                "barrier": 3.5,
+                "barrier": 29.33,
                 "weight": 0.5,
             },
             {
                 # 直接脱水：断 C1-O2、断 N3-H6，成 C1=N3 pi、成 O2-H6 → 亚胺 + 水
                 "out": "[O:2]([H:5])([H:6]).[CH2:1]=[N:3][CH3:4]",
                 "type": "direct dehydration of the carbinolamine: C-O cleavage with the second N-H transferring to the departing oxygen -> N-methylmethanimine + water",
-                "barrier": 26.7,
+                "barrier": 58.22,
                 "weight": 0.5,
             },
         ],

@@ -122,7 +122,7 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": 3.5,
+          "barrier_kcal_mol": 29.33,
           "weight": 0.5,
           "channel": null,
           "favored": null
@@ -156,7 +156,7 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": 26.7,
+          "barrier_kcal_mol": 58.22,
           "weight": 0.5,
           "channel": null,
           "favored": null

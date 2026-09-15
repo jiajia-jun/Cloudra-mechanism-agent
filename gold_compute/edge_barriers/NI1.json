@@ -3,25 +3,25 @@
   "edges": [
     {
       "edge_id": "NI1_E1",
-      "barrier_kcal_mol": 3.5,
+      "barrier_kcal_mol": 29.33,
       "barrier_type": "dE-ddagger",
       "frame": "central_complex",
-      "source": "Hall & Smith 1998 J. Phys. Chem. A 102, 4930",
-      "doi": "10.1021/jp9810825",
-      "verification": "partial",
-      "method": "G2(MP2,SVP), two explicit waters",
-      "note": "14.7 kJ/mol for carbinolamine formation above the amine+formaldehyde+2H2O complex"
+      "source": "computed in-sandbox (delivery batch_4aa4cce4691d4a9f); TS1 = calc-314, base RC = calc-304",
+      "doi": "",
+      "verification": "computed",
+      "method": "B3LYP/def2-SVP, gas phase (no D3(BJ); predates the dispersion convention)",
+      "note": "E(TS1) - E(RC) = -210.037538694448 - (-210.084274556558) Ha = 29.33 kcal/mol; 1 imaginary mode; IRC calc-320 both directions re-optimized to minima"
     },
     {
       "edge_id": "NI1_E2",
-      "barrier_kcal_mol": 26.7,
+      "barrier_kcal_mol": 58.22,
       "barrier_type": "dE-ddagger",
       "frame": "central_complex",
-      "source": "Hall & Smith 1998 J. Phys. Chem. A 102, 4930",
-      "doi": "10.1021/jp9810825",
-      "verification": "partial",
-      "method": "G2(MP2,SVP), two explicit waters",
-      "note": "111.9 kJ/mol dehydration of carbinolamine (RDS); acid-catalysed variant 16.2"
+      "source": "computed in-sandbox (delivery batch_4aa4cce4691d4a9f); TS4b = calc-321, base CA_ep = calc-323",
+      "doi": "",
+      "verification": "computed",
+      "method": "B3LYP/def2-SVP, gas phase (no D3(BJ); predates the dispersion convention)",
+      "note": "E(TS4b) - E(CA_ep) = -210.010156025520 - (-210.102929627829) Ha = 58.22 kcal/mol (RDS); 1 imaginary mode; IRC calc-322 both directions re-optimized to minima; literature G2(MP2,SVP) two-water value 26.7 is a different model chemistry"
     }
   ]
 }
