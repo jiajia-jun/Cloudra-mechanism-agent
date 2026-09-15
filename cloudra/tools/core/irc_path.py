@@ -56,6 +56,11 @@ COVALENT_RADII = {
     'Sb': 1.39, 'Te': 1.38, 'I': 1.39, 'Xe': 1.40,
 }
 
+#: 距离连通判据的容差系数（唯一来源）：r ≤ factor × 共价半径和 判为成键。
+#: internal_coordinates / electronic_analysis / topology_change 的距离判据与
+#: ts_guess 的弱接触分级全部引用此常量，避免同一分子在不同模块得到不同成键结论。
+DISTANCE_CONNECTIVITY_FACTOR = 1.25
+
 _ATOMIC_NUMBER = {
     'H': 1, 'He': 2, 'Li': 3, 'Be': 4, 'B': 5, 'C': 6, 'N': 7, 'O': 8, 'F': 9, 'Ne': 10,
     'Na': 11, 'Mg': 12, 'Al': 13, 'Si': 14, 'P': 15, 'S': 16, 'Cl': 17, 'Ar': 18,
@@ -131,7 +136,7 @@ def dist_matrix(coords):
 _ALIGN_MAX_RMSD_ANG = 1.0
 
 
-def bond_pairs_from_dist(symbols, d, scale: float = 1.25) -> set[tuple[int, int]]:
+def bond_pairs_from_dist(symbols, d, scale: float = DISTANCE_CONNECTIVITY_FACTOR) -> set[tuple[int, int]]:
     """距离矩阵版共价半径成键判据（0-based，i<j；与 bond_pairs 同一阈值）。"""
     n = len(symbols)
     pairs: set[tuple[int, int]] = set()
@@ -144,7 +149,7 @@ def bond_pairs_from_dist(symbols, d, scale: float = 1.25) -> set[tuple[int, int]
     return pairs
 
 
-def bond_pairs(symbols, positions, scale: float = 1.25) -> set[tuple[int, int]]:
+def bond_pairs(symbols, positions, scale: float = DISTANCE_CONNECTIVITY_FACTOR) -> set[tuple[int, int]]:
     """共价半径距离判据成键对集合（0-based，i<j）。"""
     return bond_pairs_from_dist(symbols, dist_matrix(positions), scale)
 
@@ -428,7 +433,7 @@ def evaluate_endpoint_between(symbols: Sequence[str], ts_pos, end_pos,
     for k, pair in enumerate(pairs):
         if inside[k]:
             continue
-        weak_at_intermediate = float(q_int[k]) > 1.25 * (
+        weak_at_intermediate = float(q_int[k]) > DISTANCE_CONNECTIVITY_FACTOR * (
             COVALENT_RADII.get(symbols[pair[0]], 1.2)
             + COVALENT_RADII.get(symbols[pair[1]], 1.2)
         )

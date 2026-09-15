@@ -32,6 +32,9 @@ from cloudra.tools.core.irc_path import (
     COVALENT_RADII as _COVALENT_RADII,
 )
 from cloudra.tools.core.irc_path import (
+    DISTANCE_CONNECTIVITY_FACTOR as _DISTANCE_CONNECTIVITY_FACTOR,
+)
+from cloudra.tools.core.irc_path import (
     align_atom_order as _align_atom_order,
 )
 from cloudra.tools.core.irc_path import (
@@ -2101,7 +2104,7 @@ class TsGuess(Tool):
         - None：未提供预期结构，只报告成键表（不判连通性）；
         - "inconclusive"：端点或预期结构的原子序/元素不一致，连通性不可判
           （绝不静默跳过成 candidate）；
-        - 键集差异按**预期结构侧**距离分级：超出 1.25×共价半径和的弱接触
+        - 键集差异按**预期结构侧**距离分级：超出 DISTANCE_CONNECTIVITY_FACTOR×共价半径和的弱接触
           （氢键/非键接触）差异只记 warning 不判负；共价差异判负。
         """
         import ase.io
@@ -2160,7 +2163,7 @@ class TsGuess(Tool):
             weak: list[tuple[int, int]] = []
             pos = exp_pos[exp_name]
             for pair in sorted(set(end_bonds) ^ set(exp_bonds)):
-                limit = 1.25 * (
+                limit = _DISTANCE_CONNECTIVITY_FACTOR * (
                     _COVALENT_RADII.get(syms[pair[0]], 1.2)
                     + _COVALENT_RADII.get(syms[pair[1]], 1.2)
                 )

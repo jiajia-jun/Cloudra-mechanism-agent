@@ -19,7 +19,12 @@ from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.fs_utils import atomic_write_text
 from cloudra.persistence.workspace import resolve_tool_path
 from cloudra.tools.core.geometry import rotate_about_axis, rotation_matrix_between
-from cloudra.tools.core.irc_path import COVALENT_RADII as _COVALENT_RADII
+from cloudra.tools.core.irc_path import (
+    COVALENT_RADII as _COVALENT_RADII,
+)
+from cloudra.tools.core.irc_path import (
+    DISTANCE_CONNECTIVITY_FACTOR as DISTANCE_CONNECTIVITY_FACTOR,
+)
 
 try:
     from rdkit import Chem
@@ -257,10 +262,9 @@ def _expected_bond_length(sym_i: str, sym_j: str) -> float:
 
 
 #: 距离判据的默认容差系数：r ≤ factor × 共价半径和 判为成键。
-#: 这是本模块既有的判据（原先内嵌在 InternalCoordinates._distance_connectivity 里），
-#: 抽成模块级公开原语是为了让拓扑变更报告（crest_runner）复用**同一套**判据，
-#: 而不是各写一份阈值。
-DISTANCE_CONNECTIVITY_FACTOR = 1.25
+#: 唯一来源在 cloudra.tools.core.irc_path（顶部导入）——拓扑变更报告
+#: （crest_runner）、电子结构分析（electronic_analysis）与 TS 弱接触分级
+#: 共用同一阈值，不再各写一份。
 
 
 def distance_connectivity(symbols, positions,
