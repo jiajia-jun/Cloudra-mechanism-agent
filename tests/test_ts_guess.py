@@ -2018,6 +2018,31 @@ async def test_verify_strict_nonbonded_dominant_mode_is_inconclusive(tmp_path, m
     assert any("NON-BONDED" in c for c in result.checks)
 
 
+@pytest.mark.asyncio
+async def test_verify_non_strict_nonbonded_dominant_mode_is_undecidable(tmp_path, mock_session):
+    """默认档：非键对主导的虚频模式不再回 imag_mode_aligned=False（不再暗示方向不符），
+    只把 undecidable 记进 checks；建议语义仍是 candidate。"""
+    tool = _make_tool()
+    freq_log = tmp_path / "ts_freq_nonbonded_mode.log"
+    freq_log.write_text(_TS_FREQ_NONBONDED_MODE)
+
+    result = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "verify",
+        "freq_log": str(freq_log),
+        "irc_log": str(IRC_LOG),
+        "reactant_text": _HCN_XYZ,
+        "product_text": _HNC_XYZ,
+        "watch_pairs": [[1, 2]],
+        "output_dir": str(tmp_path / "non_strict_nonbonded"),
+    }), mock_session)
+
+    assert result.is_success, result.message
+    assert result.verdict.startswith("candidate")
+    assert result.imag_mode_aligned is None
+    assert any("NON-BONDED" in c for c in result.checks)
+    assert any("connectivity is consistent" in c for c in result.checks)
+
+
 # ---------------------------------------------------------------------------
 # 默认档 IRC 连通性：perceive_bonds 键感知 + 弱接触分级 + 不可判显式化
 # ---------------------------------------------------------------------------
@@ -2095,6 +2120,45 @@ def test_check_irc_connectivity_covalent_difference_still_fails():
     )
     assert verdict is False, checks
     assert any("covalent" in c and "inconsistent" in c for c in checks)
+
+
+def test_check_irc_connectivity_endpoint_order_mismatch_is_inconclusive():
+    """两端点帧的原子序/元素不一致：连通性不可判（不拿 A 的元素配 B 的坐标硬算键）。"""
+    checks: list[str] = []
+    verdict = TsGuess._check_irc_connectivity(
+        _connectivity_input(_WATER_A, _WATER_A),
+        _frame(_WATER_A),
+        _frame("3\nendpoint B\nH  0.96  0.00  0.00\nO  0.00  0.00  0.00\nH -0.24  0.93  0.00\n"),
+        checks,
+    )
+    assert verdict == "inconclusive", checks
+    assert any("undecidable" in c for c in checks)
+
+
+def test_check_irc_connectivity_uses_perceive_bonds_channel(monkeypatch):
+    """端点/预期结构的键图来自 perceive_bonds（rdDetermineBonds 主通道），不是共价半径距离判据。
+
+    注入一张把 3.0 Å 的 O-H 也报成键的键图（距离判据绝不可能给出）时，判定必须
+    跟着感知通道走；同一几何退回距离判据（感知通道不可用）时结论相反——证明这条
+    通路消费的是 perceive_bonds，而不是 bond_pairs_from_dist。
+    """
+    from cloudra.tools.core import irc_path
+
+    monkeypatch.setattr(irc_path, "_rdkit_bonds", lambda *a: {(0, 1): 1.0, (0, 2): 1.0})
+    checks: list[str] = []
+    verdict = TsGuess._check_irc_connectivity(
+        _connectivity_input(_WATER_A, _WATER_A),
+        _frame(_WATER_B_DISSOCIATED), _frame(_WATER_B_DISSOCIATED), checks,
+    )
+    assert verdict is True, checks
+
+    monkeypatch.setattr(irc_path, "_rdkit_bonds", lambda *a: None)
+    checks = []
+    verdict = TsGuess._check_irc_connectivity(
+        _connectivity_input(_WATER_A, _WATER_A),
+        _frame(_WATER_B_DISSOCIATED), _frame(_WATER_B_DISSOCIATED), checks,
+    )
+    assert verdict is False, checks
 
 
 @pytest.mark.asyncio

@@ -1,5 +1,8 @@
 """complex_assembly：平移方向、解离判据、无约束能量重估、重原子聚类、取向采样。"""
 
+import json
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -17,6 +20,7 @@ from cloudra.tools.core.complex_assembly import (  # noqa: E402
     assemble,
     combine_components,
 )
+from cloudra.tools.core.structure_artifacts import read_trajectory  # noqa: E402
 
 
 def _embedded_mol(smiles: str, seed: int = 42):
@@ -137,6 +141,56 @@ def test_unreleased_candidate_energy_is_unconstrained_single_point(tmp_path, mon
         assert candidate.constraint_released is False
         assert candidate.energy_kcal != penalty_energy, "约束惩罚能量不得进入候选排序"
         assert candidate.energy_kcal < 100.0
+
+
+def test_real_relaxation_reports_the_unconstrained_single_point_not_the_penalty(tmp_path):
+    """端到端（真实力场，无 mock）：约束保持时交付能量必须是无约束单点，不是轨迹终态能量。
+
+    反应中心取水分子内的 O-H 对（0-1）：窗口 1.8–2.6 Å 对共价键不可达（O-H 伸缩力常数远大于
+    约束的 k=100），因此每个放置的约束全程激活、轨迹终态能量含真实惩罚项——正是旧实现直接拿
+    去排序的那种能量。这里从**交付的 .xyz 几何**独立重算无约束 MMFF94 单点，要求与候选能量一致，
+    并确认轨迹终态能量（含惩罚）与候选能量相差一个明显的惩罚项。
+    """
+    components = [(_embedded_mol("O"), 0), (_embedded_mol("C"), 0)]
+    result = assemble(
+        components=components, output_dir=str(tmp_path),
+        reaction_center=[(0, 1)],  # 水的 O-H 共价对：默认窗口对其不可达
+    )
+    assert result.status == "ok"
+    assert result.collapsed_after_relaxation == 0
+    assert result.dissociated_after_relaxation == 0
+    assert result.optimized_placements == result.parameters.reaction_center_candidates
+
+    manifest = json.loads(Path(result.trajectory_manifest_path).read_text(encoding="utf-8"))
+    records = [read_trajectory(entry["json_path"]) for entry in manifest["trajectories"]]
+    assert len(records) == result.optimized_placements
+    penalized = [record.final_frame.energy for record in records]
+    assert all(record.status == "converged" for record in records)
+
+    candidate = result.candidates[0]
+    assert candidate.constraint_released is False
+    assert any("unconstrained MMFF94 single point" in d for d in result.diagnostics)
+
+    lines = Path(candidate.xyz_path).read_text(encoding="utf-8").splitlines()
+    atom_count = int(lines[0])
+    symbols = [line.split()[0] for line in lines[2:2 + atom_count]]
+    positions = [[float(v) for v in line.split()[1:4]] for line in lines[2:2 + atom_count]]
+    mol = combine_components(components)
+    assert symbols == [atom.GetSymbol() for atom in mol.GetAtoms()]
+    conf = mol.GetConformer()
+    for index, (x, y, z) in enumerate(positions):
+        conf.SetAtomPosition(index, (x, y, z))
+    props = AllChem.MMFFGetMoleculeProperties(mol, mmffVariant="MMFF94")
+    ff = AllChem.MMFFGetMoleculeForceField(
+        mol, props, confId=conf.GetId(), ignoreInterfragInteractions=False,
+    )
+    ff.Initialize()
+    assert ff.CalcEnergy() == pytest.approx(candidate.energy_kcal, abs=1e-3), (
+        "候选能量必须就是交付几何上的无约束 MMFF94 单点"
+    )
+    assert min(penalized) - candidate.energy_kcal > 1.0, (
+        "轨迹终态能量含约束惩罚项，旧实现直接拿它排序；两者必须相差一个可观测的惩罚量"
+    )
 
 
 # ---------------------------------------------------------------------------
