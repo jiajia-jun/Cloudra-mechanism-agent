@@ -119,7 +119,7 @@ def test_accuracy_reference_edge_without_evidence_scored_zero():
     )
     rep = score_accuracy(evidence=BarrierEvidence(), gold=gold, rubric=AccuracyRubric())
     assert rep.final_score == 0.0
-    assert any("no matching step" in n for n in rep.notes)
+    assert any("no delivered step matches its endpoint species" in n for n in rep.notes)
 
 
 # --- accuracy：性质锚点 ---

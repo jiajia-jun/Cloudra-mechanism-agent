@@ -381,21 +381,45 @@ def _evidence(steps):
 
 
 def _gold_edges(spec):
-    """spec: list of (edge_id, barrier_kcal_mol, weight) -> GoldSpec（gold 参考边）。"""
+    """spec: list of (edge_id, barrier_kcal_mol, weight) -> GoldSpec（gold 参考边）。
+    逐边链式端点（A→B→C…，物种可区分），避免物种匹配下两端点全等的歧义。"""
 
+    chain = ["C", "CC", "CCC", "CCCC", "CCCCC", "CCCCCC"]
+    nodes = [
+        MechanismNode(id=f"N{i}", role=NodeRole.INTERMEDIATE, smiles=[chain[i]])
+        for i in range(len(spec) + 1)
+    ]
+    nodes[0] = MechanismNode(id="N0", role=NodeRole.REACTANT, smiles=[chain[0]])
+    nodes[-1] = MechanismNode(
+        id=f"N{len(spec)}", role=NodeRole.PRODUCT, smiles=[chain[len(spec)]]
+    )
     return GoldSpec(
         mechanism_graph=GoldMechanismGraph(
-            nodes=[MechanismNode(id="R", role=NodeRole.REACTANT, smiles=["C"])],
+            nodes=nodes,
             edges=[
                 MechanismEdge(
                     id=edge_id,
-                    **{"from": "R", "to": "R"},
+                    **{"from": f"N{i}", "to": f"N{i + 1}"},
                     barrier_kcal_mol=barrier,
                     weight=weight,
                 )
-                for edge_id, barrier, weight in spec
+                for i, (edge_id, barrier, weight) in enumerate(spec)
             ],
         )
+    )
+
+
+def _delivered_for_gold(gold: GoldSpec, edge_ids: list[str]) -> GoldMechanismGraph:
+    """与 gold 同物种节点、端点接线相同但以交付 edge id 命名的交付图
+    （accuracy 按物种对应匹配，gold/交付 edge id 不需要一致）。"""
+    g = gold.mechanism_graph
+    by_id = {e.id: e for e in g.edges}
+    return GoldMechanismGraph(
+        nodes=list(g.nodes),
+        edges=[
+            MechanismEdge(id=eid, **{"from": by_id[eid].from_node, "to": by_id[eid].to_node})
+            for eid in edge_ids
+        ],
     )
 
 
@@ -403,28 +427,95 @@ def test_accuracy_per_edge_requires_both_sources_and_agreement():
     """逐边双来源门禁：log 推算值与交付 JSON 声明值都必须存在且一致，缺一该边即 0。"""
     gold = _gold_edges([("E1", 27.5, 1.0)])
     r = AccuracyRubric(sigma_kcal_mol=3.0, max_penalty_fraction=0.3)
+    delivered = _delivered_for_gold(gold, ["E1"])
 
-    exact = score_accuracy(evidence=_evidence([("E1", 27.5, 27.5)]), gold=gold, rubric=r)
+    exact = score_accuracy(
+        evidence=_evidence([("E1", 27.5, 27.5)]), gold=gold, rubric=r,
+        delivered_graph=delivered,
+    )
     assert exact.gaussian_score == pytest.approx(1.0)
     assert exact.final_score == pytest.approx(1.0)
 
-    near = score_accuracy(evidence=_evidence([("E1", 28.0, 28.4)]), gold=gold, rubric=r)
+    near = score_accuracy(
+        evidence=_evidence([("E1", 28.0, 28.4)]), gold=gold, rubric=r,
+        delivered_graph=delivered,
+    )
     assert near.gaussian_score > 0.95
 
-    far = score_accuracy(evidence=_evidence([("E1", 100.0, 100.0)]), gold=gold, rubric=r)
+    far = score_accuracy(
+        evidence=_evidence([("E1", 100.0, 100.0)]), gold=gold, rubric=r,
+        delivered_graph=delivered,
+    )
     assert far.capped_penalty == pytest.approx(0.3)  # capped
     assert far.final_score == pytest.approx(0.7)
 
     from cloudra.benchmark.barrier_evidence import BarrierEvidence
 
     # gold 参考边找不到对应交付步 -> 该边 0 分（fail-loud）
-    assert score_accuracy(evidence=BarrierEvidence(), gold=gold, rubric=r).final_score == 0.0
-    undeclared = score_accuracy(evidence=_evidence([("E1", 27.5, None)]), gold=gold, rubric=r)
+    assert (
+        score_accuracy(
+            evidence=BarrierEvidence(), gold=gold, rubric=r, delivered_graph=delivered
+        ).final_score
+        == 0.0
+    )
+    undeclared = score_accuracy(
+        evidence=_evidence([("E1", 27.5, None)]), gold=gold, rubric=r,
+        delivered_graph=delivered,
+    )
     assert undeclared.final_score == 0.0
     assert any("declares no barrier_kcal_mol" in n for n in undeclared.notes), undeclared.notes
-    conflict = score_accuracy(evidence=_evidence([("E1", 27.5, 40.0)]), gold=gold, rubric=r)
+    conflict = score_accuracy(
+        evidence=_evidence([("E1", 27.5, 40.0)]), gold=gold, rubric=r,
+        delivered_graph=delivered,
+    )
     assert conflict.final_score == 0.0
     assert any("disagreement" in n for n in conflict.notes), conflict.notes
+
+
+def test_accuracy_matches_gold_edge_by_endpoint_species_not_edge_id():
+    """gold 边与交付步 edge id 不同（题库内部 id agent 不可知）时，按端点物种
+    对应匹配评分；端点物种不符则该边 fail-loud 记 0。"""
+    gold = GoldSpec(
+        mechanism_graph=GoldMechanismGraph(
+            nodes=[
+                MechanismNode(id="R", role=NodeRole.REACTANT, smiles=["C=O"]),
+                MechanismNode(id="P", role=NodeRole.PRODUCT, smiles=["CO"]),
+            ],
+            edges=[
+                MechanismEdge.model_validate(
+                    {"id": "GOLD_E1", "from": "R", "to": "P", "barrier_kcal_mol": 20.0}
+                )
+            ],
+        )
+    )
+    delivered = GoldMechanismGraph(
+        nodes=[
+            MechanismNode(id="RC", role=NodeRole.REACTANT, smiles=["C=O"]),
+            MechanismNode(id="PC", role=NodeRole.PRODUCT, smiles=["CO"]),
+        ],
+        edges=[MechanismEdge.model_validate({"id": "e7", "from": "RC", "to": "PC"})],
+    )
+    r = AccuracyRubric(sigma_kcal_mol=3.0, max_penalty_fraction=1.0)
+    rep = score_accuracy(
+        evidence=_evidence([("e7", 21.0, 21.0)]), gold=gold, rubric=r,
+        delivered_graph=delivered,
+    )
+    assert rep.gaussian_score > 0.9
+    assert any("matched delivered step e7 by endpoint species" in n for n in rep.notes)
+
+    # 端点物种不符 -> 找不到对应步
+    other = GoldMechanismGraph(
+        nodes=[
+            MechanismNode(id="X", role=NodeRole.REACTANT, smiles=["N#N"]),
+            MechanismNode(id="Y", role=NodeRole.PRODUCT, smiles=["O=O"]),
+        ],
+        edges=[MechanismEdge.model_validate({"id": "e7", "from": "X", "to": "Y"})],
+    )
+    rep2 = score_accuracy(
+        evidence=_evidence([("e7", 21.0, 21.0)]), gold=gold, rubric=r,
+        delivered_graph=other,
+    )
+    assert rep2.final_score == 0.0
 
 
 def test_accuracy_small_barrier_widens_sigma():
@@ -435,11 +526,17 @@ def test_accuracy_small_barrier_widens_sigma():
 
     gold = _gold_edges([("E1", 5.0, 1.0)])
     r = AccuracyRubric(sigma_kcal_mol=3.0, max_penalty_fraction=0.5)
-    rep = score_accuracy(evidence=_evidence([("E1", 2.01, 2.01)]), gold=gold, rubric=r)
+    rep = score_accuracy(
+        evidence=_evidence([("E1", 2.01, 2.01)]), gold=gold, rubric=r,
+        delivered_graph=_delivered_for_gold(gold, ["E1"]),
+    )
     assert rep.gaussian_score == pytest.approx(math.exp(-((2.99) ** 2) / (2 * 25.0)))
 
     big = _gold_edges([("E1", 27.5, 1.0)])
-    rep_big = score_accuracy(evidence=_evidence([("E1", 28.0, 28.4)]), gold=big, rubric=r)
+    rep_big = score_accuracy(
+        evidence=_evidence([("E1", 28.0, 28.4)]), gold=big, rubric=r,
+        delivered_graph=_delivered_for_gold(big, ["E1"]),
+    )
     assert rep_big.gaussian_score == pytest.approx(
         math.exp(-((28.0 - 27.5) ** 2) / (2 * 3.0 ** 2))
     )
@@ -452,7 +549,8 @@ def test_accuracy_weighted_average_uses_edge_weights():
     gold = _gold_edges([("E1", 10.0, 1.0), ("E2", 20.0, 0.5)])
     r = AccuracyRubric(sigma_kcal_mol=3.0, max_penalty_fraction=1.0)
     rep = score_accuracy(
-        evidence=_evidence([("E1", 10.0, 10.0), ("E2", 22.0, 22.0)]), gold=gold, rubric=r
+        evidence=_evidence([("E1", 10.0, 10.0), ("E2", 22.0, 22.0)]), gold=gold, rubric=r,
+        delivered_graph=_delivered_for_gold(gold, ["E1", "E2"]),
     )
     g1 = 1.0
     g2 = math.exp(-((22.0 - 20.0) ** 2) / (2 * 3.0 ** 2))
@@ -466,11 +564,12 @@ def test_accuracy_missing_reference_edge_fails_loud():
     gold = _gold_edges([("E1", 10.0, 1.0), ("E2", 20.0, 0.5)])
     r = AccuracyRubric(sigma_kcal_mol=3.0, max_penalty_fraction=1.0)
     rep = score_accuracy(
-        evidence=_evidence([("E1", 10.0, 10.0)]), gold=gold, rubric=r
+        evidence=_evidence([("E1", 10.0, 10.0)]), gold=gold, rubric=r,
+        delivered_graph=_delivered_for_gold(gold, ["E1"]),
     )
     assert rep.edge_scores["E2"] == 0.0
     assert rep.final_score == 0.0
-    assert any("no matching step" in n for n in rep.notes)
+    assert any("no delivered step matches its endpoint species" in n for n in rep.notes)
 
 
 def test_accuracy_no_reference_edge_not_scored():

@@ -199,12 +199,59 @@ def score_qualitative_selectivity(
     )
 
 
+def _find_matching_step(
+    gold_edge,
+    gold_nodes: dict,
+    steps: list,
+    delivered_graph: Optional[GoldMechanismGraph],
+    cfg,
+    match_threshold: float,
+):
+    """按**物种对应**找 gold 边的交付步（edge id 是题库内部约定，agent 不可知，
+    绝不参与匹配）：交付边的 from/to 端点物种与 gold 边**同向**端点分别匹配
+    （species_substitution_cost ≤ 阈值，与 Layer 1/graph GED 同口径；反向步
+    能垒口径不同不匹配）。多候选按 bond_changes 对称差最小、端点代价最小、
+    edge id 字典序取（确定性）。"""
+    from cloudra.benchmark.graph_similarity import species_substitution_cost
+
+    if delivered_graph is None:
+        return None
+    delivered_nodes = {n.id: n for n in delivered_graph.nodes}
+    delivered_edges = {e.id: e for e in delivered_graph.edges}
+    gold_from = gold_nodes.get(gold_edge.from_node)
+    gold_to = gold_nodes.get(gold_edge.to_node)
+    if gold_from is None or gold_to is None:
+        return None
+    gold_pairs = gold_edge.bond_changes.pairs()
+    candidates: list[tuple[int, float, str, object]] = []
+    for step in steps:
+        d_edge = delivered_edges.get(step.edge_id)
+        if d_edge is None:
+            continue
+        d_from = delivered_nodes.get(d_edge.from_node)
+        d_to = delivered_nodes.get(d_edge.to_node)
+        if d_from is None or d_to is None:
+            continue
+        cost_from = species_substitution_cost(gold_from.smiles, d_from.smiles, cfg)
+        cost_to = species_substitution_cost(gold_to.smiles, d_to.smiles, cfg)
+        if cost_from > match_threshold or cost_to > match_threshold:
+            continue
+        symdiff = len(gold_pairs ^ d_edge.bond_changes.pairs())
+        candidates.append((symdiff, cost_from + cost_to, step.edge_id, step))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: (item[0], item[1], item[2]))
+    return candidates[0][3]
+
+
 def score_accuracy(
     *,
     evidence: "BarrierEvidence",
     gold: GoldSpec,
     rubric: AccuracyRubric | None = None,
     delivered_graph: Optional[GoldMechanismGraph] = None,
+    cfg=None,
+    match_threshold: float = 0.2,
 ) -> AccuracyReport:
     """逐边核对（每条 gold 带参考值的边都要"声明得到日志支撑"），再逐边对
     gold 比、按 gold 边 weight 加权平均。gold.reference_properties 非空时走性质
@@ -236,7 +283,10 @@ def score_accuracy(
         return rep
 
     # --- 交付物双来源门禁：逐边核对（任一参考边缺失/不一致 -> 整题 fail-loud 记 0） ---
-    steps_by_edge = {step.edge_id: step for step in evidence.steps}
+    from cloudra.benchmark.graph_similarity import GedConfig
+
+    cfg = cfg or GedConfig()
+    gold_nodes = {n.id: n for n in gold.mechanism_graph.nodes}
     # 全零权重无法归一：退回逐边等权（避免除零；正常题库不出现）
     equal_fallback = sum(e.weight for e in ref_edges) <= 0
     if equal_fallback:
@@ -249,14 +299,21 @@ def score_accuracy(
     failures: list[str] = []
     weighted_sum = 0.0
     for edge in ref_edges:
-        step = steps_by_edge.get(edge.id)
+        step = _find_matching_step(
+            edge, gold_nodes, evidence.steps, delivered_graph, cfg, match_threshold
+        )
         if step is None:
             rep.edge_scores[edge.id] = 0.0
             failures.append(
-                f"gold edge {edge.id} carries a reference barrier but the delivered "
-                "logs yield no matching step"
+                f"gold edge {edge.id} carries a reference barrier but no delivered "
+                "step matches its endpoint species"
             )
             continue
+        if step.edge_id != edge.id:
+            rep.notes.append(
+                f"gold edge {edge.id} matched delivered step {step.edge_id} "
+                "by endpoint species"
+            )
         if step.declared_kcal_mol is None:
             rep.edge_scores[edge.id] = 0.0
             failures.append(

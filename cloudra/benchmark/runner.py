@@ -372,6 +372,8 @@ class BenchmarkRunner:
                 gold=task.gold,
                 rubric=task.rubric.accuracy,
                 delivered_graph=integ.delivered_graph,
+                cfg=ged_config,
+                match_threshold=task.rubric.integrity.match_threshold,
             )
             res.accuracy_score = acc.final_score
             res.notes.extend(acc.notes)

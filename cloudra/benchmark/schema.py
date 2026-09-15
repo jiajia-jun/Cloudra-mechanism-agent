@@ -107,8 +107,10 @@ class MechanismEdge(BaseModel):
 
     ``barrier_kcal_mol`` 逐边承载能垒（kcal/mol，相对该步起点最小值；easy 单步
     题即"相对反应物络合物"）：gold 侧 = 参考答案能垒，交付侧 = agent 声明的值。
-    评分不读最终消息散文：harness 从交付日志逐边推出能垒，逐条要求声明值与推算
-    值都存在且一致（复用 accuracy 容差），缺一或冲突的边 fail-loud 记 0 分。
+    评分不读最终消息散文：harness 从交付日志逐边推出能垒，gold 边与交付步
+    **按端点物种对应匹配**（gold 的 ``<任务>_E<n>`` 边 id 是题库内部约定、
+    agent 不可知，绝不参与匹配），逐条要求声明值与推算值都存在且一致
+    （复用 accuracy 容差），缺一或冲突的边 fail-loud 记 0 分。
 
     ``weight`` 是 gold 侧逐边评分权重（越难算准/越不可核实的边权重越小，逐边
     分数按此加权平均）；交付侧忽略。
