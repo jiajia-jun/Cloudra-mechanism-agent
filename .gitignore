@@ -143,3 +143,6 @@ frontend/*.zmat
 # 一次性实验/运行残留（从根目录归拢）
 /archive/
 cloudra.md
+
+# gold_compute 战役运行目录（append-only 本地证据，日志量大不入库）
+gold_compute/campaign/runs/

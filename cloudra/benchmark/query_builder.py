@@ -113,7 +113,9 @@ def format_allowed_methods_clause(allowed_methods: Sequence[str] | None) -> str:
         "xtb": "xTB",
         "mace-omol25": "MACE-OMol25",
         "mace": "MACE",
-        "b3lyp": "B3LYP",
+        # 本基准的 B3LYP 允可默认带 D3(BJ) 色散（与 gen_* 文档口径一致）：
+        # 渲染必须写全，否则 agent 按查询写裸 B3LYP，能量与 gold 差几 kcal。
+        "b3lyp": "B3LYP-D3(BJ)",
         "pbe": "PBE",
         "pbe0": "PBE0",
         "m062x": "M06-2X",
