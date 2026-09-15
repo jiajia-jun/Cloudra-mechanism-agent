@@ -287,19 +287,23 @@ class AgentRunner:
                 # 预算触发（Task 5）：达到上下文预算即压缩——估算用现有
                 # context_window 与输出预算并留余量；压缩被拒（不缩短/校验
                 # 失败/容量不足）时保留原上下文，下个轮次边界重新评估。
+                # 容量判定用生效设置：spawn 快照里 context_window=0 表示未
+                # 设置，真实窗口由 provider 桥接从 config 槽位补全。
                 current = contexts.current_messages(agent.id)
-                if current and context_over_budget(
-                    current,
-                    context_window=agent.settings.context_window,
-                    max_output=agent.settings.max_tokens,
-                ):
-                    await self._apply_compaction(
-                        agent,
-                        run_id,
-                        EMERGENCY_COMPACT_KEEP_RECENT,
-                        trigger="budget",
-                        context_prefix=context_prefix,
-                    )
+                if current:
+                    effective = self._effective_settings(agent)
+                    if context_over_budget(
+                        current,
+                        context_window=effective.context_window,
+                        max_output=effective.max_tokens,
+                    ):
+                        await self._apply_compaction(
+                            agent,
+                            run_id,
+                            EMERGENCY_COMPACT_KEEP_RECENT,
+                            trigger="budget",
+                            context_prefix=context_prefix,
+                        )
                 attempt = 0
                 overflow_compacted = False
                 while True:
@@ -791,6 +795,15 @@ class AgentRunner:
             )
         await self.core.contexts.append_output(agent=agent, run_id=run_id, messages=entries)
 
+    def _effective_settings(self, agent: AgentSession):
+        """容量判定用的生效设置：spawn 快照里 context_window=0 表示未设置，
+        真实窗口由 provider 桥接从 config 槽位补全（与遥测解析生效 model
+        同一钩子）；无钩子的 provider（测试 fake）回退快照原值。"""
+        resolver = getattr(getattr(self.pipeline, "llm", None), "resolve_effective_settings", None)
+        if resolver is not None:
+            return resolver(agent)
+        return agent.settings
+
     async def _apply_compaction(
         self,
         agent: AgentSession,
@@ -841,7 +854,7 @@ class AgentRunner:
         notices_render = (
             core.notices.render_current(agent.id) if core.notices is not None else []
         )
-        settings = agent.settings
+        settings = self._effective_settings(agent)
 
         try:
             new_context, stats = await compact_context(

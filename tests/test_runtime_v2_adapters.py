@@ -266,6 +266,56 @@ def test_to_api_message_supports_reasoning_alias():
     assert out["reasoning_content"] == "step by step"
 
 
+@pytest.mark.asyncio
+async def test_deepseek_thinking_mode_backfills_missing_reasoning_content():
+    """DeepSeek 思考模式要求历史里每条 assistant 消息都回传
+    reasoning_content；压缩摘要等 harness 生成的 assistant 消息没有思考
+    内容，缺一条即 400，回填单个空格（空串同样被拒）。"""
+    sent: dict = {}
+    provider = LegacyLLMProvider(client_factory=lambda settings: _recording_client(sent))
+    agent = _js_agent("traditional")
+    agent.settings.base_url = "https://api.deepseek.com"
+    agent.settings.native_search = "off"  # 避免走 Responses 传输，聚焦 chat 路径
+    agent.settings.reasoning_effort = "low"
+    await provider.complete(
+        agent,
+        [
+            {"role": "user", "content": "hi"},
+            {"role": "assistant", "content": "[Context compact] summary"},
+            {
+                "role": "assistant",
+                "content": None,
+                "reasoning_content": "kept",
+                "tool_calls": [{"id": "tc1", "name": "echo", "arguments": {}}],
+            },
+            {"role": "tool", "tool_call_id": "tc1", "content": "ok"},
+        ],
+        ["stop"],
+    )
+    assistants = [m for m in sent["messages"] if m["role"] == "assistant"]
+    assert assistants[0]["reasoning_content"] == " "
+    assert assistants[1]["reasoning_content"] == "kept"
+
+
+@pytest.mark.asyncio
+async def test_reasoning_backfill_scoped_to_deepseek_thinking_mode():
+    # 非 DeepSeek 端点 + 思考模式：不回填。
+    sent: dict = {}
+    provider = LegacyLLMProvider(client_factory=lambda settings: _recording_client(sent))
+    agent = _js_agent("traditional")
+    agent.settings.reasoning_effort = "low"
+    await provider.complete(agent, [{"role": "assistant", "content": "s"}], ["stop"])
+    assert "reasoning_content" not in sent["messages"][0]
+    # DeepSeek 端点但思考模式关闭：不回填。
+    sent = {}
+    provider = LegacyLLMProvider(client_factory=lambda settings: _recording_client(sent))
+    agent = _js_agent("traditional")
+    agent.settings.base_url = "https://api.deepseek.com"
+    agent.settings.native_search = "off"
+    await provider.complete(agent, [{"role": "assistant", "content": "s"}], ["stop"])
+    assert "reasoning_content" not in sent["messages"][0]
+
+
 def test_extract_delta_reasoning_compatibility():
     from cloudra.runtime_v2.adapters import _extract_delta_reasoning
 

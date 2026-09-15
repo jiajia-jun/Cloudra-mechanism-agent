@@ -20,6 +20,7 @@ from cloudra.base.session_class import Session
 from cloudra.base.tools_class import input_schema as LegacyInputSchema
 from cloudra.infra.config import get_config
 from cloudra.infra.llm_client import LLMClient, first_prefix_divergence, request_fingerprint
+from cloudra.infra.providers import detect_provider_from_url
 from cloudra.infra.streaming import _aiter_chunks, _ChunkPumper, dynamic_deep_merge
 from cloudra.infra.tool_errors import validation_feedback
 from cloudra.infra.yolo_guard import reset_session_yolo, set_session_yolo
@@ -551,6 +552,20 @@ def _to_api_message(message: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def _requires_reasoning_echo(settings: RuntimeSettings) -> bool:
+    """DeepSeek 思考模式要求历史里每条 assistant 消息都回传 reasoning_content。
+
+    压缩摘要等 harness 生成的 assistant 消息没有思考内容，缺一条即 400
+    （"The `reasoning_content` in the thinking mode must be passed back"）；
+    空串同样被拒，回填时注入单个空格。只在思考模式开启
+    （reasoning_effort 非空）时适用。
+    """
+    if not settings.reasoning_effort:
+        return False
+    preset = detect_provider_from_url(settings.base_url or "")
+    return preset is not None and preset.id == "deepseek"
+
+
 class LegacyLLMProvider:
     """Streaming bridge over the existing LLMClient.
 
@@ -684,9 +699,14 @@ class LegacyLLMProvider:
                 for schema in tool_schemas
                 if (schema.get("function") or {}).get("name") not in gated
             ]
+        api_messages = [_to_api_message(m) for m in messages]
+        if _requires_reasoning_echo(settings):
+            for msg in api_messages:
+                if msg.get("role") == "assistant" and not msg.get("reasoning_content"):
+                    msg["reasoning_content"] = " "
         kwargs: dict[str, Any] = {
             "model": settings.model,
-            "messages": [_to_api_message(m) for m in messages],
+            "messages": api_messages,
             "temperature": settings.temperature,
             "max_tokens": settings.max_tokens,
             "stream": True,

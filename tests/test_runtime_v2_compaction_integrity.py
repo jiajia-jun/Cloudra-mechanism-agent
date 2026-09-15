@@ -793,3 +793,41 @@ async def test_budget_compact_refusal_keeps_context_and_records_reason(monkeypat
     assert sum(
         1 for m in core.session_contexts[agent.id].messages if m.get("role") == "tool"
     ) == 2
+
+
+class _ResolvingLLM(_TwoToolsLLM):
+    """带生效设置解析钩子的 fake：真实窗口远大于 spawn 快照。"""
+
+    def resolve_effective_settings(self, agent):
+        settings = agent.settings.model_copy(deep=True)
+        settings.context_window = 1_000_000
+        return settings
+
+
+@pytest.mark.asyncio
+async def test_budget_trigger_uses_resolved_context_window_not_spawn_snapshot(monkeypatch):
+    """预算判定必须用 provider 解析的生效窗口，不是 spawn 快照：快照里
+    context_window 未设置（0）或是小窗口时，误用它会把 config 的大窗口
+    架空，上下文在真实容量的一小半就被压缩。"""
+    from cloudra.runtime_v2.schemas import Command
+
+    _patch_summarizer(monkeypatch)
+    llm = _ResolvingLLM()
+    core, bus, agent = await _setup_runner(llm, tools_factory=_BigDeliveringTools, query=None)
+    # 快照小窗口：若预算判定误用它，大工具结果必然触发压缩。
+    agent.settings.context_window = 1_200
+    agent.settings.max_tokens = 100
+    await bus.execute(
+        Command(
+            type="agent.message",
+            target={"session_id": agent.id},
+            payload={"content": "solve it"},
+        )
+    )
+    await _wait_state(agent, "succeeded")
+    fired = [
+        e
+        for e in core.event_log.query_session(agent.id)
+        if e.type == "compaction.finished" and e.data.get("trigger") == "budget"
+    ]
+    assert not fired

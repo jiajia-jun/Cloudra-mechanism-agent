@@ -98,11 +98,13 @@ class RuntimeSettings(RuntimeSettingsPatch):
     base_url: str = ""
     temperature: float = 1.0
     max_tokens: int = 32768
-    context_window: int = 200000
+    # 0 = 未设置（与 model/base_url 的空串约定一致）：真实窗口由桥接层从
+    # config 槽位补全（legacy_default_settings）；补丁通道 ge=1 进不来 0。
+    context_window: int = 0
     top_p: Optional[float] = None
     frequency_penalty: float = 0.0
     presence_penalty: float = 0.0
-    timeout: int = 300
+    timeout: int = 0  # 0 = 未设置（同 context_window 约定）：桥接层从 config 槽位补全
     yolo: bool = False
     unattended: bool = False
     schedule_mode: bool = False
