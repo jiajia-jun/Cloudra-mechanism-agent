@@ -36,7 +36,7 @@
   任务 query 的方法条款已同步渲染为 "B3LYP-D3(BJ)/def2-SVP"（`query_builder.py`），
   并重跑四个生成器——agent 侧据此写输入，避免"裸 B3LYP vs 带色散 gold"的口径错位。
 - 能垒：**ΔE‡（电子能差，无 ZPE/热校正），相对该步自身起点极小值**（任务 query 明文口径）。
-- 溶剂：逐题按 query 显式要求（气相题气相；要求隐式溶剂者用 CPCM + 对应溶剂名），在 campaign 配置里**逐题钉死**，不猜；15 题的 conditions 文本提及溶剂/液相，需逐条确认。
+- 溶剂：**按题面 conditions 原样读**，不额外钉死处方——有具名溶剂（THF/DCM/水…）就按常规读法用对应隐式溶剂（CPCM(该溶剂)）；未具名相或溶剂的题（NA2/NI1/NQ1/HG2）conditions 已写明 "gas phase"，一律气相。agent 侧自行权衡建模，若它选了别的（气相 vs 隐式溶剂、不同溶剂名），两值差异由 accuracy 的「答案定义差异」分支（0.9）承接，不归零。
 - 每条边必须齐备：起点/终点极小值（freq 无虚频）、TS 日志（**恰 1 个虚频**）、IRC 双侧、`irc_path.assign_irc_endpoints` 区间证明通过。
 - 近无能垒质子转移步（计划内已知：NR1_E1/E3、HL1_E1/E4、NY3_E3、NU5_E1、NO3_E1/E4）：约束扫描确认无垒 → 记 ≈0 并附扫描证据；**不虚构活化能**。
 - **fail-loud**：不收敛 / 多于 1 个虚频 / IRC 不通 / SCF 失败 → 该边 `barrier_kcal_mol=null` + 失败原因入库，绝不用文献值或猜测填充。

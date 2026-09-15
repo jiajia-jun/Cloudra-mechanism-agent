@@ -10,7 +10,7 @@ TASKS = {
     # 丙酮自缩合 → 异亚丙基丙酮；α-C（C2）上两个参与键变化的 H（H3 步1、H11 步4）全程显式
     "A2": {
         "name_en": "acetone self-aldol condensation -> mesityl oxide (4-methylpent-3-en-2-one)",
-        "conditions_en": "NaOH or Ba(OH)2, heated",
+        "conditions_en": "gas phase; NaOH or Ba(OH)2, heated",
         "mapped_reactants": "[OH-:1].[CH:2]([H:3])([H:11])[C:4](=[O:5])[CH3:6].[CH3:7][C:8](=[O:9])[CH3:10]",
         "steps": [
             {
@@ -85,7 +85,7 @@ TASKS = {
     # C=O.CN>>C=NC.O  (0/1)  亚胺形成（无显式催化剂）；甲胺两个 N-H（H5/H6）均参与键变化，全程显式
     "I1": {
         "name_en": "imine formation: formaldehyde + methylamine -> N-methylmethanimine + water",
-        "conditions_en": "optimal around pH 4-6 (bell-shaped rate profile)",
+        "conditions_en": "gas phase; optimal around pH 4-6 (bell-shaped rate profile)",
         "mapped_reactants": "[CH2:1]=[O:2].[CH3:4][N:3]([H:5])([H:6])",
         # barrier 为就地计算值（沙箱 delivery batch_4aa4cce4691d4a9f，B3LYP/def2-SVP
         # 气相、ΔE‡ 相对该步起点极小值）：E1 = E(TS1 calc-314) − E(RC calc-304)

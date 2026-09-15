@@ -1645,18 +1645,23 @@ def test_query_declares_electronic_barrier_type():
 
 
 def test_conditions_modeling_guidance():
-    """条件建模指引：默认气相；含溶剂名（结构化子串，非正则）改述隐式溶剂；
-    含明确温度追加"只报电子能垒"。"""
+    """条件建模要求句（用户口径）：要求 agent **在允许方法内尽量逼近题面描述
+    的真实条件**，但不指定具体溶剂模型（建模是 Cloudra 自己的权衡）；含明确
+    温度时另加"只报电子能垒、不加该温度热校正"的评分口径句。
+
+    - "kinetics" 等含 k 的词不得误判为开尔文温度。"""
     from cloudra.benchmark.query_builder import conditions_modeling_guidance
 
-    assert conditions_modeling_guidance("gas phase") == "Model the reaction in the gas phase."
-    g = conditions_modeling_guidance("20-30 mol% (S)-proline, DMSO, room temperature")
-    assert "implicit solvent model" in g and "thermal corrections" not in g
-    g = conditions_modeling_guidance("gas phase, 403-448 K")
-    assert g.startswith("Model the reaction in the gas phase.") and "do not add thermal corrections" in g
+    base = (
+        "Within the allowed methods, model the system so that it approximates the "
+        "real conditions stated above as closely as the level of theory permits."
+    )
+    assert conditions_modeling_guidance("gas phase") == base
+    assert conditions_modeling_guidance("20-30 mol% (S)-proline, DMSO, room temperature") == base
     g = conditions_modeling_guidance("THF, -20 degC to rt, catalytic")
-    assert "implicit solvent model" in g and "do not add thermal corrections" in g
-    # "kinetics" 等含 k 的词不得误判为开尔文温度
+    assert g.startswith(base) and "do not add thermal corrections" in g
+    g = conditions_modeling_guidance("gas phase, 403-448 K")
+    assert g.startswith(base) and "do not add thermal corrections" in g
     assert "do not add thermal corrections" not in conditions_modeling_guidance("gas phase kinetics")
 
 

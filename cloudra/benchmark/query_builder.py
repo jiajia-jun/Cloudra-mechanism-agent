@@ -65,50 +65,21 @@ def barrier_declaration_clause(require_node_energies: bool = True) -> str:
         _NODE_ENERGY_CLAUSE if require_node_energies else ""
     )
 
-# 条件建模指引的溶剂名单（结构化子串匹配，一律小写比对；新增题源条件里的溶剂
-# 必须在此登记，否则按气相默认处理）。
-_SOLVENT_TOKENS = (
-    "water",
-    "aqueous",
-    "dmso",
-    "thf",
-    "meoh",
-    "methanol",
-    "ethanol",
-    "et2o",
-    "diethyl ether",
-    "benzene",
-    "toluene",
-    "ch2cl2",
-    "dichloromethane",
-    "chloroform",
-    "chcl3",
-    "acetonitrile",
-    "mecn",
-    "h2so4",
-    "solvent",
-    "alcohol",
-)
-
-
 def conditions_modeling_guidance(conditions: str) -> str:
-    """题面 conditions 之后的建模指引句（使题面条件与交付口径对齐）。
+    """题面 conditions 之后的建模要求句。
 
-    默认气相；conditions 文本含溶剂名（结构化子串匹配，不用正则）时改述隐式
-    溶剂模型；含明确温度（degC/°C 或开尔文）时追加"只报电子能垒、不加该温度
-    的热校正"。
+    口径（用户决策）：**要求 agent 在允许的计算方法范围内尽量逼近题面描述的
+    真实条件**——相、溶剂、催化剂按 conditions 原文由 agent 自行权衡建模，
+    题面不指定具体溶剂模型（这是 Cloudra 的判断，不是题面的处方）。
+    含明确温度时另加评分口径句：只报电子能垒、不因该温度加热校正。
     """
     text = conditions.lower()
-    has_solvent = any(tok in text for tok in _SOLVENT_TOKENS)
     words = [w.strip(".,;:()[]") for w in text.replace("-", " ").replace("–", " ").split()]
     has_temperature = "degc" in text or "°c" in text or "k" in words
-    if has_solvent:
-        guidance = (
-            "Include the corresponding implicit solvent model (e.g. CPCM for "
-            "B3LYP, ALPB/GBSA for xTB) in all energies you declare."
-        )
-    else:
-        guidance = "Model the reaction in the gas phase."
+    guidance = (
+        "Within the allowed methods, model the system so that it approximates the "
+        "real conditions stated above as closely as the level of theory permits."
+    )
     if has_temperature:
         guidance += (
             " Report electronic barriers only; do not add thermal corrections "

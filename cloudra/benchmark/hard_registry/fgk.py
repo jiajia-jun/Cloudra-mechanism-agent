@@ -47,7 +47,7 @@ TASKS = {
     # 赤道）→ syn = (2S,3S) 型（池内经 Fischer-CIP 推导核对）；副通道 = 船式 → anti。
     "G2": {
         "name_en": "(E,E)-crotyl propenyl ether Claisen rearrangement: determine the preferred TS geometry and diastereoselectivity",
-        "conditions_en": "thermal, ~150-200 degC",
+        "conditions_en": "gas phase; thermal, ~150-200 degC",
         "anchor": "selectivity",
         "minor_channel_en": "boat TS -> anti-2,3-dimethylpent-4-enal",
         "mapped_reactants": "[CH3:1]/[CH:2]=[CH:3]/[CH2:4][O:5]/[CH:6]=[CH:7]/[CH3:8]",
