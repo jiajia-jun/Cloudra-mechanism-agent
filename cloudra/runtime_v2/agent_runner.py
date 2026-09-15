@@ -115,8 +115,8 @@ class AgentRunner:
         core: "RuntimeCore",
         pipeline: "TurnPipeline",
         *,
-        max_turn_retries: int = 2,
-        retry_backoff: tuple[float, ...] = (2.0, 4.0),
+        max_turn_retries: int = 5,
+        retry_backoff: tuple[float, ...] = (2.0, 4.0, 8.0, 15.0, 30.0),
         max_exit_strikes: int = DEFAULT_MAX_EXIT_STRIKES,
     ) -> None:
         self.core = core
