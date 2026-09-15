@@ -1,5 +1,5 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, EVENTS_WINDOW, streamProject } from './api';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { api, EVENTS_WINDOW, HISTORY_PAGE_SIZE, streamProject } from './api';
 import Markdown from './Markdown';
 import DagPanel from './DagPanel';
 import OpsPanel from './OpsPanel';
@@ -190,6 +190,12 @@ export default function App() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null);
   const [events, setEvents] = useState<EventEnvelope[]>([]);
+  // Older history pages pulled in by the "Load earlier" bubble at the top of
+  // the chat.  Kept separate from `events` so the live SSE window can keep
+  // clipping itself to EVENTS_WINDOW without discarding user-loaded pages.
+  const [olderEvents, setOlderEvents] = useState<EventEnvelope[]>([]);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasOlder, setHasOlder] = useState(true);
   const [streamView, setStreamView] = useState<StreamView>({ streamText: '', frozen: [] });
   const [sidebarView, setSidebarView] = useState<'ops' | 'projects'>('ops');
   const [sidebarJobs, setSidebarJobs] = useState<ComputeJob[] | null>(null);
@@ -509,6 +515,9 @@ export default function App() {
       setActiveAgentId(agentId);
       setPendingMessages([]);
       setStreamView({ streamText: '', frozen: [] });
+      setOlderEvents([]);
+      setLoadingOlder(false);
+      setHasOlder(true);
       maxSeqRef.current = 0;
       // Drop any buffered events from the previous agent: they must not leak
       // into the freshly loaded transcript.
@@ -527,6 +536,7 @@ export default function App() {
           ),
         );
         setEvents(eventList);
+        setHasOlder(eventList.length >= EVENTS_WINDOW);
         // Anchors for future thinking segments must account for the fetched
         // history — otherwise the first chunks land at seq 0.5, above the
         // triggering user message, and no SSE echo ever re-bases them.
@@ -543,6 +553,9 @@ export default function App() {
     setAgents([]);
     setActiveAgentId(null);
     setEvents([]);
+    setOlderEvents([]);
+    setLoadingOlder(false);
+    setHasOlder(true);
     setStreamView({ streamText: '', frozen: [] });
     maxSeqRef.current = 0;
     setPendingMessages([]);
@@ -1237,8 +1250,11 @@ export default function App() {
   /* ------------------------------------------------------------ rendering */
 
   const sessionEvents = useMemo(
-    () => (activeAgentId ? events.filter((e) => e.session_id === activeAgentId) : []),
-    [events, activeAgentId],
+    () =>
+      activeAgentId
+        ? [...olderEvents, ...events].filter((e) => e.session_id === activeAgentId)
+        : [],
+    [olderEvents, events, activeAgentId],
   );
   // Persisted events → timeline items is the expensive step (full sort +
   // stringification of every tool args/result).  It must only re-run when the
@@ -1455,6 +1471,44 @@ export default function App() {
     const el = chatRef.current;
     if (el && nearBottomRef.current) el.scrollTop = el.scrollHeight;
   }, [timeline, streamView, activeAgent?.state]);
+  // Prepending an older page must not yank the viewport: capture the scroll
+  // geometry before the fetch and re-anchor by the height delta after the new
+  // page renders.  (The auto-scroll above is a no-op here — nearBottom is
+  // false while the user is up at the top.)
+  const scrollRestoreRef = useRef<{ height: number } | null>(null);
+  useLayoutEffect(() => {
+    const el = chatRef.current;
+    const restore = scrollRestoreRef.current;
+    if (el && restore) {
+      scrollRestoreRef.current = null;
+      el.scrollTop += el.scrollHeight - restore.height;
+    }
+  }, [olderEvents]);
+  const loadOlder = useCallback(async () => {
+    if (!activeAgentId || loadingOlder || !hasOlder) return;
+    let oldest = Infinity;
+    for (const e of olderEvents) {
+      if (e.session_id === activeAgentId) oldest = Math.min(oldest, e.session_seq ?? Infinity);
+    }
+    for (const e of events) {
+      if (e.session_id === activeAgentId) oldest = Math.min(oldest, e.session_seq ?? Infinity);
+    }
+    if (!Number.isFinite(oldest)) return;
+    const el = chatRef.current;
+    if (el) scrollRestoreRef.current = { height: el.scrollHeight };
+    setLoadingOlder(true);
+    try {
+      const page = await api.eventsPage(activeAgentId, { before: oldest, limit: HISTORY_PAGE_SIZE });
+      const known = new Set([...olderEvents, ...events].map((e) => e.event_id));
+      const fresh = page.filter((e) => !known.has(e.event_id));
+      setOlderEvents((prev) => [...fresh, ...prev]);
+      if (page.length < HISTORY_PAGE_SIZE) setHasOlder(false);
+    } catch (e) {
+      reportError(e);
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [activeAgentId, loadingOlder, hasOlder, olderEvents, events, reportError]);
 
   const connLabel = !activeProject ? 'idle' : connState === 'live' ? 'live' : connState === 'connecting' ? 'connecting' : 'reconnecting…';
   const totalPending = approvals.length + interactions.length;
@@ -2028,6 +2082,14 @@ export default function App() {
                   ? 'Type a query below and press Send to start this agent.'
                   : 'Send a message below to start the coordinator.'}
               </div>
+            )}
+            {activeAgent && hasOlder && timeline.length > 0 && (
+              <button className="load-earlier" disabled={loadingOlder} onClick={() => void loadOlder()}>
+                {loadingOlder ? 'loading…' : 'Load earlier'}
+              </button>
+            )}
+            {activeAgent && !hasOlder && olderEvents.length > 0 && (
+              <div className="history-end">beginning of history</div>
             )}
             {timeline.map((item) =>
               item.kind === 'message' ? (
