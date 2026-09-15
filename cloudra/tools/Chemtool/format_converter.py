@@ -197,10 +197,19 @@ class FormatConverter(Tool):
             from cloudra.tools.core.gaussian_frames import frames_to_csv
             from cloudra.tools.core.qm_engine import detect_qm_engine
 
+            # 日志全文只读一次：detect_job_types/extract_frames 都吃文本变体，
+            # 不再各自独立整读大日志（detect_qm_engine 只嗅探头部 16 KiB，开销可忽略）。
+            with open(user_input.input_path, encoding="utf-8", errors="replace") as fh:
+                log_text = fh.read()
             engine = detect_qm_engine(user_input.input_path)
             frames_mod = orca_frames if engine == "orca" else gaussian_frames
-            job_types = frames_mod.detect_job_types(user_input.input_path)
-            frames = frames_mod.extract_frames(user_input.input_path)
+            job_types = frames_mod.detect_job_types_from_text(log_text)
+            if engine == "orca":
+                frames = orca_frames.extract_frames_from_text(
+                    log_text, log_path=user_input.input_path,
+                )
+            else:
+                frames = gaussian_frames.extract_frames_from_text(log_text)
             # 按规范顺序展示（opt+ts+freq 风格，而非字母序）
             ordered = [j for j in ("opt", "ts", "freq", "scan", "irc", "sp") if j in job_types]
             if not frames:
@@ -208,7 +217,9 @@ class FormatConverter(Tool):
                 # 两者都是"主输出没有但作业确实产出了几何"的情形，笼统一句"没有关键帧"没有信息量
                 reason = None
                 if engine == "orca":
-                    reason = orca_frames.frames_unavailable_reason(user_input.input_path)
+                    reason = orca_frames.frames_unavailable_reason_from_text(
+                        log_text, log_path=user_input.input_path,
+                    )
                 explanation = f" Reason: {reason}." if reason else (
                     " Check that the log contains a finished opt/scan job."
                 )
@@ -327,13 +338,14 @@ class FormatConverter(Tool):
                         "only the first one was converted."
                     )
             else:
-                all_frames = ase.io.read(input_path, format=ase_input_fmt, index=slice(None))
-                if isinstance(all_frames, list):
-                    n_frames = len(all_frames)
-                    atoms = all_frames[0] if all_frames else None
-                else:
-                    atoms = all_frames
-                    n_frames = 1
+                # 单次惰性扫描：只物化第一帧（整条轨迹物化既耗内存也只用首帧），
+                # 帧数仍在同一趟扫描里数出，message 如实披露"取第一帧"。
+                atoms = None
+                n_frames = 0
+                for frame in ase.io.iread(input_path, format=ase_input_fmt):
+                    n_frames += 1
+                    if atoms is None:
+                        atoms = frame
                 if atoms is None:
                     return FormatConverter_output_schema(
                         is_success=False,

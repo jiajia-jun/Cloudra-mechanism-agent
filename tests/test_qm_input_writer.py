@@ -618,3 +618,85 @@ async def test_qm_input_writer_output_dir_blocked_by_file_fails_loud(tmp_path):
     assert result.is_success is False
     assert "Errno 17" not in result.message
     assert "output_dir" in result.message
+
+
+# ---------------------------------------------------------------------------
+# Gaussian scan 语义门禁：裸 scan（刚性）≠ ORCA scan（松弛）
+# ---------------------------------------------------------------------------
+
+
+def _water_xyz_file(tmp_path):
+    xyz = tmp_path / "water.xyz"
+    xyz.write_text(_WATER_XYZ, encoding="utf-8")
+    return xyz
+
+
+@pytest.mark.asyncio
+async def test_gaussian_bare_scan_refused_with_semantics_recorded(tmp_path):
+    """同一 task_type 的 scan 在 Gaussian 是刚性扫描、ORCA 是松弛扫描且
+    inspect_input 检不出差异——裸 {'scan': None} 必须拒绝并在
+    unapplied_options 里显式记录 rigid/relaxed 语义冲突。"""
+    xyz = _water_xyz_file(tmp_path)
+    out = tmp_path / "scan.gjf"
+    result = await QmInputWriter().tool_call(
+        QmInputWriter_input_schema(
+            source_type="xyz_file",
+            source_value=str(xyz),
+            task_type=[{"scan": None}],
+            end_setting="B 1 2 S 10 0.02",
+            output_dir=str(out),
+        ),
+        session=None,
+    )
+    assert result.is_success is False
+    assert "RIGID" in result.message and "RELAXED" in result.message
+    assert result.unapplied_options
+    assert "rigid" in result.unapplied_options[0]
+    assert not out.exists()
+
+
+@pytest.mark.asyncio
+async def test_gaussian_scan_relaxed_declaration_refused_with_guidance(tmp_path):
+    """{'scan': 'relaxed'}：Gaussian 松弛扫描不是裸 scan 路由能表达的——
+    拒绝并指路 opt=modredundant / ORCA %geom Scan。"""
+    xyz = _water_xyz_file(tmp_path)
+    result = await QmInputWriter().tool_call(
+        QmInputWriter_input_schema(
+            source_type="xyz_file",
+            source_value=str(xyz),
+            task_type=[{"scan": "relaxed"}],
+            output_dir=str(tmp_path / "scan.gjf"),
+        ),
+        session=None,
+    )
+    assert result.is_success is False
+    assert "modredundant" in result.message
+    assert result.unapplied_options
+
+
+@pytest.mark.asyncio
+async def test_gaussian_scan_rigid_declaration_writes_bare_scan_route(tmp_path):
+    """显式 {'scan': 'rigid'} 声明：写裸 scan 路由（rigid 是语义声明，不得
+    写成 scan=rigid），生成文本自检通过，interpreted_intent 记录 rigid 语义。"""
+    xyz = _water_xyz_file(tmp_path)
+    out = tmp_path / "scan.gjf"
+    result = await QmInputWriter().tool_call(
+        QmInputWriter_input_schema(
+            source_type="xyz_file",
+            source_value=str(xyz),
+            task_type=[{"scan": "rigid"}],
+            end_setting="B 1 2 S 10 0.02",
+            output_dir=str(out),
+        ),
+        session=None,
+    )
+    assert result.is_success is True, result.message
+    content = out.read_text(encoding="utf-8")
+    route = next(ln for ln in content.splitlines() if ln.strip().startswith("#p"))
+    assert " scan " in f" {route} "
+    assert "scan=rigid" not in route
+    assert "B 1 2 S 10 0.02" in content
+    # 生成文本自检：inspect 从路由读回的 scan 任务与请求一致
+    assert "relaxed_scan" in result.interpreted_intent["tasks"]
+    assert result.interpreted_intent["scan_semantics"] == "rigid"
+    assert result.unapplied_options == []

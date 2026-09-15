@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import math
 import os
 from collections import deque
@@ -34,7 +35,34 @@ except Exception:
     cc = None
     _CHEMCOORD_AVAILABLE = False
 
-# _COVALENT_RADII 唯一事实源在 cloudra.tools.core.irc_path（顶部导入）。
+# 共价半径：_COVALENT_RADII（irc_path 部分表，与 ts_guess/IRC 判据同一事实源）覆盖常见
+# 主族与 3d/4d/5d 前段元素；其未覆盖元素（Pt/Ir/W/镧系等）取自 ase.data.covalent_radii——
+# 同一套 Cordero (2008) 数据（重叠数值一致性由 tests 守护），ASE 是项目核心依赖，不新增依赖。
+# 任何真实元素都有半径可查；查不到（非元素符号）一律 fail-loud 列出符号，绝不静默回退
+# 1.2 Å（旧回退会把 Ir/Pt 配位球的 2.3–2.9 Å 非键接触静默误判成键）。
+
+
+@functools.lru_cache(maxsize=1)
+def _covalent_radii_table() -> dict[str, float]:
+    """完整 Cordero (2008) 共价半径表（Å）：irc_path 表 + ASE 全表补缺，惰性构建。"""
+    from ase.data import atomic_numbers, covalent_radii
+
+    table = dict(_COVALENT_RADII)
+    for symbol, z in atomic_numbers.items():
+        if z > 0 and symbol not in table:
+            table[symbol] = float(covalent_radii[z])
+    return table
+
+
+def _covalent_radius(symbol: str) -> float:
+    """Cordero 共价半径（Å）；非元素符号 fail-loud（报错中列出符号）。"""
+    table = _covalent_radii_table()
+    if symbol not in table:
+        raise ValueError(
+            f"no Cordero covalent radius for element symbol {symbol!r}; "
+            "the connectivity verdict for this structure is undecidable"
+        )
+    return table[symbol]
 
 # Bondi 范德华半径（J. Phys. Chem. 1964），单位 Å。
 _VAN_DER_WAALS_RADII = {
@@ -132,7 +160,7 @@ class InternalCoordinates_input_schema(input_schema):
     )
     watch_pairs: Optional[list[list[int]]] = Field(
         default=None,
-        description="Optional atom pairs to monitor explicitly (1-based). The report gives distances and a forming/normal/distant verdict."
+        description="Optional atom pairs to monitor explicitly (1-based). The report gives distances and a bonded/forming (distance heuristic)/undecidable/far verdict; crowded H...H contacts are never reported as forming."
     )
     bond_tolerance: float = Field(
         default=0.15,
@@ -225,7 +253,7 @@ class InternalCoordinates_output_schema(output_schema):
 
 def _expected_bond_length(sym_i: str, sym_j: str) -> float:
     """两个原子间的经验共价键长上限（Cordero 共价半径和）。"""
-    return _COVALENT_RADII.get(sym_i, 1.2) + _COVALENT_RADII.get(sym_j, 1.2)
+    return _covalent_radius(sym_i) + _covalent_radius(sym_j)
 
 
 #: 距离判据的默认容差系数：r ≤ factor × 共价半径和 判为成键。
@@ -311,7 +339,7 @@ class InternalCoordinates(Tool):
 
     @classmethod
     def _covalent_radius(cls, symbol: str) -> float:
-        return _COVALENT_RADII.get(symbol, 1.2)
+        return _covalent_radius(symbol)
 
     @classmethod
     def _expected_bond_length(cls, sym_i: str, sym_j: str) -> float:
@@ -566,6 +594,9 @@ class InternalCoordinates(Tool):
         返回 (anomalies, report_lines)。
         分级：ratio ≤ 1-tol → compressed；≥ 1+tol → elongated；≥ 1.5 → breaking_suspect。
         非键对：r < 0.75×vdW 和 且 r > 单键参考 → forming_candidate；r < 单键参考但未成键 → clash。
+        非键判定是纯距离启发式（输出带 basis='distance_heuristic' 标注）：两端都是 H 的
+        接触不作成键候选（拥挤 H···H 没有成键含义，纯距离判据必然假阳性）；任一端元素
+        缺 Bondi 范德华半径时 vdW 阈值不可信，标 undecidable 而不是给 forming。
         """
         import numpy as np
 
@@ -619,8 +650,14 @@ class InternalCoordinates(Tool):
                 vdw_sum = cls._van_der_waals_sum(symbols[i], symbols[j])
                 if r < ref_single:
                     status = 'clash'
+                elif symbols[i] == 'H' and symbols[j] == 'H':
+                    # 拥挤 H···H 接触：纯距离判据对 H-H 没有成键含义，不成候选
+                    continue
                 elif r < 0.75 * vdw_sum:
-                    status = 'forming_candidate'
+                    if symbols[i] not in _VAN_DER_WAALS_RADII or symbols[j] not in _VAN_DER_WAALS_RADII:
+                        status = 'undecidable'
+                    else:
+                        status = 'forming_candidate'
                 else:
                     continue
                 anomalies.append({
@@ -631,14 +668,16 @@ class InternalCoordinates(Tool):
                     'vdw_sum': round(vdw_sum, 3),
                     'bond_order': 0.0,
                     'status': status,
+                    'basis': 'distance_heuristic',
                 })
 
         status_label = {
             'compressed': 'compressed',
             'elongated': 'elongated',
             'breaking_suspect': 'breaking_suspect',
-            'forming_candidate': 'forming_candidate',
+            'forming_candidate': 'forming_candidate (distance heuristic)',
             'clash': 'clash',
+            'undecidable': 'undecidable (no Bondi vdW radius for at least one element)',
         }
         lines: list[str] = []
         for a in anomalies:
@@ -660,10 +699,17 @@ class InternalCoordinates(Tool):
     @classmethod
     def _abnormal_angles(cls, symbols, positions, adj,
                          bond_orders, angle_tolerance: float) -> tuple[list[dict], list[str]]:
-        """中心原子杂化估计期望角（sp 180 / sp2 120 / sp3 109.5），|Δ|>tolerance 才报。"""
+        """中心原子杂化估计期望角（sp 180 / sp2 120 / sp3 109.5），|Δ|>tolerance 才报。
+
+        亚砜/砜/磺酰胺/磷酸酯的 S/P：配位数 ≥3 且带双键，是四面体中心而非 sp2/sp，
+        期望角取 109.5°——只看键级会把它们推成 120°/180°，稳定产出假 angle_deviation。
+        """
 
         def expected_angle(center: int) -> float:
             orders = [bond_orders[(min(center, x), max(center, x))] for x in adj[center]]
+            if (symbols[center] in ('S', 'P') and len(orders) >= 3
+                    and any(o == 2.0 for o in orders)):
+                return 109.5
             if any(o >= 3.0 for o in orders) or sum(1 for o in orders if o == 2.0) >= 2:
                 return 180.0
             if any(o in (1.5, 2.0) for o in orders):
@@ -732,10 +778,19 @@ class InternalCoordinates(Tool):
                     order = bond_orders[key]
                     ref = cls._reference_bond_length(symbols[i], symbols[j], order)
                     verdict = f"bonded (bond order {order:g}, ref {ref:.3f})"
+                elif symbols[i] == 'H' and symbols[j] == 'H':
+                    verdict = "crowded H...H contact: not a bond-forming candidate"
                 elif r < 0.75 * vdw_sum:
-                    verdict = f"forming: < vdW {vdw_sum:.3f}"
-                    if r > ref_single:
-                        verdict += f", > {symbols[i]}-{symbols[j]} single-bond ref {ref_single:.3f}"
+                    if symbols[i] not in _VAN_DER_WAALS_RADII or symbols[j] not in _VAN_DER_WAALS_RADII:
+                        missing = sorted({symbols[i], symbols[j]} - set(_VAN_DER_WAALS_RADII))
+                        verdict = (
+                            f"undecidable: no Bondi vdW radius for {'/'.join(missing)}; "
+                            "the distance-only forming criterion is not applicable"
+                        )
+                    else:
+                        verdict = f"forming (distance heuristic): < vdW {vdw_sum:.3f}"
+                        if r > ref_single:
+                            verdict += f", > {symbols[i]}-{symbols[j]} single-bond ref {ref_single:.3f}"
                 else:
                     verdict = f"far: > 0.75×vdW {0.75 * vdw_sum:.3f}"
                 lines.append(f"  r({label(i)}-{label(j)})={r:.3f} Å  [{verdict}]")

@@ -228,7 +228,12 @@ def _load_raw_rrho_record(
             f"不能直接当作 {temperature:g} K；请重跑频率热化学或使用 GoodVibes"
         )
 
-    thermo = _extract_gaussian_thermochemistry(species.log_path)
+    try:
+        with open(species.log_path, encoding="utf-8", errors="replace") as handle:
+            log_text = handle.read()
+    except OSError as exc:
+        return None, f"{species.name}: 日志读取失败（{exc}）"
+    thermo = _extract_gaussian_thermochemistry(log_text)
     total_h = thermo.get("total_enthalpy_hartree")
     total_g = thermo.get("total_gibbs_free_energy_hartree")
     h_correction = thermo.get("thermal_enthalpy_correction_hartree")

@@ -47,13 +47,18 @@ stdout 全部落盘以备复查。
 from __future__ import annotations
 
 import os
-import signal
 import subprocess
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
 from cloudra.persistence.fs_utils import atomic_write_text
+from cloudra.tools.core.run_dirs import (
+    capture_versions,
+    list_artifact_files,
+    next_run_dir,
+    terminate_process_group,
+)
 
 PATH_XYZ_NAME = "xtbpath.xyz"
 TS_XYZ_NAME = "xtbpath_ts.xyz"
@@ -194,35 +199,6 @@ def build_xtb_path_command(request: XtbPathRequest) -> list[str]:
     ]
 
 
-def _next_run_dir(output_dir: str, run_label: str) -> str:
-    safe_label = "".join(ch if (ch.isalnum() or ch in "-_") else "_" for ch in run_label) or "run"
-    runs_root = os.path.join(output_dir, RUNS_DIR_NAME)
-    os.makedirs(runs_root, exist_ok=True)
-    used = set()
-    for name in os.listdir(runs_root):
-        head, _, tail = name.rpartition("_")
-        if head == safe_label and tail.isdigit():
-            used.add(int(tail))
-    index = 1
-    while index in used:
-        index += 1
-    run_dir = os.path.join(runs_root, f"{safe_label}_{index:04d}")
-    os.makedirs(run_dir, exist_ok=False)
-    return run_dir
-
-
-def _capture_versions() -> str:
-    try:
-        proc = subprocess.run(["xtb", "--version"], capture_output=True, text=True, timeout=60)
-    except Exception as exc:  # noqa: BLE001 - 版本取不到不阻塞运行，如实记录
-        return f"xtb --version failed: {type(exc).__name__}: {exc}\n"
-    text = (proc.stdout or "") + (proc.stderr or "")
-    lines = [line.strip() for line in text.splitlines() if "xtb version" in line]
-    return "xtb --version (returncode=%d):\n%s\n" % (
-        proc.returncode, "\n".join(f"    {line}" for line in (lines or ["<no version line found>"])),
-    )
-
-
 def _symbols_and_positions(xyz_text: str, *, label: str) -> tuple[list[str], list[list[float]]]:
     """解析单帧 xyz；不完整即 fail-loud。"""
     lines = xyz_text.splitlines()
@@ -311,15 +287,6 @@ def _parse_ts_candidate(path: str) -> tuple[float, list[list[float]]]:
     return energy, positions
 
 
-def _list_artifacts(run_dir: str) -> list[XtbArtifact]:
-    artifacts: list[XtbArtifact] = []
-    for name in sorted(os.listdir(run_dir)):
-        path = os.path.join(run_dir, name)
-        if os.path.isfile(path):
-            artifacts.append(XtbArtifact(name=name, path=path, size_bytes=os.path.getsize(path)))
-    return artifacts
-
-
 class PathMarkers(BaseModel):
     """日志里命中的逐字标记。"""
 
@@ -376,7 +343,7 @@ def run_xtb_path(request: XtbPathRequest) -> XtbPathResult:
         # 端点先自检：几何不完整或元素序列不一致时，跑引擎只会浪费机时
         output_dir = request.output_dir
         os.makedirs(output_dir, exist_ok=True)
-        run_dir = _next_run_dir(output_dir, request.run_label)
+        run_dir = next_run_dir(output_dir, RUNS_DIR_NAME, request.run_label)
         return XtbPathResult(
             run_dir=run_dir, termination_reason="invalid_endpoints",
             message=f"the endpoints were rejected before starting xtb: {exc}",
@@ -384,7 +351,7 @@ def run_xtb_path(request: XtbPathRequest) -> XtbPathResult:
         )
 
     command = build_xtb_path_command(request)
-    run_dir = _next_run_dir(request.output_dir, request.run_label)
+    run_dir = next_run_dir(request.output_dir, RUNS_DIR_NAME, request.run_label)
     reactant_path = os.path.join(run_dir, "reactant.xyz")
     product_path = os.path.join(run_dir, "product.xyz")
     command_path = os.path.join(run_dir, "command.txt")
@@ -397,7 +364,7 @@ def run_xtb_path(request: XtbPathRequest) -> XtbPathResult:
     atomic_write_text(product_path, request.product_xyz)
     atomic_write_text(command_path, " ".join(command) + "\n")
     atomic_write_text(path_input_path, build_path_input(request.refinement_runs))
-    atomic_write_text(versions_path, _capture_versions())
+    atomic_write_text(versions_path, capture_versions(("xtb",), ("xtb version",)))
 
     result = XtbPathResult(
         run_dir=run_dir, command=command, symbols=reactant_symbols,
@@ -416,7 +383,10 @@ def run_xtb_path(request: XtbPathRequest) -> XtbPathResult:
             f"{product_symbols}); the path search needs one consistent atom set"
         )
         result.message = "Endpoints rejected: the element sequences differ."
-        result.artifacts = _list_artifacts(run_dir)
+        result.artifacts = [
+            XtbArtifact(name=name, path=path, size_bytes=size)
+            for name, path, size in list_artifact_files(run_dir)
+        ]
         return result
 
     import shutil
@@ -429,7 +399,10 @@ def run_xtb_path(request: XtbPathRequest) -> XtbPathResult:
         )
         atomic_write_text(stdout_path, "")
         atomic_write_text(stderr_path, "")
-        result.artifacts = _list_artifacts(run_dir)
+        result.artifacts = [
+            XtbArtifact(name=name, path=path, size_bytes=size)
+            for name, path, size in list_artifact_files(run_dir)
+        ]
         result.message = "xtb executable not found; no path search was started."
         return result
 
@@ -443,7 +416,7 @@ def run_xtb_path(request: XtbPathRequest) -> XtbPathResult:
         returncode = proc.returncode
     except subprocess.TimeoutExpired:
         timed_out = True
-        _terminate_process_group(proc)
+        terminate_process_group(proc)
         stdout, stderr = proc.communicate()
         returncode = proc.returncode
         result.diagnostics.append(
@@ -454,7 +427,10 @@ def run_xtb_path(request: XtbPathRequest) -> XtbPathResult:
     atomic_write_text(stdout_path, stdout or "")
     atomic_write_text(stderr_path, stderr or "")
     result.returncode = returncode
-    result.artifacts = _list_artifacts(run_dir)
+    result.artifacts = [
+        XtbArtifact(name=name, path=path, size_bytes=size)
+        for name, path, size in list_artifact_files(run_dir)
+    ]
 
     # 实测（本机 xtb 6.7.1）：``normal termination of xtb`` 落在 **stderr**，而计时块落在
     # stdout。因此标记必须在两个流上一起扫——只看 stdout 会把正常的运行判成失败。
@@ -602,23 +578,3 @@ def run_xtb_path(request: XtbPathRequest) -> XtbPathResult:
         f"({ts_energy:.6f} Eh). Run directory: {run_dir}"
     )
     return result
-
-
-def _terminate_process_group(proc: subprocess.Popen) -> None:
-    """先 SIGTERM 再 SIGKILL **本进程组**，并 wait/reap，绝不只发信号不回收。"""
-    try:
-        pgid = os.getpgid(proc.pid)
-    except ProcessLookupError:
-        proc.wait()
-        return
-    for sig in (signal.SIGTERM, signal.SIGKILL):
-        try:
-            os.killpg(pgid, sig)
-        except ProcessLookupError:
-            break
-        try:
-            proc.wait(timeout=10)
-            return
-        except subprocess.TimeoutExpired:
-            continue
-    proc.wait()

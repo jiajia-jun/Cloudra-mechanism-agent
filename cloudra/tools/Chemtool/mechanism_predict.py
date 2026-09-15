@@ -14,6 +14,7 @@ xtb/DFT 证据链（submit_compute_job）验证后才能进入机理主张。
 """
 
 import asyncio
+import heapq
 import json
 import os
 import subprocess
@@ -26,7 +27,7 @@ from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.infra.config import get_config
 from cloudra.persistence.fs_utils import atomic_write_text
 from cloudra.persistence.workspace import resolve_tool_path
-from cloudra.tools.core.crest_runner import _terminate_process_group
+from cloudra.tools.core.run_dirs import terminate_process_group as _terminate_process_group
 
 try:
     from rdkit import Chem
@@ -116,6 +117,12 @@ def enumerate_pathways(
 ) -> list[dict]:
     """枚举 root 到终点的简单路径（环上回访即止），按累计概率降序截断。
 
+    Best-first（堆，按累计概率扩展）：每次弹出当前累计概率最高的部分路径
+    展开。扩展只降不升，因此弹出的完整路径按概率非递增到达——explore_cap
+    打满时已枚举集合就是当前概率最高的前缀，而不是随 driver 输出顺序漂移
+    的任意子集（旧实现是 LIFO DFS，最高概率路径可能根本没展开到）。
+    同层子边按 (-概率, 产物 SMILES) 排序入堆，枚举例序与 edges 输入顺序无关。
+
     边概率是 FlowER 采样的频率估计（count/sample_size）；累计概率是各步
     概率之积——它是排序启发，不是动力学预测。
     """
@@ -126,23 +133,34 @@ def enumerate_pathways(
         )
     root = network.get("root", "")
     paths: list[tuple[float, list[dict]]] = []
-    stack: list[tuple[str, list[dict], float, frozenset]] = [(root, [], 1.0, frozenset({root}))]
+    # 堆元素：(-累计概率, 入堆序号, 节点, 路径步, 已访问集合)；序号保证
+    # 同概率时的确定性顺序（堆比较永远到不了后面的非可比字段）。
+    heap: list[tuple[float, int, str, list[dict], frozenset]] = [
+        (-1.0, 0, root, [], frozenset({root}))
+    ]
+    sequence = 1
     explored = 0
-    while stack and explored < explore_cap:
-        node, steps, cum, visited = stack.pop()
+    while heap and explored < explore_cap:
+        neg_cum, _, node, steps, visited = heapq.heappop(heap)
+        cum = -neg_cum
         explored += 1
-        children = [(p, prob) for p, prob in adjacency.get(node, []) if p not in visited]
+        children = sorted(
+            ((p, prob) for p, prob in adjacency.get(node, []) if p not in visited),
+            key=lambda item: (-item[1], item[0]),
+        )
         if not children:
             if steps:
                 paths.append((cum, steps))
             continue
         for product, prob in children:
-            stack.append((
+            heapq.heappush(heap, (
+                -(cum * prob),
+                sequence,
                 product,
                 [*steps, {"reactant": node, "product": product, "probability": prob}],
-                cum * prob,
                 visited | {product},
             ))
+            sequence += 1
     paths.sort(key=lambda item: item[0], reverse=True)
     return [
         {"cumulative_probability": cum, "steps": steps, "reaches_target": None}

@@ -1311,11 +1311,108 @@ def _refine(record: TsProcessRecord) -> TsProcessRecord:
     return record
 
 
+def _irc_interval_proof(record: TsProcessRecord, irc_log: str,
+                        freq_step: "TsJobStep") -> tuple[bool, str]:
+    """verified 的区间证明：每个 IRC 双侧端点几何上位于 TS 与对应声明极小值之间。
+
+    材料：TS 几何（频率作业旁的 ``optimized.xyz``）、两端声明极小值（build 产物与
+    ``path/product_reordered.xyz``）、IRC 双侧端点（复用 ts_guess 的引擎分发提取，
+    原子对齐用 irc_path.align_atom_order）。证明本体是
+    irc_path.assign_irc_endpoints（与 ts_guess strict / benchmark selfconsistency
+    同一实现）。任何材料缺失、对齐不可判或证明不成立都返回 ``(False, 原因)``——
+    调用方落 candidate_only，绝不升格 verified。
+    """
+    from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_input_schema
+    from cloudra.tools.core.irc_path import (
+        align_atom_order,
+        assign_irc_endpoints,
+        parse_xyz,
+    )
+    from cloudra.tools.core.structure_artifacts import read_xyz_atoms
+
+    ts_xyz = os.path.join(os.path.dirname(freq_step.input_path), "optimized.xyz")
+    if not os.path.isfile(ts_xyz):
+        return False, (
+            f"the optimised TS geometry kept next to the frequency job ({ts_xyz}) is missing, "
+            "so the interval proof has no TS anchor"
+        )
+    ts_atoms = read_xyz_atoms(ts_xyz)
+    ts_symbols = [symbol for symbol, _ in ts_atoms]
+    ts_pos = [list(position) for _, position in ts_atoms]
+
+    reactant = _read_built_xyz(record, "reactant")
+    if reactant is None:
+        return False, "the declared reactant minimum (the built endpoint geometry) is missing"
+    reordered_path = os.path.join(record.run_dir, PATH_STAGE_DIR, "product_reordered.xyz")
+    if not os.path.isfile(reordered_path):
+        return False, f"the declared product minimum in TS atom order ({reordered_path}) is missing"
+    product_atoms = read_xyz_atoms(reordered_path)
+
+    checks: list[str] = []
+    irc_input = TsGuess_input_schema(
+        mode="verify",
+        irc_log=irc_log,
+        engine=record.declaration.engine,
+        output_dir=os.path.join(record.run_dir, VERDICT_STAGE_DIR),
+        charge=record.declaration.charge,
+    )
+    info = TsGuess._extract_irc_endpoints(irc_input, checks, require_two_sides=True)
+    if info is None:
+        return False, "no usable bidirectional IRC endpoint geometries: " + "; ".join(checks)
+    end_a = parse_xyz(info["end_a"].xyz)
+    end_b = parse_xyz(info["end_b"].xyz)
+    if end_a is None or end_b is None:
+        return False, "the extracted IRC endpoint geometries could not be parsed"
+
+    aligned: list[list] = []
+    for label, symbols, positions in (
+        ("IRC endpoint A", end_a[0], end_a[1]),
+        ("IRC endpoint B", end_b[0], end_b[1]),
+        ("reactant minimum", reactant[0], reactant[1]),
+        ("product minimum",
+         [symbol for symbol, _ in product_atoms],
+         [list(position) for _, position in product_atoms]),
+    ):
+        result = align_atom_order(ts_symbols, ts_pos, list(symbols), positions)
+        if result is None:
+            return False, (
+                f"{label} could not be aligned to the TS atom order (composition mismatch, no "
+                "element-consistent assignment, or aligned distance-matrix rmsd above the gate); "
+                "this combination is undecidable"
+            )
+        aligned.append([list(positions[k]) for k in result[0]])
+
+    watch_pairs = [
+        [int(left) + 1, int(right) + 1] for left, right in record.declaration.reaction_center
+    ]
+    proof = assign_irc_endpoints(
+        ts_symbols, ts_pos, aligned[0], aligned[1], aligned[2], aligned[3],
+        watch_pairs, record.declaration.charge,
+    )
+    if not proof["is_decidable"]:
+        return False, (
+            "the geometric change between the TS and the declared minima is too small to "
+            "judge the direction of the IRC endpoints"
+        )
+    if not proof["is_match"]:
+        return False, (
+            "at least one IRC endpoint does not lie between the TS and any declared minimum; "
+            "the path does not demonstrably connect the declared minima"
+        )
+    return True, (
+        "each IRC endpoint lies between the TS and the corresponding declared minimum "
+        f"({proof['assignment']} pairing; interval proof per irc_path.assign_irc_endpoints)"
+    )
+
+
 def _verdict(record: TsProcessRecord) -> TsProcessRecord:
-    """判定四态终态：频率恰好 1 个虚频 **且** IRC 双向落回声明的极小值才算 ``verified``。
+    """判定四态终态：频率恰好 1 个虚频 **且** IRC 双向收敛 **且** 区间证明（每个
+    IRC 端点位于 TS 与对应声明极小值之间）通过才算 ``verified``。
 
     判定只读**交付物**（频率作业的日志），缺失频率数据一律算"未验证"——
     "没做频率分析"绝不能被当成"已验证的鞍点"（与 `dag/evidence_ingest` 同一套三态语义）。
+    「IRC 双向收敛」本身不证明连通：不收敛的 IRC 不算失败，收敛但不满足区间
+    证明的同样只能到 candidate_only。
     """
     from cloudra.dag.evidence_ingest import snapshot_evidence_file
 
@@ -1385,10 +1482,18 @@ def _verdict(record: TsProcessRecord) -> TsProcessRecord:
             "an incomplete IRC is not treated as failure of the saddle, but it cannot support "
             "verified either",
         )
+    passed, detail = _irc_interval_proof(record, irc_log, freq_step)
+    if not passed:
+        return _terminal(
+            record, "verdict", "candidate_only",
+            "IRC converged in both directions, but the endpoint interval proof did not "
+            f"establish that the endpoints connect the declared minima: {detail}. The "
+            "candidate stays UNVERIFIED",
+        )
     return _terminal(
         record, "verdict", "verified",
-        f"verified transition state: exactly one imaginary mode ({imag[0]:.1f} cm^-1) and IRC "
-        "converged in both directions",
+        f"verified transition state: exactly one imaginary mode ({imag[0]:.1f} cm^-1), IRC "
+        f"converged in both directions, and {detail}",
     )
 
 

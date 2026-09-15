@@ -216,6 +216,30 @@ def test_assembly_reports_failure_instead_of_a_fake_complex(tmp_path, monkeypatc
                for c in prepared.components if c.diagnostics) or prepared.diagnostics
 
 
+def test_assembly_is_refused_when_any_component_is_unusable(tmp_path, monkeypatch):
+    """任一组分优化未收敛就不进 assemble：落 optimization_failed 并指明组分。"""
+    monkeypatch.setattr(builder_mod, "_make_force_field", _stuck_force_field)
+
+    def _forbidden_assemble(**_kwargs):
+        raise AssertionError("assemble must not be called when a component is unusable")
+
+    monkeypatch.setattr(builder_mod, "assemble", _forbidden_assemble)
+    prepared = _prepare(tmp_path, "CCO.C")
+    assert prepared.status == "optimization_failed"
+    assert prepared.has_coordinates is False
+    assert prepared.assembly is None
+    assert "frag0" in prepared.message and "frag1" in prepared.message
+    assert "assembly was NOT run" in prepared.message
+
+
+def test_single_atom_component_passes_the_assembly_usability_gate(tmp_path):
+    """单原子组分无需嵌入/力场（位置即原点），不得被组装闸门误拒。"""
+    prepared = _prepare(tmp_path, "[Na+].CC=O", charge=1)
+    assert any(c.single_atom for c in prepared.components)
+    assert prepared.status == "ok", prepared.message
+    assert prepared.assembly is not None and prepared.assembly.status == "ok"
+
+
 def test_multi_fragment_seed_never_contains_overlapping_fragments(tmp_path):
     """关键回归：构建器不会把两个碎片叠在一起交出去（旧行为实测 0.1392 Å）。"""
     import numpy as np

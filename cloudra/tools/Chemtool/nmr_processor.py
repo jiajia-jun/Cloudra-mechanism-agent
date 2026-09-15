@@ -1,6 +1,6 @@
 import asyncio
 import os
-from typing import Any, Dict, List, Literal
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import Field
 
@@ -14,6 +14,29 @@ try:
 except Exception:
     ng = None
     _NMRGLUE_AVAILABLE = False
+
+def _detect_data_format(path: str) -> Optional[str]:
+    """auto 格式探测；判不出返回 None（不猜）。
+
+    Varian/Agilent 数据目录（xxx.fid/）内含 fid 文件 + procpar 参数文件，
+    与 Bruker 的 fid 判据冲突——procpar 共存必须先判 Varian，否则误走
+    bruker 读取。
+    """
+    if os.path.isdir(path):
+        entries = os.listdir(path)
+        if "procpar" in entries:
+            return "varian"
+        if any(name in entries for name in ("fid", "ser", "pdata")):
+            return "bruker"
+        if any(name.endswith(".fid") for name in entries):
+            return "varian"
+        return None
+    if path.endswith((".dx", ".jdx")):
+        return "jcamp"
+    if path.endswith(".jdf"):
+        return "jeol"
+    return None
+
 
 description = (
     "NMR raw-data processing via nmrglue: Bruker (fid/1r), Varian/Agilent, JEOL, NMRPipe, JCAMP-DX, "
@@ -92,15 +115,9 @@ class NMRProcessor(Tool):
 
             # 强化版格式识别
             if fmt == 'auto':
-                if os.path.isdir(path):
-                    if any(f in os.listdir(path) for f in ['fid', 'ser', 'pdata']):
-                        fmt = 'bruker'
-                    elif any(f.endswith('.fid') for f in os.listdir(path)) or 'fid' in os.listdir(path):
-                        fmt = 'varian'
-                elif path.endswith(('.dx', '.jdx')):
-                    fmt = 'jcamp'
-                elif path.endswith(('.jdf')):
-                    fmt = 'jeol'
+                detected = _detect_data_format(path)
+                if detected is not None:
+                    fmt = detected
 
             if fmt == 'bruker':
                 # 检查是否已有处理好的 pdata

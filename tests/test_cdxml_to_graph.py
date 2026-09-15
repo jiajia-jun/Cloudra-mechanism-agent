@@ -207,3 +207,110 @@ def test_vertical_downward_arrow_flips_sides():
     above = (90, 330, 112, 360)
     assert mod._contains_center(regions["head"], below) is True
     assert mod._contains_center(regions["tail"], above) is True
+
+
+# ---------------------------------------------------------------------------
+# T4：fragment 全文件只解析一次（旧实现解析两遍、第二遍静默丢异常）
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_fragments_are_parsed_exactly_once(tool, mock_session, monkeypatch):
+    """每个 fragment 的 molli→SMILES 解析恰好发生一次：_collect_reactions
+    只消费调用方传入的解析结果，不再自行重解析。"""
+    calls: list[str] = []
+    original = mod._fragment_to_info
+
+    def spy(cdxml_file, frag, **_kwargs):
+        calls.append(str(frag.get("id")))
+        return original(cdxml_file, frag, **_kwargs)
+
+    monkeypatch.setattr(mod, "_fragment_to_info", spy)
+    result = await _parse(tool, mock_session)
+
+    assert result.is_success is True, result.message
+    assert calls, "fixture 里应有 fragment 被解析"
+    assert len(calls) == len(set(calls)), f"存在重复解析: {calls}"
+
+
+@pytest.mark.asyncio
+async def test_fragment_parse_failure_is_warned_not_silent(tool, mock_session, monkeypatch):
+    """单趟解析中失败的 fragment 必须落 warning（不再被第二遍 except 静默吞掉）。"""
+    original = mod._fragment_to_info
+
+    def fail_first(cdxml_file, frag, **_kwargs):
+        if not getattr(fail_first, "_done", False):
+            fail_first._done = True
+            raise ValueError("simulated fragment parse failure")
+        return original(cdxml_file, frag, **_kwargs)
+
+    monkeypatch.setattr(mod, "_fragment_to_info", fail_first)
+    result = await _parse(tool, mock_session)
+
+    assert result.is_success is True, result.message
+    assert any("simulated fragment parse failure" in w for w in result.warnings)
+
+
+# ---------------------------------------------------------------------------
+# T5：溶剂识别按完整 token 精确比对；条件抽取为显式 token 扫描（无正则）
+# ---------------------------------------------------------------------------
+
+
+def _classify(raw: str) -> dict:
+    reactions = [{"solvents": [], "conditions": [], "reagents": []}]
+    mod._classify_text(raw, "top/bottom", reactions)
+    return reactions[0]
+
+
+def test_solvent_matching_uses_whole_tokens():
+    """子串匹配的旧假阳性必须消失："lipase" 不含溶剂 "ipa"、"DMAP" 不含 "dma"；
+    真正的溶剂 token（含多词条目）照常命中。"""
+    hit = _classify("lipase from Candida rugosa")
+    assert hit["solvents"] == []
+    assert "lipase from Candida rugosa" in hit["reagents"]
+
+    hit = _classify("DMAP")
+    assert hit["solvents"] == []
+    assert "DMAP" in hit["reagents"]
+
+    assert "THF" in _classify("THF")["solvents"]
+    assert _classify("ethyl acetate")["solvents"]
+    assert _classify("CH2Cl2, anhydrous")["solvents"]
+
+
+def test_parse_condition_text_explicit_token_scanning():
+    """条件抽取：温度/时间/搅拌/压力/气体的 token 扫描结果与旧正则语义一致。"""
+    cond = mod._parse_condition_text("-78 °C, 12 h, 300 rpm, 2 bar, N2")
+    assert cond["temperature"] == "-78 C"
+    assert cond["reaction_time"] == "12 hr"
+    assert cond["stir_speed"] == "300 RPM"
+    assert cond["pressure"] == "2 BAR"
+    assert cond["gas"] == "N2"
+
+    cond = mod._parse_condition_text("rt, 30 min")
+    assert cond["temperature"] == "rt"
+    assert cond["reaction_time"] == "0.5 hr"
+
+    cond = mod._parse_condition_text("80°C overnight")
+    assert cond["temperature"] == "80 C"
+    assert cond["reaction_time"] == "overnight"
+
+    # 数值与单位不配对时不猜：裸单位/无单位都不给结构化条件
+    cond = mod._parse_condition_text("some additive")
+    assert all(cond[k] is None for k in ("temperature", "reaction_time", "stir_speed", "pressure", "gas"))
+
+
+def test_module_has_no_regex():
+    """校验路径一律不准有正则：本模块不得再 import re（AGENTS.md 硬约束）。"""
+    source = open(mod.__file__, encoding="utf-8").read()
+    import_lines = [
+        line.strip() for line in source.splitlines()
+        if line.strip().startswith(("import ", "from "))
+    ]
+    assert not any(
+        line == "import re" or line.startswith("import re ") or line == "from re import"
+        or line.startswith("from re import ")
+        for line in import_lines
+    ), import_lines
+    assert "re.sub(" not in source and "re.search(" not in source and "re.match(" not in source
+    assert not hasattr(mod, "re")

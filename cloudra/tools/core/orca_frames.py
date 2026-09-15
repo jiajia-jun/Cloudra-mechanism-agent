@@ -24,7 +24,7 @@ from cloudra.tools.core.gaussian_frames import (
     EV_PER_HARTREE,
     FrameRecord,
     _as_float_list,
-    _ccread,
+    _ccread_from_text,
     _coords_to_xyz,
     _get_vibfreqs,
     _opt_converged,
@@ -177,7 +177,11 @@ def extract_thermochemistry(log_path: str) -> dict[str, float]:
       使 total_zero_point_energy = scf + zpe 等恒等式跨引擎一致。
     - Gibbs 修正量块内不直接给出，取 G − E(el)。
     """
-    text = _read_text(log_path)
+    return extract_thermochemistry_from_text(_read_text(log_path))
+
+
+def extract_thermochemistry_from_text(text: str) -> dict[str, float]:
+    """extract_thermochemistry 的文本变体：调用方已读过日志时避免重复 IO。"""
     blocks = re.split(r"-{5,}\s*\n\s*THERMOCHEMISTRY AT\s", text)
     if len(blocks) < 2:
         # 无 THERMOCHEMISTRY 标题的频算输出兜底：直接全文匹配
@@ -303,8 +307,8 @@ def final_xyz_with_text_fallback(log_path: str) -> str:
 # 帧提取
 # ---------------------------------------------------------------------------
 
-def _extract_opt_frames(log_path: str) -> list[FrameRecord]:
-    data = _ccread(log_path)
+def _extract_opt_frames(log_text: str) -> list[FrameRecord]:
+    data = _ccread_from_text(log_text)
     energies = getattr(data, "scfenergies", None)
     atomcoords = getattr(data, "atomcoords", None)
     atomnos = getattr(data, "atomnos", None)
@@ -328,7 +332,7 @@ def _extract_opt_frames(log_path: str) -> list[FrameRecord]:
     return frames
 
 
-def _extract_scan_frames(log_path: str) -> list[FrameRecord]:
+def _extract_scan_frames(log_text: str) -> list[FrameRecord]:
     """ORCA 扫描：unrelaxed 时 scanparm 给出逐点参数；relaxed 扫描的
 
     逐点几何在 cclib 1.8.x 不暴露（scancoords 为 None），能量取
@@ -336,7 +340,7 @@ def _extract_scan_frames(log_path: str) -> list[FrameRecord]:
     逐点参数值：cclib 的 scanparm 对 unrelaxed 扫描只有初值，
     故回退解析 "TRAJECTORY STEP N / <param> : value" 文本标记。
     """
-    data = _ccread(log_path)
+    data = _ccread_from_text(log_text)
     energies = getattr(data, "scfenergies", None)
     parm = getattr(data, "scanparm", None)
     if energies is None:
@@ -351,7 +355,7 @@ def _extract_scan_frames(log_path: str) -> list[FrameRecord]:
         # 文本兜底：TRAJECTORY STEP 块内的 "D7 : 32.72727273" 参数行
         step_params = re.findall(
             r"TRAJECTORY STEP\s+\d+\s*\n\s*\S+\s*:\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[EeDd][+-]?\d+)?)",
-            _read_text(log_path),
+            log_text,
         )
         if len(step_params) >= n:
             parm_values = [float(v) for v in step_params[:n]]
@@ -377,8 +381,8 @@ def _extract_scan_frames(log_path: str) -> list[FrameRecord]:
     return frames
 
 
-def _extract_sp_frames(log_path: str) -> list[FrameRecord]:
-    data = _ccread(log_path)
+def _extract_sp_frames(log_text: str) -> list[FrameRecord]:
+    data = _ccread_from_text(log_text)
     energies = getattr(data, "scfenergies", None)
     atomcoords = getattr(data, "atomcoords", None)
     atomnos = getattr(data, "atomnos", None)
@@ -404,19 +408,29 @@ def extract_frames(log_path: str) -> list[FrameRecord]:
       ``converged=True`` 的末帧。**读不到边文件时返回空但绝不退化成单点**——把一条路径报成
       一个结构比什么都不报更糟；原因见 ``frames_unavailable_reason``。
     """
-    jobs = detect_job_types(log_path)
+    return extract_frames_from_text(_read_text(log_path), log_path=log_path)
+
+
+def extract_frames_from_text(text: str, *, log_path: str | None = None) -> list[FrameRecord]:
+    """extract_frames 的文本变体：调用方已读过日志时避免重复 IO。
+
+    ``log_path`` 仅用于 NEB 分支定位 ``<作业名>_im<N>.xyz`` 边文件；为 None 时
+    NEB 路径帧无从读取，返回空（原因由 ``frames_unavailable_reason`` 说明）。
+    """
+    jobs = detect_job_types_from_text(text)
     if "irc" in jobs:
         return []
     if "neb" in jobs and not (jobs & {"opt", "ts", "scan"}):
         # 逐图像几何在 <作业名>_im<N>.xyz 边文件里；读不到就返回空，但调用方可用
         # frames_unavailable_reason 拿到**具体原因**（不是静默的"没有帧"）
-        frames, _reason = _neb_image_frames(_orca_sidecar_roots(log_path, _read_text(log_path)))
+        roots = _orca_sidecar_roots(log_path, text) if log_path else []
+        frames, _reason = _neb_image_frames(roots)
         return frames
     if "scan" in jobs:
-        return _extract_scan_frames(log_path)
+        return _extract_scan_frames(text)
     if "opt" in jobs or "ts" in jobs:
-        return _extract_opt_frames(log_path)
-    return _extract_sp_frames(log_path)
+        return _extract_opt_frames(text)
+    return _extract_sp_frames(text)
 
 
 # ---------------------------------------------------------------------------
@@ -458,7 +472,11 @@ def extract_irc(log_path: str) -> dict:
     endpoint_energies_hartree（PATH SUMMARY 首/末行能量）、ts_energy_hartree
     （带 "<= TS" 标记行的能量）。找不到 IRC 段时抛 ValueError。
     """
-    text = _read_text(log_path)
+    return extract_irc_from_text(_read_text(log_path))
+
+
+def extract_irc_from_text(text: str) -> dict:
+    """extract_irc 的文本变体：调用方已读过日志时避免重复 IO。"""
     blocks = list(_IRCA_BLOCK_RE.finditer(text))
     if not blocks:
         raise ValueError("ORCA 日志中未找到 FORWARD/BACKWARD IRC 段。")
@@ -593,6 +611,14 @@ def frames_unavailable_reason(log_path: str) -> str | None:
         text = _read_text(log_path)
     except OSError as exc:
         return f"the log could not be read: {exc}"
+    return frames_unavailable_reason_from_text(text, log_path=log_path)
+
+
+def frames_unavailable_reason_from_text(text: str, *, log_path: str | None = None) -> str | None:
+    """frames_unavailable_reason 的文本变体：调用方已读过日志时避免重复 IO。
+
+    ``log_path`` 仅用于 NEB 分支定位边文件；为 None 时按"找不到边文件"给原因。
+    """
     jobs = detect_job_types_from_text(text)
     if "irc" in jobs:
         return (
@@ -601,7 +627,8 @@ def frames_unavailable_reason(log_path: str) -> str | None:
             "(use extract_irc_endpoints or ts_guess strict=True)"
         )
     if "neb" in jobs and not (jobs & {"opt", "ts", "scan"}):
-        _frames, reason = _neb_image_frames(_orca_sidecar_roots(log_path, text))
+        roots = _orca_sidecar_roots(log_path, text) if log_path else []
+        _frames, reason = _neb_image_frames(roots)
         if reason:
             return f"this is an ORCA NEB job, but {reason}"
     return None

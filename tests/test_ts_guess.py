@@ -1896,3 +1896,304 @@ async def test_blocking_handler_does_not_freeze_event_loop(monkeypatch, mock_ses
     assert result.is_success is True
     # 若阻塞发生在事件循环线程上，0.4s 的冻结期里 ticker 只会前进寥寥几步
     assert ticks > 5, f"event loop was frozen during tool_call (ticks={ticks})"
+
+
+# ---------------------------------------------------------------------------
+# 监测对选择：复用 irc_path.classify_watch_pairs 的闸门对（键图 diff ∪ top5）
+# ---------------------------------------------------------------------------
+
+
+def test_select_watch_pairs_uses_bond_diff_gate():
+    """键翻转对进监测对；距离不变的对不再被纯距离 top-5 白占名额。"""
+    from cloudra.tools.Chemtool.ts_guess import _select_watch_pairs
+
+    symbols = ["C", "N", "H"]
+    # TS 侧 C-H 成键、产物侧 N-H 成键（质子转移）；C-N 距离不变
+    d_start = np.array([[0.0, 2.0, 1.1], [2.0, 0.0, 2.1], [1.1, 2.1, 0.0]])
+    d_end = np.array([[0.0, 2.0, 2.1], [2.0, 0.0, 1.0], [2.1, 1.0, 0.0]])
+    pairs = _select_watch_pairs(symbols, d_start, d_end, [])
+    assert pairs == [(0, 2), (1, 2)]
+
+    # 显式 watch_pairs 路径不变（1-based 校验照旧）
+    assert _select_watch_pairs(symbols, d_start, d_end, [[1, 2]]) == [(0, 1)]
+    with pytest.raises(ValueError):
+        _select_watch_pairs(symbols, d_start, d_end, [[1, 9]])
+
+
+# ---------------------------------------------------------------------------
+# 虚频模式对齐：非键对主导（扭转/角主导模式）降级 undecidable
+# ---------------------------------------------------------------------------
+
+# C,N,H TS 几何（C-N、C-H 成键；N···H 1.41 Å 不成键）
+_NONBONDED_TS_POS = [
+    [0.427601, -0.595125, 0.000000],
+    [-0.354874, 0.327913, 0.000000],
+    [-0.680027, -1.045650, 0.000000],
+]
+
+# 虚频模式：N···H 非键对主导（阻转/锥形反转式位移），C 几乎不动
+_TS_FREQ_NONBONDED_MODE = """\
+ Standard orientation:
+ ---------------------------------------------------------------------
+ Center     Atomic      Atomic             Coordinates (Angstroms)
+ Number     Number       Type             X           Y           Z
+ ---------------------------------------------------------------------
+      1          6           0        0.427601   -0.595125    0.000000
+      2          7           0       -0.354874    0.327913    0.000000
+      3          1           0       -0.680027   -1.045650    0.000000
+ ---------------------------------------------------------------------
+ Harmonic frequencies (cm**-1), IR intensities (KM/Mole), Raman scattering
+                      1                      2                      3
+                      A                      A                      A
+ Frequencies --   -915.3388               1200.0000              1300.0000
+ Red. masses --      1.0078                 1.0078                 1.0078
+  Atom  AN      X      Y      Z        X      Y      Z        X      Y      Z
+     1   6     0.00   0.00   0.00     0.00   0.10   0.00     0.00   0.00   0.10
+     2   7     0.80   0.00   0.00     0.00  -0.10   0.00     0.00   0.00  -0.10
+     3   1    -0.80   0.00   0.00     0.00   0.00   0.10     0.00   0.10   0.00
+ Normal termination of Gaussian 16 at Sat Mar 22 18:44:39 2025.
+"""
+
+
+def test_imag_mode_alignment_nonbonded_dominant_is_undecidable():
+    """主导位移对两端不成键时：pair-distance 对齐材料不足以判方向，
+    status=undecidable（不是 misaligned——扭转/角主导模式键对距离本就不动）。"""
+    from cloudra.tools.Chemtool.ts_guess import _assess_imag_mode_alignment
+
+    vibfreqs = [-915.0, 1200.0, 1300.0]
+    vibdisps = np.array([
+        [[0.0, 0.0, 0.0], [0.8, 0.0, 0.0], [-0.8, 0.0, 0.0]],
+        [[0.0, 0.1, 0.0], [0.0, -0.1, 0.0], [0.0, 0.0, 0.1]],
+        [[0.0, 0.0, 0.1], [0.0, 0.0, -0.1], [0.0, 0.1, 0.0]],
+    ], dtype=float)
+    result = _assess_imag_mode_alignment(
+        vibfreqs, vibdisps, watch_pairs=[[1, 2]],
+        symbols=["C", "N", "H"], positions=_NONBONDED_TS_POS, charge=0,
+    )
+    assert result["status"] == "undecidable"
+    assert result["aligned"] is None
+    assert "NON-BONDED" in result["message"]
+
+    # 主导对是键对（C-N 伸缩）时维持 misaligned 原规则
+    bonded_disps = np.array([
+        [[1.0, 0.0, 0.0], [-1.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+        [[0.0, 0.1, 0.0], [0.0, -0.1, 0.0], [0.0, 0.0, 0.1]],
+        [[0.0, 0.0, 0.1], [0.0, 0.0, -0.1], [0.0, 0.1, 0.0]],
+    ], dtype=float)
+    bonded = _assess_imag_mode_alignment(
+        vibfreqs, bonded_disps, watch_pairs=[[1, 3]],
+        symbols=["C", "N", "H"], positions=_NONBONDED_TS_POS, charge=0,
+    )
+    assert bonded["status"] == "misaligned"
+    assert bonded["aligned"] is False
+
+    # 无 TS 几何时无法判成键性：同样维持原规则（不猜）
+    no_geo = _assess_imag_mode_alignment(
+        vibfreqs, vibdisps, watch_pairs=[[1, 2]],
+    )
+    assert no_geo["status"] == "misaligned"
+
+
+@pytest.mark.asyncio
+async def test_verify_strict_nonbonded_dominant_mode_is_inconclusive(tmp_path, mock_session):
+    """strict：虚频模式由非键对（扭转/角）主导时从 fail 降级为 inconclusive。"""
+    tool = _make_tool()
+    freq_log = tmp_path / "ts_freq_nonbonded_mode.log"
+    freq_log.write_text(_TS_FREQ_NONBONDED_MODE)
+
+    result = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "verify",
+        "strict": True,
+        "freq_log": str(freq_log),
+        "irc_log": str(IRC_LOG),
+        "reactant_text": _HCN_XYZ,
+        "product_text": _HNC_XYZ,
+        "watch_pairs": [[1, 2]],
+        "output_dir": str(tmp_path / "strict_nonbonded"),
+    }), mock_session)
+
+    assert result.is_success, result.message
+    assert result.verdict.startswith("inconclusive")
+    assert result.imag_mode_aligned is None
+    assert any("NON-BONDED" in c for c in result.checks)
+
+
+# ---------------------------------------------------------------------------
+# 默认档 IRC 连通性：perceive_bonds 键感知 + 弱接触分级 + 不可判显式化
+# ---------------------------------------------------------------------------
+
+_WATER_A = """3
+endpoint A
+O  0.00  0.00  0.00
+H  0.96  0.00  0.00
+H  -0.24  0.93  0.00
+"""
+
+_WATER_B_STRETCHED = """3
+endpoint B
+O  0.00  0.00  0.00
+H  1.10  0.00  0.00
+H  -0.24  0.93  0.00
+"""
+
+_WATER_B_DISSOCIATED = """3
+endpoint B
+O  0.00  0.00  0.00
+H  3.00  0.00  0.00
+H  -0.24  0.93  0.00
+"""
+
+_WATER_P_WEAK = """3
+product
+O  0.00  0.00  0.00
+H  1.50  0.00  0.00
+H  -0.24  0.93  0.00
+"""
+
+_WATER_P_COVALENT = """3
+product
+O  0.00  0.00  0.00
+H  0.96  0.00  0.00
+H  -0.24  0.93  0.00
+"""
+
+
+def _connectivity_input(reactant_text, product_text):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        reactant_path=None, reactant_text=reactant_text,
+        product_path=None, product_text=product_text,
+        charge=0,
+    )
+
+
+def _frame(xyz):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(xyz=xyz)
+
+
+def test_check_irc_connectivity_weak_contact_is_warning_not_failure():
+    """键集差异在预期结构侧是弱接触（>1.25×共价半径和）时只记 warning、不判负。"""
+    checks: list[str] = []
+    verdict = TsGuess._check_irc_connectivity(
+        _connectivity_input(_WATER_A, _WATER_P_WEAK),
+        _frame(_WATER_A), _frame(_WATER_B_STRETCHED), checks,
+    )
+    assert verdict is True, checks
+    assert any("[warning]" in c and "weak-contact" in c for c in checks)
+    assert any("connectivity is consistent" in c for c in checks)
+
+
+def test_check_irc_connectivity_covalent_difference_still_fails():
+    """预期结构侧仍是共价键的键集差异：照旧判负（不降级）。"""
+    checks: list[str] = []
+    verdict = TsGuess._check_irc_connectivity(
+        _connectivity_input(_WATER_A, _WATER_P_COVALENT),
+        _frame(_WATER_A), _frame(_WATER_B_DISSOCIATED), checks,
+    )
+    assert verdict is False, checks
+    assert any("covalent" in c and "inconsistent" in c for c in checks)
+
+
+@pytest.mark.asyncio
+async def test_verify_atom_order_mismatch_is_inconclusive_not_candidate(tmp_path, mock_session):
+    """预期结构原子序与 IRC 作业不符：连通性不可判 → inconclusive，
+    不再静默跳过成 candidate。"""
+    tool = _make_tool()
+    freq_log = tmp_path / "ts_freq.log"
+    freq_log.write_text(_TS_FREQ_SNIPPET)
+
+    result = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "verify",
+        "freq_log": str(freq_log),
+        "irc_log": str(IRC_LOG),
+        "reactant_text": _HCN_REORDERED_XYZ,
+        "product_text": _HNC_XYZ,
+        "output_dir": str(tmp_path / "verify_order_mismatch"),
+    }), mock_session)
+
+    assert result.is_success, result.message
+    assert result.verdict.startswith("inconclusive")
+    assert any("undecidable" in c for c in result.checks)
+
+
+# ---------------------------------------------------------------------------
+# scan_parse（Gaussian）：Standard orientation 块与扫描点对不齐时拒发几何
+# ---------------------------------------------------------------------------
+
+
+def _gaussian_scan_log(n_block_rs: list[float]) -> str:
+    """合成 Gaussian relaxed-scan 日志：3 点扫描（峰在中点），
+    给定 R 值的 Standard orientation 块若干（块数可与点数不同）。"""
+    blocks = []
+    for r in n_block_rs:
+        blocks.append(f"""\
+ Standard orientation:
+ ---------------------------------------------------------------------
+ Center     Atomic      Atomic             Coordinates (Angstroms)
+ Number     Number       Type             X           Y           Z
+ ---------------------------------------------------------------------
+      1          1           0        0.000000    0.000000    0.000000
+      2          1           0        0.000000    0.000000    {r:.6f}
+ ---------------------------------------------------------------------
+""")
+    return "".join(blocks) + """\
+ Summary of Optimized Potential Surface Scan:
+ Eigenvalues --  -100.00000  -99.99000  -100.00000
+"""
+
+
+@pytest.mark.asyncio
+async def test_scan_parse_gaussian_ungroupable_blocks_refuses_candidate(tmp_path, mock_session, monkeypatch):
+    """cclib 取不到 scancoords 且块数≠点数（2 块对 3 点）：严禁按块均分或
+    拿末块顶替——candidate_unavailable=True，拒发几何（与 ORCA 同口径，GH #G1）。"""
+    monkeypatch.setattr("cclib.io.ccread", lambda *a, **_kw: None)
+    tool = _make_tool()
+    log = tmp_path / "scan.log"
+    log.write_text(_gaussian_scan_log([0.70, 1.30]))
+    ts_path = tmp_path / "ts_guess.xyz"
+
+    result = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "scan_parse",
+        "log_path": str(log),
+        "engine": "gaussian",
+        "ts_candidate_path": str(ts_path),
+    }), mock_session)
+
+    assert result.is_success, result.message
+    assert result.candidate_unavailable is True
+    assert result.candidate is None
+    assert result.ts_candidate_path == ""
+    assert result.barrier_kcal is None
+    assert not ts_path.exists()
+    assert any("NOT derived by equal-split" in v for v in result.verdicts)
+    # 剖面仍照常给出（3 点 + 表头）
+    assert len(result.profile_table.strip().splitlines()) == 4
+
+
+@pytest.mark.asyncio
+async def test_scan_parse_gaussian_one_block_per_point_uses_peak_block(tmp_path, mock_session, monkeypatch):
+    """块数==点数（每点恰一块）：可靠对齐，峰值帧几何照常发出。"""
+    monkeypatch.setattr("cclib.io.ccread", lambda *a, **_kw: None)
+    tool = _make_tool()
+    log = tmp_path / "scan.log"
+    log.write_text(_gaussian_scan_log([0.70, 0.90, 1.30]))
+    ts_path = tmp_path / "ts_guess.xyz"
+
+    result = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "scan_parse",
+        "log_path": str(log),
+        "engine": "gaussian",
+        "ts_candidate_path": str(ts_path),
+    }), mock_session)
+
+    assert result.is_success, result.message
+    assert result.candidate_unavailable is False
+    assert result.candidate is not None
+    assert result.candidate["source"] == "gaussian_log:std_orientation"
+    assert result.candidate["scan_index"] == 1
+    assert result.barrier_kcal == pytest.approx(6.2751, abs=1e-3)
+    content = ts_path.read_text(encoding="utf-8")
+    assert "0.900000" in content

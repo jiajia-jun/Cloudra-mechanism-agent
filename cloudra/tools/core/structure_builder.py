@@ -710,7 +710,12 @@ def _empty(status: BuildStatus, message: str, total_charge: int, out_dir: str,
 
 
 def _component_is_usable(build: _ComponentBuild) -> bool:
-    """坐标是否可交给下游：嵌入过、且优化真的收敛。"""
+    """坐标是否可交给下游：嵌入过、且优化真的收敛。
+
+    单原子组分无需嵌入与力场（位置即原点，是确定值），不受"嵌入过+收敛"要求的约束。
+    """
+    if build.component.single_atom:
+        return True
     return (
         build.component.embed_status == "embedded"
         and build.component.optimization_status == "converged"
@@ -824,31 +829,53 @@ def prepare_structure(request: PreparationRequest) -> PreparedStructure:
             "assembly needs embedded component coordinates; the strategy disabled embedding"
         )
     elif len(components) > 1:
-        # 组装（用户批准的方案 A）：刚性放置采样 + 碰撞剔除 + 力场弛豫；反应中心给出时按
-        # 反应模式做约束预优化并条件释放约束。组装参数就是 BuildStrategy.assembly 的默认值。
-        assembly = assemble(
-            components=[(build.mol, build.conf_id) for build in builds],
-            output_dir=os.path.join(out_dir, "assembly"),
-            parameters=request.strategy.assembly,
-            reaction_center=list(request.strategy.reaction_center) or None,
-            seed=request.random_seed,
-        )
-        diagnostics.extend(assembly.diagnostics)
-        if assembly.status == "ok":
-            status: BuildStatus = "ok"
-            has_coordinates = True
-            assembly_paths = list(assembly.candidate_paths)
-            message = (
-                f"{len(components)} connected components assembled ({assembly.mode} mode): "
-                f"{len(assembly.candidates)} complex candidate(s). {assembly.message}"
+        # 组装前闸门：任一组分坐标不可用（嵌入失败/优化未收敛/缺参数）就不进 assemble——
+        # 把占位坐标或未收敛几何拼成"复合物"等于交付无意义结构。
+        unusable = [build for build in builds if not _component_is_usable(build)]
+        if unusable:
+            details = "; ".join(
+                f"{build.component.component_id} (embed={build.component.embed_status}, "
+                f"optimization={build.component.optimization_status})"
+                for build in unusable
             )
-        else:
-            status = "assembly_failed"
+            status = "optimization_failed"
             has_coordinates = False
             message = (
-                f"{len(components)} connected components detected and assembled, but no usable complex "
-                f"candidate was produced (assembly status: {assembly.status}). {assembly.message}"
+                f"{len(components)} connected components detected, but component(s) "
+                f"{details} have no usable coordinates, so assembly was NOT run: a complex "
+                "assembled from placeholder or unconverged fragment geometries would be "
+                "meaningless. Fix the component builds first."
             )
+            diagnostics.append(
+                f"assembly refused: {len(unusable)} of {len(builds)} component(s) failed the "
+                "usability gate (embedded + converged, or single-atom)"
+            )
+        else:
+            # 组装（用户批准的方案 A）：刚性放置采样 + 碰撞剔除 + 力场弛豫；反应中心给出时按
+            # 反应模式做约束预优化并条件释放约束。组装参数就是 BuildStrategy.assembly 的默认值。
+            assembly = assemble(
+                components=[(build.mol, build.conf_id) for build in builds],
+                output_dir=os.path.join(out_dir, "assembly"),
+                parameters=request.strategy.assembly,
+                reaction_center=list(request.strategy.reaction_center) or None,
+                seed=request.random_seed,
+            )
+            diagnostics.extend(assembly.diagnostics)
+            if assembly.status == "ok":
+                status = "ok"
+                has_coordinates = True
+                assembly_paths = list(assembly.candidate_paths)
+                message = (
+                    f"{len(components)} connected components assembled ({assembly.mode} mode): "
+                    f"{len(assembly.candidates)} complex candidate(s). {assembly.message}"
+                )
+            else:
+                status = "assembly_failed"
+                has_coordinates = False
+                message = (
+                    f"{len(components)} connected components detected and assembled, but no usable complex "
+                    f"candidate was produced (assembly status: {assembly.status}). {assembly.message}"
+                )
     elif not request.strategy.embed:
         status = "ok"
         has_coordinates = False

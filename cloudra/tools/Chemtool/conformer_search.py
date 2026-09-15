@@ -79,6 +79,52 @@ def _select_cluster_representatives(
     return sorted(selected, key=lambda cid: (rel_energies[cid], cid))
 
 
+def _sniff_structure_text(text: str) -> Literal["mol_block", "xyz_text"]:
+    """Sniff mol block vs xyz by structure, not by substring.
+
+    A mol block is identified by its counts line (line 4: ``<atoms> <bonds> ... V2000/V3000``);
+    xyz requires an atom count on line 1 and ``<symbol> <x> <y> <z>`` on every coordinate line.
+    Neither match is an explicit failure — the format is never guessed from loose substrings
+    (an xyz comment containing "V2000", or a mol block whose molecule name starts with a digit).
+    """
+    lines = text.strip().splitlines()
+    if len(lines) >= 4:
+        counts_parts = lines[3].split()
+        if (
+            len(counts_parts) >= 2
+            and counts_parts[0].isdigit()
+            and counts_parts[1].isdigit()
+            and ("V2000" in counts_parts or "V3000" in counts_parts)
+        ):
+            return "mol_block"
+    if lines:
+        try:
+            count = int(lines[0].strip())
+        except ValueError:
+            count = -1
+        if count >= 1 and len(lines) >= 2 + count:
+            coordinate_lines = lines[2: 2 + count]
+            if all(
+                len(parts) >= 4 and parts[0].isalpha() and _all_float(parts[1:4])
+                for parts in (line.split() for line in coordinate_lines)
+            ):
+                return "xyz_text"
+    raise ValueError(
+        "input_text is neither a mol block (line 4 must be a counts line: '<atoms> <bonds> ... "
+        "V2000/V3000') nor xyz text (atom count, comment, then '<symbol> <x> <y> <z>' lines); "
+        "the format was not guessed"
+    )
+
+
+def _all_float(tokens: list[str]) -> bool:
+    try:
+        for token in tokens:
+            float(token)
+    except ValueError:
+        return False
+    return True
+
+
 description = (
     "Conformer-ensemble search: from SMILES or xyz/sdf, generate an ensemble and an energy/Boltzmann-population table, "
     "with optional reaction-distance filters (distance_filters) to keep reactive conformers whose bonding-atom distances fall in a preorganization window. "
@@ -195,11 +241,8 @@ class ConformerSearch(Tool):
             kind = "mol_block" if ext in (".sdf", ".mol", ".sd") else "xyz_text"
             return StructureInput(kind=kind, value=text)
         if user_input.input_text:
-            text = user_input.input_text
-            is_mol = "V2000" in text or "V3000" in text or "$$$$" in text
-            if is_mol and text.strip().splitlines()[0].strip().isdigit():
-                is_mol = False
-            return StructureInput(kind="mol_block" if is_mol else "xyz_text", value=text)
+            return StructureInput(kind=_sniff_structure_text(user_input.input_text),
+                                  value=user_input.input_text)
         raise ValueError("Must provide one of smiles, input_path, or input_text")
 
     @staticmethod
@@ -555,24 +598,28 @@ class ConformerSearch(Tool):
             if not candidate_cids:
                 return ConformerSearch_output_schema(is_success=False, message="No conformers within the energy window; aborting.")
 
-            # 重原子 RMSD 聚类去重（按能量升序贪心）
+            # 重原子 RMSD 聚类去重（按能量升序贪心）：RemoveHs 后与 GetBestRMS 同一重原子口径，
+            # 0.5 Å 阈值两条路径含义一致。RemoveHs 必须保留 conformer id，否则无法把重原子
+            # RMSD 对回原构象——这是一次性断言，不成立即 fail-loud，绝不换全原子口径兜底。
             mol_h = Chem.RemoveHs(mol)
             heavy_ids = {c.GetId() for c in mol_h.GetConformers()}
+            missing_ids = [cid for cid in candidate_cids if cid not in heavy_ids]
+            if missing_ids:
+                return ConformerSearch_output_schema(
+                    is_success=False,
+                    message=(
+                        f"RDKit RemoveHs did not preserve conformer id(s) {missing_ids}, so the "
+                        "heavy-atom RMSD clustering cannot be mapped back to the original "
+                        "conformers; aborting instead of silently falling back to an all-atom "
+                        "RMSD criterion under the same threshold."
+                    ),
+                )
             ordered = sorted(candidate_cids, key=lambda c: rel[c])
             clusters: list[list[int]] = []
             for cid in ordered:
-                if cid not in heavy_ids:
-                    # RemoveHs 未保留该构象 id（理论上不发生），按新聚类处理
-                    clusters.append([cid])
-                    continue
                 placed = False
                 for cluster in clusters:
-                    rep = cluster[0]
-                    if rep in heavy_ids:
-                        rmsd = rdMolAlign.GetBestRMS(mol_h, mol_h, prbId=cid, refId=rep)
-                    else:
-                        rmsd = _kabsch_rmsd(mol.GetConformer(cid).GetPositions(),
-                                            mol.GetConformer(rep).GetPositions())
+                    rmsd = rdMolAlign.GetBestRMS(mol_h, mol_h, prbId=cid, refId=cluster[0])
                     if rmsd <= user_input.rmsd_threshold:
                         cluster.append(cid)
                         placed = True

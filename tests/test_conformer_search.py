@@ -63,6 +63,85 @@ def test_cluster_does_not_duplicate_reactive_lowest_energy_representative():
     assert selected == [0, 2]
 
 
+# ---------------------------------------------------------------------------
+# input_text 格式嗅探：结构化判定，不查子串
+# ---------------------------------------------------------------------------
+
+
+def test_sniff_xyz_with_v2000_in_comment_is_still_xyz():
+    """xyz 注释行撞到 "V2000" 子串不得误判为 mol。"""
+    text = ETHANOL_XYZ.replace("ethanol", "ethanol V2000 reference")
+    assert conformer_mod._sniff_structure_text(text) == "xyz_text"
+
+
+def test_sniff_mol_with_numeric_name_line_is_still_mol():
+    """mol 首行（分子名）以数字开头是合法的，不得改判 xyz。"""
+    mol_block = (
+        "12345\n"
+        "  cloudra\n"
+        "\n"
+        "  2  1  0  0  0  0            999 V2000\n"
+        "    0.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n"
+        "    1.0900    0.0000    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0\n"
+        "  1  2  1  0\n"
+        "M  END\n"
+    )
+    assert conformer_mod._sniff_structure_text(mol_block) == "mol_block"
+
+
+def test_sniff_plain_xyz_and_v3000_mol():
+    assert conformer_mod._sniff_structure_text(ETHANOL_XYZ) == "xyz_text"
+    v3000 = (
+        "name\n"
+        "  cloudra\n"
+        "\n"
+        "  0  0  0  0  0  0            999 V3000\n"
+        "M  V30 BEGIN CTAB\n"
+        "M  V30 COUNTS 1 0 0 0 0\n"
+        "M  V30 BEGIN ATOM\n"
+        "M  V30 1 C 0.0 0.0 0.0 0\n"
+        "M  V30 END ATOM\n"
+        "M  V30 END CTAB\n"
+        "M  END\n"
+    )
+    assert conformer_mod._sniff_structure_text(v3000) == "mol_block"
+
+
+def test_sniff_unparseable_text_is_invalid_not_guessed():
+    with pytest.raises(ValueError, match="neither a mol block"):
+        conformer_mod._sniff_structure_text("CCO ethanol smiles-ish text")
+    with pytest.raises(ValueError, match="neither a mol block"):
+        conformer_mod._sniff_structure_text("")
+
+
+# ---------------------------------------------------------------------------
+# 聚类口径：RemoveHs 不保留 conformer id 时 fail-loud
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_removehs_id_loss_fails_loud_instead_of_switching_criterion(
+    tool, mock_session, tmp_path, monkeypatch,
+):
+    """RemoveHs 丢 conformer id → 显式失败；绝不允许换成全原子 RMSD 口径继续出结果。"""
+    from rdkit import Chem
+
+    real_remove_hs = Chem.RemoveHs
+
+    def _conformer_stripping_remove_hs(mol, **_kwargs):
+        heavy = real_remove_hs(mol)
+        heavy.RemoveAllConformers()
+        return heavy
+
+    monkeypatch.setattr(Chem, "RemoveHs", _conformer_stripping_remove_hs)
+    result = await tool.safe_call(
+        ConformerSearch_input_schema(smiles="CCCC", output_dir=str(tmp_path / "confs")),
+        mock_session,
+    )
+    assert result.is_success is False
+    assert "RemoveHs did not preserve conformer id" in result.message
+
+
 @pytest.mark.asyncio
 async def test_butane_smiles_ensemble(tool, mock_session, tmp_path):
     """丁烷构象搜索：应得到 anti/gauche 至少 2 个聚类，anti（最低能）布居占优，Boltzmann 合计约 100%。"""

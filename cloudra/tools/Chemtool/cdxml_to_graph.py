@@ -16,8 +16,8 @@ ready-to-use ``dag_propose_mechanism`` payload for the Coordinator.
 from __future__ import annotations
 
 import asyncio
+import math
 import os
-import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -180,17 +180,58 @@ _COMMON_SOLVENTS = {
     "diethyl ether", "dioxane", "1,4-dioxane", "nmp", "hmpa", "solvent",
 }
 
-_CONDITION_PATTERNS = {
-    "reaction_time": [
-        (r"^\s*(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours)\b", 3600.0),
-        (r"^\s*(\d+(?:\.\d+)?)\s*(min|mins|minute|minutes)\b", 60.0),
-        (r"^\s*overnight\b", 12 * 3600.0),
-    ],
-}
+# 条件文本切词时从 token 两端剥掉的标点（词内标点保留：1,4-dioxane / r.p.m. / 小数点）。
+_TOKEN_EDGE_PUNCT = " \t\r\n,;:!?()[]{}<>\"'"
+
+
+def _condition_tokens(text: str) -> list[str]:
+    """条件文本切词：按空白分词、剥两端标点，供精确 token 比对（本模块无正则）。
+
+    "lipase" 这类词不会被子串匹配误判含 "ipa"——比对单位是完整 token。
+    """
+    tokens = []
+    for raw_token in text.split():
+        token = raw_token.strip(_TOKEN_EDGE_PUNCT)
+        if token:
+            tokens.append(token)
+    return tokens
+
+
+def _numeric_prefix(token: str) -> tuple[str, str] | None:
+    """把 token 拆成（数值前缀文本, 单位后缀）；无有效有限数值前缀返回 None。"""
+    for end in range(len(token), 0, -1):
+        head = token[:end]
+        try:
+            value = float(head)
+        except ValueError:
+            continue
+        if math.isfinite(value):
+            return head, token[end:]
+    return None
+
+
+def _scan_number_unit(low_tokens: list[str], unit_of) -> tuple[str, str] | None:
+    """找第一个「数值+单位」组合（同 token 后缀或相邻独立 token）。
+
+    ``unit_of`` 是小写单位串的判定谓词；返回（数值文本, 命中的单位文本）。
+    """
+    for i, token in enumerate(low_tokens):
+        split = _numeric_prefix(token)
+        if split is None:
+            continue
+        head, suffix = split
+        if suffix and unit_of(suffix):
+            return head, suffix
+        if not suffix and i + 1 < len(low_tokens) and unit_of(low_tokens[i + 1]):
+            return head, low_tokens[i + 1]
+    return None
 
 
 def _parse_condition_text(text: str) -> dict[str, Any]:
-    """Best-effort structured condition extraction from a ChemDraw text box."""
+    """Best-effort structured condition extraction from a ChemDraw text box.
+
+    显式 token 扫描（无正则）：数值前缀 + 单位后缀精确比对，不做子串匹配。
+    """
     raw = " ".join(text.split())
     result: dict[str, Any] = {
         "raw_text": raw,
@@ -200,34 +241,38 @@ def _parse_condition_text(text: str) -> dict[str, Any]:
         "pressure": None,
         "gas": None,
     }
-    low = raw.lower()
+    tokens = _condition_tokens(raw)
+    low_tokens = [t.lower() for t in tokens]
     # Temperature
-    if re.search(r"\brt\b", low):
+    if "rt" in low_tokens:
         result["temperature"] = "rt"
     else:
-        m = re.search(r"(-?\d+(?:\.\d+)?)\s*(°?\s*c|°c|celsius)", low)
-        if m:
-            result["temperature"] = f"{m.group(1)} C"
+        hit = _scan_number_unit(low_tokens, lambda u: u in {"°c", "c", "celsius"})
+        if hit:
+            result["temperature"] = f"{hit[0]} C"
     # Time
-    m = re.search(r"(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours|min|mins|minute|minutes)\b", low)
-    if m:
-        unit = m.group(2).lower()
+    hit = _scan_number_unit(
+        low_tokens, lambda u: u in {"h", "hr", "hrs", "hour", "hours",
+                                    "min", "mins", "minute", "minutes"}
+    )
+    if hit:
+        head, unit = hit
         result["reaction_time"] = (
-            f"{float(m.group(1)) / 60:.6g} hr" if unit.startswith("min") else f"{m.group(1)} hr"
+            f"{float(head) / 60:.6g} hr" if unit.startswith("min") else f"{head} hr"
         )
-    elif "overnight" in low:
+    elif "overnight" in low_tokens:
         result["reaction_time"] = "overnight"
     # Stir speed
-    m = re.search(r"(\d+)\s*(rpm|r\.?p\.?m\.?)", low)
-    if m:
-        result["stir_speed"] = f"{m.group(1)} RPM"
+    hit = _scan_number_unit(low_tokens, lambda u: u.replace(".", "") == "rpm")
+    if hit:
+        result["stir_speed"] = f"{hit[0]} RPM"
     # Pressure
-    m = re.search(r"(\d+(?:\.\d+)?)\s*(bar|psi|mpa|atm)", low)
-    if m:
-        result["pressure"] = f"{m.group(1)} {m.group(2).upper()}"
-    # Gas
+    hit = _scan_number_unit(low_tokens, lambda u: u in {"bar", "psi", "mpa", "atm"})
+    if hit:
+        result["pressure"] = f"{hit[0]} {hit[1].upper()}"
+    # Gas（大小写敏感，与旧行为一致）
     for gas in ("N2", "O2", "H2", "CO2", "Ar", "He"):
-        if re.search(rf"\b{gas}\b", raw):
+        if gas in tokens:
             result["gas"] = gas
     return result
 
@@ -288,31 +333,38 @@ def _text_value(t: Any) -> str:
 def _classify_text(raw: str, region: str, reactions: list[dict[str, Any]]):
     """Attach a text element to the current reaction's solvent/reagent/condition lists."""
     cond = _parse_condition_text(raw)
-    low = raw.lower()
     has_condition = any(
         cond[k] is not None for k in ("temperature", "reaction_time", "stir_speed", "pressure", "gas")
     )
-    solvent_words = [s for s in _COMMON_SOLVENTS if s in low]
-    if solvent_words:
+    # 溶剂识别按完整 token 精确比对（多词条目按 token 序列带边界比对），
+    # 子串匹配会把 "lipase" 误判成含 "ipa"、"DMAP" 误判成含 "dma"。
+    low_tokens = [t.lower() for t in _condition_tokens(raw)]
+    token_set = set(low_tokens)
+    joined = f" {' '.join(low_tokens)} "
+    solvent_hit = any(
+        (f" {solvent} " in joined) if " " in solvent else (solvent in token_set)
+        for solvent in _COMMON_SOLVENTS
+    )
+    if solvent_hit:
         reactions[-1]["solvents"].append(raw)
     if has_condition:
         reactions[-1]["conditions"].append(cond)
-    if not solvent_words and not has_condition:
+    if not solvent_hit and not has_condition:
         reactions[-1]["reagents"].append(raw)
 
 
-def _collect_reactions(cdxml_file: Any) -> tuple[list[dict[str, Any]], list[_FragmentInfo], list[str]]:
-    """Build per-arrow reaction records from molli's tree and xfrags."""
-    root = cdxml_file.tree.getroot()
-    frag_infos: list[_FragmentInfo] = []
-    warnings: list[str] = []
+def _collect_reactions(
+    cdxml_file: Any,
+    frag_infos: list[_FragmentInfo],
+) -> tuple[list[dict[str, Any]], list[_FragmentInfo], list[str]]:
+    """Build per-arrow reaction records from molli's tree and pre-parsed fragments.
 
-    # Use molli's already flattened top-level fragments (page/fragment + page/group/fragment).
-    for frag in cdxml_file.xfrags:
-        try:
-            frag_infos.append(_fragment_to_info(cdxml_file, frag, save_mol2=False))
-        except Exception as exc:
-            warnings.append(f"fragment {frag.get('id')} skipped: {exc}")
+    ``frag_infos`` 由调用方一次性解析好传入——fragment 解析（molli→RDKit SMILES）
+    全文件只做一次，本函数不再自行重解析（旧实现两遍解析、第二遍静默丢异常，
+    两遍结果可能不一致）。
+    """
+    root = cdxml_file.tree.getroot()
+    warnings: list[str] = []
 
     reactions: list[dict[str, Any]] = []
     for page in root.findall("page"):
@@ -728,8 +780,10 @@ class CdxmlToGraph(Tool):
         """CDXML 解析主体；只经 to_thread 调用。"""
         try:
             cdxml_file = ml.CDXMLFile(path)
-            # Reparse fragments with optional mol2 persistence (first pass was for layout).
+            # Fragment 全文件只解析一次（含可选 mol2 落盘），解析失败的 fragment
+            # 记 warning 后排除——绝不静默丢弃、也不二次解析。
             frag_map = {}
+            warnings: list[str] = []
             for frag in cdxml_file.xfrags:
                 try:
                     info = _fragment_to_info(
@@ -741,19 +795,11 @@ class CdxmlToGraph(Tool):
                     frag_map[str(frag.get("id"))] = info
                     if user_input.save_mol2 and info.mol2 and os.path.isfile(info.mol2):
                         mol2_files[str(frag.get("id"))] = info.mol2
-                except Exception:
-                    continue
+                except Exception as exc:
+                    warnings.append(f"fragment {frag.get('id')} skipped: {exc}")
 
-            reactions, _, warnings = _collect_reactions(cdxml_file)
-            # Replace layout infos with enriched infos from the same fragments so save_mol2 paths survive.
-            for reaction in reactions:
-                for key in ("reactants", "products", "reagents"):
-                    reaction[key] = [
-                        frag_map.get(i.frag_id, i)
-                        if isinstance(i, _FragmentInfo) and i.frag_id in frag_map
-                        else i
-                        for i in reaction[key]
-                    ]
+            reactions, _, collect_warnings = _collect_reactions(cdxml_file, list(frag_map.values()))
+            warnings.extend(collect_warnings)
 
             graph, dag_proposal, graph_warnings, unresolved = _build_graph(reactions, list(frag_map.values()))
             warnings.extend(graph_warnings)

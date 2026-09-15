@@ -242,3 +242,51 @@ async def test_closed_shell_unaffected_by_openshell_changes(tool, mock_session):
     assert "spin_squared" not in result.summary
     assert "UHF" not in result.report
     assert result.summary["total_energy_eh"] < -70.0
+
+
+# ---------------------------------------------------------------------------
+# 共享判据/原语（无需 PySCF 的纯函数测试）
+# ---------------------------------------------------------------------------
+
+
+def test_bond_pairs_use_shared_connectivity_factor():
+    """_bond_pairs 必须引用 internal_coordinates 的 DISTANCE_CONNECTIVITY_FACTOR
+    （1.25），不再自带 1.3 字面量：H-H 键长 0.79 Å 落 (1.25, 1.3]×(ri+rj) 区间，
+    旧判据成键、共享判据不成键——同一分子两处结论必须一致。"""
+    from cloudra.tools.Chemtool.internal_coordinates import DISTANCE_CONNECTIVITY_FACTOR
+
+    assert DISTANCE_CONNECTIVITY_FACTOR == 1.25
+    # H 共价半径 0.31：1.25×(0.31+0.31)=0.775 < 0.79 < 0.806=1.3×(0.31+0.31)
+    near = ElectronicAnalysis._bond_pairs(["H", "H"], [[0.0, 0.0, 0.0], [0.0, 0.0, 0.79]])
+    assert near == []
+    bonded = ElectronicAnalysis._bond_pairs(["H", "H"], [[0.0, 0.0, 0.0], [0.0, 0.0, 0.77]])
+    assert len(bonded) == 1
+
+
+@pytest.mark.asyncio
+async def test_open_shell_report_lists_alpha_beta_frontier_orbitals(tool, mock_session):
+    """开壳层（甲基自由基 UHF）：Frontier Orbitals 节必须显式给出 α/β 两套
+    HOMO/LUMO（SOMO 语义），summary 带 per-spin 通道与 gap_status。"""
+    result = await tool.safe_call(
+        ElectronicAnalysis_input_schema(
+            input_text=CH3_RADICAL_XYZ, spin=2, method="hf", basis="sto-3g",
+        ),
+        mock_session,
+    )
+    assert result.is_success is True
+
+    fo_section = result.report.split("=== Frontier Orbitals ===")[1].split("=== Charges")[0]
+    assert "α-HOMO (SOMO)" in fo_section
+    assert "α-LUMO" in fo_section
+    assert "β-HOMO (SOMO)" in fo_section
+    assert "β-LUMO" in fo_section
+
+    summary = result.summary
+    assert summary["alpha_homo_eh"] is not None
+    assert summary["beta_homo_eh"] is not None
+    assert "gap_status" in summary
+    if summary["gap_status"] == "undecidable_spin_crossover":
+        assert summary["gap_ev"] is None
+        assert "undecidable" in fo_section
+    else:
+        assert summary["gap_ev"] is not None and summary["gap_ev"] >= 0.0

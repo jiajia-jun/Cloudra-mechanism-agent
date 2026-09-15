@@ -205,3 +205,44 @@ async def test_nmrglue_missing_returns_clean_failure(monkeypatch, tmp_path):
     )
     assert result.is_success is False
     assert "nmrglue" in result.message
+
+
+# ---------------------------------------------------------------------------
+# N5：auto 格式探测——Varian 的 procpar 共存必须先判 Varian
+# ---------------------------------------------------------------------------
+
+
+def test_detect_format_varian_procpar_wins_over_bruker_fid(tmp_path):
+    """Varian 数据目录 xxx.fid/ 内含 fid + procpar：旧检测先命中 Bruker 的
+    fid 判据误走 bruker 读取；procpar 共存必须先判 Varian。"""
+    varian = tmp_path / "sample.fid"
+    varian.mkdir()
+    (varian / "fid").touch()
+    (varian / "procpar").touch()
+    assert nmr_mod._detect_data_format(str(varian)) == "varian"
+
+
+def test_detect_format_bruker_without_procpar(tmp_path):
+    for marker in ("fid", "ser", "pdata"):
+        bruker = tmp_path / f"bruker_{marker}"
+        bruker.mkdir()
+        (bruker / marker).touch()
+        assert nmr_mod._detect_data_format(str(bruker)) == "bruker", marker
+
+
+def test_detect_format_varian_fid_suffixed_entry(tmp_path):
+    holder = tmp_path / "holder"
+    holder.mkdir()
+    (holder / "exp1.fid").mkdir()
+    assert nmr_mod._detect_data_format(str(holder)) == "varian"
+
+
+def test_detect_format_file_suffixes_and_undecidable(tmp_path):
+    assert nmr_mod._detect_data_format(str(tmp_path / "spec.dx")) == "jcamp"
+    assert nmr_mod._detect_data_format(str(tmp_path / "spec.jdx")) == "jcamp"
+    assert nmr_mod._detect_data_format(str(tmp_path / "spec.jdf")) == "jeol"
+    # 判不出返回 None（不猜），由调用方报 Unrecognized instrument format
+    assert nmr_mod._detect_data_format(str(tmp_path / "spec.bin")) is None
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    assert nmr_mod._detect_data_format(str(empty)) is None

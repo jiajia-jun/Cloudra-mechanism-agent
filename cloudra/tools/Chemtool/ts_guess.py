@@ -29,19 +29,28 @@ from cloudra.tools.Chemtool.internal_coordinates import (
 )
 from cloudra.tools.core import orca_frames
 from cloudra.tools.core.irc_path import (
+    COVALENT_RADII as _COVALENT_RADII,
+)
+from cloudra.tools.core.irc_path import (
     align_atom_order as _align_atom_order,
 )
 from cloudra.tools.core.irc_path import (
     assign_irc_endpoints as _assign_irc_endpoints,
 )
 from cloudra.tools.core.irc_path import (
-    bond_pairs as _bond_pairs,
+    bond_pairs_from_dist as _bond_pairs_from_dist,
+)
+from cloudra.tools.core.irc_path import (
+    classify_watch_pairs as _classify_watch_pairs,
 )
 from cloudra.tools.core.irc_path import (
     dist_matrix as _dist_matrix,
 )
 from cloudra.tools.core.irc_path import (
     pair_label as _pair_label,
+)
+from cloudra.tools.core.irc_path import (
+    perceive_bonds as _perceive_bonds,
 )
 from cloudra.tools.core.xtb_path_runner import DEFAULT_REFINEMENT_RUNS
 
@@ -314,8 +323,11 @@ def _kabsch_rotate(mobile, ref):
 
 
 def _select_watch_pairs(symbols, d_start, d_end, watch_pairs) -> list[tuple[int, int]]:
-    """选监测原子对：给了 watch_pairs 就用它（1-based 输入，越界即报错）；否则取两端距离
-    变化最大的 5 对。interpolate 与 xtb_path 共用这一份实现。"""
+    """选监测原子对：给了 watch_pairs 就用它（1-based 输入，越界即报错）；否则用
+    irc_path.classify_watch_pairs 的闸门对（键图 diff ∪ |Δd| top-5，唯一实现，
+    键图由距离矩阵按共价半径判据派生）。两端无任何显著变化（闸门为空，如刚性
+    平移玩具）时退回 |Δd| 最大的 5 对——只用于距离表展示，不作任何判定。
+    interpolate 与 xtb_path 共用这一份实现。"""
     import numpy as np
 
     n = len(symbols)
@@ -331,6 +343,12 @@ def _select_watch_pairs(symbols, d_start, d_end, watch_pairs) -> list[tuple[int,
                 )
             pairs.append((min(i, j), max(i, j)))
         return pairs
+    start_bonds = _bond_pairs_from_dist(symbols, d_start)
+    end_bonds = _bond_pairs_from_dist(symbols, d_end)
+    cls = _classify_watch_pairs(symbols, d_start, d_end, start_bonds, end_bonds)
+    gate = sorted(set(cls["bond_diff"]) | set(cls["distance_top5"]))
+    if gate:
+        return gate
     iu = np.triu_indices(n, k=1)
     deltas = np.abs(d_end[iu] - d_start[iu])
     order = np.argsort(-deltas)[:5]
@@ -750,12 +768,20 @@ def _assess_imag_mode_alignment(
     vibfreqs: Sequence[float],
     vibdisps,
     watch_pairs: Sequence[Sequence[int]],
+    symbols: Optional[Sequence[str]] = None,
+    positions=None,
+    charge: int = 0,
     **_kwargs,
 ) -> dict[str, Any]:
     """检查最低虚频模式是否主要落在 watch_pairs 反应中心上。
 
     对每个原子对取 |d_i - d_j|；要求 watch_pairs 中至少一对达到全局最大相对位移的
     `_IMAG_MODE_WATCH_RATIO` 倍。缺位移数据时 status=missing。
+
+    扭转/角主导的 TS（阻转、环翻转、锥形反转）：全局最大相对位移对**两端不成键**
+    （用 TS 几何的 perceive_bonds 键图判）时，键对距离本就几乎不动，pair-distance
+    对齐材料不足以判方向——status=undecidable（strict 下降级为 inconclusive，
+    不误判方向不符）。主导对是键对、或 TS 几何缺失无法判成键性时，维持原规则。
     """
     import numpy as np
 
@@ -855,6 +881,25 @@ def _assess_imag_mode_alignment(
         )
         status = "aligned"
     else:
+        # 扭转/角主导模式：全局最大相对位移对两端不成键时，键对距离几乎不动是
+        # 这类模式的固有性质，pair-distance 对齐无法判方向——undecidable。
+        dominant_bonded: Optional[bool] = None
+        if symbols is not None and positions is not None and len(symbols) == n:
+            bond_graph, _src = _perceive_bonds(list(symbols), positions, charge)
+            dominant_bonded = (min(max_pair), max(max_pair)) in bond_graph
+        if dominant_bonded is False:
+            return {
+                "status": "undecidable",
+                "aligned": None,
+                "message": (
+                    f"The imaginary mode's dominant motion is on the NON-BONDED atom pair "
+                    f"({max_pair[0] + 1},{max_pair[1] + 1}): a torsion/angle-dominated mode "
+                    "(hindered rotation, ring flip, pyramidal inversion) barely moves bonded-pair "
+                    "distances, so pair-distance alignment against watch_pairs cannot judge its "
+                    "direction. The material is insufficient for a pass/fail verdict."
+                ),
+                "details": watch_details,
+            }
         message = (
             f"Imaginary mode is inconsistent with the declared reaction coordinate: watch_pairs max relative displacement {best_watch:.3f} "
             f"< {_IMAG_MODE_WATCH_RATIO:.2f}×global max {max_rel:.3f} "
@@ -1481,25 +1526,44 @@ class TsGuess(Tool):
             except Exception as e:
                 notes.append(f"cclib geometry extraction failed ({e}); falling back to Standard orientation parsing.")
 
-            if ts_coords is None:
+            if ts_coords is None and 0 < ts_index < n_pts - 1:
                 blocks = _parse_std_orientation_blocks(text)
-                if not blocks:
-                    raise ValueError("Failed to extract a TS candidate geometry from the log (both cclib and Standard orientation failed).")
-                # 能量最高点那一帧的最后一个 Standard orientation
-                if len(blocks) >= n_pts:
-                    # 每帧优化含若干取向块，按帧均分取该帧最后一块
-                    per = len(blocks) / n_pts
-                    block_idx = min(int(round((ts_index + 1) * per)) - 1, len(blocks) - 1)
-                else:
-                    block_idx = len(blocks) - 1
-                    notes.append("Fewer Standard orientation blocks than scan points; taking the last block of the file as an approximation.")
-                rows = blocks[block_idx]
-                from cclib.parser.utils import PeriodicTable
+                if len(blocks) == n_pts:
+                    # 块数与扫描点一一对应（每点恰一块）：峰值帧几何可靠可取
+                    rows = blocks[ts_index]
+                    from cclib.parser.utils import PeriodicTable
 
-                pt = PeriodicTable()
-                symbols = [pt.element[int(z)] for z, *_ in rows]
-                ts_coords = np.asarray([[x, y, z] for _, x, y, z in rows], dtype=float)
-                candidate_source = "gaussian_log:std_orientation"
+                    pt = PeriodicTable()
+                    symbols = [pt.element[int(z)] for z, *_ in rows]
+                    ts_coords = np.asarray([[x, y, z] for _, x, y, z in rows], dtype=float)
+                    candidate_source = "gaussian_log:std_orientation"
+                else:
+                    # 块数与扫描点无法一一对应：严禁按块均分猜峰值帧、也严禁拿
+                    # 末块顶替（与 ORCA _ScanStepsUngroupable 同口径，GH #G1）。
+                    lines = [f"{'frame':>4}  {'rel. energy (kcal/mol)':>18}"]
+                    for k, e in enumerate(rel_kcal):
+                        lines.append(f"{k:>4}  {e:>18.4f}")
+                    return TsGuess_output_schema(
+                        is_success=True,
+                        profile_table="\n".join(lines),
+                        verdicts=[
+                            *profile["verdicts"], *notes,
+                            f"The log has {len(blocks)} 'Standard orientation' blocks for {n_pts} "
+                            "scan points, so the blocks cannot be aligned to scan points one-to-one. "
+                            "The peak-frame geometry was NOT derived by equal-split block division "
+                            "and the last block was NOT substituted (GH #G1).",
+                            "No TS-guess geometry was written. Re-parse with cclib-accessible scan "
+                            "coordinates, or extract the peak geometry from the per-point output files.",
+                        ],
+                        barrier_kcal=None,  # 拒发候选时不报 barrier（G4）
+                        candidate=None,
+                        candidate_unavailable=True,
+                        message=(
+                            "Scan profile parsed, but the TS-candidate geometry is unavailable: the "
+                            "'Standard orientation' blocks cannot be reliably mapped to scan points, "
+                            "and no equal-split or last-frame substitution was applied."
+                        ),
+                    )
         else:
             # ORCA relaxed scan：sidecar（relaxscanact.dat 逐帧能量 + ts_scan.NNN.xyz
             # 逐帧几何）优先——能量最高帧往往不是末帧，.out 的 rfind 末帧会选错
@@ -1706,6 +1770,9 @@ class TsGuess(Tool):
                 vibfreqs,
                 freq.get("vibdisps"),
                 user_input.watch_pairs,
+                symbols=freq.get("symbols"),
+                positions=freq.get("positions"),
+                charge=user_input.charge,
             )
             imag_mode_aligned = assessment["aligned"]
             imag_mode_alignment = assessment["message"]
@@ -1732,6 +1799,11 @@ class TsGuess(Tool):
                 if mode["status"] == "missing":
                     verdict = (
                         "inconclusive: the frequency log lacks normal-mode displacements; cannot check the imaginary-frequency direction."
+                    )
+                elif mode["status"] == "undecidable":
+                    verdict = (
+                        "inconclusive: the imaginary mode is dominated by non-bonded-pair "
+                        "(torsion/angle) motion; pair-distance alignment cannot judge its direction."
                     )
                 elif mode["status"] == "misaligned":
                     verdict = "fail: the imaginary mode is inconsistent with the declared reaction coordinate."
@@ -1771,6 +1843,11 @@ class TsGuess(Tool):
                     verdict = "inconclusive: IRC was provided, but comparable endpoint geometries could not be obtained."
                 elif irc_ok is False:
                     verdict = "unlikely: the rough connectivity of the IRC endpoints is inconsistent with the expected structures."
+                elif irc_ok == "inconclusive":
+                    verdict = (
+                        "inconclusive: the IRC endpoints could not be compared with the expected "
+                        "structures (atom order or element mismatch); connectivity is undecidable."
+                    )
                 else:
                     reason = "one imaginary frequency" + ("; rough IRC connectivity consistent" if irc_ok else "")
                     verdict = f"candidate: {reason}; advisory only for the agent's next step, not a strict proof of the TS."
@@ -2017,18 +2094,40 @@ class TsGuess(Tool):
 
     @staticmethod
     def _check_irc_connectivity(user_input: TsGuess_input_schema, end_a, end_b,
-                                checks: list[str]) -> Optional[bool]:
-        """比较 IRC 两端点与预期反应物/产物的成键集合。未提供预期结构时只报告成键表。"""
+                                checks: list[str]) -> "bool | str | None":
+        """比较 IRC 两端点与预期反应物/产物的成键集合（rdDetermineBonds 主通道）。
+
+        返回 True / False / "inconclusive" / None：
+        - None：未提供预期结构，只报告成键表（不判连通性）；
+        - "inconclusive"：端点或预期结构的原子序/元素不一致，连通性不可判
+          （绝不静默跳过成 candidate）；
+        - 键集差异按**预期结构侧**距离分级：超出 1.25×共价半径和的弱接触
+          （氢键/非键接触）差异只记 warning 不判负；共价差异判负。
+        """
         import ase.io
+        import numpy as np
 
         def frame_atoms(frame):
             return ase.io.read(StringIO(frame.xyz), format="xyz")
 
+        def perceive(atoms) -> set[tuple[int, int]]:
+            return set(_perceive_bonds(
+                atoms.get_chemical_symbols(),
+                [list(p) for p in atoms.get_positions()],
+                user_input.charge,
+            )[0])
+
         atoms_a = frame_atoms(end_a)
         atoms_b = frame_atoms(end_b)
         syms = atoms_a.get_chemical_symbols()
-        bonds_a = _bond_pairs(syms, atoms_a.get_positions())
-        bonds_b = _bond_pairs(syms, atoms_b.get_positions())
+        if atoms_b.get_chemical_symbols() != syms:
+            checks.append(
+                "The two IRC endpoint frames differ in atom order or elements; "
+                "connectivity is undecidable."
+            )
+            return "inconclusive"
+        bonds_a = perceive(atoms_a)
+        bonds_b = perceive(atoms_b)
 
         def bond_table(name, bonds):
             if bonds:
@@ -2046,39 +2145,69 @@ class TsGuess(Tool):
         r_atoms = _load_xyz(user_input.reactant_path, user_input.reactant_text)
         p_atoms = _load_xyz(user_input.product_path, user_input.product_text)
         if r_atoms.get_chemical_symbols() != syms or p_atoms.get_chemical_symbols() != syms:
-            checks.append("The expected reactant/product atom order differs from the IRC job; skipping the connectivity check.")
-            return None
-        bonds_r = _bond_pairs(syms, r_atoms.get_positions())
-        bonds_p = _bond_pairs(syms, p_atoms.get_positions())
+            checks.append(
+                "The expected reactant/product atom order or elements differ from the IRC job; "
+                "the connectivity check is undecidable."
+            )
+            return "inconclusive"
+        bonds_r = perceive(r_atoms)
+        bonds_p = perceive(p_atoms)
+        exp_pos = {"reactant": r_atoms.get_positions(), "product": p_atoms.get_positions()}
 
-        def diff_count(b1, b2):
-            return len(b1.symmetric_difference(b2))
+        def split_diff(end_bonds, exp_name, exp_bonds):
+            """键集差异 → (共价差异, 弱接触差异)：按预期结构侧距离分级。"""
+            covalent: list[tuple[int, int]] = []
+            weak: list[tuple[int, int]] = []
+            pos = exp_pos[exp_name]
+            for pair in sorted(set(end_bonds) ^ set(exp_bonds)):
+                limit = 1.25 * (
+                    _COVALENT_RADII.get(syms[pair[0]], 1.2)
+                    + _COVALENT_RADII.get(syms[pair[1]], 1.2)
+                )
+                d = float(np.linalg.norm(pos[pair[0]] - pos[pair[1]]))
+                (weak if d > limit else covalent).append(pair)
+            return covalent, weak
 
-        # 两种端点↔预期指派，取差异键总数小者
-        direct = diff_count(bonds_a, bonds_r) + diff_count(bonds_b, bonds_p)
-        swapped = diff_count(bonds_a, bonds_p) + diff_count(bonds_b, bonds_r)
+        # 两种端点↔预期指派，按共价差异键总数取小者（弱接触不参与指派计分）
+        direct = (
+            len(split_diff(bonds_a, "reactant", bonds_r)[0])
+            + len(split_diff(bonds_b, "product", bonds_p)[0])
+        )
+        swapped = (
+            len(split_diff(bonds_a, "product", bonds_p)[0])
+            + len(split_diff(bonds_b, "reactant", bonds_r)[0])
+        )
         if swapped < direct:
             assign = [("Endpoint A", bonds_a, "product", bonds_p), ("Endpoint B", bonds_b, "reactant", bonds_r)]
         else:
             assign = [("Endpoint A", bonds_a, "reactant", bonds_r), ("Endpoint B", bonds_b, "product", bonds_p)]
 
-        diff_lines = []
+        diff_lines: list[str] = []
+        warning_lines: list[str] = []
         for end_name, end_bonds, exp_name, exp_bonds in assign:
-            extra = sorted(end_bonds - exp_bonds)
-            missing = sorted(exp_bonds - end_bonds)
-            if extra or missing:
-                parts = []
-                if extra:
-                    parts.append("extra bonds: " + ", ".join(_pair_label(syms, pr) for pr in extra))
-                if missing:
-                    parts.append("missing bonds: " + ", ".join(_pair_label(syms, pr) for pr in missing))
-                diff_lines.append(f"{end_name} vs {exp_name} ({'; '.join(parts)})")
+            covalent, weak = split_diff(end_bonds, exp_name, exp_bonds)
+            if covalent:
+                diff_lines.append(
+                    f"{end_name} vs {exp_name} (covalent differences: "
+                    + ", ".join(_pair_label(syms, pr) for pr in covalent) + ")"
+                )
+            if weak:
+                warning_lines.append(
+                    f"{end_name} vs {exp_name} (weak-contact differences: "
+                    + ", ".join(_pair_label(syms, pr) for pr in weak) + ")"
+                )
 
         if diff_lines:
             checks.append(
-                "IRC endpoints' connectivity is inconsistent with the expected reactant/product (differing bonds): " + "; ".join(diff_lines)
+                "IRC endpoints' connectivity is inconsistent with the expected reactant/product "
+                "(covalent bond-set differences): " + "; ".join(diff_lines)
             )
             return False
+        for line in warning_lines:
+            checks.append(
+                "[warning] weak-contact (H-bond/non-covalent at the expected minimum) bond-set "
+                "difference, not counted as failure: " + line
+            )
         checks.append(
             "IRC endpoints' connectivity is consistent with the expected reactant/product: "
             + "; ".join(f"{end} ↔ {exp}" for end, _, exp, _ in assign)

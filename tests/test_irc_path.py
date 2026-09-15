@@ -50,6 +50,28 @@ def test_align_atom_order_rejects_composition_mismatch():
     assert align_atom_order(_WATER_S, _WATER_P, ["O", "H", "F"], _WATER_P) is None
 
 
+def test_hungarian_rejects_forbidden_assignment():
+    """禁配（1e9）被选中的指派 = 无合法完美匹配：返回 None 而不是带病返回。"""
+    from cloudra.tools.core.irc_path import _hungarian
+
+    assert _hungarian([[1e9, 1e9], [1.0, 1.0]]) is None
+    # 合法指派照常：perm[j] = 分配给列 j 的行下标
+    assert _hungarian([[1.0, 1e9], [1e9, 2.0]]) == [0, 1]
+    assert _hungarian([[1e9, 1.0], [2.0, 1e9]]) == [1, 0]
+
+
+def test_align_atom_order_gates_poor_alignment():
+    """元素相同但几何迥异（对齐距离矩阵 rmsd > 1.0 Å）的组合不可信：
+    按 undecidable 返回 None，不带着可疑对应进区间证明。"""
+    stretched = [[0.0, 0.0, 0.0], [0.0, 0.0, 3.0], [0.0, 0.0, -3.0]]
+    assert align_atom_order(_WATER_S, _WATER_P, _WATER_S, stretched) is None
+    # rmsd 小的同谱系扰动照常返回
+    perturbed = [[p[0], p[1], p[2] + 0.05] for p in _WATER_P]
+    result = align_atom_order(_WATER_S, _WATER_P, _WATER_S, perturbed)
+    assert result is not None
+    assert result[0] == [0, 1, 2]
+
+
 def test_align_atom_order_rotation_invariant():
     # 同一几何绕 z 轴转 90°：距离指纹不变，指派应与未旋转一致
     rotated = [[-p[1], p[0], p[2]] for p in _WATER_P]
@@ -166,6 +188,34 @@ def test_classify_watch_pairs_mad_filters_noise_floor():
     assert not any(symbols[p[0]] == "H" and symbols[p[1]] == "H" for p in cls["b"])
     # C-O 这类重原子+电极性对保留作佐证
     assert (0, 1) in cls["b"]
+
+
+def test_classify_watch_pairs_mad_zero_falls_back_to_quartile():
+    """MAD=0 退化（≥半数对并列在中位数、上方还有一块并列高分）：
+    median + k·MAD 退成 median 等于不过滤（上方整块并列对全进 B）。
+    回退固定上四分位后，并列高分块不再漏进 B 层。"""
+    symbols = ["H", "H", "H", "H", "H"]
+    n = len(symbols)
+    # 5 个 H：10 对全无键（距离 3.0，H-H 共价判据 0.775）
+    d_ts = [[0.0] * n for _ in range(n)]
+    d_int = [[0.0] * n for _ in range(n)]
+    for i in range(n):
+        for j in range(i + 1, n):
+            d_ts[i][j] = d_ts[j][i] = 3.0
+            d_int[i][j] = d_int[j][i] = 3.0
+    # 两对大 Δd 进闸门（不进 scores）；其余 8 对：3 对并列中位、3 对并列高位
+    gated = {(0, 1): 2.0, (0, 2): 1.0}
+    small = {
+        (0, 3): 0.01, (0, 4): 0.02,
+        (1, 2): 0.05, (1, 3): 0.05, (1, 4): 0.05,
+        (2, 3): 0.10, (2, 4): 0.10, (3, 4): 0.10,
+    }
+    for (i, j), delta in {**gated, **small}.items():
+        d_int[i][j] = d_int[j][i] = 3.0 + delta
+    cls = classify_watch_pairs(symbols, d_ts, d_int, {}, {})
+    assert set(cls["distance_top5"]) == set(gated)
+    # MAD=0 退化下 B 层不提名整块并列对（旧规则会把 3 对 0.10 全放进来）
+    assert cls["b"] == []
 
 
 # ---------------------------------------------------------------------------

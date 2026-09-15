@@ -74,7 +74,11 @@ def detect_job_types(log_path: str) -> set[str]:
 
     限制：Link1 多步任务不拆分 section，按整文件取合集（v1）。
     """
-    text = _read_text(log_path)
+    return detect_job_types_from_text(_read_text(log_path))
+
+
+def detect_job_types_from_text(text: str) -> set[str]:
+    """detect_job_types 的文本变体：调用方已读过日志时避免重复 IO。"""
     route = _collect_route_card(text)
     jobs: set[str] = set()
 
@@ -341,7 +345,12 @@ def _parse_irc(text: str):
 
 def extract_irc(log_path: str):
     """解析 IRC 日志，返回 (list[FrameRecord], meta dict)。供 log_parser 汇总用。"""
-    return _parse_irc(_read_text(log_path))
+    return extract_irc_from_text(_read_text(log_path))
+
+
+def extract_irc_from_text(text: str):
+    """extract_irc 的文本变体：调用方已读过日志时避免重复 IO。"""
+    return _parse_irc(text)
 
 
 # ---------------------------------------------------------------------------
@@ -349,18 +358,25 @@ def extract_irc(log_path: str):
 # ---------------------------------------------------------------------------
 
 def _ccread(log_path: str):
+    return _ccread_from_text(_read_text(log_path), source_desc=log_path)
+
+
+def _ccread_from_text(text: str, source_desc: str = "<in-memory log text>"):
+    """_ccread 的文本变体：调用方已读过日志时避免重复 IO（cclib 吃 StringIO）。"""
+    import io
+
     import cclib
 
     try:
-        data = cclib.io.ccread(log_path)
+        data = cclib.io.ccread(io.StringIO(text))
     except IndexError as exc:
         # cclib 内部对截断/畸形日志会裸抛 "list index out of range"——翻译成
         # 有语义的解析失败，调用方（format_converter 等）才能给出可读指引
         raise ValueError(
-            f"日志解析器内部索引越界（疑似截断或损坏的计算日志）: {log_path}"
+            f"日志解析器内部索引越界（疑似截断或损坏的计算日志）: {source_desc}"
         ) from exc
     if data is None:
-        raise ValueError(f"cclib 未能解析日志: {log_path}")
+        raise ValueError(f"cclib 未能解析日志: {source_desc}")
     return data
 
 
@@ -370,8 +386,8 @@ def _as_float_list(values) -> list[float]:
     return [float(v) for v in np.asarray(list(values), dtype=float)]
 
 
-def _extract_scan_frames(log_path: str) -> list[FrameRecord]:
-    data = _ccread(log_path)
+def _extract_scan_frames(log_text: str) -> list[FrameRecord]:
+    data = _ccread_from_text(log_text)
     energies = getattr(data, "scanenergies", None)
     parm = getattr(data, "scanparm", None)
     if energies is None or parm is None or len(parm) == 0:
@@ -414,8 +430,8 @@ def _get_vibfreqs(data) -> list[float]:
     return _as_float_list(vibfreqs)
 
 
-def _extract_opt_frames(log_path: str) -> list[FrameRecord]:
-    data = _ccread(log_path)
+def _extract_opt_frames(log_text: str) -> list[FrameRecord]:
+    data = _ccread_from_text(log_text)
     energies = getattr(data, "scfenergies", None)
     atomcoords = getattr(data, "atomcoords", None)
     atomnos = getattr(data, "atomnos", None)
@@ -439,8 +455,8 @@ def _extract_opt_frames(log_path: str) -> list[FrameRecord]:
     return frames
 
 
-def _extract_sp_frames(log_path: str) -> list[FrameRecord]:
-    data = _ccread(log_path)
+def _extract_sp_frames(log_text: str) -> list[FrameRecord]:
+    data = _ccread_from_text(log_text)
     energies = getattr(data, "scfenergies", None)
     atomcoords = getattr(data, "atomcoords", None)
     atomnos = getattr(data, "atomnos", None)
@@ -463,16 +479,21 @@ def _extract_sp_frames(log_path: str) -> list[FrameRecord]:
 
 def extract_frames(log_path: str) -> list[FrameRecord]:
     """按识别到的任务类型提取关键帧。无法识别的日志返回空列表。"""
-    jobs = detect_job_types(log_path)
+    return extract_frames_from_text(_read_text(log_path))
+
+
+def extract_frames_from_text(text: str) -> list[FrameRecord]:
+    """extract_frames 的文本变体：调用方已读过日志时避免重复 IO。"""
+    jobs = detect_job_types_from_text(text)
     if "irc" in jobs:
-        frames, _meta = _parse_irc(_read_text(log_path))
+        frames, _meta = _parse_irc(text)
         return frames
     if "scan" in jobs:
-        return _extract_scan_frames(log_path)
+        return _extract_scan_frames(text)
     if "opt" in jobs or "ts" in jobs:
-        return _extract_opt_frames(log_path)
+        return _extract_opt_frames(text)
     # freq / sp：单帧
-    return _extract_sp_frames(log_path)
+    return _extract_sp_frames(text)
 
 
 def _fmt_float(value: float, digits: int = 12) -> str:

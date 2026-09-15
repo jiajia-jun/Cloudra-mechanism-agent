@@ -7,6 +7,8 @@
 - F5：mol/sdf 输入带电荷时转 gjf/inp 等在 message 显式警告电荷不落坐标格式。
 """
 
+import os
+
 import pytest
 
 pytest.importorskip("rdkit")
@@ -219,12 +221,12 @@ async def _convert_log(tmp_path, monkeypatch=None, extract_frames_result=None):
     if monkeypatch is not None:
         from cloudra.tools.core import gaussian_frames
 
-        def _stub(log_path):
+        def _stub(text, **_kwargs):
             if isinstance(extract_frames_result, Exception):
                 raise extract_frames_result
             return extract_frames_result
 
-        monkeypatch.setattr(gaussian_frames, "extract_frames", _stub)
+        monkeypatch.setattr(gaussian_frames, "extract_frames_from_text", _stub)
     return await FormatConverter().tool_call(
         FormatConverter_input_schema(
             input_path=str(log), input_format="log",
@@ -253,3 +255,66 @@ async def test_log_with_no_parseable_frames_fails_cleanly(tmp_path, monkeypatch)
     assert result.is_success is False
     assert "No key frames" in result.message
     assert "list index out of range" not in result.message
+
+
+# ---------------------------------------------------------------------------
+# T6：log 路径单读一次文本下传——path 版 detect_job_types/extract_frames 不再被调用
+# ---------------------------------------------------------------------------
+
+_FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
+
+
+@pytest.mark.asyncio
+async def test_gaussian_log_conversion_uses_single_text_read(tmp_path, monkeypatch):
+    """boom 掉 gaussian_frames 的 path 版入口后转换仍成功：证明 _convert_log
+    只读一次日志文本并下传 *_from_text 原语，不再各自整读大日志。"""
+    from cloudra.tools.core import gaussian_frames
+
+    def _boom(log_path, **_kwargs):
+        raise AssertionError(f"path-based re-read must not happen: {log_path}")
+
+    monkeypatch.setattr(gaussian_frames, "detect_job_types", _boom)
+    monkeypatch.setattr(gaussian_frames, "extract_frames", _boom)
+
+    log = tmp_path / "job.log"
+    log.write_text(
+        open(os.path.join(_FIXTURES, "gaussian", "water_opt_freq_g16.out"), encoding="utf-8").read(),
+        encoding="utf-8",
+    )
+    result = await FormatConverter().tool_call(
+        FormatConverter_input_schema(
+            input_path=str(log), input_format="log",
+            output_format="csv", output_path=str(tmp_path / "out.csv"),
+        ),
+        session=None,
+    )
+    assert result.is_success is True, result.message
+    assert (tmp_path / "out.csv").is_file()
+
+
+@pytest.mark.asyncio
+async def test_orca_log_conversion_uses_single_text_read(tmp_path, monkeypatch):
+    """ORCA 同样：path 版 detect/extract/reason 全部 boom 后转换仍成功。"""
+    from cloudra.tools.core import orca_frames
+
+    def _boom(log_path, **_kwargs):
+        raise AssertionError(f"path-based re-read must not happen: {log_path}")
+
+    monkeypatch.setattr(orca_frames, "detect_job_types", _boom)
+    monkeypatch.setattr(orca_frames, "extract_frames", _boom)
+    monkeypatch.setattr(orca_frames, "frames_unavailable_reason", _boom)
+
+    log = tmp_path / "job.log"
+    log.write_text(
+        open(os.path.join(_FIXTURES, "orca", "dvb_opt_orca42.out"), encoding="utf-8").read(),
+        encoding="utf-8",
+    )
+    result = await FormatConverter().tool_call(
+        FormatConverter_input_schema(
+            input_path=str(log), input_format="log",
+            output_format="csv", output_path=str(tmp_path / "out.csv"),
+        ),
+        session=None,
+    )
+    assert result.is_success is True, result.message
+    assert (tmp_path / "out.csv").is_file()

@@ -6,6 +6,7 @@ from cloudra.tools.Chemtool.log_parser import (
     LogParser,
     LogParser_input_schema,
     _extract_gaussian_thermochemistry,
+    derive_delivery_changes,
 )
 
 FIXTURE = Path(__file__).parent / "fixtures" / "gaussian" / "water_opt_freq_g16.out"
@@ -50,7 +51,7 @@ Thermal correction to Energy= 0.120000
         encoding="utf-8",
     )
 
-    values = _extract_gaussian_thermochemistry(str(log))
+    values = _extract_gaussian_thermochemistry(log.read_text(encoding="utf-8"))
 
     assert values["zero_point_correction_hartree"] == pytest.approx(0.010000)
     assert values["thermal_energy_correction_hartree"] == pytest.approx(0.020000)
@@ -97,6 +98,7 @@ async def test_orca_opt_without_freq_does_not_fake_zero_imaginary():
 
 
 ORCA_EXTOPT_FIXTURE = Path(__file__).parent / "fixtures" / "orca" / "cope_irc_extopt_mace_orca611.out"
+ORCA_IRC_FIXTURE = Path(__file__).parent / "fixtures" / "orca" / "hcn_irc_orca60.out"
 
 
 @pytest.mark.asyncio
@@ -279,3 +281,162 @@ async def test_orca_opt_converged_none_for_non_opt_log():
     )
     assert result.is_success is True
     assert result.opt_converged is None
+
+
+# ---------------------------------------------------------------------------
+# 前线轨道（开壳层 α/β 双通道，与 electronic_analysis 共用原语）
+# ---------------------------------------------------------------------------
+
+
+def _stub_cclib(monkeypatch, namespace):
+    import cclib
+
+    monkeypatch.setattr(cclib.io, "ccread", lambda *_args, **_kwargs: namespace)
+
+
+_ORCA_MINIMAL_LOG = (
+    "                         * O   R   C   A *\n"
+    "FINAL SINGLE POINT ENERGY      -100.000000000000\n"
+    "                             ****ORCA TERMINATED NORMALLY****\n"
+)
+
+
+@pytest.mark.asyncio
+async def test_open_shell_frontier_orbitals_report_alpha_beta_channels(tmp_path, monkeypatch):
+    """开壳层：显式报 α/β 两套 HOMO/LUMO（SOMO 语义）；自旋交叉时 gap 不可判定
+    （None + message 标注），旧实现只取 α 通道报 "α-only gap" 且可能为负。"""
+    import types
+
+    # α: HOMO(idx1)=-0.2 LUMO=0.1；β: HOMO(idx1)=-0.3 LUMO=-0.25（< αHOMO → 自旋交叉）
+    stub = types.SimpleNamespace(
+        moenergies=[[-10.0, -0.2, 0.1], [-10.5, -0.3, -0.25]],
+        homos=[1, 1],
+    )
+    _stub_cclib(monkeypatch, stub)
+    log = tmp_path / "open_shell.out"
+    log.write_text(_ORCA_MINIMAL_LOG, encoding="utf-8")
+
+    result = await LogParser().tool_call(
+        LogParser_input_schema(log_path=str(log), properties=["homo_lumo"]),
+        session=None,
+    )
+
+    assert result.is_success is True
+    assert result.alpha_homo_ev == pytest.approx(-0.2)
+    assert result.alpha_lumo_ev == pytest.approx(0.1)
+    assert result.beta_homo_ev == pytest.approx(-0.3)
+    assert result.beta_lumo_ev == pytest.approx(-0.25)
+    assert result.homo_ev == pytest.approx(-0.2)  # max(αHOMO, βHOMO)
+    assert result.lumo_ev == pytest.approx(-0.25)  # min(αLUMO, βLUMO)
+    assert result.spin_crossover is True
+    assert result.homo_lumo_gap_ev is None  # 不可判定，绝不报负值
+    assert "spin crossover" in result.message
+
+
+@pytest.mark.asyncio
+async def test_closed_shell_frontier_orbitals_unchanged(tmp_path, monkeypatch):
+    """闭壳层回归：单一 HOMO/LUMO/gap 照常给出，不出现自旋通道字段。"""
+    import types
+
+    stub = types.SimpleNamespace(
+        moenergies=[[-10.0, -5.0, -0.5, 1.0]],
+        homos=[1],
+    )
+    _stub_cclib(monkeypatch, stub)
+    log = tmp_path / "closed_shell.out"
+    log.write_text(_ORCA_MINIMAL_LOG, encoding="utf-8")
+
+    result = await LogParser().tool_call(
+        LogParser_input_schema(log_path=str(log), properties=["homo_lumo"]),
+        session=None,
+    )
+
+    assert result.is_success is True
+    assert result.homo_ev == pytest.approx(-5.0)
+    assert result.lumo_ev == pytest.approx(-0.5)
+    assert result.homo_lumo_gap_ev == pytest.approx(4.5)
+    assert result.alpha_homo_ev is None
+    assert result.spin_crossover is None
+
+
+# ---------------------------------------------------------------------------
+# 终止判定证据门控（None = undecidable，不发证据）
+# ---------------------------------------------------------------------------
+
+
+def test_delivery_evidence_requires_explicit_true_normal_termination():
+    """normal_termination=None（终止未判定）不得派生 structure_supported：
+    旧实现 `is not False` 把未知当正常放行。"""
+    base = {"frequencies_cm": [100.0, 200.0], "imaginary_frequencies": []}
+
+    undecidable = derive_delivery_changes(
+        current={}, role="intermediate_optimization", arguments={},
+        result={**base, "normal_termination": None},
+    )
+    assert undecidable == {}
+
+    confirmed = derive_delivery_changes(
+        current={}, role="intermediate_optimization", arguments={},
+        result={**base, "normal_termination": True},
+    )
+    assert confirmed == {"evidence_level": "structure_supported"}
+
+    ts_undecidable = derive_delivery_changes(
+        current={}, role="ts_optimization_frequency", arguments={},
+        result={"frequencies_cm": [100.0], "imaginary_frequencies": [-50.0],
+                "normal_termination": None},
+    )
+    assert ts_undecidable == {}
+
+
+# ---------------------------------------------------------------------------
+# 单读一次：解析全程不得再走 frames 模块的 log_path 变体
+# ---------------------------------------------------------------------------
+
+
+def _raise_on_reread(*_args, **_kwargs):
+    raise AssertionError("log text was re-read through a log_path variant")
+
+
+@pytest.mark.asyncio
+async def test_orca_parse_never_rereads_log_via_path_variants(monkeypatch):
+    """单读一次（ORCA 含 IRC 的日志）：detect_job_types / extract_thermochemistry /
+    extract_irc 的 log_path 变体全程不得被调用——一切走 *_from_text。"""
+    import cclib
+
+    import cloudra.tools.core.orca_frames as orca_frames
+
+    monkeypatch.setattr(cclib.io, "ccread", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(orca_frames, "detect_job_types", _raise_on_reread)
+    monkeypatch.setattr(orca_frames, "extract_thermochemistry", _raise_on_reread)
+    monkeypatch.setattr(orca_frames, "extract_irc", _raise_on_reread)
+
+    result = await LogParser().tool_call(
+        LogParser_input_schema(log_path=str(ORCA_IRC_FIXTURE)),
+        session=None,
+    )
+
+    assert result.is_success is True
+    assert "irc" in result.job_types
+    assert result.irc_num_points_forward == 5
+    assert result.irc_num_points_backward == 7
+    assert result.irc_both_directions_converged is True
+
+
+@pytest.mark.asyncio
+async def test_gaussian_parse_never_rereads_log_via_path_variants(monkeypatch):
+    """单读一次（Gaussian）：detect_job_types / extract_irc 的 log_path 变体
+    全程不得被调用；热化学吃同一份已读文本。"""
+    import cloudra.tools.core.gaussian_frames as gaussian_frames
+
+    monkeypatch.setattr(gaussian_frames, "detect_job_types", _raise_on_reread)
+    monkeypatch.setattr(gaussian_frames, "extract_irc", _raise_on_reread)
+
+    result = await LogParser().tool_call(
+        LogParser_input_schema(log_path=str(FIXTURE)),
+        session=None,
+    )
+
+    assert result.is_success is True
+    assert result.job_types == ["freq", "opt"]
+    assert result.zero_point_correction_hartree == pytest.approx(0.024385)

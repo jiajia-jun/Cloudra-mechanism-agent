@@ -10,7 +10,15 @@ from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.fs_utils import atomic_write_text
 from cloudra.persistence.workspace import resolve_existing_tool_path
-from cloudra.tools.Chemtool.internal_coordinates import _COVALENT_RADII
+from cloudra.tools.Chemtool.frontier_orbitals import (
+    GAP_OK,
+    GAP_UNDECIDABLE_SPIN_CROSSOVER,
+    frontier_orbital_summary,
+)
+from cloudra.tools.Chemtool.internal_coordinates import (
+    _COVALENT_RADII,
+    DISTANCE_CONNECTIVITY_FACTOR,
+)
 
 try:
     from pyscf import gto, lo, scf
@@ -137,7 +145,11 @@ class ElectronicAnalysis(Tool):
 
     @staticmethod
     def _bond_pairs(symbols: list[str], coords) -> list[tuple[int, int, float]]:
-        """共价半径距离判据的成键对：[(i, j, distance)]，0-based。"""
+        """共价半径距离判据的成键对：[(i, j, distance)]，0-based。
+
+        判据系数引用 internal_coordinates 的共享常量
+        DISTANCE_CONNECTIVITY_FACTOR（同一分子在两处的成键结论必须一致）。
+        """
         import numpy as np
 
         pos = np.asarray(coords, dtype=float)
@@ -147,7 +159,7 @@ class ElectronicAnalysis(Tool):
             for j in range(i + 1, len(symbols)):
                 rj = _COVALENT_RADII.get(symbols[j], 1.2)
                 d = float(np.linalg.norm(pos[i] - pos[j]))
-                if d <= 1.3 * (ri + rj):
+                if d <= DISTANCE_CONNECTIVITY_FACTOR * (ri + rj):
                     pairs.append((i, j, d))
         return pairs
 
@@ -323,23 +335,20 @@ class ElectronicAnalysis(Tool):
             dm_tot = np.asarray(dm)
             dm_spin = None
 
-        # 前线轨道（开壳层取 α/β 两通道的全体 HOMO/LUMO）
+        # 前线轨道：与 log_parser 共用同一套原语（frontier_orbitals）。
+        # 开壳层显式报 α/β 两套 HOMO/LUMO（SOMO 语义）；自旋交叉时 gap
+        # 不可判定（None），绝不报负值。
         if dm_spin is not None:
             na, nb = mol.nelec
-            mo_ea, mo_eb = mf.mo_energy[0], mf.mo_energy[1]
-            homo_eh = max(float(mo_ea[na - 1]), float(mo_eb[nb - 1]))
-            lumo_cands = []
-            if na < len(mo_ea):
-                lumo_cands.append(float(mo_ea[na]))
-            if nb < len(mo_eb):
-                lumo_cands.append(float(mo_eb[nb]))
-            lumo_eh = min(lumo_cands) if lumo_cands else float("nan")
+            frontier = frontier_orbital_summary(
+                [list(mf.mo_energy[0]), list(mf.mo_energy[1])], [na, nb],
+            )
         else:
             nocc = int(mol.nelectron // 2)
-            mo_e = mf.mo_energy
-            homo_eh = float(mo_e[nocc - 1])
-            lumo_eh = float(mo_e[nocc]) if nocc < len(mo_e) else float("nan")
-        gap_ev = (lumo_eh - homo_eh) * _HARTREE_TO_EV
+            frontier = frontier_orbital_summary([list(mf.mo_energy)], [nocc])
+        homo_eh = frontier["homo"] if frontier["homo"] is not None else float("nan")
+        lumo_eh = frontier["lumo"] if frontier["lumo"] is not None else float("nan")
+        gap_ev = frontier["gap"] * _HARTREE_TO_EV if frontier["gap"] is not None else None
 
         # 偶极矩（Debye）
         dip_vec = mf.dip_moment(mol, dm, verbose=0)
@@ -396,9 +405,36 @@ class ElectronicAnalysis(Tool):
         lines.append("")
 
         lines.append("=== Frontier Orbitals ===")
-        lines.append(f"HOMO           : {homo_eh:.6f} Eh  ({homo_eh * _HARTREE_TO_EV:.3f} eV)")
-        lines.append(f"LUMO           : {lumo_eh:.6f} Eh  ({lumo_eh * _HARTREE_TO_EV:.3f} eV)")
-        lines.append(f"HOMO-LUMO gap  : {gap_ev:.3f} eV")
+        if frontier["open_shell"]:
+            for tag, channel in (("α", frontier["alpha"]), ("β", frontier["beta"])):
+                ch_homo = channel["homo"]
+                ch_lumo = channel["lumo"]
+                homo_str = (
+                    f"{ch_homo:.6f} Eh  ({ch_homo * _HARTREE_TO_EV:.3f} eV)"
+                    if ch_homo is not None else "undecidable (no occupied orbital)"
+                )
+                lumo_str = (
+                    f"{ch_lumo:.6f} Eh  ({ch_lumo * _HARTREE_TO_EV:.3f} eV)"
+                    if ch_lumo is not None else "undecidable (no virtual orbital)"
+                )
+                lines.append(f"{tag}-HOMO (SOMO) : {homo_str}")
+                lines.append(f"{tag}-LUMO       : {lumo_str}")
+            lines.append(
+                f"Overall HOMO/LUMO: {homo_eh:.6f} / {lumo_eh:.6f} Eh "
+                "(max of α/β HOMO, min of α/β LUMO)"
+            )
+        else:
+            lines.append(f"HOMO           : {homo_eh:.6f} Eh  ({homo_eh * _HARTREE_TO_EV:.3f} eV)")
+            lines.append(f"LUMO           : {lumo_eh:.6f} Eh  ({lumo_eh * _HARTREE_TO_EV:.3f} eV)")
+        if frontier["gap_status"] == GAP_OK:
+            lines.append(f"HOMO-LUMO gap  : {gap_ev:.3f} eV")
+        elif frontier["gap_status"] == GAP_UNDECIDABLE_SPIN_CROSSOVER:
+            lines.append(
+                "HOMO-LUMO gap  : undecidable — spin crossover (the lowest virtual orbital lies "
+                "below the highest occupied one; a single-determinant gap is not well-defined)"
+            )
+        else:
+            lines.append("HOMO-LUMO gap  : undecidable (frontier orbitals missing)")
         lines.append("")
 
         lines.append("=== Charges (Mulliken / meta-Löwdin) ===")
@@ -522,12 +558,21 @@ class ElectronicAnalysis(Tool):
             "lumo_eh": round(lumo_eh, 6),
             "homo_ev": round(homo_eh * _HARTREE_TO_EV, 3),
             "lumo_ev": round(lumo_eh * _HARTREE_TO_EV, 3),
-            "gap_ev": round(gap_ev, 3),
+            "gap_ev": round(gap_ev, 3) if gap_ev is not None else None,
+            "gap_status": frontier["gap_status"],
             "dipole_debye": round(dip_norm, 4),
             "scf_converged": bool(mf.converged),
             "partial_bonds": partial_notes,
             "incipient_bond_count": len(incipient),
         }
+        if frontier["open_shell"]:
+            for prefix, channel in (("alpha", frontier["alpha"]), ("beta", frontier["beta"])):
+                summary[f"{prefix}_homo_eh"] = (
+                    round(channel["homo"], 6) if channel["homo"] is not None else None
+                )
+                summary[f"{prefix}_lumo_eh"] = (
+                    round(channel["lumo"], 6) if channel["lumo"] is not None else None
+                )
         if s2_val is not None:
             summary["spin_squared"] = round(float(s2_val), 4)
             summary["spin_population"] = {atom_label[a]: round(float(spin_pop[a]), 4) for a in range(natoms)}

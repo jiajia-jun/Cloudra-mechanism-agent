@@ -434,6 +434,24 @@ def _score_mapping(reactant, product, mapping: list[int], source: str) -> dict:
     }
 
 
+def _edit_facts_key(candidate: dict) -> tuple:
+    """候选的去重键：编辑事实（formed/broken/order_changes）+ score。
+
+    对称分子的自同构镜像给出逐字不同的 heavy_atom_map，但编辑事实与 score
+    完全一致——它们不是独立的化学候选，必须合并；只有编辑事实（或评分）真正
+    不同的映射才各算一个候选。
+    """
+    return (
+        tuple(tuple(pair) for pair in candidate["formed_bonds"]),
+        tuple(tuple(pair) for pair in candidate["broken_bonds"]),
+        tuple(
+            (tuple(change["atoms"]), change["reactant_order"], change["product_order"])
+            for change in candidate["order_changes"]
+        ),
+        candidate["score"],
+    )
+
+
 def _candidate_mappings(reactant, product) -> tuple[list[dict], bool]:
     authoritative = _mapped_label_permutation(reactant, product)
     if authoritative is not None:
@@ -446,13 +464,17 @@ def _candidate_mappings(reactant, product) -> tuple[list[dict], bool]:
         if count <= _MAX_EXHAUSTIVE_MAPPINGS
         else _mcs_seeded_mappings(reactant, product)
     )
-    unique: dict[tuple[int, ...], dict] = {}
+    # 枚举侧即按编辑事实剪枝：同一编辑事实组保留 heavy_atom_map 最小者作代表，
+    # 自同构镜像不再挤占 _MAX_RETURNED_CANDIDATES 窗口、也不再制造假 ambiguous。
+    by_facts: dict[tuple, dict] = {}
     for mapping in raw_mappings:
-        key = tuple(mapping)
-        if key not in unique:
-            unique[key] = _score_mapping(reactant, product, mapping, "rdkit_graph_search")
+        candidate = _score_mapping(reactant, product, mapping, "rdkit_graph_search")
+        key = _edit_facts_key(candidate)
+        incumbent = by_facts.get(key)
+        if incumbent is None or candidate["heavy_atom_map"] < incumbent["heavy_atom_map"]:
+            by_facts[key] = candidate
     candidates = sorted(
-        unique.values(),
+        by_facts.values(),
         key=lambda item: (item["score"], item["heavy_atom_map"]),
     )[:_MAX_RETURNED_CANDIDATES]
     return candidates, False
@@ -701,10 +723,10 @@ def _expand_full_atom_map(
     heavy_atom_map: list[int],
 ) -> tuple[list[int], str]:
     """把 SMILES 重原子映射绑定到 concrete product atom -> reactant atom。"""
-    r_inventory = Counter(atom.GetAtomicNum() for atom in reactant_structure.GetAtoms())
-    p_inventory = Counter(atom.GetAtomicNum() for atom in product_structure.GetAtoms())
+    r_inventory = Counter(_atom_key(atom) for atom in reactant_structure.GetAtoms())
+    p_inventory = Counter(_atom_key(atom) for atom in product_structure.GetAtoms())
     if r_inventory != p_inventory:
-        return [], "Explicit-atom element counts of the concrete structures differ; cannot generate a full-atom mapping."
+        return [], "Explicit-atom element/isotope counts of the concrete structures differ; cannot generate a full-atom mapping."
 
     full_map = [-1] * product_structure.GetNumAtoms()
     for p_query_idx, r_query_one_based in enumerate(heavy_atom_map):
@@ -725,8 +747,22 @@ def _expand_full_atom_map(
                 f"Mapped heavy atoms P{p_query_idx + 1}→R{r_query_one_based} have different explicit hydrogen counts; "
                 "possible proton transfer or missing hydrogens."
             )
-        for p_h, r_h in zip(p_hydrogens, r_hydrogens):
-            full_map[p_h] = r_h
+        # 氢按同位素分组配对：氘代示踪/KIE 场景里 D 不得配到 H 上（库存校验
+        # 只保证两端同位素总数相等，同一中心上的分布仍可能错位）。
+        p_by_isotope: dict[int, list[int]] = defaultdict(list)
+        r_by_isotope: dict[int, list[int]] = defaultdict(list)
+        for idx in p_hydrogens:
+            p_by_isotope[product_structure.GetAtomWithIdx(idx).GetIsotope()].append(idx)
+        for idx in r_hydrogens:
+            r_by_isotope[reactant_structure.GetAtomWithIdx(idx).GetIsotope()].append(idx)
+        if {k: len(v) for k, v in p_by_isotope.items()} != {k: len(v) for k, v in r_by_isotope.items()}:
+            return [], (
+                f"Mapped heavy atoms P{p_query_idx + 1}→R{r_query_one_based} have equal hydrogen counts "
+                "but different hydrogen isotope distributions; cannot pair isotope-mismatched hydrogens."
+            )
+        for isotope in sorted(p_by_isotope):
+            for p_h, r_h in zip(p_by_isotope[isotope], r_by_isotope[isotope]):
+                full_map[p_h] = r_h
 
     if -1 in full_map or sorted(full_map) != list(range(reactant_structure.GetNumAtoms())):
         return [], "Some atoms remain unmapped or are mapped twice; cannot output a partial atom_map."

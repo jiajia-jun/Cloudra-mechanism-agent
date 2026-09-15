@@ -35,13 +35,18 @@
 from __future__ import annotations
 
 import os
-import signal
 import subprocess
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
 from cloudra.persistence.fs_utils import atomic_write_text
+from cloudra.tools.core.run_dirs import (
+    capture_versions,
+    list_artifact_files,
+    next_run_dir,
+    terminate_process_group,
+)
 from cloudra.tools.core.topology_change import (
     TopologyChangeReport,
     compare_topology,
@@ -181,52 +186,6 @@ def build_crest_command(request: CrestRunRequest) -> list[str]:
     return command
 
 
-def _next_run_dir(output_dir: str, run_label: str) -> str:
-    """``crest_runs/<label>_<NNNN>``：编号单调递增，便于按运行次序复查。"""
-    safe_label = "".join(ch if (ch.isalnum() or ch in "-_") else "_" for ch in run_label) or "run"
-    runs_root = os.path.join(output_dir, RUNS_DIR_NAME)
-    os.makedirs(runs_root, exist_ok=True)
-    used = set()
-    for name in os.listdir(runs_root):
-        head, _, tail = name.rpartition("_")
-        if head == safe_label and tail.isdigit():
-            used.add(int(tail))
-    index = 1
-    while index in used:
-        index += 1
-    run_dir = os.path.join(runs_root, f"{safe_label}_{index:04d}")
-    os.makedirs(run_dir, exist_ok=False)
-    return run_dir
-
-
-def _capture_versions() -> str:
-    """记录实际引擎版本；只取版本行，不落环境变量。"""
-    lines: list[str] = []
-    for name in ("crest", "xtb"):
-        try:
-            proc = subprocess.run([name, "--version"], capture_output=True, text=True, timeout=60)
-        except Exception as exc:  # noqa: BLE001 - 版本取不到不阻塞运行，如实记录
-            lines.append(f"{name} --version failed: {type(exc).__name__}: {exc}")
-            continue
-        text = (proc.stdout or "") + (proc.stderr or "")
-        interesting = [
-            line.strip() for line in text.splitlines()
-            if "Version" in line or "version" in line or "xTB program" in line
-        ]
-        lines.append(f"{name} --version (returncode={proc.returncode}):")
-        lines.extend(f"    {line}" for line in (interesting or ["<no version line found>"]))
-    return "\n".join(lines) + "\n"
-
-
-def _list_artifacts(run_dir: str) -> list[CrestArtifact]:
-    artifacts: list[CrestArtifact] = []
-    for name in sorted(os.listdir(run_dir)):
-        path = os.path.join(run_dir, name)
-        if os.path.isfile(path):
-            artifacts.append(CrestArtifact(name=name, path=path, size_bytes=os.path.getsize(path)))
-    return artifacts
-
-
 def _scan_markers(lines: list[str]) -> tuple[list[str], Optional[CrestTermination], CrestStage]:
     """精确整行/token 扫描标记，返回 ``(命中行, 终止类别或 None, 阶段)``。
 
@@ -357,7 +316,7 @@ def run_crest(request: CrestRunRequest) -> CrestRunResult:
     """
     expected_atoms = _expected_atom_count(request.xyz_text, request.expected_atoms)
     command = build_crest_command(request)
-    run_dir = _next_run_dir(request.output_dir, request.run_label)
+    run_dir = next_run_dir(request.output_dir, RUNS_DIR_NAME, request.run_label)
 
     input_path = os.path.join(run_dir, "input.xyz")
     command_path = os.path.join(run_dir, "command.txt")
@@ -368,7 +327,7 @@ def run_crest(request: CrestRunRequest) -> CrestRunResult:
 
     atomic_write_text(input_path, request.xyz_text)
     atomic_write_text(command_path, " ".join(command) + "\n")
-    atomic_write_text(versions_path, _capture_versions())
+    atomic_write_text(versions_path, capture_versions(("crest", "xtb"), ("Version", "version", "xTB program")))
 
     result = CrestRunResult(
         run_dir=run_dir,
@@ -389,7 +348,10 @@ def run_crest(request: CrestRunRequest) -> CrestRunResult:
         )
         atomic_write_text(stdout_path, "")
         atomic_write_text(stderr_path, "")
-        result.artifacts = _list_artifacts(run_dir)
+        result.artifacts = [
+            CrestArtifact(name=name, path=path, size_bytes=size)
+            for name, path, size in list_artifact_files(run_dir)
+        ]
         result.message = "CREST executable not found; no run was started."
         return result
 
@@ -406,7 +368,7 @@ def run_crest(request: CrestRunRequest) -> CrestRunResult:
         returncode = proc.returncode
     except subprocess.TimeoutExpired:
         timed_out = True
-        _terminate_process_group(proc)
+        terminate_process_group(proc)
         stdout, stderr = proc.communicate()
         returncode = proc.returncode
         result.diagnostics.append(
@@ -417,7 +379,10 @@ def run_crest(request: CrestRunRequest) -> CrestRunResult:
     atomic_write_text(stdout_path, stdout or "")
     atomic_write_text(stderr_path, stderr or "")
     result.returncode = returncode
-    result.artifacts = _list_artifacts(run_dir)
+    result.artifacts = [
+        CrestArtifact(name=name, path=path, size_bytes=size)
+        for name, path, size in list_artifact_files(run_dir)
+    ]
     # 初始优化一旦跑过，CREST 就把逐帧轨迹留在 xtbopt.log；末帧即它真正拿到的几何。
     # 这里记录"输入 → 优化末帧"的连接表差异（片内/片间）供人判断，绝不代替人判断。
     result.topology_change = _topology_change_report(request, run_dir, input_path)
@@ -550,23 +515,3 @@ def _which(name: str) -> str:
     import shutil
 
     return shutil.which(name) or ""
-
-
-def _terminate_process_group(proc: subprocess.Popen) -> None:
-    """先 SIGTERM 再 SIGKILL **本进程组**，并 wait/reap，绝不只发信号不回收。"""
-    try:
-        pgid = os.getpgid(proc.pid)
-    except ProcessLookupError:
-        proc.wait()
-        return
-    for sig in (signal.SIGTERM, signal.SIGKILL):
-        try:
-            os.killpg(pgid, sig)
-        except ProcessLookupError:
-            break
-        try:
-            proc.wait(timeout=10)
-            return
-        except subprocess.TimeoutExpired:
-            continue
-    proc.wait()

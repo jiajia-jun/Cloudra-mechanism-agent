@@ -259,3 +259,31 @@ async def test_smoke_real_flower_run(monkeypatch, tmp_path, mock_session):
     assert result.is_success, result.message
     assert result.num_steps > 0
     assert os.path.isfile(result.network_json)
+
+
+def test_enumerate_pathways_best_first_keeps_highest_probability_prefix():
+    """Best-first：explore_cap 打满时保留的是当前概率最高的前缀，而不是
+    LIFO DFS 的任意子集（旧实现会先沿 edges 顺序里靠后的支路深入，最高概率
+    路径可能根本没展开到，结果随 driver 输出顺序漂移）。"""
+    network = {
+        "root": "A",
+        "edges": [
+            # 高概率边写在前面：LIFO 会后弹它、先沿 C 支路消耗 cap
+            {"reactant": "A", "product": "B", "rank": 0, "count": 6, "probability": 0.6},
+            {"reactant": "A", "product": "C", "rank": 1, "count": 4, "probability": 0.4},
+            {"reactant": "C", "product": "D", "rank": 0, "count": 9, "probability": 0.9},
+            {"reactant": "D", "product": "E", "rank": 0, "count": 9, "probability": 0.9},
+        ],
+    }
+    # cap=2：best-first 弹出 A(1.0) 与 B(0.6)——B 是终点，最高概率路径直接保留
+    pathways = enumerate_pathways(network, explore_cap=2)
+    assert len(pathways) == 1
+    assert pathways[0]["cumulative_probability"] == pytest.approx(0.6)
+    assert [s["product"] for s in pathways[0]["steps"]] == ["B"]
+
+
+def test_enumerate_pathways_independent_of_edge_input_order():
+    """同层子边按 (-概率, 产物) 排序入堆：枚举例序与 driver 的 edges 输出顺序无关。"""
+    fixture = _network_fixture()
+    reversed_edges = {**fixture, "edges": list(reversed(fixture["edges"]))}
+    assert enumerate_pathways(fixture) == enumerate_pathways(reversed_edges)

@@ -24,7 +24,8 @@ direct/swapped 无序配对，任一指派成立即方向一致。
 距离指纹（每原子到他原子的距离排序向量，旋转平移不变）+ Hungarian
 最优指派把任意原子序的几何重排到同一坐标序，原子序重排的输入不再
 构成障碍。已知边界：TS↔中间体构象差大时指派可能错配——区间证明是
-最后一道判官，rmsd 只记录不闸门。
+最后一道判官；对齐距离矩阵 rmsd 超过保守闸门（1.0 Å）的组合不可信，
+直接按 undecidable 跳过（返回 None），不带着可疑对应进区间证明。
 """
 
 from __future__ import annotations
@@ -125,19 +126,27 @@ def dist_matrix(coords):
     return np.linalg.norm(diff, axis=-1)
 
 
-def bond_pairs(symbols, positions, scale: float = 1.25) -> set[tuple[int, int]]:
-    """共价半径距离判据成键对集合（0-based，i<j）。"""
-    import numpy as np
+#: 指派对齐的保守闸门：重排后距离矩阵 rmsd 超过该值（Å）说明指派很可能错配，
+#: 该组合按 undecidable 处理（align_atom_order 返回 None）
+_ALIGN_MAX_RMSD_ANG = 1.0
 
-    pos = np.asarray(positions, dtype=float)
+
+def bond_pairs_from_dist(symbols, d, scale: float = 1.25) -> set[tuple[int, int]]:
+    """距离矩阵版共价半径成键判据（0-based，i<j；与 bond_pairs 同一阈值）。"""
+    n = len(symbols)
     pairs: set[tuple[int, int]] = set()
-    for i in range(len(symbols)):
+    for i in range(n):
         ri = COVALENT_RADII.get(symbols[i], 1.2)
-        for j in range(i + 1, len(symbols)):
+        for j in range(i + 1, n):
             rj = COVALENT_RADII.get(symbols[j], 1.2)
-            if float(np.linalg.norm(pos[i] - pos[j])) <= scale * (ri + rj):
+            if float(d[i][j]) <= scale * (ri + rj):
                 pairs.add((i, j))
     return pairs
+
+
+def bond_pairs(symbols, positions, scale: float = 1.25) -> set[tuple[int, int]]:
+    """共价半径距离判据成键对集合（0-based，i<j）。"""
+    return bond_pairs_from_dist(symbols, dist_matrix(positions), scale)
 
 
 def _rdkit_bonds(symbols, positions, charge: int) -> Optional[dict]:
@@ -173,10 +182,12 @@ def perceive_bonds(symbols, positions, charge: int = 0) -> tuple[dict, str]:
     return {p: 1.0 for p in bond_pairs(symbols, positions)}, "distance"
 
 
-def _hungarian(cost) -> list[int]:
+def _hungarian(cost) -> Optional[list[int]]:
     """Kuhn-Munkres 最小权指派（纯 numpy O(n³)，确定性 tie-break）。
 
-    返回 perm：perm[j] = 分配给列 j 的行下标。大数（1e9）表示禁配。"""
+    返回 perm：perm[j] = 分配给列 j 的行下标。大数（1e9）表示禁配。
+    返回前校验：每列的指派代价 < 1e9（禁配被选中 = 无合法完美匹配）且
+    每行恰好被指派一次；违反即返回 None（调用方按 undecidable 处理）。"""
     import numpy as np
 
     a = np.asarray(cost, dtype=float)
@@ -218,7 +229,12 @@ def _hungarian(cost) -> list[int]:
             j1 = way[j0]
             p[j0] = p[j1]
             j0 = j1
-    return [int(p[j]) - 1 for j in range(1, n + 1)]
+    perm = [int(p[j]) - 1 for j in range(1, n + 1)]
+    if sorted(perm) != list(range(n)):
+        return None
+    if any(a[perm[j], j] >= 1e9 for j in range(n)):
+        return None
+    return perm
 
 
 def align_atom_order(ref_symbols, ref_pos, mob_symbols, mob_pos):
@@ -227,7 +243,9 @@ def align_atom_order(ref_symbols, ref_pos, mob_symbols, mob_pos):
     原子数/元素多重集不等 → None（进不了这一层，调用方按 undecidable 处理）。
     对应准则：每原子的距离指纹（到他原子的距离排序向量，旋转平移不变），
     同元素掩码 + Hungarian 最优指派。返回 (perm, rmsd)：perm[ref_idx] =
-    mob_idx；rmsd 是重排后距离矩阵均方根差（记录用，不闸门）。"""
+    mob_idx；rmsd 是重排后距离矩阵均方根差。rmsd 超过保守闸门
+    （_ALIGN_MAX_RMSD_ANG）或不存在合法的元素一致指派时也返回 None——
+    对齐太差的组合按 undecidable 跳过，不带着可疑对应进区间证明。"""
     import numpy as np
 
     n = len(ref_symbols)
@@ -243,6 +261,8 @@ def align_atom_order(ref_symbols, ref_pos, mob_symbols, mob_pos):
             if mob_symbols[j] == ref_symbols[i]:
                 cost[i, j] = float(np.linalg.norm(fp_ref[i] - fp_mob[j]))
     col_to_row = _hungarian(cost)
+    if col_to_row is None:
+        return None
     perm = [0] * n
     for j, i in enumerate(col_to_row):
         perm[i] = j
@@ -254,6 +274,8 @@ def align_atom_order(ref_symbols, ref_pos, mob_symbols, mob_pos):
         if hungarian_cost >= identity_cost * _IDENTICAL_ORDER_COST_MARGIN:
             perm = list(range(n))
     rmsd = float(np.sqrt(((d_ref - d_mob[np.ix_(perm, perm)]) ** 2).mean()))
+    if rmsd > _ALIGN_MAX_RMSD_ANG:
+        return None
     return perm, rmsd
 
 
@@ -312,7 +334,15 @@ def classify_watch_pairs(symbols, d_ts, d_int, ts_bonds, int_bonds) -> dict:
         values = list(scores.values())
         median = statistics.median(values)
         mad = statistics.median([abs(v - median) for v in values])
-        cutoff = median + _HEURISTIC_MAD_K * mad
+        if mad > 0:
+            cutoff = median + _HEURISTIC_MAD_K * mad
+        elif len(values) > 1:
+            # MAD=0 退化（对称分子大量并列分）：median + k·MAD 退成 median，
+            # 等于不过滤——回退固定上四分位（不随并列退化）。
+            cutoff = statistics.quantiles(values, n=4)[2]
+        else:
+            # 单对无法构成统计过滤：不提名
+            cutoff = values[0]
         b_pairs = sorted(p for p, s in scores.items() if s > cutoff)
     return {"bond_diff": bond_diff, "distance_top5": top5, "b": b_pairs}
 

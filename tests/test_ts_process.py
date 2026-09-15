@@ -786,3 +786,152 @@ def test_same_smiles_endpoints_are_distinguished_by_declared_geometry(tmp_path):
     assert record.stage_record("map").status == "done"
     assert "identity by construction" in record.stage_record("map").detail
     del json
+
+
+# ---------------------------------------------------------------------------
+# verdict 第二道闸：IRC 双向收敛之外还要过端点区间证明才 verified
+# ---------------------------------------------------------------------------
+
+
+def _xyz_text(symbols, positions, comment=""):
+    lines = [str(len(symbols)), comment]
+    for s, p in zip(symbols, positions):
+        lines.append(f"{s} {p[0]:.6f} {p[1]:.6f} {p[2]:.6f}")
+    return "\n".join(lines) + "\n"
+
+
+def _install_fake_irc_endpoints(monkeypatch, symbols, end_a_pos, end_b_pos):
+    """IRC 端点几何替身（引擎分发提取件不是本条测试的对象）。"""
+    from types import SimpleNamespace
+
+    from cloudra.tools.Chemtool.ts_guess import TsGuess
+
+    def _fake_extract(user_input, checks, require_two_sides=True, **_kwargs):
+        return {
+            "end_a": SimpleNamespace(xyz=_xyz_text(symbols, end_a_pos, "irc end a")),
+            "end_b": SimpleNamespace(xyz=_xyz_text(symbols, end_b_pos, "irc end b")),
+            "frames": [],
+            "meta": {"forward_converged": True, "backward_converged": True},
+            "path_a": "",
+            "path_b": "",
+        }
+
+    monkeypatch.setattr(TsGuess, "_extract_irc_endpoints", staticmethod(_fake_extract))
+
+
+def _record_with_freq_and_converged_irc(tmp_path, monkeypatch):
+    """造一个频率（1 虚频）与 IRC（双向收敛）都已交付的运行记录。
+
+    返回 (record, symbols, job_dir)：调用方再往 job_dir 放 optimized.xyz（TS
+    几何）、覆写 path/product_reordered.xyz（产物极小值）、并用
+    _install_fake_irc_endpoints 布置 IRC 端点后调 _verdict。
+    """
+    from types import SimpleNamespace
+
+    from cloudra.tools.core import orca_frames
+    from cloudra.tools.core.ts_process import (
+        TsJobStep,
+        _read_built_xyz,
+    )
+
+    record = _start(tmp_path, irc_log=str(tmp_path / "external_irc.log"))
+    (tmp_path / "external_irc.log").write_text("irc\n", encoding="utf-8")
+
+    built = _read_built_xyz(record, "reactant")
+    assert built is not None
+    symbols = built[0]
+
+    # 频率作业步 + 实测日志（频率作业旁的 optimized.xyz 由调用方放置）
+    job_id = 9001
+    job_dir = Path(record.run_dir) / "jobs" / "job_0002"
+    job_dir.mkdir(parents=True, exist_ok=True)
+    freq_input = job_dir / "frequency.inp"
+    freq_input.write_text("! Freq\n", encoding="utf-8")
+    capture = job_dir / ".cloudra"
+    capture.mkdir(parents=True, exist_ok=True)
+    (capture / f"calc-{job_id}.out.log").write_text("freq log\n", encoding="utf-8")
+    record.job_steps.append(TsJobStep(
+        purpose="frequency", job_id=job_id, input_path=str(freq_input), state="done",
+    ))
+
+    # 交付物替身：频率快照（1 虚频）+ IRC 元数据（双向收敛）
+    monkeypatch.setattr(
+        "cloudra.dag.evidence_ingest.snapshot_evidence_file",
+        lambda file_path, **_kwargs: SimpleNamespace(
+            frequencies=[-500.0, 120.0, 300.0], imaginary_frequencies=[-500.0],
+        ),
+    )
+    monkeypatch.setattr(
+        orca_frames, "extract_irc",
+        lambda path, **_kwargs: {"forward_converged": True, "backward_converged": True},
+    )
+    return record, symbols, job_dir
+
+
+def _sn2_minima(record, symbols):
+    """从流程真实构建的 reactant 几何派生两端极小值：产物 = F 移到 C 上、Cl 推开。"""
+    import numpy as np
+
+    from cloudra.tools.core.ts_process import _read_built_xyz
+
+    built = _read_built_xyz(record, "reactant")
+    a = np.asarray(built[1], dtype=float)
+    b = a.copy()
+    f_idx, c_idx, cl_idx = 0, 1, 2  # 构建序 [F,C,Cl,H,H,H]
+    u_fc = (a[c_idx] - a[f_idx]) / np.linalg.norm(a[c_idx] - a[f_idx])
+    b[f_idx] = a[c_idx] - 1.40 * u_fc
+    u_cl = (a[cl_idx] - a[c_idx]) / np.linalg.norm(a[cl_idx] - a[c_idx])
+    b[cl_idx] = a[c_idx] + 3.00 * u_cl
+    reordered = Path(record.run_dir) / "path" / "product_reordered.xyz"
+    reordered.write_text(_xyz_text(symbols, b, "product minimum"), encoding="utf-8")
+    return a, b
+
+
+def test_verdict_verified_requires_and_passes_interval_proof(tmp_path, monkeypatch):
+    """freq(1 imag) + IRC 双向收敛 + 区间证明通过 → verified。
+
+    区间证明是本次新增的必要条件：端点几何各自位于 TS 与对应声明极小值之间。
+    """
+    from cloudra.tools.core.ts_process import _verdict
+
+    record, symbols, job_dir = _record_with_freq_and_converged_irc(tmp_path, monkeypatch)
+    a, b = _sn2_minima(record, symbols)
+    ts = 0.5 * (a + b)
+    end_a = 0.75 * a + 0.25 * b
+    end_b = 0.25 * a + 0.75 * b
+    (job_dir / "optimized.xyz").write_text(
+        _xyz_text(symbols, ts, "TS geometry"), encoding="utf-8"
+    )
+    _install_fake_irc_endpoints(monkeypatch, symbols, end_a, end_b)
+
+    record = _verdict(record)
+    assert record.terminal == "verified", record.stage_record("verdict").detail
+    detail = record.stage_record("verdict").detail
+    assert "interval proof" in detail
+
+
+def test_verdict_converged_irc_without_connectivity_is_candidate_only(tmp_path, monkeypatch):
+    """IRC 双向收敛但端点不在 TS 与声明极小值之间（连通未证明）→ candidate_only。
+
+    「IRC 跑完了」本身不构成「落回声明的极小值」的证据。
+    """
+    import numpy as np
+
+    from cloudra.tools.core.ts_process import _verdict
+
+    record, symbols, job_dir = _record_with_freq_and_converged_irc(tmp_path, monkeypatch)
+    a, b = _sn2_minima(record, symbols)
+    ts = 0.5 * (a + b)
+    # end_b 根本没朝产物侧走（就是 reactant 极小值）：任何指派都无法落在区间内
+    end_a = 0.75 * a + 0.25 * b
+    end_b = np.array(a, dtype=float)
+    (job_dir / "optimized.xyz").write_text(
+        _xyz_text(symbols, ts, "TS geometry"), encoding="utf-8"
+    )
+    _install_fake_irc_endpoints(monkeypatch, symbols, end_a, end_b)
+
+    record = _verdict(record)
+    assert record.terminal == "candidate_only"
+    detail = record.stage_record("verdict").detail
+    assert "interval proof" in detail
+    assert "UNVERIFIED" in detail

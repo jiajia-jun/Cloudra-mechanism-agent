@@ -108,7 +108,10 @@ class QmInputWriter_input_schema(input_schema):
         description='''List of dicts whose keys are job types and values are their parameters.
                     Keys: opt/freq/irc/scan/single_point ('sp' accepted as the same single-point task).
                     Gaussian example: [{"opt":"TS,calcfc,noeigen"},{"freq":None}];
-                    the same dict works for ORCA (mapped to `! OptTS Freq` etc.).'''
+                    the same dict works for ORCA (mapped to `! OptTS Freq` etc.).
+                    scan: ORCA emits a RELAXED scan (Opt + %geom Scan declared in orca_blocks);
+                    Gaussian only accepts the explicit {"scan":"rigid"} declaration (bare `scan`
+                    route = RIGID scan, coordinate via end_setting) — a bare {"scan":None} is refused.'''
     )
     frequency_mode: Literal["auto", "analytic", "numeric"] = Field(
         default="auto",
@@ -336,6 +339,38 @@ class QmInputWriter(Tool):
         return "\n".join(parts)
 
     @staticmethod
+    def _gaussian_scan_refusal(task_type: list[dict]) -> Optional[dict]:
+        """Gaussian scan 语义门禁：裸 scan 是刚性扫描，ORCA 的 scan 是松弛扫描
+        （Opt + %geom Scan），同一 task_type 在两引擎语义不同。只接受显式
+        {'scan': 'rigid'} 声明；其余取值拒绝并给出可执行的替代声明路径。
+        拒绝时返回 {"message", "unapplied_options"}，放行返回 None。
+        """
+        for task in task_type:
+            for key, value in task.items():
+                if str(key).lower() != "scan":
+                    continue
+                declared = str(value).strip().lower() if value is not None else ""
+                if declared == "rigid":
+                    continue
+                return {
+                    "message": (
+                        "a Gaussian 'scan' task writes the bare `scan` route, which is a RIGID "
+                        "potential-surface scan, while the same task_type on the ORCA engine is a "
+                        "RELAXED scan (Opt + %geom Scan) — the bare key cannot keep the two engines' "
+                        "semantics apart and inspect_input cannot tell which was meant. Declare the "
+                        "intent explicitly: use {'scan': 'rigid'} for a Gaussian rigid scan (scan "
+                        "coordinate via end_setting, e.g. 'B 1 2 S 10 0.02'); for a relaxed scan use "
+                        "engine='orca' with a %geom Scan block in orca_blocks, or a Gaussian "
+                        "opt=modredundant route via {'opt': 'modredundant'} + end_setting."
+                    ),
+                    "unapplied_options": [
+                        f"scan: bare Gaussian scan is rigid (ORCA scan is relaxed); value {value!r} "
+                        "is not an explicit 'rigid' declaration"
+                    ],
+                }
+        return None
+
+    @staticmethod
     def _build_route(user_input: QmInputWriter_input_schema) -> str:
         """拼装 Route 段。"""
         keywords = ["#p"]
@@ -346,7 +381,11 @@ class QmInputWriter(Tool):
                 if key_l == "single_point":
                     # 规范词汇映射到 Gaussian 原生 sp 关键字（validate 已放行两种拼写）
                     key_l = "sp"
-                if key_l == "freq" and user_input.frequency_mode != "auto":
+                if key_l == "scan" and str(value).strip().lower() == "rigid":
+                    # 显式刚性扫描声明：写裸 scan 路由（扫描坐标在 end_setting 给出），
+                    # 'rigid' 是语义声明而不是 Gaussian 路由参数，不能写成 scan=rigid
+                    keywords.append("scan")
+                elif key_l == "freq" and user_input.frequency_mode != "auto":
                     mode = "numer" if user_input.frequency_mode == "numeric" else "analytic"
                     keywords.append(f"freq={mode}")
                 elif value is None:
@@ -525,6 +564,24 @@ class QmInputWriter(Tool):
                     input_path="",
                     message=f"qm_input_writer refused: {ext_error}",
                 )
+        # Gaussian scan 语义门禁：裸 scan 是刚性扫描，ORCA 侧是松弛扫描
+        # （Opt + %geom Scan），同一 task_type 两引擎不同义且 inspect_input
+        # 检不出差异——必须显式 {'scan': 'rigid'} 声明。
+        if user_input.engine == "gaussian":
+            scan_refusal = self._gaussian_scan_refusal(user_input.task_type)
+            if scan_refusal:
+                return QmInputWriter_output_schema(
+                    is_success=False,
+                    input_path="",
+                    message=f"qm_input_writer refused: {scan_refusal['message']}",
+                    unapplied_options=scan_refusal["unapplied_options"],
+                )
+        # 成功写出时在 interpreted_intent 里显式记录 scan 的刚性/松弛语义
+        scan_semantics = None
+        for task in user_input.task_type:
+            if any(str(key).lower() == "scan" for key in task):
+                scan_semantics = "rigid" if user_input.engine == "gaussian" else "relaxed"
+                break
         # 路径语义收口：相对路径解析到 agent 工作目录（沙箱），绝对路径
         # 保持既有权限语义。SMILES 源不经过路径解析（绝不把 SMILES 当路径）。
         if user_input.source_type in ("xyz_file", "mol_file"):
@@ -565,6 +622,9 @@ class QmInputWriter(Tool):
 
             # 不信 writer 自述：从生成文本重新 inspect，任务集合不一致即失败。
             inspected = inspect_input(content, engine=user_input.engine)
+            interpreted = inspected.model_dump(mode="json")
+            if scan_semantics is not None:
+                interpreted["scan_semantics"] = scan_semantics
             requested = intent_from_writer(user_input.model_dump())
             if inspected.tasks != requested.tasks:
                 return QmInputWriter_output_schema(
@@ -575,7 +635,7 @@ class QmInputWriter(Tool):
                         f"tasks {sorted(inspected.tasks)} but {sorted(requested.tasks)} "
                         "were requested; no file was written."
                     ),
-                    interpreted_intent=inspected.model_dump(mode="json"),
+                    interpreted_intent=interpreted,
                     unapplied_options=sorted(requested.tasks - inspected.tasks),
                 )
 
@@ -618,7 +678,7 @@ class QmInputWriter(Tool):
                             f"{engine_label} input file already exists with identical content; "
                             f"reused it as-is.{limitation}"
                         ),
-                        interpreted_intent=inspected.model_dump(mode="json"),
+                        interpreted_intent=interpreted,
                         unapplied_options=[],
                         generation_path=generation_path,
                     )
@@ -638,7 +698,7 @@ class QmInputWriter(Tool):
                 is_success=True,
                 input_path=input_path,
                 message=f"{engine_label} input file generated successfully.{limitation}",
-                interpreted_intent=inspected.model_dump(mode="json"),
+                interpreted_intent=interpreted,
                 unapplied_options=[],
                 generation_path=generation_path,
             )

@@ -73,13 +73,29 @@ def test_stereochemical_inversion_is_exposed_in_candidate_score():
     assert inverted["candidates"][0]["score"] > retained["candidates"][0]["score"]
 
 
-def test_unlabelled_symmetric_mapping_remains_ambiguous():
-    """防止工具把对称原子的等价排列包装成唯一化学事实。"""
+def test_symmetric_automorphism_mirrors_merge_into_one_candidate():
+    """对称分子的自同构镜像（编辑事实与 score 完全一致）必须合并成一个候选——
+    镜像不是独立的化学候选，不应制造假 ambiguous、也不应挤占候选窗口。"""
     result = analyze_reaction_mapping("CC", "CC")
 
-    assert result["mapping_status"] == "ambiguous"
-    maps = {tuple(candidate["heavy_atom_map"]) for candidate in result["candidates"]}
-    assert maps == {(1, 2), (2, 1)}
+    assert result["mapping_status"] == "unique"
+    assert len(result["candidates"]) == 1
+    assert result["heavy_atom_map"] == [1, 2]
+    assert result["formed_bonds"] == []
+    assert result["broken_bonds"] == []
+
+
+def test_high_symmetry_identity_collapses_to_single_edit_fact_candidate():
+    """苯→苯有 6! 个碳排列映射：所有零编辑的自同构镜像必须合并成恰好一个
+    score=0 候选（不再挤占窗口、不制造假 ambiguous）；编辑事实真正不同的
+    非极小映射仍是独立候选，但不影响顶层唯一性判定。"""
+    result = analyze_reaction_mapping("c1ccccc1", "c1ccccc1")
+
+    assert result["mapping_status"] == "unique"
+    zero_edit = [c for c in result["candidates"] if c["bond_edit_count"] == 0]
+    assert len(zero_edit) == 1
+    assert zero_edit[0]["score"] == 0.0
+    assert zero_edit[0]["heavy_atom_map"] == [1, 2, 3, 4, 5, 6]
 
 
 def test_claisen_mapping_reports_pericyclic_bond_changes():
@@ -423,3 +439,43 @@ def test_tool_is_registered():
 
     targets = {(item.module, item.class_name) for item in TOOL_REGISTRY}
     assert ("cloudra.tools.Chemtool.reaction_mapping", "ReactionMapping") in targets
+
+
+# ---------------------------------------------------------------------------
+# T8：全原子映射的氢同位素配对（氘代示踪/KIE 场景 D 不得配到 H 上）
+# ---------------------------------------------------------------------------
+
+
+def _methanol_with_deuterium(d_idx: int):
+    """CH3OH 显式氢 mol（C0 O1 H2-5；H5 在 O 上），把 idx=d_idx 的氢标成 D。"""
+    mol = Chem.AddHs(Chem.MolFromSmiles("CO"))
+    mol.GetAtomWithIdx(d_idx).SetIsotope(2)
+    return mol
+
+
+def test_deuterium_pairs_with_deuterium_in_full_atom_map():
+    """两端羟基氢都是 D：D 必须配到 D，而不是按排序索引错配到某个甲基 H。"""
+    from cloudra.tools.Chemtool.reaction_mapping import _expand_full_atom_map
+
+    reactant = _methanol_with_deuterium(5)
+    product = _methanol_with_deuterium(5)
+    atom_map, diagnostic = _expand_full_atom_map(
+        reactant, product, [0, 1], [0, 1], [1, 2],
+    )
+    assert atom_map == [1, 2, 3, 4, 5, 6], (atom_map, diagnostic)
+    # D（product idx 5）确实配到了 reactant 的 D（idx 5），不是某个 H
+    assert atom_map[5] == 6
+
+
+def test_isotope_mismatched_hydrogens_fail_loud_instead_of_mispairing():
+    """总库存同位素计数相等（各一个 D），但同一映射中心上 H/D 分布错位：
+    不得按排序索引把 D 配到 H 上——必须 fail-loud 报 isotope。"""
+    from cloudra.tools.Chemtool.reaction_mapping import _expand_full_atom_map
+
+    reactant = _methanol_with_deuterium(5)   # D 在羟基上
+    product = _methanol_with_deuterium(2)    # D 在甲基上
+    atom_map, diagnostic = _expand_full_atom_map(
+        reactant, product, [0, 1], [0, 1], [1, 2],
+    )
+    assert atom_map == []
+    assert "isotope" in diagnostic.lower()

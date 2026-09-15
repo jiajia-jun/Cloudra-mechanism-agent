@@ -590,6 +590,171 @@ def test_chemistry_thresholds_unchanged():
 
 
 # ---------------------------------------------------------------------------
+# 共价半径全表（T1）：表外元素不再静默回退 1.2 Å
+# ---------------------------------------------------------------------------
+
+
+def test_covalent_radius_full_table_covers_heavy_metals():
+    """Pt/Ir/W/镧系等 irc_path 表外元素取到真实 Cordero 半径（ASE 同一数据集），
+    不再回退 1.2 Å；重叠元素与 irc_path 表数值完全一致（两表不得分叉）。"""
+    from ase.data import atomic_numbers, covalent_radii
+
+    import cloudra.tools.Chemtool.internal_coordinates as ic_mod
+    from cloudra.tools.core.irc_path import COVALENT_RADII
+
+    table = ic_mod._covalent_radii_table()
+    for symbol, ref in COVALENT_RADII.items():
+        assert table[symbol] == pytest.approx(ref, abs=1e-9)
+        assert table[symbol] == pytest.approx(float(covalent_radii[atomic_numbers[symbol]]), abs=1e-9)
+    for symbol in ("Pt", "Ir", "W", "La", "Au", "Os"):
+        assert table[symbol] == pytest.approx(float(covalent_radii[atomic_numbers[symbol]]), abs=1e-9)
+        assert table[symbol] != pytest.approx(1.2, abs=1e-9)
+
+
+def test_distance_connectivity_metal_coordination_uses_real_radii():
+    """Ir···C 非键接触 2.85 Å：旧 1.2+1.2 回退（×1.25=3.0）会误判成键；
+    真实半径 Ir 1.41 + C 0.76（×1.25=2.71）判定非键。2.0 Å 的 Ir-C 配位键仍成键。"""
+    import cloudra.tools.Chemtool.internal_coordinates as ic_mod
+
+    far = ic_mod.distance_connectivity(["Ir", "C"], [[0.0, 0.0, 0.0], [2.85, 0.0, 0.0]])
+    assert far == {}
+    near = ic_mod.distance_connectivity(["Ir", "C"], [[0.0, 0.0, 0.0], [2.0, 0.0, 0.0]])
+    assert near == {(0, 1): 1.0}
+
+
+def test_distance_connectivity_unknown_element_fails_loud():
+    """非元素符号（查不到 Cordero 半径）必须 fail-loud 并列出符号，绝不静默猜值。"""
+    import cloudra.tools.Chemtool.internal_coordinates as ic_mod
+
+    with pytest.raises(ValueError, match="Xx"):
+        ic_mod.distance_connectivity(["Xx", "H"], [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
+
+
+# ---------------------------------------------------------------------------
+# forming_candidate 判定（T3）：H···H 排除、heuristic 标注、vdW 表外 undecidable
+# ---------------------------------------------------------------------------
+
+
+def _call_abnormal_bonds(symbols, positions, bond_orders):
+    import numpy as np
+
+    n = len(symbols)
+    adj = InternalCoordinates._build_adjacency(n, bond_orders)
+    return InternalCoordinates._abnormal_bonds(
+        symbols, np.asarray(positions, dtype=float), adj, bond_orders, 0.15,
+    )
+
+
+def test_hh_crowded_contact_is_not_a_forming_candidate():
+    """1.79 Å 的 H···H 拥挤接触（> H-H ref 0.74，< 0.75×vdW 1.80）不得报成键候选——
+    该输出是 scan/watch 索引的 REQUIRED 来源，假 forming 会污染下游。"""
+    symbols = ["C", "H", "C", "H"]
+    positions = [[0.0, -1.09, 0.0], [0.0, 0.0, 0.0],
+                 [0.0, 2.88, 0.0], [0.0, 1.79, 0.0]]  # H2···H4 = 1.79 Å，其余交叉对均远
+    anomalies, _ = _call_abnormal_bonds(symbols, positions, {(0, 1): 1.0, (2, 3): 1.0})
+    assert not any(set(a["atoms"]) == {"H2", "H4"} for a in anomalies), anomalies
+
+
+def test_forming_candidate_is_labeled_distance_heuristic():
+    """正常 O···H 接近接触仍是 forming_candidate，但必须带 distance_heuristic 标注。"""
+    symbols = ["C", "O", "H"]
+    positions = [[0.0, 0.0, 0.0], [3.0, 0.0, 0.0], [4.70, 0.0, 0.0]]  # O2···H3 = 1.70 Å
+    anomalies, lines = _call_abnormal_bonds(symbols, positions, {(0, 1): 1.0})
+    forming = [a for a in anomalies if set(a["atoms"]) == {"O2", "H3"}]
+    assert len(forming) == 1
+    assert forming[0]["status"] == "forming_candidate"
+    assert forming[0]["basis"] == "distance_heuristic"
+    assert any("distance heuristic" in line for line in lines)
+
+
+def test_forming_verdict_undecidable_when_vdw_radius_missing():
+    """Pt 不在 Bondi 范德华表里：Pt···H 2.0 Å 落在旧 forming 窗口内，
+    但 vdW 阈值不可信——必须标 undecidable 而不是给 forming。"""
+    symbols = ["Pt", "H"]
+    positions = [[0.0, 0.0, 0.0], [2.0, 0.0, 0.0]]
+    anomalies, _ = _call_abnormal_bonds(symbols, positions, {})
+    assert len(anomalies) == 1
+    assert anomalies[0]["status"] == "undecidable"
+    assert anomalies[0]["basis"] == "distance_heuristic"
+
+
+def test_watch_pair_hh_and_vdw_missing_verdicts():
+    """watch_pairs 同一判据：H···H 不报 forming；vdW 表外报 undecidable。"""
+    import numpy as np
+
+    symbols = ["H", "H", "Pt", "H"]
+    positions = np.asarray(
+        [[0.0, 0.0, 0.0], [1.79, 0.0, 0.0], [10.0, 0.0, 0.0], [12.0, 0.0, 0.0]],
+        dtype=float,
+    )
+    adj = InternalCoordinates._build_adjacency(4, {})
+    lines = InternalCoordinates._reactive_center_report(
+        symbols, positions, adj, {}, None, [[1, 2], [3, 4]],
+    )
+    hh_line = next(line for line in lines if "H1-H2" in line)
+    assert "not a bond-forming candidate" in hh_line
+    pth_line = next(line for line in lines if "Pt3-H4" in line)
+    assert "undecidable" in pth_line and "Pt" in pth_line
+
+
+# ---------------------------------------------------------------------------
+# S/P 带双键四面体中心（T7）：亚砜/砜/磺酰胺/磷酸酯不假报 angle_deviation
+# ---------------------------------------------------------------------------
+
+
+def _tetrahedron(center_scale=(1.0, 1.0, 1.0, 1.0)):
+    import numpy as np
+
+    verts = np.asarray([
+        [1.0, 1.0, 1.0], [1.0, -1.0, -1.0], [-1.0, 1.0, -1.0], [-1.0, -1.0, 1.0],
+    ])
+    verts = verts / np.linalg.norm(verts, axis=1, keepdims=True)
+    return [v * s for v, s in zip(verts, center_scale)]
+
+
+def _call_abnormal_angles(symbols, positions, bond_orders):
+    import numpy as np
+
+    adj = InternalCoordinates._build_adjacency(len(symbols), bond_orders)
+    return InternalCoordinates._abnormal_angles(
+        symbols, np.asarray(positions, dtype=float), adj, bond_orders, 12.0,
+    )
+
+
+def test_sulfone_tetrahedral_sulfur_has_no_angle_deviation():
+    """砜 S（配位 4、两条 S=O 双键）四面体几何：期望角必须是 109.5° 而非 180°/120°，
+    理想四面体角 109.47° 不应产生任何 angle_deviation。"""
+    symbols = ["S", "O", "O", "C", "C"]
+    positions = [[0.0, 0.0, 0.0]] + [list(v) for v in _tetrahedron()]
+    bond_orders = {(0, 1): 2.0, (0, 2): 2.0, (0, 3): 1.0, (0, 4): 1.0}
+    records, _ = _call_abnormal_angles(symbols, positions, bond_orders)
+    assert records == [], records
+
+
+def test_phosphate_tetrahedral_phosphorus_has_no_angle_deviation():
+    """磷酸酯 P（配位 4、一条 P=O 双键）同样按四面体期望角判定。"""
+    symbols = ["P", "O", "O", "O", "O"]
+    positions = [[0.0, 0.0, 0.0]] + [list(v) for v in _tetrahedron()]
+    bond_orders = {(0, 1): 2.0, (0, 2): 1.0, (0, 3): 1.0, (0, 4): 1.0}
+    records, _ = _call_abnormal_angles(symbols, positions, bond_orders)
+    assert records == [], records
+
+
+def test_ketone_carbon_still_expects_120_degrees():
+    """回归：羰基碳 sp2 期望角 120° 不变（理想平面三角不产生异常）。"""
+    import numpy as np
+
+    symbols = ["C", "O", "C", "C"]
+    positions = [[0.0, 0.0, 0.0]]
+    for k in range(3):
+        ang = np.radians(90.0 + 120.0 * k)
+        positions.append([float(np.cos(ang)), float(np.sin(ang)), 0.0])
+    bond_orders = {(0, 1): 2.0, (0, 2): 1.0, (0, 3): 1.0}
+    records, _ = _call_abnormal_angles(symbols, positions, bond_orders)
+    assert records == [], records
+
+
+# ---------------------------------------------------------------------------
 # mode=transform：rotate / stretch / invert_chirality + 变换后校验
 # ---------------------------------------------------------------------------
 

@@ -197,3 +197,87 @@ async def test_ir_imports_spectrochempy_lazily(monkeypatch, tmp_path):
     )
     assert result.is_success is False
     assert "spectrochempy" in result.message
+
+
+# ---------------------------------------------------------------------------
+# I5：单位丢失的透过率换算——歧义区 fail-loud，绝不按数值静默猜量纲
+# ---------------------------------------------------------------------------
+
+
+class _FakeProc:
+    """_to_absorbance 的最小替身：data/units/log10()/to()（签名带 **_kwargs）。"""
+
+    def __init__(self, data, units=None):
+        self.data = np.asarray(data, dtype=float)
+        self.units = units
+
+    def log10(self, **_kwargs):
+        return np.log10(self.data)
+
+    def to(self, *_args, **_kwargs):
+        raise RuntimeError("scp conversion unavailable in this stub")
+
+
+def test_to_absorbance_declared_percent_ignores_magnitude():
+    """显式声明的 %T（scp percent 单位 / JCAMP 头）按定义 A=2−log10(T%)：
+    强吸收样品全谱 <1.5 %T 也是 %T——旧实现按 peak_scale≤1.5 误判为小数 T。"""
+    proc = _FakeProc([1.4, 0.5, 1.2], units="percent")
+    out = ir_mod._to_absorbance(proc, percent_declared=True)
+    assert np.asarray(out)[0] == pytest.approx(2.0 - np.log10(1.4))
+    assert np.asarray(out)[1] == pytest.approx(2.0 - np.log10(0.5))
+
+
+def test_to_absorbance_unitless_above_physical_limit_infers_percent():
+    """单位丢失但数值超出小数 T 物理上限（>1.5）：安全推断为 %T。"""
+    proc = _FakeProc([50.0, 10.0])
+    out = ir_mod._to_absorbance(proc)
+    assert np.asarray(out)[0] == pytest.approx(2.0 - np.log10(50.0))
+    assert np.asarray(out)[1] == pytest.approx(1.0)  # T=10% → A=1.0
+
+
+def test_to_absorbance_unitless_ambiguous_range_fails_loud():
+    """单位丢失且数值全落 (0, 1.5] 歧义区：小数 T 与 %T 不可区分——
+    fail-loud 抛 ValueError（is_success=False），绝不静默猜值。"""
+    proc = _FakeProc([1.4, 0.5, 1.0])
+    with pytest.raises(ValueError, match="undecidable"):
+        ir_mod._to_absorbance(proc)
+
+
+@pytest.mark.asyncio
+async def test_strong_absorption_percent_jcamp_converts_by_declaration(tmp_path):
+    """端到端：PERCENT TRANSMITTANCE 声明的强吸收谱（全谱 ≤1.5 %T）必须按
+    %T 定义换算——吸收带 A=2−log10(0.5)≈2.30 高于基线 2−log10(1.4)≈1.85，
+    旧实现误判为小数 T 会给出 A≈0.3 的荒谬值且 is_success=True。"""
+    xs = np.arange(1800.0, 1599.5, -1.0)
+    ys = np.full(len(xs), 1.4)
+    i1700 = int(np.argmin(np.abs(xs - 1700.0)))
+    ys[i1700] = 0.5
+    row = " ".join(f"{v:.4f}" for v in ys)
+    path = tmp_path / "strong_absorption.jdx"
+    path.write_text(
+        "##TITLE=strong absorption\n"
+        "##JCAMP-DX=5.00\n"
+        "##DATA TYPE=INFRARED SPECTRUM\n"
+        "##XUNITS=1/CM\n"
+        "##YUNITS=PERCENT TRANSMITTANCE\n"
+        "##FIRSTX=1800.0\n"
+        "##LASTX=1600.0\n"
+        f"##NPOINTS={len(xs)}\n"
+        "##DELTAX=-1.0\n"
+        "##XFACTOR=1.0\n"
+        "##YFACTOR=1.0\n"
+        "##XYDATA=(X++(Y..Y))\n"
+        f"1800.0 {row}\n"
+        "##END\n",
+        encoding="utf-8",
+    )
+
+    result = await _run_ir(path, detect_peaks=False)
+
+    assert result.is_success, result.message
+    wn, intensity = _spectrum_arrays(result)
+    i_band = int(np.argmin(np.abs(wn - 1700.0)))
+    i_base = int(np.argmin(np.abs(wn - 1800.0)))
+    assert intensity[i_band] == pytest.approx(2.0 - np.log10(0.5), abs=0.02)
+    assert intensity[i_base] == pytest.approx(2.0 - np.log10(1.4), abs=0.02)
+    assert intensity[i_band] > intensity[i_base]

@@ -8,6 +8,10 @@ from pydantic import Field
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.workspace import resolve_tool_path
+from cloudra.tools.Chemtool.frontier_orbitals import (
+    GAP_UNDECIDABLE_SPIN_CROSSOVER,
+    frontier_orbital_summary,
+)
 
 description = (
     "Deep-parse a quantum-chemistry output log (Gaussian .log/.out, ORCA .out, or xtb .out; engine auto-detected) "
@@ -21,7 +25,11 @@ description = (
 # 用户可请求的属性名 -> 对应输出字段
 _AVAILABLE_PROPERTIES = {
     "energy": ["scf_energy_hartree", "scf_energy_ev"],
-    "homo_lumo": ["homo_ev", "lumo_ev", "homo_lumo_gap_ev"],
+    "homo_lumo": [
+        "homo_ev", "lumo_ev", "homo_lumo_gap_ev",
+        "alpha_homo_ev", "alpha_lumo_ev", "beta_homo_ev", "beta_lumo_ev",
+        "spin_crossover",
+    ],
     "dipole": ["dipole_moment_debye"],
     "frequencies": ["frequencies_cm", "imaginary_frequencies"],
     "thermochemistry": [
@@ -65,11 +73,12 @@ _THERMO_PATTERNS = {
 }
 
 
-def _extract_gaussian_thermochemistry(log_path: str) -> dict[str, float]:
-    """Extract the last complete Gaussian thermochemistry block without changing units."""
-    with open(log_path, encoding="utf-8", errors="replace") as handle:
-        text = handle.read()
+def _extract_gaussian_thermochemistry(text: str) -> dict[str, float]:
+    """Extract the last complete Gaussian thermochemistry block without changing units.
 
+    吃日志文本而不是路径：调用方（LogParser._parse_log）已把日志单读一次，
+    不在此处重复 IO。
+    """
     starts = [match.start() for match in re.finditer(r"Zero-point correction=", text)]
     chunks = (
         [text[start:(starts[index + 1] if index + 1 < len(starts) else len(text))]
@@ -111,9 +120,18 @@ class LogParser_output_schema(output_schema):
     is_success: bool = Field(description="Whether parsing succeeded")
     scf_energy_hartree: Optional[float] = Field(default=None, description="Final SCF energy (Hartree)")
     scf_energy_ev: Optional[float] = Field(default=None, description="Final SCF energy (eV)")
-    homo_ev: Optional[float] = Field(default=None, description="HOMO energy (eV)")
-    lumo_ev: Optional[float] = Field(default=None, description="LUMO energy (eV)")
-    homo_lumo_gap_ev: Optional[float] = Field(default=None, description="HOMO-LUMO gap (eV)")
+    homo_ev: Optional[float] = Field(default=None, description="HOMO energy (eV); open-shell: max of α/β HOMO (highest SOMO)")
+    lumo_ev: Optional[float] = Field(default=None, description="LUMO energy (eV); open-shell: min of α/β LUMO")
+    homo_lumo_gap_ev: Optional[float] = Field(default=None, description="HOMO-LUMO gap (eV); None when undecidable (open-shell spin crossover)")
+    alpha_homo_ev: Optional[float] = Field(default=None, description="Open-shell only: α-channel HOMO (SOMO) energy (eV)")
+    alpha_lumo_ev: Optional[float] = Field(default=None, description="Open-shell only: α-channel LUMO energy (eV)")
+    beta_homo_ev: Optional[float] = Field(default=None, description="Open-shell only: β-channel HOMO (SOMO) energy (eV)")
+    beta_lumo_ev: Optional[float] = Field(default=None, description="Open-shell only: β-channel LUMO energy (eV)")
+    spin_crossover: Optional[bool] = Field(
+        default=None,
+        description="Open-shell only: True when the lowest virtual orbital lies below the highest "
+                    "occupied one — the single-determinant HOMO-LUMO gap is then undecidable (not reported).",
+    )
     dipole_moment_debye: Optional[float] = Field(default=None, description="Dipole moment (Debye)")
     frequencies_cm: Optional[list[float]] = Field(default=None, description="Vibrational frequencies (cm⁻¹)")
     imaginary_frequencies: Optional[list[float]] = Field(default=None, description="Imaginary frequencies (cm⁻¹, negative values), used to judge a TS")
@@ -216,7 +234,7 @@ class LogParser(Tool):
             # 已有 xtb parser 但结果错误——opt 日志的 scfenergies[-1] 是最后
             # 一个 opt cycle 的能量而非 boxed TOTAL ENERGY，hess 日志的热化学
             # 属性是荒谬值——能量/频率/热化学全走 xtb_frames 文本原语（GH #26）。
-            from cloudra.tools.core import orca_frames, xtb_frames
+            from cloudra.tools.core import gaussian_frames, orca_frames, xtb_frames
             from cloudra.tools.core.qm_engine import detect_qm_engine
 
             engine = detect_qm_engine(log_path)
@@ -242,15 +260,21 @@ class LogParser(Tool):
                             "if the job failed, inspect the log tail to find the cause."
                 )
 
-            # ORCA/xtb 文本只读一次：终止判定与外部能量回退共用
-            orca_text: str | None = None
-            xtb_text: str | None = None
-            if engine in ("orca", "xtb"):
-                with open(log_path, encoding="utf-8", errors="replace") as handle:
-                    if engine == "orca":
-                        orca_text = handle.read()
-                    else:
-                        xtb_text = handle.read()
+            # 日志文本只读一次：终止判定、能量/频率/偶极回退、热化学、任务
+            # 类型识别与 IRC 提取全部共用这份文本（此前同一日志被整读 5-6 遍）。
+            with open(log_path, encoding="utf-8", errors="replace") as handle:
+                log_text = handle.read()
+
+            # 任务类型全引擎只识别一次（同一份文本）：job_types 字段、
+            # opt_converged 的 cclib 回退门控与 IRC 分支判定共用。
+            if engine == "xtb":
+                # xtb stdout 不回显 CLI 标志，从输出节判定（opt/freq/sp）
+                detected_jobs = xtb_frames.detect_job_types_from_text(log_text)
+            elif engine == "orca":
+                detected_jobs = orca_frames.detect_job_types_from_text(log_text)
+            else:
+                # gaussian 与未知引擎沿用 Gaussian 路由卡/结构标记判据
+                detected_jobs = gaussian_frames.detect_job_types_from_text(log_text)
 
             result: dict[str, Any] = {"is_success": True, "message": "Log parsed successfully.", "engine": engine}
             if data is None:
@@ -272,41 +296,65 @@ class LogParser(Tool):
                     ev = float(data.scfenergies[-1])
                     result["scf_energy_ev"] = ev
                     result["scf_energy_hartree"] = ev / 27.211386245988
-                elif orca_text is not None:
+                elif engine == "orca":
                     # 外部 MLIP 日志无 SCF 能量段，唯一能量行是
                     # FINAL SINGLE POINT ENERGY (From external program)
-                    e_hartree = orca_frames.final_energy_hartree(orca_text)
+                    e_hartree = orca_frames.final_energy_hartree(log_text)
                     if e_hartree is not None:
                         result["scf_energy_hartree"] = e_hartree
                         result["scf_energy_ev"] = e_hartree * 27.211386245988
-                elif xtb_text is not None:
+                elif engine == "xtb":
                     # xtb：最终 TOTAL ENERGY 块 / :: total energy / opt 周期能量行
-                    e_hartree = xtb_frames.final_energy_hartree(xtb_text)
+                    e_hartree = xtb_frames.final_energy_hartree(log_text)
                     if e_hartree is not None:
                         result["scf_energy_hartree"] = e_hartree
                         result["scf_energy_ev"] = e_hartree * 27.211386245988
 
-            if {"homo_ev", "lumo_ev", "homo_lumo_gap_ev"} & requested:
+            if {
+                "homo_ev", "lumo_ev", "homo_lumo_gap_ev",
+                "alpha_homo_ev", "alpha_lumo_ev", "beta_homo_ev", "beta_lumo_ev",
+                "spin_crossover",
+            } & requested:
                 if (
-                    hasattr(data, "moenergies")
-                    and hasattr(data, "homos")
-                    and data.moenergies is not None
-                    and data.homos is not None
+                    data is not None
+                    and getattr(data, "moenergies", None) is not None
+                    and getattr(data, "homos", None) is not None
                     and len(data.moenergies) > 0
                 ):
-                    mo = data.moenergies[0]
-                    homo_idx = int(data.homos[0]) if hasattr(data.homos, "__iter__") else int(data.homos)
-
-                    if 0 <= homo_idx < len(mo):
-                        result["homo_ev"] = float(mo[homo_idx])
-                    if homo_idx + 1 < len(mo):
-                        result["lumo_ev"] = float(mo[homo_idx + 1])
-
-                    if result.get("homo_ev") is not None and result.get("lumo_ev") is not None:
-                        result["homo_lumo_gap_ev"] = result["lumo_ev"] - result["homo_ev"]
-                elif xtb_text is not None:
+                    # 与 electronic_analysis 共用同一套前线轨道原语：开壳层报
+                    # α/β 两套 HOMO/LUMO（SOMO 语义），自旋交叉时 gap 不可判定。
+                    homos = [int(h) for h in np.asarray(data.homos).ravel()]
+                    if len(data.moenergies) == len(homos):
+                        frontier = frontier_orbital_summary(
+                            [list(mo) for mo in data.moenergies],
+                            [h + 1 for h in homos],  # cclib homos 是 0-based 索引
+                        )
+                        if frontier["homo"] is not None:
+                            result["homo_ev"] = frontier["homo"]
+                        if frontier["lumo"] is not None:
+                            result["lumo_ev"] = frontier["lumo"]
+                        if frontier["gap"] is not None:
+                            result["homo_lumo_gap_ev"] = frontier["gap"]
+                        if frontier["open_shell"]:
+                            result["alpha_homo_ev"] = frontier["alpha"]["homo"]
+                            result["alpha_lumo_ev"] = frontier["alpha"]["lumo"]
+                            result["beta_homo_ev"] = frontier["beta"]["homo"]
+                            result["beta_lumo_ev"] = frontier["beta"]["lumo"]
+                            result["spin_crossover"] = (
+                                frontier["gap_status"] == GAP_UNDECIDABLE_SPIN_CROSSOVER
+                            )
+                            if result["spin_crossover"]:
+                                result["message"] += (
+                                    " Open-shell spin crossover: the lowest virtual orbital lies "
+                                    "below the highest occupied one (max α/β HOMO above min α/β LUMO), "
+                                    "so the HOMO-LUMO gap is undecidable for this single determinant "
+                                    "and is not reported."
+                                )
+                    # moenergies/homos 通道数不一致是上游解析异常：不发任何前线
+                    # 轨道字段（不可判定），绝不猜一个通道的值。
+                elif engine == "xtb":
                     # xtb：cclib 对其日志解析不可靠，gap 从 SUMMARY 块文本回退
-                    gap = xtb_frames.homo_lumo_gap_ev(xtb_text)
+                    gap = xtb_frames.homo_lumo_gap_ev(log_text)
                     if gap is not None:
                         result["homo_lumo_gap_ev"] = gap
 
@@ -315,9 +363,9 @@ class LogParser(Tool):
                     # moments[1] 为偶极矩向量 (Debye)
                     dipole_vec = np.asarray(data.moments[1], dtype=float)
                     result["dipole_moment_debye"] = float(np.linalg.norm(dipole_vec))
-                elif xtb_text is not None:
+                elif engine == "xtb":
                     # xtb：Property Printout 的 "full:" 行第四列（Debye）
-                    dipole = xtb_frames.dipole_debye(xtb_text)
+                    dipole = xtb_frames.dipole_debye(log_text)
                     if dipole is not None:
                         result["dipole_moment_debye"] = dipole
 
@@ -325,13 +373,13 @@ class LogParser(Tool):
                 vibfreqs: list[float] | None = None
                 if hasattr(data, "vibfreqs") and data.vibfreqs is not None and len(data.vibfreqs) > 0:
                     vibfreqs = [float(f) for f in np.asarray(data.vibfreqs, dtype=float)]
-                elif orca_text is not None:
+                elif engine == "orca":
                     # 外部 MLIP（ExtOpt NumFreq）日志无 SCF 块，cclib 常整体
                     # 失败——频率从 VIBRATIONAL FREQUENCIES 块文本回退（GH #16）
-                    vibfreqs = orca_frames.vibfreqs_from_text(orca_text) or None
-                elif xtb_text is not None:
+                    vibfreqs = orca_frames.vibfreqs_from_text(log_text) or None
+                elif engine == "xtb":
                     # xtb：projected vibrational frequencies 块的 eigval 行
-                    vibfreqs = xtb_frames.vibfreqs_from_text(xtb_text) or None
+                    vibfreqs = xtb_frames.vibfreqs_from_text(log_text) or None
                 if vibfreqs is not None:
                     # 虚频保留负号（负值=虚频是 frames 原语与下游 DAG/benchmark
                     # 的原生语义）；frequencies_cm 只存非负实频。
@@ -341,13 +389,13 @@ class LogParser(Tool):
             thermo_fields = set(_AVAILABLE_PROPERTIES["thermochemistry"])
             if thermo_fields & requested:
                 if engine == "orca":
-                    thermo = orca_frames.extract_thermochemistry(log_path)
+                    thermo = orca_frames.extract_thermochemistry_from_text(log_text)
                 elif engine == "gaussian":
-                    thermo = _extract_gaussian_thermochemistry(log_path)
+                    thermo = _extract_gaussian_thermochemistry(log_text)
                 elif engine == "xtb":
                     # xtb：THERMODYNAMIC 块/最终块文本（cclib 热化学对 xtb 是
                     # 荒谬值，永不作为数据源）
-                    thermo = xtb_frames.thermochemistry(xtb_text or "")
+                    thermo = xtb_frames.thermochemistry(log_text)
                 else:
                     # 未知引擎：无热化学提取路径，留空
                     thermo = {}
@@ -396,10 +444,10 @@ class LogParser(Tool):
                 if engine == "orca":
                     # 文本标记权威：cclib metadata 对无 SCF 块的外部 MLIP 日志
                     # 不可靠（GH #17 job17：正常终止却报 success=False）
-                    result["normal_termination"] = orca_frames.normal_termination(orca_text or "")
+                    result["normal_termination"] = orca_frames.normal_termination(log_text)
                 elif engine == "xtb":
                     # 同款文本权威：normal termination of xtb（GH #26）
-                    result["normal_termination"] = xtb_frames.normal_termination(xtb_text or "")
+                    result["normal_termination"] = xtb_frames.normal_termination(log_text)
                 elif hasattr(data, "metadata") and data.metadata is not None:
                     result["normal_termination"] = bool(data.metadata.get("success", False))
                 elif hasattr(data, "optdone"):
@@ -410,17 +458,15 @@ class LogParser(Tool):
                 # 未收敛时仍正常终止。ORCA 走文本标记为主、cclib optdone 为辅
                 # （外部 MLIP 日志 cclib 可能解析失败，不能依赖它）。
                 if engine == "orca":
-                    converged = orca_frames.opt_converged(orca_text or "")
+                    converged = orca_frames.opt_converged(log_text)
                     if converged is None and data is not None:
                         optdone = getattr(data, "optdone", None)
-                        if optdone is not None and (
-                            {"opt", "ts"} & orca_frames.detect_job_types_from_text(orca_text or "")
-                        ):
+                        if optdone is not None and ({"opt", "ts"} & detected_jobs):
                             converged = bool(optdone)
                     result["opt_converged"] = converged
                 elif engine == "xtb":
                     # xtb 同款语义（GH #26）：FAILED TO CONVERGE 即 False
-                    result["opt_converged"] = xtb_frames.opt_converged(xtb_text or "")
+                    result["opt_converged"] = xtb_frames.opt_converged(log_text)
                 elif data is not None:
                     optdone = getattr(data, "optdone", None)
                     if optdone is not None:
@@ -429,17 +475,8 @@ class LogParser(Tool):
             # job_type / scan / irc 摘要（Gaussian IRC 逐点解析在 core.gaussian_frames 自写；
             # ORCA 侧由 core.orca_frames.extract_irc 从主输出的 FORWARD/BACKWARD
             # IRC 迭代块与 PATH SUMMARY 提取点数/收敛/端点能量）
-            from cloudra.tools.core import gaussian_frames
-
             if "job_types" in requested:
-                if engine == "xtb":
-                    # xtb stdout 不回显 CLI 标志，从输出节判定（opt/freq/sp）
-                    result["job_types"] = sorted(
-                        xtb_frames.detect_job_types_from_text(xtb_text or "")
-                    )
-                else:
-                    detect = orca_frames.detect_job_types if engine == "orca" else gaussian_frames.detect_job_types
-                    result["job_types"] = sorted(detect(log_path))
+                result["job_types"] = sorted(detected_jobs)
 
             if {"scan_parameter", "scan_energies_ev"} & requested:
                 scanparm = getattr(data, "scanparm", None)
@@ -451,9 +488,9 @@ class LogParser(Tool):
 
             if any(f.startswith("irc_") for f in requested):
                 if engine == "orca":
-                    if "irc" in result.get("job_types", []) or "irc" in orca_frames.detect_job_types(log_path):
+                    if "irc" in detected_jobs:
                         try:
-                            irc_meta = orca_frames.extract_irc(log_path)
+                            irc_meta = orca_frames.extract_irc_from_text(log_text)
                             result["irc_num_points_forward"] = irc_meta["num_points_forward"]
                             result["irc_num_points_backward"] = irc_meta["num_points_backward"]
                             if irc_meta["endpoint_energies_hartree"] is not None:
@@ -465,9 +502,9 @@ class LogParser(Tool):
                             )
                         except ValueError as e:
                             result["message"] = f"Log parsed; ORCA IRC extraction failed: {e}"
-                elif engine == "gaussian" and "irc" in gaussian_frames.detect_job_types(log_path):
+                elif engine == "gaussian" and "irc" in detected_jobs:
                     try:
-                        _irc_frames, irc_meta = gaussian_frames.extract_irc(log_path)
+                        _irc_frames, irc_meta = gaussian_frames.extract_irc_from_text(log_text)
                         result["irc_num_points_forward"] = irc_meta["num_points_forward"]
                         result["irc_num_points_backward"] = irc_meta["num_points_backward"]
                         if irc_meta["rx_coord_range"] is not None:
@@ -542,7 +579,9 @@ def derive_delivery_changes(
     """
     del current, arguments  # 本工具派生不需要 current/arguments
     imaginary = _imaginary_frequency_list(result)
-    normal = result.get("normal_termination") is not False
+    # 终止状态必须是显式 True 才计证据：None（undecidable，未判定终止）与
+    # False 一样不发证据——未知终止的日志不能派生 structure/saddle 支撑。
+    normal = result.get("normal_termination") is True
     # short_irc 门槛：双向均收敛，或每个方向至少这么多 IRC 点（不含 TS）。
     min_irc_points = 50
     if (
