@@ -27,13 +27,18 @@ from cloudra.tools.Chemtool.internal_coordinates import (
     _dihedral_deg,
 )
 from cloudra.tools.core import orca_frames
+from cloudra.tools.core.irc_path import (
+    assign_irc_endpoints as _assign_irc_endpoints,
+)
+from cloudra.tools.core.irc_path import (
+    dist_matrix as _dist_matrix,
+)
+from cloudra.tools.core.irc_path import (
+    pair_label as _pair_label,
+)
 from cloudra.tools.core.xtb_path_runner import DEFAULT_REFINEMENT_RUNS
 
 KCAL_PER_HARTREE = 627.5095
-_STRICT_PAIR_DELTA_MIN_ANG = 0.15
-_STRICT_INTERVAL_TOL_ANG = 0.10
-_STRICT_MAX_AUTO_PAIRS = 5
-_STRICT_PAIR_EPS_ANG = 1e-8
 # 虚频模式与反应坐标：watch_pairs 中至少一对的相对位移须达全局最大相对位移的该比例。
 _IMAG_MODE_WATCH_RATIO = 0.5
 
@@ -301,10 +306,6 @@ def _bond_pairs(symbols, positions, scale: float = 1.25) -> set[tuple[int, int]]
     return pairs
 
 
-def _pair_label(symbols, pair: tuple[int, int]) -> str:
-    return f"{symbols[pair[0]]}{pair[0] + 1}-{symbols[pair[1]]}{pair[1] + 1}"
-
-
 # ---------------------------------------------------------------------------
 # interpolate：对齐 + 插值 + IDPP
 # ---------------------------------------------------------------------------
@@ -318,14 +319,6 @@ def _kabsch_rotate(mobile, ref):
     d = np.sign(np.linalg.det(vt.T @ u.T))
     rot = vt.T @ np.diag([1.0, 1.0, d]) @ u.T
     return np.asarray(mobile) @ rot.T
-
-
-def _dist_matrix(coords):
-    import numpy as np
-
-    pos = np.asarray(coords, dtype=float)
-    diff = pos[:, None, :] - pos[None, :, :]
-    return np.linalg.norm(diff, axis=-1)
 
 
 def _select_watch_pairs(symbols, d_start, d_end, watch_pairs) -> list[tuple[int, int]]:
@@ -350,120 +343,6 @@ def _select_watch_pairs(symbols, d_start, d_end, watch_pairs) -> list[tuple[int,
     deltas = np.abs(d_end[iu] - d_start[iu])
     order = np.argsort(-deltas)[:5]
     return sorted({(int(iu[0][o]), int(iu[1][o])) for o in order})
-
-
-def _evaluate_endpoint_between(symbols: Sequence[str], ts_pos, end_pos,
-                               intermediate_pos, watch_pairs: Sequence[Sequence[int]]) -> dict:
-    """判断一个部分 IRC 端点是否位于 TS 与某个优化中间体之间。"""
-    import numpy as np
-
-    n = len(symbols)
-    arrays = [np.asarray(pos, dtype=float) for pos in (ts_pos, end_pos, intermediate_pos)]
-    if any(pos.shape != (n, 3) for pos in arrays):
-        return {
-            "is_decidable": False, "is_between": False, "score": float("inf"),
-            "pairs": [], "details": ["Coordinate dimensions of TS, IRC endpoint, and intermediate do not match."],
-        }
-
-    d_ts, d_end, d_int = (_dist_matrix(pos) for pos in arrays)
-    pairs: list[tuple[int, int]] = []
-    if watch_pairs:
-        for raw_pair in watch_pairs:
-            if len(raw_pair) != 2:
-                return {
-                    "is_decidable": False, "is_between": False, "score": float("inf"),
-                    "pairs": [], "details": [f"watch_pairs entries must contain two atom indices: {raw_pair}"],
-                }
-            i, j = int(raw_pair[0]) - 1, int(raw_pair[1]) - 1
-            if not (0 <= i < n and 0 <= j < n) or i == j:
-                return {
-                    "is_decidable": False, "is_between": False, "score": float("inf"),
-                    "pairs": [], "details": [f"watch_pairs atom indices invalid: {raw_pair}"],
-                }
-            pair = (min(i, j), max(i, j))
-            if pair not in pairs:
-                pairs.append(pair)
-        pairs = [pair for pair in pairs if abs(d_int[pair] - d_ts[pair]) > _STRICT_PAIR_EPS_ANG]
-    else:
-        ranked = []
-        for i in range(n):
-            for j in range(i + 1, n):
-                delta = abs(d_int[i, j] - d_ts[i, j])
-                if delta >= _STRICT_PAIR_DELTA_MIN_ANG:
-                    ranked.append((delta, (i, j)))
-        ranked.sort(reverse=True)
-        pairs = [pair for _, pair in ranked[:_STRICT_MAX_AUTO_PAIRS]]
-
-    if not pairs:
-        return {
-            "is_decidable": False, "is_between": False, "score": float("inf"),
-            "pairs": [], "details": ["No atom-pair distance change between TS and intermediate is large enough to judge direction."],
-        }
-
-    q_ts = np.asarray([d_ts[pair] for pair in pairs])
-    q_end = np.asarray([d_end[pair] for pair in pairs])
-    q_int = np.asarray([d_int[pair] for pair in pairs])
-    lower = np.minimum(q_ts, q_int) - _STRICT_INTERVAL_TOL_ANG
-    upper = np.maximum(q_ts, q_int) + _STRICT_INTERVAL_TOL_ANG
-    inside = (q_end >= lower) & (q_end <= upper)
-    dist_ts_to_int = float(np.linalg.norm(q_ts - q_int))
-    dist_end_to_int = float(np.linalg.norm(q_end - q_int))
-    closer = dist_end_to_int < dist_ts_to_int
-    is_between = bool(np.all(inside) and closer)
-    score = dist_end_to_int / dist_ts_to_int if dist_ts_to_int > 0 else float("inf")
-
-    details = [
-        f"{_pair_label(symbols, pair)}: TS={d_ts[pair]:.3f} Å, "
-        f"IRC_endpoint={d_end[pair]:.3f} Å, intermediate={d_int[pair]:.3f} Å, "
-        f"{'inside interval' if inside[k] else 'outside interval'}"
-        for k, pair in enumerate(pairs)
-    ]
-    details.append(f"Distance-vector ratio endpoint-to-intermediate={score:.3f} (<1 means closer than TS).")
-    return {
-        "is_decidable": True,
-        "is_between": is_between,
-        "score": score,
-        "pairs": pairs,
-        "details": details,
-    }
-
-
-def _assign_irc_endpoints(symbols: Sequence[str], ts_pos, end_a_pos, end_b_pos,
-                          intermediate_a_pos, intermediate_b_pos,
-                          watch_pairs: Sequence[Sequence[int]]) -> dict:
-    """尝试 IRC 两端与两个优化中间体的 direct/swapped 无序配对。"""
-    assignments = []
-    for name, target_a, target_b in (
-        ("direct", intermediate_a_pos, intermediate_b_pos),
-        ("swapped", intermediate_b_pos, intermediate_a_pos),
-    ):
-        result_a = _evaluate_endpoint_between(symbols, ts_pos, end_a_pos, target_a, watch_pairs)
-        result_b = _evaluate_endpoint_between(symbols, ts_pos, end_b_pos, target_b, watch_pairs)
-        assignments.append({
-            "name": name,
-            "a": result_a,
-            "b": result_b,
-            "is_decidable": result_a["is_decidable"] and result_b["is_decidable"],
-            "is_match": result_a["is_between"] and result_b["is_between"],
-            "score": result_a["score"] + result_b["score"],
-        })
-
-    decidable = [item for item in assignments if item["is_decidable"]]
-    if not decidable:
-        details = assignments[0]["a"]["details"] + assignments[0]["b"]["details"]
-        return {
-            "is_decidable": False, "is_match": False, "assignment": "",
-            "details": details,
-        }
-
-    matches = [item for item in decidable if item["is_match"]]
-    chosen = min(matches or decidable, key=lambda item: item["score"])
-    return {
-        "is_decidable": True,
-        "is_match": bool(matches),
-        "assignment": chosen["name"] if matches else "",
-        "details": chosen["a"]["details"] + chosen["b"]["details"],
-    }
 
 
 def _idpp_relax(images, max_iter: int = 4000, lr: float = 0.02, tol: float = 1e-7):
@@ -1987,8 +1866,9 @@ class TsGuess(Tool):
                                     require_two_sides: bool) -> Optional[dict]:
         """ORCA IRC 端点：复用 orca_frames 的 final endpoint / F-B trajectory
         读取（解析规则不在这里复制）。forward/backward 是轨迹方向标签，
-        不自动映射 reactant/product；一侧已终止但未收敛时该侧缺口保持开放，
-        收敛短路径不按固定点数要求补点。"""
+        不自动映射 reactant/product。收敛与否只记录、绝不做闸门：与 Gaussian
+        通道同口径，每侧取最外侧可用几何（未收敛方向的轨迹末帧同样是合法的
+        部分端点），方向是否成立交给 strict 的几何区间证明判定。"""
         from types import SimpleNamespace
 
         from cloudra.tools.core import orca_frames
@@ -2000,18 +1880,14 @@ class TsGuess(Tool):
             if converged is False:
                 checks.append(
                     f"The ORCA IRC {label} direction terminated WITHOUT converging; "
-                    "that side's path gap stays open (this is not a point-count issue)."
+                    "strict only checks partial endpoint direction, so the trajectory's "
+                    "outermost frame is still used as that side's partial endpoint."
                 )
             elif converged:
                 checks.append(
                     f"The ORCA IRC {label} direction converged; a short converged path "
                     "needs no padding to a fixed point count."
                 )
-        # strict：明确未收敛的方向保持缺口，不把未验证端点当路径证据。
-        if require_two_sides and (
-            forward.get("converged") is False or backward.get("converged") is False
-        ):
-            return None
 
         xyz_a = orca_frames.read_endpoint_geometry(forward)
         xyz_b = orca_frames.read_endpoint_geometry(backward)

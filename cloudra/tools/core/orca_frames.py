@@ -255,6 +255,50 @@ def frequencies_with_text_fallback(log_path: str) -> list[float]:
     return vibfreqs_from_text(_read_text(log_path))
 
 
+def final_xyz_from_text(text: str) -> str:
+    """最后一个 CARTESIAN COORDINATES (ANGSTROEM) 块 → 标准 xyz 文本。
+
+    ORCA 每次几何步/作业结束都打印该块，取最后一个即末帧几何；cclib 对
+    ORCA 6.1 日志整体解析失败时的文本回退（与 vibfreqs_from_text 同一
+    纪律——评分链路不能因 cclib 崩溃而不可判定）。无该块返回空串。"""
+    idx = text.rfind("CARTESIAN COORDINATES (ANGSTROEM)")
+    if idx < 0:
+        return ""
+    rows: list[str] = []
+    for line in text[idx:].splitlines()[2:]:  # 跳过标题行与分隔线
+        parts = line.split()
+        if len(parts) >= 4:
+            try:
+                float(parts[1])
+                float(parts[2])
+                float(parts[3])
+            except ValueError:
+                break
+            rows.append(f"{parts[0]} {parts[1]} {parts[2]} {parts[3]}")
+        elif rows:
+            break
+    if not rows:
+        return ""
+    return f"{len(rows)}\n\n" + "\n".join(rows) + "\n"
+
+
+def final_xyz_with_text_fallback(log_path: str) -> str:
+    """末帧几何（标准 xyz 文本）：cclib 帧解析优先，失败或无坐标帧时回退
+    文本权威 CARTESIAN COORDINATES (ANGSTROEM) 块。无几何返回空串。"""
+    try:
+        frames = extract_frames(log_path)
+    except Exception:
+        frames = []
+    for frame in reversed(frames):
+        if frame.xyz.strip():
+            return frame.xyz
+    try:
+        text = _read_text(log_path)
+    except OSError:
+        return ""
+    return final_xyz_from_text(text)
+
+
 # ---------------------------------------------------------------------------
 # 帧提取
 # ---------------------------------------------------------------------------
@@ -573,14 +617,25 @@ _ORCA_NAME_RE = re.compile(r"^\s*NAME\s*=\s*(?P<path>\S+)\s*$", re.M)
 def _orca_sidecar_roots(log_path: str, text: str) -> list[tuple[str, str]]:
     """ORCA 边文件（IRC 轨迹/端点、NEB 逐图像）的 (目录, 作业名) 候选：优先日志开头输入回显
     的 NAME 记录（harness 捕获的日志名 ``calc-<id>.out.log`` 与 ORCA 作业名无关），
-    其次日志自身 stem。"""
+    其次日志自身 stem。
+
+    NAME 只带文件名（相对路径）时，除 NAME 自带目录外还试日志所在目录及其父目录
+    ——harness 把 stdout 捕获进 ``<作业目录>/.cloudra/calc-<id>.out.log``，边文件
+    留在父目录里，只按 NAME 字面目录解析会永远找不到。"""
     roots: list[tuple[str, str]] = []
+    log_dir = os.path.dirname(os.path.abspath(log_path))
     m = _ORCA_NAME_RE.search(text[:200_000])
     if m:
         job = os.path.splitext(m.group("path"))[0]
-        roots.append((os.path.dirname(job), os.path.basename(job)))
+        base = os.path.basename(job)
+        dirs = []
+        if os.path.dirname(job):
+            dirs.append(os.path.dirname(job))
+        dirs.extend([log_dir, os.path.dirname(log_dir)])
+        for directory in dict.fromkeys(dirs):
+            roots.append((directory, base))
     stem = os.path.splitext(os.path.basename(log_path))[0]
-    roots.append((os.path.dirname(os.path.abspath(log_path)), stem))
+    roots.append((log_dir, stem))
     return roots
 
 
@@ -610,8 +665,9 @@ def extract_irc_endpoints(log_path: str) -> dict:
       无来源时 None；
     - origin：final_endpoint_file / trajectory_last_frame / None；
     - availability：available / unavailable；
-    - converged：主输出 IRC 块的收敛标记（无 IRC 段时 None）——块已终止但
-      未收敛时端点缺口保持开放，不按固定点数要求补点。
+    - converged：主输出 IRC 块的收敛标记（无 IRC 段时 None）。仅作记录、
+      不是闸门——未收敛方向的轨迹末帧同样是合法的部分端点，方向是否成立
+      由调用方的几何区间证明判定。
     """
     text = _read_text(log_path)
     roots = _orca_sidecar_roots(log_path, text)

@@ -25,7 +25,12 @@ from pydantic import ValidationError
 from cloudra.benchmark import gen_easy_tasks, selfconsistency
 from cloudra.benchmark.accuracy import score_accuracy
 from cloudra.benchmark.graph_similarity import GedConfig, mechanism_similarity
-from cloudra.benchmark.integrity import EvidenceFile, audit_integrity, scan_evidence_files
+from cloudra.benchmark.integrity import (
+    EvidenceFile,
+    NodeBinding,
+    audit_integrity,
+    scan_evidence_files,
+)
 from cloudra.benchmark.method_policy import (
     check_input_content,
     check_input_files,
@@ -41,6 +46,7 @@ from cloudra.benchmark.schema import (
     MechanismNode,
     MethodPolicy,
     NodeRole,
+    SelfConsistencyRubric,
     TaskSpec,
 )
 from cloudra.benchmark.selfconsistency import audit_self_consistency
@@ -948,26 +954,55 @@ def test_integrity_fallback_graph_cannot_self_bind(tmp_path):
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
+def _sc_graph(**node_overrides):
+    """R → P 经 TS 的交付图；默认全部 accessible。"""
+    graph = {
+        "nodes": [
+            {"id": "R", "role": "reactant", "smiles": ["O"]},
+            {"id": "TS", "role": "transition_state", "smiles": []},
+            {"id": "P", "role": "product", "smiles": ["O"]},
+        ],
+        "edges": [{"id": "E1", "from": "R", "to": "P", "via": "TS"}],
+    }
+    for node in graph["nodes"]:
+        node.update(node_overrides.get(node["id"], {}))
+    return GoldMechanismGraph.model_validate(graph)
+
+
+def _checks_by_id(rep):
+    return {c.element_id: c for c in rep.checks}
+
+
 def test_selfconsistency_real_fixtures_split_roles(tmp_path):
-    """真实日志：minimum 不再被误判为鞍点；IRC 元数据按真实解析器形状判定。"""
+    """真实日志：水 opt+freq 覆盖物种极小值；ORCA IRC 日志没有边文件轨迹，
+    拿不到可验证端点几何，且无频率块不能充当一阶鞍点证据——边双缺不覆盖。"""
     import shutil
 
     shutil.copy(FIXTURES / "gaussian" / "water_opt_freq_g16.out", tmp_path / "reactant.log")
     shutil.copy(FIXTURES / "orca" / "hcn_irc_orca60.out", tmp_path / "ts_irc.log")
     files = scan_evidence_files(tmp_path)
-    rep = audit_self_consistency(files, tmp_path)
-    assert len(rep.ts_checks) == 1 and len(rep.min_checks) == 1
-    ts, mn = rep.ts_checks[0], rep.min_checks[0]
-    # ORCA IRC 日志无频率块 -> 不给鞍点判定；双向收敛 -> IRC 连通
-    assert ts.is_first_order_saddle is None
-    assert ts.irc_connects is True
-    # 水 opt+freq 是 minimum
-    assert mn.is_minimum is True
-    assert rep.all_minima is True
-    assert rep.all_irc_connect is True
-    # 没有含频率块的 TS 证据 -> 鞍点证据缺失，整体判负
-    assert rep.all_first_order is False
+    bindings = [
+        NodeBinding(node_id="R", bound_files=["reactant.log"], matched=True, quality=1.0),
+        NodeBinding(node_id="P", bound_files=["reactant.log"], matched=True, quality=1.0),
+        NodeBinding(
+            node_id="TS",
+            bound_files=["reactant.log", "ts_irc.log"],
+            matched=True,
+            quality=1.0,
+        ),
+    ]
+    rep = audit_self_consistency(_sc_graph(), bindings, files, tmp_path)
+    by_id = _checks_by_id(rep)
+    # 水 opt+freq 是经验证的极小值 → 两个物种节点都覆盖
+    assert by_id["R"].covered and by_id["R"].evidence_used == ["reactant.log"]
+    assert by_id["P"].covered
+    # 边：候选池里没有一阶鞍点频率块，也没有可验证的 IRC 端点几何 → 不覆盖
+    edge = by_id["E1"]
+    assert not edge.covered
+    assert any("first-order saddle" in n for n in edge.notes)
+    assert any("IRC" in n for n in edge.notes)
     assert rep.passed is False
+    assert any("edge E1" in n for n in rep.notes)
 
 
 def _fake_ts_frames(imag_freqs, irc_meta):
@@ -975,40 +1010,86 @@ def _fake_ts_frames(imag_freqs, irc_meta):
     return frames, irc_meta
 
 
+def _hh_xyz(d):
+    return f"2\n\nH 0.0 0.0 0.0\nH 0.0 0.0 {d:.2f}\n"
+
+
+def _geo_frames(imag_freqs, d):
+    """带几何的 opt 帧：双原子玩具体系，键长 d（Å）。"""
+    frames = [FrameRecord(frame=0, frequencies_cm=imag_freqs + [100.0], xyz=_hh_xyz(d))]
+    return frames, None
+
+
+def _irc_frames(end_a_d, end_b_d):
+    """双侧 IRC 端点帧（rx<0 / rx>0）；任一侧 None 表示该侧无帧。"""
+    frames = []
+    if end_a_d is not None:
+        frames.append(FrameRecord(frame=0, reaction_coordinate=-0.5, xyz=_hh_xyz(end_a_d)))
+    if end_b_d is not None:
+        frames.append(FrameRecord(frame=1, reaction_coordinate=0.5, xyz=_hh_xyz(end_b_d)))
+    return frames
+
+
+# 严格档玩具几何：from-min d=1.0 / TS d=2.0 / to-min d=3.0（Å）；
+# 合格 IRC 端点 1.5 / 2.5 分别落在 TS 与对应极小值之间。
+_STRICT_FILES = [
+    EvidenceFile(path="work/opt/calc-305.out.log", kind="gaussian"),
+    EvidenceFile(path="work/opt/calc-306.out.log", kind="gaussian"),
+    EvidenceFile(path="work/ts/calc-321.out.log", kind="gaussian"),
+]
+_STRICT_BINDINGS = [
+    NodeBinding(
+        node_id="R", bound_files=["work/opt/calc-305.out.log"], matched=True, quality=1.0
+    ),
+    NodeBinding(
+        node_id="P", bound_files=["work/opt/calc-306.out.log"], matched=True, quality=1.0
+    ),
+    NodeBinding(
+        node_id="TS", bound_files=["work/ts/calc-321.out.log"], matched=True, quality=1.0
+    ),
+]
+
+
 @pytest.mark.parametrize(
-    "imag_freqs,irc_meta,want_saddle,want_irc",
+    "imag_freqs,irc_frames,want_saddle,want_irc",
     [
-        # 一阶鞍点 + 双向收敛 IRC -> 通过
-        ([-500.0], {"num_points_forward": 3, "num_points_backward": 3,
-                    "forward_converged": True, "backward_converged": True}, True, True),
-        # 两个虚频 -> 非一阶鞍点
-        ([-500.0, -300.0], {"num_points_forward": 3, "num_points_backward": 3,
-                            "forward_converged": True, "backward_converged": True}, False, True),
-        # 单个虚频即为合法一阶鞍点：虚频大小不再是判负条件（用户决策），
-        # 是否"合适"交由 IRC 连通性判定，此处双向收敛 -> 通过
-        ([-50.0], {"num_points_forward": 3, "num_points_backward": 3,
-                   "forward_converged": True, "backward_converged": True}, True, True),
-        # 鞍点成立但 IRC 只有一个方向 -> IRC 判负
-        ([-500.0], {"num_points_forward": 3, "num_points_backward": 0,
-                    "forward_converged": True, "backward_converged": False}, True, False),
+        # 一阶鞍点 + 端点各自落在 TS 与对应极小值之间 -> 覆盖
+        ([-500.0], _irc_frames(1.5, 2.5), True, True),
+        # 单个虚频即为合法一阶鞍点：虚频大小不是判负条件（用户决策），
+        # 是否"合适"由 IRC 方向证明承担，此处证明成立 -> 覆盖
+        ([-50.0], _irc_frames(1.5, 2.5), True, True),
+        # 两个虚频 -> 非一阶鞍点；没有 TS 几何，方向证明也无从谈起（双缺）
+        ([-500.0, -300.0], _irc_frames(1.5, 2.5), False, False),
+        # 鞍点成立但 b 端点不在 TS 与 to-min 之间 -> IRC 方向证明不成立
+        ([-500.0], _irc_frames(1.5, 1.5), True, False),
+        # 鞍点成立但 IRC 只有一侧 -> 无可验证的双向端点
+        ([-500.0], _irc_frames(1.5, None), True, False),
     ],
 )
-def test_selfconsistency_saddle_logic(monkeypatch, imag_freqs, irc_meta, want_saddle, want_irc):
-    monkeypatch.setattr(
-        selfconsistency, "_frames_for", lambda path: _fake_ts_frames(imag_freqs, irc_meta)
-    )
-    files = [EvidenceFile(path="ts_opt.log", kind="gaussian")]
-    rep = audit_self_consistency(files, Path("."))
-    chk = rep.ts_checks[0]
-    assert chk.is_first_order_saddle is (len(imag_freqs) == 1)
-    assert rep.all_first_order is want_saddle
-    assert rep.all_irc_connect is want_irc
+def test_selfconsistency_saddle_logic(monkeypatch, imag_freqs, irc_frames, want_saddle, want_irc):
+    def fake_frames_for(path):
+        s = str(path)
+        if "305" in s:
+            return _geo_frames([], 1.0)
+        if "306" in s:
+            return _geo_frames([], 3.0)
+        return _geo_frames(imag_freqs, 2.0)
+
+    monkeypatch.setattr(selfconsistency, "_frames_for", fake_frames_for)
+    monkeypatch.setattr(selfconsistency, "_irc_frames_for", lambda path: irc_frames)
+    # 物种节点声明豁免，把判定隔离到边上（绑定仍提供方向证明的参考几何）
+    graph = _sc_graph(R={"accessible": False}, P={"accessible": False})
+    rep = audit_self_consistency(graph, _STRICT_BINDINGS, _STRICT_FILES, Path("."))
+    edge = _checks_by_id(rep)["E1"]
+    assert edge.covered is (want_saddle and want_irc)
+    assert any("first-order saddle" in n for n in edge.notes) is (not want_saddle)
+    assert any("IRC" in n for n in edge.notes) is (not want_irc)
     assert rep.passed is (want_saddle and want_irc)
 
 
 def test_selfconsistency_roles_are_decided_by_content_not_filename(monkeypatch):
-    """文件角色按频率块内容判定：harness 日志命名（calc-N.out.log）不携带
-    角色信息——含虚频的即 TS 证据，无论文件名是否有 ts token。"""
+    """证据可用性按频率块内容判定：harness 日志命名（calc-N.out.log）不携带
+    角色信息——含 1 虚频的即一阶鞍点证据，零虚频的即极小值证据。"""
     def fake_frames(path):
         # calc-296 是真 TS 日志（1 虚频），calc-292 是极小值（0 虚频）
         if "296" in str(path):
@@ -1020,11 +1101,301 @@ def test_selfconsistency_roles_are_decided_by_content_not_filename(monkeypatch):
         EvidenceFile(path="runs/rc/.cloudra/calc-296.out.log", kind="orca"),
         EvidenceFile(path="runs/rc/.cloudra/calc-292.out.log", kind="orca"),
     ]
-    rep = audit_self_consistency(files, Path("."))
-    assert len(rep.ts_checks) == 1
-    assert rep.ts_checks[0].is_first_order_saddle is True
-    assert len(rep.min_checks) == 1
-    assert rep.min_checks[0].is_minimum is True
+    bindings = [
+        NodeBinding(
+            node_id="R",
+            bound_files=["runs/rc/.cloudra/calc-292.out.log"],
+            matched=True,
+            quality=1.0,
+        ),
+        NodeBinding(
+            node_id="P",
+            bound_files=["runs/rc/.cloudra/calc-292.out.log"],
+            matched=True,
+            quality=1.0,
+        ),
+        NodeBinding(
+            node_id="TS",
+            bound_files=["runs/rc/.cloudra/calc-296.out.log"],
+            matched=True,
+            quality=1.0,
+        ),
+    ]
+    rep = audit_self_consistency(
+        _sc_graph(), bindings, files, Path("."),
+        SelfConsistencyRubric(irc_connects_endpoints=False),
+    )
+    by_id = _checks_by_id(rep)
+    assert by_id["R"].covered
+    assert by_id["R"].evidence_used == ["runs/rc/.cloudra/calc-292.out.log"]
+    assert by_id["E1"].covered
+    assert by_id["E1"].evidence_used == ["runs/rc/.cloudra/calc-296.out.log"]
+    assert rep.passed is True
+
+
+def test_selfconsistency_unbound_failed_attempts_do_not_veto(monkeypatch):
+    """NI1 calc-315 回归：沙箱里未绑定的试错烂尾（4 虚频日志）不参与判定——
+    未绑定的文件对本层不存在，绑定的合格证据有一条即覆盖。"""
+    def fake_frames(path):
+        s = str(path)
+        if "315" in s:
+            return _geo_frames([-1492.15, -702.92, -300.0, -50.0], 2.0)
+        if "321" in s:
+            return _geo_frames([-164.95], 2.0)
+        if "306" in s:
+            return _geo_frames([], 3.0)
+        return _geo_frames([], 1.0)
+
+    monkeypatch.setattr(selfconsistency, "_frames_for", fake_frames)
+    monkeypatch.setattr(
+        selfconsistency, "_irc_frames_for",
+        lambda path: _irc_frames(1.5, 2.5) if "321" in str(path) else [],
+    )
+    files = [
+        # 烂尾：在沙箱里但没有任何元素绑定它
+        EvidenceFile(path="work/ts/.cloudra/calc-315.out.log", kind="gaussian"),
+        EvidenceFile(path="work/ts/.cloudra/calc-321.out.log", kind="gaussian"),
+        EvidenceFile(path="work/opt/.cloudra/calc-305.out.log", kind="gaussian"),
+        EvidenceFile(path="work/opt/.cloudra/calc-306.out.log", kind="gaussian"),
+    ]
+    bindings = [
+        NodeBinding(
+            node_id="R",
+            bound_files=["work/opt/.cloudra/calc-305.out.log"],
+            matched=True,
+            quality=1.0,
+        ),
+        NodeBinding(
+            node_id="P",
+            bound_files=["work/opt/.cloudra/calc-306.out.log"],
+            matched=True,
+            quality=1.0,
+        ),
+        NodeBinding(
+            node_id="TS",
+            bound_files=["work/ts/.cloudra/calc-321.out.log"],
+            matched=True,
+            quality=1.0,
+        ),
+    ]
+    rep = audit_self_consistency(_sc_graph(), bindings, files, Path("."))
+    assert rep.passed is True, rep.notes
+
+
+def test_selfconsistency_bound_multi_imag_only_fails(monkeypatch):
+    """绑到 TS 的证据全是多虚频（无一阶鞍点）→ 边不覆盖：any 语义豁免的是
+    被取代的残留，不是拿高阶鞍点充数。"""
+    monkeypatch.setattr(
+        selfconsistency, "_frames_for",
+        lambda path: _fake_ts_frames([-1492.15, -702.92, -300.0, -50.0], None),
+    )
+    graph = _sc_graph(R={"accessible": False}, P={"accessible": False})
+    files = [EvidenceFile(path="work/ts/.cloudra/calc-315.out.log", kind="orca")]
+    bindings = [
+        NodeBinding(
+            node_id="TS",
+            bound_files=["work/ts/.cloudra/calc-315.out.log"],
+            matched=True,
+            quality=1.0,
+        ),
+    ]
+    rep = audit_self_consistency(graph, bindings, files, Path("."))
+    edge = _checks_by_id(rep)["E1"]
+    assert not edge.covered
+    assert any("first-order saddle" in n for n in edge.notes)
+    assert rep.passed is False
+
+
+def test_selfconsistency_any_saddle_among_bound_covers(monkeypatch):
+    """候选池里即使绑着一条多虚频烂尾，只要另有一条一阶鞍点 + 方向证明成立的
+    IRC 即覆盖。"""
+    def fake_frames(path):
+        s = str(path)
+        if "315" in s:
+            return _geo_frames([-1492.15, -702.92], 2.0)
+        if "305" in s:
+            return _geo_frames([], 1.0)
+        if "306" in s:
+            return _geo_frames([], 3.0)
+        return _geo_frames([-164.95], 2.0)
+
+    monkeypatch.setattr(selfconsistency, "_frames_for", fake_frames)
+    monkeypatch.setattr(
+        selfconsistency, "_irc_frames_for",
+        lambda path: _irc_frames(1.5, 2.5) if "321" in str(path) else [],
+    )
+    graph = _sc_graph(R={"accessible": False}, P={"accessible": False})
+    files = [
+        EvidenceFile(path="calc-315.out.log", kind="gaussian"),
+        EvidenceFile(path="calc-321.out.log", kind="gaussian"),
+        EvidenceFile(path="calc-305.out.log", kind="gaussian"),
+        EvidenceFile(path="calc-306.out.log", kind="gaussian"),
+    ]
+    bindings = [
+        NodeBinding(
+            node_id="R", bound_files=["calc-305.out.log"], matched=True, quality=1.0
+        ),
+        NodeBinding(
+            node_id="P", bound_files=["calc-306.out.log"], matched=True, quality=1.0
+        ),
+        NodeBinding(
+            node_id="TS",
+            bound_files=["calc-315.out.log", "calc-321.out.log"],
+            matched=True,
+            quality=1.0,
+        ),
+    ]
+    rep = audit_self_consistency(graph, bindings, files, Path("."))
+    assert _checks_by_id(rep)["E1"].covered
+    assert rep.passed is True
+
+
+def test_selfconsistency_irc_direction_proof_required(monkeypatch):
+    """严格档：光"双向有帧"不够——端点必须几何上位于 TS 与两端极小值之间；
+    多份 IRC 里有一份证明成立即覆盖（any 语义）。"""
+    def fake_frames(path):
+        s = str(path)
+        if "305" in s:
+            return _geo_frames([], 1.0)
+        if "306" in s:
+            return _geo_frames([], 3.0)
+        return _geo_frames([-164.95], 2.0)
+
+    def fake_irc_frames(path):
+        # 只有 IRC 日志才有 IRC 段；bad：两端都偏向 from-min 一侧（b 端不在
+        # TS 与 to-min 之间）；good：合格
+        s = str(path)
+        if "irc" not in s:
+            return []
+        if "bad" in s:
+            return _irc_frames(1.5, 1.6)
+        return _irc_frames(1.5, 2.5)
+
+    monkeypatch.setattr(selfconsistency, "_frames_for", fake_frames)
+    monkeypatch.setattr(selfconsistency, "_irc_frames_for", fake_irc_frames)
+    graph = _sc_graph(R={"accessible": False}, P={"accessible": False})
+    files = [
+        EvidenceFile(path="irc_bad.out.log", kind="gaussian"),
+        EvidenceFile(path="irc_good.out.log", kind="gaussian"),
+        EvidenceFile(path="calc-305.out.log", kind="gaussian"),
+        EvidenceFile(path="calc-306.out.log", kind="gaussian"),
+    ]
+    bindings = [
+        NodeBinding(
+            node_id="R", bound_files=["calc-305.out.log"], matched=True, quality=1.0
+        ),
+        NodeBinding(
+            node_id="P", bound_files=["calc-306.out.log"], matched=True, quality=1.0
+        ),
+        NodeBinding(
+            node_id="TS",
+            bound_files=["irc_bad.out.log", "irc_good.out.log"],
+            matched=True,
+            quality=1.0,
+        ),
+    ]
+    rep = audit_self_consistency(graph, bindings, files, Path("."))
+    assert rep.passed is True, rep.notes
+
+    # 只有方向证明不成立的 IRC → IRC 缺项（鞍点项是覆盖的）
+    bindings_bad = [
+        bindings[0],
+        bindings[1],
+        NodeBinding(
+            node_id="TS", bound_files=["irc_bad.out.log"], matched=True, quality=1.0
+        ),
+    ]
+    rep_bad = audit_self_consistency(graph, bindings_bad, files, Path("."))
+    edge = _checks_by_id(rep_bad)["E1"]
+    assert not edge.covered
+    assert any("IRC" in n for n in edge.notes)
+    assert not any("first-order saddle" in n for n in edge.notes)
+
+
+def test_selfconsistency_orca_irc_uses_endpoint_sidecars(monkeypatch):
+    """ORCA 日志的 IRC 端点走边文件通道（终点文件/F-B 轨迹），与 Gaussian 的
+    主日志帧通道分开；拿不到双侧端点几何时 IRC 缺项。"""
+    def fake_frames(path):
+        s = str(path)
+        if "305" in s:
+            return _geo_frames([], 1.0)
+        if "306" in s:
+            return _geo_frames([], 3.0)
+        return _geo_frames([-164.95], 2.0)
+
+    monkeypatch.setattr(selfconsistency, "_frames_for", fake_frames)
+    # Gaussian 帧通道对 ORCA 文件不应被调用；ORCA 边文件通道返回合格端点
+    monkeypatch.setattr(
+        selfconsistency, "_irc_frames_for",
+        lambda path: (_ for _ in ()).throw(AssertionError("wrong channel")),
+    )
+    good_ends = (
+        (["H", "H"], [[0.0, 0.0, 0.0], [0.0, 0.0, 1.5]]),
+        (["H", "H"], [[0.0, 0.0, 0.0], [0.0, 0.0, 2.5]]),
+    )
+    monkeypatch.setattr(
+        selfconsistency, "_orca_irc_endpoint_geometries",
+        lambda path: good_ends if "good" in str(path) else None,
+    )
+    graph = _sc_graph(R={"accessible": False}, P={"accessible": False})
+    files = [
+        EvidenceFile(path="irc_good.out.log", kind="orca"),
+        EvidenceFile(path="irc_gap.out.log", kind="orca"),
+        EvidenceFile(path="calc-305.out.log", kind="orca"),
+        EvidenceFile(path="calc-306.out.log", kind="orca"),
+    ]
+    bindings = [
+        NodeBinding(
+            node_id="R", bound_files=["calc-305.out.log"], matched=True, quality=1.0
+        ),
+        NodeBinding(
+            node_id="P", bound_files=["calc-306.out.log"], matched=True, quality=1.0
+        ),
+        NodeBinding(
+            node_id="TS",
+            bound_files=["irc_good.out.log", "irc_gap.out.log"],
+            matched=True,
+            quality=1.0,
+        ),
+    ]
+    rep = audit_self_consistency(graph, bindings, files, Path("."))
+    assert rep.passed is True, rep.notes
+
+    # 双侧端点都拿不到（如方向明确未收敛留缺口）→ IRC 缺项
+    bindings_gap = [
+        bindings[0],
+        bindings[1],
+        NodeBinding(
+            node_id="TS", bound_files=["irc_gap.out.log"], matched=True, quality=1.0
+        ),
+    ]
+    rep_gap = audit_self_consistency(graph, bindings_gap, files, Path("."))
+    edge = _checks_by_id(rep_gap)["E1"]
+    assert not edge.covered
+    assert any("IRC" in n for n in edge.notes)
+
+
+def test_selfconsistency_unbound_element_requires_inaccessible_declaration():
+    """每个 accessible 的元素都要有证据绑定；没有证据只有 accessible=false
+    声明可以豁免。"""
+    files: list[EvidenceFile] = []
+    # 未绑定且未声明 → 挂
+    rep = audit_self_consistency(_sc_graph(), [], files, Path("."))
+    assert rep.passed is False
+    assert any("species R: no evidence bound" in n for n in rep.notes)
+    # 全部声明 accessible=false → 豁免通过
+    graph = _sc_graph(
+        R={"accessible": False}, TS={"accessible": False}, P={"accessible": False}
+    )
+    graph = GoldMechanismGraph.model_validate({
+        "nodes": [n.model_dump() for n in graph.nodes],
+        "edges": [
+            {**e.model_dump(by_alias=True), "accessible": False} for e in graph.edges
+        ],
+    })
+    rep2 = audit_self_consistency(graph, [], files, Path("."))
+    assert rep2.passed is True, rep2.notes
+    assert all(c.declared_inaccessible for c in rep2.checks)
 
 
 # --- 题库可复现性 ---
@@ -1639,15 +2010,22 @@ def test_edit_script_reflects_missing_ts():
 
 
 def test_selfconsistency_skips_oversized_logs(tmp_path, monkeypatch):
-    """2c：超过共享上限的 QM 日志两层都不整读（用 monkeypatch 缩小上限模拟）。"""
+    """2c：超过共享上限的 QM 日志两层都不整读——绑定了超限文件的元素按
+    未覆盖判负（用 monkeypatch 缩小上限模拟）。"""
     from cloudra.benchmark import selfconsistency as sc_mod
 
     big = tmp_path / "ts_opt.log"
     big.write_text(" Entering Gaussian System\n" + "x" * 100)
     monkeypatch.setattr(sc_mod, "MAX_SCAN_BYTES", 10)
+    graph = _sc_graph(R={"accessible": False}, P={"accessible": False})
     files = [EvidenceFile(path="ts_opt.log", kind="gaussian", size=big.stat().st_size)]
-    rep = sc_mod.audit_self_consistency(files, tmp_path)
-    assert rep.ts_checks == []  # 超限文件被跳过，不产生 TS 检查项
+    bindings = [
+        NodeBinding(node_id="TS", bound_files=["ts_opt.log"], matched=True, quality=1.0),
+    ]
+    rep = sc_mod.audit_self_consistency(graph, bindings, files, tmp_path)
+    edge = _checks_by_id(rep)["E1"]
+    assert not edge.covered  # 超限文件不可解析，不构成可用证据
+    assert rep.passed is False
 
 
 def test_composite_no_evidence_penalty(tmp_path):
@@ -1989,9 +2367,22 @@ def test_captured_stdout_log_is_scanned_and_failed_log_is_not_enough(tmp_path):
     kinds = {f.path: f.kind for f in files}
     assert kinds[".cloudra/calc-7.out.log"] == "orca"
 
-    report = audit_self_consistency(files, sandbox)
-    assert report.min_checks, report.notes
-    assert report.min_checks[0].is_minimum is True, report.notes
+    graph = GoldMechanismGraph.model_validate({
+        "nodes": [{"id": "R", "role": "reactant", "smiles": ["O"]}],
+        "edges": [],
+    })
+    bindings = [
+        NodeBinding(
+            node_id="R",
+            bound_files=[".cloudra/calc-7.out.log"],
+            matched=True,
+            quality=1.0,
+        ),
+    ]
+    report = audit_self_consistency(graph, bindings, files, sandbox)
+    chk = report.checks[0]
+    assert chk.covered, report.notes
+    assert chk.evidence_used == [".cloudra/calc-7.out.log"]
 
     # 反例：同一位置放"未完成/无频率"的日志（opt 日志截断），不得满足物理验证
     bad_sandbox = tmp_path / "bad"
@@ -2001,10 +2392,16 @@ def test_captured_stdout_log_is_scanned_and_failed_log_is_not_enough(tmp_path):
     )
     bad_files = scan_evidence_files(bad_sandbox)
     assert any(f.path.startswith(".cloudra/") for f in bad_files)
-    bad_report = audit_self_consistency(bad_files, bad_sandbox)
-    assert not any(
-        c.is_minimum is True for c in bad_report.min_checks
-    ), bad_report.notes
+    bad_bindings = [
+        NodeBinding(
+            node_id="R",
+            bound_files=[".cloudra/calc-8.out.log"],
+            matched=True,
+            quality=1.0,
+        ),
+    ]
+    bad_report = audit_self_consistency(graph, bad_bindings, bad_files, bad_sandbox)
+    assert not bad_report.checks[0].covered, bad_report.notes
     assert bad_report.passed is False
 
 
@@ -2035,11 +2432,14 @@ def test_input_and_graph_files_cannot_masquerade_as_evidence(tmp_path):
     assert "mechanism_graph.json" not in paths
     assert "sub/my_graph.json" not in paths          # 图 JSON 不得自我绑定
     assert "input.gjf" in paths                      # 输入文件在扫描范围内……
-    report = audit_self_consistency(files, sandbox)
-    assert not any(c.is_minimum is True for c in report.min_checks), report.notes
-    assert report.min_checks or report.notes         # ……但物理自检不通过
-
+    # ……但手写输入文件不带 smiles 注释、绑不上图节点，物理自检判未覆盖
     integ = audit_integrity(sandbox)
+    report = audit_self_consistency(
+        integ.delivered_graph, integ.node_bindings, files, sandbox
+    )
+    assert not any(c.covered for c in report.checks if c.kind == "species"), report.notes
+    assert report.passed is False
+
     # 手写输入文件的 smiles 注释不构成协议证据（gjf 由 writer 写 expected_smiles 注释）
     assert integ.graph_found and integ.graph_parseable
 
@@ -2088,9 +2488,16 @@ def test_native_xtb_run_capability_vs_scoring_gap(tmp_path):
     kinds = {f.path: f.kind for f in files}
     # 现状：xtb 日志被归类为通用 "log"（引擎嗅探只认 Gaussian/ORCA）
     assert kinds["xtb_sp.out"] == "log", kinds
-    report = audit_self_consistency(files, sandbox)
-    # 缺口记录：xtb 证据不进任何物理自检集合（只收 gaussian/orca）
-    assert report.ts_checks == [] and report.min_checks == [], report.notes
+    # 缺口记录：xtb 证据不可解析，即使绑到节点上也不构成可用证据
+    graph = GoldMechanismGraph.model_validate({
+        "nodes": [{"id": "R", "role": "reactant", "smiles": ["O"]}],
+        "edges": [],
+    })
+    bindings = [
+        NodeBinding(node_id="R", bound_files=["xtb_sp.out"], matched=True, quality=1.0),
+    ]
+    report = audit_self_consistency(graph, bindings, files, sandbox)
+    assert report.checks[0].covered is False, report.notes
     assert report.passed is False
 
 

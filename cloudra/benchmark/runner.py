@@ -345,7 +345,11 @@ class BenchmarkRunner:
             res.notes.append("no delivered graph to compare")
 
         sc: SelfConsistencyReport = audit_self_consistency(
-            integ.evidence_files, sandbox, task.rubric.self_consistency
+            integ.delivered_graph,
+            integ.node_bindings,
+            integ.evidence_files,
+            sandbox,
+            task.rubric.self_consistency,
         )
         res.selfconsistency_passed = sc.passed
         res.notes.extend(sc.notes)

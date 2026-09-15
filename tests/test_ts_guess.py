@@ -22,10 +22,14 @@ from cloudra.tools.Chemtool.ts_guess import (
     KCAL_PER_HARTREE,
     TsGuess,
     TsGuess_input_schema,
-    _assign_irc_endpoints,
-    _evaluate_endpoint_between,
     _idpp_relax,
     analyze_scan_profile,
+)
+from cloudra.tools.core.irc_path import (
+    assign_irc_endpoints as _assign_irc_endpoints,
+)
+from cloudra.tools.core.irc_path import (
+    evaluate_endpoint_between as _evaluate_endpoint_between,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures" / "gaussian"
@@ -1384,8 +1388,9 @@ def _orca_irc_log_with_sidecars(tmp_path, backward_converged):
     return log
 
 
-def test_orca_irc_endpoints_unconverged_side_keeps_gap_in_strict(tmp_path):
-    """strict：一侧已终止但未收敛 → 保持缺口（返回 None），不把未验证端点当路径证据。"""
+def test_orca_irc_endpoints_unconverged_side_uses_outermost_frame(tmp_path):
+    """未收敛方向不再留缺口：与 Gaussian 通道同口径，轨迹末帧仍是合法的
+    部分端点，收敛与否只记 note；方向是否成立交给几何区间证明。"""
     from types import SimpleNamespace
 
     log = _orca_irc_log_with_sidecars(tmp_path, backward_converged=False)
@@ -1395,9 +1400,13 @@ def test_orca_irc_endpoints_unconverged_side_keeps_gap_in_strict(tmp_path):
     checks: list[str] = []
     result = TsGuess._extract_orca_irc_endpoints(user_input, checks, require_two_sides=True)
 
-    assert result is None
+    assert result is not None
+    assert Path(result["path_a"]).exists()
+    assert Path(result["path_b"]).exists()
+    assert result["meta"]["forward_converged"] is True
+    assert result["meta"]["backward_converged"] is False
     assert any("backward" in c and "WITHOUT converging" in c for c in checks)
-    assert any("gap stays open" in c for c in checks)
+    assert any("partial endpoint" in c for c in checks)
 
 
 def test_orca_irc_endpoints_converged_short_path_needs_no_padding(tmp_path):

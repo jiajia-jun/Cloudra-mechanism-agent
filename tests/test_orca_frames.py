@@ -290,6 +290,64 @@ def test_read_endpoint_geometry_trajectory_returns_last_frame(tmp_path):
     assert "trj frame 0" not in xyz
 
 
+def test_sidecar_roots_find_parent_dir_of_cloudra_capture(tmp_path):
+    """harness 布局：stdout 捕获在 <作业目录>/.cloudra/calc-<id>.out.log，
+    边文件留在父目录；NAME 只带文件名（相对路径）时也必须解析到。"""
+    jobdir = tmp_path / "ts"
+    (jobdir / ".cloudra").mkdir(parents=True)
+    log = jobdir / ".cloudra" / "calc-320.out.log"
+    log.write_text(
+        "NAME = ircjob.inp\n* FORWARD IRC *\n 0 -100.0 -1.0 0.01 0.001\n",
+        encoding="utf-8",
+    )
+    (jobdir / "ircjob_IRC_F_trj.xyz").write_text(_IRC_ENDPOINT_XYZ, encoding="utf-8")
+
+    result = orca_frames.extract_irc_endpoints(str(log))
+    assert result["forward"]["origin"] == "trajectory_last_frame"
+    xyz = orca_frames.read_endpoint_geometry(result["forward"])
+    assert xyz is not None and "endpoint frame" in xyz
+
+
+# ---------------------------------------------------------------------------
+# 末帧几何文本回退（cclib 对 ORCA 6.1 日志整体崩溃时的权威通道）
+# ---------------------------------------------------------------------------
+
+_CARTESIAN_BLOCK = (
+    "--------------------------------\n"
+    "CARTESIAN COORDINATES (ANGSTROEM)\n"
+    "--------------------------------\n"
+    "  C      0.000000    0.000000    0.000000\n"
+    "  N      0.000000    0.000000    1.200000\n"
+    "  H      0.000000    0.000000    2.200000\n"
+    "\n"
+)
+
+
+def test_final_xyz_from_text_takes_last_block():
+    earlier = _CARTESIAN_BLOCK.replace("1.200000", "9.999999")
+    text = earlier + "some log noise\n" + _CARTESIAN_BLOCK + "ORCA TERMINATED NORMALLY\n"
+    xyz = orca_frames.final_xyz_from_text(text)
+    assert xyz.startswith("3\n")
+    assert "1.200000" in xyz and "9.999999" not in xyz
+
+
+def test_final_xyz_from_text_no_block_returns_empty():
+    assert orca_frames.final_xyz_from_text("FINAL SINGLE POINT ENERGY -76.0\n") == ""
+
+
+def test_final_xyz_with_text_fallback_on_cclib_hostile_log(tmp_path, monkeypatch):
+    """cclib 整体崩溃（帧为空，ORCA 6.1 实况）时回退文本权威
+    CARTESIAN COORDINATES 块。"""
+    monkeypatch.setattr(orca_frames, "extract_frames", lambda path: [])
+    log = tmp_path / "calc-1.out.log"
+    log.write_text(
+        "ORCA 6.1 log that crashes cclib\n" + _CARTESIAN_BLOCK,
+        encoding="utf-8",
+    )
+    xyz = orca_frames.final_xyz_with_text_fallback(str(log))
+    assert "1.200000" in xyz
+
+
 # ---------------------------------------------------------------------------
 # NEB：必须被识别，但只跑路径搜索的 NEB 不得退化成单点
 # ---------------------------------------------------------------------------
