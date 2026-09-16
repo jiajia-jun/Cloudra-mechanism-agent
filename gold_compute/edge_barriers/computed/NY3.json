@@ -1,0 +1,31 @@
+{
+  "task_id": "NY3",
+  "edges": [
+    {
+      "edge_id": "NY3_E2",
+      "barrier_kcal_mol": 12.5,
+      "method": "B3LYP-D3(BJ)/def2-SVP",
+      "solvent": "CPCM(water)",
+      "frame": "INT1 tetrahedral intermediate COC(O)[O-] (E2 start minimum)",
+      "ts_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NY3/E2/1/.cloudra/calc-365.out.log",
+      "irc_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NY3/E2/1/.cloudra/calc-384.out.log",
+      "n_imag": 1,
+      "irc_ok": true,
+      "validation": "verified",
+      "note": "Methoxy elimination (C3-O2 cleavage + C3=O5 formation). E(INT1)=-304.61642648 Ha (opt+freq, 0 imag); E(TS)=-304.59649951 Ha, exactly 1 imag -159.06 cm^-1 (calc-365.out.log). dE = 0.01992697 Ha = 12.51 kcal/mol. IRC (calc-384) bidirectional: F-side endpoint (C3-O2=1.56 A, tetrahedral) optimizes to INT1 (E=-304.61550, C3-O2=1.50 A); B-side endpoint (C3-O2=2.82, C=O=1.215) optimizes to separated formic acid+methoxide (E=-304.60241, +8.8 kcal). Step is endothermic; reverse barrier 3.7 kcal. Constrained relaxed scan peak (12.51 kcal at r=2.70 A) agrees."
+    },
+    {
+      "edge_id": "NY3_E3",
+      "barrier_kcal_mol": 0,
+      "method": "B3LYP-D3(BJ)/def2-SVP",
+      "solvent": "CPCM(water)",
+      "frame": "E2 product: formic acid + methoxide complex O=CO.[O-]C (E3 start)",
+      "ts_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NY3/E3/1/.cloudra/calc-351.out.log",
+      "irc_log": "",
+      "n_imag": 0,
+      "irc_ok": false,
+      "validation": "verified",
+      "note": "Barrierless intermolecular proton transfer from formic acid (O3-H5) to methoxide (O6). Constrained relaxed scan of O3-H5 (0.98->2.10 A, calc-351.out.log) shows NO internal maximum: energy drops monotonically frame0 0.0 -> frame7 -18.3 kcal (H transfers at O3-H5~1.24 A, already -14.9 kcal), then rises only on fragment separation. Independent evidence: unconstrained ORCA opt of the H-bonded complex (calc-345.out.log) spontaneously transfers the proton to formate + methanol (E=-304.65927777 Ha, 0 imag). Barrierless => barrier taken as 0.0 (no TS exists)."
+    }
+  ]
+}

@@ -26,7 +26,7 @@ TASKS = {
     # C1=CC=C2C(=C1)C=CC=C2C3=CC=CC4=CC=CC=C43>>同左  (0/1)
     # 1,1′-联萘消旋化：无键变化的纯构象步，anchor="barrier"（ΔG‡ ≈ 23.5 逐边承载）
     "H1": {
-        "name_en": "1,1'-binaphthyl atropisomerization (thermal racemization)",
+        "name_en": "1,1'-binaphthyl thermal racemization",
         "conditions_en": "thermal racemization, ~50 degC, polar solvent",
         "anchor": "barrier",
         "mapped_reactants": "[cH:1]1[cH:2][cH:3][c:4]2[c:5]([cH:6]1)[cH:7][cH:8][cH:9][c:10]2-[c:11]1[cH:12][cH:13][cH:14][c:15]2[cH:16][cH:17][cH:18][cH:19][c:20]12",
@@ -44,7 +44,7 @@ TASKS = {
     # 脯氨酸催化直接 Aldol；脯氨酸 N-H（H21）与丙酮 alpha-H（H22）参与键变化、全程显式，
     # 两质子先在步①随羰基 O4 成副产水，步③水裂解时分别归还 N20 与醇盐 O5
     "I1": {
-        "name_en": "(S)-proline-catalyzed direct aldol reaction of acetone with benzaldehyde: determine the enantioselectivity",
+        "name_en": "(S)-proline-catalyzed direct aldol reaction of acetone with benzaldehyde: determine the stereochemical outcome",
         "conditions_en": "20-30 mol% (S)-proline, DMSO, room temperature",
         "anchor": "selectivity",
         "minor_channel_en": "opposite-face enamine attack on benzaldehyde via the minor Houk-List chair TS -> (R)-iminium-aldolate (the (R)-aldol channel)",

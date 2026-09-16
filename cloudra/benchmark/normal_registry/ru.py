@@ -1,4 +1,4 @@
-"""R 族 + U 族登记（v3 缩减后）：R1 pinacol、U3 Wittig（新收）、U5 Passerini、U6 Staudinger。
+"""R 族 + U 族登记（v3 缩减后）：R1 pinacol、U3 磷叶立德+甲醛（新收）、U5 Passerini、U6 Staudinger。
 
 v3（2026-09-09）收窄为四条多步/中间体网络；R2/R3/U1/U7 剔出定稿名单留档池
 （条目见 normal.md）。竞争通道（R1 分步碳正离子路径、U6 协同 [2+2] 等）按
@@ -86,33 +86,44 @@ TASKS = {
                 # 亚胺 N 进攻乙烯酮中心 C：成 N5-C2，断 C2=O3 π → 两性离子烯醇盐
                 "out": "[O-:3][C:2](=[CH2:1])[NH+:5]=[CH2:4]",
                 "type": "imine nitrogen attack on the ketene central carbon: C-N formation with C=O pi cleavage -> zwitterionic enolate",
+                "barrier": 2.66,
             },
             {
                 # 顺旋 4π 关环：成 C1-C4，断 C4=N5 π 与 C1=C2 π，烯醇盐回塌成 C2=O3 π
                 "out": "[O:3]=[C:2]1[CH2:1][CH2:4][NH:5]1",
                 "type": "conrotatory 4pi electrocyclization: terminal-C to imine-C bond formation, C=N pi cleavage and enolate collapse to the lactam C=O",
+                "barrier": 15.72,
             },
         ],
     },
-    # [CH2-][PH3+].C=O>>C=C.O=[PH3]  (0/1)  Wittig 简化版（两步：oxaphosphetane 中间体）
-    # 映射：1=叶立德 C（CH2-），2=P（PH3+），3=甲醛 C，4=甲醛 O。
-    # 步①异步 [2+2]：成 C1-C3 与 P2-O4（断 C3=O4 π）→ 氧磷杂环丁烷；步②环消除：成
-    # C1=C3 与 P2=O4（断 P2-C1、C3-O4）→ 乙烯 + H3P=O。电荷账：反应物 -1/+1（净 0）
-    # → 中间体中性磷烷 → 产物中性。betaine 路径为背景通道不进 gold。
+    # [CH2-][PH3+].C=O>>C=C.O=[PH3]  (0/1)  磷叶立德+甲醛（三步真实路径，本机 B3LYP-D3(BJ)/def2-SVP 自算）
+    # 映射：1=叶立德 C（CH2-），2=P（PH3+），3=甲醛 C，4=甲醛 O，5=迁移的 P-H 氢。
+    # 步①叶立德 C 进攻甲醛 C 成 C1-C3，同时 P2-H5 质子转移到羰基 O4 → H2P-CH2-CH2-OH
+    # 加成物（深阱，相对 RC −59.5 kcal；本模型 PES 上该 TS 不生成氧磷杂环丁烷）。
+    # 步②该加成物分子内 O4->P2 质子回传 + P2-O4 关环 → 氧磷杂环丁烷（+55.8）。
+    # 步③氧磷杂环丁烷环消除 → 乙烯 + H3P=O。电荷账：净 0 → 各中间体中性 → 产物中性。
     "U3": {
-        "name_en": "Wittig reaction simplified model: H3P=CH2 ylide + formaldehyde -> ethylene + H3P=O (via oxaphosphetane)",
+        "name_en": "H3P=CH2 ylide + formaldehyde -> ethylene + H3P=O",
         "conditions_en": "salt-free model conditions (gas-phase ylide, closest to model chemistry)",
-        "mapped_reactants": "[CH2-:1][PH3+:2].[CH2:3]=[O:4]",
+        "mapped_reactants": "[CH2-:1][PH2+:2][H:5].[CH2:3]=[O:4]",
         "steps": [
             {
-                "out": "[PH3:2]1[O:4][CH2:3][CH2:1]1",
-                "type": "asynchronous [2+2] addition of the ylide carbon to the aldehyde carbon with P-O bond formation -> oxaphosphetane intermediate (four-membered ring; betaine is the bypassed background channel)",
+                "out": "[CH2:1]([PH2:2])[CH2:3][O:4][H:5]",
+                "type": "nucleophilic addition of the ylide carbon to the aldehyde carbon (C-C bond formation) concerted with proton transfer from phosphorus to the carbonyl oxygen -> H2P-CH2-CH2-OH adduct (a deep minimum on this model PES; the four-membered oxaphosphetane is a separate minimum not connected to this saddle)",
+                "barrier": 1.7,
+                "weight": 1.0,
             },
             {
-                "out": "[CH2:1]=[CH2:3].[O:4]=[PH3:2]",
-                "type": "oxaphosphetane cycloreversion: P-C and C-O ring cleavage with C=C and P=O pi formation -> ethylene + phosphine oxide",
-                "barrier": 19.1,
-                "weight": 0.5,
+                "out": "[CH2:1]1[CH2:3][O:4][PH2:2]1([H:5])",
+                "type": "intramolecular proton transfer from the hydroxyl oxygen back to phosphorus (H5 O->P) concerted with P-O ring closure -> oxaphosphetane",
+                "barrier": 55.81,
+                "weight": 1.0,
+            },
+            {
+                "out": "[CH2:1]=[CH2:3].[O:4]=[PH2:2][H:5]",
+                "type": "oxaphosphetane cycloreversion: C-P and C-O cleavage with C=C and P=O pi formation -> ethylene + phosphine oxide",
+                "barrier": 23.76,
+                "weight": 1.0,
             },
         ],
     },

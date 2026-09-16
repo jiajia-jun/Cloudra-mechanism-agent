@@ -116,3 +116,9 @@ easy.md / normal.md / hard.md / impossible.md
 - 全部 60 JSON 经生成器重跑；gold 已无 reference_computation；90 条 gold 边中 45 条带参考值。
 - 独立验收：tests/test_benchmark.py 120 passed；4 个 regenerate_identically 守卫 passing；ruff 通过。
 - 剩余缺口：约45条边无参考值（多步机理非决速步/质子转移/选择性题），关键边 NA2、HA1/HA6/HE3/HG2；待启动计算战役（gold_compute/compute_campaign.md，b3lyp/def2svp）。
+
+## 批次一交付（2026-09-16）
+- 批次一（swarm grp_dcc229bb4140439b9d1d21e6d1949aa8）完成 **5 题 / 8 条缺口边**（F1、NU3、NU6、NY3、HA1），统一 B3LYP-D3(BJ)/def2-SVP（ORCA 6.1.1），ΔE‡ 纯电子能、逐边相对该步起点极小值；全部回填 gold（NU3 由 2 步更正为 3 步），tests 136 passed、ruff 干净。
+- 两处 gold 机理更正（NU3 3 步：1.70/55.81/23.76；F1 产物改硼烷-甲氧基加合物 CO[BH3-]）、题面脱敏、ORCA 环境结论、复现命令与证据策略均见 **gold_compute/BATCH1_DELIVERY.md**。
+- 遗留：HA1 gold.selectivity.spread 仍 2.0（文献值）与计算 5.72 不一致（已记录未改）；原始 ORCA 日志在 gold_compute/campaign/runs/（.gitignore 排除、不入库）。
+

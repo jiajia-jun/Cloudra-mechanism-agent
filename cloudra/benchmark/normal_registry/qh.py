@@ -16,7 +16,7 @@ TASKS = {
     # 5=ipso 芳碳（原连 O4，成酮碳），6=邻位芳碳（接烯丙基），7-10=其余环碳，
     # 14=邻位芳碳原 H（互变时迁到 O4 成酚 OH）。
     "Q1": {
-        "name_en": "aromatic Claisen rearrangement: allyl phenyl ether -> 2-allylphenol (via ortho-cyclohexadienone)",
+        "name_en": "aromatic Claisen rearrangement: allyl phenyl ether -> 2-allylphenol",
         "conditions_en": "gas phase; thermal, ~200 degC",
         "mapped_reactants": "[CH2:1]=[CH:2][CH2:3][O:4][c:5]1[c:6]([H:14])[cH:7][cH:8][cH:9][cH:10]1",
         "steps": [

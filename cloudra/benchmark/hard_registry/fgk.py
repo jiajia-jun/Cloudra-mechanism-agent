@@ -19,7 +19,7 @@ TASKS = {
     # 烯丙位 OH 氢键缔合导向 syn 面环氧化（Henbest），主产物 cis（OH 与环氧同侧，
     # 池内 3D 嵌入已核对）；副通道 = 非导向面 → trans。
     "F1": {
-        "name_en": "cyclohex-2-en-1-ol peracid epoxidation: determine the diastereoselectivity",
+        "name_en": "cyclohex-2-en-1-ol peracid epoxidation: determine the stereochemical outcome",
         "conditions_en": "performic or perbenzoic acid, CH2Cl2 or benzene, 0-25 degC",
         "anchor": "selectivity",
         "minor_channel_en": "undirected opposite-face epoxidation -> trans-2,3-epoxycyclohexanol",
@@ -46,7 +46,7 @@ TASKS = {
     # C/C=C/CO/C=C/C>>C=C[C@H](C)[C@H](C)C=O  (0/1)  (E,E) 底物椅式（双甲基假
     # 赤道）→ syn = (2S,3S) 型（池内经 Fischer-CIP 推导核对）；副通道 = 船式 → anti。
     "G2": {
-        "name_en": "(E,E)-crotyl propenyl ether Claisen rearrangement: determine the preferred TS geometry and diastereoselectivity",
+        "name_en": "(E,E)-crotyl propenyl ether Claisen rearrangement: determine the stereochemical outcome",
         "conditions_en": "gas phase; thermal, ~150-200 degC",
         "anchor": "selectivity",
         "minor_channel_en": "boat TS -> anti-2,3-dimethylpent-4-enal",

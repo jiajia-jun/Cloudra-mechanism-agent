@@ -12,7 +12,7 @@ TASKS = {
     # CC1CC=C1>>C=C/C=C/C  (0/1)  甲基外向旋转 → (E)-1,3-戊二烯
     # 断 sp3-sp3 σ（甲基所在碳–CH2）与旧 π，成两个新 π
     "A1": {
-        "name_en": "3-methylcyclobutene conrotatory ring opening: determine the torquoselectivity",
+        "name_en": "3-methylcyclobutene ring opening: determine the stereochemical outcome",
         "conditions_en": "gas phase or inert solvent, ~150-200 degC, thermal",
         "anchor": "selectivity",
         "minor_channel_en": "inward methyl rotation -> (Z)-1,3-pentadiene",
@@ -21,6 +21,7 @@ TASKS = {
             {
                 "out": "[CH3:1]/[CH:2]=[CH:5]/[CH:4]=[CH2:3]",
                 "type": "4pi conrotatory electrocyclic ring opening, outward rotation of the methyl group (torquoselection) -> (E)-1,3-pentadiene",
+                "barrier": 33.04,
                 "channel": "outward_rotation",
             },
         ],
@@ -28,6 +29,7 @@ TASKS = {
             {
                 "out": "[CH3:1]/[CH:2]=[CH:5]\\[CH:4]=[CH2:3]",
                 "type": "conrotatory opening with inward methyl rotation -> (Z)-1,3-pentadiene (minor channel of the torquoselection)",
+                "barrier": 38.76,
                 "channel": "inward_rotation",
             },
         ],
@@ -37,7 +39,7 @@ TASKS = {
     # 注：池机理格副产物 SMILES C/C=C\C=C\C 实为 (Z,E)；双内向顺旋的化学
     # 产物是 (Z,Z)（RDKit 枚举核对，canonical C/C=C\C=C/C），按化学正确登记。
     "A6": {
-        "name_en": "trans-3,4-dimethylcyclobutene conrotatory ring opening: determine the torquoselectivity",
+        "name_en": "trans-3,4-dimethylcyclobutene ring opening: determine the stereochemical outcome",
         "conditions_en": "gas phase or inert solvent, heating, thermal",
         "anchor": "selectivity",
         "minor_channel_en": "double inward methyl rotation -> (Z,Z)-2,4-hexadiene",

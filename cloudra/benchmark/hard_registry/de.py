@@ -24,7 +24,7 @@ TASKS = {
     # 烷氧负离子。椅式构象锁定下反式双轴向开环唯一，cis/双赤道为禁阻背景通道，
     # 不进 gold（无 competing）。池产物 CIP 已核对 = (1R,2R)。
     "D2": {
-        "name_en": "cyclohexene oxide + hydroxide: determine the stereochemical outcome of the SN2 epoxide opening",
+        "name_en": "cyclohexene oxide + hydroxide: determine the stereochemical outcome of the epoxide opening",
         "conditions_en": "aqueous NaOH, heat",
         "anchor": "barrier",
         "mapped_reactants": "[OH-:1].[O:3]1[CH:4]2[CH2:8][CH2:7][CH2:6][CH2:5][CH:2]12",
@@ -43,7 +43,7 @@ TASKS = {
     # 断 B1-H2 与 C10=O11 π，成 C10-H2。两"手性中心"实为对称非手性中心，@ 标记
     # 只编码 cis/trans（RDKit CIP 判定为非立体中心，符合预期）。
     "E2": {
-        "name_en": "4-tert-butylcyclohexanone borohydride reduction: axial vs equatorial attack on a conformationally locked ketone",
+        "name_en": "4-tert-butylcyclohexanone borohydride reduction: determine the stereochemical outcome",
         "conditions_en": "LiAlH4/Et2O or NaBH4/alcohol",
         "anchor": "selectivity",
         "minor_channel_en": "equatorial hydride attack -> cis-4-tert-butylcyclohexan-1-olate (axial alkoxide)",
@@ -72,7 +72,7 @@ TASKS = {
     # (S)-5-甲基氧氮硼杂环戊烷（map 12-17）两侧原样旁观。(S)-催化剂 → Si 面转移 →
     # (R)-产物（Corey 助记，与实验 96-97% ee 一致，无异议）；副通道 Re 面 → (S)。
     "E3": {
-        "name_en": "CBS reduction of acetophenone, simplified model: (S)-5-methyl-oxazaborolidine-catalyzed BH3 enantioface selection",
+        "name_en": "CBS reduction of acetophenone, simplified model: (S)-5-methyl-oxazaborolidine-catalyzed BH3 addition",
         "conditions_en": "THF, -20 degC to rt, catalytic (S)-oxazaborolidine with BH3",
         "anchor": "selectivity",
         "minor_channel_en": "hydride delivery to the opposite (Re) face -> (S)-1-phenylethoxyborane enantiomer",

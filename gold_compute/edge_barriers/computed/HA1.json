@@ -1,0 +1,40 @@
+{
+  "task_id": "HA1",
+  "method": "B3LYP-D3(BJ)/def2-SVP",
+  "solvent": "gas phase",
+  "note": "conrotatory ring opening of 3-methylcyclobutene (CC1CC=C1) to 1,3-pentadiene. Two diastereomeric conrotatory TSs located; each edge barrier is relative to its own step-start minimum = the 3-methylcyclobutene minimum (E = -195.027189720741 Ha). Electronic-only dE#.",
+  "edges": [
+    {
+      "edge_id": "HA1_E1",
+      "barrier_kcal_mol": 33.04,
+      "method": "B3LYP-D3(BJ)/def2-SVP",
+      "solvent": "gas phase",
+      "frame": "3-methylcyclobutene minimum (E=-195.027189720741 Ha, 0 imag)",
+      "ts_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HA1/HA1_E1/1/.cloudra/calc-350.out.log",
+      "irc_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HA1/HA1_E1/1/.cloudra/calc-363.out.log",
+      "n_imag": 1,
+      "irc_ok": true,
+      "validation": "verified",
+      "note": "OUTWARD methyl rotation (major channel), r(C1...C3)=3.35 A at TS; leads to (E)-1,3-pentadiene (C1-C2-C5-C4=-171 deg at IRC end, optimized product dihedral -178.7). E(TS)=-194.974534803192 Ha. IRC bidirectional converged (fwd67/bwd95); reactant endpoint optimizes to the 3-methylcyclobutene minimum (-195.027189918), product endpoint to (E)-1,3-pentadiene (-195.044005332, 0 imag)."
+    },
+    {
+      "edge_id": "HA1_EM1",
+      "barrier_kcal_mol": 38.76,
+      "method": "B3LYP-D3(BJ)/def2-SVP",
+      "solvent": "gas phase",
+      "frame": "3-methylcyclobutene minimum (E=-195.027189720741 Ha, 0 imag)",
+      "ts_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HA1/HA1_EM1/1/.cloudra/calc-353.out.log",
+      "irc_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HA1/HA1_EM1/1/.cloudra/calc-364.out.log",
+      "n_imag": 1,
+      "irc_ok": true,
+      "validation": "verified",
+      "note": "INWARD methyl rotation (minor channel), TS guess = C2-stereocentre inversion of the outward TS, r(C1...C3)=2.81 A (methyl toward departing C3); leads to (Z)-1,3-pentadiene (C1-C2-C5-C4=+11.5 deg at IRC end, optimized product dihedral +1.4). E(TS)=-194.965423831132 Ha. IRC bidirectional converged (fwd66/bwd52); product endpoint optimizes to (Z)-1,3-pentadiene (-195.042396549, 0 imag)."
+    }
+  ],
+  "selectivity": {
+    "spread_kcal_mol": 5.72,
+    "favors": "HA1_E1 (outward methyl, (E)-1,3-pentadiene)",
+    "gold_unverified_spread": 2,
+    "comment": "Computed |dDdE#| = 5.72 kcal/mol at B3LYP-D3(BJ)/def2-SVP (gas phase), about 3x the literature-recorded 2.0 (Rondan & Houk 1985, unverified in the task). Direction (outward/E favored) agrees; magnitude is larger at this level. Product thermodynamics consistent: (E) is 1.01 kcal/mol below (Z)."
+  }
+}

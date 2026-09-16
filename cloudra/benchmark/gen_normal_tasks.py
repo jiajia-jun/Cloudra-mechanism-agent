@@ -4,7 +4,7 @@ Reads the curated normal-tier markdown and emits one TaskSpec JSON per task into
 ideapool/tasks/normal/N<id>.json for the finalized 10-task list (TASK_IDS; the
 pool keeps 48 entries but only the finalized list is generated — 见 normal.md
 "定稿圈定"段)。v3（2026-09-09）将 30 条缩至 10 条并按"多步网络 + 尽量 xtb 友好"重选，
-新收 Q1（芳香 Claisen）与 U3（Wittig）。方法白名单与 hard 对齐：
+新收 Q1（芳香 Claisen）与 U3（磷叶立德+甲醛）。方法白名单与 hard 对齐：
 `MethodPolicy(allowed_methods=["xtb", "b3lyp/def2svp"])`（B3LYP-D3(BJ)/def2-SVP）。The markdown is the human-curated
 source of truth for SMILES / charges / barriers; this generator is deterministic
 and re-runnable.
@@ -75,7 +75,7 @@ DEFAULT_OUT = REPO_ROOT / "ideapool" / "tasks" / "normal"
 # normal.md "定稿圈定"段的权威名单（v3 缩减：30 → 10；池子其余 38 条留档不生成）。
 # v3 保留（多步网络 + 尽量 xtb 友好）：A2 丙酮 aldol 缩合 / A5 Mannich / I1 亚胺 /
 # O3 Baeyer–Villiger / R1 pinacol / U5 Passerini / U6 Staudinger / Y3 BAC2 皂化，
-# 另新收 Q1 芳香 Claisen 与 U3 Wittig（池内被裁条目回归，registry 新增登记）。
+# 另新收 Q1 芳香 Claisen 与 U3 磷叶立德+甲醛（池内被裁条目回归，registry 新增登记）。
 TASK_IDS = (
     "A2 A5 I1 O3 R1 U5 U6 Y3 Q1 U3"
 ).split()

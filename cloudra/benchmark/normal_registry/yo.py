@@ -7,7 +7,7 @@ v3（2026-09-09）收窄为两条酰基转移/氧转移网络；Y2/O2/O4/O5 剔�
 TASKS = {
     # [OH-].COC=O>>O=C[O-].CO  (−1/1)  BAC2 皂化
     "Y3": {
-        "name_en": "Ester saponification (BAC2): methyl formate + OH- -> formate + methanol",
+        "name_en": "Ester saponification: methyl formate + OH- -> formate + methanol",
         "conditions_en": "aqueous NaOH",
         "mapped_reactants": "[O-:1][H:6].[CH3:2][O:3][CH:4]=[O:5]",
         "steps": [
@@ -22,11 +22,13 @@ TASKS = {
                 # 消除 MeO-：断 C4-O3，成 C4=O5 π → 甲酸 + 甲醇盐
                 "out": "[CH3:2][O-:3].[CH:4](=[O:5])[O:1][H:6]",
                 "type": "methoxide elimination: C-OMe cleavage with C=O pi reformation -> formic acid + methoxide",
+                "barrier": 12.5,
             },
             {
                 # 质子转移：断 O1-H6，成 O3-H6 → 甲酸根 + 甲醇
                 "out": "[CH3:2][O:3][H:6].[CH:4](=[O:5])[O-:1]",
                 "type": "proton transfer from formic acid to methoxide -> formate + methanol",
+                "barrier": 0.0,
             },
         ],
     },

@@ -1,0 +1,65 @@
+{
+  "task_id": "NU3",
+  "registry_note": "Coordinator expanded the gold from 2 to 3 elementary steps: the old NU3_E2 (I1 -> products) is NOT elementary and splits into E2a (adduct -> oxaphosphetane) + E2b (oxaphosphetane -> products). Old NU3_E2 = new NU3_E2a + NU3_E2b. All three segments below are COMPUTED at the same level (no literature substitution used). Barriers unchanged: 1.70 / 55.81 / 23.76 kcal/mol.",
+  "energy_ladder_rel_RC_kcal": {
+    "RC": 0,
+    "adduct": -59.45,
+    "oxaphosphetane": -27.95,
+    "products": -32.21
+  },
+  "edges": [
+    {
+      "edge_id": "NU3_E1",
+      "from": "RC (reactant complex)",
+      "to": "I1 adduct H2P-CH2-CH2-OH",
+      "mapped_out_smiles": "[CH2:1]([PH2:2])[CH2:3][O:4][H:5]",
+      "barrier_kcal_mol": 1.7,
+      "method": "B3LYP-D3(BJ)/def2-SVP",
+      "solvent": "gas",
+      "frame": "RC minimum (lowest PH3-rotor conformer, E=-496.541090 Ha)",
+      "n_imag": 1,
+      "irc_ok": true,
+      "validation": "verified",
+      "ts_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NU3/NU3_E1/1/calc-382.out.log",
+      "irc_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NU3/NU3_E1/1/calc-387.out.log",
+      "note": "COMPUTED. dE#=E(TS1)-E(RCmin)=-496.538386-(-496.541090)=0.002705 Ha. TS1 1 imag (-279.0 cm-1); IRC connects RC and adduct. Strict ts_guess verify (independent endpoint minima) = PASS.",
+      "irc_detail": "IRC job 387 (%irc MaxIter=30): BACKWARD (reactant side) CONVERGED (ORCA: THE IRC HAS CONVERGED); FORWARD (adduct side) TRUNCATED at MaxIter. Truncated outer frame calc-E1-IRC2_IRC_F.xyz E=-496.630773; independently Opt+Freq (job 416) relaxed it to the adduct minimum E=-496.635831 (0 imag), 3.17 kcal below the raw frame. Strict ts_guess verify (partially converged IRC permitted) = PASS."
+    },
+    {
+      "edge_id": "NU3_E2a",
+      "from": "I1 adduct H2P-CH2-CH2-OH",
+      "to": "I2 oxaphosphetane (C1C[PH3]O1)",
+      "mapped_out_smiles": "[CH2:1]1[CH2:3][O:4][PH2:2]1([H:5])",
+      "barrier_kcal_mol": 55.81,
+      "method": "B3LYP-D3(BJ)/def2-SVP",
+      "solvent": "gas",
+      "frame": "adduct minimum (E=-496.635831 Ha)",
+      "n_imag": 1,
+      "irc_ok": true,
+      "validation": "verified",
+      "ts_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NU3/NU3_E1/1/calc-418.out.log",
+      "irc_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NU3/NU3_E1/1/calc-422.out.log",
+      "note": "COMPUTED. dE#=E(TS)-E(adductmin)=-496.546894-(-496.635831)=0.088937 Ha=55.81 kcal. TS 1 imag (-1021.6 cm-1), concerted O->P proton transfer + P-O ring closure (H7 on P, P2-O9=2.277 A). IRC connects adduct (frame -496.631425) and oxaphosphetane (frame -496.584507). Rate-determining anti-aromatic-well escape.",
+      "irc_detail": "IRC job 422 (%irc MaxIter=30): BACKWARD (oxaphosphetane side) CONVERGED (frame E=-496.584507); FORWARD (adduct side) TRUNCATED at MaxIter (frame E=-496.631425, connectivity = adduct: P bears 2 H, O-H present). That frame lies 2.76 kcal above the independently optimized adduct minimum E=-496.635831 (job 416)."
+    },
+    {
+      "edge_id": "NU3_E2b",
+      "from": "I2 oxaphosphetane (C1C[PH3]O1)",
+      "to": "products C2H4 + H3P=O",
+      "mapped_out_smiles": "[CH2:1]=[CH2:3].[O:4]=[PH2:2][H:5]",
+      "barrier_kcal_mol": 23.76,
+      "method": "B3LYP-D3(BJ)/def2-SVP",
+      "solvent": "gas",
+      "frame": "oxaphosphetane minimum (E=-496.585627 Ha)",
+      "n_imag": 1,
+      "irc_ok": true,
+      "validation": "verified",
+      "ts_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NU3/NU3_E1/1/calc-424.out.log",
+      "irc_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NU3/NU3_E1/1/calc-425.out.log",
+      "note": "COMPUTED. dE#=E(TS)-E(oxamin)=-496.547756-(-496.585627)=0.037871 Ha=23.76 kcal. TS 1 imag (-624.8 cm-1), cycloreversion geometry (C2-P3=2.390 breaking, C1-O4=1.869 breaking, C1=C2=1.406 forming, P3=O4=1.567 forming). IRC connects oxaphosphetane (frame -496.583584) and C2H4+H3P=O (frame -496.598099). Analogous to the literature Me3P value 19.1 (Bofill 2024) but here SELF-COMPUTED.",
+      "irc_detail": "IRC job 425 (%irc MaxIter=30): FORWARD (oxaphosphetane side) CONVERGED (frame E=-496.583584); BACKWARD (products side) TRUNCATED at MaxIter (frame E=-496.598099, a C2H4...H3P=O contact complex). That frame lies 3.57 kcal BELOW the separated-products minimum E=-496.592417 (it is a weakly bound contact pair)."
+    }
+  ],
+  "closure_check": "step2 dE (+31.50) + step3 dE (-4.26) = +27.24 kcal = E(products)-E(adduct). EXACT.",
+  "irc_convergence_note": "IRC scientific rule: a <50-point converged path is complete; strict mode does NOT require both directions to reach a minimum. For each saddle below, ONE direction converged (ORCA printed THE IRC HAS CONVERGED) and the OTHER was truncated at %irc MaxIter=30; the truncated-side outer frame was independently optimized (Opt+Freq) and its energy vs the corresponding minimum is given. No 'bidirectional convergence' is claimed."
+}
