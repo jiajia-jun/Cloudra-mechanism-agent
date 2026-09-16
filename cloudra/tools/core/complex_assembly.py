@@ -176,6 +176,7 @@ def combine_components(components) -> "Chem.Mol":
             new_atom.SetNoImplicit(atom.GetNoImplicit())
             combined.AddAtom(new_atom)
         offset += mol.GetNumAtoms()
+    stereo_to_set: list[tuple[int, int, object, int, int]] = []
     for (mol, _conf_id), base in zip(components, offsets):
         for bond in mol.GetBonds():
             begin = base + bond.GetBeginAtomIdx()
@@ -183,10 +184,28 @@ def combine_components(components) -> "Chem.Mol":
             combined.AddBond(begin, end, bond.GetBondType())
             new_bond = combined.GetBondBetweenAtoms(begin, end)
             new_bond.SetBondDir(bond.GetBondDir())
-            if bond.GetStereo() != Chem.BondStereo.STEREONONE and len(bond.GetStereoAtoms()) == 2:
-                stereo = bond.GetStereoAtoms()
-                new_bond.SetStereo(bond.GetStereo())
-                new_bond.SetStereoAtoms(base + stereo[0], base + stereo[1])
+            if bond.GetStereo() == Chem.BondStereo.STEREONONE:
+                continue
+            stereo = list(bond.GetStereoAtoms())
+            if len(stereo) != 2:
+                raise ValueError(
+                    f"bond {bond.GetBeginAtomIdx()}-{bond.GetEndAtomIdx()} carries stereo "
+                    f"{bond.GetStereo()} but {len(stereo)} stereo atoms; refusing to guess the "
+                    "reference atoms"
+                )
+            stereo_to_set.append(
+                (begin, end, bond.GetStereo(), base + stereo[0], base + stereo[1])
+            )
+
+    # 两趟：先建齐全部键，再设立体化学。``SetStereoAtoms`` 会校验两个参考原子分别与本键的
+    # begin/end 相连，而 sp2 立体的参考原子是远端取代基——若在通向它的那根单键还没加进来时
+    # 就设，RDKit 直接抛 "endIdx not connected to end atom of bond"（多组分 + 立体标记的输入
+    # 曾因此整条组装路径崩溃，见 GH #37；structure_builder 的同款重建早已按两趟写）。
+    for begin, end, stereo, stereo_begin, stereo_end in stereo_to_set:
+        new_bond = combined.GetBondBetweenAtoms(begin, end)
+        new_bond.SetStereo(stereo)
+        new_bond.SetStereoAtoms(stereo_begin, stereo_end)
+
     mol = combined.GetMol()
     Chem.SanitizeMol(mol)
 

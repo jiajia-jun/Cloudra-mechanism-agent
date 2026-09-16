@@ -231,3 +231,41 @@ def test_orientation_sampling_is_not_degenerate(tmp_path):
         for _index, positions in placements
     }
     assert len(fingerprints) == 7, "取向采样退化：多个放置落到了同一相对取向"
+
+
+# ---------------------------------------------------------------------------
+# 组分合并：多组分 + sp2 立体标记（GH #37）
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("smiles", ["O.C/C=C/C", "O.CC/C(=N/O)/C"])
+def test_combine_components_keeps_sp2_stereo(smiles):
+    """多组分带 sp2 立体（C=C / C=N）时合并必须成立且立体不丢。
+
+    旧实现按 `GetBonds()` 顺序在加键的**同一趟**里 `SetStereoAtoms`，而 sp2 立体的参考原子
+    是远端取代基、其单键常排在双键之后（如 `C/C=C/C` 的键序 0-1 SINGLE、1-2 DOUBLE、
+    2-3 SINGLE）→ RDKit 抛 "endIdx not connected to end atom of bond"，整条组装路径崩溃。
+    """
+    fragments = Chem.GetMolFrags(Chem.MolFromSmiles(smiles), asMols=True, sanitizeFrags=True)
+    components = [(_embedded_mol(Chem.MolToSmiles(frag)), 0) for frag in fragments]
+    mol = combine_components(components)
+
+    stereo_bonds = [b for b in mol.GetBonds() if b.GetStereo() != Chem.BondStereo.STEREONONE]
+    assert len(stereo_bonds) == 1, "输入里的 E/Z 双键必须原样保留"
+    bond = stereo_bonds[0]
+    stereo_atoms = list(bond.GetStereoAtoms())
+    assert len(stereo_atoms) == 2, "参考原子必须随原子序号偏移一起搬迁"
+    # 参考原子语义 = 分别与本键的 begin/end 相连（RDKit 前置条件，也是它校验的东西）
+    for stereo_atom, terminal in zip(stereo_atoms, (bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())):
+        assert mol.GetBondBetweenAtoms(stereo_atom, terminal) is not None
+    # 立体标记必须整条落在同一个组分窗口内（原子序号偏移没串到别的碎片上）
+    bounds: list[tuple[int, int]] = []
+    offset = 0
+    for component_mol, _conf_id in components:
+        bounds.append((offset, offset + component_mol.GetNumAtoms()))
+        offset += component_mol.GetNumAtoms()
+    window = next(w for w in bounds if w[0] <= bond.GetBeginAtomIdx() < w[1])
+    assert all(
+        window[0] <= idx < window[1]
+        for idx in [bond.GetBeginAtomIdx(), bond.GetEndAtomIdx(), *stereo_atoms]
+    )
