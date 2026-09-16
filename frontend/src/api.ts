@@ -95,6 +95,10 @@ interface CommandResponse<T> {
 // most recent window via `tail=true` — consistent with what the SSE stream
 // keeps, and O(1) instead of paging the entire session.
 export const EVENTS_WINDOW = 500;
+// One backwards page of older history loaded per "load earlier" click in the
+// chat transcript; same size as the live window so one click visibly doubles
+// the transcript.
+export const HISTORY_PAGE_SIZE = 500;
 
 export const api = {
   listProjects: (includeArchived = false) =>

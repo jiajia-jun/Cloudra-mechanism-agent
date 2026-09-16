@@ -19,6 +19,7 @@
 - 计算完成通知依赖进程内 IPC 总线，API 进程重启即丢；改纯 DB 轮询投递。
 
 ### 新增
+- 聊天记录分页回看：转录顶部新增「Load earlier」气泡，点击经 `eventsPage`（`before` 游标 + `tail`）向前翻一页 500 条更早事件，滚动位置保持不跳，可连续点击直到翻完；翻到头显示「beginning of history」结束标记。更早分页独立于实时 SSE 窗口存储，不被 `EVENTS_WINDOW` 裁剪。
 - `cdxml_to_graph` 工具：基于 molli + RDKit 解析 ChemDraw CDXML 反应路线，生成节点为 isomeric SMILES 的候选机理图；多反应物/产物合并为反应物/产物络合物，支持 DAG 检测与 `dag_propose_mechanism` 提案生成，边信息携带溶剂/条件/试剂供计算参考，可选落盘 mol2。
 - runtime_v2 原生提醒唤醒：`reminders.py` 拦截 `schedule` 工具，提醒落 `reminder.scheduled` / `reminder.cancelled` / `reminder.fired`（`schedule_id` 为事件 seq）；到点经 `agent.message` 投递 `[Reminder]` 并自动 reopen 终态 agent。进程启动 `rearm_all()` 从事件投影重建，过期立即触发——修复 v2 下 `schedule` 无人触发、挂起 agent 永睡的停摆。
 - `NoticeManager`（`notices.py`）：统一上下文注入。`pin`/`unpin` 按键幂等的常驻注入（goal 钉、DAG 投影），`push` 一次性注入（交付 delta、唤醒附言）；`turn_pipeline` 拼消息时 `collect`（pins 在前，push 耗尽）。
@@ -28,7 +29,7 @@
 - 前端 DAG 面板：双图真图渲染（dagre+SVG）、节点选中查看/编辑字段（不暴露 JSON）、覆盖率报告、mutation 历史、supervisor replan。
 - 前端命令继承：`/goal`（目标锚点）、`/compact`（上下文压缩）、context 统计、skills 列表；审批与 ask_user 交互面板。
 - 子 agent 派发 v2 原生化：`subagent_bridge.py`（SubAgentLauncher/SubAgentSwarm/get_subagent_report 经 CommandBus spawn，支持 is_wait 与父取消级联）；`hub_bridge.py`（agent_hub 论坛落 `hub.posted` 事件，通知/呼叫走 Mailbox）；审批/交互由 `pending.py` 内核 broker 承担（事件 + future，决策经 `approval.decide`/`interaction.respond` 命令）。
-- 失败自动恢复：turn 崩溃原地重试（保留 history，`run.retry` 事件，默认 2 次退避）；对 failed/cancelled 的 agent 发消息自动 reopen 新 run，前端不再暴露手动 Restart。
+- 失败自动恢复：turn 崩溃原地重试（保留 history，`run.retry` 事件，默认 5 次退避，2s→30s 递增）；对 failed/cancelled 的 agent 发消息自动 reopen 新 run，前端不再暴露手动 Restart。
 - 交付门禁移植到 v2：dag 模式下 `stop(delivery_disposition="complete")` 需通过交付覆盖率审计（`dag_stage` 拦截，复用 `DagController.audit_stop`），有未终态兄弟 agent 时 stop 视为挂起不审计。
 - DAG 视图消歧：observed 节点新增 `arguments_summary`（路径参数优先），process 视图（`include_observed=true`）暴露 `tool_call_id`/`arguments_hash`/`arguments_summary`，Coordinator 可在多个同工具 observed 节点间辨认后走 `observed_<hex>` 别名 `bind_evidence`；dag_record/guided 投影提示同步更新。
 - 多候选认领在执行者一侧消解：同工具多个计划候选时，`assignee` 恰为当前 agent 的唯一节点被直接认领（不再一律落 observed 留给 Coordinator）；顺带修复 v2 的 role_id 与 DAG 图 legacy assignee 词表（a-0..a-8）的映射缺口——此前子 agent 的 assigned_to_me 投影在 v2 下恒为空。
