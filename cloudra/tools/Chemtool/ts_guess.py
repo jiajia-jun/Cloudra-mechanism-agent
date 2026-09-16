@@ -53,6 +53,9 @@ from cloudra.tools.core.irc_path import (
     pair_label as _pair_label,
 )
 from cloudra.tools.core.irc_path import (
+    parse_xyz as _parse_xyz,
+)
+from cloudra.tools.core.irc_path import (
     perceive_bonds as _perceive_bonds,
 )
 from cloudra.tools.core.xtb_path_runner import DEFAULT_REFINEMENT_RUNS
@@ -60,6 +63,22 @@ from cloudra.tools.core.xtb_path_runner import DEFAULT_REFINEMENT_RUNS
 KCAL_PER_HARTREE = 627.5095
 # 虚频模式与反应坐标：watch_pairs 中至少一对的相对位移须达全局最大相对位移的该比例。
 _IMAG_MODE_WATCH_RATIO = 0.5
+
+# 改动 2（收敛证据通道）：IRC 外侧帧与声明中间体的距离矩阵 rmsd 小于该值即视为
+# 「端点优化已收敛到该中间体」——两条外侧帧各自贴合其（direct/swapped 配对后的）
+# 优化中间体时判 pass。阈值保守：两个不同极小值之间的距离矩阵 rmsd 远大于此值
+# （irc_path 的对齐闸门 _ALIGN_MAX_RMSD_ANG=1.0 Å 是其上界），只接受「本就是同一
+# 个极小值」的贴合。这是**新增**通道，几何区间证明原样保留。
+_ENDPOINT_INTERMEDIATE_SAME_SPECIES_RMSD_ANG = 0.6
+
+# 可操作补救提示（仅文本）：strict verify 因「材料不足 / 未通过」而不 pass 时追加到
+# checks 与 verdict 文案，指导 agent 去补做端点优化，而不是放宽阈值。不改变 verdict 取值。
+_IRC_TRUNCATION_REMEDY = (
+    "The IRC path may be truncated (an outer frame has not yet relaxed onto the "
+    "target intermediate). Remedy: re-optimize each IRC outer frame to a minimum "
+    "(Opt, ideally with Freq to confirm zero imaginary frequencies) and resubmit "
+    "the optimized minima as reactant_path / product_path, then run strict verify again."
+)
 
 description = (
     "Transition-state (TS) guess workflow: four sub-functions selected by mode. "
@@ -991,6 +1010,12 @@ def _parse_freq_log(log_path: str, engine: str) -> dict:
 
     if vibdisps is None and engine == "gaussian":
         vibdisps = _parse_gaussian_vibdisps(text, len(vibfreqs))
+    elif vibdisps is None and engine == "orca":
+        # ORCA 6.1 日志 cclib 整体崩溃（vibdisps 拿不到）→ 文本权威 NORMAL MODES
+        # 位移块回退（GH #G2）。ORCA 版式：模式号表头 + 3N 行笛卡尔分量。
+        n_atoms = len(vibfreqs) // 3 if len(vibfreqs) % 3 == 0 else 0
+        if n_atoms > 0:
+            vibdisps = orca_frames.vibdisps_from_text(text, len(vibfreqs), n_atoms)
 
     if converged is None:
         if engine == "orca":
@@ -1013,6 +1038,17 @@ def _parse_freq_log(log_path: str, engine: str) -> dict:
             pt = PeriodicTable()
             symbols = [pt.element[int(z)] for z, *_ in rows]
             positions = np.asarray([[x, y, z] for _, x, y, z in rows], dtype=float)
+    elif positions is None and engine == "orca":
+        # ORCA 末帧几何同样走文本权威 CARTESIAN COORDINATES (ANGSTROEM) 块：
+        # strict 的几何区间层需要 TS 几何，而 freq 日志的末帧几何就是被验证的
+        # TS（cclib 对 ORCA 6.1 崩溃时 positions 会缺失，不能因此判 inconclusive）。
+        ts_xyz = orca_frames.final_xyz_from_text(text)
+        parsed_xyz = _parse_xyz(ts_xyz) if ts_xyz.strip() else None
+        if parsed_xyz is not None:
+            import numpy as np
+
+            symbols = list(parsed_xyz[0])
+            positions = np.asarray(parsed_xyz[1], dtype=float)
 
     return {
         "vibfreqs": vibfreqs,
@@ -2002,15 +2038,20 @@ class TsGuess(Tool):
         import ase.io
         import numpy as np
 
+        def _non_pass(reason: str) -> str:
+            # 材料不足 / 未通过时追加可操作补救提示（仅文本，不改 verdict 取值）。
+            checks.append(_IRC_TRUNCATION_REMEDY)
+            return f"{reason} {_IRC_TRUNCATION_REMEDY}"
+
         has_intermediate_a = bool(user_input.reactant_path or user_input.reactant_text)
         has_intermediate_b = bool(user_input.product_path or user_input.product_text)
         if not (has_intermediate_a and has_intermediate_b):
             checks.append("strict requires two intermediate structures, each from optimizing one side's IRC outer frame.")
-            return "inconclusive: missing the two endpoint-optimization intermediates.", None
+            return _non_pass("inconclusive: missing the two endpoint-optimization intermediates."), None
 
         info = self._extract_irc_endpoints(user_input, checks, require_two_sides=True)
         if info is None:
-            return "inconclusive: no usable bidirectional IRC endpoints.", None
+            return _non_pass("inconclusive: no usable bidirectional IRC endpoints."), None
 
         try:
             end_a_atoms = ase.io.read(StringIO(info["end_a"].xyz), format="xyz")
@@ -2035,7 +2076,7 @@ class TsGuess(Tool):
                 checks.append("The frequency log gave no TS geometry; using the IRC rx=0 frame instead.")
             else:
                 checks.append("Neither the frequency log nor the IRC provides a usable TS geometry.")
-                return "inconclusive: missing TS geometry.", info
+                return _non_pass("inconclusive: missing TS geometry."), info
 
         # 原子对应：元素多重集必须一致（原子数不等进不了这一层），但不要求
         # 原子序相同——任意原子序的几何经距离指纹 + Hungarian 指派重排进
@@ -2073,27 +2114,103 @@ class TsGuess(Tool):
             user_input.charge,
         )
         checks.extend(assignment["details"])
+
+        # 改动 2：第二条证据通道——「IRC 端点优化收敛到声明的中间体」。两条外侧帧
+        # 各自与其优化中间体几何贴合（距离矩阵 rmsd 足够小）时，端点优化必然收敛到
+        # 该中间体、方向成立。独立于几何区间证明（新增，不替换、不削弱原判据）。
+        convergence = self._endpoints_converged_to_intermediates(aligned_positions)
+        checks.extend(convergence["details"])
+
+        # 通道 1（原有）：几何区间证明——要求两条外侧帧各落在 TS 与配对中间体之间。
+        if assignment["is_decidable"] and assignment["is_match"]:
+            mapping = "direct pairing" if assignment["assignment"] == "direct" else "pairing after swapping sides"
+            checks.append(f"{mapping} holds: both IRC outer frames lie between the TS and the corresponding optimized intermediates.")
+            n_warnings = len(assignment.get("warnings", []))
+            warning_note = (
+                f" ({n_warnings} weak-contact warning(s): hydrogen-bond/non-covalent "
+                "pairs the IRC need not preserve)"
+                if n_warnings else ""
+            )
+            return (
+                "pass: the bidirectional path of the partial IRC is consistent with the two optimized intermediates"
+                + warning_note
+                + "; this conclusion only proves path direction and does not make the TS absolutely correct in every chemical sense.",
+                info,
+            )
+        # 通道 2（改动 2 新增）：收敛证据——两条外侧帧各自贴合其声明的优化中间体。
+        if convergence["is_pass"]:
+            return (
+                "pass: both IRC outer frames have converged onto their declared "
+                "endpoint-optimization intermediates ("
+                + convergence["assignment_note"]
+                + "); this is the endpoint-optimization convergence evidence channel, "
+                "independent of the geometric-interval channel.",
+                info,
+            )
         if not assignment["is_decidable"]:
             checks.append("The selected atom pairs are insufficient to judge the direction of the IRC endpoints relative to the TS and the intermediates.")
-            return "inconclusive: missing geometric changes large enough to judge direction.", info
+            return _non_pass("inconclusive: missing geometric changes large enough to judge direction."), info
         if not assignment["is_match"]:
             checks.append("At least one IRC outer frame does not lie between the TS and any pairable optimized intermediate.")
-            return "fail: the path direction of the partial IRC is inconsistent with the two optimized intermediates.", info
+            return _non_pass("fail: the path direction of the partial IRC is inconsistent with the two optimized intermediates."), info
 
-        mapping = "direct pairing" if assignment["assignment"] == "direct" else "pairing after swapping sides"
-        checks.append(f"{mapping} holds: both IRC outer frames lie between the TS and the corresponding optimized intermediates.")
-        n_warnings = len(assignment.get("warnings", []))
-        warning_note = (
-            f" ({n_warnings} weak-contact warning(s): hydrogen-bond/non-covalent "
-            "pairs the IRC need not preserve)"
-            if n_warnings else ""
+    @staticmethod
+    def _endpoints_converged_to_intermediates(aligned_positions: list) -> dict:
+        """改动 2：判断两条 IRC 外侧帧是否各自贴合其声明的优化中间体。
+
+        ``aligned_positions`` = [IRC 端点 A, IRC 端点 B, 中间体 A, 中间体 B]，均已重排
+        到同一（TS）坐标序。逐对计算距离矩阵 rmsd（旋转平移不变）：某条外侧帧与其配对
+        中间体的 rmsd ≤ ``_ENDPOINT_INTERMEDIATE_SAME_SPECIES_RMSD_ANG`` 即视为「端点
+        优化收敛到该中间体」。direct / swapped 两种配对取合计 rmsd 更小者；两侧都贴合
+        才算 pass。两个中间体本身须可区分（rmsd > 阈值），否则配对退化、不判 pass。
+        """
+        import numpy as np
+
+        end_a, end_b, inter_a, inter_b = aligned_positions
+
+        def d_rmsd(p, q) -> float:
+            d_p = _dist_matrix(np.asarray(p, dtype=float))
+            d_q = _dist_matrix(np.asarray(q, dtype=float))
+            return float(np.sqrt(((d_p - d_q) ** 2).mean()))
+
+        tol = _ENDPOINT_INTERMEDIATE_SAME_SPECIES_RMSD_ANG
+        direct = (d_rmsd(end_a, inter_a), d_rmsd(end_b, inter_b))
+        swapped = (d_rmsd(end_a, inter_b), d_rmsd(end_b, inter_a))
+        inter_gap = d_rmsd(inter_a, inter_b)
+        end_gap = d_rmsd(end_a, end_b)
+
+        details = [
+            f"[convergence] IRC endpoint A vs intermediate A distance-matrix rmsd={direct[0]:.3f} Å, "
+            f"vs intermediate B rmsd={swapped[0]:.3f} Å.",
+            f"[convergence] IRC endpoint B vs intermediate B distance-matrix rmsd={direct[1]:.3f} Å, "
+            f"vs intermediate A rmsd={swapped[1]:.3f} Å.",
+            f"[convergence] threshold={tol:.3f} Å; intermediate A-vs-B rmsd={inter_gap:.3f} Å, "
+            f"IRC endpoint A-vs-B rmsd={end_gap:.3f} Å.",
+        ]
+
+        if not (inter_gap > tol):
+            details.append(
+                "[convergence] the two declared intermediates are not distinguishable "
+                f"(rmsd={inter_gap:.3f} Å <= {tol:.3f} Å); the convergence proof is skipped."
+            )
+            return {"is_pass": False, "assignment_note": "", "details": details}
+
+        if direct[0] <= tol and direct[1] <= tol and sum(direct) <= sum(swapped):
+            note = "direct pairing, both within tolerance"
+        elif swapped[0] <= tol and swapped[1] <= tol:
+            note = "pairing after swapping sides, both within tolerance"
+        else:
+            details.append(
+                "[convergence] at least one IRC outer frame does not coincide with its "
+                "declared optimized intermediate; the convergence proof does not apply."
+            )
+            return {"is_pass": False, "assignment_note": "", "details": details}
+
+        details.append(
+            "[convergence] both IRC outer frames coincide with their declared optimized "
+            f"intermediates ({note}, distance-matrix rmsd <= {tol:.3f} Å)."
         )
-        return (
-            "pass: the bidirectional path of the partial IRC is consistent with the two optimized intermediates"
-            + warning_note
-            + "; this conclusion only proves path direction and does not make the TS absolutely correct in every chemical sense.",
-            info,
-        )
+        return {"is_pass": True, "assignment_note": note, "details": details}
 
     @staticmethod
     def _check_irc_connectivity(user_input: TsGuess_input_schema, end_a, end_b,

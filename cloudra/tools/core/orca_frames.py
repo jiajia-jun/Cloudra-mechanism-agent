@@ -17,6 +17,7 @@ cclib / numpy 在函数内惰性导入。
 
 from __future__ import annotations
 
+import glob
 import os
 import re
 
@@ -239,6 +240,78 @@ def vibfreqs_from_text(text: str) -> list[float]:
     if idx < 0:
         return []
     return [float(m.group(1)) for m in _VIBFREQ_LINE_RE.finditer(text, idx)]
+
+
+#: 模式号表头行：整行只由整数构成（"      6      7      8 ..."）；
+#: 位移数据行的行首分量号之后是浮点位移，不会整行都是整数。
+_ORCA_MODE_HEADER_RE = re.compile(r"^\s*\d+(?:\s+\d+)*\s*$")
+
+
+def vibdisps_from_text(text: str, n_freqs: int, n_atoms: int):
+    """解析 ORCA NORMAL MODES 位移块，返回形状 (n_modes, n_atoms, 3) 的数组或 None。
+
+    ORCA 版式：每个子块首行是模式号表头（每行最多 6 个模式），随后是 3N 行，
+    每行 = 一个笛卡尔分量（行首是该分量序号 0..3N-1），列 = 该子块内各模式的
+    位移；分量 c 属于原子 c//3、方向 c%3。把第 m 列按 (atom, xyz) 填回即得该
+    模式的位移——与 cclib 的读法一致（cclib 亦按"每原子读 3 行"读入），只是这里
+    直接从文本取、不依赖 cclib（cclib 对 ORCA 6.1 日志整体崩溃）。
+
+    只取最后一个 "VIBRATIONAL FREQUENCIES" 块之后的 NORMAL MODES 段（Opt+Freq
+    日志可能逐周期重复打印）。频率数须与 3*原子数一致，且模式块覆盖全部
+    n_freqs 个模式，否则返回 None（调用方保持"缺位移"语义）。
+    """
+    import numpy as np
+
+    if n_freqs <= 0 or n_atoms <= 0 or n_freqs != 3 * n_atoms:
+        return None
+    freq_idx = text.rfind("VIBRATIONAL FREQUENCIES")
+    start = freq_idx if freq_idx >= 0 else 0
+    idx = text.find("NORMAL MODES", start)
+    if idx < 0:
+        return None
+
+    lines = text[idx:].splitlines()
+    disps = np.zeros((n_freqs, n_atoms, 3), dtype=float)
+    parsed_any = False
+    i = 0
+    total = len(lines)
+    while i < total:
+        stripped = lines[i].strip()
+        if not stripped:
+            i += 1
+            continue
+        if _ORCA_MODE_HEADER_RE.match(stripped):
+            mode_idx = [int(tok) for tok in stripped.split()]
+            i += 1
+            rows: list[tuple[int, list[float]]] = []
+            while i < total and len(rows) < 3 * n_atoms:
+                row = lines[i].strip()
+                if not row:
+                    break
+                parts = row.split()
+                if not parts[0].lstrip("-").isdigit() or len(parts) < 1 + len(mode_idx):
+                    break
+                try:
+                    values = [float(tok) for tok in parts[1:1 + len(mode_idx)]]
+                except ValueError:
+                    break
+                rows.append((int(parts[0]), values))
+                i += 1
+            if len(rows) != 3 * n_atoms:
+                return None
+            for cartesian, values in rows:
+                atom, comp = divmod(cartesian, 3)
+                if atom >= n_atoms:
+                    return None
+                for k, mode in enumerate(mode_idx):
+                    if 0 <= mode < n_freqs:
+                        disps[mode, atom, comp] = values[k]
+            parsed_any = True
+            continue
+        if parsed_any:
+            break
+        i += 1
+    return disps if parsed_any else None
 
 
 def frequencies_with_text_fallback(log_path: str) -> list[float]:
@@ -663,7 +736,27 @@ def _orca_sidecar_roots(log_path: str, text: str) -> list[tuple[str, str]]:
             roots.append((directory, base))
     stem = os.path.splitext(os.path.basename(log_path))[0]
     roots.append((log_dir, stem))
+    parent = os.path.dirname(log_dir)
+    if parent and parent != log_dir:
+        # harness 把 stdout 捕获进 <作业目录>/.cloudra/calc-<id>.out.log，
+        # 边文件留在上一级。stem 回退也一并进父目录候选，供兜底匹配。
+        roots.append((parent, stem))
     return roots
+
+
+def _sidecar_search_dirs(roots: list[tuple[str, str]]) -> list[str]:
+    """兜底扫描目录：所有候选根目录 + 它们的父目录（去重、保序）。"""
+    dirs: list[str] = []
+    for directory, _stem in roots:
+        for candidate in (directory, os.path.dirname(directory)):
+            if candidate and candidate not in dirs:
+                dirs.append(candidate)
+    return dirs
+
+
+def _basename_matches_any_job(path: str, roots: list[tuple[str, str]]) -> bool:
+    name = os.path.basename(path)
+    return any(name.startswith(stem) for _directory, stem in roots if stem)
 
 
 def _irc_endpoint_sidecar(
@@ -681,6 +774,24 @@ def _irc_endpoint_sidecar(
         trajectory = os.path.join(directory, f"{stem}{suffix}_trj.xyz")
         if os.path.isfile(trajectory):
             return trajectory, "trajectory_last_frame"
+    # 兜底：stdout 日志被 harness 重命名为 calc-<id>.out.log（且日志被截断、
+    # 输入回显里没有 NAME 行）时，NAME/stem 都推不出 ORCA 作业名。此时在该
+    # 日志目录及其父目录按 *_<suffix>.xyz / *_<suffix>_trj.xyz 匹配——只接受
+    # 唯一命中；多命中时优先命中候选作业名前缀者，仍不唯一则拒绝猜测。
+    for directory in _sidecar_search_dirs(roots):
+        if not os.path.isdir(directory):
+            continue
+        for pattern, origin in (
+            (f"*{suffix}.xyz", "final_endpoint_file_glob"),
+            (f"*{suffix}_trj.xyz", "trajectory_last_frame_glob"),
+        ):
+            hits = sorted(glob.glob(os.path.join(directory, pattern)))
+            if len(hits) == 1:
+                return hits[0], origin
+            if len(hits) > 1:
+                named = [h for h in hits if _basename_matches_any_job(h, roots)]
+                if len(named) == 1:
+                    return named[0], origin
     return None, None
 
 
@@ -690,7 +801,8 @@ def extract_irc_endpoints(log_path: str) -> dict:
     返回 {"forward": {...}, "backward": {...}}，每方向含：
     - geometry_ref：端点几何来源路径（final endpoint 文件或 F/B trajectory），
       无来源时 None；
-    - origin：final_endpoint_file / trajectory_last_frame / None；
+    - origin：final_endpoint_file / trajectory_last_frame，或兜底匹配得到的
+      final_endpoint_file_glob / trajectory_last_frame_glob / None；
     - availability：available / unavailable；
     - converged：主输出 IRC 块的收敛标记（无 IRC 段时 None）。仅作记录、
       不是闸门——未收敛方向的轨迹末帧同样是合法的部分端点，方向是否成立
@@ -731,7 +843,7 @@ def read_endpoint_geometry(endpoint: dict) -> str | None:
             text = handle.read()
     except OSError:
         return None
-    if endpoint.get("origin") != "trajectory_last_frame":
+    if "trajectory" not in (endpoint.get("origin") or ""):
         return text if text.strip() else None
     frames: list[str] = []
     lines = text.splitlines(keepends=True)

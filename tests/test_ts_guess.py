@@ -2261,3 +2261,227 @@ async def test_scan_parse_gaussian_one_block_per_point_uses_peak_block(tmp_path,
     assert result.barrier_kcal == pytest.approx(6.2751, abs=1e-3)
     content = ts_path.read_text(encoding="utf-8")
     assert "0.900000" in content
+
+# ---------------------------------------------------------------------------
+# ORCA 解析缺口回归（改动 1）：NORMAL MODES 位移块 + 重命名 stdout 日志的 IRC 端点
+# ---------------------------------------------------------------------------
+
+_ORCA_FREQ_LOG = """\
+Program Version 6.1.1  -  RELEASE
+
+VIBRATIONAL FREQUENCIES
+-----------------------
+
+   0:       0.00 cm**-1
+   1:       0.00 cm**-1
+   2:       0.00 cm**-1
+   3:       0.00 cm**-1
+   4:       0.00 cm**-1
+   5:       0.00 cm**-1
+   6:    -915.34 cm**-1  ***imaginary mode***
+   7:     500.00 cm**-1
+   8:    1000.00 cm**-1
+
+------------
+NORMAL MODES
+------------
+
+These modes are the Cartesian displacements weighted by the diagonal matrix
+M(i,i)=1/sqrt(m[i]) where m[i] is the mass of the displaced atom
+Thus, these vectors are normalized but *not* orthogonal
+
+                  0          1          2          3          4          5
+      0       0.000000   0.000000   0.000000   0.000000   0.000000   0.000000
+      1       0.000000   0.000000   0.000000   0.000000   0.000000   0.000000
+      2       0.000000   0.000000   0.000000   0.000000   0.000000   0.000000
+      3       0.000000   0.000000   0.000000   0.000000   0.000000   0.000000
+      4       0.000000   0.000000   0.000000   0.000000   0.000000   0.000000
+      5       0.000000   0.000000   0.000000   0.000000   0.000000   0.000000
+      6       0.000000   0.000000   0.000000   0.000000   0.000000   0.000000
+      7       0.000000   0.000000   0.000000   0.000000   0.000000   0.000000
+      8       0.000000   0.000000   0.000000   0.000000   0.000000   0.000000
+                  6          7          8
+      0       1.000000   0.000000   0.000000
+      1       0.000000   0.000000   0.000000
+      2       0.000000   0.000000   0.000000
+      3       0.000000   0.000000   0.000000
+      4       0.000000   0.000000   0.000000
+      5       0.000000   0.000000   0.000000
+      6      -1.000000   0.000000   0.000000
+      7       0.000000   0.000000   0.000000
+      8       0.000000   0.000000   0.000000
+
+CARTESIAN COORDINATES (ANGSTROEM)
+---------------------------------
+  C      0.000000    0.000000    0.000000
+  N      0.000000    0.000000    2.000000
+  H      0.000000    0.000000    1.000000
+"""
+
+
+def test_orca_vibdisps_from_text_parses_normal_modes_block():
+    """改动 1a：ORCA NORMAL MODES 位移块可解析，形状与 Gaussian 通道一致。
+
+    版式为「模式号表头 + 3N 行笛卡尔分量」，第 m 列填回第 m 个模式；虚频模式 6
+    的 C1(+x) 与 H3(-x) 反向位移必须落在 disps[6]。
+    """
+    from cloudra.tools.core import orca_frames
+
+    vd = orca_frames.vibdisps_from_text(_ORCA_FREQ_LOG, 9, 3)
+    assert vd is not None
+    assert vd.shape == (9, 3, 3)
+    # 模式 6：原子 0 (C) 沿 +x、原子 2 (H) 沿 -x
+    assert vd[6, 0, 0] == pytest.approx(1.0)
+    assert vd[6, 2, 0] == pytest.approx(-1.0)
+    assert vd[6, 1].tolist() == pytest.approx([0.0, 0.0, 0.0])
+    # 频率数与 3N 不一致时拒答（保持「缺位移」语义）
+    assert orca_frames.vibdisps_from_text(_ORCA_FREQ_LOG, 8, 3) is None
+
+
+def test_parse_freq_log_orca_text_vibdisps_and_orientation(tmp_path, monkeypatch):
+    """改动 1a：cclib 对 ORCA 6.x 崩溃时，频率/位移/末帧几何全部走文本回退，
+    且虚频模式参与方向判定（watch_pairs 对齐 / 不对齐）。"""
+    import cclib
+
+    from cloudra.tools.Chemtool.ts_guess import (
+        _assess_imag_mode_alignment,
+        _parse_freq_log,
+    )
+
+    def _boom(*_a, **_k):
+        raise IndexError("simulated cclib ORCA 6.x crash")
+
+    monkeypatch.setattr(cclib.io, "ccread", _boom)
+    log = tmp_path / "calc-10.out.log"
+    log.write_text(_ORCA_FREQ_LOG, encoding="utf-8")
+
+    freq = _parse_freq_log(str(log), "orca")
+    assert len(freq["vibfreqs"]) == 9
+    assert freq["vibdisps"] is not None and freq["vibdisps"].shape == (9, 3, 3)
+    assert freq["symbols"] == ["C", "N", "H"]
+    assert freq["positions"] is not None
+
+    aligned = _assess_imag_mode_alignment(
+        freq["vibfreqs"], freq["vibdisps"], [[1, 3]],
+        symbols=freq["symbols"], positions=freq["positions"], charge=0,
+    )
+    assert aligned["status"] == "aligned"
+    assert aligned["aligned"] is True
+
+    # 监视对不覆盖主导位移对 (C1,H3) → 不判对齐（方向判定确实吃到了位移块）
+    wrong = _assess_imag_mode_alignment(freq["vibfreqs"], freq["vibdisps"], [[2, 3]])
+    assert wrong["status"] == "misaligned"
+
+
+def _renamed_orca_irc_log(tmp_path, name):
+    """合成被 harness 重命名的 stdout 日志：无 NAME 输入回显、stem 不是 ORCA 作业名。"""
+    log = tmp_path / name
+    log.write_text(
+        "* FORWARD IRC *\n"
+        " 0 -100.123694 -0.987880 0.009347 0.001949\n"
+        "THE IRC HAS CONVERGED\n"
+        "* BACKWARD IRC *\n"
+        " 0 -100.123694 -0.987880 0.009347 0.001949\n"
+        "THE IRC HAS CONVERGED\n",
+        encoding="utf-8",
+    )
+    return log
+
+
+_IRC_ENDPOINT_XYZ = "3\nsidecar\nC 0.0 0.0 0.0\nN 0.0 0.0 1.2\nH 0.0 0.0 2.2\n"
+
+
+def test_orca_irc_endpoints_glob_finds_sidecars_for_renamed_log(tmp_path):
+    """改动 1b：stdout 日志被重命名为 calc-<id>.out.log 且无 NAME 回显时，
+    仍能在日志目录按 *_IRC_F.xyz / *_IRC_B.xyz 兜底定位端点侧车。"""
+    from cloudra.tools.core import orca_frames
+
+    job_dir = tmp_path / "job"
+    job_dir.mkdir()
+    log = _renamed_orca_irc_log(job_dir, "calc-99.out.log")
+    (job_dir / "realjob_IRC_F.xyz").write_text(_IRC_ENDPOINT_XYZ, encoding="utf-8")
+    (job_dir / "realjob_IRC_B.xyz").write_text(_IRC_ENDPOINT_XYZ, encoding="utf-8")
+
+    endpoints = orca_frames.extract_irc_endpoints(str(log))
+    assert endpoints["forward"]["availability"] == "available"
+    assert endpoints["backward"]["availability"] == "available"
+    assert endpoints["forward"]["origin"].endswith("_glob")
+    assert endpoints["backward"]["origin"].endswith("_glob")
+    assert orca_frames.read_endpoint_geometry(endpoints["forward"]) is not None
+    assert orca_frames.read_endpoint_geometry(endpoints["backward"]) is not None
+
+
+def test_orca_irc_endpoints_glob_refuses_ambiguous_match(tmp_path):
+    """兜底匹配只接受唯一命中：多个候选且无法按作业名去歧义时拒绝猜测。"""
+    from cloudra.tools.core import orca_frames
+
+    job_dir = tmp_path / "job"
+    job_dir.mkdir()
+    log = _renamed_orca_irc_log(job_dir, "calc-99.out.log")
+    for prefix in ("aaa", "bbb"):
+        (job_dir / f"{prefix}_IRC_F.xyz").write_text(_IRC_ENDPOINT_XYZ, encoding="utf-8")
+        (job_dir / f"{prefix}_IRC_B.xyz").write_text(_IRC_ENDPOINT_XYZ, encoding="utf-8")
+
+    endpoints = orca_frames.extract_irc_endpoints(str(log))
+    assert endpoints["forward"]["availability"] == "unavailable"
+    assert endpoints["backward"]["availability"] == "unavailable"
+
+
+def test_endpoints_converged_to_intermediates_channel():
+    """改动 2：收敛证据通道——两条 IRC 外侧帧各自贴合声明的优化中间体时 pass；
+    退化（两中间体不可区分）或外侧帧不贴合时不误判。"""
+    from cloudra.tools.Chemtool.ts_guess import TsGuess
+
+    end_a = np.array([[0.0, 0.0, 0.0], [0.0, 0.0, 2.0], [0.0, 0.0, 0.1]])
+    end_b = np.array([[0.0, 0.0, 0.0], [0.0, 0.0, 2.0], [0.0, 0.0, 1.9]])
+    inter_a = end_a.copy()
+    inter_b = end_b.copy()
+
+    ok = TsGuess._endpoints_converged_to_intermediates([end_a, end_b, inter_a, inter_b])
+    assert ok["is_pass"] is True
+
+    far = np.array([[0.0, 0.0, 0.0], [0.0, 0.0, 2.0], [0.0, 0.0, -0.9]])
+    bad = TsGuess._endpoints_converged_to_intermediates([far, end_b, inter_a, inter_b])
+    assert bad["is_pass"] is False
+
+    degenerate = TsGuess._endpoints_converged_to_intermediates([end_a, end_a, inter_a, inter_a])
+    assert degenerate["is_pass"] is False
+
+@pytest.mark.asyncio
+async def test_verify_strict_non_pass_appends_endpoint_optimization_remedy(tmp_path, mock_session):
+    """不通过（材料不足 / 方向不符）时 checks 必须带「补做端点优化」的可操作提示，
+    且 verdict 语义（fail / inconclusive 前缀）不变（只加文本，不改判据/阈值）。"""
+    from cloudra.tools.Chemtool.ts_guess import _IRC_TRUNCATION_REMEDY
+
+    tool = _make_tool()
+    freq_log = tmp_path / "ts_freq_with_geometry.log"
+    freq_log.write_text(_TS_FREQ_WITH_GEOMETRY)
+
+    # 分支 A：缺端点优化中间体
+    res_missing = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "verify",
+        "strict": True,
+        "freq_log": str(freq_log),
+        "irc_log": str(IRC_LOG),
+        "output_dir": str(tmp_path / "remedy_missing"),
+    }), mock_session)
+    assert res_missing.is_success, res_missing.message
+    assert res_missing.verdict.startswith("inconclusive")
+    assert any(_IRC_TRUNCATION_REMEDY in c for c in res_missing.checks)
+    assert _IRC_TRUNCATION_REMEDY in res_missing.verdict
+
+    # 分支 B：几何区间证明失败（两个预期结构都在同一侧）
+    res_fail = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "verify",
+        "strict": True,
+        "freq_log": str(freq_log),
+        "irc_log": str(IRC_LOG),
+        "reactant_text": _HCN_XYZ,
+        "product_text": _HCN_XYZ,
+        "watch_pairs": [[1, 3], [2, 3]],
+        "output_dir": str(tmp_path / "remedy_fail"),
+    }), mock_session)
+    assert res_fail.is_success, res_fail.message
+    assert res_fail.verdict.startswith("fail")
+    assert any(_IRC_TRUNCATION_REMEDY in c for c in res_fail.checks)
+    assert _IRC_TRUNCATION_REMEDY in res_fail.verdict
