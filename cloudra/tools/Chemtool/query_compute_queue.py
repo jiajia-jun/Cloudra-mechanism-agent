@@ -1,3 +1,4 @@
+import asyncio
 import os
 from datetime import datetime
 from typing import Any, Dict, List
@@ -32,7 +33,15 @@ class QueryComputeQueue_input_schema(input_schema):
 
 class QueryComputeQueue_output_schema(output_schema):
     is_success: bool = Field(description="Whether the query succeeded")
-    capacity: Dict[str, Any] = Field(default_factory=dict, description="Node total capacity and current in-flight usage")
+    capacity: Dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Node capacity and in-flight usage. 'node' is the effective capacity the scheduler "
+            "accounts with = min('registered' node resources, 'os_available' real free memory/cpus); "
+            "'os_available' covers usage the job ledger cannot see (e.g. engines started outside "
+            "submit_compute_job)."
+        ),
+    )
     running: List[Dict[str, Any]] = Field(default_factory=list, description="Running jobs")
     queued: List[Dict[str, Any]] = Field(default_factory=list, description="Queued jobs in scheduling order")
     terminal: List[Dict[str, Any]] = Field(default_factory=list, description="Recently finished jobs")
@@ -60,12 +69,21 @@ class QueryComputeQueue(Tool):
         return True
 
     async def tool_call(self, user_input: QueryComputeQueue_input_schema, session: Session) -> QueryComputeQueue_output_schema:
+        from cloudra.services.host_capacity import capacity_report
         from cloudra.services.nodes import NodeRegistry, default_resources
 
         try:
-            capacity = dict(NodeRegistry.from_environment().node(None).resources)
+            declared = dict(NodeRegistry.from_environment().node(None).resources)
         except Exception:
-            capacity = default_resources()
+            declared = default_resources()
+        # 生效容量 = min(声明, OS 实时余量)；探针是子进程，走线程不阻塞事件循环
+        report = await asyncio.to_thread(capacity_report, declared)
+        capacity = report["effective"]
+        capacity_view = {
+            "node": capacity,
+            "registered": report["declared"],
+            "os_available": report["os_available"],
+        }
         cap_slots = max(1, int(capacity.get("max_concurrent", 1)))
         default_mem = max(1, int(capacity.get("memory_mb", 1024)) // cap_slots)
 
@@ -75,7 +93,7 @@ class QueryComputeQueue(Tool):
         if not os.path.exists(db.path):
             return QueryComputeQueue_output_schema(
                 is_success=True,
-                capacity={"node": capacity, "in_flight": {"slots": 0, "cpus": 0, "memory_mb": 0}},
+                capacity=dict(capacity_view, in_flight={"slots": 0, "cpus": 0, "memory_mb": 0}),
                 message="No compute jobs have been submitted on this node yet.",
             )
 
@@ -153,10 +171,10 @@ class QueryComputeQueue(Tool):
             )
         return QueryComputeQueue_output_schema(
             is_success=True,
-            capacity={
-                "node": capacity,
-                "in_flight": {"slots": len(running), "cpus": used_cpus, "memory_mb": used_mem},
-            },
+            capacity=dict(
+                capacity_view,
+                in_flight={"slots": len(running), "cpus": used_cpus, "memory_mb": used_mem},
+            ),
             running=running,
             queued=queued,
             terminal=terminal,

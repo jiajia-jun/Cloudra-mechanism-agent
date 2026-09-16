@@ -74,15 +74,26 @@ def _record_adopt_spawn(lock_path: str) -> None:
 
 
 def _node_capacity() -> dict:
-    """节点容量（本地单节点假设；注册表缺失/损坏时用保守兜底值）。"""
+    """节点容量 = min(注册声明, OS 实时余量)；注册表缺失/损坏时用保守兜底值。
+
+    OS 余量（`services/host_capacity.py`）涵盖账本看不见的占用——agent 绕过
+    submit_compute_job 直调引擎起的作业也在内。Slurm 节点跑在集群上，不受
+    本机余量约束，原样返回声明容量。
+    """
+    from cloudra.services.host_capacity import effective_resources
+
     try:
         from cloudra.services.nodes import NodeRegistry
 
-        return dict(NodeRegistry.from_environment().node(None).resources)
+        node = NodeRegistry.from_environment().node(None)
+        declared = dict(node.resources)
+        if str(node.scheduler.get("type", "local")) != "local":
+            return declared
     except Exception:
         from cloudra.services.nodes import default_resources
 
-        return default_resources()
+        declared = default_resources()
+    return effective_resources(declared)
 
 
 class SchedulerDaemon:

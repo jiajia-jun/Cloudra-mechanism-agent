@@ -64,18 +64,26 @@ class NodeRoute:
         }
 
 
-def default_resources() -> dict:
-    """本地节点的兜底资源量：半机记账（槽位 2、全核、半内存）。
+_DEFAULT_SLOTS = 10
+_MEMORY_RESERVE_MB = 8192
 
-    守护进程只按 agent 声明的 req_* 记账，default 偏保守以防超订。
+
+def default_resources() -> dict:
+    """本地节点的兜底资源量：全核 + 内存记账额度 + ``_DEFAULT_SLOTS`` 槽位。
+
+    守护进程只按 agent 声明的 req_* 记账，这里的上限是**记账额度**不是硬预留：
+    agent 的声明普遍偏保守（ORCA ``%maxcore`` 是每核上限），实际占用远低于声明。
+    内存额度 = 物理内存扣掉留给系统其他进程的 ``_MEMORY_RESERVE_MB``，且不低于
+    物理内存的一半（小机器不因新公式变宽松）。
     """
     cpus = os.cpu_count() or 1
     memory_mb = 4096
     try:
-        memory_mb = (os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")) // 2 // (1024 * 1024)
+        physical_mb = (os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")) // (1024 * 1024)
+        memory_mb = max(physical_mb // 2, physical_mb - _MEMORY_RESERVE_MB)
     except (ValueError, OSError, AttributeError):
         pass
-    return {"max_concurrent": 2, "cpus": cpus, "memory_mb": memory_mb}
+    return {"max_concurrent": _DEFAULT_SLOTS, "cpus": cpus, "memory_mb": memory_mb}
 
 
 class NodeRegistry:

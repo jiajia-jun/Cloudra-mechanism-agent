@@ -20,8 +20,16 @@
 - 每个节点声明 `scheduler.type`：`local` 或 `slurm`；Slurm 节点接受 `partition`、
   `account`、`qos`、`time_limit`、`cpus`、`memory`、`poll_seconds`，未知字段报错。
 - 每个节点可声明 `resources`（`max_concurrent` / `cpus` / `memory_mb`，正整数，
-  缺省用本地保守兜底：2 槽位、全核、半内存）——调度守护进程据此做容量记账，
-  `submit_compute_job` 据此对 agent 的资源申请（`cpus`/`memory_mb`）做提交时硬校验。
+  缺省用本地兜底：10 槽位、全核、物理内存扣掉 8 GiB 系统余量且不低于半内存）
+  ——`submit_compute_job` 据此对 agent 的资源申请（`cpus`/`memory_mb`）做提交时硬校验。
+- 调度容量的**生效值** = `min(注册声明, OS 实时余量)`（`services/host_capacity.py`）：
+  作业成本仍按 agent 声明的 `req_cpus`/`req_memory_mb` 记账，OS 侧只提供"这台机器
+  现在还剩多少"——剩余内存取 `free + inactive + speculative + purgeable`（macOS
+  `vm_stat`／Linux `MemAvailable`），可用核数取 `cpu_count − ceil(loadavg 1min)`。
+  这样**账本看不见的占用也被算进去**（agent 绕过 `submit_compute_job` 直调引擎起的
+  作业、浏览器等无关进程）。读数只用于放行判定与 `query_compute_queue` 展示，
+  不参与存活/终态判定；探针读不到时回落声明容量（不断停摆，状态翻转记一条 WARNING）；
+  Slurm 节点跑在集群上，不受本机余量约束。
 - 能力命名空间（`agent.session` / `artifact.download` / `compute.local` /
   `compute.slurm`）由 registry 校验，且节点必须声明与 scheduler 匹配的
   `compute.<type>` 能力。
