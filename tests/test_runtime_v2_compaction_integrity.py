@@ -270,7 +270,7 @@ async def _refusal(messages, summarizer, **kwargs):
 @pytest.mark.asyncio
 async def test_empty_summary_output_refused():
     messages = _trajectory_context()
-    stats = await _refusal(messages, RecordingSummarizer([""]))
+    stats = await _refusal(messages, RecordingSummarizer(["", ""]))
     assert stats["reason"] == "summary_invalid"
     assert "empty" in stats["error"]
 
@@ -278,10 +278,11 @@ async def test_empty_summary_output_refused():
 @pytest.mark.asyncio
 async def test_structural_validation_error_refused():
     messages = _trajectory_context()
-    stats = await _refusal(messages, RecordingSummarizer(["not json at all"]))
+    stats = await _refusal(messages, RecordingSummarizer(["not json at all"] * 2))
     assert stats["reason"] == "summary_invalid"
     stats = await _refusal(
-        messages, RecordingSummarizer([json.dumps({"objective": {"text": "", "sources": []}})])
+        messages,
+        RecordingSummarizer([json.dumps({"objective": {"text": "", "sources": []}})] * 2),
     )
     assert stats["reason"] == "summary_invalid"
 
@@ -292,9 +293,81 @@ async def test_source_index_out_of_range_refused():
     bad = _summary_json(
         objective={"text": "o", "sources": [9999]}
     )
-    stats = await _refusal(messages, RecordingSummarizer([bad]))
+    stats = await _refusal(messages, RecordingSummarizer([bad] * 2))
     assert stats["reason"] == "summary_invalid"
     assert "out of trajectory range" in stats["error"]
+
+
+@pytest.mark.asyncio
+async def test_single_object_where_array_is_required_retried_then_recovered():
+    """模型把列表字段写成单个 entry 对象（真实故障：seq 47043/46632/2819）
+    → 不降级解析，带校验错误与上一次回复重问一次；模型改对后正常压缩。"""
+    messages = _trajectory_context()
+    bare_object = json.dumps(
+        _summary_payload(
+            active_requests={"text": "deliver the barrier", "sources": [0]}
+        ),
+        ensure_ascii=False,
+    )
+    summarizer = RecordingSummarizer([bare_object, _summary_json()])
+    new_context, stats = await compact_context(
+        messages,
+        head=[],
+        notices=[],
+        keep_recent=0,
+        summarize=summarizer,
+        context_window=200_000,
+        max_output=32_768,
+    )
+    assert stats["compacted"] is True
+    assert len(summarizer.calls) == 2, "one retry, not a loop"
+    retry = summarizer.calls[1]
+    assert retry[0] == summarizer.calls[0][0]  # 同一份系统指令
+    assert retry[1] == summarizer.calls[0][1]  # 同一段轨迹
+    assert retry[2] == {"role": "assistant", "content": bare_object}
+    assert retry[3]["role"] == "user"
+    assert "active_requests" in retry[3]["content"]
+    assert "JSON array" in retry[3]["content"]
+    assert "deliver the barrier" in new_context[-1]["content"]
+
+
+@pytest.mark.asyncio
+async def test_single_object_refused_after_the_one_retry():
+    messages = _trajectory_context()
+    bare_object = json.dumps(
+        _summary_payload(active_requests={"text": "x", "sources": []})
+    )
+    summarizer = RecordingSummarizer([bare_object, bare_object])
+    stats = await _refusal(messages, summarizer)
+    assert stats["reason"] == "summary_invalid"
+    assert "active_requests" in stats["error"]
+    assert len(summarizer.calls) == 2, "retry is bounded"
+
+
+def test_shape_note_pins_the_eight_list_fields_as_arrays():
+    """形状说明必须逐字段给出数组骨架：旧文案「Every field is an object」
+    正是模型把列表字段写成单个对象的来源。"""
+    from cloudra.runtime_v2.compaction import (
+        _COMPACT_INSTRUCTION,
+        _JSON_SHAPE_NOTE,
+        _MERGE_INSTRUCTION,
+    )
+
+    assert '"objective": {' in _JSON_SHAPE_NOTE
+    for field in (
+        "active_requests",
+        "corrections",
+        "constraints",
+        "pending",
+        "completed",
+        "failed_attempts",
+        "evidence",
+        "next_actions",
+    ):
+        assert f'"{field}": [' in _JSON_SHAPE_NOTE
+    assert "Never place a single object where an array is required" in _JSON_SHAPE_NOTE
+    assert _JSON_SHAPE_NOTE in _COMPACT_INSTRUCTION
+    assert _JSON_SHAPE_NOTE in _MERGE_INSTRUCTION
 
 
 @pytest.mark.asyncio

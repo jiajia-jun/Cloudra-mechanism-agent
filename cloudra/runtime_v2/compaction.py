@@ -17,7 +17,8 @@
 
 摘要输入按现有模型容量（settings.context_window − 输出预算，留余量）
 分段：消息逐字完整，单条超预算消息的文本跨段切块；每个区段成功并通过
-结构化校验后才汇总。拒替换条件（空输出/结构错误/区段失败/取消/摘要未
+结构化校验后才汇总（形状/来源不符时把校验错误回喂重问一次，仍不符即
+放弃）。拒替换条件（空输出/结构错误/区段失败/取消/摘要未
 缩短轨迹/逐字指令区超容量）一律保留原上下文并报告原因，禁止静默裁剪。
 
 触发时机（Task 5 起，不再有 schedule stop 的无条件 compact）:
@@ -63,16 +64,30 @@ Keep completed work separate from pending requests, failed attempts,
 unverified claims, evidence paths, computed values, and next actions.
 Never drop an unresolved user request merely because it is old."""
 
-_JSON_SHAPE_NOTE = (
-    "Return ONLY a JSON object (no markdown fence, no prose around it) with "
-    "exactly these fields: objective, active_requests, corrections, "
-    "constraints, pending, completed, failed_attempts, evidence, "
-    "next_actions. Every field is an object {\"text\": str, \"sources\": "
-    "[int]}; list fields are lists of such objects; corrections entries "
-    "additionally carry \"replaces\": str naming the earlier request the "
-    "correction supersedes. sources are the 0-based [index] numbers of the "
-    "trajectory lines each statement came from; keep them accurate."
-)
+_JSON_SHAPE_NOTE = """\
+Return ONLY a JSON object (no markdown fence, no prose before or after it) \
+with exactly these nine keys in this shape:
+
+{
+  "objective": {"text": "<statement>", "sources": [<int>]},
+  "active_requests": [{"text": "<statement>", "sources": [<int>]}, ...],
+  "corrections": [{"text": "<statement>", "replaces": "<the earlier request \
+it supersedes>", "sources": [<int>]}, ...],
+  "constraints": [{"text": "<statement>", "sources": [<int>]}, ...],
+  "pending": [{"text": "<statement>", "sources": [<int>]}, ...],
+  "completed": [{"text": "<statement>", "sources": [<int>]}, ...],
+  "failed_attempts": [{"text": "<statement>", "sources": [<int>]}, ...],
+  "evidence": [{"text": "<statement>", "sources": [<int>]}, ...],
+  "next_actions": [{"text": "<statement>", "sources": [<int>]}, ...]
+}
+
+objective is ONE entry object; the other eight fields are JSON arrays of \
+entry objects. Never place a single object where an array is required and \
+never null: use [] when a field has nothing to report, and never a \
+placeholder entry with empty text. "sources" are the 0-based [index] numbers \
+of the trajectory lines each statement came from; keep them accurate and \
+inside the numbered range.\
+"""
 
 _COMPACT_INSTRUCTION = (
     "You are compacting an agent's execution trajectory at a context "
@@ -252,6 +267,47 @@ def parse_compact_summary(raw: str, *, trajectory_len: int) -> CompactSummary:
     return summary
 
 
+# 结构化 JSON 是硬要求：形状/来源不符时把校验错误回喂给模型重问一次，
+# 仍不符即拒替换——绝不降级解析（缺字段或形状错会静默丢上下文信息）。
+_SUMMARY_ATTEMPTS = 2
+
+_RETRY_NOTE = (
+    "Your previous reply was rejected: {error}\n"
+    "Reply again with ONLY the JSON object the system message specifies: no "
+    "markdown fence, no prose before or after it, the same nine keys, and "
+    "every list field as a JSON array."
+)
+
+
+async def _summarize_validated(
+    summarize: Summarizer,
+    *,
+    instruction: str,
+    payload: str,
+    trajectory_len: int,
+) -> CompactSummary:
+    """一次摘要调用 + 结构化校验；失败时带错误重问（见 ``_SUMMARY_ATTEMPTS``）。"""
+    messages = [
+        {"role": "system", "content": instruction},
+        {"role": "user", "content": payload},
+    ]
+    attempt = 0
+    while True:
+        raw = await summarize(messages)
+        try:
+            return parse_compact_summary(raw, trajectory_len=trajectory_len)
+        except CompactSummaryError as exc:
+            attempt += 1
+            if attempt >= _SUMMARY_ATTEMPTS:
+                raise
+            messages = [
+                {"role": "system", "content": instruction},
+                {"role": "user", "content": payload},
+                {"role": "assistant", "content": raw},
+                {"role": "user", "content": _RETRY_NOTE.format(error=exc)},
+            ]
+
+
 def _src(entry: SummaryEntry) -> str:
     if not entry.sources:
         return ""
@@ -421,29 +477,27 @@ async def compact_context(
     coverage: list[dict[str, Any]] = []
     for seg_index, segment in enumerate(segments):
         try:
-            raw = await summarize(
-                [
-                    {"role": "system", "content": _COMPACT_INSTRUCTION},
-                    {"role": "user", "content": segment["text"]},
-                ]
+            partial = await _summarize_validated(
+                summarize,
+                instruction=_COMPACT_INSTRUCTION,
+                payload=segment["text"],
+                trajectory_len=len(trajectory),
             )
         except asyncio.CancelledError:
             raise
-        except Exception as exc:
-            return messages, {
-                **base_stats,
-                "compacted": False,
-                "reason": "segment_failed",
-                "failed_segment": seg_index,
-                "error": str(exc),
-            }
-        try:
-            partial = parse_compact_summary(raw, trajectory_len=len(trajectory))
         except CompactSummaryError as exc:
             return messages, {
                 **base_stats,
                 "compacted": False,
                 "reason": "summary_invalid",
+                "failed_segment": seg_index,
+                "error": str(exc),
+            }
+        except Exception as exc:
+            return messages, {
+                **base_stats,
+                "compacted": False,
+                "reason": "segment_failed",
                 "failed_segment": seg_index,
                 "error": str(exc),
             }
@@ -461,28 +515,26 @@ async def compact_context(
             [partial.model_dump() for partial in partials], ensure_ascii=False, indent=2
         )
         try:
-            merged_raw = await summarize(
-                [
-                    {"role": "system", "content": _MERGE_INSTRUCTION},
-                    {"role": "user", "content": merge_input},
-                ]
+            summary = await _summarize_validated(
+                summarize,
+                instruction=_MERGE_INSTRUCTION,
+                payload=merge_input,
+                trajectory_len=len(trajectory),
             )
         except asyncio.CancelledError:
             raise
-        except Exception as exc:
-            return messages, {
-                **base_stats,
-                "compacted": False,
-                "reason": "merge_failed",
-                "error": str(exc),
-            }
-        try:
-            summary = parse_compact_summary(merged_raw, trajectory_len=len(trajectory))
         except CompactSummaryError as exc:
             return messages, {
                 **base_stats,
                 "compacted": False,
                 "reason": "summary_invalid",
+                "error": str(exc),
+            }
+        except Exception as exc:
+            return messages, {
+                **base_stats,
+                "compacted": False,
+                "reason": "merge_failed",
                 "error": str(exc),
             }
     else:
