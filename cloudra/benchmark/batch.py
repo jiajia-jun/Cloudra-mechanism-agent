@@ -39,7 +39,7 @@ from cloudra.benchmark.runner import (
     load_tasks,
     provenance_config,
 )
-from cloudra.benchmark.schema import TaskSpec
+from cloudra.benchmark.schema import TaskSpec, Tier
 from cloudra.benchmark.watch import RunWatcher
 from cloudra.runtime_v2.schemas import AgentState, Command, CommandRejected, new_id
 
@@ -60,19 +60,58 @@ def repo_root() -> Path:
     return Path(cloudra.__file__).resolve().parents[1]
 
 
-def resolve_tasks_dirs(dirs: list[str] | None) -> list[Path]:
-    """题集目录解析：绝对路径原样；相对路径先按进程 cwd、再按仓库根尝试；
-    缺省回落到仓库内置 easy 档。"""
-    if not dirs:
-        return [repo_root() / "ideapool" / "tasks" / "easy"]
+TASK_TIERS: tuple[str, ...] = tuple(t.value for t in Tier)
+"""内置题集档位（= schema.Tier 的枚举值，目录 ideapool/tasks/<tier>）。"""
+
+
+def builtin_tier_dir(tier: str) -> Path:
+    return repo_root() / "ideapool" / "tasks" / tier
+
+
+def task_catalog() -> list[dict]:
+    """内置档位清单（选题器的事实源）：档位、目录、题目 id。目录缺失时计 0 题，
+    由 resolve_tasks_dirs 在启动时拒绝。"""
+    out: list[dict] = []
+    for tier in TASK_TIERS:
+        d = builtin_tier_dir(tier)
+        ids = [t.task_id for t in load_tasks(d)] if d.is_dir() else []
+        out.append({
+            "tier": tier,
+            "path": str(d),
+            "task_count": len(ids),
+            "task_ids": ids,
+        })
+    return out
+
+
+def resolve_tasks_dirs(dirs: list[str] | None,
+                       tiers: list[str] | None = None) -> list[Path]:
+    """题集目录解析：内置档位目录在前（按 TASK_TIERS 顺序）、自定义目录在后，
+    重复目录只取一次；两者都缺省时回落到仓库内置 easy 档。自定义目录的绝对
+    路径原样，相对路径先按进程 cwd、再按仓库根尝试。"""
     out: list[Path] = []
-    for raw in dirs:
+    unknown = sorted(set(tiers or []) - set(TASK_TIERS))
+    if unknown:
+        raise CommandRejected(
+            "invalid_request", f"unknown tier: {', '.join(unknown)}"
+        )
+    for tier in TASK_TIERS:
+        if tier not in (tiers or []):
+            continue
+        d = builtin_tier_dir(tier)
+        if not d.is_dir():
+            raise CommandRejected("invalid_request", f"tier tasks dir not found: {d}")
+        out.append(d)
+    for raw in dirs or []:
         p = Path(raw)
         candidates = [p] if p.is_absolute() else [Path.cwd() / p, repo_root() / p]
         resolved = next((c for c in candidates if c.is_dir()), None)
         if resolved is None:
             raise CommandRejected("invalid_request", f"tasks dir not found: {raw}")
-        out.append(resolved)
+        if resolved not in out:
+            out.append(resolved)
+    if not out:
+        return [builtin_tier_dir("easy")]
     return out
 
 
@@ -526,8 +565,13 @@ class BenchmarkService:
             return batch
         return None
 
+    async def catalog(self) -> dict:
+        """内置档位清单：前端选题器据此列出可选档位与题目数，不必手打路径。"""
+        return {"tiers": await asyncio.to_thread(task_catalog)}
+
     async def start(self, *, tasks_dirs: list[str] | None, only: str,
-                    concurrency: int, timeout: float) -> dict:
+                    concurrency: int, timeout: float,
+                    tiers: list[str] | None = None) -> dict:
         async with self._lock:
             active = self._active_batch()
             if active is not None:
@@ -535,7 +579,7 @@ class BenchmarkService:
                     "state_conflict",
                     f"batch {active.batch_id} is already {active.status}",
                 )
-            resolved = resolve_tasks_dirs(tasks_dirs)
+            resolved = resolve_tasks_dirs(tasks_dirs, tiers)
             tasks = self._load_tasks_from(resolved, only)
             if not tasks:
                 raise CommandRejected("invalid_request", "no benchmark tasks matched")

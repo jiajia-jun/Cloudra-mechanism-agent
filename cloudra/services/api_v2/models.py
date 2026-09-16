@@ -71,8 +71,10 @@ class DagReplanRequest(BaseModel):
 
 
 class BenchmarkStart(BaseModel):
-    """启动一批 benchmark 评测（GH #32）。tasks_dirs 空 = 内置 easy 档。"""
+    """启动一批 benchmark 评测（GH #32）。tiers 选内置档位（easy/normal/hard/
+    impossible，可多选），tasks_dirs 追加自定义目录；两者都空 = 内置 easy 档。"""
 
+    tiers: list[str] = Field(default_factory=list)
     tasks_dirs: list[str] = Field(default_factory=list)
     only: str = ""
     concurrency: int = Field(default=1, ge=1, le=8)

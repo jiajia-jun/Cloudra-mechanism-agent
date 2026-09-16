@@ -306,7 +306,8 @@ export const api = {
       `/api/v2/knowledge/graph?focus=${encodeURIComponent(focus)}&hops=${hops}`,
     ),
   benchmarkStatus: () => request<BenchmarkStatus>('/api/v2/benchmark/status'),
-  benchmarkStart: (body: { tasks_dirs?: string[]; only?: string; concurrency?: number; timeout?: number }) =>
+  benchmarkCatalog: () => request<BenchmarkCatalog>('/api/v2/benchmark/catalog'),
+  benchmarkStart: (body: { tiers?: string[]; tasks_dirs?: string[]; only?: string; concurrency?: number; timeout?: number }) =>
     request<BenchmarkStatus>('/api/v2/benchmark/start', {
       method: 'POST',
       body: JSON.stringify(body),
@@ -420,6 +421,17 @@ export interface BenchmarkRefusalStats {
   precision: number | null;
   recall: number | null;
   f1: number | null;
+}
+
+export interface BenchmarkCatalogTier {
+  tier: string;
+  path: string;
+  task_count: number;
+  task_ids: string[];
+}
+
+export interface BenchmarkCatalog {
+  tiers: BenchmarkCatalogTier[];
 }
 
 export interface BenchmarkStatus {

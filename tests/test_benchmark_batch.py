@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from pathlib import Path
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -15,7 +16,7 @@ from cloudra.runtime_v2.core import RuntimeCore
 from cloudra.runtime_v2.schemas import AgentState, CommandRejected
 
 
-def _task_json(task_id: str) -> str:
+def _task_json(task_id: str, tier: str = "easy") -> str:
     from cloudra.benchmark.schema import (
         GoldSpec,
         PromptSpec,
@@ -26,7 +27,7 @@ def _task_json(task_id: str) -> str:
 
     task = TaskSpec(
         task_id=task_id,
-        tier="easy",
+        tier=tier,
         prompt=PromptSpec(query="solve it", orchestration_mode=OrchestrationMode.STANDARD),
         system=SystemSpec(reactants=["C"]),
         gold=GoldSpec(
@@ -39,11 +40,22 @@ def _task_json(task_id: str) -> str:
     return json.dumps(task.model_dump(mode="json"))
 
 
-def _write_tasks(dir_path, *ids: str) -> str:
+def _write_tasks(dir_path, *ids: str, tier: str = "easy") -> str:
     dir_path.mkdir(parents=True, exist_ok=True)
     for tid in ids:
-        (dir_path / f"{tid}.json").write_text(_task_json(tid))
+        (dir_path / f"{tid}.json").write_text(_task_json(tid, tier=tier))
     return str(dir_path)
+
+
+def _patch_builtin_tiers(monkeypatch, tmp_path, tiers: dict[str, tuple[str, ...]]):
+    """把内置档位目录指到 tmp_path（真实题库不动，只验证解析与路由接线）。"""
+    import cloudra.benchmark.batch as batch_mod
+
+    root = tmp_path / "tiers"
+    for tier, ids in tiers.items():
+        _write_tasks(root / tier, *ids, tier=tier)
+    monkeypatch.setattr(batch_mod, "builtin_tier_dir", lambda tier: root / tier)
+    return root
 
 
 async def _wait_until(predicate, timeout: float = 5.0):
@@ -267,3 +279,134 @@ async def test_batch_refuses_sandbox_with_live_compute(tmp_path, monkeypatch):
     rows = list_compute_jobs(ComputeDB())
     assert [r["id"] for r in rows] == [job_id]
     assert rows[0]["state"] == "running"
+
+
+# ---------------------------------------------------------------------------
+# 档位选题（内置档位免手打路径）
+# ---------------------------------------------------------------------------
+
+def test_resolve_tasks_dirs_orders_dedupes_and_rejects(tmp_path, monkeypatch):
+    from cloudra.benchmark.batch import TASK_TIERS, resolve_tasks_dirs
+
+    root = _patch_builtin_tiers(
+        monkeypatch, tmp_path,
+        {"easy": ("E1",), "normal": ("N1",), "hard": ("H1",), "impossible": ("I1",)},
+    )
+    custom = Path(_write_tasks(tmp_path / "custom", "X1"))
+
+    # 内置档位按 TASK_TIERS 顺序，自定义目录在后
+    got = resolve_tasks_dirs([str(custom)], ["impossible", "easy"])
+    assert got == [root / "easy", root / "impossible", custom]
+
+    # 同一个目录重复出现只取一次（档位 + 手打同一路径）
+    assert resolve_tasks_dirs([str(root / "easy")], ["easy"]) == [root / "easy"]
+
+    # 两者都空 = 内置 easy 档（CLI/旧客户端行为不变）
+    assert resolve_tasks_dirs(None, None) == [root / "easy"]
+    assert resolve_tasks_dirs([], []) == [root / "easy"]
+
+    with pytest.raises(CommandRejected) as exc:
+        resolve_tasks_dirs(None, ["bogus"])
+    assert "unknown tier" in exc.value.message
+    assert TASK_TIERS[0] == "easy" and set(TASK_TIERS) == {"easy", "normal", "hard", "impossible"}
+
+
+def test_task_catalog_lists_builtin_tiers(tmp_path, monkeypatch):
+    from cloudra.benchmark.batch import task_catalog
+
+    root = _patch_builtin_tiers(
+        monkeypatch, tmp_path,
+        {"easy": ("E1", "E2"), "normal": ("N1",), "hard": ("H1",), "impossible": ("I1",)},
+    )
+    catalog = task_catalog()
+    assert [c["tier"] for c in catalog] == ["easy", "normal", "hard", "impossible"]
+    assert [c["task_count"] for c in catalog] == [2, 1, 1, 1]
+    assert catalog[0]["task_ids"] == ["E1", "E2"]
+    assert catalog[0]["path"] == str(root / "easy")
+
+    # 缺目录只报 0 题（不炸）；启动时由 resolve_tasks_dirs 拒绝
+    (root / "hard" / "H1.json").unlink()
+    assert [c["task_count"] for c in task_catalog()] == [2, 1, 0, 1]
+
+
+def test_catalog_lists_real_task_bank():
+    """仓库真实题库仍按四档可枚举（生成器改题集后这里同步可见）。"""
+    from cloudra.benchmark.batch import builtin_tier_dir, task_catalog
+
+    catalog = {c["tier"]: c for c in task_catalog()}
+    assert len(catalog) == 4
+    for entry in catalog.values():
+        assert entry["task_count"] == len(entry["task_ids"])
+        assert str(builtin_tier_dir(entry["tier"])) == entry["path"]
+    assert catalog["easy"]["task_count"] > 0 and catalog["impossible"]["task_count"] > 0
+
+
+@pytest.mark.asyncio
+async def test_service_start_by_tiers(tmp_path, monkeypatch):
+    """tiers 选题直接落成批次任务；自定义目录可与之并存。"""
+    _patch_builtin_tiers(
+        monkeypatch, tmp_path,
+        {"easy": ("E1",), "normal": ("N1",), "hard": ("H1",), "impossible": ("I1", "I2")},
+    )
+    core, bus, service = _service(tmp_path)
+    custom = _write_tasks(tmp_path / "custom", "X9")
+
+    snap = await service.start(
+        tasks_dirs=[custom], only="", concurrency=1, timeout=60.0,
+        tiers=["impossible", "hard"],
+    )
+    assert [(t["task_id"], t["tier"]) for t in snap["tasks"]] == [
+        ("H1", "hard"), ("I1", "impossible"), ("I2", "impossible"), ("X9", "easy"),
+    ]
+    assert snap["config"]["tasks_dirs"][:2] == [
+        str(tmp_path / "tiers" / "hard"), str(tmp_path / "tiers" / "impossible"),
+    ]
+    await service.stop()
+    await asyncio.wait_for(service._batch._task, timeout=5.0)
+
+    # 未知档位 400，且不留下半启动的批次
+    core2 = RuntimeCore(strict_events=True)
+    svc2 = BenchmarkService(core2, CommandBus(core2), data_dir=tmp_path / "bench2")
+    with pytest.raises(CommandRejected) as exc:
+        await svc2.start(tasks_dirs=None, only="", concurrency=1, timeout=60.0,
+                         tiers=["easyy"])
+    assert exc.value.code == "invalid_request"
+    assert svc2.status()["batch_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_router_catalog_and_tiers(tmp_path, monkeypatch):
+    from cloudra.services.api_v2 import create_v2_app
+
+    _patch_builtin_tiers(
+        monkeypatch, tmp_path,
+        {"easy": ("E1",), "normal": ("N1",), "hard": ("H1",), "impossible": ("I1",)},
+    )
+    core = RuntimeCore(strict_events=True)
+    app = create_v2_app(core)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+        catalog = (await client.get("/api/v2/benchmark/catalog")).json()
+        assert [c["tier"] for c in catalog["tiers"]] == ["easy", "normal", "hard", "impossible"]
+        assert catalog["tiers"][0]["task_ids"] == ["E1"]
+
+        running = (
+            await client.post(
+                "/api/v2/benchmark/start",
+                json={"tiers": ["hard"], "concurrency": 1, "timeout": 60.0},
+            )
+        ).json()
+        assert [t["task_id"] for t in running["tasks"]] == ["H1"]
+
+        await client.post("/api/v2/benchmark/stop")
+        deadline = asyncio.get_running_loop().time() + 5.0
+        while True:
+            status = (await client.get("/api/v2/benchmark/status")).json()
+            if status["status"] == "stopped":
+                break
+            assert asyncio.get_running_loop().time() < deadline
+            await asyncio.sleep(0.01)
+
+        bad = await client.post("/api/v2/benchmark/start", json={"tiers": ["nope"]})
+        assert bad.status_code == 400
+        assert bad.json()["detail"]["code"] == "invalid_request"

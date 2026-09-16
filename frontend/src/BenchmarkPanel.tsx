@@ -1,7 +1,9 @@
 /**
  * BenchmarkPanel — hosted benchmark cockpit (GH #32 Phase 2).
  *
- * Near-fullscreen modal over the /api/v2/benchmark/* control plane: batch
+ * Near-fullscreen modal over the /api/v2/benchmark/* control plane: a tier
+ * selector driven by the built-in task catalog (`/api/v2/benchmark/catalog`,
+ * so no directory typing is needed), optional custom task dirs, batch
  * start/stop controls, a live task matrix (per-tier filter, per-layer scores,
  * refusal outcome, duration), the cross-tier refusal confusion matrix, and
  * recent batch history. Live updates ride the /api/v2/benchmark/stream SSE
@@ -14,6 +16,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   api,
+  type BenchmarkCatalog,
+  type BenchmarkCatalogTier,
   type BenchmarkHistory,
   type BenchmarkRefusalStats,
   type BenchmarkStatus,
@@ -28,6 +32,14 @@ interface BenchmarkPanelProps {
 }
 
 const TIERS = ['easy', 'normal', 'hard', 'impossible'];
+
+/** 档位说明（选题器与图例共用，文案与题源 ideapool/reaction_candidates/<tier>.md 对齐）。 */
+const TIER_INFO: Record<string, string> = {
+  easy: 'single elementary step (R → TS → P)',
+  normal: 'multi-step network with intermediates',
+  hard: 'competing stereochemical channels',
+  impossible: 'unanswerable — must be refused',
+};
 
 const STATUS_BADGES: Record<string, { glyph: string; label: string; cls: string }> = {
   queued: { glyph: '·', label: 'Queued', cls: 'queued' },
@@ -81,8 +93,10 @@ function RefusalCard({ stats }: { stats: BenchmarkRefusalStats | Record<string, 
 export default function BenchmarkPanel({ onClose, onOpenProject, onToast }: BenchmarkPanelProps) {
   const [status, setStatus] = useState<BenchmarkStatus | null>(null);
   const [history, setHistory] = useState<BenchmarkHistory | null>(null);
+  const [catalog, setCatalog] = useState<BenchmarkCatalog | null>(null);
   const [tierFilter, setTierFilter] = useState<string>('all');
-  const [tasksDirs, setTasksDirs] = useState('');
+  const [selectedTiers, setSelectedTiers] = useState<string[]>(TIERS);
+  const [customDirs, setCustomDirs] = useState('');
   const [dirPickerOpen, setDirPickerOpen] = useState(false);
   const [only, setOnly] = useState('');
   const [concurrency, setConcurrency] = useState('1');
@@ -96,6 +110,7 @@ export default function BenchmarkPanel({ onClose, onOpenProject, onToast }: Benc
   useEffect(() => {
     void refreshStatus();
     api.benchmarkRuns().then(setHistory).catch(() => undefined);
+    api.benchmarkCatalog().then(setCatalog).catch(() => undefined);
     const source = new EventSource(api.benchmarkStreamUrl());
     sourceRef.current = source;
     const onEvent = (msg: MessageEvent) => {
@@ -135,7 +150,8 @@ export default function BenchmarkPanel({ onClose, onOpenProject, onToast }: Benc
     setBusy(true);
     try {
       const body: Record<string, unknown> = {
-        tasks_dirs: tasksDirs
+        tiers: selectedTiers,
+        tasks_dirs: customDirs
           .split(',')
           .map((s) => s.trim())
           .filter(Boolean),
@@ -177,6 +193,27 @@ export default function BenchmarkPanel({ onClose, onOpenProject, onToast }: Benc
     return counts;
   }, [status]);
 
+  const catalogByTier = useMemo(() => {
+    const m: Record<string, BenchmarkCatalogTier> = {};
+    for (const t of catalog?.tiers ?? []) m[t.tier] = t;
+    return m;
+  }, [catalog]);
+
+  // 题库已知档位在前，catalog 里多出的档位追加在后（新增档位不必改这份清单）。
+  const chipTiers = useMemo(
+    () => [...TIERS, ...(catalog?.tiers ?? []).map((t) => t.tier).filter((t) => !TIERS.includes(t))],
+    [catalog],
+  );
+
+  const selectedTaskCount = useMemo(
+    () => selectedTiers.reduce((n, t) => n + (catalogByTier[t]?.task_count ?? 0), 0),
+    [selectedTiers, catalogByTier],
+  );
+
+  const hasBatch = (status?.tasks.length ?? 0) > 0;
+  // 空选择时后端会回落到内置 easy 档——那与界面显示不符，直接禁用 Start。
+  const canStart = selectedTiers.length > 0 || customDirs.trim() !== '';
+
   return (
     <div className="modal-backdrop">
       <div className="modal bm-modal">
@@ -190,77 +227,156 @@ export default function BenchmarkPanel({ onClose, onOpenProject, onToast }: Benc
         </div>
 
         <div className="bm-body">
+          <div className="bm-guide">
+            <strong>Pick the tiers to run, then press Start.</strong> Every task becomes its own
+            project (open ↗) with a live agent, DAG and compute; scores land in the matrix below as
+            each one finishes. <em>Impossible</em> tasks are paired with solvable siblings, so keep
+            both kinds in the same batch for the refusal statistics to mean anything. Start sends
+            compute jobs to the ordinary scheduler (it never launches QM processes itself), and
+            Stop only cancels the task agents — running calculations are left alone.
+            <div className="bm-legend">
+              {chipTiers.map((t) => (
+                <span key={t}>
+                  <code>{t}</code> {TIER_INFO[t] ?? ''}
+                </span>
+              ))}
+            </div>
+          </div>
+
           <div className="bm-controls">
-            <div className="bm-dirs-wrap">
+            <span className="bm-field-label">Run tiers</span>
+            {chipTiers.map((t) => {
+              const on = selectedTiers.includes(t);
+              const entry = catalogByTier[t];
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  className={`btn ghost sm bm-tier ${on ? 'active' : ''}`}
+                  title={TIER_INFO[t] ?? entry?.path ?? ''}
+                  disabled={running}
+                  onClick={() =>
+                    setSelectedTiers((prev) =>
+                      prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t],
+                    )
+                  }
+                >
+                  {on ? '✓ ' : ''}{t}
+                  {entry ? ` · ${entry.task_count}` : ''}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              className="btn ghost sm"
+              disabled={running}
+              onClick={() =>
+                setSelectedTiers(
+                  selectedTiers.length === chipTiers.length ? [] : [...chipTiers],
+                )
+              }
+            >
+              {selectedTiers.length === chipTiers.length ? 'none' : 'all'}
+            </button>
+            <span className="bm-selection" title="built-in tasks this batch will run">
+              {selectedTaskCount} task{selectedTaskCount === 1 ? '' : 's'}
+              {customDirs.trim() ? ' + custom dirs' : ''}
+            </span>
+            <div className="bm-filter-spacer" />
+            <label className="bm-field" title="how many tasks run in parallel">
+              parallel
               <input
-                className="input bm-dirs"
-                value={tasksDirs}
-                onChange={(e) => setTasksDirs(e.target.value)}
-                placeholder="tasks dirs (comma separated; empty = built-in easy tier)"
-                title="One or more task JSON directories; relative paths resolve against cwd then the repo root"
+                className="input bm-num"
+                value={concurrency}
+                onChange={(e) => setConcurrency(e.target.value)}
                 disabled={running}
               />
-              <button
-                type="button"
-                className="btn ghost sm"
-                style={{ height: 30, padding: '0 8px' }}
-                title="Browse tasks directory"
+            </label>
+            <label className="bm-field" title="per-task run timeout, seconds">
+              timeout s
+              <input
+                className="input bm-num"
+                value={timeout}
+                onChange={(e) => setTimeoutS(e.target.value)}
                 disabled={running}
-                onClick={() => setDirPickerOpen(true)}
-              >
-                📁
-              </button>
-            </div>
-            <input
-              className="input bm-only"
-              value={only}
-              onChange={(e) => setOnly(e.target.value)}
-              placeholder="only ids (C1,D3…)"
-              disabled={running}
-            />
-            <input
-              className="input bm-num"
-              value={concurrency}
-              onChange={(e) => setConcurrency(e.target.value)}
-              title="parallel tasks"
-              disabled={running}
-            />
-            <input
-              className="input bm-num"
-              value={timeout}
-              onChange={(e) => setTimeoutS(e.target.value)}
-              title="per-task run timeout, seconds"
-              disabled={running}
-            />
+              />
+            </label>
             {running ? (
               <button className="btn danger sm" type="button" onClick={() => void stop()} disabled={busy}>
                 Stop
               </button>
             ) : (
-              <button className="btn primary sm" type="button" onClick={() => void start()} disabled={busy}>
+              <button
+                className="btn primary sm"
+                type="button"
+                onClick={() => void start()}
+                disabled={busy || !canStart}
+                title={canStart ? 'Run the selected tasks' : 'Select at least one tier (or add custom task dirs)'}
+              >
                 Start
               </button>
             )}
           </div>
 
-          <div className="bm-filter-row">
-            <span className="bm-filter-label">Tier:</span>
-            <button className={`btn ghost sm ${tierFilter === 'all' ? 'active' : ''}`} type="button" onClick={() => setTierFilter('all')}>
-              all ({status?.tasks.length ?? 0})
-            </button>
-            {TIERS.map((t) => (
-              <button
-                key={t}
-                className={`btn ghost sm ${tierFilter === t ? 'active' : ''}`}
-                type="button"
-                onClick={() => setTierFilter(t)}
-              >
-                {t} ({tierCounts[t] ?? 0})
+          <details className="bm-advanced">
+            <summary>Custom task dirs &amp; id filter (optional)</summary>
+            <div className="bm-advanced-body">
+              <div className="bm-dirs-wrap">
+                <input
+                  className="input bm-dirs"
+                  value={customDirs}
+                  onChange={(e) => setCustomDirs(e.target.value)}
+                  placeholder="extra task JSON dirs (comma separated)"
+                  title="One or more extra task JSON directories; relative paths resolve against the working directory, then the repo root"
+                  disabled={running}
+                />
+                <button
+                  type="button"
+                  className="btn ghost sm"
+                  style={{ height: 30, padding: '0 8px' }}
+                  title="Browse tasks directory"
+                  disabled={running}
+                  onClick={() => setDirPickerOpen(true)}
+                >
+                  📁
+                </button>
+              </div>
+              <input
+                className="input bm-only"
+                value={only}
+                onChange={(e) => setOnly(e.target.value)}
+                placeholder="only ids (C1,D3…)"
+                title="Comma-separated task ids; filters the whole selection"
+                disabled={running}
+              />
+            </div>
+            <div className="bm-hint">
+              The tier buttons above already cover the built-in task bank — these two fields only
+              matter for your own task JSONs. “Only ids” filters everything selected (built-in and
+              custom): e.g. <code>C1,D3</code>.
+            </div>
+          </details>
+
+          {hasBatch && (
+            <div className="bm-filter-row">
+              <span className="bm-filter-label">Show</span>
+              <button className={`btn ghost sm ${tierFilter === 'all' ? 'active' : ''}`} type="button" onClick={() => setTierFilter('all')}>
+                all ({status?.tasks.length ?? 0})
               </button>
-            ))}
-            <div className="bm-filter-spacer" />
-            <RefusalCard stats={status?.refusal ?? {}} />
-          </div>
+              {TIERS.map((t) => (
+                <button
+                  key={t}
+                  className={`btn ghost sm ${tierFilter === t ? 'active' : ''}`}
+                  type="button"
+                  onClick={() => setTierFilter(t)}
+                >
+                  {t} ({tierCounts[t] ?? 0})
+                </button>
+              ))}
+              <div className="bm-filter-spacer" />
+              <RefusalCard stats={status?.refusal ?? {}} />
+            </div>
+          )}
 
           <div className="bm-matrix">
             <table>
@@ -283,7 +399,13 @@ export default function BenchmarkPanel({ onClose, onOpenProject, onToast }: Benc
                 {tasks.length === 0 && (
                   <tr>
                     <td colSpan={11} className="empty-hint">
-                      No batch yet — configure task dirs and press Start.
+                      {hasBatch
+                        ? 'No task matches this tier filter.'
+                        : selectedTaskCount > 0 || customDirs.trim()
+                          ? `${selectedTaskCount} built-in task${selectedTaskCount === 1 ? '' : 's'} selected${
+                              customDirs.trim() ? ' plus your custom dirs' : ''
+                            } — press Start to run them.`
+                          : 'Nothing selected yet — tick a tier above, or add task dirs under “Custom task dirs”.'}
                     </td>
                   </tr>
                 )}
@@ -358,9 +480,9 @@ export default function BenchmarkPanel({ onClose, onOpenProject, onToast }: Benc
       <PathPickerModal
         isOpen={dirPickerOpen}
         title="Select Tasks Directory"
-        initialPath={tasksDirs ? tasksDirs.split(',')[0].trim() : undefined}
+        initialPath={customDirs ? customDirs.split(',')[0].trim() : undefined}
         onSelect={(dir) => {
-          setTasksDirs((prev) => (prev ? `${prev}, ${dir}` : dir));
+          setCustomDirs((prev) => (prev ? `${prev}, ${dir}` : dir));
         }}
         onClose={() => setDirPickerOpen(false)}
       />

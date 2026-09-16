@@ -34,7 +34,13 @@ def build_router(ctx: ApiContext) -> APIRouter:
             only=body.only,
             concurrency=body.concurrency,
             timeout=body.timeout,
+            tiers=body.tiers or None,
         )
+
+    @router.get("/api/v2/benchmark/catalog", dependencies=ctx.protected)
+    async def batch_catalog() -> dict:
+        """内置档位清单（档位/目录/题目 id），供前端选题器使用。"""
+        return await service.catalog()
 
     @router.post("/api/v2/benchmark/stop", dependencies=ctx.protected)
     async def stop_batch() -> dict:
