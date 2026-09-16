@@ -20,6 +20,12 @@ from pathlib import Path
 
 from cloudra.services.daemon_supervisor import ensure_daemons
 
+# 常驻 SSE 不会自己结束（SPA 一打开就挂着 EventSource，见 frontend/src/api.ts），
+# 而 uvicorn 默认（None）会**无限等待活跃连接**：`cloudra stop` 因此报「API: 已停止」
+# 却关不死进程（GH #38）。给一个有界上界，超时后由 uvicorn 取消这些连接——流生成器
+# 的 finally 照常退订。取值与本文件的 _terminate_runtime(grace=20) 对齐。
+_GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS = 20
+
 logger = logging.getLogger(__name__)
 
 
@@ -190,6 +196,25 @@ def _terminate_runtime(runtime: subprocess.Popen, *, grace: float = 20.0) -> Non
         logger.error("web runtime still alive after SIGKILL")
 
 
+def _uvicorn_argv(api_port: int) -> list[str]:
+    """uvicorn 子进程命令行；关停上界见 ``_GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS``。"""
+    return [
+        sys.executable,
+        "-m",
+        "uvicorn",
+        "cloudra.services.api_v2:create_default_v2_app",
+        "--factory",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        str(api_port),
+        "--timeout-graceful-shutdown",
+        str(_GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS),
+        "--log-level",
+        "warning",
+    ]
+
+
 def launch_browser(frontend: Path, *, rebuild: bool, skip_build: bool) -> int:
     api_port, reused_runtime = _find_api_port(8000, "CLOUDRA_API_PORT")
     _ensure_frontend(frontend, rebuild=rebuild, skip_build=skip_build)
@@ -213,19 +238,7 @@ def launch_browser(frontend: Path, *, rebuild: bool, skip_build: bool) -> int:
     else:
         print(f"[cloudra] starting web server on port {api_port}...", flush=True)
         runtime = subprocess.Popen(
-            [
-                sys.executable,
-                "-m",
-                "uvicorn",
-                "cloudra.services.api_v2:create_default_v2_app",
-                "--factory",
-                "--host",
-                "127.0.0.1",
-                "--port",
-                str(api_port),
-                "--log-level",
-                "warning",
-            ],
+            _uvicorn_argv(api_port),
             env=env,
             # 固定子进程 cwd：`python -m` 会把 cwd 放到 sys.path 最前面，
             # cwd 下一个无 __init__.py 的 `cloudra` 目录会把已安装包遮蔽成

@@ -42,3 +42,15 @@ def test_uvicorn_subprocess_pins_cwd_to_frontend(tmp_path, monkeypatch):
 
     assert rc == 0
     assert captured.get("cwd") == frontend
+    # 关停上界必须真的传进 uvicorn（GH #38），不能只在 helper 里存在
+    assert "--timeout-graceful-shutdown" in captured["cmd"]
+
+
+def test_uvicorn_argv_bounds_graceful_shutdown():
+    """必须给 uvicorn 一个有界的关停等待：常驻 SSE（SPA 的 EventSource）不会自己结束，
+    默认（None）会无限等活跃连接，`cloudra stop` 报「API: 已停止」却关不死进程（GH #38）。"""
+    argv = web_launcher._uvicorn_argv(18999)
+
+    assert argv[argv.index("--port") + 1] == "18999"
+    timeout = int(argv[argv.index("--timeout-graceful-shutdown") + 1])
+    assert timeout > 0
