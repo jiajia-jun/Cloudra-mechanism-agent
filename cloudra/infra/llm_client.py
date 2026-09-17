@@ -1188,12 +1188,19 @@ def _translate_responses_usage(data: dict) -> dict:
         "completion_tokens": usage.get("output_tokens"),
         "total_tokens": (usage.get("input_tokens") or 0) + (usage.get("output_tokens") or 0),
     }
-    # 缓存细项原样保留：命中率统计依赖 input_tokens_details.cached_tokens。
-    # 缺失的字段不补 0——「provider 未报告」与「报告为 0」必须可区分。
-    for key in ("input_tokens_details", "output_tokens_details"):
-        details = usage.get(key)
+    # Responses 的细项键是 input_tokens_details / output_tokens_details，翻译成
+    # chat 后端的 OpenAI 形状（prompt_tokens_details / completion_tokens_details），
+    # 两个后端对下游（LLMResponse.usage → llm.completed → telemetry）完全一致——
+    # 否则命中率统计只读 prompt_tokens_details.cached_tokens，Responses 的缓存
+    # 明细会被静默漏掉。缺失的字段不补 0——「provider 未报告」与「报告为 0」
+    # 必须可区分。
+    for source, target in (
+        ("input_tokens_details", "prompt_tokens_details"),
+        ("output_tokens_details", "completion_tokens_details"),
+    ):
+        details = usage.get(source)
         if isinstance(details, dict):
-            translated[key] = dict(details)
+            translated[target] = dict(details)
     return translated
 
 

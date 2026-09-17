@@ -415,7 +415,9 @@ async def test_wrap_responses_stream_captures_usage_with_cache_details():
 
     assert client.last_usage["prompt_tokens"] == 100
     assert client.last_usage["completion_tokens"] == 7
-    assert client.last_usage["input_tokens_details"]["cached_tokens"] == 96
+    # Responses 细项翻译成 chat 后端的键名，telemetry 的 prompt_tokens_details
+    # 解析对两个后端一致。
+    assert client.last_usage["prompt_tokens_details"]["cached_tokens"] == 96
 
 
 def test_translate_responses_usage():
@@ -424,6 +426,23 @@ def test_translate_responses_usage():
         "completion_tokens": 4,
         "total_tokens": 7,
     }
+
+
+def test_responses_usage_is_readable_by_telemetry_cache_parser():
+    """Responses 的 usage 翻译成 chat 形状后，telemetry 缓存命中解析同样生效。"""
+    from cloudra.services.telemetry import cached_tokens_of
+
+    usage = _translate_responses_usage(
+        {
+            "usage": {
+                "input_tokens": 1000,
+                "output_tokens": 50,
+                "input_tokens_details": {"cached_tokens": 896},
+            }
+        }
+    )
+    assert usage["prompt_tokens_details"]["cached_tokens"] == 896
+    assert cached_tokens_of(usage) == 896
 
 
 @pytest.mark.asyncio
