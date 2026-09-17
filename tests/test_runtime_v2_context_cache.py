@@ -748,8 +748,8 @@ def test_responses_usage_preserves_cache_details():
     assert usage["prompt_tokens"] == 1000
     assert usage["completion_tokens"] == 50
     assert usage["total_tokens"] == 1050
-    assert usage["input_tokens_details"]["cached_tokens"] == 896
-    assert usage["output_tokens_details"]["reasoning_tokens"] == 20
+    assert usage["prompt_tokens_details"]["cached_tokens"] == 896
+    assert usage["completion_tokens_details"]["reasoning_tokens"] == 20
 
 
 def test_responses_usage_missing_cache_details_stays_absent():
@@ -761,8 +761,8 @@ def test_responses_usage_missing_cache_details_stays_absent():
     )
     assert usage["prompt_tokens"] == 10
     assert usage["total_tokens"] == 15
-    assert "input_tokens_details" not in usage
-    assert "output_tokens_details" not in usage
+    assert "prompt_tokens_details" not in usage
+    assert "completion_tokens_details" not in usage
 
 
 def test_responses_usage_zero_cached_tokens_preserved():
@@ -777,7 +777,7 @@ def test_responses_usage_zero_cached_tokens_preserved():
             }
         }
     )
-    assert usage["input_tokens_details"]["cached_tokens"] == 0
+    assert usage["prompt_tokens_details"]["cached_tokens"] == 0
 
 
 def _sse_response(payload: str):
@@ -804,8 +804,8 @@ def test_responses_stream_final_chunk_preserves_cache_details():
     chunks = list(_responses_stream_events(_sse_response(payload), holder))
     assert chunks[-1]["completion"]["choices"][0]["finish_reason"] == "stop"
     assert holder.usage["prompt_tokens"] == 120
-    assert holder.usage["input_tokens_details"]["cached_tokens"] == 96
-    assert holder.usage["output_tokens_details"]["reasoning_tokens"] == 0
+    assert holder.usage["prompt_tokens_details"]["cached_tokens"] == 96
+    assert holder.usage["completion_tokens_details"]["reasoning_tokens"] == 0
 
 
 def test_responses_stream_final_chunk_missing_details_stays_absent():
@@ -819,7 +819,7 @@ def test_responses_stream_final_chunk_missing_details_stays_absent():
     holder = SimpleNamespace(web_search_log=[], usage=None)
     list(_responses_stream_events(_sse_response(payload), holder))
     assert holder.usage["prompt_tokens"] == 12
-    assert "input_tokens_details" not in holder.usage
+    assert "prompt_tokens_details" not in holder.usage
 
 
 # ---------------------------------------------------------------------------

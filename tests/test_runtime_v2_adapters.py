@@ -882,14 +882,14 @@ def test_legacy_agent_bridge_falls_back_to_default_workspace():
 @pytest.mark.asyncio
 async def test_usage_cache_details_pass_through_to_response():
     """LLMResponse.usage 保留 client.last_usage 的原始缓存细项（不丢
-    input_tokens_details.cached_tokens），缺失也不补 0。"""
+    prompt_tokens_details.cached_tokens），缺失也不补 0。"""
 
     class FakeClient:
         last_usage = {
             "prompt_tokens": 100,
             "completion_tokens": 5,
             "total_tokens": 105,
-            "input_tokens_details": {"cached_tokens": 80},
+            "prompt_tokens_details": {"cached_tokens": 80},
         }
 
         async def create_with_retry(self, **kwargs):
@@ -897,5 +897,5 @@ async def test_usage_cache_details_pass_through_to_response():
 
     provider = LegacyLLMProvider(client_factory=lambda settings: FakeClient())
     response = await provider.complete(_js_agent("traditional"), [{"role": "user", "content": "hi"}], ["stop"])
-    assert response.usage["input_tokens_details"]["cached_tokens"] == 80
+    assert response.usage["prompt_tokens_details"]["cached_tokens"] == 80
     assert response.usage["prompt_tokens"] == 100
