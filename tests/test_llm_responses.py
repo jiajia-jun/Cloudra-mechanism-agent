@@ -87,19 +87,58 @@ def test_build_responses_payload_omits_reasoning_when_unset():
     assert "reasoning" not in payload
 
 
-def test_build_responses_payload_preserves_js_system_layers_and_serial_flag():
+def test_build_responses_payload_preserves_leading_system_layers_and_serial_flag():
+    """开头连续的 system 层（角色身份 + JS 协议）都进入 instructions。"""
     payload = _build_responses_payload({
         **_kwargs(),
         "messages": [
             {"role": "system", "content": "role identity"},
-            {"role": "user", "content": "user must stay input"},
             {"role": "system", "content": "javascript protocol"},
+            {"role": "user", "content": "user must stay input"},
         ],
         "parallel_tool_calls": False,
     })
     assert payload["instructions"] == "role identity\n\njavascript protocol"
     assert "user must stay input" not in payload["instructions"]
     assert payload["parallel_tool_calls"] is False
+
+
+def test_build_responses_payload_keeps_late_system_inline_for_cache():
+    """对话开始后追加的 system 快照必须留在 input 原位，不得提升到 instructions。
+
+    DeepSeek 把 instructions 插到「第一条 system 消息」位置；提升会导致 input
+    之前插入新 token，打断 append-only 前缀，使其后的整段 input 无法命中
+    DeepSeek 的边界缓存单元。
+    """
+    payload = _build_responses_payload({
+        **_kwargs(),
+        "messages": [
+            {"role": "system", "content": "role identity"},
+            {"role": "user", "content": "u1"},
+            {"role": "assistant", "content": "a1"},
+            {"role": "user", "content": "u2"},
+            {"role": "system", "content": "workspace update"},
+            {"role": "user", "content": "u3"},
+        ],
+    })
+    assert payload["instructions"] == "role identity"
+    roles = [item["role"] for item in payload["input"]]
+    assert roles == ["user", "assistant", "user", "system", "user"]
+    assert payload["input"][3]["content"] == [{"type": "input_text", "text": "workspace update"}]
+
+
+def test_build_responses_payload_stays_append_only_when_system_appended():
+    """前缀追加（含动态 system 快照）后，序列化输入必须以上一请求为完整前缀。"""
+    base = [
+        {"role": "system", "content": "role identity"},
+        {"role": "user", "content": "u1"},
+        {"role": "assistant", "content": "a1"},
+        {"role": "user", "content": "u2"},
+    ]
+    first = _build_responses_payload(_kwargs(messages=base))
+    second = _build_responses_payload(_kwargs(messages=[*base, {"role": "system", "content": "workspace update"}, {"role": "user", "content": "u3"}]))
+    assert second["instructions"] == first["instructions"]
+    assert second["input"][: len(first["input"])] == first["input"]
 
 
 def test_build_responses_payload_roundtrips_tool_turn():
@@ -340,6 +379,43 @@ async def test_stream_emits_web_search_status_mid_stream():
         pass
 
     assert statuses == [("web_search", {"query": "光子时间晶体 2026"})]
+
+
+@pytest.mark.asyncio
+async def test_wrap_responses_stream_captures_usage_with_cache_details():
+    """流式收尾必须把 usage（含 cached_tokens）落到 client.last_usage。
+
+    回归：旧实现用 _extract_usage(holder.usage) 处理已是 usage dict 的
+    holder.usage，返回 None，导致所有 Responses 调用 usage 为空、缓存命中率
+    与成本遥测全 0。
+    """
+    from cloudra.infra.llm_client import LLMClient, _StreamHandle
+
+    client = LLMClient(api_key="k", base_url="https://api.deepseek.com", model="m")
+    events = [
+        {"type": "response.output_text.delta", "delta": "hi"},
+        {
+            "type": "response.completed",
+            "response": {
+                "status": "completed",
+                "output": [],
+                "usage": {
+                    "input_tokens": 100,
+                    "output_tokens": 7,
+                    "input_tokens_details": {"cached_tokens": 96},
+                },
+            },
+        },
+    ]
+    resp = _FakeResp(events)
+    holder = SimpleNamespace(web_search_log=[], usage=None)
+    gen = _responses_stream_events(resp, holder)
+    async for _ in client._wrap_responses_stream((gen, holder, _StreamHandle(resp))):
+        pass
+
+    assert client.last_usage["prompt_tokens"] == 100
+    assert client.last_usage["completion_tokens"] == 7
+    assert client.last_usage["input_tokens_details"]["cached_tokens"] == 96
 
 
 def test_translate_responses_usage():

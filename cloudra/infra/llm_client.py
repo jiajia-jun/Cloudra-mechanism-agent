@@ -815,7 +815,12 @@ class LLMClient:
                     emitted = await self._emit_new_web_searches(holder, emitted)
                 emitted = await self._emit_new_web_searches(holder, emitted)
                 if holder.usage:
-                    self._last_usage = self._extract_usage(holder.usage)
+                    # holder.usage 已是 _translate_responses_usage 产出的 usage
+                    # dict（input_tokens_details 已保留），不能再过 _extract_usage
+                    # ——它按「响应对象/含 usage 键的 dict」取值，会把本对象判成
+                    # 无 usage 而返回 None，导致所有 Responses 调用的 token 与缓存
+                    # 明细丢失（命中率/成本遥测全 0）。
+                    self._last_usage = holder.usage
             finally:
                 self._inflight_streams.discard(handle)
                 handle.abort()
@@ -1077,13 +1082,31 @@ def _build_responses_payload(kwargs: dict) -> dict:
 
     instruction_parts: list[str] = []
     input_items: list[dict] = []
+    # 只有**开头连续**的 system 消息进入 ``instructions``（静态协议）。DeepSeek
+    # 把 instructions 作为「第一条 system 消息」插到最前面，任何出现在对话
+    # 之后的动态 system 快照（工作区观察更新、DAG/通知等）若也被提升进
+    # instructions，就会在 input 之前插入新 token，把 append-only 前缀打断：
+    # DeepSeek 的边界缓存单元要求完整匹配，前缀一提早分歧，其后整段 input 全部
+    # 以 cache-miss 计费。这类追加的 system 快照必须留在 input 原位（Responses
+    # 的 message item 支持 system role），保持 token 顺序只追加。
+    leading_system = True
     for msg in kwargs.get("messages") or []:
         role = msg.get("role")
         content = msg.get("content")
         if role == "system":
-            if content:
-                instruction_parts.append(content if isinstance(content, str) else str(content))
+            if leading_system:
+                if content:
+                    instruction_parts.append(content if isinstance(content, str) else str(content))
+                continue
+            input_items.append(
+                {
+                    "type": "message",
+                    "role": "system",
+                    "content": _responses_message_content(content),
+                }
+            )
             continue
+        leading_system = False
         if role in ("user", "assistant", "developer"):
             reasoning = msg.get("reasoning_content")
             if role == "assistant" and reasoning:
