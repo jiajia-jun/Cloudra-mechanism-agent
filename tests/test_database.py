@@ -107,7 +107,7 @@ def test_compute_db_init_creates_central_schema(isolated_db):
         columns = {row[1] for row in con.execute("PRAGMA table_info(compute_jobs)")}
         assert {
             "id", "conversation_id", "session_id", "state", "path",
-            "start_timestamp", "end_timestamp", "jobtype", "scheduler",
+            "start_timestamp", "end_timestamp", "jobtype", "node_id", "scheduler",
             "scheduler_options", "scheduler_job_id", "scheduler_state",
             "scheduler_script", "last_error", "lease_owner", "lease_expires_at",
             "attempt_count", "priority", "req_cpus", "req_memory_mb",
@@ -125,6 +125,21 @@ def test_compute_db_init_creates_central_schema(isolated_db):
         ).fetchone()[0] == 1
         cur = con.execute("PRAGMA journal_mode")
         assert cur.fetchone()[0].upper() == "WAL"
+
+
+def test_compute_job_projection_matches_schema_order(isolated_db):
+    """``compute_store._COMPUTE_JOB_COLUMNS`` 必须与建表列**同序**一一对应。
+
+    dict 行是按位置 zip 出来的：列顺序漂移（少写一列、插入位置不同）不会报错，
+    只会让每一行静默错位——这正是"唯一事实源"最该被钉住的地方。
+    """
+    from cloudra.services.compute_store import _COMPUTE_JOB_COLUMNS
+
+    db = ComputeDB().init()
+    with db.connect() as con:
+        columns = [row[1] for row in con.execute("PRAGMA table_info(compute_jobs)")]
+
+    assert list(_COMPUTE_JOB_COLUMNS) == columns
 
 
 def test_compute_db_from_path_bypasses_config(tmp_path):
