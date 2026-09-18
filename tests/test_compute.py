@@ -1680,3 +1680,44 @@ def test_calculator_sh_real_orca_space_parent_directory_control(tmp_path):
     assert fixed.returncode == 0, fixed.stdout + fixed.stderr
     assert "ORCA TERMINATED NORMALLY" in fixed.stdout
     assert "ORCA" in fixed.stdout  # 版本横幅在 stdout 中留证
+
+
+def test_compute_jobs_lazy_connect_heals_drifted_schema(tmp_path):
+    """读路径从不 init/ainit（GH #40 线程，实机 /compute/jobs 500）：
+    旧库缺新列时，首个连接必须自愈 schema 并正常返回既有行（ALTER 补列保数据）。"""
+    import contextlib
+    import sqlite3
+
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.services.compute_store import list_compute_jobs
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    db_path = str(data_dir / "compute.db")
+    with contextlib.closing(sqlite3.connect(db_path)) as con:
+        con.execute(
+            "CREATE TABLE compute_jobs ("
+            " id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            " conversation_id TEXT, session_id TEXT, state TEXT,"
+            " path TEXT, start_timestamp REAL, end_timestamp REAL,"
+            " jobtype TEXT, scheduler TEXT, scheduler_options TEXT,"
+            " scheduler_job_id TEXT, scheduler_state TEXT, scheduler_script TEXT,"
+            " last_error TEXT, lease_owner TEXT, lease_expires_at REAL,"
+            " attempt_count INTEGER NOT NULL DEFAULT 0,"
+            " priority INTEGER NOT NULL DEFAULT 5,"
+            " req_cpus INTEGER NOT NULL DEFAULT 1,"
+            " req_memory_mb INTEGER, guard_pid INTEGER, calc_pid INTEGER,"
+            " notified_at REAL)"
+        )
+        con.execute(
+            "INSERT INTO compute_jobs (conversation_id, state, jobtype, start_timestamp)"
+            " VALUES ('p', 'done', 'orca', 1.0)"
+        )
+        con.commit()
+
+    db = ComputeDB(str(data_dir))
+    rows = list_compute_jobs(db)  # 不调 init——读路径首连自愈
+    assert len(rows) == 1
+    with contextlib.closing(sqlite3.connect(db_path)) as con:
+        cols = {row[1] for row in con.execute("PRAGMA table_info(compute_jobs)")}
+    assert {"charge", "multiplicity", "xtb_task", "xtb_solvent"} <= cols

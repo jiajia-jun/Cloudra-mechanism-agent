@@ -520,6 +520,10 @@ class ComputeDB:
         # data_dir 覆盖仅供测试/多实例场景注入；默认在构造时经 paths 惰性解析配置
         self.data_dir = data_dir
         self.path = str(paths.compute_db_path(data_dir))
+        # 每实例一次的懒 schema 自愈标记：读路径（路由/轮询）只构造实例后
+        # 直接 aconnect，从不 init/ainit——旧库缺新列时首批查询即
+        # OperationalError（GH #40 线程，实机 /compute/jobs 500）。
+        self._schema_checked = False
 
     @classmethod
     def from_path(cls, path: str) -> "ComputeDB":
@@ -527,12 +531,30 @@ class ComputeDB:
         instance = cls.__new__(cls)
         instance.data_dir = None
         instance.path = path
+        instance._schema_checked = False
         return instance
 
     def ensure_dir(self) -> "ComputeDB":
         """确保数据库所在目录存在。"""
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
         return self
+
+    def _ensure_compute_schema(self) -> None:
+        """连接前的一次性 schema 自愈：建表 + 幂等补列（与 init/ainit 同一套）。
+
+        init/ainit 里的建表与迁移对只读消费方从不生效，故在首个连接上
+        执行同一套幂等逻辑；每实例恰好一次（``_schema_checked``）。
+        """
+        with contextlib.closing(
+            sqlite3.connect(self.path, timeout=DEFAULT_BUSY_TIMEOUT)
+        ) as con:
+            con.execute(f"PRAGMA busy_timeout={int(DEFAULT_BUSY_TIMEOUT * 1000)};")
+            cur = con.cursor()
+            cur.execute(_CREATE_COMPUTE_JOBS)
+            cur.execute(_CREATE_COMPUTE_JOBS_CLAIM_INDEX)
+            cur.execute(_CREATE_COMPUTE_JOBS_NOTIFY_INDEX)
+            self._migrate_compute_schema(cur)
+            con.commit()
 
     def init(self) -> "ComputeDB":
         """初始化数据库：建目录、建表、启用 WAL。"""
@@ -605,6 +627,9 @@ class ComputeDB:
         """返回统一配置且退出时显式关闭的同步 SQLite 连接上下文。"""
         _check_sync_on_loop("connect")
         self.ensure_dir()
+        if not self._schema_checked:
+            self._ensure_compute_schema()
+            self._schema_checked = True
         con = sqlite3.connect(self.path, timeout=timeout)
         try:
             cur = con.cursor()
@@ -620,6 +645,9 @@ class ComputeDB:
     async def aconnect(self, timeout: float = DEFAULT_BUSY_TIMEOUT):
         """返回一个统一配置 busy_timeout 的异步 SQLite 连接上下文。"""
         self.ensure_dir()
+        if not self._schema_checked:
+            await asyncio.to_thread(self._ensure_compute_schema)
+            self._schema_checked = True
         con = await aiosqlite.connect(self.path, timeout=timeout)
         try:
             await con.execute(f"PRAGMA busy_timeout={int(timeout * 1000)};")
@@ -737,9 +765,17 @@ _RELATED_EXTRA_COLUMNS = {
 
 # compute_jobs 只住在中央库（ComputeDB，data_dir/compute.db）；会话库不再建此表。
 # 既有中央库的补列（幂等 ALTER）：建表语句只对新库生效，旧库靠这里升级。
+# 必须与 _CREATE_COMPUTE_JOBS 的列定义保持同步——charge/multiplicity/xtb_*
+# 入 DDL 时漏登此表，旧库首查即 OperationalError（GH #40 线程，
+# 实机 /compute/jobs 500）。
 _COMPUTE_JOB_EXTRA_COLUMNS = {
     # 多节点容量池（v2）：作业归属的注册节点，容量按它分池记账。
     "node_id": "TEXT",
+    # xtb 显式任务参数（xtb 是 CLI 标志驱动，.xyz 不携带这些语义）
+    "charge": "INTEGER NOT NULL DEFAULT 0",
+    "multiplicity": "INTEGER NOT NULL DEFAULT 1",
+    "xtb_task": "TEXT NOT NULL DEFAULT 'sp'",
+    "xtb_solvent": "TEXT",
 }
 
 _CREATE_COMPUTE_JOBS = """
