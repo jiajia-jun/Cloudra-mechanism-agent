@@ -2234,40 +2234,52 @@ def test_composite_full_evidence_full_blend(tmp_path):
 
 def test_run_all_parallel_controlled(tmp_path):
     """concurrency>1：结果按提交顺序返回、崩溃隔离保持、DB 每题落一行（append-only）、
-    并行确实比串行快。"""
+    **并且真的并发**（同刻多题在跑）。
+
+    并发判据用汇合点而不是墙钟：并发 3 时，让每题在 backend 里等"同时有 3 题在跑"
+    才放行——串行/被意外串行化的实现会等不到而失败。墙钟差值（"并行必须快 20%"）
+    在带 --cov 的 CI 格子上会误报：覆盖率 tracer 把每题的固定开销放大，省下的
+    4×0.3s 睡眠被开销吃掉，曾实测出 parallel 1.466s vs serial 1.330s 的假失败。
+    """
     import sqlite3
-    import time
+    import threading
 
     from cloudra.benchmark.runner import BenchmarkRunner
 
     tasks = gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)[:5]
 
+    concurrency = 3
+    lock = threading.Lock()
+    started = threading.Event()
+    in_flight = 0
+    max_in_flight = 0
+
     def backend(task, sandbox):
+        nonlocal in_flight, max_in_flight
         sandbox.mkdir(parents=True, exist_ok=True)
         if task.task_id == tasks[1].task_id:
-            raise RuntimeError("boom")
-        time.sleep(0.3)
+            raise RuntimeError("boom")  # 崩溃题不参与汇合
+        with lock:
+            in_flight += 1
+            max_in_flight = max(max_in_flight, in_flight)
+            if in_flight >= concurrency:
+                started.set()
+        # 串行实现会在这里等到超时（Event 永不置位），由下面的断言定性
+        started.wait(timeout=10)
+        with lock:
+            in_flight -= 1
         return None
 
-    # 先用同一台机器、同一批任务测一个串行基线：绝对墙钟阈值在慢/高负载 CI
-    # 上会误报，改成同机串行 vs 并行的相对比较，容差留足 CI 抖动余量。
-    serial_runner = BenchmarkRunner(tmp_path / "bench_serial", backend=backend)
-    ts0 = time.monotonic()
-    serial_results = serial_runner.run_all(tasks, concurrency=1)
-    serial_dt = time.monotonic() - ts0
-    assert [r.task_id for r in serial_results] == [t.task_id for t in tasks]
-
     runner = BenchmarkRunner(tmp_path / "bench", backend=backend)
-    t0 = time.monotonic()
-    results = runner.run_all(tasks, concurrency=3)
-    dt = time.monotonic() - t0
+    results = runner.run_all(tasks, concurrency=concurrency)
+
+    assert started.is_set(), (
+        f"runner did not run tasks concurrently: peak in-flight {max_in_flight} "
+        f"< concurrency {concurrency}"
+    )
     assert [r.task_id for r in results] == [t.task_id for t in tasks]
     assert any("boom" in n for n in results[1].notes)
     assert results[1].final_score == 0.0  # 崩溃题 0 分，不是 no_evidence_penalty
-    # 串行 4×0.3s≈1.2s+，并发 3 应显著更快：并行耗时须低于同机串行基线的
-    # 80%（相对判据，不受 CI 绝对速度影响）。
-    assert serial_dt > 0.0
-    assert dt < serial_dt * 0.8, f"parallel {dt:.3f}s vs serial {serial_dt:.3f}s"
     with sqlite3.connect(runner.db.db_path) as c:
         assert c.execute("SELECT COUNT(*) FROM runs").fetchone()[0] == 5
 
