@@ -66,7 +66,8 @@ class LLMConfig(BaseSettings):
     # 原生搜索注入参数（verbatim 写入 extra_body）。custom 与无原生搜索的服务商
     # （如中转站 DeepSeek）用它指定 {plugins/ web_search_options / tools} 等字段。
     native_search_params: dict = Field(default_factory=dict)
-    # 模型真实上下文窗口（token 数）：上下文压缩阈值按 window // 2 计算。
+    # 模型真实上下文窗口（token 数）：上下文压缩的可用容量按
+    # (context_window − max_tokens) × 85% 估算（runtime_v2/compaction.py）。
     # 默认偏保守：宁可比服务商标称窗口略小、早一点压缩，也不让对话拖成
     # 脏上下文；按模型性质覆盖请改 config.yaml / `cloudra config set`。
     context_window: int = 200000

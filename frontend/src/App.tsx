@@ -973,7 +973,7 @@ export default function App() {
         if (lower.startsWith('/compact')) {
           setDraft('');
           if (activeAgent) {
-            await api.compactAgent(activeAgent.id, 6);
+            await api.compactAgent(activeAgent.id);
             pushToast('ok', 'Context compaction requested');
           }
           return;
@@ -2570,7 +2570,6 @@ function Inspector({
   const [goal, setGoal] = useState<GoalForm>(EMPTY_GOAL);
   const [goalLoaded, setGoalLoaded] = useState(false);
   const [stats, setStats] = useState<ContextStats | null>(null);
-  const [keepRecent, setKeepRecent] = useState(20);
   const [skills, setSkills] = useState<Array<Record<string, unknown>>>([]);
   const [dagSummary, setDagSummary] = useState<{
     mode: string;
@@ -3356,21 +3355,15 @@ function Inspector({
 
                   <div className="ctx-section">
                     <div className="ctx-title">Compact context</div>
-                    <label className="field">
-                      keep_recent
-                      <input
-                        className="input"
-                        type="number"
-                        min={1}
-                        value={keepRecent}
-                        onChange={(e) => setKeepRecent(Math.max(1, Number(e.target.value) || 1))}
-                      />
-                    </label>
+                    <div className="empty-hint">
+                      Replaces the whole conversation history with one structured
+                      summary (applies on the next turn).
+                    </div>
                     <button
                       className="btn outline sm"
                       onClick={async () => {
                         try {
-                          await api.compactAgent(activeAgent.id, keepRecent);
+                          await api.compactAgent(activeAgent.id);
                           onToast('ok', 'Compaction queued — applies on the next turn');
                         } catch (e) {
                           onError(e);

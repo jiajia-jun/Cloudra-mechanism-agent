@@ -76,7 +76,10 @@ def llm_call_from_event(event: dict[str, Any]) -> Optional[dict[str, Any]]:
     """``llm.completed`` 事件 → 归一化调用记录；其它类型返回 None。
 
     缺/坏 usage 容错：token 字段按 0 计，``has_usage=False``；model 缺失
-    （历史数据 bug 期）归进 ``unknown`` 桶。
+    （历史数据 bug 期）归进 ``unknown`` 桶。``kind`` 区分主 agent 请求
+    （agent）与压缩摘要请求（summary，由
+    ``compaction.summarize_with_agent_settings`` 打标）——压缩成本是真实
+    开销，计入总量但单独报告，避免"压缩省钱"变成看不见的支出。
     """
     if event.get("type") != "llm.completed":
         return None
@@ -90,11 +93,13 @@ def llm_call_from_event(event: dict[str, Any]) -> Optional[dict[str, Any]]:
     completion = _to_int(usage.get("completion_tokens")) or 0
     cached = cached_tokens_of(usage)
     model = data.get("model")
+    kind = data.get("kind")
     return {
         "session_id": event.get("session_id"),
         "project_id": event.get("project_id"),
         "run_id": event.get("run_id"),
         "created_at": event.get("created_at"),
+        "kind": kind if isinstance(kind, str) and kind else "agent",
         "model": model if isinstance(model, str) and model else UNKNOWN_MODEL,
         "prompt_tokens": prompt,
         "completion_tokens": completion,
@@ -210,6 +215,10 @@ def aggregate_tokens(
     totals = _aggregate_group(calls)
     totals["sessions"] = len(by_session)
     totals["projects"] = len(by_project)
+    # 压缩摘要请求单独报告（计入 totals，不另算一套总量）。
+    totals["summary"] = _aggregate_group(
+        [c for c in calls if c.get("kind") == "summary"]
+    )
     return {"since": since, "until": until, "totals": totals, "agents": agents, "projects": projects}
 
 

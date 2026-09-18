@@ -78,11 +78,10 @@ _CONTEXT_OVERFLOW_MARKERS = (
     "payload size exceeds",
 )
 
-# How many trailing messages the emergency compaction keeps verbatim.  Smaller
-# than the manual default (20) because a run that already overflowed the
-# window needs an aggressive cut; the recent tail usually contains the largest
-# tool results.
-EMERGENCY_COMPACT_KEEP_RECENT = 10
+# 预算触发的重试闸门：一次压缩被拒后，投影要再长出可用预算的这个比例才
+# 重新尝试。拒因（结构校验失败/摘要不缩短/合并容量不足）在同样输入上会同样
+# 失败，逐轮重试只是把整段轨迹反复喂给摘要模型。
+COMPACT_RETRY_GROWTH = 0.10
 
 # 同一 run 内"同状态无进展退出"的上限：completion gate 连续以相同缺口指纹
 # 拒绝结束达到该次数后，run 落 failed（可恢复非成功状态）并提示用户，
@@ -136,6 +135,9 @@ class AgentRunner:
         # 无进展退出计数：session_id -> (run_id, 缺口指纹, 连续次数)。
         # 刻意易失（见模块 docstring）。
         self._exit_strikes: dict[str, tuple[str, str, int]] = {}
+        # 压缩被拒时的投影 token 规模：session_id -> tokens。预算触发的重试
+        # 闸门（_compaction_retry_due）；刻意易失，重启后允许立即重试一次。
+        self._compact_refusals: dict[str, int] = {}
 
     # ------------------------------------------------------------------ public
 
@@ -265,7 +267,11 @@ class AgentRunner:
                     restored=contexts.prefix_state(agent.id),
                 )
             turns = 0
-            from cloudra.runtime_v2.compaction import context_over_budget
+            from cloudra.runtime_v2.compaction import (
+                context_over_budget,
+                estimate_messages_tokens,
+                usable_prompt_tokens,
+            )
 
             while agent.state is AgentState.RUNNING:
                 inbox_messages = self._drain_inbox(agent)
@@ -278,15 +284,14 @@ class AgentRunner:
                     self._prepare_inbox_messages, agent, inbox_messages
                 )
                 if contexts.current_messages(agent.id):
-                    keep_recent = core.pending_compactions.get(agent.id)
-                    if keep_recent is not None:
-                        core.pending_compactions.pop(agent.id, None)
+                    if agent.id in core.pending_compactions:
+                        core.pending_compactions.discard(agent.id)
                         await self._apply_compaction(
-                            agent, run_id, keep_recent, context_prefix=context_prefix
+                            agent, run_id, context_prefix=context_prefix
                         )
-                # 预算触发（Task 5）：达到上下文预算即压缩——估算用现有
-                # context_window 与输出预算并留余量；压缩被拒（不缩短/校验
-                # 失败/容量不足）时保留原上下文，下个轮次边界重新评估。
+                # 预算触发：达到上下文预算即压缩——估算用现有 context_window
+                # 与输出预算并留余量。压缩被拒时保留原上下文，且要等投影再
+                # 长出 COMPACT_RETRY_GROWTH 才重试（同样的输入只会同样失败）。
                 # 容量判定用生效设置：spawn 快照里 context_window=0 表示未
                 # 设置，真实窗口由 provider 桥接从 config 槽位补全。
                 current = contexts.current_messages(agent.id)
@@ -297,13 +302,20 @@ class AgentRunner:
                         context_window=effective.context_window,
                         max_output=effective.max_tokens,
                     ):
-                        await self._apply_compaction(
-                            agent,
-                            run_id,
-                            EMERGENCY_COMPACT_KEEP_RECENT,
-                            trigger="budget",
-                            context_prefix=context_prefix,
+                        budget_tokens = usable_prompt_tokens(
+                            effective.context_window, effective.max_tokens
                         )
+                        if self._compaction_retry_due(
+                            agent.id,
+                            estimate_messages_tokens(current),
+                            budget_tokens,
+                        ):
+                            await self._apply_compaction(
+                                agent,
+                                run_id,
+                                trigger="budget",
+                                context_prefix=context_prefix,
+                            )
                 attempt = 0
                 overflow_compacted = False
                 while True:
@@ -327,13 +339,11 @@ class AgentRunner:
                     except Exception as exc:
                         current = contexts.current_messages(agent.id)
                         if current and _is_context_length_error(exc) and not overflow_compacted:
-                            # 统一的一次全量压缩（Task 5：不再分上一章节/当前
-                            # 尾部两套策略）；压缩被拒（不缩短/校验失败/容量
-                            # 不足）= 同一输入无进展，不重复压缩。
+                            # 统一的一次全量压缩；压缩被拒（不缩短/校验失败/
+                            # 容量不足）= 同一输入无进展，本 run 不重复压缩。
                             stats = await self._apply_compaction(
                                 agent,
                                 run_id,
-                                keep_recent=EMERGENCY_COMPACT_KEEP_RECENT,
                                 trigger="context_overflow",
                                 context_prefix=context_prefix,
                             )
@@ -804,11 +814,24 @@ class AgentRunner:
             return resolver(agent)
         return agent.settings
 
+    def _compaction_retry_due(
+        self, session_id: str, tokens_now: int, budget_tokens: int
+    ) -> bool:
+        """预算触发闸门：上次被拒后投影需再长出预算的 ``COMPACT_RETRY_GROWTH``。
+
+        同一份输入重跑摘要只会得到同样的拒绝（且每次都要把整段轨迹重新
+        喂给摘要模型），所以按"有实质新进展"放行，而不是逐轮重试。
+        """
+        refused_at = self._compact_refusals.get(session_id)
+        if refused_at is None:
+            return True
+        step = max(int(budget_tokens * COMPACT_RETRY_GROWTH), 1024)
+        return tokens_now - refused_at >= step
+
     async def _apply_compaction(
         self,
         agent: AgentSession,
         run_id: str,
-        keep_recent: int,
         trigger: str = "manual",
         *,
         context_prefix=None,
@@ -816,6 +839,7 @@ class AgentRunner:
         from cloudra.runtime_v2.compaction import (
             SUMMARY_EVENT_CAP,
             compact_context,
+            estimate_messages_tokens,
             summarize_with_agent_settings,
         )
 
@@ -834,7 +858,6 @@ class AgentRunner:
             session_id=agent.id,
             run_id=run_id,
             data={
-                "keep_recent": keep_recent,
                 "history_messages": len(history),
                 "trigger": trigger,
             },
@@ -843,7 +866,9 @@ class AgentRunner:
         handoff_text = ""
 
         async def summarizer(messages):
-            return await summarize_with_agent_settings(agent, messages)
+            return await summarize_with_agent_settings(
+                agent, messages, event_log=core.event_log, run_id=run_id
+            )
 
         # 压缩是上下文边界：harness 前缀按当前状态重新装配（动态快照取最新），
         # 当前 pin 通知重渲染进新上下文的头部。
@@ -861,7 +886,6 @@ class AgentRunner:
                 history,
                 head=head,
                 notices=notices_render,
-                keep_recent=keep_recent,
                 summarize=summarizer,
                 context_window=settings.context_window,
                 max_output=settings.max_tokens,
@@ -922,6 +946,11 @@ class AgentRunner:
             finished["handoff_path"] = handoff_path
         if handoff_text:
             finished["summary"] = handoff_text[:SUMMARY_EVENT_CAP]
+        if finished.get("compacted"):
+            self._compact_refusals.pop(agent.id, None)
+        else:
+            # 记下被拒时的投影规模：预算触发要等投影再长出新进展才重试。
+            self._compact_refusals[agent.id] = estimate_messages_tokens(history)
         core.event_log.append(
             "compaction.finished",
             stream="agent",
@@ -960,7 +989,8 @@ class AgentRunner:
                         f"before_messages={stats.get('before_messages')} "
                         f"after_messages={stats.get('after_messages')} "
                         f"segments={len(stats.get('segments') or [])} "
-                        f"instruction_messages={stats.get('instruction_messages')}\n\n"
+                        f"trajectory_tokens={stats.get('trajectory_tokens')} "
+                        f"summary_tokens={stats.get('summary_tokens')}\n\n"
                         f"{handoff_text}\n"
                     )
                 return rel_path

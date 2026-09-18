@@ -71,7 +71,8 @@ _AGENT_HUB_GUIDANCE = (
 # 执行型角色（coordinator / 计算专家）注入完整版：强调落盘 handoff
 _CONTEXT_HANDOFF_GUIDANCE = (
     "## Context and handoff notes (important)\n"
-    "On long tasks, conversation history is compacted automatically; **recent tool-call transcripts are not kept**. "
+    "On long tasks the whole earlier conversation is compacted automatically into one structured summary — "
+    "**user instructions, your own replies, tool calls and tool results are all replaced, and nothing stays verbatim**. "
     "Recoverable state must live in workspace files — do not rely on it remaining in context:\n"
     "- After each meaningful stage, write/update a handoff note (prefer `HANDOFF.md` or `progress.md` in the task directory): "
     "goal, completed steps, key absolute paths, job IDs, numeric conclusions, next steps and blockers;\n"

@@ -232,7 +232,7 @@ async def test_quiescent_state_snapshot_restore_equals_pure_replay(tmp_path):
         Command(
             type="agent.compact",
             target={"session_id": coord.id},
-            payload={"keep_recent": 5},
+            payload={},
         )
     )
     # 无留言 cancel（p2 的 queued coordinator）

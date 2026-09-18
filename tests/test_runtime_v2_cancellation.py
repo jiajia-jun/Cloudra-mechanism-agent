@@ -167,7 +167,7 @@ async def test_cancel_during_compaction_stops_summary_request(monkeypatch):
             Command(
                 type="agent.compact",
                 target={"session_id": agent.id},
-                payload={"keep_recent": 1},
+                payload={},
             )
         )
         llm.gate.set()

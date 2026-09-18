@@ -265,10 +265,8 @@ async def test_compaction_downgrades_image_parts():
         },
         {"role": "assistant", "content": "done"},
     ]
-    # 让轨迹真实长于摘要：大 assistant 段 + 第二条指令（把尾部收窄到最后
-    # 一章），否则活动章节覆盖一切、没有可压缩的轨迹
+    # 让轨迹真实长于摘要：加一段大 assistant 段，否则摘要不比轨迹短。
     history.insert(1, {"role": "assistant", "content": "y" * 5000})
-    history.insert(-1, {"role": "user", "content": "next step"})
     seen: list[list[dict]] = []
 
     async def fake_summarize(messages, **_kwargs):
@@ -289,7 +287,6 @@ async def test_compaction_downgrades_image_parts():
         history,
         head=[],
         notices=[],
-        keep_recent=1,
         summarize=fake_summarize,
         context_window=200_000,
         max_output=32_768,
@@ -300,8 +297,10 @@ async def test_compaction_downgrades_image_parts():
     assert "[Image: image/png attachment omitted during compaction]" in serialized
     assert "[Image rendered at: /tmp/render2.png]" in serialized
     assert "rendered: /tmp/render.png" in serialized
-    # 逐字尾部保持部件原样（只有被摘要的轨迹段做文本降级）
-    assert new_context[-1]["content"] == "done"
+    # 全部历史折叠成一条摘要消息：投影里不再留任何原文部件
+    assert len(new_context) == 1
+    assert new_context[0]["role"] == "assistant"
+    assert new_context[0]["content"].startswith("[Context compact]")
 
 
 @pytest.mark.asyncio

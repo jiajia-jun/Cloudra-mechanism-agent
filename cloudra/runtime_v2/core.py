@@ -211,12 +211,12 @@ class RuntimeCore:
         self.runtime_defaults = RuntimeSettings()
         self.projects: dict[str, Project] = {}
         self.agents: dict[str, AgentSession] = {}
-        # Pending manual compactions (session_id -> keep_recent): an event
-        # projection of compaction.requested — the single writer is
-        # apply_event; run.started's apply expires entries (a new run's
-        # in-memory history is unrelated), the runner consumes at turn
-        # boundaries.  Rebuilt by event replay on restore.
-        self.pending_compactions: dict[str, int] = {}
+        # Pending manual compactions (session ids): an event projection of
+        # compaction.requested — the single writer is apply_event.  The
+        # context is a session-level projection, so a request survives run
+        # boundaries until the runner consumes it at a turn boundary.
+        # Rebuilt by event replay on restore.
+        self.pending_compactions: set[str] = set()
         # Pending approvals / ask_user interactions (events + futures).
         self.pending = PendingBroker(self)
         # v2-native schedule reminders (event projection + asyncio timers /

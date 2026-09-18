@@ -701,6 +701,13 @@ def stats_tokens(since, until, db_path, top):
         f"completion={totals['completion_tokens']}  cached={totals['cached_tokens']}  "
         f"hit={totals['hit_rate'] * 100:.1f}%"
     )
+    summary = totals.get("summary") or {}
+    if summary.get("requests"):
+        console.print(
+            f"[bold]Compaction summaries[/bold]  requests={summary['requests']}  "
+            f"prompt={summary['prompt_tokens']}  completion={summary['completion_tokens']}  "
+            f"total={summary['total_tokens']}  (included in totals)"
+        )
     agents_table = Table(title="By agent (session)", show_header=True, header_style="bold magenta")
     _print_usage_table(agents_table, report["agents"][:top], "session")
     console.print(agents_table)

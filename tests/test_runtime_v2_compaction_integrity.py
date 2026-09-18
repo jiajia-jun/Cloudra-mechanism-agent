@@ -1,8 +1,9 @@
-"""Compact 完整性（Task 5，计划 2026-09-13-harness-cache-continuity）：
+"""Compact 完整性（计划 2026-09-13-harness-cache-continuity）：
 
-统一全轮次压缩、逐字用户原文（指令区）、结构化摘要校验、按容量分段、
-拒替换条件与版本守卫。fake summarizer 证明输入覆盖与原文保留；
-字段齐全不等于语义完整——语义质量由人工/真实模型另行检查。
+全量压缩（含用户指令与工具调用，无逐字保留区）、结构化摘要校验、按容量
+分段、合并载荷分批、拒替换条件与版本守卫。fake summarizer 证明输入覆盖与
+"投影里不再留原文"；字段齐全不等于语义完整——语义质量由人工/真实模型
+另行检查。
 """
 
 from __future__ import annotations
@@ -17,10 +18,13 @@ from cloudra.runtime_v2.compaction import (
     CompactSummaryError,
     compact_context,
     context_over_budget,
+    estimate_messages_tokens,
+    estimate_tokens,
     parse_compact_summary,
     render_compact_summary,
+    render_message_text,
     segment_trajectory,
-    usable_prompt_chars,
+    usable_prompt_tokens,
 )
 
 
@@ -67,10 +71,9 @@ class RecordingSummarizer:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("keep_recent, expected_tail", [(0, 0), (1, 3), (2, 3), (3, 3)])
-async def test_single_user_run_compacts_completed_tools_with_paired_recent_tail(
-    keep_recent, expected_tail
-):
+async def test_full_history_folds_into_one_summary():
+    """全量压缩：用户指令、assistant 工具调用与工具结果一并折叠成一条
+    assistant 摘要消息，投影里不留任何逐字尾部。"""
     instruction = {"role": "user", "content": "finish the entire task", "message_id": "u1"}
     messages = [instruction]
     for index in range(12):
@@ -84,21 +87,27 @@ async def test_single_user_run_compacts_completed_tools_with_paired_recent_tail(
         ])
     summarizer = RecordingSummarizer()
     result, stats = await compact_context(
-        messages, head=[], notices=[], keep_recent=keep_recent,
+        messages, head=[], notices=[],
         summarize=summarizer, context_window=200_000, max_output=32_768,
     )
     assert stats["compacted"] is True
-    assert result[0] == instruction
-    assert stats["tail_messages"] == expected_tail
-    assert len(result) == 2 + expected_tail
-    if expected_tail:
-        assert result[-expected_tail:] == messages[-expected_tail:]
-    assert "old log " * 500 in summarizer.calls[0][-1]["content"]
+    assert stats["trajectory_messages"] == len(messages)
+    # 新上下文只剩一条 assistant 摘要消息
+    assert len(result) == 1
+    assert result[0]["role"] == "assistant"
+    assert result[0]["content"].startswith("[Context compact]")
+    assert not any(m.get("role") == "user" for m in result)
+    # 指令与工具结果逐字进了摘要输入
+    seen = "\n".join(
+        str(m.get("content")) for call in summarizer.calls for m in call
+    )
+    assert "finish the entire task" in seen
+    assert "old log " * 500 in seen
 
 
-def _context_window_for(budget_chars: int) -> tuple[int, int]:
-    """反推一个可用容量约为 budget_chars 的 (context_window, max_output)。"""
-    window = int(budget_chars / 4 / 0.85) + 100
+def _context_window_for(budget_tokens: int) -> tuple[int, int]:
+    """反推一个可用容量约为 budget_tokens 的 (context_window, max_output)。"""
+    window = int(budget_tokens / 0.85) + 100
     return window, 0
 
 
@@ -120,24 +129,21 @@ def _trajectory_context() -> list[dict]:
         {"role": "user", "content": "second correction: report barriers in kcal/mol", "message_id": "msg-u3"},
         {"role": "assistant", "content": "will report in kcal/mol"},
         {"role": "user", "content": big_constraint, "message_id": "msg-u4"},
-        # 最近工具调用按 keep_recent 保留，调用与响应不可拆散
         {"role": "assistant", "content": "", "tool_calls": [{"id": "t2", "name": "bash", "arguments": {"cmd": "tail"}}]},
         {"role": "tool", "tool_call_id": "t2", "content": "job done, barrier 5.0"},
     ]
 
 
 @pytest.mark.asyncio
-async def test_all_rounds_enter_summary_input_and_instructions_stay_verbatim():
-    """三轮目标与纠正、两轮 reminder、>12,000 字符轨迹、末尾关键约束全部
-    进入摘要输入；用户消息（>4,000 字符）逐字保留在指令区且按 message_id
-    保身份；活动工具尾部原样完整。"""
+async def test_all_rounds_enter_summary_input_and_nothing_stays_verbatim():
+    """三轮目标与纠正、两轮 reminder、>12,000 字符轨迹、末尾关键约束、工具
+    调用参数全部进入摘要输入；压缩后的上下文只有一条摘要消息。"""
     messages = _trajectory_context()
     summarizer = RecordingSummarizer()
     new_context, stats = await compact_context(
         messages,
         head=[],
         notices=[],
-        keep_recent=2,
         summarize=summarizer,
         context_window=200_000,
         max_output=32_768,
@@ -151,29 +157,18 @@ async def test_all_rounds_enter_summary_input_and_instructions_stay_verbatim():
     assert "log line\n" * 2000 in summary_input
     # 末尾关键约束（>4,000 字符的用户消息）完整进入摘要输入
     assert "关键约束：" + "不得静默丢弃任何开放事项。" * 300 in summary_input
-    # 指令区：四条用户消息逐字、按 message_id 保身份
-    instructions = [m for m in new_context if m.get("role") == "user"]
-    assert [m.get("message_id") for m in instructions] == [
-        "msg-u1",
-        "msg-u2",
-        "msg-r1",
-        "msg-r2",
-        "msg-u3",
-        "msg-u4",
-    ]
-    for original in messages:
-        if original.get("role") == "user":
-            assert original in instructions
-    # 活动尾部完整保留在最后
-    assert new_context[-2]["tool_calls"] == [{"id": "t2", "name": "bash", "arguments": {"cmd": "tail"}}]
-    assert new_context[-1] == {"role": "tool", "tool_call_id": "t2", "content": "job done, barrier 5.0"}
-    # 摘要消息是 assistant 的 [Context compact] handoff
-    handoff = new_context[len(instructions)]
+    # 用户纠正与工具调用（工具名 + 参数）都在摘要输入里
+    assert "correction: use xtb, not gaussian" in summary_input
+    assert "[Reminder] poll the job again" in summary_input
+    assert "-> call bash" in summary_input
+    # 新上下文只有一条 assistant 的 [Context compact] handoff
+    assert len(new_context) == 1
+    handoff = new_context[0]
     assert handoff["role"] == "assistant"
     assert handoff["content"].startswith("[Context compact]")
     assert "solve the mechanism task" in handoff["content"]
-    assert stats["instruction_messages"] == 6
-    assert stats["tail_messages"] == 2
+    assert stats["handoff_index"] == 0
+    assert stats["trajectory_messages"] == len(messages)
 
 
 @pytest.mark.asyncio
@@ -189,20 +184,19 @@ async def test_single_overlong_message_fully_covered_by_segmentation():
         {"role": "user", "content": "next step"},
         {"role": "assistant", "content": "on it"},
     ]
-    window, output = _context_window_for(8_000)
-    budget = usable_prompt_chars(window, output)
+    window, output = _context_window_for(2_000)
+    budget = usable_prompt_tokens(window, output)
     summarizer = RecordingSummarizer()
     new_context, stats = await compact_context(
         messages,
         head=[],
         notices=[],
-        keep_recent=0,
         summarize=summarizer,
         context_window=window,
         max_output=output,
     )
     assert stats["compacted"] is True
-    # keep_recent=0 时，包括最后一条 assistant 在内的全部轨迹进入摘要
+    # 包括最后一条 assistant 在内的全部轨迹进入摘要
     covered = sorted(
         index for seg in stats["segments"] for index in seg["message_indexes"]
     )
@@ -211,18 +205,20 @@ async def test_single_overlong_message_fully_covered_by_segmentation():
     # 多段 → 段数 + 一次 merge 调用
     assert len(stats["segments"]) >= 2
     assert len(summarizer.calls) == len(stats["segments"]) + 1
-    # 每段不超预算（续接标记开销留出 200 字符）
+    # 每段不超预算（送出的载荷按同一口径估算）
     for seg, call in zip(stats["segments"], segment_calls):
-        assert seg["chars"] <= budget + 200
-        assert len(str(call[-1]["content"])) == seg["chars"]
+        assert seg["tokens"] <= budget
+        assert estimate_tokens(str(call[-1]["content"])) <= budget
     # 全文无丢失：段拼接包含原消息首尾与几乎所有行（切块边界至多断行）
     joined = "\n".join(str(call[-1]["content"]) for call in segment_calls)
     assert big[:500] in joined and big[-500:] in joined
-    assert joined.count("x" * 100) >= 290
+    # 一个字符都没丢（按渲染后的轨迹逐字符核对）
+    expected = sum(render_message_text(m).count("x") for m in messages)
+    assert joined.count("x") == expected
 
 
 @pytest.mark.asyncio
-async def test_user_message_over_4000_chars_never_truncated():
+async def test_user_message_over_4000_chars_is_fully_covered_by_summary_input():
     big = "要求：" + "保留全部上下文。" * 600  # >4,000 字符
     messages = [
         {"role": "user", "content": big, "message_id": "msg-big"},
@@ -233,18 +229,16 @@ async def test_user_message_over_4000_chars_never_truncated():
         messages,
         head=[],
         notices=[],
-        keep_recent=0,
         summarize=summarizer,
         context_window=200_000,
         max_output=32_768,
     )
     assert stats["compacted"] is True
-    instructions = [m for m in new_context if m.get("role") == "user"]
-    assert instructions[0]["content"] == big  # 逐字，无截断标记
-    assert instructions[0]["message_id"] == "msg-big"
+    # 全文逐字进摘要输入（不截断），但不再逐字留在压缩后的上下文里
     assert big in "\n".join(
         str(m.get("content")) for call in summarizer.calls for m in call
     )
+    assert not any(m.get("role") == "user" for m in new_context)
 
 
 # ---------------------------------------------------------------------------
@@ -257,7 +251,6 @@ async def _refusal(messages, summarizer, **kwargs):
         messages,
         head=[],
         notices=[],
-        keep_recent=0,
         summarize=summarizer,
         context_window=kwargs.pop("context_window", 200_000),
         max_output=kwargs.pop("max_output", 32_768),
@@ -314,7 +307,6 @@ async def test_single_object_where_array_is_required_retried_then_recovered():
         messages,
         head=[],
         notices=[],
-        keep_recent=0,
         summarize=summarizer,
         context_window=200_000,
         max_output=32_768,
@@ -372,14 +364,13 @@ def test_shape_note_pins_the_eight_list_fields_as_arrays():
 
 @pytest.mark.asyncio
 async def test_segment_failure_refused_and_reports_segment():
-    window, output = _context_window_for(4_000)
+    window, output = _context_window_for(1_000)
     messages = _trajectory_context()  # 多段
     summarizer = RecordingSummarizer([_summary_json(), RuntimeError("segment boom")])
     new_context, stats = await compact_context(
         messages,
         head=[],
         notices=[],
-        keep_recent=0,
         summarize=summarizer,
         context_window=window,
         max_output=output,
@@ -392,7 +383,7 @@ async def test_segment_failure_refused_and_reports_segment():
 
 @pytest.mark.asyncio
 async def test_merge_failure_refused():
-    window, output = _context_window_for(4_000)
+    window, output = _context_window_for(1_000)
     messages = _trajectory_context()
     calls = []
 
@@ -407,7 +398,6 @@ async def test_merge_failure_refused():
         messages,
         head=[],
         notices=[],
-        keep_recent=0,
         summarize=summarizer,
         context_window=window,
         max_output=output,
@@ -429,25 +419,83 @@ async def test_summary_not_shorter_refused():
 
 
 @pytest.mark.asyncio
-async def test_verbatim_instructions_exceeding_capacity_reported():
-    """逐字用户原文单独超过可用容量：明确报告无法无损压缩，禁止静默裁剪。"""
-    big = "y" * 5000  # 指令区单独超预算（预算下限 4096 字符）
+async def test_message_over_budget_is_segmented_not_refused():
+    """单条消息本身超过可用容量：切块跨段覆盖。旧实现遇到"逐字指令区超
+    容量"直接拒绝压缩——长会话在那之后再也压不动。"""
+    big = "y" * 5000
     messages = [
         {"role": "user", "content": big},
         {"role": "assistant", "content": "a" * 5000},
     ]
+    summarizer = RecordingSummarizer()
     new_context, stats = await compact_context(
         messages,
         head=[],
         notices=[],
-        keep_recent=0,
-        summarize=RecordingSummarizer(),
+        summarize=summarizer,
         context_window=1_000,
         max_output=0,
     )
-    assert stats["compacted"] is False
-    assert stats["reason"] == "verbatim_instructions_exceed_budget"
-    assert new_context is messages
+    assert stats["compacted"] is True
+    assert len(stats["segments"]) >= 2
+    covered = sorted(
+        index for seg in stats["segments"] for index in seg["message_indexes"]
+    )
+    assert set(covered) == {0, 1}
+    payloads = "".join(
+        str(call[-1].get("content"))
+        for call in summarizer.calls
+        if str(call[0].get("content") or "").startswith("You are compacting")
+    )
+    assert payloads.count("y") == 5000  # 一个字符都没丢
+    assert "y" * 5000 not in new_context[0]["content"]
+
+
+@pytest.mark.asyncio
+async def test_merge_payloads_are_batched_when_they_exceed_the_budget():
+    """片段摘要的合并载荷超预算时分批多轮合并：一次装不下的输入不再直接
+    失败（单次合并实现会在长会话上 merge_failed，进而再也压不动）。"""
+    window, output = _context_window_for(600)
+    messages = [{"role": "assistant", "content": "z" * 1_200} for _ in range(18)]
+    fat = _summary_json(objective={"text": "o" * 1_000, "sources": []})
+    seen: list[list[dict]] = []
+
+    async def summarizer(messages, **_kwargs):
+        seen.append(messages)
+        return fat
+
+    new_context, stats = await compact_context(
+        messages,
+        head=[],
+        notices=[],
+        summarize=summarizer,
+        context_window=window,
+        max_output=output,
+    )
+    assert stats["compacted"] is True
+    assert len(stats["segments"]) >= 8
+    merge_calls = [
+        call
+        for call in seen
+        if str(call[0].get("content") or "").startswith("You are merging")
+    ]
+    assert len(merge_calls) >= 2, "merge must not be attempted as one oversized call"
+    assert len(new_context) == 1
+
+
+def test_compaction_retry_gate_requires_new_growth():
+    """预算触发的重试闸门：一次拒绝后，投影要再长出预算的
+    COMPACT_RETRY_GROWTH 才重新尝试（否则每轮都重跑一次全量摘要）。"""
+    from cloudra.runtime_v2.agent_runner import COMPACT_RETRY_GROWTH, AgentRunner
+    from cloudra.runtime_v2.core import RuntimeCore
+
+    runner = AgentRunner(RuntimeCore(strict_events=True), object())
+    budget = 10_000
+    assert runner._compaction_retry_due("s1", 20_000, budget) is True
+    runner._compact_refusals["s1"] = 20_000
+    assert runner._compaction_retry_due("s1", 20_100, budget) is False
+    step = max(int(budget * COMPACT_RETRY_GROWTH), 1024)
+    assert runner._compaction_retry_due("s1", 20_000 + step, budget) is True
 
 
 @pytest.mark.asyncio
@@ -462,11 +510,50 @@ async def test_cancellation_propagates_without_replacing():
             messages,
             head=[],
             notices=[],
-            keep_recent=0,
-            summarize=cancelling,
+                summarize=cancelling,
             context_window=200_000,
             max_output=32_768,
         )
+
+
+@pytest.mark.asyncio
+async def test_summary_call_is_recorded_as_kind_summary(monkeypatch):
+    """摘要调用落 kind="summary" 的 llm.completed：压缩成本与主链路一起进
+    遥测（cloudra stats tokens 单列），不再隐形。"""
+    from types import SimpleNamespace
+
+    from cloudra.runtime_v2.compaction import summarize_with_agent_settings
+    from cloudra.runtime_v2.events import EventLog
+    from cloudra.runtime_v2.schemas import AgentSession
+
+    class FakeClient:
+        def __init__(self, **_kwargs) -> None:
+            pass
+
+        async def create_with_retry(self, **_kwargs):
+            return SimpleNamespace(
+                usage={"prompt_tokens": 900, "completion_tokens": 90, "total_tokens": 990},
+                finish_reason="stop",
+                choices=[SimpleNamespace(message=SimpleNamespace(content="OK"))],
+            )
+
+        async def aclose(self) -> None:
+            pass
+
+    monkeypatch.setattr("cloudra.infra.llm_client.LLMClient", FakeClient)
+    agent = AgentSession(
+        id="as_sum", project_id="prj_sum", role_id="coordinator", display_name="c"
+    )
+    log = EventLog(strict=False)
+    out = await summarize_with_agent_settings(
+        agent, [{"role": "user", "content": "payload"}], event_log=log, run_id="r1"
+    )
+    assert out == "OK"
+    events = [e for e in log.query_session("as_sum") if e.type == "llm.completed"]
+    assert len(events) == 1
+    assert events[0].data["kind"] == "summary"
+    assert events[0].data["usage"]["prompt_tokens"] == 900
+    assert events[0].run_id == "r1"
 
 
 # ---------------------------------------------------------------------------
@@ -512,11 +599,11 @@ def test_segment_trajectory_never_truncates_and_covers_all():
         {"role": "tool", "tool_call_id": "t", "content": "b" * 5000},
         {"role": "assistant", "content": "c" * 100},
     ]
-    segments = segment_trajectory(messages, 2_000)
+    segments = segment_trajectory(messages, 500)
     covered = [i for seg in segments for i in seg["message_indexes"]]
     assert set(covered) == {0, 1, 2}
     for seg in segments:
-        assert len(seg["text"]) <= 2_000
+        assert seg["tokens"] <= 500
     joined = "".join(seg["text"] for seg in segments)
     assert "b" * 5000 not in joined  # 被切块了
     assert joined.count("b") == 5000  # 但一个字符都没丢
@@ -526,6 +613,31 @@ def test_context_over_budget_uses_existing_window_and_output():
     messages = [{"role": "user", "content": "x" * 5000}]
     assert context_over_budget(messages, context_window=500, max_output=0)
     assert not context_over_budget(messages, context_window=200_000, max_output=32_768)
+
+
+def test_non_ascii_text_is_not_undercounted():
+    """中文按 1 字符 ≈ 1 token 估算：旧实现一律 4 字符/token，中文会话的
+    预算闸门会被 4 倍低估架空。"""
+    ascii_tokens = estimate_messages_tokens([{"role": "user", "content": "x" * 4_000}])
+    cjk_tokens = estimate_messages_tokens([{"role": "user", "content": "构" * 4_000}])
+    assert ascii_tokens < 1_100
+    assert cjk_tokens > 3_900
+
+
+def test_tool_call_arguments_are_measured_and_rendered():
+    """工具调用参数是线上真实发送的内容：估算必须计入，摘要器必须看得见
+    调用了什么工具（旧实现只看 content，两者都丢）。"""
+    message = {
+        "role": "assistant",
+        "content": None,
+        "tool_calls": [
+            {"id": "c1", "name": "run_python", "arguments": {"code": "x" * 8_000}}
+        ],
+    }
+    rendered = render_message_text(message)
+    assert "run_python" in rendered
+    assert "x" * 8_000 in rendered
+    assert estimate_messages_tokens([message]) > 2_000
 
 
 # ---------------------------------------------------------------------------
@@ -606,8 +718,8 @@ def _patch_summarizer(monkeypatch, responses=None):
 
 @pytest.mark.asyncio
 async def test_manual_compact_replaces_session_context_atomically(monkeypatch):
-    """手动 compact：覆盖全部轮次（含已完成章节），候选经一条
-    context.compacted 事件原子安装；旧轨迹进摘要输入，指令区逐字保留。"""
+    """手动 compact：覆盖全部轮次（含已完成章节与用户指令），候选经一条
+    context.compacted 事件原子安装；旧轨迹进摘要输入，投影不留原文。"""
     from cloudra.runtime_v2.policies.base import ToolCall
     from cloudra.runtime_v2.schemas import Command
     from cloudra.runtime_v2.turn_pipeline import LLMResponse
@@ -640,7 +752,7 @@ async def test_manual_compact_replaces_session_context_atomically(monkeypatch):
 
     await bus.execute(
         Command(
-            type="agent.compact", target={"session_id": agent.id}, payload={"keep_recent": 0}
+            type="agent.compact", target={"session_id": agent.id}, payload={}
         )
     )
     await bus.execute(
@@ -651,27 +763,23 @@ async def test_manual_compact_replaces_session_context_atomically(monkeypatch):
     await _wait_state(agent, "succeeded")
 
     after = core.session_contexts[agent.id].messages
-    # 指令区逐字保留全部用户消息（含 message_id 身份）
+    # 全量折叠：旧用户消息不再逐字驻留，压缩边界之后到达的输入照常逐字可见
     users = [m for m in after if m.get("role") == "user"]
-    assert [m["content"] for m in users] == ["solve it", "second task", "next"]
+    assert [m["content"] for m in users] == ["next"]
     assert all(m.get("message_id") for m in users)
     handoffs = [
         m for m in after if str(m.get("content", "")).startswith("[Context compact]")
     ]
     assert len(handoffs) == 1
     assert handoffs[0]["role"] == "assistant"
-    # 已完成章节（run 1 的 tool 轮）折叠进摘要；活动章节（run 2）逐字保留
-    handoff_index = after.index(handoffs[0])
-    assert not any(m.get("role") == "tool" for m in after[:handoff_index])
-    assert any(
-        m.get("role") == "tool" and str(m.get("content")) == "x" * 5000
-        for m in after[handoff_index:]
-    )
+    # 两个已完成章节（含工具结果）都不在投影里，只在摘要输入里
+    assert not any(m.get("role") == "tool" for m in after)
     assert summarizer.calls, "summarizer never ran"
     summary_input = "\n".join(
         str(m.get("content")) for call in summarizer.calls for m in call
     )
-    assert ("x" * 5000) in summary_input  # 已完成章节的工具结果进了摘要输入
+    assert ("x" * 5000) in summary_input
+    assert "solve it" in summary_input and "second task" in summary_input
     types = [e.type for e in core.event_log.query_session(agent.id)]
     assert "context.compacted" in types
     finished = [
@@ -793,7 +901,7 @@ class _TwoToolsLLM:
 @pytest.mark.asyncio
 async def test_budget_trigger_compacts_when_over_estimate(monkeypatch):
     """预算触发：投影估算超过 (context_window − 输出预算)×余量 时自动压缩；
-    已完成章节进摘要，活动尾部逐字保留。"""
+    全部历史折叠成摘要。"""
     from cloudra.runtime_v2.schemas import Command
 
     summarizer = _patch_summarizer(monkeypatch)
@@ -821,25 +929,37 @@ async def test_budget_trigger_compacts_when_over_estimate(monkeypatch):
     assert finished, "budget compaction never fired"
     assert any(e.data.get("compacted") for e in finished)
     assert summarizer.calls
-    # 压缩后轮次的请求含 handoff，且用户指令逐字在位
+    # 压缩后轮次的请求含 handoff，旧指令只以摘要形式存在
     handoff_seen = any(
         "[Context compact]" in str(m.get("content")) for m in llm.calls[-1]
     )
     assert handoff_seen
-    users = [
-        m for m in core.session_contexts[agent.id].messages if m.get("role") == "user"
-    ]
-    assert [m["content"] for m in users][:2] == ["solve it", "second task"]
+    assert any(
+        "solve it" in str(m.get("content"))
+        for call in summarizer.calls
+        for m in call
+    )
+    assert not any(
+        m.get("role") == "user" and m.get("content") == "solve it"
+        for m in core.session_contexts[agent.id].messages
+    )
 
 
 @pytest.mark.asyncio
 async def test_budget_compact_refusal_keeps_context_and_records_reason(monkeypatch):
-    """摘要不缩短轨迹 → 拒绝替换：原上下文不动，compaction.finished 记录
-    原因，run 正常继续。"""
+    """摘要模型失控（每段都回 10 万字符）→ 拒绝替换：原上下文不动，
+    compaction.finished 记录原因，run 正常继续。合并阶段先被容量挡住
+    （merge_capacity），装得下时则由"摘要不比轨迹短"挡住。"""
     from cloudra.runtime_v2.schemas import Command
 
     big_summary = _summary_json(objective={"text": "o" + "x" * 100_000, "sources": []})
-    _patch_summarizer(monkeypatch, [big_summary] * 8)
+
+    async def fake_summarize(*args, **_kwargs):
+        return big_summary
+
+    monkeypatch.setattr(
+        "cloudra.runtime_v2.compaction.summarize_with_agent_settings", fake_summarize
+    )
     llm = _TwoToolsLLM()
     core, bus, agent = await _setup_runner(
         llm, tools_factory=_BigDeliveringTools, query=None
@@ -861,7 +981,10 @@ async def test_budget_compact_refusal_keeps_context_and_records_reason(monkeypat
     ]
     assert finished
     assert all(not e.data.get("compacted") for e in finished)
-    assert all(e.data.get("reason") == "summary_not_shorter" for e in finished)
+    assert all(
+        e.data.get("reason") in {"summary_not_shorter", "merge_capacity"}
+        for e in finished
+    )
     # 原上下文未替换：两条 tool 消息仍在投影里
     assert sum(
         1 for m in core.session_contexts[agent.id].messages if m.get("role") == "tool"

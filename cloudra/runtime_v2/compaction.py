@@ -1,34 +1,36 @@
 """Context compaction for the session-level context projection.
 
-统一覆盖全部轮次（Task 5，计划 2026-09-13-harness-cache-continuity）：
-不再是「上一指令后的尾部」/「已完成章节」两套局部策略——一次 compact
-覆盖整个会话上下文。产物布局：
+统一覆盖全部轮次：一次 compact 把会话上下文的**全部历史消息**（用户指令、
+assistant 回复与工具调用、工具结果）折叠成一条结构化摘要。不设逐字保留区
+——用户消息同样进摘要；唯一不压缩的是 harness 前缀本身（静态协议 + 动态
+快照，由调用方按当前状态重新装配）。产物布局：
 
 1. harness 前缀（调用方重新装配的静态协议 + 当前动态快照）；
 2. 当前 pin 通知的重渲染（调用方提供）；
-3. 指令区：每条用户/schedule 指令消息**逐字**保留（含 message_id 身份；
-   超长用户消息不截断）——无损用户意图不靠摘要模型独扛，执行轨迹才是
-   模型压缩的对象；摘要模型拿到这些完整指令作背景；
-4. 一条 assistant「[Context compact]」结构化摘要消息（字段经结构化校验，
-   带来源消息序号）；
-5. 逐字尾部：最后指令之后最多保留 ``keep_recent`` 条最近消息，边界
-   向前扩展以完整保留 assistant tool_calls 与 tool 响应配对；指令只在
-   指令区保留一次。
+3. 一条 assistant「[Context compact]」结构化摘要消息（字段经结构化校验，
+   带来源消息序号）。
 
-摘要输入按现有模型容量（settings.context_window − 输出预算，留余量）
-分段：消息逐字完整，单条超预算消息的文本跨段切块；每个区段成功并通过
-结构化校验后才汇总（形状/来源不符时把校验错误回喂重问一次，仍不符即
-放弃）。拒替换条件（空输出/结构错误/区段失败/取消/摘要未
-缩短轨迹/逐字指令区超容量）一律保留原上下文并报告原因，禁止静默裁剪。
+摘要之后到达的输入（本轮 inbox 消息）由调用方在发送前追加，因而当前指令
+永远逐字可见。用户意图的无损保证落在两处：摘要契约（objective /
+active_requests / constraints / corrections 逐条保留）与本轮输入本身——
+不再靠「原文永久驻留」；相应地，摘要器是旧历史的**唯一**载体，丢掉即丢失。
 
-触发时机（Task 5 起，不再有 schedule stop 的无条件 compact）:
+摘要输入按现有模型容量（context_window − 输出预算，留余量）分段：消息逐字
+完整，单条超预算消息的文本跨段切块；每个区段成功并通过结构化校验后才汇总
+（形状/来源不符时把校验错误回喂重问一次，仍不符即放弃）。多段摘要按容量
+分批合并（合并载荷超预算时分多轮进行），无法收敛即放弃。
+
+拒替换条件（空输出/结构错误/区段失败/取消/合并容量不足/摘要未缩短轨迹）
+一律保留原上下文并报告原因，禁止静默裁剪。
+
+触发时机:
 - 手动 compact（pending_compactions → 轮次边界应用）
 - 达到上下文预算（估算留余量）
 - 真实 overflow（400/413）——有界重试，同一输入无进展不重复压缩
 
-安装语义（Task 4）：候选上下文由 AgentRunner 经 ContextBroker.
-install_compacted 一条 context.compacted 事件原子安装；校验/持久化/
-版本不符时不产生事件，投影保持原样。
+安装语义：候选上下文由 AgentRunner 经 ContextBroker.install_compacted
+一条 context.compacted 事件原子安装；校验/持久化/版本不符时不产生事件，
+投影保持原样。
 
 The handoff is an **assistant** summary, never ``role: user``: injecting a
 user message made the model treat compact as a new turn and stop working.
@@ -39,7 +41,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any, Awaitable, Callable
+import time
+from typing import Any, Awaitable, Callable, Optional
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -51,7 +54,6 @@ logger = logging.getLogger(__name__)
 Summarizer = Callable[[list[dict[str, Any]]], Awaitable[str]]
 
 _COMPACT_MARKER = "[Context compact]"
-_REMINDER_PREFIX = "[Reminder]"
 
 # 摘要契约（计划原文，逐字）；结构化 JSON 形状是对模型的硬要求，
 # 校验走 json.loads + pydantic + 显式检查（无正则）。
@@ -91,10 +93,13 @@ inside the numbered range.\
 
 _COMPACT_INSTRUCTION = (
     "You are compacting an agent's execution trajectory at a context "
-    "boundary. The user message carries the trajectory as numbered lines "
-    "([index] role: text). User and schedule instruction messages appear in "
-    "full and are ALSO preserved verbatim outside your summary — your job is "
-    "to compress the execution trajectory, never the instructions.\n\n"
+    "boundary. The user message carries the whole trajectory as numbered "
+    "lines ([index] role: text), oldest first — user instructions, assistant "
+    "replies and tool calls, and tool results. Your summary REPLACES all of "
+    "it: the original messages are deleted afterwards, so anything you drop "
+    "is lost. An earlier '[Context compact]' summary inside the trajectory is "
+    "itself a condensed record of still older work — merge it into the new "
+    "summary instead of treating it as a new event.\n\n"
     + COMPACT_SUMMARY_CONTRACT
     + "\n\n"
     + _JSON_SHAPE_NOTE
@@ -114,8 +119,9 @@ _MERGE_INSTRUCTION = (
 # Cap for summary text stored inside compaction.finished event data.
 SUMMARY_EVENT_CAP = 8000
 
-# chars→token 的保守估算（仅用于分段与预算触发，不用于计费）
-CHARS_PER_TOKEN = 4
+# token 估算常数（仅用于分段与预算触发，不用于计费）
+_ASCII_CHARS_PER_TOKEN = 4
+_MESSAGE_OVERHEAD_TOKENS = 4
 # 上下文预算估算余量：估算到 (window − 输出预算) 的 85% 即触发/分段
 _BUDGET_MARGIN = 0.85
 # settings 未配置 context_window 时的内部兜底（现有 config 缺省值之外的
@@ -123,22 +129,9 @@ _BUDGET_MARGIN = 0.85
 _DEFAULT_CONTEXT_WINDOW = 128_000
 
 
-def is_reminder_message(message: dict[str, Any]) -> bool:
-    """True for a schedule wake-up (``[Reminder] ...``), not a compact handoff."""
-    content = _content_to_text(message.get("content"))
-    if content.startswith(_COMPACT_MARKER):
-        return False
-    return content.startswith(_REMINDER_PREFIX)
-
-
-def is_instruction_message(message: dict[str, Any]) -> bool:
-    """True for a user turn or schedule wake-up; false for compact handoffs."""
-    if is_reminder_message(message):
-        return True
-    content = _content_to_text(message.get("content"))
-    if content.startswith(_COMPACT_MARKER):
-        return False
-    return message.get("role") == "user"
+# ---------------------------------------------------------------------------
+# 渲染与容量估算
+# ---------------------------------------------------------------------------
 
 
 def _content_to_text(content: Any) -> str:
@@ -174,22 +167,69 @@ def _content_to_text(content: Any) -> str:
     return str(content)
 
 
-def measure_messages(messages: list[dict[str, Any]]) -> int:
-    return sum(len(_content_to_text(message.get("content"))) + 16 for message in messages)
+def render_message_text(message: dict[str, Any]) -> str:
+    """把一条投影消息渲染成文本（计量与摘要输入共用）。
+
+    覆盖线上真正发送的内容：content（视觉 parts 降级为文本描述）、assistant
+    的 tool_calls（工具名 + 参数）、tool 的 tool_call_id、思考模式的
+    reasoning_content。旧实现只看 content：带 tool_calls 的 assistant 消息
+    估算成空、摘要器也看不到"调用了什么工具、参数是什么"。
+    """
+    parts: list[str] = []
+    content = _content_to_text(message.get("content"))
+    if content:
+        parts.append(content)
+    reasoning = message.get("reasoning_content") or message.get("reasoning")
+    if reasoning:
+        parts.append(f"(reasoning) {reasoning}")
+    calls = message.get("tool_calls")
+    if isinstance(calls, list):
+        for call in calls:
+            if not isinstance(call, dict):
+                continue
+            arguments = call.get("arguments")
+            if not isinstance(arguments, str):
+                arguments = json.dumps(
+                    arguments if arguments is not None else {}, ensure_ascii=False
+                )
+            parts.append(f"-> call {call.get('name') or 'unknown'} {arguments}")
+    if message.get("role") == "tool" and message.get("tool_call_id"):
+        parts.append(f"(tool_call_id={message['tool_call_id']})")
+    return "\n".join(parts)
 
 
-def usable_prompt_chars(context_window: int, max_output: int) -> int:
-    """可用提示词容量（字符）：(context_window − 输出预算) × 余量 × 每 token 字符数。"""
+def estimate_tokens(text: str) -> int:
+    """保守 token 估算：ASCII 4 字符 ≈ 1 token，非 ASCII 1 字符 ≈ 1 token。
+
+    只用于压缩触发与分段，不用于计费。旧实现一律按 4 字符/token 折算，对
+    中文（≈1 字符/token）是 4 倍低估——中文会话的预算闸门形同虚设。
+    """
+    weighted = len(text) + 3 * sum(1 for char in text if not char.isascii())
+    return (weighted + _ASCII_CHARS_PER_TOKEN - 1) // _ASCII_CHARS_PER_TOKEN
+
+
+def estimate_messages_tokens(messages: list[dict[str, Any]]) -> int:
+    """投影的 prompt token 估算（每条消息计固定结构开销）。"""
+    return sum(
+        estimate_tokens(render_message_text(message)) + _MESSAGE_OVERHEAD_TOKENS
+        for message in messages
+    )
+
+
+def usable_prompt_tokens(context_window: int, max_output: int) -> int:
+    """可用提示词容量（token）：(context_window − 输出预算) × 余量。"""
     window = context_window or _DEFAULT_CONTEXT_WINDOW
     output = max_output or 0
-    return max(int((window - output) * CHARS_PER_TOKEN * _BUDGET_MARGIN), 512)
+    return max(int((window - output) * _BUDGET_MARGIN), 512)
 
 
 def context_over_budget(
     messages: list[dict[str, Any]], *, context_window: int, max_output: int
 ) -> bool:
     """预算触发判据：投影估算超过可用容量（未配置 context_window 用内部兜底）。"""
-    return measure_messages(messages) > usable_prompt_chars(context_window, max_output)
+    return estimate_messages_tokens(messages) > usable_prompt_tokens(
+        context_window, max_output
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -341,7 +381,7 @@ def render_compact_summary(summary: CompactSummary) -> str:
             text = entry.text
             replaces = getattr(entry, "replaces", "")
             if field == "corrections" and replaces:
-                text = f"{entry.text} (replaces: {replaces})"
+                text = f"{text} (replaces: {replaces})"
             lines.append(f"- {text}{_src(entry)}")
     return "\n".join(lines)
 
@@ -352,41 +392,49 @@ def render_compact_summary(summary: CompactSummary) -> str:
 
 
 def segment_trajectory(
-    trajectory: list[dict[str, Any]], budget_chars: int
+    trajectory: list[dict[str, Any]], budget_tokens: int
 ) -> list[dict[str, Any]]:
     """把执行轨迹切成不超预算的连续区段。
 
-    返回 [{"text", "message_indexes"}]：text 是编号行（``[i] role: 全文``），
-    message_indexes 是该段覆盖的轨迹消息序号。消息从不截断；单条超预算的
-    消息文本切成连续块，每块独立成段并带续接标记。
+    返回 [{"text", "message_indexes", "tokens"}]：text 是编号行
+    （``[i] role: 全文``），message_indexes 是该段覆盖的轨迹消息序号。
+    消息从不截断；单条超预算的消息文本切成连续块，每块独立成段并带续接
+    标记——块长按最坏情况（1 字符 ≈ 1 token）取，任何语种都不超预算。
     """
     segments: list[dict[str, Any]] = []
     current: list[str] = []
-    current_len = 0
+    current_tokens = 0
     covered: list[int] = []
 
     def flush() -> None:
-        nonlocal current, current_len, covered
+        nonlocal current, current_tokens, covered
         if current:
             segments.append(
-                {"text": "\n\n".join(current), "message_indexes": list(covered)}
+                {
+                    "text": "\n\n".join(current),
+                    "message_indexes": list(covered),
+                    "tokens": current_tokens,
+                }
             )
             current = []
-            current_len = 0
+            current_tokens = 0
             covered = []
 
     for index, message in enumerate(trajectory):
-        text = f"[{index}] {message.get('role', '?')}: {_content_to_text(message.get('content'))}"
-        if len(text) <= budget_chars:
-            if current and current_len + len(text) > budget_chars:
+        text = (
+            f"[{index}] {message.get('role', '?')}: {render_message_text(message)}"
+        )
+        tokens = estimate_tokens(text)
+        if tokens <= budget_tokens:
+            if current and current_tokens + tokens > budget_tokens:
                 flush()
             current.append(text)
-            current_len += len(text)
+            current_tokens += tokens
             covered.append(index)
             continue
         flush()
         # 单条超预算消息：切块（每块 ≤ 预算），跨段完整覆盖。
-        chunk = max(budget_chars - 128, 1024)
+        chunk = max(budget_tokens - 128, 512)
         parts = [text[i : i + chunk] for i in range(0, len(text), chunk)]
         for part_index, part in enumerate(parts):
             if part_index == 0:
@@ -396,24 +444,81 @@ def segment_trajectory(
                     f"[{index}] (continued, part {part_index + 1}/{len(parts)} "
                     f"of one long message)\n{part}"
                 )
-            segments.append({"text": body, "message_indexes": [index]})
+            segments.append(
+                {
+                    "text": body,
+                    "message_indexes": [index],
+                    "tokens": estimate_tokens(body),
+                }
+            )
     flush()
     return segments
 
 
-def _handoff_text(compacted_count: int, summary_text: str, trigger: str) -> str:
+async def _merge_partials(
+    partials: list[CompactSummary],
+    *,
+    summarize: Summarizer,
+    trajectory_len: int,
+    budget_tokens: int,
+) -> Optional[CompactSummary]:
+    """把逐段摘要合并成最终摘要；合并载荷超预算时分批多轮进行。
+
+    单条自成一档（它自己就超预算）时不再单独问模型，原样进入下一轮；一轮
+    下来没有任何合并且仍多于一条 → 容量不足以收敛，返回 None（调用方拒
+    替换，绝不丢段）。
+    """
+    pending = list(partials)
+    while len(pending) > 1:
+        payloads = [partial.model_dump() for partial in pending]
+        sizes = [
+            estimate_tokens(json.dumps(payload, ensure_ascii=False))
+            for payload in payloads
+        ]
+        batches: list[list[int]] = []
+        current: list[int] = []
+        current_tokens = 0
+        for index, tokens in enumerate(sizes):
+            if current and current_tokens + tokens > budget_tokens:
+                batches.append(current)
+                current = []
+                current_tokens = 0
+            current.append(index)
+            current_tokens += tokens
+        if current:
+            batches.append(current)
+        merged: list[CompactSummary] = []
+        for batch in batches:
+            if len(batch) == 1:
+                merged.append(pending[batch[0]])
+                continue
+            payload = json.dumps(
+                [payloads[index] for index in batch],
+                ensure_ascii=False,
+                indent=2,
+            )
+            merged.append(
+                await _summarize_validated(
+                    summarize,
+                    instruction=_MERGE_INSTRUCTION,
+                    payload=payload,
+                    trajectory_len=trajectory_len,
+                )
+            )
+        if len(merged) >= len(pending):
+            return None
+        pending = merged
+    return pending[0]
+
+
+def _handoff_text(compacted_count: int, summary_text: str) -> str:
     body = (
-        f"{_COMPACT_MARKER} {compacted_count} earlier messages across all "
-        "completed turns were compacted into this structured summary. The "
-        "user/schedule instruction messages above are verbatim originals; "
-        "correction order and replacement relationships are recorded in the "
-        "summary's corrections section."
+        f"{_COMPACT_MARKER} {compacted_count} earlier messages of this session "
+        "were compacted into the structured summary below; they are no longer "
+        "present verbatim (user instructions included — their still-active "
+        "content is in the summary). Continue the current task by calling "
+        "tools; this is not a new user request and needs no acknowledgement."
     )
-    if trigger == "context_overflow":
-        body += (
-            " Continue the current task by calling tools; this is not a new "
-            "user request."
-        )
     return f"{body}\n{summary_text}"
 
 
@@ -422,14 +527,13 @@ async def compact_context(
     *,
     head: list[dict[str, Any]],
     notices: list[dict[str, Any]],
-    keep_recent: int,
     summarize: Summarizer,
     context_window: int,
     max_output: int,
     trigger: str = "manual",
     old_head_len: int = 0,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """统一压缩：覆盖全部轮次，返回 (候选上下文, stats)。
+    """统一压缩：折叠全部轮次，返回 (候选上下文, stats)。
 
     ``stats["compacted"]`` 为 False 即拒替换（reason 说明原因），调用方
     不得安装候选。``old_head_len`` 是当前投影里旧 harness 前缀的消息数
@@ -437,42 +541,15 @@ async def compact_context(
     输入，由调用方重新装配的 ``head`` 替换。
     """
     base_stats: dict[str, Any] = {
-        "keep_recent": keep_recent,
         "before_messages": len(messages),
         "trigger": trigger,
     }
-    budget = usable_prompt_chars(context_window, max_output)
-    middle = messages[old_head_len:]
-    instruction_indexes = [
-        index for index, message in enumerate(middle) if is_instruction_message(message)
-    ]
-    instructions = [middle[index] for index in instruction_indexes]
-    # 当前用户任务的已完成调用也可压缩；尾部只按 keep_recent 保留，
-    # 边界落在 tool 响应内时向前保留整个调用组，不能截断配对。
-    keep_target = max(0, keep_recent)
-    start = len(middle) - min(keep_target, len(middle))
-    if instruction_indexes:
-        start = max(start, instruction_indexes[-1] + 1)
-    while 0 < start < len(middle) and middle[start].get("role") == "tool":
-        start -= 1
-    tail = [message for message in middle[start:] if not is_instruction_message(message)]
-    trajectory = middle[:start]
-
-    # 容量闸门：逐字指令区本身就超可用容量 → 明确报告无法无损压缩，
-    # 禁止静默裁剪。
-    instruction_chars = measure_messages(instructions)
-    if instruction_chars > budget:
-        return messages, {
-            **base_stats,
-            "compacted": False,
-            "reason": "verbatim_instructions_exceed_budget",
-            "instruction_chars": instruction_chars,
-            "budget_chars": budget,
-        }
+    budget_tokens = usable_prompt_tokens(context_window, max_output)
+    trajectory = messages[old_head_len:]
     if not trajectory:
         return messages, {**base_stats, "compacted": False, "reason": "nothing_to_compact"}
 
-    segments = segment_trajectory(trajectory, budget)
+    segments = segment_trajectory(trajectory, budget_tokens)
     partials: list[CompactSummary] = []
     coverage: list[dict[str, Any]] = []
     for seg_index, segment in enumerate(segments):
@@ -506,64 +583,70 @@ async def compact_context(
             {
                 "segment": seg_index,
                 "message_indexes": segment["message_indexes"],
-                "chars": len(segment["text"]),
+                "tokens": segment["tokens"],
             }
         )
 
-    if len(partials) > 1:
-        merge_input = json.dumps(
-            [partial.model_dump() for partial in partials], ensure_ascii=False, indent=2
+    try:
+        summary = await _merge_partials(
+            partials,
+            summarize=summarize,
+            trajectory_len=len(trajectory),
+            budget_tokens=budget_tokens,
         )
-        try:
-            summary = await _summarize_validated(
-                summarize,
-                instruction=_MERGE_INSTRUCTION,
-                payload=merge_input,
-                trajectory_len=len(trajectory),
-            )
-        except asyncio.CancelledError:
-            raise
-        except CompactSummaryError as exc:
-            return messages, {
-                **base_stats,
-                "compacted": False,
-                "reason": "summary_invalid",
-                "error": str(exc),
-            }
-        except Exception as exc:
-            return messages, {
-                **base_stats,
-                "compacted": False,
-                "reason": "merge_failed",
-                "error": str(exc),
-            }
-    else:
-        summary = partials[0]
+    except asyncio.CancelledError:
+        raise
+    except CompactSummaryError as exc:
+        return messages, {
+            **base_stats,
+            "compacted": False,
+            "reason": "summary_invalid",
+            "error": str(exc),
+        }
+    except Exception as exc:
+        return messages, {
+            **base_stats,
+            "compacted": False,
+            "reason": "merge_failed",
+            "error": str(exc),
+        }
+    if summary is None:
+        return messages, {
+            **base_stats,
+            "compacted": False,
+            "reason": "merge_capacity",
+            "segments": len(partials),
+        }
 
     rendered = render_compact_summary(summary)
-    trajectory_chars = measure_messages(trajectory)
-    if len(rendered) >= trajectory_chars:
-        # 摘要没有真正缩短执行轨迹：不替换旧上下文。
+    handoff = {
+        "role": "assistant",
+        "content": _handoff_text(len(trajectory), rendered),
+    }
+    # 缩短判据按整段替换的真实口径：新上下文里的历史只剩这条 handoff，
+    # 旧前缀由调用方重新装配的 head 取代——只有 handoff 比整段轨迹短，
+    # 压缩才真的缩小了上下文。
+    trajectory_tokens = estimate_messages_tokens(trajectory)
+    handoff_tokens = estimate_messages_tokens([handoff])
+    if handoff_tokens >= trajectory_tokens:
         return messages, {
             **base_stats,
             "compacted": False,
             "reason": "summary_not_shorter",
-            "summary_chars": len(rendered),
-            "trajectory_chars": trajectory_chars,
+            "summary_tokens": handoff_tokens,
+            "trajectory_tokens": trajectory_tokens,
         }
 
-    handoff = {
-        "role": "assistant",
-        "content": _handoff_text(len(trajectory), rendered, trigger),
-    }
-    new_context = [*head, *notices, *instructions, handoff, *tail]
+    new_context = [*head, *notices, handoff]
     return new_context, {
         **base_stats,
         "compacted": True,
         "after_messages": len(new_context),
-        "handoff_index": len(head) + len(notices) + len(instructions),
-        "instruction_messages": len(instructions),
-        "tail_messages": len(tail),
+        "handoff_index": len(head) + len(notices),
+        "trajectory_messages": len(trajectory),
+        "trajectory_tokens": trajectory_tokens,
+        "summary_tokens": handoff_tokens,
+        "summary_chars": len(rendered),
         "segments": coverage,
     }
 
@@ -572,13 +655,15 @@ async def summarize_with_agent_settings(
     agent: AgentSession,
     messages: list[dict[str, Any]],
     *,
-    abort_event: asyncio.Event | None = None,
+    event_log: Any = None,
+    run_id: str | None = None,
 ) -> str:
     """Default summarizer: one non-streaming call on the agent's own model.
 
-    每次新建 LLMClient（独立连接池），用完在 finally 里 aclose 回收；
-    abort_event 由调用方在取消语义下传入，置位后传输层发送前/退避后/
-    fallback 前的准入检查抛 CancelledError。
+    每次新建 LLMClient（独立连接池），用完在 finally 里 aclose 回收。
+    提供 ``event_log`` 时成功调用落一条 ``kind="summary"`` 的 llm.completed
+    ——压缩成本与主链路一起进遥测（``cloudra stats tokens`` 单列），不再
+    隐形。
     """
     from cloudra.infra.llm_client import LLMClient
     from cloudra.runtime_v2.adapters import legacy_default_settings
@@ -588,8 +673,8 @@ async def summarize_with_agent_settings(
         api_key=settings.api_key,
         base_url=settings.base_url,
         timeout=settings.timeout,
-        abort_event=abort_event,
     )
+    started = time.monotonic()
     try:
         kwargs: dict = {
             "model": settings.model,
@@ -613,6 +698,21 @@ async def summarize_with_agent_settings(
         response = await client.create_with_retry(**kwargs)
     finally:
         await client.aclose()
+    if event_log is not None:
+        event_log.append(
+            "llm.completed",
+            stream="agent",
+            project_id=agent.project_id,
+            session_id=agent.id,
+            run_id=run_id,
+            data={
+                "model": settings.model,
+                "usage": getattr(response, "usage", None),
+                "finish_reason": getattr(response, "finish_reason", None),
+                "latency_ms": int((time.monotonic() - started) * 1000),
+                "kind": "summary",
+            },
+        )
     choices = getattr(response, "choices", None) or []
     if not choices:
         return ""

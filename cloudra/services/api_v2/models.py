@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ProjectCreate(BaseModel):
@@ -88,7 +88,9 @@ class GoalSetRequest(BaseModel):
 
 
 class CompactRequest(BaseModel):
-    keep_recent: int = Field(default=20, ge=1, le=500)
+    """手动压缩请求：压缩范围固定为整个会话投影，无参数。"""
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class ContextInjectRequest(BaseModel):

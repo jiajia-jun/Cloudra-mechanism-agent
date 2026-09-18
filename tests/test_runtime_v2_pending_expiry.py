@@ -183,15 +183,15 @@ async def test_compaction_request_event_rebuilds_projection(tmp_path):
     project, agent = await _project_and_agent(core, bus)
 
     await bus.execute(
-        Command(type="agent.compact", target={"session_id": agent.id}, payload={"keep_recent": 7})
+        Command(type="agent.compact", target={"session_id": agent.id}, payload={})
     )
     # 活 core：请求经事件 + apply_event 进投影
-    assert core.pending_compactions == {agent.id: 7}
+    assert core.pending_compactions == {agent.id}
 
     restored = RuntimeCore(strict_events=True)
     restore_core(restored, store)
     # 旧实现红在这里：事件在，但恢复路径不重建投影
-    assert restored.pending_compactions == {agent.id: 7}
+    assert restored.pending_compactions == {agent.id}
 
 
 @pytest.mark.asyncio
@@ -203,16 +203,16 @@ async def test_pending_compaction_survives_run_boundaries(tmp_path):
     project, agent = await _project_and_agent(core, bus)
 
     await bus.execute(
-        Command(type="agent.compact", target={"session_id": agent.id}, payload={"keep_recent": 5})
+        Command(type="agent.compact", target={"session_id": agent.id}, payload={})
     )
-    assert core.pending_compactions == {agent.id: 5}
+    assert core.pending_compactions == {agent.id}
     # message → wake → run.started：投影**保留**（无 runner 的纯状态模式下
     # 没有轮次边界消费，条目继续等待）。
     await bus.execute(
         Command(type="agent.message", target={"session_id": agent.id}, payload={"content": "go"})
     )
-    assert core.pending_compactions == {agent.id: 5}
+    assert core.pending_compactions == {agent.id}
 
     restored = RuntimeCore(strict_events=True)
     restore_core(restored, store)
-    assert restored.pending_compactions == {agent.id: 5}
+    assert restored.pending_compactions == {agent.id}

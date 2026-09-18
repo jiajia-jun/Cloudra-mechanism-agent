@@ -97,6 +97,15 @@ assert current.get("tools") == previous.get("tools")
 
 ### Task 5：compact 覆盖全部轮次，保护完整用户意图
 
+> **决策变更（取代本 Task 下方关于「逐字指令区 / 保留活动工具尾部」的要求）**：
+> 压缩改为**全量折叠**——用户指令、assistant 回复与工具调用、工具结果一起进
+> 摘要，投影里不留逐字保留区；唯一不压缩的是 harness 前缀（按当前状态重新
+> 装配），压缩边界之后到达的输入照常逐字可见。用户意图的无损保证改由摘要
+> 契约（objective/active_requests/constraints/corrections）+ 本轮输入承担。
+> 同时收紧估算口径（非 ASCII 按 1 字符≈1 token、工具调用参数计入）、多段
+> 合并按容量分批、预算触发被拒后退避重试、摘要调用进遥测。不变量与实现见
+> `cloudra/runtime_v2/compaction.py` 模块 docstring 与 AGENTS.md。
+
 **Files:** cloudra/runtime_v2/compaction.py、agent_runner.py、context_tree.py；新建 tests/test_runtime_v2_compaction_integrity.py；修改 tests/test_runtime_v2_context_tree.py。
 
 **接口:** 保持 compact 的“返回候选 history 与 stats”形态；调用方只在完整摘要成功、持久化成功且输入版本未过期时原子安装。移除 prior-turn/current-tail 两套重复压缩策略，统一覆盖历史、保留完整活动工具尾部。

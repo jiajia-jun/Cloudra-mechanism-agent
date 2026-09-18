@@ -398,7 +398,7 @@ async def test_api_v2_goal_context_compact_skills_routes():
         assert stats["messages"] == 0
         assert set(stats["by_role"]) == {"user", "assistant", "tool"}
 
-        resp = await client.post(f"/api/v2/agents/{agent['id']}/compact", json={"keep_recent": 10})
+        resp = await client.post(f"/api/v2/agents/{agent['id']}/compact", json={})
         assert resp.status_code == 200
         assert resp.json()["accepted"] is True
 

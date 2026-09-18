@@ -177,11 +177,15 @@ def _apply_run_cleared(core: RuntimeCore, envelope: EventEnvelope) -> None:
 
 
 def _apply_compaction_requested(core: RuntimeCore, envelope: EventEnvelope) -> None:
-    """手动压缩请求投影：pending_compactions 的唯一写入点（runner 只读/消费）。"""
+    """手动压缩请求投影：pending_compactions 的唯一写入点（runner 只读/消费）。
+
+    压缩范围是整个会话投影（没有 keep_recent 参数）：请求只表达"下个轮次
+    边界压缩这个 session"，因此投影是 session id 集合。
+    """
     session_id = envelope.session_id
     if not session_id:
         return
-    core.pending_compactions[session_id] = int(envelope.data.get("keep_recent") or 20)
+    core.pending_compactions.add(session_id)
 
 
 def _context_of(core: RuntimeCore, session_id: str) -> SessionContext:

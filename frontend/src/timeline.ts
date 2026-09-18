@@ -517,8 +517,15 @@ export function buildTimeline(events: EventEnvelope[], pendingUserMessages: Mess
               ? ' — after last user/schedule message'
               : '';
         text = `Context compacted (${String(d.before_messages)} → ${String(d.after_messages)} messages${why})`;
-      } else {
+      } else if (d.reason === 'nothing_to_compact') {
         text = 'Context already short — nothing to compact';
+      } else {
+        // 拒替换的其它原因（结构校验失败 / 摘要不缩短 / 合并容量不足 / 候选
+        // 期间投影已变）各有诊断价值，不再一律说成"上下文本来就短"。
+        const reason = typeof d.reason === 'string' && d.reason ? d.reason : '';
+        text = reason
+          ? `Context left unchanged — compaction refused (${reason})`
+          : 'Context left unchanged — compaction refused';
       }
       if (open) {
         open.text = text;

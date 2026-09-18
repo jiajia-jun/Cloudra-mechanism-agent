@@ -289,10 +289,10 @@ export const api = {
       by_role: Record<string, { messages: number; tokens: number }>;
       last_prompt_tokens: number | null;
     }>(`/api/v2/agents/${agentId}/context`),
-  compactAgent: (agentId: string, keepRecent: number) =>
+  compactAgent: (agentId: string) =>
     request<CommandResponse<Agent>>(`/api/v2/agents/${agentId}/compact`, {
       method: 'POST',
-      body: JSON.stringify({ keep_recent: keepRecent }),
+      body: JSON.stringify({}),
     }),
   listSkills: () => request<Array<Record<string, unknown>>>('/api/v2/skills'),
   knowledgeOverview: () => request<KgOverview>('/api/v2/knowledge/overview'),

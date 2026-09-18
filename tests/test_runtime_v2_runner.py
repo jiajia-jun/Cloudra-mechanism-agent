@@ -219,7 +219,7 @@ async def test_manual_compaction_rewrites_history(monkeypatch):
         Command(
             type="agent.compact",
             target={"session_id": agent.id},
-            payload={"keep_recent": 1},
+            payload={},
         )
     )
     llm.gate.set()
@@ -236,24 +236,6 @@ async def test_manual_compaction_rewrites_history(monkeypatch):
     assert compact_msgs
     assert compact_msgs[0]["role"] == "assistant"
     assert any("SUMMARY" in str(m.get("content")) for m in compact_msgs)
-
-
-def test_instruction_message_includes_user_and_schedule_reminder():
-    from cloudra.runtime_v2.compaction import is_instruction_message
-
-    assert is_instruction_message({"role": "user", "content": "solve it"})
-    assert is_instruction_message({"role": "user", "content": "[Reminder] check the gaussian log"})
-    # Schedule wake-ups count even if the role is not user.
-    assert is_instruction_message({"role": "assistant", "content": "[Reminder] check the gaussian log"})
-    assert not is_instruction_message({"role": "assistant", "content": "working"})
-    assert not is_instruction_message({"role": "tool", "content": "echo:1"})
-    # A compact handoff is not a new instruction — the previous user/schedule stays the boundary.
-    assert not is_instruction_message(
-        {"role": "assistant", "content": "[Context compact] earlier work was summarized"}
-    )
-    assert not is_instruction_message(
-        {"role": "user", "content": "[Context compact] earlier work was summarized"}
-    )
 
 
 @pytest.mark.asyncio
@@ -531,8 +513,7 @@ async def test_context_overflow_triggers_emergency_compaction_then_retry(monkeyp
         async def complete(self, agent, messages, tools, **_kwargs):
             self.calls.append(list(messages))
             if len(self.calls) == 1:
-                # Grow the history past the emergency keep_recent so the
-                # compaction actually summarizes a head.
+                # 让轨迹有实际内容可压缩。
                 return LLMResponse(
                     content="",
                     tool_calls=[
@@ -745,7 +726,7 @@ async def test_compaction_summary_is_appended_to_workspace(monkeypatch, tmp_path
         Command(
             type="agent.compact",
             target={"session_id": agent.id},
-            payload={"keep_recent": 1},
+            payload={},
         )
     )
     llm.gate.set()

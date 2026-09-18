@@ -152,6 +152,29 @@ def test_aggregate_tokens_empty_events():
     assert report["totals"]["requests"] == 0
     assert report["totals"]["hit_rate"] == 0.0
     assert report["agents"] == [] and report["projects"] == []
+    assert report["totals"]["summary"]["requests"] == 0
+
+
+def test_summary_requests_are_reported_separately():
+    """压缩摘要请求（kind="summary"）计入总量，但单独报告——否则压缩成本
+    在遥测里完全隐形。"""
+    summarizer_call = _completed(900, 90, session="s1", project="p1")
+    summarizer_call["data"]["kind"] = "summary"
+    events = [
+        _completed(100, 10, session="s1", project="p1"),
+        summarizer_call,
+    ]
+    report = telemetry.aggregate_tokens(events)
+    totals = report["totals"]
+    assert totals["requests"] == 2 and totals["prompt_tokens"] == 1000
+    summary = totals["summary"]
+    assert summary["requests"] == 1
+    assert summary["prompt_tokens"] == 900
+    assert summary["completion_tokens"] == 90
+    # 未知 kind 归入 agent 侧
+    assert telemetry.llm_call_from_event(
+        _completed(1, 1)
+    )["kind"] == "agent"
 
 
 # ---------------------------------------------------------------------------

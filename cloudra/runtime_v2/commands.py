@@ -643,15 +643,13 @@ DECIDERS: dict[str, Decider] = {
 
 async def _compact_agent(core: RuntimeCore, command: Command) -> CommandResult:
     agent = core.require_agent(command.target.get("session_id", ""))
-    keep_recent = int(command.payload.get("keep_recent") or 20)
-    keep_recent = max(1, min(keep_recent, 500))
     envelope = core.record(
         "compaction.requested",
         stream="agent",
         project_id=agent.project_id,
         session_id=agent.id,
         run_id=agent.current_run.run_id if agent.current_run else None,
-        data={"keep_recent": keep_recent, "actor": command.actor},
+        data={"actor": command.actor},
     )
     # The runner picks this up at the next turn boundary; the session context
     # 跨 run 连续（Task 4），压缩请求跨 run 存活、应用到会话上下文投影。
