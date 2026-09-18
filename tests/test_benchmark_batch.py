@@ -212,7 +212,7 @@ async def _insert_job(path, state="running", conversation_id="prj_old"):
 
     db = await ComputeDB().ainit()
     return await ainsert_compute_job(
-        db, conversation_id=conversation_id, session_id="as_old", path=str(path),
+        db, node_id="node-local", conversation_id=conversation_id, session_id="as_old", path=str(path),
         state=state, jobtype="gaussian", scheduler="local", scheduler_options="{}",
     )
 

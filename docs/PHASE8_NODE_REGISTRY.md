@@ -22,14 +22,23 @@
 - 每个节点可声明 `resources`（`max_concurrent` / `cpus` / `memory_mb`，正整数，
   缺省用本地兜底：10 槽位、全核、物理内存扣掉 8 GiB 系统余量且不低于半内存）
   ——`submit_compute_job` 据此对 agent 的资源申请（`cpus`/`memory_mb`）做提交时硬校验。
-- 调度容量的**生效值** = `min(注册声明, OS 实时余量)`（`services/host_capacity.py`）：
-  作业成本仍按 agent 声明的 `req_cpus`/`req_memory_mb` 记账，OS 侧只提供"这台机器
-  现在还剩多少"——剩余内存取 `free + inactive + speculative + purgeable`（macOS
-  `vm_stat`／Linux `MemAvailable`），可用核数取 `cpu_count − ceil(loadavg 1min)`。
-  这样**账本看不见的占用也被算进去**（agent 绕过 `submit_compute_job` 直调引擎起的
-  作业、浏览器等无关进程）。读数只用于放行判定与 `query_compute_queue` 展示，
-  不参与存活/终态判定；探针读不到时回落声明容量（不断停摆，状态翻转记一条 WARNING）；
-  Slurm 节点跑在集群上，不受本机余量约束。
+- **容量按节点分池记账（解耦）**：每个作业在入库时带 `node_id`（准入按工作区路由
+  解析出的归属节点），调度认领只在**该节点自己的额度**内放行——本地额度不会被
+  云端作业吃掉，反之亦然。
+  - 生效容量 = `min(注册声明, OS 实时余量)`，但**只有跑在本机的 `local` 节点**
+    受 OS 余量约束（`services/host_capacity.py::effective_node_resources`）；远端/
+    集群节点不在这台机器上，OS 读数对它没有意义，原样用注册声明。
+  - 作业成本仍按 agent 声明的 `req_cpus`/`req_memory_mb` 记账；OS 侧只回答"这台
+    机器现在还剩多少"——剩余内存取 `free + inactive + speculative + purgeable`
+    （macOS `vm_stat`／Linux `MemAvailable`），可用核数取 `cpu_count −
+    ceil(loadavg 1min)`。这样**账本看不见的占用也被算进去**（agent 绕过
+    `submit_compute_job` 直调引擎起的作业、浏览器等无关进程）。
+  - 读数只用于放行判定与展示，不参与存活/终态判定；探针读不到时回落声明容量
+    （不断停摆，状态翻转记一条 WARNING）。
+  - `node_id` 为 NULL 的行（升级前的旧行）视为归属注册表的 `default_node_id`。
+  - 作业归属节点**不在注册表里**（节点被摘除、注册表改坏）时：调度器跳过不认领，
+    绝不改投到别的机器上跑；`query_compute_queue` 与控制面容量视图会把这条原因
+    讲清楚。修复方式是重新注册该节点，或取消这个作业。
 - 能力命名空间（`agent.session` / `artifact.download` / `compute.local` /
   `compute.slurm`）由 registry 校验，且节点必须声明与 scheduler 匹配的
   `compute.<type>` 能力。
@@ -37,9 +46,11 @@
   注册表里查看，但不能作为计算作业的工作目录。
 
 当前实现里 registry 的消费方是 `submit_compute_job`（工作区路由 + scheduler 选择 +
-资源申请校验）与 `cloudra scheduler` 守护进程（容量记账）；
-`NodeRegistry.public_nodes()` / `public_workspaces()` 是清单投影，供后续 API 面或
-网关复用。`default_node_id` 必须存在于注册表，未知 `node_id` 报错，不默默回落默认节点。
+资源申请校验 + 归属节点）、`cloudra scheduler` 守护进程（按节点分池的容量记账）、
+容量视图（`query_compute_queue` 工具与 `GET /api/v2/compute/nodes`，口径唯一实现
+在 `services/node_capacity.py`）。`NodeRegistry.public_nodes()` /
+`public_workspaces()` 是清单投影，供后续 API 面或网关复用。`default_node_id` 必须
+存在于注册表，未知 `node_id` 报错，不默默回落默认节点。
 
 ## 工作区路由
 
@@ -52,9 +63,14 @@
 
 - 中央库 `data_dir/compute.db` 的 `compute_jobs` 表是作业的持久状态机与唯一事实源
   （已迁出会话级 SQLite）；独立守护进程 `cloudra scheduler`
-  （`cloudra/scheduler/daemon.py`，与 API 进程分家）轮询中央库，按节点容量
-  （槽位 + CPU/内存记账）以 `priority DESC, id ASC` 认领 `ready` 作业。
+  （`cloudra/scheduler/daemon.py`，与 API 进程分家）轮询中央库，按**每个作业
+  归属节点各自的额度**（槽位 + CPU/内存记账）以 `priority DESC, id ASC` 认领
+  `ready` 作业。队列是全库统一的，额度是分节点的：某个节点放不下的作业跳过，
+  不阻塞别的节点能放下的作业。
   `web` 启动时无活实例会自动 detach 拉起（`CLOUDRA_SCHEDULER=off` 关闭）。
+- `compute_jobs.node_id` 由 `ComputeDB.init()` 的幂等 `ALTER` 补列（旧库升级不重建
+  表）；NULL 视为默认节点归属。控制面/工具展示该列（`GET /api/v2/compute/nodes`、
+  `query_compute_queue`、项目作业队列、Ops 面板）。
 - **local**：拉起 guard 子进程（`python -m cloudra.runtime.monitor`）执行计算。
   guard 持有 `guard-<id>.lock` 排他 flock，calculator 经 `calc_lock_wrapper`
   持有 `calc-<id>.lock`（fd 跨 exec 继承，计算全家存续期间锁有效）——进程存活
@@ -88,5 +104,9 @@ CLOUDRA_NODE_REGISTRY_FILE=/etc/cloudra/nodes.json   # 多节点注册表
 
 ## 尚未验证 / 待完成
 
-真实 Slurm 集群上的提交、取消与恢复试验、多机物理路由网关、分布式 Worker 租约。
-这些完成前，不要把多节点路径当生产可用。
+真实 Slurm 集群上的提交、取消与恢复试验、多机物理路由网关、分布式 Worker 租约
+（把裸 VM/容器当 worker 挂进同一条队列——需要网络化租约与远端判活，
+现存的判活/对账建立在本地 flock 上）。这些完成前，不要把多节点路径当生产可用。
+
+**已明确不做**：作业不会因为"别的节点有空闲"而被改投——归属节点是提交时按工作区
+路由钉死的，节点摘除只会让作业排队（视图里给出原因），绝不会换机器跑。

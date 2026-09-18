@@ -192,6 +192,7 @@ class SubmitComputeJob(Tool):
                     path=f_path,
                     state="ready",
                     jobtype=user_input.job_type,
+                    node_id=admission.node_id,
                     scheduler=scheduler,
                     scheduler_options=json.dumps(scheduler_options, ensure_ascii=False),
                     priority=user_input.priority,
@@ -210,7 +211,8 @@ class SubmitComputeJob(Tool):
                         job_dir=workdir,
                         state="ready",
                         message=(
-                            f"Job submitted to the {scheduler} backend; you will be woken at the terminal state. "
+                            f"Job submitted to node {admission.node_id} ({scheduler} backend); "
+                            "you will be woken at the terminal state. "
                             "Do not poll for status — the terminal state is pushed to you automatically."
                         ),
                     )
@@ -234,6 +236,7 @@ class SubmitComputeJob(Tool):
                     path=f_path,
                     state="running",
                     jobtype=user_input.job_type,
+                    node_id=admission.node_id,
                     scheduler=scheduler,
                     scheduler_options=json.dumps(scheduler_options, ensure_ascii=False),
                     priority=user_input.priority,

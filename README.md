@@ -38,7 +38,13 @@ Cloudra features a unified, single-port web interface (FastAPI control plane + R
 ```bash
 cloudra                      # Builds the frontend and starts the server, opening your browser
 cloudra web --skip-build     # Fast restart using pre-built assets
+cloudra web --host 0.0.0.0   # Bind a custom address/port (LAN or SSH access)
 ```
+
+> The server binds `127.0.0.1:8000` by default. An explicit non-loopback `--host`
+> also loosens the API Host-header check to that address, leaving the bearer token as the
+> only access control — do not pair it with `CLOUDRA_API_TOKEN=off`. An SSH tunnel
+> (`ssh -L 8000:127.0.0.1:8000 …`) needs no rebinding at all.
 
 ### 3. Geek-Friendly Slash Commands
 

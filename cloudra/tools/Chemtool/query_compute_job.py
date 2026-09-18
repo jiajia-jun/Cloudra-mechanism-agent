@@ -67,6 +67,7 @@ def _row_to_dict(row: Dict[str, Any]) -> Dict[str, Any]:
     out = {
         "job_id": row["id"],
         "state": row["state"],
+        "node_id": row["node_id"] or "",
         "scheduler": row["scheduler"],
         "scheduler_state": row["scheduler_state"] or "",
         "jobtype": row["jobtype"],

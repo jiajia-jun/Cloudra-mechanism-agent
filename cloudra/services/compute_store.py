@@ -12,16 +12,23 @@ compute_jobs 已从会话级 SQLite 迁到中央库：提交（submit_compute_jo
 
 from __future__ import annotations
 
+import logging
 import os
 import time
-from typing import Any, Optional
+from typing import Any, Mapping, Optional
 
 from cloudra.persistence.database import ComputeDB, aretry_on_locked, retry_on_locked
+
+logger = logging.getLogger(__name__)
+
+# 认领时跳过"节点已从注册表消失"的作业：每次发现只在首次记一条 WARNING，
+# 否则轮询每 tick 都会刷屏（诊断口径由 query_compute_queue 展示给用户）。
+_warned_unknown_nodes: set[str] = set()
 
 # compute_jobs 全列（与 ComputeDB 的 DDL 一一对应）；dict 行统一按它投影。
 _COMPUTE_JOB_COLUMNS = (
     "id", "conversation_id", "session_id", "state", "path",
-    "start_timestamp", "end_timestamp", "jobtype", "scheduler",
+    "start_timestamp", "end_timestamp", "jobtype", "node_id", "scheduler",
     "scheduler_options", "scheduler_job_id", "scheduler_state",
     "scheduler_script", "last_error", "lease_owner", "lease_expires_at",
     "attempt_count", "priority", "req_cpus", "req_memory_mb",
@@ -60,10 +67,10 @@ def _row_dict(row) -> dict:
 
 _INSERT_SQL = """INSERT INTO compute_jobs
     (conversation_id, session_id, path, state, jobtype,
-     start_timestamp, end_timestamp, scheduler, scheduler_options,
+     start_timestamp, end_timestamp, node_id, scheduler, scheduler_options,
      priority, req_cpus, req_memory_mb,
      charge, multiplicity, xtb_task, xtb_solvent)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"""
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"""
 
 
 def _insert_params(
@@ -73,6 +80,7 @@ def _insert_params(
     path: str,
     state: str,
     jobtype: str,
+    node_id: str,
     scheduler: str,
     scheduler_options: str,
     priority: int,
@@ -86,9 +94,11 @@ def _insert_params(
 ) -> tuple:
     if not conversation_id:
         raise ValueError("compute job 必须归属一个 conversation_id")
+    if not node_id:
+        raise ValueError("compute job 必须归属一个注册节点（容量按节点分池记账）")
     return (
         conversation_id, session_id, path, state, jobtype,
-        start_timestamp, -1, scheduler, scheduler_options,
+        start_timestamp, -1, node_id, scheduler, scheduler_options,
         priority, req_cpus, req_memory_mb,
         charge, multiplicity, xtb_task, xtb_solvent,
     )
@@ -102,6 +112,7 @@ def insert_compute_job(
     path: str,
     state: str,
     jobtype: str,
+    node_id: str,
     scheduler: str = "local",
     scheduler_options: str = "{}",
     priority: int = 0,
@@ -116,7 +127,7 @@ def insert_compute_job(
     """写入一条作业记录，返回 job id。conversation_id 必填（作业归属的项目）。"""
     params = _insert_params(
         conversation_id=conversation_id, session_id=session_id, path=path,
-        state=state, jobtype=jobtype, scheduler=scheduler,
+        state=state, jobtype=jobtype, node_id=node_id, scheduler=scheduler,
         scheduler_options=scheduler_options, priority=priority,
         req_cpus=req_cpus, req_memory_mb=req_memory_mb,
         charge=charge, multiplicity=multiplicity,
@@ -141,6 +152,7 @@ async def ainsert_compute_job(
     path: str,
     state: str,
     jobtype: str,
+    node_id: str,
     scheduler: str = "local",
     scheduler_options: str = "{}",
     priority: int = 0,
@@ -155,7 +167,7 @@ async def ainsert_compute_job(
     """异步写入一条作业记录；语义同 :func:`insert_compute_job`。"""
     params = _insert_params(
         conversation_id=conversation_id, session_id=session_id, path=path,
-        state=state, jobtype=jobtype, scheduler=scheduler,
+        state=state, jobtype=jobtype, node_id=node_id, scheduler=scheduler,
         scheduler_options=scheduler_options, priority=priority,
         req_cpus=req_cpus, req_memory_mb=req_memory_mb,
         charge=charge, multiplicity=multiplicity,
@@ -375,27 +387,67 @@ async def acount_active_compute_jobs(db: ComputeDB, conversation_id: str) -> int
     return await aretry_on_locked(read)
 
 
-def compute_inflight_usage(
+def _fair_share_mb(capacity: Mapping[str, Any]) -> int:
+    """节点公平份额：未声明内存的作业按 ``memory_mb // max_concurrent`` 记账。"""
+    cap_slots = max(1, int(capacity.get("max_concurrent", 1)))
+    return max(1, int(capacity.get("memory_mb", 1024)) // cap_slots)
+
+
+def _usage_by_node(
+    con,
+    *,
+    now: float,
+    default_node_id: str,
+    fair_share_mb: Mapping[str, int],
+) -> dict[str, list[int]]:
+    """租约有效 running 行的**按节点**在用量：``{node_id: [槽位, CPU, 内存MB]}``。
+
+    ``node_id`` 为 NULL 的行归属 ``default_node_id``（旧行升级路径）。不在
+    ``fair_share_mb`` 里的节点（已从注册表消失）拿不到公平份额，按声明值或 0
+    记账——它的额度本就不存在，认领也不会认到它。
+    """
+    rows = con.execute(
+        """SELECT COALESCE(node_id, ?) AS node, req_cpus, req_memory_mb
+           FROM compute_jobs
+           WHERE state='running' AND lease_expires_at>=?""",
+        (default_node_id, now),
+    ).fetchall()
+    usage: dict[str, list[int]] = {}
+    for node, req_cpus, req_mem in rows:
+        key = str(node)
+        acc = usage.setdefault(key, [0, 0, 0])
+        acc[0] += 1
+        acc[1] += int(req_cpus or 1)
+        acc[2] += int(req_mem if req_mem is not None else fair_share_mb.get(key, 0))
+    return usage
+
+
+def compute_inflight_usage_by_node(
     db: ComputeDB,
     *,
-    default_mem: int,
-) -> tuple[int, int, int]:
-    """统计租约有效的 running 作业在用量：(槽位数, CPU, 内存MB)。
+    default_node_id: str,
+    fair_share_mb: Mapping[str, int],
+) -> dict[str, dict]:
+    """各节点在用量视图（展示/诊断用）：``{node_id: {slots, cpus, memory_mb}}``。
 
-    中央库单库后，本库在用量即全节点在用量（无需再跨库汇总）。
+    认领路径不用它——认领在同一事务里现算一遍，避免读写之间的额度漂移。
+    读路径不建库：中央库不存在（从未提交过作业）即空视图。
     """
+    if not _db_ready(db):
+        return {}
 
-    def read() -> tuple[int, int, int]:
-        now = time.time()
+    def read() -> dict[str, dict]:
         with db.connect() as con:
-            row = con.execute(
-                """SELECT COUNT(*), COALESCE(SUM(req_cpus), 0),
-                   COALESCE(SUM(COALESCE(req_memory_mb, ?)), 0)
-                   FROM compute_jobs
-                   WHERE state='running' AND lease_expires_at>=?""",
-                (default_mem, now),
-            ).fetchone()
-        return int(row[0]), int(row[1]), int(row[2])
+            usage = _usage_by_node(
+                con,
+                now=time.time(),
+                default_node_id=default_node_id,
+                fair_share_mb=fair_share_mb,
+            )
+        return {
+            node: {"slots": value[0], "cpus": value[1], "memory_mb": value[2]}
+            for node, value in usage.items()
+        }
 
     return retry_on_locked(read)
 
@@ -408,51 +460,69 @@ def claim_ready_compute_job_with_capacity(
     db: ComputeDB,
     *,
     worker_id: str,
-    capacity: dict,
+    capacities: Mapping[str, dict],
+    default_node_id: str,
     lease_seconds: int = 120,
     max_attempts: int = 3,
 ) -> Optional[int]:
-    """容量感知的原子认领：priority DESC, id ASC，取第一个能放进剩余容量的作业。
+    """按节点分池的容量感知原子认领：priority DESC, id ASC。
 
-    capacity = {"max_concurrent": int, "cpus": int, "memory_mb": int}。
-    在用量 = 中央库租约有效的 running 行（单库即全节点视图）。
-    未声明内存的作业按节点公平份额（memory_mb // max_concurrent）记账。
-    槽位满时直接返回；CPU/内存放不下的作业跳过、不阻塞后面的小作业。
+    ``capacities`` = ``{node_id: {"max_concurrent", "cpus", "memory_mb"}}``：
+    每个节点只在自己额度内认领，**本地额度与云端额度互不吃**（解耦容量池）。
+    在用量 = 中央库租约有效的 running 行按节点分组；未声明内存的作业按该节点
+    公平份额（``memory_mb // max_concurrent``）记账。作业的节点不在
+    ``capacities`` 里（已从注册表消失）则**跳过不认领**——绝不改投到别的机器上
+    跑。排序仍是全库统一的，某节点放不下的作业跳过、不阻塞别的节点能放下的
+    小作业；某节点槽位满则该节点后续作业直接跳过。
     """
-    cap_slots = max(1, int(capacity.get("max_concurrent", 1)))
-    cap_cpus = max(1, int(capacity.get("cpus", 1)))
-    cap_mem = max(1, int(capacity.get("memory_mb", 1024)))
-    default_mem = max(1, cap_mem // cap_slots)
+    caps: dict[str, tuple[int, int, int]] = {}
+    fair_share: dict[str, int] = {}
+    for node_id, capacity in capacities.items():
+        caps[str(node_id)] = (
+            max(1, int(capacity.get("max_concurrent", 1))),
+            max(1, int(capacity.get("cpus", 1))),
+            max(1, int(capacity.get("memory_mb", 1024))),
+        )
+        fair_share[str(node_id)] = _fair_share_mb(capacity)
 
     def write() -> Optional[int]:
         now = time.time()
         expires = now + max(10, int(lease_seconds))
         with db.connect() as con:
-            inflight = con.execute(
-                """SELECT COUNT(*), COALESCE(SUM(req_cpus), 0),
-                   COALESCE(SUM(COALESCE(req_memory_mb, ?)), 0)
-                   FROM compute_jobs
-                   WHERE state='running' AND lease_expires_at>=?""",
-                (default_mem, now),
-            ).fetchone()
-            used_slots = int(inflight[0])
-            used_cpus = int(inflight[1])
-            used_mem = int(inflight[2])
+            usage = _usage_by_node(
+                con, now=now, default_node_id=default_node_id, fair_share_mb=fair_share
+            )
             candidates = con.execute(
-                """SELECT id, req_cpus, req_memory_mb FROM compute_jobs
+                """SELECT id, req_cpus, req_memory_mb, COALESCE(node_id, ?) AS node
+                FROM compute_jobs
                 WHERE (state='ready' OR (state='running' AND lease_expires_at<?))
                 AND COALESCE(attempt_count, 0) < ?
                 ORDER BY priority DESC, id ASC""",
-                (now, max_attempts),
+                (default_node_id, now, max_attempts),
             ).fetchall()
             picked: Optional[int] = None
-            for cid, req_cpus, req_mem in candidates:
-                if used_slots + 1 > cap_slots:
-                    break  # 槽位满，后面每个作业都要槽位
+            for cid, req_cpus, req_mem, node in candidates:
+                node_key = str(node)
+                limits = caps.get(node_key)
+                if limits is None:
+                    if node_key not in _warned_unknown_nodes:
+                        _warned_unknown_nodes.add(node_key)
+                        logger.warning(
+                            "compute job %s targets node %r which is not in the node "
+                            "registry; leaving it queued (re-register the node or "
+                            "cancel the job)",
+                            cid,
+                            node_key,
+                        )
+                    continue
+                cap_slots, cap_cpus, cap_mem = limits
+                used = usage.get(node_key, [0, 0, 0])
+                if used[0] + 1 > cap_slots:
+                    continue  # 该节点槽位满：后面属于它的作业同样放不下
                 r_cpus = int(req_cpus or 1)
-                r_mem = int(req_mem if req_mem is not None else default_mem)
-                if used_cpus + r_cpus > cap_cpus or used_mem + r_mem > cap_mem:
-                    continue  # 太大放不下，试试后面的小作业
+                r_mem = int(req_mem if req_mem is not None else fair_share[node_key])
+                if used[1] + r_cpus > cap_cpus or used[2] + r_mem > cap_mem:
+                    continue  # 该节点放不下，试试后面的小作业
                 picked = int(cid)
                 break
             if picked is None:

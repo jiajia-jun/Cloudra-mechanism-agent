@@ -554,6 +554,7 @@ class ComputeDB:
                 cur.execute(_CREATE_COMPUTE_JOBS)
                 cur.execute(_CREATE_COMPUTE_JOBS_CLAIM_INDEX)
                 cur.execute(_CREATE_COMPUTE_JOBS_NOTIFY_INDEX)
+                self._migrate_compute_schema(cur)
                 con.commit()
         return self
 
@@ -577,10 +578,27 @@ class ComputeDB:
                 await con.execute(_CREATE_COMPUTE_JOBS)
                 await con.execute(_CREATE_COMPUTE_JOBS_CLAIM_INDEX)
                 await con.execute(_CREATE_COMPUTE_JOBS_NOTIFY_INDEX)
+                await self._amigrate_compute_schema(cur)
                 await con.commit()
         finally:
             lock.release()
         return self
+
+    @staticmethod
+    def _migrate_compute_schema(cur) -> None:
+        """为既有中央库补齐 compute_jobs 的新列（幂等；列迁移语法复用会话库的守卫）。"""
+        existing = {row[1] for row in cur.execute("PRAGMA table_info(compute_jobs)").fetchall()}
+        for name, definition in _COMPUTE_JOB_EXTRA_COLUMNS.items():
+            if name not in existing:
+                ConversationDB._add_column(cur, "compute_jobs", name, definition)
+
+    @staticmethod
+    async def _amigrate_compute_schema(cur) -> None:
+        await cur.execute("PRAGMA table_info(compute_jobs)")
+        existing = {row[1] for row in await cur.fetchall()}
+        for name, definition in _COMPUTE_JOB_EXTRA_COLUMNS.items():
+            if name not in existing:
+                await ConversationDB._aadd_column(cur, "compute_jobs", name, definition)
 
     @contextlib.contextmanager
     def connect(self, timeout: float = DEFAULT_BUSY_TIMEOUT):
@@ -718,6 +736,12 @@ _RELATED_EXTRA_COLUMNS = {
 }
 
 # compute_jobs 只住在中央库（ComputeDB，data_dir/compute.db）；会话库不再建此表。
+# 既有中央库的补列（幂等 ALTER）：建表语句只对新库生效，旧库靠这里升级。
+_COMPUTE_JOB_EXTRA_COLUMNS = {
+    # 多节点容量池（v2）：作业归属的注册节点，容量按它分池记账。
+    "node_id": "TEXT",
+}
+
 _CREATE_COMPUTE_JOBS = """
     CREATE TABLE IF NOT EXISTS compute_jobs(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -728,6 +752,9 @@ _CREATE_COMPUTE_JOBS = """
         start_timestamp INTEGER,
         end_timestamp INTEGER DEFAULT -1,
         jobtype TEXT DEFAULT 'gaussian',
+        -- 作业归属的注册节点（services/nodes.py 的 node_id）：容量按节点分池
+        -- 记账的唯一依据；NULL 视为注册表的 default_node_id（旧行升级路径）。
+        node_id TEXT,
         scheduler TEXT DEFAULT 'local',
         scheduler_options TEXT DEFAULT '{}',
         scheduler_job_id TEXT,

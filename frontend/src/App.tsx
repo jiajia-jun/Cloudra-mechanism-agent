@@ -1676,7 +1676,11 @@ export default function App() {
                   ) : (
                     <div className="sidebar-jobs-list">
                       {sidebarJobs.slice(0, 5).map((j) => (
-                        <div key={j.id} className="sidebar-job-row" title={`#${j.id} ${j.jobtype} - ${j.path}`}>
+                        <div
+                          key={j.id}
+                          className="sidebar-job-row"
+                          title={`#${j.id} ${j.jobtype} @ ${j.node_id ?? 'unassigned'} - ${j.path}`}
+                        >
                           <span className="sidebar-job-id">#{j.id}</span>
                           <span className="sidebar-job-type">{j.jobtype}</span>
                           <span className={`state-badge xs ${j.state}`}>{j.state}</span>

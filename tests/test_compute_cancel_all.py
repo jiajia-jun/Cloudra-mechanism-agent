@@ -30,6 +30,7 @@ _ZERO = {"ready_cancelled": 0, "slurm_cancel_requested": 0, "local_cancelled": 0
 def _insert(db: ComputeDB, *, state: str, scheduler: str = "local") -> int:
     return insert_compute_job(
         db,
+        node_id="node-local",
         conversation_id="prj-test",
         session_id=None,
         path="/tmp/input.gjf",

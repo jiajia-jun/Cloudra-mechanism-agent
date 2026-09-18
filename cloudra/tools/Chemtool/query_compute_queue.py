@@ -11,14 +11,16 @@ from cloudra.persistence.database import ComputeDB
 from cloudra.services.compute_store import TERMINAL_STATES, alist_compute_jobs
 
 description = (
-    "Inspect the compute queue: node capacity, currently running jobs with their reserved cpus/memory, "
-    "queued (ready) jobs in scheduling order with their resource requests, and why they are waiting. "
+    "Inspect the compute queue across registered nodes: per-node capacity, currently running jobs with their "
+    "reserved cpus/memory, queued (ready) jobs in scheduling order with their resource requests, and why they "
+    "are waiting. Capacity is accounted per node (each node has its own quota; a job only competes with jobs "
+    "targeting the same node). "
     "Use for: checking free capacity before deciding how many cpus/memory_mb to request in submit_compute_job, "
     "or understanding why a submitted job is still queued. "
     "Do not use for: reading a specific job's result (use query_compute_job), or canceling jobs. "
     "NEVER poll this to wait on jobs. Terminal states are pushed to the owning agent automatically and wake it, "
     "so re-querying the queue while you wait can only return information you already had — each poll burns a "
-    "model turn, and repeated no-progress turn endings are strike-counted by the completion gate (strikes FAIL "
+    "model turn, and repeated no-progress turns are strike-counted by the completion gate (strikes FAIL "
     "the run). Query ONLY for an on-demand capacity/queue check right before submitting. "
     "Scheduling is FIFO within the same priority; running jobs are never preempted."
 )
@@ -33,13 +35,14 @@ class QueryComputeQueue_input_schema(input_schema):
 
 class QueryComputeQueue_output_schema(output_schema):
     is_success: bool = Field(description="Whether the query succeeded")
-    capacity: Dict[str, Any] = Field(
-        default_factory=dict,
+    nodes: List[Dict[str, Any]] = Field(
+        default_factory=list,
         description=(
-            "Node capacity and in-flight usage. 'node' is the effective capacity the scheduler "
-            "accounts with = min('registered' node resources, 'os_available' real free memory/cpus); "
-            "'os_available' covers usage the job ledger cannot see (e.g. engines started outside "
-            "submit_compute_job)."
+            "One entry per registered node (node_id, display_name, scheduler, capacity, in_flight, free). "
+            "For a node running on this host, 'capacity.effective' = min('capacity.registered', "
+            "'capacity.os_available') and 'os_available' covers usage the job ledger cannot see (engines "
+            "started outside submit_compute_job); remote/cluster nodes report their registered quota as-is. "
+            "A job is only scheduled against its own node's free capacity."
         ),
     )
     running: List[Dict[str, Any]] = Field(default_factory=list, description="Running jobs")
@@ -69,33 +72,21 @@ class QueryComputeQueue(Tool):
         return True
 
     async def tool_call(self, user_input: QueryComputeQueue_input_schema, session: Session) -> QueryComputeQueue_output_schema:
-        from cloudra.services.host_capacity import capacity_report
-        from cloudra.services.nodes import NodeRegistry, default_resources
-
-        try:
-            declared = dict(NodeRegistry.from_environment().node(None).resources)
-        except Exception:
-            declared = default_resources()
-        # 生效容量 = min(声明, OS 实时余量)；探针是子进程，走线程不阻塞事件循环
-        report = await asyncio.to_thread(capacity_report, declared)
-        capacity = report["effective"]
-        capacity_view = {
-            "node": capacity,
-            "registered": report["declared"],
-            "os_available": report["os_available"],
-        }
-        cap_slots = max(1, int(capacity.get("max_concurrent", 1)))
-        default_mem = max(1, int(capacity.get("memory_mb", 1024)) // cap_slots)
+        from cloudra.services.node_capacity import fair_share_mb, node_capacity_views
 
         # 节点级全局视图：中央 compute.db 的全量排队/在跑（不按会话过滤——
-        # 它本来就是给 agent 看节点算力状态的）
+        # 它本来就是给 agent 看节点算力状态的）。容量探测（vm_stat 子进程）与
+        # 在用量读库都是阻塞活，整体卸载到线程。
         db = ComputeDB()
         if not os.path.exists(db.path):
+            nodes, _ = await asyncio.to_thread(node_capacity_views, None)
             return QueryComputeQueue_output_schema(
                 is_success=True,
-                capacity=dict(capacity_view, in_flight={"slots": 0, "cpus": 0, "memory_mb": 0}),
-                message="No compute jobs have been submitted on this node yet.",
+                nodes=nodes,
+                message="No compute jobs have been submitted yet.",
             )
+        nodes, default_node_id = await asyncio.to_thread(node_capacity_views, db)
+        by_id = {view["node_id"]: view for view in nodes}
 
         try:
             running_rows = await alist_compute_jobs(db, states=("running",), order="id")
@@ -109,35 +100,59 @@ class QueryComputeQueue(Tool):
         except Exception as e:
             return QueryComputeQueue_output_schema(is_success=False, message=f"Query failed: {e}")
 
+        def _node_of(row) -> str:
+            return str(row["node_id"] or default_node_id)
+
+        def _default_mem(node_key: str) -> int:
+            entry = by_id.get(node_key)
+            return fair_share_mb(entry["capacity"]["effective"]) if entry else 0
+
         running = [
             {
                 "job_id": r["id"],
                 "jobtype": r["jobtype"],
+                "node_id": _node_of(r),
                 "scheduler": r["scheduler"],
                 "started_at": _iso(r["start_timestamp"]),
                 "cpus": r["req_cpus"] or 1,
-                "memory_mb": r["req_memory_mb"] if r["req_memory_mb"] is not None else default_mem,
+                "memory_mb": (
+                    r["req_memory_mb"]
+                    if r["req_memory_mb"] is not None
+                    else _default_mem(_node_of(r))
+                ),
                 "priority": r["priority"] or 0,
             }
             for r in running_rows
         ]
-        used_cpus = sum(j["cpus"] for j in running)
-        used_mem = sum(j["memory_mb"] for j in running)
 
         queued = []
         for position, r in enumerate(ready_rows, start=1):
+            node_key = _node_of(r)
+            entry = by_id.get(node_key)
             req_cpus = r["req_cpus"] or 1
-            req_mem = r["req_memory_mb"] if r["req_memory_mb"] is not None else default_mem
-            if len(running) >= cap_slots:
-                reason = "waiting: node job slots are full"
-            elif used_cpus + req_cpus > capacity.get("cpus", 1) or used_mem + req_mem > capacity.get("memory_mb", 1):
-                reason = "waiting: not enough free cpus/memory right now"
+            req_mem = (
+                r["req_memory_mb"] if r["req_memory_mb"] is not None else _default_mem(node_key)
+            )
+            if entry is None:
+                # 节点已从注册表消失：调度器不会认领它（绝不改投别的机器跑），
+                # 这条原因就是给用户的修复指引。
+                reason = (
+                    f"waiting: node {node_key!r} is not in the node registry; "
+                    "the scheduler will not claim this job until the node is registered"
+                )
             else:
-                reason = "queued: should start on the next scheduler tick"
+                free = entry["free"]
+                if free["slots"] < 1:
+                    reason = f"waiting: node {node_key} job slots are full"
+                elif req_cpus > free["cpus"] or req_mem > free["memory_mb"]:
+                    reason = f"waiting: not enough free cpus/memory on node {node_key} right now"
+                else:
+                    reason = "queued: should start on the next scheduler tick"
             queued.append({
                 "job_id": r["id"],
                 "position": position,
                 "jobtype": r["jobtype"],
+                "node_id": node_key,
                 "scheduler": r["scheduler"],
                 "cpus": req_cpus,
                 "memory_mb": req_mem,
@@ -149,6 +164,7 @@ class QueryComputeQueue(Tool):
             {
                 "job_id": r["id"],
                 "jobtype": r["jobtype"],
+                "node_id": _node_of(r),
                 "state": r["state"],
                 "ended_at": _iso(r["end_timestamp"]),
                 "last_error": r["last_error"] or "",
@@ -156,8 +172,8 @@ class QueryComputeQueue(Tool):
             for r in terminal_rows
         ]
         message = (
-            f"{len(running)} running, {len(queued)} queued. "
-            "In-flight usage is node-global (the scheduler accounts all projects from the central compute.db)."
+            f"{len(running)} running, {len(queued)} queued across {len(nodes)} node(s). "
+            "Capacity is accounted per node: a job only competes with jobs targeting the same node."
         )
         if running or queued:
             message += (
@@ -171,10 +187,7 @@ class QueryComputeQueue(Tool):
             )
         return QueryComputeQueue_output_schema(
             is_success=True,
-            capacity=dict(
-                capacity_view,
-                in_flight={"slots": len(running), "cpus": used_cpus, "memory_mb": used_mem},
-            ),
+            nodes=nodes,
             running=running,
             queued=queued,
             terminal=terminal,

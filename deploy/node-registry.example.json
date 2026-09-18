@@ -25,6 +25,11 @@
       "display_name": "HPC Login Node",
       "state": "online",
       "capabilities": ["agent.session", "artifact.download", "compute.slurm"],
+      "resources": {
+        "max_concurrent": 8,
+        "cpus": 64,
+        "memory_mb": 262144
+      },
       "scheduler": {
         "type": "slurm",
         "partition": "compute",

@@ -33,6 +33,7 @@ async def _make_project(core: RuntimeCore, name: str = "p"):
 def _insert_job(db: ComputeDB, *, conversation_id: str, state: str, session_id=None) -> int:
     return insert_compute_job(
         db,
+        node_id="node-local",
         conversation_id=conversation_id,
         session_id=session_id,
         path="/tmp/input.inp",

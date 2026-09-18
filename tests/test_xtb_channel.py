@@ -21,6 +21,7 @@ from cloudra.infra.compute_utils import (
 from cloudra.persistence.database import ComputeDB
 from cloudra.services.compute_store import (
     aget_compute_job,
+    alist_compute_jobs,
     claim_ready_compute_job_with_capacity,
 )
 from cloudra.tools.Chemtool.submit_compute_job import (
@@ -399,12 +400,13 @@ async def test_submit_xtb_scheduler_claim_end_to_end(xtb_workdir):
     assert submitted.is_success is True, submitted.message
 
     db = ComputeDB()
-    capacity = {"max_concurrent": 2, "cpus": 8, "memory_mb": 8192}
+    node_id = (await alist_compute_jobs(db))[0]["node_id"]
     claimed = await asyncio.to_thread(
         claim_ready_compute_job_with_capacity,
         db,
         worker_id="test-worker",
-        capacity=capacity,
+        capacities={node_id: {"max_concurrent": 2, "cpus": 8, "memory_mb": 8192}},
+        default_node_id=node_id,
     )
     assert claimed == submitted.job_id
 

@@ -40,14 +40,19 @@ def _clean_cache():
 
 
 class _FakeNode:
-    def __init__(self, resources, scheduler_type="local"):
+    def __init__(self, resources, scheduler_type="local", node_id="workstation"):
+        self.node_id = node_id
         self.resources = resources
         self.scheduler = {"type": scheduler_type}
 
 
 class _FakeRegistry:
+    """只实现容量路径用到的表面：nodes 遍历 + default_node_id。"""
+
     def __init__(self, node):
         self._node = node
+        self.nodes = () if node is None else (node,)
+        self.default_node_id = getattr(node, "node_id", "workstation")
 
     def node(self, node_id=None):
         return self._node
@@ -149,32 +154,39 @@ def _patch_node(monkeypatch, node, *, raises=False):
     monkeypatch.setattr(nodes.NodeRegistry, "from_environment", _from_environment)
 
 
-def test_node_capacity_applies_host_limits(monkeypatch):
+def test_node_capacities_apply_host_limits(monkeypatch):
+    """本机 local 节点：生效容量 = min(声明, OS 余量)，按 node_id 分池返回。"""
     _patch_node(monkeypatch, _FakeNode(dict(DECLARED)))
     monkeypatch.setattr(hc, "os_available_memory_mb", lambda **_: VM_STAT_MB)
     monkeypatch.setattr(hc, "os_available_cpus", lambda **_: 6)
 
-    assert daemon._node_capacity() == {
-        "max_concurrent": 10,
-        "cpus": 6,
-        "memory_mb": VM_STAT_MB,
+    capacities, default_node_id = daemon._node_capacities()
+
+    assert capacities == {
+        "workstation": {"max_concurrent": 10, "cpus": 6, "memory_mb": VM_STAT_MB}
     }
+    assert default_node_id == "workstation"
 
 
-def test_node_capacity_ignores_host_limits_for_slurm(monkeypatch):
+def test_node_capacities_ignore_host_limits_for_slurm(monkeypatch):
+    """远端/集群节点不在这台机器上跑：OS 读数与它无关，原样用注册声明。"""
     _patch_node(monkeypatch, _FakeNode(dict(DECLARED), scheduler_type="slurm"))
     monkeypatch.setattr(hc, "os_available_memory_mb", lambda **_: 1)
     monkeypatch.setattr(hc, "os_available_cpus", lambda **_: 1)
 
-    assert daemon._node_capacity() == DECLARED
+    capacities, _default = daemon._node_capacities()
+
+    assert capacities == {"workstation": DECLARED}
 
 
-def test_node_capacity_survives_broken_registry(monkeypatch):
+def test_node_capacities_survive_broken_registry(monkeypatch):
     _patch_node(monkeypatch, None, raises=True)
     monkeypatch.setattr(hc, "os_available_memory_mb", lambda **_: None)
     monkeypatch.setattr(hc, "os_available_cpus", lambda **_: None)
 
-    assert daemon._node_capacity() == nodes.default_resources()
+    capacities, default_node_id = daemon._node_capacities()
+
+    assert capacities == {default_node_id: nodes.default_resources()}
 
 
 def test_scheduler_module_import_path_unchanged():

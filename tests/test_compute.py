@@ -617,8 +617,12 @@ async def test_submit_async_then_execution_failure_same_id(isolated_db, mock_cal
     job_id = submitted.job_id
 
     db = ComputeDB()
+    node_id = list_compute_jobs(db)[0]["node_id"]
     claimed = claim_ready_compute_job_with_capacity(
-        db, worker_id="test-worker", capacity={"max_concurrent": 1, "cpus": 4, "memory_mb": 4096}
+        db,
+        worker_id="test-worker",
+        capacities={node_id: {"max_concurrent": 1, "cpus": 4, "memory_mb": 4096}},
+        default_node_id=node_id,
     )
     assert claimed == job_id
 

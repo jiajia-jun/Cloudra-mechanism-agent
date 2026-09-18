@@ -1,9 +1,10 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from './api';
-import type { Agent, ComputeJob, PendingReminder, Project } from './types';
+import type { Agent, ComputeJob, ComputeNode, PendingReminder, Project } from './types';
 
-/* Ops 面板：一屏看清项目在跑什么——agent 树（完整层级）、计算队列、
-   残留 reminder。行里的 session_id 全部解析回归属 agent 名。 */
+/* Ops 面板：一屏看清项目在跑什么——agent 树（完整层级）、多节点容量与计算队列、
+   残留 reminder。行里的 session_id 全部解析回归属 agent 名，计算作业行标出归属
+   节点（容量按节点分池记账）。 */
 
 function basename(path: string): string {
   const parts = path.split('/');
@@ -16,6 +17,11 @@ function elapsed(startTs: number | null): string {
   if (secs < 60) return `${secs}s`;
   if (secs < 3600) return `${Math.floor(secs / 60)}m${secs % 60}s`;
   return `${Math.floor(secs / 3600)}h${Math.floor((secs % 3600) / 60)}m`;
+}
+
+function gib(mb: number): string {
+  if (mb >= 1024) return `${(mb / 1024).toFixed(1)}G`;
+  return `${Math.round(mb)}M`;
 }
 
 function wakeCountdown(wakeTs: number): string {
@@ -32,6 +38,7 @@ export default function OpsPanel({ project, agents, onError }: {
   onError: (e: unknown) => void;
 }) {
   const [jobs, setJobs] = useState<ComputeJob[] | null>(null);
+  const [nodes, setNodes] = useState<ComputeNode[] | null>(null);
   const [reminders, setReminders] = useState<PendingReminder[] | null>(null);
 
   const agentName = useMemo(() => {
@@ -52,6 +59,10 @@ export default function OpsPanel({ project, agents, onError }: {
     setJobs(await api.listComputeJobs(project.id));
   }, [project.id]);
 
+  const loadNodes = useCallback(async () => {
+    setNodes(await api.computeNodes());
+  }, []);
+
   const loadReminders = useCallback(async () => {
     setReminders(await api.listPendingReminders(project.id));
   }, [project.id]);
@@ -62,6 +73,13 @@ export default function OpsPanel({ project, agents, onError }: {
     const timer = setInterval(() => loadJobs().catch(() => undefined), 4000);
     return () => clearInterval(timer);
   }, [loadJobs, onError]);
+
+  useEffect(() => {
+    setNodes(null);
+    loadNodes().catch(onError);
+    const timer = setInterval(() => loadNodes().catch(() => undefined), 4000);
+    return () => clearInterval(timer);
+  }, [loadNodes, onError]);
 
   useEffect(() => {
     setReminders(null);
@@ -119,6 +137,53 @@ export default function OpsPanel({ project, agents, onError }: {
       <div className="card">
         <div className="card-header-row">
           <span className="card-section-label">
+            节点容量{nodes ? `（${nodes.length} 个节点）` : ''}
+          </span>
+          <button className="btn ghost sm" onClick={() => loadNodes().catch(onError)}>
+            刷新
+          </button>
+        </div>
+        {nodes === null ? (
+          <div className="ops-empty">加载中…</div>
+        ) : nodes.length === 0 ? (
+          <div className="ops-empty">没有注册节点。</div>
+        ) : (
+          <div className="ops-node-list">
+            {nodes.map((n) => {
+              const cap = n.capacity.effective;
+              const used = n.in_flight;
+              const memRatio = cap.memory_mb > 0 ? used.memory_mb / cap.memory_mb : 0;
+              return (
+                <div
+                  className="ops-node-row"
+                  key={n.node_id}
+                  title={`registered: ${n.capacity.registered.cpus} cpus / ${gib(n.capacity.registered.memory_mb)} · ${n.capacity.registered.max_concurrent} slots`}
+                >
+                  <span className="ops-node-name">{n.display_name}</span>
+                  <span className="badge role-badge">{n.scheduler}</span>
+                  <span className={`state-badge xs ${n.state === 'online' ? 'running' : 'waiting_input'}`}>
+                    {n.state}
+                  </span>
+                  <span className={`ops-node-metric${used.slots >= cap.max_concurrent ? ' full' : ''}`}>
+                    slots {used.slots}/{cap.max_concurrent}
+                  </span>
+                  <span className={`ops-node-metric${used.cpus >= cap.cpus ? ' full' : ''}`}>
+                    cpu {used.cpus}/{cap.cpus}
+                  </span>
+                  <span className={`ops-node-metric${memRatio >= 1 ? ' full' : ''}`}>
+                    mem {gib(used.memory_mb)}/{gib(cap.memory_mb)}
+                  </span>
+                  <span className="ops-dim">free {n.free.slots} slots / {n.free.cpus} cpu</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="card">
+        <div className="card-header-row">
+          <span className="card-section-label">
             计算队列{jobs ? `（${jobs.length} 个活跃）` : ''}
           </span>
           <button className="btn ghost sm" onClick={() => loadJobs().catch(onError)}>
@@ -136,6 +201,7 @@ export default function OpsPanel({ project, agents, onError }: {
                 <th>Job</th>
                 <th>状态</th>
                 <th>类型</th>
+                <th>节点</th>
                 <th>输入</th>
                 <th>归属 Agent</th>
                 <th>调度</th>
@@ -150,6 +216,7 @@ export default function OpsPanel({ project, agents, onError }: {
                     <span className={`state-badge ${j.state}`}>{j.state}</span>
                   </td>
                   <td>{j.jobtype}</td>
+                  <td className="ops-mono">{j.node_id ?? '—'}</td>
                   <td className="ops-mono">{basename(j.path)}</td>
                   <td>{ownerLabel(j.session_id)}</td>
                   <td>{j.scheduler}</td>

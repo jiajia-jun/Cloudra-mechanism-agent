@@ -83,6 +83,40 @@ def test_loopback_hosts_accepted(_env_token):
         assert resp.status_code == 200, host
 
 
+def test_explicit_bind_host_added_to_allowlist(monkeypatch, _env_token):
+    """`cloudra web --host 192.168.1.5`：客户端用的就是这个地址，必须放行，
+    否则改绑非回环地址后所有请求都是 400。白名单其余部分（防伪造 Host）不变。"""
+    monkeypatch.setenv("CLOUDRA_API_BIND_HOST", "192.168.1.5")
+    client = TestClient(create_v2_app())
+
+    resp = client.get(
+        _PROBE,
+        headers={"Authorization": "Bearer test-secret-token", "Host": "192.168.1.5:8000"},
+    )
+    assert resp.status_code == 200
+    assert client.get(_PROBE, headers={"Authorization": "Bearer test-secret-token"}).status_code == 200
+    forged = client.get(
+        _PROBE,
+        headers={"Authorization": "Bearer test-secret-token", "Host": "evil.attacker.com"},
+    )
+    assert forged.status_code == 400
+
+
+def test_wildcard_bind_host_disables_host_check(monkeypatch, _env_token):
+    """通配绑定（--host 0.0.0.0）下客户端名字无法枚举：Host 校验整体关闭，
+    但认证闸门不变——token 才是访问控制。"""
+    monkeypatch.setenv("CLOUDRA_API_BIND_HOST", "0.0.0.0")
+    client = TestClient(create_v2_app())
+
+    resp = client.get(
+        _PROBE,
+        headers={"Authorization": "Bearer test-secret-token", "Host": "10.0.0.7:8000"},
+    )
+    assert resp.status_code == 200
+    assert client.get(_PROBE, headers={"Host": "10.0.0.7:8000"}).status_code == 401
+    assert client.get(_PROBE, headers={"Host": "evil.attacker.com"}).status_code == 401
+
+
 # ---------------------------------------------------------------- off 模式
 
 

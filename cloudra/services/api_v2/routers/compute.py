@@ -1,7 +1,9 @@
-"""Compute job 控制面：项目作业队列只读查询 + 一键取消全部（账本级取消，绝不杀计算进程）。
+"""Compute job 控制面：项目作业队列只读查询 + 多节点容量视图 + 一键取消全部
+（账本级取消，绝不杀计算进程）。
 
 查询口径：活跃态 = ready/running/cancel_requested（与项目硬删除门禁同一口径）；
-行投影里的 ``session_id`` 即归属 agent（终态推送的收件人）。
+行投影里的 ``session_id`` 即归属 agent（终态推送的收件人），``node_id`` 是作业
+归属的注册节点（容量按节点分池记账）。
 
 取消语义按作业状态分桶（``acancel_all_compute_jobs``）：ready 直接落
 cancelled；running + Slurm 置 cancel_requested，由租约持有方的既有 poll
@@ -10,6 +12,8 @@ guard 终态 CAS no-op）。
 """
 
 from __future__ import annotations
+
+import asyncio
 
 from fastapi import APIRouter
 
@@ -40,6 +44,18 @@ def build_router(ctx: ApiContext) -> APIRouter:
             order="recent",
             limit=None if active_only else 100,
         )
+
+    @router.get("/api/v2/compute/nodes", dependencies=ctx.protected)
+    async def list_compute_nodes() -> list[dict]:
+        """注册节点容量视图（全局，非项目作用域）：每节点生效容量 / 在用量 / 余量。
+
+        与调度守护的认领额度同源（``services/node_capacity.py``）；OS 实时余量
+        探测是阻塞活（vm_stat 子进程），卸载出事件循环。
+        """
+        from cloudra.services.node_capacity import node_capacity_views
+
+        views, _default_node_id = await asyncio.to_thread(node_capacity_views, ComputeDB())
+        return views
 
     @router.post("/api/v2/compute/cancel-all", dependencies=ctx.protected)
     async def cancel_all_compute_jobs() -> dict[str, int]:

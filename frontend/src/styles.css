@@ -2995,6 +2995,14 @@ body {
 .ops-agent-row:hover { background: var(--bg-hover, rgba(255, 255, 255, 0.04)); }
 .ops-agent-name { font-weight: 600; }
 .ops-dim { color: var(--fg-faint); font-size: 11px; }
+.ops-node-list { display: flex; flex-direction: column; gap: 6px; padding: 4px 0; }
+.ops-node-row {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px;
+}
+.ops-node-name { font-weight: 600; }
+.ops-node-metric { color: var(--fg-tertiary); font-variant-numeric: tabular-nums; }
+.ops-node-metric.full { color: var(--yellow); }
 .ops-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .ops-table th { text-align: left; color: var(--fg-faint); font-weight: 500; padding: 4px 8px; border-bottom: 1px solid var(--border); }
 .ops-table td { padding: 5px 8px; border-bottom: 1px solid var(--border-subtle, var(--border)); vertical-align: top; }

@@ -181,6 +181,8 @@ export interface ComputeJob {
   start_timestamp: number | null;
   end_timestamp: number | null;
   jobtype: string;
+  // Owning registered node (capacity is accounted per node); null only on legacy rows.
+  node_id: string | null;
   scheduler: string;
   scheduler_state: string | null;
   last_error: string | null;
@@ -188,6 +190,28 @@ export interface ComputeJob {
   req_cpus: number;
   req_memory_mb: number | null;
   attempt_count: number;
+}
+
+export interface NodeResources {
+  max_concurrent: number;
+  cpus: number;
+  memory_mb: number;
+}
+
+export interface ComputeNode {
+  node_id: string;
+  display_name: string;
+  scheduler: string;
+  state: string;
+  // effective = min(registered, os_available) for a node running on this host;
+  // remote/cluster nodes report their registered quota as-is.
+  capacity: {
+    registered: NodeResources;
+    os_available: { memory_mb: number | null; cpus: number | null };
+    effective: NodeResources;
+  };
+  in_flight: { slots: number; cpus: number; memory_mb: number };
+  free: { slots: number; cpus: number; memory_mb: number };
 }
 
 export interface PendingReminder {

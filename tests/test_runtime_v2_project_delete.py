@@ -183,6 +183,7 @@ async def test_hard_delete_route_gates_on_active_compute_jobs():
         # 有非终态 compute job → 409，提示先 cancel-all
         job_id = insert_compute_job(
             db,
+            node_id="node-local",
             conversation_id=project_id,
             session_id=None,
             path="/tmp/input.gjf",
@@ -242,11 +243,11 @@ async def test_deleted_project_terminal_jobs_are_marked_notified_without_deliver
 
     db = ComputeDB().init()
     deleted_job = insert_compute_job(
-        db, conversation_id=project.id, session_id=None,
+        db, node_id="node-local", conversation_id=project.id, session_id=None,
         path="/tmp/a.gjf", state="done", jobtype="gaussian",
     )
     unknown_job = insert_compute_job(
-        db, conversation_id="prj-neverexisted", session_id=None,
+        db, node_id="node-local", conversation_id="prj-neverexisted", session_id=None,
         path="/tmp/b.gjf", state="done", jobtype="gaussian",
     )
     _set_end_timestamp(db, deleted_job)

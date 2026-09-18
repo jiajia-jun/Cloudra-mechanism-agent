@@ -36,15 +36,40 @@ _SHUTDOWN_GRACE_SECONDS = 15.0
 # 其它 Host（DNS rebinding 的域名）一律 400，挡掉浏览器跨域页面重绑定访问。
 _ALLOWED_HOSTS = {"127.0.0.1", "localhost", "::1", "testserver"}
 
+# web_launcher 显式绑定的地址（uvicorn 子进程 env 传入 `cloudra web --host`）。
+_BIND_HOST_ENV = "CLOUDRA_API_BIND_HOST"
+# 通配绑定：客户端实际使用的名字（IP/主机名/别名）无法枚举。
+_WILDCARD_BIND_HOSTS = {"0.0.0.0", "::", "*"}
+
+
+def _host_allowlist() -> set[str] | None:
+    """生效的 Host 白名单；``None`` 表示关闭校验。
+
+    默认（回环绑定）保持原白名单。显式绑到非回环地址时，请求携带的 Host 是
+    客户端侧的名字：通配绑定只能整体关闭校验，具体地址则把该地址本身加进
+    白名单（回环名字仍照旧放行）。放开的是 DNS rebinding 这一层，认证闸门
+    不变——bearer token 仍是唯一的访问控制。
+    """
+    bind_host = os.environ.get(_BIND_HOST_ENV, "").strip()
+    if not bind_host or bind_host in _ALLOWED_HOSTS:
+        return _ALLOWED_HOSTS
+    if bind_host in _WILDCARD_BIND_HOSTS:
+        return None
+    return _ALLOWED_HOSTS | {bind_host}
+
 
 class _HostCheckMiddleware:
-    """纯 ASGI Host 校验：hostname 不在白名单 → 400（不进入路由）。"""
+    """纯 ASGI Host 校验：hostname 不在白名单 → 400（不进入路由）。
 
-    def __init__(self, app: Any) -> None:
+    ``allowed_hosts=None`` 关闭校验（显式绑到通配地址，见 ``_host_allowlist``）。
+    """
+
+    def __init__(self, app: Any, allowed_hosts: set[str] | None) -> None:
         self.app = app
+        self.allowed_hosts = allowed_hosts
 
     async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
-        if scope["type"] == "http":
+        if scope["type"] == "http" and self.allowed_hosts is not None:
             host = ""
             for name, value in scope.get("headers") or []:
                 if name == b"host":
@@ -54,7 +79,8 @@ class _HostCheckMiddleware:
                 hostname = host[1:host.index("]")]
             else:
                 hostname = host.split(":", 1)[0]
-            if hostname not in _ALLOWED_HOSTS:
+            # IPv6 字面量在 scope 里不带方括号，白名单里两种写法都认。
+            if hostname not in self.allowed_hosts and f"[{hostname}]" not in self.allowed_hosts:
                 response = JSONResponse({"detail": "invalid host"}, status_code=400)
                 await response(scope, receive, send)
                 return
@@ -218,7 +244,7 @@ def create_v2_app(
         allow_headers=["*"],
     )
     # 最后添加的中间件最先执行：Host 校验先于 CORS/路由。
-    app.add_middleware(_HostCheckMiddleware)
+    app.add_middleware(_HostCheckMiddleware, allowed_hosts=_host_allowlist())
 
     # CLOUDRA_API_TOKEN=off 显式关闭认证；未设环境变量时回退到
     # data_dir/.api_token（首次启动自动生成，0600）。None 表示全放行。

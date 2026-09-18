@@ -570,8 +570,8 @@ def test_refine_submits_the_irc_job_after_frequency(tmp_path):
     for step, path in ((record.job_steps[0], record.job_steps[0].input_path),
                        (None, str(freq_input))):
         job_id = insert_compute_job(
-            db, conversation_id="test", session_id=None, path=path, state="done",
-            jobtype="orca",
+            db, node_id="node-local", conversation_id="test", session_id=None,
+            path=path, state="done", jobtype="orca",
         )
         if step is not None:
             step.job_id = job_id

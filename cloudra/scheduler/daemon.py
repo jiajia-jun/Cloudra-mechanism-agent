@@ -73,27 +73,16 @@ def _record_adopt_spawn(lock_path: str) -> None:
     atomic_write_text(_adopt_last_spawn_path(lock_path), f"{time.time():.3f}")
 
 
-def _node_capacity() -> dict:
-    """节点容量 = min(注册声明, OS 实时余量)；注册表缺失/损坏时用保守兜底值。
+def _node_capacities() -> tuple[dict[str, dict], str]:
+    """全部注册节点的生效容量与默认节点 id（容量池按节点解耦）。
 
-    OS 余量（`services/host_capacity.py`）涵盖账本看不见的占用——agent 绕过
-    submit_compute_job 直调引擎起的作业也在内。Slurm 节点跑在集群上，不受
-    本机余量约束，原样返回声明容量。
+    口径唯一实现在 ``services/node_capacity.py``：跑在本机的 local 节点取
+    min(注册声明, OS 实时余量)，远端/集群节点用注册声明。每个节点只在自己的
+    额度内认领——本地额度不会被云端作业吃掉，反之亦然。
     """
-    from cloudra.services.host_capacity import effective_resources
+    from cloudra.services.node_capacity import node_capacities
 
-    try:
-        from cloudra.services.nodes import NodeRegistry
-
-        node = NodeRegistry.from_environment().node(None)
-        declared = dict(node.resources)
-        if str(node.scheduler.get("type", "local")) != "local":
-            return declared
-    except Exception:
-        from cloudra.services.nodes import default_resources
-
-        declared = default_resources()
-    return effective_resources(declared)
+    return node_capacities()
 
 
 class SchedulerDaemon:
@@ -180,10 +169,14 @@ class SchedulerDaemon:
     # ---- 认领（容量感知） ----
 
     def _claim_one(self) -> int | None:
-        """每 tick 对中央库做一次容量感知认领；认到返回 job id。"""
+        """每 tick 对中央库做一次按节点分池的容量感知认领；认到返回 job id。"""
         try:
+            capacities, default_node_id = _node_capacities()
             return claim_ready_compute_job_with_capacity(
-                self.db, worker_id=self.worker_id, capacity=_node_capacity()
+                self.db,
+                worker_id=self.worker_id,
+                capacities=capacities,
+                default_node_id=default_node_id,
             )
         except Exception:
             logger.exception("claim failed")

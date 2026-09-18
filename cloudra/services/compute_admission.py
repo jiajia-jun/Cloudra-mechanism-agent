@@ -27,6 +27,7 @@ class AdmissionOutcome(BaseModel):
     ok: bool
     input_path: str = Field(default="", description="解析后的输入文件绝对路径")
     workdir: str = Field(default="", description="作业工作目录（输入文件所在目录）")
+    node_id: str = Field(default="", description="作业归属的注册节点（容量分池记账依据）")
     scheduler: str = Field(default="", description="解析后的调度器类型，如 local / slurm")
     scheduler_options: dict = Field(default_factory=dict)
     node_resources: dict = Field(default_factory=dict)
@@ -103,6 +104,21 @@ def resource_underestimate(
     return None
 
 
+def _route_node(input_file: str) -> tuple[Optional[object], str]:
+    """按注册表工作区路由解析作业归属节点，返回 ``(node, 失败原因)``。
+
+    注册表缺失/损坏、或路径不在任何注册工作区内都返回 ``(None, 原因)``——调用方
+    决定是 fail-loud 还是回落默认节点。
+    """
+    from cloudra.services.nodes import NodeRegistry
+
+    try:
+        node, _workspace = NodeRegistry.from_environment().route_for_path(Path(input_file))
+    except Exception as exc:  # noqa: BLE001 - 路由失败的种类由调用方定性
+        return None, str(exc)
+    return node, ""
+
+
 def admit_job(
     *,
     input_file: str,
@@ -153,32 +169,39 @@ def admit_job(
     scheduler_options: dict = {"type": scheduler}
     from cloudra.services.nodes import NodeRegistry, default_resources
 
-    node_resources: Optional[dict] = None
-    if scheduler == "auto":
-        try:
-            node, _workspace = NodeRegistry.from_environment().route_for_path(Path(f_path))
+    # 作业归属节点：注册表配置了就按工作区路由解析（execution_backend=auto 时它
+    # 同时决定调度器）。**资源硬校验与容量分池记账用的是同一个节点**，否则
+    # "按谁的额度校验"与"记到谁的账上"会分叉。解析不到时回落默认节点；auto 且
+    # 显式配了注册表却路由不到 = 提交配置错误，fail-loud（不静默降级到本机跑）。
+    node, route_error = _route_node(f_path)
+    if node is None and scheduler == "auto" and os.getenv("CLOUDRA_NODE_REGISTRY_FILE"):
+        return AdmissionOutcome(
+            ok=False, input_path=f_path, workdir=workdir,
+            message=f"Could not resolve a node scheduler for the input file: {route_error}",
+        )
+    if node is not None:
+        node_id = node.node_id
+        node_resources = dict(node.resources)
+        if scheduler == "auto":
             scheduler_options = dict(node.scheduler)
             scheduler = str(scheduler_options.get("type", "local"))
-            node_resources = dict(node.resources)
-        except Exception as exc:  # noqa: BLE001 - 未配注册表时退回 local
-            if os.getenv("CLOUDRA_NODE_REGISTRY_FILE"):
-                return AdmissionOutcome(
-                    ok=False, input_path=f_path, workdir=workdir,
-                    message=f"Could not resolve a node scheduler for the input file: {exc}",
-                )
+    else:
+        if scheduler == "auto":
             scheduler = "local"
             scheduler_options = {"type": "local"}
-    if node_resources is None:
         try:
-            node_resources = dict(NodeRegistry.from_environment().node(None).resources)
-        except Exception:  # noqa: BLE001 - 同上，用默认容量
+            default_node = NodeRegistry.from_environment().node(None)
+            node_id = default_node.node_id
+            node_resources = dict(default_node.resources)
+        except Exception:  # noqa: BLE001 - 注册表缺失/损坏：单节点兜底
+            node_id = os.getenv("CLOUDRA_NODE_ID", "node-local")
             node_resources = default_resources()
 
     # 资源硬校验（唯一校验点）：申请量超过节点总量直接拒收，让调用方改小重报
     if cpus > int(node_resources.get("cpus", 1)):
         return AdmissionOutcome(
             ok=False, input_path=f_path, workdir=workdir,
-            scheduler=scheduler, scheduler_options=scheduler_options,
+            node_id=node_id, scheduler=scheduler, scheduler_options=scheduler_options,
             node_resources=node_resources,
             message=(
                 f"Requested cpus={cpus} exceeds node capacity ({node_resources.get('cpus')} cores). "
@@ -189,7 +212,7 @@ def admit_job(
     if memory_mb is not None and memory_mb > int(node_resources.get("memory_mb", 0)):
         return AdmissionOutcome(
             ok=False, input_path=f_path, workdir=workdir,
-            scheduler=scheduler, scheduler_options=scheduler_options,
+            node_id=node_id, scheduler=scheduler, scheduler_options=scheduler_options,
             node_resources=node_resources,
             message=(
                 f"Requested memory_mb={memory_mb} exceeds node capacity "
@@ -203,7 +226,7 @@ def admit_job(
     if underestimate:
         return AdmissionOutcome(
             ok=False, input_path=f_path, workdir=workdir,
-            scheduler=scheduler, scheduler_options=scheduler_options,
+            node_id=node_id, scheduler=scheduler, scheduler_options=scheduler_options,
             node_resources=node_resources, message=underestimate,
         )
 
@@ -218,13 +241,13 @@ def admit_job(
     if not ok:
         return AdmissionOutcome(
             ok=False, input_path=f_path, workdir=workdir,
-            scheduler=scheduler, scheduler_options=scheduler_options,
+            node_id=node_id, scheduler=scheduler, scheduler_options=scheduler_options,
             node_resources=node_resources, message=msg,
         )
 
     return AdmissionOutcome(
         ok=True, input_path=f_path, workdir=workdir,
-        scheduler=scheduler, scheduler_options=scheduler_options,
+        node_id=node_id, scheduler=scheduler, scheduler_options=scheduler_options,
         node_resources=node_resources,
         message="Admitted.",
     )

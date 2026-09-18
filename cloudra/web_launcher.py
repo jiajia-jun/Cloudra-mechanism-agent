@@ -26,6 +26,13 @@ from cloudra.services.daemon_supervisor import ensure_daemons
 # 的 finally 照常退订。取值与本文件的 _terminate_runtime(grace=20) 对齐。
 _GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS = 20
 
+# 默认只绑回环。`--host` 可显式改绑（局域网/SSH 远程访问场景）；绑定地址经
+# CLOUDRA_API_BIND_HOST 传进 uvicorn 子进程，api_v2 的 Host 白名单据此放开
+# （见 app.py::_host_allowlist）。
+_DEFAULT_BIND_HOST = "127.0.0.1"
+_LOOPBACK_BIND_HOSTS = {"127.0.0.1", "localhost", "::1", "[::1]"}
+_WILDCARD_BIND_HOSTS = {"0.0.0.0", "::", "*"}
+
 logger = logging.getLogger(__name__)
 
 
@@ -112,51 +119,94 @@ def _ensure_frontend(frontend: Path, *, rebuild: bool = False, skip_build: bool 
         subprocess.run(_npm_argv() + ["run", "build"], cwd=frontend, check=True)
 
 
-def _port_is_bindable(preferred: int) -> bool:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+def _probe_host(bind_host: str) -> str:
+    """本机侧探测/访问用的地址。
+
+    通配绑定（0.0.0.0/::）在回环上同样可达，用回环探测；绑具体网卡地址时
+    回环上根本没有监听，必须用该地址本身。IPv6 字面量加方括号才能拼进 URL。
+    """
+    if bind_host in _WILDCARD_BIND_HOSTS:
+        return "127.0.0.1"
+    if ":" in bind_host:
+        return f"[{bind_host}]"
+    return bind_host
+
+
+def _is_loopback_bind(bind_host: str) -> bool:
+    return bind_host in _LOOPBACK_BIND_HOSTS
+
+
+def _may_reuse_runtime(bind_host: str) -> bool:
+    """能否复用已在跑的实例。
+
+    通配绑定不能：探测走回环，而回环探测分辨不出对端绑的是 127.0.0.1 还是
+    0.0.0.0——复用会让 `--host 0.0.0.0` 静默失效（用户以为已对外可访问，
+    实际只绑在回环上）。回环/具体地址的探测地址就是绑定地址本身，判定可信。
+    """
+    return bind_host not in _WILDCARD_BIND_HOSTS
+
+
+def _port_is_bindable(bind_host: str, preferred: int) -> bool:
+    family = socket.AF_INET6 if ":" in bind_host else socket.AF_INET
+    with socket.socket(family, socket.SOCK_STREAM) as sock:
         try:
-            sock.bind(("127.0.0.1", preferred))
+            sock.bind((bind_host, preferred))
         except OSError:
             return False
         return True
 
 
-def _runtime_is_healthy(port: int) -> bool:
+def _runtime_is_healthy(probe_host: str, port: int) -> bool:
     try:
         with urllib.request.urlopen(
-            f"http://127.0.0.1:{port}/api/v2/runtime/health", timeout=1.0
+            f"http://{probe_host}:{port}/api/v2/runtime/health", timeout=1.0
         ) as resp:
             return 200 <= resp.status < 300
     except Exception:
         return False
 
 
-def _runtime_serves_spa(port: int) -> bool:
+def _runtime_serves_spa(probe_host: str, port: int) -> bool:
     try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=1.0) as resp:
+        with urllib.request.urlopen(f"http://{probe_host}:{port}/", timeout=1.0) as resp:
             body = resp.read(4096).decode("utf-8", "ignore")
             return 200 <= resp.status < 300 and '<div id="root"></div>' in body
     except Exception:
         return False
 
 
-def _find_api_port(preferred: int, env_name: str) -> tuple[int, bool]:
+def _runtime_present(probe_host: str, port: int) -> bool:
+    """同端口既提供 API 又提供已构建 SPA，才算可复用的 Cloudra 实例。"""
+    return _runtime_is_healthy(probe_host, port) and _runtime_serves_spa(probe_host, port)
+
+
+def _pinned_runtime(bind_host: str, port: int) -> tuple[int, bool]:
+    """显式指定的端口：不扫描邻近端口，占用而不可复用时交给 uvicorn 在绑定
+    阶段报错（而不是悄悄换端口）。"""
+    if not _may_reuse_runtime(bind_host):
+        return port, False
+    return port, _runtime_present(_probe_host(bind_host), port)
+
+
+def _find_api_port(preferred: int, env_name: str, bind_host: str) -> tuple[int, bool]:
     """Return (port, reused_existing_runtime).
 
     A runtime is only reused when it both serves the API and the built SPA on
     the same port; otherwise we start a fresh single-port runtime on a free
     port so the frontend never points at a stale or foreign server.
     """
+    probe_host = _probe_host(bind_host)
+    reuse = _may_reuse_runtime(bind_host)
     env_value = os.environ.get(env_name)
     if env_value:
         port = int(env_value)
-        return port, _runtime_is_healthy(port) and _runtime_serves_spa(port)
-    if _port_is_bindable(preferred):
+        return port, reuse and _runtime_present(probe_host, port)
+    if _port_is_bindable(bind_host, preferred):
         return preferred, False
-    if _runtime_is_healthy(preferred) and _runtime_serves_spa(preferred):
+    if reuse and _runtime_present(probe_host, preferred):
         return preferred, True
     for port in range(preferred + 1, preferred + 100):
-        if _port_is_bindable(port):
+        if _port_is_bindable(bind_host, port):
             return port, False
     raise RuntimeError(f"no free port near {preferred}; set {env_name} explicitly")
 
@@ -196,7 +246,30 @@ def _terminate_runtime(runtime: subprocess.Popen, *, grace: float = 20.0) -> Non
         logger.error("web runtime still alive after SIGKILL")
 
 
-def _uvicorn_argv(api_port: int) -> list[str]:
+def _primary_address() -> str | None:
+    """本机对外的首选 IPv4；取不到（无默认路由）返回 ``None``。
+
+    UDP connect 只让内核选出口网卡，不实际发包；不解析 `ifconfig` 文本。
+    仅用于把「别的机器能访问的地址」打印给用户——通配绑定下控制台里的
+    回环 URL 复制到另一台机器上没有意义。
+    """
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            # 192.0.2.0/24 是 TEST-NET-1，永不路由到真实主机。
+            sock.connect(("192.0.2.1", 1))
+            return sock.getsockname()[0]
+    except OSError:
+        return None
+
+
+def _ui_url(url_host: str, api_port: int, token: str | None) -> str:
+    """访问 URL；认证开启时把 token 放 fragment 里（fragment 不进 HTTP 请求，
+    前端启动时读入 sessionStorage 后从地址栏抹掉）。"""
+    url = f"http://{url_host}:{api_port}"
+    return f"{url}/#token={token}" if token is not None else url
+
+
+def _uvicorn_argv(api_port: int, bind_host: str) -> list[str]:
     """uvicorn 子进程命令行；关停上界见 ``_GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS``。"""
     return [
         sys.executable,
@@ -205,7 +278,7 @@ def _uvicorn_argv(api_port: int) -> list[str]:
         "cloudra.services.api_v2:create_default_v2_app",
         "--factory",
         "--host",
-        "127.0.0.1",
+        bind_host,
         "--port",
         str(api_port),
         "--timeout-graceful-shutdown",
@@ -215,8 +288,26 @@ def _uvicorn_argv(api_port: int) -> list[str]:
     ]
 
 
-def launch_browser(frontend: Path, *, rebuild: bool, skip_build: bool) -> int:
-    api_port, reused_runtime = _find_api_port(8000, "CLOUDRA_API_PORT")
+def launch_browser(
+    frontend: Path,
+    *,
+    rebuild: bool,
+    skip_build: bool,
+    host: str | None = None,
+    port: int | None = None,
+) -> int:
+    bind_host = (host or "").strip() or _DEFAULT_BIND_HOST
+    probe_host = _probe_host(bind_host)
+    if port is not None:
+        api_port, reused_runtime = _pinned_runtime(bind_host, port)
+    else:
+        api_port, reused_runtime = _find_api_port(8000, "CLOUDRA_API_PORT", bind_host)
+    if not _is_loopback_bind(bind_host):
+        print(
+            f"[cloudra] warning: binding to non-loopback address {bind_host} — the API is "
+            "reachable from the network and the bearer token is the only access control",
+            flush=True,
+        )
     _ensure_frontend(frontend, rebuild=rebuild, skip_build=skip_build)
     # 显式启动清除 `cloudra stop` 的持久关停 marker，否则 ensure 拒绝拉起。
     from cloudra.services.daemon_supervisor import clear_daemons_shutdown
@@ -232,13 +323,15 @@ def launch_browser(frontend: Path, *, rebuild: bool, skip_build: bool) -> int:
     env = os.environ.copy()
     env["CLOUDRA_RUNTIME_STORE"] = store_path
     env["CLOUDRA_FRONTEND_SERVE_DIR"] = str(frontend / "dist")
+    # 绑定地址传给 app（Host 校验白名单据此放开；绑回环时保持原白名单）。
+    env["CLOUDRA_API_BIND_HOST"] = bind_host
     runtime = None
     if reused_runtime:
         print(f"[cloudra] reusing existing Cloudra runtime on port {api_port}", flush=True)
     else:
-        print(f"[cloudra] starting web server on port {api_port}...", flush=True)
+        print(f"[cloudra] starting web server on {bind_host}:{api_port}...", flush=True)
         runtime = subprocess.Popen(
-            _uvicorn_argv(api_port),
+            _uvicorn_argv(api_port, bind_host),
             env=env,
             # 固定子进程 cwd：`python -m` 会把 cwd 放到 sys.path 最前面，
             # cwd 下一个无 __init__.py 的 `cloudra` 目录会把已安装包遮蔽成
@@ -248,15 +341,22 @@ def launch_browser(frontend: Path, *, rebuild: bool, skip_build: bool) -> int:
             cwd=frontend,
         )
     try:
-        _wait_healthy(f"http://127.0.0.1:{api_port}/api/v2/runtime/health")
+        _wait_healthy(f"http://{probe_host}:{api_port}/api/v2/runtime/health")
         from cloudra.services.api_token import resolve_api_token
 
         token = resolve_api_token()
-        url = f"http://127.0.0.1:{api_port}"
-        # 认证开启时把 token 放在 URL fragment 里交给浏览器：fragment 不进
-        # HTTP 请求，前端启动时读入 sessionStorage 后从地址栏抹掉。
-        shown_url = f"{url}/#token={token}" if token is not None else url
+        shown_url = _ui_url(probe_host, api_port, token)
         print(f"[cloudra] web UI: {shown_url}", flush=True)
+        if bind_host in _WILDCARD_BIND_HOSTS:
+            # 通配绑定常常是「服务在远端、浏览器在别处」（SSH/局域网）：
+            # 控制台里的回环 URL 在那台机器上打不开，把对外地址一并给出。
+            reachable = _primary_address()
+            if reachable:
+                print(
+                    f"[cloudra] reachable from other machines: "
+                    f"{_ui_url(reachable, api_port, token)}",
+                    flush=True,
+                )
         if os.environ.get("CLOUDRA_NO_BROWSER", "").strip().lower() not in {"1", "true", "yes"}:
             webbrowser.open(shown_url)
         if runtime is None:

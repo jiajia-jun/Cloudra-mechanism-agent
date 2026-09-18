@@ -1,6 +1,7 @@
 import type {
   Agent,
   ComputeJob,
+  ComputeNode,
   EventEnvelope,
   FsBrowseResponse,
   KgGraph,
@@ -156,6 +157,9 @@ export const api = {
     request<ComputeJob[]>(
       `/api/v2/projects/${projectId}/compute/jobs?active_only=${activeOnly}`,
     ),
+  // Registered-node capacity views (global ledger, not project-scoped): one
+  // entry per node with its own quota, in-flight usage and free headroom.
+  computeNodes: () => request<ComputeNode[]>('/api/v2/compute/nodes'),
   listPendingReminders: (projectId: string) =>
     request<PendingReminder[]>(`/api/v2/projects/${projectId}/reminders/pending`),
   spawnAgent: (

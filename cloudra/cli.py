@@ -30,6 +30,8 @@ def _is_sensitive_config_key(key: str) -> bool:
 
 @click.group(invoke_without_command=True)
 @click.option("--version", is_flag=True, help="显示版本信息")
+@click.option("--host", default=None, help="Web 服务绑定地址（默认 127.0.0.1；绑到非回环地址后可从网络访问）")
+@click.option("--port", type=int, default=None, help="Web 服务绑定端口（默认 8000，被占用时自动向后找空闲端口）")
 @click.option("--coordinator-model", envvar="CLOUDRA_COORDINATOR_MODEL", help="覆盖 Coordinator 模型")
 @click.option("--coordinator-url", envvar="CLOUDRA_COORDINATOR_URL", help="覆盖 Coordinator API 地址")
 @click.option("--coordinator-key", envvar="CLOUDRA_COORDINATOR_KEY", help="覆盖 Coordinator API Key")
@@ -37,7 +39,7 @@ def _is_sensitive_config_key(key: str) -> bool:
 @click.option("--follower-url", envvar="CLOUDRA_FOLLOWER_URL", help="覆盖 Follower API 地址")
 @click.option("--follower-key", envvar="CLOUDRA_FOLLOWER_KEY", help="覆盖 Follower API Key")
 @click.pass_context
-def cli(ctx, version, coordinator_model, coordinator_url, coordinator_key,
+def cli(ctx, version, host, port, coordinator_model, coordinator_url, coordinator_key,
         follower_model, follower_url, follower_key):
     """Cloudra - 自主有机小分子机理计算 Agent"""
     # CLI 场景只让 warning+ 上屏（stderr）；面向用户的输出仍走 rich Console。
@@ -51,7 +53,8 @@ def cli(ctx, version, coordinator_model, coordinator_url, coordinator_key,
             coordinator_model, coordinator_url, coordinator_key,
             follower_model, follower_url, follower_key,
         )
-        sys.exit(launch_browser(_frontend_or_exit(), rebuild=False, skip_build=False))
+        sys.exit(launch_browser(_frontend_or_exit(), rebuild=False, skip_build=False,
+                                host=host, port=port))
 
     _apply_config_overrides(
         coordinator_model, coordinator_url, coordinator_key,
@@ -87,11 +90,14 @@ def _frontend_or_exit():
 
 
 @cli.command(name="web")
+@click.option("--host", default=None, help="Web 服务绑定地址（默认 127.0.0.1；绑到非回环地址后可从网络访问）")
+@click.option("--port", type=int, default=None, help="Web 服务绑定端口（默认 8000，被占用时自动向后找空闲端口）")
 @click.option("--rebuild", is_flag=True, help="强制重新构建前端")
 @click.option("--skip-build", is_flag=True, help="复用已有 frontend/dist 构建")
-def web(rebuild, skip_build):
+def web(host, port, rebuild, skip_build):
     """启动 Web 前端（API + SPA 单端口服务）。"""
-    sys.exit(launch_browser(_frontend_or_exit(), rebuild=rebuild, skip_build=skip_build))
+    sys.exit(launch_browser(_frontend_or_exit(), rebuild=rebuild, skip_build=skip_build,
+                            host=host, port=port))
 
 
 @cli.group(name="config")
