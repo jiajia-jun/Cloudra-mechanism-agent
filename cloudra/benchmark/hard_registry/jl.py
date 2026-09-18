@@ -24,20 +24,19 @@ TASKS = {
                 # PT：H3O+ 质子化肟 OH
                 "out": "[O:1]([H:9])[H:10].[CH3:11][CH2:5]/[C:4](=[N:6]/[O+:7]([H:8])[H:2])/[CH3:3]",
                 "type": "proton transfer from H3O+ to the oxime OH (leaving-group activation)",
+                "barrier": 0.0,
             },
             {
                 # 决速：断 N6-O7 与 C4-C5，成 C5-N6（anti 乙基迁移）与 C4≡N6 π → nitrilium + H2O
                 "out": "[O:1]([H:9])[H:10].[O:7]([H:8])[H:2].[CH3:3][C:4]#[N+:6][CH2:5][CH3:11]",
                 "type": "concerted Beckmann rearrangement (rate-determining): N-O cleavage with anti 1,2-ethyl migration from C to N and C-N pi bond formation -> nitrilium ion + water ((E)-oxime geometry puts the ethyl group anti to OH, so ethyl migrates)",
-                "barrier": 39.9,
+                "barrier": 23.13,
                 "weight": 0.5,
             },
             {
                 # 水 O1 进攻 nitrilium 碳：成 C4-O1，断一根 C≡N π → O-质子化亚胺酸
                 "out": "[O+:1]([H:9])([H:10])[C:4](=[N:6][CH2:5][CH3:11])[CH3:3].[O:7]([H:8])[H:2]",
                 "type": "water attack on the nitrilium carbon: C-O formation with one C-N pi bond broken -> O-protonated imidic acid",
-                "barrier": 18.0,
-                "weight": 0.5,
             },
             {
                 # PT：另一分子水拔掉 OH2+ 的一个质子 → 中性亚胺酸 + H3O+
@@ -48,8 +47,6 @@ TASKS = {
                 # 亚胺酸→酰胺互变异构：分子内 O→N 质子迁移，C=N π 断、C=O π 成
                 "out": "[O:1]=[C:4]([CH3:3])[N:6]([H:10])[CH2:5][CH3:11].[O+:7]([H:8])([H:2])[H:9]",
                 "type": "imidic acid -> amide tautomerization: intramolecular O-to-N proton shift with C=N pi to C=O pi migration -> N-ethylacetamide",
-                "barrier": 30.5,
-                "weight": 0.5,
             },
         ],
     },

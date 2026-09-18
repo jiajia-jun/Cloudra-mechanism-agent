@@ -23,7 +23,12 @@ Hard-tier specifics vs normal (gen_normal_tasks):
   禁阻）不带 competing 边——stereo_tier_rule="hard_stereo_costly" 下的节点
   立体匹配本身就是判别器。选择性题（anchor="selectivity"）的主线立体决定步
   与每条副通道步必须带 `channel` 标签（校验强制）：gold 边据此写
-  channel/favored（主线 True、副通道 False），交付契约对 favored-channel
+  channel/favored，缺省为「主线 True、副通道 False」；每个 steps/competing
+  条目可选 key `favored`(bool) 显式覆盖该缺省（如 G2 优势通道实为 competing
+  的 chair），可选 key `node_label`(str) 覆盖节点 label（缺省仍 "product"/
+  "minor product k"）；条目顶层可选 `favored_channel`(str) 覆盖
+  selectivity.favored_channel（缺省取主线立体决定边的 channel）。覆盖只改
+  favored 归属与展示 label，不改键变化推导。交付契约对 favored-channel
   归属定性计分（对错），能垒差数值只记录不数值计分。
 - 防泄题：题面与 system.products 用去立体（constitution-only）产物 SMILES
   （`_strip_stereo_canonical`；产物立体化学本身是答案），题名只保留反应身份
@@ -217,6 +222,19 @@ def _validate_task(pid: str, entry: dict, pool_reactants: list[str], pool_produc
 # ---------------------------------------------------------------------------
 
 
+def _step_favored(step: dict, main: bool) -> bool | None:
+    """Gold 边 favored 归属：条目显式 "favored" 优先，否则按主线/副通道缺省。
+
+    选择性题里 gold 侧缺省为「主线 True、副通道 False」；条目可用
+    "favored" 显式覆盖（G2 优势通道是 competing 的 chair 边）。无 channel
+    标签的步（非选择性题）缺省仍为 None。"""
+    if "favored" in step:
+        return step["favored"]
+    if step.get("channel"):
+        return True if main else False
+    return None
+
+
 def _build_graph(pid: str, reactants: list[str], products: list[str], entry: dict) -> GoldMechanismGraph:
     tid = f"H{pid}"
     nodes = [MechanismNode(id=f"{tid}_R", role=NodeRole.REACTANT, smiles=complex_smiles(reactants), label="reactant")]
@@ -230,7 +248,8 @@ def _build_graph(pid: str, reactants: list[str], products: list[str], entry: dic
             id=f"{tid}_P" if last else f"{tid}_I{k}",
             role=NodeRole.PRODUCT if last else NodeRole.INTERMEDIATE,
             smiles=complex_smiles(products) if last else _unmap_canonical(step["out"]),
-            label="product" if last else f"intermediate {k}",
+            # 缺省 label 与历史逐字节一致；条目可选 node_label 覆盖（G2 主线为次通道）
+            label=step.get("node_label", "product" if last else f"intermediate {k}"),
         )
         ts = MechanismNode(id=f"{tid}_TS{k}", role=NodeRole.TRANSITION_STATE, smiles=[], label=f"TS{k}")
         breaks, forms = _derive_bond_changes(prev_mapped, step["out"])
@@ -243,9 +262,10 @@ def _build_graph(pid: str, reactants: list[str], products: list[str], entry: dic
                 bond_changes=BondChangeSet(**{"break": breaks}, form=forms),
                 barrier_kcal_mol=step.get("barrier"),
                 weight=step.get("weight", 1.0),
-                # 带 channel 标签的主线步是立体决定边（gold 侧 favored=True）
+                # 带 channel 标签的主线步是立体决定边；缺省 gold 侧 favored=True，
+                # 条目可用 "favored" 覆盖（G2 主线 boat 为次通道 → False）
                 channel=step.get("channel"),
-                favored=True if step.get("channel") else None,
+                favored=_step_favored(step, main=True),
             )
         )
         nodes.extend([ts, node])
@@ -257,11 +277,13 @@ def _build_graph(pid: str, reactants: list[str], products: list[str], entry: dic
         origin_id = nodes[0].id if from_step == 0 else f"{tid}_I{from_step}"
         origin_mapped = entry["mapped_reactants"] if from_step == 0 else steps[from_step - 1]["out"]
         is_product = step.get("is_product", True)
+        default_label = f"minor {'product' if is_product else 'intermediate'} {k}"
         minor = MechanismNode(
             id=f"{tid}_M{k}",
             role=NodeRole.PRODUCT if is_product else NodeRole.INTERMEDIATE,
             smiles=_unmap_canonical(step["out"]),
-            label=f"minor {'product' if is_product else 'intermediate'} {k}",
+            # 缺省 label 与历史逐字节一致；条目可选 node_label 覆盖（G2 副通道为优势）
+            label=step.get("node_label", default_label),
         )
         ts = MechanismNode(id=f"{tid}_TSM{k}", role=NodeRole.TRANSITION_STATE, smiles=[], label=f"TS minor {k}")
         breaks, forms = _derive_bond_changes(origin_mapped, step["out"])
@@ -274,9 +296,10 @@ def _build_graph(pid: str, reactants: list[str], products: list[str], entry: dic
                 bond_changes=BondChangeSet(**{"break": breaks}, form=forms),
                 barrier_kcal_mol=step.get("barrier"),
                 weight=step.get("weight", 1.0),
-                # 副通道边：gold 侧 favored=False（优势归属由定性计分核对）
+                # 副通道边：缺省 gold 侧 favored=False，条目可用 "favored" 覆盖
+                # （G2 副通道 chair 为优势通道 → True）
                 channel=step.get("channel"),
-                favored=False if step.get("channel") else None,
+                favored=_step_favored(step, main=False),
             )
         )
         nodes.extend([ts, minor])
@@ -418,7 +441,11 @@ def parse_hard_md(src: Path, only: set[str] | None = None) -> list[TaskSpec]:
 
         selectivity = None
         if anchor == "selectivity":
-            favored = next(s["channel"] for s in entry["steps"] if s.get("channel"))
+            # 优势通道默认取主线立体决定边的 channel；条目顶层可给
+            # favored_channel 覆盖（G2 优势为 competing 的 chair 通道）
+            favored = entry.get("favored_channel") or next(
+                s["channel"] for s in entry["steps"] if s.get("channel")
+            )
             selectivity = SelectivityReference(
                 spread_kcal_mol=anchor_val,
                 minor_channel=entry["minor_channel_en"],

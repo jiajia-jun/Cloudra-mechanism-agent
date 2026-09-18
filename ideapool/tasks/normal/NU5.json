@@ -153,7 +153,7 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null,
+          "barrier_kcal_mol": 0.0,
           "weight": 1.0,
           "channel": null,
           "favored": null
@@ -179,7 +179,7 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": 19.9,
+          "barrier_kcal_mol": 8.2,
           "weight": 0.5,
           "channel": null,
           "favored": null
@@ -205,7 +205,7 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": 16.6,
+          "barrier_kcal_mol": 0.0,
           "weight": 0.5,
           "channel": null,
           "favored": null
@@ -247,7 +247,7 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": 13.8,
+          "barrier_kcal_mol": 31.7,
           "weight": 0.5,
           "channel": null,
           "favored": null

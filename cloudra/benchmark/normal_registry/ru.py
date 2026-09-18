@@ -51,26 +51,27 @@ TASKS = {
                 # PT：甲酸向甲醛质子转移 → 质子化甲醛 + 甲酸根
                 "out": "[CH2:1]=[O+:2][H:6].[O-:5][CH:3]=[O:4].[CH3:7][N+:8]#[C-:9]",
                 "type": "proton transfer from formic acid to formaldehyde -> protonated formaldehyde + formate",
+                "barrier": 0.0,
             },
             {
                 # 异腈 C α-加成醛碳：成 C9-C1，断 C1=O2 π → nitrilium
                 "out": "[CH2:1]([O:2][H:6])[C:9]#[N+:8][CH3:7].[O-:5][CH:3]=[O:4]",
                 "type": "alpha-addition of the isocyanide carbon to the aldehyde carbon -> nitrilium ion",
-                "barrier": 19.9,
+                "barrier": 8.2,
                 "weight": 0.5,
             },
             {
                 # 甲酸根 O 捕获 nitrilium C：成 O5-C9，断一根 C≡N π → 亚氨酸酯
                 "out": "[CH2:1]([O:2][H:6])[C:9](=[N:8][CH3:7])[O:5][CH:3]=[O:4]",
                 "type": "formate oxygen capture of the nitrilium carbon -> imidate (acyloxyimine) intermediate",
-                "barrier": 16.6,
+                "barrier": 0.0,
                 "weight": 0.5,
             },
             {
                 # Mumm 重排：断 C3-O5，成 O2-C3，断 N=C π，成 C9=O5 π，O2-H 迁到 N8
                 "out": "[CH3:7][N:8]([H:6])[C:9](=[O:5])[CH2:1][O:2][CH:3]=[O:4]",
                 "type": "Mumm rearrangement: acyl transfer from the imidate oxygen to the alkoxy oxygen (C-O cleavage/formation, C=N pi to C=O pi) with intramolecular O-H -> N-H proton shift",
-                "barrier": 13.8,
+                "barrier": 31.7,
                 "weight": 0.5,
             },
         ],

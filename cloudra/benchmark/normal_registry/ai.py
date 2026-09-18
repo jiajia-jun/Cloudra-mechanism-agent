@@ -61,17 +61,19 @@ TASKS = {
                 # H3O+ 质子化羟胺 O4 并脱水：断 O1-H2、成 O4-H2、断 C3-O4、成 C3=N5 pi → 亚铵 + 2 水
                 "out": "[OH2:1].[O:4]([H:2])([H:7]).[CH2:3]=[NH+:5][CH3:6].[CH2:8]([H:11])[CH:9]=[O:10]",
                 "type": "carbinolamine O protonation by H3O+ with dehydration -> iminium [CH2=NHMe]+ (Eschenmoser salt parent) + 2 water",
+                "barrier": 13.94,
             },
             {
                 # 乙醛互变异构为烯醇（净步）：断 C8-H11、断 C9=O10 pi、成 C8=C9 pi、成 O10-H11
                 "out": "[OH2:1].[O:4]([H:2])([H:7]).[CH2:3]=[NH+:5][CH3:6].[CH2:8]=[CH:9][O:10][H:11]",
                 "type": "acetaldehyde tautomerizes to the enol (net step: alpha-C-H breaks, C=O pi shifts to C=C, O-H forms)",
+                "barrier": 69.94,
             },
             {
                 # 烯醇 alpha-C（C8）进攻亚铵 C3（决速）：成 C3-C8，断 C8=C9 pi、C3=N5 pi，成 C9=O10+ pi（氧鎓，N 变中性）
                 "out": "[OH2:1].[O:4]([H:2])([H:7]).[CH3:6][NH:5][CH2:3][CH2:8][CH:9]=[O+:10][H:11]",
                 "type": "rate-determining C-C formation: enol alpha-carbon attacks the iminium carbon -> oxocarbenium (neutral amine)",
-                "barrier": 8.9,
+                "barrier": 3.37,
                 "weight": 0.5,
             },
             {

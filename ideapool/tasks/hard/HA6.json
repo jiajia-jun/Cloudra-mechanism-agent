@@ -118,7 +118,7 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null,
+          "barrier_kcal_mol": 31.24,
           "weight": 1.0,
           "channel": "double_outward_rotation",
           "favored": true
@@ -152,7 +152,7 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null,
+          "barrier_kcal_mol": 42.31,
           "weight": 1.0,
           "channel": "double_inward_rotation",
           "favored": false
@@ -195,7 +195,7 @@
       ]
     },
     "accuracy": {
-      "enabled": false,
+      "enabled": true,
       "barrier_scoring": "gaussian",
       "sigma_kcal_mol": 2.0,
       "max_penalty_fraction": 0.3,

@@ -67,7 +67,7 @@
             "C=C[C@H](C)[C@H](C)C=O"
           ],
           "accessible": true,
-          "label": "product",
+          "label": "minor product",
           "properties": {}
         },
         {
@@ -85,7 +85,7 @@
             "C=C[C@H](C)[C@@H](C)C=O"
           ],
           "accessible": true,
-          "label": "minor product 1",
+          "label": "major product",
           "properties": {}
         }
       ],
@@ -95,7 +95,7 @@
           "from": "HG2_R",
           "to": "HG2_P",
           "via": "HG2_TS1",
-          "step_type": "[3,3]-sigmatropic Claisen rearrangement via chair TS with both methyls pseudo-equatorial: allyl/vinyl pi and C-O sigma cleavage, new terminal C-C sigma between the two methyl-bearing termini, migrated allyl pi and C=O pi formation -> syn-2,3-dimethylpent-4-enal",
+          "step_type": "[3,3]-sigmatropic Claisen rearrangement via boat TS (higher-energy minor channel for the (E,E) substrate): allyl/vinyl pi and C-O sigma cleavage, new terminal C-C sigma between the two methyl-bearing termini, migrated allyl pi and C=O pi formation -> syn-2,3-dimethylpent-4-enal (minor channel)",
           "bond_changes": {
             "break": [
               [
@@ -127,17 +127,17 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null,
+          "barrier_kcal_mol": 29.67,
           "weight": 1.0,
-          "channel": "chair_ts",
-          "favored": true
+          "channel": "boat_ts",
+          "favored": false
         },
         {
           "id": "HG2_EM1",
           "from": "HG2_R",
           "to": "HG2_M1",
           "via": "HG2_TSM1",
-          "step_type": "Claisen via boat TS -> anti-2,3-dimethylpent-4-enal (minor channel)",
+          "step_type": "[3,3]-sigmatropic Claisen rearrangement via chair TS with both methyls pseudo-equatorial (lower-energy favored channel for the (E,E) substrate): allyl/vinyl pi and C-O sigma cleavage, new terminal C-C sigma between the two methyl-bearing termini, migrated allyl pi and C=O pi formation -> anti-2,3-dimethylpent-4-enal (major channel)",
           "bond_changes": {
             "break": [
               [
@@ -169,17 +169,17 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null,
+          "barrier_kcal_mol": 26.39,
           "weight": 1.0,
-          "channel": "boat_ts",
-          "favored": false
+          "channel": "chair_ts",
+          "favored": true
         }
       ]
     },
     "reference_properties": {},
     "selectivity": {
-      "spread_kcal_mol": 2.0,
-      "minor_channel": "boat TS -> anti-2,3-dimethylpent-4-enal",
+      "spread_kcal_mol": 3.28,
+      "minor_channel": "boat TS -> syn-2,3-dimethylpent-4-enal",
       "favored_channel": "chair_ts"
     }
   },
@@ -212,7 +212,7 @@
       ]
     },
     "accuracy": {
-      "enabled": false,
+      "enabled": true,
       "barrier_scoring": "gaussian",
       "sigma_kcal_mol": 2.0,
       "max_penalty_fraction": 0.3,

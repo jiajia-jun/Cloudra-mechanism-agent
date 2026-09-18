@@ -48,6 +48,7 @@ TASKS = {
             {
                 "out": "[CH3:1]/[CH:2]=[CH:3]/[CH:4]=[CH:5]/[CH3:6]",
                 "type": "4pi conrotatory electrocyclic ring opening, both methyl groups rotating outward (steric torquoselection) -> (E,E)-2,4-hexadiene",
+                "barrier": 31.24,
                 "channel": "double_outward_rotation",
             },
         ],
@@ -55,6 +56,7 @@ TASKS = {
             {
                 "out": "[CH3:1]\\[CH:2]=[CH:3]/[CH:4]=[CH:5]\\[CH3:6]",
                 "type": "conrotatory opening with both methyl groups rotating inward -> (Z,Z)-2,4-hexadiene (minor channel of the torquoselection)",
+                "barrier": 42.31,
                 "channel": "double_inward_rotation",
             },
         ],
