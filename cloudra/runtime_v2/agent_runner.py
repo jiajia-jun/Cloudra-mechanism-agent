@@ -297,7 +297,10 @@ class AgentRunner:
                 current = contexts.current_messages(agent.id)
                 if current:
                     effective = self._effective_settings(agent)
-                    if context_over_budget(
+                    # tiktoken 计数是 CPU 工作，卸载出事件循环（同
+                    # llm_client.count_message_tokens）。
+                    if await asyncio.to_thread(
+                        context_over_budget,
                         current,
                         context_window=effective.context_window,
                         max_output=effective.max_tokens,
@@ -307,7 +310,9 @@ class AgentRunner:
                         )
                         if self._compaction_retry_due(
                             agent.id,
-                            estimate_messages_tokens(current),
+                            await asyncio.to_thread(
+                                estimate_messages_tokens, current
+                            ),
                             budget_tokens,
                         ):
                             await self._apply_compaction(
@@ -891,6 +896,9 @@ class AgentRunner:
                 max_output=settings.max_tokens,
                 trigger=trigger,
                 old_head_len=old_head_len,
+                # 摘要调用有界等待：provider 对超大摘要停滞时按 segment_failed
+                # /merge_failed 收敛，不让一次调用把轮次无限挂住（GH #40）。
+                summary_timeout=float(settings.timeout) if settings.timeout else None,
             )
         except Exception as exc:
             # Compaction is best-effort: a summarization failure must never
@@ -950,7 +958,9 @@ class AgentRunner:
             self._compact_refusals.pop(agent.id, None)
         else:
             # 记下被拒时的投影规模：预算触发要等投影再长出新进展才重试。
-            self._compact_refusals[agent.id] = estimate_messages_tokens(history)
+            self._compact_refusals[agent.id] = await asyncio.to_thread(
+                estimate_messages_tokens, history
+            )
         core.event_log.append(
             "compaction.finished",
             stream="agent",

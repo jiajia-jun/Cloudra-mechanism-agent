@@ -1,7 +1,8 @@
 """Compact 完整性（计划 2026-09-13-harness-cache-continuity）：
 
-全量压缩（含用户指令与工具调用，无逐字保留区）、结构化摘要校验、按容量
-分段、合并载荷分批、拒替换条件与版本守卫。fake summarizer 证明输入覆盖与
+全量压缩（含用户指令与工具调用，无逐字保留区）、tiktoken 容量口径、
+结构化摘要校验（来源下标钳制 + 计数）、按容量分段、合并载荷分批、摘要调用
+有界等待、拒替换条件与版本守卫。fake summarizer 证明输入覆盖与
 "投影里不再留原文"；字段齐全不等于语义完整——语义质量由人工/真实模型
 另行检查。
 """
@@ -281,14 +282,67 @@ async def test_structural_validation_error_refused():
 
 
 @pytest.mark.asyncio
-async def test_source_index_out_of_range_refused():
+async def test_source_index_out_of_range_clamped_and_recorded():
+    """GH #40 实录：1606 条轨迹的摘要因来源下标越界被整体拒收，压缩永久失败。
+    越界下标现在钳制进范围、计数透出 stats，压缩得以完成。"""
     messages = _trajectory_context()
-    bad = _summary_json(
-        objective={"text": "o", "sources": [9999]}
+    bad = _summary_json(objective={"text": "o", "sources": [9999]})
+    summarizer = RecordingSummarizer([bad] * 40)
+    new_context, stats = await compact_context(
+        messages,
+        head=[],
+        notices=[],
+        summarize=summarizer,
+        context_window=200_000,
+        max_output=32_768,
     )
-    stats = await _refusal(messages, RecordingSummarizer([bad] * 2))
-    assert stats["reason"] == "summary_invalid"
-    assert "out of trajectory range" in stats["error"]
+    assert stats["compacted"] is True
+    assert stats["clamped_sources"] >= 1
+    assert all(seg["tokens"] > 0 for seg in stats["segments"])
+    assert new_context[0]["content"].startswith("[Context compact]")
+
+
+def test_parse_clamps_negative_and_far_out_of_range_sources():
+    """负下标与远界外下标（实录场景：1616 vs 0..1606）都钳进范围并计数。"""
+    payload = _summary_json(
+        objective={"text": "o", "sources": [-5, 1616]},
+        next_actions=[{"text": "keep going", "sources": [1607]}],
+    )
+    summary = parse_compact_summary(payload, trajectory_len=1607)
+    assert summary.objective.sources == [0, 1606]
+    assert summary.next_actions[0].sources == [1606]
+    assert summary.clamped_sources == 3
+    # 合法下标原样保留，不计数
+    assert parse_compact_summary(
+        _summary_json(objective={"text": "o", "sources": [0, 1606]}),
+        trajectory_len=1607,
+    ).clamped_sources == 0
+
+
+@pytest.mark.asyncio
+async def test_summary_timeout_reports_segment_failure():
+    """provider 对超大摘要停滞时必须有界收敛（GH #40：挂起 10+ 分钟）。"""
+
+    class SlowSummarizer:
+        async def __call__(self, _messages):
+            await asyncio.sleep(30)
+            return _summary_json()
+
+    started = asyncio.get_running_loop().time()
+    new_context, stats = await compact_context(
+        _trajectory_context(),
+        head=[],
+        notices=[],
+        summarize=SlowSummarizer(),
+        context_window=200_000,
+        max_output=32_768,
+        summary_timeout=0.05,
+    )
+    elapsed = asyncio.get_running_loop().time() - started
+    assert stats["compacted"] is False
+    assert stats["reason"] == "segment_failed"
+    assert new_context is not None
+    assert elapsed < 5.0, "summary_timeout must bound the call"
 
 
 @pytest.mark.asyncio
@@ -568,8 +622,14 @@ def test_parse_accepts_fenced_json_and_validates_sources():
     fenced = f"```json\n{payload}\n```"
     summary = parse_compact_summary(fenced, trajectory_len=10)
     assert summary.corrections[0].replaces == "use gaussian"
+    assert summary.clamped_sources == 0
+    # source 4 越界 → 钳到末位（不拒收）
+    clamped = parse_compact_summary(payload, trajectory_len=3)
+    assert clamped.corrections[0].sources == [2]
+    assert clamped.clamped_sources == 1
+    # 结构不符仍 fail-loud（只有来源下标越界走钳制）
     with pytest.raises(CompactSummaryError):
-        parse_compact_summary(payload, trajectory_len=3)  # source 4 越界
+        parse_compact_summary(json.dumps({"active_requests": []}), trajectory_len=3)
 
 
 def test_render_keeps_correction_replacement_visible():
@@ -637,7 +697,24 @@ def test_tool_call_arguments_are_measured_and_rendered():
     rendered = render_message_text(message)
     assert "run_python" in rendered
     assert "x" * 8_000 in rendered
-    assert estimate_messages_tokens([message]) > 2_000
+    bare = {"role": "assistant", "content": None}
+    assert estimate_messages_tokens([message]) > 1_000
+    # 多出来的量只能来自工具调用参数（旧实现这里是 0 差额）
+    assert estimate_messages_tokens([message]) > estimate_messages_tokens([bare]) + 900
+
+
+def test_estimator_delegates_to_token_estimator(monkeypatch):
+    """容量口径走 TokenEstimator（tiktoken）单一事实源，不再自造 chars/4 口径。"""
+    from cloudra.infra.token_estimator import TokenEstimator
+
+    monkeypatch.setattr(
+        TokenEstimator, "count_text", classmethod(lambda cls, text: 111)
+    )
+    monkeypatch.setattr(
+        TokenEstimator, "count_messages", classmethod(lambda cls, messages: 222)
+    )
+    assert estimate_tokens("whatever") == 111
+    assert estimate_messages_tokens([{"role": "user", "content": "x"}]) == 222
 
 
 # ---------------------------------------------------------------------------

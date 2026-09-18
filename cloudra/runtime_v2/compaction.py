@@ -46,6 +46,7 @@ from typing import Any, Awaitable, Callable, Optional
 
 from pydantic import BaseModel, Field, ValidationError
 
+from cloudra.infra.token_estimator import TokenEstimator
 from cloudra.runtime_v2.schemas import AgentSession
 
 logger = logging.getLogger(__name__)
@@ -119,9 +120,6 @@ _MERGE_INSTRUCTION = (
 # Cap for summary text stored inside compaction.finished event data.
 SUMMARY_EVENT_CAP = 8000
 
-# token 估算常数（仅用于分段与预算触发，不用于计费）
-_ASCII_CHARS_PER_TOKEN = 4
-_MESSAGE_OVERHEAD_TOKENS = 4
 # 上下文预算估算余量：估算到 (window − 输出预算) 的 85% 即触发/分段
 _BUDGET_MARGIN = 0.85
 # settings 未配置 context_window 时的内部兜底（现有 config 缺省值之外的
@@ -168,12 +166,12 @@ def _content_to_text(content: Any) -> str:
 
 
 def render_message_text(message: dict[str, Any]) -> str:
-    """把一条投影消息渲染成文本（计量与摘要输入共用）。
+    """把一条投影消息渲染成摘要输入里的文本（``[i] role: text`` 行的正文）。
 
-    覆盖线上真正发送的内容：content（视觉 parts 降级为文本描述）、assistant
-    的 tool_calls（工具名 + 参数）、tool 的 tool_call_id、思考模式的
-    reasoning_content。旧实现只看 content：带 tool_calls 的 assistant 消息
-    估算成空、摘要器也看不到"调用了什么工具、参数是什么"。
+    这里是**给摘要模型看的**文本：content（视觉 parts 降级为文本描述）、
+    assistant 的 tool_calls（工具名 + 参数）、tool 的 tool_call_id、思考模式的
+    reasoning_content。容量计量走 ``estimate_messages_tokens``（TokenEstimator，
+    同一批字段），两者刻意分开：渲染要可读，计量要与线缆一致。
     """
     parts: list[str] = []
     content = _content_to_text(message.get("content"))
@@ -199,21 +197,31 @@ def render_message_text(message: dict[str, Any]) -> str:
 
 
 def estimate_tokens(text: str) -> int:
-    """保守 token 估算：ASCII 4 字符 ≈ 1 token，非 ASCII 1 字符 ≈ 1 token。
+    """一段文本的 token 计数：``TokenEstimator.count_text``（tiktoken）。
 
-    只用于压缩触发与分段，不用于计费。旧实现一律按 4 字符/token 折算，对
-    中文（≈1 字符/token）是 4 倍低估——中文会话的预算闸门形同虚设。
+    tiktoken 不可用时由 TokenEstimator 内部回退到 CJK 感知启发式。只用于压缩
+    触发与分段，不用于计费。旧实现一律按 4 字符/token 折算，中文重负载低估
+    约 2.3 倍（GH #40 实测：估 452,780 vs 真实 1,048,407 token），预算闸门形同
+    虚设、上下文一路涨到 provider 硬拒。
+
+    ``tiktoken`` 对上千条消息是毫秒到秒级 CPU 工作：协程里请经
+    ``asyncio.to_thread`` 调用（同 ``llm_client.count_message_tokens``）。
     """
-    weighted = len(text) + 3 * sum(1 for char in text if not char.isascii())
-    return (weighted + _ASCII_CHARS_PER_TOKEN - 1) // _ASCII_CHARS_PER_TOKEN
+    if not text:
+        return 0
+    return int(TokenEstimator.count_text(text))
 
 
 def estimate_messages_tokens(messages: list[dict[str, Any]]) -> int:
-    """投影的 prompt token 估算（每条消息计固定结构开销）。"""
-    return sum(
-        estimate_tokens(render_message_text(message)) + _MESSAGE_OVERHEAD_TOKENS
-        for message in messages
-    )
+    """投影的 prompt token 计数：``TokenEstimator.count_messages``（tiktoken）。
+
+    content（含视觉 parts）、role/name、tool_call_id、tool_calls（工具名 + 参数）
+    与 reasoning_content 全部计入，与线上真正发送的内容一致——旧实现只看
+    content，带 tool_calls 的 assistant 消息被估成空。
+    """
+    if not messages:
+        return 0
+    return int(TokenEstimator.count_messages(messages))
 
 
 def usable_prompt_tokens(context_window: int, max_output: int) -> int:
@@ -238,7 +246,7 @@ def context_over_budget(
 
 
 class CompactSummaryError(ValueError):
-    """摘要输出为空 / 非 JSON / 结构不符 / 来源序号越界。"""
+    """摘要输出为空 / 非 JSON / 结构不符（来源下标越界不在此列：钳制并计数）。"""
 
 
 class SummaryEntry(BaseModel):
@@ -260,6 +268,9 @@ class CompactSummary(BaseModel):
     failed_attempts: list[SummaryEntry] = Field(default_factory=list)
     evidence: list[SummaryEntry] = Field(default_factory=list)
     next_actions: list[SummaryEntry] = Field(default_factory=list)
+    # 被钳制进轨迹范围的来源下标数量（parse 计入，随 stats 透出）。排除在
+    # model_dump 之外：合并载荷回喂摘要模型，不需要这条 harness 记账。
+    clamped_sources: int = Field(default=0, exclude=True)
 
 
 def _all_entries(summary: CompactSummary) -> list[SummaryEntry]:
@@ -277,7 +288,14 @@ def _all_entries(summary: CompactSummary) -> list[SummaryEntry]:
 
 
 def parse_compact_summary(raw: str, *, trajectory_len: int) -> CompactSummary:
-    """json.loads + pydantic + 显式检查（来源序号在轨迹范围内）。"""
+    """json.loads + pydantic 校验 + 来源下标钳制。
+
+    空输出 / 非 JSON / 结构不符 / 空 objective 一律 fail-loud 拒收（绝不降级
+    解析）。来源下标越界则**钳制**进轨迹范围并计数（``clamped_sources``，随
+    stats 透出到 compaction.finished）：在上千条消息的轨迹上要求模型精确引用
+    位置下标本就不现实——实测（GH #40）一次 1606 条轨迹的摘要因越界 10 被整体
+    拒收、压缩再也做不成。钳制 + 计数是可审计的记录，不是静默降级。
+    """
     text = (raw or "").strip()
     if not text:
         raise CompactSummaryError("empty summary output")
@@ -298,12 +316,20 @@ def parse_compact_summary(raw: str, *, trajectory_len: int) -> CompactSummary:
         ) from exc
     if not summary.objective.text.strip():
         raise CompactSummaryError("objective is empty")
+    clamped = 0
+    last = max(trajectory_len - 1, 0)
     for entry in _all_entries(summary):
-        for index in entry.sources:
+        for position, index in enumerate(entry.sources):
             if index < 0 or index >= trajectory_len:
-                raise CompactSummaryError(
-                    f"source index {index} out of trajectory range 0..{trajectory_len - 1}"
-                )
+                entry.sources[position] = min(max(index, 0), last)
+                clamped += 1
+    summary.clamped_sources = clamped
+    if clamped:
+        logger.warning(
+            "compaction summary: clamped %d out-of-range source index(es) into 0..%d",
+            clamped,
+            last,
+        )
     return summary
 
 
@@ -455,38 +481,55 @@ def segment_trajectory(
     return segments
 
 
+async def _bounded(coro: Any, timeout: float | None) -> Any:
+    """单次摘要调用的有界等待（``timeout`` 为 None/≤0 时不限时）。
+
+    超时抛 ``TimeoutError``，由调用方按 ``segment_failed`` / ``merge_failed``
+    拒替换——一次超大摘要调用绝不允许把轮次无限挂住（GH #40：挂起 10+ 分钟
+    无终态）。
+    """
+    if timeout is not None and timeout > 0:
+        return await asyncio.wait_for(coro, timeout)
+    return await coro
+
+
+def _batches_by_tokens(payloads: list[dict], budget_tokens: int) -> list[list[int]]:
+    """把待合并的片段载荷按 token 容量切成连续批次（单条自成一档即单元素批）。"""
+    batches: list[list[int]] = []
+    current: list[int] = []
+    current_tokens = 0
+    for index, payload in enumerate(payloads):
+        tokens = estimate_tokens(json.dumps(payload, ensure_ascii=False))
+        if current and current_tokens + tokens > budget_tokens:
+            batches.append(current)
+            current = []
+            current_tokens = 0
+        current.append(index)
+        current_tokens += tokens
+    if current:
+        batches.append(current)
+    return batches
+
+
 async def _merge_partials(
     partials: list[CompactSummary],
     *,
     summarize: Summarizer,
     trajectory_len: int,
     budget_tokens: int,
-) -> Optional[CompactSummary]:
+    summary_timeout: float | None = None,
+) -> tuple[Optional[CompactSummary], int]:
     """把逐段摘要合并成最终摘要；合并载荷超预算时分批多轮进行。
 
-    单条自成一档（它自己就超预算）时不再单独问模型，原样进入下一轮；一轮
-    下来没有任何合并且仍多于一条 → 容量不足以收敛，返回 None（调用方拒
-    替换，绝不丢段）。
+    返回 (最终摘要, 各轮被钳制的来源下标数)；单条自成一档（它自己就超预算）
+    时不再单独问模型，原样进入下一轮；一轮下来没有任何合并且仍多于一条 →
+    容量不足以收敛，摘要为 None（调用方拒替换，绝不丢段）。
     """
     pending = list(partials)
+    clamped_total = 0
     while len(pending) > 1:
         payloads = [partial.model_dump() for partial in pending]
-        sizes = [
-            estimate_tokens(json.dumps(payload, ensure_ascii=False))
-            for payload in payloads
-        ]
-        batches: list[list[int]] = []
-        current: list[int] = []
-        current_tokens = 0
-        for index, tokens in enumerate(sizes):
-            if current and current_tokens + tokens > budget_tokens:
-                batches.append(current)
-                current = []
-                current_tokens = 0
-            current.append(index)
-            current_tokens += tokens
-        if current:
-            batches.append(current)
+        batches = await asyncio.to_thread(_batches_by_tokens, payloads, budget_tokens)
         merged: list[CompactSummary] = []
         for batch in batches:
             if len(batch) == 1:
@@ -497,18 +540,21 @@ async def _merge_partials(
                 ensure_ascii=False,
                 indent=2,
             )
-            merged.append(
-                await _summarize_validated(
+            merged_summary = await _bounded(
+                _summarize_validated(
                     summarize,
                     instruction=_MERGE_INSTRUCTION,
                     payload=payload,
                     trajectory_len=trajectory_len,
-                )
+                ),
+                summary_timeout,
             )
+            clamped_total += merged_summary.clamped_sources
+            merged.append(merged_summary)
         if len(merged) >= len(pending):
-            return None
+            return None, clamped_total
         pending = merged
-    return pending[0]
+    return pending[0], clamped_total
 
 
 def _handoff_text(compacted_count: int, summary_text: str) -> str:
@@ -532,13 +578,17 @@ async def compact_context(
     max_output: int,
     trigger: str = "manual",
     old_head_len: int = 0,
+    summary_timeout: float | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """统一压缩：折叠全部轮次，返回 (候选上下文, stats)。
 
     ``stats["compacted"]`` 为 False 即拒替换（reason 说明原因），调用方
     不得安装候选。``old_head_len`` 是当前投影里旧 harness 前缀的消息数
     （由调用方从 prefix_meta 读出；无前缀的会话为 0）——旧前缀不进摘要
-    输入，由调用方重新装配的 ``head`` 替换。
+    输入，由调用方重新装配的 ``head`` 替换。``summary_timeout`` 是单次摘要
+    调用的有界等待（秒；None/≤0 不限时），超时按 ``segment_failed`` /
+    ``merge_failed`` 拒替换。``stats["clamped_sources"]`` 是被钳制的来源下标
+    数量（见 ``parse_compact_summary``）。
     """
     base_stats: dict[str, Any] = {
         "before_messages": len(messages),
@@ -549,16 +599,23 @@ async def compact_context(
     if not trajectory:
         return messages, {**base_stats, "compacted": False, "reason": "nothing_to_compact"}
 
-    segments = segment_trajectory(trajectory, budget_tokens)
+    # 分段要逐条消息计数（tiktoken）：卸载出事件循环。
+    segments = await asyncio.to_thread(
+        segment_trajectory, trajectory, budget_tokens
+    )
     partials: list[CompactSummary] = []
     coverage: list[dict[str, Any]] = []
+    clamped_sources = 0
     for seg_index, segment in enumerate(segments):
         try:
-            partial = await _summarize_validated(
-                summarize,
-                instruction=_COMPACT_INSTRUCTION,
-                payload=segment["text"],
-                trajectory_len=len(trajectory),
+            partial = await _bounded(
+                _summarize_validated(
+                    summarize,
+                    instruction=_COMPACT_INSTRUCTION,
+                    payload=segment["text"],
+                    trajectory_len=len(trajectory),
+                ),
+                summary_timeout,
             )
         except asyncio.CancelledError:
             raise
@@ -579,6 +636,7 @@ async def compact_context(
                 "error": str(exc),
             }
         partials.append(partial)
+        clamped_sources += partial.clamped_sources
         coverage.append(
             {
                 "segment": seg_index,
@@ -588,12 +646,14 @@ async def compact_context(
         )
 
     try:
-        summary = await _merge_partials(
+        summary, merge_clamped = await _merge_partials(
             partials,
             summarize=summarize,
             trajectory_len=len(trajectory),
             budget_tokens=budget_tokens,
+            summary_timeout=summary_timeout,
         )
+        clamped_sources += merge_clamped
     except asyncio.CancelledError:
         raise
     except CompactSummaryError as exc:
@@ -626,8 +686,8 @@ async def compact_context(
     # 缩短判据按整段替换的真实口径：新上下文里的历史只剩这条 handoff，
     # 旧前缀由调用方重新装配的 head 取代——只有 handoff 比整段轨迹短，
     # 压缩才真的缩小了上下文。
-    trajectory_tokens = estimate_messages_tokens(trajectory)
-    handoff_tokens = estimate_messages_tokens([handoff])
+    trajectory_tokens = await asyncio.to_thread(estimate_messages_tokens, trajectory)
+    handoff_tokens = await asyncio.to_thread(estimate_messages_tokens, [handoff])
     if handoff_tokens >= trajectory_tokens:
         return messages, {
             **base_stats,
@@ -647,6 +707,7 @@ async def compact_context(
         "trajectory_tokens": trajectory_tokens,
         "summary_tokens": handoff_tokens,
         "summary_chars": len(rendered),
+        "clamped_sources": clamped_sources,
         "segments": coverage,
     }
 

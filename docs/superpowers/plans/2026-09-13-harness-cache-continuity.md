@@ -102,8 +102,9 @@ assert current.get("tools") == previous.get("tools")
 > 摘要，投影里不留逐字保留区；唯一不压缩的是 harness 前缀（按当前状态重新
 > 装配），压缩边界之后到达的输入照常逐字可见。用户意图的无损保证改由摘要
 > 契约（objective/active_requests/constraints/corrections）+ 本轮输入承担。
-> 同时收紧估算口径（非 ASCII 按 1 字符≈1 token、工具调用参数计入）、多段
-> 合并按容量分批、预算触发被拒后退避重试、摘要调用进遥测。不变量与实现见
+> 同时收紧容量口径（`TokenEstimator`/tiktoken 单一事实源，工具调用参数与
+> reasoning 计入）、来源下标越界钳制并计数、摘要调用有界等待（summary_timeout）、
+> 多段合并按容量分批、预算触发被拒后退避重试、摘要调用进遥测。不变量与实现见
 > `cloudra/runtime_v2/compaction.py` 模块 docstring 与 AGENTS.md。
 
 **Files:** cloudra/runtime_v2/compaction.py、agent_runner.py、context_tree.py；新建 tests/test_runtime_v2_compaction_integrity.py；修改 tests/test_runtime_v2_context_tree.py。
