@@ -677,3 +677,29 @@ async def test_host_exits_when_parent_is_sigkilled():
                 os.kill(host_pid, signal.SIGKILL)
             except (ProcessLookupError, PermissionError):
                 pass
+
+
+def test_terminate_process_survives_missing_killpg(monkeypatch):
+    """GH #40: Windows has no os.killpg. The old except tuple only caught
+    ProcessLookupError/PermissionError, so AttributeError escaped
+    _terminate_process and failed whole runs (the Supervisor agent died on
+    it repeatedly, leaving its project without reviews). The fallback must
+    degrade to single-process terminate and reap."""
+    import os
+    import sys
+    from types import SimpleNamespace
+
+    async def _scenario() -> None:
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable,
+            "-c",
+            "import time; time.sleep(60)",
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        runtime = SimpleNamespace(limits=SimpleNamespace(kill_grace_ms=100))
+        await JavaScriptRuntime._terminate_process(runtime, proc)
+        assert proc.returncode is not None
+
+    monkeypatch.delattr(os, "killpg", raising=False)
+    asyncio.run(_scenario())

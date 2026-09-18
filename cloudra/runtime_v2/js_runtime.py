@@ -210,12 +210,21 @@ class JavaScriptRuntime:
         )
 
     async def _terminate_process(self, proc: asyncio.subprocess.Process) -> None:
-        """SIGTERM the host session, SIGKILL after the kill grace, then reap."""
+        """SIGTERM the host session, SIGKILL after the kill grace, then reap.
+
+        POSIX 对 host 进程组发信号（``start_new_session`` 独立成组）；
+        Windows 没有进程组语义（``os.killpg`` 不存在、``start_new_session``
+        被忽略），降级为对单个 host 进程 terminate/kill——QuickJS 沙箱是
+        单 node 进程、无子进程树，单进程终止语义等价（GH #40 实录：
+        Supervisor 在 Windows 上因 ``AttributeError: module 'os' has no
+        attribute 'killpg'`` 反复 failed，督导缺位 → Coordinator 永久
+        wait_review）。
+        """
         if proc.returncode is not None:
             return
         try:
             os.killpg(proc.pid, signal.SIGTERM)
-        except (ProcessLookupError, PermissionError):
+        except (ProcessLookupError, PermissionError, AttributeError):
             try:
                 proc.terminate()
             except ProcessLookupError:
@@ -227,7 +236,7 @@ class JavaScriptRuntime:
             pass
         try:
             os.killpg(proc.pid, signal.SIGKILL)
-        except (ProcessLookupError, PermissionError):
+        except (ProcessLookupError, PermissionError, AttributeError):
             try:
                 proc.kill()
             except ProcessLookupError:
