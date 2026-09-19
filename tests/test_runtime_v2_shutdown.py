@@ -264,3 +264,127 @@ def test_cli_stop_invokes_stop_all(monkeypatch):
     result = CliRunner().invoke(cli_mod.cli, ["stop"])
     assert result.exit_code == 0, result.output
     assert calls == [20.0]
+
+
+# ------------------------------------------------------- stop 升级路径（GH #38 兜底）
+
+
+def _patch_stop_env(monkeypatch, tmp_path, *, healthy_after_shutdown: bool):
+    """stop_all 的外部接触面全部打桩：找到 8000 上的 API、POST 已送达、
+    健康探测按参数表现、守护锁不存在、等待只求值一次（不打真拍子）。"""
+    monkeypatch.setattr("cloudra.services.shutdown.find_api_port", lambda: 8000)
+    monkeypatch.setattr(
+        "cloudra.services.shutdown.request_api_shutdown", lambda port: True
+    )
+    monkeypatch.setattr(
+        "cloudra.services.shutdown.api_is_healthy",
+        lambda port, **_: healthy_after_shutdown,
+    )
+    monkeypatch.setattr(
+        "cloudra.services.shutdown._wait_for", lambda predicate, timeout: predicate()
+    )
+    monkeypatch.setattr(
+        "cloudra.scheduler.daemon.scheduler_lock_path",
+        lambda: str(tmp_path / "scheduler.lock"),
+    )
+    monkeypatch.setattr(
+        "cloudra.services.shutdown.kg_vec_lock_path",
+        lambda: str(tmp_path / "kg_vec.lock"),
+    )
+
+
+def test_stop_all_cooperative_shutdown_never_escalates(monkeypatch, tmp_path):
+    """协作关停成功（健康端口随 lifespan 退出、进程死亡）时不触碰信号路径。"""
+    _patch_stop_env(monkeypatch, tmp_path, healthy_after_shutdown=False)
+    monkeypatch.setattr(
+        "cloudra.services.shutdown._port_listener_pid", lambda port: 4242
+    )
+    monkeypatch.setattr("cloudra.services.shutdown._pid_alive", lambda pid: False)
+    sent = []
+    monkeypatch.setattr(
+        "cloudra.services.shutdown._signal_pid",
+        lambda pid, sig: sent.append(sig) or True,
+    )
+    from cloudra.services.shutdown import stop_all
+
+    report = stop_all(timeout=0.5)
+    assert sent == []
+    assert report["api_stopped"] is True
+    assert report["api_escalated"] is None
+
+
+def test_stop_all_escalates_sigterm_when_cooperative_hangs(monkeypatch, tmp_path):
+    """协作端点无响应（事件循环卡死/鉴权失败）：健康端口一直 200，直接对
+    关停前锁定的归属 PID 信号升级。"""
+    _patch_stop_env(monkeypatch, tmp_path, healthy_after_shutdown=True)
+    monkeypatch.setattr(
+        "cloudra.services.shutdown._port_listener_pid", lambda port: 4242
+    )
+    import signal as signal_mod
+
+    sent = []
+    monkeypatch.setattr(
+        "cloudra.services.shutdown._signal_pid",
+        lambda pid, sig: sent.append(sig) or True,
+    )
+    # SIGTERM 后进程死、端口不再应答
+    monkeypatch.setattr(
+        "cloudra.services.shutdown.api_is_healthy",
+        lambda port, **_: not sent,
+    )
+    monkeypatch.setattr(
+        "cloudra.services.shutdown._pid_alive", lambda pid: not sent
+    )
+    from cloudra.services.shutdown import stop_all
+
+    report = stop_all(timeout=0.5)
+    assert sent == [signal_mod.SIGTERM]
+    assert report["api_escalated"] == "sigterm"
+    assert report["api_stopped"] is True
+
+
+def test_stop_all_escalates_when_process_survives_port_close(monkeypatch, tmp_path):
+    """GH #38 的挂死形态：优雅关停先关监听（健康转失败）但进程被常驻 SSE
+    排干拖死——排空窗口过后对关停前锁定的 PID 升级，SIGTERM 不动则 SIGKILL。
+    绝不出现「报告已停止、进程还活着」。"""
+    _patch_stop_env(monkeypatch, tmp_path, healthy_after_shutdown=False)
+    monkeypatch.setattr(
+        "cloudra.services.shutdown._port_listener_pid", lambda port: 4242
+    )
+    import signal as signal_mod
+
+    sent = []
+    monkeypatch.setattr(
+        "cloudra.services.shutdown._signal_pid",
+        lambda pid, sig: sent.append(sig) or True,
+    )
+    # 进程活到 SIGKILL 才死
+    monkeypatch.setattr(
+        "cloudra.services.shutdown._pid_alive",
+        lambda pid: signal_mod.SIGKILL not in sent,
+    )
+    from cloudra.services.shutdown import stop_all
+
+    report = stop_all(timeout=0.5)
+    assert sent == [signal_mod.SIGTERM, signal_mod.SIGKILL]
+    assert report["api_escalated"] == "sigkill"
+    assert report["api_stopped"] is True
+
+
+def test_stop_all_reports_failure_when_no_attributable_pid(monkeypatch, tmp_path):
+    """定位不到端口归属 PID 时：如实报告未停止，绝不碰任何进程。"""
+    _patch_stop_env(monkeypatch, tmp_path, healthy_after_shutdown=True)
+    monkeypatch.setattr(
+        "cloudra.services.shutdown._port_listener_pid", lambda port: None
+    )
+    sent = []
+    monkeypatch.setattr(
+        "cloudra.services.shutdown._signal_pid",
+        lambda pid, sig: sent.append(sig) or True,
+    )
+    from cloudra.services.shutdown import stop_all
+
+    report = stop_all(timeout=0.5)
+    assert sent == []
+    assert report["api_escalated"] is None
+    assert report["api_stopped"] is False

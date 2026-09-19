@@ -848,7 +848,9 @@ def stop_cmd(timeout):
     if port is None:
         console.print("  API: 未发现运行中的实例")
     elif report["api_stopped"]:
-        console.print(f"  API: 已停止（端口 {port}）")
+        escalated = report.get("api_escalated")
+        suffix = f"（优雅关停未完成，已 {escalated} 强制终止）" if escalated else ""
+        console.print(f"  API: 已停止（端口 {port}）{suffix}")
     else:
         console.print(f"[yellow]  API: {timeout}s 内未确认退出（端口 {port}），请检查进程[/yellow]")
     for name, state in report["daemons"].items():
