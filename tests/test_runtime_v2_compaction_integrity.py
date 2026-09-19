@@ -610,6 +610,48 @@ async def test_summary_call_is_recorded_as_kind_summary(monkeypatch):
     assert events[0].run_id == "r1"
 
 
+@pytest.mark.asyncio
+async def test_summary_usage_is_json_serializable(monkeypatch):
+    """真实故障（GH #40 线程）：raw response.usage 是 openai SDK 的
+    CompletionUsage 对象，直接进 llm.completed 事件让 event_writer 的
+    json 落盘抛 EventPersistenceError——持久化管道被堵死，/compact 500、
+    后续写命令全部失效。事件数据必须 JSON 可序列化。"""
+    import json as _json
+    from types import SimpleNamespace
+
+    from cloudra.runtime_v2.compaction import summarize_with_agent_settings
+    from cloudra.runtime_v2.events import EventLog
+    from cloudra.runtime_v2.schemas import AgentSession
+
+    class FakeClient:
+        def __init__(self, **_kwargs) -> None:
+            pass
+
+        async def create_with_retry(self, **_kwargs):
+            return SimpleNamespace(
+                usage=object(),  # 模拟未转换的 CompletionUsage：不可序列化
+                finish_reason="stop",
+                choices=[SimpleNamespace(message=SimpleNamespace(content="OK"))],
+            )
+
+        async def aclose(self) -> None:
+            pass
+
+    monkeypatch.setattr("cloudra.infra.llm_client.LLMClient", FakeClient)
+    agent = AgentSession(
+        id="as_sum2", project_id="prj_sum", role_id="coordinator", display_name="c"
+    )
+    log = EventLog(strict=False)
+    out = await summarize_with_agent_settings(
+        agent, [{"role": "user", "content": "payload"}], event_log=log, run_id="r1"
+    )
+    assert out == "OK"
+    events = [e for e in log.query_session("as_sum2") if e.type == "llm.completed"]
+    assert len(events) == 1
+    # 不可序列化（旧代码）就在这里 TypeError——这正是线上 /compact 500 的机制
+    _json.dumps(events[0].data)
+
+
 # ---------------------------------------------------------------------------
 # 结构化校验与渲染单元测试
 # ---------------------------------------------------------------------------
