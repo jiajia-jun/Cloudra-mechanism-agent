@@ -22,7 +22,7 @@ cloudra stop                                # 显式全停（不 kill 计算进�
 npm --prefix cloudra/runtime_v2/js_host test   # JS 宿主测试；先 npm ci --ignore-scripts --no-audit --no-fund
 ```
 
-入口：`cloudra` CLI（`cloudra/cli.py`；执行面已收敛到 runtime_v2，CLI 不直接跑任务）。Python >= 3.11，POSIX-only。
+入口：`cloudra` CLI（`cloudra/cli.py`；执行面已收敛到 runtime_v2，CLI 不直接跑任务）。Python >= 3.11，POSIX-only。**Windows 政策（2026-09-20 定）**：master 不再接收 Windows 兼容补丁（存量容忍补丁——flocks msvcrt 后端、js_runtime killpg 降级、monitor nice 守卫、web_launcher `cmd /c`——保留不动）；Windows 兼容工作集中在 `windows` 分支（移植清单与同步节奏见 `docs/WINDOWS_PORT.md`，该分支配 windows-smoke CI），Windows 相关 PR 一律以 `windows` 为 base。
 
 **停止语义边界**：取消单个 agent（`POST /api/v2/agents/{id}/cancel`）级联取消其存活后代，**永不触碰 scheduler/guard/QM 计算**；计算作业的一键取消是 `POST /api/v2/compute/cancel-all`（账本级：ready 直接落 cancelled、Slurm 置 `cancel_requested` 由既有 poll 循环走 scancel、本地不杀进程只落 cancelled），全停只能 `cloudra stop`；只终止有明确归属的任务/进程，禁止按进程名宽匹配杀进程，子进程必须 wait/reap；已发给 provider 的请求远端不可撤销。
 
