@@ -69,24 +69,3 @@ def test_terminate_process_group_kills_and_reaps():
     terminate_process_group(proc)
     assert proc.returncode is not None
     assert proc.poll() is not None
-
-
-def test_terminate_process_group_windows_fallback(monkeypatch):
-    """GH #40：Windows 没有 os.getpgid / os.killpg / signal.SIGKILL——
-    降级为单进程 terminate → kill 并回收，绝不 AttributeError 炸穿调用方
-    （Supervisor 曾在 Windows 上因此反复 failed）。"""
-    import sys
-
-    monkeypatch.delattr(os, "getpgid", raising=False)
-    monkeypatch.delattr(os, "killpg", raising=False)
-    proc = subprocess.Popen(
-        [sys.executable, "-c", "import time; time.sleep(60)"],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-    )
-    try:
-        terminate_process_group(proc)
-    finally:
-        if proc.poll() is None:
-            proc.kill()
-    assert proc.returncode is not None
-    assert proc.poll() is not None

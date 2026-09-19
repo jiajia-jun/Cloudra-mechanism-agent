@@ -64,21 +64,12 @@ def _check_node(frontend: Path) -> None:
 
 
 def _npm_argv() -> list[str]:
-    """npm as an invokable argv prefix.
-
-    On Windows npm is a ``npm.cmd`` batch file: ``shutil.which`` finds it (it
-    honours PATHEXT) but ``CreateProcess`` cannot execute ``.cmd`` scripts
-    directly — ``subprocess.run(["npm", ...])`` dies with ``WinError 2`` even
-    though the pre-check passed.  Route through ``cmd /c`` with the fully
-    resolved path; POSIX keeps the resolved executable directly.
-    """
+    """npm as an invokable argv prefix (fully resolved executable)."""
     npm = shutil.which("npm")
     if npm is None:
         raise RuntimeError(
             "npm not found on PATH; install Node.js >= 18 or run with --skip-build"
         )
-    if os.name == "nt":
-        return ["cmd", "/c", npm]
     return [npm]
 
 

@@ -62,29 +62,7 @@ def list_artifact_files(run_dir: str) -> list[tuple[str, str, int]]:
 
 
 def terminate_process_group(proc: subprocess.Popen) -> None:
-    """先 SIGTERM 再 SIGKILL **本进程组**，并 wait/reap，绝不只发信号不回收。
-
-    POSIX 用 ``os.getpgid``/``os.killpg`` 进程组信号；Windows 无进程组语义
-    （``os.getpgid``/``os.killpg``/``signal.SIGKILL`` 都不存在），降级为对
-    单个子进程 terminate → kill 并回收——终止并回收的契约不变，只是覆盖面
-    从进程组缩到单进程（GH #40）。
-    """
-    if not (hasattr(os, "getpgid") and hasattr(os, "killpg")):
-        try:
-            proc.terminate()
-        except ProcessLookupError:
-            return
-        try:
-            proc.wait(timeout=10)
-            return
-        except subprocess.TimeoutExpired:
-            pass
-        try:
-            proc.kill()
-        except ProcessLookupError:
-            return
-        proc.wait()
-        return
+    """先 SIGTERM 再 SIGKILL **本进程组**，并 wait/reap，绝不只发信号不回收。"""
     try:
         pgid = os.getpgid(proc.pid)
     except ProcessLookupError:

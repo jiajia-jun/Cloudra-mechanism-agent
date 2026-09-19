@@ -15,7 +15,6 @@ from cloudra.infra.compute_utils import (
     guard_lock_path,
 )
 from cloudra.infra.flocks import try_acquire_lock
-from cloudra.infra.platform_utils import is_posix
 from cloudra.persistence.database import ComputeDB
 from cloudra.persistence.fs_utils import atomic_write_json
 from cloudra.services.compute_store import (
@@ -460,7 +459,6 @@ async def run_guard(
             return
 
         # 启动 calculator；start_new_session 保证 guard 意外退出时 calculator 不被连带杀死。
-        # Windows 不支持 start_new_session，仅 POSIX 传入。
         from cloudra.infra.compute_utils import (
             allocate_gaussian_scratch,
             cleanup_gaussian_scratch,
@@ -499,10 +497,9 @@ async def run_guard(
             "stdin": subprocess.DEVNULL,
             "cwd": workdir,
             "env": calc_env,
+            "start_new_session": True,
+            "preexec_fn": _lower_sched_priority,
         }
-        if is_posix():
-            calc_kwargs["start_new_session"] = True
-            calc_kwargs["preexec_fn"] = _lower_sched_priority
         returncode: int | None = None
         try:
             calc_proc = await asyncio.create_subprocess_exec(*wrapped_cmd, **calc_kwargs)
