@@ -163,8 +163,8 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         module='cloudra.tools.Chemtool.mechanism_predict',
         class_name='MechanismPredict',
         tool_name='mechanism_predict',
-        # ML 机理假设生成器（FlowER 外部 conda env）：不是计算证据，默认
-        # 由 flower.enabled 开关关闭。
+        # ML 机理假设生成器（FlowER 外部 conda env）：不是计算证据；
+        # flower.enabled 默认开（未装环境时调用层引导 setup_flower.sh）。
         config_gate='flower.enabled',
         role_allowlist=_SCIENCE_ROLES,
     ),

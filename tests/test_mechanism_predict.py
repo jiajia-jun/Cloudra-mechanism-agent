@@ -96,7 +96,17 @@ def _enable_flower(monkeypatch, tmp_path=None, *, configured: bool = True):
 
 # ----------------------------------------------------------------- 开关与投影
 
-def test_config_gate_disabled_by_default():
+def test_config_gate_enabled_by_default():
+    """flower.enabled 默认开：mechanism_predict 对模型默认可见（未装环境时
+    由调用层 fail-loud 引导 setup_flower.sh，见 tool_call 测试）。"""
+    assert "mechanism_predict" not in config_disabled_tools()
+    assert "mechanism_predict" in _wire_names(_agent(), ["mechanism_predict"])
+    assert "mechanism_predict" in guest_tool_names(["mechanism_predict"])
+
+
+def test_config_gate_explicit_disable_hides_tool(monkeypatch):
+    """显式置 false 时退回隐藏 + 执行层硬失败（双保险）。"""
+    monkeypatch.setattr(get_config().flower, "enabled", False)
     assert "mechanism_predict" in config_disabled_tools()
     assert "mechanism_predict" not in _wire_names(_agent(), ["mechanism_predict"])
     assert "mechanism_predict" not in guest_tool_names(["mechanism_predict"])
@@ -130,7 +140,9 @@ def test_config_gate_unknown_path_fails_closed(monkeypatch):
 # ----------------------------------------------------------------- tool_call 前置校验
 
 @pytest.mark.asyncio
-async def test_tool_call_refused_when_disabled(mock_session):
+async def test_tool_call_refused_when_disabled(mock_session, monkeypatch):
+    """显式关闭时执行层硬失败（wire 投影之外的第二道防线）。"""
+    monkeypatch.setattr(get_config().flower, "enabled", False)
     tool = MechanismPredict()
     result = await tool.tool_call(
         MechanismPredict_input_schema(reactants="CC(=O)O"), mock_session

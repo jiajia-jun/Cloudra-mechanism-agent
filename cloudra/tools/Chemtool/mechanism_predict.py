@@ -8,9 +8,11 @@ torch——子进程产物只有 network.json（清洁 SMILES 节点 + 带概率
 dag_evidence_producer / dag_compute_entry 语义；生成的中间体/路径必须经
 xtb/DFT 证据链（submit_compute_job）验证后才能进入机理主张。
 
-开关：config ``flower.enabled`` 默认 false。关闭时 wire 投影隐藏本工具
-（capabilities.config_disabled_tools），本文件 tool_call 再硬失败一次
-（双保险，与 dag 工具"投影隐藏 + 执行层硬拒"的模式一致）。
+开关：config ``flower.enabled`` 默认 true（工具对模型默认可见）。未安装
+环境时本文件 tool_call 按缺失项 fail-loud 并引导 scripts/setup_flower.sh；
+显式置 false 时 wire 投影隐藏本工具（capabilities.config_disabled_tools），
+tool_call 再硬失败一次（双保险，与 dag 工具"投影隐藏 + 执行层硬拒"的
+模式一致）。
 """
 
 import asyncio

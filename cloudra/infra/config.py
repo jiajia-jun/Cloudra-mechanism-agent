@@ -105,11 +105,13 @@ class EmailConfig(BaseSettings):
 class FlowerConfig(BaseSettings):
     """FlowER mechanism-prediction external environment.
 
-    总开关 enabled 默认关：置 true 前必须先用 scripts/setup_flower.sh 装好
-    独立 conda env 并填好 repo_dir/env_python/checkpoint。开关关闭时
-    mechanism_predict 工具对模型隐藏（wire 投影）且执行层硬失败。
+    总开关 enabled 默认开：mechanism_predict 对模型默认可见。未配置
+    repo_dir/env_python/checkpoint（或路径不存在）时调用层 fail-loud 并
+    引导 scripts/setup_flower.sh——可见性与可用性分开，宁可让 agent 看到
+    工具并得到明确的安装指引，也不默认藏起。显式置 false 时 wire 投影
+    隐藏且执行层硬失败。
     """
-    enabled: bool = False
+    enabled: bool = True
     repo_dir: str = ""
     env_python: str = ""
     checkpoint: str = ""
