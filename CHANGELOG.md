@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 变更
+- `dft-calculation` skill 重写（基于五路软件最佳实践调研）：TS 初猜三级梯队（ts_prepare → 映射插值/NEB → 一维/二维松弛扫描，扫描从兜底升为正当主力）、**QST2/QST3 硬禁止（上限 NEB）**、「投初猜优于调参」纪律、软模/松散离子-分子复合物不收敛预警与处置阶梯、构象采样强制（单构象能垒=交付阻断）、真空裸离子禁令与溶剂/反离子/标准态规则、伪鞍点识别（虚模位移必须落在反应重原子）、不合理建模黑名单与「该不该算」前置自审；新增 references `ts-search-playbook.md` 与 `modeling-sanity.md`；本地工具优先于 bash 的工作规则全面收紧。
 - `flower.enabled` 默认开：mechanism_predict（FlowER 机理假设生成）对模型默认可见，未装环境时调用层 fail-loud 引导 `scripts/setup_flower.sh`；显式置 false 才回退 wire 隐藏 + 执行层硬失败。
 - 工具面收敛：`role_allowlist` 工具级角色门槛（registry 声明使用者，wire 投影隐藏 + PermissionStage 硬拦两道防线；化学/QM 工具限 coordinator/small_mol/md/dft/experiment，ir/nmr_processor 为 experiment 专属）；裁撤冗余工具 `web_fetch`（能力由 `browser` 静态回退覆盖）与 `todo_read`（todo 提醒改为内联清单，`todo_write` 每次调用回显全量）；email 工具与收件监听器加总开关 `email.enabled`（默认关，config_gate 隐藏 + 执行层硬失败 + 监听器不启动）。
 - 上线前可靠性大重构（beta 不留兼容）：计算执行面三进程拓扑定型——Web 控制面（api_v2）、计算调度守护进程（`cloudra scheduler`，flock 单实例，web 启动时自动 detach 拉起）、知识向量服务（chem-kb 插件安装后自动拉起，`CLOUDRA_KG_VEC=off` 关闭）；进程间状态同步只走 SQLite（WAL）与文件锁。执行面铁律固化：永不 kill 计算进程、存活判定只用 flock 探测、核心链路零输入文件解析（资源量由 agent 提交时显式申请）。

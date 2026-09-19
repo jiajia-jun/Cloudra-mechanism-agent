@@ -12,7 +12,7 @@ Use with the mechanism SOP; these are Gaussian routes, not ORCA syntax. `qm_inpu
 | IRC with a newly calculated Hessian | `[{"irc":"calcfc,maxpoints=80"}]` | Both directions by default; inspect actual convergence and endpoints |
 | Single point | `[]` | Explicit empty list prevents the default optimization |
 
-`NoEigenTest` suppresses an optimizer curvature test; it does not establish that a saddle is valid. Add it only when a diagnosed early curvature rejection warrants continuing from a credible guess. `MaxStep=10` or a tighter grid may address a specific step-size/numerical problem; do not stack them onto every failed job. Project policy disables QST2/QST3: use scans or mapped interpolation to prepare candidates.
+`NoEigenTest` suppresses an optimizer curvature test; it does not establish that a saddle is valid — it transfers all saddle validation to the final freq, which then becomes mandatory. Add it only when a diagnosed early curvature rejection warrants continuing from a credible guess. `MaxStep=10` or a tighter grid may address a specific step-size/numerical problem; do not stack them onto every failed job. **QST2/QST3 are banned** (synchronous-transit interpolation fails systematically and has no path correction); the ceiling is mapped interpolation/NEB, with relaxed scans as the workhorse — see `ts-search-playbook.md`.
 
 ## 2. Complete TS example
 

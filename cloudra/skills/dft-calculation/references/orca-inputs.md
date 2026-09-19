@@ -112,7 +112,7 @@ For free energies, read `method-selection.md` §4: `log_parser` supports ORCA th
 }
 ```
 
-Expect `! Opt ExtOpt` and `%geom Scan B 0 8 = <current>, 1.30, 16 ...`. The tool supplies `%geom`; do not append another scan/constraint block accidentally. The tool currently accepts only one scan coordinate for ORCA. For DFT use ORCA-native spelling in `method` (e.g. `PBE0 def2-SVP`), without the external block. `scan_prepare` has no memory field; set `%maxcore` through `orca_blocks`.
+Expect `! Opt ExtOpt` and `%geom Scan B 0 8 = <current>, 1.30, 16 ...`. The tool supplies `%geom`; do not append another scan/constraint block accidentally. The tool currently accepts only one scan coordinate for ORCA; for coupled two-coordinate scans write the multi-coordinate `%geom Scan` block explicitly via `orca_blocks`, or — usually better — switch to `! NEB-TS` (see `ts-search-playbook.md` §4 for when 2D is worth it and §3 for the NEB-TS recipe). For DFT use ORCA-native spelling in `method` (e.g. `PBE0 def2-SVP`), without the external block. `scan_prepare` has no memory field; set `%maxcore` through `orca_blocks`.
 
 Keep `<stem>.relaxscanact.dat` and per-point `<stem>.NNN.xyz` files for `scan_parse`. Its native sidecar path pairs energies with the correct frame and reports the peak as a `candidate` with `scan_index`/`energy`/`geometry_ref`/`source`. If the peak frame file is missing, the tool returns `candidate_unavailable=true` and never substitutes the last frame; recover or re-run the missing frame before extracting a TS guess. The text-only fallback is best-effort: inspect the returned notes before using it as a peak candidate. Export the chosen seed into a fresh unconstrained TS input.
 
