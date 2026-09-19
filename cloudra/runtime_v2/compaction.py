@@ -760,6 +760,18 @@ async def summarize_with_agent_settings(
     finally:
         await client.aclose()
     if event_log is not None:
+        # usage 必须 JSON 可序列化：raw response.usage 是 openai SDK 的
+        # CompletionUsage 对象，直接进事件会让 event_writer 的 json 落盘
+        # 抛 EventPersistenceError，堵死整条持久化管道（/compact 500、
+        # 后续写命令全部失效）。client.last_usage 是 _extract_usage 转换
+        # 过的安全 dict；fake/异常形态再兜底到 raw dict / model_dump。
+        usage = getattr(client, "last_usage", None) or {}
+        if not usage:
+            raw_usage = getattr(response, "usage", None)
+            if isinstance(raw_usage, dict):
+                usage = dict(raw_usage)
+            elif raw_usage is not None and hasattr(raw_usage, "model_dump"):
+                usage = raw_usage.model_dump(exclude_none=True)
         event_log.append(
             "llm.completed",
             stream="agent",
@@ -768,7 +780,7 @@ async def summarize_with_agent_settings(
             run_id=run_id,
             data={
                 "model": settings.model,
-                "usage": getattr(response, "usage", None),
+                "usage": usage,
                 "finish_reason": getattr(response, "finish_reason", None),
                 "latency_ms": int((time.monotonic() - started) * 1000),
                 "kind": "summary",
