@@ -146,3 +146,7 @@ cloudra.md
 
 # gold_compute 战役运行目录（append-only 本地证据，日志量大不入库）
 gold_compute/campaign/runs/
+gold_compute/campaign/_repro/
+gold_compute/campaign/_chem_review/
+gold_compute/campaign/review_artifacts_*/
+gold_compute/review/

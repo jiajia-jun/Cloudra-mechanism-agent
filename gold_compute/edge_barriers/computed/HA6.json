@@ -1,0 +1,116 @@
+{
+  "task_id": "HA6",
+  "method": "B3LYP-D3(BJ)/def2-SVP",
+  "software": "ORCA 6.1.1 (route: ! B3LYP D3BJ def2-SVP def2/J RIJCOSX; all OptTS/Freq/IRC jobs nproc=1)",
+  "solvent": "gas phase",
+  "note": "trans-3,4-dimethylcyclobutene 4pi conrotatory ring opening. Two diastereomeric conrotatory TSs located (both methyls outward -> (E,E); both inward -> (Z,Z)). Each edge barrier is the PURE ELECTRONIC dE# = E(TS) - E(that step's own start minimum); the start minimum for both unimolecular edges is the trans-3,4-dimethylcyclobutene minimum E=-234.291329975759 Ha. No ZPE/thermal corrections.",
+  "species_minima": {
+    "HA6_R": {
+      "role": "reactant",
+      "smiles": "C[C@H]1C=C[C@@H]1C",
+      "label": "trans-3,4-dimethylcyclobutene minimum",
+      "energy_hartree": -234.291329975759,
+      "n_imag": 0,
+      "job_id": 429,
+      "log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HA6/reactant_trans/.cloudra/calc-429.out.log",
+      "geom": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HA6/reactant_trans/optfreq.xyz"
+    },
+    "HA6_P": {
+      "role": "product",
+      "smiles": "C/C=C/C=C/C",
+      "label": "(E,E)-2,4-hexadiene minimum (E1 product)",
+      "energy_hartree": -234.310194055447,
+      "n_imag": 0,
+      "job_id": 490,
+      "log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HA6/HA6_E1/.cloudra/calc-490.out.log",
+      "geom": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HA6/HA6_E1/prod_optfreq.xyz"
+    },
+    "HA6_M1": {
+      "role": "product",
+      "smiles": "C/C=C\\C=C/C",
+      "label": "(Z,Z)-2,4-hexadiene minimum (EM1 product)",
+      "energy_hartree": -234.308245397348,
+      "n_imag": 0,
+      "job_id": 527,
+      "log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HA6/HA6_EM1/.cloudra/calc-527.out.log",
+      "geom": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HA6/HA6_EM1/epB_optfreq.xyz"
+    },
+    "HA6_E1_irc_reactant_endpoint": {
+      "role": "reactant_endpoint_check",
+      "smiles": "C[C@H]1C=C[C@@H]1C",
+      "label": "IRC B-frame opt -> reactant basin",
+      "energy_hartree": -234.291330691575,
+      "n_imag": 0,
+      "job_id": 508,
+      "log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HA6/HA6_E1/.cloudra/calc-508.out.log"
+    },
+    "HA6_EM1_irc_reactant_endpoint": {
+      "role": "reactant_endpoint_check",
+      "smiles": "C[C@H]1C=C[C@@H]1C",
+      "label": "IRC F-frame opt -> reactant basin (methyl rotamer, +0.017 kcal)",
+      "energy_hartree": -234.291303051557,
+      "n_imag": 0,
+      "job_id": 526,
+      "log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HA6/HA6_EM1/.cloudra/calc-526.out.log"
+    }
+  },
+  "edges": [
+    {
+      "edge_id": "HA6_E1",
+      "barrier_kcal_mol": 31.24,
+      "type": "electronic dE# (no ZPE/thermal)",
+      "method": "B3LYP-D3(BJ)/def2-SVP",
+      "solvent": "gas phase",
+      "frame": "trans-3,4-dimethylcyclobutene minimum E=-234.291329975759 Ha (0 imag, job 429)",
+      "ts_energy_hartree": -234.241540857103,
+      "ts_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HA6/HA6_E1/.cloudra/calc-452.out.log",
+      "ts_geom": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HA6/HA6_E1/ts_optfreq.xyz",
+      "irc_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HA6/HA6_E1/.cloudra/calc-462.out.log",
+      "endpoint_reactant_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HA6/HA6_E1/.cloudra/calc-508.out.log",
+      "endpoint_product_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HA6/HA6_E1/.cloudra/calc-490.out.log",
+      "n_imag": 1,
+      "imag_cm": [
+        -520.96
+      ],
+      "irc_ok": true,
+      "validation": "verified",
+      "verify_strict": "pass",
+      "note": "OUTWARD rotation of both methyls (torquoselective major channel). TS r(C2-C5)=2.164 A with C2-C3/C4-C5 shortening toward the diene. IRC bidirectional: reactant-side outer frame optimizes to the reactant minimum (calc-508, E=-234.291330691575, 0 imag, diff<0.001 kcal vs R min); product-side outer frame optimizes to (E,E)-2,4-hexadiene (calc-490, matches C/C=C/C=C/C, mismatches Z,Z). dE# = E(TS)-E(R)."
+    },
+    {
+      "edge_id": "HA6_EM1",
+      "barrier_kcal_mol": 42.31,
+      "type": "electronic dE# (no ZPE/thermal)",
+      "method": "B3LYP-D3(BJ)/def2-SVP",
+      "solvent": "gas phase",
+      "frame": "trans-3,4-dimethylcyclobutene minimum E=-234.291329975759 Ha (0 imag, job 429)",
+      "ts_energy_hartree": -234.22391187912,
+      "ts_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HA6/HA6_EM1/.cloudra/calc-463.out.log",
+      "ts_geom": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HA6/HA6_EM1/ts_optfreq.xyz",
+      "irc_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HA6/HA6_EM1/.cloudra/calc-489.out.log",
+      "endpoint_reactant_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HA6/HA6_EM1/.cloudra/calc-526.out.log",
+      "endpoint_product_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HA6/HA6_EM1/.cloudra/calc-527.out.log",
+      "n_imag": 1,
+      "imag_cm": [
+        -631.01
+      ],
+      "irc_ok": true,
+      "validation": "verified",
+      "verify_strict": "pass",
+      "note": "INWARD rotation of both methyls (minor channel). TS guess = invert BOTH stereocentres (C2 Me<->H, C5 Me<->H) of the optimized outward TS. TS r(C2-C5)=2.235 A. IRC bidirectional: reactant-side outer frame optimizes to the reactant minimum (calc-526, E=-234.291303051557, 0 imag, +0.017 kcal vs R min = same species, methyl rotamer); product-side outer frame optimizes to (Z,Z)-2,4-hexadiene (calc-527, matches C/C=C\\C=C/C, mismatches E,E). dE# = E(TS)-E(R)."
+    }
+  ],
+  "selectivity": {
+    "spread_kcal_mol": 11.06,
+    "favors": "HA6_E1 (both methyls outward -> (E,E)-2,4-hexadiene)",
+    "favored_channel": "double_outward_rotation",
+    "minor_channel": "double_inward_rotation",
+    "gold_literature_recorded_spread": 2,
+    "conflict_resolution": "Computed |dDdE#| = 11.06 kcal/mol at B3LYP-D3(BJ)/def2-SVP (gas phase, ORCA 6.1.1). This CONTRADICTS the gold-recorded spread of 2.0 kcal/mol but AGREES with the same-substrate literature differential of 11.3 kcal/mol (Morales-Bayuelo 2013 Int. J. Quantum Chem. 113, 1534; doi:10.1002/qua.24354). Direction (outward / (E,E) favored) agrees with gold. Product thermodynamics consistent: (E,E)-2,4-hexadiene is 1.22 kcal/mol below (Z,Z) (both below the cyclobutene minimum by 11.84 and 10.61 kcal/mol respectively).",
+    "product_thermo_kcal": {
+      "EE_minus_ZZ": -1.22,
+      "EE_minus_R": -11.84,
+      "ZZ_minus_R": -10.61
+    }
+  }
+}

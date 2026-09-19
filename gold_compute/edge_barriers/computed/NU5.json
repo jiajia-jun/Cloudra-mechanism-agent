@@ -1,0 +1,223 @@
+{
+  "task_id": "NU5",
+  "method": "B3LYP-D3(BJ)/def2-SVP",
+  "route": "! Opt/OptTS/Freq/IRC b3lyp def2-svp D3BJ RIJCOSX def2/J CPCM(DCM), ORCA 6.1.1, nproc=1",
+  "solvent": "CPCM(DCM)",
+  "energy_definition": "dE# = E(TS) - E(that edge's own starting minimum), PURE ELECTRONIC (no ZPE/thermal). kcal/mol.",
+  "note": "Full gold mechanism recomputed at campaign level (literature 19.9/16.6/13.8 replaced). ts_prepare MTD path search failed (path_not_converged) for E1/E2 -> SOP agent-side fallback used. E4 connectivity proven by IRC-outer-frame endpoint optimization. E1: the earlier '11.9 kcal scan maximum' was a LOCAL-MINIMUM ARTIFACT and is NOT used as a barrier.",
+  "species_minima": {
+    "RC": {
+      "smiles": "C=O.O=CO.C[N+]#[C-]",
+      "note": "reactant complex (HCOOH H-bonded to HCHO + CH3NC), proton on formate O7",
+      "energy_hartree": -436.472650584283,
+      "n_imag": 3,
+      "imaginary_frequencies": [
+        -150.82,
+        -67.03,
+        -23.49
+      ],
+      "converged": true,
+      "log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NU5/E1/1/.cloudra/calc-442.out.log",
+      "caveat": "floppy 3-fragment stationary point, 3 low-frequency imaginary modes; NOT a clean minimum."
+    },
+    "I1": {
+      "smiles": "C=[OH+].O=C[O-].C[N+]#[C-]",
+      "note": "ion pair: protonated formaldehyde + formate + methyl isocyanide",
+      "energy_hartree": -436.478976666495,
+      "n_imag": 0,
+      "converged": true,
+      "log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NU5/E1/1/.cloudra/calc-451.out.log",
+      "xyz": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NU5/E1/1/calc-I1-tight-optfreq.xyz"
+    },
+    "I2": {
+      "smiles": "C[N+]#CCO.O=C[O-]",
+      "note": "nitrilium ion HOCH2-C#N(+)-CH3 + formate",
+      "energy_hartree": -436.477275901409,
+      "n_imag": 0,
+      "converged": true,
+      "log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NU5/E2/1/.cloudra/calc-454.out.log",
+      "xyz": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NU5/E2/1/calc-I2-tight-optfreq.xyz"
+    },
+    "I3": {
+      "smiles": "CN=C(CO)OC=O",
+      "note": "O-formyl imidate intermediate",
+      "energy_hartree": -436.511941276055,
+      "n_imag": 0,
+      "converged": true,
+      "log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NU5/E3/1/.cloudra/calc-436.out.log",
+      "xyz": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NU5/E3/1/calc-I3-optfreq.xyz"
+    },
+    "P": {
+      "smiles": "CNC(=O)COC=O",
+      "note": "product N-methyl-2-formyloxyacetamide",
+      "energy_hartree": -436.555850944545,
+      "n_imag": 0,
+      "converged": true,
+      "log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NU5/E4/1/.cloudra/calc-437.out.log",
+      "xyz": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NU5/E4/1/calc-P-optfreq.xyz"
+    }
+  },
+  "edges": [
+    {
+      "edge_id": "NU5_E1",
+      "from": "RC",
+      "to": "I1",
+      "step_type": "proton transfer formic acid -> formaldehyde (protonated formaldehyde + formate)",
+      "bond_changes": {
+        "break": [
+          [
+            5,
+            6
+          ]
+        ],
+        "form": [
+          [
+            2,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 0,
+      "type": "barrierless_no_saddle_located",
+      "frame": "RC = H-bonded reactant complex (E=-436.472650584283 Ha)",
+      "method": "B3LYP-D3(BJ)/def2-SVP",
+      "solvent": "CPCM(DCM)",
+      "n_imag": null,
+      "irc_ok": false,
+      "validation": "unresolved",
+      "ts_log": "",
+      "evidence_logs": [
+        "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NU5/E1/1/.cloudra/calc-622.out.log",
+        "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NU5/E1/1/.cloudra/calc-626.out.log",
+        "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NU5/E1/1/.cloudra/calc-627.out.log"
+      ],
+      "note": "NO isolated first-order proton-transfer saddle located by any route; corrected profile flat/descending -> effectively barrierless (dE#=0.0). The earlier '11.9 kcal constrained-scan maximum' was a LOCAL-MINIMUM ARTIFACT (constrained optimizer started from the reactant side); product-side restarts at the same constraint give far lower energies. CORRECTED constrained r(O7-H9) profile (global minima): r=0.99 RC -436.4727 (0.0), r=1.05 -436.4713 (+0.9), r=1.20 -436.4760 (-2.1), r=1.40 -436.4809 (-5.1). Strongest evidence: UNCONSTRAINED Opt+Freq from the midway structure (r=1.20) relaxes SPONTANEOUSLY downhill transferring the proton (calc-627 ends -436.5119, proton on O2). Routes exhausted: (1) unconstrained OptTS from the H-bonded complex (calc-453 -150.5 cm-1 = reactant-complex conformational saddle, IRC keeps H on O7); (2) IDPP RC<->I1 path (no transfer); (3) OptTS from scan peak + Calc_Hess (calc-482 -> H-on-O7 minimum -436.478963); (4) scan-peak OptTS with spectator CH3NC frozen (calc-619 -> reactant well); (5) product-side OptTS free (calc-488) and frozen (calc-621 -> product-side minimum -436.481857, O2-H9=1.02); (6) 2-D coupled scan. LOW confidence."
+    },
+    {
+      "edge_id": "NU5_E2",
+      "from": "I1",
+      "to": "I2",
+      "step_type": "alpha-addition of isocyanide carbon to protonated aldehyde carbon (nitrilium formation)",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ]
+        ],
+        "form": [
+          [
+            1,
+            9
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 8.2,
+      "type": "ts_computed",
+      "frame": "I1 minimum (E=-436.478976666495 Ha)",
+      "method": "B3LYP-D3(BJ)/def2-SVP",
+      "solvent": "CPCM(DCM)",
+      "n_imag": 1,
+      "imaginary_frequencies": [
+        -351.3
+      ],
+      "irc_ok": true,
+      "validation": "verified",
+      "ts_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NU5/E2/1/.cloudra/calc-467.out.log",
+      "irc_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NU5/E2/1/.cloudra/calc-474.out.log",
+      "note": "dE# = E(TS2) - E(I1) = 0.01306141 Ha = 8.20 kcal. TS2 exactly 1 imag (-351.3 cm-1 final block), mode aligned with forming C1-C12. IRC (474): forward C1-C12=2.44/C1=O2 (I1 side), backward C1-C12=1.49/C1-O2=1.37 (I2 side). ts_guess verify strict = PASS. Literature 19.9 replaced."
+    },
+    {
+      "edge_id": "NU5_E3",
+      "from": "I2",
+      "to": "I3",
+      "step_type": "formate oxygen capture of the nitrilium carbon (O-acyl imidate formation)",
+      "bond_changes": {
+        "break": [
+          [
+            8,
+            9
+          ]
+        ],
+        "form": [
+          [
+            5,
+            9
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 0,
+      "type": "barrierless",
+      "frame": "I2 minimum (E=-436.477275901409 Ha)",
+      "method": "B3LYP-D3(BJ)/def2-SVP",
+      "solvent": "CPCM(DCM)",
+      "n_imag": null,
+      "irc_ok": false,
+      "validation": "verified_barrierless",
+      "ts_log": "",
+      "note": "No TS: OptTS from two interpolation frames collapsed without a saddle (calc-468 back to I2; calc-481 to an I3 conformer). Strongly downhill (I3 21.7 kcal below I2); barrierless dE#=0.0. Literature 16.6 replaced."
+    },
+    {
+      "edge_id": "NU5_E4",
+      "from": "I3",
+      "to": "P",
+      "step_type": "Mumm rearrangement: formyl migration O6->O5 + O5-H -> N2 proton shift",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            6
+          ],
+          [
+            3,
+            5
+          ],
+          [
+            8,
+            9
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            5,
+            9
+          ],
+          [
+            6,
+            8
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 31.7,
+      "type": "ts_computed",
+      "frame": "I3 minimum (E=-436.511941276055 Ha)",
+      "method": "B3LYP-D3(BJ)/def2-SVP",
+      "solvent": "CPCM(DCM)",
+      "n_imag": 1,
+      "imaginary_frequencies": [
+        -153.44
+      ],
+      "irc_ok": true,
+      "validation": "verified_connectivity_endpoint_opt",
+      "ts_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NU5/E4/1/.cloudra/calc-469.out.log",
+      "irc_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NU5/E4/1/.cloudra/calc-480.out.log",
+      "endpoint_logs": {
+        "product_side": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NU5/E4/1/.cloudra/calc-496.out.log",
+        "reactant_side": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NU5/E4/1/.cloudra/calc-497.out.log"
+      },
+      "note": "dE# = E(TS4) - E(I3) = 0.05047747 Ha = 31.68 kcal. TS4 exactly 1 imag (-153.44 cm-1 final block); displacement mixes the O5-H14->N2 proton shuttle with C7/O6 acyl-transfer motion (coupled Mumm saddle). CONNECTIVITY by endpoint optimization: IRC forward outer frame -> opt+freq = P exactly (calc-496 -436.555853549366, 0 imag); backward outer frame -> I3 conformer (calc-497 -436.515226342348, 0 imag, +2.06 above global I3). MEDIUM confidence. 31.68 deviates from literature 13.8 (retained, not adjusted)."
+    }
+  ],
+  "energy_ladder_rel_RC_kcal": {
+    "RC": 0,
+    "I1": -3.97,
+    "I2": -2.92,
+    "I3": -24.65,
+    "P": -52.21
+  },
+  "caveats": "Floppy multimolecular minima (RC 3 low-freq imaginary modes). ORCA %geom Constraints are 0-based. E1 effectively barrierless (no isolated saddle), LOW confidence; E3 barrierless; E4 medium confidence."
+}
