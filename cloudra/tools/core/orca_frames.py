@@ -4,6 +4,11 @@
 
 - opt / freq / sp / unrelaxed scan 走 cclib（scfenergies / atomcoords /
   vibfreqs / optdone / scanparm），cclib 对 ORCA 支持良好；
+- **cclib 崩溃回退**：cclib 对 ORCA 6.1 日志会在 SCF 收敛段裸抛
+  IndexError（GH #44），opt/ts 与 sp 分支此时走文本权威解析（逐周期
+  CARTESIAN COORDINATES 块 + Current Energy 行 / 末帧块 + FINAL SP），
+  与 vibfreqs_from_text / final_xyz_from_text 同一纪律；scan 分支仍
+  依赖 cclib（relaxed scan 的逐点几何 cclib 本就不暴露，见下）；
 - ORCA 的松弛面扫描（relaxed surface scan）在 cclib 1.8.x 中不暴露
   scanenergies/scancoords，仅给出 scfenergies + scanparm，几何序列暂缺；
 - IRC（`IRC` 关键字）：逐点的能量/收敛/端点能量从主输出的 FORWARD/
@@ -332,15 +337,9 @@ def frequencies_with_text_fallback(log_path: str) -> list[float]:
     return vibfreqs_from_text(_read_text(log_path))
 
 
-def final_xyz_from_text(text: str) -> str:
-    """最后一个 CARTESIAN COORDINATES (ANGSTROEM) 块 → 标准 xyz 文本。
-
-    ORCA 每次几何步/作业结束都打印该块，取最后一个即末帧几何；cclib 对
-    ORCA 6.1 日志整体解析失败时的文本回退（与 vibfreqs_from_text 同一
-    纪律——评分链路不能因 cclib 崩溃而不可判定）。无该块返回空串。"""
-    idx = text.rfind("CARTESIAN COORDINATES (ANGSTROEM)")
-    if idx < 0:
-        return ""
+def _xyz_block_at(text: str, idx: int) -> str:
+    """从 idx 处的 CARTESIAN COORDINATES (ANGSTROEM) 标题解析一个坐标块，
+    返回标准 xyz 文本；块为空返回空串。"""
     rows: list[str] = []
     for line in text[idx:].splitlines()[2:]:  # 跳过标题行与分隔线
         parts = line.split()
@@ -357,6 +356,18 @@ def final_xyz_from_text(text: str) -> str:
     if not rows:
         return ""
     return f"{len(rows)}\n\n" + "\n".join(rows) + "\n"
+
+
+def final_xyz_from_text(text: str) -> str:
+    """最后一个 CARTESIAN COORDINATES (ANGSTROEM) 块 → 标准 xyz 文本。
+
+    ORCA 每次几何步/作业结束都打印该块，取最后一个即末帧几何；cclib 对
+    ORCA 6.1 日志整体解析失败时的文本回退（与 vibfreqs_from_text 同一
+    纪律——评分链路不能因 cclib 崩溃而不可判定）。无该块返回空串。"""
+    idx = text.rfind("CARTESIAN COORDINATES (ANGSTROEM)")
+    if idx < 0:
+        return ""
+    return _xyz_block_at(text, idx)
 
 
 def final_xyz_with_text_fallback(log_path: str) -> str:
@@ -380,8 +391,74 @@ def final_xyz_with_text_fallback(log_path: str) -> str:
 # 帧提取
 # ---------------------------------------------------------------------------
 
+# 优化逐周期标记：ORCA 5/6 的 Opt/OptTS 每个周期打印一段，段内先给该周期
+# 评估的几何（CARTESIAN COORDINATES 块）、SCF 后给能量（Current Energy 行）。
+_OPT_CYCLE_MARKER = "GEOMETRY OPTIMIZATION CYCLE"
+
+
+def _extract_opt_frames_native(log_text: str) -> list[FrameRecord]:
+    """文本权威的优化逐帧提取：cclib 对 ORCA 6.1 日志崩溃（GH #44）时的回退。
+
+    逐周期配对「段内第一个 CARTESIAN COORDINATES 块 + Current Energy 行」；
+    收敛后 ORCA 在末段再打印一次最终几何 + FINAL SINGLE POINT ENERGY——与最后
+    周期的几何逐字符去重后，作为末帧挂上收敛标记（opt_converged 文本权威）
+    与频率（vibfreqs_from_text 文本权威）。未收敛（max-cycles）时没有这份
+    尾块，末帧能量即最后一周的 Current Energy（GH #22 口径）。
+    """
+    segments = log_text.split(_OPT_CYCLE_MARKER)[1:]
+    frames: list[FrameRecord] = []
+    for segment in segments:
+        idx = segment.find("CARTESIAN COORDINATES (ANGSTROEM)")
+        if idx < 0:
+            continue
+        xyz = _xyz_block_at(segment, idx)
+        if not xyz:
+            continue
+        energy: float | None = None
+        m = _CURRENT_ENERGY_RE.search(segment)
+        if m:
+            energy = float(m.group(1).replace("D", "E").replace("d", "e"))
+        frames.append(FrameRecord(frame=len(frames), scf_energy_hartree=energy, xyz=xyz))
+    if not frames:
+        return []
+    converged = opt_converged(log_text)
+    freqs = vibfreqs_from_text(log_text)
+    final_xyz = final_xyz_from_text(log_text)
+    if final_xyz and final_xyz != frames[-1].xyz:
+        # 收敛（或后续 freq 段）又打印了一份最终几何：追加为末帧
+        frames.append(FrameRecord(
+            frame=len(frames),
+            scf_energy_hartree=final_energy_hartree(log_text),
+            frequencies_cm=freqs,
+            xyz=final_xyz,
+            converged=converged,
+        ))
+    else:
+        frames[-1].converged = converged
+        frames[-1].frequencies_cm = freqs
+    return frames
+
+
+def _extract_sp_frames_native(log_text: str) -> list[FrameRecord]:
+    """单点的文本权威回退（cclib 崩溃时）：末帧几何 + FINAL SP + 频率块。"""
+    xyz = final_xyz_from_text(log_text)
+    if not xyz:
+        return []
+    return [FrameRecord(
+        frame=0,
+        scf_energy_hartree=final_energy_hartree(log_text),
+        frequencies_cm=vibfreqs_from_text(log_text),
+        xyz=xyz,
+    )]
+
+
 def _extract_opt_frames(log_text: str) -> list[FrameRecord]:
-    data = _ccread_from_text(log_text)
+    try:
+        data = _ccread_from_text(log_text)
+    except ValueError:
+        # cclib 对 ORCA 6.1 日志在 SCF 收敛段裸抛 IndexError（GH #44）：
+        # 帧提取回退文本权威通道，不让整条格式转换链不可判定。
+        return _extract_opt_frames_native(log_text)
     energies = getattr(data, "scfenergies", None)
     atomcoords = getattr(data, "atomcoords", None)
     atomnos = getattr(data, "atomnos", None)
@@ -455,7 +532,10 @@ def _extract_scan_frames(log_text: str) -> list[FrameRecord]:
 
 
 def _extract_sp_frames(log_text: str) -> list[FrameRecord]:
-    data = _ccread_from_text(log_text)
+    try:
+        data = _ccread_from_text(log_text)
+    except ValueError:
+        return _extract_sp_frames_native(log_text)
     energies = getattr(data, "scfenergies", None)
     atomcoords = getattr(data, "atomcoords", None)
     atomnos = getattr(data, "atomnos", None)

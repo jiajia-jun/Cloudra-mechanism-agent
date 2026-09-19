@@ -460,3 +460,127 @@ def test_frequencies_with_text_fallback_survives_cclib_failure(tmp_path):
     no_block = tmp_path / "sp.out.log"
     no_block.write_text("no frequency block here\n", encoding="utf-8")
     assert orca_frames.frequencies_with_text_fallback(str(no_block)) == []
+
+
+# ---------------------------------------------------------------------------
+# GH #44：cclib 对 ORCA 6.1 日志在 SCF 收敛段裸抛 IndexError（scfvalues 为空
+# 时 [-1] 越界）——opt/ts 与 sp 帧提取回退文本权威通道
+# ---------------------------------------------------------------------------
+
+# 最小 ORCA 6.1 风格 OptTS+Freq 日志骨架：两个优化周期 + 收敛后的最终几何
+# 尾块（与周期 2 几何逐字符相同 → 去重）+ 频率块（一个虚频）。
+_ORCA61_OPTTS_LOG = (
+    "                                 *****  ORCA VERSION: 6.1.1  *****\n"
+    "|  1> ! B3LYP D3BJ def2-SVP OptTS Freq\n"
+    "GEOMETRY OPTIMIZATION CYCLE   1\n"
+    "--------------------------------\n"
+    "CARTESIAN COORDINATES (ANGSTROEM)\n"
+    "--------------------------------\n"
+    "  C      0.000000    0.000000    0.000000\n"
+    "  N      0.000000    0.000000    1.100000\n"
+    "  H      0.000000    0.000000    2.200000\n"
+    "\n"
+    "Current Energy                          ....  -100.000001000 Eh\n"
+    "GEOMETRY OPTIMIZATION CYCLE   2\n"
+    "--------------------------------\n"
+    "CARTESIAN COORDINATES (ANGSTROEM)\n"
+    "--------------------------------\n"
+    "  C      0.000000    0.000000    0.000000\n"
+    "  N      0.000000    0.000000    1.200000\n"
+    "  H      0.000000    0.000000    2.200000\n"
+    "\n"
+    "Current Energy                          ....  -100.000002000 Eh\n"
+    "                    ***        THE OPTIMIZATION HAS CONVERGED     ***\n"
+    "--------------------------------\n"
+    "CARTESIAN COORDINATES (ANGSTROEM)\n"
+    "--------------------------------\n"
+    "  C      0.000000    0.000000    0.000000\n"
+    "  N      0.000000    0.000000    1.200000\n"
+    "  H      0.000000    0.000000    2.200000\n"
+    "\n"
+    "FINAL SINGLE POINT ENERGY     -100.000002500000\n"
+    "VIBRATIONAL FREQUENCIES\n"
+    "-----------------------\n"
+    "   0:         0.00 cm**-1\n"
+    "   1:      -164.95 cm**-1  ***imaginary mode***\n"
+    "   2:       150.30 cm**-1\n"
+    "****ORCA TERMINATED NORMALLY****\n"
+)
+
+
+def _crash_ccread(text, source_desc=""):
+    raise ValueError(f"日志解析器内部索引越界（疑似截断或损坏的计算日志）: {source_desc}")
+
+
+def test_opt_frames_text_fallback_survives_cclib61_crash(monkeypatch):
+    """cclib 崩溃时 opt/ts 帧走文本权威通道：逐周期几何+Current Energy 配对，
+    收敛尾块与末周期去重，末帧挂收敛标记与频率。"""
+    monkeypatch.setattr(orca_frames, "_ccread_from_text", _crash_ccread)
+    frames = orca_frames.extract_frames_from_text(_ORCA61_OPTTS_LOG)
+    assert [f.frame for f in frames] == [0, 1]  # 尾块去重，不重复计帧
+    assert frames[0].scf_energy_hartree == pytest.approx(-100.000001)
+    assert frames[1].scf_energy_hartree == pytest.approx(-100.000002)
+    assert "1.100000" in frames[0].xyz and "1.200000" in frames[1].xyz
+    assert frames[1].converged is True
+    assert frames[1].frequencies_cm[1] == -164.95
+
+
+def test_opt_frames_fallback_appends_differing_final_block(monkeypatch):
+    """收敛尾块与末周期几何不同（如 freq 段重打印了微调几何）时追加为末帧。"""
+    monkeypatch.setattr(orca_frames, "_ccread_from_text", _crash_ccread)
+    log = _ORCA61_OPTTS_LOG.replace(
+        "  N      0.000000    0.000000    1.200000\n"
+        "  H      0.000000    0.000000    2.200000\n"
+        "\n"
+        "FINAL SINGLE POINT ENERGY",
+        "  N      0.000000    0.000000    1.200500\n"
+        "  H      0.000000    0.000000    2.200000\n"
+        "\n"
+        "FINAL SINGLE POINT ENERGY",
+    )
+    frames = orca_frames.extract_frames_from_text(log)
+    assert [f.frame for f in frames] == [0, 1, 2]
+    assert frames[2].scf_energy_hartree == pytest.approx(-100.0000025)
+    assert "1.200500" in frames[2].xyz
+    assert frames[2].converged is True
+
+
+def test_sp_frames_text_fallback_survives_cclib61_crash(monkeypatch):
+    """单点日志 cclib 崩溃时回退：末帧几何 + FINAL SP + 频率块。"""
+    monkeypatch.setattr(orca_frames, "_ccread_from_text", _crash_ccread)
+    frames = orca_frames.extract_frames_from_text(
+        "|  1> ! B3LYP def2-SVP\n"
+        + _CARTESIAN_BLOCK
+        + "FINAL SINGLE POINT ENERGY     -76.400000000001\n"
+    )
+    assert len(frames) == 1
+    assert frames[0].scf_energy_hartree == pytest.approx(-76.400000000001)
+    assert "1.200000" in frames[0].xyz
+
+
+@pytest.mark.asyncio
+async def test_format_converter_log_to_xyz_end_to_end_on_cclib61_crash(tmp_path, monkeypatch):
+    """GH #44 的 agent 面回归：format_converter log→xyz 在 cclib 崩溃的
+    ORCA 6.1 OptTS 日志上必须给出最终几何而不是越界报错。"""
+    from types import SimpleNamespace
+
+    from cloudra.tools.Chemtool.format_converter import (
+        FormatConverter,
+        FormatConverter_input_schema,
+    )
+
+    monkeypatch.setattr(orca_frames, "_ccread_from_text", _crash_ccread)
+    log = tmp_path / "calc-528.out.log"
+    log.write_text(_ORCA61_OPTTS_LOG, encoding="utf-8")
+    out = tmp_path / "final.xyz"
+    result = await FormatConverter(
+        subagent=SimpleNamespace(working_directory=str(tmp_path))
+    ).tool_call(
+        FormatConverter_input_schema(
+            input_path=str(log), output_path=str(out),
+            input_format="log", output_format="xyz",
+        ),
+        session=None,
+    )
+    assert result.is_success is True, result.message
+    assert "1.200000" in out.read_text(encoding="utf-8")
