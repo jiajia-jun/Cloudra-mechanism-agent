@@ -62,7 +62,9 @@ _REQUIRES_FLOWER_ENV = pytest.mark.skipif(
 
 
 def _agent() -> AgentSession:
-    agent = AgentSession(id="a", project_id="p", role_id="explorer", display_name="explorer")
+    # small_mol 在 mechanism_predict 的 role_allowlist（_SCIENCE_ROLES）内：
+    # 本文件的投影断言针对 config_gate 单层行为，不能被角色门干扰。
+    agent = AgentSession(id="a", project_id="p", role_id="small_mol", display_name="small_mol")
     agent.settings.invocation_protocol = InvocationProtocol.TRADITIONAL
     return agent
 
