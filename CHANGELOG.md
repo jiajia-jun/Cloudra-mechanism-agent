@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 变更
+- 工具面收敛：`role_allowlist` 工具级角色门槛（registry 声明使用者，wire 投影隐藏 + PermissionStage 硬拦两道防线；化学/QM 工具限 coordinator/small_mol/md/dft/experiment，ir/nmr_processor 为 experiment 专属）；裁撤冗余工具 `web_fetch`（能力由 `browser` 静态回退覆盖）与 `todo_read`（todo 提醒改为内联清单，`todo_write` 每次调用回显全量）；email 工具与收件监听器加总开关 `email.enabled`（默认关，config_gate 隐藏 + 执行层硬失败 + 监听器不启动）。
 - 上线前可靠性大重构（beta 不留兼容）：计算执行面三进程拓扑定型——Web 控制面（api_v2）、计算调度守护进程（`cloudra scheduler`，flock 单实例，web 启动时自动 detach 拉起）、知识向量服务（chem-kb 插件安装后自动拉起，`CLOUDRA_KG_VEC=off` 关闭）；进程间状态同步只走 SQLite（WAL）与文件锁。执行面铁律固化：永不 kill 计算进程、存活判定只用 flock 探测、核心链路零输入文件解析（资源量由 agent 提交时显式申请）。
 - runtime_v2 函数式内核化：CommandBus 四拍（纯 decider → append+publish+persist → 唯一无守卫 `apply_event` → effect 执行），恢复重放与在线路径共用同一应用器（`test_runtime_v2_replay_equivalence.py` 门禁常驻）；快照降级为节流缓存，按每项目高水位线增量重放（修复旧 seq 高水位在多项目交错下丢事件）；重启恢复时孤儿审批/提问显式落 `approval.expired`/`interaction.expired`；compact 请求走 `compaction.requested` 事件；状态外化契约（事件可推导 vs 刻意易失）固化进各模块 docstring。
 - config 子系统重做：磁盘 YAML 是唯一事实源，唯一写入口 `mutate_config(fn)`（flock 排他 + 读磁盘 → 应用 → 原子写回 → 刷新单例），序列化由 `model_dump` 派生；`save()`/`reload_config()`/plugins 磁盘合并 hack 删除；新增 `add_plugin`/`remove_plugin` 与 `cloudra knowledge uninstall`/`status`。
