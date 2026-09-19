@@ -49,6 +49,11 @@ class EmailSender(Tool):
     async def tool_call(self, user_input: EmailSender_input_schema, session: Session) -> EmailSender_output_schema:
         config = get_config().email
 
+        if not config.enabled:
+            return EmailSender_output_schema(
+                is_success=False,
+                message="[Config error] email is disabled (email.enabled=false). Set email.enabled=true and configure SMTP credentials first."
+            )
         if not config.user or not config.password:
             return EmailSender_output_schema(
                 is_success=False,

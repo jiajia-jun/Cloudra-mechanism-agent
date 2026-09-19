@@ -12,6 +12,7 @@ from cloudra.runtime_v2.schemas import (
     InvocationProtocol,
     OrchestrationMode,
     PermissionSet,
+    RuntimeSettings,
 )
 from cloudra.runtime_v2.tool_catalog import (
     JS_EXEC_NAME,
@@ -25,12 +26,18 @@ from cloudra.tools import ToolEntry
 from cloudra.tools.capabilities import is_direct_only
 
 
-def _agent(*, protocol=InvocationProtocol.TRADITIONAL, running=False, read_only=False) -> AgentSession:
+def _agent(
+    *,
+    protocol=InvocationProtocol.TRADITIONAL,
+    running=False,
+    read_only=False,
+    role_id="explorer",
+) -> AgentSession:
     agent = AgentSession(
         id="a",
         project_id="p",
-        role_id="explorer",
-        display_name="explorer",
+        role_id=role_id,
+        display_name=role_id,
     )
     agent.settings.invocation_protocol = protocol
     if read_only:
@@ -52,7 +59,9 @@ def _names(schemas: list[dict]) -> list[str]:
 
 
 def test_traditional_projection_returns_business_schemas():
-    schemas = wire_tool_schemas(_agent(), ["log_parser"])
+    # coordinator 在化学工具 role_allowlist 内；非科学角色看不到 log_parser
+    # （见下方 role allowlist 测试）。
+    schemas = wire_tool_schemas(_agent(role_id="coordinator"), ["log_parser"])
     assert _names(schemas) == ["log_parser"]
     assert JS_EXEC_NAME not in _names(schemas)
 
@@ -144,7 +153,8 @@ def test_js_declarations_project_constraints_and_escape_comments():
 
 
 def _mode_agent(mode: OrchestrationMode) -> AgentSession:
-    agent = _agent()
+    # coordinator 携带全量业务工具（role_allowlist 内），隔离模式门本身的行为。
+    agent = _agent(role_id="coordinator")
     agent.settings.orchestration_mode = mode
     return agent
 
@@ -228,6 +238,67 @@ def test_guest_declarations_follow_orchestration_mode():
         ["dag_view", "dag_review_step"], orchestration_mode=OrchestrationMode.DAG_RECORD
     )
     assert "dag_view(" in text and "dag_review_step(" not in text
+
+
+# ------------------------------------------------------------------ role allowlist
+
+
+def test_role_allowlist_hides_chem_tools_from_non_science_roles():
+    for role in ("explorer", "writer", "researcher", "env"):
+        names = set(_names(wire_tool_schemas(_agent(role_id=role), ["*"])))
+        assert "log_parser" not in names, role
+        assert "submit_compute_job" not in names, role
+        assert "smiles_to_mol" not in names, role
+        # 通用工具不设 allowlist，不受角色门影响。
+        assert {"read", "bash", "search"} <= names, role
+
+
+def test_role_allowlist_keeps_chem_tools_for_science_roles():
+    """coordinator 保留完整化学工具链是 benchmark 回归红线（题面 agent 以
+    coordinator 角色运行）；supervisor 在列只为保住其 evidence_read 面。"""
+    for role in ("coordinator", "small_mol", "md", "dft", "experiment", "supervisor"):
+        names = set(_names(wire_tool_schemas(_agent(role_id=role), ["*"])))
+        assert "log_parser" in names, role
+        assert "submit_compute_job" in names, role
+
+
+def test_role_allowlist_filters_guest_names_and_declarations():
+    guest = guest_tool_names(["*"], role_id="researcher")
+    assert "log_parser" not in guest
+    assert "bash" in guest
+    text = tool_declarations(["*"], role_id="researcher")
+    assert "log_parser(" not in text
+    text = tool_declarations(["*"], role_id="small_mol")
+    assert "log_parser(" in text
+    # 不传 role_id 的调用方（如静态检查）不做角色过滤。
+    assert "log_parser" in guest_tool_names(["*"])
+
+
+def test_permission_stage_blocks_role_restricted_tool():
+    import asyncio
+
+    from cloudra.runtime_v2.policies.base import PipelineContext, ToolCall
+    from cloudra.runtime_v2.policies.permission import PermissionStage
+    from cloudra.runtime_v2.schemas import AgentCapabilities, PermissionSet
+
+    def ctx(role_id: str) -> PipelineContext:
+        return PipelineContext(
+            agent=_agent(role_id=role_id),
+            run_id="r",
+            settings_snapshot=RuntimeSettings(),
+            capabilities=AgentCapabilities(permissions=PermissionSet(), tools=["*"]),
+            inbox_messages=[],
+            emit=lambda *_args, **_kwargs: None,
+        )
+
+    stage = PermissionStage()
+    blocked = asyncio.run(stage.before_tool(ctx("researcher"), ToolCall(id="t1", name="log_parser")))
+    assert blocked.outcome == "block"
+    assert "researcher" in blocked.message
+    allowed = asyncio.run(stage.before_tool(ctx("small_mol"), ToolCall(id="t2", name="log_parser")))
+    assert allowed.outcome == "allow"
+    unrestricted = asyncio.run(stage.before_tool(ctx("researcher"), ToolCall(id="t3", name="bash")))
+    assert unrestricted.outcome == "allow"
 
 
 # ----------------------------------------------------------------------- routing

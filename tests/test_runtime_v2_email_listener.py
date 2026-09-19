@@ -16,6 +16,7 @@ from cloudra.tools.Interactool.email_reader import EmailMessage, EmailReader
 def email_config(monkeypatch):
     """Point the broker at fake IMAP credentials; restore the singleton after."""
     cfg = get_config().email
+    monkeypatch.setattr(cfg, "enabled", True)
     monkeypatch.setattr(cfg, "user", "bot@example.com")
     monkeypatch.setattr(cfg, "password", "secret")
     monkeypatch.setattr(cfg, "whitelist", [])

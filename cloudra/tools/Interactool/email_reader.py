@@ -45,6 +45,11 @@ class EmailReader(Tool):
     async def tool_call(self, user_input: EmailReader_input_schema, session: Session) -> EmailReader_output_schema:
         config = get_config().email
 
+        if not config.enabled:
+            return EmailReader_output_schema(
+                is_success=False,
+                message="[Config error] email is disabled (email.enabled=false). Set email.enabled=true and configure IMAP credentials first."
+            )
         if not config.user or not config.password:
             return EmailReader_output_schema(
                 is_success=False,

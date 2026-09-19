@@ -82,7 +82,13 @@ class LLMConfig(BaseSettings):
 
 
 class EmailConfig(BaseSettings):
-    """SMTP/IMAP configuration for notifications and interaction."""
+    """SMTP/IMAP configuration for notifications and interaction.
+
+    总开关 enabled 默认关：关闭时 email_reader/email_sender 对模型隐藏
+    （wire 投影，registry 的 config_gate）且执行层硬失败，收件监听器
+    （email_listener）不启动。置 true 前需配好 user/password/whitelist。
+    """
+    enabled: bool = False
     smtp_server: str = "smtp.gmail.com"
     smtp_port: int = 465
     imap_server: str = "imap.gmail.com"

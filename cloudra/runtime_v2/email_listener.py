@@ -57,6 +57,9 @@ class EmailListenerBroker:
         config = get_config().email
         if self._task is not None:
             return
+        if not config.enabled:
+            logger.info("email listener disabled: email.enabled=false")
+            return
         if not config.user or not config.password:
             logger.info("email listener disabled: IMAP credentials not configured")
             return

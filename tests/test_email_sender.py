@@ -15,6 +15,7 @@ async def _approve(self, session, **_kwargs):
 @pytest.fixture
 def smtp_config(monkeypatch):
     email = get_config().email
+    monkeypatch.setattr(email, "enabled", True)
     monkeypatch.setattr(email, "user", "bot@example.com")
     monkeypatch.setattr(email, "password", "secret")
     monkeypatch.setattr(email, "smtp_server", "smtp.example.com")
@@ -80,6 +81,7 @@ async def test_email_sent_and_missing_attachment_skipped(smtp_config, smtp_spy, 
 @pytest.mark.asyncio
 async def test_email_without_credentials_fails(monkeypatch):
     email = get_config().email
+    monkeypatch.setattr(email, "enabled", True)
     monkeypatch.setattr(email, "user", "")
     monkeypatch.setattr(email, "password", "")
 
@@ -89,6 +91,19 @@ async def test_email_without_credentials_fails(monkeypatch):
     )
     assert result.is_success is False
     assert "Config error" in result.message
+
+
+@pytest.mark.asyncio
+async def test_email_disabled_by_default_gate(monkeypatch):
+    """email.enabled=false（默认）时工具硬失败，无需凭据检查。"""
+    monkeypatch.setattr(get_config().email, "enabled", False)
+
+    result = await EmailSender().tool_call(
+        EmailSender_input_schema(to_email="u@e.com", subject="s", body="b"),
+        session=None,
+    )
+    assert result.is_success is False
+    assert "email.enabled" in result.message
 
 
 @pytest.mark.asyncio

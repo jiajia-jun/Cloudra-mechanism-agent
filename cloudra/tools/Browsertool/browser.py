@@ -13,8 +13,8 @@ from cloudra.infra.config import get_config
 description = (
     "Visit a URL with a headless browser (Playwright Chromium) and return rendered page text, title, or a screenshot; "
     "falls back to static HTTP fetch if the browser environment is not ready. "
-    "Use for: JS-rendered pages, SPAs, or full-page screenshots. "
-    "Do not use for: ordinary static fetches and file downloads (web_fetch is faster) or keyword search (use search with source=web or source=arxiv)."
+    "Use for: fetching known-URL pages or files, JS-rendered pages, SPAs, or full-page screenshots. "
+    "Do not use for: keyword search (use search with source=web or source=arxiv)."
 )
 
 

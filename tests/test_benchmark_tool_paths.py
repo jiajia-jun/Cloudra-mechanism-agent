@@ -421,7 +421,6 @@ TOOL_PATH_FIELDS: dict[str, dict[str, str]] = {
     "electronic_analysis": {"input_path": "cwd_input", "output_dir": "cwd_dir"},
     "pymol_render": {"structure_path": "cwd_input", "output_path": "cwd_output"},
     "reaction_mapping": {"reactant_path": "cwd_input", "product_path": "cwd_input"},
-    "web_fetch": {"download_path": "cwd_input"},
     "thermo_analysis": {"species.log_path": "cwd_input"},
 }
 

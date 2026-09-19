@@ -33,7 +33,7 @@ _TODO_REMIND_EVERY = 10
 _GOAL_CONFIRM_REMINDER = (
     "[System] You just stated a conclusion without calling the stop tool. "
     "The task only ends after you call stop; prose alone leaves the loop spinning. "
-    "Use goal_set to reconfirm the objective and completion criteria, or todo_read to check the task list, "
+    "Use goal_set to reconfirm the objective and completion criteria, "
     "and decide whether the goal is actually met: if done, call stop with the final answer; "
     "if not, keep going. If you already called stop and this round is only an event wakeup: "
     "answer the user first if there is a user message; if there is no new work, call stop again to finish silently."
@@ -308,14 +308,18 @@ class Agent(BaseModel):
         return adapter is not None and adapter.transport == "responses"
 
     def _todo_reminder(self) -> str:
-        """返回 todo 提醒文案；该 agent 未建过清单时为空串（纯查询，不做节流）。"""
+        """返回 todo 提醒文案（内联当前清单）；该 agent 未建过清单时为空串
+        （纯查询，不做节流）。清单内容直接注入，不再要求模型调工具回读。"""
         try:
             from cloudra.tools.Plantool._store import agent_store_path, load_json
+            from cloudra.tools.Plantool.todo import TodoWrite
 
-            if load_json(agent_store_path(self, "todos.json"), default=None):
+            todos = load_json(agent_store_path(self, "todos.json"), default=None)
+            if todos:
                 return (
-                    "[System] You are maintaining a todo list. Before this round, call "
-                    "todo_read to see the current list, confirm which item is in progress, then decide the next step; "
+                    "[System] You are maintaining a todo list. Current state:\n"
+                    + TodoWrite._format(todos)
+                    + "\nConfirm which item is in progress, then decide the next step; "
                     "after finishing an item, immediately todo_write to update its status."
                 )
         except Exception:

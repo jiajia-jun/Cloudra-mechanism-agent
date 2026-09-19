@@ -178,7 +178,7 @@ def test_supports_vision_reads_resolved_legacy_slot(monkeypatch):
 
 def _ctx(settings: RuntimeSettings) -> PipelineContext:
     return PipelineContext(
-        agent=SimpleNamespace(id="as_x"),
+        agent=SimpleNamespace(id="as_x", role_id="coordinator"),
         run_id="run_1",
         settings_snapshot=settings,
         capabilities=AgentCapabilities(permissions=PermissionSet(), tools=["*"]),

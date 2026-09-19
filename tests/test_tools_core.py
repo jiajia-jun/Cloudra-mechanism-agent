@@ -137,25 +137,6 @@ def test_subagent_hash_caching():
     assert hasattr(h1, 'a-1') or 'a-1' in h1.subagents_dict
 
 
-def test_web_fetch_schema():
-    """测试 WebFetcher 工具 Schema 与 HTML 文本提取。"""
-    from cloudra.tools.Browsertool.web_fetch import WebFetcher, WebFetcher_input_schema, _HTMLTextExtractor
-
-    tool = WebFetcher()
-    assert tool.tool_name == 'web_fetch'
-    assert tool.is_read() is True
-
-    inp = WebFetcher_input_schema(url='https://example.com')
-    assert inp.url == 'https://example.com'
-    assert inp.extract_text is True
-
-    html = '<html><head><title>Test Page</title></head><body><p>Hello</p><script>alert(1)</script></body></html>'
-    extractor = _HTMLTextExtractor()
-    extractor.feed(html)
-    assert extractor.get_title() == 'Test Page'
-    assert extractor.get_text() == 'Hello'
-
-
 def test_browser_schema():
     """测试 HeadlessBrowser 工具 Schema。"""
     from cloudra.tools.Browsertool.browser import HeadlessBrowser, HeadlessBrowser_input_schema
@@ -168,81 +149,6 @@ def test_browser_schema():
     assert inp.url == 'https://example.com'
     assert inp.action == 'fetch'
     assert inp.max_length == 0
-
-
-class TestWebFetcherGuards:
-    """web_fetch 的 PDF 防护；正文不截断。"""
-
-    @staticmethod
-    def _resp(content: bytes, content_type: str, status: int = 200):
-        import types
-        return types.SimpleNamespace(
-            content=content,
-            text=content.decode("utf-8", errors="replace"),
-            headers={"content-type": content_type},
-            status_code=status,
-            is_redirect=False,
-            raise_for_status=lambda: None,
-        )
-
-    @staticmethod
-    def _client(resp):
-        class _C:
-            async def __aenter__(self):
-                return self
-
-            async def __aexit__(self, *a):
-                return False
-
-            async def request(self, **kwargs):
-                return resp
-
-        return _C
-
-    @pytest.mark.asyncio
-    async def test_pdf_rejected_with_guidance(self, monkeypatch):
-        from cloudra.tools.Browsertool.web_fetch import WebFetcher, WebFetcher_input_schema
-
-        resp = self._resp(b"%PDF-1.7 fake\n" + b"\x00" * 100, "application/pdf")
-        monkeypatch.setattr("httpx.AsyncClient", lambda **kw: self._client(resp)())
-        # 本组测的是内容防护不是主机闸门；本机 DNS 可能把 x.com 解析到 fake-ip 段
-        monkeypatch.setattr(
-            "cloudra.tools.Browsertool.web_fetch._host_rejection", lambda hostname: None
-        )
-        result = await WebFetcher().tool_call(
-            WebFetcher_input_schema(url="https://x.com/a.pdf"), None
-        )
-        assert result.is_success is False
-        assert "read" in result.error and "download_path" in result.error
-
-    @pytest.mark.asyncio
-    async def test_pdf_detected_by_magic_bytes(self, monkeypatch):
-        resp = self._resp(b"%PDF-1.3 xxx\n" + b"0" * 50, "application/octet-stream")
-        monkeypatch.setattr("httpx.AsyncClient", lambda **kw: self._client(resp)())
-        monkeypatch.setattr(
-            "cloudra.tools.Browsertool.web_fetch._host_rejection", lambda hostname: None
-        )
-        from cloudra.tools.Browsertool.web_fetch import WebFetcher, WebFetcher_input_schema
-        result = await WebFetcher().tool_call(
-            WebFetcher_input_schema(url="https://x.com/download?id=1"), None
-        )
-        assert result.is_success is False and "read" in result.error
-
-    @pytest.mark.asyncio
-    async def test_giant_html_not_truncated(self, monkeypatch):
-        html = ("<html><body><p>" + "x" * 250_000 + "</p></body></html>").encode()
-        resp = self._resp(html, "text/html; charset=utf-8")
-        monkeypatch.setattr("httpx.AsyncClient", lambda **kw: self._client(resp)())
-        monkeypatch.setattr(
-            "cloudra.tools.Browsertool.web_fetch._host_rejection", lambda hostname: None
-        )
-        from cloudra.tools.Browsertool.web_fetch import WebFetcher, WebFetcher_input_schema
-        result = await WebFetcher().tool_call(
-            WebFetcher_input_schema(url="https://x.com/page"), None
-        )
-        assert result.is_success is True
-        assert result.content.count("x") == 250_000
-        assert "已截断" not in result.content
 
 
 @pytest.mark.asyncio

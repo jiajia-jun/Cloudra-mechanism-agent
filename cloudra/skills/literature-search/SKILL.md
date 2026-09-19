@@ -1,6 +1,6 @@
 ---
 name: literature-search
-description: Professional academic literature search, metadata retrieval, and full-text analysis. Guides converting a research question into a reproducible retrieval chain, dispatching Cloudra native tools (search with source=openalex/arxiv/web, web_fetch, read) for grounded evidence and provenance.
+description: Professional academic literature search, metadata retrieval, and full-text analysis. Guides converting a research question into a reproducible retrieval chain, dispatching Cloudra native tools (search with source=openalex/arxiv/web, browser, read) for grounded evidence and provenance.
 license: MIT
 metadata:
   version: "2.1"
@@ -26,11 +26,11 @@ Cloudra provides a multi-tiered literature toolchain:
     - Querying across PubMed, arXiv, and Semantic Scholar indices for targeted keywords and abstracts.
 3.  **General Web & Academic Landing Search (`search` with `source=web`)**:
     - Broad discovery when exact DOIs or author records are ambiguous, or searching publisher landing pages.
-4.  **Web Fetcher & HTML Parser (`web_fetch`)**:
-    - Fetching unpaywalled HTML articles, publisher pages, and preprint landing pages.
+4.  **Page Fetch & HTML Parsing (`browser`)**:
+    - Fetching unpaywalled HTML articles, publisher pages, and preprint landing pages (static fetch with JS-render fallback).
 5.  **Full-Text & SI Document Conversion (`read`)**:
     - **Crucial for deep research**: Key experimental conditions, catalyst loadings, reaction barriers, and spectroscopic data are rarely in abstracts — they live in Methods or Supplementary Information (SI) tables.
-    - Download the OA PDF/SI via `web_fetch` or `curl`, then run `read` to convert tables and text into clean Markdown for inspection.
+    - Download the OA PDF/SI via `browser` or `curl`, then run `read` to convert tables and text into clean Markdown for inspection.
 
 ---
 
@@ -40,7 +40,7 @@ Cloudra provides a multi-tiered literature toolchain:
 | :--- | :--- | :--- |
 | **Broad topic review & citation ranking** | `search` (`source=openalex`) | Follow high-citation DOIs with `search` (`source=arxiv`) |
 | **Direct DOI / OA PDF retrieval** | `search` (`source=openalex`) | Download OA PDF $\to$ `read` for full text |
-| **Biomedical / PubMed lookup** | `search` (`source=arxiv`) | Fetch PMC full-text XML via `web_fetch` |
+| **Biomedical / PubMed lookup** | `search` (`source=arxiv`) | Fetch PMC full-text XML via `browser` |
 | **Physics / Math / CS preprints** | `search` (`source=arxiv`) | Search arXiv ID $\to$ download PDF $\to$ `read` |
 | **Specific experimental number / SI data** | `search` (`source=openalex`) / `search` (`source=web`) | Download SI PDF $\to$ `read` $\to$ grep target data |
 

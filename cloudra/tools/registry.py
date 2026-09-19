@@ -62,6 +62,22 @@ class ToolRegistration:
     # hard-fails at call time (the tool itself must check the flag too).
     config_gate: str = ""
 
+    # Role allowlist: non-empty restricts the tool to the listed role_ids —
+    # the wire projection hides it from other roles and PermissionStage
+    # hard-fails their calls. Empty means every role may use it (default).
+    # Never set on direct controls, dag_* or supervisor-surface tools: their
+    # gates (invocation_direct_only / orchestration mode / supervisor_access)
+    # are separate mechanisms.
+    role_allowlist: frozenset[str] = frozenset()
+
+
+# 化学/QM 工具的默认使用者：科学计算角色 + Coordinator（benchmark 题面
+# agent 以 coordinator 角色运行，绝不能失去化学工具链）。supervisor 在列
+# 仅为保住其 evidence_read 投影面（log_parser/reaction_mapping）——它的
+# 实际可见面仍由 supervisor_access 收窄，allowlist 对它是只减不增。
+_SCIENCE_ROLES = frozenset(
+    {"coordinator", "small_mol", "md", "dft", "experiment", "supervisor"}
+)
 
 TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
     ToolRegistration(
@@ -76,41 +92,56 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         tool_name='browser',
     ),
     ToolRegistration(
-        module='cloudra.tools.Browsertool.web_fetch',
-        class_name='WebFetcher',
-        tool_name='web_fetch',
-        runtime_profiles=frozenset({'desktop', 'android'}),
-    ),
-    ToolRegistration(
         module='cloudra.tools.Chemtool.conformer_search',
         class_name='ConformerSearch',
         tool_name='conformer_search',
         dag_compute_entry=True,
+        role_allowlist=_SCIENCE_ROLES,
     ),
     ToolRegistration(
         module='cloudra.tools.Chemtool.electronic_analysis',
         class_name='ElectronicAnalysis',
         tool_name='electronic_analysis',
         dag_compute_entry=True,
+        role_allowlist=_SCIENCE_ROLES,
     ),
-    ToolRegistration('cloudra.tools.Chemtool.format_converter', 'FormatConverter'),
+    ToolRegistration(
+        module='cloudra.tools.Chemtool.format_converter',
+        class_name='FormatConverter',
+        tool_name='format_converter',
+        role_allowlist=_SCIENCE_ROLES,
+    ),
     ToolRegistration(
         module='cloudra.tools.Chemtool.qm_input_writer',
         class_name='QmInputWriter',
         tool_name='qm_input_writer',
         dag_compute_entry=True,
+        role_allowlist=_SCIENCE_ROLES,
     ),
-    ToolRegistration('cloudra.tools.Chemtool.image_to_smiles', 'ImageToSmiles'),
+    ToolRegistration(
+        module='cloudra.tools.Chemtool.image_to_smiles',
+        class_name='ImageToSmiles',
+        tool_name='image_to_smiles',
+        role_allowlist=_SCIENCE_ROLES,
+    ),
     ToolRegistration(
         module='cloudra.tools.Chemtool.cdxml_to_graph',
         class_name='CdxmlToGraph',
         tool_name='cdxml_to_graph',
+        role_allowlist=_SCIENCE_ROLES,
     ),
-    ToolRegistration('cloudra.tools.Chemtool.internal_coordinates', 'InternalCoordinates'),
+    ToolRegistration(
+        module='cloudra.tools.Chemtool.internal_coordinates',
+        class_name='InternalCoordinates',
+        tool_name='internal_coordinates',
+        role_allowlist=_SCIENCE_ROLES,
+    ),
     ToolRegistration(
         module='cloudra.tools.Chemtool.ir_processor',
         class_name='IRProcessor',
         tool_name='ir_processor',
+        # 实验谱图处理：experiment 角色专属
+        role_allowlist=frozenset({'experiment'}),
     ),
     ToolRegistration(
         module='cloudra.tools.Chemtool.log_parser',
@@ -120,8 +151,14 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         dag_fact_adapter='cloudra.dag.fact_adapters:log_parser_facts',
         dag_evidence_producer=True,
         supervisor_access='evidence_read',
+        role_allowlist=_SCIENCE_ROLES,
     ),
-    ToolRegistration('cloudra.tools.Chemtool.molecule_drawer', 'MoleculeDrawer'),
+    ToolRegistration(
+        module='cloudra.tools.Chemtool.molecule_drawer',
+        class_name='MoleculeDrawer',
+        tool_name='molecule_drawer',
+        role_allowlist=_SCIENCE_ROLES,
+    ),
     ToolRegistration(
         module='cloudra.tools.Chemtool.mechanism_predict',
         class_name='MechanismPredict',
@@ -129,26 +166,46 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         # ML 机理假设生成器（FlowER 外部 conda env）：不是计算证据，默认
         # 由 flower.enabled 开关关闭。
         config_gate='flower.enabled',
+        role_allowlist=_SCIENCE_ROLES,
     ),
-    ToolRegistration('cloudra.tools.Chemtool.name_to_structure', 'NameToStructure'),
+    ToolRegistration(
+        module='cloudra.tools.Chemtool.name_to_structure',
+        class_name='NameToStructure',
+        tool_name='name_to_structure',
+        role_allowlist=_SCIENCE_ROLES,
+    ),
     ToolRegistration(
         module='cloudra.tools.Chemtool.nmr_processor',
         class_name='NMRProcessor',
         tool_name='nmr_processor',
+        # 实验谱图处理：experiment 角色专属
+        role_allowlist=frozenset({'experiment'}),
     ),
     ToolRegistration(
         module='cloudra.tools.Chemtool.pymol_render',
         class_name='PymolRender',
         tool_name='pymol_render',
         visual=True,
+        role_allowlist=_SCIENCE_ROLES,
     ),
-    ToolRegistration('cloudra.tools.Chemtool.query_compute_job', 'QueryComputeJob'),
-    ToolRegistration('cloudra.tools.Chemtool.query_compute_queue', 'QueryComputeQueue'),
+    ToolRegistration(
+        module='cloudra.tools.Chemtool.query_compute_job',
+        class_name='QueryComputeJob',
+        tool_name='query_compute_job',
+        role_allowlist=_SCIENCE_ROLES,
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Chemtool.query_compute_queue',
+        class_name='QueryComputeQueue',
+        tool_name='query_compute_queue',
+        role_allowlist=_SCIENCE_ROLES,
+    ),
     ToolRegistration(
         module='cloudra.tools.Chemtool.mark_compute_job_failed',
         class_name='MarkComputeJobFailed',
         tool_name='mark_compute_job_failed',
         dag_observe=False,
+        role_allowlist=_SCIENCE_ROLES,
     ),
     ToolRegistration(
         module='cloudra.tools.Chemtool.reaction_mapping',
@@ -158,20 +215,29 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         dag_fact_adapter='cloudra.dag.fact_adapters:reaction_mapping_facts',
         dag_evidence_producer=True,
         supervisor_access='evidence_read',
+        role_allowlist=_SCIENCE_ROLES,
     ),
     # TS 搜索 SOP 的 agent 可见接口（只有这两个函数；刻意没有 status/查询接口）
     ToolRegistration(
         'cloudra.tools.Chemtool.ts_search_process', 'TsPrepare', tool_name='ts_prepare',
+        role_allowlist=_SCIENCE_ROLES,
     ),
     ToolRegistration(
         'cloudra.tools.Chemtool.ts_search_process', 'TsResume', tool_name='ts_resume',
+        role_allowlist=_SCIENCE_ROLES,
     ),
-    ToolRegistration('cloudra.tools.Chemtool.smiles_to_mol', 'SmilesToMol'),
+    ToolRegistration(
+        module='cloudra.tools.Chemtool.smiles_to_mol',
+        class_name='SmilesToMol',
+        tool_name='smiles_to_mol',
+        role_allowlist=_SCIENCE_ROLES,
+    ),
     ToolRegistration(
         module='cloudra.tools.Chemtool.submit_compute_job',
         class_name='SubmitComputeJob',
         tool_name='submit_compute_job',
         dag_compute_entry=True,
+        role_allowlist=_SCIENCE_ROLES,
     ),
     ToolRegistration(
         module='cloudra.tools.Chemtool.thermo_analysis',
@@ -179,6 +245,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         tool_name='thermo_analysis',
         evidence_deriver='cloudra.tools.Chemtool.thermo_analysis:derive_delivery_changes',
         dag_evidence_producer=True,
+        role_allowlist=_SCIENCE_ROLES,
     ),
     ToolRegistration(
         module='cloudra.tools.Chemtool.ts_guess',
@@ -188,6 +255,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         dag_fact_adapter='cloudra.dag.fact_adapters:ts_guess_facts',
         dag_evidence_producer=True,
         dag_compute_predicate='cloudra.tools.Chemtool.ts_guess:is_compute_entry_call',
+        role_allowlist=_SCIENCE_ROLES,
     ),
     ToolRegistration(
         module='cloudra.tools.Interactool.ask_user',
@@ -195,8 +263,18 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         tool_name='ask_user',
         invocation_direct_only=True,
     ),
-    ToolRegistration('cloudra.tools.Interactool.email_reader', 'EmailReader'),
-    ToolRegistration('cloudra.tools.Interactool.email_sender', 'EmailSender'),
+    ToolRegistration(
+        module='cloudra.tools.Interactool.email_reader',
+        class_name='EmailReader',
+        tool_name='email_reader',
+        config_gate='email.enabled',
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Interactool.email_sender',
+        class_name='EmailSender',
+        tool_name='email_sender',
+        config_gate='email.enabled',
+    ),
     ToolRegistration(
         module='cloudra.tools.Managetool.agent_hub',
         class_name='AgentHub',
@@ -358,7 +436,6 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         # dag_review_* 裁决工具与运行结束报告。
     ),
     ToolRegistration('cloudra.tools.Plantool.todo', 'TodoWrite'),
-    ToolRegistration('cloudra.tools.Plantool.todo_read', 'TodoRead'),
     ToolRegistration(
         module='cloudra.tools.Searchtool.read',
         class_name='Read',

@@ -1,14 +1,15 @@
 """Role permission / tool-policy stage.
 
-The stage only consults PipelineContext.capabilities; it has no knowledge of
-specific tools.  New tool classes become visible automatically when the
-runtime capability filter builds the tools list.
+The stage consults PipelineContext.capabilities plus registry projections
+(visual gate, role allowlist); it has no knowledge of specific tools.  New
+tool classes become visible automatically when the runtime capability filter
+builds the tools list.
 """
 
 from __future__ import annotations
 
 from cloudra.runtime_v2.policies.base import PipelineContext, PolicyResult, ToolCall
-from cloudra.tools.capabilities import visual_tools
+from cloudra.tools.capabilities import role_hidden_tools, visual_tools
 
 
 class PermissionStage:
@@ -25,6 +26,11 @@ class PermissionStage:
             return PolicyResult.block(
                 f"tool {call.name!r} requires visual mode, which is off for this agent; "
                 "turn it on with /visual to use vision tools"
+            )
+        if call.name in role_hidden_tools(ctx.agent.role_id):
+            return PolicyResult.block(
+                f"tool {call.name!r} is restricted to specific roles and is not "
+                f"available to role {ctx.agent.role_id!r}"
             )
         return PolicyResult.allow()
 

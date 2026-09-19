@@ -97,6 +97,23 @@ def visual_tools() -> frozenset[str]:
     return frozenset(name for name, reg in _named().items() if reg.visual)
 
 
+def role_hidden_tools(role_id: str | None) -> frozenset[str]:
+    """Tools whose declared ``role_allowlist`` excludes the given role.
+
+    The wire projection hides them from that role's agent and PermissionStage
+    hard-fails the call (the config_gate two-line pattern).  An empty
+    allowlist means every role may use the tool; a None/unknown role_id is
+    treated literally (absent from every non-empty allowlist).
+    """
+    if not any(reg.role_allowlist for reg in TOOL_REGISTRY):
+        return frozenset()
+    return frozenset(
+        name
+        for name, reg in _named().items()
+        if reg.role_allowlist and role_id not in reg.role_allowlist
+    )
+
+
 def dag_tools() -> frozenset[str]:
     """DAG orchestration tools (the dag_tools package).
 

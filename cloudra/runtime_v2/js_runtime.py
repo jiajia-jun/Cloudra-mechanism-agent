@@ -358,6 +358,7 @@ class JavaScriptRuntime:
                 ctx.capabilities.tools,
                 visual_mode=ctx.settings.visual_mode,
                 orchestration_mode=ctx.settings.orchestration_mode,
+                role_id=ctx.agent.role_id,
             )
         )
         watchdog_s = limits.watchdog_ms / 1000

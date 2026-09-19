@@ -36,6 +36,7 @@ from cloudra.tools.capabilities import (
     dag_review_decision_tools,
     dag_tools,
     is_direct_only,
+    role_hidden_tools,
     visual_tools,
 )
 
@@ -140,12 +141,16 @@ def guest_tool_names(
     *,
     visual_mode: bool = True,
     orchestration_mode: OrchestrationMode | str = OrchestrationMode.STANDARD,
+    role_id: str | None = None,
 ) -> list[str]:
     """Names callable inside a JS program: no direct controls, visual-gated,
-    and gated by the run's orchestration mode (dag_* tools are hidden in
-    standard mode; Supervisor verdict tools outside dag_guided)."""
+    gated by the run's orchestration mode (dag_* tools are hidden in standard
+    mode; Supervisor verdict tools outside dag_guided), and filtered by the
+    agent's role allowlist projection when role_id is given."""
     gated = frozenset() if visual_mode else visual_tools()
     hidden = _mode_hidden_tools(orchestration_mode) | config_disabled_tools()
+    if role_id is not None:
+        hidden = hidden | role_hidden_tools(role_id)
     return [
         name
         for name in _resolve_names(tool_names)
@@ -173,6 +178,7 @@ def wire_tool_schemas(agent: AgentSession, tool_names: list[str] | None) -> list
         _mode_hidden_tools(agent.settings.orchestration_mode)
         | _settings_hidden_tools(agent)
         | config_disabled_tools()
+        | role_hidden_tools(agent.role_id)
     )
     if not hidden:
         return schemas
@@ -201,6 +207,7 @@ def javascript_instructions(
     *,
     visual_mode: bool = True,
     orchestration_mode: OrchestrationMode | str = OrchestrationMode.STANDARD,
+    role_id: str | None = None,
 ) -> str:
     """Deterministic JS-mode instructions appended to the model request.
 
@@ -209,7 +216,10 @@ def javascript_instructions(
     generated declarations are documentation, not executable guest input.
     """
     declarations = tool_declarations(
-        tool_names, visual_mode=visual_mode, orchestration_mode=orchestration_mode
+        tool_names,
+        visual_mode=visual_mode,
+        orchestration_mode=orchestration_mode,
+        role_id=role_id,
     )
     return (
         "This run uses the JavaScript invocation protocol. To use tools, call "
@@ -255,10 +265,14 @@ def tool_declarations(
     visual_mode: bool = True,
     entries: list | None = None,
     orchestration_mode: OrchestrationMode | str = OrchestrationMode.STANDARD,
+    role_id: str | None = None,
 ) -> str:
     """Deterministic TypeScript-like declarations for guest-callable tools."""
     names = guest_tool_names(
-        tool_names, visual_mode=visual_mode, orchestration_mode=orchestration_mode
+        tool_names,
+        visual_mode=visual_mode,
+        orchestration_mode=orchestration_mode,
+        role_id=role_id,
     )
     if entries is None:
         from cloudra.tools import get_tools_lst

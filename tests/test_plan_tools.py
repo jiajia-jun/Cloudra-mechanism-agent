@@ -14,7 +14,6 @@ from cloudra.tools import get_tools_lst
 from cloudra.tools.Plantool._store import agent_store_path
 from cloudra.tools.Plantool.goal import GoalSet, GoalSet_input_schema
 from cloudra.tools.Plantool.todo import TodoWrite, TodoWrite_input_schema
-from cloudra.tools.Plantool.todo_read import TodoRead, TodoRead_input_schema
 
 
 @pytest.fixture
@@ -39,12 +38,10 @@ class TestRegistry:
         names = {e.tool_name for e in entries}
         assert "todo_write" in names
         assert "goal_set" in names
-        assert "todo_read" in names
         # Follower（默认仅 read 权限）也必须可见：规划工具权限为 NONE，人人可用
         visible = {e.tool_name for e in agent.get_available_tools(entries)}
         assert "todo_write" in visible
         assert "goal_set" in visible
-        assert "todo_read" in visible
 
 
 @pytest.mark.asyncio
@@ -101,28 +98,7 @@ class TestTodoWrite:
         assert _read_store(agent, "todos.json") == []
 
 
-@pytest.mark.asyncio
-class TestTodoRead:
-    async def test_read_returns_goal_and_todos(self, agent, mock_session):
-        await GoalSet(subagent=agent).tool_call(
-            GoalSet_input_schema(objective="完成 XX 体系的 DFT 计算"), mock_session
-        )
-        await TodoWrite(subagent=agent).tool_call(
-            TodoWrite_input_schema(todos=[{"content": "查文献", "status": "in_progress"}]),
-            mock_session,
-        )
-
-        out = await TodoRead(subagent=agent).tool_call(TodoRead_input_schema(), mock_session)
-        assert "[Task goal] 完成 XX 体系的 DFT 计算" in out.result
-        assert "查文献" in out.result
-        assert out.todos[0]["content"] == "查文献"
-        assert out.goal["objective"] == "完成 XX 体系的 DFT 计算"
-
-    async def test_read_empty_when_no_plan(self, agent, mock_session):
-        out = await TodoRead(subagent=agent).tool_call(TodoRead_input_schema(), mock_session)
-        assert "empty list" in out.result
-        assert out.todos == []
-        assert out.goal == {}
+_TODO_REMINDER_MARKER = "maintaining a todo list"
 
 
 @pytest.mark.asyncio
@@ -135,7 +111,9 @@ class TestTodoReminder:
         )
         reminder = agent._todo_reminder()
         assert reminder
-        assert "todo_read" in reminder
+        assert _TODO_REMINDER_MARKER in reminder
+        # 清单内容直接内联进提醒，不再需要任何回读工具
+        assert "查文献" in reminder
 
     async def test_injection_throttled_every_10_rounds(self, agent, mock_session):
         """提醒每 10 轮注入一次；无清单时不注入。"""
@@ -150,7 +128,7 @@ class TestTodoReminder:
 
         def _has_reminder(kwargs) -> bool:
             return any(
-                m.get("role") == "system" and "todo_read" in str(m.get("content", ""))
+                m.get("role") == "system" and _TODO_REMINDER_MARKER in str(m.get("content", ""))
                 for m in kwargs["messages"]
             )
 
@@ -174,15 +152,15 @@ class TestTodoReminder:
 
         # 第 1 轮：不命中（非 10 的倍数）
         kwargs = await agent._build_request_kwargs()
-        assert not any("todo_read" in str(m.get("content", "")) for m in kwargs["messages"])
+        assert not any(_TODO_REMINDER_MARKER in str(m.get("content", "")) for m in kwargs["messages"])
 
         # supervisor 反对 → 第 2 轮强制命中
         agent._todo_reminder_force = True
         kwargs = await agent._build_request_kwargs()
-        assert any("todo_read" in str(m.get("content", "")) for m in kwargs["messages"])
+        assert any(_TODO_REMINDER_MARKER in str(m.get("content", "")) for m in kwargs["messages"])
         # force 是一次性的：第 3 轮回到节流（不命中）
         kwargs = await agent._build_request_kwargs()
-        assert not any("todo_read" in str(m.get("content", "")) for m in kwargs["messages"])
+        assert not any(_TODO_REMINDER_MARKER in str(m.get("content", "")) for m in kwargs["messages"])
 
     async def test_request_kwargs_include_reminder_when_list_exists(self, agent, mock_session):
         from unittest.mock import AsyncMock
@@ -199,7 +177,7 @@ class TestTodoReminder:
         kwargs = await agent._build_request_kwargs()
         reminder_msgs = [
             m for m in kwargs["messages"]
-            if m.get("role") == "system" and "todo_read" in str(m.get("content", ""))
+            if m.get("role") == "system" and _TODO_REMINDER_MARKER in str(m.get("content", ""))
         ]
         assert reminder_msgs
 
@@ -293,6 +271,7 @@ class TestGoalSet:
         assert _read_store(agent, "goal.json")["completion_criteria"] == "能量收敛且报告写入 report.md"
 
     async def test_second_set_replaces_goal_json(self, agent, mock_session):
+        """重复设定直接覆盖 goal.json。"""
         tool = GoalSet(subagent=agent)
         await tool.tool_call(GoalSet_input_schema(objective="旧目标"), mock_session)
         await tool.tool_call(GoalSet_input_schema(objective="新目标"), mock_session)

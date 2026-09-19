@@ -26,7 +26,6 @@ _EXPECTED_ANDROID = frozenset(
         "stop",
         "write",
         "update_memory",
-        "web_fetch",
     }
 )
 
@@ -67,6 +66,44 @@ def test_dag_observe_projection():
     assert is_dag_observable("unknown_plugin_tool")
 
 
+def test_role_allowlist_projection():
+    from cloudra.tools.capabilities import role_hidden_tools
+
+    hidden = role_hidden_tools("researcher")
+    # 化学/QM 工具对非科学角色隐藏；通用工具不设 allowlist。
+    assert {"log_parser", "submit_compute_job", "ts_guess", "smiles_to_mol"} <= hidden
+    assert "bash" not in hidden
+    assert "read" not in hidden
+    # 谱图处理（ir/nmr）是 experiment 角色专属；其余化学工具科学角色共享。
+    assert role_hidden_tools("coordinator") == {"ir_processor", "nmr_processor"}
+    assert not role_hidden_tools("experiment")
+    for role in ("small_mol", "md", "dft"):
+        assert role_hidden_tools(role) == {"ir_processor", "nmr_processor"}, role
+    # supervisor 的 evidence_read 面（log_parser/reaction_mapping）不被角色门拿走。
+    assert "log_parser" not in role_hidden_tools("supervisor")
+    assert "reaction_mapping" not in role_hidden_tools("supervisor")
+
+
+def test_role_allowlists_reference_known_roles():
+    """allowlist 只允许引用内置角色，防止拼写漂移造成静默全员隐藏。"""
+    from cloudra.runtime_v2.roles import BUILTIN_ROLES
+
+    known = {role.role_id for role in BUILTIN_ROLES}
+    for reg in TOOL_REGISTRY:
+        assert set(reg.role_allowlist) <= known, (
+            f"{reg.class_name} declares unknown roles: "
+            f"{sorted(set(reg.role_allowlist) - known)}"
+        )
+
+
+def test_role_allowlisted_tools_declare_wire_name():
+    """capabilities 投影只认显式 tool_name 的条目：带 role_allowlist 的工具
+    必须声明 wire 名，否则名单是死字母。"""
+    for reg in TOOL_REGISTRY:
+        if reg.role_allowlist:
+            assert reg.tool_name, f"{reg.class_name} sets role_allowlist without tool_name"
+
+
 def test_evidence_derivers_are_loadable():
     for tool_name in ("ts_guess", "log_parser", "reaction_mapping", "thermo_analysis"):
         assert evidence_deriver_for(tool_name) is not None, tool_name
@@ -82,11 +119,12 @@ GONE = {
     "text_reader", "image_reader", "pdf2md", "pdf2image",
     "web_search", "paper_searcher", "openalex_searcher",
     "bashtools", "text_writer", "edit_file", "getskill",
-    "web_fetcher", "headless_browser", "SubAgentLauncher", "SubAgentSwarm",
+    "web_fetcher", "web_fetch", "headless_browser", "SubAgentLauncher", "SubAgentSwarm",
+    "todo_read",
 }
 REQUIRED = {
     "read", "search", "bash", "write", "edit", "get_skill",
-    "web_fetch", "browser", "subagent_launcher", "subagent_swarm",
+    "browser", "subagent_launcher", "subagent_swarm",
 }
 
 

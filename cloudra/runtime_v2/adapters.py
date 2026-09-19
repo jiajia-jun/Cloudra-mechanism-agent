@@ -436,6 +436,7 @@ class LegacyContextPrefix:
                     self._tool_names,
                     visual_mode=self._settings.visual_mode,
                     orchestration_mode=self._settings.orchestration_mode,
+                    role_id=self._agent.role_id,
                 ),
             }
         return assembly, js_message
