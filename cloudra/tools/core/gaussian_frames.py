@@ -43,6 +43,15 @@ def _read_text(log_path: str) -> str:
         return f.read()
 
 
+def normal_termination(text: str) -> bool:
+    """引擎自报正常结束：出现 Normal termination 且没有 Error termination。
+
+    cclib metadata.success 不是终态权威（缺坐标/ccwrite 失败会丢掉一份
+    已经 Normal termination 的日志）。与 ts_guess 同一对标记。
+    """
+    return "Normal termination" in text and "Error termination" not in text
+
+
 def _collect_route_card(text: str) -> str:
     """收集日志中回显的路由行（` #` 开头，可能跨行缠绕），拼接为小写字符串。
 

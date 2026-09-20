@@ -22,7 +22,7 @@ from typing import Any, Awaitable, Callable, Literal, Protocol
 
 from cloudra.runtime_v2.event_writer import EventWriter
 from cloudra.runtime_v2.events import EventLog
-from cloudra.runtime_v2.invocation import InvocationService
+from cloudra.runtime_v2.invocation import InvocationService, tool_result_context_content
 from cloudra.runtime_v2.js_runtime import JavaScriptRuntime
 from cloudra.runtime_v2.policies.base import (
     PipelineContext,
@@ -469,6 +469,21 @@ class TurnPipeline:
                     tool_exchanges=tuple(exchanges),
                     reasoning=response.reasoning,
                 )
+        if context_broker is not None and response.tool_calls:
+            assistant_entry: dict[str, Any] = {
+                "role": "assistant",
+                "content": response.content,
+                "tool_calls": [
+                    {"id": call.id, "name": call.name, "arguments": call.arguments}
+                    for call in response.tool_calls
+                ],
+            }
+            if response.reasoning:
+                assistant_entry["reasoning_content"] = response.reasoning
+            await context_broker.append_output(
+                agent=agent, run_id=run_id, messages=[assistant_entry]
+            )
+
         js_programs_run = 0
         for call in response.tool_calls:
             route_error = validate_wire_route(protocol, call.name)
@@ -492,6 +507,21 @@ class TurnPipeline:
                     continue
                 result = await self.js_runtime.execute(ctx, call)
                 exchanges.append((call, result))
+                if context_broker is not None:
+                    content = await asyncio.to_thread(
+                        tool_result_context_content, agent, result
+                    )
+                    await context_broker.append_output(
+                        agent=agent,
+                        run_id=run_id,
+                        messages=[
+                            {
+                                "role": "tool",
+                                "tool_call_id": call.id,
+                                "content": content,
+                            }
+                        ],
+                    )
                 control = (result.data or {}).get("control_decision")
                 if control == "wait_approval":
                     error = (result.data or {}).get("error") or {}
@@ -528,6 +558,21 @@ class TurnPipeline:
                 # Only wait_approval returns result=None (handled above).
                 continue
             exchanges.append((outcome.call, result))
+            if context_broker is not None:
+                content = await asyncio.to_thread(
+                    tool_result_context_content, agent, result
+                )
+                await context_broker.append_output(
+                    agent=agent,
+                    run_id=run_id,
+                    messages=[
+                        {
+                            "role": "tool",
+                            "tool_call_id": outcome.call.id,
+                            "content": content,
+                        }
+                    ],
+                )
             if outcome.call.name == self.stop_tool:
                 # 用户可见的最终消息是模型自己的陈述；stop 工具的 summary 是
                 # 输出 schema 的 JSON dump，直接当正文会把最终回答吞成工具噪音。

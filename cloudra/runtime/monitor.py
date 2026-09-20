@@ -131,6 +131,9 @@ async def _parse_log(
     if job_type == "orca":
         return await _parse_orca_log(target)
 
+    if job_type == "gaussian":
+        return await _parse_gaussian_log(target)
+
     parsed = await _cclib_parse(target)
     if parsed is None:
         return None, None
@@ -181,6 +184,25 @@ async def _cclib_parse(target: Path) -> tuple[dict, bool] | None:
             await asyncio.sleep(retry_sleep)
     print(f'日志解析失败：{last_error}')
     return None
+
+
+async def _parse_gaussian_log(target: Path) -> tuple[dict, bool]:
+    """Gaussian 日志解析：终止标记定成败，cclib 只负责提取数据字段。"""
+    from cloudra.tools.core.gaussian_frames import normal_termination
+
+    try:
+        text = target.read_text(encoding="utf-8", errors="replace")
+    except OSError as e:
+        print(f'读取 Gaussian 日志失败：{e}')
+        return {"is_success": False, "log_file": str(target)}, False
+    is_success = normal_termination(text)
+    parsed = await _cclib_parse(target)
+    if parsed is None:
+        return {"is_success": is_success, "log_file": str(target)}, is_success
+    data_dic, _cclib_success = parsed
+    data_dic["is_success"] = is_success
+    data_dic["log_file"] = str(target)
+    return data_dic, is_success
 
 
 async def _parse_orca_log(target: Path) -> tuple[dict, bool]:

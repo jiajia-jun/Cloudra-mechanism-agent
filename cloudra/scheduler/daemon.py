@@ -200,20 +200,37 @@ class SchedulerDaemon:
 
     async def _reconcile_all(self) -> None:
         try:
-            await asyncio.to_thread(self._reconcile_central)
+            reattach = await asyncio.to_thread(self._reconcile_central)
         except Exception:
             logger.exception("reconcile failed")
+            reattach = []
+        for task_id in reattach:
+            if task_id in self._jobs:
+                continue
+            job = asyncio.create_task(
+                self._run(task_id), name=f"compute-job-{task_id}"
+            )
+            self._jobs[task_id] = job
+            job.add_done_callback(lambda _t, key=task_id: self._jobs.pop(key, None))
         try:
             await asyncio.to_thread(reap_exhausted_compute_leases, self.db)
         except Exception:
             logger.exception("reap failed")
 
-    def _reconcile_central(self) -> None:
-        """对中央库跑一次对账：running 的 local 作业逐条探 guard 锁。"""
+    def _reconcile_central(self) -> list[int]:
+        """对中央库跑一次对账：running 的 local 作业逐条探 guard 锁。
+
+        Slurm running 且已有 scheduler_job_id、本进程未在 poll 的作业返回给
+        调用方重挂 ``run_slurm_compute``（attach 路径），不改投、不杀进程。
+        """
+        reattach: list[int] = []
         for row in list_running_jobs(self.db):
             task_id = int(row["id"])
             if (row["scheduler"] or "local") != "local":
-                continue  # Slurm：租约重领路径已覆盖，sacct 是外部权威
+                if row["scheduler_job_id"] and task_id not in self._jobs:
+                    extend_compute_lease(self.db, task_id, _LEASE_RENEW_AFTER_CHECK)
+                    reattach.append(task_id)
+                continue
             path = row["path"] or ""
             workdir = os.path.dirname(path)
             if not workdir:
@@ -246,6 +263,7 @@ class SchedulerDaemon:
                 extend_compute_lease(self.db, task_id, _LEASE_AFTER_ADOPT_SPAWN)
             except Exception:
                 logger.exception("could not spawn adopt guard for job %s", task_id)
+        return reattach
 
 
 def main() -> int:

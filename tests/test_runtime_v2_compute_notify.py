@@ -400,3 +400,75 @@ async def test_coordinator_compute_job_delivered_silently_without_wake():
 
     # 绝不唤醒 Coordinator
     assert coordinator.id not in scheduled_sessions
+
+
+@pytest.mark.asyncio
+async def test_coordinator_notify_is_durable_before_notified_at(tmp_path):
+    """Coordinator 静默投递必须先把 message_injected 落盘，再写 notified_at。
+
+    否则进程在 mark_notified 之后、flush 之前死亡：账本不再重投，恢复路径
+    也重建不出信箱。
+    """
+    from cloudra.runtime_v2.persistence import RuntimeStore, restore_core
+
+    store = RuntimeStore(tmp_path / "notify.db")
+    core, project, coordinator = await _setup_core()
+    core.store = store
+    await core.event_writer.flush()
+
+    job_id = _insert_terminal_job(project.id, session_id=coordinator.id)
+    broker = ComputeNotifyBroker(core, poll_interval=0.05)
+    await broker._poll_project(project.id)
+
+    assert _notified_at(job_id) is not None
+    persisted = [row["type"] for row in store.events_after({})]
+    assert "agent.message_injected" in persisted
+
+    restored = RuntimeCore(strict_events=True)
+    restore_core(restored, store)
+    restored_events = restored.event_log.query_session(
+        coordinator.id, types={"agent.message_injected"}
+    )
+    assert any(f"task_id={job_id}" in e.data["content"] for e in restored_events)
+    assert any(
+        f"task_id={job_id}" in t for t in _inbox_texts(restored, coordinator.id)
+    )
+
+
+@pytest.mark.asyncio
+async def test_system_compute_notify_does_not_wake_cancelled_subagent():
+    """用户取消后，子 agent 的计算终态只驻留信箱，不得 plan_wake 复活。"""
+    from cloudra.runtime_v2.schemas import AgentState
+
+    core, project, coordinator = await _setup_core()
+    bus = CommandBus(core)
+    scheduled_sessions = []
+
+    class FakeRunner:
+        def schedule(self, session_id):
+            scheduled_sessions.append(session_id)
+
+        async def cancel(self, session_id):
+            return None
+
+    core.runner = FakeRunner()
+    res = await bus.execute(
+        Command(
+            type="agent.spawn",
+            target={"project_id": project.id},
+            payload={"role_id": "small_mol", "parent_session_id": coordinator.id},
+        )
+    )
+    subagent = res.data
+    await bus.execute(Command(type="agent.cancel", target={"session_id": subagent.id}))
+    assert subagent.state is AgentState.CANCELLED
+    scheduled_sessions.clear()
+
+    job_id = _insert_terminal_job(project.id, session_id=subagent.id)
+    broker = ComputeNotifyBroker(core, poll_interval=0.05)
+    await broker._poll_project(project.id)
+
+    assert subagent.state is AgentState.CANCELLED
+    assert subagent.id not in scheduled_sessions
+    events = core.event_log.query_session(subagent.id, types={"agent.message_injected"})
+    assert any(f"task_id={job_id}" in e.data["content"] for e in events)

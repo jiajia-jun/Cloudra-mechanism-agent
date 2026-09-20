@@ -113,6 +113,36 @@ def image_paths_from_tool_result(result: ToolResult) -> list[str]:
     return []
 
 
+def tool_result_context_content(agent: AgentSession, result: ToolResult) -> object:
+    """Context content for one tool result, with image re-injection.
+
+    A result carrying image paths gets one stable ``image_ref`` part per path
+    (no base64 in the projection); resolution to data URLs happens at send
+    time.  There is no N-image cap.  Shared by incremental persist and the
+    runner's end-of-turn commit so both write the same payload.
+    """
+    from cloudra.infra.media import snapshot_image_reference
+
+    summary = result.summary
+    paths = image_paths_from_tool_result(result)
+    if not paths:
+        return summary
+    parts: list[dict] = [{"type": "text", "text": summary or ""}]
+    parts.extend(
+        snapshot_image_reference(
+            path,
+            conv_id=agent.project_id,
+            fallback=(
+                f"[Image rendered at: {path} — the configured model has no "
+                "vision support or the file is unavailable; inspect the "
+                "file directly if needed.]"
+            ),
+        )
+        for path in paths
+    )
+    return parts
+
+
 def _detach_json(value: Any) -> Any:
     """Best-effort deep JSON clone for event payloads (never shares references)."""
     return json.loads(json.dumps(value, ensure_ascii=False, default=str))

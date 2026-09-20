@@ -168,7 +168,9 @@ class DagSubmitStepEvidence(DagToolBase):
                     edge_id=step.edge_id,
                     changes={
                         "status": "supported",
-                        "evidence_level": "supported",
+                        "evidence_level": (
+                            "endpoint_supported" if irc_snaps else "saddle_supported"
+                        ),
                         "reason": user_input.reaction_coordinate_description,
                     },
                 )

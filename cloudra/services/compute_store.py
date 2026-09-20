@@ -285,12 +285,12 @@ async def alist_compute_jobs(
 
 
 def list_running_jobs(db: ComputeDB) -> list[dict]:
-    """对账用：全部 running 作业（id/conversation_id/path/jobtype/scheduler）。"""
+    """对账用：全部 running 作业（含 Slurm attach 所需的 scheduler_job_id）。"""
 
     def read() -> list[dict]:
         with db.connect() as con:
             rows = con.execute(
-                """SELECT id, conversation_id, path, jobtype, scheduler
+                """SELECT id, conversation_id, path, jobtype, scheduler, scheduler_job_id
                 FROM compute_jobs WHERE state='running'"""
             ).fetchall()
         return [
@@ -300,6 +300,7 @@ def list_running_jobs(db: ComputeDB) -> list[dict]:
                 "path": r[2],
                 "jobtype": r[3],
                 "scheduler": r[4],
+                "scheduler_job_id": r[5],
             }
             for r in rows
         ]
@@ -409,7 +410,7 @@ def _usage_by_node(
     rows = con.execute(
         """SELECT COALESCE(node_id, ?) AS node, req_cpus, req_memory_mb
            FROM compute_jobs
-           WHERE state='running'""",
+           WHERE state IN ('running', 'cancel_requested')""",
         (default_node_id,),
     ).fetchall()
     usage: dict[str, list[int]] = {}

@@ -172,7 +172,7 @@ class PendingBroker:
     def list_pending_approvals(self, project_id: str) -> list[dict[str, Any]]:
         requested: dict[str, dict[str, Any]] = {}
         decided: set[str] = set()
-        for env in self.core.event_log.query_project(project_id, types=_APPROVAL_TYPES, limit=10_000):
+        for env in self.core.event_log.query_project(project_id, types=_APPROVAL_TYPES, limit=None):
             if env.type == "approval.requested":
                 aid = str(env.data.get("approval_id") or "")
                 requested[aid] = {
@@ -263,7 +263,7 @@ class PendingBroker:
     def list_pending_interactions(self, project_id: str) -> list[dict[str, Any]]:
         requested: dict[str, dict[str, Any]] = {}
         responded: set[str] = set()
-        for env in self.core.event_log.query_project(project_id, types=_INTERACTION_TYPES, limit=10_000):
+        for env in self.core.event_log.query_project(project_id, types=_INTERACTION_TYPES, limit=None):
             if env.type == "interaction.requested":
                 iid = str(env.data.get("interaction_id") or "")
                 requested[iid] = {
@@ -328,7 +328,7 @@ class PendingBroker:
     # ------------------------------------------------------------------ helpers
 
     def _request_session(self, project_id: str, request_id: str, type_: str, key: str) -> str:
-        for env in self.core.event_log.query_project(project_id, types={type_}, limit=10_000):
+        for env in self.core.event_log.query_project(project_id, types={type_}, limit=None):
             if str(env.data.get(key) or "") == request_id:
                 return env.session_id or ""
         return ""

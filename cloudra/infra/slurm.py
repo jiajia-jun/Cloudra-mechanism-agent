@@ -139,6 +139,36 @@ def query_job(job_id: str) -> tuple[str, str]:
     return state.split("+", 1)[0].strip().upper(), exit_code.strip()
 
 
+def _engine_success_from_log(
+    job_type: str | None, input_path: str | None, task_id: int | None = None
+) -> bool | None:
+    """本地 guard 同款文本标记。None = 没有可判定的引擎日志，调用方保持 sacct。"""
+    if not input_path:
+        return None
+    from cloudra.infra.compute_utils import resolve_log_path
+
+    log_path = resolve_log_path(
+        str(input_path), job_type=job_type or "gaussian", task_id=task_id
+    )
+    path = Path(log_path)
+    if not path.is_file():
+        return None
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    kind = (job_type or "").strip().lower()
+    if kind == "gaussian":
+        from cloudra.tools.core.gaussian_frames import normal_termination
+
+        return normal_termination(text)
+    if kind == "orca":
+        from cloudra.tools.core import orca_frames
+
+        return orca_frames.normal_termination(text)
+    return None
+
+
 def cancel_job(job_id: str) -> None:
     if not _JOB_ID.fullmatch(job_id):
         raise SlurmError("无效的 Slurm job id")
@@ -165,21 +195,26 @@ async def run_slurm_compute(
     if not row:
         raise SlurmError(f"compute job {task_id} 不存在")
     scheduler_job_id = row["scheduler_job_id"]
-    input_file = Path(row["path"]).expanduser().resolve(strict=True)
+    input_file = Path(row["path"]).expanduser()
     if not scheduler_job_id:
+        input_file = input_file.resolve(strict=True)
         script_path = input_file.parent / f".cloudra-slurm-{task_id}.sh"
         # xtb 任务参数（charge/mult/task/solvent/cpus）从 compute_jobs 行透传
         xtb_params = (
             XtbParams.from_row(row) if (row["jobtype"] or "") == "xtb" else None
         )
-        script_path.write_text(
-            build_batch_script(
-                input_file, row["jobtype"], task_id, scheduler, xtb_params=xtb_params
-            ),
-            encoding="utf-8",
-        )
-        os.chmod(script_path, 0o700)
-        scheduler_job_id = submit_batch(script_path)
+
+        def _write_and_submit() -> str:
+            script_path.write_text(
+                build_batch_script(
+                    input_file, row["jobtype"], task_id, scheduler, xtb_params=xtb_params
+                ),
+                encoding="utf-8",
+            )
+            os.chmod(script_path, 0o700)
+            return submit_batch(script_path)
+
+        scheduler_job_id = await asyncio.to_thread(_write_and_submit)
         await amark_slurm_submitted(db, task_id, str(scheduler_job_id), str(script_path))
 
     poll_seconds = min(max(float(scheduler.get("poll_seconds", 15)), 1), 300)
@@ -189,15 +224,30 @@ async def run_slurm_compute(
             await asyncio.to_thread(cancel_job, str(scheduler_job_id))
             await acancel_compute_job(db, task_id)
             return 1
-        state, exit_code = await asyncio.to_thread(query_job, str(scheduler_job_id))
+        try:
+            state, exit_code = await asyncio.to_thread(query_job, str(scheduler_job_id))
+        except SlurmError:
+            await sleep(poll_seconds)
+            continue
         await aupdate_scheduler_state(db, task_id, state)
         if state in SLURM_TERMINAL_SUCCESS | SLURM_TERMINAL_FAILURE:
+            last_error = None if state in SLURM_TERMINAL_SUCCESS else f"Slurm {state} ({exit_code})"
             final = "done" if state in SLURM_TERMINAL_SUCCESS else "failed"
+            if state in SLURM_TERMINAL_SUCCESS:
+                engine_ok = await asyncio.to_thread(
+                    _engine_success_from_log,
+                    current["jobtype"] if current else row["jobtype"],
+                    current["path"] if current else row["path"],
+                    task_id,
+                )
+                if engine_ok is False:
+                    final = "failed"
+                    last_error = "engine error termination (Slurm COMPLETED)"
             await afinalize_compute_job(
                 db,
                 task_id,
                 final,
-                last_error=None if final == "done" else f"Slurm {state} ({exit_code})",
+                last_error=last_error,
                 only_running=False,
             )
             # 终态通知由 ComputeNotifyBroker 轮询 compute_jobs 表补投，不再发 IPC

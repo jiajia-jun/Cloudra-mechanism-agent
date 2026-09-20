@@ -126,6 +126,31 @@ async def test_command_applies_persisted_prefix_and_drops_failed_tail():
 
 
 @pytest.mark.asyncio
+async def test_command_retry_after_partial_persist_does_not_double_spawn():
+    """spawned 已落盘、message_injected 失败时，同 command_id 重试不得再开一个 agent。"""
+    from cloudra.runtime_v2.event_writer import EventPersistenceError
+
+    core = RuntimeCore()
+    store = _FailOnTypeStore("agent.message_injected")
+    core.store = store
+    bus = CommandBus(core)
+    await bus.execute(Command(type="project.create", payload={"name": "p"}))
+    project = next(iter(core.projects.values()))
+    command = Command(
+        command_id="cmd-spawn-once",
+        type="agent.spawn",
+        target={"project_id": project.id},
+        payload={"role_id": "coordinator", "query": "hello"},
+    )
+    with pytest.raises(EventPersistenceError):
+        await bus.execute(command)
+    assert len(core.agents) == 1
+    retried = await bus.execute(command)
+    assert retried.accepted is True
+    assert len(core.agents) == 1
+
+
+@pytest.mark.asyncio
 async def test_nested_subscriber_commands_do_not_deadlock():
     core = RuntimeCore()
     bus = CommandBus(core)

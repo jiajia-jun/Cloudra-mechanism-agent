@@ -95,6 +95,10 @@ def test_validate_ts_mode():
     assert res_two.is_valid is False
     assert res_two.n_imag == 2
 
+    empty = validate_ts_mode(None, imaginary_freqs=[])
+    assert empty.verified is False
+    assert empty.is_valid is False
+
 
 def test_validate_species_minimum():
     res = validate_species_minimum(freqs=[100.0, 500.0, 1500.0])

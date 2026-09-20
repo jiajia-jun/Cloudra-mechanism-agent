@@ -32,7 +32,7 @@ def _claim(db: ComputeDB):
 
 
 def _insert(db: ComputeDB, *, node_id=DEFAULT_NODE, state="ready", priority=0,
-            req_cpus=1, req_mem=None, lease=None) -> int:
+            req_cpus=1, req_mem=None, lease=None, scheduler="local") -> int:
     with db.connect() as con:
         cur = con.execute(
             """INSERT INTO compute_jobs
@@ -42,7 +42,7 @@ def _insert(db: ComputeDB, *, node_id=DEFAULT_NODE, state="ready", priority=0,
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 "sched-conv", "sess-1", "/tmp/x.gjf", state, "gaussian",
-                -1, -1, node_id, "local", "{}", priority, req_cpus, req_mem, lease,
+                -1, -1, node_id, scheduler, "{}", priority, req_cpus, req_mem, lease,
             ),
         )
         con.commit()
@@ -204,4 +204,13 @@ def test_afail_compute_job_cas_protection():
             assert con.execute("SELECT state FROM compute_jobs WHERE id=?", (done,)).fetchone()[0] == "done"
 
     asyncio.run(_run())
+
+
+def test_cancel_requested_counts_toward_inflight_usage():
+    """Slurm cancel_requested 仍占节点槽：poller 未 scancel 完之前不得再认领。"""
+    db = ComputeDB().init()
+    _insert(db, state="cancel_requested", scheduler="slurm")
+    _insert(db, state="cancel_requested", scheduler="slurm")
+    _insert(db)
+    assert _claim(db) is None
 

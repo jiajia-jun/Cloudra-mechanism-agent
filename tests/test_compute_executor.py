@@ -180,3 +180,64 @@ def test_calc_spawn_preexec_lowers_priority():
         preexec_fn=_lower_sched_priority,
     )
     assert int(out.strip()) >= _CALC_NICE_LEVEL
+
+
+@pytest.mark.asyncio
+async def test_run_slurm_compute_retries_sacct_errors_without_failing_ledger(monkeypatch, tmp_path):
+    from cloudra.infra import slurm
+    from cloudra.services.compute_store import get_compute_job
+
+    db = ComputeDB().init()
+    inp = tmp_path / "h2.gjf"
+    inp.write_text("#p\n")
+    job_id = _insert_job(
+        db,
+        state="running",
+        path=str(inp),
+        scheduler="slurm",
+        scheduler_options={"type": "slurm", "poll_seconds": 0.01},
+    )
+    with db.connect() as con:
+        con.execute(
+            "UPDATE compute_jobs SET scheduler_job_id='999' WHERE id=?",
+            (job_id,),
+        )
+        con.commit()
+
+    calls = {"n": 0}
+
+    def fake_query(_job_id: str):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise slurm.SlurmError("sacct failed")
+        return "COMPLETED", "0:0"
+
+    monkeypatch.setattr(slurm, "query_job", fake_query)
+    monkeypatch.setattr(
+        slurm,
+        "_engine_success_from_log",
+        lambda *_a, **_k: True,
+    )
+
+    rc = await slurm.run_slurm_compute(
+        job_id, db.path, scheduler={"poll_seconds": 0.01}
+    )
+    assert rc == 0
+    assert get_compute_job(db, job_id)["state"] == "done"
+    assert calls["n"] >= 2
+
+
+def test_reconcile_lists_running_slurm_jobs_for_reattach():
+    from cloudra.scheduler.daemon import SchedulerDaemon
+
+    db = ComputeDB().init()
+    job_id = _insert_job(db, state="running", scheduler="slurm")
+    with db.connect() as con:
+        con.execute(
+            "UPDATE compute_jobs SET scheduler_job_id='555' WHERE id=?",
+            (job_id,),
+        )
+        con.commit()
+    daemon = SchedulerDaemon()
+    orphans = daemon._reconcile_central()
+    assert job_id in orphans

@@ -746,32 +746,10 @@ class AgentRunner:
         return prepared
 
     def _tool_result_content(self, agent: AgentSession, result) -> object:
-        """Context content for one tool result, with image re-injection.
+        """Context content for one tool result, with image re-injection."""
+        from cloudra.runtime_v2.invocation import tool_result_context_content
 
-        A result carrying ``image_paths`` (or a single ``image_path``) gets one
-        stable ``image_ref`` part per path (no base64 in the projection);
-        resolution to data URLs happens at send time.  There is no N-image cap.
-        """
-        from cloudra.infra.media import snapshot_image_reference
-        from cloudra.runtime_v2.invocation import image_paths_from_tool_result
-
-        summary = result.summary
-        paths = image_paths_from_tool_result(result)
-        if not paths:
-            return summary
-        parts: list[dict] = [{"type": "text", "text": summary or ""}]
-        parts.extend(
-            snapshot_image_reference(
-                path, conv_id=agent.project_id,
-                fallback=(
-                    f"[Image rendered at: {path} — the configured model has no "
-                    "vision support or the file is unavailable; inspect the "
-                    "file directly if needed.]"
-                ),
-            )
-            for path in paths
-        )
-        return parts
+        return tool_result_context_content(agent, result)
 
     async def _commit_turn_output(self, agent: AgentSession, run_id: str, outcome) -> None:
         """响应消息恰好一次落进会话上下文投影（context.appended）。
@@ -812,7 +790,35 @@ class AgentRunner:
                     "content": outcome.message or "blocked by policy",
                 }
             )
-        await self.core.contexts.append_output(agent=agent, run_id=run_id, messages=entries)
+        existing = self.core.contexts.current_messages(agent.id)
+        existing_tool_ids = {
+            message.get("tool_call_id")
+            for message in existing
+            if message.get("role") == "tool" and message.get("tool_call_id")
+        }
+        existing_assistant_ids = {
+            frozenset(
+                str(call.get("id"))
+                for call in (message.get("tool_calls") or [])
+                if isinstance(call, dict) and call.get("id")
+            )
+            for message in existing
+            if message.get("role") == "assistant" and message.get("tool_calls")
+        }
+        filtered: list[dict] = []
+        for entry in entries:
+            if entry.get("role") == "tool" and entry.get("tool_call_id") in existing_tool_ids:
+                continue
+            if entry.get("role") == "assistant" and entry.get("tool_calls"):
+                ids = frozenset(
+                    str(call.get("id"))
+                    for call in entry["tool_calls"]
+                    if isinstance(call, dict) and call.get("id")
+                )
+                if ids and ids in existing_assistant_ids:
+                    continue
+            filtered.append(entry)
+        await self.core.contexts.append_output(agent=agent, run_id=run_id, messages=filtered)
 
     def _effective_settings(self, agent: AgentSession):
         """容量判定用的生效设置：spawn 快照里 context_window=0 表示未设置，

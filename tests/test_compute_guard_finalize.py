@@ -108,3 +108,23 @@ async def test_finalize_commits_running_job(tmp_path, monkeypatch):
     assert row["state"] == "done"
     assert (workdir / f"state_{task_id}.json").is_file()
     assert reviews == [(task_id, "done")]
+
+
+@pytest.mark.asyncio
+async def test_gaussian_text_marker_not_cclib_decides_success(tmp_path, monkeypatch):
+    from cloudra.runtime import monitor
+
+    log = tmp_path / "job.log"
+    log.write_text("junk coords missing\n Normal termination of Gaussian 16 at ...\n")
+
+    async def no_cclib(_target):
+        return None
+
+    monkeypatch.setattr(monitor, "_cclib_parse", no_cclib)
+    data, ok = await monitor._parse_log(log, 1, job_type="gaussian")
+    assert ok is True
+    assert data["is_success"] is True
+
+    log.write_text("Error termination via Lnk1e in ...\n")
+    data, ok = await monitor._parse_log(log, 1, job_type="gaussian")
+    assert ok is False

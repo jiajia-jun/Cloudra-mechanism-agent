@@ -378,6 +378,7 @@ class ComputeNotifyBroker:
                 content=body,
                 sender="system",
             )
+            await self.core.event_writer.flush()
             return
         await CommandBus(self.core).execute(
             Command(

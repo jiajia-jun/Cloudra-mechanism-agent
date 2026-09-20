@@ -754,3 +754,43 @@ def test_element_without_stages_status_supported_cannot_bypass_evidence():
     assert "missing_intermediate_structure" in unresolved_codes
     assert "missing_endpoint_evidence" in unresolved_codes
 
+
+def test_unstaged_supported_level_is_not_endpoint_coverage():
+    """``supported`` 不得与 endpoint_supported 同级——否则无 stages 旧边
+    只交一份 TS 频率就会被当成端点覆盖。"""
+    api = _load_completion_api()
+    node0 = api["OccurrenceNode"](
+        node_id="n0",
+        label="int 0",
+        role="intermediate",
+        evidence_level="structure_supported",
+        status="supported",
+    )
+    node1 = api["OccurrenceNode"](
+        node_id="n1",
+        label="int 1",
+        role="intermediate",
+        evidence_level="structure_supported",
+        status="supported",
+    )
+    edge = api["ElementaryStepEdge"](
+        edge_id="e0",
+        source_node_id="n0",
+        target_node_id="n1",
+        label="step 0",
+        evidence_level="supported",
+        status="supported",
+    )
+    delivery = api["GraphData"](
+        graph_id="dag_delivery",
+        graph_kind="delivery",
+        revision=1,
+        nodes=[node0, node1],
+        edges=[edge],
+    )
+    report = api["evaluate_delivery"](
+        delivery, api["CoverageContract"].mechanism_default()
+    )
+    assert not report.complete
+    assert "missing_endpoint_evidence" in {g.code for g in report.unresolved}
+

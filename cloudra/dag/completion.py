@@ -22,8 +22,8 @@ _LEVEL_RANK = {
     "proposed": 0,
     "structure_supported": 1,
     "saddle_supported": 2,
+    "supported": 2,
     "endpoint_supported": 3,
-    "supported": 3,
     "thermo_annotated": 4,
 }
 

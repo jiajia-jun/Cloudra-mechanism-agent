@@ -634,6 +634,34 @@ export default function App() {
             dedupeAgents(prev.map((a) => (a.id === sessionId ? { ...a, state: to } : a))),
           );
         }
+        if (event.type === 'run.started' && sessionId) {
+          const runId = String(event.data.run_id ?? event.run_id ?? '');
+          const protocol = event.data.invocation_protocol;
+          setAgents((prev) =>
+            dedupeAgents(
+              prev.map((a) =>
+                a.id === sessionId
+                  ? {
+                      ...a,
+                      current_run: {
+                        run_id: runId,
+                        started_at: String(event.data.started_at ?? event.created_at ?? ''),
+                        invocation_protocol:
+                          typeof protocol === 'string'
+                            ? protocol
+                            : a.current_run?.invocation_protocol,
+                      },
+                    }
+                  : a,
+              ),
+            ),
+          );
+        }
+        if ((event.type === 'run.finished' || event.type === 'agent.cancelled') && sessionId) {
+          setAgents((prev) =>
+            dedupeAgents(prev.map((a) => (a.id === sessionId ? { ...a, current_run: null } : a))),
+          );
+        }
         if (event.type === 'approval.requested' || event.type === 'tool.approval_requested') {
           if (!replaying) {
             pushToast('info', `Approval requested: ${short(event.data.tool_name ?? event.data.message ?? '', 60)}`);

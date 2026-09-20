@@ -253,6 +253,7 @@ class RuntimeStore:
         roles: dict[str, RoleProfile],
         runtime_defaults: RuntimeSettings,
         session_contexts: dict[str, SessionContext] | None = None,
+        pending_compactions: set[str] | None = None,
         last_seqs: dict[str, int],
     ) -> None:
         payload = _strip_computed_fields(
@@ -267,6 +268,9 @@ class RuntimeStore:
                 "session_contexts": {
                     k: v.model_dump(mode="json") for k, v in (session_contexts or {}).items()
                 },
+                # pending_compactions 是 compaction.requested 的事件投影；
+                # 快照水位越过该事件后增量重放看不到它，必须随快照落地。
+                "pending_compactions": sorted(pending_compactions or ()),
             }
         )
         with self._connect() as con:
@@ -394,6 +398,11 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
             sid: SessionContext.model_validate(data)
             for sid, data in snapshot.get("session_contexts", {}).items()
         }
+        core.pending_compactions = {
+            str(session_id)
+            for session_id in snapshot.get("pending_compactions") or []
+            if session_id
+        }
         for agent in core.agents.values():
             core.mailbox.ensure_inbox(agent.id)
 
@@ -486,6 +495,7 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
             roles=core.roles._roles,
             runtime_defaults=core.runtime_defaults,
             session_contexts=core.session_contexts,
+            pending_compactions=core.pending_compactions,
             last_seqs=core.event_log.high_watermarks,
         )
     return core.event_log.high_watermarks

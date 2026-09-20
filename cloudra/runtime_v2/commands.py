@@ -396,7 +396,15 @@ def _decide_inject_agent_message(core: RuntimeCore, command: Command) -> Decisio
     # perform a separate restart step.  Externalised context (goal pin, DAG,
     # memory, workspace) is re-assembled every turn, so the new run picks up
     # where the agent left off conceptually.
-    wake_drafts, should_schedule = plan_wake(agent)
+    # system 投递（计算通知 / reminder）遵守 park-don't-wake：failed/cancelled
+    # 只写信箱，绝不把用户取消过的 agent 拉回 queued。
+    if command.actor == "system" and agent.state in {
+        AgentState.FAILED,
+        AgentState.CANCELLED,
+    }:
+        wake_drafts, should_schedule = [], False
+    else:
+        wake_drafts, should_schedule = plan_wake(agent)
     effects: list[Effect] = [deliver]
     if should_schedule:
         effects.append(ScheduleAgent(agent.id))
@@ -810,6 +818,10 @@ class CommandBus:
         self._snapshot_at = time.monotonic()
 
     async def execute(self, command: Command) -> CommandResult:
+        async with self.core.command_lock:
+            return await self._execute_locked(command)
+
+    async def _execute_locked(self, command: Command) -> CommandResult:
         core = self.core
         cached = core.cached_result(command.command_id)
         if cached is not None:
@@ -866,15 +878,33 @@ class CommandBus:
     async def _apply_decision(self, command: Command, decision: Decision) -> CommandResult:
         core = self.core
         envelopes: list[EventEnvelope] = []
-        for draft in decision.events:
-            before_append = len(core.event_log)
-            envelope = self._append_draft(draft)
-            await self._persist_appended(keep=before_append)
-            apply_event(core, envelope)
-            envelopes.append(envelope)
-        # 拍 4：副作用（runner/mailbox/文件系统/内存秘密覆盖）
-        for effect in decision.effects:
-            await _execute_effect(core, effect)
+        try:
+            for draft in decision.events:
+                before_append = len(core.event_log)
+                envelope = self._append_draft(draft)
+                await self._persist_appended(keep=before_append)
+                apply_event(core, envelope)
+                envelopes.append(envelope)
+            # 拍 4：副作用（runner/mailbox/文件系统/内存秘密覆盖）
+            for effect in decision.effects:
+                await _execute_effect(core, effect)
+        except EventPersistenceError:
+            if envelopes:
+                data = None
+                try:
+                    data = self._resolve_result(decision.result)
+                except CommandRejected:
+                    data = None
+                core.remember(
+                    command,
+                    CommandResult(
+                        command_id=command.command_id,
+                        accepted=True,
+                        event_id=envelopes[-1].event_id,
+                        data=data,
+                    ),
+                )
+            raise
         return CommandResult(
             command_id=command.command_id,
             event_id=envelopes[-1].event_id if envelopes else "",
@@ -956,6 +986,7 @@ class CommandBus:
             roles=core.roles._roles,
             runtime_defaults=core.runtime_defaults,
             session_contexts=core.session_contexts,
+            pending_compactions=core.pending_compactions,
             last_seqs=core.event_log.high_watermarks,
         )
         self._snapshot_event_mark = len(core.event_log)

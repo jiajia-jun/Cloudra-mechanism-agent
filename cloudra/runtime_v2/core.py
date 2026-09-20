@@ -20,6 +20,7 @@ on later; command handlers only talk to this object, never to storage.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections import OrderedDict
 from typing import Any
@@ -186,6 +187,38 @@ class ContextBroker:
         return True
 
 
+class _TaskReentrantLock:
+    """asyncio.Lock that the same task may re-enter.
+
+    CommandBus.flush publishes to hub subscribers that may nested-execute
+    another command on the same core; a plain Lock would deadlock that path
+    (see test_nested_subscriber_commands_do_not_deadlock). Concurrent tasks
+    still serialize.
+    """
+
+    def __init__(self) -> None:
+        self._lock = asyncio.Lock()
+        self._owner: asyncio.Task | None = None
+        self._depth = 0
+
+    async def __aenter__(self):
+        task = asyncio.current_task()
+        if task is not None and self._owner is task:
+            self._depth += 1
+            return self
+        await self._lock.acquire()
+        self._owner = task
+        self._depth = 1
+        return self
+
+    async def __aexit__(self, *_exc) -> None:
+        self._depth -= 1
+        if self._depth <= 0:
+            self._depth = 0
+            self._owner = None
+            self._lock.release()
+
+
 class RuntimeCore:
     def __init__(
         self,
@@ -243,6 +276,9 @@ class RuntimeCore:
         # Idempotency window: recent command_id -> first CommandResult.
         self._command_results: OrderedDict[str, CommandResult] = OrderedDict()
         self._max_command_results = 1024
+        # Same-task re-entry: hub subscribers may nested-execute during flush.
+        # Concurrent tasks (API vs reminder vs compute notify) still serialize.
+        self.command_lock = _TaskReentrantLock()
 
     # ------------------------------------------------------------- shutdown
 

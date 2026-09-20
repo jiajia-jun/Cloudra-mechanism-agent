@@ -182,7 +182,10 @@ def validate_ts_mode(
     imaginary_freqs: list[float] | None = None,
 ) -> TSValidationResult:
     """校验过渡态是否具有恰好 1 个虚频，并匹配反应坐标描述。"""
-    if freqs is None and imaginary_freqs is None:
+    has_freq_data = (freqs is not None and len(freqs) > 0) or (
+        imaginary_freqs is not None and len(imaginary_freqs) > 0
+    )
+    if not has_freq_data:
         return TSValidationResult(
             is_valid=False,
             verified=False,
