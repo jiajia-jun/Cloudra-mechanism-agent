@@ -36,8 +36,14 @@
 类别 ``qcg_xtbiff_missing``，fail-loud 不猜）、``protonate``/``deprotonate``/``tautomerize``
 （质子化态/互变异构筛选）。各 runtype 的产物集合文件名与产物原子数不同（CREST 2.12 实测：
 ``protonated.xyz`` 为输入+1 原子、``deprotonated.xyz`` 为 -1、``tautomers.xyz`` 原子数不变、
-qcg 主产物 ``ensemble/final_ensemble.xyz`` 为 溶质+nsolv×溶剂 原子），完整性核对按 runtype
+qcg 产物 ``grow/cluster.xyz`` 为 溶质+nsolv×溶剂 原子），完整性核对按 runtype
 各自的口径执行，不匹配即 ``incomplete_artifacts``，绝不放宽。
+
+qcg 刻意只跑 **grow**（溶剂壳生长）：产物是 ``grow/cluster.xyz`` 单体几何，注释行为空、
+能量取自 ``grow/qcg_energy.dat`` 末行第二列（逐行格式核对，不猜列义）。CREST 的第二阶段
+ensemble 生成不纳入本 runtype——macOS arm64 的 conda CREST 2.12/3.0.2 在该阶段实测崩溃
+（2026-09-21），且成本高；想要溶剂壳排布系综，对 grow 产物再跑 ``nci``（同一套 NCI-MTD
+机制）。引擎进程被信号杀死（Fortran "Program received signal SIG*"）落 ``engine_crashed``。
 """
 
 from __future__ import annotations
@@ -74,6 +80,8 @@ MARKER_MD_FAILED = "Warning: MD seemingly failed (no xtb.trj)"
 MARKER_RESTART_FAILED_PREFIX = "Automatic xtb restart failed "
 #: QCG 缺 xtb-IFF 时的 ERROR STOP 文本（CREST 2.12 实测）。
 MARKER_QCG_NO_IFF = "No xtb-IFF found"
+#: 引擎进程被信号杀死时 Fortran 运行时的逐字前缀（SIGABRT/SIGSEGV 等），两路输出都可能出现。
+MARKER_SIGNAL_CRASH_PREFIX = "Program received signal SIG"
 #: CREST 在初始优化失败时写出的哨兵文件（空文件）；作为标记的旁证，不单独作为判据。
 SENTINEL_NOT_CONVERGED = "NOT_CONVERGED"
 
@@ -90,7 +98,7 @@ CrestRuntype = Literal["default", "nci", "qcg", "protonate", "deprotonate", "tau
 RUNTYPE_PRODUCT = {
     "default": CONFORMERS_NAME,
     "nci": CONFORMERS_NAME,
-    "qcg": os.path.join("ensemble", "final_ensemble.xyz"),
+    "qcg": os.path.join("grow", "cluster.xyz"),
     "protonate": "protonated.xyz",
     "deprotonate": "deprotonated.xyz",
     "tautomerize": "tautomers.xyz",
@@ -109,6 +117,7 @@ CrestTermination = Literal[
     "unknown_failure",
     "executable_missing",
     "qcg_xtbiff_missing",
+    "engine_crashed",
 ]
 
 CrestStage = Literal[
@@ -285,6 +294,10 @@ def _scan_markers(lines: list[str]) -> tuple[list[str], Optional[CrestTerminatio
             note(stripped)
             if termination is None:
                 termination = "qcg_xtbiff_missing"
+        elif stripped.startswith(MARKER_SIGNAL_CRASH_PREFIX):
+            note(stripped)
+            if termination is None:
+                termination = "engine_crashed"
         elif MARKER_NORMAL_TERMINATION in stripped:
             note(stripped)
             if termination is None:
@@ -351,6 +364,61 @@ def _parse_conformers(path: str, expected_atoms: int) -> tuple[list[CrestConform
     if not conformers:
         return [], "empty"
     return conformers, None
+
+
+def _parse_qcg_cluster(run_dir: str, expected_atoms: int) -> tuple[list[CrestConformer], Optional[str]]:
+    """QCG grow 的产物解析：``grow/cluster.xyz`` 单帧（注释行为空）+ ``grow/qcg_energy.dat``
+    末行第二列的总能量（CREST 2.12 实测：行 = ``<已加溶剂数> <总能量 Eh> <表面积>``，
+    第 0 行是裸溶质）。任何格式不符都 fail-loud，不猜列义、不静默丢信息。
+    """
+    cluster_path = os.path.join(run_dir, RUNTYPE_PRODUCT["qcg"])
+    energy_path = os.path.join(run_dir, "grow", "qcg_energy.dat")
+    if not os.path.isfile(cluster_path):
+        return [], f"{RUNTYPE_PRODUCT['qcg']} missing"
+    if not os.path.isfile(energy_path):
+        return [], "grow/qcg_energy.dat missing"
+    energy: Optional[float] = None
+    with open(energy_path, encoding="utf-8", errors="replace") as handle:
+        for line in handle.read().splitlines():
+            parts = line.split()
+            if not parts:
+                continue
+            if len(parts) < 2:
+                return [], f"qcg_energy.dat line has fewer than 2 columns: {line!r}"
+            try:
+                energy = float(parts[1])
+            except ValueError:
+                return [], f"qcg_energy.dat energy column is not a number: {line!r}"
+    if energy is None:
+        return [], "grow/qcg_energy.dat is empty"
+
+    with open(cluster_path, encoding="utf-8", errors="replace") as handle:
+        lines = handle.read().splitlines()
+    if not lines:
+        return [], f"{RUNTYPE_PRODUCT['qcg']} is empty"
+    try:
+        count = int(lines[0].strip())
+    except ValueError:
+        return [], f"unparsable atom count in cluster.xyz: {lines[0]!r}"
+    if count != expected_atoms:
+        return [], (
+            f"cluster.xyz declares {count} atoms but the solute + nsolv x solvent has "
+            f"{expected_atoms} (truncated or wrong growth stage)"
+        )
+    if len(lines) < 2 + count:
+        return [], f"cluster.xyz declares {count} atoms but has too few lines (truncated)"
+    positions: list[list[float]] = []
+    symbols: list[str] = []
+    for line in lines[2: 2 + count]:
+        parts = line.split()
+        if len(parts) < 4:
+            return [], f"malformed coordinate line in cluster.xyz: {line!r}"
+        try:
+            positions.append([float(parts[1]), float(parts[2]), float(parts[3])])
+        except ValueError:
+            return [], f"non-numeric coordinate in cluster.xyz: {line!r}"
+        symbols.append(parts[0])
+    return [CrestConformer(frame_index=0, energy_eh=energy, positions=positions, symbols=symbols)], None
 
 
 def _xyz_atom_count(xyz_text: str, what: str) -> int:
@@ -506,6 +574,13 @@ def run_crest(request: CrestRunRequest) -> CrestRunResult:
                 "QCG requires the external xtb-IFF program, which CREST did not find "
                 "(https://github.com/grimme-lab/xtbiff); install it or use a non-QCG runtype"
             )
+        if result.termination_reason == "engine_crashed":
+            result.diagnostics.append(
+                "the CREST process was killed by a signal (see the evidence line); this is an "
+                "engine-level crash, not a refused or unconverged calculation. Note: on "
+                "conda-forge macOS arm64 builds, CREST's QCG GFN-FF preoptimization path is "
+                "known to abort (verified 2026-09-21); the default gfn2 grow path works"
+            )
         if result.termination_reason == "unknown_failure":
             tail = "\n".join(lines[-15:]) if lines else (stderr or "")[-2000:]
             result.diagnostics.append(
@@ -533,7 +608,10 @@ def run_crest(request: CrestRunRequest) -> CrestRunResult:
         result.message = f"CREST did not report normal termination. Full log: {stdout_path}"
         return result
 
-    conformers, problem = _parse_conformers(conformers_path, expected_atoms)
+    if request.runtype == "qcg":
+        conformers, problem = _parse_qcg_cluster(run_dir, expected_atoms)
+    else:
+        conformers, problem = _parse_conformers(conformers_path, expected_atoms)
     result.stage = "artifact_check"
     if problem is not None:
         result.termination_reason = "incomplete_artifacts"

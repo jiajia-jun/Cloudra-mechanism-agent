@@ -897,11 +897,11 @@ class ConformerSearch(Tool):
             elif runtype == "qcg":
                 extra = (
                     f"Backend: CREST --qcg (quantum cluster growth): {user_input.nsolv} explicit "
-                    f"{user_input.solvent_smiles} molecule(s) were grown around the solute; the ensemble "
-                    "entries are micro-solvated clusters (solute + solvent shell), NOT bare-solute "
-                    "conformers. Relative energies are GFN-level cluster energies and are only meaningful "
-                    "within this fixed shell composition. "
-                    f"CREST run directory (persistent): {run.run_dir}"
+                    f"{user_input.solvent_smiles} molecule(s) were grown around the solute; the product "
+                    "is the grown micro-solvated cluster geometry (solute + solvent shell), NOT a "
+                    "bare-solute conformer, and its energy is the GFN-level cluster electronic energy "
+                    f"from grow/qcg_energy.dat. To sample alternative shell arrangements, run "
+                    f"mode='nci' on this cluster. CREST run directory (persistent): {run.run_dir}"
                 )
             elif runtype in self._SINGLE_COMPONENT_RUNTYPES:
                 extra = (

@@ -580,3 +580,48 @@ def test_expected_atom_count_per_runtype(tmp_path):
     assert crest_runner._expected_atom_count(_request(
         tmp_path, runtype="qcg", solvent_xyz_text=WATER_XYZ, nsolv=4,
     )) == 3 + 4 * 3
+
+
+def test_signal_crash_is_its_own_termination_class():
+    """Fortran 运行时的信号终止（SIGABRT/SIGSEGV）单列 engine_crashed，不落 unknown_failure。"""
+    lines = [
+        " xTB Geometry Optimization",
+        " Geometry successfully optimized.",
+        "Program received signal SIGABRT: Process abort signal.",
+        "",
+        "Backtrace for this error:",
+    ]
+    hits, termination, _stage = crest_runner._scan_markers(lines)
+    assert termination == "engine_crashed"
+    assert any("SIGABRT" in line for line in hits)
+
+
+def test_parse_qcg_cluster_reads_geometry_and_energy(tmp_path):
+    """QCG grow 产物：cluster.xyz 单帧（空注释行）+ qcg_energy.dat 末行第二列能量。"""
+    grow = tmp_path / "grow"
+    grow.mkdir()
+    (grow / "cluster.xyz").write_text(
+        "5\n\n"
+        "C   0.0 0.0 0.0\nO   1.2 0.0 0.0\nH  -0.5 0.9 0.0\nO   3.0 0.0 0.0\nH   3.5 0.8 0.0\n",
+        encoding="utf-8",
+    )
+    (grow / "qcg_energy.dat").write_text(
+        "   0      -14.45994186         -5.07054434\n"
+        "   1      -19.5407970706      803.9\n",
+        encoding="utf-8",
+    )
+    conformers, problem = crest_runner._parse_qcg_cluster(str(tmp_path), expected_atoms=5)
+    assert problem is None
+    assert len(conformers) == 1
+    assert conformers[0].energy_eh == pytest.approx(-19.5407970706)
+    assert conformers[0].symbols == ["C", "O", "H", "O", "H"]
+
+    # 原子数不符 / 能量缺失 / 能量非数值：全部 fail-loud
+    _, problem = crest_runner._parse_qcg_cluster(str(tmp_path), expected_atoms=6)
+    assert "declares 5 atoms" in problem
+    (grow / "qcg_energy.dat").write_text("", encoding="utf-8")
+    _, problem = crest_runner._parse_qcg_cluster(str(tmp_path), expected_atoms=5)
+    assert "empty" in problem
+    (grow / "qcg_energy.dat").write_text("   1      abc      803.9\n", encoding="utf-8")
+    _, problem = crest_runner._parse_qcg_cluster(str(tmp_path), expected_atoms=5)
+    assert "not a number" in problem

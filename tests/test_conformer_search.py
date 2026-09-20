@@ -595,3 +595,24 @@ async def test_qcg_without_xtbiff_fails_loud(tool, mock_session, tmp_path):
     assert result.is_success is False
     assert "qcg_xtbiff_missing" in result.message
     assert "xtb-IFF" in result.message
+
+
+@requires_crest
+@pytest.mark.asyncio
+async def test_qcg_grows_explicit_solvent_shell(tool, mock_session, tmp_path):
+    """--qcg 端到端：乙酸 + 2 水的显式溶剂壳；产物帧 = 溶质 8 + 2×3 = 14 原子。"""
+    if not shutil.which("xtbiff"):
+        pytest.skip("未安装 xtb-IFF，跳过 QCG 成功路径集成测试")
+    out_dir = tmp_path / "qcg_ok"
+    result = await tool.safe_call(
+        ConformerSearch_input_schema(
+            smiles="CC(=O)O", backend="crest", mode="qcg", solvent_smiles="O", nsolv=2,
+            output_dir=str(out_dir), timeout=1800,
+        ),
+        mock_session,
+    )
+    assert result.is_success is True, result.message
+    assert "micro-solvated cluster" in result.message
+    assert os.path.isfile(result.ensemble_path)
+    lines = open(result.ensemble_path, encoding="utf-8").read().splitlines()
+    assert int(lines[0].strip()) == 14  # 乙酸 8 原子 + 2 个水
