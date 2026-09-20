@@ -14,12 +14,13 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import sqlite3
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable, Iterator, Optional
 
 UNKNOWN_MODEL = "unknown"
 
@@ -325,15 +326,19 @@ def analyze_cache(
 # ---------------------------------------------------------------------------
 
 
-def _connect_readonly(db_path: Path | str) -> sqlite3.Connection:
+@contextlib.contextmanager
+def _connect_readonly(db_path: Path | str) -> Iterator[sqlite3.Connection]:
     path = Path(db_path)
     if not path.is_file():
         raise TelemetryError(f"runtime database not found: {path}")
     # 只读也要 busy_timeout：库被写者短暂持锁时等待而不是 5s 后炸
     # "database is locked"（参照 knowledge/store.py 的只读连接先例）。
     con = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
-    con.execute("PRAGMA busy_timeout=60000")
-    return con
+    try:
+        con.execute("PRAGMA busy_timeout=60000")
+        yield con
+    finally:
+        con.close()
 
 
 def load_events(

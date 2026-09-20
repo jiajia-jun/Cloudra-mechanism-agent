@@ -17,7 +17,7 @@ Choose the next calculation by the scientific question it resolves. A completed 
    1. **`ts_prepare`** — declare endpoints (SMILES + `atom_map` + `reaction_center`); the process builds, maps, assembles, guesses, validates, submits, refines and judges autonomously; when it stops `blocked` it names the offending declaration, fix that and `ts_resume` (do not poll).
    2. **Mapped interpolation → NEB** — `ts_guess mode=interpolate` (IDPP preferred) or an ORCA `NEB-TS` job; the strongest agent-side lever when endpoints and the all-atom map are known. **NEB is the ceiling of sophistication: QST2/QST3 are banned outright** (see red lines).
    3. **Relaxed scan (1D or 2D)** — `ts_guess scan_prepare` / `scan_parse`, then a fresh unconstrained TS refine from the peak frame. Scans are a normal research-group workflow, not a last resort: use 2D when two coordinates move concertedly or a 1D profile jumps/discontinues. The peak is a seed, never a deliverable.
-   Never blind-OptTS from a minimum or from a SMILES embedding.
+   Never blind-OptTS from a minimum or from a SMILES embedding. A manual chain (direct OptTS/IRC submission) is a sanctioned exception, but it must leave a one-line justification in the trajectory — the harness pins this reminder when it sees a TS/IRC submission.
 4. Before writing inputs, read **only the active engine's recipe**: [ORCA](references/orca-inputs.md) or [Gaussian](references/gaussian-inputs.md). External potentials additionally need [MLIP interface and limits](references/mlip-gaussian-external.md). Inspect generated inputs: the shared writer does not translate all engine options.
 
 Load a reference with `get_skill(skill_name="dft-calculation", reference="ts-search-playbook.md")`, replacing the reference name as needed.

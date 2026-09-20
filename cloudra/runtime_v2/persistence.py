@@ -14,10 +14,11 @@ never runs on the event-loop thread.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import sqlite3
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from cloudra.runtime_v2.apply import (
     _strip_computed_fields,
@@ -196,11 +197,16 @@ class RuntimeStore:
         self.path = str(path)
         self._init()
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextlib.contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
         con = sqlite3.connect(self.path, timeout=30.0)
-        con.execute("PRAGMA busy_timeout=30000;")
-        con.execute("PRAGMA synchronous=NORMAL;")
-        return con
+        try:
+            con.execute("PRAGMA busy_timeout=30000;")
+            con.execute("PRAGMA synchronous=NORMAL;")
+            with con:
+                yield con
+        finally:
+            con.close()
 
     def _init(self) -> None:
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)

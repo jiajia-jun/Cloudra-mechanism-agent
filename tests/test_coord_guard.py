@@ -112,8 +112,9 @@ async def test_edit_warns_on_coord_insertion(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_bash_warns_on_heredoc_coords(tmp_path, monkeypatch):
-    """heredoc 写坐标不拦截：命令照常执行，结果里附警告。"""
+async def test_bash_heredoc_coords_no_inline_warning(tmp_path, monkeypatch):
+    """heredoc 写坐标不拦截：命令照常执行；警告已迁往 GuidanceStage 的 pin
+    上下文通道（行为引导不进工具返回），工具结果里不再前置。"""
     monkeypatch.setattr(Bash, "ensure_safety", _approve)
     tool = Bash(subagent=_subagent(tmp_path))
     command = f"cat > ts.gjf <<'EOF'\n%chk=ts.chk\n0 1\n{_XYZ_BLOCK}EOF"
@@ -122,7 +123,7 @@ async def test_bash_warns_on_heredoc_coords(tmp_path, monkeypatch):
         SimpleNamespace(id="s1"),
     )
     assert out.exit_code == 0
-    assert "handwritten coordinates" in out.result
+    assert "handwritten coordinates" not in out.result
     assert (tmp_path / "ts.gjf").exists()
 
 

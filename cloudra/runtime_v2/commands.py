@@ -31,6 +31,7 @@ benchmark backend finally）显式调 ``flush_snapshot()`` 补一次。
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import shutil
 import sqlite3
@@ -749,7 +750,9 @@ def _delete_project_data(project_id: str) -> None:
     db_path = conversation_db_path(project_id)
     if db_path.is_file():
         try:
-            with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as con:
+            with contextlib.closing(
+                sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+            ) as con:
                 rows = con.execute("SELECT artifact_id FROM artifacts").fetchall()
             artifact_ids = [str(row[0]) for row in rows]
         except sqlite3.OperationalError:

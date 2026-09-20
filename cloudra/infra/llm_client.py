@@ -120,7 +120,11 @@ _STREAM_SOCKET_PATHS = (
     # 裸 httpx Response
     ("stream", "_stream", "_httpcore_stream", "_stream",
      "_connection", "_network_stream", "_stream", "_transport", "_sock"),
-    # requests.Response -> urllib3 -> http.client -> socket
+    # requests.Response -> urllib3 2.x -> http.client -> socket
+    ("raw", "_connection", "sock"),
+    ("raw", "_fp", "sock"),
+    ("raw", "sock"),
+    # requests.Response -> urllib3 1.x -> http.client -> socket
     ("raw", "_fp", "fp", "raw", "_sock"),
 )
 
@@ -208,15 +212,18 @@ class _StreamHandle:
     def abort(self) -> None:
         """socket shutdown（唤醒阻塞读线程，有界退出）+ close（RST）。"""
         sock = self.sock
-        if sock is None:
-            return
+        if sock is not None:
+            try:
+                sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            try:
+                sock.close()
+            except OSError:
+                pass
         try:
-            sock.shutdown(socket.SHUT_RDWR)
-        except OSError:
-            pass
-        try:
-            sock.close()
-        except OSError:
+            self.response.close()
+        except Exception:
             pass
 
 
@@ -421,12 +428,15 @@ class LLMClient:
                     resp = requests.post(
                         url, headers=headers, json=payload, timeout=min(10, self.timeout or 10)
                     )
-                    if resp.status_code >= 400:
-                        continue
-                    data = resp.json()
-                    count = self._parse_tokenize_response(data)
-                    if count is not None:
-                        return count
+                    try:
+                        if resp.status_code >= 400:
+                            continue
+                        data = resp.json()
+                        count = self._parse_tokenize_response(data)
+                        if count is not None:
+                            return count
+                    finally:
+                        resp.close()
                 except Exception:
                     continue
         return None
@@ -759,10 +769,13 @@ class LLMClient:
             json=payload,
             timeout=self.timeout,
         )
-        self._raise_for_status_with_body(resp)
-        data = resp.json()
-        self._last_usage = _translate_responses_usage(data)
-        return ResponseDictWrapper(_translate_responses_completion(data))
+        try:
+            self._raise_for_status_with_body(resp)
+            data = resp.json()
+            self._last_usage = _translate_responses_usage(data)
+            return ResponseDictWrapper(_translate_responses_completion(data))
+        finally:
+            resp.close()
 
     def _responses_start_stream(self, url: str, payload: dict):
         """流式：发起 POST /responses 并返回 (事件翻译生成器, 状态收集器, 句柄)。
@@ -917,10 +930,13 @@ class LLMClient:
                 stream = False
 
         resp = requests.post(url, headers=headers, json=payload, timeout=self.timeout)
-        resp.raise_for_status()
-        data = resp.json()
-        self._last_usage = self._extract_usage(data)
-        return ResponseDictWrapper(data)
+        try:
+            resp.raise_for_status()
+            data = resp.json()
+            self._last_usage = self._extract_usage(data)
+            return ResponseDictWrapper(data)
+        finally:
+            resp.close()
 
     def _openai_client_with_custom_headers(self) -> AsyncOpenAI:
         """返回带自定义 User-Agent 的 OpenAI 客户端（实例级缓存），用于二级 fallback。"""

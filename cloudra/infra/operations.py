@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -26,7 +27,7 @@ def _count_states(database: Path, table: str, allowed_tables: set[str]) -> Count
         raise ValueError("unsupported metrics table")
     try:
         uri = f"file:{database.as_posix()}?mode=ro"
-        with sqlite3.connect(uri, uri=True, timeout=2) as con:
+        with contextlib.closing(sqlite3.connect(uri, uri=True, timeout=2)) as con:
             return Counter(dict(con.execute(
                 f"SELECT state, COUNT(*) FROM {table} GROUP BY state"
             ).fetchall()))
@@ -44,7 +45,7 @@ def operational_status(data_dir: Path, *, min_free_bytes: int = 1024**3) -> dict
     for database in conversation_databases:
         try:
             sessions.update(_count_states(database, "session", {"session"}))
-            with sqlite3.connect(f"file:{database.as_posix()}?mode=ro", uri=True) as con:
+            with contextlib.closing(sqlite3.connect(f"file:{database.as_posix()}?mode=ro", uri=True)) as con:
                 con.execute("PRAGMA quick_check").fetchone()
         except sqlite3.Error:
             database_errors += 1
@@ -119,7 +120,10 @@ def create_backup(data_dir: Path, destination: Path) -> dict:
             snapshot.parent.mkdir(parents=True, exist_ok=True)
             if source.suffix == ".db":
                 try:
-                    with sqlite3.connect(source) as src, sqlite3.connect(snapshot) as dst:
+                    with (
+                        contextlib.closing(sqlite3.connect(source)) as src,
+                        contextlib.closing(sqlite3.connect(snapshot)) as dst,
+                    ):
                         src.backup(dst)
                 except sqlite3.Error as exc:
                     raise BackupError(f"cannot snapshot SQLite database: {source}") from exc

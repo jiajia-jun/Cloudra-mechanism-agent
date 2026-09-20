@@ -439,12 +439,15 @@ def exchange_openrouter_code(code: str, code_verifier: str) -> str:
         "code_challenge_method": "S256",
     }
     resp = requests.post(url, json=payload, timeout=30)
-    resp.raise_for_status()
-    data = resp.json()
-    key = data.get("key")
-    if not key:
-        raise ValueError(f"OpenRouter 授权交换未返回 key: {data}")
-    return str(key)
+    try:
+        resp.raise_for_status()
+        data = resp.json()
+        key = data.get("key")
+        if not key:
+            raise ValueError(f"OpenRouter 授权交换未返回 key: {data}")
+        return str(key)
+    finally:
+        resp.close()
 
 
 def run_local_auth_listener(timeout: float = 120.0) -> tuple[str, Callable[[float], str | None]]:
