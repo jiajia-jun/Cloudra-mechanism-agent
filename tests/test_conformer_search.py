@@ -463,3 +463,135 @@ def test_build_artifact_dir_naming_is_shared_by_all_entry_points():
     # 同一父目录下并存多个结构时用 slug 隔开，避免互相覆盖
     assert build_artifact_dir("/w", "CO2") == "/w/structure_build/CO2"
     assert build_artifact_dir("/w", "H2O") != build_artifact_dir("/w", "CO2")
+
+
+# ---------------------------------------------------------------------------
+# CREST 特殊 runtype：nci / qcg / protonate / deprotonate / tautomerize
+# ---------------------------------------------------------------------------
+
+requires_crest = pytest.mark.skipif(shutil.which("crest") is None, reason="未安装 crest，跳过 CREST 集成测试")
+
+
+@pytest.mark.asyncio
+async def test_mode_requires_crest_backend(tool, mock_session, tmp_path):
+    """非 conformers 的 mode 配 rdkit 后端必须 fail-loud，不静默换后端。"""
+    result = await tool.safe_call(
+        ConformerSearch_input_schema(
+            smiles="CCO", backend="rdkit", mode="nci", output_dir=str(tmp_path / "m"),
+        ),
+        mock_session,
+    )
+    assert result.is_success is False
+    assert "backend='crest'" in result.message
+
+
+@pytest.mark.asyncio
+async def test_qcg_requires_solvent_and_nsolv(tool, mock_session, tmp_path):
+    for kwargs in ({"nsolv": 3}, {"solvent_smiles": "O"}):
+        result = await tool.safe_call(
+            ConformerSearch_input_schema(
+                smiles="CC(=O)O", backend="crest", mode="qcg", output_dir=str(tmp_path / "q"),
+                **kwargs,
+            ),
+            mock_session,
+        )
+        assert result.is_success is False
+        assert "qcg" in result.message
+    # solvent/nsolv 只配 qcg
+    result = await tool.safe_call(
+        ConformerSearch_input_schema(
+            smiles="CCO", backend="crest", mode="nci", solvent_smiles="O",
+            output_dir=str(tmp_path / "q2"),
+        ),
+        mock_session,
+    )
+    assert result.is_success is False
+    assert "mode='qcg'" in result.message
+
+
+@pytest.mark.asyncio
+async def test_protonate_family_refuses_multi_component(tool, mock_session, tmp_path):
+    result = await tool.safe_call(
+        ConformerSearch_input_schema(
+            smiles="CC(=O)O.O", backend="crest", mode="protonate",
+            output_dir=str(tmp_path / "p"),
+        ),
+        mock_session,
+    )
+    assert result.is_success is False
+    assert "components" in result.message
+
+
+@requires_crest
+@pytest.mark.asyncio
+async def test_nci_mode_samples_noncovalent_network(tool, mock_session, tmp_path):
+    """--nci：水二聚体的氢键网络采样（壁势下的非共价系综）。"""
+    out_dir = tmp_path / "nci_out"
+    result = await tool.safe_call(
+        ConformerSearch_input_schema(
+            smiles="O.O", backend="crest", mode="nci", output_dir=str(out_dir), timeout=900,
+        ),
+        mock_session,
+    )
+    assert result.is_success is True, result.message
+    assert "--nci" in result.message
+    assert os.path.isfile(result.ensemble_path)
+    # 每帧 6 原子（两个水）；氢键网络意味着存在片间 O...H 近距离接触的构象
+    lines = open(result.ensemble_path, encoding="utf-8").read().splitlines()
+    assert int(lines[0].strip()) == 6
+
+
+@requires_crest
+@pytest.mark.asyncio
+async def test_protonate_mode_adds_one_proton_and_warns(tool, mock_session, tmp_path):
+    """--protonate：产物帧原子数 = 输入+1；返回文案必须含伪结构审查警告。"""
+    out_dir = tmp_path / "prot_out"
+    result = await tool.safe_call(
+        ConformerSearch_input_schema(
+            smiles="CC(=O)O", backend="crest", mode="protonate",
+            output_dir=str(out_dir), timeout=900,
+        ),
+        mock_session,
+    )
+    assert result.is_success is True, result.message
+    assert "pseudo-structures" in result.message
+    assert "DIFFERENT CHEMICAL SPECIES" in result.message
+    lines = open(result.ensemble_path, encoding="utf-8").read().splitlines()
+    assert int(lines[0].strip()) == 9  # 乙酸 8 原子 + 1 质子
+
+
+@requires_crest
+@pytest.mark.asyncio
+async def test_tautomerize_mode_finds_tautomers_and_warns(tool, mock_session, tmp_path):
+    """--tautomerize：乙醛应至少给出烯醇式互变异构体（≥2 条），原子数不变。"""
+    out_dir = tmp_path / "taut_out"
+    result = await tool.safe_call(
+        ConformerSearch_input_schema(
+            smiles="CC=O", backend="crest", mode="tautomerize",
+            output_dir=str(out_dir), timeout=900,
+        ),
+        mock_session,
+    )
+    assert result.is_success is True, result.message
+    assert "pseudo-structures" in result.message
+    assert result.counts["generated"] >= 2
+    lines = open(result.ensemble_path, encoding="utf-8").read().splitlines()
+    assert int(lines[0].strip()) == 7
+
+
+@requires_crest
+@pytest.mark.asyncio
+async def test_qcg_without_xtbiff_fails_loud(tool, mock_session, tmp_path):
+    """--qcg 依赖外部 xtb-IFF：本机缺失时必须落到专属终止类别并在消息里说明，不猜不绕。"""
+    if shutil.which("xtbiff"):
+        pytest.skip("已安装 xtb-IFF，无法复现缺失路径")
+    result = await tool.safe_call(
+        ConformerSearch_input_schema(
+            smiles="CC(=O)O", backend="crest", mode="qcg", solvent_smiles="O", nsolv=2,
+            output_dir=str(tmp_path / "qcg_out"), timeout=900,
+        ),
+        mock_session,
+    )
+    assert result.is_success is False
+    assert "qcg_xtbiff_missing" in result.message
+    assert "xtb-IFF" in result.message

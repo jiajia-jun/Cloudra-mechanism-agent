@@ -133,7 +133,18 @@ description = (
     "with dots) the ensemble IS the approved complex assembly (rigid placement sampling + collision "
     "rejection + force-field relaxation): candidates are assembled complexes, never overlapping or "
     "translated-apart fragment coordinates. "
-    "Use for: locating reactive conformers before organic-mechanism calculations, assessing conformational energy contributions, picking a starting geometry for a TS guess. "
+    "The 'mode' parameter selects the CREST run type (CREST backend only): "
+    "'conformers' (default) is the ordinary conformer search for a single molecule; "
+    "'nci' samples NON-COVALENT complexes/aggregates under an ellipsoid wall potential — use it for "
+    "hydrogen-bond networks and preorganized reactant complexes between fragments; "
+    "'qcg' grows an explicit solvent shell around the solute (quantum cluster growth, needs solvent_smiles "
+    "and nsolv, and the external xtb-IFF program) — the standard way to build a micro-solvated cluster or a "
+    "hydrogen-bond network with explicit waters (e.g. proton shuttles); "
+    "'protonate'/'deprotonate'/'tautomerize' enumerate protomers/tautomers. "
+    "WARNING for protonate/deprotonate/tautomerize: the output is an automated screening ensemble that MAY "
+    "contain chemically unreasonable pseudo-structures; review EVERY structure chemically before using it. "
+    "Use for: locating reactive conformers before organic-mechanism calculations, building hydrogen-bonded/"
+    "solvated starting structures, assessing conformational energy contributions, picking a starting geometry for a TS guess. "
     "Do not use for: high-accuracy single points (use submit_compute_job) or format conversion (use format_converter)."
 )
 
@@ -166,7 +177,28 @@ class ConformerSearch_input_schema(input_schema):
     )
     backend: Literal["rdkit", "crest"] = Field(
         default="rdkit",
-        description="Search backend. rdkit: ETKDGv3 sampling + MMFF/UFF optimization; crest: external CREST (GFN2-xTB, --quick)."
+        description="Search backend. rdkit: ETKDGv3 sampling + MMFF/UFF optimization; crest: external CREST (GFN2-xTB, --quick). "
+                    "Any mode other than 'conformers' requires backend='crest'."
+    )
+    mode: Literal["conformers", "nci", "qcg", "protonate", "deprotonate", "tautomerize"] = Field(
+        default="conformers",
+        description="CREST run type (backend='crest' only). conformers: ordinary search. "
+                    "nci: non-covalent complex/aggregate sampling under a wall potential — for hydrogen-bond "
+                    "networks and preorganized reactant complexes (intended for multi-component inputs). "
+                    "qcg: grow an explicit solvent shell of nsolv solvent_smiles molecules around the solute "
+                    "(quantum cluster growth; requires the external xtb-IFF program). "
+                    "protonate/deprotonate/tautomerize: protomer/tautomer enumeration of a SINGLE-component "
+                    "input; the output may contain pseudo-structures — review every structure before use.",
+    )
+    solvent_smiles: Optional[str] = Field(
+        default=None,
+        description="mode='qcg' only: SMILES of ONE neutral solvent molecule (e.g. 'O' for water). "
+                    "Its geometry is built by the shared structure builder.",
+    )
+    nsolv: int = Field(
+        default=0,
+        description="mode='qcg' only: number of solvent molecules to grow around the solute (>= 1). "
+                    "2-4 waters typically suffice to bridge a proton shuttle; more for a first solvation shell.",
     )
     num_confs: int = Field(
         default=50,
@@ -699,6 +731,36 @@ class ConformerSearch(Tool):
 
     # ---------- CREST 后端 ----------
 
+    _SINGLE_COMPONENT_RUNTYPES = ("protonate", "deprotonate", "tautomerize")
+
+    def _build_qcg_solvent(self, user_input: ConformerSearch_input_schema, out_dir: str) -> str:
+        """QCG 的溶剂分子几何：同样走共享构建器（中性、单组分、闭壳层），产物目录用 slug 隔开。"""
+        from cloudra.tools.core.structure_builder import build_artifact_dir
+
+        solvent = prepare_structure(PreparationRequest(
+            structure=StructureInput(kind="smiles", value=user_input.solvent_smiles),
+            output_dir=build_artifact_dir(out_dir, "qcg_solvent"),
+            total_charge=0,
+            multiplicity=1,
+            random_seed=user_input.random_seed,
+            strategy=BuildStrategy(name="per_component", embed=True, optimize=True),
+        ))
+        if solvent.status != "ok" or not solvent.has_coordinates:
+            details = " | ".join(solvent.diagnostics) if solvent.diagnostics else solvent.message
+            raise ValueError(
+                f"the QCG solvent structure could not be built (status: {solvent.status}). "
+                f"{solvent.message}"
+                + (f" Diagnostics: {details}" if details and details != solvent.message else "")
+            )
+        if len(solvent.components) > 1:
+            raise ValueError(
+                "the QCG solvent must be a single neutral molecule (one connected component); "
+                f"solvent_smiles={user_input.solvent_smiles!r} has {len(solvent.components)} components"
+            )
+        solvent_path = solvent.candidate_path(".xyz")
+        with open(solvent_path, encoding="utf-8") as handle:
+            return handle.read()
+
     def _run_crest(self, user_input: ConformerSearch_input_schema, out_dir: str) -> ConformerSearch_output_schema:
         try:
             # 种子结构由共享构建器产出（embed+optimize）：多组分输入在这里就被拒，
@@ -707,28 +769,46 @@ class ConformerSearch(Tool):
             if prepared.status != "ok" or not prepared.has_coordinates:
                 return self._build_failure(prepared)
 
+            runtype = "default" if user_input.mode == "conformers" else user_input.mode
+            multi_fragment = len(prepared.components) > 1
+            if runtype in self._SINGLE_COMPONENT_RUNTYPES and multi_fragment:
+                return ConformerSearch_output_schema(
+                    is_success=False,
+                    message=(
+                        f"mode='{user_input.mode}' screens protonation states/tautomers of ONE "
+                        f"molecule, but this input has {len(prepared.components)} components. "
+                        "Run it per component, or use mode='nci'/'conformers' for the complex."
+                    ),
+                )
+
             seed_path = prepared.candidate_path(".xyz")
             with open(seed_path, encoding="utf-8") as handle:
                 seed_xyz = handle.read()
 
+            solvent_xyz = ""
+            if runtype == "qcg":
+                solvent_xyz = self._build_qcg_solvent(user_input, out_dir)
+
             # 用户批准（Task 4 门）：多碎片输入默认加 --noreftopo，只关搜索前的初始拓扑检查。
             # 单组分输入不加该选项（没有片间拓扑可变化，加了只会掩盖真实问题）。
-            multi_fragment = len(prepared.components) > 1
             run = run_crest(CrestRunRequest(
                 xyz_text=seed_xyz,
                 output_dir=out_dir,
                 charge=user_input.charge,
                 multiplicity=user_input.multiplicity,
                 timeout=user_input.timeout,
-                run_label="crest",
+                run_label="crest" if runtype == "default" else f"crest_{runtype}",
                 noreftopo=multi_fragment,
+                runtype=runtype,
+                solvent_xyz_text=solvent_xyz,
+                nsolv=user_input.nsolv,
             ))
             if not run.scientific_success:
                 details = " | ".join(run.diagnostics) if run.diagnostics else ""
                 return ConformerSearch_output_schema(
                     is_success=False,
                     message=(
-                        f"CREST backend did not produce a usable ensemble "
+                        f"CREST backend (mode='{user_input.mode}') did not produce a usable ensemble "
                         f"(termination={run.termination_reason}, stage={run.stage}, "
                         f"returncode={run.returncode}). {run.message}"
                         + (f" Diagnostics: {details}" if details else "")
@@ -791,7 +871,8 @@ class ConformerSearch(Tool):
                 k["rmsd_to_conf0"] = _kabsch_rmsd(k["positions"], ref_pos)
 
             # 拷贝系综到 output_dir（多帧 xyz，注释行带 kcal/mol 相对能量）
-            symbols = prepared.symbols
+            # 元素序列以产物帧为准：protonate/qcg 等模式的产物原子集合与输入不同。
+            symbols = frames[0].symbols if frames[0].symbols else prepared.symbols
             xyz_path = os.path.join(out_dir, "confs.xyz")
             chunks = []
             for k in kept:
@@ -806,6 +887,32 @@ class ConformerSearch(Tool):
                 "no further RMSD clustering was applied. "
                 f"CREST run directory (persistent): {run.run_dir}"
             )
+            if runtype == "nci":
+                extra = (
+                    "Backend: CREST --nci (GFN2-xTB, ellipsoid wall potential): the ensemble samples "
+                    "NON-COVALENT arrangements of the input complex — hydrogen-bond networks and aggregate "
+                    "geometries — not covalent conformers of a single molecule. "
+                    f"CREST run directory (persistent): {run.run_dir}"
+                )
+            elif runtype == "qcg":
+                extra = (
+                    f"Backend: CREST --qcg (quantum cluster growth): {user_input.nsolv} explicit "
+                    f"{user_input.solvent_smiles} molecule(s) were grown around the solute; the ensemble "
+                    "entries are micro-solvated clusters (solute + solvent shell), NOT bare-solute "
+                    "conformers. Relative energies are GFN-level cluster energies and are only meaningful "
+                    "within this fixed shell composition. "
+                    f"CREST run directory (persistent): {run.run_dir}"
+                )
+            elif runtype in self._SINGLE_COMPONENT_RUNTYPES:
+                extra = (
+                    f"Backend: CREST --{runtype} (automated {'protomer' if runtype != 'tautomerize' else 'tautomer'} "
+                    "screening). WARNING: the entries are DIFFERENT CHEMICAL SPECIES (protonation-site or "
+                    "tautomer variants), not conformers of one connectivity, and the automated screening may "
+                    "include chemically unreasonable pseudo-structures — review EVERY structure chemically "
+                    "(protonation site, valence, charge) before using it for any follow-up calculation. "
+                    "Relative energies are GFN2-xTB electronic energies of these distinct species. "
+                    f"CREST run directory (persistent): {run.run_dir}"
+                )
             if multi_fragment:
                 extra += (
                     " NOTE: this input has multiple components, so --noreftopo was passed: the initial "
@@ -839,6 +946,30 @@ class ConformerSearch(Tool):
             return ConformerSearch_output_schema(
                 is_success=False,
                 message=f"multiplicity must be >= 1 (2S+1), got {user_input.multiplicity}.",
+            )
+        if user_input.mode != "conformers" and user_input.backend != "crest":
+            return ConformerSearch_output_schema(
+                is_success=False,
+                message=(
+                    f"mode='{user_input.mode}' is a CREST run type and requires backend='crest' "
+                    f"(got backend='{user_input.backend}')."
+                ),
+            )
+        if user_input.mode == "qcg":
+            if not user_input.solvent_smiles:
+                return ConformerSearch_output_schema(
+                    is_success=False,
+                    message="mode='qcg' requires solvent_smiles (one neutral solvent molecule, e.g. 'O').",
+                )
+            if user_input.nsolv < 1:
+                return ConformerSearch_output_schema(
+                    is_success=False,
+                    message=f"mode='qcg' requires nsolv >= 1, got {user_input.nsolv}.",
+                )
+        elif user_input.solvent_smiles or user_input.nsolv:
+            return ConformerSearch_output_schema(
+                is_success=False,
+                message="solvent_smiles/nsolv are only valid with mode='qcg'.",
             )
 
         # 路径语义收口：相对路径解析到 agent 工作目录（沙箱），绝对路径保持既有权限语义。

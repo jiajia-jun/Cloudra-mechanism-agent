@@ -528,3 +528,55 @@ def test_real_crest_noreftopo_lets_the_search_start(tmp_path):
     assert without.termination_reason == "initial_topology_change"
     with_option = run_crest(_request(tmp_path, xyz_text=xyz, charge=-1, timeout=900, noreftopo=True))
     assert with_option.termination_reason != "initial_topology_change", with_option.diagnostics
+
+
+# ---------------------------------------------------------------------------
+# runtype：nci / qcg / protonate / deprotonate / tautomerize（CREST 2.12 实测口径）
+# ---------------------------------------------------------------------------
+
+
+def test_command_nci_appends_wall_potential_flag(tmp_path):
+    cmd = build_crest_command(_request(tmp_path, runtype="nci"))
+    assert "--nci" in cmd
+    assert cmd[0] == "crest" and cmd[1] == "input.xyz"
+    assert "--quick" in cmd and "-gfn2" in cmd
+
+
+def test_command_protonate_family_flags_and_no_quick(tmp_path):
+    for runtype in ("protonate", "deprotonate", "tautomerize"):
+        cmd = build_crest_command(_request(tmp_path, runtype=runtype))
+        assert f"--{runtype}" in cmd
+        assert "--quick" not in cmd  # 筛选脚本不接受 --quick（只用于构象搜索）
+        assert "--chrg" in cmd and "--uhf" in cmd
+
+
+def test_command_qcg_shape_and_validation(tmp_path):
+    solvent = WATER_XYZ
+    cmd = build_crest_command(_request(
+        tmp_path, runtype="qcg", solvent_xyz_text=solvent, nsolv=3, method="gfnff",
+    ))
+    assert cmd[:5] == ["crest", "input.xyz", "--qcg", "solvent.xyz", "--nsolv"]
+    assert cmd[5] == "3"
+    assert "-gfnff" in cmd
+    # qcg 缺溶剂或 nsolv 必须在命令构建处 fail-loud，不留到 CREST 报错
+    with pytest.raises(ValueError, match="solvent_xyz_text"):
+        build_crest_command(_request(tmp_path, runtype="qcg", nsolv=3))
+    with pytest.raises(ValueError, match="nsolv"):
+        build_crest_command(_request(tmp_path, runtype="qcg", solvent_xyz_text=solvent, nsolv=0))
+    # 溶剂/nsolv 只配 qcg，别的 runtype 给了即拒
+    with pytest.raises(ValueError, match="qcg"):
+        build_crest_command(_request(tmp_path, solvent_xyz_text=solvent))
+    with pytest.raises(ValueError, match="qcg"):
+        build_crest_command(_request(tmp_path, runtype="nci", nsolv=2))
+
+
+def test_expected_atom_count_per_runtype(tmp_path):
+    """产物原子数按 runtype 口径：protonate +1 / deprotonate -1 / qcg +nsolv×溶剂。"""
+    assert crest_runner._expected_atom_count(_request(tmp_path)) == 3
+    assert crest_runner._expected_atom_count(_request(tmp_path, runtype="nci")) == 3
+    assert crest_runner._expected_atom_count(_request(tmp_path, runtype="tautomerize")) == 3
+    assert crest_runner._expected_atom_count(_request(tmp_path, runtype="protonate")) == 4
+    assert crest_runner._expected_atom_count(_request(tmp_path, runtype="deprotonate")) == 2
+    assert crest_runner._expected_atom_count(_request(
+        tmp_path, runtype="qcg", solvent_xyz_text=WATER_XYZ, nsolv=4,
+    )) == 3 + 4 * 3

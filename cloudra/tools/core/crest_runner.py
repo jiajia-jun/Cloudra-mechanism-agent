@@ -478,7 +478,9 @@ def run_crest(request: CrestRunRequest) -> CrestRunResult:
             "recorded in topology_change; treat the ensemble accordingly."
         )
     lines = (stdout or "").splitlines()
-    hits, marker, stage = _scan_markers(lines)
+    # Fortran ERROR STOP（如 QCG 缺 xtb-IFF）写 stderr 而非 stdout，两路都要扫。
+    scan_lines = lines + (stderr or "").splitlines()
+    hits, marker, stage = _scan_markers(scan_lines)
     result.evidence = hits
     result.stage = stage
 
@@ -536,11 +538,11 @@ def run_crest(request: CrestRunRequest) -> CrestRunResult:
     if problem is not None:
         result.termination_reason = "incomplete_artifacts"
         result.diagnostics.append(
-            f"{CONFORMERS_NAME} is unusable: {problem} (the file is kept in the run directory)"
+            f"{product_name} is unusable: {problem} (the file is kept in the run directory)"
         )
         result.message = (
-            f"CREST reported normal termination but its conformer output is unusable ({problem}). "
-            f"Full log: {stdout_path}"
+            f"CREST reported normal termination but its {product_name} output is unusable "
+            f"({problem}). Full log: {stdout_path}"
         )
         return result
 
@@ -550,7 +552,8 @@ def run_crest(request: CrestRunRequest) -> CrestRunResult:
     result.conformer_count = len(conformers)
     result.scientific_success = True
     result.message = (
-        f"CREST completed: {len(conformers)} conformers. Run directory: {run_dir}"
+        f"CREST completed (runtype={request.runtype}): {len(conformers)} structures in "
+        f"{product_name}. Run directory: {run_dir}"
     )
     return result
 

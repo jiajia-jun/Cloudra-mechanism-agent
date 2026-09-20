@@ -22,6 +22,7 @@
 - 计算完成通知依赖进程内 IPC 总线，API 进程重启即丢；改纯 DB 轮询投递。
 
 ### 新增
+- `conformer_search` 新增 `mode` 参数（CREST 后端）：`nci`（壁势下非共价复合物/氢键网络采样）、`qcg`（quantum cluster growth 显式溶剂壳生长，配 `solvent_smiles`+`nsolv`，依赖外部 xtb-IFF、缺失落专属终止类别 `qcg_xtbiff_missing` fail-loud）、`protonate`/`deprotonate`/`tautomerize`（质子化态/互变异构枚举，返回文案明示「含伪结构、逐条化学审查后才准用」且限单组分输入）；crest_runner 按 runtype 核对各自的产物文件名与产物原子数（CREST 2.12 实测口径），拓扑对比只对 default/nci 启用。
 - 聊天记录分页回看：转录顶部新增「Load earlier」气泡，点击经 `eventsPage`（`before` 游标 + `tail`）向前翻一页 500 条更早事件，滚动位置保持不跳，可连续点击直到翻完；翻到头显示「beginning of history」结束标记。更早分页独立于实时 SSE 窗口存储，不被 `EVENTS_WINDOW` 裁剪。
 - `cdxml_to_graph` 工具：基于 molli + RDKit 解析 ChemDraw CDXML 反应路线，生成节点为 isomeric SMILES 的候选机理图；多反应物/产物合并为反应物/产物络合物，支持 DAG 检测与 `dag_propose_mechanism` 提案生成，边信息携带溶剂/条件/试剂供计算参考，可选落盘 mol2。
 - runtime_v2 原生提醒唤醒：`reminders.py` 拦截 `schedule` 工具，提醒落 `reminder.scheduled` / `reminder.cancelled` / `reminder.fired`（`schedule_id` 为事件 seq）；到点经 `agent.message` 投递 `[Reminder]` 并自动 reopen 终态 agent。进程启动 `rearm_all()` 从事件投影重建，过期立即触发——修复 v2 下 `schedule` 无人触发、挂起 agent 永睡的停摆。
