@@ -63,7 +63,7 @@ Coordinator-only. Input structure:
 
 ```json
 {
-  "rationale": "Mapping and scientific basis for the proposed reaction pathway.",
+  "rationale": "Considered: concerted Diels-Alder vs stepwise diradical; endo vs exo approach. Observed: mechanism_predict on C=C.C=CC=C → C1=CCCCC1 returned the concerted cycloaddition as the only elementary edge to the cyclohexene complex; no stepwise intermediate appeared in the network. Chose: the single concerted step on the graph; diradical stepwise omitted because it was absent from the tool output; exo/endo are the same bond-change and will be distinguished at TS search, not as separate delivery steps.",
   "species": [
     {"name": "Reactant Complex", "smiles": "C=C.C=CC=C"},
     {"name": "Product Complex", "smiles": "C1=CCCCC1"}
@@ -77,7 +77,7 @@ Coordinator-only. Input structure:
 - Each species represents the complete chemical system/complex state.
 - Names are unique within species and within steps.
 - No `occurrence`, `role`, or stage arrays are required.
-- `rationale` is mandatory.
+- `rationale` is mandatory. In `dag_guided` it is the Coordinator's message to the Supervisor: **Considered** / **Observed** / **Chose** (what was weighed, what the mechanism-inference tool actually showed or why it was not run, which steps are on the graph and why any other channel was left off). A single-path graph is allowed when Chose states that trade-off. The Supervisor rejects an unexplained omission, not a single path. `dag_record` auto-accepts and does not apply this dialogue.
 
 Step stage contracts may include `ts_guess`, but it is an advisory stage: never `required`, and it never blocks binding `ts_opt`/`frequency` evidence (a passing TS gate — ts_opt + frequency — is what counts).
 

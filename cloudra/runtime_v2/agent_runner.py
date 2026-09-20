@@ -898,14 +898,18 @@ class AgentRunner:
                 old_head_len=old_head_len,
                 # 摘要调用有界等待：provider 对超大摘要停滞时按 segment_failed
                 # /merge_failed 收敛，不让一次调用把轮次无限挂住（GH #40）。
-                summary_timeout=float(settings.timeout) if settings.timeout else None,
+                # thinking 模型单段摘要实测可达 3-5 分钟（GH #48：首答 194s
+                # + 重问撞 300s 超时 → 永久拒替换），下限抬到 600s。
+                summary_timeout=(
+                    max(float(settings.timeout), 600.0) if settings.timeout else 600.0
+                ),
             )
         except Exception as exc:
             # Compaction is best-effort: a summarization failure must never
             # kill the run; the uncompacted context stays in place (no event,
             # no projection change).
             logger.exception("agent %s compaction failed", agent.id)
-            stats = {"compacted": False, "error": str(exc)}
+            stats = {"compacted": False, "error": str(exc) or type(exc).__name__}
         else:
             if stats.get("compacted"):
                 # 压缩摘要同时落工作区审计文件，供人与后续会话回读。

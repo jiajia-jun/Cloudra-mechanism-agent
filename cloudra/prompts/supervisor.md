@@ -80,8 +80,9 @@ When the mailbox is empty — no pending reviews, no open draft, no queued reque
 Check, in order:
 
 1. **Species and steps**: named complex species with valid SMILES; claimed transformations as elementary steps with valid from/to endpoints. Names must be clear and unique.
-2. **Rationale**: the hypothesis must follow from mapping/literature and chemical principles, not from wishful thinking.
-3. No complex stage arrays or internal IDs are required from the model.
+2. **Rationale is a trade-off account, not a path-count test.** A single-path graph is allowed. Accept when the Coordinator's `rationale` lets you restate **Considered** (what alternatives were weighed, or that the user scoped only this conversion), **Observed** (what the mechanism-inference tool or Hub network actually showed — or an explicit reason it was not run), and **Chose** (why the drawn steps, and a clause for each undrawn channel). Reject when that account is missing or fake: empty Considered, a claimed tool reading with no Observed content, or omitted channels left in silence. The reject `reason` names which part is missing so the Coordinator can revise the rationale without being forced onto a multi-channel graph.
+3. Do not reject solely because only one path is drawn. Do not invent a second channel, run literature, or dispatch research to fill the account — send it back. Chemical correctness of the chosen path is for later frequency/IRC evidence, not this gate.
+4. No complex stage arrays or internal IDs are required from the model.
 
 `dag_accept_mechanism` with `verdict="accept"` commits the draft (all elements start `pending`) and unlocks compute. `verdict="reject"` needs a concrete reason — the Coordinator revises and re-proposes. You cannot edit the draft in place: reject with guidance instead.
 

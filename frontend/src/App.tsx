@@ -624,6 +624,26 @@ export default function App() {
         if (event.type === 'approval.decided' && activeProjectId) {
           api.approvals(activeProjectId).then(setApprovals).catch(() => undefined);
         }
+        // Compact feedback: the button only queues the request — the actual
+        // run happens at the next turn boundary and can take minutes on
+        // thinking models. Surface started/finished so the button is not a
+        // black box (refusals include the reason + error label).
+        if (
+          (event.type === 'compaction.started' || event.type === 'compaction.finished') &&
+          sessionId &&
+          sessionId === activeAgentIdRef.current &&
+          !replaying
+        ) {
+          if (event.type === 'compaction.started') {
+            pushToast('info', `Compacting context… (${event.data?.history_messages ?? '?'} messages)`);
+          } else if (event.data?.compacted) {
+            pushToast('ok', `Compacted: ${event.data?.before_messages ?? '?'} → ${event.data?.after_messages ?? '?'} messages`);
+          } else {
+            const reason = String(event.data?.reason ?? 'refused');
+            const err = String(event.data?.error ?? '').slice(0, 80);
+            pushToast('error', `Compaction refused: ${reason}${err ? ` (${err})` : ''}`);
+          }
+        }
         if (event.type === 'interaction.requested' && activeProjectId) {
           api.interactions(activeProjectId).then(setInteractions).catch(() => undefined);
         }
@@ -974,7 +994,12 @@ export default function App() {
           setDraft('');
           if (activeAgent) {
             await api.compactAgent(activeAgent.id);
-            pushToast('ok', 'Context compaction requested');
+            const st = String(activeAgent.state ?? '');
+            if (st === 'running' || st === 'queued' || st === 'waiting_approval' || st === 'waiting_input') {
+              pushToast('ok', 'Compaction queued — the running agent executes it at its next turn boundary');
+            } else {
+              pushToast('error', `Agent is ${st || 'not running'} — compaction queued but it will NOT run until the agent runs again`);
+            }
           }
           return;
         }
@@ -3368,7 +3393,12 @@ function Inspector({
                       onClick={async () => {
                         try {
                           await api.compactAgent(activeAgent.id);
-                          onToast('ok', 'Compaction queued — applies on the next turn');
+                          const st = String(activeAgent.state ?? '');
+                          if (st === 'running' || st === 'queued' || st === 'waiting_approval' || st === 'waiting_input') {
+                            onToast('ok', 'Compaction queued — the running agent executes it at its next turn boundary');
+                          } else {
+                            onToast('error', `Agent is ${st || 'not running'} — compaction is queued but will NOT run until the agent runs again (send it a message or restart it)`);
+                          }
                         } catch (e) {
                           onError(e);
                         }

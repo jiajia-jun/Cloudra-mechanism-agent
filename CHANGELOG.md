@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 变更
+- `dag_guided` 机理草稿对话：Coordinator 的 `rationale` 必须写清 Considered / Observed / Chose（综合过哪些情况、机理推断工具里实际看到什么、图上留下什么及未画通道的取舍）；Supervisor 允许单路径，只在取舍没讲清时退回，不因单路径 reject，也不替 Coordinator 补第二条通道。
 - `dft-calculation` skill 重写（基于五路软件最佳实践调研）：TS 初猜三级梯队（ts_prepare → 映射插值/NEB → 一维/二维松弛扫描，扫描从兜底升为正当主力）、**QST2/QST3 硬禁止（上限 NEB）**、「投初猜优于调参」纪律、软模/松散离子-分子复合物不收敛预警与处置阶梯、构象采样强制（单构象能垒=交付阻断）、真空裸离子禁令与溶剂/反离子/标准态规则、伪鞍点识别（虚模位移必须落在反应重原子）、不合理建模黑名单与「该不该算」前置自审；新增 references `ts-search-playbook.md` 与 `modeling-sanity.md`；本地工具优先于 bash 的工作规则全面收紧。
 - `flower.enabled` 默认开：mechanism_predict（FlowER 机理假设生成）对模型默认可见，未装环境时调用层 fail-loud 引导 `scripts/setup_flower.sh`；显式置 false 才回退 wire 隐藏 + 执行层硬失败。
 - 工具面收敛：`role_allowlist` 工具级角色门槛（registry 声明使用者，wire 投影隐藏 + PermissionStage 硬拦两道防线；化学/QM 工具限 coordinator/small_mol/md/dft/experiment，ir/nmr_processor 为 experiment 专属）；裁撤冗余工具 `web_fetch`（能力由 `browser` 静态回退覆盖）与 `todo_read`（todo 提醒改为内联清单，`todo_write` 每次调用回显全量）；email 工具与收件监听器加总开关 `email.enabled`（默认关，config_gate 隐藏 + 执行层硬失败 + 监听器不启动）。
@@ -16,6 +17,7 @@
 - 运行时环境定位 POSIX-only（flock/nice 依赖 fcntl 与 POSIX 语义），README 声明并撤下 Windows 安装指引。
 
 ### 修复
+- 上下文压缩（GH #48，从 windows 分支回流）：thinking 模型摘要带 ` ```json ` 围栏或围栏后散文、`objective` 写成单元素数组/裸字符串、列表项写成裸字符串时，做无损形状提升后再校验（空 objective / 缺 text 仍 fail-loud）；拒替换 `error=''` 落到异常类型名；摘要超时下限 600s。前端 `/compact` 与 Compact 按钮按 agent 状态提示，并 toast `compaction.started`/`finished`（含拒因）。
 - config 并发写丢键：旧 `save()` 用内存快照整文件重写 YAML，运行中服务会抹掉并发写入（如 `knowledge install` 的 plugins）；且 plugins 条目无法经 save 移除。改 `mutate_config` 后结构性消灭。
 - 重启后 pending 投影孤儿（审批/提问）无声消失，agent 唤醒看不到终态；现显式落过期事件。
 - 快照恢复在多项目交错写入下按全局 seq 高水位过滤会丢事件；改每项目 `last_seqs` + ORDER BY rowid 增量重放。
