@@ -72,6 +72,57 @@ async def test_persistence_failure_propagates_before_publication():
     with pytest.raises(RuntimeError, match="disk full"):
         await core.event_writer.commit(_request_draft())
     assert seen == []
+    assert [e.type for e in core.event_log] == []
+
+
+class _FailOnTypeStore:
+    def __init__(self, fail_type: str) -> None:
+        self.types: list[str] = []
+        self.fail_type = fail_type
+
+    def append_event(self, envelope) -> None:
+        if envelope.type == self.fail_type:
+            raise RuntimeError("disk full")
+        self.types.append(envelope.type)
+
+
+@pytest.mark.asyncio
+async def test_command_persist_failure_does_not_leave_unapplied_events():
+    """flush 失败不得把事件留在内存日志里：否则下次 flush 会落库却从未 apply。"""
+    from cloudra.runtime_v2.event_writer import EventPersistenceError
+
+    core = RuntimeCore()
+    core.store = FailingStore()
+    bus = CommandBus(core)
+    with pytest.raises(EventPersistenceError):
+        await bus.execute(Command(type="project.create", payload={"name": "ghost"}))
+    assert list(core.projects.values()) == []
+    assert [e.type for e in core.event_log] == []
+
+
+@pytest.mark.asyncio
+async def test_command_applies_persisted_prefix_and_drops_failed_tail():
+    from cloudra.runtime_v2.event_writer import EventPersistenceError
+
+    core = RuntimeCore()
+    store = _FailOnTypeStore("agent.spawned")
+    core.store = store
+    bus = CommandBus(core)
+    await bus.execute(Command(type="project.create", payload={"name": "p"}))
+    project = next(iter(core.projects.values()))
+    before = [e.type for e in core.event_log]
+    with pytest.raises(EventPersistenceError):
+        await bus.execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": project.id},
+                payload={"role_id": "coordinator"},
+            )
+        )
+    assert list(core.agents.values()) == []
+    assert "agent.spawned" not in [e.type for e in core.event_log]
+    assert "agent.spawned" not in store.types
+    assert [e.type for e in core.event_log][: len(before)] == before
 
 
 @pytest.mark.asyncio

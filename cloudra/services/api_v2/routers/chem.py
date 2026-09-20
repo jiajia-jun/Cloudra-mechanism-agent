@@ -178,7 +178,7 @@ def _render_smiles_to_svg(smiles: str, width: int, height: int, theme: str, vers
 def build_router(ctx: ApiContext) -> APIRouter:
     router = APIRouter()
 
-    @router.get("/api/v2/chem/render-smiles")
+    @router.get("/api/v2/chem/render-smiles", dependencies=ctx.protected)
     async def render_smiles(
         smiles: str,
         width: int = 200,

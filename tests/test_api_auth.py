@@ -129,6 +129,16 @@ def test_off_disables_auth(monkeypatch):
         _reset_for_tests()
 
 
+def test_off_refuses_non_loopback_bind(monkeypatch):
+    monkeypatch.setenv("CLOUDRA_API_TOKEN", "off")
+    monkeypatch.setenv("CLOUDRA_API_BIND_HOST", "0.0.0.0")
+    try:
+        with pytest.raises(RuntimeError, match="loopback"):
+            create_v2_app()
+    finally:
+        _reset_for_tests()
+
+
 # ---------------------------------------------------------------- token 文件模式
 
 
@@ -158,3 +168,12 @@ def test_empty_token_file_treated_as_missing(_file_token):
     token = resolve_api_token()
     assert token
     assert token_file.read_text(encoding="utf-8").strip() == token
+
+
+def test_render_smiles_requires_token(_env_token):
+    client = TestClient(create_v2_app())
+    path = "/api/v2/chem/render-smiles?smiles=C"
+    assert client.get(path).status_code == 401
+    resp = client.get(path, headers={"Authorization": "Bearer test-secret-token"})
+    assert resp.status_code == 200
+    assert "svg" in resp.headers.get("content-type", "")

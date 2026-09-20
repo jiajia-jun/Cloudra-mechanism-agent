@@ -13,12 +13,15 @@ import type {
   ProviderPreset,
   RuntimeConfig,
 } from './types';
+import { trustedRuntimeBase } from './runtimeUrl';
 
-// Resolution order: ?runtime= query param -> Vite env -> same origin
-// (production serves the SPA and API on one port).
-const runtimeUrl: string =
-  new URLSearchParams(window.location.search).get('runtime') ??
-  (import.meta.env.VITE_RUNTIME_URL ?? '');
+// Resolution order: trusted ?runtime= (loopback / same-origin only) ->
+// Vite env -> same origin (production serves the SPA and API on one port).
+const runtimeUrl: string = trustedRuntimeBase(
+  new URLSearchParams(window.location.search).get('runtime'),
+  window.location.origin,
+  import.meta.env.VITE_RUNTIME_URL ?? '',
+);
 
 // ---- bearer token ----
 // The launcher hands the token over via the URL fragment (#token=...): a
@@ -477,24 +480,31 @@ export interface BenchmarkHistory {
 // only fires for unnamed events — listeners must be registered per type.
 const KNOWN_EVENT_TYPES = [
   'project.created', 'project.updated', 'project.settings_changed',
+  'project.deleted',
   'role.updated',
   'agent.spawn_requested', 'agent.spawned', 'agent.spawn_rejected',
   'agent.settings_changed', 'agent.message_injected', 'agent.message_emitted',
   'agent.cancel_requested', 'agent.cancelled',
   'agent.restart_requested', 'agent.restarted', 'agent.context_reset',
-  'approval.requested', 'approval.decided',
-  'interaction.requested', 'interaction.responded', 'command.rejected',
+  'approval.requested', 'approval.decided', 'approval.expired',
+  'interaction.requested', 'interaction.responded', 'interaction.expired',
+  'command.rejected',
   'agent.state_changed', 'run.started', 'run.retry', 'run.finished',
+  'agent.completion_gate',
   'llm.request_started', 'llm.chunk', 'llm.completed', 'llm.failed',
   'agent.thinking',
-  'tool.started', 'tool.blocked', 'tool.finished', 'tool.approval_requested',
+  'tool.requested', 'tool.started', 'tool.result_recorded', 'tool.blocked',
+  'tool.finished', 'tool.approval_requested',
+  'program.submitted', 'program.started', 'program.output', 'program.finished',
   'dag.gate_blocked',
-  'hub.posted',
+  'hub.posted', 'hub.notification_consumed',
   'compaction.requested', 'compaction.started', 'compaction.finished',
   'reminder.scheduled', 'reminder.cancelled', 'reminder.fired',
   'email.received',
   'loop.detected',
   'agent.warning', 'project.synced',
+  'context.pin_set', 'context.pin_cleared', 'context.injected',
+  'context.prefix_installed', 'context.appended', 'context.compacted',
 ];
 
 export interface StreamHandlers {

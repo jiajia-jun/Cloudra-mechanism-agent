@@ -199,6 +199,8 @@ async def test_openrouter_pkce_and_callback_endpoints(monkeypatch):
         assert "text/html" in cb_resp.headers["content-type"]
         assert "mock_code_abc" in cb_resp.text
         assert "postMessage" in cb_resp.text
+        assert "window.location.origin" in cb_resp.text
+        assert ", '*')" not in cb_resp.text
 
         # Mock exchange_openrouter_code for code-exchange
         monkeypatch.setattr(

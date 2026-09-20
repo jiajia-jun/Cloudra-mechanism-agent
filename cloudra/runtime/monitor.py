@@ -386,19 +386,26 @@ async def _finalize(
     json_nm = f'state_{taskid}.json'
     json_path = os.path.join(workdir, json_nm)
     try:
-        atomic_write_json(json_path, data_dic, indent=4)
-    except Exception as e:
-        print(f'写入 json 失败：{e}')
-        await _mark_failed(db, taskid, f"写入 state json 失败：{e}")
-        return
-
-    try:
-        # CAS：同步路径 run_now 或其他收尾方已写终态时不覆盖
-        await afinalize_compute_job(db, taskid, state, last_error=fail_reason or None)
-        print(f'[guard] 数据库状态已更新: task_id={taskid}, state={state}')
+        # CAS：同步路径 run_now 或其他收尾方已写终态时不覆盖。
+        # 先落账本再写磁盘：cancel-all 赢了 CAS 则不把成功产物/审查当完成。
+        wrote = await afinalize_compute_job(
+            db, taskid, state, last_error=fail_reason or None
+        )
     except Exception as e:
         print(f'[guard] 更新数据库失败：{e}')
         return
+    if not wrote:
+        print(
+            f'[guard] ledger already terminal; skip artifact/review '
+            f'task_id={taskid} parsed_state={state}'
+        )
+        return
+    try:
+        atomic_write_json(json_path, data_dic, indent=4)
+    except Exception as e:
+        print(f'写入 json 失败（账本已终态）：{e}')
+
+    print(f'[guard] 数据库状态已更新: task_id={taskid}, state={state}')
 
     # D5/D11：dag 模式下计算作业终态入 CallReview 收件箱（带作业终态，
     # 不是 submit 调用的成败）；standard 模式内部跳过。
@@ -588,9 +595,12 @@ async def _mark_failed(
     """将任务标记为 failed，错误信息同时落 last_error（query_compute_job 直接可读）。"""
     print(f'Error: {message}')
     try:
-        await afinalize_compute_job(db, taskid, 'failed', last_error=message[:500])
+        wrote = await afinalize_compute_job(db, taskid, 'failed', last_error=message[:500])
     except Exception as e:
         print(f'[guard] 标记 failed 失败：{e}')
+        return
+    if not wrote:
+        print(f'[guard] ledger already terminal; skip failed review task_id={taskid}')
         return
     # D5/D11：失败终态同样入 CallReview 收件箱（rev_compute_<id> 去重）
     try:

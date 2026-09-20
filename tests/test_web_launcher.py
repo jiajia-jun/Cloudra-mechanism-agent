@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 import cloudra.web_launcher as web_launcher
 
 
@@ -78,6 +80,19 @@ def _patch_launch(monkeypatch, captured):
     monkeypatch.setenv("CLOUDRA_NO_BROWSER", "1")
 
 
+def test_launch_refuses_auth_off_on_non_loopback(tmp_path, monkeypatch):
+    frontend = tmp_path / "frontend"
+    frontend.mkdir()
+    captured: dict = {}
+    _patch_launch(monkeypatch, captured)
+    monkeypatch.setenv("CLOUDRA_API_TOKEN", "off")
+    with pytest.raises(RuntimeError, match="loopback"):
+        web_launcher.launch_browser(
+            frontend, rebuild=False, skip_build=True, host="0.0.0.0", port=18999
+        )
+    assert "cmd" not in captured
+
+
 def test_launch_browser_passes_bind_host_to_child(tmp_path, monkeypatch):
     """自定义地址要同时落到两处：uvicorn 的 --host，以及子进程 env 里的
     CLOUDRA_API_BIND_HOST（app 的 Host 校验白名单据此放开）。"""
@@ -85,6 +100,7 @@ def test_launch_browser_passes_bind_host_to_child(tmp_path, monkeypatch):
     frontend.mkdir()
     captured: dict = {}
     _patch_launch(monkeypatch, captured)
+    monkeypatch.setenv("CLOUDRA_API_TOKEN", "test-secret-token")
 
     rc = web_launcher.launch_browser(
         frontend, rebuild=False, skip_build=True, host="0.0.0.0", port=18999
@@ -120,6 +136,7 @@ def test_wildcard_bind_prints_reachable_url(tmp_path, monkeypatch, capsys):
     captured: dict = {}
     _patch_launch(monkeypatch, captured)
     monkeypatch.setattr(web_launcher, "_primary_address", lambda: "192.168.1.50")
+    monkeypatch.setenv("CLOUDRA_API_TOKEN", "test-secret-token")
 
     web_launcher.launch_browser(frontend, rebuild=False, skip_build=True, host="0.0.0.0", port=18999)
 

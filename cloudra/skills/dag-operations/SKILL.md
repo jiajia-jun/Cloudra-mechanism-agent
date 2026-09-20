@@ -79,7 +79,7 @@ Coordinator-only. Input structure:
 - No `occurrence`, `role`, or stage arrays are required.
 - `rationale` is mandatory. In `dag_guided` it is the Coordinator's message to the Supervisor: **Considered** / **Observed** / **Chose** (what was weighed, what the mechanism-inference tool actually showed or why it was not run, which steps are on the graph and why any other channel was left off). A single-path graph is allowed when Chose states that trade-off. The Supervisor rejects an unexplained omission, not a single path. `dag_record` auto-accepts and does not apply this dialogue.
 
-Step stage contracts may include `ts_guess`, but it is an advisory stage: never `required`, and it never blocks binding `ts_opt`/`frequency` evidence (a passing TS gate — ts_opt + frequency — is what counts).
+Step stage contracts may include `ts_guess`, but it is an advisory stage: never `required`, and it never blocks binding `ts_opt`/`frequency` evidence (a passing TS gate — ts_opt + frequency — is what counts). Default drafts do **not** include IRC/endpoints/direction; add those stages only when that step needs a path proof. Live `complete` does not require IRC.
 
 ## Adjusting an accepted mechanism
 

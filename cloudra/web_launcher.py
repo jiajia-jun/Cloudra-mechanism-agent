@@ -303,6 +303,9 @@ def launch_browser(
 ) -> int:
     _ensure_fd_limit()
     bind_host = (host or "").strip() or _DEFAULT_BIND_HOST
+    from cloudra.services.api_token import require_token_for_bind
+
+    require_token_for_bind(bind_host)
     probe_host = _probe_host(bind_host)
     if port is not None:
         api_port, reused_runtime = _pinned_runtime(bind_host, port)

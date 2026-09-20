@@ -110,7 +110,7 @@ Agents never hand-write Cartesian coordinates or transcribe floating-point energ
 #### 2. Delivery-Only Evidence DAG Harness
 Mechanistic completion is determined strictly by the state of an immutable, context-independent **Delivery DAG**:
 - **Graph Elements as Evidence Debt**: Nodes represent the appearance of intermediate species along a reaction coordinate (acyclic structure is preserved by assigning entry and return states of catalysts to distinct nodes sharing canonical species metadata). Edges represent elementary reaction steps. Each element carries a stage contract.
-- **Ordered Stage Locks**: An elementary step must satisfy its stage contract in strict sequential order: `ts_guess` → `ts_opt` → `frequency` (with exactly one imaginary frequency) → `short_irc` → `endpoints` → `direction` → `thermochemistry`. Later stages cannot be bound until preceding requirements are verified.
+- **Ordered Stage Locks**: Each element only owes the stages declared on its contract; later stages cannot be bound until preceding *required* stages on that same element are verified. Default mechanism drafts require a first-order saddle (`ts_opt` + `frequency` with exactly one imaginary frequency); `ts_guess` is advisory. IRC, endpoint minima, direction, identity, and thermochemistry are optional extras when that step's chemistry needs a path proof — they are not the live completion bar.
 - **Deterministic Coverage Audit**: Graph elements accept only typed references to immutable calculation artifacts and job records. Study delivery is evaluated by deterministic algorithms; any unfulfilled or rejected stage remains an open gap blocking completion.
 
 #### 3. End-to-End Experimental Demonstration

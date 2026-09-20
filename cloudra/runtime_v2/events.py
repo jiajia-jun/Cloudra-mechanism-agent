@@ -166,6 +166,32 @@ class EventLog:
                     self._session_seqs[envelope.session_id], envelope.session_seq
                 )
 
+    def discard_tail(self, keep: int) -> None:
+        """Drop unpersisted events and rewind seq watermarks to the kept prefix.
+
+        ``keep`` is the number of envelopes to retain (the EventWriter persist
+        cursor).  Callers must not discard events that have already been
+        applied; CommandBus only uses this on persist-before-apply failure.
+        """
+        if keep < 0:
+            raise ValueError("keep must be >= 0")
+        if keep >= len(self._events):
+            return
+        dropped = self._events[keep:]
+        self._events = self._events[:keep]
+        for envelope in dropped:
+            self._by_id.pop(envelope.event_id, None)
+        self._project_seqs.clear()
+        self._session_seqs.clear()
+        for envelope in self._events:
+            self._project_seqs[envelope.project_id] = max(
+                self._project_seqs[envelope.project_id], envelope.seq
+            )
+            if envelope.session_id is not None and envelope.session_seq is not None:
+                self._session_seqs[envelope.session_id] = max(
+                    self._session_seqs[envelope.session_id], envelope.session_seq
+                )
+
     def query_project(
         self,
         project_id: str,

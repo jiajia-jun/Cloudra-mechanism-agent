@@ -35,3 +35,22 @@ def resolve_api_token() -> str | None:
     atomic_write_text(str(token_file), token + "\n")
     os.chmod(token_file, 0o600)
     return token
+
+
+_LOOPBACK_BIND_HOSTS = {"127.0.0.1", "localhost", "::1", "[::1]", ""}
+
+
+def require_token_for_bind(bind_host: str | None = None) -> str | None:
+    """Refuse ``CLOUDRA_API_TOKEN=off`` on a non-loopback bind.
+
+    Loopback (and unset bind, which defaults to loopback) may disable auth
+    for tests/CI.  A LAN or wildcard bind with auth off is an open API.
+    """
+    token = resolve_api_token()
+    host = (bind_host or "").strip()
+    if token is None and host not in _LOOPBACK_BIND_HOSTS:
+        raise RuntimeError(
+            "CLOUDRA_API_TOKEN=off is only allowed on loopback binds; "
+            f"refusing to serve on {host}"
+        )
+    return token

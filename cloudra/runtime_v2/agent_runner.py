@@ -539,8 +539,12 @@ class AgentRunner:
             # so SSE clients and the store see the complete run lifecycle.
             try:
                 await self._publish_new_events(cursor)
-            except Exception:
+            except Exception as exc:
                 logger.exception("agent %s final event flush failed", agent.id)
+                from cloudra.runtime_v2.event_writer import EventPersistenceError
+
+                if isinstance(exc, EventPersistenceError):
+                    raise
 
     def _deliver_child_completion(self, agent: AgentSession) -> None:
         from cloudra.runtime_v2.subagent_bridge import deliver_child_completion_to_parent

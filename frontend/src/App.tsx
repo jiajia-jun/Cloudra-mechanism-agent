@@ -20,6 +20,7 @@ import {
   type TimelineItem,
   type ToolItem,
 } from './timeline';
+import { mergeAndTrimLiveEvents } from './eventWindow';
 import { ToolRow } from './ToolRow';
 import { ProgramCard } from './ProgramCard';
 import { PathPickerModal } from './PathPickerModal';
@@ -418,18 +419,19 @@ export default function App() {
     const batch = eventBufferRef.current;
     eventBufferRef.current = [];
     if (batch.length === 0) return;
+    let spilled: EventEnvelope[] = [];
     setEvents((prev) => {
-      const seen = new Set(prev.map((e) => e.event_id));
-      let next = prev;
-      let changed = false;
-      for (const event of batch) {
-        if (seen.has(event.event_id)) continue;
-        seen.add(event.event_id);
-        next = [...next, event];
-        changed = true;
-      }
-      return changed ? next.slice(-EVENTS_WINDOW) : prev;
+      const result = mergeAndTrimLiveEvents(prev, batch, EVENTS_WINDOW);
+      spilled = result.spilled;
+      return result.live;
     });
+    if (spilled.length > 0) {
+      setOlderEvents((prev) => {
+        const seen = new Set(prev.map((e) => e.event_id));
+        const extra = spilled.filter((e) => !seen.has(e.event_id));
+        return extra.length > 0 ? [...prev, ...extra] : prev;
+      });
+    }
   }, []);
   const bufferEvent = useCallback(
     (event: EventEnvelope) => {

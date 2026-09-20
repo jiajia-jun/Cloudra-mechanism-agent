@@ -99,8 +99,24 @@ class EventWriter:
             run_id=draft.run_id,
             data=draft.data,
         )
-        await self.flush()
+        try:
+            await self.flush()
+        except EventPersistenceError:
+            self.discard_unpersisted()
+            raise
         return envelope
+
+    def discard_unpersisted(self) -> None:
+        """Drop log events that never made it to the store.
+
+        Persist-before-apply paths call this on ``EventPersistenceError`` so a
+        later flush cannot durably write events that were never applied.  Wrapper
+        paths that apply *then* flush must not call this — those events stay in
+        the log and retry on the next flush.
+        """
+        self._log.discard_tail(self._persisted)
+        if self._published > self._persisted:
+            self._published = self._persisted
 
     def mark_restored(self) -> None:
         """Treat the current log as already persisted/published (post-backfill).

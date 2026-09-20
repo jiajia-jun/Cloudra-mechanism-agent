@@ -5,11 +5,11 @@
 1. **decide**：``DECIDERS[type](core, command) -> Decision``，纯函数——全部
    守卫校验在这里（非法抛 ``CommandRejected``，拒绝前要留审计轨迹的草稿
    挂在异常的 ``events`` 上），零 IO、零 mutate、零 await 副作用。
-2. **append + publish + persist**：逐草稿 ``event_log.append``，每条随即
-   ``event_hub.publish`` 并 ``to_thread(store.append_event)``（store 存在
-   时）。事件顺序即因果序（如 agent.spawned 先于 agent.message_injected）。
-3. **apply**：逐事件 ``apply_event``（唯一状态应用器）。
-4. **effects**：shell 统一执行副作用（EnsureDir 走 to_thread；runner
+2. **逐事件 persist-then-apply**：每条草稿 ``append`` → ``flush``（store
+   存在时落库再发布）→ ``apply_event``。中途 ``EventPersistenceError`` 丢弃
+   未落库尾巴再抛出，避免下次 flush 把从未 apply 的事件写进磁盘。包装路径
+   已 apply 再扫尾 flush，失败不丢尾巴、留给下次重试。
+3. **effects**：shell 统一执行副作用（EnsureDir 走 to_thread；runner
    schedule/cancel；mailbox enqueue；api_key 内存覆盖补挂）。
 
 已是事件投影的 broker 不强行进 decide：``approval.decide`` /
@@ -57,6 +57,7 @@ from cloudra.runtime_v2.effects import (
     ResultRef,
     ScheduleAgent,
 )
+from cloudra.runtime_v2.event_writer import EventPersistenceError
 from cloudra.runtime_v2.mailbox import Mailbox
 from cloudra.runtime_v2.schemas import (
     AgentSession,
@@ -854,13 +855,22 @@ class CommandBus:
         """
         await self.core.event_writer.flush()
 
+    async def _persist_appended(self) -> None:
+        """Persist the just-appended tail; drop it if the store write fails."""
+        try:
+            await self._flush()
+        except EventPersistenceError:
+            self.core.event_writer.discard_unpersisted()
+            raise
+
     async def _apply_decision(self, command: Command, decision: Decision) -> CommandResult:
         core = self.core
-        envelopes = [self._append_draft(draft) for draft in decision.events]
-        await self._flush()
-        # 拍 3：状态投影（唯一应用器；纯通知事件 no-op）
-        for envelope in envelopes:
+        envelopes: list[EventEnvelope] = []
+        for draft in decision.events:
+            envelope = self._append_draft(draft)
+            await self._persist_appended()
             apply_event(core, envelope)
+            envelopes.append(envelope)
         # 拍 4：副作用（runner/mailbox/文件系统/内存秘密覆盖）
         for effect in decision.effects:
             await _execute_effect(core, effect)
@@ -889,7 +899,10 @@ class CommandBus:
         内存日志、从不发布/持久化，重启即丢。）
         """
         core = self.core
-        appended = [self._append_draft(draft) for draft in exc.events]
+        appended: list[EventEnvelope] = []
+        for draft in exc.events:
+            appended.append(self._append_draft(draft))
+            await self._persist_appended()
         appended.append(
             core.record(
                 "command.rejected",
@@ -902,7 +915,7 @@ class CommandBus:
                 },
             )
         )
-        await self._flush()
+        await self._persist_appended()
         return CommandResult(
             command_id=command.command_id,
             accepted=False,

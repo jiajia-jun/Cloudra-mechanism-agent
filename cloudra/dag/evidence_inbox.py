@@ -28,6 +28,7 @@ from cloudra.dag.engine import (
     _Rejected,
     apply_stage_verdict,
 )
+from cloudra.dag.evidence_ingest import validate_species_minimum
 from cloudra.dag.models import (
     AttachRef,
     CallReview,
@@ -395,6 +396,30 @@ class EvidenceInboxMixin:
         )
         return bool((changes or {}).get("saddle_supported"))
 
+    @staticmethod
+    def _frequency_fields(payload: dict[str, Any]) -> tuple[Any, Any]:
+        result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+        freqs = result.get("frequencies_cm") or result.get("frequencies")
+        imag = result.get("imaginary_frequencies")
+        if freqs is None:
+            freqs = payload.get("frequencies")
+        if imag is None:
+            imag = payload.get("imaginary_frequencies")
+        return freqs, imag
+
+    def _passes_minimum_check(self, ref: GraphRef | None) -> bool:
+        """物种 geometry 绑定：必须是有频率数据支撑的驻点极小值（0 虚频）。"""
+        if ref is None:
+            return False
+        try:
+            _name, payload = self.store.resolve_evidence_with_source(ref)
+        except InvalidGraphReference:
+            return False
+        if not isinstance(payload, dict):
+            return False
+        freqs, imag = self._frequency_fields(payload)
+        return validate_species_minimum(freqs, imaginary_freqs=imag).is_valid
+
     async def apply_stage_bind(
         self,
         *,
@@ -414,8 +439,9 @@ class EvidenceInboxMixin:
         缺失依赖由 requirements 层汇总。其他守卫包括理由
         （disagree/skip/not_applicable 必填）、工具成败；TS frequency
         另有 n_imag==1 检查（D7，不过 ⇒ saddle_check_failed，阶段保持
-        pending）。守卫拒绝不落地；通过后 attach ref + 更新 stages，并由
-        阶段重派生 evidence_level（D7）。
+        pending）；物种 geometry 另有 n_imag==0 检查（不过 ⇒
+        minimum_check_failed）。守卫拒绝不落地；通过后 attach ref + 更新
+        stages，并由阶段重派生 evidence_level（D7）。
         """
         if not self.enabled:
             raise RuntimeError(
@@ -479,6 +505,17 @@ class EvidenceInboxMixin:
                     "saddle_check_failed",
                     "TS frequency evidence must show exactly one imaginary "
                     "frequency (n_imag == 1); the stage stays pending",
+                )
+            if (
+                verdict == "agree"
+                and target_type == "node"
+                and kind is StageKind.GEOMETRY
+                and not self._passes_minimum_check(ref)
+            ):
+                raise _Rejected(
+                    "minimum_check_failed",
+                    "species geometry evidence must be a verified minimum "
+                    "(n_imag == 0); the stage stays pending",
                 )
             return target_type, element, new_stages
 
@@ -732,6 +769,16 @@ class EvidenceInboxMixin:
                         "saddle_check_failed",
                         "TS frequency evidence must show exactly one imaginary "
                         "frequency (n_imag == 1); the stage stays pending",
+                    )
+                if (
+                    target_type == "node"
+                    and kind is StageKind.GEOMETRY
+                    and not self._passes_minimum_check(ref)
+                ):
+                    raise _Rejected(
+                        "minimum_check_failed",
+                        "species geometry evidence must be a verified minimum "
+                        "(n_imag == 0); the stage stays pending",
                     )
                 updated_stages = apply_stage_verdict(
                     current_stages,

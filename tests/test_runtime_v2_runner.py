@@ -349,6 +349,36 @@ async def test_wake_during_final_event_flush_reschedules_after_task_done():
 
 
 @pytest.mark.asyncio
+async def test_final_flush_persistence_error_is_not_swallowed():
+    from cloudra.runtime_v2.event_writer import EventPersistenceError
+
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    class GatedLLM:
+        async def complete(self, agent, messages, tools, **_kwargs):
+            started.set()
+            await release.wait()
+            return LLMResponse(content="done", stop_requested=True)
+
+    core, _, agent = await _setup(GatedLLM())
+    runner = core.runner
+    await started.wait()
+    original = runner._publish_new_events
+
+    async def boom(cursor):
+        if agent.state.value == "succeeded":
+            raise EventPersistenceError("disk full")
+        await original(cursor)
+
+    runner._publish_new_events = boom
+    task = runner._tasks[agent.id]
+    release.set()
+    with pytest.raises(EventPersistenceError, match="disk full"):
+        await asyncio.wait_for(asyncio.shield(task), timeout=5.0)
+
+
+@pytest.mark.asyncio
 async def test_cancel_terminates_hanging_agent_and_closes_run():
     core, _, agent = await _setup(HangingLLM())
     await _wait_state(agent, "running")

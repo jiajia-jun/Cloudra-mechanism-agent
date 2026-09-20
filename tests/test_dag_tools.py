@@ -1164,6 +1164,93 @@ async def test_bind_evidence_rejected_in_standard_mode(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_geometry_bind_requires_verified_minimum(tmp_path):
+    from cloudra.dag.controller import DagController
+    from cloudra.dag.engine import DagEngine
+    from cloudra.dag.models import (
+        AddNode,
+        GraphActor,
+        MutationBatch,
+        OccurrenceNode,
+        StageState,
+    )
+    from cloudra.dag.store import DagStore
+
+    get_config().data_dir = tmp_path
+    conversation_id = "geom-min-check"
+    db = ConversationDB(conversation_id).init()
+    store = DagStore(db)
+    store.ensure_bundle("s1")
+    seeded = DagEngine(store).apply_batch(
+        MutationBatch(
+            session_id="s1",
+            actor=GraphActor.AGENT,
+            actor_id="a-0",
+            base_revisions=store.load_bundle().revisions,
+            rationale="declare geometry contract",
+            operations=[
+                AddNode(
+                    op="add_node",
+                    graph="delivery",
+                    node=OccurrenceNode(
+                        node_id="int1",
+                        label="Int1",
+                        role="intermediate",
+                        stages=[StageState(kind="geometry")],
+                    ),
+                ),
+            ],
+        )
+    )
+    assert seeded.accepted
+    controller = DagController(db, "s1", "dag_record", conversation_id=conversation_id)
+    await controller.initialize()
+
+    ts_ref = store.register_evidence(
+        "s1",
+        "log_parser",
+        {
+            "tool_call_id": "tc-ts",
+            "result": {
+                "is_success": True,
+                "normal_termination": True,
+                "imaginary_frequencies": [-400.0],
+            },
+        },
+    )
+    rejected = await controller.apply_stage_bind(
+        element_id="int1",
+        stage_kind="geometry",
+        ref=ts_ref,
+        verdict="agree",
+        tool_succeeded=True,
+    )
+    assert not rejected.accepted
+    assert rejected.rejection_code == "minimum_check_failed"
+
+    min_ref = store.register_evidence(
+        "s1",
+        "log_parser",
+        {
+            "tool_call_id": "tc-min",
+            "result": {
+                "is_success": True,
+                "normal_termination": True,
+                "imaginary_frequencies": [],
+            },
+        },
+    )
+    accepted = await controller.apply_stage_bind(
+        element_id="int1",
+        stage_kind="geometry",
+        ref=min_ref,
+        verdict="agree",
+        tool_succeeded=True,
+    )
+    assert accepted.accepted is True
+
+
+@pytest.mark.asyncio
 async def test_bind_evidence_submits_for_review_in_guided_mode(tmp_path):
     """dag_guided 下 dag_bind_evidence 是显式送审口：带 claim 把任意已完成
     调用的产物提交进 review 收件箱（§5 起唯一入箱路径，无白名单自动入箱）。"""

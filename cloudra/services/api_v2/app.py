@@ -136,6 +136,9 @@ def create_v2_app(
     legacy_service: Any = None,
 ) -> FastAPI:
     _ensure_fd_limit()
+    from cloudra.services.api_token import require_token_for_bind
+
+    require_token_for_bind(os.environ.get(_BIND_HOST_ENV, ""))
     core = core or RuntimeCore()
     if pipeline is not None:
         from cloudra.runtime_v2.agent_runner import AgentRunner
