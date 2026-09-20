@@ -62,7 +62,7 @@ npm --prefix cloudra/runtime_v2/js_host test   # JS 宿主测试；先 npm ci --
 ## 顶层散件
 
 - `kg_data/`（知识图谱 CSV，`cloudra knowledge import` 的输入）、`ideapool/reaction_candidates/`（benchmark 四档题源 md）、`vector_store/`（知识卡片 bge-m3 向量；`scripts/kg_vec_service.py` 微服务跑在外部 `.venv-trans`）、`deploy/`、`docs/`（`docs/superpowers/plans/` 存设计计划）。
-- `gold_compute/`（gold 能垒锚点计算战役目录，见其中 README）、`archive/`（一次性实验/运行残留，gitignored；`archive/NA1_clean_env` 仍跟踪为例外）。
+- `gold_compute/`（gold 能垒锚点 DFT 打标战役：目标是**所有 accessible 交付边全部 DFT 计算打标**（2026-09-20 决议，文献锚一律视为待替换占位）；统一口径、验收标准、76 边总账（计算 31/文献 33/null 12）与缺口队列见其 README.md（唯一权威文档），历史批次文档在 `gold_compute/archive/`）、`archive/`（一次性实验/运行残留，gitignored；`archive/NA1_clean_env` 仍跟踪为例外）。
 - `build/`、`.worktrees/`、`cloudra.egg-info/` 为构建副产物，勿手改；软著源程序清单由 `scripts/gen_copyright_source.py` 重建（改代码后重跑）。
 
 ## 工作约定
