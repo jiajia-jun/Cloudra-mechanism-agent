@@ -8,8 +8,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "typecheck": "tsc --noEmit",
-    "test:timeline": "node --experimental-strip-types src/timeline.test.ts",
-    "test:attention": "node --experimental-strip-types src/attention.test.ts"
+    "test": "node --experimental-strip-types src/attention.test.ts && node --experimental-strip-types src/dagStatus.test.ts && node --experimental-strip-types src/timeline.test.ts"
   },
   "dependencies": {
     "dagre": "^0.8.5",
