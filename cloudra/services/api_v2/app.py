@@ -115,12 +115,27 @@ async def _daemon_watchdog_loop(interval: float) -> None:
         await asyncio.sleep(interval)
 
 
+def _ensure_fd_limit(min_limit: int = 10240) -> None:
+    """在 POSIX/macOS 上提升文件描述符软限制，防止高并发或长驻服务耗尽 fd。"""
+    try:
+        import resource
+
+        soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+        if soft < min_limit:
+            target = min(min_limit, hard) if hard != resource.RLIM_INFINITY else min_limit
+            if target > soft:
+                resource.setrlimit(resource.RLIMIT_NOFILE, (target, hard))
+    except Exception:
+        pass
+
+
 def create_v2_app(
     core: RuntimeCore | None = None,
     pipeline: Any = None,
     store_path: str | None = None,
     legacy_service: Any = None,
 ) -> FastAPI:
+    _ensure_fd_limit()
     core = core or RuntimeCore()
     if pipeline is not None:
         from cloudra.runtime_v2.agent_runner import AgentRunner

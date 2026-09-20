@@ -221,10 +221,12 @@ class _StreamHandle:
                 sock.close()
             except OSError:
                 pass
-        try:
-            self.response.close()
-        except Exception:
-            pass
+        close = getattr(self.response, "close", None)
+        if callable(close):
+            try:
+                close()
+            except Exception:
+                pass
 
 
 def serialize_openai_payload(kwargs: dict) -> dict:
@@ -436,7 +438,9 @@ class LLMClient:
                         if count is not None:
                             return count
                     finally:
-                        resp.close()
+                        close = getattr(resp, "close", None)
+                        if callable(close):
+                            close()
                 except Exception:
                     continue
         return None
@@ -775,7 +779,9 @@ class LLMClient:
             self._last_usage = _translate_responses_usage(data)
             return ResponseDictWrapper(_translate_responses_completion(data))
         finally:
-            resp.close()
+            close = getattr(resp, "close", None)
+            if callable(close):
+                close()
 
     def _responses_start_stream(self, url: str, payload: dict):
         """流式：发起 POST /responses 并返回 (事件翻译生成器, 状态收集器, 句柄)。
@@ -936,7 +942,9 @@ class LLMClient:
             self._last_usage = self._extract_usage(data)
             return ResponseDictWrapper(data)
         finally:
-            resp.close()
+            close = getattr(resp, "close", None)
+            if callable(close):
+                close()
 
     def _openai_client_with_custom_headers(self) -> AsyncOpenAI:
         """返回带自定义 User-Agent 的 OpenAI 客户端（实例级缓存），用于二级 fallback。"""

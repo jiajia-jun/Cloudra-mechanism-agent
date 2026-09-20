@@ -279,6 +279,20 @@ def _uvicorn_argv(api_port: int, bind_host: str) -> list[str]:
     ]
 
 
+def _ensure_fd_limit(min_limit: int = 10240) -> None:
+    """在 POSIX/macOS 上提升文件描述符软限制，防止高并发或长驻服务耗尽 fd。"""
+    try:
+        import resource
+
+        soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+        if soft < min_limit:
+            target = min(min_limit, hard) if hard != resource.RLIM_INFINITY else min_limit
+            if target > soft:
+                resource.setrlimit(resource.RLIMIT_NOFILE, (target, hard))
+    except Exception:
+        pass
+
+
 def launch_browser(
     frontend: Path,
     *,
@@ -287,6 +301,7 @@ def launch_browser(
     host: str | None = None,
     port: int | None = None,
 ) -> int:
+    _ensure_fd_limit()
     bind_host = (host or "").strip() or _DEFAULT_BIND_HOST
     probe_host = _probe_host(bind_host)
     if port is not None:

@@ -1053,3 +1053,15 @@ async def test_reconcile_after_restore_only_schedules_notification_events(tmp_pa
         for e in list(core2.event_log)[events_before:]
         if e.type.startswith(("tool.", "llm.")) or e.type in {"run.started", "agent.state_changed"}
     ]
+
+
+def test_store_connect_closes_connection_without_fd_leak(tmp_path):
+    """RuntimeStore._connect 必须在 with 块退出后显式关闭连接，
+    不能依赖 GC，避免长期运行中持续泄漏文件描述符导致 Too many open files (Errno 24)。"""
+    store = RuntimeStore(tmp_path / "runtime.db")
+    # 连续调用 300 次（超越 macOS 默认软限制 256）
+    for _ in range(300):
+        with store._connect() as con:
+            row = con.execute("SELECT 1").fetchone()
+            assert row[0] == 1
+

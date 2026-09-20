@@ -326,19 +326,15 @@ def analyze_cache(
 # ---------------------------------------------------------------------------
 
 
-@contextlib.contextmanager
-def _connect_readonly(db_path: Path | str) -> Iterator[sqlite3.Connection]:
+def _connect_readonly(db_path: Path | str) -> sqlite3.Connection:
     path = Path(db_path)
     if not path.is_file():
         raise TelemetryError(f"runtime database not found: {path}")
     # 只读也要 busy_timeout：库被写者短暂持锁时等待而不是 5s 后炸
     # "database is locked"（参照 knowledge/store.py 的只读连接先例）。
     con = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
-    try:
-        con.execute("PRAGMA busy_timeout=60000")
-        yield con
-    finally:
-        con.close()
+    con.execute("PRAGMA busy_timeout=60000")
+    return con
 
 
 def load_events(
@@ -357,7 +353,7 @@ def load_events(
         clauses.append("project_id = ?")
         params.append(project_id)
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-    with _connect_readonly(db_path) as con:
+    with contextlib.closing(_connect_readonly(db_path)) as con:
         rows = con.execute(
             f"SELECT {', '.join(_EVENT_COLUMNS)} FROM events {where} ORDER BY rowid",
             params,
@@ -379,7 +375,7 @@ def list_session_ids(db_path: Path | str, *, project_id: Optional[str] = None) -
     if project_id is not None:
         clauses += " AND project_id = ?"
         params.append(project_id)
-    with _connect_readonly(db_path) as con:
+    with contextlib.closing(_connect_readonly(db_path)) as con:
         rows = con.execute(
             f"SELECT DISTINCT session_id FROM events {clauses} ORDER BY session_id",
             params,
@@ -388,7 +384,7 @@ def list_session_ids(db_path: Path | str, *, project_id: Optional[str] = None) -
 
 
 def _session_exists(db_path: Path | str, session_id: str) -> bool:
-    with _connect_readonly(db_path) as con:
+    with contextlib.closing(_connect_readonly(db_path)) as con:
         row = con.execute(
             "SELECT 1 FROM events WHERE session_id = ? LIMIT 1", (session_id,)
         ).fetchone()
@@ -396,7 +392,7 @@ def _session_exists(db_path: Path | str, session_id: str) -> bool:
 
 
 def _project_exists(db_path: Path | str, project_id: str) -> bool:
-    with _connect_readonly(db_path) as con:
+    with contextlib.closing(_connect_readonly(db_path)) as con:
         row = con.execute(
             "SELECT 1 FROM events WHERE project_id = ? LIMIT 1", (project_id,)
         ).fetchone()

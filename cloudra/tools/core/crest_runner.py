@@ -30,6 +30,14 @@
 
 未命中任何已知标记的非零退出落 ``unknown_failure``：保留完整原文（日志路径）并明确报错，
 不猜测原因、不按"产物在就成功"放行。
+
+除默认构象搜索外支持 CREST 2.12 的特殊 runtype（``runtype`` 字段）：``nci``（非共价复合物
+系综，椭球壁势）、``qcg``（quantum cluster growth 显式溶剂壳，需 xtb-IFF——缺失有专属终止
+类别 ``qcg_xtbiff_missing``，fail-loud 不猜）、``protonate``/``deprotonate``/``tautomerize``
+（质子化态/互变异构筛选）。各 runtype 的产物集合文件名与产物原子数不同（CREST 2.12 实测：
+``protonated.xyz`` 为输入+1 原子、``deprotonated.xyz`` 为 -1、``tautomers.xyz`` 原子数不变、
+qcg 主产物 ``ensemble/final_ensemble.xyz`` 为 溶质+nsolv×溶剂 原子），完整性核对按 runtype
+各自的口径执行，不匹配即 ``incomplete_artifacts``，绝不放宽。
 """
 
 from __future__ import annotations
@@ -64,6 +72,8 @@ MARKER_MTD_TRIAL_PREFIX = "Trial MTD "
 MARKER_MTD_TRIAL_SUFFIX = "did not converge!"
 MARKER_MD_FAILED = "Warning: MD seemingly failed (no xtb.trj)"
 MARKER_RESTART_FAILED_PREFIX = "Automatic xtb restart failed "
+#: QCG 缺 xtb-IFF 时的 ERROR STOP 文本（CREST 2.12 实测）。
+MARKER_QCG_NO_IFF = "No xtb-IFF found"
 #: CREST 在初始优化失败时写出的哨兵文件（空文件）；作为标记的旁证，不单独作为判据。
 SENTINEL_NOT_CONVERGED = "NOT_CONVERGED"
 
@@ -72,6 +82,22 @@ CONFORMERS_NAME = "crest_conformers.xyz"
 XTBOPT_LOG_NAME = "xtbopt.log"
 RUNS_DIR_NAME = "crest_runs"
 MAX_EVIDENCE_LINES = 20
+
+CrestRuntype = Literal["default", "nci", "qcg", "protonate", "deprotonate", "tautomerize"]
+
+#: 各 runtype 的产物集合文件（CREST 2.12 实测 + 二进制字符串核实；qcg 主产物在子目录，
+#: 其 ``grow/cluster.xyz`` 只是生长终态的单体几何，不构成系综产物）。
+RUNTYPE_PRODUCT = {
+    "default": CONFORMERS_NAME,
+    "nci": CONFORMERS_NAME,
+    "qcg": os.path.join("ensemble", "final_ensemble.xyz"),
+    "protonate": "protonated.xyz",
+    "deprotonate": "deprotonated.xyz",
+    "tautomerize": "tautomers.xyz",
+}
+
+#: 产物相对输入的原子数变化（CREST 2.12 实测；qcg 由调用方按 nsolv×溶剂原子数另算）。
+RUNTYPE_ATOM_DELTA = {"protonate": 1, "deprotonate": -1}
 
 CrestTermination = Literal[
     "completed",
@@ -82,6 +108,7 @@ CrestTermination = Literal[
     "incomplete_artifacts",
     "unknown_failure",
     "executable_missing",
+    "qcg_xtbiff_missing",
 ]
 
 CrestStage = Literal[
@@ -112,6 +139,16 @@ class CrestRunRequest(BaseModel):
                     "刻意**不**同时加 ``-notopo``——那是关闭 CREGEN 的全部拓扑检查，会连搜索过程中的"
                     "结构身份检查一起去掉，本模块不提供该组合。开启时运行结果里会显式记录这个事实。",
     )
+    runtype: CrestRuntype = Field(
+        default="default",
+        description="CREST 运行类型：default/nci 为构象系综搜索（nci 加椭球壁势，非共价复合物专用）；"
+                    "qcg 为 quantum cluster growth 显式溶剂壳生长（需 solvent_xyz_text 与 nsolv，"
+                    "且依赖外部 xtb-IFF）；protonate/deprotonate/tautomerize 为质子化态/互变异构筛选。",
+    )
+    solvent_xyz_text: str = Field(
+        default="", description="runtype='qcg' 的溶剂分子 xyz 文本（单帧）；其余 runtype 必须为空",
+    )
+    nsolv: int = Field(default=0, description="runtype='qcg' 要生长的溶剂分子数（--nsolv）")
     expected_product_xyz: str = Field(
         default="",
         description="可选的预期产物单帧 xyz 文本。给出时，拓扑变更报告会额外汇总优化末帧的"
@@ -137,6 +174,11 @@ class CrestConformer(BaseModel):
     frame_index: int
     energy_eh: float
     positions: list[list[float]]
+    symbols: list[str] = Field(
+        default_factory=list,
+        description="该帧的元素序列。protonate/qcg 等 runtype 的产物原子集合与输入不同，"
+                    "调用方必须用这里的元素序列而不是输入的；default/nci 与输入一致",
+    )
 
 
 class CrestRunResult(BaseModel):
