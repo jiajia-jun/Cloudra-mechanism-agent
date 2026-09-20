@@ -161,7 +161,7 @@
     },
     "reference_properties": {},
     "selectivity": {
-      "spread_kcal_mol": 2.0,
+      "spread_kcal_mol": 11.06,
       "minor_channel": "double inward methyl rotation -> (Z,Z)-2,4-hexadiene",
       "favored_channel": "double_outward_rotation"
     }

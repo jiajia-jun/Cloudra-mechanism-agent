@@ -25,13 +25,12 @@ TASKS = {
                 # O4 留在原 ipso 碳 C5 上成羰基 → 邻位环己二烯酮（去芳构化）
                 "out": "[CH2:1]=[CH:2][CH2:3][C:6]1([H:14])[CH:7]=[CH:8][CH:9]=[CH:10][C:5](=[O:4])1",
                 "type": "[3,3]-sigmatropic rearrangement (allyl vinyl ether substructure): O-allyl bond cleavage with allyl migration to the ortho carbon and dearomatization to the ortho-cyclohexadienone (capturable intermediate)",
-                "barrier": 30.0,
-                "weight": 0.5,
             },
             {
                 # 烯醇-酚互变异构：C6-H14 迁到羰基 O4，环 π 回排恢复芳香 → 2-烯丙基苯酚
                 "out": "[CH2:1]=[CH:2][CH2:3][c:6]1[cH:7][cH:8][cH:9][cH:10][c:5]1[O:4][H:14]",
                 "type": "keto-enol tautomerization of the ortho-cyclohexadienone: proton migration from the ring sp3 carbon onto the carbonyl oxygen restores aromaticity -> 2-allylphenol",
+                "barrier": 53.3,
             },
         ],
     },

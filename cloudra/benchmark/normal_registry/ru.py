@@ -18,6 +18,7 @@ TASKS = {
                 # PT：H3O+ 质子化 4 号碳上的 OH
                 "out": "[OH2:1].[CH3:3][C:4]([CH3:5])([OH+:6][H:2])[C:7]([CH3:8])([CH3:9])[O:10][H:11]",
                 "type": "proton transfer from H3O+ to one pinacol OH (leaving-group activation)",
+                "barrier": 0.0,
             },
             {
                 # 决速：脱水与 1,2-甲基迁移协同（半频哪醇式），断 C4-O6/C7-C8，
@@ -31,6 +32,7 @@ TASKS = {
                 # PT：质子化羰基把质子还给水，再生 H3O+
                 "out": "[OH2+:1][H:11].[OH:6][H:2].[CH3:3][C:4]([CH3:5])([CH3:8])[C:7](=[O:10])[CH3:9]",
                 "type": "proton transfer from protonated pinacolone to water, regenerating H3O+",
+                "barrier": 5.74,
             },
         ],
     },

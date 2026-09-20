@@ -17,23 +17,25 @@ TASKS = {
                 # OH- 拔 H3：断 C2-H3，成 O1-H3，C2-C4 1->2，C4-O5 2->1 → 烯醇盐 + 水
                 "out": "[OH:1]([H:3]).[CH:2]([H:11])=[C:4]([O-:5])[CH3:6].[CH3:7][C:8](=[O:9])[CH3:10]",
                 "type": "enolate formation: OH- deprotonates the alpha-C of acetone (C=O pi shifts to C=C)",
+                "barrier": 3.4,
             },
             {
                 # 烯醇盐 C2 进攻第二分子丙酮羰基 C8：成 C2-C8，断 C8=O9 pi、C2=C4 pi，成 C4=O5 pi → 双丙酮醇烷氧盐
+                # 战役（WSL/G16 气相）：1D 路径证实为约束伪脊，无介入鞍点 → 撤回旧 5.0 锚值
                 "out": "[OH:1]([H:3]).[CH3:7][C:8]([O-:9])([CH3:10])[CH:2]([H:11])[C:4](=[O:5])[CH3:6]",
                 "type": "C-C addition: enolate carbon attacks the second acetone carbonyl -> diacetone alcohol alkoxide (capturable)",
-                "barrier": 5.0,
-                "weight": 0.5,
             },
             {
                 # 烷氧盐 O9 从水夺回 H3：断 O1-H3，成 O9-H3 → 双丙酮醇 + OH-
                 "out": "[OH-:1].[CH3:7][C:8]([O:9]([H:3]))([CH3:10])[CH:2]([H:11])[C:4](=[O:5])[CH3:6]",
                 "type": "alkoxide reprotonation by water -> diacetone alcohol, regenerating OH-",
+                "barrier": 0.0,
             },
             {
                 # E1cb 第一步：OH- 拔 C2 上另一个 alpha-H（H11）：断 C2-H11，成 O1-H11，C2-C4 1->2，C4-O5 2->1
                 "out": "[OH:1]([H:11]).[CH3:7][C:8]([O:9]([H:3]))([CH3:10])[CH:2]=[C:4]([O-:5])[CH3:6]",
                 "type": "E1cb deprotonation: OH- removes the alpha-H on the other side of the carbinol -> enolate + water",
+                "barrier": 32.5,
             },
             {
                 # 消除：断 C8-O9，成 C2=C8 pi，C2=C4 pi 回落、C4=O5 pi 重建 → 异亚丙基丙酮 + OH- + 水

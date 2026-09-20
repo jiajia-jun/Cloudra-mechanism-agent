@@ -42,6 +42,7 @@ TASKS = {
                 # PT：另一分子水拔掉 OH2+ 的一个质子 → 中性亚胺酸 + H3O+
                 "out": "[O:1]([H:10])[C:4](=[N:6][CH2:5][CH3:11])[CH3:3].[O+:7]([H:8])([H:2])[H:9]",
                 "type": "proton transfer from the imidic acid OH2+ to water -> neutral imidic acid + H3O+",
+                "barrier": 0.0,
             },
             {
                 # 亚胺酸→酰胺互变异构：分子内 O→N 质子迁移，C=N π 断、C=O π 成

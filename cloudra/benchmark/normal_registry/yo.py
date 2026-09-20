@@ -42,6 +42,7 @@ TASKS = {
                 # 羰基 O 质子化：断 O1-H10，成 O4-H10
                 "out": "[OH2:1].[CH3:2][C:3](=[O+:4][H:10])[CH3:5].[CH:6](=[O:7])[O:8][O:9][H:11]",
                 "type": "carbonyl oxygen protonation by hydronium (PT, pre-equilibrium)",
+                "barrier": 0.0,
             },
             {
                 # 过甲酸端基 O9 进攻羰基 C3：成 O9-C3，断 C3=O4 π → 质子化 Criegee 四面体中间体
@@ -61,6 +62,7 @@ TASKS = {
                 # 质子归还：断 O4-H10，成 O1-H10，再生 H3O+
                 "out": "[OH2+:1]([H:10]).[CH3:5][C:3](=[O:4])[O:9][CH3:2].[CH:6](=[O:7])[O:8][H:11]",
                 "type": "deprotonation of the ester carbonyl by water, regenerating H3O+ (PT)",
+                "barrier": 0.332,
             },
         ],
     },

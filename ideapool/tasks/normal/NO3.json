@@ -156,7 +156,7 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null,
+          "barrier_kcal_mol": 0.0,
           "weight": 1.0,
           "channel": null,
           "favored": null
@@ -250,7 +250,7 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null,
+          "barrier_kcal_mol": 0.332,
           "weight": 1.0,
           "channel": null,
           "favored": null
