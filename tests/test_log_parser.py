@@ -440,3 +440,185 @@ async def test_gaussian_parse_never_rereads_log_via_path_variants(monkeypatch):
     assert result.is_success is True
     assert result.job_types == ["freq", "opt"]
     assert result.zero_point_correction_hartree == pytest.approx(0.024385)
+
+
+
+# ---------------------------------------------------------------------------
+# 虚频模式组成摘要（imaginary_modes：位移投影 + 重原子占比 + watch_pairs 打分）
+# ---------------------------------------------------------------------------
+
+
+def _orca_numfreq_log_with_disps() -> str:
+    """合成 3 原子（C/H/H）NumFreq 日志：9 模式、1 虚频（模式 0），虚频位移
+    全部集中在原子 1（C）的 x 分量上；几何 C(0,0,0) H(1,0,0) H(0,1,0) 使
+    对 (1,2) 的键方向投影为 1.0、其余两对为 0（位移垂直于它们的键方向）。"""
+    freq_lines = ["   0:      -294.67 cm**-1 ***imaginary mode***\n"]
+    for mode in range(1, 9):
+        freq_lines.append(f"   {mode}:       {100.0 + mode:.2f} cm**-1\n")
+    header1 = "      " + "  ".join(f"{m:>8d}" for m in range(6)) + "\n"
+    header2 = "      " + "  ".join(f"{m:>8d}" for m in range(6, 9)) + "\n"
+    rows1 = rows2 = ""
+    for comp in range(9):
+        vals6 = [("1.000000" if comp == 0 else "0.000000")] + ["0.000000"] * 5
+        rows1 += f"     {comp}      " + "  ".join(vals6) + "\n"
+        rows2 += f"     {comp}      " + "  ".join(["0.000000"] * 3) + "\n"
+    return (
+        "                         * O   R   C   A *\n"
+        "! NumFreq\n"
+        "VIBRATIONAL FREQUENCIES\n"
+        "-----------------------\n"
+        "\n"
+        + "".join(freq_lines)
+        + "\n"
+        "-------------\n"
+        "NORMAL MODES\n"
+        "-------------\n"
+        "\n"
+        + header1 + rows1
+        + "\n"
+        + header2 + rows2
+        + "\n"
+        "--------------------------------\n"
+        "CARTESIAN COORDINATES (ANGSTROEM)\n"
+        "--------------------------------\n"
+        "  C      0.000000    0.000000    0.000000\n"
+        "  H      1.000000    0.000000    0.000000\n"
+        "  H      0.000000    1.000000    0.000000\n"
+        "\n"
+        "FINAL SINGLE POINT ENERGY      -40.000000000000\n"
+        "                             ****ORCA TERMINATED NORMALLY****\n"
+    )
+
+
+# 合成 Gaussian 频率日志：同款 3 原子几何与位移分布（虚频模式 1 的位移全在
+# 原子 1（C）的 x 分量）。cclib 侧用 stub 供频率（Gaussian 日志 cclib 解析
+# 失败即整体失败，合成文本不足以过 cclib）。
+_GAUSSIAN_FREQ_WITH_DISPS = (
+    " Entering Gaussian System, Link 0=g16\n"
+    " Standard orientation:                          \n"
+    " ---------------------------------------------------------------------\n"
+    " Center     Atomic      Atomic             Coordinates (Angstroms)\n"
+    " Number     Number       Type             X           Y           Z\n"
+    " ---------------------------------------------------------------------\n"
+    "      1          6           0        0.000000    0.000000    0.000000\n"
+    "      2          1           0        1.000000    0.000000    0.000000\n"
+    "      3          1           0        0.000000    1.000000    0.000000\n"
+    " ---------------------------------------------------------------------\n"
+    " Harmonic frequencies (cm**-1), IR intensities (KM/Mole), Raman scattering\n"
+    "                          1                      2                      3\n"
+    "                         A'                     A'                     A'\n"
+    " Frequencies --  -294.6700               289.5000               458.1000\n"
+    " Red. masses --     1.0078                 1.0078                 1.0078\n"
+    " Frc consts  --     0.1200                 0.1200                 0.1200\n"
+    " IR Inten    --    10.0000                10.0000                10.0000\n"
+    "  Atom  AN      X      Y      Z        X      Y      Z        X      Y      Z\n"
+    "     1   6     1.00   0.00   0.00     0.00   0.00   0.00     0.00   0.00   0.00\n"
+    "     2   1     0.00   0.00   0.00     0.00   0.00   0.00     0.00   0.00   0.00\n"
+    "     3   1     0.00   0.00   0.00     0.00   0.00   0.00     0.00   0.00   0.00\n"
+    " Normal termination of Gaussian 16\n"
+)
+
+
+def _assert_imaginary_mode_entry(entry, with_watch_pairs):
+    """共享断言：虚频位移集中在原子 1（C）x 分量时的组成摘要。"""
+    assert entry["frequency_cm"] == pytest.approx(-294.67)
+    # top_displaced_pairs：1-based [i, j, 投影 score]，对 (1,2) 投影 1.0 居首
+    assert entry["top_displaced_pairs"][0][0:2] == [1, 2]
+    assert entry["top_displaced_pairs"][0][2] == pytest.approx(1.0)
+    assert len(entry["top_displaced_pairs"]) == 3  # 3 原子只有 3 对（上限 5）
+    # 位移全在重原子 C 上
+    assert entry["heavy_atom_fraction"] == pytest.approx(1.0)
+    if with_watch_pairs:
+        watch = entry["watch_pair_fraction"]
+        # 位移集中在 watch 对 (1,2) 上：其投影占总对投影和的比例为 1
+        assert watch["fraction"] == pytest.approx(1.0)
+        assert watch["pair_projections"] == {"1-2": pytest.approx(1.0)}
+    else:
+        assert entry["watch_pair_fraction"] is None
+
+
+@pytest.mark.asyncio
+async def test_orca_imaginary_mode_summary_from_text_channels(tmp_path, monkeypatch):
+    """ORCA：位移走 NORMAL MODES 文本块、几何走 CARTESIAN 末帧块（cclib 不
+    参与），虚频模式给出组成摘要；watch_pairs 打分命中集中位移的对。"""
+    import cclib
+
+    monkeypatch.setattr(cclib.io, "ccread", lambda *_args, **_kwargs: None)
+    log = tmp_path / "job.out"
+    log.write_text(_orca_numfreq_log_with_disps(), encoding="utf-8")
+
+    result = await LogParser().tool_call(
+        LogParser_input_schema(log_path=str(log), properties=["frequencies"], watch_pairs=[[1, 2]]),
+        session=None,
+    )
+
+    assert result.is_success is True
+    assert result.engine == "orca"
+    assert result.imaginary_frequencies == pytest.approx([-294.67])
+    assert result.imaginary_modes is not None
+    assert len(result.imaginary_modes) == 1
+    _assert_imaginary_mode_entry(result.imaginary_modes[0], with_watch_pairs=True)
+
+
+@pytest.mark.asyncio
+async def test_orca_imaginary_mode_summary_watch_fraction_none_without_watch_pairs(tmp_path, monkeypatch):
+    """未给 watch_pairs 时 watch_pair_fraction 字段为 None（不填 0 冒充）。"""
+    import cclib
+
+    monkeypatch.setattr(cclib.io, "ccread", lambda *_args, **_kwargs: None)
+    log = tmp_path / "job.out"
+    log.write_text(_orca_numfreq_log_with_disps(), encoding="utf-8")
+
+    result = await LogParser().tool_call(
+        LogParser_input_schema(log_path=str(log), properties=["frequencies"]),
+        session=None,
+    )
+
+    assert result.is_success is True
+    assert result.imaginary_modes is not None
+    assert len(result.imaginary_modes) == 1
+    _assert_imaginary_mode_entry(result.imaginary_modes[0], with_watch_pairs=False)
+
+
+@pytest.mark.asyncio
+async def test_gaussian_imaginary_mode_summary_from_freq_block(tmp_path, monkeypatch):
+    """Gaussian：位移走 Frequencies --/Atom AN 位移表，几何走末个 Standard
+    orientation 块；同样产出组成摘要与 watch_pairs 打分。"""
+    import types
+
+    stub = types.SimpleNamespace(vibfreqs=[-294.67, 289.50, 458.10])
+    _stub_cclib(monkeypatch, stub)
+    log = tmp_path / "job.log"
+    log.write_text(_GAUSSIAN_FREQ_WITH_DISPS, encoding="utf-8")
+
+    result = await LogParser().tool_call(
+        LogParser_input_schema(log_path=str(log), properties=["frequencies"], watch_pairs=[[1, 2]]),
+        session=None,
+    )
+
+    assert result.is_success is True
+    assert result.engine == "gaussian"
+    assert result.imaginary_frequencies == pytest.approx([-294.67])
+    assert result.imaginary_modes is not None
+    assert len(result.imaginary_modes) == 1
+    _assert_imaginary_mode_entry(result.imaginary_modes[0], with_watch_pairs=True)
+
+
+@pytest.mark.asyncio
+async def test_imaginary_modes_none_when_displacements_missing(tmp_path, monkeypatch):
+    """位移块缺失（无 NORMAL MODES）时 imaginary_modes 保持 None——频率数值
+    照常回传，绝不用空列表/零值冒充组成摘要。"""
+    import cclib
+
+    monkeypatch.setattr(cclib.io, "ccread", lambda *_args, **_kwargs: None)
+    log = tmp_path / "job.out"
+    log.write_text(_ORCA_EXTOPT_NUMFREQ, encoding="utf-8")
+
+    result = await LogParser().tool_call(
+        LogParser_input_schema(log_path=str(log), properties=["frequencies"], watch_pairs=[[1, 2]]),
+        session=None,
+    )
+
+    assert result.is_success is True
+    assert result.imaginary_frequencies == pytest.approx([-294.67])
+    assert result.imaginary_modes is None
