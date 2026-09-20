@@ -591,3 +591,104 @@ def test_supervisor_prompt_follows_mtime_cache(tmp_path, monkeypatch):
 
     (prompts_dir / "supervisor.md").unlink()
     assert "graph-planning Supervisor" in load_supervisor_prompt()
+
+
+def test_same_size_rewrite_within_one_mtime_tick_is_visible(tmp_path, monkeypatch):
+    """同刻度 + 同字节长度的改写必须立即生效：签名不动不代表内容没变。
+
+    直接构造文件系统给出的那种签名——改写后把 mtime 复位成第一次写入的值，
+    两版内容字节长度相同。这正是 (mtime_ns, size) 签名失效的形态：旧实现会
+    把第二版判成"未变"并返回第一版（本机实测偶发红）。
+    """
+    import os
+
+    import cloudra.runtime.prompt_assembler as assembler_mod
+    from cloudra.dag.models import load_supervisor_prompt
+
+    first, second = "督导第一版", "督导第二版"
+    # 长度必须相同，否则 size 就能察觉变化、这条用例失去判别力。
+    assert len(first.encode("utf-8")) == len(second.encode("utf-8"))
+
+    prompts_dir = tmp_path / "prompts"
+    prompts_dir.mkdir()
+    prompt_file = prompts_dir / "supervisor.md"
+    prompt_file.write_text(first, encoding="utf-8")
+    monkeypatch.setattr(assembler_mod, "PROMPTS_DIR", prompts_dir)
+    first_tick = prompt_file.stat().st_mtime_ns
+    first_size = prompt_file.stat().st_size
+
+    assert load_supervisor_prompt() == first
+
+    prompt_file.write_text(second, encoding="utf-8")
+    # 模拟"同一时间戳刻度内改写"：mtime 不推进，字节长度也不变。
+    assert prompt_file.stat().st_size == first_size
+    os.utime(prompt_file, ns=(first_tick, first_tick))
+    assert prompt_file.stat().st_mtime_ns == first_tick
+
+    assert load_supervisor_prompt() == second
+
+
+def test_same_size_rewrite_within_one_mtime_tick_is_visible_in_skill_manifest(
+    tmp_path, isolated_prompt_sources, monkeypatch
+):
+    """skills manifest 缓存与文件内容缓存同源，同刻度同长度的 SKILL.md 同样必须生效。"""
+    import os
+
+    from cloudra.runtime.prompt_assembler import PromptAssembler
+
+    prompts_dir, workspace = isolated_prompt_sources
+    (prompts_dir / "probe.md").write_text("# 角色", encoding="utf-8")
+    skills = tmp_path / "skills"
+    skill_file = skills / "review" / "SKILL.md"
+    skill_file.parent.mkdir(parents=True)
+    skill_file.write_text(
+        "---\nname: review\ndescription: 第一版\n---\n正文 v1", encoding="utf-8"
+    )
+    monkeypatch.setattr("cloudra.runtime.prompt_assembler.SKILLS_DIR", skills)
+    first_tick = skill_file.stat().st_mtime_ns
+    first_size = skill_file.stat().st_size
+
+    assembler = PromptAssembler(
+        prompt_name="probe",
+        custom_prompt=None,
+        conversation_id="c",
+        working_directory=str(workspace),
+        include_memory=False,
+    )
+    assert "第一版" in assembler.assemble([]).identity_messages[0]["content"]
+
+    skill_file.write_text(
+        "---\nname: review\ndescription: 第二版\n---\n正文 v2", encoding="utf-8"
+    )
+    assert skill_file.stat().st_size == first_size
+    os.utime(skill_file, ns=(first_tick, first_tick))
+
+    assert "第二版" in assembler.assemble([]).identity_messages[0]["content"]
+
+
+def test_stable_signature_reuses_cache_without_rereading(tmp_path, monkeypatch):
+    """负向判据：窗口外的稳定文件必须命中缓存（只读一次盘）——修签名不许拆掉缓存。"""
+    import os
+    import time as _time
+    from pathlib import Path
+
+    import cloudra.runtime.prompt_assembler as assembler_mod
+
+    target = tmp_path / "MEMORY.md"
+    target.write_text("稳定内容", encoding="utf-8")
+    # 把 mtime 推到不稳定窗口之外，模拟"长期未被改写"的稳定文件。
+    stale_ns = _time.time_ns() - 60_000_000_000
+    os.utime(target, ns=(stale_ns, stale_ns))
+
+    reads = []
+    real_read_text = Path.read_text
+
+    def counting_read_text(self, *args, **kwargs):
+        reads.append(self)
+        return real_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", counting_read_text)
+
+    assert assembler_mod._read_file_cached(target) == "稳定内容"
+    assert assembler_mod._read_file_cached(target) == "稳定内容"
+    assert len(reads) == 1, f"稳定文件应只读一次盘（命中缓存），实际读了 {len(reads)} 次"

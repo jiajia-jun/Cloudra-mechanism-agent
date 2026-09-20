@@ -4,7 +4,8 @@ Identity and policy sources are re-validated for every model request via file
 mtime/size signatures: unchanged files are served from a module-level cache,
 changed files are re-read immediately. Conversation history never owns these
 messages, so an existing conversation can pick up a changed role prompt,
-MEMORY.md, AGENTS.md, or capability manifest immediately.
+MEMORY.md, AGENTS.md, or capability manifest immediately. 签名只要还落在时间戳
+刻度窗口内就一律直读且不入缓存，因此"立即生效"不依赖文件系统的时间戳分辨率。
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ import hashlib
 import json
 import os
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Optional
@@ -99,6 +101,21 @@ def _sha256_text(text: str) -> str:
 
 # 按 (mtime_ns, size) 签名的文件内容缓存：签名不变直接复用，变了立即重读。
 # assemble 已移入工作线程，多 Agent 并发时靠锁保证缓存读写一致。
+#
+# 时间戳刻度窗口：文件系统在一次"快速连续写入"里可以给出**同一个** st_mtime_ns
+# （Windows/NTFS 上实测：两次 write_text 之间 mtime 不推进），此时若改写后的
+# 字节长度也相同，(mtime_ns, size) 签名就会把"内容已变"伪装成"未变"。
+# 因此窗口内的签名一律判为不稳定：既不命中缓存也不写入缓存——把不稳定签名
+# 缓存下来更危险，因为窗口过后同刻度改写会让那份旧内容被当成"未变"长期命中。
+# 窗口宽度必须 ≥ 文件系统可能出现的刻度跨度（coarse FS 可达 2s）。
+_UNSTABLE_SIGNATURE_WINDOW_NS = 2_000_000_000
+
+
+def _signature_is_stable(mtime_ns: int) -> bool:
+    """签名是否已越过时间戳刻度窗口（可安全用于缓存命中/写入判定）。"""
+    return (time.time_ns() - mtime_ns) >= _UNSTABLE_SIGNATURE_WINDOW_NS
+
+
 _FILE_CACHE_LOCK = threading.Lock()
 _FILE_CONTENT_CACHE: dict[str, tuple[tuple[int, int], str]] = {}
 # skills 目录签名 -> (manifest, source)；签名含每个 SKILL.md 的 mtime/size。
@@ -108,17 +125,25 @@ _SKILL_MANIFEST_CACHE: dict[
 
 
 def _read_file_cached(path: Path) -> str:
-    """读取文本文件，(mtime_ns, size) 签名不变时复用缓存内容。"""
+    """读取文本文件：签名稳定且不变时复用缓存，否则立即重读。
+
+    不稳定窗口内既不查缓存也不写缓存（详见
+    :data:`_UNSTABLE_SIGNATURE_WINDOW_NS`）——这正是"改文件即生效"这条
+    契约不依赖时间戳分辨率的原因。
+    """
     stat = path.stat()
     signature = (stat.st_mtime_ns, stat.st_size)
+    stable = _signature_is_stable(stat.st_mtime_ns)
     key = str(path)
-    with _FILE_CACHE_LOCK:
-        cached = _FILE_CONTENT_CACHE.get(key)
-        if cached is not None and cached[0] == signature:
-            return cached[1]
+    if stable:
+        with _FILE_CACHE_LOCK:
+            cached = _FILE_CONTENT_CACHE.get(key)
+            if cached is not None and cached[0] == signature:
+                return cached[1]
     content = path.read_text(encoding="utf-8")
-    with _FILE_CACHE_LOCK:
-        _FILE_CONTENT_CACHE[key] = (signature, content)
+    if stable:
+        with _FILE_CACHE_LOCK:
+            _FILE_CONTENT_CACHE[key] = (signature, content)
     return content
 
 
@@ -306,13 +331,17 @@ class PromptAssembler:
                 )
             )
         signature = tuple(signature_entries)
+        # 任一 SKILL.md 的签名还在不稳定窗口内 → 整份签名不可信（同刻度改写会
+        # 伪装成未变），直接重建 manifest，且不写缓存。
+        stable = all(_signature_is_stable(mtime_ns) for _, mtime_ns, _ in signature_entries)
         cache_key = str(SKILLS_DIR)
-        with _FILE_CACHE_LOCK:
-            cached = _SKILL_MANIFEST_CACHE.get(cache_key)
-            if cached is not None and cached[0] == signature:
-                return cached[1]
+        if stable:
+            with _FILE_CACHE_LOCK:
+                cached = _SKILL_MANIFEST_CACHE.get(cache_key)
+                if cached is not None and cached[0] == signature:
+                    return cached[1]
         result = self._build_skill_manifest()
-        if result is not None:
+        if result is not None and stable:
             with _FILE_CACHE_LOCK:
                 _SKILL_MANIFEST_CACHE[cache_key] = (signature, result)
         return result
