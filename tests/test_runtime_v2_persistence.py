@@ -76,6 +76,47 @@ async def test_snapshot_and_event_durability_roundtrip(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_snapshot_watermarks_exclude_unpersisted_tail(tmp_path):
+    """快照水位必须是已落盘前缀。并发 append 抬高 live high_watermarks
+    之后，若快照仍按 live 水位切开，重启会跳过后来才落库的事件。"""
+    store = RuntimeStore(tmp_path / "runtime.db")
+    core = RuntimeCore(strict_events=True)
+    core.store = store
+    bus = CommandBus(core)
+    await bus.execute(Command(type="project.create", payload={"name": "snap"}))
+    project = next(iter(core.projects.values()))
+    await bus.flush_snapshot()
+    persisted = dict(core.event_writer.persisted_watermarks())
+
+    tail = core.event_log.append(
+        "agent.warning",
+        stream="agent",
+        project_id=project.id,
+        data={"message": "unpersisted tail"},
+    )
+    assert core.event_log.high_watermarks[project.id] == tail.seq
+    assert core.event_writer.persisted_watermarks() == persisted
+
+    original_flush = core.event_writer.flush
+
+    async def _flush_without_tail() -> None:
+        return None
+
+    core.event_writer.flush = _flush_without_tail  # type: ignore[method-assign]
+    await bus.flush_snapshot()
+    core.event_writer.flush = original_flush
+
+    _, last_seqs = store.load_snapshot()
+    assert last_seqs == persisted
+    assert last_seqs[project.id] < tail.seq
+
+    await original_flush()
+    core2 = RuntimeCore(strict_events=True)
+    restore_core(core2, store)
+    assert any(envelope.type == "agent.warning" for envelope in core2.event_log)
+
+
+@pytest.mark.asyncio
 async def test_restored_session_context_is_reused_byte_identical(tmp_path):
     """Task 4 恢复契约：会话上下文投影随快照/事件持久化；重启恢复后
     （running/waiting 仍按既有规则落 failed，本用例 agent 是 succeeded），
@@ -578,14 +619,14 @@ async def test_snapshot_is_throttled_cache_not_per_command(tmp_path, monkeypatch
     bus = CommandBus(core)
 
     saves = 0
-    original_save = store.save_snapshot
+    original_write = store.write_snapshot_payload
 
-    def counting_save(**kwargs):
+    def counting_write(payload, last_seqs):
         nonlocal saves
         saves += 1
-        return original_save(**kwargs)
+        return original_write(payload, last_seqs)
 
-    monkeypatch.setattr(store, "save_snapshot", counting_save)
+    monkeypatch.setattr(store, "write_snapshot_payload", counting_write)
 
     await bus.execute(Command(type="project.create", payload={"name": "throttle"}))
     project = next(iter(core.projects.values()))

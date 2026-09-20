@@ -227,6 +227,59 @@ async def test_run_slurm_compute_retries_sacct_errors_without_failing_ledger(mon
     assert calls["n"] >= 2
 
 
+@pytest.mark.asyncio
+async def test_run_slurm_compute_completed_does_not_clobber_cancel(monkeypatch, tmp_path):
+    """sacct 查询窗口里 cancel-all 已落 cancel_requested：COMPLETED 不得盖成 done。"""
+    from cloudra.infra import slurm
+    from cloudra.services.compute_store import get_compute_job
+
+    db = ComputeDB().init()
+    inp = tmp_path / "h2.gjf"
+    inp.write_text("#p\n")
+    job_id = _insert_job(
+        db,
+        state="running",
+        path=str(inp),
+        scheduler="slurm",
+        scheduler_options={"type": "slurm", "poll_seconds": 0.01},
+    )
+    with db.connect() as con:
+        con.execute(
+            "UPDATE compute_jobs SET scheduler_job_id='888' WHERE id=?",
+            (job_id,),
+        )
+        con.commit()
+
+    cancelled = {"n": 0}
+
+    def fake_query(_job_id: str):
+        with db.connect() as con:
+            con.execute(
+                "UPDATE compute_jobs SET state='cancel_requested' WHERE id=?",
+                (job_id,),
+            )
+            con.commit()
+        return "COMPLETED", "0:0"
+
+    def fake_cancel(_job_id: str):
+        cancelled["n"] += 1
+
+    monkeypatch.setattr(slurm, "query_job", fake_query)
+    monkeypatch.setattr(slurm, "cancel_job", fake_cancel)
+    monkeypatch.setattr(
+        slurm,
+        "_engine_success_from_log",
+        lambda *_a, **_k: True,
+    )
+
+    rc = await slurm.run_slurm_compute(
+        job_id, db.path, scheduler={"poll_seconds": 0.01}
+    )
+    assert rc == 1
+    assert get_compute_job(db, job_id)["state"] == "cancelled"
+    assert cancelled["n"] == 1
+
+
 def test_reconcile_lists_running_slurm_jobs_for_reattach():
     from cloudra.scheduler.daemon import SchedulerDaemon
 
@@ -241,3 +294,41 @@ def test_reconcile_lists_running_slurm_jobs_for_reattach():
     daemon = SchedulerDaemon()
     orphans = daemon._reconcile_central()
     assert job_id in orphans
+
+
+def test_reconcile_reattaches_cancel_requested_slurm_jobs():
+    """cancel-all 把 Slurm 作业改成 cancel_requested 后，重启对账必须重挂 poller，否则 scancel 永远不会跑。"""
+    from cloudra.scheduler.daemon import SchedulerDaemon
+
+    db = ComputeDB().init()
+    job_id = _insert_job(db, state="cancel_requested", scheduler="slurm")
+    with db.connect() as con:
+        con.execute(
+            "UPDATE compute_jobs SET scheduler_job_id='556' WHERE id=?",
+            (job_id,),
+        )
+        con.commit()
+    daemon = SchedulerDaemon()
+    orphans = daemon._reconcile_central()
+    assert job_id in orphans
+
+
+def test_reconcile_recovers_slurm_job_id_after_sbatch_before_mark(monkeypatch):
+    """sbatch 已成功、scheduler_job_id 还没回写：对账按 job-name 找回句柄再重挂。"""
+    from cloudra.scheduler.daemon import SchedulerDaemon
+
+    db = ComputeDB().init()
+    job_id = _insert_job(db, state="running", scheduler="slurm")
+    monkeypatch.setattr(
+        "cloudra.scheduler.daemon.query_job_by_name",
+        lambda name: "777" if name == f"cloudra-{job_id}" else None,
+    )
+    daemon = SchedulerDaemon()
+    orphans = daemon._reconcile_central()
+    assert job_id in orphans
+    with db.connect() as con:
+        stored = con.execute(
+            "SELECT scheduler_job_id FROM compute_jobs WHERE id=?",
+            (job_id,),
+        ).fetchone()[0]
+    assert stored == "777"

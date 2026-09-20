@@ -143,7 +143,15 @@ class SubmitComputeJob(Tool):
         # services/compute_admission；TS 搜索 SOP 的 submit 阶段复用同一份，
         # 否则同一份作业会在两条入口下得出不同准入结论。
         f_path = resolve_tool_path(self, user_input.input_file)
-        conv_id = getattr(self.subagent, 'conversation_id', None) or 'default'
+        conv_id = getattr(self.subagent, 'conversation_id', None)
+        if not conv_id:
+            return SubmitComputeJob_output_schema(
+                is_success=False,
+                message=(
+                    "submit_compute_job requires conversation_id on the agent; "
+                    "refusing to attribute the job to 'default'."
+                ),
+            )
 
         # 未显式申请内存时按输入文件自述（%mem/%maxcore）派生申请值——省略申请不再
         # 等于脱账，超容量声明会被 admit_job 的容量硬校验拒收。

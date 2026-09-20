@@ -234,6 +234,41 @@ async def test_agree_out_of_order_then_in_order(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_reviewed_call_cannot_be_readjudicated(tmp_path):
+    """已审 CallReview 再 skip 不得清掉已绑定的 freq ref。"""
+    _agent, session, db = await _seed_guided(
+        tmp_path,
+        "review-once",
+        calls=[
+            ("tc-opt", "log_parser", {"log_path": "ts.log"}, _TS_FREQ_RESULT),
+        ],
+        submissions=[
+            ("tc-opt", "step1", "ts_opt", "the optimization converged to a stationary point"),
+            ("tc-opt", "step1", "frequency", "exactly one imaginary frequency"),
+        ],
+    )
+    supervisor = make_supervisor(db.conversation_id, workspace_dir=str(tmp_path))
+    opt_review, freq_review = _inbox(db)
+    first = await _call(
+        DagReviewCall, supervisor, session,
+        review_id=opt_review.review_id, target_id="step1",
+        stage_kind="ts_opt", verdict="agree",
+    )
+    assert first.accepted is True
+    second = await _call(
+        DagReviewCall, supervisor, session,
+        review_id=opt_review.review_id, target_id="step1",
+        stage_kind="ts_opt", verdict="skip",
+        reason="changed my mind",
+    )
+    assert second.is_success is False
+    assert "already" in (second.error or "").lower()
+    stage = next(s for s in _edge(db).stages if s.kind.value == "ts_opt")
+    assert stage.status.value == "supported"
+    assert stage.ref is not None
+
+
+@pytest.mark.asyncio
 async def test_disagree_with_reason_leaves_coverage_incomplete(tmp_path):
     """prj_d6212be8a2934e80 头条回归：Supervisor disagree（带理由）→ 阶段
     rejected、覆盖 INCOMPLETE；rejected 可经重绑恢复（D2）。"""
@@ -642,8 +677,9 @@ async def test_verdict_binds_the_submitted_snapshot_not_the_live_file(tmp_path):
                 "tc-1",
                 "log_parser",
                 {"log_path": "/x/ts.log"},
-                {"is_success": True, "scf_energy": -100.0,
-                 "imaginary_frequencies": [-951.72]},
+                    {"is_success": True, "scf_energy": -100.0,
+                     "normal_termination": True,
+                     "imaginary_frequencies": [-951.72]},
             ),
         ],
         submissions=[
@@ -658,7 +694,8 @@ async def test_verdict_binds_the_submitted_snapshot_not_the_live_file(tmp_path):
         "tc-2",
         "log_parser",
         {"log_path": "/x/ts.log"},
-        {"is_success": True, "scf_energy": -200.0, "imaginary_frequencies": [-300.0]},
+            {"is_success": True, "scf_energy": -200.0,
+             "normal_termination": True, "imaginary_frequencies": [-300.0]},
     )
     review = _inbox(db)[0]
 

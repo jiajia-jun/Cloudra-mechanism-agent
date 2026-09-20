@@ -119,6 +119,15 @@ class EventWriter:
         if self._published > target:
             self._published = target
 
+    def persisted_watermarks(self) -> dict[str, int]:
+        """Per-project seq high-water of events the writer has durably stored.
+
+        Snapshot ``last_seqs`` must use this, not live ``EventLog.high_watermarks``:
+        a concurrent append can raise the live marks before the new event is
+        persisted, and restore would then skip it via ``events_after``.
+        """
+        return self._log.watermarks_for_prefix(self._persisted)
+
     def mark_restored(self) -> None:
         """Treat the current log as already persisted/published (post-backfill).
 

@@ -256,27 +256,36 @@ class RuntimeStore:
         pending_compactions: set[str] | None = None,
         last_seqs: dict[str, int],
     ) -> None:
-        payload = _strip_computed_fields(
-            {
-                "projects": {k: v.model_dump(mode="json") for k, v in projects.items()},
-                "agents": {k: v.model_dump(mode="json") for k, v in agents.items()},
-                "roles": {k: v.model_dump(mode="json") for k, v in roles.items()},
-                "runtime_defaults": runtime_defaults.model_dump(mode="json"),
-                # 会话级 LLM 上下文投影（Task 4）：快照是缓存，权威是 events
-                # 表——快照点之前的 context.* 事件不参与增量重放，必须随快照
-                # 落地，否则重启后投影丢失。
-                "session_contexts": {
-                    k: v.model_dump(mode="json") for k, v in (session_contexts or {}).items()
-                },
-                # pending_compactions 是 compaction.requested 的事件投影；
-                # 快照水位越过该事件后增量重放看不到它，必须随快照落地。
-                "pending_compactions": sorted(pending_compactions or ()),
-            }
-        )
+        payload = {
+            "projects": {k: v.model_dump(mode="json") for k, v in projects.items()},
+            "agents": {k: v.model_dump(mode="json") for k, v in agents.items()},
+            "roles": {k: v.model_dump(mode="json") for k, v in roles.items()},
+            "runtime_defaults": runtime_defaults.model_dump(mode="json"),
+            # 会话级 LLM 上下文投影（Task 4）：快照是缓存，权威是 events
+            # 表——快照点之前的 context.* 事件不参与增量重放，必须随快照
+            # 落地，否则重启后投影丢失。
+            "session_contexts": {
+                k: v.model_dump(mode="json") for k, v in (session_contexts or {}).items()
+            },
+            # pending_compactions 是 compaction.requested 的事件投影；
+            # 快照水位越过该事件后增量重放看不到它，必须随快照落地。
+            "pending_compactions": sorted(pending_compactions or ()),
+        }
+        self.write_snapshot_payload(payload, last_seqs)
+
+    def write_snapshot_payload(
+        self, payload: dict[str, Any], last_seqs: dict[str, int]
+    ) -> None:
+        """Persist an already-frozen snapshot blob.
+
+        Callers that hold live core dicts must ``model_dump`` on the event
+        loop first — this method may run in a worker thread.
+        """
+        frozen = _strip_computed_fields(payload)
         with self._connect() as con:
             con.execute(
                 "INSERT OR REPLACE INTO objects(kind, obj_id, data) VALUES ('snapshot', 'state', ?)",
-                (json.dumps(payload, ensure_ascii=False),),
+                (json.dumps(frozen, ensure_ascii=False),),
             )
             con.execute(
                 "INSERT OR REPLACE INTO meta(key, value) VALUES ('last_seqs', ?)",

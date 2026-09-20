@@ -46,6 +46,98 @@ async def test_complete_empty_graph_continue_work(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_audit_stop_reloads_store_contract_after_strengthen(tmp_path):
+    """initialize 缓存的契约不得盖过 store 里后来收紧的 require_thermochemistry。"""
+    from cloudra.dag.engine import DagEngine
+    from cloudra.dag.models import (
+        AddEdge,
+        AddNode,
+        CoverageContract,
+        ElementaryStepEdge,
+        GraphActor,
+        MutationBatch,
+        OccurrenceNode,
+        SetCoverageContract,
+        StageState,
+        StageStatus,
+    )
+
+    c = await _controller(tmp_path, "exit-stale-contract", "dag_record")
+    engine = DagEngine(c.store)
+    supported = [
+        StageState(kind="ts_opt", status=StageStatus.SUPPORTED),
+        StageState(kind="frequency", status=StageStatus.SUPPORTED),
+    ]
+    seeded = engine.apply_batch(
+        MutationBatch(
+            session_id="s1",
+            actor=GraphActor.HARNESS,
+            actor_id="test-harness",
+            base_revisions=c.store.load_bundle().revisions,
+            rationale="seed a live-complete step without thermochemistry",
+            operations=[
+                AddNode(
+                    op="add_node",
+                    graph="delivery",
+                    node=OccurrenceNode(
+                        node_id="r",
+                        label="R",
+                        role="reactant",
+                        evidence_level="structure_supported",
+                    ),
+                ),
+                AddNode(
+                    op="add_node",
+                    graph="delivery",
+                    node=OccurrenceNode(
+                        node_id="p",
+                        label="P",
+                        role="product",
+                        evidence_level="structure_supported",
+                    ),
+                ),
+                AddEdge(
+                    op="add_edge",
+                    graph="delivery",
+                    edge=ElementaryStepEdge(
+                        edge_id="step1",
+                        source_node_id="r",
+                        target_node_id="p",
+                        stages=supported,
+                    ),
+                ),
+            ],
+        )
+    )
+    assert seeded.accepted
+    first = await c.audit_stop("complete")
+    assert first.action == "allow_final"
+    assert first.report is not None and first.report.complete
+
+    stronger = engine.apply_batch(
+        MutationBatch(
+            session_id="s1",
+            actor=GraphActor.USER,
+            actor_id="user",
+            base_revisions=c.store.load_bundle().revisions,
+            rationale="require thermochemistry after initialize cached the default",
+            operations=[
+                SetCoverageContract(
+                    op="set_coverage_contract",
+                    contract=CoverageContract.mechanism_default(
+                        require_thermochemistry=True
+                    ),
+                )
+            ],
+        )
+    )
+    assert stronger.accepted
+    gate = await c.audit_stop("complete")
+    assert gate.action == "continue_work"
+    assert gate.report is not None and not gate.report.complete
+
+
+@pytest.mark.asyncio
 async def test_user_terminated_requires_real_event(tmp_path):
     c = await _controller(tmp_path, "exit-user", "dag_record")
     fake = await c.audit_stop("user_terminated")

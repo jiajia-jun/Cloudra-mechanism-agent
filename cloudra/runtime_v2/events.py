@@ -153,6 +153,15 @@ class EventLog:
         永久漏掉（3b 修复的丢事件 bug）。"""
         return dict(self._project_seqs)
 
+    def watermarks_for_prefix(self, count: int) -> dict[str, int]:
+        """前 ``count`` 条事件的 per-project seq 水位（已落盘前缀用）。"""
+        marks: dict[str, int] = {}
+        for envelope in self._events[: max(0, count)]:
+            current = marks.get(envelope.project_id, 0)
+            if envelope.seq > current:
+                marks[envelope.project_id] = envelope.seq
+        return marks
+
     def restore(self, envelopes: list[EventEnvelope]) -> None:
         """Replay persisted envelopes without generating new seq numbers."""
         for envelope in envelopes:

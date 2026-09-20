@@ -36,16 +36,16 @@ def test_pending_terminal_jobs_found_and_marked():
     assert ComputeNotifyBroker._pending_terminal_jobs() == []
 
 
-def test_pending_terminal_jobs_skip_running_and_old():
+def test_pending_terminal_jobs_skip_running_keep_old():
     db = ComputeDB().init()
     running = _insert_terminal(db, state="running")
-    old = _insert_terminal(db, ended=time.time() - 8 * 24 * 3600)  # 超出 7 天补投窗口
+    old = _insert_terminal(db, ended=time.time() - 8 * 24 * 3600)
     recent = _insert_terminal(db, state="failed")
 
     pending = [row[1] for row in ComputeNotifyBroker._pending_terminal_jobs()]
     assert recent in pending
+    assert old in pending
     assert running not in pending
-    assert old not in pending
 
 
 def test_pending_terminal_jobs_filter_by_conversation():
@@ -68,3 +68,38 @@ def test_pending_terminal_jobs_filter_by_conversation():
     assert [row[1] for row in pending] == [mine]
     # 全局扫描两者皆见
     assert {row[1] for row in ComputeNotifyBroker._pending_terminal_jobs()} == {mine, other}
+
+
+def test_pending_terminal_jobs_loaded_ids_skip_foreign_backlog():
+    """未加载项目的旧终态不能占满 LIMIT，挡住已打开项目的完成通知。"""
+    db = ComputeDB().init()
+    with db.connect() as con:
+        for index in range(60):
+            con.execute(
+                """INSERT INTO compute_jobs
+                (conversation_id, session_id, path, state, jobtype, start_timestamp,
+                 end_timestamp, scheduler, scheduler_options)
+                VALUES ('closed-conv', 'sess-old', '/tmp/old.gjf', 'done', 'gaussian',
+                        ?, ?, 'local', '{}')""",
+                (time.time() - 1000 - index, time.time() - 900 - index),
+            )
+        con.execute(
+            """INSERT INTO compute_jobs
+            (conversation_id, session_id, path, state, jobtype, start_timestamp,
+             end_timestamp, scheduler, scheduler_options)
+            VALUES ('notify-conv', 'sess-1', '/tmp/live.gjf', 'done', 'gaussian',
+                    ?, ?, 'local', '{}')""",
+            (time.time() - 10, time.time()),
+        )
+        live = int(con.execute("SELECT last_insert_rowid()").fetchone()[0])
+        con.commit()
+
+    global_batch = [row[1] for row in ComputeNotifyBroker._pending_terminal_jobs()]
+    assert live not in global_batch
+    loaded = [
+        row[1]
+        for row in ComputeNotifyBroker._pending_terminal_jobs(
+            conversation_ids=["notify-conv"]
+        )
+    ]
+    assert loaded == [live]

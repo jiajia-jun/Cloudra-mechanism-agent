@@ -19,7 +19,6 @@ from cloudra.dag.models import (
     GraphActor,
     GraphOperation,
     OrchestrationMode,
-    UpdateNode,
 )
 from cloudra.dag.review_context import ActiveReview, ReviewContextManager
 from cloudra.tools.Plantool.dag_tools._common import (
@@ -143,19 +142,7 @@ class DagSubmitSpeciesEvidence(DagToolBase):
 
         # 5. Adjudicate according to orchestration mode
         if ctx.mode is OrchestrationMode.DAG_RECORD:
-            # Auto-accept in dag_record
-            operations.append(
-                UpdateNode(
-                    op="update_node",
-                    graph="delivery",
-                    node_id=species.node_id,
-                    changes={
-                        "status": "supported",
-                        "evidence_level": "supported",
-                        "reason": user_input.description,
-                    },
-                )
-            )
+            # dag_record 只挂快照；evidence_level 由阶段绑定派生，不在这里写。
             mutation = apply_mutation(
                 ctx.store,
                 ctx.engine,
@@ -177,9 +164,12 @@ class DagSubmitSpeciesEvidence(DagToolBase):
                 accepted=True,
                 result={
                     "species_name": user_input.species_name,
-                    "status": "supported",
+                    "status": "attached",
                     "validation": val.model_dump(),
-                    "message": f"Species '{user_input.species_name}' evidence verified and auto-accepted.",
+                    "message": (
+                        f"Species '{user_input.species_name}' evidence attached; "
+                        "bind stages with dag_bind_evidence / dag_review_call."
+                    ),
                 },
             )
 

@@ -212,7 +212,7 @@ def validate_ts_mode(
             verified=True,
             n_imag=1,
             imaginary_frequencies=imag,
-            mode_matched=True,
+            mode_matched=False,
             message=msg,
         )
     elif n_imag == 0:

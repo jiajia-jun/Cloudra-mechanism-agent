@@ -252,7 +252,7 @@ class AgentRunner:
                 # scheduled the task afterwards.
                 run_id = agent.current_run.run_id
             else:
-                run_id = core.agent_host.start_run(agent)
+                run_id = await core.agent_host.start_run_durable(agent)
             contexts = core.contexts
             # 上下文前缀 owner（Task 2/4）：每个 run 创建一个，但状态从会话
             # 级上下文投影回灌（restored）——跨 run/重启不重装前缀，
@@ -285,10 +285,10 @@ class AgentRunner:
                 )
                 if contexts.current_messages(agent.id):
                     if agent.id in core.pending_compactions:
-                        core.pending_compactions.discard(agent.id)
                         await self._apply_compaction(
                             agent, run_id, context_prefix=context_prefix
                         )
+                        core.pending_compactions.discard(agent.id)
                 # 预算触发：达到上下文预算即压缩——估算用现有 context_window
                 # 与输出预算并留余量。压缩被拒时保留原上下文，且要等投影再
                 # 长出 COMPACT_RETRY_GROWTH 才重试（同样的输入只会同样失败）。
@@ -484,7 +484,7 @@ class AgentRunner:
                         hook = getattr(stage, "on_run_end", None)
                         if hook is not None:
                             await hook(agent, explicit_stop=explicit_stop)
-                    core.agent_host.finish_run(agent, outcome="succeeded")
+                    await core.agent_host.finish_run_durable(agent, outcome="succeeded")
                     # peek 与 finish 之间到达的消息：deliver 方的 wake 此刻仍可能
                     # 撞在 RUNNING 上（事件未应用前）；状态已 SUCCEEDED 后复查并
                     # 显式 wake 开新 run，关掉最后一段竞态窗口。
@@ -531,7 +531,7 @@ class AgentRunner:
         except Exception as exc:  # pipeline crash becomes a durable failure
             logger.exception("agent %s pipeline failed", agent.id)
             if agent.state is AgentState.RUNNING:
-                core.agent_host.finish_run(agent, outcome="failed", error=str(exc))
+                await core.agent_host.finish_run_durable(agent, outcome="failed", error=str(exc))
             self._deliver_child_completion(agent)
         finally:
             # Flush the tail events (message_emitted, finish_run's

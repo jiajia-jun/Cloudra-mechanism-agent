@@ -85,3 +85,15 @@ def test_slurm_commands_use_argument_arrays_and_validate_job_ids(
     assert all(isinstance(call[0], list) for call in calls)
     with pytest.raises(SlurmError, match="job id"):
         cancel_job("123; rm -rf x")
+
+
+def test_query_job_normalizes_cancelled_by_and_empty_sacct(monkeypatch):
+    def fake_run(command, **kwargs):
+        jobs = command[command.index("--jobs") + 1]
+        if jobs == "9":
+            return SimpleNamespace(returncode=0, stdout="CANCELLED by 1000|0:0\n", stderr="")
+        return SimpleNamespace(returncode=0, stdout="\n", stderr="")
+
+    monkeypatch.setattr("cloudra.infra.slurm.subprocess.run", fake_run)
+    assert query_job("9") == ("CANCELLED", "0:0")
+    assert query_job("8") == ("", "")

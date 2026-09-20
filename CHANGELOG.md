@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 变更
+- **API 访问控制只验 token**：`Authorization: Bearer …` 与 `?token=` 等价，不限 HTTP 方法、不验 Host。远程打开启动打印的 `#token=` URL 即可。`CLOUDRA_API_TOKEN=off` 才走回环 Host/client 闸门（挡 DNS rebinding）；非回环绑定拒绝 off。
 - live 交付 complete 口径钉死：默认机理草稿边只欠 `ts_opt` + `frequency`（一阶鞍点）；IRC/端点/方向不是结题必要，需要路径证明时才写进该步契约。带 stages 的边不以 `CoverageContract.required_edge_level=endpoint_supported` 为门槛。benchmark 自洽性与 `ts_guess strict` 的 IRC 方向证明不变。
 - `dag_guided` 机理草稿对话：Coordinator 的 `rationale` 必须写清 Considered / Observed / Chose（综合过哪些情况、机理推断工具里实际看到什么、图上留下什么及未画通道的取舍）；Supervisor 允许单路径，只在取舍没讲清时退回，不因单路径 reject，也不替 Coordinator 补第二条通道。
 - `dft-calculation` skill 重写（基于五路软件最佳实践调研）：TS 初猜三级梯队（ts_prepare → 映射插值/NEB → 一维/二维松弛扫描，扫描从兜底升为正当主力）、**QST2/QST3 硬禁止（上限 NEB）**、「投初猜优于调参」纪律、软模/松散离子-分子复合物不收敛预警与处置阶梯、构象采样强制（单构象能垒=交付阻断）、真空裸离子禁令与溶剂/反离子/标准态规则、伪鞍点识别（虚模位移必须落在反应重原子）、不合理建模黑名单与「该不该算」前置自审；新增 references `ts-search-playbook.md` 与 `modeling-sanity.md`；本地工具优先于 bash 的工作规则全面收紧。
@@ -18,6 +19,10 @@
 - 运行时环境定位 POSIX-only（flock/nice 依赖 fcntl 与 POSIX 语义），README 声明并撤下 Windows 安装指引。
 
 ### 修复
+- 快照 `last_seqs` 改用 EventWriter 已落盘前缀，不再用 live `high_watermarks`（并发 append 后重启会跳过已入库事件）。
+- `bind_stage_attachments` 与单条绑定共用 `ts_opt` 正常终止闸门，stale 后重算 stages，不再重放旧列表。
+- 计算完成通知按已加载项目取数，未打开项目的积压不再占满 LIMIT。
+- `.api_token` 新建即 0600，已存在但权限过宽就地修好；硬删除 artifact 路径收口在 `artifacts/` 下。
 - 计算账本与磁盘/DAG 对齐：guard 终态先 CAS，cancel-all 已落 `cancelled` 则不写 `state_*.json`、不入 compute review；租约耗尽 reap 探 calc/guard flock，活作业不标 failed；`scheduler` 为 NULL 的旧行走本地取消桶。
 - CommandBus 逐事件 persist-then-apply：落库失败丢弃未持久化尾巴，避免下次 flush 把从未 apply 的事件写进磁盘；包装路径已 apply 的事件失败不丢、留给下次重试。
 - OpenRouter OAuth 回调 `postMessage` 钉同源 `window.location.origin`，接收端校验 `event.origin`。

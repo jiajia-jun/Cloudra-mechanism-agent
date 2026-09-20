@@ -747,6 +747,26 @@ def _mkdir(path: str) -> None:
     Path(path).mkdir(parents=True, exist_ok=True)
 
 
+_ARTIFACT_ID_CHARS = frozenset(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"
+)
+
+
+def _artifact_dir(artifacts_root: Path, artifact_id: str) -> Path | None:
+    """Resolve a per-artifact directory only if it stays under ``artifacts_root``."""
+    if not artifact_id or len(artifact_id) > 200:
+        return None
+    if any(ch not in _ARTIFACT_ID_CHARS for ch in artifact_id):
+        return None
+    root = artifacts_root.resolve()
+    target = (root / artifact_id).resolve()
+    try:
+        target.relative_to(root)
+    except ValueError:
+        return None
+    return target
+
+
 def _delete_project_data(project_id: str) -> None:
     """硬删除的磁盘清理：conversations/<pid>/ 整树 + 该项目 artifact 文件。
 
@@ -768,7 +788,10 @@ def _delete_project_data(project_id: str) -> None:
             pass  # artifacts 表不存在（从未登记过 artifact）按空处理
     artifacts_root = data_dir() / "artifacts"
     for artifact_id in artifact_ids:
-        shutil.rmtree(artifacts_root / artifact_id, ignore_errors=True)
+        target = _artifact_dir(artifacts_root, artifact_id)
+        if target is None:
+            continue
+        shutil.rmtree(target, ignore_errors=True)
     shutil.rmtree(conversation_dir(project_id), ignore_errors=True)
 
 
@@ -831,6 +854,18 @@ class CommandBus:
         if decider is None and wrapper is None:
             raise CommandRejected("invalid_request", f"unknown command type {command.type!r}")
         try:
+            if command.type == "project.delete":
+                from cloudra.persistence.database import ComputeDB
+                from cloudra.services.compute_store import acount_active_compute_jobs
+
+                project_id = _project_id(core, command)
+                active = await acount_active_compute_jobs(ComputeDB(), project_id)
+                if active:
+                    raise CommandRejected(
+                        "state_conflict",
+                        f"project has {active} active compute job(s); "
+                        "run POST /api/v2/compute/cancel-all first",
+                    )
             if decider is not None:
                 # 拍 1：纯 decide（守卫校验在这里抛 CommandRejected）
                 decision = decider(core, command)
@@ -889,20 +924,22 @@ class CommandBus:
             for effect in decision.effects:
                 await _execute_effect(core, effect)
         except EventPersistenceError:
-            if envelopes:
-                data = None
-                try:
-                    data = self._resolve_result(decision.result)
-                except CommandRejected:
-                    data = None
-                core.remember(
-                    command,
-                    CommandResult(
-                        command_id=command.command_id,
-                        accepted=True,
-                        event_id=envelopes[-1].event_id,
-                        data=data,
-                    ),
+            # spawned 已落盘：返回已创建的 agent 并尽量跑完 effects，
+            # 避免 HTTP 500 触发新 command_id 再造一个 coordinator。
+            if any(envelope.type == "agent.spawned" for envelope in envelopes):
+                for effect in decision.effects:
+                    try:
+                        await _execute_effect(core, effect)
+                    except Exception:
+                        logger.exception(
+                            "spawn effect after partial persist failed for %s",
+                            command.command_id,
+                        )
+                return CommandResult(
+                    command_id=command.command_id,
+                    accepted=True,
+                    event_id=envelopes[-1].event_id,
+                    data=self._resolve_result(decision.result),
                 )
             raise
         return CommandResult(
@@ -976,18 +1013,20 @@ class CommandBus:
         core = self.core
         if core.store is None:
             return
-        # 先冲刷事件 writer：快照水位引用的每条事件都必须已持久化，
-        # 否则快照会指向尚未落库的事件。
+        # 先冲刷事件 writer：快照水位必须是已落盘前缀，不能用 live
+        # high_watermarks——并发 append 会把水位抬过尚未 persist 的事件。
         await core.event_writer.flush()
-        await asyncio.to_thread(
-            core.store.save_snapshot,
-            projects=core.projects,
-            agents=core.agents,
-            roles=core.roles._roles,
-            runtime_defaults=core.runtime_defaults,
-            session_contexts=core.session_contexts,
-            pending_compactions=core.pending_compactions,
-            last_seqs=core.event_log.high_watermarks,
-        )
+        last_seqs = core.event_writer.persisted_watermarks()
+        payload = {
+            "projects": {k: v.model_dump(mode="json") for k, v in core.projects.items()},
+            "agents": {k: v.model_dump(mode="json") for k, v in core.agents.items()},
+            "roles": {k: v.model_dump(mode="json") for k, v in core.roles._roles.items()},
+            "runtime_defaults": core.runtime_defaults.model_dump(mode="json"),
+            "session_contexts": {
+                k: v.model_dump(mode="json") for k, v in core.session_contexts.items()
+            },
+            "pending_compactions": sorted(core.pending_compactions),
+        }
+        await asyncio.to_thread(core.store.write_snapshot_payload, payload, last_seqs)
         self._snapshot_event_mark = len(core.event_log)
         self._snapshot_at = time.monotonic()

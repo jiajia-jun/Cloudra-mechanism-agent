@@ -214,3 +214,21 @@ def test_cancel_requested_counts_toward_inflight_usage():
     _insert(db)
     assert _claim(db) is None
 
+
+def test_acancel_compute_job_does_not_overwrite_done():
+    import asyncio
+
+    from cloudra.services.compute_store import acancel_compute_job, get_compute_job
+
+    async def _run():
+        db = ComputeDB().init()
+        done = _insert(db, state="done")
+        await acancel_compute_job(db, done)
+        assert get_compute_job(db, done)["state"] == "done"
+
+        requested = _insert(db, state="cancel_requested", scheduler="slurm")
+        await acancel_compute_job(db, requested)
+        assert get_compute_job(db, requested)["state"] == "cancelled"
+
+    asyncio.run(_run())
+

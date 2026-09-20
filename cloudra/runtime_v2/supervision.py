@@ -580,6 +580,8 @@ async def flush_review_notifications(
                     not in {
                         AgentState.FAILED,
                         AgentState.CANCELLED,
+                        AgentState.WAITING_APPROVAL,
+                        AgentState.WAITING_INPUT,
                     }
                 ):
                     core.agent_host.wake(agent, runner=core.runner)

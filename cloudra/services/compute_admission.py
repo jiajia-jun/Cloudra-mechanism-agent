@@ -181,7 +181,9 @@ def admit_job(
         )
     if node is not None:
         node_id = node.node_id
-        node_resources = dict(node.resources)
+        from cloudra.services.host_capacity import effective_node_resources
+
+        node_resources = dict(effective_node_resources(node))
         if scheduler == "auto":
             scheduler_options = dict(node.scheduler)
             scheduler = str(scheduler_options.get("type", "local"))
@@ -192,7 +194,9 @@ def admit_job(
         try:
             default_node = NodeRegistry.from_environment().node(None)
             node_id = default_node.node_id
-            node_resources = dict(default_node.resources)
+            from cloudra.services.host_capacity import effective_node_resources
+
+            node_resources = dict(effective_node_resources(default_node))
         except Exception:  # noqa: BLE001 - 注册表缺失/损坏：单节点兜底
             node_id = os.getenv("CLOUDRA_NODE_ID", "node-local")
             node_resources = default_resources()

@@ -471,11 +471,6 @@ _DEFAULT_EDGE_STAGES = [
     "ts_guess",
     "ts_opt",
     "frequency",
-    "short_irc",
-    "endpoint_a",
-    "endpoint_b",
-    "direction",
-    "identity",
 ]
 _DEFAULT_NODE_STAGES = ["geometry"]
 

@@ -407,6 +407,11 @@ class EvidenceInboxMixin:
             imag = payload.get("imaginary_frequencies")
         return freqs, imag
 
+    @staticmethod
+    def _normal_termination(payload: dict[str, Any]) -> bool:
+        result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+        return result.get("normal_termination") is True
+
     def _passes_minimum_check(self, ref: GraphRef | None) -> bool:
         """物种 geometry 绑定：必须是有频率数据支撑的驻点极小值（0 虚频）。"""
         if ref is None:
@@ -417,9 +422,28 @@ class EvidenceInboxMixin:
             return False
         if not isinstance(payload, dict):
             return False
+        if not self._normal_termination(payload):
+            return False
         freqs, imag = self._frequency_fields(payload)
         res = validate_species_minimum(freqs, imaginary_freqs=imag)
         return res.verified and res.is_valid
+
+    def _passes_ts_opt_check(self, ref: GraphRef | None) -> bool:
+        """ts_opt 必须来自正常结束的引擎日志；若带频率则须是一阶鞍点。"""
+        if ref is None:
+            return False
+        try:
+            source_name, payload = self.store.resolve_evidence_with_source(ref)
+        except InvalidGraphReference:
+            return False
+        if source_name == "submit_compute_job" or not isinstance(payload, dict):
+            return False
+        if not self._normal_termination(payload):
+            return False
+        freqs, imag = self._frequency_fields(payload)
+        if freqs is None and imag is None:
+            return True
+        return self._passes_saddle_check(ref)
 
     async def apply_stage_bind(
         self,
@@ -509,6 +533,17 @@ class EvidenceInboxMixin:
                 )
             if (
                 verdict == "agree"
+                and target_type == "edge"
+                and kind is StageKind.TS_OPT
+                and not self._passes_ts_opt_check(ref)
+            ):
+                raise _Rejected(
+                    "ts_opt_check_failed",
+                    "ts_opt evidence must be a normally terminated engine log "
+                    "(and a first-order saddle if frequencies are present)",
+                )
+            if (
+                verdict == "agree"
                 and target_type == "node"
                 and kind is StageKind.GEOMETRY
                 and not self._passes_minimum_check(ref)
@@ -518,17 +553,10 @@ class EvidenceInboxMixin:
                     "species geometry evidence must be a verified minimum "
                     "(n_imag == 0); the stage stays pending",
                 )
-            return target_type, element, new_stages
+            return target_type, element, new_stages, dict(snapshot.bundle.revisions)
 
-        try:
-            target_type, element, new_stages = await asyncio.to_thread(
-                _guarded_stages
-            )
-        except _Rejected as exc:
-            rejection = exc  # except 块退出后 exc 会被删除，先绑定到普通局部变量
-            revisions = await asyncio.to_thread(
-                lambda: dict(self.store.load_bundle().revisions)
-            )
+        def _reject(rejection: _Rejected) -> MutationResult:
+            revisions = dict(self.store.load_bundle().revisions)
             return MutationResult(
                 accepted=False,
                 mutation_id="mut_" + uuid.uuid4().hex,
@@ -537,49 +565,91 @@ class EvidenceInboxMixin:
                 rejection_reason=rejection.reason,
             )
 
-        operations: list[GraphOperation] = []
-        if verdict == "agree" and ref is not None and ref not in element.refs:
+        try:
+            target_type, element, new_stages, seen_revisions = await asyncio.to_thread(
+                _guarded_stages
+            )
+        except _Rejected as exc:
+            return await asyncio.to_thread(_reject, exc)
+
+        rationale = f"stage bind {verdict}: {element_id}.{kind.value}"
+        last: MutationResult | None = None
+        for _attempt in range(8):
+            operations: list[GraphOperation] = []
+            if verdict == "agree" and ref is not None and ref not in element.refs:
+                operations.append(
+                    AttachRef(
+                        op="attach_ref",
+                        graph="delivery",
+                        target_type=target_type,  # type: ignore[arg-type]
+                        target_id=element_id,
+                        ref=ref,
+                    )
+                )
+            changes = {
+                "stages": [stage.model_dump(mode="json") for stage in new_stages],
+                "evidence_level": derive_evidence_level(
+                    new_stages, is_edge=target_type == "edge"
+                ),
+            }
             operations.append(
-                AttachRef(
-                    op="attach_ref",
+                UpdateNode(
+                    op="update_node",
                     graph="delivery",
-                    target_type=target_type,  # type: ignore[arg-type]
-                    target_id=element_id,
-                    ref=ref,
+                    node_id=element_id,
+                    changes=changes,
+                )
+                if target_type == "node"
+                else UpdateEdge(
+                    op="update_edge",
+                    graph="delivery",
+                    edge_id=element_id,
+                    changes=changes,
                 )
             )
-        changes = {
-            "stages": [stage.model_dump(mode="json") for stage in new_stages],
-            "evidence_level": derive_evidence_level(
-                new_stages, is_edge=target_type == "edge"
-            ),
-        }
-        operations.append(
-            UpdateNode(
-                op="update_node",
-                graph="delivery",
-                node_id=element_id,
-                changes=changes,
-            )
-            if target_type == "node"
-            else UpdateEdge(
-                op="update_edge",
-                graph="delivery",
-                edge_id=element_id,
-                changes=changes,
-            )
-        )
-        if expected_revision is None:
-            return await asyncio.to_thread(
-                self._apply_harness,
+            if expected_revision is not None:
+                return await asyncio.to_thread(
+                    self._apply_harness_once,
+                    operations,
+                    rationale,
+                    expected_revision=expected_revision,
+                )
+            last = await asyncio.to_thread(
+                self._apply_with_revisions,
                 operations,
-                f"stage bind {verdict}: {element_id}.{kind.value}",
+                rationale,
+                seen_revisions,
             )
-        return await asyncio.to_thread(
-            self._apply_harness_once,
-            operations,
-            f"stage bind {verdict}: {element_id}.{kind.value}",
-            expected_revision=expected_revision,
+            if last.accepted or last.rejection_code != "stale_revision":
+                return last
+            try:
+                target_type, element, new_stages, seen_revisions = (
+                    await asyncio.to_thread(_guarded_stages)
+                )
+            except _Rejected as exc:
+                return await asyncio.to_thread(_reject, exc)
+        assert last is not None
+        raise RuntimeError(
+            f"deterministic DAG mutation rejected: {last.rejection_code}: "
+            f"{last.rejection_reason}"
+        )
+
+    def _apply_with_revisions(
+        self,
+        operations: list[GraphOperation],
+        rationale: str,
+        revisions: dict[str, int],
+    ) -> MutationResult:
+        """用守卫读到的 revision 做 base，并发写入才会 stale 并触发重算。"""
+        return self.engine.apply_batch(
+            MutationBatch(
+                session_id=self.session_id,
+                actor=GraphActor.HARNESS,
+                actor_id="dag-controller",
+                base_revisions=revisions,
+                operations=operations,
+                rationale=rationale,
+            )
         )
 
     def _apply_harness_once(
@@ -772,6 +842,16 @@ class EvidenceInboxMixin:
                         "frequency (n_imag == 1); the stage stays pending",
                     )
                 if (
+                    target_type == "edge"
+                    and kind is StageKind.TS_OPT
+                    and not self._passes_ts_opt_check(ref)
+                ):
+                    raise _Rejected(
+                        "ts_opt_check_failed",
+                        "ts_opt evidence must be a normally terminated engine log "
+                        "(and a first-order saddle if frequencies are present)",
+                    )
+                if (
                     target_type == "node"
                     and kind is StageKind.GEOMETRY
                     and not self._passes_minimum_check(ref)
@@ -825,15 +905,10 @@ class EvidenceInboxMixin:
                         changes=changes,
                     )
                 )
-            return all_ops
+            return all_ops, dict(snapshot.bundle.revisions)
 
-        try:
-            operations = await asyncio.to_thread(_guarded_batch)
-        except _Rejected as exc:
-            rejection = exc
-            revisions = await asyncio.to_thread(
-                lambda: dict(self.store.load_bundle().revisions)
-            )
+        def _reject(rejection: _Rejected) -> dict[str, Any]:
+            revisions = dict(self.store.load_bundle().revisions)
             return {
                 "attachments": attachments,
                 "accepted": False,
@@ -842,30 +917,55 @@ class EvidenceInboxMixin:
                 "mutation_id": "mut_" + uuid.uuid4().hex,
                 "revisions": revisions,
             }
+
+        try:
+            operations, seen_revisions = await asyncio.to_thread(_guarded_batch)
+        except _Rejected as exc:
+            return await asyncio.to_thread(_reject, exc)
         rationale = "stage bind attachments: " + ", ".join(
             f"{item['bind_target']}.{item['stage_kind']}" for item in attachments
         )
-        if expected_revision is None:
-            mutation = await asyncio.to_thread(
-                self._apply_harness,
-                operations,
-                rationale,
-            )
-        else:
+        if expected_revision is not None:
             mutation = await asyncio.to_thread(
                 self._apply_harness_once,
                 operations,
                 rationale,
                 expected_revision=expected_revision,
             )
-        return {
-            "attachments": attachments,
-            "accepted": mutation.accepted,
-            "rejection_code": mutation.rejection_code,
-            "rejection_reason": mutation.rejection_reason,
-            "mutation_id": mutation.mutation_id,
-            "revisions": mutation.revisions,
-        }
+            return {
+                "attachments": attachments,
+                "accepted": mutation.accepted,
+                "rejection_code": mutation.rejection_code,
+                "rejection_reason": mutation.rejection_reason,
+                "mutation_id": mutation.mutation_id,
+                "revisions": mutation.revisions,
+            }
+        last: MutationResult | None = None
+        for _attempt in range(8):
+            last = await asyncio.to_thread(
+                self._apply_with_revisions,
+                operations,
+                rationale,
+                seen_revisions,
+            )
+            if last.accepted or last.rejection_code != "stale_revision":
+                return {
+                    "attachments": attachments,
+                    "accepted": last.accepted,
+                    "rejection_code": last.rejection_code,
+                    "rejection_reason": last.rejection_reason,
+                    "mutation_id": last.mutation_id,
+                    "revisions": last.revisions,
+                }
+            try:
+                operations, seen_revisions = await asyncio.to_thread(_guarded_batch)
+            except _Rejected as exc:
+                return await asyncio.to_thread(_reject, exc)
+        assert last is not None
+        raise RuntimeError(
+            f"deterministic DAG mutation rejected: {last.rejection_code}: "
+            f"{last.rejection_reason}"
+        )
 
     async def _call_verdict_notification(
         self,
@@ -943,9 +1043,9 @@ class EvidenceInboxMixin:
                 "not a consumable submission — only explicit re-submission "
                 "(dag_bind_evidence with a claim) enters the reviewable inbox"
             )
-        if review.state == "ignored":
+        if review.state != "pending":
             raise RuntimeError(
-                f"call review {review_id!r} is already ignored"
+                f"call review {review_id!r} is already {review.state}"
             )
         claim_context = {
             "claim": review.claim,

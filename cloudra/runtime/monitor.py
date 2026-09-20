@@ -137,7 +137,9 @@ async def _parse_log(
     parsed = await _cclib_parse(target)
     if parsed is None:
         return None, None
-    return parsed
+    data_dic, _cclib_success = parsed
+    # 未知引擎：cclib 只取数据，不定成败（与 Gaussian/ORCA 同口径）。
+    return data_dic, False
 
 
 async def _cclib_parse(target: Path) -> tuple[dict, bool] | None:

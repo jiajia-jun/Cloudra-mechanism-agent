@@ -2,8 +2,9 @@
 
 计算作业终态的唯一事实源是中央库 ``data_dir/compute.db`` 的 ``compute_jobs``
 表（guard/Slurm 进程终态 CAS 落库）；本 broker 不走任何进程间事件总线，只做
-纯 DB 轮询：每 tick 一条带 LIMIT 的小 SELECT 扫"终态且 notified_at IS NULL"
-的作业（限 7 天窗口防历史刷屏），只投递 ``conversation_id in core.projects``
+纯 DB 轮询：每 tick 先按已加载项目 SELECT "终态且 notified_at IS NULL"
+（不按结束时间截断，宕机窗口不丢），再扫一小批未加载行只为把已删除
+项目的死信落 ``notified_at``。只投递 ``conversation_id in core.projects``
 的行（未加载项目跳过、不落 notified_at，项目打开时 ``ensure_project`` 立即
 扫该项目；**已硬删除的项目**——事件日志里有 project.deleted tombstone——
 永不加载，记 warning 并落 notified_at 终结），逐作业投递 ``agent.message``
@@ -30,8 +31,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# 补投窗口：只认最近 7 天内结束的作业，防升级后历史作业刷屏
-_BACKFILL_WINDOW_SECONDS = 7 * 24 * 3600
+# 兼容 pending_terminal_jobs 签名；查询本身不再按结束时间截断。
+_BACKFILL_WINDOW_SECONDS = 0
 # 每 tick 全局扫描的投递上限（小 SELECT 粒度上限）
 _POLL_BATCH = 50
 
@@ -74,37 +75,52 @@ class ComputeNotifyBroker:
             await asyncio.sleep(self.poll_interval)
 
     async def _poll_all(self) -> None:
-        """每 tick 一条全局扫描；未加载项目的行跳过（不落 notified_at）。
+        """每 tick 先扫已加载项目，再扫一小批未加载行只为终结已删除项目。
 
-        例外：已被硬删除的项目（事件日志里有 project.deleted tombstone）永远
-        不会再加载，其行不再"等打开"，记 warning 并落 notified_at 终结——
-        park-don't-wake 纪律的延伸，避免每 tick 重扫死信。
+        已加载项目单独 SELECT，不被其它会话的未通知积压占满 LIMIT。
+        未加载且未删除的行仍跳过、不落 notified_at，项目打开时
+        ``ensure_project`` 立即扫该项目。已被硬删除的项目（事件日志里有
+        project.deleted tombstone）记 warning 并落 notified_at 终结。
         """
-        rows = await asyncio.to_thread(self._pending_terminal_jobs)
+        loaded = list(self.core.projects)
         deleted_ids: set[str] | None = None
-        for conversation_id, task_id, state, session_id in rows:
-            if conversation_id not in self.core.projects:
-                if deleted_ids is None:
-                    deleted_ids = {
-                        e.project_id for e in self.core.event_log if e.type == "project.deleted"
-                    }
-                if conversation_id in deleted_ids:
-                    logger.warning(
-                        "compute job %s belongs to deleted project %s; marking notified "
-                        "without delivery",
-                        task_id,
-                        conversation_id,
+
+        def _deleted_project_ids() -> set[str]:
+            nonlocal deleted_ids
+            if deleted_ids is None:
+                deleted_ids = {
+                    e.project_id for e in self.core.event_log if e.type == "project.deleted"
+                }
+            return deleted_ids
+
+        if loaded:
+            rows = await asyncio.to_thread(
+                self._pending_terminal_jobs, conversation_ids=loaded
+            )
+            for conversation_id, task_id, state, session_id in rows:
+                try:
+                    await self._deliver(
+                        conversation_id, task_id=task_id, state=state, session_id=session_id
                     )
-                    await asyncio.to_thread(self._mark_notified, task_id)
-                continue  # 项目未加载无投递目标
-            try:
-                await self._deliver(
-                    conversation_id, task_id=task_id, state=state, session_id=session_id
+                except Exception:
+                    logger.exception(
+                        "compute notify delivery failed for %s job %s",
+                        conversation_id,
+                        task_id,
+                    )
+
+        parked = await asyncio.to_thread(self._pending_terminal_jobs)
+        for conversation_id, task_id, _state, _session_id in parked:
+            if conversation_id in loaded:
+                continue
+            if conversation_id in _deleted_project_ids():
+                logger.warning(
+                    "compute job %s belongs to deleted project %s; marking notified "
+                    "without delivery",
+                    task_id,
+                    conversation_id,
                 )
-            except Exception:
-                logger.exception(
-                    "compute notify delivery failed for %s job %s", conversation_id, task_id
-                )
+                await asyncio.to_thread(self._mark_notified, task_id)
         await self._retry_snapshots()
 
     async def _poll_project(self, project_id: str) -> None:
@@ -124,14 +140,16 @@ class ComputeNotifyBroker:
     @staticmethod
     def _pending_terminal_jobs(
         project_id: str | None = None,
+        conversation_ids: list[str] | None = None,
     ) -> list[tuple[str, int, str, str | None]]:
-        """终态且未通知的作业（限 7 天窗口）；读失败返回空，下轮再试。"""
+        """终态且未通知的作业；读失败返回空，下轮再试。"""
         try:
             return pending_terminal_jobs(
                 ComputeDB(),
                 window_seconds=_BACKFILL_WINDOW_SECONDS,
                 limit=_POLL_BATCH,
                 conversation_id=project_id,
+                conversation_ids=conversation_ids,
             )
         except Exception:
             return []
@@ -165,7 +183,10 @@ class ComputeNotifyBroker:
             coordinator = self._coordinator_for(project_id)
             if coordinator is not None:
                 await self._send_message(coordinator.id, content)
+                delivered.add(coordinator.id)
 
+        if not delivered:
+            return
         await asyncio.to_thread(self._mark_notified, task_id)
 
     async def _content_for(self, task_id: int, state: str) -> str:

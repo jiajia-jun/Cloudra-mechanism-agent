@@ -12,10 +12,11 @@ compute_jobs 已从会话级 SQLite 迁到中央库：提交（submit_compute_jo
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import time
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping, Optional, Sequence
 
 from cloudra.persistence.database import ComputeDB, aretry_on_locked, retry_on_locked
 
@@ -285,13 +286,14 @@ async def alist_compute_jobs(
 
 
 def list_running_jobs(db: ComputeDB) -> list[dict]:
-    """对账用：全部 running 作业（含 Slurm attach 所需的 scheduler_job_id）。"""
+    """对账用：running 与 cancel_requested（Slurm scancel 重挂也靠这一条）。"""
 
     def read() -> list[dict]:
         with db.connect() as con:
             rows = con.execute(
-                """SELECT id, conversation_id, path, jobtype, scheduler, scheduler_job_id
-                FROM compute_jobs WHERE state='running'"""
+                """SELECT id, conversation_id, path, jobtype, scheduler,
+                scheduler_job_id, state, start_timestamp
+                FROM compute_jobs WHERE state IN ('running', 'cancel_requested')"""
             ).fetchall()
         return [
             {
@@ -301,6 +303,8 @@ def list_running_jobs(db: ComputeDB) -> list[dict]:
                 "jobtype": r[3],
                 "scheduler": r[4],
                 "scheduler_job_id": r[5],
+                "state": r[6],
+                "start_timestamp": r[7],
             }
             for r in rows
         ]
@@ -314,23 +318,32 @@ def pending_terminal_jobs(
     window_seconds: float,
     limit: int,
     conversation_id: Optional[str] = None,
+    conversation_ids: Optional[Sequence[str]] = None,
 ) -> list[tuple[str, int, str, Optional[str]]]:
     """终态且未通知的作业：(conversation_id, id, state, session_id)。
 
-    限 ``window_seconds`` 补投窗口防历史刷屏。读路径不建库：中央库文件
-    不存在（从未提交过作业）时返回空，不创建空文件。
+    ``window_seconds`` 保留给调用方，查询本身不按结束时间截断。读路径
+    不建库：中央库文件不存在（从未提交过作业）时返回空，不创建空文件。
+    ``conversation_ids`` 限制在已加载项目内扫描，避免未打开项目的积压
+    占满 LIMIT、挡住开着的项目。
     """
     if not _db_ready(db):
         return []
-    cutoff = time.time() - window_seconds
+    _ = window_seconds
+    if conversation_ids is not None and not conversation_ids:
+        return []
 
     def read() -> list[tuple[str, int, str, Optional[str]]]:
         clauses = (
             "state IN ('done','failed','cancelled') "
-            "AND notified_at IS NULL AND end_timestamp>=?"
+            "AND notified_at IS NULL"
         )
-        params: list[Any] = [cutoff]
-        if conversation_id is not None:
+        params: list[Any] = []
+        if conversation_ids is not None:
+            placeholders = ",".join("?" * len(conversation_ids))
+            clauses += f" AND conversation_id IN ({placeholders})"
+            params.extend(conversation_ids)
+        elif conversation_id is not None:
             clauses += " AND conversation_id=?"
             params.append(conversation_id)
         with db.connect() as con:
@@ -591,13 +604,31 @@ def renew_compute_lease(
     return renewed
 
 
+def take_compute_lease(
+    db: ComputeDB, task_id: int, worker_id: str, seconds: int
+) -> None:
+    """对账重挂时改写租约持有者，避免调度器 PID 变化后续租失败。"""
+
+    def write() -> None:
+        with db.connect() as con:
+            con.execute(
+                """UPDATE compute_jobs SET lease_owner=?, lease_expires_at=?
+                WHERE id=? AND state IN ('running', 'cancel_requested')""",
+                (worker_id, time.time() + max(10, int(seconds)), task_id),
+            )
+            con.commit()
+
+    retry_on_locked(write)
+
+
 def extend_compute_lease(db: ComputeDB, task_id: int, seconds: int) -> None:
     """无条件（不限 owner）延长 running 作业的租约：guard 拉起后/对账续租用。"""
 
     def write() -> None:
         with db.connect() as con:
             con.execute(
-                "UPDATE compute_jobs SET lease_expires_at=? WHERE id=? AND state='running'",
+                "UPDATE compute_jobs SET lease_expires_at=? "
+                "WHERE id=? AND state IN ('running', 'cancel_requested')",
                 (time.time() + max(10, int(seconds)), task_id),
             )
             con.commit()
@@ -609,7 +640,8 @@ async def aextend_compute_lease(db: ComputeDB, task_id: int, seconds: int) -> No
     """异步延租；语义同 :func:`extend_compute_lease`。"""
     async with db.aconnect() as con:
         await con.execute(
-            "UPDATE compute_jobs SET lease_expires_at=? WHERE id=? AND state='running'",
+            "UPDATE compute_jobs SET lease_expires_at=? "
+            "WHERE id=? AND state IN ('running', 'cancel_requested')",
             (time.time() + max(10, int(seconds)), task_id),
         )
         await con.commit()
@@ -765,17 +797,28 @@ async def aupdate_compute_pid(db: ComputeDB, task_id: int, column: str, pid: int
 # Slurm 链路
 # ---------------------------------------------------------------------------
 
+def mark_slurm_submitted(
+    db: ComputeDB, task_id: int, scheduler_job_id: str, script_path: str = ""
+) -> None:
+    """sbatch 成功（或对账按 job-name 找回）后回写 Slurm 句柄并置 PENDING。"""
+
+    def write() -> None:
+        with db.connect() as con:
+            con.execute(
+                """UPDATE compute_jobs SET scheduler_job_id=?, scheduler_script=?,
+                scheduler_state='PENDING', start_timestamp=? WHERE id=?""",
+                (scheduler_job_id, script_path, time.time(), task_id),
+            )
+            con.commit()
+
+    retry_on_locked(write)
+
+
 async def amark_slurm_submitted(
     db: ComputeDB, task_id: int, scheduler_job_id: str, script_path: str
 ) -> None:
     """sbatch 成功后回写 Slurm 句柄（job id/脚本路径）并置 PENDING。"""
-    async with db.aconnect() as con:
-        await con.execute(
-            """UPDATE compute_jobs SET scheduler_job_id=?, scheduler_script=?,
-            scheduler_state='PENDING', start_timestamp=? WHERE id=?""",
-            (scheduler_job_id, script_path, time.time(), task_id),
-        )
-        await con.commit()
+    await asyncio.to_thread(mark_slurm_submitted, db, task_id, scheduler_job_id, script_path)
 
 
 async def aupdate_scheduler_state(db: ComputeDB, task_id: int, scheduler_state: str) -> None:
@@ -789,11 +832,15 @@ async def aupdate_scheduler_state(db: ComputeDB, task_id: int, scheduler_state: 
 
 
 async def acancel_compute_job(db: ComputeDB, task_id: int) -> None:
-    """显式取消（cancel_requested → scancel 后）落 cancelled 终态。"""
+    """显式取消（cancel_requested → scancel 后）落 cancelled 终态。
+
+    只覆盖 running / cancel_requested，不得把 done/failed 改成 cancelled。
+    """
     async with db.aconnect() as con:
         await con.execute(
             """UPDATE compute_jobs SET state='cancelled',
-            scheduler_state='CANCELLED', end_timestamp=? WHERE id=?""",
+            scheduler_state='CANCELLED', end_timestamp=?
+            WHERE id=? AND state IN ('running', 'cancel_requested')""",
             (time.time(), task_id),
         )
         await con.commit()
@@ -809,7 +856,7 @@ def mark_notified(db: ComputeDB, task_id: int) -> None:
     def write() -> None:
         with db.connect() as con:
             con.execute(
-                "UPDATE compute_jobs SET notified_at=? WHERE id=?",
+                "UPDATE compute_jobs SET notified_at=? WHERE id=? AND notified_at IS NULL",
                 (time.time(), task_id),
             )
             con.commit()

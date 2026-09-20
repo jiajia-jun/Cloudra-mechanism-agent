@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from cloudra.runtime_v2.effects import EventDraft
-from cloudra.runtime_v2.event_writer import EventWriter
+from cloudra.runtime_v2.event_writer import EventPersistenceError, EventWriter
 from cloudra.runtime_v2.invocation_context import (
     InvocationScope,
     reset_invocation_scope,
@@ -384,6 +384,8 @@ class InvocationService:
                     error=InvocationError("cancelled", "run cancelled", "unknown"),
                     cancelled=True,
                 )
+            except EventPersistenceError:
+                raise
             except Exception:
                 logger.exception("failed to record tool cancellation for %s", call.id)
             raise

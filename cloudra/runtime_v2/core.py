@@ -47,10 +47,9 @@ from cloudra.runtime_v2.schemas import (
 class ContextBroker:
     """会话级 LLM 上下文投影的唯一写口（Task 4：一个 session 一份上下文）。
 
-    写路径拍序与 CommandBus 一致：event_log.append → apply_event →
-    event_writer.flush（持久化失败抛 EventPersistenceError，调用方不得
-    继续发送未持久化的状态）。恢复路径经 restore_core（快照 + 增量重放）
-    走同一批 applier 重建投影，绝不执行工具/JS/计算。
+    写路径拍序与 CommandBus 一致：event_log.append → flush → apply_event
+    （持久化失败丢未持久化尾巴，不投影）。恢复路径经 restore_core（快照
+    + 增量重放）走同一批 applier 重建投影，绝不执行工具/JS/计算。
     """
 
     def __init__(self, core: "RuntimeCore") -> None:
@@ -97,7 +96,6 @@ class ContextBroker:
         事件内提交，避免恢复时只看到消费标记。事件全部持久化（flush）后
         调用方才发送请求。
         """
-        core = self.core
         install: tuple = ()
         appends: tuple = ()
         if context_prefix is not None:
@@ -121,37 +119,20 @@ class ContextBroker:
             events.append(("context.appended", data))
         if not events:
             return
-        from cloudra.runtime_v2.apply import apply_event
-
-        for event_type, data in events:
-            envelope = core.event_log.append(
-                event_type,
-                stream="agent",
-                project_id=agent.project_id,
-                session_id=agent.id,
-                run_id=run_id,
-                data=data,
-            )
-            apply_event(core, envelope)
-        await core.event_writer.flush()
+        await self._persist_then_apply(
+            agent=agent, run_id=run_id, events=events
+        )
 
     async def append_output(self, *, agent: AgentSession, run_id: str, messages: list[dict]) -> None:
         """响应落上下文：完整的 assistant/tool 消息（文本、工具配对、
         reasoning、稳定媒体引用）追加进投影。"""
         if not messages:
             return
-        from cloudra.runtime_v2.apply import apply_event
-
-        envelope = self.core.event_log.append(
-            "context.appended",
-            stream="agent",
-            project_id=agent.project_id,
-            session_id=agent.id,
+        await self._persist_then_apply(
+            agent=agent,
             run_id=run_id,
-            data={"messages": list(messages)},
+            events=[("context.appended", {"messages": list(messages)})],
         )
-        apply_event(self.core, envelope)
-        await self.core.event_writer.flush()
 
     async def install_compacted(
         self, *, agent: AgentSession, run_id: str, messages: list[dict],
@@ -167,24 +148,54 @@ class ContextBroker:
         current_version = len(ctx.messages) if ctx is not None else 0
         if current_version != expected_version:
             return False
-        from cloudra.runtime_v2.apply import apply_event
-
-        envelope = self.core.event_log.append(
-            "context.compacted",
-            stream="agent",
-            project_id=agent.project_id,
-            session_id=agent.id,
+        await self._persist_then_apply(
+            agent=agent,
             run_id=run_id,
-            data={
-                "messages": list(messages),
-                "prefix_meta": dict(prefix_meta) if prefix_meta else None,
-                "expected_version": expected_version,
-                "trigger": trigger,
-            },
+            events=[
+                (
+                    "context.compacted",
+                    {
+                        "messages": list(messages),
+                        "prefix_meta": dict(prefix_meta) if prefix_meta else None,
+                        "expected_version": expected_version,
+                        "trigger": trigger,
+                    },
+                )
+            ],
         )
-        apply_event(self.core, envelope)
-        await self.core.event_writer.flush()
         return True
+
+    async def _persist_then_apply(
+        self,
+        *,
+        agent: "AgentSession",
+        run_id: str,
+        events: list[tuple[str, dict]],
+    ) -> None:
+        from cloudra.runtime_v2.apply import apply_event
+        from cloudra.runtime_v2.event_writer import EventPersistenceError
+
+        core = self.core
+        keep = len(core.event_log)
+        envelopes = []
+        for event_type, data in events:
+            envelopes.append(
+                core.event_log.append(
+                    event_type,
+                    stream="agent",
+                    project_id=agent.project_id,
+                    session_id=agent.id,
+                    run_id=run_id,
+                    data=data,
+                )
+            )
+        try:
+            await core.event_writer.flush()
+        except EventPersistenceError:
+            core.event_writer.discard_unpersisted(keep=keep)
+            raise
+        for envelope in envelopes:
+            apply_event(core, envelope)
 
 
 class _TaskReentrantLock:

@@ -387,6 +387,42 @@ async def test_call_verdict_to_cancelled_submitter_parks_without_wake():
 
 
 @pytest.mark.asyncio
+async def test_call_verdict_does_not_wake_waiting_approval():
+    core = RuntimeCore(strict_events=True)
+    bus = CommandBus(core)
+    project, coordinator = await _project_with_coordinator(core, bus, "verdict-waiting")
+    await asyncio.to_thread(_seed_delivery, project.id)
+    review_id = await asyncio.to_thread(
+        _seed_explicit_review, project.id, coordinator.id
+    )
+    core.agent_host.start_run(coordinator)
+    core.agent_host.transition(
+        coordinator, AgentState.WAITING_APPROVAL, reason="approval"
+    )
+
+    class _Runner:
+        def __init__(self) -> None:
+            self.scheduled: list[str] = []
+
+        def schedule(self, session_id: str) -> None:
+            self.scheduled.append(session_id)
+
+    core.runner = _Runner()
+    reviewed = await _controller(project.id).review_call(
+        review_id=review_id,
+        target_id="step1",
+        stage_kind="ts_opt",
+        verdict="disagree",
+        reason="do not interrupt the parked approval",
+    )
+    assert reviewed["accepted"] is True
+    handled = await flush_review_notifications(core, project.id)
+    assert handled == 1
+    assert coordinator.state is AgentState.WAITING_APPROVAL
+    assert core.runner.scheduled == []
+
+
+@pytest.mark.asyncio
 async def test_reconcile_after_restart_flushes_unsent_call_verdict(tmp_path):
     """D1(d)：裁决落库后、投递前崩溃的重启窗口——恢复路径的
     reconcile_supervision 补投未发送的 call 裁决通知并闭环。"""

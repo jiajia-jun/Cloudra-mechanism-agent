@@ -117,6 +117,35 @@ def submit_batch(script_path: Path) -> str:
     return job_id
 
 
+def query_job_by_name(job_name: str) -> str | None:
+    """按 ``#SBATCH --job-name=cloudra-{task_id}`` 找回 sbatch 已提交但未回写的句柄。"""
+    if not _SBATCH_VALUE.fullmatch(job_name):
+        raise SlurmError("无效的 Slurm job name")
+    try:
+        completed = subprocess.run(
+            [
+                "sacct", "--name", job_name, "--noheader", "--parsable2",
+                "--format=JobID,State",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if completed.returncode != 0:
+        return None
+    for line in completed.stdout.splitlines():
+        raw = line.strip()
+        if not raw:
+            continue
+        job_id = raw.partition("|")[0].strip().split(".", 1)[0]
+        if _JOB_ID.fullmatch(job_id):
+            return job_id
+    return None
+
+
 def query_job(job_id: str) -> tuple[str, str]:
     if not _JOB_ID.fullmatch(job_id):
         raise SlurmError("无效的 Slurm job id")
@@ -134,9 +163,12 @@ def query_job(job_id: str) -> tuple[str, str]:
         raise SlurmError((completed.stderr or "sacct failed")[:2000])
     rows = [line.strip() for line in completed.stdout.splitlines() if line.strip()]
     if not rows:
-        return "PENDING", ""
+        return "", ""
     state, _, exit_code = rows[0].partition("|")
-    return state.split("+", 1)[0].strip().upper(), exit_code.strip()
+    state = state.split("+", 1)[0].strip().upper()
+    if state.startswith("CANCELLED"):
+        state = "CANCELLED"
+    return state, exit_code.strip()
 
 
 def _engine_success_from_log(
@@ -218,6 +250,8 @@ async def run_slurm_compute(
         await amark_slurm_submitted(db, task_id, str(scheduler_job_id), str(script_path))
 
     poll_seconds = min(max(float(scheduler.get("poll_seconds", 15)), 1), 300)
+    last_observed = ""
+    empty_after_seen = 0
     while True:
         current = await aget_compute_job(db, task_id)
         if current and current["state"] in {"cancelled", "cancel_requested"}:
@@ -229,6 +263,22 @@ async def run_slurm_compute(
         except SlurmError:
             await sleep(poll_seconds)
             continue
+        if not state:
+            if last_observed:
+                empty_after_seen += 1
+                if empty_after_seen >= 3:
+                    await afinalize_compute_job(
+                        db,
+                        task_id,
+                        "failed",
+                        last_error="Slurm accounting row vanished after "
+                        f"{last_observed}",
+                    )
+                    return 1
+            await sleep(poll_seconds)
+            continue
+        empty_after_seen = 0
+        last_observed = state
         await aupdate_scheduler_state(db, task_id, state)
         if state in SLURM_TERMINAL_SUCCESS | SLURM_TERMINAL_FAILURE:
             last_error = None if state in SLURM_TERMINAL_SUCCESS else f"Slurm {state} ({exit_code})"
@@ -243,13 +293,18 @@ async def run_slurm_compute(
                 if engine_ok is False:
                     final = "failed"
                     last_error = "engine error termination (Slurm COMPLETED)"
-            await afinalize_compute_job(
+            wrote = await afinalize_compute_job(
                 db,
                 task_id,
                 final,
                 last_error=last_error,
-                only_running=False,
             )
+            if not wrote:
+                latest = await aget_compute_job(db, task_id)
+                if latest and latest["state"] in {"cancelled", "cancel_requested"}:
+                    await asyncio.to_thread(cancel_job, str(scheduler_job_id))
+                    await acancel_compute_job(db, task_id)
+                    return 1
             # 终态通知由 ComputeNotifyBroker 轮询 compute_jobs 表补投，不再发 IPC
             return 0 if final == "done" else 1
         await sleep(poll_seconds)

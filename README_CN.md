@@ -38,12 +38,12 @@ Cloudra 提供单端口集成的现代 Web 控制台（FastAPI 控制面 + React
 ```bash
 cloudra                      # 自动构建前端并拉起 Web 服务，同时打开浏览器
 cloudra web --skip-build     # 复用已构建的前端资源快速启动
-cloudra web --host 0.0.0.0   # 自定义绑定地址/端口（局域网或 SSH 远程访问）
+cloudra web --host 0.0.0.0   # 自定义绑定地址/端口（局域网 / 远程打开页面）
 ```
 
-> 默认只绑 `127.0.0.1:8000`。显式绑到非回环地址时，API 的 Host 头校验会按绑定地址放开
-> （DNS rebinding 防护让位），访问控制只剩 bearer token——不要再叠加 `CLOUDRA_API_TOKEN=off`。
-> 只在本机用 SSH 端口转发（`ssh -L 8000:127.0.0.1:8000 …`）则完全不需要改绑。
+> 访问控制只验 token：`Authorization: Bearer …` 与 `?token=` 等价，不限方法、不验 Host。
+> 本机浏览器打开启动时打印的 `#token=` URL 即可。默认只绑 `127.0.0.1:8000`。
+> 非回环绑定不要再用 `CLOUDRA_API_TOKEN=off`。
 
 ### 3. 极客风快捷指令（Slash Commands）
 

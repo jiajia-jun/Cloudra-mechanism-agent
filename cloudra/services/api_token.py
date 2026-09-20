@@ -11,9 +11,20 @@ from __future__ import annotations
 
 import os
 import secrets
+import stat
 
 from cloudra.persistence import paths
 from cloudra.persistence.fs_utils import atomic_write_text
+
+
+def _ensure_private_mode(path) -> None:
+    """Keep ``.api_token`` at 0600; repair a world-readable leftover in place."""
+    try:
+        current = stat.S_IMODE(path.stat().st_mode)
+    except OSError:
+        return
+    if current != 0o600:
+        os.chmod(path, 0o600)
 
 
 def resolve_api_token() -> str | None:
@@ -29,10 +40,11 @@ def resolve_api_token() -> str | None:
     except OSError:
         existing = ""
     if existing:
+        _ensure_private_mode(token_file)
         return existing
     token = secrets.token_urlsafe(32)
     token_file.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write_text(str(token_file), token + "\n")
+    atomic_write_text(str(token_file), token + "\n", mode=0o600)
     os.chmod(token_file, 0o600)
     return token
 

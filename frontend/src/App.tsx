@@ -354,7 +354,6 @@ export default function App() {
 
   // Refs so the long-lived SSE subscription always sees current values.
   const activeAgentIdRef = useRef(activeAgentId);
-  activeAgentIdRef.current = activeAgentId;
   const maxSeqRef = useRef(0);
 
   // Sync panel widths and visibility to localStorage
@@ -514,6 +513,7 @@ export default function App() {
 
   const selectAgent = useCallback(
     async (agentId: string) => {
+      activeAgentIdRef.current = agentId;
       setActiveAgentId(agentId);
       setPendingMessages([]);
       setStreamView({ streamText: '', frozen: [] });
@@ -553,6 +553,7 @@ export default function App() {
   useEffect(() => {
     if (!activeProjectId) return;
     setAgents([]);
+    activeAgentIdRef.current = null;
     setActiveAgentId(null);
     setEvents([]);
     setOlderEvents([]);
@@ -612,6 +613,23 @@ export default function App() {
         onEvent: (event) => {
           if (event.type === 'project.synced') {
             replaying = false;
+            if (activeProjectId) {
+              api
+                .listAgents(activeProjectId)
+                .then((list) => setAgents(dedupeAgents(list)))
+                .catch(() => undefined);
+            }
+            return;
+          }
+          if (event.type === 'project.deleted') {
+            const pid = event.project_id;
+            setProjects((prev) => prev.filter((p) => p.id !== pid));
+            if (activeProjectId === pid) {
+              activeAgentIdRef.current = null;
+              setActiveAgentId(null);
+              setAgents([]);
+              setActiveProjectId(null);
+            }
             return;
           }
           cursor = Math.max(cursor, event.seq);
@@ -628,13 +646,13 @@ export default function App() {
             setExpandedAgents((prev) => new Set(prev).add(parentId));
           }
         }
-        if (event.type === 'agent.state_changed' && sessionId) {
+        if (event.type === 'agent.state_changed' && sessionId && !replaying) {
           const to = String(event.data.to ?? '');
           setAgents((prev) =>
             dedupeAgents(prev.map((a) => (a.id === sessionId ? { ...a, state: to } : a))),
           );
         }
-        if (event.type === 'run.started' && sessionId) {
+        if (event.type === 'run.started' && sessionId && !replaying) {
           const runId = String(event.data.run_id ?? event.run_id ?? '');
           const protocol = event.data.invocation_protocol;
           setAgents((prev) =>
@@ -657,7 +675,7 @@ export default function App() {
             ),
           );
         }
-        if ((event.type === 'run.finished' || event.type === 'agent.cancelled') && sessionId) {
+        if ((event.type === 'run.finished' || event.type === 'agent.cancelled') && sessionId && !replaying) {
           setAgents((prev) =>
             dedupeAgents(prev.map((a) => (a.id === sessionId ? { ...a, current_run: null } : a))),
           );
@@ -1184,8 +1202,11 @@ export default function App() {
     const name = displayName ?? (targetId ? (agents.find((a) => a.id === targetId)?.display_name ?? targetId) : activeAgent?.display_name);
     if (!id) return;
     try {
-      const resp = await api.cancel(id);
-      setAgents((prev) => dedupeAgents(prev.map((a) => (a.id === resp.data.id ? resp.data : a))));
+      await api.cancel(id);
+      if (activeProjectId) {
+        const list = await api.listAgents(activeProjectId);
+        setAgents(dedupeAgents(list));
+      }
       pushToast('ok', `Cancelled ${name ?? id}`);
     } catch (e) {
       reportError(e);

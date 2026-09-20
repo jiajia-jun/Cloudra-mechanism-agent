@@ -84,6 +84,7 @@ def test_validate_ts_mode():
     assert res.is_valid is True
     assert res.n_imag == 1
     assert res.imaginary_frequencies == [-521.21]
+    assert res.mode_matched is False
 
     # 0 imaginary frequencies -> not a TS
     res_zero = validate_ts_mode(freqs=[100.0, 500.0], normal_modes=None, description="C-C bond cleavage")

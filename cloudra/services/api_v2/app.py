@@ -7,6 +7,7 @@ handlers live in runtime_v2.commands.  No business logic is allowed here.
 from __future__ import annotations
 
 import asyncio
+import hmac
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -35,6 +36,7 @@ _SHUTDOWN_GRACE_SECONDS = 15.0
 # Host 校验白名单：本地 API 只接受回环地址与 TestClient 的 testserver；
 # 其它 Host（DNS rebinding 的域名）一律 400，挡掉浏览器跨域页面重绑定访问。
 _ALLOWED_HOSTS = {"127.0.0.1", "localhost", "::1", "testserver"}
+_LOOPBACK_CLIENTS = {"127.0.0.1", "::1", "localhost", "testclient"}
 
 # web_launcher 显式绑定的地址（uvicorn 子进程 env 传入 `cloudra web --host`）。
 _BIND_HOST_ENV = "CLOUDRA_API_BIND_HOST"
@@ -43,12 +45,10 @@ _WILDCARD_BIND_HOSTS = {"0.0.0.0", "::", "*"}
 
 
 def _host_allowlist() -> set[str] | None:
-    """生效的 Host 白名单；``None`` 表示关闭校验。
+    """token=off 时的 Host 白名单；``None`` 表示关闭校验。
 
-    默认（回环绑定）保持原白名单。显式绑到非回环地址时，请求携带的 Host 是
-    客户端侧的名字：通配绑定只能整体关闭校验，具体地址则把该地址本身加进
-    白名单（回环名字仍照旧放行）。放开的是 DNS rebinding 这一层，认证闸门
-    不变——bearer token 仍是唯一的访问控制。
+    有 token 时不走这里（只验 token）。off 时默认回环 + testserver；
+    通配绑定关闭校验，具体非回环地址把该地址加进白名单。
     """
     bind_host = os.environ.get(_BIND_HOST_ENV, "").strip()
     if not bind_host or bind_host in _ALLOWED_HOSTS:
@@ -261,21 +261,37 @@ def create_v2_app(
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    # 最后添加的中间件最先执行：Host 校验先于 CORS/路由。
-    app.add_middleware(_HostCheckMiddleware, allowed_hosts=_host_allowlist())
-
     # CLOUDRA_API_TOKEN=off 显式关闭认证；未设环境变量时回退到
     # data_dir/.api_token（首次启动自动生成，0600）。None 表示全放行。
     api_token = resolve_api_token()
+    # 有 token：只验 token（远程/反代/公网域名靠它，Host 不拦）。
+    # token=off：回环白名单挡 DNS rebinding。
+    # 最后添加的中间件最先执行：Host 校验先于 CORS/路由。
+    app.add_middleware(
+        _HostCheckMiddleware,
+        allowed_hosts=None if api_token is not None else _host_allowlist(),
+    )
 
     async def authorize(
+        request: Request,
         authorization: Optional[str] = Header(default=None),
         token: Optional[str] = Query(default=None),
     ) -> None:
         if api_token is None:
+            # token=off 只给回环客户端。工厂路径不设 BIND_HOST 时，
+            # Host: 127.0.0.1 能骗过白名单，但 ASGI client 仍是对端地址。
+            client_host = request.client.host if request.client else ""
+            if client_host not in _LOOPBACK_CLIENTS:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid token"
+                )
             return
-        # query 参数兜底：EventSource / <img> / 下载链接无法带 Authorization 头。
-        if authorization == f"Bearer {api_token}" or (token is not None and token == api_token):
+        # 头和 ?token= 等价：EventSource / <img> / 下载无法带 Authorization。
+        header_ok = authorization is not None and hmac.compare_digest(
+            authorization, f"Bearer {api_token}"
+        )
+        query_ok = token is not None and hmac.compare_digest(token, api_token)
+        if header_ok or query_ok:
             return
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid token")
 
@@ -295,6 +311,12 @@ def create_v2_app(
     ctx = ApiContext(core=core, bus=bus, protected=protected, benchmark=benchmark_service)
     for router in build_routers(ctx):
         app.include_router(router)
+
+    @app.middleware("http")
+    async def _security_headers(request: Request, call_next):  # noqa: ARG001
+        response = await call_next(request)
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        return response
 
     return app
 
