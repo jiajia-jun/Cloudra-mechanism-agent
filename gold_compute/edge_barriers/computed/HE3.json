@@ -1,0 +1,48 @@
+{
+  "task_id": "HE3",
+  "method": "b3lyp/def2svp",
+  "reaction": "CBS reduction of acetophenone (simplified model): [BH3].CC(=O)c1ccccc1.C[C@H]1COBN1 -> borinate ester + catalyst; charge 0 mult 1, 35 atoms, gas phase (campaign convention - no SCRF in any campaign job), electronic barriers only",
+  "references_hartree": {
+    "R_global_min (HE3_RB4_opt, Re-seeded free complex)": -685.0886825571533,
+    "RA4_opt (Si-seeded free complex, +0.39 kcal)": -685.0880644871805,
+    "E1_adduct_ts2 (Si alkoxide-BH3 adduct, 0 imag)": -685.0672605460949,
+    "E1_adduct_flip_add2 (opt crashed rc=1, no result)": null,
+    "E1_ts3_direct_branch_min (0 imag, dup-session)": -685.0758221067186,
+    "EM1_adduct_ts2 (Re alkoxide-BH3 adduct, 0 imag)": -685.0804585495148,
+    "EM1_ts3 (independent reopt, 0 imag, +5.16 kcal)": -685.0804585445148,
+    "product_valley (scan2 f11 frames, unconstrained downward)": -685.1500468840
+  },
+  "minima_note": "All reported stationary points are NORMAL-termination, CONVERGED minima with 0 imaginary frequencies (35 atoms -> 99 modes; parser returns 98 - one very low mode at the parse edge; no imaginary modes present in any). E(R ref) = lowest free R-complex minimum. Aimed pre-complexes relax away on unconstrained opt; the transfer-active stationary structures are alkoxide-BH3 ADDUCTS (ketone O migrated to the borane B, O-B 1.59, N-B broken, C-O 1.53), which then transfer H intramolecularly downhill to the borinate-ester product valley (-38.4/-38.5 kcal vs R) matching gold product connectivity C[C@@H](OB)c1ccccc1 + regenerated catalyst.",
+  "edges": {
+    "HE3_E1": {
+      "barrier_kcal_mol": 13.4,
+      "frame": "own_path_upper_bound (highest verified stationary point on the Si-channel path; E1_adduct_ts2 minimum)",
+      "ts_imag_freq_cm-1": null,
+      "irc_verified": false,
+      "note": "UPPER BOUND, NOT a verified 1-imag TS barrier. Si-face hydride delivery channel (seed -> (R)-borinate per gold). Evidence: (a) relaxed H...C7 scans from the aimed Si pre-complex (jobs/HE3_E1_scan/HE3_E1_scan.log) descend monotonically +13.5 -> -38.5 with a ~32 kcal transfer cliff between frames f8/f9 (d(H...C7) 1.44->1.30) - NO internal peak, transfer barrierless downstream of the adduct/plateau; (b) scan2 from the adduct (jobs/HE3_E1_scan2/HE3_E1_scan2.log) confirms monotonic +13.47 -> -38.51, no peak; (c) unconstrained OptTS from the profile-top frame converged to the adduct MINIMUM (HE3_E1_ts2, 0 imag, +13.40); OptTS from mid-transfer f9 ran to maxcycles (product-side drift, HE3_E1_ts); OptTS from direct-branch f8 (HE3_E1_ts3, dup session) converged to a +8.07 minimum, 0 imag. The R->adduct O-migration saddle resisted both 1D scans (jobs/HE3_E1_scan4: monotonic rise to +100 kcal then 6h timeout - coordinate rips the complex) and OptTS (funnels to minima). NO first-order saddle located on this channel; the concerted/migration TS remains an OPEN GAP (documented per SOP). The +13.4 plateau is seed-strain-inflated (rigid-aim seed had B-H...C 132.6 deg); flipped-adduct reopt crashed (HE3_E1_add2 rc=1). IRC NOT run: no verified saddle exists to trace."
+    },
+    "HE3_EM1": {
+      "barrier_kcal_mol": 5.2,
+      "frame": "own_path_upper_bound (highest verified stationary point on the Re-channel path; EM1_adduct_ts2 minimum)",
+      "ts_imag_freq_cm-1": null,
+      "irc_verified": false,
+      "note": "UPPER BOUND, NOT a verified 1-imag TS barrier. Re-face hydride delivery channel (seed -> (S)-borinate per gold). Evidence mirrors E1: scan1 (jobs/HE3_EM1_scan/HE3_EM1_scan.log) monotonic +5.2 -> -38.4, no internal peak; scan2 from the adduct (jobs/HE3_EM1_scan2/HE3_EM1_scan2.log) monotonic +5.19 -> -38.43; adduct minimum HE3_EM1_ts2 (0 imag, +5.22) INDEPENDENTLY REPRODUCED by the second session's HE3_EM1_ts3 (0 imag, +5.16 - agreement 4e-8 Ha). Migration 1D scan (HE3_EM1_scan4) rose monotonically to +89 kcal and hit the 6h timeout (rc=124) - dead-end coordinate. NO first-order saddle located; IRC NOT run (no verified saddle)."
+    }
+  },
+  "selectivity": {
+    "dDelta_kcal_mol (EM1_minus_E1)": -8.2,
+    "computed_favored_channel": "re_face",
+    "gold_reference": "+2.0 kcal, si_face favored",
+    "status": "MISMATCH - CAVEAT",
+    "note": "The computed spread is dominated by seed-geometry bias: the Si channel's aimed pre-complex was geometrically strained (rigid-aim B-H...C 132.6 deg vs 115.8 for Re), inflating its plateau/adduct energy; the Re adduct was independently reproduced at +5.16/+5.22. The intrinsic Si/Re barrier difference of the CBS model cannot be resolved from the present evidence set. Follow-up needed: lower-strain Si pre-organization sampling (2D O-B x H-C coupled scan from R, or relaxed Si-adduct reoptimization from multiple rotamers) before any selectivity claim."
+  },
+  "open_gaps": [
+    "No verified first-order saddle (exactly 1 imaginary frequency) located on either channel; ts_opt/frequency/short_irc stages UNSUPPORTED for both edges.",
+    "IRC not run (no verified saddle to trace); endpoint identities established only via scan-valley connectivity (product-valley geometries match gold P/M1 connectivity).",
+    "Si-channel adduct energy is seed-strain-inflated (upper bound); flipped-adduct reoptimization crashed (rc=1) and was not retried.",
+    "dDelta contradicts gold selectivity (computed Re-favored by 8.2 vs gold Si-favored by 2.0)."
+  ],
+  "spent_tags": ["HE3_RA_opt", "HE3_RB_opt (8c, despoiled unstarted)", "HE3_E1_scan3", "HE3_EM1_scan3 (garbage-input mishap, rc=1)", "HE3_E1_ts", "HE3_EM1_ts (maxcycles)", "HE3_E1_ts2", "HE3_EM1_ts2 (= adduct minima, evidence)", "HE3_E1_scan4", "HE3_EM1_scan4 (6h timeout, rc=124)", "HE3_E1_add2 (rc=1)"],
+  "key_logs": ["gold_compute/jobs/HE3_RA4_opt/HE3_RA4_opt.log", "gold_compute/jobs/HE3_RB4_opt/HE3_RB4_opt.log", "gold_compute/jobs/HE3_E1_scan/HE3_E1_scan.log", "gold_compute/jobs/HE3_EM1_scan/HE3_EM1_scan.log", "gold_compute/jobs/HE3_E1_ts2/HE3_E1_ts2.log", "gold_compute/jobs/HE3_EM1_ts2/HE3_EM1_ts2.log", "gold_compute/jobs/HE3_E1_scan2/HE3_E1_scan2.log", "gold_compute/jobs/HE3_EM1_scan2/HE3_EM1_scan2.log", "gold_compute/jobs/HE3_E1_scan4/HE3_E1_scan4.log", "gold_compute/jobs/HE3_EM1_scan4/HE3_EM1_scan4.log", "gold_compute/jobs/HE3_E1_ts3/HE3_E1_ts3.log", "gold_compute/jobs/HE3_EM1_ts3/HE3_EM1_ts3.log"],
+  "generated_by": "HE3 small_mol session (campaign mandate); ts3 tags by second small_mol session (EM1_ts3 result incorporated with credit)"
+}

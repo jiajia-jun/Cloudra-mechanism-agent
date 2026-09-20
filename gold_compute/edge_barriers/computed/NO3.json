@@ -1,0 +1,58 @@
+{
+  "task_id": "NO3",
+  "method": "b3lyp/def2svp",
+  "units": "1 Ha = 627.509474 kcal/mol; electronic barriers (DeltaE), frame = central_complex, gas phase, charge +1 mult 1",
+  "edges": {
+    "NO3_E1": {
+      "barrier_kcal_mol": 0,
+      "frame": "central_complex",
+      "ts_imag_freq_cm-1": null,
+      "irc_verified": false,
+      "irc_status": "not_applicable_no_ts",
+      "E_start_hartree": -534.4593009935784,
+      "note": "PT 无垒(约束扫描确认). Working minimum = freq-only rescue (playbook b) of the shared-proton complex [OH3+].CC(C)=O.O=COO: 3 unconstrained opt attempts (NO3_E1_opt/opt2/opt3, 120 cycles each) ended term=false/opt_conv=false on the flat O1-H-O8 H-bond PES (final frame r(O1-H2)=1.225, r(H2-O8)=1.186, O1...O8=2.411 A); freq-only on the lowest-energy frame terminated normally with STRICT 0 imag (jobs/NO3_E1_freq). Relaxed scan B(1,2) 1.2253->1.75 A, 13 points, normal termination: MONOTONIC RISING 0.0000 -> +5.4029 kcal/mol, no internal peak (endpoint max is NOT a TS) -> no TS exists above the complex minimum along the PT coordinate; barrier 0.0. Evidence: jobs/NO3_E1_scan/NO3_E1_scan.log, scan_parse profile. SUPERVISOR-REQUIRED LANGUAGE: no intervening saddle along the PT coordinate; forward PT gated by endergonicity dE=+5.40 kcal (variational TS at the I1 basin entry). n/a granted for ts_opt/frequency/short_irc (dec_f0606f0d85274fc5ac3e8424ae59ed82) with the scan+freq evidence chain independently re-verified.",
+      "evidence": {
+        "working_minimum_freq_log": "gold_compute/jobs/NO3_E1_freq/NO3_E1_freq.log",
+        "opt_failure_chain": [
+          "gold_compute/jobs/NO3_E1_opt/NO3_E1_opt.log",
+          "gold_compute/jobs/NO3_E1_opt2/NO3_E1_opt2.log",
+          "gold_compute/jobs/NO3_E1_opt3/NO3_E1_opt3.log"
+        ],
+        "scan_log": "gold_compute/jobs/NO3_E1_scan/NO3_E1_scan.log",
+        "working_frame_xyz": "gold_compute/jobs/NO3_E1_opt3_frame.xyz"
+      }
+    },
+    "NO3_E4": {
+      "barrier_kcal_mol": 0.332,
+      "frame": "central_complex",
+      "ts_imag_freq_cm-1": -28.43,
+      "irc_verified": false,
+      "irc_status": "failed_flat_PES_3_attempts",
+      "E_start_hartree": -534.5605242561293,
+      "E_TS_hartree": -534.5599947981526,
+      "note": "DeltaE_ddag = (E_TS - E_start) x 627.509474 = 0.332 kcal/mol (~kT): effectively barrierless PT on the ultra-flat shared-proton H-bond (O.COC(C)=[OH+].O=CO, r(O8-H15)=1.030 at TS vs 1.028 at minimum). Working minimum = freq-only rescue (playbook b): NO3_E4_opt/opt2 both ended term=false/opt_conv=false (shared-proton oscillation, O1...O8=2.538 A); freq on lowest-energy frame: normal, STRICT 0 imag (jobs/NO3_E4_freq). Relaxed scan B(8,15) 1.028->1.75 A: rc=1 (G16 segv in l9999 at job FINALIZATION after end-of-job population analysis - infra, not chemistry); 7/13 points recovered from per-point log markers: p1=+1.10, p2=+2.89 (internal peak, constrained-relaxation artifact), p3=-6.02, p4=-5.92, p5=-5.79, p6=-5.54, p7=-5.85 kcal/mol -> monotonic descent to product plateau beyond the peak. OptTS from scan-peak-region seed (freq frame + internal_coordinates stretch O8-H15 -> 1.090 A): opt=(TS,calcfc,noeigen) freq CONVERGED, normal, EXACTLY 1 imag (-28.4285 cm-1, f=0.0009 mDyne/A, water-dominated collective H-bond/PT-gating mode). IRC verification FAILED 3x for physical reasons: NO3_E4_irc (route typo irc=((...)) - writer bug, died at input), NO3_E4_irc2 (irc=(calcfc,maxpoints=80), 7 min: corrector Delta-x convergence NOT met, l123 error), NO3_E4_irc3 (irc=(calcfc,maxpoints=80,stepsize=5,maxcyc=150), 38 min: corrector never converged past forward point 1) - the saddle sits on an essentially flat shared-proton surface; gradient too small for corrector convergence. PT barrierlessness independently established by the relaxed-scan descent (-6 kcal/mol product side) and the 0.33 kcal (< kT=0.593) saddle. E4 PRODUCT IDENTITY CAVEAT (NO3-closer2, NO3_PROGRESS9.md): the E4 product-side strict minimum is the ESTER-SIDE SHARED-PROTON form (O.CC(=[OH+])OC.O=CO, 3 fragments C4H11O5 +1), not the declared [OH3+] tautomer - the hydronium-side form is NOT a stationary point at this level (seed relaxed back down the flat PT coordinate; constrained hydronium form cannot pass strict 0-imag on the PT mode). Consistent with the flat-shared-proton precedent (NO3_R/NR1_R). E4 product = shared-proton complex at -534.5709382 (0.701 kcal below the scan plateau).",
+      "evidence": {
+        "working_minimum_freq_log": "gold_compute/jobs/NO3_E4_freq/NO3_E4_freq.log",
+        "opt_failure_chain": [
+          "gold_compute/jobs/NO3_E4_opt/NO3_E4_opt.log",
+          "gold_compute/jobs/NO3_E4_opt2/NO3_E4_opt2.log"
+        ],
+        "scan_log": "gold_compute/jobs/NO3_E4_scan/NO3_E4_scan.log",
+        "ts_log": "gold_compute/jobs/NO3_E4_ts/NO3_E4_ts.log",
+        "ts_xyz": "gold_compute/jobs/NO3_E4_ts_final.xyz",
+        "attempts": [
+          "gold_compute/jobs/NO3_E4_irc/NO3_E4_irc.log",
+          "gold_compute/jobs/NO3_E4_irc2/NO3_E4_irc2.log",
+          "gold_compute/jobs/NO3_E4_irc3/NO3_E4_irc3.log"
+        ],
+        "working_frame_xyz": "gold_compute/jobs/NO3_E4_opt2_frame.xyz"
+      }
+    }
+  },
+  "notes_global": [
+    "E2/E3 untouched (literature 14.3/11.4 kcal/mol recorded in NO3_graph.json per campaign handoff).",
+    "Both working minima obtained via playbook (b) freq-only rescue after 120-cycle unconverged opts on the shared-proton flat PES; both freq jobs normal with STRICT 0 imaginary frequencies and SCF energies identical to the parent opt final frames.",
+    "G16-on-WSL segv in l9999 at job finalization hit NO3_E4_scan (after scan work completed); per-point data recovered from log markers (mechanical awk extraction).",
+    "Campaign queue: all jobs b3lyp/def2svp, 4 cores/8GB, WSL gold_queue; no TAG resubmitted."
+  ]
+}

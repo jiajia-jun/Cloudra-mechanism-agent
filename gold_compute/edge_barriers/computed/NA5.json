@@ -1,501 +1,73 @@
 {
   "task_id": "NA5",
-  "method": "B3LYP-D3(BJ)/def2-SVP",
-  "solvent": "CPCM(water)",
-  "route": "! B3LYP D3BJ def2-SVP def2/J RIJCOSX CPCM(water), nproc=1, charge=+1, mult=1",
-  "frame": "per-edge: dE# = E(TS or scan point) - E(this step's own start minimum); pure electronic, no ZPE/thermal",
-  "note": "FINAL. E3 verified (real saddle, 1 imag -2140.76, bidirectional IRC connecting I2 and I3). E2 (13.94) and E4 (3.37) are located 1-imag saddles but with connectivity partial/not established. E1/E5: no productive first-order saddle located. 6 species minima converged (0 imaginary). Method B3LYP-D3(BJ)/def2-SVP CPCM(water), nproc=1, charge +1; dE# pure electronic per-edge vs own start minimum. No literature back-fill.",
-  "minima": {
-    "RC": {
-      "smiles": "[OH3+].C=O.CN.CC=O",
-      "energy_hartree": -440.582388556528,
-      "n_imag": 0,
-      "log": "gold_compute/campaign/runs/NA5/E1/RC_min/.cloudra/calc-433.out.log"
+  "method": "Gaussian16 b3lyp/def2svp, gas phase, electronic barriers only (1 Ha = 627.509474 kcal/mol), charge +1 multiplicity 1 on every input",
+  "barrier_definition": "E(TS) - E(step's own starting minimum); all values from parsed Gaussian logs only",
+  "minima_hartree": {
+    "NA5_R": -440.72807338,
+    "NA5_I1": -440.72876655,
+    "NA5_I2": -440.72057103,
+    "NA5_I3": -440.69883208,
+    "NA5_I4": -440.70417282,
+    "NA5_P": -440.73935184
+  },
+  "minima_note": "All minima STRICT 0 imaginary frequencies, opt converged, normal termination. NA5_R is an evidence-grade freq-only minimum on the best frame of an unconverged (Berny steps-exceeded) opt of the floppy 4-component complex; its relaxed H-bond topology places the acid proton on the amine N (ammonium-water form of the declared [OH3+].C=O.CN.CC=O component set). NA5_I1 similarly carries a shared proton (N6-H2 1.093 / O1-H2 1.530).",
+  "edges": {
+    "NA5_E1": {
+      "barrier_kcal_mol": null,
+      "frame": "NA5_E1_scan (relaxed C5-N10 scan, crashed at 8/14 pts) / NA5_E1_ts (direct OptTS from scan frame C5-N10 2.536 A) / NA5_E1_ts2 (PT-coordinate OptTS from N10-H14 1.30 / H14-O6 1.55 seed)",
+      "ts_imag_freq_cm_1": null,
+      "irc_verified": false,
+      "note": "ACCEPTANCE-(b) CLOSE-OUT: no saddle located on the 1D C7-N6 coordinate (both-side monotonic scans); coupled-PT OptTS closed after 3 non-converged walks (ts3 rollback near R lastE -440.72688 = +0.75 kcal vs R; ts3b infra-kill; ts3c mid-walk -440.72626 = +1.14 kcal vs R; all opt_converged=false). dE(R->I1) = -0.435 kcal/mol EXERGONIC (-440.72876655 vs -440.72807338) => effectively barrierless entry into I1; no-saddle/thermodynamic-gate record, not a computed TS energy. Trail: NA5_E1_CLOSEOUT.md",
+      "no_saddle": true,
+      "scan_bracket": "reverse C7-N6 1.49-2.90 A monotonic 0->+45.38 kcal vs I1 (NA5_E1_scanR2, rc=0); 1.49-3.90 A monotonic 0->+60.25 vs I1 (NA5_E1_scanR3, rc=0); fwd +22.8 @ 2.536 A vs R; no internal maximum; seam never reached",
+      "evidence": {
+        "scans": [
+          "gold_compute/jobs/NA5_E1_scanR2/NA5_E1_scanR2.log",
+          "gold_compute/jobs/NA5_E1_scanR3/NA5_E1_scanR3.log"
+        ],
+        "optts_trail": [
+          "gold_compute/jobs/NA5_E1_ts3c/NA5_E1_ts3c.log"
+        ],
+        "closeout": "gold_compute/jobs/NA5_E1_CLOSEOUT.md"
+      }
     },
-    "I1": {
-      "smiles": "[OH3+].CNCO.CC=O",
-      "energy_hartree": -440.593863200034,
-      "n_imag": 0,
-      "log": "gold_compute/campaign/runs/NA5/E1/I1_min/.cloudra/calc-457.out.log"
+    "NA5_E2": {
+      "barrier_kcal_mol": 0,
+      "frame": "NA5_E2_ts2",
+      "ts_imag_freq_cm_1": -153.46,
+      "irc_verified": false,
+      "note": "Validated first-order saddle: opt converged, normal termination, exactly 1 imaginary frequency (-153.46 cm-1), E(TS) = -440.72954664 Ha = 0.49 kcal/mol BELOW E(I1) = -440.72876655 -> O-protonation/dehydration is barrierless from the relaxed protonation topology (reported as 0.0). The constrained-scan hill (26.9 kcal at frame 4) was a constraint artifact - the unconstrained TS collapsed below the reactant minimum (playbook case). IRC degenerate-flat: 1 forward + 1 reverse point, both 'endpoints' within 0.003 kcal of the TS (bidirectionally converged but endpoint identity not reachable on this flat landscape) - documented honestly as irc_verified=false."
     },
-    "I2": {
-      "smiles": "C=[NH+]C.CC=O.O.O",
-      "energy_hartree": -440.578240040064,
-      "n_imag": 0,
-      "log": "gold_compute/campaign/runs/NA5/E2/I2_min/.cloudra/calc-471.out.log"
+    "NA5_E3": {
+      "barrier_kcal_mol": null,
+      "frame": "NA5_E3_ts / NA5_E3_ts2 (both collapsed back to the keto basin)",
+      "ts_imag_freq_cm_1": null,
+      "irc_verified": false,
+      "note": "OPEN GAP after 5 attempts: (1) O18-H20 contraction scan - shared-proton oscillation crash (l9999 segfault, 2/13 pts); (2) C16-H20 stretch scan - Berny FormBX crash (Tors failed 10-7-18-17, 13/14 pts); (3) modredundant+cartesian route invalid (Cannot ModRedundant with Cartesian opts); (4) direct OptTS from stretched C16-H20 1.45 seed - converged to a SPURIOUS shallow saddle (-24.59 cm-1, 0.19 kcal below E(I2)) whose geometry is exactly the I2 keto minimum (C16-H20 1.099, O18-H20 2.587) = methyl/water libration, not enolization; its HPC IRC failed on corrector steps (flat); (5) OptTS from the O18-H20-contraction scan frame (O18-H20 2.319) - relaxed back to the keto minimum (0 imag). Physical context: in the optimized I2 minimum the assisting water sits 5.96 A from the aldehyde O (it H-bonds to the iminium instead), so the declared water-assisted enolization coordinate is not pre-organized from this topology. The enol minimum NA5_I3 itself is verified (E = -440.69883208); the I2->I3 tautomerization pathway is the open gap. NOT not_applicable. | FINAL (2026-09-18): OPEN GAP confirmed after 4 OptTS failures incl. the legal CalcFC fix (NA5_E3_ts5, seed = I2W-I3W IDPP img_07 with H21/H22 swap map). No verified TS; no barrier number. Full record: NA5_E3_TS5_OUTCOME.md. Barrier left null honestly.",
+      "attempt_tally": "ts4 calcfc wall-kill 38min; ts4b no-calcfc; ts4c ILLEGAL input (Opt=TS without force constants or ModRedundant, l1e); ts5 legal calcfc monitor-killed at step 35/40, max-step thrashing (IDPP seed +124.6 kcal vs I2, plateau +74.3) - 4 consecutive OptTS failures, closed per no-retry rule",
+      "evidence": {
+        "scans": [
+          "gold_compute/jobs/NA5_E3W_scan2/NA5_E3W_scan2.log"
+        ],
+        "optts_trail": [
+          "gold_compute/jobs/NA5_E3_ts5/NA5_E3_ts5.log"
+        ],
+        "outcome": "gold_compute/jobs/NA5_E3_TS5_OUTCOME.md"
+      }
     },
-    "I3": {
-      "smiles": "C=[NH+]C.C=CO.O.O",
-      "energy_hartree": -440.555902028618,
-      "n_imag": 0,
-      "log": "gold_compute/campaign/runs/NA5/E3/I3_min/.cloudra/calc-456.out.log"
-    },
-    "I4": {
-      "smiles": "CNCCC=[OH+].O.O",
-      "energy_hartree": -440.571887701094,
-      "n_imag": 0,
-      "log": "gold_compute/campaign/runs/NA5/E4/I4_min/.cloudra/calc-440.out.log"
-    },
-    "P": {
-      "smiles": "[OH3+].CNCCC=O.O",
-      "energy_hartree": -440.609587991025,
-      "n_imag": 0,
-      "log": "gold_compute/campaign/runs/NA5/E5/P_min/.cloudra/calc-460.out.log"
-    },
-    "TS5_found": {
-      "description": "shallow 1-imag saddle located (not the productive E5 TS)",
-      "energy_hartree": -440.570208025669,
-      "n_imag": 1,
-      "imag_cm": -56.48,
-      "log": "gold_compute/campaign/runs/NA5/E5/TS/.cloudra/calc-579.out.log",
-      "irc_log": "gold_compute/campaign/runs/NA5/E5/TS/.cloudra/calc-583.out.log"
+    "NA5_E5": {
+      "barrier_kcal_mol": 0,
+      "frame": "NA5_E5_scan (relaxed O12-H22 scan from the I4 minimum)",
+      "ts_imag_freq_cm_1": null,
+      "irc_verified": false,
+      "note": "NO3 precedent rule: relaxed scan along the oxocarbenium O-H shows NO internal maximum in the proton-transfer window (monotonic 0 -> +6.43 kcal over O12-H22 1.091 -> 1.750 A, 13 points, rc=0). The product-side well (NA5_P = -440.73935184, 22.1 kcal below E(I4)) lies beyond the scan edge and the proton is already shared in the I4 minimum (O12-H22 1.091 / O1-H22 1.359). Barrier = 0.0; scan log is the evidence; no TS/IRC applies to a barrierless PT."
     }
   },
-  "energy_ladder_rel_RC_kcal": {
-    "RC": 0,
-    "I1": -7.2,
-    "I2": 2.6,
-    "I3": 16.62,
-    "I4": 6.59,
-    "P": -17.07
+  "evidence_paths": {
+    "minima_logs": "C:/Users/ly306/Desktop/ly/gold_compute/jobs/NA5_{R_freq,I1_opt,I2_opt,I3_opt,I4_opt,P_opt}/ (durable archive: /home/ly/gold_queue/done/)",
+    "ts_and_scan_logs": "C:/Users/ly306/Desktop/ly/gold_compute/jobs/NA5_{E2_ts2,E5_scan,E1_scan,E1_ts,E1_ts2,E3_scan,E3_scan2,E3_ts,E3_ts2,E2_irc2,E3_irc}/",
+    "graph_context": "C:/Users/ly306/Desktop/ly/gold_compute/task_context/NA5_graph.json",
+    "handoff": "C:/Users/ly306/Desktop/ly/gold_compute/jobs/NA5_HANDOFF.md"
   },
-  "edges": [
-    {
-      "edge_id": "NA5_E1",
-      "from": "RC",
-      "to": "I1",
-      "barrier_kcal_mol": null,
-      "barrier_type": "no_first_order_saddle_located",
-      "method": "B3LYP-D3(BJ)/def2-SVP",
-      "solvent": "CPCM(water)",
-      "validation": "unresolved",
-      "note": "TAKEN FROM constrained C3-N5 scan (rel to RC min, the E1 start). No first-order saddle located (未定位到一阶鞍点). Caveat: along this restricted coordinate the energy RISES MONOTONICALLY to +51.5 kcal at 3.60 A (still rising); the true C-N path maximum lies between 3.6 and 4.9 A, so 51.47 is a sampled value on the restricted path, NOT a converged internal maximum. The branch is also partly contaminated by proton migration. Low confidence. FINAL: no first-order saddle located. Routes tried: ts_prepare (ts_0001, xTB path never closes C3..N5 + validate), free OptTS from IDPP frames (wandered on spectator libration), OptTS from the C3-N5=3.6 A scan-peak seed (job 614, see log). The C3-N5 scan profile is monotonic-rising (restricted path, partly proton-migration-contaminated) and is NOT a barrier. (OptTS from the C3-N5=3.6 A peak seed, job 614, did not converge.) Retry: constrained C3-N5=2.2 A geometry then OptTS (job 638) did not converge.",
-      "evidence": [
-        "gold_compute/campaign/runs/NA5/ts/ts_0001/",
-        "gold_compute/campaign/runs/NA5/E1/TS1/.cloudra/calc-483.out.log",
-        "gold_compute/campaign/runs/NA5/E1/TS1/.cloudra/calc-556.out.log",
-        "gold_compute/campaign/runs/NA5/E1/scanI1/"
-      ],
-      "scan_coordinate": "C3-N5 distance (constrained optimisation, 0-based idx 6-5, from I1-min)",
-      "scan_points": [
-        {
-          "d_ang": 1.8,
-          "E_hartree": -440.576988409738,
-          "rel_kcal_vs_start": 3.39
-        },
-        {
-          "d_ang": 2.1,
-          "E_hartree": -440.554398671135,
-          "rel_kcal_vs_start": 17.56
-        },
-        {
-          "d_ang": 2.4,
-          "E_hartree": -440.536310820418,
-          "rel_kcal_vs_start": 28.91
-        },
-        {
-          "d_ang": 2.7,
-          "E_hartree": -440.522096369548,
-          "rel_kcal_vs_start": 37.83
-        },
-        {
-          "d_ang": 2.8,
-          "E_hartree": -440.518645501392,
-          "rel_kcal_vs_start": 40
-        },
-        {
-          "d_ang": 3.2,
-          "E_hartree": -440.506912074129,
-          "rel_kcal_vs_start": 47.36
-        },
-        {
-          "d_ang": 3.6,
-          "E_hartree": -440.500368474949,
-          "rel_kcal_vs_start": 51.47
-        }
-      ]
-    },
-    {
-      "edge_id": "NA5_E2",
-      "from": "I1",
-      "to": "I2",
-      "barrier_kcal_mol": 13.94,
-      "barrier_type": "dE-ddagger",
-      "method": "B3LYP-D3(BJ)/def2-SVP",
-      "solvent": "CPCM(water)",
-      "validation": "ts_located",
-      "scan_coordinate": "C3-O4 distance (0-based idx 6-7, from I1-min)",
-      "scan_points": [
-        {
-          "d_ang": 1.7,
-          "E_hartree": -440.560365010925,
-          "rel_kcal_vs_start": 21.02
-        },
-        {
-          "d_ang": 1.9,
-          "E_hartree": -440.530387545288,
-          "rel_kcal_vs_start": 39.83
-        },
-        {
-          "d_ang": 2.1,
-          "E_hartree": -440.571645675077,
-          "rel_kcal_vs_start": 13.94
-        },
-        {
-          "d_ang": 2.4,
-          "E_hartree": -440.571829044562,
-          "rel_kcal_vs_start": 13.83
-        }
-      ],
-      "note": "FIRST-ORDER SADDLE LOCATED (carbinolamine-O protonation sub-step of E2). From a constrained geometry (C3-O4=2.10 A, O4-H=1.30 A, from I1-min) unconstrained OptTS (Calc_Hess) converged: E(TS2)=-440.571648790635 Ha, exactly 1 imaginary frequency (-283.64 cm-1). TS geometry: O1-H2=1.218, O4-H2=1.201 (proton midway between H3O+ and the carbinolamine O), C3-O4=1.53, C3-N5=1.39 -> a proton-transfer saddle. IRC (job 654) both directions converged but SHORT (10/11 pts); endB relaxes (job 656, 0 imag) to a minimum at -440.571815 (+13.84 vs I1, a proton-transferred structure), endF op did not converge -> connectivity to I1/I2 only partially established. dE#=13.94 kcal vs I1.",
-      "evidence": [
-        "gold_compute/campaign/runs/NA5/ts/ts_0002/",
-        "gold_compute/campaign/runs/NA5/E2/scan/.cloudra/calc-557.out.log",
-        "gold_compute/campaign/runs/NA5/E2/scan2/.cloudra/calc-570.out.log",
-        "gold_compute/campaign/runs/NA5/E2/scan3/.cloudra/calc-574.out.log",
-        "gold_compute/campaign/runs/NA5/E2/scan3/.cloudra/calc-575.out.log"
-      ],
-      "ts_log": "gold_compute/campaign/runs/NA5/E2/TS/.cloudra/calc-653.out.log",
-      "irc_log": "gold_compute/campaign/runs/NA5/E2/TS/.cloudra/calc-654.out.log"
-    },
-    {
-      "edge_id": "NA5_E3",
-      "from": "I2",
-      "to": "I3",
-      "barrier_kcal_mol": 69.94,
-      "barrier_type": "dE-ddagger",
-      "method": "B3LYP-D3(BJ)/def2-SVP",
-      "solvent": "CPCM(water)",
-      "validation": "verified",
-      "note": "FIRST-ORDER SADDLE LOCATED AND VERIFIED. Built a constrained H-transfer bridge geometry (O12-H14 = C10-H14 = 1.40 A, from I2-min) then unconstrained OptTS (Calc_Hess): E(TS3)=-440.466782582659 Ha, exactly 1 imaginary frequency (-2140.76 cm-1, stiff proton-transfer mode). IRC (job 637) converged BOTH directions (42 fwd / 46 bwd); outer frames optimised (jobs 639/640, 0 imag): endB -> I2 minimum (-440.578236124461, dE=0.00 vs delivered I2), endF -> I3-type enol conformer (-440.559122588528, -2.02 kcal vs delivered I3). dE#(E3) = E(TS3)-E(I2) = 69.94 kcal (pure electronic). Enolisation is the highest computed barrier (uncatalysed 1,3-H shift). REVIEW CHECK: TS3 geometry has C10-H14=1.501 A, O12-H14=1.315 A, C10-C11=1.402 A, C11-O12=1.297 A -> genuine alpha-C-H -> O proton-transfer (enolisation) coordinate; IRC endB -> I2 (dE 0.00) and endF -> I3-type enol confirm connectivity. CAVEAT: the barrier (69.9 kcal) is high and the imaginary mode (-2140 cm-1) is stiff because this is the uncatalysed 1,3-H shift at this level; value retained (verified by 1-imag + bidirectional IRC), flagged as unusually high.",
-      "evidence": [
-        "gold_compute/campaign/runs/NA5/ts/ts_0003/",
-        "gold_compute/campaign/runs/NA5/E3/scan/"
-      ],
-      "scan_coordinate": "O12-H14 distance (0-based idx 11-13, alpha-H transferring to carbonyl O, from I2-min)",
-      "scan_points": [
-        {
-          "d_ang": 1.8,
-          "E_hartree": -440.548248956265,
-          "rel_kcal_vs_start": 18.82
-        },
-        {
-          "d_ang": 1.4,
-          "E_hartree": -440.494126254357,
-          "rel_kcal_vs_start": 52.78
-        }
-      ],
-      "ts_log": "gold_compute/campaign/runs/NA5/E3/TS/.cloudra/calc-636.out.log",
-      "irc_log": "gold_compute/campaign/runs/NA5/E3/TS/.cloudra/calc-637.out.log"
-    },
-    {
-      "edge_id": "NA5_E4",
-      "from": "I3",
-      "to": "I4",
-      "barrier_kcal_mol": 3.37,
-      "barrier_type": "dE-ddagger",
-      "method": "B3LYP-D3(BJ)/def2-SVP",
-      "solvent": "CPCM(water)",
-      "validation": "ts_located",
-      "literature_kcal_mol": 8.9,
-      "literature_source": "Petrovic et al. 2018 R. Soc. Open Sci. 5, 181232 (ANALOGUE substrate)",
-      "note": "FIRST-ORDER SADDLE LOCATED in the C-C approach region but CONNECTIVITY NOT ESTABLISHED. From a constrained geometry (C1-C10=2.20 A, from I3-min) unconstrained OptTS (Calc_Hess) converged: E(TS4)=-440.550526782986 Ha, exactly 1 imaginary frequency (-363.63 cm-1); TS geometry C1-C10=1.963 A, C1-N2=1.347, C10-C11=1.390, C11-O12=1.293 (C-C forming). IRC (job 647) both directions converged (32/8) BUT both outer frames optimise (jobs 650/651, 0 imag) back to I3 minima (-440.555351 / -440.555531, dE +0.35/+0.23 vs I3) -> the saddle does NOT connect I3 to I4; it is a preorganisation/approach saddle. dE#=3.37 kcal vs I3 retained as the located-saddle value but the productive I3->I4 step is not verified.",
-      "evidence": [
-        "gold_compute/campaign/runs/NA5/ts/ts_0004/",
-        "gold_compute/campaign/runs/NA5/E4/scan/"
-      ],
-      "scan_coordinate": "C1(iminium)-C10(enol) distance (0-based idx 0-9, from I3-min)",
-      "scan_points": [
-        {
-          "d_ang": 3.5,
-          "E_hartree": -440.554832773551,
-          "rel_kcal_vs_start": 0.67
-        },
-        {
-          "d_ang": 3,
-          "E_hartree": -440.548569234395,
-          "rel_kcal_vs_start": 4.6
-        },
-        {
-          "d_ang": 2.5,
-          "E_hartree": -440.554735167076,
-          "rel_kcal_vs_start": 0.73
-        }
-      ],
-      "ts_log": "gold_compute/campaign/runs/NA5/E4/TS/.cloudra/calc-646.out.log",
-      "irc_log": "gold_compute/campaign/runs/NA5/E4/TS/.cloudra/calc-647.out.log"
-    },
-    {
-      "edge_id": "NA5_E5",
-      "from": "I4",
-      "to": "P",
-      "barrier_kcal_mol": null,
-      "barrier_type": "no_first_order_saddle_located",
-      "method": "B3LYP-D3(BJ)/def2-SVP",
-      "solvent": "CPCM(water)",
-      "validation": "unresolved",
-      "note": "BEST-AVAILABLE VALUE = constrained-scan upper bound 3.87 kcal vs I4 (converged O6-H constrained optimisations: 0.97/1.30/1.60/2.00 A -> 0/+1.09/+0.32/+3.87 kcal vs I4). This is the strongest evidence available for E5: the O6-H -> water proton transfer is near-barrierless. A separate stationary point with 1 imaginary freq (-56.48 cm-1) was found but is a SOFT PROTON MODE of the loose multi-fragment complex (coordinator review: imaginary-mode displacement dominated by hydrogens, heavy-atom total 0.888), NOT the E5 saddle, and its IRC does not connect to P; it is therefore not adopted. No first-order saddle for the productive E5 step was located; the scan upper bound is a legitimate weak value (unresolved, low confidence). FINAL: no first-order saddle located for the PRODUCTIVE step. Routes tried: OptTS from the O6-H=1.30 A seed (job 579) gave only a SOFT multi-fragment proton mode (-56.48 cm-1, heavy-atom displacement 0.888) that does not connect to P; scan profile (O6-H) kept for audit. No barrier claimed. Retry route: constrained H-bridge geometry (O6-H=1.40, H...O17=1.40) then OptTS (job 652) did not converge.",
-      "scan_points": [
-        {
-          "d_ang": 0.97,
-          "E_hartree": -440.571887701094,
-          "rel_kcal_vs_I4": 0
-        },
-        {
-          "d_ang": 1.3,
-          "E_hartree": -440.570145485431,
-          "rel_kcal_vs_I4": 1.09
-        },
-        {
-          "d_ang": 1.6,
-          "E_hartree": -440.571371190053,
-          "rel_kcal_vs_I4": 0.32
-        },
-        {
-          "d_ang": 2,
-          "E_hartree": -440.565713207138,
-          "rel_kcal_vs_I4": 3.87
-        }
-      ],
-      "ts_log": "gold_compute/campaign/runs/NA5/E5/TS/.cloudra/calc-579.out.log",
-      "irc_log": "gold_compute/campaign/runs/NA5/E5/TS/.cloudra/calc-583.out.log",
-      "evidence": [
-        "gold_compute/campaign/runs/NA5/E5/TS/.cloudra/calc-579.out.log",
-        "gold_compute/campaign/runs/NA5/E5/TS/.cloudra/calc-583.out.log",
-        "gold_compute/campaign/runs/NA5/E5/scan3/"
-      ]
-    }
-  ],
-  "closure_note": "Species minima complete and validated (0 imaginary). No verified elementary-step TS for E1-E4; E5 has a 1-imag saddle whose connectivity to P is not established. E2 upper bound from constrained scan; E5 weak value from a located saddle + scan.",
-  "mechanism_graph": {
-    "note": "Assembled from the 6 computed real minima (nodes) and the 5 elementary steps (edges) of the NA5 Mannich network. Node energies are the delivered electronic energies (Ha) of the converged minima.",
-    "nodes": [
-      {
-        "id": "RC",
-        "role": "reactant",
-        "smiles": [
-          "[OH3+].C=O.CN.CC=O"
-        ],
-        "properties": {
-          "energy_hartree": -440.582388556528,
-          "evidence_log": "gold_compute/campaign/runs/NA5/E1/RC_min/.cloudra/calc-433.out.log",
-          "n_imag": 0
-        }
-      },
-      {
-        "id": "I1",
-        "role": "intermediate",
-        "smiles": [
-          "[OH3+].CNCO.CC=O"
-        ],
-        "properties": {
-          "energy_hartree": -440.593863200034,
-          "evidence_log": "gold_compute/campaign/runs/NA5/E1/I1_min/.cloudra/calc-457.out.log",
-          "n_imag": 0
-        }
-      },
-      {
-        "id": "I2",
-        "role": "intermediate",
-        "smiles": [
-          "C=[NH+]C.CC=O.O.O"
-        ],
-        "properties": {
-          "energy_hartree": -440.578240040064,
-          "evidence_log": "gold_compute/campaign/runs/NA5/E2/I2_min/.cloudra/calc-471.out.log",
-          "n_imag": 0
-        }
-      },
-      {
-        "id": "I3",
-        "role": "intermediate",
-        "smiles": [
-          "C=[NH+]C.C=CO.O.O"
-        ],
-        "properties": {
-          "energy_hartree": -440.555902028618,
-          "evidence_log": "gold_compute/campaign/runs/NA5/E3/I3_min/.cloudra/calc-456.out.log",
-          "n_imag": 0
-        }
-      },
-      {
-        "id": "I4",
-        "role": "intermediate",
-        "smiles": [
-          "CNCCC=[OH+].O.O"
-        ],
-        "properties": {
-          "energy_hartree": -440.571887701094,
-          "evidence_log": "gold_compute/campaign/runs/NA5/E4/I4_min/.cloudra/calc-440.out.log",
-          "n_imag": 0
-        }
-      },
-      {
-        "id": "P",
-        "role": "product",
-        "smiles": [
-          "[OH3+].CNCCC=O.O"
-        ],
-        "properties": {
-          "energy_hartree": -440.609587991025,
-          "evidence_log": "gold_compute/campaign/runs/NA5/E5/P_min/.cloudra/calc-460.out.log",
-          "n_imag": 0
-        }
-      }
-    ],
-    "edges": [
-      {
-        "id": "NA5_E1",
-        "from": "RC",
-        "to": "I1",
-        "bond_changes": {
-          "break": [
-            [
-              3,
-              4
-            ],
-            [
-              5,
-              7
-            ]
-          ],
-          "form": [
-            [
-              3,
-              5
-            ],
-            [
-              4,
-              7
-            ]
-          ]
-        },
-        "barrier_kcal_mol": null,
-        "barrier_type": "no_first_order_saddle_located",
-        "validation": "unresolved",
-        "ts_log": "",
-        "irc_log": ""
-      },
-      {
-        "id": "NA5_E2",
-        "from": "I1",
-        "to": "I2",
-        "bond_changes": {
-          "break": [
-            [
-              1,
-              2
-            ],
-            [
-              3,
-              4
-            ]
-          ],
-          "form": [
-            [
-              2,
-              4
-            ],
-            [
-              3,
-              5
-            ]
-          ]
-        },
-        "barrier_kcal_mol": 13.94,
-        "barrier_type": "dE-ddagger",
-        "validation": "ts_located",
-        "ts_log": "gold_compute/campaign/runs/NA5/E2/TS/.cloudra/calc-653.out.log",
-        "irc_log": "gold_compute/campaign/runs/NA5/E2/TS/.cloudra/calc-654.out.log"
-      },
-      {
-        "id": "NA5_E3",
-        "from": "I2",
-        "to": "I3",
-        "bond_changes": {
-          "break": [
-            [
-              8,
-              11
-            ],
-            [
-              9,
-              10
-            ]
-          ],
-          "form": [
-            [
-              8,
-              9
-            ],
-            [
-              10,
-              11
-            ]
-          ]
-        },
-        "barrier_kcal_mol": 69.94,
-        "barrier_type": "dE-ddagger",
-        "validation": "verified",
-        "ts_log": "gold_compute/campaign/runs/NA5/E3/TS/.cloudra/calc-636.out.log",
-        "irc_log": "gold_compute/campaign/runs/NA5/E3/TS/.cloudra/calc-637.out.log"
-      },
-      {
-        "id": "NA5_E4",
-        "from": "I3",
-        "to": "I4",
-        "bond_changes": {
-          "break": [
-            [
-              3,
-              5
-            ],
-            [
-              8,
-              9
-            ]
-          ],
-          "form": [
-            [
-              3,
-              8
-            ],
-            [
-              9,
-              10
-            ]
-          ]
-        },
-        "barrier_kcal_mol": 3.37,
-        "barrier_type": "dE-ddagger",
-        "validation": "ts_located",
-        "ts_log": "gold_compute/campaign/runs/NA5/E4/TS/.cloudra/calc-646.out.log",
-        "irc_log": "gold_compute/campaign/runs/NA5/E4/TS/.cloudra/calc-647.out.log"
-      },
-      {
-        "id": "NA5_E5",
-        "from": "I4",
-        "to": "P",
-        "bond_changes": {
-          "break": [
-            [
-              10,
-              11
-            ]
-          ],
-          "form": [
-            [
-              1,
-              11
-            ]
-          ]
-        },
-        "barrier_kcal_mol": null,
-        "barrier_type": "no_first_order_saddle_located",
-        "validation": "unresolved",
-        "ts_log": "gold_compute/campaign/runs/NA5/E5/TS/.cloudra/calc-579.out.log",
-        "irc_log": "gold_compute/campaign/runs/NA5/E5/TS/.cloudra/calc-583.out.log"
-      }
-    ]
-  }
+  "not_computed": "NA5_E4 (rate-determining C-C formation) is out of scope for this agent: literature value 8.9 kcal/mol."
 }

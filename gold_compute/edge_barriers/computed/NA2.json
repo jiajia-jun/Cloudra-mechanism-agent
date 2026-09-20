@@ -1,0 +1,71 @@
+{
+  "task": "NA2",
+  "reaction": "acetone self-aldol -> mesityl oxide (base-catalyzed, OH-), charge -1 mult 1",
+  "method": "b3lyp/def2svp Gaussian16 via WSL gold_queue (4c/8GB); electronic barriers only (1 Ha = 627.509474 kcal/mol)",
+  "references_hartree": {
+    "R": -461.81517387,
+    "I1": -461.83316027,
+    "I2": -461.82674365,
+    "I3": -461.82762723,
+    "I4": -461.83801125,
+    "P": -461.8034064
+  },
+  "minima_note": "all six minima STRICT 0 imag (NA2_R/I1/I2/I3/I4/P_opt). CAVEAT: declared I3 SMILES [OH-].CC(=O)CC(C)(C)O is not a stationary point; relaxed NA2_I3_opt = water + carbinol-alkoxide H-bond isomer, 0.55 kcal below I2, same formula C6H13O3-.",
+  "edges": {
+    "NA2_E1": {
+      "barrier_kcal_mol": 3.4,
+      "frame": "NA2_E1_ts",
+      "ts_imag_freq_cm-1": -883.66,
+      "irc_verified": true,
+      "note": "OH- deprotonation of acetone alpha-H (PT, O1-H7 forming 2.022->0.982). Constrained relaxed scan NA2_E1_scan (14 pts) internal max +3.3948 @ frame9; UNCONSTRAINED OptTS CONFIRMS: E(TS)=-461.80975144, exactly 1 imag -883.66 cm-1 aligned to O1-H7 (verify tc_82347ca6dd564e19, rel displ 1.032). Bidirectional IRC NA2_E1_irc_f/_r + endpoint refinements: reverse endpoint -> EXACT R (-461.81517395, 0 imag, dE=0.0000, NA2_E1_endb_opt); forward endpoint -> 0-imag I1-composition conformer +2.756 vs gold I1 (H-bond conformer, NA2_E1_enda_opt). ts_guess STRICT verify = PASS (tc_09ea8f5975cc4b10): both IRC outer frames between TS and optimized intermediates. DeltaE(I1-R) = -11.29 kcal (exergonic)."
+    },
+    "NA2_E2": {
+      "barrier_kcal_mol": 4.02,
+      "frame": "no TS located (NA2_E2_scan + NA2_E2_ts2/ts3/ts3b/ts4 attempts; see note)",
+      "ts_imag_freq_cm-1": null,
+      "irc_verified": false,
+      "note": "C-C addition enolate CH2 -> acetone carbonyl. NO intervening saddle located. Evidence: (1) 1D relaxed scan NA2_E2_scan (23 pts, C4-C14 4.865->1.550) monotonic-rising past the +2.60 attack-ready basin (f9) to +22.83 at 1.55 A - but the true I2 basin lies at only +4.02 at the SAME C4-C14 distance, proving the 1D path is a C=O under-pyramidalization RIDGE (constraint artifact), not the valley; (2) OptTS from f18 (2.153 A) unconverged (core dump, +18.19); (3) OptTS from f9 basin converged to a shallow ROTATIONAL saddle +2.15 (imag -75.3 cm-1, mode on methyls, NOT the reaction coordinate); (4) QST3/QST2 formats crashed in l101 (format issue documented). RIGOROUS BOUND: DeltaE(I2-I1) = +4.02 kcal ENDERGONIC => DeltaE‡ >= +4.02 (TS >= product along any MEP); effective gate = 4.02 thermodynamic + ~2.6 reorganization. REPORTED VALUE = thermodynamic lower bound, NOT a computed saddle. FORWARD ADDITION GATED BY ENTERGONICITY. Open gap flagged to supervisor; remaining instrument = 2D coupled scan C4-C14 x C14-O15 pyramidalization (recipe posted hub evt_42a34c1d0964488e)."
+    },
+    "NA2_E3": {
+      "barrier_kcal_mol": 0,
+      "frame": "NA2_E3_scan",
+      "ts_imag_freq_cm-1": null,
+      "irc_verified": false,
+      "note": "PT 无垒(约束扫描确认) - reprotonation of aldolate O by water (O11-H2 1.584->0.980). Relaxed scan NA2_E3_scan.log: 11 points, profile MONOTONIC RISING 0 -> +13.755 kcal at the constrained terminus (endpoint maximum, NOT a TS candidate per scan_parse). No intervening saddle along the scanned PT coordinate; forward PT gated by endergonicity dE=+13.76 along the coordinate (constrained). CAVEAT: declared endpoint [OH-].CC(=O)CC(C)(C)O is not a stationary point; the relaxed minimum NA2_I3_opt (STRICT 0 imag, -461.82762723, 0.55 kcal below I2) is the water+carbinol-alkoxide H-bond isomer. Edge support = endpoint minima (NA2_I2_opt, NA2_I3_opt both 0-imag) + monotonic profile (Supervisor ruling evt_919a9c5abb7c44f5 conditions a-d)."
+    },
+    "NA2_E4": {
+      "barrier_kcal_mol": 32.5,
+      "frame": "NA2_E4_ts",
+      "ts_imag_freq_cm-1": -1485.36,
+      "irc_verified": false,
+      "note": "E1cb alpha-deprotonation C6-H14 -> carbinol O10 (base = carbinol alkoxide of true I3). Scan NA2_E4_scan (13 pts, O10-H14 3.403->0.980) internal max +32.4234 @ f10 with valley-slide into I4; UNCONSTRAINED OptTS from f10 guess: E=-461.77583362, exactly 1 imag -1485.36 cm-1, mode ALIGNED to C6-H14 breaking / O10-H14 forming (verify watch pair, max pair (6,14)). Barrier vs I3(-461.82762723) = +32.5017 - the unconstrained OptTS CONFIRMS the constrained maximum (not an artifact). IRC not required for PT-type edge per task spec (IRC mandated only for E2/E5). E4 = rate-determining edge of the network. Reference minimum = NA2_I3_opt (see minima_note identity caveat)."
+    },
+    "NA2_E5": {
+      "barrier_kcal_mol": 21.71,
+      "frame": "NA2_E5_scan3 (2D) + NA2_E5_scan/NA2_E5_scan2 (1D)",
+      "ts_imag_freq_cm-1": null,
+      "irc_verified": false,
+      "note": "E1cb elimination: C8-O11 departure + enolate collapse C7=C8 (I4 -> P). NO intervening saddle located; forward elimination GATED BY ENDERGONICITY DeltaE(P-I4) = +21.71 kcal (P=-461.80340640), which is a RIGOROUS LOWER BOUND on DeltaE‡ (TS >= product along any MEP); late/product-like TS assumed. Evidence: (1) 1D scan on BREAKING coordinate C8-O11 1.429->2.500 (13 pts): monotonic rising to +31.658, no internal peak (scan_parse refused endpoint seed; NQ1 lesson: 1D on the breaking coordinate under-relaxes the enolate collapse); (2) 1D scan on FORMING coordinate C7-C8 1.522->1.340 (NA2_E5_scan2, 10 pts): monotonic rising to +13.736, endpoint frame has C8-O11=1.443 barely stretched (strained corner); (3) unconstrained OptTS from the strained corner slid BACK into the I4 basin (C7-C8=1.522, C8-O11=1.430, shallow -247.8 H-wiggle, mode misaligned) => rejected; (4) 2D COUPLED RELAXED SCAN NA2_E5_scan3 (C7-C8 1.522->1.360 x C8-O11 1.429->2.150, 6x6 grid; 16 points completed before an l9999 finalization crash - all sampled energies valid): every sampled point is UPHILL from I4 (row C8-O11=1.573 bottoms at +4.75 @ C7-C8=1.522; row 1.717 at +14.1..+15.9) - no internal maximum anywhere in the sampled region; the P basin (+21.71) lies beyond the sampled corner. IRC not run (no TS to descend from). Open gap flagged to supervisor: TS not located; reported barrier = endergonic gate (lower bound), not a computed saddle."
+    }
+  },
+  "provenance": {
+    "instance": "NA2#3 (as_afe3fbd38ae14304) per ratified split evt_f5b0092d052e48bd; E2 chain owner attempted NA2_E2_ts/ts3/ts3b/ts4 (all failed; see hub evt_34113c772bdf4a7b, evt_42a34c1d0964488e)",
+    "queue": "wsl gold_queue submit.sh; TAGs logged in gold_compute/jobs/<TAG>/",
+    "parse_call_ids": {
+      "E1_scan": "tc_8cf37bc2cdec49b6",
+      "E1_ts": "tc_4d7d62c8833e411a",
+      "E1_irc_r": "tc_3cc59a6357264fe5",
+      "E1_irc_f": "tc_6907d11c30e8423a",
+      "E1_strict_verify": "tc_09ea8f5975cc4b10",
+      "E3_scan": "tc_50fa25d6fe9748f0",
+      "E4_scan": "tc_768260c5f29b4613",
+      "E4_ts": "tc_59921db52856431b",
+      "E5_scan": "tc_c17acc4f81a446b0",
+      "E5_scan2": "tc_dce0e221db01413f",
+      "E5_ts": "tc_7a996bba394345ed",
+      "E5_scan3_2D": "tc_5cc017fe366e408b",
+      "E2_ts2": "tc_513497a8cd1a4336",
+      "E2_ts4_readonly": "tc_b7a951298e544d4a"
+    }
+  }
+}

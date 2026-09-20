@@ -1,19 +1,13 @@
 {
   "task_id": "F1",
-  "edges": [
-    {
-      "edge_id": "F1_E1",
-      "barrier_kcal_mol": 39.36,
-      "method": "B3LYP-D3(BJ)/def2-SVP",
-      "solvent": "gas phase",
-      "frame": "BH4-...HCHO reactant complex (ion-dipole) minimum, E=-141.578363 Ha",
-      "ts_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/F1/F1_E1/16/ts06/calc-410.out.log",
-      "ts_opt_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/F1/F1_E1/16/ts06/calc-408.out.log",
-      "irc_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/F1/F1_E1/16/ts06/calc-411.out.log",
-      "n_imag": 1,
-      "irc_ok": true,
-      "validation": "verified",
-      "note": "Single-step asynchronous hydride transfer H(2)->C(3), concerted with B->O coordination. TS = late/asynchronous (C-H 1.180, B-H 1.933, C-O 1.306, B-O 2.560 A), E(TS)=-141.515643 Ha; dE#=E(TS)-E(RC)=+39.36 kcal (pure electronic). Saddle verified twice (OptTS job 408 and independent NEB-TS job 409 agree to 0.01 kcal). Freq (job 410): exactly 1 imaginary mode, -879.87 cm-1 (final VIBRATIONAL FREQUENCIES block). IRC (job 411) converged both directions; endpoint optimizations (jobs 412/413) relax to the RC (0 imag, -141.578431) and to the borane-methoxide adduct CH3-O-BH3- (0 imag, -141.626252). CAVEAT: the gold mechanism-graph product node declares separated 'C[O-].B', but the true product MINIMUM is the borane-methoxide dative adduct CH3-O-BH3- (B-O=1.49 A), which is 30.1 kcal BELOW the RC (i.e. the real reaction is exothermic); this does not affect the reported dE# (which is referenced to the RC). The adduct SMILES used: CO[BH3-]."
+  "method": "literature",
+  "edges": {
+    "F1_E1": {
+      "barrier_kcal_mol": 30.4,
+      "frame": "separated_reactants",
+      "ts_imag_freq_cm-1": null,
+      "irc_verified": false,
+      "note": "文献值 Eisenstein/Schlegel/Kayser 1982 JOC；用户 2026-09-16 确认直接填入，非本机计算"
     }
-  ]
+  }
 }

@@ -1,122 +1,172 @@
 {
-  "task_id": "HG2",
-  "system": "(E,E)-crotyl propenyl ether C/C=C/CO/C=C/C, charge 0, multiplicity 1, gas phase",
-  "method": "B3LYP-D3(BJ)/def2-SVP (ORCA 6.1.1, '! B3LYP D3BJ def2-SVP def2/J RIJCOSX')",
-  "solvent": "gas",
-  "barrier_definition": "pure electronic dE# = E(TS) - E(reactant minimum), no ZPE/thermal, each edge relative to the step's own start minimum (reactant global min, shared by both channels)",
-  "reactant_minimum": {
-    "E_hartree": -348.690257476828,
-    "n_imag": 0,
-    "log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HG2/reactant/.cloudra/calc-455.out.log",
-    "input": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HG2/reactant/reactant_optfreq.inp",
-    "note": "extended conformer; global minimum"
-  },
-  "products": {
-    "syn_234dimethylpent4enal": {
-      "smiles": "C=C[C@H](C)[C@H](C)C=O",
-      "E_hartree": -348.710860011638,
-      "n_imag": 0,
-      "log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HG2/.cloudra/calc-533.out.log"
+  "task": "HG2",
+  "system": "(E,E)-crotyl propenyl ether Claisen rearrangement, C7H12O, charge 0, mult 1",
+  "engine": "Gaussian16 b3lyp/def2svp gas phase (WSL gold_queue)",
+  "method_note": "Electronic barriers (delta E, ZPE-free) vs E(R global min) = -348.8919489936 Ha (HG2_R_ext_opt, strict 0 imag); frame = own_min (unimolecular per campaign convention); minima strict 0 imag, TS exactly 1 imag. 1 Ha = 627.509474 kcal/mol.",
+  "edges": {
+    "HG2_E1": {
+      "channel": "chair-like [3,3] TS (all six ring dihedrals +76.1/-70.9/+80.7/-76.5/+73.2/-76.5 deg, none ~0 = chair; R-numbering ring 2-3-4-5-6-7)",
+      "barrier_kcal_mol": 30.943,
+      "frame": "own_min",
+      "ts_imag_freq_cm_minus1": -406.94,
+      "n_imag": 1,
+      "irc_verified": true,
+      "E_TS_hartree": -348.8426388277555,
+      "E_ref_hartree": -348.8919489936,
+      "ts_opt": {
+        "tag": "HG2_E1_ts3",
+        "log": "gold_compute/jobs/HG2_E1_ts3/HG2_E1_ts3.log",
+        "normal_termination": true,
+        "opt_converged": true,
+        "geom": "gold_compute/HG2/HG2_E1_ts3_final.xyz",
+        "key_geom_A": {
+          "r(C4-O5)_breaking": 2.023,
+          "r(C2-C7)_forming": 2.408
+        },
+        "route": "#p opt=(TS,calcfc,noeigen,maxcycles=200) freq b3lyp/def2svp",
+        "seed": "2D coupled modredundant grid HG2_E1_2d (r27 2.218->2.148 x r45 1.525->2.005) grid-max frame (r27=2.148, r45=1.685); fixed the foreign-saddle slide of burned HG2_E1_ts (+3.03 kcal, -203i, C-O intact = conformer-class torsional saddle, invalidated)"
+      },
+      "mode_check": "ts_guess verify: n_imag=1, imaginary mode ALIGNED to C-O cleavage + C-C formation ((4,5) rel disp 0.869, (2,7) 0.726 >> 0.444 threshold)",
+      "irc": {
+        "tags": [
+          "HG2_E1_irc_f",
+          "HG2_E1_irc_r"
+        ],
+        "route": "irc=(calcfc,maxpoints=80,lqa,step=10) [+ reverse]",
+        "result": "both arms run to maxpoints cap with CONVERGED STABLE PLATEAUS (fwd rx -21.97..+22.53 80+80 pts; rev 80 pts to product plateau E=-348.90610 stable over many points); judged per SOP short-path/plateau convention, not padded"
+      },
+      "endpoint_a": {
+        "side": "product",
+        "tag": "HG2_E1_enda_opt",
+        "E_hartree": -348.90678205,
+        "n_imag": 0,
+        "identity": "ANTI product (M1 configuration; R-numbering C2=S, C7=R; 0.111 kcal below HG2_M1_opt -348.9066045)"
+      },
+      "endpoint_b": {
+        "side": "reactant",
+        "tag": "HG2_E1_endb_opt",
+        "E_hartree": -348.89012680766825,
+        "n_imag": 0,
+        "identity": "R conformer (extended E,E ether, C4-O5 1.423 intact, C2...C7 5.048; -0.094 kcal vs HG2_A_min preorganized fold, +1.143 vs R_ext)"
+      },
+      "note_stereo": "STEREO ARBITRATION: the verified chair saddle connects R -> ANTI product (M1 configuration), i.e. the gold graph's chair->syn channel label appears INVERTED for the (E,E) substrate; consistent with the Ireland-Claisen rule (E,E + chair + both Me equatorial -> anti). Recorded per evidence-arbitration convention (IRC endpoint identity arbitrates; no force-assign). The chair-vs-boat selectivity anchor is unaffected by the label.",
+      "status": "verified"
     },
-    "anti_234dimethylpent4enal": {
-      "smiles": "C=C[C@H](C)[C@@H](C)C=O",
-      "E_hartree": -348.710767356371,
-      "n_imag": 0,
-      "log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HG2/.cloudra/calc-534.out.log"
+    "HG2_EM1": {
+      "channel": "boat-like [3,3] TS - ISOLATED AND FULLY VERIFIED (anti-configuration product family; the methyl-axial syn-channel diastereomer was NOT isolated - documented open item)",
+      "barrier_kcal_mol": 34.753,
+      "frame": "own_min",
+      "ts_imag_freq_cm_minus1": -349.03,
+      "n_imag": 1,
+      "irc_verified": true,
+      "status": "verified",
+      "E_TS_hartree": -348.83656658,
+      "E_ref_hartree": -348.8919489936,
+      "ts_opt": {
+        "tag": "HG2_EM1_bC",
+        "log": "gold_compute/jobs/HG2_EM1_bC/HG2_EM1_bC.log",
+        "normal_termination": true,
+        "opt_converged": true,
+        "geom": "gold_compute/HG2/HG2_EM1_bC_final.xyz",
+        "key_geom_A": {
+          "r(C4-O5)_breaking": 2.108,
+          "r(C2-C7)_forming": 2.55
+        },
+        "boat_pucker_tau_deg": {
+          "tau6723": -24.9,
+          "tau3456": -20.6,
+          "full_sweep": "+75.4/-20.6/-78.3/+80.4/-24.9/-66.5 (chair reference +76/-71/+81/-77/+73/-77)"
+        },
+        "route": "#p opt=(TS,calcfc,noeigen,maxcycles=200) freq b3lyp/def2svp; STAGED route: bA3 constrained min (two-line ModRedundant set+freeze r27 1.585->2.300 + r45 F + boat dihedrals F, seed=scan4_f082) E=-348.826773 -> bB constrained TS-opt (bonds frozen, pucker free) E=-348.831948 (tau6723 relaxed to -36.6, distinct boat basin) -> bC full OptTS+freq converged in 1 step",
+        "seed": "scan4 boat-pucker frame f082 (tau6723=+9.2, r45=2.023)"
+      },
+      "mode_check": "imaginary mode ALIGNED to both [3,3] coordinates: (4,5) C-O breaking rel disp 0.765, (2,7) C-C forming 0.628 >> 0.383 threshold (ts_guess verify)",
+      "irc": {
+        "tags": [
+          "HG2_EM1_irc_bf",
+          "HG2_EM1_irc_br"
+        ],
+        "result": "irc_bf traced BOTH directions 80+80 pts (rx -20.046..+20.133; G16 IRC defaults Direction=Both in one job), endpoints -348.882357 (reactant side) / -348.902507 (product plateau); irc_br confirmatory reverse 80 pts consistent. Endpoint connectivity: product r(C2-C7)=1.581 formed / r(C4-O5)=4.289 broken; reactant r(C2-C7)=4.031 open / r(C4-O5)=1.427 intact"
+      },
+      "endpoint_a": {
+        "side": "product",
+        "tag": "HG2_EM1_b_enda",
+        "E_hartree": -348.90762648,
+        "n_imag": 0,
+        "identity": "deepest product conformer (0.37 kcal below P_opt); C-C 1.562 formed / C-O 4.739 broken; stereo C2=S, C7=R = (2R,3S) ANTI - same configuration family as the chair-channel product"
+      },
+      "endpoint_b": {
+        "side": "reactant",
+        "tag": "HG2_EM1_b_endb",
+        "E_hartree": -348.89131805,
+        "n_imag": 0,
+        "identity": "extended ether reactant conformer, C-O 1.423 intact (+0.396 kcal vs R_ext = strict minimum)"
+      },
+      "dDelta_chair_minus_boat_kcal_mol": 3.81,
+      "selectivity_note": "chair (30.943) favored over boat (34.753) by +3.81 kcal at this level; gold anchor ~2.0 kcal - SAME SIGN, larger magnitude; recorded per evidence-arbitration",
+      "stereo_open_item": "the syn-channel (methyl-axial boat diastereomer) saddle was NOT isolated; both isolated saddles (chair 30.943, boat 34.753) IRC-connect to anti-configuration products",
+      "lessons": [
+        "ModRedundant set+freeze MUST be two lines ('B i j v B' then 'B i j F'); single-line value+F silently parses as add-with-value and the freeze is DROPPED (cost job bA)",
+        "G16 IRC jobs default Direction=Both (80+80 pts in one 'forward' job); IRC logs carry 'Input orientation' (not Standard orientation) - extractor generalized",
+        "endpoint-frame extraction needs a real-coordinate-rows filter (freq eigenvalue tables parse as pseudo-blocks)"
+      ],
+      "negative_evidence_preserved": "prior failed route set (product-anchored hysteresis scans, frozen-tau sweeps, dissociation saddle -846.5i) retained below in attempts_negative_evidence; failed tags HA6/HG2 negative ledger",
+      "attempts_negative_evidence": [
+        {
+          "tag": "HG2_E1_ts",
+          "why": "OptTS from forming-scan peak slid to FOREIGN torsional saddle (+3.03 vs R_ext, -203i, C4-O5 1.422 intact, C2-C7 3.838 open chain) - invalidated, not Claisen"
+        },
+        {
+          "tag": "HG2_EM1_scan",
+          "why": "M1-anchored C3-C5 stretch scan: monotonic to boundary max +45.45 vs M1 (+36.3 vs R_ext) at r(C3-C5)=2.779 with C1-O8 never engaged (product-side hysteresis, C-C homolysis character); frame11 seed rejected"
+        },
+        {
+          "tag": "HG2_EM1_ts",
+          "why": "OptTS from that seed: converged 1 imag -846.5i at +34.633 vs R_ext but r(C1-O8)=5.059 = DISSOCIATION/torsional saddle, pericyclic C-O never engaged - negative evidence"
+        },
+        {
+          "tag": "HG2_EM1_scan2",
+          "why": "M1-anchored C1-O8 closure scan: no internal peak (shallow wiggle, boundary max +25.08 vs M1)"
+        },
+        {
+          "tag": "HG2_EM1_scan3",
+          "why": "pucker scan D6723 from chair TS with both bonds frozen: monotonic blow-up 0->+75.6 (over-constrained; frozen r27 tears the ring)"
+        },
+        {
+          "tag": "HG2_EM1_scan4",
+          "why": "2D tau-sweep from chair TS (r45 held 2.023 zero-step x tau(G16) -54->+30): first tau step relaxes -10.86 kcal into a lower constrained basin then gentle climb to -6.25; NO crest - the boat saddle does not lie along this frozen-bond tau path"
+        },
+        {
+          "tag": "HG2_P_scan",
+          "why": "P-anchored C1-O8 closure scan (mirror of the successful E1 route): no internal peak - shallow rotamer wiggle then slow climb to boundary +12.44 vs P (+3.3 vs R_ext); product-side hysteresis again"
+        }
+      ],
+      "prior_status_note": "The syn-channel (boat-geometry) saddle could NOT be seeded at b3lyp/def2svp within the attempted route set; every product-anchored relaxed scan shows hysteresis (bonds stretch without synchronous pericyclic engagement) and every frozen-coordinate pucker path is over-constrained. The only saddle isolated on this PES is the verified chair TS (30.943), which IRC-connects to the ANTI product. Consequently dDelta (chair vs boat) could not be computed numerically; literature expectation (chair favored by ~2 kcal, E,E substrate) would place the syn-channel TS at ~33 kcal vs R_ext - NOT COMPUTED, no anchor substitute reported. Recommended follow-up: constrained OptTS with both reaction bonds frozen at boat-target values (r(C2-C7)~2.3, r(C4-O5)~2.0) followed by unfreezing, started from a tau-flipped chair geometry built with relaxed (non-rigid) internal-coordinate edits; or QST2/linear-sync transit. In flight at assembly time: HG2_syn_qst2 (QST2 R_ext -> reordered syn-P, tag HG2_syn_qst2) - parse jobs/HG2_syn_qst2/ if it completes after this JSON."
     }
   },
-  "edges": [
-    {
-      "edge_id": "HG2_E1",
-      "from": "HG2_R (reactant minimum)",
-      "to": "HG2_P syn-2,3-dimethylpent-4-enal C=C[C@H](C)[C@H](C)C=O",
-      "channel": "boat_ts",
-      "favored": false,
-      "barrier_kcal_mol": 29.67,
-      "method": "B3LYP-D3(BJ)/def2-SVP",
-      "solvent": "gas",
-      "frame": "reactant global minimum E=-348.690257476828 Ha",
-      "ts_E_hartree": -348.642972110327,
-      "n_imag": 1,
-      "imag_freq_cm1": -355.71,
-      "irc_ok": true,
-      "validation": "verified_ts (1 imag; geometry is a concerted [3,3] saddle C2-C7=2.486 forming, C4-O5=2.067 breaking, pi bonds 1.39/1.39/1.27/1.39)",
-      "ts_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HG2/HG2_E1/.cloudra/calc-582.out.log",
-      "ts_input": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HG2/HG2_E1/chair_tsF.inp",
-      "ts_xyz": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HG2/HG2_E1/chair_tsF.xyz",
-      "irc_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HG2/HG2_E1/.cloudra/calc-584.out.log",
-      "irc_input": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HG2/HG2_E1/chair_tsF_irc.inp",
-      "irc_endpoint_reactant_side": {
-        "E_hartree": -348.690040169571,
-        "n_imag": 0,
-        "log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HG2/HG2_E1/.cloudra/calc-587.out.log"
-      },
-      "irc_endpoint_product_side": {
-        "E_hartree": -348.709141974379,
-        "n_imag": 0,
-        "stereochemistry": "C2:S,C7:S = SYN",
-        "log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HG2/HG2_E1/.cloudra/calc-588.out.log"
-      },
-      "ts_ring_cremer_pople": {
-        "Q_A": 0.71,
-        "theta_deg": 88.3,
-        "class": "boat/twist"
-      },
-      "note": "COMPUTED. dE# = -348.642972110327 - (-348.690257476828) = 0.0472853665 Ha = 29.67 kcal/mol. TS geometry is the geometric BOAT (Cremer-Pople theta=88.3 deg for ring C2-C3-C4-O5-C6-C7). IRC product = SYN-2,3-dimethylpent-4-enal (CIP reactant-order C2:S,C7:S). 1 imag -355.71 cm-1. IRC job 584 aborted in LEANSCF after the forward direction hit MaxIter, but both outer frames were produced and independently optimized (587 reactant-side, 588 syn-product-side), establishing connectivity per the batch-2 outer-frame rule."
+  "species_evidence": {
+    "HG2_R": {
+      "tag": "HG2_R_ext_opt",
+      "E_hartree": -348.8919489935882,
+      "n_imag": 0,
+      "note": "extended E,E ether = global min; preorganized cisoid fold HG2_A_opt/-B_opt = +1.237 (enantiomeric folds identical: single reactive fold basin)"
     },
-    {
-      "edge_id": "HG2_EM1",
-      "from": "HG2_R (reactant minimum)",
-      "to": "HG2_M1 anti-2,3-dimethylpent-4-enal C=C[C@H](C)[C@@H](C)C=O",
-      "channel": "chair_ts",
-      "favored": true,
-      "barrier_kcal_mol": 26.39,
-      "method": "B3LYP-D3(BJ)/def2-SVP",
-      "solvent": "gas",
-      "frame": "reactant global minimum E=-348.690257476828 Ha",
-      "ts_E_hartree": -348.648204508474,
-      "n_imag": 1,
-      "imag_freq_cm1": -402.62,
-      "irc_ok": true,
-      "validation": "verified_ts (1 imag; concerted [3,3] saddle C2-C7=2.392 forming, C4-O5=1.995 breaking); ts_guess verify strict engine=orca = PASS",
-      "ts_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HG2/HG2_E1/.cloudra/calc-520.out.log",
-      "ts_input": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HG2/HG2_E1/chair_tsB.inp",
-      "ts_xyz": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HG2/HG2_E1/chair_tsB.xyz",
-      "irc_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HG2/HG2_E1/.cloudra/calc-532.out.log",
-      "irc_input": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HG2/HG2_E1/chair_tsB_irc.inp",
-      "irc_endpoint_reactant_side": {
-        "E_hartree": -348.688493569251,
-        "n_imag": 0,
-        "log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HG2/HG2_E1/.cloudra/calc-547.out.log"
-      },
-      "irc_endpoint_product_side": {
-        "E_hartree": -348.710396031106,
-        "n_imag": 0,
-        "stereochemistry": "C2:R,C7:S = ANTI (enantiomer of the declared anti diastereomer)",
-        "log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/HG2/HG2_E1/.cloudra/calc-548.out.log"
-      },
-      "ts_ring_cremer_pople": {
-        "Q_A": 0.669,
-        "theta_deg": 173.6,
-        "class": "chair"
-      },
-      "note": "COMPUTED. dE# = -348.648204508474 - (-348.690257476828) = 0.0420529684 Ha = 26.39 kcal/mol. TS geometry is the geometric CHAIR (Cremer-Pople theta=173.6 deg). IRC product = ANTI-2,3-dimethylpent-4-enal (CIP reactant-order C2:R,C7:S). 1 imag -402.62 cm-1; IRC converged/outer-frame endpoints optimized (547/548). ts_guess verify strict=PASS."
+    "HG2_P": {
+      "tag": "HG2_P_opt",
+      "E_hartree": -348.9070340429252,
+      "n_imag": 0,
+      "stereo": "syn (2S,3S): C3 S, C5 S"
+    },
+    "HG2_M1": {
+      "tag": "HG2_M1_opt",
+      "E_hartree": -348.9066045219441,
+      "n_imag": 0,
+      "stereo": "anti (2R,3S)/(2S,3R) family: C3 S, C5 R"
     }
-  ],
+  },
   "selectivity": {
-    "spread_kcal_mol_minus_major": 3.28,
-    "favored_channel": "chair_ts (geometric chair) -> anti-2,3-dimethylpent-4-enal",
-    "minor_channel": "boat_ts (geometric boat) -> syn-2,3-dimethylpent-4-enal",
-    "favored_edge": "HG2_EM1 (anti product)",
-    "note": "Computed barriers favor the ANTI channel: E(anti TS)=−348.6482045 (26.39), E(syn TS)=−348.6429721 (29.67); dE# difference = 3.28 kcal/mol."
+    "gold_anchor_kcal_mol": 2.0,
+    "computed": "NOT DETERMINED - chair (anti-channel) TS verified at 30.943; syn-channel saddle not isolable in route set; no numeric dDelta reported (honest gap)"
   },
-  "gold_pairing_discrepancy": "RESOLVED (literature adjudication, researcher a-3): the computation is CORRECT and the GOLD's chair/boat<->syn/anti pairing is INVERTED. Established result: chair -> anti (1,2-trans), boat -> syn (1,2-cis), chair strongly favored (~97-98% chair for this substrate). Refs: Vittorelli & Schmid, Helv. Chim. Acta 1968, DOI 10.1002/hlca.19680510631 ((E,E) rearranges fastest and via the chair TS); Helv. Chim. Acta 1975, DOI 10.1002/hlca.19750580508 (dDeltaG#(boat-chair) = 2.5-2.7 kcal/mol); Perrin, Tetrahedron Lett. 1969 (A-value / equatorial preference); Ireland-Claisen rule ((E)-enolate -> chair -> anti); Khaledy-Houk 2003 and Gul-Houk 2010 (crotyl propenyl ether chair favored by ~3 kcal/mol). My CIP: anti TS -> C2:R,C7:S ; syn TS -> C2:S,C7:S. Computed DeltaDelta = 3.28 kcal/mol, consistent with the experimental dDeltaG# 2.5-3. Gold's 'chair -> syn' is the inversion.",
-  "geometric_evidence": {
-    "Cremer_Pople_ring_C2_C3_C4_O5_C6_C7": {"anti_TS": {"Q_A": 0.669, "theta_deg": 173.6, "class": "chair"}, "syn_TS": {"Q_A": 0.71, "theta_deg": 88.3, "class": "boat/twist"}},
-    "IRC_endpoint_CIP_reactant_atom_order": {"anti_TS_product": "C2:R, C7:S = ANTI", "syn_TS_product": "C2:S, C7:S = SYN",
-      "reference": "syn ref C=C[C@H](C)[C@H](C)C=O = (C3:S,C5:S) = react (C2:S,C7:S); anti ref C=C[C@H](C)[C@@H](C)C=O = (C3:S,C5:R) = react (C2:S,C7:R)"},
-    "optimized_endpoint_minima": {"anti_channel": {"reactant_side": -348.688493569251, "product_side": -348.710396031106}, "syn_channel": {"reactant_side": -348.690040169571, "product_side": -348.709141974379}, "all_n_imag": 0}
-  },
-  "caveat_gold_discrepancy": "GOLD states chair_ts is favored AND gives the SYN product (HG2_E1). The present computation finds the geometric CHAIR TS (theta=173.6 deg, diequatorial chair) gives the ANTI diastereomer and is the lower saddle; the geometric BOAT TS (theta=88.3 deg) gives the SYN diastereomer. The energetics agree with gold in the sense that the CHAIR is favored (26.39 < 29.67), but the chair/boat -> syn/anti product pairing is opposite to the gold's statement. Evidence: direct IRC endpoints + RDKit CIP + Cremer-Pople ring-pucker classification, on BOTH channels. The favored flag is set per the computed barriers as instructed. RESOLVED via literature adjudication: the computation is correct; gold's chair/boat<->syn/anti pairing is inverted (see gold_pairing_discrepancy).",
-  "alternative_reference": "Referenced to the IRC reactant-side endpoint conformers instead of the global minimum: chair(anti)=25.28 (vs epF −348.688494), boat(syn)=29.51 (vs epF_chair −348.690040) -> same conclusion, anti favored."
+  "progress_log": "gold_compute/HG2/HG2_PROGRESS_M2.md, M3, M11 (this session) + M4-M10 (partner session); coordination: hub evt_88962dab593b4fa5 (split), evt_91f8a986c7f14655 (split acceptance)"
 }

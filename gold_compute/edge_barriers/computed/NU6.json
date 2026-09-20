@@ -1,32 +1,6 @@
 {
   "task_id": "NU6",
-  "edges": [
-    {
-      "edge_id": "NU6_E1",
-      "barrier_kcal_mol": 2.66,
-      "method": "B3LYP-D3(BJ)/def2-SVP",
-      "solvent": "CPCM(DCM)",
-      "frame": "reactant complex RC (C=C=O.C=N pre-reaction complex), E=-246.9285768 Ha",
-      "ts_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NU6/E1_ts/2/.cloudra/calc-355.out.log",
-      "irc_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NU6/E1_ts/2/.cloudra/calc-366.out.log",
-      "n_imag": 1,
-      "irc_ok": true,
-      "validation": "verified",
-      "note": "Imine N attacks ketene central C (C2-N7 forming, 2.04 A at TS); 1 imag -159.63 cm-1; IRC converges both ways to RC (endpoint A) and zwitterion I1 (endpoint B). dE# = E(TS1)-E(RC); E(TS1)=-246.9243447. RC is bound 4.12 kcal/mol vs separated monomers."
-    },
-    {
-      "edge_id": "NU6_E2",
-      "barrier_kcal_mol": 15.72,
-      "method": "B3LYP-D3(BJ)/def2-SVP",
-      "solvent": "CPCM(DCM)",
-      "frame": "intermediate I1 zwitterion C=[NH+]C(=C)[O-], E=-246.9300050 Ha",
-      "ts_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NU6/E2_ts/2/.cloudra/calc-367.out.log",
-      "irc_log": "/Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master/gold_compute/campaign/runs/NU6/E2_ts/2/.cloudra/calc-383.out.log",
-      "n_imag": 1,
-      "irc_ok": true,
-      "validation": "verified",
-      "note": "Conrotatory 4pi electrocyclization: C1-C4 closes (2.35 A at TS) + C2-O3 carbonyl reforms; 1 imag -526.2 cm-1; IRC both directions converge to I1 and 2-azetidinone P. dE# = E(TS2)-E(I1); E(TS2)=-246.9049609. RDS of the two-step mechanism."
-    }
-  ],
-  "note": "All species optimized with ORCA 6.1 B3LYP-D3(BJ)/def2-SVP + def2/J RIJCOSX, CPCM(DCM); opt+freq endpoints 0 imag (RC has one floppy -24 cm-1 intermolecular mode). Barriers are pure electronic dE# (no ZPE/thermal)."
+  "status": "EXCLUDED - completed outside this campaign",
+  "reason": "User instruction 2026-09-16: already completed externally; do not recompute (see _EXCLUDED_TASKS.md). Gold-repo edge values (E1 E2) remain None pending external result backfill.",
+  "edges": {}
 }
