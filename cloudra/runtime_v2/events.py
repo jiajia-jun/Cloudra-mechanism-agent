@@ -198,16 +198,20 @@ class EventLog:
         *,
         after_seq: int = 0,
         types: Iterable[str] | None = None,
-        limit: int = 500,
+        limit: int | None = 500,
+        tail: bool = True,
     ) -> list[EventEnvelope]:
         wanted = frozenset(types) if types is not None else None
-        return [
+        matched = [
             event
             for event in self._events
             if event.project_id == project_id
             and event.seq > after_seq
             and (wanted is None or event.type in wanted)
-        ][-limit:]
+        ]
+        if limit is None:
+            return matched
+        return matched[-limit:] if tail else matched[:limit]
 
     def query_session(
         self,

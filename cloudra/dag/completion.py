@@ -211,16 +211,7 @@ def evaluate_delivery(
             # 不能盖过仍 pending 的阶段证据缺口（只更新 status 不改变阶段）。
             evaluate_stages("node", node.node_id, node.stages)
             continue
-        if getattr(node, "status", None) == "supported" or node.evidence_level == "supported":
-            satisfied.append(
-                CoverageGateResult(
-                    code="intermediate_structure_supported",
-                    target_type="node",
-                    target_id=node.node_id,
-                    detail="status is supported",
-                )
-            )
-            continue
+
         if getattr(node, "status", None) == "rejected" or node.evidence_level == "rejected":
             detail = "intermediate occurrence was rejected"
             if getattr(node, "reason", "").strip():
@@ -317,16 +308,7 @@ def evaluate_delivery(
                     )
                 )
             continue
-        if getattr(edge, "status", None) == "supported" or edge.evidence_level == "supported":
-            satisfied.append(
-                CoverageGateResult(
-                    code="elementary_step_endpoint_supported",
-                    target_type="edge",
-                    target_id=edge.edge_id,
-                    detail="status is supported",
-                )
-            )
-            continue
+
         if getattr(edge, "status", None) == "rejected" or edge.evidence_level == "rejected":
             detail = "elementary-step branch was rejected"
             if getattr(edge, "reason", "").strip():

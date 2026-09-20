@@ -18,7 +18,10 @@ import contextlib
 import json
 import sqlite3
 from pathlib import Path
-from typing import Any, Iterator
+from typing import TYPE_CHECKING, Any, Iterator
+
+if TYPE_CHECKING:
+    from cloudra.runtime_v2.core import RuntimeCore
 
 from cloudra.runtime_v2.apply import (
     _strip_computed_fields,
@@ -411,6 +414,7 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
     # projection (未消费的 push 变更同样恢复；已消费的由游标挡回——见
     # notices.restore_from 的批次/游标语义）。
     core.notices.restore_from(core.event_log)
+    _rebuild_inboxes_from_events(core)
 
     # Unfinished tool/program lifecycles left by the dead process close as
     # interrupted (children before programs) — facts only, never a replay of
@@ -485,3 +489,51 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
             last_seqs=core.event_log.high_watermarks,
         )
     return core.event_log.high_watermarks
+
+
+def _rebuild_inboxes_from_events(core: RuntimeCore) -> None:
+    """从已持久化但尚未进入 session_contexts 的 agent.message_injected 重建信箱。
+
+    解决二次崩溃/休眠 agent 丢信问题：给休眠父的子完成通知、提醒唤醒、未读用户消息，
+    只要尚未进入 LLM 上下文投影（按 message_id 判重），重启后重新入队 inbox。
+    """
+    from cloudra.runtime_v2.mailbox import Mailbox
+    from cloudra.runtime_v2.schemas import AgentState
+
+    known_by_session: dict[str, set[str]] = {}
+    for sid, ctx in core.session_contexts.items():
+        known_by_session[sid] = {
+            str(m.get("message_id"))
+            for m in ctx.messages
+            if m.get("role") == "user" and m.get("message_id")
+        }
+
+    seen_enqueued: dict[str, set[str]] = {}
+    for envelope in core.event_log:
+        if envelope.type != "agent.message_injected":
+            continue
+        session_id = envelope.session_id
+        if not session_id or session_id not in core.agents:
+            continue
+        agent = core.agents[session_id]
+        if agent.state is AgentState.CANCELLED:
+            continue
+        data = envelope.data or {}
+        msg_id = str(data.get("message_id") or "")
+        if not msg_id:
+            continue
+        known = known_by_session.get(session_id, set())
+        if msg_id in known:
+            continue
+        enqueued = seen_enqueued.setdefault(session_id, set())
+        if msg_id in enqueued:
+            continue
+        enqueued.add(msg_id)
+        payload = Mailbox.message_payload(
+            message_id=msg_id,
+            sender=str(data.get("sender") or ""),
+            content=str(data.get("content") or ""),
+            images=data.get("images"),
+        )
+        core.mailbox.ensure_inbox(session_id).put_nowait(payload)
+

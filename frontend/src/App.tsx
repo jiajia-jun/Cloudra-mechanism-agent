@@ -586,18 +586,35 @@ export default function App() {
     if (!activeProjectId) return;
     setConnState('connecting');
     let cursor = 0;
-    // History replays from cursor 0 on every (re)connect; side-effect toasts
-    // must only fire for events after the replay boundary (project.synced).
     let replaying = true;
-    const source = streamProject(activeProjectId, cursor, {
-      onOpen: () => setConnState('live'),
-      onError: () => setConnState('offline'),
-      onEvent: (event) => {
-        if (event.type === 'project.synced') {
-          replaying = false;
-          return;
-        }
-        cursor = Math.max(cursor, event.seq);
+    let source: ReturnType<typeof streamProject> | null = null;
+    let closed = false;
+    let reconnectTimer: number | null = null;
+
+    const connect = () => {
+      if (closed) return;
+      replaying = true;
+      source = streamProject(activeProjectId, cursor, {
+        onOpen: () => setConnState('live'),
+        onError: () => {
+          setConnState('offline');
+          if (source) {
+            source.close();
+            source = null;
+          }
+          if (!closed && reconnectTimer === null) {
+            reconnectTimer = window.setTimeout(() => {
+              reconnectTimer = null;
+              connect();
+            }, 2000);
+          }
+        },
+        onEvent: (event) => {
+          if (event.type === 'project.synced') {
+            replaying = false;
+            return;
+          }
+          cursor = Math.max(cursor, event.seq);
         const sessionId = event.session_id;
         // Agent list / chip state updates, regardless of selection.
         if (event.type === 'agent.spawned' && activeProjectId) {
@@ -673,8 +690,17 @@ export default function App() {
         }
       },
     });
-    return () => source.close();
-  }, [activeProjectId, pushToast]);
+  };
+
+  connect();
+  return () => {
+    closed = true;
+    if (reconnectTimer !== null) {
+      window.clearTimeout(reconnectTimer);
+    }
+    source?.close();
+  };
+}, [activeProjectId, pushToast]);
 
   /* -------------------------------------------------- approvals polling */
 

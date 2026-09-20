@@ -409,8 +409,8 @@ def _usage_by_node(
     rows = con.execute(
         """SELECT COALESCE(node_id, ?) AS node, req_cpus, req_memory_mb
            FROM compute_jobs
-           WHERE state='running' AND lease_expires_at>=?""",
-        (default_node_id, now),
+           WHERE state='running'""",
+        (default_node_id,),
     ).fetchall()
     usage: dict[str, list[int]] = {}
     for node, req_cpus, req_mem in rows:
@@ -495,10 +495,10 @@ def claim_ready_compute_job_with_capacity(
             candidates = con.execute(
                 """SELECT id, req_cpus, req_memory_mb, COALESCE(node_id, ?) AS node
                 FROM compute_jobs
-                WHERE (state='ready' OR (state='running' AND lease_expires_at<?))
+                WHERE state='ready'
                 AND COALESCE(attempt_count, 0) < ?
                 ORDER BY priority DESC, id ASC""",
-                (default_node_id, now, max_attempts),
+                (default_node_id, max_attempts),
             ).fetchall()
             picked: Optional[int] = None
             for cid, req_cpus, req_mem, node in candidates:
@@ -533,9 +533,9 @@ def claim_ready_compute_job_with_capacity(
                 lease_expires_at=?, attempt_count=COALESCE(attempt_count, 0)+1,
                 start_timestamp=CASE WHEN start_timestamp IS NULL OR start_timestamp<=0
                     THEN ? ELSE start_timestamp END
-                WHERE id=? AND (state='ready' OR (state='running' AND lease_expires_at<?))
+                WHERE id=? AND state='ready'
                 RETURNING id""",
-                (worker_id, expires, now, picked, now),
+                (worker_id, expires, now, picked),
             ).fetchone()
             if row:
                 con.commit()
@@ -737,15 +737,16 @@ async def afinalize_compute_job(
         return cur.rowcount == 1
 
 
-async def afail_compute_job(db: ComputeDB, task_id: int, message: str) -> None:
-    """无条件标记 failed（executor 拉起失败 / agent 手动标记），顺带清租约。"""
+async def afail_compute_job(db: ComputeDB, task_id: int, message: str) -> bool:
+    """标记 failed（executor 拉起失败 / agent 手动标记），带 CAS 限制仅覆盖 ready/running，顺带清租约。"""
     async with db.aconnect() as con:
-        await con.execute(
+        cur = await con.execute(
             "UPDATE compute_jobs SET state='failed', end_timestamp=?, "
-            "last_error=?, lease_expires_at=0 WHERE id=?",
+            "last_error=?, lease_expires_at=0 WHERE id=? AND state IN ('ready', 'running')",
             (time.time(), message[:500], task_id),
         )
         await con.commit()
+        return cur.rowcount == 1
 
 
 async def aupdate_compute_pid(db: ComputeDB, task_id: int, column: str, pid: int) -> None:

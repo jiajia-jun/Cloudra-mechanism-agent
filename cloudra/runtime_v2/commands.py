@@ -855,20 +855,21 @@ class CommandBus:
         """
         await self.core.event_writer.flush()
 
-    async def _persist_appended(self) -> None:
-        """Persist the just-appended tail; drop it if the store write fails."""
+    async def _persist_appended(self, keep: int | None = None) -> None:
+        """Persist the just-appended tail; drop only this caller's addition if the store write fails."""
         try:
             await self._flush()
         except EventPersistenceError:
-            self.core.event_writer.discard_unpersisted()
+            self.core.event_writer.discard_unpersisted(keep=keep)
             raise
 
     async def _apply_decision(self, command: Command, decision: Decision) -> CommandResult:
         core = self.core
         envelopes: list[EventEnvelope] = []
         for draft in decision.events:
+            before_append = len(core.event_log)
             envelope = self._append_draft(draft)
-            await self._persist_appended()
+            await self._persist_appended(keep=before_append)
             apply_event(core, envelope)
             envelopes.append(envelope)
         # 拍 4：副作用（runner/mailbox/文件系统/内存秘密覆盖）
@@ -901,8 +902,10 @@ class CommandBus:
         core = self.core
         appended: list[EventEnvelope] = []
         for draft in exc.events:
+            before_append = len(core.event_log)
             appended.append(self._append_draft(draft))
-            await self._persist_appended()
+            await self._persist_appended(keep=before_append)
+        before_append = len(core.event_log)
         appended.append(
             core.record(
                 "command.rejected",
@@ -915,7 +918,7 @@ class CommandBus:
                 },
             )
         )
-        await self._persist_appended()
+        await self._persist_appended(keep=before_append)
         return CommandResult(
             command_id=command.command_id,
             accepted=False,

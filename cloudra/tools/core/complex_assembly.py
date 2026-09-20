@@ -143,6 +143,7 @@ class AssemblyResult(BaseModel):
     collision_rejected: int = 0
     collapsed_after_relaxation: int = 0
     dissociated_after_relaxation: int = 0
+    unconverged_after_relaxation: int = 0
     optimized_placements: int = 0
     candidates: list[AssemblyCandidate] = Field(default_factory=list)
     candidate_paths: list[str] = Field(default_factory=list, description="按能量升序的候选结构文件")
@@ -365,13 +366,15 @@ def _relax_with_trajectory(mol, conf_id: int, writer: TrajectoryWriter,
             released = True
             ff_free = _mmff_force_field(mol, conf_id)
             if ff_free is None:
-                return True, released, ""
+                return False, released, "MMFF94 could not be constructed for unconstrained relaxation"
             ff_free.Initialize()
             writer.append(writer.frame_count, _positions(mol, conf_id),
                           float(ff_free.CalcEnergy()), _max_grad(ff_free))
-            ff_free.Minimize(maxIts=parameters.relaxation_steps)
+            free_code = int(ff_free.Minimize(maxIts=parameters.relaxation_steps))
             writer.append(writer.frame_count, _positions(mol, conf_id),
                           float(ff_free.CalcEnergy()), _max_grad(ff_free))
+            if free_code != 0:
+                return False, released, ""
         return True, released, ""
     except Exception as exc:  # noqa: BLE001 - 异常前已写入的帧保留
         return False, released, f"{type(exc).__name__}: {exc}"
@@ -524,6 +527,7 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
     collapsed = 0
     dissociated = 0
     optimized = 0
+    unconverged = 0
     for _score, placement_index, positions in scored:
         _set_positions(mol, conf_id, positions)
         trajectory_id = f"placement{placement_index:03d}-{MMFF_ENGINE.lower()}-attempt1"
@@ -558,6 +562,14 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
         )
         artifacts.append(trajectory_artifact(record))
         optimized += 1
+
+        if not converged:
+            unconverged += 1
+            diagnostics.append(
+                f"placement {placement_index}: relaxation did not converge within "
+                f"{params.relaxation_steps} steps - candidate discarded, never delivered as a complex"
+            )
+            continue
 
         min_gap, closest_pair = _min_interfragment_gap(
             mol.GetConformer(conf_id).GetPositions(), groups,
@@ -633,13 +645,15 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
             message=(
                 f"no usable complex candidate: {len(placements)} placements sampled, "
                 f"{collision_rejected} rejected by the {params.min_interfragment_distance} A collision "
-                f"criterion, {collapsed} collapsed back to overlap during relaxation, "
+                f"criterion, {unconverged} did not converge during relaxation, "
+                f"{collapsed} collapsed back to overlap during relaxation, "
                 f"{dissociated} relaxed beyond the dissociation limit "
                 f"({params.max_interfragment_vdw_factor}x the vdW contact distance). No structure was "
                 "returned as a complex."
             ),
             parameters=params, mode=mode, components=len(components),
             sampled_placements=len(placements), collision_rejected=collision_rejected,
+            unconverged_after_relaxation=unconverged,
             collapsed_after_relaxation=collapsed, dissociated_after_relaxation=dissociated,
             optimized_placements=optimized,
             trajectory_ids=[a.trajectory_id for a in artifacts],
@@ -707,6 +721,7 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
         ),
         parameters=params, mode=mode, components=len(components),
         sampled_placements=len(placements), collision_rejected=collision_rejected,
+        unconverged_after_relaxation=unconverged,
         collapsed_after_relaxation=collapsed, dissociated_after_relaxation=dissociated,
         optimized_placements=optimized,
         candidates=representatives, candidate_paths=paths,

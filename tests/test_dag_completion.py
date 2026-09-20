@@ -691,3 +691,66 @@ def test_not_applicable_verdict_requires_reason():
             reason="   ",
         )
     assert getattr(excinfo.value, "code", None) == "reason_required"
+
+
+def test_empty_frequencies_is_unverified_minimum():
+    from cloudra.dag.evidence_ingest import validate_species_minimum
+
+    res1 = validate_species_minimum(None, imaginary_freqs=[])
+    assert not res1.verified
+    assert not res1.is_valid
+
+    res2 = validate_species_minimum([], imaginary_freqs=[])
+    assert not res2.verified
+    assert not res2.is_valid
+
+    res3 = validate_species_minimum([], imaginary_freqs=None)
+    assert not res3.verified
+    assert not res3.is_valid
+
+    res4 = validate_species_minimum([100.0, 200.0], imaginary_freqs=[])
+    assert res4.verified
+    assert res4.is_valid
+
+
+def test_element_without_stages_status_supported_cannot_bypass_evidence():
+    api = _load_completion_api()
+    node0 = api["OccurrenceNode"](
+        node_id="n0",
+        label="int 0",
+        role="intermediate",
+        evidence_level="proposed",
+        status="supported",
+    )
+    node1 = api["OccurrenceNode"](
+        node_id="n1",
+        label="int 1",
+        role="intermediate",
+        evidence_level="proposed",
+        status="supported",
+    )
+    edge = api["ElementaryStepEdge"](
+        edge_id="e0",
+        source_node_id="n0",
+        target_node_id="n1",
+        label="step 0",
+        evidence_level="proposed",
+        status="supported",
+    )
+    delivery = api["GraphData"](
+        graph_id="dag_delivery",
+        graph_kind="delivery",
+        revision=1,
+        nodes=[node0, node1],
+        edges=[edge],
+    )
+
+    report = api["evaluate_delivery"](
+        delivery, api["CoverageContract"].mechanism_default()
+    )
+
+    assert not report.complete
+    unresolved_codes = {g.code for g in report.unresolved}
+    assert "missing_intermediate_structure" in unresolved_codes
+    assert "missing_endpoint_evidence" in unresolved_codes
+

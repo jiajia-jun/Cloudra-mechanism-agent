@@ -418,7 +418,8 @@ class EvidenceInboxMixin:
         if not isinstance(payload, dict):
             return False
         freqs, imag = self._frequency_fields(payload)
-        return validate_species_minimum(freqs, imaginary_freqs=imag).is_valid
+        res = validate_species_minimum(freqs, imaginary_freqs=imag)
+        return res.verified and res.is_valid
 
     async def apply_stage_bind(
         self,

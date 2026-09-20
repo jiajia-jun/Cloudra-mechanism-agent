@@ -91,6 +91,7 @@ class EventWriter:
 
     async def commit(self, draft: EventDraft) -> EventEnvelope:
         """Append one draft to the log and durably flush; returns the envelope."""
+        before_append = len(self._log)
         envelope = self._log.append(
             draft.type,
             stream=draft.stream,
@@ -102,21 +103,21 @@ class EventWriter:
         try:
             await self.flush()
         except EventPersistenceError:
-            self.discard_unpersisted()
+            self.discard_unpersisted(keep=before_append)
             raise
         return envelope
 
-    def discard_unpersisted(self) -> None:
+    def discard_unpersisted(self, keep: int | None = None) -> None:
         """Drop log events that never made it to the store.
 
         Persist-before-apply paths call this on ``EventPersistenceError`` so a
-        later flush cannot durably write events that were never applied.  Wrapper
-        paths that apply *then* flush must not call this — those events stay in
-        the log and retry on the next flush.
+        later flush cannot durably write events that were never applied.
+        If ``keep`` is provided, drop only events appended after ``keep``.
         """
-        self._log.discard_tail(self._persisted)
-        if self._published > self._persisted:
-            self._published = self._persisted
+        target = self._persisted if keep is None else max(self._persisted, keep)
+        self._log.discard_tail(target)
+        if self._published > target:
+            self._published = target
 
     def mark_restored(self) -> None:
         """Treat the current log as already persisted/published (post-backfill).

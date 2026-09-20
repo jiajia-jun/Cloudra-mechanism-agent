@@ -1065,3 +1065,52 @@ def test_store_connect_closes_connection_without_fd_leak(tmp_path):
             row = con.execute("SELECT 1").fetchone()
             assert row[0] == 1
 
+
+@pytest.mark.asyncio
+async def test_double_restart_preserves_unconsumed_inbox_messages(tmp_path):
+    """跨多次重启信箱恢复：未进入上下文投影的 agent.message_injected 在多次崩溃后依然驻留信箱。"""
+    store = RuntimeStore(tmp_path / "runtime.db")
+    core1 = RuntimeCore(strict_events=True)
+    core1.store = store
+    bus1 = CommandBus(core1)
+    project = (
+        await bus1.execute(
+            Command(type="project.create", payload={"name": "multi-crash"})
+        )
+    ).data
+    agent = (
+        await bus1.execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": project.id},
+                payload={"role_id": "coordinator"},
+            )
+        )
+    ).data
+
+    # 注入一条消息（但未消费进 context）
+    await bus1.execute(
+        Command(
+            type="agent.message",
+            target={"session_id": agent.id},
+            payload={"content": "hello across crash 1 and 2"},
+        )
+    )
+
+    # 第一次重启
+    core2 = RuntimeCore(strict_events=True)
+    core2.store = store
+    restore_core(core2, store)
+    inbox2 = core2.mailbox.inbox(agent.id)
+    assert inbox2 is not None and inbox2.qsize() == 1
+
+    # 第二次重启（未唤醒消费的前提下再次重启）
+    core3 = RuntimeCore(strict_events=True)
+    core3.store = store
+    restore_core(core3, store)
+    inbox3 = core3.mailbox.inbox(agent.id)
+    assert inbox3 is not None and inbox3.qsize() == 1
+    msg = inbox3.get_nowait()
+    assert msg["content"] == "hello across crash 1 and 2"
+
+

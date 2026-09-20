@@ -20,7 +20,7 @@ import sqlite3
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Iterator, Optional
+from typing import Any, Iterable, Optional
 
 UNKNOWN_MODEL = "unknown"
 

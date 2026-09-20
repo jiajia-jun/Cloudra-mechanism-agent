@@ -146,12 +146,12 @@ class SchedulerDaemon:
             if daemons_shutdown_requested():
                 logger.info("daemons shutdown requested (stop marker); scheduler exiting")
                 return
+            now = time.time()
+            if now - last_reconcile >= self.reconcile_interval:
+                last_reconcile = now
+                await self._reconcile_all()
             claimed = await asyncio.to_thread(self._claim_one)
             if claimed is None:
-                now = time.time()
-                if now - last_reconcile >= self.reconcile_interval:
-                    last_reconcile = now
-                    await self._reconcile_all()
                 try:
                     await asyncio.wait_for(self._stop.wait(), timeout=self.poll_interval)
                 except asyncio.TimeoutError:

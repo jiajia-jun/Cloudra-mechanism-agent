@@ -10,7 +10,14 @@ from pydantic import Field
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import input_schema
 from cloudra.core.agent import Agent
-from cloudra.dag.models import AddNode, OrchestrationMode, SpeciesNode
+from cloudra.dag.models import (
+    AddNode,
+    OrchestrationMode,
+    SpeciesNode,
+    StageKind,
+    StageState,
+    StageStatus,
+)
 from cloudra.tools.Plantool.dag_tools._common import DagToolBase, DagToolOutput, fail, mutation_output
 
 
@@ -44,6 +51,9 @@ class DagAddSpecies(DagToolBase):
             "node_id": node_id,
             "name": clean_name,
             "label": clean_name,
+            "stages": [
+                StageState(kind=StageKind.GEOMETRY, status=StageStatus.PENDING, required=True),
+            ],
         }
         if user_input.smiles is not None:
             kwargs["smiles"] = user_input.smiles

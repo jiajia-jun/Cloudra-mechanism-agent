@@ -16,7 +16,7 @@ async def _sse_replay(core, project, cursor: int):
     from cloudra.runtime_v2.schemas import EventEnvelope
 
     replayed_through = cursor
-    for event in core.event_log.query_project(project.id, after_seq=cursor):
+    for event in core.event_log.query_project(project.id, after_seq=cursor, limit=None):
         replayed_through = max(replayed_through, event.seq)
         yield _sse(event)
     # seq=0 不影响客户端 cursor
