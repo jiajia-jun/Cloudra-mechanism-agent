@@ -17,7 +17,7 @@
 
 ### 1. 环境准备与安装
 
-系统需要 Python ≥ 3.11、Node.js ≥ 18、POSIX 环境（Linux/macOS——执行面依赖 `flock`/`nice` 语义），以及可访问的 OpenAI 兼容大模型 API。
+系统需要 Python ≥ 3.11、Node.js ≥ 22（可选的 JS 宿主与前端测试脚本都要求 ≥ 22）、POSIX 环境（Linux/macOS——执行面依赖 `flock`/`nice` 语义），以及可访问的 OpenAI 兼容大模型 API。
 
 ```bash
 # 克隆仓库
@@ -233,7 +233,7 @@ paper/                           学术论文手稿、文献缺口分析与基�
 运行全套单元测试与代码风格静态检查：
 
 ```bash
-uv run pytest -q tests/            # 执行全套 1100+ 项自动化测试
+uv run pytest -q tests/            # 执行全套 2300+ 项自动化测试
 uv run pytest -q tests/test_dag*   # 聚焦 DAG 编排子系统
 uv run pytest -q tests/test_runtime_v2* # 聚焦新内核与策略门禁
 uv run ruff check cloudra tests    # 代码规范检查（line-length 120）

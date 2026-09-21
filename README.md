@@ -17,7 +17,7 @@
 
 ### 1. Requirements & Installation
 
-Requires Python ≥ 3.11, Node.js ≥ 18, a POSIX environment (Linux/macOS — the execution plane relies on `flock`/`nice` semantics), and access to any OpenAI-compatible LLM endpoint.
+Requires Python ≥ 3.11, Node.js ≥ 22 (both the optional JS host and the frontend test runner require ≥ 22), a POSIX environment (Linux/macOS — the execution plane relies on `flock`/`nice` semantics), and access to any OpenAI-compatible LLM endpoint.
 
 ```bash
 # Clone the repository
@@ -234,7 +234,7 @@ paper/                           Academic paper manuscripts, literature gap anal
 Run the full automated test suite and style checks:
 
 ```bash
-uv run pytest -q tests/            # Run the complete test suite (1100+ tests)
+uv run pytest -q tests/            # Run the complete test suite (2300+ tests)
 uv run pytest -q tests/test_dag*   # Focus on DAG orchestration
 uv run pytest -q tests/test_runtime_v2* # Focus on runtime_v2 kernel and policy stages
 uv run ruff check cloudra tests    # Lint check (line-length 120)
