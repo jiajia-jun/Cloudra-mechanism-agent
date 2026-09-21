@@ -1,0 +1,19 @@
+# 文本一律 LF：本仓有两台机器在推，行尾不一致是最大的 diff 噪声来源
+# （此前 kg_data/*.csv 以 CRLF 入库，与其余 2600+ 个 LF 文件混在一起）。
+* text=auto eol=lf
+
+# 二进制显式声明，避免被当文本归一（git 的自动探测对 .npy 一类不可靠）。
+*.png binary
+*.ico binary
+*.jpg binary
+*.pdf binary
+*.npy binary
+*.db binary
+*.so binary
+*.whl binary
+*.zip binary
+
+# 若日后重新引入 Windows 侧脚本，按 CRLF 检出。
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
