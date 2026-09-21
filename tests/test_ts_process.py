@@ -935,3 +935,64 @@ def test_verdict_converged_irc_without_connectivity_is_candidate_only(tmp_path, 
     detail = record.stage_record("verdict").detail
     assert "interval proof" in detail
     assert "UNVERIFIED" in detail
+
+
+# ---------------------------------------------------------------------------
+# guess 失败后的可恢复性：中间帧可发现 + 阻塞消息点名下一步（GH #39 建议 1/3）
+# ---------------------------------------------------------------------------
+
+
+def test_engine_crash_frames_are_visible_and_next_steps_are_named(tmp_path, monkeypatch):
+    """引擎崩溃只留中间帧时：消息要点出它们（并保持"不是初猜"的定性）+ 点名下一步选项。
+
+    `_record_partial_frames` 是 runner 里被真实失败路径调用的同一份逻辑，测试直接调它——
+    不在测试里复制一份（否则两边会漂移）。
+    """
+    from cloudra.tools.core import xtb_path_runner as runner
+
+    run_dir = tmp_path / "xtb_path_runs" / "guess_0001"
+    run_dir.mkdir(parents=True)
+    for n in (1, 2, 3):
+        (run_dir / f"xtbpath_{n}.xyz").write_text("frame", encoding="utf-8")
+
+    def fake_run(request, **_kwargs):
+        result = runner.XtbPathResult(
+            run_dir=str(run_dir), returncode=0,
+            termination_reason="incomplete_artifacts", usable_as_guess=False,
+        )
+        result.diagnostics.append("path artifacts are unusable: no such file: xtbpath.xyz")
+        runner._record_partial_frames(result)
+        return result
+
+    monkeypatch.setattr(runner, "run_xtb_path", fake_run)
+    record = _start(tmp_path)
+
+    assert record.blocked is not None
+    assert record.blocked.failure_class == "incomplete_artifacts"
+    assert record.path_kind == "not_attempted"  # 崩溃帧不作初猜，这个定性不能变
+    # 中间帧可见（消息 + 原子级诊断两处）
+    assert "3 partial iteration frame(s)" in record.blocked.message
+    assert "not a usable guess" in record.blocked.message
+    assert any("partial iteration frame" in d for d in record.blocked.atom_details)
+    # 下一步选项：默认种子路线在前，插值标出适用条件
+    assert "scan_prepare" in record.blocked.message
+    assert "internal_coordinates" in record.blocked.message
+    assert "interpolate" in record.blocked.message
+
+
+def test_no_partial_frame_noise_when_the_engine_left_none(tmp_path, monkeypatch):
+    """负向：没有中间帧时不给噪音，但下一步指引照旧（与"有没有帧"无关）。"""
+    from cloudra.tools.core import xtb_path_runner as runner
+
+    def fake_run(request, **_kwargs):
+        return runner.XtbPathResult(
+            run_dir=str(tmp_path / "no_such_run"), returncode=0,
+            termination_reason="incomplete_artifacts", usable_as_guess=False,
+        )
+
+    monkeypatch.setattr(runner, "run_xtb_path", fake_run)
+    record = _start(tmp_path)
+
+    assert "partial iteration frame" not in record.blocked.message
+    assert record.blocked.atom_details == []
+    assert "scan_prepare" in record.blocked.message

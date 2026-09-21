@@ -735,10 +735,21 @@ def _guess(record: TsProcessRecord) -> TsProcessRecord:
                 atom_details=list(run.diagnostics),
                 needs=["budget"],
             )
+        partial = (
+            f" {len(run.partial_frames)} partial iteration frame(s) were left behind "
+            f"(sampling artifacts, not a usable guess)."
+            if run.partial_frames else ""
+        )
         return _block(
             record, "guess", run.termination_reason,
             f"the xTB path search did not produce a usable guess ({run.termination_reason}, "
-            f"returncode={run.returncode}); persistent run directory: {run.run_dir}",
+            f"returncode={run.returncode}).{partial} Persistent run directory: {run.run_dir}. "
+            f"Next steps: (a) ts_guess mode='scan_prepare' — the default seed route when one "
+            f"forming/breaking bond or angle is clear (take the atom indices from "
+            f"internal_coordinates first); (b) ts_guess mode='interpolate' (IDPP) — only when both "
+            f"endpoint geometries and the all-atom map are already trustworthy. Either way the "
+            f"result is a path/guess, not a saddle: an unconstrained OptTS with frequency and IRC "
+            f"is still required.",
             atom_details=list(run.diagnostics),
             needs=["reaction_center", "atom_map", "reactant_smiles", "product_smiles"],
         )
