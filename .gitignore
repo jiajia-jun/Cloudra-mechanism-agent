@@ -150,3 +150,4 @@ gold_compute/campaign/_repro/
 gold_compute/campaign/_chem_review/
 gold_compute/campaign/review_artifacts_*/
 gold_compute/review/
+vector_store/vectors.f16.npy
