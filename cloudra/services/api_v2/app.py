@@ -87,6 +87,98 @@ class _HostCheckMiddleware:
         await self.app(scope, receive, send)
 
 
+# 请求体读取预算。ASGI 层没有 body 读超时：一个声明了 Content-Length 却慢慢发字节的连接
+# 会一直挂在协议解析状态上——实测「声明 8MB、只发 20 字节」45s 内无响应、不关连接、也不
+# 超时。进入应用前把 body 读完（有大小上限与时长预算），下游 receive 从缓冲重放；无 body
+# 的请求（GET、SSE）完全不走这条路径，行为逐字节不变。
+_BODY_READ_TIMEOUT_SECONDS = 30.0
+_MAX_REQUEST_BYTES = 32 * 1024 * 1024
+
+
+class _BodyTooLargeError(Exception):
+    """请求体超过 ``_MAX_REQUEST_BYTES``。"""
+
+
+def _request_body_declared(scope: dict) -> bool:
+    """请求是否声明了 body：非零 Content-Length 或 chunked 传输。"""
+    for name, value in scope.get("headers") or []:
+        if name == b"content-length":
+            try:
+                return int(value) > 0
+            except ValueError:
+                return True
+        if name == b"transfer-encoding" and b"chunked" in value.lower():
+            return True
+    return False
+
+
+async def _reject_request(scope: dict, receive: Any, send: Any, status_code: int, detail: str) -> None:
+    """拒绝请求并让服务器关连接（此时 body 可能还没读完）。"""
+    response = JSONResponse({"detail": detail}, status_code=status_code, headers={"connection": "close"})
+    await response(scope, receive, send)
+
+
+class _BodyGuardMiddleware:
+    """请求体大小上限与读取超时（在鉴权与路由之前）。
+
+    - 声明的 ``Content-Length`` 超限 → 413，且**不读** body；
+    - 分块传输累计超限 → 413；
+    - 整个 body 在 ``_BODY_READ_TIMEOUT_SECONDS`` 内没读完 → 408。
+
+    读到的分片按序重放给下游，与未经本中间件时语义一致。
+    """
+
+    def __init__(self, app: Any) -> None:
+        self.app = app
+
+    async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
+        if scope["type"] != "http" or not _request_body_declared(scope):
+            await self.app(scope, receive, send)
+            return
+
+        for name, value in scope.get("headers") or []:
+            if name == b"content-length":
+                try:
+                    if int(value) > _MAX_REQUEST_BYTES:
+                        await _reject_request(scope, receive, send, 413, "request body exceeds the size limit")
+                        return
+                except ValueError:
+                    await _reject_request(scope, receive, send, 400, "invalid Content-Length")
+                    return
+                break
+
+        buffered: list[dict] = []
+        total = 0
+        try:
+            async with asyncio.timeout(_BODY_READ_TIMEOUT_SECONDS):
+                while True:
+                    message = await receive()
+                    if message["type"] == "http.disconnect":
+                        buffered.append(message)
+                        break
+                    total += len(message.get("body", b""))
+                    if total > _MAX_REQUEST_BYTES:
+                        raise _BodyTooLargeError
+                    buffered.append(message)
+                    if not message.get("more_body", False):
+                        break
+        except TimeoutError:
+            await _reject_request(scope, receive, send, 408, "timed out reading the request body")
+            return
+        except _BodyTooLargeError:
+            await _reject_request(scope, receive, send, 413, "request body exceeds the size limit")
+            return
+
+        pending = list(buffered)
+
+        async def replay() -> dict:
+            if pending:
+                return pending.pop(0)
+            return await receive()
+
+        await self.app(scope, replay, send)
+
+
 def _daemon_watchdog_interval() -> float:
     """巡检间隔秒数（CLOUDRA_DAEMON_WATCHDOG_SECONDS，缺省 30；非法值回落缺省）。"""
     raw = os.environ.get("CLOUDRA_DAEMON_WATCHDOG_SECONDS", "").strip()
@@ -261,6 +353,8 @@ def create_v2_app(
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    # 请求体上限/读取超时：在鉴权与路由之前拦住慢 body 与超大 body。
+    app.add_middleware(_BodyGuardMiddleware)
     # CLOUDRA_API_TOKEN=off 显式关闭认证；未设环境变量时回退到
     # data_dir/.api_token（首次启动自动生成，0600）。None 表示全放行。
     api_token = resolve_api_token()
