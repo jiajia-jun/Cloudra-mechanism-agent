@@ -1,10 +1,12 @@
 name: CI
 
 on:
+  # 只列真实存在的分支：上游没有 `main`，写进触发列表是死触发（推送/PR 永远
+  # 匹配不到），还会让人以为存在一条 main 线。
   push:
-    branches: [master, main]
+    branches: [master]
   pull_request:
-    branches: [master, main]
+    branches: [master]
 
 jobs:
   test:

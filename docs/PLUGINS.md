@@ -191,7 +191,7 @@ plugin = KeyNodeTrigger()
 ### 部署三步
 
 1. **建库**：`uv run cloudra knowledge import`（从仓库 `kg_data/` 导入 `data_dir/knowledge/chem_kg.db`，幂等可重跑；二次导入计数不变）。
-2. **起向量微服务**：`powershell -File scripts\kg_vec_service.ps1`（默认 8765 端口；用外部 `.venv-trans` 跑 bge-m3，`HF_HUB_OFFLINE=1` 离线加载，启动后台预热约 5-10s 后 `/health` 的 model 字段就绪。服务**不随 cloudra 自启**，停了也不影响 cloudra 运行——语义通道为空时图谱通道补满配额）。
+2. **起向量微服务**：`<venv-trans>/bin/python scripts/kg_vec_service.py`（默认 8765 端口；用外部 `.venv-trans` 跑 bge-m3，模型已在本机 HF 缓存时先 `export HF_HUB_OFFLINE=1` 离线加载，启动后台预热约 5-10s 后 `/health` 的 model 字段就绪。服务**不随 cloudra 自启**，停了也不影响 cloudra 运行——语义通道为空时图谱通道补满配额）。
 3. **激活插件**：`uv run cloudra knowledge install`（把 spec 幂等写进 config.yaml 的 `plugins` 列表）→ **重启 uvicorn**（插件在 app 启动时加载一次）。
 
 ### 配额语义（v9.1）

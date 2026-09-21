@@ -3,8 +3,8 @@
 纯标准库 HTTP 服务器（ThreadingHTTPServer）；模型与向量计算依赖留在
 外部 .venv-trans（sentence-transformers + numpy + 本机 HF 缓存的 bge-m3），
 cloudra 自身 venv 不装 torch。chem-kb 插件激活时本服务由 cloudra web
-启动器自动 detach 拉起（``CLOUDRA_KG_VEC=off`` 关闭自启）；也可手动：
-scripts/kg_vec_service.ps1 或直接：
+启动器自动 detach 拉起（``CLOUDRA_KG_VEC=off`` 关闭自启）；也可手动（外部
+.venv-trans 解释器，模型已在本机 HF 缓存时置 ``HF_HUB_OFFLINE=1`` 离线加载）：
 
     <venv-trans>/bin/python scripts/kg_vec_service.py [--port 8765] [--model NAME] [--lock-file PATH]
 
