@@ -9,7 +9,10 @@ from fastapi import APIRouter, HTTPException, Response, status
 
 from cloudra.persistence.database import ComputeDB
 from cloudra.runtime_v2.schemas import Command
-from cloudra.services.compute_store import acount_active_compute_jobs
+from cloudra.services.compute_store import (
+    acount_active_compute_job_states,
+    active_jobs_delete_message,
+)
 
 from ..context import ApiContext
 from ..models import AgentSpawn, CommandResponse, ProjectCreate, ProjectPatch, _command_payload
@@ -55,16 +58,13 @@ def build_router(ctx: ApiContext) -> APIRouter:
         # 硬删除前置门禁：有非终态 compute job（ready/running/cancel_requested）
         # 的项目拒绝删除——绝不杀计算进程，提示先走 cancel-all。
         # 状态机校验（必须已归档、无存活 agent）在 project.delete 的 decider。
-        active = await acount_active_compute_jobs(ComputeDB(), project_id)
-        if active:
+        counts = await acount_active_compute_job_states(ComputeDB(), project_id)
+        if counts:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail={
                     "code": "state_conflict",
-                    "message": (
-                        f"project has {active} active compute job(s); "
-                        "run POST /api/v2/compute/cancel-all first"
-                    ),
+                    "message": active_jobs_delete_message(counts),
                 },
             )
         command = Command(type="project.delete", target={"project_id": project_id})

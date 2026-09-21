@@ -84,7 +84,17 @@ class MarkComputeJobFailed(Tool):
                     previous_state=previous_state,
                     message=f"job {user_input.job_id} is already terminal ({previous_state}).",
                 )
-            await afail_compute_job(db, user_input.job_id, reason)
+            wrote = await afail_compute_job(db, user_input.job_id, reason)
+            if not wrote:
+                return MarkComputeJobFailed_output_schema(
+                    is_success=False,
+                    job_id=user_input.job_id,
+                    previous_state=previous_state,
+                    message=(
+                        f"job {user_input.job_id} is {previous_state}; "
+                        "only ready/running jobs can be marked failed"
+                    ),
+                )
         except Exception as exc:
             return MarkComputeJobFailed_output_schema(
                 is_success=False, job_id=user_input.job_id, message=f"mark failed: {exc}"

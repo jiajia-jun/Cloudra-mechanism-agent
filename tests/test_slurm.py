@@ -4,9 +4,11 @@ import pytest
 
 from cloudra.infra.slurm import (
     SlurmError,
+    _engine_success_from_log,
     build_batch_script,
     cancel_job,
     query_job,
+    query_job_by_name,
     submit_batch,
 )
 
@@ -97,3 +99,55 @@ def test_query_job_normalizes_cancelled_by_and_empty_sacct(monkeypatch):
     monkeypatch.setattr("cloudra.infra.slurm.subprocess.run", fake_run)
     assert query_job("9") == ("CANCELLED", "0:0")
     assert query_job("8") == ("", "")
+
+
+def test_query_job_by_name_skips_terminal_rows(monkeypatch):
+    """找回句柄必须跳过历史 COMPLETED，以免把旧作业当成还在跑。"""
+
+    def fake_run(command, **kwargs):
+        return SimpleNamespace(
+            returncode=0,
+            stdout="111|COMPLETED\n222|RUNNING\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr("cloudra.infra.slurm.subprocess.run", fake_run)
+    assert query_job_by_name("cloudra-9") == "222"
+
+
+def test_engine_success_from_log_uses_cp2k_text_markers(tmp_path):
+    inp = tmp_path / "h2.inp"
+    inp.write_text("&GLOBAL\n", encoding="utf-8")
+    (tmp_path / "h2.out").write_text(
+        " ENERGY| Total FORCE_EVAL ( QS ) energy [a.u.]              -1.0\n"
+        " PROGRAM FAILED\n",
+        encoding="utf-8",
+    )
+    assert _engine_success_from_log("cp2k", str(inp)) is False
+    (tmp_path / "h2.out").write_text(
+        " ENERGY| Total FORCE_EVAL ( QS ) energy [a.u.]              -1.0\n"
+        " PROGRAM ENDED IN 0.13 SECONDS\n",
+        encoding="utf-8",
+    )
+    assert _engine_success_from_log("cp2k", str(inp)) is True
+
+
+def test_engine_success_from_log_uses_xtb_and_vasp_markers(tmp_path):
+    xyz = tmp_path / "mol.xyz"
+    xyz.write_text("2\n\nH 0 0 0\nH 0 0 1\n", encoding="utf-8")
+    (tmp_path / "mol.out").write_text("some xtb noise\n", encoding="utf-8")
+    assert _engine_success_from_log("xtb", str(xyz)) is False
+    (tmp_path / "mol.out").write_text(
+        "          * total energy  -1.0 Eh\n"
+        "normal termination of xtb\n",
+        encoding="utf-8",
+    )
+    assert _engine_success_from_log("xtb", str(xyz)) is True
+
+    poscar = tmp_path / "POSCAR"
+    poscar.write_text("H\n", encoding="utf-8")
+    (tmp_path / "POSCAR.out").write_text(
+        "                 General timing and accounting informations for this job:\n",
+        encoding="utf-8",
+    )
+    assert _engine_success_from_log("vasp", str(poscar)) is True

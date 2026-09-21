@@ -285,10 +285,9 @@ class AgentRunner:
                 )
                 if contexts.current_messages(agent.id):
                     if agent.id in core.pending_compactions:
-                        await self._apply_compaction(
+                        await self._consume_pending_compaction(
                             agent, run_id, context_prefix=context_prefix
                         )
-                        core.pending_compactions.discard(agent.id)
                 # 预算触发：达到上下文预算即压缩——估算用现有 context_window
                 # 与输出预算并留余量。压缩被拒时保留原上下文，且要等投影再
                 # 长出 COMPACT_RETRY_GROWTH 才重试（同样的输入只会同样失败）。
@@ -842,6 +841,21 @@ class AgentRunner:
             return True
         step = max(int(budget_tokens * COMPACT_RETRY_GROWTH), 1024)
         return tokens_now - refused_at >= step
+
+    async def _consume_pending_compaction(
+        self,
+        agent: AgentSession,
+        run_id: str,
+        *,
+        context_prefix=None,
+    ) -> dict:
+        """Apply a manual compact request; drop pending only after a successful install."""
+        stats = await self._apply_compaction(
+            agent, run_id, context_prefix=context_prefix
+        )
+        if stats.get("compacted"):
+            self.core.pending_compactions.discard(agent.id)
+        return stats
 
     async def _apply_compaction(
         self,

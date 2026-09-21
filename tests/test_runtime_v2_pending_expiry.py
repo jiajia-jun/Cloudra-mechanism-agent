@@ -233,3 +233,30 @@ async def test_pending_compaction_survives_snapshot_then_restore(tmp_path):
     restored = RuntimeCore(strict_events=True)
     restore_core(restored, store)
     assert restored.pending_compactions == {agent.id}
+
+
+@pytest.mark.asyncio
+async def test_failed_manual_compaction_keeps_pending_across_snapshot(tmp_path):
+    """压缩被拒不得清 pending：快照后恢复仍要重试用户的 compact 请求。"""
+    from cloudra.runtime_v2.agent_runner import AgentRunner
+
+    core, store, bus = _wire(tmp_path, "compact_fail.db")
+    _project, agent = await _project_and_agent(core, bus)
+    await bus.execute(
+        Command(type="agent.compact", target={"session_id": agent.id}, payload={})
+    )
+    assert core.pending_compactions == {agent.id}
+
+    runner = AgentRunner(core, object())
+
+    async def _refuse(*_a, **_k):
+        return {"compacted": False, "error": "refused"}
+
+    runner._apply_compaction = _refuse  # type: ignore[method-assign]
+    await runner._consume_pending_compaction(agent, "run_test")
+    assert core.pending_compactions == {agent.id}
+    await bus.flush_snapshot()
+
+    restored = RuntimeCore(strict_events=True)
+    restore_core(restored, store)
+    assert restored.pending_compactions == {agent.id}

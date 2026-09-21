@@ -445,6 +445,38 @@ class EvidenceInboxMixin:
             return True
         return self._passes_saddle_check(ref)
 
+    def _passes_short_irc_check(self, ref: GraphRef | None) -> bool:
+        """short_irc 必须能被 log_parser deriver 推出路径支撑。"""
+        if ref is None:
+            return False
+        try:
+            tool_name, payload = self.store.resolve_evidence_with_source(ref)
+        except InvalidGraphReference:
+            return False
+        deriver = evidence_deriver_for(tool_name)
+        if deriver is None:
+            return False
+        changes = deriver(
+            current={},
+            role="short_irc",
+            arguments=payload.get("arguments") or {},
+            result=payload.get("result") or {},
+        )
+        return bool((changes or {}).get("short_irc_supported"))
+
+    def _passes_thermochemistry_check(self, ref: GraphRef | None) -> bool:
+        """thermochemistry 只认 thermo_analysis 的 complete 结果。"""
+        if ref is None:
+            return False
+        try:
+            source_name, payload = self.store.resolve_evidence_with_source(ref)
+        except InvalidGraphReference:
+            return False
+        if source_name != "thermo_analysis" or not isinstance(payload, dict):
+            return False
+        result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+        return result.get("status") == "complete"
+
     async def apply_stage_bind(
         self,
         *,
@@ -552,6 +584,29 @@ class EvidenceInboxMixin:
                     "minimum_check_failed",
                     "species geometry evidence must be a verified minimum "
                     "(n_imag == 0); the stage stays pending",
+                )
+            if (
+                verdict == "agree"
+                and target_type == "edge"
+                and kind is StageKind.SHORT_IRC
+                and not self._passes_short_irc_check(ref)
+            ):
+                raise _Rejected(
+                    "short_irc_check_failed",
+                    "short_irc evidence must show a bidirectional IRC path "
+                    "(both directions converged, or each side has enough points); "
+                    "the stage stays pending",
+                )
+            if (
+                verdict == "agree"
+                and target_type == "edge"
+                and kind is StageKind.THERMOCHEMISTRY
+                and not self._passes_thermochemistry_check(ref)
+            ):
+                raise _Rejected(
+                    "thermochemistry_check_failed",
+                    "thermochemistry evidence must be a complete thermo_analysis "
+                    "result; the stage stays pending",
                 )
             return target_type, element, new_stages, dict(snapshot.bundle.revisions)
 
@@ -860,6 +915,27 @@ class EvidenceInboxMixin:
                         "minimum_check_failed",
                         "species geometry evidence must be a verified minimum "
                         "(n_imag == 0); the stage stays pending",
+                    )
+                if (
+                    target_type == "edge"
+                    and kind is StageKind.SHORT_IRC
+                    and not self._passes_short_irc_check(ref)
+                ):
+                    raise _Rejected(
+                        "short_irc_check_failed",
+                        "short_irc evidence must show a bidirectional IRC path "
+                        "(both directions converged, or each side has enough points); "
+                        "the stage stays pending",
+                    )
+                if (
+                    target_type == "edge"
+                    and kind is StageKind.THERMOCHEMISTRY
+                    and not self._passes_thermochemistry_check(ref)
+                ):
+                    raise _Rejected(
+                        "thermochemistry_check_failed",
+                        "thermochemistry evidence must be a complete thermo_analysis "
+                        "result; the stage stays pending",
                     )
                 updated_stages = apply_stage_verdict(
                     current_stages,

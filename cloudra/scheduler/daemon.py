@@ -33,6 +33,7 @@ from cloudra.persistence import paths
 from cloudra.persistence.database import ComputeDB
 from cloudra.runtime.compute_executor import _mark_failed, run_compute
 from cloudra.services.compute_store import (
+    cancel_compute_job,
     claim_ready_compute_job_with_capacity,
     extend_compute_lease,
     list_running_jobs,
@@ -256,6 +257,21 @@ class SchedulerDaemon:
                         self.db, task_id, self.worker_id, _LEASE_RENEW_AFTER_CHECK
                     )
                     reattach.append(task_id)
+                elif (
+                    (row.get("state") or "") == "cancel_requested"
+                    and not scheduler_job_id
+                ):
+                    start_ts = float(row.get("start_timestamp") or -1)
+                    if (
+                        start_ts > 0
+                        and (time.time() - start_ts) >= _ADOPT_LAUNCH_GRACE_SECONDS
+                    ):
+                        logger.warning(
+                            "compute job %s: cancel_requested with no recoverable "
+                            "Slurm handle; closing ledger as cancelled",
+                            task_id,
+                        )
+                        cancel_compute_job(self.db, task_id)
                 continue
             if (row.get("state") or "running") != "running":
                 continue

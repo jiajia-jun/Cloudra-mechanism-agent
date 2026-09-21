@@ -1245,6 +1245,44 @@ async def test_flush_store_factory_ensures_schema_on_legacy_db(tmp_path):
     assert "schema_migrations" in tables()
 
 
+@pytest.mark.asyncio
+async def test_flush_does_not_mark_sent_when_recipient_is_empty(tmp_path):
+    """收件人解析为空时不得 mark sent——否则裁决通知静默丢失。"""
+    core = RuntimeCore(strict_events=True)
+    bus = CommandBus(core)
+    project = (
+        await bus.execute(
+            Command(
+                type="project.create",
+                payload={"name": "empty-recipient", "workspace_dir": str(tmp_path)},
+            )
+        )
+    ).data
+
+    def _seed_empty_recipient() -> None:
+        db = ConversationDB(project.id).init()
+        with db.connect() as con:
+            DagStore._insert_notification(
+                con,
+                kind="call_verdict",
+                subject_id="review_empty",
+                recipient_session_id="",
+                payload={"verdict": "agree", "reason": "ok"},
+            )
+            con.commit()
+
+    await asyncio.to_thread(_seed_empty_recipient)
+    handled = await flush_review_notifications(core, project.id)
+    assert handled == 0
+
+    def _pending():
+        return DagStore(ConversationDB(project.id)).pending_review_notifications()
+
+    pending = await asyncio.to_thread(_pending)
+    assert pending
+    assert pending[0]["recipient_session_id"] == ""
+
+
 # --------------------------------------------------------------------- Task 4
 # 反馈矩阵、结束竞态（lost wakeup）与模式切换。
 #
@@ -2173,9 +2211,9 @@ async def test_interrupted_supervisor_explicit_recovery_reads_full_backlog(tmp_p
     assert reports, "restore must deliver the zombie supervisor's failure to its parent"
     assert "interrupted by process restart" in reports[-1].data["content"]
 
-    # reconcile 不自动复活 failed：park-don't-wake——通知驻留信箱（仅一条
-    # 投递事件），督导自身零状态/run 事件。装载路径 auto_wake=False：D2
-    # 告警仍 pin + mailbox，但不把 Coordinator 打进 LLM。
+    # reconcile 不自动复活 failed：park-don't-wake——新事件只有一条补投；
+    # restore 已按未消费 message_injected 重建原通知，信箱里是重建 + 补投。
+    # 装载路径 auto_wake=False：D2 告警仍 pin + mailbox，但不把 Coordinator 打进 LLM。
     events_before = len(core2.event_log)
     await reconcile_supervision(core2, project.id, auto_wake=False)
     new_events = list(core2.event_log)[events_before:]
@@ -2185,7 +2223,7 @@ async def test_interrupted_supervisor_explicit_recovery_reads_full_backlog(tmp_p
     assert [e.type for e in supervisor_events] == ["agent.message_injected"]
     assert supervisor2.state is AgentState.FAILED
     inbox = core2.mailbox.inbox(supervisor2.id)
-    assert inbox is not None and inbox.qsize() == 1
+    assert inbox is not None and inbox.qsize() == 2
     # D2 告警：Coordinator 收到 pin + 投递（点名终态/不复活/恢复入口）。
     assert any(
         e.type == "context.pin_set"

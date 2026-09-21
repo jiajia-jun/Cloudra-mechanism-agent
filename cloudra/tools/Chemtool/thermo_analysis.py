@@ -203,6 +203,17 @@ def _render_table(
     return "\n".join(lines)
 
 
+def _count_imaginary_modes(data: object) -> Optional[int]:
+    """cclib ``vibfreqs`` 里负频率个数；日志未提供频率数据时返回 None。"""
+    freqs = getattr(data, "vibfreqs", None)
+    if freqs is None:
+        return None
+    try:
+        return sum(1 for freq in freqs if float(freq) < 0.0)
+    except (TypeError, ValueError):
+        return None
+
+
 def _load_raw_rrho_record(
     species: ThermoSpecies,
     temperature: float,
@@ -219,6 +230,12 @@ def _load_raw_rrho_record(
         return None, f"{species.name}: cclib 解析日志失败（{type(exc).__name__}: {exc}）"
     if data is None:
         return None, f"{species.name}: cclib 未解析到数据"
+    n_imag = _count_imaginary_modes(data)
+    if n_imag is not None and n_imag != 0:
+        return None, (
+            f"{species.name}: frequency job is not a minimum (n_imag={n_imag}); "
+            "thermochemistry requires 0 imaginary modes"
+        )
     log_temperature = getattr(data, "temperature", None)
     if log_temperature is None:
         return None, f"{species.name}: 日志未提供 RRHO 温度，不能确认 thermochemistry 条件"

@@ -1,3 +1,4 @@
+import asyncio
 import json
 import time
 from typing import Any, Literal
@@ -220,7 +221,28 @@ class SubmitComputeJob(Tool):
                                 "fix the cause and resubmit with submit_compute_job.")
 
         else:
-            # 直接写入 running，并开始计算
+            # 直接写入 running，并开始计算——同步路径也要过容量闸门，
+            # 否则 is_async=false 能绕开 scheduler claim 打满节点。
+            from cloudra.services.compute_store import sync_local_fits_capacity
+
+            fits = await asyncio.to_thread(
+                sync_local_fits_capacity,
+                db,
+                node_id=admission.node_id,
+                cpus=user_input.cpus,
+                memory_mb=memory_mb,
+                node_resources=admission.node_resources,
+            )
+            if not fits:
+                return SubmitComputeJob_output_schema(
+                    is_success=False,
+                    message=(
+                        f"Node {admission.node_id} has no free slot "
+                        f"(max_concurrent={admission.node_resources.get('max_concurrent', 1)}). "
+                        "Wait for a running job to finish, or submit with is_async=true "
+                        "so the scheduler queues it."
+                    ),
+                )
             job_id = -1
             try:
                 job_id = await ainsert_compute_job(

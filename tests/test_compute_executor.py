@@ -332,3 +332,43 @@ def test_reconcile_recovers_slurm_job_id_after_sbatch_before_mark(monkeypatch):
             (job_id,),
         ).fetchone()[0]
     assert stored == "777"
+
+
+def test_reconcile_cancels_stuck_slurm_cancel_requested_without_handle(monkeypatch):
+    """cancel_requested 且找回不了 Slurm 句柄：过了启动宽限期后应收口为 cancelled。"""
+    from cloudra.scheduler.daemon import SchedulerDaemon
+    from cloudra.services.compute_store import get_compute_job
+
+    db = ComputeDB().init()
+    job_id = _insert_job(db, state="cancel_requested", scheduler="slurm")
+    with db.connect() as con:
+        con.execute(
+            "UPDATE compute_jobs SET start_timestamp=? WHERE id=?",
+            (time.time() - 120, job_id),
+        )
+        con.commit()
+    monkeypatch.setattr("cloudra.scheduler.daemon.query_job_by_name", lambda _name: None)
+    daemon = SchedulerDaemon()
+    orphans = daemon._reconcile_central()
+    assert job_id not in orphans
+    assert get_compute_job(db, job_id)["state"] == "cancelled"
+
+
+def test_reconcile_keeps_fresh_slurm_cancel_requested_without_handle(monkeypatch):
+    """刚提交、句柄还没回写：宽限期内不得把 cancel_requested 收口掉。"""
+    from cloudra.scheduler.daemon import SchedulerDaemon
+    from cloudra.services.compute_store import get_compute_job
+
+    db = ComputeDB().init()
+    job_id = _insert_job(db, state="cancel_requested", scheduler="slurm")
+    with db.connect() as con:
+        con.execute(
+            "UPDATE compute_jobs SET start_timestamp=? WHERE id=?",
+            (time.time(), job_id),
+        )
+        con.commit()
+    monkeypatch.setattr("cloudra.scheduler.daemon.query_job_by_name", lambda _name: None)
+    daemon = SchedulerDaemon()
+    orphans = daemon._reconcile_central()
+    assert job_id not in orphans
+    assert get_compute_job(db, job_id)["state"] == "cancel_requested"

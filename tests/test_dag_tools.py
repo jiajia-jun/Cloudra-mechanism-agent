@@ -1366,6 +1366,112 @@ async def test_ts_opt_bind_requires_normal_termination(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_short_irc_bind_requires_path_evidence(tmp_path):
+    from cloudra.dag.controller import DagController
+    from cloudra.dag.store import DagStore
+
+    agent, _session, db = await _seed_staged_step(
+        tmp_path,
+        "short-irc-guard",
+        {"is_success": True, "normal_termination": True},
+        stage_kinds=("short_irc",),
+        mode="dag_record",
+    )
+    store = DagStore(db)
+    thin = store.register_evidence(
+        "s1",
+        "log_parser",
+        {
+            "tool_call_id": "tc-irc-thin",
+            "result": {"is_success": True, "normal_termination": True},
+        },
+    )
+    controller = DagController(db, "s1", "dag_record", conversation_id=agent.conversation_id)
+    await controller.initialize()
+    rejected = await controller.apply_stage_bind(
+        element_id="step1",
+        stage_kind="short_irc",
+        ref=thin,
+        verdict="agree",
+        tool_succeeded=True,
+    )
+    assert not rejected.accepted
+    assert rejected.rejection_code == "short_irc_check_failed"
+
+    ok_ref = store.register_evidence(
+        "s1",
+        "log_parser",
+        {
+            "tool_call_id": "tc-irc-ok",
+            "result": {
+                "is_success": True,
+                "normal_termination": True,
+                "irc_both_directions_converged": True,
+            },
+        },
+    )
+    accepted = await controller.apply_stage_bind(
+        element_id="step1",
+        stage_kind="short_irc",
+        ref=ok_ref,
+        verdict="agree",
+        tool_succeeded=True,
+    )
+    assert accepted.accepted is True
+
+
+@pytest.mark.asyncio
+async def test_thermochemistry_bind_requires_complete_status(tmp_path):
+    from cloudra.dag.controller import DagController
+    from cloudra.dag.store import DagStore
+
+    agent, _session, db = await _seed_staged_step(
+        tmp_path,
+        "thermo-guard",
+        {"is_success": True, "status": "inconclusive"},
+        stage_kinds=("thermochemistry",),
+        mode="dag_record",
+    )
+    store = DagStore(db)
+    incomplete = store.register_evidence(
+        "s1",
+        "thermo_analysis",
+        {
+            "tool_call_id": "tc-thermo-bad",
+            "result": {"is_success": True, "status": "inconclusive"},
+        },
+    )
+    controller = DagController(db, "s1", "dag_record", conversation_id=agent.conversation_id)
+    await controller.initialize()
+    rejected = await controller.apply_stage_bind(
+        element_id="step1",
+        stage_kind="thermochemistry",
+        ref=incomplete,
+        verdict="agree",
+        tool_succeeded=True,
+    )
+    assert not rejected.accepted
+    assert rejected.rejection_code == "thermochemistry_check_failed"
+
+    ok_ref = store.register_evidence(
+        "s1",
+        "thermo_analysis",
+        {
+            "tool_call_id": "tc-thermo-ok",
+            "result": {"is_success": True, "status": "complete"},
+        },
+    )
+    accepted = await controller.apply_stage_bind(
+        element_id="step1",
+        stage_kind="thermochemistry",
+        ref=ok_ref,
+        verdict="agree",
+        tool_succeeded=True,
+    )
+    assert accepted.accepted is True
+
+
+@pytest.mark.asyncio
 async def test_batch_ts_opt_bind_requires_normal_termination(tmp_path):
     from cloudra.dag.controller import DagController
 

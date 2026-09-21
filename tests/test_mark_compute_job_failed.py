@@ -71,3 +71,22 @@ async def test_reason_is_required():
     )
     assert result.is_success is False
     assert "reason is required" in result.message
+
+
+@pytest.mark.asyncio
+async def test_cancel_requested_is_not_reported_as_failed():
+    """CAS 没改行时不得回报成功——cancel_requested 仍非终态。"""
+    db = ComputeDB().init()
+    job_id = _insert_job(db, state="cancel_requested")
+
+    result = await MarkComputeJobFailed().tool_call(
+        MarkComputeJobFailed_input_schema(job_id=job_id, reason="orphan"),
+        session=None,
+    )
+    assert result.is_success is False
+    assert result.previous_state == "cancel_requested"
+    with db.connect() as con:
+        state = con.execute(
+            "SELECT state FROM compute_jobs WHERE id=?", (job_id,)
+        ).fetchone()[0]
+    assert state == "cancel_requested"

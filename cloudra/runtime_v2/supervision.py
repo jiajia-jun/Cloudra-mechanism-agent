@@ -588,8 +588,8 @@ async def flush_review_notifications(
                 # 本路径在 CommandBus 之外，自己持有 publish+persist 边界：
                 # 事件落盘/发布先于标记 sent，否则崩溃会丢唤醒。
                 await core.event_writer.flush()
-            await asyncio.to_thread(store.mark_review_notification_sent, subject_id)
-            handled += 1
+                await asyncio.to_thread(store.mark_review_notification_sent, subject_id)
+                handled += 1
         except Exception:
             logger.exception(
                 "[supervision] review notification %s delivery failed for project %s",

@@ -99,6 +99,31 @@ async def test_delete_command_rejects_active_compute_jobs():
 
 
 @pytest.mark.asyncio
+async def test_delete_command_explains_cancel_requested_jobs():
+    """cancel-all 之后只剩 cancel_requested：错误必须说等取消完成，而不是再跑一次 cancel-all。"""
+    core = RuntimeCore(strict_events=True)
+    project = await _create(core)
+    await _archive(core, project.id)
+    db = ComputeDB().init()
+    insert_compute_job(
+        db,
+        node_id="node-local",
+        conversation_id=project.id,
+        session_id=None,
+        path="/tmp/input.gjf",
+        state="cancel_requested",
+        jobtype="gaussian",
+    )
+    result = await _execute(core, "project.delete", target={"project_id": project.id})
+    assert result.accepted is False
+    assert result.data["error"]["code"] == "state_conflict"
+    message = result.data["error"]["message"]
+    assert "cancel_requested" in message
+    assert "cancel-all first" not in message
+    assert project.id in core.projects
+
+
+@pytest.mark.asyncio
 async def test_delete_removes_project_and_agents_from_core():
     core = RuntimeCore(strict_events=True)
     project = await _create(core)

@@ -159,6 +159,9 @@ async def test_command_retry_after_partial_persist_does_not_double_spawn():
     assert retried.accepted is True
     assert len(core.agents) == 1
     assert retried.data.id == first.data.id
+    assert "agent.message_injected" not in [e.type for e in core.event_log]
+    inbox = core.mailbox.inbox(agent_id)
+    assert inbox is None or inbox.empty()
 
 
 @pytest.mark.asyncio

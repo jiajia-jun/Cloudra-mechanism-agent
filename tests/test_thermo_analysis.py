@@ -87,6 +87,26 @@ def test_raw_rrho_uses_literal_gaussian_corrections_not_last_cclib_scf(monkeypat
     assert record["gibbs_free_energy_hartree"] == pytest.approx(-74.993352)
 
 
+def test_raw_rrho_rejects_saddle_frequency_job(monkeypatch):
+    """n_imag != 0 的频率作业不得给出 complete 热化学。"""
+    fake_data = SimpleNamespace(
+        temperature=298.15,
+        pressure=1.0,
+        vibfreqs=[-412.3, 100.0, 200.0],
+    )
+    monkeypatch.setattr("cclib.io.ccread", lambda _path: fake_data)
+
+    record, error = thermo_mod._load_raw_rrho_record(
+        ThermoSpecies(name="ts", log_path=str(WATER_FREQ), coefficient=1),
+        temperature=298.15,
+        standard_state="gas_1atm",
+        concentration_molar=None,
+    )
+    assert record is None
+    assert error is not None
+    assert "n_imag" in error
+
+
 def test_raw_rrho_converts_nonstandard_source_pressure_to_one_atm(monkeypatch):
     fake_data = SimpleNamespace(temperature=298.15, pressure=2.0)
     monkeypatch.setattr("cclib.io.ccread", lambda _path: fake_data)

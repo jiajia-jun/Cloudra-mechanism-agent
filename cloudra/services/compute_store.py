@@ -380,25 +380,54 @@ async def acount_pending_compute_jobs(db: ComputeDB, conversation_id: str) -> in
     return await aretry_on_locked(read)
 
 
+async def acount_active_compute_job_states(
+    db: ComputeDB, conversation_id: str
+) -> dict[str, int]:
+    """指定会话非终态作业按状态计数（ready/running/cancel_requested）。
+
+    读路径不建库：中央库不存在（从未提交过作业）即空字典。
+    """
+    if not _db_ready(db):
+        return {}
+
+    async def read() -> dict[str, int]:
+        async with db.aconnect() as con:
+            cur = await con.execute(
+                "SELECT state, COUNT(*) FROM compute_jobs "
+                "WHERE state IN ('ready', 'running', 'cancel_requested') "
+                "AND conversation_id = ? GROUP BY state",
+                (conversation_id,),
+            )
+            rows = await cur.fetchall()
+        return {str(state): int(count) for state, count in rows}
+
+    return await aretry_on_locked(read)
+
+
+def active_jobs_delete_message(counts: Mapping[str, int]) -> str:
+    """硬删除被非终态作业挡住时的错误文本（API 与 CommandBus 共用）。"""
+    total = sum(int(n) for n in counts.values())
+    if total <= 0:
+        return "project has 0 active compute job(s)"
+    if set(counts) <= {"cancel_requested"}:
+        n = int(counts.get("cancel_requested", 0))
+        return (
+            f"project has {n} cancel_requested compute job(s); "
+            "wait for Slurm jobs to finish cancelling"
+        )
+    return (
+        f"project has {total} active compute job(s); "
+        "run POST /api/v2/compute/cancel-all first"
+    )
+
+
 async def acount_active_compute_jobs(db: ComputeDB, conversation_id: str) -> int:
     """指定会话的非终态作业数（ready/running/cancel_requested）——项目硬删除的门禁口径。
 
     读路径不建库：中央库不存在（从未提交过作业）即 0。
     """
-    if not _db_ready(db):
-        return 0
-
-    async def read() -> int:
-        async with db.aconnect() as con:
-            cur = await con.execute(
-                "SELECT COUNT(*) FROM compute_jobs "
-                "WHERE state IN ('ready', 'running', 'cancel_requested') AND conversation_id = ?",
-                (conversation_id,),
-            )
-            row = await cur.fetchone()
-            return int(row[0]) if row else 0
-
-    return await aretry_on_locked(read)
+    counts = await acount_active_compute_job_states(db, conversation_id)
+    return sum(counts.values())
 
 
 def _fair_share_mb(capacity: Mapping[str, Any]) -> int:
@@ -464,6 +493,34 @@ def compute_inflight_usage_by_node(
         }
 
     return retry_on_locked(read)
+
+
+def sync_local_fits_capacity(
+    db: ComputeDB,
+    *,
+    node_id: str,
+    cpus: int,
+    memory_mb: Optional[int],
+    node_resources: Mapping[str, Any],
+) -> bool:
+    """同步本机提交的容量闸门：与认领同一套在用量（running + cancel_requested）。"""
+    fair_share = {str(node_id): _fair_share_mb(node_resources)}
+    usage = compute_inflight_usage_by_node(
+        db, default_node_id=str(node_id), fair_share_mb=fair_share
+    )
+    used = usage.get(str(node_id), {"slots": 0, "cpus": 0, "memory_mb": 0})
+    cap_slots = max(1, int(node_resources.get("max_concurrent", 1)))
+    cap_cpus = max(1, int(node_resources.get("cpus", 1)))
+    cap_mem = max(1, int(node_resources.get("memory_mb", 1024)))
+    r_cpus = max(1, int(cpus or 1))
+    r_mem = int(
+        memory_mb if memory_mb is not None else fair_share[str(node_id)]
+    )
+    return (
+        used["slots"] + 1 <= cap_slots
+        and used["cpus"] + r_cpus <= cap_cpus
+        and used["memory_mb"] + r_mem <= cap_mem
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -831,19 +888,31 @@ async def aupdate_scheduler_state(db: ComputeDB, task_id: int, scheduler_state: 
         await con.commit()
 
 
+def cancel_compute_job(db: ComputeDB, task_id: int) -> bool:
+    """显式取消（cancel_requested → scancel 后，或无法找回句柄）落 cancelled。
+
+    只覆盖 running / cancel_requested，不得把 done/failed 改成 cancelled。
+    """
+    def write() -> bool:
+        with db.connect() as con:
+            cur = con.execute(
+                """UPDATE compute_jobs SET state='cancelled',
+                scheduler_state='CANCELLED', end_timestamp=?
+                WHERE id=? AND state IN ('running', 'cancel_requested')""",
+                (time.time(), task_id),
+            )
+            con.commit()
+            return cur.rowcount == 1
+
+    return retry_on_locked(write)
+
+
 async def acancel_compute_job(db: ComputeDB, task_id: int) -> None:
     """显式取消（cancel_requested → scancel 后）落 cancelled 终态。
 
     只覆盖 running / cancel_requested，不得把 done/failed 改成 cancelled。
     """
-    async with db.aconnect() as con:
-        await con.execute(
-            """UPDATE compute_jobs SET state='cancelled',
-            scheduler_state='CANCELLED', end_timestamp=?
-            WHERE id=? AND state IN ('running', 'cancel_requested')""",
-            (time.time(), task_id),
-        )
-        await con.commit()
+    await asyncio.to_thread(cancel_compute_job, db, task_id)
 
 
 # ---------------------------------------------------------------------------

@@ -397,10 +397,13 @@ def _decide_inject_agent_message(core: RuntimeCore, command: Command) -> Decisio
     # memory, workspace) is re-assembled every turn, so the new run picks up
     # where the agent left off conceptually.
     # system 投递（计算通知 / reminder）遵守 park-don't-wake：failed/cancelled
-    # 只写信箱，绝不把用户取消过的 agent 拉回 queued。
+    # 与 WAITING_* 只写信箱，绝不把用户取消过的 agent 拉回 queued，也不打断
+    # 未完成的审批/提问。
     if command.actor == "system" and agent.state in {
         AgentState.FAILED,
         AgentState.CANCELLED,
+        AgentState.WAITING_APPROVAL,
+        AgentState.WAITING_INPUT,
     }:
         wake_drafts, should_schedule = [], False
     else:
@@ -856,15 +859,17 @@ class CommandBus:
         try:
             if command.type == "project.delete":
                 from cloudra.persistence.database import ComputeDB
-                from cloudra.services.compute_store import acount_active_compute_jobs
+                from cloudra.services.compute_store import (
+                    acount_active_compute_job_states,
+                    active_jobs_delete_message,
+                )
 
                 project_id = _project_id(core, command)
-                active = await acount_active_compute_jobs(ComputeDB(), project_id)
-                if active:
+                counts = await acount_active_compute_job_states(ComputeDB(), project_id)
+                if counts:
                     raise CommandRejected(
                         "state_conflict",
-                        f"project has {active} active compute job(s); "
-                        "run POST /api/v2/compute/cancel-all first",
+                        active_jobs_delete_message(counts),
                     )
             if decider is not None:
                 # 拍 1：纯 decide（守卫校验在这里抛 CommandRejected）
@@ -927,7 +932,13 @@ class CommandBus:
             # spawned 已落盘：返回已创建的 agent 并尽量跑完 effects，
             # 避免 HTTP 500 触发新 command_id 再造一个 coordinator。
             if any(envelope.type == "agent.spawned" for envelope in envelopes):
+                persisted = {envelope.type for envelope in envelopes}
                 for effect in decision.effects:
+                    if (
+                        isinstance(effect, DeliverMessage)
+                        and "agent.message_injected" not in persisted
+                    ):
+                        continue
                     try:
                         await _execute_effect(core, effect)
                     except Exception:

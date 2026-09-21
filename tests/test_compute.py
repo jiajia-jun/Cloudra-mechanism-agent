@@ -479,6 +479,54 @@ def test_parse_cp2k_log_missing_file(tmp_path):
     assert _parse_cp2k_log(empty) is None
 
 
+def test_parse_vasp_log_success(tmp_path):
+    """VASP OUTCAR 出现 General timing 且无 fatal error 时判成功。"""
+    from cloudra.runtime.monitor import _parse_vasp_log
+
+    log = tmp_path / "OUTCAR"
+    log.write_text(
+        "  free  energy   TOTEN  =       -12.345678 eV\n"
+        "                 General timing and accounting informations for this job:\n"
+        "                         Total CPU time used (sec):        1.23\n",
+        encoding="utf-8",
+    )
+    data_dic, is_success = _parse_vasp_log(log)
+    assert is_success is True
+    assert data_dic["is_success"] is True
+    assert data_dic["scf_energy_ev"] == pytest.approx(-12.345678)
+
+
+def test_parse_vasp_log_failure(tmp_path):
+    """VASP 无正常结束标记或带 fatal error 时判失败。"""
+    from cloudra.runtime.monitor import _parse_vasp_log
+
+    log = tmp_path / "OUTCAR"
+    log.write_text(
+        "  free  energy   TOTEN  =       -1.0 eV\n"
+        " ZBRENT: fatal error in bracketing\n",
+        encoding="utf-8",
+    )
+    data_dic, is_success = _parse_vasp_log(log)
+    assert is_success is False
+    assert data_dic["is_success"] is False
+
+
+@pytest.mark.asyncio
+async def test_parse_log_routes_vasp_to_text_markers(tmp_path):
+    """job_type=vasp 不得走未知引擎 cclib-False 回落。"""
+    from cloudra.runtime.monitor import _parse_log
+
+    log = tmp_path / "vasp.out"
+    log.write_text(
+        "  free  energy   TOTEN  =       -3.14 eV\n"
+        "                 General timing and accounting informations for this job:\n",
+        encoding="utf-8",
+    )
+    data_dic, is_success = await _parse_log(log, parse_timeout=1, job_type="vasp")
+    assert is_success is True
+    assert data_dic["is_success"] is True
+
+
 @pytest.mark.asyncio
 async def test_submit_compute_job_sync_success(isolated_db, mock_calc_workdir):
     """同步模式成功执行 H2 单点能任务。"""
@@ -933,8 +981,11 @@ async def test_parse_log_fail_fast_on_incomplete_gaussian_log(tmp_path):
     data, ok = await _parse_log(log, parse_timeout=1800)
     elapsed = time.monotonic() - started
 
-    assert data is None and ok is None
+    # 缺坐标：cclib 取数失败，但终态仍按引擎文本标记判定，且不得按
+    # parse_timeout 空转重试。
     assert elapsed < 10
+    assert ok is True
+    assert data is not None and data["is_success"] is True
 
 
 _CP2K_OK_LOG = (
@@ -1556,6 +1607,53 @@ async def test_submit_records_resource_request(isolated_db, mock_calc_workdir):
             (result.job_id,),
         ).fetchone()
     assert tuple(row) == (3, 2, 1024, "ready")
+
+
+@pytest.mark.asyncio
+async def test_sync_submit_rejects_when_node_slots_full(
+    isolated_db, mock_calc_workdir, monkeypatch
+):
+    """同步本机提交必须受 max_concurrent 约束，不能绕过 scheduler claim。"""
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.services import nodes as nodes_mod
+    from cloudra.services.compute_store import insert_compute_job
+
+    resources = {"max_concurrent": 1, "cpus": 4, "memory_mb": 4096}
+    monkeypatch.setattr(nodes_mod, "default_resources", lambda: dict(resources))
+    monkeypatch.setattr(
+        "cloudra.services.host_capacity.effective_node_resources",
+        lambda _node: dict(resources),
+    )
+    db = ComputeDB().init()
+    insert_compute_job(
+        db,
+        conversation_id="other",
+        session_id=None,
+        path="/tmp/occupied.gjf",
+        state="running",
+        jobtype="gaussian",
+        node_id="node-local",
+    )
+    launched = {"n": 0}
+
+    async def _should_not_run(*_a, **_k):
+        launched["n"] += 1
+        return "done"
+
+    monkeypatch.setattr(SubmitComputeJob, "run_now", _should_not_run)
+    gjf = os.path.join(mock_calc_workdir, "h2.gjf")
+    tool = SubmitComputeJob()
+    tool.subagent = MockAgent("a-0", "test_conv")
+    result = await tool.tool_call(
+        SubmitComputeJob_input_schema(
+            input_file=gjf, job_type="gaussian", is_async=False, cpus=1,
+        ),
+        session=None,
+    )
+    assert result.is_success is False
+    assert "max_concurrent" in result.message or "slot" in result.message.lower()
+    assert launched["n"] == 0
+    assert result.job_id == -1
 
 
 # ---------------------------------------------------------------------------

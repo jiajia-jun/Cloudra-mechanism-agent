@@ -136,11 +136,18 @@ def query_job_by_name(job_name: str) -> str | None:
         return None
     if completed.returncode != 0:
         return None
+    terminal = SLURM_TERMINAL_SUCCESS | SLURM_TERMINAL_FAILURE
     for line in completed.stdout.splitlines():
         raw = line.strip()
         if not raw:
             continue
-        job_id = raw.partition("|")[0].strip().split(".", 1)[0]
+        job_id, _, state = raw.partition("|")
+        job_id = job_id.strip().split(".", 1)[0]
+        state = state.split("+", 1)[0].strip().upper()
+        if state.startswith("CANCELLED"):
+            state = "CANCELLED"
+        if state in terminal:
+            continue
         if _JOB_ID.fullmatch(job_id):
             return job_id
     return None
@@ -198,6 +205,21 @@ def _engine_success_from_log(
         from cloudra.tools.core import orca_frames
 
         return orca_frames.normal_termination(text)
+    if kind == "cp2k":
+        from cloudra.runtime.monitor import _parse_cp2k_log
+
+        parsed = _parse_cp2k_log(path)
+        return None if parsed is None else parsed[1]
+    if kind == "xtb":
+        from cloudra.runtime.monitor import _parse_xtb_log
+
+        parsed = _parse_xtb_log(path)
+        return None if parsed is None else parsed[1]
+    if kind == "vasp":
+        from cloudra.runtime.monitor import _parse_vasp_log
+
+        parsed = _parse_vasp_log(path)
+        return None if parsed is None else parsed[1]
     return None
 
 
