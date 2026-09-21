@@ -181,12 +181,24 @@ def deliver_child_completion_to_parent(
 
 
 async def _cancel_child(core, session_id: str) -> None:
+    """取消一个子 agent；已终态则直接返回，不去取命令锁。
+
+    快路径不是省事：本函数常在「刚被取消的父 agent 的收尾」里被调用，而父的
+    ``agent.cancel`` 命令此刻正持有 CommandBus 的串行化锁、并把持锁任务挂在
+    这批收尾上。为**已终态**的子 agent 再去抢同一把锁会直接自死锁（
+    ``_TaskReentrantLock`` 只认同一个 task 重入，而这里是新任务）——实测三个
+    子 agent 全已 cancelled、两个本函数仍卡在等锁，把整批取消悬停。
+    已终态时 ``plan_cancel`` 本来就返回空计划，跳过与执行它严格等价。
+    """
+    agent = core.agents.get(session_id)
+    if agent is None or agent.state in _TERMINAL_STATES:
+        return
     try:
         await CommandBus(core).execute(
             Command(type="agent.cancel", target={"session_id": session_id}, payload={})
         )
     except CommandRejected:
-        pass  # already terminal
+        pass  # already terminal (raced with another cancel)
 
 
 async def _handle_launcher(core, parent: AgentSession, args: dict[str, Any]) -> ToolResult:
