@@ -90,7 +90,11 @@ def build_router(ctx: ApiContext) -> APIRouter:
         """OpenRouter OAuth 回调重定向端点：通过 postMessage 通知 opener，或重定向回应用主页。"""
         import json
 
-        escaped_code = json.dumps(code)
+        # 内联 <script> 里不能塞裸 JSON 字符串：code 是查询参数，而本端点必然
+        # 未鉴权（浏览器重定向带不了 bearer），`</script>` 会提前闭合脚本元素，
+        # 其后的标签直接进 DOM（实测反射型 XSS）。转义 `<` 即可——json.dumps
+        # 已把非 ASCII（含 U+2028/2029）转成 \uXXXX，只剩这一处缺口。
+        escaped_code = json.dumps(code).replace("<", "\\u003c")
         html = f"""<!DOCTYPE html>
 <html>
 <head>
