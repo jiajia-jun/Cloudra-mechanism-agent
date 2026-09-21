@@ -282,6 +282,13 @@ class BenchmarkBatch:
             )
             return
 
+        if self._stop.is_set():
+            # stop 落在本题开头之后、project 创建之前的 await 窗口里：此刻
+            # 题面 project 还没开，直接落 cancelled，不建 project、不 spawn
+            # agent——否则会留下一个没人取消的 agent。
+            await self._mark_cancelled(st)
+            return
+
         st.status = "running"
         st.started_at = time.time()
         self.emit(
@@ -332,10 +339,6 @@ class BenchmarkBatch:
                 )
             ).data
             st.agent_id = agent.id
-            watcher = RunWatcher(
-                pending_background=self._pending_background_factory(project.id, agent.id),
-                **self._watcher_kwargs,
-            )
 
             async def cancel(reason: str) -> None:
                 logger.warning("cancelling benchmark agent %s: %s", agent.id, reason)
@@ -347,6 +350,18 @@ class BenchmarkBatch:
                     )
                 )
 
+            if self._stop.is_set():
+                # stop() 的取消快照按 st.project_id 过滤，而该字段要到本题的
+                # project.create 之后才回填：恰好落在这两处 await 之间的 stop
+                # 看不到本题，刚 spawn 的 agent 就没人取消，watcher 只能干等到
+                # stuck_grace（本机实测：5s/30s 收敛预算内永不收敛）。取消动作
+                # 必须由本协程在 spawn 之后立刻补上。
+                await cancel("batch stop")
+
+            watcher = RunWatcher(
+                pending_background=self._pending_background_factory(project.id, agent.id),
+                **self._watcher_kwargs,
+            )
             await watcher.wait(self.core, agent, cancel)
 
             # stop 只截断未竟工作：正常跑完（SUCCEEDED）的题照常评分，
