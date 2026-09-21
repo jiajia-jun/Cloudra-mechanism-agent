@@ -2,7 +2,7 @@
 
 from importlib import import_module
 
-__version__ = "2.0.0-beta"
+__version__ = "0.1.0rc1"
 
 _LAZY_EXPORTS = {
     "Agent": ("cloudra.core.agent", "Agent"),

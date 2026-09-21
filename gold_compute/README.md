@@ -1,31 +1,64 @@
-# gold_compute/ — gold 参考答案补齐战役目录
+# gold_compute/ — gold 参考答案战役（权威文档）
 
-目标：为 benchmark 题库补齐/核实 `gold` 参考答案，使每题都有可用的参考能垒。
+> **2026-09-21 用户决议（现行）**：本轮主线是 **边选反应边填 gold**。
+> 候选反应 **不来自** 仓库里任何既有文档或题池
+> （含 `ideapool/reaction_candidates/*`、旧 benchmark 文献池、本目录
+> `archive/` / `edge_barriers/` 里的历史批次清单）。那些材料只作考古，
+> **不得**当作本轮选题清单或「待算缺口队列」。
 
-**2026-09-13 计划变更（用户决策）**：参考值改为**文献调研填充**（不跑计算）。
-原计划「MACE-OMol25 自算标定」因 OptTS/IRC 链路卡住而落空；现改为「文献锚点」路线，
-产物 `verification` 按文献核实强度记 verified/partial/unverified，不再要求
-`computed_by_us=True`。
+## 为什么改线
 
-## 口径（必须对齐生成器）
-- 能垒基准 `central_complex`（TS 相对反应物/离子-偶极络合物）；文献值为分离反应物
-  渐近线 / 微溶剂化 / 溶液自由能等其它口径时，在单元格括号内注明，并在生成器的
-  `_BARRIER_FRAME_UNVERIFIED` 登记，verification 降 unverified。
-- 能垒类型按题定义（Ea/ΔE‡/ΔH‡/ΔG‡），源未注明时保持 None（诚实缺测）。
-- 数值 + 类型 + 出处 DOI 写回**题源 md** 的「gold 能垒锚点」列，再重跑对应生成器
-  （`test_*_tasks_regenerate_identically` 守卫同步）。生成器是题库唯一事实来源。
+存量 easy/normal/hard 题里有大量体系对统一 DFT 口径几乎不可算
+（尺寸、柔性、溶剂壳、多通道纠缠等）。继续「在旧题上补齐全部 accessible
+边」会把算力烧在选错的反应上。本轮改为：**可算性与判别价值一起筛**，
+筛进题库的反应必须带着可用的自算 gold（或明确标成诚实缺测），而不是
+先入库再指望事后打标。
 
-## 题源与回填路径
-- easy：`ideapool/reaction_candidates/easy.md` → `gen_easy_tasks.py` → `ideapool/tasks/easy/*.json`
-- normal：`ideapool/reaction_candidates/normal.md` → `gen_normal_tasks.py` → `ideapool/tasks/normal/*.json`
-- hard：`ideapool/reaction_candidates/hard.md` + `cloudra/benchmark/hard_registry/*.py`(anchor) → `gen_hard_tasks.py`
+## 本轮目标
 
-## 待办清单（2026-09-13）
-- normal 缺数值锚点（9）：NA2 NA5 NI1 NO3 NR1 NU3 NU5 NU6 NY3
-- hard 缺数值锚点（2）：HD2 HL1（注册表 anchor 需 None → "barrier"）
-- hard 选择性锚点（ΔΔ，已有值，7）：HA1 HA6 HE2 HE3 HF1 HG2 HI1（绝对能垒不在本战役范围）
-- easy 待复核（10）：C3 D1 D3 D4 F1 G2 G3 M1 M16 M8
+1. **选题与 gold 同步**：一条反应从候选 → 方法口径试算/打标 → 写入题源
+   → 生成器出 `TaskSpec`，中间不断档。进库条件包含「本边 gold 在约定
+   口径下可交付」，不是「md 里先占坑」。
+2. **候选来源**：新开策展（文献/教材/经验/现场试算），**禁止**从现有
+   候选 md、旧 HANDOFF、76 边总账、archive 批次名单抄题当本轮队列。
+3. **存量题**：不承诺全边 DFT 清零；可算且仍有价值的可择机回填，其余
+   保留为历史题或后续单独处理，不挡本轮主线。
 
-## 产出约定
-每题一条：barrier_kcal_mol / barrier_type / frame / DOI / verification / method 一句话
-依据；汇总后统一回填题源 md，重跑生成器并断言守卫通过。
+## 口径（写入题源 / 生成器时必须对齐）
+
+- 能垒基准默认 `central_complex`（TS 相对反应物/离子-偶极络合物）。若只能
+  得到分离反应物渐近线 / 微溶剂化 / 溶液自由能等其它参考系，必须在题源
+  注明，并按生成器规则登记 frame；对不上约定口径的不得假装 `verified`。
+- 能垒类型按题定义（Ea / ΔE‡ / ΔH‡ / ΔG‡）；源或计算未给出类型时保持
+  缺测，不编造。
+- 自算值：`computed_by_us=True`，写清方法一句话（泛函/基组/溶剂/程序）与
+  日志/产物路径约定；文献交叉核对可挂 DOI，**不能**单独充当本轮 gold 主源。
+- 数值 + 类型 + frame + 出处写回**本题所属题源**（新策展 md 或既定生成器
+  输入），再跑对应 `gen_*_tasks.py`；`test_*_tasks_regenerate_identically`
+  守卫必须绿。生成器仍是题库 JSON 的唯一事实来源。
+
+## 目录角色
+
+| 路径 | 角色 |
+| :--- | :--- |
+| **本 README** | 本轮策略与口径的唯一权威说明 |
+| 新策展题源（待建，不在旧 `reaction_candidates` 名单里） | 本轮反应 + gold 的写入面 |
+| `edge_barriers/computed/` 等 | **历史**自算产物；可参考方法与踩坑，不是本轮待办列表 |
+| `archive/` | 已废止的战役计划 / 文献填充 / 批次手记（含「全边 DFT 旧池」与「只填文献」） |
+
+## 已废止（勿再当现行计划）
+
+- **2026-09-13**：只做文献调研填充、不跑计算。
+- **2026-09-20**：在**现有**题库上对所有 accessible 交付边做 DFT 打标、
+  文献锚一律待替换；「76 边总账」只描述当时旧池快照。
+- 任何「从 `reaction_candidates/*.md` 或 archive 缺口表拉队列开算」的排期。
+
+## 产出约定（单条反应）
+
+每条进库反应至少能回答：
+
+- 选入理由（判别点 + 为何可算）
+- 每条评分相关边的 `barrier_kcal_mol` / 类型 / frame / verification
+- 自算方法与证据落点（或显式「本边诚实缺测、不计 accuracy」）
+
+汇总进题源 → 重跑生成器 → 守卫通过，才算该反应本轮闭环。

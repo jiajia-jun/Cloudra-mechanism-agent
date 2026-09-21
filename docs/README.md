@@ -17,14 +17,14 @@
 | [`PLUGINS.md`](PLUGINS.md) | 插件机制 |
 | [`novelty.md`](novelty.md) | 学术与技术定位（对标 El Agente 系列，论文立项依据） |
 | `superpowers/plans/` `superpowers/specs/` | **设计历史**（按日期归档惯例保留，不更新） |
-| `gold_compute/README.md` | gold 能垒 DFT 打标战役：目标、口径、验收标准、总账与缺口队列 |
-| `ideapool/reaction_candidates/*.md` | benchmark 题源（生成器输入，**活文档**） |
+| `gold_compute/README.md` | gold 战役现行策略：边选反应边填自算 gold；候选不来自既有文档 |
+| `ideapool/reaction_candidates/*.md` | **存量** benchmark 题源（生成器输入）；本轮新候选另开策展，不从这里抄 |
 
 ## 归档位置
 
 - `docs/archive/`：已实现的架构计划（DAG schema 重构、TS 后端门）、benchmark
   设计调研（benchmark_survey/）、评测报告（benchmarks/）；
-- `gold_compute/archive/`：gold 战役批次文档与文献填充阶段记录；
+- `gold_compute/archive/`：已废止的 gold 战役计划（旧池全边 DFT、文献填充、批次手记）；
 - `paper/archive/`：论文进度手记、参考答案分工计划、被 narrative 取代的
   benchmark_construction 初稿；
 - `ideapool/archive/`：GraphRAG 指南、benchmark 文献遴选、novelty 计划旧版

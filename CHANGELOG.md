@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [0.1.0rc1] - 2026-09-21
+
+首个认真发版的 release candidate。此前 GitHub 上的 `v1.*` Release / tag 已全部撤下（那批构建基本不可用）。本号起重新计版本：runtime_v2 唯一内核、中央 `compute.db`、只验 token 的 API、POSIX-only 运行时。
+
 ### 变更
 - **API 访问控制只验 token**：`Authorization: Bearer …` 与 `?token=` 等价，不限 HTTP 方法、不验 Host。远程打开启动打印的 `#token=` URL 即可。`CLOUDRA_API_TOKEN=off` 才走回环 Host/client 闸门（挡 DNS rebinding）；非回环绑定拒绝 off。
 - live 交付 complete 口径钉死：默认机理草稿边只欠 `ts_opt` + `frequency`（一阶鞍点）；IRC/端点/方向不是结题必要，需要路径证明时才写进该步契约。带 stages 的边不以 `CoverageContract.required_edge_level=endpoint_supported` 为门槛。benchmark 自洽性与 `ts_guess strict` 的 IRC 方向证明不变。
@@ -73,7 +77,7 @@
 ### 变更
 - `chemrxiv_searcher` 改名叫 `openalex_searcher`，它其实一直检索整个 OpenAlex，没过滤过 ChemRxiv；Android 工具白名单和文档同步更新。
 - 所有工具描述统一成“功能/适用/不适用/关键纪律”结构，把搜索、PDF、文件修改、计算流水线之间的分工边界写清楚。
-- CLI 横幅版本号从 `cloudra.__version__` 读取，和 `pyproject.toml` 一致为 2.0.0-beta。
+- CLI 横幅版本号从 `cloudra.__version__` 读取，和 `pyproject.toml` 一致（本版 `0.1.0rc1`）。
 - 死循环检测与步数预算：移除步数预算相关逻辑，保留 `AgentStuckLoop`（相同工具+参数连续调用）作为防空转兜底。
 - 联网搜索展示：`web_search_call` 状态事件改为流中段逐条上报，并入「思考过程」面板而非孤立系统框。
 

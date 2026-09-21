@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cloudra"
-version = "2.0.0-beta"
+version = "0.1.0rc1"
 description = "Autonomous agent for organic small-molecule mechanism computation"
 readme = "README.md"
 requires-python = ">=3.11"
