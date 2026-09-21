@@ -5,7 +5,7 @@
 
 [![CI](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/ci.yml)
 [![Python ≥ 3.11](https://img.shields.io/badge/python-%E2%89%A53.11-blue)](pyproject.toml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](pyproject.toml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 [中文文档](README_CN.md) · [Documentation Hub](docs/README.md) · [Core Novelty](docs/novelty.md) · [DAG Orchestration Spec](docs/DAG_ORCHESTRATION.md) · [TS Process SOP](docs/TS_PROCESS_SOP.md) · [Plugin Guide](docs/PLUGINS.md)
 
@@ -258,4 +258,4 @@ If you use or reference Cloudra in your scientific research, please cite the rep
 
 ## License
 
-This project is licensed under the [MIT License](pyproject.toml).
+This project is licensed under the [MIT License](LICENSE).

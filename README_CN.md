@@ -5,7 +5,7 @@
 
 [![CI](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/ci.yml)
 [![Python ≥ 3.11](https://img.shields.io/badge/python-%E2%89%A53.11-blue)](pyproject.toml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](pyproject.toml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 [English](README.md) · [文档中心](docs/README.md) · [核心创新点](docs/novelty.md) · [DAG 编排规范](docs/DAG_ORCHESTRATION.md) · [过渡态 SOP](docs/TS_PROCESS_SOP.md) · [插件系统](docs/PLUGINS.md)
 
@@ -257,4 +257,4 @@ uv run ruff check cloudra tests    # 代码规范检查（line-length 120）
 
 ## 开源许可证
 
-本项目采用 [MIT 许可证](pyproject.toml)。
+本项目采用 [MIT 许可证](LICENSE)。

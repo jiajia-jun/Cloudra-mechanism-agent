@@ -1,0 +1,27 @@
+# 依赖更新机制：本仓有两台机器并行推进，依赖此前靠人肉升级。
+# 只开 PR、不自动合并——CI 因账单停摆期间，每个 PR 都要人肉验证后再合。
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: "npm"
+    directory: "/cloudra/runtime_v2/js_host"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
