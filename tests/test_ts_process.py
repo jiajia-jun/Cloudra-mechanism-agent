@@ -935,3 +935,79 @@ def test_verdict_converged_irc_without_connectivity_is_candidate_only(tmp_path, 
     detail = record.stage_record("verdict").detail
     assert "interval proof" in detail
     assert "UNVERIFIED" in detail
+
+
+# ---------------------------------------------------------------------------
+# guess 阶段：撞 nrun 上限后能把上限抬上去重跑（GH #39 建议 2）
+# ---------------------------------------------------------------------------
+
+
+def _xtb_path_stub(tmp_path, seen, termination="path_not_converged"):
+    """替身：记录每次实际传给引擎的 refinement_runs，并据此回填结果。"""
+
+    def fake_run(request, **_kwargs):
+        seen.append(request.refinement_runs)
+        from cloudra.tools.core import xtb_path_runner as runner
+
+        return runner.XtbPathResult(
+            run_dir=os.path.join(str(tmp_path), "xtb_path_runs", f"guess_{len(seen):04d}"),
+            termination_reason=termination,
+            usable_as_guess=False,
+            refinement_runs=request.refinement_runs,
+        )
+
+    return fake_run
+
+
+def test_refinement_ceiling_defaults_to_runner_default_and_resume_can_raise_it(
+    tmp_path, monkeypatch
+):
+    """未声明 → runner 默认；resume 抬高后 → 新数字必须真的到引擎。
+
+    撞上限（path_not_converged）是 blocked 而不是终态，出路正是"抬高上限重跑"——
+    所以这条链不能停在 schema 里（GH #39：此前写进声明的预算没人消费）。
+    """
+    from cloudra.tools.core import xtb_path_runner as runner
+
+    seen = []
+    monkeypatch.setattr(runner, "run_xtb_path", _xtb_path_stub(tmp_path, seen))
+
+    record = _start(tmp_path)
+    # 未声明：交给 runner 默认，不发明数字
+    assert seen == [runner.DEFAULT_REFINEMENT_RUNS]
+    assert record.blocked is not None and record.blocked.failure_class == "path_not_converged"
+    assert record.blocked.needs == ["budget"]
+    # 阻塞消息点名出路，不让 agent 自己猜
+    assert "path_refinement_runs" in record.blocked.message
+
+    # 抬高上限后 resume：数字真要过引擎
+    record = resume(
+        load_record(str(tmp_path), record.run_id),
+        TsAdjustment(path_refinement_runs=350, budget_override_note="100 轮不够"),
+    )
+    assert seen == [runner.DEFAULT_REFINEMENT_RUNS, 350]
+    assert record.blocked is not None  # 替身仍报触顶，所以应再次阻塞
+    # 落在记录上（否则重启恢复就丢了）
+    assert load_record(str(tmp_path), record.run_id).declaration.budget.path_refinement_runs == 350
+
+
+def test_declared_refinement_ceiling_is_used_on_the_first_guess(tmp_path, monkeypatch):
+    """声明里直接给上限时，第一次 guess 就用它——不必先撞一次墙（负向：默认路径没被这条抢走）。"""
+    from cloudra.tools.core import xtb_path_runner as runner
+
+    seen = []
+    monkeypatch.setattr(runner, "run_xtb_path", _xtb_path_stub(tmp_path, seen))
+
+    _start(tmp_path, budget=TsBudget(path_refinement_runs=250))
+    assert seen == [250]
+
+
+def test_zero_means_undeclared_not_zero_runs(tmp_path, monkeypatch):
+    """0 = 未声明，**不是**"跑 0 轮"：必须落到 runner 默认（否则会把上限设成非法值）。"""
+    from cloudra.tools.core import xtb_path_runner as runner
+
+    seen = []
+    monkeypatch.setattr(runner, "run_xtb_path", _xtb_path_stub(tmp_path, seen))
+
+    _start(tmp_path, budget=TsBudget(path_refinement_runs=0))
+    assert seen == [runner.DEFAULT_REFINEMENT_RUNS]

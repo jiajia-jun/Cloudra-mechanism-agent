@@ -76,7 +76,11 @@ class TsBudget(BaseModel):
     """声明的预算。有界推进的上限来自这里，不来自实现里的常量的隐式假设。"""
 
     max_interventions: int = Field(default=8, description="允许 agent 介入（resume）的次数上限")
-    max_path_samples: int = Field(default=1, description="路径初猜的采样次数上限（MTD 是随机的）")
+    path_refinement_runs: int = Field(
+        default=0,
+        description="路径精修的轮数上限（$path nrun）；**只是机时上限**，不是收敛判据。"
+                    "0 = 声明未给出，由 runner 的默认值决定；撞上限后可用 ts_resume 抬高重跑",
+    )
     max_compute_seconds: int = Field(
         default=0, description="提交计算的总机时上限（秒）；0 表示声明未给出"
     )
@@ -232,7 +236,11 @@ class TsAdjustment(BaseModel):
 
     reaction_center: Optional[list[tuple[int, int]]] = None
     atom_map: Optional[list[int]] = None
-    max_path_samples: Optional[int] = None
+    path_refinement_runs: Optional[int] = Field(
+        default=None, ge=1,
+        description="抬高路径精修的轮数上限后重跑 guess（GH #39：撞上限的路径是被截断的采样，"
+                    "不是收敛路径；抬高上限是让引擎自己跑到收敛判据）",
+    )
     max_interventions: Optional[int] = None
     budget_override_note: str = Field(default="", description="为什么调预算（记进干预事件）")
 
@@ -702,14 +710,19 @@ def _guess(record: TsProcessRecord) -> TsProcessRecord:
     reordered_path = os.path.join(out_dir, "product_reordered.xyz")
     atomic_write_text(reordered_path, product_xyz)
 
-    run = run_xtb_path(XtbPathRequest(
+    request = XtbPathRequest(
         reactant_xyz=reactant_xyz,
         product_xyz=product_xyz,
         output_dir=out_dir,
         charge=record.declaration.charge,
         multiplicity=record.declaration.multiplicity,
         run_label="guess",
-    ))
+    )
+    # 声明给了上限就用它（GH #39：撞上限的截断路径不是初猜，抬高上限重跑才是出路）；
+    # 0 = 未声明，交给 runner 默认值。
+    if record.declaration.budget.path_refinement_runs > 0:
+        request.refinement_runs = record.declaration.budget.path_refinement_runs
+    run = run_xtb_path(request)
     if run.termination_reason == "executable_missing":
         # 降级路线**必须**写在记录里：path_kind 是判断初猜可信度的唯一依据
         record.path_kind = "idpp_fallback"
@@ -730,8 +743,9 @@ def _guess(record: TsProcessRecord) -> TsProcessRecord:
                 f"the xTB path refinement hit its {run.refinement_runs}-cycle ceiling before the "
                 f"engine declared convergence, so the path's highest frame is a truncated sample "
                 f"and must not be used as a TS guess ({run.refinement_runs} is a compute ceiling, "
-                f"not a convergence criterion). Persistent run directory (truncated path kept for "
-                f"inspection): {run.run_dir}",
+                f"not a convergence criterion). Raise the ceiling via ts_resume with "
+                f"adjustment.path_refinement_runs and rerun. Persistent run directory "
+                f"(truncated path kept for inspection): {run.run_dir}",
                 atom_details=list(run.diagnostics),
                 needs=["budget"],
             )
@@ -1528,8 +1542,8 @@ _STAGE_FUNCS: dict[str, Callable[[TsProcessRecord], TsProcessRecord]] = {
 def advance(record: TsProcessRecord) -> TsProcessRecord:
     """从当前阶段沿顺序推进，直到阻塞、落终态，或撞上未接线的阶段。
 
-    **有界**：``max_path_samples`` 限制路径采样，``max_interventions`` 限制 agent 介入次数；
-    任一耗尽即落终态（``search_failed``），不无限续。
+    **有界**：``max_interventions`` 限制 agent 介入次数，耗尽即落终态（``search_failed``），
+    不无限续；路径精修的轮数上限由 ``path_refinement_runs`` 声明，未声明时用 runner 默认。
     """
     if record.is_terminal:
         return record
@@ -1593,8 +1607,8 @@ def resume(record: TsProcessRecord, adjustment: TsAdjustment,
         declaration.reaction_center = list(adjustment.reaction_center)
     if adjustment.atom_map is not None:
         declaration.atom_map = list(adjustment.atom_map)
-    if adjustment.max_path_samples is not None:
-        declaration.budget.max_path_samples = adjustment.max_path_samples
+    if adjustment.path_refinement_runs is not None:
+        declaration.budget.path_refinement_runs = adjustment.path_refinement_runs
     if adjustment.max_interventions is not None:
         declaration.budget.max_interventions = adjustment.max_interventions
     record.declaration = declaration
