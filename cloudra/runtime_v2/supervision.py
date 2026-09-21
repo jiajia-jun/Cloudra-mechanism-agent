@@ -354,7 +354,10 @@ _CALL_VERDICT_NEXT_ACTION = {
     "agree": "stage bound; continue with the remaining stages",
     "disagree": (
         "re-bind the stage with corrected evidence, or close it explicitly "
-        "(skip/not_applicable with a reason) — rejected is still an open gap"
+        "(skip/not_applicable with a reason) — rejected is still an open gap; "
+        "before re-binding, record a one-line attribution of the disagreement in "
+        "your next claim: numerical / initial-guess / model (solvent, protonation, "
+        "H-bond network, conformer) / mechanism"
     ),
     "skip": "stage closed as skipped; no further evidence owed",
     "not_applicable": "stage closed as not applicable; no further evidence owed",
@@ -577,6 +580,8 @@ async def flush_review_notifications(
                     not in {
                         AgentState.FAILED,
                         AgentState.CANCELLED,
+                        AgentState.WAITING_APPROVAL,
+                        AgentState.WAITING_INPUT,
                     }
                 ):
                     core.agent_host.wake(agent, runner=core.runner)

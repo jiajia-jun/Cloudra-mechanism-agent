@@ -287,6 +287,65 @@ def _all_entries(summary: CompactSummary) -> list[SummaryEntry]:
     ]
 
 
+def _exc_label(exc: BaseException) -> str:
+    """拒替换 stats 的错误标签：``str(exc)`` 为空（如裸 ``TimeoutError``）时
+    落到类型名——GH #48 实录 segment_failed error='' 把真实拒因完全藏住。"""
+    return str(exc) or type(exc).__name__
+
+
+def _strip_code_fence(text: str) -> str:
+    """剥掉模型常见的代码围栏：首行围栏（可带语言标签，如 json）必剥；
+    尾部找最后一个独立围栏行并连同其后散文截断（模型爱"围栏后再解释
+    两句"）。显式 token 扫描，无正则。"""
+    lines = text.splitlines()
+    if not lines or not lines[0].startswith("```"):
+        return text
+    body = lines[1:]
+    for idx in range(len(body) - 1, -1, -1):
+        if body[idx].strip() == "```":
+            body = body[:idx]
+            break
+    return "\n".join(body).strip()
+
+
+_ENTRY_LIST_FIELDS = (
+    "active_requests",
+    "corrections",
+    "constraints",
+    "pending",
+    "completed",
+    "failed_attempts",
+    "evidence",
+    "next_actions",
+)
+
+
+def _promote_summary_shapes(data: Any) -> Any:
+    """GH #48 实测（glm-5.3-flash）的三种首答畸形做**无损**形状提升：
+
+    - ``objective`` 写成单元素数组 → 取该元素；
+    - ``objective`` 写成裸字符串 → 包成 ``{"text": ...}``；
+    - 列表字段的条目写成裸字符串 → 包成 ``{"text": ...}``（sources 走默认）。
+
+    只提升形状、不补造内容——空 objective / 缺 text 仍 fail-loud 拒收；
+    "单个对象当列表"不做提升（既有重问一次的既定路径，别处测试钉死）。
+    """
+    if not isinstance(data, dict):
+        return data
+    objective = data.get("objective")
+    if isinstance(objective, list) and len(objective) == 1:
+        data["objective"] = objective[0]
+    if isinstance(data.get("objective"), str):
+        data["objective"] = {"text": data["objective"]}
+    for field in _ENTRY_LIST_FIELDS:
+        value = data.get(field)
+        if isinstance(value, list):
+            data[field] = [
+                ({"text": item} if isinstance(item, str) else item) for item in value
+            ]
+    return data
+
+
 def parse_compact_summary(raw: str, *, trajectory_len: int) -> CompactSummary:
     """json.loads + pydantic 校验 + 来源下标钳制。
 
@@ -295,19 +354,20 @@ def parse_compact_summary(raw: str, *, trajectory_len: int) -> CompactSummary:
     stats 透出到 compaction.finished）：在上千条消息的轨迹上要求模型精确引用
     位置下标本就不现实——实测（GH #40）一次 1606 条轨迹的摘要因越界 10 被整体
     拒收、压缩再也做不成。钳制 + 计数是可审计的记录，不是静默降级。
+    围栏剥离与 GH #48 的三种无损形状提升见 :func:`_strip_code_fence` /
+    :func:`_promote_summary_shapes`（thinking 模型重问一次动辄数分钟且可能
+    撞 summary_timeout，能无损吃下的形状不该烧掉唯一一次重试）。
     """
     text = (raw or "").strip()
     if not text:
         raise CompactSummaryError("empty summary output")
     if text.startswith("```"):
-        # 模型常见的代码围栏包裹：显式 token 扫描剥掉首尾围栏行。
-        lines = text.splitlines()
-        if len(lines) >= 2 and lines[0].startswith("```") and lines[-1].strip() == "```":
-            text = "\n".join(lines[1:-1]).strip()
+        text = _strip_code_fence(text)
     try:
         data = json.loads(text)
     except json.JSONDecodeError as exc:
         raise CompactSummaryError(f"summary is not valid JSON: {exc}") from exc
+    data = _promote_summary_shapes(data)
     try:
         summary = CompactSummary.model_validate(data)
     except ValidationError as exc:
@@ -625,7 +685,7 @@ async def compact_context(
                 "compacted": False,
                 "reason": "summary_invalid",
                 "failed_segment": seg_index,
-                "error": str(exc),
+                "error": _exc_label(exc),
             }
         except Exception as exc:
             return messages, {
@@ -633,7 +693,7 @@ async def compact_context(
                 "compacted": False,
                 "reason": "segment_failed",
                 "failed_segment": seg_index,
-                "error": str(exc),
+                "error": _exc_label(exc),
             }
         partials.append(partial)
         clamped_sources += partial.clamped_sources
@@ -661,14 +721,14 @@ async def compact_context(
             **base_stats,
             "compacted": False,
             "reason": "summary_invalid",
-            "error": str(exc),
+            "error": _exc_label(exc),
         }
     except Exception as exc:
         return messages, {
             **base_stats,
             "compacted": False,
             "reason": "merge_failed",
-            "error": str(exc),
+            "error": _exc_label(exc),
         }
     if summary is None:
         return messages, {

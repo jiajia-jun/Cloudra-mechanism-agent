@@ -182,7 +182,10 @@ def validate_ts_mode(
     imaginary_freqs: list[float] | None = None,
 ) -> TSValidationResult:
     """校验过渡态是否具有恰好 1 个虚频，并匹配反应坐标描述。"""
-    if freqs is None and imaginary_freqs is None:
+    has_freq_data = (freqs is not None and len(freqs) > 0) or (
+        imaginary_freqs is not None and len(imaginary_freqs) > 0
+    )
+    if not has_freq_data:
         return TSValidationResult(
             is_valid=False,
             verified=False,
@@ -209,7 +212,7 @@ def validate_ts_mode(
             verified=True,
             n_imag=1,
             imaginary_frequencies=imag,
-            mode_matched=True,
+            mode_matched=False,
             message=msg,
         )
     elif n_imag == 0:
@@ -237,10 +240,13 @@ def validate_species_minimum(
     imaginary_freqs: list[float] | None = None,
 ) -> SpeciesValidationResult:
     """校验稳定中间体/物种是否为驻点极小值（0 个虚频）。"""
-    if freqs is None and imaginary_freqs is None:
-        # 三分量：verified-minimum / verified-not-minimum / unverified（无数据）。
-        # 单个 bool 承载不了第三态，曾导致"没做频率分析"被判成 is_valid=True，
-        # 于是 opt-only（甚至中途崩溃）的作业被当成已验证的驻点极小值登记进图。
+    # 三分量：verified-minimum / verified-not-minimum / unverified（无数据）。
+    # 驻点极小值必须有非空的频率数据支撑（len > 0）；
+    # 若无实频且无虚频数据，或实频为空且无有效虚频，一律判定为 UNVERIFIED，绝不当成 0 虚频极小值。
+    has_freq_data = (freqs is not None and len(freqs) > 0) or (
+        imaginary_freqs is not None and len(imaginary_freqs) > 0
+    )
+    if not has_freq_data:
         return SpeciesValidationResult(
             is_valid=False,
             verified=False,

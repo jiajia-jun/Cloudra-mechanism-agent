@@ -1,7 +1,9 @@
 """过渡态初猜工作流工具：插值路径生成 / 约束扫描输入生成 / 扫描日志解析 / TS 候选检查。
 
 工具自身不执行任何量化计算：坐标与输入文件一律落盘，上下文只回数值表、判定与路径。
-正则解析全部封装在本模块内部，agent 无需啃日志格式。
+引擎输出解析的正则封装在本模块与 cloudra/tools/core/*_frames 共享层
+（gaussian_frames 的 FREQ_LINE_RE / vibdisps_from_text / std_orientation_frames），
+agent 无需啃日志格式。
 
 默认 verify 只给 agent 提供方向建议；strict verify 只证明部分 IRC 的行进方向与两侧优化
 中间体一致，不宣称一个 TS 因此“绝对正确”。strict 的监测对与原子对应实现唯一，
@@ -27,7 +29,7 @@ from cloudra.tools.Chemtool.internal_coordinates import (
     _angle_deg,
     _dihedral_deg,
 )
-from cloudra.tools.core import orca_frames
+from cloudra.tools.core import gaussian_frames, orca_frames
 from cloudra.tools.core.irc_path import (
     COVALENT_RADII as _COVALENT_RADII,
 )
@@ -500,37 +502,6 @@ def _parse_gaussian_scan_summary(text: str) -> list[float]:
     return energies
 
 
-def _parse_std_orientation_blocks(text: str) -> list[list[tuple[int, float, float, float]]]:
-    """解析所有 "Standard orientation:" 坐标块，返回 [(atomno, x, y, z), ...] 列表的列表。"""
-    blocks = []
-    lines = text.splitlines()
-    i = 0
-    while i < len(lines):
-        if "Standard orientation:" in lines[i]:
-            j = i + 1
-            dash = 0
-            rows: list[tuple[int, float, float, float]] = []
-            while j < len(lines):
-                s = lines[j].strip()
-                if s and set(s) == {"-"}:
-                    dash += 1
-                    j += 1
-                    if dash == 3:
-                        break
-                    continue
-                if dash == 2:
-                    parts = s.split()
-                    if len(parts) >= 6:
-                        rows.append((int(parts[1]), float(parts[3]), float(parts[4]), float(parts[5])))
-                j += 1
-            if rows:
-                blocks.append(rows)
-            i = j
-        else:
-            i += 1
-    return blocks
-
-
 # 复用 orca_frames 的同一正则（容忍 "(From external program)" 后缀与 D 指数），
 # 避免两处对同一日志行的解析规则漂移（GH #23）。
 _ORCA_SPE_RE = orca_frames.FINAL_ENERGY_RE
@@ -714,76 +685,11 @@ def _parse_orca_relaxed_scan_sidecar(log_path: str) -> Optional[dict]:
 
 # ---------------------------------------------------------------------------
 # verify：频率解析（cclib 优先，正则回退）+ IRC 端点
+#
+# Gaussian 频率/位移块正则与 Standard orientation 解析归位共享层
+# cloudra.tools.core.gaussian_frames（FREQ_LINE_RE / vibdisps_from_text /
+# std_orientation_frames），本模块不再保留重复实现。
 # ---------------------------------------------------------------------------
-
-_FREQ_LINE_RE = re.compile(r"Frequencies --\s+(.*)")
-_ATOM_DISP_HEADER_RE = re.compile(r"^\s*Atom\s+AN\s+X\s+Y\s+Z", re.MULTILINE)
-
-
-def _parse_gaussian_vibdisps(text: str, n_freqs: int) -> Optional[Any]:
-    """从 Gaussian 频率块解析简正模式位移，返回 shape (n_modes, n_atoms, 3) 或 None。"""
-    import numpy as np
-
-    freq_matches = list(_FREQ_LINE_RE.finditer(text))
-    if not freq_matches or n_freqs <= 0:
-        return None
-
-    # 按 Frequencies 行分块；每块最多 3 个模式，后接 Atom AN 位移表。
-    mode_chunks: list[list[list[list[float]]]] = []
-    for idx, match in enumerate(freq_matches):
-        block_freqs = []
-        for tok in match.group(1).split():
-            try:
-                block_freqs.append(float(tok))
-            except ValueError:
-                break
-        if not block_freqs:
-            continue
-        start = match.end()
-        end = freq_matches[idx + 1].start() if idx + 1 < len(freq_matches) else len(text)
-        block = text[start:end]
-        header = _ATOM_DISP_HEADER_RE.search(block)
-        if header is None:
-            return None
-        rows: list[list[list[float]]] = []
-        for line in block[header.end():].splitlines():
-            stripped = line.strip()
-            if not stripped:
-                if rows:
-                    break
-                continue
-            parts = stripped.split()
-            if len(parts) < 2 + 3 * len(block_freqs):
-                if rows:
-                    break
-                continue
-            try:
-                coords = [float(x) for x in parts[2:2 + 3 * len(block_freqs)]]
-            except ValueError:
-                if rows:
-                    break
-                continue
-            atom_modes = [
-                coords[3 * m: 3 * m + 3] for m in range(len(block_freqs))
-            ]
-            rows.append(atom_modes)
-        if not rows:
-            return None
-        # rows: natoms × nmodes_in_block × 3  → 转成 per-mode
-        per_mode = []
-        for m in range(len(block_freqs)):
-            per_mode.append([rows[a][m] for a in range(len(rows))])
-        mode_chunks.append(per_mode)
-
-    flat_modes: list[list[list[float]]] = []
-    for chunk in mode_chunks:
-        flat_modes.extend(chunk)
-    if len(flat_modes) < n_freqs:
-        return None
-    arr = np.asarray(flat_modes[:n_freqs], dtype=float)
-    if arr.ndim != 3 or arr.shape[2] != 3:
-        return None
-    return arr
 
 
 def _assess_imag_mode_alignment(
@@ -996,7 +902,7 @@ def _parse_freq_log(log_path: str, engine: str) -> dict:
         else:
             # 正则回退：Gaussian "Frequencies --" 行（虚频以负值打印）
             freqs: list[float] = []
-            for m in _FREQ_LINE_RE.finditer(text):
+            for m in gaussian_frames.FREQ_LINE_RE.finditer(text):
                 for tok in m.group(1).split():
                     try:
                         freqs.append(float(tok))
@@ -1009,7 +915,7 @@ def _parse_freq_log(log_path: str, engine: str) -> dict:
         raise ValueError(f"Failed to parse vibrational frequencies from the frequency log: {log_path}")
 
     if vibdisps is None and engine == "gaussian":
-        vibdisps = _parse_gaussian_vibdisps(text, len(vibfreqs))
+        vibdisps = gaussian_frames.vibdisps_from_text(text, len(vibfreqs))
     elif vibdisps is None and engine == "orca":
         # ORCA 6.1 日志 cclib 整体崩溃（vibdisps 拿不到）→ 文本权威 NORMAL MODES
         # 位移块回退（GH #G2）。ORCA 版式：模式号表头 + 3N 行笛卡尔分量。
@@ -1029,7 +935,7 @@ def _parse_freq_log(log_path: str, engine: str) -> dict:
             converged = ("Normal termination" in text) and ("Error termination" not in text)
 
     if positions is None and engine == "gaussian":
-        blocks = _parse_std_orientation_blocks(text)
+        blocks = gaussian_frames.std_orientation_frames(text)
         if blocks:
             import numpy as np
             from cclib.parser.utils import PeriodicTable
@@ -1566,7 +1472,7 @@ class TsGuess(Tool):
                 notes.append(f"cclib geometry extraction failed ({e}); falling back to Standard orientation parsing.")
 
             if ts_coords is None and 0 < ts_index < n_pts - 1:
-                blocks = _parse_std_orientation_blocks(text)
+                blocks = gaussian_frames.std_orientation_frames(text)
                 if len(blocks) == n_pts:
                     # 块数与扫描点一一对应（每点恰一块）：峰值帧几何可靠可取
                     rows = blocks[ts_index]

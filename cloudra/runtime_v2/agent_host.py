@@ -325,6 +325,33 @@ class AgentHost:
             )
             apply_event(self.core, envelope)
 
+    async def _execute_drafts_durable(
+        self, drafts: list[EventDraft] | tuple[EventDraft, ...]
+    ) -> None:
+        """persist-then-apply：落库成功才投影，避免崩溃窗口内存超前。"""
+        from cloudra.runtime_v2.event_writer import EventPersistenceError
+
+        keep = len(self.event_log)
+        envelopes = []
+        for draft in drafts:
+            envelopes.append(
+                self.event_log.append(
+                    draft.type,
+                    stream=draft.stream,
+                    project_id=draft.project_id,
+                    session_id=draft.session_id,
+                    run_id=draft.run_id,
+                    data=draft.data,
+                )
+            )
+        try:
+            await self.core.event_writer.flush()
+        except EventPersistenceError:
+            self.core.event_writer.discard_unpersisted(keep=keep)
+            raise
+        for envelope in envelopes:
+            apply_event(self.core, envelope)
+
     def transition(
         self,
         agent: AgentSession,
@@ -338,6 +365,11 @@ class AgentHost:
     def start_run(self, agent: AgentSession) -> str:
         run_id, drafts = plan_start_run(agent)
         self._execute_drafts(drafts)
+        return run_id
+
+    async def start_run_durable(self, agent: AgentSession) -> str:
+        run_id, drafts = plan_start_run(agent)
+        await self._execute_drafts_durable(drafts)
         return run_id
 
     def finish_run(self, agent: AgentSession, *, outcome: str, error: str | None = None) -> None:
@@ -355,6 +387,26 @@ class AgentHost:
             data={"outcome": outcome, "error": error},
         )
         apply_event(self.core, envelope)
+
+    async def finish_run_durable(
+        self, agent: AgentSession, *, outcome: str, error: str | None = None
+    ) -> None:
+        run_id = agent.current_run.run_id if agent.current_run else None
+        if run_id is None:
+            return
+        target = AgentState.SUCCEEDED if outcome == "succeeded" else AgentState.FAILED
+        drafts = [plan_transition(agent, target, reason=outcome, run_id=run_id)]
+        drafts.append(
+            EventDraft(
+                "run.finished",
+                stream="agent",
+                project_id=agent.project_id,
+                session_id=agent.id,
+                run_id=run_id,
+                data={"outcome": outcome, "error": error},
+            )
+        )
+        await self._execute_drafts_durable(drafts)
 
     def resume(self, agent: AgentSession) -> str:
         """Resume the existing run after an external wakeup (message/response)."""

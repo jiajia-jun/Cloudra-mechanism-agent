@@ -14,10 +14,14 @@ never runs on the event-loop thread.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import sqlite3
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, Iterator
+
+if TYPE_CHECKING:
+    from cloudra.runtime_v2.core import RuntimeCore
 
 from cloudra.runtime_v2.apply import (
     _strip_computed_fields,
@@ -196,11 +200,16 @@ class RuntimeStore:
         self.path = str(path)
         self._init()
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextlib.contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
         con = sqlite3.connect(self.path, timeout=30.0)
-        con.execute("PRAGMA busy_timeout=30000;")
-        con.execute("PRAGMA synchronous=NORMAL;")
-        return con
+        try:
+            con.execute("PRAGMA busy_timeout=30000;")
+            con.execute("PRAGMA synchronous=NORMAL;")
+            with con:
+                yield con
+        finally:
+            con.close()
 
     def _init(self) -> None:
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
@@ -244,26 +253,39 @@ class RuntimeStore:
         roles: dict[str, RoleProfile],
         runtime_defaults: RuntimeSettings,
         session_contexts: dict[str, SessionContext] | None = None,
+        pending_compactions: set[str] | None = None,
         last_seqs: dict[str, int],
     ) -> None:
-        payload = _strip_computed_fields(
-            {
-                "projects": {k: v.model_dump(mode="json") for k, v in projects.items()},
-                "agents": {k: v.model_dump(mode="json") for k, v in agents.items()},
-                "roles": {k: v.model_dump(mode="json") for k, v in roles.items()},
-                "runtime_defaults": runtime_defaults.model_dump(mode="json"),
-                # 会话级 LLM 上下文投影（Task 4）：快照是缓存，权威是 events
-                # 表——快照点之前的 context.* 事件不参与增量重放，必须随快照
-                # 落地，否则重启后投影丢失。
-                "session_contexts": {
-                    k: v.model_dump(mode="json") for k, v in (session_contexts or {}).items()
-                },
-            }
-        )
+        payload = {
+            "projects": {k: v.model_dump(mode="json") for k, v in projects.items()},
+            "agents": {k: v.model_dump(mode="json") for k, v in agents.items()},
+            "roles": {k: v.model_dump(mode="json") for k, v in roles.items()},
+            "runtime_defaults": runtime_defaults.model_dump(mode="json"),
+            # 会话级 LLM 上下文投影（Task 4）：快照是缓存，权威是 events
+            # 表——快照点之前的 context.* 事件不参与增量重放，必须随快照
+            # 落地，否则重启后投影丢失。
+            "session_contexts": {
+                k: v.model_dump(mode="json") for k, v in (session_contexts or {}).items()
+            },
+            # pending_compactions 是 compaction.requested 的事件投影；
+            # 快照水位越过该事件后增量重放看不到它，必须随快照落地。
+            "pending_compactions": sorted(pending_compactions or ()),
+        }
+        self.write_snapshot_payload(payload, last_seqs)
+
+    def write_snapshot_payload(
+        self, payload: dict[str, Any], last_seqs: dict[str, int]
+    ) -> None:
+        """Persist an already-frozen snapshot blob.
+
+        Callers that hold live core dicts must ``model_dump`` on the event
+        loop first — this method may run in a worker thread.
+        """
+        frozen = _strip_computed_fields(payload)
         with self._connect() as con:
             con.execute(
                 "INSERT OR REPLACE INTO objects(kind, obj_id, data) VALUES ('snapshot', 'state', ?)",
-                (json.dumps(payload, ensure_ascii=False),),
+                (json.dumps(frozen, ensure_ascii=False),),
             )
             con.execute(
                 "INSERT OR REPLACE INTO meta(key, value) VALUES ('last_seqs', ?)",
@@ -385,6 +407,11 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
             sid: SessionContext.model_validate(data)
             for sid, data in snapshot.get("session_contexts", {}).items()
         }
+        core.pending_compactions = {
+            str(session_id)
+            for session_id in snapshot.get("pending_compactions") or []
+            if session_id
+        }
         for agent in core.agents.values():
             core.mailbox.ensure_inbox(agent.id)
 
@@ -405,6 +432,7 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
     # projection (未消费的 push 变更同样恢复；已消费的由游标挡回——见
     # notices.restore_from 的批次/游标语义）。
     core.notices.restore_from(core.event_log)
+    _rebuild_inboxes_from_events(core)
 
     # Unfinished tool/program lifecycles left by the dead process close as
     # interrupted (children before programs) — facts only, never a replay of
@@ -476,6 +504,55 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
             roles=core.roles._roles,
             runtime_defaults=core.runtime_defaults,
             session_contexts=core.session_contexts,
+            pending_compactions=core.pending_compactions,
             last_seqs=core.event_log.high_watermarks,
         )
     return core.event_log.high_watermarks
+
+
+def _rebuild_inboxes_from_events(core: RuntimeCore) -> None:
+    """从已持久化但尚未进入 session_contexts 的 agent.message_injected 重建信箱。
+
+    解决二次崩溃/休眠 agent 丢信问题：给休眠父的子完成通知、提醒唤醒、未读用户消息，
+    只要尚未进入 LLM 上下文投影（按 message_id 判重），重启后重新入队 inbox。
+    """
+    from cloudra.runtime_v2.mailbox import Mailbox
+    from cloudra.runtime_v2.schemas import AgentState
+
+    known_by_session: dict[str, set[str]] = {}
+    for sid, ctx in core.session_contexts.items():
+        known_by_session[sid] = {
+            str(m.get("message_id"))
+            for m in ctx.messages
+            if m.get("role") == "user" and m.get("message_id")
+        }
+
+    seen_enqueued: dict[str, set[str]] = {}
+    for envelope in core.event_log:
+        if envelope.type != "agent.message_injected":
+            continue
+        session_id = envelope.session_id
+        if not session_id or session_id not in core.agents:
+            continue
+        agent = core.agents[session_id]
+        if agent.state is AgentState.CANCELLED:
+            continue
+        data = envelope.data or {}
+        msg_id = str(data.get("message_id") or "")
+        if not msg_id:
+            continue
+        known = known_by_session.get(session_id, set())
+        if msg_id in known:
+            continue
+        enqueued = seen_enqueued.setdefault(session_id, set())
+        if msg_id in enqueued:
+            continue
+        enqueued.add(msg_id)
+        payload = Mailbox.message_payload(
+            message_id=msg_id,
+            sender=str(data.get("sender") or ""),
+            content=str(data.get("content") or ""),
+            images=data.get("images"),
+        )
+        core.mailbox.ensure_inbox(session_id).put_nowait(payload)
+

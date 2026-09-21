@@ -126,7 +126,7 @@ class ReminderBroker:
     ) -> list[dict[str, Any]]:
         live: dict[int, dict[str, Any]] = {}
         for env in self.core.event_log.query_project(
-            project_id, types=_REMINDER_TYPES, limit=10_000
+            project_id, types=_REMINDER_TYPES, limit=None
         ):
             if env.type == "reminder.scheduled":
                 if session_id is not None and env.session_id != session_id:
@@ -170,6 +170,7 @@ class ReminderBroker:
             run_id=run_id,
             data=data,
         )
+        await self.core.event_writer.flush()
         await self.core.event_hub.publish(envelope)
         return envelope
 

@@ -91,6 +91,7 @@ class EventWriter:
 
     async def commit(self, draft: EventDraft) -> EventEnvelope:
         """Append one draft to the log and durably flush; returns the envelope."""
+        before_append = len(self._log)
         envelope = self._log.append(
             draft.type,
             stream=draft.stream,
@@ -99,8 +100,33 @@ class EventWriter:
             run_id=draft.run_id,
             data=draft.data,
         )
-        await self.flush()
+        try:
+            await self.flush()
+        except EventPersistenceError:
+            self.discard_unpersisted(keep=before_append)
+            raise
         return envelope
+
+    def discard_unpersisted(self, keep: int | None = None) -> None:
+        """Drop log events that never made it to the store.
+
+        Persist-before-apply paths call this on ``EventPersistenceError`` so a
+        later flush cannot durably write events that were never applied.
+        If ``keep`` is provided, drop only events appended after ``keep``.
+        """
+        target = self._persisted if keep is None else max(self._persisted, keep)
+        self._log.discard_tail(target)
+        if self._published > target:
+            self._published = target
+
+    def persisted_watermarks(self) -> dict[str, int]:
+        """Per-project seq high-water of events the writer has durably stored.
+
+        Snapshot ``last_seqs`` must use this, not live ``EventLog.high_watermarks``:
+        a concurrent append can raise the live marks before the new event is
+        persisted, and restore would then skip it via ``events_after``.
+        """
+        return self._log.watermarks_for_prefix(self._persisted)
 
     def mark_restored(self) -> None:
         """Treat the current log as already persisted/published (post-backfill).

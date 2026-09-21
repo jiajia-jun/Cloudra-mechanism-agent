@@ -13,7 +13,6 @@ from cloudra.persistence.database import ComputeDB
 from cloudra.persistence.workspace import resolve_tool_path
 from cloudra.services.compute_admission import admit_job, declared_memory_mb
 from cloudra.services.compute_store import afinalize_compute_job, ainsert_compute_job
-from cloudra.tools.core.delegation_guard import coordinator_self_compute_warning
 
 description = (
     "Submit a compute job: take a prepared input-file path, insert a record in compute_jobs, "
@@ -135,17 +134,6 @@ class SubmitComputeJob(Tool):
     def is_write(self) -> bool:
         return True
 
-    def _with_delegation_hint(
-        self, out: SubmitComputeJob_output_schema
-    ) -> SubmitComputeJob_output_schema:
-        """Coordinator 自行提交时附轻量提示；照常放行。"""
-        if not out.is_success:
-            return out
-        warning = coordinator_self_compute_warning(self.subagent)
-        if warning:
-            out.message = f"{warning}\n\n{out.message}" if out.message else warning
-        return out
-
     async def tool_call(self, user_input: SubmitComputeJob_input_schema, session: Session) -> SubmitComputeJob_output_schema:
         # 兼容测试或旧调用中 session 为 None 的情况。
         session_id = getattr(session, "id", None) if session else None
@@ -155,7 +143,15 @@ class SubmitComputeJob(Tool):
         # services/compute_admission；TS 搜索 SOP 的 submit 阶段复用同一份，
         # 否则同一份作业会在两条入口下得出不同准入结论。
         f_path = resolve_tool_path(self, user_input.input_file)
-        conv_id = getattr(self.subagent, 'conversation_id', None) or 'default'
+        conv_id = getattr(self.subagent, 'conversation_id', None)
+        if not conv_id:
+            return SubmitComputeJob_output_schema(
+                is_success=False,
+                message=(
+                    "submit_compute_job requires conversation_id on the agent; "
+                    "refusing to attribute the job to 'default'."
+                ),
+            )
 
         # 未显式申请内存时按输入文件自述（%mem/%maxcore）派生申请值——省略申请不再
         # 等于脱账，超容量声明会被 admit_job 的容量硬校验拒收。
@@ -204,8 +200,7 @@ class SubmitComputeJob(Tool):
                     xtb_solvent=user_input.solvent,
                 )
                 # 调度守护进程轮询 DB 认领 ready 作业，无需事件通知
-                return self._with_delegation_hint(
-                    SubmitComputeJob_output_schema(
+                return SubmitComputeJob_output_schema(
                         is_success=True,
                         job_id=job_id,
                         job_dir=workdir,
@@ -216,7 +211,6 @@ class SubmitComputeJob(Tool):
                             "Do not poll for status — the terminal state is pushed to you automatically."
                         ),
                     )
-                )
 
             except Exception as e:
                 return SubmitComputeJob_output_schema(
@@ -250,14 +244,12 @@ class SubmitComputeJob(Tool):
                 )
                 # 任务提交是昂贵的，必须在数据库留痕才允许进行。
                 state = await self.run_now(job_id, db.path, f_path, user_input.job_type, conv_id)
-                return self._with_delegation_hint(
-                    SubmitComputeJob_output_schema(
-                        is_success=True,
-                        job_id=job_id,
-                        job_dir=workdir,
-                        state=state,
-                        message=f"Job finished, final state: {state}",
-                    )
+                return SubmitComputeJob_output_schema(
+                    is_success=True,
+                    job_id=job_id,
+                    job_dir=workdir,
+                    state=state,
+                    message=f"Job finished, final state: {state}",
                 )
 
             except Exception as e:

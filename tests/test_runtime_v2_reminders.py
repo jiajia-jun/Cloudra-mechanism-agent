@@ -334,3 +334,25 @@ async def test_check_command_requires_approval_when_not_yolo(monkeypatch):
     assert created.is_success is True
     assert any(e.type == "reminder.scheduled" for e in core.event_log)
     await core.reminders.close()
+
+
+@pytest.mark.asyncio
+async def test_reminder_does_not_reopen_cancelled_agent():
+    """system 投递的 reminder 不得把已取消 agent 从 CANCELLED 拉回 QUEUED。"""
+    from cloudra.runtime_v2.schemas import AgentState
+
+    core = RuntimeCore(strict_events=True)
+    _project, agent = await _spawn_ready(core)
+    executor = LegacyToolExecutor(core)
+    created = await executor.execute(
+        agent,
+        _schedule_call("create", message="late ping", delay_seconds=0.05),
+    )
+    assert created.is_success is True
+    await CommandBus(core).execute(
+        Command(type="agent.cancel", target={"session_id": agent.id}, payload={})
+    )
+    assert agent.state is AgentState.CANCELLED
+    await asyncio.sleep(0.25)
+    assert agent.state is AgentState.CANCELLED
+    await core.reminders.close()

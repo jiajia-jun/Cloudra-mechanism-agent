@@ -76,6 +76,47 @@ async def test_snapshot_and_event_durability_roundtrip(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_snapshot_watermarks_exclude_unpersisted_tail(tmp_path):
+    """快照水位必须是已落盘前缀。并发 append 抬高 live high_watermarks
+    之后，若快照仍按 live 水位切开，重启会跳过后来才落库的事件。"""
+    store = RuntimeStore(tmp_path / "runtime.db")
+    core = RuntimeCore(strict_events=True)
+    core.store = store
+    bus = CommandBus(core)
+    await bus.execute(Command(type="project.create", payload={"name": "snap"}))
+    project = next(iter(core.projects.values()))
+    await bus.flush_snapshot()
+    persisted = dict(core.event_writer.persisted_watermarks())
+
+    tail = core.event_log.append(
+        "agent.warning",
+        stream="agent",
+        project_id=project.id,
+        data={"message": "unpersisted tail"},
+    )
+    assert core.event_log.high_watermarks[project.id] == tail.seq
+    assert core.event_writer.persisted_watermarks() == persisted
+
+    original_flush = core.event_writer.flush
+
+    async def _flush_without_tail() -> None:
+        return None
+
+    core.event_writer.flush = _flush_without_tail  # type: ignore[method-assign]
+    await bus.flush_snapshot()
+    core.event_writer.flush = original_flush
+
+    _, last_seqs = store.load_snapshot()
+    assert last_seqs == persisted
+    assert last_seqs[project.id] < tail.seq
+
+    await original_flush()
+    core2 = RuntimeCore(strict_events=True)
+    restore_core(core2, store)
+    assert any(envelope.type == "agent.warning" for envelope in core2.event_log)
+
+
+@pytest.mark.asyncio
 async def test_restored_session_context_is_reused_byte_identical(tmp_path):
     """Task 4 恢复契约：会话上下文投影随快照/事件持久化；重启恢复后
     （running/waiting 仍按既有规则落 failed，本用例 agent 是 succeeded），
@@ -578,14 +619,14 @@ async def test_snapshot_is_throttled_cache_not_per_command(tmp_path, monkeypatch
     bus = CommandBus(core)
 
     saves = 0
-    original_save = store.save_snapshot
+    original_write = store.write_snapshot_payload
 
-    def counting_save(**kwargs):
+    def counting_write(payload, last_seqs):
         nonlocal saves
         saves += 1
-        return original_save(**kwargs)
+        return original_write(payload, last_seqs)
 
-    monkeypatch.setattr(store, "save_snapshot", counting_save)
+    monkeypatch.setattr(store, "write_snapshot_payload", counting_write)
 
     await bus.execute(Command(type="project.create", payload={"name": "throttle"}))
     project = next(iter(core.projects.values()))
@@ -1053,3 +1094,64 @@ async def test_reconcile_after_restore_only_schedules_notification_events(tmp_pa
         for e in list(core2.event_log)[events_before:]
         if e.type.startswith(("tool.", "llm.")) or e.type in {"run.started", "agent.state_changed"}
     ]
+
+
+def test_store_connect_closes_connection_without_fd_leak(tmp_path):
+    """RuntimeStore._connect 必须在 with 块退出后显式关闭连接，
+    不能依赖 GC，避免长期运行中持续泄漏文件描述符导致 Too many open files (Errno 24)。"""
+    store = RuntimeStore(tmp_path / "runtime.db")
+    # 连续调用 300 次（超越 macOS 默认软限制 256）
+    for _ in range(300):
+        with store._connect() as con:
+            row = con.execute("SELECT 1").fetchone()
+            assert row[0] == 1
+
+
+@pytest.mark.asyncio
+async def test_double_restart_preserves_unconsumed_inbox_messages(tmp_path):
+    """跨多次重启信箱恢复：未进入上下文投影的 agent.message_injected 在多次崩溃后依然驻留信箱。"""
+    store = RuntimeStore(tmp_path / "runtime.db")
+    core1 = RuntimeCore(strict_events=True)
+    core1.store = store
+    bus1 = CommandBus(core1)
+    project = (
+        await bus1.execute(
+            Command(type="project.create", payload={"name": "multi-crash"})
+        )
+    ).data
+    agent = (
+        await bus1.execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": project.id},
+                payload={"role_id": "coordinator"},
+            )
+        )
+    ).data
+
+    # 注入一条消息（但未消费进 context）
+    await bus1.execute(
+        Command(
+            type="agent.message",
+            target={"session_id": agent.id},
+            payload={"content": "hello across crash 1 and 2"},
+        )
+    )
+
+    # 第一次重启
+    core2 = RuntimeCore(strict_events=True)
+    core2.store = store
+    restore_core(core2, store)
+    inbox2 = core2.mailbox.inbox(agent.id)
+    assert inbox2 is not None and inbox2.qsize() == 1
+
+    # 第二次重启（未唤醒消费的前提下再次重启）
+    core3 = RuntimeCore(strict_events=True)
+    core3.store = store
+    restore_core(core3, store)
+    inbox3 = core3.mailbox.inbox(agent.id)
+    assert inbox3 is not None and inbox3.qsize() == 1
+    msg = inbox3.get_nowait()
+    assert msg["content"] == "hello across crash 1 and 2"
+
+

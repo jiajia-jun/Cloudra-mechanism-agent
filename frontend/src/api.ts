@@ -13,12 +13,15 @@ import type {
   ProviderPreset,
   RuntimeConfig,
 } from './types';
+import { trustedRuntimeBase } from './runtimeUrl';
 
-// Resolution order: ?runtime= query param -> Vite env -> same origin
-// (production serves the SPA and API on one port).
-const runtimeUrl: string =
-  new URLSearchParams(window.location.search).get('runtime') ??
-  (import.meta.env.VITE_RUNTIME_URL ?? '');
+// Resolution order: trusted ?runtime= (loopback / same-origin only) ->
+// Vite env -> same origin (production serves the SPA and API on one port).
+const runtimeUrl: string = trustedRuntimeBase(
+  new URLSearchParams(window.location.search).get('runtime'),
+  window.location.origin,
+  import.meta.env.VITE_RUNTIME_URL ?? '',
+);
 
 // ---- bearer token ----
 // The launcher hands the token over via the URL fragment (#token=...): a
@@ -87,6 +90,14 @@ interface CommandResponse<T> {
   accepted: boolean;
   event_id: string;
   data: T;
+}
+
+function assertAccepted<T>(resp: CommandResponse<T>, fallback: string): CommandResponse<T> {
+  if (resp.accepted === false) {
+    const err = (resp.data as { error?: { message?: string } } | null)?.error;
+    throw new ApiError('rejected', err?.message ?? fallback);
+  }
+  return resp;
 }
 
 // Bounded timeline window, shared by the history fetch and the live SSE
@@ -162,14 +173,17 @@ export const api = {
   computeNodes: () => request<ComputeNode[]>('/api/v2/compute/nodes'),
   listPendingReminders: (projectId: string) =>
     request<PendingReminder[]>(`/api/v2/projects/${projectId}/reminders/pending`),
-  spawnAgent: (
+  spawnAgent: async (
     projectId: string,
     body: { role_id: string; query?: string; parent_session_id?: string | null; settings?: Record<string, unknown> },
   ) =>
-    request<CommandResponse<Agent>>(`/api/v2/projects/${projectId}/agents`, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    }),
+    assertAccepted(
+      await request<CommandResponse<Agent>>(`/api/v2/projects/${projectId}/agents`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+      'Spawn rejected',
+    ),
   getAgent: (agentId: string) => request<Agent>(`/api/v2/agents/${agentId}`),
   events: (agentId: string, limit = EVENTS_WINDOW, types?: string) =>
     request<EventEnvelope[]>(
@@ -186,15 +200,18 @@ export const api = {
     const q = `after=0&limit=${limit}&tail=true${before != null ? `&before=${before}` : ''}`;
     return request<EventEnvelope[]>(`/api/v2/agents/${agentId}/events?${q}`);
   },
-  sendMessage: (agentId: string, content: string, images?: string[], imageArtifactIds?: (string | null)[]) =>
-    request<CommandResponse<Agent>>(`/api/v2/agents/${agentId}/messages`, {
-      method: 'POST',
-      body: JSON.stringify(
-        images && images.length > 0
-          ? { content, images, image_artifact_ids: imageArtifactIds ?? [] }
-          : { content },
-      ),
-    }),
+  sendMessage: async (agentId: string, content: string, images?: string[], imageArtifactIds?: (string | null)[]) =>
+    assertAccepted(
+      await request<CommandResponse<Agent>>(`/api/v2/agents/${agentId}/messages`, {
+        method: 'POST',
+        body: JSON.stringify(
+          images && images.length > 0
+            ? { content, images, image_artifact_ids: imageArtifactIds ?? [] }
+            : { content },
+        ),
+      }),
+      'Message rejected',
+    ),
   uploadFile: (projectId: string, file: File) => {
     const form = new FormData();
     form.append('file', file);
@@ -205,11 +222,14 @@ export const api = {
       headers: {},
     });
   },
-  cancel: (agentId: string, message?: string) =>
-    request<CommandResponse<Agent>>(`/api/v2/agents/${agentId}/cancel`, {
-      method: 'POST',
-      body: JSON.stringify({ message }),
-    }),
+  cancel: async (agentId: string, message?: string) =>
+    assertAccepted(
+      await request<CommandResponse<Agent>>(`/api/v2/agents/${agentId}/cancel`, {
+        method: 'POST',
+        body: JSON.stringify({ message }),
+      }),
+      'Cancel rejected',
+    ),
   patchSettings: (agentId: string, patch: Record<string, unknown>) =>
     request<CommandResponse<Agent>>(`/api/v2/agents/${agentId}/settings`, {
       method: 'PATCH',
@@ -477,24 +497,31 @@ export interface BenchmarkHistory {
 // only fires for unnamed events — listeners must be registered per type.
 const KNOWN_EVENT_TYPES = [
   'project.created', 'project.updated', 'project.settings_changed',
+  'project.deleted',
   'role.updated',
   'agent.spawn_requested', 'agent.spawned', 'agent.spawn_rejected',
   'agent.settings_changed', 'agent.message_injected', 'agent.message_emitted',
   'agent.cancel_requested', 'agent.cancelled',
   'agent.restart_requested', 'agent.restarted', 'agent.context_reset',
-  'approval.requested', 'approval.decided',
-  'interaction.requested', 'interaction.responded', 'command.rejected',
+  'approval.requested', 'approval.decided', 'approval.expired',
+  'interaction.requested', 'interaction.responded', 'interaction.expired',
+  'command.rejected',
   'agent.state_changed', 'run.started', 'run.retry', 'run.finished',
+  'agent.completion_gate',
   'llm.request_started', 'llm.chunk', 'llm.completed', 'llm.failed',
   'agent.thinking',
-  'tool.started', 'tool.blocked', 'tool.finished', 'tool.approval_requested',
+  'tool.requested', 'tool.started', 'tool.result_recorded', 'tool.blocked',
+  'tool.finished', 'tool.approval_requested',
+  'program.submitted', 'program.started', 'program.output', 'program.finished',
   'dag.gate_blocked',
-  'hub.posted',
+  'hub.posted', 'hub.notification_consumed',
   'compaction.requested', 'compaction.started', 'compaction.finished',
   'reminder.scheduled', 'reminder.cancelled', 'reminder.fired',
   'email.received',
   'loop.detected',
   'agent.warning', 'project.synced',
+  'context.pin_set', 'context.pin_cleared', 'context.injected',
+  'context.prefix_installed', 'context.appended', 'context.compacted',
 ];
 
 export interface StreamHandlers {

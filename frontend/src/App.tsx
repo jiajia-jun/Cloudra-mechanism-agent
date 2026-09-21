@@ -20,6 +20,7 @@ import {
   type TimelineItem,
   type ToolItem,
 } from './timeline';
+import { mergeAndTrimLiveEvents } from './eventWindow';
 import { ToolRow } from './ToolRow';
 import { ProgramCard } from './ProgramCard';
 import { PathPickerModal } from './PathPickerModal';
@@ -353,7 +354,6 @@ export default function App() {
 
   // Refs so the long-lived SSE subscription always sees current values.
   const activeAgentIdRef = useRef(activeAgentId);
-  activeAgentIdRef.current = activeAgentId;
   const maxSeqRef = useRef(0);
 
   // Sync panel widths and visibility to localStorage
@@ -418,18 +418,19 @@ export default function App() {
     const batch = eventBufferRef.current;
     eventBufferRef.current = [];
     if (batch.length === 0) return;
+    let spilled: EventEnvelope[] = [];
     setEvents((prev) => {
-      const seen = new Set(prev.map((e) => e.event_id));
-      let next = prev;
-      let changed = false;
-      for (const event of batch) {
-        if (seen.has(event.event_id)) continue;
-        seen.add(event.event_id);
-        next = [...next, event];
-        changed = true;
-      }
-      return changed ? next.slice(-EVENTS_WINDOW) : prev;
+      const result = mergeAndTrimLiveEvents(prev, batch, EVENTS_WINDOW);
+      spilled = result.spilled;
+      return result.live;
     });
+    if (spilled.length > 0) {
+      setOlderEvents((prev) => {
+        const seen = new Set(prev.map((e) => e.event_id));
+        const extra = spilled.filter((e) => !seen.has(e.event_id));
+        return extra.length > 0 ? [...prev, ...extra] : prev;
+      });
+    }
   }, []);
   const bufferEvent = useCallback(
     (event: EventEnvelope) => {
@@ -512,6 +513,7 @@ export default function App() {
 
   const selectAgent = useCallback(
     async (agentId: string) => {
+      activeAgentIdRef.current = agentId;
       setActiveAgentId(agentId);
       setPendingMessages([]);
       setStreamView({ streamText: '', frozen: [] });
@@ -551,6 +553,7 @@ export default function App() {
   useEffect(() => {
     if (!activeProjectId) return;
     setAgents([]);
+    activeAgentIdRef.current = null;
     setActiveAgentId(null);
     setEvents([]);
     setOlderEvents([]);
@@ -584,18 +587,52 @@ export default function App() {
     if (!activeProjectId) return;
     setConnState('connecting');
     let cursor = 0;
-    // History replays from cursor 0 on every (re)connect; side-effect toasts
-    // must only fire for events after the replay boundary (project.synced).
     let replaying = true;
-    const source = streamProject(activeProjectId, cursor, {
-      onOpen: () => setConnState('live'),
-      onError: () => setConnState('offline'),
-      onEvent: (event) => {
-        if (event.type === 'project.synced') {
-          replaying = false;
-          return;
-        }
-        cursor = Math.max(cursor, event.seq);
+    let source: ReturnType<typeof streamProject> | null = null;
+    let closed = false;
+    let reconnectTimer: number | null = null;
+
+    const connect = () => {
+      if (closed) return;
+      replaying = true;
+      source = streamProject(activeProjectId, cursor, {
+        onOpen: () => setConnState('live'),
+        onError: () => {
+          setConnState('offline');
+          if (source) {
+            source.close();
+            source = null;
+          }
+          if (!closed && reconnectTimer === null) {
+            reconnectTimer = window.setTimeout(() => {
+              reconnectTimer = null;
+              connect();
+            }, 2000);
+          }
+        },
+        onEvent: (event) => {
+          if (event.type === 'project.synced') {
+            replaying = false;
+            if (activeProjectId) {
+              api
+                .listAgents(activeProjectId)
+                .then((list) => setAgents(dedupeAgents(list)))
+                .catch(() => undefined);
+            }
+            return;
+          }
+          if (event.type === 'project.deleted') {
+            const pid = event.project_id;
+            setProjects((prev) => prev.filter((p) => p.id !== pid));
+            if (activeProjectId === pid) {
+              activeAgentIdRef.current = null;
+              setActiveAgentId(null);
+              setAgents([]);
+              setActiveProjectId(null);
+            }
+            return;
+          }
+          cursor = Math.max(cursor, event.seq);
         const sessionId = event.session_id;
         // Agent list / chip state updates, regardless of selection.
         if (event.type === 'agent.spawned' && activeProjectId) {
@@ -609,10 +646,38 @@ export default function App() {
             setExpandedAgents((prev) => new Set(prev).add(parentId));
           }
         }
-        if (event.type === 'agent.state_changed' && sessionId) {
+        if (event.type === 'agent.state_changed' && sessionId && !replaying) {
           const to = String(event.data.to ?? '');
           setAgents((prev) =>
             dedupeAgents(prev.map((a) => (a.id === sessionId ? { ...a, state: to } : a))),
+          );
+        }
+        if (event.type === 'run.started' && sessionId && !replaying) {
+          const runId = String(event.data.run_id ?? event.run_id ?? '');
+          const protocol = event.data.invocation_protocol;
+          setAgents((prev) =>
+            dedupeAgents(
+              prev.map((a) =>
+                a.id === sessionId
+                  ? {
+                      ...a,
+                      current_run: {
+                        run_id: runId,
+                        started_at: String(event.data.started_at ?? event.created_at ?? ''),
+                        invocation_protocol:
+                          typeof protocol === 'string'
+                            ? protocol
+                            : a.current_run?.invocation_protocol,
+                      },
+                    }
+                  : a,
+              ),
+            ),
+          );
+        }
+        if ((event.type === 'run.finished' || event.type === 'agent.cancelled') && sessionId && !replaying) {
+          setAgents((prev) =>
+            dedupeAgents(prev.map((a) => (a.id === sessionId ? { ...a, current_run: null } : a))),
           );
         }
         if (event.type === 'approval.requested' || event.type === 'tool.approval_requested') {
@@ -623,6 +688,26 @@ export default function App() {
         }
         if (event.type === 'approval.decided' && activeProjectId) {
           api.approvals(activeProjectId).then(setApprovals).catch(() => undefined);
+        }
+        // Compact feedback: the button only queues the request — the actual
+        // run happens at the next turn boundary and can take minutes on
+        // thinking models. Surface started/finished so the button is not a
+        // black box (refusals include the reason + error label).
+        if (
+          (event.type === 'compaction.started' || event.type === 'compaction.finished') &&
+          sessionId &&
+          sessionId === activeAgentIdRef.current &&
+          !replaying
+        ) {
+          if (event.type === 'compaction.started') {
+            pushToast('info', `Compacting context… (${event.data?.history_messages ?? '?'} messages)`);
+          } else if (event.data?.compacted) {
+            pushToast('ok', `Compacted: ${event.data?.before_messages ?? '?'} → ${event.data?.after_messages ?? '?'} messages`);
+          } else {
+            const reason = String(event.data?.reason ?? 'refused');
+            const err = String(event.data?.error ?? '').slice(0, 80);
+            pushToast('error', `Compaction refused: ${reason}${err ? ` (${err})` : ''}`);
+          }
         }
         if (event.type === 'interaction.requested' && activeProjectId) {
           api.interactions(activeProjectId).then(setInteractions).catch(() => undefined);
@@ -651,8 +736,17 @@ export default function App() {
         }
       },
     });
-    return () => source.close();
-  }, [activeProjectId, pushToast]);
+  };
+
+  connect();
+  return () => {
+    closed = true;
+    if (reconnectTimer !== null) {
+      window.clearTimeout(reconnectTimer);
+    }
+    source?.close();
+  };
+}, [activeProjectId, pushToast]);
 
   /* -------------------------------------------------- approvals polling */
 
@@ -974,7 +1068,12 @@ export default function App() {
           setDraft('');
           if (activeAgent) {
             await api.compactAgent(activeAgent.id);
-            pushToast('ok', 'Context compaction requested');
+            const st = String(activeAgent.state ?? '');
+            if (st === 'running' || st === 'queued' || st === 'waiting_approval' || st === 'waiting_input') {
+              pushToast('ok', 'Compaction queued — the running agent executes it at its next turn boundary');
+            } else {
+              pushToast('error', `Agent is ${st || 'not running'} — compaction queued but it will NOT run until the agent runs again`);
+            }
           }
           return;
         }
@@ -1103,8 +1202,11 @@ export default function App() {
     const name = displayName ?? (targetId ? (agents.find((a) => a.id === targetId)?.display_name ?? targetId) : activeAgent?.display_name);
     if (!id) return;
     try {
-      const resp = await api.cancel(id);
-      setAgents((prev) => dedupeAgents(prev.map((a) => (a.id === resp.data.id ? resp.data : a))));
+      await api.cancel(id);
+      if (activeProjectId) {
+        const list = await api.listAgents(activeProjectId);
+        setAgents(dedupeAgents(list));
+      }
       pushToast('ok', `Cancelled ${name ?? id}`);
     } catch (e) {
       reportError(e);
@@ -3368,7 +3470,12 @@ function Inspector({
                       onClick={async () => {
                         try {
                           await api.compactAgent(activeAgent.id);
-                          onToast('ok', 'Compaction queued — applies on the next turn');
+                          const st = String(activeAgent.state ?? '');
+                          if (st === 'running' || st === 'queued' || st === 'waiting_approval' || st === 'waiting_input') {
+                            onToast('ok', 'Compaction queued — the running agent executes it at its next turn boundary');
+                          } else {
+                            onToast('error', `Agent is ${st || 'not running'} — compaction is queued but will NOT run until the agent runs again (send it a message or restart it)`);
+                          }
                         } catch (e) {
                           onError(e);
                         }

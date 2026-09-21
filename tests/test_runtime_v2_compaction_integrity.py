@@ -1146,3 +1146,66 @@ async def test_budget_trigger_uses_resolved_context_window_not_spawn_snapshot(mo
         if e.type == "compaction.finished" and e.data.get("trigger") == "budget"
     ]
     assert not fired
+
+
+def test_parse_strips_fenced_json_with_language_tag_and_trailing_prose():
+    """GH #48：围栏带语言标签（```json）且闭合围栏后还有散文——旧剥离
+    要求末行恰为 ```，散文导致不剥、json.loads 在 char 0 即炸。"""
+    payload = _summary_json()
+    fenced = f"```json\n{payload}\n```\n另外补充：以上即本次摘要内容。"
+    summary = parse_compact_summary(fenced, trajectory_len=5)
+    assert summary.objective.text == "solve the mechanism task"
+
+
+def test_parse_promotes_objective_array_and_bare_string_entries():
+    """GH #48 实测（glm-5.3-flash）：objective 写成单元素数组、列表字段
+    条目写成裸字符串——无损提升，不烧掉唯一一次重问。"""
+    payload = json.dumps(
+        {
+            "objective": [{"text": "推进 scan 项目", "sources": [0]}],
+            "active_requests": ["继续回填 gold [3]"],
+            "corrections": [],
+            "constraints": [],
+            "pending": [],
+            "completed": [],
+            "failed_attempts": [],
+            "evidence": [],
+            "next_actions": [],
+        },
+        ensure_ascii=False,
+    )
+    summary = parse_compact_summary(payload, trajectory_len=5)
+    assert summary.objective.text == "推进 scan 项目"
+    assert summary.active_requests[0].text == "继续回填 gold [3]"
+    assert summary.active_requests[0].sources == []
+
+
+def test_parse_promotes_objective_bare_string():
+    payload = json.dumps({"objective": "计算机理并回填 gold"}, ensure_ascii=False)
+    summary = parse_compact_summary(payload, trajectory_len=3)
+    assert summary.objective.text == "计算机理并回填 gold"
+    assert summary.objective.sources == []
+
+
+@pytest.mark.asyncio
+async def test_segment_failure_labels_empty_str_exceptions():
+    """GH #48：裸 TimeoutError 的 str() 为空——拒替换 stats 必须落到
+    类型名，不许 error='' 把真实拒因藏住（线上即此症状）。"""
+
+    class TimeoutSummarizer:
+        async def __call__(self, _messages):
+            raise asyncio.TimeoutError()
+
+    messages = _trajectory_context()
+    new_context, stats = await compact_context(
+        messages,
+        head=[],
+        notices=[],
+        summarize=TimeoutSummarizer(),
+        context_window=200_000,
+        max_output=32_768,
+    )
+    assert stats["compacted"] is False
+    assert stats["reason"] == "segment_failed"
+    assert stats["error"] == "TimeoutError"
+    assert new_context == messages

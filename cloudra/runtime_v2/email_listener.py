@@ -88,21 +88,34 @@ class EmailListenerBroker:
     async def _poll_once(self) -> None:
         config = get_config().email
         # Sync IMAP must never run on the event loop thread.
+        if self._target_coordinator() is None:
+            return
         emails = await asyncio.to_thread(
             EmailReader()._read_imap,
             config,
             EmailReader_input_schema(count=_POLL_BATCH, only_unread=True),
-            True,
+            False,
         )
         if not emails:
             return
         whitelist = set(config.whitelist or [])
+        delivered = 0
         for msg in emails:
             sender = _sender_address(msg.sender)
             if whitelist and sender not in whitelist:
                 logger.warning("email from non-whitelisted sender ignored: %s", sender)
                 continue
-            await self._deliver(sender=sender, subject=msg.subject, date=msg.date, body=msg.body)
+            if await self._deliver(
+                sender=sender, subject=msg.subject, date=msg.date, body=msg.body
+            ):
+                delivered += 1
+        if delivered:
+            await asyncio.to_thread(
+                EmailReader()._read_imap,
+                config,
+                EmailReader_input_schema(count=_POLL_BATCH, only_unread=True),
+                True,
+            )
 
     # ------------------------------------------------------------------ delivery
 
@@ -115,11 +128,11 @@ class EmailListenerBroker:
             None,
         )
 
-    async def _deliver(self, *, sender: str, subject: str, date: str, body: str) -> None:
+    async def _deliver(self, *, sender: str, subject: str, date: str, body: str) -> bool:
         coordinator = self._target_coordinator()
         if coordinator is None:
             logger.warning("no active project coordinator; email from %s dropped", sender)
-            return
+            return False
         agent = self.core.agents.get(coordinator.id)
         run_id = agent.current_run.run_id if agent is not None and agent.current_run else None
         envelope = self.core.event_log.append(
@@ -153,3 +166,4 @@ class EmailListenerBroker:
                 actor="system",
             )
         )
+        return True

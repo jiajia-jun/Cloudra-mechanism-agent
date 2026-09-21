@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types src/attention.test.ts && node --experimental-strip-types src/dagStatus.test.ts && node --experimental-strip-types src/timeline.test.ts"
+    "test": "node scripts/run-tests.mjs"
   },
   "dependencies": {
     "dagre": "^0.8.5",

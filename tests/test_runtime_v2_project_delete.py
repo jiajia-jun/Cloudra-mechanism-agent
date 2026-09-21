@@ -1,7 +1,7 @@
 """项目硬删除：tombstone 事件 + 支撑数据清理（workspace/compute.db 不动）。
 
 安全语义（两步道）：只允许删已归档项目；项目内有存活 agent 拒绝；有非终态
-compute job（ready/running/cancel_requested）在路由层 409 拒绝。删除本体是
+compute job（ready/running/cancel_requested）在 CommandBus 拒绝。删除本体是
 ``project.deleted`` tombstone——事件日志（权威）不物理删，重放后 core 同样
 不含该项目；磁盘侧清 conversations/<pid>/ 整树与该项目 artifact 文件。
 """
@@ -73,6 +73,28 @@ async def test_delete_rejects_live_agents():
     result = await _execute(core, "project.delete", target={"project_id": project.id})
     assert result.accepted is False
     assert result.data["error"]["code"] == "state_conflict"
+    assert project.id in core.projects
+
+
+@pytest.mark.asyncio
+async def test_delete_command_rejects_active_compute_jobs():
+    core = RuntimeCore(strict_events=True)
+    project = await _create(core)
+    await _archive(core, project.id)
+    db = ComputeDB().init()
+    insert_compute_job(
+        db,
+        node_id="node-local",
+        conversation_id=project.id,
+        session_id=None,
+        path="/tmp/input.gjf",
+        state="running",
+        jobtype="gaussian",
+    )
+    result = await _execute(core, "project.delete", target={"project_id": project.id})
+    assert result.accepted is False
+    assert result.data["error"]["code"] == "state_conflict"
+    assert "active compute" in result.data["error"]["message"]
     assert project.id in core.projects
 
 
@@ -160,6 +182,29 @@ def test_delete_project_data_removes_conversation_tree_and_artifacts(tmp_path):
     assert workspace.exists()
     # 幂等：再删一次（库与目录已不存在）不抛错
     _delete_project_data(pid)
+
+
+def test_delete_project_data_ignores_unsafe_artifact_ids(tmp_path):
+    pid = "prj-safe-art"
+    db_path = paths.conversation_db_path(pid)
+    db_path.parent.mkdir(parents=True)
+    outside = tmp_path / "outside-keep"
+    outside.mkdir()
+    (outside / "keep.txt").write_text("stay", encoding="utf-8")
+    with sqlite3.connect(str(db_path)) as con:
+        con.execute("CREATE TABLE artifacts (artifact_id TEXT PRIMARY KEY)")
+        con.execute("INSERT INTO artifacts VALUES (?)", (str(outside),))
+        con.execute("INSERT INTO artifacts VALUES ('..')")
+        con.execute("INSERT INTO artifacts VALUES ('art-ok')")
+    safe_dir = paths.data_dir() / "artifacts" / "art-ok"
+    safe_dir.mkdir(parents=True)
+    (safe_dir / "f.txt").write_text("x", encoding="utf-8")
+
+    _delete_project_data(pid)
+
+    assert outside.exists()
+    assert (outside / "keep.txt").read_text(encoding="utf-8") == "stay"
+    assert not safe_dir.exists()
 
 
 # --------------------------------------------------------------------- 路由门禁

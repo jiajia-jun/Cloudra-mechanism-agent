@@ -269,3 +269,94 @@ def test_combine_components_keeps_sp2_stereo(smiles):
         window[0] <= idx < window[1]
         for idx in [bond.GetBeginAtomIdx(), bond.GetEndAtomIdx(), *stereo_atoms]
     )
+
+
+# ---------------------------------------------------------------------------
+# 收敛门禁：力场优化未收敛的放置绝不交付为复合物候选
+# ---------------------------------------------------------------------------
+
+
+def test_unconverged_placements_are_never_delivered(tmp_path, monkeypatch):
+    """弛豫未收敛 (code != 0)：必须丢弃，全部未收敛时报 no_candidate，绝不交付 status='ok'。"""
+
+    def _unconverged(mol, conf_id, writer, parameters, **_kwargs):
+        conf = mol.GetConformer(conf_id)
+        writer.append(
+            0,
+            [[float(v) for v in conf.GetAtomPosition(i)] for i in range(mol.GetNumAtoms())],
+            0.0, None,
+        )
+        return False, False, ""  # converged=False
+
+    result = _two_component_complex(tmp_path, monkeypatch, _unconverged)
+    assert result.status == "no_candidate"
+    assert result.candidates == []
+    assert result.unconverged_after_relaxation > 0
+    assert "did not converge" in result.message
+    assert any("did not converge" in d for d in result.diagnostics)
+
+
+def test_mixed_convergence_delivers_only_converged_candidates(tmp_path, monkeypatch):
+    """部分放置收敛、部分未收敛：只有收敛的进入候选，未收敛的被丢弃。"""
+    call_count = 0
+
+    def _mixed(mol, conf_id, writer, parameters, **_kwargs):
+        nonlocal call_count
+        call_count += 1
+        conf = mol.GetConformer(conf_id)
+        writer.append(
+            0,
+            [[float(v) for v in conf.GetAtomPosition(i)] for i in range(mol.GetNumAtoms())],
+            0.0, None,
+        )
+        # 偶数次调用收敛，奇数次未收敛
+        converged = (call_count % 2 == 0)
+        return converged, False, ""
+
+    result = _two_component_complex(tmp_path, monkeypatch, _mixed)
+    assert result.status == "ok"
+    assert len(result.candidates) > 0
+    assert result.unconverged_after_relaxation > 0
+    assert any("relaxation did not converge" in d for d in result.diagnostics)
+
+
+def test_unconstrained_relaxation_failure_is_caught(tmp_path, monkeypatch):
+    """反应模式第二阶段无约束弛豫未收敛时，必须识别为未收敛并丢弃。"""
+
+    class FakeFF:
+        def __init__(self, should_fail: bool):
+            self._should_fail = should_fail
+
+        def MMFFAddDistanceConstraint(self, *args, **kwargs):
+            pass
+
+        def Initialize(self):
+            pass
+
+        def CalcEnergy(self):
+            return 10.0
+
+        def CalcGrad(self):
+            return [0.01, 0.01]
+
+        def Minimize(self, maxIts=2000):
+            return 1 if self._should_fail else 0
+
+    ff_calls = 0
+
+    def _fake_make_ff(mol, conf_id):
+        nonlocal ff_calls
+        ff_calls += 1
+        # 阶段 1 成功 (1, 3, 5...)，阶段 2 (无约束) 失败 (2, 4, 6...)
+        return FakeFF(should_fail=(ff_calls % 2 == 0))
+
+    monkeypatch.setattr(assembly_mod, "_mmff_force_field", _fake_make_ff)
+    components = [(_embedded_mol("O"), 0), (_embedded_mol("C"), 0)]
+    monkeypatch.setattr(assembly_mod, "_distance", lambda *a: 2.0)
+    result = assemble(
+        components=components, output_dir=str(tmp_path),
+        reaction_center=[(0, 1)],
+    )
+    assert result.status == "no_candidate"
+    assert result.unconverged_after_relaxation > 0
+

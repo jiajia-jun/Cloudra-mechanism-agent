@@ -6,9 +6,7 @@ from pydantic import Field
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.core.agent import Agent
-from cloudra.tools.core.bash_habit_guard import bash_file_write_warning
 from cloudra.tools.core.command_analyzer import BashCommandClassifier
-from cloudra.tools.core.coord_guard import handwritten_coord_warning
 from cloudra.tools.core.observation_offload import cap_observation
 from cloudra.tools.core.permission_model import Permission, check_permission
 
@@ -142,11 +140,6 @@ class Bash(Tool):
         # 让模型意识到行为不当（不硬拦）。coord 命中优先：它更具体，并直接点破
         # "绕过 supervisor 审查 / DAG 系统"。从日志提取坐标的正当流程走
         # sed/grep 管道，命令里不含坐标文本，不会被误伤。
-        guard_warning = (
-            handwritten_coord_warning(command, path=None)
-            or bash_file_write_warning(command)
-        )
-
         # 触发安全检查
         analysis = BashCommandClassifier.classify(command)
         if analysis.permissions & (Permission.DESTRUCTIVE | Permission.SCRIPT):
@@ -227,8 +220,6 @@ class Bash(Tool):
             root=getattr(self.subagent, "working_directory", None),
             stem="bash",
         )
-        if guard_warning:
-            result = f"{guard_warning}\n\n{result}"
         return Bash_output_schema(result=result, task_description=task_description, run_command=command, exit_code=exit_code)
 
 

@@ -76,6 +76,19 @@ class DagReviewStep(DagToolBase):
                 accepted=False,
             )
         step = matching[0]
+        if user_input.verdict in (
+            "supported",
+            "saddle_supported",
+            "endpoint_supported",
+            "structure_supported",
+            "thermo_annotated",
+        ):
+            return fail(
+                "dag_review_step",
+                "dag_review_step cannot write derived evidence_level; "
+                "bind stages with dag_review_call or dag_bind_evidence",
+                accepted=False,
+            )
 
         # 2. Apply status update to step in delivery graph
         changes = {

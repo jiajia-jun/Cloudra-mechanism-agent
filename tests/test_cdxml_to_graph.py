@@ -69,6 +69,12 @@ async def test_parse_complex_reaction_dag(tool, mock_session):
     assert set(result.dag_proposal["stage_contracts"]) >= {
         e["edge_id"] for e in graph["edges"]
     }
+    for edge in graph["edges"]:
+        assert result.dag_proposal["stage_contracts"][edge["edge_id"]] == [
+            "ts_guess",
+            "ts_opt",
+            "frequency",
+        ]
 
 
 @pytest.mark.asyncio

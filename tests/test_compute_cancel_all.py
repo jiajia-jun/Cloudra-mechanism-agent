@@ -65,6 +65,21 @@ async def test_cancel_all_state_transitions_and_counts():
 
 
 @pytest.mark.asyncio
+async def test_cancel_all_treats_null_scheduler_as_local():
+    """旧库 scheduler 可为 NULL；`scheduler!='slurm'` 对 NULL 为未知，会漏取消。"""
+    db = ComputeDB().init()
+    job_id = _insert(db, state="running")
+    with db.connect() as con:
+        con.execute("UPDATE compute_jobs SET scheduler=NULL WHERE id=?", (job_id,))
+        con.commit()
+
+    counts = await acancel_all_compute_jobs(db)
+
+    assert counts["local_cancelled"] == 1
+    assert get_compute_job(db, job_id)["state"] == "cancelled"
+
+
+@pytest.mark.asyncio
 async def test_cancel_all_without_db_returns_zeros_and_creates_nothing():
     db = ComputeDB()
     assert await acancel_all_compute_jobs(db) == _ZERO

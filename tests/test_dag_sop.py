@@ -12,6 +12,7 @@ SOP = (
 SKILL = ROOT / "cloudra" / "skills" / "dft-calculation" / "SKILL.md"
 PERICYCLIC = SOP.parent / "mechanisms" / "pericyclic.md"
 COORDINATOR = ROOT / "cloudra" / "prompts" / "coordinator.md"
+SUPERVISOR = ROOT / "cloudra" / "prompts" / "supervisor.md"
 
 
 def test_claisen_worked_example_defines_dag_evidence_contract() -> None:
@@ -38,3 +39,7 @@ def test_agent_entry_points_route_dag_sessions_to_the_worked_sop() -> None:
     assert "dag_propose_mechanism" in coordinator
     assert "delivery_report" in coordinator
     assert "Supervisor" in coordinator
+    assert "Considered" in coordinator and "Observed" in coordinator and "Chose" in coordinator
+    supervisor = SUPERVISOR.read_text(encoding="utf-8")
+    assert "single-path graph is allowed" in supervisor
+    assert "Do not reject solely because only one path is drawn" in supervisor

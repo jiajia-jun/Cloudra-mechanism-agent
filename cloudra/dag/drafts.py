@@ -331,6 +331,9 @@ class DraftsMixin:
             )
         for st_op in step_ops:
             assert isinstance(st_op, AddEdge)
+            # 默认 live 契约：鞍点频率即结题；IRC 不进草稿（需要路径证明
+            # 时由 Coordinator 写进该步 stage_contracts）。ts_guess 落库前
+            # 会规范化为 advisory。
             contracts[st_op.edge.edge_id] = StageContract(
                 stages=[
                     StageState(kind=StageKind.TS_GUESS, status=StageStatus.PENDING),

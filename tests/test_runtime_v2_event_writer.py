@@ -72,6 +72,93 @@ async def test_persistence_failure_propagates_before_publication():
     with pytest.raises(RuntimeError, match="disk full"):
         await core.event_writer.commit(_request_draft())
     assert seen == []
+    assert [e.type for e in core.event_log] == []
+
+
+class _FailOnTypeStore:
+    def __init__(self, fail_type: str) -> None:
+        self.types: list[str] = []
+        self.fail_type = fail_type
+
+    def append_event(self, envelope) -> None:
+        if envelope.type == self.fail_type:
+            raise RuntimeError("disk full")
+        self.types.append(envelope.type)
+
+
+@pytest.mark.asyncio
+async def test_command_persist_failure_does_not_leave_unapplied_events():
+    """flush 失败不得把事件留在内存日志里：否则下次 flush 会落库却从未 apply。"""
+    from cloudra.runtime_v2.event_writer import EventPersistenceError
+
+    core = RuntimeCore()
+    core.store = FailingStore()
+    bus = CommandBus(core)
+    with pytest.raises(EventPersistenceError):
+        await bus.execute(Command(type="project.create", payload={"name": "ghost"}))
+    assert list(core.projects.values()) == []
+    assert [e.type for e in core.event_log] == []
+
+
+@pytest.mark.asyncio
+async def test_command_applies_persisted_prefix_and_drops_failed_tail():
+    from cloudra.runtime_v2.event_writer import EventPersistenceError
+
+    core = RuntimeCore()
+    store = _FailOnTypeStore("agent.spawned")
+    core.store = store
+    bus = CommandBus(core)
+    await bus.execute(Command(type="project.create", payload={"name": "p"}))
+    project = next(iter(core.projects.values()))
+    before = [e.type for e in core.event_log]
+    with pytest.raises(EventPersistenceError):
+        await bus.execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": project.id},
+                payload={"role_id": "coordinator"},
+            )
+        )
+    assert list(core.agents.values()) == []
+    assert "agent.spawned" not in [e.type for e in core.event_log]
+    assert "agent.spawned" not in store.types
+    assert [e.type for e in core.event_log][: len(before)] == before
+
+
+@pytest.mark.asyncio
+async def test_command_retry_after_partial_persist_does_not_double_spawn():
+    """spawned 已落盘、message_injected 失败时不得 500：返回已创建的 agent 并调度，
+    同 command_id 重试不得再开一个。HTTP 用新 command_id 重试的前提是这次不再抛错。"""
+
+    class _Runner:
+        def __init__(self) -> None:
+            self.scheduled: list[str] = []
+
+        def schedule(self, session_id: str) -> None:
+            self.scheduled.append(session_id)
+
+    core = RuntimeCore()
+    store = _FailOnTypeStore("agent.message_injected")
+    core.store = store
+    core.runner = _Runner()
+    bus = CommandBus(core)
+    await bus.execute(Command(type="project.create", payload={"name": "p"}))
+    project = next(iter(core.projects.values()))
+    command = Command(
+        command_id="cmd-spawn-once",
+        type="agent.spawn",
+        target={"project_id": project.id},
+        payload={"role_id": "coordinator", "query": "hello"},
+    )
+    first = await bus.execute(command)
+    assert first.accepted is True
+    assert len(core.agents) == 1
+    agent_id = next(iter(core.agents))
+    assert core.runner.scheduled == [agent_id]
+    retried = await bus.execute(command)
+    assert retried.accepted is True
+    assert len(core.agents) == 1
+    assert retried.data.id == first.data.id
 
 
 @pytest.mark.asyncio
@@ -166,3 +253,79 @@ async def test_standalone_writer_without_store_or_hub():
     envelope = await writer.commit(_request_draft())
     assert envelope.type == "tool.requested"
     await writer.flush()
+
+
+@pytest.mark.asyncio
+async def test_context_broker_persist_failure_does_not_apply():
+    from cloudra.runtime_v2.event_writer import EventPersistenceError
+
+    core = RuntimeCore()
+    bus = CommandBus(core)
+    await bus.execute(Command(type="project.create", payload={"name": "p"}))
+    project = next(iter(core.projects.values()))
+    await bus.execute(
+        Command(
+            type="agent.spawn",
+            target={"project_id": project.id},
+            payload={"role_id": "coordinator"},
+        )
+    )
+    agent = next(iter(core.agents.values()))
+    before = list(core.contexts.current_messages(agent.id) or [])
+    core.store = FailingStore()
+    with pytest.raises(EventPersistenceError):
+        await core.contexts.append_output(
+            agent=agent,
+            run_id="run_ghost",
+            messages=[{"role": "assistant", "content": "ghost-output"}],
+        )
+    assert list(core.contexts.current_messages(agent.id) or []) == before
+    assert not any(
+        "ghost-output" in str(envelope.data) for envelope in core.event_log
+    )
+
+
+@pytest.mark.asyncio
+async def test_start_run_durable_persist_failure_leaves_queued():
+    from cloudra.runtime_v2.event_writer import EventPersistenceError
+    from cloudra.runtime_v2.schemas import AgentState
+
+    core = RuntimeCore()
+    bus = CommandBus(core)
+    await bus.execute(Command(type="project.create", payload={"name": "p"}))
+    project = next(iter(core.projects.values()))
+    await bus.execute(
+        Command(
+            type="agent.spawn",
+            target={"project_id": project.id},
+            payload={"role_id": "coordinator"},
+        )
+    )
+    agent = next(iter(core.agents.values()))
+    core.store = FailingStore()
+    with pytest.raises(EventPersistenceError):
+        await core.agent_host.start_run_durable(agent)
+    assert agent.state is AgentState.QUEUED
+    assert not any(envelope.type == "run.started" for envelope in core.event_log)
+
+
+def test_persisted_watermarks_ignore_unpersisted_tail():
+    from cloudra.runtime_v2.events import EventLog
+
+    log = EventLog(strict=True)
+    writer = EventWriter(log, store_provider=lambda: None)
+    first = log.append(
+        "agent.warning",
+        stream="agent",
+        project_id="p1",
+        data={"message": "kept"},
+    )
+    writer.mark_restored()
+    second = log.append(
+        "agent.warning",
+        stream="agent",
+        project_id="p1",
+        data={"message": "tail"},
+    )
+    assert log.high_watermarks["p1"] == second.seq
+    assert writer.persisted_watermarks()["p1"] == first.seq

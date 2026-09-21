@@ -11,8 +11,20 @@ from pydantic import ConfigDict, Field
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import input_schema
 from cloudra.core.agent import Agent
-from cloudra.dag.models import AddEdge, ElementaryStepEdge, OrchestrationMode
-from cloudra.tools.Plantool.dag_tools._common import DagToolBase, DagToolOutput, fail, mutation_output
+from cloudra.dag.models import (
+    AddEdge,
+    ElementaryStepEdge,
+    OrchestrationMode,
+    StageKind,
+    StageState,
+    StageStatus,
+)
+from cloudra.tools.Plantool.dag_tools._common import (
+    DagToolBase,
+    DagToolOutput,
+    fail,
+    mutation_output,
+)
 
 
 class DagAddStepInput(input_schema):
@@ -73,6 +85,11 @@ class DagAddStep(DagToolBase):
             "label": clean_name,
             "source_node_id": source_id,
             "target_node_id": target_id,
+            "stages": [
+                StageState(kind=StageKind.TS_GUESS, status=StageStatus.PENDING, required=False),
+                StageState(kind=StageKind.TS_OPT, status=StageStatus.PENDING, required=True),
+                StageState(kind=StageKind.FREQUENCY, status=StageStatus.PENDING, required=True),
+            ],
         }
         _, mutation = await self._apply(
             session,

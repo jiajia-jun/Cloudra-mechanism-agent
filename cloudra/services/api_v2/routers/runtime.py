@@ -127,7 +127,7 @@ def build_router(ctx: ApiContext) -> APIRouter:
   <script>
     const code = {escaped_code};
     if (window.opener) {{
-      window.opener.postMessage({{ type: 'OPENROUTER_AUTH_CODE', code: code }}, '*');
+      window.opener.postMessage({{ type: 'OPENROUTER_AUTH_CODE', code: code }}, window.location.origin);
       setTimeout(() => window.close(), 600);
     }} else {{
       window.location.href = '/?openrouter_code=' + encodeURIComponent(code);

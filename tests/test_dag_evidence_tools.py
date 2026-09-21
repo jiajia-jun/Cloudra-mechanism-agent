@@ -57,7 +57,7 @@ async def test_submit_evidence_in_dag_record(tmp_path):
     ts_log = tmp_path / "ts.out"
     ts_log.write_text((FIXTURES_DIR / "xtb" / "ts_hess_xtb.out").read_text())
 
-    # 2. Submit species evidence for R -> auto-accepted
+    # 2. Submit species evidence for R -> attach only; stages stay the authority
     sp_out = await call_dag_tool(
         DagSubmitSpeciesEvidence,
         agent,
@@ -67,15 +67,16 @@ async def test_submit_evidence_in_dag_record(tmp_path):
         description="Optimized reactant minimum",
     )
     assert sp_out.is_success
-    assert sp_out.result["status"] == "supported"
+    assert sp_out.result["status"] == "attached"
 
     from cloudra.dag.store import DagStore
 
     snapshot = DagStore(db).load_snapshot()
     r_node = [n for n in snapshot.delivery.nodes if getattr(n, "name", "") == "R"][0]
-    assert r_node.status == "supported"
+    assert r_node.refs
+    assert r_node.evidence_level != "supported"
 
-    # 3. Submit step evidence for step1 -> auto-accepted
+    # 3. Submit step evidence for step1 -> attach only; stages stay authority
     step_out = await call_dag_tool(
         DagSubmitStepEvidence,
         agent,
@@ -85,11 +86,16 @@ async def test_submit_evidence_in_dag_record(tmp_path):
         reaction_coordinate_description="C-C cleavage transition state",
     )
     assert step_out.is_success
-    assert step_out.result["status"] == "supported"
+    assert step_out.result["status"] == "attached"
 
     snapshot = DagStore(db).load_snapshot()
     step_edge = [e for e in snapshot.delivery.edges if getattr(e, "name", "") == "step1"][0]
-    assert step_edge.status == "supported"
+    assert step_edge.refs
+    assert step_edge.evidence_level not in {
+        "supported",
+        "saddle_supported",
+        "endpoint_supported",
+    }
 
 
 @pytest.mark.asyncio
@@ -169,7 +175,7 @@ async def test_guided_review_flow(tmp_path):
     step_edge = [e for e in snapshot.delivery.edges if getattr(e, "name", "") == "step1"][0]
     assert step_edge.status == "pending"
 
-    # 3. Supervisor reviews step -> supported
+    # 3. Supervisor cannot write derived evidence_level via dag_review_step
     rev_out = await call_dag_tool(
         DagReviewStep,
         supervisor,
@@ -178,12 +184,12 @@ async def test_guided_review_flow(tmp_path):
         verdict="supported",
         rationale="Verified imaginary mode at -521 cm^-1 matches reaction.",
     )
-    assert rev_out.is_success
-    assert rev_out.result["verdict"] == "supported"
+    assert not rev_out.is_success
+    assert "cannot write derived evidence_level" in rev_out.error
 
     snapshot = DagStore(db).load_snapshot()
     step_edge = [e for e in snapshot.delivery.edges if getattr(e, "name", "") == "step1"][0]
-    assert step_edge.status == "supported"
+    assert step_edge.status == "pending"
 
     # 4. Supervisor reviews species -> rejected
     rev_sp = await call_dag_tool(

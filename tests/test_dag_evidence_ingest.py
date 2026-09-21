@@ -84,6 +84,7 @@ def test_validate_ts_mode():
     assert res.is_valid is True
     assert res.n_imag == 1
     assert res.imaginary_frequencies == [-521.21]
+    assert res.mode_matched is False
 
     # 0 imaginary frequencies -> not a TS
     res_zero = validate_ts_mode(freqs=[100.0, 500.0], normal_modes=None, description="C-C bond cleavage")
@@ -94,6 +95,10 @@ def test_validate_ts_mode():
     res_two = validate_ts_mode(freqs=[-521.21, -120.0, 100.0], normal_modes=None, description="C-C bond cleavage")
     assert res_two.is_valid is False
     assert res_two.n_imag == 2
+
+    empty = validate_ts_mode(None, imaginary_freqs=[])
+    assert empty.verified is False
+    assert empty.is_valid is False
 
 
 def test_validate_species_minimum():

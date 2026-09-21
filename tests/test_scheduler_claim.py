@@ -32,7 +32,7 @@ def _claim(db: ComputeDB):
 
 
 def _insert(db: ComputeDB, *, node_id=DEFAULT_NODE, state="ready", priority=0,
-            req_cpus=1, req_mem=None, lease=None) -> int:
+            req_cpus=1, req_mem=None, lease=None, scheduler="local") -> int:
     with db.connect() as con:
         cur = con.execute(
             """INSERT INTO compute_jobs
@@ -42,7 +42,7 @@ def _insert(db: ComputeDB, *, node_id=DEFAULT_NODE, state="ready", priority=0,
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 "sched-conv", "sess-1", "/tmp/x.gjf", state, "gaussian",
-                -1, -1, node_id, "local", "{}", priority, req_cpus, req_mem, lease,
+                -1, -1, node_id, scheduler, "{}", priority, req_cpus, req_mem, lease,
             ),
         )
         con.commit()
@@ -153,15 +153,16 @@ def test_null_memory_charged_fair_share():
     assert usage["workstation"] == {"slots": 1, "cpus": 1, "memory_mb": 4096}
 
 
-def test_expired_lease_reclaimable():
+def test_expired_running_not_reclaimed_by_scheduler_claim():
     db = ComputeDB().init()
-    job = _insert(db, state="running", lease=time.time() - 10)
-    # 租约过期不占容量（claim 会把它作为候选重领）
+    _insert(db, state="running", lease=time.time() - 10)
+    # 过期 running 仍占容量直到对账 reap/fail（防止超卖）
     usage = compute_inflight_usage_by_node(
         db, default_node_id=DEFAULT_NODE, fair_share_mb=FAIR_SHARE
     )
-    assert usage == {}
-    assert _claim(db) == job
+    assert usage["workstation"] == {"slots": 1, "cpus": 1, "memory_mb": 4096}
+    # claim 只认 ready，绝不抢占 running（归对账器 adopt/reap 处理）
+    assert _claim(db) is None
 
 
 def test_reset_attempt_count_only_for_owner():
@@ -176,3 +177,58 @@ def test_reset_attempt_count_only_for_owner():
     reset_compute_attempt_count(db, job, "w")
     with db.connect() as con:
         assert con.execute("SELECT attempt_count FROM compute_jobs WHERE id=?", (job,)).fetchone()[0] == 0
+
+
+def test_afail_compute_job_cas_protection():
+    import asyncio
+
+    from cloudra.services.compute_store import afail_compute_job
+
+    async def _run():
+        db = ComputeDB().init()
+        running = _insert(db, state="running")
+        assert await afail_compute_job(db, running, "err") is True
+        # already failed: CAS returns False
+        assert await afail_compute_job(db, running, "err2") is False
+
+        # cancelled: cannot overwrite
+        cancelled = _insert(db, state="cancelled")
+        assert await afail_compute_job(db, cancelled, "err") is False
+        with db.connect() as con:
+            assert con.execute("SELECT state FROM compute_jobs WHERE id=?", (cancelled,)).fetchone()[0] == "cancelled"
+
+        # done: cannot overwrite
+        done = _insert(db, state="done")
+        assert await afail_compute_job(db, done, "err") is False
+        with db.connect() as con:
+            assert con.execute("SELECT state FROM compute_jobs WHERE id=?", (done,)).fetchone()[0] == "done"
+
+    asyncio.run(_run())
+
+
+def test_cancel_requested_counts_toward_inflight_usage():
+    """Slurm cancel_requested 仍占节点槽：poller 未 scancel 完之前不得再认领。"""
+    db = ComputeDB().init()
+    _insert(db, state="cancel_requested", scheduler="slurm")
+    _insert(db, state="cancel_requested", scheduler="slurm")
+    _insert(db)
+    assert _claim(db) is None
+
+
+def test_acancel_compute_job_does_not_overwrite_done():
+    import asyncio
+
+    from cloudra.services.compute_store import acancel_compute_job, get_compute_job
+
+    async def _run():
+        db = ComputeDB().init()
+        done = _insert(db, state="done")
+        await acancel_compute_job(db, done)
+        assert get_compute_job(db, done)["state"] == "done"
+
+        requested = _insert(db, state="cancel_requested", scheduler="slurm")
+        await acancel_compute_job(db, requested)
+        assert get_compute_job(db, requested)["state"] == "cancelled"
+
+    asyncio.run(_run())
+

@@ -182,6 +182,11 @@ def test_reconcile_spawns_adopt_only_when_guard_dead(tmp_path, monkeypatch):
     slurm = _insert_running(db, str(tmp_path / "c.inp"))
     with db.connect() as con:
         con.execute("UPDATE compute_jobs SET scheduler='slurm' WHERE id=?", (slurm,))
+        # 死 guard 的 start 必须落在启动宽限之外，否则对账会当成同步提交窗口。
+        con.execute(
+            "UPDATE compute_jobs SET start_timestamp=? WHERE id=?",
+            (time.time() - 120, dead),
+        )
         con.commit()
 
     guard_fd = try_acquire_lock(guard_lock_path(str(tmp_path), alive))
@@ -199,3 +204,16 @@ def test_reconcile_spawns_adopt_only_when_guard_dead(tmp_path, monkeypatch):
             "SELECT lease_expires_at FROM compute_jobs WHERE id=?", (alive,)
         ).fetchone()[0]
     assert lease > time.time() + 1800
+
+
+def test_reconcile_does_not_adopt_fresh_sync_submit(tmp_path, monkeypatch):
+    """同步提交刚写入 running、guard 还没持锁：对账不得立刻 spawn adopt。"""
+    from cloudra.scheduler import daemon as daemon_mod
+
+    spawned: list[list[str]] = []
+    monkeypatch.setattr(daemon_mod, "spawn_detached", lambda cmd, log: spawned.append(cmd))
+
+    db = ComputeDB().init()
+    _insert_running(db, str(tmp_path / "fresh.inp"))
+    daemon_mod.SchedulerDaemon()._reconcile_central()
+    assert spawned == []

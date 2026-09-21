@@ -43,6 +43,15 @@ def _read_text(log_path: str) -> str:
         return f.read()
 
 
+def normal_termination(text: str) -> bool:
+    """引擎自报正常结束：出现 Normal termination 且没有 Error termination。
+
+    cclib metadata.success 不是终态权威（缺坐标/ccwrite 失败会丢掉一份
+    已经 Normal termination 的日志）。与 ts_guess 同一对标记。
+    """
+    return "Normal termination" in text and "Error termination" not in text
+
+
 def _collect_route_card(text: str) -> str:
     """收集日志中回显的路由行（` #` 开头，可能跨行缠绕），拼接为小写字符串。
 
@@ -115,6 +124,116 @@ def _coords_to_xyz(atomnos, coords, comment: str = "") -> str:
     for z, (x, y, zc) in zip(atomnos, coords, strict=True):
         lines.append(f"{pt.element[int(z)]:<2} {x:>15.8f} {y:>15.8f} {zc:>15.8f}")
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# 简正模式位移与标准取向（文本权威，不依赖 cclib）
+# ---------------------------------------------------------------------------
+
+_FREQ_LINE_RE = re.compile(r"Frequencies --\s+(.*)")
+_ATOM_DISP_HEADER_RE = re.compile(r"^\s*Atom\s+AN\s+X\s+Y\s+Z", re.MULTILINE)
+# 公开别名：跨模块复用（如 ts_guess 的频率文本回退）应走公开名，私有名可能重构
+FREQ_LINE_RE = _FREQ_LINE_RE
+
+
+def vibdisps_from_text(text: str, n_freqs: int):
+    """从 Gaussian 频率块解析简正模式位移，返回 shape (n_modes, n_atoms, 3) 或 None。
+
+    按 Frequencies 行分块；每块最多 3 个模式，后接 Atom AN 位移表。块数不足
+    n_freqs 或任一块缺位移表时返回 None（调用方保持"缺位移"语义）。
+    """
+    import numpy as np
+
+    freq_matches = list(_FREQ_LINE_RE.finditer(text))
+    if not freq_matches or n_freqs <= 0:
+        return None
+
+    mode_chunks: list[list[list[list[float]]]] = []
+    for idx, match in enumerate(freq_matches):
+        block_freqs = []
+        for tok in match.group(1).split():
+            try:
+                block_freqs.append(float(tok))
+            except ValueError:
+                break
+        if not block_freqs:
+            continue
+        start = match.end()
+        end = freq_matches[idx + 1].start() if idx + 1 < len(freq_matches) else len(text)
+        block = text[start:end]
+        header = _ATOM_DISP_HEADER_RE.search(block)
+        if header is None:
+            return None
+        rows: list[list[list[float]]] = []
+        for line in block[header.end():].splitlines():
+            stripped = line.strip()
+            if not stripped:
+                if rows:
+                    break
+                continue
+            parts = stripped.split()
+            if len(parts) < 2 + 3 * len(block_freqs):
+                if rows:
+                    break
+                continue
+            try:
+                coords = [float(x) for x in parts[2:2 + 3 * len(block_freqs)]]
+            except ValueError:
+                if rows:
+                    break
+                continue
+            atom_modes = [
+                coords[3 * m: 3 * m + 3] for m in range(len(block_freqs))
+            ]
+            rows.append(atom_modes)
+        if not rows:
+            return None
+        # rows: natoms × nmodes_in_block × 3  → 转成 per-mode
+        per_mode = []
+        for m in range(len(block_freqs)):
+            per_mode.append([rows[a][m] for a in range(len(rows))])
+        mode_chunks.append(per_mode)
+
+    flat_modes: list[list[list[float]]] = []
+    for chunk in mode_chunks:
+        flat_modes.extend(chunk)
+    if len(flat_modes) < n_freqs:
+        return None
+    arr = np.asarray(flat_modes[:n_freqs], dtype=float)
+    if arr.ndim != 3 or arr.shape[2] != 3:
+        return None
+    return arr
+
+
+def std_orientation_frames(text: str) -> list[list[tuple[int, float, float, float]]]:
+    """解析所有 "Standard orientation:" 坐标块，返回 [(atomno, x, y, z), ...] 列表的列表。"""
+    blocks = []
+    lines = text.splitlines()
+    i = 0
+    while i < len(lines):
+        if "Standard orientation:" in lines[i]:
+            j = i + 1
+            dash = 0
+            rows: list[tuple[int, float, float, float]] = []
+            while j < len(lines):
+                s = lines[j].strip()
+                if s and set(s) == {"-"}:
+                    dash += 1
+                    j += 1
+                    if dash == 3:
+                        break
+                    continue
+                if dash == 2:
+                    parts = s.split()
+                    if len(parts) >= 6:
+                        rows.append((int(parts[1]), float(parts[3]), float(parts[4]), float(parts[5])))
+                j += 1
+            if rows:
+                blocks.append(rows)
+            i = j
+        else:
+            i += 1
+    return blocks
 
 
 # ---------------------------------------------------------------------------

@@ -115,6 +115,7 @@ class DagController(SupervisionMixin, StopAuditMixin, EvidenceInboxMixin, Drafts
         if not self.enabled:
             return ""
         await self.initialize()
+        self.contract = await asyncio.to_thread(self.store.load_coverage_contract)
         # 同步 sqlite 读也走 worker 线程，busy 等待不能占用事件循环
         snapshot = await asyncio.to_thread(self.engine.snapshot)
         history = await asyncio.to_thread(self.engine.history, limit=8)
@@ -170,6 +171,8 @@ class DagController(SupervisionMixin, StopAuditMixin, EvidenceInboxMixin, Drafts
     def delivery_report(self):
         if not self.enabled:
             return None
+        # store 是权威：督导中途收紧契约后，stop 不得继续吃 initialize 缓存。
+        self.contract = self.store.load_coverage_contract()
         claim = self.store.accepted_claim_spec()
         facts = {
             target: self.store.facts_for_target(target)

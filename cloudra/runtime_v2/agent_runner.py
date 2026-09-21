@@ -252,7 +252,7 @@ class AgentRunner:
                 # scheduled the task afterwards.
                 run_id = agent.current_run.run_id
             else:
-                run_id = core.agent_host.start_run(agent)
+                run_id = await core.agent_host.start_run_durable(agent)
             contexts = core.contexts
             # 上下文前缀 owner（Task 2/4）：每个 run 创建一个，但状态从会话
             # 级上下文投影回灌（restored）——跨 run/重启不重装前缀，
@@ -285,10 +285,10 @@ class AgentRunner:
                 )
                 if contexts.current_messages(agent.id):
                     if agent.id in core.pending_compactions:
-                        core.pending_compactions.discard(agent.id)
                         await self._apply_compaction(
                             agent, run_id, context_prefix=context_prefix
                         )
+                        core.pending_compactions.discard(agent.id)
                 # 预算触发：达到上下文预算即压缩——估算用现有 context_window
                 # 与输出预算并留余量。压缩被拒时保留原上下文，且要等投影再
                 # 长出 COMPACT_RETRY_GROWTH 才重试（同样的输入只会同样失败）。
@@ -484,7 +484,7 @@ class AgentRunner:
                         hook = getattr(stage, "on_run_end", None)
                         if hook is not None:
                             await hook(agent, explicit_stop=explicit_stop)
-                    core.agent_host.finish_run(agent, outcome="succeeded")
+                    await core.agent_host.finish_run_durable(agent, outcome="succeeded")
                     # peek 与 finish 之间到达的消息：deliver 方的 wake 此刻仍可能
                     # 撞在 RUNNING 上（事件未应用前）；状态已 SUCCEEDED 后复查并
                     # 显式 wake 开新 run，关掉最后一段竞态窗口。
@@ -531,7 +531,7 @@ class AgentRunner:
         except Exception as exc:  # pipeline crash becomes a durable failure
             logger.exception("agent %s pipeline failed", agent.id)
             if agent.state is AgentState.RUNNING:
-                core.agent_host.finish_run(agent, outcome="failed", error=str(exc))
+                await core.agent_host.finish_run_durable(agent, outcome="failed", error=str(exc))
             self._deliver_child_completion(agent)
         finally:
             # Flush the tail events (message_emitted, finish_run's
@@ -539,8 +539,12 @@ class AgentRunner:
             # so SSE clients and the store see the complete run lifecycle.
             try:
                 await self._publish_new_events(cursor)
-            except Exception:
+            except Exception as exc:
                 logger.exception("agent %s final event flush failed", agent.id)
+                from cloudra.runtime_v2.event_writer import EventPersistenceError
+
+                if isinstance(exc, EventPersistenceError):
+                    raise
 
     def _deliver_child_completion(self, agent: AgentSession) -> None:
         from cloudra.runtime_v2.subagent_bridge import deliver_child_completion_to_parent
@@ -742,32 +746,10 @@ class AgentRunner:
         return prepared
 
     def _tool_result_content(self, agent: AgentSession, result) -> object:
-        """Context content for one tool result, with image re-injection.
+        """Context content for one tool result, with image re-injection."""
+        from cloudra.runtime_v2.invocation import tool_result_context_content
 
-        A result carrying ``image_paths`` (or a single ``image_path``) gets one
-        stable ``image_ref`` part per path (no base64 in the projection);
-        resolution to data URLs happens at send time.  There is no N-image cap.
-        """
-        from cloudra.infra.media import snapshot_image_reference
-        from cloudra.runtime_v2.invocation import image_paths_from_tool_result
-
-        summary = result.summary
-        paths = image_paths_from_tool_result(result)
-        if not paths:
-            return summary
-        parts: list[dict] = [{"type": "text", "text": summary or ""}]
-        parts.extend(
-            snapshot_image_reference(
-                path, conv_id=agent.project_id,
-                fallback=(
-                    f"[Image rendered at: {path} — the configured model has no "
-                    "vision support or the file is unavailable; inspect the "
-                    "file directly if needed.]"
-                ),
-            )
-            for path in paths
-        )
-        return parts
+        return tool_result_context_content(agent, result)
 
     async def _commit_turn_output(self, agent: AgentSession, run_id: str, outcome) -> None:
         """响应消息恰好一次落进会话上下文投影（context.appended）。
@@ -808,7 +790,35 @@ class AgentRunner:
                     "content": outcome.message or "blocked by policy",
                 }
             )
-        await self.core.contexts.append_output(agent=agent, run_id=run_id, messages=entries)
+        existing = self.core.contexts.current_messages(agent.id)
+        existing_tool_ids = {
+            message.get("tool_call_id")
+            for message in existing
+            if message.get("role") == "tool" and message.get("tool_call_id")
+        }
+        existing_assistant_ids = {
+            frozenset(
+                str(call.get("id"))
+                for call in (message.get("tool_calls") or [])
+                if isinstance(call, dict) and call.get("id")
+            )
+            for message in existing
+            if message.get("role") == "assistant" and message.get("tool_calls")
+        }
+        filtered: list[dict] = []
+        for entry in entries:
+            if entry.get("role") == "tool" and entry.get("tool_call_id") in existing_tool_ids:
+                continue
+            if entry.get("role") == "assistant" and entry.get("tool_calls"):
+                ids = frozenset(
+                    str(call.get("id"))
+                    for call in entry["tool_calls"]
+                    if isinstance(call, dict) and call.get("id")
+                )
+                if ids and ids in existing_assistant_ids:
+                    continue
+            filtered.append(entry)
+        await self.core.contexts.append_output(agent=agent, run_id=run_id, messages=filtered)
 
     def _effective_settings(self, agent: AgentSession):
         """容量判定用的生效设置：spawn 快照里 context_window=0 表示未设置，
@@ -898,14 +908,18 @@ class AgentRunner:
                 old_head_len=old_head_len,
                 # 摘要调用有界等待：provider 对超大摘要停滞时按 segment_failed
                 # /merge_failed 收敛，不让一次调用把轮次无限挂住（GH #40）。
-                summary_timeout=float(settings.timeout) if settings.timeout else None,
+                # thinking 模型单段摘要实测可达 3-5 分钟（GH #48：首答 194s
+                # + 重问撞 300s 超时 → 永久拒替换），下限抬到 600s。
+                summary_timeout=(
+                    max(float(settings.timeout), 600.0) if settings.timeout else 600.0
+                ),
             )
         except Exception as exc:
             # Compaction is best-effort: a summarization failure must never
             # kill the run; the uncompacted context stays in place (no event,
             # no projection change).
             logger.exception("agent %s compaction failed", agent.id)
-            stats = {"compacted": False, "error": str(exc)}
+            stats = {"compacted": False, "error": str(exc) or type(exc).__name__}
         else:
             if stats.get("compacted"):
                 # 压缩摘要同时落工作区审计文件，供人与后续会话回读。

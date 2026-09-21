@@ -5,11 +5,11 @@
 1. **decide**：``DECIDERS[type](core, command) -> Decision``，纯函数——全部
    守卫校验在这里（非法抛 ``CommandRejected``，拒绝前要留审计轨迹的草稿
    挂在异常的 ``events`` 上），零 IO、零 mutate、零 await 副作用。
-2. **append + publish + persist**：逐草稿 ``event_log.append``，每条随即
-   ``event_hub.publish`` 并 ``to_thread(store.append_event)``（store 存在
-   时）。事件顺序即因果序（如 agent.spawned 先于 agent.message_injected）。
-3. **apply**：逐事件 ``apply_event``（唯一状态应用器）。
-4. **effects**：shell 统一执行副作用（EnsureDir 走 to_thread；runner
+2. **逐事件 persist-then-apply**：每条草稿 ``append`` → ``flush``（store
+   存在时落库再发布）→ ``apply_event``。中途 ``EventPersistenceError`` 丢弃
+   未落库尾巴再抛出，避免下次 flush 把从未 apply 的事件写进磁盘。包装路径
+   已 apply 再扫尾 flush，失败不丢尾巴、留给下次重试。
+3. **effects**：shell 统一执行副作用（EnsureDir 走 to_thread；runner
    schedule/cancel；mailbox enqueue；api_key 内存覆盖补挂）。
 
 已是事件投影的 broker 不强行进 decide：``approval.decide`` /
@@ -31,6 +31,7 @@ benchmark backend finally）显式调 ``flush_snapshot()`` 补一次。
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import shutil
 import sqlite3
@@ -56,6 +57,7 @@ from cloudra.runtime_v2.effects import (
     ResultRef,
     ScheduleAgent,
 )
+from cloudra.runtime_v2.event_writer import EventPersistenceError
 from cloudra.runtime_v2.mailbox import Mailbox
 from cloudra.runtime_v2.schemas import (
     AgentSession,
@@ -394,7 +396,15 @@ def _decide_inject_agent_message(core: RuntimeCore, command: Command) -> Decisio
     # perform a separate restart step.  Externalised context (goal pin, DAG,
     # memory, workspace) is re-assembled every turn, so the new run picks up
     # where the agent left off conceptually.
-    wake_drafts, should_schedule = plan_wake(agent)
+    # system 投递（计算通知 / reminder）遵守 park-don't-wake：failed/cancelled
+    # 只写信箱，绝不把用户取消过的 agent 拉回 queued。
+    if command.actor == "system" and agent.state in {
+        AgentState.FAILED,
+        AgentState.CANCELLED,
+    }:
+        wake_drafts, should_schedule = [], False
+    else:
+        wake_drafts, should_schedule = plan_wake(agent)
     effects: list[Effect] = [deliver]
     if should_schedule:
         effects.append(ScheduleAgent(agent.id))
@@ -737,6 +747,26 @@ def _mkdir(path: str) -> None:
     Path(path).mkdir(parents=True, exist_ok=True)
 
 
+_ARTIFACT_ID_CHARS = frozenset(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"
+)
+
+
+def _artifact_dir(artifacts_root: Path, artifact_id: str) -> Path | None:
+    """Resolve a per-artifact directory only if it stays under ``artifacts_root``."""
+    if not artifact_id or len(artifact_id) > 200:
+        return None
+    if any(ch not in _ARTIFACT_ID_CHARS for ch in artifact_id):
+        return None
+    root = artifacts_root.resolve()
+    target = (root / artifact_id).resolve()
+    try:
+        target.relative_to(root)
+    except ValueError:
+        return None
+    return target
+
+
 def _delete_project_data(project_id: str) -> None:
     """硬删除的磁盘清理：conversations/<pid>/ 整树 + 该项目 artifact 文件。
 
@@ -749,14 +779,19 @@ def _delete_project_data(project_id: str) -> None:
     db_path = conversation_db_path(project_id)
     if db_path.is_file():
         try:
-            with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as con:
+            with contextlib.closing(
+                sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+            ) as con:
                 rows = con.execute("SELECT artifact_id FROM artifacts").fetchall()
             artifact_ids = [str(row[0]) for row in rows]
         except sqlite3.OperationalError:
             pass  # artifacts 表不存在（从未登记过 artifact）按空处理
     artifacts_root = data_dir() / "artifacts"
     for artifact_id in artifact_ids:
-        shutil.rmtree(artifacts_root / artifact_id, ignore_errors=True)
+        target = _artifact_dir(artifacts_root, artifact_id)
+        if target is None:
+            continue
+        shutil.rmtree(target, ignore_errors=True)
     shutil.rmtree(conversation_dir(project_id), ignore_errors=True)
 
 
@@ -806,6 +841,10 @@ class CommandBus:
         self._snapshot_at = time.monotonic()
 
     async def execute(self, command: Command) -> CommandResult:
+        async with self.core.command_lock:
+            return await self._execute_locked(command)
+
+    async def _execute_locked(self, command: Command) -> CommandResult:
         core = self.core
         cached = core.cached_result(command.command_id)
         if cached is not None:
@@ -815,6 +854,18 @@ class CommandBus:
         if decider is None and wrapper is None:
             raise CommandRejected("invalid_request", f"unknown command type {command.type!r}")
         try:
+            if command.type == "project.delete":
+                from cloudra.persistence.database import ComputeDB
+                from cloudra.services.compute_store import acount_active_compute_jobs
+
+                project_id = _project_id(core, command)
+                active = await acount_active_compute_jobs(ComputeDB(), project_id)
+                if active:
+                    raise CommandRejected(
+                        "state_conflict",
+                        f"project has {active} active compute job(s); "
+                        "run POST /api/v2/compute/cancel-all first",
+                    )
             if decider is not None:
                 # 拍 1：纯 decide（守卫校验在这里抛 CommandRejected）
                 decision = decider(core, command)
@@ -851,16 +902,46 @@ class CommandBus:
         """
         await self.core.event_writer.flush()
 
+    async def _persist_appended(self, keep: int | None = None) -> None:
+        """Persist the just-appended tail; drop only this caller's addition if the store write fails."""
+        try:
+            await self._flush()
+        except EventPersistenceError:
+            self.core.event_writer.discard_unpersisted(keep=keep)
+            raise
+
     async def _apply_decision(self, command: Command, decision: Decision) -> CommandResult:
         core = self.core
-        envelopes = [self._append_draft(draft) for draft in decision.events]
-        await self._flush()
-        # 拍 3：状态投影（唯一应用器；纯通知事件 no-op）
-        for envelope in envelopes:
-            apply_event(core, envelope)
-        # 拍 4：副作用（runner/mailbox/文件系统/内存秘密覆盖）
-        for effect in decision.effects:
-            await _execute_effect(core, effect)
+        envelopes: list[EventEnvelope] = []
+        try:
+            for draft in decision.events:
+                before_append = len(core.event_log)
+                envelope = self._append_draft(draft)
+                await self._persist_appended(keep=before_append)
+                apply_event(core, envelope)
+                envelopes.append(envelope)
+            # 拍 4：副作用（runner/mailbox/文件系统/内存秘密覆盖）
+            for effect in decision.effects:
+                await _execute_effect(core, effect)
+        except EventPersistenceError:
+            # spawned 已落盘：返回已创建的 agent 并尽量跑完 effects，
+            # 避免 HTTP 500 触发新 command_id 再造一个 coordinator。
+            if any(envelope.type == "agent.spawned" for envelope in envelopes):
+                for effect in decision.effects:
+                    try:
+                        await _execute_effect(core, effect)
+                    except Exception:
+                        logger.exception(
+                            "spawn effect after partial persist failed for %s",
+                            command.command_id,
+                        )
+                return CommandResult(
+                    command_id=command.command_id,
+                    accepted=True,
+                    event_id=envelopes[-1].event_id,
+                    data=self._resolve_result(decision.result),
+                )
+            raise
         return CommandResult(
             command_id=command.command_id,
             event_id=envelopes[-1].event_id if envelopes else "",
@@ -886,7 +967,12 @@ class CommandBus:
         内存日志、从不发布/持久化，重启即丢。）
         """
         core = self.core
-        appended = [self._append_draft(draft) for draft in exc.events]
+        appended: list[EventEnvelope] = []
+        for draft in exc.events:
+            before_append = len(core.event_log)
+            appended.append(self._append_draft(draft))
+            await self._persist_appended(keep=before_append)
+        before_append = len(core.event_log)
         appended.append(
             core.record(
                 "command.rejected",
@@ -899,7 +985,7 @@ class CommandBus:
                 },
             )
         )
-        await self._flush()
+        await self._persist_appended(keep=before_append)
         return CommandResult(
             command_id=command.command_id,
             accepted=False,
@@ -927,17 +1013,20 @@ class CommandBus:
         core = self.core
         if core.store is None:
             return
-        # 先冲刷事件 writer：快照水位引用的每条事件都必须已持久化，
-        # 否则快照会指向尚未落库的事件。
+        # 先冲刷事件 writer：快照水位必须是已落盘前缀，不能用 live
+        # high_watermarks——并发 append 会把水位抬过尚未 persist 的事件。
         await core.event_writer.flush()
-        await asyncio.to_thread(
-            core.store.save_snapshot,
-            projects=core.projects,
-            agents=core.agents,
-            roles=core.roles._roles,
-            runtime_defaults=core.runtime_defaults,
-            session_contexts=core.session_contexts,
-            last_seqs=core.event_log.high_watermarks,
-        )
+        last_seqs = core.event_writer.persisted_watermarks()
+        payload = {
+            "projects": {k: v.model_dump(mode="json") for k, v in core.projects.items()},
+            "agents": {k: v.model_dump(mode="json") for k, v in core.agents.items()},
+            "roles": {k: v.model_dump(mode="json") for k, v in core.roles._roles.items()},
+            "runtime_defaults": core.runtime_defaults.model_dump(mode="json"),
+            "session_contexts": {
+                k: v.model_dump(mode="json") for k, v in core.session_contexts.items()
+            },
+            "pending_compactions": sorted(core.pending_compactions),
+        }
+        await asyncio.to_thread(core.store.write_snapshot_payload, payload, last_seqs)
         self._snapshot_event_mark = len(core.event_log)
         self._snapshot_at = time.monotonic()

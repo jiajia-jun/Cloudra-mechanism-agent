@@ -10,6 +10,7 @@
 
 import { useEffect, useState } from 'react';
 import { api } from './api';
+import { isTrustedAuthMessageOrigin } from './runtimeUrl';
 import type { ProviderPreset, RuntimeConfig } from './types';
 
 interface GlobalConfigProps {
@@ -325,6 +326,9 @@ export default function GlobalConfig({ onClose, onToast }: GlobalConfigProps) {
     });
 
     const onMessage = async (event: MessageEvent) => {
+      if (!isTrustedAuthMessageOrigin(event.origin, window.location.origin)) {
+        return;
+      }
       if (event.data && event.data.type === 'OPENROUTER_AUTH_CODE' && event.data.code) {
         const storedVerifier = sessionStorage.getItem('openrouter_pkce_verifier');
         const slot = (sessionStorage.getItem('openrouter_pkce_slot') as Slot) || 'coordinator';

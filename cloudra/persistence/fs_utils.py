@@ -14,22 +14,24 @@ import tempfile
 from typing import Any, Iterable
 
 
-def atomic_write_bytes(path: str, data: bytes) -> None:
+def atomic_write_bytes(path: str, data: bytes, *, mode: int | None = None) -> None:
     """原子写入二进制内容到 ``path``。
 
     临时文件用 ``tempfile.mkstemp`` 生成唯一名称，避免多个写者撞用同一
     临时文件相互截断；写入成功后 ``os.replace`` 原子替换，失败时清理残留。
-    目标文件已存在时沿用其权限位，避免 mkstemp 默认 0600 改变文件属性。
+    目标文件已存在时沿用其权限位，避免 mkstemp 默认 0600 改变文件属性；
+    ``mode`` 显式指定时覆盖该默认。
     """
     directory = os.path.dirname(os.path.abspath(path))
     fd, tmp = tempfile.mkstemp(dir=directory, prefix=".", suffix=".tmp")
     try:
         with os.fdopen(fd, "wb") as f:
             f.write(data)
-        try:
-            mode = os.stat(path).st_mode & 0o777
-        except OSError:
-            mode = 0o644
+        if mode is None:
+            try:
+                mode = os.stat(path).st_mode & 0o777
+            except OSError:
+                mode = 0o644
         os.chmod(tmp, mode)
         os.replace(tmp, path)
     except BaseException:
@@ -40,9 +42,11 @@ def atomic_write_bytes(path: str, data: bytes) -> None:
         raise
 
 
-def atomic_write_text(path: str, content: str, encoding: str = "utf-8") -> None:
+def atomic_write_text(
+    path: str, content: str, encoding: str = "utf-8", *, mode: int | None = None
+) -> None:
     """原子写入文本内容到 ``path``。"""
-    atomic_write_bytes(path, content.encode(encoding))
+    atomic_write_bytes(path, content.encode(encoding), mode=mode)
 
 
 def atomic_write_json(

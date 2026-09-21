@@ -3,6 +3,9 @@
 ## [Unreleased]
 
 ### 变更
+- **API 访问控制只验 token**：`Authorization: Bearer …` 与 `?token=` 等价，不限 HTTP 方法、不验 Host。远程打开启动打印的 `#token=` URL 即可。`CLOUDRA_API_TOKEN=off` 才走回环 Host/client 闸门（挡 DNS rebinding）；非回环绑定拒绝 off。
+- live 交付 complete 口径钉死：默认机理草稿边只欠 `ts_opt` + `frequency`（一阶鞍点）；IRC/端点/方向不是结题必要，需要路径证明时才写进该步契约。带 stages 的边不以 `CoverageContract.required_edge_level=endpoint_supported` 为门槛。benchmark 自洽性与 `ts_guess strict` 的 IRC 方向证明不变。
+- `dag_guided` 机理草稿对话：Coordinator 的 `rationale` 必须写清 Considered / Observed / Chose（综合过哪些情况、机理推断工具里实际看到什么、图上留下什么及未画通道的取舍）；Supervisor 允许单路径，只在取舍没讲清时退回，不因单路径 reject，也不替 Coordinator 补第二条通道。
 - `dft-calculation` skill 重写（基于五路软件最佳实践调研）：TS 初猜三级梯队（ts_prepare → 映射插值/NEB → 一维/二维松弛扫描，扫描从兜底升为正当主力）、**QST2/QST3 硬禁止（上限 NEB）**、「投初猜优于调参」纪律、软模/松散离子-分子复合物不收敛预警与处置阶梯、构象采样强制（单构象能垒=交付阻断）、真空裸离子禁令与溶剂/反离子/标准态规则、伪鞍点识别（虚模位移必须落在反应重原子）、不合理建模黑名单与「该不该算」前置自审；新增 references `ts-search-playbook.md` 与 `modeling-sanity.md`；本地工具优先于 bash 的工作规则全面收紧。
 - `flower.enabled` 默认开：mechanism_predict（FlowER 机理假设生成）对模型默认可见，未装环境时调用层 fail-loud 引导 `scripts/setup_flower.sh`；显式置 false 才回退 wire 隐藏 + 执行层硬失败。
 - 工具面收敛：`role_allowlist` 工具级角色门槛（registry 声明使用者，wire 投影隐藏 + PermissionStage 硬拦两道防线；化学/QM 工具限 coordinator/small_mol/md/dft/experiment，ir/nmr_processor 为 experiment 专属）；裁撤冗余工具 `web_fetch`（能力由 `browser` 静态回退覆盖）与 `todo_read`（todo 提醒改为内联清单，`todo_write` 每次调用回显全量）；email 工具与收件监听器加总开关 `email.enabled`（默认关，config_gate 隐藏 + 执行层硬失败 + 监听器不启动）。
@@ -16,12 +19,25 @@
 - 运行时环境定位 POSIX-only（flock/nice 依赖 fcntl 与 POSIX 语义），README 声明并撤下 Windows 安装指引。
 
 ### 修复
+- 快照 `last_seqs` 改用 EventWriter 已落盘前缀，不再用 live `high_watermarks`（并发 append 后重启会跳过已入库事件）。
+- `bind_stage_attachments` 与单条绑定共用 `ts_opt` 正常终止闸门，stale 后重算 stages，不再重放旧列表。
+- 计算完成通知按已加载项目取数，未打开项目的积压不再占满 LIMIT。
+- `.api_token` 新建即 0600，已存在但权限过宽就地修好；硬删除 artifact 路径收口在 `artifacts/` 下。
+- 计算账本与磁盘/DAG 对齐：guard 终态先 CAS，cancel-all 已落 `cancelled` 则不写 `state_*.json`、不入 compute review；租约耗尽 reap 探 calc/guard flock，活作业不标 failed；`scheduler` 为 NULL 的旧行走本地取消桶。
+- CommandBus 逐事件 persist-then-apply：落库失败丢弃未持久化尾巴，避免下次 flush 把从未 apply 的事件写进磁盘；包装路径已 apply 的事件失败不丢、留给下次重试。
+- OpenRouter OAuth 回调 `postMessage` 钉同源 `window.location.origin`，接收端校验 `event.origin`。
+- `CLOUDRA_API_TOKEN=off` 只允许回环绑定；`create_v2_app` / `cloudra web --host` 非回环直接拒启。
+- runner 收尾 flush 持久化失败（`EventPersistenceError`）不再吞掉：任务失败可见，不把内存 SUCCEEDED 假装已经落库。
+- 前端时间线：live 窗口裁掉的事件转入「Load earlier」页，不再静默丢失；`?runtime=` 只接受回环/同源，避免把 bearer 打到任意基址；SSE 白名单补上 `tool.requested` / program 生命周期等；`render-smiles` 走 bearer。
+- 物种 `geometry` 绑定走 `validate_species_minimum`（须 0 虚频），与 `dag_submit_species_evidence` 同口径。
+- 上下文压缩（GH #48，从 windows 分支回流）：thinking 模型摘要带 ` ```json ` 围栏或围栏后散文、`objective` 写成单元素数组/裸字符串、列表项写成裸字符串时，做无损形状提升后再校验（空 objective / 缺 text 仍 fail-loud）；拒替换 `error=''` 落到异常类型名；摘要超时下限 600s。前端 `/compact` 与 Compact 按钮按 agent 状态提示，并 toast `compaction.started`/`finished`（含拒因）。
 - config 并发写丢键：旧 `save()` 用内存快照整文件重写 YAML，运行中服务会抹掉并发写入（如 `knowledge install` 的 plugins）；且 plugins 条目无法经 save 移除。改 `mutate_config` 后结构性消灭。
 - 重启后 pending 投影孤儿（审批/提问）无声消失，agent 唤醒看不到终态；现显式落过期事件。
 - 快照恢复在多项目交错写入下按全局 seq 高水位过滤会丢事件；改每项目 `last_seqs` + ORDER BY rowid 增量重放。
 - 计算完成通知依赖进程内 IPC 总线，API 进程重启即丢；改纯 DB 轮询投递。
 
 ### 新增
+- `conformer_search` 新增 `mode` 参数（CREST 后端）：`nci`（壁势下非共价复合物/氢键网络采样）、`qcg`（quantum cluster growth 显式溶剂壳生长，配 `solvent_smiles`+`nsolv`；只跑 grow——产物 `grow/cluster.xyz` + `qcg_energy.dat` 能量，ensemble 阶段刻意不纳入；依赖外部 xtb-IFF、缺失落专属终止类别 `qcg_xtbiff_missing` fail-loud；引擎被信号杀死落 `engine_crashed`；macOS arm64 上 gfnff 预优化路径实测崩溃、gfn2 grow 正常，安装与现状见 `deploy/xtbiff_macos_shim.md`）、`protonate`/`deprotonate`/`tautomerize`（质子化态/互变异构枚举，返回文案明示「含伪结构、逐条化学审查后才准用」且限单组分输入）；crest_runner 按 runtype 核对各自的产物文件名与产物原子数（CREST 2.12 实测口径），拓扑对比只对 default/nci 启用。
 - 聊天记录分页回看：转录顶部新增「Load earlier」气泡，点击经 `eventsPage`（`before` 游标 + `tail`）向前翻一页 500 条更早事件，滚动位置保持不跳，可连续点击直到翻完；翻到头显示「beginning of history」结束标记。更早分页独立于实时 SSE 窗口存储，不被 `EVENTS_WINDOW` 裁剪。
 - `cdxml_to_graph` 工具：基于 molli + RDKit 解析 ChemDraw CDXML 反应路线，生成节点为 isomeric SMILES 的候选机理图；多反应物/产物合并为反应物/产物络合物，支持 DAG 检测与 `dag_propose_mechanism` 提案生成，边信息携带溶剂/条件/试剂供计算参考，可选落盘 mol2。
 - runtime_v2 原生提醒唤醒：`reminders.py` 拦截 `schedule` 工具，提醒落 `reminder.scheduled` / `reminder.cancelled` / `reminder.fired`（`schedule_id` 为事件 seq）；到点经 `agent.message` 投递 `[Reminder]` 并自动 reopen 终态 agent。进程启动 `rearm_all()` 从事件投影重建，过期立即触发——修复 v2 下 `schedule` 无人触发、挂起 agent 永睡的停摆。

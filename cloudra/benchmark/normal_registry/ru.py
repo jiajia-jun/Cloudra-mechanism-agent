@@ -51,9 +51,9 @@ TASKS = {
         "steps": [
             {
                 # PT：甲酸向甲醛质子转移 → 质子化甲醛 + 甲酸根
+                # 本机仅约束扫描上界 11.9、未定位鞍点 → 无可信锚点，撤回旧 0.0（无垒无证据；沿用 A2/A5 缺省 None 约定）
                 "out": "[CH2:1]=[O+:2][H:6].[O-:5][CH:3]=[O:4].[CH3:7][N+:8]#[C-:9]",
                 "type": "proton transfer from formic acid to formaldehyde -> protonated formaldehyde + formate",
-                "barrier": 0.0,
             },
             {
                 # 异腈 C α-加成醛碳：成 C9-C1，断 C1=O2 π → nitrilium

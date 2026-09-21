@@ -17,6 +17,9 @@ description = (
     "Deep-parse a quantum-chemistry output log (Gaussian .log/.out, ORCA .out, or xtb .out; engine auto-detected) "
     "and extract energies, dipole, HOMO/LUMO, frequencies, thermochemical corrections, and other "
     "physicochemical properties. "
+    "For Gaussian/ORCA logs with imaginary frequencies, each imaginary mode also gets a composition summary "
+    "(top displaced atom pairs, heavy-atom displacement fraction, and — when watch_pairs are supplied — each "
+    "watch pair's share of the total pair-projected displacement). "
     "Use for: a full analysis after a Gaussian/ORCA/xtb job, or checking whether the job converged normally. "
     "Do not use for: submitting a job (use submit_compute_job) or processing experimental spectra (use ir_processor / nmr_processor)."
 )
@@ -31,7 +34,7 @@ _AVAILABLE_PROPERTIES = {
         "spin_crossover",
     ],
     "dipole": ["dipole_moment_debye"],
-    "frequencies": ["frequencies_cm", "imaginary_frequencies"],
+    "frequencies": ["frequencies_cm", "imaginary_frequencies", "imaginary_modes"],
     "thermochemistry": [
         "zero_point_correction_hartree",
         "thermal_energy_correction_hartree",
@@ -100,6 +103,49 @@ def _extract_gaussian_thermochemistry(text: str) -> dict[str, float]:
     return complete[-1] if complete else parsed_blocks[-1]
 
 
+def _imaginary_mode_summaries(
+    engine: str,
+    log_text: str,
+    vibfreqs: list[float],
+    watch_pairs: Optional[list[list[int]]],
+) -> Optional[list[dict]]:
+    """虚频组成摘要（纯解析）：文本权威通道取简正模式位移与末帧几何。
+
+    位移或几何拿不到时返回 None（调用方保持 None 语义，不填 0/空列表冒充）。
+    """
+    from cloudra.tools.core import mode_analysis
+
+    if engine == "orca":
+        from cloudra.tools.core import orca_frames
+        from cloudra.tools.core.irc_path import parse_xyz
+
+        # 与 NORMAL MODES 位移块对齐必须用全模式频率轴（含平动/转动零频；
+        # cclib 会裁掉打头模式），故摘要的频率一律取文本权威块。
+        freqs = orca_frames.vibfreqs_from_text(log_text)
+        n_atoms = len(freqs) // 3 if freqs and len(freqs) % 3 == 0 else 0
+        disps = orca_frames.vibdisps_from_text(log_text, len(freqs), n_atoms) if n_atoms else None
+        xyz = orca_frames.final_xyz_from_text(log_text)
+        parsed = parse_xyz(xyz) if xyz.strip() else None
+        if parsed is None:
+            return None
+        symbols, positions = parsed
+    else:  # gaussian
+        from cloudra.tools.core import gaussian_frames
+
+        freqs = vibfreqs
+        disps = gaussian_frames.vibdisps_from_text(log_text, len(freqs))
+        blocks = gaussian_frames.std_orientation_frames(log_text)
+        if not blocks:
+            return None
+        from cclib.parser.utils import PeriodicTable
+
+        rows = blocks[-1]
+        pt = PeriodicTable()
+        symbols = [pt.element[int(z)] for z, *_ in rows]
+        positions = [[x, y, z] for _, x, y, z in rows]
+    return mode_analysis.imaginary_mode_summary(freqs, disps, positions, symbols, watch_pairs)
+
+
 class LogParser_input_schema(input_schema):
     log_path: str = Field(
         description="Path of the output log (Gaussian .log/.out, ORCA .out, or xtb .out): "
@@ -113,6 +159,13 @@ class LogParser_input_schema(input_schema):
                     "'job_type' (job-type detection), 'scan' (scan parameters and energy series), "
                     "'irc' (IRC path summary). "
                     "None extracts every available property."
+    )
+    watch_pairs: Optional[list[list[int]]] = Field(
+        default=None,
+        description="1-based atom pairs to score each imaginary mode against, "
+                    "e.g. the step's declared forming/breaking pairs. When given, each entry of "
+                    "imaginary_modes carries watch_pair_fraction (the pairs' share of the total "
+                    "pair-projected displacement); ignored when there are no imaginary modes.",
     )
 
 
@@ -135,6 +188,13 @@ class LogParser_output_schema(output_schema):
     dipole_moment_debye: Optional[float] = Field(default=None, description="Dipole moment (Debye)")
     frequencies_cm: Optional[list[float]] = Field(default=None, description="Vibrational frequencies (cm⁻¹)")
     imaginary_frequencies: Optional[list[float]] = Field(default=None, description="Imaginary frequencies (cm⁻¹, negative values), used to judge a TS")
+    imaginary_modes: Optional[list[dict]] = Field(
+        default=None,
+        description="Composition summary per imaginary mode (Gaussian/ORCA only): frequency_cm, "
+                    "top_displaced_pairs ([i, j, projected score], 1-based), heavy_atom_fraction, and "
+                    "watch_pair_fraction when watch_pairs were supplied. None when normal-mode "
+                    "displacements or the final geometry could not be parsed (xtb always None).",
+    )
     zero_point_correction_hartree: Optional[float] = Field(default=None, description="Zero-point correction (Hartree)")
     thermal_energy_correction_hartree: Optional[float] = Field(default=None, description="Thermal energy correction (Hartree)")
     thermal_enthalpy_correction_hartree: Optional[float] = Field(default=None, description="Thermal enthalpy correction (Hartree)")
@@ -222,9 +282,9 @@ class LogParser(Tool):
         requested = self._resolve_requested_fields(user_input.properties)
         # 大日志的 cclib 解析与文本回退是分钟级同步 CPU 工作，整条流水线
         # 卸载出事件循环，避免冻结整个 API。
-        return await asyncio.to_thread(self._parse_log, log_path, requested)
+        return await asyncio.to_thread(self._parse_log, log_path, requested, user_input.watch_pairs)
 
-    def _parse_log(self, log_path: str, requested: set[str]) -> LogParser_output_schema:
+    def _parse_log(self, log_path: str, requested: set[str], watch_pairs: Optional[list[list[int]]] = None) -> LogParser_output_schema:
         """同步解析流水线主体（cclib + ORCA/xtb 文本回退）；只经 to_thread 调用。"""
         try:
             # 2. 引擎嗅探先于 cclib：外部 MLIP（ExtOpt/ProgExt）日志无 SCF 块，
@@ -385,6 +445,16 @@ class LogParser(Tool):
                     # 的原生语义）；frequencies_cm 只存非负实频。
                     result["frequencies_cm"] = [f for f in vibfreqs if f >= 0]
                     result["imaginary_frequencies"] = [f for f in vibfreqs if f < 0]
+                    if (
+                        "imaginary_modes" in requested
+                        and result["imaginary_frequencies"]
+                        and engine in ("orca", "gaussian")
+                    ):
+                        # 位移与末帧几何一律走文本权威通道（ORCA 6.1 日志 cclib
+                        # 整体崩溃）；拿不到位移或几何时 imaginary_modes 保持 None。
+                        modes = _imaginary_mode_summaries(engine, log_text, vibfreqs, watch_pairs)
+                        if modes:
+                            result["imaginary_modes"] = modes
 
             thermo_fields = set(_AVAILABLE_PROPERTIES["thermochemistry"])
             if thermo_fields & requested:
