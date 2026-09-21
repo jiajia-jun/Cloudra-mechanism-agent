@@ -67,7 +67,8 @@ ts.resume(run_id, adjusted)
 **不推**：阶段推进、中间进度。这些只留在 process 记录里，agent 需要时自己读那一个文件，
 不走上下文。
 
-`path_kind` ∈ `xtb_path` / `idpp_fallback` / `agent_supplied` 随**事件**报送：
+`path_kind` ∈ `xtb_path` / `xtb_path_failed` / `idpp_fallback` / `not_attempted` 随**事件**报送
+（`xtb_path_failed` = 引擎确实跑过但没产出可用初猜，与"根本没搜"的 `not_attempted` 分开）：
 **初猜是怎么来的必须写明**，不许静默降级。
 
 ## 3. 阶段
