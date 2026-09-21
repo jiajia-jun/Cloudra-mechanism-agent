@@ -137,6 +137,27 @@ async def test_slow_body_read_times_out(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_unauthenticated_declared_oversize_is_401_without_reading(monkeypatch, tmp_path):
+    """有 API token 时，未出示 token 且声明体大于未认证上限 → 401 且不读 body。"""
+    monkeypatch.setenv("CLOUDRA_API_TOKEN", "audit-body-secret")
+    monkeypatch.setenv("CLOUDRA_DATA_DIR", str(tmp_path))
+    # 介于未认证上限与全局上限之间，避免先撞上 413。
+    mid = 1024 * 1024
+    status, body, calls = await _drive(
+        create_v2_app(RuntimeCore(strict_events=True)),
+        _scope(
+            "POST",
+            _PROBE,
+            [(b"content-length", str(mid).encode()), (b"content-type", b"application/json")],
+        ),
+        [{"type": "http.request", "body": b"x", "more_body": True}],
+    )
+    assert status == 401
+    assert calls == 0
+    assert b"invalid token" in body
+
+
+@pytest.mark.asyncio
 async def test_normal_post_body_reaches_the_router():
     payload = b'{"name":"audit-body-guard"}'
     status, body, _ = await _drive(
