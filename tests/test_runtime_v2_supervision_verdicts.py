@@ -3,7 +3,8 @@
 D1：per-CallReview 裁决（dag_review_call）与机理草稿裁决（dag_accept_mechanism）
 与结构化 ReviewDecision 共用同一张 durable 通知表与同一条
 flush_review_notifications 投递通道（pin + mailbox + 条件 wake +
-标记 sent 闭环，failed/cancelled 收件人 park-don't-wake）。触发点是
+标记 sent 闭环，failed/cancelled/`WAITING_INPUT`/工具审批 park-don't-wake，
+`wait_review` 的 `WAITING_APPROVAL` 要 wake）。触发点是
 dag policy stage 的 after_tool（裁决工具成功）与 reconcile（恢复补投）。
 
 D2：Supervisor 落 failed/cancelled 且有可消费督导待办时，向项目
@@ -420,6 +421,43 @@ async def test_call_verdict_does_not_wake_waiting_approval():
     assert handled == 1
     assert coordinator.state is AgentState.WAITING_APPROVAL
     assert core.runner.scheduled == []
+
+
+@pytest.mark.asyncio
+async def test_call_verdict_wakes_wait_review_parking():
+    """同一 WAITING_APPROVAL 接口：reason=wait_review 是在等这份 flush，必须 wake。"""
+    core = RuntimeCore(strict_events=True)
+    bus = CommandBus(core)
+    project, coordinator = await _project_with_coordinator(core, bus, "verdict-wait-review")
+    await asyncio.to_thread(_seed_delivery, project.id)
+    review_id = await asyncio.to_thread(
+        _seed_explicit_review, project.id, coordinator.id
+    )
+    core.agent_host.start_run(coordinator)
+    core.agent_host.transition(
+        coordinator, AgentState.WAITING_APPROVAL, reason="wait_review"
+    )
+
+    class _Runner:
+        def __init__(self) -> None:
+            self.scheduled: list[str] = []
+
+        def schedule(self, session_id: str) -> None:
+            self.scheduled.append(session_id)
+
+    core.runner = _Runner()
+    reviewed = await _controller(project.id).review_call(
+        review_id=review_id,
+        target_id="step1",
+        stage_kind="ts_opt",
+        verdict="disagree",
+        reason="exit review is waiting on this flush",
+    )
+    assert reviewed["accepted"] is True
+    handled = await flush_review_notifications(core, project.id)
+    assert handled == 1
+    assert coordinator.state is AgentState.RUNNING
+    assert core.runner.scheduled == [coordinator.id]
 
 
 @pytest.mark.asyncio

@@ -493,6 +493,32 @@ async def _sync_terminal_supervisor_alert(
     await core.event_writer.flush()
 
 
+def _latest_state_reason(core, session_id: str) -> str:
+    events = core.event_log.query_session(session_id, types={"agent.state_changed"})
+    if not events:
+        return ""
+    return str(events[-1].data.get("reason") or "")
+
+
+def _review_flush_should_wake(core, agent) -> bool:
+    """flush 的叫醒纪律：复用 WAITING_APPROVAL，用挂起 reason 分流。
+
+    wait_review 挂起就是在等这份裁决；工具审批（reason=approval）和
+    WAITING_INPUT 仍 park。终态永不自动复活。
+    """
+    from cloudra.runtime_v2.schemas import AgentState
+
+    if agent.state in {
+        AgentState.FAILED,
+        AgentState.CANCELLED,
+        AgentState.WAITING_INPUT,
+    }:
+        return False
+    if agent.state is AgentState.WAITING_APPROVAL:
+        return _latest_state_reason(core, agent.id) == "wait_review"
+    return True
+
+
 async def flush_review_notifications(
     core: RuntimeCore, project_id: str, *, auto_wake: bool = True
 ) -> int:
@@ -508,13 +534,13 @@ async def flush_review_notifications(
     event_writer 落盘/发布，再把通知行标记 sent——投递与标记之间崩溃
     会在下次 flush 重投（pin 按 key 去重，mailbox 重投是一条冗余消息，
     接受）。failed/cancelled 收件人不唤醒（用户取消/失败的运行不被迟到
-    裁决复活），但裁决照常 pin + 投递驻留信箱（park-don't-wake：显式
-    复活后首轮即可读到），通知行照样闭环标记 sent；recipient 不是活
+    裁决复活），WAITING_INPUT 与工具审批（WAITING_APPROVAL reason=approval）
+    同样只驻留；wait_review 挂起就是在等这份 flush，必须 wake。裁决照常
+    pin + 投递驻留信箱，通知行照样闭环标记 sent；recipient 不是活
     agent（如 replan 的 "user"）只落投递不唤醒。返回处理的通知条数。
     """
     from cloudra.dag.store import DagStore
     from cloudra.persistence.database import ConversationDB
-    from cloudra.runtime_v2.schemas import AgentState
 
     def _store() -> DagStore | None:
         db = ConversationDB(project_id)
@@ -571,19 +597,10 @@ async def flush_review_notifications(
                     content=content,
                     sender="supervisor",
                 )
-                # park-don't-wake：failed/cancelled 收件人只驻留，绝不唤醒。
-                # auto_wake=False（装载）：succeeded/queued 同样只驻留。
-                if (
-                    auto_wake
-                    and agent is not None
-                    and agent.state
-                    not in {
-                        AgentState.FAILED,
-                        AgentState.CANCELLED,
-                        AgentState.WAITING_APPROVAL,
-                        AgentState.WAITING_INPUT,
-                    }
-                ):
+                # park-don't-wake：终态 / WAITING_INPUT / 工具审批只驻留。
+                # wait_review 的 WAITING_APPROVAL 必须 wake（人已经 break）。
+                # auto_wake=False（装载）：任何状态都只驻留。
+                if auto_wake and agent is not None and _review_flush_should_wake(core, agent):
                     core.agent_host.wake(agent, runner=core.runner)
                 # 本路径在 CommandBus 之外，自己持有 publish+persist 边界：
                 # 事件落盘/发布先于标记 sent，否则崩溃会丢唤醒。
