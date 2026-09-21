@@ -1,0 +1,3 @@
+$constrain
+  atoms: 3,4,6-8,16,17-22
+$end

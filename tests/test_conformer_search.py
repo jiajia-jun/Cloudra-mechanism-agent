@@ -7,6 +7,8 @@ import pytest
 import cloudra.tools.Chemtool.conformer_search as conformer_mod
 from cloudra.tools.Chemtool.conformer_search import ConformerSearch, ConformerSearch_input_schema
 
+CREST_QCG_FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures", "crest_qcg")
+
 ETHANOL_XYZ = """9
 ethanol
 C      0.0000    0.0000    0.0000
@@ -597,16 +599,48 @@ async def test_qcg_without_xtbiff_fails_loud(tool, mock_session, tmp_path):
     assert "xtb-IFF" in result.message
 
 
+def test_official_qcg_example_fixtures_match_docs():
+    """官网 QCG 示例输入必须在仓里、原子数与文档一致（不跑引擎）。"""
+    e1 = open(os.path.join(CREST_QCG_FIXTURES, "example_1", "bacillaene.xyz"), encoding="utf-8").read()
+    e2 = open(os.path.join(CREST_QCG_FIXTURES, "example_2", "benzoic_acid.xyz"), encoding="utf-8").read()
+    water = open(os.path.join(CREST_QCG_FIXTURES, "example_2", "water.xyz"), encoding="utf-8").read()
+    solute = open(os.path.join(CREST_QCG_FIXTURES, "example_3", "solute.xyz"), encoding="utf-8").read()
+    solvent = open(os.path.join(CREST_QCG_FIXTURES, "example_3", "solvent.xyz"), encoding="utf-8").read()
+    xcontrol = open(os.path.join(CREST_QCG_FIXTURES, "example_3", ".xcontrol"), encoding="utf-8").read()
+    pentanol = open(os.path.join(CREST_QCG_FIXTURES, "example_4", "pentanol.xyz"), encoding="utf-8").read()
+    benzene = open(os.path.join(CREST_QCG_FIXTURES, "example_4", "benzene.coord"), encoding="utf-8").read()
+    struc = open(os.path.join(CREST_QCG_FIXTURES, "example_5", "struc.xyz"), encoding="utf-8").read()
+    directed = open(os.path.join(CREST_QCG_FIXTURES, "example_5", "directed.list"), encoding="utf-8").read()
+    assert int(e1.splitlines()[0].strip()) == 90
+    assert int(e2.splitlines()[0].strip()) == 15
+    water_lines = water.splitlines()
+    assert int(water_lines[0].strip()) == 3
+    # 官网 xyz：第 1 行原子数、第 2 行注释（可空）、其后才是原子
+    assert water_lines[2].split()[0] == "O"
+    assert int(solute.splitlines()[0].strip()) == 23
+    assert int(solvent.splitlines()[0].strip()) == 6
+    assert "$constrain" in xcontrol
+    assert int(pentanol.splitlines()[0].strip()) == 18
+    assert benzene.splitlines()[0].strip() == "$coord"
+    assert int(struc.splitlines()[0].strip()) == 34
+    assert "23,24 5" in directed
+
+
 @requires_crest
 @pytest.mark.asyncio
 async def test_qcg_grows_explicit_solvent_shell(tool, mock_session, tmp_path):
-    """--qcg 端到端：乙酸 + 2 水的显式溶剂壳；产物帧 = 溶质 8 + 2×3 = 14 原子。"""
+    """官网例 2 输入：苯甲酸 + 3 水 grow；产物帧 = 溶质 15 + 3×3 = 24 原子。"""
     if not shutil.which("xtbiff"):
         pytest.skip("未安装 xtb-IFF，跳过 QCG 成功路径集成测试")
+    solute = tmp_path / "benzoic_acid.xyz"
+    shutil.copy(
+        os.path.join(CREST_QCG_FIXTURES, "example_2", "benzoic_acid.xyz"),
+        solute,
+    )
     out_dir = tmp_path / "qcg_ok"
     result = await tool.safe_call(
         ConformerSearch_input_schema(
-            smiles="CC(=O)O", backend="crest", mode="qcg", solvent_smiles="O", nsolv=2,
+            input_path=str(solute), backend="crest", mode="qcg", solvent_smiles="O", nsolv=3,
             output_dir=str(out_dir), timeout=1800,
         ),
         mock_session,
@@ -615,4 +649,4 @@ async def test_qcg_grows_explicit_solvent_shell(tool, mock_session, tmp_path):
     assert "micro-solvated cluster" in result.message
     assert os.path.isfile(result.ensemble_path)
     lines = open(result.ensemble_path, encoding="utf-8").read().splitlines()
-    assert int(lines[0].strip()) == 14  # 乙酸 8 原子 + 2 个水
+    assert int(lines[0].strip()) == 24  # 官网苯甲酸 15 原子 + 3 个水

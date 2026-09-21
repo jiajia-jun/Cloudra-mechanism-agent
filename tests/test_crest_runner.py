@@ -551,7 +551,10 @@ def test_command_protonate_family_flags_and_no_quick(tmp_path):
 
 
 def test_command_qcg_shape_and_validation(tmp_path):
-    solvent = WATER_XYZ
+    official_water = os.path.join(
+        os.path.dirname(__file__), "fixtures", "crest_qcg", "example_2", "water.xyz"
+    )
+    solvent = open(official_water, encoding="utf-8").read()
     cmd = build_crest_command(_request(
         tmp_path, runtype="qcg", solvent_xyz_text=solvent, nsolv=3, method="gfnff",
     ))
