@@ -41,10 +41,12 @@ jobs:
         # 覆盖率只在 3.11 这一格出：coverage 的 tracer 在 3.12 上对解析型用例慢
         # 3~4 倍（本机同一 venv：3.11 1m50s / 3.12 6m44s，去掉 --cov 则两版都
         # ~2min；COVERAGE_CORE=ctrace 无效），三格都出覆盖率会让 3.12 顶破 job
-        # 超时。覆盖数字与解释器版本无关，出一格即可。
+        #   超时。覆盖数字与解释器版本无关，出一格即可。
+        # --cov-fail-under=65：覆盖率不能只有数字没有下界。65 取自本机 Windows 实测
+        #   70%（那台上含 189 例平台失败与 124 skip），Linux 侧只会更高。
         run: |
           if [ "${{ matrix.python-version }}" = "3.11" ]; then
-            pytest tests -q --cov=cloudra --cov-report=term-missing -o faulthandler_timeout=300
+            pytest tests -q --cov=cloudra --cov-report=term-missing --cov-fail-under=65 -o faulthandler_timeout=300
           else
             pytest tests -q -o faulthandler_timeout=300
           fi
