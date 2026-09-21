@@ -201,6 +201,55 @@ async def test_router_status_start_stop_history(tmp_path):
         assert [r["task_id"] for r in history["batches"][0]["runs"]] == ["T1"]
 
 
+@pytest.mark.asyncio
+async def test_status_and_runs_agree_the_moment_a_batch_reaches_terminal(
+    tmp_path, monkeypatch
+):
+    """/status（内存快照）报终态的那一刻，/runs（历史 DB）必须已经一致。
+
+    注入一次慢落库，把"内存已翻终态、库还没写"的窗口放大到确定可测：终态必须
+    先落库、再发布到内存。旧顺序（内存先翻，DB 经 to_thread 后写）会让两个接口
+    在收敛瞬间对同一批次给出矛盾答案——本机全量跑实测偶发红
+    （test_router_status_start_stop_history，单跑 20 次不复现、只在全量负载下偶发）。
+    """
+    import time as _time
+
+    from cloudra.benchmark.runner import BenchmarkDB
+    from cloudra.services.api_v2 import create_v2_app
+
+    real_finish_batch = BenchmarkDB.finish_batch
+
+    def slow_finish_batch(self, batch_id, status):
+        _time.sleep(0.5)  # 放大发布顺序错误的窗口
+        return real_finish_batch(self, batch_id, status)
+
+    monkeypatch.setattr(BenchmarkDB, "finish_batch", slow_finish_batch)
+
+    core = RuntimeCore(strict_events=True)
+    app = create_v2_app(core)
+    tasks_dir = _write_tasks(tmp_path / "tasks", "T1")
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+        await client.post(
+            "/api/v2/benchmark/start",
+            json={"tasks_dirs": [tasks_dir], "concurrency": 1, "timeout": 60.0},
+        )
+        await client.post("/api/v2/benchmark/stop")
+
+        deadline = _time.monotonic() + 30.0
+        while True:
+            status = (await client.get("/api/v2/benchmark/status")).json()["status"]
+            if status == "stopped":
+                break
+            assert _time.monotonic() < deadline, "batch did not converge to stopped"
+            await asyncio.sleep(0.01)
+
+        # 内存侧刚报终态，历史侧必须已经是同一终态（同序：DB -> 内存 -> 事件）
+        history = (await client.get("/api/v2/benchmark/runs")).json()
+
+    assert history["batches"][0]["status"] == "stopped"
+
+
 # ---------------------------------------------------------------------------
 # Task 5（P1）：沙箱生命周期契约（失败即基建失败；占用目录拒绝复用）
 # ---------------------------------------------------------------------------
