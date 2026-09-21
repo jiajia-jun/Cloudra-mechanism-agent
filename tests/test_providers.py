@@ -226,3 +226,26 @@ async def test_openrouter_pkce_and_callback_endpoints(monkeypatch):
         assert cfg_resp.json()["coordinator"]["key_set"] is True
         assert get_config().coordinator.key == "sk-or-v1-mock-exchanged-key-999"
 
+
+
+@pytest.mark.asyncio
+async def test_openrouter_callback_cannot_break_out_of_inline_script():
+    """code 是查询参数，且该端点必然未鉴权（浏览器重定向带不了 bearer）：
+    内联脚本里必须转义 `<`，否则 `</script>` 提前闭合脚本元素、后续标签进 DOM。"""
+    from httpx import ASGITransport, AsyncClient
+
+    from cloudra.services.api_v2.app import create_v2_app
+
+    payload = "</script><img src=x onerror=alert(1)>"
+    app = create_v2_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://testserver"
+    ) as client:
+        resp = await client.get(
+            "/api/v2/runtime/providers/openrouter/callback", params={"code": payload}
+        )
+
+    assert resp.status_code == 200
+    assert "</script><img" not in resp.text, "payload 截断了内联 <script>"
+    assert "\\u003c/script" in resp.text, "`<` 应以 \\u003c 转义形式出现"
+    assert "alert(1)" in resp.text, "载荷内容本身仍应保留（只是不可执行）"
