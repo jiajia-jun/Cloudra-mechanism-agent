@@ -243,15 +243,20 @@ class BenchmarkBatch:
             logger.exception("batch %s crashed", self.batch_id)
             self.status = "error"
         finally:
+            # 终态三面同序：先落库（历史 /runs 读 DB）→ 再发布内存（/status 读快照）
+            # → 最后发事件。旧顺序把内存翻在前面、DB 经 to_thread 后写：收敛瞬间
+            # /status 已报 stopped 而 /runs 仍是 stopping，两个接口对同一批次互相
+            # 矛盾（本机全量跑实测偶发红：test_router_status_start_stop_history）。
             # stopping 是 stop() 主动置的：收尾后落 stopped 而不是伪装 done。
-            self.status = "stopped" if self.status == "stopping" else "done"
-            self.finished_at = time.time()
+            final_status = "stopped" if self.status == "stopping" else "done"
             await asyncio.to_thread(
-                self._runner.db.finish_batch, self.batch_id, self.status
+                self._runner.db.finish_batch, self.batch_id, final_status
             )
+            self.status = final_status
+            self.finished_at = time.time()
             self.emit(
                 "benchmark.batch_finished",
-                {"batch_id": self.batch_id, "status": self.status},
+                {"batch_id": self.batch_id, "status": final_status},
             )
 
     async def _run_one(self, st: _TaskRunState) -> None:

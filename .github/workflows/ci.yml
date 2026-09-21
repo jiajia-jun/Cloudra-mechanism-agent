@@ -12,6 +12,9 @@ jobs:
     # 任何测试挂起时 15 分钟快速失败，而不是空烧默认 6 小时
     timeout-minutes: 15
     strategy:
+      # 一格挂掉不许取消其余格：fail-fast 会把 3.12/3.13 判成 cancelled，
+      # 那样"3.11 挂了"和"三个版本都挂了"在结果页上无法区分。
+      fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
 
@@ -67,7 +70,9 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # 前端单测脚本用 `node --experimental-strip-types`（Node >= 22.6 才有
+          # 该 flag），与 js_host 的 engines >= 22 一致；Node 20 会直接报未知选项。
+          node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
@@ -75,6 +80,52 @@ jobs:
         working-directory: frontend
         run: npm ci --no-audit --no-fund
 
+      - name: Test frontend
+        # src/*.test.ts 三个文件都在 npm test 里，改前端逻辑必须让这一格变红
+        working-directory: frontend
+        run: npm test
+
       - name: Build frontend
         working-directory: frontend
         run: npm run build
+
+  full-deps:
+    # 主 test 矩阵只装 `.[dev]`（pytest/ruff），于是整套化学工具链与 JS 宿主
+    # 用例全部走 skip 分支——CI 的绿是"跳过 148 例"的绿。这一格把可选依赖
+    # 装齐，让那些用例真的跑起来：化学栈（rdkit/molli/nmrglue/spectrochempy/
+    # chemcoord/pyscf）+ pymupdf，以及 JS 宿主（Node >= 22 + quickjs-emscripten）。
+    # 不含 visual(pymol-open-source) 与 browser(playwright 浏览器)：前者需要
+    # 系统级构建依赖、后者需要下载浏览器，留给专门的验收环境。
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          # js_runtime 的前置探测要求 Node >= 22（见 runtime_v2/js_runtime.py）
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: cloudra/runtime_v2/js_host/package-lock.json
+
+      - name: Install chemistry extras
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[chem,pdf]
+
+      - name: Install JS host dependencies
+        # JS 宿主用例的第二个前置：node_modules/quickjs-emscripten 必须在位
+        run: npm ci --prefix cloudra/runtime_v2/js_host --ignore-scripts --no-audit --no-fund
+
+      - name: Run JS host unit tests
+        run: npm test --prefix cloudra/runtime_v2/js_host
+
+      - name: Run tests with the full optional-dependency set
+        # 与 test 矩阵同一条命令：差别只在依赖装齐，跳过的那批用例真的执行
+        run: pytest tests -q -o faulthandler_timeout=300
