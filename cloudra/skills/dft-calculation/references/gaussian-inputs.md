@@ -39,7 +39,7 @@ An illustrative closed-shell neutral DFT candidate, with a chosen gas-phase meth
 
 The route should contain `opt=(ts,calcfc) freq b3lyp/def2svp` and the explicit numerical/dispersion settings. Read the resulting file to verify charge, multiplicity, resource headers and absence of old modredundant freezes. Use actual candidate coordinates: generating from reactant SMILES starts from a minimum, not the TS region.
 
-Submit `input_file="/work/step/ts.gjf"`, `job_type="gaussian"`, `cpus=4`, `memory_mb=4096`, `is_async=true` on a node with that capacity. Keep `%chk` in the input directory; Gaussian scratch is removed after completion. Separate jobs need separate basenames/checkpoints unless intentionally restarting.
+Submit with `submit_compute_job`, `job_type="gaussian"`, `memory_mb=4096`, `is_async=true`, matching CPU allocation to the workflow type: for high-throughput batches (conformer sweeps, scan points, batch SP), allocate `cpus=2~4` to maximize aggregate throughput; for sequential blocking critical paths (reaction mechanism paths where downstream steps await this geometry/TS), allocate up to `cpus=32` (within node capacity) to rapidly unblock progress. Keep `%chk` in the input directory; Gaussian scratch is removed after completion. Separate jobs need separate basenames/checkpoints unless intentionally restarting.
 
 ## 3. Scans and constraints
 

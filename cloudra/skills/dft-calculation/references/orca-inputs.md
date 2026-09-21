@@ -118,7 +118,7 @@ Keep `<stem>.relaxscanact.dat` and per-point `<stem>.NNN.xyz` files for `scan_pa
 
 ## 5. Submission and failure checks
 
-For the one-core examples, submit the actual generated path with `job_type="orca"`, `cpus=1`, `memory_mb=4096`, `is_async=true`. Writer `mem="3GB"` is a total budget divided by `nproc`; ORCA `%maxcore` is per process. Reserve memory for all processes plus overhead. `%maxcore` does not cap the external ML model's memory. Use the node's real capacity, not a fixed atom-count/core rule.
+For submission, match CPU allocation to the workflow: for high-throughput or parallel batches (conformer sweeps, scan points, independent single points), submit with `cpus=2` to `cpus=4` (QM parallel efficiency drops sharply on single jobs; aggregate throughput across concurrent 2–4 core jobs is far superior). For sequential blocking workflows (reaction mechanism paths where each intermediate/TS blocks downstream steps), allocate more cores — up to 32 cores maximum (`cpus` up to 32, within node capacity) to unblock the critical path quickly. Writer `mem="3GB"` is a total budget divided by `nproc`; ORCA `%maxcore` is per process. Reserve memory for all processes plus overhead. `%maxcore` does not cap the external ML model's memory. Use the node's real capacity, not a fixed atom-count/core rule.
 
 Use separate basenames/directories for independent jobs to avoid scratch/Hessian collisions. Check the original input and final geometry alongside `log_parser`: `ORCA TERMINATED NORMALLY` can also appear after an optimization reaches its iteration limit. For `ExtOpt`, absent SCF blocks are expected; lack of cclib SCF data is not by itself a failed external job.
 
