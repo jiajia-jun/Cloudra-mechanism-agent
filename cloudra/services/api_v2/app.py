@@ -13,6 +13,7 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Optional
+from urllib.parse import unquote
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -85,6 +86,133 @@ class _HostCheckMiddleware:
                 await response(scope, receive, send)
                 return
         await self.app(scope, receive, send)
+
+
+# 请求体读取预算。ASGI 层没有 body 读超时：一个声明了 Content-Length 却慢慢发字节的连接
+# 会一直挂在协议解析状态上——实测「声明 8MB、只发 20 字节」45s 内无响应、不关连接、也不
+# 超时。进入应用前把 body 读完（有大小上限与时长预算），下游 receive 从缓冲重放；无 body
+# 的请求（GET、SSE）完全不走这条路径，行为逐字节不变。
+_BODY_READ_TIMEOUT_SECONDS = 30.0
+_MAX_REQUEST_BYTES = 32 * 1024 * 1024
+# 未带有效 token 时只允许缓冲这么多——避免鉴权前被 32MiB×30s 拖垮。
+_MAX_UNAUTH_REQUEST_BYTES = 8 * 1024
+
+
+class _BodyTooLargeError(Exception):
+    """请求体超过允许上限。"""
+
+
+def _request_body_declared(scope: dict) -> bool:
+    """请求是否声明了 body：非零 Content-Length 或 chunked 传输。"""
+    for name, value in scope.get("headers") or []:
+        if name == b"content-length":
+            try:
+                return int(value) > 0
+            except ValueError:
+                return True
+        if name == b"transfer-encoding" and b"chunked" in value.lower():
+            return True
+    return False
+
+
+def _presented_api_token(scope: dict) -> str | None:
+    """从 Authorization: Bearer 或 ?token= 取出调用方出示的 token（无则 None）。"""
+    for name, value in scope.get("headers") or []:
+        if name == b"authorization":
+            raw = value.decode("latin-1")
+            if raw.startswith("Bearer "):
+                return raw[len("Bearer ") :]
+            return None
+    qs = scope.get("query_string") or b""
+    for part in qs.split(b"&"):
+        if part.startswith(b"token="):
+            return unquote(part[len(b"token=") :].decode("latin-1"))
+    return None
+
+
+async def _reject_request(scope: dict, receive: Any, send: Any, status_code: int, detail: str) -> None:
+    """拒绝请求并让服务器关连接（此时 body 可能还没读完）。"""
+    response = JSONResponse({"detail": detail}, status_code=status_code, headers={"connection": "close"})
+    await response(scope, receive, send)
+
+
+class _BodyGuardMiddleware:
+    """请求体大小上限与读取超时（Host 校验之后、路由/Depends 鉴权之前）。
+
+    - 声明的 ``Content-Length`` 超限 → 413，且**不读** body；
+    - 分块传输累计超限 → 413；
+    - 整个 body 在 ``_BODY_READ_TIMEOUT_SECONDS`` 内没读完 → 408；
+    - 配置了 API token 且请求未出示有效 token 时，缓冲上限降为
+      ``_MAX_UNAUTH_REQUEST_BYTES``；声明就更大 → **401 且不读 body**
+      （避免未认证客户端先吃满 32MiB 再被路由拒）。
+
+    读到的分片按序重放给下游，与未经本中间件时语义一致。
+    """
+
+    def __init__(self, app: Any, *, expected_token: str | None = None) -> None:
+        self.app = app
+        self.expected_token = expected_token
+
+    async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
+        if scope["type"] != "http" or not _request_body_declared(scope):
+            await self.app(scope, receive, send)
+            return
+
+        authed = self.expected_token is None
+        if not authed:
+            presented = _presented_api_token(scope)
+            authed = presented is not None and hmac.compare_digest(presented, self.expected_token)
+        max_bytes = _MAX_REQUEST_BYTES if authed else _MAX_UNAUTH_REQUEST_BYTES
+
+        for name, value in scope.get("headers") or []:
+            if name == b"content-length":
+                try:
+                    declared = int(value)
+                except ValueError:
+                    await _reject_request(scope, receive, send, 400, "invalid Content-Length")
+                    return
+                if declared > _MAX_REQUEST_BYTES:
+                    await _reject_request(scope, receive, send, 413, "request body exceeds the size limit")
+                    return
+                if not authed and declared > _MAX_UNAUTH_REQUEST_BYTES:
+                    await _reject_request(scope, receive, send, 401, "invalid token")
+                    return
+                break
+
+        buffered: list[dict] = []
+        total = 0
+        try:
+            async with asyncio.timeout(_BODY_READ_TIMEOUT_SECONDS):
+                while True:
+                    message = await receive()
+                    if message["type"] == "http.disconnect":
+                        buffered.append(message)
+                        break
+                    total += len(message.get("body", b""))
+                    if total > max_bytes:
+                        raise _BodyTooLargeError
+                    buffered.append(message)
+                    if not message.get("more_body", False):
+                        break
+        except TimeoutError:
+            await _reject_request(scope, receive, send, 408, "timed out reading the request body")
+            return
+        except _BodyTooLargeError:
+            # 未认证路径触顶用 401（与「没 token」一致）；已认证触顶才是真超限 413。
+            if authed:
+                await _reject_request(scope, receive, send, 413, "request body exceeds the size limit")
+            else:
+                await _reject_request(scope, receive, send, 401, "invalid token")
+            return
+
+        pending = list(buffered)
+
+        async def replay() -> dict:
+            if pending:
+                return pending.pop(0)
+            return await receive()
+
+        await self.app(scope, replay, send)
 
 
 def _daemon_watchdog_interval() -> float:
@@ -264,9 +392,12 @@ def create_v2_app(
     # CLOUDRA_API_TOKEN=off 显式关闭认证；未设环境变量时回退到
     # data_dir/.api_token（首次启动自动生成，0600）。None 表示全放行。
     api_token = resolve_api_token()
+    # 请求体上限/读取超时：Host 之后、路由 Depends 鉴权之前。传入 expected_token，
+    # 未认证大 body 在缓冲前拒掉（见 _BodyGuardMiddleware）。
+    app.add_middleware(_BodyGuardMiddleware, expected_token=api_token)
     # 有 token：只验 token（远程/反代/公网域名靠它，Host 不拦）。
     # token=off：回环白名单挡 DNS rebinding。
-    # 最后添加的中间件最先执行：Host 校验先于 CORS/路由。
+    # 最后添加的中间件最先执行：Host 校验先于 body guard / CORS / 路由。
     app.add_middleware(
         _HostCheckMiddleware,
         allowed_hosts=None if api_token is not None else _host_allowlist(),
