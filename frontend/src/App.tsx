@@ -21,6 +21,14 @@ import {
   type ToolItem,
 } from './timeline';
 import { mergeAndTrimLiveEvents } from './eventWindow';
+import { resolveComposerSendTarget } from './composerSend';
+import { planSseReconnect } from './sseReconnect';
+import {
+  archiveProjectConfirm,
+  cancelAllComputeConfirm,
+  formatCancelAllToast,
+  hardDeleteProjectConfirm,
+} from './destructiveActions';
 import { ToolRow } from './ToolRow';
 import { ProgramCard } from './ProgramCard';
 import { PathPickerModal } from './PathPickerModal';
@@ -598,16 +606,18 @@ export default function App() {
       source = streamProject(activeProjectId, cursor, {
         onOpen: () => setConnState('live'),
         onError: () => {
-          setConnState('offline');
+          const plan = planSseReconnect({ cursor, stillWanted: !closed });
+          if (plan.action === 'ignore') return;
+          setConnState(plan.nextState);
           if (source) {
             source.close();
             source = null;
           }
-          if (!closed && reconnectTimer === null) {
+          if (reconnectTimer === null) {
             reconnectTimer = window.setTimeout(() => {
               reconnectTimer = null;
               connect();
-            }, 2000);
+            }, plan.delayMs);
           }
         },
         onEvent: (event) => {
@@ -946,11 +956,7 @@ export default function App() {
   }
 
   async function archiveProject(p: Project) {
-    if (
-      !window.confirm(
-        `Archive project "${p.name}"?\n\nIt will move to the Archived section; you can restore it later.`,
-      )
-    ) {
+    if (!window.confirm(archiveProjectConfirm(p.name))) {
       return;
     }
     try {
@@ -974,11 +980,7 @@ export default function App() {
   }
 
   async function deleteProject(p: Project) {
-    if (
-      !window.confirm(
-        `Permanently delete project "${p.name}"?\n\nThis cannot be undone: the conversation history and artifacts are erased. The workspace directory is kept.`,
-      )
-    ) {
+    if (!window.confirm(hardDeleteProjectConfirm(p.name))) {
       return;
     }
     try {
@@ -997,33 +999,33 @@ export default function App() {
   }
 
   async function cancelAllComputeJobs() {
-    if (
-      !window.confirm(
-        'Cancel ALL unfinished compute jobs?\n\nQueued jobs are cancelled immediately; Slurm jobs are scancelled via their poll loop; local jobs are ledger-cancelled (processes are never killed).',
-      )
-    ) {
+    if (!window.confirm(cancelAllComputeConfirm())) {
       return;
     }
     try {
       const counts = await api.cancelAllComputeJobs();
       void loadSidebarOps();
-      pushToast(
-        'ok',
-        `Compute jobs cancelled: ${counts.ready_cancelled} queued, ${counts.slurm_cancel_requested} slurm (cancel requested), ${counts.local_cancelled} local`,
-      );
+      pushToast('ok', formatCancelAllToast(counts));
     } catch (e) {
       reportError(e);
     }
   }
 
   async function sendMessage() {
+    const target = resolveComposerSendTarget({
+      draft,
+      sending,
+      hasProject: Boolean(activeProject),
+      hasAgent: Boolean(activeAgent),
+      interactions,
+    });
+    if (target.kind === 'noop' || !activeProject) return;
     const content = draft.trim();
-    if (!content || !activeProject || sending) return;
     const images = pendingImages.map((p) => p.path);
     const imageArtifactIds = pendingImages.map((p) => p.artifactId);
     setSending(true);
     try {
-      if (content.startsWith('/')) {
+      if (target.kind === 'slash') {
         const lower = content.toLowerCase();
         if (lower.startsWith('/schedule')) {
           setDraft('');
@@ -1082,20 +1084,17 @@ export default function App() {
           pushToast('info', 'Commands: /schedule [on|off], /goal <text>, /yolo [on|off], /visual [on|off], /compact');
           return;
         }
+        // Unknown slash: fall through to message/spawn so the agent can see it.
       }
-      if (interactions.length > 0 && activeProject) {
-        const first = interactions[0];
-        const ixnId = (first.interaction_id ?? first.id) as string | number | undefined;
-        if (ixnId) {
-          setDraft('');
-          await api.respondInteraction(activeProject.id, ixnId, content);
-          pushToast('ok', 'Response sent to agent');
-          api.interactions(activeProject.id).then(setInteractions).catch(reportError);
-          return;
-        }
+      if (target.kind === 'respond') {
+        setDraft('');
+        await api.respondInteraction(activeProject.id, target.interactionId, content);
+        pushToast('ok', 'Response sent to agent');
+        api.interactions(activeProject.id).then(setInteractions).catch(reportError);
+        return;
       }
       setPendingImages([]);
-      if (!activeAgent) {
+      if (target.kind === 'spawn_coordinator') {
         // With images attached the spawn `query` cannot carry them, so spawn
         // idle and deliver text + images as the first message instead.
         const resp = await api.spawnAgent(activeProject.id, {
@@ -1131,7 +1130,7 @@ export default function App() {
           },
         ]);
         setDraft('');
-        await api.sendMessage(activeAgent.id, content, images, imageArtifactIds);
+        await api.sendMessage(activeAgent!.id, content, images, imageArtifactIds);
       }
     } catch (e) {
       setPendingMessages((prev) => prev.filter((m) => m.content !== content));
@@ -1519,6 +1518,7 @@ export default function App() {
           style={{ paddingLeft: 8 + depth * 14 }}
           onClick={() => void selectAgent(a.id)}
           title={`Agent: ${a.display_name} (${a.role_id}) · state: ${a.state}`}
+          data-testid={`agent-row-${a.id}`}
         >
           {childCount > 0 ? (
             <button
@@ -1765,6 +1765,7 @@ export default function App() {
                         type="button"
                         className="btn ghost xs sidebar-cancel-all-btn"
                         title="Cancel all active compute jobs"
+                        data-testid="cancel-all-compute"
                         onClick={() => void cancelAllComputeJobs()}
                       >
                         Cancel All
@@ -1964,6 +1965,7 @@ export default function App() {
                       <div
                         key={p.id}
                         className={`project-item ${p.id === activeProjectId ? 'active' : ''}`}
+                        data-testid={`project-row-${p.id}`}
                         onClick={() => selectProject(p.id)}
                       >
                         <div className="project-name">{p.name}</div>
@@ -1993,6 +1995,7 @@ export default function App() {
                       <div
                         key={p.id}
                         className={`project-item archived ${p.id === activeProjectId ? 'active' : ''}`}
+                        data-testid={`project-row-${p.id}`}
                         onClick={() => selectProject(p.id)}
                       >
                         <div className="project-name">{p.name}</div>
@@ -2012,6 +2015,7 @@ export default function App() {
                           type="button"
                           className="btn ghost sm project-archive"
                           title={`Delete "${p.name}" permanently (workspace directory is kept)`}
+                          data-testid={`hard-delete-${p.id}`}
                           onClick={(e) => {
                             e.stopPropagation();
                             void deleteProject(p);
@@ -2061,6 +2065,7 @@ export default function App() {
                   type="button"
                   className="sidebar-foot-item sidebar-compute-cancel"
                   title="Cancel all unfinished compute jobs (ledger-level; never kills processes)"
+                  data-testid="cancel-all-compute-foot"
                   onClick={() => void cancelAllComputeJobs()}
                 >
                   <span className="sidebar-foot-label">Cancel All Compute Jobs</span>
@@ -2338,6 +2343,7 @@ export default function App() {
             )}
             <textarea
               ref={composerTextareaRef}
+              data-testid="composer-input"
               rows={2}
               value={draft}
               onChange={(e) => {
@@ -2849,7 +2855,7 @@ function Inspector({
                         <span className="metric-lbl">Messages</span>
                       </div>
                       <div className="overview-metric">
-                        <span className="metric-val">{stats.tokens.toLocaleString()}</span>
+                        <span className="metric-val">{(stats.tokens ?? 0).toLocaleString()}</span>
                         <span className="metric-lbl">Est. Tokens</span>
                       </div>
                       {stats.last_prompt_tokens != null && (
@@ -3424,7 +3430,7 @@ function Inspector({
                             <span className="stat-metric-lbl">Messages</span>
                           </div>
                           <div className="stat-metric-card">
-                            <span className="stat-metric-val">{stats.tokens.toLocaleString()}</span>
+                            <span className="stat-metric-val">{(stats.tokens ?? 0).toLocaleString()}</span>
                             <span className="stat-metric-lbl">Est. Tokens</span>
                           </div>
                           <div className="stat-metric-card">

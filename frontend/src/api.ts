@@ -13,6 +13,7 @@ import type {
   ProviderPreset,
   RuntimeConfig,
 } from './types';
+import { bootstrapApiToken } from './apiToken';
 import { trustedRuntimeBase } from './runtimeUrl';
 
 // Resolution order: trusted ?runtime= (loopback / same-origin only) ->
@@ -24,23 +25,9 @@ const runtimeUrl: string = trustedRuntimeBase(
 );
 
 // ---- bearer token ----
-// The launcher hands the token over via the URL fragment (#token=...): a
-// fragment is never sent to the server.  We move it into sessionStorage and
-// scrub the address bar so it does not leak via screenshots/history.
-const TOKEN_STORAGE_KEY = 'cloudra.api_token';
-
-function bootstrapToken(): string {
-  const match = window.location.hash.match(/^#token=(.+)$/);
-  if (match) {
-    const token = decodeURIComponent(match[1]);
-    sessionStorage.setItem(TOKEN_STORAGE_KEY, token);
-    history.replaceState(null, '', window.location.pathname + window.location.search);
-    return token;
-  }
-  return sessionStorage.getItem(TOKEN_STORAGE_KEY) ?? '';
-}
-
-const apiToken: string = bootstrapToken();
+// Launcher hands the token via #token= (never sent to the server). Persist
+// to sessionStorage and scrub the address bar — see apiToken.ts.
+const apiToken: string = bootstrapApiToken(window.location, sessionStorage, history);
 
 function authHeaders(): Record<string, string> {
   return apiToken ? { Authorization: `Bearer ${apiToken}` } : {};
