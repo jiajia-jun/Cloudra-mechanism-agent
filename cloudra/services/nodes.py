@@ -262,14 +262,24 @@ class NodeRegistry:
             raise NodeRegistryError(f"unsupported scheduler: {scheduler_type}")
         allowed = {
             "type", "partition", "account", "qos", "time_limit",
-            "cpus", "memory", "poll_seconds",
+            "cpus", "memory", "poll_seconds", "modules",
         }
         unknown = set(value) - allowed
         if unknown:
             raise NodeRegistryError(
                 f"unknown scheduler fields: {sorted(unknown)}"
             )
-        return dict(value, type=scheduler_type)
+        scheduler = dict(value, type=scheduler_type)
+        if "modules" in scheduler:
+            modules = scheduler["modules"]
+            if (
+                not isinstance(modules, list)
+                or not modules
+                or any(not isinstance(module, str) or not module.strip() for module in modules)
+            ):
+                raise NodeRegistryError("scheduler modules must be a non-empty list of names")
+            scheduler["modules"] = [module.strip() for module in modules]
+        return scheduler
 
     @staticmethod
     def _resources(value: object) -> dict:

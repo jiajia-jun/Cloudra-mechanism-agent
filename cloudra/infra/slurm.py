@@ -68,7 +68,6 @@ def build_batch_script(
         raise SlurmError(message)
     lines = [
         "#!/bin/bash",
-        "set -euo pipefail",
         _directive("job-name", f"cloudra-{task_id}"),
         _directive("output", f"cloudra-slurm-{task_id}-%j.out"),
         _directive("error", f"cloudra-slurm-{task_id}-%j.err"),
@@ -90,6 +89,15 @@ def build_batch_script(
         lines.append(f"#SBATCH --cpus-per-task={cpus}")
     if scheduler.get("memory"):
         lines.append(_directive("mem", scheduler["memory"], _MEMORY))
+    lines.append("set -euo pipefail")
+    modules = scheduler.get("modules", [])
+    if modules:
+        lines.extend(
+            [
+                ". /etc/profile.d/modules.sh",
+                shlex.join(["module", "load", *modules]),
+            ]
+        )
     lines.extend(
         [
             f"cd {shlex.quote(str(input_file.parent))}",
