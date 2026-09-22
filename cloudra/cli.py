@@ -793,6 +793,81 @@ def stats_cache(since, until, top_misses, db_path):
         console.print(misses_table)
 
 
+@stats_cmd.command(name="agents")
+@click.option("--since", default=None, help="只统计该时间（ISO）之后的事件")
+@click.option("--until", default=None, help="只统计该时间（ISO）之前的事件")
+@click.option("--db", "db_path", type=click.Path(path_type=Path), default=None,
+              help="runtime-v2.db 路径（默认 data_dir 下）")
+@click.option("--top", type=int, default=20, show_default=True, help="agent 表前 N 行")
+@click.option("--top-stalled", type=int, default=10, show_default=True,
+              help="空转 run（烧 token 但无工具进展）明细前 N 行")
+def stats_agents(since, until, db_path, top, top_stalled):
+    """Agent 行为聚合：run 成败/失败分类、token、工具成功与拦截、门禁裁决、压缩、
+    子 Agent 扇出与等待时长（只读 runtime-v2.db；与只读 API 同一实现）。"""
+    from cloudra.services import telemetry
+
+    try:
+        report = telemetry.agent_summary(_stats_db(db_path), since=since, until=until)
+    except telemetry.TelemetryError as exc:
+        console.print(f"[yellow]{exc}[/yellow]")
+        sys.exit(1)
+    totals = report["totals"]
+    runs = totals["runs"]
+    llm = totals["llm"]
+    tools = totals["tools"]
+    console.print(
+        f"[bold]Totals[/bold]  agents={totals['sessions']}  runs={runs['total']} "
+        f"(ok={runs['succeeded']} failed={runs['failed']} cancelled={runs['cancelled']})  "
+        f"llm={llm['requests']} (summary={llm['summary_requests']})  tokens={llm['total_tokens']}  "
+        f"tools={tools['calls']} (blocked={tools['blocked']})  retries={llm['retries']}"
+    )
+    if runs["failure_kinds"]:
+        kinds = "  ".join(
+            f"{kind}={count}" for kind, count in sorted(runs["failure_kinds"].items())
+        )
+        console.print(f"[bold]Failure kinds[/bold]  {kinds}")
+
+    agents_table = Table(title="By agent (session)", show_header=True, header_style="bold magenta")
+    for column, justify in (
+        ("session", "left"), ("runs", "right"), ("failed", "right"), ("llm", "right"),
+        ("tokens", "right"), ("tools", "right"), ("blocked", "right"), ("compacts", "right"),
+        ("children", "right"), ("wait(s)", "right"),
+    ):
+        agents_table.add_column(column, justify=justify)
+    for row in report["agents"][:top]:
+        m = row["metrics"]
+        waits_s = (m["waits_ms"]["input"] + m["waits_ms"]["approval"]) / 1000
+        agents_table.add_row(
+            str(row["session_id"]), str(m["runs"]["total"]), str(m["runs"]["failed"]),
+            str(m["llm"]["requests"]), str(m["llm"]["total_tokens"]), str(m["tools"]["calls"]),
+            str(m["tools"]["blocked"]), str(m["compaction"]["count"]),
+            str(m["subagents"]["spawned"]), f"{waits_s:.1f}",
+        )
+    console.print(agents_table)
+
+    stalled = [row for row in report["runs"] if row["no_tool_progress"]][:top_stalled]
+    if stalled:
+        stalled_table = Table(
+            title=f"Runs with LLM traffic but no completed tool call (top {len(stalled)} by tokens)",
+            show_header=True,
+            header_style="bold magenta",
+        )
+        for column in ("run_id", "session", "started", "duration(s)", "tokens", "llm", "outcome"):
+            stalled_table.add_column(column)
+        for row in stalled:
+            started = str(row.get("started_at") or "")
+            duration = f"{(row['duration_ms'] or 0) / 1000:.1f}" if row["duration_ms"] else "-"
+            stalled_table.add_row(
+                str(row["run_id"]), str(row["session_id"]), started[:19], duration,
+                str(row["metrics"]["llm"]["total_tokens"]), str(row["metrics"]["llm"]["requests"]),
+                str(row["outcome"] or "running"),
+            )
+        console.print(stalled_table)
+        console.print(
+            "[dim]no_tool_progress 是启发式线索（纯问答的 run 也会命中），不是结论。[/dim]"
+        )
+
+
 @stats_cmd.command(name="export")
 @click.argument("ident")
 @click.option("-o", "out_path", type=click.Path(path_type=Path), default=None,

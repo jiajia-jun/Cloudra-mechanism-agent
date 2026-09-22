@@ -16,7 +16,7 @@ cloudra                                     # 构建并启动 Web 前端（顺�
 cloudra web --host 0.0.0.0 [--port N]       # 自定义绑定地址/端口（默认仅 127.0.0.1:8000）
                                             # ⚠ 访问控制只验 bearer token；非回环绑定禁止 token=off
 cloudra scheduler                           # 前台跑调度守护（单实例 flock；CLOUDRA_SCHEDULER=off 禁止自动拉起）
-cloudra stats tokens|cache|export <id> -o <path>   # LLM 遥测：token 聚合 / 缓存分析 / 全量 context 导出（只读 runtime-v2.db）
+cloudra stats tokens|cache|agents|export <id> -o <path>   # LLM 遥测：token 聚合 / 缓存分析 / Agent 行为聚合 / 全量 context 导出（只读 runtime-v2.db）
 cloudra stop                                # 显式全停（不 kill 计算进程）
 npm --prefix cloudra/runtime_v2/js_host test   # JS 宿主测试；先 npm ci --ignore-scripts --no-audit --no-fund
 ```
