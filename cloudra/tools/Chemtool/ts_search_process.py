@@ -69,7 +69,7 @@ class TsPrepare_input_schema(input_schema):
 class TsResume_input_schema(input_schema):
     run_id: str = Field(description="run_id returned by ts_prepare")
     adjustment: TsAdjustment = Field(
-        description="Local overrides only: reaction_center, atom_map, max_path_samples, "
+        description="Local overrides only: reaction_center, atom_map, path_refinement_runs, "
                     "max_interventions. This is not a re-declaration of the whole reaction.",
     )
     workspace_dir: Optional[str] = Field(
