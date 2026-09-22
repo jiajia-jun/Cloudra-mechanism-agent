@@ -26,6 +26,7 @@ from collections import OrderedDict
 from typing import Any
 
 from cloudra.runtime_v2.agent_host import AgentHost
+from cloudra.runtime_v2.dispatcher import MessageDispatcher
 from cloudra.runtime_v2.email_listener import EmailListenerBroker
 from cloudra.runtime_v2.events import EventHub, EventLog
 from cloudra.runtime_v2.mailbox import Mailbox
@@ -250,6 +251,8 @@ class RuntimeCore:
             self.event_log, self.event_hub, store_provider=lambda: self.store
         )
         self.mailbox = Mailbox(self.event_log)
+        # 消息提交/投递唯一入口（评审 5.2）：持久化成功才入队、再按策略唤醒。
+        self.dispatcher = MessageDispatcher(self)
         self.agent_host = AgentHost(self)
         self.roles = RoleRegistry(roles if roles is not None else BUILTIN_ROLES)
         self.runtime_defaults = RuntimeSettings()

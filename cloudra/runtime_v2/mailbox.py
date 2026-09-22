@@ -20,7 +20,6 @@ import asyncio
 from typing import Any
 
 from cloudra.runtime_v2.events import EventLog
-from cloudra.runtime_v2.schemas import EventEnvelope, new_id
 
 
 class Mailbox:
@@ -97,44 +96,3 @@ class Mailbox:
         """纯入队（事件已由调用方落日志）——DeliverMessage 效果的执行点。"""
         self.ensure_inbox(to_session_id).put_nowait(message)
 
-    def deliver(
-        self,
-        *,
-        to_session_id: str,
-        project_id: str,
-        content: str,
-        sender: str,
-        run_id: str | None = None,
-        images: list[str] | None = None,
-        image_artifact_ids: list[str | None] | None = None,
-        post_id: str | None = None,
-        manifest: dict[str, Any] | None = None,
-    ) -> EventEnvelope:
-        message_id = new_id("msg")
-        envelope = self._event_log.append(
-            "agent.message_injected",
-            stream="project",
-            project_id=project_id,
-            session_id=to_session_id,
-            run_id=run_id,
-            data=self.message_data(
-                message_id=message_id,
-                sender=sender,
-                content=content,
-                images=images,
-                image_artifact_ids=image_artifact_ids,
-                post_id=post_id,
-                manifest=manifest,
-            ),
-        )
-        self.enqueue(
-            to_session_id,
-            self.message_payload(
-                message_id=message_id,
-                sender=sender,
-                content=content,
-                images=images,
-                post_id=post_id,
-            ),
-        )
-        return envelope

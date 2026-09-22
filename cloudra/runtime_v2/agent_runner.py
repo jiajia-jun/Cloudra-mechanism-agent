@@ -33,6 +33,7 @@ import os
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
+from cloudra.runtime_v2.dispatcher import WakePolicy
 from cloudra.runtime_v2.schemas import AgentSession, AgentState
 
 if TYPE_CHECKING:
@@ -429,15 +430,17 @@ class AgentRunner:
                                     f"without progress ({gate.reason})"
                                 ),
                             )
-                            self._deliver_child_completion(agent)
+                            await self._deliver_child_completion(agent)
                             break
                         # 缺口/下一步反馈进下一轮（mailbox 投递即持久审计
                         # agent.message_injected + 下一轮 drain 消费）。
-                        core.mailbox.deliver(
+                        # 本 run 正在跑、下一轮就会 drain inbox → 不唤醒。
+                        await core.dispatcher.commit_and_deliver(
                             to_session_id=agent.id,
                             project_id=agent.project_id,
                             content=self._gate_feedback_text(gate, strike=strike),
                             sender="completion_gate",
+                            wake=WakePolicy.NEVER,
                         )
                         continue
                     if gate.action == "wait_review":
@@ -465,12 +468,13 @@ class AgentRunner:
                         # 立刻唤醒空转）：工具的 "Task stopped." 只是回执，
                         # stop 实际在等 Supervisor 退出裁决——必须把审批回路
                         # 讲清楚，否则 agent 无法区分 接受/待审/被拒 三种结局。
-                        core.mailbox.deliver(
+                        await core.dispatcher.commit_and_deliver(
                             to_session_id=agent.id,
                             project_id=agent.project_id,
                             content=self._wait_review_feedback_text(gate),
                             sender="completion_gate",
                             run_id=run_id,
+                            wake=WakePolicy.NEVER,
                         )
                         break
                     # wait_background（有可核实唤醒来源的挂起，不是交付）与
@@ -489,7 +493,7 @@ class AgentRunner:
                     # 显式 wake 开新 run，关掉最后一段竞态窗口。
                     if self._inbox_has_pending(agent):
                         core.agent_host.wake(agent, runner=core.runner)
-                    self._deliver_child_completion(agent)
+                    await self._deliver_child_completion(agent)
                     break
                 if outcome.decision in {"wait_input", "wait_approval"}:
                     core.agent_host.transition(
@@ -525,13 +529,13 @@ class AgentRunner:
             # agent.cancelled after host.cancel().  会话上下文投影里已落
             # 的内容（发送前的输入、已完成的轮次输出）保持原样——投影只
             # 记录真实进入过上下文的消息，无需收尾摘要。
-            self._deliver_child_completion(agent)
+            await self._deliver_child_completion(agent)
             raise
         except Exception as exc:  # pipeline crash becomes a durable failure
             logger.exception("agent %s pipeline failed", agent.id)
             if agent.state is AgentState.RUNNING:
                 await core.agent_host.finish_run_durable(agent, outcome="failed", error=str(exc))
-            self._deliver_child_completion(agent)
+            await self._deliver_child_completion(agent)
         finally:
             # Flush the tail events (message_emitted, finish_run's
             # state_changed/run.finished, or a crashed turn's partial events)
@@ -545,10 +549,10 @@ class AgentRunner:
                 if isinstance(exc, EventPersistenceError):
                     raise
 
-    def _deliver_child_completion(self, agent: AgentSession) -> None:
+    async def _deliver_child_completion(self, agent: AgentSession) -> None:
         from cloudra.runtime_v2.subagent_bridge import deliver_child_completion_to_parent
 
-        deliver_child_completion_to_parent(self.core, agent)
+        await deliver_child_completion_to_parent(self.core, agent)
 
     def _emit_run_message(self, agent: AgentSession, run_id: str, content: str) -> None:
         self.core.event_log.append(
