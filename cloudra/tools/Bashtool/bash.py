@@ -4,8 +4,8 @@ from typing import Any
 from pydantic import Field
 
 from cloudra.base.session_class import Session
+from cloudra.base.tool_actor import ToolActorContext
 from cloudra.base.tools_class import Tool, input_schema, output_schema
-from cloudra.core.agent import Agent
 from cloudra.tools.core.command_analyzer import BashCommandClassifier
 from cloudra.tools.core.observation_offload import cap_observation
 from cloudra.tools.core.permission_model import Permission, check_permission
@@ -39,7 +39,7 @@ class Bash(Tool):
     # 开启 arbitrary_types_allowed 后 pydantic 不会对类对象做字段校验。
     input_schema: Any = Bash_input_schema
     output_schema: Any = Bash_output_schema
-    subagent: Agent = None
+    subagent: ToolActorContext | None = None
     tool_description: str = (
         "Run terminal commands for search, environment checks, builds, and tests; judge success by exit code. "
         "Use for: running tests, installing dependencies, inspecting the environment, invoking CLI tools. "
@@ -49,7 +49,7 @@ class Bash(Tool):
         "coordinates must come from tools such as smiles_to_mol / format_converter / qm_input_writer."
     )
 
-    def __init__(self, subagent: Agent = None, **data) -> None:
+    def __init__(self, subagent: ToolActorContext | None = None, **data) -> None:
         super().__init__(**data)
         self.subagent = subagent
         # 进行中的终端命令追踪（task_description -> command）：挂在工具实例上，
@@ -93,7 +93,7 @@ class Bash(Tool):
         agent_perms = self.subagent.permission_all()
         return check_permission(agent_perms, analysis.permissions)
 
-    def allowed_tools_lst(self, subagent: Agent = None) -> list[str]:
+    def allowed_tools_lst(self, subagent: ToolActorContext | None = None) -> list[str]:
         """
         Return a list of command names the agent is allowed to use.
         """

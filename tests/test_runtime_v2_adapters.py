@@ -616,8 +616,11 @@ async def test_legacy_tool_executor_runs_stop_tool():
 
 @pytest.mark.asyncio
 async def test_legacy_tool_executor_attaches_bridge_to_narrowed_tools():
-    """Regression: tools narrowing `subagent: Agent` (dag_view, goal_set, …)
-    rejected the duck-typed bridge at pydantic construction."""
+    """dag_view / goal_set 等工具经执行器拿到调用者身份并正常执行。
+
+    历史上这些工具的 `subagent` 字段收窄成 legacy `Agent` 类，鸭子类型 bridge
+    会在 pydantic 构造时被拒；字段类型改为 `ToolActorContext` Protocol 后回归
+    已在结构上消除（见 tests/test_tool_actor_context.py）。"""
     core = RuntimeCore(strict_events=True)
     bus = CommandBus(core)
     await bus.execute(Command(type="project.create", payload={"name": "p"}))
