@@ -17,7 +17,7 @@
 
 ### 1. Requirements & Installation
 
-Requires Python ≥ 3.11, Node.js ≥ 22 (both the optional JS host and the frontend test runner require ≥ 22), a POSIX environment (Linux/macOS — the execution plane relies on `flock`/`nice` semantics), and access to any OpenAI-compatible LLM endpoint.
+Requires Python ≥ 3.11, Node.js ≥ 22 (both the JS host used by the default `javascript` protocol and the frontend test runner require ≥ 22), a POSIX environment (Linux/macOS — the execution plane relies on `flock`/`nice` semantics), and access to any OpenAI-compatible LLM endpoint.
 
 ```bash
 # Clone the repository
@@ -164,14 +164,16 @@ Modes can be toggled dynamically in the project settings UI.
 
 ---
 
-## Optional JavaScript Tool Invocation Protocol
+## Tool Invocation Protocols
 
-By default agents issue one tool call per wire exchange (`invocation_protocol: traditional`). An opt-in per-agent setting, `invocation_protocol: javascript` (Web UI agent settings), lets the model instead submit one bounded JavaScript program (`js_exec`) that orchestrates capability-permitted tools and reports results with `text(value)`:
+The default protocol is `javascript`; `traditional` is a per-agent opt-in. With the default, the model submits one bounded JavaScript program (`js_exec`) per wire exchange that orchestrates capability-permitted tools and reports results with `text(value)`:
 
 ```js
 const result = await tools.log_parser({log_path: '/absolute/path/calculation.out'});
 text({call_id: result.call_id, ok: result.is_success, data: result.data});
 ```
+
+With `invocation_protocol: traditional` (Web UI agent settings, or the same field in a settings patch) the model instead issues one tool call per wire exchange and needs no JS host at all. Both protocols share the lifecycle and authority rules below; only the dispatch shape differs.
 
 - **Same lifecycle, same authority**: nested `tools.*` calls are real invocations through the same durable request → policy → executor → durable raw result pipeline as traditional calls. The protocol grants no extra authority — capabilities are rechecked at admission — and direct controls (`stop`, `ask_user`, `schedule`) remain top-level only.
 - **Uniform ToolResponse**: every nested call resolves `{call_id, is_success, summary, data, duration_ms}`. Business failures resolve with `is_success: false`; policy denials reject with a catchable `ToolCallError` (`code` such as `policy_blocked`, plus `stage` and host call id) — catching it grants no authority.
@@ -180,7 +182,7 @@ text({call_id: result.call_id, ok: result.is_success, data: result.data});
 - **Receipts, not hidden state**: `program.finished` records per-call receipts (`status`, `effect_state`, `raw_result_event_id`), program outputs and the sanitized error. The UI program card renders these events, and its source download is a snapshot of the durable `program.submitted` event.
 - **No heap recovery, no auto-rerun**: the JS process/heap is never checkpointed. A restart marks unfinished programs and calls interrupted without retrying side effects; a failed program returns one ordinary failed exchange, and a later model turn may submit a repaired program.
 
-### Installation (optional)
+### Installation
 
 The guest runs in QuickJS-WASM inside a separate Node ≥ 22 process. Install the pinned host dependency once:
 
@@ -188,7 +190,7 @@ The guest runs in QuickJS-WASM inside a separate Node ≥ 22 process. Install th
 npm ci --prefix cloudra/runtime_v2/js_host --ignore-scripts --no-audit --no-fund
 ```
 
-Cloudra never runs npm during execution or server startup. Missing Node or dependency makes JS-mode runs report `runtime_unavailable` with no silent fallback; traditional runs need no JS dependency at all. For an installed (pip) package, run the same command against `<site-packages>/cloudra/runtime_v2/js_host`.
+Cloudra never runs npm during execution or server startup. Missing Node or dependency makes `javascript` runs (the default protocol) report `runtime_unavailable` with no silent fallback; `traditional` runs need no JS dependency at all. For an installed (pip) package, run the same command against `<site-packages>/cloudra/runtime_v2/js_host`.
 
 ### Security boundary
 
