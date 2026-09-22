@@ -9,8 +9,8 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from cloudra.base.session_class import Session
+from cloudra.base.tool_actor import ToolActorContext
 from cloudra.base.tools_class import Tool, input_schema, output_schema
-from cloudra.core.agent import Agent
 from cloudra.tools.Plantool._store import agent_store_path, load_json, save_json
 
 _VALID_STATUSES = ("pending", "in_progress", "done")
@@ -54,7 +54,7 @@ class TodoWrite(Tool):
     )
     input_schema: Any = TodoWrite_input_schema
     output_schema: Any = TodoWrite_output_schema
-    subagent: Agent = None
+    subagent: ToolActorContext | None = None
 
     @staticmethod
     def _normalize(todos: list[TodoItem], existing: list[dict]) -> list[dict]:

@@ -1,9 +1,10 @@
 """Explicit built-in tool manifest.
 
-Keep this module dependency-free: :mod:`cloudra.core.agent` imports
-``cloudra.tools`` while several tool implementations import ``cloudra.core.agent``.
-The registry therefore stores import paths instead of importing tool classes at
-module import time.
+Keep this module dependency-free: the execution kernel imports
+``cloudra.tools``, while tool implementations pull in optional extras
+(chem/visual) and heavy modules that may legitimately be missing.  The registry
+therefore stores import paths instead of importing tool classes at module
+import time.
 
 Optional semantic fields are the single source of truth for downstream policy
 projections (DAG gate / runtime profiles / evidence derivation).  Downstream

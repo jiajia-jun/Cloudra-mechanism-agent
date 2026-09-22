@@ -9,8 +9,8 @@ from typing import Any
 from pydantic import Field
 
 from cloudra.base.session_class import Session
+from cloudra.base.tool_actor import ToolActorContext
 from cloudra.base.tools_class import Tool, input_schema, output_schema
-from cloudra.core.agent import Agent
 from cloudra.subagents import Subagent_hash  # noqa: F401  (kept for external references)
 
 MIN_ITEMS = 2
@@ -95,7 +95,7 @@ class SubAgentSwarm(Tool):
     tool_description: str = description
     input_schema: Any = SubAgentSwarm_input_schema
     output_schema: Any = SubAgentSwarm_output_schema
-    subagent: Agent = None
+    subagent: ToolActorContext | None = None
 
     def is_manage(self) -> bool:
         return True

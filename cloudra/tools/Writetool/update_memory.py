@@ -3,8 +3,8 @@ from typing import Any
 from pydantic import Field
 
 from cloudra.base.session_class import Session
+from cloudra.base.tool_actor import ToolActorContext
 from cloudra.base.tools_class import Tool, input_schema, output_schema
-from cloudra.core.agent import Agent
 from cloudra.persistence.memory import get_memory_manager
 
 description = (
@@ -47,7 +47,7 @@ class UpdateMemory(Tool):
     tool_description: str = description
     input_schema: Any = UpdateMemory_input_schema
     output_schema: Any = UpdateMemory_output_schema
-    subagent: Agent = None
+    subagent: ToolActorContext | None = None
 
     def is_write(self) -> bool:
         return True

@@ -10,8 +10,8 @@ from typing import Any
 from pydantic import Field
 
 from cloudra.base.session_class import Session
+from cloudra.base.tool_actor import ToolActorContext
 from cloudra.base.tools_class import Tool, input_schema, output_schema
-from cloudra.core.agent import Agent
 from cloudra.tools.Plantool._store import agent_store_path, save_json
 
 # 目标锚点消息的内容前缀：重复设定时据此识别并替换旧锚点
@@ -48,7 +48,7 @@ class GoalSet(Tool):
     )
     input_schema: Any = GoalSet_input_schema
     output_schema: Any = GoalSet_output_schema
-    subagent: Agent = None
+    subagent: ToolActorContext | None = None
 
     @staticmethod
     def _format(goal: dict) -> str:
