@@ -1,8 +1,8 @@
 """IRC 路径判定件（ts_guess strict verify 与 benchmark 评分共用唯一实现）。
 
 严格档路径方向证明：不要求 IRC 收敛到极小值，但要求双侧带坐标端点各自
-**几何上位于 TS 与对应优化中间体之间**——端点的监测对距离须落在
-[TS, 中间体] 区间内（带容差）且比 TS 更靠近中间体；两端允许
+**几何上位于 TS 与对应端点参考几何之间**——端点的监测对距离须落在
+[TS, 参考几何] 区间内（带容差）且比 TS 更靠近参考几何；两端允许
 direct/swapped 无序配对，任一指派成立即方向一致。
 
 监测原子对不是纯距离抓的，而是分层的化学分类器：
@@ -355,7 +355,7 @@ def classify_watch_pairs(symbols, d_ts, d_int, ts_bonds, int_bonds) -> dict:
 def evaluate_endpoint_between(symbols: Sequence[str], ts_pos, end_pos,
                               intermediate_pos, watch_pairs: Sequence[Sequence[int]],
                               charge: int = 0) -> dict:
-    """判断一个部分 IRC 端点是否位于 TS 与某个优化中间体之间。
+    """判断一个部分 IRC 端点是否位于 TS 与某个端点参考几何之间。
 
     判定对来源（硬闸门）：显式 watch_pairs > 键图 diff（A 层，两侧感知均为
     rdDetermineBonds 时）> distance_top5 回退。B 层提名对只进 details。"""
@@ -485,7 +485,7 @@ def assign_irc_endpoints(symbols: Sequence[str], ts_pos, end_a_pos, end_b_pos,
                          intermediate_a_pos, intermediate_b_pos,
                          watch_pairs: Sequence[Sequence[int]],
                          charge: int = 0) -> dict:
-    """尝试 IRC 两端与两个优化中间体的 direct/swapped 无序配对。"""
+    """尝试 IRC 两端与两个端点参考几何的 direct/swapped 无序配对。"""
     assignments = []
     for name, target_a, target_b in (
         ("direct", intermediate_a_pos, intermediate_b_pos),
@@ -523,3 +523,50 @@ def assign_irc_endpoints(symbols: Sequence[str], ts_pos, end_a_pos, end_b_pos,
         "warnings": chosen["a"].get("warnings", []) + chosen["b"].get("warnings", []),
         "details": chosen["a"]["details"] + chosen["b"]["details"],
     }
+
+
+def prove_irc_endpoint_direction(
+    ts_symbols: Sequence[str],
+    ts_pos,
+    endpoint_a: tuple[Sequence[str], object],
+    endpoint_b: tuple[Sequence[str], object],
+    intermediate_a: tuple[Sequence[str], object],
+    intermediate_b: tuple[Sequence[str], object],
+    watch_pairs: Sequence[Sequence[int]],
+    charge: int = 0,
+) -> dict:
+    """Align four geometries to the TS and apply the shared IRC direction test.
+
+    This is the single deterministic path-direction predicate used by ``ts_guess``
+    and benchmark self-consistency.  It deliberately proves only geometric
+    direction; optimization convergence and file provenance remain separate facts.
+    """
+    aligned = []
+    for label, (symbols, positions) in (
+        ("IRC endpoint A", endpoint_a),
+        ("IRC endpoint B", endpoint_b),
+        ("intermediate A", intermediate_a),
+        ("intermediate B", intermediate_b),
+    ):
+        result = align_atom_order(ts_symbols, ts_pos, symbols, positions)
+        if result is None:
+            return {
+                "is_decidable": False,
+                "is_match": False,
+                "assignment": "",
+                "details": [
+                    f"{label} differs from the TS in elements or atom counts, or geometry alignment failed."
+                ],
+            }
+        perm, rmsd = result
+        aligned.append([positions[k] for k in perm])
+
+    result = assign_irc_endpoints(
+        ts_symbols,
+        ts_pos,
+        aligned[0], aligned[1], aligned[2], aligned[3],
+        watch_pairs,
+        charge,
+    )
+    result["aligned_positions"] = aligned
+    return result

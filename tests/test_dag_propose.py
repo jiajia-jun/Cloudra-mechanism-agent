@@ -5,12 +5,11 @@ from types import SimpleNamespace
 import pytest
 
 from cloudra.base.session_class import Session
-from cloudra.core.agent import Coordinator
 from cloudra.infra.config import get_config
 from cloudra.persistence.database import ConversationDB
 from cloudra.tools.Plantool.dag_tools.dag_accept_mechanism import DagAcceptMechanism
 from cloudra.tools.Plantool.dag_tools.dag_propose_mechanism import DagProposeMechanism
-from tests.dag_identity import call_dag_tool, make_supervisor
+from tests.dag_identity import call_dag_tool, make_coordinator, make_supervisor
 
 _SPECIES = [
     {"name": "R", "smiles": "C=C"},
@@ -30,11 +29,7 @@ async def _call(cls, agent, session, **kwargs):
 
 
 def _agent(conversation_id, mode):
-    return Coordinator(
-        query="study a mechanism",
-        conversation_id=conversation_id,
-        orchestration_mode=mode,
-    )
+    return make_coordinator(conversation_id, orchestration_mode=mode)
 
 
 def _setup(tmp_path, conversation_id, mode):
@@ -89,6 +84,208 @@ async def test_record_proposal_auto_accepts(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_proposal_and_graph_are_one_durable_change(tmp_path):
+    """Draft write failure must roll back the graph and its accepted journal."""
+    agent, session, db = _setup(tmp_path, "propose-atomic", "dag_guided")
+    from cloudra.dag.controller import DagController
+
+    await DagController(db, "s1", "dag_guided").initialize()
+    with db.connect() as con:
+        con.execute("""
+            CREATE TRIGGER fail_draft_insert BEFORE INSERT ON dag_drafts
+            BEGIN SELECT RAISE(FAIL, 'draft insert failed'); END
+        """)
+
+    result = await _propose(agent, session)
+
+    assert result.is_success is False
+    assert _graph(db).delivery.nodes == []
+    assert _graph(db).delivery.edges == []
+    with db.connect() as con:
+        assert con.execute("SELECT COUNT(*) FROM dag_drafts").fetchone()[0] == 0
+        assert con.execute("SELECT COUNT(*) FROM dag_mutations WHERE accepted = 1").fetchone()[0] == 0
+
+
+@pytest.mark.asyncio
+async def test_public_proposal_selects_delivery_step_without_exploration_debt(tmp_path):
+    agent, session, db = _setup(tmp_path, "propose-scope", "dag_guided")
+    proposed = await _call(
+        DagProposeMechanism, agent, session,
+        rationale="R to P is the result under study",
+        species=_SPECIES, steps=_STEPS, delivery_targets=["step1"],
+    )
+    assert proposed.is_success
+    from cloudra.dag.controller import DagController
+    from cloudra.dag.store import DagStore
+
+    store = DagStore(db)
+    first_graph = store.load_snapshot().delivery
+    step_id = first_graph.edges[0].edge_id
+    supervisor = make_supervisor(db.conversation_id)
+    accepted = await _call(
+        DagAcceptMechanism, supervisor, session,
+        verdict="accept", draft_id=proposed.result["draft_id"],
+    )
+    assert accepted.is_success
+    assert store.accepted_claim_spec().scope["targets"] == [step_id]
+
+    exploration = await _call(
+        DagProposeMechanism, agent, session,
+        rationale="Explore a possible competing branch",
+        species=[{"name": "X"}, {"name": "Y"}],
+        steps=[{"name": "side_step", "from": "X", "to": "Y"}],
+    )
+    assert exploration.is_success and exploration.result["state"] == "open"
+    side_ids = {
+        *(node.node_id for node in store.load_snapshot().delivery.nodes if node.name in {"X", "Y"}),
+        *(edge.edge_id for edge in store.load_snapshot().delivery.edges if edge.name == "side_step"),
+    }
+    assert len(side_ids) == 3
+    report = DagController(db, "s1", "dag_guided").delivery_report()
+    assert not ({gate.target_id for gate in report.unresolved} & side_ids)
+
+
+@pytest.mark.asyncio
+async def test_public_scope_can_change_after_graph_grows_without_new_species(tmp_path):
+    agent, session, db = _setup(tmp_path, "propose-scope-update", "dag_record")
+    first = await _propose(agent, session)
+    assert first.is_success
+    updated = await _call(
+        DagProposeMechanism, agent, session,
+        rationale="Deliver only the established transformation",
+        delivery_targets=["step1"],
+    )
+    assert updated.is_success
+    from cloudra.dag.store import DagStore
+
+    store = DagStore(db)
+    assert len(store.load_snapshot().delivery.edges) == 1
+    assert store.accepted_claim_spec().scope["targets"] == [
+        store.load_snapshot().delivery.edges[0].edge_id
+    ]
+
+
+@pytest.mark.asyncio
+async def test_public_proposal_extends_existing_pathway_by_species_name(tmp_path):
+    agent, session, db = _setup(tmp_path, "propose-growing-pathway", "dag_record")
+    first = await _call(
+        DagProposeMechanism, agent, session,
+        rationale="initial A to B pathway",
+        species=[{"name": "A"}, {"name": "B"}],
+        steps=[{"name": "A_to_B", "from": "A", "to": "B"}],
+    )
+    assert first.is_success
+    second = await _call(
+        DagProposeMechanism, agent, session,
+        rationale="extend the pathway to C",
+        species=[{"name": "C"}],
+        steps=[{"name": "B_to_C", "from": "B", "to": "C"}],
+        delivery_targets=["A_to_B", "B_to_C"],
+    )
+    assert second.is_success
+
+    from cloudra.dag.store import DagStore
+
+    store = DagStore(db)
+    delivery = store.load_snapshot().delivery
+    ids = {node.name: node.node_id for node in delivery.nodes}
+    edges = {edge.name: edge for edge in delivery.edges}
+    assert set(ids) == {"A", "B", "C"}
+    assert edges["B_to_C"].source_node_id == ids["B"]
+    assert edges["B_to_C"].target_node_id == ids["C"]
+    assert set(store.accepted_claim_spec().scope["targets"]) == {
+        edges["A_to_B"].edge_id, edges["B_to_C"].edge_id,
+    }
+
+
+@pytest.mark.asyncio
+async def test_public_delivery_target_rejects_unknown_or_ambiguous_name(tmp_path):
+    agent, session, db = _setup(tmp_path, "propose-target-ambiguity", "dag_record")
+    assert (await _propose(agent, session)).is_success
+    unknown = await _call(
+        DagProposeMechanism, agent, session,
+        rationale="scope an existing object", delivery_targets=["missing"],
+    )
+    assert not unknown.is_success and "unknown delivery target" in unknown.error
+    ambiguous = await _call(
+        DagProposeMechanism, agent, session,
+        rationale="same name can denote a species and a step",
+        species=[{"name": "shared"}, {"name": "Q"}],
+        steps=[{"name": "shared", "from": "shared", "to": "Q"}],
+        delivery_targets=["shared"],
+    )
+    assert not ambiguous.is_success and "ambiguous delivery target" in ambiguous.error
+    assert len(_graph(db).delivery.nodes) == 2
+
+
+@pytest.mark.asyncio
+async def test_exploratory_draft_cannot_restore_an_older_accepted_scope(tmp_path):
+    agent, session, db = _setup(tmp_path, "propose-no-scope-rollback", "dag_guided")
+    supervisor = make_supervisor(db.conversation_id)
+    first = await _call(
+        DagProposeMechanism, agent, session,
+        rationale="initial conclusion", species=[{"name": "A"}, {"name": "B"}],
+        steps=[{"name": "AB", "from": "A", "to": "B"}],
+        delivery_targets=["AB"],
+    )
+    assert first.is_success
+    assert (await _call(DagAcceptMechanism, supervisor, session,
+                        verdict="accept", draft_id=first.result["draft_id"])).is_success
+    expanded = await _call(
+        DagProposeMechanism, agent, session,
+        rationale="include the next step", species=[{"name": "C"}],
+        steps=[{"name": "BC", "from": "B", "to": "C"}],
+        delivery_targets=["AB", "BC"],
+    )
+    exploratory = await _call(
+        DagProposeMechanism, agent, session,
+        rationale="optional side pathway", species=[{"name": "X"}, {"name": "Y"}],
+        steps=[{"name": "XY", "from": "X", "to": "Y"}],
+    )
+    assert expanded.is_success and exploratory.is_success
+    from cloudra.dag.store import DagStore
+
+    store = DagStore(db)
+    assert store.get_draft(exploratory.result["draft_id"]).claim_spec is None
+    assert (await _call(DagAcceptMechanism, supervisor, session,
+                        verdict="accept", draft_id=expanded.result["draft_id"])).is_success
+    assert (await _call(DagAcceptMechanism, supervisor, session,
+                        verdict="accept", draft_id=exploratory.result["draft_id"])).is_success
+    selected = set(store.accepted_claim_spec().scope["targets"])
+    edges = {edge.name: edge.edge_id for edge in store.load_snapshot().delivery.edges}
+    assert selected == {edges["AB"], edges["BC"]}
+
+
+@pytest.mark.asyncio
+async def test_public_scope_replaces_reference_targets_without_losing_reference_details(tmp_path):
+    agent, session, db = _setup(tmp_path, "propose-reference-targets", "dag_record")
+    assert (await _propose(agent, session)).is_success
+    from cloudra.dag.models import ClaimSpec, MechanismDraft
+    from cloudra.dag.store import DagStore
+
+    store = DagStore(db)
+    first_edge = store.load_snapshot().delivery.edges[0].edge_id
+    store.save_draft(
+        MechanismDraft(
+            operations=[], rationale="old reference scope", state="accepted",
+            claim_spec=ClaimSpec(kind="mechanism", reference={
+                "targets": [first_edge], "method": "initial calculation",
+            }),
+        ), actor_id="test-harness",
+    )
+    new = await _call(
+        DagProposeMechanism, agent, session,
+        rationale="select product species instead", delivery_targets=["P"],
+    )
+    assert new.is_success and new.result["state"] == "accepted"
+    spec = store.accepted_claim_spec()
+    assert spec.scope["targets"] == [
+        next(node.node_id for node in store.load_snapshot().delivery.nodes if node.name == "P")
+    ]
+    assert spec.reference == {"method": "initial calculation"}
+
+
+@pytest.mark.asyncio
 async def test_guided_propose_then_supervisor_accept_unlocks_compute(tmp_path):
     """guided：提案落 open 草稿（计算仍被拦）；Supervisor 接受后落图并放行。"""
     agent, session, db = _setup(tmp_path, "propose-guided", "dag_guided")
@@ -98,13 +295,13 @@ async def test_guided_propose_then_supervisor_accept_unlocks_compute(tmp_path):
     assert out.result["state"] == "open"
     assert out.accepted is False
     assert out.result["accepted"] is False
-    assert _graph(db).delivery.nodes == []
+    assert _graph(db).delivery.nodes
 
     from cloudra.dag.controller import DagController
 
     controller = DagController(db, "s1", "dag_guided", conversation_id=db.conversation_id)
     gate = await controller.check_substantive_gate("submit_compute_job", {})
-    assert gate is not None and gate[0] == "block"
+    assert gate is None
 
     supervisor = make_supervisor(db.conversation_id)
     accepted = await _call(DagAcceptMechanism, supervisor, session, verdict="accept")
@@ -141,7 +338,7 @@ async def test_supervisor_reject_returns_reason_and_keeps_gate(tmp_path):
     assert rejected.is_success
     assert rejected.result["state"] == "rejected"
     assert "boat" in rejected.result["reason"]
-    assert _graph(db).delivery.nodes == []
+    assert _graph(db).delivery.nodes
 
     from cloudra.dag.store import DagStore
 
@@ -499,45 +696,6 @@ async def test_ts_guess_contract_normalized_to_advisory_on_accept(tmp_path):
 
     assert out.is_success
     notes = out.result["normalized_advisory_stages"]
-    assert any("ts_guess" in note for note in notes)
-    edge = _graph(db).delivery.edges[0]
-    assert {s.kind.value: s.required for s in edge.stages} == {
-        "ts_guess": False,
-        "ts_opt": True,
-        "frequency": True,
-    }
-
-
-@pytest.mark.asyncio
-async def test_guided_accept_normalizes_legacy_open_draft(tmp_path):
-    """存量 open 草稿（修复前落库，ts_guess required=True）在 guided accept
-    落图时同样被规范化为 advisory，痕迹随接受返回带出。"""
-    _agent, session, db = _setup(tmp_path, "propose-legacy-guided", "dag_guided")
-
-    from cloudra.dag.controller import DagController
-    from cloudra.dag.store import DagStore
-
-    store = DagStore(db)
-    # 绕过 propose（修复后的 propose 会先规范化），直接落一条修复前形态的草稿。
-    legacy = DagController._assemble_declarative_proposal(
-        _SPECIES, _STEPS, "legacy pre-fix draft with required ts_guess"
-    )
-    edge_id = next(
-        op.edge.edge_id
-        for op in legacy.operations
-        if op.op == "add_edge"
-    )
-    legacy_contract = legacy.stage_contracts[edge_id]
-    assert any(
-        s.kind.value == "ts_guess" and s.required for s in legacy_contract.stages
-    )
-    store.save_draft(legacy, actor_id="a-0")
-
-    supervisor = make_supervisor(db.conversation_id)
-    accepted = await _call(DagAcceptMechanism, supervisor, session, verdict="accept")
-
-    assert accepted.is_success
-    notes = accepted.result["normalized_advisory_stages"]
     assert any("ts_guess" in note for note in notes)
     edge = _graph(db).delivery.edges[0]
     assert {s.kind.value: s.required for s in edge.stages} == {

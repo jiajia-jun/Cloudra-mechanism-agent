@@ -1,10 +1,12 @@
 """工具看到的调用者身份（ToolActorContext）。
 
 工具（bash/read/write/dag_*/goal/todo/…）只需要「谁在调我」的少量信息：工作
-目录、会话与项目键、权限位、编排模式。此前它们直接
-``from cloudra.core.agent import Agent``——那是仍带 LLM 调用能力的 legacy 执行
-类，于是工具与已下线的执行栈耦合在一起；字段被收窄成具体类还逼得执行器用
-``object.__setattr__`` 绕过 pydantic 校验（见 ``runtime_v2/adapters.py``）。
+目录、会话与项目键、权限位、编排模式。此前它们直接 import
+``cloudra.core.agent`` 的 ``Agent``——那个类带 LLM 调用能力，工具因此与已下线
+的执行栈耦合；字段被收窄成具体类还逼得执行器用 ``object.__setattr__`` 绕过
+pydantic 校验（见 ``runtime_v2/adapters.py``）。该执行栈（``Agent``/
+``Coordinator``/``Follower`` 与 ``core/message_history.py``）已随评审 5.4
+删除，这里只剩工具真正需要的表面。
 
 这里只声明**工具真正用到**的表面。生产实现是 ``runtime_v2.adapters`` 里包
 ``AgentSession`` 的那个对象；测试可用任意鸭子类型对象。

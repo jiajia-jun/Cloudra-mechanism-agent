@@ -20,7 +20,7 @@ from cloudra.dag.models import (
     GraphOperation,
     OrchestrationMode,
 )
-from cloudra.dag.review_context import ActiveReview, ReviewContextManager
+from cloudra.dag.review_context import ActiveReview, ReviewContextManager, review_target_identity
 from cloudra.tools.Plantool.dag_tools._common import (
     DagToolBase,
     DagToolOutput,
@@ -60,7 +60,7 @@ class DagSubmitStepEvidence(DagToolBase):
     tool_description: str = (
         "Submit calculation output files as evidence for an elementary step in the delivery graph. "
         "Automatically validates that the TS calculation contains exactly one imaginary frequency. "
-        "In dag_record mode, automatically verifies and marks the step as supported. "
+        "In dag_record mode, attach validated evidence snapshots. "
         "In dag_guided mode, submits the evidence to the Supervisor for review."
     )
     input_schema: Any = DagSubmitStepEvidenceInput
@@ -78,7 +78,7 @@ class DagSubmitStepEvidence(DagToolBase):
         workspace_root = getattr(self.subagent, "working_directory", None) or os.getcwd()
 
         # 1. Check if step exists in delivery graph
-        snapshot = ctx.store.load_snapshot()
+        snapshot = await asyncio.to_thread(ctx.store.load_snapshot)
         matching_edges = [
             e
             for e in snapshot.delivery.edges
@@ -112,7 +112,7 @@ class DagSubmitStepEvidence(DagToolBase):
             description=user_input.reaction_coordinate_description,
             imaginary_freqs=ts_snap.imaginary_frequencies,
         )
-        if not ts_val.is_valid:
+        if ctx.mode is OrchestrationMode.DAG_RECORD and not ts_val.is_valid:
             kind = "was not verified" if not ts_val.verified else "failed validation"
             return fail(
                 "dag_submit_step_evidence",
@@ -122,6 +122,7 @@ class DagSubmitStepEvidence(DagToolBase):
 
         # 3. Snapshot optional IRC files
         irc_snaps: dict[str, Any] = {}
+        irc_refs = []
         for key, path in [
             ("irc_file", user_input.irc_file),
             ("irc_forward_file", user_input.irc_forward_file),
@@ -136,11 +137,21 @@ class DagSubmitStepEvidence(DagToolBase):
                         conversation_id=ctx.conversation_id,
                     )
                     irc_snaps[key] = snap.model_dump(mode="json")
+                    irc_refs.append(
+                        await asyncio.to_thread(
+                            ctx.store.register_evidence,
+                            session.id,
+                            Path(path).name,
+                            snap.model_dump(mode="json"),
+                            source_type="file",
+                        )
+                    )
                 except Exception as exc:
                     return fail("dag_submit_step_evidence", f"Failed to ingest IRC file '{path}': {exc}", accepted=False)
 
         # 4. Register evidence in store
-        ref = ctx.store.register_evidence(
+        ref = await asyncio.to_thread(
+            ctx.store.register_evidence,
             session.id,
             Path(user_input.ts_file).name,
             ts_snap.model_dump(mode="json"),
@@ -153,14 +164,16 @@ class DagSubmitStepEvidence(DagToolBase):
                 graph="delivery",
                 target_type="edge",
                 target_id=step.edge_id,
-                ref=ref,
+                ref=evidence_ref,
             )
+            for evidence_ref in [ref, *irc_refs]
         ]
 
         # 5. Adjudicate according to orchestration mode
         if ctx.mode is OrchestrationMode.DAG_RECORD:
             # dag_record 只挂快照；evidence_level 由阶段绑定派生，不在这里写。
-            mutation = apply_mutation(
+            mutation = await asyncio.to_thread(
+                apply_mutation,
                 ctx.store,
                 ctx.engine,
                 session_id=session.id,
@@ -191,7 +204,8 @@ class DagSubmitStepEvidence(DagToolBase):
             )
 
         # DAG_GUIDED mode: submit for supervisor review
-        apply_mutation(
+        mutation = await asyncio.to_thread(
+            apply_mutation,
             ctx.store,
             ctx.engine,
             session_id=session.id,
@@ -200,26 +214,38 @@ class DagSubmitStepEvidence(DagToolBase):
             operations=operations,
             rationale=f"Attach step evidence for {user_input.step_name}",
         )
+        if not mutation.accepted:
+            return fail(
+                "dag_submit_step_evidence",
+                mutation.rejection_reason or "Failed to attach step evidence",
+                accepted=False,
+            )
 
         review = ActiveReview(
             review_id=f"rev_{uuid.uuid4().hex}",
             kind="step",
             target_name=user_input.step_name,
             target_id=step.edge_id,
-            requester=getattr(self.subagent, "agent_id", "coordinator") or "coordinator",
+            requester=session.id,
             details={
                 "element_type": "step",
                 "step_name": user_input.step_name,
+                "target_identity": review_target_identity(snapshot.delivery, "step", step.edge_id),
                 "ts_file": user_input.ts_file,
                 "ts_validation": ts_val.model_dump(),
                 "irc_files": irc_snaps,
                 "reaction_coordinate_description": user_input.reaction_coordinate_description,
             },
+            supporting_refs=[ref, *irc_refs],
             basis_fingerprint=ts_snap.sha256,
         )
-        enqueued = ReviewContextManager.set_active_review(
-            ctx.conversation_id, review, db=ctx.db
+        enqueued = await asyncio.to_thread(
+            ReviewContextManager.set_active_review,
+            ctx.conversation_id, review, ctx.db,
         )
+
+        if not enqueued:
+            return fail("dag_submit_step_evidence", "Failed to persist evidence review request", accepted=False)
 
         # 督导唤醒不在工具内做：queued review 落库后由 DAG policy 完成钩子
         # （_trigger_supervisor_after_tool）按这里的回执统一 notify_supervisor。

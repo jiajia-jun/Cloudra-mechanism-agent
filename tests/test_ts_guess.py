@@ -2427,26 +2427,6 @@ def test_orca_irc_endpoints_glob_refuses_ambiguous_match(tmp_path):
     assert endpoints["backward"]["availability"] == "unavailable"
 
 
-def test_endpoints_converged_to_intermediates_channel():
-    """改动 2：收敛证据通道——两条 IRC 外侧帧各自贴合声明的优化中间体时 pass；
-    退化（两中间体不可区分）或外侧帧不贴合时不误判。"""
-    from cloudra.tools.Chemtool.ts_guess import TsGuess
-
-    end_a = np.array([[0.0, 0.0, 0.0], [0.0, 0.0, 2.0], [0.0, 0.0, 0.1]])
-    end_b = np.array([[0.0, 0.0, 0.0], [0.0, 0.0, 2.0], [0.0, 0.0, 1.9]])
-    inter_a = end_a.copy()
-    inter_b = end_b.copy()
-
-    ok = TsGuess._endpoints_converged_to_intermediates([end_a, end_b, inter_a, inter_b])
-    assert ok["is_pass"] is True
-
-    far = np.array([[0.0, 0.0, 0.0], [0.0, 0.0, 2.0], [0.0, 0.0, -0.9]])
-    bad = TsGuess._endpoints_converged_to_intermediates([far, end_b, inter_a, inter_b])
-    assert bad["is_pass"] is False
-
-    degenerate = TsGuess._endpoints_converged_to_intermediates([end_a, end_a, inter_a, inter_a])
-    assert degenerate["is_pass"] is False
-
 @pytest.mark.asyncio
 async def test_verify_strict_non_pass_appends_endpoint_optimization_remedy(tmp_path, mock_session):
     """不通过（材料不足 / 方向不符）时 checks 必须带「补做端点优化」的可操作提示，

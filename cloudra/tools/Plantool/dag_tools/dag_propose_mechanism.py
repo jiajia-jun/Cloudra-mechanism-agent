@@ -31,6 +31,15 @@ class DagProposeMechanismInput(input_schema):
         default_factory=list,
         description="Declarative list of transformation steps: [{'name': '...', 'from': '...', 'to': '...'}].",
     )
+    delivery_targets: list[str] | None = Field(
+        default=None,
+        description=(
+            "Species or step names/IDs included in this delivery. Selected step "
+            "endpoints are included automatically. Omit for exploratory proposals "
+            "that leave the accepted delivery scope unchanged. In dag_guided, "
+            "newly declared targets already count at the final gate while review is open."
+        ),
+    )
 
 
 class DagProposeMechanism(DagToolBase):
@@ -39,11 +48,16 @@ class DagProposeMechanism(DagToolBase):
     tool_description: str = (
         "Propose the mechanism: declarative species states and transformation steps "
         "(Coordinator in dag_record or dag_guided). "
-        "Use for: the first delivery artifact of a mechanism study — no "
-        "compute is unlocked until the draft is accepted (Supervisor in "
+        "Use for: the first delivery artifact of a mechanism study. "
+        "The proposed graph is available for computation before Supervisor "
+        "acceptance; acceptance records the working hypothesis (Supervisor in "
         "dag_guided; auto-accepted in dag_record). "
-        "Input shape: {rationale: str, species: [{name, smiles}], steps: [{name, from, to}]}. "
-        "Key discipline: species names and step names must be unique within the delivery graph."
+        "Input shape: {rationale, species: [{name, smiles}], steps: [{name, from, to}], "
+        "delivery_targets?: [species or step name/ID]}. Existing species may be "
+        "named in new steps; delivery_targets alone updates the selected scope. "
+        "In dag_guided, pending scope expansion blocks final delivery against "
+        "the old scope until reviewed; exploration without targets does not. "
+        "Names must resolve uniquely within the delivery graph."
     )
     input_schema: Any = DagProposeMechanismInput
     output_schema: Any = DagToolOutput
@@ -70,6 +84,7 @@ class DagProposeMechanism(DagToolBase):
                 rationale=user_input.rationale,
                 species=[s.model_dump(mode="json", exclude_unset=True) for s in user_input.species],
                 steps=[st.model_dump(mode="json", by_alias=True, exclude_unset=True) for st in user_input.steps],
+                delivery_targets=user_input.delivery_targets,
                 actor_id=self._actor_id(),
             )
         except Exception as exc:
@@ -80,10 +95,8 @@ class DagProposeMechanism(DagToolBase):
         return DagToolOutput(
             is_success=True,
             action="dag_propose_mechanism",
-            # ``accepted`` describes the scientific draft admission result.
-            # In guided mode a successful submission is still ``open`` until
-            # the Supervisor accepts it; do not report transport success as
-            # scientific acceptance.
+            # ``accepted`` is the draft review state. It does not assert that
+            # the mechanism is scientifically correct.
             accepted=bool(proposed.get("accepted")),
             result=proposed,
         )

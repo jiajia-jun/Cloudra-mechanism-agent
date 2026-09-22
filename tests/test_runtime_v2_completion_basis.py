@@ -65,6 +65,7 @@ def _finished(log: EventLog, *, run_id: str, outcome: str, session_id: str = _SE
 # basis → 期望的验证等级。只有证据门禁确认过的结题才是 verified。
 _BASIS_LABELS = {
     "dag_verified": "verified",
+    "supervisor_supported": "supervisor_reviewed",
     "supervisor_approved": "partial",
     "partial_recorded": "partial",
     "declared": "unverified",

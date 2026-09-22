@@ -79,7 +79,7 @@ def test_compute_entry_vocabulary():
 
 
 @pytest.mark.asyncio
-async def test_guided_blocks_compute_until_draft_accepted(tmp_path):
+async def test_guided_compute_is_not_blocked_by_pending_draft(tmp_path):
     from cloudra.dag.controller import DagController
     from cloudra.dag.models import OrchestrationMode
 
@@ -88,13 +88,11 @@ async def test_guided_blocks_compute_until_draft_accepted(tmp_path):
     await controller.initialize()
 
     gate = await controller.check_substantive_gate("submit_compute_job", {})
-    assert gate is not None
-    assert gate[0] == "block"
-    assert "dag_propose_mechanism" in gate[1]
+    assert gate is None
     gate = await controller.check_substantive_gate(
         "ts_guess", {"mode": "scan_prepare"}
     )
-    assert gate is not None and gate[0] == "block"
+    assert gate is None
 
     # 非计算入口不受门槛约束
     assert await controller.check_substantive_gate("write", {}) is None
@@ -111,9 +109,7 @@ async def test_guided_blocks_compute_until_draft_accepted(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_record_blocks_compute_until_draft_accepted(tmp_path):
-    """record 同样硬拦（plan：no compute on an unaccepted mechanism in dag
-    modes）；接受的草稿落库后放行。"""
+async def test_record_compute_is_not_blocked_by_pending_draft(tmp_path):
     from cloudra.dag.controller import DagController
     from cloudra.dag.models import OrchestrationMode
 
@@ -122,9 +118,7 @@ async def test_record_blocks_compute_until_draft_accepted(tmp_path):
     await controller.initialize()
 
     gate = await controller.check_substantive_gate("submit_compute_job", {})
-    assert gate is not None
-    assert gate[0] == "block"
-    assert "dag_propose_mechanism" in gate[1]
+    assert gate is None
 
     _accept_draft(db)
     assert await controller.check_substantive_gate("submit_compute_job", {}) is None

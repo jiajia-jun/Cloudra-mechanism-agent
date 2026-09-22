@@ -49,11 +49,7 @@ from cloudra.benchmark.schema import (
     SelfConsistencyRubric,
 )
 from cloudra.tools.core import gaussian_frames, orca_frames, qm_engine
-from cloudra.tools.core.irc_path import (
-    align_atom_order,
-    assign_irc_endpoints,
-    parse_xyz,
-)
+from cloudra.tools.core.irc_path import parse_xyz, prove_irc_endpoint_direction
 
 
 @dataclass
@@ -288,28 +284,12 @@ def _strict_irc_proof(
             continue
         (syms_a, pos_a), (syms_b, pos_b) = ends
         for ts_syms, ts_pos in ts_geos:
-            aligned_ends = []
-            for syms, pos in ((syms_a, pos_a), (syms_b, pos_b)):
-                res = align_atom_order(ts_syms, ts_pos, syms, pos)
-                if res is None:
-                    break
-                aligned_ends.append([pos[k] for k in res[0]])
-            if len(aligned_ends) != 2:
-                continue
-            for from_syms, from_pos in from_geos:
-                from_res = align_atom_order(ts_syms, ts_pos, from_syms, from_pos)
-                if from_res is None:
-                    continue
-                aligned_from = [from_pos[k] for k in from_res[0]]
-                for to_syms, to_pos in to_geos:
-                    to_res = align_atom_order(ts_syms, ts_pos, to_syms, to_pos)
-                    if to_res is None:
-                        continue
-                    aligned_to = [to_pos[k] for k in to_res[0]]
-                    verdict = assign_irc_endpoints(
+            for from_geo in from_geos:
+                for to_geo in to_geos:
+                    verdict = prove_irc_endpoint_direction(
                         ts_syms, ts_pos,
-                        aligned_ends[0], aligned_ends[1],
-                        aligned_from, aligned_to, [], charge,
+                        (syms_a, pos_a), (syms_b, pos_b),
+                        from_geo, to_geo, [], charge,
                     )
                     if verdict["is_decidable"] and verdict["is_match"]:
                         return p

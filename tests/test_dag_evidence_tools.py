@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 
 from cloudra.base.session_class import Session
-from cloudra.core.agent import Coordinator
 from cloudra.infra.config import get_config
 from cloudra.persistence.database import ConversationDB
 from cloudra.tools.Plantool.dag_tools.dag_accept_mechanism import DagAcceptMechanism
@@ -16,18 +15,14 @@ from cloudra.tools.Plantool.dag_tools.dag_review_species import DagReviewSpecies
 from cloudra.tools.Plantool.dag_tools.dag_review_step import DagReviewStep
 from cloudra.tools.Plantool.dag_tools.dag_submit_species_evidence import DagSubmitSpeciesEvidence
 from cloudra.tools.Plantool.dag_tools.dag_submit_step_evidence import DagSubmitStepEvidence
-from tests.dag_identity import call_dag_tool, make_supervisor
+from tests.dag_identity import call_dag_tool, make_coordinator, make_supervisor
 
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 
 
 def _setup(tmp_path, conversation_id, mode):
     get_config().data_dir = tmp_path
-    agent = Coordinator(
-        query="study mechanism",
-        conversation_id=conversation_id,
-        orchestration_mode=mode,
-    )
+    agent = make_coordinator(conversation_id, orchestration_mode=mode)
     # Set working directory to tmp_path
     agent.working_directory = str(tmp_path)
     session = Session("s1", str(tmp_path / "session.json"))
@@ -175,7 +170,7 @@ async def test_guided_review_flow(tmp_path):
     step_edge = [e for e in snapshot.delivery.edges if getattr(e, "name", "") == "step1"][0]
     assert step_edge.status == "pending"
 
-    # 3. Supervisor cannot write derived evidence_level via dag_review_step
+    # 3. Supervisor records the directed review without writing derived machine state
     rev_out = await call_dag_tool(
         DagReviewStep,
         supervisor,
@@ -184,14 +179,14 @@ async def test_guided_review_flow(tmp_path):
         verdict="supported",
         rationale="Verified imaginary mode at -521 cm^-1 matches reaction.",
     )
-    assert not rev_out.is_success
-    assert "cannot write derived evidence_level" in rev_out.error
+    assert rev_out.is_success
+    assert rev_out.result["verdict"] == "supported"
 
     snapshot = DagStore(db).load_snapshot()
     step_edge = [e for e in snapshot.delivery.edges if getattr(e, "name", "") == "step1"][0]
     assert step_edge.status == "pending"
 
-    # 4. Supervisor reviews species -> rejected
+    # 4. Without a separately queued species review, supervisor cannot fabricate one.
     rev_sp = await call_dag_tool(
         DagReviewSpecies,
         supervisor,
@@ -200,9 +195,9 @@ async def test_guided_review_flow(tmp_path):
         verdict="rejected",
         rationale="Conformation is wrong chair isomer",
     )
-    assert rev_sp.is_success
-    assert rev_sp.result["verdict"] == "rejected"
+    assert not rev_sp.is_success
+    assert "no active evidence review" in rev_sp.error
 
     snapshot = DagStore(db).load_snapshot()
     r_node = [n for n in snapshot.delivery.nodes if getattr(n, "name", "") == "R"][0]
-    assert r_node.status == "rejected"
+    assert r_node.status == "pending"
