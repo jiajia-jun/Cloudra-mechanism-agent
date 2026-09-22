@@ -202,7 +202,6 @@ def test_collect_review_exceptions_returns_contradiction_and_gaps(tmp_path):
 @pytest.mark.asyncio
 async def test_dag_message_supervisor_structured_request_allows_follower_evidence(tmp_path):
     from cloudra.base.session_class import Session
-    from cloudra.core.agent import Coordinator, Follower
     from cloudra.infra.config import get_config
     from cloudra.persistence.database import ConversationDB
     from cloudra.tools.Plantool.dag_tools.dag_message_supervisor import (
@@ -211,17 +210,16 @@ async def test_dag_message_supervisor_structured_request_allows_follower_evidenc
     from cloudra.tools.Plantool.dag_tools.dag_review_evidence import (
         DagReviewEvidence,
     )
-    from tests.dag_identity import call_dag_tool, make_supervisor
+    from tests.dag_identity import (
+        call_dag_tool,
+        make_coordinator,
+        make_subagent,
+        make_supervisor,
+    )
 
     get_config().data_dir = tmp_path
     conversation_id = "structured-msg"
-    follower = Follower(
-        id="a-4",
-        name="small_mol",
-        query="run opt",
-        conversation_id=conversation_id,
-        orchestration_mode="dag_guided",
-    )
+    follower = make_subagent(conversation_id, "small_mol", orchestration_mode="dag_guided")
     session = Session("s1", str(tmp_path / "session.json"))
     db = ConversationDB(conversation_id, data_dir=tmp_path).init()
     DagStore(db).ensure_bundle("s1")
@@ -239,11 +237,7 @@ async def test_dag_message_supervisor_structured_request_allows_follower_evidenc
     assert DagStore(db).get_review_request(request_id) is not None
 
     # Coordinator can resolve? Actually Supervisor resolves via dag_review_evidence.
-    coordinator = Coordinator(
-        query="study",
-        conversation_id=conversation_id,
-        orchestration_mode="dag_guided",
-    )
+    coordinator = make_coordinator(conversation_id, orchestration_mode="dag_guided")
     # Exit requests require Coordinator.
     exit_out = await DagMessageSupervisor(subagent=coordinator).tool_call(
         DagMessageSupervisor.model_fields["input_schema"].default(
@@ -289,7 +283,6 @@ async def _guided_seed(tmp_path, conversation_id, *, n_calls=0, stage_kinds=("ts
     """guided 种子：step1 边（阶段契约）+ n_calls 次已完成的 log_parser 调用
     （只登记证据，不再自动入箱）。返回 (agent, session, db, controller)。"""
     from cloudra.base.session_class import Session
-    from cloudra.core.agent import Coordinator
     from cloudra.dag.controller import DagController
     from cloudra.dag.engine import DagEngine
     from cloudra.dag.models import (
@@ -302,12 +295,10 @@ async def _guided_seed(tmp_path, conversation_id, *, n_calls=0, stage_kinds=("ts
         StageState,
     )
     from cloudra.infra.config import get_config
+    from tests.dag_identity import make_coordinator
 
     get_config().data_dir = tmp_path
-    agent = Coordinator(
-        query="study", conversation_id=conversation_id,
-        orchestration_mode="dag_guided",
-    )
+    agent = make_coordinator(conversation_id, orchestration_mode="dag_guided")
     session = Session("s1", str(tmp_path / "session.json"))
     db = ConversationDB(conversation_id, data_dir=tmp_path).init()
     store = DagStore(db)

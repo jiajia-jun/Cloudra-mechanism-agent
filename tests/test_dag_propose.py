@@ -5,12 +5,11 @@ from types import SimpleNamespace
 import pytest
 
 from cloudra.base.session_class import Session
-from cloudra.core.agent import Coordinator
 from cloudra.infra.config import get_config
 from cloudra.persistence.database import ConversationDB
 from cloudra.tools.Plantool.dag_tools.dag_accept_mechanism import DagAcceptMechanism
 from cloudra.tools.Plantool.dag_tools.dag_propose_mechanism import DagProposeMechanism
-from tests.dag_identity import call_dag_tool, make_supervisor
+from tests.dag_identity import call_dag_tool, make_coordinator, make_supervisor
 
 _SPECIES = [
     {"name": "R", "smiles": "C=C"},
@@ -30,11 +29,7 @@ async def _call(cls, agent, session, **kwargs):
 
 
 def _agent(conversation_id, mode):
-    return Coordinator(
-        query="study a mechanism",
-        conversation_id=conversation_id,
-        orchestration_mode=mode,
-    )
+    return make_coordinator(conversation_id, orchestration_mode=mode)
 
 
 def _setup(tmp_path, conversation_id, mode):

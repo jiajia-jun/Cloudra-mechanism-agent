@@ -9,22 +9,16 @@ import json
 
 import pytest
 
-from cloudra.core.agent import Follower
 from cloudra.tools import get_tools_lst
 from cloudra.tools.Plantool._store import agent_store_path
 from cloudra.tools.Plantool.goal import GoalSet, GoalSet_input_schema
 from cloudra.tools.Plantool.todo import TodoWrite, TodoWrite_input_schema
+from tests.dag_identity import make_session, make_subagent, projected_tool_names
 
 
 @pytest.fixture
 def agent():
-    return Follower(
-        id="a-plan",
-        name="planner",
-        prompt="测试",
-        query="测试问题",
-        conversation_id="test-plan",
-    )
+    return make_subagent("test-plan", "small_mol")
 
 
 def _read_store(agent, filename):
@@ -38,8 +32,10 @@ class TestRegistry:
         names = {e.tool_name for e in entries}
         assert "todo_write" in names
         assert "goal_set" in names
-        # Follower（默认仅 read 权限）也必须可见：规划工具权限为 NONE，人人可用
-        visible = {e.tool_name for e in agent.get_available_tools(entries)}
+        # 规划工具权限为 NONE，任何角色都可见：断言走线缆投影（唯一可见性口径）。
+        visible = projected_tool_names(
+            make_session("test-plan-visible", "small_mol", protocol="traditional")
+        )
         assert "todo_write" in visible
         assert "goal_set" in visible
 
@@ -102,163 +98,6 @@ _TODO_REMINDER_MARKER = "maintaining a todo list"
 
 
 @pytest.mark.asyncio
-class TestTodoReminder:
-    async def test_reminder_only_when_list_exists(self, agent, mock_session):
-        assert agent._todo_reminder() == ""
-        await TodoWrite(subagent=agent).tool_call(
-            TodoWrite_input_schema(todos=[{"content": "查文献"}]),
-            mock_session,
-        )
-        reminder = agent._todo_reminder()
-        assert reminder
-        assert _TODO_REMINDER_MARKER in reminder
-        # 清单内容直接内联进提醒，不再需要任何回读工具
-        assert "查文献" in reminder
-
-    async def test_injection_throttled_every_10_rounds(self, agent, mock_session):
-        """提醒每 10 轮注入一次；无清单时不注入。"""
-        await TodoWrite(subagent=agent).tool_call(
-            TodoWrite_input_schema(todos=[{"content": "查文献"}]),
-            mock_session,
-        )
-        agent._build_messages = __import__("unittest.mock").mock.AsyncMock(
-            return_value=[{"role": "user", "content": "hi"}]
-        )
-        agent._get_tools_schema = lambda: []
-
-        def _has_reminder(kwargs) -> bool:
-            return any(
-                m.get("role") == "system" and _TODO_REMINDER_MARKER in str(m.get("content", ""))
-                for m in kwargs["messages"]
-            )
-
-        hits = []
-        for _round in range(1, 22):  # 模拟 21 轮推理
-            kwargs = await agent._build_request_kwargs()
-            hits.append(_has_reminder(kwargs))
-        # 第 10、20 轮命中，其余不命中
-        assert hits == [r % 10 == 0 for r in range(1, 22)]
-
-    async def test_supervisor_opposition_forces_reminder(self, agent, mock_session):
-        """supervisor 反对（force 标记）时，下一轮无条件注入提醒。"""
-        await TodoWrite(subagent=agent).tool_call(
-            TodoWrite_input_schema(todos=[{"content": "查文献"}]),
-            mock_session,
-        )
-        agent._build_messages = __import__("unittest.mock").mock.AsyncMock(
-            return_value=[{"role": "user", "content": "hi"}]
-        )
-        agent._get_tools_schema = lambda: []
-
-        # 第 1 轮：不命中（非 10 的倍数）
-        kwargs = await agent._build_request_kwargs()
-        assert not any(_TODO_REMINDER_MARKER in str(m.get("content", "")) for m in kwargs["messages"])
-
-        # supervisor 反对 → 第 2 轮强制命中
-        agent._todo_reminder_force = True
-        kwargs = await agent._build_request_kwargs()
-        assert any(_TODO_REMINDER_MARKER in str(m.get("content", "")) for m in kwargs["messages"])
-        # force 是一次性的：第 3 轮回到节流（不命中）
-        kwargs = await agent._build_request_kwargs()
-        assert not any(_TODO_REMINDER_MARKER in str(m.get("content", "")) for m in kwargs["messages"])
-
-    async def test_request_kwargs_include_reminder_when_list_exists(self, agent, mock_session):
-        from unittest.mock import AsyncMock
-
-        await TodoWrite(subagent=agent).tool_call(
-            TodoWrite_input_schema(todos=[{"content": "查文献"}]),
-            mock_session,
-        )
-        agent._build_messages = AsyncMock(return_value=[{"role": "user", "content": "hi"}])
-        agent._get_tools_schema = lambda: []
-        # 强制在第 1 轮就注入，避免依赖 10 轮节流
-        agent._todo_reminder_force = True
-
-        kwargs = await agent._build_request_kwargs()
-        reminder_msgs = [
-            m for m in kwargs["messages"]
-            if m.get("role") == "system" and _TODO_REMINDER_MARKER in str(m.get("content", ""))
-        ]
-        assert reminder_msgs
-
-
-@pytest.mark.asyncio
-class TestGoalConfirm:
-    async def test_goal_confirm_is_one_shot(self, agent, mock_session):
-        """设过目标后，force 标记触发一次提醒文案。"""
-        await GoalSet(subagent=agent).tool_call(
-            GoalSet_input_schema(objective="完成计算"), mock_session
-        )
-        assert agent._goal_confirm_reminder() == ""
-        agent._goal_confirm_force = True
-        reminder = agent._goal_confirm_reminder()
-        assert reminder
-        assert "stop" in reminder
-        assert "goal" in reminder
-        # 一次性：force 已被消费
-        assert agent._goal_confirm_reminder() == ""
-
-    async def test_goal_confirm_requires_goal(self, agent):
-        """未设过目标锚点时，即使 force 置位也不注入提醒。"""
-        agent._goal_confirm_force = True
-        assert agent._goal_confirm_reminder() == ""
-
-    async def test_request_kwargs_include_goal_confirm(self, agent, mock_session):
-        """reAct 无工具轮置 force 后，下一轮请求应携带目标确认提醒。"""
-        from unittest.mock import AsyncMock
-
-        await GoalSet(subagent=agent).tool_call(
-            GoalSet_input_schema(objective="完成计算"), mock_session
-        )
-        agent._build_messages = AsyncMock(return_value=[{"role": "user", "content": "hi"}])
-        agent._get_tools_schema = lambda: []
-        agent._goal_confirm_force = True
-
-        kwargs = await agent._build_request_kwargs()
-        assert any(
-            m.get("role") == "system" and "stop" in str(m.get("content", ""))
-            for m in kwargs["messages"]
-        )
-
-    async def test_revived_after_stop_notice_injected(self, agent):
-        """stop 后被唤醒的复核轮：提示优先回应用户，无用户要求才再次 stop。"""
-        from unittest.mock import AsyncMock
-
-        agent._build_messages = AsyncMock(return_value=[{"role": "user", "content": "hi"}])
-        agent._get_tools_schema = lambda: []
-        agent._revived_after_stop = True
-
-        kwargs = await agent._build_request_kwargs()
-        notices = [
-            m for m in kwargs["messages"]
-            if m.get("role") == "system" and "call stop again" in str(m.get("content", ""))
-        ]
-        assert notices
-        text = str(notices[0].get("content", ""))
-        assert "Answer the user first" in text
-        assert "user" in text.lower()
-        assert "Incoming call" in text
-        # 非一次性：下一轮仍应注入（直到模型再次 stop）
-        kwargs2 = await agent._build_request_kwargs()
-        assert any(
-            m.get("role") == "system" and "call stop again" in str(m.get("content", ""))
-            for m in kwargs2["messages"]
-        )
-
-    async def test_revived_after_stop_notice_absent_by_default(self, agent):
-        """未 stop 过的正常轮次不注入复核轮提示。"""
-        from unittest.mock import AsyncMock
-
-        agent._build_messages = AsyncMock(return_value=[{"role": "user", "content": "hi"}])
-        agent._get_tools_schema = lambda: []
-
-        kwargs = await agent._build_request_kwargs()
-        assert not any(
-            "call stop again" in str(m.get("content", "")) for m in kwargs["messages"]
-        )
-
-
-@pytest.mark.asyncio
 class TestGoalSet:
     async def test_goal_persisted(self, agent, mock_session):
         tool = GoalSet(subagent=agent)
@@ -278,9 +117,9 @@ class TestGoalSet:
 
         assert _read_store(agent, "goal.json")["objective"] == "新目标"
 
-    async def test_no_message_history_does_not_crash(self, agent, mock_session):
-        """无 message_history 时只落盘，不报错。"""
+    async def test_no_conversation_history_dependency(self, agent, mock_session):
+        """规划工具只落盘、不依赖会话历史：工具身份上没有 message_history 也要能跑。"""
         tool = GoalSet(subagent=agent)
-        assert agent.message_history is None
+        assert not hasattr(agent, "message_history")
         out = await tool.tool_call(GoalSet_input_schema(objective="目标"), mock_session)
         assert out.goal["objective"] == "目标"

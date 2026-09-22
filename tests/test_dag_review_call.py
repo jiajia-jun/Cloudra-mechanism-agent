@@ -7,11 +7,10 @@ disagree-with-reason 留下 INCOMPLETE 覆盖（prj_d6212be8a2934e80）。"""
 import pytest
 
 from cloudra.base.session_class import Session
-from cloudra.core.agent import Coordinator
 from cloudra.infra.config import get_config
 from cloudra.persistence.database import ConversationDB
 from cloudra.tools.Plantool.dag_tools.dag_review_call import DagReviewCall
-from tests.dag_identity import call_dag_tool, make_supervisor
+from tests.dag_identity import call_dag_tool, make_coordinator, make_supervisor
 
 _TS_FREQ_RESULT = {
     "is_success": True,
@@ -49,11 +48,7 @@ async def _seed_guided(
     from cloudra.dag.store import DagStore
 
     get_config().data_dir = tmp_path
-    agent = Coordinator(
-        query="study a mechanism",
-        conversation_id=conversation_id,
-        orchestration_mode="dag_guided",
-    )
+    agent = make_coordinator(conversation_id, orchestration_mode="dag_guided")
     session = Session("s1", str(tmp_path / "session.json"))
     db = ConversationDB(conversation_id).init()
     store = DagStore(db)
@@ -369,9 +364,7 @@ async def test_review_call_mode_and_actor_gates(tmp_path):
     assert not coordinator.is_success
     assert "supervisor-only" in coordinator.error
 
-    record_agent = Coordinator(
-        query="q", conversation_id="review-gates", orchestration_mode="dag_record"
-    )
+    record_agent = make_coordinator("review-gates", orchestration_mode="dag_record")
     record = await _call(
         DagReviewCall, record_agent, session,
         review_id="rev_x", target_id="step1", stage_kind="ts_opt", verdict="ignore",

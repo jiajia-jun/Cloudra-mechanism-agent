@@ -2,7 +2,6 @@ import pytest
 from pydantic import ValidationError
 
 from cloudra.base.session_class import Session
-from cloudra.core.agent import Coordinator
 from cloudra.infra.config import get_config
 from cloudra.persistence.database import ConversationDB
 from cloudra.tools.Plantool.dag_tools.dag_add_species import DagAddSpecies, DagAddSpeciesInput
@@ -14,15 +13,18 @@ from cloudra.tools.Plantool.dag_tools.dag_remove_edge import DagRemoveEdge, DagR
 from cloudra.tools.Plantool.dag_tools.dag_set_coverage_contract import DagSetCoverageContract
 from cloudra.tools.Plantool.dag_tools.dag_update_delivery_element import DagUpdateDeliveryElement
 from cloudra.tools.Plantool.dag_tools.dag_view import DagView
-from tests.dag_identity import call_dag_tool, make_supervisor
+from tests.dag_identity import (
+    call_dag_tool,
+    make_coordinator,
+    make_session,
+    make_subagent,
+    make_supervisor,
+    projected_tool_names,
+)
 
 
 def _agent(conversation_id, mode):
-    return Coordinator(
-        query="study a mechanism",
-        conversation_id=conversation_id,
-        orchestration_mode=mode,
-    )
+    return make_coordinator(conversation_id, orchestration_mode=mode)
 
 
 async def _call(cls, agent, session, **kwargs):
@@ -43,11 +45,24 @@ _DAG_TOOL_NAMES = {
 
 
 def test_dag_tools_hidden_in_standard_and_visible_in_dag_modes():
-    standard = _agent("tool-standard-visible", "standard")
-    record = _agent("tool-record-visible", "dag_record")
-
-    standard_names = {entry.tool_name for entry in standard.get_available_tools()}
-    record_names = {entry.tool_name for entry in record.get_available_tools()}
+    # 业务工具只在 traditional 协议上线缆；默认 javascript 下它们走 JS 程序
+    # （guest_tool_names），这里断言的是业务工具面的模式门控。
+    standard_names = projected_tool_names(
+        make_session(
+            "tool-standard-visible",
+            "coordinator",
+            orchestration_mode="standard",
+            protocol="traditional",
+        )
+    )
+    record_names = projected_tool_names(
+        make_session(
+            "tool-record-visible",
+            "coordinator",
+            orchestration_mode="dag_record",
+            protocol="traditional",
+        )
+    )
     assert not (_DAG_TOOL_NAMES & standard_names)
     assert _DAG_TOOL_NAMES <= record_names
     assert "dag_graph" not in record_names
@@ -169,16 +184,26 @@ async def test_add_species_without_revisions_retries_stale(tmp_path, monkeypatch
 @pytest.mark.asyncio
 async def test_deleted_process_tools_are_unregistered(tmp_path):
     """Phase 4：四个 process 时代工具已从注册表移除。"""
-    record = _agent("tool-deleted", "dag_record")
-    record_names = {entry.tool_name for entry in record.get_available_tools()}
+    record_names = projected_tool_names(
+        make_session(
+            "tool-deleted",
+            "coordinator",
+            orchestration_mode="dag_record",
+            protocol="traditional",
+        )
+    )
     for name in (
         "dag_schedule_work",
         "dag_update_process_node",
         "dag_init_from_template",
     ):
         assert name not in record_names
-    # Task 6 reintroduces dag_review_evidence for v2 structured review requests.
-    assert "dag_review_evidence" in record_names
+    # Task 6 reintroduces dag_review_evidence for v2 structured review requests：
+    # 它按模式只在 dag_guided 上线缆（dag_record 下 Supervisor 离线），故这里
+    # 断言的是**注册表**里有它，而不是 record 模式的工具面。
+    from cloudra.tools import get_tools_lst
+
+    assert "dag_review_evidence" in {entry.tool_name for entry in get_tools_lst()}
 
 
 @pytest.mark.asyncio
@@ -441,15 +466,7 @@ from cloudra.tools.Plantool.dag_tools.dag_remove_node import DagRemoveNode  # no
 
 
 def _follower(conversation_id, mode):
-    from cloudra.core.agent import Follower
-
-    return Follower(
-        id="a-4",
-        name="small_mol",
-        query="run an optimization",
-        conversation_id=conversation_id,
-        orchestration_mode=mode,
-    )
+    return make_subagent(conversation_id, "small_mol", orchestration_mode=mode)
 
 
 async def _seed_lone_species(agent, session, name="orphan"):
@@ -467,7 +484,14 @@ async def test_remove_node_visible_and_executable_by_coordinator(tmp_path):
     get_config().data_dir = tmp_path
     for mode in ("dag_record", "dag_guided"):
         agent = _agent(f"rm-node-visible-{mode}", mode)
-        names = {e.tool_name for e in agent.get_available_tools()}
+        names = projected_tool_names(
+            make_session(
+                f"rm-node-visible-{mode}",
+                "coordinator",
+                orchestration_mode=mode,
+                protocol="traditional",
+            )
+        )
         assert "dag_remove_node" in names
         session = Session("s1", str(tmp_path / "session.json"))
         node_id = await _seed_lone_species(agent, session, f"orphan-{mode}")
@@ -1777,14 +1801,8 @@ async def test_message_supervisor_persists_request_without_graph_change(tmp_path
     assert blocked.is_success is False
     assert "Coordinator" in blocked.error
 
-    from cloudra.core.agent import Follower
-
-    follower = Follower(
-        id="a-4",
-        name="small_mol",
-        query="opt",
-        conversation_id="tool-msg-supervisor-f",
-        orchestration_mode="dag_guided",
+    follower = make_subagent(
+        "tool-msg-supervisor-f", "small_mol", orchestration_mode="dag_guided"
     )
     from_follower = await _call(
         DagMessageSupervisor, follower, session, message="请排产"

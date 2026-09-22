@@ -32,6 +32,27 @@ def test_no_tool_module_imports_the_executable_agent():
     assert offenders == [], f"tools still import the legacy Agent: {offenders}"
 
 
+def test_legacy_execution_stack_is_deleted():
+    """评审 5.4 第 5 条：旧 ``llm_call`` 路径与旧子类已删除，且不得回流。
+
+    `rg "from cloudra.core.agent import" cloudra` 必须为零；两个模块文件不再存在。
+    """
+    assert not (_CLOUDRA / "core" / "agent.py").exists()
+    assert not (_CLOUDRA / "core" / "message_history.py").exists()
+    offenders = []
+    for path in sorted(_CLOUDRA.rglob("*.py")):
+        text = path.read_text(encoding="utf-8")
+        for needle in (
+            "from cloudra.core.agent import",
+            "import cloudra.core.agent",
+            "from cloudra.core.message_history import",
+            "import cloudra.core.message_history",
+        ):
+            if needle in text:
+                offenders.append(f"{path.relative_to(_CLOUDRA)}: {needle}")
+    assert offenders == [], f"legacy execution stack came back: {offenders}"
+
+
 async def _spawn(role_id: str = "coordinator"):
     core = RuntimeCore(strict_events=True)
     bus = CommandBus(core)
