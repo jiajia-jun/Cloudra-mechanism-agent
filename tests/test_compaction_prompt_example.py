@@ -14,6 +14,7 @@ from cloudra.runtime_v2.compaction import (
     _COMPACT_INSTRUCTION,
     _MERGE_INSTRUCTION,
     _MINIMAL_EXAMPLE_JSON,
+    _MINIMAL_EXAMPLE_NOTE,
     CompactSummary,
     parse_compact_summary,
 )
@@ -31,11 +32,28 @@ _EMPTY_LIST_FIELDS = (
 
 def test_minimal_example_passes_strict_validation_without_tolerance_paths():
     data = json.loads(_MINIMAL_EXAMPLE_JSON)
+    assert set(data) == {"objective", "active_requests", *_EMPTY_LIST_FIELDS}
+    assert set(data["objective"]) == {"text", "sources"}
+    assert all(type(index) is int for index in data["objective"]["sources"])
     summary = CompactSummary.model_validate(data)
     assert summary.objective.text.strip()
     assert summary.active_requests == []
     for field in _EMPTY_LIST_FIELDS:
         assert getattr(summary, field) == []
+
+
+def test_minimal_example_adds_no_obligation_beyond_its_hypothetical_line():
+    note, separator, displayed_json = _MINIMAL_EXAMPLE_NOTE.rpartition("\n\n")
+    assert separator and displayed_json == _MINIMAL_EXAMPLE_JSON
+    source_label, role_separator, request = note.splitlines()[-1].partition(" user: ")
+    assert role_separator and source_label.startswith("[") and source_label.endswith("]")
+    source_index = int(source_label[1:-1])
+
+    data = json.loads(displayed_json)
+    assert data["objective"] == {"text": request, "sources": [source_index]}
+    assert data["active_requests"] == []
+    for field in _EMPTY_LIST_FIELDS:
+        assert data[field] == []
 
 
 def test_minimal_example_survives_the_production_parser_with_zero_clamps():
