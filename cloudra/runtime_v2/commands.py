@@ -813,9 +813,8 @@ async def _execute_effect(core: RuntimeCore, effect: Effect) -> None:
         if core.runner is not None:
             await core.runner.cancel(effect.session_id)
     elif isinstance(effect, CancelLaunchGroups):
-        manager = getattr(core, "launch_groups", None)
-        if manager is not None:
-            await manager.cancel_for_parent(effect.session_id)
+        # 组管理器随 core 装配（组清单是事件投影）——不再是可选接线。
+        await core.launch_groups.cancel_for_parent(effect.session_id)
     elif isinstance(effect, DeleteProjectData):
         await asyncio.to_thread(_delete_project_data, effect.project_id)
     elif isinstance(effect, ReconcileSupervision):
