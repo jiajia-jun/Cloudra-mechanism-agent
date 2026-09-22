@@ -136,13 +136,14 @@ class ScheduleStage:
             return StopGate(
                 action="wait_background",
                 reason="a schedule reminder is pending; the stop suspends until it fires",
+                basis="background_wait",
             )
         if core is not None and await self._verifiable_background_pending(ctx):
             return StopGate(
                 action="continue_work",
                 reason=BACKGROUND_WITHOUT_WAKEUP_MESSAGE,
             )
-        return StopGate(action="allow_final", reason=DECLARED_COMPLETION_REASON)
+        return StopGate(action="allow_final", reason=DECLARED_COMPLETION_REASON, basis="declared")
 
     async def _verifiable_background_pending(self, ctx: PipelineContext) -> bool:
         from cloudra.dag.stop_audit import has_running_siblings, pending_compute_jobs_exist
