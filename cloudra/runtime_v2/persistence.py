@@ -392,10 +392,15 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
             pid: Project.model_validate(data)
             for pid, data in snapshot.get("projects", {}).items()
         }
-        core.agents = {
+        restored_agents = {
             sid: AgentSession.model_validate(_strip_removed_agent_fields(data))
             for sid, data in snapshot.get("agents", {}).items()
         }
+        # Production wires InvocationService before restore and gives it this
+        # registry by reference.  Preserve the mapping identity so restored
+        # agents immediately become the trusted live settings/capability source.
+        core.agents.clear()
+        core.agents.update(restored_agents)
         # 快照角色是内置角色表上的覆盖层（携带 role.update 补丁），不能整个
         # 替换注册表——否则旧快照会丢掉后加的内置角色（如 supervisor）。
         from cloudra.runtime_v2.roles import BUILTIN_ROLES
@@ -641,4 +646,3 @@ def _rebuild_inboxes_from_events(core: RuntimeCore) -> None:
             images=data.get("images"),
         )
         core.mailbox.ensure_inbox(session_id).put_nowait(payload)
-

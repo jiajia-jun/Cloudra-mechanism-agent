@@ -65,6 +65,24 @@ async def test_scenario_harness_shares_the_core_event_writer(tmp_path):
         await harness.aclose()
 
 
+@pytest.mark.asyncio
+async def test_snapshot_restore_keeps_invocations_on_the_live_agent_registry(tmp_path):
+    harness = await ScenarioHarness.start(tmp_path)
+    try:
+        agent = await harness.spawn("coordinator")
+        await harness.wait_terminal(agent)
+        await harness.bus.flush_snapshot()
+    finally:
+        await harness.aclose()
+
+    restored = await ScenarioHarness.restore(tmp_path)
+    try:
+        assert restored.pipeline.invocations._agents is restored.core.agents
+        assert agent.id in restored.pipeline.invocations._agents
+    finally:
+        await restored.aclose()
+
+
 # --------------------------------------------------------------- 1. 普通问答
 
 
