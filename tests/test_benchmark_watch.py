@@ -222,7 +222,7 @@ async def test_wait_run_timeout_cancels_running_agent(tmp_path):
 
 @pytest.mark.asyncio
 async def test_latest_state_reason_reads_event_log(tmp_path):
-    from cloudra.benchmark.watch import latest_state_reason
+    from cloudra.runtime_v2.dispatcher import latest_state_reason
 
     core, _project, parent, _sibling = await _core_with_agents(tmp_path)
     assert latest_state_reason(core, parent.id) == ""

@@ -10,6 +10,7 @@ from cloudra.runtime_v2.adapters import LegacyToolExecutor
 from cloudra.runtime_v2.agent_runner import AgentRunner
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.core import RuntimeCore
+from cloudra.runtime_v2.dispatcher import WakePolicy
 from cloudra.runtime_v2.failures import RunFailureKind
 from cloudra.runtime_v2.policies import default_stages
 from cloudra.runtime_v2.policies.base import ToolCall
@@ -235,11 +236,12 @@ async def test_stop_with_pending_inbox_continues_instead_of_finishing():
             self.calls += 1
             if self.calls == 1:
                 # 轮次进行中投递收件箱消息（此刻 wake 对 RUNNING 无效）
-                core.mailbox.deliver(
+                await core.dispatcher.commit_and_deliver(
                     to_session_id=agent.id,
                     project_id=agent.project_id,
                     content="late child report",
                     sender="a-1",
+                    wake=WakePolicy.NEVER,
                 )
                 return LLMResponse(content="done", stop_requested=True)
             return LLMResponse(content="processed late report", stop_requested=True)
@@ -424,7 +426,7 @@ async def test_child_completion_to_failed_parent_parks_without_reopening():
     assert parent.state is AgentState.FAILED
     runs_before = len([e for e in core.event_log.query_session(parent.id) if e.type == "run.started"])
 
-    deliver_child_completion_to_parent(core, child)
+    await deliver_child_completion_to_parent(core, child)
 
     assert parent.state is AgentState.FAILED  # 不 reopen
     assert len([e for e in core.event_log.query_session(parent.id) if e.type == "run.started"]) == runs_before
@@ -480,7 +482,7 @@ async def test_child_completion_to_cancelled_parent_parks_without_reopening():
     assert parent.state is AgentState.CANCELLED
     runs_before = len([e for e in core.event_log.query_session(parent.id) if e.type == "run.started"])
 
-    deliver_child_completion_to_parent(core, child)
+    await deliver_child_completion_to_parent(core, child)
 
     assert parent.state is AgentState.CANCELLED  # 不复活
     assert len([e for e in core.event_log.query_session(parent.id) if e.type == "run.started"]) == runs_before
@@ -493,7 +495,7 @@ async def test_child_completion_to_cancelled_parent_parks_without_reopening():
 async def test_final_text_surfaces_recorded_failure_reason():
     """A4：崩溃子 agent 无最终消息时，回传文本必须带 run.finished 记录的
     真实失败原因，而不是 'see events' 死信息。"""
-    from cloudra.runtime_v2.subagent_bridge import _final_text
+    from cloudra.runtime_v2.child_manifest import build_child_manifest
 
     core = RuntimeCore(strict_events=True)
     bus = CommandBus(core)
@@ -516,7 +518,10 @@ async def test_final_text_surfaces_recorded_failure_reason():
         failure_kind=RunFailureKind.PIPELINE_INTERNAL,
     )
 
-    text = _final_text(core, child)
+    manifest = build_child_manifest(core, child)
+    text = manifest["final_summary"]
+    # 失败原因来自 run.finished 的结构化字段，且来源可解释。
+    assert manifest["final_summary_source"] == "run_error"
     assert "kaplam: ts_opt diverged at step 7" in text
     assert "see events" not in text
 

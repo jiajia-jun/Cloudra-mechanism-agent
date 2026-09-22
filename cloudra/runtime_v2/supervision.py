@@ -34,6 +34,8 @@ import logging
 import os
 from typing import TYPE_CHECKING
 
+from cloudra.runtime_v2.dispatcher import WakePolicy
+
 if TYPE_CHECKING:
     from cloudra.runtime_v2.core import RuntimeCore
     from cloudra.runtime_v2.schemas import AgentSession
@@ -279,11 +281,14 @@ async def notify_supervisor(
     # 统一不复活纪律（park-don't-wake）：所有状态都投递（通知是 durable 的
     # agent.message_injected + 内存队列）；failed/cancelled 只驻留不唤醒——
     # 用户显式复活后首轮 drain 即可读到。
-    core.mailbox.deliver(
+    # 督导通知的唤醒纪律：只有 QUEUED/SUCCEEDED 才唤醒（不打断运行态与
+    # 等待态）；auto_wake=False（装载）时任何状态都只驻留。
+    await core.dispatcher.commit_and_deliver(
         to_session_id=agent.id,
         project_id=project_id,
         content=_notification_text(reason),
         sender="system",
+        wake=WakePolicy.IDLE_ONLY if auto_wake else WakePolicy.NEVER,
     )
     if state in {AgentState.FAILED, AgentState.CANCELLED}:
         logger.debug(
@@ -296,8 +301,6 @@ async def notify_supervisor(
         await _sync_terminal_supervisor_alert(
             core, project_id, agent, auto_wake=auto_wake
         )
-    elif auto_wake and state in {AgentState.QUEUED, AgentState.SUCCEEDED}:
-        core.agent_host.wake(agent, runner=core.runner)
     # RUNNING：下一轮 drain 收件箱；WAITING_*：消息保留，不绕过等待语义。
     # auto_wake=False：任何状态都只驻留，由显式 resume 开跑。
     await core.event_writer.flush()
@@ -482,41 +485,13 @@ async def _sync_terminal_supervisor_alert(
     ):
         return  # 指纹未变：不重复投递
     core.notices.pin(coordinator.id, TERMINAL_SUPERVISOR_PIN_KEY, content)
-    core.mailbox.deliver(
+    await core.dispatcher.commit_and_deliver(
         to_session_id=coordinator.id,
         project_id=project_id,
         content=content,
         sender="system",
+        wake=WakePolicy.IDLE_ONLY if auto_wake else WakePolicy.NEVER,
     )
-    if auto_wake and coordinator.state in {AgentState.QUEUED, AgentState.SUCCEEDED}:
-        core.agent_host.wake(coordinator, runner=core.runner)
-    await core.event_writer.flush()
-
-
-def _latest_state_reason(core, session_id: str) -> str:
-    events = core.event_log.query_session(session_id, types={"agent.state_changed"})
-    if not events:
-        return ""
-    return str(events[-1].data.get("reason") or "")
-
-
-def _review_flush_should_wake(core, agent) -> bool:
-    """flush 的叫醒纪律：复用 WAITING_APPROVAL，用挂起 reason 分流。
-
-    wait_review 挂起就是在等这份裁决；工具审批（reason=approval）和
-    WAITING_INPUT 仍 park。终态永不自动复活。
-    """
-    from cloudra.runtime_v2.schemas import AgentState
-
-    if agent.state in {
-        AgentState.FAILED,
-        AgentState.CANCELLED,
-        AgentState.WAITING_INPUT,
-    }:
-        return False
-    if agent.state is AgentState.WAITING_APPROVAL:
-        return _latest_state_reason(core, agent.id) == "wait_review"
-    return True
 
 
 async def flush_review_notifications(
@@ -585,26 +560,23 @@ async def flush_review_notifications(
             recipient = _resolve_recipient_session(
                 core, project_id, item["recipient_session_id"]
             )
-            agent = core.agents.get(recipient) if recipient else None
             if recipient:
                 core.notices.pin(recipient, key=pin_key, content=content)
                 # Mailbox 投递是 durable 唤醒握手；若裁决撞上对方正要进入
                 # WAITING_APPROVAL，AgentRunner 的 transition 后 inbox 复查
                 # 会确定性地观察到这条消息（不靠 timing sleep）。
-                core.mailbox.deliver(
+                # park-don't-wake：终态 / WAITING_INPUT / 工具审批只驻留。
+                # wait_review 的 WAITING_APPROVAL 必须 wake（人已经 break）。
+                # auto_wake=False（装载）：任何状态都只驻留。
+                # 投递的 persist+发布边界在 dispatcher 内（落盘成功才入队、
+                # 才唤醒），因此这里无需再自己 flush。
+                await core.dispatcher.commit_and_deliver(
                     to_session_id=recipient,
                     project_id=project_id,
                     content=content,
                     sender="supervisor",
+                    wake=WakePolicy.PARK_WAITING if auto_wake else WakePolicy.NEVER,
                 )
-                # park-don't-wake：终态 / WAITING_INPUT / 工具审批只驻留。
-                # wait_review 的 WAITING_APPROVAL 必须 wake（人已经 break）。
-                # auto_wake=False（装载）：任何状态都只驻留。
-                if auto_wake and agent is not None and _review_flush_should_wake(core, agent):
-                    core.agent_host.wake(agent, runner=core.runner)
-                # 本路径在 CommandBus 之外，自己持有 publish+persist 边界：
-                # 事件落盘/发布先于标记 sent，否则崩溃会丢唤醒。
-                await core.event_writer.flush()
                 await asyncio.to_thread(store.mark_review_notification_sent, subject_id)
                 handled += 1
         except Exception:

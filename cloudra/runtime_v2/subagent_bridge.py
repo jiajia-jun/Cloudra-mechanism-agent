@@ -17,8 +17,10 @@ import asyncio
 import uuid
 from typing import Any
 
+from cloudra.runtime_v2.child_manifest import build_child_manifest, render_child_report
 from cloudra.runtime_v2.child_settings import resolve_child_settings
 from cloudra.runtime_v2.commands import CommandBus
+from cloudra.runtime_v2.dispatcher import WakePolicy
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
 from cloudra.runtime_v2.schemas import AgentSession, AgentState, Command, CommandRejected
 
@@ -125,33 +127,30 @@ async def _await_terminal(core, session_id: str) -> AgentSession:
     return core.require_agent(session_id)
 
 
-def _final_text(core, agent: AgentSession) -> str:
-    emitted = core.event_log.query_session(
-        agent.id, types={"agent.message_emitted"}, limit=1
-    )
-    if emitted:
-        return str(emitted[-1].data.get("content") or "")
-    if agent.state is AgentState.FAILED:
-        # run.finished 清空 current_run（apply），但失败原因随事件持久留存——
-        # 把它带出来，而不是给模型一句 "see events" 死信息。
-        finished = core.event_log.query_session(agent.id, types={"run.finished"}, limit=20)
-        for envelope in reversed(finished):
-            if envelope.data.get("outcome") != "failed":
-                continue
-            error = envelope.data.get("error")
-            return f"Sub-agent failed: {error}" if error else "Sub-agent failed (no error recorded)."
-        return "Sub-agent failed (no run record)."
-    return f"Sub-agent ended with state {agent.state.value} and no final message."
+def _manifest_payload(core, child: AgentSession) -> dict[str, Any]:
+    """子 Agent 完成回报的结构化 manifest（唯一来源，文本由它渲染）。"""
+    return build_child_manifest(core, child)
 
 
-def _parent_report_text(core, child: AgentSession) -> str:
-    return (
-        f"[Sub-agent finished] role={child.role_id} session_id={child.id} "
-        f"state={child.state.value}\n\n{_final_text(core, child)}"
-    )
+def child_completion_message(
+    core, child: AgentSession
+) -> tuple[str, str, dict[str, Any]] | None:
+    """父信箱的完成回报：``(parent_session_id, content, manifest)``。
+
+    纯组装（不投递、不入队）：live 路径经 ``MessageDispatcher`` 投递，恢复路径
+    经 ``persistence`` 先落库再入队——两处共用同一份载荷构造，避免第二套报文。
+    None = 没有父或父已不在内存。
+    """
+    parent_id = child.parent_session_id
+    if not parent_id:
+        return None
+    if core.agents.get(parent_id) is None:
+        return None
+    manifest = build_child_manifest(core, child)
+    return parent_id, render_child_report(manifest), manifest
 
 
-def deliver_child_completion_to_parent(
+async def deliver_child_completion_to_parent(
     core, child: AgentSession, *, wake: bool = True
 ) -> None:
     """Push a finished child's report into the parent's mailbox and wake it.
@@ -167,21 +166,20 @@ def deliver_child_completion_to_parent(
     ``wake=False`` 给进程恢复：只投递信箱，不把休眠父打进新的 LLM run
     （issue #35）。显式 message / restart 才开跑，届时首轮 drain 可读到。
     """
-    parent_id = child.parent_session_id
-    if not parent_id:
+    message = child_completion_message(core, child)
+    if message is None:
         return
-    parent = core.agents.get(parent_id)
-    if parent is None:
-        return
-    core.mailbox.deliver(
-        to_session_id=parent.id,
+    parent_id, content, manifest = message
+    await core.dispatcher.commit_and_deliver(
+        to_session_id=parent_id,
         project_id=child.project_id,
-        content=_parent_report_text(core, child),
+        # 父上下文只注入简洁文本；结构化 manifest 随事件留存（评审 5.5：
+        # 「人类可读文本从 manifest 确定性渲染；事件/API 保留结构化数据」）。
+        content=content,
         sender=child.role_id,
+        manifest=manifest,
+        wake=WakePolicy.PARK_TERMINAL if wake else WakePolicy.NEVER,
     )
-    if not wake or parent.state in {AgentState.FAILED, AgentState.CANCELLED}:
-        return  # parked：恢复路径 / 终态父绝不自动复活
-    core.agent_host.wake(parent, runner=core.runner)
 
 
 async def _cancel_child(core, session_id: str) -> None:
@@ -225,8 +223,12 @@ async def _handle_launcher(core, parent: AgentSession, args: dict[str, Any]) -> 
     except asyncio.CancelledError:
         await _cancel_child(core, child.id)
         raise
-    data["result"] = f"[{_render_settings_receipt(settings_receipt)}]\n\n{_final_text(core, child)}"
+    manifest = build_child_manifest(core, child)
+    data["result"] = (
+        f"[{_render_settings_receipt(settings_receipt)}]\n\n{render_child_report(manifest)}"
+    )
     data["settings"] = settings_receipt
+    data["manifest"] = manifest
     return ToolResult(
         is_success=child.state is AgentState.SUCCEEDED,
         summary=data["result"],
@@ -321,13 +323,20 @@ async def _handle_swarm(core, parent: AgentSession, args: dict[str, Any]) -> Too
         return ToolResult(is_success=True, summary=summary, data={"session_ids": session_ids, "result": summary})
 
     sections = []
+    manifests: list[dict[str, Any]] = []
     ok = True
     for item, child in results:
-        text = _final_text(core, child)
+        manifest = build_child_manifest(core, child)
+        manifests.append(manifest)
         ok = ok and child.state is AgentState.SUCCEEDED
-        sections.append(f"## {item[:40]}\nstate: {child.state.value}\n{text}")
+        sections.append(f"## {item[:40]}\n{render_child_report(manifest)}")
     summary = "\n\n".join(sections)
-    return ToolResult(is_success=ok, summary=summary, data={"session_ids": session_ids, "result": summary})
+    return ToolResult(
+        is_success=ok,
+        summary=summary,
+        # 部分失败也有稳定结构：每个 child 一条 manifest，父不必解析文本。
+        data={"session_ids": session_ids, "result": summary, "children": manifests},
+    )
 
 
 async def _handle_report(core, args: dict[str, Any]) -> ToolResult:
@@ -356,7 +365,7 @@ async def _handle_report(core, args: dict[str, Any]) -> ToolResult:
             summary=f"Sub-agent {session_id} is still {agent.state.value}; ask again later.",
             data={"session_id": session_id, "state": agent.state.value},
         )
-    text = _final_text(core, agent)
+    text = build_child_manifest(core, agent)["final_summary"]
     return ToolResult(
         is_success=agent.state is AgentState.SUCCEEDED,
         summary=text,
