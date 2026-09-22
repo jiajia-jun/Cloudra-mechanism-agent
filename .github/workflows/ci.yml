@@ -72,7 +72,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           # 前端单测脚本用 `node --experimental-strip-types`（Node >= 22.6 才有
           # 该 flag），与 js_host 的 engines >= 22 一致；Node 20 会直接报未知选项。
@@ -120,7 +120,7 @@ jobs:
           python-version: "3.11"
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           # js_runtime 的前置探测要求 Node >= 22（见 runtime_v2/js_runtime.py）
           node-version: "22"
