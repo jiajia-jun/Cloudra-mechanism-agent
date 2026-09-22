@@ -98,13 +98,16 @@ inside the numbered range.\
 # CompactSummary.model_validate（tests/test_compaction_prompt_example.py 把这条
 # 钉死），否则等于把模型引向错误形状。
 _MINIMAL_EXAMPLE_JSON = """\
-{"objective": {"text": "answer the user's question", "sources": [0]},
- "active_requests": [{"text": "keep the delivery criteria", "sources": [1]}],
+{"objective": {"text": "Explain this result.", "sources": [0]},
+ "active_requests": [],
  "corrections": [], "constraints": [], "pending": [], "completed": [],
  "failed_attempts": [], "evidence": [], "next_actions": []}"""
 
 _MINIMAL_EXAMPLE_NOTE = (
-    "\n\nMinimal valid example (values illustrative only):\n\n"
+    "\n\nMinimal valid example for the hypothetical trajectory line below. "
+    "Derive every value and source index from the actual input; do not copy "
+    "the example:\n"
+    "[0] user: Explain this result.\n\n"
     + _MINIMAL_EXAMPLE_JSON
 )
 
