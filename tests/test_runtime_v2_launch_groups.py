@@ -412,3 +412,121 @@ async def test_cancel_then_worker_cancelled_preserves_reason(tmp_path):
     assert finished
     assert finished[-1]["data"]["reason"] == "parent cancelled"
     release.set()
+@pytest.mark.asyncio
+@pytest.mark.parametrize("flush_command_snapshot", [False, True], ids=["restore", "command"])
+async def test_group_survives_second_restore_after_snapshot_covers_events(
+    tmp_path, flush_command_snapshot
+):
+    """快照水位越过 launch_group.* 事件后，二次恢复仍能重建组清单。
+
+    回归：恢复写快照时若不把组清单随快照落地，下一次恢复只重放快照之后的
+    事件——快照覆盖的那批组会凭空消失（评审 5.2 后半的「重启可查询」承诺
+    在二次恢复下破功）。
+    """
+    from cloudra.runtime_v2.commands import CommandBus
+    from cloudra.runtime_v2.core import RuntimeCore
+    from cloudra.runtime_v2.persistence import RuntimeStore, restore_core
+    from cloudra.runtime_v2.schemas import Command
+
+    store = RuntimeStore(tmp_path / "runtime-v2.db")
+    core, project, parent = await _core_with_parent(store)
+    blocked = asyncio.Event()
+
+    async def spawner(query):
+        if query == "q1":
+            await blocked.wait()
+        return (
+            await CommandBus(core).execute(
+                Command(
+                    type="agent.spawn",
+                    target={"project_id": project.id},
+                    payload={"role_id": "explorer", "parent_session_id": parent.id, "query": query},
+                )
+            )
+        ).data
+
+    group = await core.launch_groups.create(
+        group_id="grp_twice",
+        parent_session_id=parent.id,
+        project_id=project.id,
+        items=[("i0", "q0"), ("i1", "q1")],
+        max_concurrency=1,
+        spawner=spawner,
+    )
+    for _ in range(500):
+        if group.item("i0").state == "succeeded":
+            break
+        await asyncio.sleep(0.01)
+
+    if flush_command_snapshot:
+        # 命令/关闭路径独立组装快照，必须同样保存水位覆盖的组清单。
+        await CommandBus(core).flush_snapshot()
+
+    restored = RuntimeCore(strict_events=True)
+    restored.store = store
+    restore_core(restored, store)
+    first = restored.launch_groups.get("grp_twice")
+    assert first is not None and first.state == "interrupted"
+
+    # 二次恢复：事件已被第一次恢复写的快照水位覆盖。
+    restored2 = RuntimeCore(strict_events=True)
+    restored2.store = store
+    restore_core(restored2, store)
+    again = restored2.launch_groups.get("grp_twice")
+    assert again is not None, "快照未携带组清单 → 二次恢复丢组"
+    assert again.state == "interrupted"
+    assert [i.item_id for i in again.items] == ["i0", "i1"]
+    assert again.item("i0").state == "succeeded"
+    assert again.item("i1").state == "queued"
+    assert again._task is None
+
+    blocked.set()
+    if group._task is not None:
+        group._task.cancel()
+
+
+@pytest.mark.asyncio
+async def test_corrupt_group_snapshot_fails_loud(tmp_path):
+    """快照形状错误必须 fail-loud（静默降级会掩盖「组清单丢了」）。"""
+    from cloudra.runtime_v2.core import RuntimeCore
+    from cloudra.runtime_v2.persistence import RuntimeStore, restore_core
+
+    store = RuntimeStore(tmp_path / "runtime-v2.db")
+    store.write_snapshot_payload(
+        {"launch_groups": [{"group_id": "grp_bad", "state": "running", "items": [{"state": "nope"}]}]},
+        {},
+    )
+    core = RuntimeCore(strict_events=True)
+    core.store = store
+    with pytest.raises(ValueError):
+        restore_core(core, store)
+
+
+@pytest.mark.asyncio
+async def test_snapshot_roundtrip_keeps_group_identity(tmp_path):
+    """snapshot()/restore() 是纯数据往返：身份与状态逐字保留。"""
+    from cloudra.runtime_v2.launch_groups import LaunchGroupManager
+
+    manager = LaunchGroupManager(spawner=lambda _q: None)
+    await manager.create(
+        group_id="grp_rt",
+        parent_session_id="parent",
+        project_id="prj",
+        items=[("i0", "q0"), ("i1", "q1")],
+        max_concurrency=2,
+    )
+    payload = manager.snapshot()
+
+    other = LaunchGroupManager(spawner=lambda _q: None)
+    other.restore(payload)
+    group = other.get("grp_rt")
+    assert group.state == "running"
+    assert group.project_id == "prj"
+    assert group.max_concurrency == 2
+    assert [(i.item_id, i.query, i.state) for i in group.items] == [
+        ("i0", "q0", "queued"),
+        ("i1", "q1", "queued"),
+    ]
+    assert group._task is None  # 恢复不重建 worker
+    if manager.get("grp_rt")._task is not None:
+        manager.get("grp_rt")._task.cancel()

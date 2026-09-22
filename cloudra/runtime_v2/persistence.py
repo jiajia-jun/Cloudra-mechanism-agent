@@ -261,6 +261,7 @@ class RuntimeStore:
         runtime_defaults: RuntimeSettings,
         session_contexts: dict[str, SessionContext] | None = None,
         pending_compactions: set[str] | None = None,
+        launch_groups: list[dict[str, Any]] | None = None,
         last_seqs: dict[str, int],
     ) -> None:
         payload = {
@@ -277,6 +278,9 @@ class RuntimeStore:
             # pending_compactions 是 compaction.requested 的事件投影；
             # 快照水位越过该事件后增量重放看不到它，必须随快照落地。
             "pending_compactions": sorted(pending_compactions or ()),
+            # launch group 清单同理：快照水位越过 launch_group.* 后增量重放
+            # 看不到它们，不随快照落地就会在下一次恢复中凭空丢组。
+            "launch_groups": launch_groups or [],
         }
         self.write_snapshot_payload(payload, last_seqs)
 
@@ -419,6 +423,9 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
             for session_id in snapshot.get("pending_compactions") or []
             if session_id
         }
+        # launch group 清单随快照恢复（快照点之后的 launch_group.* 事件由下面的
+        # 增量重放经 apply_event 补上）。
+        core.launch_groups.restore(snapshot.get("launch_groups") or [])
         for agent in core.agents.values():
             core.mailbox.ensure_inbox(agent.id)
 
@@ -591,6 +598,7 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
             runtime_defaults=core.runtime_defaults,
             session_contexts=core.session_contexts,
             pending_compactions=core.pending_compactions,
+            launch_groups=core.launch_groups.snapshot(),
             last_seqs=core.event_log.high_watermarks,
         )
     return core.event_log.high_watermarks
