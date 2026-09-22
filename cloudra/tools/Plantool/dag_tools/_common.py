@@ -9,6 +9,7 @@ from typing import Any
 
 from pydantic import Field
 
+from cloudra.base.role_identity import legacy_agent_id_for_role
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, output_schema
 from cloudra.dag.completion import build_projection
@@ -307,7 +308,6 @@ class DagToolBase(Tool):
         # v2 bridge: ``name`` is role_id, ``id`` is the session uuid (as_*).
         # DAG assignee / actor_id vocabulary is legacy a-N (a-0 = Coordinator).
         # Prefer the role name so a-4 children can report on nodes assigned a-4.
-        from cloudra.subagents.registry import legacy_agent_id_for_role
 
         name = getattr(self.subagent, "name", "") or ""
         if name:

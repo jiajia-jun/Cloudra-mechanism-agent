@@ -23,6 +23,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+from cloudra.base.role_identity import legacy_agent_id_for_role
 from cloudra.dag.delta import DeliveryDelta
 from cloudra.dag.engine import (
     _Rejected,
@@ -106,8 +107,6 @@ class EvidenceInboxMixin:
         suggested_target_id: str,
         suggested_stage: str,
     ) -> CallReview:
-        from cloudra.subagents.registry import legacy_agent_id_for_role
-
         role_id = self.role_id or ""
         return CallReview(
             review_id="rev_" + uuid.uuid4().hex,
@@ -1261,8 +1260,6 @@ async def enqueue_compute_review(taskid: int, terminal_state: str) -> None:
         role_id = row[1] or ""
     if mode != "dag_record":
         return
-    from cloudra.subagents.registry import legacy_agent_id_for_role
-
     review = CallReview(
         review_id=f"rev_compute_{taskid}",
         tool_call_id="",

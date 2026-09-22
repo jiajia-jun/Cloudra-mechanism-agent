@@ -17,6 +17,7 @@ import asyncio
 import uuid
 from typing import Any
 
+from cloudra.base.role_identity import role_id_for_legacy_agent_id
 from cloudra.runtime_v2.child_manifest import build_child_manifest, render_child_report
 from cloudra.runtime_v2.child_settings import resolve_child_settings
 from cloudra.runtime_v2.commands import CommandBus
@@ -24,27 +25,11 @@ from cloudra.runtime_v2.dispatcher import WakePolicy
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
 from cloudra.runtime_v2.schemas import AgentSession, AgentState, Command, CommandRejected
 
-# Stable ids from the subagent_launcher prompt; values are v2 role ids.
-_AGENT_ID_TO_ROLE = {
-    "a-1": "explorer",
-    "a-2": "writer",
-    "a-3": "researcher",
-    "a-4": "small_mol",
-    "a-5": "md",
-    "a-6": "dft",
-    "a-7": "experiment",
-    "a-8": "env",
-}
-
 _TERMINAL_STATES = {AgentState.SUCCEEDED, AgentState.FAILED, AgentState.CANCELLED}
 _LAUNCHER = "subagent_launcher"
 _SWARM = "subagent_swarm"
 _REPORT = "get_subagent_report"
 NATIVE_TOOL_NAMES = {_LAUNCHER, _SWARM, _REPORT}
-
-
-def _role_id_for(agent_id: str) -> str:
-    return _AGENT_ID_TO_ROLE.get(agent_id, agent_id)
 
 
 def _combined_query(query: str, context: list[Any]) -> str:
@@ -205,7 +190,7 @@ async def _cancel_child(core, session_id: str) -> None:
 
 async def _handle_launcher(core, parent: AgentSession, args: dict[str, Any]) -> ToolResult:
     bus = CommandBus(core)
-    role_id = _role_id_for(str(args.get("agent_id") or ""))
+    role_id = role_id_for_legacy_agent_id(str(args.get("agent_id") or ""))
     child, settings_receipt = await _spawn_child(
         bus, parent, role_id=role_id, query=str(args.get("query") or ""), context=args.get("context") or []
     )
@@ -251,7 +236,7 @@ def _launch_group_manager(core):
 
 async def _handle_swarm(core, parent: AgentSession, args: dict[str, Any]) -> ToolResult:
     bus = CommandBus(core)
-    role_id = _role_id_for(str(args.get("agent_id") or ""))
+    role_id = role_id_for_legacy_agent_id(str(args.get("agent_id") or ""))
     template = str(args.get("prompt_template") or "")
     items = [str(item) for item in args.get("items") or []]
     context = args.get("context") or []
