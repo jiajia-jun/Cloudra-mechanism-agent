@@ -20,6 +20,7 @@ from cloudra.runtime_v2.child_manifest import (
 )
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.core import RuntimeCore
+from cloudra.runtime_v2.failures import RunFailureKind
 from cloudra.runtime_v2.policies import default_stages
 from cloudra.runtime_v2.policies.base import ToolCall
 from cloudra.runtime_v2.schemas import AgentSession, AgentState, Command
@@ -68,7 +69,9 @@ async def _child(
 
 
 def _finish(core, child, outcome: str, **kwargs) -> None:
-    """收尾：老基线没有 failure_kind 字段时也能调（字段可选）。"""
+    """收尾：失败 run 必须带 failure_kind（#63 硬不变量）；未给时用 pipeline_internal。"""
+    if outcome != "succeeded" and kwargs.get("failure_kind") is None:
+        kwargs["failure_kind"] = RunFailureKind.PIPELINE_INTERNAL
     core.agent_host.finish_run(child, outcome=outcome, **kwargs)
 
 
@@ -111,13 +114,42 @@ async def test_manifest_shapes_succeeded_cancelled_and_no_final_text():
 @pytest.mark.asyncio
 async def test_manifest_failed_child_has_stable_structure_and_next_steps():
     core, child = await _child(role_id="small_mol")
-    _finish(core, child, "failed", error="boom: engine crashed")
+    _finish(
+        core,
+        child,
+        "failed",
+        error="boom: engine crashed",
+        failure_kind=RunFailureKind.PIPELINE_INTERNAL,
+    )
     manifest = build_child_manifest(core, child)
     assert manifest["state"] == "failed"
     assert manifest["runs"]["failed"] == 1
     assert manifest["final_summary_source"] == "run_error"
     assert "boom: engine crashed" in manifest["final_summary"]
-    # 未解决项来自结构化字段（失败分类缺失时按 unclassified 记，不猜原因）。
+    assert manifest["unresolved"] == ["last run failed (pipeline_internal)"]
+    assert manifest["next_steps"] == [
+        "harness error; inspect the audit log before re-dispatching"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_manifest_treats_legacy_missing_failure_kind_as_unclassified():
+    """旧事件没有 failure_kind 时按 unclassified 记，不猜原因。"""
+    core, child = await _child(role_id="small_mol")
+    run_id = child.current_run.run_id
+    core.event_log.append(
+        "run.finished",
+        stream="agent",
+        project_id=child.project_id,
+        session_id=child.id,
+        run_id=run_id,
+        data={"outcome": "failed", "error": "legacy boom", "failure_kind": None},
+    )
+    from cloudra.runtime_v2.apply import apply_event
+
+    apply_event(core, list(core.event_log)[-1])
+    core.agent_host.transition(child, AgentState.FAILED, reason="failed", run_id=run_id)
+    manifest = build_child_manifest(core, child)
     assert manifest["unresolved"] == ["last run failed (unclassified)"]
     assert manifest["next_steps"] == [
         "last run failed; inspect the audit log before re-dispatching"
