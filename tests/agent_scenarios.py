@@ -28,17 +28,18 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 from cloudra.runtime_v2.adapters import LegacyToolExecutor
 from cloudra.runtime_v2.agent_runner import AgentRunner
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.core import RuntimeCore
+from cloudra.runtime_v2.invocation import InvocationService
 from cloudra.runtime_v2.persistence import RuntimeStore
 from cloudra.runtime_v2.policies import default_stages
-from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
+from cloudra.runtime_v2.policies.base import ToolCall
 from cloudra.runtime_v2.schemas import (
     AgentSession,
     AgentState,
@@ -73,7 +74,7 @@ class ScriptedProvider:
     """按 role 分流的 scripted provider。脚本耗尽后以纯文本收尾（不再发工具调用）。
 
     ``calls`` 记录每次调用（role_id + 消息），供断言「重试几次」「是否被调用」。
-    ``summary_calls`` 单独计数压缩摘要调用（harness 用它替代真实 summarizer）。
+    ``summary_calls`` 单独计数压缩摘要调用（压缩场景用它替代真实 summarizer）。
     """
 
     def __init__(
@@ -119,7 +120,7 @@ class ScriptedProvider:
             steps = self._default
         if not steps:
             return LLMResponse(content=f"[{agent.role_id} script exhausted]", stop_requested=True)
-        step = steps.pop(0) if len(steps) > 1 else steps[0]
+        step = steps.pop(0)
         if step.error is not None:
             raise step.error
         tool_calls: list[ToolCall] = []
@@ -136,7 +137,7 @@ class ScriptedProvider:
         )
 
     async def summarize(self, messages: list[dict[str, Any]]) -> str:
-        """替代真实压缩摘要调用（见 ``ScenarioHarness.summarizer``）。"""
+        """供压缩场景替代真实摘要调用。"""
         self.summary_calls += 1
         return self.summary_replies.pop(0) if self.summary_replies else _summary_json(messages)
 
@@ -179,7 +180,6 @@ class ScenarioHarness:
         max_turn_retries: int = 2,
         store_name: str = "runtime-v2.db",
         attach_store: bool = True,
-        summarizer: Callable[[list[dict[str, Any]]], Any] | None = None,
     ) -> None:
         self.tmp_path = tmp_path
         self.store = RuntimeStore(tmp_path / store_name)
@@ -188,11 +188,21 @@ class ScenarioHarness:
             self.core.store = self.store
         self.provider = provider or ScriptedProvider(default=[Step(text="done", stop=True)])
         self.tools = tools if tools is not None else LegacyToolExecutor(self.core)
+        stages = default_stages(self.core)
+        invocations = InvocationService(
+            event_writer=self.core.event_writer,
+            stages=stages,
+            tools=self.tools,
+            agents=self.core.agents,
+        )
         self.pipeline = TurnPipeline(
             event_log=self.core.event_log,
-            stages=default_stages(),
+            stages=stages,
             llm=self.provider,
             tools=self.tools,
+            event_hub=self.core.event_hub,
+            notices=self.core.notices,
+            invocations=invocations,
         )
         self.runner = AgentRunner(
             self.core,
@@ -203,14 +213,10 @@ class ScenarioHarness:
         self.core.runner = self.runner
         self.bus = CommandBus(self.core)
         self.project = None
-        if summarizer is not None:
-            self.summarizer = summarizer
-        else:
-            self.summarizer = self.provider.summarize
 
     @classmethod
     async def start(cls, tmp_path, **kwargs: Any) -> "ScenarioHarness":
-        harness = cls(tmp_path, **kwargs)
+        harness = await asyncio.to_thread(cls, tmp_path, **kwargs)
         await harness.bus.execute(Command(type="project.create", payload={"name": "scenario"}))
         harness.project = next(iter(harness.core.projects.values()))
         return harness
@@ -220,8 +226,8 @@ class ScenarioHarness:
         """从已有 store 恢复一个 harness（重启场景）：worker 全停、只重建投影。"""
         from cloudra.runtime_v2.persistence import restore_core
 
-        harness = cls(tmp_path, store_name=store_name, **kwargs)
-        restore_core(harness.core, harness.store)
+        harness = await asyncio.to_thread(cls, tmp_path, store_name=store_name, **kwargs)
+        await asyncio.to_thread(restore_core, harness.core, harness.store)
         harness.project = next(iter(harness.core.projects.values()), None)
         return harness
 
@@ -364,17 +370,3 @@ class ScenarioHarness:
             f"agent={agent.id} state={agent.state.value} "
             f"runs={self.run_rows(agent)} tools={self.tool_events(agent)}"
         )
-
-
-class RecordingTools:
-    """可注入的假工具执行器：按名字记录调用并返回可控结果。"""
-
-    def __init__(self, *, fail: dict[str, str] | None = None) -> None:
-        self.calls: list[tuple[str, dict[str, Any]]] = []
-        self._fail = dict(fail or {})
-
-    async def execute(self, agent: AgentSession, call: ToolCall) -> ToolResult:
-        self.calls.append((call.name, dict(call.arguments)))
-        if call.name in self._fail:
-            return ToolResult(is_success=False, summary=self._fail[call.name], data={})
-        return ToolResult(is_success=True, summary=f"{call.name} ok", data={})

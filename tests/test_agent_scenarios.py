@@ -6,8 +6,10 @@ harness 与断言面见 ``tests/agent_scenarios.py`` 的模块 docstring。
 
 from __future__ import annotations
 
+import os
 import shutil
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -35,6 +37,32 @@ def _workspace(project_id: str) -> Path:
     from cloudra.persistence.paths import project_workspace_dir
 
     return Path(project_workspace_dir(project_id))
+
+
+# ------------------------------------------------------ harness 自身契约
+
+
+@pytest.mark.asyncio
+async def test_scripted_provider_exhausts_its_final_step():
+    provider = ScriptedProvider(default=[Step(tools=[("todo_read", {})])])
+    agent = SimpleNamespace(role_id="coordinator")
+
+    first = await provider.complete(agent, [], [])
+    exhausted = await provider.complete(agent, [], [])
+
+    assert [call.name for call in first.tool_calls] == ["todo_read"]
+    assert exhausted.stop_requested is True
+    assert exhausted.tool_calls == []
+
+
+@pytest.mark.asyncio
+async def test_scenario_harness_shares_the_core_event_writer(tmp_path):
+    harness = await ScenarioHarness.start(tmp_path)
+    try:
+        assert harness.pipeline.event_writer is harness.core.event_writer
+        assert harness.pipeline.invocations.event_writer is harness.core.event_writer
+    finally:
+        await harness.aclose()
 
 
 # --------------------------------------------------------------- 1. 普通问答
@@ -69,20 +97,39 @@ async def test_plain_qa_ends_with_declared_basis(tmp_path):
 # ------------------------------------------------- 2. small_mol：技能 → 计算入口
 
 
+@pytest.mark.parametrize(
+    ("job_type", "required_bin", "input_name"),
+    [
+        ("gaussian", "g16", "he.gjf"),
+        ("orca", "orca", "he.inp"),
+        ("xtb", "xtb", "he.xyz"),
+        ("cp2k", "cp2k", "he.inp"),
+        ("vasp", "vasp_std", "INCAR"),
+    ],
+)
 @pytest.mark.asyncio
-async def test_small_mol_loads_skill_before_allowed_compute_entry(tmp_path):
-    """small_mol：需要计算时先加载技能，再走允许的计算入口（真实工具 + 真实权限）。
+async def test_small_mol_loads_skill_before_allowed_compute_entry(
+    tmp_path, monkeypatch, job_type, required_bin, input_name
+):
+    """small_mol：先加载技能，再按各后端原生输入走异步计算入口。
 
     杠杆：角色权限矩阵 + 工具目录。权限收紧了这条会在「工具被拒」处红。
+    PATH 中的空壳程序只供准入探测；``is_async`` 保证它们绝不会执行。
     """
+    fixture_dir = Path(__file__).parent / "fixtures" / "compute_backends" / job_type
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    probe = bin_dir / required_bin
+    probe.write_text("#!/bin/sh\nexit 99\n", encoding="utf-8")
+    probe.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}")
+
     provider = ScriptedProvider(by_role={})
     harness = await ScenarioHarness.start(tmp_path, provider=provider)
     try:
         workspace = _workspace(harness.project.id)
         workspace.mkdir(parents=True, exist_ok=True)
-        (workspace / "h2o.gjf").write_text(
-            "#p hf/sto-3g\n\n0 1\nO 0 0 0\nH 0 0 1.0\nH 0 1.0 0\n\n", encoding="utf-8"
-        )
+        shutil.copytree(fixture_dir, workspace, dirs_exist_ok=True)
         provider.script(
             "small_mol",
             Step(tools=[("get_skill", {"skill_name": "dft-calculation"})]),
@@ -90,7 +137,13 @@ async def test_small_mol_loads_skill_before_allowed_compute_entry(tmp_path):
                 tools=[
                     (
                         "submit_compute_job",
-                        {"input_file": "h2o.gjf", "job_type": "orca", "cpus": 1},
+                        {
+                            "input_file": input_name,
+                            "job_type": job_type,
+                            "cpus": 1,
+                            "is_async": True,
+                            "execution_backend": "local",
+                        },
                     )
                 ]
             ),
@@ -109,15 +162,15 @@ async def test_small_mol_loads_skill_before_allowed_compute_entry(tmp_path):
         assert by_name["submit_compute_job"]["started"] is True
         assert by_name["submit_compute_job"]["blocked"] is False
 
-        if shutil.which("orca") is None:
-            pytest.skip("orca 未安装：策略路径已验证，作业落库断言需要真实引擎")
         from cloudra.persistence.database import ComputeDB
 
-        with ComputeDB().connect() as con:
-            jobs = con.execute("SELECT jobtype, state FROM compute_jobs").fetchall()
+        async with ComputeDB().aconnect() as con:
+            cursor = await con.execute("SELECT jobtype, state, path FROM compute_jobs")
+            jobs = await cursor.fetchall()
         assert len(jobs) == 1, f"expected exactly one compute job, got {jobs}"
-        assert jobs[0][0] == "orca"
-        assert jobs[0][1] in {"ready", "queued", "pending"}, jobs
+        assert jobs[0][0] == job_type
+        assert jobs[0][1] == "ready", jobs
+        assert Path(jobs[0][2]).name == input_name
     finally:
         await harness.aclose()
 
@@ -295,7 +348,9 @@ async def test_restart_repeats_no_side_effect_and_keeps_unconsumed_message(tmp_p
             encoding="utf-8"
         )
 
-        # 造一条「已落库但未消费」的消息（重启后必须仍在信箱里）。
+        # 先等父 Agent 终态，排除消息被下一轮正常消费的竞态；再造一条
+        # 「已落库但未消费」的消息（重启后必须仍在信箱里）。
+        await harness.wait_terminal(parent)
         await harness.core.dispatcher.commit_and_deliver(
             to_session_id=parent.id,
             project_id=harness.project.id,

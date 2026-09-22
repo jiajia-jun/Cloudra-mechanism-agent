@@ -1,0 +1,7 @@
+SYSTEM = minimal-helium
+ENCUT = 300
+EDIFF = 1E-6
+IBRION = -1
+NSW = 0
+ISMEAR = 0
+SIGMA = 0.05
