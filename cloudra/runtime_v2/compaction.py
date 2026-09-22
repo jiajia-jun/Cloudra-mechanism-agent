@@ -92,6 +92,22 @@ of the trajectory lines each statement came from; keep them accurate and \
 inside the numbered range.\
 """
 
+# GH #48 建议 4：给形状说明配一个「最小合法示例」（与上面九键同形），把三种
+# 实测畸形（objective 裸字符串 / 单元素数组 / 围栏+散文）压到一眼可对照的程度。
+# 示例必须**不依赖任何容错路径**就是合法的：它要能直接过 json.loads +
+# CompactSummary.model_validate（tests/test_compaction_prompt_example.py 把这条
+# 钉死），否则等于把模型引向错误形状。
+_MINIMAL_EXAMPLE_JSON = """\
+{"objective": {"text": "answer the user's question", "sources": [0]},
+ "active_requests": [{"text": "keep the delivery criteria", "sources": [1]}],
+ "corrections": [], "constraints": [], "pending": [], "completed": [],
+ "failed_attempts": [], "evidence": [], "next_actions": []}"""
+
+_MINIMAL_EXAMPLE_NOTE = (
+    "\n\nMinimal valid example (values illustrative only):\n\n"
+    + _MINIMAL_EXAMPLE_JSON
+)
+
 _COMPACT_INSTRUCTION = (
     "You are compacting an agent's execution trajectory at a context "
     "boundary. The user message carries the whole trajectory as numbered "
@@ -104,6 +120,7 @@ _COMPACT_INSTRUCTION = (
     + COMPACT_SUMMARY_CONTRACT
     + "\n\n"
     + _JSON_SHAPE_NOTE
+    + _MINIMAL_EXAMPLE_NOTE
 )
 
 _MERGE_INSTRUCTION = (
@@ -115,6 +132,7 @@ _MERGE_INSTRUCTION = (
     + COMPACT_SUMMARY_CONTRACT
     + "\n\n"
     + _JSON_SHAPE_NOTE
+    + _MINIMAL_EXAMPLE_NOTE
 )
 
 # Cap for summary text stored inside compaction.finished event data.
