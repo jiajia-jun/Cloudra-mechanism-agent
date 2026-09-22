@@ -9,7 +9,7 @@
 
 import type { CompletionSummary } from './types.ts';
 
-export type VerificationLabel = 'verified' | 'partial' | 'unverified';
+export type VerificationLabel = 'verified' | 'supervisor_reviewed' | 'partial' | 'unverified';
 
 export interface CompletionChip {
   label: string;
@@ -31,6 +31,14 @@ export function completionChipFor(
       label: 'verified complete',
       tone: 'ok',
       detail: 'The delivery passed the evidence gate that applies to this run.',
+    };
+  }
+  if (label === 'supervisor_reviewed') {
+    return {
+      label: 'Supervisor-reviewed delivery',
+      tone: 'warn',
+      detail:
+        'The delivery passed its coverage gate using Supervisor judgment; this is not independent scientific verification.',
     };
   }
   if (label === 'partial') {

@@ -35,7 +35,7 @@ export interface CompletionSummary {
   run_id: string | null;
   run_outcome: 'succeeded' | 'failed' | 'cancelled' | null;
   completion_basis: string | null;
-  verification_label: 'verified' | 'partial' | 'unverified';
+  verification_label: 'verified' | 'supervisor_reviewed' | 'partial' | 'unverified';
 }
 
 export interface Agent {
@@ -256,4 +256,3 @@ export interface FsBrowseResponse {
   entries: FsBrowseEntry[];
   writable: boolean;
 }
-

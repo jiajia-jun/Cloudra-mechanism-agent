@@ -87,8 +87,11 @@ async def test_prompt_projection_omits_reject_reason_after_new_open_draft(tmp_pa
         draft_id=proposed["draft_id"],
     )
     await controller.propose_mechanism(
-        operations=_OPS,
-        stage_contracts={"step1": ["ts_guess", "ts_opt", "frequency"]},
+        operations=[{
+            "op": "update_edge", "graph": "delivery", "edge_id": "step1",
+            "changes": {"label": "revised step1"},
+        }],
+        stage_contracts={},
         rationale="revised hypothesis",
         actor_id="a-0",
     )

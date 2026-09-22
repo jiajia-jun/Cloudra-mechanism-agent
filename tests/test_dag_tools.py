@@ -1861,9 +1861,14 @@ async def test_supervisor_view_reads_persisted_drafts_and_explicit_reviews(tmp_p
     controller = DagController(db, "coordinator", "dag_guided")
     await controller.initialize()
     drafts = []
-    for rationale in ("first hypothesis", "revised hypothesis"):
+    revision_ops = [{
+        "op": "update_edge", "graph": "delivery", "edge_id": "step1",
+        "changes": {"label": "revised step1"},
+    }]
+    for rationale, operations in (("first hypothesis", _OPS), ("revised hypothesis", revision_ops)):
         drafts.append(await controller.propose_mechanism(
-            operations=_OPS, stage_contracts={"step1": ["ts_guess"]},
+            operations=operations,
+            stage_contracts={"step1": ["ts_guess"]} if operations is _OPS else {},
             rationale=rationale, actor_id="a-0",
         ))
     for source in ("explicit", "legacy_auto"):

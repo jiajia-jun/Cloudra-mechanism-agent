@@ -8,7 +8,7 @@ from typing import Any
 from cloudra.base.session_class import Session
 from cloudra.base.tool_actor import ToolActorContext
 from cloudra.base.tools_class import input_schema
-from cloudra.dag.completion import evaluate_delivery
+from cloudra.dag.controller import DagController
 from cloudra.dag.models import OrchestrationMode
 from cloudra.tools.Plantool.dag_tools._common import DagToolBase, DagToolOutput
 
@@ -38,20 +38,10 @@ class DagDeliveryReport(DagToolBase):
         if self._mode() is OrchestrationMode.STANDARD:
             return self._standard_disabled()
         ctx = await self._prepare(session)
-        snapshot = await asyncio.to_thread(ctx.engine.snapshot)
-        claim = ctx.store.accepted_claim_spec()
-        targets = (
-            set(claim.scope.get("targets", [])) | set(claim.reference.get("targets", []))
-            if claim is not None else set()
+        controller = DagController(
+            ctx.db, session.id, ctx.mode, conversation_id=ctx.conversation_id
         )
-        facts = {target: ctx.store.facts_for_target(target) for target in targets}
-        report = evaluate_delivery(
-            snapshot.delivery,
-            ctx.contract,
-            claim_kind=claim.kind.value if claim is not None else None,
-            claim_spec=claim,
-            evidence_facts=facts,
-        )
+        report = await asyncio.to_thread(controller.delivery_report)
         return DagToolOutput(
             is_success=True,
             action="dag_delivery_report",

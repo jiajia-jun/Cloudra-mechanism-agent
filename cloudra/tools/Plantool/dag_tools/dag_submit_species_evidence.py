@@ -20,7 +20,7 @@ from cloudra.dag.models import (
     GraphOperation,
     OrchestrationMode,
 )
-from cloudra.dag.review_context import ActiveReview, ReviewContextManager
+from cloudra.dag.review_context import ActiveReview, ReviewContextManager, review_target_identity
 from cloudra.tools.Plantool.dag_tools._common import (
     DagToolBase,
     DagToolOutput,
@@ -52,7 +52,7 @@ class DagSubmitSpeciesEvidence(DagToolBase):
     tool_description: str = (
         "Submit calculation output files as evidence for a species in the delivery graph. "
         "Automatically validates that the stationary point has 0 imaginary frequencies. "
-        "In dag_record mode, automatically verifies and marks the species as supported. "
+        "In dag_record mode, attach validated evidence snapshots. "
         "In dag_guided mode, submits the evidence to the Supervisor for review."
     )
     input_schema: Any = DagSubmitSpeciesEvidenceInput
@@ -70,7 +70,7 @@ class DagSubmitSpeciesEvidence(DagToolBase):
         workspace_root = getattr(self.subagent, "working_directory", None) or os.getcwd()
 
         # 1. Check if species exists in delivery graph
-        snapshot = ctx.store.load_snapshot()
+        snapshot = await asyncio.to_thread(ctx.store.load_snapshot)
         matching_nodes = [
             n
             for n in snapshot.delivery.nodes
@@ -114,7 +114,7 @@ class DagSubmitSpeciesEvidence(DagToolBase):
         check_freqs = freq_snap.frequencies if freq_snap and freq_snap.frequencies is not None else opt_snap.frequencies
         check_imag = freq_snap.imaginary_frequencies if freq_snap and freq_snap.imaginary_frequencies is not None else opt_snap.imaginary_frequencies
         val = validate_species_minimum(check_freqs, imaginary_freqs=check_imag)
-        if not val.is_valid:
+        if ctx.mode is OrchestrationMode.DAG_RECORD and not val.is_valid:
             kind = "was not verified" if not val.verified else "failed validation"
             return fail(
                 "dag_submit_species_evidence",
@@ -123,12 +123,23 @@ class DagSubmitSpeciesEvidence(DagToolBase):
             )
 
         # 4. Register evidence in store
-        ref = ctx.store.register_evidence(
+        ref = await asyncio.to_thread(
+            ctx.store.register_evidence,
             session.id,
             Path(user_input.opt_file).name,
             opt_snap.model_dump(mode="json"),
             source_type="file",
         )
+
+        refs = [ref]
+        if freq_snap is not None:
+            refs.append(await asyncio.to_thread(
+                ctx.store.register_evidence,
+                session.id,
+                Path(user_input.freq_file).name,
+                freq_snap.model_dump(mode="json"),
+                source_type="file",
+            ))
 
         operations: list[GraphOperation] = [
             AttachRef(
@@ -136,14 +147,16 @@ class DagSubmitSpeciesEvidence(DagToolBase):
                 graph="delivery",
                 target_type="node",
                 target_id=species.node_id,
-                ref=ref,
+                ref=evidence_ref,
             )
+            for evidence_ref in refs
         ]
 
         # 5. Adjudicate according to orchestration mode
         if ctx.mode is OrchestrationMode.DAG_RECORD:
             # dag_record 只挂快照；evidence_level 由阶段绑定派生，不在这里写。
-            mutation = apply_mutation(
+            mutation = await asyncio.to_thread(
+                apply_mutation,
                 ctx.store,
                 ctx.engine,
                 session_id=session.id,
@@ -174,7 +187,8 @@ class DagSubmitSpeciesEvidence(DagToolBase):
             )
 
         # DAG_GUIDED mode: submit for supervisor review
-        apply_mutation(
+        mutation = await asyncio.to_thread(
+            apply_mutation,
             ctx.store,
             ctx.engine,
             session_id=session.id,
@@ -183,6 +197,12 @@ class DagSubmitSpeciesEvidence(DagToolBase):
             operations=operations,
             rationale=f"Attach species evidence for {user_input.species_name}",
         )
+        if not mutation.accepted:
+            return fail(
+                "dag_submit_species_evidence",
+                mutation.rejection_reason or "Failed to attach species evidence",
+                accepted=False,
+            )
 
         review = ActiveReview(
             review_id=f"rev_{uuid.uuid4().hex}",
@@ -193,16 +213,22 @@ class DagSubmitSpeciesEvidence(DagToolBase):
             details={
                 "element_type": "species",
                 "species_name": user_input.species_name,
+                "target_identity": review_target_identity(snapshot.delivery, "species", species.node_id),
                 "opt_file": user_input.opt_file,
                 "freq_file": user_input.freq_file,
                 "validation": val.model_dump(),
                 "description": user_input.description,
             },
+            supporting_refs=refs,
             basis_fingerprint=opt_snap.sha256,
         )
-        enqueued = ReviewContextManager.set_active_review(
-            ctx.conversation_id, review, db=ctx.db
+        enqueued = await asyncio.to_thread(
+            ReviewContextManager.set_active_review,
+            ctx.conversation_id, review, ctx.db,
         )
+
+        if not enqueued:
+            return fail("dag_submit_species_evidence", "Failed to persist evidence review request", accepted=False)
 
         # 督导唤醒不在工具内做：queued review 落库后由 DAG policy 完成钩子
         # （_trigger_supervisor_after_tool）按这里的回执统一 notify_supervisor。

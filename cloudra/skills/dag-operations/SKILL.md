@@ -6,20 +6,20 @@ description: How to use the dag_* tool family in dag_record/dag_guided sessions 
 # dag_* tool-family handbook
 
 The intents you use most in a DAG session: **propose the mechanism, submit file evidence, review evidence items, and report delivery coverage**.
-There is exactly one persistent graph — the delivery (mechanism) graph. There is no process graph, no scheduling queue, no complex occurrence/role taxonomy, and no manual stage arrays: after the mechanism is accepted, everyone works at their own pace. Internal IDs, basis fingerprints, and revision numbers are managed by the harness.
+There is exactly one persistent graph — the delivery (mechanism) graph. A guided proposal immediately adds candidate species and steps to that graph, so exploration and computation can continue while the Supervisor reviews it. Internal IDs, basis fingerprints, and revision numbers are managed by the harness.
 
 ## Core Tool Inventory
 
-- `dag_propose_mechanism`: Coordinator's initial delivery proposal — declarative species list, transformation steps, and scientific rationale. No compute is unlocked until the draft is accepted.
-- `dag_accept_mechanism`: Supervisor only (`dag_guided`): accept commits the proposal (all elements start `pending`) and unlocks compute; reject returns it with a mandatory reason. In `dag_record` the harness auto-accepts on proposal.
+- `dag_propose_mechanism`: Coordinator's initial or incremental candidate proposal — declarative species list, transformation steps, scientific rationale, and optional `delivery_targets`. The target list declares the current delivery scope; proposals without it can remain exploratory.
+- `dag_accept_mechanism`: Supervisor only (`dag_guided`): accept records the proposal as the current working hypothesis; computation is available before and after review. Reject returns it with a mandatory reason. In `dag_record` the harness auto-accepts on proposal.
 - `dag_add_species`: Add a new complex species (`name`, `smiles`). Species name must be unique within the graph.
 - `dag_add_step`: Add a new elementary step (`name`, `from`, `to`). Step name must be unique; `from` and `to` refer to existing species names.
 - `dag_remove_edge`: Delete an elementary step (`step`, mandatory `rationale`). Deletions are permanently recorded in the change log.
 - `dag_remove_node`: Delete a species node (`name` or id, mandatory `reason`). A node that still has incoming/outgoing steps is refused with the linked step names — remove those steps first, then delete the node (no implicit cascade).
 - `dag_update_delivery_element`: Update metadata or disposition (`status`, `reason`, `annotations`, `required`). Does not rename elements or change SMILES.
-- `dag_submit_step_evidence`: Explicitly submit finished QM logs for a step (`step`, `ts_log`, `summary`, optional `irc_log`). The harness checks the workspace sandbox, computes sha256, snapshots into `.cloudra/evidence/`, verifies TS mode (exactly 1 imaginary frequency), and enqueues the item for review.
-- `dag_submit_species_evidence`: Explicitly submit finished QM logs for a species (`species`, `log_path`, `summary`). The harness snapshots evidence and verifies ground-state minimum mode (0 imaginary frequencies).
-- `dag_review_step` / `dag_review_species`: Supervisor only (`dag_guided`): Adjudicate the current active review item with `verdict` (`agree`, `disagree`, `skip`, `not_applicable`, `needs_evidence`) and `reason`.
+- `dag_submit_step_evidence`: Explicitly submit finished QM logs for a step (`step_name`, `ts_file`, optional IRC files, `reaction_coordinate_description`). The harness snapshots the files into `.cloudra/evidence/`, checks TS frequencies when available, attaches every submitted file to the step, and queues a guided review.
+- `dag_submit_species_evidence`: Explicitly submit finished QM logs for a species (`species_name`, `opt_file`, optional `freq_file`, `description`). The harness snapshots both files, checks minimum frequencies when available, and queues a guided review.
+- `dag_review_step` / `dag_review_species`: Supervisor only (`dag_guided`): adjudicate the active item with `step_name` or `species_name`, `verdict` (`supported` or `rejected`), and `rationale`.
 - `dag_review_evidence`: Supervisor only (`dag_guided`): Resolve a queued structured review request with a basis-matched decision.
 - `dag_review_call`: Supervisor lower-level review interface (adjudicates a CallReview by `stage_kind` and verdict).
 - `dag_bind_evidence`: Lower-level evidence binding interface.
@@ -29,24 +29,16 @@ There is exactly one persistent graph — the delivery (mechanism) graph. There 
 
 ## The Element Lifecycle
 
-Each species and step element has a single authoritative delivery status:
-- `pending`: Waiting for calculations and evidence submission.
-- `supported`: Verified and approved by the harness/Supervisor as scientifically sound with matching physical checks (e.g. 1 imaginary freq for TS, 0 for minima).
-- `rejected`: Disapproved by the Supervisor with a mandatory reason. **An open gap that is still owed**, not a disposal.
-- `skipped`: Element could be computed but is deliberately abandoned (mandatory `reason`, e.g. branch ruled out by mapping or multi-reference character). Counts as disposed.
-- `not_applicable`: Element does not apply to this system (mandatory `reason`, e.g. barrierless path). Counts as complete — not owed.
-- `needs_evidence`: Review requested more data; closes the review item without changing element status until new logs are submitted.
-
-Coverage `complete` ⇔ every required element is in `supported` status, or `skipped`/`not_applicable` with a non-empty reason. `pending` and `rejected` are both open gaps.
+The graph keeps machine-derived stage states separate from Supervisor file-review decisions. Accepting a file can support a pending delivery requirement without rewriting its machine state. `rejected` and `needs_evidence` remain open gaps until addressed. A required element can also be explicitly `skipped` or `not_applicable` with a reason when the contract permits it. `dag_delivery_report` evaluates the currently declared delivery targets and unresolved relevant reviews; unrelated exploratory branches remain in the graph without becoming delivery debt. A complete report is a workflow judgement, not scientific truth; benchmark scoring is independent.
 
 ## dag_guided workflow
 
-Advance in this order (the harness blocks compute until draft acceptance):
+Advance through these activities as evidence becomes available:
 
 1. **User submits a task** → Coordinator is woken.
-2. **Initial research**: read skills, search literature; compute entry points are gated until the mechanism is accepted.
-3. **Propose the mechanism**: `dag_propose_mechanism` with `species`, `steps`, and `rationale`.
-4. **Supervisor review**: Supervisor is woken (`mechanism_proposed`) and calls `dag_accept_mechanism`. Accept unlocks compute; reject returns the draft with a reason for revision.
+2. **Initial research**: read skills, search literature, and run exploratory calculations as needed.
+3. **Propose candidates and scope**: `dag_propose_mechanism` with `species`, `steps`, `rationale`, and `delivery_targets` when declaring the work to deliver. Candidate graph changes take effect immediately.
+4. **Supervisor review**: Supervisor is woken (`mechanism_proposed`) and calls `dag_accept_mechanism`. Accept records the draft review state; computation and branching do not wait for that decision. Reject returns the draft with a reason for revision.
 5. **Compute & Advance**: sub-agents run calculations and report outputs.
 6. **Explicit evidence submission**: submit finished outputs with `dag_submit_step_evidence` and `dag_submit_species_evidence`. Only submitted logs enter the Supervisor's active review queue.
 7. **Supervisor adjudication**: Supervisor reviews the active item via `dag_review_step` / `dag_review_species` with `verdict` and `reason`. Verdict notifications arrive in the submitter's mailbox.
@@ -54,7 +46,7 @@ Advance in this order (the harness blocks compute until draft acceptance):
 
 ## dag_record workflow
 
-Same declarative discipline without the Supervisor: the proposal is auto-accepted by the harness on submission, and evidence is verified and recorded deterministically upon submission.
+Same declarative discipline without the Supervisor: proposals, including scope updates, are auto-accepted by the harness on submission. File submissions still need their deterministic checks and stage bindings for machine-backed delivery.
 
 
 ## Proposing the mechanism: dag_propose_mechanism
@@ -70,12 +62,15 @@ Coordinator-only. Input structure:
   ],
   "steps": [
     {"name": "Diels-Alder Cycloaddition", "from": "Reactant Complex", "to": "Product Complex"}
-  ]
+  ],
+  "delivery_targets": ["Diels-Alder Cycloaddition"]
 }
 ```
 
 - Each species represents the complete chemical system/complex state.
 - Names are unique within species and within steps.
+- Later proposals can refer to existing species by unique name or ID, so an A→B graph can grow by adding only C and B→C. A scope-only proposal can change `delivery_targets` without adding species or steps.
+- `delivery_targets` declares the current delivery intent. Omit it for an exploratory branch that should not change the existing delivery scope. Expanding it immediately makes the added targets part of final-delivery checks even before guided review accepts the scope update.
 - No `occurrence`, `role`, or stage arrays are required.
 - `rationale` is mandatory. In `dag_guided` it is the Coordinator's message to the Supervisor: **Considered** / **Observed** / **Chose** (what was weighed, what the mechanism-inference tool actually showed or why it was not run, which steps are on the graph and why any other channel was left off). A single-path graph is allowed when Chose states that trade-off. The Supervisor rejects an unexplained omission, not a single path. `dag_record` auto-accepts and does not apply this dialogue.
 
@@ -96,45 +91,48 @@ Submit finished QM logs explicitly:
 - `dag_submit_step_evidence`:
   ```json
   {
-    "step": "Diels-Alder Cycloaddition",
-    "ts_log": "runs/ts_freq.out",
-    "irc_log": "runs/irc.out",
-    "summary": "TS saddle point located with single imaginary frequency (-485 cm^-1) connecting reactants to product."
+    "step_name": "Diels-Alder Cycloaddition",
+    "ts_file": "runs/ts_freq.out",
+    "irc_file": "runs/irc.out",
+    "reaction_coordinate_description": "The unstable mode forms two carbon-carbon bonds."
   }
   ```
-  The harness verifies that the TS calculation contains exactly 1 imaginary frequency (`n_imag == 1`).
+  In `dag_record`, the TS calculation must verify exactly 1 imaginary frequency (`n_imag == 1`). In `dag_guided`, an undecidable frequency result can still be submitted for the Supervisor's explicit judgement. IRC files are optional unless the step's contract requires path evidence.
 - `dag_submit_species_evidence`:
   ```json
   {
-    "species": "Reactant Complex",
-    "log_path": "runs/reactant_opt.out",
-    "summary": "Optimized ground state confirmed with zero imaginary frequencies."
+    "species_name": "Reactant Complex",
+    "opt_file": "runs/reactant_opt.out",
+    "description": "Optimized reactant complex."
   }
   ```
-  The harness verifies that the species calculation contains 0 imaginary frequencies (`n_imag == 0`).
+  In `dag_record`, the calculation must verify 0 imaginary frequencies (`n_imag == 0`). In `dag_guided`, an undecidable result can be submitted for explicit review; the machine stage remains pending unless independently bound.
 
 Files are snapshotted into `.cloudra/evidence/` with their sha256 hashes, ensuring evidence immutability.
 
 ## Reviewing Evidence: dag_review_step / dag_review_species (Supervisor, dag_guided)
 
-The Supervisor reviews the active review item bound in its execution context:
+The Supervisor reviews the active review item bound in its execution context. The
+step/species tools use the target name plus a scientific verdict:
 ```json
 {
-  "verdict": "agree",
-  "reason": "TS mode cleanly verifies the concerted C-C bond formation with exactly one imaginary frequency at -485 cm^-1."
+  "step_name": "step1",
+  "verdict": "supported",
+  "rationale": "TS mode supports the proposed transformation."
 }
 ```
 
 Allowed verdicts:
-- `agree`: Evidence supports the element. Status becomes `supported`.
-- `disagree`: Evidence does not support the element (reason required). Status becomes `rejected`: **still owed work**, an open coverage gap.
-- `skip`: Element deliberately abandoned (reason required, e.g. severe multi-reference character). Counts as disposed.
-- `not_applicable`: Element does not apply to this system (reason required). Counts as complete — not owed.
-- `needs_evidence`: Evidence snapshot is insufficient (reason required). Closes the review item without changing element status; submitter re-submits once new data is available.
+- `supported`: Supervisor accepts the submitted file for the specified target. The durable review decision is kept separate from machine-derived evidence levels and does not assert scientific truth.
+- `rejected`: Evidence does not support the element (rationale required). It remains an open coverage gap.
+
+Use `species_name` instead of `step_name` for a species review. Structured
+requests use `dag_review_evidence` with `accept`, `reject`, or `needs_evidence`.
+Stage dispositions (`skipped` / `not_applicable`) belong to the graph contract;
+they are not file-review verdicts.
 
 ## Inspection & Delivery Audit
 
 - `dag_view`: Inspect current graph topology, pending review items, and open gaps.
-- `dag_delivery_report`: Full coverage report across all species and steps.
-- Delivery complete requires all required species and steps to be `supported` or explicitly disposed with reason (`skipped` / `not_applicable`).
-
+- `dag_delivery_report`: Coverage report for the current declared delivery scope. It includes relevant unresolved reviews and pending scope decisions; exploratory graph branches outside that scope do not block delivery.
+- Delivery can be backed entirely by machine checks (`dag_verified`) or by accepted Supervisor file reviews (`supervisor_supported`). Both remain separate from independent benchmark scoring.

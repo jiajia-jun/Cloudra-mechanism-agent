@@ -60,6 +60,7 @@ class Step:
     error: BaseException | None = None
     stop: bool = False
     reasoning: str = ""
+    wait_for: asyncio.Event | None = None
 
 
 class ProviderFault(Exception):
@@ -121,6 +122,8 @@ class ScriptedProvider:
         if not steps:
             return LLMResponse(content=f"[{agent.role_id} script exhausted]", stop_requested=True)
         step = steps.pop(0)
+        if step.wait_for is not None:
+            await step.wait_for.wait()
         if step.error is not None:
             raise step.error
         tool_calls: list[ToolCall] = []
@@ -334,6 +337,7 @@ class ScenarioHarness:
                     "status": None,
                     "effect_state": None,
                     "result_summary": "",
+                    "result_data": None,
                 }
                 rows[key] = row
                 order.append(key)
@@ -347,6 +351,9 @@ class ScenarioHarness:
                 row["status"] = event.data.get("status")
                 row["effect_state"] = event.data.get("effect_state")
                 row["result_summary"] = event.data.get("result_summary") or ""
+            elif event.type == "tool.result_recorded":
+                result = event.data.get("result") or {}
+                row["result_data"] = result.get("data")
         return [rows[key] for key in order]
 
     def messages(self, agent: AgentSession) -> list[dict[str, Any]]:
@@ -365,7 +372,15 @@ class ScenarioHarness:
 
     def describe(self, agent: AgentSession | None) -> str:
         if agent is None:
-            return f"agents={ {a.id: a.state.value for a in self.core.agents.values()} }"
+            return "agents=" + str({
+                a.id: {
+                    "role": a.role_id,
+                    "state": a.state.value,
+                    "runs": self.run_rows(a),
+                    "tools": self.tool_events(a),
+                }
+                for a in self.core.agents.values()
+            })
         return (
             f"agent={agent.id} state={agent.state.value} "
             f"runs={self.run_rows(agent)} tools={self.tool_events(agent)}"

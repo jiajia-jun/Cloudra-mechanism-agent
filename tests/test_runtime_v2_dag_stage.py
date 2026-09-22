@@ -57,8 +57,8 @@ async def _agent(core):
 
 
 @pytest.mark.asyncio
-async def test_dag_stage_blocks_compute_before_mechanism_accepted(tmp_path):
-    """机理草稿未被接受前，计算入口（submit_compute_job）被 dag 门槛拦截。"""
+async def test_dag_stage_allows_compute_before_mechanism_accepted(tmp_path):
+    """初始假设尚未被 Supervisor 接受时，计算入口仍可探索。"""
     core = RuntimeCore(strict_events=True)
     project, agent = await _agent(core)
     project.workspace_dir = str(tmp_path)
@@ -77,9 +77,9 @@ async def test_dag_stage_blocks_compute_before_mechanism_accepted(tmp_path):
         inbox_messages=[],
         workspace_dir=str(tmp_path),
     )
-    assert outcome.message.startswith("blocked by dag")
+    assert outcome.message == ""
     types = [e.type for e in core.event_log.query_session(agent.id)]
-    assert "dag.gate_blocked" in types
+    assert "dag.gate_blocked" not in types
 
 
 @pytest.mark.asyncio

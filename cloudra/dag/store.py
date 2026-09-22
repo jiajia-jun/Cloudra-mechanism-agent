@@ -1088,7 +1088,8 @@ class DagStore:
         """原子批量入箱（§5 显式送审）：同一事务内逐条按 pending 幂等键
         (evidence_id, suggested_target_id, suggested_stage, 规范化 claim) 去重——
         相同 pending 声明返回既有 review_id（created=False），不重复入箱；
-        不同声明（含同证据的不同阶段/不同 claim）各自独立保存。
+        这是低层阶段绑定入口；逐文件审查走 dag_review_requests，不拆阶段。
+        此处不能合并不同阶段，否则单阶段裁决会丢掉其余绑定。
 
         校验（目标/阶段存在、调用已结束、证据可解析、项目归属）由调用方在
         提交前全部完成：本函数只做去重 + 写入，不在中途失败。已裁决的同构
@@ -1222,6 +1223,18 @@ class DagStore:
             rows = con.execute(query, params).fetchall()
         return [self._review_from_row(row) for row in rows]
 
+    def list_call_verdicts(self) -> list[dict[str, Any]]:
+        """Return durable Supervisor verdict payloads for call reviews."""
+        with self.db.connect() as con:
+            rows = con.execute(
+                "SELECT decision_id, payload FROM dag_review_notifications "
+                "WHERE kind = 'call_verdict' ORDER BY created_at, rowid"
+            ).fetchall()
+        return [
+            {"review_id": row[0], **(json.loads(row[1]) if row[1] else {})}
+            for row in rows
+        ]
+
     def get_call_review(self, review_id: str) -> CallReview | None:
         with self.db.connect() as con:
             row = con.execute(
@@ -1268,6 +1281,19 @@ class DagStore:
 
     def save_draft(self, draft: MechanismDraft, *, actor_id: str) -> str:
         draft_id = "draft_" + uuid.uuid4().hex
+
+        def operation() -> None:
+            with self.db.connect() as con:
+                self._insert_draft(con, draft_id, draft, actor_id)
+
+        retry_on_locked(operation)
+        return draft_id
+
+    @staticmethod
+    def _insert_draft(
+        con: sqlite3.Connection, draft_id: str, draft: MechanismDraft, actor_id: str
+    ) -> None:
+        """Insert a draft on the caller's transaction when graph ops accompany it."""
         operations = _canonical_json([
             op.model_dump(mode="json", exclude={"node": {"payload"}, "edge": {"payload"}})
             for op in draft.operations
@@ -1281,29 +1307,18 @@ class DagStore:
             if draft.claim_spec is not None
             else ""
         )
-
-        def operation() -> None:
-            with self.db.connect() as con:
-                con.execute(
-                    """
-                    INSERT INTO dag_drafts(
-                        draft_id, state, rationale, operations, stage_contracts,
-                        actor_id, claim_spec, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
-                    """,
-                    (
-                        draft_id,
-                        draft.state,
-                        draft.rationale,
-                        operations,
-                        contracts,
-                        actor_id,
-                        claim_spec,
-                    ),
-                )
-
-        retry_on_locked(operation)
-        return draft_id
+        con.execute(
+            """
+            INSERT INTO dag_drafts(
+                draft_id, state, rationale, operations, stage_contracts,
+                actor_id, claim_spec, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            """,
+            (
+                draft_id, draft.state, draft.rationale, operations,
+                contracts, actor_id, claim_spec,
+            ),
+        )
 
     @staticmethod
     def _draft_from_row(row) -> MechanismDraft:
@@ -1343,6 +1358,18 @@ class DagStore:
                 "FROM dag_drafts WHERE state = 'open' ORDER BY rowid"
             ).fetchall()
         return [(row[0], self._draft_from_row(row[1:])) for row in rows]
+
+    def list_delivery_drafts(self) -> list[tuple[str, MechanismDraft, str]]:
+        """Read draft review history in creation order for final delivery audit."""
+        with self.db.connect() as con:
+            rows = con.execute(
+                "SELECT draft_id, operations, stage_contracts, rationale, state, "
+                "claim_spec, reject_reason FROM dag_drafts ORDER BY rowid"
+            ).fetchall()
+        return [
+            (row[0], self._draft_from_row(row[1:6]), row[6] or "")
+            for row in rows
+        ]
 
     def latest_open_draft(self) -> tuple[str, MechanismDraft] | None:
         with self.db.connect() as con:

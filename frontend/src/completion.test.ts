@@ -13,6 +13,16 @@ assert.equal(
   'partial delivery',
 );
 assert.equal(
+  completionChipFor({ run_id: 'r1', run_outcome: 'succeeded', completion_basis: 'supervisor_supported', verification_label: 'supervisor_reviewed' })
+    ?.label,
+  'Supervisor-reviewed delivery',
+);
+assert.equal(
+  completionChipFor({ run_id: 'r1', run_outcome: 'succeeded', completion_basis: 'supervisor_supported', verification_label: 'supervisor_reviewed' })
+    ?.detail,
+  'The delivery passed its coverage gate using Supervisor judgment; this is not independent scientific verification.',
+);
+assert.equal(
   completionChipFor({ run_id: 'r1', run_outcome: 'succeeded', completion_basis: 'partial_recorded', verification_label: 'partial' })
     ?.tone,
   'warn',

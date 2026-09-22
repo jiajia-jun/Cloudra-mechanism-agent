@@ -254,7 +254,7 @@ def test_artifact_snapshot_reuse_and_overwrite(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_record_mode_scope_change_stays_pending(tmp_path):
+async def test_record_mode_scope_change_is_auto_accepted_without_supervisor(tmp_path):
     from cloudra.dag.controller import DagController
 
     db = ConversationDB("contracts", data_dir=tmp_path).init()
@@ -276,18 +276,21 @@ async def test_record_mode_scope_change_stays_pending(tmp_path):
     )
     assert first["accepted"] is True  # 首次契约：record 自动接受
 
-    # 降级（删除 required_checks）：record 也不自动接受，当前范围不变
+    # Record has no Supervisor, so the harness must settle a changed scope.
+    # 图对象已由首份 proposal 落库；第二份 proposal 必须用 update_node，
+    # 重复 add_node 会正确触发 duplicate_id。
     downgrade = dict(claim, required_checks=["stationary_point"])
     second = await controller.propose_mechanism(
-        operations=ops, stage_contracts={}, rationale="downgrade",
+        operations=[{
+            "op": "update_node", "graph": "delivery", "node_id": "r",
+            "changes": {"label": "R revised"},
+        }], stage_contracts={}, rationale="downgrade",
         actor_id="a-1", claim_spec=downgrade,
     )
-    assert second["accepted"] is False
-    assert second["pending_approval"] is True and second["scope_change"] is True
-    # 已接受契约未被改变
-    assert controller.store.accepted_claim_spec().required_checks == {
-        "stationary_point", "energy",
-    }
+    assert second["accepted"] is True
+    assert second["scope_change"] is True
+    assert second.get("pending_approval") is None
+    assert controller.store.accepted_claim_spec().required_checks == {"stationary_point"}
 
 
 def test_property_claim_does_not_require_elementary_step_edge(tmp_path):
@@ -360,5 +363,3 @@ async def test_failed_result_can_be_submitted_for_review(tmp_path):
     assert len(pending) == 1
     assert pending[0].is_success is False
     assert pending[0].suggested_target_id == "step1"
-
-
