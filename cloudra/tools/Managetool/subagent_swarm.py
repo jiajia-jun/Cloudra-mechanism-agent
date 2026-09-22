@@ -11,7 +11,6 @@ from pydantic import Field
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.core.agent import Agent
-from cloudra.subagents import Subagent_hash  # noqa: F401  (kept for external references)
 
 MIN_ITEMS = 2
 MAX_ITEMS = 128

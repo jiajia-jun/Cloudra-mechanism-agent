@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pytest
 
-from cloudra.subagents.registry import SUBAGENT_REGISTRY
 from cloudra.tools import get_tools_lst
 from cloudra.tools.registry import TOOL_REGISTRY
 
@@ -26,21 +25,12 @@ def _modules_with_get_class(package_dir: Path) -> set[str]:
 
 def test_explicit_builtin_registries_are_complete_and_unique():
     tool_targets = [(entry.module, entry.class_name) for entry in TOOL_REGISTRY]
-    subagent_ids = [entry.agent_id for entry in SUBAGENT_REGISTRY]
-    subagent_targets = [
-        (entry.module, entry.class_name) for entry in SUBAGENT_REGISTRY
-    ]
 
     assert len(tool_targets) == len(set(tool_targets))
-    assert len(subagent_ids) == len(set(subagent_ids))
-    assert len(subagent_targets) == len(set(subagent_targets))
 
     project_root = Path(__file__).resolve().parents[1]
     assert {target[0] for target in tool_targets} == _modules_with_get_class(
         project_root / "cloudra" / "tools"
-    )
-    assert {target[0] for target in subagent_targets} == _modules_with_get_class(
-        project_root / "cloudra" / "subagents"
     )
 
 
@@ -124,17 +114,6 @@ def test_write_multiline_parsing():
     parsed = json.loads(raw_args, strict=False)
     input_data = Write_input_schema(**parsed)
     assert input_data.content == "line1\nline2\nline3"
-
-
-def test_subagent_hash_caching():
-    """测试 Subagent_hash 在同进程内复用缓存。"""
-    from cloudra.subagents import Subagent_hash
-
-    h1 = Subagent_hash()
-    h2 = Subagent_hash()
-    # 复用缓存，字典对象应为同一个
-    assert h1.subagents_dict is h2.subagents_dict
-    assert hasattr(h1, 'a-1') or 'a-1' in h1.subagents_dict
 
 
 def test_browser_schema():

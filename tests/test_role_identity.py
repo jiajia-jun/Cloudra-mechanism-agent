@@ -19,7 +19,6 @@ from cloudra.base.role_identity import (
     role_id_for_legacy_agent_id,
 )
 from cloudra.runtime_v2.roles import BUILTIN_ROLES, RoleRegistry
-from cloudra.subagents import SUBAGENT_REGISTRY
 
 _CLOUDRA = Path(__file__).resolve().parents[1] / "cloudra"
 
@@ -43,18 +42,6 @@ def test_roundtrip_and_passthrough():
     assert legacy_agent_id_for_role("custom_role") == "custom_role"
     assert role_id_for_legacy_agent_id("small_mol") == "small_mol"
     assert role_id_for_legacy_agent_id("a-99") == "a-99"
-
-
-def test_legacy_subagent_manifest_derives_ids_from_the_table():
-    assert [
-        (reg.agent_id, reg.class_name) for reg in SUBAGENT_REGISTRY
-    ] == [
-        (legacy_agent_id_for_role(reg.class_name), reg.class_name)
-        for reg in SUBAGENT_REGISTRY
-    ]
-    assert [reg.agent_id for reg in SUBAGENT_REGISTRY] == [
-        "a-1", "a-2", "a-3", "a-4", "a-5", "a-6", "a-7", "a-8",
-    ]
 
 
 def test_no_second_legacy_id_table_in_the_codebase():
