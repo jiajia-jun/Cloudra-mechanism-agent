@@ -34,7 +34,7 @@ jobs:
           pip install -e .[dev]
 
       - name: Run ruff
-        run: ruff check cloudra
+        run: ruff check .
 
       - name: Run tests
         # faulthandler_timeout：单测超过 5 分钟自动 dump 所有线程堆栈，便于定位挂起
