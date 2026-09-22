@@ -86,12 +86,11 @@ def test_no_second_legacy_id_table_in_the_codebase():
     """静态守卫：除唯一映射表外，任何模块至多出现 **一个** a-N 字面量。
 
     一个 a-N 字面量是正常用法（如 dag_stage 判 ``!= "a-0"``）；成组的 a-N
-    字面量就是又抄了一张映射表。legacy 子 Agent 类（cloudra/subagents/*.py）
-    各自声明自己的 id，属待删执行栈（5.4 第 3 步），不在本守卫范围。
+    字面量就是又抄了一张映射表。
     """
     offenders = []
     for path in sorted(_CLOUDRA.rglob("*.py")):
-        if path.name == "role_identity.py" or path.parent.name == "subagents":
+        if path.name == "role_identity.py":
             continue
         found = _legacy_id_literals(path.read_text(encoding="utf-8"))
         if len(found) > 1:
