@@ -257,6 +257,57 @@ async def test_js_mode_program_failure_is_a_failed_exchange_and_continues():
     assert not result.is_success
 
 
+@pytest.mark.asyncio
+async def test_cancelled_program_leaves_no_unpaired_tool_call_in_context():
+    core = RuntimeCore(strict_events=True)
+    agent = await _spawn_agent(core, InvocationProtocol.JAVASCRIPT)
+
+    class HangingJSRuntime:
+        def __init__(self) -> None:
+            self.started = asyncio.Event()
+
+        async def execute(self, ctx, call):
+            self.started.set()
+            await asyncio.Event().wait()
+
+    js = HangingJSRuntime()
+    pipeline = _pipeline(
+        core,
+        LLMResponse(
+            tool_calls=[ToolCall("cancelled-call", "js_exec", {"code": "await tools.echo({});"})]
+        ),
+        js_runtime=js,
+    )
+    task = asyncio.create_task(
+        pipeline.run_turn(
+            agent=agent,
+            run_id="run_cancel",
+            settings=RuntimeSettings(),
+            capabilities=_caps(),
+            inbox_messages=[{"content": "go"}],
+            context_broker=core.contexts,
+        )
+    )
+    await js.started.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    messages = core.contexts.current_messages(agent.id)
+    assistant_ids = {
+        call["id"]
+        for message in messages
+        for call in message.get("tool_calls", [])
+        if message.get("role") == "assistant"
+    }
+    tool_ids = {
+        message["tool_call_id"]
+        for message in messages
+        if message.get("role") == "tool"
+    }
+    assert assistant_ids == tool_ids
+
+
 @pytest.mark.skipif(not HOST_AVAILABLE, reason="optional JS host prerequisites missing")
 @pytest.mark.asyncio
 async def test_js_mode_end_to_end_with_real_host():
