@@ -12,7 +12,6 @@ from pathlib import Path
 import pytest
 
 from cloudra.base.session_class import Session
-from cloudra.core.agent import Coordinator
 from cloudra.dag.controller import DagController
 from cloudra.dag.drafts import MechanismDraft
 from cloudra.dag.engine import DagEngine
@@ -37,18 +36,24 @@ from cloudra.tools.Plantool.dag_tools.dag_review_species import DagReviewSpecies
 from cloudra.tools.Plantool.dag_tools.dag_review_step import DagReviewStep
 from cloudra.tools.Plantool.dag_tools.dag_submit_species_evidence import DagSubmitSpeciesEvidence
 from cloudra.tools.Plantool.dag_tools.dag_submit_step_evidence import DagSubmitStepEvidence
-from tests.dag_identity import call_dag_tool, make_supervisor
+from tests.dag_identity import call_dag_tool, make_coordinator, make_supervisor
 
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 
 
+def _coordinator(conversation_id: str):
+    # The real file fixtures are under the repository workspace; the bridge's
+    # default project workspace under data_dir is absent in these unit tests.
+    return make_coordinator(
+        conversation_id,
+        orchestration_mode="dag_guided",
+        workspace_dir=str(FIXTURES_DIR.parent.parent),
+    )
+
+
 def _session(tmp_path: str, conversation_id: str):
     get_config().data_dir = tmp_path
-    agent = Coordinator(
-        query="study mechanism",
-        conversation_id=conversation_id,
-        orchestration_mode="dag_guided",
-    )
+    agent = _coordinator(conversation_id)
     session = Session("s1", f"{tmp_path}/session.json")
     db = ConversationDB(conversation_id, data_dir=tmp_path).init()
     return agent, session, db
@@ -307,7 +312,7 @@ async def test_file_submission_failure_to_persist_review_is_not_reported_as_subm
     session, db, store = _seed_simple_complete_graph(
         tmp_path, f"async-review-persist-failure-{tool_cls.__name__}"
     )
-    agent = Coordinator(query="study mechanism", conversation_id=db.conversation_id, orchestration_mode="dag_guided")
+    agent = _coordinator(db.conversation_id)
     monkeypatch.setattr(ReviewContextManager, "set_active_review", lambda *args, **kwargs: False)
     if tool_cls is DagSubmitSpeciesEvidence:
         out = await call_dag_tool(
@@ -335,7 +340,7 @@ async def test_file_submission_failure_to_persist_review_is_not_reported_as_subm
 @pytest.mark.asyncio
 async def test_species_submission_persists_opt_and_frequency_refs(tmp_path):
     session, db, store = _seed_simple_complete_graph(tmp_path, "async-species-two-files")
-    agent = Coordinator(query="study mechanism", conversation_id=db.conversation_id, orchestration_mode="dag_guided")
+    agent = _coordinator(db.conversation_id)
     out = await call_dag_tool(
         DagSubmitSpeciesEvidence,
         agent,
@@ -355,10 +360,7 @@ async def test_species_submission_persists_opt_and_frequency_refs(tmp_path):
 @pytest.mark.asyncio
 async def test_step_submission_binds_real_irc_file_for_review_credit(tmp_path):
     session, db, store = _seed_review_graph(tmp_path, "async-step-irc-file")
-    agent = Coordinator(
-        query="study mechanism", conversation_id=db.conversation_id,
-        orchestration_mode="dag_guided",
-    )
+    agent = _coordinator(db.conversation_id)
     supervisor = make_supervisor(db.conversation_id, workspace_dir=str(tmp_path))
     out = await call_dag_tool(
         DagSubmitStepEvidence, agent, session,
@@ -569,8 +571,7 @@ async def test_expanded_declared_scope_blocks_final_delivery_while_review_is_ope
     controller = DagController(db, "s1", "dag_guided", conversation_id=db.conversation_id)
     assert controller.delivery_report().complete
 
-    agent = Coordinator(query="study mechanism", conversation_id=db.conversation_id,
-                        orchestration_mode="dag_guided")
+    agent = _coordinator(db.conversation_id)
     declared = await call_dag_tool(
         DagProposeMechanism, agent, session,
         rationale="deliver both AB and BC", delivery_targets=["step1", "step2"],
@@ -595,8 +596,7 @@ async def test_expanded_declared_scope_blocks_final_delivery_while_review_is_ope
 async def test_exploratory_branch_keeps_old_selected_delivery_complete(tmp_path):
     session, db, store = _seed_simple_complete_graph(tmp_path, "async-exploration-scope")
     _save_claim(store, ["step1"])
-    agent = Coordinator(query="study mechanism", conversation_id=db.conversation_id,
-                        orchestration_mode="dag_guided")
+    agent = _coordinator(db.conversation_id)
     proposed = await call_dag_tool(
         DagProposeMechanism, agent, session,
         rationale="explore a later BC transformation",
@@ -727,11 +727,7 @@ async def test_real_species_and_step_files_are_reviewed_once_for_final_delivery(
     session, db, _store = _seed_simple_complete_graph(
         tmp_path, "async-real-file-review", pending=True
     )
-    agent = Coordinator(
-        query="study mechanism",
-        conversation_id=db.conversation_id,
-        orchestration_mode="dag_guided",
-    )
+    agent = _coordinator(db.conversation_id)
     store = DagStore(db)
     supervisor = make_supervisor(db.conversation_id, workspace_dir=str(tmp_path))
     water = FIXTURES_DIR / "gaussian" / "water_opt_freq_g16.out"
@@ -832,11 +828,7 @@ async def test_real_species_and_step_files_are_reviewed_once_for_final_delivery(
 async def test_accepted_step_review_does_not_credit_replaced_edge_same_id(tmp_path):
     """A review is bound to the reviewed graph object, not merely edge_id."""
     session, db, store = _seed_review_graph(tmp_path, "async-replaced-edge-credit")
-    agent = Coordinator(
-        query="study mechanism",
-        conversation_id=db.conversation_id,
-        orchestration_mode="dag_guided",
-    )
+    agent = _coordinator(db.conversation_id)
     supervisor = make_supervisor(db.conversation_id, workspace_dir=str(tmp_path))
     ts = FIXTURES_DIR / "xtb" / "ts_hess_xtb.out"
 
@@ -951,11 +943,7 @@ async def test_accepted_step_review_does_not_credit_replaced_edge_same_id(tmp_pa
 @pytest.mark.asyncio
 async def test_new_per_file_submission_supersedes_old_queued_review(tmp_path):
     session, db, store = _seed_review_graph(tmp_path, "async-supersede-file-review")
-    agent = Coordinator(
-        query="study mechanism",
-        conversation_id=db.conversation_id,
-        orchestration_mode="dag_guided",
-    )
+    agent = _coordinator(db.conversation_id)
     ts = FIXTURES_DIR / "xtb" / "ts_hess_xtb.out"
     first = await call_dag_tool(
         DagSubmitStepEvidence,
@@ -986,11 +974,7 @@ async def test_new_per_file_submission_supersedes_old_queued_review(tmp_path):
 @pytest.mark.asyncio
 async def test_endpoint_identity_change_invalidates_old_step_review_credit(tmp_path):
     session, db, store = _seed_review_graph(tmp_path, "async-review-endpoint-identity")
-    agent = Coordinator(
-        query="study mechanism",
-        conversation_id=db.conversation_id,
-        orchestration_mode="dag_guided",
-    )
+    agent = _coordinator(db.conversation_id)
     supervisor = make_supervisor(db.conversation_id, workspace_dir=str(tmp_path))
     submitted = await call_dag_tool(
         DagSubmitStepEvidence,
@@ -1091,11 +1075,7 @@ async def test_public_delivery_report_matches_final_controller_after_file_accept
     tmp_path,
 ):
     session, db, store = _seed_simple_complete_graph(tmp_path, "async-report-source-of-truth")
-    agent = Coordinator(
-        query="study mechanism",
-        conversation_id=db.conversation_id,
-        orchestration_mode="dag_guided",
-    )
+    agent = _coordinator(db.conversation_id)
     supervisor = make_supervisor(db.conversation_id, workspace_dir=str(tmp_path))
     file_out = await call_dag_tool(
         DagSubmitSpeciesEvidence,
