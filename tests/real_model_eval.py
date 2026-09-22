@@ -113,10 +113,7 @@ def redact_endpoint(url: str) -> dict[str, Any]:
 
 
 _URL_IN_TEXT = re.compile(r"\b[a-z][a-z0-9+.-]*://[^\s<>'\"`]+", re.IGNORECASE)
-_QUERY_URL_TOKEN = re.compile(
-    r"(?<![A-Za-z0-9_])[^\s<>'\"`?]*[/:.][^\s<>'\"`?]*"
-    r"\?[^\s<>'\"`=]+=[^\s<>'\"`]+"
-)
+_QUERY_BEARING_TOKEN = re.compile(r"\S+\?\S+")
 _BEARER_IN_TEXT = re.compile(r"\bBearer\s+[A-Za-z0-9._~+/-]+", re.IGNORECASE)
 _SECRET_ASSIGNMENT = re.compile(
     r"\b(api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|password)"
@@ -146,8 +143,8 @@ def _redact_result_text(value: str, secrets: tuple[str, ...]) -> str:
             return "<redacted-url>"
 
     text = _URL_IN_TEXT.sub(hide_url, value)
-    # 无协议头的内部主机名无法可靠解析；见到 URL 式查询赋值就整段脱敏。
-    text = _QUERY_URL_TOKEN.sub("<redacted-url>", text)
+    # 异常/观测里的 endpoint 不保证有协议、域名或 key=value 形状。
+    text = _QUERY_BEARING_TOKEN.sub("<redacted-url>", text)
     text = _BEARER_IN_TEXT.sub("Bearer <redacted>", text)
     text = _SECRET_ASSIGNMENT.sub(lambda match: f"{match.group(1)}=<redacted>", text)
     for secret in secrets:
@@ -174,6 +171,20 @@ def redact_result(document: Any) -> Any:
         return value
 
     return walk(document)
+
+
+def _safe_exception_label(exc: BaseException) -> str:
+    """结果只记录异常类型和 HTTP 数字状态，不写可能带凭据的异常原文。"""
+    label = type(exc).__name__
+    try:
+        status = getattr(exc, "status_code", None)
+        if status is None:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+    except Exception:  # noqa: BLE001 —— 非标准异常属性不可影响原异常处理
+        return label
+    if type(status) is int and 100 <= status <= 599:
+        return f"{label} status_code={status}"
+    return label
 
 
 def _git(*args: str, root: Path = REPO_ROOT) -> str:
@@ -367,7 +378,7 @@ class BudgetedProvider:
             self.stats.failures += 1
             self.stats.latencies_s.append(time.monotonic() - started)
             if len(self.stats.errors) < 5:
-                self.stats.errors.append(f"{type(exc).__name__}: {str(exc)[:200]}")
+                self.stats.errors.append(_safe_exception_label(exc))
             raise
         self.stats.latencies_s.append(time.monotonic() - started)
         self._record_usage(response)
@@ -838,20 +849,24 @@ async def run_scenario(spec: Scenario, options: RunOptions, *, token: str) -> di
             await harness.wait_terminal(agent, timeout=options.timeout_s or spec.timeout_s)
             checks.add("terminal_state_succeeded", agent.state.value == "succeeded", agent.state.value)
         except AssertionError as exc:
-            checks.add("terminal_state_reached", False, f"timeout after {options.timeout_s or spec.timeout_s}s: {exc}")
+            checks.add(
+                "terminal_state_reached", False,
+                f"{_safe_exception_label(exc)} timeout_s={options.timeout_s or spec.timeout_s}",
+            )
             await _cancel_quietly(harness, agent)
         try:
             await spec.check(ctx)
         except Exception as exc:  # noqa: BLE001 —— 检查器自身异常也是失败证据
-            checks.add("checker_ran", False, f"{type(exc).__name__}: {exc}")
+            checks.add("checker_ran", False, _safe_exception_label(exc))
         if options.provider_kind == "real":
             await _attach_effective_settings(ctx, observations)
         ctx.add_common_observations()
         if options.provider_kind == "real":
             await _restart_and_audit(spec, options, harness, agent, checks, observations)
     except Exception as exc:  # noqa: BLE001 —— 基建错误（装配/派发）也要落进结果
-        checks.add("scenario_completed", False, f"{type(exc).__name__}: {exc}")
-        result["error"] = f"{type(exc).__name__}: {exc}"
+        label = _safe_exception_label(exc)
+        checks.add("scenario_completed", False, label)
+        result["error"] = label
     finally:
         if harness is not None:
             try:
@@ -919,7 +934,7 @@ async def _restart_and_audit(
             provider=_provider_for(spec, options),
         )
     except Exception as exc:  # noqa: BLE001
-        checks.add("restart_restored", False, f"{type(exc).__name__}: {exc}")
+        checks.add("restart_restored", False, _safe_exception_label(exc))
         return
     try:
         restored_agent = restored.core.agents.get(agent.id)

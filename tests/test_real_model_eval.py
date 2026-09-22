@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -119,6 +120,81 @@ async def test_budget_counts_failed_provider_attempts():
 
 
 @pytest.mark.asyncio
+async def test_provider_error_records_only_type_and_numeric_status():
+    class StatusError(RuntimeError):
+        status_code = 429
+
+    class FailingProvider:
+        async def complete(self, _agent, _messages, _tools, **_kwargs):
+            raise StatusError("llm?opaque=UNRELATED_SECRET")
+
+    provider = BudgetedProvider(FailingProvider(), max_calls=1)
+    with pytest.raises(StatusError):
+        await provider.complete(None, [], [])
+    assert provider.stats.as_dict()["errors"] == ["StatusError status_code=429"]
+
+
+@pytest.mark.asyncio
+async def test_scenario_setup_error_records_only_type_and_status(monkeypatch, tmp_path):
+    class SetupError(RuntimeError):
+        status_code = 503
+
+    async def fail_start(*_args, **_kwargs):
+        raise SetupError("llm:8000/v1?UNRELATED_SECRET")
+
+    monkeypatch.setattr(rme.ScenarioHarness, "start", fail_start)
+    document = await run_all(RunOptions(
+        provider_kind="fake", work_dir=tmp_path / "eval", scenario_names=["plain_qa"],
+    ))
+    row = document["scenarios"][0]
+    assert row["error"] == "SetupError status_code=503"
+    assert any(
+        check["name"] == "scenario_completed" and check["detail"] == row["error"]
+        for check in row["checks"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_timeout_and_checker_errors_do_not_record_exception_text(monkeypatch, tmp_path):
+    class CheckerError(RuntimeError):
+        status_code = 403
+
+    async def fail_wait(*_args, **_kwargs):
+        raise AssertionError("llm?opaque=TIMEOUT_SECRET")
+
+    async def fail_check(_ctx):
+        raise CheckerError("llm:8000/v1?CHECKER_SECRET")
+
+    spec = rme.scenario_by_name("plain_qa")
+    assert spec is not None
+    monkeypatch.setattr(rme, "select_scenarios", lambda _names: [replace(spec, check=fail_check)])
+    monkeypatch.setattr(rme.ScenarioHarness, "wait_terminal", fail_wait)
+    document = await run_all(RunOptions(
+        provider_kind="fake", work_dir=tmp_path / "eval", timeout_s=10.0,
+    ))
+    details = {check["name"]: check["detail"] for check in document["scenarios"][0]["checks"]}
+    assert details["terminal_state_reached"] == "AssertionError timeout_s=10.0"
+    assert details["checker_ran"] == "CheckerError status_code=403"
+    assert "TIMEOUT_SECRET" not in json.dumps(document)
+    assert "CHECKER_SECRET" not in json.dumps(document)
+
+
+@pytest.mark.asyncio
+async def test_restart_error_does_not_record_exception_text(monkeypatch, tmp_path):
+    async def fail_restore(*_args, **_kwargs):
+        raise RuntimeError("llm?opaque=RESTORE_SECRET")
+
+    spec = rme.scenario_by_name("restart_no_replay")
+    assert spec is not None
+    monkeypatch.setattr(rme.ScenarioHarness, "restore", fail_restore)
+    checks = rme.Checks()
+    await rme._restart_and_audit(
+        spec, RunOptions(work_dir=tmp_path), None, None, checks, {},
+    )
+    assert checks.rows == [{"name": "restart_restored", "ok": False, "detail": "RuntimeError"}]
+
+
+@pytest.mark.asyncio
 async def test_zero_call_budget_never_invokes_provider(tmp_path):
     document = await run_all(RunOptions(
         provider_kind="fake",
@@ -183,8 +259,12 @@ async def test_result_redacts_provider_error_url_and_api_key(monkeypatch, tmp_pa
     schemeless_secret = "ARBITRARY_SCHEMELESS_VALUE"
     internal_secret = "INTERNAL_HOST_QUERY_VALUE"
     llm_secret = "LLM_HOST_QUERY_VALUE"
+    bare_host_secret = "BARE_HOST_QUERY_VALUE"
+    no_equals_secret = "NO_EQUALS_QUERY_VALUE"
     monkeypatch.setattr(get_config().coordinator, "key", secret)
     message = (
+        f"llm?opaque={bare_host_secret} "
+        f"llm:8000/v1?{no_equals_secret} "
         f"api_server:8000/v1?opaque={internal_secret} "
         f"llm:8000/v1?opaque={llm_secret} "
         f"401 Error for url https://user:{secret}@example.invalid/v1?opaque={query_secret}: "
@@ -210,10 +290,12 @@ async def test_result_redacts_provider_error_url_and_api_key(monkeypatch, tmp_pa
     assert schemeless_secret not in result_text
     assert internal_secret not in result_text
     assert llm_secret not in result_text
+    assert bare_host_secret not in result_text
+    assert no_equals_secret not in result_text
     assert "opaque=" not in result_text
     assert "user:" not in result_text
-    assert "https://example.invalid" in result_text
     row = document["scenarios"][0]
+    assert row["provider"]["errors"] == ["RuntimeError"]
     row["error"] = message
     row["checks"].append({"name": "synthetic_error", "ok": False, "detail": message})
     row["observations"]["nested_error"] = {"messages": [message]}
@@ -224,22 +306,34 @@ async def test_result_redacts_provider_error_url_and_api_key(monkeypatch, tmp_pa
     assert schemeless_secret not in persisted
     assert internal_secret not in persisted
     assert llm_secret not in persisted
+    assert bare_host_secret not in persisted
+    assert no_equals_secret not in persisted
     assert "user:" not in persisted
+    assert "https://example.invalid" in persisted
     summary = "\n".join(summarize_lines(document))
     assert secret not in summary
     assert query_secret not in summary
     assert schemeless_secret not in summary
     assert internal_secret not in summary
     assert llm_secret not in summary
+    assert bare_host_secret not in summary
+    assert no_equals_secret not in summary
     assert rme.redact_result({"note": "ordinary prose: a.b is a field; wait? then proceed"}) == {
         "note": "ordinary prose: a.b is a field; wait? then proceed"
     }
+    assert rme.redact_result({"note": "Are you ready?"}) == {"note": "Are you ready?"}
     assert rme._redact_result_text(
         "Invalid URL api_server:8000/v1?opaque=DEMO_SECRET (no scheme)", ()
     ) == "Invalid URL <redacted-url> (no scheme)"
     assert rme._redact_result_text(
         "Invalid URL llm:8000/v1?opaque=DEMO_SECRET (no scheme)", ()
     ) == "Invalid URL <redacted-url> (no scheme)"
+    assert rme._redact_result_text("Invalid URL llm?opaque=DEMO_SECRET", ()) == (
+        "Invalid URL <redacted-url>"
+    )
+    assert rme._redact_result_text("Invalid URL llm:8000/v1?DEMO_SECRET", ()) == (
+        "Invalid URL <redacted-url>"
+    )
 
 
 @pytest.mark.asyncio
