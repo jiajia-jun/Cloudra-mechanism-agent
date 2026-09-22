@@ -17,6 +17,7 @@ from cloudra import __version__
 
 _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,99}\Z")
 _CAPABILITY = re.compile(r"[a-z][a-z0-9_-]*(?:\.[a-z][a-z0-9_-]*)+\Z")
+_ENVIRONMENT_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 
 
 class NodeRegistryError(ValueError):
@@ -262,7 +263,7 @@ class NodeRegistry:
             raise NodeRegistryError(f"unsupported scheduler: {scheduler_type}")
         allowed = {
             "type", "partition", "account", "qos", "time_limit",
-            "cpus", "memory", "poll_seconds", "modules",
+            "cpus", "memory", "poll_seconds", "modules", "environment",
         }
         unknown = set(value) - allowed
         if unknown:
@@ -279,6 +280,27 @@ class NodeRegistry:
             ):
                 raise NodeRegistryError("scheduler modules must be a non-empty list of names")
             scheduler["modules"] = [module.strip() for module in modules]
+        if "environment" in scheduler:
+            environment = scheduler["environment"]
+            if not isinstance(environment, dict):
+                raise NodeRegistryError("scheduler environment must be an object")
+            normalized_environment: dict[str, str] = {}
+            for name, raw_value in environment.items():
+                if not isinstance(name, str) or not _ENVIRONMENT_NAME.fullmatch(name):
+                    raise NodeRegistryError(
+                        f"invalid scheduler environment variable name: {name!r}"
+                    )
+                if (
+                    not isinstance(raw_value, str)
+                    or "\n" in raw_value
+                    or "\r" in raw_value
+                    or "\0" in raw_value
+                ):
+                    raise NodeRegistryError(
+                        f"scheduler environment value for {name!r} must be a single-line string"
+                    )
+                normalized_environment[name] = raw_value
+            scheduler["environment"] = normalized_environment
         return scheduler
 
     @staticmethod
