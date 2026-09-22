@@ -161,7 +161,13 @@ class DagPolicyStage:
             # 三类共用同一条 flush 通道。
             if (
                 call.name
-                in {"dag_review_evidence", "dag_review_call", "dag_accept_mechanism"}
+                in {
+                    "dag_review_evidence",
+                    "dag_review_call",
+                    "dag_review_species",
+                    "dag_review_step",
+                    "dag_accept_mechanism",
+                }
                 and result.is_success
                 and self._core is not None
             ):

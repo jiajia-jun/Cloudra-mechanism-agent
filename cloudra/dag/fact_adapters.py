@@ -129,7 +129,20 @@ def ts_guess_facts(payload: dict[str, Any], source_ref: GraphRef) -> list[Eviden
             {"n_imag": n_imag, "imag_freqs": result.get("imag_freqs") or []},
         ))
 
-    if result.get("irc_end_a_path") and result.get("irc_end_b_path"):
+    # Extracted endpoint files are intermediate artifacts, not a path proof.
+    # A strict failure still returns them so the caller can inspect or repair
+    # the run; only ts_guess's explicit strict pass may support the path fact.
+    verdict = result.get("verdict")
+    strict_path_pass = (
+        bool(arguments.get("strict"))
+        and isinstance(verdict, str)
+        and verdict.startswith("pass:")
+    )
+    if (
+        strict_path_pass
+        and result.get("irc_end_a_path")
+        and result.get("irc_end_b_path")
+    ):
         facts.append(_fact("path", "supports", source_ref, {
             "irc_end_a_path": result["irc_end_a_path"],
             "irc_end_b_path": result["irc_end_b_path"],

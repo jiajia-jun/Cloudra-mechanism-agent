@@ -15,6 +15,7 @@ from cloudra.dag.models import (
     ClaimSpec,
     ElementaryStepEdge,
     GraphActor,
+    GraphData,
     GraphKind,
     GraphOperation,
     MechanismDraft,
@@ -71,7 +72,7 @@ def classify_contract_change(
 
 
 class DraftsMixin:
-    """机理草稿（Phase 3：propose → accept → 解锁计算）；由 DagController 组合。"""
+    """机理草稿：propose 即落候选图，accept 记录审查结论。"""
 
     @staticmethod
     def _normalize_ts_guess_advisory(
@@ -227,11 +228,26 @@ class DraftsMixin:
         species: list[dict[str, Any] | Any],
         steps: list[dict[str, Any] | Any],
         rationale: str,
+        existing: GraphData,
     ) -> MechanismDraft:
         import uuid
 
         seen_species_names: set[str] = set()
-        name_to_node_id: dict[str, str] = {}
+        name_to_node_ids: dict[str, set[str]] = {}
+        all_node_ids: set[str] = set()
+        for node in existing.nodes:
+            all_node_ids.add(node.node_id)
+            for key in {node.node_id, getattr(node, "name", ""), node.label}:
+                if key:
+                    name_to_node_ids.setdefault(key, set()).add(node.node_id)
+
+        def resolve_species(value: str, step_name: str) -> str:
+            matches = name_to_node_ids.get(value, set())
+            if len(matches) != 1:
+                reason = "unknown" if not matches else "ambiguous"
+                raise RuntimeError(f"{reason} species {value!r} in step {step_name!r}")
+            return next(iter(matches))
+
         species_ops: list[GraphOperation] = []
 
         for item in (species or []):
@@ -239,11 +255,13 @@ class DraftsMixin:
             if not raw_name or not str(raw_name).strip():
                 raise RuntimeError("species name cannot be empty")
             name = str(raw_name).strip()
-            if name in seen_species_names:
+            if name in seen_species_names or name in name_to_node_ids:
                 raise RuntimeError(f"duplicate species name: {name!r}")
             seen_species_names.add(name)
             node_id = f"sp_{uuid.uuid4().hex[:8]}"
-            name_to_node_id[name] = node_id
+            name_to_node_ids[name] = {node_id}
+            name_to_node_ids[node_id] = {node_id}
+            all_node_ids.add(node_id)
             smiles = item.get("smiles") if isinstance(item, dict) else getattr(item, "smiles", None)
             species_ops.append(
                 AddNode(
@@ -258,7 +276,11 @@ class DraftsMixin:
                 )
             )
 
-        seen_step_names: set[str] = set()
+        seen_step_names: set[str] = {
+            key for edge in existing.edges
+            for key in (edge.edge_id, getattr(edge, "name", ""), edge.label)
+            if key
+        }
         step_ops: list[GraphOperation] = []
         for item in (steps or []):
             raw_name = item.get("name") if isinstance(item, dict) else getattr(item, "name", None)
@@ -282,11 +304,9 @@ class DraftsMixin:
             from_name = str(from_raw).strip() if from_raw else ""
             to_name = str(to_raw).strip() if to_raw else ""
 
-            if not from_name or from_name not in name_to_node_id:
-                raise RuntimeError(f"unknown source species {from_name!r} in step {step_name!r}")
-            if not to_name or to_name not in name_to_node_id:
-                raise RuntimeError(f"unknown target species {to_name!r} in step {step_name!r}")
-            if from_name == to_name:
+            from_node_id = resolve_species(from_name, step_name)
+            to_node_id = resolve_species(to_name, step_name)
+            if from_node_id == to_node_id:
                 raise RuntimeError(f"step {step_name!r} is a self-loop: {from_name!r} -> {to_name!r}")
 
             edge_id = f"step_{uuid.uuid4().hex[:8]}"
@@ -298,19 +318,18 @@ class DraftsMixin:
                         edge_id=edge_id,
                         name=step_name,
                         label=step_name,
-                        source_node_id=name_to_node_id[from_name],
-                        target_node_id=name_to_node_id[to_name],
+                        source_node_id=from_node_id,
+                        target_node_id=to_node_id,
                     ),
                 )
             )
 
         # Acyclicity check
-        indegree: dict[str, int] = {node_id: 0 for node_id in name_to_node_id.values()}
-        outgoing: dict[str, list[str]] = {node_id: [] for node_id in name_to_node_id.values()}
-        for edge_op in step_ops:
-            assert isinstance(edge_op, AddEdge) and isinstance(edge_op.edge, ElementaryStepEdge)
-            indegree[edge_op.edge.target_node_id] += 1
-            outgoing[edge_op.edge.source_node_id].append(edge_op.edge.target_node_id)
+        indegree: dict[str, int] = {node_id: 0 for node_id in all_node_ids}
+        outgoing: dict[str, list[str]] = {node_id: [] for node_id in all_node_ids}
+        for edge in [*existing.edges, *(op.edge for op in step_ops if isinstance(op, AddEdge))]:
+            indegree[edge.target_node_id] += 1
+            outgoing[edge.source_node_id].append(edge.target_node_id)
         ready = [nid for nid, deg in indegree.items() if deg == 0]
         visited = 0
         while ready:
@@ -320,7 +339,7 @@ class DraftsMixin:
                 indegree[tgt] -= 1
                 if indegree[tgt] == 0:
                     ready.append(tgt)
-        if visited != len(name_to_node_id):
+        if visited != len(all_node_ids):
             raise RuntimeError("graph contains a cycle")
 
         contracts: dict[str, StageContract] = {}
@@ -368,24 +387,63 @@ class DraftsMixin:
             operations.append(op)
         return operations
 
-    def _apply_draft(self, draft: MechanismDraft, actor_id: str) -> MutationResult:
+    @staticmethod
+    def _resolve_delivery_targets(
+        raw_targets: list[str], existing: GraphData, draft: MechanismDraft
+    ) -> list[str]:
+        candidates: dict[str, set[str]] = {}
+        for element in [
+            *existing.nodes, *existing.edges,
+            *(op.node for op in draft.operations if isinstance(op, AddNode)),
+            *(op.edge for op in draft.operations if isinstance(op, AddEdge)),
+        ]:
+            element_id = getattr(element, "node_id", None) or element.edge_id
+            for key in {element_id, getattr(element, "name", ""), element.label}:
+                if key:
+                    candidates.setdefault(key, set()).add(element_id)
+        resolved: list[str] = []
+        for raw in raw_targets:
+            target = str(raw).strip()
+            matches = candidates.get(target, set())
+            if len(matches) != 1:
+                reason = "unknown" if not matches else "ambiguous"
+                raise RuntimeError(f"{reason} delivery target {target!r}; use a unique name or ID")
+            target_id = next(iter(matches))
+            if target_id in resolved:
+                raise RuntimeError(f"duplicate delivery target {target!r}")
+            resolved.append(target_id)
+        return resolved
+
+    def _persist_draft(
+        self, draft: MechanismDraft, graph_actor_id: str, draft_actor_id: str
+    ) -> tuple[MutationResult | None, str]:
+        if not draft.operations:
+            return None, self.store.save_draft(draft, actor_id=draft_actor_id)
         operations = self._draft_operations(draft)
         last: MutationResult | None = None
         for _attempt in range(8):
-            last = self.engine.apply_batch(
+            last, draft_id = self.engine.apply_draft_batch(
                 MutationBatch(
                     session_id=self.session_id,
                     actor=GraphActor.HARNESS,
-                    actor_id=actor_id,
+                    actor_id=graph_actor_id,
                     base_revisions=self.store.load_bundle().revisions,
                     operations=operations,
                     rationale=draft.rationale,
-                )
+                ),
+                draft,
+                actor_id=draft_actor_id,
             )
-            if last.accepted or last.rejection_code != "stale_revision":
-                return last
+            if last.accepted:
+                assert draft_id is not None
+                return last, draft_id
+            if last.rejection_code != "stale_revision":
+                break
         assert last is not None
-        return last
+        raise RuntimeError(
+            f"mechanism draft failed to apply: {last.rejection_code}: "
+            f"{last.rejection_reason}"
+        )
 
     async def propose_mechanism(
         self,
@@ -395,12 +453,12 @@ class DraftsMixin:
         steps: list[dict[str, Any] | Any] | None = None,
         operations: list[dict[str, Any]] | None = None,
         stage_contracts: dict[str, list[str]] | None = None,
+        delivery_targets: list[str] | None = None,
         actor_id: str,
         claim_spec: dict[str, Any] | None = None,
         contract_version: int = 1,
     ) -> dict[str, Any]:
-        """Coordinator 的机理草稿（D1）：guided 落 open 草稿等 Supervisor
-        接受；record 由 harness 立即自动接受（actor="harness:auto"）。"""
+        """Coordinator 的机理草稿：两种模式立即落图，guided 异步送审。"""
         if not self.enabled:
             raise RuntimeError(
                 "propose_mechanism is disabled in standard orchestration mode"
@@ -408,65 +466,56 @@ class DraftsMixin:
         if not rationale or not rationale.strip():
             raise RuntimeError("a mechanism proposal requires a non-empty rationale")
         await self.initialize()
+        existing = (await asyncio.to_thread(self.store.load_snapshot)).delivery
         if species is not None or steps is not None:
-            draft = self._assemble_declarative_proposal(species or [], steps or [], rationale)
+            draft = self._assemble_declarative_proposal(species or [], steps or [], rationale, existing)
         else:
             draft = self._validate_draft(operations or [], stage_contracts or {}, rationale)
+        if not draft.operations and not delivery_targets:
+            raise RuntimeError("a proposal requires graph changes or delivery_targets")
         # 契约生效收口：ts_guess 一律 advisory（required=False），痕迹随返回带出。
         draft, ts_guess_notes = self._normalize_ts_guess_advisory(draft)
-        if claim_spec is not None:
-            spec = ClaimSpec.model_validate(claim_spec)
+        accepted_spec = await asyncio.to_thread(self.store.accepted_claim_spec)
+        spec = ClaimSpec.model_validate(claim_spec) if claim_spec is not None else None
+        if delivery_targets is not None:
+            if not delivery_targets:
+                raise RuntimeError("delivery_targets must name at least one species or step")
+            resolved = self._resolve_delivery_targets(delivery_targets, existing, draft)
+            spec = spec or accepted_spec or ClaimSpec(kind="mechanism")
+            spec = spec.model_copy(update={
+                "scope": {**spec.scope, "targets": resolved},
+                "reference": {key: value for key, value in spec.reference.items()
+                              if key != "targets"},
+            })
+        if spec is not None:
             draft = draft.model_copy(
                 update={"claim_spec": spec, "contract_version": 2}
             )
             contract_version = 2
+        scope_change = False
         if contract_version >= 2 and draft.claim_spec is not None:
-            accepted_spec = await asyncio.to_thread(self.store.accepted_claim_spec)
-            if (
-                classify_contract_change(accepted_spec, draft.claim_spec)
-                == "scope_change"
-            ):
-                # 范围变更：两种模式都先产生待审批版本，当前范围不变。
-                draft_id = await asyncio.to_thread(
-                    self.store.save_draft, draft, actor_id=actor_id
-                )
-                return {
-                    "draft_id": draft_id,
-                    "state": "open",
-                    "accepted": False,
-                    "pending_approval": True,
-                    "scope_change": True,
-                    "normalized_advisory_stages": ts_guess_notes,
-                }
-        if self.mode is OrchestrationMode.DAG_RECORD:
-            mutation = await asyncio.to_thread(
-                self._apply_draft, draft, "harness:auto"
-            )
-            if not mutation.accepted:
-                raise RuntimeError(
-                    f"mechanism draft failed to apply: {mutation.rejection_code}: "
-                    f"{mutation.rejection_reason}"
-                )
-            accepted = draft.model_copy(update={"state": "accepted"})
-            draft_id = await asyncio.to_thread(
-                self.store.save_draft, accepted, actor_id="harness:auto"
-            )
-            return {
-                "draft_id": draft_id,
-                "state": "accepted",
-                "accepted": True,
-                "revisions": mutation.revisions,
-                "normalized_advisory_stages": ts_guess_notes,
-            }
-        draft_id = await asyncio.to_thread(
-            self.store.save_draft, draft, actor_id=actor_id
+            scope_change = classify_contract_change(accepted_spec, draft.claim_spec) == "scope_change"
+        auto_accept = self.mode is OrchestrationMode.DAG_RECORD
+        persisted = draft.model_copy(update={"state": "accepted"}) if auto_accept else draft
+        mutation, draft_id = await asyncio.to_thread(
+            self._persist_draft,
+            persisted,
+            "harness:auto" if auto_accept else "harness:draft-open",
+            "harness:auto" if auto_accept else actor_id,
         )
-        return {
+        result = {
             "draft_id": draft_id,
-            "state": "open",
-            "accepted": False,
+            "state": persisted.state,
+            "accepted": auto_accept,
             "normalized_advisory_stages": ts_guess_notes,
         }
+        if scope_change:
+            result["scope_change"] = True
+            if not auto_accept:
+                result["pending_approval"] = True
+        if mutation is not None and auto_accept:
+            result["revisions"] = mutation.revisions
+        return result
 
     async def accept_mechanism(
         self,
@@ -475,8 +524,8 @@ class DraftsMixin:
         rationale: str = "",
         draft_id: str | None = None,
     ) -> dict[str, Any]:
-        """Supervisor 的草稿裁决（guided only）：accept 落图（契约并入
-        add ops）；reject 退回草稿并附理由。两种裁决都与落态同事务写一条
+        """Supervisor 的草稿裁决（guided only）：accept 确认已落图候选；
+        reject 附理由。两种裁决都与落态同事务写一条
         durable 裁决通知（draft_verdict）给 proposer（legacy actor id，
         flush 时解析到活 session），由 flush_review_notifications 投递。"""
         if not self.enabled:
@@ -503,8 +552,7 @@ class DraftsMixin:
                 raise RuntimeError("no open mechanism draft to review")
             resolved_id, draft = found
         proposer = await asyncio.to_thread(self.store.draft_actor_id, resolved_id)
-        # 契约生效收口（guided 在 accept 时才落图）：ts_guess 一律 advisory，
-        # 同时覆盖修复前已落库的 open 草稿；痕迹随接受返回带出。
+        # 提案落图时已规范化 ts_guess；这里保持返回值含规范化痕迹。
         draft, ts_guess_notes = self._normalize_ts_guess_advisory(draft)
 
         def _notification(state: str, reason: str) -> dict[str, Any]:
@@ -535,14 +583,6 @@ class DraftsMixin:
                 "accepted": False,
                 "reason": rationale,
             }
-        mutation = await asyncio.to_thread(
-            self._apply_draft, draft, "harness:supervisor-accept"
-        )
-        if not mutation.accepted:
-            raise RuntimeError(
-                f"mechanism draft failed to apply: {mutation.rejection_code}: "
-                f"{mutation.rejection_reason}"
-            )
         await asyncio.to_thread(
             self.store.set_draft_state,
             resolved_id,
@@ -553,6 +593,6 @@ class DraftsMixin:
             "draft_id": resolved_id,
             "state": "accepted",
             "accepted": True,
-            "revisions": mutation.revisions,
+            "revisions": (await asyncio.to_thread(self.engine.snapshot)).bundle.revisions,
             "normalized_advisory_stages": ts_guess_notes,
         }

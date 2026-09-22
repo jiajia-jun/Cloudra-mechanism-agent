@@ -281,8 +281,8 @@ async def test_async_init_migrates_inline_refs(tmp_path):
 
 # --- §5 显式送审：幂等键与批量原子性（store 层） ---
 #
-# 幂等键 = (evidence_id, suggested_target_id, suggested_stage, 规范化 claim)。
-# 同一证据的 geometry/frequency/single_point 三条声明是三个不同键，都不能丢；
+# 低层阶段绑定的幂等键 = (evidence_id, suggested_target_id, suggested_stage, 规范化 claim)。
+# 逐文件审查走独立的 review_requests；此处不能丢掉不同阶段的绑定。
 # 相同 pending 声明重发返回既有 review_id（幂等成功）；已裁决的同构重提保留
 # "生成新 review" 的既有产品语义。
 
@@ -335,7 +335,7 @@ def test_same_evidence_three_stage_claims_are_all_kept(tmp_path):
 
 
 def test_identical_pending_claim_resubmission_is_idempotent(tmp_path):
-    """相同声明（同证据+目标+阶段+claim）重发返回既有 review_id，不入新箱。"""
+    """相同声明（同证据+目标+claim）重发返回既有 review_id，不入新箱。"""
     _db, store, _engine = _new_engine(tmp_path, "dag-bindings-idem")
     evidence = store.register_evidence(
         "s1", "log_parser", {"tool_call_id": "tc_1", "arguments": {}, "result": {}}
@@ -358,7 +358,12 @@ def test_identical_pending_claim_resubmission_is_idempotent(tmp_path):
     )
     assert third[0] == (first[0][0], False)
     assert third[1][1] is True
-    assert len(store.list_call_reviews("pending")) == 2
+    cross_stage = store.submit_call_reviews(
+        [_claim_review(evidence.ref_id, "int1", "frequency", "geometry is converged")]
+    )
+    assert cross_stage[0][1] is True
+    assert cross_stage[0][0] != first[0][0]
+    assert len(store.list_call_reviews("pending")) == 3
 
 
 def test_different_claim_same_stage_is_independent(tmp_path):

@@ -37,7 +37,7 @@ class DagAcceptMechanism(DagToolBase):
     tool_description: str = (
         "Accept or reject the Coordinator's mechanism draft (Supervisor only "
         "in dag_guided; dag_record auto-accepts on proposal). "
-        "Use for: committing a reviewed draft — accept unlocks compute; "
+        "Use for: committing a reviewed draft as the current working hypothesis; "
         "reject returns it with a mandatory reason. "
         "Do not use for: editing the draft in place (reject with guidance "
         "instead); stage binds (use dag_review_call). "

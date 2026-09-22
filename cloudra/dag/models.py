@@ -961,14 +961,14 @@ class MechanismDraft(BaseModel):
     """Coordinator 提出的机理草稿：delivery-only ops + 每元素阶段契约。
 
     ``stage_contracts`` 的键必须解析到草稿自身 add 出的元素（harness 在
-    propose 时校验引用完整性）。guided 下只有 Supervisor
-    ``dag_accept_mechanism`` 落图；record 下 harness 自动接受（D1）。
+    propose 时校验引用完整性）。空 operations 只用于更新既有交付范围。
+    guided 下 propose 即落候选图，Supervisor 只记录审查裁决。
     ``mechanism_accepted = EXISTS(dag_drafts WHERE state='accepted')``（D4）。
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    operations: list[GraphOperation] = Field(min_length=1)
+    operations: list[GraphOperation]
     stage_contracts: dict[str, StageContract] = Field(default_factory=dict)
     rationale: str = ""
     state: Literal["open", "accepted", "rejected"] = "open"
@@ -1061,7 +1061,7 @@ _MODE_GUIDANCE = {
     OrchestrationMode.DAG_RECORD: (
         "Current orchestration mode: dag_record (DAG is recorded by the system; Supervisor is offline)\n"
         "- Your first delivery artifact is a mechanism proposal: dag_propose_mechanism (delivery draft + "
-        "per-element stage contracts you choose). The harness auto-accepts it; no compute before that.\n"
+        "per-element stage contracts you choose). The harness auto-accepts it; computation may proceed immediately.\n"
         "- Run the task as usual afterwards; tool and compute results are recorded as evidence automatically.\n"
         "- Bind a finished call to a stage with dag_bind_evidence (tool_call_id, bind_target, stage_kind); "
         "stages bind strictly in contract order, ts_guess is advisory (never required) — it never "

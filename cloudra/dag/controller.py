@@ -12,9 +12,11 @@ from cloudra.dag.engine import DagEngine
 from cloudra.dag.evidence_inbox import EvidenceInboxMixin, enqueue_compute_review
 from cloudra.dag.models import (
     CoverageContract,
+    CoverageGateResult,
     OrchestrationMode,
     normalize_orchestration_mode,
 )
+from cloudra.dag.review_context import review_target_identity
 from cloudra.dag.stop_audit import StopAuditMixin
 from cloudra.dag.store import DagStore
 from cloudra.dag.supervision import SupervisionMixin
@@ -90,26 +92,13 @@ class DagController(SupervisionMixin, StopAuditMixin, EvidenceInboxMixin, Drafts
         tool_name: str,
         arguments: dict[str, Any] | None = None,
     ) -> tuple[str, str] | None:
-        """实质性计算前的 DAG 门槛（Phase 3：唯一门槛 = mechanism_accepted）。
+        """Return ``None``: a pending draft never blocks exploratory computation.
 
-        返回 ``None`` 表示放行；``("block", msg)`` 硬拒绝。机理草稿被接受
-        之前拦截计算入口（submit_compute_job/qm_input_writer/ts_guess 计算型
-        mode 等，词表在 registry 的 dag_compute_entry）；检索/读取/机理
-        提案工具始终放行；standard 模式无门槛。
+        The Supervisor's review and the final delivery gate remain stateful DAG
+        concerns.  They do not turn an initial hypothesis into a prerequisite
+        for computing, branching, or revising the hypothesis.
         """
-        from cloudra.dag.substantive_gate import (
-            GUIDED_BLOCK_MESSAGE,
-            RECORD_BLOCK_MESSAGE,
-            is_compute_entry_tool,
-        )
-
-        if not self.enabled or not is_compute_entry_tool(tool_name, arguments):
-            return None
-        if await self.mechanism_accepted():
-            return None
-        if self.mode is OrchestrationMode.DAG_GUIDED:
-            return "block", GUIDED_BLOCK_MESSAGE
-        return "block", RECORD_BLOCK_MESSAGE
+        return None
 
     async def prompt_projection(self) -> str:
         if not self.enabled:
@@ -169,22 +158,272 @@ class DagController(SupervisionMixin, StopAuditMixin, EvidenceInboxMixin, Drafts
         return projection.to_prompt_text(actor_id=self.agent_id)
 
     def delivery_report(self):
+        """Evaluate the selected delivery, keeping machine facts and reviews separate."""
         if not self.enabled:
             return None
-        # store 是权威：督导中途收紧契约后，stop 不得继续吃 initialize 缓存。
         self.contract = self.store.load_coverage_contract()
         claim = self.store.accepted_claim_spec()
-        facts = {
-            target: self.store.facts_for_target(target)
-            for target in (
-                set(claim.scope.get("targets", [])) | set(claim.reference.get("targets", []))
-                if claim is not None else set()
+        declared = None
+        if self.mode is OrchestrationMode.DAG_GUIDED:
+            declared = next(
+                ((draft_id, draft, reason)
+                 for draft_id, draft, reason in reversed(self.store.list_delivery_drafts())
+                 if draft.claim_spec is not None),
+                None,
             )
+        delivery = self.engine.snapshot().delivery
+        elements = {
+            **{node.node_id: ("node", node) for node in delivery.nodes},
+            **{edge.edge_id: ("edge", edge) for edge in delivery.edges},
         }
-        return evaluate_delivery(
-            self.engine.snapshot().delivery,
-            self.contract,
-            claim_kind=claim.kind.value if claim is not None else None,
-            claim_spec=claim,
-            evidence_facts=facts,
+        accepted_targets = {
+            str(item)
+            for container in (claim.scope, claim.reference)
+            for item in (container.get("targets") or [])
+        } if claim is not None else set()
+        pending_scope = None
+        effective_claim = claim
+        if declared is not None and declared[1].state != "accepted":
+            draft_id, draft, reason = declared
+            proposed = draft.claim_spec
+            proposed_targets = {
+                str(item)
+                for container in (proposed.scope, proposed.reference)
+                for item in (container.get("targets") or [])
+            }
+            pending_scope = (draft_id, draft.state, reason, proposed_targets)
+            combined = accepted_targets | proposed_targets
+            source = claim or proposed
+            effective_claim = source.model_copy(update={
+                "scope": {**source.scope, "targets": sorted(combined)},
+                "reference": {key: value for key, value in source.reference.items()
+                              if key != "targets"},
+            })
+        targets = {
+            str(item)
+            for container in (effective_claim.scope, effective_claim.reference)
+            for item in (container.get("targets") or [])
+        } if effective_claim is not None else set()
+        selected = set(targets) if targets else set(elements)
+        for edge in delivery.edges:
+            if edge.edge_id in selected:
+                selected.update((edge.source_node_id, edge.target_node_id))
+        delivery = delivery.model_copy(update={
+            "nodes": [node for node in delivery.nodes if node.node_id in selected],
+            "edges": [edge for edge in delivery.edges if edge.edge_id in selected],
+        })
+        facts = {target: self.store.facts_for_target(target) for target in selected}
+        report = evaluate_delivery(
+            delivery, self.contract,
+            claim_kind=effective_claim.kind.value if effective_claim is not None else None,
+            claim_spec=effective_claim, evidence_facts=facts,
         )
+        if self.mode is OrchestrationMode.DAG_GUIDED:
+            report = self._apply_review_stage_credits(report, delivery, selected)
+        unresolved = list(report.unresolved)
+        for missing in sorted(selected - elements.keys()):
+            unresolved.append(CoverageGateResult(
+                code="missing_delivery_target", target_type="graph", target_id=missing,
+                detail="A declared delivery target was removed or does not exist.",
+            ))
+        if pending_scope is not None:
+            draft_id, state, reason, proposed_targets = pending_scope
+            unresolved.append(CoverageGateResult(
+                code="pending_scope_review" if state == "open" else "rejected_scope_review",
+                target_type="graph", target_id=delivery.graph_id,
+                detail=(
+                    f"Declared delivery scope {sorted(proposed_targets)} in draft {draft_id} "
+                    + ("awaits Supervisor review" if state == "open"
+                       else f"was rejected: {reason}")
+                ),
+            ))
+        if self.mode is OrchestrationMode.DAG_GUIDED:
+            unresolved.extend(self._review_gaps(selected, elements))
+            unresolved.extend(self._draft_gaps(selected, elements))
+        return report.model_copy(update={
+            "unresolved": unresolved,
+            "complete": not unresolved and not report.inconclusive,
+        })
+
+    def _draft_gaps(self, selected, elements):
+        """Only unresolved draft opinions about this delivery remain final debts."""
+        latest = {}
+        for draft_id, draft, reason in self.store.list_delivery_drafts():
+            for operation in draft.operations:
+                element = getattr(operation, "node", None) or getattr(operation, "edge", None)
+                target = (
+                    getattr(element, "node_id", None)
+                    or getattr(element, "edge_id", None)
+                    or getattr(operation, "node_id", None)
+                    or getattr(operation, "edge_id", None)
+                )
+                if target in selected:
+                    latest[target] = (draft_id, draft.state, reason)
+        gaps = []
+        for target, (draft_id, state, reason) in latest.items():
+            if state not in {"open", "rejected"}:
+                continue
+            gaps.append(CoverageGateResult(
+                code="pending_mechanism_review" if state == "open" else "rejected_mechanism_review",
+                target_type=elements.get(target, ("graph", None))[0],
+                target_id=target,
+                detail=(f"Draft {draft_id} awaits Supervisor review" if state == "open"
+                        else f"Draft {draft_id} was rejected: {reason}"),
+            ))
+        return gaps
+
+    def _apply_review_stage_credits(self, report, delivery, selected):
+        """Apply only explicit Supervisor acceptance to pending file stages.
+
+        A per-file review records Supervisor judgment, but it is deliberately
+        not a graph mutation and must not change ``evidence_level``.  Only the
+        exact pending stage(s) represented by the immutable file refs may be
+        removed from the coverage report; endpoint, thermochemistry and
+        contradiction gates remain machine obligations.
+        """
+        from cloudra.dag.models import normalize_claim
+
+        elements = {
+            **{node.node_id: ("node", node) for node in delivery.nodes},
+            **{edge.edge_id: ("edge", edge) for edge in delivery.edges},
+        }
+        requests = self.store.list_review_requests(state=None)
+        latest: dict[tuple, tuple[Any, Any] | None] = {}
+        for request in requests:
+            if request.kind != "evidence" or not request.target_ids:
+                continue
+            targets = tuple(sorted(set(request.target_ids)))
+            if not set(targets) & selected:
+                continue
+            key = (request.kind, targets, normalize_claim(request.question))
+            if request.state == "queued":
+                latest[key] = None
+                continue
+            if request.state != "resolved":
+                continue
+            decision = self.store.get_review_decision_for_request(request.request_id)
+            if decision is not None:
+                latest[key] = (request, decision)
+
+        credits: dict[str, set[str]] = {}
+        for item in latest.values():
+            if item is None:
+                continue
+            request, decision = item
+            if decision.verdict != "accept":
+                continue
+            refs = request.supporting_refs
+            # A review must point at persisted content-addressed file evidence.
+            if not refs or any(ref.ref_type != "file" or not ref.content_hash for ref in refs):
+                continue
+            proposal = request.proposal
+            element_type = proposal.get("element_type")
+            target = request.target_ids[0] if len(request.target_ids) == 1 else None
+            if target not in elements:
+                continue
+            if proposal.get("target_identity") != review_target_identity(delivery, element_type, target):
+                continue
+            if any(ref not in elements[target][1].refs for ref in refs):
+                continue
+            if element_type == "species":
+                credits.setdefault(target, set()).add("geometry")
+                continue
+            if element_type != "step":
+                continue
+            # Supported is the Supervisor's judgment of the submitted TS and
+            # frequency evidence, including parser-inconclusive cases. Requiring
+            # a machine pass here would collapse the two acceptance routes.
+            credits.setdefault(target, set()).update(("ts_opt", "frequency"))
+            if proposal.get("irc_files"):
+                credits[target].add("short_irc")
+
+        if not credits:
+            return report
+        satisfied = list(report.satisfied)
+        unresolved = []
+        for gate in report.unresolved:
+            if gate.code != "missing_stage_evidence" or gate.target_id not in credits:
+                unresolved.append(gate)
+                continue
+            # Only close the machine gate when every required stage is covered;
+            # a partial review leaves the remaining stages visible as a gap.
+            target_stages = elements[gate.target_id][1].stages
+            required_pending = {
+                stage.kind.value for stage in target_stages
+                if stage.required and stage.status.value == "pending"
+            }
+            if not required_pending or not required_pending <= credits[gate.target_id]:
+                unresolved.append(gate)
+                continue
+            satisfied.append(CoverageGateResult(
+                code="supervisor_evidence_accepted",
+                target_type=gate.target_type,
+                target_id=gate.target_id,
+                detail="Supervisor accepted immutable per-file evidence for stages: "
+                + ", ".join(sorted(required_pending)),
+            ))
+        return report.model_copy(update={"satisfied": satisfied, "unresolved": unresolved})
+
+    def _review_gaps(self, selected, elements):
+        """Read durable review outcomes; optional, unscoped advice is not a debt.
+
+        Later adjudication of the same question can settle an earlier objection.
+        Merely submitting another file cannot settle it: the new review must be
+        accepted. Other questions and counterevidence remain independently open.
+        """
+        from cloudra.dag.models import normalize_claim
+
+        gaps = []
+
+        def gap(target, code, detail):
+            gaps.append(CoverageGateResult(
+                code=code, target_type=elements.get(target, ("graph", None))[0],
+                target_id=target, detail=detail,
+            ))
+
+        requests = self.store.list_review_requests(state=None)
+        latest = {}
+        for request in requests:
+            if request.kind not in {"evidence", "exception"}:
+                continue
+            relevant = set(request.target_ids) & selected
+            if not relevant:
+                continue
+            key = (request.kind, tuple(sorted(request.target_ids)), normalize_claim(request.question))
+            # A queued replacement never erases the previous decision. It adds
+            # an outstanding review until the Supervisor actually resolves it.
+            if request.state == "queued":
+                for target in sorted(relevant):
+                    gap(target, "pending_evidence_review", f"Evidence review {request.request_id} is pending: {request.question}")
+            elif request.state == "resolved":
+                decision = self.store.get_review_decision_for_request(request.request_id)
+                if decision is not None:
+                    latest[key] = (request, decision)
+                else:
+                    for target in sorted(relevant):
+                        gap(target, "missing_review_decision", f"Review {request.request_id} has no durable decision.")
+        for request, decision in latest.values():
+            if decision.verdict in {"reject", "needs_evidence"}:
+                for target in sorted(set(request.target_ids) & selected):
+                    gap(target, "supervisor_review_gap", f"{decision.verdict}: {decision.reason}")
+
+        # Low-level call bindings retain stage-specific decisions. The normal
+        # per-file interface above does not split a file into stage submissions.
+        verdicts = {item["review_id"]: item for item in self.store.list_call_verdicts()}
+        latest_calls = {}
+        for review in self.store.list_call_reviews(state=None, source="explicit"):
+            target = review.suggested_target_id
+            if target not in selected:
+                continue
+            key = (target, review.suggested_stage, normalize_claim(review.claim))
+            if review.state == "pending":
+                gap(target, "pending_evidence_review", f"Evidence review {review.review_id} is pending: {review.claim}")
+            elif review.state == "reviewed":
+                if review.review_id in verdicts:
+                    latest_calls[key] = verdicts[review.review_id]
+                else:
+                    gap(target, "missing_review_decision", f"Review {review.review_id} has no durable verdict.")
+        for (target, _stage, _claim), verdict in latest_calls.items():
+            if verdict.get("verdict") in {"disagree", "needs_evidence"}:
+                gap(target, "supervisor_review_gap", f"{verdict['verdict']}: {verdict.get('reason', '')}")
+        return gaps

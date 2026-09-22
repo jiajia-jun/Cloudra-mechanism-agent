@@ -31,6 +31,7 @@ CompletionBasis = Literal[
     "declared",  # 无门禁意见或明确声明结束：模型自述，未独立验证
     "background_wait",  # 有可核实唤醒来源的挂起（后台计算 / 存活子 agent / 提醒）
     "dag_verified",  # DAG 交付覆盖审计通过（证据闭合）
+    "supervisor_supported",  # 完整交付由 Supervisor 对提交证据作出支持判定
     "supervisor_approved",  # dag_guided 下 partial 经 Supervisor 接受（或复用其裁决）
     "partial_recorded",  # dag_record 下 partial 直接记录，无督导裁决
     "user_terminated",  # 真实用户终止（带用户取消事件 id）
@@ -180,7 +181,14 @@ class StopAuditMixin:
                 action="allow_final",
                 report=report,
                 reason="coverage audit passed",
-                basis="dag_verified",
+                basis=(
+                    "supervisor_supported"
+                    if any(
+                        gate.code == "supervisor_evidence_accepted"
+                        for gate in report.satisfied
+                    )
+                    else "dag_verified"
+                ),
             )
 
         if disposition == "complete":
@@ -188,8 +196,8 @@ class StopAuditMixin:
             # report names the missing evidence; the agent may submit it for
             # review (dag_bind_evidence) — there is no automatic pre-delivery
             # LLM review round anymore (§1: the stop gate never triggers the
-            # Supervisor itself).  A Supervisor cannot waive deterministic
-            # completeness; an exit approval may authorize partial/
+            # Supervisor itself).  Accepted file evidence is accounted for separately from machine
+            # verification in the report; an exit approval may authorize partial/
             # method-limited scope only.
             return StopGate(
                 action="continue_work",

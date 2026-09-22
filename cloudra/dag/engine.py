@@ -25,6 +25,7 @@ from cloudra.dag.models import (
     GraphOperation,
     GraphRef,
     GraphSnapshot,
+    MechanismDraft,
     MutationBatch,
     MutationResult,
     OccurrenceNode,
@@ -392,10 +393,30 @@ class DagEngine:
         return self.snapshot()
 
     def apply_batch(self, batch: MutationBatch) -> MutationResult:
+        result, _draft_id = self._apply_batch(batch)
+        return result
+
+    def apply_draft_batch(
+        self, batch: MutationBatch, draft: MechanismDraft, *, actor_id: str
+    ) -> tuple[MutationResult, str | None]:
+        """Write candidate graph, mutation journal and draft in one transaction."""
+        return self._apply_batch(batch, draft=draft, draft_actor_id=actor_id)
+
+    def _apply_batch(
+        self,
+        batch: MutationBatch,
+        *,
+        draft: MechanismDraft | None = None,
+        draft_actor_id: str = "",
+    ) -> tuple[MutationResult, str | None]:
         mutation_id = "mut_" + uuid.uuid4().hex
+        draft_id = "draft_" + uuid.uuid4().hex if draft is not None else None
         try:
             revisions = retry_on_locked(
-                lambda: self._apply_transaction(mutation_id, batch)
+                lambda: self._apply_transaction(
+                    mutation_id, batch,
+                    draft=(draft_id, draft, draft_actor_id) if draft_id and draft else None,
+                )
             )
         except _Rejected as exc:
             # except 块退出后 exc 会被解释器删除，先绑定到普通局部变量，
@@ -411,12 +432,12 @@ class DagEngine:
                 revisions=revisions,
                 rejection_code=exc.code,
                 rejection_reason=exc.reason,
-            )
+            ), None
         return MutationResult(
             accepted=True,
             mutation_id=mutation_id,
             revisions=revisions,
-        )
+        ), draft_id
 
     @staticmethod
     def _batch_target_graphs(batch: MutationBatch) -> set[GraphKind]:
@@ -440,6 +461,7 @@ class DagEngine:
         self,
         mutation_id: str,
         batch: MutationBatch,
+        draft: tuple[str, MechanismDraft, str] | None = None,
     ) -> dict[str, int]:
         with self.store.db.connect() as con:
             con.execute("BEGIN IMMEDIATE")
@@ -505,6 +527,8 @@ class DagEngine:
                 resulting_revisions=resulting,
                 accepted=True,
             )
+            if draft is not None:
+                self.store._insert_draft(con, draft[0], draft[1], draft[2])
             return resulting
 
     def _load_states(self, con: sqlite3.Connection) -> dict[GraphKind, _GraphState]:
