@@ -23,6 +23,8 @@ CI）。本模块是它的评测版：入口在 ``scripts/eval_real_model.py``�
   fixture token」），供人工做趋势分析。
 - **不做科学评分**：结果里只有「通过/失败 + 结构化观测」，任何阈值都留给用户
   确认。
+- **评测范围**：五个场景只覆盖通用 Agent 行为；不评价 DAG 的
+  ``delivery_targets``、逐文件认可或交付完成依据。
 
 单测见 ``tests/test_real_model_eval.py``：只覆盖 fake 路径与「无 key 拒绝」路径，
 绝不要求真实 key。
@@ -30,7 +32,6 @@ CI）。本模块是它的评测版：入口在 ``scripts/eval_real_model.py``�
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import json
 import os
@@ -38,10 +39,11 @@ import platform
 import subprocess
 import sys
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Iterable
+from unittest.mock import patch
 from urllib.parse import urlsplit
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -49,7 +51,6 @@ if str(REPO_ROOT) not in sys.path:  # 脚本直跑（非 pytest）时也能 impo
     sys.path.insert(0, str(REPO_ROOT))
 
 from tests.agent_scenarios import (  # noqa: E402  （sys.path 先就位）
-    ProviderFault,
     ScenarioHarness,
     ScriptedProvider,
     Step,
@@ -260,10 +261,11 @@ class ProviderStats:
 
 
 class BudgetedProvider:
-    """provider 装饰器：统计调用/耗时/usage，并强制调用上限（fake/real 同一条路径）。
+    """provider 装饰器：统计调用/耗时/usage，并限制 complete 尝试次数。
 
     任何 provider 都能被它包；``__getattr__`` 透传内层可选钩子
     （``resolve_effective_settings`` / ``summarize`` / fake 的 ``call_count``）。
+    底层 HTTP 重试与压缩摘要调用不计入这个逻辑调用预算。
     """
 
     def __init__(self, inner: Any, *, max_calls: int, label: str = "") -> None:
@@ -291,6 +293,8 @@ class BudgetedProvider:
                 f"LLM call budget exhausted ({self.max_calls}) in scenario "
                 f"{self.label!r}; refusing further real calls"
             )
+        # 预算约束 provider.complete 尝试次数；失败请求也可能已送达远端。
+        self.stats.calls += 1
         started = time.monotonic()
         try:
             response = await self._inner.complete(agent, messages, tools, **kwargs)
@@ -300,15 +304,20 @@ class BudgetedProvider:
             if len(self.stats.errors) < 5:
                 self.stats.errors.append(f"{type(exc).__name__}: {str(exc)[:200]}")
             raise
-        self.stats.calls += 1
         self.stats.latencies_s.append(time.monotonic() - started)
         self._record_usage(response)
         return response
 
 
-def build_fake_provider(spec: "Scenario") -> ScriptedProvider:
+def build_fake_provider(spec: "Scenario", *, token: str = "") -> ScriptedProvider:
     """fake 路径 provider：脚本化轨迹，零 key（链路自检 / 单测取证）。"""
-    return ScriptedProvider(by_role=spec.fake_script, default=spec.fake_default)
+    def render(steps: Iterable[Step]) -> list[Step]:
+        return [replace(step, text=step.text.replace("{token}", token)) for step in steps]
+
+    return ScriptedProvider(
+        by_role={role: render(steps) for role, steps in spec.fake_script.items()},
+        default=render(spec.fake_default),
+    )
 
 
 def build_real_provider() -> Any:
@@ -678,11 +687,9 @@ def _render_workspace_files(files: dict[str, str], *, token: str) -> dict[str, s
     return {name: content.format(token=token) for name, content in files.items()}
 
 
-def _seed_workspace(project_id: str, files: dict[str, str]) -> dict[str, str]:
-    """把 fixture 写进该项目真实默认工作区（与场景测试同一工作区口径）。"""
-    from cloudra.persistence.paths import project_workspace_dir
-
-    workspace = Path(project_workspace_dir(project_id))
+def _seed_workspace(workspace_dir: str, files: dict[str, str]) -> dict[str, str]:
+    """把 fixture 写进该项目显式指定的评测工作区。"""
+    workspace = Path(workspace_dir)
     workspace.mkdir(parents=True, exist_ok=True)
     written: dict[str, str] = {}
     for name, content in files.items():
@@ -707,11 +714,11 @@ class RunOptions:
     scenario_names: list[str] | None = None
 
 
-def _provider_for(spec: Scenario, options: RunOptions) -> BudgetedProvider:
+def _provider_for(spec: Scenario, options: RunOptions, *, token: str = "") -> BudgetedProvider:
     if options.provider_kind == "real":
         inner: Any = build_real_provider()
     else:
-        inner = build_fake_provider(spec)
+        inner = build_fake_provider(spec, token=token)
     return BudgetedProvider(inner, max_calls=options.max_llm_calls, label=spec.name)
 
 
@@ -730,8 +737,8 @@ async def run_scenario(spec: Scenario, options: RunOptions, *, token: str) -> di
         "error": "",
     }
     checks = Checks()
-    provider = _provider_for(spec, options)
-    scenario_dir = Path(options.work_dir) / "scenarios" / spec.name
+    provider = _provider_for(spec, options, token=token)
+    scenario_dir = (Path(options.work_dir) / "scenarios" / spec.name).resolve()
     scenario_dir.mkdir(parents=True, exist_ok=True)
     harness: ScenarioHarness | None = None
     observations: dict[str, Any] = {"fixture_token": token}
@@ -739,6 +746,7 @@ async def run_scenario(spec: Scenario, options: RunOptions, *, token: str) -> di
         harness = await ScenarioHarness.start(
             scenario_dir,
             provider=provider,
+            workspace_dir=scenario_dir / "workspace",
             retry_backoff=options.retry_backoff,
             max_turn_retries=options.max_turn_retries,
         )
@@ -748,7 +756,7 @@ async def run_scenario(spec: Scenario, options: RunOptions, *, token: str) -> di
             harness.pipeline.prompt_provider = build_prompt_provider()
         files = _render_workspace_files(spec.workspace_files, token=token)
         if files:
-            observations["workspace_files"] = _seed_workspace(harness.project.id, files)
+            observations["workspace_files"] = _seed_workspace(harness.project.workspace_dir, files)
         settings: dict[str, Any] = dict(spec.settings)
         if options.temperature is not None:
             settings["temperature"] = options.temperature
@@ -790,7 +798,11 @@ async def run_scenario(spec: Scenario, options: RunOptions, *, token: str) -> di
     result["duration_s"] = round(time.monotonic() - started, 3)
     result["provider"] = provider.stats.as_dict()
     result["observations"] = observations
-    result["budget"] = {"max_llm_calls": options.max_llm_calls, "timeout_s": options.timeout_s}
+    result["budget"] = {
+        "max_llm_calls": options.max_llm_calls,
+        "counted_calls": "provider.complete_attempts",
+        "timeout_s": options.timeout_s,
+    }
     return result
 
 
@@ -864,20 +876,30 @@ async def _restart_and_audit(
 
 async def run_all(options: RunOptions) -> dict[str, Any]:
     """跑完整套场景，返回可落盘的结果文档。"""
+    from cloudra.infra.config import get_config
+
     token = hashlib.sha256(os.urandom(16)).hexdigest()[:12]
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
     metadata = collect_metadata(options, run_id=run_id)
     results: list[dict[str, Any]] = []
-    for spec in select_scenarios(getattr(options, "scenario_names", None)):
-        spec_options = RunOptions(**{**options.__dict__, "timeout_s": options.timeout_s or spec.timeout_s,
-                                     "max_llm_calls": options.max_llm_calls or spec.max_llm_calls})
-        results.append(await run_scenario(spec, spec_options, token=token))
+    # 手工脚本没有 pytest 的 data_dir fixture；只在本次评测进程内临时改路径，
+    # 让 goal/todo 等工具状态也落在 work_dir，退出时恢复，绝不改用户 YAML。
+    eval_data_dir = (Path(options.work_dir) / "data").resolve()
+    with patch.object(get_config(), "data_dir", eval_data_dir):
+        for spec in select_scenarios(getattr(options, "scenario_names", None)):
+            spec_options = RunOptions(**{**options.__dict__, "timeout_s": options.timeout_s or spec.timeout_s,
+                                         "max_llm_calls": options.max_llm_calls})
+            results.append(await run_scenario(spec, spec_options, token=token))
     passed = [row for row in results if row["passed"]]
     return {
         "schema": SCHEMA,
         "run_id": run_id,
         "generated_at": utc_now(),
         "provider_kind": options.provider_kind,
+        "evaluation_scope": {
+            "domain": "generic_agent_behavior",
+            "dag_delivery_semantics": "not_evaluated",
+        },
         "fixture_token": token,
         "metadata": metadata,
         "scenarios": results,
@@ -949,6 +971,7 @@ def summarize_lines(document: dict[str, Any]) -> list[str]:
     meta = document["metadata"]
     lines = [
         f"schema={document['schema']} provider={document['provider_kind']} run_id={document['run_id']}",
+        "scope=generic agent behavior; DAG delivery semantics not evaluated",
         f"model={meta['model']['configured']!r} endpoint={meta['endpoint']['coordinator']['redacted']!r} "
         f"key_set={meta['api_key_present']['coordinator']}",
         f"prompt_revision={meta['prompt_revision']['sha256'][:23]} "

@@ -30,6 +30,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from cloudra.runtime_v2.adapters import LegacyToolExecutor
@@ -215,9 +216,14 @@ class ScenarioHarness:
         self.project = None
 
     @classmethod
-    async def start(cls, tmp_path, **kwargs: Any) -> "ScenarioHarness":
+    async def start(
+        cls, tmp_path, *, workspace_dir: str | Path | None = None, **kwargs: Any
+    ) -> "ScenarioHarness":
         harness = await asyncio.to_thread(cls, tmp_path, **kwargs)
-        await harness.bus.execute(Command(type="project.create", payload={"name": "scenario"}))
+        payload = {"name": "scenario"}
+        if workspace_dir is not None:
+            payload["workspace_dir"] = str(workspace_dir)
+        await harness.bus.execute(Command(type="project.create", payload=payload))
         harness.project = next(iter(harness.core.projects.values()))
         return harness
 
