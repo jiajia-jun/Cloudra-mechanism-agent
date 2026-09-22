@@ -4,15 +4,10 @@ from importlib import import_module
 
 __version__ = "0.1.0rc1"
 
-_LAZY_EXPORTS = {
-    "Agent": ("cloudra.core.agent", "Agent"),
-    "Coordinator": ("cloudra.core.agent", "Coordinator"),
-}
 # 兼容垫片：包结构重排（core/services/persistence/base/infra）前的
 # `from cloudra import X` 老路径全部继续可用（惰性加载，不提前拉起重依赖）。
+# 执行栈（cloudra.core.agent / message_history）已删除，不再留入口。
 _LAZY_MODULES = {
-    # core
-    "agent": "cloudra.core.agent",
     # services
     "session_store": "cloudra.services.session_store",
     "nodes": "cloudra.services.nodes",
@@ -20,7 +15,6 @@ _LAZY_MODULES = {
     "database": "cloudra.persistence.database",
     "artifacts": "cloudra.persistence.artifacts",
     "memory": "cloudra.persistence.memory",
-    "message_history": "cloudra.core.message_history",
     "paths": "cloudra.persistence.paths",
     "fs_utils": "cloudra.persistence.fs_utils",
     "workspace": "cloudra.persistence.workspace",
@@ -42,17 +36,11 @@ _LAZY_MODULES = {
     "runtime_profile": "cloudra.infra.runtime_profile",
 }
 
-__all__ = [*_LAZY_EXPORTS, *_LAZY_MODULES, "__version__"]
+__all__ = [*_LAZY_MODULES, "__version__"]
 
 
 def __getattr__(name: str):
-    """Keep legacy package exports without importing the Agent runtime eagerly."""
-    target = _LAZY_EXPORTS.get(name)
-    if target is not None:
-        module_name, attribute = target
-        value = getattr(import_module(module_name), attribute)
-        globals()[name] = value
-        return value
+    """Keep legacy package module paths without importing heavy deps eagerly."""
     module_path = _LAZY_MODULES.get(name)
     if module_path is not None:
         value = import_module(module_path)

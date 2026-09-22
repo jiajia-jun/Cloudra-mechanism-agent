@@ -445,26 +445,6 @@ def test_responses_usage_is_readable_by_telemetry_cache_parser():
     assert cached_tokens_of(usage) == 896
 
 
-@pytest.mark.asyncio
-async def test_agent_routes_deepseek_native_search_to_responses(monkeypatch):
-    """DeepSeek 原生搜索（默认 auto、无需 params）应走 Responses 传输；OpenRouter 走 chat。"""
-    from cloudra.core.agent import Coordinator
-    from cloudra.infra.config import get_config
-
-    cfg = get_config()
-    monkeypatch.setattr(cfg.coordinator, "native_search", "auto")
-    monkeypatch.setattr(cfg.coordinator, "native_search_params", {})
-    monkeypatch.setattr(cfg.coordinator, "url", "https://api.deepseek.com")
-
-    agent = Coordinator(query="t", conversation_id="c")
-    assert agent._uses_responses_transport() is True
-
-    monkeypatch.setattr(cfg.coordinator, "native_search", "openrouter")
-    monkeypatch.setattr(cfg.coordinator, "url", "https://openrouter.ai/api/v1")
-    agent2 = Coordinator(query="t", conversation_id="c2")
-    assert agent2._uses_responses_transport() is False
-
-
 def test_responses_base_url_strips_v1():
     from cloudra.infra.llm_client import _responses_base_url
 

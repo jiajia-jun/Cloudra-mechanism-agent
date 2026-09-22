@@ -1,13 +1,6 @@
-"""cloudra/llm_client.py LLM 传输层行为固定测试：
+"""Regression tests for the active LLMClient transport and fallback paths.
 
-- ResponseDictWrapper：dict 响应的属性访问包装
-- LLMClient._stream_response：手写 SSE 解析器（多行 data 拼接、[DONE]、非 data 行）
-- LLMClient.create：三级 fallback（默认请求头 → 自定义 UA → requests shim），带级别记忆
-- is_fallback_trigger：触发关键词列表（大小写不敏感 + 词边界）
-- LLMClient.create_with_retry：瞬时错误的指数退避重试（唯一的重试层）
-- Agent.llm_call / _llm_call_once：请求参数组装与向 LLMClient 的委托
-
-全部在边界处 mock（AsyncOpenAI client / requests），禁止真实网络。
+All external HTTP and OpenAI calls are replaced at the transport boundary.
 """
 
 import asyncio
@@ -17,7 +10,6 @@ import httpx
 import openai
 import pytest
 
-from cloudra.core.agent import Follower
 from cloudra.infra.llm_client import (
     FALLBACK_USER_AGENT,
     LLMClient,
@@ -31,36 +23,9 @@ def _make_client():
     return LLMClient(api_key="sk-test", base_url="https://example.invalid/v1")
 
 
-def _make_agent():
-    """构造一个最小 Follower：工具缓存置空、message_history 换成 mock。"""
-    agent = Follower(
-        id="a-llm",
-        name="tester",
-        prompt="测试",
-        query="测试问题",
-        conversation_id="test-llm",
-    )
-    agent._tools_schema_cache = []
-    cm = MagicMock()
-    cm.build_messages = AsyncMock(return_value=[{"role": "user", "content": "你好"}])
-    cm.load = AsyncMock(return_value=[])
-    agent.message_history = cm
-    return agent
-
-
 @pytest.fixture
 def client():
     return _make_client()
-
-
-@pytest.fixture
-def agent(monkeypatch):
-    # 这些用例验证的是 Agent → LLMClient 的 chat 传输委托；
-    # 关闭默认的 DeepSeek 原生搜索，避免请求被路由到 Responses 传输。
-    from cloudra.infra.config import get_config
-
-    monkeypatch.setattr(get_config().follower, "native_search", "off")
-    return _make_agent()
 
 
 def _mock_client(create):
@@ -441,103 +406,6 @@ class TestCreateFallbackChain:
         assert client._curl_mode is False
 
 
-@pytest.mark.asyncio
-class TestAgentDelegation:
-    """Agent 只负责组装请求参数，传输全部委托给 LLMClient。"""
-
-    def _stub_llm_client(self, agent, **methods):
-        stub = MagicMock()
-        for name, impl in methods.items():
-            setattr(stub, name, impl)
-        agent._llm_client = stub
-        return stub
-
-    async def test_llm_call_once_builds_request_kwargs(self, agent):
-        create = AsyncMock(return_value="RESP")
-        self._stub_llm_client(agent, create=create)
-
-        assert await agent._llm_call_once() == "RESP"
-
-        kwargs = create.call_args.kwargs
-        assert kwargs["model"] == agent.model
-        assert kwargs["messages"][0] == {"role": "user", "content": "你好"}
-        assert kwargs["messages"][1]["role"] == "system"
-        assert kwargs["messages"][1]["content"].startswith(
-            "[Workspace observation]"
-        )
-        identity_messages = agent.message_history.build_messages.call_args.kwargs[
-            "identity_messages"
-        ]
-        assert len(identity_messages) == 1
-        assert identity_messages[0]["role"] == "system"
-        assert identity_messages[0]["content"].startswith("测试\n\n")
-        # prompt_assembler 现在会在工具段之后追加交接文档指引（_CONTEXT_HANDOFF_GUIDANCE）
-        assert "## Currently available tools\n\nNo tools are available for this request." in identity_messages[0]["content"]
-        assert identity_messages[0]["content"].endswith(
-            "After compact or a shift change, read the handoff note before acting; do not start from scratch."
-        )
-        assert kwargs["temperature"] == agent.temperature
-        assert kwargs["max_tokens"] == agent.max_tokens
-        assert kwargs["stream"] == agent.is_stream
-        # 工具缓存为空时不传 tools；top_p=None 时不发送（严格端点只接受特定值）
-        assert "tools" not in kwargs
-        assert "top_p" not in kwargs
-        diagnostics = agent.get_runtime_diagnostics()
-        assert diagnostics["tool_names"] == []
-        assert diagnostics["trace_id"].startswith("llm_")
-        assert diagnostics["runtime_version"]
-        assert diagnostics["capability_revision"].startswith("sha256:")
-        assert diagnostics["prompt_revision"].startswith("sha256:")
-        assert "api_key" not in diagnostics
-
-    async def test_request_diagnostics_redacts_provider_credentials(self, agent):
-        agent.llm_site = "https://user:secret@example.invalid/v1?api_key=hidden"
-        await agent._build_request_kwargs()
-        diagnostics = agent.get_runtime_diagnostics()
-        assert diagnostics["provider"] == "https://example.invalid"
-        assert "secret" not in str(diagnostics)
-        assert "hidden" not in str(diagnostics)
-
-    async def test_top_p_sent_when_set(self, agent):
-        agent.top_p = 0.95
-        create = AsyncMock(return_value="RESP")
-        self._stub_llm_client(agent, create=create)
-        await agent._llm_call_once()
-        assert create.call_args.kwargs["top_p"] == 0.95
-
-    async def test_reasoning_effort_sent_when_configured(self, agent, monkeypatch):
-        """reasoning_effort 来自全局 config 角色槽位，配置了才发送。"""
-        from cloudra.infra.config import get_config
-
-        monkeypatch.setattr(get_config().follower, "reasoning_effort", "medium")
-        create = AsyncMock(return_value="RESP")
-        self._stub_llm_client(agent, create=create)
-        await agent._llm_call_once()
-        assert create.call_args.kwargs["reasoning_effort"] == "medium"
-
-    async def test_reasoning_effort_omitted_when_unset(self, agent):
-        create = AsyncMock(return_value="RESP")
-        self._stub_llm_client(agent, create=create)
-        await agent._llm_call_once()
-        assert "reasoning_effort" not in create.call_args.kwargs
-
-    async def test_tools_included_when_cache_non_empty(self, agent):
-        agent._tools_schema_cache = [{"type": "function", "function": {"name": "t"}}]
-        create = AsyncMock(return_value="RESP")
-        self._stub_llm_client(agent, create=create)
-        await agent._llm_call_once()
-        assert create.call_args.kwargs["tools"] == [{"type": "function", "function": {"name": "t"}}]
-
-    async def test_llm_call_delegates_to_create_with_retry(self, agent):
-        create_with_retry = AsyncMock(return_value="OK")
-        create = AsyncMock(return_value="NO-RETRY")
-        self._stub_llm_client(agent, create=create, create_with_retry=create_with_retry)
-
-        assert await agent.llm_call() == "OK"
-        create_with_retry.assert_awaited_once()
-        create.assert_not_awaited()
-
-
 def _status_error(status: int) -> openai.APIStatusError:
     req = httpx.Request("POST", "https://example.invalid/v1/chat/completions")
     resp = httpx.Response(status, request=req)
@@ -545,12 +413,8 @@ def _status_error(status: int) -> openai.APIStatusError:
 
 
 @pytest.mark.asyncio
-class TestLlmCallRetry:
-    """瞬时错误退避重试：统一在 LLMClient.create_with_retry 一层完成。
-
-    重构前重试层在 Agent.llm_call，内层是 Agent._llm_call_once（含三级 fallback）；
-    现在 create_with_retry 直接包装 create，重试次数语义不变（初次 + max_retries 次）。
-    """
+class TestClientRetry:
+    """create_with_retry owns transient-error retries (initial call plus retries)."""
 
     async def test_5xx_retried_then_success(self, client, monkeypatch):
         monkeypatch.setattr(asyncio, "sleep", AsyncMock())

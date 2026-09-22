@@ -6,8 +6,6 @@ requests shim 的 extra_body 平铺，以及 Agent 请求装配对 web_search �
 
 from __future__ import annotations
 
-import pytest
-
 from cloudra.infra.llm_client import serialize_openai_payload
 from cloudra.infra.web_search_native import (
     NativeSearchAdapter,
@@ -241,86 +239,3 @@ def test_serialize_openai_payload_flattens_extra_body():
     assert payload["web_search_options"] == {"enable": True}
     assert "extra_body" not in payload
 
-
-@pytest.mark.asyncio
-async def test_agent_request_kwargs_use_native_search(monkeypatch):
-    """启用 native_search 后，保留 search、source 去掉 web，并注入 extra_body。"""
-    from unittest.mock import AsyncMock
-
-    from cloudra.core.agent import Coordinator
-    from cloudra.infra.config import get_config
-
-    cfg = get_config()
-    monkeypatch.setattr(cfg.coordinator, "native_search", "custom")
-    monkeypatch.setattr(
-        cfg.coordinator,
-        "native_search_params",
-        {"web_search_options": {"search_context_size": "medium"}},
-    )
-
-    agent = Coordinator(query="test", conversation_id="native_conv")
-    agent._build_messages = AsyncMock(return_value=[{"role": "user", "content": "hi"}])
-    agent._get_tools_schema = lambda: [
-        {
-            "type": "function",
-            "function": {
-                "name": "search",
-                "parameters": {
-                    "properties": {
-                        "source": {"enum": ["web", "arxiv", "openalex"], "default": "web"}
-                    }
-                },
-            },
-        },
-        {"type": "function", "function": {"name": "bash"}},
-    ]
-
-    kwargs = await agent._build_request_kwargs()
-    tool_names = [t["function"]["name"] for t in kwargs["tools"]]
-    assert "search" in tool_names
-    assert "bash" in tool_names
-    search = next(t for t in kwargs["tools"] if t["function"]["name"] == "search")
-    assert set(search["function"]["parameters"]["properties"]["source"]["enum"]) == {
-        "arxiv",
-        "openalex",
-    }
-    assert search["function"]["parameters"]["properties"]["source"]["default"] == "arxiv"
-    assert kwargs["extra_body"]["web_search_options"]["search_context_size"] == "medium"
-    assert agent._last_request_diagnostics["native_search"] == "custom"
-
-
-@pytest.mark.asyncio
-async def test_agent_request_kwargs_keep_search_when_off(monkeypatch):
-    """native_search=off（默认）时保持 search（含 source=web），不注入 extra_body。"""
-    from unittest.mock import AsyncMock
-
-    from cloudra.core.agent import Coordinator
-    from cloudra.infra.config import get_config
-
-    cfg = get_config()
-    monkeypatch.setattr(cfg.coordinator, "native_search", "off")
-
-    agent = Coordinator(query="test", conversation_id="native_conv_off")
-    agent._build_messages = AsyncMock(return_value=[{"role": "user", "content": "hi"}])
-    agent._get_tools_schema = lambda: [
-        {
-            "type": "function",
-            "function": {
-                "name": "search",
-                "parameters": {
-                    "properties": {
-                        "source": {"enum": ["web", "arxiv", "openalex"], "default": "web"}
-                    }
-                },
-            },
-        },
-        {"type": "function", "function": {"name": "bash"}},
-    ]
-
-    kwargs = await agent._build_request_kwargs()
-    tool_names = [t["function"]["name"] for t in kwargs["tools"]]
-    assert "search" in tool_names
-    search = next(t for t in kwargs["tools"] if t["function"]["name"] == "search")
-    assert "web" in search["function"]["parameters"]["properties"]["source"]["enum"]
-    assert "extra_body" not in kwargs
-    assert agent._last_request_diagnostics["native_search"] == "off"

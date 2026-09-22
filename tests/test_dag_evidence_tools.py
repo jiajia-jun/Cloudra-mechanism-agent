@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 
 from cloudra.base.session_class import Session
-from cloudra.core.agent import Coordinator
 from cloudra.infra.config import get_config
 from cloudra.persistence.database import ConversationDB
 from cloudra.tools.Plantool.dag_tools.dag_accept_mechanism import DagAcceptMechanism
@@ -16,18 +15,14 @@ from cloudra.tools.Plantool.dag_tools.dag_review_species import DagReviewSpecies
 from cloudra.tools.Plantool.dag_tools.dag_review_step import DagReviewStep
 from cloudra.tools.Plantool.dag_tools.dag_submit_species_evidence import DagSubmitSpeciesEvidence
 from cloudra.tools.Plantool.dag_tools.dag_submit_step_evidence import DagSubmitStepEvidence
-from tests.dag_identity import call_dag_tool, make_supervisor
+from tests.dag_identity import call_dag_tool, make_coordinator, make_supervisor
 
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 
 
 def _setup(tmp_path, conversation_id, mode):
     get_config().data_dir = tmp_path
-    agent = Coordinator(
-        query="study mechanism",
-        conversation_id=conversation_id,
-        orchestration_mode=mode,
-    )
+    agent = make_coordinator(conversation_id, orchestration_mode=mode)
     # Set working directory to tmp_path
     agent.working_directory = str(tmp_path)
     session = Session("s1", str(tmp_path / "session.json"))

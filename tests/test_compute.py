@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 
-from cloudra.core.message_history import JsonlMessageHistory
 from cloudra.infra.compute_utils import (
     build_calculator_cmd,
     check_calculator_script,
@@ -893,26 +892,6 @@ exit 0
     assert "PROGRAM ENDED" in out.read_text()
 
 
-@pytest.mark.asyncio
-async def test_message_history_load_and_append(isolated_db):
-    """JsonlMessageHistory 能加载初始上下文并追加消息。"""
-    cm = JsonlMessageHistory(
-        agent_id="a-0",
-        conversation_id="test_conv",
-        initial_query="hello",
-    )
-
-    ctx = await cm.load()
-    assert len(ctx) == 1
-    assert ctx[0]["role"] == "user"
-    assert ctx[0]["content"] == "hello"
-
-    await cm.append({"role": "assistant", "content": "hi there"})
-    ctx = await cm.load()
-    assert len(ctx) == 2
-    assert ctx[1]["content"] == "hi there"
-
-
 def test_calculator_script_help():
     """calculator.sh 参数不足时应返回非零退出码。"""
     script_path = Path(__file__).parent.parent / "cloudra" / "calculator.sh"
@@ -935,32 +914,6 @@ def test_calculator_script_missing_input():
     )
     assert result.returncode != 0
     assert "输入文件不存在" in result.stderr
-
-
-@pytest.mark.asyncio
-async def test_message_history_session_isolation(isolated_db):
-    """同一 conversation_id 下，不同 session_id 的上下文文件应相互隔离。"""
-    cm1 = JsonlMessageHistory(
-        agent_id="a-1",
-        conversation_id="shared_conv",
-        initial_query="task 1",
-        session_id="session_1",
-    )
-    await cm1.append({"role": "assistant", "content": "result from task 1"})
-
-    cm2 = JsonlMessageHistory(
-        agent_id="a-1",
-        conversation_id="shared_conv",
-        initial_query="task 2",
-        session_id="session_2",
-    )
-    ctx2 = await cm2.load()
-
-    # 身份层不持久化；ctx2 只含自己的初始 query，不含 task 1 的消息。
-    assert len(ctx2) == 1
-    assert ctx2[0]["role"] == "user"
-    assert ctx2[0]["content"] == "task 2"
-    assert not any("task 1" in str(msg.get("content", "")) for msg in ctx2)
 
 
 @pytest.mark.asyncio
