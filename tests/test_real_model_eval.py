@@ -181,8 +181,12 @@ async def test_result_redacts_provider_error_url_and_api_key(monkeypatch, tmp_pa
     secret = "DEMO_SECRET"
     query_secret = "UNRELATED_QUERY_SECRET"
     schemeless_secret = "ARBITRARY_SCHEMELESS_VALUE"
+    internal_secret = "INTERNAL_HOST_QUERY_VALUE"
+    llm_secret = "LLM_HOST_QUERY_VALUE"
     monkeypatch.setattr(get_config().coordinator, "key", secret)
     message = (
+        f"api_server:8000/v1?opaque={internal_secret} "
+        f"llm:8000/v1?opaque={llm_secret} "
         f"401 Error for url https://user:{secret}@example.invalid/v1?opaque={query_secret}: "
         f"fallback example.invalid/v1?opaque={schemeless_secret}; "
         f"upstream echoed {secret}"
@@ -204,6 +208,8 @@ async def test_result_redacts_provider_error_url_and_api_key(monkeypatch, tmp_pa
     assert secret not in result_text
     assert query_secret not in result_text
     assert schemeless_secret not in result_text
+    assert internal_secret not in result_text
+    assert llm_secret not in result_text
     assert "opaque=" not in result_text
     assert "user:" not in result_text
     assert "https://example.invalid" in result_text
@@ -216,14 +222,24 @@ async def test_result_redacts_provider_error_url_and_api_key(monkeypatch, tmp_pa
     assert secret not in persisted
     assert query_secret not in persisted
     assert schemeless_secret not in persisted
+    assert internal_secret not in persisted
+    assert llm_secret not in persisted
     assert "user:" not in persisted
     summary = "\n".join(summarize_lines(document))
     assert secret not in summary
     assert query_secret not in summary
     assert schemeless_secret not in summary
+    assert internal_secret not in summary
+    assert llm_secret not in summary
     assert rme.redact_result({"note": "ordinary prose: a.b is a field; wait? then proceed"}) == {
         "note": "ordinary prose: a.b is a field; wait? then proceed"
     }
+    assert rme._redact_result_text(
+        "Invalid URL api_server:8000/v1?opaque=DEMO_SECRET (no scheme)", ()
+    ) == "Invalid URL <redacted-url> (no scheme)"
+    assert rme._redact_result_text(
+        "Invalid URL llm:8000/v1?opaque=DEMO_SECRET (no scheme)", ()
+    ) == "Invalid URL <redacted-url> (no scheme)"
 
 
 @pytest.mark.asyncio
