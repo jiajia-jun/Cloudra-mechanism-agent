@@ -330,14 +330,21 @@ async def _call(core, author: AgentSession, args: dict[str, Any], *, allow_spawn
     # legacy spawn-from-call path.
     role_id = _role_id_for(raw_to)
     core.roles.require(role_id)  # raises CommandRejected for unknown roles
-    child = await _spawn_child(
+    child, receipt = await _spawn_child(
         CommandBus(core),
         author,
         role_id=role_id,
         query=spoken,
         context=[{"role": "user", "content": text}],
     )
-    return _ok(f"Called {child.id} (non-blocking).", session_id=child.id)
+    # 派发回执带上 child 的有效设置摘要：调用方不必再猜 child 用了哪个
+    # model / protocol（继承规则在 child_settings 唯一定义）。
+    return _ok(
+        f"Called {child.id} (non-blocking). role={receipt['role_id']} "
+        f"model={receipt['model'] or '(unset)'} protocol={receipt['invocation_protocol']}",
+        session_id=child.id,
+        settings=receipt,
+    )
 
 
 async def handle_hub_tool(

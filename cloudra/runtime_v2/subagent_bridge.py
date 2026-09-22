@@ -17,6 +17,7 @@ import asyncio
 import uuid
 from typing import Any
 
+from cloudra.runtime_v2.child_settings import resolve_child_settings
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
 from cloudra.runtime_v2.schemas import AgentSession, AgentState, Command, CommandRejected
@@ -44,11 +45,6 @@ def _role_id_for(agent_id: str) -> str:
     return _AGENT_ID_TO_ROLE.get(agent_id, agent_id)
 
 
-def _child_mode(parent: AgentSession) -> str:
-    """Children inherit the parent's orchestration mode (standard / dag_record / dag_guided)."""
-    return parent.settings.orchestration_mode.value
-
-
 def _combined_query(query: str, context: list[Any]) -> str:
     messages = [m for m in context if isinstance(m, dict) and m.get("content")]
     if not messages:
@@ -58,9 +54,19 @@ def _combined_query(query: str, context: list[Any]) -> str:
     return "\n".join(lines) + f"\n\n[Task]\n{query}"
 
 
+def _render_settings_receipt(receipt: dict[str, Any]) -> str:
+    """把有效设置摘要渲染成一行文本（确定性；api_key/base_url 不出现）。"""
+    return (
+        f"settings: role={receipt['role_id']} model={receipt['model'] or '(unset)'} "
+        f"protocol={receipt['invocation_protocol']} "
+        f"orchestration={receipt['orchestration_mode']} "
+        f"unattended={receipt['unattended']} visual={receipt['visual_mode']}"
+    )
+
+
 async def _spawn_child(
     bus: CommandBus, parent: AgentSession, *, role_id: str, query: str, context: list[Any]
-) -> AgentSession:
+) -> tuple[AgentSession, dict[str, Any]]:
     parent_role = bus.core.roles.require(parent.role_id)
     if not parent_role.can_spawn:
         raise CommandRejected("forbidden", f"role {parent.role_id!r} cannot spawn sub-agents")
@@ -75,6 +81,12 @@ async def _spawn_child(
             "invalid_request",
             "refusing to spawn a sub-agent: task query is empty (expected the 'query' argument); nothing was dispatched",
         )
+    # 继承规则只有一个解析点（child_settings）：这里只提交补丁，不回显规则。
+    plan = resolve_child_settings(
+        parent,
+        project=bus.core.require_project(parent.project_id),
+        role=bus.core.roles.require(role_id),
+    )
     result = await bus.execute(
         Command(
             type="agent.spawn",
@@ -83,20 +95,12 @@ async def _spawn_child(
                 "role_id": role_id,
                 "parent_session_id": parent.id,
                 "query": query,
-                # yolo 是用户对整个任务的信任授权，子 agent 代父行事，spawn 时
-                # 继承父的取值——否则父开了 yolo、子 agent 仍逐项弹审批。
-                "settings": {
-                    "orchestration_mode": _child_mode(parent),
-                    "yolo": parent.settings.yolo,
-                    # 无人值守继承：子 agent 同样没有可对话的人（GH #31）。
-                    "unattended": parent.settings.unattended,
-                    "schedule_mode": parent.settings.schedule_mode,
-                    "clean_context": parent.settings.clean_context,
-                },
+                "settings": plan.spawn_payload_settings(),
             },
         )
     )
-    return result.data
+    child = result.data
+    return child, plan.receipt(child)
 
 
 async def _await_terminal(core, session_id: str) -> AgentSession:
@@ -204,13 +208,14 @@ async def _cancel_child(core, session_id: str) -> None:
 async def _handle_launcher(core, parent: AgentSession, args: dict[str, Any]) -> ToolResult:
     bus = CommandBus(core)
     role_id = _role_id_for(str(args.get("agent_id") or ""))
-    child = await _spawn_child(
+    child, settings_receipt = await _spawn_child(
         bus, parent, role_id=role_id, query=str(args.get("query") or ""), context=args.get("context") or []
     )
-    data = {"session_id": child.id, "act_agent": child.role_id}
+    data = {"session_id": child.id, "act_agent": child.role_id, "settings": settings_receipt}
     if not args.get("is_wait"):
         data["result"] = (
-            f"Task submitted asynchronously: session_id={child.id}. "
+            f"Task submitted asynchronously: session_id={child.id} "
+            f"({_render_settings_receipt(settings_receipt)}). "
             f"The sub-agent will notify progress via agent_hub and deliver a completion report upon finish. "
             f'You may proceed with other work, stop/suspend, or check get_subagent_report(session_id="{child.id}").'
         )
@@ -220,7 +225,8 @@ async def _handle_launcher(core, parent: AgentSession, args: dict[str, Any]) -> 
     except asyncio.CancelledError:
         await _cancel_child(core, child.id)
         raise
-    data["result"] = _final_text(core, child)
+    data["result"] = f"[{_render_settings_receipt(settings_receipt)}]\n\n{_final_text(core, child)}"
+    data["settings"] = settings_receipt
     return ToolResult(
         is_success=child.state is AgentState.SUCCEEDED,
         summary=data["result"],
@@ -263,7 +269,8 @@ async def _handle_swarm(core, parent: AgentSession, args: dict[str, Any]) -> Too
     if not is_wait and max_concurrency > 0:
         manager = _launch_group_manager(core)
         async def spawner(query):
-            return await _spawn_child(bus, parent, role_id=role_id, query=query, context=context)
+            child, _receipt = await _spawn_child(bus, parent, role_id=role_id, query=query, context=context)
+            return child
         group_id = "grp_" + uuid.uuid4().hex
         manager.create(
             group_id=group_id,
@@ -286,13 +293,13 @@ async def _handle_swarm(core, parent: AgentSession, args: dict[str, Any]) -> Too
     async def run_one(item: str) -> tuple[str, AgentSession]:
         query = template.replace("{{item}}", item)
         if semaphore is None:
-            child = await _spawn_child(bus, parent, role_id=role_id, query=query, context=context)
+            child, _receipt = await _spawn_child(bus, parent, role_id=role_id, query=query, context=context)
             spawned.append(child.id)
             if is_wait:
                 child = await _await_terminal(core, child.id)
             return item, child
         async with semaphore:
-            child = await _spawn_child(bus, parent, role_id=role_id, query=query, context=context)
+            child, _receipt = await _spawn_child(bus, parent, role_id=role_id, query=query, context=context)
             spawned.append(child.id)
             if is_wait:
                 child = await _await_terminal(core, child.id)
