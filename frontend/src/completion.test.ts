@@ -27,6 +27,26 @@ const declared = completionChipFor({
 assert.equal(declared?.label, 'not independently verified');
 assert.notEqual(declared?.tone, 'ok');
 
+// failed / cancelled 即使带 unverified 也不出芯片——那不是「自述结题」。
+assert.equal(
+  completionChipFor({
+    run_id: 'r1',
+    run_outcome: 'failed',
+    completion_basis: null,
+    verification_label: 'unverified',
+  }),
+  null,
+);
+assert.equal(
+  completionChipFor({
+    run_id: 'r1',
+    run_outcome: 'cancelled',
+    completion_basis: null,
+    verification_label: 'unverified',
+  }),
+  null,
+);
+
 // 没有依据 / 未知标签：什么都不显示，不猜。
 assert.equal(completionChipFor(null), null);
 assert.equal(completionChipFor(undefined), null);

@@ -559,11 +559,25 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
             child = core.agents.get(item.child_session_id)
             if child is None or child.state not in _TERMINAL_AGENT_STATES:
                 continue
-            item.state = (  # type: ignore[assignment]
+            state = (
                 "succeeded"
                 if child.state is AgentState.SUCCEEDED
                 else "failed" if child.state is AgentState.FAILED else "cancelled"
             )
+            item_envelope = core.event_log.append(
+                "launch_group.item_finished",
+                stream="agent",
+                project_id=group.project_id,
+                session_id=group.parent_session_id,
+                data={
+                    "group_id": group.group_id,
+                    "item_id": item.item_id,
+                    "state": state,
+                    "error": "",
+                },
+            )
+            apply_event(core, item_envelope)
+            new_events.append(item_envelope)
     for envelope in new_events:
         store.append_event(envelope)
     # 落库成功之后才把恢复期组装的完成回传放进父信箱（持久化先于可见）。

@@ -314,3 +314,101 @@ async def test_restored_group_summary_exposes_items_and_reason(tmp_path):
     assert summary["items"][0]["query"] == "q0"
 
     blocked.set()
+
+
+@pytest.mark.asyncio
+async def test_cancel_persists_item_finished_and_survives_restore(tmp_path):
+    """cancel 必须落 item_finished；二次 restore 后 item 仍是 cancelled，不是 queued。"""
+    from cloudra.runtime_v2.core import RuntimeCore
+    from cloudra.runtime_v2.persistence import RuntimeStore, restore_core
+
+    store = RuntimeStore(tmp_path / "runtime-v2.db")
+    core, project, parent = await _core_with_parent(store)
+    blocked = asyncio.Event()
+
+    async def spawner(query):
+        await blocked.wait()
+        raise AssertionError("never reached")
+
+    group = await core.launch_groups.create(
+        group_id="grp_cancel",
+        parent_session_id=parent.id,
+        project_id=project.id,
+        items=[("i0", "q0"), ("i1", "q1")],
+        max_concurrency=1,
+        spawner=spawner,
+    )
+    await asyncio.sleep(0.02)
+    await core.launch_groups.cancel(group.group_id)
+    assert group.state == "cancelled"
+    assert group.reason == "parent cancelled"
+    assert all(item.state == "cancelled" for item in group.items)
+
+    types = [e["type"] for e in store.events_after({})]
+    assert types.count("launch_group.item_finished") == 2
+    assert types.count("launch_group.finished") == 1
+    finished = [e for e in store.events_after({}) if e["type"] == "launch_group.finished"]
+    assert finished[-1]["data"]["reason"] == "parent cancelled"
+
+    restored = RuntimeCore(strict_events=True)
+    restored.store = store
+    restore_core(restored, store)
+    again = restored.launch_groups.get("grp_cancel")
+    assert again is not None
+    assert again.state == "cancelled"
+    assert again.reason == "parent cancelled"
+    assert [i.state for i in again.items] == ["cancelled", "cancelled"]
+
+    # 二次恢复：投影只来自事件，不得回退成 queued。
+    restored2 = RuntimeCore(strict_events=True)
+    restored2.store = store
+    restore_core(restored2, store)
+    again2 = restored2.launch_groups.get("grp_cancel")
+    assert [i.state for i in again2.items] == ["cancelled", "cancelled"]
+    assert again2.reason == "parent cancelled"
+
+    blocked.set()
+
+
+@pytest.mark.asyncio
+async def test_cancel_then_worker_cancelled_preserves_reason(tmp_path):
+    """cancel 落 reason 后，worker CancelledError 的 best-effort 不得抹掉 reason。"""
+    from cloudra.runtime_v2.persistence import RuntimeStore
+
+    store = RuntimeStore(tmp_path / "runtime-v2.db")
+    core, project, parent = await _core_with_parent(store)
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def spawner(query):
+        from cloudra.runtime_v2.commands import CommandBus
+        from cloudra.runtime_v2.schemas import Command
+
+        started.set()
+        await release.wait()
+        return (
+            await CommandBus(core).execute(
+                Command(
+                    type="agent.spawn",
+                    target={"project_id": project.id},
+                    payload={"role_id": "explorer", "parent_session_id": parent.id, "query": query},
+                )
+            )
+        ).data
+
+    group = await core.launch_groups.create(
+        group_id="grp_reason",
+        parent_session_id=parent.id,
+        project_id=project.id,
+        items=[("i0", "q0")],
+        max_concurrency=1,
+        spawner=spawner,
+    )
+    await asyncio.wait_for(started.wait(), timeout=2.0)
+    await core.launch_groups.cancel(group.group_id)
+    assert group.state == "cancelled"
+    assert group.reason == "parent cancelled"
+    finished = [e for e in store.events_after({}) if e["type"] == "launch_group.finished"]
+    assert finished
+    assert finished[-1]["data"]["reason"] == "parent cancelled"
+    release.set()

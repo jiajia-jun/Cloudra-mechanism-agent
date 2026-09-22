@@ -20,6 +20,11 @@ export interface CompletionChip {
 export function completionChipFor(
   completion: CompletionSummary | null | undefined,
 ): CompletionChip | null {
+  // failed / cancelled 的 verification_label 也可能是 unverified——那不表示
+  // 「自述结题」，芯片只在 succeeded 上有意义。
+  if (completion?.run_outcome !== 'succeeded') {
+    return null;
+  }
   const label = completion?.verification_label;
   if (label === 'verified') {
     return {

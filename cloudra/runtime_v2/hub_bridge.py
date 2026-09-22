@@ -8,9 +8,9 @@ exists, so this bridge re-implements the six actions on kernel primitives:
   the forum store, so posts survive replay like everything else.
 - ``browse`` / ``read`` / ``search`` are pure projections over those events.
 - Notifications (to_agent / reply) and ``call`` to a live session go through
-  ``Mailbox.deliver`` — the runner picks the message up at the next turn
-  boundary, which is the v2 equivalent of legacy inject_event.  A
-  sleeping/idle addressee is woken (``AgentHost.wake``) so the mention or call
+  ``MessageDispatcher.commit_and_deliver`` — the runner picks the message up
+  at the next turn boundary, which is the v2 equivalent of legacy inject_event.
+  A sleeping/idle addressee is woken (``WakePolicy``) so the mention or call
   takes effect immediately instead of sitting in the inbox; a failed/cancelled
   addressee is never auto-revived — the message is parked in its mailbox.
 - ``call`` to a role/id spawns a fresh child via the same CommandBus path as
