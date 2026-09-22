@@ -58,7 +58,7 @@ TsStage = Literal[
 ]
 TsTerminal = Literal["verified", "candidate_only", "search_failed", "invalid_input"]
 StageStatus = Literal["pending", "done", "blocked", "waiting", "not_implemented"]
-PathKind = Literal["", "xtb_path", "idpp_fallback", "not_attempted"]
+PathKind = Literal["", "xtb_path", "xtb_path_failed", "idpp_fallback", "not_attempted"]
 
 #: 尚未接线的阶段：停下来并如实说明，绝不假装跑过
 #: 尚未接线的阶段（保留机制：新增阶段若还没实现，必须标 not_implemented 并停下，不假装跑过）
@@ -648,7 +648,11 @@ def _guess(record: TsProcessRecord) -> TsProcessRecord:
     xTB 缺失时退回 IDPP 并**显式写进 path_kind**。
     """
     from cloudra.persistence.fs_utils import atomic_write_text
-    from cloudra.tools.core.xtb_path_runner import XtbPathRequest, run_xtb_path
+    from cloudra.tools.core.xtb_path_runner import (
+        XTB_ENGINE_STARTED_TERMINATIONS,
+        XtbPathRequest,
+        run_xtb_path,
+    )
 
     out_dir = os.path.join(record.run_dir, PATH_STAGE_DIR)
     os.makedirs(out_dir, exist_ok=True)
@@ -734,7 +738,15 @@ def _guess(record: TsProcessRecord) -> TsProcessRecord:
         )
         return record
     if not run.usable_as_guess:
-        record.path_kind = "not_attempted"
+        # "跑了但没出可用初猜" ≠ "根本没搜"：引擎确实启动过的终止类别单独上报，
+        # not_attempted 只留给引擎没起来的失败（端点非法等）——GH #39 实测
+        # incomplete_artifacts 时 run_dir 里已有 24 帧采样，报成 not_attempted
+        # 会让上层误判"根本没搜"。
+        record.path_kind = (
+            "xtb_path_failed"
+            if run.termination_reason in XTB_ENGINE_STARTED_TERMINATIONS
+            else "not_attempted"
+        )
         if run.termination_reason == "path_not_converged":
             # 触顶 = 路径被截断（引擎没判收敛）。实测：这种路径的最高帧落在反应物自己的盆地里
             # （离起点 21°），拿去做 OptTS 不收敛。因此**不**把它当初猜交出去。

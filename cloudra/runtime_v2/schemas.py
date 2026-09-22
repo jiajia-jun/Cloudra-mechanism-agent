@@ -180,7 +180,10 @@ class CurrentRun(BaseModel):
 
     run_id: str
     started_at: datetime
-    invocation_protocol: InvocationProtocol = InvocationProtocol.TRADITIONAL
+    # 协议在 run 启动时冻结（_apply_run_started 写入 run.started 的解析值）。
+    # 字段默认值与 RuntimeSettings 保持同一口径：新建 run 的默认协议是
+    # javascript，traditional 是 per-agent 可选设置。
+    invocation_protocol: InvocationProtocol = InvocationProtocol.JAVASCRIPT
 
 
 class AgentSession(BaseModel):

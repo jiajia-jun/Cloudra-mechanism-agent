@@ -1011,3 +1011,47 @@ def test_zero_means_undeclared_not_zero_runs(tmp_path, monkeypatch):
 
     _start(tmp_path, budget=TsBudget(path_refinement_runs=0))
     assert seen == [runner.DEFAULT_REFINEMENT_RUNS]
+
+
+# ---------------------------------------------------------------------------
+# guess 阶段：path_kind 要区分"引擎跑过但没出可用初猜"与"根本没搜"（GH #39）
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "termination, expected_kind",
+    [
+        # 引擎确实启动过的终止类别（子进程起来了、stdout 落盘、可能已有采样帧）
+        ("path_not_converged", "xtb_path_failed"),
+        ("incomplete_artifacts", "xtb_path_failed"),
+        ("unknown_failure", "xtb_path_failed"),
+        ("timeout", "xtb_path_failed"),
+        ("failed", "xtb_path_failed"),
+        # 引擎没起来的失败：这一档不算"搜过"，仍是 not_attempted（负向判据——
+        # 修法是分类，不是"把所有 guess 失败都改成一个新值"）
+        ("invalid_endpoints", "not_attempted"),
+    ],
+)
+def test_guess_path_kind_separates_engine_ran_from_no_search(
+    tmp_path, monkeypatch, termination, expected_kind
+):
+    """GH #39：xTB 跑过但失败时曾被报成 not_attempted，上层因此误判"根本没搜"。
+
+    分类的唯一事实源是 ``XTB_ENGINE_STARTED_TERMINATIONS``；这里用替身逐档喂进去，
+    断言 path_kind 跟着分类走，并确认阻塞行为没变（改的是上报口径，不是放行规则）。
+    """
+    from cloudra.tools.core import xtb_path_runner as runner
+
+    def fake_run(request, **_kwargs):
+        return runner.XtbPathResult(
+            run_dir=os.path.join(str(tmp_path), "xtb_path_runs", "guess_0001"),
+            termination_reason=termination,
+            usable_as_guess=False,
+            refinement_runs=100,
+        )
+
+    monkeypatch.setattr(runner, "run_xtb_path", fake_run)
+    record = _start(tmp_path)
+    assert record.path_kind == expected_kind
+    assert record.blocked is not None and record.blocked.stage == "guess"
+    assert record.blocked.failure_class == termination

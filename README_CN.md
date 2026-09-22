@@ -5,7 +5,7 @@
 
 [![CI](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/ci.yml)
 [![Python ≥ 3.11](https://img.shields.io/badge/python-%E2%89%A53.11-blue)](pyproject.toml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](pyproject.toml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 [English](README.md) · [文档中心](docs/README.md) · [核心创新点](docs/novelty.md) · [DAG 编排规范](docs/DAG_ORCHESTRATION.md) · [过渡态 SOP](docs/TS_PROCESS_SOP.md) · [插件系统](docs/PLUGINS.md)
 
@@ -17,7 +17,7 @@
 
 ### 1. 环境准备与安装
 
-系统需要 Python ≥ 3.11、Node.js ≥ 22（可选的 JS 宿主与前端测试脚本都要求 ≥ 22）、POSIX 环境（Linux/macOS——执行面依赖 `flock`/`nice` 语义），以及可访问的 OpenAI 兼容大模型 API。
+系统需要 Python ≥ 3.11、Node.js ≥ 22（默认 `javascript` 协议所用的 JS 宿主与前端测试脚本都要求 ≥ 22）、POSIX 环境（Linux/macOS——执行面依赖 `flock`/`nice` 语义），以及可访问的 OpenAI 兼容大模型 API。
 
 ```bash
 # 克隆仓库
@@ -163,14 +163,16 @@ Cloudra 的执行面由轻量、确定性的 `runtime_v2` 驱动：
 
 ---
 
-## 可选的 JavaScript 工具调用协议
+## 工具调用协议
 
-默认情况下，Agent 每次有线交换发起一个工具调用（`invocation_protocol: traditional`）。可选的 per-agent 设置 `invocation_protocol: javascript`（Web 界面 Agent 设置）允许模型改为提交一段有界 JavaScript 程序（`js_exec`），在程序内编排其能力许可的工具，并用 `text(value)` 回传结果：
+默认协议是 `javascript`；`traditional` 是 per-agent 可选设置。默认情况下模型每次有线交换提交一段有界 JavaScript 程序（`js_exec`），在程序内编排其能力许可的工具，并用 `text(value)` 回传结果：
 
 ```js
 const result = await tools.log_parser({log_path: '/absolute/path/calculation.out'});
 text({call_id: result.call_id, ok: result.is_success, data: result.data});
 ```
+
+设置为 `invocation_protocol: traditional`（Web 界面 Agent 设置，或设置补丁里的同一字段）时，模型改为每次有线交换发起一个工具调用，且完全不需要 JS 宿主。两种协议共用下面同一套生命周期与权限规则，区别只在派发形态。
 
 - **同一生命周期、同一权限边界**：嵌套的 `tools.*` 调用与传统调用走同一条"持久化请求 → 策略 → 执行器 → 持久化原始结果"管线，是真实工具调用。选择该协议不授予任何额外权限——准入时重新校验能力——直接控制类工具（`stop`、`ask_user`、`schedule`）仍只能在顶层调用。
 - **统一的 ToolResponse**：每个嵌套调用返回 `{call_id, is_success, summary, data, duration_ms}`。业务失败以 `is_success: false` 正常返回；策略拒绝则以可捕获的 `ToolCallError` 拒绝（`code` 如 `policy_blocked`，附 `stage` 与宿主调用 ID）——捕获它不会获得任何权限。
@@ -179,7 +181,7 @@ text({call_id: result.call_id, ok: result.is_success, data: result.data});
 - **凭据而非隐藏状态**：`program.finished` 记录逐调用凭据（`status`、`effect_state`、`raw_result_event_id`）、程序输出与脱敏错误。UI 程序卡片直接渲染这些事件，源码下载是持久 `program.submitted` 事件的快照。
 - **不恢复堆、不自动重跑**：JS 进程/堆从不做检查点。重启时将未完成的程序与调用标记为 interrupted，绝不重放副作用；失败的程序只返回一次普通的失败交换，后续模型轮次可提交修复后的程序。
 
-### 安装（可选）
+### 安装
 
 访客程序运行在独立 Node ≥ 22 进程内的 QuickJS-WASM 中。一次性安装锁定的宿主依赖：
 
@@ -187,7 +189,7 @@ text({call_id: result.call_id, ok: result.is_success, data: result.data});
 npm ci --prefix cloudra/runtime_v2/js_host --ignore-scripts --no-audit --no-fund
 ```
 
-Cloudra 在执行或服务启动期间绝不运行 npm。缺少 Node 或依赖时，JS 模式的 run 报告 `runtime_unavailable`，不做任何静默回退；传统模式的 run 完全不需要 JS 依赖。对 pip 安装的包，对 `<site-packages>/cloudra/runtime_v2/js_host` 执行同一命令。
+Cloudra 在执行或服务启动期间绝不运行 npm。缺少 Node 或依赖时，`javascript` 模式的 run（默认协议）报告 `runtime_unavailable`，不做任何静默回退；`traditional` 模式的 run 完全不需要 JS 依赖。对 pip 安装的包，对 `<site-packages>/cloudra/runtime_v2/js_host` 执行同一命令。
 
 ### 安全边界
 
@@ -257,4 +259,4 @@ uv run ruff check cloudra tests    # 代码规范检查（line-length 120）
 
 ## 开源许可证
 
-本项目采用 [MIT 许可证](pyproject.toml)。
+本项目采用 [MIT 许可证](LICENSE)。
