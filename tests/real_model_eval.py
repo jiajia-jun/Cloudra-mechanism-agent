@@ -113,6 +113,12 @@ def redact_endpoint(url: str) -> dict[str, Any]:
 
 
 _URL_IN_TEXT = re.compile(r"\b[a-z][a-z0-9+.-]*://[^\s<>'\"`]+", re.IGNORECASE)
+_SCHEMELESS_URL_IN_TEXT = re.compile(
+    r"(?<![A-Za-z0-9_./@-])(?:[^\s/@?]+@)?"
+    r"(?:(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,63}|localhost|(?:\d{1,3}\.){3}\d{1,3}|\[[0-9A-Fa-f:.]+\])"
+    r"(?::\d{1,5})?(?:/[^\s<>'\"`?]*)?\?[^\s<>'\"`]+",
+    re.IGNORECASE,
+)
 _BEARER_IN_TEXT = re.compile(r"\bBearer\s+[A-Za-z0-9._~+/-]+", re.IGNORECASE)
 _SECRET_ASSIGNMENT = re.compile(
     r"\b(api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|password)"
@@ -142,6 +148,7 @@ def _redact_result_text(value: str, secrets: tuple[str, ...]) -> str:
             return "<redacted-url>"
 
     text = _URL_IN_TEXT.sub(hide_url, value)
+    text = _SCHEMELESS_URL_IN_TEXT.sub(hide_url, text)
     text = _BEARER_IN_TEXT.sub("Bearer <redacted>", text)
     text = _SECRET_ASSIGNMENT.sub(lambda match: f"{match.group(1)}=<redacted>", text)
     for secret in secrets:

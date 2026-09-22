@@ -180,9 +180,11 @@ async def test_result_redacts_provider_error_url_and_api_key(monkeypatch, tmp_pa
 
     secret = "DEMO_SECRET"
     query_secret = "UNRELATED_QUERY_SECRET"
+    schemeless_secret = "ARBITRARY_SCHEMELESS_VALUE"
     monkeypatch.setattr(get_config().coordinator, "key", secret)
     message = (
         f"401 Error for url https://user:{secret}@example.invalid/v1?opaque={query_secret}: "
+        f"fallback example.invalid/v1?opaque={schemeless_secret}; "
         f"upstream echoed {secret}"
     )
 
@@ -201,6 +203,7 @@ async def test_result_redacts_provider_error_url_and_api_key(monkeypatch, tmp_pa
     result_text = json.dumps(document)
     assert secret not in result_text
     assert query_secret not in result_text
+    assert schemeless_secret not in result_text
     assert "opaque=" not in result_text
     assert "user:" not in result_text
     assert "https://example.invalid" in result_text
@@ -212,10 +215,15 @@ async def test_result_redacts_provider_error_url_and_api_key(monkeypatch, tmp_pa
     persisted = written.read_text(encoding="utf-8")
     assert secret not in persisted
     assert query_secret not in persisted
+    assert schemeless_secret not in persisted
     assert "user:" not in persisted
     summary = "\n".join(summarize_lines(document))
     assert secret not in summary
     assert query_secret not in summary
+    assert schemeless_secret not in summary
+    assert rme.redact_result({"note": "ordinary prose: a.b is a field; wait? then proceed"}) == {
+        "note": "ordinary prose: a.b is a field; wait? then proceed"
+    }
 
 
 @pytest.mark.asyncio
