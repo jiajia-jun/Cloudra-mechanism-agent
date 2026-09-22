@@ -56,6 +56,7 @@ npm --prefix cloudra/runtime_v2/js_host test   # JS 宿主测试；先 npm ci --
 - 按文件名前缀分组：`test_dag_*`（DAG）、`test_runtime_v2_*`（新内核）、`test_compute`/`test_slurm`（计算执行）、化学工具各一、其余基础设施单测。
 - `conftest.py` autouse 隔离 data_dir 到 tmp_path；不要在测试里写真实数据目录。
 - 跳过一律按环境探测（缺 `crest`/`xtb` 二进制、无 RDKit/chem extra、无 node>=22 + js_host 依赖、非 POSIX）；无需要真实 LLM key 的测试；可选依赖先探测再 skip，不许硬断言（先例：`tests/test_benchmark_sandbox_fp.py` 的 `_REQUIRES_*`）；计算资源按本机容量申请（`max(1, min(2, os.cpu_count() or 1))`），别写死 `cpus=4`。
+- **场景级回归**：`tests/agent_scenarios.py` 是场景 harness（`ScriptedProvider` 零 API key，按 role 分流 + 可脚本化抛错；`ScenarioHarness` 装真实 core/runner/工具执行器与默认 8 个 PolicyStage），断言只落在**事件序列/结构化字段/状态不变量**上，绝不断言模型措辞；新增「Agent 级故障」修复应补一个场景（`tests/test_agent_scenarios.py`，8 条覆盖 问答/skill→计算/异步子 Agent 回传/provider 重试与 fail-fast/overflow 压缩/unattended/重启）。
 - 测试替身（fake/stub）签名对齐真实接口，建议带 `**_kwargs` 防接口加参后变红。
 - issue #33 复现材料在 `tests/fixtures/chemtool_issue33/`；issue 里除实测值以外的数值一律标记为未复现，不得写进断言。
 
