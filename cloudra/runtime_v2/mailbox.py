@@ -1,13 +1,11 @@
-"""Uniform delivery for user and peer messages.
-
-Every message is one event + one inbox enqueue.  The runtime never inspects
-sender authority beyond the caller-provided actor: the command layer performs
-authorization before calling deliver.
+"""Uniform message payload shapes for the event log and the ephemeral inbox.
 
 载荷形状的唯一事实来源在本模块（``message_data`` 事件载荷 /
-``message_payload`` inbox 载荷）：命令侧 decide 用它们组装
-``agent.message_injected`` 草稿与 ``DeliverMessage`` 效果，事件先于投递落地
-且 message_id 一致；非命令路径（hub_bridge 等）继续用 ``deliver`` 一步走。
+``message_payload`` inbox 载荷）。Agent 间投递走
+``MessageDispatcher.commit_and_deliver``（persist → enqueue → wake）；命令路径
+的 ``agent.message`` 经 CommandBus 落 ``agent.message_injected`` 后再
+``DeliverMessage`` 入队——两边都是持久化成功才可见，不再有「先入队、事后
+flush」的第二条语义。
 
 易失性（3e）：inbox 是**刻意易失**的内存队列（shell 私有，重启即弃）——
 run 只活在内存，重启后没有消费者在等队列里的载荷；``agent.message_injected``

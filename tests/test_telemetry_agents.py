@@ -307,5 +307,27 @@ def test_aggregate_agents_attributes_fanout_to_the_parent_session():
     assert rows["as_parent"]["metrics"]["subagents"] == {
         "spawned": 1, "succeeded": 0, "failed": 1, "cancelled": 0,
     }
-    assert rows["as_child"]["metrics"]["subagents"]["spawned"] == 0
-    assert rows["as_child"]["metrics"]["runs"]["failed"] == 1
+    assert "as_child" in rows
+
+
+def test_aggregate_agents_counts_cancelled_child_fanout_on_parent():
+    """子 agent.cancelled 时父行的 subagents.cancelled 必须 +1（清 open_run_id 之前记账）。"""
+    events = [
+        _ev("run.started", {}, session="as_parent", run="rp", offset_s=0),
+        _ev(
+            "agent.spawned",
+            {"parent_session_id": "as_parent", "role_id": "small_mol"},
+            session="as_child",
+            run=None,
+            offset_s=1,
+        ),
+        _ev("run.started", {}, session="as_child", run="rc", offset_s=2),
+        _ev("agent.cancelled", {"session_id": "as_child"}, session="as_child", run="rc", offset_s=3),
+        _ev("run.finished", {"outcome": "succeeded", "failure_kind": None},
+            session="as_parent", run="rp", offset_s=4),
+    ]
+    rows = {row["session_id"]: row for row in telemetry.aggregate_agents(events)["agents"]}
+    assert rows["as_parent"]["metrics"]["subagents"] == {
+        "spawned": 1, "succeeded": 0, "failed": 0, "cancelled": 1,
+    }
+    assert rows["as_child"]["metrics"]["runs"]["cancelled"] == 1

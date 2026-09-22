@@ -143,6 +143,10 @@ async def test_launcher_nowait_then_report():
     )
     assert report.is_success is True
     assert "optimize water" in report.summary
+    assert "manifest" in report.data
+    assert report.data["manifest"]["session_id"] == child.id
+    assert report.data["manifest"]["state"] == "succeeded"
+    assert report.data["manifest"]["final_summary"]
 
     missing = await handle_native_tool(
         core, coordinator, ToolCall(id="t3", name="get_subagent_report", arguments={"session_id": "as_nope"})

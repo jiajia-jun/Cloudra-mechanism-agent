@@ -548,9 +548,14 @@ def _consume_event(
         entry["open_run_id"] = None
     elif etype == "agent.cancelled":
         # 取消不落 run.finished：只给「当时确有在跑的 run」记一次 cancelled。
-        if entry["open_run_id"] is not None:
+        # 先记下 was_open，再清 open_run_id——fan-out 计数依赖这个快照。
+        was_open_run = entry["open_run_id"] is not None
+        if was_open_run:
             metrics["runs"]["cancelled"] += 1
         entry["open_run_id"] = None
+        parent_id = child_parent.get(session_id)
+        if parent_id is not None and was_open_run:
+            entry_for(parent_id)["metrics"]["subagents"]["cancelled"] += 1
     elif etype == "run.retry":
         metrics["llm"]["retries"] += 1
     elif etype == "tool.finished":
@@ -605,8 +610,8 @@ def _consume_event(
                 child_metrics["succeeded"] += 1
             elif data.get("outcome") == "failed":
                 child_metrics["failed"] += 1
-        elif etype == "agent.cancelled" and entry["open_run_id"] is not None:
-            child_metrics["cancelled"] += 1
+        # agent.cancelled 的 fan-out 在上面分支里已按 was_open_run 记账（必须在
+        # 清 open_run_id 之前），这里不再重复。
 
     call = llm_call_from_event(event)
     if call is not None:

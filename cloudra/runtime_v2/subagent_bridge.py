@@ -364,11 +364,17 @@ async def _handle_report(core, args: dict[str, Any]) -> ToolResult:
             summary=f"Sub-agent {session_id} is still {agent.state.value}; ask again later.",
             data={"session_id": session_id, "state": agent.state.value},
         )
-    text = build_child_manifest(core, agent)["final_summary"]
+    manifest = build_child_manifest(core, agent)
+    text = render_child_report(manifest)
     return ToolResult(
         is_success=agent.state is AgentState.SUCCEEDED,
         summary=text,
-        data={"session_id": session_id, "state": agent.state.value, "result": text},
+        data={
+            "session_id": session_id,
+            "state": agent.state.value,
+            "result": text,
+            "manifest": manifest,
+        },
     )
 
 

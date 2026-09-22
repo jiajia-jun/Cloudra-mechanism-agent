@@ -246,10 +246,10 @@ async def notify_supervisor(
       用户显式复活（agent.message / agent.restart）后首轮 drain 即可读到，
       持久化待办也不会丢。
 
-    通知通道是 ``mailbox.deliver`` + 条件 ``agent_host.wake`` 的组合：
-    刻意不走 ``agent.message`` 命令——它的 decide 路径对 failed/cancelled
-    终态 agent 自动 reopen（plan_wake），会违反状态表。``reason`` 只用于
-    通知消息的可诊断标注，不构成路由或去重依据。
+    通知通道是 ``dispatcher.commit_and_deliver``（``WakePolicy`` 按状态表选
+    park / wake）：刻意不走 ``agent.message`` 命令——它的 decide 路径对
+    failed/cancelled 终态 agent 自动 reopen（plan_wake），会违反状态表。
+    ``reason`` 只用于通知消息的可诊断标注，不构成路由或去重依据。
 
     ``auto_wake=False``（API 装载 / 进程重启）：只把通知驻留信箱，不 spawn
     新督导、不 wake 任何已有 agent。待办仍在 DAG store，显式 resume /
@@ -505,7 +505,7 @@ async def flush_review_notifications(
     裁决与通知行同事务落表）。触发点：Supervisor 的裁决工具
     （dag_review_evidence / dag_review_call / dag_accept_mechanism）落库
     后（dag_stage 的 after_tool 钩子）与 reconcile_supervision（恢复补投）。
-    通知行是 durable 的：pin + mailbox.deliver + 条件 wake 的事件先经
+    通知行是 durable 的：pin + ``dispatcher.commit_and_deliver`` 的事件先经
     event_writer 落盘/发布，再把通知行标记 sent——投递与标记之间崩溃
     会在下次 flush 重投（pin 按 key 去重，mailbox 重投是一条冗余消息，
     接受）。failed/cancelled 收件人不唤醒（用户取消/失败的运行不被迟到

@@ -161,12 +161,20 @@ class LaunchGroupManager:
                 item.child_session_id = str(data.get("child_session_id") or "")
         elif envelope.type == "launch_group.item_finished":
             item = group.item(str(data.get("item_id") or ""))
-            if item is not None:
+            if item is not None and item.state not in {"succeeded", "failed", "cancelled"}:
                 item.state = str(data.get("state") or "failed")  # type: ignore[assignment]
                 item.error = str(data.get("error") or "")
         elif envelope.type == "launch_group.finished":
-            group.state = str(data.get("state") or "finished")  # type: ignore[assignment]
-            group.reason = str(data.get("reason") or "")
+            new_state = str(data.get("state") or "finished")
+            new_reason = str(data.get("reason") or "")
+            # 幂等：已终态时保留首条非空 reason（cancel 写 "parent cancelled" 后
+            # worker CancelledError 的 best-effort 再写 reason="" 不得抹掉）。
+            if group.state in _TERMINAL_GROUP_STATES:
+                if new_reason and not group.reason:
+                    group.reason = new_reason
+                return
+            group.state = new_state  # type: ignore[assignment]
+            group.reason = new_reason
 
     # ------------------------------------------------------------------ 派发
 
@@ -225,47 +233,32 @@ class LaunchGroupManager:
                         },
                     )
                     await self._wait_terminal(child)
+                    # cancel() 可能已把 item 收口为 cancelled——勿再写成功终态。
+                    if item.state != "running":
+                        return
                     state = (
                         "succeeded"
                         if child.state is AgentState.SUCCEEDED
                         else "failed" if child.state is AgentState.FAILED else "cancelled"
                     )
-                    await self._commit(
-                        "launch_group.item_finished",
-                        project_id=group.project_id,
-                        session_id=group.parent_session_id,
-                        data={
-                            "group_id": group.group_id,
-                            "item_id": item.item_id,
-                            "state": state,
-                            "error": "",
-                        },
+                    await self._commit_item_finished(
+                        group, item, state=state, error=""
                     )
             except asyncio.CancelledError:
-                item.state = "cancelled"
+                # item 终态由 cancel() 落 durable item_finished；这里不摸投影。
                 raise
             except Exception as exc:
                 logger.warning("[launch_groups] item %s failed: %s", item.item_id, exc)
-                if item.state == "running":
-                    await self._commit(
-                        "launch_group.item_finished",
-                        project_id=group.project_id,
-                        session_id=group.parent_session_id,
-                        data={
-                            "group_id": group.group_id,
-                            "item_id": item.item_id,
-                            "state": "failed",
-                            "error": str(exc),
-                        },
+                if item.state in {"queued", "running"}:
+                    await self._commit_item_finished(
+                        group, item, state="failed", error=str(exc)
                     )
-                else:
-                    item.error = str(exc)
 
         try:
             await asyncio.gather(*(run_one(item) for item in group.items))
         except asyncio.CancelledError:
-            # 取消路径：尽力落一条 durable 终态；即便这条没写下去，重启恢复也会
-            # 把非终态的组标 interrupted（不会重复派发）。
+            # 取消路径：若 cancel() 已落组终态则 no-op；否则尽力写 cancelled。
+            # 即便这条没写下去，重启恢复也会把非终态组标 interrupted。
             await self._commit_cancelled_best_effort(group)
             raise
         if group.state == "running":
@@ -291,10 +284,15 @@ class LaunchGroupManager:
     # ------------------------------------------------------------------ 取消
 
     async def cancel(self, group_id: str) -> LaunchGroup | None:
-        """取消一个组：先落 durable 终态，再取消 worker 并结算未派发 item。"""
+        """取消一个组：非终态 item 先落 durable item_finished，再落组终态，最后取消 worker。"""
         group = self._groups.get(group_id)
         if group is None:
             return None
+        for item in group.items:
+            if item.state in {"queued", "running"}:
+                await self._commit_item_finished(
+                    group, item, state="cancelled", error=""
+                )
         if group.state not in _TERMINAL_GROUP_STATES:
             await self._commit(
                 "launch_group.finished",
@@ -312,9 +310,6 @@ class LaunchGroupManager:
                 await group._task
             except asyncio.CancelledError:
                 pass
-        for item in group.items:
-            if item.state in {"queued", "running"}:
-                item.state = "cancelled"
         return group
 
     async def cancel_for_parent(self, parent_session_id: str) -> list[LaunchGroup]:
@@ -341,6 +336,29 @@ class LaunchGroupManager:
         agent = self._core.agents.get(session_id)
         return agent.project_id if agent is not None else ""
 
+    async def _commit_item_finished(
+        self,
+        group: LaunchGroup,
+        item: LaunchGroupItem,
+        *,
+        state: str,
+        error: str,
+    ) -> None:
+        """item 终态唯一写口（persist-then-apply）；已终态则 no-op。"""
+        if item.state in {"succeeded", "failed", "cancelled"}:
+            return
+        await self._commit(
+            "launch_group.item_finished",
+            project_id=group.project_id,
+            session_id=group.parent_session_id,
+            data={
+                "group_id": group.group_id,
+                "item_id": item.item_id,
+                "state": state,
+                "error": error,
+            },
+        )
+
     async def _commit(self, type_: str, *, project_id: str, session_id: str, data: dict) -> None:
         from cloudra.runtime_v2.apply import apply_event
 
@@ -366,13 +384,19 @@ class LaunchGroupManager:
         apply_event(core, envelope)
 
     async def _commit_cancelled_best_effort(self, group: LaunchGroup) -> None:
+        if group.state in _TERMINAL_GROUP_STATES:
+            return
         try:
             await asyncio.shield(
                 self._commit(
                     "launch_group.finished",
                     project_id=group.project_id,
                     session_id=group.parent_session_id,
-                    data={"group_id": group.group_id, "state": "cancelled", "reason": ""},
+                    data={
+                        "group_id": group.group_id,
+                        "state": "cancelled",
+                        "reason": "worker cancelled",
+                    },
                 )
             )
         except Exception as exc:  # 关停竞态：交给恢复路径标 interrupted
