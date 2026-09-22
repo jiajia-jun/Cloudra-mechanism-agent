@@ -416,7 +416,7 @@ def _resolve_recipient_session(
         return ""
     if recipient in core.agents:
         return recipient
-    from cloudra.subagents.registry import legacy_agent_id_for_role
+    from cloudra.base.role_identity import legacy_agent_id_for_role
 
     for agent in core.agents.values():
         if agent.project_id != project_id:

@@ -315,7 +315,7 @@ def test_legacy_agent_id_mapping():
     assert DagPolicyStage._legacy_agent_id("dft") == "a-6"
     # 未知角色原样透传（不落错映射）
     assert DagPolicyStage._legacy_agent_id("custom_role") == "custom_role"
-    from cloudra.subagents.registry import legacy_agent_id_for_role
+    from cloudra.base.role_identity import legacy_agent_id_for_role
 
     assert legacy_agent_id_for_role("a-4") == "a-4"
 

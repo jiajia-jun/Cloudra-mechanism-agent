@@ -25,11 +25,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from cloudra.base.role_identity import role_id_for_legacy_agent_id
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.dispatcher import WakePolicy
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
 from cloudra.runtime_v2.schemas import AgentSession, CommandRejected
-from cloudra.runtime_v2.subagent_bridge import _role_id_for, _spawn_child
+from cloudra.runtime_v2.subagent_bridge import _spawn_child
 from cloudra.tools.Managetool._hub_call import format_incoming_call
 from cloudra.tools.Managetool.agent_hub import _FUZZY_FLOOR, _SEARCH_SCAN_LIMIT, _fuzzy_score
 
@@ -67,7 +68,7 @@ def _resolve_live_target(core, project_id: str, target: str) -> AgentSession | N
     by_id = core.agents.get(t)
     if by_id is not None and by_id.project_id == project_id:
         return by_id
-    role_id = _role_id_for(t.lstrip("@"))
+    role_id = role_id_for_legacy_agent_id(t.lstrip("@"))
     matches = [a for a in sessions if a.role_id == role_id]
     return matches[-1] if matches else None
 
@@ -335,7 +336,7 @@ async def _call(core, author: AgentSession, args: dict[str, Any], *, allow_spawn
 
     # No live session: role names / a-N ids spawn a fresh child, mirroring the
     # legacy spawn-from-call path.
-    role_id = _role_id_for(raw_to)
+    role_id = role_id_for_legacy_agent_id(raw_to)
     core.roles.require(role_id)  # raises CommandRejected for unknown roles
     child, receipt = await _spawn_child(
         CommandBus(core),

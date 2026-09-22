@@ -160,7 +160,7 @@ def _tool_events(core, session_id: str, tool_call_id: str) -> list[str]:
 
 def test_supervisor_legacy_id_is_explicit_and_distinct():
     """supervisor 的 legacy id 是显式映射的可识别值，不是未知角色裸透传。"""
-    from cloudra.subagents.registry import legacy_agent_id_for_role
+    from cloudra.base.role_identity import legacy_agent_id_for_role
 
     supervisor_id = legacy_agent_id_for_role("supervisor")
     assert supervisor_id != "supervisor", "bare passthrough collides with research roles"

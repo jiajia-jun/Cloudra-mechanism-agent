@@ -6,6 +6,8 @@ cycle while remaining independent of source files on disk.
 
 from dataclasses import dataclass
 
+from cloudra.base.role_identity import legacy_agent_id_for_role
+
 
 @dataclass(frozen=True)
 class SubagentRegistration:
@@ -14,33 +16,27 @@ class SubagentRegistration:
     class_name: str
 
 
-SUBAGENT_REGISTRY: tuple[SubagentRegistration, ...] = (
-    SubagentRegistration("a-1", "cloudra.subagents.explorer", "explorer"),
-    SubagentRegistration("a-2", "cloudra.subagents.writer", "writer"),
-    SubagentRegistration("a-3", "cloudra.subagents.researcher", "researcher"),
-    SubagentRegistration("a-4", "cloudra.subagents.small_mol", "small_mol"),
-    SubagentRegistration("a-5", "cloudra.subagents.md", "md"),
-    SubagentRegistration("a-6", "cloudra.subagents.dft", "dft"),
-    SubagentRegistration("a-7", "cloudra.subagents.experiment", "experiment"),
-    SubagentRegistration("a-8", "cloudra.subagents.env", "env"),
+#: legacy 子 Agent 类清单（class_name 即 role_id）。agent_id 一律由
+#: ``cloudra.base.role_identity`` 的**唯一**映射表派生——这里不再手写 a-N 表，
+#: 新增/改名角色不需要同步第二处。
+_LEGACY_SUBAGENT_ROLES: tuple[str, ...] = (
+    "explorer",
+    "writer",
+    "researcher",
+    "small_mol",
+    "md",
+    "dft",
+    "experiment",
+    "env",
 )
 
+SUBAGENT_REGISTRY: tuple[SubagentRegistration, ...] = tuple(
+    SubagentRegistration(
+        agent_id=legacy_agent_id_for_role(role_id),
+        module=f"cloudra.subagents.{role_id}",
+        class_name=role_id,
+    )
+    for role_id in _LEGACY_SUBAGENT_ROLES
+)
 
-def legacy_agent_id_for_role(role_id: str) -> str:
-    """Map a v2 role_id (or Coordinator) onto the DAG assignee vocabulary.
-
-    Process-node ``assignee`` and tool ``actor_id`` use legacy a-N ids
-    (``a-0`` = Coordinator).  The scientific Supervisor has the dedicated
-    ``a-supervisor`` id — it is not a research assignee slot, and an explicit
-    branch keeps it distinct from the unknown-role passthrough below.
-    Unknown roles pass through unchanged.
-    """
-    if role_id == "coordinator":
-        return "a-0"
-    if role_id == "supervisor":
-        return "a-supervisor"
-    for reg in SUBAGENT_REGISTRY:
-        if reg.class_name == role_id or reg.agent_id == role_id:
-            return reg.agent_id
-    return role_id
 

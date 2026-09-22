@@ -609,8 +609,8 @@ async def test_swarm_and_launcher_spawn_share_legacy_identity():
     """D13 回归：swarm 与 launcher 派生的子 agent 走同一条身份映射——
     DAG 侧的 legacy id 由 role_id 经 legacy_agent_id_for_role 推出，
     绝不退回 session uuid（首个 swarm 曾以 session id 当 actor 的 bug）。"""
+    from cloudra.base.role_identity import legacy_agent_id_for_role
     from cloudra.runtime_v2.policies.dag_stage import DagPolicyStage
-    from cloudra.subagents.registry import legacy_agent_id_for_role
 
     core = RuntimeCore(strict_events=True)
     bus = CommandBus(core)

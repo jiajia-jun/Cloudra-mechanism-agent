@@ -30,6 +30,7 @@ import asyncio
 import logging
 from typing import Any
 
+from cloudra.base.role_identity import legacy_agent_id_for_role
 from cloudra.dag.controller import DagController
 from cloudra.persistence.database import ConversationDB
 from cloudra.runtime_v2.policies.base import PipelineContext, PolicyResult, ToolCall, ToolResult
@@ -49,9 +50,8 @@ class DagPolicyStage:
     @staticmethod
     def _legacy_agent_id(role_id: str) -> str:
         """DAG 变更日志与 CallReview sidecar 使用 legacy 子 agent id（a-0..a-8）；
-        v2 的 role_id 经此唯一映射推出（D13），launcher/swarm 两条 spawn 路径一致。"""
-        from cloudra.subagents.registry import legacy_agent_id_for_role
-
+        v2 的 role_id 经唯一映射表（cloudra.base.role_identity）推出（D13），
+        launcher/swarm 两条 spawn 路径一致。"""
         return legacy_agent_id_for_role(role_id)
 
     async def _controller(self, ctx: PipelineContext) -> DagController | None:

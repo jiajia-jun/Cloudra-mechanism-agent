@@ -158,6 +158,9 @@ class RoleProfile(BaseModel):
     role_id: str = Field(min_length=1)
     display_name: str
     description: str = ""
+    #: DAG 存储词表 id（a-0..a-8 / a-supervisor）；唯一映射表在
+    #: ``cloudra.base.role_identity``，这里只做投影，不手抄。空串=无 legacy 身份。
+    legacy_agent_id: str = ""
     permissions: PermissionSet = Field(default_factory=PermissionSet)
     can_spawn: bool = False
     spawn_roles: Optional[list[str]] = None

@@ -7,6 +7,7 @@ its role_id.  Agent-to-agent privileges are derived from ``can_spawn`` and
 
 from __future__ import annotations
 
+from cloudra.base.role_identity import legacy_agent_id_for_role
 from cloudra.runtime_v2.schemas import (
     OrchestrationMode,
     PermissionSet,
@@ -17,6 +18,7 @@ from cloudra.runtime_v2.schemas import (
 BUILTIN_ROLES: tuple[RoleProfile, ...] = (
     RoleProfile(
         role_id="coordinator",
+        legacy_agent_id=legacy_agent_id_for_role("coordinator"),
         display_name="Coordinator",
         description="Decomposes objectives and dispatches peer agents.",
         permissions=PermissionSet(read=True, write=True, manage=True, script=True, destructive=True),
@@ -25,6 +27,7 @@ BUILTIN_ROLES: tuple[RoleProfile, ...] = (
     ),
     RoleProfile(
         role_id="explorer",
+        legacy_agent_id=legacy_agent_id_for_role("explorer"),
         display_name="Explorer",
         description="Read-only project structure and evidence review.",
         permissions=PermissionSet(read=True),
@@ -32,6 +35,7 @@ BUILTIN_ROLES: tuple[RoleProfile, ...] = (
     ),
     RoleProfile(
         role_id="writer",
+        legacy_agent_id=legacy_agent_id_for_role("writer"),
         display_name="Writer",
         description="Writes documents and reports; no script execution.",
         permissions=PermissionSet(read=True, write=True),
@@ -39,6 +43,7 @@ BUILTIN_ROLES: tuple[RoleProfile, ...] = (
     ),
     RoleProfile(
         role_id="researcher",
+        legacy_agent_id=legacy_agent_id_for_role("researcher"),
         display_name="Researcher",
         description="Literature search and method comparison.",
         permissions=PermissionSet(read=True, write=True, script=True, destructive=True),
@@ -46,6 +51,7 @@ BUILTIN_ROLES: tuple[RoleProfile, ...] = (
     ),
     RoleProfile(
         role_id="small_mol",
+        legacy_agent_id=legacy_agent_id_for_role("small_mol"),
         display_name="Small-molecule compute",
         description="Gaussian/ORCA molecular and cluster QM.",
         permissions=PermissionSet(read=True, write=True, script=True, destructive=True),
@@ -53,6 +59,7 @@ BUILTIN_ROLES: tuple[RoleProfile, ...] = (
     ),
     RoleProfile(
         role_id="md",
+        legacy_agent_id=legacy_agent_id_for_role("md"),
         display_name="Molecular dynamics",
         description="Classical and enhanced-sampling MD.",
         permissions=PermissionSet(read=True, write=True, script=True, destructive=True),
@@ -60,6 +67,7 @@ BUILTIN_ROLES: tuple[RoleProfile, ...] = (
     ),
     RoleProfile(
         role_id="dft",
+        legacy_agent_id=legacy_agent_id_for_role("dft"),
         display_name="First-principles",
         description="VASP/CP2K periodic systems.",
         permissions=PermissionSet(read=True, write=True, script=True, destructive=True),
@@ -67,6 +75,7 @@ BUILTIN_ROLES: tuple[RoleProfile, ...] = (
     ),
     RoleProfile(
         role_id="experiment",
+        legacy_agent_id=legacy_agent_id_for_role("experiment"),
         display_name="Experiment design",
         description="Experimental design and data analysis.",
         permissions=PermissionSet(read=True, write=True, script=True, destructive=True),
@@ -74,6 +83,7 @@ BUILTIN_ROLES: tuple[RoleProfile, ...] = (
     ),
     RoleProfile(
         role_id="env",
+        legacy_agent_id=legacy_agent_id_for_role("env"),
         display_name="Environment",
         description="Scientific software environment setup and debugging.",
         permissions=PermissionSet(read=True, write=True, script=True, destructive=True),
@@ -81,6 +91,7 @@ BUILTIN_ROLES: tuple[RoleProfile, ...] = (
     ),
     RoleProfile(
         role_id="supervisor",
+        legacy_agent_id=legacy_agent_id_for_role("supervisor"),
         display_name="Supervisor",
         description=(
             "Scientific supervisor in dag_guided mode: a real runtime_v2 agent "
