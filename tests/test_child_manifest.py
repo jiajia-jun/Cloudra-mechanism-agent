@@ -172,7 +172,7 @@ async def test_delivery_carries_structured_manifest_but_inbox_stays_text_only():
     child.parent_session_id = parent.id
     _finish(core, child, "succeeded")
 
-    deliver_child_completion_to_parent(core, child, wake=False)
+    await deliver_child_completion_to_parent(core, child, wake=False)
 
     injected = [
         e for e in core.event_log.query_session(parent.id) if e.type == "agent.message_injected"

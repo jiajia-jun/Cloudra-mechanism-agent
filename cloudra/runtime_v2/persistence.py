@@ -36,6 +36,7 @@ from cloudra.runtime_v2.schemas import (
     RoleProfile,
     RuntimeSettings,
     SessionContext,
+    new_id,
 )
 
 _SCHEMA = """
@@ -476,18 +477,46 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
         new_events.extend(list(core.event_log)[before:])
         zombies.append(agent)
     # 跨重启子终态回传：僵尸子的父还在等它的结果（is_wait=False 派发只有这
-    # 一条通知通道），与普通完成回传同一路径送达父信箱；恢复路径不 wake
+    # 一条通知通道），与普通完成回传同一载荷构造送达父信箱；恢复路径不 wake
     # （包括 succeeded 休眠父）——runner 已装时 wake 会真实打进 LLM，把
     # 旧项目的协调者/探索者在 API 重启时烧起来（issue #35）。通知驻留信箱，
     # 显式 resume 后首轮即可读到。
-    from cloudra.runtime_v2.subagent_bridge import deliver_child_completion_to_parent
+    #
+    # 次序与 MessageDispatcher 一致（append → durable → enqueue）；恢复阶段没有
+    # 事件循环，用本函数末尾的一次性落库屏障代替逐条 commit：先收齐全部恢复
+    # 事件，落库成功后才入队。
+    from cloudra.runtime_v2.mailbox import Mailbox
+    from cloudra.runtime_v2.subagent_bridge import child_completion_message
 
+    pending_inbox: list[tuple[str, dict[str, Any]]] = []
     for agent in zombies:
-        if not agent.parent_session_id:
+        message = child_completion_message(core, agent)
+        if message is None:
             continue
-        before = len(core.event_log)
-        deliver_child_completion_to_parent(core, agent, wake=False)
-        new_events.extend(list(core.event_log)[before:])
+        parent_id, content, manifest = message
+        message_id = new_id("msg")
+        new_events.append(
+            core.event_log.append(
+                "agent.message_injected",
+                stream="project",
+                project_id=agent.project_id,
+                session_id=parent_id,
+                data=Mailbox.message_data(
+                    message_id=message_id,
+                    sender=agent.role_id,
+                    content=content,
+                    manifest=manifest,
+                ),
+            )
+        )
+        pending_inbox.append(
+            (
+                parent_id,
+                Mailbox.message_payload(
+                    message_id=message_id, sender=agent.role_id, content=content
+                ),
+            )
+        )
     # Orphaned pending entries (a requested approval/interaction whose waiter
     # died with the previous process) get an explicit terminal
     # approval.expired / interaction.expired event, so a woken agent sees a
@@ -497,6 +526,9 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
     new_events.extend(core.pending.expire_orphans())
     for envelope in new_events:
         store.append_event(envelope)
+    # 落库成功之后才把恢复期组装的完成回传放进父信箱（持久化先于可见）。
+    for session_id, payload in pending_inbox:
+        core.mailbox.ensure_inbox(session_id).put_nowait(payload)
     if new_events:
         store.save_snapshot(
             projects=core.projects,

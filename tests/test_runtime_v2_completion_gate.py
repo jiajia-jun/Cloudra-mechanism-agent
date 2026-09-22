@@ -31,6 +31,7 @@ from cloudra.persistence.database import ConversationDB
 from cloudra.runtime_v2.agent_runner import AgentRunner
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.core import RuntimeCore
+from cloudra.runtime_v2.dispatcher import WakePolicy
 from cloudra.runtime_v2.policies import default_stages
 from cloudra.runtime_v2.policies.base import PolicyResult, ToolCall, ToolResult
 from cloudra.runtime_v2.schemas import AgentState, Command
@@ -725,11 +726,12 @@ async def test_message_arriving_during_gate_evaluation_is_not_lost(tmp_path):
             if not self._armed or ctx.agent.id != self._session_id:
                 return None
             self._armed = False
-            self._core.mailbox.deliver(
+            await self._core.dispatcher.commit_and_deliver(
                 to_session_id=self._session_id,
                 project_id=self._project_id,
                 content="late user input",
                 sender="user",
+                wake=WakePolicy.NEVER,
             )
             return None
 

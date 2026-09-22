@@ -9,6 +9,7 @@ import pytest
 from cloudra.runtime_v2.agent_runner import AgentRunner
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.core import RuntimeCore
+from cloudra.runtime_v2.dispatcher import WakePolicy
 from cloudra.runtime_v2.policies import default_stages
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
 from cloudra.runtime_v2.schemas import Command, InvocationProtocol
@@ -184,11 +185,12 @@ async def test_manual_compaction_rewrites_history(monkeypatch):
         async def execute(self, agent, call, **_kwargs):
             if not self.delivered:
                 self.delivered = True
-                core.mailbox.deliver(
+                await core.dispatcher.commit_and_deliver(
                     to_session_id=agent.id,
                     project_id=agent.project_id,
                     content="second task",
                     sender="user",
+                    wake=WakePolicy.NEVER,
                 )
             return ToolResult(is_success=True, summary="x" * 5000, data={})
 
@@ -331,11 +333,12 @@ async def test_wake_during_final_event_flush_reschedules_after_task_done():
         # while the runner task itself is still alive.
         if agent.state.value == "succeeded" and not delivered:
             delivered = True
-            core.mailbox.deliver(
+            await core.dispatcher.commit_and_deliver(
                 to_session_id=agent.id,
                 project_id=agent.project_id,
                 content="late review decision",
                 sender="supervisor",
+                wake=WakePolicy.NEVER,
             )
             core.agent_host.wake(agent, runner=runner)
             assert agent.state.value == "running"
@@ -715,11 +718,12 @@ async def test_compaction_summary_is_appended_to_workspace(monkeypatch, tmp_path
         async def execute(self, agent, call, **_kwargs):
             if not self.delivered:
                 self.delivered = True
-                core.mailbox.deliver(
+                await core.dispatcher.commit_and_deliver(
                     to_session_id=agent.id,
                     project_id=agent.project_id,
                     content="second task",
                     sender="user",
+                    wake=WakePolicy.NEVER,
                 )
             return ToolResult(is_success=True, summary="x" * 5000, data={})
 
