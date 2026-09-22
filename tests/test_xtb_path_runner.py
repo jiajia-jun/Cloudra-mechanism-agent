@@ -443,3 +443,93 @@ def test_real_xtb_path_invariant_usable_iff_converged(tmp_path):
         assert result.frames  # 现场保留，供复查
         assert os.path.isfile(result.path_xyz_path)
         assert any("Raise `refinement_runs`" in d for d in result.diagnostics)
+
+
+# ---------------------------------------------------------------------------
+# 引擎崩溃留下的中间帧：只做可发现性，不作初猜（GH #39 建议 1）
+# ---------------------------------------------------------------------------
+
+
+def test_list_partial_frames_picks_only_numbered_iteration_frames(tmp_path):
+    """只认 ``xtbpath_<n>.xyz``：最终路径、TS 候选、输入/日志、非数字后缀都不算中间帧。"""
+    from cloudra.tools.core.xtb_path_runner import list_partial_frames
+
+    d = tmp_path / "guess_0001"
+    d.mkdir()
+    for n in (1, 2, 10, 24):
+        (d / f"xtbpath_{n}.xyz").write_text("frame", encoding="utf-8")
+    for name in ("xtbpath.xyz", "xtbpath_ts.xyz", "path.inp", "stdout.log",
+                 "xtbpath_.xyz", "xtbpath_1x.xyz", "xtbpath_1.xyz.bak"):
+        (d / name).write_text("x", encoding="utf-8")
+
+    got = [os.path.basename(p) for p in list_partial_frames(str(d))]
+    # 数字序，不是字典序（否则 10/24 会排到 2 前面）
+    assert got == ["xtbpath_1.xyz", "xtbpath_2.xyz", "xtbpath_10.xyz", "xtbpath_24.xyz"]
+
+
+def test_list_partial_frames_is_empty_for_a_missing_dir(tmp_path):
+    from cloudra.tools.core.xtb_path_runner import list_partial_frames
+
+    assert list_partial_frames(str(tmp_path / "not_there")) == []
+
+
+class _CrashedEngine:
+    """假引擎：打印"正常终止 + path finder"标记，却只留下逐迭代中间帧（GH #39 现场）。
+
+    为什么替身打在 ``Popen`` 而不是像本文件其余用例那样写一个假 xtb 脚本：脚本是 shell
+    脚本，本机 Windows 起不来（那批用例在 Windows 上全红）。替换 Popen 让这条完整链路在
+    两种平台上都能测，而**不必**在测试里重写被验证的逻辑。
+    """
+
+    def __init__(self, stdout="", stderr="", frames=(1, 2, 3, 24)):
+        self.stdout, self.stderr, self.frames = stdout, stderr, frames
+        self.returncode = 0
+        self.pid = 424242
+        self._cwd = None
+
+    def __call__(self, command, *args, **kwargs):
+        self._cwd = kwargs.get("cwd")
+        return self
+
+    def communicate(self, timeout=None):
+        import pathlib
+
+        if self._cwd:
+            for n in self.frames:
+                pathlib.Path(self._cwd, f"xtbpath_{n}.xyz").write_text("frame", encoding="utf-8")
+        return self.stdout, self.stderr
+
+    def wait(self, timeout=None):
+        return self.returncode
+
+
+def test_engine_crash_leaves_partial_frames_visible_not_usable(tmp_path, monkeypatch):
+    """完整链路：引擎自称正常终止却只留下中间帧 → incomplete_artifacts + 中间帧可发现。
+
+    走真实的 ``run_xtb_path``（只替换 Popen），所以覆盖的是**失败路径上的调用点**，
+    而不是把填充逻辑在测试里重写一遍。
+    """
+    import shutil as _shutil
+
+    from cloudra.tools.core import xtb_path_runner as runner
+
+    monkeypatch.setattr(runner, "capture_versions", lambda *a, **k: "")
+    monkeypatch.setattr(_shutil, "which", lambda name: "/usr/bin/xtb")
+    monkeypatch.setattr(runner.subprocess, "Popen",
+                        _CrashedEngine(stdout="normal termination of xtb\n path finder:\n"))
+
+    result = run_xtb_path(XtbPathRequest(
+        reactant_xyz=WATER, product_xyz=WATER, output_dir=str(tmp_path),
+    ))
+
+    assert result.returncode == 0
+    assert result.termination_reason == "incomplete_artifacts"
+    assert result.usable_as_guess is False
+    # 中间帧被识别（数字序），且**没有**被当成初猜
+    assert [os.path.basename(p) for p in result.partial_frames] == [
+        "xtbpath_1.xyz", "xtbpath_2.xyz", "xtbpath_3.xyz", "xtbpath_24.xyz",
+    ]
+    assert result.frames == [] and result.ts_candidate_positions == []
+    # 诊断里点名"有多少帧、不是初猜"
+    assert any("4 partial iteration frame(s)" in d for d in result.diagnostics)
+    assert any("not a usable TS guess" in d for d in result.diagnostics)
