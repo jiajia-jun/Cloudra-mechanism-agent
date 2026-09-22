@@ -101,6 +101,19 @@ PathTermination = Literal[
     "unknown_failure",
 ]
 
+#: 引擎**确实启动过**的那些终止类别（子进程起来了、stdout 落盘、可能已有采样帧）：
+#: "跑了但没产出可用初猜"与"根本没搜过"必须分开上报——GH #39 实测
+#: ``incomplete_artifacts`` 时目录里已留下 ``xtbpath_1..24.xyz`` 可用采样，
+#: 报成 ``not_attempted`` 会让上层误判"根本没搜"。``executable_missing`` 与
+#: ``invalid_endpoints`` 都发生在子进程启动之前，不在本集合。
+XTB_ENGINE_STARTED_TERMINATIONS: frozenset[str] = frozenset({
+    "timeout",
+    "failed",
+    "unknown_failure",
+    "incomplete_artifacts",
+    "path_not_converged",
+})
+
 #: 引擎自己报的路径精修结局。``""`` = 日志里没有这两句终止语（本模块按未知处理，不默认成功）。
 RefinementTermination = Literal["", "converged", "cycles_exhausted"]
 

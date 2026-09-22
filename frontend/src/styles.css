@@ -575,6 +575,7 @@ body {
   color: var(--fg);
 }
 .agentbar select.agentbar-select.mode { min-width: 130px; }
+.agentbar select.agentbar-select.protocol { min-width: 110px; }
 
 .panel-toggle {
   padding: 0 8px;

@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use or reference Cloudra in your scientific research, please cite this repository."
+title: "Cloudra: An Autonomous Agent for Organic Small-Molecule Mechanism Computation"
+abstract: >-
+  An autonomous agent system for organic small-molecule reaction mechanism computation:
+  geometric and electronic perception tools, a delivery-evidence DAG with ordered stage
+  contracts, and a deterministically audited evaluation harness. Requires a POSIX host
+  and an OpenAI-compatible LLM endpoint.
+authors:
+  - name: "Cloudra Team"
+type: software
+license: MIT
+url: "https://github.com/yyywaa/Cloudra-mechanism-agent"
+repository-code: "https://github.com/yyywaa/Cloudra-mechanism-agent"
+keywords:
+  - computational chemistry
+  - reaction mechanism
+  - transition state
+  - quantum chemistry
+  - LLM agent
+  - reproducibility
