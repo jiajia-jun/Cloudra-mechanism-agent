@@ -31,6 +31,13 @@ export interface AgentCapabilities {
   tools: string[];
 }
 
+export interface CompletionSummary {
+  run_id: string | null;
+  run_outcome: 'succeeded' | 'failed' | 'cancelled' | null;
+  completion_basis: string | null;
+  verification_label: 'verified' | 'partial' | 'unverified';
+}
+
 export interface Agent {
   id: string;
   project_id: string;
@@ -42,6 +49,9 @@ export interface Agent {
   settings_revision: number;
   capabilities: AgentCapabilities;
   current_run: { run_id: string; started_at: string; invocation_protocol?: string } | null;
+  // 运行期投影（服务端从收尾事件算出）：该 agent 最近一次已结束 run 的完成
+  // 依据；正在跑/挂起或从未收尾时为 null。
+  completion?: CompletionSummary | null;
   created_at: string;
   updated_at: string;
 }

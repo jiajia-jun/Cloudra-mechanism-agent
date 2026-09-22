@@ -1,0 +1,24 @@
+# 两台机器并行推同一仓库，行尾与缩进此前靠 .gitattributes 事后归一。
+# 这里让编辑器当场写对，避免再引入 CRLF / tab / 尾随空白。
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{py,pyi}]
+indent_style = space
+indent_size = 4
+
+[*.{js,mjs,cjs,jsx,ts,tsx,json,css,html,yml,yaml}]
+indent_style = space
+indent_size = 2
+
+[*.md]
+# Markdown 行尾双空格是硬换行，不能裁
+trim_trailing_whitespace = false
+
+[Makefile]
+indent_style = tab

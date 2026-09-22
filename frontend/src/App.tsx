@@ -3,7 +3,7 @@ import { api, EVENTS_WINDOW, HISTORY_PAGE_SIZE, streamProject } from './api';
 import Markdown from './Markdown';
 import DagPanel from './DagPanel';
 import OpsPanel from './OpsPanel';
-import type { Agent, ComputeJob, EventEnvelope, PendingReminder, Project } from './types';
+import type { Agent, CompletionSummary, ComputeJob, EventEnvelope, PendingReminder, Project } from './types';
 import AuditLog from './AuditLog';
 import GlobalConfig from './GlobalConfig';
 import KnowledgePanel from './KnowledgePanel';
@@ -32,6 +32,7 @@ import {
 import { ToolRow } from './ToolRow';
 import { ProgramCard } from './ProgramCard';
 import { PathPickerModal } from './PathPickerModal';
+import { completionChipFor, stateBadgeText } from './completion';
 
 export type InspectorTab = 'overview' | 'ops' | 'dag' | 'approvals' | 'interactions' | 'artifacts' | 'settings' | 'events';
 
@@ -138,6 +139,12 @@ const SLASH_COMMANDS: SlashCommandDef[] = [
     insertText: '/visual ',
   },
   {
+    command: '/protocol',
+    args: '[traditional|javascript]',
+    desc: 'Set project-wide tool invocation protocol (next run)',
+    insertText: '/protocol ',
+  },
+  {
     command: '/compact',
     desc: 'Compress conversation history and summarize past steps',
     insertText: '/compact',
@@ -153,6 +160,17 @@ const SLASH_COMMANDS: SlashCommandDef[] = [
 function noteIcon(level: 'warn' | 'info' | 'error'): string {
   if (level === 'info') return 'ℹ';
   return level === 'error' ? '✕' : '!';
+}
+
+/** 完成依据标签：只渲染服务端给出的验证等级，不本地推导、不猜未知值。 */
+function CompletionChip({ completion }: { completion?: CompletionSummary | null }) {
+  const chip = completionChipFor(completion);
+  if (!chip) return null;
+  return (
+    <span className={`completion-badge ${chip.tone}`} title={chip.detail}>
+      {chip.label}
+    </span>
+  );
 }
 
 function ThinkingBlock({ item }: { item: ThinkingItem }) {
@@ -695,6 +713,19 @@ export default function App() {
           setAgents((prev) =>
             dedupeAgents(prev.map((a) => (a.id === sessionId ? { ...a, current_run: null } : a))),
           );
+          // 完成依据（已验证完成 / 部分交付 / 未独立验证）由服务端从收尾事件
+          // 投影，本地无从重建：收尾后拉一次当前 agent 把它补齐（只补正在看的
+          // 那个，swarm 里其它 agent 等切换时再取）。
+          if (sessionId === activeAgentIdRef.current) {
+            void api
+              .getAgent(sessionId)
+              .then((fresh) =>
+                setAgents((prev) =>
+                  dedupeAgents(prev.map((a) => (a.id === sessionId ? { ...a, ...fresh } : a))),
+                ),
+              )
+              .catch(() => undefined);
+          }
         }
         if (event.type === 'approval.requested' || event.type === 'tool.approval_requested') {
           if (!replaying) {
@@ -1072,6 +1103,27 @@ export default function App() {
           await toggleProjectVisual(nextVal);
           return;
         }
+        if (lower.startsWith('/protocol')) {
+          setDraft('');
+          const arg = content.slice(9).trim().toLowerCase();
+          const current =
+            activeAgent?.settings.invocation_protocol ??
+            activeProject?.settings.defaults?.invocation_protocol ??
+            'javascript';
+          let next: 'traditional' | 'javascript';
+          if (arg === 'traditional' || arg === 'trad') {
+            next = 'traditional';
+          } else if (arg === 'javascript' || arg === 'js') {
+            next = 'javascript';
+          } else if (!arg) {
+            next = current === 'traditional' ? 'javascript' : 'traditional';
+          } else {
+            pushToast('info', 'Usage: /protocol [traditional|javascript]');
+            return;
+          }
+          await changeProjectInvocationProtocol(next);
+          return;
+        }
         if (lower.startsWith('/compact')) {
           setDraft('');
           if (activeAgent) {
@@ -1087,7 +1139,10 @@ export default function App() {
         }
         if (lower === '/help') {
           setDraft('');
-          pushToast('info', 'Commands: /schedule [on|off], /goal <text>, /yolo [on|off], /visual [on|off], /compact');
+          pushToast(
+            'info',
+            'Commands: /schedule [on|off], /goal <text>, /yolo [on|off], /visual [on|off], /protocol [traditional|javascript], /compact',
+          );
           return;
         }
         // Unknown slash: fall through to message/spawn so the agent can see it.
@@ -1274,6 +1329,44 @@ export default function App() {
         );
       }
       pushToast('ok', `YOLO ${checked ? 'on' : 'off'} (project-wide)`);
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
+  async function changeProjectInvocationProtocol(protocol: string) {
+    if (!activeProject) return;
+    // 与 YOLO 同构：写项目 defaults（新 spawn 继承）+ 级联 PATCH 现存 agent。
+    // 协议在 run.started 时冻结；当前 run 不受影响，下次 run 起用新值。
+    try {
+      const resp = await api.patchProject(activeProject.id, {
+        settings: {
+          orchestration_mode: activeProject.settings.orchestration_mode,
+          defaults: Object.fromEntries(
+            Object.entries({
+              ...activeProject.settings.defaults,
+              invocation_protocol: protocol,
+            }).filter(([, v]) => v !== null && v !== undefined),
+          ),
+        },
+      });
+      setProjects((prev) => prev.map((p) => (p.id === activeProject.id ? resp.data : p)));
+      const targets = dedupeAgents(
+        agents.filter(
+          (a) =>
+            a.project_id === activeProject.id &&
+            (a.settings.invocation_protocol ?? 'javascript') !== protocol,
+        ),
+      );
+      const updated = await Promise.all(
+        targets.map((a) => api.patchSettings(a.id, { invocation_protocol: protocol })),
+      );
+      if (updated.length > 0) {
+        setAgents((prev) =>
+          dedupeAgents(prev.map((a) => updated.find((u) => u.data.id === a.id)?.data ?? a)),
+        );
+      }
+      pushToast('ok', `Invocation protocol → ${protocol} (project-wide; next run)`);
     } catch (e) {
       reportError(e);
     }
@@ -2121,6 +2214,7 @@ export default function App() {
                     <span className={`state-dot ${activeAgent.state}`} />
                     <span className="breadcrumb-agent-name">{activeAgent.display_name}</span>
                     <span className="badge role-badge">{activeAgent.role_id}</span>
+                    <CompletionChip completion={activeAgent.completion} />
                   </span>
                 </>
               )}
@@ -2148,6 +2242,22 @@ export default function App() {
                   <option value="standard">standard (Direct)</option>
                   <option value="dag_record">dag_record (Record)</option>
                   <option value="dag_guided">dag_guided (Supervised)</option>
+                </select>
+              </div>
+            )}
+            {activeProject && (
+              <div
+                className="agentbar-control-item"
+                title="Tool invocation protocol (project-wide): traditional = direct tool calls; javascript = js_exec programs. Applies to the next run; active runs keep their frozen protocol."
+              >
+                <span className="control-label">Protocol</span>
+                <select
+                  className="select agentbar-select protocol"
+                  value={activeProject.settings.defaults?.invocation_protocol ?? 'javascript'}
+                  onChange={(e) => changeProjectInvocationProtocol(e.target.value)}
+                >
+                  <option value="traditional">traditional</option>
+                  <option value="javascript">javascript</option>
                 </select>
               </div>
             )}
@@ -2467,6 +2577,7 @@ export default function App() {
           currentAgentActivity={currentAgentActivity}
           onToggleYolo={(yolo) => toggleProjectYolo(yolo)}
           onChangeMode={(mode) => changeOrchestrationMode(mode)}
+          onChangeProtocol={(protocol) => changeProjectInvocationProtocol(protocol)}
           onChangeWorkspace={(ws) => changeWorkspace(ws)}
           onOpenPathPicker={openPathPicker}
           tab={inspectorTab}
@@ -2649,6 +2760,7 @@ function Inspector({
   currentAgentActivity,
   onToggleYolo,
   onChangeMode,
+  onChangeProtocol,
   onChangeWorkspace,
   onOpenPathPicker,
   tab: controlledTab,
@@ -2670,6 +2782,7 @@ function Inspector({
   currentAgentActivity?: { type: string; label: string };
   onToggleYolo?: (yolo: boolean) => void;
   onChangeMode?: (mode: string) => void;
+  onChangeProtocol?: (protocol: string) => void;
   onChangeWorkspace?: (ws: string) => void;
   onOpenPathPicker?: (options: {
     title?: string;
@@ -2836,8 +2949,14 @@ function Inspector({
               <div className="card-header-row">
                 <span className="card-section-label">Active Agent</span>
                 {activeAgent && (
-                  <span className={`state-badge ${activeAgent.state}`} style={{ marginLeft: 'auto' }}>
-                    {activeAgent.state}
+                  <span className="agent-header-chips" style={{ marginLeft: 'auto' }}>
+                    <CompletionChip completion={activeAgent.completion} />
+                    <span
+                      className={`state-badge ${activeAgent.state}`}
+                      title={`state: ${activeAgent.state}`}
+                    >
+                      {stateBadgeText(activeAgent.state)}
+                    </span>
                   </span>
                 )}
               </div>
@@ -2993,6 +3112,17 @@ function Inspector({
                       <option value="standard">standard (Direct)</option>
                       <option value="dag_record">dag_record (Record)</option>
                       <option value="dag_guided">dag_guided (Supervised)</option>
+                    </select>
+                  </div>
+                  <div className="overview-control-row">
+                    <span className="control-name">Invocation Protocol</span>
+                    <select
+                      className="select sm"
+                      value={activeProject.settings.defaults?.invocation_protocol ?? 'javascript'}
+                      onChange={(e) => onChangeProtocol?.(e.target.value)}
+                    >
+                      <option value="traditional">traditional (direct tool calls)</option>
+                      <option value="javascript">javascript (js_exec programs)</option>
                     </select>
                   </div>
                   <div className="overview-control-row">
@@ -3321,7 +3451,9 @@ function Inspector({
                       <option value="javascript">javascript (js_exec programs)</option>
                     </select>
                     <span className="field-hint">
-                      applies to the next run; the active run keeps its frozen protocol
+                      this agent only; project-wide toggle is in the top bar / Overview /{' '}
+                      <code>/protocol</code>. Applies to the next run; active run keeps its frozen
+                      protocol
                       {activeAgent.current_run?.invocation_protocol &&
                       activeAgent.current_run.invocation_protocol !==
                         (activeAgent.settings.invocation_protocol ?? 'javascript')

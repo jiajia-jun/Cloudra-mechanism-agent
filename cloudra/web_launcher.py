@@ -92,15 +92,15 @@ def _frontend_source_newer_than_dist(frontend: Path) -> bool:
 
 
 def _ensure_frontend(frontend: Path, *, rebuild: bool = False, skip_build: bool = False) -> None:
-    _check_node(frontend)
-    if not (frontend / "node_modules").is_dir():
-        print("[cloudra] installing frontend dependencies...", flush=True)
-        subprocess.run(_npm_argv() + ["install", "--no-audit", "--no-fund"], cwd=frontend, check=True)
     dist = frontend / "dist"
     if skip_build:
         if not (dist / "index.html").is_file():
             raise RuntimeError("--skip-build was requested but frontend/dist is missing")
         return
+    _check_node(frontend)
+    if not (frontend / "node_modules").is_dir():
+        print("[cloudra] installing frontend dependencies...", flush=True)
+        subprocess.run(_npm_argv() + ["install", "--no-audit", "--no-fund"], cwd=frontend, check=True)
     stale = _frontend_source_newer_than_dist(frontend)
     if rebuild or not (dist / "index.html").is_file() or stale:
         if stale and not rebuild and (dist / "index.html").is_file():
@@ -330,6 +330,9 @@ def launch_browser(
         str(paths.runtime_db_path()),
     )
     env = os.environ.copy()
+    existing_pythonpath = env.get("PYTHONPATH", "")
+    repo_root = str(Path(__file__).resolve().parents[1])
+    env["PYTHONPATH"] = f"{repo_root}:{existing_pythonpath}" if existing_pythonpath else repo_root
     env["CLOUDRA_RUNTIME_STORE"] = store_path
     env["CLOUDRA_FRONTEND_SERVE_DIR"] = str(frontend / "dist")
     # 绑定地址传给 app（Host 校验白名单据此放开；绑回环时保持原白名单）。

@@ -63,6 +63,10 @@ from cloudra.tools.core.run_dirs import (
 PATH_XYZ_NAME = "xtbpath.xyz"
 TS_XYZ_NAME = "xtbpath_ts.xyz"
 RUNS_DIR_NAME = "xtb_path_runs"
+#: 引擎逐迭代写下的中间帧命名（``xtbpath_1.xyz`` … ``xtbpath_N.xyz``）。只在引擎没走到收敛、
+#: 没写出最终 ``xtbpath.xyz`` 时才存在——它们是**采样现场，不是初猜**（GH #39）。
+PARTIAL_FRAME_PREFIX = "xtbpath_"
+PARTIAL_FRAME_SUFFIX = ".xyz"
 MAX_EVIDENCE_LINES = 20
 
 # --- xtb 6.7.1 的逐字标记（精确比对，不做模糊匹配；本模块不含正则） ---
@@ -96,6 +100,19 @@ PathTermination = Literal[
     "failed",
     "unknown_failure",
 ]
+
+#: 引擎**确实启动过**的那些终止类别（子进程起来了、stdout 落盘、可能已有采样帧）：
+#: "跑了但没产出可用初猜"与"根本没搜过"必须分开上报——GH #39 实测
+#: ``incomplete_artifacts`` 时目录里已留下 ``xtbpath_1..24.xyz`` 可用采样，
+#: 报成 ``not_attempted`` 会让上层误判"根本没搜"。``executable_missing`` 与
+#: ``invalid_endpoints`` 都发生在子进程启动之前，不在本集合。
+XTB_ENGINE_STARTED_TERMINATIONS: frozenset[str] = frozenset({
+    "timeout",
+    "failed",
+    "unknown_failure",
+    "incomplete_artifacts",
+    "path_not_converged",
+})
 
 #: 引擎自己报的路径精修结局。``""`` = 日志里没有这两句终止语（本模块按未知处理，不默认成功）。
 RefinementTermination = Literal["", "converged", "cycles_exhausted"]
@@ -171,6 +188,11 @@ class XtbPathResult(BaseModel):
     path_xyz_path: str = ""
     ts_xyz_path: str = ""
     artifacts: list[XtbArtifact] = Field(default_factory=list)
+    partial_frames: list[str] = Field(
+        default_factory=list,
+        description="引擎异常退出时留下的逐迭代中间帧（xtbpath_<n>.xyz）。**不是初猜**——"
+                    "只做可发现性：让上层知道有一批采样可自行检视（GH #39）",
+    )
     evidence: list[str] = Field(default_factory=list, description="命中的逐字标记行（原样保留）")
     diagnostics: list[str] = Field(default_factory=list)
     message: str = ""
@@ -197,6 +219,41 @@ def build_xtb_path_command(request: XtbPathRequest) -> list[str]:
         "--chrg", str(request.charge), "--uhf", str(request.multiplicity - 1),
         *request.extra_args,
     ]
+
+
+def list_partial_frames(run_dir: str) -> list[str]:
+    """列出引擎留下的逐迭代中间帧（``xtbpath_<n>.xyz``），按序号升序。
+
+    显式 token 扫描（前缀 + 纯数字 + 后缀），不用正则——``xtbpath_ts.xyz``（TS 候选）与
+    ``xtbpath.xyz``（最终路径）因此天然被排除。
+    """
+    if not os.path.isdir(run_dir):
+        return []
+    found: list[tuple[int, str]] = []
+    for name in os.listdir(run_dir):
+        if not (name.startswith(PARTIAL_FRAME_PREFIX) and name.endswith(PARTIAL_FRAME_SUFFIX)):
+            continue
+        middle = name[len(PARTIAL_FRAME_PREFIX):-len(PARTIAL_FRAME_SUFFIX)]
+        if not middle.isdigit():
+            continue
+        found.append((int(middle), os.path.join(run_dir, name)))
+    found.sort()
+    return [path for _, path in found]
+
+
+def _record_partial_frames(result: XtbPathResult) -> None:
+    """把中间帧写进结果与诊断。**只做可发现性**：不作初猜（GH #39）。
+
+    崩溃退出的中间帧比"迭代到上限的截断路径"更可疑（引擎是异常退出的），因此不能放宽
+    ``usable_as_guess``；但它们必须能被上层看见——否则连"这里有一批采样"都不知道。
+    """
+    result.partial_frames = list_partial_frames(result.run_dir)
+    if result.partial_frames:
+        result.diagnostics.append(
+            f"{len(result.partial_frames)} partial iteration frame(s) were left behind "
+            f"(first: {os.path.basename(result.partial_frames[0])}); they are sampling "
+            f"artifacts, not a usable TS guess"
+        )
 
 
 def _symbols_and_positions(xyz_text: str, *, label: str) -> tuple[list[str], list[list[float]]]:
@@ -486,6 +543,7 @@ def run_xtb_path(request: XtbPathRequest) -> XtbPathResult:
     except (OSError, ValueError) as exc:
         result.termination_reason = "incomplete_artifacts"
         result.diagnostics.append(f"path artifacts are unusable: {exc}")
+        _record_partial_frames(result)
         result.message = (
             f"xtb reported normal termination but its path artifacts are unusable ({exc}). "
             f"Full log: {stdout_path}"

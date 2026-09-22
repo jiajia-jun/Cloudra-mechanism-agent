@@ -305,6 +305,8 @@ async def test_plain_text_and_explicit_stop_face_the_same_gate(tmp_path, script)
         await _wait_parked(coordinator, llm)
         gates = _gate_events(core, coordinator.id)
         assert gates and all(e.data["action"] == "wait_review" for e in gates)
+        # 被拦的判定不产生收尾依据（basis 保持 None，不冒充任何验证等级）。
+        assert all(e.data["basis"] is None for e in gates)
         requests = await _review_requests(project.id)
         assert len(requests) == 1 and requests[0].kind == "exit"
         assert await _dispositions(project.id) == []
@@ -365,6 +367,8 @@ async def test_complete_delivery_plain_text_finishes(tmp_path):
         assert await _dispositions(project.id) == ["complete"]
         gates = _gate_events(core, coordinator.id)
         assert len(gates) == 1 and gates[0].data["action"] == "allow_final"
+        # 交付覆盖审计通过 = 唯一够格标「已验证完成」的收尾依据。
+        assert gates[0].data["basis"] == "dag_verified"
         # 完整交付不触发退出审查：不创建 Supervisor、无退出请求。
         assert llm.supervisor_calls == 0
         assert not [
@@ -394,6 +398,8 @@ async def test_valid_exit_approval_allows_finish(tmp_path):
         await flush_review_notifications(core, project.id)
         await _wait_state(coordinator, "succeeded")
         assert await _dispositions(project.id) == ["partial"]
+        # 收尾依据是 Supervisor 的接受裁决（不是模型自述）。
+        assert _gate_events(core, coordinator.id)[-1].data["basis"] == "supervisor_approved"
         assert await _review_requests(project.id) == []
         # 同一交付版本没有创建第二份退出请求。
         all_requests = await _review_requests(project.id, state=None)
@@ -520,6 +526,7 @@ async def test_dag_record_partial_plain_text_is_recorded_and_finishes(tmp_path):
         gates = _gate_events(core, coordinator.id)
         assert len(gates) == 1 and gates[0].data["action"] == "allow_final"
         assert gates[0].data["explicit_stop"] is False
+        assert gates[0].data["basis"] == "partial_recorded"
         assert await _review_requests(project.id, state=None) == []
         assert llm.supervisor_calls == 0
     finally:
@@ -538,6 +545,7 @@ async def test_standard_mode_plain_qa_finishes_as_declared(tmp_path):
         assert len(gates) == 1
         assert gates[0].data["action"] == "allow_final"
         assert gates[0].data["source"] == "declared"
+        assert gates[0].data["basis"] == "declared"
         assert "not independently verified" in gates[0].data["reason"]
         assert await _dispositions(project.id) == []
     finally:

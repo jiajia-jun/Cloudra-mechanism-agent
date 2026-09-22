@@ -575,6 +575,7 @@ body {
   color: var(--fg);
 }
 .agentbar select.agentbar-select.mode { min-width: 130px; }
+.agentbar select.agentbar-select.protocol { min-width: 110px; }
 
 .panel-toggle {
   padding: 0 8px;
@@ -1949,7 +1950,7 @@ body {
 
 /* ------------------------------------------------------------------ DAG panel */
 .dag-head { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
-.dag-badge {
+.dag-badge, .completion-badge {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 1px 8px;
@@ -1957,8 +1958,10 @@ body {
   font-size: 11px;
   color: var(--fg-tertiary);
 }
-.dag-badge.ok { color: var(--green); border-color: rgba(34, 197, 94, 0.35); }
-.dag-badge.warn { color: var(--yellow-soft); border-color: rgba(234, 179, 8, 0.4); }
+.dag-badge.ok, .completion-badge.ok { color: var(--green); border-color: rgba(34, 197, 94, 0.35); }
+.dag-badge.warn, .completion-badge.warn { color: var(--yellow-soft); border-color: rgba(234, 179, 8, 0.4); }
+/* 未独立验证是最常见的收尾（standard 自述结束）：中性色，不冒充成功。 */
+.completion-badge.neutral { color: var(--fg-faint); }
 .dag-stages { display: flex; gap: 4px; flex-wrap: wrap; margin: 4px 0 8px; }
 .dag-stages .dag-badge { font-size: 10.5px; }
 .dag-section { margin: 10px 0; }
@@ -2869,6 +2872,8 @@ body {
 }
 .state-badge.running { color: var(--green); border-color: rgba(34, 197, 94, 0.3); background: rgba(34, 197, 94, 0.1); }
 .state-badge.waiting_approval, .state-badge.waiting_input { color: var(--yellow); border-color: rgba(234, 179, 8, 0.3); background: rgba(234, 179, 8, 0.1); }
+/* 完成依据 + 状态徽标并排：标签本身没有 margin，靠容器统一间距。 */
+.agent-header-chips { display: inline-flex; align-items: center; gap: 6px; }
 .overview-agent-title-row {
   display: flex;
   align-items: center;

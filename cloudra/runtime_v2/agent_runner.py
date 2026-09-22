@@ -600,6 +600,7 @@ class AgentRunner:
                     "no completion gate applies to this agent; the run ends as an "
                     "agent-declared result (not independently verified)"
                 ),
+                basis="declared",
             )
             source = "declared"
         core.event_log.append(
@@ -614,6 +615,9 @@ class AgentRunner:
                 "explicit_stop": explicit_stop,
                 "reason": gate.reason,
                 "request_id": gate.request_id,
+                # 收尾依据（结构化）：投影成 UI 的「已验证完成 / 部分交付 /
+                # 未独立验证」。绝不由 reason 文本反推。
+                "basis": gate.basis,
             },
         )
         return gate, source

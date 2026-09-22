@@ -67,7 +67,8 @@ ts.resume(run_id, adjusted)
 **不推**：阶段推进、中间进度。这些只留在 process 记录里，agent 需要时自己读那一个文件，
 不走上下文。
 
-`path_kind` ∈ `xtb_path` / `idpp_fallback` / `agent_supplied` 随**事件**报送：
+`path_kind` ∈ `xtb_path` / `xtb_path_failed` / `idpp_fallback` / `not_attempted` 随**事件**报送
+（`xtb_path_failed` = 引擎确实跑过但没产出可用初猜，与"根本没搜"的 `not_attempted` 分开）：
 **初猜是怎么来的必须写明**，不许静默降级。
 
 ## 3. 阶段
@@ -80,7 +81,7 @@ ts.resume(run_id, adjusted)
 | `build` | 流程 | `structure_builder` 建两端结构（拆分/加氢/稳定原子身份/逐组分优化） | 结构 + 轨迹 + 身份表 |
 | `map` | 流程 | 核对声明的 `atom_map` 能把产物**重排到与反应物同序**；缺映射/错映射则**阻塞** | 校验结果 |
 | `assemble` | 流程 | `complex_assembly` 反应模式：反应中心引导的预组织复合物 | 组装候选 |
-| `guess` | 流程 | 路径初猜：优先 xTB `--path`（MTD，**需目标几何**），xTB 缺失退回 IDPP 插值 | 多帧路径 + 随机种子 + `path_kind` |
+| `guess` | 流程 | 路径初猜：优先 xTB `--path`（MTD，**需目标几何**），xTB 缺失退回 IDPP 插值；失败即阻塞并在消息里点名下一步（`ts_guess` 的 `scan_prepare` 是默认种子路线，`interpolate` 只在两端几何与全原子映射都可信时用），引擎崩溃留下的中间帧只作可发现性上报、不作初猜 | 多帧路径 + 随机种子 + `path_kind` |
 | `validate` | 流程 | 第 4 节的校验；失败则**阻塞** | 校验报告（进 process 记录） |
 | `submit` | 流程 | 经 `submit_compute_job` 提交精修作业（OptTS / NEB-TS） | `job_id` |
 | `refine` | 计算链 | 计算中 | 引擎日志、末帧几何 |
