@@ -5,7 +5,6 @@ from pydantic import Field
 from cloudra.base.session_class import Session
 from cloudra.base.tool_actor import ToolActorContext
 from cloudra.base.tools_class import Tool, input_schema, output_schema
-from cloudra.subagents import Subagent_hash  # noqa: F401  (kept for external references)
 
 description = (
     "Launch a sub-agent to run a specific task. The Coordinator may split a complex job into subtasks.\n"

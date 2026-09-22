@@ -20,7 +20,6 @@ from cloudra.base.role_identity import (
     role_id_for_legacy_agent_id,
 )
 from cloudra.runtime_v2.roles import BUILTIN_ROLES, RoleRegistry
-from cloudra.subagents import SUBAGENT_REGISTRY
 
 _CLOUDRA = Path(__file__).resolve().parents[1] / "cloudra"
 
@@ -83,28 +82,15 @@ def test_roundtrip_and_passthrough():
     assert role_id_for_legacy_agent_id("a-99") == "a-99"
 
 
-def test_legacy_subagent_manifest_derives_ids_from_the_table():
-    assert [
-        (reg.agent_id, reg.class_name) for reg in SUBAGENT_REGISTRY
-    ] == [
-        (legacy_agent_id_for_role(reg.class_name), reg.class_name)
-        for reg in SUBAGENT_REGISTRY
-    ]
-    assert [reg.agent_id for reg in SUBAGENT_REGISTRY] == [
-        "a-1", "a-2", "a-3", "a-4", "a-5", "a-6", "a-7", "a-8",
-    ]
-
-
 def test_no_second_legacy_id_table_in_the_codebase():
     """静态守卫：除唯一映射表外，任何模块至多出现 **一个** a-N 字面量。
 
     一个 a-N 字面量是正常用法（如 dag_stage 判 ``!= "a-0"``）；成组的 a-N
-    字面量就是又抄了一张映射表。legacy 子 Agent 类（cloudra/subagents/*.py）
-    各自声明自己的 id，属待删执行栈（5.4 第 3 步），不在本守卫范围。
+    字面量就是又抄了一张映射表。
     """
     offenders = []
     for path in sorted(_CLOUDRA.rglob("*.py")):
-        if path.name == "role_identity.py" or path.parent.name == "subagents":
+        if path.name == "role_identity.py":
             continue
         found = _legacy_id_literals(path.read_text(encoding="utf-8"))
         if len(found) > 1:
