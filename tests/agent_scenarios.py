@@ -53,13 +53,41 @@ TERMINAL = {AgentState.SUCCEEDED, AgentState.FAILED, AgentState.CANCELLED}
 
 @dataclass
 class Step:
-    """provider 的一步脚本：文本 / 工具调用 / 抛错。"""
+    """provider 的一步脚本：文本 / 工具调用 / 抛错。
+
+    ``tools`` 每项是 ``(工具名, 参数)``；参数可以是 dict，也可以是
+    ``callable(messages) -> dict``——运行时才产生 id 的场景（比如督导要从
+    ``dag_view`` 的结果里取 ``request_id`` 再裁决）用后者，仍保持零 API key。
+    """
 
     text: str = ""
-    tools: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
+    tools: list[tuple[str, Any]] = field(default_factory=list)
     error: BaseException | None = None
     stop: bool = False
     reasoning: str = ""
+
+
+def first_token(messages: list[dict[str, Any]], prefix: str) -> str:
+    """从投递到 provider 的消息里取第一个形如 ``<prefix>…`` 的标识。
+
+    确定性 token 扫描（不用正则）：脚本化 provider 靠它对接运行时生成的 id
+    （review request id、compute job id 等），不引入"猜 id"或硬编码。
+    """
+    for message in messages:
+        text = str(message.get("content") or "")
+        for raw in (
+            text.replace('"', " ")
+            .replace("'", " ")
+            .replace(chr(92), " ")
+            .replace("{", " ")
+            .replace("}", " ")
+            .replace(",", " ")
+            .replace(":", " ")
+            .split()
+        ):
+            if raw.startswith(prefix):
+                return raw.strip(",.;)")
+    raise AssertionError(f"no {prefix}* token in provider context")
 
 
 class ProviderFault(Exception):
@@ -125,6 +153,8 @@ class ScriptedProvider:
             raise step.error
         tool_calls: list[ToolCall] = []
         for name, args in step.tools:
+            if callable(args):
+                args = args(messages)
             self._next_tool_call += 1
             tool_calls.append(
                 ToolCall(id=f"tc_{self._next_tool_call}", name=name, arguments=args)
@@ -215,9 +245,31 @@ class ScenarioHarness:
         self.project = None
 
     @classmethod
-    async def start(cls, tmp_path, **kwargs: Any) -> "ScenarioHarness":
+    async def start(
+        cls,
+        tmp_path,
+        *,
+        orchestration_mode: str = "standard",
+        protocol: str | None = None,
+        **kwargs: Any,
+    ) -> "ScenarioHarness":
+        """建项目起运行时。
+
+        ``orchestration_mode`` 决定 DAG 面是否参与轨迹；``protocol`` 写进**项目**
+        设置（不是单个 agent）：运行时自动派发的 agent（如督导）继承项目默认，
+        脚本化直调业务工具时必须在项目层面固定 traditional，否则它们的工具调用
+        会被 JS 协议闸门拒掉。
+        """
         harness = await asyncio.to_thread(cls, tmp_path, **kwargs)
-        await harness.bus.execute(Command(type="project.create", payload={"name": "scenario"}))
+        payload: dict[str, Any] = {"name": "scenario"}
+        settings: dict[str, Any] = {}
+        if orchestration_mode != "standard":
+            settings["orchestration_mode"] = orchestration_mode
+        if protocol is not None:
+            settings["invocation_protocol"] = protocol
+        if settings:
+            payload["settings"] = settings
+        await harness.bus.execute(Command(type="project.create", payload=payload))
         harness.project = next(iter(harness.core.projects.values()))
         return harness
 
@@ -272,6 +324,33 @@ class ScenarioHarness:
         while not predicate():
             if asyncio.get_running_loop().time() > deadline:
                 raise AssertionError(f"timed out waiting for {what}: {self.describe(agent=None)}")
+            await asyncio.sleep(0.01)
+
+    async def wait_for_review_request(self, kind: str, timeout: float = 8.0) -> str:
+        """等第一条 ``kind`` 类型（exit/evidence/…）的结构化评审请求落库，返回 id。
+
+        DAG 请求的 id 由运行时生成，脚本化 provider 只能事后对接——测试读库拿 id
+        后再以督导身份裁决。读库经 ``to_thread``（事件循环上不做同步 SQLite）。
+        """
+        from cloudra.persistence.database import ConversationDB
+
+        def _read() -> list[tuple[str, str]]:
+            db = ConversationDB(self.project.id).init()
+            with db.connect() as con:
+                return con.execute(
+                    "SELECT request_id, kind FROM dag_review_requests"
+                ).fetchall()
+
+        deadline = asyncio.get_running_loop().time() + timeout
+        while True:
+            rows = await asyncio.to_thread(_read)
+            for request_id, row_kind in rows:
+                if row_kind == kind:
+                    return request_id
+            if asyncio.get_running_loop().time() > deadline:
+                raise AssertionError(
+                    f"no {kind!r} review request landed: {rows} | {self.describe(agent=None)}"
+                )
             await asyncio.sleep(0.01)
 
     async def settle(self, ticks: int = 5) -> None:

@@ -6,6 +6,7 @@ harness 与断言面见 ``tests/agent_scenarios.py`` 的模块 docstring。
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 from pathlib import Path
@@ -458,5 +459,140 @@ async def test_context_overflow_compacts_at_most_once_and_continues(tmp_path, mo
         # 投影确实被替换成摘要消息（压缩边界之后的内容仍在）。
         contexts = harness.core.session_contexts
         assert agent.id in contexts
+    finally:
+        await harness.aclose()
+# ------------------------------------------- 7. dag_guided：证据门 + 督导裁决
+
+
+def _stop_complete() -> Step:
+    return Step(
+        tools=[
+            (
+                "stop",
+                {
+                    "reason": "claiming the task is done",
+                    "final_answer": "done",
+                    "delivery_disposition": "complete",
+                },
+            )
+        ]
+    )
+
+
+@pytest.mark.asyncio
+async def test_dag_guided_insufficient_evidence_never_finishes_successfully(tmp_path):
+    """dag_guided：没有任何证据就声明 complete —— 不落 succeeded、不登记交付处置。
+
+    杠杆：结题门禁（stop 审计 + 退出审批）+ 编排模式。证据门一松，这条先红。
+    """
+    from cloudra.persistence.database import ConversationDB
+
+    provider = ScriptedProvider(default=[_stop_complete()])
+    harness = await ScenarioHarness.start(
+        tmp_path, provider=provider, orchestration_mode="dag_guided"
+    )
+    try:
+        agent = await harness.spawn("coordinator", protocol="traditional")
+        await harness.wait_for(
+            lambda: agent.state.value == "waiting_approval" or agent.state.value in {"failed", "succeeded"},
+            "the guided stop to be adjudicated or gated",
+        )
+
+        # 空图 + complete 声明绝不允许直接成功收尾。
+        assert agent.state.value != "succeeded", harness.describe(agent)
+        rows = harness.run_rows(agent)
+        assert all(row["outcome"] != "succeeded" for row in rows), rows
+        # 交付处置不被登记（没有可审计的退出依据）。
+        db = ConversationDB(harness.project.id).init()
+        with db.connect() as con:
+            registered = con.execute(
+                "SELECT COUNT(*) FROM dag_delivery_dispositions"
+            ).fetchone()[0]
+        assert registered == 0, "证据不足的 complete 声明被登记成了交付处置"
+    finally:
+        await harness.aclose()
+
+
+@pytest.mark.asyncio
+async def test_dag_guided_supervisor_verdict_is_delivered_once_and_resumes(tmp_path):
+    """dag_guided：督导裁决**恰好一次**投递给挂起的 Coordinator，并唤醒它续跑。
+
+    轨迹：Coordinator 提交 exit 评审请求（``dag_message_supervisor``）→ 运行时
+    派发/通知督导 → 督导以真实工具 ``dag_review_evidence`` 落库裁决 →
+    ``flush_review_notifications``（与 reconcile 补投同一实现）投递并唤醒。
+    杠杆：评审批次 + 投递/唤醒语义（dispatcher 的 WakePolicy）+ 结题门禁恢复。
+    """
+    provider = ScriptedProvider(
+        by_role={
+            "coordinator": [
+                Step(
+                    tools=[
+                        (
+                            "dag_message_supervisor",
+                            {
+                                "kind": "exit",
+                                "question": "Approve partial delivery?",
+                                "target_ids": ["step1"],
+                                "proposal": {
+                                    "disposition": "partial",
+                                    "scope": {"targets": ["step1"]},
+                                    "remaining_gaps": ["endpoint_b optimization"],
+                                    "method_limits": ["MACE PES"],
+                                },
+                            },
+                        )
+                    ]
+                )
+            ],
+            "supervisor": [Step(text="standing by", stop=True)],
+        }
+    )
+    harness = await ScenarioHarness.start(
+        tmp_path, provider=provider, orchestration_mode="dag_guided"
+    )
+    try:
+        coordinator = await harness.spawn("coordinator", protocol="traditional")
+        request_id = await harness.wait_for_review_request("exit")
+
+        # 督导以真实工具裁决：身份走在线路径同款桥（type=supervisor）。
+        from cloudra.base.session_class import Session
+        from cloudra.runtime_v2.supervision import flush_review_notifications
+        from cloudra.tools.Plantool.dag_tools.dag_review_evidence import DagReviewEvidence
+        from tests.dag_identity import call_dag_tool, make_supervisor
+
+        supervisor = make_supervisor(harness.project.id)
+        session = Session(coordinator.id, "")
+        verdict = await call_dag_tool(
+            DagReviewEvidence,
+            supervisor,
+            session,
+            request_id=request_id,
+            verdict="accept",
+            reason="partial delivery is acceptable for the recorded scope",
+        )
+        assert verdict.is_success is True, verdict
+
+        # 补投：与 reconcile 同一实现；第一次投递、第二次幂等（不重投）。
+        first = await flush_review_notifications(harness.core, harness.project.id)
+        second = await flush_review_notifications(harness.core, harness.project.id)
+        assert first == 1, f"expected exactly one delivered verdict, got {first}"
+        assert second == 0, "重投不幂等：同一裁决被投递了两次"
+
+        delivered = [
+            data
+            for data in harness.messages(coordinator)
+            if request_id in json.dumps(data, ensure_ascii=False)
+        ]
+        assert len(delivered) == 1, harness.describe(coordinator)
+        # 裁决不是 queued 了（真的落库并闭环）。
+        from cloudra.persistence.database import ConversationDB
+
+        db = ConversationDB(harness.project.id).init()
+        with db.connect() as con:
+            states = [
+                row[0]
+                for row in con.execute("SELECT state FROM dag_review_requests").fetchall()
+            ]
+        assert states and all(state != "queued" for state in states), states
     finally:
         await harness.aclose()
