@@ -108,7 +108,9 @@ class TsProcess_output_schema(output_schema):
     path_kind: str = Field(
         default="not_attempted",
         description="How the path guess was produced: xtb_path (real metadynamics path search) / "
-                    "idpp_fallback (xtb unavailable: a DEGRADED interpolation route) / not_attempted.",
+                    "xtb_path_failed (the engine ran but produced no usable guess) / "
+                    "idpp_fallback (xtb unavailable: a DEGRADED interpolation route) / "
+                    "not_attempted (no path search was started).",
     )
     intervention_count: int = Field(default=0, description="How many times ts_resume was called")
     stage_records: list[TsStageRecord] = Field(
