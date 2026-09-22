@@ -5,10 +5,10 @@
 评审 5.4 删除。在线路径的身份是 ``AgentSession`` 经 ``_LegacyAgentBridge``
 映射出的 ``type``——dag_* 工具 ``_actor()`` 判 GraphActor 的唯一入口。
 
-权限/工具面取自 ``BUILTIN_ROLES`` 的 ``RoleProfile``（与 ``AgentHost`` 派发
-时的能力构造同一事实源），因此角色权限矩阵一改，dag 工具测试跟着变；可见性
-断言走 ``tool_catalog.wire_tool_schemas``（线缆投影唯一实现），不再有
-legacy ``Agent.get_available_tools()``。
+权限取自 ``BUILTIN_ROLES`` 的 ``RoleProfile``；Supervisor 的工具面与
+``AgentHost.build`` 一样取 ``supervisor_tool_names()`` 的动态投影，其余角色
+取 role 的静态 tool_policy。可见性断言走 ``tool_catalog.wire_tool_schemas``
+（线缆投影唯一实现），不再有 legacy ``Agent.get_available_tools()``。
 """
 
 from __future__ import annotations
@@ -22,6 +22,7 @@ from cloudra.runtime_v2.schemas import (
     InvocationProtocol,
     RuntimeSettings,
 )
+from cloudra.tools.capabilities import supervisor_tool_names
 
 
 def make_session(
@@ -52,7 +53,11 @@ def make_session(
             permissions=role.permissions,
             can_spawn=role.can_spawn,
             spawn_roles=list(role.spawn_roles) if role.spawn_roles is not None else None,
-            tools=list(role.tool_policy.allow),
+            tools=(
+                supervisor_tool_names()
+                if role.role_id == "supervisor"
+                else list(role.tool_policy.allow)
+            ),
         ),
     )
 
