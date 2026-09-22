@@ -487,7 +487,7 @@ async def test_child_completion_to_cancelled_parent_parks_without_reopening():
 async def test_final_text_surfaces_recorded_failure_reason():
     """A4：崩溃子 agent 无最终消息时，回传文本必须带 run.finished 记录的
     真实失败原因，而不是 'see events' 死信息。"""
-    from cloudra.runtime_v2.subagent_bridge import _final_text
+    from cloudra.runtime_v2.child_manifest import build_child_manifest
 
     core = RuntimeCore(strict_events=True)
     bus = CommandBus(core)
@@ -505,7 +505,10 @@ async def test_final_text_surfaces_recorded_failure_reason():
     core.agent_host.start_run(child)
     core.agent_host.finish_run(child, outcome="failed", error="kaplam: ts_opt diverged at step 7")
 
-    text = _final_text(core, child)
+    manifest = build_child_manifest(core, child)
+    text = manifest["final_summary"]
+    # 失败原因来自 run.finished 的结构化字段，且来源可解释。
+    assert manifest["final_summary_source"] == "run_error"
     assert "kaplam: ts_opt diverged at step 7" in text
     assert "see events" not in text
 

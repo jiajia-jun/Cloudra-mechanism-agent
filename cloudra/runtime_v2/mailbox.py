@@ -49,9 +49,14 @@ class Mailbox:
         images: list[str] | None = None,
         image_artifact_ids: list[str | None] | None = None,
         post_id: str | None = None,
+        manifest: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """agent.message_injected 的事件载荷。"""
         data: dict[str, Any] = {"message_id": message_id, "sender": sender, "content": content}
+        if manifest is not None:
+            # 结构化完成回报（子 agent manifest）：事件/API 侧保留结构化数据，
+            # inbox 载荷与父上下文只拿渲染后的文本。
+            data["manifest"] = manifest
         if post_id:
             data["post_id"] = post_id
         if images:
@@ -103,6 +108,7 @@ class Mailbox:
         images: list[str] | None = None,
         image_artifact_ids: list[str | None] | None = None,
         post_id: str | None = None,
+        manifest: dict[str, Any] | None = None,
     ) -> EventEnvelope:
         message_id = new_id("msg")
         envelope = self._event_log.append(
@@ -118,6 +124,7 @@ class Mailbox:
                 images=images,
                 image_artifact_ids=image_artifact_ids,
                 post_id=post_id,
+                manifest=manifest,
             ),
         )
         self.enqueue(
