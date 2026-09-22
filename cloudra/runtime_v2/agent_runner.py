@@ -33,6 +33,7 @@ import os
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
+from cloudra.runtime_v2.failures import RunFailureKind, classify_failure, is_retryable
 from cloudra.runtime_v2.schemas import AgentSession, AgentState
 
 if TYPE_CHECKING:
@@ -40,26 +41,6 @@ if TYPE_CHECKING:
     from cloudra.runtime_v2.turn_pipeline import TurnPipeline
 
 logger = logging.getLogger(__name__)
-
-
-def _is_retryable(exc: Exception) -> bool:
-    """Only transient failures are worth an in-place retry.
-
-    HTTP 4xx (bad key, insufficient balance, invalid request) will fail again
-    on every retry — fail fast instead of burning the retry budget.  408/429
-    and 5xx / connection errors stay retryable.  Classification is by the
-    ``status_code`` attribute so the kernel never imports the LLM SDK.
-    """
-    from cloudra.runtime_v2.event_writer import EventPersistenceError
-
-    if isinstance(exc, EventPersistenceError):
-        # A store failure means the event stream and the world may have
-        # diverged; replaying the turn could repeat an unaudited effect.
-        return False
-    status = getattr(exc, "status_code", None)
-    if isinstance(status, int) and 400 <= status < 500 and status not in (408, 429):
-        return False
-    return True
 
 
 # Provider-specific phrasings for "input exceeded the model's context window".
@@ -355,7 +336,7 @@ class AgentRunner:
                             if stats.get("compacted"):
                                 continue
                         attempt += 1
-                        if attempt > self.max_turn_retries or not _is_retryable(exc):
+                        if attempt > self.max_turn_retries or not is_retryable(exc):
                             raise
                         delay = self.retry_backoff[min(attempt - 1, len(self.retry_backoff) - 1)]
                         core.event_log.append(
@@ -428,6 +409,7 @@ class AgentRunner:
                                     f"completion gate: {self.max_exit_strikes} exit attempts "
                                     f"without progress ({gate.reason})"
                                 ),
+                                failure_kind=RunFailureKind.COMPLETION_NO_PROGRESS,
                             )
                             self._deliver_child_completion(agent)
                             break
@@ -530,7 +512,14 @@ class AgentRunner:
         except Exception as exc:  # pipeline crash becomes a durable failure
             logger.exception("agent %s pipeline failed", agent.id)
             if agent.state is AgentState.RUNNING:
-                await core.agent_host.finish_run_durable(agent, outcome="failed", error=str(exc))
+                # 失败分类只在这一处派生（failures.classify_failure），事件里
+                # 落枚举，error 文本只供人阅读。
+                await core.agent_host.finish_run_durable(
+                    agent,
+                    outcome="failed",
+                    error=str(exc),
+                    failure_kind=classify_failure(exc),
+                )
             self._deliver_child_completion(agent)
         finally:
             # Flush the tail events (message_emitted, finish_run's

@@ -10,6 +10,7 @@ from cloudra.runtime_v2.adapters import LegacyToolExecutor
 from cloudra.runtime_v2.agent_runner import AgentRunner
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.core import RuntimeCore
+from cloudra.runtime_v2.failures import RunFailureKind
 from cloudra.runtime_v2.hub_bridge import handle_hub_tool
 from cloudra.runtime_v2.policies import default_stages
 from cloudra.runtime_v2.policies.base import ToolCall
@@ -265,7 +266,12 @@ async def test_call_to_failed_agent_parks_without_reopening():
     await _wait_state(coordinator, "succeeded")
     child = await _spawn(core, coordinator, "small_mol")
     core.agent_host.start_run(child)
-    core.agent_host.finish_run(child, outcome="failed", error="boom")
+    core.agent_host.finish_run(
+        child,
+        outcome="failed",
+        error="boom",
+        failure_kind=RunFailureKind.PROVIDER_PERMANENT,
+    )
     assert child.state.value == "failed"
     runs_before = len([e for e in core.event_log.query_session(child.id) if e.type == "run.started"])
 

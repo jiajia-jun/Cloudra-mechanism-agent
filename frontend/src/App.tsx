@@ -156,6 +156,12 @@ const SLASH_COMMANDS: SlashCommandDef[] = [
   },
 ];
 
+/** 笔记行图标：info 提示 / warn 警告 / error 失败。 */
+function noteIcon(level: 'warn' | 'info' | 'error'): string {
+  if (level === 'info') return 'ℹ';
+  return level === 'error' ? '✕' : '!';
+}
+
 /** 完成依据标签：只渲染服务端给出的验证等级，不本地推导、不猜未知值。 */
 function CompletionChip({ completion }: { completion?: CompletionSummary | null }) {
   const chip = completionChipFor(completion);
@@ -2367,10 +2373,10 @@ export default function App() {
               ) : (
                 <div
                   key={item.id}
-                  className={`tool-row ${item.level === 'warn' ? 'fail' : 'info'}`}
+                  className={`tool-row ${item.level === 'info' ? 'info' : 'fail'}`}
                   style={{ cursor: 'default' }}
                 >
-                  <span className="tool-icon">{item.level === 'warn' ? '!' : 'ℹ'}</span>
+                  <span className="tool-icon">{noteIcon(item.level)}</span>
                   <span className="tool-summary">{item.text}</span>
                 </div>
               ),
