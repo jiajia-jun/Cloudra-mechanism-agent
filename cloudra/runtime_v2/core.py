@@ -29,6 +29,7 @@ from cloudra.runtime_v2.agent_host import AgentHost
 from cloudra.runtime_v2.dispatcher import MessageDispatcher
 from cloudra.runtime_v2.email_listener import EmailListenerBroker
 from cloudra.runtime_v2.events import EventHub, EventLog
+from cloudra.runtime_v2.launch_groups import LaunchGroupManager
 from cloudra.runtime_v2.mailbox import Mailbox
 from cloudra.runtime_v2.notices import NoticeManager
 from cloudra.runtime_v2.pending import PendingBroker
@@ -251,6 +252,9 @@ class RuntimeCore:
             self.event_log, self.event_hub, store_provider=lambda: self.store
         )
         self.mailbox = Mailbox(self.event_log)
+        # 组生命周期是事件投影（launch_group.* 事件）：apply_event 的唯一写入点，
+        # 恢复重放据此重建组清单（worker 任务不重放）。
+        self.launch_groups = LaunchGroupManager(core=self)
         # 消息提交/投递唯一入口（评审 5.2）：持久化成功才入队、再按策略唤醒。
         self.dispatcher = MessageDispatcher(self)
         self.agent_host = AgentHost(self)
@@ -284,9 +288,8 @@ class RuntimeCore:
         # Attached by the API/embedder when live execution is desired; command
         # handlers keep working without a runner (pure state mode for tests).
         self.runner = None
-        # Optional launch group manager (Task 10). Ephemeral/process-local;
-        # child lifecycle remains in the event log.
-        self.launch_groups = None
+        # launch group 管理器在 __init__ 就装配（见上）：组清单是 launch_group.*
+        # 事件投影，apply_event 需要它常驻；worker 任务才是进程内的。
         # Idempotency window: recent command_id -> first CommandResult.
         self._command_results: OrderedDict[str, CommandResult] = OrderedDict()
         self._max_command_results = 1024

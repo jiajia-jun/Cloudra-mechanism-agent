@@ -31,6 +31,7 @@ from cloudra.runtime_v2.apply import (
 from cloudra.runtime_v2.effects import EventDraft
 from cloudra.runtime_v2.schemas import (
     AgentSession,
+    AgentState,
     EventEnvelope,
     Project,
     RoleProfile,
@@ -73,6 +74,10 @@ CREATE TABLE IF NOT EXISTS meta (
 # open.  This pure planner maps one full restored history to those drafts.
 
 _INTERRUPTED_MESSAGE = "interrupted by process restart"
+
+
+#: 恢复时用于「child session 状态对账」的终态集合。
+_TERMINAL_AGENT_STATES = {AgentState.SUCCEEDED, AgentState.FAILED, AgentState.CANCELLED}
 
 
 def plan_interrupted_invocations(events: list[EventEnvelope]) -> list[EventDraft]:
@@ -524,6 +529,37 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
     # silently vanishing.  Same append + apply + persist path as the zombie
     # finalization above (no hub publish: restore runs before subscribers).
     new_events.extend(core.pending.expire_orphans())
+    # launch group（评审 5.2）：组清单随事件重放重建，但**绝不重放外部副作用**——
+    # 重启不会重新 spawn 任何 child。非终态的组在这里显式收口为 interrupted：
+    # 未派发的 queued item 保持 queued（用户可显式重新派发），已存在的 child
+    # session 只做状态对账（从活 agent 的终态取值，不猜）。
+    for group in core.launch_groups.groups():
+        if group.state != "running":
+            continue
+        envelope = core.event_log.append(
+            "launch_group.finished",
+            stream="agent",
+            project_id=group.project_id,
+            session_id=group.parent_session_id,
+            data={
+                "group_id": group.group_id,
+                "state": "interrupted",
+                "reason": "process restart: group worker is gone; re-dispatch explicitly",
+            },
+        )
+        apply_event(core, envelope)
+        new_events.append(envelope)
+        for item in group.items:
+            if item.state != "running":
+                continue
+            child = core.agents.get(item.child_session_id)
+            if child is None or child.state not in _TERMINAL_AGENT_STATES:
+                continue
+            item.state = (  # type: ignore[assignment]
+                "succeeded"
+                if child.state is AgentState.SUCCEEDED
+                else "failed" if child.state is AgentState.FAILED else "cancelled"
+            )
     for envelope in new_events:
         store.append_event(envelope)
     # 落库成功之后才把恢复期组装的完成回传放进父信箱（持久化先于可见）。

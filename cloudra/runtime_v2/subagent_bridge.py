@@ -237,19 +237,16 @@ async def _handle_launcher(core, parent: AgentSession, args: dict[str, Any]) -> 
 
 
 def _launch_group_manager(core):
-    if getattr(core, "launch_groups", None) is None:
-        from cloudra.runtime_v2.launch_groups import LaunchGroupManager
+    """组的投影随 core 装配（事件应用点需要它）；这里只接线进程内能力。"""
+    def _track(parent_session_id: str, task: asyncio.Task, label: str) -> None:
+        # 组 worker 任务登记进 runner 的 session 作用域后台注册表：用户
+        # 取消父 agent / 服务 shutdown 才能取消并 await 它（停止语义契约
+        # 1/3）；runner 后挂时经闭包现读，绝不留裸 create_task。
+        runner = getattr(core, "runner", None)
+        if runner is not None:
+            runner.track_background(parent_session_id, task, label=label)
 
-        def _track(parent_session_id: str, task: asyncio.Task, label: str) -> None:
-            # 组 worker 任务登记进 runner 的 session 作用域后台注册表：用户
-            # 取消父 agent / 服务 shutdown 才能取消并 await 它（停止语义契约
-            # 1/3）；runner 后挂时经闭包现读，绝不留裸 create_task。
-            runner = getattr(core, "runner", None)
-            if runner is not None:
-                runner.track_background(parent_session_id, task, label=label)
-
-        core.launch_groups = LaunchGroupManager(spawner=lambda _query: None, track=_track)
-    return core.launch_groups
+    return core.launch_groups.configure(track=_track)
 
 
 async def _handle_swarm(core, parent: AgentSession, args: dict[str, Any]) -> ToolResult:
@@ -274,9 +271,11 @@ async def _handle_swarm(core, parent: AgentSession, args: dict[str, Any]) -> Too
             child, _receipt = await _spawn_child(bus, parent, role_id=role_id, query=query, context=context)
             return child
         group_id = "grp_" + uuid.uuid4().hex
-        manager.create(
+        # 组清单先落 durable 事件再启动 worker（评审 5.2：重启可重建组清单）。
+        await manager.create(
             group_id=group_id,
             parent_session_id=parent.id,
+            project_id=parent.project_id,
             items=[(f"{item[:20]}-{idx}", template.replace("{{item}}", item)) for idx, item in enumerate(items)],
             max_concurrency=max_concurrency,
             spawner=spawner,
