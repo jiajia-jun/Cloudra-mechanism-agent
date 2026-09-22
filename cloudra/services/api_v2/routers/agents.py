@@ -20,6 +20,7 @@ from ..models import (
     RestartPost,
     _command_payload,
 )
+from ..views import agent_dict
 
 
 def build_router(ctx: ApiContext) -> APIRouter:
@@ -28,7 +29,7 @@ def build_router(ctx: ApiContext) -> APIRouter:
     @router.get("/api/v2/agents/{session_id}", dependencies=ctx.protected)
     async def get_agent(session_id: str) -> dict[str, Any]:
         agent = ctx.core.require_agent(session_id)
-        data = agent.model_dump(mode="json")
+        data = agent_dict(ctx.core, agent)
         data["children"] = [
             child.id for child in ctx.core.agents.values() if child.parent_session_id == session_id
         ]

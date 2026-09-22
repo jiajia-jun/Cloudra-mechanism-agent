@@ -16,6 +16,7 @@ from cloudra.services.compute_store import (
 
 from ..context import ApiContext
 from ..models import AgentSpawn, CommandResponse, ProjectCreate, ProjectPatch, _command_payload
+from ..views import agent_dicts
 
 
 def build_router(ctx: ApiContext) -> APIRouter:
@@ -103,7 +104,7 @@ def build_router(ctx: ApiContext) -> APIRouter:
 
     @router.get("/api/v2/projects/{project_id}/agents", dependencies=ctx.protected)
     async def list_agents(project_id: str) -> list[dict[str, Any]]:
-        return [a.model_dump(mode="json") for a in ctx.core.list_project_agents(project_id)]
+        return agent_dicts(ctx.core, ctx.core.list_project_agents(project_id))
 
     @router.post("/api/v2/projects/{project_id}/agents", dependencies=ctx.protected, status_code=status.HTTP_201_CREATED)
     async def spawn_agent(project_id: str, body: AgentSpawn) -> CommandResponse:
