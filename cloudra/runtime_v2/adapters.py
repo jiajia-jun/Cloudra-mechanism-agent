@@ -1000,13 +1000,14 @@ class LegacyToolExecutor:
                 summary=hint_unknown_tool(call.name),
             )
         project = self.core.require_project(agent.project_id)
-        bridge = _LegacyAgentBridge(agent, project.workspace_dir)
-        # Several tool classes narrow the `subagent` field to the legacy Agent
-        # type, so pydantic construction with the duck-typed bridge fails
-        # (dag_*, goal_set, todo, bash, ...).  Construct bare and
-        # attach the bridge past validation instead.
-        tool = entry.instantiate()
-        object.__setattr__(tool, "subagent", bridge)
+        # 工具字段的类型是 ToolActorContext（Protocol），声明了该字段的工具直接
+        # 经构造器拿到调用者身份（不再需要 object.__setattr__ 绕过 pydantic 校验）；
+        # 不声明它的工具（log_parser 等无状态工具）按原样构造。
+        if "subagent" in getattr(entry.cls, "model_fields", {}):
+            actor = _LegacyAgentBridge(agent, project.workspace_dir)
+            tool = entry.instantiate(subagent=actor)
+        else:
+            tool = entry.instantiate()
         schema_cls = entry.input_schema or LegacyInputSchema
         try:
             parsed = schema_cls.model_validate(call.arguments)

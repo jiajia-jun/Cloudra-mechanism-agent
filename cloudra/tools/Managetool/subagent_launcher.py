@@ -3,8 +3,8 @@ from typing import Any
 from pydantic import Field
 
 from cloudra.base.session_class import Session
+from cloudra.base.tool_actor import ToolActorContext
 from cloudra.base.tools_class import Tool, input_schema, output_schema
-from cloudra.core.agent import Agent
 
 description = (
     "Launch a sub-agent to run a specific task. The Coordinator may split a complex job into subtasks.\n"
@@ -61,7 +61,7 @@ class SubAgentLauncher(Tool):
     tool_description: str = description
     input_schema: Any = SubAgentLauncher_input_schema
     output_schema: Any = SubAgentLauncher_output_schema
-    subagent: Agent = None
+    subagent: ToolActorContext | None = None
 
     def is_manage(self) -> bool:
         return True

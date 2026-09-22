@@ -751,8 +751,9 @@ class AgentRunner:
         """响应消息恰好一次落进会话上下文投影（context.appended）。
 
         输入（前缀增量/inbox/通知）已在发送前由 ContextBroker.commit_input
-        入投影；这里只追加 assistant/tool 输出。run_turn 失败/取消时不调用，
-        已提交的输入留在投影里（它确实进入过已发送的请求）。
+        入投影；这里只用同一事件原子追加 assistant tool_calls 与全部匹配的
+        tool outputs。run_turn 失败/取消时不调用，不能留下 provider 拒绝的
+        半条工具调用；已提交的输入仍留在投影里（它确实进入过请求）。
         """
         entries: list[dict] = []
         tool_calls = [call for call, _ in outcome.tool_exchanges]
@@ -786,35 +787,7 @@ class AgentRunner:
                     "content": outcome.message or "blocked by policy",
                 }
             )
-        existing = self.core.contexts.current_messages(agent.id)
-        existing_tool_ids = {
-            message.get("tool_call_id")
-            for message in existing
-            if message.get("role") == "tool" and message.get("tool_call_id")
-        }
-        existing_assistant_ids = {
-            frozenset(
-                str(call.get("id"))
-                for call in (message.get("tool_calls") or [])
-                if isinstance(call, dict) and call.get("id")
-            )
-            for message in existing
-            if message.get("role") == "assistant" and message.get("tool_calls")
-        }
-        filtered: list[dict] = []
-        for entry in entries:
-            if entry.get("role") == "tool" and entry.get("tool_call_id") in existing_tool_ids:
-                continue
-            if entry.get("role") == "assistant" and entry.get("tool_calls"):
-                ids = frozenset(
-                    str(call.get("id"))
-                    for call in entry["tool_calls"]
-                    if isinstance(call, dict) and call.get("id")
-                )
-                if ids and ids in existing_assistant_ids:
-                    continue
-            filtered.append(entry)
-        await self.core.contexts.append_output(agent=agent, run_id=run_id, messages=filtered)
+        await self.core.contexts.append_output(agent=agent, run_id=run_id, messages=entries)
 
     def _effective_settings(self, agent: AgentSession):
         """容量判定用的生效设置：spawn 快照里 context_window=0 表示未设置，

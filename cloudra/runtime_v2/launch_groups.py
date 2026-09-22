@@ -41,6 +41,8 @@ ItemState = Literal["queued", "running", "succeeded", "failed", "cancelled"]
 GroupState = Literal["running", "cancelled", "finished", "interrupted"]
 _TERMINAL = {AgentState.SUCCEEDED, AgentState.FAILED, AgentState.CANCELLED}
 _TERMINAL_GROUP_STATES = {"cancelled", "finished", "interrupted"}
+_GROUP_STATES = {"running"} | _TERMINAL_GROUP_STATES
+_ITEM_STATES = {"queued", "running", "succeeded", "failed", "cancelled"}
 
 
 @dataclass
@@ -132,6 +134,72 @@ class LaunchGroupManager:
 
     def groups(self) -> list[LaunchGroup]:
         return list(self._groups.values())
+
+    def snapshot(self) -> list[dict[str, Any]]:
+        """组清单的快照载荷（纯数据）。
+
+        快照水位一旦越过 ``launch_group.*`` 事件，增量重放就看不到它们——
+        与 session_contexts / pending_compactions 同理，投影必须随快照落地，
+        否则下一次恢复会凭空丢组。
+        """
+        return [
+            {
+                "group_id": group.group_id,
+                "parent_session_id": group.parent_session_id,
+                "project_id": group.project_id,
+                "max_concurrency": group.max_concurrency,
+                "state": group.state,
+                "reason": group.reason,
+                "items": [
+                    {
+                        "item_id": item.item_id,
+                        "query": item.query,
+                        "state": item.state,
+                        "child_session_id": item.child_session_id,
+                        "error": item.error,
+                    }
+                    for item in group.items
+                ],
+            }
+            for group in self._groups.values()
+        ]
+
+    def restore(self, entries: list[dict[str, Any]] | None) -> None:
+        """从快照载荷重建投影；快照点之后的 ``launch_group.*`` 事件由重放补上。
+
+        载荷形状错误（未知状态、缺 group_id）直接抛错——快照是我们自己写的，
+        坏了就是 bug，不静默降级。
+        """
+        for data in entries or []:
+            group_id = str(data.get("group_id") or "")
+            if not group_id:
+                raise ValueError("launch group snapshot entry without group_id")
+            state = str(data.get("state") or "")
+            if state not in _GROUP_STATES:
+                raise ValueError(f"unknown launch group state in snapshot: {state!r}")
+            items: list[LaunchGroupItem] = []
+            for raw in data.get("items") or []:
+                item_state = str(raw.get("state") or "")
+                if item_state not in _ITEM_STATES:
+                    raise ValueError(f"unknown launch group item state in snapshot: {item_state!r}")
+                items.append(
+                    LaunchGroupItem(
+                        item_id=str(raw.get("item_id") or ""),
+                        query=str(raw.get("query") or ""),
+                        state=item_state,  # type: ignore[arg-type]
+                        child_session_id=str(raw.get("child_session_id") or ""),
+                        error=str(raw.get("error") or ""),
+                    )
+                )
+            self._groups[group_id] = LaunchGroup(
+                group_id=group_id,
+                parent_session_id=str(data.get("parent_session_id") or ""),
+                project_id=str(data.get("project_id") or ""),
+                max_concurrency=int(data.get("max_concurrency") or 1),
+                state=state,  # type: ignore[arg-type]
+                reason=str(data.get("reason") or ""),
+                items=items,
+            )
 
     def apply(self, envelope) -> None:
         """组事件 → 投影（唯一写入点：``apply_event`` 与恢复重放共用）。"""

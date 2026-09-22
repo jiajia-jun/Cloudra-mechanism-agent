@@ -6,8 +6,8 @@ import asyncio
 from typing import Any
 
 from cloudra.base.session_class import Session
+from cloudra.base.tool_actor import ToolActorContext
 from cloudra.base.tools_class import input_schema
-from cloudra.core.agent import Agent
 from cloudra.dag.completion import evaluate_delivery
 from cloudra.dag.models import OrchestrationMode
 from cloudra.tools.Plantool.dag_tools._common import DagToolBase, DagToolOutput
@@ -30,7 +30,7 @@ class DagDeliveryReport(DagToolBase):
     )
     input_schema: Any = DagDeliveryReportInput
     output_schema: Any = DagToolOutput
-    subagent: Agent = None
+    subagent: ToolActorContext | None = None
 
     async def tool_call(
         self, user_input: DagDeliveryReportInput, session: Session

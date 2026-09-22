@@ -7,8 +7,8 @@ from typing import Any, Literal
 from pydantic import Field
 
 from cloudra.base.session_class import Session
+from cloudra.base.tool_actor import ToolActorContext
 from cloudra.base.tools_class import input_schema
-from cloudra.core.agent import Agent
 from cloudra.dag.models import GraphActor, GraphRef, OrchestrationMode
 from cloudra.dag.review_requests import ReviewDecision
 from cloudra.tools.Plantool.dag_tools._common import DagToolBase, DagToolOutput, fail
@@ -49,7 +49,7 @@ class DagReviewEvidence(DagToolBase):
     )
     input_schema: Any = DagReviewEvidenceInput
     output_schema: Any = DagToolOutput
-    subagent: Agent = None
+    subagent: ToolActorContext | None = None
 
     async def tool_call(
         self, user_input: DagReviewEvidenceInput, session: Session

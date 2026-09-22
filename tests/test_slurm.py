@@ -87,15 +87,32 @@ def test_batch_script_loads_configured_environment_modules(tmp_path, monkeypatch
         {
             "type": "slurm",
             "modules": ["apps/orca/5.0.2/hpcx-2.7.4-gcc-7.3.1"],
+            "environment": {
+                "OMPI_MCA_rmaps_base_oversubscribe": "1",
+                "OMPI_MCA_hwloc_base_binding_policy": "none",
+            },
         },
     )
 
     source = ". /etc/profile.d/modules.sh"
     load = "module load apps/orca/5.0.2/hpcx-2.7.4-gcc-7.3.1"
+    oversubscribe = "export OMPI_MCA_rmaps_base_oversubscribe=1"
+    binding = "export OMPI_MCA_hwloc_base_binding_policy=none"
+    capture = ".cloudra/calc-7.out.log"
     calculator = "/opt/cloudra/calculator.sh"
     assert source in script
     assert load in script
-    assert script.index(source) < script.index(load) < script.index(calculator)
+    assert oversubscribe in script
+    assert binding in script
+    assert "mkdir -p .cloudra" in script
+    assert f"> {capture} 2>&1" in script
+    assert (
+        script.index(source)
+        < script.index(load)
+        < script.index(oversubscribe)
+        < script.index(binding)
+        < script.index(calculator)
+    )
 
 
 def test_slurm_commands_use_argument_arrays_and_validate_job_ids(

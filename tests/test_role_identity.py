@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 import pytest
@@ -21,6 +22,43 @@ from cloudra.base.role_identity import (
 from cloudra.runtime_v2.roles import BUILTIN_ROLES, RoleRegistry
 
 _CLOUDRA = Path(__file__).resolve().parents[1] / "cloudra"
+
+
+def _legacy_id_literals(source: str) -> set[str]:
+    """Return exact legacy-id string literals, ignoring comments and prose."""
+    values: set[str] = set()
+
+    class LiteralVisitor(ast.NodeVisitor):
+        def visit_JoinedStr(self, node: ast.JoinedStr) -> None:
+            return
+
+        def visit_Constant(self, node: ast.Constant) -> None:
+            if isinstance(node.value, str):
+                values.add(node.value)
+
+    LiteralVisitor().visit(ast.parse(source))
+    return {
+        value
+        for value in values
+        if value == "a-supervisor"
+        or (
+            value.startswith("a-")
+            and len(value) == 3
+            and value.removeprefix("a-").isdigit()
+        )
+    }
+
+
+def test_legacy_id_literal_scanner_ignores_comments_and_embedded_text():
+    source = '''
+# "a-1" and "a-2" are documentation, not a mapping.
+NOTE = "mentions a-3 in prose"
+PRIMARY = "a-4"
+SUPERVISOR = "a-supervisor"
+DYNAMIC = f"a-5{suffix}"
+ALSO_DYNAMIC = f"a-6{suffix}"
+'''
+    assert _legacy_id_literals(source) == {"a-4", "a-supervisor"}
 
 
 def test_builtin_roles_project_the_single_mapping_table():
@@ -51,14 +89,11 @@ def test_no_second_legacy_id_table_in_the_codebase():
     字面量就是又抄了一张映射表。legacy 子 Agent 类（cloudra/subagents/*.py）
     各自声明自己的 id，属待删执行栈（5.4 第 3 步），不在本守卫范围。
     """
-    import re as _re
-
-    pattern = _re.compile(r"[\"']a-(?:\d|supervisor)[\"']")
     offenders = []
     for path in sorted(_CLOUDRA.rglob("*.py")):
         if path.name == "role_identity.py" or path.parent.name == "subagents":
             continue
-        found = set(pattern.findall(path.read_text(encoding="utf-8")))
+        found = _legacy_id_literals(path.read_text(encoding="utf-8"))
         if len(found) > 1:
             offenders.append((str(path.relative_to(_CLOUDRA)), sorted(found)))
     assert offenders == [], f"duplicate legacy-id tables: {offenders}"

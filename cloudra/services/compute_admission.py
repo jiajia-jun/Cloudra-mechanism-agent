@@ -225,6 +225,16 @@ def admit_job(
             ),
         )
 
+    # The capacity ledger and the physical Slurm allocation must describe the
+    # same request.  Node registry values provide routing and scheduler
+    # defaults, but using their fixed cpus/memory here would make every job run
+    # with a different allocation than the one admitted and recorded below.
+    if scheduler == "slurm":
+        scheduler_options = dict(scheduler_options)
+        scheduler_options["cpus"] = cpus
+        if memory_mb is not None:
+            scheduler_options["memory"] = f"{memory_mb}M"
+
     # 显式申请低于输入自述需求：返回诊断，不静默超额占用节点。
     underestimate = resource_underestimate(job_type, f_path, cpus, memory_mb)
     if underestimate:

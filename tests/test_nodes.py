@@ -27,6 +27,7 @@ def test_node_registry_validates_and_resolves_workspace_routes(tmp_path):
                         "partition": "compute",
                         "cpus": 8,
                         "modules": ["apps/orca/5.0.2"],
+                        "environment": {"OMPI_MCA_rmaps_base_oversubscribe": "1"},
                     },
                     "workspaces": [
                         {
@@ -46,6 +47,9 @@ def test_node_registry_validates_and_resolves_workspace_routes(tmp_path):
     assert route.access == "read_only"
     assert registry.node("hpc-login").scheduler["type"] == "slurm"
     assert registry.node("hpc-login").scheduler["modules"] == ["apps/orca/5.0.2"]
+    assert registry.node("hpc-login").scheduler["environment"] == {
+        "OMPI_MCA_rmaps_base_oversubscribe": "1"
+    }
     assert "compute.slurm" in registry.node("hpc-login").capabilities
     assert {item["node_id"] for item in registry.public_nodes()} == {
         "local",
@@ -104,4 +108,27 @@ def test_node_registry_rejects_invalid_scheduler_modules(tmp_path, modules):
         ]
     }
     with pytest.raises(NodeRegistryError, match="modules"):
+        NodeRegistry.from_dict(payload)
+
+
+@pytest.mark.parametrize(
+    "environment",
+    [
+        ["OMPI=value"],
+        {"BAD-NAME": "1"},
+        {"VALID_NAME": "line one\nline two"},
+        {"VALID_NAME": 1},
+    ],
+)
+def test_node_registry_rejects_invalid_scheduler_environment(tmp_path, environment):
+    payload = {
+        "nodes": [
+            {
+                "node_id": "hpc",
+                "scheduler": {"type": "slurm", "environment": environment},
+                "workspaces": [{"workspace_id": "main", "path": str(tmp_path)}],
+            }
+        ]
+    }
+    with pytest.raises(NodeRegistryError, match="environment"):
         NodeRegistry.from_dict(payload)
