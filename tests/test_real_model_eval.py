@@ -159,6 +159,66 @@ async def test_fake_read_fixture_scenario_repeats_seeded_token(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_real_style_child_scenario_restores_without_api(monkeypatch, tmp_path):
+    spec = rme.scenario_by_name("restart_no_replay")
+    assert spec is not None
+    monkeypatch.setattr(rme, "build_real_provider", lambda: rme.build_fake_provider(spec))
+    document = await run_all(RunOptions(
+        provider_kind="real",
+        work_dir=tmp_path / "eval",
+        timeout_s=60.0,
+        scenario_names=[spec.name],
+    ))
+    row = document["scenarios"][0]
+    assert row["passed"] is True, [check for check in row["checks"] if not check["ok"]]
+    assert any(check["name"] == "restart_restored" and check["ok"] for check in row["checks"])
+
+
+@pytest.mark.asyncio
+async def test_result_redacts_provider_error_url_and_api_key(monkeypatch, tmp_path):
+    from cloudra.infra.config import get_config
+
+    secret = "DEMO_SECRET"
+    query_secret = "UNRELATED_QUERY_SECRET"
+    monkeypatch.setattr(get_config().coordinator, "key", secret)
+    message = (
+        f"401 Error for url https://user:{secret}@example.invalid/v1?opaque={query_secret}: "
+        f"upstream echoed {secret}"
+    )
+
+    class FailingProvider:
+        async def complete(self, _agent, _messages, _tools, **_kwargs):
+            raise RuntimeError(message)
+
+    monkeypatch.setattr(rme, "build_real_provider", FailingProvider)
+    document = await run_all(RunOptions(
+        provider_kind="real",
+        work_dir=tmp_path / "eval",
+        timeout_s=10.0,
+        max_turn_retries=0,
+        scenario_names=["plain_qa"],
+    ))
+    result_text = json.dumps(document)
+    assert secret not in result_text
+    assert query_secret not in result_text
+    assert "opaque=" not in result_text
+    assert "user:" not in result_text
+    assert "https://example.invalid" in result_text
+    row = document["scenarios"][0]
+    row["error"] = message
+    row["checks"].append({"name": "synthetic_error", "ok": False, "detail": message})
+    row["observations"]["nested_error"] = {"messages": [message]}
+    written = write_results(document, tmp_path / "result.json")
+    persisted = written.read_text(encoding="utf-8")
+    assert secret not in persisted
+    assert query_secret not in persisted
+    assert "user:" not in persisted
+    summary = "\n".join(summarize_lines(document))
+    assert secret not in summary
+    assert query_secret not in summary
+
+
+@pytest.mark.asyncio
 async def test_fake_path_runs_one_scenario_and_records_trend_metadata(tmp_path):
     options = RunOptions(
         provider_kind="fake",

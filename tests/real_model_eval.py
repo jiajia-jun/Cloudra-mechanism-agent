@@ -36,6 +36,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import subprocess
 import sys
 import time
@@ -109,6 +110,64 @@ def redact_endpoint(url: str) -> dict[str, Any]:
         netloc = f"{host}:{port}"
     redacted = f"{scheme}://{netloc}" if scheme and netloc else (netloc or "<unparsable>")
     return {"redacted": redacted, "scheme": scheme, "host": host, "port": port}
+
+
+_URL_IN_TEXT = re.compile(r"\b[a-z][a-z0-9+.-]*://[^\s<>'\"`]+", re.IGNORECASE)
+_BEARER_IN_TEXT = re.compile(r"\bBearer\s+[A-Za-z0-9._~+/-]+", re.IGNORECASE)
+_SECRET_ASSIGNMENT = re.compile(
+    r"\b(api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|password)"
+    r"\s*[:=]\s*[^\s,;]+",
+    re.IGNORECASE,
+)
+_SECRET_FIELD = re.compile(
+    r"(?:api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|password)",
+    re.IGNORECASE,
+)
+
+
+def _result_secrets() -> tuple[str, ...]:
+    from cloudra.infra.config import get_config
+
+    cfg = get_config()
+    return tuple(
+        sorted({key for key in (cfg.coordinator.key, cfg.follower.key) if key}, key=len, reverse=True)
+    )
+
+
+def _redact_result_text(value: str, secrets: tuple[str, ...]) -> str:
+    def hide_url(match: re.Match[str]) -> str:
+        try:
+            return redact_endpoint(match.group(0))["redacted"]
+        except ValueError:
+            return "<redacted-url>"
+
+    text = _URL_IN_TEXT.sub(hide_url, value)
+    text = _BEARER_IN_TEXT.sub("Bearer <redacted>", text)
+    text = _SECRET_ASSIGNMENT.sub(lambda match: f"{match.group(1)}=<redacted>", text)
+    for secret in secrets:
+        text = text.replace(secret, "<redacted>")
+    return text
+
+
+def redact_result(document: Any) -> Any:
+    """脱敏整个评测结果，包括嵌套的检查、异常和运行观测。"""
+    secrets = _result_secrets()
+
+    def walk(value: Any) -> Any:
+        if isinstance(value, str):
+            return _redact_result_text(value, secrets)
+        if isinstance(value, dict):
+            return {
+                key: "<redacted>" if _SECRET_FIELD.fullmatch(str(key)) else walk(item)
+                for key, item in value.items()
+            }
+        if isinstance(value, list):
+            return [walk(item) for item in value]
+        if isinstance(value, tuple):
+            return tuple(walk(item) for item in value)
+        return value
+
+    return walk(document)
 
 
 def _git(*args: str, root: Path = REPO_ROOT) -> str:
@@ -852,7 +911,6 @@ async def _restart_and_audit(
         restored = await ScenarioHarness.restore(
             Path(options.work_dir) / "scenarios" / spec.name,
             provider=_provider_for(spec, options),
-            prompt_provider=build_prompt_provider() if options.prompt_provider else None,
         )
     except Exception as exc:  # noqa: BLE001
         checks.add("restart_restored", False, f"{type(exc).__name__}: {exc}")
@@ -891,7 +949,7 @@ async def run_all(options: RunOptions) -> dict[str, Any]:
                                          "max_llm_calls": options.max_llm_calls})
             results.append(await run_scenario(spec, spec_options, token=token))
     passed = [row for row in results if row["passed"]]
-    return {
+    return redact_result({
         "schema": SCHEMA,
         "run_id": run_id,
         "generated_at": utc_now(),
@@ -910,7 +968,7 @@ async def run_all(options: RunOptions) -> dict[str, Any]:
             "duration_s": round(sum(row["duration_s"] for row in results), 3),
             "failed_scenarios": [row["name"] for row in results if not row["passed"]],
         },
-    }
+    })
 
 
 def collect_metadata(options: RunOptions, *, run_id: str = "") -> dict[str, Any]:
@@ -962,12 +1020,14 @@ def collect_metadata(options: RunOptions, *, run_id: str = "") -> dict[str, Any]
 def write_results(document: dict[str, Any], out_path: Path) -> Path:
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(document, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    safe_document = redact_result(document)
+    out_path.write_text(json.dumps(safe_document, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return out_path
 
 
 def summarize_lines(document: dict[str, Any]) -> list[str]:
     """终端摘要（人工看趋势用；细节都在 JSON 里）。"""
+    document = redact_result(document)
     meta = document["metadata"]
     lines = [
         f"schema={document['schema']} provider={document['provider_kind']} run_id={document['run_id']}",
