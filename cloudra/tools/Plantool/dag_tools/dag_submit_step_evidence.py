@@ -226,7 +226,7 @@ class DagSubmitStepEvidence(DagToolBase):
             kind="step",
             target_name=user_input.step_name,
             target_id=step.edge_id,
-            requester=getattr(self.subagent, "agent_id", "coordinator") or "coordinator",
+            requester=session.id,
             details={
                 "element_type": "step",
                 "step_name": user_input.step_name,

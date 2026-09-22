@@ -116,6 +116,265 @@ async def test_plain_qa_ends_with_declared_basis(tmp_path):
 # -------------------------------------------------- DAG：候选、逐文件审查、门禁
 
 
+def _seed_selected_step_endpoints(project_id: str) -> None:
+    """只预置有结构支持的两端；步骤和交付范围仍由真实 proposal 工具创建。"""
+    from cloudra.dag.engine import DagEngine
+    from cloudra.dag.models import AddNode, GraphActor, MutationBatch, OccurrenceNode
+    from cloudra.dag.store import DagStore
+    from cloudra.persistence.database import ConversationDB
+
+    store = DagStore(ConversationDB(project_id).init())
+    store.ensure_bundle("scenario-endpoints")
+    result = DagEngine(store).apply_batch(MutationBatch(
+        session_id="scenario-endpoints", actor=GraphActor.HARNESS,
+        actor_id="scenario-endpoints", base_revisions=store.load_bundle().revisions,
+        rationale="the two endpoint structures are available",
+        operations=[
+            AddNode(op="add_node", graph="delivery", node=OccurrenceNode(
+                node_id="r", label="R", role="reactant",
+                evidence_level="structure_supported")),
+            AddNode(op="add_node", graph="delivery", node=OccurrenceNode(
+                node_id="p", label="P", role="product",
+                evidence_level="structure_supported")),
+        ],
+    ))
+    assert result.accepted
+
+
+def _propose_selected_ab() -> Step:
+    return Step(tools=[("dag_propose_mechanism", {
+        "rationale": "selected R to P transformation",
+        "steps": [{"name": "AB", "from": "R", "to": "P"}],
+        "delivery_targets": ["AB"],
+    })])
+
+
+@pytest.mark.asyncio
+async def test_guided_complete_waits_for_selected_step_review_and_evidence(tmp_path):
+    """A selected step with a live pending draft and stages cannot claim complete."""
+    attempt_complete = asyncio.Event()
+    hold_after_gate = asyncio.Event()
+    provider = ScriptedProvider(by_role={
+        "coordinator": [
+            _propose_selected_ab(),
+            # Drain the Supervisor's earlier draft notification in a normal turn
+            # before the explicit stop is audited.
+            Step(wait_for=attempt_complete, text="review status received"),
+            Step(tools=[("stop", {
+                "delivery_disposition": "complete",
+            })]),
+            Step(wait_for=hold_after_gate, text="continue work"),
+        ],
+        "supervisor": [Step(text="review pending", stop=True)],
+    })
+    harness = await ScenarioHarness.start(tmp_path, provider=provider)
+    try:
+        await asyncio.to_thread(_seed_selected_step_endpoints, harness.project.id)
+        agent = await harness.spawn(
+            "coordinator", protocol="traditional", orchestration_mode="dag_guided"
+        )
+        await harness.wait_for(
+            lambda: any(t["tool_name"] == "dag_propose_mechanism" and t["status"] == "completed"
+                        for t in harness.tool_events(agent)),
+            "selected AB proposal",
+        )
+        await harness.wait_for(
+            lambda: any(a.role_id == "supervisor" and a.state.value == "succeeded"
+                        for a in harness.core.agents.values()),
+            "Supervisor idle after the proposal",
+        )
+        from cloudra.dag.controller import DagController
+        from cloudra.persistence.database import ConversationDB
+
+        db = await asyncio.to_thread(lambda: ConversationDB(harness.project.id).init())
+        report = await asyncio.to_thread(
+            DagController(db, agent.id, "dag_guided", conversation_id=harness.project.id).delivery_report
+        )
+        assert report.complete is False
+        codes = {gap.code for gap in report.unresolved}
+        assert {"pending_scope_review", "missing_stage_evidence"} <= codes
+
+        attempt_complete.set()
+        await harness.wait_for(
+            lambda: any(e.type == "agent.completion_gate" and e.data.get("explicit_stop")
+                        for e in harness.events(agent)),
+            "explicit complete gate for selected AB",
+        )
+        gate = next(e.data for e in harness.events(agent)
+                    if e.type == "agent.completion_gate" and e.data.get("explicit_stop"))
+        assert gate["action"] == "continue_work", (gate, harness.describe(agent))
+        assert gate["basis"] is None
+        assert agent.state.value != "succeeded"
+    finally:
+        attempt_complete.set()
+        hold_after_gate.set()
+        await harness.aclose()
+
+
+@pytest.mark.asyncio
+async def test_guided_file_verdict_wakes_coordinator_for_supervisor_supported_completion(
+    tmp_path, monkeypatch
+):
+    """A per-file verdict wakes the parked Coordinator; complete uses file credit."""
+    submit_evidence = asyncio.Event()
+    attempt_partial = asyncio.Event()
+    review_file = asyncio.Event()
+    finish_supervisor = asyncio.Event()
+    attempt_complete = asyncio.Event()
+    ts = Path(__file__).parent / "fixtures" / "xtb" / "ts_hess_xtb.out"
+    provider = ScriptedProvider(by_role={
+        "coordinator": [
+            _propose_selected_ab(),
+            Step(wait_for=submit_evidence, text="draft verdict received"),
+            Step(tools=[("dag_submit_step_evidence", {
+                "step_name": "AB", "ts_file": ts.name,
+                "reaction_coordinate_description": "selected transition",
+            })]),
+            Step(wait_for=attempt_partial, text="file review queued"),
+            Step(tools=[("stop", {
+                "delivery_disposition": "partial",
+            })]),
+            Step(wait_for=attempt_complete, text="file verdict received"),
+            Step(tools=[("stop", {
+                "delivery_disposition": "complete",
+            })]),
+        ],
+        "supervisor": [
+            Step(tools=[("dag_accept_mechanism", {"verdict": "accept"})]),
+            Step(text="draft reviewed", stop=True),
+            Step(text="file review queued", stop=True),
+            Step(wait_for=review_file, tools=[("dag_review_step", {
+                "step_name": "AB", "verdict": "supported",
+                "rationale": "the submitted file supports the selected transition",
+            })]),
+            Step(wait_for=finish_supervisor, text="file reviewed", stop=True),
+        ],
+    })
+    harness = await ScenarioHarness.start(tmp_path, provider=provider)
+    try:
+        await _set_supervisor_traditional(harness)
+        await asyncio.to_thread(_seed_selected_step_endpoints, harness.project.id)
+        workspace = _workspace(harness.project.id)
+        workspace.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ts, workspace / ts.name)
+        coordinator = await harness.spawn(
+            "coordinator", protocol="traditional", orchestration_mode="dag_guided"
+        )
+        await harness.wait_for(
+            lambda: any(t["tool_name"] == "dag_accept_mechanism" and t["status"] == "completed"
+                        for a in harness.core.agents.values() if a.role_id == "supervisor"
+                        for t in harness.tool_events(a)),
+            "Supervisor acceptance of the selected draft",
+        )
+        await harness.wait_for(
+            lambda: any(a.role_id == "supervisor" and a.state.value == "succeeded"
+                        for a in harness.core.agents.values()),
+            "Supervisor idle after draft review",
+        )
+        submit_evidence.set()
+        await harness.wait_for(
+            lambda: any(t["tool_name"] == "dag_submit_step_evidence" and t["status"] == "completed"
+                        for t in harness.tool_events(coordinator)),
+            "AB evidence submission",
+        )
+        submitted = next(t for t in harness.tool_events(coordinator)
+                         if t["tool_name"] == "dag_submit_step_evidence")
+        assert submitted["is_success"], harness.describe(coordinator)
+        review_id = submitted["result_data"]["result"]["review_id"]
+        await harness.wait_for(
+            lambda: any(a.role_id == "supervisor" and a.state.value == "succeeded"
+                        and len(harness.run_rows(a)) >= 2
+                        for a in harness.core.agents.values()),
+            "Supervisor idle after file submission",
+        )
+        attempt_partial.set()
+        await harness.wait_for(
+            lambda: coordinator.state.value == "waiting_approval",
+            "Coordinator parked on the partial exit request",
+        )
+        parked = [e for e in harness.events(coordinator) if e.type == "agent.state_changed"]
+        assert parked[-1].data["reason"] == "wait_review"
+        assert not any(row["outcome"] == "succeeded" for row in harness.run_rows(coordinator))
+        child_reports_at_park = len(harness.child_reports(coordinator))
+
+        from cloudra.runtime_v2 import supervision
+
+        actual_flush = supervision.flush_review_notifications
+        flush_counts: list[int] = []
+
+        async def observed_flush(core, project_id, **kwargs):
+            count = await actual_flush(core, project_id, **kwargs)
+            flush_counts.append(count)
+            return count
+
+        monkeypatch.setattr(supervision, "flush_review_notifications", observed_flush)
+        review_file.set()
+        await harness.wait_for(
+            lambda: any(t["tool_name"] == "dag_review_step" and t["status"] == "completed"
+                        for a in harness.core.agents.values() if a.role_id == "supervisor"
+                        for t in harness.tool_events(a)),
+            "per-file Supervisor verdict",
+        )
+        await harness.wait_for(
+            lambda: coordinator.state.value == "running" and provider.call_count("coordinator") >= 6,
+            "Coordinator resumed on the verdict and entered a new provider turn",
+        )
+        from cloudra.dag.controller import DagController
+        from cloudra.dag.store import DagStore
+        from cloudra.persistence.database import ConversationDB
+        db = await asyncio.to_thread(lambda: ConversationDB(harness.project.id).init())
+        store = DagStore(db)
+        request = await asyncio.to_thread(store.get_review_request, review_id)
+        assert request is not None and request.state == "resolved"
+        decision = await asyncio.to_thread(store.get_review_decision_for_request, review_id)
+        assert decision is not None and decision.verdict == "accept"
+        assert flush_counts == [1]
+        assert await actual_flush(harness.core, harness.project.id) == 0
+        delivered = [data for data in harness.messages(coordinator)
+                     if data.get("sender") == "supervisor"
+                     and review_id in str(data.get("content") or "")]
+        assert len(delivered) == 1, harness.describe(coordinator)
+        def _notification_rows():
+            with db.connect() as con:
+                return con.execute(
+                    "SELECT recipient_session_id, state FROM dag_review_notifications "
+                    "WHERE request_id = ?", (review_id,),
+                ).fetchall()
+
+        assert await asyncio.to_thread(_notification_rows) == [(coordinator.id, "sent")]
+        assert len(harness.child_reports(coordinator)) == child_reports_at_park
+        states = [e.data.get("to") for e in harness.events(coordinator)
+                  if e.type == "agent.state_changed"]
+        assert "running" in states[states.index("waiting_approval") + 1:]
+        report = await asyncio.to_thread(
+            DagController(db, coordinator.id, "dag_guided", conversation_id=harness.project.id).delivery_report
+        )
+        assert report.complete
+        assert any(gate.code == "supervisor_evidence_accepted" for gate in report.satisfied)
+
+        finish_supervisor.set()
+        await harness.wait_for(
+            lambda: any(a.role_id == "supervisor" and a.state.value == "succeeded"
+                        and len(harness.run_rows(a)) >= 3
+                        for a in harness.core.agents.values()),
+            "Supervisor idle before final delivery",
+        )
+        attempt_complete.set()
+        await harness.wait_terminal(coordinator)
+        from cloudra.runtime_v2.completion import completion_summary
+
+        completion = completion_summary(harness.events(coordinator))
+        assert completion["completion_basis"] == "supervisor_supported"
+        assert completion["verification_label"] == "supervisor_reviewed"
+    finally:
+        submit_evidence.set()
+        attempt_partial.set()
+        review_file.set()
+        finish_supervisor.set()
+        attempt_complete.set()
+        await harness.aclose()
+
+
 @pytest.mark.asyncio
 async def test_guided_candidate_is_usable_while_review_is_open(tmp_path, monkeypatch):
     """真实 Coordinator 工具流水线：候选图可读，待审范围阻止完整交付。"""

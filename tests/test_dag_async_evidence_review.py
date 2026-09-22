@@ -353,6 +353,7 @@ async def test_species_submission_persists_opt_and_frequency_refs(tmp_path):
     assert out.is_success
     review = store.get_review_request(out.result["review_id"])
     assert review is not None
+    assert review.requester == session.id
     assert len(review.supporting_refs) == 2
     assert {ref.ref_id for ref in review.supporting_refs}
 
@@ -372,6 +373,7 @@ async def test_step_submission_binds_real_irc_file_for_review_credit(tmp_path):
     assert out.is_success
     request = store.get_review_request(out.result["review_id"])
     assert request is not None
+    assert request.requester == session.id
     assert len(request.supporting_refs) == 2
     edge = store.load_snapshot().delivery.edges[0]
     assert {ref.ref_id for ref in edge.refs} == {

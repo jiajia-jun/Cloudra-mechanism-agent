@@ -209,7 +209,7 @@ class DagSubmitSpeciesEvidence(DagToolBase):
             kind="species",
             target_name=user_input.species_name,
             target_id=species.node_id,
-            requester=getattr(self.subagent, "agent_id", "coordinator") or "coordinator",
+            requester=session.id,
             details={
                 "element_type": "species",
                 "species_name": user_input.species_name,
