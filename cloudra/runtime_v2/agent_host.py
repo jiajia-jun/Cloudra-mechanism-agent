@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Any
 from cloudra.runtime_v2.apply import apply_event
 from cloudra.runtime_v2.effects import EventDraft
 from cloudra.runtime_v2.events import EventLog
+from cloudra.runtime_v2.failures import RunFailureKind
 from cloudra.runtime_v2.schemas import (
     AgentCapabilities,
     AgentSession,
@@ -64,6 +65,27 @@ _CONTEXT_RESET_NOTE = (
     "session dialogue context was reset by an explicit restart; "
     "continuity via goal/memory/workspace files"
 )
+
+
+def _run_finished_data(
+    outcome: str, *, error: str | None, failure_kind: RunFailureKind | None
+) -> dict[str, Any]:
+    """``run.finished`` 载荷：失败的 run 必须有结构化分类（评审 5.10 的硬不变量）。
+
+    fail-loud：漏传分类的失败 run 会立刻在这里炸掉，而不是悄悄落一条没有分流
+    依据的失败记录。``error`` 文本仍带上，但只供人阅读——UI/遥测/恢复提示一律
+    按 ``failure_kind`` 枚举分流。
+    """
+    if outcome != "succeeded" and failure_kind is None:
+        raise ValueError(
+            f"run.finished outcome={outcome!r} requires a structured failure_kind "
+            "(see runtime_v2.failures.RunFailureKind)"
+        )
+    return {
+        "outcome": outcome,
+        "error": error,
+        "failure_kind": failure_kind.value if failure_kind is not None else None,
+    }
 
 
 def _settings_summary(settings: RuntimeSettings) -> dict[str, Any]:
@@ -372,10 +394,19 @@ class AgentHost:
         await self._execute_drafts_durable(drafts)
         return run_id
 
-    def finish_run(self, agent: AgentSession, *, outcome: str, error: str | None = None) -> None:
+    def finish_run(
+        self,
+        agent: AgentSession,
+        *,
+        outcome: str,
+        error: str | None = None,
+        failure_kind: RunFailureKind | None = None,
+    ) -> None:
         run_id = agent.current_run.run_id if agent.current_run else None
         if run_id is None:
             return
+        # 先校验载荷再动状态：漏传分类的失败 run 必须在任何事件落地前就炸掉。
+        data = _run_finished_data(outcome, error=error, failure_kind=failure_kind)
         target = AgentState.SUCCEEDED if outcome == "succeeded" else AgentState.FAILED
         self.transition(agent, target, reason=outcome, run_id=run_id)
         envelope = self.event_log.append(
@@ -384,16 +415,22 @@ class AgentHost:
             project_id=agent.project_id,
             session_id=agent.id,
             run_id=run_id,
-            data={"outcome": outcome, "error": error},
+            data=data,
         )
         apply_event(self.core, envelope)
 
     async def finish_run_durable(
-        self, agent: AgentSession, *, outcome: str, error: str | None = None
+        self,
+        agent: AgentSession,
+        *,
+        outcome: str,
+        error: str | None = None,
+        failure_kind: RunFailureKind | None = None,
     ) -> None:
         run_id = agent.current_run.run_id if agent.current_run else None
         if run_id is None:
             return
+        data = _run_finished_data(outcome, error=error, failure_kind=failure_kind)
         target = AgentState.SUCCEEDED if outcome == "succeeded" else AgentState.FAILED
         drafts = [plan_transition(agent, target, reason=outcome, run_id=run_id)]
         drafts.append(
@@ -403,7 +440,7 @@ class AgentHost:
                 project_id=agent.project_id,
                 session_id=agent.id,
                 run_id=run_id,
-                data={"outcome": outcome, "error": error},
+                data=data,
             )
         )
         await self._execute_drafts_durable(drafts)

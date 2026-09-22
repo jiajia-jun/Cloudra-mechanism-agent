@@ -10,6 +10,7 @@ from cloudra.runtime_v2.adapters import LegacyToolExecutor
 from cloudra.runtime_v2.agent_runner import AgentRunner
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.core import RuntimeCore
+from cloudra.runtime_v2.failures import RunFailureKind
 from cloudra.runtime_v2.policies import default_stages
 from cloudra.runtime_v2.policies.base import ToolCall
 from cloudra.runtime_v2.schemas import Command
@@ -414,7 +415,12 @@ async def test_child_completion_to_failed_parent_parks_without_reopening():
     )
     core.agent_host.finish_run(child, outcome="succeeded")
     core.agent_host.start_run(parent)
-    core.agent_host.finish_run(parent, outcome="failed", error="parent boom")
+    core.agent_host.finish_run(
+        parent,
+        outcome="failed",
+        error="parent boom",
+        failure_kind=RunFailureKind.PIPELINE_INTERNAL,
+    )
     assert parent.state is AgentState.FAILED
     runs_before = len([e for e in core.event_log.query_session(parent.id) if e.type == "run.started"])
 
@@ -503,7 +509,12 @@ async def test_final_text_surfaces_recorded_failure_reason():
         )
     ).data
     core.agent_host.start_run(child)
-    core.agent_host.finish_run(child, outcome="failed", error="kaplam: ts_opt diverged at step 7")
+    core.agent_host.finish_run(
+        child,
+        outcome="failed",
+        error="kaplam: ts_opt diverged at step 7",
+        failure_kind=RunFailureKind.PIPELINE_INTERNAL,
+    )
 
     text = _final_text(core, child)
     assert "kaplam: ts_opt diverged at step 7" in text

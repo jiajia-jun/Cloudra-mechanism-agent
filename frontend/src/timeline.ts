@@ -1,4 +1,5 @@
 import type { EventEnvelope } from './types';
+import { failureNote } from './failureKind.ts';
 
 export interface ToolItem {
   kind: 'tool';
@@ -60,7 +61,7 @@ export interface NoteItem {
   kind: 'note';
   id: string;
   seq: number;
-  level: 'warn' | 'info';
+  level: 'warn' | 'info' | 'error';
   text: string;
 }
 export interface ThinkingItem {
@@ -564,6 +565,19 @@ export function buildTimeline(events: EventEnvelope[], pendingUserMessages: Mess
         pending.text = 'Context compaction interrupted';
       }
       openCompactions.clear();
+      // 失败的 run 按结构化 failure_kind 给出下一步（只认枚举，不解析 error 文本）。
+      if (event.type === 'run.finished') {
+        const failure = failureNote(event.data);
+        if (failure) {
+          items.push({
+            kind: 'note',
+            id: event.event_id,
+            seq,
+            level: failure.level,
+            text: failure.text,
+          });
+        }
+      }
     } else if (event.type === 'agent.warning' || event.type === 'llm.failed' || event.type === 'tool.blocked') {
       items.push({
         kind: 'note',

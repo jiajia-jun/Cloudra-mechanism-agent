@@ -29,6 +29,7 @@ from cloudra.runtime_v2.apply import (
     apply_event,
 )
 from cloudra.runtime_v2.effects import EventDraft
+from cloudra.runtime_v2.failures import RunFailureKind
 from cloudra.runtime_v2.schemas import (
     AgentSession,
     EventEnvelope,
@@ -467,7 +468,10 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
         before = len(core.event_log)
         if agent.current_run is not None:
             core.agent_host.finish_run(
-                agent, outcome="failed", error="interrupted by process restart"
+                agent,
+                outcome="failed",
+                error="interrupted by process restart",
+                failure_kind=RunFailureKind.RUNTIME_INTERRUPTED,
             )
         else:
             core.agent_host.transition(

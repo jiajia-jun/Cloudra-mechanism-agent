@@ -581,6 +581,30 @@ async def test_repeated_exit_same_version_creates_one_request_and_no_llm_spin(tm
 
 
 @pytest.mark.asyncio
+async def test_no_progress_exit_exhaustion_fails_with_structured_kind(tmp_path):
+    """同一缺口反复退出耗尽预算：run 落 failed，分类是 completion_no_progress
+    ——独立的失败桶，不与 provider/科学失败混在一起（评审 5.10）。"""
+    llm = _RoutingLLM([_stop_call(delivery_disposition="complete", reason="done")])
+    core, bus, project = await _new_core(llm, workspace_dir=tmp_path, max_exit_strikes=2)
+    coordinator = await _spawn_coordinator(bus, project, mode="dag_guided")
+    try:
+        await _wait_state(coordinator, "failed")
+        gates = _gate_events(core, coordinator.id)
+        assert gates and all(e.data["action"] == "continue_work" for e in gates)
+        finished = [
+            e
+            for e in core.event_log.query_session(coordinator.id)
+            if e.type == "run.finished"
+        ]
+        assert finished[-1].data["outcome"] == "failed"
+        assert finished[-1].data["failure_kind"] == "completion_no_progress"
+        assert "without progress" in (finished[-1].data["error"] or "")
+        assert await _dispositions(project.id) == []
+    finally:
+        await _teardown(core)
+
+
+@pytest.mark.asyncio
 async def test_schedule_plain_text_exit_goes_through_gate(tmp_path):
     """schedule 模式纯文本退出经同一结束策略：无可核实后台工作时按
     agent 声明放行（不假称已验证完成）。"""

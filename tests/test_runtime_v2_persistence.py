@@ -285,6 +285,8 @@ async def test_restore_marks_zombie_running_agents_failed(tmp_path):
     assert revived.state is AgentState.FAILED
     finished = restored.event_log.query_session(agent.id, types={"run.finished"})
     assert finished[-1].data["error"] == "interrupted by process restart"
+    # 重启中断是独立分类：不与 provider/科学失败混在同一统计桶（评审 5.10）。
+    assert finished[-1].data["failure_kind"] == "runtime_interrupted"
 
     # 二次重启不再重复标记（幂等）
     again = RuntimeCore(strict_events=True)

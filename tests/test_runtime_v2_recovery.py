@@ -87,6 +87,9 @@ async def test_persistent_crash_fails_after_bounded_retries():
     assert len(_retries(core, agent.id)) == 2  # 1 initial + 2 retries, then failed
     finished = core.event_log.query_session(agent.id, types={"run.finished"})
     assert finished[-1].data["outcome"] == "failed"
+    # 来源不明的异常不甩锅给 provider：只有带 provider 特征（status_code / 已知
+    # SDK 包）的错误才落 provider_* 桶（评审 5.10）。
+    assert finished[-1].data["failure_kind"] == "pipeline_internal"
 
 
 @pytest.mark.asyncio
@@ -192,7 +195,7 @@ async def test_message_to_cancelled_agent_reopens_run():
 @pytest.mark.asyncio
 async def test_non_transient_4xx_fails_fast_without_retry():
     """402/401 这类非瞬态错误不值得原地重试：直接 failed，0 次 run.retry。"""
-    from cloudra.runtime_v2.agent_runner import _is_retryable
+    from cloudra.runtime_v2.failures import is_retryable
 
     class Http402(Exception):
         status_code = 402
@@ -201,8 +204,8 @@ async def test_non_transient_4xx_fails_fast_without_retry():
         async def complete(self, agent, messages, tools, **_kwargs):
             raise Http402("Insufficient Balance")
 
-    assert _is_retryable(Http402("x")) is False
-    assert _is_retryable(RuntimeError("boom")) is True
+    assert is_retryable(Http402("x")) is False
+    assert is_retryable(RuntimeError("boom")) is True
 
     core = RuntimeCore(strict_events=True)
     pipeline = TurnPipeline(
@@ -227,3 +230,5 @@ async def test_non_transient_4xx_fails_fast_without_retry():
     assert _retries(core, agent.id) == []
     finished = core.event_log.query_session(agent.id, types={"run.finished"})
     assert "Insufficient Balance" in (finished[-1].data.get("error") or "")
+    # 永久拒绝与「重试耗尽」是两个不同的桶：UI/遥测按枚举分流（评审 5.10）。
+    assert finished[-1].data["failure_kind"] == "provider_permanent"

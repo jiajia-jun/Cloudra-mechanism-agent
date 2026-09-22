@@ -412,3 +412,25 @@ console.log('timeline.tool-args ok');
   assert.equal(program.children[0].ok, false);
   console.log('timeline.program-interrupted ok');
 }
+
+// 失败的 run 按结构化 failure_kind 给出下一步（枚举驱动，不解析 error 文本）。
+{
+  const items = buildTimeline(
+    [
+      ev('run.finished', 1, {
+        outcome: 'failed',
+        error: '402 Insufficient Balance',
+        failure_kind: 'provider_permanent',
+      }),
+      ev('run.finished', 2, { outcome: 'failed', error: 'old run without a kind' }),
+      ev('run.finished', 3, { outcome: 'succeeded', error: null, failure_kind: null }),
+    ],
+    [],
+  );
+  const notes = items.filter((item) => item.kind === 'note') as NoteItem[];
+  assert.equal(notes.length, 1, 'only the classified failure gets a note');
+  assert.equal(notes[0].level, 'error');
+  assert.ok(!notes[0].text.includes('402'), 'raw error text must not leak into the note');
+  assert.ok(notes[0].text.includes('API key'), 'the note must name the next step');
+  console.log('timeline.run-failure-note ok');
+}

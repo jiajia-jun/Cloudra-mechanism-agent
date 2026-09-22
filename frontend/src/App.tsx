@@ -149,6 +149,12 @@ const SLASH_COMMANDS: SlashCommandDef[] = [
   },
 ];
 
+/** 笔记行图标：info 提示 / warn 警告 / error 失败。 */
+function noteIcon(level: 'warn' | 'info' | 'error'): string {
+  if (level === 'info') return 'ℹ';
+  return level === 'error' ? '✕' : '!';
+}
+
 function ThinkingBlock({ item }: { item: ThinkingItem }) {
   const [open, setOpen] = useState(Boolean(item.live));
   const [copied, setCopied] = useState(false);
@@ -2257,10 +2263,10 @@ export default function App() {
               ) : (
                 <div
                   key={item.id}
-                  className={`tool-row ${item.level === 'warn' ? 'fail' : 'info'}`}
+                  className={`tool-row ${item.level === 'info' ? 'info' : 'fail'}`}
                   style={{ cursor: 'default' }}
                 >
-                  <span className="tool-icon">{item.level === 'warn' ? '!' : 'ℹ'}</span>
+                  <span className="tool-icon">{noteIcon(item.level)}</span>
                   <span className="tool-summary">{item.text}</span>
                 </div>
               ),
