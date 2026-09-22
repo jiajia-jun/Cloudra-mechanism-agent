@@ -27,11 +27,17 @@ _CLOUDRA = Path(__file__).resolve().parents[1] / "cloudra"
 
 def _legacy_id_literals(source: str) -> set[str]:
     """Return exact legacy-id string literals, ignoring comments and prose."""
-    values = {
-        node.value
-        for node in ast.walk(ast.parse(source))
-        if isinstance(node, ast.Constant) and isinstance(node.value, str)
-    }
+    values: set[str] = set()
+
+    class LiteralVisitor(ast.NodeVisitor):
+        def visit_JoinedStr(self, node: ast.JoinedStr) -> None:
+            return
+
+        def visit_Constant(self, node: ast.Constant) -> None:
+            if isinstance(node.value, str):
+                values.add(node.value)
+
+    LiteralVisitor().visit(ast.parse(source))
     return {
         value
         for value in values
@@ -50,6 +56,8 @@ def test_legacy_id_literal_scanner_ignores_comments_and_embedded_text():
 NOTE = "mentions a-3 in prose"
 PRIMARY = "a-4"
 SUPERVISOR = "a-supervisor"
+DYNAMIC = f"a-5{suffix}"
+ALSO_DYNAMIC = f"a-6{suffix}"
 '''
     assert _legacy_id_literals(source) == {"a-4", "a-supervisor"}
 
