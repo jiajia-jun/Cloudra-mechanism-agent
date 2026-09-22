@@ -413,7 +413,10 @@ async def test_cancel_then_worker_cancelled_preserves_reason(tmp_path):
     assert finished[-1]["data"]["reason"] == "parent cancelled"
     release.set()
 @pytest.mark.asyncio
-async def test_group_survives_second_restore_after_snapshot_covers_events(tmp_path):
+@pytest.mark.parametrize("flush_command_snapshot", [False, True], ids=["restore", "command"])
+async def test_group_survives_second_restore_after_snapshot_covers_events(
+    tmp_path, flush_command_snapshot
+):
     """快照水位越过 launch_group.* 事件后，二次恢复仍能重建组清单。
 
     回归：恢复写快照时若不把组清单随快照落地，下一次恢复只重放快照之后的
@@ -454,6 +457,10 @@ async def test_group_survives_second_restore_after_snapshot_covers_events(tmp_pa
         if group.item("i0").state == "succeeded":
             break
         await asyncio.sleep(0.01)
+
+    if flush_command_snapshot:
+        # 命令/关闭路径独立组装快照，必须同样保存水位覆盖的组清单。
+        await CommandBus(core).flush_snapshot()
 
     restored = RuntimeCore(strict_events=True)
     restored.store = store

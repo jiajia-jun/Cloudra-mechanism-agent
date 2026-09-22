@@ -1036,6 +1036,7 @@ class CommandBus:
                 k: v.model_dump(mode="json") for k, v in core.session_contexts.items()
             },
             "pending_compactions": sorted(core.pending_compactions),
+            "launch_groups": core.launch_groups.snapshot(),
         }
         await asyncio.to_thread(core.store.write_snapshot_payload, payload, last_seqs)
         self._snapshot_event_mark = len(core.event_log)
