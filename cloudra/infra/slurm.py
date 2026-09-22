@@ -25,6 +25,7 @@ _SBATCH_VALUE = re.compile(r"[A-Za-z0-9_.:@+/%-]{1,100}\Z")
 _MEMORY = re.compile(r"[1-9][0-9]{0,6}(?:[KMGTP])?\Z", re.IGNORECASE)
 _TIME_LIMIT = re.compile(r"(?:[0-9]{1,3}-)?[0-9]{1,2}:[0-9]{2}:[0-9]{2}\Z")
 _JOB_ID = re.compile(r"[0-9]+(?:_[0-9]+)?\Z")
+_ENVIRONMENT_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 
 SLURM_TERMINAL_SUCCESS = frozenset({"COMPLETED"})
 SLURM_TERMINAL_FAILURE = frozenset(
@@ -68,7 +69,6 @@ def build_batch_script(
         raise SlurmError(message)
     lines = [
         "#!/bin/bash",
-        "set -euo pipefail",
         _directive("job-name", f"cloudra-{task_id}"),
         _directive("output", f"cloudra-slurm-{task_id}-%j.out"),
         _directive("error", f"cloudra-slurm-{task_id}-%j.err"),
@@ -90,13 +90,40 @@ def build_batch_script(
         lines.append(f"#SBATCH --cpus-per-task={cpus}")
     if scheduler.get("memory"):
         lines.append(_directive("mem", scheduler["memory"], _MEMORY))
-    lines.extend(
-        [
-            f"cd {shlex.quote(str(input_file.parent))}",
-            shlex.join(calculator_cmd),
-            "",
-        ]
-    )
+    lines.append("set -euo pipefail")
+    modules = scheduler.get("modules", [])
+    if modules:
+        lines.extend(
+            [
+                ". /etc/profile.d/modules.sh",
+                shlex.join(["module", "load", *modules]),
+            ]
+        )
+    environment = scheduler.get("environment") or {}
+    if not isinstance(environment, dict):
+        raise SlurmError("Slurm environment 必须是对象")
+    for name, value in environment.items():
+        if not isinstance(name, str) or not _ENVIRONMENT_NAME.fullmatch(name):
+            raise SlurmError(f"无效的 Slurm environment 变量名: {name!r}")
+        if (
+            not isinstance(value, str)
+            or "\n" in value
+            or "\r" in value
+            or "\0" in value
+        ):
+            raise SlurmError(f"Slurm environment {name!r} 必须是单行字符串")
+        lines.append(f"export {name}={shlex.quote(value)}")
+    lines.append(f"cd {shlex.quote(str(input_file.parent))}")
+    if job_type.strip().lower() == "orca":
+        # ORCA writes its authoritative output to stdout rather than creating
+        # <input>.out.  Preserve that stream where resolve_log_path expects it
+        # so a Slurm COMPLETED row cannot hide an ORCA error termination.
+        capture = f".cloudra/calc-{task_id}.out.log"
+        lines.append("mkdir -p .cloudra")
+        lines.append(f"{shlex.join(calculator_cmd)} > {shlex.quote(capture)} 2>&1")
+    else:
+        lines.append(shlex.join(calculator_cmd))
+    lines.append("")
     return "\n".join(lines)
 
 

@@ -18,7 +18,9 @@
 - 每个配置的 workspace 路径必须真实存在且可解析为目录；标识符须匹配
   `[A-Za-z0-9][A-Za-z0-9_.-]*`，重复或格式错误直接报错。
 - 每个节点声明 `scheduler.type`：`local` 或 `slurm`；Slurm 节点接受 `partition`、
-  `account`、`qos`、`time_limit`、`cpus`、`memory`、`poll_seconds`，未知字段报错。
+  `account`、`qos`、`time_limit`、`cpus`、`memory`、`poll_seconds`，以及非空的
+  `modules` 列表。配置模块时，批处理脚本会初始化 Environment Modules，并在计算命令
+  前执行一次 `module load`；未知字段报错。
 - 每个节点可声明 `resources`（`max_concurrent` / `cpus` / `memory_mb`，正整数，
   缺省用本地兜底：10 槽位、全核、物理内存扣掉 8 GiB 系统余量且不低于半内存）
   ——`submit_compute_job` 据此对 agent 的资源申请（`cpus`/`memory_mb`）做提交时硬校验。

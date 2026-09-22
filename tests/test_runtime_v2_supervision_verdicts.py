@@ -28,6 +28,7 @@ from cloudra.dag.store import DagStore
 from cloudra.persistence.database import ConversationDB
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.core import RuntimeCore
+from cloudra.runtime_v2.failures import RunFailureKind
 from cloudra.runtime_v2.schemas import AgentState, Command
 from cloudra.runtime_v2.supervision import (
     TERMINAL_SUPERVISOR_PIN_KEY,
@@ -521,7 +522,12 @@ async def _failed_supervisor(bus, core, project, coordinator):
         )
     ).data
     core.agent_host.start_run(supervisor)
-    core.agent_host.finish_run(supervisor, outcome="failed", error="boom")
+    core.agent_host.finish_run(
+        supervisor,
+        outcome="failed",
+        error="boom",
+        failure_kind=RunFailureKind.PIPELINE_INTERNAL,
+    )
     assert supervisor.state is AgentState.FAILED
     return supervisor
 

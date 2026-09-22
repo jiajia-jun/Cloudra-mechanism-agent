@@ -1,13 +1,11 @@
-"""Uniform delivery for user and peer messages.
-
-Every message is one event + one inbox enqueue.  The runtime never inspects
-sender authority beyond the caller-provided actor: the command layer performs
-authorization before calling deliver.
+"""Uniform message payload shapes for the event log and the ephemeral inbox.
 
 载荷形状的唯一事实来源在本模块（``message_data`` 事件载荷 /
-``message_payload`` inbox 载荷）：命令侧 decide 用它们组装
-``agent.message_injected`` 草稿与 ``DeliverMessage`` 效果，事件先于投递落地
-且 message_id 一致；非命令路径（hub_bridge 等）继续用 ``deliver`` 一步走。
+``message_payload`` inbox 载荷）。Agent 间投递走
+``MessageDispatcher.commit_and_deliver``（persist → enqueue → wake）；命令路径
+的 ``agent.message`` 经 CommandBus 落 ``agent.message_injected`` 后再
+``DeliverMessage`` 入队——两边都是持久化成功才可见，不再有「先入队、事后
+flush」的第二条语义。
 
 易失性（3e）：inbox 是**刻意易失**的内存队列（shell 私有，重启即弃）——
 run 只活在内存，重启后没有消费者在等队列里的载荷；``agent.message_injected``
@@ -20,7 +18,6 @@ import asyncio
 from typing import Any
 
 from cloudra.runtime_v2.events import EventLog
-from cloudra.runtime_v2.schemas import EventEnvelope, new_id
 
 
 class Mailbox:
@@ -49,9 +46,14 @@ class Mailbox:
         images: list[str] | None = None,
         image_artifact_ids: list[str | None] | None = None,
         post_id: str | None = None,
+        manifest: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """agent.message_injected 的事件载荷。"""
         data: dict[str, Any] = {"message_id": message_id, "sender": sender, "content": content}
+        if manifest is not None:
+            # 结构化完成回报（子 agent manifest）：事件/API 侧保留结构化数据，
+            # inbox 载荷与父上下文只拿渲染后的文本。
+            data["manifest"] = manifest
         if post_id:
             data["post_id"] = post_id
         if images:
@@ -92,42 +94,3 @@ class Mailbox:
         """纯入队（事件已由调用方落日志）——DeliverMessage 效果的执行点。"""
         self.ensure_inbox(to_session_id).put_nowait(message)
 
-    def deliver(
-        self,
-        *,
-        to_session_id: str,
-        project_id: str,
-        content: str,
-        sender: str,
-        run_id: str | None = None,
-        images: list[str] | None = None,
-        image_artifact_ids: list[str | None] | None = None,
-        post_id: str | None = None,
-    ) -> EventEnvelope:
-        message_id = new_id("msg")
-        envelope = self._event_log.append(
-            "agent.message_injected",
-            stream="project",
-            project_id=project_id,
-            session_id=to_session_id,
-            run_id=run_id,
-            data=self.message_data(
-                message_id=message_id,
-                sender=sender,
-                content=content,
-                images=images,
-                image_artifact_ids=image_artifact_ids,
-                post_id=post_id,
-            ),
-        )
-        self.enqueue(
-            to_session_id,
-            self.message_payload(
-                message_id=message_id,
-                sender=sender,
-                content=content,
-                images=images,
-                post_id=post_id,
-            ),
-        )
-        return envelope

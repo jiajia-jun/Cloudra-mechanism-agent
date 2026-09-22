@@ -26,6 +26,8 @@ def test_node_registry_validates_and_resolves_workspace_routes(tmp_path):
                         "type": "slurm",
                         "partition": "compute",
                         "cpus": 8,
+                        "modules": ["apps/orca/5.0.2"],
+                        "environment": {"OMPI_MCA_rmaps_base_oversubscribe": "1"},
                     },
                     "workspaces": [
                         {
@@ -44,6 +46,10 @@ def test_node_registry_validates_and_resolves_workspace_routes(tmp_path):
     assert route.path == second.resolve()
     assert route.access == "read_only"
     assert registry.node("hpc-login").scheduler["type"] == "slurm"
+    assert registry.node("hpc-login").scheduler["modules"] == ["apps/orca/5.0.2"]
+    assert registry.node("hpc-login").scheduler["environment"] == {
+        "OMPI_MCA_rmaps_base_oversubscribe": "1"
+    }
     assert "compute.slurm" in registry.node("hpc-login").capabilities
     assert {item["node_id"] for item in registry.public_nodes()} == {
         "local",
@@ -87,4 +93,42 @@ def test_node_capability_namespace_is_validated(tmp_path):
         NodeRegistry.from_dict(payload)
     payload["nodes"][0]["capabilities"] = ["compute.slurm", "bad capability"]
     with pytest.raises(NodeRegistryError, match="invalid node capability"):
+        NodeRegistry.from_dict(payload)
+
+
+@pytest.mark.parametrize("modules", ["apps/orca/5.0.2", [], [""]])
+def test_node_registry_rejects_invalid_scheduler_modules(tmp_path, modules):
+    payload = {
+        "nodes": [
+            {
+                "node_id": "hpc",
+                "scheduler": {"type": "slurm", "modules": modules},
+                "workspaces": [{"workspace_id": "main", "path": str(tmp_path)}],
+            }
+        ]
+    }
+    with pytest.raises(NodeRegistryError, match="modules"):
+        NodeRegistry.from_dict(payload)
+
+
+@pytest.mark.parametrize(
+    "environment",
+    [
+        ["OMPI=value"],
+        {"BAD-NAME": "1"},
+        {"VALID_NAME": "line one\nline two"},
+        {"VALID_NAME": 1},
+    ],
+)
+def test_node_registry_rejects_invalid_scheduler_environment(tmp_path, environment):
+    payload = {
+        "nodes": [
+            {
+                "node_id": "hpc",
+                "scheduler": {"type": "slurm", "environment": environment},
+                "workspaces": [{"workspace_id": "main", "path": str(tmp_path)}],
+            }
+        ]
+    }
+    with pytest.raises(NodeRegistryError, match="environment"):
         NodeRegistry.from_dict(payload)

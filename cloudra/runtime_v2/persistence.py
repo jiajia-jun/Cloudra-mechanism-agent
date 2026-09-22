@@ -29,13 +29,16 @@ from cloudra.runtime_v2.apply import (
     apply_event,
 )
 from cloudra.runtime_v2.effects import EventDraft
+from cloudra.runtime_v2.failures import RunFailureKind
 from cloudra.runtime_v2.schemas import (
     AgentSession,
+    AgentState,
     EventEnvelope,
     Project,
     RoleProfile,
     RuntimeSettings,
     SessionContext,
+    new_id,
 )
 
 _SCHEMA = """
@@ -72,6 +75,10 @@ CREATE TABLE IF NOT EXISTS meta (
 # open.  This pure planner maps one full restored history to those drafts.
 
 _INTERRUPTED_MESSAGE = "interrupted by process restart"
+
+
+#: 恢复时用于「child session 状态对账」的终态集合。
+_TERMINAL_AGENT_STATES = {AgentState.SUCCEEDED, AgentState.FAILED, AgentState.CANCELLED}
 
 
 def plan_interrupted_invocations(events: list[EventEnvelope]) -> list[EventDraft]:
@@ -254,6 +261,7 @@ class RuntimeStore:
         runtime_defaults: RuntimeSettings,
         session_contexts: dict[str, SessionContext] | None = None,
         pending_compactions: set[str] | None = None,
+        launch_groups: list[dict[str, Any]] | None = None,
         last_seqs: dict[str, int],
     ) -> None:
         payload = {
@@ -270,6 +278,9 @@ class RuntimeStore:
             # pending_compactions 是 compaction.requested 的事件投影；
             # 快照水位越过该事件后增量重放看不到它，必须随快照落地。
             "pending_compactions": sorted(pending_compactions or ()),
+            # launch group 清单同理：快照水位越过 launch_group.* 后增量重放
+            # 看不到它们，不随快照落地就会在下一次恢复中凭空丢组。
+            "launch_groups": launch_groups or [],
         }
         self.write_snapshot_payload(payload, last_seqs)
 
@@ -412,6 +423,9 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
             for session_id in snapshot.get("pending_compactions") or []
             if session_id
         }
+        # launch group 清单随快照恢复（快照点之后的 launch_group.* 事件由下面的
+        # 增量重放经 apply_event 补上）。
+        core.launch_groups.restore(snapshot.get("launch_groups") or [])
         for agent in core.agents.values():
             core.mailbox.ensure_inbox(agent.id)
 
@@ -467,7 +481,10 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
         before = len(core.event_log)
         if agent.current_run is not None:
             core.agent_host.finish_run(
-                agent, outcome="failed", error="interrupted by process restart"
+                agent,
+                outcome="failed",
+                error="interrupted by process restart",
+                failure_kind=RunFailureKind.RUNTIME_INTERRUPTED,
             )
         else:
             core.agent_host.transition(
@@ -476,18 +493,46 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
         new_events.extend(list(core.event_log)[before:])
         zombies.append(agent)
     # 跨重启子终态回传：僵尸子的父还在等它的结果（is_wait=False 派发只有这
-    # 一条通知通道），与普通完成回传同一路径送达父信箱；恢复路径不 wake
+    # 一条通知通道），与普通完成回传同一载荷构造送达父信箱；恢复路径不 wake
     # （包括 succeeded 休眠父）——runner 已装时 wake 会真实打进 LLM，把
     # 旧项目的协调者/探索者在 API 重启时烧起来（issue #35）。通知驻留信箱，
     # 显式 resume 后首轮即可读到。
-    from cloudra.runtime_v2.subagent_bridge import deliver_child_completion_to_parent
+    #
+    # 次序与 MessageDispatcher 一致（append → durable → enqueue）；恢复阶段没有
+    # 事件循环，用本函数末尾的一次性落库屏障代替逐条 commit：先收齐全部恢复
+    # 事件，落库成功后才入队。
+    from cloudra.runtime_v2.mailbox import Mailbox
+    from cloudra.runtime_v2.subagent_bridge import child_completion_message
 
+    pending_inbox: list[tuple[str, dict[str, Any]]] = []
     for agent in zombies:
-        if not agent.parent_session_id:
+        message = child_completion_message(core, agent)
+        if message is None:
             continue
-        before = len(core.event_log)
-        deliver_child_completion_to_parent(core, agent, wake=False)
-        new_events.extend(list(core.event_log)[before:])
+        parent_id, content, manifest = message
+        message_id = new_id("msg")
+        new_events.append(
+            core.event_log.append(
+                "agent.message_injected",
+                stream="project",
+                project_id=agent.project_id,
+                session_id=parent_id,
+                data=Mailbox.message_data(
+                    message_id=message_id,
+                    sender=agent.role_id,
+                    content=content,
+                    manifest=manifest,
+                ),
+            )
+        )
+        pending_inbox.append(
+            (
+                parent_id,
+                Mailbox.message_payload(
+                    message_id=message_id, sender=agent.role_id, content=content
+                ),
+            )
+        )
     # Orphaned pending entries (a requested approval/interaction whose waiter
     # died with the previous process) get an explicit terminal
     # approval.expired / interaction.expired event, so a woken agent sees a
@@ -495,8 +540,56 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
     # silently vanishing.  Same append + apply + persist path as the zombie
     # finalization above (no hub publish: restore runs before subscribers).
     new_events.extend(core.pending.expire_orphans())
+    # launch group（评审 5.2）：组清单随事件重放重建，但**绝不重放外部副作用**——
+    # 重启不会重新 spawn 任何 child。非终态的组在这里显式收口为 interrupted：
+    # 未派发的 queued item 保持 queued（用户可显式重新派发），已存在的 child
+    # session 只做状态对账（从活 agent 的终态取值，不猜）。
+    for group in core.launch_groups.groups():
+        if group.state != "running":
+            continue
+        envelope = core.event_log.append(
+            "launch_group.finished",
+            stream="agent",
+            project_id=group.project_id,
+            session_id=group.parent_session_id,
+            data={
+                "group_id": group.group_id,
+                "state": "interrupted",
+                "reason": "process restart: group worker is gone; re-dispatch explicitly",
+            },
+        )
+        apply_event(core, envelope)
+        new_events.append(envelope)
+        for item in group.items:
+            if item.state != "running":
+                continue
+            child = core.agents.get(item.child_session_id)
+            if child is None or child.state not in _TERMINAL_AGENT_STATES:
+                continue
+            state = (
+                "succeeded"
+                if child.state is AgentState.SUCCEEDED
+                else "failed" if child.state is AgentState.FAILED else "cancelled"
+            )
+            item_envelope = core.event_log.append(
+                "launch_group.item_finished",
+                stream="agent",
+                project_id=group.project_id,
+                session_id=group.parent_session_id,
+                data={
+                    "group_id": group.group_id,
+                    "item_id": item.item_id,
+                    "state": state,
+                    "error": "",
+                },
+            )
+            apply_event(core, item_envelope)
+            new_events.append(item_envelope)
     for envelope in new_events:
         store.append_event(envelope)
+    # 落库成功之后才把恢复期组装的完成回传放进父信箱（持久化先于可见）。
+    for session_id, payload in pending_inbox:
+        core.mailbox.ensure_inbox(session_id).put_nowait(payload)
     if new_events:
         store.save_snapshot(
             projects=core.projects,
@@ -505,6 +598,7 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
             runtime_defaults=core.runtime_defaults,
             session_contexts=core.session_contexts,
             pending_compactions=core.pending_compactions,
+            launch_groups=core.launch_groups.snapshot(),
             last_seqs=core.event_log.high_watermarks,
         )
     return core.event_log.high_watermarks

@@ -9,6 +9,7 @@ import pytest
 from cloudra.runtime_v2.agent_runner import AgentRunner
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.core import RuntimeCore
+from cloudra.runtime_v2.dispatcher import WakePolicy
 from cloudra.runtime_v2.policies import default_stages
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
 from cloudra.runtime_v2.schemas import Command, InvocationProtocol
@@ -130,6 +131,34 @@ async def test_runner_executes_tool_then_stops():
 
 
 @pytest.mark.asyncio
+async def test_completed_tool_exchange_is_one_context_event():
+    llm = ScriptedLLM(
+        [
+            LLMResponse(
+                content="checking",
+                tool_calls=[ToolCall(id="tc-atomic", name="echo", arguments={"x": 1})],
+            ),
+            LLMResponse(content="done", stop_requested=True),
+        ]
+    )
+    core, _, agent = await _setup(llm)
+    await _wait_state(agent, "succeeded")
+
+    pair_events = []
+    for event in core.event_log.query_session(agent.id, types={"context.appended"}):
+        messages = event.data.get("messages") or []
+        roles = [message.get("role") for message in messages]
+        if "assistant" in roles and "tool" in roles:
+            pair_events.append(event)
+    assert len(pair_events) == 1
+    messages = pair_events[0].data["messages"]
+    assistant = next(message for message in messages if message.get("role") == "assistant")
+    tool = next(message for message in messages if message.get("role") == "tool")
+    assert [call["id"] for call in assistant["tool_calls"]] == ["tc-atomic"]
+    assert tool["tool_call_id"] == "tc-atomic"
+
+
+@pytest.mark.asyncio
 async def test_manual_compaction_rewrites_history(monkeypatch):
     """compact 命令在 run 进行中到达：下个轮次边界统一压缩全部轮次并原子
     安装；压缩后轮次的请求带 assistant 角色的 [Context compact] handoff。"""
@@ -184,11 +213,12 @@ async def test_manual_compaction_rewrites_history(monkeypatch):
         async def execute(self, agent, call, **_kwargs):
             if not self.delivered:
                 self.delivered = True
-                core.mailbox.deliver(
+                await core.dispatcher.commit_and_deliver(
                     to_session_id=agent.id,
                     project_id=agent.project_id,
                     content="second task",
                     sender="user",
+                    wake=WakePolicy.NEVER,
                 )
             return ToolResult(is_success=True, summary="x" * 5000, data={})
 
@@ -331,11 +361,12 @@ async def test_wake_during_final_event_flush_reschedules_after_task_done():
         # while the runner task itself is still alive.
         if agent.state.value == "succeeded" and not delivered:
             delivered = True
-            core.mailbox.deliver(
+            await core.dispatcher.commit_and_deliver(
                 to_session_id=agent.id,
                 project_id=agent.project_id,
                 content="late review decision",
                 sender="supervisor",
+                wake=WakePolicy.NEVER,
             )
             core.agent_host.wake(agent, runner=runner)
             assert agent.state.value == "running"
@@ -715,11 +746,12 @@ async def test_compaction_summary_is_appended_to_workspace(monkeypatch, tmp_path
         async def execute(self, agent, call, **_kwargs):
             if not self.delivered:
                 self.delivered = True
-                core.mailbox.deliver(
+                await core.dispatcher.commit_and_deliver(
                     to_session_id=agent.id,
                     project_id=agent.project_id,
                     content="second task",
                     sender="user",
+                    wake=WakePolicy.NEVER,
                 )
             return ToolResult(is_success=True, summary="x" * 5000, data={})
 

@@ -313,6 +313,11 @@ def test_job_rows_carry_node_id_from_admission(tmp_path, monkeypatch):
     assert remote.ok is True, remote.message
     assert remote.node_id == "hpc-login"
     assert remote.scheduler == "slurm"
+    # The Slurm allocation must match this job's admitted resource request.
+    # Node-level scheduler values are defaults/configuration, not a license to
+    # silently replace the request recorded in the capacity ledger.
+    assert remote.scheduler_options["cpus"] == 2
+    assert remote.scheduler_options["memory"] == "1024M"
     assert remote.node_resources == {"max_concurrent": 8, "cpus": 64, "memory_mb": 262144}
 
 

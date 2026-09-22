@@ -8,8 +8,8 @@ from typing import Any, Literal
 from pydantic import Field
 
 from cloudra.base.session_class import Session
+from cloudra.base.tool_actor import ToolActorContext
 from cloudra.base.tools_class import input_schema
-from cloudra.core.agent import Agent
 from cloudra.dag.completion import evaluate_delivery
 from cloudra.dag.models import GraphKind, OrchestrationMode
 from cloudra.tools.Plantool.dag_tools._common import (
@@ -56,7 +56,7 @@ class DagView(DagToolBase):
     )
     input_schema: Any = DagViewInput
     output_schema: Any = DagToolOutput
-    subagent: Agent = None
+    subagent: ToolActorContext | None = None
 
     async def tool_call(self, user_input: DagViewInput, session: Session) -> DagToolOutput:
         if self._mode() is OrchestrationMode.STANDARD:

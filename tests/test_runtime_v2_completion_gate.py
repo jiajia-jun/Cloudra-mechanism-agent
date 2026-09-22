@@ -31,6 +31,7 @@ from cloudra.persistence.database import ConversationDB
 from cloudra.runtime_v2.agent_runner import AgentRunner
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.core import RuntimeCore
+from cloudra.runtime_v2.dispatcher import WakePolicy
 from cloudra.runtime_v2.policies import default_stages
 from cloudra.runtime_v2.policies.base import PolicyResult, ToolCall, ToolResult
 from cloudra.runtime_v2.schemas import AgentState, Command
@@ -305,6 +306,8 @@ async def test_plain_text_and_explicit_stop_face_the_same_gate(tmp_path, script)
         await _wait_parked(coordinator, llm)
         gates = _gate_events(core, coordinator.id)
         assert gates and all(e.data["action"] == "wait_review" for e in gates)
+        # 被拦的判定不产生收尾依据（basis 保持 None，不冒充任何验证等级）。
+        assert all(e.data["basis"] is None for e in gates)
         requests = await _review_requests(project.id)
         assert len(requests) == 1 and requests[0].kind == "exit"
         assert await _dispositions(project.id) == []
@@ -365,6 +368,8 @@ async def test_complete_delivery_plain_text_finishes(tmp_path):
         assert await _dispositions(project.id) == ["complete"]
         gates = _gate_events(core, coordinator.id)
         assert len(gates) == 1 and gates[0].data["action"] == "allow_final"
+        # 交付覆盖审计通过 = 唯一够格标「已验证完成」的收尾依据。
+        assert gates[0].data["basis"] == "dag_verified"
         # 完整交付不触发退出审查：不创建 Supervisor、无退出请求。
         assert llm.supervisor_calls == 0
         assert not [
@@ -394,6 +399,8 @@ async def test_valid_exit_approval_allows_finish(tmp_path):
         await flush_review_notifications(core, project.id)
         await _wait_state(coordinator, "succeeded")
         assert await _dispositions(project.id) == ["partial"]
+        # 收尾依据是 Supervisor 的接受裁决（不是模型自述）。
+        assert _gate_events(core, coordinator.id)[-1].data["basis"] == "supervisor_approved"
         assert await _review_requests(project.id) == []
         # 同一交付版本没有创建第二份退出请求。
         all_requests = await _review_requests(project.id, state=None)
@@ -520,6 +527,7 @@ async def test_dag_record_partial_plain_text_is_recorded_and_finishes(tmp_path):
         gates = _gate_events(core, coordinator.id)
         assert len(gates) == 1 and gates[0].data["action"] == "allow_final"
         assert gates[0].data["explicit_stop"] is False
+        assert gates[0].data["basis"] == "partial_recorded"
         assert await _review_requests(project.id, state=None) == []
         assert llm.supervisor_calls == 0
     finally:
@@ -538,6 +546,7 @@ async def test_standard_mode_plain_qa_finishes_as_declared(tmp_path):
         assert len(gates) == 1
         assert gates[0].data["action"] == "allow_final"
         assert gates[0].data["source"] == "declared"
+        assert gates[0].data["basis"] == "declared"
         assert "not independently verified" in gates[0].data["reason"]
         assert await _dispositions(project.id) == []
     finally:
@@ -576,6 +585,30 @@ async def test_repeated_exit_same_version_creates_one_request_and_no_llm_spin(tm
         await asyncio.sleep(0.15)
         assert (llm.coordinator_calls, llm.supervisor_calls) == before
         assert coordinator.state.value == "waiting_approval"
+    finally:
+        await _teardown(core)
+
+
+@pytest.mark.asyncio
+async def test_no_progress_exit_exhaustion_fails_with_structured_kind(tmp_path):
+    """同一缺口反复退出耗尽预算：run 落 failed，分类是 completion_no_progress
+    ——独立的失败桶，不与 provider/科学失败混在一起（评审 5.10）。"""
+    llm = _RoutingLLM([_stop_call(delivery_disposition="complete", reason="done")])
+    core, bus, project = await _new_core(llm, workspace_dir=tmp_path, max_exit_strikes=2)
+    coordinator = await _spawn_coordinator(bus, project, mode="dag_guided")
+    try:
+        await _wait_state(coordinator, "failed")
+        gates = _gate_events(core, coordinator.id)
+        assert gates and all(e.data["action"] == "continue_work" for e in gates)
+        finished = [
+            e
+            for e in core.event_log.query_session(coordinator.id)
+            if e.type == "run.finished"
+        ]
+        assert finished[-1].data["outcome"] == "failed"
+        assert finished[-1].data["failure_kind"] == "completion_no_progress"
+        assert "without progress" in (finished[-1].data["error"] or "")
+        assert await _dispositions(project.id) == []
     finally:
         await _teardown(core)
 
@@ -725,11 +758,12 @@ async def test_message_arriving_during_gate_evaluation_is_not_lost(tmp_path):
             if not self._armed or ctx.agent.id != self._session_id:
                 return None
             self._armed = False
-            self._core.mailbox.deliver(
+            await self._core.dispatcher.commit_and_deliver(
                 to_session_id=self._session_id,
                 project_id=self._project_id,
                 content="late user input",
                 sender="user",
+                wake=WakePolicy.NEVER,
             )
             return None
 

@@ -8,8 +8,12 @@ tiktoken 不可用时回退到字符启发式（偏保守，略高估，避免�
 
 from __future__ import annotations
 
+import hashlib
+import os
 import re
+import tempfile
 from functools import lru_cache
+from pathlib import Path
 from typing import Any, Optional
 
 # OpenAI chat 消息格式开销（cl100k / o200k 通用近似）
@@ -17,9 +21,43 @@ _TOKENS_PER_MESSAGE = 4
 _TOKENS_PER_NAME = 1
 _REPLY_PRIMING_TOKENS = 2
 
+_ENCODING_ASSETS = {
+    "o200k_base": (
+        "fb374d419588a4632f3f557e76b4b70aebbca790",
+        "446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d",
+    ),
+    "cl100k_base": (
+        "9b5ad71b2ce5302211f9c61530b329a4922fc6a4",
+        "223921b76ee99bde995b7ff738513eef100fb51d18c93597a113bcffe865b2a7",
+    ),
+}
+
+
+def _encoding_cache_dir() -> Path:
+    configured = os.getenv("TIKTOKEN_CACHE_DIR")
+    if configured is None:
+        configured = os.getenv("DATA_GYM_CACHE_DIR")
+    if configured is None:
+        configured = os.path.join(tempfile.gettempdir(), "data-gym-cache")
+    return Path(configured) if configured else Path("/__tiktoken_cache_disabled__")
+
+
+def _require_cached_encoding_asset(name: str) -> None:
+    """Keep token counting offline; tiktoken's downloader has no timeout."""
+    asset = _ENCODING_ASSETS.get(name)
+    if asset is None:
+        raise FileNotFoundError(f"tiktoken encoding {name!r} is not cached")
+    cache_key, expected_hash = asset
+    path = _encoding_cache_dir() / cache_key
+    if not path.is_file():
+        raise FileNotFoundError(f"tiktoken encoding {name!r} is not cached at {path}")
+    if hashlib.sha256(path.read_bytes()).hexdigest() != expected_hash:
+        raise FileNotFoundError(f"tiktoken encoding {name!r} cache is invalid at {path}")
+
 
 @lru_cache(maxsize=8)
 def _encoding_for(name: str):
+    _require_cached_encoding_asset(name)
     import tiktoken
 
     return tiktoken.get_encoding(name)
@@ -27,19 +65,9 @@ def _encoding_for(name: str):
 
 @lru_cache(maxsize=32)
 def _encoding_for_model(model: str):
-    import tiktoken
+    from tiktoken.model import encoding_name_for_model
 
-    try:
-        return tiktoken.encoding_for_model(model)
-    except KeyError:
-        # DeepSeek / 多数 OpenAI 兼容端点不在 tiktoken 模型表里；
-        # o200k_base 对现代多语种更稳，失败再退 cl100k_base。
-        for fallback in ("o200k_base", "cl100k_base"):
-            try:
-                return tiktoken.get_encoding(fallback)
-            except Exception:
-                continue
-        raise
+    return _encoding_for(encoding_name_for_model(model))
 
 
 class TokenEstimator:

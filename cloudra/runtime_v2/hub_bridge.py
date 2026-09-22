@@ -8,9 +8,9 @@ exists, so this bridge re-implements the six actions on kernel primitives:
   the forum store, so posts survive replay like everything else.
 - ``browse`` / ``read`` / ``search`` are pure projections over those events.
 - Notifications (to_agent / reply) and ``call`` to a live session go through
-  ``Mailbox.deliver`` — the runner picks the message up at the next turn
-  boundary, which is the v2 equivalent of legacy inject_event.  A
-  sleeping/idle addressee is woken (``AgentHost.wake``) so the mention or call
+  ``MessageDispatcher.commit_and_deliver`` — the runner picks the message up
+  at the next turn boundary, which is the v2 equivalent of legacy inject_event.
+  A sleeping/idle addressee is woken (``WakePolicy``) so the mention or call
   takes effect immediately instead of sitting in the inbox; a failed/cancelled
   addressee is never auto-revived — the message is parked in its mailbox.
 - ``call`` to a role/id spawns a fresh child via the same CommandBus path as
@@ -26,8 +26,9 @@ from __future__ import annotations
 from typing import Any
 
 from cloudra.runtime_v2.commands import CommandBus
+from cloudra.runtime_v2.dispatcher import WakePolicy
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
-from cloudra.runtime_v2.schemas import AgentSession, AgentState, CommandRejected
+from cloudra.runtime_v2.schemas import AgentSession, CommandRejected
 from cloudra.runtime_v2.subagent_bridge import _role_id_for, _spawn_child
 from cloudra.tools.Managetool._hub_call import format_incoming_call
 from cloudra.tools.Managetool.agent_hub import _FUZZY_FLOOR, _SEARCH_SCAN_LIMIT, _fuzzy_score
@@ -71,20 +72,26 @@ def _resolve_live_target(core, project_id: str, target: str) -> AgentSession | N
     return matches[-1] if matches else None
 
 
-def _notify(core, project_id: str, target: AgentSession, *, sender: str, content: str, post_id: str | None = None) -> None:
-    core.mailbox.deliver(
+async def _notify(
+    core,
+    project_id: str,
+    target: AgentSession,
+    *,
+    sender: str,
+    content: str,
+    post_id: str | None = None,
+) -> None:
+    # 统一不复活纪律（park-don't-wake）：failed/cancelled 终态 agent 不被
+    # mention/call 自动 reopen——消息驻留 durable 信箱，用户显式复活后首轮
+    # 即可读到。其余状态照常唤醒（策略由 dispatcher 唯一解析）。
+    await core.dispatcher.commit_and_deliver(
         to_session_id=target.id,
         project_id=project_id,
         content=content,
         sender=sender,
         post_id=post_id,
+        wake=WakePolicy.PARK_TERMINAL,
     )
-    # 统一不复活纪律（park-don't-wake）：failed/cancelled 终态 agent 不被
-    # mention/call 自动 reopen——消息驻留 durable 信箱，用户显式复活后首轮
-    # 即可读到。其余状态照常唤醒，避免消息躺在收件箱等无关事件。
-    if target.state in {AgentState.FAILED, AgentState.CANCELLED}:
-        return
-    core.agent_host.wake(target, runner=core.runner)
 
 
 def _err(message: str) -> ToolResult:
@@ -95,7 +102,7 @@ def _ok(summary: str, **data: Any) -> ToolResult:
     return ToolResult(is_success=True, summary=summary, data={"is_success": True, "message": summary, **data})
 
 
-def _post(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
+async def _post(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     topic = str(args.get("topic") or "").strip()
     content = str(args.get("content") or "").strip()
     if not topic or not content:
@@ -134,7 +141,7 @@ def _post(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     notices = []
     if addressee is not None and addressee.id != author.id:
         target_name = to_agent or addressee.role_id
-        _notify(
+        await _notify(
             core,
             author.project_id,
             addressee,
@@ -151,7 +158,7 @@ def _post(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
         if parent is not None and parent["author_session"] != author.id:
             original = core.agents.get(parent["author_session"])
             if original is not None and (addressee is None or original.id != addressee.id):
-                _notify(
+                await _notify(
                     core,
                     author.project_id,
                     original,
@@ -317,7 +324,7 @@ async def _call(core, author: AgentSession, args: dict[str, Any], *, allow_spawn
 
     target = _resolve_live_target(core, author.project_id, raw_to)
     if target is not None:
-        _notify(core, author.project_id, target, sender=author.role_id, content=text)
+        await _notify(core, author.project_id, target, sender=author.role_id, content=text)
         return _ok(f"Called {target.id} (non-blocking).", session_id=target.id)
 
     if not allow_spawn:
@@ -330,14 +337,21 @@ async def _call(core, author: AgentSession, args: dict[str, Any], *, allow_spawn
     # legacy spawn-from-call path.
     role_id = _role_id_for(raw_to)
     core.roles.require(role_id)  # raises CommandRejected for unknown roles
-    child = await _spawn_child(
+    child, receipt = await _spawn_child(
         CommandBus(core),
         author,
         role_id=role_id,
         query=spoken,
         context=[{"role": "user", "content": text}],
     )
-    return _ok(f"Called {child.id} (non-blocking).", session_id=child.id)
+    # 派发回执带上 child 的有效设置摘要：调用方不必再猜 child 用了哪个
+    # model / protocol（继承规则在 child_settings 唯一定义）。
+    return _ok(
+        f"Called {child.id} (non-blocking). role={receipt['role_id']} "
+        f"model={receipt['model'] or '(unset)'} protocol={receipt['invocation_protocol']}",
+        session_id=child.id,
+        settings=receipt,
+    )
 
 
 async def handle_hub_tool(
@@ -346,7 +360,7 @@ async def handle_hub_tool(
     args = call.arguments or {}
     action = str(args.get("action") or "").strip().lower()
     if action == "post":
-        return _post(core, author, args)
+        return await _post(core, author, args)
     if action == "browse":
         return _browse(core, author, args)
     if action == "read":

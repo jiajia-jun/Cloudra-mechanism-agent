@@ -26,8 +26,10 @@ from collections import OrderedDict
 from typing import Any
 
 from cloudra.runtime_v2.agent_host import AgentHost
+from cloudra.runtime_v2.dispatcher import MessageDispatcher
 from cloudra.runtime_v2.email_listener import EmailListenerBroker
 from cloudra.runtime_v2.events import EventHub, EventLog
+from cloudra.runtime_v2.launch_groups import LaunchGroupManager
 from cloudra.runtime_v2.mailbox import Mailbox
 from cloudra.runtime_v2.notices import NoticeManager
 from cloudra.runtime_v2.pending import PendingBroker
@@ -250,6 +252,11 @@ class RuntimeCore:
             self.event_log, self.event_hub, store_provider=lambda: self.store
         )
         self.mailbox = Mailbox(self.event_log)
+        # 组生命周期是事件投影（launch_group.* 事件）：apply_event 的唯一写入点，
+        # 恢复重放据此重建组清单（worker 任务不重放）。
+        self.launch_groups = LaunchGroupManager(core=self)
+        # 消息提交/投递唯一入口（评审 5.2）：持久化成功才入队、再按策略唤醒。
+        self.dispatcher = MessageDispatcher(self)
         self.agent_host = AgentHost(self)
         self.roles = RoleRegistry(roles if roles is not None else BUILTIN_ROLES)
         self.runtime_defaults = RuntimeSettings()
@@ -281,9 +288,8 @@ class RuntimeCore:
         # Attached by the API/embedder when live execution is desired; command
         # handlers keep working without a runner (pure state mode for tests).
         self.runner = None
-        # Optional launch group manager (Task 10). Ephemeral/process-local;
-        # child lifecycle remains in the event log.
-        self.launch_groups = None
+        # launch group 管理器在 __init__ 就装配（见上）：组清单是 launch_group.*
+        # 事件投影，apply_event 需要它常驻；worker 任务才是进程内的。
         # Idempotency window: recent command_id -> first CommandResult.
         self._command_results: OrderedDict[str, CommandResult] = OrderedDict()
         self._max_command_results = 1024
@@ -303,12 +309,9 @@ class RuntimeCore:
         不触碰 scheduler/guard/QM 计算进程（契约 5 与执行面铁律）。
         """
         runner = self.runner
-        launch_groups = self.launch_groups
-        if launch_groups is not None:
-            # 组 worker 任务虽已登记进 runner 的 track_background，这里先按组
-            # 收敛状态（state=cancelled、queued 项落 cancelled、不再 spawn），
-            # 再由 cancel_all 取消并 await 全部 run/后台任务。
-            await launch_groups.cancel_all()
+        # 组管理器随 core 常驻：先按组收敛状态，再由 cancel_all 取消并 await
+        # 全部 run/后台任务。
+        await self.launch_groups.cancel_all()
         if runner is not None:
             await runner.cancel_all()
             js_runtime = getattr(getattr(runner, "pipeline", None), "js_runtime", None)

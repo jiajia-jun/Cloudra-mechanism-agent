@@ -29,6 +29,7 @@ import logging
 from dataclasses import dataclass
 from typing import Awaitable, Callable, Literal, Optional
 
+from cloudra.runtime_v2.dispatcher import latest_state_reason
 from cloudra.runtime_v2.schemas import AgentState
 
 logger = logging.getLogger(__name__)
@@ -55,16 +56,6 @@ class WaitDecision:
 
     kind: Literal["continue", "done", "cancel"]
     reason: str = ""
-
-
-def latest_state_reason(core, session_id: str) -> str:
-    """最近一次 ``agent.state_changed`` 的 reason（挂起原因的唯一持久来源）。"""
-    events = core.event_log.query_session(
-        session_id, types={"agent.state_changed"}, limit=20
-    )
-    if not events:
-        return ""
-    return str((events[-1].data or {}).get("reason") or "")
 
 
 def has_live_supervisor(core, project_id: str) -> bool:

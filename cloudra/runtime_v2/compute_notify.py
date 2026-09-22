@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 from cloudra.persistence.database import ComputeDB
 from cloudra.runtime.compute_notify import build_compute_finish_content, resolve_submission_info
 from cloudra.runtime_v2.commands import CommandBus
+from cloudra.runtime_v2.dispatcher import WakePolicy
 from cloudra.runtime_v2.schemas import Command
 from cloudra.services.compute_store import mark_notified, pending_terminal_jobs
 
@@ -393,13 +394,13 @@ class ComputeNotifyBroker:
         if agent is not None and agent.role_id == "coordinator":
             # Coordinator 绝不被计算任务唤醒（只由 AgentHub / Supervisor 裁决唤醒）：
             # 终态通知仅静默存入收件箱驻留（park-don't-wake），不发 agent.message 强制 wake。
-            self.core.mailbox.deliver(
+            await self.core.dispatcher.commit_and_deliver(
                 to_session_id=session_id,
                 project_id=agent.project_id,
                 content=body,
                 sender="system",
+                wake=WakePolicy.NEVER,
             )
-            await self.core.event_writer.flush()
             return
         await CommandBus(self.core).execute(
             Command(

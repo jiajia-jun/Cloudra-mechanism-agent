@@ -15,9 +15,10 @@ from fastapi import HTTPException, status
 
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.core import RuntimeCore
-from cloudra.runtime_v2.schemas import Command, CommandRejected
+from cloudra.runtime_v2.schemas import AgentSession, Command, CommandRejected
 
 from .models import CommandResponse
+from .views import agent_dict
 
 
 @dataclass
@@ -41,9 +42,14 @@ class ApiContext:
                 status_code=http_code,
                 detail={"code": exc.code, "message": exc.message},
             ) from exc
+        data = result.data
+        if isinstance(data, AgentSession):
+            # 命令响应里的 agent 与 GET 端点同形：运行期投影（completion）也带上，
+            # 否则前端用响应整体替换 agent 时会丢掉它。
+            data = agent_dict(self.core, data)
         return CommandResponse(
             command_id=result.command_id,
             accepted=result.accepted,
             event_id=result.event_id,
-            data=result.data,
+            data=data,
         )

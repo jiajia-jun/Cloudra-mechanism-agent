@@ -20,7 +20,7 @@ import sqlite3
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any, Callable, Iterable, Optional
 
 UNKNOWN_MODEL = "unknown"
 
@@ -322,6 +322,356 @@ def analyze_cache(
 
 
 # ---------------------------------------------------------------------------
+# 纯函数：Agent 行为聚合（评审 5.7）
+# ---------------------------------------------------------------------------
+
+
+def _empty_metrics() -> dict[str, Any]:
+    """一个 session / 一个 run 的指标骨架（每次新建，绝不共享可变默认值）。"""
+    return {
+        "runs": {
+            "total": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "cancelled": 0,
+            "failure_kinds": {},
+        },
+        "llm": {
+            "requests": 0,
+            "agent_requests": 0,
+            "summary_requests": 0,
+            "retries": 0,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "cached_tokens": 0,
+            "total_tokens": 0,
+            "latency_ms": 0,
+        },
+        "tools": {
+            "calls": 0,
+            "by_status": {},
+            "blocked": 0,
+            "approvals_requested": 0,
+            "interactions_requested": 0,
+        },
+        "completion": {"gate_actions": {}, "bases": {}, "exit_attempts": 0},
+        "compaction": {
+            "count": 0,
+            "refused": 0,
+            "refusal_reasons": {},
+            "triggers": {},
+            "summary_tokens": 0,
+            "clamped_sources": 0,
+        },
+        "subagents": {"spawned": 0, "succeeded": 0, "failed": 0, "cancelled": 0},
+        "hub": {"posts": 0, "notifications_consumed": 0},
+        "waits_ms": {"input": 0, "approval": 0},
+    }
+
+
+def _bump(counter: dict[str, int], key: Any, amount: int = 1) -> None:
+    counter[str(key)] = counter.get(str(key), 0) + amount
+
+
+def _add_tokens(target: dict[str, Any], call: dict[str, Any]) -> None:
+    """把一次 LLM 调用累加进 llm 指标组（主请求与摘要请求分开计）。"""
+    target["requests"] += 1
+    target["agent_requests" if call["kind"] == "agent" else "summary_requests"] += 1
+    target["prompt_tokens"] += call["prompt_tokens"]
+    target["completion_tokens"] += call["completion_tokens"]
+    target["cached_tokens"] += call["cached_tokens"]
+    target["total_tokens"] += call["total_tokens"]
+    if call["latency_ms"] is not None:
+        target["latency_ms"] += call["latency_ms"]
+
+
+def _merge_metrics(target: dict[str, Any], source: dict[str, Any]) -> None:
+    """把 source 的指标累加进 target（数值相加、字典逐键相加）。"""
+    for group, values in source.items():
+        for key, value in values.items():
+            if isinstance(value, dict):
+                for sub, count in value.items():
+                    _bump(target[group][key], sub, count)
+            else:
+                target[group][key] += value
+
+
+def _duration_ms(start: Optional[datetime], end: Optional[datetime]) -> Optional[int]:
+    if start is None or end is None:
+        return None
+    return max(int((end - start).total_seconds() * 1000), 0)
+
+
+def aggregate_agents(
+    events: Iterable[dict[str, Any]],
+    *,
+    since: Optional[str] = None,
+    until: Optional[str] = None,
+) -> dict[str, Any]:
+    """按 agent（session）聚合行为指标，并给出逐 run 明细。
+
+    完全基于既有事件、纯函数吃 events 列表：不为了统计给运行链路加写操作，也
+    不读库（只读入口在 ``agent_summary``）。刻意**只取具名键**（token 数、状态、
+    原因、失败分类等），绝不复制 ``result_summary``/``summary`` 这类可能携带完整
+    提示词或工具原始大结果的字段。
+
+    ``runs`` 明细按 token 降序给出 ``no_tool_progress`` 标记（烧了 LLM 请求却
+    没有任何一次工具顺利完成），用于定位「token 很高但没有有效工具进展」的 run。
+    该标记是启发式线索，不是结论。
+
+    不在本聚合口径内的指标（需要别的权威源，不在此处编造）：
+    - 计算作业等待时长：权威在中央 ``compute.db``，不在事件流；
+    - Supervisor 裁决时长：权威在 DAG store 的 review request/decision 时间戳。
+    """
+    sessions: dict[str, dict[str, Any]] = {}
+    runs: dict[str, dict[str, Any]] = {}
+    # 子 session -> 派发它的父 session：fan-out 与子的终态比例记在**父**的行上
+    # （父关心自己的 swarm；子行上再记一次会看成「子又派了子」）。
+    child_parent: dict[str, str] = {}
+
+    def session_entry(session_id: str, project_id: Any) -> dict[str, Any]:
+        return sessions.setdefault(
+            session_id,
+            {
+                "session_id": session_id,
+                "project_id": project_id,
+                "metrics": _empty_metrics(),
+                "waiting_since": {"input": None, "approval": None},
+                "open_run_id": None,
+                "failed_since_run": False,
+                "recovered_after_failure": 0,
+                "first_event_at": None,
+                "last_event_at": None,
+            },
+        )
+
+    for event in events:
+        session_id = event.get("session_id")
+        if not isinstance(session_id, str) or not session_id:
+            continue
+        if not _event_in_range(event, since, until):
+            continue
+        entry = session_entry(session_id, event.get("project_id"))
+        created = event.get("created_at")
+        if entry["first_event_at"] is None:
+            entry["first_event_at"] = created
+        entry["last_event_at"] = created
+        run_id = event.get("run_id")
+        run = runs.get(run_id) if isinstance(run_id, str) and run_id else None
+        if isinstance(run_id, str) and run_id and run is None:
+            run = {
+                "run_id": run_id,
+                "session_id": session_id,
+                "project_id": event.get("project_id"),
+                "started_at": None,
+                "finished_at": None,
+                "duration_ms": None,
+                "outcome": None,
+                "failure_kind": None,
+                "metrics": _empty_metrics(),
+            }
+            runs[run_id] = run
+        _consume_event(
+            event,
+            entry,
+            run,
+            entry_for=lambda sid: session_entry(sid, None),
+            child_parent=child_parent,
+        )
+
+    # 逐 run 明细与 session 指标各自成账（同一批事件的两个切面），不互相累加。
+    for row in runs.values():
+        row["no_tool_progress"] = _no_tool_progress(row)
+
+    agent_rows = [entry for entry in sessions.values() if entry["metrics"]["runs"]["total"]]
+    for entry in agent_rows:
+        entry.pop("waiting_since", None)
+        entry.pop("open_run_id", None)
+    agent_rows.sort(key=lambda row: -row["metrics"]["llm"]["total_tokens"])
+
+    totals = _empty_metrics()
+    for entry in sessions.values():
+        _merge_metrics(totals, entry["metrics"])
+    run_rows = sorted(runs.values(), key=lambda row: -row["metrics"]["llm"]["total_tokens"])
+    return {
+        "since": since,
+        "until": until,
+        "totals": {"sessions": len(agent_rows), **totals},
+        "agents": agent_rows,
+        "runs": run_rows,
+    }
+
+
+def _event_in_range(event: dict[str, Any], since: Optional[str], until: Optional[str]) -> bool:
+    ts = _parse_iso(event.get("created_at"))
+    if ts is None:
+        return since is None and until is None
+    if since is not None:
+        bound = _parse_iso(since)
+        if bound is not None and ts < bound:
+            return False
+    if until is not None:
+        bound = _parse_iso(until)
+        if bound is not None and ts > bound:
+            return False
+    return True
+
+
+def _consume_event(
+    event: dict[str, Any],
+    entry: dict[str, Any],
+    run: Optional[dict[str, Any]],
+    *,
+    entry_for: Callable[[str], dict[str, Any]],
+    child_parent: dict[str, str],
+) -> None:
+    """一个事件同时喂给 session 账与（有 run_id 时的）run 账。"""
+    etype = event.get("type")
+    session_id = str(event.get("session_id") or "")
+    data = event.get("data") if isinstance(event.get("data"), dict) else {}
+    metrics = entry["metrics"]
+    if etype == "run.started":
+        metrics["runs"]["total"] += 1
+        entry["open_run_id"] = event.get("run_id")
+        if entry["failed_since_run"]:
+            # 失败后用户又发消息/重开：这是「失败后恢复」的一次真实样本。
+            entry["recovered_after_failure"] += 1
+            entry["failed_since_run"] = False
+    elif etype == "run.finished":
+        outcome = data.get("outcome")
+        if isinstance(outcome, str):
+            metrics["runs"]["succeeded" if outcome == "succeeded" else "failed"] += 1
+        if outcome == "failed":
+            kind = data.get("failure_kind")
+            _bump(metrics["runs"]["failure_kinds"], kind if isinstance(kind, str) else "unclassified")
+            entry["failed_since_run"] = True
+        entry["open_run_id"] = None
+    elif etype == "agent.cancelled":
+        # 取消不落 run.finished：只给「当时确有在跑的 run」记一次 cancelled。
+        # 先记下 was_open，再清 open_run_id——fan-out 计数依赖这个快照。
+        was_open_run = entry["open_run_id"] is not None
+        if was_open_run:
+            metrics["runs"]["cancelled"] += 1
+        entry["open_run_id"] = None
+        parent_id = child_parent.get(session_id)
+        if parent_id is not None and was_open_run:
+            entry_for(parent_id)["metrics"]["subagents"]["cancelled"] += 1
+    elif etype == "run.retry":
+        metrics["llm"]["retries"] += 1
+    elif etype == "tool.finished":
+        metrics["tools"]["calls"] += 1
+        _bump(metrics["tools"]["by_status"], data.get("status") or "unknown")
+    elif etype == "tool.blocked":
+        metrics["tools"]["blocked"] += 1
+    elif etype == "tool.approval_requested":
+        metrics["tools"]["approvals_requested"] += 1
+    elif etype == "interaction.requested":
+        metrics["tools"]["interactions_requested"] += 1
+    elif etype == "agent.completion_gate":
+        action = str(data.get("action") or "unknown")
+        _bump(metrics["completion"]["gate_actions"], action)
+        if action == "continue_work":
+            # 门禁内部的 exit strike 计数是刻意易失的 runner 状态（事件流里只有
+            # 判定本身），这里统计的是「退出尝试次数」。
+            metrics["completion"]["exit_attempts"] += 1
+        basis = data.get("basis")
+        if isinstance(basis, str):
+            _bump(metrics["completion"]["bases"], basis)
+    elif etype == "compaction.finished":
+        if data.get("compacted"):
+            metrics["compaction"]["count"] += 1
+        else:
+            metrics["compaction"]["refused"] += 1
+            _bump(metrics["compaction"]["refusal_reasons"], data.get("reason") or "unknown")
+        _bump(metrics["compaction"]["triggers"], data.get("trigger") or "unknown")
+        summary_tokens = _to_int(data.get("summary_tokens"))
+        if summary_tokens:
+            metrics["compaction"]["summary_tokens"] += summary_tokens
+        clamped = _to_int(data.get("clamped_sources"))
+        if clamped:
+            metrics["compaction"]["clamped_sources"] += clamped
+    elif etype == "agent.spawned":
+        parent_id = data.get("parent_session_id")
+        if isinstance(parent_id, str) and parent_id:
+            child_parent[session_id] = parent_id
+            entry_for(parent_id)["metrics"]["subagents"]["spawned"] += 1
+    elif etype == "hub.posted":
+        metrics["hub"]["posts"] += 1
+    elif etype == "hub.notification_consumed":
+        metrics["hub"]["notifications_consumed"] += 1
+    elif etype == "agent.state_changed":
+        _consume_state_change(event, entry, data)
+
+    parent_id = child_parent.get(session_id)
+    if parent_id is not None:
+        child_metrics = entry_for(parent_id)["metrics"]["subagents"]
+        if etype == "run.finished":
+            if data.get("outcome") == "succeeded":
+                child_metrics["succeeded"] += 1
+            elif data.get("outcome") == "failed":
+                child_metrics["failed"] += 1
+        # agent.cancelled 的 fan-out 在上面分支里已按 was_open_run 记账（必须在
+        # 清 open_run_id 之前），这里不再重复。
+
+    call = llm_call_from_event(event)
+    if call is not None:
+        _add_tokens(metrics["llm"], call)
+        if run is not None:
+            _add_tokens(run["metrics"]["llm"], call)
+    if run is None:
+        return
+    if etype == "run.started":
+        run["started_at"] = event.get("created_at")
+    elif etype == "run.finished":
+        run["finished_at"] = event.get("created_at")
+        run["duration_ms"] = _duration_ms(_parse_iso(run["started_at"]), _parse_iso(run["finished_at"]))
+        outcome = data.get("outcome")
+        run["outcome"] = outcome if isinstance(outcome, str) else None
+        kind = data.get("failure_kind")
+        run["failure_kind"] = kind if isinstance(kind, str) else None
+    elif etype == "agent.cancelled":
+        run["finished_at"] = run["finished_at"] or event.get("created_at")
+        if run["outcome"] is None:
+            run["outcome"] = "cancelled"
+            run["duration_ms"] = _duration_ms(
+                _parse_iso(run["started_at"]), _parse_iso(run["finished_at"])
+            )
+    elif etype == "run.retry":
+        run["metrics"]["llm"]["retries"] += 1
+    elif etype == "tool.finished":
+        run["metrics"]["tools"]["calls"] += 1
+        _bump(run["metrics"]["tools"]["by_status"], data.get("status") or "unknown")
+
+
+def _consume_state_change(
+    event: dict[str, Any], entry: dict[str, Any], data: dict[str, Any]
+) -> None:
+    """等待时长：state_changed 的进入/离开时刻差（事件自带时间戳，不需要埋点）。"""
+    to_state = data.get("to")
+    ts = _parse_iso(event.get("created_at"))
+    waits = entry["metrics"]["waits_ms"]
+    for state, key in (("waiting_input", "input"), ("waiting_approval", "approval")):
+        if to_state == state:
+            entry["waiting_since"][key] = ts
+        elif entry["waiting_since"].get(key) is not None:
+            elapsed = _duration_ms(entry["waiting_since"][key], ts)
+            if elapsed is not None:
+                waits[key] += elapsed
+            entry["waiting_since"][key] = None
+
+
+def _no_tool_progress(run: dict[str, Any]) -> bool:
+    """启发式标记：烧了 LLM 请求，却没有任何一次工具顺利完成。
+
+    给「一条查询定位高 token 空转 run」用的线索，不是结论——纯问答的 run 也会
+    命中（此时它并不异常）。
+    """
+    if not run["metrics"]["llm"]["requests"]:
+        return False
+    return run["metrics"]["tools"]["by_status"].get("completed", 0) == 0
+
+
+# ---------------------------------------------------------------------------
 # 只读 SQLite 读取
 # ---------------------------------------------------------------------------
 
@@ -418,6 +768,13 @@ def cache_summary(
     top_n: int = 20,
 ) -> dict[str, Any]:
     return analyze_cache(load_events(db_path), since=since, until=until, top_n=top_n)
+
+
+def agent_summary(
+    db_path: Path | str, *, since: Optional[str] = None, until: Optional[str] = None
+) -> dict[str, Any]:
+    """Agent 行为聚合（只读 runtime-v2.db）；CLI 与只读 API 共用这一处。"""
+    return aggregate_agents(load_events(db_path), since=since, until=until)
 
 
 # ---------------------------------------------------------------------------

@@ -24,6 +24,18 @@ StopAction = Literal[
     "continue_work",
 ]
 
+# 收尾依据：这次 run「凭什么」被允许结束。写进 ``agent.completion_gate`` 事件
+# 的 ``basis`` 字段，由 ``runtime_v2.completion`` 投影成给用户看的验证等级
+# （已验证完成 / 部分交付 / 未独立验证）。结构化枚举，绝不解析 reason 文本。
+CompletionBasis = Literal[
+    "declared",  # 无门禁意见或明确声明结束：模型自述，未独立验证
+    "background_wait",  # 有可核实唤醒来源的挂起（后台计算 / 存活子 agent / 提醒）
+    "dag_verified",  # DAG 交付覆盖审计通过（证据闭合）
+    "supervisor_approved",  # dag_guided 下 partial 经 Supervisor 接受（或复用其裁决）
+    "partial_recorded",  # dag_record 下 partial 直接记录，无督导裁决
+    "user_terminated",  # 真实用户终止（带用户取消事件 id）
+]
+
 
 class StopGate(BaseModel):
     """Deterministic result of a delivery stop audit.
@@ -43,6 +55,9 @@ class StopGate(BaseModel):
     report: Any = None
     request_id: str | None = None
     reason: str = Field(default="", description="Human-readable audit reason.")
+    # 只在 allow_final / wait_background 这些「本次 run 将收尾」的判定上显式
+    # 声明；被拦的判定（continue_work / wait_review）没有依据可言，保持 None。
+    basis: CompletionBasis | None = None
 
 
 async def pending_compute_jobs_exist(*, data_dir, project_id: str) -> bool:
@@ -115,7 +130,7 @@ class StopAuditMixin:
         发生；调用方（统一结束边界）负责按 action 落运行状态。
         """
         if not self.enabled:
-            return StopGate(action="allow_final", report=None)
+            return StopGate(action="allow_final", report=None, basis="declared")
         await self.initialize()
 
         # A real user termination is allowed regardless of graph coverage, but
@@ -143,13 +158,14 @@ class StopAuditMixin:
                 disposition,
                 None,
             )
-            return StopGate(action="allow_final", report=None)
+            return StopGate(action="allow_final", report=None, basis="user_terminated")
 
         if await self._has_pending_background():
             return StopGate(
                 action="wait_background",
                 report=None,
                 reason="background work is still pending; stop only suspends",
+                basis="background_wait",
             )
 
         report = await asyncio.to_thread(self.delivery_report)
@@ -164,6 +180,7 @@ class StopAuditMixin:
                 action="allow_final",
                 report=report,
                 reason="coverage audit passed",
+                basis="dag_verified",
             )
 
         if disposition == "complete":
@@ -193,7 +210,12 @@ class StopAuditMixin:
                         disposition,
                         report,
                     )
-                    return StopGate(action="allow_final", report=report, reason=f"approved by {approval_id}")
+                    return StopGate(
+                        action="allow_final",
+                        report=report,
+                        reason=f"approved by {approval_id}",
+                        basis="supervisor_approved",
+                    )
                 request_id, created = await self._enqueue_exit_review(disposition, report)
                 reused = await self._reused_exit_review(request_id, disposition, report)
                 if reused is not None:
@@ -224,6 +246,7 @@ class StopAuditMixin:
                 action="allow_final",
                 report=report,
                 reason="partial delivery recorded",
+                basis="partial_recorded",
             )
 
         return StopGate(
@@ -297,6 +320,7 @@ class StopAuditMixin:
             report=report,
             request_id=request.request_id,
             reason=f"approved by {decision.decision_id}",
+            basis="supervisor_approved",
         )
 
     async def _valid_exit_approval(self, decision_id: str, disposition: str, report: Any) -> bool:

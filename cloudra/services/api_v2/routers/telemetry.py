@@ -55,6 +55,18 @@ def build_router(ctx: ApiContext) -> APIRouter:
         except telemetry.TelemetryError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
+    @router.get("/api/v2/telemetry/agents", dependencies=ctx.protected)
+    async def telemetry_agents(
+        since: Optional[str] = Query(default=None),
+        until: Optional[str] = Query(default=None),
+    ) -> dict:
+        try:
+            return await asyncio.to_thread(
+                telemetry.agent_summary, _db_path(), since=since, until=until
+            )
+        except telemetry.TelemetryError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
     @router.get("/api/v2/telemetry/export/session/{session_id}", dependencies=ctx.protected)
     async def telemetry_export_session(session_id: str) -> Response:
         def build() -> bytes:

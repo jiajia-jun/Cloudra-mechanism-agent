@@ -17,7 +17,10 @@ import asyncio
 import uuid
 from typing import Any
 
+from cloudra.runtime_v2.child_manifest import build_child_manifest, render_child_report
+from cloudra.runtime_v2.child_settings import resolve_child_settings
 from cloudra.runtime_v2.commands import CommandBus
+from cloudra.runtime_v2.dispatcher import WakePolicy
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
 from cloudra.runtime_v2.schemas import AgentSession, AgentState, Command, CommandRejected
 
@@ -44,11 +47,6 @@ def _role_id_for(agent_id: str) -> str:
     return _AGENT_ID_TO_ROLE.get(agent_id, agent_id)
 
 
-def _child_mode(parent: AgentSession) -> str:
-    """Children inherit the parent's orchestration mode (standard / dag_record / dag_guided)."""
-    return parent.settings.orchestration_mode.value
-
-
 def _combined_query(query: str, context: list[Any]) -> str:
     messages = [m for m in context if isinstance(m, dict) and m.get("content")]
     if not messages:
@@ -58,9 +56,19 @@ def _combined_query(query: str, context: list[Any]) -> str:
     return "\n".join(lines) + f"\n\n[Task]\n{query}"
 
 
+def _render_settings_receipt(receipt: dict[str, Any]) -> str:
+    """把有效设置摘要渲染成一行文本（确定性；api_key/base_url 不出现）。"""
+    return (
+        f"settings: role={receipt['role_id']} model={receipt['model'] or '(unset)'} "
+        f"protocol={receipt['invocation_protocol']} "
+        f"orchestration={receipt['orchestration_mode']} "
+        f"unattended={receipt['unattended']} visual={receipt['visual_mode']}"
+    )
+
+
 async def _spawn_child(
     bus: CommandBus, parent: AgentSession, *, role_id: str, query: str, context: list[Any]
-) -> AgentSession:
+) -> tuple[AgentSession, dict[str, Any]]:
     parent_role = bus.core.roles.require(parent.role_id)
     if not parent_role.can_spawn:
         raise CommandRejected("forbidden", f"role {parent.role_id!r} cannot spawn sub-agents")
@@ -75,6 +83,12 @@ async def _spawn_child(
             "invalid_request",
             "refusing to spawn a sub-agent: task query is empty (expected the 'query' argument); nothing was dispatched",
         )
+    # 继承规则只有一个解析点（child_settings）：这里只提交补丁，不回显规则。
+    plan = resolve_child_settings(
+        parent,
+        project=bus.core.require_project(parent.project_id),
+        role=bus.core.roles.require(role_id),
+    )
     result = await bus.execute(
         Command(
             type="agent.spawn",
@@ -83,20 +97,12 @@ async def _spawn_child(
                 "role_id": role_id,
                 "parent_session_id": parent.id,
                 "query": query,
-                # yolo 是用户对整个任务的信任授权，子 agent 代父行事，spawn 时
-                # 继承父的取值——否则父开了 yolo、子 agent 仍逐项弹审批。
-                "settings": {
-                    "orchestration_mode": _child_mode(parent),
-                    "yolo": parent.settings.yolo,
-                    # 无人值守继承：子 agent 同样没有可对话的人（GH #31）。
-                    "unattended": parent.settings.unattended,
-                    "schedule_mode": parent.settings.schedule_mode,
-                    "clean_context": parent.settings.clean_context,
-                },
+                "settings": plan.spawn_payload_settings(),
             },
         )
     )
-    return result.data
+    child = result.data
+    return child, plan.receipt(child)
 
 
 async def _await_terminal(core, session_id: str) -> AgentSession:
@@ -121,33 +127,30 @@ async def _await_terminal(core, session_id: str) -> AgentSession:
     return core.require_agent(session_id)
 
 
-def _final_text(core, agent: AgentSession) -> str:
-    emitted = core.event_log.query_session(
-        agent.id, types={"agent.message_emitted"}, limit=1
-    )
-    if emitted:
-        return str(emitted[-1].data.get("content") or "")
-    if agent.state is AgentState.FAILED:
-        # run.finished 清空 current_run（apply），但失败原因随事件持久留存——
-        # 把它带出来，而不是给模型一句 "see events" 死信息。
-        finished = core.event_log.query_session(agent.id, types={"run.finished"}, limit=20)
-        for envelope in reversed(finished):
-            if envelope.data.get("outcome") != "failed":
-                continue
-            error = envelope.data.get("error")
-            return f"Sub-agent failed: {error}" if error else "Sub-agent failed (no error recorded)."
-        return "Sub-agent failed (no run record)."
-    return f"Sub-agent ended with state {agent.state.value} and no final message."
+def _manifest_payload(core, child: AgentSession) -> dict[str, Any]:
+    """子 Agent 完成回报的结构化 manifest（唯一来源，文本由它渲染）。"""
+    return build_child_manifest(core, child)
 
 
-def _parent_report_text(core, child: AgentSession) -> str:
-    return (
-        f"[Sub-agent finished] role={child.role_id} session_id={child.id} "
-        f"state={child.state.value}\n\n{_final_text(core, child)}"
-    )
+def child_completion_message(
+    core, child: AgentSession
+) -> tuple[str, str, dict[str, Any]] | None:
+    """父信箱的完成回报：``(parent_session_id, content, manifest)``。
+
+    纯组装（不投递、不入队）：live 路径经 ``MessageDispatcher`` 投递，恢复路径
+    经 ``persistence`` 先落库再入队——两处共用同一份载荷构造，避免第二套报文。
+    None = 没有父或父已不在内存。
+    """
+    parent_id = child.parent_session_id
+    if not parent_id:
+        return None
+    if core.agents.get(parent_id) is None:
+        return None
+    manifest = build_child_manifest(core, child)
+    return parent_id, render_child_report(manifest), manifest
 
 
-def deliver_child_completion_to_parent(
+async def deliver_child_completion_to_parent(
     core, child: AgentSession, *, wake: bool = True
 ) -> None:
     """Push a finished child's report into the parent's mailbox and wake it.
@@ -163,21 +166,20 @@ def deliver_child_completion_to_parent(
     ``wake=False`` 给进程恢复：只投递信箱，不把休眠父打进新的 LLM run
     （issue #35）。显式 message / restart 才开跑，届时首轮 drain 可读到。
     """
-    parent_id = child.parent_session_id
-    if not parent_id:
+    message = child_completion_message(core, child)
+    if message is None:
         return
-    parent = core.agents.get(parent_id)
-    if parent is None:
-        return
-    core.mailbox.deliver(
-        to_session_id=parent.id,
+    parent_id, content, manifest = message
+    await core.dispatcher.commit_and_deliver(
+        to_session_id=parent_id,
         project_id=child.project_id,
-        content=_parent_report_text(core, child),
+        # 父上下文只注入简洁文本；结构化 manifest 随事件留存（评审 5.5：
+        # 「人类可读文本从 manifest 确定性渲染；事件/API 保留结构化数据」）。
+        content=content,
         sender=child.role_id,
+        manifest=manifest,
+        wake=WakePolicy.PARK_TERMINAL if wake else WakePolicy.NEVER,
     )
-    if not wake or parent.state in {AgentState.FAILED, AgentState.CANCELLED}:
-        return  # parked：恢复路径 / 终态父绝不自动复活
-    core.agent_host.wake(parent, runner=core.runner)
 
 
 async def _cancel_child(core, session_id: str) -> None:
@@ -204,13 +206,14 @@ async def _cancel_child(core, session_id: str) -> None:
 async def _handle_launcher(core, parent: AgentSession, args: dict[str, Any]) -> ToolResult:
     bus = CommandBus(core)
     role_id = _role_id_for(str(args.get("agent_id") or ""))
-    child = await _spawn_child(
+    child, settings_receipt = await _spawn_child(
         bus, parent, role_id=role_id, query=str(args.get("query") or ""), context=args.get("context") or []
     )
-    data = {"session_id": child.id, "act_agent": child.role_id}
+    data = {"session_id": child.id, "act_agent": child.role_id, "settings": settings_receipt}
     if not args.get("is_wait"):
         data["result"] = (
-            f"Task submitted asynchronously: session_id={child.id}. "
+            f"Task submitted asynchronously: session_id={child.id} "
+            f"({_render_settings_receipt(settings_receipt)}). "
             f"The sub-agent will notify progress via agent_hub and deliver a completion report upon finish. "
             f'You may proceed with other work, stop/suspend, or check get_subagent_report(session_id="{child.id}").'
         )
@@ -220,7 +223,12 @@ async def _handle_launcher(core, parent: AgentSession, args: dict[str, Any]) -> 
     except asyncio.CancelledError:
         await _cancel_child(core, child.id)
         raise
-    data["result"] = _final_text(core, child)
+    manifest = build_child_manifest(core, child)
+    data["result"] = (
+        f"[{_render_settings_receipt(settings_receipt)}]\n\n{render_child_report(manifest)}"
+    )
+    data["settings"] = settings_receipt
+    data["manifest"] = manifest
     return ToolResult(
         is_success=child.state is AgentState.SUCCEEDED,
         summary=data["result"],
@@ -229,19 +237,16 @@ async def _handle_launcher(core, parent: AgentSession, args: dict[str, Any]) -> 
 
 
 def _launch_group_manager(core):
-    if getattr(core, "launch_groups", None) is None:
-        from cloudra.runtime_v2.launch_groups import LaunchGroupManager
+    """组的投影随 core 装配（事件应用点需要它）；这里只接线进程内能力。"""
+    def _track(parent_session_id: str, task: asyncio.Task, label: str) -> None:
+        # 组 worker 任务登记进 runner 的 session 作用域后台注册表：用户
+        # 取消父 agent / 服务 shutdown 才能取消并 await 它（停止语义契约
+        # 1/3）；runner 后挂时经闭包现读，绝不留裸 create_task。
+        runner = getattr(core, "runner", None)
+        if runner is not None:
+            runner.track_background(parent_session_id, task, label=label)
 
-        def _track(parent_session_id: str, task: asyncio.Task, label: str) -> None:
-            # 组 worker 任务登记进 runner 的 session 作用域后台注册表：用户
-            # 取消父 agent / 服务 shutdown 才能取消并 await 它（停止语义契约
-            # 1/3）；runner 后挂时经闭包现读，绝不留裸 create_task。
-            runner = getattr(core, "runner", None)
-            if runner is not None:
-                runner.track_background(parent_session_id, task, label=label)
-
-        core.launch_groups = LaunchGroupManager(spawner=lambda _query: None, track=_track)
-    return core.launch_groups
+    return core.launch_groups.configure(track=_track)
 
 
 async def _handle_swarm(core, parent: AgentSession, args: dict[str, Any]) -> ToolResult:
@@ -263,11 +268,14 @@ async def _handle_swarm(core, parent: AgentSession, args: dict[str, Any]) -> Too
     if not is_wait and max_concurrency > 0:
         manager = _launch_group_manager(core)
         async def spawner(query):
-            return await _spawn_child(bus, parent, role_id=role_id, query=query, context=context)
+            child, _receipt = await _spawn_child(bus, parent, role_id=role_id, query=query, context=context)
+            return child
         group_id = "grp_" + uuid.uuid4().hex
-        manager.create(
+        # 组清单先落 durable 事件再启动 worker（评审 5.2：重启可重建组清单）。
+        await manager.create(
             group_id=group_id,
             parent_session_id=parent.id,
+            project_id=parent.project_id,
             items=[(f"{item[:20]}-{idx}", template.replace("{{item}}", item)) for idx, item in enumerate(items)],
             max_concurrency=max_concurrency,
             spawner=spawner,
@@ -286,13 +294,13 @@ async def _handle_swarm(core, parent: AgentSession, args: dict[str, Any]) -> Too
     async def run_one(item: str) -> tuple[str, AgentSession]:
         query = template.replace("{{item}}", item)
         if semaphore is None:
-            child = await _spawn_child(bus, parent, role_id=role_id, query=query, context=context)
+            child, _receipt = await _spawn_child(bus, parent, role_id=role_id, query=query, context=context)
             spawned.append(child.id)
             if is_wait:
                 child = await _await_terminal(core, child.id)
             return item, child
         async with semaphore:
-            child = await _spawn_child(bus, parent, role_id=role_id, query=query, context=context)
+            child, _receipt = await _spawn_child(bus, parent, role_id=role_id, query=query, context=context)
             spawned.append(child.id)
             if is_wait:
                 child = await _await_terminal(core, child.id)
@@ -314,13 +322,20 @@ async def _handle_swarm(core, parent: AgentSession, args: dict[str, Any]) -> Too
         return ToolResult(is_success=True, summary=summary, data={"session_ids": session_ids, "result": summary})
 
     sections = []
+    manifests: list[dict[str, Any]] = []
     ok = True
     for item, child in results:
-        text = _final_text(core, child)
+        manifest = build_child_manifest(core, child)
+        manifests.append(manifest)
         ok = ok and child.state is AgentState.SUCCEEDED
-        sections.append(f"## {item[:40]}\nstate: {child.state.value}\n{text}")
+        sections.append(f"## {item[:40]}\n{render_child_report(manifest)}")
     summary = "\n\n".join(sections)
-    return ToolResult(is_success=ok, summary=summary, data={"session_ids": session_ids, "result": summary})
+    return ToolResult(
+        is_success=ok,
+        summary=summary,
+        # 部分失败也有稳定结构：每个 child 一条 manifest，父不必解析文本。
+        data={"session_ids": session_ids, "result": summary, "children": manifests},
+    )
 
 
 async def _handle_report(core, args: dict[str, Any]) -> ToolResult:
@@ -349,11 +364,17 @@ async def _handle_report(core, args: dict[str, Any]) -> ToolResult:
             summary=f"Sub-agent {session_id} is still {agent.state.value}; ask again later.",
             data={"session_id": session_id, "state": agent.state.value},
         )
-    text = _final_text(core, agent)
+    manifest = build_child_manifest(core, agent)
+    text = render_child_report(manifest)
     return ToolResult(
         is_success=agent.state is AgentState.SUCCEEDED,
         summary=text,
-        data={"session_id": session_id, "state": agent.state.value, "result": text},
+        data={
+            "session_id": session_id,
+            "state": agent.state.value,
+            "result": text,
+            "manifest": manifest,
+        },
     )
 
 

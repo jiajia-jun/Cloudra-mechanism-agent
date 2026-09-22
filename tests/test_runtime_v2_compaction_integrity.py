@@ -27,6 +27,7 @@ from cloudra.runtime_v2.compaction import (
     segment_trajectory,
     usable_prompt_tokens,
 )
+from cloudra.runtime_v2.dispatcher import WakePolicy
 
 
 def _summary_payload(**overrides) -> dict:
@@ -985,11 +986,12 @@ class _BigDeliveringTools:
 
         if self._deliver and not self.delivered:
             self.delivered = True
-            self.core.mailbox.deliver(
+            await self.core.dispatcher.commit_and_deliver(
                 to_session_id=agent.id,
                 project_id=agent.project_id,
                 content="second task",
                 sender="user",
+                wake=WakePolicy.NEVER,
             )
         return ToolResult(is_success=True, summary="x" * 5000, data={})
 

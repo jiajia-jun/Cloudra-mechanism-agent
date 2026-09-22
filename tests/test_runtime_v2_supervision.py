@@ -30,6 +30,7 @@ from cloudra.persistence.database import ConversationDB
 from cloudra.runtime_v2.agent_runner import AgentRunner
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.core import RuntimeCore
+from cloudra.runtime_v2.failures import RunFailureKind
 from cloudra.runtime_v2.policies import default_stages
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
 from cloudra.runtime_v2.schemas import AgentState, Command, InvocationProtocol
@@ -2030,7 +2031,12 @@ async def _supervisor_in_state(bus, core, project, coordinator, target_state: st
         host.finish_run(supervisor, outcome="succeeded")
     elif target_state == "failed":
         host.start_run(supervisor)
-        host.finish_run(supervisor, outcome="failed", error="boom")
+        host.finish_run(
+            supervisor,
+            outcome="failed",
+            error="boom",
+            failure_kind=RunFailureKind.PIPELINE_INTERNAL,
+        )
     elif target_state == "cancelled":
         await bus.execute(
             Command(type="agent.cancel", target={"session_id": supervisor.id}, payload={})
@@ -2437,7 +2443,12 @@ async def test_find_project_supervisor_prefers_non_terminal_when_duplicate():
             )
         ).data
         core.agent_host.start_run(first)
-        core.agent_host.finish_run(first, outcome="failed", error="old")
+        core.agent_host.finish_run(
+            first,
+            outcome="failed",
+            error="old",
+            failure_kind=RunFailureKind.PIPELINE_INTERNAL,
+        )
         found = find_project_supervisor(core, project.id)
         assert found is not None
         assert found.id == second.id

@@ -33,6 +33,8 @@ import os
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
+from cloudra.runtime_v2.dispatcher import WakePolicy
+from cloudra.runtime_v2.failures import RunFailureKind, classify_failure, is_retryable
 from cloudra.runtime_v2.schemas import AgentSession, AgentState
 
 if TYPE_CHECKING:
@@ -40,26 +42,6 @@ if TYPE_CHECKING:
     from cloudra.runtime_v2.turn_pipeline import TurnPipeline
 
 logger = logging.getLogger(__name__)
-
-
-def _is_retryable(exc: Exception) -> bool:
-    """Only transient failures are worth an in-place retry.
-
-    HTTP 4xx (bad key, insufficient balance, invalid request) will fail again
-    on every retry — fail fast instead of burning the retry budget.  408/429
-    and 5xx / connection errors stay retryable.  Classification is by the
-    ``status_code`` attribute so the kernel never imports the LLM SDK.
-    """
-    from cloudra.runtime_v2.event_writer import EventPersistenceError
-
-    if isinstance(exc, EventPersistenceError):
-        # A store failure means the event stream and the world may have
-        # diverged; replaying the turn could repeat an unaudited effect.
-        return False
-    status = getattr(exc, "status_code", None)
-    if isinstance(status, int) and 400 <= status < 500 and status not in (408, 429):
-        return False
-    return True
 
 
 # Provider-specific phrasings for "input exceeded the model's context window".
@@ -355,7 +337,7 @@ class AgentRunner:
                             if stats.get("compacted"):
                                 continue
                         attempt += 1
-                        if attempt > self.max_turn_retries or not _is_retryable(exc):
+                        if attempt > self.max_turn_retries or not is_retryable(exc):
                             raise
                         delay = self.retry_backoff[min(attempt - 1, len(self.retry_backoff) - 1)]
                         core.event_log.append(
@@ -428,16 +410,19 @@ class AgentRunner:
                                     f"completion gate: {self.max_exit_strikes} exit attempts "
                                     f"without progress ({gate.reason})"
                                 ),
+                                failure_kind=RunFailureKind.COMPLETION_NO_PROGRESS,
                             )
-                            self._deliver_child_completion(agent)
+                            await self._deliver_child_completion(agent)
                             break
                         # 缺口/下一步反馈进下一轮（mailbox 投递即持久审计
                         # agent.message_injected + 下一轮 drain 消费）。
-                        core.mailbox.deliver(
+                        # 本 run 正在跑、下一轮就会 drain inbox → 不唤醒。
+                        await core.dispatcher.commit_and_deliver(
                             to_session_id=agent.id,
                             project_id=agent.project_id,
                             content=self._gate_feedback_text(gate, strike=strike),
                             sender="completion_gate",
+                            wake=WakePolicy.NEVER,
                         )
                         continue
                     if gate.action == "wait_review":
@@ -465,12 +450,13 @@ class AgentRunner:
                         # 立刻唤醒空转）：工具的 "Task stopped." 只是回执，
                         # stop 实际在等 Supervisor 退出裁决——必须把审批回路
                         # 讲清楚，否则 agent 无法区分 接受/待审/被拒 三种结局。
-                        core.mailbox.deliver(
+                        await core.dispatcher.commit_and_deliver(
                             to_session_id=agent.id,
                             project_id=agent.project_id,
                             content=self._wait_review_feedback_text(gate),
                             sender="completion_gate",
                             run_id=run_id,
+                            wake=WakePolicy.NEVER,
                         )
                         break
                     # wait_background（有可核实唤醒来源的挂起，不是交付）与
@@ -489,7 +475,7 @@ class AgentRunner:
                     # 显式 wake 开新 run，关掉最后一段竞态窗口。
                     if self._inbox_has_pending(agent):
                         core.agent_host.wake(agent, runner=core.runner)
-                    self._deliver_child_completion(agent)
+                    await self._deliver_child_completion(agent)
                     break
                 if outcome.decision in {"wait_input", "wait_approval"}:
                     core.agent_host.transition(
@@ -525,13 +511,20 @@ class AgentRunner:
             # agent.cancelled after host.cancel().  会话上下文投影里已落
             # 的内容（发送前的输入、已完成的轮次输出）保持原样——投影只
             # 记录真实进入过上下文的消息，无需收尾摘要。
-            self._deliver_child_completion(agent)
+            await self._deliver_child_completion(agent)
             raise
         except Exception as exc:  # pipeline crash becomes a durable failure
             logger.exception("agent %s pipeline failed", agent.id)
             if agent.state is AgentState.RUNNING:
-                await core.agent_host.finish_run_durable(agent, outcome="failed", error=str(exc))
-            self._deliver_child_completion(agent)
+                # 失败分类只在这一处派生（failures.classify_failure），事件里
+                # 落枚举，error 文本只供人阅读。
+                await core.agent_host.finish_run_durable(
+                    agent,
+                    outcome="failed",
+                    error=str(exc),
+                    failure_kind=classify_failure(exc),
+                )
+            await self._deliver_child_completion(agent)
         finally:
             # Flush the tail events (message_emitted, finish_run's
             # state_changed/run.finished, or a crashed turn's partial events)
@@ -545,10 +538,10 @@ class AgentRunner:
                 if isinstance(exc, EventPersistenceError):
                     raise
 
-    def _deliver_child_completion(self, agent: AgentSession) -> None:
+    async def _deliver_child_completion(self, agent: AgentSession) -> None:
         from cloudra.runtime_v2.subagent_bridge import deliver_child_completion_to_parent
 
-        deliver_child_completion_to_parent(self.core, agent)
+        await deliver_child_completion_to_parent(self.core, agent)
 
     def _emit_run_message(self, agent: AgentSession, run_id: str, content: str) -> None:
         self.core.event_log.append(
@@ -611,6 +604,7 @@ class AgentRunner:
                     "no completion gate applies to this agent; the run ends as an "
                     "agent-declared result (not independently verified)"
                 ),
+                basis="declared",
             )
             source = "declared"
         core.event_log.append(
@@ -625,6 +619,9 @@ class AgentRunner:
                 "explicit_stop": explicit_stop,
                 "reason": gate.reason,
                 "request_id": gate.request_id,
+                # 收尾依据（结构化）：投影成 UI 的「已验证完成 / 部分交付 /
+                # 未独立验证」。绝不由 reason 文本反推。
+                "basis": gate.basis,
             },
         )
         return gate, source
@@ -754,8 +751,9 @@ class AgentRunner:
         """响应消息恰好一次落进会话上下文投影（context.appended）。
 
         输入（前缀增量/inbox/通知）已在发送前由 ContextBroker.commit_input
-        入投影；这里只追加 assistant/tool 输出。run_turn 失败/取消时不调用，
-        已提交的输入留在投影里（它确实进入过已发送的请求）。
+        入投影；这里只用同一事件原子追加 assistant tool_calls 与全部匹配的
+        tool outputs。run_turn 失败/取消时不调用，不能留下 provider 拒绝的
+        半条工具调用；已提交的输入仍留在投影里（它确实进入过请求）。
         """
         entries: list[dict] = []
         tool_calls = [call for call, _ in outcome.tool_exchanges]
@@ -789,35 +787,7 @@ class AgentRunner:
                     "content": outcome.message or "blocked by policy",
                 }
             )
-        existing = self.core.contexts.current_messages(agent.id)
-        existing_tool_ids = {
-            message.get("tool_call_id")
-            for message in existing
-            if message.get("role") == "tool" and message.get("tool_call_id")
-        }
-        existing_assistant_ids = {
-            frozenset(
-                str(call.get("id"))
-                for call in (message.get("tool_calls") or [])
-                if isinstance(call, dict) and call.get("id")
-            )
-            for message in existing
-            if message.get("role") == "assistant" and message.get("tool_calls")
-        }
-        filtered: list[dict] = []
-        for entry in entries:
-            if entry.get("role") == "tool" and entry.get("tool_call_id") in existing_tool_ids:
-                continue
-            if entry.get("role") == "assistant" and entry.get("tool_calls"):
-                ids = frozenset(
-                    str(call.get("id"))
-                    for call in entry["tool_calls"]
-                    if isinstance(call, dict) and call.get("id")
-                )
-                if ids and ids in existing_assistant_ids:
-                    continue
-            filtered.append(entry)
-        await self.core.contexts.append_output(agent=agent, run_id=run_id, messages=filtered)
+        await self.core.contexts.append_output(agent=agent, run_id=run_id, messages=entries)
 
     def _effective_settings(self, agent: AgentSession):
         """容量判定用的生效设置：spawn 快照里 context_window=0 表示未设置，

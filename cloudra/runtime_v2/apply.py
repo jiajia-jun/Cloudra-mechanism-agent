@@ -128,6 +128,11 @@ def _apply_project_deleted(core: RuntimeCore, envelope: EventEnvelope) -> None:
         core.mailbox.drop_inbox(session_id)
 
 
+def _apply_launch_group(core: RuntimeCore, envelope: EventEnvelope) -> None:
+    """launch_group.* → 组清单投影（唯一写入点；恢复重放据此重建）。"""
+    core.launch_groups.apply(envelope)
+
+
 def _apply_role_updated(core: RuntimeCore, envelope: EventEnvelope) -> None:
     core.roles.update(envelope.data["role_id"], envelope.data["changes"])
 
@@ -240,6 +245,10 @@ _APPLIERS: dict[str, Callable[[RuntimeCore, EventEnvelope], None]] = {
     "project.settings_changed": _apply_project_settings_changed,
     "project.deleted": _apply_project_deleted,
     "role.updated": _apply_role_updated,
+    "launch_group.created": _apply_launch_group,
+    "launch_group.item_dispatched": _apply_launch_group,
+    "launch_group.item_finished": _apply_launch_group,
+    "launch_group.finished": _apply_launch_group,
     "agent.spawned": _apply_agent_spawned,
     "agent.settings_changed": _apply_agent_settings_changed,
     "agent.state_changed": _apply_agent_state_changed,

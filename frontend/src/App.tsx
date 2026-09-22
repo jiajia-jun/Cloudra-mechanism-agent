@@ -3,7 +3,7 @@ import { api, EVENTS_WINDOW, HISTORY_PAGE_SIZE, streamProject } from './api';
 import Markdown from './Markdown';
 import DagPanel from './DagPanel';
 import OpsPanel from './OpsPanel';
-import type { Agent, ComputeJob, EventEnvelope, PendingReminder, Project } from './types';
+import type { Agent, CompletionSummary, ComputeJob, EventEnvelope, PendingReminder, Project } from './types';
 import AuditLog from './AuditLog';
 import GlobalConfig from './GlobalConfig';
 import KnowledgePanel from './KnowledgePanel';
@@ -32,6 +32,7 @@ import {
 import { ToolRow } from './ToolRow';
 import { ProgramCard } from './ProgramCard';
 import { PathPickerModal } from './PathPickerModal';
+import { completionChipFor, stateBadgeText } from './completion';
 
 export type InspectorTab = 'overview' | 'ops' | 'dag' | 'approvals' | 'interactions' | 'artifacts' | 'settings' | 'events';
 
@@ -154,6 +155,23 @@ const SLASH_COMMANDS: SlashCommandDef[] = [
     insertText: '/help',
   },
 ];
+
+/** 笔记行图标：info 提示 / warn 警告 / error 失败。 */
+function noteIcon(level: 'warn' | 'info' | 'error'): string {
+  if (level === 'info') return 'ℹ';
+  return level === 'error' ? '✕' : '!';
+}
+
+/** 完成依据标签：只渲染服务端给出的验证等级，不本地推导、不猜未知值。 */
+function CompletionChip({ completion }: { completion?: CompletionSummary | null }) {
+  const chip = completionChipFor(completion);
+  if (!chip) return null;
+  return (
+    <span className={`completion-badge ${chip.tone}`} title={chip.detail}>
+      {chip.label}
+    </span>
+  );
+}
 
 function ThinkingBlock({ item }: { item: ThinkingItem }) {
   const [open, setOpen] = useState(Boolean(item.live));
@@ -695,6 +713,19 @@ export default function App() {
           setAgents((prev) =>
             dedupeAgents(prev.map((a) => (a.id === sessionId ? { ...a, current_run: null } : a))),
           );
+          // 完成依据（已验证完成 / 部分交付 / 未独立验证）由服务端从收尾事件
+          // 投影，本地无从重建：收尾后拉一次当前 agent 把它补齐（只补正在看的
+          // 那个，swarm 里其它 agent 等切换时再取）。
+          if (sessionId === activeAgentIdRef.current) {
+            void api
+              .getAgent(sessionId)
+              .then((fresh) =>
+                setAgents((prev) =>
+                  dedupeAgents(prev.map((a) => (a.id === sessionId ? { ...a, ...fresh } : a))),
+                ),
+              )
+              .catch(() => undefined);
+          }
         }
         if (event.type === 'approval.requested' || event.type === 'tool.approval_requested') {
           if (!replaying) {
@@ -2183,6 +2214,7 @@ export default function App() {
                     <span className={`state-dot ${activeAgent.state}`} />
                     <span className="breadcrumb-agent-name">{activeAgent.display_name}</span>
                     <span className="badge role-badge">{activeAgent.role_id}</span>
+                    <CompletionChip completion={activeAgent.completion} />
                   </span>
                 </>
               )}
@@ -2341,10 +2373,10 @@ export default function App() {
               ) : (
                 <div
                   key={item.id}
-                  className={`tool-row ${item.level === 'warn' ? 'fail' : 'info'}`}
+                  className={`tool-row ${item.level === 'info' ? 'info' : 'fail'}`}
                   style={{ cursor: 'default' }}
                 >
-                  <span className="tool-icon">{item.level === 'warn' ? '!' : 'ℹ'}</span>
+                  <span className="tool-icon">{noteIcon(item.level)}</span>
                   <span className="tool-summary">{item.text}</span>
                 </div>
               ),
@@ -2917,8 +2949,14 @@ function Inspector({
               <div className="card-header-row">
                 <span className="card-section-label">Active Agent</span>
                 {activeAgent && (
-                  <span className={`state-badge ${activeAgent.state}`} style={{ marginLeft: 'auto' }}>
-                    {activeAgent.state}
+                  <span className="agent-header-chips" style={{ marginLeft: 'auto' }}>
+                    <CompletionChip completion={activeAgent.completion} />
+                    <span
+                      className={`state-badge ${activeAgent.state}`}
+                      title={`state: ${activeAgent.state}`}
+                    >
+                      {stateBadgeText(activeAgent.state)}
+                    </span>
                   </span>
                 )}
               </div>
