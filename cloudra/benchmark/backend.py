@@ -89,6 +89,7 @@ class RuntimeV2Backend:
         )
         from cloudra.runtime_v2.agent_runner import AgentRunner
         from cloudra.runtime_v2.commands import CommandBus
+        from cloudra.runtime_v2.compute_notify import ComputeNotifyBroker
         from cloudra.runtime_v2.core import RuntimeCore
         from cloudra.runtime_v2.policies import default_stages
         from cloudra.runtime_v2.schemas import Command
@@ -134,18 +135,22 @@ class RuntimeV2Backend:
             invocations=invocations,
         )
         core.runner = AgentRunner(core, pipeline)
+        # CLI uses a private RuntimeCore, so the live Web service's notify
+        # broker cannot see its sessions.  Start one here to deliver terminal
+        # compute notices and wake parked child runs.
+        broker = ComputeNotifyBroker(core, poll_interval=self.poll_interval_s)
         scheduler = None
-        if self.start_scheduler:
-            from cloudra.scheduler.daemon import SchedulerDaemon
-
-            # worker_id 含 pid+task_id：并行跑题时同进程多个实例不能共享
-            # 默认的 scheduler:<pid>，否则租约归属互相串。
-            scheduler = SchedulerDaemon(worker_id=f"scheduler:{os.getpid()}:{task.task_id}")
-            await scheduler.start()
-
         agent = None
         bus = CommandBus(core)
         try:
+            await broker.start()
+            if self.start_scheduler:
+                from cloudra.scheduler.daemon import SchedulerDaemon
+
+                # worker_id 含 pid+task_id：并行跑题时同进程多个实例不能共享
+                # 默认的 scheduler:<pid>，否则租约归属互相串。
+                scheduler = SchedulerDaemon(worker_id=f"scheduler:{os.getpid()}:{task.task_id}")
+                await scheduler.start()
             project = (
                 await bus.execute(
                     Command(
@@ -181,6 +186,7 @@ class RuntimeV2Backend:
             # 评分只读交付物（图 + 日志 + 结构化拒答声明）：后端不回传任何
             # 供评分使用的文本/数字，杜绝"拿模型自述给自己打分"。
         finally:
+            await broker.close()
             if agent is not None and core.runner is not None:
                 await core.runner.cancel(agent.id)
             # 契约性关机补快照：core 接了 store 时把会话上下文投影落盘。
@@ -192,8 +198,11 @@ class RuntimeV2Backend:
         """等题目真正结束（watch.RunWatcher 的 wait_background/wait_review
         语义，GH #30），卡死/超时则取消该题。"""
         from cloudra.persistence.database import ComputeDB
-        from cloudra.runtime_v2.schemas import Command
-        from cloudra.services.compute_store import acount_pending_compute_jobs
+        from cloudra.runtime_v2.schemas import AgentState, Command
+        from cloudra.services.compute_store import (
+            acount_active_compute_job_states,
+            pending_terminal_jobs,
+        )
 
         core = bus.core
         compute_db = ComputeDB()
@@ -203,15 +212,28 @@ class RuntimeV2Backend:
             # watcher 的 core 投影承担（子 agent 见 has_running_peers）。
             if bool(core.reminders.pending(agent.id)):
                 return True
+            if await acount_active_compute_job_states(compute_db, agent.project_id):
+                return True
             return bool(
-                await acount_pending_compute_jobs(compute_db, agent.project_id)
+                await asyncio.to_thread(
+                    pending_terminal_jobs, compute_db, window_seconds=0, limit=1,
+                    conversation_id=agent.project_id,
+                )
             )
+
+        async def resume_background() -> None:
+            # Compute notices for coordinators are deliberately parked by the
+            # general broker.  This unattended benchmark watcher resumes its
+            # coordinator once the notice reaches the inbox.
+            if agent.state is AgentState.SUCCEEDED and core.runner is not None:
+                core.agent_host.wake(agent, runner=core.runner)
 
         watcher = RunWatcher(
             run_timeout_s=self.run_timeout_s,
             stuck_grace_s=self.stuck_grace_s,
             poll_interval_s=self.poll_interval_s,
             pending_background=background_pending,
+            resume_background=resume_background,
         )
 
         async def cancel(reason: str) -> None:
@@ -224,7 +246,9 @@ class RuntimeV2Backend:
                 )
             )
 
-        await watcher.wait(core, agent, cancel)
+        wait_error = await watcher.wait(core, agent, cancel)
+        if wait_error is not None:
+            raise TimeoutError(wait_error)
 
     def _final_message(self, core, session_id: str) -> str:
         """agent 最后一条 message_emitted 的原文——**仅作诊断日志**，不参与评分。"""

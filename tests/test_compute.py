@@ -545,6 +545,37 @@ async def test_submit_compute_job_sync_success(isolated_db, mock_calc_workdir):
 
 
 @pytest.mark.asyncio
+async def test_submit_infers_unspecified_resources_from_input(tmp_path, monkeypatch):
+    from cloudra.services.compute_admission import AdmissionOutcome
+
+    gjf = tmp_path / "resource.gjf"
+    gjf.write_text(
+        "%nprocshared=4\n%mem=8GB\n#p HF/3-21G\n\nH2\n\n0 1\nH 0 0 0\nH 0 0 0.74\n",
+        encoding="utf-8",
+    )
+    observed = {}
+
+    def fake_admit_job(**kwargs):
+        observed.update(kwargs)
+        return AdmissionOutcome(ok=False, message="probe")
+
+    monkeypatch.setattr(
+        "cloudra.tools.Chemtool.submit_compute_job.admit_job", fake_admit_job
+    )
+    tool = SubmitComputeJob()
+    tool.subagent = MockAgent("a-0", "test_conv")
+
+    result = await tool.tool_call(
+        SubmitComputeJob_input_schema(input_file=str(gjf), job_type="gaussian"),
+        session=None,
+    )
+
+    assert result.message == "probe"
+    assert observed["cpus"] == 4
+    assert observed["memory_mb"] == 8192
+
+
+@pytest.mark.asyncio
 async def test_submit_compute_job_sync_failure(isolated_db, mock_calc_workdir_fail):
     """同步模式 calculator 失败时应返回 failed。"""
     gjf = os.path.join(mock_calc_workdir_fail, "h2.gjf")
@@ -1772,3 +1803,22 @@ def test_compute_jobs_lazy_connect_heals_drifted_schema(tmp_path):
     with contextlib.closing(sqlite3.connect(db_path)) as con:
         cols = {row[1] for row in con.execute("PRAGMA table_info(compute_jobs)")}
     assert {"charge", "multiplicity", "xtb_task", "xtb_solvent"} <= cols
+
+
+@pytest.mark.asyncio
+async def test_project_pending_compute_includes_cancel_requested(tmp_path):
+    """A Slurm cancellation remains background work until its poller settles it."""
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.services.compute_store import (
+        acount_pending_compute_jobs,
+        ainsert_compute_job,
+    )
+
+    db = await ComputeDB().ainit()
+    for state in ("ready", "running", "cancel_requested", "done"):
+        await ainsert_compute_job(
+            db, conversation_id="project-pending", session_id="agent",
+            path=str(tmp_path / f"{state}.gjf"), state=state,
+            jobtype="gaussian", node_id="local",
+        )
+    assert await acount_pending_compute_jobs(db, "project-pending") == 3

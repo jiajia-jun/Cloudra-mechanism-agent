@@ -576,6 +576,18 @@ class QmInputWriter(Tool):
                     message=f"qm_input_writer refused: {scan_refusal['message']}",
                     unapplied_options=scan_refusal["unapplied_options"],
                 )
+        # Validate request semantics before SMILES embedding or coordinate
+        # optimization, both of which can take minutes for an invalid job.
+        conflicts = validate_writer_request(user_input.model_dump())
+        if conflicts:
+            return QmInputWriter_output_schema(
+                is_success=False,
+                input_path="",
+                message="qm_input_writer refused: " + " | ".join(
+                    f"[{c['code']}] {c['message']}" for c in conflicts
+                ),
+                unapplied_options=[c["message"] for c in conflicts],
+            )
         # 成功写出时在 interpreted_intent 里显式记录 scan 的刚性/松弛语义
         scan_semantics = None
         for task in user_input.task_type:
@@ -599,18 +611,6 @@ class QmInputWriter(Tool):
             coords = await asyncio.to_thread(
                 self._get_coordinates, user_input, user_input.artifact_dir
             )
-            # 输入冲突前置校验：无法实现的选项明确报错，绝不写出看似成功
-            # 的计算文件（成功时 unapplied_options 必为空）。
-            conflicts = validate_writer_request(user_input.model_dump())
-            if conflicts:
-                return QmInputWriter_output_schema(
-                    is_success=False,
-                    input_path="",
-                    message="qm_input_writer refused: " + " | ".join(
-                        f"[{c['code']}] {c['message']}" for c in conflicts
-                    ),
-                    unapplied_options=[c["message"] for c in conflicts],
-                )
             if user_input.engine == "orca":
                 content = self._build_orca_input(user_input, coords)
                 engine_label = "ORCA"

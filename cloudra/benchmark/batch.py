@@ -41,6 +41,7 @@ from cloudra.benchmark.runner import (
 )
 from cloudra.benchmark.schema import TaskSpec, Tier
 from cloudra.benchmark.watch import RunWatcher
+from cloudra.runtime_v2.agent_host import is_background_parked
 from cloudra.runtime_v2.schemas import AgentState, Command, CommandRejected, new_id
 
 logger = logging.getLogger(__name__)
@@ -206,7 +207,11 @@ class BenchmarkBatch:
                 continue
             # 快照迭代：cancel 经 CommandBus 回写 core 时可能并发落新 agent
             for agent in list(self.core.agents.values()):
-                if agent.project_id != st.project_id or agent.state in _AGENT_TERMINAL:
+                if agent.project_id != st.project_id:
+                    continue
+                if agent.state in _AGENT_TERMINAL and not is_background_parked(
+                    self.core, agent
+                ):
                     continue
                 try:
                     await self.bus.execute(
@@ -363,11 +368,44 @@ class BenchmarkBatch:
                 # 必须由本协程在 spawn 之后立刻补上。
                 await cancel("batch stop")
 
+            async def resume_background() -> None:
+                # The general runtime deliberately parks compute notices for
+                # coordinators.  A benchmark run has an unattended watcher:
+                # once a notice is in the durable mailbox, resume the parked
+                # coordinator so it can inspect the result before scoring.
+                if agent.state is AgentState.SUCCEEDED and self.core.runner is not None:
+                    self.core.agent_host.wake(agent, runner=self.core.runner)
+
             watcher = RunWatcher(
                 pending_background=self._pending_background_factory(project.id, agent.id),
+                resume_background=resume_background,
+                stop_event=self._stop,
                 **self._watcher_kwargs,
             )
-            await watcher.wait(self.core, agent, cancel)
+            wait_error = await watcher.wait(self.core, agent, cancel)
+            if wait_error is not None:
+                if self._stop.is_set():
+                    await self._mark_cancelled(st)
+                else:
+                    # A parked run has state SUCCEEDED, so agent.cancel may be
+                    # rejected on timeout.  The watcher verdict still means
+                    # there was no final result; never score that sandbox.
+                    st.status = "error"
+                    st.error = wait_error
+                    result = RunResult(
+                        task_id=task.task_id,
+                        sandbox=str(sandbox),
+                        outcome=RunOutcome.FAILED.value,
+                        batch_id=self.batch_id,
+                    )
+                    result.notes.append(f"benchmark watcher: {wait_error}")
+                    st.result = result
+                    await asyncio.to_thread(self._runner.db.record, result)
+                    self.emit(
+                        "benchmark.task_error",
+                        {"batch_id": self.batch_id, "task_id": task.task_id, "error": wait_error},
+                    )
+                return
 
             # stop 只截断未竟工作：正常跑完（SUCCEEDED）的题照常评分，
             # 被 stop 级联取消的题落 cancelled。
@@ -420,14 +458,28 @@ class BenchmarkBatch:
 
     def _pending_background_factory(self, project_id: str, session_id: str):
         from cloudra.persistence.database import ComputeDB
-        from cloudra.services.compute_store import acount_pending_compute_jobs
+        from cloudra.services.compute_store import (
+            acount_active_compute_job_states,
+            pending_terminal_jobs,
+        )
 
         compute_db = ComputeDB()
 
         async def pending_background() -> bool:
             if bool(self.core.reminders.pending(session_id)):
                 return True
-            return bool(await acount_pending_compute_jobs(compute_db, project_id))
+            if await acount_active_compute_job_states(compute_db, project_id):
+                return True
+            # A child may be parked in SUCCEEDED while its own terminal job
+            # still awaits the broker.  Check the whole benchmark project,
+            # not just the coordinator's session.
+            terminal_unnotified = await asyncio.to_thread(
+                pending_terminal_jobs, compute_db, window_seconds=0, limit=1,
+                conversation_id=project_id,
+            )
+            if terminal_unnotified:
+                return True
+            return False
 
         return pending_background
 

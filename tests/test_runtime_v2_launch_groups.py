@@ -57,6 +57,178 @@ async def test_max_concurrency_covers_child_lifetime():
 
 
 @pytest.mark.asyncio
+async def test_background_wait_does_not_finish_group_item(tmp_path):
+    """The lifetime slot stays held until the child's first real result."""
+    from cloudra.runtime_v2.commands import CommandBus
+    from cloudra.runtime_v2.core import RuntimeCore
+    from cloudra.runtime_v2.effects import EventDraft
+    from cloudra.runtime_v2.persistence import RuntimeStore, restore_core
+    from cloudra.runtime_v2.schemas import Command
+
+    core = RuntimeCore(strict_events=True)
+    core.store = RuntimeStore(tmp_path / "runtime.db")
+    bus = CommandBus(core)
+    project = (await bus.execute(Command(type="project.create", payload={"name": "group-wait"}))).data
+    parent = (await bus.execute(Command(
+        type="agent.spawn", target={"project_id": project.id}, payload={"role_id": "coordinator"},
+    ))).data
+
+    async def spawner(_query):
+        return (await bus.execute(Command(
+            type="agent.spawn", target={"project_id": project.id},
+            payload={"role_id": "explorer", "parent_session_id": parent.id},
+        ))).data
+
+    group = await core.launch_groups.create(
+        group_id="grp_wait", parent_session_id=parent.id, project_id=project.id,
+        items=[("i0", "task")], max_concurrency=1, spawner=spawner,
+    )
+    for _ in range(100):
+        if group.items[0].child_session_id:
+            break
+        await asyncio.sleep(0.01)
+    child = core.agents[group.items[0].child_session_id]
+
+    async def finish(action):
+        run_id = await core.agent_host.start_run_durable(child)
+        await core.event_writer.commit(EventDraft(
+            "agent.completion_gate", stream="agent", project_id=project.id,
+            session_id=child.id, run_id=run_id,
+            data={"action": action, "reason": "test", "source": "test"},
+        ))
+        await core.agent_host.finish_run_durable(child, outcome="succeeded")
+
+    await finish("wait_background")
+    await asyncio.sleep(0.05)
+    assert group.state == "running"
+    assert group.items[0].state == "running"
+
+    restored = RuntimeCore(strict_events=True)
+    restored.store = core.store
+    restore_core(restored, core.store)
+    restored_group = restored.launch_groups.get(group.group_id)
+    assert restored_group.state == "interrupted"
+    assert restored_group.items[0].state == "running"
+
+    await finish("allow_final")
+    for _ in range(100):
+        if group.state == "finished":
+            break
+        await asyncio.sleep(0.01)
+    assert group.state == "finished"
+    assert group.items[0].state == "succeeded"
+
+
+@pytest.mark.asyncio
+async def test_capped_swarm_dispatches_after_compute_park_and_caps_resumed_runs():
+    """A parked QM child frees a run slot; simultaneous notices still obey the cap."""
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.runtime_v2.agent_runner import AgentRunner
+    from cloudra.runtime_v2.commands import CommandBus
+    from cloudra.runtime_v2.compute_notify import ComputeNotifyBroker
+    from cloudra.runtime_v2.core import RuntimeCore
+    from cloudra.runtime_v2.policies.schedule_stage import ScheduleStage
+    from cloudra.runtime_v2.schemas import Command
+    from cloudra.runtime_v2.subagent_bridge import _handle_swarm
+    from cloudra.runtime_v2.turn_pipeline import LLMResponse, TurnPipeline
+    from cloudra.services.compute_store import ainsert_compute_job
+
+    core = RuntimeCore(strict_events=True)
+    bus = CommandBus(core)
+    project = (await bus.execute(Command(
+        type="project.create", payload={"name": "capped compute swarm"},
+    ))).data
+    parent = (await bus.execute(Command(
+        type="agent.spawn", target={"project_id": project.id},
+        payload={"role_id": "coordinator"},
+    ))).data
+
+    class ParkThenFinishLLM:
+        def __init__(self):
+            self.calls: dict[str, int] = {}
+            self.active = 0
+            self.peak = 0
+            self.jobs: list[int] = []
+
+        async def complete(self, agent, messages, tools, **_kwargs):
+            if agent.role_id == "coordinator":
+                return LLMResponse(content="coordinator observed child result", stop_requested=True)
+            self.active += 1
+            self.peak = max(self.peak, self.active)
+            try:
+                await asyncio.sleep(0.03)
+                number = self.calls.get(agent.id, 0) + 1
+                self.calls[agent.id] = number
+                if number == 1:
+                    job_id = await ainsert_compute_job(
+                        await ComputeDB().ainit(), conversation_id=project.id,
+                        session_id=agent.id, path=f"/tmp/{agent.id}.gjf",
+                        state="ready", jobtype="gaussian", node_id="local",
+                    )
+                    self.jobs.append(job_id)
+                    return LLMResponse(content="waiting for compute", stop_requested=True)
+                return LLMResponse(content="result checked", stop_requested=True)
+            finally:
+                self.active -= 1
+
+    class NoTools:
+        async def execute(self, *_args, **_kwargs):
+            raise AssertionError("the scripted LLM does not call tools")
+
+    llm = ParkThenFinishLLM()
+    core.runner = AgentRunner(core, TurnPipeline(
+        event_log=core.event_log, stages=[ScheduleStage(core)],
+        llm=llm, tools=NoTools(),
+    ))
+    dispatched = await _handle_swarm(core, parent, {
+        "agent_id": "a-4", "prompt_template": "work on {{item}}",
+        "items": ["one", "two", "three"], "is_wait": False,
+        "max_concurrency": 1,
+    })
+    assert dispatched.is_success
+    group = core.launch_groups.get(dispatched.data["group_id"])
+
+    async def wait_for(predicate, message):
+        for _ in range(500):
+            if predicate():
+                return
+            await asyncio.sleep(0.01)
+        raise AssertionError(message)
+
+    await wait_for(
+        lambda: len(llm.jobs) == 3 and all(
+            item.child_session_id and core.agents[item.child_session_id].state is AgentState.SUCCEEDED
+            for item in group.items
+        ),
+        "all three children should park while their QM jobs remain active",
+    )
+    assert group.state == "running"
+    assert all(item.state == "running" for item in group.items)
+    assert llm.peak == 1
+    for item in group.items:
+        child_id = item.child_session_id
+        events = list(core.event_log)
+        dispatch_position = next(i for i, event in enumerate(events) if (
+            event.type == "launch_group.item_dispatched" and
+            event.data.get("child_session_id") == child_id
+        ))
+        run_position = next(i for i, event in enumerate(events) if (
+            event.type == "run.started" and event.session_id == child_id
+        ))
+        assert dispatch_position < run_position
+
+    async with ComputeDB().aconnect() as con:
+        for job_id in llm.jobs:
+            await con.execute("UPDATE compute_jobs SET state='done' WHERE id=?", (job_id,))
+        await con.commit()
+    await ComputeNotifyBroker(core)._poll_project(project.id)
+    await wait_for(lambda: group.state == "finished", "resumed children should complete")
+    assert all(item.state == "succeeded" for item in group.items)
+    assert all(count == 2 for count in llm.calls.values())
+    assert llm.peak == 1
+
+
+@pytest.mark.asyncio
 async def test_duplicate_group_id_is_rejected_loudly():
     """group_id 冲突绝不静默覆盖（A5：旧实现从 loop.time() 派生 id，撞车会
     无声替换整组）。重复 create 必须响亮拒绝。"""
@@ -200,6 +372,96 @@ async def test_group_lifecycle_is_event_sourced(tmp_path):
         e for e in store.events_after({}) if e["type"] == "launch_group.item_dispatched"
     ]
     assert all(e["data"]["child_session_id"].startswith("as_") for e in dispatched)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("fail_once", [True, False], ids=["one-failure", "persistent-failure"])
+async def test_dispatch_persistence_failure_does_not_orphan_spawned_child(
+    tmp_path, monkeypatch, fail_once
+):
+    """A deferred child must not be stranded if its group dispatch event cannot persist."""
+    from cloudra.runtime_v2.adapters import LegacyToolExecutor
+    from cloudra.runtime_v2.agent_runner import AgentRunner
+    from cloudra.runtime_v2.commands import CommandBus
+    from cloudra.runtime_v2.core import RuntimeCore
+    from cloudra.runtime_v2.persistence import RuntimeStore
+    from cloudra.runtime_v2.policies import default_stages
+    from cloudra.runtime_v2.schemas import Command
+    from cloudra.runtime_v2.turn_pipeline import TurnPipeline
+
+    store = RuntimeStore(tmp_path / "runtime-v2.db")
+    core = RuntimeCore(strict_events=True)
+    core.store = store
+    bus = CommandBus(core)
+    project = (await bus.execute(Command(
+        type="project.create", payload={"name": "dispatch-failure"},
+    ))).data
+    parent = (await bus.execute(Command(
+        type="agent.spawn", target={"project_id": project.id},
+        payload={"role_id": "coordinator"},
+    ))).data
+    core.runner = AgentRunner(core, TurnPipeline(
+        event_log=core.event_log, stages=default_stages(), llm=_EchoLLM(),
+        tools=LegacyToolExecutor(core),
+    ))
+    original_append = store.append_event
+    failures = 0
+
+    def fail_dispatch(envelope):
+        nonlocal failures
+        if envelope.type == "launch_group.item_dispatched" and (
+            not fail_once or failures == 0
+        ):
+            failures += 1
+            raise OSError("dispatch event unavailable")
+        if (
+            not fail_once and envelope.type == "agent.state_changed"
+            and envelope.data.get("to") == "cancelled"
+        ):
+            raise OSError("cancel event unavailable")
+        return original_append(envelope)
+
+    monkeypatch.setattr(store, "append_event", fail_dispatch)
+    spawned = []
+
+    async def spawner(query):
+        child = (await CommandBus(core).execute(Command(
+            type="agent.spawn", target={"project_id": project.id},
+            payload={
+                "role_id": "explorer", "parent_session_id": parent.id,
+                "query": query, "defer_schedule": True,
+            },
+        ))).data
+        spawned.append(child.id)
+        return child
+
+    group = await core.launch_groups.create(
+        group_id="grp_dispatch_fail", parent_session_id=parent.id,
+        project_id=project.id, items=[("i0", "q0")], max_concurrency=1,
+        spawner=spawner,
+    )
+    await asyncio.wait_for(group._task, timeout=3)
+
+    assert spawned and len(spawned) == 1
+    child = core.agents[spawned[0]]
+    if fail_once:
+        assert child.state is AgentState.SUCCEEDED
+        assert group.item("i0").state == "succeeded"
+        assert group.item("i0").child_session_id == child.id
+        assert sum(
+            event["type"] == "launch_group.item_dispatched"
+            for event in store.events_after({})
+        ) == 1
+    else:
+        assert child.state is AgentState.QUEUED
+        assert core.runner.task_for(child.id) is None
+        assert group.item("i0").state == "failed"
+        assert group.item("i0").child_session_id == child.id
+        assert any(
+            event["type"] == "launch_group.item_finished"
+            and event["data"].get("child_session_id") == child.id
+            for event in store.events_after({})
+        )
 
 
 @pytest.mark.asyncio

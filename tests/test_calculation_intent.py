@@ -157,6 +157,19 @@ async def test_writer_refusal_writes_no_file(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_writer_rejects_invalid_options_before_building_coordinates(tmp_path, monkeypatch):
+    def unexpected_build(*_args, **_kwargs):
+        raise AssertionError("invalid request must not start coordinate generation")
+
+    monkeypatch.setattr(QmInputWriter, "_get_coordinates", staticmethod(unexpected_build))
+    result = await _writer(tmp_path, task_type=[{"opt": "ts,calcfc,noeigen"}])
+
+    assert result.is_success is False
+    assert result.unapplied_options
+    assert "gaussian_only_suboption" in result.message
+
+
+@pytest.mark.asyncio
 async def test_writer_success_reports_intent_and_empty_unapplied(tmp_path):
     result = await _writer(
         tmp_path, method="b3lyp", basis_set="def2-svp", task_type=[{"opt": None}]

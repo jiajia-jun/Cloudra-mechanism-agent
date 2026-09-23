@@ -28,6 +28,7 @@ inbox 仍是**刻意易失**的内存队列：这里保证的是「消息先 dur
 
 from __future__ import annotations
 
+import asyncio
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
@@ -82,10 +83,18 @@ class MessageDispatcher:
 
     def __init__(self, core: "RuntimeCore") -> None:
         self._core = core
+        self._target_locks: dict[str, asyncio.Lock] = {}
 
     @property
     def core(self) -> "RuntimeCore":
         return self._core
+
+    def target_lock(self, session_id: str) -> asyncio.Lock:
+        """Serialize delivery with the target runner's final inbox check."""
+        lock = self._target_locks.get(session_id)
+        if lock is None:
+            lock = self._target_locks[session_id] = asyncio.Lock()
+        return lock
 
     async def commit_and_deliver(
         self,
@@ -122,19 +131,22 @@ class MessageDispatcher:
         )
         # 2) 先 durable（失败即抛，不入队不唤醒）——这是本入口存在的理由。
         envelope = await core.event_writer.commit(draft)
-        # 3) 落库成功才入队。
-        core.mailbox.enqueue(
-            to_session_id,
-            Mailbox.message_payload(
-                message_id=message_id,
-                sender=sender,
-                content=content,
-                images=images,
-                post_id=post_id,
-            ),
-        )
-        # 4) 再按状态决定唤醒。
-        target = core.agents.get(to_session_id)
-        if target is not None and should_wake(core, target, WakePolicy(wake)):
-            core.agent_host.wake(target, runner=core.runner)
-        return envelope
+        # Publication can call subscribers that send to this session. Lock only
+        # the inbox/state boundary to avoid a reentrant commit deadlock.
+        async with self.target_lock(to_session_id):
+            # 3) 落库成功才入队。
+            core.mailbox.enqueue(
+                to_session_id,
+                Mailbox.message_payload(
+                    message_id=message_id,
+                    sender=sender,
+                    content=content,
+                    images=images,
+                    post_id=post_id,
+                ),
+            )
+            # 4) 再按状态决定唤醒。
+            target = core.agents.get(to_session_id)
+            if target is not None and should_wake(core, target, WakePolicy(wake)):
+                core.agent_host.wake(target, runner=core.runner)
+            return envelope

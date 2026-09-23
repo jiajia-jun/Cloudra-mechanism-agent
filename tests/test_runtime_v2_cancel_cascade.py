@@ -90,6 +90,122 @@ async def _cancel(core, session_id: str):
     )
 
 
+async def _parked_child_with_job():
+    """A child has ended one run to wait for its own durable compute notice."""
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.runtime_v2.effects import EventDraft
+    from cloudra.services.compute_store import ainsert_compute_job
+
+    core = RuntimeCore(strict_events=True)
+    bus = CommandBus(core)
+    project = (await bus.execute(Command(
+        type="project.create", payload={"name": "parked cancellation"},
+    ))).data
+    parent = (await bus.execute(Command(
+        type="agent.spawn", target={"project_id": project.id},
+        payload={"role_id": "coordinator"},
+    ))).data
+    child = (await bus.execute(Command(
+        type="agent.spawn", target={"project_id": project.id},
+        payload={"role_id": "small_mol", "parent_session_id": parent.id},
+    ))).data
+    job_id = await ainsert_compute_job(
+        await ComputeDB().ainit(), conversation_id=project.id, session_id=child.id,
+        path="/tmp/parked-cancel.gjf", state="ready", jobtype="gaussian",
+        node_id="local",
+    )
+    run_id = await core.agent_host.start_run_durable(child)
+    await core.event_writer.commit(EventDraft(
+        "agent.completion_gate", stream="agent", project_id=project.id,
+        session_id=child.id, run_id=run_id,
+        data={"action": "wait_background", "reason": "compute pending", "source": "schedule"},
+    ))
+    await core.agent_host.finish_run_durable(child, outcome="succeeded")
+    assert child.state is AgentState.SUCCEEDED
+    return core, project, parent, child, job_id
+
+
+async def _complete_job_and_notify(core, project_id: str, job_id: int) -> None:
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.runtime_v2.compute_notify import ComputeNotifyBroker
+
+    db = ComputeDB()
+    async with db.aconnect() as con:
+        await con.execute(
+            "UPDATE compute_jobs SET state='done' WHERE id=?", (job_id,),
+        )
+        await con.commit()
+    await ComputeNotifyBroker(core)._poll_project(project_id)
+
+
+@pytest.mark.asyncio
+async def test_cancel_parent_cancels_child_parked_on_compute_without_cancelling_job():
+    core, project, parent, child, job_id = await _parked_child_with_job()
+
+    await _cancel(core, parent.id)
+
+    assert parent.state is AgentState.CANCELLED
+    assert child.state is AgentState.CANCELLED
+    await _complete_job_and_notify(core, project.id, job_id)
+    assert child.state is AgentState.CANCELLED
+    assert len(core.event_log.query_session(child.id, types={"run.started"})) == 1
+    from cloudra.persistence.database import ComputeDB
+    async with ComputeDB().aconnect() as con:
+        row = await (await con.execute(
+            "SELECT state FROM compute_jobs WHERE id=?", (job_id,),
+        )).fetchone()
+    assert row[0] == "done", "cancel only stops the agent, not its compute job"
+
+
+@pytest.mark.asyncio
+async def test_cancel_launch_group_cancels_child_parked_on_compute():
+    core, project, parent, child, job_id = await _parked_child_with_job()
+    group = await core.launch_groups.create(
+        group_id="grp_parked_cancel", parent_session_id=parent.id,
+        project_id=project.id, items=[("item", "work")], max_concurrency=1,
+        spawner=lambda _query: asyncio.sleep(0, result=child),
+    )
+    await _wait_until(
+        lambda: group.items[0].child_session_id == child.id,
+        what="parked child assigned to group",
+    )
+
+    await core.launch_groups.cancel(group.group_id)
+
+    assert group.state == "cancelled"
+    assert group.items[0].state == "cancelled"
+    assert child.state is AgentState.CANCELLED
+    await _complete_job_and_notify(core, project.id, job_id)
+    assert child.state is AgentState.CANCELLED
+    assert len(core.event_log.query_session(child.id, types={"run.started"})) == 1
+
+
+@pytest.mark.asyncio
+async def test_shutdown_does_not_cancel_child_parked_on_compute():
+    """A service restart must leave the compute notice able to resume its child."""
+    core, project, parent, child, job_id = await _parked_child_with_job()
+    group = await core.launch_groups.create(
+        group_id="grp_parked_shutdown", parent_session_id=parent.id,
+        project_id=project.id, items=[("item", "work")], max_concurrency=1,
+        spawner=lambda _query: asyncio.sleep(0, result=child),
+    )
+    await _wait_until(
+        lambda: group.items[0].child_session_id == child.id,
+        what="parked child assigned to group",
+    )
+
+    await core.aclose()
+
+    assert group.state == "cancelled"
+    assert child.state is AgentState.SUCCEEDED
+    from cloudra.persistence.database import ComputeDB
+    async with ComputeDB().aconnect() as con:
+        row = await (await con.execute(
+            "SELECT state FROM compute_jobs WHERE id=?", (job_id,),
+        )).fetchone()
+    assert row[0] == "ready"
+
+
 @pytest.mark.asyncio
 async def test_cancel_parent_cascades_to_async_child():
     """Cancelling a parent whose async child is mid-run must cancel the child:

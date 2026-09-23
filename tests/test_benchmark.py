@@ -1985,6 +1985,66 @@ def test_backend_runs_to_terminal_and_scores_from_deliverables(tmp_path, monkeyp
     assert tools.calls == []
 
 
+def test_cli_backend_starts_and_closes_compute_notifier(tmp_path, monkeypatch):
+    from cloudra.benchmark.backend import RuntimeV2Backend
+    from cloudra.runtime_v2.compute_notify import ComputeNotifyBroker
+    from cloudra.runtime_v2.turn_pipeline import LLMResponse
+
+    calls = []
+    original_start = ComputeNotifyBroker.start
+    original_close = ComputeNotifyBroker.close
+
+    async def start(self):
+        calls.append("start")
+        await original_start(self)
+
+    async def close(self):
+        calls.append("close")
+        await original_close(self)
+
+    monkeypatch.setattr(ComputeNotifyBroker, "start", start)
+    monkeypatch.setattr(ComputeNotifyBroker, "close", close)
+    backend = RuntimeV2Backend(
+        llm=_ScriptedLLM([LLMResponse(content="done")]),
+        tools=_RecordingTools(), start_scheduler=False,
+        poll_interval_s=0.01, run_timeout_s=5.0, stuck_grace_s=1.0,
+    )
+    backend(_tiny_task(), tmp_path / "sandbox")
+    assert calls == ["start", "close"]
+
+
+def test_cli_backend_timeout_survives_finished_agent_cancel_rejection(tmp_path, monkeypatch):
+    import asyncio
+
+    from cloudra.benchmark.backend import RuntimeV2Backend
+    from cloudra.benchmark.watch import RunWatcher
+    from cloudra.runtime_v2.schemas import AgentState
+    from cloudra.runtime_v2.turn_pipeline import LLMResponse
+
+    async def timeout_after_agent_finishes(self, core, agent, cancel):
+        for _ in range(100):
+            if agent.state is AgentState.SUCCEEDED:
+                break
+            await asyncio.sleep(0.01)
+        assert agent.state is AgentState.SUCCEEDED
+        await cancel("benchmark run timeout (test)")
+        return "benchmark run timeout (test)"
+
+    monkeypatch.setattr(RunWatcher, "wait", timeout_after_agent_finishes)
+    backend = RuntimeV2Backend(
+        llm=_ScriptedLLM([LLMResponse(content="done")]),
+        tools=_RecordingTools(), start_scheduler=False,
+        poll_interval_s=0.01, run_timeout_s=5.0, stuck_grace_s=1.0,
+    )
+    with pytest.raises(TimeoutError, match="benchmark run timeout"):
+        backend(_tiny_task(), tmp_path / "sandbox")
+    assert any(
+        event.type == "command.rejected"
+        and event.data.get("command_type") == "agent.cancel"
+        for event in backend.last_core.event_log
+    )
+
+
 def test_backend_unattended_ask_user_blocked_without_parking(tmp_path, monkeypatch):
     """GH #31 端到端：agent 调 ask_user → UnattendedStage 拦截并以 block 反馈
     继续，全程绝不进入 waiting_input，最终消息与能垒正常提取。"""

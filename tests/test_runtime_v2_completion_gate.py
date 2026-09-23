@@ -730,9 +730,75 @@ async def test_schedule_wait_background_then_reminder_fire_continues(tmp_path, m
 
 
 @pytest.mark.asyncio
+async def test_terminal_notice_during_gate_is_read_before_child_reports(tmp_path):
+    """A compute notice can be marked delivered while the stop gate is running."""
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.runtime_v2.compute_notify import ComputeNotifyBroker
+    from cloudra.runtime_v2.failures import RunFailureKind
+    from cloudra.runtime_v2.policies.schedule_stage import ScheduleStage
+    from cloudra.services.compute_store import ainsert_compute_job
+
+    llm = _RoutingLLM([_stop_call(reason="waiting"), LLMResponse(content="verified result")])
+    core, bus, project = await _new_core(llm, workspace_dir=tmp_path)
+    parent = await _spawn_coordinator(bus, project, query=None)
+    core.agent_host.start_run(parent)
+    core.agent_host.finish_run(
+        parent, outcome="failed", error="park parent", failure_kind=RunFailureKind.PIPELINE_INTERNAL
+    )
+    child = (
+        await bus.execute(Command(
+            type="agent.spawn", target={"project_id": project.id},
+            payload={"role_id": "small_mol", "parent_session_id": parent.id},
+        ))
+    ).data
+    await ainsert_compute_job(
+        await ComputeDB().ainit(), conversation_id=project.id, session_id=child.id,
+        path=str(tmp_path / "job.gjf"), state="done", jobtype="gaussian", node_id="local",
+    )
+    stage = next(s for s in core.runner.pipeline.stages if isinstance(s, ScheduleStage))
+    entered = asyncio.Event()
+    release = asyncio.Event()
+    original = stage._owned_compute_pending
+
+    async def paused_owned_check(ctx):
+        if ctx.agent.id == child.id and not entered.is_set():
+            entered.set()
+            await release.wait()
+        return await original(ctx)
+
+    stage._owned_compute_pending = paused_owned_check
+    try:
+        await bus.execute(Command(
+            type="agent.message", target={"session_id": child.id},
+            payload={"content": "review the job"},
+        ))
+        await asyncio.wait_for(entered.wait(), timeout=5)
+        await ComputeNotifyBroker(core)._poll_project(project.id)
+        release.set()
+        await _wait_state(child, "succeeded")
+        await _wait_until(
+            lambda: bool([
+                e for e in core.event_log.query_session(parent.id, types={"agent.message_injected"})
+                if (e.data.get("manifest") or {}).get("kind") == "child_completion"
+            ]),
+            what="child result",
+        )
+        reports = [
+            e.data["manifest"]
+            for e in core.event_log.query_session(parent.id, types={"agent.message_injected"})
+            if (e.data.get("manifest") or {}).get("kind") == "child_completion"
+        ]
+        assert len(reports) == 1
+        assert reports[0]["final_summary"] == "verified result"
+        assert llm.coordinator_calls == 2
+    finally:
+        release.set()
+        await _teardown(core)
+
+
+@pytest.mark.asyncio
 async def test_message_arriving_during_gate_evaluation_is_not_lost(tmp_path):
-    """竞态（Event 门闩）：门禁判定期间投递的消息不丢——判定放行后
-    finish_run 前的 inbox 复查唤醒新 run 消费它。"""
+    """门禁判定期间投递给顶层 agent 的消息由新 run 消费。"""
 
     class _GateTrap:
         """在统一门禁判定期间注入一条用户消息（deliver 撞 RUNNING）。"""

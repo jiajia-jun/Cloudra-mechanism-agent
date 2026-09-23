@@ -26,7 +26,9 @@ except Exception:
 
 description = (
     "Convert a chemical SMILES string to MOL (MDL MOLfile) via RDKit, with 2D or 3D coordinates, "
-    "optionally saving to a file or returning MOL text. "
+    "optionally saving to a file or returning MOL text. A successful 3D build also returns "
+    "xyz_path for the XYZ file produced by the same build; reuse it instead of rebuilding "
+    "the same SMILES to obtain XYZ coordinates. "
     "3D structures are built by the shared structure builder: SMILES is split into its connected "
     "components, each component is embedded and force-field optimized with a recorded trajectory, "
     "and a multi-component input is NOT returned as a complex (assembly is a separate, not yet "
@@ -75,6 +77,10 @@ class SmilesToMol_output_schema(output_schema):
     is_success: bool = Field(description="Whether conversion succeeded")
     mol_content: str = Field(default="", description="Generated MOL file text (V2000)")
     file_path: str = Field(default="", description="File path if written; otherwise empty")
+    xyz_path: str = Field(
+        default="",
+        description="Reusable XYZ file from the same successful 3D build; empty for 2D or failed builds.",
+    )
     message: str = Field(default="", description="Status or error message")
 
 
@@ -151,6 +157,7 @@ class SmilesToMol(Tool):
             is_success=True,
             mol_content=mol_block,
             file_path=saved_path,
+            xyz_path=prepared.candidate_path(".xyz"),
             message=message,
         )
 

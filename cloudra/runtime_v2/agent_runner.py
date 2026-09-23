@@ -120,21 +120,39 @@ class AgentRunner:
         # 压缩被拒时的投影 token 规模：session_id -> tokens。预算触发的重试
         # 闸门（_compaction_retry_due）；刻意易失，重启后允许立即重试一次。
         self._compact_refusals: dict[str, int] = {}
+        # Concurrent child/supervisor completions can observe the same parked
+        # coordinator. The event marker is durable; this lock closes the live
+        # check-then-deliver race for one project.
+        self._quiescence_locks: dict[str, asyncio.Lock] = {}
 
     # ------------------------------------------------------------------ public
 
-    def schedule(self, session_id: str) -> None:
+    def task_for(self, session_id: str) -> asyncio.Task | None:
+        """Current run task, if any (also includes a queued group permit)."""
+        return self._tasks.get(session_id)
+
+    def schedule(self, session_id: str) -> asyncio.Task | None:
         if not self._accepting:
-            return
+            return None
         task = self._tasks.get(session_id)
         if task is not None and not task.done():
-            return
+            return task
         agent = self.core.require_agent(session_id)
         if agent.state is AgentState.RUNNING and task is not None and not task.done():
-            return
-        task = asyncio.create_task(self._run(agent), name=f"agent:{session_id}")
+            return task
+        run_semaphore = self.core.launch_groups.run_semaphore(session_id)
+
+        async def run_with_permit() -> None:
+            if run_semaphore is None:
+                await self._run(agent)
+            else:
+                async with run_semaphore:
+                    await self._run(agent)
+
+        task = asyncio.create_task(run_with_permit(), name=f"agent:{session_id}")
         self._tasks[session_id] = task
         task.add_done_callback(lambda done: self._task_finished(session_id, done))
+        return task
 
     def _task_finished(self, session_id: str, task: asyncio.Task) -> None:
         """Drop a completed task, then close the wakeup race at its boundary.
@@ -469,12 +487,21 @@ class AgentRunner:
                         hook = getattr(stage, "on_run_end", None)
                         if hook is not None:
                             await hook(agent, explicit_stop=explicit_stop)
-                    await core.agent_host.finish_run_durable(agent, outcome="succeeded")
-                    # peek 与 finish 之间到达的消息：deliver 方的 wake 此刻仍可能
-                    # 撞在 RUNNING 上（事件未应用前）；状态已 SUCCEEDED 后复查并
-                    # 显式 wake 开新 run，关掉最后一段竞态窗口。
-                    if self._inbox_has_pending(agent):
-                        core.agent_host.wake(agent, runner=core.runner)
+                    # The compute broker marks a terminal job notified only after
+                    # its message is delivered. A notice arriving during the gate
+                    # must be read before this run becomes a child's first final
+                    # result. Top-level agents retain the existing finish/wake
+                    # boundary, which starts a fresh run for late user/child input.
+                    # Share the target lock with MessageDispatcher so a delivery
+                    # cannot slip between this check and finish_run.
+                    async with core.dispatcher.target_lock(agent.id):
+                        if agent.parent_session_id and self._inbox_has_pending(agent):
+                            continue
+                        await core.agent_host.finish_run_durable(agent, outcome="succeeded")
+                        # CommandBus may enqueue outside MessageDispatcher; keep
+                        # the existing post-finish wake handshake for that path.
+                        if self._inbox_has_pending(agent):
+                            core.agent_host.wake(agent, runner=core.runner)
                     await self._deliver_completion(agent)
                     break
                 if outcome.decision in {"wait_input", "wait_approval"}:
@@ -544,6 +571,101 @@ class AgentRunner:
 
         await deliver_child_completion_to_parent(self.core, agent)
         await deliver_peer_completion(self.core, agent)
+        await self.maybe_wake_parked_delivery(agent.project_id)
+
+    async def maybe_wake_parked_delivery(self, project_id: str) -> None:
+        """Resume a guided delivery wait once all project background work settles.
+
+        Called by terminal agent and compute-notice events. The notice is
+        durable and keyed to the parked run, so duplicate terminal callbacks
+        and restarts cannot create another LLM wake for the same wait.
+        """
+        if not self._accepting:
+            return
+        from cloudra.dag.stop_audit import (
+            has_running_siblings,
+            pending_compute_jobs_exist,
+        )
+        from cloudra.runtime_v2.agent_host import is_background_parked
+
+        core = self.core
+        candidates = [
+            agent for agent in core.agents.values()
+            if agent.project_id == project_id
+            and agent.role_id == "coordinator"
+            and is_background_parked(core, agent)
+        ]
+        if not candidates:
+            return
+        lock = self._quiescence_locks.setdefault(project_id, asyncio.Lock())
+        async with lock:
+            for coordinator in candidates:
+                if not is_background_parked(core, coordinator):
+                    continue
+                gate = core.event_log.query_session(
+                    coordinator.id, types={"agent.completion_gate"}, limit=1,
+                )
+                if not gate or gate[0].data.get("source") != "dag":
+                    continue
+                parked_run_id = gate[0].run_id
+                if not parked_run_id:
+                    continue
+                if await pending_compute_jobs_exist(
+                    data_dir=None, project_id=project_id,
+                ):
+                    continue
+                if has_running_siblings(
+                    core, project_id=project_id, session_id=coordinator.id,
+                ) or core.reminders.pending(coordinator.id):
+                    continue
+                # The DB check awaits; a regular child message may have
+                # already woken this coordinator in the meantime.
+                if not is_background_parked(core, coordinator):
+                    continue
+                # Only scan the durable history after project work has
+                # settled. Most child/compute callbacks return above.
+                marker = next((
+                    event for event in core.event_log
+                    if event.type == "agent.message_injected"
+                    and event.session_id == coordinator.id
+                    and (event.data.get("manifest") or {}).get("kind")
+                    == "background_quiescence"
+                    and (event.data.get("manifest") or {}).get("parked_run_id")
+                    == parked_run_id
+                ), None)
+                if marker is not None:
+                    # A process can stop after persisting the marker but
+                    # before enqueue/wake. Reuse that message rather than
+                    # writing a duplicate, and close the interrupted wake.
+                    from cloudra.runtime_v2.mailbox import Mailbox
+
+                    async with core.dispatcher.target_lock(coordinator.id):
+                        inbox = core.mailbox.inbox(coordinator.id)
+                        if inbox is None or inbox.empty():
+                            core.mailbox.enqueue(
+                                coordinator.id,
+                                Mailbox.message_payload(
+                                    message_id=str(marker.data["message_id"]),
+                                    sender=str(marker.data["sender"]),
+                                    content=str(marker.data["content"]),
+                                ),
+                            )
+                        core.agent_host.wake(coordinator, runner=core.runner)
+                    continue
+                await core.dispatcher.commit_and_deliver(
+                    to_session_id=coordinator.id,
+                    project_id=project_id,
+                    content=(
+                        "[Background work settled] Project background work has "
+                        "finished. Recheck delivery and outstanding reviews."
+                    ),
+                    sender="background_quiescence",
+                    manifest={
+                        "kind": "background_quiescence",
+                        "parked_run_id": parked_run_id,
+                    },
+                    wake=WakePolicy.PARK_TERMINAL,
+                )
 
     def _emit_run_message(self, agent: AgentSession, run_id: str, content: str) -> None:
         self.core.event_log.append(

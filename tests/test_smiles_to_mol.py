@@ -31,6 +31,31 @@ async def test_smiles_to_mol_3d_and_file_write(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_smiles_to_mol_3d_exposes_xyz_from_the_same_build(tmp_path):
+    """One 3D conversion makes its XYZ usable without another embedding run."""
+    from rdkit import Chem
+
+    result = await SmilesToMol().tool_call(
+        SmilesToMol_input_schema(
+            smiles="CC(=O)O", output_path=str(tmp_path / "acetic.mol"),
+            generate_3d=True,
+        ),
+        session=None,
+    )
+
+    assert result.is_success is True, result.message
+    xyz_path = tmp_path / "structure_build" / "acetic" / "prepared.xyz"
+    assert result.xyz_path == str(xyz_path)
+    xyz_lines = xyz_path.read_text(encoding="utf-8").splitlines()
+    mol = Chem.MolFromMolBlock(result.mol_content, removeHs=False)
+    assert mol is not None
+    assert int(xyz_lines[0]) == mol.GetNumAtoms()
+    assert [line.split()[0] for line in xyz_lines[2:]] == [
+        atom.GetSymbol() for atom in mol.GetAtoms()
+    ]
+
+
+@pytest.mark.asyncio
 async def test_smiles_to_mol_invalid_smiles():
     result = await SmilesToMol().tool_call(
         SmilesToMol_input_schema(smiles="c1cc("),

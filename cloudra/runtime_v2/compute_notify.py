@@ -7,8 +7,9 @@
 项目的死信落 ``notified_at``。只投递 ``conversation_id in core.projects``
 的行（未加载项目跳过、不落 notified_at，项目打开时 ``ensure_project`` 立即
 扫该项目；**已硬删除的项目**——事件日志里有 project.deleted tombstone——
-永不加载，记 warning 并落 notified_at 终结），逐作业投递 ``agent.message``
-后落 ``notified_at``。投递失败不落 notified_at，下一 tick 自然重试。
+永不加载，记 warning 并落 notified_at 终结）。每批逐作业持久化通知并落
+``notified_at``；同一子 Agent 的未终态作业全部结束后才唤醒一次。
+投递失败不落 notified_at，下一 tick 自然重试。
 
 锁纪律（细粒度，防跨进程 "database is locked"）：同步 SQLite 全部经
 ``asyncio.to_thread`` 卸载出事件循环，逐作业单行 UPDATE，不持长事务。
@@ -22,10 +23,12 @@ from typing import TYPE_CHECKING
 
 from cloudra.persistence.database import ComputeDB
 from cloudra.runtime.compute_notify import build_compute_finish_content, resolve_submission_info
-from cloudra.runtime_v2.commands import CommandBus
-from cloudra.runtime_v2.dispatcher import WakePolicy
-from cloudra.runtime_v2.schemas import Command
-from cloudra.services.compute_store import mark_notified, pending_terminal_jobs
+from cloudra.runtime_v2.dispatcher import WakePolicy, should_wake
+from cloudra.services.compute_store import (
+    acount_waitable_compute_jobs_for_session,
+    mark_notified,
+    pending_terminal_jobs,
+)
 
 if TYPE_CHECKING:
     from cloudra.runtime_v2.core import RuntimeCore
@@ -45,6 +48,15 @@ class ComputeNotifyBroker:
         self.core = core
         self.poll_interval = poll_interval
         self._poll_task: asyncio.Task | None = None
+        # ensure_project and the periodic loop can run at the same time. A
+        # single scan/delivery owner prevents both from selecting an unacked
+        # row and committing the same notice twice.
+        self._poll_lock = asyncio.Lock()
+        # Rebuild once from durable message manifests after RuntimeCore restore.
+        # A crash between message commit and compute.db ack then retries only
+        # the ack, without appending the same job result to the inbox again.
+        self._delivered_jobs: dict[tuple[str, int], str] = {}
+        self._delivered_index_built = False
         # 证据快照待收集：核心文件暂不可读时入此表，后续 tick 静默重试
         # （不重复投递通知）；收齐后一次性补发"证据已可复查"。
         # task_id -> (project_id, session_id, recovered)
@@ -76,6 +88,10 @@ class ComputeNotifyBroker:
             await asyncio.sleep(self.poll_interval)
 
     async def _poll_all(self) -> None:
+        async with self._poll_lock:
+            await self._poll_all_locked()
+
+    async def _poll_all_locked(self) -> None:
         """每 tick 先扫已加载项目，再扫一小批未加载行只为终结已删除项目。
 
         已加载项目单独 SELECT，不被其它会话的未通知积压占满 LIMIT。
@@ -98,17 +114,7 @@ class ComputeNotifyBroker:
             rows = await asyncio.to_thread(
                 self._pending_terminal_jobs, conversation_ids=loaded
             )
-            for conversation_id, task_id, state, session_id in rows:
-                try:
-                    await self._deliver(
-                        conversation_id, task_id=task_id, state=state, session_id=session_id
-                    )
-                except Exception:
-                    logger.exception(
-                        "compute notify delivery failed for %s job %s",
-                        conversation_id,
-                        task_id,
-                    )
+            await self._deliver_batch(rows)
 
         parked = await asyncio.to_thread(self._pending_terminal_jobs)
         for conversation_id, task_id, _state, _session_id in parked:
@@ -125,18 +131,83 @@ class ComputeNotifyBroker:
         await self._retry_snapshots()
 
     async def _poll_project(self, project_id: str) -> None:
-        if project_id not in self.core.projects:
-            return  # 项目未加载无投递目标
-        rows = await asyncio.to_thread(self._pending_terminal_jobs, project_id)
-        for _conv_id, task_id, state, session_id in rows:
+        async with self._poll_lock:
+            if project_id not in self.core.projects:
+                return  # 项目未加载无投递目标
+            rows = await asyncio.to_thread(self._pending_terminal_jobs, project_id)
+            await self._deliver_batch(rows)
+
+    async def _deliver_batch(
+        self, rows: list[tuple[str, int, str, str | None]]
+    ) -> None:
+        """Deliver each job durably, waking a child only after its final notice.
+
+        Intermediate notices stay in the inbox while any job owned by that
+        child remains active or has an undelivered terminal notice. The last
+        notice for that child performs one wake only when this bounded poll
+        contains every remaining notice.
+        """
+        last_index: dict[tuple[str, str], int] = {}
+        selected_count: dict[tuple[str, str], int] = {}
+        for index, (project_id, _task_id, _state, session_id) in enumerate(rows):
+            if session_id:
+                key = (project_id, session_id)
+                last_index[key] = index
+                selected_count[key] = selected_count.get(key, 0) + 1
+        all_waitable_selected: dict[tuple[str, str], bool] = {}
+        lookup_failed: set[tuple[str, str]] = set()
+        for project_id, session_id in last_index:
+            agent = self.core.agents.get(session_id)
+            if agent is None or agent.role_id == "coordinator":
+                continue
             try:
-                await self._deliver(
-                    project_id, task_id=task_id, state=state, session_id=session_id
+                key = (project_id, session_id)
+                all_waitable_selected[key] = (
+                    await acount_waitable_compute_jobs_for_session(
+                        ComputeDB(), project_id, session_id
+                    )
+                    == selected_count[key]
                 )
             except Exception:
+                # A failed lookup cannot prove when to wake. Leave this
+                # session's rows unnotified so the next tick retries them.
+                lookup_failed.add((project_id, session_id))
+                logger.exception(
+                    "compute notify active-job lookup failed for %s session %s",
+                    project_id,
+                    session_id,
+                )
+        delivery_failed: set[tuple[str, str]] = set()
+        for index, (project_id, task_id, state, session_id) in enumerate(rows):
+            key = (project_id, session_id) if session_id else None
+            if key is not None and (key in lookup_failed or key in delivery_failed):
+                continue
+            wake = bool(
+                session_id
+                and index == last_index[key]
+                and all_waitable_selected.get(key, False)
+            )
+            try:
+                await self._deliver(
+                    project_id, task_id=task_id, state=state,
+                    session_id=session_id, wake=wake,
+                )
+            except Exception:
+                if key is not None:
+                    # Keep the remaining notices pending.  Waking on the last
+                    # row after an earlier delivery failed would give the LLM
+                    # an incomplete batch and force another run on retry.
+                    delivery_failed.add(key)
                 logger.exception(
                     "compute notify delivery failed for %s job %s", project_id, task_id
                 )
+        # A coordinator can already have consumed the child's first final
+        # report and be parked waiting for later compute. Once all notices in
+        # this batch are durable, let the runner test project quiescence.
+        hook = getattr(self.core.runner, "maybe_wake_parked_delivery", None)
+        if hook is not None:
+            for project_id in {row[0] for row in rows}:
+                await hook(project_id)
 
     @staticmethod
     def _pending_terminal_jobs(
@@ -162,33 +233,73 @@ class ComputeNotifyBroker:
         task_id: int,
         state: str,
         session_id: str | None,
+        wake: bool = True,
     ) -> None:
         if project_id not in self.core.projects:
             return
-        content = await self._content_for(task_id, state)
-        snapshot_note, complete = await self._snapshot_core_evidence(
-            project_id, task_id, session_id
-        )
-        if snapshot_note:
-            content = f"{content}\n{snapshot_note}"
-        if not complete:
-            self._snapshot_retries[task_id] = (project_id, session_id, False)
+        self._load_durable_deliveries()
+        job_key = (project_id, task_id)
+        target_id = self._delivered_jobs.get(job_key)
+        if target_id is None:
+            content = await self._content_for(task_id, state)
+            snapshot_note, complete = await self._snapshot_core_evidence(
+                project_id, task_id, session_id
+            )
+            if snapshot_note:
+                content = f"{content}\n{snapshot_note}"
+            if not complete:
+                self._snapshot_retries[task_id] = (project_id, session_id, False)
 
-        delivered: set[str] = set()
-        if isinstance(session_id, str) and session_id in self.core.agents:
-            await self._send_message(session_id, content)
-            delivered.add(session_id)
-        elif not delivered:
-            # 仅当提交会话未指定或不可达（ghost session 回落）时才交付 Coordinator 兜底，
-            # 绝不把子 Agent 负责的底层计算作业无脑广播给 Coordinator。
-            coordinator = self._coordinator_for(project_id)
-            if coordinator is not None:
-                await self._send_message(coordinator.id, content)
-                delivered.add(coordinator.id)
+            if isinstance(session_id, str) and session_id in self.core.agents:
+                target_id = session_id
+            else:
+                # A missing submitter falls back to the coordinator. Never
+                # broadcast a child's calculation result to it otherwise.
+                coordinator = self._coordinator_for(project_id)
+                target_id = coordinator.id if coordinator is not None else None
+            if target_id is None:
+                return
+            # Persist and enqueue first, but do not wake the child until the
+            # DB ack succeeds. A failed final ack must not start an LLM run.
+            try:
+                await self._send_message(target_id, content, wake=False, job_id=task_id)
+            except Exception:
+                # A message may have committed before the enqueue failed.
+                # Reload the durable event on the next poll before retrying.
+                self._delivered_index_built = False
+                raise
+            self._delivered_jobs[job_key] = target_id
 
-        if not delivered:
-            return
         await asyncio.to_thread(self._mark_notified, task_id)
+        if wake:
+            await self._wake_notified_child(target_id)
+
+    def _load_durable_deliveries(self) -> None:
+        if self._delivered_index_built:
+            return
+        for event in self.core.event_log:
+            if event.type != "agent.message_injected" or not event.session_id:
+                continue
+            manifest = event.data.get("manifest")
+            if not isinstance(manifest, dict) or manifest.get("kind") != "compute_completion":
+                continue
+            task_id = manifest.get("task_id")
+            if isinstance(task_id, int) and task_id > 0:
+                self._delivered_jobs[(event.project_id, task_id)] = event.session_id
+        self._delivered_index_built = True
+
+    async def _wake_notified_child(self, session_id: str) -> None:
+        async with self.core.dispatcher.target_lock(session_id):
+            agent = self.core.agents.get(session_id)
+            inbox = self.core.mailbox.inbox(session_id)
+            if (
+                agent is not None
+                and agent.role_id != "coordinator"
+                and inbox is not None
+                and not inbox.empty()
+                and should_wake(self.core, agent, WakePolicy.PARK_TERMINAL)
+            ):
+                self.core.agent_host.wake(agent, runner=self.core.runner)
 
     async def _content_for(self, task_id: int, state: str) -> str:
         """通知文本一律由 DB 重建（唯一路径）：提交者信息 + 终态错误 + 日志路径。"""
@@ -246,11 +357,12 @@ class ComputeNotifyBroker:
 
     @staticmethod
     def _mark_notified(task_id: int) -> None:
-        """投递完成后落 notified_at——去重只认它（notified_at IS NULL 过滤）。"""
+        """Acknowledge the durable notice in compute.db after inbox delivery."""
         try:
             mark_notified(ComputeDB(), task_id)
         except Exception:
             logger.exception("could not mark compute job %s notified", task_id)
+            raise
 
     async def _core_files_for(self, task_id: int) -> tuple[list[str], str]:
         """作业的核心证据文件与未落盘日志。
@@ -366,15 +478,28 @@ class ComputeNotifyBroker:
                 continue
             if not complete:
                 continue
-            self._snapshot_retries[task_id] = (project_id, session_id, True)
             target = session_id
             if target is None or target not in self.core.agents:
                 coordinator = self._coordinator_for(project_id)
                 target = coordinator.id if coordinator is not None else None
             if target is not None:
+                wake = True
+                agent = self.core.agents.get(target)
+                if agent is not None and agent.role_id != "coordinator":
+                    try:
+                        wake = not bool(await acount_waitable_compute_jobs_for_session(
+                            ComputeDB(), project_id, target
+                        ))
+                    except Exception:
+                        logger.exception(
+                            "compute evidence notification active-job lookup failed for %s",
+                            target,
+                        )
+                        continue
                 await self._send_message(
                     target,
                     f"[Compute job] Evidence for job {task_id} is now available for review.\n{note}",
+                    wake=wake,
                 )
             del self._snapshot_retries[task_id]
 
@@ -388,9 +513,16 @@ class ComputeNotifyBroker:
             None,
         )
 
-    async def _send_message(self, session_id: str, content: str) -> None:
+    async def _send_message(
+        self, session_id: str, content: str, *, wake: bool = True,
+        job_id: int | None = None,
+    ) -> None:
         body = content if content.startswith("[Compute job]") else f"[Compute job]\n{content}"
         agent = self.core.agents.get(session_id)
+        manifest = (
+            {"kind": "compute_completion", "task_id": job_id}
+            if job_id is not None else None
+        )
         if agent is not None and agent.role_id == "coordinator":
             # Coordinator 绝不被计算任务唤醒（只由 AgentHub / Supervisor 裁决唤醒）：
             # 终态通知仅静默存入收件箱驻留（park-don't-wake），不发 agent.message 强制 wake。
@@ -399,14 +531,16 @@ class ComputeNotifyBroker:
                 project_id=agent.project_id,
                 content=body,
                 sender="system",
+                manifest=manifest,
                 wake=WakePolicy.NEVER,
             )
             return
-        await CommandBus(self.core).execute(
-            Command(
-                type="agent.message",
-                target={"session_id": session_id},
-                payload={"content": body},
-                actor="system",
+        if agent is not None:
+            await self.core.dispatcher.commit_and_deliver(
+                to_session_id=session_id,
+                project_id=agent.project_id,
+                content=body,
+                sender="system",
+                manifest=manifest,
+                wake=WakePolicy.PARK_TERMINAL if wake else WakePolicy.NEVER,
             )
-        )

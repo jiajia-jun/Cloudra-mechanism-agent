@@ -56,7 +56,7 @@ _TRANSITIONS: dict[AgentState, frozenset[AgentState]] = {
     ),
     AgentState.WAITING_INPUT: frozenset({AgentState.RUNNING, AgentState.CANCELLED, AgentState.FAILED}),
     AgentState.WAITING_APPROVAL: frozenset({AgentState.RUNNING, AgentState.CANCELLED, AgentState.FAILED}),
-    AgentState.SUCCEEDED: frozenset({AgentState.RUNNING, AgentState.QUEUED}),
+    AgentState.SUCCEEDED: frozenset({AgentState.RUNNING, AgentState.QUEUED, AgentState.CANCELLED}),
     AgentState.FAILED: frozenset({AgentState.QUEUED}),
     AgentState.CANCELLED: frozenset({AgentState.QUEUED}),
 }
@@ -194,11 +194,30 @@ def plan_resume(agent: AgentSession) -> tuple[str, list[EventDraft]]:
     ]
 
 
-def plan_cancel(agent: AgentSession) -> list[EventDraft]:
+def is_background_parked(core: Any, agent: AgentSession) -> bool:
+    """A successful run waiting for background work is still cancellable."""
+    if agent.state is not AgentState.SUCCEEDED or agent.current_run is not None:
+        return False
+    recent = core.event_log.query_session(
+        agent.id, types={"agent.completion_gate", "agent.state_changed"}, limit=2,
+    )
+    return (
+        len(recent) == 2
+        and recent[0].type == "agent.completion_gate"
+        and recent[0].data.get("action") == "wait_background"
+        and recent[1].type == "agent.state_changed"
+        and recent[1].data.get("to") == AgentState.SUCCEEDED.value
+        and recent[0].run_id == recent[1].run_id
+    )
+
+
+def plan_cancel(agent: AgentSession, *, allow_parked: bool = False) -> list[EventDraft]:
     """Guard + drafts for cancelling; empty plan when already cancelled."""
     if agent.state is AgentState.CANCELLED:
         return []
-    if agent.state in {AgentState.SUCCEEDED, AgentState.FAILED}:
+    if agent.state is AgentState.FAILED or (
+        agent.state is AgentState.SUCCEEDED and not allow_parked
+    ):
         raise CommandRejected(
             "state_conflict",
             f"agent {agent.id} is already terminal ({agent.state.value})",

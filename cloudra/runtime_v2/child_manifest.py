@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from cloudra.runtime_v2.schemas import AgentSession, AgentState
+from cloudra.runtime_v2.schemas import AgentSession, AgentState, EventEnvelope
 
 _TERMINAL_STATES = {AgentState.SUCCEEDED, AgentState.FAILED, AgentState.CANCELLED}
 
@@ -50,12 +50,18 @@ _NEXT_STEPS: dict[str, str] = {
 }
 
 
-def _run_rows(core, child: AgentSession) -> list[dict[str, Any]]:
+def _run_rows(
+    core, child: AgentSession, *, events: list[EventEnvelope] | None = None,
+    state: AgentState | None = None,
+) -> list[dict[str, Any]]:
     """按事件序排出该 session 的 run 行（run.finished 缺失 = 取消或仍在跑）。"""
     rows: list[dict[str, Any]] = []
-    for envelope in core.event_log.query_session(
+    source = events if events is not None else core.event_log.query_session(
         child.id, types={"run.started", "run.finished"}
-    ):
+    )
+    for envelope in source:
+        if envelope.type not in {"run.started", "run.finished"}:
+            continue
         run_id = envelope.run_id
         row = next((r for r in reversed(rows) if r["run_id"] == run_id), None)
         if row is None:
@@ -66,25 +72,32 @@ def _run_rows(core, child: AgentSession) -> list[dict[str, Any]]:
             row["outcome"] = outcome if isinstance(outcome, str) else None
             kind = envelope.data.get("failure_kind")
             row["failure_kind"] = kind if isinstance(kind, str) else None
-    if rows and rows[-1]["outcome"] is None and child.state is AgentState.CANCELLED:
+    if rows and rows[-1]["outcome"] is None and (state or child.state) is AgentState.CANCELLED:
         # 取消的 run 不落 run.finished：终态就是事实，统一标在最后一行上。
         rows[-1] = {**rows[-1], "outcome": "cancelled"}
     return rows
 
 
-def _final_summary(core, child: AgentSession) -> tuple[str, str]:
+def _final_summary(
+    core, child: AgentSession, *, events: list[EventEnvelope] | None = None,
+    state: AgentState | None = None, run_id: str | None = None,
+) -> tuple[str, str]:
     """(文本, 来源)：消息 → 失败原因 → 仅终态说明（顺序固定，不猜）。"""
-    emitted = core.event_log.query_session(
+    emitted = [e for e in events if e.type == "agent.message_emitted"] if events is not None else core.event_log.query_session(
         child.id, types={"agent.message_emitted"}, limit=1
     )
+    if events is not None and run_id is not None:
+        emitted = [e for e in emitted if e.run_id == run_id]
     if emitted:
         content = str(emitted[-1].data.get("content") or "")
         if content.strip():
             return content, "message"
-    if child.state is AgentState.FAILED:
-        for envelope in reversed(
-            core.event_log.query_session(child.id, types={"run.finished"}, limit=20)
-        ):
+    final_state = state or child.state
+    if final_state is AgentState.FAILED:
+        finished = [e for e in events if e.type == "run.finished"] if events is not None else core.event_log.query_session(
+            child.id, types={"run.finished"}, limit=20
+        )
+        for envelope in reversed(finished):
             if envelope.data.get("outcome") != "failed":
                 continue
             error = envelope.data.get("error")
@@ -93,11 +106,18 @@ def _final_summary(core, child: AgentSession) -> tuple[str, str]:
                 "run_error",
             )
         return "Sub-agent failed (no run record).", "run_error"
-    return f"Sub-agent ended with state {child.state.value} and no final message.", "state_only"
+    return f"Sub-agent ended with state {final_state.value} and no final message.", "state_only"
 
 
-def _last_gate(core, child: AgentSession) -> dict[str, Any] | None:
-    gates = core.event_log.query_session(child.id, types={"agent.completion_gate"}, limit=1)
+def _last_gate(
+    core, child: AgentSession, *, events: list[EventEnvelope] | None = None,
+    run_id: str | None = None,
+) -> dict[str, Any] | None:
+    gates = [e for e in events if e.type == "agent.completion_gate"] if events is not None else core.event_log.query_session(
+        child.id, types={"agent.completion_gate"}, limit=1
+    )
+    if events is not None and run_id is not None:
+        gates = [e for e in gates if e.run_id == run_id]
     if not gates:
         return None
     data = gates[-1].data
@@ -109,14 +129,40 @@ def _last_gate(core, child: AgentSession) -> dict[str, Any] | None:
     }
 
 
-def build_child_manifest(core, child: AgentSession) -> dict[str, Any]:
-    """子 Agent 终态的结构化 manifest（只用既有事件，纯读）。"""
-    runs = _run_rows(core, child)
+def build_child_manifest(
+    core, child: AgentSession, *, terminal_event: EventEnvelope | None = None,
+    session_events: list[EventEnvelope] | None = None,
+) -> dict[str, Any]:
+    """子 Agent 终态的结构化 manifest（只用既有事件，纯读）。
+
+    ``terminal_event`` freezes the first result if a later message has
+    already reopened this session before its completion report is delivered.
+    """
+    state = AgentState(terminal_event.data["to"]) if terminal_event is not None else child.state
+    events = None
+    if terminal_event is not None:
+        source = session_events if session_events is not None else [
+            e for e in core.event_log if e.session_id == child.id
+        ]
+        cutoff = terminal_event.session_seq or 0
+        events = [e for e in source if (e.session_seq or 0) <= cutoff]
+        # finish_run emits state_changed then run.finished. Include the matching
+        # finished record, but exclude any later run from this frozen report.
+        finished = next((
+            e for e in source if e.type == "run.finished"
+            and e.run_id == terminal_event.run_id and (e.session_seq or 0) > cutoff
+        ), None)
+        if finished is not None:
+            events.append(finished)
+    runs = _run_rows(core, child, events=events, state=state)
     last = runs[-1] if runs else None
-    if last is None and child.state is AgentState.CANCELLED:
+    if last is None and state is AgentState.CANCELLED:
         last = {"run_id": None, "outcome": "cancelled", "failure_kind": None}
-    summary_text, summary_source = _final_summary(core, child)
-    gate = _last_gate(core, child)
+    final_run_id = terminal_event.run_id if terminal_event is not None else None
+    summary_text, summary_source = _final_summary(
+        core, child, events=events, state=state, run_id=final_run_id,
+    )
+    gate = _last_gate(core, child, events=events, run_id=final_run_id)
     unresolved: list[str] = []
     if gate is not None and gate["action"] == "continue_work" and gate["reason"]:
         unresolved.append(gate["reason"])
@@ -126,8 +172,11 @@ def build_child_manifest(core, child: AgentSession) -> dict[str, Any]:
         "session_id": child.id,
         "role_id": child.role_id,
         "parent_session_id": child.parent_session_id,
-        "state": child.state.value,
-        "terminal": child.state in _TERMINAL_STATES,
+        "state": state.value,
+        "terminal": state in _TERMINAL_STATES and not (
+            state is AgentState.SUCCEEDED and gate is not None
+            and gate["action"] == "wait_background"
+        ),
         "runs": {
             "total": len(runs),
             "succeeded": sum(1 for row in runs if row["outcome"] == "succeeded"),
@@ -139,7 +188,7 @@ def build_child_manifest(core, child: AgentSession) -> dict[str, Any]:
         "final_summary_source": summary_source,
         "gate": gate,
         "unresolved": unresolved,
-        "next_steps": _next_steps(child.state, last),
+        "next_steps": _next_steps(state, last),
     }
 
 

@@ -142,6 +142,46 @@ async def test_batch_stop_cancels_running_tasks(tmp_path):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("gate_action", ["wait_background", "allow_final"])
+async def test_batch_stop_converges_with_succeeded_agent_and_live_compute(
+    tmp_path, gate_action
+):
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.services.compute_store import aget_compute_job, ainsert_compute_job
+
+    core, _bus, service = _service(tmp_path)
+    tasks_dir = _write_tasks(tmp_path / "tasks", "T1")
+    await service.start(tasks_dirs=[tasks_dir], only="", concurrency=1, timeout=30.0)
+    batch = service._batch
+    await _wait_until(lambda: batch.task_states[0].agent_id)
+    agent = core.require_agent(batch.task_states[0].agent_id)
+    run_id = core.agent_host.start_run(agent)
+    core.event_log.append(
+        "agent.completion_gate", stream="agent", project_id=agent.project_id,
+        session_id=agent.id, run_id=run_id,
+        data={"action": gate_action, "source": "schedule"},
+    )
+    core.agent_host.finish_run(agent, outcome="succeeded")
+    db = await ComputeDB().ainit()
+    job_id = await ainsert_compute_job(
+        db, node_id="node-local", conversation_id=agent.project_id,
+        session_id=agent.id, path=str(tmp_path / "input.gjf"),
+        state="ready", jobtype="gaussian", scheduler="local", scheduler_options="{}",
+    )
+
+    await service.stop()
+    await asyncio.wait_for(batch._task, timeout=1.0)
+
+    task = service.status()["tasks"][0]
+    assert service.status()["status"] == "stopped"
+    assert task["status"] == "cancelled"
+    assert agent.state is (
+        AgentState.CANCELLED if gate_action == "wait_background" else AgentState.SUCCEEDED
+    )
+    assert (await aget_compute_job(db, job_id))["state"] == "ready"
+
+
+@pytest.mark.asyncio
 async def test_service_rejects_second_start_and_unknown_dir(tmp_path):
     core, bus, service = _service(tmp_path)
     tasks_dir = _write_tasks(tmp_path / "tasks", "T1")
@@ -264,6 +304,76 @@ async def _insert_job(path, state="running", conversation_id="prj_old"):
         db, node_id="node-local", conversation_id=conversation_id, session_id="as_old", path=str(path),
         state=state, jobtype="gaussian", scheduler="local", scheduler_options="{}",
     )
+
+
+@pytest.mark.asyncio
+async def test_pending_background_includes_terminal_job_awaiting_notice(tmp_path):
+    from cloudra.benchmark.batch import BenchmarkBatch
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.runtime_v2.schemas import Command
+    from cloudra.services.compute_store import ainsert_compute_job, mark_notified
+
+    core = RuntimeCore(strict_events=True)
+    bus = CommandBus(core)
+    project = (await bus.execute(Command(type="project.create", payload={"name": "notice"}))).data
+    agent = (await bus.execute(Command(
+        type="agent.spawn", target={"project_id": project.id},
+        payload={"role_id": "coordinator"},
+    ))).data
+    batch = BenchmarkBatch(
+        core, bus, data_dir=tmp_path, tasks=[], tasks_dirs=[], concurrency=1,
+        run_timeout_s=30.0, stuck_grace_s=5.0, poll_interval_s=0.01,
+        emit=lambda *_args: None,
+    )
+    db = await ComputeDB().ainit()
+    job_id = await ainsert_compute_job(
+        db, node_id="node-local", conversation_id=project.id, session_id=agent.id,
+        path=str(tmp_path / "input.gjf"), state="done", jobtype="gaussian",
+        scheduler="local", scheduler_options="{}",
+    )
+    pending = batch._pending_background_factory(project.id, agent.id)
+    assert await pending() is True
+    mark_notified(db, job_id)
+    assert await pending() is False
+
+    child = (await bus.execute(Command(
+        type="agent.spawn", target={"project_id": project.id},
+        payload={"role_id": "explorer", "parent_session_id": agent.id},
+    ))).data
+    child_job = await ainsert_compute_job(
+        db, node_id="node-local", conversation_id=project.id, session_id=child.id,
+        path=str(tmp_path / "child.gjf"), state="done", jobtype="gaussian",
+        scheduler="local", scheduler_options="{}",
+    )
+    assert await pending() is True
+    mark_notified(db, child_job)
+    assert await pending() is False
+
+
+@pytest.mark.asyncio
+async def test_watcher_timeout_never_scores_parked_succeeded_agent(tmp_path, monkeypatch):
+    from cloudra.benchmark.watch import RunWatcher
+
+    async def timeout(self, core, agent, cancel):
+        core.agent_host.start_run(agent)
+        core.agent_host.finish_run(agent, outcome="succeeded")
+        await cancel("benchmark run timeout (test)")
+        return "benchmark run timeout (test)"
+
+    monkeypatch.setattr(RunWatcher, "wait", timeout)
+    core, _bus, service = _service(tmp_path)
+    tasks_dir = _write_tasks(tmp_path / "tasks", "T1")
+    await service.start(tasks_dirs=[tasks_dir], only="", concurrency=1, timeout=30.0)
+    await asyncio.wait_for(service._batch._task, timeout=5.0)
+
+    task = service.status()["tasks"][0]
+    assert task["status"] == "error"
+    assert "timeout" in task["error"]
+    db = BenchmarkDB(tmp_path / "bench" / "benchmark.db")
+    runs = db.list_runs_for(service.status()["batch_id"])
+    assert len(runs) == 1
+    assert runs[0]["outcome"] == "failed"
+    assert any("watcher" in note for note in runs[0]["notes"])
 
 
 @pytest.mark.asyncio

@@ -35,8 +35,13 @@ _CALC_NICE_LEVEL = 10
 
 
 def _lower_sched_priority() -> None:
-    """calculator 子进程 preexec：nice 降权（exec 后仍然继承，POSIX only）。"""
-    os.nice(_CALC_NICE_LEVEL)
+    """Best-effort calculator niceness; denial must not abort its exec."""
+    try:
+        os.nice(_CALC_NICE_LEVEL)
+    except OSError:
+        # Some restricted POSIX hosts deny setpriority even for a positive
+        # increment. This runs after fork: avoid logging or other Python work.
+        pass
 
 
 def _log_tail_reason(log_path: Path) -> str:

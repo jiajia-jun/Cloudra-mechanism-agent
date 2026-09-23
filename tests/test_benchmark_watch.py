@@ -113,6 +113,142 @@ async def test_injected_background_extends_succeeded_wait(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_parked_run_waits_for_notice_then_requests_resume(tmp_path):
+    """A compute result is not scored before its terminal notice is read."""
+    from cloudra.runtime_v2.dispatcher import WakePolicy
+
+    core, _project, parent, sibling = await _core_with_agents(tmp_path)
+    _terminal(core, sibling, AgentState.CANCELLED, "cancel")
+    run_id = core.agent_host.start_run(parent)
+    core.event_log.append(
+        "agent.completion_gate", stream="agent", project_id=parent.project_id,
+        session_id=parent.id, run_id=run_id,
+        data={"action": "wait_background", "basis": "background_wait", "reason": "compute pending"},
+    )
+    core.agent_host.finish_run(parent, outcome="succeeded")
+    pending = True
+
+    async def background_pending():
+        return pending
+
+    watcher = _watcher(pending_background=background_pending)
+    assert (await watcher.decide(core, parent)).kind == "continue"
+
+    await core.dispatcher.commit_and_deliver(
+        to_session_id=parent.id, project_id=parent.project_id,
+        content="[Compute job] job 1 done", sender="system", wake=WakePolicy.NEVER,
+    )
+    pending = False
+    assert (await watcher.decide(core, parent)).kind == "resume"
+
+
+@pytest.mark.asyncio
+async def test_watcher_resumes_parked_run_once_notice_is_ready(tmp_path):
+    from cloudra.runtime_v2.dispatcher import WakePolicy
+
+    core, _project, parent, sibling = await _core_with_agents(tmp_path)
+    _terminal(core, sibling, AgentState.CANCELLED, "cancel")
+    run_id = core.agent_host.start_run(parent)
+    core.event_log.append(
+        "agent.completion_gate", stream="agent", project_id=parent.project_id,
+        session_id=parent.id, run_id=run_id,
+        data={"action": "wait_background", "basis": "background_wait", "reason": "compute pending"},
+    )
+    core.agent_host.finish_run(parent, outcome="succeeded")
+    resumed = []
+
+    async def resume():
+        resumed.append(True)
+        core.agent_host.wake(parent)
+        core.agent_host.finish_run(parent, outcome="succeeded")
+
+    pending = True
+
+    async def background_pending():
+        return pending
+
+    watcher = _watcher(pending_background=background_pending, resume_background=resume)
+    wait_task = asyncio.create_task(watcher.wait(core, parent, lambda _reason: asyncio.sleep(0)))
+    await asyncio.sleep(0.03)
+    assert not wait_task.done()
+    await core.dispatcher.commit_and_deliver(
+        to_session_id=parent.id, project_id=parent.project_id,
+        content="[Compute job] job 1 done", sender="system", wake=WakePolicy.NEVER,
+    )
+    pending = False
+    assert await asyncio.wait_for(wait_task, timeout=1.0) is None
+    assert resumed == [True]
+
+
+@pytest.mark.asyncio
+async def test_parked_run_resumes_once_when_peers_finish_without_new_notice(tmp_path):
+    """A first-final child report may precede the peer's last supervised run."""
+    from types import SimpleNamespace
+
+    core, _project, parent, sibling = await _core_with_agents(tmp_path)
+    run_id = core.agent_host.start_run(parent)
+    core.event_log.append(
+        "agent.completion_gate", stream="agent", project_id=parent.project_id,
+        session_id=parent.id, run_id=run_id,
+        data={"action": "wait_background", "basis": "background_wait"},
+    )
+    core.agent_host.finish_run(parent, outcome="succeeded")
+    reconciled = []
+
+    async def reconcile(project_id):
+        reconciled.append(project_id)
+
+    core.runner = SimpleNamespace(maybe_wake_parked_delivery=reconcile)
+
+    watcher = _watcher(
+        run_timeout_s=0.05,
+        pending_background=lambda: asyncio.sleep(0, result=False),
+    )
+    assert (await watcher.decide(core, parent)).kind == "continue"
+    _terminal(core, sibling, AgentState.SUCCEEDED, "done")
+    reasons = []
+
+    async def cancel(reason):
+        reasons.append(reason)
+
+    assert await watcher.wait(core, parent, cancel) is not None
+    assert reconciled == [parent.project_id]
+    assert len(reasons) == 1
+
+
+@pytest.mark.asyncio
+async def test_parked_succeeded_child_still_counts_as_live_peer(tmp_path):
+    from cloudra.benchmark.watch import has_running_peers
+
+    core, project, parent, sibling = await _core_with_agents(tmp_path)
+    _terminal(core, sibling, AgentState.CANCELLED, "cancel")
+    bus = CommandBus(core)
+    child = (await bus.execute(Command(
+        type="agent.spawn", target={"project_id": project.id},
+        payload={"role_id": "explorer", "parent_session_id": parent.id},
+    ))).data
+    run_id = core.agent_host.start_run(child)
+    core.event_log.append(
+        "agent.completion_gate", stream="agent", project_id=project.id,
+        session_id=child.id, run_id=run_id,
+        data={"action": "wait_background", "basis": "background_wait"},
+    )
+    core.agent_host.finish_run(child, outcome="succeeded")
+    cache = {}
+    assert has_running_peers(core, parent, final_cache=cache) is True
+    assert has_running_peers(core, parent, final_cache=cache) is True
+
+    run_id = core.agent_host.start_run(child)
+    core.event_log.append(
+        "agent.completion_gate", stream="agent", project_id=project.id,
+        session_id=child.id, run_id=run_id,
+        data={"action": "allow_final", "basis": "declared"},
+    )
+    core.agent_host.finish_run(child, outcome="succeeded")
+    assert has_running_peers(core, parent, final_cache=cache) is False
+
+
+@pytest.mark.asyncio
 async def test_wait_review_with_live_supervisor_not_stuck(tmp_path):
     """NI1 事故：wait_review 挂起等内部 Supervisor，不是人工审批卡死。"""
     core, project, parent, supervisor = await _core_with_agents(tmp_path, second_role="supervisor")

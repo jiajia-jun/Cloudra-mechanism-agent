@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from dataclasses import dataclass
 from typing import Any
 
 from cloudra.base.role_identity import role_id_for_legacy_agent_id
@@ -23,13 +24,90 @@ from cloudra.runtime_v2.child_settings import resolve_child_settings
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.dispatcher import WakePolicy
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
-from cloudra.runtime_v2.schemas import AgentSession, AgentState, Command, CommandRejected
+from cloudra.runtime_v2.schemas import AgentSession, AgentState, Command, CommandRejected, EventEnvelope
 
 _TERMINAL_STATES = {AgentState.SUCCEEDED, AgentState.FAILED, AgentState.CANCELLED}
 _LAUNCHER = "subagent_launcher"
 _SWARM = "subagent_swarm"
 _REPORT = "get_subagent_report"
 NATIVE_TOOL_NAMES = {_LAUNCHER, _SWARM, _REPORT}
+_CHILD_REPORT_KIND = "child_completion"
+
+
+@dataclass(slots=True)
+class ChildCompletionIndex:
+    """First final transition and durable delivery markers, built in one log pass."""
+
+    terminal_by_session: dict[str, EventEnvelope]
+    events_by_session: dict[str, list[EventEnvelope]]
+    reported: set[tuple[str, str]]
+
+
+def build_child_completion_index(core) -> ChildCompletionIndex:
+    """A background wait is a parked run, even though its state is SUCCEEDED.
+
+    The parent's first durable ``agent.message_injected`` manifest is the
+    one-shot marker.  A later unrelated run cannot generate another report.
+    """
+    child_ids = {
+        agent.id for agent in core.agents.values() if agent.parent_session_id
+    }
+    terminal_by_session: dict[str, EventEnvelope] = {}
+    events_by_session: dict[str, list[EventEnvelope]] = {}
+    reported: set[tuple[str, str]] = set()
+    legacy_reports: set[tuple[str, str, str]] = set()
+    latest_gate_by_run: dict[tuple[str, str], str] = {}
+    relevant = {
+        "run.started", "run.finished", "agent.message_emitted",
+        "agent.completion_gate", "agent.state_changed", "agent.cancelled",
+    }
+    for event in core.event_log:
+        session_id = event.session_id
+        if event.type == "agent.message_injected" and session_id:
+            manifest = event.data.get("manifest")
+            if isinstance(manifest, dict):
+                child_id = manifest.get("session_id")
+                child = core.agents.get(child_id) if isinstance(child_id, str) else None
+                if child is not None and child.parent_session_id == session_id:
+                    if manifest.get("kind") == _CHILD_REPORT_KIND:
+                        reported.add((session_id, child_id))
+                    elif manifest.get("parent_session_id") == session_id:
+                        # Reports written before the marker was added still
+                        # count if they describe the first genuine final run.
+                        # An old false report for a parked run must not erase
+                        # the obligation for a later final run.
+                        run = manifest.get("last_run")
+                        run_id = run.get("run_id") if isinstance(run, dict) else None
+                        if isinstance(run_id, str) and run_id:
+                            legacy_reports.add((session_id, child_id, run_id))
+        if session_id not in child_ids or event.type not in relevant:
+            continue
+        events_by_session.setdefault(session_id, []).append(event)
+        run_key = (session_id, event.run_id or "")
+        if event.type == "agent.completion_gate":
+            latest_gate_by_run[run_key] = str(event.data.get("action") or "")
+        elif event.type == "agent.state_changed" and session_id not in terminal_by_session:
+            state = event.data.get("to")
+            if state not in {s.value for s in _TERMINAL_STATES}:
+                continue
+            if state == AgentState.SUCCEEDED.value and latest_gate_by_run.get(run_key) == "wait_background":
+                continue
+            terminal_by_session[session_id] = event
+    for child_id, terminal in terminal_by_session.items():
+        parent_id = core.agents[child_id].parent_session_id
+        if parent_id and (parent_id, child_id, terminal.run_id or "") in legacy_reports:
+            reported.add((parent_id, child_id))
+    return ChildCompletionIndex(terminal_by_session, events_by_session, reported)
+
+
+def child_final_event(
+    core, child: AgentSession, *, index: ChildCompletionIndex | None = None
+) -> EventEnvelope | None:
+    """The child's first genuine result, irrespective of later wakeups."""
+    if not child.parent_session_id:
+        return None
+    index = index or build_child_completion_index(core)
+    return index.terminal_by_session.get(child.id)
 
 
 def _combined_query(query: str, context: list[Any]) -> str:
@@ -52,7 +130,8 @@ def _render_settings_receipt(receipt: dict[str, Any]) -> str:
 
 
 async def _spawn_child(
-    bus: CommandBus, parent: AgentSession, *, role_id: str, query: str, context: list[Any]
+    bus: CommandBus, parent: AgentSession, *, role_id: str, query: str,
+    context: list[Any], defer_schedule: bool = False,
 ) -> tuple[AgentSession, dict[str, Any]]:
     parent_role = bus.core.roles.require(parent.role_id)
     if not parent_role.can_spawn:
@@ -83,6 +162,7 @@ async def _spawn_child(
                 "parent_session_id": parent.id,
                 "query": query,
                 "settings": plan.spawn_payload_settings(),
+                "defer_schedule": defer_schedule,
             },
         )
     )
@@ -92,7 +172,7 @@ async def _spawn_child(
 
 async def _await_terminal(core, session_id: str) -> AgentSession:
     agent = core.require_agent(session_id)
-    if agent.state in _TERMINAL_STATES:
+    if child_final_event(core, agent) is not None:
         return agent
     done = asyncio.Event()
 
@@ -101,11 +181,15 @@ async def _await_terminal(core, session_id: str) -> AgentSession:
             envelope.type == "agent.state_changed"
             and envelope.session_id == session_id
             and envelope.data.get("to") in {s.value for s in _TERMINAL_STATES}
+            and child_final_event(core, core.require_agent(session_id)) is not None
         ):
             done.set()
 
     core.event_hub.subscribe(on_event)
     try:
+        # The transition may have landed between the first check and subscribe.
+        if child_final_event(core, core.require_agent(session_id)) is not None:
+            return core.require_agent(session_id)
         await done.wait()
     finally:
         core.event_hub.unsubscribe(on_event)
@@ -118,7 +202,7 @@ def _manifest_payload(core, child: AgentSession) -> dict[str, Any]:
 
 
 def child_completion_message(
-    core, child: AgentSession
+    core, child: AgentSession, *, index: ChildCompletionIndex | None = None
 ) -> tuple[str, str, dict[str, Any]] | None:
     """父信箱的完成回报：``(parent_session_id, content, manifest)``。
 
@@ -131,7 +215,16 @@ def child_completion_message(
         return None
     if core.agents.get(parent_id) is None:
         return None
-    manifest = build_child_manifest(core, child)
+    index = index or build_child_completion_index(core)
+    terminal = child_final_event(core, child, index=index)
+    if terminal is None or (parent_id, child.id) in index.reported:
+        return None
+    manifest = build_child_manifest(
+        core, child, terminal_event=terminal,
+        session_events=index.events_by_session.get(child.id, []),
+    )
+    manifest["kind"] = _CHILD_REPORT_KIND
+    manifest["terminal_event_id"] = terminal.event_id
     return parent_id, render_child_report(manifest), manifest
 
 
@@ -208,14 +301,14 @@ async def _handle_launcher(core, parent: AgentSession, args: dict[str, Any]) -> 
     except asyncio.CancelledError:
         await _cancel_child(core, child.id)
         raise
-    manifest = build_child_manifest(core, child)
+    manifest = build_child_manifest(core, child, terminal_event=child_final_event(core, child))
     data["result"] = (
         f"[{_render_settings_receipt(settings_receipt)}]\n\n{render_child_report(manifest)}"
     )
     data["settings"] = settings_receipt
     data["manifest"] = manifest
     return ToolResult(
-        is_success=child.state is AgentState.SUCCEEDED,
+        is_success=manifest["state"] == AgentState.SUCCEEDED.value,
         summary=data["result"],
         data=data,
     )
@@ -253,7 +346,10 @@ async def _handle_swarm(core, parent: AgentSession, args: dict[str, Any]) -> Too
     if not is_wait and max_concurrency > 0:
         manager = _launch_group_manager(core)
         async def spawner(query):
-            child, _receipt = await _spawn_child(bus, parent, role_id=role_id, query=query, context=context)
+            child, _receipt = await _spawn_child(
+                bus, parent, role_id=role_id, query=query,
+                context=context, defer_schedule=True,
+            )
             return child
         group_id = "grp_" + uuid.uuid4().hex
         # 组清单先落 durable 事件再启动 worker（评审 5.2：重启可重建组清单）。
@@ -310,9 +406,9 @@ async def _handle_swarm(core, parent: AgentSession, args: dict[str, Any]) -> Too
     manifests: list[dict[str, Any]] = []
     ok = True
     for item, child in results:
-        manifest = build_child_manifest(core, child)
+        manifest = build_child_manifest(core, child, terminal_event=child_final_event(core, child))
         manifests.append(manifest)
-        ok = ok and child.state is AgentState.SUCCEEDED
+        ok = ok and manifest["state"] == AgentState.SUCCEEDED.value
         sections.append(f"## {item[:40]}\n{render_child_report(manifest)}")
     summary = "\n\n".join(sections)
     return ToolResult(
@@ -343,16 +439,16 @@ async def _handle_report(core, args: dict[str, Any]) -> ToolResult:
             is_success=False,
             summary=f"Unknown v2 session {session_id!r}. Sessions dispatched before this migration live in the legacy store and are not queryable here.",
         )
-    if agent.state not in _TERMINAL_STATES:
+    if child_final_event(core, agent) is None:
         return ToolResult(
             is_success=True,
-            summary=f"Sub-agent {session_id} is still {agent.state.value}; ask again later.",
+            summary=f"Sub-agent {session_id} has no final result yet (state={agent.state.value}); ask again later.",
             data={"session_id": session_id, "state": agent.state.value},
         )
-    manifest = build_child_manifest(core, agent)
+    manifest = build_child_manifest(core, agent, terminal_event=child_final_event(core, agent))
     text = render_child_report(manifest)
     return ToolResult(
-        is_success=agent.state is AgentState.SUCCEEDED,
+        is_success=manifest["state"] == AgentState.SUCCEEDED.value,
         summary=text,
         data={
             "session_id": session_id,

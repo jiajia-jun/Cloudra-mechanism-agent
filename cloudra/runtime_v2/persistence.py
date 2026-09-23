@@ -32,7 +32,6 @@ from cloudra.runtime_v2.effects import EventDraft
 from cloudra.runtime_v2.failures import RunFailureKind
 from cloudra.runtime_v2.schemas import (
     AgentSession,
-    AgentState,
     EventEnvelope,
     Project,
     RoleProfile,
@@ -75,10 +74,6 @@ CREATE TABLE IF NOT EXISTS meta (
 # open.  This pure planner maps one full restored history to those drafts.
 
 _INTERRUPTED_MESSAGE = "interrupted by process restart"
-
-
-#: 恢复时用于「child session 状态对账」的终态集合。
-_TERMINAL_AGENT_STATES = {AgentState.SUCCEEDED, AgentState.FAILED, AgentState.CANCELLED}
 
 
 def plan_interrupted_invocations(events: list[EventEnvelope]) -> list[EventDraft]:
@@ -519,7 +514,10 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
         build_peer_completion_index,
         peer_completion_message,
     )
-    from cloudra.runtime_v2.subagent_bridge import child_completion_message
+    from cloudra.runtime_v2.subagent_bridge import (
+        build_child_completion_index,
+        child_completion_message,
+    )
 
     pending_inbox: list[tuple[str, dict[str, Any]]] = []
 
@@ -564,8 +562,15 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
             sender=agent.role_id, content=content, manifest=manifest,
         )
 
-    for agent in zombies:
-        append_completion_message(agent, child_completion_message(core, agent))
+    # A child can have completed before the old process died while the separate
+    # report was still uncommitted.  Reconcile every child against one shared
+    # event-log index; scanning only zombie runs misses that crash window.
+    child_index = build_child_completion_index(core)
+    for agent in core.agents.values():
+        if agent.parent_session_id:
+            append_completion_message(
+                agent, child_completion_message(core, agent, index=child_index)
+            )
     # A peer may have completed just before the old process died, leaving its
     # run terminal event durable but the separate completion message absent.
     # Scan every peer, not only zombies; the message manifest is the durable
@@ -626,6 +631,8 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
     # 重启不会重新 spawn 任何 child。非终态的组在这里显式收口为 interrupted：
     # 未派发的 queued item 保持 queued（用户可显式重新派发），已存在的 child
     # session 只做状态对账（从活 agent 的终态取值，不猜）。
+    # 已挂起的 succeeded run 不能收口 item；与 live worker 共用首次真正完成
+    # 的事件判定，并复用上面建好的 child_index。
     for group in core.launch_groups.groups():
         if group.state != "running":
             continue
@@ -646,12 +653,16 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
             if item.state != "running":
                 continue
             child = core.agents.get(item.child_session_id)
-            if child is None or child.state not in _TERMINAL_AGENT_STATES:
+            if child is None:
                 continue
+            terminal = child_index.terminal_by_session.get(child.id)
+            if terminal is None:
+                continue
+            final_state = AgentState(terminal.data["to"])
             state = (
                 "succeeded"
-                if child.state is AgentState.SUCCEEDED
-                else "failed" if child.state is AgentState.FAILED else "cancelled"
+                if final_state is AgentState.SUCCEEDED
+                else "failed" if final_state is AgentState.FAILED else "cancelled"
             )
             item_envelope = core.event_log.append(
                 "launch_group.item_finished",

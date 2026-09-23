@@ -74,6 +74,12 @@ def declared_memory_mb(input_file: str, job_type: str) -> Optional[int]:
     return required_mem_mb
 
 
+def declared_cpus(input_file: str, job_type: str) -> Optional[int]:
+    """CPU count declared by a Gaussian or ORCA input; otherwise unknown."""
+    required_cpus, _ = _read_declared_requirements(job_type, input_file)
+    return required_cpus
+
+
 def resource_underestimate(
     job_type: str, input_file: str, cpus: int, memory_mb: Optional[int]
 ) -> Optional[str]:
@@ -87,7 +93,7 @@ def resource_underestimate(
         return (
             f"Resource under-provisioned: the input asks for {required_cpus} cores "
             f"but cpus={cpus} was requested. Request cpus={required_cpus} to match "
-            "the input (under-declaring oversubscribes the node)."
+            "the input, or omit cpus to infer it (under-declaring oversubscribes the node)."
         )
     if memory_mb is None:
         memory_mb = required_mem_mb
@@ -99,7 +105,8 @@ def resource_underestimate(
         return (
             f"Resource under-provisioned: the input asks for {required_mem_mb} MB total "
             f"but memory_mb={memory_mb} was requested. Request memory_mb={required_mem_mb} "
-            "to match the input (ORCA maxcore is per-core: total = nprocs * maxcore)."
+            "to match the input, or omit memory_mb to infer it "
+            "(ORCA maxcore is per-core: total = nprocs * maxcore)."
         )
     return None
 

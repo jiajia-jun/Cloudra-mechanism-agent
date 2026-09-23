@@ -615,7 +615,7 @@ async def test_web_full_chain_standard_js(tmp_path, monkeypatch):
         batch_id = snap["batch_id"]
 
         # 父进入 wait_background 挂起时，batch 仍未评分（注入延迟引擎验证）
-        async def parent_suspended() -> bool:
+        def parent_suspended() -> bool:
             st = batch.task_states[0]
             if not st.agent_id:
                 return False
@@ -726,14 +726,15 @@ def test_cli_full_chain_traditional_equivalent(tmp_path, monkeypatch):
             "method": "b3lyp", "basis_set": "6-31g(d)",
             "task_type": [{"sp": None}], "nproc": _TEST_CPUS,
             "output_dir": "calc/input.gjf",
-        })]),
+        })], run=1),
         calls(2, [("submit_compute_job", {
             "input_file": "calc/input.gjf", "job_type": "gaussian",
             "is_async": True, "cpus": _TEST_CPUS,
-        })], expect=Receipt(tool="qm_input_writer", is_success=True)),
-        calls(3, [("query_compute_job", job_id_of)], expect=Receipt(
+        })], run=1, expect=Receipt(tool="qm_input_writer", is_success=True)),
+        calls(3, [("query_compute_job", job_id_of)], run=1, expect=Receipt(
             tool="submit_compute_job", is_success=True)),
-        text(4, "chain complete via traditional protocol"),
+        text(4, "Waiting for the compute notification.", run=1),
+        text(1, "chain complete via traditional protocol", run=2),
     ])
 
     backend = RuntimeV2Backend(
@@ -1553,7 +1554,7 @@ async def test_web_shutdown_reaps_real_js_host(tmp_path, monkeypatch):
     try:
         await service.start(tasks_dirs=[tasks_dir], only="", concurrency=1, timeout=60.0)
 
-        async def capture() -> bool:
+        def capture() -> bool:
             procs = js_runtime.active_executions()
             if procs:
                 observed.extend(procs.values())

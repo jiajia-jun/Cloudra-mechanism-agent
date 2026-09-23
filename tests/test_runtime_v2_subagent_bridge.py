@@ -530,6 +530,146 @@ async def test_final_text_surfaces_recorded_failure_reason():
     assert "see events" not in text
 
 
+@pytest.mark.asyncio
+async def test_child_report_waits_for_first_final_run_and_is_delivered_once(tmp_path):
+    """A parked compute run is not a result; later runs cannot report twice."""
+    from cloudra.runtime_v2.effects import EventDraft
+    from cloudra.runtime_v2.persistence import RuntimeStore, restore_core
+    from cloudra.runtime_v2.subagent_bridge import deliver_child_completion_to_parent
+
+    store = RuntimeStore(tmp_path / "runtime.db")
+    core = RuntimeCore(strict_events=True)
+    core.store = store
+    bus = CommandBus(core)
+    project = (await bus.execute(Command(type="project.create", payload={"name": "child-final"}))).data
+    parent = (await bus.execute(Command(
+        type="agent.spawn", target={"project_id": project.id}, payload={"role_id": "coordinator"},
+    ))).data
+    child = (await bus.execute(Command(
+        type="agent.spawn", target={"project_id": project.id},
+        payload={"role_id": "explorer", "parent_session_id": parent.id},
+    ))).data
+
+    async def finish(text: str, action: str):
+        run_id = await core.agent_host.start_run_durable(child)
+        await core.event_writer.commit(EventDraft(
+            "agent.message_emitted", stream="agent", project_id=project.id,
+            session_id=child.id, run_id=run_id,
+            data={"sender": child.role_id, "content": text},
+        ))
+        await core.event_writer.commit(EventDraft(
+            "agent.completion_gate", stream="agent", project_id=project.id,
+            session_id=child.id, run_id=run_id,
+            data={"action": action, "reason": "test", "source": "test"},
+        ))
+        await core.agent_host.finish_run_durable(child, outcome="succeeded")
+        await deliver_child_completion_to_parent(core, child, wake=False)
+
+    def reports(kernel):
+        return [
+            e for e in kernel.event_log
+            if e.type == "agent.message_injected" and e.session_id == parent.id
+            and (e.data.get("manifest") or {}).get("kind") == "child_completion"
+        ]
+
+    await finish("still computing", "wait_background")
+    assert reports(core) == []
+
+    restored = RuntimeCore(strict_events=True)
+    restored.store = store
+    restore_core(restored, store)
+    assert reports(restored) == []
+
+    core = restored
+    child = core.agents[child.id]
+    await finish("verified result", "allow_final")
+    await deliver_child_completion_to_parent(core, child, wake=False)
+    assert len(reports(core)) == 1
+    assert reports(core)[0].data["manifest"]["final_summary"] == "verified result"
+
+    await finish("unrelated follow-up", "allow_final")
+    assert len(reports(core)) == 1
+
+    again = RuntimeCore(strict_events=True)
+    again.store = store
+    restore_core(again, store)
+    assert len(reports(again)) == 1
+
+
+@pytest.mark.asyncio
+async def test_restore_repairs_unreported_final_child_without_waking_parent(tmp_path):
+    from cloudra.runtime_v2.persistence import RuntimeStore, restore_core
+
+    store = RuntimeStore(tmp_path / "runtime.db")
+    core = RuntimeCore(strict_events=True)
+    core.store = store
+    bus = CommandBus(core)
+    project = (await bus.execute(Command(type="project.create", payload={"name": "child-repair"}))).data
+    parent = (await bus.execute(Command(
+        type="agent.spawn", target={"project_id": project.id}, payload={"role_id": "coordinator"},
+    ))).data
+    child = (await bus.execute(Command(
+        type="agent.spawn", target={"project_id": project.id},
+        payload={"role_id": "explorer", "parent_session_id": parent.id},
+    ))).data
+    await core.agent_host.start_run_durable(child)
+    await core.agent_host.finish_run_durable(child, outcome="succeeded")
+
+    restored = RuntimeCore(strict_events=True)
+    restored.store = store
+    restore_core(restored, store)
+    reports = [
+        e for e in restored.event_log
+        if e.type == "agent.message_injected" and e.session_id == parent.id
+        and (e.data.get("manifest") or {}).get("kind") == "child_completion"
+    ]
+    assert len(reports) == 1
+    assert restored.agents[parent.id].state.value == "queued"
+    assert restored.mailbox.inbox(parent.id).qsize() == 1
+
+    again = RuntimeCore(strict_events=True)
+    again.store = store
+    restore_core(again, store)
+    assert len([
+        e for e in again.event_log
+        if e.type == "agent.message_injected" and e.session_id == parent.id
+        and (e.data.get("manifest") or {}).get("kind") == "child_completion"
+    ]) == 1
+
+
+@pytest.mark.asyncio
+async def test_waiting_launcher_ignores_parked_child_run():
+    from cloudra.runtime_v2.effects import EventDraft
+    from cloudra.runtime_v2.subagent_bridge import _await_terminal
+
+    core = RuntimeCore(strict_events=True)
+    bus = CommandBus(core)
+    project = (await bus.execute(Command(type="project.create", payload={"name": "wait-child"}))).data
+    parent = (await bus.execute(Command(
+        type="agent.spawn", target={"project_id": project.id}, payload={"role_id": "coordinator"},
+    ))).data
+    child = (await bus.execute(Command(
+        type="agent.spawn", target={"project_id": project.id},
+        payload={"role_id": "explorer", "parent_session_id": parent.id},
+    ))).data
+    waiter = asyncio.create_task(_await_terminal(core, child.id))
+    await asyncio.sleep(0)
+
+    async def finish(action):
+        run_id = await core.agent_host.start_run_durable(child)
+        await core.event_writer.commit(EventDraft(
+            "agent.completion_gate", stream="agent", project_id=project.id,
+            session_id=child.id, run_id=run_id,
+            data={"action": action, "reason": "test", "source": "test"},
+        ))
+        await core.agent_host.finish_run_durable(child, outcome="succeeded")
+
+    await finish("wait_background")
+    assert not waiter.done()
+    await finish("allow_final")
+    await asyncio.wait_for(waiter, timeout=1.0)
+
+
 def test_managetool_schemas_match_bridge_returns():
     """A3 schema 诚实：report 不再有被忽略的 detail_level 参数、描述不再
     承诺完整推理/工具日志；swarm 输出 schema 删掉永不返回的 task_ids，

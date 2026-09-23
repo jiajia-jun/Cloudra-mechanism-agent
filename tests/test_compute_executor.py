@@ -182,6 +182,17 @@ def test_calc_spawn_preexec_lowers_priority():
     assert int(out.strip()) >= _CALC_NICE_LEVEL
 
 
+def test_calc_spawn_continues_when_priority_change_is_denied(monkeypatch):
+    """A best-effort niceness setting must not prevent calculator startup."""
+    from cloudra.runtime.monitor import _lower_sched_priority
+
+    def denied(_increment):
+        raise PermissionError("setpriority denied")
+
+    monkeypatch.setattr("cloudra.runtime.monitor.os.nice", denied)
+    _lower_sched_priority()
+
+
 @pytest.mark.asyncio
 async def test_run_slurm_compute_retries_sacct_errors_without_failing_ledger(monkeypatch, tmp_path):
     from cloudra.infra import slurm

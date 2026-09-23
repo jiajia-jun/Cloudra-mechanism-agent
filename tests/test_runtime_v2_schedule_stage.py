@@ -26,7 +26,7 @@ class FakeTools:
         return ToolResult(is_success=True, summary="ok")
 
 
-async def _setup_agent(core, schedule_mode=False):
+async def _setup_agent(core, schedule_mode=False, role_id="coordinator"):
     from cloudra.runtime_v2.commands import CommandBus
     from cloudra.runtime_v2.schemas import Command
 
@@ -41,7 +41,7 @@ async def _setup_agent(core, schedule_mode=False):
         Command(
             type="agent.spawn",
             target={"project_id": project.id},
-            payload={"role_id": "coordinator", "settings": {"schedule_mode": schedule_mode}},
+            payload={"role_id": role_id, "settings": {"schedule_mode": schedule_mode}},
         )
     )
     return project, result.data
@@ -67,6 +67,112 @@ async def test_schedule_mode_disabled_allows_stop():
         inbox_messages=[{"content": "go"}],
     )
     assert outcome.blocked_call is None
+
+
+@pytest.mark.asyncio
+async def test_owned_compute_job_suspends_stop_without_schedule_mode():
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.runtime_v2.policies.base import PipelineContext
+    from cloudra.services.compute_store import insert_compute_job
+
+    core = RuntimeCore(strict_events=True)
+    project, agent = await _setup_agent(core, schedule_mode=False, role_id="small_mol")
+    insert_compute_job(
+        ComputeDB().init(),
+        conversation_id=project.id,
+        session_id=agent.id,
+        path="/tmp/owned-job.gjf",
+        state="ready",
+        jobtype="gaussian",
+        node_id="local",
+    )
+    stage = ScheduleStage(core)
+    ctx = PipelineContext(
+        agent=agent,
+        run_id="run1",
+        settings_snapshot=agent.settings,
+        capabilities=agent.capabilities,
+        inbox_messages=[],
+        emit=lambda *_args: None,
+    )
+
+    gate = await stage.audit_run_end(ctx, explicit_stop=True)
+
+    assert gate is not None
+    assert gate.action == "wait_background"
+    assert gate.basis == "background_wait"
+
+
+@pytest.mark.asyncio
+async def test_owned_compute_job_is_wake_source_for_schedule_mode():
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.runtime_v2.policies.base import PipelineContext
+    from cloudra.services.compute_store import insert_compute_job
+
+    core = RuntimeCore(strict_events=True)
+    project, agent = await _setup_agent(core, schedule_mode=True, role_id="small_mol")
+    insert_compute_job(
+        ComputeDB().init(),
+        conversation_id=project.id,
+        session_id=agent.id,
+        path="/tmp/owned-job.gjf",
+        state="ready",
+        jobtype="gaussian",
+        node_id="local",
+    )
+    stage = ScheduleStage(core)
+    ctx = PipelineContext(
+        agent=agent,
+        run_id="run1",
+        settings_snapshot=agent.settings,
+        capabilities=agent.capabilities,
+        inbox_messages=[],
+        emit=lambda *_args: None,
+    )
+
+    allowed = await stage.before_tool(ctx, ToolCall(id="stop", name="stop"))
+    gate = await stage.audit_run_end(ctx, explicit_stop=True)
+
+    assert allowed.outcome == "allow"
+    assert gate is not None and gate.action == "wait_background"
+
+
+@pytest.mark.asyncio
+async def test_terminal_job_without_durable_notification_still_suspends():
+    """The job may finish before the broker delivers its result to the child."""
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.runtime_v2.policies.base import PipelineContext
+    from cloudra.services.compute_store import ainsert_compute_job
+
+    core = RuntimeCore(strict_events=True)
+    project, agent = await _setup_agent(core, role_id="small_mol")
+    db = await ComputeDB().ainit()
+    job_id = await ainsert_compute_job(
+        db,
+        conversation_id=project.id,
+        session_id=agent.id,
+        path="/tmp/finished-job.gjf",
+        state="done",
+        jobtype="gaussian",
+        node_id="local",
+    )
+    stage = ScheduleStage(core)
+    ctx = PipelineContext(
+        agent=agent,
+        run_id="run1",
+        settings_snapshot=agent.settings,
+        capabilities=agent.capabilities,
+        inbox_messages=[],
+        emit=lambda *_args: None,
+    )
+
+    gate = await stage.audit_run_end(ctx, explicit_stop=True)
+    assert gate is not None and gate.action == "wait_background"
+
+    async with db.aconnect() as con:
+        await con.execute("UPDATE compute_jobs SET notified_at=1 WHERE id=?", (job_id,))
+        await con.commit()
+    assert await stage.audit_run_end(ctx, explicit_stop=True) is None
 
 
 @pytest.mark.asyncio

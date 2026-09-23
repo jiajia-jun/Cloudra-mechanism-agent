@@ -103,6 +103,12 @@ class ScheduleStage:
             self._intercepted_stops.discard(ctx.agent.id)
             return PolicyResult.allow()
 
+        if await self._owned_compute_pending(ctx):
+            # The compute broker provides a durable wake when this agent's
+            # submitted jobs finish; a timer would only cause extra LLM runs.
+            self._intercepted_stops.discard(ctx.agent.id)
+            return PolicyResult.allow()
+
         # No pending reminder: check if this is a consecutive stop (confirmation)
         if ctx.agent.id in self._intercepted_stops:
             # Agent explicitly re-called stop after receiving the intercept instruction
@@ -127,11 +133,17 @@ class ScheduleStage:
         子 agent（core.agents 投影）、在算作业（compute.db 权威）。模型的
         "有后台脚本在跑"声明不算数——没有可核实唤醒来源就要求先 schedule。
         """
-        if not getattr(ctx.agent.settings, "schedule_mode", False):
-            return None
         from cloudra.dag.stop_audit import StopGate
 
         core = self.core
+        if await self._owned_compute_pending(ctx):
+            return StopGate(
+                action="wait_background",
+                reason="this agent's compute jobs are still active; terminal notifications will wake it",
+                basis="background_wait",
+            )
+        if not getattr(ctx.agent.settings, "schedule_mode", False):
+            return None
         if core is not None and core.reminders.pending(ctx.agent.id):
             return StopGate(
                 action="wait_background",
@@ -144,6 +156,18 @@ class ScheduleStage:
                 reason=BACKGROUND_WITHOUT_WAKEUP_MESSAGE,
             )
         return StopGate(action="allow_final", reason=DECLARED_COMPLETION_REASON, basis="declared")
+
+    async def _owned_compute_pending(self, ctx: PipelineContext) -> bool:
+        if self.core is None or ctx.agent.role_id == "coordinator":
+            # ComputeNotifyBroker deliberately parks coordinator notices;
+            # it cannot use an owned job as an automatic wake source.
+            return False
+        from cloudra.persistence.database import ComputeDB
+        from cloudra.services.compute_store import acount_waitable_compute_jobs_for_session
+
+        return bool(await acount_waitable_compute_jobs_for_session(
+            ComputeDB(), ctx.agent.project_id, ctx.agent.id
+        ))
 
     async def _verifiable_background_pending(self, ctx: PipelineContext) -> bool:
         from cloudra.dag.stop_audit import has_running_siblings, pending_compute_jobs_exist

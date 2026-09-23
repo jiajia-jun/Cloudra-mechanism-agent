@@ -1,7 +1,9 @@
 """Launch groups: event-sourced swarm batches (评审 5.2 后半).
 
-一个 launch group 拥有若干 item 与并发上限，权限生命周期覆盖 child 的**整个**
-生命（spawn 返回不释放名额，child 终态才释放），父取消级联到 worker 与已派发后代。
+一个 launch group 拥有若干 item 与并发上限：首轮准入名额在 child 的首个
+run 结束时释放，执行名额约束每个 run（包括后台计算通知后的恢复）。等待计算的
+child 继续占有 item，供最终交付对账，但不堵住后续 item 派发。
+父取消级联到 worker 与已派发后代。
 
 评审 5.2 之前本模块是纯进程内状态：重启后未派发的 queued item、组级状态和
 ``get_subagent_report(group_id=...)`` 查询能力全部消失。现在组的生命周期是**事件
@@ -113,6 +115,9 @@ class LaunchGroupManager:
         self._spawner = spawner
         self._track = track
         self._groups: dict[str, LaunchGroup] = {}
+        self._child_final_cache: dict[str, tuple[object, bool]] = {}
+        self._run_semaphores: dict[str, asyncio.Semaphore] = {}
+        self._child_groups: dict[str, str] = {}
 
     # ------------------------------------------------------------------ 投影
 
@@ -200,6 +205,10 @@ class LaunchGroupManager:
                 reason=str(data.get("reason") or ""),
                 items=items,
             )
+            self._run_semaphores[group_id] = asyncio.Semaphore(self._groups[group_id].max_concurrency)
+            for item in items:
+                if item.child_session_id:
+                    self._child_groups[item.child_session_id] = group_id
 
     def apply(self, envelope) -> None:
         """组事件 → 投影（唯一写入点：``apply_event`` 与恢复重放共用）。"""
@@ -218,6 +227,7 @@ class LaunchGroupManager:
                     for i in data.get("items") or []
                 ],
             )
+            self._run_semaphores[group_id] = asyncio.Semaphore(self._groups[group_id].max_concurrency)
             return
         group = self._groups.get(group_id)
         if group is None:
@@ -227,11 +237,17 @@ class LaunchGroupManager:
             if item is not None:
                 item.state = "running"
                 item.child_session_id = str(data.get("child_session_id") or "")
+                if item.child_session_id:
+                    self._child_groups[item.child_session_id] = group_id
         elif envelope.type == "launch_group.item_finished":
             item = group.item(str(data.get("item_id") or ""))
             if item is not None and item.state not in {"succeeded", "failed", "cancelled"}:
                 item.state = str(data.get("state") or "failed")  # type: ignore[assignment]
                 item.error = str(data.get("error") or "")
+                child_id = str(data.get("child_session_id") or "")
+                if child_id and not item.child_session_id:
+                    item.child_session_id = child_id
+                    self._child_groups[child_id] = group_id
         elif envelope.type == "launch_group.finished":
             new_state = str(data.get("state") or "finished")
             new_reason = str(data.get("reason") or "")
@@ -243,6 +259,16 @@ class LaunchGroupManager:
                 return
             group.state = new_state  # type: ignore[assignment]
             group.reason = new_reason
+
+    def run_semaphore(self, session_id: str) -> asyncio.Semaphore | None:
+        """Per-group run capacity for an unfinished child, including resumed runs."""
+        group_id = self._child_groups.get(session_id)
+        if group_id is None:
+            return None
+        agent = self._core.agents.get(session_id) if self._core is not None else None
+        if agent is None or self._child_is_final(agent):
+            return None
+        return self._run_semaphores.get(group_id)
 
     # ------------------------------------------------------------------ 派发
 
@@ -279,47 +305,102 @@ class LaunchGroupManager:
         return group
 
     async def _run(self, group: LaunchGroup, spawner: Callable[[str], Any] | None) -> None:
-        sem = asyncio.Semaphore(group.max_concurrency)
+        admission = asyncio.Semaphore(group.max_concurrency)
 
         async def run_one(item: LaunchGroupItem) -> None:
+            child = None
             try:
-                async with sem:
-                    # Waiting for a slot is still queued.  Mark running only
-                    # once the permit is acquired so the public counters
-                    # describe actual child lifetimes.
+                async with admission:
+                    # Bound the number of first runs admitted at once. A
+                    # parked run releases this permit so later work can start.
                     if group.state != "running":
                         return
                     child = await spawner(item.query)  # type: ignore[misc]
-                    await self._commit(
-                        "launch_group.item_dispatched",
-                        project_id=group.project_id,
-                        session_id=group.parent_session_id,
-                        data={
-                            "group_id": group.group_id,
-                            "item_id": item.item_id,
-                            "child_session_id": child.id,
-                        },
-                    )
-                    await self._wait_terminal(child)
-                    # cancel() 可能已把 item 收口为 cancelled——勿再写成功终态。
-                    if item.state != "running":
-                        return
-                    state = (
-                        "succeeded"
-                        if child.state is AgentState.SUCCEEDED
-                        else "failed" if child.state is AgentState.FAILED else "cancelled"
-                    )
-                    await self._commit_item_finished(
-                        group, item, state=state, error=""
-                    )
+                    from cloudra.runtime_v2.event_writer import EventPersistenceError
+
+                    for attempt in range(2):
+                        try:
+                            await self._commit(
+                                "launch_group.item_dispatched",
+                                project_id=group.project_id,
+                                session_id=group.parent_session_id,
+                                data={
+                                    "group_id": group.group_id,
+                                    "item_id": item.item_id,
+                                    "child_session_id": child.id,
+                                },
+                            )
+                            break
+                        except EventPersistenceError:
+                            # Spawn has already committed. Retry its ownership
+                            # record with the same child, never spawn again.
+                            if attempt:
+                                raise
+                    runner = getattr(self._core, "runner", None)
+                    if runner is not None and isinstance(child, AgentSession):
+                        # The capped swarm deferred its initial ScheduleAgent
+                        # effect. Membership is now durable, so every run can
+                        # acquire the group's execution permit.
+                        first_task = runner.task_for(child.id)
+                        if child.state is AgentState.QUEUED:
+                            first_task = runner.schedule(child.id)
+                        if first_task is not None:
+                            await asyncio.wait({first_task})
+                    else:
+                        # Pure concurrency tests and cores without a runner
+                        # have no run task to observe.
+                        await self._wait_terminal(child)
+                await self._wait_terminal(child)
+                # cancel() 可能已把 item 收口为 cancelled——勿再写成功终态。
+                if item.state != "running":
+                    return
+                final_state = child.state
+                if self._core is not None and getattr(child, "parent_session_id", None):
+                    from cloudra.runtime_v2.subagent_bridge import child_final_event
+
+                    terminal = child_final_event(self._core, child)
+                    if terminal is not None:
+                        final_state = AgentState(terminal.data["to"])
+                state = (
+                    "succeeded"
+                    if final_state is AgentState.SUCCEEDED
+                    else "failed" if final_state is AgentState.FAILED else "cancelled"
+                )
+                await self._commit_item_finished(
+                    group, item, state=state, error=""
+                )
             except asyncio.CancelledError:
                 # item 终态由 cancel() 落 durable item_finished；这里不摸投影。
                 raise
             except Exception as exc:
                 logger.warning("[launch_groups] item %s failed: %s", item.item_id, exc)
                 if item.state in {"queued", "running"}:
+                    child_id = str(getattr(child, "id", "") or "")
+                    error = str(exc)
+                    if child_id and item.state == "queued" and self._core is not None:
+                        # Spawn is already durable, but the deferred child has
+                        # no group membership yet. Cancel it durably before the
+                        # worker exits; it must never run as a queued orphan.
+                        from cloudra.runtime_v2.commands import CommandBus
+                        from cloudra.runtime_v2.schemas import Command
+
+                        try:
+                            await CommandBus(self._core).execute(Command(
+                                type="agent.cancel", target={"session_id": child_id},
+                                payload={}, actor="system",
+                            ))
+                        except Exception as cancel_exc:
+                            # An unavailable store cannot certify cancellation.
+                            # Preserve the child id in the item failure event
+                            # so a later operator can identify the queued child.
+                            logger.warning(
+                                "[launch_groups] child %s cancellation failed: %s",
+                                child_id, cancel_exc,
+                            )
+                            error += f"; child cancellation failed: {cancel_exc}"
                     await self._commit_item_finished(
-                        group, item, state="failed", error=str(exc)
+                        group, item, state="failed", error=error,
+                        child_session_id=child_id,
                     )
 
         try:
@@ -336,26 +417,51 @@ class LaunchGroupManager:
                 session_id=group.parent_session_id,
                 data={"group_id": group.group_id, "state": "finished", "reason": ""},
             )
+        await self._notify_quiescence(group.project_id)
 
-    @staticmethod
-    async def _wait_terminal(child: AgentSession) -> AgentSession:
-        if child.state in _TERMINAL:
+    async def _notify_quiescence(self, project_id: str) -> None:
+        runner = getattr(self._core, "runner", None)
+        hook = getattr(runner, "maybe_wake_parked_delivery", None)
+        if hook is not None:
+            await hook(project_id)
+
+    async def _wait_terminal(self, child: AgentSession) -> AgentSession:
+        if self._child_is_final(child):
             return child
         # AgentHost 状态变化会经 core 事件总线发布，但 spawner 在单测里可能返回
-        # 普通对象——轮询是可移植的回退。这里是**生产生命周期等待**（不是测试
-        # 超时）：名额一直持有到 child 终态。
+        # 普通对象——轮询是可移植的回退。后台等待不会完成 item，
+        # 但 run permit 已在首轮结束时释放。
         while True:
-            if child.state in _TERMINAL:
+            if self._child_is_final(child):
                 return child
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(0.1)
+
+    def _child_is_final(self, child: AgentSession) -> bool:
+        if self._core is None or not getattr(child, "parent_session_id", None):
+            return child.state in _TERMINAL
+        from cloudra.runtime_v2.subagent_bridge import child_final_event
+
+        # The waiter polls at 100 ms. Scan the event log only when the child's
+        # projected state changes; a parked run otherwise generates no work.
+        signature = (child.state, child.updated_at)
+        cached = self._child_final_cache.get(child.id)
+        if cached is not None and cached[0] == signature:
+            return cached[1]
+        final = child_final_event(self._core, child) is not None
+        self._child_final_cache[child.id] = (signature, final)
+        return final
 
     # ------------------------------------------------------------------ 取消
 
-    async def cancel(self, group_id: str) -> LaunchGroup | None:
-        """取消一个组：非终态 item 先落 durable item_finished，再落组终态，最后取消 worker。"""
+    async def cancel(self, group_id: str, *, cancel_children: bool = True) -> LaunchGroup | None:
+        """Cancel a group; service shutdown may preserve children for later wakeup."""
         group = self._groups.get(group_id)
         if group is None:
             return None
+        child_ids = [
+            item.child_session_id for item in group.items
+            if item.state == "running" and item.child_session_id
+        ]
         for item in group.items:
             if item.state in {"queued", "running"}:
                 await self._commit_item_finished(
@@ -372,12 +478,28 @@ class LaunchGroupManager:
                     "reason": "parent cancelled",
                 },
             )
+        if cancel_children and self._core is not None:
+            from cloudra.runtime_v2.commands import CommandBus
+            from cloudra.runtime_v2.schemas import Command, CommandRejected
+
+            bus = CommandBus(self._core)
+            for child_id in child_ids:
+                try:
+                    await bus.execute(Command(
+                        type="agent.cancel", target={"session_id": child_id},
+                        payload={}, actor="system",
+                    ))
+                except CommandRejected:
+                    # A child may have genuinely finished or already been
+                    # cancelled while the group was settling its items.
+                    continue
         if group._task is not None and not group._task.done():
             group._task.cancel()
             try:
                 await group._task
             except asyncio.CancelledError:
                 pass
+        await self._notify_quiescence(group.project_id)
         return group
 
     async def cancel_for_parent(self, parent_session_id: str) -> list[LaunchGroup]:
@@ -392,9 +514,9 @@ class LaunchGroupManager:
         return groups
 
     async def cancel_all(self) -> None:
-        """shutdown 用：取消全部组并 await，逐项落 cancelled。"""
+        """Shutdown: stop group workers but preserve child sessions and QM jobs."""
         for group_id in list(self._groups):
-            await self.cancel(group_id)
+            await self.cancel(group_id, cancel_children=False)
 
     # ------------------------------------------------------------------ 事件写入
 
@@ -411,6 +533,7 @@ class LaunchGroupManager:
         *,
         state: str,
         error: str,
+        child_session_id: str = "",
     ) -> None:
         """item 终态唯一写口（persist-then-apply）；已终态则 no-op。"""
         if item.state in {"succeeded", "failed", "cancelled"}:
@@ -424,6 +547,7 @@ class LaunchGroupManager:
                 "item_id": item.item_id,
                 "state": state,
                 "error": error,
+                "child_session_id": child_session_id,
             },
         )
 

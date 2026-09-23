@@ -360,7 +360,7 @@ def pending_terminal_jobs(
 
 
 async def acount_pending_compute_jobs(db: ComputeDB, conversation_id: str) -> int:
-    """指定会话的未竟作业数（ready/running）——stop 门禁的挂起判定口径。
+    """指定会话的未竟作业数（含待取消）——stop 门禁的挂起判定口径。
 
     读路径不建库：中央库不存在（从未提交过作业）即 0。
     """
@@ -371,8 +371,36 @@ async def acount_pending_compute_jobs(db: ComputeDB, conversation_id: str) -> in
         async with db.aconnect() as con:
             cur = await con.execute(
                 "SELECT COUNT(*) FROM compute_jobs "
-                "WHERE state IN ('ready', 'running') AND conversation_id = ?",
+                "WHERE state IN ('ready', 'running', 'cancel_requested') "
+                "AND conversation_id = ?",
                 (conversation_id,),
+            )
+            row = await cur.fetchone()
+            return int(row[0]) if row else 0
+
+    return await aretry_on_locked(read)
+
+
+async def acount_waitable_compute_jobs_for_session(
+    db: ComputeDB, conversation_id: str, session_id: str
+) -> int:
+    """Owned jobs that still owe an agent either execution or a terminal notice.
+
+    A job can become terminal between the agent's stop call and the broker's
+    next poll. Until ``notified_at`` is set, the agent must stay parked so it
+    cannot report completion before seeing that job's result.
+    """
+    if not _db_ready(db):
+        return 0
+
+    async def read() -> int:
+        async with db.aconnect() as con:
+            cur = await con.execute(
+                "SELECT COUNT(*) FROM compute_jobs "
+                "WHERE conversation_id = ? AND session_id = ? AND ("
+                "state IN ('ready', 'running', 'cancel_requested') OR "
+                "(state IN ('done', 'failed', 'cancelled') AND notified_at IS NULL))",
+                (conversation_id, session_id),
             )
             row = await cur.fetchone()
             return int(row[0]) if row else 0

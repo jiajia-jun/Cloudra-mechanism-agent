@@ -40,7 +40,13 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable
 
 from cloudra.persistence.paths import conversation_db_path, conversation_dir, data_dir, project_workspace_dir
-from cloudra.runtime_v2.agent_host import _CONTEXT_RESET_NOTE, plan_cancel, plan_restart, plan_wake
+from cloudra.runtime_v2.agent_host import (
+    _CONTEXT_RESET_NOTE,
+    is_background_parked,
+    plan_cancel,
+    plan_restart,
+    plan_wake,
+)
 from cloudra.runtime_v2.apply import apply_event
 from cloudra.runtime_v2.core import RuntimeCore
 from cloudra.runtime_v2.effects import (
@@ -338,7 +344,10 @@ def _decide_spawn_agent(core: RuntimeCore, command: Command) -> Decision:
         )
         drafts.append(message_draft)
         effects.append(deliver)
-        effects.append(ScheduleAgent(agent.id))
+        # A capped launch group commits item_dispatched before it starts this
+        # child, so its run permit is installed before the first LLM call.
+        if payload.get("defer_schedule") is not True:
+            effects.append(ScheduleAgent(agent.id))
     return Decision(events=tuple(drafts), effects=tuple(effects), result=ResultRef("agent", agent.id))
 
 
@@ -451,7 +460,10 @@ def _live_descendants(core: RuntimeCore, session_id: str) -> list[AgentSession]:
     while queue:
         current = queue.pop(0)
         for child in by_parent.get(current, ()):
-            if child.id in visited or child.state in _CANCEL_TERMINAL_STATES:
+            if child.id in visited or (
+                child.state in _CANCEL_TERMINAL_STATES
+                and not is_background_parked(core, child)
+            ):
                 continue
             visited.add(child.id)
             descendants.append(child)
@@ -466,6 +478,7 @@ def _cancel_agent_drafts(
     message: str | None,
     cause: str,
     parent_session_id: str | None = None,
+    allow_parked: bool = False,
 ) -> list[EventDraft]:
     """一个 agent 的取消事件组：cancel_requested → state_changed → cancelled。
 
@@ -484,7 +497,7 @@ def _cancel_agent_drafts(
             data=data,
         )
     ]
-    drafts.extend(plan_cancel(agent))
+    drafts.extend(plan_cancel(agent, allow_parked=allow_parked))
     drafts.append(
         EventDraft(
             "agent.cancelled",
@@ -499,7 +512,9 @@ def _cancel_agent_drafts(
 
 def _decide_cancel_agent(core: RuntimeCore, command: Command) -> Decision:
     agent = core.require_agent(command.target.get("session_id", ""))
-    cancel_drafts = plan_cancel(agent)  # succeeded/failed 抛错；cancelled 幂等空计划
+    cancel_drafts = plan_cancel(
+        agent, allow_parked=is_background_parked(core, agent)
+    )  # genuine succeeded/failed reject; parked succeeded is still live
     if not cancel_drafts:
         return Decision(result=ResultRef("agent", agent.id))
     message = command.payload.get("message")
@@ -508,7 +523,8 @@ def _decide_cancel_agent(core: RuntimeCore, command: Command) -> Decision:
     # park-don't-wake 纪律投递信箱驻留，绝不唤醒已取消的父。
     descendants = _live_descendants(core, agent.id)
     drafts: list[EventDraft] = _cancel_agent_drafts(
-        agent, actor=command.actor, message=message, cause="explicit"
+        agent, actor=command.actor, message=message, cause="explicit",
+        allow_parked=is_background_parked(core, agent),
     )
     effects: list[Effect] = []
     if message:
@@ -530,6 +546,7 @@ def _decide_cancel_agent(core: RuntimeCore, command: Command) -> Decision:
                 message=None,
                 cause="parent_cancelled",
                 parent_session_id=agent.id,
+                allow_parked=is_background_parked(core, child),
             )
         )
     # 效果顺序：先停 launch group（不再 spawn 新子 agent），再取消父的

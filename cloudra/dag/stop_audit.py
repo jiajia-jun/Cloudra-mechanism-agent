@@ -62,23 +62,76 @@ class StopGate(BaseModel):
 
 
 async def pending_compute_jobs_exist(*, data_dir, project_id: str) -> bool:
-    """本会话（项目）是否还有未终态的计算作业——compute.db 是唯一权威。"""
+    """Whether compute is active or a terminal result still awaits delivery."""
     from cloudra.persistence.database import ComputeDB
-    from cloudra.services.compute_store import acount_pending_compute_jobs
-
-    return bool(
-        await acount_pending_compute_jobs(ComputeDB(data_dir=data_dir), project_id)
+    from cloudra.services.compute_store import (
+        acount_pending_compute_jobs,
+        pending_terminal_jobs,
     )
+
+    db = ComputeDB(data_dir=data_dir)
+    if await acount_pending_compute_jobs(db, project_id):
+        return True
+    # A completed calculation is still background work until its durable
+    # result reaches the agent inbox. Never release the delivery gate first.
+    return bool(await asyncio.to_thread(
+        pending_terminal_jobs, db, window_seconds=0, limit=1,
+        conversation_id=project_id,
+    ))
 
 
 def has_running_siblings(core, *, project_id: str, session_id: str) -> bool:
-    """项目内是否还有未终态的其他 agent（纯 core.agents 事件投影读，不查库）。"""
+    """Project agents or launch-group items with unfinished work.
+
+    A parked ancestor must not hold its own child open: that would make the
+    parent and child wait on each other after both successful run transitions.
+    """
+    from cloudra.runtime_v2.agent_host import is_background_parked
+
+    def is_descendant(agent) -> bool:
+        seen: set[str] = set()
+        owner_id = agent.parent_session_id or agent.requested_by_session_id
+        while owner_id and owner_id not in seen:
+            if owner_id == session_id:
+                return True
+            seen.add(owner_id)
+            owner = core.agents.get(owner_id)
+            owner_id = (
+                owner.parent_session_id or owner.requested_by_session_id
+                if owner is not None else None
+            )
+        return False
+
     terminal = {"succeeded", "failed", "cancelled"}
-    return any(
+    current = core.agents.get(session_id)
+    # Coordinator audits the whole project (including legacy unowned agents).
+    # A child must only wait on work it owns, never its active parent/siblings.
+    project_wide = current is not None and current.role_id == "coordinator"
+    if any(
         agent.id != session_id
         and agent.project_id == project_id
-        and agent.state.value not in terminal
+        and (
+            (agent.state.value not in terminal and (project_wide or is_descendant(agent)))
+            or (is_descendant(agent) and is_background_parked(core, agent))
+        )
         for agent in core.agents.values()
+    ):
+        return True
+    # A capped launch group can have queued items with no child agent yet.
+    # Its first child finishes before admission dispatches the next item.
+    return any(
+        group.project_id == project_id
+        and group.state == "running"
+        and (group.pending_count or group.running_count)
+        and (
+            project_wide
+            or group.parent_session_id == session_id
+            or (
+                group.parent_session_id in core.agents
+                and is_descendant(core.agents[group.parent_session_id])
+            )
+        )
+        for group in core.launch_groups.groups()
     )
 
 

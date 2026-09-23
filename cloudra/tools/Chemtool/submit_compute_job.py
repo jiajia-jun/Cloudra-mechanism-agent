@@ -12,23 +12,25 @@ from cloudra.infra.compute_utils import (
 )
 from cloudra.persistence.database import ComputeDB
 from cloudra.persistence.workspace import resolve_tool_path
-from cloudra.services.compute_admission import admit_job, declared_memory_mb
+from cloudra.services.compute_admission import admit_job, declared_cpus, declared_memory_mb
 from cloudra.services.compute_store import afinalize_compute_job, ainsert_compute_job
 
 description = (
     "Submit a compute job: take a prepared input-file path, insert a record in compute_jobs, "
     "and let the framework Compute Scheduler pick it up; returns job_id immediately without waiting for the job to finish. "
-    "Terminal states are PUSHED to you: when the job reaches done/failed you are notified and woken automatically — "
-    "do not poll query_compute_job or re-parse the log to wait. If you need an interim checkpoint, call `schedule` "
+    "Terminal states are PUSHED to the submitting session: child agents are woken after all their "
+    "owned jobs finish; coordinator notices stay in its inbox until another wake event. "
+    "Do not poll query_compute_job or re-parse the log to wait. If you need an interim checkpoint, call `schedule` "
     "with a read-only check_command instead of polling in a loop. "
     "Use for: formally running long Gaussian, CP2K, VASP, ORCA, or xtb jobs; prepare the input first with qm_input_writer or similar (CP2K uses .inp; xtb takes a plain .xyz coordinate file). "
     "For xtb jobs you must also declare charge, multiplicity, task (sp/opt/hess/ohess) and optionally solvent — "
     "xtb is CLI-flag driven and ignores any charge/multiplicity written inside the .xyz file. "
     "Do not use for: generating the input (use qm_input_writer), failure diagnosis (use query_compute_job), "
     "or inspecting results (parse the log with log_parser after the job finishes). "
-    "Resource contract: you write the input file, so declare exactly what it asks for — "
-    "if your .gjf sets %nprocshared=16 then request cpus=16; for ORCA, request cpus=<pal nprocs> and "
-    "memory_mb=<nprocs * maxcore>; for xtb, cpus is passed to the engine as --parallel. "
+    "Resource contract: omit cpus and memory_mb to reserve the values declared in a Gaussian/ORCA "
+    "input; when declaring them explicitly, they must cover the input request. "
+    "For ORCA, memory_mb is total memory (nprocs * maxcore); for xtb, cpus is passed to "
+    "the engine as --parallel. "
     "Under-declaring oversubscribes the node; over-declaring wastes queue time. "
     "Use query_compute_queue to check node capacity and queue length before choosing how much to request."
 )
@@ -55,13 +57,14 @@ class SubmitComputeJob_input_schema(input_schema):
             "based on the input file's workspace; Slurm jobs are always submitted asynchronously."
         ),
     )
-    cpus: int = Field(
-        default=1,
+    cpus: int | None = Field(
+        default=None,
         ge=1,
         le=1024,
         description=(
-            "CPU cores to reserve on the node. Must match the input file you wrote "
-            "(e.g. Gaussian %nprocshared, ORCA %pal nprocs). Default 1."
+            "CPU cores to reserve on the node. Omit to infer Gaussian %nprocshared "
+            "or ORCA %pal nprocs from the input; when absent there too, defaults to 1. "
+            "An explicit value must be at least the input's request."
         ),
     )
     memory_mb: int | None = Field(
@@ -69,7 +72,8 @@ class SubmitComputeJob_input_schema(input_schema):
         ge=1,
         description=(
             "Memory to reserve in MB (for ORCA: nprocs * maxcore). "
-            "Omit to use the node's default reservation."
+            "Omit to infer the input's %mem or %maxcore declaration; when the "
+            "input has none, node admission applies its default reservation."
         ),
     )
     priority: int = Field(
@@ -126,8 +130,8 @@ class SubmitComputeJob(Tool):
     tool_description: str = (
         "Submit a quantum chemistry job. With is_async=true or a Slurm backend, "
         "return the queued job id immediately; local jobs with is_async=false "
-        "wait for completion. Provide the prepared input path and explicit "
-        "resource request; inspect the returned status before continuing."
+        "wait for completion. Provide the prepared input path; CPU and memory "
+        "reservations are inferred from its declarations when omitted."
     )
     input_schema: Any = SubmitComputeJob_input_schema
     output_schema: Any = SubmitComputeJob_output_schema
@@ -154,8 +158,11 @@ class SubmitComputeJob(Tool):
                 ),
             )
 
-        # 未显式申请内存时按输入文件自述（%mem/%maxcore）派生申请值——省略申请不再
-        # 等于脱账，超容量声明会被 admit_job 的容量硬校验拒收。
+        # Omitted resources follow the input file's declarations.  Explicit
+        # under-declarations remain errors in the shared admission check.
+        cpus = user_input.cpus
+        if cpus is None:
+            cpus = declared_cpus(f_path, user_input.job_type) or 1
         memory_mb = user_input.memory_mb
         if memory_mb is None:
             memory_mb = declared_memory_mb(f_path, user_input.job_type)
@@ -163,7 +170,7 @@ class SubmitComputeJob(Tool):
         admission = admit_job(
             input_file=f_path,
             job_type=user_input.job_type,
-            cpus=user_input.cpus,
+            cpus=cpus,
             memory_mb=memory_mb,
             charge=user_input.charge,
             multiplicity=user_input.multiplicity,
@@ -193,7 +200,7 @@ class SubmitComputeJob(Tool):
                     scheduler=scheduler,
                     scheduler_options=json.dumps(scheduler_options, ensure_ascii=False),
                     priority=user_input.priority,
-                    req_cpus=user_input.cpus,
+                    req_cpus=cpus,
                     req_memory_mb=memory_mb,
                     charge=user_input.charge,
                     multiplicity=user_input.multiplicity,
@@ -208,8 +215,8 @@ class SubmitComputeJob(Tool):
                         state="ready",
                         message=(
                             f"Job submitted to node {admission.node_id} ({scheduler} backend); "
-                            "you will be woken at the terminal state. "
-                            "Do not poll for status — the terminal state is pushed to you automatically."
+                            "a terminal notice will be delivered to the submitting session. "
+                            "Do not poll for status — the terminal state is pushed automatically."
                         ),
                     )
 
@@ -229,7 +236,7 @@ class SubmitComputeJob(Tool):
                 sync_local_fits_capacity,
                 db,
                 node_id=admission.node_id,
-                cpus=user_input.cpus,
+                cpus=cpus,
                 memory_mb=memory_mb,
                 node_resources=admission.node_resources,
             )
@@ -256,7 +263,7 @@ class SubmitComputeJob(Tool):
                     scheduler=scheduler,
                     scheduler_options=json.dumps(scheduler_options, ensure_ascii=False),
                     priority=user_input.priority,
-                    req_cpus=user_input.cpus,
+                    req_cpus=cpus,
                     req_memory_mb=memory_mb,
                     charge=user_input.charge,
                     multiplicity=user_input.multiplicity,
