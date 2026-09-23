@@ -1562,8 +1562,8 @@ def test_easy_tasks_regenerate_identically():
         assert committed.is_file(), f"missing committed task file: {committed}"
         regenerated = json.loads(json.dumps(t.model_dump(mode="json", by_alias=True)))
         assert json.loads(committed.read_text(encoding="utf-8")) == regenerated
-        # easy/normal/hard 共用 xtb+b3lyp/def2svp 组合白名单（基组钉进许可）；impossible 保持 xtb-only
-        assert t.method_policy.allowed_methods == ["xtb", "b3lyp/def2svp"]
+        # easy/normal/hard 共用 xtb+pm7+b3lyp/def2svp 白名单；impossible 保持 xtb-only
+        assert t.method_policy.allowed_methods == ["xtb", "pm7", "b3lyp/def2svp"]
 
 
 def test_normal_tasks_regenerate_identically():
@@ -1578,7 +1578,7 @@ def test_normal_tasks_regenerate_identically():
         assert committed.is_file(), f"missing committed task file: {committed}"
         regenerated = json.loads(json.dumps(t.model_dump(mode="json", by_alias=True)))
         assert json.loads(committed.read_text(encoding="utf-8")) == regenerated
-        assert t.method_policy.allowed_methods == ["xtb", "b3lyp/def2svp"]
+        assert t.method_policy.allowed_methods == ["xtb", "pm7", "b3lyp/def2svp"]
 
 
 def test_hard_tasks_regenerate_identically():
@@ -1595,7 +1595,7 @@ def test_hard_tasks_regenerate_identically():
         assert json.loads(committed.read_text(encoding="utf-8")) == regenerated
         # hard 档一律 stereo 计代价
         assert t.rubric.graph_similarity.stereo_tier_rule == "hard_stereo_costly"
-        assert t.method_policy.allowed_methods == ["xtb", "b3lyp/def2svp"]
+        assert t.method_policy.allowed_methods == ["xtb", "pm7", "b3lyp/def2svp"]
 
 
 def test_impossible_tasks_regenerate_identically():

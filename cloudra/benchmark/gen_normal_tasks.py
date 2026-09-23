@@ -5,7 +5,7 @@ ideapool/tasks/normal/N<id>.json for the finalized 10-task list (TASK_IDS; the
 pool keeps 48 entries but only the finalized list is generated — 见 normal.md
 "定稿圈定"段)。v3（2026-09-09）将 30 条缩至 10 条并按"多步网络 + 尽量 xtb 友好"重选，
 新收 Q1（芳香 Claisen）与 U3（磷叶立德+甲醛）。方法白名单与 hard 对齐：
-`MethodPolicy(allowed_methods=["xtb", "b3lyp/def2svp"])`（B3LYP-D3(BJ)/def2-SVP）。The markdown is the human-curated
+`MethodPolicy(allowed_methods=["xtb", "pm7", "b3lyp/def2svp"])`（B3LYP-D3(BJ)/def2-SVP）。The markdown is the human-curated
 source of truth for SMILES / charges / barriers; this generator is deterministic
 and re-runnable.
 

@@ -211,6 +211,19 @@ def test_method_whitelist_token_contract(method, allowed):
     assert check_method(method, policy).allowed is allowed
 
 
+def test_pm7_gaussian_scan_allowed_only_when_whitelisted():
+    from cloudra.runtime_v2.method_policy import check_input_content
+    from cloudra.runtime_v2.schemas import MethodPolicy
+
+    content = "# opt=(modredundant,maxstep=10) pm7\n\nscan\n\n0 1\nH 0 0 0\nH 0 0 1\n\nB 1 2 S 10 0.1\n"
+    assert check_input_content(
+        content, MethodPolicy(allowed_methods=["xtb", "pm7", "b3lyp/def2svp"]), filename="scan.gjf"
+    ).allowed is True
+    assert check_input_content(
+        content, MethodPolicy(allowed_methods=["xtb"]), filename="scan.gjf"
+    ).allowed is False
+
+
 def test_method_whitelist_three_layers_fail_closed(tmp_path):
     """三个拦截层（qm_input_writer / submit_compute_job / bash 内容）对无法
     解析的方法一致 fail-closed，且带空格目录里的磁盘输入同样被解析到。"""

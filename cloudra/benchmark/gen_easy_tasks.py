@@ -4,7 +4,7 @@ Reads the curated easy-tier markdown and emits one TaskSpec JSON per task into
 ideapool/tasks/easy/<task_id>.json. The markdown is the human-curated source
 of truth; this generator is deterministic and re-runnable.
 v3（2026-09-09）：题源由 30 行缩至 20 行（10 条被剔留档），生成 assert 20。
-方法白名单与 hard 对齐：`MethodPolicy(allowed_methods=["xtb", "b3lyp/def2svp"])`
+方法白名单与 hard 对齐：`MethodPolicy(allowed_methods=["xtb", "pm7", "b3lyp/def2svp"])`
 （B3LYP-D3(BJ)/def2-SVP，ORCA/Gaussian；组合条目把基组钉进许可）。
 
 Usage:  python -m cloudra.benchmark.gen_easy_tasks [--out DIR]
