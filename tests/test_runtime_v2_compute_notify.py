@@ -121,6 +121,7 @@ async def test_poll_delivers_agent_message_and_marks_notified():
     )
     assert len(events) == 1
     assert f"task_id={job_id}" in events[0].data["content"]
+    assert "agent_hub" not in events[0].data["content"]
     texts = _inbox_texts(core, coordinator.id)
     assert any(f"task_id={job_id}" in t for t in texts)
     assert _notified_at(job_id) is not None
@@ -130,6 +131,30 @@ async def test_poll_delivers_agent_message_and_marks_notified():
     assert (
         len(core.event_log.query_session(coordinator.id, types={"agent.message_injected"})) == 1
     )
+
+
+@pytest.mark.asyncio
+async def test_failed_job_notice_directs_blocker_to_agent_hub():
+    core, project, coordinator = await _setup_core()
+    job_id = _insert_terminal_job(
+        project.id, session_id=coordinator.id, state="failed",
+        last_error="SCF did not converge",
+    )
+    broker = ComputeNotifyBroker(core)
+
+    await broker._poll_project(project.id)
+
+    notices = core.event_log.query_session(
+        coordinator.id, types={"agent.message_injected"}
+    )
+    assert len(notices) == 1
+    content = notices[0].data["content"]
+    assert f"task_id={job_id}" in content
+    assert "SCF did not converge" in content
+    assert "agent_hub" in content
+    assert "search" in content
+    assert "to_agent" in content
+    assert "email the user" not in content
 
 
 @pytest.mark.asyncio

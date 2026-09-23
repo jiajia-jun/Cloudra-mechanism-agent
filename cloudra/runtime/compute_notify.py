@@ -45,6 +45,16 @@ def build_compute_finish_content(
         guidance = (
             "Next: use log_parser on the log to extract energy/frequencies and other results."
         )
+    elif state == "failed":
+        guidance = (
+            (f"Failure reason: {fail_reason}\n" if fail_reason else "")
+            + "Next: use query_compute_job to inspect last_error, and read the log to locate the failure; "
+            "search agent_hub for similar failures before retrying. "
+            "If needed, fix the input file and resubmit with submit_compute_job. "
+            "If the failure remains a blocker or changes another agent's plan, post the task_id, "
+            "log path, diagnosis, and attempted fixes to agent_hub with to_agent set to the known "
+            "requester session ID or coordinator. Ask the user only when their input is required."
+        )
     else:
         guidance = (
             (f"Failure reason: {fail_reason}\n" if fail_reason else "")
