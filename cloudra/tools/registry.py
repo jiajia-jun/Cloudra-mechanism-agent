@@ -301,11 +301,13 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         class_name='SubAgentLauncher',
         tool_name='subagent_launcher',
         runtime_profiles=frozenset({'desktop', 'android'}),
+        role_allowlist=frozenset({'coordinator'}),
     ),
     ToolRegistration(
         module='cloudra.tools.Managetool.subagent_swarm',
         class_name='SubAgentSwarm',
         tool_name='subagent_swarm',
+        role_allowlist=frozenset({'coordinator'}),
     ),
     ToolRegistration('cloudra.tools.Plantool.goal', 'GoalSet'),
     ToolRegistration(

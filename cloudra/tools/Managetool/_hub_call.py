@@ -9,8 +9,6 @@ from __future__ import annotations
 
 INCOMING_CALL_TEMPLATE = (
     "[Incoming call] {caller_agent_id} is calling you (session={caller_session_id}). "
-    "Answer this call first (prose or agent_hub call/post); "
-    "do not check compute, change reminders, or stop first.\n\n"
 )
 
 
@@ -20,13 +18,22 @@ def format_incoming_call(
     caller_session_id: str,
     message: str,
     post_line: str | None = None,
+    auto_report: bool = False,
 ) -> str:
     # Spoken message is concatenated, not passed through str.format — braces
     # in user speech (e.g. {"freq": -1} or a lone "{") must stay literal.
     text = INCOMING_CALL_TEMPLATE.format(
         caller_agent_id=caller_agent_id,
         caller_session_id=caller_session_id or "unknown",
-    ) + message.strip()
+    )
+    if auto_report:
+        text += (
+            "Your final answer will be delivered to the caller automatically; "
+            "use AgentHub for questions or interim findings. "
+        )
+    else:
+        text += "Reply to the caller through AgentHub call/post; final prose alone is not delivered. "
+    text += "Handle this call before unrelated work.\n\n" + message.strip()
     if post_line:
         text = f"{text}\n{post_line}"
     return text

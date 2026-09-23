@@ -934,7 +934,7 @@ class LegacyToolExecutor:
         ``dag/supervisor_tools.py`` re-checks the ``supervisor_access``
         projection and enforces the path/action guards (evidence reads stay
         inside the workspace/artifact roots, hub actions are whitelisted,
-        hub call never spawns).  Direct controls (stop) are runtime
+        hub call can create an independent peer). Direct controls (stop) are runtime
         lifecycle, not supervised business tools — they take the normal
         path below.
         """

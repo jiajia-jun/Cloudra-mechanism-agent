@@ -13,12 +13,11 @@ exists, so this bridge re-implements the six actions on kernel primitives:
   A sleeping/idle addressee is woken (``WakePolicy``) so the mention or call
   takes effect immediately instead of sitting in the inbox; a failed/cancelled
   addressee is never auto-revived — the message is parked in its mailbox.
-- ``call`` to a role/id spawns a fresh child via the same CommandBus path as
-  the launcher bridge.
+- ``call`` to an absent role creates an independent project peer through
+  CommandBus. It does not inherit the caller's settings or lifecycle.
 
-The legacy tool module is untouched — CLI/Flet keep using it.  Only the fuzzy
-scoring helpers (pure functions) and the incoming-call template are imported
-from there.
+The tool module supplies its wire schema and shared fuzzy-scoring helpers;
+runtime_v2 handles persistence and dispatch here.
 """
 
 from __future__ import annotations
@@ -28,14 +27,14 @@ from typing import Any
 from cloudra.base.role_identity import role_id_for_legacy_agent_id
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.dispatcher import WakePolicy
+from cloudra.runtime_v2.effects import EventDraft
+from cloudra.runtime_v2.event_writer import EventPersistenceError
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
-from cloudra.runtime_v2.schemas import AgentSession, CommandRejected
-from cloudra.runtime_v2.subagent_bridge import _spawn_child
+from cloudra.runtime_v2.schemas import AgentSession, AgentState, Command, CommandRejected, EventEnvelope
 from cloudra.tools.Managetool._hub_call import format_incoming_call
 from cloudra.tools.Managetool.agent_hub import _FUZZY_FLOOR, _SEARCH_SCAN_LIMIT, _fuzzy_score
 
 _POST_KINDS = ("finding", "question", "answer", "broadcast", "message")
-_COORDINATOR_ALIASES = ("coordinator", "a-0")
 
 
 def _posts(core, project_id: str, *, limit: int = 500) -> list[dict[str, Any]]:
@@ -55,21 +54,24 @@ def _live_sessions(core, project_id: str) -> list[AgentSession]:
     return [a for a in core.agents.values() if a.project_id == project_id]
 
 
-def _resolve_live_target(core, project_id: str, target: str) -> AgentSession | None:
-    """Map a to_agent/to spec onto a live session: coordinator alias, exact
-    session id, or the most recently spawned live agent of a role."""
+def _resolve_live_target(
+    core, project_id: str, target: str, *, wakeable_role_only: bool = False
+) -> AgentSession | None:
+    """Resolve explicit ids; role calls may skip failed/cancelled sessions."""
     t = target.strip()
     if not t:
         return None
     sessions = _live_sessions(core, project_id)
     clean = t.lstrip("@").lower()
-    if clean in _COORDINATOR_ALIASES:
-        return next((a for a in sessions if a.role_id == "coordinator"), None)
     by_id = core.agents.get(t)
     if by_id is not None and by_id.project_id == project_id:
         return by_id
-    role_id = role_id_for_legacy_agent_id(t.lstrip("@"))
+    role_id = role_id_for_legacy_agent_id(clean)
     matches = [a for a in sessions if a.role_id == role_id]
+    if wakeable_role_only:
+        matches = [
+            a for a in matches if a.state not in {AgentState.FAILED, AgentState.CANCELLED}
+        ]
     return matches[-1] if matches else None
 
 
@@ -95,8 +97,35 @@ async def _notify(
     )
 
 
-def _err(message: str) -> ToolResult:
-    return ToolResult(is_success=False, summary=message, data={"is_success": False, "message": message})
+def post_notification_text(core, post: EventEnvelope, target_id: str) -> str:
+    """Render the same frozen post notification for live delivery and restore."""
+    data = post.data
+    author = str(data.get("author_agent") or "")
+    topic = str(data.get("topic") or "")
+    content = str(data.get("content") or "")
+    parent_id = data.get("parent_id")
+    is_reply = target_id == data.get("reply_session_id") and (
+        target_id != data.get("addressed_session_id")
+    )
+    if is_reply:
+        parent = core.event_log.get(parent_id) if parent_id else None
+        return (
+            f"{author} replied to your AgentHub post in topic "
+            f"'{parent.data['topic'] if parent else topic}' {parent_id} "
+            f"(reply {post.event_id}): {content}"
+        )
+    return (
+        f"{author} {'broadcast' if data.get('kind') == 'broadcast' else 'mentioned you'} "
+        f"in AgentHub topic '{topic}' (post {post.event_id}): {content}"
+    )
+
+
+def _err(message: str, **data: Any) -> ToolResult:
+    return ToolResult(
+        is_success=False,
+        summary=message,
+        data={"is_success": False, "message": message, **data},
+    )
 
 
 def _ok(summary: str, **data: Any) -> ToolResult:
@@ -117,64 +146,108 @@ async def _post(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
         parent_id = str(parent_id)
     if kind == "message" and not to_agent:
         return _err("message posts need to_agent to name the addressee (the post is still public).")
-    # A valid name may have no live session in this project; the post is still
-    # public, so an unresolved addressee just means no notification.
-    addressee = _resolve_live_target(core, author.project_id, to_agent) if to_agent else None
-    if addressee is None and kind == "broadcast" and author.role_id != "coordinator":
-        # 广播类帖子默认触达项目统筹者 Coordinator，确保全局关键进展不漏唤醒负责人
-        addressee = next((a for a in _live_sessions(core, author.project_id) if a.role_id == "coordinator"), None)
-
-    envelope = core.event_log.append(
-        "hub.posted",
-        stream="project",
-        project_id=author.project_id,
-        session_id=author.id,
-        data={
-            "topic": topic,
-            "kind": kind,
-            "author_agent": author.role_id,
-            "author_session": author.id,
-            "to_agent": to_agent or None,
-            "parent_id": parent_id,
-            "content": content,
-        },
-    )
-    notices = []
-    if addressee is not None and addressee.id != author.id:
-        target_name = to_agent or addressee.role_id
-        await _notify(
-            core,
-            author.project_id,
-            addressee,
-            sender=author.role_id,
-            content=(
-                f"{author.role_id} mentioned you in AgentHub topic '{topic}' "
-                f"(post {envelope.event_id}): {content}"
-            ),
-            post_id=envelope.event_id,
+    retry_post_id = str(args.get("post_id") or "").strip()
+    if retry_post_id:
+        envelope = core.event_log.get(retry_post_id)
+        expected = {
+            "topic": topic, "kind": kind, "to_agent": to_agent or None,
+            "parent_id": parent_id, "content": content,
+        }
+        if (
+            envelope is None or envelope.type != "hub.posted"
+            or envelope.project_id != author.project_id or envelope.session_id != author.id
+            or any(envelope.data.get(key) != value for key, value in expected.items())
+        ):
+            return _err("post_id does not identify your matching post in this project.")
+    else:
+        # Freeze the recipient set with the post. A retry must only finish its
+        # original deliveries; a session created later cannot receive an old
+        # broadcast just because one recipient temporarily failed.
+        addressee = _resolve_live_target(core, author.project_id, to_agent) if to_agent else None
+        parent = core.event_log.get(parent_id) if parent_id else None
+        original = (
+            core.agents.get(parent.session_id)
+            if parent is not None and parent.type == "hub.posted"
+            and parent.project_id == author.project_id and parent.session_id != author.id
+            else None
         )
-        notices.append(f"Notified {target_name}.")
-    if parent_id:
-        parent = next((p for p in _posts(core, author.project_id) if p["id"] == parent_id), None)
-        if parent is not None and parent["author_session"] != author.id:
-            original = core.agents.get(parent["author_session"])
-            if original is not None and (addressee is None or original.id != addressee.id):
-                await _notify(
-                    core,
-                    author.project_id,
-                    original,
-                    sender=author.role_id,
-                    content=(
-                        f"{author.role_id} replied to your AgentHub post in topic "
-                        f"'{parent['topic']}' {parent_id} (reply {envelope.event_id}): {content}"
-                    ),
-                    post_id=envelope.event_id,
-                )
-                notices.append(f"Notified original author {parent['author_agent']}.")
+        targets = (
+            [
+                agent for agent in _live_sessions(core, author.project_id)
+                if agent.id != author.id
+                and agent.state not in {AgentState.FAILED, AgentState.CANCELLED}
+            ] + ([original] if original is not None and original.id != author.id else [])
+            if kind == "broadcast" else
+            [agent for agent in (addressee, original) if agent is not None and agent.id != author.id]
+        )
+        target_ids = list(dict.fromkeys(agent.id for agent in targets))
+        envelope = await core.event_writer.commit(
+            EventDraft(
+                "hub.posted", stream="project", project_id=author.project_id,
+                session_id=author.id,
+                data={
+                    "topic": topic, "kind": kind, "author_agent": author.role_id,
+                    "author_session": author.id, "to_agent": to_agent or None,
+                    "parent_id": parent_id, "content": content,
+                    "notification_target_ids": target_ids,
+                    "addressed_session_id": addressee.id if addressee else None,
+                    "reply_session_id": original.id if original else None,
+                },
+            )
+        )
+
+    delivered_ids = (
+        {
+            event.session_id
+            for event in core.event_log.query_project(
+                author.project_id, after_seq=envelope.seq,
+                types={"agent.message_injected"}, limit=None, tail=False,
+            )
+            if event.data.get("post_id") == envelope.event_id
+        }
+        if retry_post_id else set()
+    )
+    notices: list[str] = []
+    failed_ids: list[str] = []
+    for target_id in envelope.data.get("notification_target_ids", []):
+        if target_id in delivered_ids:
+            continue
+        target = core.agents.get(target_id)
+        if target is None or target.project_id != author.project_id:
+            failed_ids.append(target_id)
+            continue
+        is_reply = target_id == envelope.data.get("reply_session_id") and (
+            target_id != envelope.data.get("addressed_session_id")
+        )
+        notification = post_notification_text(core, envelope, target_id)
+        if is_reply:
+            parent = core.event_log.get(parent_id)
+            receipt = f"Notified original author {parent.data['author_agent'] if parent else target.role_id}."
+        else:
+            receipt = f"Notified {to_agent or target.role_id}."
+        try:
+            await _notify(
+                core, author.project_id, target, sender=author.role_id,
+                content=notification, post_id=envelope.event_id,
+            )
+        except EventPersistenceError:
+            failed_ids.append(target_id)
+            continue
+        delivered_ids.add(target_id)
+        if kind != "broadcast":
+            notices.append(receipt)
     message = f"Posted to topic '{topic}' (id={envelope.event_id})."
-    if notices:
+    if kind == "broadcast":
+        message += f" Notified {len(delivered_ids)} project sessions."
+    elif notices:
         message += " " + " ".join(notices)
-    return _ok(message, post_id=envelope.event_id)
+    if failed_ids:
+        return _err(
+            message + " Some notifications failed; retry post with this post_id and the same fields.",
+            post_id=envelope.event_id, notified_count=len(delivered_ids),
+            failed_session_ids=failed_ids,
+        )
+    return _ok(message, post_id=envelope.event_id, notified_count=len(delivered_ids))
 
 
 def _browse(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
@@ -292,7 +365,12 @@ def _directory(core, author: AgentSession) -> ToolResult:
         {
             "session_id": a.id,
             "agent_id": a.role_id,
-            "agent_type": "coordinator" if a.role_id == "coordinator" else "follower",
+            "agent_type": (
+                "system" if a.role_id == "supervisor" else
+                "subagent" if a.parent_session_id else "peer"
+            ),
+            "parent_session_id": a.parent_session_id,
+            "role_id": a.role_id,
             "state": a.state.value,
             "display_name": a.display_name,
         }
@@ -301,7 +379,7 @@ def _directory(core, author: AgentSession) -> ToolResult:
     return _ok(f"{len(rows)} session(s)." if rows else "No sessions right now.", sessions=rows)
 
 
-async def _call(core, author: AgentSession, args: dict[str, Any], *, allow_spawn: bool = True) -> ToolResult:
+async def _call(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     spoken = str(args.get("message") or "").strip()
     if not spoken:
         return _err("call requires a non-empty message.")
@@ -316,48 +394,97 @@ async def _call(core, author: AgentSession, args: dict[str, Any], *, allow_spawn
         post = next((p for p in _posts(core, author.project_id) if p["id"] == raw_post_id), None)
         if post is not None:
             post_line = f"Related post {post['id']} (topic {post['topic']})."
+    target = _resolve_live_target(core, author.project_id, raw_to, wakeable_role_only=True)
     text = format_incoming_call(
         caller_agent_id=author.role_id,
         caller_session_id=author.id,
         message=spoken,
         post_line=post_line,
+        auto_report=target is None,
     )
 
-    target = _resolve_live_target(core, author.project_id, raw_to)
     if target is not None:
         await _notify(core, author.project_id, target, sender=author.role_id, content=text)
         return _ok(f"Called {target.id} (non-blocking).", session_id=target.id)
 
-    if not allow_spawn:
-        return _err(
-            f"target_not_found: no live session matches {raw_to!r} in this project. "
-            "Spawning a new agent from call is not allowed in this context."
-        )
-
-    # No live session: role names / a-N ids spawn a fresh child, mirroring the
-    # legacy spawn-from-call path.
-    role_id = role_id_for_legacy_agent_id(raw_to)
+    # A missing role is a request for a new peer, independent of the caller's
+    # role, settings, and cancellation tree. Supervisor is system-managed and
+    # has one instance per project; every caller uses the same rule for it.
+    role_id = role_id_for_legacy_agent_id(raw_to.lstrip("@").lower())
     core.roles.require(role_id)  # raises CommandRejected for unknown roles
-    child, receipt = await _spawn_child(
-        CommandBus(core),
-        author,
-        role_id=role_id,
-        query=spoken,
-        context=[{"role": "user", "content": text}],
+    if role_id == "supervisor":
+        return _err("The Supervisor is system-managed; call its existing session or submit a review request.")
+    result = await CommandBus(core).execute(
+        Command(
+            type="agent.spawn",
+            target={"project_id": author.project_id},
+            payload={
+                "role_id": role_id,
+                "requested_by_session_id": author.id,
+            },
+            actor="agent",
+        )
     )
-    # 派发回执带上 child 的有效设置摘要：调用方不必再猜 child 用了哪个
-    # model / protocol（继承规则在 child_settings 唯一定义）。
+    if not result.accepted:
+        error = result.data.get("error", {})
+        raise CommandRejected(error.get("code", "rejected"), error.get("message", "peer creation rejected"))
+    peer = result.data
+    # Create the peer queued, then use the one durable Agent-to-Agent message
+    # path to deliver the call and wake it. A failed message write cannot run
+    # an empty peer; the returned id lets the caller retry the existing one.
+    for attempt in range(2):
+        try:
+            await _notify(core, author.project_id, peer, sender=author.role_id, content=text)
+            break
+        except EventPersistenceError:
+            if attempt:
+                return _err(
+                    f"Peer {peer.id} was created, but the call message was not delivered. "
+                    "Retry the call using this session_id.",
+                    session_id=peer.id,
+                )
+    settings = peer.settings
+    project = core.require_project(peer.project_id)
+    project_defaults = {
+        name for name, value in project.settings.defaults.model_dump(exclude_unset=True).items()
+        if value is not None
+    }
+    role_defaults = {
+        name for name, value in core.roles.require(peer.role_id).default_settings.model_dump(exclude_unset=True).items()
+        if value is not None
+    }
+    receipt = {
+        "session_id": peer.id,
+        "role_id": peer.role_id,
+        "model": settings.model,
+        "invocation_protocol": settings.invocation_protocol.value,
+        "orchestration_mode": settings.orchestration_mode.value,
+        "unattended": settings.unattended,
+        "visual_mode": settings.visual_mode,
+        "yolo": settings.yolo,
+        "schedule_mode": settings.schedule_mode,
+        "clean_context": settings.clean_context,
+        "sources": {
+            name: (
+                "role_default" if name in role_defaults else
+                "project_default" if name == "orchestration_mode" or name in project_defaults else
+                "schema_default"
+            )
+            for name in (
+                "model", "invocation_protocol", "orchestration_mode", "unattended",
+                "visual_mode", "yolo", "schedule_mode", "clean_context",
+            )
+        },
+    }
     return _ok(
-        f"Called {child.id} (non-blocking). role={receipt['role_id']} "
+        f"Called {peer.id} (non-blocking). role={receipt['role_id']} "
         f"model={receipt['model'] or '(unset)'} protocol={receipt['invocation_protocol']}",
-        session_id=child.id,
+        session_id=peer.id,
         settings=receipt,
     )
 
 
-async def handle_hub_tool(
-    core, author: AgentSession, call: ToolCall, *, allow_spawn: bool = True
-) -> ToolResult:
+async def handle_hub_tool(core, author: AgentSession, call: ToolCall) -> ToolResult:
     args = call.arguments or {}
     action = str(args.get("action") or "").strip().lower()
     if action == "post":
@@ -372,7 +499,7 @@ async def handle_hub_tool(
         return _directory(core, author)
     if action == "call":
         try:
-            return await _call(core, author, args, allow_spawn=allow_spawn)
+            return await _call(core, author, args)
         except CommandRejected as exc:
             return _err(f"[dispatch rejected] {exc.message}")
     return _err(

@@ -303,6 +303,7 @@ class AgentHost:
         project: Project,
         role: RoleProfile,
         parent_session_id: str | None,
+        requested_by_session_id: str | None = None,
         display_name: str | None,
         settings: RuntimeSettings,
     ) -> AgentSession:
@@ -322,6 +323,7 @@ class AgentHost:
             role_id=role.role_id,
             display_name=display_name or role.display_name,
             parent_session_id=parent_session_id,
+            requested_by_session_id=requested_by_session_id,
             settings=settings,
             capabilities=AgentCapabilities(
                 permissions=role.permissions,

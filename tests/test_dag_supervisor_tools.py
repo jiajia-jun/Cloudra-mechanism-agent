@@ -12,6 +12,9 @@ from types import SimpleNamespace
 import pytest
 
 from cloudra.dag.supervisor_tools import SupervisorToolExecutor
+from cloudra.runtime_v2.commands import CommandBus
+from cloudra.runtime_v2.core import RuntimeCore
+from cloudra.runtime_v2.schemas import Command
 from cloudra.tools import capabilities
 
 WORKSPACE = None  # set per-test via tmp_path
@@ -261,13 +264,19 @@ class _FakeEventLog:
         self.envelopes = []
         self._seq = 0
 
-    def query_project(self, project_id, *, types=None, limit=500):
+    def query_project(self, project_id, *, after_seq=0, types=None, limit=500, tail=True):
         rows = [
             env
             for env in self.envelopes
-            if env.project_id == project_id and (types is None or env.type in types)
+            if env.project_id == project_id and env.seq > after_seq
+            and (types is None or env.type in types)
         ]
-        return rows[-limit:]
+        if limit is None:
+            return rows
+        return rows[-limit:] if tail else rows[:limit]
+
+    def get(self, event_id):
+        return next((env for env in self.envelopes if env.event_id == event_id), None)
 
     def append(self, type_, *, stream, project_id, session_id, data):
         self._seq += 1
@@ -284,9 +293,22 @@ class _FakeEventLog:
         return env
 
 
+class _FakeEventWriter:
+    def __init__(self, event_log):
+        self.event_log = event_log
+
+    async def commit(self, draft):
+        return self.event_log.append(
+            draft.type, stream=draft.stream, project_id=draft.project_id,
+            session_id=draft.session_id, data=draft.data,
+        )
+
+
 def _fake_core():
+    event_log = _FakeEventLog()
     return SimpleNamespace(
-        event_log=_FakeEventLog(),
+        event_log=event_log,
+        event_writer=_FakeEventWriter(event_log),
         agents={},
         project_id="prj_test",
     )
@@ -336,17 +358,34 @@ async def test_hub_post_appends_event_via_bridge(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_hub_call_to_missing_target_is_target_not_found_no_spawn(tmp_path):
-    core = _fake_core()
-    executor = _executor(tmp_path, core=core)
+async def test_hub_call_to_missing_role_spawns_peer(tmp_path):
+    core = RuntimeCore(strict_events=True)
+    bus = CommandBus(core)
+    project_result = await bus.execute(Command(type="project.create", payload={"name": "supervisor-hub"}))
+    project = project_result.data
+    supervisor_result = await bus.execute(
+        Command(
+            type="agent.spawn",
+            target={"project_id": project.id},
+            payload={"role_id": "supervisor"},
+            actor="system",
+        )
+    )
+    supervisor = supervisor_result.data
+    executor = _executor(tmp_path, core=core, project_id=project.id)
     result = await executor.execute(
         "agent_hub",
         {"action": "call", "to": "small_mol", "message": "ping"},
-        session_id="sup",
+        session_id=supervisor.id,
     )
-    assert result["is_success"] is False
-    assert "target_not_found" in result["message"]
-    assert core.agents == {}, "supervisor hub call must never spawn an agent"
+    assert result["is_success"] is True
+    peer = core.agents[result["session_id"]]
+    assert peer.role_id == "small_mol"
+    assert peer.parent_session_id is None
+    assert supervisor.settings.orchestration_mode.value == "dag_guided"
+    assert peer.settings.orchestration_mode.value == "standard"
+    requested = [event for event in core.event_log.query_project(project.id) if event.type == "agent.spawn_requested"]
+    assert requested[-1].data["requested_by_session_id"] == supervisor.id
 
 
 @pytest.mark.asyncio

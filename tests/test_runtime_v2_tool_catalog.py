@@ -243,6 +243,19 @@ def test_guest_declarations_follow_orchestration_mode():
 # ------------------------------------------------------------------ role allowlist
 
 
+def test_hierarchical_dispatch_tools_are_coordinator_only_on_wire_and_guest():
+    for role in ("explorer", "researcher", "small_mol", "supervisor"):
+        names = set(_names(wire_tool_schemas(_agent(role_id=role), ["*"])))
+        assert "agent_hub" in names
+        assert "subagent_launcher" not in names
+        assert "subagent_swarm" not in names
+        guest = guest_tool_names(["*"], role_id=role)
+        assert "subagent_launcher" not in guest
+        assert "subagent_swarm" not in guest
+    coordinator_names = set(_names(wire_tool_schemas(_agent(role_id="coordinator"), ["*"])))
+    assert {"agent_hub", "subagent_launcher", "subagent_swarm"} <= coordinator_names
+
+
 def test_role_allowlist_hides_chem_tools_from_non_science_roles():
     for role in ("explorer", "writer", "researcher", "env"):
         names = set(_names(wire_tool_schemas(_agent(role_id=role), ["*"])))

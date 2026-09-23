@@ -412,7 +412,7 @@ class AgentRunner:
                                 ),
                                 failure_kind=RunFailureKind.COMPLETION_NO_PROGRESS,
                             )
-                            await self._deliver_child_completion(agent)
+                            await self._deliver_completion(agent)
                             break
                         # 缺口/下一步反馈进下一轮（mailbox 投递即持久审计
                         # agent.message_injected + 下一轮 drain 消费）。
@@ -475,7 +475,7 @@ class AgentRunner:
                     # 显式 wake 开新 run，关掉最后一段竞态窗口。
                     if self._inbox_has_pending(agent):
                         core.agent_host.wake(agent, runner=core.runner)
-                    await self._deliver_child_completion(agent)
+                    await self._deliver_completion(agent)
                     break
                 if outcome.decision in {"wait_input", "wait_approval"}:
                     core.agent_host.transition(
@@ -511,7 +511,7 @@ class AgentRunner:
             # agent.cancelled after host.cancel().  会话上下文投影里已落
             # 的内容（发送前的输入、已完成的轮次输出）保持原样——投影只
             # 记录真实进入过上下文的消息，无需收尾摘要。
-            await self._deliver_child_completion(agent)
+            await self._deliver_completion(agent)
             raise
         except Exception as exc:  # pipeline crash becomes a durable failure
             logger.exception("agent %s pipeline failed", agent.id)
@@ -524,7 +524,7 @@ class AgentRunner:
                     error=str(exc),
                     failure_kind=classify_failure(exc),
                 )
-            await self._deliver_child_completion(agent)
+            await self._deliver_completion(agent)
         finally:
             # Flush the tail events (message_emitted, finish_run's
             # state_changed/run.finished, or a crashed turn's partial events)
@@ -538,10 +538,12 @@ class AgentRunner:
                 if isinstance(exc, EventPersistenceError):
                     raise
 
-    async def _deliver_child_completion(self, agent: AgentSession) -> None:
+    async def _deliver_completion(self, agent: AgentSession) -> None:
+        from cloudra.runtime_v2.peer_completion import deliver_peer_completion
         from cloudra.runtime_v2.subagent_bridge import deliver_child_completion_to_parent
 
         await deliver_child_completion_to_parent(self.core, agent)
+        await deliver_peer_completion(self.core, agent)
 
     def _emit_run_message(self, agent: AgentSession, run_id: str, content: str) -> None:
         self.core.event_log.append(
