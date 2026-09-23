@@ -96,7 +96,7 @@ def test_easy_barrier_parsing_no_garbage():
         return t.gold.mechanism_graph.edges[0].barrier_kcal_mol
 
     assert _edge_barrier(tasks["M3"]) is not None
-    assert _edge_barrier(tasks["D1"]) == 22.3  # W1/W2-F12 计算值
+    assert _edge_barrier(tasks["D1"]) == 18.83  # 自算：相对反应物络合物的 ΔE‡
     assert _edge_barrier(tasks["E1"]) == 6.9  # 经典值（范围下界约定）
     for tid, t in tasks.items():
         b = _edge_barrier(t)
@@ -106,6 +106,18 @@ def test_easy_barrier_parsing_no_garbage():
         # query 允许 ΔE‡ 记号（电子能垒契约句），其余一律 ASCII（挡中文混入）
         assert all(ord(c) < 128 or c in "Δ‡" for c in t.prompt.query), f"{tid} query non-ASCII"
         assert "Determine the mechanism" in t.prompt.query
+
+
+def test_easy_ten_task_computed_barriers():
+    """十题回填值来自原始 RC/TS ORCA 能量，题源重生成不可退回文献锚点。"""
+    tasks = {t.task_id: t for t in gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)}
+    expected = {
+        "M3": 5.94, "M14": 9.05, "M15": 14.54, "P2": 26.55,
+        "L1": 35.17, "M8": 12.00, "D1": 18.83, "L2": 29.77,
+        "G2": 0.87, "P3": 30.23,
+    }
+    for task_id, barrier in expected.items():
+        assert tasks[task_id].gold.mechanism_graph.edges[0].barrier_kcal_mol == barrier
 
 
 def test_task_id_rejects_path_traversal():
