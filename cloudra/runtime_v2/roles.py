@@ -1,8 +1,8 @@
 """Role profiles: the only place role permissions and defaults live.
 
-Coordinator is one role among peers; nothing in the runtime may special-case
-its role_id.  Agent-to-agent privileges are derived from ``can_spawn`` and
-``spawn_roles``, never from a hard-coded coordinator id.
+Coordinator is one role among peers. ``can_spawn`` and ``spawn_roles`` govern
+hierarchical launcher/swarm dispatch; AgentHub peer calls use the shared
+project-level creation path for every caller.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ BUILTIN_ROLES: tuple[RoleProfile, ...] = (
         role_id="coordinator",
         legacy_agent_id=legacy_agent_id_for_role("coordinator"),
         display_name="Coordinator",
-        description="Decomposes objectives and dispatches peer agents.",
+        description="Decomposes objectives and dispatches sub-agents.",
         permissions=PermissionSet(read=True, write=True, manage=True, script=True, destructive=True),
         can_spawn=True,
         spawn_roles=None,

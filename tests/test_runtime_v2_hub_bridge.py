@@ -12,6 +12,7 @@ from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.core import RuntimeCore
 from cloudra.runtime_v2.failures import RunFailureKind
 from cloudra.runtime_v2.hub_bridge import handle_hub_tool
+from cloudra.runtime_v2.persistence import RuntimeStore, restore_core
 from cloudra.runtime_v2.policies import default_stages
 from cloudra.runtime_v2.policies.base import ToolCall
 from cloudra.runtime_v2.schemas import Command
@@ -160,6 +161,33 @@ async def test_reply_notifies_original_author():
 
 
 @pytest.mark.asyncio
+async def test_broadcast_reply_parks_notice_for_failed_original_author():
+    core, _, coordinator = await _setup()
+    await _wait_state(coordinator, "succeeded")
+    author = await _spawn(core, coordinator, "explorer")
+    original = await handle_hub_tool(
+        core, author, _hub({"action": "post", "topic": "t", "content": "finding"})
+    )
+    core.agent_host.start_run(author)
+    core.agent_host.finish_run(
+        author, outcome="failed", error="prior task failed",
+        failure_kind=RunFailureKind.PROVIDER_PERMANENT,
+    )
+    reply = await handle_hub_tool(
+        core, coordinator,
+        _hub({
+            "action": "post", "kind": "broadcast", "topic": "t", "content": "decision",
+            "parent_id": original.data["post_id"],
+        }),
+    )
+    assert reply.is_success is True
+    assert reply.data["notified_count"] == 1
+    texts = _inbox_texts(core, author.id)
+    assert any("replied to your AgentHub post" in text for text in texts)
+    assert author.state.value == "failed"
+
+
+@pytest.mark.asyncio
 async def test_directory_lists_live_sessions():
     core, _, coordinator = await _setup()
     await _wait_state(coordinator, "succeeded")
@@ -169,7 +197,35 @@ async def test_directory_lists_live_sessions():
     rows = {r["session_id"]: r for r in result.data["sessions"]}
     assert coordinator.id in rows and child.id in rows
     assert rows[child.id]["agent_id"] == "dft"
-    assert rows[coordinator.id]["agent_type"] == "coordinator"
+    assert rows[coordinator.id]["agent_type"] == "peer"
+    assert rows[child.id]["agent_type"] == "subagent"
+    assert rows[child.id]["parent_session_id"] == coordinator.id
+    assert rows[coordinator.id]["role_id"] == "coordinator"
+    assert rows[child.id]["role_id"] == "dft"
+
+
+@pytest.mark.asyncio
+async def test_directory_marks_system_supervisor_without_calling_it_a_subagent():
+    core, _, coordinator = await _setup()
+    await _wait_state(coordinator, "succeeded")
+    supervisor = (
+        await CommandBus(core).execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": coordinator.project_id},
+                payload={
+                    "role_id": "supervisor",
+                    "parent_session_id": coordinator.id,
+                    "settings": {"orchestration_mode": "dag_guided"},
+                },
+                actor="system",
+            )
+        )
+    ).data
+    result = await handle_hub_tool(core, coordinator, _hub({"action": "directory"}))
+    rows = {row["session_id"]: row for row in result.data["sessions"]}
+    assert rows[supervisor.id]["agent_type"] == "system"
+    assert rows[supervisor.id]["parent_session_id"] == coordinator.id
 
 
 @pytest.mark.asyncio
@@ -185,6 +241,7 @@ async def test_call_to_live_session_delivers_via_mailbox():
     assert result.data["session_id"] == child.id
     texts = _inbox_texts(core, child.id)
     assert any("[Incoming call]" in t and "ping me back" in t for t in texts)
+    assert any("Reply to the caller through AgentHub" in t for t in texts)
 
 
 @pytest.mark.asyncio
@@ -287,7 +344,30 @@ async def test_call_to_failed_agent_parks_without_reopening():
 
 
 @pytest.mark.asyncio
-async def test_call_to_role_spawns_fresh_child():
+async def test_call_to_role_replaces_failed_session_with_new_peer():
+    core, _, coordinator = await _setup()
+    await _wait_state(coordinator, "succeeded")
+    failed = await _spawn(core, coordinator, "small_mol")
+    core.agent_host.start_run(failed)
+    core.agent_host.finish_run(
+        failed,
+        outcome="failed",
+        error="prior work failed",
+        failure_kind=RunFailureKind.PROVIDER_PERMANENT,
+    )
+
+    result = await handle_hub_tool(
+        core, coordinator, _hub({"action": "call", "to": "small_mol", "message": "try a new task"})
+    )
+    assert result.is_success is True
+    peer = core.agents[result.data["session_id"]]
+    assert peer.id != failed.id
+    assert peer.parent_session_id is None
+    assert failed.state.value == "failed"
+
+
+@pytest.mark.asyncio
+async def test_call_to_role_spawns_independent_peer():
     core, _, coordinator = await _setup()
     await _wait_state(coordinator, "succeeded")
 
@@ -295,9 +375,186 @@ async def test_call_to_role_spawns_fresh_child():
         core, coordinator, _hub({"action": "call", "to": "a-4", "message": "optimize water"})
     )
     assert result.is_success is True
-    child = core.agents[result.data["session_id"]]
-    assert child.role_id == "small_mol"
-    await _wait_state(child, "succeeded")
+    peer = core.agents[result.data["session_id"]]
+    assert peer.role_id == "small_mol"
+    assert peer.parent_session_id is None
+    await _wait_state(peer, "succeeded")
+    injected = core.event_log.query_session(peer.id, types={"agent.message_injected"})
+    assert any(coordinator.id in event.data["content"] and "optimize water" in event.data["content"] for event in injected)
+    assert "final answer will be delivered to the caller automatically" in injected[-1].data["content"]
+    assert injected[-1].data["sender"] == "coordinator"
+    requested = [event for event in core.event_log.query_project(peer.project_id) if event.type == "agent.spawn_requested"]
+    assert requested[-1].data["requested_by_session_id"] == coordinator.id
+
+
+@pytest.mark.asyncio
+async def test_call_normalizes_case_and_at_prefix_for_absent_role():
+    core, _, coordinator = await _setup()
+    await _wait_state(coordinator, "succeeded")
+    result = await handle_hub_tool(
+        core, coordinator, _hub({"action": "call", "to": "@SMALL_MOL", "message": "check this"})
+    )
+    assert result.is_success is True
+    assert core.agents[result.data["session_id"]].role_id == "small_mol"
+    requested = [
+        event for event in core.event_log.query_project(coordinator.project_id)
+        if event.type == "agent.spawn_requested"
+    ]
+    assert requested[-1].data["actor"] == "agent"
+    assert not any("[Sub-agent finished] role=small_mol" in text for text in _inbox_texts(core, coordinator.id))
+
+
+@pytest.mark.asyncio
+async def test_non_coordinator_call_spawns_peer_without_inheriting_caller_settings():
+    core, _, coordinator = await _setup()
+    await _wait_state(coordinator, "succeeded")
+    explorer = await _spawn(core, coordinator, "explorer")
+    await CommandBus(core).execute(
+        Command(
+            type="agent.settings_update",
+            target={"session_id": explorer.id},
+            payload={"yolo": True, "unattended": True},
+        )
+    )
+    assert explorer.settings.yolo and explorer.settings.unattended
+
+    result = await handle_hub_tool(
+        core, explorer, _hub({"action": "call", "to": "researcher", "message": "check this method"})
+    )
+    assert result.is_success is True
+    peer = core.agents[result.data["session_id"]]
+    assert peer.role_id == "researcher"
+    assert peer.parent_session_id is None
+    assert peer.settings.yolo is False
+    assert peer.settings.unattended is False
+    assert result.data["settings"]["sources"]["yolo"] == "schema_default"
+    await _wait_state(peer, "succeeded")
+
+
+@pytest.mark.asyncio
+async def test_hub_cannot_create_system_managed_supervisor():
+    core, _, coordinator = await _setup()
+    await _wait_state(coordinator, "succeeded")
+    result = await handle_hub_tool(
+        core, coordinator, _hub({"action": "call", "to": "supervisor", "message": "review this"})
+    )
+    assert result.is_success is False
+    assert "system-managed" in result.summary
+    assert not any(agent.role_id == "supervisor" for agent in core.agents.values())
+
+
+@pytest.mark.asyncio
+async def test_call_retries_message_persistence_without_duplicate_peer():
+    class FailFirstMessageStore:
+        def __init__(self):
+            self.failed = False
+
+        def append_event(self, event):
+            if event.type == "agent.message_injected" and not self.failed:
+                self.failed = True
+                raise OSError("transient write failure")
+
+    core = RuntimeCore(strict_events=True)
+    bus = CommandBus(core)
+    project = (await bus.execute(Command(type="project.create", payload={"name": "partial-call"}))).data
+    caller = (
+        await bus.execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": project.id},
+                payload={"role_id": "coordinator"},
+            )
+        )
+    ).data
+    store = FailFirstMessageStore()
+    core.store = store
+
+    result = await handle_hub_tool(
+        core, caller, _hub({"action": "call", "to": "researcher", "message": "review the method"})
+    )
+    assert store.failed is True
+    assert result.is_success is True
+    peer = core.agents[result.data["session_id"]]
+    injected = core.event_log.query_session(peer.id, types={"agent.message_injected"})
+    assert len(injected) == 1
+    assert injected[0].data["sender"] == "coordinator"
+    assert "review the method" in injected[0].data["content"]
+
+
+@pytest.mark.asyncio
+async def test_call_reports_created_peer_when_message_remains_undeliverable():
+    class FailMessageStore:
+        def append_event(self, event):
+            if event.type == "agent.message_injected":
+                raise OSError("disk unavailable")
+
+    class RecordingRunner:
+        def __init__(self):
+            self.scheduled = []
+
+        def schedule(self, session_id):
+            self.scheduled.append(session_id)
+
+    core = RuntimeCore(strict_events=True)
+    bus = CommandBus(core)
+    project = (await bus.execute(Command(type="project.create", payload={"name": "failed-call"}))).data
+    caller = (
+        await bus.execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": project.id},
+                payload={"role_id": "coordinator"},
+            )
+        )
+    ).data
+    core.store = FailMessageStore()
+    core.runner = RecordingRunner()
+
+    result = await handle_hub_tool(
+        core, caller, _hub({"action": "call", "to": "researcher", "message": "review the method"})
+    )
+    assert result.is_success is False
+    peer = core.agents[result.data["session_id"]]
+    assert peer.role_id == "researcher"
+    assert peer.state.value == "queued"
+    assert core.runner.scheduled == []
+    assert "not delivered" in result.summary
+    assert core.event_log.query_session(peer.id, types={"agent.message_injected"}) == []
+
+
+@pytest.mark.asyncio
+async def test_cancel_peer_succeeds_when_completion_notice_cannot_persist():
+    class FailReportStore:
+        def append_event(self, event):
+            if (event.data.get("manifest") or {}).get("kind") == "peer_call_completion":
+                raise OSError("notice write failed")
+
+    core = RuntimeCore(strict_events=True)
+    bus = CommandBus(core)
+    project = (await bus.execute(Command(type="project.create", payload={"name": "cancel-peer"}))).data
+    caller = (
+        await bus.execute(
+            Command(type="agent.spawn", target={"project_id": project.id}, payload={"role_id": "explorer"})
+        )
+    ).data
+    peer = (
+        await bus.execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": project.id},
+                payload={"role_id": "researcher", "requested_by_session_id": caller.id},
+            )
+        )
+    ).data
+    core.store = FailReportStore()
+
+    result = await bus.execute(Command(type="agent.cancel", target={"session_id": peer.id}))
+    assert result.accepted is True
+    assert peer.state.value == "cancelled"
+    assert not any(
+        (event.data.get("manifest") or {}).get("kind") == "peer_call_completion"
+        for event in core.event_log
+    )
 
 
 @pytest.mark.asyncio
@@ -383,10 +640,19 @@ async def test_subagent_at_coordinator_wakes_coordinator():
 
 
 @pytest.mark.asyncio
-async def test_subagent_broadcast_defaults_to_coordinator():
+async def test_broadcast_notifies_all_other_sessions_regardless_of_author_role():
     core, _, coordinator = await _setup()
     await _wait_state(coordinator, "succeeded")
     child = await _spawn(core, coordinator, "small_mol")
+    peer = await _spawn(core, coordinator, "explorer")
+    failed = await _spawn(core, coordinator, "dft")
+    core.agent_host.start_run(failed)
+    core.agent_host.finish_run(
+        failed,
+        outcome="failed",
+        error="prior work failed",
+        failure_kind=RunFailureKind.PROVIDER_PERMANENT,
+    )
 
     posted = await handle_hub_tool(
         core,
@@ -394,8 +660,240 @@ async def test_subagent_broadcast_defaults_to_coordinator():
         _hub({"action": "post", "kind": "broadcast", "topic": "milestone", "content": "All jobs complete"}),
     )
     assert posted.is_success is True
-    assert "Notified coordinator" in posted.summary
-    # Coordinator wakes up and processes broadcast
+    assert posted.data["notified_count"] == 2
+    assert "Notified 2 project sessions" in posted.summary
+    for target in (coordinator, peer):
+        events = core.event_log.query_session(target.id, types={"agent.message_injected"})
+        assert any("All jobs complete" in e.data.get("content", "") for e in events)
+    failed_events = core.event_log.query_session(failed.id, types={"agent.message_injected"})
+    assert not any("All jobs complete" in e.data.get("content", "") for e in failed_events)
+
+    posted_by_coordinator = await handle_hub_tool(
+        core,
+        coordinator,
+        _hub({"action": "post", "kind": "broadcast", "topic": "next step", "content": "Review the result"}),
+    )
+    assert posted_by_coordinator.is_success is True
+    assert posted_by_coordinator.data["notified_count"] == 2
+    for target in (child, peer):
+        events = core.event_log.query_session(target.id, types={"agent.message_injected"})
+        assert any("Review the result" in e.data.get("content", "") for e in events)
+    await core.runner.cancel_all()
+
+
+@pytest.mark.asyncio
+async def test_failed_broadcast_can_retry_only_missing_notifications():
+    class FailSecondRecipientOnce:
+        def __init__(self, second_id):
+            self.second_id = second_id
+            self.failed = False
+
+        def append_event(self, event):
+            if (
+                event.type == "agent.message_injected"
+                and event.session_id == self.second_id
+                and not self.failed
+            ):
+                self.failed = True
+                raise OSError("transient recipient write failure")
+
+    core, _, coordinator = await _setup()
     await _wait_state(coordinator, "succeeded")
-    events = core.event_log.query_session(coordinator.id, types={"agent.message_injected"})
-    assert any("All jobs complete" in e.data.get("content", "") for e in events)
+    first = await _spawn(core, coordinator, "small_mol")
+    second = await _spawn(core, coordinator, "explorer")
+    core.event_writer.mark_restored()
+    core.store = FailSecondRecipientOnce(second.id)
+
+    args = {"action": "post", "kind": "broadcast", "topic": "result", "content": "Review this"}
+    partial = await handle_hub_tool(core, coordinator, _hub(args))
+    assert partial.is_success is False
+    assert partial.data["post_id"]
+    assert partial.data["notified_count"] == 1
+    assert partial.data["failed_session_ids"] == [second.id]
+
+    retried = await handle_hub_tool(core, coordinator, _hub({**args, "post_id": partial.data["post_id"]}))
+    assert retried.is_success is True
+    assert retried.data["post_id"] == partial.data["post_id"]
+    assert len([p for p in core.event_log.query_project(coordinator.project_id, types={"hub.posted"})]) == 1
+    for target in (first, second):
+        notices = [
+            e for e in core.event_log.query_session(target.id, types={"agent.message_injected"})
+            if e.data.get("post_id") == partial.data["post_id"]
+        ]
+        assert len(notices) == 1
+    await core.runner.cancel_all()
+
+
+@pytest.mark.asyncio
+async def test_post_commit_then_error_does_not_duplicate_notification(tmp_path, monkeypatch):
+    core, project, coordinator = await _setup()
+    await _wait_state(coordinator, "succeeded")
+    recipient = await _spawn(core, coordinator, "explorer")
+    await core.runner.cancel_all()
+    core.runner = None
+    store = RuntimeStore(tmp_path / "runtime.db")
+    core.store = store
+    await core.event_writer.flush()
+    original_append = store.append_event
+    raised = False
+
+    def committed_then_raised(event):
+        nonlocal raised
+        original_append(event)
+        if event.type == "agent.message_injected" and event.session_id == recipient.id and not raised:
+            raised = True
+            raise OSError("acknowledgement lost after commit")
+
+    monkeypatch.setattr(store, "append_event", committed_then_raised)
+    args = {"action": "post", "topic": "result", "content": "Please inspect", "to_agent": recipient.id}
+    posted = await handle_hub_tool(core, coordinator, _hub(args))
+    assert raised is True
+    assert posted.is_success is True
+    retried = await handle_hub_tool(core, coordinator, _hub({**args, "post_id": posted.data["post_id"]}))
+    assert retried.is_success is True
+    notices = [
+        event for event in store.events_after({})
+        if event["type"] == "agent.message_injected" and event["session_id"] == recipient.id
+        and event["data"].get("post_id") == posted.data["post_id"]
+    ]
+    assert len(notices) == 1
+    assert notices[0]["project_id"] == project.id
+
+
+@pytest.mark.asyncio
+async def test_restore_repairs_only_frozen_missing_broadcast_notifications(tmp_path, monkeypatch):
+    core, project, coordinator = await _setup()
+    await _wait_state(coordinator, "succeeded")
+    first = await _spawn(core, coordinator, "small_mol")
+    second = await _spawn(core, coordinator, "explorer")
+    store = RuntimeStore(tmp_path / "runtime.db")
+    core.store = store
+    await core.event_writer.flush()
+    original_append = store.append_event
+    failed = False
+
+    def fail_second_once(event):
+        nonlocal failed
+        if event.type == "agent.message_injected" and event.session_id == second.id and not failed:
+            failed = True
+            raise OSError("simulated notification write failure")
+        return original_append(event)
+
+    monkeypatch.setattr(store, "append_event", fail_second_once)
+    partial = await handle_hub_tool(
+        core, coordinator,
+        _hub({"action": "post", "kind": "broadcast", "topic": "results", "content": "Review the data"}),
+    )
+    assert partial.is_success is False
+    post_id = partial.data["post_id"]
+    monkeypatch.setattr(store, "append_event", original_append)
+    late = (
+        await CommandBus(core).execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": project.id},
+                payload={"role_id": "researcher"},
+            )
+        )
+    ).data
+    await _wait_state(first, "succeeded")
+
+    restored = RuntimeCore(strict_events=True)
+    restored.store = store
+    restore_core(restored, store)
+    notices = [
+        event for event in restored.event_log
+        if event.type == "agent.message_injected" and event.data.get("post_id") == post_id
+    ]
+    assert {event.session_id for event in notices} == {first.id, second.id}
+    assert len(notices) == 2
+    expected = (
+        f"coordinator broadcast in AgentHub topic 'results' (post {post_id}): Review the data"
+    )
+    assert all(event.data["content"] == expected for event in notices)
+    assert not any(event.session_id == late.id for event in notices)
+    assert restored.agents[second.id].state.value == "succeeded"  # restore never wakes
+
+    again = RuntimeCore(strict_events=True)
+    again.store = store
+    restore_core(again, store)
+    assert len([
+        event for event in again.event_log
+        if event.type == "agent.message_injected" and event.data.get("post_id") == post_id
+    ]) == 2
+    await core.runner.cancel_all()
+
+
+@pytest.mark.asyncio
+async def test_restore_repairs_reply_notice_for_cancelled_original_author(tmp_path, monkeypatch):
+    core, _project, coordinator = await _setup()
+    await _wait_state(coordinator, "succeeded")
+    original_author = await _spawn(core, coordinator, "explorer")
+    store = RuntimeStore(tmp_path / "runtime.db")
+    core.store = store
+    await core.event_writer.flush()
+    original = await handle_hub_tool(
+        core, original_author,
+        _hub({"action": "post", "topic": "original topic", "content": "finding"}),
+    )
+    core.agent_host.start_run(original_author)
+    cancelled = await CommandBus(core).execute(
+        Command(type="agent.cancel", target={"session_id": original_author.id})
+    )
+    assert cancelled.accepted
+    original_append = store.append_event
+    failed = False
+
+    def fail_reply_once(event):
+        nonlocal failed
+        if event.type == "agent.message_injected" and event.session_id == original_author.id and not failed:
+            failed = True
+            raise OSError("simulated reply notification write failure")
+        return original_append(event)
+
+    monkeypatch.setattr(store, "append_event", fail_reply_once)
+    partial = await handle_hub_tool(
+        core, coordinator,
+        _hub({
+            "action": "post", "kind": "broadcast", "topic": "response",
+            "content": "decision", "parent_id": original.data["post_id"],
+        }),
+    )
+    assert partial.is_success is False
+    post_id = partial.data["post_id"]
+    monkeypatch.setattr(store, "append_event", original_append)
+
+    restored = RuntimeCore(strict_events=True)
+    restored.store = store
+    restore_core(restored, store)
+    author = restored.agents[original_author.id]
+    assert author.state.value == "cancelled"
+    notices = [
+        event for event in restored.event_log
+        if event.type == "agent.message_injected" and event.session_id == author.id
+        and event.data.get("post_id") == post_id
+    ]
+    assert len(notices) == 1
+    expected = (
+        f"coordinator replied to your AgentHub post in topic 'original topic' "
+        f"{original.data['post_id']} (reply {post_id}): decision"
+    )
+    assert notices[0].data["content"] == expected
+    inbox = restored.mailbox.inbox(author.id)
+    assert inbox is not None and inbox.get_nowait()["content"] == expected
+
+    again = RuntimeCore(strict_events=True)
+    again.store = store
+    restore_core(again, store)
+    assert again.agents[author.id].state.value == "cancelled"
+    inbox_again = again.mailbox.inbox(author.id)
+    assert inbox_again is not None
+    restored_notice = inbox_again.get_nowait()
+    assert restored_notice["content"] == expected
+    assert restored_notice["post_id"] == post_id
+    assert len([
+        event for event in again.event_log
+        if event.type == "agent.message_injected" and event.session_id == author.id
+        and event.data.get("post_id") == post_id
+    ]) == 1
+    await core.runner.cancel_all()

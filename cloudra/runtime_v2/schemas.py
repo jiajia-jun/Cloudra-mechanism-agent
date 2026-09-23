@@ -197,6 +197,9 @@ class AgentSession(BaseModel):
     role_id: str
     display_name: str
     parent_session_id: Optional[str] = None
+    # AgentHub peer call requests a result notification without creating a
+    # parent/child relationship (and therefore without cancellation cascade).
+    requested_by_session_id: Optional[str] = None
     state: AgentState = AgentState.QUEUED
     settings: RuntimeSettings = Field(default_factory=RuntimeSettings)
     settings_revision: int = 0
@@ -308,7 +311,7 @@ class Command(BaseModel):
     type: str = Field(min_length=1)
     target: dict[str, str] = Field(default_factory=dict)
     payload: dict[str, Any] = Field(default_factory=dict)
-    actor: Literal["user", "system"] = "user"
+    actor: Literal["user", "system", "agent"] = "user"
 
 
 class CommandResult(BaseModel):

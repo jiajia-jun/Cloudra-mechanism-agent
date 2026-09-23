@@ -252,6 +252,13 @@ class RuntimeStore:
                 ),
             )
 
+    def has_event(self, event_id: str) -> bool:
+        """Resolve an uncertain append by its durable primary key."""
+        with self._connect() as con:
+            return con.execute(
+                "SELECT 1 FROM events WHERE event_id = ? LIMIT 1", (event_id,)
+            ).fetchone() is not None
+
     def save_snapshot(
         self,
         *,
@@ -506,38 +513,108 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
     # 次序与 MessageDispatcher 一致（append → durable → enqueue）；恢复阶段没有
     # 事件循环，用本函数末尾的一次性落库屏障代替逐条 commit：先收齐全部恢复
     # 事件，落库成功后才入队。
+    from cloudra.runtime_v2.hub_bridge import post_notification_text
     from cloudra.runtime_v2.mailbox import Mailbox
+    from cloudra.runtime_v2.peer_completion import (
+        build_peer_completion_index,
+        peer_completion_message,
+    )
     from cloudra.runtime_v2.subagent_bridge import child_completion_message
 
     pending_inbox: list[tuple[str, dict[str, Any]]] = []
-    for agent in zombies:
-        message = child_completion_message(core, agent)
-        if message is None:
-            continue
-        parent_id, content, manifest = message
+
+    def append_recovery_message(
+        *, project_id: str, recipient_id: str, sender: str, content: str,
+        manifest: dict[str, Any] | None = None, post_id: str | None = None,
+    ) -> None:
         message_id = new_id("msg")
         new_events.append(
             core.event_log.append(
                 "agent.message_injected",
                 stream="project",
-                project_id=agent.project_id,
-                session_id=parent_id,
+                project_id=project_id,
+                session_id=recipient_id,
                 data=Mailbox.message_data(
                     message_id=message_id,
-                    sender=agent.role_id,
+                    sender=sender,
                     content=content,
                     manifest=manifest,
+                    post_id=post_id,
                 ),
             )
         )
         pending_inbox.append(
             (
-                parent_id,
+                recipient_id,
                 Mailbox.message_payload(
-                    message_id=message_id, sender=agent.role_id, content=content
+                    message_id=message_id, sender=sender, content=content,
+                    post_id=post_id,
                 ),
             )
         )
+
+    def append_completion_message(
+        agent: AgentSession, message: tuple[str, str, dict[str, Any]] | None
+    ) -> None:
+        if message is None:
+            return
+        recipient_id, content, manifest = message
+        append_recovery_message(
+            project_id=agent.project_id, recipient_id=recipient_id,
+            sender=agent.role_id, content=content, manifest=manifest,
+        )
+
+    for agent in zombies:
+        append_completion_message(agent, child_completion_message(core, agent))
+    # A peer may have completed just before the old process died, leaving its
+    # run terminal event durable but the separate completion message absent.
+    # Scan every peer, not only zombies; the message manifest is the durable
+    # one-shot marker and prevents duplicates on repeated restores.
+    peer_index = build_peer_completion_index(core)
+    for agent in core.agents.values():
+        append_completion_message(agent, peer_completion_message(core, agent, index=peer_index))
+    # hub.posted froze its intended recipients before live dispatch.  If the
+    # process died after the post was durable but before every notification
+    # was, repair only the missing (post_id, recipient) pairs.  Do not resolve
+    # roles/broadcast membership again: new sessions must not receive old posts.
+    posts = []
+    posts_by_id = {}
+    delivered_posts: set[tuple[str, str]] = set()
+    for event in core.event_log:
+        if event.type == "hub.posted":
+            posts.append(event)
+            posts_by_id[event.event_id] = event
+        elif event.type == "agent.message_injected" and event.session_id:
+            post_id = event.data.get("post_id")
+            if isinstance(post_id, str) and post_id:
+                post = posts_by_id.get(post_id)
+                if (
+                    post is not None and post.project_id == event.project_id
+                    and event.session_id in (post.data.get("notification_target_ids") or ())
+                ):
+                    delivered_posts.add((post_id, event.session_id))
+    for post in posts:
+        if post.project_id not in core.projects:
+            continue
+        target_ids = post.data.get("notification_target_ids")
+        if not isinstance(target_ids, list):
+            continue
+        for target_id in dict.fromkeys(
+            target for target in target_ids if isinstance(target, str) and target
+        ):
+            key = (post.event_id, target_id)
+            if key in delivered_posts:
+                continue
+            target = core.agents.get(target_id)
+            if target is None or target.project_id != post.project_id:
+                continue
+            append_recovery_message(
+                project_id=post.project_id, recipient_id=target_id,
+                sender=str(post.data.get("author_agent") or ""),
+                content=post_notification_text(core, post, target_id),
+                post_id=post.event_id,
+            )
+            delivered_posts.add(key)
     # Orphaned pending entries (a requested approval/interaction whose waiter
     # died with the previous process) get an explicit terminal
     # approval.expired / interaction.expired event, so a woken agent sees a
@@ -634,9 +711,18 @@ def _rebuild_inboxes_from_events(core: RuntimeCore) -> None:
         if not session_id or session_id not in core.agents:
             continue
         agent = core.agents[session_id]
-        if agent.state is AgentState.CANCELLED:
-            continue
         data = envelope.data or {}
+        manifest = data.get("manifest")
+        is_peer_completion = isinstance(manifest, dict) and manifest.get("kind") == "peer_call_completion"
+        post_id = data.get("post_id")
+        post = core.event_log.get(post_id) if isinstance(post_id, str) else None
+        is_hub_notice = (
+            post is not None and post.type == "hub.posted"
+            and post.project_id == envelope.project_id
+            and session_id in (post.data.get("notification_target_ids") or ())
+        )
+        if agent.state is AgentState.CANCELLED and not (is_peer_completion or is_hub_notice):
+            continue
         msg_id = str(data.get("message_id") or "")
         if not msg_id:
             continue
@@ -652,5 +738,6 @@ def _rebuild_inboxes_from_events(core: RuntimeCore) -> None:
             sender=str(data.get("sender") or ""),
             content=str(data.get("content") or ""),
             images=data.get("images"),
+            post_id=post_id if isinstance(post_id, str) else None,
         )
         core.mailbox.ensure_inbox(session_id).put_nowait(payload)

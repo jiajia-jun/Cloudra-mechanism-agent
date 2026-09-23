@@ -9,7 +9,7 @@ Its tool surface is therefore a small, capability-gated subset declared in
   inside the project workspace and the immutable artifact root;
 - ``skill_read``: the skill loader (same loader as research agents);
 - ``hub``: AgentHub via the runtime_v2 native bridge (search/browse/read/
-  directory/post; ``call`` resolves only live sessions, never spawns);
+  directory/post/call, with the same peer-call behavior as other agents);
 - ``review_decision``: DAG verdict tools (draft adjudication, call reviews,
   coverage contract).
 
@@ -215,14 +215,20 @@ class SupervisorToolExecutor:
         from cloudra.runtime_v2 import hub_bridge
         from cloudra.runtime_v2.policies.base import ToolCall
 
-        author = SimpleNamespace(
-            id=session_id or "supervisor",
-            project_id=self._project_id,
-            role_id="supervisor",
-        )
+        if hasattr(self._core, "require_agent"):
+            if not session_id:
+                return _error("AgentHub call requires a Supervisor session id.")
+            author = self._core.require_agent(session_id)
+            if author.project_id != self._project_id or author.role_id != "supervisor":
+                return _error("AgentHub Supervisor session does not belong to this project.")
+        else:
+            author = SimpleNamespace(
+                id=session_id or "supervisor",
+                project_id=self._project_id,
+                role_id="supervisor",
+            )
         call = ToolCall(id=f"supervisor-hub-{action}", name="agent_hub", arguments=arguments)
-        # The Supervisor may address only live sessions; call never spawns.
-        result = await hub_bridge.handle_hub_tool(self._core, author, call, allow_spawn=False)
+        result = await hub_bridge.handle_hub_tool(self._core, author, call)
         payload = dict(result.data or {})
         payload.setdefault("is_success", result.is_success)
         payload.setdefault("message", result.summary)

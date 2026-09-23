@@ -70,15 +70,19 @@ def test_role_allowlist_projection():
     from cloudra.tools.capabilities import role_hidden_tools
 
     hidden = role_hidden_tools("researcher")
-    # 化学/QM 工具对非科学角色隐藏；通用工具不设 allowlist。
+    # 化学/QM 工具对非科学角色隐藏；层级派工只给 Coordinator。
     assert {"log_parser", "submit_compute_job", "ts_guess", "smiles_to_mol"} <= hidden
+    assert {"subagent_launcher", "subagent_swarm"} <= hidden
+    assert "agent_hub" not in hidden
     assert "bash" not in hidden
     assert "read" not in hidden
     # 谱图处理（ir/nmr）是 experiment 角色专属；其余化学工具科学角色共享。
     assert role_hidden_tools("coordinator") == {"ir_processor", "nmr_processor"}
-    assert not role_hidden_tools("experiment")
+    assert role_hidden_tools("experiment") == {"subagent_launcher", "subagent_swarm"}
     for role in ("small_mol", "md", "dft"):
-        assert role_hidden_tools(role) == {"ir_processor", "nmr_processor"}, role
+        assert role_hidden_tools(role) == {
+            "ir_processor", "nmr_processor", "subagent_launcher", "subagent_swarm"
+        }, role
     # supervisor 的 evidence_read 面（log_parser/reaction_mapping）不被角色门拿走。
     assert "log_parser" not in role_hidden_tools("supervisor")
     assert "reaction_mapping" not in role_hidden_tools("supervisor")

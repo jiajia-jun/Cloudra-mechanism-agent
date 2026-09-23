@@ -8,8 +8,10 @@ import pytest
 
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.core import RuntimeCore
+from cloudra.runtime_v2.dispatcher import WakePolicy
 from cloudra.runtime_v2.effects import EventDraft
 from cloudra.runtime_v2.event_writer import EventWriter
+from cloudra.runtime_v2.persistence import RuntimeStore
 from cloudra.runtime_v2.schemas import Command
 
 
@@ -73,6 +75,93 @@ async def test_persistence_failure_propagates_before_publication():
         await core.event_writer.commit(_request_draft())
     assert seen == []
     assert [e.type for e in core.event_log] == []
+
+
+@pytest.mark.asyncio
+async def test_committed_event_survives_append_error_and_publishes_once(tmp_path):
+    """A lost append acknowledgement must not turn a durable event into a retry."""
+
+    class WriteThenRaiseStore(RuntimeStore):
+        def append_event(self, envelope) -> None:
+            super().append_event(envelope)
+            raise RuntimeError("connection dropped after commit")
+
+    core = RuntimeCore()
+    store = WriteThenRaiseStore(tmp_path / "runtime.db")
+    core.store = store
+    seen: list[str] = []
+
+    async def subscriber(envelope) -> None:
+        seen.append(envelope.event_id)
+
+    core.event_hub.subscribe(subscriber)
+    envelope = await core.event_writer.commit(_request_draft())
+
+    assert [row["event_id"] for row in store.events_after({})] == [envelope.event_id]
+    assert [event.event_id for event in core.event_log] == [envelope.event_id]
+    assert seen == [envelope.event_id]
+    await core.event_writer.flush()
+    assert seen == [envelope.event_id]
+
+
+@pytest.mark.asyncio
+async def test_commit_succeeds_when_later_event_fails_persistence(tmp_path):
+    """A later failed tail must not keep a durable message out of the inbox."""
+
+    class FailLaterStore(RuntimeStore):
+        def append_event(self, envelope) -> None:
+            if envelope.type == "agent.warning":
+                raise RuntimeError("disk full")
+            super().append_event(envelope)
+
+    core = RuntimeCore()
+    store = FailLaterStore(tmp_path / "runtime.db")
+    core.store = store
+    bus = CommandBus(core)
+    project = (await bus.execute(Command(type="project.create", payload={"name": "p"}))).data
+    agent = (
+        await bus.execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": project.id},
+                payload={"role_id": "coordinator"},
+            )
+        )
+    ).data
+    seen: list[str] = []
+
+    async def subscriber(envelope) -> None:
+        seen.append(envelope.event_id)
+
+    core.event_hub.subscribe(subscriber)
+    async with core.event_writer._lock:
+        committing = asyncio.create_task(
+            core.dispatcher.commit_and_deliver(
+                to_session_id=agent.id,
+                project_id=project.id,
+                content="peer call",
+                sender="explorer",
+                wake=WakePolicy.NEVER,
+            )
+        )
+        await asyncio.sleep(0)
+        own_event = list(core.event_log)[-1]
+        assert own_event.type == "agent.message_injected"
+        failed_tail = core.record(
+            "agent.warning", stream="project", project_id=project.id, data={"message": "later"}
+        )
+
+    result = await committing
+    assert result.event_id == own_event.event_id
+    persisted_ids = [row["event_id"] for row in store.events_after({})]
+    assert own_event.event_id in persisted_ids
+    assert failed_tail.event_id not in persisted_ids
+    assert core.event_log.get(failed_tail.event_id) is None
+    assert seen == [own_event.event_id]
+    inbox = core.mailbox.inbox(agent.id)
+    assert inbox is not None
+    assert inbox.get_nowait()["content"] == "peer call"
+    assert inbox.empty()
 
 
 class _FailOnTypeStore:

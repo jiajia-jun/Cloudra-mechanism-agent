@@ -263,6 +263,7 @@ def _decide_spawn_agent(core: RuntimeCore, command: Command) -> Decision:
     payload = command.payload
     role_id = str(payload.get("role_id") or "")
     parent_session_id = payload.get("parent_session_id")
+    requested_by_session_id = payload.get("requested_by_session_id")
     requested = EventDraft(
         "agent.spawn_requested",
         stream="project",
@@ -270,11 +271,22 @@ def _decide_spawn_agent(core: RuntimeCore, command: Command) -> Decision:
         data={
             "role_id": role_id,
             "parent_session_id": parent_session_id,
+            "requested_by_session_id": requested_by_session_id,
             "actor": command.actor,
         },
     )
     try:
+        if parent_session_id is not None and requested_by_session_id is not None:
+            raise CommandRejected(
+                "invalid_request", "a peer requester and a child parent cannot both be set"
+            )
         role = core.roles.require(role_id)
+        query_sender = "system"
+        if requested_by_session_id is not None:
+            requester = core.require_agent(requested_by_session_id)
+            if requester.project_id != project_id:
+                raise CommandRejected("invalid_request", "requesting agent belongs to another project")
+            query_sender = requester.role_id
         if parent_session_id is not None:
             parent = core.require_agent(parent_session_id)
             if parent.project_id != project_id:
@@ -285,6 +297,7 @@ def _decide_spawn_agent(core: RuntimeCore, command: Command) -> Decision:
             project=project,
             role=role,
             parent_session_id=parent_session_id,
+            requested_by_session_id=requested_by_session_id,
             display_name=payload.get("display_name"),
             settings=settings,
         )
@@ -321,7 +334,7 @@ def _decide_spawn_agent(core: RuntimeCore, command: Command) -> Decision:
     query = str(payload.get("query") or "").strip()
     if query:
         message_draft, deliver = _message_drafts(
-            project_id=project_id, session_id=agent.id, sender="system", content=query
+            project_id=project_id, session_id=agent.id, sender=query_sender, content=query
         )
         drafts.append(message_draft)
         effects.append(deliver)
@@ -812,6 +825,21 @@ async def _execute_effect(core: RuntimeCore, effect: Effect) -> None:
     elif isinstance(effect, CancelRunner):
         if core.runner is not None:
             await core.runner.cancel(effect.session_id)
+        from cloudra.runtime_v2.peer_completion import deliver_peer_completion
+
+        for attempt in range(2):
+            try:
+                await deliver_peer_completion(core, core.require_agent(effect.session_id))
+                break
+            except EventPersistenceError:
+                if attempt:
+                    # Cancellation is already durable. Recovery reconstructs
+                    # the pending peer report from that terminal event.
+                    logger.warning(
+                        "peer completion notice failed after durable cancel of %s",
+                        effect.session_id,
+                        exc_info=True,
+                    )
     elif isinstance(effect, CancelLaunchGroups):
         # 组管理器随 core 装配（组清单是事件投影）——不再是可选接线。
         await core.launch_groups.cancel_for_parent(effect.session_id)

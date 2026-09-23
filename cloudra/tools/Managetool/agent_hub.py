@@ -1,8 +1,8 @@
-"""AgentHub：子 Agent 之间的共享论坛。
+"""AgentHub：项目内所有 Agent 的共享论坛。
 
-并行的子 Agent 运行在各自独立的进程里，但共享同一个 conversation SQLite
-数据库。本工具把数据库变成一块"留言板"：任何 Agent（包括只读的 explorer）
-都可以发帖分享发现、提问、回答，或先查别人的帖子避免重复劳动。
+runtime_v2 的各 Agent 共享项目事件日志。本工具把事件日志变成一块"留言板"：
+任何 Agent（包括只读的 explorer）都可以发帖分享发现、提问、回答，
+或先查别人的帖子避免重复劳动。
 
 帖子一律公开：to_agent 只是"点名"，帖子本身仍是全论坛可见的讨论痕迹；
 被点名或被回复的 Agent 会收到 Mailbox 投递与唤醒。
@@ -56,8 +56,8 @@ description = (
     "- **browse**: list recent topics and activity.\n"
     "- **read**: read posts for a topic (including Q&A threads).\n"
     "- **search**: search all posts by keyword (fuzzy match; exact wording not required).\n"
-    "- **directory**: list all sessions in this conversation (session_id, agent_id, state, task).\n"
-    "- **call**: place a live call to another Agent (to + message, optional post_id).\n"
+    "- **directory**: list project sessions with role, state, and parent_session_id (when dispatched as a sub-agent).\n"
+    "- **call**: send a non-blocking message to an Agent session; an absent ordinary role creates an independent project peer (to + message, optional post_id). The new peer sends its first task result to the caller, without a parent/child link.\n"
     "Discipline: before starting a subtask that may overlap with another Agent, browse/search to see if someone already did it; "
     "after you get a reusable conclusion (parameters, data, pitfalls), post it to the matching topic. Posts must be self-contained — "
     "others do not have your context. If you are unsure about data or tool behavior, post a question or address someone with to_agent; "
@@ -82,7 +82,10 @@ class AgentHub_input_schema(input_schema):
         description="call target: session_id, agent_id (e.g. a-4), role name (e.g. small_mol), or coordinator",
     )
     message: str = Field(default="", description="What you say to the other side on call (not a role prompt)")
-    post_id: Optional[str] = Field(default=None, description="Optional related post ID for call (string event id)")
+    post_id: Optional[str] = Field(
+        default=None,
+        description="Related post ID for call; for post, retry missing notifications on this same post ID with unchanged fields",
+    )
     parent_id: Optional[str] = Field(default=None, description="Post ID to reply to (string event id; old integer ids are accepted by the bridge)")
     keyword: str = Field(default="", description="Search keyword (required for search); fuzzy match, synonyms/inexact phrasing OK")
     limit: int = Field(default=20, description="Maximum number of items to return")
@@ -93,6 +96,8 @@ class AgentHub_output_schema(output_schema):
     is_success: bool = Field(description="Whether the action succeeded")
     posts: list = Field(default_factory=list, description="Post list (read/search/browse results)")
     post_id: Optional[str] = Field(default=None, description="New post ID (post result)")
+    notified_count: int = Field(default=0, description="Number of sessions notified for this post")
+    failed_session_ids: list[str] = Field(default_factory=list, description="Recipients still missing a post notification")
     next_cursor: Optional[str] = Field(default=None, description="Opaque cursor for the next browse page")
     sources_status: dict = Field(default_factory=dict, description="Search source status (posts/library availability)")
     message: str = Field(default="", description="Status note")
@@ -108,8 +113,8 @@ class AgentHub(Tool):
     output_schema: Any = AgentHub_output_schema
 
     def is_read(self) -> bool:
-        # 消息板是 Agent 间的通信渠道，不涉及文件系统/系统状态变更，
-        # 只读权限的 Agent（如 explorer）也应能发帖与浏览。
+        # 旧工具权限接口用 is_read 区分通用可用能力；AgentHub 是所有
+        # Agent 平等使用的协作通道。v2 的 post/call 仍经事件写口/CommandBus。
         return True
 
     async def tool_call(self, user_input: AgentHub_input_schema, session: Session) -> AgentHub_output_schema:

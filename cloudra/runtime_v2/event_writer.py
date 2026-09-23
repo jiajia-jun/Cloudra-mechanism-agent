@@ -71,14 +71,26 @@ class EventWriter:
             if store is not None:
                 index = self._persisted
                 while index < len(events):
-                    # Advance only on success: a failure leaves the cursor at
-                    # the last durable event and propagates to the caller.
+                    # An append can commit and still raise before the caller
+                    # receives its acknowledgement. Probe by the durable id
+                    # before treating that event as unpersisted.
                     try:
                         await asyncio.to_thread(store.append_event, events[index])
                     except Exception as exc:
-                        raise EventPersistenceError(
-                            f"event persistence failed for {events[index].type}: {exc}"
-                        ) from exc
+                        probe = getattr(store, "has_event", None)
+                        committed = False
+                        if callable(probe):
+                            try:
+                                committed = await asyncio.to_thread(
+                                    probe, events[index].event_id
+                                )
+                            except Exception:
+                                # Unknown durability must remain a failure.
+                                pass
+                        if not committed:
+                            raise EventPersistenceError(
+                                f"event persistence failed for {events[index].type}: {exc}"
+                            ) from exc
                     self._persisted = index + 1
                     index += 1
             unpublished = events[self._published :]
@@ -104,7 +116,18 @@ class EventWriter:
             await self.flush()
         except EventPersistenceError:
             self.discard_unpersisted(keep=before_append)
-            raise
+            # flush may have persisted this draft, then failed on a later
+            # concurrently appended event. The caller's commit succeeded;
+            # publish its durable prefix and do not provoke a duplicate retry.
+            if self._persisted <= before_append or self._log.get(envelope.event_id) is None:
+                raise
+            async with self._lock:
+                events = list(self._log)
+                unpublished = events[self._published : self._persisted]
+                self._published = max(self._published, self._persisted)
+            if self._hub is not None:
+                for durable in unpublished:
+                    await self._hub.publish(durable)
         return envelope
 
     def discard_unpersisted(self, keep: int | None = None) -> None:
