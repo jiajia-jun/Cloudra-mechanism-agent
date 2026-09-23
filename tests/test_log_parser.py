@@ -13,6 +13,18 @@ FIXTURE = Path(__file__).parent / "fixtures" / "gaussian" / "water_opt_freq_g16.
 
 
 @pytest.mark.asyncio
+async def test_gaussian_energy_undoes_cclib_ev_conversion():
+    result = await LogParser().tool_call(
+        LogParser_input_schema(log_path=str(FIXTURE), properties=["energy"]),
+        session=None,
+    )
+    assert result.is_success is True
+    assert result.scf_energy_hartree == pytest.approx(
+        -74.9659011806, rel=0, abs=1e-7,
+    )
+
+
+@pytest.mark.asyncio
 async def test_gaussian_thermochemistry_distinguishes_corrections_from_totals():
     result = await LogParser().tool_call(
         LogParser_input_schema(log_path=str(FIXTURE), properties=["thermochemistry"]),
@@ -81,6 +93,35 @@ async def test_orca_log_full_parse_matches_gaussian_field_semantics():
     assert result.mulliken_charges is not None
     # cclib 可用时频率仍走 cclib（文本回退不得改变既有行为，GH #16 回归）
     assert result.frequencies_cm == pytest.approx([289.50, 458.10, 1114.50, 1142.05])
+
+
+@pytest.mark.asyncio
+async def test_orca_energy_uses_final_output_when_cclib_conversion_factor_differs(tmp_path, monkeypatch):
+    """ORCA's final Hartree energy should survive cclib's eV conversion."""
+    import types
+
+    import cclib
+
+    log = tmp_path / "opt_freq.out"
+    log.write_text(
+        "                         * O   R   C   A *\n"
+        "FINAL SINGLE POINT ENERGY      -79.712000664250\n"
+        "                    *** THE OPTIMIZATION HAS CONVERGED ***\n"
+        "FINAL SINGLE POINT ENERGY      -79.712000771473\n"
+        "                             ****ORCA TERMINATED NORMALLY****\n",
+        encoding="utf-8",
+    )
+    # cclib 1.8.1 converts Hartree to eV using 27.21138505; Cloudra's
+    # eV-to-Hartree factor differs, so a round trip loses ~3.5e-6 Ha here.
+    cclib_data = types.SimpleNamespace(scfenergies=[-79.712000774 * 27.21138505])
+    monkeypatch.setattr(cclib.io, "ccread", lambda *_args, **_kwargs: cclib_data)
+
+    result = await LogParser().tool_call(
+        LogParser_input_schema(log_path=str(log), properties=["energy"]), session=None,
+    )
+
+    assert result.is_success is True
+    assert result.scf_energy_hartree == pytest.approx(-79.712000771473, abs=1e-10)
 
 
 @pytest.mark.asyncio

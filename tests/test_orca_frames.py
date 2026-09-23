@@ -13,6 +13,14 @@ ORCA_FIXTURES = Path(__file__).parent / "fixtures" / "orca"
 GAUSSIAN_FIXTURES = Path(__file__).parent / "fixtures" / "gaussian"
 
 
+def test_final_frame_energy_matches_orca_hartree_line():
+    log = ORCA_FIXTURES / "dvb_opt_orca42.out"
+    frames = orca_frames.extract_frames(str(log))
+    assert frames[-1].scf_energy_hartree == pytest.approx(
+        orca_frames.final_energy_hartree(log.read_text()), rel=0, abs=1e-7,
+    )
+
+
 def test_engine_detection_distinguishes_orca_from_gaussian():
     assert detect_qm_engine(str(ORCA_FIXTURES / "co2_freq_orca42.out")) == "orca"
     assert detect_qm_engine(str(ORCA_FIXTURES / "dvb_opt_orca42.out")) == "orca"

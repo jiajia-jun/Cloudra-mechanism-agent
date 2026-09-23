@@ -77,6 +77,9 @@ def test_snapshot_qm_log_water_minimum(tmp_path):
     assert snap.imaginary_frequencies is not None
     assert len(snap.imaginary_frequencies) == 0
     assert snap.final_energy_hartree is not None
+    assert snap.final_energy_hartree == pytest.approx(
+        -74.9659011806, rel=0, abs=1e-7,
+    )
 
 
 def test_validate_ts_mode():

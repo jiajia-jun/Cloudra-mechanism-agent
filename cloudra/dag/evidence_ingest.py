@@ -107,7 +107,9 @@ def _extract_qm_log(path: Path) -> tuple[bool, str | None, list[float] | None, l
                     vibfreqs = [float(x) for x in np.asarray(data.vibfreqs, dtype=float)]
                 if final_energy is None and hasattr(data, "scfenergies") and data.scfenergies is not None and len(data.scfenergies) > 0:
                     ev = float(data.scfenergies[-1])
-                    final_energy = ev / 27.211386245988
+                    from cloudra.tools.core.cclib_units import energy_ev_to_hartree
+
+                    final_energy = energy_ev_to_hartree(ev)
         except Exception as exc:
             logger.debug("cclib parsing skipped/failed for %s: %s", path, exc)
 

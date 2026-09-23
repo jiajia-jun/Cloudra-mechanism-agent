@@ -27,6 +27,14 @@ OPT_FREQ_LOG = FIXTURES / "water_opt_freq_g16.out"
 TS_ENERGY = -93.114020  # IRC 日志中 "Energies reported relative to the TS energy of"
 
 
+def test_final_frame_energy_matches_gaussian_hartree_line():
+    # cclib stores energies in eV using its own conversion constant.
+    frames = extract_frames(str(OPT_FREQ_LOG))
+    assert frames[-1].scf_energy_hartree == pytest.approx(
+        -74.9659011806, rel=0, abs=1e-7,
+    )
+
+
 # ---------------------------------------------------------------------------
 # detect_job_types
 # ---------------------------------------------------------------------------

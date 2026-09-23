@@ -26,8 +26,8 @@ import glob
 import os
 import re
 
+from cloudra.tools.core.cclib_units import energy_ev_to_hartree
 from cloudra.tools.core.gaussian_frames import (
-    EV_PER_HARTREE,
     FrameRecord,
     _as_float_list,
     _ccread_from_text,
@@ -474,7 +474,7 @@ def _extract_opt_frames(log_text: str) -> list[FrameRecord]:
         is_last = i == n - 1
         frames.append(FrameRecord(
             frame=i,
-            scf_energy_hartree=energies_ev[i] / EV_PER_HARTREE,
+            scf_energy_hartree=energy_ev_to_hartree(energies_ev[i]),
             frequencies_cm=freqs if (is_last and freqs) else [],
             xyz=_coords_to_xyz(atomnos, atomcoords[i], comment=f"opt step={i}"),
             converged=converged if is_last else None,
@@ -525,7 +525,7 @@ def _extract_scan_frames(log_text: str) -> list[FrameRecord]:
         frames.append(FrameRecord(
             frame=i,
             reaction_coordinate=rx,
-            scf_energy_hartree=energies_ev[i] / EV_PER_HARTREE,
+            scf_energy_hartree=energy_ev_to_hartree(energies_ev[i]),
             xyz=xyz,
         ))
     return frames
@@ -543,7 +543,7 @@ def _extract_sp_frames(log_text: str) -> list[FrameRecord]:
         return []
     energy_hartree = None
     if energies is not None and len(energies) > 0:
-        energy_hartree = _as_float_list(energies)[-1] / EV_PER_HARTREE
+        energy_hartree = energy_ev_to_hartree(_as_float_list(energies)[-1])
     return [FrameRecord(
         frame=0,
         scf_energy_hartree=energy_hartree,
