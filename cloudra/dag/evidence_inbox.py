@@ -412,7 +412,7 @@ class EvidenceInboxMixin:
         return result.get("normal_termination") is True
 
     def _passes_minimum_check(self, ref: GraphRef | None) -> bool:
-        """物种 geometry 绑定：必须是有频率数据支撑的驻点极小值（0 虚频）。"""
+        """物种 geometry / 边端点绑定：必须是有频率支撑的极小值（0 虚频）。"""
         if ref is None:
             return False
         try:
@@ -495,7 +495,7 @@ class EvidenceInboxMixin:
         缺失依赖由 requirements 层汇总。其他守卫包括理由
         （disagree/skip/not_applicable 必填）、工具成败；TS frequency
         另有 n_imag==1 检查（D7，不过 ⇒ saddle_check_failed，阶段保持
-        pending）；物种 geometry 另有 n_imag==0 检查（不过 ⇒
+        pending）；物种 geometry 和边的 endpoint_a/b 另有 n_imag==0 检查（不过 ⇒
         minimum_check_failed）。守卫拒绝不落地；通过后 attach ref + 更新
         stages，并由阶段重派生 evidence_level（D7）。
         """
@@ -575,13 +575,15 @@ class EvidenceInboxMixin:
                 )
             if (
                 verdict == "agree"
-                and target_type == "node"
-                and kind is StageKind.GEOMETRY
+                and (
+                    (target_type == "node" and kind is StageKind.GEOMETRY)
+                    or (target_type == "edge" and kind in {StageKind.ENDPOINT_A, StageKind.ENDPOINT_B})
+                )
                 and not self._passes_minimum_check(ref)
             ):
                 raise _Rejected(
                     "minimum_check_failed",
-                    "species geometry evidence must be a verified minimum "
+                    "species geometry and step endpoint evidence must be a verified minimum "
                     "(n_imag == 0); the stage stays pending",
                 )
             if (
@@ -906,13 +908,15 @@ class EvidenceInboxMixin:
                         "(and a first-order saddle if frequencies are present)",
                     )
                 if (
-                    target_type == "node"
-                    and kind is StageKind.GEOMETRY
+                    (
+                        (target_type == "node" and kind is StageKind.GEOMETRY)
+                        or (target_type == "edge" and kind in {StageKind.ENDPOINT_A, StageKind.ENDPOINT_B})
+                    )
                     and not self._passes_minimum_check(ref)
                 ):
                     raise _Rejected(
                         "minimum_check_failed",
-                        "species geometry evidence must be a verified minimum "
+                        "species geometry and step endpoint evidence must be a verified minimum "
                         "(n_imag == 0); the stage stays pending",
                     )
                 if (

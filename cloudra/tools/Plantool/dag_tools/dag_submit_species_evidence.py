@@ -114,7 +114,10 @@ class DagSubmitSpeciesEvidence(DagToolBase):
         check_freqs = freq_snap.frequencies if freq_snap and freq_snap.frequencies is not None else opt_snap.frequencies
         check_imag = freq_snap.imaginary_frequencies if freq_snap and freq_snap.imaginary_frequencies is not None else opt_snap.imaginary_frequencies
         val = validate_species_minimum(check_freqs, imaginary_freqs=check_imag)
-        if ctx.mode is OrchestrationMode.DAG_RECORD and not val.is_valid:
+        # A known imaginary mode is a hard contradiction for an endpoint
+        # minimum, including guided review. Missing frequency data may still
+        # be sent to the Supervisor in guided mode as unverified evidence.
+        if not val.is_valid and (ctx.mode is OrchestrationMode.DAG_RECORD or val.verified):
             kind = "was not verified" if not val.verified else "failed validation"
             return fail(
                 "dag_submit_species_evidence",

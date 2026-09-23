@@ -1,3 +1,6 @@
+import gzip
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -1340,6 +1343,130 @@ async def test_geometry_bind_requires_normal_termination(tmp_path):
     )
     assert not rejected.accepted
     assert rejected.rejection_code == "minimum_check_failed"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stage_kind", ["endpoint_a", "endpoint_b"])
+async def test_endpoint_bind_requires_verified_minimum(tmp_path, stage_kind):
+    from cloudra.dag.controller import DagController
+    from cloudra.dag.store import DagStore
+
+    agent, _session, db = await _seed_staged_step(
+        tmp_path,
+        f"endpoint-min-{stage_kind}",
+        {"is_success": True},
+        stage_kinds=(stage_kind,),
+        mode="dag_record",
+    )
+    store = DagStore(db)
+    controller = DagController(db, "s1", "dag_record", conversation_id=agent.conversation_id)
+    await controller.initialize()
+
+    for label, result in (
+        ("imag", {"normal_termination": True, "imaginary_frequencies": [-74.94]}),
+        ("unverified", {"normal_termination": True}),
+        ("unfinished", {"normal_termination": False, "frequencies": [108.0]}),
+    ):
+        ref = store.register_evidence(
+            "s1", "log_parser",
+            {"tool_call_id": f"tc-{label}", "result": {"is_success": True, **result}},
+        )
+        rejected = await controller.apply_stage_bind(
+            element_id="step1", stage_kind=stage_kind, ref=ref,
+            verdict="agree", tool_succeeded=True,
+        )
+        assert not rejected.accepted
+        assert rejected.rejection_code == "minimum_check_failed"
+
+    minimum = store.register_evidence(
+        "s1", "log_parser",
+        {
+            "tool_call_id": "tc-minimum",
+            "result": {
+                "is_success": True, "normal_termination": True,
+                "frequencies": [108.0, 250.0], "imaginary_frequencies": [],
+            },
+        },
+    )
+    accepted = await controller.apply_stage_bind(
+        element_id="step1", stage_kind=stage_kind, ref=minimum,
+        verdict="agree", tool_succeeded=True,
+    )
+    assert accepted.accepted
+
+
+@pytest.mark.asyncio
+async def test_batch_endpoint_bind_rejects_imaginary_frequency(tmp_path):
+    from cloudra.dag.controller import DagController
+
+    agent, _session, db = await _seed_staged_step(
+        tmp_path, "endpoint-min-batch", {"is_success": True},
+        stage_kinds=("endpoint_a",), mode="dag_record",
+    )
+    controller = DagController(db, "s1", "dag_record", conversation_id=agent.conversation_id)
+    await controller.initialize()
+    await controller.on_tool_finished(
+        "tc-endpoint-imag", "log_parser", {"log_path": "endpoint.log"},
+        {
+            "is_success": True, "normal_termination": True,
+            "frequencies": [-74.94, 234.57], "imaginary_frequencies": [-74.94],
+        },
+    )
+
+    rejected = await controller.bind_stage_attachments(
+        [{
+            "tool_call_id": "tc-endpoint-imag", "bind_target": "step1",
+            "stage_kind": "endpoint_a",
+        }]
+    )
+    assert not rejected["accepted"]
+    assert rejected["rejection_code"] == "minimum_check_failed"
+
+
+@pytest.mark.asyncio
+async def test_m8_endpoint_logs_reject_boat_saddle_and_accept_twist_boat(tmp_path):
+    from cloudra.dag.controller import DagController
+    from cloudra.dag.store import DagStore
+    from cloudra.tools.Chemtool.log_parser import LogParser, LogParser_input_schema
+
+    agent, _session, db = await _seed_staged_step(
+        tmp_path, "m8-real-endpoint", {"is_success": True},
+        stage_kinds=("endpoint_b",), mode="dag_record",
+    )
+    store = DagStore(db)
+    controller = DagController(db, "s1", "dag_record", conversation_id=agent.conversation_id)
+    await controller.initialize()
+    fixture_dir = Path(__file__).parent / "fixtures" / "dag_m8_endpoint"
+
+    for filename, accepted_expected in (
+        ("boat_optfreq.out", False),
+        ("twist_boat_tight_optfreq.out", True),
+    ):
+        log_path = tmp_path / filename
+        with gzip.open(fixture_dir / f"{filename}.gz", "rb") as fixture:
+            log_path.write_bytes(fixture.read())
+        parsed = await LogParser().tool_call(
+            LogParser_input_schema(
+                log_path=str(log_path),
+                properties=["frequencies", "convergence"],
+            ),
+            session=None,
+        )
+        assert parsed.is_success and parsed.normal_termination
+        ref = store.register_evidence(
+            "s1", "log_parser",
+            {"tool_call_id": filename, "result": parsed.model_dump(mode="json")},
+        )
+        result = await controller.apply_stage_bind(
+            element_id="step1", stage_kind="endpoint_b", ref=ref,
+            verdict="agree", tool_succeeded=True,
+        )
+        assert result.accepted is accepted_expected
+        if not accepted_expected:
+            assert parsed.imaginary_frequencies == pytest.approx([-74.94])
+            assert result.rejection_code == "minimum_check_failed"
+        else:
+            assert parsed.imaginary_frequencies == []
 
 
 @pytest.mark.asyncio

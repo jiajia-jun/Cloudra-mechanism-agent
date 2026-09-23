@@ -258,10 +258,11 @@ def validate_species_minimum(
             ),
         )
 
-    if imaginary_freqs is not None:
-        imag = imaginary_freqs
-    else:
-        imag = [f for f in (freqs or []) if f < 0]
+    # The full spectrum is authoritative when it contains negative modes.
+    # A stale or incomplete imaginary_frequencies side field must not turn a
+    # saddle into a verified minimum.
+    spectrum_imag = [f for f in (freqs or []) if f < 0]
+    imag = spectrum_imag if spectrum_imag else list(imaginary_freqs or [])
     n_imag = len(imag)
 
     if n_imag == 0:

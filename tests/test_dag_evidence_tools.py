@@ -125,6 +125,29 @@ async def test_submit_invalid_ts_rejected(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_guided_species_submission_rejects_known_imaginary_frequency(tmp_path):
+    agent, session, _db = _setup(tmp_path, "guided-imag-species", "dag_guided")
+    proposed = await call_dag_tool(
+        DagProposeMechanism, agent, session,
+        species=[{"name": "R"}, {"name": "P"}],
+        steps=[{"name": "step1", "source": "R", "target": "P"}],
+        rationale="Hypothesis",
+    )
+    assert proposed.is_success
+
+    ts_log = tmp_path / "saddle.out"
+    ts_log.write_text((FIXTURES_DIR / "xtb" / "ts_hess_xtb.out").read_text())
+    submitted = await call_dag_tool(
+        DagSubmitSpeciesEvidence, agent, session,
+        species_name="R", opt_file=str(ts_log),
+        description="Endpoint optimization with one imaginary frequency",
+    )
+
+    assert not submitted.is_success
+    assert "failed validation" in submitted.error
+
+
+@pytest.mark.asyncio
 async def test_guided_review_flow(tmp_path):
     agent, session, db = _setup(tmp_path, "guided-ev", "dag_guided")
     supervisor = make_supervisor(agent.conversation_id, workspace_dir=str(tmp_path))
