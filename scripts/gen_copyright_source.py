@@ -12,12 +12,13 @@
 
 import os
 import subprocess
+import tomllib
 import unicodedata
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 MATERIALS = ROOT / "软著申请材料"
-VERSION = "V2.0"
+VERSION = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
 LINES_PER_PAGE = 52
 PAGES_PER_FILE = 30
 SEP = "-" * 70
@@ -72,8 +73,9 @@ def latex_escape_line(line: str) -> str:
 
 def write_latex(path: Path, pages: list[list[tuple[str, int, str]]], start_page: int) -> None:
     parts: list[str] = []
-    parts.append(
+    header = (
         r"""% Cloudra 源程序清单（软著申请用），tectonic 直接编译
+\PassOptionsToPackage{fontset=none}{ctex}
 \documentclass[10pt,a4paper]{article}
 \usepackage{ctex}
 \usepackage[top=16mm,bottom=16mm,left=20mm,right=20mm]{geometry}
@@ -99,7 +101,7 @@ def write_latex(path: Path, pages: list[list[tuple[str, int, str]]], start_page:
 }
 \pagestyle{fancy}
 \fancyhf{}
-\fancyhead[L]{\small\ttfamily Cloudra V2.0 源程序}
+\fancyhead[L]{\small\ttfamily Cloudra __CLOUDRA_VERSION__ 源程序}
 \fancyhead[R]{\small\ttfamily 第 \thepage{} 页}
 \renewcommand{\headrulewidth}{0.4pt}
 \setlength{\headheight}{14pt}
@@ -108,7 +110,8 @@ def write_latex(path: Path, pages: list[list[tuple[str, int, str]]], start_page:
         + str(start_page)
         + """}
 """
-    )
+    ).replace("__CLOUDRA_VERSION__", VERSION)
+    parts.append(header)
     for page in pages:
         first = page[0][1]
         parts.append(f"\\begin{{lstlisting}}[firstnumber={first},numbers=left,numberstyle=\\tiny\\ttfamily,numbersep=5pt]\n")
