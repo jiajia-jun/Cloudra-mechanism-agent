@@ -7,7 +7,7 @@ How to get from "we know the step" to a validated first-order saddle point, with
 1. **`ts_prepare` process** — declare both endpoint SMILES + full-atom `atom_map` + `reaction_center`; it builds/maps/assembles/guesses/validates/submits/refines autonomously. `blocked` names the offending declaration; fix and `ts_resume`.
 2. **Mapped interpolation → NEB** — endpoints optimized at the same level, atom numbering aligned 1:1, all-atom map complete. `ts_guess mode=interpolate` with **IDPP** (distance-space interpolation; never Cartesian-linear, which overlaps atoms and kills SCF). For ORCA, `! NEB-TS` (CI-NEB coarse → eigenvector-following refine) is the reference workflow; **NEB is the ceiling — QST2/QST3 are banned** (§2).
 3. **Relaxed scan (1D or 2D)** — the workhorse when 1–2 internal coordinates describe the step. `ts_guess scan_prepare` (1 coordinate for ORCA, 1–2 for Gaussian; higher-dimensional or direction-sensitive cases belong to NEB instead). Scan peak → **fresh unconstrained** TS job. The peak is a seed.
-4. **Cheap-level pre-screening** — GFN2-xTB/MLIP path or scan first, DFT refine after; xTB energies never enter delivered numbers.
+4. **Cheap-level pre-screening** — use a MethodPolicy-permitted semiempirical method for exploratory paths or scans first (e.g. Gaussian PM7 where allowed, or ORCA GFN2-xTB where available and allowed); refine the candidate region at DFT. Low-level energies never enter delivered barriers.
 
 Endpoint discipline for every rung: both endpoints are genuine minima at the **same level** (opt + 0-imaginary freq), atoms numbered identically (copy one file and edit coordinates), complexes pre-oriented toward the reactive pose.
 
@@ -25,6 +25,7 @@ QST interpolates a single quadratic transit curve between endpoint geometries an
 
 ## 4. Scan practice (1D and 2D)
 
+- **Choose the level before submitting.** `ts_guess scan_prepare` defaults to B3LYP/def2-SVP for compatibility; do not let an omitted `method` turn a broad exploratory scan into a full DFT grid. Explicitly choose a permitted cheap method for the coarse scan. If the profile is discontinuous or qualitatively implausible, inspect geometries and the reaction coordinate; then use a short DFT scan only around the unresolved region if needed. Refine the selected seed with a fresh unconstrained DFT TS job and verify its frequency and connectivity. A low-level peak is not a final barrier.
 - Typical grid: 12–15 steps per coordinate; bond stretch 0.05–0.1 Å/step, dihedral 2–10°/step. Start from the equilibrium side, scan toward the forming/breaking direction.
 - SCF struggling near the barrier top is normal (`SlowConv`-class settings are acceptable there).
 - **When 2D is worth it**: two coordinates move concertedly (concerted double-bond shifts, proton transfer coupled to donor–acceptor distance), a 1D profile jumps/discontinues (another degree of freedom relaxed abruptly), or NEB initial paths keep collapsing. Cost is N² constrained optimizations (10×10 = 100) and results depend on scan direction/coordinate order — so confirm NEB cannot take the case before going beyond 2D. A diagonal alternative is a synchronous multi-coordinate scan (ORCA `Simul_Scan`), cost of one 1D scan but only the diagonal slice.

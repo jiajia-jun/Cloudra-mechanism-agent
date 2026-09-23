@@ -184,7 +184,7 @@ class TsGuess_input_schema(input_schema):
             "coupled coordinate (e.g. both the forming and the breaking bond) to see a barrier."
         )
     )
-    method: str = Field(default="b3lyp/def2svp", description="Method/basis, e.g. 'b3lyp/def2svp'. Honor the project/session MethodPolicy first (production often xtb + b3lyp); do not invent a freer functional unless policy/budget allows. For MLIP/external pass 'ExtOpt' (ORCA; pair with orca_blocks %method ProgExt) or 'external' (Gaussian; pair with extra_route='external=\"<prog>\"').")
+    method: str = Field(default="b3lyp/def2svp", description="Method/basis, e.g. 'b3lyp/def2svp'. For exploratory scan_prepare, explicitly choose a permitted cheap method first (Gaussian PM7 if allowed, or ORCA GFN2-xTB if available and allowed); the B3LYP default is not a scan recommendation. Use DFT for a narrow follow-up scan or unconstrained TS refinement. Honor the project/session MethodPolicy first (benchmark often allows xtb + b3lyp, not PM7). For MLIP/external pass 'ExtOpt' (ORCA; pair with orca_blocks %method ProgExt) or 'external' (Gaussian; pair with extra_route='external=\"<prog>\"').")
     charge: int = Field(default=0, description="Total charge.")
     spin: int = Field(default=1, description="Spin multiplicity (2S+1).")
     extra_route: str = Field(default="", description="Extra route keywords (e.g. 'scrf=(solvent=water)' for Gaussian, or the external-program keyword for method='external').")
@@ -1397,6 +1397,14 @@ class TsGuess(Tool):
             run_hint = (
                 f"Submit {user_input.output_path} with submit_compute_job (job_type='orca'); "
                 "afterwards parse the log with ts_guess mode='scan_parse' engine='orca' and extract a TS guess."
+            )
+
+        if "b3lyp" in method.lower():
+            run_hint += (
+                " This input uses DFT for every constrained scan point. Before submitting an exploratory"
+                " full-range scan, consider a MethodPolicy-permitted cheap method (Gaussian PM7 if allowed;"
+                " ORCA GFN2-xTB if available and allowed). Use DFT around the candidate region or for"
+                " unconstrained TS optimization and verification. The scan peak alone is not a validated TS."
             )
 
         out_dir = os.path.dirname(os.path.abspath(user_input.output_path))
