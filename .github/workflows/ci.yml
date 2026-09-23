@@ -55,10 +55,10 @@ jobs:
         run: |
           python -c "import cloudra; print(cloudra.__version__)"
           python -c "from cloudra import cli, runtime"
-          python -c "from cloudra.core import agent"
+          python -c "from cloudra.runtime_v2 import roles, tool_catalog, persistence"
           python -c "from cloudra.services import api_v2, session_store, nodes"
           python -c "from cloudra.persistence import database"
-          python -c "from cloudra.core import message_history"
+          python -c "from cloudra.base import tool_actor"
           python -c "from cloudra.base import session_class, tools_class"
           python -c "from cloudra.infra import config, flocks, logging_setup, llm_client"
           python -c "import cloudra.runtime_v2.schemas, cloudra.runtime_v2.core, cloudra.runtime_v2.commands, cloudra.runtime_v2.agent_host, cloudra.runtime_v2.apply, cloudra.runtime_v2.effects"
