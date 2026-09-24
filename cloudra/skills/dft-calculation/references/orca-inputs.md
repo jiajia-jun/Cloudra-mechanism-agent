@@ -97,6 +97,8 @@ For free energies, read `method-selection.md` §4: `log_parser` supports ORCA th
 
 `ts_guess scan_prepare` uses a different schema from `qm_input_writer`: `spin`, `nprocs`, combined `method`, and raw external `%method`. Its public atom indices are **1-based**; the generator converts to ORCA's **0-based** indices. The example scans atoms 1 and 9; choose real indices/range from the structure.
 
+**Index check before every scan:** `internal_coordinates` and benchmark atom maps use 1-based labels. Pass those labels unchanged to `ts_guess scan_prepare`. When writing `%geom Scan` yourself in `qm_input_writer.orca_blocks` or a native `.inp`, convert every atom label `i` to `i-1` (bond 1–6 → `Scan B 0 5`; dihedral 3–8–9–10 → `Scan D 2 7 8 9`). Check the element and position of each referenced atom in the exact input XYZ order, then compare the scan's starting coordinate with the intended bond, angle, or dihedral. A valid but shifted index can run to completion while scanning a different coordinate.
+
 ```json
 {
   "mode": "scan_prepare",

@@ -177,6 +177,8 @@ class TsGuess_input_schema(input_schema):
         description=(
             "scan_prepare: scan-coordinate list, one entry per scanned coordinate. "
             "Each entry: {\"coord_type\": \"bond\"|\"angle\"|\"dihedral\", \"atoms\": [2|3|4 atom indices, 1-based], "
+            "Use the 1-based indices from internal_coordinates here; for ORCA this tool converts them "
+            "to 0-based %geom Scan indices automatically, so do not subtract 1 yourself. "
             "\"scan_start\": optional start value (default the current geometry value), \"scan_end\": end value, "
             "\"scan_steps\": step count}. A single entry drives a 1D scan; a second entry makes a 2D coupled scan "
             "(Gaussian only — ORCA relaxed scans are 1D, so pass exactly one entry). "

@@ -31,6 +31,7 @@ Follow this execution loop to advance tasks:
 
 4. **Verify & Deliver**:
    - Verify key numeric findings by reading source files (`read`) or running the relevant parser (`log_parser`, `thermo_analysis`) before accepting a sub-agent's report.
+   - When reviewing an ORCA scan, check that its raw `%geom Scan` uses **0-based** atom indices, while benchmark atom maps, `internal_coordinates`, and `ts_guess scan_prepare` inputs use **1-based** indices. `scan_prepare` converts automatically; a hand-written ORCA scan must convert each index and match the intended bond, angle, or dihedral in the input XYZ order. A normally finished wrong-coordinate scan is invalid evidence.
    - Reject method-policy violations (functional/engine outside the session `MethodPolicy`) even if the numbers look fine.
    - When scientific judgment needs external grounding (protocol choice, whether a barrier is trustworthy, literature disagreement), delegate a researcher literature check — do not adjudicate chemistry from memory alone.
    - In DAG mode, self-check stage coverage (`dag_delivery_report`) before calling `stop`.
