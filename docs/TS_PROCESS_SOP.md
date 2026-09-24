@@ -40,7 +40,7 @@ ts.resume(run_id, adjusted)
 
 | 函数 | 语义 |
 |---|---|
-| `ts.prepare` | 起一次搜索。进程随后**自主**跑完：建结构 → 映射 → 组装 → 路径初猜 → 校验 → 提交 → 精修 → 频率/IRC 判定 |
+| `ts.prepare` | 起一次搜索。进程随后**自主**跑完：建结构 → 映射 → 组装 → 路径初猜 → TS 精修/频率/IRC → 两端 Opt/Freq → 连通性判定 |
 | `ts.resume` | 进程在**阻塞**处停下后，带上调整过的声明从当前位置继续 |
 
 成环过渡态的反应物初猜可在 `ts_prepare` 声明 `ring_order=[1,2,3,10]`，并用
@@ -49,7 +49,8 @@ ts.resume(run_id, adjusted)
 **0-based**。额外距离窗口可放在同一 `distance_filters` 列表。尚未共价成键的环边若
 没有显式窗口，就明示使用 `AssemblyParameters.reaction_center_window`（当前 1.8–2.6 Å）
 兜底；错误的显式窗口直接失败。引导仅用于生成反应物 TS 初猜，结果须通过全部窗口与
-拓扑检查，不能当作平衡构象或 TS 证据。`ts_resume` 可局部覆盖 `ring_order` /
+拓扑检查，不能当作平衡构象或 TS 证据。用作 IRC 参考端点前须无约束优化、
+确认优化收敛与零虚频，并核对优化后仍是声明的物种。`ts_resume` 可局部覆盖 `ring_order` /
 `distance_filters` 重建初猜；新旧 attempt 各自留档，已提交精修作业后不能改动几何引导。
 
 要点：
@@ -93,8 +94,8 @@ ts.resume(run_id, adjusted)
 | `guess` | 流程 | 路径初猜：优先 xTB `--path`（MTD，**需目标几何**），xTB 缺失退回 IDPP 插值；失败即阻塞并在消息里点名下一步（`ts_guess` 的 `scan_prepare` 是默认种子路线，`interpolate` 只在两端几何与全原子映射都可信时用），引擎崩溃留下的中间帧只作可发现性上报、不作初猜 | 多帧路径 + 随机种子 + `path_kind` |
 | `validate` | 流程 | 第 4 节的校验；失败则**阻塞** | 校验报告（进 process 记录） |
 | `submit` | 流程 | 经 `submit_compute_job` 提交精修作业（OptTS / NEB-TS） | `job_id` |
-| `refine` | 计算链 | 计算中 | 引擎日志、末帧几何 |
-| `verdict` | 流程（自动） | 频率判定 → IRC 双向 → 端点绑回声明的极小值 | 终态 + 证据引用 |
+| `refine` | 计算链 | TS Opt/Freq → IRC → 两端各自无约束 Opt/Freq | 引擎日志、末帧几何 |
+| `verdict` | 流程（自动） | TS 频率与 IRC 双向 → 两端优化收敛、零虚频和物种身份 → 区间证明 | 终态 + 证据引用 |
 
 ### 为什么 `map` 是必需的，不是形式
 
@@ -211,7 +212,7 @@ ts/<run_id>/
 
 | 终态 | 含义 |
 |---|---|
-| `verified` | 频率恰好 1 个虚频 + IRC 双向落到声明的极小值 |
+| `verified` | TS 频率恰好 1 个虚频 + IRC 双向收敛 + 两端 Opt 收敛且 Freq 零虚频、仍为声明物种 + IRC 端点相对这些极小值的区间证明 |
 | `candidate_only` | 拿到候选鞍点但证据不足（IRC 未收敛、频率缺失、端点不匹配） |
 | `search_failed` | 搜索没跑出来——**不构成"该反应不可能"的结论** |
 | `invalid_input` | 输入本身不成立（歧义未解、电荷/自旋矛盾） |
@@ -219,7 +220,8 @@ ts/<run_id>/
 ## 9. 有界推进
 
 必须有界：最大干预次数、最大机时、最大采样数。否则退化成无收敛保证的循环。
-上限来自声明的 `budget`；耗尽即落终态，不无限续。
+上限来自声明的 `budget`；耗尽即落终态，不无限续。计算作业完成通知引起的空调整
+`ts_resume` 不计入人工干预次数。
 
 ## 10. 本规格明确不做
 
@@ -236,8 +238,8 @@ ts/<run_id>/
 |---|---|
 | `declare` / `build` / `map` / `assemble` / `guess` / `validate` | **已实现**（测试 `tests/test_ts_process.py`） |
 | `submit` | **已实现**：写精修输入 → **复用**唯一一份准入校验 → 入库为 `ready`（归属随 `TsStartRequest` 盖章：项目 conversation_id + 发起 agent 的 session_id，缺归属 fail-loud 拒收） |
-| `refine` | **已实现**：作业序列 TS 优化 → 频率 → IRC，每步都等终态；**从不轮询**——未到终态时本阶段置 `waiting` 且**不推事件**，作业终态由既有 compute 通知路径投递，agent 收到后调 `ts_resume`（无需调整）继续 |
-| `verdict` | **已实现**：四态判定只读交付物。频率数据缺失 → `candidate_only`（UNVERIFIED）；虚频数 ≠ 1 → `candidate_only` 并说明是极小值还是高阶鞍点（且注明"不等于反应不可能"）；恰好 1 个虚频但 IRC 未双向收敛 → 仍 `candidate_only`；两者都满足才 `verified` |
+| `refine` | **已实现**：作业序列 TS 优化 → 频率 → IRC → 反应物 Opt/Freq → 产物 Opt/Freq，每步都等终态；**从不轮询**——未到终态时本阶段置 `waiting` 且**不推事件**，作业终态由既有 compute 通知路径投递，agent 收到后调 `ts_resume`（无需调整）继续 |
+| `verdict` | **已实现**：四态判定只读交付物。TS 非一虚频、IRC 未双向收敛、任一端点 Opt 未收敛或 Freq 非零虚频/缺失、优化后物种身份变化或区间证明失败，都只到 `candidate_only`；路径初猜绝不直接充当极小值 |
 
 `submit` 的准入与 `submit_compute_job` **共用** `services/compute_admission.admit_job`
 （唯一实现：输入存在、xtb 参数、节点/调度器解析、资源硬校验、申请量不得低于输入自述、
@@ -246,11 +248,13 @@ ts/<run_id>/
 `skills/dft-calculation/references/{orca,gaussian}-inputs.md`：ORCA 用 `{"opt":"ts"}` +
 `%geom Calc_Hess true`；**频率是后续独立作业**，因此归 `refine`，不和 TS 优化挤在一个作业里。
 
-`refine` 的三步输入都复用 `qm_input_writer` 的构建器，配方照
+`refine` 的输入都复用 `qm_input_writer` 的构建器，配方照
 `skills/dft-calculation/references/{orca,gaussian}-inputs.md`：频率是**独立作业**且几何取
 TS 优化末帧；IRC 复用**同一几何**的 Hessian——Hessian 分支由**证据**决定（频率作业真的落下了
 同名 `.hess` 就用 `InitHess read` + `Hess_Filename`，否则按 skill 用 `InitHess calc_numfreq`），
 不是偏好；Gaussian 走 `irc=(calcfc,maxpoints=80)`。
+两端从搜索种子分别提交无约束 Opt，Freq 输入取对应 Opt 日志的收敛末帧；
+终判时还须核对 Opt 日志几何、保存的频率源几何和 Freq 日志几何一致。
 
 已实现的部分含：内化校验（失败即阻塞并点名到原子）、只推阻塞/终态两类事件、四态终态、
 按声明预算的有界推进（干预次数耗尽即落 `search_failed` 并注明"搜索失败 ≠ 反应不可能"）、

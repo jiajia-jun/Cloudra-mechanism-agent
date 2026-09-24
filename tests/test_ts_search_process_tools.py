@@ -257,7 +257,7 @@ async def test_resume_after_a_compute_wake_needs_no_adjustment(tmp_path):
         session=None,
     )
     assert out.is_success is True, out.message
-    assert out.intervention_count == 1
+    assert out.intervention_count == 0
     # 作业还没到终态（测试里没有调度守护），所以仍是 waiting，没有伪造终态
     assert out.terminal is None
     assert out.waiting_for.startswith("job:")

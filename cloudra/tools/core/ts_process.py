@@ -16,9 +16,9 @@
   （由调用方注入 ``event_sink``，本模块自己不建存储）。
 - **阶段诚实**：尚未接线的阶段标 ``not_implemented`` 并**停下**，绝不假装跑过。
 
-**本模块当前实现到哪**：declare → build → map → assemble → guess → validate 已实现；
-``submit``/``refine``/``verdict`` 标为 ``not_implemented`` 并阻塞（需要复现
-``submit_compute_job`` 的提交校验，属下一阶段，不在这里重复一套）。
+**本模块当前实现到哪**：declare → build → map → assemble → guess → validate →
+submit → refine → verdict 已接线；两端的路径种子须另经同方法 Opt/Freq 验证为极小值，
+才能作为 IRC 连通性判断的参考几何。
 """
 
 from __future__ import annotations
@@ -147,9 +147,8 @@ class TsDeclaration(BaseModel):
     irc_log: str = Field(
         default="",
         description="已跑好的 IRC 日志路径（可选）。IRC 是「已验证」的第二道闸：频率只支持一阶鞍点，"
-                    "还需 IRC 双向落回声明的极小值才算 verified。**自动提交 IRC 尚未接线**（需要"
-                    "引擎 skill 里的原生 %irc 设置），所以这里允许声明一份已有的 IRC 日志；"
-                    "不声明就只能到 candidate_only，绝不升格",
+                    "还需 IRC 双向朝向两端经 Opt/Freq 证实的极小值才算 verified。流程优先使用"
+                    "自己提交的 IRC 作业；这里允许声明已有的 IRC 日志作为兜底",
     )
     atom_map: list[int] = Field(
         default_factory=list,
@@ -218,7 +217,7 @@ class TsProcessRecord(BaseModel):
     )
     job_steps: list["TsJobStep"] = Field(
         default_factory=list,
-        description="精修作业序列（TS 优化 → 频率），每步记 job_id/输入/状态",
+        description="精修作业序列（TS Opt/Freq → IRC → 两端 Opt/Freq），每步记 job_id/输入/状态",
     )
     #: 可进入证据集的小产物。**逐迭代帧永远不在这里**（SOP §7 第 2 条）
     evidence_candidates: list[str] = Field(default_factory=list)
@@ -349,6 +348,21 @@ def _declare(record: TsProcessRecord) -> TsProcessRecord:
         )
     if declaration.multiplicity < 1:
         problems.append(f"multiplicity must be >= 1 (2S+1), got {declaration.multiplicity}")
+    if declaration.product_geometry is not None:
+        from rdkit import Chem
+
+        reactant_graph = Chem.MolFromSmiles(declaration.reactant_smiles)
+        product_graph = Chem.MolFromSmiles(declaration.product_smiles)
+        if reactant_graph is None or product_graph is None:
+            problems.append("product_geometry requires parseable reactant and product SMILES")
+        else:
+            Chem.RemoveStereochemistry(reactant_graph)
+            Chem.RemoveStereochemistry(product_graph)
+            if Chem.MolToSmiles(reactant_graph) != Chem.MolToSmiles(product_graph):
+                problems.append(
+                    "product_geometry is only a rotation, so reactant and product SMILES "
+                    "must describe the same molecular graph"
+                )
     if problems:
         return _terminal(record, "declare", "invalid_input", "; ".join(problems))
     _record_stage(record, "declare", "done", f"declared method={declaration.method}")
@@ -1151,9 +1165,12 @@ def _submit(record: TsProcessRecord) -> TsProcessRecord:
 
 
 class TsJobStep(BaseModel):
-    """精修作业序列里的一步（TS 优化 → 频率）。"""
+    """精修作业序列里的一步（TS、IRC 与两端极小值验证）。"""
 
-    purpose: Literal["ts_opt", "frequency", "irc"]
+    purpose: Literal[
+        "ts_opt", "frequency", "irc", "reactant_opt", "reactant_frequency",
+        "product_opt", "product_frequency",
+    ]
     job_id: Optional[int] = None
     input_path: str = ""
     state: str = Field(default="", description="compute_jobs 里的状态；终态见 TERMINAL_STATES")
@@ -1404,8 +1421,105 @@ def _xyz_coords(path: str) -> str:
     )
 
 
+def _product_reordered_path(record: TsProcessRecord) -> str:
+    return os.path.join(
+        record.run_dir, PATH_STAGE_DIR,
+        f"guided_attempt_{record.guidance_attempt:04d}" if record.active_attempt_dir else "",
+        "product_reordered.xyz",
+    )
+
+
+def _endpoint_opt_frame(record: TsProcessRecord, step: TsJobStep) -> tuple[str, str]:
+    """Extract the final geometry only when the endpoint optimization converged."""
+    from cloudra.tools.core import gaussian_frames, orca_frames
+
+    log_path = _refinement_log_path(record, step)
+    if not os.path.isfile(log_path):
+        return "", f"endpoint optimization log is missing at {log_path}"
+    if record.declaration.engine == "orca":
+        log_text = Path(log_path).read_text(encoding="utf-8", errors="replace")
+        converged = orca_frames.opt_converged(log_text)
+        xyz = orca_frames.final_xyz_from_text(log_text)
+    else:
+        try:
+            frames = gaussian_frames.extract_frames(log_path)
+        except Exception as exc:
+            return "", f"endpoint optimization geometry is unreadable: {exc}"
+        converged = frames[-1].converged if frames else None
+        xyz = frames[-1].xyz if frames else ""
+    if converged is not True or not xyz.strip():
+        return "", (
+            "endpoint optimization did not prove convergence and a final geometry; "
+            "normal job termination alone is insufficient"
+        )
+    return xyz, ""
+
+
+def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
+                          role: Literal["reactant", "product"],
+                          task: Literal["opt", "frequency"]) -> tuple[str, str]:
+    """Write an unconstrained endpoint Opt or a Freq at its converged Opt frame."""
+    from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
+    from cloudra.tools.core.calculation_intent import (
+        inspect_input,
+        intent_from_writer,
+        validate_writer_request,
+    )
+
+    if task == "opt":
+        if role == "reactant":
+            built = _read_built_xyz(record, "reactant")
+            source = built[2] if built else ""
+        else:
+            source = _product_reordered_path(record)
+        if not source or not os.path.isfile(source):
+            return f"{role} search seed is missing; cannot optimize the endpoint", ""
+    else:
+        opt_step = next(
+            (step for step in reversed(record.job_steps) if step.purpose == f"{role}_opt"),
+            None,
+        )
+        if opt_step is None:
+            return f"{role} has no optimization job; refusing frequency on a raw seed", ""
+        xyz, error = _endpoint_opt_frame(record, opt_step)
+        if error:
+            return f"{role} {error}", ""
+        source = os.path.join(job_dir, "optimized.xyz")
+        atomic_write_text(source, xyz.rstrip() + "\n")
+
+    declaration = record.declaration
+    head, _sep, basis = declaration.method.strip().partition("/")
+    task_type = [{"opt": None}] if task == "opt" else [{"freq": None}]
+    name = f"{role}_{task}.{'inp' if declaration.engine == 'orca' else 'gjf'}"
+    input_path = os.path.join(job_dir, name)
+    request = QmInputWriter_input_schema(
+        engine=declaration.engine,
+        source_type="xyz_file", source_value=source,
+        method=head.strip(), basis_set=basis.strip(), task_type=task_type,
+        charge=declaration.charge, multiplicity=declaration.multiplicity,
+        title=f"{role} endpoint {task}: {declaration.reactant_smiles}",
+        output_dir=input_path,
+    )
+    conflicts = validate_writer_request(request.model_dump())
+    if conflicts:
+        return f"{role} {task} input refused: " + " | ".join(
+            f"[{item['code']}] {item['message']}" for item in conflicts
+        ), ""
+    content = (
+        QmInputWriter._build_orca_input(request, _xyz_coords(source))
+        if declaration.engine == "orca"
+        else QmInputWriter._build_gjf(request, _xyz_coords(source))
+    )
+    if inspect_input(content, engine=declaration.engine).tasks != intent_from_writer(
+        request.model_dump()
+    ).tasks:
+        return f"{role} {task} input task mismatch", ""
+    atomic_write_text(input_path, content)
+    return "", input_path
+
+
 def _refine(record: TsProcessRecord) -> TsProcessRecord:
-    """推进精修作业序列：TS 优化 → 频率。**从不轮询**。
+    """推进 TS Opt/Freq → IRC → 两端 Opt/Freq 作业序列。**从不轮询**。
 
     还没到终态时本阶段置 ``waiting`` 并**不推事件**：等计算不算"阻塞"，agent 不该被叫醒。
     作业终态由既有的 compute 通知路径投递，agent 收到后调 `ts_resume`（无需调整），
@@ -1508,6 +1622,57 @@ def _refine(record: TsProcessRecord) -> TsProcessRecord:
         )
         return record
 
+    if current.purpose in ("reactant_frequency", "product_frequency"):
+        role = "reactant" if current.purpose.startswith("reactant") else "product"
+        _minimum, reason = _validated_endpoint_minimum(record, role)
+        if _minimum is None:
+            return _terminal(
+                record, "verdict", "candidate_only",
+                f"{role} endpoint did not qualify as an optimized minimum: {reason}",
+            )
+
+    endpoint_next = {
+        "irc": ("reactant", "opt"),
+        "reactant_opt": ("reactant", "frequency"),
+        "reactant_frequency": ("product", "opt"),
+        "product_opt": ("product", "frequency"),
+    }.get(current.purpose)
+    if endpoint_next is not None:
+        role, task = endpoint_next
+        jobs_root = os.path.join(record.run_dir, JOBS_STAGE_DIR)
+        job_dir = os.path.join(jobs_root, f"job_{len(record.job_steps) + 1:04d}")
+        os.makedirs(job_dir, exist_ok=True)
+        error, input_path = _write_endpoint_input(record, job_dir, role, task)
+        if error:
+            if task == "frequency":
+                return _terminal(
+                    record, "verdict", "candidate_only",
+                    f"{role} endpoint optimization cannot support a minimum: {error}. "
+                    "Start a new TS run with a different endpoint seed if needed",
+                )
+            return _block(
+                record, "refine", "endpoint_input_failed", error,
+                needs=["method", "engine", f"{role}_smiles"],
+            )
+        job_type = "orca" if record.declaration.engine == "orca" else "gaussian"
+        purpose = f"{role}_{task}"
+        error, job_id = _submit_step(record, purpose, input_path, job_type)
+        if error:
+            return _block(
+                record, "refine", "compute_admission_rejected", error,
+                needs=["method", "engine", "budget"],
+            )
+        record.job_steps.append(TsJobStep(
+            purpose=purpose, job_id=job_id, input_path=input_path, state="ready",
+        ))
+        record.waiting_for = f"job:{job_id}"
+        _record_stage(
+            record, "refine", "waiting",
+            f"{role} endpoint {task} job {job_id} submitted; awaiting its compute notification",
+            [input_path],
+        )
+        return record
+
     _record_stage(
         record, "refine", "done",
         f"refinement sequence complete: {[step.purpose for step in record.job_steps]}",
@@ -1515,12 +1680,220 @@ def _refine(record: TsProcessRecord) -> TsProcessRecord:
     return record
 
 
+def _validated_endpoint_minimum(
+    record: TsProcessRecord, role: Literal["reactant", "product"],
+) -> tuple[tuple[list[str], list[list[float]]] | None, str]:
+    """Return only a converged, zero-imaginary QM endpoint reference geometry."""
+    import math
+
+    from cloudra.dag.evidence_ingest import snapshot_evidence_file, validate_species_minimum
+    from cloudra.tools.core import gaussian_frames, orca_frames
+    from cloudra.tools.core.irc_path import parse_xyz
+
+    opt_step = next(
+        (step for step in reversed(record.job_steps) if step.purpose == f"{role}_opt"), None,
+    )
+    freq_step = next(
+        (step for step in reversed(record.job_steps) if step.purpose == f"{role}_frequency"),
+        None,
+    )
+    if opt_step is None or freq_step is None:
+        return None, f"{role} minimum has no endpoint Opt and Freq job evidence"
+    if opt_step.state != "done" or freq_step.state != "done":
+        return None, f"{role} endpoint Opt and Freq jobs have not both completed"
+    opt_xyz, reason = _endpoint_opt_frame(record, opt_step)
+    if reason:
+        return None, f"{role} {reason}"
+    freq_log = _refinement_log_path(record, freq_step)
+    if not os.path.isfile(freq_log):
+        return None, f"{role} endpoint frequency log is missing"
+    snapshot = snapshot_evidence_file(freq_log, workspace_root=record.workspace_dir)
+    minimum = validate_species_minimum(
+        snapshot.frequencies, snapshot.imaginary_frequencies,
+    )
+    if not (minimum.verified and minimum.is_valid):
+        return None, f"{role} endpoint minimum is unverified: {minimum.message}"
+    xyz_path = os.path.join(os.path.dirname(freq_step.input_path), "optimized.xyz")
+    if not os.path.isfile(xyz_path):
+        return None, f"{role} optimized endpoint geometry is missing at {xyz_path}"
+    optimized = parse_xyz(opt_xyz)
+    saved = parse_xyz(Path(xyz_path).read_text(encoding="utf-8"))
+    if record.declaration.engine == "orca":
+        freq_xyz = orca_frames.final_xyz_from_text(
+            Path(freq_log).read_text(encoding="utf-8", errors="replace")
+        )
+    else:
+        try:
+            frames = gaussian_frames.extract_frames(freq_log)
+        except Exception as exc:
+            return None, f"{role} endpoint frequency geometry is unreadable: {exc}"
+        freq_xyz = frames[-1].xyz if frames else ""
+    measured = parse_xyz(freq_xyz) if freq_xyz else None
+
+    def same_geometry(left, right) -> bool:
+        return bool(
+            left is not None and right is not None
+            and left[0] == right[0]
+            and len(left[1]) == len(right[1])
+            and all(
+                math.dist(a, b) <= 1e-4
+                for a, b in zip(left[1], right[1], strict=True)
+            )
+        )
+
+    if not same_geometry(optimized, saved) or not same_geometry(optimized, measured):
+        return None, (
+            f"{role} endpoint geometry in the optimization log, saved frequency source, and frequency "
+            "log does not match; it cannot serve as a proven minimum reference"
+        )
+    identity_error = _endpoint_identity_error(record, role, optimized)
+    if identity_error:
+        return None, identity_error
+    return (optimized[0], optimized[1]), ""
+
+
+def _endpoint_identity_error(
+    record: TsProcessRecord, role: Literal["reactant", "product"],
+    optimized: tuple[list[str], list[list[float]]],
+) -> str:
+    """Require the optimized full-atom bond graph to remain the declared species."""
+    import math
+
+    from rdkit import Chem
+
+    from cloudra.tools.core.irc_path import (
+        COVALENT_RADII,
+        DISTANCE_CONNECTIVITY_FACTOR,
+        perceive_bonds,
+    )
+
+    source_role = (
+        "reactant" if role == "product" and record.declaration.product_geometry is not None
+        else role
+    )
+    built = _read_built_xyz(record, source_role)
+    if built is None or not built[3] or not os.path.isfile(built[3]):
+        return f"{role} declared endpoint MOL is missing; connectivity is unverified"
+    mol = Chem.MolFromMolBlock(Path(built[3]).read_text(encoding="utf-8"), removeHs=False)
+    if mol is None:
+        return f"{role} declared endpoint MOL cannot be parsed; connectivity is unverified"
+    expected_smiles = (
+        record.declaration.reactant_smiles if source_role == "reactant"
+        else record.declaration.product_smiles
+    )
+    declared = Chem.MolFromSmiles(expected_smiles)
+    if declared is None or Chem.MolToSmiles(Chem.RemoveHs(mol)) != Chem.MolToSmiles(declared):
+        return f"{role} built MOL does not match its declared SMILES; connectivity is unverified"
+    n = mol.GetNumAtoms()
+    if role == "product" and record.declaration.product_geometry is None:
+        remap = [index - 1 for index in record.declaration.atom_map]
+    else:
+        remap = list(range(n))
+    if sorted(remap) != list(range(n)) or len(optimized[0]) != n:
+        return f"{role} endpoint atom map or atom count is inconsistent; connectivity is unverified"
+    expected_symbols = [""] * n
+    for atom in mol.GetAtoms():
+        expected_symbols[remap[atom.GetIdx()]] = atom.GetSymbol()
+    if expected_symbols != optimized[0]:
+        return f"{role} optimized atom order differs from the declared species; connectivity is unverified"
+    expected_bonds = {
+        tuple(sorted((remap[bond.GetBeginAtomIdx()], remap[bond.GetEndAtomIdx()]))):
+        float(bond.GetBondTypeAsDouble())
+        for bond in mol.GetBonds()
+    }
+    fragments = Chem.GetMolFrags(mol)
+    if len(fragments) == 1:
+        actual_bonds, source = perceive_bonds(
+            optimized[0], optimized[1], record.declaration.charge,
+        )
+        if source != "rdDetermineBonds":
+            return f"{role} optimized connectivity could not be determined by RDKit"
+    else:
+        # A charged entrance complex often defeats whole-molecule bond perception:
+        # infer each declared fragment with its own formal charge, then screen
+        # cross-fragment pairs geometrically rather than calling an H-bond covalent.
+        actual_bonds = {}
+        fragment_ids: dict[int, int] = {}
+        fragment_charges: list[int] = []
+        ionic_metal_fragments: set[int] = set()
+        for fragment_number, original_indices in enumerate(fragments):
+            indices = [remap[index] for index in original_indices]
+            fragment_ids.update((index, fragment_number) for index in indices)
+            fragment_charge = sum(
+                mol.GetAtomWithIdx(index).GetFormalCharge() for index in original_indices
+            )
+            fragment_charges.append(fragment_charge)
+            if len(original_indices) == 1 and fragment_charge > 0 and (
+                mol.GetAtomWithIdx(original_indices[0]).GetSymbol()
+                in {"Li", "Na", "K", "Rb", "Cs", "Mg", "Ca", "Sr", "Ba"}
+            ):
+                ionic_metal_fragments.add(fragment_number)
+            fragment_bonds, source = perceive_bonds(
+                [optimized[0][index] for index in indices],
+                [optimized[1][index] for index in indices],
+                fragment_charge,
+            )
+            if source != "rdDetermineBonds":
+                return f"{role} optimized fragment connectivity could not be determined by RDKit"
+            actual_bonds.update({
+                tuple(sorted((indices[left], indices[right]))): order
+                for (left, right), order in fragment_bonds.items()
+            })
+        for left in range(n):
+            for right in range(left + 1, n):
+                if fragment_ids[left] == fragment_ids[right]:
+                    continue
+                left_fragment = fragment_ids[left]
+                right_fragment = fragment_ids[right]
+                # Monatomic metal counterions can sit well inside a covalent-radius
+                # cutoff while the declared species remains a disconnected salt.
+                if (
+                    left_fragment in ionic_metal_fragments
+                    and fragment_charges[right_fragment] < 0
+                ) or (
+                    right_fragment in ionic_metal_fragments
+                    and fragment_charges[left_fragment] < 0
+                ):
+                    continue
+                limit = DISTANCE_CONNECTIVITY_FACTOR * (
+                    COVALENT_RADII.get(optimized[0][left], 1.2)
+                    + COVALENT_RADII.get(optimized[0][right], 1.2)
+                )
+                if math.dist(optimized[1][left], optimized[1][right]) <= limit:
+                    return (
+                        f"{role} has an ambiguous close interfragment contact "
+                        f"{left + 1}-{right + 1}; connectivity cannot be verified"
+                    )
+
+    missing = set(expected_bonds) - set(actual_bonds)
+    extra = {
+        pair for pair in set(actual_bonds) - set(expected_bonds)
+        if math.dist(optimized[1][pair[0]], optimized[1][pair[1]]) <=
+        DISTANCE_CONNECTIVITY_FACTOR * (
+            COVALENT_RADII.get(optimized[0][pair[0]], 1.2)
+            + COVALENT_RADII.get(optimized[0][pair[1]], 1.2)
+        )
+    }
+    if missing or extra:
+        return (
+            f"{role} optimized connectivity differs from the declared species: "
+            f"missing bonds={sorted(missing)}, extra bonds={sorted(extra)}"
+        )
+    different_orders = [
+        pair for pair in expected_bonds.keys() & actual_bonds.keys()
+        if abs(expected_bonds[pair] - actual_bonds[pair]) > 0.1
+    ]
+    if different_orders:
+        return f"{role} optimized bond order differs from the declared species at {different_orders}"
+    return ""
+
+
 def _irc_interval_proof(record: TsProcessRecord, irc_log: str,
                         freq_step: "TsJobStep") -> tuple[bool, str]:
     """verified 的区间证明：每个 IRC 双侧端点几何上位于 TS 与对应声明极小值之间。
 
-    材料：TS 几何（频率作业旁的 ``optimized.xyz``）、两端声明极小值（build 产物与
-    ``path/product_reordered.xyz``）、IRC 双侧端点（复用 ts_guess 的引擎分发提取，
+    材料：TS 几何（频率作业旁的 ``optimized.xyz``）、两端经 Opt 收敛且 Freq
+    零虚频的极小值、IRC 双侧端点（复用 ts_guess 的引擎分发提取，
     原子对齐用 irc_path.align_atom_order）。证明本体是
     irc_path.assign_irc_endpoints（与 ts_guess strict / benchmark selfconsistency
     同一实现）。任何材料缺失、对齐不可判或证明不成立都返回 ``(False, 原因)``——
@@ -1544,17 +1917,12 @@ def _irc_interval_proof(record: TsProcessRecord, irc_log: str,
     ts_symbols = [symbol for symbol, _ in ts_atoms]
     ts_pos = [list(position) for _, position in ts_atoms]
 
-    reactant = _read_built_xyz(record, "reactant")
+    reactant, reason = _validated_endpoint_minimum(record, "reactant")
     if reactant is None:
-        return False, "the declared reactant minimum (the built endpoint geometry) is missing"
-    reordered_path = os.path.join(
-        record.run_dir, PATH_STAGE_DIR,
-        f"guided_attempt_{record.guidance_attempt:04d}" if record.active_attempt_dir else "",
-        "product_reordered.xyz",
-    )
-    if not os.path.isfile(reordered_path):
-        return False, f"the declared product minimum in TS atom order ({reordered_path}) is missing"
-    product_atoms = read_xyz_atoms(reordered_path)
+        return False, reason
+    product, reason = _validated_endpoint_minimum(record, "product")
+    if product is None:
+        return False, reason
 
     checks: list[str] = []
     irc_input = TsGuess_input_schema(
@@ -1577,9 +1945,7 @@ def _irc_interval_proof(record: TsProcessRecord, irc_log: str,
         ("IRC endpoint A", end_a[0], end_a[1]),
         ("IRC endpoint B", end_b[0], end_b[1]),
         ("reactant minimum", reactant[0], reactant[1]),
-        ("product minimum",
-         [symbol for symbol, _ in product_atoms],
-         [list(position) for _, position in product_atoms]),
+        ("product minimum", product[0], product[1]),
     ):
         result = align_atom_order(ts_symbols, ts_pos, list(symbols), positions)
         if result is None:
@@ -1614,8 +1980,8 @@ def _irc_interval_proof(record: TsProcessRecord, irc_log: str,
 
 
 def _verdict(record: TsProcessRecord) -> TsProcessRecord:
-    """判定四态终态：频率恰好 1 个虚频 **且** IRC 双向收敛 **且** 区间证明（每个
-    IRC 端点位于 TS 与对应声明极小值之间）通过才算 ``verified``。
+    """判定四态终态：TS 一虚频、IRC 双向收敛、两端 Opt/Freq 证实为极小值，
+    且各 IRC 端点位于 TS 与对应极小值之间，才算 ``verified``。
 
     判定只读**交付物**（频率作业的日志），缺失频率数据一律算"未验证"——
     "没做频率分析"绝不能被当成"已验证的鞍点"（与 `dag/evidence_ingest` 同一套三态语义）。
@@ -1819,7 +2185,18 @@ def resume(record: TsProcessRecord, adjustment: TsAdjustment,
     if geometry_changed and (record.job_id is not None or record.job_steps or record.waiting_for):
         raise ValueError("guidance cannot change after refinement was submitted in this run")
     record.declaration = declaration
-    record.intervention_count += 1
+    # A compute notification calls resume with an empty adjustment. It advances
+    # the persisted job sequence, but is not an agent intervention and must not
+    # consume the finite budget (one wakeup per submitted job).
+    compute_continuation = record.waiting_for and record.blocked is None and all(
+        getattr(adjustment, field) is None
+        for field in (
+            "reaction_center", "ring_order", "distance_filters", "atom_map",
+            "path_refinement_runs", "max_interventions",
+        )
+    ) and not adjustment.budget_override_note
+    if not compute_continuation:
+        record.intervention_count += 1
     record.blocked = None
     if geometry_changed:
         record.stage = "build"
