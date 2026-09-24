@@ -22,6 +22,7 @@ from cloudra.tools.core.complex_assembly import (
     MMFF_CONSTRAINT_FORCE_CONSTANT,
     AssemblyParameters,
 )
+from cloudra.tools.core.crest_runner import CrestRunRequest, run_crest
 from cloudra.tools.core.structure_artifacts import read_xyz_atoms
 from cloudra.tools.core.structure_builder import (
     BuildStrategy,
@@ -269,6 +270,8 @@ class GuidedSearchResult:
     manifest_path: str = ""
     closest_path: str = ""
     diagnostics: list[str] = field(default_factory=list)
+    constraint_targets: list[dict] = field(default_factory=list)
+    crest_run_dir: str = ""
 
 
 def _xyz_text(symbols: Sequence[str], positions: Sequence[Sequence[float]], comment: str) -> str:
@@ -316,6 +319,8 @@ def _save_guided_result(result: GuidedSearchResult, plan: GuidancePlan,
         "counts": result.counts,
         "closest_path": result.closest_path,
         "diagnostics": result.diagnostics,
+        "constraint_targets": result.constraint_targets,
+        "crest_run_dir": result.crest_run_dir,
     }, indent=2) + "\n")
     return result
 
@@ -526,6 +531,103 @@ def _multi_component_rdkit(
     return _save_guided_result(result, plan, output_dir)
 
 
+def _crest_guided(
+    prepared: PreparedStructure, plan: GuidancePlan, seed_result: GuidedSearchResult,
+    output_dir: str, charge: int, multiplicity: int, mode: str, timeout: int,
+) -> GuidedSearchResult:
+    if seed_result.status != "ok":
+        return seed_result
+    graph = load_resolved_graph(prepared)
+    seed_path = seed_result.candidates[0].xyz_path
+    seed_atoms = read_xyz_atoms(seed_path)
+    seed_positions = [position for _symbol, position in seed_atoms]
+    targets = []
+    constrained_pairs = set()
+    for window in plan.windows:
+        pair = window.atoms
+        constrained_pairs.add(pair)
+        targets.append({"atoms": [pair[0] + 1, pair[1] + 1],
+                        "target_ang": (window.min_ang + window.max_ang) / 2,
+                        "source": window.source})
+    for pair in plan.bonded_pairs:
+        if pair not in constrained_pairs:
+            targets.append({"atoms": [pair[0] + 1, pair[1] + 1],
+                            "target_ang": math.dist(seed_positions[pair[0]], seed_positions[pair[1]]),
+                            "source": "bonded_ring_edge"})
+    constraint_text = "$constrain\n  force constant=0.02\n" + "".join(
+        f"  distance: {target['atoms'][0]}, {target['atoms'][1]}, {target['target_ang']:.6f}\n"
+        for target in targets
+    ) + "$end\n"
+    with open(seed_path, encoding="utf-8") as handle:
+        seed_xyz = handle.read()
+    run = run_crest(CrestRunRequest(
+        xyz_text=seed_xyz, output_dir=os.path.join(output_dir, "crest"),
+        charge=charge, multiplicity=multiplicity, timeout=timeout,
+        runtype="nci" if mode == "nci" else "default",
+        noreftopo=len(prepared.components) > 1,
+        constraint_text=constraint_text, run_label="guided",
+    ))
+    result = GuidedSearchResult(
+        status="no_candidate", message="", prepared_path=seed_result.prepared_path,
+        diagnostics=list(run.diagnostics),
+        counts={"generated": len(run.conformers), "optimized": len(run.conformers),
+                "rejected": 0, "retained": 0},
+        constraint_targets=targets, crest_run_dir=run.run_dir,
+    )
+    if not run.scientific_success:
+        result.status = "engine_failed"
+        result.message = (
+            f"CREST guided search failed ({run.termination_reason}, {run.stage}); "
+            f"run artifacts: {run.run_dir}. " + _fallback_note(plan)
+        )
+        return _save_guided_result(result, plan, output_dir)
+    closest: tuple[float, object, dict[str, float]] | None = None
+    rejected: Counter[str] = Counter()
+    for frame in run.conformers:
+        passed, reasons, distances = qualify_geometry(
+            plan, graph, frame.symbols, frame.positions,
+        )
+        if distances:
+            deviation = _max_window_deviation(plan, distances)
+            if closest is None or deviation < closest[0]:
+                closest = (deviation, frame, distances)
+        if not passed:
+            for reason in reasons:
+                rejected[reason.split(":", 1)[0]] += 1
+            continue
+        index = len(result.candidates)
+        xyz_path = os.path.join(output_dir, f"crest_guided_seed_{index:03d}.xyz")
+        mol_path = os.path.join(output_dir, f"crest_guided_seed_{index:03d}.mol")
+        atomic_write_text(xyz_path, _xyz_text(
+            frame.symbols, frame.positions, f"constrained CREST preorganization seed {index}",
+        ))
+        frame_mol = Chem.Mol(graph)
+        conf = Chem.Conformer(graph.GetNumAtoms())
+        for atom_index, position in enumerate(frame.positions):
+            conf.SetAtomPosition(atom_index, position)
+        frame_mol.RemoveAllConformers()
+        frame_mol.AddConformer(conf)
+        atomic_write_text(mol_path, Chem.MolToMolBlock(frame_mol))
+        result.candidates.append(GuidedCandidate(xyz_path, mol_path, distances, 0.0))
+    result.counts["retained"] = len(result.candidates)
+    result.counts["rejected"] = len(run.conformers) - len(result.candidates)
+    result.diagnostics.extend(f"{reason}: {count}" for reason, count in sorted(rejected.items()))
+    if closest is not None:
+        _, frame, distances = closest
+        result.closest_path = os.path.join(output_dir, "closest_crest_attempt.xyz")
+        atomic_write_text(result.closest_path, _xyz_text(
+            frame.symbols, frame.positions, "closest CREST guided attempt; not necessarily qualified",
+        ))
+        result.diagnostics.append(f"closest achieved distances: {distances}")
+    result.status = "ok" if result.candidates else "no_candidate"
+    result.message = (
+        f"{len(result.candidates)} qualified CREST preorganization seed(s). "
+        if result.candidates else
+        f"No CREST frame satisfied all guided windows; closest: {result.closest_path or 'none'}. "
+    ) + _fallback_note(plan)
+    return _save_guided_result(result, plan, output_dir)
+
+
 def search_guided(
     *,
     structure: StructureInput,
@@ -544,8 +646,8 @@ def search_guided(
     """Build constrained TS seeds. Later adapters extend this core to complexes/CREST."""
     if num_confs < 1 or rmsd_threshold < 0 or timeout < 1:
         raise ValueError("num_confs and timeout must be positive; rmsd_threshold must be nonnegative")
-    if backend != "rdkit" or mode != "conformers":
-        raise ValueError(f"guided backend={backend!r}, mode={mode!r} is not implemented")
+    if mode not in ("conformers", "nci") or (backend == "rdkit" and mode != "conformers"):
+        raise ValueError(f"ring_order is unsupported with backend={backend!r}, mode={mode!r}")
     prepared = prepare_structure(PreparationRequest(
         structure=structure,
         output_dir=os.path.join(output_dir, "resolved_graph"),
@@ -561,9 +663,15 @@ def search_guided(
         )
     plan = resolve_guidance(prepared, ring_order, distance_filters)
     if len(prepared.components) != 1:
-        return _multi_component_rdkit(
+        seed_result = _multi_component_rdkit(
             structure, prepared, plan, output_dir, charge, multiplicity, random_seed,
         )
-    return _single_component_rdkit(
-        prepared, plan, output_dir, num_confs, random_seed, rmsd_threshold,
-    )
+    else:
+        seed_result = _single_component_rdkit(
+            prepared, plan, output_dir, num_confs, random_seed, rmsd_threshold,
+        )
+    if backend == "crest":
+        return _crest_guided(
+            prepared, plan, seed_result, output_dir, charge, multiplicity, mode, timeout,
+        )
+    return seed_result

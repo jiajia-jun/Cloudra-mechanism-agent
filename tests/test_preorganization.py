@@ -214,3 +214,75 @@ def test_multicomponent_fallback_is_visible_even_when_no_seed_qualifies(tmp_path
     assert "1-10" in result.message and "1.8" in result.message
     if result.status == "no_candidate":
         assert result.diagnostics
+
+
+@pytest.mark.parametrize("variant", ["ok", "wrong_symbol", "out_of_window", "engine_failed"])
+def test_guided_crest_keeps_constraints_and_qualifies_every_frame(tmp_path, monkeypatch, variant):
+    import cloudra.tools.core.preorganization as preorganization
+    from cloudra.tools.core.crest_runner import CrestConformer, CrestRunResult
+
+    observed = {}
+
+    def fake_run(request):
+        observed["constraint_text"] = request.constraint_text
+        observed["runtype"] = request.runtype
+        rows = [line.split() for line in request.xyz_text.splitlines()[2:]]
+        symbols = [row[0] for row in rows]
+        positions = [[float(value) for value in row[1:4]] for row in rows]
+        if variant == "wrong_symbol":
+            symbols[0] = "F"
+        if variant == "out_of_window":
+            positions[5][0] += 20.0
+        return CrestRunResult(
+            run_dir=str(tmp_path / "fake_crest"), scientific_success=variant != "engine_failed",
+            termination_reason="unknown_failure" if variant == "engine_failed" else "completed",
+            conformers=[CrestConformer(frame_index=0, energy_eh=-1.0,
+                                       positions=positions, symbols=symbols)],
+        )
+
+    monkeypatch.setattr(preorganization, "run_crest", fake_run)
+    result = search_guided(
+        structure=StructureInput(kind="smiles", value="CCCCCC"),
+        output_dir=str(tmp_path / variant), ring_order=[1, 2, 3, 4, 5, 6],
+        distance_filters=[
+            {"atoms": [1, 6], "min_ang": 3.5, "max_ang": 4.0},
+            {"atoms": [2, 5], "min_ang": 3.2, "max_ang": 4.0},
+        ], backend="crest", mode="conformers", num_confs=50,
+    )
+    assert observed["runtype"] == "default"
+    assert "force constant=0.02" in observed["constraint_text"]
+    assert "distance: 1, 6" in observed["constraint_text"]
+    assert any(row["source"] == "bonded_ring_edge" for row in result.constraint_targets)
+    assert result.status == ("ok" if variant == "ok" else
+                             "engine_failed" if variant == "engine_failed" else "no_candidate")
+    assert bool(result.candidates) is (variant == "ok")
+    assert Path(result.manifest_path).is_file()
+
+
+def test_guided_crest_nci_uses_qualified_multicomponent_seed(tmp_path, monkeypatch):
+    import cloudra.tools.core.preorganization as preorganization
+    from cloudra.tools.core.crest_runner import CrestConformer, CrestRunResult
+
+    def fake_run(request):
+        assert request.runtype == "nci" and request.noreftopo
+        assert "distance: 3, 10" in request.constraint_text
+        rows = [line.split() for line in request.xyz_text.splitlines()[2:]]
+        return CrestRunResult(
+            run_dir=str(tmp_path / "fake_nci"), scientific_success=True,
+            termination_reason="completed",
+            conformers=[CrestConformer(frame_index=0, energy_eh=-1.0,
+                                       symbols=[row[0] for row in rows],
+                                       positions=[[float(v) for v in row[1:4]] for row in rows])],
+        )
+
+    monkeypatch.setattr(preorganization, "run_crest", fake_run)
+    result = search_guided(
+        structure=StructureInput(kind="smiles", value="CCO.O"),
+        output_dir=str(tmp_path / "nci"), ring_order=[1, 2, 3, 10],
+        distance_filters=[
+            {"atoms": [3, 10], "min_ang": 2.5, "max_ang": 3.8},
+            {"atoms": [1, 10], "min_ang": 2.5, "max_ang": 3.8},
+            {"atoms": [2, 10], "min_ang": 2.5, "max_ang": 3.8},
+        ], backend="crest", mode="nci",
+    )
+    assert result.status == "ok" and result.candidates

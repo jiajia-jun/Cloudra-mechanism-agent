@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import os
-from typing import Any, Literal, Optional
+from typing import TYPE_CHECKING, Any, Literal, Optional
 
 from pydantic import Field
 
@@ -17,6 +19,9 @@ from cloudra.tools.core.structure_builder import (
     StructureInput,
     prepare_structure,
 )
+
+if TYPE_CHECKING:
+    from cloudra.tools.core.preorganization import GuidedSearchResult
 
 try:
     from rdkit import Chem
@@ -126,7 +131,10 @@ def _all_float(tokens: list[str]) -> bool:
 
 
 description = (
-    "Conformer-ensemble search: from SMILES or xyz/sdf, generate an ensemble and an energy/Boltzmann-population table, "
+    "Conformer-ensemble search: from SMILES or xyz/sdf, generate an ensemble and an energy/Boltzmann-population table. "
+    "Set ring_order to the atoms of a prospective cycle in order (1-based complete builder order); "
+    "with ring_order, distance_filters become soft generation windows and strict output filters. "
+    "Missing nonbonded cycle edges receive a visible 1.8–2.6 Å fallback; guided output is a constrained TS seed, not an equilibrium ensemble. "
     "with optional reaction-distance filters (distance_filters) to keep reactive conformers whose bonding-atom distances fall in a preorganization window. "
     "All coordinates go to ensemble files (confs.sdf / confs.xyz); context only gets the numeric table. "
     "The input structure is resolved by the shared structure builder. For a multi-component input (SMILES "
@@ -223,6 +231,12 @@ class ConformerSearch_input_schema(input_schema):
         description="Reaction-distance filters; each item like {\"atoms\": [i, j], \"min_ang\": 1.8, \"max_ang\": 2.6}, "
                     "1-based atom indices. Keeps conformers whose key atom-pair distances fall in the preorganization window (reactive conformers)."
     )
+    ring_order: list[int] = Field(
+        default_factory=list,
+        description="Prospective cycle atoms in order, 1-based in the builder's complete atom order including H. "
+                    "Nonbonded adjacent pairs receive explicit distance_filters windows or a visible default; "
+                    "extra distance_filters can be combined. Soft guidance during search, strict qualification on output.",
+    )
     output_dir: Optional[str] = Field(
         default=None,
         description="Ensemble output directory. Default: <stem>_confs/ next to input_path, else ./confs_output/. "
@@ -245,6 +259,10 @@ class ConformerSearch_output_schema(output_schema):
     )
     ensemble_path: str = Field(default="", description="Conformer-ensemble file path (confs.sdf or confs.xyz)")
     message: str = Field(default="", description="Status or error message")
+    seed_kind: str = Field(default="", description="constrained_preorganization for guided TS seeds")
+    effective_windows: list[dict] = Field(default_factory=list)
+    diagnostic_paths: list[str] = Field(default_factory=list)
+    constraint_manifest_path: str = ""
 
 
 class ConformerSearch(Tool):
@@ -314,6 +332,33 @@ class ConformerSearch(Tool):
                 + (f" Diagnostics: {details}" if details and details != prepared.message else "")
                 + f" Build artifacts: {prepared.artifact_path}"
             ),
+        )
+
+    @staticmethod
+    def _guided_output(result: GuidedSearchResult) -> ConformerSearch_output_schema:
+        rows = [
+            {"conf_id": index, "xyz_path": candidate.xyz_path,
+             "mol_path": candidate.mol_path, "achieved_distances": candidate.achieved_distances,
+             "passes_filters": True, "seed_kind": candidate.seed_kind}
+            for index, candidate in enumerate(result.candidates)
+        ]
+        lines = ["seed  xyz_path  achieved_distances"]
+        lines.extend(
+            f"{row['conf_id']}  {row['xyz_path']}  {row['achieved_distances']}"
+            for row in rows[:10]
+        )
+        diagnostic_paths = [path for path in (result.closest_path, result.crest_run_dir,
+                                               result.prepared_path) if path]
+        return ConformerSearch_output_schema(
+            is_success=result.status == "ok" and bool(rows),
+            table="\n".join(lines) if rows else "",
+            conformers=rows, counts=result.counts,
+            ensemble_path=rows[0]["xyz_path"] if rows else "",
+            message=result.message + (f" Diagnostics: {result.diagnostics}" if result.diagnostics else ""),
+            seed_kind="constrained_preorganization",
+            effective_windows=result.effective_windows,
+            diagnostic_paths=diagnostic_paths,
+            constraint_manifest_path=result.manifest_path,
         )
 
     @staticmethod
@@ -947,6 +992,11 @@ class ConformerSearch(Tool):
                 is_success=False,
                 message=f"multiplicity must be >= 1 (2S+1), got {user_input.multiplicity}.",
             )
+        if user_input.ring_order and user_input.mode not in ("conformers", "nci"):
+            return ConformerSearch_output_schema(
+                is_success=False,
+                message=f"ring_order is unsupported with mode={user_input.mode!r}; use conformers or CREST nci",
+            )
         if user_input.mode != "conformers" and user_input.backend != "crest":
             return ConformerSearch_output_schema(
                 is_success=False,
@@ -977,6 +1027,25 @@ class ConformerSearch(Tool):
         if user_input.input_path:
             user_input.input_path = resolve_tool_path(self, user_input.input_path)
         user_input.output_dir = resolve_tool_path(self, out_dir)
+
+        if user_input.ring_order:
+            from cloudra.tools.core.preorganization import search_guided
+
+            try:
+                guided = await asyncio.to_thread(
+                    search_guided,
+                    structure=self._structure_input(user_input),
+                    output_dir=user_input.output_dir,
+                    ring_order=user_input.ring_order,
+                    distance_filters=user_input.distance_filters,
+                    charge=user_input.charge, multiplicity=user_input.multiplicity,
+                    backend=user_input.backend, mode=user_input.mode,
+                    num_confs=user_input.num_confs, random_seed=user_input.random_seed,
+                    rmsd_threshold=user_input.rmsd_threshold, timeout=user_input.timeout,
+                )
+            except ValueError as exc:
+                return ConformerSearch_output_schema(is_success=False, message=f"Invalid ring_order/distance_filters: {exc}")
+            return self._guided_output(guided)
 
         # CREST / RDKit 都是同步 CPU/子进程；必须离开 UI 事件循环，否则 TUI 假死。
         if user_input.backend == "crest":

@@ -173,6 +173,47 @@ async def test_butane_smiles_ensemble(tool, mock_session, tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_guided_ring_search_returns_only_qualified_ts_seeds(tool, mock_session, tmp_path):
+    result = await tool.safe_call(ConformerSearch_input_schema(
+        smiles="CCCCCC", ring_order=[1, 2, 3, 4, 5, 6],
+        distance_filters=[
+            {"atoms": [1, 6], "min_ang": 3.5, "max_ang": 4.0},
+            {"atoms": [2, 5], "min_ang": 3.2, "max_ang": 4.0},
+        ],
+        output_dir=str(tmp_path / "guided"),
+    ), mock_session)
+    assert result.is_success
+    assert result.seed_kind == "constrained_preorganization"
+    assert result.conformers and all(row["passes_filters"] for row in result.conformers)
+    assert all("boltzmann_pct" not in row for row in result.conformers)
+    assert "Boltzmann" not in result.table
+    assert result.constraint_manifest_path
+    assert {row["source"] for row in result.effective_windows} == {"explicit"}
+
+
+@pytest.mark.asyncio
+async def test_guided_ring_fallback_is_visible(tool, mock_session, tmp_path):
+    result = await tool.safe_call(ConformerSearch_input_schema(
+        smiles="CCO.O", ring_order=[1, 2, 3, 10],
+        distance_filters=[{"atoms": [3, 10], "min_ang": 2.5, "max_ang": 3.8}],
+        output_dir=str(tmp_path / "fallback"),
+    ), mock_session)
+    assert any(row["source"] == "fallback" for row in result.effective_windows)
+    assert "1-10" in result.message
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["qcg", "protonate", "deprotonate", "tautomerize"])
+async def test_guided_ring_rejects_species_changing_modes(tool, mock_session, tmp_path, mode):
+    result = await tool.safe_call(ConformerSearch_input_schema(
+        smiles="CCC", ring_order=[1, 2, 3], backend="crest", mode=mode,
+        output_dir=str(tmp_path / mode),
+    ), mock_session)
+    assert not result.is_success
+    assert "ring_order" in result.message and "unsupported" in result.message
+
+
+@pytest.mark.asyncio
 async def test_distance_filters(tool, mock_session, tmp_path):
     """反应距离过滤：丁烷 C1-C4 距离区间应只让 anti（~3.9 Å）通过，gauche（~3.0 Å）被滤掉。"""
     result = await tool.safe_call(
