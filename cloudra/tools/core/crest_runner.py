@@ -141,6 +141,9 @@ class CrestRunRequest(BaseModel):
     method: str = Field(default="gfn2", description="GFN 方法，如 gfn2 / gfn1 / gfnff")
     quick: bool = Field(default=True, description="是否加 --quick（缩减设置的粗筛搜索）")
     extra_args: list[str] = Field(default_factory=list, description="追加到命令行的原生选项")
+    constraint_text: str = Field(
+        default="", description="内部生成的 xTB 距离约束文本；每次运行写入本地 constraints.inp",
+    )
     run_label: str = Field(default="run", description="运行目录前缀，便于按用途区分")
     noreftopo: bool = Field(
         default=False,
@@ -227,6 +230,8 @@ def build_crest_command(request: CrestRunRequest) -> list[str]:
     """
     if request.multiplicity < 1:
         raise ValueError(f"multiplicity must be >= 1 (2S+1), got {request.multiplicity}")
+    if request.constraint_text and request.runtype not in ("default", "nci"):
+        raise ValueError("constraint_text is only supported for default/nci CREST searches")
     method = f"-{request.method.lstrip('-')}"
     if request.runtype == "qcg":
         if not request.solvent_xyz_text.strip():
@@ -249,6 +254,8 @@ def build_crest_command(request: CrestRunRequest) -> list[str]:
         # 只关初始拓扑检查；绝不同时加 -notopo（那会关掉 CREGEN 的全部拓扑检查）
         command.append("--noreftopo")
     command += list(request.extra_args)
+    if request.constraint_text:
+        command += ["--cinp", "constraints.inp"]
     return command
 
 
@@ -472,6 +479,8 @@ def run_crest(request: CrestRunRequest) -> CrestRunResult:
     conformers_path = os.path.join(run_dir, product_name)
 
     atomic_write_text(input_path, request.xyz_text)
+    if request.constraint_text:
+        atomic_write_text(os.path.join(run_dir, "constraints.inp"), request.constraint_text)
     if request.runtype == "qcg":
         atomic_write_text(os.path.join(run_dir, "solvent.xyz"), request.solvent_xyz_text)
     atomic_write_text(command_path, " ".join(command) + "\n")

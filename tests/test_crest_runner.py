@@ -14,6 +14,7 @@ import os
 import shutil
 import stat
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -173,6 +174,23 @@ def test_command_passes_charge_and_uhf_explicitly(tmp_path):
     assert "-gfn2" in cmd and "--quick" in cmd
     with pytest.raises(ValueError):
         build_crest_command(_request(tmp_path, multiplicity=0))
+
+
+@pytest.mark.parametrize("mode", ["normal_ok", "search_failed"])
+def test_constraint_file_stays_with_crest_run(fake_crest, tmp_path, mode):
+    fake_crest(mode)
+    constraint_text = "$constrain\n  force constant=0.02\n  distance: 1, 2, 1.00\n$end\n"
+    result = run_crest(_request(tmp_path, constraint_text=constraint_text))
+    assert result.command[-2:] == ["--cinp", "constraints.inp"]
+    assert (Path(result.run_dir) / "constraints.inp").read_text() == constraint_text
+    assert "constraints.inp" in {artifact.name for artifact in result.artifacts}
+    assert result.scientific_success is (mode == "normal_ok")
+
+
+def test_constraints_reject_species_changing_crest_modes(tmp_path):
+    request = _request(tmp_path, runtype="protonate", constraint_text="$constrain\n$end\n")
+    with pytest.raises(ValueError, match="constraint_text"):
+        build_crest_command(request)
 
 
 # ---------------------------------------------------------------------------
