@@ -196,6 +196,16 @@ def _is_basis_token(tok: str) -> bool:
     return tok in _BASIS_ALIAS or bool(_BASIS_RE.match(tok))
 
 
+def _is_orca_aux_basis_token(tok: str) -> bool:
+    """ORCA's /J, /JK, and /C fitting sets are not the orbital basis.
+
+    Keep requiring a recognized basis-family prefix: an arbitrary method-like
+    token with a slash must remain a candidate and fail closed.
+    """
+    head, sep, suffix = tok.rpartition("/")
+    return bool(sep and _is_basis_token(head) and suffix in {"j", "jk", "jksmall", "c"})
+
+
 def _gaussian_route_cards(content: str) -> list[list[str]]:
     """全部路由卡的 token 序列（拼接跨行缠绕；覆盖 --Link1-- 多步输入的
     每一张卡）。每张卡 = 从 `#` 行到空行。"""
@@ -299,6 +309,8 @@ def _extract_orca_methods(content: str) -> list[str]:
                 has_extopt = True
                 continue  # 路由标记不是方法本身；真正的候选来自 ProgExt
             if t in _ORCA_JOB_TOKENS:
+                continue
+            if _is_orca_aux_basis_token(t):
                 continue
             if _is_basis_token(t):
                 bases.append(_norm_basis(t))

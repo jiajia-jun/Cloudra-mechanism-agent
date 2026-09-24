@@ -363,6 +363,30 @@ def test_orca_dashless_basis_spelling_pairs_with_functional():
     assert check_input_content(content, policy, filename="t.inp").allowed is True
 
 
+def test_orca_auxiliary_fit_basis_does_not_displace_orbital_basis():
+    from cloudra.runtime_v2.method_policy import _extract_orca_methods, check_input_content
+    from cloudra.runtime_v2.schemas import MethodPolicy
+
+    policy = MethodPolicy(allowed_methods=["b3lyp/def2svp"])
+    content = "! Opt B3LYP D3BJ def2-SVP RIJCOSX def2/J\n* xyz 0 1\nH 0 0 0\n*\n"
+    assert _extract_orca_methods(content) == ["b3lyp/def2svp"]
+    assert check_input_content(content, policy, filename="t.inp").allowed is True
+
+
+def test_orca_auxiliary_fit_basis_does_not_allow_missing_or_ambiguous_orbital_basis():
+    from cloudra.runtime_v2.method_policy import check_input_content
+    from cloudra.runtime_v2.schemas import MethodPolicy
+
+    policy = MethodPolicy(allowed_methods=["b3lyp/def2svp"])
+    for route in (
+        "! B3LYP def2/J",
+        "! B3LYP def2-SVP def2-TZVP def2/J",
+        "! PBE0 def2-SVP def2/J",
+    ):
+        content = route + "\n* xyz 0 1\nH 0 0 0\n*\n"
+        assert check_input_content(content, policy, filename="t.inp").allowed is False
+
+
 def test_orca_non_whitelisted_functional_still_blocked():
     """真正的非法泛函（pbe0）在修饰词扩充后仍被拦：白名单只放行 b3lyp/def2svp。"""
     from cloudra.runtime_v2.method_policy import check_input_content
