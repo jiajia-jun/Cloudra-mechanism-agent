@@ -261,6 +261,22 @@ _ORCA_SIMPLE_TASK_TOKENS = {
 }
 
 
+def _orca_has_geom_scan(text: str) -> bool:
+    """Find a native Scan directive inside an ORCA %geom block."""
+    in_geom = False
+    for raw_line in text.splitlines():
+        line = raw_line.split("#", 1)[0].strip()
+        geom_start = re.match(r"^%geom\b", line, re.I)
+        if geom_start:
+            in_geom = True
+            line = line[geom_start.end():].strip()
+        elif line.startswith(("%", "*")):
+            in_geom = False
+        if in_geom and re.match(r"^Scan\b", line, re.I):
+            return True
+    return False
+
+
 def _inspect_orca(text: str) -> CalculationIntent:
     tasks: set[str] = set()
     frequency_mode: str = "auto"
@@ -278,6 +294,11 @@ def _inspect_orca(text: str) -> CalculationIntent:
                     frequency_mode = "numeric"
                 elif token.lower() == "freq" and frequency_mode == "auto":
                     frequency_mode = "analytic"
+    if _orca_has_geom_scan(text):
+        # Opt enables the constrained optimization at each scan point; it is
+        # not a separate minimum optimization in this input.
+        tasks.discard("minimum_opt")
+        tasks.add("relaxed_scan")
     if not tasks and saw_simple_line:
         tasks.add("single_point")
 

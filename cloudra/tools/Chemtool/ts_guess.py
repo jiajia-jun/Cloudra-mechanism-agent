@@ -294,10 +294,22 @@ def _load_xyz(input_path: Optional[str], input_text: Optional[str]):
     if input_path:
         if not os.path.isfile(input_path):
             raise ValueError(f"Input file does not exist: {input_path}")
-        return ase.io.read(input_path, format="xyz")
-    if input_text:
-        return ase.io.read(StringIO(input_text), format="xyz")
-    raise ValueError("Must provide one of path or text")
+        source = input_path
+        reader = input_path
+    elif input_text:
+        source = "input_text"
+        reader = StringIO(input_text)
+    else:
+        raise ValueError("Must provide one of path or text")
+
+    try:
+        return ase.io.read(reader, format="xyz")
+    except Exception as exc:
+        raise ValueError(
+            f"Expected XYZ geometry in {source}: first line must be the atom count, "
+            "followed by a comment and atom coordinates. Convert a MOL file to XYZ "
+            "with format_converter before calling ts_guess."
+        ) from exc
 
 
 def _orca_keyword_method(method: str) -> str:

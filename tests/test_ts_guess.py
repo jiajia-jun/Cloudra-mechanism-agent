@@ -384,6 +384,33 @@ H  0.000000  -0.757200  -0.469200
 
 
 @pytest.mark.asyncio
+async def test_scan_prepare_rejects_mol_path_with_xyz_guidance(tmp_path, mock_session):
+    """A MOL input passed as scan geometry should fail with a format instruction."""
+    from rdkit import Chem
+    from rdkit.Chem import AllChem
+
+    mol = Chem.AddHs(Chem.MolFromSmiles("O"))
+    assert AllChem.EmbedMolecule(mol, randomSeed=1) == 0
+    source = tmp_path / "water.mol"
+    source.write_text(Chem.MolToMolBlock(mol), encoding="utf-8")
+    output = tmp_path / "scan.inp"
+
+    result = await _make_tool().safe_call(TsGuess_input_schema(
+        mode="scan_prepare",
+        input_path=str(source),
+        engine="orca",
+        scans=[{"coord_type": "bond", "atoms": [1, 2], "scan_end": 2.0, "scan_steps": 8}],
+        output_path=str(output),
+    ), mock_session)
+
+    assert not result.is_success
+    assert "XYZ" in result.message
+    assert "MOL" in result.message
+    assert "invalid literal" not in result.message
+    assert not output.exists()
+
+
+@pytest.mark.asyncio
 async def test_scan_prepare_gaussian(tmp_path, mock_session):
     """Gaussian gjf：modredundant 扫描块、路由、电荷自旋、步长符号正确，无 QST。"""
     tool = _make_tool()

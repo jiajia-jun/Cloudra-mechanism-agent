@@ -314,10 +314,46 @@ class QmInputWriter(Tool):
         if user_input.source_type == "smiles":
             return QmInputWriter._smiles_coordinates(user_input, artifact_dir)
 
-        # xyz_file / mol_file 统一通过 ase 读取（惰性导入，避免拖慢工具模块加载）
+        if user_input.source_type == "xyz_file":
+            import ase.io
+
+            try:
+                with open(user_input.source_value, encoding="utf-8") as source:
+                    first_line = source.readline().strip()
+                try:
+                    atom_count = int(first_line)
+                except ValueError as exc:
+                    raise ValueError("the first line must be a positive atom count") from exc
+                if atom_count <= 0:
+                    raise ValueError("the first line must be a positive atom count")
+                # ASE preserves extended XYZ property order and reads the final
+                # frame, as this tool did before. Pin the declared format so a
+                # misleading extension cannot select a different parser.
+                atoms = ase.io.read(user_input.source_value, format="extxyz")
+            except FileNotFoundError:
+                raise
+            except Exception as exc:
+                raise ValueError(
+                    f"XYZ source is malformed: {exc}. If it contains an MDL MOL block, "
+                    "use source_type='mol_file'."
+                ) from exc
+            return QmInputWriter._gaussian_style_lines(
+                zip(atoms.symbols, (list(p) for p in atoms.positions))
+            )
+
+        # MOL needs ASE's format reader; pin the format to the declared source
+        # type so a misleading extension never silently changes the parser.
         import ase.io
 
-        atoms = ase.io.read(user_input.source_value)
+        try:
+            atoms = ase.io.read(user_input.source_value, format="mol")
+        except FileNotFoundError:
+            raise
+        except Exception as exc:
+            raise ValueError(
+                f"MOL source is malformed: {user_input.source_value}: {exc}. "
+                "Provide an MDL MOL file or use source_type='xyz_file' for XYZ coordinates."
+            ) from exc
         return QmInputWriter._gaussian_style_lines(
             zip(atoms.symbols, (list(p) for p in atoms.positions))
         )
@@ -741,7 +777,7 @@ class QmInputWriter(Tool):
             return QmInputWriter_output_schema(
                 is_success=False,
                 input_path="",
-                message=f"Failed to generate the Gaussian input file: {str(e)}. "
+                message=f"Failed to generate the {user_input.engine.upper()} input file: {str(e)}. "
                         "Verify the coordinate source and output path, then retry."
             )
 

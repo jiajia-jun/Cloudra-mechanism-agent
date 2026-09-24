@@ -1,5 +1,7 @@
 """qm_input_writer: generate valid Gaussian input files."""
 
+import asyncio
+
 import pytest
 
 pytest.importorskip("rdkit", reason="qm_input_writer requires RDKit (chem extra)")
@@ -62,6 +64,150 @@ async def test_qm_input_writer_missing_source_file_fails(tmp_path):
     )
     assert result.is_success is False
     assert "not found" in result.message
+
+
+@pytest.mark.asyncio
+async def test_qm_input_writer_rejects_mol_content_declared_as_xyz(tmp_path):
+    """A MOL block mislabeled .xyz must give a usable format error, not a thread StopIteration."""
+    from rdkit import Chem
+    from rdkit.Chem import AllChem
+
+    mol = Chem.AddHs(Chem.MolFromSmiles("O"))
+    assert AllChem.EmbedMolecule(mol, randomSeed=1) == 0
+    source = tmp_path / "water.xyz"
+    source.write_text(Chem.MolToMolBlock(mol), encoding="utf-8")
+    output = tmp_path / "water.inp"
+
+    result = await asyncio.wait_for(QmInputWriter().tool_call(
+        QmInputWriter_input_schema(
+            engine="orca",
+            source_type="xyz_file",
+            source_value=str(source),
+            output_dir=str(output),
+        ),
+        session=None,
+    ), timeout=2)
+
+    assert not result.is_success
+    assert "XYZ" in result.message
+    assert "mol_file" in result.message
+    assert "StopIteration" not in result.message
+    assert not output.exists()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("xyz_text", [
+    "-1\ncomment\nH 0 0 0\n",
+    "1\ncomment\nQq 0 0 0\n",
+    "1\ncomment\nH 0 0 0\nH 0 0 1\n",
+])
+async def test_qm_input_writer_rejects_invalid_xyz_records(tmp_path, xyz_text):
+    source = tmp_path / "bad.xyz"
+    source.write_text(xyz_text, encoding="utf-8")
+    output = tmp_path / "bad.inp"
+
+    result = await asyncio.wait_for(QmInputWriter().tool_call(
+        QmInputWriter_input_schema(
+            engine="orca", source_type="xyz_file",
+            source_value=str(source), output_dir=str(output),
+        ),
+        session=None,
+    ), timeout=2)
+
+    assert not result.is_success
+    assert "XYZ" in result.message
+    assert not output.exists()
+
+
+@pytest.mark.asyncio
+async def test_qm_input_writer_preserves_extxyz_property_order(tmp_path):
+    source = tmp_path / "reordered.xyz"
+    source.write_text(
+        "2\nProperties=pos:R:3:species:S:1\n"
+        "0 0 0 H\n0 0 1 H\n",
+        encoding="utf-8",
+    )
+    output = tmp_path / "reordered.inp"
+
+    result = await QmInputWriter().tool_call(
+        QmInputWriter_input_schema(
+            engine="orca", source_type="xyz_file",
+            source_value=str(source), output_dir=str(output),
+        ),
+        session=None,
+    )
+
+    assert result.is_success, result.message
+    assert "H" in output.read_text(encoding="utf-8")
+
+
+@pytest.mark.asyncio
+async def test_qm_input_writer_uses_final_frame_of_xyz_trajectory(tmp_path):
+    source = tmp_path / "trajectory.xyz"
+    source.write_text(
+        "1\nfirst\nH 0 0 0\n1\nlast\nH 0 0 3\n", encoding="utf-8"
+    )
+    output = tmp_path / "last.inp"
+
+    result = await QmInputWriter().tool_call(
+        QmInputWriter_input_schema(
+            engine="orca", source_type="xyz_file",
+            source_value=str(source), output_dir=str(output),
+        ),
+        session=None,
+    )
+
+    assert result.is_success, result.message
+    assert "3.00000000" in output.read_text(encoding="utf-8")
+
+
+@pytest.mark.asyncio
+async def test_qm_input_writer_reports_invalid_mol_source_for_orca(tmp_path):
+    source = tmp_path / "empty.mol"
+    source.write_text("", encoding="utf-8")
+    output = tmp_path / "water.inp"
+
+    result = await asyncio.wait_for(QmInputWriter().tool_call(
+        QmInputWriter_input_schema(
+            engine="orca",
+            source_type="mol_file",
+            source_value=str(source),
+            output_dir=str(output),
+        ),
+        session=None,
+    ), timeout=2)
+
+    assert not result.is_success
+    assert "MOL" in result.message
+    assert "Gaussian" not in result.message
+    assert not output.exists()
+
+
+@pytest.mark.asyncio
+async def test_qm_input_writer_reads_valid_mol_source(tmp_path):
+    from rdkit import Chem
+    from rdkit.Chem import AllChem
+
+    mol = Chem.AddHs(Chem.MolFromSmiles("O"))
+    assert AllChem.EmbedMolecule(mol, randomSeed=1) == 0
+    source = tmp_path / "water.mol"
+    source.write_text(Chem.MolToMolBlock(mol), encoding="utf-8")
+    output = tmp_path / "water.inp"
+
+    result = await QmInputWriter().tool_call(
+        QmInputWriter_input_schema(
+            engine="orca",
+            source_type="mol_file",
+            source_value=str(source),
+            output_dir=str(output),
+        ),
+        session=None,
+    )
+
+    assert result.is_success, result.message
+    content = output.read_text(encoding="utf-8")
+    assert "* xyz 0 1" in content
+    assert sum(line.lstrip().startswith(("O ", "H ")) for line in content.splitlines()) == 3
 
 
 @pytest.mark.asyncio
@@ -188,6 +334,29 @@ async def test_qm_input_writer_orca_plain_opt_maps_keywords(tmp_path):
     content = out.read_text(encoding="utf-8")
     assert content.startswith("! Opt b3lyp def2-svp")
     assert "\n* xyz 0 1\n" in content
+
+
+@pytest.mark.asyncio
+async def test_qm_input_writer_orca_relaxed_scan_writes_native_geom_scan(tmp_path):
+    xyz = tmp_path / "water.xyz"
+    xyz.write_text(_WATER_XYZ, encoding="utf-8")
+    output = tmp_path / "water_scan.inp"
+
+    result = await QmInputWriter().tool_call(
+        QmInputWriter_input_schema(
+            engine="orca",
+            source_type="xyz_file",
+            source_value=str(xyz),
+            task_type=[{"scan": None}],
+            orca_blocks="%geom\n  Scan B 0 1 = 0.95, 1.20, 4 end\nend",
+            output_dir=str(output),
+        ),
+        session=None,
+    )
+
+    assert result.is_success, result.message
+    assert result.interpreted_intent["tasks"] == ["relaxed_scan"]
+    assert "! Opt " in output.read_text(encoding="utf-8")
 
 
 @pytest.mark.asyncio

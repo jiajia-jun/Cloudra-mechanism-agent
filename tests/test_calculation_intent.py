@@ -284,6 +284,16 @@ def test_inspect_orca_reads_constraints_and_charge():
     assert intent.certainty == "known"
 
 
+def test_inspect_orca_relaxed_scan_uses_geom_block_instead_of_opt_keyword():
+    text = (
+        "! Opt B3LYP def2-SVP\n"
+        "%geom\n  Scan B 0 1 = 2.0, 3.0, 10 end\nend\n"
+        "* xyz 0 1\nH 0 0 0\nH 0 0 2\n*\n"
+    )
+    intent = inspect_input(text, engine="orca")
+    assert intent.tasks == {"relaxed_scan"}
+
+
 def test_inspect_incomplete_input_is_not_guessed():
     intent = inspect_input("# nothing recognizable here\n", engine="orca")
     assert intent.tasks == set()
