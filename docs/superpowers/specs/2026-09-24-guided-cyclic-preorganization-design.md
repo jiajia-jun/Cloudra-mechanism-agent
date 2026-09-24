@@ -1,7 +1,7 @@
 # Guided Cyclic Preorganization — Design
 
 **Date:** 2026-09-24
-**Status:** Design for review; implementation has not started.
+**Status:** Approved for implementation planning; implementation has not started.
 
 ## Intent and success criteria
 
