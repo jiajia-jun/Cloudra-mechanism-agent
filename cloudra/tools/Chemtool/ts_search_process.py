@@ -55,8 +55,9 @@ class TsPrepare_input_schema(input_schema):
                     "atom for product atom k, EVERY atom including hydrogens; numbering follows "
                     "the built endpoint XYZs, not raw SMILES order) — without it the process "
                     "blocks at the map stage and returns the built XYZ numbering to write it "
-                    "against. Provide `reaction_center` (pairs of atoms that "
-                    "form/break) to get a reaction-guided assembly instead of an ordinary complex."
+                    "against. Provide `reaction_center` as 0-based pairs in the full built atom "
+                    "order (including hydrogens; unlike the 1-based `atom_map`) to guide assembly "
+                    "around the atoms that form/break bonds."
     )
     workspace_dir: Optional[str] = Field(
         default=None,

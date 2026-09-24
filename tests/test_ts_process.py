@@ -209,6 +209,76 @@ def test_missing_reaction_center_blocks_with_a_reason(tmp_path):
     assert record.blocked.needs == ["reaction_center"]
 
 
+def test_out_of_range_reaction_center_blocks_with_built_atom_numbering(tmp_path):
+    """A bad pair must return a resumable run, not escape as RDKit's atomId error."""
+    record = _start(
+        tmp_path,
+        reactant_smiles="[F-].N",
+        product_smiles="[F-].N",
+        reaction_center=[(0, 5)],
+        atom_map=[],
+    )
+
+    assert record.run_id == "ts_0001"
+    assert record.terminal is None
+    assert record.blocked is not None
+    assert record.blocked.stage == "build"
+    assert record.blocked.failure_class == "invalid_reaction_center"
+    assert record.blocked.needs == ["reaction_center"]
+    assert "0-based" in record.blocked.message
+    assert "0..4" in record.blocked.message
+    assert any("0=F" in detail and "4=H" in detail for detail in record.blocked.atom_details)
+    assert load_record(str(tmp_path), record.run_id).blocked == record.blocked
+
+    resumed = resume(record, TsAdjustment(reaction_center=[(0, 1)]))
+    assert resumed.run_id == record.run_id
+    assert resumed.blocked is not None
+    assert resumed.blocked.stage == "map"
+    assert resumed.blocked.needs == ["atom_map"]
+
+
+def test_m16_product_reaction_center_reports_its_five_built_atoms(tmp_path):
+    """The formic-acid case must name the bad field instead of leaking RDKit 5 < 5."""
+    record = _start(
+        tmp_path,
+        reactant_smiles="OC=O",
+        product_smiles="O=C=O.[H][H]",
+        charge=0,
+        reaction_center=[(4, 5)],
+        atom_map=[1, 2, 3, 4, 5],
+    )
+
+    assert record.blocked is not None
+    assert record.blocked.stage == "build"
+    assert record.blocked.failure_class == "invalid_reaction_center"
+    assert record.blocked.needs == ["reaction_center"]
+    assert "product" in record.blocked.message
+    assert "0..4" in record.blocked.message
+    artifact = json.loads(
+        (Path(record.run_dir) / "build" / "product" / "prepared_structure.json").read_text()
+    )
+    assert [atom["symbol"] for atom in artifact["atom_identities"]] == ["O", "C", "O", "H", "H"]
+    assert artifact["atom_identities"][3]["component_id"] == "frag1"
+
+
+def test_single_fragment_reaction_center_is_checked_after_atom_mapping(tmp_path):
+    """Single-fragment paths still reject a bad pair before using it as a coordinate."""
+    record = _start(
+        tmp_path,
+        reactant_smiles="OC=O",
+        product_smiles="OC=O",
+        charge=0,
+        reaction_center=[(4, 5)],
+        atom_map=[1, 2, 3, 4, 5],
+    )
+
+    assert record.blocked is not None
+    assert record.blocked.stage == "assemble"
+    assert record.blocked.failure_class == "invalid_reaction_center"
+    assert record.blocked.needs == ["reaction_center"]
+    assert "0..4" in record.blocked.message
+
+
 def test_charge_mismatch_is_invalid_input_not_a_block(tmp_path):
     """形式电荷与声明不符是**输入不成立**（终态），不是可以靠改组装绕过的阻塞。"""
     record = _start(tmp_path, charge=0)

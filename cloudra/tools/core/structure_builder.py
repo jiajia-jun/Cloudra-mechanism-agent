@@ -94,6 +94,7 @@ BuildStatus = Literal[
     "missing_parameters",  # 力场缺参数，无法优化该组分
     "optimization_failed", # 组分优化未收敛或抛异常
     "invalid_input",       # 输入无法解析
+    "invalid_reaction_center",  # 反应中心引用了构建后结构中不存在的原子
 ]
 
 EmbedStatus = Literal["embedded", "not_required", "failed"]
@@ -811,6 +812,37 @@ def prepare_structure(request: PreparationRequest) -> PreparedStructure:
         index_offset += build.component.atom_count
 
     trajectory_manifest = write_trajectory_manifest(out_dir, artifacts) if artifacts else ""
+
+    atom_count = len(identities)
+    invalid_pairs = [
+        (left, right) for left, right in request.strategy.reaction_center
+        if not (0 <= left < atom_count and 0 <= right < atom_count) or left == right
+    ]
+    # A reaction center is consumed by this builder only when it assembles multiple
+    # embedded fragments. Single-component reaction paths check it after endpoint mapping.
+    if invalid_pairs and len(components) > 1 and request.strategy.embed:
+        numbering = ", ".join(f"{atom.index}={atom.symbol}" for atom in identities)
+        return _finalize(
+            PreparedStructure(
+                status="invalid_reaction_center",
+                message=(
+                    f"reaction_center pair(s) {invalid_pairs} are invalid for the built structure "
+                    f"with {atom_count} atoms. Indices are 0-based in the full output atom order, "
+                    f"including hydrogens; valid indices are 0..{atom_count - 1}, and a pair must "
+                    "name two different atoms."
+                ),
+                components=components,
+                atom_identities=identities,
+                symbols=[atom.symbol for atom in identities],
+                component_paths=component_paths,
+                trajectory_ids=[artifact.trajectory_id for artifact in artifacts],
+                trajectory_manifest_path=trajectory_manifest,
+                total_charge=request.total_charge,
+                formal_charge_sum=formal_charge_sum,
+                diagnostics=[f"built atoms (0-based): {numbering}"],
+            ),
+            out_dir,
+        )
 
     diagnostics: list[str] = []
     assembly: Optional[AssemblyResult] = None

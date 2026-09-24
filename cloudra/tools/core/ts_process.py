@@ -125,7 +125,8 @@ class TsDeclaration(BaseModel):
     budget: TsBudget = Field(default_factory=TsBudget)
     reaction_center: list[tuple[int, int]] = Field(
         default_factory=list,
-        description="反应物/产物映射得到的反应中心原子对（完整结构的输出原子序号）；"
+        description="反应物/产物映射得到的反应中心原子对（完整结构的输出原子序号，"
+                    "0-based，包含所有氢；不同于 1-based 的 atom_map）；"
                     "给出即按反应模式组装",
     )
     product_geometry: Optional[ProductGeometry] = Field(
@@ -365,6 +366,13 @@ def _build(record: TsProcessRecord) -> TsProcessRecord:
             return _terminal(
                 record, "build", "invalid_input",
                 f"{role} ({smiles}): {prepared.message}",
+            )
+        if prepared.status == "invalid_reaction_center":
+            return _block(
+                record, "build", prepared.status,
+                f"{role} ({smiles}) could not be built: {prepared.message}",
+                atom_details=list(prepared.diagnostics),
+                needs=["reaction_center"],
             )
         if prepared.status != "ok":
             return _block(
@@ -607,9 +615,34 @@ def _assemble(record: TsProcessRecord) -> TsProcessRecord:
 
     prepared_path = os.path.join(record.run_dir, BUILD_STAGE_DIR, "reactant", "prepared_structure.json")
     components = 1
+    prepared_data: dict = {}
     if os.path.isfile(prepared_path):
         with open(prepared_path, encoding="utf-8") as handle:
-            components = len(_json.load(handle).get("components", []))
+            prepared_data = _json.load(handle)
+        components = len(prepared_data.get("components", []))
+    identities = prepared_data.get("atom_identities", [])
+    if record.declaration.reaction_center and not identities:
+        return _block(
+            record, "assemble", "missing_built_atom_numbering",
+            "the built reactant atom identities are missing; reaction_center cannot be checked "
+            "against a reliable atom order",
+            needs=["reactant_smiles"],
+        )
+    atom_count = len(identities)
+    invalid_pairs = [
+        (left, right) for left, right in record.declaration.reaction_center
+        if not (0 <= left < atom_count and 0 <= right < atom_count) or left == right
+    ]
+    if invalid_pairs and record.declaration.product_geometry is None:
+        numbering = ", ".join(f"{atom['index']}={atom['symbol']}" for atom in identities)
+        return _block(
+            record, "assemble", "invalid_reaction_center",
+            f"reaction_center pair(s) {invalid_pairs} are invalid for the built reactant with "
+            f"{atom_count} atoms. Use 0-based indices 0..{atom_count - 1} in the full output "
+            "atom order, including hydrogens; each pair must name two different atoms.",
+            atom_details=[f"reactant atoms (0-based): {numbering}"],
+            needs=["reaction_center"],
+        )
     if components <= 1 and record.declaration.product_geometry is not None:
         _record_stage(
             record, "assemble", "done",
