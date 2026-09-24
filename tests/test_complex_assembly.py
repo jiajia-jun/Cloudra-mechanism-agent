@@ -203,6 +203,7 @@ def test_guided_assembly_keeps_soft_windows_and_ignores_equilibrium_energy_cutof
     )
     assert result.status == "ok"
     assert result.candidates
+    assert len(result.candidates) > 3  # strict guidance is checked before heavy-atom deduplication
     assert all(candidate.constraint_released is False for candidate in result.candidates)
     qualified = 0
     for candidate in result.candidates:

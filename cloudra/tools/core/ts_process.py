@@ -364,7 +364,7 @@ def _build(record: TsProcessRecord) -> TsProcessRecord:
 
     declaration = record.declaration
     out_dir = os.path.join(record.run_dir, BUILD_STAGE_DIR)
-    if declaration.ring_order:
+    if declaration.ring_order and not record.active_attempt_dir:
         record.guidance_attempt += 1
         record.active_attempt_dir = os.path.join(
             out_dir, f"guided_attempt_{record.guidance_attempt:04d}",
@@ -411,7 +411,7 @@ def _build(record: TsProcessRecord) -> TsProcessRecord:
             continue
         target_dir = (
             os.path.join(record.active_attempt_dir, role)
-            if declaration.ring_order else os.path.join(out_dir, role)
+            if record.active_attempt_dir else os.path.join(out_dir, role)
         )
         prepared = prepare_structure(PreparationRequest(
             structure=StructureInput(kind="smiles", value=smiles),
@@ -420,7 +420,9 @@ def _build(record: TsProcessRecord) -> TsProcessRecord:
             multiplicity=declaration.multiplicity,
             strategy=BuildStrategy(
                 name="per_component", embed=True, optimize=True,
-                reaction_center=list(_active_reaction_center(record)),
+                # Ring-derived pairs index the reactant graph; product atom order is
+                # only established at the later map stage.
+                reaction_center=list(declaration.reaction_center),
             ),
         ))
         if prepared.status == "charge_mismatch":
@@ -810,7 +812,7 @@ def _guess(record: TsProcessRecord) -> TsProcessRecord:
 
     out_dir = (os.path.join(record.run_dir, PATH_STAGE_DIR,
                             f"guided_attempt_{record.guidance_attempt:04d}")
-               if record.declaration.ring_order else
+               if record.active_attempt_dir else
                os.path.join(record.run_dir, PATH_STAGE_DIR))
     record.current_ts_guess_path = ""
     os.makedirs(out_dir, exist_ok=True)
@@ -958,7 +960,7 @@ def _validate(record: TsProcessRecord) -> TsProcessRecord:
         Path(guess_dir).glob("xtb_path_runs/*")
     ) if os.path.isdir(guess_dir) else []
     if record.path_kind == "xtb_path" and (record.current_ts_guess_path or run_dirs):
-        ts_path = (record.current_ts_guess_path if record.declaration.ring_order else
+        ts_path = (record.current_ts_guess_path if record.active_attempt_dir else
                    os.path.join(str(run_dirs[-1]), "xtbpath_ts.xyz"))
         if os.path.isfile(ts_path):
             lines = Path(ts_path).read_text(encoding="utf-8").splitlines()
@@ -1020,7 +1022,7 @@ def _write_refinement_input(record: TsProcessRecord, job_dir: str) -> tuple[str,
 
     guess_dir = os.path.join(record.run_dir, PATH_STAGE_DIR)
     source = ""
-    if record.declaration.ring_order:
+    if record.active_attempt_dir:
         source = record.current_ts_guess_path
         if source and not os.path.isfile(source):
             source = ""
@@ -1547,7 +1549,7 @@ def _irc_interval_proof(record: TsProcessRecord, irc_log: str,
         return False, "the declared reactant minimum (the built endpoint geometry) is missing"
     reordered_path = os.path.join(
         record.run_dir, PATH_STAGE_DIR,
-        f"guided_attempt_{record.guidance_attempt:04d}" if record.declaration.ring_order else "",
+        f"guided_attempt_{record.guidance_attempt:04d}" if record.active_attempt_dir else "",
         "product_reordered.xyz",
     )
     if not os.path.isfile(reordered_path):
@@ -1826,7 +1828,11 @@ def resume(record: TsProcessRecord, adjustment: TsAdjustment,
             if STAGE_ORDER.index(entry.stage) < STAGE_ORDER.index("build")
         ]
         record.evidence_candidates = []
-        record.active_attempt_dir = ""
+        record.guidance_attempt += 1
+        record.active_attempt_dir = os.path.join(
+            record.run_dir, BUILD_STAGE_DIR,
+            f"guided_attempt_{record.guidance_attempt:04d}",
+        )
         record.current_seed_xyz_path = ""
         record.current_seed_mol_path = ""
         record.current_reactant_prepared_path = ""

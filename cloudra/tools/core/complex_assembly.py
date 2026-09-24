@@ -702,18 +702,30 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
         index for index in range(mol.GetNumAtoms())
         if mol.GetAtomWithIdx(index).GetAtomicNum() > 1
     ]
-    cluster_ids, cluster_representatives = _greedy_heavy_atom_clusters(
-        [positions for _candidate, positions in kept], heavy_indices, params.rmsd_threshold,
-    )
+    if guided_windows is not None:
+        # A lower-energy heavy-atom representative may fail an H-involving
+        # window while another member passes. The caller qualifies all frames
+        # first and clusters only the qualified subset.
+        cluster_ids = list(range(len(kept)))
+        cluster_representatives = list(range(len(kept)))
+    else:
+        cluster_ids, cluster_representatives = _greedy_heavy_atom_clusters(
+            [positions for _candidate, positions in kept], heavy_indices, params.rmsd_threshold,
+        )
     for index, cluster_id in enumerate(cluster_ids):
         kept[index][0].cluster_id = cluster_id
 
-    diagnostics.append(
-        f"{len(kept)} candidate(s) after "
-        f"{'guided relaxation' if guided_windows is not None else 'the energy window'} collapsed to "
-        f"{len(cluster_representatives)} cluster representative(s) at {params.rmsd_threshold} A "
-        "heavy-atom RMSD"
-    )
+    if guided_windows is not None:
+        diagnostics.append(
+            f"{len(kept)} guided placement(s) retained for strict qualification before "
+            f"{params.rmsd_threshold} A heavy-atom RMSD clustering"
+        )
+    else:
+        diagnostics.append(
+            f"{len(kept)} candidate(s) after the energy window collapsed to "
+            f"{len(cluster_representatives)} cluster representative(s) at {params.rmsd_threshold} A "
+            "heavy-atom RMSD"
+        )
 
     representatives = [kept[index][0] for index in cluster_representatives]
     paths: list[str] = []
@@ -728,6 +740,12 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
         candidate.mol_path = mol_path
         paths.append(xyz_path)
 
+    selection_detail = (
+        "guided relaxation; strict qualification and clustering follow"
+        if guided_windows is not None else
+        f"the {params.energy_window_kcal} kcal/mol energy window and "
+        f"{params.rmsd_threshold} A heavy-atom RMSD clustering"
+    )
     result = AssemblyResult(
         status="ok",
         message=(
@@ -735,8 +753,7 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
             f"({mode} mode). Candidates satisfy the {params.min_interfragment_distance} A inter-fragment "
             f"collision criterion, the dissociation limit ({params.max_interfragment_vdw_factor}x the "
             f"vdW contact distance), "
-            f"{'guided distance-window qualification' if guided_windows is not None else str(params.energy_window_kcal) + ' kcal/mol energy window'} and the "
-            f"{params.rmsd_threshold} A heavy-atom RMSD clustering."
+            f"{selection_detail}."
         ),
         parameters=params, mode=mode, components=len(components),
         sampled_placements=len(placements), collision_rejected=collision_rejected,

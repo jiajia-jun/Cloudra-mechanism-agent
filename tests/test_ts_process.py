@@ -100,6 +100,27 @@ def test_guided_ts_build_selects_reactant_seed_and_derives_reaction_center(tmp_p
     assert Path(record.guidance_manifest_path).is_file()
 
 
+def test_guided_ts_does_not_apply_reactant_forming_pairs_to_product(tmp_path, monkeypatch):
+    import cloudra.tools.core.ts_process as ts_process
+
+    original = ts_process.prepare_structure
+    product_centers = []
+
+    def capture(request):
+        if request.output_dir.endswith("/product"):
+            product_centers.append(request.strategy.reaction_center)
+        return original(request)
+
+    monkeypatch.setattr(ts_process, "prepare_structure", capture)
+    record = _start(
+        tmp_path, reactant_smiles="CCO.O", product_smiles="CCO.O", charge=0,
+        reaction_center=[], atom_map=[], ring_order=[1, 2, 3, 10],
+        distance_filters=_GUIDED_WINDOWS,
+    )
+    assert record.blocked.stage == "map"
+    assert product_centers == [[]]
+
+
 def test_guidance_correction_rebuilds_and_keeps_old_attempt(tmp_path):
     record = _start(
         tmp_path, reactant_smiles="CCO.O", product_smiles="CCO.O", charge=0,
@@ -150,20 +171,39 @@ def test_filter_only_ts_selects_built_candidate_without_guided_search(tmp_path, 
     assert Path(record.current_seed_xyz_path).is_file()
 
 
-def test_guided_ts_no_seed_blocks_with_declared_pair_and_manifest(tmp_path):
+def test_guided_ts_no_seed_blocks_with_declared_pair_and_manifest(tmp_path, monkeypatch):
+    import cloudra.tools.core.preorganization as preorganization
+    from cloudra.tools.core.preorganization import GuidedSearchResult
+
+    def no_seed(**_kwargs):
+        return GuidedSearchResult(
+            status="no_candidate", message="No candidate qualified for pair 3-10",
+            manifest_path=str(tmp_path / "guidance_manifest.json"),
+            closest_path=str(tmp_path / "closest_attempt.xyz"),
+            diagnostics=["closest achieved distances: {'3-10': 3.4}"],
+        )
+
+    monkeypatch.setattr(preorganization, "search_guided", no_seed)
     record = _start(
         tmp_path, reactant_smiles="CCO.O", product_smiles="CCO.O", charge=0,
         reaction_center=[], atom_map=[], ring_order=[1, 2, 3, 10],
-        distance_filters=[
-            {"atoms": [3, 10], "min_ang": 0.1, "max_ang": 0.2},
-            {"atoms": [1, 10], "min_ang": 2.5, "max_ang": 3.8},
-        ],
+        distance_filters=_GUIDED_WINDOWS,
     )
     assert record.blocked.stage == "build"
     assert record.blocked.failure_class == "guided_preorganization_failed"
     assert "distance_filters" in record.blocked.needs
     assert "3-10" in record.blocked.message
     assert "guidance_manifest.json" in record.blocked.message
+
+
+def test_guided_ts_impossible_window_fails_loud_before_sampling(tmp_path):
+    record = _start(
+        tmp_path, reactant_smiles="CCO.O", product_smiles="CCO.O", charge=0,
+        reaction_center=[], atom_map=[], ring_order=[1, 2, 3, 10],
+        distance_filters=[{"atoms": [3, 10], "min_ang": 0.1, "max_ang": 0.2}],
+    )
+    assert record.blocked.failure_class == "invalid_ring_guidance"
+    assert "3-10" in record.blocked.message
 
 
 def test_filter_only_ts_no_match_blocks_with_pair_distances(tmp_path):
@@ -216,6 +256,25 @@ def test_guided_resume_uses_new_path_attempt_for_reordered_product(tmp_path):
     assert new_path.is_file() and old_path.is_file()
     assert new_path != old_path
     assert updated.current_ts_guess_path == ""
+
+
+def test_removing_ring_guidance_still_isolates_new_attempt_from_old_ts(tmp_path):
+    from cloudra.tools.core.ts_process import _write_refinement_input
+
+    record = _start(
+        tmp_path, reactant_smiles="CCO.O", product_smiles="CCO.O", charge=0,
+        reaction_center=[], atom_map=[], ring_order=[1, 2, 3, 10],
+        distance_filters=_GUIDED_WINDOWS,
+    )
+    stale = Path(record.run_dir) / "path" / "xtb_path_runs" / "guess_0001"
+    stale.mkdir(parents=True)
+    (stale / "xtbpath_ts.xyz").write_text(Path(record.current_seed_xyz_path).read_text())
+    updated = resume(record, TsAdjustment(ring_order=[], distance_filters=[]))
+    assert updated.guidance_attempt == 2
+    assert "guided_attempt_0002" in updated.active_attempt_dir
+    assert "guided_attempt_0002" in updated.current_reactant_prepared_path
+    error, path = _write_refinement_input(updated, str(tmp_path / "job"))
+    assert "no TS candidate" in error and not path
 
 
 # ---------------------------------------------------------------------------

@@ -23,7 +23,8 @@ from cloudra.tools.core.complex_assembly import (
     AssemblyParameters,
 )
 from cloudra.tools.core.crest_runner import CrestRunRequest, run_crest
-from cloudra.tools.core.structure_artifacts import read_xyz_atoms
+from cloudra.tools.core.geometry import kabsch_rmsd
+from cloudra.tools.core.structure_artifacts import read_trajectory, read_xyz_atoms
 from cloudra.tools.core.structure_builder import (
     BuildStrategy,
     PreparationRequest,
@@ -302,6 +303,37 @@ def _fallback_note(plan: GuidancePlan) -> str:
     return "Fallback windows: " + ", ".join(rows) if rows else ""
 
 
+def _validated_bounds(prepared: PreparedStructure, plan: GuidancePlan):
+    """Reject incompatible windows before either RDKit embedding or placement sampling."""
+    graph = load_resolved_graph(prepared)
+    graph_distances = Chem.GetDistanceMatrix(graph)
+    # Chem.CombineMols preserves atom order but leaves the combined ring cache
+    # uninitialized; RDKit bounds construction requires it.
+    Chem.GetSymmSSSR(graph)
+    bounds = rdDistGeom.GetMoleculeBoundsMatrix(graph)
+    applied: list[str] = []
+    for window in plan.windows:
+        left, right = window.atoms
+        name = f"{left + 1}-{right + 1} ({window.source})"
+        if (graph_distances[left, right] > 2
+                and window.max_ang < AssemblyParameters().min_interfragment_distance):
+            raise _bad(
+                prepared,
+                f"guided window {name} cannot satisfy the nonbonded clash limit "
+                f"of {AssemblyParameters().min_interfragment_distance} Å",
+            )
+        bounds[left, right] = window.max_ang
+        bounds[right, left] = window.min_ang
+        if not DistanceGeometry.DoTriangleSmoothing(bounds):
+            raise _bad(
+                prepared,
+                f"incompatible guided bounds when adding atom pair {name} after {applied}; "
+                "no search was run",
+            )
+        applied.append(name)
+    return bounds
+
+
 def _save_guided_result(result: GuidedSearchResult, plan: GuidancePlan,
                         output_dir: str) -> GuidedSearchResult:
     os.makedirs(output_dir, exist_ok=True)
@@ -337,17 +369,7 @@ def _single_component_rdkit(
             prepared_path=prepared.artifact_path,
         ), plan, output_dir)
 
-    bounds = rdDistGeom.GetMoleculeBoundsMatrix(mol)
-    for window in plan.windows:
-        left, right = window.atoms
-        bounds[left, right] = window.max_ang
-        bounds[right, left] = window.min_ang
-    if not DistanceGeometry.DoTriangleSmoothing(bounds):
-        pairs = ", ".join(
-            f"{window.atoms[0] + 1}-{window.atoms[1] + 1}"
-            for window in plan.windows
-        )
-        raise ValueError(f"incompatible guided bounds for atom pairs {pairs}; no embedding was run")
+    bounds = _validated_bounds(prepared, plan)
 
     params = AllChem.ETKDGv3()
     params.randomSeed = random_seed
@@ -367,9 +389,19 @@ def _single_component_rdkit(
     symbols = [atom.GetSymbol() for atom in mol.GetAtoms()]
     mmff = AllChem.MMFFGetMoleculeProperties(mol, mmffVariant="MMFF94")
     accepted: list[tuple[int, float, dict[str, float]]] = []
-    closest: tuple[float, int, dict[str, float]] | None = None
+    closest: tuple[float, list[list[float]], dict[str, float]] | None = None
     rejected: Counter[str] = Counter()
+
+    def note_closest(conf_id: int) -> None:
+        nonlocal closest
+        positions = mol.GetConformer(conf_id).GetPositions().tolist()
+        measured = measure_windows(plan, positions)
+        deviation = _max_window_deviation(plan, measured)
+        if closest is None or deviation < closest[0]:
+            closest = (deviation, positions, measured)
+
     for conf_id in conf_ids:
+        note_closest(conf_id)
         force_field = AllChem.MMFFGetMoleculeForceField(
             mol, mmff, confId=conf_id, ignoreInterfragInteractions=True,
         )
@@ -382,15 +414,14 @@ def _single_component_rdkit(
                 MMFF_CONSTRAINT_FORCE_CONSTANT,
             )
         force_field.Initialize()
-        if force_field.Minimize(maxIts=2000) != 0:
+        converged = force_field.Minimize(maxIts=2000) == 0
+        note_closest(conf_id)
+        if not converged:
             rejected["optimization_not_converged"] += 1
             continue
         result.counts["optimized"] += 1
         positions = mol.GetConformer(conf_id).GetPositions()
         distances = measure_windows(plan, positions)
-        deviation = _max_window_deviation(plan, distances)
-        if closest is None or deviation < closest[0]:
-            closest = (deviation, conf_id, distances)
         passed, reasons, distances = qualify_geometry(plan, mol, symbols, positions)
         if not passed:
             for reason in reasons:
@@ -408,10 +439,10 @@ def _single_component_rdkit(
     result.counts["rejected"] = len(conf_ids) - len(accepted)
     result.diagnostics.extend(f"{reason}: {count}" for reason, count in sorted(rejected.items()))
     if closest is not None:
-        _, closest_id, closest_distances = closest
+        _, closest_positions, closest_distances = closest
         result.closest_path = os.path.join(output_dir, "closest_attempt.xyz")
         atomic_write_text(result.closest_path, _xyz_text(
-            symbols, mol.GetConformer(closest_id).GetPositions(),
+            symbols, closest_positions,
             "closest guided attempt; not necessarily qualified",
         ))
         result.diagnostics.append(f"closest achieved distances: {closest_distances}")
@@ -458,8 +489,10 @@ def _single_component_rdkit(
 def _multi_component_rdkit(
     structure: StructureInput, prepared: PreparedStructure, plan: GuidancePlan,
     output_dir: str, charge: int, multiplicity: int, random_seed: int,
+    rmsd_threshold: float,
 ) -> GuidedSearchResult:
     graph = load_resolved_graph(prepared)
+    _validated_bounds(prepared, plan)
     built = prepare_structure(PreparationRequest(
         structure=structure,
         output_dir=os.path.join(output_dir, "guided_assembly"),
@@ -486,11 +519,35 @@ def _multi_component_rdkit(
         result.message = f"guided component build failed: {built.message}. " + _fallback_note(plan)
         return _save_guided_result(result, plan, output_dir)
     if built.status == "assembly_failed":
-        result.message = f"guided assembly produced no usable seed: {built.message}. " + _fallback_note(plan)
+        if built.assembly and built.assembly.trajectory_manifest_path:
+            manifest = json.loads(Path(built.assembly.trajectory_manifest_path).read_text())
+            closest_frame: tuple[float, list[str], list[list[float]], dict[str, float]] | None = None
+            for row in manifest.get("trajectories", []):
+                trajectory = read_trajectory(row["json_path"])
+                for frame in (trajectory.initial_frame, trajectory.final_frame):
+                    distances = measure_windows(plan, frame.positions)
+                    deviation = _max_window_deviation(plan, distances)
+                    if closest_frame is None or deviation < closest_frame[0]:
+                        closest_frame = (deviation, frame.symbols, frame.positions, distances)
+            if closest_frame is not None:
+                _, symbols, positions, distances = closest_frame
+                result.closest_path = os.path.join(output_dir, "closest_attempt.xyz")
+                atomic_write_text(result.closest_path, _xyz_text(
+                    symbols, positions, "closest guided assembly attempt; not qualified",
+                ))
+                result.diagnostics.append(f"closest achieved distances: {distances}")
+        if not result.closest_path:
+            result.diagnostics.append("No assembly geometry was retained for distance measurement")
+        result.message = (
+            f"guided assembly produced no usable seed: {built.message}. "
+            f"Closest attempted geometry: {result.closest_path or 'none'}; "
+            f"diagnostics: {result.diagnostics}. " + _fallback_note(plan)
+        )
         return _save_guided_result(result, plan, output_dir)
 
     closest: tuple[float, str, list[tuple[str, list[float]]], dict[str, float]] | None = None
     rejected: Counter[str] = Counter()
+    qualified: list[tuple[str, list[list[float]], dict[str, float]]] = []
     for path in (built.assembly.candidate_paths if built.assembly else []):
         atoms = read_xyz_atoms(path)
         symbols = [symbol for symbol, _position in atoms]
@@ -504,14 +561,25 @@ def _multi_component_rdkit(
             for reason in reasons:
                 rejected[reason.split(":", 1)[0]] += 1
             continue
+        qualified.append((path, positions, distances))
+
+    heavy_indices = [atom.GetIdx() for atom in graph.GetAtoms() if atom.GetAtomicNum() > 1]
+    selected: list[list[list[float]]] = []
+    for path, positions, distances in qualified:
+        heavy_positions = [positions[index] for index in heavy_indices]
+        if any(kabsch_rmsd(heavy_positions, prior) <= rmsd_threshold for prior in selected):
+            continue
         mol_path = str(Path(path).with_suffix(".mol"))
         if not Path(mol_path).is_file():
             raise ValueError(f"guided assembly did not produce matching MOL file: {mol_path}")
+        selected.append(heavy_positions)
         result.candidates.append(GuidedCandidate(path, mol_path, distances, 0.0))
 
     result.counts["optimized"] = len(built.assembly.candidate_paths) if built.assembly else 0
     result.counts["retained"] = len(result.candidates)
     result.counts["rejected"] = result.counts["optimized"] - len(result.candidates)
+    result.counts["qualified"] = len(qualified)
+    result.counts["clustered_duplicates"] = len(qualified) - len(result.candidates)
     result.diagnostics.extend(f"{reason}: {count}" for reason, count in sorted(rejected.items()))
     if closest is not None:
         _, _path, atoms, distances = closest
@@ -665,6 +733,7 @@ def search_guided(
     if len(prepared.components) != 1:
         seed_result = _multi_component_rdkit(
             structure, prepared, plan, output_dir, charge, multiplicity, random_seed,
+            rmsd_threshold,
         )
     else:
         seed_result = _single_component_rdkit(

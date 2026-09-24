@@ -179,6 +179,31 @@ def test_impossible_guided_bounds_fail_before_embedding(tmp_path, monkeypatch):
         )
 
 
+@pytest.mark.parametrize("filter_row, pair", [
+    ({"atoms": [3, 10], "min_ang": 0.1, "max_ang": 0.2}, "3-10"),
+    ({"atoms": [1, 2], "min_ang": 5.0, "max_ang": 6.0}, "1-2"),
+])
+def test_multicomponent_impossible_windows_fail_before_assembly(tmp_path, monkeypatch, filter_row, pair):
+    import cloudra.tools.core.preorganization as preorganization
+
+    original = preorganization.prepare_structure
+    embedded = []
+
+    def capture(request):
+        if request.strategy.embed:
+            embedded.append(request)
+        return original(request)
+
+    monkeypatch.setattr(preorganization, "prepare_structure", capture)
+    with pytest.raises(ValueError, match=pair):
+        search_guided(
+            structure=StructureInput(kind="smiles", value="CCO.O"),
+            output_dir=str(tmp_path / pair), ring_order=[1, 2, 3, 10],
+            distance_filters=[filter_row],
+        )
+    assert embedded == []
+
+
 def test_guided_multicomponent_search_qualifies_all_ring_and_extra_distances(tmp_path):
     result = search_guided(
         structure=StructureInput(kind="smiles", value="CCO.O"),
@@ -200,6 +225,32 @@ def test_guided_multicomponent_search_qualifies_all_ring_and_extra_distances(tmp
     assert len(result.candidates[0].achieved_distances) == 3
 
 
+def test_guided_complex_qualifies_before_heavy_atom_clustering(tmp_path, monkeypatch):
+    import cloudra.tools.core.preorganization as preorganization
+
+    calls = 0
+
+    def only_fourth(plan, _graph, _symbols, positions):
+        nonlocal calls
+        calls += 1
+        distances = preorganization.measure_windows(plan, positions)
+        return calls == 4, ([] if calls == 4 else ["simulated topology rejection"]), distances
+
+    monkeypatch.setattr(preorganization, "qualify_geometry", only_fourth)
+    result = search_guided(
+        structure=StructureInput(kind="smiles", value="CCO.O"),
+        output_dir=str(tmp_path / "late_qualifier"), ring_order=[1, 2, 3, 10],
+        distance_filters=[
+            {"atoms": [3, 10], "min_ang": 2.5, "max_ang": 3.8},
+            {"atoms": [1, 10], "min_ang": 2.5, "max_ang": 3.8},
+            {"atoms": [2, 10], "min_ang": 2.5, "max_ang": 3.8},
+        ],
+    )
+    assert calls >= 4
+    assert result.status == "ok" and len(result.candidates) == 1
+    assert result.counts["qualified"] == 1
+
+
 def test_multicomponent_fallback_is_visible_even_when_no_seed_qualifies(tmp_path):
     result = search_guided(
         structure=StructureInput(kind="smiles", value="CCO.O"),
@@ -214,6 +265,60 @@ def test_multicomponent_fallback_is_visible_even_when_no_seed_qualifies(tmp_path
     assert "1-10" in result.message and "1.8" in result.message
     if result.status == "no_candidate":
         assert result.diagnostics
+
+
+def test_failed_multicomponent_search_keeps_closest_attempt_and_distances(tmp_path, monkeypatch):
+    import cloudra.tools.core.preorganization as preorganization
+
+    def reject_all(plan, _graph, _symbols, positions):
+        return False, ["simulated topology rejection"], preorganization.measure_windows(plan, positions)
+
+    monkeypatch.setattr(preorganization, "qualify_geometry", reject_all)
+    result = search_guided(
+        structure=StructureInput(kind="smiles", value="CCO.O"),
+        output_dir=str(tmp_path / "impossible_complex"),
+        ring_order=[1, 2, 3, 10],
+        distance_filters=[
+            {"atoms": [3, 10], "min_ang": 2.5, "max_ang": 3.8},
+            {"atoms": [1, 10], "min_ang": 2.5, "max_ang": 3.8},
+        ],
+    )
+    assert result.status == "no_candidate"
+    assert Path(result.closest_path).is_file()
+    assert any("closest achieved distances" in item and "3-10" in item
+               for item in result.diagnostics)
+
+
+def test_guided_assembly_failure_reads_closest_persisted_trajectory(tmp_path, monkeypatch):
+    import cloudra.tools.core.complex_assembly as assembly
+
+    def unconverged(mol, conf_id, writer, _parameters, **_kwargs):
+        writer.append(0, assembly._positions(mol, conf_id), 0.0, None)
+        return False, False, ""
+
+    monkeypatch.setattr(assembly, "_relax_with_trajectory", unconverged)
+    result = search_guided(
+        structure=StructureInput(kind="smiles", value="CCO.O"),
+        output_dir=str(tmp_path / "all_unconverged"), ring_order=[1, 2, 3, 10],
+        distance_filters=[{"atoms": [3, 10], "min_ang": 2.5, "max_ang": 3.8}],
+    )
+    assert result.status == "no_candidate"
+    assert Path(result.closest_path).is_file()
+    assert any("closest achieved distances" in item for item in result.diagnostics)
+
+
+def test_failed_single_component_relaxation_keeps_closest_embedding(tmp_path, monkeypatch):
+    from rdkit.Chem import AllChem
+
+    monkeypatch.setattr(AllChem, "MMFFGetMoleculeForceField", lambda *_a, **_k: None)
+    result = search_guided(
+        structure=StructureInput(kind="smiles", value="CCC"),
+        output_dir=str(tmp_path / "failed_relaxation"),
+        ring_order=[1, 2, 3], distance_filters=[], num_confs=6,
+    )
+    assert result.status == "no_candidate"
+    assert Path(result.closest_path).is_file()
+    assert any("closest achieved distances" in item for item in result.diagnostics)
 
 
 @pytest.mark.parametrize("variant", ["ok", "wrong_symbol", "out_of_window", "engine_failed"])
