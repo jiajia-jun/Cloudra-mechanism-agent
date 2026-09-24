@@ -152,6 +152,10 @@ class BuildStrategy(BaseModel):
                     "给出即按反应模式组装（反应中心引导 + 距离约束预优化 + 条件释放约束）；"
                     "不给则按普通复合物模式组装，不凭空指定成键中心",
     )
+    guided_windows: list[tuple[int, int, float, float]] = Field(
+        default_factory=list,
+        description="内部预组织距离窗口：(0-based i, j, min Å, max Å)；为空保持原组装行为",
+    )
 
 
 class PreparationRequest(BaseModel):
@@ -890,6 +894,7 @@ def prepare_structure(request: PreparationRequest) -> PreparedStructure:
                 output_dir=os.path.join(out_dir, "assembly"),
                 parameters=request.strategy.assembly,
                 reaction_center=list(request.strategy.reaction_center) or None,
+                guided_windows=list(request.strategy.guided_windows) or None,
                 seed=request.random_seed,
             )
             diagnostics.extend(assembly.diagnostics)

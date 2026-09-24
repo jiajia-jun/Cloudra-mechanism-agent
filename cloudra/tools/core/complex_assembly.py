@@ -329,7 +329,9 @@ def _mmff_force_field(mol, conf_id: int):
 
 def _relax_with_trajectory(mol, conf_id: int, writer: TrajectoryWriter,
                            parameters: AssemblyParameters, constraints: list[tuple[int, int]],
-                           release_when_in_window: Optional[tuple[float, float]]) -> tuple[bool, bool, str]:
+                           release_when_in_window: Optional[tuple[float, float]],
+                           guided_windows: Optional[list[tuple[int, int, float, float]]] = None,
+                           ) -> tuple[bool, bool, str]:
     """弛豫一个放置；可选加反应中心距离约束并按批准窗口条件释放。
 
     返回 ``(converged, constraint_released, failure)``。
@@ -344,10 +346,13 @@ def _relax_with_trajectory(mol, conf_id: int, writer: TrajectoryWriter,
         ff = _mmff_force_field(mol, conf_id)
         if ff is None:
             return False, False, "MMFF94 could not be constructed for the assembled complex"
-        for left, right in constraints:
+        windows = guided_windows if guided_windows is not None else [
+            (left, right, *release_when_in_window) for left, right in constraints
+        ]
+        for left, right, low, high in windows:
             ff.MMFFAddDistanceConstraint(
                 left, right, False,
-                float(release_when_in_window[0]), float(release_when_in_window[1]),
+                float(low), float(high),
                 MMFF_CONSTRAINT_FORCE_CONSTANT,
             )
         ff.Initialize()
@@ -358,7 +363,7 @@ def _relax_with_trajectory(mol, conf_id: int, writer: TrajectoryWriter,
         if code != 0:
             return False, False, ""
 
-        if constraints and release_when_in_window is not None:
+        if constraints and release_when_in_window is not None and guided_windows is None:
             low, high = release_when_in_window
             distances = [_distance(mol, conf_id, a, b) for a, b in constraints]
             if not all(low <= d <= high for d in distances):
@@ -448,6 +453,7 @@ def _greedy_heavy_atom_clusters(kept_positions, heavy_indices, threshold: float)
 
 def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParameters] = None,
              reaction_center: Optional[list[tuple[int, int]]] = None,
+             guided_windows: Optional[list[tuple[int, int, float, float]]] = None,
              seed: int = 42) -> AssemblyResult:
     """组装反应复合物/普通复合物。
 
@@ -471,7 +477,7 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
     groups = _component_atom_groups(components)
     mol = combine_components(components)
     conf_id = mol.GetConformer().GetId()
-    mode: Literal["reaction", "complex"] = "reaction" if reaction_center else "complex"
+    mode: Literal["reaction", "complex"] = "reaction" if reaction_center or guided_windows else "complex"
     diagnostics: list[str] = []
     if mode == "reaction":
         diagnostics.append(
@@ -497,12 +503,15 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
         if worst < params.min_interfragment_distance:
             collision_rejected += 1
             continue
-        if reaction_center:
+        if guided_windows or reaction_center:
             _set_positions(mol, conf_id, positions)
             deviations = []
-            for left, right in reaction_center:
+            windows = guided_windows if guided_windows is not None else [
+                (left, right, *params.reaction_center_window)
+                for left, right in reaction_center or []
+            ]
+            for left, right, low, high in windows:
                 distance = _distance(mol, conf_id, left, right)
-                low, high = params.reaction_center_window
                 if distance < low:
                     deviations.append(low - distance)
                 elif distance > high:
@@ -513,12 +522,12 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
         else:
             scored.append((0.0, placement_index, positions))
 
-    if reaction_center:
+    if guided_windows or reaction_center:
         scored.sort(key=lambda item: (item[0], item[1]))
         scored = scored[: params.reaction_center_candidates]
         diagnostics.append(
-            f"kept the best {len(scored)} of {len(placements)} sampled placements by reaction-center "
-            f"distance deviation from the approved window {params.reaction_center_window} Å"
+            f"kept the best {len(scored)} of {len(placements)} sampled placements by "
+            f"maximum distance-window deviation; windows={windows}"
         )
 
     artifacts: list[TrajectoryArtifact] = []
@@ -539,6 +548,7 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
             mol, conf_id, writer, params,
             constraints=list(reaction_center or []),
             release_when_in_window=(params.reaction_center_window if reaction_center else None),
+            guided_windows=guided_windows,
         )
         if failure:
             if writer.frame_count == 0:
@@ -548,11 +558,14 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
             artifacts.append(trajectory_artifact(record))
             diagnostics.append(f"placement {placement_index}: relaxation raised {failure}")
             continue
-        note = (
-            "reaction-center constraint "
-            + ("released and re-relaxed unconstrained" if released else "kept")
-            if reaction_center else "no reaction-center constraint (complex mode)"
-        )
+        if guided_windows is not None:
+            note = "guided distance constraints kept during relaxation"
+        elif reaction_center:
+            note = "reaction-center constraint " + (
+                "released and re-relaxed unconstrained" if released else "kept"
+            )
+        else:
+            note = "no reaction-center constraint (complex mode)"
         note += (
             f"; frames are phase boundaries only (maxIts={params.relaxation_steps} per phase), "
             "full per-iteration trajectories live in the per-component builds"
@@ -596,7 +609,7 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
             )
             continue
 
-        if reaction_center and not released:
+        if (reaction_center or guided_windows) and not released:
             # 约束未释放的候选 final_frame.energy 含约束惩罚项（k=100 的距离约束），与已释放
             # 候选的无约束能量不可直接相减比较；先用无约束力场对最终几何做单点重估再进排序。
             ff_free = _mmff_force_field(mol, conf_id)
@@ -621,7 +634,9 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
             f"{left}-{right}": _distance(mol, conf_id, left, right)
             for left, right in (reaction_center or [])
         }
-        low, high = params.reaction_center_window
+        checked_windows = guided_windows if guided_windows is not None else [
+            (left, right, *params.reaction_center_window) for left, right in reaction_center or []
+        ]
         candidates.append(AssemblyCandidate(
             candidate_id=len(candidates),
             placement_index=placement_index,
@@ -629,8 +644,10 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
             rel_energy_kcal=0.0,
             min_interfragment_distance=min_gap,
             reaction_center_distances=distances,
-            reaction_center_in_window=(all(low <= d <= high for d in distances.values())
-                                       if distances else None),
+            reaction_center_in_window=(all(
+                low <= _distance(mol, conf_id, left, right) <= high
+                for left, right, low, high in checked_windows
+            ) if checked_windows else None),
             constraint_released=released,
             cluster_id=-1,
             xyz_path="",
@@ -669,7 +686,7 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
     kept = [
         (candidate, positions)
         for candidate, positions in zip(candidates, candidate_positions)
-        if candidate.rel_energy_kcal <= params.energy_window_kcal
+        if guided_windows is not None or candidate.rel_energy_kcal <= params.energy_window_kcal
     ]
     dropped = len(candidates) - len(kept)
     if dropped:
@@ -692,7 +709,8 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
         kept[index][0].cluster_id = cluster_id
 
     diagnostics.append(
-        f"{len(kept)} candidate(s) after the energy window collapsed to "
+        f"{len(kept)} candidate(s) after "
+        f"{'guided relaxation' if guided_windows is not None else 'the energy window'} collapsed to "
         f"{len(cluster_representatives)} cluster representative(s) at {params.rmsd_threshold} A "
         "heavy-atom RMSD"
     )
@@ -716,7 +734,8 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
             f"{len(representatives)} complex candidate(s) from {len(placements)} sampled placements "
             f"({mode} mode). Candidates satisfy the {params.min_interfragment_distance} A inter-fragment "
             f"collision criterion, the dissociation limit ({params.max_interfragment_vdw_factor}x the "
-            f"vdW contact distance), the {params.energy_window_kcal} kcal/mol energy window and the "
+            f"vdW contact distance), "
+            f"{'guided distance-window qualification' if guided_windows is not None else str(params.energy_window_kcal) + ' kcal/mol energy window'} and the "
             f"{params.rmsd_threshold} A heavy-atom RMSD clustering."
         ),
         parameters=params, mode=mode, components=len(components),

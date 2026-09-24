@@ -177,3 +177,40 @@ def test_impossible_guided_bounds_fail_before_embedding(tmp_path, monkeypatch):
                 {"atoms": [1, 3], "min_ang": 1.8, "max_ang": 2.2},
             ],
         )
+
+
+def test_guided_multicomponent_search_qualifies_all_ring_and_extra_distances(tmp_path):
+    result = search_guided(
+        structure=StructureInput(kind="smiles", value="CCO.O"),
+        output_dir=str(tmp_path / "complex"),
+        ring_order=[1, 2, 3, 10],
+        distance_filters=[
+            {"atoms": [3, 10], "min_ang": 2.5, "max_ang": 3.8},
+            {"atoms": [10, 1], "min_ang": 2.5, "max_ang": 3.8},
+            {"atoms": [2, 10], "min_ang": 2.5, "max_ang": 3.8},
+        ],
+        random_seed=42,
+    )
+    assert result.status == "ok" and result.candidates
+    atoms = read_xyz_atoms(result.candidates[0].xyz_path)
+    positions = [position for _symbol, position in atoms]
+    assert 2.5 <= math.dist(positions[2], positions[9]) <= 3.8
+    assert 2.5 <= math.dist(positions[9], positions[0]) <= 3.8
+    assert 2.5 <= math.dist(positions[1], positions[9]) <= 3.8
+    assert len(result.candidates[0].achieved_distances) == 3
+
+
+def test_multicomponent_fallback_is_visible_even_when_no_seed_qualifies(tmp_path):
+    result = search_guided(
+        structure=StructureInput(kind="smiles", value="CCO.O"),
+        output_dir=str(tmp_path / "fallback"),
+        ring_order=[1, 2, 3, 10],
+        distance_filters=[{"atoms": [3, 10], "min_ang": 2.5, "max_ang": 3.8}],
+        random_seed=42,
+    )
+    assert result.status in ("ok", "no_candidate")
+    assert {"atoms": [1, 10], "min_ang": 1.8, "max_ang": 2.6,
+            "source": "fallback"} in result.effective_windows
+    assert "1-10" in result.message and "1.8" in result.message
+    if result.status == "no_candidate":
+        assert result.diagnostics

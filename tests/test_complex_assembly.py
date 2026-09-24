@@ -20,7 +20,7 @@ from cloudra.tools.core.complex_assembly import (  # noqa: E402
     assemble,
     combine_components,
 )
-from cloudra.tools.core.structure_artifacts import read_trajectory  # noqa: E402
+from cloudra.tools.core.structure_artifacts import read_trajectory, read_xyz_atoms  # noqa: E402
 
 
 def _embedded_mol(smiles: str, seed: int = 42):
@@ -193,6 +193,28 @@ def test_real_relaxation_reports_the_unconstrained_single_point_not_the_penalty(
     )
 
 
+def test_guided_assembly_keeps_soft_windows_and_ignores_equilibrium_energy_cutoff(tmp_path):
+    components = [(_embedded_mol("CCO"), 0), (_embedded_mol("O"), 0)]
+    windows = [(2, 9, 2.5, 3.8), (0, 9, 2.5, 3.8), (1, 9, 2.5, 3.8)]
+    result = assemble(
+        components=components, output_dir=str(tmp_path),
+        parameters=AssemblyParameters(energy_window_kcal=-1.0),
+        reaction_center=[(2, 9), (0, 9)], guided_windows=windows,
+    )
+    assert result.status == "ok"
+    assert result.candidates
+    assert all(candidate.constraint_released is False for candidate in result.candidates)
+    qualified = 0
+    for candidate in result.candidates:
+        atoms = read_xyz_atoms(candidate.xyz_path)
+        positions = [position for _, position in atoms]
+        if all(low <= float(np.linalg.norm(
+                    np.asarray(positions[left]) - np.asarray(positions[right])
+                )) <= high for left, right, low, high in windows):
+            qualified += 1
+    assert qualified > 0
+
+
 # ---------------------------------------------------------------------------
 # 重原子 RMSD 聚类：氢取向噪声不拆簇
 # ---------------------------------------------------------------------------
@@ -359,4 +381,3 @@ def test_unconstrained_relaxation_failure_is_caught(tmp_path, monkeypatch):
     )
     assert result.status == "no_candidate"
     assert result.unconverged_after_relaxation > 0
-

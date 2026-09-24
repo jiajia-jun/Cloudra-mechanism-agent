@@ -22,6 +22,7 @@ from cloudra.tools.core.complex_assembly import (
     MMFF_CONSTRAINT_FORCE_CONSTANT,
     AssemblyParameters,
 )
+from cloudra.tools.core.structure_artifacts import read_xyz_atoms
 from cloudra.tools.core.structure_builder import (
     BuildStrategy,
     PreparationRequest,
@@ -449,6 +450,82 @@ def _single_component_rdkit(
     return _save_guided_result(result, plan, output_dir)
 
 
+def _multi_component_rdkit(
+    structure: StructureInput, prepared: PreparedStructure, plan: GuidancePlan,
+    output_dir: str, charge: int, multiplicity: int, random_seed: int,
+) -> GuidedSearchResult:
+    graph = load_resolved_graph(prepared)
+    built = prepare_structure(PreparationRequest(
+        structure=structure,
+        output_dir=os.path.join(output_dir, "guided_assembly"),
+        total_charge=charge,
+        multiplicity=multiplicity,
+        random_seed=random_seed,
+        strategy=BuildStrategy(
+            embed=True, optimize=True,
+            reaction_center=list(plan.forming_pairs),
+            guided_windows=[
+                (*window.atoms, window.min_ang, window.max_ang)
+                for window in plan.windows
+            ],
+        ),
+    ))
+    result = GuidedSearchResult(
+        status="no_candidate", message="", prepared_path=built.artifact_path,
+        diagnostics=list(built.diagnostics),
+        counts={"generated": len(built.assembly.candidates) if built.assembly else 0, "optimized": 0,
+                "rejected": 0, "retained": 0},
+    )
+    if built.status != "ok" and built.status != "assembly_failed":
+        result.status = "build_failed"
+        result.message = f"guided component build failed: {built.message}. " + _fallback_note(plan)
+        return _save_guided_result(result, plan, output_dir)
+    if built.status == "assembly_failed":
+        result.message = f"guided assembly produced no usable seed: {built.message}. " + _fallback_note(plan)
+        return _save_guided_result(result, plan, output_dir)
+
+    closest: tuple[float, str, list[tuple[str, list[float]]], dict[str, float]] | None = None
+    rejected: Counter[str] = Counter()
+    for path in (built.assembly.candidate_paths if built.assembly else []):
+        atoms = read_xyz_atoms(path)
+        symbols = [symbol for symbol, _position in atoms]
+        positions = [position for _symbol, position in atoms]
+        passed, reasons, distances = qualify_geometry(plan, graph, symbols, positions)
+        if distances:
+            deviation = _max_window_deviation(plan, distances)
+            if closest is None or deviation < closest[0]:
+                closest = (deviation, path, atoms, distances)
+        if not passed:
+            for reason in reasons:
+                rejected[reason.split(":", 1)[0]] += 1
+            continue
+        mol_path = str(Path(path).with_suffix(".mol"))
+        if not Path(mol_path).is_file():
+            raise ValueError(f"guided assembly did not produce matching MOL file: {mol_path}")
+        result.candidates.append(GuidedCandidate(path, mol_path, distances, 0.0))
+
+    result.counts["optimized"] = len(built.assembly.candidate_paths) if built.assembly else 0
+    result.counts["retained"] = len(result.candidates)
+    result.counts["rejected"] = result.counts["optimized"] - len(result.candidates)
+    result.diagnostics.extend(f"{reason}: {count}" for reason, count in sorted(rejected.items()))
+    if closest is not None:
+        _, _path, atoms, distances = closest
+        result.closest_path = os.path.join(output_dir, "closest_attempt.xyz")
+        atomic_write_text(result.closest_path, _xyz_text(
+            [symbol for symbol, _ in atoms], [position for _, position in atoms],
+            "closest guided assembly attempt; not necessarily qualified",
+        ))
+        result.diagnostics.append(f"closest achieved distances: {distances}")
+    result.status = "ok" if result.candidates else "no_candidate"
+    result.message = (
+        f"{len(result.candidates)} qualified constrained-preorganization seed(s). "
+        if result.candidates else
+        f"No guided assembly candidate qualified; closest attempted geometry: "
+        f"{result.closest_path or 'none'}; diagnostics: {result.diagnostics}. "
+    ) + _fallback_note(plan)
+    return _save_guided_result(result, plan, output_dir)
+
+
 def search_guided(
     *,
     structure: StructureInput,
@@ -484,7 +561,9 @@ def search_guided(
         )
     plan = resolve_guidance(prepared, ring_order, distance_filters)
     if len(prepared.components) != 1:
-        raise ValueError("guided multicomponent assembly is not implemented")
+        return _multi_component_rdkit(
+            structure, prepared, plan, output_dir, charge, multiplicity, random_seed,
+        )
     return _single_component_rdkit(
         prepared, plan, output_dir, num_confs, random_seed, rmsd_threshold,
     )
