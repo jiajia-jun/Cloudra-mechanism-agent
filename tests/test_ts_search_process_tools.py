@@ -61,6 +61,38 @@ async def _prepare(tmp_path, **overrides):
     )
 
 
+@pytest.mark.asyncio
+async def test_prepare_and_resume_accept_ring_guidance(tmp_path):
+    declaration = _declaration(
+        reactant_smiles="CCO.O", product_smiles="CCO.O", charge=0,
+        reaction_center=[], atom_map=[], ring_order=[1, 2, 3, 10],
+        distance_filters=[
+            {"atoms": [3, 10], "min_ang": 2.5, "max_ang": 3.8},
+            {"atoms": [1, 10], "min_ang": 2.5, "max_ang": 3.8},
+            {"atoms": [2, 10], "min_ang": 2.5, "max_ang": 3.8},
+        ],
+    )
+    prepare_tool = TsPrepare()
+    object.__setattr__(prepare_tool, "subagent", _OwnerStub())
+    first = await prepare_tool.tool_call(
+        TsPrepare_input_schema(declaration=declaration, workspace_dir=str(tmp_path)),
+        session=None,
+    )
+    assert first.is_success and first.blocked.stage == "map"
+    resume_tool = TsResume()
+    object.__setattr__(resume_tool, "subagent", _OwnerStub())
+    updated = await resume_tool.tool_call(TsResume_input_schema(
+        run_id=first.run_id,
+        adjustment=TsAdjustment(distance_filters=[
+            {"atoms": [3, 10], "min_ang": 2.5, "max_ang": 4.0},
+            {"atoms": [1, 10], "min_ang": 2.5, "max_ang": 3.8},
+            {"atoms": [2, 10], "min_ang": 2.5, "max_ang": 3.8},
+        ]),
+        workspace_dir=str(tmp_path),
+    ), session=None)
+    assert updated.is_success and updated.blocked.stage == "map"
+
+
 # ---------------------------------------------------------------------------
 # ts_prepare
 # ---------------------------------------------------------------------------

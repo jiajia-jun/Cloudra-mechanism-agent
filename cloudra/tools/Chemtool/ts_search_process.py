@@ -34,7 +34,11 @@ from cloudra.tools.core.ts_process import (
 )
 
 description = (
-    "Run the transition-state search SOP as a durable process: build both endpoints from SMILES, "
+    "Run the transition-state search SOP as a durable process: build both endpoints from SMILES. "
+    "For cyclic TS preorganization, declare ring_order (1-based complete atom order) and optional "
+    "distance_filters windows; missing forming pairs receive a visible 1.8–2.6 Å fallback. "
+    "The process uses only qualified constrained reactant seeds, and ts_resume can correct the "
+    "guidance before refinement submission. "
     "map atoms, assemble the reactive complex, generate a path guess (xTB metadynamics, falling back "
     "to IDPP interpolation when xtb is absent), validate internally, then submit and judge. "
     "Returns a run_id; the process advances autonomously and STOPS with a `blocked` payload when it "
@@ -57,7 +61,10 @@ class TsPrepare_input_schema(input_schema):
                     "blocks at the map stage and returns the built XYZ numbering to write it "
                     "against. Provide `reaction_center` as 0-based pairs in the full built atom "
                     "order (including hydrogens; unlike the 1-based `atom_map`) to guide assembly "
-                    "around the atoms that form/break bonds."
+                    "around the atoms that form/break bonds. For a prospective cycle, give "
+                    "ring_order=[...] in cycle order and optionally distance_filters=[{\"atoms\":[i,j],"
+                    "\"min_ang\":...,\"max_ang\":...}]; ring_order and filters use 1-based complete "
+                    "atom order and may coexist with reaction_center."
     )
     workspace_dir: Optional[str] = Field(
         default=None,
@@ -70,7 +77,7 @@ class TsPrepare_input_schema(input_schema):
 class TsResume_input_schema(input_schema):
     run_id: str = Field(description="run_id returned by ts_prepare")
     adjustment: TsAdjustment = Field(
-        description="Local overrides only: reaction_center, atom_map, path_refinement_runs, "
+        description="Local overrides only: ring_order, distance_filters, reaction_center, atom_map, path_refinement_runs, "
                     "max_interventions. This is not a re-declaration of the whole reaction.",
     )
     workspace_dir: Optional[str] = Field(

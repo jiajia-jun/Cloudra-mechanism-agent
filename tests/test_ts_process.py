@@ -75,6 +75,149 @@ def _start(tmp_path, **overrides):
     ))
 
 
+_GUIDED_WINDOWS = [
+    {"atoms": [3, 10], "min_ang": 2.5, "max_ang": 3.8},
+    {"atoms": [1, 10], "min_ang": 2.5, "max_ang": 3.8},
+    {"atoms": [2, 10], "min_ang": 2.5, "max_ang": 3.8},
+]
+
+
+def test_guided_ts_build_selects_reactant_seed_and_derives_reaction_center(tmp_path):
+    record = _start(
+        tmp_path, reactant_smiles="CCO.O", product_smiles="CCO.O", charge=0,
+        reaction_center=[], atom_map=[], ring_order=[1, 2, 3, 10],
+        distance_filters=_GUIDED_WINDOWS,
+    )
+    assert record.blocked.stage == "map"
+    assert record.guidance_attempt == 1
+    assert Path(record.current_seed_xyz_path).is_file()
+    from cloudra.tools.core.ts_process import _read_built_xyz
+
+    assert _read_built_xyz(record, "reactant")[2] == record.current_seed_xyz_path
+    assert record.current_seed_xyz_path in record.evidence_candidates
+    assert (2, 9) in record.effective_reaction_center
+    assert (0, 9) in record.effective_reaction_center
+    assert Path(record.guidance_manifest_path).is_file()
+
+
+def test_guidance_correction_rebuilds_and_keeps_old_attempt(tmp_path):
+    record = _start(
+        tmp_path, reactant_smiles="CCO.O", product_smiles="CCO.O", charge=0,
+        reaction_center=[], atom_map=[], ring_order=[1, 2, 3, 10],
+        distance_filters=_GUIDED_WINDOWS,
+    )
+    old_seed = record.current_seed_xyz_path
+    changed = [dict(row) for row in _GUIDED_WINDOWS]
+    changed[0] = {"atoms": [3, 10], "min_ang": 2.5, "max_ang": 4.0}
+    updated = resume(record, TsAdjustment(distance_filters=changed))
+    assert updated.guidance_attempt == 2
+    assert updated.current_seed_xyz_path != old_seed
+    assert Path(old_seed).is_file() and Path(updated.current_seed_xyz_path).is_file()
+    assert old_seed not in updated.evidence_candidates
+    assert updated.blocked.stage == "map"
+
+
+def test_guidance_change_after_submitted_job_is_rejected_without_rewrite(tmp_path):
+    record = _start(
+        tmp_path, reactant_smiles="CCO.O", product_smiles="CCO.O", charge=0,
+        reaction_center=[], atom_map=[], ring_order=[1, 2, 3, 10],
+        distance_filters=_GUIDED_WINDOWS,
+    )
+    record.job_id = 42
+    from cloudra.tools.core.ts_process import save_record
+
+    save_record(record)
+    process_path = Path(record.run_dir) / "process.json"
+    before = process_path.read_text()
+    with pytest.raises(ValueError, match="guidance cannot change"):
+        resume(record, TsAdjustment(distance_filters=[]))
+    assert process_path.read_text() == before
+
+
+def test_filter_only_ts_selects_built_candidate_without_guided_search(tmp_path, monkeypatch):
+    import cloudra.tools.core.preorganization as preorganization
+
+    def forbidden(**_kwargs):
+        raise AssertionError("filter-only TS must not invoke guided search")
+
+    monkeypatch.setattr(preorganization, "search_guided", forbidden)
+    record = _start(
+        tmp_path, reactant_smiles="CCC", product_smiles="CCC", charge=0,
+        reaction_center=[], atom_map=[], ring_order=[],
+        distance_filters=[{"atoms": [1, 3], "min_ang": 0.5, "max_ang": 100.0}],
+    )
+    assert record.blocked.stage == "map"
+    assert Path(record.current_seed_xyz_path).is_file()
+
+
+def test_guided_ts_no_seed_blocks_with_declared_pair_and_manifest(tmp_path):
+    record = _start(
+        tmp_path, reactant_smiles="CCO.O", product_smiles="CCO.O", charge=0,
+        reaction_center=[], atom_map=[], ring_order=[1, 2, 3, 10],
+        distance_filters=[
+            {"atoms": [3, 10], "min_ang": 0.1, "max_ang": 0.2},
+            {"atoms": [1, 10], "min_ang": 2.5, "max_ang": 3.8},
+        ],
+    )
+    assert record.blocked.stage == "build"
+    assert record.blocked.failure_class == "guided_preorganization_failed"
+    assert "distance_filters" in record.blocked.needs
+    assert "3-10" in record.blocked.message
+    assert "guidance_manifest.json" in record.blocked.message
+
+
+def test_filter_only_ts_no_match_blocks_with_pair_distances(tmp_path):
+    record = _start(
+        tmp_path, reactant_smiles="CCC", product_smiles="CCC", charge=0,
+        reaction_center=[], atom_map=[], ring_order=[],
+        distance_filters=[{"atoms": [1, 3], "min_ang": 0.1, "max_ang": 0.2}],
+    )
+    assert record.blocked.failure_class == "distance_filters_no_match"
+    assert "1-3" in record.blocked.message
+
+
+def test_guided_validation_and_refinement_ignore_old_ts_candidate(tmp_path):
+    from cloudra.tools.core.ts_process import _validate, _write_refinement_input
+
+    record = _start(
+        tmp_path, reactant_smiles="CCO.O", product_smiles="CCO.O", charge=0,
+        reaction_center=[], atom_map=[], ring_order=[1, 2, 3, 10],
+        distance_filters=_GUIDED_WINDOWS,
+    )
+    old_run = Path(record.run_dir) / "path" / "xtb_path_runs" / "old"
+    old_run.mkdir(parents=True)
+    rows = Path(record.current_seed_xyz_path).read_text().splitlines()
+    parts = rows[2].split()
+    parts[1] = str(float(parts[1]) + 20.0)
+    rows[2] = " ".join(parts)
+    (old_run / "xtbpath_ts.xyz").write_text("\n".join(rows) + "\n")
+    record.path_kind = "xtb_path"
+    record.current_ts_guess_path = ""
+    record.blocked = None
+    _validate(record)
+    assert record.blocked is None
+    error, input_path = _write_refinement_input(record, str(tmp_path / "job"))
+    assert "no TS candidate" in error and input_path == ""
+
+
+def test_guided_resume_uses_new_path_attempt_for_reordered_product(tmp_path):
+    record = _start(
+        tmp_path, reactant_smiles="CCO.O", product_smiles="CCO.O", charge=0,
+        reaction_center=[], atom_map=list(range(1, 13)), ring_order=[1, 2, 3, 10],
+        distance_filters=_GUIDED_WINDOWS,
+    )
+    old_path = Path(record.run_dir) / "path" / "guided_attempt_0001" / "product_reordered.xyz"
+    assert old_path.is_file()
+    assert record.path_kind == "idpp_fallback"
+    changed = [dict(row) for row in _GUIDED_WINDOWS]
+    changed[0] = {"atoms": [3, 10], "min_ang": 2.5, "max_ang": 4.0}
+    updated = resume(record, TsAdjustment(distance_filters=changed))
+    new_path = Path(updated.run_dir) / "path" / "guided_attempt_0002" / "product_reordered.xyz"
+    assert new_path.is_file() and old_path.is_file()
+    assert new_path != old_path
+    assert updated.current_ts_guess_path == ""
+
+
 # ---------------------------------------------------------------------------
 # 声明校验：方法必须显式声明，缺项即 invalid_input（终态）
 # ---------------------------------------------------------------------------

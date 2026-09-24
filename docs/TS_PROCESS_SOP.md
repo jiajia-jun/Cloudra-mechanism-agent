@@ -43,6 +43,15 @@ ts.resume(run_id, adjusted)
 | `ts.prepare` | 起一次搜索。进程随后**自主**跑完：建结构 → 映射 → 组装 → 路径初猜 → 校验 → 提交 → 精修 → 频率/IRC 判定 |
 | `ts.resume` | 进程在**阻塞**处停下后，带上调整过的声明从当前位置继续 |
 
+成环过渡态的反应物初猜可在 `ts_prepare` 声明 `ring_order=[1,2,3,10]`，并用
+`distance_filters=[{"atoms":[3,10],"min_ang":2.5,"max_ang":3.8}]` 给原子对窗口。
+两者都是构建器输出的完整 **1-based** 原子序号（包括氢）；原有 `reaction_center` 仍是
+**0-based**。额外距离窗口可放在同一 `distance_filters` 列表。尚未共价成键的环边若
+没有显式窗口，就明示使用 `AssemblyParameters.reaction_center_window`（当前 1.8–2.6 Å）
+兜底；错误的显式窗口直接失败。引导仅用于生成反应物 TS 初猜，结果须通过全部窗口与
+拓扑检查，不能当作平衡构象或 TS 证据。`ts_resume` 可局部覆盖 `ring_order` /
+`distance_filters` 重建初猜；新旧 attempt 各自留档，已提交精修作业后不能改动几何引导。
+
 要点：
 
 - **`submit` 不是 agent 的函数，是流程内部的阶段。** 校验与提交都由进程自己做——校验是
