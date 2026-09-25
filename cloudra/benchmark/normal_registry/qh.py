@@ -1,4 +1,4 @@
-"""Q 族 + H 族登记（v3 缩减后）：芳香 Claisen（Q1）。
+"""Q 族 + H 族登记（v4 换血后）：芳香 Claisen（Q1）与 oxy-Cope（Q5，v4 新收）。
 
 含芳香环：反应物/产物一律芳香写法（[cH]/[o]），[3,3] 去芳构化中间体
 （邻位环己二烯酮）用 Kekulé 写法——芳香键级 1.5 与单/双键之间的变化由生成器
@@ -8,6 +8,11 @@ Q1（芳香 Claisen，v3 新收）：烯丙基苯基醚 → 2-烯丙基苯酚，
 邻位环己二烯酮（去芳构化、可捕获）；② 烯醇-酚互变异构恢复芳香性。竞争（对位
 重排/船式 TS）按 normal.md 约定不进 gold。v3（2026-09-09）将本档收窄为仅 Q1，
 原 Q2/Q3/H1-H3/H5 条目剔出定稿名单留档池（条目见 normal.md）。
+
+Q5（oxy-Cope，v4 新收 2026-09-25）：1,5-己二烯-3-醇 → 5-己烯醛，两步：① [3,3]-σ
+迁移（椅式 TS 优先）→ 烯醇中间体；② 烯醇 → 醛互变异构。第 2 步是质子转移（PT）
+边，按 2026-09-25 PT 边规则留在图里但不挂参考垒；两步均不写 barrier（构建期
+诚实缺测，gold 战役后补）。竞争（船式 TS、分步双自由基）按约定不进 gold。
 """
 
 TASKS = {
@@ -31,6 +36,25 @@ TASKS = {
                 "out": "[CH2:1]=[CH:2][CH2:3][c:6]1[cH:7][cH:8][cH:9][cH:10][c:5]1[O:4][H:14]",
                 "type": "keto-enol tautomerization of the ortho-cyclohexadienone: proton migration from the ring sp3 carbon onto the carbonyl oxygen restores aromaticity -> 2-allylphenol",
                 "barrier": 53.3,
+            },
+        ],
+    },
+    # C=CC(O)CC=C>>O=CCCCC=C  (0/1)  oxy-Cope + 互变异构
+    "Q5": {
+        "name_en": "oxy-Cope rearrangement: 1,5-hexadien-3-ol -> hex-5-enal ([3,3] then enol-keto tautomerization)",
+        "conditions_en": "gas phase, heated",
+        "mapped_reactants": "[CH2:1]=[CH:2][CH:3]([O:7][H:8])[CH2:4][CH:5]=[CH2:6]",
+        "steps": [
+            {
+                # 骨架为 [3,3] 判定的 C3=C2-C1-C6-C5=C4（断 C3-C4、成 C1-C6）：
+                # 烯醇 = C3(OH)=C2 双键 + C3 原 carbinol H，闭壳
+                "out": "[CH:3]([O:7][H:8])=[CH:2][CH2:1][CH2:6][CH:5]=[CH2:4]",
+                "type": "[3,3]-sigmatropic shift (chair TS preferred) -> hex-5-enal enol intermediate",
+            },
+            {
+                # 2026-09-25 PT 边规则：质子转移步保留在图里但不挂参考垒、gold 战役不花算力
+                "out": "[O:7]=[CH:3][CH:2]([H:8])[CH2:1][CH2:6][CH:5]=[CH2:4]",
+                "type": "enol -> aldehyde tautomerization (intramolecular proton transfer; barrier deliberately unanchored per 2026-09-25 PT-edge rule)",
             },
         ],
     },

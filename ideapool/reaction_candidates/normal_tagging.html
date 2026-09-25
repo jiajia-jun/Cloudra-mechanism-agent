@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Normal 档打标台（50 条候选）</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif; margin: 0; background: #0f1115; color: #d7dae0; }
+  header { position: sticky; top: 0; z-index: 10; background: #161a22; border-bottom: 1px solid #2a2f3a; padding: 10px 16px; }
+  header h1 { font-size: 15px; margin: 0 0 8px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; }
+  .counter { padding: 2px 10px; border-radius: 10px; background: #222836; font-variant-numeric: tabular-nums; }
+  .counter b { color: #7ec8ff; }
+  .counter.over b { color: #ff7e7e; }
+  select, input[type=search] { background: #1d2230; color: #d7dae0; border: 1px solid #333a4a; border-radius: 6px; padding: 4px 8px; font-size: 13px; }
+  button { background: #1d2230; color: #d7dae0; border: 1px solid #333a4a; border-radius: 6px; padding: 4px 10px; font-size: 12.5px; cursor: pointer; }
+  button:hover { border-color: #5a6580; }
+  main { padding: 12px 16px 60px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { border-bottom: 1px solid #242a36; padding: 7px 8px; text-align: left; vertical-align: top; }
+  th { position: sticky; top: 92px; background: #161a22; font-size: 12px; color: #8b93a5; }
+  td.id { font-weight: 700; white-space: nowrap; }
+  code { font-size: 11.5px; color: #9fd3a8; word-break: break-all; }
+  .band { font-size: 11px; padding: 1px 6px; border-radius: 8px; background: #222836; white-space: nowrap; }
+  .tag-btns button { margin-right: 4px; opacity: 0.45; }
+  .tag-btns button.on { opacity: 1; font-weight: 700; }
+  .b-pick.on { background: #1d4a2c; border-color: #3a8f56; color: #9fe6b5; }
+  .b-alt.on  { background: #4a3a1d; border-color: #a8823a; color: #f0d59a; }
+  .b-drop.on { background: #4a1d22; border-color: #a83a46; color: #f0a3ab; }
+  tr.st-pick { background: rgba(40, 120, 70, 0.10); }
+  tr.st-alt  { background: rgba(150, 110, 40, 0.10); }
+  tr.st-drop { opacity: 0.38; }
+  .vtag { font-size: 11px; padding: 1px 6px; border-radius: 8px; white-space: nowrap; }
+  .v-已核实 { background: #1d4a2c; color: #9fe6b5; }
+  .v-已核实存在 { background: #1d3a4a; color: #9ad4f0; }
+  .v-部分核实 { background: #4a3a1d; color: #f0d59a; }
+  .v-未核实 { background: #4a1d22; color: #f0a3ab; }
+  .mech, .barrier { max-width: 420px; }
+  .hidden { display: none; }
+  textarea#importbox { width: 100%; height: 90px; background: #1d2230; color: #d7dae0; border: 1px solid #333a4a; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Normal 档打标台 · 50 条候选 · 目标正选 10（v4 2026-09-25；打标存 localStorage，不回写 normal.md）</h1>
+  <div class="bar">
+    <span class="counter" id="c-pick">正选 <b>0</b>/10</span>
+    <span class="counter" id="c-alt">替补 <b>0</b>/10</span>
+    <span class="counter" id="c-drop">剔除 <b>0</b></span>
+    <span class="counter" id="c-todo">未定 <b>0</b></span>
+    <select id="f-band"><option value="">全部带</option></select>
+    <select id="f-fam"><option value="">全部族</option></select>
+    <select id="f-tag">
+      <option value="">全部标签</option><option value="pick">正选</option>
+      <option value="alt">替补</option><option value="drop">剔除</option><option value="todo">未定</option>
+    </select>
+    <input type="search" id="f-q" placeholder="搜 id / 反应名 / SMILES" size="22">
+    <button onclick="exportJSON()">导出 JSON</button>
+    <button onclick="exportNames()">导出名单</button>
+    <button onclick="document.getElementById('importwrap').classList.toggle('hidden')">导入 JSON</button>
+    <button onclick="resetDefaults()">重置为旧建议名单</button>
+    <button onclick="clearAll()">全部清空</button>
+  </div>
+  <div id="importwrap" class="hidden" style="margin-top:8px">
+    <textarea id="importbox" placeholder='粘贴之前导出的 JSON（{"tags": {"A1": "pick", ...}}）'></textarea>
+    <button onclick="importJSON()">导入</button>
+  </div>
+</header>
+<main>
+<table>
+  <thead><tr>
+    <th>#</th><th>打标</th><th>带/族</th><th>反应</th><th>SMILES, q/mult</th>
+    <th class="mech">机理概要</th><th class="barrier">能垒锚点</th><th>舒适区</th>
+  </tr></thead>
+  <tbody id="tbody"></tbody>
+</table>
+</main>
+<script>
+const ENTRIES = [{"id": "A1", "band": "N2 简单多步", "family": "A", "name": "乙醛自缩合 Aldol 加成（aldol addition）", "smiles": "[OH-].CC=O.CC=O>>[OH-].CC(O)CC=O", "qm": "−1/1", "mech": "① OH⁻ 拔 α-H 生成烯醇盐；② 烯醇盐进攻第二分子羰基 C–C 加成（决速）→ 烷氧负离子；③ 质子化得 3-羟基丁醛。竞争：E1cb 脱水成巴豆醛；烯醇盐 O-烷基化副通道", "barrier": "ΔE‡ ≈ 5 kcal/mol（气相烯醇盐-醛加成近沉没垒；锂烯醇盐单体 QCISD 级最佳估值，由 B3LYP 低估约 5/HF 高估约 6 反推，Pratt 2005 JOC 70, 4279, DOI 10.1021/jo0503409）[部分核实]", "verify": "部分核实", "comfort": "C,H,O；7 重原子；✅", "def": null}, {"id": "A2", "band": "N3 复杂人名网络", "family": "A", "name": "丙酮自缩合 Aldol 缩合 → 异亚丙基丙酮（aldol condensation → mesityl oxide）", "smiles": "[OH-].CC(=O)C.CC(=O)C>>[OH-].CC(=O)C=C(C)C.O", "qm": "−1/1", "mech": "① 烯醇盐生成；② C–C 加成 → 双丙酮醇负离子（中间体可捕获）；③ E1cb 脱水（拔 α-H 后消除 OH⁻）。竞争：酸催化 E1 脱水；加成可逆 vs 脱水不可逆的网络拓扑", "barrier": "能垒数值未核（决速步在加成/脱水之间、溶剂依赖；气相与沸石 aldol DFT 基线见 Pratt 系列与 HZSM-5 研究）[未核实]", "verify": "未核实", "comfort": "C,H,O；9 重原子；✅", "def": null}, {"id": "A3", "band": "N3 复杂人名网络", "family": "A", "name": "Claisen–Schmidt 缩合（苯甲醛+乙醛 → 肉桂醛）", "smiles": "[OH-].O=Cc1ccccc1.CC=O>>[OH-].O=CC=Cc1ccccc1.O", "qm": "−1/1", "mech": "① 乙醛烯醇盐生成；② 进攻苯甲醛（无 α-H，不能自缩合）→ 烷氧盐；③ E1cb 脱水（决速区在加成/脱水之间）。竞争：苯甲醛浓碱下 Cannizzaro（与 U1 联动）；交叉缩合选择性", "barrier": "能垒数值未核（可借用 A1/A2 与 U1 锚点交叉标定）[未核实]", "verify": "未核实", "comfort": "C,H,O；12 重原子；✅（上限边缘）", "def": null}, {"id": "A4", "band": "N3 复杂人名网络", "family": "A", "name": "Knoevenagel 缩合（甲醛+丙二酸 → 丙烯酸+CO₂）", "smiles": "C=O.O=C(O)CC(=O)O.CNC>>C=CC(=O)O.C(=O)=O.O.CNC", "qm": "0/1", "mech": "① 胺+醛 → 亚铵离子；② 丙二酸 α-碳（烯醇盐/烯醇）进攻亚铵；③ 脱胺脱水；④ 丙二酸骨架六元环 TS 脱羧（决速区在加成与脱羧之间）。竞争：Doebner 变体（脱羧时机不同）；亚铵 vs 烯醇盐角色分配", "barrier": "机理锚点：亚铵路径（哌啶催化甲醇中全机理 DFT，JPC B 2017, 121, 5300, DOI 10.1021/acs.jpcb.7b03191；催化剂以二甲胺建模为近似）；能垒数值未核 [已核实存在]", "verify": "已核实存在", "comfort": "C,H,N,O；12 重原子；✅（上限边缘）", "def": null}, {"id": "A5", "band": "N3 复杂人名网络", "family": "A", "name": "Mannich 反应（甲醛+甲胺+乙醛 → 3-甲氨基丙醛，酸催化）", "smiles": "[OH3+].C=O.CN.CC=O>>[OH3+].CNCCC=O.O", "qm": "+1/1", "mech": "① 甲醛+甲胺 → 亚铵离子（Eschenmoser 盐母体）；② 乙醛烯醇（酸催化烯醇化）进攻亚铵 C–C 形成（决速）；③ 得 Mannich 碱。竞争：烯醇 vs 烯醇盐路径（pH 决定）；双烷基化副反应", "barrier": "ΔE‡ ≈ 8.9 kcal/mol（37.2 kJ/mol；苯乙酮 enol 进攻亚铵 C–C 成键步，DFT/CPCM；Petrović et al. 2018 R. Soc. Open Sci. 5, 181232, DOI 10.1098/rsos.181232；类似体系非同一底物；脯氨酸催化 Mannich C–C 步 8.5 kcal/mol, Parasuk 2008 J. Org. Chem. 73, 9388）[部分核实]", "verify": "部分核实", "comfort": "C,H,N,O；8 重原子；✅", "def": null}, {"id": "A6", "band": "N2 简单多步", "family": "A", "name": "Henry 反应（硝基甲烷+甲醛 → 2-硝基乙醇）", "smiles": "[OH-].C[N+](=O)[O-].C=O>>[OH-].OCC[N+](=O)[O-]", "qm": "−1/1", "mech": "① 拔硝基 α-H → nitronate；② C–C 加成（决速）→ β-硝基烷氧负离子；③ 质子化。竞争：甲醛过量时多重加成；nitronate 双位反应性", "barrier": "ΔG‡ ≈ 3.0 kcal/mol（络合物→TS 中央垒，由同文献气相自由能表络合物 +2.3 与 TS +5.3 相减得出，B3LYP/6-31+G**，Kostal & Jorgensen 2012 Org. Lett. 14, 260, DOI 10.1021/ol2030394；水溶液 AM1/MM 14.1）[已核实]", "verify": "已核实", "comfort": "C,H,N,O；7 重原子；✅（NO₂ 高氧化态 N 注意）", "def": null}, {"id": "A7", "band": "N1 路线判别", "family": "A", "name": "Michael 加成（硝基甲烷+丙烯醛 → 4-硝基丁醛）", "smiles": "[OH-].C[N+](=O)[O-].C=CC=O>>[OH-].O=CCCC[N+](=O)[O-]", "qm": "−1/1", "mech": "① 拔硝基 α-H → nitronate；② 1,4-共轭加成（决速）→ 烯醇盐；③ 质子化。竞争：1,2-加成（动力学可逆返回）——1,2 vs 1,4 排序核心考点", "barrier": "ΔG‡ ≈ 30 kcal/mol（未催化 nitromethane+肉桂醛 C–C 加成步，DCM/水中 31.2/30.5，JPCA 2018, DOI 10.1021/acs.jpca.7b11803；本题底物为丙烯醛，数值按类似体系转录——口径登记见文末）[部分核实]", "verify": "部分核实", "comfort": "C,H,N,O；9 重原子；✅", "def": null}, {"id": "I1", "band": "N1 路线判别", "family": "I", "name": "亚胺形成（甲醛+甲胺 ⇌ N-甲基甲亚胺+水）", "smiles": "C=O.CN>>C=NC.O", "qm": "0/1", "mech": "① 胺进攻羰基 → 两性离子 → 羟胺（carbinolamine，可捕获）；② 羟胺 O-质子化；③ 脱水生成亚铵（决速）；④ 去质子得亚胺。竞争：未催化路径 vs 广义酸/碱催化；pH 依赖决速步反转", "barrier": "ΔE‡ 29.33（加成）/ 58.22（脱水，RDS）kcal/mol（**就地计算**：B3LYP/def2-SVP 气相、相对各步起点极小值，TS1 calc-314 / TS4b calc-321，均恰 1 虚频 + IRC 双侧验证；沙箱 delivery batch_4aa4cce4691d4a9f）[已计算]；文献对照 G2(MP2,SVP) 两水辅助 ≈ 26.7（含催化水模型，与本口径不可比；酸性 O-质子化路径 16.2）Hall & Smith 1998 J. Phys. Chem. A 102, 4930, DOI 10.1021/jp9810825 [部分核实]", "verify": "部分核实", "comfort": "C,H,N,O；4 重原子；✅", "def": "pick"}, {"id": "I2", "band": "N3 复杂人名网络", "family": "I", "name": "烯胺形成（乙醛+二甲胺 → N,N-二甲基乙烯胺+水，酸催化）", "smiles": "[OH3+].CC=O.CNC>>[OH3+].C=CN(C)C.O", "qm": "+1/1", "mech": "① 羟胺生成；② 脱水成亚铵；③ α-C 去质子 → 烯胺（与 I1 的分叉在最后一步：N 上无 H 只能走 C 去质子）。竞争：亚胺 vs 烯胺路径分叉；不对称酮扩展时区域选择性", "barrier": "能垒数值未核（胺结构对亚铵形成影响的计算研究存在，具体出处待补）[未核实]", "verify": "未核实", "comfort": "C,H,N,O；7 重原子；✅", "def": null}, {"id": "I3", "band": "N1 路线判别", "family": "I", "name": "缩醛水解 A-1 机理（二甲氧基甲烷+H₃O⁺ → 甲醛+2 甲醇）", "smiles": "[OH3+].COCOC.O>>[OH3+].C=O.CO.CO", "qm": "+1/1", "mech": "A-1：① 一个甲氧基质子化；② C–O 断裂（决速）→ 氧碳鎓离子 + MeOH；③ 水进攻 → 半缩醛；④ 重复得甲醛。竞争：A-2（水先进攻，本体系次要）——机理判别经典（专属酸催化、ΔS‡ 近零、溶剂同位素效应）", "barrier": "能垒数值未核（缩醛水解动力学经典系列 Kreevoy & Taft 1955 JACS 77, 5590, DOI 10.1021/ja01626a040；A-1 机理共识教材锚点）[部分核实]", "verify": "部分核实", "comfort": "C,H,O；7 重原子；✅", "def": null}, {"id": "I4", "band": "N2 简单多步", "family": "I", "name": "Strecker 合成（甲醛+氨+HCN → 氨基乙腈）", "smiles": "C=O.N.C#N>>NCC#N.O", "qm": "0/1", "mech": "① 亚胺/亚铵形成；② CN⁻ 进攻 → α-氨基腈。竞争：HCN 先进攻羰基（氰醇路径）再氨解 vs 先亚胺再氰化——路径次序百年机理讨论，剪枝考点", "barrier": "能垒数值未核（水簇辅助质子转移各通道垒 DFT，Yamabe 等 2014 Beilstein JOC 10, 1765, DOI 10.3762/bjoc.10.184）[已核实存在]", "verify": "已核实存在", "comfort": "C,H,N,O；5 重原子；✅", "def": null}, {"id": "Y1", "band": "N2 简单多步", "family": "Y", "name": "Fischer 酯化（乙酸+甲醇，酸催化 → 乙酸甲酯+水）", "smiles": "[OH3+].CC(=O)O.CO>>[OH3+].CC(=O)OC.O", "qm": "+1/1", "mech": "AAC2 正向：① 羰基质子化；② MeOH 加成 → 四面体中间体（可捕获）；③ 质子转移；④ 脱水（决速区在加成/脱水之间）。竞争：酰氧断裂 vs 烷氧断裂（¹⁸O 标记判别）；未催化环状 TS 通道（高垒背景通道）", "barrier": "ΔG‡ 36 kcal/mol（未催化环状 TS 通道，M06-2X/def2-TZVP，Lawal 2016 J. Mol. Model. 22, 235, DOI 10.1007/s00894-016-3084-z；题设酸催化 AAC2 通道数值未核，见 Lawal 2018 IJQC, DOI 10.1002/qua.25497——口径登记见文末）[已核实]", "verify": "已核实", "comfort": "C,H,O；7 重原子；✅", "def": null}, {"id": "Y2", "band": "N1 路线判别", "family": "Y", "name": "酯酸催化水解 AAC2（甲酸甲酯+H₃O⁺ → 甲酸+甲醇）", "smiles": "[OH3+].COC=O.O>>[OH3+].O=CO.CO", "qm": "+1/1", "mech": "AAC2：① 羰基质子化；② 水加成（决速附近）；③ 质子转移；④ 消除 MeOH。竞争：AAL1（本底物不成立）；与 Y3 碱催化对偶——同一底物酸碱两面机理判别", "barrier": "ΔG‡ ≈ 26 kcal/mol（AAC2 通道计算值 108.7 kJ/mol，经 O-杂环水解机理研究的学位论文对比表转录，一级出处待补——口径登记见文末）[部分核实]", "verify": "部分核实", "comfort": "C,H,O；6 重原子；✅", "def": null}, {"id": "Y3", "band": "N1 路线判别", "family": "Y", "name": "酯皂化 BAC2（甲酸甲酯+OH⁻ → 甲酸根+甲醇）", "smiles": "[OH-].COC=O>>O=C[O-].CO", "qm": "−1/1", "mech": "BAC2：① OH⁻ 加成 → 四面体中间体（可捕获）；② 消除 MeO⁻（气相剖面消除步垒更高；溶液加成决速）。竞争：气相脱质子/水解分叉；¹⁸O 酰氧断裂判别", "barrier": "决速步=OH- 加成 ΔG‡ ≈ 15.5 kcal/mol（水相簇-连续介质自由能剖面；Pliego & Riveros 2002 Chem. Eur. J. 8, 1945, DOI 10.1002/1521-3765(20020415)8:8<1945::aid-chem1945>3.0.co;2-t；实验 15.3）[部分核实]", "verify": "部分核实", "comfort": "C,H,O；5 重原子；✅", "def": "pick"}, {"id": "Y4", "band": "N2 简单多步", "family": "Y", "name": "酰胺碱水解（甲酰胺+OH⁻ → 甲酸根+氨）", "smiles": "[OH-].NC=O>>O=C[O-].N", "qm": "−1/1", "mech": "① OH⁻ 加成 → 四面体中间体；② C–N 断裂消除（决速区）；③ 质子转移驱动。竞争：酸催化变体中 O- vs N-质子化位点判别（酰胺化学著名争议）；中性双水助通道", "barrier": "机理剖面锚点（碱催化气相/水溶液 Bakowies & Kollman 1999 JACS 121, 5712, DOI 10.1021/ja9837349；中性双水通道 MP2/aug-cc-pVQZ 垒约 19.4，J. Braz. Chem. Soc. 研究）；能垒数值未核 [已核实存在]", "verify": "已核实存在", "comfort": "C,H,N,O；4 重原子；✅", "def": null}, {"id": "O1", "band": "N2 简单多步", "family": "O", "name": "Prilezhaev 环氧化（乙烯+过甲酸 → 环氧乙烷+甲酸）", "smiles": "C=C.O=COO>>C1CO1.O=CO", "qm": "0/1", "mech": "协同蝶形 TS：O 转移与过酸内质子迁移一体完成（单基元步多对键变）。竞争：对称 vs 不对称蝶形 TS（早期计算争议）；双自由基路径（给电子底物才露头）", "barrier": "ΔE‡ ≈ 15.6 kcal/mol（过氧酸+乙烯蝶形 TS，UQCISD(T) 级，Bach/Schlegel 组；B3LYP/6-311G(d,p) 系列值 17.5，Shi 2005 J. Mol. Struct. THEOCHEM；spiro 几何与双自由基特征 Houk 1997 JACS 119, 10147, DOI 10.1021/ja963847x）[部分核实]", "verify": "部分核实", "comfort": "C,H,O；6 重原子；✅（O–O 过氧键注意）", "def": null}, {"id": "O2", "band": "N1 路线判别", "family": "O", "name": "DMDO 环氧化（二甲基双环氧乙烷+乙烯 → 环氧乙烷+丙酮）", "smiles": "CC1(C)OO1.C=C>>CC(C)=O.C1CO1", "qm": "0/1", "mech": "协同氧转移，螺环（spiro）TS。竞争：spiro vs planar TS 排序（核心判别点，spiro 优约 7）；立体专一 syn 氧转移", "barrier": "ΔE‡ ≈ 14–17 kcal/mol（乙烯+DMDO spiro TS 计算区间，QCISD(T)//QCISD 级；spiro 优 planar 约 7.4（B3LYP/6-31G*），Schneebeli 2009 JACS 131, 3965, DOI 10.1021/ja806951r；DMDO 环氧化系统研究 Miaskiewicz & Smith 1998 JACS 120, 1872, DOI 10.1021/ja972800o）[部分核实]", "verify": "部分核实", "comfort": "C,H,O；7 重原子；✅（双环氧乙烷 O–O 注意）", "def": null}, {"id": "O3", "band": "N2 简单多步", "family": "O", "name": "Baeyer–Villiger 氧化（丙酮+过甲酸 → 乙酸甲酯+甲酸，酸催化）", "smiles": "[OH3+].CC(C)=O.O=COO>>[OH3+].CC(=O)OC.O=CO", "qm": "+1/1", "mech": "① 过酸对羰基加成 → Criegee 四面体中间体（可捕获）；② 1,2-甲基迁移伴 O–O 断裂（保留构型）。竞争：加成步 vs 迁移步谁是决速（底物依赖，本体系计算支持加成步决速）——决速步指认考点；迁移性排序可扩展取代底物", "barrier": "决速步=加成步（酸催化加成新机制，Alvarez-Idaboy, Reyes & Cruz 2006 Org. Lett. 8, 1763, DOI 10.1021/ol060261z；¹⁸O 标记经典 Doering & Dorfman 1953）；能垒数值未核 [已核实存在]", "verify": "已核实存在", "comfort": "C,H,O；9 重原子；✅", "def": null}, {"id": "O4", "band": "N1 路线判别", "family": "O", "name": "环氧开环碱催化（环氧乙烷+OH⁻ → 乙二醇盐）", "smiles": "C1CO1.[OH-]>>OCC[O-]", "qm": "−1/1", "mech": "SN2 背面进攻开环（单基元步，trans 开环）。竞争：与中性水解（单水通道，垒约 49）和酸催化 A-2（O5）的三条件排序——本题为三者最低", "barrier": "ΔH‡ ≈ 14.3 kcal/mol（微溶剂化碱性条件约 60 kJ/mol，B3LYP/6-311+G(d,p)，Lundin 2007 JPCA 111, 9087, DOI 10.1021/jp073285b；微溶剂化团簇口径、络合物基准待核——口径登记见文末）[已核实]", "verify": "已核实", "comfort": "C,H,O；4 重原子；✅", "def": null}, {"id": "O5", "band": "N1 路线判别", "family": "O", "name": "环氧开环酸催化（环氧乙烷+H₃O⁺/水 → 乙二醇）", "smiles": "[OH3+].C1CO1.O>>[OH3+].OCCO", "qm": "+1/1", "mech": "A-2：① 环氧 O 质子化；② 水进攻伴 C–O 断裂（决速，borderline SN2）。竞争：SN1-like 极限（叔碳/苄位底物翻转区域选择性，可作扩展题）", "barrier": "ΔH‡ ≈ 19.1 kcal/mol（微溶剂化酸性条件约 80 kJ/mol，与 O4 同文献，DOI 10.1021/jp073285b；口径同 O4 待核）[已核实]", "verify": "已核实", "comfort": "C,H,O；5 重原子；✅", "def": null}, {"id": "S1", "band": "待裁决", "family": "S", "name": "Menshutkin 反应（氨+氯甲烷 → 甲铵氯化物）", "smiles": "N.CCl>>C[NH3+].[Cl-]", "qm": "0/1", "mech": "中性 SN2 甲基转移，晚期 TS，气相吸热经离子对产物络合物。竞争：气相高垒 vs 溶液低垒的溶剂化排序；与离子型 SN2（easy C1）的 Born 溶剂化对照", "barrier": "气相中央垒 ΔE‡ ≈ 30–38 kcal/mol（偶极络合物约 −2.9；MP2/CCSD(T)/VB 各法区间，经二手转录；溶剂效应基准 Castejon & Wiberg 1999 JACS 121, 2139, DOI 10.1021/ja983736t；VB 研究 Su 等 2007 ChemPhysChem）[部分核实]", "verify": "部分核实", "comfort": "C,H,N,Cl；3 重原子；⚠ Cl 为 OMol25 低密度元素", "def": null}, {"id": "S2", "band": "待裁决", "family": "S", "name": "Kolbe–Schmitt 反应（苯酚盐+CO₂ → 水杨酸盐）", "smiles": "[O-]c1ccccc1.O=C=O>>O=C([O-])c1ccccc1O", "qm": "−1/1", "mech": "① 酚盐-CO₂ 预络合（碱金属阳离子配位模板效应显著，本基准为气相裸阴离子模型）；② 邻位亲电进攻 → 环己二烯酮中间体（去芳构化，可捕获）；③ 互变异构恢复芳香性。竞争：邻位 vs 对位羧化（阳离子/温度控制）", "barrier": "中间体结构与机理锚点（Kolbe–Schmitt 机理与酚盐-CO₂ 复合物，JCIM 2007, 47, 1520, DOI 10.1021/ci700068b；实验综述 Kosugi 2003 OBC 1, 817）；能垒数值未核 [已核实存在]", "verify": "已核实存在", "comfort": "C,H,O；10 重原子；✅（气相裸酚盐模型，无金属抗衡离子）", "def": null}, {"id": "X1", "band": "N1 路线判别", "family": "X", "name": "F⁻ + 2-氟丙烷：SN2 vs E2 竞争（二级碳，写出线为 anti-E2 → 丙烯）", "smiles": "[F-].CC(F)C>>C=CC.F.[F-]", "qm": "−1/1", "mech": "双通道判别：anti-E2 消除（写出线）vs 背面 SN2 恒等取代（简并，产物=反应物）。竞争：syn-E2 高垒背景通道；二级碳上 E2 反超 SN2 是核心考点（一级底物 SN2 占优、二级反转的取代基效应）", "barrier": "ΔE‡ 9.1 kcal/mol（anti-E2 通道，TS 相对反应物络合物，MP2/aug-cc-pVDZ，同体系 SN2 垒 11.6；注意锚点体系为二级**氯**代物 iPrCl——二级氟代物无直接 PES 报道，数值按最近体系转录，口径登记见文末；Zhen 2023 Molecules 28, 6269, DOI 10.3390/molecules28176269）[部分核实]", "verify": "部分核实", "comfort": "C,H,F；5 重原子；✅", "def": null}, {"id": "X2", "band": "N1 路线判别", "family": "X", "name": "F⁻ + 2-氟丁烷 E2：Zaitsev（2-丁烯，写出线）vs Hofmann（1-丁烯）取向竞争", "smiles": "[F-].CCC(F)C>>CC=CC.F.[F-]", "qm": "−1/1", "mech": "anti-E2 消除的两条区域通道：拔 1 位 H → Hofmann 产物 1-丁烯；拔 3 位 H → Zaitsev 产物 2-丁烯（写出线）。竞争：SN2 背景通道；**E1cb-like TS 预测 Hofmann 取向反常占优**——朴素经验（Zaitsev 规则）与计算预测相反，是本题的判别点", "barrier": "能垒数值未核（气相 E2 区域选择性 ab initio：E1cb-like TS → 最少取代烯烃 Hofmann 取向，Saunders & Gronert 2015 JOC 80, 10787, DOI 10.1021/acs.joc.5b01983；能垒量级可参 X1）[已核实存在]", "verify": "已核实存在", "comfort": "C,H,F；6 重原子；✅", "def": null}, {"id": "X3", "band": "N1 路线判别", "family": "X", "name": "Hofmann 消除（乙基三甲基铵 + OH⁻ → 乙烯 + 三甲胺 + 水，E2）", "smiles": "[OH-].CC[N+](C)(C)C>>C=C.O.CN(C)C", "qm": "0/1", "mech": "E2 反式消除（带电 NMe₃ 离去基，与 X1/X2 的 F 离去基互补）。竞争：OH⁻ 对甲基的 SN2（生成甲醇+二甲基乙胺）——E2 vs SN2 排序在带电离去基下重演", "barrier": "ΔG‡ 12.8 kcal/mol（Hofmann 消除通道，溶液相 DFT 自由能垒 298 K，同体系 SN2 通道垒 23.0——E2 显著占优；溶剂化自由能口径、参考态未明，口径登记见文末；Chempath 2010 JPCC 114, 11977, DOI 10.1021/jp9122198；机理实验 Edson 2012 J. Membr. Sci. 399-400, 49）[已核实]", "verify": "已核实", "comfort": "C,H,N,O；7 重原子；✅（季铵阳离子闭壳层）", "def": null}, {"id": "X4", "band": "N1 路线判别", "family": "X", "name": "Cope 消除（N,N-二甲基乙胺-N-氧化物 → 乙烯 + 二甲基羟胺，syn Ei）", "smiles": "CC[N+](C)(C)[O-]>>C=C.CN(C)O", "qm": "0/1", "mech": "分子内 syn Ei：五中心环状 TS，O 拔 β-H 与 C–N 断裂近同步（H 转移略先）。竞争：与 X3 的 intermolecular E2 构成内/外机理对照；反 Cope（逆反应，羟胺+烯加成）通道", "barrier": "能垒数值未核（模型 Cope 消除从头算/DFT 机理研究 Komáromi & Tronchet 1997 JPCA 101, 3554, DOI 10.1021/jp970617b；逆 Cope 方向气相垒 18.2（相对分离反应物，方向相反不作正向锚点），Krenske & Houk 2012 JACS 134, 2434, DOI 10.1021/ja211568k；溶剂效应 QM/MM Acevedo & Jorgensen 2006 JACS 128, 6141）[已核实存在]", "verify": "已核实存在", "comfort": "C,H,N,O；6 重原子；✅", "def": null}, {"id": "R1", "band": "N3 复杂人名网络", "family": "R", "name": "频哪醇重排（pinacol → pinacolone，酸催化）", "smiles": "[OH3+].CC(C)(O)C(C)(C)O>>[OH3+].CC(=O)C(C)(C)C.O", "qm": "+1/1", "mech": "① 一个 OH 质子化；② 脱水与 1,2-甲基迁移协同（半频哪醇式，避免自由碳正离子）（决速）；③ 去质子得酮。竞争：分步碳正离子路径 vs 协同迁移（计算显示协同显著占优）；不对称底物迁移性排序扩展", "barrier": "ΔE‡ ≈ 26.2 kcal/mol（水簇辅助 Wagner–Meerwein 型迁移 DFT，H3O+·12H2O 微溶剂化；Yamabe, Tsuchida & Yamazaki 2007 J. Comput. Chem. 28, 1561-1571, DOI 10.1002/jcc.20690；数值取自付费全文片段，底物（母体 pinacol vs 二苯基类似物）与竞争通道（≈32.65）归属未完全确认）[部分核实]", "verify": "部分核实", "comfort": "C,H,O；9 重原子；✅", "def": "pick"}, {"id": "R2", "band": "N3 复杂人名网络", "family": "R", "name": "Beckmann 重排（丙酮肟，酸催化 → N-甲基乙酰胺）", "smiles": "[OH3+].CC(C)=NO>>[OH3+].CNC(C)=O", "qm": "+1/1", "mech": "① 肟 OH 质子化；② 脱水与反式基团 1,2-迁移协同（决速）→ nitrilium 型中间体；③ 水加成 → 亚胺酸；④ 互变异构 → 酰胺。竞争：迁移基团立体专属性（anti 迁移，对称底物无区分，可扩展甲乙酮肟）；碎裂副反应（腈+碳正离子）", "barrier": "决速步=脱水-迁移协同；绝对垒未核（硫酸参与新机制使垒降 48.1 kJ/mol，Lin 2016 Chem. Phys. Lett.；分子筛 Brønsted 酸强度依赖 Catal. Sci. Technol. 2015, 5, 3675, DOI 10.1039/c5cy00619h）[部分核实]", "verify": "部分核实", "comfort": "C,H,N,O；6 重原子；✅", "def": null}, {"id": "R3", "band": "N1 路线判别", "family": "R", "name": "Curtius 重排（乙酰叠氮 → 甲基异氰酸酯+N₂）", "smiles": "CC(=O)N=[N+]=[N-]>>CN=C=O.N#N", "qm": "0/1", "mech": "热条件协同 1,2-甲基迁移 + N₂ 挤出（主流共识）。竞争：分步酰基氮宾路径（本体系计算两通道垒持平——协同 vs 分步判别题）；syn/anti 构象效应", "barrier": "ΔE‡ 32.9 kcal/mol（乙酰叠氮协同迁移垒，PBE/TZ2P，Zabalov & Tiger 2005 Russ. Chem. Bull. 54, 2270, DOI 10.1007/s11172-006-0109-2；分步氮宾通道同为 32.9——两通道持平是该文的判别要点）[已核实]", "verify": "已核实", "comfort": "C,H,N,O；6 重原子；✅（叠氮 N₃ 单元注意）", "def": null}, {"id": "R4", "band": "N3 复杂人名网络", "family": "R", "name": "Wolff 重排（2-重氮基乙醛 → 乙烯酮+N₂）", "smiles": "O=CC=[N+]=[N-]>>C=C=O.N#N", "qm": "0/1", "mech": "协同 N₂ 挤出 + 1,2-H 迁移（小底物主流）。竞争：分步酮卡宾路径 vs 协同；oxirene 中间体假说（Arndt–Eistert 同位素打乱公案）——剪枝考点", "barrier": "能垒数值未核（重氮羰基 Wolff 机理理论研究，Comput. Theor. Chem. 2016, 1094, 32, DOI 10.1016/j.comptc.2016.08.020）[已核实存在]", "verify": "已核实存在", "comfort": "C,H,N,O；5 重原子；✅（重氮单元注意）", "def": "pick"}, {"id": "R5", "band": "待裁决", "family": "R", "name": "Favorskii 重排（氯丙酮+OH⁻ → 丙酸根，经环丙酮）", "smiles": "[OH-].[OH-].CC(=O)CCl>>CCC(=O)[O-].[Cl-].O", "qm": "−2/1", "mech": "① 拔 α'-H → 烯醇盐；② 分子内 SN2 关环脱 Cl⁻ → 环丙酮中间体（对称化，¹⁴C 标记证明两端等价，可捕获）；③ OH⁻ 加成；④ 开环 → 羧酸盐。竞争：直接 SN2 取代（伪 Favorskii）；半苯偶酸型机理", "barrier": "能垒数值未核（环丙酮中间体立体控制开裂证据 Rappe 等 1970 JACS 92, 2032；¹⁴C 标记实验 Loftfield 1951）[部分核实]", "verify": "部分核实", "comfort": "C,H,O,Cl；7 重原子；⚠ Cl 低密度元素", "def": null}, {"id": "R6", "band": "N2 简单多步", "family": "R", "name": "二苯乙醇酸重排最小版（乙二醛+OH⁻ → 乙醇酸根）", "smiles": "[OH-].O=CC=O>>O=C([O-])CO", "qm": "−1/1", "mech": "① OH⁻ 加成一个羰基 → 四面体加合物；② 1,2-迁移（本底物 H/甲酰基等价）伴 C=O 重建（决速）；③ 质子转移 → α-羟基羧酸盐。竞争：与分子内 Cannizzaro 的关系判别（同位素实验证明迁移而非氢负离子转移）", "barrier": "能垒数值未核（环状 1,2-二酮碱催化重排计算 Sultana 2013 Beilstein JOC 9, 594, DOI 10.3762/bjoc.9.64；机理综述教材共识）[已核实存在]", "verify": "已核实存在", "comfort": "C,H,O；5 重原子；✅", "def": null}, {"id": "U1", "band": "N2 简单多步", "family": "U", "name": "Cannizzaro 反应（2 甲醛+OH⁻ → 甲醇+甲酸根）", "smiles": "[OH-].C=O.C=O>>CO.O=C[O-]", "qm": "−1/1", "mech": "① OH⁻ 加成醛 → 四面体烷氧盐；② 再去质子 → 双负离子；③ 分子间氢负离子转移到第二分子醛（决速，一级同位素效应证据）；④ 质子转移。竞争：单阴离子直接转移路径（Swain 用溶剂同位素效应排除其他质子转移耦合路径）", "barrier": "ΔG‡ 25.8 kcal/mol（未催化水助氢负转移通道，B3LYP/6-311G**+PB 连续介质水溶液，Kua 2024 Life 14, 933, DOI 10.3390/life14080933；碱催化机理与同位素证据 Swain 1979 JACS 101, 3576, DOI 10.1021/ja00507a023；注意锚点为中性水助通道而非题设 OH⁻ 通道——口径登记见文末）[已核实]", "verify": "已核实", "comfort": "C,H,O；5 重原子；✅", "def": null}, {"id": "U2", "band": "N3 复杂人名网络", "family": "U", "name": "苯偶姻缩合最小版（2 甲醛+CN⁻ 催化 → 乙醇醛）", "smiles": "[C-]#N.C=O.C=O>>[C-]#N.OCC=O", "qm": "−1/1", "mech": "Lapworth 机理：① CN⁻ 加成醛 → 氰醇盐；② 质子转移 → 掩蔽酰基负离子（umpolung）；③ 进攻第二分子醛（决速区）；④ 脱 CN⁻。竞争：氰醇简单形成副平衡；极性反转概念验证", "barrier": "能垒数值未核（氰化物催化苯偶姻缩合多路径 DFT 对比，2010 JPCA 114, 9222, DOI 10.1021/jp103031q）[已核实存在]", "verify": "已核实存在", "comfort": "C,H,N,O；6 重原子；✅", "def": null}, {"id": "U3", "band": "待裁决", "family": "U", "name": "Wittig 反应简化版（H₃P=CH₂+甲醛 → 乙烯+H₃P=O）", "smiles": "[CH2-][PH3+].C=O>>C=C.O=[PH3]", "qm": "0/1", "mech": "① 叶立德对羰基亲核加成（异步 [2+2]）→ 氧磷杂环丁烷（oxaphosphetane，可捕获）；② 环消除 → 烯烃+氧化磷。竞争：betaine 中间体路径（现代共识：多数体系直接经 oxaphosphetane，betaine 被绕过）——机理共识演变经典；顺/反 oxaphosphetane 非对映选择性", "barrier": "ΔE‡ ≈ 19.1 kcal/mol（速决步=环氧膦开环/环回复，气相，相对分离反应物；模型叶立德 Me3P=CH2 类似物；Bofill et al. 2024 Chem. Eur. J. 30, e202400173, DOI 10.1002/chem.202400173；加成步近乎无能垒 <1 kcal/mol，Robiette 2006 JACS 128, 2394）[部分核实]", "verify": "部分核实", "comfort": "C,H,O,P；4 重原子；⚠ P 低密度元素（分档压力测试）", "def": "pick"}, {"id": "U4", "band": "N3 复杂人名网络", "family": "U", "name": "Morita–Baylis–Hillman 反应（甲醛+丙烯酸甲酯+NMe₃ 催化）", "smiles": "C=O.C=CC(=O)OC.CN(C)C>>C=C(CO)C(=O)OC.CN(C)C", "qm": "0/1", "mech": "① 胺对丙烯酸酯 Michael 加成 → 两性离子烯醇盐（可捕获）；② 对醛 aldol 加成；③ 质子转移（决速；醇/水接力助催化，对醛二级动力学）；④ β-消除释放催化剂。竞争：半缩醛中间体路径（McQuade/Aggarwal 修正机理）", "barrier": "决速步=质子转移（机理计算 Robiette, Aggarwal & Harvey 2007 JACS 129, 15513, DOI 10.1021/ja0717865，原文底物为苯甲醛；实验修正机理 Aggarwal 2005 Angew 44, 1706, DOI 10.1002/anie.200462462 与 Price & McQuade 2005 JOC 70, 3980, DOI 10.1021/jo050202j；水接力催化 Chem. Eur. J. 2008, DOI 10.1002/chem.200801822）；绝对垒未核 [已核实]", "verify": "已核实", "comfort": "C,H,N,O；12 重原子；✅（上限边缘）", "def": null}, {"id": "U5", "band": "N3 复杂人名网络", "family": "U", "name": "Passerini 反应（甲醛+甲酸+甲基异腈 → α-酰氧基酰胺）", "smiles": "C=O.O=CO.C[N+]#[C-]>>CNC(=O)COC=O", "qm": "0/1", "mech": "① 醛+羧酸氢键簇集；② 异腈 α-加成 → 腈鎓（nitrilium，可捕获）；③ 羧酸根捕获 → 亚氨酸酯；④ Mumm 重排（酰基迁移）。竞争：溶剂/第四组分参与（\"三组分反应实为四组分\"）——网络复杂度考点", "barrier": "决速步=Mumm 重排 ΔG‡ ≈ 12.4 kcal/mol（第二羧酸协助 4 组分通道；RwB97X-D/6-31+G(d,p)/CPCM(CCl4)，300 K，甲醛体系；Staub et al. 2026 J. Chem. Theory Comput., DOI 10.1021/acs.jctc.5c01293；原始 Maeda 2011 Angew 50, 644）[部分核实]", "verify": "部分核实", "comfort": "C,H,N,O；8 重原子；✅（异腈单元注意）", "def": "pick"}, {"id": "U6", "band": "N1 路线判别", "family": "U", "name": "Staudinger β-内酰胺合成（乙烯酮+甲亚胺 → β-内酰胺）", "smiles": "C=C=O.C=N>>O=C1CCN1", "qm": "0/1", "mech": "① 亚胺 N 进攻乙烯酮中心碳 → 两性离子中间体（可捕获）；② 顺旋 4π 关环（决定顺/反立体化学）。竞争：协同 [2+2]（轨道禁阻但极性体系可异步）vs 分步——百年机理问题", "barrier": "机理锚点（Cossío, Arrieta & Sierra 2008 Acc. Chem. Res. 41, 925, DOI 10.1021/ar800033j；Domingo 等 2015 RSC Adv. 5, 37119）；能垒数值未核 [已核实存在]", "verify": "已核实存在", "comfort": "C,H,N,O；5 重原子；✅", "def": "pick"}, {"id": "U7", "band": "N1 路线判别", "family": "U", "name": "铵叶立德 [2,3]-σ 迁移（Sommelet–Hauser 型）vs [1,2]-Stevens 竞争（巴豆基三甲基铵叶立德，写出线为 [2,3] 产物）", "smiles": "[CH2-][N+](C)(C)CC=CC>>CN(C)CC(C)C=C", "qm": "0/1", "mech": "闭壳层协同 [2,3]-σ 迁移（写出线：新 C–C 键在叶立德碳与烯丙基 γ 位之间，双键移位）。竞争：[1,2]-Stevens 通道（自由基对特征，底物依赖——三甲基/苄基铵叶立德为双自由基路径，苯基叶立德可协同；Ghigo 2010）；现代共识：[1,2] 产物大部分穿过同一 [2,3] TS 后经动力学分叉产生（Singleton 2014）——机理共识演变考点。巴豆基取代使 [2,3] 与 [1,2] 产物 connectivity 可区分（未取代烯丙基两者简并）", "barrier": "ΔE‡ ≈ 7.6 kcal/mol（[2,3] 通道垒，MP2/6-31G(d) 气相相对叶立德反应物，绝对值经二手转录；[1,2] 通道垒 10.5——两通道近简并（ROMP/6-311+G(d,p) 差仅 2 kJ/mol，摘要直读）；Heard & Yates 1996 JOC 61, 7276, DOI 10.1021/jo952227w；动力学分叉机理 Biswas, Collins & Singleton 2014 JACS 136, 3740, DOI 10.1021/ja4128289；底物依赖 Ghigo 2010 JOC 75, 3608, DOI 10.1021/jo100367z）[部分核实]", "verify": "部分核实", "comfort": "C,H,N；8 重原子；✅（叶立德闭壳层；[1,2] 通道自由基对特征仅作剪枝考点）", "def": null}, {"id": "U8", "band": "N2 简单多步", "family": "U", "name": "重氮甲烷+乙烯 → Δ¹-吡唑啉 → 环丙烷+N₂（[3+2]/螯变串联）", "smiles": "C=[N+]=[N-].C=C>>C1CC1.N#N", "qm": "0/1", "mech": "① [3+2] 环加成 → Δ¹-吡唑啉（中间体可捕获）；② 螯变脱 N₂ → 环丙烷。竞争：先脱 N₂ 成单线态卡宾再 [2+1] 直接环丙烷化；分步双自由基脱氮", "barrier": "能垒缺测待自算（文献锚点：1,3-偶极环加成系列 CBS-QB3 ΔH‡/ΔG‡，Ess & Houk 2007 JACS 129, 10646；吡唑啉热脱氮立体化学，Crawford & Mishra 1966 JACS 88, 3963）[部分核实]", "verify": "部分核实", "comfort": "C,H,N；5 重原子；✅", "def": "pick"}, {"id": "Q1", "band": "N2 简单多步", "family": "Q", "name": "芳香 Claisen 重排（烯丙基苯基醚 → 2-烯丙基苯酚）", "smiles": "C=CCOc1ccccc1>>C=CCc1ccccc1O", "qm": "0/1", "mech": "① [3,3]-σ 迁移 → 邻位环己二烯酮中间体（去芳构化，可捕获）；② 烯醇-酚互变异构恢复芳香性。竞争：对位重排（邻位被占时经二次 [3,3]，本底物不涉及）；船式 TS", "barrier": "ΔE‡ ≈ 30–35 kcal/mol（计算区间，回忆值待核；水加速与芳构化驱动计算 Osuna 2013 EJOC 2013, 2823, DOI 10.1002/ejoc.201201738；脂肪族母体实验值 30.6 见 easy P3）[部分核实]", "verify": "部分核实", "comfort": "C,H,O；10 重原子；✅", "def": "pick"}, {"id": "Q2", "band": "N1 路线判别", "family": "Q", "name": "杂原子 Diels–Alder（丁二烯+甲醛 → 3,6-二氢-2H-吡喃）", "smiles": "C=CC=C.C=O>>C1=CCOCC1", "qm": "0/1", "mech": "协同 [4+2]（极性增大，TS 更异步）。竞争：分步两性离子路径；ene 反应路径（甲醛作亲烯体）——网络剪枝考点", "barrier": "ΔE‡ ≈ 25–30 kcal/mol（MP2/6-31G* 级回忆区间待核；杂原子 DA 过渡态结构系列 McCarrick, Wu & Houk 1993 JOC 58, 3330, DOI 10.1021/jo00064a020；CAS-MP2 协同/分步对比 Sakai 2003 THEOCHEM 630, 177；渐近线口径——口径登记见文末）[部分核实]", "verify": "部分核实", "comfort": "C,H,O；6 重原子；✅", "def": null}, {"id": "Q3", "band": "N3 复杂人名网络", "family": "Q", "name": "Nazarov 环化（二乙烯基酮酸活化 → 环戊-2-烯酮）", "smiles": "[OH3+].C=CC(=O)C=C>>[OH3+].O=C1C=CCC1", "qm": "+1/1", "mech": "① 羰基质子化 → 羟基戊二烯基阳离子；② 4π 顺旋电环化（决速）→ 环戊烯基阳离子；③ 去质子/互变异构恢复羰基。竞争：顺旋方向（torquoselectivity，对称底物无区分，可扩展）；Wagner–Meerwein 型副反应", "barrier": "ΔE‡ ≈ 13–20 kcal/mol（羟基戊二烯基阳离子顺旋环化计算区间；全取代底物 Brønsted 酸催化垒 13，Flynn 2024 Chem. Eur. J.；torquoselectivity 计算经典 Kallel & Houk 1989 JOC 54, 6006, DOI 10.1021/jo00287a004；1,4-戊二烯-3-酮理论研究 Smith & Ulmer 1991 Tetrahedron Lett. 32, 725, DOI 10.1016/S0040-4039(00)74868-4）[部分核实]", "verify": "部分核实", "comfort": "C,H,O；7 重原子；✅（阳离子中间体闭壳层）", "def": null}, {"id": "Q4", "band": "待裁决", "family": "Q", "name": "阴离子 oxy-Cope 重排（1,5-己二烯-3-醇盐 → 烯醇盐）", "smiles": "C=CC([O-])CC=C>>C=CCCC=C[O-]", "qm": "−1/1", "mech": "① 去质子化（预平衡，已写入反应物）；② [3,3]-σ 迁移（决速）→ 烯醇盐（驱动整个平衡）；③ 质子化互变异构 → 5-己烯醛（本基准止于烯醇盐）。对照：中性 oxy-Cope 垒高约 30——阴离子加速幅度本身是考点", "barrier": "ΔG‡ ≈ 6.3–8.3 kcal/mol（气相 B3LYP/6-31+G*，Carey Part A 引述；速率加速 10¹⁰–10¹⁷ 实验发现 Evans & Golob 1975 JACS 97, 4765；Li⁺ 配位升至 31.8 的离子对效应）[部分核实]", "verify": "部分核实", "comfort": "C,H,O；7 重原子；✅（裸阴离子，建议讨论抗衡离子/溶剂化）", "def": null}, {"id": "Q5", "band": "N2 简单多步", "family": "Q", "name": "oxy-Cope 重排（1,5-己二烯-3-醇 → 5-己烯醛，经烯醇）", "smiles": "C=CC(O)CC=C>>O=CCCCC=C", "qm": "0/1", "mech": "① [3,3]-σ 迁移（椅式 TS 优先）→ 5-己烯醛烯醇（中间体）；② 烯醇 → 醛互变异构（质子转移步，按 2026-09-25 规则不挂参考垒）。竞争：船式 TS；分步双自由基", "barrier": "能垒缺测待自算（文献锚点：oxy-Cope 首例，Berson & Jones 1964 JACS 86, 5019，DOI 10.1021/ja01076a067）[部分核实]", "verify": "部分核实", "comfort": "C,H,O；7 重原子；✅", "def": "pick"}, {"id": "H1", "band": "N3 复杂人名网络", "family": "H", "name": "Fischer 吲哚合成核心步（苯肼+乙醛 → 吲哚+NH₃+H₂O，酸催化）", "smiles": "[OH3+].NNc1ccccc1.CC=O>>[OH3+].c1ccc2[nH]ccc2c1.N.O", "qm": "+1/1", "mech": "① 腙形成；② 腙-烯肼互变异构；③ [3,3]-σ 迁移（决速，去芳构化中间体可捕获）；④ 环化-芳构化-脱 NH₃。竞争：腙 E/Z 几何决定可重排性；1,2-迁移假说（已证否，剪枝对象）", "barrier": "能垒数值未核（区域选择性机理模型 DFT，Koch 2021 Tetrahedron 91, 132116, DOI 10.1016/j.tet.2021.132116；机理共识 Robinson《The Fischer Indole Synthesis》Wiley 1982）[已核实存在]", "verify": "已核实存在", "comfort": "C,H,N,O；12 重原子；✅（上限边缘）", "def": null}, {"id": "H2", "band": "N3 复杂人名网络", "family": "H", "name": "Paal–Knorr 吡咯合成（2,5-己二酮+氨 → 2,5-二甲基吡咯+2 水，酸催化）", "smiles": "[OH3+].CC(=O)CCC(C)=O.N>>[OH3+].Cc1ccc(C)[nH]1.O.O", "qm": "+1/1", "mech": "① 氨加成 → 半胺醛（可捕获）；② 脱水 → 亚胺/烯胺互变；③ 分子内进攻第二羰基关环（决速区）；④ 脱水芳构化。竞争：环化时机（先脱水再环化 vs 反之）——实验动力学支持半胺醛环化决速", "barrier": "能垒数值未核（中间体与动力学机理研究 Amarnath 等 1995，PMID 7766806；环化速率取代基效应实验系列）[部分核实]", "verify": "部分核实", "comfort": "C,H,N,O；10 重原子；✅", "def": null}, {"id": "H3", "band": "N2 简单多步", "family": "H", "name": "Paal–Knorr 呋喃合成（2,5-己二酮 → 2,5-二甲基呋喃 + 水，酸催化）", "smiles": "[OH3+].CC(=O)CCC(C)=O>>[OH3+].Cc1ccc(C)o1.O", "qm": "+1/1", "mech": "① 羰基质子化/烯醇化；② 烯醇氧分子内进攻第二羰基关环（决速区；水介导 hemialcohol 路径显著降垒）；③ 脱水芳构化。竞争：中性无催化环化（垒约 40，背景通道）；与 H2 吡咯版构成 O/N 对偶（呋喃版只脱 1 分子水）——环化时机与机理对偶考点", "barrier": "Ea 11.5 kcal/mol（水介导环化步决速区垒，TS 相对路径中间体络合物，经学位论文二手转录、方法级别未核——口径登记见文末；Abbat, Dhaked, Arfeen & Bharatam 2015 RSC Adv. 5, 88353, DOI 10.1039/c5ra16246g；经典实验机理（排除自由烯醇中间体）Amarnath & Amarnath 1995 JOC 60, 301, DOI 10.1021/jo00107a006）[部分核实]", "verify": "部分核实", "comfort": "C,H,O；9 重原子；✅", "def": null}, {"id": "H4", "band": "N2 简单多步", "family": "H", "name": "Knorr 吡唑合成（肼 + 2,4-戊二酮 → 3,5-二甲基吡唑 + 2 水，弱酸催化）", "smiles": "[OH3+].NN.CC(=O)CC(C)=O>>[OH3+].Cc1cc(C)n[nH]1.O.O", "qm": "+1/1", "mech": "① 肼对一个羰基缩合 → 腙/半胺醛（快）；② 分子内进攻第二羰基关环（决速）；③ 双脱水芳构化。竞争：两次缩合的位点次序（对称底物无区分，不对称 1,3-二酮扩展时区域选择性）；pH 依赖（中性下腙被困不成环）", "barrier": "能垒数值未核（肼 + β-二酮机理半经验计算 Singh 2000 Can. J. Chem. 78, 1109, DOI 10.1139/v00-104；环化决速与 pH 依赖实验机理 Flood & Dawson 2018 Angew 57, 11634, DOI 10.1002/anie.201805191）[已核实存在]", "verify": "已核实存在", "comfort": "C,H,N,O；10 重原子；✅（N–N 键单元注意）", "def": null}, {"id": "H5", "band": "N2 简单多步", "family": "H", "name": "Huisgen 1,3-偶极环加成（雷酸 + 乙炔 → 异噁唑）", "smiles": "[C-]#[N+]O.C#C>>c1cnoc1", "qm": "0/1", "mech": "协同 [3+2] 环加成，单步五元环成环（最小杂环构建）。竞争：协同 vs 双自由基分步（Firestone 假说——早期多参考计算曾支持分步，现代共识协同，机理史判别点）；区域选择性（对称底物无区分，可扩展）", "barrier": "ΔE‡ 13 kcal/mol（经典垒 13–14 区间取下界，CCSD(T)/G2/CASPT2 多系列互证，TS 相对分离反应物渐近线——口径登记见文末；Nguyen, Chandra, Sakai & Morokuma 1999 JOC 64, 65, DOI 10.1021/jo980723p；早期双自由基机理研究 Hiberty, Ohanessian & Schlegel 1983 JACS 105, 719, DOI 10.1021/ja00342a007）[已核实]", "verify": "已核实", "comfort": "C,H,N,O；5 重原子；✅（雷酸 1,3-偶极子单元注意）", "def": null}];
+const LS_KEY = "normal-tagging-v1";
+let tags = {};
+try { tags = JSON.parse(localStorage.getItem(LS_KEY) || "{}"); } catch (e) { tags = {}; }
+if (!Object.keys(tags).length) {
+  for (const e of ENTRIES) if (e.def) tags[e.id] = e.def;
+}
+
+function save() { localStorage.setItem(LS_KEY, JSON.stringify(tags)); }
+function esc(s) { return s; }
+
+function render() {
+  const fb = document.getElementById("f-band").value;
+  const ff = document.getElementById("f-fam").value;
+  const ft = document.getElementById("f-tag").value;
+  const q = document.getElementById("f-q").value.trim().toLowerCase();
+  const tb = document.getElementById("tbody");
+  tb.innerHTML = "";
+  const counts = { pick: 0, alt: 0, drop: 0, todo: 0 };
+  for (const e of ENTRIES) {
+    const st = tags[e.id] || "todo";
+    counts[st] = (counts[st] || 0) + 1;
+    if (fb && e.band !== fb) continue;
+    if (ff && e.family !== ff) continue;
+    if (ft && st !== ft) continue;
+    if (q && !(e.id.toLowerCase().includes(q) || e.name.toLowerCase().includes(q) || e.smiles.toLowerCase().includes(q))) continue;
+    const tr = document.createElement("tr");
+    tr.className = "st-" + st;
+    const cells = [
+      `<td class="id">${e.id}</td>`,
+      `<td class="tag-btns">
+         <button class="b-pick ${st === "pick" ? "on" : ""}" onclick="setTag('${e.id}','pick')">正选</button>
+         <button class="b-alt ${st === "alt" ? "on" : ""}" onclick="setTag('${e.id}','alt')">替补</button>
+         <button class="b-drop ${st === "drop" ? "on" : ""}" onclick="setTag('${e.id}','drop')">剔除</button>
+       </td>`,
+      `<td><span class="band">${e.band}</span><br><span class="band">${e.family} 族</span></td>`,
+      `<td>${e.name}</td>`,
+      `<td><code>${e.smiles}</code><br>${e.qm}</td>`,
+      `<td class="mech">${e.mech}</td>`,
+      `<td class="barrier">${e.barrier} <span class="vtag v-${e.verify}">${e.verify}</span></td>`,
+      `<td>${e.comfort}</td>`,
+    ];
+    tr.innerHTML = cells.join("");
+    tb.appendChild(tr);
+  }
+  const cp = document.getElementById("c-pick");
+  cp.innerHTML = `正选 <b>${counts.pick || 0}</b>/10`;
+  cp.className = "counter" + ((counts.pick || 0) > 10 ? " over" : "");
+  document.getElementById("c-alt").innerHTML = `替补 <b>${counts.alt || 0}</b>/10`;
+  document.getElementById("c-drop").innerHTML = `剔除 <b>${counts.drop || 0}</b>`;
+  document.getElementById("c-todo").innerHTML = `未定 <b>${counts.todo || 0}</b>`;
+}
+
+function setTag(id, st) {
+  tags[id] = (tags[id] === st) ? "todo" : st;
+  if (tags[id] === "todo") delete tags[id];
+  save(); render();
+}
+
+function exportJSON() {
+  const blob = new Blob([JSON.stringify({ tags }, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "normal_tags.json";
+  a.click();
+}
+
+function exportNames() {
+  const pick = ENTRIES.filter(e => tags[e.id] === "pick").map(e => e.id);
+  const alt = ENTRIES.filter(e => tags[e.id] === "alt").map(e => e.id);
+  const drop = ENTRIES.filter(e => tags[e.id] === "drop").map(e => e.id);
+  const txt = `正选 ${pick.length}：${pick.join(", ")}
+
+替补 ${alt.length}：${alt.join(", ")}
+
+剔除 ${drop.length}：${drop.join(", ")}
+`;
+  const blob = new Blob([txt], { type: "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "normal_selection.txt";
+  a.click();
+}
+
+function importJSON() {
+  try {
+    const obj = JSON.parse(document.getElementById("importbox").value);
+    tags = obj.tags || obj;
+    save(); render();
+    document.getElementById("importwrap").classList.add("hidden");
+  } catch (e) { alert("JSON 解析失败：" + e); }
+}
+
+function resetDefaults() {
+  if (!confirm("把所有条目的打标重置为 v4 建议名单（正选 10，新条目未定）？")) return;
+  tags = {};
+  for (const e of ENTRIES) if (e.def) tags[e.id] = e.def;
+  save(); render();
+}
+
+function clearAll() {
+  if (!confirm("清空全部打标？")) return;
+  tags = {}; save(); render();
+}
+
+for (const id of ["f-band", "f-fam", "f-tag", "f-q"]) document.getElementById(id).addEventListener("input", render);
+const bands = [...new Set(ENTRIES.map(e => e.band))];
+const fams = [...new Set(ENTRIES.map(e => e.family))];
+for (const b of bands) document.getElementById("f-band").insertAdjacentHTML("beforeend", `<option>${b}</option>`);
+for (const f of fams) document.getElementById("f-fam").insertAdjacentHTML("beforeend", `<option>${f} 族</option>`);
+render();
+</script>
+</body>
+</html>

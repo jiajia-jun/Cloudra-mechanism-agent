@@ -1,8 +1,12 @@
-"""R 族 + U 族登记（v3 缩减后）：R1 pinacol、U3 磷叶立德+甲醛（新收）、U5 Passerini、U6 Staudinger。
+"""R 族 + U 族登记（v4 换血后）：R1 pinacol、R4 Wolff 重排（v4 池内回归）、
+U3 磷叶立德+甲醛、U5 Passerini、U6 Staudinger、U8 重氮甲烷+乙烯 [3+2]/挤出
+串联（v4 新收）。
 
 v3（2026-09-09）收窄为四条多步/中间体网络；R2/R3/U1/U7 剔出定稿名单留档池
-（条目见 normal.md）。竞争通道（R1 分步碳正离子路径、U6 协同 [2+2] 等）按
-normal.md 约定不进 gold，由 agent 自行探索。
+（条目见 normal.md）。v4（2026-09-25）换血：R4/U8 入正选替 A5/O3 槽——两条
+各边一律不写 barrier（构建期诚实缺测，gold 战役后补）。竞争通道（R1 分步
+碳正离子路径、U6 协同 [2+2]、R4 协同 Wolff 通道与 oxirene、U8 卡宾 [2+1] 等）
+按 normal.md 约定不进 gold，由 agent 自行探索。
 """
 
 TASKS = {
@@ -33,6 +37,22 @@ TASKS = {
                 "out": "[OH2+:1][H:11].[OH:6][H:2].[CH3:3][C:4]([CH3:5])([CH3:8])[C:7](=[O:10])[CH3:9]",
                 "type": "proton transfer from protonated pinacolone to water, regenerating H3O+",
                 "barrier": 5.74,
+            },
+        ],
+    },
+    # O=CC=[N+]=[N-]>>C=C=O.N#N  (0/1)  Wolff 重排（分步经甲酰卡宾；协同通道按约定不进 gold）
+    "R4": {
+        "name_en": "Wolff rearrangement: diazoacetaldehyde -> ketene + N2 (stepwise via formylcarbene)",
+        "conditions_en": "gas-phase thermolysis",
+        "mapped_reactants": "[N-:1]=[N+:2]=[CH:3][C:4]([H:6])=[O:5]",
+        "steps": [
+            {
+                "out": "[N:1]#[N:2].[CH:3][C:4]([H:6])=[O:5]",
+                "type": "N2 extrusion -> singlet formylcarbene (stepwise Wolff path)",
+            },
+            {
+                "out": "[N:1]#[N:2].[CH:3]([H:6])=[C:4]=[O:5]",
+                "type": "1,2-H shift from the formyl carbon to the carbene carbon -> ketene",
             },
         ],
     },
@@ -127,6 +147,22 @@ TASKS = {
                 "type": "oxaphosphetane cycloreversion: C-P and C-O cleavage with C=C and P=O pi formation -> ethylene + phosphine oxide",
                 "barrier": 23.76,
                 "weight": 1.0,
+            },
+        ],
+    },
+    # C=[N+]=[N-].C=C>>C1CC1.N#N  (0/1)  重氮甲烷+乙烯 [3+2]/挤出串联
+    "U8": {
+        "name_en": "diazomethane + ethylene -> cyclopropane + N2 via 1-pyrazoline ([3+2] cycloaddition then cheletropic N2 extrusion)",
+        "conditions_en": "gas-phase thermolysis",
+        "mapped_reactants": "[CH2:1]=[N+:2]=[N-:3].[CH2:4]=[CH2:5]",
+        "steps": [
+            {
+                "out": "[CH2:1]1[N:2]=[N:3][CH2:4][CH2:5]1",
+                "type": "[3+2] cycloaddition -> 1-pyrazoline intermediate",
+            },
+            {
+                "out": "[N:2]#[N:3].[CH2:1]1[CH2:4][CH2:5]1",
+                "type": "cheletropic N2 extrusion with C-C closure -> cyclopropane",
             },
         ],
     },

@@ -2,9 +2,13 @@
 
 Reads the curated normal-tier markdown and emits one TaskSpec JSON per task into
 ideapool/tasks/normal/N<id>.json for the finalized 10-task list (TASK_IDS; the
-pool keeps 48 entries but only the finalized list is generated — 见 normal.md
+pool keeps 50 entries but only the finalized list is generated — 见 normal.md
 "定稿圈定"段)。v3（2026-09-09）将 30 条缩至 10 条并按"多步网络 + 尽量 xtb 友好"重选，
-新收 Q1（芳香 Claisen）与 U3（磷叶立德+甲醛）。方法白名单与 hard 对齐：
+新收 Q1（芳香 Claisen）与 U3（磷叶立德+甲醛）。v4（2026-09-25）换血：换出
+A2/A5/O3（质子交换边饱和、四面体中心过多），换入 R4（Wolff 重排，池内回归）/
+U8（重氮甲烷+乙烯 [3+2]/挤出串联）/Q5（oxy-Cope + 互变异构）——三条均中性
+闭壳两步链，新题各边一律不挂参考垒（诚实缺测，gold 战役后补；Q5 第 2 步
+互变异构按 2026-09-25 PT 边规则留在图里但不挂垒）。方法白名单与 hard 对齐：
 `MethodPolicy(allowed_methods=["xtb", "pm7", "b3lyp/def2svp"])`（B3LYP-D3(BJ)/def2-SVP）。The markdown is the human-curated
 source of truth for SMILES / charges / barriers; this generator is deterministic
 and re-runnable.
@@ -71,12 +75,16 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SRC = REPO_ROOT / "ideapool" / "reaction_candidates" / "normal.md"
 DEFAULT_OUT = REPO_ROOT / "ideapool" / "tasks" / "normal"
 
-# normal.md "定稿圈定"段的权威名单（v3 缩减：30 → 10；池子其余 38 条留档不生成）。
-# v3 保留（多步网络 + 尽量 xtb 友好）：A2 丙酮 aldol 缩合 / A5 Mannich / I1 亚胺 /
-# O3 Baeyer–Villiger / R1 pinacol / U5 Passerini / U6 Staudinger / Y3 BAC2 皂化，
-# 另新收 Q1 芳香 Claisen 与 U3 磷叶立德+甲醛（池内被裁条目回归，registry 新增登记）。
+# normal.md "定稿圈定"段的权威名单（v4 换血 2026-09-25；池子其余 40 条留档不生成）。
+# v4（2026-09-25 用户裁决）换出 A2 丙酮 aldol / A5 Mannich / O3 Baeyer–Villiger
+# （质子交换(PT)边饱和、四面体中心过多），换入 R4 Wolff 重排（池内回归）/
+# U8 重氮甲烷+乙烯→吡唑啉→环丙烷+N₂ / Q5 oxy-Cope→5-己烯醛经烯醇——三条均
+# 中性、闭壳、线性两步链；PT 边最小化（Q5 互变异构步按 2026-09-25 PT 边规则
+# 留在图里但不挂参考垒），新题各边一律不写 barrier（构建期诚实缺测，gold 战役后补）。
+# v4 保留：I1 亚胺 / Y3 BAC2 皂化 / R1 pinacol / U3 磷叶立德+甲醛 / U5 Passerini /
+# U6 Staudinger / Q1 芳香 Claisen。
 TASK_IDS = (
-    "A2 A5 I1 O3 R1 U5 U6 Y3 Q1 U3"
+    "I1 Y3 R1 R4 U3 U5 U6 U8 Q1 Q5"
 ).split()
 
 # ---------------------------------------------------------------------------
