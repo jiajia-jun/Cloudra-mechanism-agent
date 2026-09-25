@@ -80,7 +80,7 @@ def test_easy_generation_count_and_roundtrip(tmp_path):
 
 def test_easy_charge_and_smiles():
     tasks = {t.task_id: t for t in gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)}
-    assert tasks["C1"].system.charge == -1
+    assert tasks["E1"].system.charge == -1
     assert tasks["D1"].system.charge == 0
     assert tasks["D1"].system.reactants == ["C=CC=C", "C=C"]
     # degenerate M-group process: product falls back to reactant
@@ -109,7 +109,7 @@ def test_easy_barrier_parsing_no_garbage():
 
 
 def test_easy_computed_barriers():
-    """十八题回填值来自原始 RC/TS ORCA 能量，题源重生成不可退回文献锚点。"""
+    """二十题回填值来自原始 RC/TS ORCA 能量，题源重生成不可退回文献锚点。"""
     tasks = {t.task_id: t for t in gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)}
     expected = {
         # 第一批（gold_compute/easy_backfill_2026-09-23.md）
@@ -119,6 +119,8 @@ def test_easy_computed_barriers():
         # 第二批（gold_compute/easy_backfill_2026-09-25.md）
         "D3": 14.65, "D4": 11.30, "X1": 40.90, "E1": 0.88,
         "F1": 39.41, "G3": 30.15, "M1": 15.10, "M16": 70.97,
+        # 补位题（pilots：gold_compute/campaign/pilots/R4、R9）
+        "F4": 16.02, "M17": 44.50,
     }
     for task_id, barrier in expected.items():
         assert tasks[task_id].gold.mechanism_graph.edges[0].barrier_kcal_mol == barrier

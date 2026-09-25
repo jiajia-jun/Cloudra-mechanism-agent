@@ -86,10 +86,9 @@ _NAME_EN = {
     "L1": "cyclobutene -> butadiene ring opening",
     "L2": "hexatriene -> cyclohexadiene ring closure",
     "X1": "beta-propiolactone -> ethylene + CO2",
-    "C1": "F- + CH3Cl -> CH3F + Cl-",
-    "C3": "F- + CH3Cl: determine the stereochemical course (retention vs inversion)",
     "E1": "F- + CH3CH2Cl elimination -> ethylene + HF + Cl-",
     "F1": "BH4- + formaldehyde -> borane-methoxide adduct [CH3OBH3]-",
+    "F4": "BH3 + formaldehyde -> methoxyborane via Lewis adduct",
     "G2": "diimide cis reduction of ethylene",
     "G3": "propylene + ethylene ene reaction (Alder-ene)",
     "M1": "2,2'-dimethylbiphenyl aryl-aryl rotation",
@@ -98,6 +97,7 @@ _NAME_EN = {
     "M14": "acrolein s-trans <-> s-cis rotation",
     "M15": "HONO cis-trans isomerization",
     "M16": "formic acid dehydrogenation HCOOH -> CO2 + H2",
+    "M17": "methyl isocyanide -> acetonitrile rearrangement",
 }
 
 # gold 机理概要（step_type）英译，按 task_id 映射；新增题目必须登记。
@@ -110,10 +110,9 @@ _STEP_TYPE_EN = {
     "L1": "4pi electrocyclic ring opening, conrotatory, single step",
     "L2": "6pi electrocyclic ring closure, disrotatory, single step",
     "X1": "concerted asynchronous C-C/C-O cleavage, CO2 extrusion",
-    "C1": "backside attack, single step, exothermic",
-    "C3": "double inversion (retention): proton-abstraction-induced inversion to a [FH...CH2Cl]- intermediate, then a second inversion; gold models the rate-determining Cs-symmetric TS as a single step",
     "E1": "anti-periplanar concerted elimination, single step (competes with SN2)",
     "F1": "hydride transfer (B-H cleavage, C-H formation) coupled with B-O dative bond formation, single step via asynchronous TS",
+    "F4": "hydride transfer (B-H cleavage, C-H formation) from the H3B<-O=CH2 Lewis adduct, single step via asynchronous TS (neutral counterpart of F1)",
     "G2": "concerted [sigma2s+sigma2s+pi2s] double H transfer, syn stereospecific, N2 release",
     "G3": "concerted [sigma2s+pi2s+pi2s], allylic H shift + C-C formation + pi shift",
     "M1": "atropisomerism: ortho-methyl hindered rotation, Ra<->Sa via near-planar TS",
@@ -122,6 +121,7 @@ _STEP_TYPE_EN = {
     "M14": "conformational rotation: C(sp2)-C(sp2) single-bond torsion, trans more stable",
     "M15": "conformational isomerization: N-O torsion, trans ground state, cis ~0.5-0.6 kcal/mol higher",
     "M16": "dehydrogenation: concerted H2 elimination to CO2 (competes with dehydration to CO+H2O)",
+    "M17": "isomerization: unimolecular methyl migration (C-N cleavage, C-C formation) via a near-trigonal TS",
 }
 
 # ---------------------------------------------------------------------------
@@ -148,10 +148,9 @@ _MAPPED_REACTANTS = {
     "L1": "[CH:1]1=[CH:2][CH2:3][CH2:4]1",
     "L2": "[CH2:1]=[CH:2][CH:3]=[CH:4][CH:5]=[CH2:6]",
     "X1": "[O:1]=[C:2]1[O:3][CH2:4][CH2:5]1",
-    "C1": "[F-:1].[CH3:2][Cl:3]",
-    "C3": "[F-:1].[CH3:2][Cl:3]",
     "E1": "[F-:1].[CH2:2]([H:4])[CH2:3][Cl:5]",
     "F1": "[BH3-:1][H:2].[CH2:3]=[O:4]",
+    "F4": "[BH2:1][H:2].[CH2:3]=[O:4]",
     "G2": "[N:1]([H:3])=[N:2]([H:4]).[CH2:5]=[CH2:6]",
     "G3": "[CH2:1]=[CH:2][CH2:3]([H:6]).[CH2:4]=[CH2:5]",
     "M1": "[CH3:1][c:2]1[cH:3][cH:4][cH:5][cH:6][c:7]1[c:8]1[c:9]([CH3:10])[cH:11][cH:12][cH:13][cH:14]1",
@@ -160,14 +159,15 @@ _MAPPED_REACTANTS = {
     "M14": "[CH2:1]=[CH:2][CH:3]=[O:4]",
     "M15": "[O:1]=[N:2][OH:3]",
     "M16": "[O:1]([H:4])[C:2]([H:5])=[O:3]",
+    "M17": "[CH3:1][N+:2]#[C-:3]",
 }
 
 # (break, form)；每个 [i, j] 对引用上方同一 task 的映射号。逐题化学依据：
 # - D/P/L/X 周环：断旧 π/σ、成新 π/σ（DA 成两个新 σ + 一个 π；电环化开/闭环
 #   断/成一个 σ 并整体移 π；X1 断 C-C 与 C-O、成 C=O 第二键与 C=C）。
-# - C1/C3 SN2（含双反转净结果）：断 C-Cl、成 C-F；C2 断 C-Cl、成 C-C（C 端）。
 # - E1：断 β-C-H 与 C-Cl，成 H-F 与 C=C π。
-# - F1 断 B-H 与 C=O π、成 C-H；F2 成 C-C、断 C=O π；F3 六元环 TS：C=O π 断、
+# - F1/F4 断 B-H 与 C=O π、成 C-H 与 B-O（F4 是中性 BH3 对照，同映射位次）；
+#   F2 成 C-C、断 C=O π；F3 六元环 TS：C=O π 断、
 #   两个 O-H 断/成各一次（水梭）、成新 C-O。
 # - T1 水梭互变：断 α-C-H 与水 O-H，成两个 O-H 与 C=C π、断 C=O π；T3 断
 #   N-H、成 C-H；M12 断 O-H、成另一 O-H（Zundel 质子转移）。
@@ -175,6 +175,7 @@ _MAPPED_REACTANTS = {
 #   成两个 C-H 与 N≡N 第三键；G3 ene：断烯丙基 C-H、ene π 与 enophile π，
 #   成新 C-H、新 C-C σ 与迁移 π。
 # - M16 脱氢：断 O-H 与 C-H，成 H-H 与 C-O 第二键（CO2）。
+# - M17 甲基迁移：断 C-N、成 C-C（N≡C 三键不动）。
 # - M1/M3/M6/M8/M10/M14/M15：扭转/翻转无键级变化，([] , [])。
 _BOND_CHANGES: dict[str, tuple[list[list[int]], list[list[int]]]] = {
     "D1": ([[1, 2], [3, 4], [5, 6]], [[1, 6], [2, 3], [4, 5]]),
@@ -185,10 +186,9 @@ _BOND_CHANGES: dict[str, tuple[list[list[int]], list[list[int]]]] = {
     "L1": ([[1, 2], [3, 4]], [[1, 4], [2, 3]]),
     "L2": ([[1, 2], [3, 4], [5, 6]], [[1, 6], [2, 3], [4, 5]]),
     "X1": ([[2, 5], [3, 4]], [[2, 3], [4, 5]]),
-    "C1": ([[2, 3]], [[1, 2]]),
-    "C3": ([[2, 3]], [[1, 2]]),
     "E1": ([[2, 4], [3, 5]], [[1, 4], [2, 3]]),
     "F1": ([[1, 2], [3, 4]], [[2, 3], [1, 4]]),
+    "F4": ([[1, 2], [3, 4]], [[2, 3], [1, 4]]),
     "G2": ([[1, 3], [2, 4], [5, 6]], [[1, 2], [3, 5], [4, 6]]),
     "G3": ([[1, 2], [3, 6], [4, 5]], [[1, 5], [2, 3], [4, 6]]),
     "M1": ([], []),
@@ -197,6 +197,7 @@ _BOND_CHANGES: dict[str, tuple[list[list[int]], list[list[int]]]] = {
     "M14": ([], []),
     "M15": ([], []),
     "M16": ([[1, 4], [2, 5]], [[1, 2], [4, 5]]),
+    "M17": ([[1, 2]], [[1, 3]]),
 }
 
 # 逐边参考能垒权重（越难算准的边越小）：锚点属分离反应物渐近线口径或"部分核实"
@@ -205,7 +206,6 @@ _BARRIER_WEIGHT: dict[str, float] = {
     "D1": 0.5,   # 分离反应物口径
     "D3": 0.5,   # 分离反应物口径
     "D4": 0.5,   # 相对分离反应物
-    "C3": 0.5,   # TS 相对反应物渐近线
     "G2": 0.5,   # 相对分离反应物
     "G3": 0.5,   # 相对分离反应物 + 部分核实
     "M1": 0.5,   # 部分核实（数值经二手转引）
