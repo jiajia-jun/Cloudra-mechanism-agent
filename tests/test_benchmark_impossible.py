@@ -4,7 +4,7 @@
 拒答路线（refusal.py/impossible.py、expected_outcome/pair_id/impossible_case
 特判）已删除：I 题与 sibling 都走标准 composite——I 题的正确交付 = 同构图
 + 不可达元素标 accessible=false（图分满分、自洽豁免、accuracy 不可达边记 0.0，
-final = 0.3·图 + 0.1·自洽）；硬算（不可达元素标 accessible=true）被图分的
+final = 0.1·图 + 0.3·自洽）；硬算（不可达元素标 accessible=true）被图分的
 标志一致性闸门按代价 1.0 倒扣。
 
 无 LLM、无网络；评分路径是纯结构化 JSON/文件取证，不需要可选依赖。
@@ -323,8 +323,8 @@ def _write_delivery(sandbox: Path, graph: GoldMechanismGraph, **node_overrides) 
 
 def test_runner_i_task_correct_delivery_flags_inaccessible(tmp_path):
     """I 题正确交付：同构图 + 不可达 TS 标 accessible=false -> 图分满分
-    （标志一致）、自洽豁免（边有效不可达）、accuracy 不可达边记 0.0，
-    final = 0.3·1 + 0.1·1 + 0.6·0 = 0.4。"""
+    （标志一致）、自洽豁免（边有效不可达——豁免元素不判、也不触发自洽回捞）、
+    accuracy 不可达边记 0.0，final = 0.1·1 + 0.3·1 + 0.6·0 = 0.4。"""
     task = _i_task()
     _write_delivery(tmp_path, task.gold.mechanism_graph)
     res = BenchmarkRunner(tmp_path / "data").score_sandbox(task, tmp_path)
@@ -336,20 +336,21 @@ def test_runner_i_task_correct_delivery_flags_inaccessible(tmp_path):
 
 def test_runner_i_task_wrongly_solve_flagged_accessible(tmp_path):
     """I 题硬算（把不可达 TS 标 accessible=true）：标志不一致 -> 边按代价 1.0
-    倒扣进图分（2/3）；该边不再是有效不可达豁免，无一阶鞍点 + IRC 证据 ->
-    自洽判负；accuracy 不可达边仍 0.0。final = 0.3·(2/3) = 0.2。"""
+    倒扣进图分（2/3，该边本就赢不到覆盖，自洽回捞不改变它）；该边不再是有效
+    不可达豁免，无一阶鞍点 + IRC 证据 -> 自洽判负；accuracy 不可达边仍 0.0。
+    final = 0.1·(2/3) ≈ 0.0667。"""
     task = _i_task()
     _write_delivery(tmp_path, task.gold.mechanism_graph, TS={"accessible": True})
     res = BenchmarkRunner(tmp_path / "data").score_sandbox(task, tmp_path)
     assert res.graph_score == pytest.approx(2 / 3), res.notes
     assert res.selfconsistency_passed is False, res.notes
     assert res.accuracy_score == 0.0, res.notes
-    assert res.final_score == pytest.approx(0.2)
+    assert res.final_score == pytest.approx(0.1 * 2 / 3, abs=1e-4)
 
 
 def test_runner_pure_inaccessible_delivery_is_legal(tmp_path):
     """纯不可达交付（全部节点标 accessible=false）是合法交付：不触发零证据
-    倒扣；ID2 形制（单参考态节点、无边）-> final = 0.3 + 0.1 + 0.6 = 1.0。"""
+    倒扣；ID2 形制（单参考态节点、无边）-> final = 0.1 + 0.3 + 0.6 = 1.0。"""
     graph = GoldMechanismGraph(
         nodes=[
             MechanismNode(

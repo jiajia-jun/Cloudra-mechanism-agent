@@ -1794,12 +1794,13 @@ def test_easy_tasks_regenerate_identically():
 
 
 def test_normal_tasks_regenerate_identically():
-    """normal 档题库（v3：10 题多步网络）必须与生成器输出一致。"""
+    """normal 档题库（v4.1：11 题多步网络——I1 气相版 + I5 水溶液对偶）必须与
+    生成器输出一致。"""
     pytest.importorskip("rdkit")  # 生成器的映射校验依赖 RDKit；CI 只装 dev extra
     from cloudra.benchmark import gen_normal_tasks
 
     tasks = gen_normal_tasks.parse_normal_md(gen_normal_tasks.DEFAULT_SRC)
-    assert len(tasks) == 10
+    assert len(tasks) == 11
     for t in tasks:
         committed = gen_normal_tasks.DEFAULT_OUT / f"{t.task_id}.json"
         assert committed.is_file(), f"missing committed task file: {committed}"
@@ -2401,11 +2402,12 @@ def test_integrity_report_binding_quality_enters_graph_score(tmp_path):
     )
     runner = BenchmarkRunner(tmp_path / "data")
     res = runner.score_sandbox(task, tmp_path)
-    # 绑定质量并进图分：R 有效代价 1-(1-0)·0.7 = 0.3，P = 0.15（TS 折叠进边）
-    # -> distance 0.45 / max 3 -> graph = 0.85；sc 无 QM 频率证据判负；
-    # accuracy 无 gold 参考边记 1.0 -> final = 0.3·0.85 + 0.6·1.0 = 0.855
-    assert res.graph_score == pytest.approx(0.85, abs=1e-4)
-    assert res.final_score == pytest.approx(0.855, abs=1e-4)
+    # 绑定质量并进图分：R 有效代价 1-(1-0)·0.7 = 0.3，P = 0.15；交付步无鞍点
+    # 证据 → 自洽不合格 → 该 gold 边覆盖贡献倒扣（edge 代价 0 → 1.0）：
+    # distance 1.45 / max 3 -> graph ≈ 0.5167；sc 判负；accuracy 无 gold 参考
+    # 边记 1.0 -> final = 0.1·0.5167 + 0.6·1.0 ≈ 0.6517
+    assert res.graph_score == pytest.approx(1 - 1.45 / 3, abs=1e-4)
+    assert res.final_score == pytest.approx(0.1 * (1 - 1.45 / 3) + 0.6, abs=1e-4)
     assert any("partial-credit" in n for n in res.notes)
 
 
@@ -2501,15 +2503,22 @@ def test_composite_partial_evidence_is_graded_not_zero(tmp_path):
     runner = BenchmarkRunner(tmp_path / "data")
     res = runner.score_sandbox(task, tmp_path)
     # R 全绑 q=1（代价 0），P 未绑 q=0（等同未覆盖：节点缺失连带边缺失）
-    # -> distance 2 / max 3 -> graph = 1/3；sc 判负；accuracy 无参考边记 1.0
-    # -> final = 0.3·(1/3) + 0.6·1.0 = 0.7
+    # -> distance 2 / max 3 -> graph = 1/3（边本就连带未覆盖，自洽回捞不再
+    # 改变它）；sc 判负；accuracy 无参考边记 1.0
+    # -> final = 0.1·(1/3) + 0.6·1.0 ≈ 0.6333
     assert res.graph_score == pytest.approx(1 / 3, abs=1e-4)
-    assert res.final_score == pytest.approx(0.7, abs=1e-4)
+    assert res.final_score == pytest.approx(0.1 / 3 + 0.6, abs=1e-4)
     assert res.final_score > 0.0
 
 
-def test_composite_full_evidence_full_blend(tmp_path):
-    """证据完整 + 机理正确（交付=gold）-> 满分通道不受新语义影响。"""
+def test_composite_sc_failed_step_claws_back_gold_edge_graph_credit(tmp_path):
+    """自洽回捞（用户裁决）：gold 边被交付步覆盖、但该交付步自洽不合格
+    （绑定证据里无一阶鞍点/IRC 证明）→ 这条 gold 边赢下的图分覆盖贡献倒扣
+    （交付边剔出后重算 GED），notes 逐条写明；自洽层保持全有或全无判负。
+
+    交付 = gold（R→P 经 TS），证据是无频率块的假日志：物种绑定质量 1.0、
+    图分原本 1.0；倒扣后边按未覆盖计 -> distance 1/3 -> graph = 2/3，
+    final = 0.1·(2/3) + 0.3·0 + 0.6·1.0（accuracy 无参考边）≈ 0.6667。"""
     from cloudra.benchmark.runner import BenchmarkRunner
 
     graph = _graph_with_ts(["C"], ["O"])
@@ -2520,9 +2529,127 @@ def test_composite_full_evidence_full_blend(tmp_path):
 
     runner = BenchmarkRunner(tmp_path / "data")
     res = runner.score_sandbox(task, tmp_path)
-    # graph=1.0；sc 无频率证据判负；accuracy 无参考边记 1.0 -> 0.3 + 0 + 0.6 = 0.9
+    assert res.graph_score == pytest.approx(2 / 3, abs=1e-4)
+    assert res.selfconsistency_passed is False
+    assert any(
+        "edge E: selfconsistency failed, graph credit for gold edge E clawed back"
+        in n for n in res.notes
+    ), res.notes
+    assert res.final_score == pytest.approx(0.1 * (2 / 3) + 0.6, abs=1e-4)
+
+
+# --- 自洽全有或全无 + 额外边不倒扣图分（用户裁决） ---
+
+
+def _sc_task(graph, *, saddle=True, irc=False):
+    """默认 rubric 但自洽只留鞍点检查（IRC 关闭，探针替身无需几何帧）。"""
+    from cloudra.benchmark.schema import (
+        GoldSpec,
+        PromptSpec,
+        RubricSpec,
+        SelfConsistencyRubric,
+        SystemSpec,
+    )
+
+    return TaskSpec(
+        task_id="SEMI_T",
+        tier="easy",
+        prompt=PromptSpec(query="q"),
+        system=SystemSpec(reactants=["C"]),
+        gold=GoldSpec(mechanism_graph=graph),
+        rubric=RubricSpec(
+            self_consistency=SelfConsistencyRubric(
+                ts_first_order_saddle=saddle, irc_connects_endpoints=irc
+            )
+        ),
+    )
+
+
+def _patch_sc_probe(monkeypatch, freq_by_name):
+    """自洽日志探针替身：按文件名给频率表（负值 = 虚频）。"""
+    from cloudra.benchmark import selfconsistency as sc_mod
+
+    monkeypatch.setattr(sc_mod, "_frames_for", lambda path: ([], None))
+    monkeypatch.setattr(
+        sc_mod,
+        "_freqs_for",
+        lambda path, frames: list(freq_by_name.get(Path(path).name, [])),
+    )
+    monkeypatch.setattr(
+        sc_mod, "_imag_freqs", lambda freqs: [f for f in freqs if f < 0]
+    )
+    monkeypatch.setattr(sc_mod, "_last_geometry", lambda path, frames: None)
+
+
+def _extra_edge_delivery(tmp_path):
+    """交付 = gold（R→P 经 TS）+ 额外物种 X 与额外边 P→X 经 TSX；
+    证据：主线鞍点日志 ts.log（标注 R 物种）、端点极小值齐全。"""
+    delivered = GoldMechanismGraph(
+        nodes=[
+            MechanismNode(id="R", role=NodeRole.REACTANT, smiles=["C"]),
+            MechanismNode(id="TS", role=NodeRole.TRANSITION_STATE, smiles=[]),
+            MechanismNode(id="P", role=NodeRole.PRODUCT, smiles=["O"]),
+            MechanismNode(id="X", role=NodeRole.PRODUCT, smiles=["[O-]"]),
+            MechanismNode(id="TSX", role=NodeRole.TRANSITION_STATE, smiles=[]),
+        ],
+        edges=[
+            MechanismEdge(id="E", **{"from": "R", "to": "P"}, via="TS"),
+            MechanismEdge(id="EX", **{"from": "P", "to": "X"}, via="TSX"),
+        ],
+    )
+    (tmp_path / "mechanism_graph.json").write_text(
+        delivered.model_dump_json(by_alias=True)
+    )
+    (tmp_path / "r.log").write_text("Gaussian log\n# smiles: C\n")
+    (tmp_path / "ts.log").write_text("Gaussian log\n# smiles: C\n")
+    (tmp_path / "p.log").write_text("Gaussian log\n# smiles: O\n")
+    (tmp_path / "x.log").write_text("Gaussian log\n# smiles: [O-]\n")
+    (tmp_path / "tsx.log").write_text("Gaussian log\n# smiles: [O-]\n")
+
+
+def test_extra_edge_sc_failure_zeroes_layer_but_keeps_graph(tmp_path, monkeypatch):
+    """③额外边（不在 gold 子图里）自洽不合格：自洽层保持全有或全无 → 整层
+    判负，但图分**不倒扣**（gold 边由合格交付步覆盖）——gold 边出错与其他边
+    出错严重程度不同。"""
+    from cloudra.benchmark.runner import BenchmarkRunner
+
+    task = _sc_task(_graph_with_ts(["C"], ["O"]))
+    _extra_edge_delivery(tmp_path)
+    _patch_sc_probe(monkeypatch, {
+        "r.log": [100.0, 200.0],          # R 验证极小值
+        "ts.log": [-500.0, 100.0],        # 主线一阶鞍点 -> 边 E 合格
+        "p.log": [100.0],                 # P 验证极小值
+        "x.log": [100.0],                 # X 验证极小值
+        "tsx.log": [100.0],               # 额外边无鞍点 -> EX 不合格
+    })
+    res = BenchmarkRunner(tmp_path / "data").score_sandbox(task, tmp_path)
+    assert res.selfconsistency_passed is False       # 全有或全无：一条边不合格整层 0
+    assert res.graph_score == pytest.approx(1.0, abs=1e-4)  # 额外边不倒扣图分
+    assert not any("clawed back" in n for n in res.notes), res.notes
+    # accuracy 无参考边记 1.0 -> final = 0.1·1 + 0.3·0 + 0.6·1 = 0.7
+    assert res.final_score == pytest.approx(0.7, abs=1e-4)
+
+
+def test_all_elements_sc_pass_keeps_bool_and_full_graph(tmp_path, monkeypatch):
+    """①自洽全有或全无的"全有"侧：全部元素合格 -> selfconsistency_passed
+    为 True（布尔语义不变），无任何倒扣，图分保持 1.0。"""
+    from cloudra.benchmark.runner import BenchmarkRunner
+
+    task = _sc_task(_graph_with_ts(["C"], ["O"]))
+    _extra_edge_delivery(tmp_path)
+    _patch_sc_probe(monkeypatch, {
+        "r.log": [100.0, 200.0],
+        "ts.log": [-500.0, 100.0],
+        "p.log": [100.0],
+        "x.log": [100.0],
+        "tsx.log": [-300.0, 100.0],       # 额外边也有一阶鞍点 -> 全元素合格
+    })
+    res = BenchmarkRunner(tmp_path / "data").score_sandbox(task, tmp_path)
+    assert res.selfconsistency_passed is True
     assert res.graph_score == pytest.approx(1.0, abs=1e-4)
-    assert res.final_score == pytest.approx(0.9, abs=1e-4)
+    assert not any("clawed back" in n for n in res.notes), res.notes
+    # final = 0.1·1 + 0.3·1 + 0.6·1 = 1.0
+    assert res.final_score == pytest.approx(1.0, abs=1e-4)
 
 
 # --- 受控并行 ---
@@ -2796,7 +2923,7 @@ def test_evidence_loop_engine_output_to_score(tmp_path):
     assert any("no step barrier" in n for n in result.notes), result.notes
     # fail-loud 短路：final 只保留图分（自洽/accuracy 分量清零）
     assert any("final keeps the graph component only" in n for n in result.notes), result.notes
-    assert result.final_score == pytest.approx(0.3 * result.graph_score, abs=1e-4)
+    assert result.final_score == pytest.approx(0.1 * result.graph_score, abs=1e-4)
     # 图相似度的化学指纹依赖 RDKit（可选依赖）：缺失时该层退化，CI（只装
     # dev extra）就属于这种情况，因此只在 RDKit 可用时断言图分
     if _RDKIT_AVAILABLE:
@@ -3147,7 +3274,7 @@ def test_barrier_is_derived_from_logs_and_must_be_declared(tmp_path):
     )
     assert ok.accuracy_score == 1.0, ok.notes
     assert any("edge E1" in n for n in ok.notes), ok.notes
-    # 全绑全对 + sc 直通（rubric 双开关关闭）-> final = 0.3·1 + 0.1·1 + 0.6·1 = 1.0
+    # 全绑全对 + sc 直通（rubric 双开关关闭）-> final = 0.1·1 + 0.3·1 + 0.6·1 = 1.0
     assert ok.graph_score == pytest.approx(1.0), ok.notes
     assert ok.selfconsistency_passed, ok.notes
     assert ok.final_score == pytest.approx(1.0), ok.notes
@@ -3179,9 +3306,9 @@ def test_declared_barrier_must_match_logs(tmp_path):
     )
     assert res.accuracy_score == 0.0
     assert any("disagreement" in n for n in res.notes), res.notes
-    # fail-loud 短路：final = 0.3×图分（自洽/accuracy 分量清零）；交付图=gold
+    # fail-loud 短路：final = 0.1×图分（自洽/accuracy 分量清零）；交付图=gold
     assert res.graph_score == pytest.approx(1.0), res.notes
-    assert res.final_score == pytest.approx(0.3), res.notes
+    assert res.final_score == pytest.approx(0.1), res.notes
     assert any("final keeps the graph component only" in n for n in res.notes)
 
 

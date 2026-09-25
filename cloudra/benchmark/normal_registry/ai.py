@@ -85,31 +85,51 @@ TASKS = {
     # C=O.CN>>C=NC.O  (0/1)  亚胺形成（无显式催化剂）；甲胺两个 N-H（H5/H6）均参与键变化，全程显式
     "I1": {
         "name_en": "imine formation: formaldehyde + methylamine -> N-methylmethanimine + water",
-        "conditions_en": "aqueous solution, weakly acidic (pH 4-6, bell-shaped rate profile)",
-        # 2026-09-25 用户裁决：本题为水溶液弱酸性体系，SMILES 只给净反应式，
-        # 水与酸催化剂不画进反应物侧；query 据 smiles_schematic 声明「SMILES 可能不全」。
-        "smiles_schematic": True,
+        "conditions_en": "gas phase; optimal around pH 4-6 (bell-shaped rate profile)",
         "mapped_reactants": "[CH2:1]=[O:2].[CH3:4][N:3]([H:5])([H:6])",
-        # barrier 为就地计算值（沙箱 delivery batch_4aa4cce4691d4a9f，B3LYP/def2-SVP
-        # 气相、ΔE‡ 相对该步起点极小值）：E1 = E(TS1 calc-314) − E(RC calc-304)
-        # = 29.33；E2 = E(TS4b calc-321) − E(CA_ep calc-323) = 58.22。两处均经
-        # 频率（恰 1 虚频）与 IRC 双侧验证。⚠ 口径注意：值为气相裸算（无 D3(BJ)、
-        # 无水接力），E2 高垒正是缺水模型的人造产物（Hall & Smith 1998 两水模型
-        # 约 26.7）；题面改水溶液后需按水助/水溶液模型重算替换，现值暂作占位锚点。
+        # barrier：B3LYP-D3(BJ)/def2-SVP 气相（带色散，与固定方法对齐）自算，
+        # 取自 benchmark 批次 batch_e641f28484b74786 沙箱 NI1 原始日志
+        # （agent 交付，逐日志复核：极小值 0 虚频、TS 恰 1 虚频，能量为各日志
+        # 末条 FINAL SINGLE POINT ENERGY）：E1 = E(TS1) − E(RC) = 27.90；
+        # E2 = E(TS2) − E(carbinolamine) = 57.67。⚠ IRC 每边仅一向收敛、端点
+        # 未重优化闭合（已在案）；旧占位值 29.33/58.22（无 D3(BJ) 的早期交付）被替换。
+        # 水溶液对偶版单开 I5。
         "steps": [
             {
                 # 加成 + 分子内 PT 并入：成 C1-N3，断 C1=O2 pi、断 N3-H5、成 O2-H5 → 羟胺 HOCH2NHMe
                 "out": "[O:2]([H:5])[CH2:1][N:3]([H:6])[CH3:4]",
                 "type": "amine addition to the carbonyl with merged intramolecular N-H -> O-H proton transfer -> carbinolamine (capturable)",
-                "barrier": 29.33,
+                "barrier": 27.90,
                 "weight": 0.5,
             },
             {
                 # 直接脱水：断 C1-O2、断 N3-H6，成 C1=N3 pi、成 O2-H6 → 亚胺 + 水
                 "out": "[O:2]([H:5])([H:6]).[CH2:1]=[N:3][CH3:4]",
                 "type": "direct dehydration of the carbinolamine: C-O cleavage with the second N-H transferring to the departing oxygen -> N-methylmethanimine + water",
-                "barrier": 58.22,
+                "barrier": 57.67,
                 "weight": 0.5,
+            },
+        ],
+    },
+    # C=O.CN>>C=NC.O  (0/1)  亚胺形成·水溶液版（2026-09-25 用户裁决：原 I1 气相版保留，
+    # 水溶液对偶单开本题；SMILES 只给净反应式，水与酸催化剂不画进反应物侧）
+    "I5": {
+        "name_en": "imine formation (aqueous): formaldehyde + methylamine -> N-methylmethanimine + water",
+        "conditions_en": "aqueous solution, weakly acidic (pH 4-6, bell-shaped rate profile)",
+        "smiles_schematic": True,
+        "mapped_reactants": "[CH2:1]=[O:2].[CH3:4][N:3]([H:5])([H:6])",
+        # 步结构暂沿用 I1 的气相图；水溶液模型下水接力可能使 PT 解耦，
+        # 待水助 gold（CPCM(water) ± 接力水，战役中）落地后按实修订。
+        # 能垒一律缺测：战役出数后回填。文献对照：两水辅助 ≈ 26.7
+        # （Hall & Smith 1998 JPCA 102, 4930, DOI 10.1021/jp9810825）。
+        "steps": [
+            {
+                "out": "[O:2]([H:5])[CH2:1][N:3]([H:6])[CH3:4]",
+                "type": "amine addition to the carbonyl -> carbinolamine (step structure provisional, pending the water-assisted gold)",
+            },
+            {
+                "out": "[O:2]([H:5])([H:6]).[CH2:1]=[N:3][CH3:4]",
+                "type": "carbinolamine dehydration -> N-methylmethanimine + water (step structure provisional, pending the water-assisted gold)",
             },
         ],
     },

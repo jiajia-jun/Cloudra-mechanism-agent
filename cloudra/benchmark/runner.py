@@ -27,6 +27,11 @@ Composite（权重是本模块的模块级常量）::
     final = W_GRAPH·graph + W_SELFCONSISTENCY·(selfconsistency ? 1 : 0)
             + W_ACCURACY·accuracy
 
+- 自洽回捞（2026-09-25 用户裁决）：gold 边被交付步覆盖但该交付步自洽不合格
+  → 该 gold 边在 graph_similarity 里赢下的覆盖贡献倒扣（违规交付边剔出
+  交付图后重算 GED；同一 gold 边另有自洽合格的覆盖步则不受影响）；不在
+  gold 子图里的额外交付边自洽不合格只落自洽层零分，不倒扣图分——gold 边
+  出错与其他边出错严重程度不同；
 - 图不可解析、或没有任何 accessible 物种节点绑到证据 →
   final = -rubric.integrity.no_evidence_penalty（零证据倒扣；交付图所有节点
   都声明 accessible=false 属合法交付，不触发本条）；
@@ -62,17 +67,23 @@ from cloudra.benchmark.accuracy import (
     score_qualitative_selectivity,
 )
 from cloudra.benchmark.barrier_evidence import BarrierEvidence, collect_barrier_evidence
-from cloudra.benchmark.graph_similarity import GedConfig, GedResult, mechanism_similarity
+from cloudra.benchmark.graph_similarity import (
+    GedConfig,
+    GedResult,
+    mechanism_similarity,
+    species_substitution_cost,
+)
 from cloudra.benchmark.integrity import IntegrityReport, audit_integrity
-from cloudra.benchmark.schema import NodeRole, TaskSpec
+from cloudra.benchmark.schema import GoldMechanismGraph, MechanismEdge, NodeRole, TaskSpec
 from cloudra.benchmark.selfconsistency import SelfConsistencyReport, audit_self_consistency
 
-# composite 权重（2026-09 定稿）：final = 0.3·图 + 0.1·自洽 + 0.6·accuracy。
+# composite 权重（2026-09-25 用户裁决）：final = 0.1·图 + 0.3·自洽 + 0.6·accuracy。
+# 机理不对时 accuracy 层也会惩罚，图份额不该高；自洽层保持全有或全无（布尔）。
 # accuracy 双来源核对 fail-loud 时自洽/accuracy 分量清零、只保留图分
 # （final = W_GRAPH·graph）；图不可解析或没有任何 accessible 物种节点绑到
 # 证据时倒扣 -rubric.integrity.no_evidence_penalty。
-W_GRAPH = 0.3
-W_SELFCONSISTENCY = 0.1
+W_GRAPH = 0.1
+W_SELFCONSISTENCY = 0.3
 W_ACCURACY = 0.6
 
 # Agent backend signature: given (task, sandbox_dir) it runs the agent to
@@ -267,6 +278,35 @@ def _default_backend(task: TaskSpec, sandbox: Path) -> None:
     sandbox.mkdir(parents=True, exist_ok=True)
 
 
+def _covering_delivered_edge_ids(
+    gold_edge: MechanismEdge,
+    gold_graph: GoldMechanismGraph,
+    delivered_graph: GoldMechanismGraph,
+    cfg: GedConfig,
+    match_threshold: float,
+) -> list[str]:
+    """覆盖某 gold 边的交付边 id 列表——accuracy 层 gold↔delivered 匹配的
+    同口径（`_find_matching_step` 的端点物种判定：同向端点分别
+    species_substitution_cost ≤ match_threshold；edge id 不参与匹配）。"""
+    gold_nodes = {n.id: n for n in gold_graph.nodes}
+    delivered_nodes = {n.id: n for n in delivered_graph.nodes}
+    g_from, g_to = gold_nodes.get(gold_edge.from_node), gold_nodes.get(gold_edge.to_node)
+    if g_from is None or g_to is None:
+        return []
+    out = []
+    for e in delivered_graph.edges:
+        d_from = delivered_nodes.get(e.from_node)
+        d_to = delivered_nodes.get(e.to_node)
+        if d_from is None or d_to is None:
+            continue
+        if species_substitution_cost(g_from.smiles, d_from.smiles, cfg) > match_threshold:
+            continue
+        if species_substitution_cost(g_to.smiles, d_to.smiles, cfg) > match_threshold:
+            continue
+        out.append(e.id)
+    return out
+
+
 class BenchmarkRunner:
     def __init__(
         self,
@@ -339,6 +379,52 @@ class BenchmarkRunner:
         )
         res.selfconsistency_passed = sc.passed
         res.notes.extend(sc.notes)
+
+        # 自洽回捞（2026-09-25 用户裁决）：gold 边被交付步覆盖、但覆盖它的
+        # 交付步全部自洽不合格 → 该 gold 边赢下的图分覆盖贡献倒扣（违规交付
+        # 边剔出交付图后重算 GED——同一 gold 边另有自洽合格的覆盖步时保留
+        # 覆盖；有效不可达/accessible=false 的交付边本就被自洽豁免，不会进
+        # 倒扣集）。不在 gold 子图里的额外交付边自洽不合格只落自洽层零分，
+        # 不倒扣图分——gold 边出错与其他边出错严重程度不同。
+        if integ.delivered_graph is not None and res.graph_score > 0.0:
+            failed_edges = {
+                c.element_id
+                for c in sc.checks
+                if c.kind == "edge" and not c.covered
+            }
+            if failed_edges:
+                remove: set[str] = set()
+                for g_edge in task.gold.mechanism_graph.edges:
+                    covering = _covering_delivered_edge_ids(
+                        g_edge,
+                        task.gold.mechanism_graph,
+                        integ.delivered_graph,
+                        ged_config,
+                        task.rubric.integrity.match_threshold,
+                    )
+                    failing = [e for e in covering if e in failed_edges]
+                    if covering and len(failing) == len(covering):
+                        remove.update(failing)
+                        for eid in sorted(failing):
+                            res.notes.append(
+                                f"edge {eid}: selfconsistency failed, graph "
+                                f"credit for gold edge {g_edge.id} clawed back"
+                            )
+                if remove:
+                    pruned = GoldMechanismGraph(
+                        nodes=list(integ.delivered_graph.nodes),
+                        edges=[
+                            e
+                            for e in integ.delivered_graph.edges
+                            if e.id not in remove
+                        ],
+                    )
+                    res.graph_score = mechanism_similarity(
+                        pruned,
+                        task.gold.mechanism_graph,
+                        ged_config,
+                        binding_quality=binding_quality,
+                    ).score
 
         barriers: BarrierEvidence = collect_barrier_evidence(sandbox)
         res.notes.extend(barriers.notes)

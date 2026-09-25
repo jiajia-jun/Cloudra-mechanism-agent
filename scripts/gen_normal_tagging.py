@@ -23,12 +23,12 @@ VERIFY_RE = re.compile(r"\[(已核实存在|已核实|部分核实|未核实)\]"
 # 循序渐进三带映射（normal.md 汇总段的权威映射，改池子时同步维护）。
 BANDS: dict[str, list[str]] = {
     "N1 路线判别": "X1 X2 X3 X4 A7 O2 I1 I3 Y2 Y3 O4 O5 R3 Q2 U6 U7".split(),
-    "N2 简单多步": "A1 A6 U1 R6 Q1 I4 O3 Y1 Y4 O1 H3 H4 H5 U8 Q5".split(),
+    "N2 简单多步": "A1 A6 U1 R6 Q1 I4 O3 Y1 Y4 O1 H3 H4 H5 U8 Q5 I5".split(),
     "N3 复杂人名网络": "A2 A3 A4 A5 I2 R1 R2 R4 U2 U4 U5 H1 H2 Q3".split(),
     "待裁决": "S1 R5 U3 S2 Q4".split(),
 }
-# v4 定稿名单（normal.md"定稿圈定"段为权威，2026-09-25 换血：换出 A2/A5/O3、换入 R4/U8/Q5；此处只作打标台初始默认值）。
-SUGGESTED_PICK = "I1 Y3 R1 R4 U3 U5 U6 U8 Q1 Q5".split()
+# v4.1 定稿名单（normal.md"定稿圈定"段为权威，2026-09-25 换血+对偶题：换出 A2/A5/O3、换入 R4/U8/Q5、I1 保留并单开水溶液对偶 I5；此处只作打标台初始默认值）。
+SUGGESTED_PICK = "I1 I5 Y3 R1 R4 U3 U5 U6 U8 Q1 Q5".split()
 SUGGESTED_ALT: list[str] = []
 
 HTML_TEMPLATE = """<!DOCTYPE html>
