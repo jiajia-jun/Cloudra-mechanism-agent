@@ -31,7 +31,6 @@ from collections import deque
 from pathlib import Path
 from typing import Callable, Optional
 
-from cloudra.benchmark.refusal import RunOutcome, refusal_stats, should_refuse
 from cloudra.benchmark.runner import (
     BenchmarkDB,
     BenchmarkRunner,
@@ -395,7 +394,6 @@ class BenchmarkBatch:
                     result = RunResult(
                         task_id=task.task_id,
                         sandbox=str(sandbox),
-                        outcome=RunOutcome.FAILED.value,
                         batch_id=self.batch_id,
                     )
                     result.notes.append(f"benchmark watcher: {wait_error}")
@@ -416,7 +414,7 @@ class BenchmarkBatch:
                 await self._mark_cancelled(st)
                 return
 
-            # 评分只读交付物：图 JSON + 日志 + 结构化拒答声明（不读最终消息）
+            # 评分只读交付物：图 JSON + 日志（不读最终消息）
             result = await asyncio.to_thread(
                 self._runner.score_sandbox,
                 task,
@@ -433,10 +431,8 @@ class BenchmarkBatch:
                     "task_id": task.task_id,
                     "final_score": result.final_score,
                     "graph_score": result.graph_score,
-                    "integrity_passed": result.integrity_passed,
                     "selfconsistency_passed": result.selfconsistency_passed,
                     "accuracy_score": result.accuracy_score,
-                    "outcome": result.outcome,
                 },
             )
         except Exception as exc:
@@ -515,7 +511,6 @@ class BenchmarkBatch:
         result = RunResult(
             task_id=st.task.task_id,
             sandbox=str(self._sandbox_for(st.task.task_id)),
-            outcome=RunOutcome.FAILED.value,
             batch_id=self.batch_id,
         )
         result.notes.append(f"infrastructure failure: {message}")
@@ -531,7 +526,6 @@ class BenchmarkBatch:
         result = RunResult(
             task_id=task.task_id,
             sandbox=str(sandbox),
-            outcome=RunOutcome.FAILED.value,
             batch_id=self.batch_id,
         )
         result.notes.append("cancelled by batch stop")
@@ -573,13 +567,10 @@ class BenchmarkBatch:
                 "error": st.error,
                 "final_score": r.final_score if r is not None else None,
                 "graph_score": r.graph_score if r is not None else None,
-                "integrity_passed": r.integrity_passed if r is not None else None,
                 "selfconsistency_passed": r.selfconsistency_passed if r is not None else None,
                 "accuracy_score": r.accuracy_score if r is not None else None,
-                "outcome": r.outcome if r is not None else None,
                 "notes": r.notes if r is not None else [],
             })
-        stats = self._refusal_stats()
         return {
             "batch_id": self.batch_id,
             "status": self.status,
@@ -587,24 +578,6 @@ class BenchmarkBatch:
             "finished_at": self.finished_at,
             "config": self.config,
             "tasks": tasks,
-            "refusal": stats,
-        }
-
-    def _refusal_stats(self) -> dict:
-        pairs = [
-            (should_refuse(st.task), st.status == "scored" and st.result is not None
-             and st.result.outcome == RunOutcome.REFUSED.value)
-            for st in self.task_states
-        ]
-        stats = refusal_stats(pairs)
-        return {
-            "tp": stats.tp,
-            "fp": stats.fp,
-            "fn": stats.fn,
-            "tn": stats.tn,
-            "precision": stats.precision,
-            "recall": stats.recall,
-            "f1": stats.f1,
         }
 
 
@@ -689,7 +662,6 @@ class BenchmarkService:
                 "finished_at": None,
                 "config": {},
                 "tasks": [],
-                "refusal": {},
             }
         return batch.snapshot()
 

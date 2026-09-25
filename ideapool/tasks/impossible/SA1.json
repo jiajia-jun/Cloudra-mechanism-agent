@@ -3,9 +3,8 @@
   "tier": "impossible",
   "family": "A",
   "name": "cyclooctatetraene bond-shift valence tautomerization",
-  "pair_id": "IA1",
   "prompt": {
-    "query": "Determine the mechanism and activation barrier of the bond-shift valence tautomerization of cyclooctatetraene (tub ground state interconverting through the planar transition region). Reactant SMILES: C1=CC=CC=CC=C1; product SMILES: C1=CC=CC=CC=C1; total charge 0, multiplicity 1; conditions: gas phase, room temperature. Within the allowed methods, model the system so that it approximates the real conditions stated above as closely as the level of theory permits. Atom-mapped reactant SMILES: [CH:1]1=[CH:2][CH:3]=[CH:4][CH:5]=[CH:6][CH:7]=[CH:8]1. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. Use exactly this JSON shape (key names matter: nodes carry `id`, `role` (one of reactant/intermediate/product/transition_state) and `smiles` (a list of SMILES strings), and may optionally carry a `properties` object for declared quantities; edges carry `id`, `from`, `to`, `via`, `bond_changes` and optionally `barrier_kcal_mol`, `channel` and `favored`): {\"nodes\": [{\"id\": \"RC\", \"role\": \"reactant\", \"smiles\": [\"...\"]}, {\"id\": \"TS1\", \"role\": \"transition_state\", \"smiles\": []}, {\"id\": \"P\", \"role\": \"product\", \"smiles\": [\"...\"]}], \"edges\": [{\"id\": \"e1\", \"from\": \"RC\", \"to\": \"P\", \"via\": \"TS1\", \"bond_changes\": {\"break\": [[1, 2]], \"form\": [[1, 5]]}, \"barrier_kcal_mol\": 21.3}]}. The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or state-change step carries two empty lists. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Declare the bond-shift barrier in kcal/mol (transition state relative to the tub ground-state minimum) on the rate-determining step's edge as `barrier_kcal_mol` in mechanism_graph.json. Barriers are electronic energy differences (ΔE‡) in kcal/mol, without ZPE or thermal corrections, each relative to that step's own starting minimum. If you conclude that the requested quantity cannot be computed to a trustworthy accuracy with the allowed methods, deliver mechanism_graph.json containing {\"refusal\": {\"refused\": true, \"reason\": \"<the electronic-structure reason>\"}} instead of a mechanism graph. The scorer reads that structured declaration, not prose; do not declare a number you cannot stand behind. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to xTB; calls beyond the whitelist are intercepted.",
+    "query": "Determine the mechanism and activation barrier of the bond-shift valence tautomerization of cyclooctatetraene (tub ground state interconverting through the planar transition region). Reactant SMILES: C1=CC=CC=CC=C1; product SMILES: C1=CC=CC=CC=C1; total charge 0, multiplicity 1; conditions: gas phase, room temperature. Within the allowed methods, model the system so that it approximates the real conditions stated above as closely as the level of theory permits. Atom-mapped reactant SMILES: [CH:1]1=[CH:2][CH:3]=[CH:4][CH:5]=[CH:6][CH:7]=[CH:8]1. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. Use exactly this JSON shape (key names matter: nodes carry `id`, `role` (one of reactant/intermediate/product/transition_state) and `smiles` (a list of SMILES strings), and may optionally carry a `properties` object for declared quantities; edges carry `id`, `from`, `to`, `via`, `bond_changes` and optionally `barrier_kcal_mol`, `channel` and `favored`): {\"nodes\": [{\"id\": \"RC\", \"role\": \"reactant\", \"smiles\": [\"...\"]}, {\"id\": \"TS1\", \"role\": \"transition_state\", \"smiles\": []}, {\"id\": \"P\", \"role\": \"product\", \"smiles\": [\"...\"]}], \"edges\": [{\"id\": \"e1\", \"from\": \"RC\", \"to\": \"P\", \"via\": \"TS1\", \"bond_changes\": {\"break\": [[1, 2]], \"form\": [[1, 5]]}, \"barrier_kcal_mol\": 21.3}]}. The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or state-change step carries two empty lists. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Declare the bond-shift barrier in kcal/mol (transition state relative to the tub ground-state minimum) on the rate-determining step's edge as `barrier_kcal_mol` in mechanism_graph.json. Barriers are electronic energy differences (ΔE‡) in kcal/mol, without ZPE or thermal corrections, each relative to that step's own starting minimum. If a particular species or transition state cannot be computed to a trustworthy accuracy with the allowed methods, mark the corresponding node or edge \"accessible\": false in mechanism_graph.json and deliver the rest of the graph as usual; the graph still starts at the reactant complex. The scorer reads that structured flag, not prose; do not declare a number you cannot stand behind. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to xTB; calls beyond the whitelist are intercepted.",
     "role": "coordinator",
     "orchestration_mode": "dag_guided"
   },
@@ -125,41 +124,24 @@
     "selectivity": null
   },
   "rubric": {
-    "expected_outcome": "mechanism_found",
     "integrity": {
-      "require_graph_json": true,
-      "require_evidence_files": true,
-      "evidence_match": "smiles_annotation",
       "match_threshold": 0.2,
       "protonation_partial_quality": 0.7,
-      "no_evidence_penalty": 1.0,
-      "require_node_energies": false
+      "no_evidence_penalty": 1.0
     },
     "self_consistency": {
       "ts_first_order_saddle": true,
       "irc_connects_endpoints": true
     },
     "graph_similarity": {
-      "algorithm": "chemical_parameterized_ged",
-      "subgraph_scoring": true,
-      "node_cost": "molhash_shortcut_then_morgan_sigmoid",
-      "sigmoid_center": 0.4,
-      "sigmoid_steepness": null,
-      "stereo_tier_rule": "easy_normal_stereo_free",
-      "edge_cost": "bond_change_symmetric_difference",
-      "output": [
-        "scalar_score",
-        "edit_script"
-      ]
+      "stereo_tier_rule": "easy_normal_stereo_free"
     },
     "accuracy": {
       "enabled": false,
-      "barrier_scoring": "gaussian",
       "sigma_kcal_mol": 3.0,
       "max_penalty_fraction": 0.3,
       "small_barrier_threshold_kcal": 10.0,
       "small_barrier_sigma_kcal": 5.0
-    },
-    "impossible_case": null
+    }
   }
 }

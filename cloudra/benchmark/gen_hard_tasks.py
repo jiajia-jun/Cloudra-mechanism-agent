@@ -79,7 +79,6 @@ from cloudra.benchmark.schema import (
     GoldMechanismGraph,
     GoldSpec,
     GraphSimilarityRubric,
-    IntegrityRubric,
     MechanismEdge,
     MechanismNode,
     MethodPolicy,
@@ -499,7 +498,6 @@ def parse_hard_md(src: Path, only: set[str] | None = None) -> list[TaskSpec]:
                 ),
                 rubric=RubricSpec(
                     graph_similarity=GraphSimilarityRubric(stereo_tier_rule="hard_stereo_costly"),
-                    integrity=IntegrityRubric(require_node_energies=require_node_energies),
                     accuracy=accuracy,
                 ),
             )

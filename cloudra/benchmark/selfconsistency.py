@@ -5,7 +5,9 @@ graph element** (species node / TS-bearing edge), not the sandbox directory:
 
 - Every accessible node and edge must have evidence bound to it (Layer 1
   bindings). Elements with no evidence are only excused when the delivery
-  explicitly declares them meaningless via ``accessible=false``.
+  explicitly declares them meaningless via ``accessible=false`` — for edges the
+  effective accessibility applies (an edge routed via an inaccessible TS node
+  counts as declared inaccessible; ``GoldMechanismGraph.edge_effectively_accessible``).
 - For each element, **any single usable piece of its bound evidence** covers
   its required checks (existential, not universal): one verified minimum
   covers a species; one first-order saddle plus one direction-proven IRC
@@ -48,8 +50,28 @@ from cloudra.benchmark.schema import (
     NodeRole,
     SelfConsistencyRubric,
 )
-from cloudra.tools.core import gaussian_frames, orca_frames, qm_engine
-from cloudra.tools.core.irc_path import parse_xyz, prove_irc_endpoint_direction
+from cloudra.tools.core.irc_evidence import (
+    frames_for as _frames_for,
+)
+from cloudra.tools.core.irc_evidence import (
+    freqs_for as _freqs_for,
+)
+from cloudra.tools.core.irc_evidence import (
+    gaussian_irc_endpoints_from_frames,
+    iter_direction_verdicts,
+)
+from cloudra.tools.core.irc_evidence import (
+    imag_freqs as _imag_freqs,
+)
+from cloudra.tools.core.irc_evidence import (
+    irc_frames_for as _irc_frames_for,
+)
+from cloudra.tools.core.irc_evidence import (
+    last_geometry as _last_geometry,
+)
+from cloudra.tools.core.irc_evidence import (
+    orca_irc_endpoint_geometries as _orca_irc_endpoint_geometries,
+)
 
 
 @dataclass
@@ -72,112 +94,13 @@ class SelfConsistencyReport:
     notes: list[str] = field(default_factory=list)
 
 
-def _frames_for(path: Path):
-    """Return (frames, irc_meta). 两种解析各自隔离：opt+freq 日志没有 IRC 段
-    是正常情况，不能让 extract_irc 的异常把已解析的 frames 一并丢弃。
-
-    IRC meta 已归一化为 dict：gaussian_frames.extract_irc 返回
-    (frames, meta) 二元组，orca_frames.extract_irc 直接返回 meta dict。
-    """
-    engine = qm_engine.detect_qm_engine(str(path))
-    mod = orca_frames if engine == "orca" else gaussian_frames
-    try:
-        frames = mod.extract_frames(str(path))
-    except Exception:
-        frames = []
-    try:
-        raw_irc = mod.extract_irc(str(path))
-    except Exception:
-        raw_irc = None
-    if isinstance(raw_irc, tuple):
-        irc_meta = raw_irc[1] if len(raw_irc) == 2 else None
-    else:
-        irc_meta = raw_irc
-    return frames, irc_meta
-
-
-def _last_freqs(frames) -> list[float]:
-    for fr in reversed(frames):
-        if fr.frequencies_cm:
-            return list(fr.frequencies_cm)
-    return []
-
-
-def _freqs_for(path: Path, frames) -> list[float]:
-    """末帧频率；cclib 对 ORCA 6.1 日志裸抛 IndexError（帧为空）时回退
-    文本权威 VIBRATIONAL FREQUENCIES 块（统一入口在 orca_frames）。"""
-    freqs = _last_freqs(frames)
-    if freqs:
-        return freqs
-    if qm_engine.detect_qm_engine(str(path)) == "orca":
-        return orca_frames.frequencies_with_text_fallback(str(path))
-    return []
-
-
-def _imag_freqs(freqs: list[float]) -> list[float]:
-    return [f for f in freqs if f < 0]
-
-
-def _irc_frames_for(path: Path):
-    """IRC 逐点帧。Gaussian 主日志内含逐点坐标；ORCA 的逐点坐标在边文件里，
-    主日志没有（端点几何走 _orca_irc_endpoint_geometries 的边文件通道）。"""
-    try:
-        raw = gaussian_frames.extract_irc(str(path))
-    except Exception:
-        return []
-    if isinstance(raw, tuple) and raw:
-        return list(raw[0]) if raw[0] else []
-    return []
-
-
 def _gaussian_irc_endpoint_geometries(path: Path):
     """ts_guess strict 同口径的 Gaussian IRC 端点：rx<0 / rx>0 两侧各自最外侧
-    的带坐标帧（不要求收敛到极小值）。"""
-    frames = _irc_frames_for(path)
-    valid = [fr for fr in frames if getattr(fr, "xyz", "").strip()]
-    neg = [
-        fr for fr in valid
-        if fr.reaction_coordinate is not None and fr.reaction_coordinate < 0
-    ]
-    pos = [
-        fr for fr in valid
-        if fr.reaction_coordinate is not None and fr.reaction_coordinate > 0
-    ]
-    if not neg or not pos:
-        return None
-    end_a = min(neg, key=lambda fr: fr.reaction_coordinate)
-    end_b = max(pos, key=lambda fr: fr.reaction_coordinate)
-    geo_a = parse_xyz(end_a.xyz)
-    geo_b = parse_xyz(end_b.xyz)
-    if geo_a is None or geo_b is None:
-        return None
-    return geo_a, geo_b
+    的带坐标帧（不要求收敛到极小值）。
 
-
-def _orca_irc_endpoint_geometries(path: Path):
-    """ts_guess strict 同口径的 ORCA IRC 端点：几何来自终点文件/F-B 轨迹边
-    文件（未收敛方向取轨迹末帧，同样是合法的部分端点）；收敛与否不做闸门，
-    方向是否成立交给几何区间证明。两侧都有可用几何才返回。
-
-    前提是文件本身确实是 IRC 计算日志：输入文件（.inp）旁边恰好有同名
-    轨迹边文件时，没有 IRC 段就没有任何"端点"可言。"""
-    try:
-        orca_frames.extract_irc(str(path))
-    except Exception:
-        return None  # 无 IRC 段（输入文件、非 IRC 作业）→ 不是 IRC 证据
-    try:
-        endpoints = orca_frames.extract_irc_endpoints(str(path))
-    except Exception:
-        return None
-    xyz_a = orca_frames.read_endpoint_geometry(endpoints.get("forward", {}))
-    xyz_b = orca_frames.read_endpoint_geometry(endpoints.get("backward", {}))
-    if xyz_a is None or xyz_b is None:
-        return None
-    geo_a = parse_xyz(xyz_a)
-    geo_b = parse_xyz(xyz_b)
-    if geo_a is None or geo_b is None:
-        return None
-    return geo_a, geo_b
+    实现唯一来源是 tools/core/irc_evidence（帧选取逻辑）；本 wrapper 保持
+    逐点帧走模块级 ``_irc_frames_for`` 的读取通道（测试在该名字上拦截）。"""
+    return gaussian_irc_endpoints_from_frames(_irc_frames_for(path))
 
 
 class _LogProbe:
@@ -206,17 +129,7 @@ class _LogProbe:
                 frames, _irc_meta = _frames_for(path)
                 freqs = _freqs_for(path, frames)
                 n_imag = len(_imag_freqs(freqs)) if freqs else None
-                geometry = None
-                for fr in reversed(frames):
-                    if getattr(fr, "xyz", "").strip():
-                        geometry = parse_xyz(fr.xyz)
-                        break
-                if geometry is None and f.kind == "orca":
-                    # cclib 对 ORCA 6.1 日志整体崩溃时帧为空——走文本权威
-                    # CARTESIAN COORDINATES 块回退（同频率的文本回退纪律）
-                    geometry = parse_xyz(
-                        orca_frames.final_xyz_with_text_fallback(str(path))
-                    )
+                geometry = _last_geometry(path, frames)
                 result = (n_imag, geometry)
             self._cache[rel_path] = result
         return self._cache[rel_path]
@@ -282,17 +195,13 @@ def _strict_irc_proof(
         ends = probe.irc_endpoint_geometries(p)
         if ends is None:
             continue
-        (syms_a, pos_a), (syms_b, pos_b) = ends
-        for ts_syms, ts_pos in ts_geos:
-            for from_geo in from_geos:
-                for to_geo in to_geos:
-                    verdict = prove_irc_endpoint_direction(
-                        ts_syms, ts_pos,
-                        (syms_a, pos_a), (syms_b, pos_b),
-                        from_geo, to_geo, [], charge,
-                    )
-                    if verdict["is_decidable"] and verdict["is_match"]:
-                        return p
+        if any(
+            verdict["is_decidable"] and verdict["is_match"]
+            for verdict in iter_direction_verdicts(
+                ends, ts_geos, from_geos, to_geos, charge=charge
+            )
+        ):
+            return p
     return None
 
 
@@ -352,10 +261,16 @@ def audit_self_consistency(
         chk = ElementCheck(element_id=edge.id, kind="edge")
         report.checks.append(chk)
         edge_checks[edge.id] = chk
-        if not edge.accessible:
+        if not graph.edge_effectively_accessible(edge):
+            # 有效不可达（边自身 accessible=false，或经由的 TS 节点不可达）视同
+            # declared_inaccessible 豁免——与图分/accuracy 同一口径
+            # （schema.edge_effectively_accessible）
             chk.declared_inaccessible = True
             chk.covered = True
-            chk.notes.append("declared inaccessible; evidence not required")
+            chk.notes.append(
+                "effectively inaccessible (the edge or its via transition state); "
+                "evidence not required"
+            )
             continue
         if edge.via is None:
             endpoints_bound = all(

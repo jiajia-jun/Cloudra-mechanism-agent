@@ -54,7 +54,6 @@ from cloudra.benchmark.schema import (
     BondChangeSet,
     GoldMechanismGraph,
     GoldSpec,
-    IntegrityRubric,
     MechanismEdge,
     MechanismNode,
     MethodPolicy,
@@ -401,9 +400,8 @@ def parse_normal_md(src: Path, only: set[str] | None = None) -> list[TaskSpec]:
                 ),
                 gold=GoldSpec(mechanism_graph=graph),
                 # normal 档 accuracy 层高斯容差 σ=2.0（plan 2026-08-29 定稿）；
-                # 无参考边的题只评自洽性（enabled=false）
+                # 无参考边的题 enabled=false = 可算但不评（accuracy 分量直通 1.0）
                 rubric=RubricSpec(
-                    integrity=IntegrityRubric(require_node_energies=barrier_enabled),
                     accuracy=AccuracyRubric(
                         enabled=barrier_enabled,
                         sigma_kcal_mol=2.0,

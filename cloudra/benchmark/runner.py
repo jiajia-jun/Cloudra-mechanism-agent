@@ -19,21 +19,30 @@ the (pluggable) agent backend, then scores. The agent backend is injected so
 the runner stays decoupled from runtime_v2 wiring; a default no-op backend is
 provided for dry-run / pipeline testing.
 
-Scoring reads **only deliverables** (the delivered mechanism graph JSON, the
-`smiles:`-annotated logs in the sandbox, and the optional structured refusal
-declaration) — never the LLM's prose. Every run is classified into a
-behaviour outcome (answered/refused/failed, see `refusal.py`): a parseable
-delivered graph is an answer, an explicit structured refusal declaration is a
-refusal, anything else is failed. Refusal is a first-class, tier-agnostic
-outcome, and the impossible tier's main metric is the cross-tier refusal
-precision/recall, not a per-tier refusal rate.
+Scoring reads **only deliverables** (the delivered mechanism graph JSON and the
+`smiles:`-annotated logs in the sandbox) — never the LLM's prose.
 
-Tier routing: the impossible tier bypasses the standard composite — I tasks are
-scored by decision + reason quality and siblings by the standard composite with
-a wrong-refusal gate (see `impossible.py`). Hard-tier tasks with a
-``gold.selectivity.favored_channel`` anchor put the qualitative selectivity
-score in the accuracy slot (barrier spread is recorded, not scored). Accuracy is
-scored per gold reference edge (see `accuracy.py`).
+Composite（权重是本模块的模块级常量）::
+
+    final = W_GRAPH·graph + W_SELFCONSISTENCY·(selfconsistency ? 1 : 0)
+            + W_ACCURACY·accuracy
+
+- 图不可解析、或没有任何 accessible 物种节点绑到证据 →
+  final = -rubric.integrity.no_evidence_penalty（零证据倒扣；交付图所有节点
+  都声明 accessible=false 属合法交付，不触发本条）；
+- accuracy 双来源核对 fail-loud（无据/不一致/缺声明）→ final = W_GRAPH·graph
+  （自洽与 accuracy 分量清零，notes 写明）；
+- 后端崩溃 → 0.0 行（基建失败不是 agent 的锅，不倒扣）。
+
+绑定质量不做全局乘数：integrity 的逐节点绑定质量图直接并入图分
+（graph_similarity：未绑定的 accessible 节点按代价 1.0 记账，质子化变体
+部分扣）。
+
+Hard-tier tasks with a ``gold.selectivity.favored_channel`` anchor put the
+qualitative selectivity score in the accuracy slot (barrier spread is recorded,
+not scored). Accuracy is scored per gold edge (see `accuracy.py`). Tier 不再
+路由：impossible 档走同一套 composite（I 题的正确交付 = 同构图 + 不可达
+元素标 accessible=false）。
 """
 
 from __future__ import annotations
@@ -43,7 +52,7 @@ import sqlite3
 import threading
 import time
 from contextlib import closing
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -52,17 +61,19 @@ from cloudra.benchmark.accuracy import (
     score_accuracy,
     score_qualitative_selectivity,
 )
-from cloudra.benchmark.barrier_evidence import (
-    BarrierEvidence,
-    collect_barrier_evidence,
-    load_refusal_declaration,
-)
+from cloudra.benchmark.barrier_evidence import BarrierEvidence, collect_barrier_evidence
 from cloudra.benchmark.graph_similarity import GedConfig, GedResult, mechanism_similarity
-from cloudra.benchmark.impossible import apply_impossible_scoring
 from cloudra.benchmark.integrity import IntegrityReport, audit_integrity
-from cloudra.benchmark.refusal import RunOutcome, classify_outcome
-from cloudra.benchmark.schema import TaskSpec, Tier
+from cloudra.benchmark.schema import NodeRole, TaskSpec
 from cloudra.benchmark.selfconsistency import SelfConsistencyReport, audit_self_consistency
+
+# composite 权重（2026-09 定稿）：final = 0.3·图 + 0.1·自洽 + 0.6·accuracy。
+# accuracy 双来源核对 fail-loud 时自洽/accuracy 分量清零、只保留图分
+# （final = W_GRAPH·graph）；图不可解析或没有任何 accessible 物种节点绑到
+# 证据时倒扣 -rubric.integrity.no_evidence_penalty。
+W_GRAPH = 0.3
+W_SELFCONSISTENCY = 0.1
+W_ACCURACY = 0.6
 
 # Agent backend signature: given (task, sandbox_dir) it runs the agent to
 # completion.  It returns nothing: every scoring input is a deliverable on
@@ -74,15 +85,10 @@ AgentBackend = Callable[[TaskSpec, Path], None]
 class RunResult:
     task_id: str
     sandbox: str
-    integrity_passed: bool = False
     graph_score: float = 0.0
     selfconsistency_passed: bool = False
     accuracy_score: float = 0.0
     final_score: float = 0.0
-    # 拒答分类（answered/refused/failed，见 refusal.RunOutcome）；与得分正交：
-    # 拒答题 final_score 照常按零交付算（其他档拒答自然零分），outcome 只服务
-    # 跨档拒答 precision/recall 统计。
-    outcome: str = RunOutcome.FAILED.value
     notes: list[str] = field(default_factory=list)
     # 批次归属（Web 控制面；CLI 每次调用也是一个批次）。空串 = 旧的未挂批记录。
     batch_id: str = ""
@@ -93,12 +99,10 @@ class RunResult:
         return (
             self.task_id,
             self.sandbox,
-            int(self.integrity_passed),
             self.graph_score,
             int(self.selfconsistency_passed),
             self.accuracy_score,
             self.final_score,
-            self.outcome,
             json.dumps(self.notes, ensure_ascii=False),
             int(time.time()),
             self.batch_id,
@@ -107,10 +111,9 @@ class RunResult:
 
 
 _RUNS_DDL = """CREATE TABLE IF NOT EXISTS runs (
-    task_id TEXT, sandbox TEXT,
-    integrity_passed INTEGER, graph_score REAL,
+    task_id TEXT, sandbox TEXT, graph_score REAL,
     selfconsistency_passed INTEGER, accuracy_score REAL,
-    final_score REAL, outcome TEXT, notes TEXT, ts INTEGER,
+    final_score REAL, notes TEXT, ts INTEGER,
     batch_id TEXT, orchestration_mode TEXT
 )"""
 
@@ -119,11 +122,11 @@ _BATCHES_DDL = """CREATE TABLE IF NOT EXISTS batches (
     started_at INTEGER, finished_at INTEGER
 )"""
 
-# runs 表的既有列序（batch_id 之前的部分）：旧库缺新列时整表按新列序重建。
-_RUNS_LEGACY_COLS = (
-    "task_id", "sandbox", "integrity_passed", "graph_score",
-    "selfconsistency_passed", "accuracy_score", "final_score",
-    "outcome", "notes", "ts",
+# runs 表列序（与 RunResult.to_row 对齐）：迁移重建以它为准。
+_RUNS_COLS = (
+    "task_id", "sandbox", "graph_score", "selfconsistency_passed",
+    "accuracy_score", "final_score", "notes", "ts",
+    "batch_id", "orchestration_mode",
 )
 
 
@@ -165,30 +168,19 @@ class BenchmarkDB:
         with closing(self._connect()) as c, c:
             c.execute(_RUNS_DDL)
             c.execute(_BATCHES_DDL)
-            # outcome / batch_id / orchestration_mode 列是后加的：旧库按新列序
-            # 整表重建（ALTER ADD COLUMN 会把新列追加到末尾，与 to_row 的位置序
-            # 不一致）。迁移只增不删：全部旧行原样保留，缺失信息按占位值记——
-            # outcome 记 'failed'（未知；refused 统计只看 outcome='refused'，
-            # 不受影响），batch_id/orchestration_mode 记空串。
+            # 旧库列集与新 DDL 不一致时整表按新列序重建：旧行全部保留、只迁移
+            # 新旧交集列（被删的 outcome/integrity_passed 等旧列值丢弃，旧库
+            # 没有的新列落 NULL——读取侧按 None/空串兜底）。不走 ALTER ADD
+            # COLUMN：那会把新列追加到末尾，与 to_row 的位置序不一致。新库
+            # 列集一致，幂等不再触发。
             cols = {row[1] for row in c.execute("PRAGMA table_info(runs)")}
-            missing = [name for name in ("outcome", "batch_id", "orchestration_mode") if name not in cols]
-            if missing:
+            if cols != set(_RUNS_COLS):
                 c.execute("ALTER TABLE runs RENAME TO runs_old")
                 c.execute(_RUNS_DDL)
-                insert_cols = [name for name in _RUNS_LEGACY_COLS if name in cols]
-                select_exprs = list(insert_cols)
-                for name in missing:
-                    insert_cols.append(name)
-                    select_exprs.append("'failed'" if name == "outcome" else "''")
-                # 已存在但不在 legacy 列序里的列（如只有 batch_id 缺 outcome 的库）
-                # 也要随迁，不能丢。
-                for name in ("batch_id", "orchestration_mode"):
-                    if name in cols and name not in insert_cols:
-                        insert_cols.append(name)
-                        select_exprs.append(name)
+                keep = [name for name in _RUNS_COLS if name in cols]
                 c.execute(
-                    f"INSERT INTO runs ({', '.join(insert_cols)}) "
-                    f"SELECT {', '.join(select_exprs)} FROM runs_old"
+                    f"INSERT INTO runs ({', '.join(keep)}) "
+                    f"SELECT {', '.join(keep)} FROM runs_old"
                 )
                 c.execute("DROP TABLE runs_old")
 
@@ -197,7 +189,7 @@ class BenchmarkDB:
         # 只是查询语义（按 ts 取），不落为破坏性写。
         with self._lock, closing(self._connect()) as c, c:
             c.execute(
-                "INSERT INTO runs VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", result.to_row()
+                "INSERT INTO runs VALUES (?,?,?,?,?,?,?,?,?,?)", result.to_row()
             )
 
     def record_batch(self, batch_id: str, status: str, config: dict) -> None:
@@ -243,14 +235,13 @@ class BenchmarkDB:
     def list_runs_for(self, batch_id: str) -> list[dict]:
         with self._lock, closing(self._connect()) as c:
             rows = c.execute(
-                "SELECT task_id, sandbox, integrity_passed, graph_score, "
-                "selfconsistency_passed, accuracy_score, final_score, outcome, "
-                "notes, ts, orchestration_mode FROM runs WHERE batch_id = ? "
-                "ORDER BY task_id, ts",
+                "SELECT task_id, sandbox, graph_score, selfconsistency_passed, "
+                "accuracy_score, final_score, notes, ts, orchestration_mode "
+                "FROM runs WHERE batch_id = ? ORDER BY task_id, ts",
                 (batch_id,),
             ).fetchall()
         out = []
-        for task_id, sandbox, integrity, graph, selfc, acc, final, outcome, notes, ts, orch in rows:
+        for task_id, sandbox, graph, selfc, acc, final, notes, ts, orch in rows:
             parsed = []
             try:
                 parsed = json.loads(notes or "[]")
@@ -259,12 +250,10 @@ class BenchmarkDB:
             out.append({
                 "task_id": task_id,
                 "sandbox": sandbox,
-                "integrity_passed": bool(integrity),
                 "graph_score": graph,
                 "selfconsistency_passed": bool(selfc),
                 "accuracy_score": acc,
                 "final_score": final,
-                "outcome": outcome,
                 "notes": parsed,
                 "ts": ts,
                 "orchestration_mode": orch or "",
@@ -301,29 +290,19 @@ class BenchmarkRunner:
         return base / batch_id if batch_id else base
 
     def _ged_config_for(self, task: TaskSpec) -> GedConfig:
-        """Per-task GED 参数（rubric.graph_similarity）覆盖 runner 默认值。"""
-        base = self.ged_config
-        gs = task.rubric.graph_similarity
-        return GedConfig(
-            sigmoid_center=gs.sigmoid_center,
-            sigmoid_steepness=(
-                gs.sigmoid_steepness
-                if gs.sigmoid_steepness is not None
-                else base.sigmoid_steepness
-            ),
+        """Per-task GED 参数：stereo 是否计代价按 rubric.graph_similarity 的
+        stereo_tier_rule，其余全用 runner 默认（per-task 数值覆盖已取消）。"""
+        return replace(
+            self.ged_config,
             # hard 档立体化学计代价；easy/normal 忽略立体（stereo_free）
-            stereo_free=gs.stereo_tier_rule == "easy_normal_stereo_free",
-            subgraph_scoring=gs.subgraph_scoring,
-            node_delete_cost=base.node_delete_cost,
-            node_insert_cost=base.node_insert_cost,
-            edge_delete_cost=base.edge_delete_cost,
-            edge_insert_cost=base.edge_insert_cost,
-            morgan_radius=base.morgan_radius,
-            morgan_nbits=base.morgan_nbits,
+            stereo_free=(
+                task.rubric.graph_similarity.stereo_tier_rule
+                == "easy_normal_stereo_free"
+            ),
         )
 
     def score_sandbox(self, task: TaskSpec, sandbox: Path) -> RunResult:
-        """按交付物评分：图（JSON）+ 日志 + 结构化拒答声明，不读任何散文。"""
+        """按交付物评分：图（JSON）+ 日志，不读任何散文。"""
         res = RunResult(
             task_id=task.task_id,
             sandbox=str(sandbox),
@@ -332,12 +311,18 @@ class BenchmarkRunner:
         ged_config = self._ged_config_for(task)
 
         integ: IntegrityReport = audit_integrity(sandbox, task.rubric.integrity, ged_config)
-        res.integrity_passed = integ.passed
         res.notes.extend(integ.notes)
 
+        # 逐节点绑定质量图并入图分：未绑定的 accessible 节点按代价 1.0 记账，
+        # 质子化变体部分扣；accessible=false 节点不参与绑定、不在图里，
+        # q 缺省 1.0 正好不罚（标志一致性由 graph_similarity 单独把关）。
+        binding_quality = {b.node_id: b.quality for b in integ.node_bindings}
         if integ.delivered_graph is not None:
             ged: GedResult = mechanism_similarity(
-                integ.delivered_graph, task.gold.mechanism_graph, ged_config
+                integ.delivered_graph,
+                task.gold.mechanism_graph,
+                ged_config,
+                binding_quality=binding_quality,
             )
             res.graph_score = ged.score
         else:
@@ -358,7 +343,8 @@ class BenchmarkRunner:
         barriers: BarrierEvidence = collect_barrier_evidence(sandbox)
         res.notes.extend(barriers.notes)
         # hard 档定性选择性：gold.selectivity 带 favored_channel 时替代 accuracy
-        # 槽位（composite 的 0.3 权重给选择性分；barrier spread 数值不评分）
+        # 槽位（composite 的 accuracy 权重给选择性分；barrier spread 数值不评分）
+        acc_fail_loud = False
         selectivity = task.gold.selectivity
         if selectivity is not None and selectivity.favored_channel:
             sel_score, sel_note = score_qualitative_selectivity(
@@ -377,45 +363,49 @@ class BenchmarkRunner:
             )
             res.accuracy_score = acc.final_score
             res.notes.extend(acc.notes)
+            acc_fail_loud = acc.fail_loud
 
-        # composite: integrity 不再一票否决，证据质量是分级因子——
-        # 证据完整且机理正确得满分；缺证据按 binding_quality 比例扣（缺一个
-        # 不判零）；完全没证据（图缺失/不可解析/零绑定）倒扣 no_evidence_penalty
-        # 分：无证据支撑的机理声明比没交付更糟。
-        blend = (
-            0.5 * res.graph_score
-            + 0.2 * (1.0 if res.selfconsistency_passed else 0.0)
-            + 0.3 * res.accuracy_score
-        )
         rub = task.rubric.integrity
-        if not (rub.require_graph_json and rub.require_evidence_files):
-            res.final_score = round(blend, 4)
-        elif not integ.graph_parseable:
+        if not integ.graph_parseable:
+            # 图缺失/不可解析 = 不可能有任何证据支撑 -> 零证据倒扣
             res.final_score = -rub.no_evidence_penalty
-            res.notes.append("no parseable mechanism graph -> no evidence possible; penalty applied")
-        elif integ.binding_quality <= 0.0:
+            res.notes.append(
+                "no parseable mechanism graph -> no evidence possible; penalty applied"
+            )
+            return res
+        accessible_species = [
+            n
+            for n in integ.delivered_graph.nodes
+            if n.accessible and n.role is not NodeRole.TRANSITION_STATE
+        ]
+        evidenced = {b.node_id for b in integ.node_bindings if b.quality > 0.0}
+        if accessible_species and not any(
+            n.id in evidenced for n in accessible_species
+        ):
+            # 有 accessible 物种声明但无一绑到证据 = 无证据支撑的机理声明，
+            # 比没交付更糟 -> 倒扣；全部节点都声明 accessible=false 是合法
+            # 交付（纯不可达声明），不触发本条
             res.final_score = -rub.no_evidence_penalty
-            res.notes.append("no evidence bound to any graph node -> unsupported claims; penalty applied")
-        else:
-            res.final_score = round(blend * integ.binding_quality, 4)
-            if integ.binding_quality < 1.0:
-                res.notes.append(
-                    f"binding quality {integ.binding_quality:.2f} applied as composite multiplier"
-                )
-
-        # 行为分类只认可解析的交付图（损坏或只带拒答声明的文件不算作答）与
-        # 显式结构化拒答声明；散文一律不参与判定。
-        delivered_graph = integ.delivered_graph
-        refusal = load_refusal_declaration(sandbox)
-        res.outcome = classify_outcome(
-            graph_found=delivered_graph is not None and bool(delivered_graph.nodes),
-            refusal_declared=refusal is not None,
-        ).value
-
-        # impossible 档路由到专门算分器（I 题决策/理由质量公式，S 题标准
-        # composite + 错误拒答闸门），就地覆盖 final_score
-        if task.tier is Tier.IMPOSSIBLE:
-            apply_impossible_scoring(res, task, refusal)
+            res.notes.append(
+                "no evidence bound to any accessible species node -> "
+                "unsupported claims; penalty applied"
+            )
+            return res
+        if acc_fail_loud:
+            # fail-loud 短路：声明无据/不一致 -> 自洽与 accuracy 分量清零，
+            # final 只保留图分
+            res.final_score = round(W_GRAPH * res.graph_score, 4)
+            res.notes.append(
+                "accuracy fail-loud (unsupported or inconsistent declared "
+                "barriers); final keeps the graph component only"
+            )
+            return res
+        res.final_score = round(
+            W_GRAPH * res.graph_score
+            + W_SELFCONSISTENCY * (1.0 if res.selfconsistency_passed else 0.0)
+            + W_ACCURACY * res.accuracy_score,
+            4,
+        )
         return res
 
     def run_task(self, task: TaskSpec) -> RunResult:
@@ -439,7 +429,6 @@ class BenchmarkRunner:
             res = RunResult(
                 task_id=task.task_id,
                 sandbox=str(self.sandbox_for(task.task_id, self.batch_id)),
-                outcome=RunOutcome.FAILED.value,
                 batch_id=self.batch_id,
                 orchestration_mode=task.prompt.orchestration_mode.value,
             )

@@ -406,28 +406,3 @@ def collect_barrier_evidence(sandbox: Path | str) -> BarrierEvidence:
     if not report.steps:
         report.notes.append("no step barrier could be derived from the delivered logs")
     return report
-
-
-def load_refusal_declaration(sandbox: Path | str):
-    """交付 ``mechanism_graph.json`` 里可选的拒答声明；无则 None（绝不猜）。"""
-    import json
-
-    from cloudra.benchmark.schema import RefusalDeclaration
-
-    path = Path(sandbox) / "mechanism_graph.json"
-    if not path.is_file():
-        return None
-    try:
-        data = json.loads(_read_text(path))
-    except ValueError:
-        return None
-    if not isinstance(data, dict):
-        return None
-    raw = data.get("refusal")
-    if not isinstance(raw, dict):
-        return None
-    try:
-        declaration = RefusalDeclaration.model_validate(raw)
-    except Exception:
-        return None
-    return declaration if declaration.refused else None

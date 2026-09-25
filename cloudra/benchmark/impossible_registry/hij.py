@@ -2,8 +2,7 @@
 （I2 硫代臭氧 / I8 磷宾）+ 重排小势能面（J6 甲氮烯 / J7 二硅烯）。
 
 H7 为键重组无法从 SMILES 级映射差集推导的笼状价异构（显式 no_mapping）；
-H7/H8/I8/J6/J7 是定稿风险登记的 6 条灰色地带题（wrongly_solve_penalty=medium、
-evidence_strength=gray_zone）。
+H7/H8/I8/J6/J7 是定稿风险登记的 6 条灰色地带题（均未登记进本表）。
 """
 
 TASKS = {

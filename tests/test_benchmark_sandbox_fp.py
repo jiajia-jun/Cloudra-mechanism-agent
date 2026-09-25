@@ -554,7 +554,7 @@ def test_cli_full_chain_standard_js(tmp_path, monkeypatch):
     # 最终消息只作审计留痕：它不参与任何评分（评分只读交付物）
     assert any("5.0 kcal/mol" in m for m in parent_messages), parent_messages
 
-    # 评分落库（空沙箱无图 → 零证据倒扣，outcome=failed，与既有契约一致）
+    # 评分落库（空沙箱无图 → 零证据倒扣，与既有契约一致）
     runs = runner.db.list_runs_for("")
     assert [r["task_id"] for r in runs] == ["T1"]
     assert runs[0]["final_score"] == -1.0
@@ -895,7 +895,12 @@ def test_cli_malformed_inputs_fail_then_corrected(tmp_path, monkeypatch):
     assert len(writer_events) == 3  # 两次失败 + 一次成功，逐次真实执行
     # 可解释：失败回执带拒绝原因（不是空消息）
     summaries = [str(e.data.get("result_summary") or "") for e in writer_events]
-    assert any("not found" in s or "Failed to generate" in s for s in summaries), summaries
+    # 畸形 XYZ 由输入校验确定性拦截（34293c1d 起报 "Invalid input ..."）；
+    # "Failed to generate" 是仍存在的通用包装路径
+    assert any(
+        "Invalid input for qm_input_writer" in s or "Failed to generate" in s
+        for s in summaries
+    ), summaries
     assert any("calcfc" in s or "refused" in s.lower() for s in summaries), summaries
 
 

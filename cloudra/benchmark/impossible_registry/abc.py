@@ -38,8 +38,6 @@ TASKS = {
                 "node_accessible": True,
             },
         ],
-        "wrongly_solve_penalty": "high",
-        "evidence_strength": "ironclad",
         "sibling": {
             "name_zh": "环丁二烯 D4h 自动异构化",
             "name_en": "cyclooctatetraene bond-shift valence tautomerization",
@@ -103,8 +101,6 @@ TASKS = {
                 "node_accessible": True,
             },
         ],
-        "wrongly_solve_penalty": "high",
-        "evidence_strength": "ironclad",
         "sibling": {
             "name_zh": "环丁烯反旋（禁阻）开环",
             "name_en": "cyclobutene conrotatory ring opening",
@@ -169,8 +165,6 @@ TASKS = {
                 "node_accessible": False,
             },
         ],
-        "wrongly_solve_penalty": "high",
-        "evidence_strength": "ironclad",
         "sibling": {
             "name_zh": "Bergman 环化",
             "name_en": "6pi electrocyclic ring closure of 1,3,5-hexatriene",
@@ -234,8 +228,6 @@ TASKS = {
                 "node_accessible": True,
             },
         ],
-        "wrongly_solve_penalty": "high",
-        "evidence_strength": "ironclad",
         "sibling": {
             "name_zh": "Criegee 中间体 CH2OO 单分子异构化",
             "name_en": "relative energies of the closed-shell C1H2O2 isomers (formic acid vs dioxirane)",
@@ -304,8 +296,6 @@ TASKS = {
                 "node_accessible": True,
             },
         ],
-        "wrongly_solve_penalty": "high",
-        "evidence_strength": "ironclad",
         "sibling": {
             "name_zh": "1,2-二氧环丁烷热解",
             "name_en": "ring strain and thermochemistry of oxetane",
@@ -371,8 +361,6 @@ TASKS = {
                 "node_accessible": False,
             },
         ],
-        "wrongly_solve_penalty": "high",
-        "evidence_strength": "ironclad",
         "sibling": {
             "name_zh": "苯基氮烯开壳单线态",
             "name_en": "equilibrium geometry and frequencies of triplet phenylnitrene",

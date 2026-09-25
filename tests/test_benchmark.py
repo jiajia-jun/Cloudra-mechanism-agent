@@ -134,6 +134,82 @@ def test_task_id_rejects_path_traversal():
     assert TaskSpec.model_validate(dumped).task_id == "ok_TASK-1"
 
 
+def test_gold_graph_edge_reference_integrity_validator():
+    """端点引用完整性：边的 from/to 必须指向已声明节点、via 必须指向
+    transition_state 角色节点——违反即 ValidationError（不静默造幽灵节点）。"""
+    nodes = [
+        MechanismNode(id="R", role=NodeRole.REACTANT, smiles=["C"]),
+        MechanismNode(id="TS", role=NodeRole.TRANSITION_STATE, smiles=[]),
+        MechanismNode(id="P", role=NodeRole.PRODUCT, smiles=["CC"]),
+    ]
+    # 合法图照常通过
+    GoldMechanismGraph(
+        nodes=nodes,
+        edges=[MechanismEdge(id="E1", **{"from": "R", "to": "P"}, via="TS")],
+    )
+    # 悬空 from
+    with pytest.raises(ValidationError, match="not a declared node"):
+        GoldMechanismGraph(
+            nodes=nodes,
+            edges=[MechanismEdge(id="E1", **{"from": "GHOST", "to": "P"}, via="TS")],
+        )
+    # 悬空 to
+    with pytest.raises(ValidationError, match="not a declared node"):
+        GoldMechanismGraph(
+            nodes=nodes,
+            edges=[MechanismEdge(id="E1", **{"from": "R", "to": "GHOST"}, via="TS")],
+        )
+    # via 指向不存在的节点
+    with pytest.raises(ValidationError, match="not a declared"):
+        GoldMechanismGraph(
+            nodes=nodes,
+            edges=[MechanismEdge(id="E1", **{"from": "R", "to": "P"}, via="GHOST")],
+        )
+    # via 指向非 TS 角色节点
+    with pytest.raises(ValidationError, match="transition_state"):
+        GoldMechanismGraph(
+            nodes=nodes,
+            edges=[MechanismEdge(id="E1", **{"from": "R", "to": "P"}, via="R")],
+        )
+
+
+def test_edge_effective_accessibility_transduction():
+    """有效可达性：边自身 AND 经由的 TS 节点；via 为空的边不做端点检查。"""
+    def _g(ts_accessible=True, edge_accessible=True, with_via=True):
+        nodes = [
+            MechanismNode(id="R", role=NodeRole.REACTANT, smiles=["C"]),
+            MechanismNode(id="P", role=NodeRole.PRODUCT, smiles=["CC"]),
+        ]
+        via = None
+        if with_via:
+            nodes.insert(1, MechanismNode(
+                id="TS", role=NodeRole.TRANSITION_STATE, smiles=[],
+                accessible=ts_accessible,
+            ))
+            via = "TS"
+        return GoldMechanismGraph(
+            nodes=nodes,
+            edges=[MechanismEdge(
+                id="E1", **{"from": "R", "to": "P"}, via=via,
+                accessible=edge_accessible,
+            )],
+        )
+
+    g = _g()
+    assert g.edge_effectively_accessible(g.edges[0]) is True
+    # 经由不可达 TS -> 有效不可达（gold 只在节点上标的情形）
+    g = _g(ts_accessible=False)
+    assert g.edge_effectively_accessible(g.edges[0]) is False
+    # 边自身标 false（交付侧协议允许的形式）
+    g = _g(edge_accessible=False)
+    assert g.edge_effectively_accessible(g.edges[0]) is False
+    # via 为空：不做端点检查，只看边自身
+    g = _g(with_via=False)
+    assert g.edge_effectively_accessible(g.edges[0]) is True
+    g = _g(with_via=False, edge_accessible=False)
+    assert g.edge_effectively_accessible(g.edges[0]) is False
+
+
 def test_easy_query_requires_structured_barrier_declaration():
     """accuracy 只读交付物：query 必须要求把每步能垒声明进交付 JSON，
     不再有"在最终总结里报数"这类散文契约。"""
@@ -198,7 +274,7 @@ def test_runner_rerun_over_symlink_or_file_sandbox(tmp_path):
     sandbox.parent.mkdir(parents=True, exist_ok=True)
     sandbox.write_text("leftover")  # 普通文件占位
     results = runner.run_all(tasks[:1])
-    assert results[0].outcome == "failed"
+    assert results[0].final_score == 0.0  # 崩溃题 0 分（不倒扣）
     assert any("crashed" in n for n in results[0].notes)
     assert sandbox.is_file()  # 占位文件未被强拆
 
@@ -316,24 +392,6 @@ def test_ged_edit_script_uses_species_not_ids():
     assert any("species_missing" in s and "C1CC=CCC1" in s for s in script)
 
 
-def test_ged_oversized_delivery_short_circuits():
-    """对称 GED 诊断模式下，失控交付的超大图直接判最大差异（score 0.0），
-    不调用 networkx——optimize_graph_edit_distance 最坏指数复杂度。
-    （默认的子图打分模式是多项式的指派评估，不需要这个守卫。）"""
-    gold = _graph(["C=CC=C", "C=C"], ["C1CC=CCC1"])  # 3 nodes -> 守卫上限 30
-    big = GoldMechanismGraph(
-        nodes=[
-            MechanismNode(id=f"n{i}", role=NodeRole.INTERMEDIATE, smiles=["CC"])
-            for i in range(31)
-        ],
-        edges=[],
-    )
-    res = mechanism_similarity(big, gold, GedConfig(subgraph_scoring=False))
-    assert res.score == 0.0
-    assert res.distance == res.max_distance
-    assert any("short-circuited" in s for s in res.edit_script)
-
-
 def test_subgraph_extra_nodes_and_edges_are_free():
     """子图打分：交付图多出节点/边（含前置的分离反应物平衡步）不扣分。"""
     gold = _graph(["[F-]", "CCl"], ["CF", "[Cl-]"])
@@ -368,6 +426,65 @@ def test_subgraph_missing_and_mismatch_still_cost():
     # 产物错误（CCl4 而非 CF/Cl-）-> 产物节点替换代价 ≈1，边也随之配不上
     wrong_p = _graph(["[F-]", "CCl"], ["ClC(Cl)(Cl)Cl"])
     assert mechanism_similarity(wrong_p, gold, GedConfig()).score < 0.6
+
+
+def _flagged_graph(ts_accessible: bool, edge_accessible: bool) -> GoldMechanismGraph:
+    return GoldMechanismGraph(
+        nodes=[
+            MechanismNode(id="R", role=NodeRole.REACTANT, smiles=["O"]),
+            MechanismNode(
+                id="TS", role=NodeRole.TRANSITION_STATE, smiles=[],
+                accessible=ts_accessible,
+            ),
+            MechanismNode(id="P", role=NodeRole.PRODUCT, smiles=["O"]),
+        ],
+        edges=[MechanismEdge(
+            id="E1", **{"from": "R", "to": "P"}, via="TS", accessible=edge_accessible,
+        )],
+    )
+
+
+def test_accessible_flag_consistency_scores_both_directions():
+    """accessible 标志一致性进图分（双向）：gold 不可达交付硬算 / gold 可达
+    交付躲证据 → 该边替换代价 1.0（等同缺失，3 元素图 -> 2/3）。按有效可达性
+    比较：gold 标在 TS 节点上、交付标在边上（协议允许的两种形式）同口径一致。"""
+    gold_ts_false = _flagged_graph(ts_accessible=False, edge_accessible=True)
+    delivered_all_true = _flagged_graph(ts_accessible=True, edge_accessible=True)
+    delivered_edge_false = _flagged_graph(ts_accessible=True, edge_accessible=False)
+
+    # gold 不可达（TS 节点 false），交付硬算（全 true）-> 不一致 -> 扣 1 边
+    assert mechanism_similarity(
+        delivered_all_true, gold_ts_false, GedConfig()
+    ).score == pytest.approx(2 / 3)
+    # gold 可达，交付躲证据（边 false）-> 不一致 -> 同样扣
+    assert mechanism_similarity(
+        delivered_edge_false, _flagged_graph(True, True), GedConfig()
+    ).score == pytest.approx(2 / 3)
+    # gold 标 TS 节点 false、交付标边 false：有效不可达一致 -> 满分
+    assert mechanism_similarity(
+        delivered_edge_false, gold_ts_false, GedConfig()
+    ).score == pytest.approx(1.0)
+    # 全 true 交付对上 gold TS false 的反例对照：gold 也全 true 时满分
+    assert mechanism_similarity(
+        delivered_all_true, _flagged_graph(True, True), GedConfig()
+    ).score == pytest.approx(1.0)
+
+
+def test_binding_quality_partial_credit_enters_graph_score():
+    """质子化 partial 绑定（q=0.85）并进图分：有效节点代价 = 1-(1-subst)·q
+    = 0.15 -> score = 1 - 0.15/3（节点全等同构，只差绑定质量）。"""
+    gold = _graph(["C"], ["O"])
+    full = mechanism_similarity(gold, gold, GedConfig())
+    assert full.score == pytest.approx(1.0)
+    partial = mechanism_similarity(
+        gold, gold, GedConfig(), binding_quality={"R": 1.0, "P": 0.85, "TS": 0.85}
+    )
+    assert partial.score == pytest.approx(1.0 - 0.15 / 3)
+    # 未绑定（q=0）等同未覆盖：P 按缺失记账（代价 1.0），其边连带缺失 -> 1/3
+    unbound = mechanism_similarity(
+        gold, gold, GedConfig(), binding_quality={"R": 1.0, "P": 0.0, "TS": 0.0}
+    )
+    assert unbound.score == pytest.approx(1 / 3)
 
 
 # --- accuracy ---
@@ -589,11 +706,12 @@ def test_accuracy_missing_reference_edge_fails_loud():
 
 
 def test_accuracy_no_reference_edge_not_scored():
-    """gold 机理图没有任何带参考值的边 -> accuracy 不评分（final_score=1.0）。"""
+    """gold 边不带参考值且有效可达 -> 该边记 1.0（可算但标答未给参考值）。"""
     gold = _gold_edges([("E1", None, 1.0)])
     rep = score_accuracy(evidence=_evidence([]), gold=gold, rubric=AccuracyRubric())
+    assert rep.edge_scores["E1"] == 1.0
     assert rep.final_score == 1.0
-    assert any("no gold edge carries a reference barrier" in n for n in rep.notes)
+    assert any("carries no reference barrier" in n for n in rep.notes)
 
 
 def test_accuracy_disabled_passthrough():
@@ -857,16 +975,16 @@ def test_integrity_audit_binds_evidence(tmp_path):
     (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
     (tmp_path / "r.log").write_text("smiles: C=CC=C\nsmiles: C=C\n")
     (tmp_path / "p.log").write_text("smiles: C1CC=CCC1\n")
-    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
+    rep = audit_integrity(tmp_path)
     assert rep.graph_found and rep.graph_parseable
-    assert rep.fraction_bound == 1.0
-    assert rep.passed
+    assert all(b.matched and b.quality == 1.0 for b in rep.node_bindings)
+    assert rep.binding_quality == 1.0
 
 
 def test_integrity_missing_graph_fails(tmp_path):
-    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
+    rep = audit_integrity(tmp_path)
     assert not rep.graph_found
-    assert not rep.passed
+    assert not rep.graph_parseable
 
 
 def test_integrity_ts_bound_via_endpoints(tmp_path):
@@ -883,17 +1001,17 @@ def test_integrity_ts_bound_via_endpoints(tmp_path):
         json.dumps({"nodes": base_nodes, "edges": [edge]})
     )
     (tmp_path / "r.log").write_text("smiles: C=CC=C\nsmiles: C=C\n")
-    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
+    rep = audit_integrity(tmp_path)
     matched = {b.node_id: b.matched for b in rep.node_bindings}
     assert matched == {"R": True, "TS": False, "P": False}
-    assert not rep.passed
+    assert rep.binding_quality == pytest.approx(1 / 3)
 
     # 两端证据补齐后 TS 经端点间接绑定
     (tmp_path / "p.log").write_text("smiles: C1CC=CCC1\n")
-    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
+    rep = audit_integrity(tmp_path)
     matched = {b.node_id: b.matched for b in rep.node_bindings}
     assert matched == {"R": True, "TS": True, "P": True}
-    assert rep.passed
+    assert rep.binding_quality == 1.0
 
     # TS 未被任何边经由：即使物种证据齐全也不应绑定
     orphan = {
@@ -901,10 +1019,10 @@ def test_integrity_ts_bound_via_endpoints(tmp_path):
         "edges": [{"id": "E1", "from": "R", "to": "P", "via": None}],
     }
     (tmp_path / "mechanism_graph.json").write_text(json.dumps(orphan))
-    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
+    rep = audit_integrity(tmp_path)
     matched = {b.node_id: b.matched for b in rep.node_bindings}
     assert matched["TS"] is False
-    assert not rep.passed
+    assert rep.binding_quality < 1.0
 
 
 def test_integrity_evidence_smiles_tolerant_formats(tmp_path):
@@ -920,8 +1038,8 @@ def test_integrity_evidence_smiles_tolerant_formats(tmp_path):
     (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
     (tmp_path / "r.log").write_text('title\n{"smiles": "C=CC=C"}\n# smiles: C=C\n')
     (tmp_path / "p.log").write_text("smiles: 'C1CC=CCC1'\n")
-    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
-    assert rep.passed, rep.notes
+    rep = audit_integrity(tmp_path)
+    assert all(b.matched for b in rep.node_bindings), rep.notes
 
 
 def test_integrity_evidence_bracket_smiles_not_truncated(tmp_path):
@@ -937,8 +1055,8 @@ def test_integrity_evidence_bracket_smiles_not_truncated(tmp_path):
     (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
     (tmp_path / "r.gjf").write_text("# title\nsmiles: [F-]\nsmiles: CCl\n")
     (tmp_path / "p_summary.json").write_text(json.dumps({"smiles": ["CF", "[Cl-]"]}))
-    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
-    assert rep.passed, rep.notes
+    rep = audit_integrity(tmp_path)
+    assert all(b.matched for b in rep.node_bindings), rep.notes
 
 
 def test_integrity_empty_smiles_species_not_bound(tmp_path):
@@ -952,10 +1070,11 @@ def test_integrity_empty_smiles_species_not_bound(tmp_path):
     }
     (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
     (tmp_path / "p.log").write_text("smiles: C1CC=CCC1\n")
-    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
+    rep = audit_integrity(tmp_path)
     matched = {b.node_id: b.matched for b in rep.node_bindings}
     assert matched["R"] is False
-    assert not rep.passed
+    assert matched["P"] is True
+    assert rep.binding_quality < 1.0
 
 
 def test_integrity_delivered_graph_lenient_loading(tmp_path):
@@ -970,11 +1089,11 @@ def test_integrity_delivered_graph_lenient_loading(tmp_path):
     }
     (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
     (tmp_path / "r.log").write_text("smiles: CC\n")
-    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
+    rep = audit_integrity(tmp_path)
     assert rep.graph_parseable
     assert rep.delivered_graph is not None
     assert rep.delivered_graph.edges[0].id  # 缺省 id 已自动补
-    assert rep.passed
+    assert all(b.matched for b in rep.node_bindings)
 
 
 def test_integrity_delivered_graph_postel_aliases(tmp_path):
@@ -983,6 +1102,7 @@ def test_integrity_delivered_graph_postel_aliases(tmp_path):
     g = {
         "nodes": [
             {"id": "rc", "type": "reactant", "label": "pre-reaction complex", "smiles": "[F-].CCl"},
+            {"id": "ts_walden", "type": "ts"},
             {"id": "pc", "type": "product", "smiles": "[Cl-].CF"},
         ],
         "edges": [
@@ -991,7 +1111,7 @@ def test_integrity_delivered_graph_postel_aliases(tmp_path):
         ],
     }
     (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
-    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
+    rep = audit_integrity(tmp_path)
     assert rep.graph_parseable, rep.notes
     assert rep.delivered_graph is not None
     nodes = {n.id: n for n in rep.delivered_graph.nodes}
@@ -1017,7 +1137,7 @@ def test_integrity_delivered_graph_free_text_role_falls_back_to_type(tmp_path):
         "edges": [{"id": "E1", "from": "R", "to": "P", "via": "TS"}],
     }
     (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
-    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
+    rep = audit_integrity(tmp_path)
     assert rep.graph_parseable, rep.notes
     assert rep.delivered_graph is not None
     nodes = {n.id: n for n in rep.delivered_graph.nodes}
@@ -1038,7 +1158,7 @@ def test_integrity_delivered_graph_unknown_node_type_fails_loud(tmp_path):
         "edges": [],
     }
     (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
-    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
+    rep = audit_integrity(tmp_path)
     assert not rep.graph_parseable
     assert "present but not parseable" in rep.notes[0]
 
@@ -1056,51 +1176,12 @@ def test_integrity_fallback_graph_cannot_self_bind(tmp_path):
     sub = tmp_path / "sub"
     sub.mkdir()
     (sub / "my_graph.json").write_text(json.dumps(g))
-    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
+    rep = audit_integrity(tmp_path)
     assert rep.graph_found and rep.graph_parseable
     assert rep.graph_path == "sub/my_graph.json"
     assert rep.evidence_files == []  # 交付图自身被排除出证据扫描
-    assert rep.fraction_bound == 0.0
-    assert not rep.passed
-
-
-
-def _no_node_energy_rubric():
-    """聚焦绑定/加载行为的单测用的 integrity rubric：这些合成沙箱不声明节点
-    能量，节点能量强制项另有专门用例覆盖。"""
-    from cloudra.benchmark.schema import IntegrityRubric
-
-    return IntegrityRubric(require_node_energies=False)
-
-
-
-def test_integrity_requires_node_energy_declarations(tmp_path):
-    """能垒评分题：每个 accessible 节点必须声明 properties.energy_hartree +
-    properties.evidence_log；缺失 → integrity 不通过并列出问题节点；补齐 → 通过。"""
-    def _write_graph(properties: dict | None) -> None:
-        node = {"id": "R", "role": "reactant", "smiles": ["O"], "accessible": True}
-        if properties is not None:
-            node["properties"] = properties
-        (tmp_path / "mechanism_graph.json").write_text(
-            json.dumps({"nodes": [node]}), encoding="utf-8"
-        )
-
-    (tmp_path / "r.log").write_text("gaussian log\nsmiles: O\n", encoding="utf-8")
-
-    _write_graph(None)
-    rep = audit_integrity(tmp_path)
-    assert not rep.passed
-    assert any(
-        "node energy declarations missing" in n and "R: properties.energy_hartree" in n
-        for n in rep.notes
-    ), rep.notes
-    # 只写能量、缺证据路径同样不过
-    _write_graph({"energy_hartree": -76.4})
-    assert not audit_integrity(tmp_path).passed
-
-    _write_graph({"energy_hartree": -76.4, "evidence_log": "r.log"})
-    rep_ok = audit_integrity(tmp_path)
-    assert rep_ok.passed, rep_ok.notes
+    assert rep.node_bindings and not any(b.matched for b in rep.node_bindings)
+    assert rep.binding_quality == 0.0
 
 # --- self-consistency ---
 
@@ -1551,6 +1632,24 @@ def test_selfconsistency_unbound_element_requires_inaccessible_declaration():
     assert all(c.declared_inaccessible for c in rep2.checks)
 
 
+def test_selfconsistency_edge_via_inaccessible_ts_is_exempt():
+    """有效可达性传导进自洽：交付把不可达标在 TS 节点上（边保持默认
+    accessible=true）时，经由它的边视同 declared_inaccessible 豁免——
+    与图分/accuracy 同一口径（edge_effectively_accessible）。"""
+    files: list[EvidenceFile] = []
+    # TS 节点 false、边不标：边豁免；TS 节点随豁免
+    graph = _sc_graph(R={"accessible": False}, TS={"accessible": False}, P={"accessible": False})
+    rep = audit_self_consistency(graph, [], files, Path("."))
+    assert rep.passed is True, rep.notes
+    edge = _checks_by_id(rep)["E1"]
+    assert edge.declared_inaccessible and edge.covered
+    assert any("effectively inaccessible" in n for n in edge.notes)
+    # 对照：TS 可达且边未标 -> 边不豁免（无证据判负）
+    rep2 = audit_self_consistency(_sc_graph(R={"accessible": False}, P={"accessible": False}), [], files, Path("."))
+    edge2 = _checks_by_id(rep2)["E1"]
+    assert not edge2.declared_inaccessible and not edge2.covered
+
+
 # --- 题库可复现性 ---
 
 
@@ -1599,43 +1698,34 @@ def test_hard_tasks_regenerate_identically():
 
 
 def test_impossible_tasks_regenerate_identically():
-    """impossible 档题库（v3：10 拒答题 + 10 兄弟对照题）必须与生成器输出一致。
+    """impossible 档题库（v3：10 道 I 题 + 10 道 sibling 对照题）必须与生成器
+    输出一致。
 
-    同时锚定结构性纪律：I/S 配对双向互指、I 题 correct_refusal 且带
-    impossible_case（至少一个不可达节点）、S 题 mechanism_found 且全图可达、
-    refusal.should_refuse 的 ground truth 与 expected_outcome 对齐。"""
+    同时锚定结构性纪律：I 题 gold 图至少一个 accessible=false 节点（正确交付
+    = 同构图 + 对应元素标 accessible=false，走标准 composite，无任何拒答特判）；
+    sibling 全图可达；全档 query 带同一句 accessible=false 协议句（不泄题）。"""
     pytest.importorskip("rdkit")  # 生成器的映射校验依赖 RDKit；CI 只装 dev extra
     from cloudra.benchmark import gen_impossible_tasks
-    from cloudra.benchmark.refusal import should_refuse
-    from cloudra.benchmark.schema import ExpectedOutcome
 
     tasks = gen_impossible_tasks.parse_impossible_md(gen_impossible_tasks.DEFAULT_SRC)
     assert len(tasks) == 20
-    by_id = {t.task_id: t for t in tasks}
     assert sum(t.task_id.startswith("I") for t in tasks) == 10
     assert sum(t.task_id.startswith("S") for t in tasks) == 10
+    protocol = 'mark the corresponding node or edge "accessible": false'
     for t in tasks:
         committed = gen_impossible_tasks.DEFAULT_OUT / f"{t.task_id}.json"
         assert committed.is_file(), f"missing committed task file: {committed}"
         regenerated = json.loads(json.dumps(t.model_dump(mode="json", by_alias=True)))
         assert json.loads(committed.read_text(encoding="utf-8")) == regenerated
-        # impossible 保持 xtb-only：I 系靠单参考方法边界触发科学拒答，开 DFT 会破坏该校准
+        # impossible 保持 xtb-only：I 系靠单参考方法边界制造不可达性，开 DFT 会破坏它
         assert t.method_policy.allowed_methods == ["xtb"]
-        # 配对双向互指
-        assert by_id[t.pair_id].pair_id == t.task_id
+        # accessible=false 协议句全档同款、一字不动
+        assert protocol in t.prompt.query, t.task_id
         graph = t.gold.mechanism_graph
         if t.task_id.startswith("I"):
-            assert t.rubric.expected_outcome is ExpectedOutcome.CORRECT_REFUSAL
-            assert t.rubric.impossible_case is not None
-            inaccessible = {n.id for n in graph.nodes if not n.accessible}
-            assert inaccessible
-            assert set(t.rubric.impossible_case.gold_inaccessible_nodes) == inaccessible
-            assert should_refuse(t)
+            assert any(not n.accessible for n in graph.nodes), t.task_id
         else:
-            assert t.rubric.expected_outcome is ExpectedOutcome.MECHANISM_FOUND
-            assert t.rubric.impossible_case is None
-            assert all(n.accessible for n in graph.nodes)
-            assert not should_refuse(t)
+            assert all(n.accessible for n in graph.nodes), t.task_id
 
 
 def test_query_declares_electronic_barrier_type():
@@ -1723,14 +1813,17 @@ def test_hard_selectivity_qualitative_contract():
 
 def test_impossible_deliverable_clause_by_kind():
     """impossible 交付句按 deliverable_kind 生成：机理类走 RDS 边能垒，性质/
-    态序类走物种节点 properties（键带单位，字符串值允许）；拒答协议句全档不变。"""
+    态序类走物种节点 properties（键带单位，字符串值允许）；accessible=false
+    协议句全档同款、一字不动，拒答契约句已随 refusal 线删除。"""
     pytest.importorskip("rdkit")
     from cloudra.benchmark import gen_impossible_tasks
 
     tasks = gen_impossible_tasks.parse_impossible_md(gen_impossible_tasks.DEFAULT_SRC)
     by_id = {t.task_id: t for t in tasks}
+    protocol = 'mark the corresponding node or edge "accessible": false'
     for t in tasks:
-        assert '{"refusal": {"refused": true' in t.prompt.query, t.task_id
+        assert protocol in t.prompt.query, t.task_id
+        assert "refusal" not in t.prompt.query, t.task_id
     # 机理类（IA1/SA5 等）：维持边能垒声明
     assert "as `barrier_kcal_mol`" in by_id["IA1"].prompt.query
     assert "rate-determining step's edge" in by_id["IA1"].prompt.query
@@ -2154,9 +2247,9 @@ def test_binding_full_match_quality_one():
     assert all(b.matched and b.quality == 1.0 for b in bindings.values())
 
 
-def test_integrity_report_binding_quality_and_runner_multiplier(tmp_path):
-    """端到端：质子化变体证据 -> integrity 通过但 binding_quality<1，
-    runner composite 被乘性扣减而不是判零。"""
+def test_integrity_report_binding_quality_enters_graph_score(tmp_path):
+    """端到端：质子化变体证据 -> 逐节点绑定质量 q<1，runner 把质量图并进图分
+    （有效节点代价 = 1-(1-subst)·q）而不是判零或全局乘性扣减。"""
     pytest.importorskip("rdkit")  # 同上：质子化 partial 通道依赖 RDKit
     from cloudra.benchmark.runner import BenchmarkRunner
     from cloudra.benchmark.schema import GoldSpec, PromptSpec, SystemSpec, TaskSpec
@@ -2166,13 +2259,10 @@ def test_integrity_report_binding_quality_and_runner_multiplier(tmp_path):
     (tmp_path / "rc.log").write_text("gaussian log\n# smiles: O\n")
     (tmp_path / "pc.log").write_text("gaussian log\n# smiles: CC(=O)O\n")
 
-    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
-    assert rep.passed
-    assert rep.fraction_bound == 1.0
+    rep = audit_integrity(tmp_path)
+    assert all(b.matched for b in rep.node_bindings)
     assert rep.binding_quality == pytest.approx((0.7 + 0.85 + 0.7) / 3)
     assert any("partial-credit" in n for n in rep.notes)
-
-    from cloudra.benchmark.schema import RubricSpec
 
     task = TaskSpec(
         task_id="PROTO_T",
@@ -2180,16 +2270,15 @@ def test_integrity_report_binding_quality_and_runner_multiplier(tmp_path):
         prompt=PromptSpec(query="q"),
         system=SystemSpec(reactants=["[OH3+]"]),
         gold=GoldSpec(mechanism_graph=graph),
-        # 本用例聚焦绑定质量；节点能量强制项由 require_node_energies 专项用例覆盖
-        rubric=RubricSpec(integrity=_no_node_energy_rubric()),
     )
     runner = BenchmarkRunner(tmp_path / "data")
     res = runner.score_sandbox(task, tmp_path)
-    # graph=1.0（交付=gold），sc 无 QM 证据判负，accuracy 无 gold barrier 记 1.0
-    # blend = 0.5*1.0 + 0.2*0 + 0.3*1.0 = 0.8；× 0.75 = 0.6
-    assert res.integrity_passed
-    assert res.final_score == pytest.approx(0.8 * 0.75, abs=1e-4)
-    assert any("binding quality" in n for n in res.notes)
+    # 绑定质量并进图分：R 有效代价 1-(1-0)·0.7 = 0.3，P = 0.15（TS 折叠进边）
+    # -> distance 0.45 / max 3 -> graph = 0.85；sc 无 QM 频率证据判负；
+    # accuracy 无 gold 参考边记 1.0 -> final = 0.3·0.85 + 0.6·1.0 = 0.855
+    assert res.graph_score == pytest.approx(0.85, abs=1e-4)
+    assert res.final_score == pytest.approx(0.855, abs=1e-4)
+    assert any("partial-credit" in n for n in res.notes)
 
 
 # --- 评分语义与取证修复（2a/2b/2c + 分级 composite） ---
@@ -2218,8 +2307,9 @@ def test_scan_excludes_graph_shaped_json_copies(tmp_path):
     (sub / "draft.json").write_text(payload)  # 改名拷贝
     files = scan_evidence_files(tmp_path, exclude=tmp_path / "mechanism_graph.json")
     assert files == []  # 拷贝被排除，没有任何证据文件
-    rep = audit_integrity(tmp_path, _no_node_energy_rubric())
-    assert rep.fraction_bound == 0.0 and not rep.passed
+    rep = audit_integrity(tmp_path)
+    assert rep.node_bindings and not any(b.matched for b in rep.node_bindings)
+    assert rep.binding_quality == 0.0
 
 
 def test_edit_script_reflects_missing_ts():
@@ -2271,7 +2361,8 @@ def test_composite_no_evidence_penalty(tmp_path):
 
 
 def test_composite_partial_evidence_is_graded_not_zero(tmp_path):
-    """缺部分证据：按 binding_quality 比例扣，不是判零也不是倒扣。"""
+    """缺部分证据：未绑定的 accessible 节点按代价 1.0 并进图分（逐元素倒扣），
+    不是判零也不是整体倒扣。"""
     from cloudra.benchmark.runner import BenchmarkRunner
 
     graph = _graph_with_ts(["C"], ["O"])
@@ -2281,8 +2372,11 @@ def test_composite_partial_evidence_is_graded_not_zero(tmp_path):
 
     runner = BenchmarkRunner(tmp_path / "data")
     res = runner.score_sandbox(task, tmp_path)
-    # R 全绑 1.0，P/TS 未绑 0 -> quality = 1/3；blend = 0.5*1 + 0 + 0.3*1 = 0.8
-    assert res.final_score == pytest.approx(0.8 / 3, abs=1e-4)
+    # R 全绑 q=1（代价 0），P 未绑 q=0（等同未覆盖：节点缺失连带边缺失）
+    # -> distance 2 / max 3 -> graph = 1/3；sc 判负；accuracy 无参考边记 1.0
+    # -> final = 0.3·(1/3) + 0.6·1.0 = 0.7
+    assert res.graph_score == pytest.approx(1 / 3, abs=1e-4)
+    assert res.final_score == pytest.approx(0.7, abs=1e-4)
     assert res.final_score > 0.0
 
 
@@ -2298,7 +2392,9 @@ def test_composite_full_evidence_full_blend(tmp_path):
 
     runner = BenchmarkRunner(tmp_path / "data")
     res = runner.score_sandbox(task, tmp_path)
-    assert res.final_score == pytest.approx(0.8, abs=1e-4)  # sc 无频率证据判负，其余满
+    # graph=1.0；sc 无频率证据判负；accuracy 无参考边记 1.0 -> 0.3 + 0 + 0.6 = 0.9
+    assert res.graph_score == pytest.approx(1.0, abs=1e-4)
+    assert res.final_score == pytest.approx(0.9, abs=1e-4)
 
 
 # --- 受控并行 ---
@@ -2520,11 +2616,7 @@ def _evidence_task(**rubric_overrides):
         update={
             "rubric": task.rubric.model_copy(
                 update={
-                    "integrity": IntegrityRubric(
-                        require_graph_json=True,
-                        require_evidence_files=True,
-                        require_node_energies=False,
-                    ),
+                    "integrity": IntegrityRubric(),
                     "self_consistency": sc,
                     "accuracy": AccuracyRubric(),
                 }
@@ -2569,13 +2661,14 @@ def test_evidence_loop_engine_output_to_score(tmp_path):
 
     runner = BenchmarkRunner(tmp_path / "bench")
     result = runner.score_sandbox(task, sandbox)
-    # Layer 1：证据绑定到交付图（smiles 注释行是唯一绑定来源）
-    assert result.integrity_passed, result.notes
     # Layer 2：真实 opt+freq 日志被物理自检读成极小值（rubric 未要求鞍点）
     assert result.selfconsistency_passed, result.notes
     # Layer 3：本条交付没有 via/TS 日志 → 能垒不可评分（fail-loud 0 分）
     assert result.accuracy_score == 0.0, result.notes
     assert any("no step barrier" in n for n in result.notes), result.notes
+    # fail-loud 短路：final 只保留图分（自洽/accuracy 分量清零）
+    assert any("final keeps the graph component only" in n for n in result.notes), result.notes
+    assert result.final_score == pytest.approx(0.3 * result.graph_score, abs=1e-4)
     # 图相似度的化学指纹依赖 RDKit（可选依赖）：缺失时该层退化，CI（只装
     # dev extra）就属于这种情况，因此只在 RDKit 可用时断言图分
     if _RDKIT_AVAILABLE:
@@ -2669,7 +2762,7 @@ def test_input_and_graph_files_cannot_masquerade_as_evidence(tmp_path):
     assert "sub/my_graph.json" not in paths          # 图 JSON 不得自我绑定
     assert "input.gjf" in paths                      # 输入文件在扫描范围内……
     # ……但手写输入文件不带 smiles 注释、绑不上图节点，物理自检判未覆盖
-    integ = audit_integrity(sandbox, _no_node_energy_rubric())
+    integ = audit_integrity(sandbox)
     report = audit_self_consistency(
         integ.delivered_graph, integ.node_bindings, files, sandbox
     )
@@ -2696,9 +2789,9 @@ def test_xyz_smiles_annotation_second_line_binds(tmp_path):
     (ok_sandbox / "r.xyz").write_text(
         "3\nsmiles: O\nO 0.0 0.0 0.1173\nH 0.0 0.7572 -0.4692\nH 0.0 -0.7572 -0.4692\n"
     )
-    ok = audit_integrity(ok_sandbox, _no_node_energy_rubric())
-    assert ok.fraction_bound == 1.0, ok.notes
-    assert ok.passed
+    ok = audit_integrity(ok_sandbox)
+    assert ok.binding_quality == 1.0, ok.notes
+    assert all(b.matched for b in ok.node_bindings)
 
     missing_sandbox = tmp_path / "missing"
     missing_sandbox.mkdir()
@@ -2706,9 +2799,9 @@ def test_xyz_smiles_annotation_second_line_binds(tmp_path):
     (missing_sandbox / "r.xyz").write_text(
         "3\nwater\nO 0.0 0.0 0.1173\nH 0.0 0.7572 -0.4692\nH 0.0 -0.7572 -0.4692\n"
     )
-    missing = audit_integrity(missing_sandbox, _no_node_energy_rubric())
-    assert missing.fraction_bound == 0.0, missing.notes
-    assert missing.passed is False
+    missing = audit_integrity(missing_sandbox)
+    assert missing.binding_quality == 0.0, missing.notes
+    assert not any(b.matched for b in missing.node_bindings)
 
 
 def test_native_xtb_run_capability_vs_scoring_gap(tmp_path):
@@ -2926,6 +3019,10 @@ def test_barrier_is_derived_from_logs_and_must_be_declared(tmp_path):
     )
     assert ok.accuracy_score == 1.0, ok.notes
     assert any("edge E1" in n for n in ok.notes), ok.notes
+    # 全绑全对 + sc 直通（rubric 双开关关闭）-> final = 0.3·1 + 0.1·1 + 0.6·1 = 1.0
+    assert ok.graph_score == pytest.approx(1.0), ok.notes
+    assert ok.selfconsistency_passed, ok.notes
+    assert ok.final_score == pytest.approx(1.0), ok.notes
 
 
 def test_declared_barrier_must_match_logs(tmp_path):
@@ -2954,6 +3051,10 @@ def test_declared_barrier_must_match_logs(tmp_path):
     )
     assert res.accuracy_score == 0.0
     assert any("disagreement" in n for n in res.notes), res.notes
+    # fail-loud 短路：final = 0.3×图分（自洽/accuracy 分量清零）；交付图=gold
+    assert res.graph_score == pytest.approx(1.0), res.notes
+    assert res.final_score == pytest.approx(0.3), res.notes
+    assert any("final keeps the graph component only" in n for n in res.notes)
 
 
 def test_declared_node_energy_identifies_the_delivered_minimum(tmp_path):
@@ -3104,12 +3205,10 @@ def test_scoring_modules_do_not_import_regex():
 
     modules = [
         "cloudra/benchmark/accuracy.py",
-        "cloudra/benchmark/refusal.py",
         "cloudra/benchmark/runner.py",
         "cloudra/benchmark/backend.py",
         "cloudra/benchmark/barrier_evidence.py",
         "cloudra/benchmark/batch.py",
-        "cloudra/benchmark/impossible.py",
     ]
     root = _Path(__file__).resolve().parents[1]
     offenders = []
@@ -3199,8 +3298,56 @@ def test_runs_are_append_only(tmp_path):
 
 
 def test_runs_migration_preserves_old_rows(tmp_path):
-    """旧 schema（无 orchestration_mode 列）的库重开：旧行原样保留、新列补 ''，
-    迁移后新旧行可共存写入。"""
+    """旧 12 列 schema（含 integrity_passed/outcome）的库重开：迁移按新 10 列
+    重建——outcome/integrity_passed 两列丢弃、新旧交集列的旧行值保留、幂等
+    （再开不再重建），迁移后新旧行可共存写入。"""
+    import sqlite3
+
+    db_path = tmp_path / "bench" / "benchmark.db"
+    db_path.parent.mkdir(parents=True)
+    with sqlite3.connect(str(db_path)) as c:
+        # 旧 12 列：新 10 列 + integrity_passed + outcome（列序亦不同）
+        c.execute("""CREATE TABLE runs (
+            task_id TEXT, sandbox TEXT,
+            integrity_passed INTEGER, graph_score REAL,
+            selfconsistency_passed INTEGER, accuracy_score REAL,
+            final_score REAL, outcome TEXT, notes TEXT, ts INTEGER,
+            batch_id TEXT, orchestration_mode TEXT
+        )""")
+        c.execute(
+            "INSERT INTO runs VALUES ('T9','s',1,0.9,1,0.8,0.87,"
+            "'answered','[\"note1\"]',123,'batch_old','dag_record')"
+        )
+    from cloudra.benchmark.runner import _RUNS_COLS, BenchmarkDB, RunResult
+
+    db = BenchmarkDB(db_path)
+    with sqlite3.connect(str(db_path)) as c:
+        cols = [row[1] for row in c.execute("PRAGMA table_info(runs)")]
+    assert cols == list(_RUNS_COLS)  # outcome/integrity_passed 已丢弃
+    rows = db.list_runs_for("batch_old")
+    assert len(rows) == 1
+    row = rows[0]
+    # 交集列旧值原样保留
+    assert row["task_id"] == "T9" and row["sandbox"] == "s"
+    assert row["graph_score"] == 0.9 and row["selfconsistency_passed"] is True
+    assert row["accuracy_score"] == 0.8 and row["final_score"] == 0.87
+    assert row["notes"] == ["note1"] and row["ts"] == 123
+    assert row["orchestration_mode"] == "dag_record"
+
+    # 幂等：列集已一致，再开不重建、旧行不丢
+    BenchmarkDB(db_path)
+    assert len(db.list_runs_for("batch_old")) == 1
+
+    # 迁移后新行照常写入
+    db.record(RunResult(task_id="T9", sandbox="s2", orchestration_mode="standard"))
+    assert len(db.list_runs_for("batch_old")) == 1
+    new_rows = db.list_runs_for("")
+    assert len(new_rows) == 1
+    assert new_rows[0]["orchestration_mode"] == "standard"
+
+
+def test_runs_migration_drops_missing_new_columns_as_empty(tmp_path):
+    """更旧的库（连 orchestration_mode 都没有）：迁移后新列落空串兜底。"""
     import sqlite3
 
     db_path = tmp_path / "bench" / "benchmark.db"
@@ -3214,22 +3361,16 @@ def test_runs_migration_preserves_old_rows(tmp_path):
             batch_id TEXT
         )""")
         c.execute(
-            "INSERT INTO runs VALUES ('T9','s',1,0.9,1,0.8,0.87,'answered','[]',123,'batch_old')"
+            "INSERT INTO runs VALUES ('T8','s',1,0.9,1,0.8,0.87,'answered','[]',7,'b0')"
         )
-    from cloudra.benchmark.runner import BenchmarkDB, RunResult
+    from cloudra.benchmark.runner import BenchmarkDB
 
     db = BenchmarkDB(db_path)
-    rows = db.list_runs_for("batch_old")
+    rows = db.list_runs_for("b0")
     assert len(rows) == 1
-    assert rows[0]["task_id"] == "T9"
+    assert rows[0]["task_id"] == "T8"
     assert rows[0]["final_score"] == 0.87
     assert rows[0]["orchestration_mode"] == ""
-
-    db.record(RunResult(task_id="T9", sandbox="s2", orchestration_mode="standard"))
-    assert len(db.list_runs_for("batch_old")) == 1
-    new_rows = db.list_runs_for("")
-    assert len(new_rows) == 1
-    assert new_rows[0]["orchestration_mode"] == "standard"
 
 
 def test_sandbox_scoped_by_batch_and_preserved(tmp_path):

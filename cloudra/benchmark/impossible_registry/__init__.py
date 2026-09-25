@@ -9,8 +9,9 @@ impossible 正选题与其兄弟题（sibling 对照题）的全部机器契约�
 - `kind`: "reaction"（反应/机理题，走机理图协议）或 "property"（物种/态
   能量题，走过程图协议——节点为物种或电子态、边为态变化）。
 - `question_en`: 题面英文（问什么；不泄漏"本题多参考"的答案）。
-- `deliverable_en`: 最终摘要必须报告的量（含单位与参考态；后接统一的话
-  语允许在方法不可信时明确拒答——impossible 与 sibling 同款措辞，不泄题）。
+- `deliverable_en`: 最终摘要必须报告的量（含单位与参考态；query 另有统一的
+  accessible=false 协议句——某元素在允许方法下无法可信计算时把对应节点/边
+  标 accessible=false 并照常交付其余图，impossible 与 sibling 同款措辞，不泄题）。
 - `deliverable_kind`: 交付物类型，决定 query 交付句的生成方式：
     - "mechanism"（机理/能垒类，有 TS 有边）：能垒声明在决速步边的
       `barrier_kcal_mol` 上；可选 `product_property_keys`（list[str]，如
@@ -35,16 +36,13 @@ impossible 正选题与其兄弟题（sibling 对照题）的全部机器契约�
       适用于态变化/解离极限这类无一阶鞍点的过程）；
     - "ts_accessible" / "node_accessible": 该步 TS 节点/输出节点的可达性
       （缺省 True；False = 该节点对应的请求量在单参考/白名单方法下不可信，
-      进入 gold_inaccessible_nodes）；
+      gold 图对应节点标 accessible=false）；
     - "conformational": True（无键级变化的态变化，bond_changes 双空）；
     - "no_mapping": True（笼状价异构等键重组无法从 SMILES 级映射差集推导
       键变化——显式声明，bond_changes 留双空，不冒充构象步）。
   末步 out 去映射后必须等于 products。
-- `wrongly_solve_penalty`: "high"（铁板 MR 题）/ "medium"（灰色地带题）。
-- `evidence_strength`: "ironclad" / "gray_zone"（定稿风险登记：灰色题的
-  多参考论断为机理外推，judge 评估必须连同证据强度一并给出）。
-- `sibling`: 兄弟题登记（同构，去掉 sibling/wrongly_solve_penalty/
-  evidence_strength 三键；全部节点必须 accessible=True——校验强制）。
+- `sibling`: 兄弟题登记（同构，去掉 sibling 键；全部节点必须
+  accessible=True——校验强制）。
 
 粒度规则：gold 边 = 一个造成重原子骨架键变化的事件或一次被考察的态变化；
 bond_changes 由生成器从相邻步映射 SMILES 差集自动推导，禁止手填（唯一

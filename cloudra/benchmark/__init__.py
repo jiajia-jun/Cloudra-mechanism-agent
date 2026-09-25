@@ -15,11 +15,9 @@ Public surface:
 from cloudra.benchmark.schema import (  # noqa: F401
     AccuracyRubric,
     BondChangeSet,
-    ExpectedOutcome,
     GoldMechanismGraph,
     GoldSpec,
     GraphSimilarityRubric,
-    ImpossibleCaseRubric,
     IntegrityRubric,
     MechanismEdge,
     MechanismNode,

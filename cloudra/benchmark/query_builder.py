@@ -59,8 +59,8 @@ _NODE_ENERGY_CLAUSE = (
 
 
 def barrier_declaration_clause(require_node_energies: bool = True) -> str:
-    """能垒交付契约；`require_node_energies` 与 IntegrityRubric 的同名开关
-    保持一致——题面要求与评分器强制必须同源（不需要能垒评分的题不写这句）。"""
+    """能垒交付契约；`require_node_energies` 控制是否附带节点能量声明句——题面
+    要求与评分器取证必须同源：只对走逐边能垒评分（accuracy enabled）的题写这句。"""
     return BARRIER_DECLARATION_CLAUSE + (
         _NODE_ENERGY_CLAUSE if require_node_energies else ""
     )

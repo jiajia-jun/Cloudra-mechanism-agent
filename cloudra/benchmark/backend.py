@@ -2,11 +2,9 @@
 
 Per task this spins up an in-process runtime_v2 kernel (RuntimeCore +
 TurnPipeline + AgentRunner), spawns the task's coordinator agent with the task
-query against the per-task sandbox as the project workspace, waits for the
+query against the per-task sandbox as the project workspace, and waits for the
 task to genuinely finish (see ``watch.py`` for the wait_background /
-wait_review state machine, GH #30), then returns the agent's final message
-plus the barrier extracted from it (the final message is the input to refusal
-classification — see `refusal.py`). The method whitelist is enforced by
+wait_review state machine, GH #30). The method whitelist is enforced by
 appending `MethodPolicyStage` to the pipeline; compute jobs submitted via
 `submit_compute_job` are claimed and executed by a per-task in-process
 `SchedulerDaemon` (production runs it as a separate `cloudra scheduler`
@@ -183,7 +181,7 @@ class RuntimeV2Backend:
                 )
                 ).data
             await self._wait_terminal(bus, agent)
-            # 评分只读交付物（图 + 日志 + 结构化拒答声明）：后端不回传任何
+            # 评分只读交付物（图 + 日志）：后端不回传任何
             # 供评分使用的文本/数字，杜绝"拿模型自述给自己打分"。
         finally:
             await broker.close()

@@ -6,12 +6,13 @@ binds each graph element to concrete computational evidence files found on
 disk. Binding uses the `smiles:` annotation line that the delivery contract
 (the task query) requires in every evidence file — the annotation propagates
 into QM logs because Gaussian/ORCA echo their input title/comment lines.
-The result is an integrity report: is there a parseable graph, and is every
-claimed node/step backed by at least one evidence file whose annotation
-matches the claimed SMILES. Binding is graded: fingerprint/hash-level matches
-give quality 1.0, protonation/charge-state-only variants give partial credit
-(the rubric's `protonation_partial_quality`) — deducted via the composite
-multiplier, never a zero by themselves.
+The report carries graph parseability plus per-node binding quality (no
+pass/fail verdict — Layer 1 不再判过不过，只产出事实): fingerprint/hash-level
+matches give quality 1.0, protonation/charge-state-only variants give partial
+credit (the rubric's `protonation_partial_quality`). runner 把逐节点质量图
+并入图分（graph_similarity 的证据加权代价），零证据整体倒扣也在 runner。
+`accessible=false` 的节点是"允许方法下不可达"的显式声明，不参与绑定、
+不产出 NodeBinding。
 
 Pure filesystem + parsing; no LLM, no DB.
 """
@@ -143,11 +144,11 @@ class IntegrityReport:
     graph_path: Optional[str] = None
     delivered_graph: Optional[GoldMechanismGraph] = None
     evidence_files: list[EvidenceFile] = field(default_factory=list)
+    # 只含参与绑定评估的节点（accessible=true；TS 节点经边间接绑定）——
+    # accessible=false 的节点不要求证据，不在此列
     node_bindings: list[NodeBinding] = field(default_factory=list)
-    fraction_bound: float = 0.0
-    # 平均绑定质量（含 partial credit），runner 把它作为 composite 的乘性因子
+    # 平均绑定质量（含 partial credit；分母只含参与绑定的节点）
     binding_quality: float = 1.0
-    passed: bool = False
     notes: list[str] = field(default_factory=list)
 
 
@@ -176,7 +177,9 @@ def load_delivered_graph(path: Path) -> Optional[GoldMechanismGraph]:
     """Parse a delivered graph JSON into GoldMechanismGraph.
 
     交付侧宽松加载（Postel）：agent 多写的键（energy/metadata 等）忽略、
-    边缺 id 自动补；gold 侧仍由 strict schema 约束。"""
+    边缺 id 自动补；gold 侧仍由 strict schema 约束。端点引用完整性由
+    GoldMechanismGraph 的 validator 把关：悬空 from/to/via → 校验失败、
+    返回 None（不可解析），不再静默造幽灵节点进图比较。"""
     try:
         data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
     except Exception:
@@ -337,29 +340,35 @@ def bind_graph_to_evidence(
     match_threshold: float = 0.2,
     partial_quality: float = 0.7,
 ) -> list[NodeBinding]:
-    """Bind each non-TS node to evidence files whose parsed SMILES match the
-    node's claimed SMILES. A multi-species node (complex) is bound when every
-    one of its component SMILES is matched by at least one evidence file
-    (union coverage), since a single log typically holds only one component.
-    Binding is graded: fingerprint/hash-level matches give quality 1.0;
-    protonation/charge-state-only variants give `partial_quality` (the node's
-    quality is its weakest component). TS nodes carry no SMILES and are bound
-    indirectly via their edge's endpoints: a TS counts as evidenced only when
-    at least one edge routes through it (`via`) and both endpoint species of
-    that edge are themselves bound to evidence; its quality inherits the
-    weaker endpoint."""
+    """Bind each accessible non-TS node to evidence files whose parsed SMILES
+    match the node's claimed SMILES. A multi-species node (complex) is bound
+    when every one of its component SMILES is matched by at least one evidence
+    file (union coverage), since a single log typically holds only one
+    component. Binding is graded: fingerprint/hash-level matches give quality
+    1.0; protonation/charge-state-only variants give `partial_quality` (the
+    node's quality is its weakest component). TS nodes carry no SMILES and are
+    bound indirectly via their edge's endpoints: a TS counts as evidenced only
+    when at least one edge routes through it (`via`) and both endpoint species
+    of that edge are themselves bound to evidence; its quality inherits the
+    weaker endpoint.
+
+    `accessible=false` 的节点（含 TS）是"允许方法下不可达"的显式声明：不参与
+    绑定、不产出 NodeBinding；via 边任一端点不可达时该 TS 随之绑不上
+    （端点不在绑定集合里）。"""
     cfg = cfg or GedConfig()
     bindings: list[NodeBinding] = []
     by_id: dict[str, NodeBinding] = {}
     ts_ids = {n.id for n in graph.nodes if n.role == NodeRole.TRANSITION_STATE}
 
-    # pass 1: species nodes
+    # pass 1: accessible 物种节点（TS 节点第二趟按边端点判定）
     for node in graph.nodes:
+        if not node.accessible:
+            continue  # 不可达声明不要求证据
         nb = NodeBinding(node_id=node.id)
         by_id[node.id] = nb
         bindings.append(nb)
         if node.id in ts_ids:
-            continue  # 第二趟按边端点判定
+            continue
         if not node.smiles:
             # 物种节点不带 SMILES = 只有声明没有可取证内容，不予绑定；
             # 否则 agent 把 SMILES 全留空即可零证据通过本层。
@@ -379,9 +388,12 @@ def bind_graph_to_evidence(
         nb.matched = all_components_matched and bool(nb.bound_files)
         nb.quality = node_quality if nb.matched else 0.0
 
-    # pass 2: TS nodes — 仅当某条边经由它且两端物种都已绑定证据
+    # pass 2: TS nodes — 仅当某条边经由它且两端物种都已绑定证据；
+    # accessible=false 的 TS 不在 by_id 里，自然跳过
     for ts_id in ts_ids:
-        nb = by_id[ts_id]
+        nb = by_id.get(ts_id)
+        if nb is None:
+            continue
         for e in graph.edges:
             if e.via != ts_id:
                 continue
@@ -399,30 +411,19 @@ def bind_graph_to_evidence(
 # ---------------------------------------------------------------------------
 
 
-def _node_energy_declaration_problem(node) -> Optional[str]:
-    """节点能量声明校验（require_node_energies 开启时）：energy_hartree 必须
-    是数值、evidence_log 必须是非空字符串；返回问题描述或 None。"""
-    raw = node.properties.get("energy_hartree")
-    if isinstance(raw, bool) or not isinstance(raw, (int, float)):
-        return f"{node.id}: properties.energy_hartree missing or not a number"
-    log = node.properties.get("evidence_log")
-    if not isinstance(log, str) or not log.strip():
-        return f"{node.id}: properties.evidence_log missing or empty"
-    return None
-
-
 def audit_integrity(
     sandbox: Path,
     rubric: Optional[IntegrityRubric] = None,
     cfg: Optional[GedConfig] = None,
 ) -> IntegrityReport:
+    """审计入口：只产出报告（图可解析性 + 逐节点绑定质量），不判通过与否。
+    零证据倒扣与证据加权扣分都在 runner/graph_similarity 侧按报告事实计算。"""
     rubric = rubric or IntegrityRubric()
     report = IntegrityReport(graph_found=False, graph_parseable=False)
 
     graph_path = find_graph_json(sandbox)
     if graph_path is None:
         report.notes.append("mechanism_graph.json not found in sandbox")
-        report.passed = not rubric.require_graph_json
         return report
     report.graph_found = True
     report.graph_path = str(graph_path.relative_to(sandbox))
@@ -434,11 +435,6 @@ def audit_integrity(
     report.graph_parseable = True
     report.delivered_graph = graph
 
-    if rubric.evidence_match != "smiles_annotation":
-        report.notes.append(
-            f"evidence_match='{rubric.evidence_match}' not implemented; "
-            "falling back to smiles_annotation binding"
-        )
     # 兜底发现的交付图文件自身排除出证据扫描：其内嵌 SMILES 不构成计算证据
     report.evidence_files = scan_evidence_files(sandbox, exclude=graph_path)
     report.node_bindings = bind_graph_to_evidence(
@@ -449,37 +445,16 @@ def audit_integrity(
         partial_quality=rubric.protonation_partial_quality,
     )
 
-    bindable = [b for b in report.node_bindings]
-    bound = [b for b in bindable if b.matched]
-    report.fraction_bound = (len(bound) / len(bindable)) if bindable else 0.0
     report.binding_quality = (
-        sum(b.quality for b in bindable) / len(bindable)
-    ) if bindable else 0.0  # 空图 = 没有任何可绑声明，与零证据同等对待
+        sum(b.quality for b in report.node_bindings) / len(report.node_bindings)
+    ) if report.node_bindings else 0.0
+    bound = [b for b in report.node_bindings if b.matched]
     partial = [b.node_id for b in bound if b.quality < 1.0]
     if partial:
         report.notes.append(
             f"partial-credit binds (protonation/charge-state variants): {partial}"
         )
-
-    ok_graph = report.graph_found and report.graph_parseable
-    ok_evidence = (report.fraction_bound == 1.0) if rubric.require_evidence_files else True
-    ok_node_energies = True
-    if rubric.require_node_energies and report.delivered_graph is not None:
-        problems = [
-            _node_energy_declaration_problem(node)
-            for node in report.delivered_graph.nodes
-            if node.accessible
-        ]
-        problems = [p for p in problems if p]
-        if problems:
-            ok_node_energies = False
-            report.notes.append(
-                "node energy declarations missing (properties.energy_hartree / "
-                "properties.evidence_log required on every accessible node): "
-                + "; ".join(problems)
-            )
-    report.passed = ok_graph and ok_evidence and ok_node_energies
-    if not ok_evidence:
-        unbound = [b.node_id for b in bindable if not b.matched]
+    unbound = [b.node_id for b in report.node_bindings if not b.matched]
+    if unbound:
         report.notes.append(f"unbound nodes (no matching evidence file): {unbound}")
     return report

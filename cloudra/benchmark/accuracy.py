@@ -1,24 +1,33 @@
 """Layer 3 — accuracy: 以交付物为准的逐边能垒/性质评分（不读任何 LLM 散文）。
 
-口径（与题库 query 协议一致）：gold 机理图**逐边**承载参考答案能垒；评分对
-**每条带参考值的 gold 边**在交付 evidence 里按 edge_id 找对应步，要求两条独立
-来源**都存在且一致**：
+口径（与题库 query 协议一致）：gold 机理图**逐边**承载参考答案能垒；评分边
+集合是**全部 gold 边**，逐边规则：
 
-- ``log_barrier_kcal``：harness 从沙箱内绑定日志推出的值（``barrier_evidence``）；
-- ``declared_barrier_kcal``：交付 ``mechanism_graph.json`` 里该边声明的
-  ``barrier_kcal_mol``。
+- 带参考值（``barrier_kcal_mol`` 非 None）→ 双来源核对：要求两条独立来源
+  **都存在且一致**——``log_barrier_kcal``（harness 从沙箱内绑定日志推出的值，
+  ``barrier_evidence``）与 ``declared_barrier_kcal``（交付
+  ``mechanism_graph.json`` 里该边声明的 ``barrier_kcal_mol``）；
+- 不带参考值且有效可达（``accessible`` 且经由的 TS 节点也可达，见
+  ``GoldMechanismGraph.edge_effectively_accessible``）→ 该边记 1.0（可算但
+  标答未给参考值，记满分）；
+- 标答规定不可达（边自身或经由的 TS 节点 ``accessible=false``）→ 该边记 0.0
+  （无 accuracy 分；此结构记账按面值计，不被 ``max_penalty_fraction``
+  封顶救回——封顶只作用于带参考值边的高斯偏离/定义差异罚分）。
 
-该边缺日志推算、缺声明、或声明在**任何合法组合**下都得不到支撑且证据也对
-不上参考 → 该边 0 分并 fail-loud 归零整题（绝不用最终消息里的数字兜底）。
-声明支撑得住（或虽支撑不住、但交付证据里另有与参考一致的组合——即 agent
-选了另一个构象/参考系定义、而正确的计算已在它的日志里）→ 走正常数值路径或
-按「答案定义差异」固定小扣分（`_DEFINITION_MISMATCH_EDGE_SCORE`），**不归零**
-（用户口径：这是答案定义问题，不是科学错误）。一致后与 gold 边值比，
-用高斯容差评分；逐边分数按 gold 边 ``weight`` 加权平均（权重越大 = 该边越
-容易算准/越可核实）。汇总后仍按 ``max_penalty_fraction`` 封顶。
+带参考值的边缺日志推算、缺声明、或声明在**任何合法组合**下都得不到支撑且
+证据也对不上参考 → 该边 0 分并置 fail-loud 结构化标记
+（``AccuracyReport.fail_loud``），由 runner 据此短路 composite（final 只保留
+图分；绝不用最终消息里的数字兜底）。声明支撑得住（或虽支撑不住、但交付证据
+里另有与参考一致的组合——即 agent 选了另一个构象/参考系定义、而正确的计算
+已在它的日志里）→ 走正常数值路径或按「答案定义差异」固定小扣分
+（`_DEFINITION_MISMATCH_EDGE_SCORE`），**不触发 fail-loud**（用户口径：这是
+答案定义问题，不是科学错误）。一致后与 gold 边值比，用高斯容差评分；逐边
+分数按 gold 边 ``weight`` 加权平均（权重越大 = 该边越容易算准/越可核实）。
+带参考值边的罚分汇总后按 ``max_penalty_fraction`` 封顶；无参考边的
+1.0/0.0 结构记账不封顶（见上）。
 
-若 gold 机理图不存在任何带参考值的边 → accuracy 不评分（final_score=1.0），
-沿用旧 null 行为。
+若 gold 机理图没有任何边 → accuracy 不评分（final_score=1.0），沿用旧 null
+行为。
 
 性质锚点（``GoldSpec.reference_properties``，键带单位）：读交付图物种节点的
 ``properties`` 按键比对——数值型走高斯容差（σ 查模块级显式常量表
@@ -26,9 +35,10 @@
 字符串型（state_ordering 等）小写去空白后精确相等。多性质题取各键均值。
 
 hard 档定性选择性（``score_qualitative_selectivity``）：任务带
-``gold.selectivity.favored_channel`` 时替代 accuracy 槽位（composite 的 0.3
-权重给选择性分）——交付边中恰好一条 ``favored: true`` 且其 ``channel`` 等于
-gold favored_channel → 1.0，否则 0.0；barrier spread 数值不评分。
+``gold.selectivity.favored_channel`` 时替代 accuracy 槽位（composite 的
+accuracy 权重给选择性分）——交付边中恰好一条 ``favored: true`` 且其
+``channel`` 等于 gold favored_channel → 1.0，否则 0.0；barrier spread 数值
+不评分。
 """
 
 from __future__ import annotations
@@ -57,7 +67,7 @@ _PROPERTY_SIGMAS = (
 
 # 「答案定义差异」的逐边记分：证据里已经含有与参考一致的组合（agent 只是
 # 报/选了另一个构象或参考系定义），属定义层面的不一致而非科学错误——按此
-# 固定小扣分计入加权，绝不走 fail-loud 归零（用户口径）。
+# 固定小扣分计入加权，绝不触发 fail-loud（用户口径）。
 _DEFINITION_MISMATCH_EDGE_SCORE = 0.9
 
 
@@ -71,6 +81,9 @@ class AccuracyReport:
     gaussian_score: float = 0.0          # in [0, 1], 1 = exact match
     capped_penalty: float = 0.0          # penalty actually applied after cap
     final_score: float = 0.0             # 1 - capped_penalty（缺证据/不一致直接边 0）
+    # fail-loud：任一参考边的声明/推算缺失或不一致时置 True（本层 accuracy
+    # 记 0），runner 据此短路 composite（final 只保留图分）
+    fail_loud: bool = False
     # 逐边能垒得分：edge_id -> 高斯分（空 = 非能垒模式或本层未评分）
     edge_scores: dict[str, float] = field(default_factory=dict)
     # 性质锚点模式：逐键得分（空 = 能垒模式或本层未评分）
@@ -262,9 +275,10 @@ def score_accuracy(
     cfg=None,
     match_threshold: float = 0.2,
 ) -> AccuracyReport:
-    """逐边核对（每条 gold 带参考值的边都要"声明得到日志支撑"），再逐边对
-    gold 比、按 gold 边 weight 加权平均。gold.reference_properties 非空时走性质
-    锚点模式（与能垒模式互斥）。"""
+    """评分边集合 = 全部 gold 边：带参考值的边逐边核对（"声明得到日志支撑"），
+    再对 gold 比、按 gold 边 weight 加权平均；不带参考值的 accessible 边记 1.0、
+    不可达边记 0.0。gold.reference_properties 非空时走性质锚点模式（与能垒模式
+    互斥）。"""
     rubric = rubric or AccuracyRubric()
     rds = evidence.rds()
     rep = AccuracyReport(
@@ -278,36 +292,54 @@ def score_accuracy(
     if not rubric.enabled:
         rep.gaussian_score = 1.0
         rep.final_score = 1.0
-        rep.notes.append("accuracy disabled for this task; scored on self-consistency only")
+        rep.notes.append("accuracy disabled for this task; scored 1.0 (computable but not graded)")
         return rep
     if gold.reference_properties:
         return _score_properties(delivered_graph, gold.reference_properties, rep)
-    ref_edges = [
-        e for e in gold.mechanism_graph.edges if e.barrier_kcal_mol is not None
-    ]
-    if not ref_edges:
+    scored_edges = list(gold.mechanism_graph.edges)
+    if not scored_edges:
         rep.gaussian_score = 1.0
         rep.final_score = 1.0
-        rep.notes.append("no gold edge carries a reference barrier; accuracy not scored")
+        rep.notes.append("gold mechanism graph carries no edges; accuracy not scored")
         return rep
 
-    # --- 交付物双来源门禁：逐边核对（任一参考边缺失/不一致 -> 整题 fail-loud 记 0） ---
+    # --- 交付物双来源门禁：逐边核对（任一参考边缺失/不一致 -> fail-loud 标记） ---
     from cloudra.benchmark.graph_similarity import GedConfig
 
     cfg = cfg or GedConfig()
     gold_nodes = {n.id: n for n in gold.mechanism_graph.nodes}
     # 全零权重无法归一：退回逐边等权（避免除零；正常题库不出现）
-    equal_fallback = sum(e.weight for e in ref_edges) <= 0
+    equal_fallback = sum(e.weight for e in scored_edges) <= 0
     if equal_fallback:
         rep.notes.append(
-            "all reference-edge weights are zero; falling back to equal weighting"
+            "all scored-edge weights are zero; falling back to equal weighting"
         )
-    weights = {e.id: (1.0 if equal_fallback else e.weight) for e in ref_edges}
+    weights = {e.id: (1.0 if equal_fallback else e.weight) for e in scored_edges}
     weight_total = sum(weights.values())
 
     failures: list[str] = []
     weighted_sum = 0.0
-    for edge in ref_edges:
+    graded_weight = 0.0        # 带参考值边的权重和（高斯/定义差异罚分只从这里出）
+    graded_score_sum = 0.0     # Σ w·g（带参考值边）
+    structural_penalty = 0.0   # Σ w·(1-s)（无参考边的结构记账：可算未给参考 s=1.0，标答不可达 s=0.0）
+    for edge in scored_edges:
+        if edge.barrier_kcal_mol is None:
+            if gold.mechanism_graph.edge_effectively_accessible(edge):
+                rep.edge_scores[edge.id] = 1.0
+                weighted_sum += weights[edge.id] * 1.0
+                rep.notes.append(
+                    f"edge {edge.id}: accessible but the gold reference carries no "
+                    "reference barrier; scored 1.0"
+                )
+            else:
+                rep.edge_scores[edge.id] = 0.0
+                structural_penalty += weights[edge.id]
+                rep.notes.append(
+                    f"edge {edge.id}: effectively inaccessible in the gold "
+                    "reference (the edge itself or its via transition state is "
+                    "declared accessible=false); no accuracy score (0.0)"
+                )
+            continue
         step = _find_matching_step(
             edge, gold_nodes, evidence.steps, delivered_graph, cfg, match_threshold
         )
@@ -318,6 +350,7 @@ def score_accuracy(
                 "step matches its endpoint species"
             )
             continue
+        graded_weight += weights[edge.id]
         if step.edge_id != edge.id:
             rep.notes.append(
                 f"gold edge {edge.id} matched delivered step {step.edge_id} "
@@ -354,6 +387,7 @@ def score_accuracy(
             if matches_ref and not same_as_ref:
                 rep.edge_scores[edge.id] = _DEFINITION_MISMATCH_EDGE_SCORE
                 weighted_sum += weights[edge.id] * _DEFINITION_MISMATCH_EDGE_SCORE
+                graded_score_sum += weights[edge.id] * _DEFINITION_MISMATCH_EDGE_SCORE
                 ref = min(
                     matches_ref,
                     key=lambda c: (abs(c.barrier_kcal_mol - edge.barrier_kcal_mol),
@@ -376,6 +410,7 @@ def score_accuracy(
             g = gaussian_barrier_score(chosen.barrier_kcal_mol, edge.barrier_kcal_mol, sigma_eff)
             rep.edge_scores[edge.id] = g
             weighted_sum += weights[edge.id] * g
+            graded_score_sum += weights[edge.id] * g
             rep.notes.append(
                 f"edge {edge.id}: log-derived {chosen.barrier_kcal_mol:.3f} vs gold "
                 f"{edge.barrier_kcal_mol:.3f} (sigma {sigma_eff:.1f}) -> {g:.4f} "
@@ -391,6 +426,7 @@ def score_accuracy(
             )
             rep.edge_scores[edge.id] = _DEFINITION_MISMATCH_EDGE_SCORE
             weighted_sum += weights[edge.id] * _DEFINITION_MISMATCH_EDGE_SCORE
+            graded_score_sum += weights[edge.id] * _DEFINITION_MISMATCH_EDGE_SCORE
             rep.notes.append(
                 f"edge {edge.id}: declared {declared:.3f} is not supported by any "
                 "delivered log combination, but the evidence contains one "
@@ -409,19 +445,27 @@ def score_accuracy(
         )
 
     if failures:
-        # fail-loud：任一参考边的声明/推算缺失或不一致 -> 整题 accuracy 记 0，
-        # 不给部分分，也不套 max_penalty_fraction 封顶。
+        # fail-loud：任一参考边的声明/推算缺失或不一致 -> 置结构化标记、本层
+        # accuracy 记 0（不给部分分，也不套 max_penalty_fraction 封顶），
+        # composite 的短路由 runner 按 fail_loud 执行。
         rep.notes.extend(f"{note}; scored 0" for note in failures)
+        rep.fail_loud = True
         rep.gaussian_score = 0.0
         rep.capped_penalty = 1.0
         rep.final_score = 0.0
         return rep
 
     rep.gaussian_score = weighted_sum / weight_total
+    # max_penalty_fraction 只封顶带参考值边的罚分（高斯偏离/定义差异——兜合法的
+    # 方法学差异）；无参考边的结构记账（可算未给参考=1.0、标答不可达=0.0）是题面
+    # 口径的直接后果，按面值计、不参与封顶——否则 impossible 题的不可达边会被
+    # 封顶救回（0.7），设计上限（I 题满分 = 图 + 自洽）失守。
     raw_penalty = 1.0 - rep.gaussian_score
-    rep.capped_penalty = min(raw_penalty, rubric.max_penalty_fraction)
+    graded_penalty = (graded_weight - graded_score_sum) / weight_total
+    capped_graded = min(graded_penalty, rubric.max_penalty_fraction)
+    rep.capped_penalty = capped_graded + structural_penalty / weight_total
     rep.final_score = 1.0 - rep.capped_penalty
-    if raw_penalty > rubric.max_penalty_fraction:
+    if graded_penalty > rubric.max_penalty_fraction:
         rep.notes.append(
             f"raw penalty {raw_penalty:.3f} capped at {rubric.max_penalty_fraction}"
         )

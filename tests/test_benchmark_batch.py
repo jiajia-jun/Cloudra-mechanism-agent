@@ -103,7 +103,9 @@ async def test_batch_runs_task_scores_and_persists(tmp_path):
     assert final["status"] == "done"
     assert final["tasks"][0]["status"] == "scored"
     assert final["tasks"][0]["final_score"] == -1.0  # 空沙箱无图 → 零证据倒扣
-    assert final["tasks"][0]["outcome"] == "failed"
+    assert any(
+        "no parseable mechanism graph" in n for n in final["tasks"][0]["notes"]
+    )
 
     db = BenchmarkDB(tmp_path / "bench" / "benchmark.db")
     batches = db.list_batches()
@@ -372,7 +374,7 @@ async def test_watcher_timeout_never_scores_parked_succeeded_agent(tmp_path, mon
     db = BenchmarkDB(tmp_path / "bench" / "benchmark.db")
     runs = db.list_runs_for(service.status()["batch_id"])
     assert len(runs) == 1
-    assert runs[0]["outcome"] == "failed"
+    assert runs[0]["final_score"] == 0.0  # watcher 超时：基建失败 0 分行
     assert any("watcher" in note for note in runs[0]["notes"])
 
 
@@ -400,7 +402,7 @@ async def test_batch_sandbox_reset_failure_is_infrastructure_error(tmp_path, mon
     assert not task["agent_id"] and not task["project_id"], task
     db = BenchmarkDB(tmp_path / "bench" / "benchmark.db")
     runs = db.list_runs_for(final["batch_id"])
-    assert len(runs) == 1 and runs[0]["outcome"] == "failed"
+    assert len(runs) == 1 and runs[0]["final_score"] == 0.0  # 基建失败 0 分行
     assert any("sandbox" in note.lower() for note in runs[0]["notes"]), runs[0]["notes"]
 
 

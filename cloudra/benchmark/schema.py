@@ -54,9 +54,9 @@ class MechanismNode(BaseModel):
     """One species occurrence or transition state in a mechanism graph.
 
     `smiles` is a list because a node may be a multi-species complex
-    (reactant complex, ion-dipole complex). `accessible=false` is the
-    impossible-tier annotation: the species/TS is physically unreachable at the
-    allowed level of theory.
+    (reactant complex, ion-dipole complex). `accessible=false` 声明该物种/TS
+    在允许的方法级别下不可达：图分只要求标志与 gold 一致（不一致等同缺失），
+    不要求证据绑定。
 
     `properties` 是交付侧结构化性质声明（impossible 性质/态序题）：键自带单位
     （如 ``bond_length_angstrom``、``singlet_triplet_gap_kcal_mol``），值为数值
@@ -110,7 +110,8 @@ class MechanismEdge(BaseModel):
     评分不读最终消息散文：harness 从交付日志逐边推出能垒，gold 边与交付步
     **按端点物种对应匹配**（gold 的 ``<任务>_E<n>`` 边 id 是题库内部约定、
     agent 不可知，绝不参与匹配），逐条要求声明值与推算值都存在且一致
-    （复用 accuracy 容差），缺一或冲突的边 fail-loud 记 0 分。
+    （复用 accuracy 容差），缺一或冲突的边 fail-loud（accuracy 层置
+    ``fail_loud`` 标记，runner 据此短路 composite）。
 
     ``weight`` 是 gold 侧逐边评分权重（越难算准/越不可核实的边权重越小，逐边
     分数按此加权平均）；交付侧忽略。
@@ -135,26 +136,49 @@ class MechanismEdge(BaseModel):
     favored: Optional[bool] = None
 
 
-class RefusalDeclaration(BaseModel):
-    """交付的拒答声明（可选字段）。
-
-    impossible 档与兄弟题共用同一句协议：无法可信计算时，交付
-    ``mechanism_graph.json`` 且内容为 ``{"refusal": {"refused": true,
-    "reason": "..."}}``，而不是机理图。拒答分类只读这个结构化声明与交付图
-    是否存在，绝不解析最终消息散文。
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    refused: bool = False
-    reason: str = ""
-
-
 class GoldMechanismGraph(BaseModel):
+    """机理图（gold 参考与交付图共用形状）。
+
+    端点引用完整性：每条边的 from/to 必须指向已声明节点 id；via 非空时必须
+    指向已声明的 transition_state 角色节点——违反即 ValidationError（gold
+    侧 fail-loud；交付侧加载随之失败，不再静默造幽灵节点进图比较）。"""
+
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     nodes: list[MechanismNode]
     edges: list[MechanismEdge] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _edge_references_declared(self) -> "GoldMechanismGraph":
+        roles = {n.id: n.role for n in self.nodes}
+        for e in self.edges:
+            for endpoint in (e.from_node, e.to_node):
+                if endpoint not in roles:
+                    raise ValueError(
+                        f"edge {e.id}: endpoint {endpoint!r} is not a declared node"
+                    )
+            if e.via and roles.get(e.via) is not NodeRole.TRANSITION_STATE:
+                raise ValueError(
+                    f"edge {e.id}: via {e.via!r} is not a declared "
+                    "transition_state node"
+                )
+        return self
+
+    def edge_effectively_accessible(self, edge: MechanismEdge) -> bool:
+        """边的有效可达性：``edge.accessible`` 且经由的 TS 节点（``via``）也可达。
+
+        gold 只在节点上标 ``accessible=false``（边从不标），交付侧按协议句可以把
+        不可达标在节点或边上——两侧同口径折叠成「有效可达性」再判定：经由不可达
+        TS 的步在允许方法下同样算不了，视同不可达边；``via`` 为空的边不做端点
+        检查。图分的标志一致性闸门、accuracy 的无参考边 1.0/0.0 规则、自洽的边
+        豁免三处统一走这个口径，不得各抄一份。"""
+        if not edge.accessible:
+            return False
+        if edge.via is None:
+            return True
+        via = next((n for n in self.nodes if n.id == edge.via), None)
+        # validator 已保证 via 指向已声明的 TS 节点；防御性分支按不可达计
+        return bool(via is not None and via.accessible)
 
 
 # ---------------------------------------------------------------------------
@@ -226,39 +250,21 @@ class GoldSpec(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class ExpectedOutcome(str, Enum):
-    MECHANISM_FOUND = "mechanism_found"
-    MECHANISM_WITH_INACCESSIBLE = "mechanism_with_inaccessible_nodes"
-    CORRECT_REFUSAL = "correct_refusal"
-
-
 class IntegrityRubric(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    require_graph_json: bool = True
-    require_evidence_files: bool = True
-    # 证据绑定方式：当前实现是 smiles 注释匹配（交付协议要求证据文件携带
-    # `smiles:` 注释行）；parse_structure_from_file 为保留档位，未实现。
-    evidence_match: Literal["smiles_annotation", "parse_structure_from_file"] = (
-        "smiles_annotation"
-    )
     # 全绑阈值：指纹/哈希 cost ≤ 此值记质量 1.0。超过时查质子化骨架——仅
     # 电荷态/质子化形式不同的变体按可变 partial 记分（质量 = 1-(1-锚点)·w，
     # w = 指纹相对误差 1-Tanimoto；protonation_partial_quality 是最差锚点，
-    # 即指纹完全退化时的质量），其余不绑。binding_quality（平均质量）作为
-    # composite 的乘性因子进入 runner。
+    # 即指纹完全退化时的质量），其余不绑。逐节点质量图并入图分（runner 传给
+    # mechanism_similarity：未绑定的 accessible 节点按代价 1.0 记账）。
     match_threshold: float = 0.2
     protonation_partial_quality: float = 0.7
-    # 零证据倒扣分（负分下限）：图缺失/不可解析/没有任何节点绑到证据时，
-    # final = -no_evidence_penalty。缺部分证据不触发本条（走 binding_quality
-    # 比例扣），只有"完全没有证据支撑"才倒扣。
+    # 零证据倒扣分（负分下限）：图缺失/不可解析，或没有任何 accessible 物种
+    # 节点绑到证据时，final = -no_evidence_penalty。缺部分证据不触发本条
+    # （逐节点质量并进图分扣），只有"完全没有证据支撑"才倒扣；交付图所有
+    # 节点都声明 accessible=false 是合法交付，不触发。
     no_evidence_penalty: float = 1.0
-    # 节点能量声明：每个 accessible 节点必须带 properties.energy_hartree（数值）
-    # 与 properties.evidence_log（非空字符串）。评分器用声明值指认"交付的是哪份
-    # 日志"（同物种多份合法日志/多构象），缺声明 → integrity 不通过（记录在案，
-    # 不归零）。不需要能垒评分的题（accuracy 关闭 / 选择性题 / 性质锚点题）由
-    # 生成器显式置 False。
-    require_node_energies: bool = True
 
 
 class SelfConsistencyRubric(BaseModel):
@@ -282,23 +288,15 @@ class SelfConsistencyRubric(BaseModel):
 class GraphSimilarityRubric(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    algorithm: Literal["chemical_parameterized_ged"] = "chemical_parameterized_ged"
-    # 子图打分：交付图覆盖 gold 即满分，多出的节点/边不罚（多想总是好事）。
-    subgraph_scoring: bool = True
-    node_cost: str = "molhash_shortcut_then_morgan_sigmoid"
-    sigmoid_center: float = 0.40
-    sigmoid_steepness: Optional[float] = None
     stereo_tier_rule: Literal[
         "easy_normal_stereo_free", "hard_stereo_costly"
     ] = "easy_normal_stereo_free"
-    edge_cost: str = "bond_change_symmetric_difference"
-    output: list[str] = Field(default_factory=lambda: ["scalar_score", "edit_script"])
 
 
 class AccuracyRubric(BaseModel):
     """Gaussian-tolerance barrier scoring. `sigma_kcal_mol` is per-task (not
-    global); `enabled=false` means this task is scored on self-consistency
-    only. `max_penalty_fraction` caps how much accuracy can cost (avoid
+    global); `enabled=false` 表示本题可算但不评（accuracy 分量直通 1.0）。
+    `max_penalty_fraction` caps how much accuracy can cost (avoid
     over-penalizing legitimate method-level differences).
 
     小能垒口径：gold ≤ `small_barrier_threshold_kcal` 时 RDS 对 gold 的
@@ -309,36 +307,17 @@ class AccuracyRubric(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     enabled: bool = True
-    barrier_scoring: Literal["gaussian"] = "gaussian"
     sigma_kcal_mol: float = 3.0
+    # 只封顶带参考值边（高斯偏离/定义差异）的罚分；无参考边的 1.0/0.0 结构
+    # 记账按面值计（见 accuracy.py 汇总段）
     max_penalty_fraction: float = 0.3
     small_barrier_threshold_kcal: float = 10.0
     small_barrier_sigma_kcal: float = 5.0
 
 
-class ImpossibleCaseRubric(BaseModel):
-    """Impossible 档 rubric（expected_outcome 为拒答/含不可达节点的题必填）。
-
-    判分哲学（impossible.md "定稿圈定"）：不内嵌"合理拒答"定义——本 rubric
-    只携带结构性事实（哪些 gold 节点在允许方法下不可达、错误作答的惩罚档位、
-    出题证据强度），拒答理由质量留给 judge 层。`evidence_strength` 区分铁板
-    MR 题（"ironclad"，文献多参考计算直接背书）与灰色地带题（"gray_zone"，
-    多参考论断为机理外推、无专门高等级计算背书——直接给分方案下这些题只进
-    跨档校准矩阵，judge 评估必须连同证据强度一并给出）。"""
-
-    model_config = ConfigDict(extra="forbid")
-
-    require_inaccessible_annotation: bool = True
-    gold_inaccessible_nodes: list[str] = Field(default_factory=list)
-    scoring: str = "identify_mechanism AND flag_inaccessible"
-    wrongly_solve_penalty: Literal["high", "medium", "low"] = "high"
-    evidence_strength: Literal["ironclad", "gray_zone"] = "ironclad"
-
-
 class RubricSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    expected_outcome: ExpectedOutcome = ExpectedOutcome.MECHANISM_FOUND
     integrity: IntegrityRubric = Field(default_factory=IntegrityRubric)
     self_consistency: SelfConsistencyRubric = Field(
         default_factory=SelfConsistencyRubric
@@ -347,22 +326,6 @@ class RubricSpec(BaseModel):
         default_factory=GraphSimilarityRubric
     )
     accuracy: AccuracyRubric = Field(default_factory=AccuracyRubric)
-    impossible_case: Optional[ImpossibleCaseRubric] = None
-
-    @model_validator(mode="after")
-    def _impossible_requires_case(self) -> "RubricSpec":
-        if (
-            self.expected_outcome
-            in (
-                ExpectedOutcome.MECHANISM_WITH_INACCESSIBLE,
-                ExpectedOutcome.CORRECT_REFUSAL,
-            )
-            and self.impossible_case is None
-        ):
-            raise ValueError(
-                "impossible-tier outcomes require impossible_case to be set"
-            )
-        return self
 
 
 # ---------------------------------------------------------------------------
@@ -378,9 +341,6 @@ class TaskSpec(BaseModel):
     tier: Tier
     family: str = ""
     name: str = ""
-    # 兄弟题配对（impossible 档专用）：本题 task_id ↔ 对照题 task_id 双向互指。
-    # 本档信号 = 本题拒答 × 兄弟题正常作答，runner 同批发次时据此配对分析。
-    pair_id: Optional[str] = None
     prompt: PromptSpec
     system: SystemSpec
     method_policy: MethodPolicy = Field(default_factory=MethodPolicy)

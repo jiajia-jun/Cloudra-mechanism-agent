@@ -34,8 +34,6 @@ TASKS = {
         "products": ["FOOF"],
         "steps": [],
         "reactant_accessible": False,
-        "wrongly_solve_penalty": "high",
-        "evidence_strength": "ironclad",
         "sibling": {
             "name_zh": "FOOF（F2O2）反常键",
             "name_en": "O-O bond dissociation energy of hydrogen peroxide",
@@ -98,8 +96,6 @@ TASKS = {
                 "node_accessible": False,
             },
         ],
-        "wrongly_solve_penalty": "high",
-        "evidence_strength": "ironclad",
         "sibling": {
             "name_zh": "N2 解离曲线",
             "name_en": "equilibrium bond length and vibrational frequency of N2",
@@ -166,8 +162,6 @@ TASKS = {
                 "node_accessible": False,
             },
         ],
-        "wrongly_solve_penalty": "high",
-        "evidence_strength": "ironclad",
         "sibling": {
             "name_zh": "三角烯三线态基态",
             "name_en": "equilibrium structure and thermochemistry of pyrene",
@@ -226,8 +220,6 @@ TASKS = {
                 "node_accessible": False,
             },
         ],
-        "wrongly_solve_penalty": "high",
-        "evidence_strength": "ironclad",
         "sibling": {
             "name_zh": "铬二聚体六重键解离曲线",
             "name_en": "bond dissociation energy of Na2",

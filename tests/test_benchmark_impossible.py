@@ -1,5 +1,11 @@
-"""impossible 档算分器 + accuracy 新语义（逐边能垒 / 性质锚点 /
-hard 定性选择性）的测试。
+"""impossible 档新语义（accessible=false 交付协议）+ accuracy 逐边能垒 /
+性质锚点 / hard 定性选择性的测试。
+
+拒答路线（refusal.py/impossible.py、expected_outcome/pair_id/impossible_case
+特判）已删除：I 题与 sibling 都走标准 composite——I 题的正确交付 = 同构图
++ 不可达元素标 accessible=false（图分满分、自洽豁免、accuracy 不可达边记 0.0，
+final = 0.3·图 + 0.1·自洽）；硬算（不可达元素标 accessible=true）被图分的
+标志一致性闸门按代价 1.0 倒扣。
 
 无 LLM、无网络；评分路径是纯结构化 JSON/文件取证，不需要可选依赖。
 测试替身（backend 等）签名带 **_kwargs，防接口加参后变红。
@@ -8,6 +14,7 @@ hard 定性选择性）的测试。
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -16,30 +23,22 @@ from cloudra.benchmark.accuracy import (
     score_qualitative_selectivity,
 )
 from cloudra.benchmark.barrier_evidence import BarrierEvidence
-from cloudra.benchmark.impossible import (
-    decision_score,
-    reason_quality,
-)
-from cloudra.benchmark.refusal import RunOutcome, classify_refusal_reason
 from cloudra.benchmark.runner import BenchmarkRunner
 from cloudra.benchmark.schema import (
     AccuracyRubric,
-    ExpectedOutcome,
     GoldMechanismGraph,
     GoldSpec,
-    ImpossibleCaseRubric,
-    IntegrityRubric,
     MechanismEdge,
     MechanismNode,
     NodeRole,
     PromptSpec,
-    RefusalDeclaration,
-    RubricSpec,
     SelectivityReference,
     SystemSpec,
     TaskSpec,
     Tier,
 )
+
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def _graph_with_node_properties(props: dict) -> GoldMechanismGraph:
@@ -57,52 +56,78 @@ def _gold_properties(props: dict) -> GoldSpec:
     )
 
 
-# --- 拒答理由分类（refusal.py 结构化 token 识别，无正则） ---
-
-
-def test_classify_refusal_reason():
-    assert classify_refusal_reason("") == "empty"
-    assert classify_refusal_reason("   ") == "empty"
-    assert (
-        classify_refusal_reason(
-            "The TS is strongly multireference: static correlation dominates."
-        )
-        == "electronic_structure"
-    )
-    assert (
-        classify_refusal_reason("Open-shell singlet needs CASSCF") == "electronic_structure"
-    )
-    assert classify_refusal_reason("I ran out of compute time") == "other"
-
-
-# --- I 题决策分与理由质量分 ---
-
-
-def test_decision_score():
-    assert decision_score(RunOutcome.REFUSED)[0] == 1.0
-    assert decision_score(RunOutcome.ANSWERED)[0] == 0.0
-    assert decision_score(RunOutcome.FAILED)[0] == pytest.approx(0.2)
-
-
-def test_reason_quality():
-    electronic = RefusalDeclaration(refused=True, reason="multireference ground state")
-    assert reason_quality(electronic)[0] == 1.0
-    other = RefusalDeclaration(refused=True, reason="too expensive")
-    assert reason_quality(other)[0] == 0.5
-    empty = RefusalDeclaration(refused=True, reason="")
-    assert reason_quality(empty)[0] == 0.0
-    assert reason_quality(None)[0] == 0.0
-
-
 # --- accuracy：逐边能垒门禁（无参考边直通 / 有参考边缺证据记 0） ---
 
 
 def test_accuracy_no_reference_edge_not_scored():
-    """gold 机理图无可参考边 -> accuracy 直通（final_score=1.0 + 注明）。"""
+    """gold 机理图没有任何边 -> accuracy 不评分（final_score=1.0 + 注明）。"""
     gold = GoldSpec(mechanism_graph=GoldMechanismGraph(nodes=[]))
     rep = score_accuracy(evidence=BarrierEvidence(), gold=gold, rubric=AccuracyRubric())
     assert rep.final_score == 1.0
-    assert any("no gold edge carries a reference barrier" in n for n in rep.notes)
+    assert any("carries no edges" in n for n in rep.notes)
+
+
+def test_accuracy_accessible_edge_without_reference_scores_one():
+    """无参考值但有效可达的 gold 边 -> 记 1.0（可算而标答未给参考值）。"""
+    gold = GoldSpec(
+        mechanism_graph=GoldMechanismGraph(
+            nodes=[
+                MechanismNode(id="R", role=NodeRole.REACTANT, smiles=["N#N"]),
+                MechanismNode(id="P", role=NodeRole.PRODUCT, smiles=["N", "N"]),
+            ],
+            edges=[MechanismEdge.model_validate({"id": "E1", "from": "R", "to": "P"})],
+        )
+    )
+    rep = score_accuracy(evidence=BarrierEvidence(), gold=gold, rubric=AccuracyRubric())
+    assert rep.edge_scores["E1"] == 1.0
+    assert rep.final_score == 1.0
+    assert any("carries no reference barrier" in n for n in rep.notes)
+
+
+def test_accuracy_edge_via_inaccessible_ts_scores_zero():
+    """有效可达性传导：gold 把不可达标在 TS 节点上（边从不标）→ 经由它的边
+    有效不可达，无参考边规则记 0.0；结构 0 分不被 max_penalty_fraction 封顶
+    救回（I 题满分 = 图 + 自洽 = 0.4 的 accuracy 侧来源）。"""
+    gold = GoldSpec(
+        mechanism_graph=GoldMechanismGraph(
+            nodes=[
+                MechanismNode(id="R", role=NodeRole.REACTANT, smiles=["N#N"]),
+                MechanismNode(
+                    id="TS", role=NodeRole.TRANSITION_STATE, smiles=[], accessible=False
+                ),
+                MechanismNode(id="P", role=NodeRole.PRODUCT, smiles=["N", "N"]),
+            ],
+            edges=[
+                MechanismEdge.model_validate(
+                    {"id": "E1", "from": "R", "to": "P", "via": "TS"}
+                )
+            ],
+        )
+    )
+    rep = score_accuracy(evidence=BarrierEvidence(), gold=gold, rubric=AccuracyRubric())
+    assert rep.edge_scores["E1"] == 0.0
+    assert rep.final_score == 0.0
+    assert not rep.fail_loud
+    assert any("effectively inaccessible" in n for n in rep.notes)
+
+
+def test_accuracy_edge_without_via_ignores_endpoint_flags():
+    """via 为空的边不做端点检查：端点物种标 accessible=false 不影响边的有效
+    可达性（IE2 形制——不可达的是产物态本身，边只是状态间连线）。"""
+    gold = GoldSpec(
+        mechanism_graph=GoldMechanismGraph(
+            nodes=[
+                MechanismNode(id="R", role=NodeRole.REACTANT, smiles=["N#N"]),
+                MechanismNode(
+                    id="P", role=NodeRole.PRODUCT, smiles=["[N]", "[N]"], accessible=False
+                ),
+            ],
+            edges=[MechanismEdge.model_validate({"id": "E1", "from": "R", "to": "P"})],
+        )
+    )
+    rep = score_accuracy(evidence=BarrierEvidence(), gold=gold, rubric=AccuracyRubric())
+    assert rep.edge_scores["E1"] == 1.0
+    assert rep.final_score == 1.0
 
 
 def test_accuracy_reference_edge_without_evidence_scored_zero():
@@ -119,6 +144,7 @@ def test_accuracy_reference_edge_without_evidence_scored_zero():
     )
     rep = score_accuracy(evidence=BarrierEvidence(), gold=gold, rubric=AccuracyRubric())
     assert rep.final_score == 0.0
+    assert rep.fail_loud
     assert any("no delivered step matches its endpoint species" in n for n in rep.notes)
 
 
@@ -255,114 +281,99 @@ def test_qualitative_selectivity_multiple_favored_is_zero():
     assert score == 0.0 and "multiple edges" in note
 
 
-# --- runner 集成：impossible 路由 + 选择性槽位 + verification 直通 ---
+# --- runner 集成：impossible 档标准 composite + 选择性槽位 ---
 
 
-def _impossible_task(expected: ExpectedOutcome, task_id: str, pair_id: str) -> TaskSpec:
-    impossible = expected is ExpectedOutcome.CORRECT_REFUSAL
+def _i_task() -> TaskSpec:
+    """IA1 形制的最小 I 题：R →(经不可达 TS)→ P，gold 边无参考能垒。
+    rubric 全默认（I 题不再有任何特判）。"""
     graph = GoldMechanismGraph(
-        nodes=[MechanismNode(id="R", role=NodeRole.REACTANT, smiles=["N#N"])]
+        nodes=[
+            MechanismNode(id="R", role=NodeRole.REACTANT, smiles=["O"]),
+            MechanismNode(
+                id="TS", role=NodeRole.TRANSITION_STATE, smiles=[], accessible=False
+            ),
+            MechanismNode(id="P", role=NodeRole.PRODUCT, smiles=["O"]),
+        ],
+        edges=[MechanismEdge.model_validate({"id": "E1", "from": "R", "to": "P", "via": "TS"})],
     )
     return TaskSpec(
-        task_id=task_id,
+        task_id="IX1",
         tier=Tier.IMPOSSIBLE,
-        pair_id=pair_id,
         prompt=PromptSpec(query="q"),
-        system=SystemSpec(reactants=["N#N"]),
+        system=SystemSpec(reactants=["O"]),
         gold=GoldSpec(mechanism_graph=graph),
-        rubric=RubricSpec(
-            expected_outcome=expected,
-            integrity=IntegrityRubric(
-                require_graph_json=not impossible,
-                require_evidence_files=not impossible,
-            ),
-            accuracy=AccuracyRubric(enabled=False),
-            impossible_case=(
-                ImpossibleCaseRubric(
-                    gold_inaccessible_nodes=["R"], wrongly_solve_penalty="high"
-                )
-                if impossible
-                else None
-            ),
-        ),
     )
 
 
-def _write_refusal(sandbox, reason: str) -> None:
+def _write_delivery(sandbox: Path, graph: GoldMechanismGraph, **node_overrides) -> None:
+    """按 gold 图写出交付 mechanism_graph.json（可按节点 id 覆盖字段），
+    并附一份带 smiles 注释的真实 opt+freq 日志作为 R/P（同为水）的绑定 +
+    验证极小值证据。"""
+    payload = graph.model_dump(mode="json", by_alias=True)
+    for node in payload["nodes"]:
+        node.update(node_overrides.get(node["id"], {}))
     sandbox.mkdir(parents=True, exist_ok=True)
+    (sandbox / "mechanism_graph.json").write_text(json.dumps(payload), encoding="utf-8")
+    fixture = (FIXTURES / "gaussian" / "water_opt_freq_g16.out").read_text(
+        encoding="utf-8", errors="replace"
+    )
+    (sandbox / "r_min.log").write_text("smiles: O\n" + fixture, encoding="utf-8")
+
+
+def test_runner_i_task_correct_delivery_flags_inaccessible(tmp_path):
+    """I 题正确交付：同构图 + 不可达 TS 标 accessible=false -> 图分满分
+    （标志一致）、自洽豁免（边有效不可达）、accuracy 不可达边记 0.0，
+    final = 0.3·1 + 0.1·1 + 0.6·0 = 0.4。"""
+    task = _i_task()
+    _write_delivery(tmp_path, task.gold.mechanism_graph)
+    res = BenchmarkRunner(tmp_path / "data").score_sandbox(task, tmp_path)
+    assert res.graph_score == pytest.approx(1.0), res.notes
+    assert res.selfconsistency_passed, res.notes
+    assert res.accuracy_score == 0.0, res.notes
+    assert res.final_score == pytest.approx(0.4)
+
+
+def test_runner_i_task_wrongly_solve_flagged_accessible(tmp_path):
+    """I 题硬算（把不可达 TS 标 accessible=true）：标志不一致 -> 边按代价 1.0
+    倒扣进图分（2/3）；该边不再是有效不可达豁免，无一阶鞍点 + IRC 证据 ->
+    自洽判负；accuracy 不可达边仍 0.0。final = 0.3·(2/3) = 0.2。"""
+    task = _i_task()
+    _write_delivery(tmp_path, task.gold.mechanism_graph, TS={"accessible": True})
+    res = BenchmarkRunner(tmp_path / "data").score_sandbox(task, tmp_path)
+    assert res.graph_score == pytest.approx(2 / 3), res.notes
+    assert res.selfconsistency_passed is False, res.notes
+    assert res.accuracy_score == 0.0, res.notes
+    assert res.final_score == pytest.approx(0.2)
+
+
+def test_runner_pure_inaccessible_delivery_is_legal(tmp_path):
+    """纯不可达交付（全部节点标 accessible=false）是合法交付：不触发零证据
+    倒扣；ID2 形制（单参考态节点、无边）-> final = 0.3 + 0.1 + 0.6 = 1.0。"""
+    graph = GoldMechanismGraph(
+        nodes=[
+            MechanismNode(
+                id="R", role=NodeRole.REACTANT, smiles=["FOOF"], accessible=False
+            )
+        ]
+    )
+    task = TaskSpec(
+        task_id="IX2",
+        tier=Tier.IMPOSSIBLE,
+        prompt=PromptSpec(query="q"),
+        system=SystemSpec(reactants=["FOOF"]),
+        gold=GoldSpec(mechanism_graph=graph),
+    )
+    sandbox = tmp_path / "sb"
+    sandbox.mkdir()
     (sandbox / "mechanism_graph.json").write_text(
-        json.dumps({"refusal": {"refused": True, "reason": reason}}),
-        encoding="utf-8",
+        graph.model_dump_json(by_alias=True), encoding="utf-8"
     )
-
-
-def test_runner_i_task_correct_refusal(tmp_path):
-    """I 题：结构化拒答 + 电子结构理由 -> 0.7*1 + 0.3*1 = 1.0。"""
-    task = _impossible_task(ExpectedOutcome.CORRECT_REFUSAL, "IX1", "SX1")
-    _write_refusal(tmp_path, "strong multireference character, needs CASSCF")
-    res = BenchmarkRunner(tmp_path / "data").score_sandbox(task, tmp_path)
-    assert res.outcome == RunOutcome.REFUSED.value
+    res = BenchmarkRunner(tmp_path / "data").score_sandbox(task, sandbox)
+    assert not any("penalty applied" in n for n in res.notes), res.notes
+    assert res.graph_score == pytest.approx(1.0), res.notes
+    assert res.selfconsistency_passed, res.notes
     assert res.final_score == pytest.approx(1.0)
-    assert any("pair_id=SX1" in n for n in res.notes)
-
-
-def test_runner_i_task_refusal_reason_grading(tmp_path):
-    """I 题理由分级：非空未分类 0.85；空理由 0.7。"""
-    task = _impossible_task(ExpectedOutcome.CORRECT_REFUSAL, "IX1", "SX1")
-    other_dir = tmp_path / "other"
-    _write_refusal(other_dir, "I do not want to compute this")
-    res = BenchmarkRunner(tmp_path / "d1").score_sandbox(task, other_dir)
-    assert res.final_score == pytest.approx(0.7 + 0.3 * 0.5)
-
-    empty_dir = tmp_path / "empty"
-    _write_refusal(empty_dir, "")
-    res2 = BenchmarkRunner(tmp_path / "d2").score_sandbox(task, empty_dir)
-    assert res2.final_score == pytest.approx(0.7)
-
-
-def test_runner_i_task_answered_is_wrongly_solved(tmp_path):
-    """I 题硬算交付机理图 -> 0.0（wrongly_solve）。"""
-    task = _impossible_task(ExpectedOutcome.CORRECT_REFUSAL, "IX1", "SX1")
-    (tmp_path / "mechanism_graph.json").write_text(
-        task.gold.mechanism_graph.model_dump_json(by_alias=True)
-    )
-    res = BenchmarkRunner(tmp_path / "data").score_sandbox(task, tmp_path)
-    assert res.outcome == RunOutcome.ANSWERED.value
-    assert res.final_score == 0.0
-    assert any("wrongly_solve" in n for n in res.notes)
-
-
-def test_runner_i_task_no_delivery_is_incomplete(tmp_path):
-    """I 题既未拒答也未交付 -> 0.7*0.2 = 0.14（不完整但无害）。"""
-    task = _impossible_task(ExpectedOutcome.CORRECT_REFUSAL, "IX1", "SX1")
-    empty = tmp_path / "empty"
-    empty.mkdir()
-    res = BenchmarkRunner(tmp_path / "data").score_sandbox(task, empty)
-    assert res.outcome == RunOutcome.FAILED.value
-    assert res.final_score == pytest.approx(0.14)
-
-
-def test_runner_s_task_wrong_refusal_gate(tmp_path):
-    """S 题错误拒答：注明 wrongly refused；负分（无证据倒扣）不被闸门放大。"""
-    task = _impossible_task(ExpectedOutcome.MECHANISM_FOUND, "SX1", "IX1")
-    _write_refusal(tmp_path, "multireference, cannot compute")
-    res = BenchmarkRunner(tmp_path / "data").score_sandbox(task, tmp_path)
-    assert res.outcome == RunOutcome.REFUSED.value
-    assert any("wrongly refused a solvable sibling" in n for n in res.notes)
-    assert res.final_score == -1.0  # 无证据倒扣保持原值（闸门只压正分）
-
-
-def test_runner_s_task_normal_answer_no_gate(tmp_path):
-    """S 题正常作答：走标准 composite，不带拒答闸门注记。"""
-    task = _impossible_task(ExpectedOutcome.MECHANISM_FOUND, "SX1", "IX1")
-    (tmp_path / "mechanism_graph.json").write_text(
-        task.gold.mechanism_graph.model_dump_json(by_alias=True)
-    )
-    (tmp_path / "r.log").write_text("gaussian log\n# smiles: N#N\n")
-    res = BenchmarkRunner(tmp_path / "data").score_sandbox(task, tmp_path)
-    assert res.outcome == RunOutcome.ANSWERED.value
-    assert not any("wrongly refused" in n for n in res.notes)
-    assert any("impossible-tier scorer" in n for n in res.notes)
 
 
 def test_runner_hard_selectivity_slot(tmp_path):

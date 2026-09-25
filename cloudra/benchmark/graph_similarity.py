@@ -1,12 +1,9 @@
 """Chemical-parameterized graph scoring between two mechanism graphs.
 
 Compares an agent-delivered mechanism graph against the gold reference.
-Default scoring is **subgraph coverage** (`GedConfig.subgraph_scoring=True`):
-the gold graph must embed into the delivered graph — extra delivered
-nodes/edges are free ("thinking more is never punished"), missing or
-chemically mismatched gold elements cost. A symmetric GED mode
-(`subgraph_scoring=False`, networkx optimize_graph_edit_distance) is kept for
-diagnostics.
+Scoring is **subgraph coverage**: the gold graph must embed into the delivered
+graph — extra delivered nodes/edges are free ("thinking more is never
+punished"), missing or chemically mismatched gold elements cost.
 
 - Node cost: an RDKit molhash shortcut (identical connectivity -> cost 0)
   falls back to a sigmoid of the Morgan-fingerprint Tanimoto distance.
@@ -14,15 +11,22 @@ diagnostics.
   ignored), the hard tier pays an extra stereo cost.
 - Edge cost: the symmetric difference of the two steps' atom-mapped bond
   change sets (break/form pairs), normalized.
+- accessible 标志一致性：gold 节点/边与匹配的交付元素 `accessible` 不一致
+  （gold 不可达交付硬算 / gold 可达交付躲证据）→ 替换代价 1.0，等同缺失。
+  边按「有效可达性」比较（边自身 AND 经由的 TS 节点：gold 把不可达标在 TS
+  节点上、交付标在边上，lift 后同口径一致）。
+- 证据加权：`mechanism_similarity` 可选收 integrity 的逐节点绑定质量图
+  （交付节点 id → quality）：匹配的交付节点有效代价 = 1 - (1 - subst_cost)·q
+  ——未绑定（q=0）等同未覆盖，质子化变体（q<1）部分扣；缺省不加权。
 
-Both modes work on a lifted graph where each TS node is folded into its
+Both sides are lifted to a plain graph where each TS node is folded into its
 elementary-step edge so that a missing TS, a wrong TS, or a wrong connectivity
 all surface as edge edits. The public API returns both a scalar score in
 [0, 1] (1 = gold fully covered) and the edit script.
 
 RDKit is optional: without it node substitution degrades to exact set
 equality of the SMILES lists (0 or 1). networkx is a hard dependency (lifted
-graph representation; only exercised for search in symmetric-GED mode).
+graph representation).
 """
 
 from __future__ import annotations
@@ -50,13 +54,9 @@ class GedConfig:
     sigmoid_center: float = 0.40
     sigmoid_steepness: float = 10.0
     stereo_free: bool = True           # easy/normal: ignore stereochemistry
-    # 子图打分（默认）：gold 图嵌入交付图即满分，交付多出的节点/边不罚
+    # 子图覆盖打分：gold 图嵌入交付图即满分，交付多出的节点/边不罚
     # （"多想总是好事"）；缺失/化学不符的 gold 元素按插入代价扣分。
-    # False 退回对称 GED（仅诊断用；最坏指数复杂度，受尺寸守卫保护）。
-    subgraph_scoring: bool = True
-    node_delete_cost: float = 1.0
     node_insert_cost: float = 1.0
-    edge_delete_cost: float = 1.0
     edge_insert_cost: float = 1.0
     morgan_radius: int = 2
     morgan_nbits: int = 2048
@@ -219,7 +219,10 @@ def _lift(graph: GoldMechanismGraph) -> nx.MultiDiGraph:
     correctness is encoded on the edge.
 
     MultiDiGraph：同一对物种间可能有多条基元步边（双通道机理），普通
-    DiGraph 会互相覆盖丢边。"""
+    DiGraph 会互相覆盖丢边。边的 accessible 属性折叠为「有效可达性」
+    （schema.GoldMechanismGraph.edge_effectively_accessible：边自身 AND
+    经由的 TS 节点）——gold 把不可达标在 TS 节点上、交付标在边上，lift 后
+    同口径可比。"""
     g = nx.MultiDiGraph()
     ts_ids = {n.id for n in graph.nodes if n.role.value == "transition_state"}
     for n in graph.nodes:
@@ -232,7 +235,7 @@ def _lift(graph: GoldMechanismGraph) -> nx.MultiDiGraph:
             e.to_node,
             bond_changes=e.bond_changes.pairs(),
             has_ts=bool(e.via),
-            accessible=e.accessible,
+            accessible=graph.edge_effectively_accessible(e),
         )
     return g
 
@@ -254,8 +257,24 @@ def _edge_subst(e1, e2, cfg: GedConfig) -> float:
     return min(1.0, bond_cost + ts_cost)
 
 
+def _node_subst_checked(gattrs, aattrs, cfg: GedConfig) -> float:
+    """accessible 标志一致性闸门：gold 与交付节点的可达性声明不一致（不可达
+    硬算 / 可达躲证据）→ 替换代价 1.0，等同缺失；一致才走化学代价。"""
+    if gattrs.get("accessible", True) != aattrs.get("accessible", True):
+        return 1.0
+    return _node_subst(gattrs, aattrs, cfg)
+
+
+def _edge_subst_checked(aattrs, gattrs, cfg: GedConfig) -> float:
+    """边级 accessible 标志一致性闸门（同节点口径；比较的是 lift 时折叠的
+    有效可达性——边自身 AND 经由的 TS 节点，见 schema.edge_effectively_accessible）。"""
+    if aattrs.get("accessible", True) != gattrs.get("accessible", True):
+        return 1.0
+    return _edge_subst(aattrs, gattrs, cfg)
+
+
 # ---------------------------------------------------------------------------
-# subgraph coverage scoring (default)
+# subgraph coverage scoring
 # ---------------------------------------------------------------------------
 
 
@@ -325,17 +344,30 @@ def _assign_gold_nodes(
 
 
 def _subgraph_similarity(
-    agent: GoldMechanismGraph, gold: GoldMechanismGraph, cfg: GedConfig
+    agent: GoldMechanismGraph,
+    gold: GoldMechanismGraph,
+    cfg: GedConfig,
+    binding_quality: Optional[dict[str, float]] = None,
 ) -> GedResult:
     """Subgraph coverage: every gold element must be covered by the delivered
     graph; extra delivered elements are free. Polynomial in practice (gold
-    graphs are small), so no size guard is needed in this mode."""
+    graphs are small), so no size guard is needed.
+
+    证据加权：binding_quality（交付节点 id → 绑定质量，来自 integrity 报告）
+    存在时，匹配的 accessible 交付节点有效代价 = 1 - (1 - subst_cost)·q——
+    q=0（未绑定）等同未覆盖，部分绑定（质子化变体）部分扣。accessible=false
+    的交付节点不参与绑定、不在字典里，q 缺省 1.0 正好不罚（标志一致性已由
+    _node_subst_checked 单独把关）。"""
     ga, gg = _lift(agent), _lift(gold)
     gold_nodes = list(gg.nodes)
     agent_nodes = list(ga.nodes)
 
     def cost_of(g: str, a: str) -> float:
-        return _node_subst(gg.nodes[g], ga.nodes[a], cfg)
+        cost = _node_subst_checked(gg.nodes[g], ga.nodes[a], cfg)
+        if binding_quality:
+            q = binding_quality.get(a, 1.0)
+            cost = 1.0 - (1.0 - cost) * q
+        return cost
 
     def edge_cost_of(asn: dict[str, Optional[str]]) -> float:
         total = 0.0
@@ -344,7 +376,7 @@ def _subgraph_similarity(
             step = cfg.edge_insert_cost
             if mu is not None and mv is not None:
                 for _key, aattrs in ga.get_edge_data(mu, mv, default={}).items():
-                    step = min(step, _edge_subst(aattrs, gattrs, cfg))
+                    step = min(step, _edge_subst_checked(aattrs, gattrs, cfg))
             total += min(step, cfg.edge_insert_cost)
         return total
 
@@ -374,68 +406,19 @@ def _subgraph_similarity(
 # ---------------------------------------------------------------------------
 
 
-# 对称 GED 模式的交付图规模守卫：optimize_graph_edit_distance 最坏指数复杂度，
-# 失控 agent 交付超大图会挂住评分器。交付节点数超过 max(比值 * gold 节点数,
-# 绝对上限) 时直接判最大差异，不调用 networkx。子图打分模式多项式可控，不适用。
-_GED_SIZE_GUARD_RATIO = 4
-_GED_SIZE_GUARD_ABS = 30
-
-
 def mechanism_similarity(
     agent: GoldMechanismGraph,
     gold: GoldMechanismGraph,
     cfg: Optional[GedConfig] = None,
+    binding_quality: Optional[dict[str, float]] = None,
 ) -> GedResult:
-    """Score agent mechanism against gold. Returns GedResult with score in
-    [0, 1] (1 = gold fully covered / identical) plus a human-readable edit
-    script. Default mode is subgraph coverage (extras free); pass
-    `GedConfig(subgraph_scoring=False)` for the symmetric GED diagnostic."""
+    """Score agent mechanism against gold (subgraph coverage; extras free).
+    Returns GedResult with score in [0, 1] (1 = gold fully covered) plus a
+    human-readable edit script. `binding_quality` 是 integrity 的逐节点绑定
+    质量图（交付节点 id → [0,1]）；缺省 None 不做证据加权（诊断/旧测试等
+    无绑定信息的调用方不受影响）。"""
     cfg = cfg or GedConfig()
-    if cfg.subgraph_scoring:
-        return _subgraph_similarity(agent, gold, cfg)
-    guard_limit = max(_GED_SIZE_GUARD_RATIO * len(gold.nodes), _GED_SIZE_GUARD_ABS)
-    if len(agent.nodes) > guard_limit:
-        max_distance = (
-            cfg.node_delete_cost * max(len(agent.nodes), len(gold.nodes))
-            + cfg.edge_delete_cost * max(len(agent.edges), len(gold.edges))
-        )
-        note = (
-            f"delivered graph too large ({len(agent.nodes)} nodes > guard limit "
-            f"{guard_limit}, gold has {len(gold.nodes)}); short-circuited to "
-            "maximally different without running GED"
-        )
-        return GedResult(score=0.0, distance=max_distance, max_distance=max_distance, edit_script=[note])
-    ga, gg = _lift(agent), _lift(gold)
-
-    def node_subst(a, b):
-        return _node_subst(a, b, cfg)
-
-    def edge_subst(a, b):
-        return _edge_subst(a, b, cfg)
-
-    gen = nx.optimize_graph_edit_distance(
-        ga,
-        gg,
-        node_subst_cost=node_subst,
-        edge_subst_cost=edge_subst,
-        node_del_cost=lambda n: cfg.node_delete_cost,
-        node_ins_cost=lambda n: cfg.node_insert_cost,
-        edge_del_cost=lambda e: cfg.edge_delete_cost,
-        edge_ins_cost=lambda e: cfg.edge_insert_cost,
-    )
-    # 生成器逐个产出逐步改进的上界（networkx 文档语义），取最小值即最优近似；
-    # 取第一个产出会系统性高估距离。
-    distance = min(gen) if not isinstance(gen, (int, float)) else gen
-
-    max_distance = (
-        cfg.node_delete_cost * max(ga.number_of_nodes(), gg.number_of_nodes())
-        + cfg.edge_delete_cost * max(ga.number_of_edges(), gg.number_of_edges())
-    )
-    score = 1.0 - (distance / max_distance) if max_distance > 0 else 1.0
-    score = max(0.0, min(1.0, score))
-
-    edit_script = _describe_edits(ga, gg)
-    return GedResult(score=score, distance=float(distance), max_distance=float(max_distance), edit_script=edit_script)
+    return _subgraph_similarity(agent, gold, cfg, binding_quality)
 
 
 def _describe_edits(ga: nx.MultiDiGraph, gg: nx.MultiDiGraph) -> list[str]:
