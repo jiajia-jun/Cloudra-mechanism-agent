@@ -1,12 +1,13 @@
-"""Shared execution pieces for claimed compute_jobs (guard or Slurm).
+"""Shared execution pieces for claimed compute_jobs (guard, Slurm, or SSH remote).
 
 The scheduler daemon (``cloudra.scheduler``) claims rows from the central
 compute.db with a lease and drives ``run_compute``; this module holds the
 execution half.
 
 Local jobs spawn the detached guard and extend the lease so a later poll
-does not start a second calculator.  Slurm jobs stay in the claiming
-process and renew the lease while ``run_slurm_compute`` polls.
+does not start a second calculator.  Slurm and SSH-remote jobs stay in the
+claiming process and renew the lease while ``run_slurm_compute`` /
+``run_remote_compute`` polls.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ import os
 from cloudra.infra.compute_utils import check_job_type, launch_compute_processes
 from cloudra.infra.slurm import run_slurm_compute
 from cloudra.persistence.database import ComputeDB
+from cloudra.runtime.remote_compute import REMOTE_KINDS, run_remote_compute
 from cloudra.services.compute_store import (
     aextend_compute_lease,
     afail_compute_job,
@@ -34,8 +36,8 @@ logger = logging.getLogger(__name__)
 # daemon's reconciler renews the lease while the guard lock is held, so
 # this only needs to comfortably outlive one reconcile interval.
 _LOCAL_LEASE_AFTER_SPAWN = 3600
-_SLURM_LEASE_SECONDS = 60
-_SLURM_RENEW_EVERY = 20.0
+_POLLER_LEASE_SECONDS = 60
+_POLLER_RENEW_EVERY = 20.0
 
 
 async def _mark_failed(db: ComputeDB, task_id: int, message: str) -> None:
@@ -50,15 +52,16 @@ async def _mark_failed(db: ComputeDB, task_id: int, message: str) -> None:
         logger.exception("could not enqueue compute review for job %s", task_id)
 
 
-async def _renew_slurm_lease(
+async def _renew_lease(
     db: ComputeDB,
     task_id: int,
     worker_id: str,
     stop: asyncio.Event,
 ) -> None:
+    """poller 型作业（Slurm/SSH 远端）的租约续约循环：认领进程即看守。"""
     while not stop.is_set():
         try:
-            await asyncio.wait_for(stop.wait(), timeout=_SLURM_RENEW_EVERY)
+            await asyncio.wait_for(stop.wait(), timeout=_POLLER_RENEW_EVERY)
             return
         except asyncio.TimeoutError:
             await asyncio.to_thread(
@@ -66,7 +69,7 @@ async def _renew_slurm_lease(
                 db,
                 task_id=task_id,
                 worker_id=worker_id,
-                lease_seconds=_SLURM_LEASE_SECONDS,
+                lease_seconds=_POLLER_LEASE_SECONDS,
             )
 
 
@@ -112,17 +115,21 @@ async def run_compute(
         await _mark_failed(db, task_id, f"compute job {task_id} is missing path or job type")
         return 1
 
-    if kind == "slurm":
+    if kind == "slurm" or kind in REMOTE_KINDS:
+        # poller 型作业（本机 Slurm / SSH 远端）：认领进程内轮询即看守，租约随 poll 续
         stop = asyncio.Event()
         renewer = None
         if worker_id:
             renewer = asyncio.create_task(
-                _renew_slurm_lease(db, task_id, worker_id, stop),
+                _renew_lease(db, task_id, worker_id, stop),
                 name=f"compute-lease-{task_id}",
             )
         try:
-            rc = await run_slurm_compute(task_id, db.path, scheduler=options)
-            # Slurm 作业在 run_slurm_compute 内到达终态并落库；读回终态入
+            if kind == "slurm":
+                rc = await run_slurm_compute(task_id, db.path, scheduler=options)
+            else:
+                rc = await run_remote_compute(task_id, db.path)
+            # 作业在 run_*_compute 内到达终态并落库；读回终态入
             # CallReview 收件箱（rev_compute_<id> 去重，非 dag 模式内部跳过）。
             try:
                 settled = await aget_compute_job(db, task_id)
@@ -134,7 +141,7 @@ async def run_compute(
                 logger.exception("could not enqueue compute review for job %s", task_id)
             return rc
         except Exception as exc:
-            await _mark_failed(db, task_id, f"Slurm compute failed: {exc}")
+            await _mark_failed(db, task_id, f"{kind} compute failed: {exc}")
             return 1
         finally:
             stop.set()

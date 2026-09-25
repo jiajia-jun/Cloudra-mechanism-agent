@@ -792,8 +792,9 @@ async def acancel_all_compute_jobs(db: ComputeDB) -> dict[str, int]:
     """一键取消全部未竟作业，返回分桶计数。任何路径都不杀计算进程：
 
     - ready → 直接落 cancelled（无进程；认领查询只选 ready，永不会被认领）；
-    - running + slurm → cancel_requested，由租约持有方的既有 poll 循环
-      （infra/slurm.py）走 scancel 收尾——写入端正是这里；
+    - running + slurm/ssh_local/ssh_slurm → cancel_requested，由租约持有方的
+      既有 poll 循环（infra/slurm.py、runtime/remote_compute.py）走远端
+      scancel / runner kill 收尾——写入端正是这里；
     - running + 其它（含 scheduler 为 NULL 的旧行） → cancelled（账本级）：calculator 物理跑完，guard 的
       终态 CAS（only_running=True）自然 no-op，不会覆盖已落的 cancelled。
 
@@ -814,13 +815,13 @@ async def acancel_all_compute_jobs(db: ComputeDB) -> dict[str, int]:
             counts["ready_cancelled"] = cur.rowcount
             cur = await con.execute(
                 "UPDATE compute_jobs SET state='cancel_requested' "
-                "WHERE state='running' AND scheduler='slurm'"
+                "WHERE state='running' AND scheduler IN ('slurm','ssh_local','ssh_slurm')"
             )
             counts["slurm_cancel_requested"] = cur.rowcount
             cur = await con.execute(
                 "UPDATE compute_jobs SET state='cancelled', end_timestamp=?, "
                 "last_error='cancelled by cancel-all (ledger-only; process runs on)' "
-                "WHERE state='running' AND COALESCE(scheduler, '')!='slurm'",
+                "WHERE state='running' AND COALESCE(scheduler, '') NOT IN ('slurm','ssh_local','ssh_slurm')",
                 (now,),
             )
             counts["local_cancelled"] = cur.rowcount

@@ -57,6 +57,16 @@ class SubmitComputeJob_input_schema(input_schema):
             "based on the input file's workspace; Slurm jobs are always submitted asynchronously."
         ),
     )
+    node_id: str | None = Field(
+        default=None,
+        description=(
+            "Target node from the node registry (e.g. an SSH remote server or an HPC "
+            "login node). When given, the node's own scheduler/capacity/connection decide "
+            "execution — omit execution_backend. Remote (SSH) nodes are always asynchronous: "
+            "files are staged to the remote host and results pulled back automatically. "
+            "Use query_compute_queue to list registered nodes and free capacity."
+        ),
+    )
     cpus: int | None = Field(
         default=None,
         ge=1,
@@ -128,10 +138,10 @@ class SubmitComputeJob(Tool):
     tool_id: str = 't-21'
     tool_name: str = 'submit_compute_job'
     tool_description: str = (
-        "Submit a quantum chemistry job. With is_async=true or a Slurm backend, "
-        "return the queued job id immediately; local jobs with is_async=false "
-        "wait for completion. Provide the prepared input path; CPU and memory "
-        "reservations are inferred from its declarations when omitted."
+        "Submit a quantum chemistry job. With is_async=true, a Slurm backend, or an "
+        "SSH remote node (node_id), return the queued job id immediately; local jobs "
+        "with is_async=false wait for completion. Provide the prepared input path; "
+        "CPU and memory reservations are inferred from its declarations when omitted."
     )
     input_schema: Any = SubmitComputeJob_input_schema
     output_schema: Any = SubmitComputeJob_output_schema
@@ -167,7 +177,9 @@ class SubmitComputeJob(Tool):
         if memory_mb is None:
             memory_mb = declared_memory_mb(f_path, user_input.job_type)
 
-        admission = admit_job(
+        # 准入可能含 SSH 远端环境探测（阻塞 subprocess），一律离开事件循环线程。
+        admission = await asyncio.to_thread(
+            admit_job,
             input_file=f_path,
             job_type=user_input.job_type,
             cpus=cpus,
@@ -177,6 +189,7 @@ class SubmitComputeJob(Tool):
             task=user_input.task,
             solvent=user_input.solvent,
             execution_backend=user_input.execution_backend,
+            node_id=user_input.node_id,
         )
         if not admission.ok:
             return SubmitComputeJob_output_schema(is_success=False, message=admission.message)
@@ -187,7 +200,9 @@ class SubmitComputeJob(Tool):
         # compute_jobs 住中央库（data_dir/compute.db）；ainit 幂等，保证表存在
         db = await ComputeDB().ainit()
 
-        if user_input.is_async or scheduler == "slurm":
+        # Slurm/SSH 远端作业永远异步（远端 stage/提交/轮询由调度守护的 poller 承担）；
+        # 只有本机 local 支持 is_async=false 的同步等待路径。
+        if user_input.is_async or scheduler != "local":
             try:
                 job_id = await ainsert_compute_job(
                     db,

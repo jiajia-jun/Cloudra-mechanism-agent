@@ -1,8 +1,12 @@
 """Validated server-side node and workspace registry.
 
-The first Phase 8 implementation keeps execution in one Cloudra server process
-but makes routing explicit. A later gateway can replace the loader without
-changing the Android/API contract.
+Execution stays in one Cloudra server process; routing is explicit.  A node
+may carry a ``connection`` block describing how the server reaches it:
+``local`` (default, in-process) or ``ssh`` (remote host over SSH — staging
+and polling go through ``infra/ssh_transport.py``).  ``scheduler.type`` stays
+orthogonal: it describes what runs jobs *on* that node (``local`` shell or
+``slurm``), so an SSH node can be either a bare remote server or a Slurm
+login node.
 """
 
 from __future__ import annotations
@@ -18,6 +22,7 @@ from cloudra import __version__
 _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,99}\Z")
 _CAPABILITY = re.compile(r"[a-z][a-z0-9_-]*(?:\.[a-z][a-z0-9_-]*)+\Z")
 _ENVIRONMENT_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
+_HOST_NAME = re.compile(r"[A-Za-z0-9._-]{1,100}\Z")
 
 
 class NodeRegistryError(ValueError):
@@ -51,6 +56,7 @@ class NodeRoute:
     scheduler: dict
     capabilities: tuple[str, ...]
     resources: dict
+    connection: dict
 
     def public(self) -> dict:
         return {
@@ -60,6 +66,7 @@ class NodeRoute:
             "server_version": __version__,
             "protocol_version": 1,
             "scheduler": str(self.scheduler.get("type", "local")),
+            "connection": str(self.connection.get("type", "local")),
             "capabilities": list(self.capabilities),
             "resources": dict(self.resources),
         }
@@ -171,6 +178,7 @@ class NodeRegistry:
                         scheduler_type=str(scheduler.get("type")),
                     ),
                     resources=cls._resources(raw_node.get("resources")),
+                    connection=cls._connection(raw_node.get("connection")),
                 )
             )
         default_node_id = cls._identifier(
@@ -221,6 +229,7 @@ class NodeRegistry:
                         "compute.local",
                     ),
                     resources=default_resources(),
+                    connection={"type": "local"},
                 ),
             ),
             node_id,
@@ -302,6 +311,77 @@ class NodeRegistry:
                 normalized_environment[name] = raw_value
             scheduler["environment"] = normalized_environment
         return scheduler
+
+    @staticmethod
+    def _connection(value: object) -> dict:
+        """节点连接方式：``local``（默认，进程内执行）或 ``ssh``（远端主机）。
+
+        ssh 块的 host/user 只进 argv（不经 shell），字符白名单 fail-loud；
+        ``identity_file`` 省略时走 ssh 默认密钥解析（agent/默认 ~/.ssh），
+        提供时必须在本机真实存在；``remote_root`` 是远端路径，本机无法
+        resolve，只校验形状（绝对 POSIX 路径、无空白、无 ``..`` 段）。
+        """
+        if value is None:
+            return {"type": "local"}
+        if not isinstance(value, dict):
+            raise NodeRegistryError("connection must be an object")
+        connection_type = str(value.get("type", "local"))
+        if connection_type not in {"local", "ssh"}:
+            raise NodeRegistryError(f"unsupported connection: {connection_type}")
+        if connection_type == "local":
+            unknown = set(value) - {"type"}
+            if unknown:
+                raise NodeRegistryError(
+                    f"local connection accepts no extra fields: {sorted(unknown)}"
+                )
+            return {"type": "local"}
+        allowed = {"type", "host", "user", "port", "identity_file", "remote_root"}
+        unknown = set(value) - allowed
+        if unknown:
+            raise NodeRegistryError(f"unknown connection fields: {sorted(unknown)}")
+        host = str(value.get("host") or "").strip()
+        if not _HOST_NAME.fullmatch(host):
+            raise NodeRegistryError(f"invalid connection host: {host!r}")
+        user = str(value.get("user") or "").strip()
+        if not _HOST_NAME.fullmatch(user):
+            raise NodeRegistryError(f"invalid connection user: {user!r}")
+        remote_root = str(value.get("remote_root") or "").strip()
+        if (
+            not remote_root.startswith("/")
+            or any(ch.isspace() for ch in remote_root)
+            or ".." in remote_root.split("/")
+        ):
+            raise NodeRegistryError(
+                f"invalid connection remote_root: {remote_root!r}"
+            )
+        try:
+            port = int(value.get("port", 22))
+        except (TypeError, ValueError) as exc:
+            raise NodeRegistryError("connection port must be an integer 1..65535") from exc
+        if not 1 <= port <= 65535:
+            raise NodeRegistryError("connection port must be an integer 1..65535")
+        connection = {
+            "type": "ssh",
+            "host": host,
+            "user": user,
+            "port": port,
+            "remote_root": remote_root.rstrip("/"),
+        }
+        identity = value.get("identity_file")
+        if identity is not None:
+            candidate = Path(str(identity)).expanduser()
+            try:
+                resolved = candidate.resolve(strict=True)
+            except OSError as exc:
+                raise NodeRegistryError(
+                    f"connection identity_file is unavailable: {candidate}"
+                ) from exc
+            if not resolved.is_file():
+                raise NodeRegistryError(
+                    f"connection identity_file is not a file: {resolved}"
+                )
+            connection["identity_file"] = str(resolved)
+        return connection
 
     @staticmethod
     def _resources(value: object) -> dict:

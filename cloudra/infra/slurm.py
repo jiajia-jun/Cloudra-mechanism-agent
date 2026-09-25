@@ -54,6 +54,38 @@ def _directive(name: str, value: object, validator: re.Pattern[str] = _SBATCH_VA
     return f"#SBATCH --{name}={text}"
 
 
+def scheduler_setup_lines(scheduler: dict) -> list[str]:
+    """batch/runner 脚本共用的环境准备行：module load + export 环境变量。
+
+    逐项校验（modules 非空名单、变量名/值形状），非法即 SlurmError fail-loud；
+    本地 Slurm batch 与远端 runner（runtime/remote_compute.py）共用一份。
+    """
+    lines: list[str] = []
+    modules = scheduler.get("modules", [])
+    if modules:
+        lines.extend(
+            [
+                ". /etc/profile.d/modules.sh",
+                shlex.join(["module", "load", *modules]),
+            ]
+        )
+    environment = scheduler.get("environment") or {}
+    if not isinstance(environment, dict):
+        raise SlurmError("Slurm environment 必须是对象")
+    for name, value in environment.items():
+        if not isinstance(name, str) or not _ENVIRONMENT_NAME.fullmatch(name):
+            raise SlurmError(f"无效的 Slurm environment 变量名: {name!r}")
+        if (
+            not isinstance(value, str)
+            or "\n" in value
+            or "\r" in value
+            or "\0" in value
+        ):
+            raise SlurmError(f"Slurm environment {name!r} 必须是单行字符串")
+        lines.append(f"export {name}={shlex.quote(value)}")
+    return lines
+
+
 def build_batch_script(
     input_file: Path,
     job_type: str,
@@ -61,12 +93,21 @@ def build_batch_script(
     scheduler: dict,
     *,
     xtb_params: XtbParams | None = None,
+    calculator_cmd: list[str] | None = None,
+    workdir: str | None = None,
 ) -> str:
-    ok, calculator_cmd, message = build_calculator_cmd(
-        str(input_file), job_type, xtb_params=xtb_params
-    )
-    if not ok:
-        raise SlurmError(message)
+    """生成 Slurm batch 脚本。
+
+    ``calculator_cmd``/``workdir`` 是远端提交（runtime/remote_compute.py）的
+    覆盖口：远端作业命令引用远端目录里的输入副本与随作业推送的
+    calculator.sh，而不是本机解析出来的绝对路径；缺省行为不变。
+    """
+    if calculator_cmd is None:
+        ok, calculator_cmd, message = build_calculator_cmd(
+            str(input_file), job_type, xtb_params=xtb_params
+        )
+        if not ok:
+            raise SlurmError(message)
     lines = [
         "#!/bin/bash",
         _directive("job-name", f"cloudra-{task_id}"),
@@ -91,29 +132,8 @@ def build_batch_script(
     if scheduler.get("memory"):
         lines.append(_directive("mem", scheduler["memory"], _MEMORY))
     lines.append("set -euo pipefail")
-    modules = scheduler.get("modules", [])
-    if modules:
-        lines.extend(
-            [
-                ". /etc/profile.d/modules.sh",
-                shlex.join(["module", "load", *modules]),
-            ]
-        )
-    environment = scheduler.get("environment") or {}
-    if not isinstance(environment, dict):
-        raise SlurmError("Slurm environment 必须是对象")
-    for name, value in environment.items():
-        if not isinstance(name, str) or not _ENVIRONMENT_NAME.fullmatch(name):
-            raise SlurmError(f"无效的 Slurm environment 变量名: {name!r}")
-        if (
-            not isinstance(value, str)
-            or "\n" in value
-            or "\r" in value
-            or "\0" in value
-        ):
-            raise SlurmError(f"Slurm environment {name!r} 必须是单行字符串")
-        lines.append(f"export {name}={shlex.quote(value)}")
-    lines.append(f"cd {shlex.quote(str(input_file.parent))}")
+    lines.extend(scheduler_setup_lines(scheduler))
+    lines.append(f"cd {shlex.quote(workdir or str(input_file.parent))}")
     if job_type.strip().lower() == "orca":
         # ORCA writes its authoritative output to stdout rather than creating
         # <input>.out.  Preserve that stream where resolve_log_path expects it
@@ -144,6 +164,28 @@ def submit_batch(script_path: Path) -> str:
     return job_id
 
 
+def parse_sacct_job_id(text: str) -> str | None:
+    """``sacct --name ... --format=JobID,State`` 输出 → 非终态 job id（找回用）。
+
+    只认非终态行：历史 COMPLETED/FAILED 行跳过，避免把旧作业当成还在跑。
+    """
+    terminal = SLURM_TERMINAL_SUCCESS | SLURM_TERMINAL_FAILURE
+    for line in text.splitlines():
+        raw = line.strip()
+        if not raw:
+            continue
+        job_id, _, state = raw.partition("|")
+        job_id = job_id.strip().split(".", 1)[0]
+        state = state.split("+", 1)[0].strip().upper()
+        if state.startswith("CANCELLED"):
+            state = "CANCELLED"
+        if state in terminal:
+            continue
+        if _JOB_ID.fullmatch(job_id):
+            return job_id
+    return None
+
+
 def query_job_by_name(job_name: str) -> str | None:
     """按 ``#SBATCH --job-name=cloudra-{task_id}`` 找回 sbatch 已提交但未回写的句柄。"""
     if not _SBATCH_VALUE.fullmatch(job_name):
@@ -163,21 +205,19 @@ def query_job_by_name(job_name: str) -> str | None:
         return None
     if completed.returncode != 0:
         return None
-    terminal = SLURM_TERMINAL_SUCCESS | SLURM_TERMINAL_FAILURE
-    for line in completed.stdout.splitlines():
-        raw = line.strip()
-        if not raw:
-            continue
-        job_id, _, state = raw.partition("|")
-        job_id = job_id.strip().split(".", 1)[0]
-        state = state.split("+", 1)[0].strip().upper()
-        if state.startswith("CANCELLED"):
-            state = "CANCELLED"
-        if state in terminal:
-            continue
-        if _JOB_ID.fullmatch(job_id):
-            return job_id
-    return None
+    return parse_sacct_job_id(completed.stdout)
+
+
+def parse_sacct_state(text: str) -> tuple[str, str]:
+    """``sacct --jobs ... --format=State,ExitCode`` 输出 → ``(state, exit_code)``。"""
+    rows = [line.strip() for line in text.splitlines() if line.strip()]
+    if not rows:
+        return "", ""
+    state, _, exit_code = rows[0].partition("|")
+    state = state.split("+", 1)[0].strip().upper()
+    if state.startswith("CANCELLED"):
+        state = "CANCELLED"
+    return state, exit_code.strip()
 
 
 def query_job(job_id: str) -> tuple[str, str]:
@@ -195,14 +235,7 @@ def query_job(job_id: str) -> tuple[str, str]:
     )
     if completed.returncode != 0:
         raise SlurmError((completed.stderr or "sacct failed")[:2000])
-    rows = [line.strip() for line in completed.stdout.splitlines() if line.strip()]
-    if not rows:
-        return "", ""
-    state, _, exit_code = rows[0].partition("|")
-    state = state.split("+", 1)[0].strip().upper()
-    if state.startswith("CANCELLED"):
-        state = "CANCELLED"
-    return state, exit_code.strip()
+    return parse_sacct_state(completed.stdout)
 
 
 def _engine_success_from_log(

@@ -22,7 +22,7 @@
     },
     {
       "node_id": "hpc-login",
-      "display_name": "HPC Login Node",
+      "display_name": "HPC Login Node (SSH)",
       "state": "online",
       "capabilities": ["agent.session", "artifact.download", "compute.slurm"],
       "resources": {
@@ -35,22 +35,50 @@
         "partition": "compute",
         "modules": ["apps/orca/5.0.2"],
         "time_limit": "1-00:00:00",
-        "cpus": 8,
-        "memory": "32G",
-        "poll_seconds": 15
+        "poll_seconds": 30
+      },
+      "connection": {
+        "type": "ssh",
+        "host": "login.hpc.example.edu",
+        "user": "cloudray",
+        "port": 22,
+        "identity_file": "~/.ssh/id_ed25519",
+        "remote_root": "/scratch/cloudray/cloudra"
       },
       "workspaces": [
         {
-          "workspace_id": "project-a",
-          "display_name": "Project A",
-          "path": "/shared/projects/project-a",
+          "workspace_id": "staging",
+          "display_name": "HPC Staging (local dir)",
+          "path": "/srv/cloudra/remote-staging/hpc",
           "access": "read_write"
-        },
+        }
+      ]
+    },
+    {
+      "node_id": "workstation-b",
+      "display_name": "Bare Remote Server (SSH, no Slurm)",
+      "state": "online",
+      "capabilities": ["agent.session", "artifact.download", "compute.local"],
+      "resources": {
+        "max_concurrent": 2,
+        "cpus": 16,
+        "memory_mb": 65536
+      },
+      "scheduler": {
+        "type": "local"
+      },
+      "connection": {
+        "type": "ssh",
+        "host": "192.168.1.20",
+        "user": "cloudray",
+        "remote_root": "/home/cloudray/cloudra-jobs"
+      },
+      "workspaces": [
         {
-          "workspace_id": "archive",
-          "display_name": "Read-only Archive",
-          "path": "/shared/archive",
-          "access": "read_only"
+          "workspace_id": "staging",
+          "display_name": "Server B Staging (local dir)",
+          "path": "/srv/cloudra/remote-staging/workstation-b",
+          "access": "read_write"
         }
       ]
     }

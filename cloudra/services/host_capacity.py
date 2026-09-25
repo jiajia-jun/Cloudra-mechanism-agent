@@ -190,13 +190,16 @@ def effective_resources(declared: dict) -> dict:
 def effective_node_resources(node) -> dict:
     """单个注册节点的生效容量。
 
-    只有跑在**本机**的 local 节点受 OS 余量约束；远端/集群节点（slurm 等）不在
-    这台机器上，OS 读数对它没有意义，原样返回注册声明。``node`` 是
-    ``services/nodes.py`` 的 ``NodeRoute``（鸭子类型：读 ``resources`` 与
-    ``scheduler``）。
+    只有跑在**本机**的 local 节点受 OS 余量约束；远端/集群节点（slurm、SSH
+    connection 等）不在这台机器上，OS 读数对它没有意义，原样返回注册声明。
+    ``node`` 是 ``services/nodes.py`` 的 ``NodeRoute``（鸭子类型：读
+    ``resources``、``scheduler`` 与 ``connection``）。
     """
     declared = dict(node.resources)
     if str(node.scheduler.get("type", "local")) != "local":
+        return declared
+    connection = getattr(node, "connection", None) or {}
+    if str(connection.get("type", "local")) != "local":
         return declared
     return effective_resources(declared)
 

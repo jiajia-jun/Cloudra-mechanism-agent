@@ -136,7 +136,8 @@ def admit_job(
     multiplicity: int = 1,
     task: str = "sp",
     solvent: Optional[str] = None,
-    execution_backend: str = "local",
+    execution_backend: str = "auto",
+    node_id: Optional[str] = None,
 ) -> AdmissionOutcome:
     """跑完整套准入校验，返回结论（不落库、不拉起计算）。
 
@@ -146,6 +147,12 @@ def admit_job(
     ``charge``/``multiplicity``/``task``/``solvent`` 是 **xtb 专属**的运行参数：非 xtb 作业
     留默认值即可（电荷/自旋写在输入文件里）。给非 xtb 作业传非默认值会被 fail-loud 拒收——
     这正是"绝不静默丢弃"的那道门。
+
+    ``node_id`` 显式指定注册表节点（agent 选远端服务器的入口）：给定后跳过工作区
+    路由，调度器类型与容量记账都以该节点为准；``execution_backend`` 非 auto 时
+    必须与节点自身的 scheduler.type 一致，否则 fail-loud。带 SSH connection 的
+    节点生效调度器落 ``ssh_local``/``ssh_slurm``（本地记账、远端执行），connection
+    快照并入 scheduler_options——账本行自包含，重启/改注册表后仍可恢复。
     """
     f_path = input_file
     workdir = os.path.dirname(f_path)
@@ -176,21 +183,47 @@ def admit_job(
     scheduler_options: dict = {"type": scheduler}
     from cloudra.services.nodes import NodeRegistry, default_resources
 
-    # 作业归属节点：注册表配置了就按工作区路由解析（execution_backend=auto 时它
-    # 同时决定调度器）。**资源硬校验与容量分池记账用的是同一个节点**，否则
-    # "按谁的额度校验"与"记到谁的账上"会分叉。解析不到时回落默认节点；auto 且
-    # 显式配了注册表却路由不到 = 提交配置错误，fail-loud（不静默降级到本机跑）。
-    node, route_error = _route_node(f_path)
+    # 作业归属节点：显式 node_id 优先（agent 指定远端服务器），否则按注册表
+    # 工作区路由解析（execution_backend=auto 时它同时决定调度器）。**资源硬校验
+    # 与容量分池记账用的是同一个节点**，否则"按谁的额度校验"与"记到谁的账上"
+    # 会分叉。解析不到时回落默认节点；auto 且显式配了注册表却路由不到 = 提交
+    # 配置错误，fail-loud（不静默降级到本机跑）。
+    connection: dict = {}
+    if node_id is not None:
+        try:
+            node = NodeRegistry.from_environment().node(node_id)
+        except Exception:  # noqa: BLE001 - 统一成准入拒绝消息
+            return AdmissionOutcome(
+                ok=False, input_path=f_path, workdir=workdir,
+                message=(
+                    f"Unknown node: {node_id!r}. List registered nodes and their "
+                    "free capacity with query_compute_queue, then pick a valid node_id."
+                ),
+            )
+        node_scheduler_type = str(node.scheduler.get("type", "local"))
+        if scheduler not in ("auto", node_scheduler_type):
+            return AdmissionOutcome(
+                ok=False, input_path=f_path, workdir=workdir,
+                message=(
+                    f"execution_backend={scheduler!r} conflicts with node {node_id!r} "
+                    f"(scheduler {node_scheduler_type!r}); omit execution_backend or "
+                    "match the node's scheduler."
+                ),
+            )
+        route_error = ""
+    else:
+        node, route_error = _route_node(f_path)
     if node is None and scheduler == "auto" and os.getenv("CLOUDRA_NODE_REGISTRY_FILE"):
         return AdmissionOutcome(
             ok=False, input_path=f_path, workdir=workdir,
             message=f"Could not resolve a node scheduler for the input file: {route_error}",
         )
     if node is not None:
-        node_id = node.node_id
+        assigned_node_id = node.node_id
         from cloudra.services.host_capacity import effective_node_resources
 
         node_resources = dict(effective_node_resources(node))
+        connection = dict(getattr(node, "connection", None) or {})
         if scheduler == "auto":
             scheduler_options = dict(node.scheduler)
             scheduler = str(scheduler_options.get("type", "local"))
@@ -200,19 +233,27 @@ def admit_job(
             scheduler_options = {"type": "local"}
         try:
             default_node = NodeRegistry.from_environment().node(None)
-            node_id = default_node.node_id
+            assigned_node_id = default_node.node_id
             from cloudra.services.host_capacity import effective_node_resources
 
             node_resources = dict(effective_node_resources(default_node))
+            connection = dict(getattr(default_node, "connection", None) or {})
         except Exception:  # noqa: BLE001 - 注册表缺失/损坏：单节点兜底
-            node_id = os.getenv("CLOUDRA_NODE_ID", "node-local")
+            assigned_node_id = os.getenv("CLOUDRA_NODE_ID", "node-local")
             node_resources = default_resources()
+
+    # SSH 远端节点：生效调度器加 ssh_ 前缀（本地调度记账、远端执行）。
+    if connection.get("type") == "ssh":
+        scheduler = f"ssh_{scheduler}"
+        scheduler_options = dict(
+            scheduler_options, type=scheduler, connection=connection
+        )
 
     # 资源硬校验（唯一校验点）：申请量超过节点总量直接拒收，让调用方改小重报
     if cpus > int(node_resources.get("cpus", 1)):
         return AdmissionOutcome(
             ok=False, input_path=f_path, workdir=workdir,
-            node_id=node_id, scheduler=scheduler, scheduler_options=scheduler_options,
+            node_id=assigned_node_id, scheduler=scheduler, scheduler_options=scheduler_options,
             node_resources=node_resources,
             message=(
                 f"Requested cpus={cpus} exceeds node capacity ({node_resources.get('cpus')} cores). "
@@ -223,7 +264,7 @@ def admit_job(
     if memory_mb is not None and memory_mb > int(node_resources.get("memory_mb", 0)):
         return AdmissionOutcome(
             ok=False, input_path=f_path, workdir=workdir,
-            node_id=node_id, scheduler=scheduler, scheduler_options=scheduler_options,
+            node_id=assigned_node_id, scheduler=scheduler, scheduler_options=scheduler_options,
             node_resources=node_resources,
             message=(
                 f"Requested memory_mb={memory_mb} exceeds node capacity "
@@ -236,7 +277,7 @@ def admit_job(
     # same request.  Node registry values provide routing and scheduler
     # defaults, but using their fixed cpus/memory here would make every job run
     # with a different allocation than the one admitted and recorded below.
-    if scheduler == "slurm":
+    if scheduler in ("slurm", "ssh_slurm"):
         scheduler_options = dict(scheduler_options)
         scheduler_options["cpus"] = cpus
         if memory_mb is not None:
@@ -247,7 +288,7 @@ def admit_job(
     if underestimate:
         return AdmissionOutcome(
             ok=False, input_path=f_path, workdir=workdir,
-            node_id=node_id, scheduler=scheduler, scheduler_options=scheduler_options,
+            node_id=assigned_node_id, scheduler=scheduler, scheduler_options=scheduler_options,
             node_resources=node_resources, message=underestimate,
         )
 
@@ -257,18 +298,29 @@ def admit_job(
         from cloudra.infra.slurm import check_slurm_tools
 
         ok, msg = check_slurm_tools()
+    elif scheduler in ("ssh_local", "ssh_slurm"):
+        from cloudra.infra.ssh_transport import (
+            SshEndpoint,
+            check_remote_environment,
+        )
+
+        ok, msg = check_remote_environment(
+            SshEndpoint.from_connection(connection),
+            job_type,
+            slurm=scheduler == "ssh_slurm",
+        )
     else:
         ok, msg = False, f"Unsupported execution backend: {scheduler}"
     if not ok:
         return AdmissionOutcome(
             ok=False, input_path=f_path, workdir=workdir,
-            node_id=node_id, scheduler=scheduler, scheduler_options=scheduler_options,
+            node_id=assigned_node_id, scheduler=scheduler, scheduler_options=scheduler_options,
             node_resources=node_resources, message=msg,
         )
 
     return AdmissionOutcome(
         ok=True, input_path=f_path, workdir=workdir,
-        node_id=node_id, scheduler=scheduler, scheduler_options=scheduler_options,
+        node_id=assigned_node_id, scheduler=scheduler, scheduler_options=scheduler_options,
         node_resources=node_resources,
         message="Admitted.",
     )

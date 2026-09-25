@@ -132,3 +132,103 @@ def test_node_registry_rejects_invalid_scheduler_environment(tmp_path, environme
     }
     with pytest.raises(NodeRegistryError, match="environment"):
         NodeRegistry.from_dict(payload)
+
+
+def _ssh_node_payload(tmp_path, connection):
+    return {
+        "nodes": [
+            {
+                "node_id": "remote-a",
+                "scheduler": {"type": "slurm", "partition": "compute"},
+                "connection": connection,
+                "workspaces": [{"workspace_id": "staging", "path": str(tmp_path)}],
+            }
+        ]
+    }
+
+
+def test_node_registry_accepts_ssh_connection(tmp_path):
+    identity = tmp_path / "id_ed25519"
+    identity.write_text("placeholder", encoding="utf-8")
+    registry = NodeRegistry.from_dict(
+        _ssh_node_payload(
+            tmp_path,
+            {
+                "type": "ssh",
+                "host": "login.hpc.example.edu",
+                "user": "cloudray",
+                "port": 2222,
+                "identity_file": str(identity),
+                "remote_root": "/scratch/cloudray/cloudra/",
+            },
+        )
+    )
+
+    connection = registry.node("remote-a").connection
+    assert connection["type"] == "ssh"
+    assert connection["host"] == "login.hpc.example.edu"
+    assert connection["port"] == 2222
+    assert connection["identity_file"] == str(identity.resolve())
+    # 尾斜杠归一化，远端作业目录拼接不产生双斜杠
+    assert connection["remote_root"] == "/scratch/cloudray/cloudra"
+    assert registry.node("remote-a").scheduler["type"] == "slurm"
+    assert registry.public_nodes()[0]["connection"] == "ssh"
+
+
+def test_node_registry_connection_defaults_to_local(tmp_path):
+    registry = NodeRegistry.from_dict(
+        {
+            "nodes": [
+                {
+                    "node_id": "local",
+                    "workspaces": [{"workspace_id": "main", "path": str(tmp_path)}],
+                }
+            ]
+        }
+    )
+    assert registry.node("local").connection == {"type": "local"}
+    assert registry.public_nodes()[0]["connection"] == "local"
+
+
+@pytest.mark.parametrize(
+    "connection,match",
+    [
+        ({"type": "telnet"}, "unsupported connection"),
+        ({"type": "local", "host": "x"}, "no extra fields"),
+        ({"type": "ssh", "user": "u", "remote_root": "/d"}, "host"),
+        ({"type": "ssh", "host": "h", "remote_root": "/d"}, "user"),
+        ({"type": "ssh", "host": "h", "user": "u"}, "remote_root"),
+        ({"type": "ssh", "host": "h; rm -rf /", "user": "u", "remote_root": "/d"}, "host"),
+        ({"type": "ssh", "host": "h", "user": "u\nk", "remote_root": "/d"}, "user"),
+        (
+            {"type": "ssh", "host": "h", "user": "u", "remote_root": "relative/dir"},
+            "remote_root",
+        ),
+        (
+            {"type": "ssh", "host": "h", "user": "u", "remote_root": "/d/../e"},
+            "remote_root",
+        ),
+        (
+            {"type": "ssh", "host": "h", "user": "u", "remote_root": "/d", "port": 0},
+            "port",
+        ),
+        (
+            {"type": "ssh", "host": "h", "user": "u", "remote_root": "/d", "port": 70000},
+            "port",
+        ),
+        (
+            {
+                "type": "ssh", "host": "h", "user": "u", "remote_root": "/d",
+                "identity_file": "/definitely/missing/key",
+            },
+            "identity_file",
+        ),
+        (
+            {"type": "ssh", "host": "h", "user": "u", "remote_root": "/d", "extra": 1},
+            "unknown connection fields",
+        ),
+    ],
+)
+def test_node_registry_rejects_invalid_connection(tmp_path, connection, match):
+    with pytest.raises(NodeRegistryError, match=match):
+        NodeRegistry.from_dict(_ssh_node_payload(tmp_path, connection))

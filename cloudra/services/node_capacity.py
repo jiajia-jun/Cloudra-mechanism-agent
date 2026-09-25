@@ -78,6 +78,8 @@ def node_capacity_views(db: ComputeDB | None = None) -> tuple[list[dict[str, Any
             "node_id": node_id,
             "display_name": node_id,
             "scheduler": "local",
+            "connection": "local",
+            "remote": None,
             "state": "online",
             "capacity": {
                 "registered": report["declared"],
@@ -93,6 +95,7 @@ def node_capacity_views(db: ComputeDB | None = None) -> tuple[list[dict[str, Any
     views: list[dict[str, Any]] = []
     for node in registry.nodes:
         effective = effective_node_resources(node)
+        connection = dict(node.connection or {})
         if str(node.scheduler.get("type", "local")) == "local":
             report = capacity_report(dict(node.resources))
             capacity = {
@@ -110,6 +113,12 @@ def node_capacity_views(db: ComputeDB | None = None) -> tuple[list[dict[str, Any
             "node_id": node.node_id,
             "display_name": node.display_name,
             "scheduler": str(node.scheduler.get("type", "local")),
+            "connection": str(connection.get("type", "local")),
+            "remote": (
+                f"{connection['user']}@{connection['host']}"
+                if connection.get("type") == "ssh"
+                else None
+            ),
             "state": node.state,
             "capacity": capacity,
             "in_flight": dict(_ZERO),
