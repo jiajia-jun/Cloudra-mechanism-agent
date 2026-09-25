@@ -82,6 +82,20 @@ export interface EventEnvelope {
   created_at: string;
 }
 
+// AgentHub 论坛帖（hub.posted 事件的投影，见 cloudra/runtime_v2/hub_bridge.py）。
+export interface HubPost {
+  id: string;
+  seq: number;
+  created_at: string;
+  topic: string;
+  kind: string;
+  author_agent: string;
+  author_session: string | null;
+  to_agent: string | null;
+  parent_id: string | null;
+  content: string;
+}
+
 export interface ProviderPreset {
   id: string;
   name: string;
@@ -212,6 +226,10 @@ export interface ComputeNode {
   node_id: string;
   display_name: string;
   scheduler: string;
+  // transport: 'local' runs on this host; 'ssh' stages jobs to a remote server
+  // (remote = user@host of the SSH target, null for local nodes).
+  connection: string;
+  remote: string | null;
   state: string;
   // effective = min(registered, os_available) for a node running on this host;
   // remote/cluster nodes report their registered quota as-is.

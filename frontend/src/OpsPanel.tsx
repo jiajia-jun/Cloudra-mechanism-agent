@@ -161,6 +161,11 @@ export default function OpsPanel({ project, agents, onError }: {
                 >
                   <span className="ops-node-name">{n.display_name}</span>
                   <span className="badge role-badge">{n.scheduler}</span>
+                  {n.connection === 'ssh' && (
+                    <span className="badge role-badge" title={n.remote ?? undefined}>
+                      ssh{n.remote ? ` ${n.remote}` : ''}
+                    </span>
+                  )}
                   <span className={`state-badge xs ${n.state === 'online' ? 'running' : 'waiting_input'}`}>
                     {n.state}
                   </span>

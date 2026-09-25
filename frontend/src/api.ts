@@ -4,6 +4,7 @@ import type {
   ComputeNode,
   EventEnvelope,
   FsBrowseResponse,
+  HubPost,
   KgGraph,
   KgHealth,
   KgOverview,
@@ -160,6 +161,17 @@ export const api = {
   computeNodes: () => request<ComputeNode[]>('/api/v2/compute/nodes'),
   listPendingReminders: (projectId: string) =>
     request<PendingReminder[]>(`/api/v2/projects/${projectId}/reminders/pending`),
+  // ---- AgentHub forum (routers/hub.py): project-scoped post projection + user posts ----
+  hubPosts: (projectId: string) =>
+    request<{ posts: HubPost[] }>(`/api/v2/projects/${projectId}/hub/posts`),
+  hubPost: (
+    projectId: string,
+    body: { topic: string; content: string; kind: string; to_agent?: string; parent_id?: string | null },
+  ) =>
+    request<{ post: HubPost; notified_count: number; failed_session_ids: string[] }>(
+      `/api/v2/projects/${projectId}/hub/posts`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
   spawnAgent: async (
     projectId: string,
     body: { role_id: string; query?: string; parent_session_id?: string | null; settings?: Record<string, unknown> },
@@ -417,21 +429,9 @@ export interface BenchmarkTaskRow {
   error: string;
   final_score: number | null;
   graph_score: number | null;
-  integrity_passed: boolean | null;
   selfconsistency_passed: boolean | null;
   accuracy_score: number | null;
-  outcome: string | null;
   notes: string[];
-}
-
-export interface BenchmarkRefusalStats {
-  tp: number;
-  fp: number;
-  fn: number;
-  tn: number;
-  precision: number | null;
-  recall: number | null;
-  f1: number | null;
 }
 
 export interface BenchmarkCatalogTier {
@@ -452,18 +452,15 @@ export interface BenchmarkStatus {
   finished_at: number | null;
   config: Record<string, unknown>;
   tasks: BenchmarkTaskRow[];
-  refusal: BenchmarkRefusalStats | Record<string, never>;
 }
 
 export interface BenchmarkRunRow {
   task_id: string;
   sandbox: string;
-  integrity_passed: boolean;
   graph_score: number;
   selfconsistency_passed: boolean;
   accuracy_score: number;
   final_score: number;
-  outcome: string;
   notes: string[];
   ts: number;
 }
