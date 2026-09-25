@@ -82,7 +82,7 @@
             "form": []
           },
           "accessible": true,
-          "barrier_kcal_mol": 18.1,
+          "barrier_kcal_mol": 15.1,
           "weight": 0.5,
           "channel": null,
           "favored": null

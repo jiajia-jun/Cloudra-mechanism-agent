@@ -105,7 +105,7 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": 6.9,
+          "barrier_kcal_mol": 0.88,
           "weight": 1.0,
           "channel": null,
           "favored": null

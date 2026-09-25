@@ -97,7 +97,7 @@ def test_easy_barrier_parsing_no_garbage():
 
     assert _edge_barrier(tasks["M3"]) is not None
     assert _edge_barrier(tasks["D1"]) == 18.83  # 自算：相对反应物络合物的 ΔE‡
-    assert _edge_barrier(tasks["E1"]) == 6.9  # 经典值（范围下界约定）
+    assert _edge_barrier(tasks["E1"]) == 0.88  # 自算：近淹没浅垒（TS 相对离子-偶极络合物）
     for tid, t in tasks.items():
         b = _edge_barrier(t)
         assert b is None or 0.0 <= b <= 200.0, f"{tid} implausible barrier {b}"
@@ -108,13 +108,17 @@ def test_easy_barrier_parsing_no_garbage():
         assert "Determine the mechanism" in t.prompt.query
 
 
-def test_easy_ten_task_computed_barriers():
-    """十题回填值来自原始 RC/TS ORCA 能量，题源重生成不可退回文献锚点。"""
+def test_easy_computed_barriers():
+    """十八题回填值来自原始 RC/TS ORCA 能量，题源重生成不可退回文献锚点。"""
     tasks = {t.task_id: t for t in gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)}
     expected = {
+        # 第一批（gold_compute/easy_backfill_2026-09-23.md）
         "M3": 5.94, "M14": 9.05, "M15": 14.54, "P2": 26.55,
         "L1": 35.17, "M8": 12.00, "D1": 18.83, "L2": 29.77,
         "G2": 0.87, "P3": 30.23,
+        # 第二批（gold_compute/easy_backfill_2026-09-25.md）
+        "D3": 14.65, "D4": 11.30, "X1": 40.90, "E1": 0.88,
+        "F1": 39.41, "G3": 30.15, "M1": 15.10, "M16": 70.97,
     }
     for task_id, barrier in expected.items():
         assert tasks[task_id].gold.mechanism_graph.edges[0].barrier_kcal_mol == barrier
