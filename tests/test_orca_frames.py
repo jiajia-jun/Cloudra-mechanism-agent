@@ -87,8 +87,11 @@ def test_orca_unrelaxed_scan_frames_have_parameter_series():
 
 @pytest.mark.asyncio
 async def test_log_parser_orca_irc_end_to_end():
-    """log_parser 走 ORCA 引擎时透出 short_irc deriver 消费的字段，
-    使 ORCA 路线的 short_irc 阶段绑定可达（不再结构性断供）。"""
+    """log_parser 走 ORCA 引擎时透出 IRC 信息字段（点数/收敛/端点能量）。
+
+    这些字段只是信息性记录：short_irc 阶段绑定已改为几何方向区间证明
+    （dag 闸门经 irc_evidence.verify_short_irc_direction 重解析日志本身），
+    不再消费这里的收敛/点数标志。"""
     from cloudra.tools.Chemtool.log_parser import LogParser, LogParser_input_schema
 
     result = await LogParser().tool_call(

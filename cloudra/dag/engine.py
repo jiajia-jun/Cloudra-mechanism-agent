@@ -97,7 +97,6 @@ _MODEL_ACTORS = {GraphActor.SUPERVISOR, GraphActor.AGENT}
 _MODEL_SETTABLE_EVIDENCE_LEVELS = {"proposed", "rejected", "inconclusive"}
 _DERIVED_EVIDENCE_FIELDS = {
     "saddle_supported",
-    "short_irc_supported",
     "endpoint_a_minimum_supported",
     "endpoint_b_minimum_supported",
     "endpoint_direction_consistent",

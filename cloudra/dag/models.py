@@ -628,7 +628,6 @@ class ElementaryStepEdge(_GraphElement):
     # 派生证据位：仅 harness 确定性派生可写（engine._DERIVED_EVIDENCE_FIELDS），
     # 模型直写会被分权守卫拒绝。
     saddle_supported: bool = False
-    short_irc_supported: bool = False
     endpoint_a_minimum_supported: bool = False
     endpoint_b_minimum_supported: bool = False
     endpoint_direction_consistent: bool = False
@@ -1136,7 +1135,12 @@ _STAGE_GLOSSARY = (
     "- single_point: a single-point energy of a species.\n"
     "- ts_guess: advisory scan/guess for a transition structure; NEVER satisfies ts_opt/frequency.\n"
     "- ts_opt: transition-state optimization converging to a first-order saddle point.\n"
-    "- short_irc: an IRC path from the saddle connecting both sides.\n"
+    "- short_irc: an IRC path from the saddle whose binding requires a geometric "
+    "direction proof (the ts_guess verify strict criterion): both IRC endpoint "
+    "geometries must lie between the TS and the corresponding verified endpoint "
+    "minima — convergence or point counts alone never suffice. Declare it after "
+    "ts_opt/frequency and the endpoint stages in the contract; binding fails "
+    "while the TS or endpoint-minimum evidence is missing.\n"
     "- endpoint_a: the TARGET-node side of the step (the product); bind a normally "
     "terminated, frequency-verified minimum (0 imaginary frequencies).\n"
     "- endpoint_b: the SOURCE-node side of the step (the reactant complex); bind a "

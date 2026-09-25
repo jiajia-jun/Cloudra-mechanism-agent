@@ -1517,7 +1517,17 @@ async def test_ts_opt_bind_requires_normal_termination(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_short_irc_bind_requires_path_evidence(tmp_path):
+async def test_short_irc_bind_requires_path_evidence(tmp_path, monkeypatch):
+    """short_irc 绑定走几何方向区间证明（ts_guess verify strict / benchmark
+    自洽性同一判据），收敛与否、双向点数不再是闸门：
+
+    - 证据不带 arguments.log_path → 拒（引导绑 IRC 作业的 parser 输出）；
+    - 材料齐全但方向证明不成立 → 拒（理由带证明失败的细节）；
+    - 方向证明成立 → 收（未收敛但方向对的 IRC 同样收）。
+
+    方向判定与几何抽取由 irc_evidence.verify_short_irc_direction 承担，这里
+    monkeypatch 拦它做闸门逻辑隔离，并断言组装进来的材料路径清单（材料来自
+    同边 ts_opt/frequency 与 endpoint_a/b 阶段已绑证据的 arguments.log_path）。"""
     from cloudra.dag.controller import DagController
     from cloudra.dag.store import DagStore
 
@@ -1525,10 +1535,57 @@ async def test_short_irc_bind_requires_path_evidence(tmp_path):
         tmp_path,
         "short-irc-guard",
         {"is_success": True, "normal_termination": True},
-        stage_kinds=("short_irc",),
+        stage_kinds=("ts_opt", "frequency", "endpoint_a", "endpoint_b", "short_irc"),
         mode="dag_record",
     )
     store = DagStore(db)
+    controller = DagController(
+        db, "s1", "dag_record", conversation_id=agent.conversation_id,
+        working_directory=str(tmp_path),
+    )
+    await controller.initialize()
+
+    def _register(tag: str, log_name: str, result: dict):
+        path = tmp_path / log_name
+        path.write_text("placeholder log\n", encoding="utf-8")
+        return store.register_evidence(
+            "s1",
+            "log_parser",
+            {
+                "tool_call_id": f"tc-{tag}",
+                "arguments": {"log_path": str(path)},
+                "result": result,
+            },
+        )
+
+    async def _bind(stage_kind: str, ref):
+        return await controller.apply_stage_bind(
+            element_id="step1", stage_kind=stage_kind, ref=ref,
+            verdict="agree", tool_succeeded=True,
+        )
+
+    # 先按序绑齐同边的材料阶段（short_irc 的 TS/端点几何来源）
+    ts_ref = _register(
+        "ts-opt", "ts_opt.log",
+        {"is_success": True, "normal_termination": True},
+    )
+    assert (await _bind("ts_opt", ts_ref)).accepted is True
+    freq_ref = _register(
+        "freq", "ts_freq.log",
+        {"is_success": True, "normal_termination": True,
+         "imaginary_frequencies": [-518.3]},
+    )
+    assert (await _bind("frequency", freq_ref)).accepted is True
+    min_result = {
+        "is_success": True, "normal_termination": True,
+        "frequencies_cm": [100.0, 200.0], "imaginary_frequencies": [],
+    }
+    ea_ref = _register("endpoint-a", "endpoint_a.log", dict(min_result))
+    assert (await _bind("endpoint_a", ea_ref)).accepted is True
+    eb_ref = _register("endpoint-b", "endpoint_b.log", dict(min_result))
+    assert (await _bind("endpoint_b", eb_ref)).accepted is True
+
+    # 证据不带 arguments.log_path → 拒
     thin = store.register_evidence(
         "s1",
         "log_parser",
@@ -1537,38 +1594,113 @@ async def test_short_irc_bind_requires_path_evidence(tmp_path):
             "result": {"is_success": True, "normal_termination": True},
         },
     )
-    controller = DagController(db, "s1", "dag_record", conversation_id=agent.conversation_id)
+    rejected = await _bind("short_irc", thin)
+    assert not rejected.accepted
+    assert rejected.rejection_code == "short_irc_check_failed"
+    assert "arguments.log_path" in rejected.rejection_reason
+
+    # 材料齐全但方向证明不成立 → 拒；断言组装进来的材料路径清单
+    irc_ref = _register(
+        "irc", "irc.log",
+        {"is_success": True, "normal_termination": True},
+    )
+    calls = []
+
+    def fake_verify(irc_log, ts_logs, endpoint_a_logs, endpoint_b_logs, **_kwargs):
+        calls.append((irc_log, list(ts_logs), list(endpoint_a_logs), list(endpoint_b_logs)))
+        return False, [
+            "the IRC endpoints do not lie between the TS and the verified "
+            "endpoint minima (the geometric direction proof failed)"
+        ]
+
+    monkeypatch.setattr(
+        "cloudra.dag.evidence_inbox.verify_short_irc_direction", fake_verify
+    )
+    rejected = await _bind("short_irc", irc_ref)
+    assert not rejected.accepted
+    assert rejected.rejection_code == "short_irc_check_failed"
+    assert "do not lie between" in rejected.rejection_reason
+    assert calls == [(
+        str(tmp_path / "irc.log"),
+        [str(tmp_path / "ts_opt.log"), str(tmp_path / "ts_freq.log")],
+        [str(tmp_path / "endpoint_a.log")],
+        [str(tmp_path / "endpoint_b.log")],
+    )]
+
+    # 方向证明成立 → 收（未收敛但方向对的情形由 verifier 的 strict 口径覆盖，
+    # 闸门自身只认 (passed, details)）
+    def fake_verify_ok(irc_log, ts_logs, endpoint_a_logs, endpoint_b_logs, **_kwargs):
+        return True, ["direction proof holds (direct pairing)"]
+
+    monkeypatch.setattr(
+        "cloudra.dag.evidence_inbox.verify_short_irc_direction", fake_verify_ok
+    )
+    accepted = await _bind("short_irc", irc_ref)
+    assert accepted.accepted is True
+    edge = _delivery_edge(db)
+    stage = next(s for s in edge.stages if s.kind.value == "short_irc")
+    assert stage.status.value == "supported"
+
+
+@pytest.mark.asyncio
+async def test_short_irc_real_log_fail_loud_legs(tmp_path):
+    """真实 fixture 集成腿（不拦 verifier，材料组装与日志解析走真路径）：
+
+    - 绑非 IRC 日志（G16 水 opt+freq）→ 拒：拿不出双侧 IRC 端点几何；
+    - 绑真实 IRC 日志（G16 HCN，双向均未收敛——收敛与否本就不是判据）但同边
+      没有 ts_opt/端点材料 → 拒：fail-loud 写明缺哪份材料。
+    """
+    from cloudra.dag.controller import DagController
+    from cloudra.dag.store import DagStore
+
+    fixtures = Path(__file__).parent / "fixtures"
+    agent, _session, db = await _seed_staged_step(
+        tmp_path,
+        "short-irc-real",
+        {"is_success": True, "normal_termination": True},
+        stage_kinds=("short_irc",),
+        mode="dag_record",
+    )
+    store = DagStore(db)
+    controller = DagController(
+        db, "s1", "dag_record", conversation_id=agent.conversation_id,
+        working_directory=str(tmp_path),
+    )
     await controller.initialize()
+
+    def _register_irc(tag: str, log_path: Path):
+        return store.register_evidence(
+            "s1",
+            "log_parser",
+            {
+                "tool_call_id": f"tc-{tag}",
+                "arguments": {"log_path": str(log_path)},
+                "result": {"is_success": True, "normal_termination": True},
+            },
+        )
+
+    # 非 IRC 日志：双侧端点几何不可得 → 拒
+    not_irc = _register_irc("not-irc", fixtures / "gaussian" / "water_opt_freq_g16.out")
     rejected = await controller.apply_stage_bind(
-        element_id="step1",
-        stage_kind="short_irc",
-        ref=thin,
-        verdict="agree",
-        tool_succeeded=True,
+        element_id="step1", stage_kind="short_irc", ref=not_irc,
+        verdict="agree", tool_succeeded=True,
     )
     assert not rejected.accepted
     assert rejected.rejection_code == "short_irc_check_failed"
+    assert "does not yield usable endpoint geometries" in rejected.rejection_reason
 
-    ok_ref = store.register_evidence(
-        "s1",
-        "log_parser",
-        {
-            "tool_call_id": "tc-irc-ok",
-            "result": {
-                "is_success": True,
-                "normal_termination": True,
-                "irc_both_directions_converged": True,
-            },
-        },
+    # 真实 IRC 日志（端点几何可解析），但同边缺 ts_opt/端点材料 → 拒并写明缺口
+    real_irc = _register_irc("real-irc", fixtures / "gaussian" / "hcn_ts_irc_g16.log")
+    rejected = await controller.apply_stage_bind(
+        element_id="step1", stage_kind="short_irc", ref=real_irc,
+        verdict="agree", tool_succeeded=True,
     )
-    accepted = await controller.apply_stage_bind(
-        element_id="step1",
-        stage_kind="short_irc",
-        ref=ok_ref,
-        verdict="agree",
-        tool_succeeded=True,
-    )
-    assert accepted.accepted is True
+    assert not rejected.accepted
+    assert rejected.rejection_code == "short_irc_check_failed"
+    assert "does not yield usable endpoint geometries" not in rejected.rejection_reason
+    assert "missing TS material" in rejected.rejection_reason
+    assert "endpoint_a" in rejected.rejection_reason
+    assert "endpoint_b" in rejected.rejection_reason
 
 
 @pytest.mark.asyncio

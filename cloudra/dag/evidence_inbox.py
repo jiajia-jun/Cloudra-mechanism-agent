@@ -21,6 +21,7 @@ import logging
 import os
 import uuid
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from typing import Any
 
 from cloudra.base.role_identity import legacy_agent_id_for_role
@@ -40,16 +41,19 @@ from cloudra.dag.models import (
     MutationResult,
     OrchestrationMode,
     StageKind,
+    StageStatus,
     UpdateEdge,
     UpdateNode,
     derive_evidence_level,
 )
 from cloudra.dag.store import DagStore, InvalidGraphReference, _canonical_json
 from cloudra.persistence.database import ConversationDB
+from cloudra.persistence.workspace import resolve_existing_tool_path
 from cloudra.tools.capabilities import (
     evidence_deriver_for,
     is_dag_observable,
 )
+from cloudra.tools.core.irc_evidence import verify_short_irc_direction
 
 logger = logging.getLogger(__name__)
 
@@ -444,24 +448,131 @@ class EvidenceInboxMixin:
             return True
         return self._passes_saddle_check(ref)
 
-    def _passes_short_irc_check(self, ref: GraphRef | None) -> bool:
-        """short_irc 必须能被 log_parser deriver 推出路径支撑。"""
-        if ref is None:
-            return False
-        try:
-            tool_name, payload = self.store.resolve_evidence_with_source(ref)
-        except InvalidGraphReference:
-            return False
-        deriver = evidence_deriver_for(tool_name)
-        if deriver is None:
-            return False
-        changes = deriver(
-            current={},
-            role="short_irc",
-            arguments=payload.get("arguments") or {},
-            result=payload.get("result") or {},
+    def _resolve_evidence_path(self, raw: str) -> str:
+        """证据 payload 记录的日志路径 → 现存文件。
+
+        resolve_existing_tool_path 候选语义（工作目录优先、进程 cwd 兜底）；
+        controller 没有工具 subagent 桥，用 working_directory 构造最小上下文。
+        """
+        context = SimpleNamespace(
+            subagent=SimpleNamespace(
+                working_directory=(
+                    str(self.working_directory) if self.working_directory else None
+                )
+            )
         )
-        return bool((changes or {}).get("short_irc_supported"))
+        return resolve_existing_tool_path(context, raw)
+
+    def _bound_stage_logs(
+        self, stages, kinds: set[StageKind]
+    ) -> tuple[list[str], list[str]]:
+        """已 supported 阶段的绑定 ref → 日志路径；(解析出的路径, 逐槽问题文案)。
+
+        材料只认证据 payload 的 arguments.log_path（agent 原始填写的路径），
+        ref 不可解析 / 无 log_path / 文件已不存在都记入 problems（fail-loud）。
+        """
+        logs: list[str] = []
+        problems: list[str] = []
+        for stage in stages:
+            if stage.kind not in kinds or stage.status is not StageStatus.SUPPORTED:
+                continue
+            if stage.ref is None:
+                problems.append(
+                    f"the {stage.kind.value} stage is supported but carries no evidence ref"
+                )
+                continue
+            try:
+                _name, payload = self.store.resolve_evidence_with_source(stage.ref)
+            except InvalidGraphReference:
+                problems.append(
+                    f"the {stage.kind.value} evidence ref {stage.ref.ref_id!r} does not resolve"
+                )
+                continue
+            arguments = payload.get("arguments") if isinstance(payload, dict) else None
+            raw = arguments.get("log_path") if isinstance(arguments, dict) else None
+            if not isinstance(raw, str) or not raw.strip():
+                problems.append(
+                    f"the {stage.kind.value} evidence does not record arguments.log_path"
+                )
+                continue
+            try:
+                logs.append(self._resolve_evidence_path(raw))
+            except FileNotFoundError:
+                problems.append(
+                    f"the {stage.kind.value} log {raw.strip()!r} no longer exists "
+                    "on disk (overwritten or moved since the call was recorded)"
+                )
+        return logs, problems
+
+    def _species_geometry_logs(self, graph, node_id: str) -> list[str]:
+        """端点阶段的回退材料：物种节点的 geometry 阶段（验证极小值）日志。"""
+        node = next((n for n in graph.nodes if n.node_id == node_id), None)
+        if node is None:
+            return []
+        logs, _problems = self._bound_stage_logs(node.stages, {StageKind.GEOMETRY})
+        return logs
+
+    def _passes_short_irc_check(
+        self, ref: GraphRef | None, edge, stages, graph
+    ) -> tuple[bool, str]:
+        """short_irc 的几何方向区间证明（与 ts_guess verify strict / benchmark
+        自洽性同一判据）：双侧 IRC 端点几何须各自位于 TS 与对应端点验证极小值
+        之间；IRC 收敛与否不做闸门，点数不再构成判据。
+
+        材料全部来自同一条边已 supported 阶段的证据 payload
+        （arguments.log_path 指向的日志文件）：TS 几何 ← ts_opt/frequency
+        阶段；端点验证极小值 ← endpoint_a/b 阶段（缺绑定日志时回退目标/源
+        物种节点的 geometry 阶段）。返回 (通过, 拒绝理由)：任一材料缺失、
+        日志被覆盖或证明不成立 ⇒ (False, 写明缺哪份材料的理由)，fail-loud，
+        绝不静默降级为收敛/点数判据。
+        """
+        prefix = (
+            "short_irc requires a geometric direction proof (the ts_guess "
+            "verify strict / benchmark criterion): both IRC endpoint geometries "
+            "must lie between the TS and the corresponding verified endpoint "
+            "minima. "
+        )
+        if ref is None:
+            return False, prefix + "no evidence ref was bound."
+        try:
+            _name, payload = self.store.resolve_evidence_with_source(ref)
+        except InvalidGraphReference:
+            return False, prefix + f"evidence reference {ref.ref_id!r} does not resolve."
+        arguments = payload.get("arguments") if isinstance(payload, dict) else {}
+        raw = arguments.get("log_path") if isinstance(arguments, dict) else None
+        if not isinstance(raw, str) or not raw.strip():
+            return False, prefix + (
+                "the bound evidence does not record arguments.log_path; bind the "
+                "log_parser output of the finished IRC job."
+            )
+        try:
+            irc_log = self._resolve_evidence_path(raw)
+        except FileNotFoundError as exc:
+            return False, prefix + f"the IRC log is not readable: {exc}"
+        ts_logs, problems = self._bound_stage_logs(
+            stages, {StageKind.TS_OPT, StageKind.FREQUENCY}
+        )
+        endpoint_a_logs, ea_problems = self._bound_stage_logs(
+            stages, {StageKind.ENDPOINT_A}
+        )
+        endpoint_b_logs, eb_problems = self._bound_stage_logs(
+            stages, {StageKind.ENDPOINT_B}
+        )
+        problems += ea_problems + eb_problems
+        if not endpoint_a_logs:
+            endpoint_a_logs = self._species_geometry_logs(graph, edge.target_node_id)
+        if not endpoint_b_logs:
+            endpoint_b_logs = self._species_geometry_logs(graph, edge.source_node_id)
+        try:
+            passed, details = verify_short_irc_direction(
+                irc_log, ts_logs, endpoint_a_logs, endpoint_b_logs
+            )
+        except Exception as exc:  # 解析依赖缺失等：拒绑并写明，绝不静默通过
+            logger.warning("short_irc direction proof evaluation failed", exc_info=True)
+            return False, prefix + f"the direction proof could not be evaluated: {exc}"
+        if passed:
+            return True, ""
+        return False, prefix + " ".join(details + problems)
 
     def _passes_thermochemistry_check(self, ref: GraphRef | None) -> bool:
         """thermochemistry 只认 thermo_analysis 的 complete 结果。"""
@@ -496,8 +607,12 @@ class EvidenceInboxMixin:
         （disagree/skip/not_applicable 必填）、工具成败；TS frequency
         另有 n_imag==1 检查（D7，不过 ⇒ saddle_check_failed，阶段保持
         pending）；物种 geometry 和边的 endpoint_a/b 另有 n_imag==0 检查（不过 ⇒
-        minimum_check_failed）。守卫拒绝不落地；通过后 attach ref + 更新
-        stages，并由阶段重派生 evidence_level（D7）。
+        minimum_check_failed）；short_irc 另有几何方向区间证明（与 ts_guess
+        verify strict / benchmark 自洽性同一判据：双侧 IRC 端点几何各自位于
+        TS 与对应端点验证极小值之间，材料取自同边 ts_opt/frequency 与
+        endpoint_a/b 或物种 geometry 阶段的已绑证据；缺材料或证明不成立 ⇒
+        short_irc_check_failed，理由写明缺哪份材料）。守卫拒绝不落地；
+        通过后 attach ref + 更新 stages，并由阶段重派生 evidence_level（D7）。
         """
         if not self.enabled:
             raise RuntimeError(
@@ -590,14 +705,12 @@ class EvidenceInboxMixin:
                 verdict == "agree"
                 and target_type == "edge"
                 and kind is StageKind.SHORT_IRC
-                and not self._passes_short_irc_check(ref)
             ):
-                raise _Rejected(
-                    "short_irc_check_failed",
-                    "short_irc evidence must show a bidirectional IRC path "
-                    "(both directions converged, or each side has enough points); "
-                    "the stage stays pending",
+                irc_ok, irc_reason = self._passes_short_irc_check(
+                    ref, element, element.stages, snapshot.delivery
                 )
+                if not irc_ok:
+                    raise _Rejected("short_irc_check_failed", irc_reason)
             if (
                 verdict == "agree"
                 and target_type == "edge"
@@ -922,14 +1035,14 @@ class EvidenceInboxMixin:
                 if (
                     target_type == "edge"
                     and kind is StageKind.SHORT_IRC
-                    and not self._passes_short_irc_check(ref)
                 ):
-                    raise _Rejected(
-                        "short_irc_check_failed",
-                        "short_irc evidence must show a bidirectional IRC path "
-                        "(both directions converged, or each side has enough points); "
-                        "the stage stays pending",
+                    # 批量内同边先绑的 ts_opt/frequency/endpoint 材料可见
+                    # （current_stages 含本批次此前的更新）。
+                    irc_ok, irc_reason = self._passes_short_irc_check(
+                        ref, element, current_stages, snapshot.delivery
                     )
+                    if not irc_ok:
+                        raise _Rejected("short_irc_check_failed", irc_reason)
                 if (
                     target_type == "edge"
                     and kind is StageKind.THERMOCHEMISTRY

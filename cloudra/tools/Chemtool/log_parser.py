@@ -646,15 +646,15 @@ def derive_delivery_changes(
     """DAG evidence derivation owned by this tool; kept out of DagController.
 
     Only the deterministic harness calls this, and engine still rejects models
-    that try to set derived evidence fields themselves.
+    that try to set derived evidence fields themselves.  IRC 解析字段
+    （点数/收敛/端点能量）只是信息字段：short_irc 阶段绑定不走本 deriver，
+    由 harness 按几何方向区间证明重解析日志判定（irc_evidence）。
     """
     del current, arguments  # 本工具派生不需要 current/arguments
     imaginary = _imaginary_frequency_list(result)
     # 终止状态必须是显式 True 才计证据：None（undecidable，未判定终止）与
     # False 一样不发证据——未知终止的日志不能派生 structure/saddle 支撑。
     normal = result.get("normal_termination") is True
-    # short_irc 门槛：双向均收敛，或每个方向至少这么多 IRC 点（不含 TS）。
-    min_irc_points = 50
     if (
         role == "intermediate_optimization"
         and normal
@@ -672,14 +672,6 @@ def derive_delivery_changes(
             "saddle_supported": True,
             "evidence_level": "saddle_supported",
         }
-    if role == "short_irc" and (
-        result.get("irc_both_directions_converged") is True
-        or (
-            int(result.get("irc_num_points_forward") or 0) >= min_irc_points
-            and int(result.get("irc_num_points_backward") or 0) >= min_irc_points
-        )
-    ):
-        return {"short_irc_supported": True}
     if (
         role == "endpoint_a_optimization"
         and normal

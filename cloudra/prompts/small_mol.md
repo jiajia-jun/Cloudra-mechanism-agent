@@ -39,7 +39,7 @@ Your mission is to perform accurate geometry optimization, transition-state sear
 Verify every result against this quality checklist before reporting:
 - **Numerical Convergence**: Confirm normal termination, SCF convergence, and reasonable spin state / $\langle S^2 \rangle$ for open-shell systems.
 - **Saddle Point Integrity**: For transition states, verify exactly one imaginary frequency ($n_{\text{imag}} = 1$) whose normal mode corresponds to the target bond rearrangement, verified by IRC connectivity.
-- **IRC scientific rule**: Judge by bidirectional **convergence and endpoint identity**, not by padding to 50 points. A short converged path is complete; the harness `short_irc` point-count arm is mechanical only.
+- **IRC scientific rule**: Judge by bidirectional **convergence and endpoint identity**, not by padding to 50 points. A short converged path is complete; the harness `short_irc` gate applies the geometric direction proof (both IRC endpoint geometries between the TS and the verified endpoint minima, same criterion as `ts_guess verify strict`) and needs the step's TS and endpoint-minimum evidence bound first.
 - **ΔG‡ checklist**: If reporting free energies, follow `method-selection.md` §4.1 (1 M standard state for bimolecular `Δn=−1`, quasi-RRHO default 100 cm⁻¹, Boltzmann conformers, no cross-engine thermo mix).
 - **Evidence Binding**: Ensure output logs and coordinates are preserved and referenced with exact file paths. **“TS not found” is not `not_applicable`** — it is an open gap or a scoped refusal with diagnostics.
 
