@@ -250,6 +250,95 @@ async def _post(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     return _ok(message, post_id=envelope.event_id, notified_count=len(delivered_ids))
 
 
+async def post_user_post(
+    core,
+    project_id: str,
+    *,
+    topic: str,
+    content: str,
+    kind: str = "finding",
+    to_agent: str = "",
+    parent_id: str | None = None,
+) -> dict[str, Any]:
+    """User-authored forum post (the API path): same ``hub.posted`` event and
+    mailbox-notification semantics as an agent's tool post, but authored by
+    ``user`` with no session.  Validation failures raise ``CommandRejected``
+    (the API layer maps it to HTTP)."""
+    topic = topic.strip()
+    content = content.strip()
+    if not topic or not content:
+        raise CommandRejected("rejected", "post requires non-empty topic and content.")
+    kind = kind.strip().lower()
+    if kind not in _POST_KINDS:
+        raise CommandRejected("rejected", f"Unknown kind: {kind}")
+    to_agent = to_agent.strip()
+    if kind == "message" and not to_agent:
+        raise CommandRejected(
+            "rejected", "message posts need to_agent to name the addressee (the post is still public)."
+        )
+    core.require_project(project_id)
+    addressee = _resolve_live_target(core, project_id, to_agent) if to_agent else None
+    parent = core.event_log.get(parent_id) if parent_id else None
+    if parent_id and (
+        parent is None or parent.type != "hub.posted" or parent.project_id != project_id
+    ):
+        raise CommandRejected("not_found", f"parent post not found in this project: {parent_id}")
+    original = (
+        core.agents.get(parent.session_id)
+        if parent is not None and parent.session_id
+        else None
+    )
+    targets = (
+        [
+            agent for agent in _live_sessions(core, project_id)
+            if agent.state not in {AgentState.FAILED, AgentState.CANCELLED}
+        ]
+        if kind == "broadcast" else
+        [agent for agent in (addressee, original) if agent is not None]
+    )
+    target_ids = list(dict.fromkeys(agent.id for agent in targets))
+    envelope = await core.event_writer.commit(
+        EventDraft(
+            "hub.posted", stream="project", project_id=project_id, session_id=None,
+            data={
+                "topic": topic, "kind": kind, "author_agent": "user",
+                "author_session": None, "to_agent": to_agent or None,
+                "parent_id": parent_id, "content": content,
+                "notification_target_ids": target_ids,
+                "addressed_session_id": addressee.id if addressee else None,
+                "reply_session_id": original.id if original else None,
+            },
+        )
+    )
+    delivered = 0
+    failed_ids: list[str] = []
+    for target_id in target_ids:
+        target = core.agents.get(target_id)
+        if target is None or target.project_id != project_id:
+            failed_ids.append(target_id)
+            continue
+        try:
+            await _notify(
+                core, project_id, target, sender="user",
+                content=post_notification_text(core, envelope, target_id),
+                post_id=envelope.event_id,
+            )
+        except EventPersistenceError:
+            failed_ids.append(target_id)
+            continue
+        delivered += 1
+    return {
+        "post": {
+            "id": envelope.event_id,
+            "seq": envelope.seq,
+            "created_at": envelope.created_at.isoformat(),
+            **envelope.data,
+        },
+        "notified_count": delivered,
+        "failed_session_ids": failed_ids,
+    }
+
+
 def _browse(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     limit = max(1, min(int(args.get("limit") or 20), 100))
     cursor = str(args.get("cursor") or "").strip()

@@ -34,6 +34,14 @@ class MessagePost(BaseModel):
     image_artifact_ids: Optional[list[Optional[str]]] = None
 
 
+class HubPostCreate(BaseModel):
+    topic: str = Field(min_length=1)
+    content: str = Field(min_length=1)
+    kind: str = "finding"
+    to_agent: Optional[str] = None
+    parent_id: Optional[str] = None
+
+
 class CancelPost(BaseModel):
     message: Optional[str] = None
 
