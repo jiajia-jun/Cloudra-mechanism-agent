@@ -429,9 +429,12 @@ def test_subgraph_missing_and_mismatch_still_cost():
         edges=[],
     )
     assert mechanism_similarity(only_r, gold, GedConfig()).score == pytest.approx(1 / 3)
-    # 产物错误（CCl4 而非 CF/Cl-）-> 产物节点替换代价 ≈1，边也随之配不上
+    # 产物错误（CCl4 而非 CF·Cl⁻ 络合物）→ 产物节点替换代价 ≈0.98（指纹
+    # Tanimoto≈0；络合物形态下是 1-vs-1 比对，无旧组分列表的基数罚分，代价
+    # 顶不到 1.0，边仍按结构比对）；无 RDKit 时退化为字符串不等 → 按缺失连边
+    # 扣两个插入代价（1/3）。两种环境都必须显著低于满分
     wrong_p = _graph(["[F-]", "CCl"], ["ClC(Cl)(Cl)Cl"])
-    assert mechanism_similarity(wrong_p, gold, GedConfig()).score < 0.6
+    assert mechanism_similarity(wrong_p, gold, GedConfig()).score < 0.7
 
 
 def _flagged_graph(ts_accessible: bool, edge_accessible: bool) -> GoldMechanismGraph:
@@ -971,7 +974,7 @@ def test_method_policy_files_on_disk(tmp_path):
 def test_integrity_audit_binds_evidence(tmp_path):
     g = {
         "nodes": [
-            {"id": "R", "role": "reactant", "smiles": ["C=CC=C", "C=C"], "accessible": True, "label": "r"},
+            {"id": "R", "role": "reactant", "smiles": ["C=CC=C.C=C"], "accessible": True, "label": "r"},
             {"id": "TS", "role": "transition_state", "smiles": [], "accessible": True, "label": "ts"},
             {"id": "P", "role": "product", "smiles": ["C1CC=CCC1"], "accessible": True, "label": "p"},
         ],
@@ -979,7 +982,7 @@ def test_integrity_audit_binds_evidence(tmp_path):
                     "bond_changes": {"break": [], "form": [[1, 2]]}, "accessible": True}],
     }
     (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
-    (tmp_path / "r.log").write_text("smiles: C=CC=C\nsmiles: C=C\n")
+    (tmp_path / "r.log").write_text("smiles: C=CC=C.C=C\n")
     (tmp_path / "p.log").write_text("smiles: C1CC=CCC1\n")
     rep = audit_integrity(tmp_path)
     assert rep.graph_found and rep.graph_parseable
@@ -996,7 +999,7 @@ def test_integrity_missing_graph_fails(tmp_path):
 def test_integrity_ts_bound_via_endpoints(tmp_path):
     """TS 节点不再无条件通过：仅当经由它的边的两端物种都有证据时才算绑定。"""
     base_nodes = [
-        {"id": "R", "role": "reactant", "smiles": ["C=CC=C", "C=C"]},
+        {"id": "R", "role": "reactant", "smiles": ["C=CC=C.C=C"]},
         {"id": "TS", "role": "transition_state", "smiles": []},
         {"id": "P", "role": "product", "smiles": ["C1CC=CCC1"]},
     ]
@@ -1006,7 +1009,7 @@ def test_integrity_ts_bound_via_endpoints(tmp_path):
     (tmp_path / "mechanism_graph.json").write_text(
         json.dumps({"nodes": base_nodes, "edges": [edge]})
     )
-    (tmp_path / "r.log").write_text("smiles: C=CC=C\nsmiles: C=C\n")
+    (tmp_path / "r.log").write_text("smiles: C=CC=C.C=C\n")
     rep = audit_integrity(tmp_path)
     matched = {b.node_id: b.matched for b in rep.node_bindings}
     assert matched == {"R": True, "TS": False, "P": False}
@@ -1036,13 +1039,13 @@ def test_integrity_evidence_smiles_tolerant_formats(tmp_path):
     出现在 .gjf 标题、日志回显、JSON 摘要等各种格式里）。"""
     g = {
         "nodes": [
-            {"id": "R", "role": "reactant", "smiles": ["C=CC=C", "C=C"]},
+            {"id": "R", "role": "reactant", "smiles": ["C=CC=C.C=C"]},
             {"id": "P", "role": "product", "smiles": ["C1CC=CCC1"]},
         ],
         "edges": [{"id": "E1", "from": "R", "to": "P"}],
     }
     (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
-    (tmp_path / "r.log").write_text('title\n{"smiles": "C=CC=C"}\n# smiles: C=C\n')
+    (tmp_path / "r.log").write_text('title\n{"smiles": "C=CC=C.C=C"}\n')
     (tmp_path / "p.log").write_text("smiles: 'C1CC=CCC1'\n")
     rep = audit_integrity(tmp_path)
     assert all(b.matched for b in rep.node_bindings), rep.notes
@@ -1050,17 +1053,17 @@ def test_integrity_evidence_smiles_tolerant_formats(tmp_path):
 
 def test_integrity_evidence_bracket_smiles_not_truncated(tmp_path):
     """离子 bracket SMILES（[F-]、[Cl-]）必须完整捕获——正则排除集若误含
-    方括号会把 [Cl-] 截成 [Cl- 导致永远绑不上（干跑实测抓出）。"""
+    方括号会把 [F-].CCl 截断导致永远绑不上（干跑实测抓出）。"""
     g = {
         "nodes": [
-            {"id": "R", "role": "reactant", "smiles": ["[F-]", "CCl"]},
-            {"id": "P", "role": "product", "smiles": ["CF", "[Cl-]"]},
+            {"id": "R", "role": "reactant", "smiles": ["[F-].CCl"]},
+            {"id": "P", "role": "product", "smiles": ["CF.[Cl-]"]},
         ],
         "edges": [{"id": "E1", "from": "R", "to": "P"}],
     }
     (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
-    (tmp_path / "r.gjf").write_text("# title\nsmiles: [F-]\nsmiles: CCl\n")
-    (tmp_path / "p_summary.json").write_text(json.dumps({"smiles": ["CF", "[Cl-]"]}))
+    (tmp_path / "r.gjf").write_text("# title\nsmiles: [F-].CCl\n")
+    (tmp_path / "p_summary.json").write_text(json.dumps({"smiles": ["CF.[Cl-]"]}))
     rep = audit_integrity(tmp_path)
     assert all(b.matched for b in rep.node_bindings), rep.notes
 
@@ -1188,6 +1191,125 @@ def test_integrity_fallback_graph_cannot_self_bind(tmp_path):
     assert rep.evidence_files == []  # 交付图自身被排除出证据扫描
     assert rep.node_bindings and not any(b.matched for b in rep.node_bindings)
     assert rep.binding_quality == 0.0
+
+
+# --- 「节点即络合物」归一化（NI1 回归：组分列表交付 ↔ 络合物标注证据） ---
+
+
+def test_mechanism_node_folds_component_list_to_complex():
+    """schema 级归一化（用户裁决）：>1 个组分的 smiles 列表折叠成点连接络合物
+    单条 SMILES；单组分与空列表（TS 节点）不动。"""
+    rc = MechanismNode(id="RC", role=NodeRole.REACTANT, smiles=["C=O", "CN"])
+    assert rc.smiles == ["C=O.CN"]
+    three = MechanismNode(id="RC", role=NodeRole.REACTANT, smiles=["C=C", "F", "[Cl-]"])
+    assert three.smiles == ["C=C.F.[Cl-]"]
+    assert MechanismNode(id="P", role=NodeRole.PRODUCT, smiles=["CC"]).smiles == ["CC"]
+    assert MechanismNode(id="TS", role=NodeRole.TRANSITION_STATE, smiles=[]).smiles == []
+
+
+def test_delivered_component_list_binds_complex_annotated_evidence(tmp_path):
+    """NI1 回归：交付图 RC 写组分列表（含反序）、证据日志按络合物标注
+    （# smiles: C=O.CN）——折叠后 complex-vs-complex cost=0，绑定满分。"""
+    pytest.importorskip("rdkit")  # 反序形态（CN.C=O vs C=O.CN）靠 molhash 归一判等
+    for order in (["C=O", "CN"], ["CN", "C=O"]):
+        g = {
+            "nodes": [
+                {"id": "RC", "role": "reactant", "smiles": order},
+                {"id": "P", "role": "product", "smiles": ["CNCO"]},
+            ],
+            "edges": [{"id": "E1", "from": "RC", "to": "P"}],
+        }
+        (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
+        (tmp_path / "rc.log").write_text("smiles: C=O.CN\n")
+        (tmp_path / "p.log").write_text("smiles: CNCO\n")
+        rep = audit_integrity(tmp_path)
+        assert rep.delivered_graph is not None
+        rc_smiles = rep.delivered_graph.nodes[0].smiles
+        assert len(rc_smiles) == 1 and "." in rc_smiles[0]
+        assert all(
+            b.matched and b.quality == 1.0 for b in rep.node_bindings
+        ), (order, rep.notes)
+
+
+def test_three_component_complex_binds(tmp_path):
+    """三组分络合物同一口径：组分列表 ["C=C","F","[Cl-]"] 交付 ↔
+    络合物标注 "C=C.F.[Cl-]" 证据。"""
+    g = {
+        "nodes": [{"id": "RC", "role": "reactant", "smiles": ["C=C", "F", "[Cl-]"]}],
+        "edges": [],
+    }
+    (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
+    (tmp_path / "rc.log").write_text("smiles: C=C.F.[Cl-]\n")
+    rep = audit_integrity(tmp_path)
+    assert rep.delivered_graph is not None
+    assert rep.delivered_graph.nodes[0].smiles == ["C=C.F.[Cl-]"]
+    assert rep.node_bindings[0].matched and rep.node_bindings[0].quality == 1.0
+
+
+def test_complex_binding_rejects_truly_different_species(tmp_path):
+    """反例：形态统一不得放松化学判定——苯+水络合物证据不得绑上甲醛+甲胺
+    络合物节点。"""
+    g = {
+        "nodes": [{"id": "RC", "role": "reactant", "smiles": ["C=O", "CN"]}],
+        "edges": [],
+    }
+    (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
+    (tmp_path / "rc.log").write_text("smiles: c1ccccc1.O\n")
+    rep = audit_integrity(tmp_path)
+    assert not rep.node_bindings[0].matched
+    assert rep.node_bindings[0].quality == 0.0
+
+
+def test_component_list_delivery_full_graph_score_vs_complex_gold():
+    """图分同口径：交付图组分列表（折叠为络合物）对 gold 络合物节点给满分。"""
+    gold = _graph(["C=O.CN"], ["CNCO"])
+    delivered = _graph(["C=O", "CN"], ["CNCO"])
+    assert mechanism_similarity(delivered, gold, GedConfig()).score == pytest.approx(1.0)
+
+
+# --- 逐组分联合覆盖兜底（用户裁决：络合物优化不干净时允许拆开交付） ---
+
+
+def _rc_only_graph(tmp_path):
+    g = {
+        "nodes": [{"id": "RC", "role": "reactant", "smiles": ["C=O.CN"]}],
+        "edges": [],
+    }
+    (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
+
+
+def test_complex_binds_via_per_component_coverage(tmp_path):
+    """(a) 整络合物标注缺席时，逐组分联合覆盖可绑：两个组分各一个证据文件，
+    全部组分有覆盖 → matched，quality 取最弱组分（此处双双全绑 = 1.0）。"""
+    _rc_only_graph(tmp_path)
+    (tmp_path / "frag1.log").write_text("smiles: C=O\n")
+    (tmp_path / "frag2.log").write_text("smiles: CN\n")
+    rep = audit_integrity(tmp_path)
+    b = rep.node_bindings[0]
+    assert b.matched and b.quality == 1.0
+    assert b.bound_files == ["frag1.log", "frag2.log"]
+
+
+def test_whole_complex_annotation_preferred_over_components(tmp_path):
+    """(b) 整络合物与逐组分证据同时存在时优先整络合物：quality 1.0 且绑定文件
+    只含整络合物标注（兜底通道不启动）。"""
+    _rc_only_graph(tmp_path)
+    (tmp_path / "whole.log").write_text("smiles: C=O.CN\n")
+    (tmp_path / "frag1.log").write_text("smiles: C=O\n")
+    (tmp_path / "frag2.log").write_text("smiles: CN\n")
+    rep = audit_integrity(tmp_path)
+    b = rep.node_bindings[0]
+    assert b.matched and b.quality == 1.0
+    assert b.bound_files == ["whole.log"]
+
+
+def test_complex_unbound_when_only_one_component_evidenced(tmp_path):
+    """(c) 只有一个组分有证据（另一组分无标注）→ 联合覆盖不成立，仍不绑。"""
+    _rc_only_graph(tmp_path)
+    (tmp_path / "frag1.log").write_text("smiles: C=O\n")
+    rep = audit_integrity(tmp_path)
+    b = rep.node_bindings[0]
+    assert not b.matched and b.quality == 0.0
 
 # --- self-consistency ---
 

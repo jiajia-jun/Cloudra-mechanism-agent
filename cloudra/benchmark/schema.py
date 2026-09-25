@@ -23,7 +23,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from cloudra.runtime_v2.schemas import MethodPolicy, OrchestrationMode
 
@@ -53,10 +53,14 @@ class NodeRole(str, Enum):
 class MechanismNode(BaseModel):
     """One species occurrence or transition state in a mechanism graph.
 
-    `smiles` is a list because a node may be a multi-species complex
-    (reactant complex, ion-dipole complex). `accessible=false` 声明该物种/TS
-    在允许的方法级别下不可达：图分只要求标志与 gold 一致（不一致等同缺失），
-    不要求证据绑定。
+    `smiles` 是列表但多分子物种只占一条：按「节点即络合物」约定（用户裁决），
+    多分子物种（预反应络合物、离子-偶极络合物）表达为点连接的单条络合物
+    SMILES（``["C=O.CN"]``）。解析时 >1 个组分的列表自动折叠成该形态
+    （``_fold_complex_components``），gold 图与交付图同口径——交付图写组分
+    列表（``["C=O","CN"]``）不再构成另一个物种，证据文件的 ``smiles:`` 注释
+    也用同一络合物形态即可绑定。单组分与空列表（TS 节点）不动。
+    `accessible=false` 声明该物种/TS 在允许的方法级别下不可达：图分只要求标志
+    与 gold 一致（不一致等同缺失），不要求证据绑定。
 
     `properties` 是交付侧结构化性质声明（impossible 性质/态序题）：键自带单位
     （如 ``bond_length_angstrom``、``singlet_triplet_gap_kcal_mol``），值为数值
@@ -72,6 +76,11 @@ class MechanismNode(BaseModel):
     accessible: bool = True
     label: str = ""
     properties: dict[str, float | str] = Field(default_factory=dict)
+
+    @field_validator("smiles", mode="after")
+    @classmethod
+    def _fold_complex_components(cls, v: list[str]) -> list[str]:
+        return complex_smiles(v)
 
 
 class BondChangeSet(BaseModel):
@@ -353,7 +362,9 @@ def complex_smiles(components: list[str]) -> list[str]:
 
     query 协议要求机理图从反应物络合物起步（与 query 展示的 Reactant
     SMILES 同形）；gold 的 R/P 节点必须用同一形态——组分列表形态会让遵循
-    协议的交付图在子图覆盖评分里被判为不同物种（毒 gold）。
+    协议的交付图在子图覆盖评分里被判为不同物种（毒 gold）。同一折叠由
+    `MechanismNode._fold_complex_components` 在 schema 解析时强制执行，
+    生成器显式调用本函数只是幂等对齐。
     """
     if len(components) <= 1:
         return list(components)

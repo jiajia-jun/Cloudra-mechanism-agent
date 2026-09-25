@@ -171,8 +171,11 @@ def _sigmoid(tanimoto: float, center: float, steepness: float) -> float:
 def species_substitution_cost(smiles_a: list[str], smiles_b: list[str], cfg: GedConfig) -> float:
     """Cost to substitute a node whose species set is smiles_a by smiles_b.
 
-    Multi-species nodes (complexes) are compared as sorted sets: the minimal
-    total pairwise cost over the best assignment, normalized to [0, 1].
+    Species sets are compared as sorted sets: the minimal total pairwise cost
+    over the best assignment, normalized to [0, 1]. 机理图节点经 schema 解析后，
+    多分子络合物已是点连接的单条 SMILES（占一个列表条目，
+    ``MechanismNode._fold_complex_components``），两侧同形时 complex-vs-complex
+    cost = 0；多条目集合比对能力保留给绕过 schema 的直接调用。
     """
     if not smiles_a and not smiles_b:
         return 0.0

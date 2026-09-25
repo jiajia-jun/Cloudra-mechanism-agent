@@ -55,7 +55,9 @@ class _DeliveredNode(MechanismNode):
     """交付侧节点：Postel 宽松加载（GH #29）。
 
     常规图节点字段（``type``、字符串 ``smiles``）在字段校验前规范化到本系统
-    的 schema（``role``、``smiles: list[str]``）；多写的键忽略。"""
+    的 schema（``role``、``smiles: list[str]``）；多写的键忽略。组分列表形态
+    （``["C=O","CN"]``）由 schema 校验器折叠成点连接络合物单条，无需在此
+    特判。"""
 
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
@@ -300,14 +302,15 @@ def _classify(p: Path) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _component_file_qualities(
-    component: str,
+def _species_file_qualities(
+    species_smiles: str,
     files: list[EvidenceFile],
     cfg: GedConfig,
     match_threshold: float,
     partial_quality: float,
 ) -> tuple[float, list[str]]:
-    """逐证据文件评估该组分的绑定质量，返回 (best_quality, [path, ...])。
+    """逐证据文件评估该物种（一条 SMILES；络合物为点连接单条）的绑定质量，
+    返回 (best_quality, [path, ...])。
 
     三档：指纹/哈希 cost ≤ match_threshold → 1.0；否则查质子化骨架——仅电荷
     态/质子化形式不同 → `protonation_variant_quality`（质量 = 1-(1-partial)·w，
@@ -321,16 +324,46 @@ def _component_file_qualities(
             continue
         q = 0.0
         for fs in f.smiles_found:
-            if species_substitution_cost([component], [fs], cfg) <= match_threshold:
+            if species_substitution_cost([species_smiles], [fs], cfg) <= match_threshold:
                 q = 1.0
                 break
             if partial_quality > 0.0:
-                vq = protonation_variant_quality(component, fs, cfg, partial_quality)
+                vq = protonation_variant_quality(species_smiles, fs, cfg, partial_quality)
                 q = max(q, vq)
         if q > 0.0:
             paths.append(f.path)
             best = max(best, q)
     return best, paths
+
+
+def _component_union_coverage(
+    species_smiles: str,
+    files: list[EvidenceFile],
+    cfg: GedConfig,
+    match_threshold: float,
+    partial_quality: float,
+) -> tuple[float, list[str]]:
+    """逐组分联合覆盖兜底（用户裁决：络合物优化不干净时允许拆开交付）。
+
+    仅在整络合物标注绑不上时启用：把络合物 SMILES 按 "." 拆成单组分，每个
+    组分走与整绑相同的结构比对（指纹/哈希 + protonation variant，不走字符串
+    相等）——每个组分都至少被一个证据文件标注则联合覆盖成立，返回
+    (最弱组分质量, 覆盖文件并集)；任一组分无覆盖返回 (0.0, [])。单组分物种
+    无此通道（与整绑同义）。"""
+    components = species_smiles.split(".")
+    if len(components) <= 1:
+        return 0.0, []
+    quality = 1.0
+    paths: list[str] = []
+    for comp in components:
+        q, qpaths = _species_file_qualities(
+            comp, files, cfg, match_threshold, partial_quality
+        )
+        if not qpaths:
+            return 0.0, []
+        quality = min(quality, q)
+        paths.extend(qpaths)
+    return quality, sorted(set(paths))
 
 
 def bind_graph_to_evidence(
@@ -341,16 +374,26 @@ def bind_graph_to_evidence(
     partial_quality: float = 0.7,
 ) -> list[NodeBinding]:
     """Bind each accessible non-TS node to evidence files whose parsed SMILES
-    match the node's claimed SMILES. A multi-species node (complex) is bound
-    when every one of its component SMILES is matched by at least one evidence
-    file (union coverage), since a single log typically holds only one
-    component. Binding is graded: fingerprint/hash-level matches give quality
-    1.0; protonation/charge-state-only variants give `partial_quality` (the
-    node's quality is its weakest component). TS nodes carry no SMILES and are
-    bound indirectly via their edge's endpoints: a TS counts as evidenced only
-    when at least one edge routes through it (`via`) and both endpoint species
-    of that edge are themselves bound to evidence; its quality inherits the
-    weaker endpoint.
+    match the node's claimed SMILES. A node's SMILES list holds whole species:
+    a multi-molecule complex is ONE dot-joined complex SMILES (``C=O.CN``) —
+    the schema folds component lists into that form at parse time
+    (``MechanismNode._fold_complex_components``). Binding is two-layered:
+
+    1. 整络合物优先：evidence ``smiles:`` annotations are matched against the
+       whole dot-joined complex (the delivery contract's primary form);
+    2. 逐组分联合覆盖兜底（用户裁决：络合物在允许方法下优化不干净时允许拆开
+       交付）：整络合物绑不上时拆成单组分，每个组分都至少被一个证据文件标注
+       （同一结构比对/protonation 通道）则该物种也算覆盖——图拓扑不受影响，
+       节点仍是单个络合物。
+
+    The node binds when every listed species is matched (either layer) by at
+    least one evidence file. Binding is graded: fingerprint/hash-level matches
+    give quality 1.0; protonation/charge-state-only variants give
+    `partial_quality` (the node's quality is its weakest species — 兜底通道下
+    即最弱组分). TS nodes carry no SMILES and are bound indirectly via their
+    edge's endpoints: a TS counts as evidenced only when at least one edge
+    routes through it (`via`) and both endpoint species of that edge are
+    themselves bound to evidence; its quality inherits the weaker endpoint.
 
     `accessible=false` 的节点（含 TS）是"允许方法下不可达"的显式声明：不参与
     绑定、不产出 NodeBinding；via 边任一端点不可达时该 TS 随之绑不上
@@ -373,19 +416,24 @@ def bind_graph_to_evidence(
             # 物种节点不带 SMILES = 只有声明没有可取证内容，不予绑定；
             # 否则 agent 把 SMILES 全留空即可零证据通过本层。
             continue
-        all_components_matched = True
+        all_species_matched = True
         node_quality = 1.0
-        for component in node.smiles:
-            q, qpaths = _component_file_qualities(
-                component, files, cfg, match_threshold, partial_quality
+        for species_smiles in node.smiles:
+            q, qpaths = _species_file_qualities(
+                species_smiles, files, cfg, match_threshold, partial_quality
             )
+            if not qpaths:
+                # 整络合物标注绑不上 → 逐组分联合覆盖兜底（两层语义见 docstring）
+                q, qpaths = _component_union_coverage(
+                    species_smiles, files, cfg, match_threshold, partial_quality
+                )
             if qpaths:
                 nb.bound_files.extend(qpaths)
             else:
-                all_components_matched = False
+                all_species_matched = False
             node_quality = min(node_quality, q)
         nb.bound_files = sorted(set(nb.bound_files))
-        nb.matched = all_components_matched and bool(nb.bound_files)
+        nb.matched = all_species_matched and bool(nb.bound_files)
         nb.quality = node_quality if nb.matched else 0.0
 
     # pass 2: TS nodes — 仅当某条边经由它且两端物种都已绑定证据；

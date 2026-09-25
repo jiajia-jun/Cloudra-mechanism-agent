@@ -9,18 +9,28 @@ from collections.abc import Sequence
 # mechanism_graph.json 的字段级契约示例：题面 prompt 里给出具体键名，agent 不再
 # 靠猜（生产教训：type/role 双写撞 NodeRole 枚举 → 整图被评成 unparseable）。
 # 示例块在题面中独立成句——前置契约句必须先说完，再给出示例，最后补注。
+# RC 节点刻意用点连接络合物示例（NI1 教训：agent 把多分子物种写成组分列表
+# ["C=O","CN"]，与络合物标注的证据日志匹配不上 → 整链绑定/图分全灭）。
 GRAPH_JSON_EXAMPLE = (
     "Use exactly this JSON shape (key names matter: nodes carry `id`, `role` "
     "(one of reactant/intermediate/product/transition_state) and `smiles` (a list "
     "of SMILES strings), and may optionally carry a `properties` object for "
     "declared quantities; edges carry `id`, `from`, `to`, `via`, `bond_changes` "
     "and optionally `barrier_kcal_mol`, `channel` and `favored`): "
-    '{"nodes": [{"id": "RC", "role": "reactant", "smiles": ["..."]}, '
+    '{"nodes": [{"id": "RC", "role": "reactant", "smiles": ["C=O.CN"]}, '
     '{"id": "TS1", "role": "transition_state", "smiles": []}, '
     '{"id": "P", "role": "product", "smiles": ["..."]}], '
     '"edges": [{"id": "e1", "from": "RC", "to": "P", "via": "TS1", '
     '"bond_changes": {"break": [[1, 2]], "form": [[1, 5]]}, '
     '"barrier_kcal_mol": 21.3}]}. '
+    "A species made of several molecules (a pre-reaction or ion-dipole complex) "
+    "is ONE node whose `smiles` holds a single dot-joined complex SMILES (like "
+    "the RC node above), never a list of separate component SMILES; evidence "
+    "files for such a species must carry that same dot-joined complex SMILES in "
+    "their `smiles:` annotation. If such a complex is not a clean minimum at "
+    "the allowed level of theory, still keep the single complex node in the "
+    "graph, but you may then annotate its evidence files per component species "
+    "instead (each component with its own `smiles:` annotation). "
 )
 
 # 能垒交付契约（easy/normal/hard 共用；impossible 的机理类交付句同样引用其中的
