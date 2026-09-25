@@ -289,6 +289,7 @@ def _query(
     mapped: str,
     allowed_methods: Sequence[str] | None = None,
     require_node_energies: bool = True,
+    smiles_schematic: bool = False,
 ) -> str:
     rs = ".".join(reactants)
     ps = ".".join(products)
@@ -296,11 +297,21 @@ def _query(
     # 节点与逐步边，但不点名步数（不泄题）。
     methods_clause = format_allowed_methods_clause(allowed_methods)
     methods_part = f" {methods_clause}" if methods_clause else ""
+    # smiles_schematic（2026-09-25 用户口径）：体系需要溶剂/催化剂等未画出物种时，
+    # SMILES 只给净反应式，但必须显式声明「可能不全」，agent 按条件自判实际参与物种。
+    schematic_clause = (
+        "Note: the reactant and product SMILES above give the net equation only and may omit "
+        "participating species (solvent, catalysts, counterions and other bystanders are not "
+        "depicted); infer the actual medium and assisting species from the stated conditions. "
+        if smiles_schematic
+        else ""
+    )
     return (
         f"Determine the mechanism of the following reaction: {name}. "
         f"Reactant SMILES: {rs}; product SMILES: {ps}; total charge {q}, multiplicity {mult}; "
         f"conditions: {conditions}. "
         f"{conditions_modeling_guidance(conditions)} "
+        f"{schematic_clause}"
         f"Atom-mapped reactant SMILES: {mapped}. "
         "The 1-based map numbers in it are the indexing convention for `bond_changes` "
         "(keep using the plain SMILES above for graph nodes and evidence annotations). "
@@ -392,6 +403,7 @@ def parse_normal_md(src: Path, only: set[str] | None = None) -> list[TaskSpec]:
                         entry["mapped_reactants"],
                         allowed_methods=policy.allowed_methods,
                         require_node_energies=barrier_enabled,
+                        smiles_schematic=bool(entry.get("smiles_schematic")),
                     )
                 ),
                 method_policy=policy,
