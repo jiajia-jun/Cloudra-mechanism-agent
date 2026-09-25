@@ -36,7 +36,7 @@ from cloudra.tools.core.ts_process import (
 description = (
     "Run the transition-state search SOP as a durable process: build both endpoints from SMILES. "
     "For cyclic TS preorganization, declare ring_order (1-based complete atom order) and optional "
-    "distance_filters windows; missing forming pairs receive a visible 1.8–2.6 Å fallback. "
+    "distance_filters windows; missing forming pairs receive a visible 1.6–3.0 Å fallback. "
     "The process uses only qualified constrained reactant seeds, and ts_resume can correct the "
     "guidance before refinement submission. "
     "map atoms, assemble the reactive complex, generate a path guess (xTB metadynamics, falling back "

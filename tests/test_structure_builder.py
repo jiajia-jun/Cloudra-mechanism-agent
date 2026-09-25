@@ -180,7 +180,7 @@ def test_assembly_records_the_approved_parameters(tmp_path):
     assert params.orientations == 32
     assert params.min_interfragment_distance == 1.0
     assert params.reaction_center_candidates == 8
-    assert params.reaction_center_window == (1.8, 2.6)
+    assert params.reaction_center_window == (1.6, 3.0)
     assert params.energy_window_kcal == 6.0
     assert params.rmsd_threshold == 0.5
 

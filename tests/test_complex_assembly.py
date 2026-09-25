@@ -146,7 +146,7 @@ def test_unreleased_candidate_energy_is_unconstrained_single_point(tmp_path, mon
 def test_real_relaxation_reports_the_unconstrained_single_point_not_the_penalty(tmp_path):
     """端到端（真实力场，无 mock）：约束保持时交付能量必须是无约束单点，不是轨迹终态能量。
 
-    反应中心取水分子内的 O-H 对（0-1）：窗口 1.8–2.6 Å 对共价键不可达（O-H 伸缩力常数远大于
+    反应中心取水分子内的 O-H 对（0-1）：窗口 1.6–3.0 Å 对共价键不可达（O-H 伸缩力常数远大于
     约束的 k=100），因此每个放置的约束全程激活、轨迹终态能量含真实惩罚项——正是旧实现直接拿
     去排序的那种能量。这里从**交付的 .xyz 几何**独立重算无约束 MMFF94 单点，要求与候选能量一致，
     并确认轨迹终态能量（含惩罚）与候选能量相差一个明显的惩罚项。

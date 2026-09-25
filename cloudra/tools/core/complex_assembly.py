@@ -11,7 +11,7 @@
 片间解离判据（vdW 接触倍数）              1.5        最近片间原子对距离 > 1.5×两原子 vdW 半径和即
                                                     判为已解离（不是复合物），丢弃不交付
 反应中心引导保留的放置数                  8          经反应中心距离打分后取最优（仅反应模式）
-反应中心距离窗口                          1.8–2.6 Å  反应物/产物映射得到的反应中心对的预组织窗口
+反应中心距离窗口                          1.6–3.0 Å  反应物/产物映射得到的反应中心对的预组织窗口
 能量窗                                    6.0 kcal/mol 沿用 conformer_search 的既有默认值
 重原子 RMSD 聚类阈值                      0.5 Å      沿用 conformer_search 的既有默认值
 ======================================  =========  ==================================================
@@ -97,7 +97,7 @@ class AssemblyParameters(BaseModel):
         default=8, description="反应模式下按反应中心距离打分后保留的放置数"
     )
     reaction_center_window: tuple[float, float] = Field(
-        default=(1.8, 2.6), description="反应中心距离的预组织窗口（Å）：约束目标与释放条件"
+        default=(1.6, 3.0), description="反应中心距离的预组织窗口（Å）：约束目标与释放条件"
     )
     energy_window_kcal: float = Field(default=6.0, description="候选保留的相对能量窗（kcal/mol）")
     rmsd_threshold: float = Field(default=0.5, description="重原子 RMSD 聚类阈值（Å）")

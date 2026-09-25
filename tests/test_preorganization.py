@@ -49,7 +49,7 @@ def test_missing_ring_edge_uses_visible_single_source_fallback(tmp_path):
     assert (plan.windows[1].min_ang, plan.windows[1].max_ang) == (
         AssemblyParameters().reaction_center_window
     )
-    assert {"atoms": [1, 10], "min_ang": 1.8, "max_ang": 2.6,
+    assert {"atoms": [1, 10], "min_ang": 1.6, "max_ang": 3.0,
             "source": "fallback"} in effective_window_rows(plan)
 
 
@@ -260,9 +260,9 @@ def test_multicomponent_fallback_is_visible_even_when_no_seed_qualifies(tmp_path
         random_seed=42,
     )
     assert result.status in ("ok", "no_candidate")
-    assert {"atoms": [1, 10], "min_ang": 1.8, "max_ang": 2.6,
+    assert {"atoms": [1, 10], "min_ang": 1.6, "max_ang": 3.0,
             "source": "fallback"} in result.effective_windows
-    assert "1-10" in result.message and "1.8" in result.message
+    assert "1-10" in result.message and "1.6" in result.message
     if result.status == "no_candidate":
         assert result.diagnostics
 

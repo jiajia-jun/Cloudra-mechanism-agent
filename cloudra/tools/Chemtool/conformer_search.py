@@ -134,7 +134,7 @@ description = (
     "Conformer-ensemble search: from SMILES or xyz/sdf, generate an ensemble and an energy/Boltzmann-population table. "
     "Set ring_order to the atoms of a prospective cycle in order (1-based complete builder order); "
     "with ring_order, distance_filters become soft generation windows and strict output filters. "
-    "Missing nonbonded cycle edges receive a visible 1.8–2.6 Å fallback; guided output is a constrained TS seed, not an equilibrium ensemble. "
+    "Missing nonbonded cycle edges receive a visible 1.6–3.0 Å fallback; guided output is a constrained TS seed, not an equilibrium ensemble. "
     "with optional reaction-distance filters (distance_filters) to keep reactive conformers whose bonding-atom distances fall in a preorganization window. "
     "All coordinates go to ensemble files (confs.sdf / confs.xyz); context only gets the numeric table. "
     "The input structure is resolved by the shared structure builder. For a multi-component input (SMILES "
