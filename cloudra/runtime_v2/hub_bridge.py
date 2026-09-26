@@ -421,6 +421,30 @@ async def _search(core, author: AgentSession, args: dict[str, Any]) -> ToolResul
     from cloudra.runtime_v2.knowledge import render_library_hits, search_library
 
     library = await search_library(keyword, limit=5)
+
+    # The skills layer: match domain skills on demand
+    matched_skills = []
+    try:
+        from cloudra.base.skill_class import skill_loader
+        loader = skill_loader()
+        all_skills = loader.list_skills()
+        k_lower = keyword.lower()
+        is_skill_query = "skill" in k_lower or "sop" in k_lower or "guide" in k_lower
+        for sk in all_skills:
+            name_score = _fuzzy_score(keyword, sk["name"])
+            desc_score = _fuzzy_score(keyword, sk["description"])
+            combined = max(name_score, desc_score * 0.8)
+            if is_skill_query:
+                clean_k = k_lower.replace("skill", "").replace("sop", "").replace("guide", "").strip()
+                if not clean_k or clean_k in sk["name"].lower() or clean_k in sk["description"].lower():
+                    combined = max(combined, 0.85)
+            if combined >= _FUZZY_FLOOR:
+                matched_skills.append((combined, sk))
+        matched_skills.sort(key=lambda x: -x[0])
+        matched_skills = [sk for _, sk in matched_skills[:4]]
+    except Exception:
+        matched_skills = []
+
     forum_line = (
         f"Keyword '{keyword}' fuzzy-matched {len(posts)} post(s) (scanned the latest {len(scanned)})."
         if posts
@@ -431,16 +455,24 @@ async def _search(core, author: AgentSession, args: dict[str, Any]) -> ToolResul
         "library": "available" if _providers_present() else (
             "no_hits" if not library else "available"
         ),
+        "skills": "available" if matched_skills else "no_hits",
     }
-    if not library:
-        return _ok(
-            forum_line,
-            posts=posts,
-            library=[],
-            sources_status=sources_status,
-        )
-    summary = f"{forum_line}\nLibrary hits ({len(library)}):\n{render_library_hits(library)}"
-    return _ok(summary, posts=posts, library=library, sources_status=sources_status)
+
+    summary_parts = [forum_line]
+    if matched_skills:
+        skill_lines = []
+        for sk in matched_skills:
+            skill_lines.append(
+                f"- **{sk['name']}**: {sk['description']}\n"
+                f"  -> Load via: `get_skill(skill_name=\"{sk['name']}\")`"
+            )
+        summary_parts.append("Matched Domain Skills:\n" + "\n".join(skill_lines))
+
+    if library:
+        summary_parts.append(f"Library hits ({len(library)}):\n{render_library_hits(library)}")
+
+    summary = "\n\n".join(summary_parts)
+    return _ok(summary, posts=posts, library=library, skills=matched_skills, sources_status=sources_status)
 
 
 def _providers_present() -> bool:

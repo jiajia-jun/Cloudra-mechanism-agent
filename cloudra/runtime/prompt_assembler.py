@@ -93,6 +93,20 @@ _CONTEXT_HANDOFF_GUIDANCE_LIGHT = (
 # 纯输出型角色名集合（不写 HANDOFF.md，不管理多阶段任务状态）
 _OUTPUT_ONLY_ROLES = frozenset({"researcher", "writer", "explorer", "experiment"})
 
+# 针对不同领域角色的专属核心技能推荐（不在 System Prompt 中全局广播所有技能，按需在 Hub 检索）
+_ROLE_RECOMMENDED_SKILLS: dict[str, tuple[str, ...]] = {
+    "coordinator": ("dag-operations", "reaction-mechanisms"),
+    "supervisor": ("dag-operations", "reaction-mechanisms", "peer-review-standards"),
+    "small_mol": ("dft-calculation", "reaction-mechanisms"),
+    "dft": ("first-principles-calculation",),
+    "md": ("molecular-dynamics-simulation",),
+    "researcher": ("literature-search",),
+    "writer": ("research-paper-writing",),
+    "experiment": ("peer-review-standards",),
+    "explorer": (),
+    "env": (),
+}
+
 
 
 def _sha256_text(text: str) -> str:
@@ -560,13 +574,36 @@ class PromptAssembler:
         skills = self._skill_manifest()
         if skills is not None:
             skill_manifest, skill_source = skills
-            identity_sections.append(
-                "## Current skill manifest\n\n"
-                + "\n".join(
-                    f"- {item['name']}: {item['description']}"
-                    for item in skill_manifest
+            if self.prompt_name in _ROLE_RECOMMENDED_SKILLS:
+                rec_names = set(_ROLE_RECOMMENDED_SKILLS[self.prompt_name])
+                rec_items = [item for item in skill_manifest if item["name"] in rec_names]
+                if rec_items:
+                    lines = [
+                        "## Recommended Domain Skills\n",
+                        "The following core skills are tailored to your role. Use `get_skill(name=...)` to view details:",
+                    ]
+                    for item in rec_items:
+                        lines.append(f"- {item['name']}: {item['description']}")
+                    lines.append(
+                        "\n> **On-Demand Skills**: More domain skills are available on AgentHub. "
+                        "When tackling specialized tasks, search for relevant skills via `agent_hub(action=\"search\", keyword=\"skill <domain>\")` "
+                        "and load them via `get_skill(name=\"<skill-name>\")`."
+                    )
+                    identity_sections.append("\n".join(lines))
+                else:
+                    identity_sections.append(
+                        "## Domain Skills On-Demand\n\n"
+                        "Domain skills can be searched and loaded on demand. Call `agent_hub(action=\"search\", keyword=\"skill <domain>\")` "
+                        "to discover available skills, and `get_skill(name=\"<skill-name>\")` to read detailed guides and workflows."
+                    )
+            else:
+                identity_sections.append(
+                    "## Current skill manifest\n\n"
+                    + "\n".join(
+                        f"- {item['name']}: {item['description']}"
+                        for item in skill_manifest
+                    )
                 )
-            )
             sources.append(skill_source)
 
         if device_capabilities:

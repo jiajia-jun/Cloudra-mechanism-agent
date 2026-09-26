@@ -61,6 +61,25 @@ class skill_loader:
 
         return _SKILL_DATAS_CACHE[self.base_path][1]
 
+    def list_skills(self) -> list[dict]:
+        """Return list of all available skills with name and description."""
+        datas = self.skill_datas_get()
+        return [{"name": d.get("name", ""), "description": d.get("description", "")} for d in datas if d.get("name")]
+
+    def list_references(self, skill_name: str) -> list[str]:
+        """Return relative paths of all available reference files for a given skill."""
+        possible_dirs = ['references', 'reference', 'ref']
+        refs = []
+        for dir_name in possible_dirs:
+            dir_path = os.path.join(self.base_path, skill_name, dir_name)
+            if os.path.isdir(dir_path):
+                for root, _, files in os.walk(dir_path):
+                    for file in sorted(files):
+                        if not file.startswith('.'):
+                            rel = os.path.relpath(os.path.join(root, file), dir_path)
+                            refs.append(rel)
+        return sorted(refs)
+
     def get_reference(self, skill_name, ref_name) -> str:
         # 支持多种可能的资料文件夹命名约定
         possible_dirs = ['references', 'reference', 'ref']
@@ -71,10 +90,10 @@ class skill_loader:
                 with open(ref_path, 'r', encoding='utf-8') as f:
                     return f.read()
             elif os.path.isdir(ref_path):
-                dir_filelst = os.listdir(ref_path)
-                return fr'该reference为文件夹，文件夹下有：{dir_filelst} ,请根据需要输入 {ref_name}/filename 调用资料，win系统请用 {ref_name}\filename'
+                dir_filelst = sorted(os.listdir(ref_path))
+                return f"Reference '{ref_name}' is a directory containing: {dir_filelst}. Please specify {ref_name}/<filename>."
 
-        return '该资料不存在。'
+        return 'Reference not found.'
 
     # FIX: 原拼写为 skill_dsatas_get（多打了个 s）
     def get_content(self, skill_name) -> str:
@@ -82,7 +101,7 @@ class skill_loader:
         for data in datas:
             if data['name'] == skill_name:
                 return data['content']
-        return 'skill不存在。'
+        return 'skill does not exist.'
 
 
 
