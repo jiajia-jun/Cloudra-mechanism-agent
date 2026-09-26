@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" font-family="Arial Unicode MS, PingFang SC, sans-serif">
+<defs><marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#287B54"/></marker></defs>
+<rect width="900" height="520" fill="#F8FBF5"/>
+<text x="206" y="56" fill="#194D36" font-size="30" font-weight="700" text-anchor="middle">机理路径网</text>
+<text x="688" y="56" fill="#194D36" font-size="30" font-weight="700" text-anchor="middle">三维反应姿态</text>
+<g fill="none" stroke="#287B54" stroke-width="5" stroke-linecap="round" marker-end="url(#arr)">
+ <path d="M199 172L199 253"/><path d="M199 302L103 382"/><path d="M199 302L296 382"/>
+</g>
+<g fill="#EDF6E8" stroke="#287B54" stroke-width="5"><circle cx="199" cy="144" r="29"/><circle cx="199" cy="274" r="29"/><circle cx="87" cy="407" r="29"/><circle cx="311" cy="407" r="29"/></g>
+<circle cx="199" cy="274" r="19" fill="#D4A921"/>
+<text x="199" y="282" fill="#194D36" font-size="23" font-weight="700" text-anchor="middle">TS</text>
+<text x="199" y="490" fill="#5D6F62" font-size="23" text-anchor="middle">列出“哪些状态相连”</text>
+<path d="M390 263H485" stroke="#D4A921" stroke-width="8" marker-end="url(#arr)"/>
+<g fill="none" stroke="#D4A921" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+ <path d="M565 154L610 129L659 156"/>
+ <path d="M690 234L738 255L783 224"/>
+ <path d="M576 372L620 337L668 363"/>
+</g>
+<g fill="#287B54"><circle cx="565" cy="154" r="16"/><circle cx="610" cy="129" r="16"/><circle cx="659" cy="156" r="16"/><circle cx="690" cy="234" r="16"/><circle cx="738" cy="255" r="16"/><circle cx="783" cy="224" r="16"/><circle cx="576" cy="372" r="16"/><circle cx="620" cy="337" r="16"/><circle cx="668" cy="363" r="16"/></g>
+<g fill="none" stroke="#A9C9A5" stroke-width="3" stroke-dasharray="8 8"><path d="M598 177Q650 205 674 223"/><path d="M693 273Q684 320 655 341"/></g>
+<text x="688" y="490" fill="#5D6F62" font-size="23" text-anchor="middle">同一键变化，还有多种摆法</text>
+</svg>

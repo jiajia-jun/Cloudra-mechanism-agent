@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1160" height="425" viewBox="0 0 1160 425">
+  <rect width="1160" height="425" fill="#FFFFFF"/>
+  <text x="42" y="53" font-family="Arial Unicode MS" font-size="25" font-weight="700" fill="#194D36">一次跨越程序重启的研究任务</text>
+  <text x="42" y="91" font-family="Arial Unicode MS" font-size="18" fill="#5D6F62">每个圆点是持久记录的状态变化；中断后仍能核对已完成的工作</text>
+  <line x1="90" y1="221" x2="517" y2="221" stroke="#287B54" stroke-width="5" stroke-linecap="round"/>
+  <line x1="644" y1="221" x2="1073" y2="221" stroke="#287B54" stroke-width="5" stroke-linecap="round"/>
+  <path d="M535 206 L552 235 L568 207 L584 235 L603 206 L621 236" fill="none" stroke="#D4A921" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="578" y="159" text-anchor="middle" font-family="Arial Unicode MS" font-size="24" font-weight="700" fill="#D4A921">程序中断</text>
+  <text x="580" y="306" text-anchor="middle" font-family="Arial Unicode MS" font-size="18" fill="#5D6F62">记录仍在</text>
+  <g font-family="Arial Unicode MS" text-anchor="middle">
+    <circle cx="145" cy="221" r="19" fill="#287B54"/><circle cx="327" cy="221" r="19" fill="#287B54"/><circle cx="488" cy="221" r="19" fill="#287B54"/>
+    <circle cx="686" cy="221" r="19" fill="#427E68"/><circle cx="870" cy="221" r="19" fill="#427E68"/><circle cx="1031" cy="221" r="19" fill="#427E68"/>
+    <text x="145" y="280" font-size="20" fill="#24372D">建立任务</text>
+    <text x="327" y="280" font-size="20" fill="#24372D">提交计算</text>
+    <text x="488" y="280" font-size="20" fill="#24372D">等待回报</text>
+    <text x="686" y="280" font-size="20" fill="#24372D">恢复状态</text>
+    <text x="870" y="280" font-size="20" fill="#24372D">显式继续</text>
+    <text x="1031" y="280" font-size="20" fill="#24372D">绑定证据</text>
+  </g>
+  <path d="M114 348 Q580 390 1058 348" fill="none" stroke="#D8E5D5" stroke-width="2"/>
+  <text x="580" y="401" text-anchor="middle" font-family="Arial Unicode MS" font-size="18" fill="#5D6F62">同一条任务的事件记录贯穿整个过程</text>
+</svg>

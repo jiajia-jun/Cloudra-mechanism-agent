@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1160" height="425" viewBox="0 0 1160 425">
+  <rect width="1160" height="425" fill="#FFFFFF"/>
+  <text x="53" y="57" font-family="Arial Unicode MS" font-size="24" font-weight="700" fill="#194D36">一条机理路径，同时是一份证据清单</text>
+  <line x1="169" y1="180" x2="970" y2="180" stroke="#B6D0B7" stroke-width="5"/>
+  <circle cx="166" cy="180" r="51" fill="#287B54"/>
+  <circle cx="974" cy="180" r="51" fill="#427E68"/>
+  <path d="M570 119 L631 180 L570 241 L509 180 Z" fill="#D4A921"/>
+  <g font-family="Arial Unicode MS" font-size="22" font-weight="700" fill="#FFFFFF" text-anchor="middle">
+    <text x="166" y="188">反应物</text><text x="570" y="188">过渡态</text><text x="974" y="188">产物</text>
+  </g>
+  <g font-family="Arial Unicode MS" font-size="18" text-anchor="middle" fill="#24372D">
+    <text x="166" y="276">稳定结构</text><text x="570" y="276">连接两侧的山口</text><text x="974" y="276">稳定结构</text>
+  </g>
+  <line x1="166" y1="307" x2="974" y2="307" stroke="#D8E5D5" stroke-width="2"/>
+  <g font-family="Arial Unicode MS" font-size="18" fill="#24372D">
+    <circle cx="115" cy="355" r="9" fill="#427E68"/><text x="135" y="362">几何与频率</text>
+    <circle cx="433" cy="355" r="9" fill="#427E68"/><text x="453" y="362">一阶鞍点与频率</text>
+    <circle cx="806" cy="355" r="9" fill="#D4A921"/><text x="826" y="362">路径证明按任务加入</text>
+  </g>
+  <text x="580" y="411" text-anchor="middle" font-family="Arial Unicode MS" font-size="16" fill="#5D6F62">阶段契约示意：每一项必须绑定实际计算产物，缺失时保持未完成</text>
+</svg>

@@ -85,7 +85,7 @@
           "id": "NR1_I2",
           "role": "intermediate",
           "smiles": [
-            "O.O.CC(=[OH+])C(C)(C)C"
+            "O.O.C[C+](C)C(C)(C)O"
           ],
           "accessible": true,
           "label": "intermediate 2",
@@ -97,6 +97,24 @@
           "smiles": [],
           "accessible": true,
           "label": "TS3",
+          "properties": {}
+        },
+        {
+          "id": "NR1_I3",
+          "role": "intermediate",
+          "smiles": [
+            "O.O.CC(=[OH+])C(C)(C)C"
+          ],
+          "accessible": true,
+          "label": "intermediate 3",
+          "properties": {}
+        },
+        {
+          "id": "NR1_TS4",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS4",
           "properties": {}
         },
         {
@@ -132,7 +150,7 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": 0.0,
+          "barrier_kcal_mol": null,
           "weight": 1.0,
           "channel": null,
           "favored": null
@@ -142,13 +160,30 @@
           "from": "NR1_I1",
           "to": "NR1_I2",
           "via": "NR1_TS2",
-          "step_type": "concerted semipinacol rearrangement (rate-determining): C-OH2+ cleavage with simultaneous 1,2-methyl shift and C=O pi formation; no free carbocation",
+          "step_type": "water departure from protonated pinacol -> tertiary carbocation/water ion pair",
           "bond_changes": {
             "break": [
               [
                 4,
                 6
-              ],
+              ]
+            ],
+            "form": []
+          },
+          "accessible": true,
+          "barrier_kcal_mol": null,
+          "weight": 1.0,
+          "channel": null,
+          "favored": null
+        },
+        {
+          "id": "NR1_E3",
+          "from": "NR1_I2",
+          "to": "NR1_I3",
+          "via": "NR1_TS3",
+          "step_type": "1,2-methyl migration from the carbocation/water ion pair with C=O pi formation -> protonated pinacolone",
+          "bond_changes": {
+            "break": [
               [
                 7,
                 8
@@ -166,16 +201,16 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": 26.2,
+          "barrier_kcal_mol": 5.16,
           "weight": 0.5,
           "channel": null,
           "favored": null
         },
         {
-          "id": "NR1_E3",
-          "from": "NR1_I2",
+          "id": "NR1_E4",
+          "from": "NR1_I3",
           "to": "NR1_P",
-          "via": "NR1_TS3",
+          "via": "NR1_TS4",
           "step_type": "proton transfer from protonated pinacolone to water, regenerating H3O+",
           "bond_changes": {
             "break": [

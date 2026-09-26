@@ -212,8 +212,8 @@ ts/<run_id>/
 
 | 终态 | 含义 |
 |---|---|
-| `verified` | TS 频率恰好 1 个虚频 + IRC 双向收敛 + 两端 Opt 收敛且 Freq 零虚频、仍为声明物种 + IRC 端点相对这些极小值的区间证明 |
-| `candidate_only` | 拿到候选鞍点但证据不足（IRC 未收敛、频率缺失、端点不匹配） |
+| `verified` | TS 频率恰好 1 个虚频 + 双向 IRC 真实最外帧分别无约束 Opt/Freq，确认两侧极小点及声明物种身份 + 两向最外帧相对 TS 和对应极小点的方向区间证明；IRC 可如实标为 partial，无须自身双向收敛 |
+| `candidate_only` | 拿到候选鞍点但证据不足（缺一侧可用 IRC 几何、频率缺失、优化后端点身份不符或方向未证实）；仅 IRC 未到自身收敛标记不构成此判定 |
 | `search_failed` | 搜索没跑出来——**不构成"该反应不可能"的结论** |
 | `invalid_input` | 输入本身不成立（歧义未解、电荷/自旋矛盾） |
 
@@ -238,8 +238,8 @@ ts/<run_id>/
 |---|---|
 | `declare` / `build` / `map` / `assemble` / `guess` / `validate` | **已实现**（测试 `tests/test_ts_process.py`） |
 | `submit` | **已实现**：写精修输入 → **复用**唯一一份准入校验 → 入库为 `ready`（归属随 `TsStartRequest` 盖章：项目 conversation_id + 发起 agent 的 session_id，缺归属 fail-loud 拒收） |
-| `refine` | **已实现**：作业序列 TS 优化 → 频率 → IRC → 反应物 Opt/Freq → 产物 Opt/Freq，每步都等终态；**从不轮询**——未到终态时本阶段置 `waiting` 且**不推事件**，作业终态由既有 compute 通知路径投递，agent 收到后调 `ts_resume`（无需调整）继续 |
-| `verdict` | **已实现**：四态判定只读交付物。TS 非一虚频、IRC 未双向收敛、任一端点 Opt 未收敛或 Freq 非零虚频/缺失、优化后物种身份变化或区间证明失败，都只到 `candidate_only`；路径初猜绝不直接充当极小值 |
+| `refine` | 作业序列 TS 优化 → 频率 → 双向 IRC → **各向真实最外帧**分别无约束 Opt/Freq，每步都等终态；**从不轮询**——未到终态时本阶段置 `waiting` 且**不推事件**，作业终态由既有 compute 通知路径投递，agent 收到后调 `ts_resume`（无需调整）继续 |
+| `verdict` | 四态判定只读交付物。TS 非一虚频、缺一侧可用 IRC 几何、任一外帧 Opt 未收敛或 Freq 非零虚频/缺失、优化后物种身份变化或方向区间证明失败，都只到 `candidate_only`；单纯 IRC partial 不降级，路径初猜绝不直接充当极小值 |
 
 `submit` 的准入与 `submit_compute_job` **共用** `services/compute_admission.admit_job`
 （唯一实现：输入存在、xtb 参数、节点/调度器解析、资源硬校验、申请量不得低于输入自述、
@@ -252,9 +252,12 @@ ts/<run_id>/
 `skills/dft-calculation/references/{orca,gaussian}-inputs.md`：频率是**独立作业**且几何取
 TS 优化末帧；IRC 复用**同一几何**的 Hessian——Hessian 分支由**证据**决定（频率作业真的落下了
 同名 `.hess` 就用 `InitHess read` + `Hess_Filename`，否则按 skill 用 `InitHess calc_numfreq`），
-不是偏好；Gaussian 走 `irc=(calcfc,maxpoints=80)`。
-两端从搜索种子分别提交无约束 Opt，Freq 输入取对应 Opt 日志的收敛末帧；
+不是偏好；Gaussian 走 `irc=calcfc`，不硬编码统一的 `MaxPoints`。IRC 长度按方向证据、路径特点及计算成本权衡，原生收敛状态仍须保留并如实报告。
+两端从双向 IRC 的**真实最外帧**分别提交无约束 Opt，Freq 输入取对应 Opt 日志的收敛末帧；
+forward/backward 只是轨迹标签，须依据优化后结构身份与声明物种匹配，不能预设哪侧是反应物或产物。
 终判时还须核对 Opt 日志几何、保存的频率源几何和 Freq 日志几何一致。
+现有物种身份检查核对连接关系与键级，不独立区分同 SMILES 的构象身份；
+此类任务仍须审查优化后的实际构象，不能把 `verified` 当作完整构象或动力学证明。
 
 已实现的部分含：内化校验（失败即阻塞并点名到原子）、只推阻塞/终态两类事件、四态终态、
 按声明预算的有界推进（干预次数耗尽即落 `search_failed` 并注明"搜索失败 ≠ 反应不可能"）、

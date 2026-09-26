@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+from collections import Counter
 from io import StringIO
 from typing import Any, Literal, Optional, Sequence
 
@@ -57,7 +58,8 @@ from cloudra.tools.core.irc_path import (
 from cloudra.tools.core.irc_path import (
     prove_irc_endpoint_direction as _prove_irc_endpoint_direction,
 )
-from cloudra.tools.core.xtb_path_runner import DEFAULT_REFINEMENT_RUNS
+from cloudra.tools.core.topology_change import default_connectivity
+from cloudra.tools.core.xtb_path_runner import DEFAULT_REFINEMENT_RUNS, PathTermination
 
 KCAL_PER_HARTREE = 627.5095
 # 虚频模式与反应坐标：watch_pairs 中至少一对的相对位移须达全局最大相对位移的该比例。
@@ -143,7 +145,7 @@ class TsGuess_input_schema(input_schema):
     )
     watch_pairs: list[list[int]] = Field(
         default_factory=list,
-        description="interpolate: atom pairs to monitor distances; strict/verify: pairs used for direction proof and imaginary-mode alignment. "
+        description="interpolate/scan_parse: atom pairs to monitor distances; strict/verify: pairs used for direction proof and imaginary-mode alignment. "
                     "All 1-based; default auto-picks the 5 pairs with the largest distance change between TS and intermediates "
                     "(imaginary-mode alignment is skipped if not provided).",
     )
@@ -186,7 +188,7 @@ class TsGuess_input_schema(input_schema):
             "coupled coordinate (e.g. both the forming and the breaking bond) to see a barrier."
         )
     )
-    method: str = Field(default="b3lyp/def2svp", description="Method/basis, e.g. 'b3lyp/def2svp'. For exploratory scan_prepare, explicitly choose a permitted cheap method first (Gaussian PM7 if allowed, or ORCA GFN2-xTB if available and allowed); the B3LYP default is not a scan recommendation. Use DFT for a narrow follow-up scan or unconstrained TS refinement. Honor the project/session MethodPolicy first (benchmark easy/normal/hard defaults allow xtb, pm7, and b3lyp/def2svp; impossible remains xtb-only). For MLIP/external pass 'ExtOpt' (ORCA; pair with orca_blocks %method ProgExt) or 'external' (Gaussian; pair with extra_route='external=\"<prog>\"').")
+    method: Optional[str] = Field(default=None, description="scan_prepare requires an explicit method/basis. For exploratory PES scans, choose a MethodPolicy-permitted and available semiempirical method (Gaussian PM7 if allowed, or ORCA GFN2-xTB if available and allowed). Use DFT for a narrow follow-up scan or unconstrained TS refinement. For MLIP/external pass 'ExtOpt' (ORCA; pair with orca_blocks %method ProgExt) or 'external' (Gaussian; pair with extra_route='external=\"<prog>\"').")
     charge: int = Field(default=0, description="Total charge.")
     spin: int = Field(default=1, description="Spin multiplicity (2S+1).")
     extra_route: str = Field(default="", description="Extra route keywords (e.g. 'scrf=(solvent=water)' for Gaussian, or the external-program keyword for method='external').")
@@ -223,8 +225,8 @@ class TsGuess_output_schema(output_schema):
     message: str = Field(default="", description="Status or error message")
 
     # interpolate
-    images_dir: str = Field(default="", description="interpolate: image directory path")
-    distance_table: str = Field(default="", description="interpolate: per-frame distance text table")
+    images_dir: str = Field(default="", description="interpolate/xtb_path: image directory, or the retained run directory on an unsuccessful xTB path search")
+    distance_table: str = Field(default="", description="interpolate/scan_parse: per-frame observed distance text table; scan_parse marks missing or unaligned geometries explicitly")
     ts_candidate_index: Optional[int] = Field(default=None, description="TS candidate frame index (0-based)")
     # scan_parse 也复用 ts_candidate_path
     ts_candidate_path: str = Field(default="", description="TS-guess xyz path")
@@ -234,6 +236,10 @@ class TsGuess_output_schema(output_schema):
                     "xTB declared its convergence criterion met (the only state in which the TS "
                     "candidate is handed over); 'cycles_exhausted' = the refinement hit the "
                     "`refinement_runs` ceiling and the path is TRUNCATED, so is_success is False.",
+    )
+    path_termination_reason: Optional[PathTermination] = Field(
+        default=None,
+        description="xtb_path: overall runner outcome, separate from the engine's refinement marker.",
     )
     path_kind: Literal["", "xtb_path", "idpp_fallback"] = Field(
         default="",
@@ -249,6 +255,10 @@ class TsGuess_output_schema(output_schema):
 
     # scan_parse
     profile_table: str = Field(default="", description="scan_parse: per-point relative-energy text table (kcal/mol)")
+    scan_has_internal_peak: Optional[bool] = Field(
+        default=None,
+        description="scan_parse: whether an analyzed energy profile has an internal maximum; null when no reliable energy profile was parsed, independent of geometry availability.",
+    )
     verdicts: list[str] = Field(default_factory=list, description="scan_parse: profile verdicts")
     barrier_kcal: Optional[float] = Field(default=None, description="scan_parse: constrained-scan diagnostic only (highest point − first point, kcal/mol) — NOT a verified ΔE‡/ΔG‡; unconstrained OptTS + freq + IRC still required before any barrier claim")
     candidate: Optional[dict] = Field(
@@ -268,6 +278,10 @@ class TsGuess_output_schema(output_schema):
     verdict: str = Field(
         default="",
         description="verify: default candidate/unlikely/inconclusive; strict is pass/fail/inconclusive.",
+    )
+    verification_status: Literal["", "candidate", "pass", "fail", "inconclusive"] = Field(
+        default="",
+        description="verify: structured status from the verification branch; empty outside verify or when verification could not run.",
     )
     n_imag: Optional[int] = Field(default=None, description="verify: number of imaginary frequencies")
     imag_freqs: list[float] = Field(default_factory=list, description="verify: imaginary frequencies (cm⁻¹, negative)")
@@ -381,6 +395,96 @@ def _select_watch_pairs(symbols, d_start, d_end, watch_pairs) -> list[tuple[int,
     deltas = np.abs(d_end[iu] - d_start[iu])
     order = np.argsort(-deltas)[:5]
     return sorted({(int(iu[0][o]), int(iu[1][o])) for o in order})
+
+
+def _scan_geometry_report(energies, frames, watch_pairs):
+    """Observed distances and adjacent-frame connectivity; neither proves a reaction."""
+    import numpy as np
+
+    n = len(energies)
+    if not frames or len(frames) != n:
+        return (
+            "frame  geometry\n" + "\n".join(f"{i:>5}  unavailable/unmatched" for i in range(n)),
+            ["Scan geometries are unavailable or cannot be aligned one-to-one with energy points; "
+             "per-frame distances and connectivity changes were not inferred."],
+            None,
+        )
+    normalized = []
+    for frame in frames:
+        try:
+            normalized.append(None if frame is None else
+                              (frame[0], np.asarray(frame[1], dtype=float)))
+        except (TypeError, ValueError):
+            normalized.append(None)
+    frames = normalized
+    for i, frame in enumerate(frames):
+        if frame is not None:
+            syms, pos = frame
+            if pos.shape != (len(syms), 3) or not np.isfinite(pos).all():
+                frames[i] = None
+    valid = [(i, syms, pos) for i, frame in enumerate(frames)
+             if frame is not None for syms, pos in [frame]]
+    if not valid:
+        return (
+            "frame  geometry\n" + "\n".join(f"{i:>5}  unavailable" for i in range(n)),
+            ["No aligned scan geometry is available; per-frame distances and connectivity changes "
+             "were not inferred."],
+            None,
+        )
+    sequences = Counter(tuple(syms) for _, syms, _ in valid).most_common()
+    if len(sequences) > 1 and sequences[0][1] == sequences[1][1]:
+        return (
+            "frame  geometry\n" + "\n".join(f"{i:>5}  unavailable/unaligned" for i in range(n)),
+            ["Scan frames have conflicting atom sequences with no unique most frequent sequence; "
+             "distances and connectivity changes were not inferred."],
+            None,
+        )
+    ref_syms = list(sequences[0][0])
+    atom_count = len(ref_syms)
+    for i, syms, pos in valid:
+        if syms != ref_syms or pos.shape != (atom_count, 3):
+            frames[i] = None
+    valid = [(i, syms, pos) for i, frame in enumerate(frames)
+             if frame is not None for syms, pos in [frame]]
+    if watch_pairs:
+        pairs = _select_watch_pairs(ref_syms, None, None, watch_pairs)
+    elif len(valid) >= 2:
+        pairs = _select_watch_pairs(ref_syms, _dist_matrix(valid[0][2]),
+                                    _dist_matrix(valid[-1][2]), [])
+    else:
+        pairs = []
+    labels = [_pair_label(ref_syms, (i, j)) for i, j in pairs]
+    lines = ["frame  geometry" + ("  " + "  ".join(f"{label} (A)" for label in labels) if labels else "")]
+    for i, frame in enumerate(frames):
+        if frame is None:
+            lines.append(f"{i:>5}  unavailable/invalid")
+            continue
+        _, pos = frame
+        distances = [float(np.linalg.norm(pos[a] - pos[b])) for a, b in pairs]
+        lines.append(f"{i:>5}  observed" + "".join(f"  {d:.4f}" for d in distances))
+    connectivity = default_connectivity()
+    changes = []
+    for i in range(1, n):
+        before, after = frames[i - 1], frames[i]
+        if before is None or after is None:
+            changes.append(f"Frames {i - 1}->{i}: connectivity comparison unavailable (missing geometry).")
+            continue
+        previous = set(connectivity(before[0], before[1]))
+        current = set(connectivity(after[0], after[1]))
+        formed = sorted(current - previous)
+        broken = sorted(previous - current)
+        if formed or broken:
+            changes.append(
+                f"Frames {i - 1}->{i}: perceived connectivity formed "
+                f"{[_pair_label(ref_syms, pair) for pair in formed]}, "
+                f"broken {[_pair_label(ref_syms, pair) for pair in broken]}."
+            )
+    return "\n".join(lines), [
+        "Per-frame distances are observed geometry values. Adjacent-frame perceived connectivity "
+        "changes use the existing distance heuristic (including H); they do not prove bond "
+        "formation, a product identity, or chemical success.",
+        *changes,
+    ], ref_syms
 
 
 def _idpp_relax(images, max_iter: int = 4000, lr: float = 0.02, tol: float = 1e-7):
@@ -579,9 +683,10 @@ _ORCA_NAME_RE = re.compile(r"^\s*NAME\s*=\s*(?P<path>\S+)\s*$", re.M)
 class _SidecarIncomplete(Exception):
     """relaxscanact.dat 存在但逐帧几何缺失/不匹配：峰值帧严禁用末帧替代。"""
 
-    def __init__(self, message: str, energies: Optional[list] = None):
+    def __init__(self, message: str, energies: Optional[list] = None, frames: Optional[list] = None):
         super().__init__(message)
         self.energies = energies
+        self.frames = frames
 
 
 def _find_orca_sidecar_dat(log_path: str, workdir: str) -> Optional[str]:
@@ -616,7 +721,8 @@ def _parse_orca_relaxed_scan_sidecar(log_path: str) -> Optional[dict]:
     ORCA 沿作业名写 ``<job>.relaxscanact.dat``（每帧一行：扫描坐标值 + 总能量 Eh）
     与逐帧几何 ``<job>.NNN.xyz``（NNN=帧号，1-based，与 dat 行号一一对应）。
     返回 {"energies": [...], "frames": [(symbols, positions), ...]}，帧数必须与
-    dat 行数一致；任何缺失/不一致返回 None（调用方回退 .out 文本解析）。
+    dat 行数一致；缺帧/错位抛 _SidecarIncomplete，保留可对齐帧供诊断，
+    但不回退到 .out 文本猜测候选几何。
 
     能量最高帧（TS 候选）通常不是末帧；sidecar 让 scan_parse 能按能量最高帧
     而不是 ``rfind`` 出来的末帧取几何。
@@ -656,34 +762,31 @@ def _parse_orca_relaxed_scan_sidecar(log_path: str) -> Optional[dict]:
     frame_paths = sorted(
         glob.glob(os.path.join(workdir, f"{stem}.[0-9][0-9][0-9].xyz")),
     )
-    if len(frame_paths) != len(energies):
+    import ase.io
+
+    frames = [None] * len(energies)
+    unreadable = []
+    for p in frame_paths:
+        number = os.path.splitext(os.path.basename(p))[0].rsplit(".", 1)[-1]
+        index = int(number) - 1
+        if not 0 <= index < len(energies):
+            raise _SidecarIncomplete(
+                f"frame numbering next to {dat_path} is outside 1..{len(energies)} "
+                f"(offending file: {os.path.basename(p)}).", energies=energies, frames=frames,
+            )
+        try:
+            atoms = ase.io.read(p, format="xyz")
+            frames[index] = (atoms.get_chemical_symbols(), np.asarray(atoms.get_positions(), dtype=float))
+        except Exception as exc:
+            unreadable.append(f"{os.path.basename(p)}: {exc}")
+    if any(frame is None for frame in frames):
         raise _SidecarIncomplete(
             f"{dat_path} lists {len(energies)} scan points but only "
-            f"{len(frame_paths)} {stem}.NNN.xyz frame files exist next to it.",
-            energies=energies,
+            f"{sum(frame is not None for frame in frames)} readable, aligned "
+            f"{stem}.NNN.xyz frame files exist next to it. "
+            + (f"Unreadable: {'; '.join(unreadable)}." if unreadable else ""),
+            energies=energies, frames=frames,
         )
-    # 帧号必须 1..N 连续（NNN 与 dat 行号一一对应）；glob 排序按文件名即号码序
-    for i, p in enumerate(frame_paths):
-        number = os.path.splitext(os.path.basename(p))[0].rsplit(".", 1)[-1]
-        if not number.isdigit() or int(number) != i + 1:
-            raise _SidecarIncomplete(
-                f"frame numbering next to {dat_path} is not continuous 1..N "
-                f"(offending file: {os.path.basename(p)}).",
-                energies=energies,
-            )
-
-    try:
-        import ase.io
-
-        frames = []
-        for p in frame_paths:
-            atoms = ase.io.read(p, format="xyz")
-            frames.append((atoms.get_chemical_symbols(), np.asarray(atoms.get_positions(), dtype=float)))
-    except Exception as exc:
-        raise _SidecarIncomplete(
-            f"a scan frame file next to {dat_path} is unreadable: {exc}",
-            energies=energies,
-        ) from exc
     return {"energies": energies, "frames": frames}
 
 
@@ -1185,6 +1288,7 @@ class TsGuess(Tool):
         if run.termination_reason == "executable_missing":
             fallback = self._interpolate(user_input)
             fallback.path_kind = "idpp_fallback"
+            fallback.path_termination_reason = run.termination_reason
             fallback.message += (
                 "\nNOTE: the `xtb` executable was not found on PATH, so this path guess fell back "
                 f"to {user_input.interp_method.upper()} interpolation (path_kind='idpp_fallback'). "
@@ -1199,6 +1303,8 @@ class TsGuess(Tool):
                     is_success=False,
                     path_kind="",
                     refinement_termination=run.refinement_termination,
+                    path_termination_reason=run.termination_reason,
+                    images_dir=run.run_dir,
                     message=(
                         f"the xTB path refinement hit its {run.refinement_runs}-cycle ceiling "
                         "before the engine declared convergence, so no usable TS guess was "
@@ -1212,6 +1318,8 @@ class TsGuess(Tool):
                 is_success=False,
                 path_kind="",
                 refinement_termination=run.refinement_termination,
+                path_termination_reason=run.termination_reason,
+                images_dir=run.run_dir,
                 message=(
                     f"the xTB path search did not produce a usable guess (termination="
                     f"{run.termination_reason}, returncode={run.returncode}). No fallback was "
@@ -1255,6 +1363,7 @@ class TsGuess(Tool):
             is_success=True,
             path_kind="xtb_path",
             refinement_termination=run.refinement_termination,
+            path_termination_reason=run.termination_reason,
             images_dir=out_dir,
             distance_table=distance_table,
             ts_candidate_index=None,
@@ -1274,6 +1383,11 @@ class TsGuess(Tool):
     def _scan_prepare(self, user_input: TsGuess_input_schema) -> TsGuess_output_schema:
         import numpy as np
 
+        if not user_input.method or not user_input.method.strip():
+            raise ValueError(
+                "scan_prepare requires an explicit method. For exploratory PES scans, choose a "
+                "MethodPolicy-permitted and available semiempirical method."
+            )
         need = {"bond": 2, "angle": 3, "dihedral": 4}
         if not user_input.scans:
             raise ValueError("scan_prepare requires scans: at least one scanned coordinate")
@@ -1461,6 +1575,7 @@ class TsGuess(Tool):
 
         symbols: Optional[list[str]] = None
         ts_coords = None
+        scan_frames = None
         notes: list[str] = []
         candidate_source = ""
 
@@ -1486,12 +1601,13 @@ class TsGuess(Tool):
 
                     pt = PeriodicTable()
                     symbols = [pt.element[int(z)] for z in atomnos]
+                    scan_frames = [(symbols, np.asarray(coords, dtype=float)) for coords in scancoords]
                     ts_coords = np.asarray(scancoords[ts_index], dtype=float)
                     candidate_source = "gaussian_log:cclib_scancoords"
             except Exception as e:
                 notes.append(f"cclib geometry extraction failed ({e}); falling back to Standard orientation parsing.")
 
-            if ts_coords is None and 0 < ts_index < n_pts - 1:
+            if scan_frames is None:
                 blocks = gaussian_frames.std_orientation_frames(text)
                 if len(blocks) == n_pts:
                     # 块数与扫描点一一对应（每点恰一块）：峰值帧几何可靠可取
@@ -1500,19 +1616,29 @@ class TsGuess(Tool):
 
                     pt = PeriodicTable()
                     symbols = [pt.element[int(z)] for z, *_ in rows]
+                    scan_frames = [
+                        ([pt.element[int(z)] for z, *_ in block],
+                         np.asarray([[x, y, z] for _, x, y, z in block], dtype=float))
+                        for block in blocks
+                    ]
                     ts_coords = np.asarray([[x, y, z] for _, x, y, z in rows], dtype=float)
                     candidate_source = "gaussian_log:std_orientation"
-                else:
+                elif 0 < ts_index < n_pts - 1:
                     # 块数与扫描点无法一一对应：严禁按块均分猜峰值帧、也严禁拿
                     # 末块顶替（与 ORCA _ScanStepsUngroupable 同口径，GH #G1）。
                     lines = [f"{'frame':>4}  {'rel. energy (kcal/mol)':>18}"]
                     for k, e in enumerate(rel_kcal):
                         lines.append(f"{k:>4}  {e:>18.4f}")
+                    distance_table, geometry_verdicts, _ = _scan_geometry_report(
+                        energies_eh, None, user_input.watch_pairs,
+                    )
                     return TsGuess_output_schema(
                         is_success=True,
                         profile_table="\n".join(lines),
+                        scan_has_internal_peak=True,
+                        distance_table=distance_table,
                         verdicts=[
-                            *profile["verdicts"], *notes,
+                            *profile["verdicts"], *notes, *geometry_verdicts,
                             f"The log has {len(blocks)} 'Standard orientation' blocks for {n_pts} "
                             "scan points, so the blocks cannot be aligned to scan points one-to-one. "
                             "The peak-frame geometry was NOT derived by equal-split block division "
@@ -1544,24 +1670,32 @@ class TsGuess(Tool):
                     rel_kcal = [(e - e0) * KCAL_PER_HARTREE for e in energies_eh]
                     profile = analyze_scan_profile(rel_kcal)
                     peak = profile["ts_index"]
+                    distance_table, geometry_verdicts, _ = _scan_geometry_report(
+                        energies_eh, exc.frames, user_input.watch_pairs,
+                    )
                     lines = [f"{'frame':>4}  {'rel. energy (kcal/mol)':>18}"]
                     for k, e in enumerate(rel_kcal):
                         lines.append(f"{k:>4}  {e:>18.4f}")
                     return TsGuess_output_schema(
                         is_success=True,
                         profile_table="\n".join(lines),
+                        scan_has_internal_peak=0 < peak < len(rel_kcal) - 1,
+                        distance_table=distance_table,
                         verdicts=[
+                            *geometry_verdicts,
                             f"Scan sidecar is incomplete: {exc}",
-                            f"The energy-maximum frame is {peak} (1-based {peak + 1}) but its "
-                            "geometry is unavailable; the last frame was NOT substituted. "
-                            "Re-run or recover the missing per-frame xyz before extracting a TS guess.",
+                            f"The energy-maximum frame is {peak} (1-based {peak + 1}), but the "
+                            "sidecar frame sequence is incomplete; the candidate was withheld and "
+                            "the last frame was NOT substituted. Re-run or recover the missing "
+                            "per-frame xyz before extracting a TS guess.",
                         ],
                         barrier_kcal=None,  # 拒发候选（峰值帧不可得）时不报 barrier（G4）
                         candidate=None,
                         candidate_unavailable=True,
                         message=(
-                            "Scan profile parsed, but the TS-candidate geometry is unavailable: "
-                            f"{exc}. The energy-maximum frame was not replaced by any other frame."
+                            "Scan profile parsed, but the sidecar frame sequence is incomplete, "
+                            f"so the TS candidate was withheld: {exc} The peak was not replaced "
+                            "by another frame."
                         ),
                     )
                 return TsGuess_output_schema(
@@ -1583,6 +1717,7 @@ class TsGuess(Tool):
                 ts_index = profile["ts_index"]
                 frame_symbols, ts_coords = sidecar["frames"][ts_index]
                 symbols = frame_symbols
+                scan_frames = sidecar["frames"]
                 candidate_source = "orca_relaxed_scan_sidecar"
             elif text is not None:
                 try:
@@ -1605,6 +1740,11 @@ class TsGuess(Tool):
                     )
                 energies_eh = [s["energy_hartree"] for s in steps]
                 step_geoms = [s["geom"] for s in steps]
+                scan_frames = [
+                    ([row[0] for row in geom],
+                     np.asarray([[row[1], row[2], row[3]] for row in geom], dtype=float))
+                    for geom in step_geoms
+                ]
                 e0 = energies_eh[0]
                 rel_kcal = [(e - e0) * KCAL_PER_HARTREE for e in energies_eh]
                 profile = analyze_scan_profile(rel_kcal)
@@ -1634,6 +1774,27 @@ class TsGuess(Tool):
             marker = "  <- internal peak (TS guess)" if has_internal_peak and k == ts_index else ""
             lines.append(f"{k:>4}  {e:>18.4f}{marker}")
         profile_table = "\n".join(lines)
+        distance_table, geometry_verdicts, reference_symbols = _scan_geometry_report(
+            energies_eh, scan_frames, user_input.watch_pairs,
+        )
+        if has_internal_peak:
+            candidate_coords = np.asarray(ts_coords, dtype=float) if ts_coords is not None else None
+            if (symbols is None or reference_symbols is None or symbols != reference_symbols
+                    or candidate_coords is None
+                    or candidate_coords.shape != (len(symbols), 3)
+                    or not np.isfinite(candidate_coords).all()):
+                return TsGuess_output_schema(
+                    is_success=True,
+                    profile_table=profile_table,
+                    scan_has_internal_peak=True,
+                    distance_table=distance_table,
+                    verdicts=[*profile["verdicts"], *notes, *geometry_verdicts,
+                              "The internal energy peak has no trustworthy aligned geometry; "
+                              "no TS candidate was written or substituted."],
+                    candidate_unavailable=True,
+                    message="Scan profile parsed, but the peak geometry is invalid or unavailable; "
+                            "no TS candidate was written.",
+                )
 
         # 候选来源注释只在真正发出 TS-guess（内部峰存在）时追加；无内部峰/拒发时
         # 不得声称 "TS-guess geometry is ..."（G4，避免与拒发 verdict 自相矛盾）。
@@ -1651,7 +1812,7 @@ class TsGuess(Tool):
                     f"{ts_index} (1-based {ts_index + 1}), not the last frame."
                 )
 
-        verdicts = list(profile["verdicts"]) + notes
+        verdicts = list(profile["verdicts"]) + notes + geometry_verdicts
         if not has_internal_peak:
             verdicts.append(
                 "The scan has no internal energy peak (the maximum sits on a scan endpoint or the "
@@ -1700,6 +1861,8 @@ class TsGuess(Tool):
         return TsGuess_output_schema(
             is_success=True,
             profile_table=profile_table,
+            scan_has_internal_peak=has_internal_peak,
+            distance_table=distance_table,
             verdicts=verdicts,
             # G4：只有存在内部峰（确实发出 TS 候选）时才填 barrier；端点极大/单调
             # 剖面（无内部峰）的 "最高点−首点" 不是能垒，置 None。
@@ -1749,6 +1912,7 @@ class TsGuess(Tool):
             if not freq["converged"]:
                 checks.append("The frequency job did not converge normally; the first-order saddle-point premise cannot be established.")
                 verdict = "inconclusive: the frequency job did not converge normally; the available material is insufficient for a strict judgement."
+                status = "inconclusive"
             elif n_imag != 1:
                 if n_imag == 0:
                     checks.append("A normally terminated frequency job has no imaginary frequency: the structure is a minimum, not a first-order saddle point.")
@@ -1758,6 +1922,7 @@ class TsGuess(Tool):
                         f"({', '.join(f'{f:.1f}' for f in imag)} cm⁻¹): the structure is a higher-order saddle point."
                     )
                 verdict = "fail: the strict check requires exactly one imaginary frequency."
+                status = "fail"
             else:
                 checks.append(f"Exactly 1 imaginary frequency ({imag[0]:.1f} cm⁻¹): the first-order saddle-point premise holds.")
                 mode = _record_mode_alignment()
@@ -1765,15 +1930,18 @@ class TsGuess(Tool):
                     verdict = (
                         "inconclusive: the frequency log lacks normal-mode displacements; cannot check the imaginary-frequency direction."
                     )
+                    status = "inconclusive"
                 elif mode["status"] == "undecidable":
                     verdict = (
                         "inconclusive: the imaginary mode is dominated by non-bonded-pair "
                         "(torsion/angle) motion; pair-distance alignment cannot judge its direction."
                     )
+                    status = "inconclusive"
                 elif mode["status"] == "misaligned":
                     verdict = "fail: the imaginary mode is inconsistent with the declared reaction coordinate."
+                    status = "fail"
                 else:
-                    verdict, info = self._strict_path_verdict(user_input, freq, checks)
+                    status, verdict, info = self._strict_path_verdict(user_input, freq, checks)
                     if info is not None:
                         irc_end_a_path = info["path_a"]
                         irc_end_b_path = info["path_b"]
@@ -1781,15 +1949,18 @@ class TsGuess(Tool):
             if not freq["converged"]:
                 checks.append("The frequency job did not converge normally; cannot judge the TS candidate from it.")
                 verdict = "inconclusive: the frequency job did not converge normally."
+                status = "inconclusive"
             elif n_imag == 0:
                 checks.append("No imaginary frequency: the structure is a minimum, not like a first-order saddle point.")
                 verdict = "unlikely: no imaginary frequency; the structure looks more like a minimum."
+                status = "fail"
             elif n_imag > 1:
                 checks.append(
                     f"{n_imag} imaginary frequencies ({', '.join(f'{f:.1f}' for f in imag)} cm⁻¹): "
                     "the structure looks more like a higher-order saddle point."
                 )
                 verdict = "unlikely: multiple imaginary frequencies; the structure looks more like a higher-order saddle point."
+                status = "fail"
             else:
                 checks.append(
                     f"Exactly 1 imaginary frequency ({imag[0]:.1f} cm⁻¹): acceptable as a first-order saddle-point candidate, but this is not sufficient proof."
@@ -1806,20 +1977,25 @@ class TsGuess(Tool):
 
                 if user_input.irc_log and info is None:
                     verdict = "inconclusive: IRC was provided, but comparable endpoint geometries could not be obtained."
+                    status = "inconclusive"
                 elif irc_ok is False:
                     verdict = "unlikely: the rough connectivity of the IRC endpoints is inconsistent with the expected structures."
+                    status = "fail"
                 elif irc_ok == "inconclusive":
                     verdict = (
                         "inconclusive: the IRC endpoints could not be compared with the expected "
                         "structures (atom order or element mismatch); connectivity is undecidable."
                     )
+                    status = "inconclusive"
                 else:
                     reason = "one imaginary frequency" + ("; rough IRC connectivity consistent" if irc_ok else "")
                     verdict = f"candidate: {reason}; advisory only for the agent's next step, not a strict proof of the TS."
+                    status = "candidate"
 
         return TsGuess_output_schema(
             is_success=True,
             verdict=verdict,
+            verification_status=status,
             n_imag=n_imag,
             imag_freqs=[round(f, 2) for f in imag],
             checks=checks,
@@ -1959,7 +2135,7 @@ class TsGuess(Tool):
         }
 
     def _strict_path_verdict(self, user_input: TsGuess_input_schema, freq: dict,
-                             checks: list[str]) -> tuple[str, Optional[dict]]:
+                             checks: list[str]) -> tuple[str, str, Optional[dict]]:
         """证明两个部分 IRC 端点分别位于 TS 与两个端点参考几何之间。"""
         import ase.io
         import numpy as np
@@ -1973,11 +2149,11 @@ class TsGuess(Tool):
         has_intermediate_b = bool(user_input.product_path or user_input.product_text)
         if not (has_intermediate_a and has_intermediate_b):
             checks.append("strict requires reference structures for both endpoint species.")
-            return _non_pass("inconclusive: missing the two endpoint reference structures."), None
+            return "inconclusive", _non_pass("inconclusive: missing the two endpoint reference structures."), None
 
         info = self._extract_irc_endpoints(user_input, checks, require_two_sides=True)
         if info is None:
-            return _non_pass("inconclusive: no usable bidirectional IRC endpoints."), None
+            return "inconclusive", _non_pass("inconclusive: no usable bidirectional IRC endpoints."), None
 
         try:
             end_a_atoms = ase.io.read(StringIO(info["end_a"].xyz), format="xyz")
@@ -1986,7 +2162,7 @@ class TsGuess(Tool):
             intermediate_b = _load_xyz(user_input.product_path, user_input.product_text)
         except Exception as e:
             checks.append(f"Endpoint or optimized-intermediate structures could not be parsed: {e}")
-            return "inconclusive: the structure material could not be parsed.", info
+            return "inconclusive", "inconclusive: the structure material could not be parsed.", info
 
         ts_symbols = freq.get("symbols")
         ts_positions = freq.get("positions")
@@ -2002,7 +2178,7 @@ class TsGuess(Tool):
                 checks.append("The frequency log gave no TS geometry; using the IRC rx=0 frame instead.")
             else:
                 checks.append("Neither the frequency log nor the IRC provides a usable TS geometry.")
-                return _non_pass("inconclusive: missing TS geometry."), info
+                return "inconclusive", _non_pass("inconclusive: missing TS geometry."), info
 
         # 原子对应：元素多重集必须一致（原子数不等进不了这一层），但不要求
         # 原子序相同——任意原子序的几何经距离指纹 + Hungarian 指派重排进
@@ -2025,7 +2201,7 @@ class TsGuess(Tool):
         ):
             checks.append(f"{label} aligned to TS atom order (distance-matrix geometry recorded).")
         if not assignment.get("is_decidable") and not assignment.get("details"):
-            return "inconclusive: the structures could not be aligned.", info
+            return "inconclusive", "inconclusive: the structures could not be aligned.", info
         checks.extend(assignment["details"])
 
         # 唯一自动通过通道：几何区间证明——要求两条外侧帧各落在 TS 与配对
@@ -2041,6 +2217,7 @@ class TsGuess(Tool):
                 if n_warnings else ""
             )
             return (
+                "pass",
                 "pass: the bidirectional path of the partial IRC is consistent with the two endpoint reference geometries"
                 + warning_note
                 + "; this conclusion only proves path direction and does not make the TS absolutely correct in every chemical sense.",
@@ -2048,10 +2225,10 @@ class TsGuess(Tool):
             )
         if not assignment["is_decidable"]:
             checks.append("The selected atom pairs are insufficient to judge the direction of the IRC endpoints relative to the TS and the intermediates.")
-            return _non_pass("inconclusive: missing geometric changes large enough to judge direction."), info
+            return "inconclusive", _non_pass("inconclusive: missing geometric changes large enough to judge direction."), info
         if not assignment["is_match"]:
             checks.append("At least one IRC outer frame does not lie between the TS and any pairable endpoint reference geometry.")
-            return _non_pass("fail: the path direction of the partial IRC is inconsistent with the endpoint reference geometries."), info
+            return "fail", _non_pass("fail: the path direction of the partial IRC is inconsistent with the endpoint reference geometries."), info
 
     @staticmethod
     def _check_irc_connectivity(user_input: TsGuess_input_schema, end_a, end_b,

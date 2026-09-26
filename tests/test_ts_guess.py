@@ -397,6 +397,7 @@ async def test_scan_prepare_rejects_mol_path_with_xyz_guidance(tmp_path, mock_se
 
     result = await _make_tool().safe_call(TsGuess_input_schema(
         mode="scan_prepare",
+        method="b3lyp/def2svp",
         input_path=str(source),
         engine="orca",
         scans=[{"coord_type": "bond", "atoms": [1, 2], "scan_end": 2.0, "scan_steps": 8}],
@@ -417,6 +418,7 @@ async def test_scan_prepare_gaussian(tmp_path, mock_session):
     out = tmp_path / "scan.gjf"
     result = await tool.safe_call(TsGuess_input_schema(**{
         "mode": "scan_prepare",
+        "method": "b3lyp/def2svp",
         "input_text": _WATER_XYZ,
         "engine": "gaussian",
         "scans": [{
@@ -454,6 +456,7 @@ async def test_scan_prepare_gaussian_two_coupled_coordinates(tmp_path, mock_sess
     out = tmp_path / "scan2d.gjf"
     result = await tool.safe_call(TsGuess_input_schema(**{
         "mode": "scan_prepare",
+        "method": "b3lyp/def2svp",
         "input_text": _WATER_XYZ,
         "engine": "gaussian",
         "scans": [
@@ -479,6 +482,7 @@ async def test_scan_prepare_orca(tmp_path, mock_session):
     out = tmp_path / "scan.inp"
     result = await tool.safe_call(TsGuess_input_schema(**{
         "mode": "scan_prepare",
+        "method": "b3lyp/def2svp",
         "input_text": _WATER_XYZ,
         "engine": "orca",
         "scans": [{
@@ -541,6 +545,7 @@ async def test_scan_prepare_rejects_multi_coord_on_orca(tmp_path, mock_session):
     tool = _make_tool()
     result = await tool.safe_call(TsGuess_input_schema(**{
         "mode": "scan_prepare",
+        "method": "b3lyp/def2svp",
         "input_text": _WATER_XYZ,
         "engine": "orca",
         "scans": [
@@ -559,6 +564,7 @@ async def test_scan_prepare_atoms_validation(tmp_path, mock_session):
     tool = _make_tool()
     result = await tool.safe_call(TsGuess_input_schema(**{
         "mode": "scan_prepare",
+        "method": "b3lyp/def2svp",
         "input_text": _WATER_XYZ,
         "scans": [{
             "coord_type": "dihedral",
@@ -570,6 +576,39 @@ async def test_scan_prepare_atoms_validation(tmp_path, mock_session):
     }), mock_session)
     assert not result.is_success
     assert "4 atom indices" in result.message
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode,method", [
+    ("scan_prepare", None), ("scan_prepare", ""),
+    ("scan_prepare", "  "), ("scan", None),
+])
+async def test_scan_prepare_requires_explicit_method(tmp_path, mock_session, mode, method):
+    out = tmp_path / "scan.gjf"
+    args = {
+        "mode": mode,
+        "input_text": _WATER_XYZ,
+        "scans": [{"coord_type": "bond", "atoms": [1, 2], "scan_end": 2.0,
+                   "scan_steps": 5}],
+        "output_path": str(out),
+    }
+    if method is not None:
+        args["method"] = method
+    result = await _make_tool().safe_call(TsGuess_input_schema(**args), mock_session)
+    assert not result.is_success
+    assert "explicit method" in result.message
+    assert not out.exists()
+
+
+@pytest.mark.asyncio
+async def test_scan_prepare_explicit_null_method_rejected(tmp_path, mock_session):
+    result = await _make_tool().safe_call(TsGuess_input_schema(**{
+        "mode": "scan_prepare", "method": None, "input_text": _WATER_XYZ,
+        "scans": [{"atoms": [1, 2], "scan_end": 2.0, "scan_steps": 5}],
+        "output_path": str(tmp_path / "scan.gjf"),
+    }), mock_session)
+    assert not result.is_success
+    assert "explicit method" in result.message
 
 
 # ---------------------------------------------------------------------------
@@ -597,6 +636,8 @@ async def test_scan_parse_h2_fixture(tmp_path, mock_session):
     }), mock_session)
 
     assert result.is_success, result.message
+    assert result.scan_has_internal_peak is False
+
 
     # 剖面长度：101 个点 + 表头
     rows = result.profile_table.strip().splitlines()
@@ -623,6 +664,17 @@ async def test_scan_parse_h2_fixture(tmp_path, mock_session):
     assert "NOT a TS candidate" in result.message
     # profile 表不标 TS guess
     assert "TS guess" not in result.profile_table
+
+
+@pytest.mark.asyncio
+async def test_scan_parse_missing_energy_profile_has_unknown_peak_status(tmp_path, mock_session):
+    log = tmp_path / "unparseable_scan.log"
+    log.write_text("The scan did not produce a potential surface summary.\n")
+    result = await _make_tool().safe_call(TsGuess_input_schema(**{
+        "mode": "scan_parse", "engine": "gaussian", "log_path": str(log),
+    }), mock_session)
+    assert not result.is_success
+    assert result.scan_has_internal_peak is None
 
 
 # ---------------------------------------------------------------------------
@@ -756,6 +808,7 @@ async def test_verify_ts_positive(tmp_path, mock_session):
     assert result.n_imag == 1
     assert result.imag_freqs == [pytest.approx(-915.34, abs=0.01)]
     assert result.verdict.startswith("candidate")
+    assert result.verification_status == "candidate"
     assert any("1 imaginary frequency" in c for c in result.checks)
     assert any("connectivity is consistent" in c for c in result.checks)
 
@@ -778,6 +831,7 @@ async def test_verify_minimum_negative(tmp_path, mock_session):
     assert result.n_imag == 0
     assert result.imag_freqs == []
     assert result.verdict.startswith("unlikely")
+    assert result.verification_status == "fail"
     assert any("minimum" in c for c in result.checks)
 
 
@@ -843,6 +897,7 @@ async def test_verify_strict_accepts_partial_irc_between_ts_and_intermediates(tm
 
     assert result.is_success, result.message
     assert result.verdict.startswith("pass")
+    assert result.verification_status == "pass"
     assert any("intermediate" in check for check in result.checks)
     assert result.irc_end_a_path and result.irc_end_b_path
 
@@ -864,6 +919,7 @@ async def test_verify_strict_without_optimized_intermediates_is_inconclusive(tmp
 
     assert result.is_success, result.message
     assert result.verdict.startswith("inconclusive")
+    assert result.verification_status == "inconclusive"
 
 
 @pytest.mark.asyncio
@@ -886,6 +942,7 @@ async def test_verify_strict_rejects_wrong_intermediate_pair(tmp_path, mock_sess
 
     assert result.is_success, result.message
     assert result.verdict.startswith("fail")
+    assert result.verification_status == "fail"
 
 
 @pytest.mark.asyncio
@@ -1025,6 +1082,7 @@ async def test_verify_strict_missing_vibdisps_is_inconclusive(tmp_path, mock_ses
 
     assert result.is_success, result.message
     assert result.verdict.startswith("inconclusive")
+    assert result.verification_status == "inconclusive"
     assert any("normal-mode displacements" in check for check in result.checks)
     assert result.imag_mode_aligned is None
 
@@ -1047,6 +1105,7 @@ async def test_verify_non_strict_reports_mode_alignment_without_changing_verdict
 
     assert result.is_success, result.message
     assert result.verdict.startswith("candidate")
+    assert result.verification_status == "candidate"
     assert any("imaginary mode" in check or "reaction coordinate" in check for check in result.checks)
     assert result.imag_mode_aligned is False
 
@@ -1119,6 +1178,7 @@ async def test_scan_parse_orca_sidecar_picks_energy_max_frame(tmp_path, mock_ses
     }), mock_session)
 
     assert result.is_success, result.message
+    assert result.scan_has_internal_peak is True
     assert result.ts_candidate_index == 9
     guess = Path(result.ts_candidate_path)
     assert guess.exists()
@@ -1161,6 +1221,62 @@ async def test_scan_parse_orca_sidecar_monotonic_profile_max_at_last_frame(tmp_p
     # G4：无内部峰时 barrier_kcal 置 None，且不得声称 "TS-guess geometry is ..."
     assert result.barrier_kcal is None
     assert not any("TS-guess geometry" in v for v in result.verdicts)
+
+
+def _write_h2_scan_sidecar(tmp_path, missing=None):
+    dat = tmp_path / "h2.relaxscanact.dat"
+    dat.write_text("0.70 -1.0\n1.00 -0.9\n1.40 -0.8\n", encoding="utf-8")
+    for number, distance in enumerate((0.70, 1.00, 1.40), start=1):
+        if number != missing:
+            (tmp_path / f"h2.{number:03d}.xyz").write_text(
+                f"2\nframe {number}\nH 0 0 0\nH 0 0 {distance}\n", encoding="utf-8",
+            )
+
+
+@pytest.mark.asyncio
+async def test_scan_parse_no_peak_reports_h_distances_and_heuristic_change(tmp_path, mock_session):
+    _write_h2_scan_sidecar(tmp_path)
+    result = await _make_tool().safe_call(TsGuess_input_schema(**{
+        "mode": "scan_parse", "engine": "orca", "log_path": str(tmp_path / "h2.out"),
+        "watch_pairs": [[1, 2]],
+    }), mock_session)
+    assert result.is_success, result.message
+    assert result.candidate is None
+    assert result.barrier_kcal is None
+    assert "H1-H2" in result.distance_table
+    assert "0  observed  0.7000" in result.distance_table
+    assert "2  observed  1.4000" in result.distance_table
+    assert any("Frames 0->1: perceived connectivity" in v and "H1-H2" in v
+               for v in result.verdicts)
+    assert any("do not prove" in v for v in result.verdicts)
+
+
+@pytest.mark.asyncio
+async def test_scan_parse_missing_middle_frame_has_no_bridged_topology(tmp_path, mock_session):
+    _write_h2_scan_sidecar(tmp_path, missing=2)
+    result = await _make_tool().safe_call(TsGuess_input_schema(**{
+        "mode": "scan_parse", "engine": "orca", "log_path": str(tmp_path / "h2.out"),
+        "watch_pairs": [[1, 2]],
+    }), mock_session)
+    assert result.is_success, result.message
+    assert result.candidate_unavailable
+    assert "1  unavailable/invalid" in result.distance_table
+    assert "2  observed  1.4000" in result.distance_table
+    assert any("Frames 0->1: connectivity comparison unavailable" in v for v in result.verdicts)
+    assert any("Frames 1->2: connectivity comparison unavailable" in v for v in result.verdicts)
+    assert not any("perceived connectivity formed" in v for v in result.verdicts)
+    assert not list(tmp_path.glob("*_ts_guess.xyz"))
+
+
+@pytest.mark.asyncio
+async def test_scan_parse_rejects_invalid_watch_pair(tmp_path, mock_session):
+    _write_h2_scan_sidecar(tmp_path)
+    result = await _make_tool().safe_call(TsGuess_input_schema(**{
+        "mode": "scan_parse", "engine": "orca", "log_path": str(tmp_path / "h2.out"),
+        "watch_pairs": [[1, 3]],
+    }), mock_session)
+    assert not result.is_success
+    assert "out of range" in result.message
 
 
 # ---------------------------------------------------------------------------
@@ -1361,12 +1477,39 @@ async def test_scan_parse_missing_peak_frame_never_substitutes_last_frame(tmp_pa
     }), mock_session)
 
     assert result.is_success, result.message  # 剖面仍可读，但候选不可得
+    assert result.scan_has_internal_peak is True
     assert result.candidate is None
     assert result.candidate_unavailable is True
     assert not result.ts_candidate_path
     assert "NOT" in result.message or "not replaced" in result.message
     # 不得有任何用其它帧写出的 TS-guess 几何
     assert not list(tmp_path.glob("*_ts_guess.xyz"))
+    assert "9  unavailable/invalid" in result.distance_table
+    assert "10  observed" in result.distance_table
+    assert any("Frames 8->9: connectivity comparison unavailable" in v for v in result.verdicts)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad_frame,expect_candidate", [(1, True), (15, True), (10, False)])
+async def test_scan_parse_misaligned_frame_preserves_only_trustworthy_peak(
+        tmp_path, mock_session, bad_frame, expect_candidate):
+    _copy_scan_fixture_with_peak(tmp_path)
+    path = tmp_path / f"ts_scan.{bad_frame:03d}.xyz"
+    lines = path.read_text(encoding="utf-8").splitlines()
+    fields = lines[2].split()
+    fields[0] = "He" if fields[0] != "He" else "Ne"
+    lines[2] = "  ".join(fields)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    result = await _make_tool().safe_call(TsGuess_input_schema(**{
+        "mode": "scan_parse", "engine": "orca",
+        "log_path": str(tmp_path / "ts_scan.out"),
+    }), mock_session)
+    assert result.is_success, result.message
+    assert any(line.split() == [str(bad_frame - 1), "unavailable/invalid"]
+               for line in result.distance_table.splitlines())
+    assert (result.candidate is not None) is expect_candidate
+    assert result.candidate_unavailable is (not expect_candidate)
+    assert bool(list(tmp_path.glob("*_ts_guess.xyz"))) is expect_candidate
 
 
 @pytest.mark.asyncio
@@ -1377,6 +1520,7 @@ async def test_scan_prepare_gaussian_scan_start_mismatch_rejected(tmp_path, mock
     out = tmp_path / "scan.gjf"
     result = await tool.safe_call(TsGuess_input_schema(**{
         "mode": "scan_prepare",
+        "method": "b3lyp/def2svp",
         "input_text": _WATER_XYZ,
         "engine": "gaussian",
         "scans": [{
@@ -1404,6 +1548,7 @@ async def test_scan_prepare_gaussian_scan_start_matching_current_accepted(tmp_pa
     current = _math.dist((0.0, 0.0, 0.1173), (0.0, 0.7572, -0.4692))
     result = await tool.safe_call(TsGuess_input_schema(**{
         "mode": "scan_prepare",
+        "method": "b3lyp/def2svp",
         "input_text": _WATER_XYZ,
         "engine": "gaussian",
         "scans": [{
@@ -1725,6 +1870,7 @@ async def test_ts_guess_mode_aliases(tmp_path, mock_session):
     out_gjf = tmp_path / "scan.gjf"
     res_prep = await tool.safe_call(TsGuess_input_schema(**{
         "mode": "scan",
+        "method": "b3lyp/def2svp",
         "input_text": _R_XYZ,
         "scans": [{"coord_type": "bond", "atoms": [1, 2], "scan_end": 2.0, "scan_steps": 5}],
         "output_path": str(out_gjf),
@@ -1759,6 +1905,10 @@ def frame(energy):
 
 
 if mode == "fail":
+    print("bad things happened")
+    sys.exit(3)
+if mode == "fail_with_cycles":
+    print("terminated because max. # cycles reached")
     print("bad things happened")
     sys.exit(3)
 
@@ -1812,6 +1962,7 @@ async def test_guess_defaults_to_xtb_path_and_reports_path_kind(fake_xtb_for_ts,
     assert res.is_success, res.message
     assert res.path_kind == "xtb_path"
     assert res.refinement_termination == "converged"
+    assert res.path_termination_reason == "completed"
     assert res.images_dir == str(out_dir)
     assert res.ts_candidate_path and Path(res.ts_candidate_path).is_file()
     # 路径帧落盘
@@ -1859,6 +2010,10 @@ async def test_truncated_path_refinement_is_reported_with_the_remedy(
     }), mock_session)
     assert not res.is_success
     assert res.refinement_termination == "cycles_exhausted"
+    assert res.path_termination_reason == "path_not_converged"
+    assert Path(res.images_dir).is_dir()
+    assert Path(res.images_dir) != out_dir
+    assert Path(res.images_dir).is_relative_to(out_dir)
     assert res.path_kind == ""
     assert "refinement_runs" in res.message
     assert "truncated" in res.message.lower()
@@ -1877,6 +2032,21 @@ async def test_xtb_failure_is_reported_not_silently_replaced(fake_xtb_for_ts, tm
     assert res.path_kind == ""
     assert "xtb" in res.message.lower()
     assert "bad things happened" in res.message or "failed" in res.message.lower()
+
+
+@pytest.mark.asyncio
+async def test_xtb_cycles_marker_with_failed_process_is_not_path_nonconvergence(
+    fake_xtb_for_ts, tmp_path, mock_session,
+):
+    fake_xtb_for_ts("fail_with_cycles")
+    res = await _make_tool().safe_call(TsGuess_input_schema(**{
+        "mode": "xtb_path", "reactant_text": _R_XYZ, "product_text": _P_XYZ,
+        "output_dir": str(tmp_path / "guess_failed_with_marker"),
+    }), mock_session)
+    assert not res.is_success
+    assert res.refinement_termination == "cycles_exhausted"
+    assert res.path_termination_reason == "failed"
+    assert Path(res.images_dir).is_dir()
 
 
 def test_legacy_xtb_neb_alias_is_gone():
@@ -2239,6 +2409,26 @@ def _gaussian_scan_log(n_block_rs: list[float]) -> str:
 
 
 @pytest.mark.asyncio
+async def test_scan_parse_gaussian_no_peak_still_reports_distances(tmp_path, mock_session, monkeypatch):
+    monkeypatch.setattr("cclib.io.ccread", lambda *a, **_kw: None)
+    log = tmp_path / "scan.log"
+    log.write_text(_gaussian_scan_log([0.70, 1.00, 1.40]).replace(
+        "-100.00000  -99.99000  -100.00000",
+        "-100.00000  -99.99000  -99.98000",
+    ), encoding="utf-8")
+    result = await _make_tool().safe_call(TsGuess_input_schema(**{
+        "mode": "scan_parse", "engine": "gaussian", "log_path": str(log),
+        "watch_pairs": [[1, 2]],
+    }), mock_session)
+    assert result.is_success, result.message
+    assert result.candidate is None
+    assert "H1-H2" in result.distance_table
+    assert "0  observed  0.7000" in result.distance_table
+    assert "2  observed  1.4000" in result.distance_table
+    assert any("Frames 0->1: perceived connectivity" in v for v in result.verdicts)
+
+
+@pytest.mark.asyncio
 async def test_scan_parse_gaussian_ungroupable_blocks_refuses_candidate(tmp_path, mock_session, monkeypatch):
     """cclib 取不到 scancoords 且块数≠点数（2 块对 3 点）：严禁按块均分或
     拿末块顶替——candidate_unavailable=True，拒发几何（与 ORCA 同口径，GH #G1）。"""
@@ -2257,6 +2447,7 @@ async def test_scan_parse_gaussian_ungroupable_blocks_refuses_candidate(tmp_path
 
     assert result.is_success, result.message
     assert result.candidate_unavailable is True
+    assert result.scan_has_internal_peak is True
     assert result.candidate is None
     assert result.ts_candidate_path == ""
     assert result.barrier_kcal is None
@@ -2503,4 +2694,3 @@ async def test_ts_guess_unknown_mode_fuzzy_suggestion(mock_session):
     assert res.is_success is False
     assert "Did you mean 'interpolate'?" in res.message
     assert "Allowed modes:" in res.message
-

@@ -138,10 +138,9 @@ class MethodPolicyConfig(BaseSettings):
     改这里之后必须重跑 gen_*_tasks.py 重新生成题集；regenerate-identically 守卫
     会核对题集与本配置的默认值一致（测试环境走默认值）。
     """
-    # easy/normal/hard 档共用（组合条目把基组钉进许可）
+    # 四档共用（组合条目把基组钉进许可）
     allowed_methods: list[str] = Field(default_factory=lambda: ["xtb", "pm7", "b3lyp/def2svp"])
-    # impossible 档保持 xtb-only
-    allowed_methods_impossible: list[str] = Field(default_factory=lambda: ["xtb"])
+    allowed_methods_impossible: list[str] = Field(default_factory=lambda: ["xtb", "pm7", "b3lyp/def2svp"])
 
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
 

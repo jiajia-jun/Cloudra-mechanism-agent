@@ -295,6 +295,7 @@ def _build_graph(tid: str, entry: dict) -> GoldMechanismGraph:
                 via=via,
                 step_type=step["type"],
                 bond_changes=BondChangeSet(**{"break": breaks}, form=forms),
+                barrier_kcal_mol=step.get("barrier"),
             )
         )
         nodes.append(node)

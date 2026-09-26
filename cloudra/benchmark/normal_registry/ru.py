@@ -4,7 +4,7 @@ U3 磷叶立德+甲醛、U5 Passerini、U6 Staudinger。
 v3（2026-09-09）收窄为四条多步/中间体网络；R2/R3/U1/U7 剔出定稿名单留档池
 （条目见 normal.md）。v4（2026-09-25）换血：R4/U8 入正选替 A5/O3 槽——两条
 构建期各边暂不写 barrier；R4 第 2 步已回填自算参考垒。U8 于 2026-09-26
-移入 impossible B9。竞争通道（R1 分步碳正离子路径、U6 协同 [2+2]、
+移入 impossible B9。竞争通道（U6 协同 [2+2]、
 R4 协同 Wolff 通道与 oxirene 等）
 按 normal.md 约定不进 gold，由 agent 自行探索。
 """
@@ -22,14 +22,17 @@ TASKS = {
                 # PT：H3O+ 质子化 4 号碳上的 OH
                 "out": "[OH2:1].[CH3:3][C:4]([CH3:5])([OH+:6][H:2])[C:7]([CH3:8])([CH3:9])[O:10][H:11]",
                 "type": "proton transfer from H3O+ to one pinacol OH (leaving-group activation)",
-                "barrier": 0.0,
             },
             {
-                # 决速：脱水与 1,2-甲基迁移协同（半频哪醇式），断 C4-O6/C7-C8，
-                # 成 C4-C8 与 C7=O10 π → 质子化频哪酮 + H2O
+                # 脱水形成碳正离子/水离子对；未找到独立鞍点，参考垒缺测。
+                "out": "[OH2:1].[OH:6][H:2].[CH3:3][C+:4]([CH3:5])[C:7]([CH3:8])([CH3:9])[O:10][H:11]",
+                "type": "water departure from protonated pinacol -> tertiary carbocation/water ion pair",
+            },
+            {
+                # 1,2-甲基迁移：断 C7-C8，成 C4-C8 与 C7=O10 π。
                 "out": "[OH2:1].[OH:6][H:2].[CH3:3][C:4]([CH3:5])([CH3:8])[C:7](=[O+:10][H:11])[CH3:9]",
-                "type": "concerted semipinacol rearrangement (rate-determining): C-OH2+ cleavage with simultaneous 1,2-methyl shift and C=O pi formation; no free carbocation",
-                "barrier": 26.2,
+                "type": "1,2-methyl migration from the carbocation/water ion pair with C=O pi formation -> protonated pinacolone",
+                "barrier": 5.16,
                 "weight": 0.5,
             },
             {
@@ -81,8 +84,6 @@ TASKS = {
                 # 甲酸根 O 捕获 nitrilium C：成 O5-C9，断一根 C≡N π → 亚氨酸酯
                 "out": "[CH2:1]([O:2][H:6])[C:9](=[N:8][CH3:7])[O:5][CH:3]=[O:4]",
                 "type": "formate oxygen capture of the nitrilium carbon -> imidate (acyloxyimine) intermediate",
-                "barrier": 0.0,
-                "weight": 0.5,
             },
             {
                 # Mumm 重排：断 C3-O5，成 O2-C3，断 N=C π，成 C9=O5 π，O2-H 迁到 N8

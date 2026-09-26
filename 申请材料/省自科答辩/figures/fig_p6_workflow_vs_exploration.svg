@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 560" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+  <defs>
+    <marker id="a6" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#666"/>
+    </marker>
+  </defs>
+  <rect width="1100" height="560" fill="#ffffff"/>
+
+  <!-- left: fixed workflow -->
+  <text x="240" y="84" font-size="19" font-weight="700" fill="#333" text-anchor="middle">固定工作流：预设步骤</text>
+  <g font-size="15" fill="#333" text-anchor="middle">
+    <rect x="140" y="120" width="200" height="44" rx="8" fill="#dfe7ee" stroke="#b7c4d0"/>
+    <text x="240" y="148">优化</text>
+    <rect x="140" y="182" width="200" height="44" rx="8" fill="#dfe7ee" stroke="#b7c4d0"/>
+    <text x="240" y="210">频率</text>
+    <rect x="140" y="244" width="200" height="44" rx="8" fill="#dfe7ee" stroke="#b7c4d0"/>
+    <text x="240" y="272">单点</text>
+    <rect x="140" y="306" width="200" height="44" rx="8" fill="#dfe7ee" stroke="#b7c4d0"/>
+    <text x="240" y="334">分析</text>
+  </g>
+  <line x1="240" y1="164" x2="240" y2="182" stroke="#666" stroke-width="2" marker-end="url(#a6)"/>
+  <line x1="240" y1="226" x2="240" y2="244" stroke="#666" stroke-width="2" marker-end="url(#a6)"/>
+  <line x1="240" y1="288" x2="240" y2="306" stroke="#666" stroke-width="2" marker-end="url(#a6)"/>
+  <text x="240" y="386" font-size="15.5" fill="#666" text-anchor="middle">"下一步执行哪一个预设步骤？"</text>
+  <text x="240" y="412" font-size="15.5" fill="#2e7d32" text-anchor="middle">运行前答案已确定</text>
+
+  <!-- right: three accidents -->
+  <text x="760" y="84" font-size="19" font-weight="700" fill="#c0392b" text-anchor="middle">机理探索：运行中不断出意外</text>
+
+  <!-- accident 1: structure runs away -->
+  <rect x="520" y="110" width="480" height="120" rx="12" fill="#fafafa" stroke="#ddd"/>
+  <path d="M560,200 C590,200 600,150 630,150 C660,150 665,205 700,205 C730,205 745,175 780,160" fill="none" stroke="#1f4e79" stroke-width="2.5"/>
+  <path d="M615,196 C640,190 690,180 730,140" fill="none" stroke="#c0392b" stroke-width="2.5" stroke-dasharray="6 4" marker-end="url(#a6)"/>
+  <text x="810" y="150" font-size="15" fill="#c0392b" font-weight="600">优化中结构意外发生反应</text>
+  <text x="810" y="176" font-size="14" fill="#777">跑进了另一条反应通道</text>
+  <text x="810" y="202" font-size="14" fill="#777">—— 预设流程里没有这一步</text>
+
+  <!-- accident 2: wrong imaginary mode -->
+  <rect x="520" y="250" width="480" height="120" rx="12" fill="#fafafa" stroke="#ddd"/>
+  <path d="M560,340 C590,340 605,285 635,285 C665,285 675,345 710,345" fill="none" stroke="#1f4e79" stroke-width="2.5"/>
+  <line x1="635" y1="285" x2="635" y2="330" stroke="#2e7d32" stroke-width="2.5" marker-end="url(#a6)"/>
+  <line x1="635" y1="285" x2="685" y2="265" stroke="#c0392b" stroke-width="2.5" marker-end="url(#a6)"/>
+  <text x="810" y="290" font-size="15" fill="#c0392b" font-weight="600">只有一个虚频 ✓</text>
+  <text x="810" y="316" font-size="14" fill="#777">但虚频对应错误的运动模式</text>
+  <text x="810" y="342" font-size="14" fill="#777">—— 程序判"成功"，科学上是错的</text>
+
+  <!-- accident 3: unexpected intermediate -->
+  <rect x="520" y="390" width="480" height="120" rx="12" fill="#fafafa" stroke="#ddd"/>
+  <path d="M560,480 C590,480 600,435 630,435 C655,435 660,470 685,470 C705,470 712,445 735,445 C760,445 770,478 800,478" fill="none" stroke="#1f4e79" stroke-width="2.5"/>
+  <circle cx="685" cy="470" r="5" fill="#e07b00"/>
+  <text x="685" y="500" font-size="13" fill="#e07b00" text-anchor="middle" font-weight="600">?</text>
+  <text x="810" y="430" font-size="15" fill="#c0392b" font-weight="600">计划之外的新中间体</text>
+  <text x="810" y="456" font-size="14" fill="#777">是否开辟新的竞争路径？</text>
+  <text x="810" y="482" font-size="14" fill="#777">—— 需要根据证据现场决策</text>
+
+  <!-- bottom banner -->
+  <rect x="150" y="516" width="800" height="40" rx="10" fill="#1f4e79"/>
+  <text x="550" y="542" font-size="18" fill="#fff" text-anchor="middle" font-weight="700">工作流执行既定路径；机理发现要在运行中改变路径</text>
+</svg>

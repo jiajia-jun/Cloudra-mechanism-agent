@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 620" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+  <defs>
+    <marker id="arr7" markerWidth="9" markerHeight="9" refX="4.5" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 Z" fill="#666"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="620" fill="#ffffff"/>
+  <text x="600" y="42" font-size="26" font-weight="700" fill="#222" text-anchor="middle">做化学智能体的三条路线</text>
+
+  <!-- Route A -->
+  <rect x="40" y="80" width="350" height="400" rx="14" fill="#f4f6f8" stroke="#c9d2da"/>
+  <text x="215" y="116" font-size="21" font-weight="700" fill="#444" text-anchor="middle">路线 A · 规则工作流</text>
+  <text x="215" y="142" font-size="15" fill="#777" text-anchor="middle">不要智能</text>
+  <g font-size="16" fill="#333" text-anchor="middle">
+    <rect x="115" y="170" width="200" height="44" rx="8" fill="#dfe7ee" stroke="#b7c4d0"/>
+    <text x="215" y="198">结构优化</text>
+    <rect x="115" y="232" width="200" height="44" rx="8" fill="#dfe7ee" stroke="#b7c4d0"/>
+    <text x="215" y="260">频率分析</text>
+    <rect x="115" y="294" width="200" height="44" rx="8" fill="#dfe7ee" stroke="#b7c4d0"/>
+    <text x="215" y="322">单点能</text>
+    <rect x="115" y="356" width="200" height="44" rx="8" fill="#dfe7ee" stroke="#b7c4d0"/>
+    <text x="215" y="384">结果分析</text>
+  </g>
+  <line x1="215" y1="214" x2="215" y2="232" stroke="#666" stroke-width="2" marker-end="url(#arr7)"/>
+  <line x1="215" y1="276" x2="215" y2="294" stroke="#666" stroke-width="2" marker-end="url(#arr7)"/>
+  <line x1="215" y1="338" x2="215" y2="356" stroke="#666" stroke-width="2" marker-end="url(#arr7)"/>
+  <text x="215" y="432" font-size="16" fill="#444" text-anchor="middle">下一步在运行前已写死</text>
+  <text x="215" y="458" font-size="16" fill="#c0392b" text-anchor="middle" font-weight="600">遇到意外 = 流程报废</text>
+
+  <!-- Route B -->
+  <rect x="425" y="80" width="350" height="400" rx="14" fill="#f7f3fa" stroke="#d3c6e0"/>
+  <text x="600" y="116" font-size="21" font-weight="700" fill="#5b3e77" text-anchor="middle">路线 B · 把能力训进模型</text>
+  <text x="600" y="142" font-size="15" fill="#777" text-anchor="middle">为写好输入文件专门训练领域模型</text>
+  <rect x="490" y="170" width="220" height="150" rx="12" fill="#6b4d8f"/>
+  <text x="600" y="232" font-size="20" fill="#fff" text-anchor="middle" font-weight="700">领域微调</text>
+  <text x="600" y="260" font-size="20" fill="#fff" text-anchor="middle" font-weight="700">大模型</text>
+  <text x="600" y="290" font-size="14" fill="#e5dcf2" text-anchor="middle">能力锁死在权重里</text>
+  <g font-size="15" fill="#5b3e77" text-anchor="middle">
+    <text x="600" y="356">需要 GPU · 训练数据 · 经费</text>
+    <text x="600" y="384">模型一换代，训练投资清零</text>
+  </g>
+  <text x="600" y="432" font-size="16" fill="#444" text-anchor="middle">有效，但贵</text>
+  <text x="600" y="458" font-size="16" fill="#c0392b" text-anchor="middle" font-weight="600">本科生项目玩不起，也不必玩</text>
+
+  <!-- Route C -->
+  <rect x="810" y="80" width="350" height="400" rx="14" fill="#f2f7fc" stroke="#9dbede"/>
+  <text x="985" y="116" font-size="21" font-weight="700" fill="#1f4e79" text-anchor="middle">路线 C · 把能力做进系统</text>
+  <text x="985" y="142" font-size="15" fill="#777" text-anchor="middle">Cloudra 的选择</text>
+  <rect x="905" y="166" width="160" height="52" rx="10" fill="#e07b00"/>
+  <text x="985" y="189" font-size="15" fill="#fff" text-anchor="middle" font-weight="700">通用便宜 LLM</text>
+  <text x="985" y="208" font-size="12.5" fill="#ffe8cc" text-anchor="middle">可小 · 可换 · 可便宜</text>
+  <rect x="855" y="238" width="260" height="150" rx="12" fill="#1f4e79"/>
+  <text x="985" y="266" font-size="16" fill="#fff" text-anchor="middle" font-weight="700">确定性 Harness</text>
+  <g font-size="14" fill="#cfe0f2" text-anchor="middle">
+    <text x="985" y="294">化学工具 · 反应映射 · 初猜</text>
+    <text x="985" y="318">频率/路径校验 · 证据门禁</text>
+    <text x="985" y="342">机理图 · 调度 · 状态持久化</text>
+  </g>
+  <text x="985" y="432" font-size="16" fill="#1f4e79" text-anchor="middle" font-weight="600">科学正确性由系统保证</text>
+  <text x="985" y="458" font-size="16" fill="#1f4e79" text-anchor="middle" font-weight="600">而不是由模型保证</text>
+
+  <!-- bottom bill banner -->
+  <rect x="40" y="512" width="1120" height="76" rx="12" fill="#fff7ea" stroke="#e07b00" stroke-width="1.5"/>
+  <text x="600" y="545" font-size="19" fill="#8a5410" text-anchor="middle" font-weight="700">路线 C 的账单：一次完整机理交付 ≈ ¥2（186 次调用 · 17.3M token · 缓存命中 98.5%）</text>
+  <text x="600" y="572" font-size="15" fill="#a06a20" text-anchor="middle">同样的 token 量若没有 harness 的上下文缓存纪律，账单 ×13</text>
+</svg>

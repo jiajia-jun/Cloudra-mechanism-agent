@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="450" viewBox="0 0 1100 450">
+  <defs>
+    <marker id="blue-arrow" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto">
+      <path d="M1 1 L10 5.5 L1 10 Z" fill="#287B54"/>
+    </marker>
+    <marker id="gold-arrow" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto">
+      <path d="M1 1 L10 5.5 L1 10 Z" fill="#D4A921"/>
+    </marker>
+  </defs>
+  <rect width="1100" height="450" fill="#fff"/>
+  <rect x="12" y="20" width="517" height="410" rx="18" fill="#F8FBF5" stroke="#D8E5D5" stroke-width="2"/>
+  <rect x="571" y="20" width="517" height="410" rx="18" fill="#FFF9E8" stroke="#E8D997" stroke-width="2"/>
+  <text x="270" y="67" font-family="Arial Unicode MS" font-size="30" font-weight="bold" text-anchor="middle" fill="#194D36">固定工作流</text>
+  <text x="829" y="67" font-family="Arial Unicode MS" font-size="30" font-weight="bold" text-anchor="middle" fill="#806511">开放机理探索</text>
+  <text x="270" y="104" font-family="Arial Unicode MS" font-size="20" text-anchor="middle" fill="#5D6F62">目标与下一步预先写好</text>
+  <text x="829" y="104" font-family="Arial Unicode MS" font-size="20" text-anchor="middle" fill="#5D6F62">下一步随计算证据改变</text>
+
+  <g font-family="Arial Unicode MS" font-size="24" font-weight="bold" text-anchor="middle">
+    <rect x="154" y="139" width="232" height="51" rx="12" fill="#EDF6E8" stroke="#287B54" stroke-width="2"/>
+    <text x="270" y="173" fill="#194D36">给定研究目标</text>
+    <rect x="154" y="219" width="232" height="51" rx="12" fill="#EDF6E8" stroke="#287B54" stroke-width="2"/>
+    <text x="270" y="253" fill="#194D36">执行计算步骤</text>
+    <rect x="154" y="299" width="232" height="51" rx="12" fill="#EDF6E8" stroke="#287B54" stroke-width="2"/>
+    <text x="270" y="333" fill="#194D36">按预设规则检查</text>
+  </g>
+  <path d="M270 191 L270 216" stroke="#287B54" stroke-width="4" marker-end="url(#blue-arrow)"/>
+  <path d="M270 271 L270 296" stroke="#287B54" stroke-width="4" marker-end="url(#blue-arrow)"/>
+  <text x="270" y="389" font-family="Arial Unicode MS" font-size="21" text-anchor="middle" fill="#194D36">擅长重复、稳定的计算任务</text>
+
+  <g font-family="Arial Unicode MS" font-size="22" font-weight="bold" text-anchor="middle">
+    <rect x="614" y="151" width="156" height="58" rx="12" fill="#fff" stroke="#D4A921" stroke-width="2"/>
+    <text x="692" y="188" fill="#806511">提出候选</text>
+    <rect x="798" y="151" width="156" height="58" rx="12" fill="#fff" stroke="#D4A921" stroke-width="2"/>
+    <text x="876" y="188" fill="#806511">运行计算</text>
+    <rect x="798" y="252" width="156" height="58" rx="12" fill="#fff" stroke="#D4A921" stroke-width="2"/>
+    <text x="876" y="289" fill="#806511">检查新证据</text>
+    <rect x="614" y="252" width="156" height="58" rx="12" fill="#fff" stroke="#D4A921" stroke-width="2"/>
+    <text x="692" y="289" fill="#806511">修正假设</text>
+  </g>
+  <path d="M772 180 L795 180" stroke="#D4A921" stroke-width="4" marker-end="url(#gold-arrow)"/>
+  <path d="M876 211 L876 248" stroke="#D4A921" stroke-width="4" marker-end="url(#gold-arrow)"/>
+  <path d="M796 281 L773 281" stroke="#D4A921" stroke-width="4" marker-end="url(#gold-arrow)"/>
+  <path d="M692 249 L692 213" stroke="#D4A921" stroke-width="4" marker-end="url(#gold-arrow)"/>
+  <text x="829" y="389" font-family="Arial Unicode MS" font-size="21" text-anchor="middle" fill="#806511">结果偏离预期时，形成新的研究回路</text>
+</svg>

@@ -196,7 +196,7 @@
 2. **结构**：`C=[N+]=[N-].C=C → C1CN=NC1 → C1CC1.N#N`，净电荷 0，单重态整体反应。
 3. **多参考性质**：脱氮需断两根 C–N σ 键，协同与分步路径都可能进入双自由基区域；“协同”本身不保证单参考可描述。旧 normal 图强定单步螯变且以 B3LYP 扫描补垒，不能作为可信 gold。
 4. **诊断证据**：Pradhan & Lourderaj, Phys. Chem. Chem. Phys. 2017, 19, 27468–27477, DOI 10.1039/C7CP05320G，以 CASSCF/CASPT2 比较同步、异步协同和异步分步脱氮路径，并指出常规 DFT/MP2 未正确描述双自由基区域。旧 NU8 第二步只有受限 B3LYP 扫描，没有通过 TS/IRC 验证。
-5. **判分口径**：IMP 的 xTB-only 白名单下保留完整反应图，脱氮 TS 标 `accessible=false`，不编造第二步能垒；环加成部分仍按常规证据要求交付。
+5. **判分口径**：IMP 允许 xTB、PM7、B3LYP/def2-SVP；首步环加成自算 ΔE‡ = 14.74 kcal/mol（气相 ORCA 5.0.2 B3LYP-D3(BJ)/def2-SVP，相对预反应络合物；gold 工作区 NU8/REPORT.md）。脱氮 TS 标 `accessible=false`，第二步能垒保持缺测；环加成部分按常规证据要求交付。
 
 ---
 

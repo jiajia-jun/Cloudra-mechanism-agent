@@ -166,8 +166,8 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": 0.0,
-          "weight": 0.5,
+          "barrier_kcal_mol": null,
+          "weight": 1.0,
           "channel": null,
           "favored": null
         },

@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 680" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+  <defs>
+    <marker id="arr13" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#1f4e79"/>
+    </marker>
+  </defs>
+  <rect width="1000" height="680" fill="#ffffff"/>
+
+  <!-- center: mechanism graph -->
+  <rect x="365" y="285" width="270" height="110" rx="16" fill="#1f4e79"/>
+  <text x="500" y="328" font-size="21" fill="#fff" text-anchor="middle" font-weight="700">Mechanism Graph</text>
+  <text x="500" y="356" font-size="14.5" fill="#cfe0f2" text-anchor="middle">物种 · 路径 · 能量 · 证据 · 失败记录</text>
+  <text x="500" y="378" font-size="14.5" fill="#cfe0f2" text-anchor="middle">科学状态的唯一载体</text>
+
+  <!-- loop stages, clockwise from top -->
+  <!-- 1 top: mechanism candidates -->
+  <rect x="395" y="90" width="210" height="62" rx="12" fill="#ffffff" stroke="#1f4e79" stroke-width="2"/>
+  <text x="500" y="117" font-size="16.5" fill="#1f4e79" text-anchor="middle" font-weight="600">机理候选生成</text>
+  <text x="500" y="139" font-size="12.5" fill="#6a8299" text-anchor="middle">算法枚举反应空间</text>
+
+  <!-- 2 upper right: select (LLM) -->
+  <rect x="700" y="200" width="210" height="62" rx="12" fill="#e07b00"/>
+  <text x="805" y="227" font-size="16.5" fill="#fff" text-anchor="middle" font-weight="600">智能筛选路径</text>
+  <text x="805" y="249" font-size="12.5" fill="#ffe8cc" text-anchor="middle">Select · 保留竞争通道</text>
+
+  <!-- 3 lower right: modeling + compute -->
+  <rect x="700" y="420" width="210" height="62" rx="12" fill="#ffffff" stroke="#1f4e79" stroke-width="2"/>
+  <text x="805" y="447" font-size="16.5" fill="#1f4e79" text-anchor="middle" font-weight="600">建模与量子化学计算</text>
+  <text x="805" y="469" font-size="12.5" fill="#6a8299" text-anchor="middle">Plan · 工具与集群执行</text>
+
+  <!-- 4 bottom: validate -->
+  <rect x="395" y="530" width="210" height="62" rx="12" fill="#ffffff" stroke="#1f4e79" stroke-width="2"/>
+  <text x="500" y="557" font-size="16.5" fill="#1f4e79" text-anchor="middle" font-weight="600">科学有效性验证</text>
+  <text x="500" y="579" font-size="12.5" fill="#6a8299" text-anchor="middle">频率 · 路径 · 证据门禁</text>
+
+  <!-- 5 lower left: recover (LLM) -->
+  <rect x="90" y="420" width="210" height="62" rx="12" fill="#e07b00"/>
+  <text x="195" y="447" font-size="16.5" fill="#fff" text-anchor="middle" font-weight="600">失败诊断 / 新路径</text>
+  <text x="195" y="469" font-size="12.5" fill="#ffe8cc" text-anchor="middle">Recover · 异常处理</text>
+
+  <!-- 6 upper left: update graph -->
+  <rect x="90" y="200" width="210" height="62" rx="12" fill="#ffffff" stroke="#1f4e79" stroke-width="2"/>
+  <text x="195" y="227" font-size="16.5" fill="#1f4e79" text-anchor="middle" font-weight="600">更新机理图</text>
+  <text x="195" y="249" font-size="12.5" fill="#6a8299" text-anchor="middle">证据入库 · 继续探索</text>
+
+  <!-- loop arrows -->
+  <line x1="605" y1="121" x2="700" y2="215" stroke="#1f4e79" stroke-width="2.5" marker-end="url(#arr13)"/>
+  <line x1="805" y1="262" x2="805" y2="420" stroke="#1f4e79" stroke-width="2.5" marker-end="url(#arr13)"/>
+  <line x1="700" y1="467" x2="605" y2="545" stroke="#1f4e79" stroke-width="2.5" marker-end="url(#arr13)"/>
+  <line x1="395" y1="561" x2="300" y2="467" stroke="#1f4e79" stroke-width="2.5" marker-end="url(#arr13)"/>
+  <line x1="195" y1="420" x2="195" y2="262" stroke="#1f4e79" stroke-width="2.5" marker-end="url(#arr13)"/>
+  <line x1="300" y1="215" x2="395" y2="137" stroke="#1f4e79" stroke-width="2.5" marker-end="url(#arr13)"/>
+
+  <!-- center links (graph is read/written by every stage) -->
+  <g stroke="#9dbede" stroke-width="1.6" stroke-dasharray="4 4">
+    <line x1="500" y1="152" x2="500" y2="285"/>
+    <line x1="700" y1="231" x2="635" y2="300"/>
+    <line x1="700" y1="451" x2="635" y2="380"/>
+    <line x1="500" y1="530" x2="500" y2="395"/>
+    <line x1="300" y1="451" x2="365" y2="380"/>
+    <line x1="300" y1="231" x2="365" y2="300"/>
+  </g>
+
+  <!-- agents orbit note -->
+  <text x="500" y="640" font-size="17" fill="#333" text-anchor="middle" font-weight="600">多个 Agent 围绕同一份机理状态工作 —— 更换大模型，科学事实不消失</text>
+</svg>

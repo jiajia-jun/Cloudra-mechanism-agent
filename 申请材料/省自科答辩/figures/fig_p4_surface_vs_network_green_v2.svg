@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 540" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+  <defs>
+    <marker id="a4" markerWidth="9" markerHeight="9" refX="4.5" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 Z" fill="#194D36"/>
+    </marker>
+  </defs>
+  <rect width="1100" height="540" fill="#ffffff"/>
+
+  <!-- left: regular surface -->
+  <text x="270" y="80" font-size="19" font-weight="700" fill="#333" text-anchor="middle">规则表面体系</text>
+  <!-- surface slab: atom grid -->
+  <g fill="#B7D4B2" stroke="#8AAB84">
+    <!-- 3 rows x 8 -->
+    <circle cx="110" cy="300" r="16"/><circle cx="150" cy="300" r="16"/><circle cx="190" cy="300" r="16"/><circle cx="230" cy="300" r="16"/><circle cx="270" cy="300" r="16"/><circle cx="310" cy="300" r="16"/><circle cx="350" cy="300" r="16"/><circle cx="390" cy="300" r="16"/>
+    <circle cx="110" cy="336" r="16"/><circle cx="150" cy="336" r="16"/><circle cx="190" cy="336" r="16"/><circle cx="230" cy="336" r="16"/><circle cx="270" cy="336" r="16"/><circle cx="310" cy="336" r="16"/><circle cx="350" cy="336" r="16"/><circle cx="390" cy="336" r="16"/>
+    <circle cx="110" cy="372" r="16"/><circle cx="150" cy="372" r="16"/><circle cx="190" cy="372" r="16"/><circle cx="230" cy="372" r="16"/><circle cx="270" cy="372" r="16"/><circle cx="310" cy="372" r="16"/><circle cx="350" cy="372" r="16"/><circle cx="390" cy="372" r="16"/>
+  </g>
+  <!-- adsorbates -->
+  <circle cx="150" cy="258" r="12" fill="#D4A921"/>
+  <text x="150" y="236" font-size="15" fill="#806511" text-anchor="middle" font-weight="600">A*</text>
+  <circle cx="230" cy="258" r="12" fill="#194D36"/>
+  <text x="230" y="236" font-size="15" fill="#194D36" text-anchor="middle" font-weight="600">B*</text>
+  <circle cx="330" cy="252" r="18" fill="#9DBF62"/>
+  <text x="330" y="224" font-size="15" fill="#536B2B" text-anchor="middle" font-weight="600">AB*</text>
+  <path d="M165,250 L200,240 L215,246" fill="none" stroke="#666" stroke-width="2" marker-end="url(#a4)"/>
+  <path d="M255,240 L300,238 L318,246" fill="none" stroke="#666" stroke-width="2" marker-end="url(#a4)"/>
+  <text x="270" y="420" font-size="15" fill="#666" text-anchor="middle">周期性表面 · 吸附位点可枚举</text>
+
+  <!-- right: tidy reaction network -->
+  <text x="800" y="80" font-size="19" font-weight="700" fill="#333" text-anchor="middle">反应网络可形式化搜索</text>
+  <g stroke="#194D36" stroke-width="2">
+    <line x1="700" y1="180" x2="770" y2="240" marker-end="url(#a4)"/>
+    <line x1="840" y1="180" x2="780" y2="240" marker-end="url(#a4)"/>
+    <line x1="770" y1="270" x2="770" y2="330" marker-end="url(#a4)"/>
+    <line x1="770" y1="360" x2="700" y2="420" marker-end="url(#a4)"/>
+    <line x1="770" y1="360" x2="840" y2="420" marker-end="url(#a4)"/>
+  </g>
+  <g fill="#ffffff" stroke="#194D36" stroke-width="2">
+    <circle cx="700" cy="165" r="17"/><circle cx="845" cy="165" r="17"/>
+    <circle cx="770" cy="255" r="17"/>
+    <circle cx="770" cy="345" r="17" fill="#F8EAB9" stroke="#D4A921"/>
+    <circle cx="695" cy="435" r="17"/><circle cx="845" cy="435" r="17"/>
+  </g>
+  <text x="770" y="262" font-size="12" fill="#194D36" text-anchor="middle">TS</text>
+
+  <!-- keywords -->
+  <g font-size="16.5" fill="#194D36" font-weight="600">
+    <rect x="330" y="120" width="130" height="40" rx="20" fill="#F4F9EF" stroke="#A9C9A5"/>
+    <text x="395" y="146" text-anchor="middle">有限状态</text>
+    <rect x="480" y="120" width="130" height="40" rx="20" fill="#F4F9EF" stroke="#A9C9A5"/>
+    <text x="545" y="146" text-anchor="middle">明确拓扑</text>
+    <rect x="395" y="60" width="160" height="40" rx="20" fill="#F4F9EF" stroke="#A9C9A5"/>
+    <text x="475" y="86" text-anchor="middle">可形式化搜索</text>
+  </g>
+
+  <!-- bottom question -->
+  <rect x="150" y="468" width="800" height="52" rx="10" fill="#FFF9E8" stroke="#D4A921" stroke-width="1.5"/>
+  <text x="550" y="501" font-size="19" fill="#806511" text-anchor="middle" font-weight="700">那为什么不能把同样的方法直接用于复杂有机反应？</text>
+</svg>

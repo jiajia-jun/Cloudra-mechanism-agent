@@ -1789,7 +1789,7 @@ def test_easy_tasks_regenerate_identically():
         assert committed.is_file(), f"missing committed task file: {committed}"
         regenerated = json.loads(json.dumps(t.model_dump(mode="json", by_alias=True)))
         assert json.loads(committed.read_text(encoding="utf-8")) == regenerated
-        # easy/normal/hard 共用 xtb+pm7+b3lyp/def2svp 白名单；impossible 保持 xtb-only
+        # 四档共用 xtb+pm7+b3lyp/def2svp 白名单。
         assert t.method_policy.allowed_methods == ["xtb", "pm7", "b3lyp/def2svp"]
 
 
@@ -1854,6 +1854,21 @@ def test_passerini_first_edge_couples_proton_transfer_and_isocyanide_attack():
     assert [5, 6] in edges[0].bond_changes.break_
     assert [2, 6] in edges[0].bond_changes.form
     assert [1, 9] in edges[0].bond_changes.form
+    assert edges[1].barrier_kcal_mol is None
+
+
+def test_pinacol_dehydration_and_migration_are_separate_edges():
+    pytest.importorskip("rdkit")
+    from cloudra.benchmark import gen_normal_tasks
+
+    task = gen_normal_tasks.parse_normal_md(gen_normal_tasks.DEFAULT_SRC, only={"R1"})[0]
+    edges = task.gold.mechanism_graph.edges
+    assert [e.barrier_kcal_mol for e in edges] == [None, None, 5.16, 5.74]
+    assert [4, 6] in edges[1].bond_changes.break_
+    assert [7, 8] in edges[2].bond_changes.break_
+    assert [4, 8] in edges[2].bond_changes.form
+    carbocation = next(n for n in task.gold.mechanism_graph.nodes if n.id == "NR1_I2")
+    assert "[C+]" in carbocation.smiles[0]
 
 
 def test_hard_tasks_regenerate_identically():
@@ -1888,12 +1903,13 @@ def test_impossible_tasks_regenerate_identically():
         assert committed.is_file(), f"missing committed task file: {committed}"
         regenerated = json.loads(json.dumps(t.model_dump(mode="json", by_alias=True)))
         assert json.loads(committed.read_text(encoding="utf-8")) == regenerated
-        # impossible 保持 xtb-only：I 系靠单参考方法边界制造不可达性，开 DFT 会破坏它
-        assert t.method_policy.allowed_methods == ["xtb"]
+        assert t.method_policy.allowed_methods == ["xtb", "pm7", "b3lyp/def2svp"]
         # accessible=false 协议句全档同款、一字不动
         assert protocol in t.prompt.query, t.task_id
         graph = t.gold.mechanism_graph
         assert any(not n.accessible for n in graph.nodes), t.task_id
+    ib9 = next(t for t in tasks if t.task_id == "IB9")
+    assert [e.barrier_kcal_mol for e in ib9.gold.mechanism_graph.edges] == [14.74, None]
 
 
 def test_query_declares_electronic_barrier_type():

@@ -27,7 +27,7 @@ same loaded version for the whole review.
 | Constrained Opt + one imaginary frequency | Check stationarity, constraint release, and mode character first; a single imaginary frequency at a constrained point never authorizes a TS claim. |
 | OptTS repeatedly returns to the same basin | Read the attempt history; one purposeful change of conformer / coordinate / scan beats more iterations. |
 | Monotonic 1-D scan | No peak along this coordinate; not a proof of barrierlessness. |
-| Converged short IRC | Judge by convergence, endpoint optimizations, identity, and path continuity — never by a fixed point count. |
+| Short bidirectional IRC, including a partial native path | Check both outer-frame unconstrained optimizations at the same agreed model, minimum frequencies, endpoint identities, and directions. Keep native convergence status visible; do not demand extension solely for a step ceiling or unconverged flag. |
 | Endpoint identity mismatch | Counterevidence against the path; do not refine the wrong product into the target's name. |
 | MLIP lacks the requested diagnostic | Check applicability and available evidence; do not demand impossible outputs or veto by method name. |
 | Partial / method-limited exit requested | Distinguish "not found yet" from "not reliably answerable with allowed methods"; approve only with a scoped, cited reason. |
@@ -38,7 +38,7 @@ same loaded version for the whole review.
 | Question | Contract focus | Do not mechanically add |
 | --- | --- | --- |
 | Structure / stable intermediate | Geometry provenance, minimum criteria, species identity, method applicability | IRC when no reaction channel is claimed |
-| TS / connectivity | Stationary-point evidence, relevant imaginary mode, both path sides, endpoint identities | Recomputing a converged, connected path for point count |
+| TS / connectivity | Stationary-point evidence, relevant imaginary mode, both path sides, optimized endpoint minima, identities and direction | Extending a partial path solely to reach intrinsic IRC convergence or a point count |
 | Electronic barrier | The above plus same-footing electronic energy difference and reference state | RRHO free-energy corrections |
 | Free-energy barrier | Temperature, standard state, thermal corrections and their applicability | Mixing references or passing ΔE off as ΔG |
 | Selectivity | Two competing channels with comparable references and statistics | Claiming ΔΔG from a single TS |

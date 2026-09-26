@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" font-family="Arial Unicode MS, PingFang SC, sans-serif">
+<defs><marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#287B54"/></marker></defs>
+<rect width="900" height="520" fill="#F8FBF5"/>
+<text x="450" y="55" fill="#194D36" font-size="32" font-weight="700" text-anchor="middle">机理图把研究对象和证据连在一起</text>
+<g fill="none" stroke="#287B54" stroke-width="7" marker-end="url(#arr)"><path d="M233 237H365"/><path d="M512 237H652"/></g>
+<g fill="#EDF6E8" stroke="#287B54" stroke-width="5"><circle cx="183" cy="237" r="55"/><circle cx="445" cy="237" r="65"/><circle cx="713" cy="237" r="55"/></g>
+<circle cx="445" cy="237" r="46" fill="#D4A921"/>
+<g fill="#194D36" font-size="30" font-weight="700" text-anchor="middle"><text x="183" y="249">反应物</text><text x="445" y="249">过渡态</text><text x="713" y="249">产物</text></g>
+<g fill="none" stroke="#A9C9A5" stroke-width="4"><path d="M183 293V360"/><path d="M445 302V360"/><path d="M713 293V360"/></g>
+<g fill="#FFFFFF" stroke="#D8E5D5" stroke-width="3"><rect x="80" y="358" width="206" height="69" rx="15"/><rect x="342" y="358" width="206" height="69" rx="15"/><rect x="610" y="358" width="206" height="69" rx="15"/></g>
+<g fill="#287B54" font-size="25" font-weight="700" text-anchor="middle"><text x="183" y="402">结构与频率</text><text x="445" y="402">虚频与路径</text><text x="713" y="402">结构与能量</text></g>
+<text x="450" y="479" fill="#5D6F62" font-size="23" text-anchor="middle">候选由智能选择；结论须由计算证据支撑</text>
+</svg>

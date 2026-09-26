@@ -10,8 +10,11 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 
+import pytest
+
+from cloudra.runtime_v2.events import EventLog
 from cloudra.runtime_v2.notices import NoticeManager
-from cloudra.runtime_v2.policies.base import PipelineContext, ToolCall
+from cloudra.runtime_v2.policies.base import PipelineContext, ToolCall, ToolResult
 from cloudra.runtime_v2.policies.guidance import GuidanceStage, sniff_ts_or_irc_input
 from cloudra.runtime_v2.schemas import AgentCapabilities, PermissionSet, RuntimeSettings
 
@@ -151,3 +154,250 @@ def test_no_notices_sink_is_noop(tmp_path):
     ctx = _ctx("small_mol", None, str(tmp_path))
     result = _run(GuidanceStage(), ctx, _bash("echo x > y.txt"))
     assert result.outcome == "allow"
+
+
+@pytest.mark.parametrize(
+    ("name", "arguments"),
+    [
+        ("ts_prepare", {"declaration": {}}),
+        ("ts_guess", {"mode": "scan_prepare"}),
+        ("ts_guess", {"mode": "interpolate"}),
+        ("ts_guess", {}),  # xtb_path is the tool default
+        ("qm_input_writer", {"task_type": [{"scan": "rigid"}]}),
+        ("qm_input_writer", {"task_type": [{"opt": None}]}),
+        ("qm_input_writer", {"task_type": [{"opt": "modredundant"}]}),
+        ("submit_compute_job", {"job_type": "orca"}),
+        ("submit_compute_job", {"job_type": "gaussian"}),
+    ],
+)
+def test_molecular_pes_preparation_pins_nonblocking_guidance(name, arguments):
+    notices = NoticeManager()
+    ctx = _ctx("small_mol", notices)
+    call = ToolCall(id="pes", name=name, arguments=arguments)
+    result = _run(GuidanceStage(), ctx, call)
+    assert result.outcome == "allow"
+    assert notices.pin_content("as_g", "guidance-physical-thinking") is not None
+
+
+@pytest.mark.parametrize(
+    ("name", "arguments"),
+    [
+        ("ts_guess", {"mode": "scan_parse"}),
+        ("ts_guess", {"mode": "verify"}),
+        ("ts_guess", {"mode": "scan", "log_path": "scan.log"}),
+        ("submit_compute_job", {"job_type": "vasp"}),
+        ("submit_compute_job", {"job_type": "cp2k"}),
+        ("submit_compute_job", {"job_type": "xtb"}),
+        ("submit_compute_job", {}),
+        ("bash", {"command": "ls -la"}),
+    ],
+)
+def test_unrelated_calls_do_not_pin_physical_guidance(name, arguments):
+    notices = NoticeManager()
+    call = ToolCall(id="other", name=name, arguments=arguments)
+    assert _run(GuidanceStage(), _ctx("small_mol", notices), call).outcome == "allow"
+    assert notices.pin_content("as_g", "guidance-physical-thinking") is None
+
+
+def test_physical_guidance_is_idempotent_across_preparation_and_submit():
+    notices = NoticeManager()
+    ctx = _ctx("small_mol", notices)
+    stage = GuidanceStage()
+    _run(stage, ctx, ToolCall(id="prep", name="ts_prepare", arguments={}))
+    _run(stage, ctx, ToolCall(id="submit", name="submit_compute_job", arguments={"job_type": "gaussian"}))
+    _run(stage, ctx, ToolCall(id="again", name="ts_prepare", arguments={}))
+    assert len(notices.render_current("as_g")) == 1
+
+
+def _after(stage, ctx, call, result):
+    return asyncio.run(stage.after_tool(ctx, call, result))
+
+
+def _reflection_pins(notices, agent_id="as_g"):
+    return {
+        key: content
+        for key, content in notices._pins.get(agent_id, {}).items()
+        if key.startswith("guidance-scientific-reflection:")
+    }
+
+
+@pytest.mark.parametrize(
+    ("mode", "arguments", "success", "data"),
+    [
+        ("scan_parse", {"log_path": "run/scan.log"}, True,
+         {"scan_has_internal_peak": False, "candidate_unavailable": False}),
+        ("scan_parse", {}, True,
+         {"scan_has_internal_peak": False, "candidate_unavailable": False}),
+        ("scan", {"log_path": "run/scan.log"}, True,
+         {"scan_has_internal_peak": False, "candidate_unavailable": False}),
+        ("verify", {"freq_log": "run/freq.log"}, True,
+         {"verification_status": "fail"}),
+        ("xtb_path", {"output_dir": "run/path"}, False,
+         {"refinement_termination": "cycles_exhausted",
+          "path_termination_reason": "path_not_converged"}),
+    ],
+)
+def test_structured_ts_failure_pins_reflection_without_changing_result(
+    tmp_path, mode, arguments, success, data,
+):
+    notices = NoticeManager()
+    call = ToolCall(id="t", name="ts_guess", arguments={"mode": mode, **arguments})
+    result = ToolResult(is_success=success, data=data)
+    assert _after(GuidanceStage(), _ctx("small_mol", notices, str(tmp_path)), call, result) is None
+    pins = _reflection_pins(notices)
+    assert len(pins) == 1
+    if mode in ("scan_parse", "scan") and arguments.get("log_path"):
+        assert str(tmp_path / "run/scan.log") in next(iter(pins.values()))
+    assert result.is_success is success and result.data == data
+
+
+@pytest.mark.parametrize(
+    ("name", "mode", "success", "data"),
+    [
+        ("log_parser", "scan_parse", True,
+         {"scan_has_internal_peak": False, "candidate_unavailable": False}),
+        ("ts_guess", "scan_prepare", True,
+         {"scan_has_internal_peak": False, "candidate_unavailable": False}),
+        ("ts_guess", "scan_parse", False,
+         {"scan_has_internal_peak": False, "candidate_unavailable": False}),
+        ("ts_guess", "scan_parse", True,
+         {"scan_has_internal_peak": None, "candidate_unavailable": False}),
+        ("ts_guess", "scan_parse", True,
+         {"scan_has_internal_peak": False}),
+        ("ts_guess", "scan_parse", True,
+         {"scan_has_internal_peak": False, "candidate_unavailable": True}),
+        ("ts_guess", "verify", True, {}),
+        ("ts_guess", "verify", True, {"verification_status": "inconclusive"}),
+        ("ts_guess", "verify", True, {"verification_status": "candidate"}),
+        ("ts_guess", "xtb_path", False, {"refinement_termination": ""}),
+        ("ts_guess", "xtb_path", False, {
+            "refinement_termination": "cycles_exhausted",
+            "path_termination_reason": "timeout",
+        }),
+    ],
+)
+def test_unrelated_or_incomplete_ts_results_do_not_pin_reflection(name, mode, success, data):
+    notices = NoticeManager()
+    arguments = {"mode": mode}
+    if mode == "scan_parse":
+        arguments["log_path"] = "scan.log"
+    elif mode == "verify":
+        arguments["freq_log"] = "freq.log"
+    call = ToolCall(id="t", name=name, arguments=arguments)
+    _after(GuidanceStage(), _ctx("small_mol", notices), call,
+           ToolResult(is_success=success, data=data))
+    assert _reflection_pins(notices) == {}
+
+
+def test_ts_exception_result_does_not_pin_reflection():
+    notices = NoticeManager()
+    call = ToolCall(id="t", name="ts_guess", arguments={
+        "mode": "scan_parse", "log_path": "scan.log",
+    })
+    result = ToolResult(
+        is_success=True,
+        data={"scan_has_internal_peak": False, "candidate_unavailable": False},
+        error=SimpleNamespace(code="unexpected"),
+    )
+    _after(GuidanceStage(), _ctx("small_mol", notices), call, result)
+    assert _reflection_pins(notices) == {}
+
+
+def test_reflection_deduplicates_reparse_across_sources_and_call_ids(tmp_path):
+    notices = NoticeManager()
+    ctx = _ctx("small_mol", notices, str(tmp_path))
+    stage = GuidanceStage()
+    result = ToolResult(is_success=True, data={
+        "scan_has_internal_peak": False, "candidate_unavailable": False,
+        "profile_table": "0 0.0\n1 2.0",
+    })
+    a = ToolCall(id="a1", name="ts_guess", arguments={"mode": "scan_parse", "log_path": "a.log"})
+    b = ToolCall(id="b1", name="ts_guess", arguments={"mode": "scan_parse", "log_path": "b.log"})
+    _after(stage, ctx, a, result)
+    _after(stage, ctx, b, result)
+    before = notices._local_seqs["as_g"]
+    _after(stage, ctx, ToolCall(id="a2", name="ts_guess", arguments={
+        "mode": "scan_parse", "log_path": str(tmp_path / "a.log"),
+    }), result)
+    assert len(_reflection_pins(notices)) == 2
+    assert notices._local_seqs["as_g"] == before
+
+
+def test_xtb_reflection_uses_actual_run_directory_for_attempt_identity(tmp_path):
+    notices = NoticeManager()
+    ctx = _ctx("small_mol", notices, str(tmp_path))
+    stage = GuidanceStage()
+    call = ToolCall(id="path", name="ts_guess", arguments={
+        "mode": "xtb_path", "output_dir": "path-search",
+    })
+    for run_dir in ("path-search/run-1", "path-search/run-2", "path-search/run-1"):
+        result = ToolResult(is_success=False, data={
+            "refinement_termination": "cycles_exhausted",
+            "path_termination_reason": "path_not_converged",
+            "images_dir": run_dir,
+        })
+        _after(stage, ctx, call, result)
+    pins = _reflection_pins(notices)
+    assert len(pins) == 2
+    assert any(str(tmp_path / "path-search/run-1") in content for content in pins.values())
+    assert any(str(tmp_path / "path-search/run-2") in content for content in pins.values())
+    assert notices._local_seqs["as_g"] == 2
+
+
+def test_changed_profile_updates_same_source_reflection(tmp_path):
+    notices = NoticeManager()
+    ctx = _ctx("small_mol", notices, str(tmp_path))
+    call = ToolCall(id="a", name="ts_guess", arguments={
+        "mode": "scan_parse", "log_path": "scan.log",
+    })
+    stage = GuidanceStage()
+    data = {"scan_has_internal_peak": False, "candidate_unavailable": False}
+    _after(stage, ctx, call, ToolResult(is_success=True, data={**data, "profile_table": "0 0\n1 2"}))
+    first = _reflection_pins(notices)
+    _after(stage, ctx, call, ToolResult(is_success=True, data={**data, "profile_table": "0 0\n1 3"}))
+    second = _reflection_pins(notices)
+    assert len(first) == len(second) == 1
+    assert first != second
+
+
+def test_reflection_is_agent_scoped_and_missing_sink_is_noop(tmp_path):
+    notices = NoticeManager()
+    call = ToolCall(id="t", name="ts_guess", arguments={
+        "mode": "verify", "freq_log": "freq.log",
+    })
+    result = ToolResult(is_success=True, data={"verification_status": "fail"})
+    stage = GuidanceStage()
+    _after(stage, _ctx("small_mol", notices, str(tmp_path)), call, result)
+    second = _ctx("small_mol", notices, str(tmp_path))
+    second.agent.id = "as_other"
+    _after(stage, second, call, result)
+    assert len(_reflection_pins(notices, "as_g")) == 1
+    assert len(_reflection_pins(notices, "as_other")) == 1
+    assert _after(stage, _ctx("small_mol", None), call, result) is None
+
+
+def test_reflection_reparse_after_notice_restore_does_not_emit_again(tmp_path):
+    log = EventLog(strict=True)
+    notices = NoticeManager()
+    notices.attach(log, lambda _agent_id: "project")
+    call = ToolCall(id="first", name="ts_guess", arguments={
+        "mode": "scan_parse", "log_path": "scan.log",
+    })
+    result = ToolResult(is_success=True, data={
+        "scan_has_internal_peak": False,
+        "candidate_unavailable": False,
+        "profile_table": "0 0\n1 2",
+    })
+    stage = GuidanceStage()
+    _after(stage, _ctx("small_mol", notices, str(tmp_path)), call, result)
+    assert sum(event.type == "context.pin_set" for event in log) == 1
+
+    restored = NoticeManager()
+    restored.attach(log, lambda _agent_id: "project")
+    restored.restore_from(log)
+    reparse = ToolCall(id="after-restart", name="ts_guess", arguments={
+        "mode": "scan_parse", "log_path": str(tmp_path / "scan.log"),
+    })
+    _after(stage, _ctx("small_mol", restored, str(tmp_path)), reparse, result)
+    assert len(_reflection_pins(restored)) == 1
+    assert sum(event.type == "context.pin_set" for event in log) == 1

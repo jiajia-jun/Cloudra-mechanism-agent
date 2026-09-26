@@ -82,14 +82,14 @@ Once that TS is validated, reuse its same-geometry frequency Hessian for both IR
   "multiplicity": 1,
   "nproc": 1,
   "mem": "3GB",
-  "orca_blocks": "%irc\n  Direction both\n  MaxIter 80\n  InitHess read\n  Hess_Filename \"/work/e1/ts_freq.hess\"\nend",
+  "orca_blocks": "%irc\n  Direction both\n  InitHess read\n  Hess_Filename \"/work/e1/ts_freq.hess\"\nend",
   "output_dir": "/work/e1/ts_irc.inp"
 }
 ```
 
-`MaxIter` is a ceiling. A genuinely converged shorter path does not need padding. Without a reusable Hessian, `InitHess calc_numfreq` requests numerical evaluation; do not inadvertently request an analytical external Hessian. Native files include `ts_irc_IRC_F_trj.xyz`, `ts_irc_IRC_B_trj.xyz` and the final `ts_irc_IRC_F.xyz` / `ts_irc_IRC_B.xyz`. Preserve them with the main log. See [ORCA IRC options](https://www.faccts.de/docs/orca/6.1/manual/contents/structurereactivity/irc.html).
+The example leaves `MaxIter` unspecified; do not accept an engine default blindly. Choose any setting for the current direction evidence, path topology and coupling, and compute cost; there is no universal step count. Keep native convergence checks enabled and record partial status honestly. Without a reusable Hessian, `InitHess calc_numfreq` requests numerical evaluation; do not inadvertently request an analytical external Hessian. Native files include `ts_irc_IRC_F_trj.xyz`, `ts_irc_IRC_B_trj.xyz` and the final `ts_irc_IRC_F.xyz` / `ts_irc_IRC_B.xyz`. Preserve them with the main log. See [ORCA IRC options](https://www.faccts.de/docs/orca/6.1/manual/contents/structurereactivity/irc.html).
 
-For each outer frame, use the same model with `task_type=[{"opt":null}]`, no constraints, then check minimum frequencies and identity. Forward/backward are trajectory labels, not guaranteed reactant/product assignments. `log_parser` reads native ORCA IRC counts/convergence; `ts_guess strict=True` extracts path endpoints from the native `*_IRC_F.xyz` / `*_IRC_B.xyz` final endpoint files (falling back to the last frame of `*_IRC_F_trj.xyz` / `*_IRC_B_trj.xyz`). A direction that terminated without converging keeps its path gap open — this is not a point-count issue; a short but converged path needs no padding. Use the SOP's evidence/limitation procedure, not repeated compute.
+For each outer frame, use the same agreed model with `task_type=[{"opt":null}]`, no constraints, then check minimum frequencies, identity, and direction. Forward/backward are trajectory labels, not guaranteed reactant/product assignments. `log_parser` reads native ORCA IRC counts/convergence; `ts_guess strict=True` extracts path endpoints from the native `*_IRC_F.xyz` / `*_IRC_B.xyz` final endpoint files (falling back to the last frame of `*_IRC_F_trj.xyz` / `*_IRC_B_trj.xyz`). An unconverged IRC flag or reached step ceiling alone does not require a longer run when the optimized outer frames establish direction and endpoint identity. Extend only the unresolved side if partial geometry cannot establish them. The short IRC alone does not prove a full path or dynamics.
 
 For free energies, read `method-selection.md` §4: `log_parser` supports ORCA thermochemistry fields, but the current `thermo_analysis` raw-RRHO adapter is Gaussian-only. For a requested electronic barrier, use the validated electronic energies directly.
 

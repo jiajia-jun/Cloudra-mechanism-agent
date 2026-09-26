@@ -1330,7 +1330,7 @@ def _write_irc_input(record: TsProcessRecord, job_dir: str) -> tuple[str, str]:
     Hessian for both IRC directions"。两个引擎的原生写法照
     ``references/{orca,gaussian}-inputs.md``：
 
-    - Gaussian：``task_type=[{"irc":"calcfc,maxpoints=80"}]``（默认双向）。
+    - Gaussian：``task_type=[{"irc":"calcfc"}]``（默认双向，不加自定义步数上限）。
     - ORCA：``task_type=[{"irc": None}]`` + 原生 ``%irc`` 块。Hessian 走哪个分支由**证据**决定，
       不是偏好：频率作业真的落下了同名 ``.hess`` 就用 ``InitHess read`` + ``Hess_Filename``；
       没有就按 skill 说的 ``InitHess calc_numfreq``（数值评估），绝不默认请求解析外部 Hessian。
@@ -1366,14 +1366,14 @@ def _write_irc_input(record: TsProcessRecord, job_dir: str) -> tuple[str, str]:
         if os.path.isfile(hess_path):
             # 频率作业真的落下了 Hessian：复用同一几何的 Hessian（skill 的首选做法）
             irca = (
-                "%irc\n  Direction both\n  MaxIter 80\n  InitHess read\n"
+                "%irc\n  Direction both\n  InitHess read\n"
                 f'  Hess_Filename "{hess_path}"\nend'
             )
         else:
-            irca = "%irc\n  Direction both\n  MaxIter 80\n  InitHess calc_numfreq\nend"
+            irca = "%irc\n  Direction both\n  InitHess calc_numfreq\nend"
         orca_blocks: Optional[str] = irca
     else:
-        task_type = [{"irc": "calcfc,maxpoints=80"}]
+        task_type = [{"irc": "calcfc"}]
         orca_blocks = None
 
     request = QmInputWriter_input_schema(
@@ -1458,7 +1458,11 @@ def _endpoint_opt_frame(record: TsProcessRecord, step: TsJobStep) -> tuple[str, 
 def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
                           role: Literal["reactant", "product"],
                           task: Literal["opt", "frequency"]) -> tuple[str, str]:
-    """Write an unconstrained endpoint Opt or a Freq at its converged Opt frame."""
+    """Write an unconstrained IRC-side Opt or a Freq at its converged Opt frame.
+
+    The historic reactant/product step names are side A/B slots. Species identity is
+    assigned only after both sides have optimized and passed frequency checks.
+    """
     from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
     from cloudra.tools.core.calculation_intent import (
         inspect_input,
@@ -1467,13 +1471,30 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
     )
 
     if task == "opt":
-        if role == "reactant":
-            built = _read_built_xyz(record, "reactant")
-            source = built[2] if built else ""
-        else:
-            source = _product_reordered_path(record)
+        irc_step = next(
+            (step for step in reversed(record.job_steps) if step.purpose == "irc"), None,
+        )
+        if irc_step is None or irc_step.state != "done":
+            return "a completed IRC job is required before optimizing its outer frames", ""
+        irc_log = _refinement_log_path(record, irc_step)
+        if not os.path.isfile(irc_log):
+            return f"the IRC job log is missing at {irc_log}", ""
+        from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_input_schema
+
+        checks: list[str] = []
+        irc_input = TsGuess_input_schema(
+            mode="verify", irc_log=irc_log, engine=record.declaration.engine,
+            output_dir=os.path.join(record.run_dir, VERDICT_STAGE_DIR),
+        )
+        try:
+            info = TsGuess._extract_irc_endpoints(irc_input, checks, require_two_sides=True)
+        except Exception as exc:
+            return f"IRC outer-frame extraction failed: {exc}", ""
+        if info is None:
+            return "IRC has no usable outer geometry on both sides: " + "; ".join(checks), ""
+        source = info["path_a" if role == "reactant" else "path_b"]
         if not source or not os.path.isfile(source):
-            return f"{role} search seed is missing; cannot optimize the endpoint", ""
+            return f"IRC side {'A' if role == 'reactant' else 'B'} outer frame is missing", ""
     else:
         opt_step = next(
             (step for step in reversed(record.job_steps) if step.purpose == f"{role}_opt"),
@@ -1497,7 +1518,7 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
         source_type="xyz_file", source_value=source,
         method=head.strip(), basis_set=basis.strip(), task_type=task_type,
         charge=declaration.charge, multiplicity=declaration.multiplicity,
-        title=f"{role} endpoint {task}: {declaration.reactant_smiles}",
+        title=f"IRC side {'A' if role == 'reactant' else 'B'} endpoint {task}",
         output_dir=input_path,
     )
     conflicts = validate_writer_request(request.model_dump())
@@ -1628,7 +1649,8 @@ def _refine(record: TsProcessRecord) -> TsProcessRecord:
         if _minimum is None:
             return _terminal(
                 record, "verdict", "candidate_only",
-                f"{role} endpoint did not qualify as an optimized minimum: {reason}",
+                f"IRC side {'A' if role == 'reactant' else 'B'} did not qualify as an "
+                f"optimized minimum: {reason}",
             )
 
     endpoint_next = {
@@ -1668,7 +1690,8 @@ def _refine(record: TsProcessRecord) -> TsProcessRecord:
         record.waiting_for = f"job:{job_id}"
         _record_stage(
             record, "refine", "waiting",
-            f"{role} endpoint {task} job {job_id} submitted; awaiting its compute notification",
+            f"IRC side {'A' if role == 'reactant' else 'B'} endpoint {task} job {job_id} "
+            "submitted; awaiting its compute notification",
             [input_path],
         )
         return record
@@ -1683,7 +1706,7 @@ def _refine(record: TsProcessRecord) -> TsProcessRecord:
 def _validated_endpoint_minimum(
     record: TsProcessRecord, role: Literal["reactant", "product"],
 ) -> tuple[tuple[list[str], list[list[float]]] | None, str]:
-    """Return only a converged, zero-imaginary QM endpoint reference geometry."""
+    """Return a converged, zero-imaginary QM endpoint; identity is checked at verdict."""
     import math
 
     from cloudra.dag.evidence_ingest import snapshot_evidence_file, validate_species_minimum
@@ -1746,9 +1769,6 @@ def _validated_endpoint_minimum(
             f"{role} endpoint geometry in the optimization log, saved frequency source, and frequency "
             "log does not match; it cannot serve as a proven minimum reference"
         )
-    identity_error = _endpoint_identity_error(record, role, optimized)
-    if identity_error:
-        return None, identity_error
     return (optimized[0], optimized[1]), ""
 
 
@@ -1888,8 +1908,12 @@ def _endpoint_identity_error(
     return ""
 
 
-def _irc_interval_proof(record: TsProcessRecord, irc_log: str,
-                        freq_step: "TsJobStep") -> tuple[bool, str]:
+def _irc_interval_proof(
+    record: TsProcessRecord, irc_log: str, freq_step: "TsJobStep",
+    reactant: tuple[list[str], list[list[float]]],
+    product: tuple[list[str], list[list[float]]],
+    expected_assignment: Literal["direct", "swapped"],
+) -> tuple[bool, str]:
     """verified 的区间证明：每个 IRC 双侧端点几何上位于 TS 与对应声明极小值之间。
 
     材料：TS 几何（频率作业旁的 ``optimized.xyz``）、两端经 Opt 收敛且 Freq
@@ -1916,13 +1940,6 @@ def _irc_interval_proof(record: TsProcessRecord, irc_log: str,
     ts_atoms = read_xyz_atoms(ts_xyz)
     ts_symbols = [symbol for symbol, _ in ts_atoms]
     ts_pos = [list(position) for _, position in ts_atoms]
-
-    reactant, reason = _validated_endpoint_minimum(record, "reactant")
-    if reactant is None:
-        return False, reason
-    product, reason = _validated_endpoint_minimum(record, "product")
-    if product is None:
-        return False, reason
 
     checks: list[str] = []
     irc_input = TsGuess_input_schema(
@@ -1973,6 +1990,11 @@ def _irc_interval_proof(record: TsProcessRecord, irc_log: str,
             "at least one IRC endpoint does not lie between the TS and any declared minimum; "
             "the path does not demonstrably connect the declared minima"
         )
+    if proof["assignment"] != expected_assignment:
+        return False, (
+            "the interval pairing contradicts the provenance of the optimized IRC outer "
+            f"frames (proof={proof['assignment']}, source={expected_assignment})"
+        )
     return True, (
         "each IRC endpoint lies between the TS and the corresponding declared minimum "
         f"({proof['assignment']} pairing; interval proof per irc_path.assign_irc_endpoints)"
@@ -1980,13 +2002,13 @@ def _irc_interval_proof(record: TsProcessRecord, irc_log: str,
 
 
 def _verdict(record: TsProcessRecord) -> TsProcessRecord:
-    """判定四态终态：TS 一虚频、IRC 双向收敛、两端 Opt/Freq 证实为极小值，
+    """判定四态终态：TS 一虚频、IRC 双侧可用几何、两端 Opt/Freq 证实为极小值，
     且各 IRC 端点位于 TS 与对应极小值之间，才算 ``verified``。
 
     判定只读**交付物**（频率作业的日志），缺失频率数据一律算"未验证"——
     "没做频率分析"绝不能被当成"已验证的鞍点"（与 `dag/evidence_ingest` 同一套三态语义）。
-    「IRC 双向收敛」本身不证明连通：不收敛的 IRC 不算失败，收敛但不满足区间
-    证明的同样只能到 candidate_only。
+    IRC 的引擎收敛标志不证明连通，也不是区间证明的前置条件；两侧几何或
+    端点证据不足时仍只能到 candidate_only。
     """
     from cloudra.dag.evidence_ingest import snapshot_evidence_file
 
@@ -2041,33 +2063,40 @@ def _verdict(record: TsProcessRecord) -> TsProcessRecord:
             record, "verdict", "candidate_only",
             f"the declared IRC log does not exist at {irc_log}; the candidate stays unverified",
         )
-    from cloudra.tools.core import gaussian_frames, orca_frames
+    side_a, reason = _validated_endpoint_minimum(record, "reactant")
+    if side_a is None:
+        return _terminal(record, "verdict", "candidate_only", f"IRC side A minimum is unverified: {reason}")
+    side_b, reason = _validated_endpoint_minimum(record, "product")
+    if side_b is None:
+        return _terminal(record, "verdict", "candidate_only", f"IRC side B minimum is unverified: {reason}")
 
-    frames_mod = orca_frames if record.declaration.engine == "orca" else gaussian_frames
-    irc_result = frames_mod.extract_irc(irc_log)
-    # orca 直接返回 meta dict；gaussian 返回 (frames, meta)——两种形态都要认
-    irc_meta = irc_result[1] if isinstance(irc_result, tuple) else irc_result
-    forward = irc_meta.get("forward_converged")
-    backward = irc_meta.get("backward_converged")
-    if not (forward and backward):
-        return _terminal(
-            record, "verdict", "candidate_only",
-            f"IRC did not converge in both directions (forward={forward}, backward={backward}); "
-            "an incomplete IRC is not treated as failure of the saddle, but it cannot support "
-            "verified either",
+    failures: list[str] = []
+    for assignment, reactant, product in (
+        ("direct", side_a, side_b), ("swapped", side_b, side_a),
+    ):
+        identity_errors = [
+            _endpoint_identity_error(record, "reactant", reactant),
+            _endpoint_identity_error(record, "product", product),
+        ]
+        if any(identity_errors):
+            failures.append(f"{assignment} identity: {'; '.join(error for error in identity_errors if error)}")
+            continue
+        passed, detail = _irc_interval_proof(
+            record, irc_log, freq_step, reactant, product, assignment,
         )
-    passed, detail = _irc_interval_proof(record, irc_log, freq_step)
-    if not passed:
-        return _terminal(
-            record, "verdict", "candidate_only",
-            "IRC converged in both directions, but the endpoint interval proof did not "
-            f"establish that the endpoints connect the declared minima: {detail}. The "
-            "candidate stays UNVERIFIED",
-        )
+        if passed:
+            return _terminal(
+                record, "verdict", "verified",
+                f"verified transition state: exactly one imaginary mode ({imag[0]:.1f} cm^-1), "
+                f"usable IRC geometries from both directions, and {detail}; "
+                f"optimized side-to-species assignment is {assignment}",
+            )
+        failures.append(f"{assignment} interval proof: {detail}")
     return _terminal(
-        record, "verdict", "verified",
-        f"verified transition state: exactly one imaginary mode ({imag[0]:.1f} cm^-1), IRC "
-        f"converged in both directions, and {detail}",
+        record, "verdict", "candidate_only",
+        "The optimized IRC outer frames did not establish one consistent species identity, "
+        "source provenance, and endpoint interval proof: " + "; ".join(failures)
+        + ". The candidate stays UNVERIFIED",
     )
 
 

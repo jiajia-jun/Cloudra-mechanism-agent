@@ -501,21 +501,16 @@ def test_built_endpoints_are_delivered_through_the_shared_builder(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.real_xtb
-@pytest.mark.skipif(
-    __import__("shutil").which("xtb") is None, reason="未安装 xtb，跳过真实引擎验收"
-)
 def test_resume_supplies_the_missing_declaration_and_continues(tmp_path):
-    """resume 只接受局部覆盖：补上 atom_map 后从阻塞处继续。"""
+    """resume 只接受局部覆盖；此处用文件级 IDPP 替身隔离 xTB 路径收敛。"""
     record = _start(tmp_path, atom_map=[])
     assert record.blocked.stage == "map"
     record = resume(record, TsAdjustment(atom_map=ATOM_MAP))
     assert record.intervention_count == 1
     assert record.stage_record("map").status == "done"
-    # map 通过后前端 + 提交一路跑完，在 refine 等作业终态
-    assert record.blocked is None
-    assert record.waiting_for.startswith("job:")
-    assert record.job_id is not None
+    # map 通过后进入路径/提交阶段；IDPP 可能无法提供 TS 候选，不能据此判 resume 失败。
+    assert record.stage_record("guess").status == "done"
+    assert record.blocked is None or record.blocked.stage != "map"
 
 
 def test_resume_is_recorded_and_bounded(tmp_path):
@@ -814,7 +809,7 @@ def test_verdict_cannot_reach_verified_without_irc(tmp_path):
     """频率支持一阶鞍点时，没有 IRC 仍只能到 candidate_only——IRC 是第二道闸。
 
     这里用真实日志里的虚频数据无法构造"恰好 1 个虚频"，所以直接验证纪律本身：
-    判定函数要求 freq(1 imag) **且** IRC 双向收敛才给 verified；缺 IRC 一律 candidate_only。
+    判定函数要求 freq(1 imag) **且** IRC 双侧区间证明才给 verified；缺 IRC 一律 candidate_only。
     """
     from cloudra.tools.core.ts_process import _verdict
 
@@ -880,6 +875,7 @@ def test_refine_submits_the_irc_job_after_frequency(tmp_path):
     # ORCA：! IRC + 原生 %irc 块，双向，且 Hessian 分支由证据决定
     assert "IRC" in content
     assert "%irc" in content
+    assert "MaxIter" not in content
     assert "Direction both" in content
     assert ("InitHess read" in content) or ("InitHess calc_numfreq" in content)
     assert record.waiting_for == f"job:{irc_step.job_id}"
@@ -918,7 +914,7 @@ def test_irc_input_reuses_the_hessian_only_when_the_file_is_actually_there(tmp_p
 
 
 def test_refine_submits_unconstrained_endpoint_optimization_after_irc(tmp_path, monkeypatch):
-    """A completed IRC starts QM optimization of the reactant seed, not endpoint proof."""
+    """A completed IRC starts unconstrained QM optimization from its actual outer frame."""
     import cloudra.tools.core.ts_process as process
     from cloudra.tools.core.ts_process import TsJobStep
 
@@ -931,6 +927,13 @@ def test_refine_submits_unconstrained_endpoint_optimization_after_irc(tmp_path, 
     record.waiting_for = "job:9010"
     monkeypatch.setattr(process, "_read_job_state", lambda _record, _job_id: "done")
     monkeypatch.setattr(process, "_submit_step", lambda *_args: ("", 9011))
+    irc_log = Path(process._refinement_log_path(record, record.job_steps[-1]))
+    irc_log.parent.mkdir(parents=True, exist_ok=True)
+    irc_log.write_text("IRC complete\n", encoding="utf-8")
+    symbols, positions, _xyz, _mol = process._read_built_xyz(record, "reactant")
+    side_a = [list(position) for position in positions]
+    side_a[0][0] += 0.37
+    _install_fake_irc_endpoints(monkeypatch, symbols, side_a, positions)
 
     continued = process._refine(record)
     assert continued.blocked is None
@@ -940,6 +943,24 @@ def test_refine_submits_unconstrained_endpoint_optimization_after_irc(tmp_path, 
     assert "Opt" in content
     assert "Freq" not in content
     assert "%geom" not in content  # guided distance windows must not survive
+    assert f"{side_a[0][0]:.6f}" in content
+
+
+def test_refine_stops_on_failed_irc_job_before_endpoint_work(tmp_path, monkeypatch):
+    import cloudra.tools.core.ts_process as process
+    from cloudra.tools.core.ts_process import TsJobStep
+
+    record = _start(tmp_path)
+    record.blocked = None
+    record.stage = "refine"
+    record.job_steps.append(TsJobStep(
+        purpose="irc", job_id=9010, input_path=str(tmp_path / "irc.inp"), state="ready",
+    ))
+    monkeypatch.setattr(process, "_read_job_state", lambda _record, _job_id: "failed")
+    result = process._refine(record)
+    assert result.blocked is not None
+    assert result.blocked.failure_class == "job_failed"
+    assert [step.purpose for step in result.job_steps] == ["irc"]
 
 
 def test_refine_endpoint_jobs_survive_reload_and_use_optimized_frames(tmp_path, monkeypatch):
@@ -963,6 +984,13 @@ def test_refine_endpoint_jobs_survive_reload_and_use_optimized_frames(tmp_path, 
     from cloudra.tools.core.structure_artifacts import read_xyz_atoms
 
     product_path = process._product_reordered_path(record)
+    irc_log = Path(process._refinement_log_path(record, record.job_steps[0]))
+    irc_log.parent.mkdir(parents=True, exist_ok=True)
+    irc_log.write_text("IRC complete\n", encoding="utf-8")
+    product_atoms = read_xyz_atoms(product_path)
+    _install_fake_irc_endpoints(
+        monkeypatch, reactant[0], reactant[1], [position for _, position in product_atoms],
+    )
     monkeypatch.setattr(
         "cloudra.dag.evidence_ingest.snapshot_evidence_file",
         lambda *_args, **_kwargs: SimpleNamespace(
@@ -1022,7 +1050,7 @@ def test_refine_endpoint_jobs_survive_reload_and_use_optimized_frames(tmp_path, 
 
 
 def test_gaussian_irc_uses_the_skill_recipe(tmp_path):
-    """Gaussian 走 skill 表格里的原生写法（含 calcfc / maxpoints），不拼 ORCA 的 %irc 块。"""
+    """Gaussian 走原生 calcfc 写法，不强加步数上限或 ORCA 的 %irc 块。"""
     from cloudra.tools.core.ts_process import TsJobStep, _write_irc_input
 
     record = _start(tmp_path, engine="gaussian")
@@ -1041,7 +1069,8 @@ def test_gaussian_irc_uses_the_skill_recipe(tmp_path):
     error, path = _write_irc_input(record, str(job3))
     assert error == ""
     content = Path(path).read_text(encoding="utf-8")
-    assert "irc=(calcfc,maxpoints=80)" in content
+    assert "irc=calcfc" in content
+    assert "maxpoints" not in content.lower()
     assert "%irc" not in content
 
 
@@ -1196,7 +1225,7 @@ def test_same_smiles_endpoints_are_distinguished_by_declared_geometry(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# verdict 第二道闸：IRC 双向收敛之外还要过端点区间证明才 verified
+# verdict 第二道闸：IRC 双侧几何及端点区间证明才可 verified
 # ---------------------------------------------------------------------------
 
 
@@ -1214,13 +1243,19 @@ def _install_fake_irc_endpoints(monkeypatch, symbols, end_a_pos, end_b_pos):
     from cloudra.tools.Chemtool.ts_guess import TsGuess
 
     def _fake_extract(user_input, checks, require_two_sides=True, **_kwargs):
+        out_dir = Path(user_input.output_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path_a = out_dir / "irc_end_a.xyz"
+        path_b = out_dir / "irc_end_b.xyz"
+        path_a.write_text(_xyz_text(symbols, end_a_pos, "irc end a"), encoding="utf-8")
+        path_b.write_text(_xyz_text(symbols, end_b_pos, "irc end b"), encoding="utf-8")
         return {
-            "end_a": SimpleNamespace(xyz=_xyz_text(symbols, end_a_pos, "irc end a")),
-            "end_b": SimpleNamespace(xyz=_xyz_text(symbols, end_b_pos, "irc end b")),
+            "end_a": SimpleNamespace(xyz=path_a.read_text(encoding="utf-8")),
+            "end_b": SimpleNamespace(xyz=path_b.read_text(encoding="utf-8")),
             "frames": [],
             "meta": {"forward_converged": True, "backward_converged": True},
-            "path_a": "",
-            "path_b": "",
+            "path_a": str(path_a),
+            "path_b": str(path_b),
         }
 
     monkeypatch.setattr(TsGuess, "_extract_irc_endpoints", staticmethod(_fake_extract))
@@ -1366,7 +1401,7 @@ def _install_endpoint_minimum_jobs(record, monkeypatch, symbols, reactant, produ
 
 
 def test_verdict_verified_requires_and_passes_interval_proof(tmp_path, monkeypatch):
-    """freq(1 imag) + IRC 双向收敛 + 区间证明通过 → verified。
+    """freq(1 imag) + IRC 双侧几何 + 区间证明通过 → verified。
 
     区间证明是本次新增的必要条件：端点几何各自位于 TS 与对应声明极小值之间。
     """
@@ -1395,6 +1430,128 @@ def test_verdict_verified_requires_and_passes_interval_proof(tmp_path, monkeypat
     assert record.terminal == "verified", record.stage_record("verdict").detail
     detail = record.stage_record("verdict").detail
     assert "interval proof" in detail
+
+
+def test_verdict_accepts_partial_bidirectional_irc_with_verified_endpoints(
+    tmp_path, monkeypatch,
+):
+    """A short two-sided IRC can verify direction through optimized endpoint minima."""
+    from cloudra.tools.core import orca_frames
+    from cloudra.tools.core.ts_process import _verdict
+
+    record, symbols, job_dir = _record_with_freq_and_converged_irc(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        orca_frames, "extract_irc",
+        lambda path, **_kwargs: {"forward_converged": False, "backward_converged": False},
+    )
+    a, b = _sn2_minima(record, symbols)
+    (job_dir / "optimized.xyz").write_text(
+        _xyz_text(symbols, 0.5 * (a + b), "TS geometry"), encoding="utf-8",
+    )
+    _install_fake_irc_endpoints(
+        monkeypatch, symbols, 0.75 * a + 0.25 * b, 0.25 * a + 0.75 * b,
+    )
+    _install_endpoint_minimum_jobs(record, monkeypatch, symbols, a, b)
+
+    result = _verdict(record)
+    assert result.terminal == "verified", result.stage_record("verdict").detail
+    assert "interval proof" in result.stage_record("verdict").detail
+
+
+def test_verdict_accepts_reversed_irc_side_identity_with_matching_provenance(
+    tmp_path, monkeypatch,
+):
+    """Forward/backward labels do not determine reactant/product identity."""
+    from cloudra.tools.core import orca_frames
+    from cloudra.tools.core.ts_process import _verdict
+
+    record, symbols, job_dir = _record_with_freq_and_converged_irc(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        orca_frames, "extract_irc",
+        lambda path, **_kwargs: {"forward_converged": False, "backward_converged": False},
+    )
+    a, b = _sn2_minima(record, symbols)
+    (job_dir / "optimized.xyz").write_text(
+        _xyz_text(symbols, 0.5 * (a + b), "TS geometry"), encoding="utf-8",
+    )
+    _install_fake_irc_endpoints(
+        monkeypatch, symbols, 0.25 * a + 0.75 * b, 0.75 * a + 0.25 * b,
+    )
+    _install_endpoint_minimum_jobs(record, monkeypatch, symbols, b, a)
+
+    result = _verdict(record)
+    assert result.terminal == "verified", result.stage_record("verdict").detail
+    assert "swapped" in result.stage_record("verdict").detail
+
+
+def test_verdict_rejects_two_irc_sides_optimized_to_same_species(tmp_path, monkeypatch):
+    from cloudra.tools.core.ts_process import _verdict
+
+    record, symbols, job_dir = _record_with_freq_and_converged_irc(tmp_path, monkeypatch)
+    a, b = _sn2_minima(record, symbols)
+    (job_dir / "optimized.xyz").write_text(
+        _xyz_text(symbols, 0.5 * (a + b), "TS geometry"), encoding="utf-8",
+    )
+    _install_fake_irc_endpoints(
+        monkeypatch, symbols, 0.75 * a + 0.25 * b, 0.25 * a + 0.75 * b,
+    )
+    _install_endpoint_minimum_jobs(record, monkeypatch, symbols, b, b)
+
+    result = _verdict(record)
+    assert result.terminal == "candidate_only"
+    assert "identity" in result.stage_record("verdict").detail
+
+
+def test_verdict_rejects_identity_pairing_that_contradicts_irc_side_provenance(
+    tmp_path, monkeypatch,
+):
+    from cloudra.tools.core.ts_process import _verdict
+
+    record, symbols, job_dir = _record_with_freq_and_converged_irc(tmp_path, monkeypatch)
+    a, b = _sn2_minima(record, symbols)
+    (job_dir / "optimized.xyz").write_text(
+        _xyz_text(symbols, 0.5 * (a + b), "TS geometry"), encoding="utf-8",
+    )
+    # The IRC goes A→reactant/B→product, but the recorded optimization origins
+    # end up A→product/B→reactant. The two facts cannot be combined into proof.
+    _install_fake_irc_endpoints(
+        monkeypatch, symbols, 0.75 * a + 0.25 * b, 0.25 * a + 0.75 * b,
+    )
+    _install_endpoint_minimum_jobs(record, monkeypatch, symbols, b, a)
+
+    result = _verdict(record)
+    assert result.terminal == "candidate_only"
+    assert "provenance" in result.stage_record("verdict").detail
+
+
+@pytest.mark.parametrize("defect", ["missing_side", "wrong_direction"])
+def test_partial_irc_still_requires_two_valid_directions(
+    tmp_path, monkeypatch, defect,
+):
+    from cloudra.tools.Chemtool.ts_guess import TsGuess
+    from cloudra.tools.core import orca_frames
+    from cloudra.tools.core.ts_process import _verdict
+
+    record, symbols, job_dir = _record_with_freq_and_converged_irc(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        orca_frames, "extract_irc",
+        lambda path, **_kwargs: {"forward_converged": False, "backward_converged": False},
+    )
+    a, b = _sn2_minima(record, symbols)
+    (job_dir / "optimized.xyz").write_text(
+        _xyz_text(symbols, 0.5 * (a + b), "TS geometry"), encoding="utf-8",
+    )
+    if defect == "missing_side":
+        monkeypatch.setattr(TsGuess, "_extract_irc_endpoints", staticmethod(
+            lambda *_args, **_kwargs: None,
+        ))
+    else:
+        _install_fake_irc_endpoints(monkeypatch, symbols, 0.75 * a + 0.25 * b, a)
+    _install_endpoint_minimum_jobs(record, monkeypatch, symbols, a, b)
+
+    result = _verdict(record)
+    assert result.terminal == "candidate_only"
+    assert "interval proof" in result.stage_record("verdict").detail
 
 
 def test_verdict_rejects_raw_endpoint_guesses_even_when_irc_interval_matches(
@@ -1492,15 +1649,18 @@ def test_optimized_endpoint_must_keep_declared_species_connectivity(
     tmp_path, monkeypatch,
 ):
     """A seed that optimizes into the product basin is not a reactant minimum."""
-    from cloudra.tools.core.ts_process import _validated_endpoint_minimum
+    from cloudra.tools.core.ts_process import (
+        _endpoint_identity_error,
+        _validated_endpoint_minimum,
+    )
 
     record, symbols, _job_dir = _record_with_freq_and_converged_irc(tmp_path, monkeypatch)
     a, b = _sn2_minima(record, symbols)
     _install_endpoint_minimum_jobs(record, monkeypatch, symbols, b, b)
 
     minimum, reason = _validated_endpoint_minimum(record, "reactant")
-    assert minimum is None
-    assert "connectivity" in reason.lower()
+    assert minimum is not None, reason
+    assert "connectivity" in _endpoint_identity_error(record, "reactant", minimum).lower()
 
 
 def test_endpoint_identity_accepts_a_nonbonded_entrance_complex(tmp_path):
@@ -1651,7 +1811,7 @@ def test_unreadable_gaussian_endpoint_opt_log_finishes_candidate_only(
 
 
 def test_verdict_converged_irc_without_connectivity_is_candidate_only(tmp_path, monkeypatch):
-    """IRC 双向收敛但端点不在 TS 与声明极小值之间（连通未证明）→ candidate_only。
+    """IRC 双侧有几何但端点不在 TS 与声明极小值之间 → candidate_only。
 
     「IRC 跑完了」本身不构成「落回声明的极小值」的证据。
     """
@@ -1669,6 +1829,7 @@ def test_verdict_converged_irc_without_connectivity_is_candidate_only(tmp_path, 
         _xyz_text(symbols, ts, "TS geometry"), encoding="utf-8"
     )
     _install_fake_irc_endpoints(monkeypatch, symbols, end_a, end_b)
+    _install_endpoint_minimum_jobs(record, monkeypatch, symbols, a, b)
 
     record = _verdict(record)
     assert record.terminal == "candidate_only"

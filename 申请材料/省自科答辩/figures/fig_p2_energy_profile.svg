@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 560" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#555"/>
+    </marker>
+  </defs>
+  <rect width="1000" height="560" fill="#ffffff"/>
+
+  <!-- axes -->
+  <line x1="80" y1="60" x2="80" y2="470" stroke="#333" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="80" y1="470" x2="950" y2="470" stroke="#333" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="30" y="260" font-size="20" fill="#333" transform="rotate(-90 30 260)" text-anchor="middle">电子能量 (kcal/mol)</text>
+  <text x="520" y="512" font-size="20" fill="#333" text-anchor="middle">反应坐标</text>
+
+  <!-- zero reference -->
+  <line x1="80" y1="374" x2="950" y2="374" stroke="#bbb" stroke-width="1.5" stroke-dasharray="6 5"/>
+  <text x="90" y="368" font-size="14" fill="#999">0</text>
+
+  <!-- stepwise path: RC(140,374) TS1(320,215) INT1(500,442) TS2(680,112) P(860,398) -->
+  <path d="M140,374 C200,374 250,215 320,215 C390,215 430,442 500,442 C570,442 610,112 680,112 C750,112 790,398 860,398"
+        fill="none" stroke="#1f4e79" stroke-width="4"/>
+
+  <!-- stationary point labels -->
+  <g font-size="19" fill="#1f4e79" text-anchor="middle" font-weight="600">
+    <text x="140" y="412">RC</text>
+    <text x="320" y="198">TS1</text>
+    <text x="500" y="480">INT1</text>
+    <text x="680" y="96">TS2</text>
+    <text x="860" y="436">P</text>
+  </g>
+  <g font-size="15" fill="#1f4e79" text-anchor="middle">
+    <text x="140" y="430">0</text>
+    <text x="500" y="498">−11.9</text>
+    <text x="860" y="454">−4.1</text>
+  </g>
+
+  <!-- barrier arrow TS1 -->
+  <line x1="228" y1="374" x2="228" y2="215" stroke="#555" stroke-width="1.8" marker-start="url(#arr)" marker-end="url(#arr)"/>
+  <text x="238" y="300" font-size="16" fill="#333">27.9</text>
+
+  <!-- RDS arrow -->
+  <line x1="768" y1="442" x2="768" y2="112" stroke="#c0392b" stroke-width="2" marker-start="url(#arr)" marker-end="url(#arr)"/>
+  <text x="778" y="280" font-size="17" fill="#c0392b" font-weight="600">57.7（决速步）</text>
+
+  <!-- metaphors for lay audience -->
+  <text x="520" y="540" font-size="16" fill="#777" text-anchor="middle">山谷 = 反应物 / 中间体 / 产物　　山口 = 过渡态</text>
+  <text x="586" y="455" font-size="14" fill="#999" text-anchor="middle">（羧醇胺中间体）</text>
+
+  <!-- footer -->
+  <text x="80" y="40" font-size="14" fill="#999">真实计算数据：甲醛 + 甲胺 → 亚胺体系 · B3LYP-D3(BJ)/def2-SVP · Cloudra 自主交付（NI1）</text>
+</svg>

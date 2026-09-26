@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 620" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+  <defs>
+    <marker id="a12" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#555"/>
+    </marker>
+    <marker id="a12b" markerWidth="9" markerHeight="9" refX="4.5" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 Z" fill="#c0392b"/>
+    </marker>
+  </defs>
+  <rect width="1000" height="620" fill="#ffffff"/>
+
+  <!-- axes -->
+  <line x1="90" y1="70" x2="90" y2="530" stroke="#333" stroke-width="2" marker-end="url(#a12)"/>
+  <line x1="90" y1="530" x2="950" y2="530" stroke="#333" stroke-width="2" marker-end="url(#a12)"/>
+  <text x="34" y="300" font-size="20" fill="#333" transform="rotate(-90 34 300)" text-anchor="middle">二面角</text>
+  <text x="520" y="578" font-size="20" fill="#333" text-anchor="middle">反应坐标</text>
+
+  <!-- basin A contours (lower left) -->
+  <g fill="none" stroke="#9dbede" stroke-width="1.6">
+    <ellipse cx="280" cy="400" rx="180" ry="90"/>
+    <ellipse cx="280" cy="400" rx="125" ry="62"/>
+    <ellipse cx="280" cy="400" rx="70" ry="35"/>
+  </g>
+  <!-- basin B contours (upper right) -->
+  <g fill="none" stroke="#9dbede" stroke-width="1.6">
+    <ellipse cx="700" cy="220" rx="180" ry="90"/>
+    <ellipse cx="700" cy="220" rx="125" ry="62"/>
+    <ellipse cx="700" cy="220" rx="70" ry="35"/>
+  </g>
+  <!-- product basin (lower right) -->
+  <g fill="none" stroke="#c8b9dd" stroke-width="1.6">
+    <ellipse cx="780" cy="440" rx="130" ry="60"/>
+    <ellipse cx="780" cy="440" rx="75" ry="32"/>
+  </g>
+
+  <!-- minima -->
+  <circle cx="280" cy="400" r="7" fill="#1f4e79"/>
+  <text x="280" y="432" font-size="16.5" fill="#1f4e79" text-anchor="middle" font-weight="700">Conformer A</text>
+  <circle cx="700" cy="220" r="7" fill="#1f4e79"/>
+  <text x="700" y="252" font-size="16.5" fill="#1f4e79" text-anchor="middle" font-weight="700">Conformer B</text>
+  <circle cx="780" cy="440" r="7" fill="#7b5ea7"/>
+  <text x="800" y="472" font-size="16.5" fill="#7b5ea7" text-anchor="middle" font-weight="700">产物（Rₐ / Sₐ）</text>
+
+  <!-- saddles -->
+  <text x="470" y="285" font-size="24" fill="#c0392b" font-weight="700">×</text>
+  <text x="478" y="310" font-size="15" fill="#c0392b" font-weight="600">TS-Rₐ</text>
+  <text x="560" y="360" font-size="24" fill="#c0392b" font-weight="700">×</text>
+  <text x="574" y="386" font-size="15" fill="#c0392b" font-weight="600">TS-Sₐ</text>
+
+  <!-- paths -->
+  <path d="M280,400 C360,380 420,320 468,290 C540,245 620,230 693,222" fill="none" stroke="#c0392b" stroke-width="2.5" stroke-dasharray="7 5" marker-end="url(#a12b)"/>
+  <path d="M285,405 C400,420 480,390 558,368 C640,345 720,300 765,270 C790,320 792,380 785,432" fill="none" stroke="#e07b00" stroke-width="2.5" stroke-dasharray="7 5" marker-end="url(#a12b)"/>
+  <text x="400" y="350" font-size="13.5" fill="#c0392b">路径 1</text>
+  <text x="640" y="330" font-size="13.5" fill="#e07b00">路径 2（竞争）</text>
+
+  <!-- caption -->
+  <text x="520" y="608" font-size="15.5" fill="#666" text-anchor="middle">构象（二面角）与反应坐标耦合：不同的构象走上不同的过渡态，给出不同的立体化学</text>
+</svg>

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1160" height="425" viewBox="0 0 1160 425">
+  <rect width="1160" height="425" fill="#FFFFFF"/>
+  <circle cx="358" cy="209" r="165" fill="#F8FAFD" stroke="#D7E1EC" stroke-width="2" stroke-dasharray="7 9"/>
+  <g fill="none" stroke="#96B4D1" stroke-width="3" opacity="0.9">
+    <path d="M240 100 Q350 117 453 113"/><path d="M453 113 Q500 203 460 305"/><path d="M460 305 Q352 280 240 316"/><path d="M240 316 Q183 215 240 100"/><path d="M240 100 Q323 199 460 305"/><path d="M453 113 Q326 202 240 316"/>
+  </g>
+  <g font-family="Arial Unicode MS" text-anchor="middle" font-size="20" font-weight="700" fill="#FFFFFF">
+    <circle cx="240" cy="100" r="48" fill="#2564A8"/><text x="240" y="107">文献</text>
+    <circle cx="453" cy="113" r="48" fill="#2564A8"/><text x="453" y="120">建模</text>
+    <circle cx="460" cy="305" r="48" fill="#2564A8"/><text x="460" y="312">计算</text>
+    <circle cx="240" cy="316" r="48" fill="#2564A8"/><text x="240" y="323">分析</text>
+  </g>
+  <circle cx="353" cy="209" r="36" fill="#D69325"/>
+  <text x="353" y="216" text-anchor="middle" font-family="Arial Unicode MS" font-size="19" font-weight="700" fill="#FFFFFF">发现</text>
+  <line x1="610" y1="51" x2="610" y2="371" stroke="#D7E1EC" stroke-width="2"/>
+  <text x="666" y="93" font-family="Arial Unicode MS" font-size="25" font-weight="700" fill="#1F4E79">同伴之间直接讨论和求助</text>
+  <text x="666" y="137" font-family="Arial Unicode MS" font-size="19" fill="#23364A">发现留在项目讨论区，成员可以彼此调用</text>
+  <line x1="667" y1="174" x2="1084" y2="174" stroke="#D7E1EC" stroke-width="2"/>
+  <text x="666" y="219" font-family="Arial Unicode MS" font-size="25" font-weight="700" fill="#1F4E79">共同检索有来源的知识</text>
+  <circle cx="680" cy="263" r="8" fill="#427E68"/><text x="704" y="269" font-family="Arial Unicode MS" font-size="18" fill="#23364A">已核实计算</text>
+  <circle cx="857" cy="263" r="8" fill="#2564A8"/><text x="881" y="269" font-family="Arial Unicode MS" font-size="18" fill="#23364A">论文信息</text>
+  <circle cx="680" cy="313" r="8" fill="#D69325"/><text x="704" y="319" font-family="Arial Unicode MS" font-size="18" fill="#23364A">模型假设</text>
+  <text x="666" y="377" font-family="Arial Unicode MS" font-size="17" fill="#596B7A">颜色表示材料类别，不代表自动验证新的结论</text>
+</svg>
