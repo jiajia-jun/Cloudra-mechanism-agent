@@ -80,7 +80,28 @@ def resolve_existing_tool_path(tool: Any, value: str) -> str:
         if os.path.exists(candidate):
             return candidate
     tried = "\n".join(f"  - {c}" for c in candidates)
-    raise FileNotFoundError(f"File not found: {raw!r}. Tried:\n{tried}")
+
+    suggestions: list[str] = []
+    seen_dirs: set[Path] = set()
+    for candidate in candidates:
+        cand_path = Path(candidate)
+        parent_dir = cand_path.parent
+        if parent_dir not in seen_dirs and parent_dir.is_dir():
+            seen_dirs.add(parent_dir)
+            try:
+                dir_files = [f.name for f in parent_dir.iterdir() if f.is_file()]
+                matches = difflib.get_close_matches(cand_path.name, dir_files, n=3, cutoff=0.4)
+                for m in matches:
+                    matched_file = str(parent_dir / m)
+                    if matched_file not in suggestions:
+                        suggestions.append(matched_file)
+            except OSError:
+                pass
+
+    sugg_text = ""
+    if suggestions:
+        sugg_text = "\nDid you mean:\n" + "\n".join(f"  - {s}" for s in suggestions)
+    raise FileNotFoundError(f"File not found: {raw!r}. Tried:\n{tried}{sugg_text}")
 
 
 class WorkspaceError(ValueError):

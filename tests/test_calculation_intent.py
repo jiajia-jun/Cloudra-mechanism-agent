@@ -131,6 +131,7 @@ def test_unknown_task_key_error_lists_both_sp_spellings():
     assert "unknown_task_key" in _codes(entries)
     assert "single_point" in entries[0]["message"]
     assert "'sp'" in entries[0]["message"]
+    assert "Did you mean 'single_point'?" in entries[0]["message"]
 
 
 def test_sp_and_single_point_spelling_conflict_detected():

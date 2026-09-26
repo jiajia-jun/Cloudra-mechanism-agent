@@ -57,3 +57,17 @@ def test_missing_everywhere_lists_all_candidates(tmp_path, monkeypatch):
     message = str(exc.value)
     assert str((ws / "nope.png").resolve()) in message
     assert str((cwd / "nope.png").resolve()) in message
+
+
+def test_missing_file_suggests_existing_close_matches(tmp_path, monkeypatch):
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    (ws / "orca_opt.out").write_text("done", encoding="utf-8")
+    monkeypatch.chdir(ws)
+
+    with pytest.raises(FileNotFoundError) as exc:
+        resolve_existing_tool_path(_tool(ws), "orca_opt.log")
+    message = str(exc.value)
+    assert "Did you mean:" in message
+    assert "orca_opt.out" in message
+

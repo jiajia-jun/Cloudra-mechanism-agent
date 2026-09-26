@@ -897,3 +897,19 @@ async def test_restore_repairs_reply_notice_for_cancelled_original_author(tmp_pa
         and event.data.get("post_id") == post_id
     ]) == 1
     await core.runner.cancel_all()
+
+
+@pytest.mark.asyncio
+async def test_call_unknown_role_fuzzy_suggestion():
+    core, project, author = await _setup()
+    call = _hub({
+        "action": "call",
+        "to": "smallmol",
+        "message": "check this structure",
+    })
+    result = await handle_hub_tool(core, author, call)
+    assert result.is_success is False
+    assert "Did you mean 'small_mol'?" in result.summary
+    assert "Available roles:" in result.summary
+    await core.runner.cancel_all()
+

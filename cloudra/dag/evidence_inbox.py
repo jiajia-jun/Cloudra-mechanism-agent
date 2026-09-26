@@ -377,7 +377,14 @@ class EvidenceInboxMixin:
         edge = next((e for e in graph.edges if e.edge_id == target_id), None)
         if edge is not None:
             return "edge", edge
-        raise RuntimeError(f"delivery target {target_id!r} does not exist")
+        import difflib
+        all_ids = [n.node_id for n in graph.nodes] + [e.edge_id for e in graph.edges]
+        matches = difflib.get_close_matches(target_id, all_ids, n=2, cutoff=0.35)
+        suggestion = f" Did you mean '{matches[0]}'?" if matches else ""
+        raise RuntimeError(
+            f"delivery target {target_id!r} does not exist.{suggestion} "
+            f"Available targets: {sorted(all_ids)}"
+        )
 
     def _passes_saddle_check(self, ref: GraphRef | None) -> bool:
         """TS frequency 阶段绑定的 harness 检查（D7）：证据必须能被其工具的
@@ -622,14 +629,22 @@ class EvidenceInboxMixin:
         try:
             kind = StageKind(stage_kind)
         except ValueError:
+            import difflib
+            allowed = sorted(item.value for item in StageKind)
+            matches = difflib.get_close_matches(stage_kind, allowed, n=2, cutoff=0.35)
+            suggestion = f" Did you mean '{matches[0]}'?" if matches else ""
             raise RuntimeError(
-                f"unknown stage_kind {stage_kind!r}; "
-                f"allowed: {sorted(item.value for item in StageKind)}"
+                f"unknown stage_kind {stage_kind!r}.{suggestion} "
+                f"allowed: {allowed}"
             ) from None
         if verdict not in ("agree", "disagree", "skip", "not_applicable"):
+            import difflib
+            allowed_v = ["agree", "disagree", "skip", "not_applicable"]
+            matches = difflib.get_close_matches(verdict, allowed_v, n=1, cutoff=0.35)
+            suggestion = f" Did you mean '{matches[0]}'?" if matches else ""
             raise RuntimeError(
-                f"unknown verdict {verdict!r}; "
-                "allowed: agree/disagree/skip/not_applicable"
+                f"unknown verdict {verdict!r}.{suggestion} "
+                f"allowed: {allowed_v}"
             )
 
         def _guarded_stages():

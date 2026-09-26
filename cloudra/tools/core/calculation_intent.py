@@ -175,6 +175,11 @@ def validate_writer_request(arguments: dict[str, Any]) -> list[dict]:
                 suggestion = ""
                 if key_l == "numfreq":
                     suggestion = " Use {'freq': None} with frequency_mode='numeric' instead."
+                else:
+                    import difflib
+                    matches = difflib.get_close_matches(key_l, sorted(_WRITER_TASK_KEYS), n=1, cutoff=0.35)
+                    if matches:
+                        suggestion = f" Did you mean {matches[0]!r}?"
                 entries.append(_entry(
                     "unknown_task_key", "task_type",
                     f"Unknown task key {key_l!r}; supported keys: "

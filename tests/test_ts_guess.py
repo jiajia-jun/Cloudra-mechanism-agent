@@ -2494,3 +2494,13 @@ async def test_verify_strict_non_pass_appends_endpoint_optimization_remedy(tmp_p
     assert res_fail.verdict.startswith("fail")
     assert any(_IRC_TRUNCATION_REMEDY in c for c in res_fail.checks)
     assert _IRC_TRUNCATION_REMEDY in res_fail.verdict
+
+
+@pytest.mark.asyncio
+async def test_ts_guess_unknown_mode_fuzzy_suggestion(mock_session):
+    tool = _make_tool()
+    res = await tool.tool_call(TsGuess_input_schema.model_construct(mode="interp"), mock_session)
+    assert res.is_success is False
+    assert "Did you mean 'interpolate'?" in res.message
+    assert "Allowed modes:" in res.message
+

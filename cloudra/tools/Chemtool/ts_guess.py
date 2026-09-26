@@ -1014,6 +1014,14 @@ class TsGuess(Tool):
             "scan_parse": self._scan_parse,
             "verify": self._verify,
         }
+        if mode not in handlers:
+            import difflib
+            matches = difflib.get_close_matches(mode, list(handlers.keys()), n=1, cutoff=0.35)
+            suggestion = f" Did you mean {matches[0]!r}?" if matches else ""
+            return TsGuess_output_schema(
+                is_success=False,
+                message=f"Unknown mode {mode!r}.{suggestion} Allowed modes: {sorted(handlers.keys())}",
+            )
         try:
             # handler 是同步重活（xtb_path 会 proc.communicate 等 xTB 子进程、
             # scan_parse 逐帧啃大日志）：卸载出事件循环，避免冻结整个 API。

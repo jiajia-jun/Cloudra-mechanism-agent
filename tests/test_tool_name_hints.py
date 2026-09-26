@@ -18,6 +18,11 @@ def test_retired_names_point_at_new_surface():
 
 
 def test_unknown_name_has_no_retired_mapping():
-    msg = hint_unknown_tool("does_not_exist")
-    assert "does_not_exist" in msg
+    msg = hint_unknown_tool("does_not_exist_xyz123")
+    assert "does_not_exist_xyz123" in msg
     assert "read" not in msg.split("Did you mean")[0] if "Did you mean" in msg else True
+
+
+def test_fuzzy_suggestion_for_misspelled_tool():
+    msg = hint_unknown_tool("dag_propose", available_tools=["dag_propose_mechanism", "get_skill"])
+    assert "Did you mean 'dag_propose_mechanism'?" in msg

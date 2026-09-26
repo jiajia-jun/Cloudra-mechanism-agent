@@ -532,7 +532,17 @@ async def _call(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     # role, settings, and cancellation tree. Supervisor is system-managed and
     # has one instance per project; every caller uses the same rule for it.
     role_id = role_id_for_legacy_agent_id(raw_to.lstrip("@").lower())
-    core.roles.require(role_id)  # raises CommandRejected for unknown roles
+    try:
+        core.roles.require(role_id)
+    except CommandRejected:
+        import difflib
+        valid_roles = sorted(r.role_id for r in core.roles.list())
+        matches = difflib.get_close_matches(role_id, valid_roles, n=2, cutoff=0.35)
+        suggestion = f" Did you mean '{matches[0]}'?" if matches else ""
+        return _err(
+            f"Target {raw_to!r} is neither a live session nor a known role.{suggestion} "
+            f"Available roles: {valid_roles}."
+        )
     if role_id == "supervisor":
         return _err("The Supervisor is system-managed; call its existing session or submit a review request.")
     result = await CommandBus(core).execute(

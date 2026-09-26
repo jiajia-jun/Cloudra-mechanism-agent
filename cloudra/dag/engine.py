@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import difflib
 import json
 import os
 import sqlite3
@@ -955,7 +956,12 @@ class DagEngine:
         changes = operation.changes
         elements = state.nodes if is_node else state.edges
         if element_id not in elements:
-            raise _Rejected("missing_target", f"{id_key} {element_id!r} does not exist")
+            matches = difflib.get_close_matches(element_id, list(elements.keys()), n=2, cutoff=0.35)
+            suggestion = f" Did you mean '{matches[0]}'?" if matches else ""
+            raise _Rejected(
+                "missing_target",
+                f"{id_key} {element_id!r} does not exist.{suggestion} Available {id_key}s: {sorted(elements.keys())}"
+            )
         if not changes:
             raise _Rejected(
                 "invalid_operation",
@@ -1004,7 +1010,12 @@ class DagEngine:
         # 删边放开（任意端点状态），但批次必须带 rationale（在
         # _apply_transaction 入口强制），被删的边留在变更日志里供审计。
         if operation.edge_id not in state.edges:
-            raise _Rejected("missing_target", f"edge {operation.edge_id!r} does not exist")
+            matches = difflib.get_close_matches(operation.edge_id, list(state.edges.keys()), n=2, cutoff=0.35)
+            suggestion = f" Did you mean '{matches[0]}'?" if matches else ""
+            raise _Rejected(
+                "missing_target",
+                f"edge {operation.edge_id!r} does not exist.{suggestion} Available edges: {sorted(state.edges.keys())}"
+            )
         del state.edges[operation.edge_id]
         state.edge_created.pop(operation.edge_id, None)
 
@@ -1013,7 +1024,12 @@ class DagEngine:
         # 删节点前必须已无连线：有入边或出边时拒绝并列出关联边标识，让
         # agent 先在同一原子批次内删相关边再删节点——不提供隐式级联删除。
         if operation.node_id not in state.nodes:
-            raise _Rejected("missing_target", f"node {operation.node_id!r} does not exist")
+            matches = difflib.get_close_matches(operation.node_id, list(state.nodes.keys()), n=2, cutoff=0.35)
+            suggestion = f" Did you mean '{matches[0]}'?" if matches else ""
+            raise _Rejected(
+                "missing_target",
+                f"node {operation.node_id!r} does not exist.{suggestion} Available nodes: {sorted(state.nodes.keys())}"
+            )
         linked = sorted(
             {
                 getattr(edge, "name", "") or edge.edge_id
