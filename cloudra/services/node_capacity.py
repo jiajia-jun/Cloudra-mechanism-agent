@@ -6,9 +6,7 @@
 
 口径与边界：
 
-- 生效容量 = ``min(注册声明, OS 实时余量)``，但**只有跑在本机的 local 节点**
-  受 OS 余量约束（``host_capacity.effective_node_resources``）；远端/集群节点
-  不在这台机器上，OS 读数对它没有意义，原样用注册声明。
+- 生效容量 = 注册声明；OS 余量仅展示，不参与调度总额度计算。
 - 在用量 = 中央 ``compute.db`` 里租约有效的 ``running`` 行，**按节点分组**；
   未声明内存的作业按该节点公平份额（``memory_mb // max_concurrent``）记账。
 - 这里只做读数与展示：放行判定由认领在同一事务内现算（避免读写之间的额度
@@ -96,7 +94,10 @@ def node_capacity_views(db: ComputeDB | None = None) -> tuple[list[dict[str, Any
     for node in registry.nodes:
         effective = effective_node_resources(node)
         connection = dict(node.connection or {})
-        if str(node.scheduler.get("type", "local")) == "local":
+        if (
+            str(node.scheduler.get("type", "local")) == "local"
+            and str(connection.get("type", "local")) == "local"
+        ):
             report = capacity_report(dict(node.resources))
             capacity = {
                 "registered": report["declared"],

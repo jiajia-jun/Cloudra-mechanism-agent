@@ -231,8 +231,8 @@ export interface ComputeNode {
   connection: string;
   remote: string | null;
   state: string;
-  // effective = min(registered, os_available) for a node running on this host;
-  // remote/cluster nodes report their registered quota as-is.
+  // effective = registered scheduling quota; OS availability is observational only.
+  // free = quota minus in-flight reservations.
   capacity: {
     registered: NodeResources;
     os_available: { memory_mb: number | null; cpus: number | null };

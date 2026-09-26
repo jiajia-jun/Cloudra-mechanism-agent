@@ -1,4 +1,4 @@
-"""OS 余量探针与容量取小：解析、缓存、回落、min(声明, OS)。"""
+"""OS 余量探针与固定调度额度：解析、缓存、独立观测。"""
 
 from __future__ import annotations
 
@@ -102,19 +102,15 @@ def test_available_cpus_from_loadavg(monkeypatch):
 
     monkeypatch.setattr(hc.os, "getloadavg", lambda: (99.0, 1.0, 1.0))
     hc._reset_probe_cache_for_tests()
-    assert hc.os_available_cpus() == 0  # 饱和时报 0，放行侧由 max(1, ...) 兜底
+    assert hc.os_available_cpus() == 0  # 饱和时报 0，不改变调度总额度
 
 
-def test_effective_resources_takes_min(monkeypatch):
+def test_effective_resources_keeps_quota_when_host_busy(monkeypatch):
     declared = {"max_concurrent": 10, "cpus": 18, "memory_mb": 40960}
     monkeypatch.setattr(hc, "os_available_memory_mb", lambda **_: VM_STAT_MB)
     monkeypatch.setattr(hc, "os_available_cpus", lambda **_: 6)
 
-    assert hc.effective_resources(declared) == {
-        "max_concurrent": 10,  # 槽位是注册声明，不参与取小
-        "cpus": 6,
-        "memory_mb": VM_STAT_MB,
-    }
+    assert hc.effective_resources(declared) == declared
 
 
 def test_effective_resources_keeps_declared_when_os_is_roomier(monkeypatch):
@@ -139,7 +135,7 @@ def test_capacity_report_exposes_all_three_layers(monkeypatch):
     report = hc.capacity_report(declared)
     assert report["declared"] == declared
     assert report["os_available"] == {"memory_mb": VM_STAT_MB, "cpus": 6}
-    assert report["effective"]["memory_mb"] == VM_STAT_MB
+    assert report["effective"] == declared
 
 
 DECLARED = {"max_concurrent": 10, "cpus": 18, "memory_mb": 40960}
@@ -154,8 +150,8 @@ def _patch_node(monkeypatch, node, *, raises=False):
     monkeypatch.setattr(nodes.NodeRegistry, "from_environment", _from_environment)
 
 
-def test_node_capacities_apply_host_limits(monkeypatch):
-    """本机 local 节点：生效容量 = min(声明, OS 余量)，按 node_id 分池返回。"""
+def test_node_capacities_keep_registered_limits(monkeypatch):
+    """本机 local 节点：使用注册额度，按 node_id 分池返回。"""
     _patch_node(monkeypatch, _FakeNode(dict(DECLARED)))
     monkeypatch.setattr(hc, "os_available_memory_mb", lambda **_: VM_STAT_MB)
     monkeypatch.setattr(hc, "os_available_cpus", lambda **_: 6)
@@ -163,7 +159,7 @@ def test_node_capacities_apply_host_limits(monkeypatch):
     capacities, default_node_id = daemon._node_capacities()
 
     assert capacities == {
-        "workstation": {"max_concurrent": 10, "cpus": 6, "memory_mb": VM_STAT_MB}
+        "workstation": DECLARED
     }
     assert default_node_id == "workstation"
 

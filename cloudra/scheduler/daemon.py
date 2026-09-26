@@ -86,8 +86,8 @@ def _record_adopt_spawn(lock_path: str) -> None:
 def _node_capacities() -> tuple[dict[str, dict], str]:
     """全部注册节点的生效容量与默认节点 id（容量池按节点解耦）。
 
-    口径唯一实现在 ``services/node_capacity.py``：跑在本机的 local 节点取
-    min(注册声明, OS 实时余量)，远端/集群节点用注册声明。每个节点只在自己的
+    口径唯一实现在 ``services/node_capacity.py``：所有节点使用注册声明总额度，
+    OS 实时余量不参与调度记账。每个节点只在自己的
     额度内认领——本地额度不会被云端作业吃掉，反之亦然。
     """
     from cloudra.services.node_capacity import node_capacities

@@ -39,9 +39,9 @@ class QueryComputeQueue_output_schema(output_schema):
         default_factory=list,
         description=(
             "One entry per registered node (node_id, display_name, scheduler, capacity, in_flight, free). "
-            "For a node running on this host, 'capacity.effective' = min('capacity.registered', "
-            "'capacity.os_available') and 'os_available' covers usage the job ledger cannot see (engines "
-            "started outside submit_compute_job); remote/cluster nodes report their registered quota as-is. "
+            "'capacity.effective' equals the registered scheduling quota. "
+            "'free' is that quota minus in-flight reservations. Local 'capacity.os_available' "
+            "is observational only and does not shrink the scheduling quota. "
             "A job is only scheduled against its own node's free capacity."
         ),
     )

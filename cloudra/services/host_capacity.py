@@ -1,21 +1,12 @@
-"""OS 实时余量探针：调度容量记账的"机器侧"输入。
+"""OS 实时余量观测：与节点调度总额度分开。
 
-调度容量 = min(注册节点声明 resources, OS 实时余量)，作业成本仍按 agent 声明的
-``req_memory_mb`` / ``req_cpus`` 记账（声明口径）。OS 读数回答的是"这台机器现在
-还剩多少"，因此天然涵盖**账本看不见的占用**：agent 绕过 ``submit_compute_job``
-直调引擎起的作业、浏览器/IDE 等无关进程。
+调度容量固定采用注册声明，作业成本按 req_memory_mb / req_cpus 记账。
+OS 余量包含正在运行的作业消耗，不能作为总额度再扣账本，否则重复扣减。
+探针只用于展示，不参与放行、存活或终态判定，绝不 kill 任何进程。
+读不到时返回 None，并在状态翻转时记录 WARNING。
 
-读数只用于**放行判定与展示**：不参与进程存活、终态判定，绝不 kill 任何进程
-（存活一律 flock，见 AGENTS.md 执行面铁律）。探针读不到时返回 None，调用方
-回落注册声明容量（不停摆），并在状态翻转时记一条 WARNING。
-
-两个口径的定义：
-
-- 剩余内存 = free + inactive + speculative + purgeable（macOS `vm_stat`）。
-  只算 ``free`` 会得出"机器永远只剩 1 GB"的假象——macOS 把内存当文件缓存用；
-  ``wired`` 与 compressor 占用的部分不可回收，本就不该算进余量。
-- 可用核数 = ``cpu_count - ceil(loadavg 1min)``。1 分钟均值、零成本、不做进程名
-  匹配；它偏向保守——我们自己起的作业也计入 load，形成自限。
+- 剩余内存 = free + inactive + speculative + purgeable（macOS vm_stat）。
+- 空闲核数估计 = cpu_count - ceil(loadavg 1min)，仅作观测。
 """
 
 from __future__ import annotations
@@ -30,7 +21,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# 探针 TTL：调度认领每 tick（1s）读一次容量，vm_stat 是子进程，缓存避免每 tick fork。
+# 探针 TTL：vm_stat 是子进程，缓存避免容量视图频繁刷新时重复 fork。
 _PROBE_TTL_SECONDS = 5.0
 _PROBE_TIMEOUT_SECONDS = 5
 
@@ -144,7 +135,7 @@ def _refresh_cache(now: float) -> None:
     if missing and not _cache["warned"]:
         logger.warning(
             "host capacity probe unavailable (memory_mb=%s cpus=%s); "
-            "falling back to the declared node resources",
+            "OS availability will be omitted; scheduling quotas are unchanged",
             memory_mb,
             cpus,
         )
@@ -172,36 +163,13 @@ def os_available_cpus(*, refresh: bool = False) -> int | None:
 
 
 def effective_resources(declared: dict) -> dict:
-    """``min(注册声明, OS 实时余量)``；OS 侧读不到的项保持声明值。
-
-    槽位 ``max_concurrent`` 不参与取小：它是注册声明里的调度上限，OS 侧没有
-    对应读数，并发数由 CPU/内存记账间接约束。
-    """
-    effective = dict(declared)
-    memory_mb = os_available_memory_mb()
-    if memory_mb is not None:
-        effective["memory_mb"] = min(int(declared.get("memory_mb", memory_mb)), memory_mb)
-    cpus = os_available_cpus()
-    if cpus is not None:
-        effective["cpus"] = min(int(declared.get("cpus", cpus)), cpus)
-    return effective
+    """调度总额度采用注册声明，不随 OS 实时余量缩减。"""
+    return dict(declared)
 
 
 def effective_node_resources(node) -> dict:
-    """单个注册节点的生效容量。
-
-    只有跑在**本机**的 local 节点受 OS 余量约束；远端/集群节点（slurm、SSH
-    connection 等）不在这台机器上，OS 读数对它没有意义，原样返回注册声明。
-    ``node`` 是 ``services/nodes.py`` 的 ``NodeRoute``（鸭子类型：读
-    ``resources``、``scheduler`` 与 ``connection``）。
-    """
-    declared = dict(node.resources)
-    if str(node.scheduler.get("type", "local")) != "local":
-        return declared
-    connection = getattr(node, "connection", None) or {}
-    if str(connection.get("type", "local")) != "local":
-        return declared
-    return effective_resources(declared)
+    """单个节点的固定调度额度；本机、SSH 与 Slurm 使用相同口径。"""
+    return effective_resources(node.resources)
 
 
 def node_capacities(registry) -> dict[str, dict]:

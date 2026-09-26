@@ -1,7 +1,7 @@
 """多节点容量池：按节点生效容量、认领分池、控制面容量视图。
 
 契约（容量池解耦）：
-- 只有跑在本机的 local 节点受 OS 实时余量约束；远端/集群节点用注册声明。
+- 所有节点用注册声明作为总额度，OS 实时余量仅作独立观测。
 - 在用量按节点分组：本地作业不占云端额度，反之亦然。
 - 作业归属节点不在注册表里 → 调度器跳过不认领（绝不改投别的机器跑），
   容量视图把这条原因讲清楚。
@@ -36,7 +36,7 @@ def _clean_probe_cache():
 
 
 def _registry_file(tmp_path, *, os_probe):
-    """两个节点的注册表：本机 local（受 OS 余量约束）+ 远端 slurm（用声明值）。"""
+    """两个节点的注册表：本机 local（展示 OS 余量）+ 远端 slurm（用声明值）。"""
     local_ws = tmp_path / "local-ws"
     hpc_ws = tmp_path / "hpc-ws"
     local_ws.mkdir()
@@ -121,7 +121,7 @@ def _running(
 
 
 def test_capacities_split_local_and_remote(tmp_path, monkeypatch):
-    """本地节点取 min(声明, OS 余量)；远端节点不受本机读数影响。"""
+    """本地和远端节点均使用固定注册额度。"""
     path, _local_ws, _hpc_ws = _registry_file(tmp_path, os_probe=True)
     _use_registry(monkeypatch, path)
     monkeypatch.setattr(hc, "os_available_memory_mb", lambda **_: 4096)
@@ -131,7 +131,7 @@ def test_capacities_split_local_and_remote(tmp_path, monkeypatch):
 
     assert default_node_id == "workstation"
     assert capacities == {
-        "workstation": {"max_concurrent": 2, "cpus": 3, "memory_mb": 4096},
+        "workstation": {"max_concurrent": 2, "cpus": 16, "memory_mb": 32768},
         "hpc-login": {"max_concurrent": 8, "cpus": 64, "memory_mb": 262144},
     }
 
@@ -152,10 +152,10 @@ def test_capacity_views_report_per_node_usage(tmp_path, monkeypatch):
     by_id = {view["node_id"]: view for view in views}
 
     local = by_id["workstation"]
-    assert local["capacity"]["effective"] == {"max_concurrent": 2, "cpus": 3, "memory_mb": 4096}
-    # 未声明内存 → 公平份额 4096 // 2
-    assert local["in_flight"] == {"slots": 1, "cpus": 2, "memory_mb": 2048}
-    assert local["free"] == {"slots": 1, "cpus": 1, "memory_mb": 2048}
+    assert local["capacity"]["effective"] == {"max_concurrent": 2, "cpus": 16, "memory_mb": 32768}
+    # 未声明内存 → 注册额度公平份额 32768 // 2
+    assert local["in_flight"] == {"slots": 1, "cpus": 2, "memory_mb": 16384}
+    assert local["free"] == {"slots": 1, "cpus": 14, "memory_mb": 16384}
 
     remote = by_id["hpc-login"]
     assert remote["scheduler"] == "slurm"
@@ -269,7 +269,7 @@ def test_nodes_endpoint_returns_capacity_views(tmp_path, monkeypatch):
         nodes = resp.json()
         assert {node["node_id"] for node in nodes} == {"workstation", "hpc-login"}
         local = next(node for node in nodes if node["node_id"] == "workstation")
-        assert local["capacity"]["effective"]["cpus"] == 3
+        assert local["capacity"]["effective"]["cpus"] == 16
         remote = next(node for node in nodes if node["node_id"] == "hpc-login")
         assert remote["scheduler"] == "slurm"
         assert remote["capacity"]["effective"]["cpus"] == 64
@@ -339,3 +339,53 @@ def test_registry_workspace_paths_are_required(tmp_path):
                 ]
             }
         )
+
+
+@pytest.mark.parametrize("os_cpus,os_memory", [(1, 1024), (0, 0), (16, 32768)])
+def test_busy_host_does_not_shrink_quota_or_block_remaining_job(
+    tmp_path, monkeypatch, os_cpus, os_memory
+):
+    """OS 余量不能再作为总量扣一次账本；CPU 和内存均只扣一次。"""
+    path, _, _ = _registry_file(tmp_path, os_probe=True)
+    _use_registry(monkeypatch, path)
+    monkeypatch.setattr(hc, "os_available_cpus", lambda **_: os_cpus)
+    monkeypatch.setattr(hc, "os_available_memory_mb", lambda **_: os_memory)
+    db = ComputeDB().init()
+    _running(db, node_id="workstation", req_cpus=15, req_memory_mb=31744)
+    pending = insert_compute_job(
+        db, conversation_id="prj", session_id=None, path="/tmp/remaining.gjf",
+        state="ready", jobtype="gaussian", node_id="workstation",
+        scheduler="local", req_cpus=1, req_memory_mb=1024,
+    )
+    capacities, default = node_capacities()
+    assert claim_ready_compute_job_with_capacity(
+        db, worker_id="w", capacities=capacities, default_node_id=default
+    ) == pending
+    views, _ = node_capacity_views(db)
+    local = next(v for v in views if v["node_id"] == "workstation")
+    assert local["capacity"]["effective"] == {
+        "max_concurrent": 2, "cpus": 16, "memory_mb": 32768,
+    }
+    assert local["in_flight"] == {"slots": 2, "cpus": 16, "memory_mb": 32768}
+    assert local["free"] == {"slots": 0, "cpus": 0, "memory_mb": 0}
+    assert local["capacity"]["os_available"] == {"cpus": os_cpus, "memory_mb": os_memory}
+
+
+def test_ssh_local_view_does_not_report_this_hosts_availability(tmp_path, monkeypatch):
+    path, _, _ = _registry_file(tmp_path, os_probe=True)
+    data = json.loads(path.read_text())
+    data["nodes"][0]["connection"] = {
+        "type": "ssh", "host": "compute.example", "user": "chemist",
+        "remote_root": "/srv/cloudra",
+    }
+    path.write_text(json.dumps(data))
+    _use_registry(monkeypatch, path)
+    monkeypatch.setattr(hc, "os_available_cpus", lambda **_: 1)
+    monkeypatch.setattr(hc, "os_available_memory_mb", lambda **_: 1024)
+    views, _ = node_capacity_views()
+    remote = next(v for v in views if v["node_id"] == "workstation")
+    assert remote["connection"] == "ssh"
+    assert remote["capacity"]["os_available"] == {}
+    assert remote["capacity"]["effective"] == {
+        "max_concurrent": 2, "cpus": 16, "memory_mb": 32768,
+    }

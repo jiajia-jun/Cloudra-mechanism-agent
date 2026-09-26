@@ -263,50 +263,69 @@ cloudra/base/skill_class.py:60	            _SKILL_DATAS_CACHE[self.base_path] = 
 cloudra/base/skill_class.py:61	
 cloudra/base/skill_class.py:62	        return _SKILL_DATAS_CACHE[self.base_path][1]
 cloudra/base/skill_class.py:63	
-cloudra/base/skill_class.py:64	    def get_reference(self, skill_name, ref_name) -> str:
-cloudra/base/skill_class.py:65	        # 支持多种可能的资料文件夹命名约定
-cloudra/base/skill_class.py:66	        possible_dirs = ['references', 'reference', 'ref']
-cloudra/base/skill_class.py:67	
-cloudra/base/skill_class.py:68	        for dir_name in possible_dirs:
-cloudra/base/skill_class.py:69	            ref_path = os.path.join(self.base_path, skill_name, dir_name, ref_name)
-cloudra/base/skill_class.py:70	            if os.path.isfile(ref_path):
-cloudra/base/skill_class.py:71	                with open(ref_path, 'r', encoding='utf-8') as f:
-cloudra/base/skill_class.py:72	                    return f.read()
-cloudra/base/skill_class.py:73	            elif os.path.isdir(ref_path):
-cloudra/base/skill_class.py:74	                dir_filelst = os.listdir(ref_path)
-cloudra/base/skill_class.py:75	                return fr'该reference为文件夹，文件夹下有：{dir_filelst} ,请根据需要输入 {ref_name}/filename 调用资料，win系统请用 {ref_name}\filename'
-cloudra/base/skill_class.py:76	
-cloudra/base/skill_class.py:77	        return '该资料不存在。'
-cloudra/base/skill_class.py:78	
-cloudra/base/skill_class.py:79	    # FIX: 原拼写为 skill_dsatas_get（多打了个 s）
-cloudra/base/skill_class.py:80	    def get_content(self, skill_name) -> str:
-cloudra/base/skill_class.py:81	        datas = self.skill_datas_get()
-cloudra/base/skill_class.py:82	        for data in datas:
-cloudra/base/skill_class.py:83	            if data['name'] == skill_name:
-cloudra/base/skill_class.py:84	                return data['content']
-cloudra/base/skill_class.py:85	        return 'skill不存在。'
+cloudra/base/skill_class.py:64	    def list_skills(self) -> list[dict]:
+cloudra/base/skill_class.py:65	        """Return list of all available skills with name and description."""
+cloudra/base/skill_class.py:66	        datas = self.skill_datas_get()
+cloudra/base/skill_class.py:67	        return [{"name": d.get("name", ""), "description": d.get("description", "")} for d in datas if d.get("name")]
+cloudra/base/skill_class.py:68	
+cloudra/base/skill_class.py:69	    def list_references(self, skill_name: str) -> list[str]:
+cloudra/base/skill_class.py:70	        """Return relative paths of all available reference files for a given skill."""
+cloudra/base/skill_class.py:71	        possible_dirs = ['references', 'reference', 'ref']
+cloudra/base/skill_class.py:72	        refs = []
+cloudra/base/skill_class.py:73	        for dir_name in possible_dirs:
+cloudra/base/skill_class.py:74	            dir_path = os.path.join(self.base_path, skill_name, dir_name)
+cloudra/base/skill_class.py:75	            if os.path.isdir(dir_path):
+cloudra/base/skill_class.py:76	                for root, _, files in os.walk(dir_path):
+cloudra/base/skill_class.py:77	                    for file in sorted(files):
+cloudra/base/skill_class.py:78	                        if not file.startswith('.'):
+cloudra/base/skill_class.py:79	                            rel = os.path.relpath(os.path.join(root, file), dir_path)
+cloudra/base/skill_class.py:80	                            refs.append(rel)
+cloudra/base/skill_class.py:81	        return sorted(refs)
+cloudra/base/skill_class.py:82	
+cloudra/base/skill_class.py:83	    def get_reference(self, skill_name, ref_name) -> str:
+cloudra/base/skill_class.py:84	        # 支持多种可能的资料文件夹命名约定
+cloudra/base/skill_class.py:85	        possible_dirs = ['references', 'reference', 'ref']
 cloudra/base/skill_class.py:86	
-cloudra/base/skill_class.py:87	
-cloudra/base/skill_class.py:88	
-cloudra/base/skill_class.py:89	
-cloudra/base/skill_class.py:90	
-cloudra/base/skill_class.py:91	
-cloudra/base/skill_class.py:92	
-cloudra/base/skill_class.py:93	
-cloudra/base/skill_class.py:94	
+cloudra/base/skill_class.py:87	        for dir_name in possible_dirs:
+cloudra/base/skill_class.py:88	            ref_path = os.path.join(self.base_path, skill_name, dir_name, ref_name)
+cloudra/base/skill_class.py:89	            if os.path.isfile(ref_path):
+cloudra/base/skill_class.py:90	                with open(ref_path, 'r', encoding='utf-8') as f:
+cloudra/base/skill_class.py:91	                    return f.read()
+cloudra/base/skill_class.py:92	            elif os.path.isdir(ref_path):
+cloudra/base/skill_class.py:93	                dir_filelst = sorted(os.listdir(ref_path))
+cloudra/base/skill_class.py:94	                return f"Reference '{ref_name}' is a directory containing: {dir_filelst}. Please specify {ref_name}/<filename>."
 cloudra/base/skill_class.py:95	
-cloudra/base/skill_class.py:96	
+cloudra/base/skill_class.py:96	        return 'Reference not found.'
 cloudra/base/skill_class.py:97	
-cloudra/base/skill_class.py:98	
-cloudra/base/skill_class.py:99	
+cloudra/base/skill_class.py:98	    # FIX: 原拼写为 skill_dsatas_get（多打了个 s）
+cloudra/base/skill_class.py:99	    def get_content(self, skill_name) -> str:
+cloudra/base/skill_class.py:100	        datas = self.skill_datas_get()
+cloudra/base/skill_class.py:101	        for data in datas:
+cloudra/base/skill_class.py:102	            if data['name'] == skill_name:
+cloudra/base/skill_class.py:103	                return data['content']
+cloudra/base/skill_class.py:104	        return 'skill does not exist.'
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=105,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
+cloudra/base/skill_class.py:105	
+cloudra/base/skill_class.py:106	
+cloudra/base/skill_class.py:107	
+cloudra/base/skill_class.py:108	
+cloudra/base/skill_class.py:109	
+cloudra/base/skill_class.py:110	
+cloudra/base/skill_class.py:111	
+cloudra/base/skill_class.py:112	
+cloudra/base/skill_class.py:113	
+cloudra/base/skill_class.py:114	
+cloudra/base/skill_class.py:115	
+cloudra/base/skill_class.py:116	
+cloudra/base/skill_class.py:117	
+cloudra/base/skill_class.py:118	
 cloudra/base/tool_actor.py:1	"""工具看到的调用者身份（ToolActorContext）。
 cloudra/base/tool_actor.py:2	
 cloudra/base/tool_actor.py:3	工具（bash/read/write/dag_*/goal/todo/…）只需要「谁在调我」的少量信息：工作
 cloudra/base/tool_actor.py:4	目录、会话与项目键、权限位、编排模式。此前它们直接 import
 cloudra/base/tool_actor.py:5	``cloudra.core.agent`` 的 ``Agent``——那个类带 LLM 调用能力，工具因此与已下线
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=6,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/base/tool_actor.py:6	的执行栈耦合；字段被收窄成具体类还逼得执行器用 ``object.__setattr__`` 绕过
 cloudra/base/tool_actor.py:7	pydantic 校验（见 ``runtime_v2/adapters.py``）。该执行栈（``Agent``/
 cloudra/base/tool_actor.py:8	``Coordinator``/``Follower`` 与 ``core/message_history.py``）已随评审 5.4
@@ -340,6 +359,9 @@ cloudra/base/tool_actor.py:35	    type: str
 cloudra/base/tool_actor.py:36	    #: 会话键（v2 = project_id）：todos/goal 等 per-agent 存储的分区键。
 cloudra/base/tool_actor.py:37	    conversation_id: str
 cloudra/base/tool_actor.py:38	    #: 工具解析相对路径的根目录（绝不回落进程 cwd）。
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=39,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/base/tool_actor.py:39	    working_directory: str
 cloudra/base/tool_actor.py:40	    #: 编排模式字符串（standard / dag_record / dag_guided）。
 cloudra/base/tool_actor.py:41	    orchestration_mode: str
@@ -359,9 +381,6 @@ cloudra/base/tools_class.py:7
 cloudra/base/tools_class.py:8	from cloudra.base.session_class import Session
 cloudra/base/tools_class.py:9	from cloudra.persistence.database import ConversationDB, get_database_path
 cloudra/base/tools_class.py:10	
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=11,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/base/tools_class.py:11	# HACK: 这里原本缺少 import，属于历史遗留问题；get_tools_lst 定义在 tools/__init__.py
 cloudra/base/tools_class.py:12	from cloudra.tools import get_tools_lst
 cloudra/base/tools_class.py:13	from cloudra.tools.core.permission_model import Permission
@@ -395,6 +414,9 @@ cloudra/base/tools_class.py:40
 cloudra/base/tools_class.py:41	
 cloudra/base/tools_class.py:42	def get_tools() -> list[dict]:
 cloudra/base/tools_class.py:43	    """将工具类加载为 OpenAI function 格式的 dict 列表。"""
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=44,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/base/tools_class.py:44	    entries = get_tools_lst()
 cloudra/base/tools_class.py:45	    tools_list = []
 cloudra/base/tools_class.py:46	    for entry in entries:
@@ -414,9 +436,6 @@ cloudra/base/tools_class.py:59	            max_results: int = Field(default=10, 
 cloudra/base/tools_class.py:60	
 cloudra/base/tools_class.py:61	    通过 to_parameters_schema() 可自动生成符合 OpenAI Function Calling 规范的 parameters 字典。
 cloudra/base/tools_class.py:62	    '''
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=63,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/base/tools_class.py:63	
 cloudra/base/tools_class.py:64	    @classmethod
 cloudra/base/tools_class.py:65	    def to_parameters_schema(cls) -> dict:
@@ -450,6 +469,9 @@ cloudra/base/tools_class.py:92	        '''
 cloudra/base/tools_class.py:93	        # 当通过类调用时（如 TextReader_input_schema.toClass(args)），self 即为类对象
 cloudra/base/tools_class.py:94	        if isinstance(self, type) and issubclass(self, input_schema):
 cloudra/base/tools_class.py:95	            return self(**arg_dict)
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=96,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/base/tools_class.py:96	        return self.__class__(**arg_dict)
 cloudra/base/tools_class.py:97	
 cloudra/base/tools_class.py:98	    def toJson(self) -> dict:
@@ -469,9 +491,6 @@ cloudra/base/tools_class.py:111
 cloudra/base/tools_class.py:112	
 cloudra/base/tools_class.py:113	class Tool(BaseModel):
 cloudra/base/tools_class.py:114	    '''
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=115,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/base/tools_class.py:115	    工具基类。所有具体工具应继承此类。
 cloudra/base/tools_class.py:116	
 cloudra/base/tools_class.py:117	    关于 input_schema / output_schema：
@@ -505,6 +524,9 @@ cloudra/base/tools_class.py:144	    def is_read(self) -> bool:
 cloudra/base/tools_class.py:145	        return False
 cloudra/base/tools_class.py:146	
 cloudra/base/tools_class.py:147	    def is_write(self) -> bool:
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=148,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/base/tools_class.py:148	        return False
 cloudra/base/tools_class.py:149	
 cloudra/base/tools_class.py:150	    def is_manage(self) -> bool:
@@ -524,9 +546,6 @@ cloudra/base/tools_class.py:163	            perms |= Permission.READ
 cloudra/base/tools_class.py:164	        if self.is_write():
 cloudra/base/tools_class.py:165	            perms |= Permission.WRITE
 cloudra/base/tools_class.py:166	        if self.is_manage():
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=167,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/base/tools_class.py:167	            perms |= Permission.MANAGE
 cloudra/base/tools_class.py:168	        if self.is_script():
 cloudra/base/tools_class.py:169	            perms |= Permission.SCRIPT
@@ -560,6 +579,9 @@ cloudra/base/tools_class.py:196	    async def ensure_safety(
 cloudra/base/tools_class.py:197	        self,
 cloudra/base/tools_class.py:198	        session: Session,
 cloudra/base/tools_class.py:199	        details: str,
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=200,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/base/tools_class.py:200	        tool_args: dict | None = None,
 cloudra/base/tools_class.py:201	    ) -> tuple[bool, str]:
 cloudra/base/tools_class.py:202	        '''
@@ -579,9 +601,6 @@ cloudra/base/tools_class.py:215	            details.splitlines()[0] if details.s
 cloudra/base/tools_class.py:216	        )
 cloudra/base/tools_class.py:217	
 cloudra/base/tools_class.py:218	        if is_yolo_enabled():
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=219,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/base/tools_class.py:219	            guard = YoloGuard()
 cloudra/base/tools_class.py:220	            return await self._yolo_judge(session, tool_args or {}, guard, risk_summary=risk_summary)
 cloudra/base/tools_class.py:221	
@@ -615,6 +634,9 @@ cloudra/base/tools_class.py:248	        try:
 cloudra/base/tools_class.py:249	            db = ConversationDB.from_path(_tool_db_path(self.subagent))
 cloudra/base/tools_class.py:250	            await _ss.arecord_event(db, session.id, event_type, data)
 cloudra/base/tools_class.py:251	        except Exception:
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=252,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/base/tools_class.py:252	            pass
 cloudra/base/tools_class.py:253	
 cloudra/base/tools_class.py:254	    async def _yolo_judge(
@@ -634,9 +656,6 @@ cloudra/base/tools_class.py:267	            return True, ""
 cloudra/base/tools_class.py:268	        else:
 cloudra/base/tools_class.py:269	            reason_text = reason or "YOLO Agent 认为该操作存在风险"
 cloudra/base/tools_class.py:270	            print(f"\033[91m[安全审计/YOLO]\033[0m 自动审批拒绝。原因: {reason_text}")
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=271,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/base/tools_class.py:271	            return False, reason_text
 cloudra/base/tools_class.py:272	
 cloudra/base/tools_class.py:273	    async def request_approval(
@@ -670,6 +689,9 @@ cloudra/base/tools_class.py:300	    @classmethod
 cloudra/base/tools_class.py:301	    def _get_field_default(cls, field_name: str):
 cloudra/base/tools_class.py:302	        '''获取类字段的默认值，兼容 Pydantic v2（类级别无法直接访问普通字段）。'''
 cloudra/base/tools_class.py:303	        field = cls.model_fields.get(field_name)
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=304,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/base/tools_class.py:304	        if field and field.default is not PydanticUndefined:
 cloudra/base/tools_class.py:305	            return field.default
 cloudra/base/tools_class.py:306	        return None
@@ -689,9 +711,6 @@ cloudra/base/tools_class.py:319	            "type": "function",
 cloudra/base/tools_class.py:320	            "function": {
 cloudra/base/tools_class.py:321	                "name": getattr(self, 'tool_name', '') or self._get_field_default('tool_name') or '',
 cloudra/base/tools_class.py:322	                "description": description,
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=323,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/base/tools_class.py:323	                "parameters": (self._get_field_default('input_schema') or input_schema).to_parameters_schema(),
 cloudra/base/tools_class.py:324	            }
 cloudra/base/tools_class.py:325	        }
@@ -725,6 +744,9 @@ cloudra/benchmark/__init__.py:7	- `graph_similarity`: chemical-parameterized GED
 cloudra/benchmark/__init__.py:8	- `integrity`: sandbox forensic scan + evidence binding (Layer 1).
 cloudra/benchmark/__init__.py:9	- `selfconsistency`: physical self-consistency checks (Layer 2).
 cloudra/benchmark/__init__.py:10	- `accuracy`: Gaussian-tolerance barrier scoring (Layer 3).
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=11,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/__init__.py:11	- `method_policy`: method-whitelist interception.
 cloudra/benchmark/__init__.py:12	- `runner`: independent benchmark runner with its own data directory.
 cloudra/benchmark/__init__.py:13	"""
@@ -744,9 +766,6 @@ cloudra/benchmark/__init__.py:26	    PromptSpec,
 cloudra/benchmark/__init__.py:27	    RubricSpec,
 cloudra/benchmark/__init__.py:28	    SelfConsistencyRubric,
 cloudra/benchmark/__init__.py:29	    SystemSpec,
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=30,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/__init__.py:30	    TaskSpec,
 cloudra/benchmark/__init__.py:31	    Tier,
 cloudra/benchmark/__init__.py:32	)
@@ -780,6 +799,9 @@ cloudra/benchmark/__main__.py:27	    ap.add_argument("--data-dir", type=Path, de
 cloudra/benchmark/__main__.py:28	                    help="benchmark data dir (sandboxes + benchmark.db)")
 cloudra/benchmark/__main__.py:29	    ap.add_argument("--backend", choices=["none", "runtime_v2"], default="none")
 cloudra/benchmark/__main__.py:30	    ap.add_argument("--only", default="", help="comma-separated task ids (default: all)")
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=31,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/__main__.py:31	    ap.add_argument("--timeout", type=float, default=7200.0, help="per-task run timeout, seconds")
 cloudra/benchmark/__main__.py:32	    ap.add_argument("--concurrency", type=int, default=1,
 cloudra/benchmark/__main__.py:33	                    help="parallel tasks (threads, per-task event loop + sandbox; default 1 = serial)")
@@ -799,9 +821,6 @@ cloudra/benchmark/__main__.py:46	        print("no tasks matched", file=sys.stde
 cloudra/benchmark/__main__.py:47	        return 2
 cloudra/benchmark/__main__.py:48	
 cloudra/benchmark/__main__.py:49	    backend = None
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=50,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/__main__.py:50	    if args.backend == "runtime_v2":
 cloudra/benchmark/__main__.py:51	        # 运行时数据隔离必须在首次读取全局配置前完成；config_file 独立于
 cloudra/benchmark/__main__.py:52	        # data_dir，LLM 凭据不受影响。YAML 里的 data_dir 键会覆盖环境变量，
@@ -835,6 +854,9 @@ cloudra/benchmark/__main__.py:79	    runner.db.record_batch(batch_id, "running",
 cloudra/benchmark/__main__.py:80	        **provenance_config("cli", tasks),
 cloudra/benchmark/__main__.py:81	        "tasks_dirs": [str(d) for d in (args.tasks_dir or [Path("ideapool/tasks/easy")])],
 cloudra/benchmark/__main__.py:82	        "task_ids": [t.task_id for t in tasks],
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=83,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/__main__.py:83	        "concurrency": max(1, args.concurrency),
 cloudra/benchmark/__main__.py:84	        "run_timeout_s": args.timeout,
 cloudra/benchmark/__main__.py:85	    })
@@ -854,9 +876,6 @@ cloudra/benchmark/__main__.py:98	        )
 cloudra/benchmark/__main__.py:99	    return 0
 cloudra/benchmark/__main__.py:100	
 cloudra/benchmark/__main__.py:101	
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=102,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/__main__.py:102	if __name__ == "__main__":
 cloudra/benchmark/__main__.py:103	    sys.exit(main())
 cloudra/benchmark/accuracy.py:1	"""Layer 3 — accuracy: 以交付物为准的逐边能垒/性质评分（不读任何 LLM 散文）。
@@ -890,6 +909,9 @@ cloudra/benchmark/accuracy.py:28
 cloudra/benchmark/accuracy.py:29	若 gold 机理图没有任何边 → accuracy 不评分（final_score=1.0），沿用旧 null
 cloudra/benchmark/accuracy.py:30	行为。
 cloudra/benchmark/accuracy.py:31	
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=32,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/accuracy.py:32	性质锚点（``GoldSpec.reference_properties``，键带单位）：读交付图物种节点的
 cloudra/benchmark/accuracy.py:33	``properties`` 按键比对——数值型走高斯容差（σ 查模块级显式常量表
 cloudra/benchmark/accuracy.py:34	``_PROPERTY_SIGMAS``，键名子串匹配，表外数值键 fail-loud 抛错逼显式登记）；
@@ -909,9 +931,6 @@ cloudra/benchmark/accuracy.py:47	from dataclasses import dataclass, field
 cloudra/benchmark/accuracy.py:48	from typing import TYPE_CHECKING, Optional
 cloudra/benchmark/accuracy.py:49	
 cloudra/benchmark/accuracy.py:50	from cloudra.benchmark.schema import (
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=51,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/accuracy.py:51	    AccuracyRubric,
 cloudra/benchmark/accuracy.py:52	    GoldMechanismGraph,
 cloudra/benchmark/accuracy.py:53	    GoldSpec,
@@ -945,6 +964,9 @@ cloudra/benchmark/accuracy.py:80	    sigma_kcal: float = 3.0
 cloudra/benchmark/accuracy.py:81	    gaussian_score: float = 0.0          # in [0, 1], 1 = exact match
 cloudra/benchmark/accuracy.py:82	    capped_penalty: float = 0.0          # penalty actually applied after cap
 cloudra/benchmark/accuracy.py:83	    final_score: float = 0.0             # 1 - capped_penalty（缺证据/不一致直接边 0）
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=84,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/accuracy.py:84	    # fail-loud：任一参考边的声明/推算缺失或不一致时置 True（本层 accuracy
 cloudra/benchmark/accuracy.py:85	    # 记 0），runner 据此短路 composite（final 只保留图分）
 cloudra/benchmark/accuracy.py:86	    fail_loud: bool = False
@@ -964,9 +986,6 @@ cloudra/benchmark/accuracy.py:99	    return math.exp(-(d * d) / (2.0 * sigma * s
 cloudra/benchmark/accuracy.py:100	
 cloudra/benchmark/accuracy.py:101	
 cloudra/benchmark/accuracy.py:102	def _effective_sigma(rubric: AccuracyRubric, gold_barrier_kcal: float) -> float:
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=103,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/accuracy.py:103	    """逐边对 gold 比较的高斯宽度：小能垒放宽（rubric 小能垒口径），
 cloudra/benchmark/accuracy.py:104	    大能垒用基准 sigma。只用于对 gold 的比较，不动内部一致性核对。"""
 cloudra/benchmark/accuracy.py:105	    if gold_barrier_kcal <= rubric.small_barrier_threshold_kcal:
@@ -1000,6 +1019,9 @@ cloudra/benchmark/accuracy.py:132	    for key, gold_val in gold_properties.items
 cloudra/benchmark/accuracy.py:133	        if delivered_graph is None:
 cloudra/benchmark/accuracy.py:134	            rep.notes.append(f"property {key}: no delivered graph; scored 0")
 cloudra/benchmark/accuracy.py:135	            scores[key] = 0.0
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=136,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/accuracy.py:136	            continue
 cloudra/benchmark/accuracy.py:137	        declared = [
 cloudra/benchmark/accuracy.py:138	            (n.id, n.properties[key])
@@ -1019,9 +1041,6 @@ cloudra/benchmark/accuracy.py:151	                f"{[nid for nid, _ in declared
 cloudra/benchmark/accuracy.py:152	                "(first in graph order)"
 cloudra/benchmark/accuracy.py:153	            )
 cloudra/benchmark/accuracy.py:154	        node_id, val = declared[0]
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=155,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/accuracy.py:155	        if isinstance(gold_val, str):
 cloudra/benchmark/accuracy.py:156	            if not isinstance(val, str):
 cloudra/benchmark/accuracy.py:157	                rep.notes.append(
@@ -1055,6 +1074,9 @@ cloudra/benchmark/accuracy.py:184	    rep.property_scores = scores
 cloudra/benchmark/accuracy.py:185	    rep.gaussian_score = sum(scores.values()) / len(scores)
 cloudra/benchmark/accuracy.py:186	    rep.final_score = rep.gaussian_score
 cloudra/benchmark/accuracy.py:187	    return rep
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=188,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/accuracy.py:188	
 cloudra/benchmark/accuracy.py:189	
 cloudra/benchmark/accuracy.py:190	def score_qualitative_selectivity(
@@ -1074,9 +1096,6 @@ cloudra/benchmark/accuracy.py:203	    if not favored:
 cloudra/benchmark/accuracy.py:204	        return 0.0, (
 cloudra/benchmark/accuracy.py:205	            "qualitative selectivity: no edge declares `favored: true`; scored 0"
 cloudra/benchmark/accuracy.py:206	        )
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=207,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/accuracy.py:207	    if len(favored) > 1:
 cloudra/benchmark/accuracy.py:208	        return 0.0, (
 cloudra/benchmark/accuracy.py:209	            "qualitative selectivity: multiple edges declare `favored: true` "
@@ -1110,6 +1129,9 @@ cloudra/benchmark/accuracy.py:236	    edge id 字典序取（确定性）。"""
 cloudra/benchmark/accuracy.py:237	    from cloudra.benchmark.graph_similarity import species_substitution_cost
 cloudra/benchmark/accuracy.py:238	
 cloudra/benchmark/accuracy.py:239	    if delivered_graph is None:
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=240,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/accuracy.py:240	        return None
 cloudra/benchmark/accuracy.py:241	    delivered_nodes = {n.id: n for n in delivered_graph.nodes}
 cloudra/benchmark/accuracy.py:242	    delivered_edges = {e.id: e for e in delivered_graph.edges}
@@ -1129,9 +1151,6 @@ cloudra/benchmark/accuracy.py:255	        if d_from is None or d_to is None:
 cloudra/benchmark/accuracy.py:256	            continue
 cloudra/benchmark/accuracy.py:257	        cost_from = species_substitution_cost(gold_from.smiles, d_from.smiles, cfg)
 cloudra/benchmark/accuracy.py:258	        cost_to = species_substitution_cost(gold_to.smiles, d_to.smiles, cfg)
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=259,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/accuracy.py:259	        if cost_from > match_threshold or cost_to > match_threshold:
 cloudra/benchmark/accuracy.py:260	            continue
 cloudra/benchmark/accuracy.py:261	        symdiff = len(gold_pairs ^ d_edge.bond_changes.pairs())
@@ -1165,6 +1184,9 @@ cloudra/benchmark/accuracy.py:288	        declared_barrier_kcal=rds.declared_kca
 cloudra/benchmark/accuracy.py:289	        rds_edge_id=rds.edge_id if rds is not None else "",
 cloudra/benchmark/accuracy.py:290	    )
 cloudra/benchmark/accuracy.py:291	
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=292,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/accuracy.py:292	    if not rubric.enabled:
 cloudra/benchmark/accuracy.py:293	        rep.gaussian_score = 1.0
 cloudra/benchmark/accuracy.py:294	        rep.final_score = 1.0
@@ -1184,9 +1206,6 @@ cloudra/benchmark/accuracy.py:307	    from cloudra.benchmark.graph_similarity im
 cloudra/benchmark/accuracy.py:308	
 cloudra/benchmark/accuracy.py:309	    cfg = cfg or GedConfig()
 cloudra/benchmark/accuracy.py:310	    gold_nodes = {n.id: n for n in gold.mechanism_graph.nodes}
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=311,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/accuracy.py:311	    # 全零权重无法归一：退回逐边等权（避免除零；正常题库不出现）
 cloudra/benchmark/accuracy.py:312	    equal_fallback = sum(e.weight for e in scored_edges) <= 0
 cloudra/benchmark/accuracy.py:313	    if equal_fallback:
@@ -1220,6 +1239,9 @@ cloudra/benchmark/accuracy.py:340	                    "declared accessible=false
 cloudra/benchmark/accuracy.py:341	                )
 cloudra/benchmark/accuracy.py:342	            continue
 cloudra/benchmark/accuracy.py:343	        step = _find_matching_step(
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=344,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/accuracy.py:344	            edge, gold_nodes, evidence.steps, delivered_graph, cfg, match_threshold
 cloudra/benchmark/accuracy.py:345	        )
 cloudra/benchmark/accuracy.py:346	        if step is None:
@@ -1239,9 +1261,6 @@ cloudra/benchmark/accuracy.py:359	        if step.declared_kcal_mol is None:
 cloudra/benchmark/accuracy.py:360	            rep.edge_scores[edge.id] = 0.0
 cloudra/benchmark/accuracy.py:361	            failures.append(
 cloudra/benchmark/accuracy.py:362	                "delivered mechanism_graph.json declares no barrier_kcal_mol on "
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=363,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/accuracy.py:363	                f"step edge {edge.id}"
 cloudra/benchmark/accuracy.py:364	            )
 cloudra/benchmark/accuracy.py:365	            continue
@@ -1275,6 +1294,9 @@ cloudra/benchmark/accuracy.py:392	                    matches_ref,
 cloudra/benchmark/accuracy.py:393	                    key=lambda c: (abs(c.barrier_kcal_mol - edge.barrier_kcal_mol),
 cloudra/benchmark/accuracy.py:394	                                   c.ts_path, c.base_path),
 cloudra/benchmark/accuracy.py:395	                )
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=396,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/accuracy.py:396	                rep.notes.append(
 cloudra/benchmark/accuracy.py:397	                    f"edge {edge.id}: declared {declared:.3f} is supported by "
 cloudra/benchmark/accuracy.py:398	                    f"{supported[0].ts_path} / {supported[0].base_path}, but the "
@@ -1294,9 +1316,6 @@ cloudra/benchmark/accuracy.py:411	            rep.edge_scores[edge.id] = g
 cloudra/benchmark/accuracy.py:412	            weighted_sum += weights[edge.id] * g
 cloudra/benchmark/accuracy.py:413	            graded_score_sum += weights[edge.id] * g
 cloudra/benchmark/accuracy.py:414	            rep.notes.append(
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=415,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/accuracy.py:415	                f"edge {edge.id}: log-derived {chosen.barrier_kcal_mol:.3f} vs gold "
 cloudra/benchmark/accuracy.py:416	                f"{edge.barrier_kcal_mol:.3f} (sigma {sigma_eff:.1f}) -> {g:.4f} "
 cloudra/benchmark/accuracy.py:417	                f"(weight {weights[edge.id]})"
@@ -1330,6 +1349,9 @@ cloudra/benchmark/accuracy.py:444	            f"{declared:.3f} vs logs {step.bar
 cloudra/benchmark/accuracy.py:445	        )
 cloudra/benchmark/accuracy.py:446	
 cloudra/benchmark/accuracy.py:447	    if failures:
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=448,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/accuracy.py:448	        # fail-loud：任一参考边的声明/推算缺失或不一致 -> 置结构化标记、本层
 cloudra/benchmark/accuracy.py:449	        # accuracy 记 0（不给部分分，也不套 max_penalty_fraction 封顶），
 cloudra/benchmark/accuracy.py:450	        # composite 的短路由 runner 按 fail_loud 执行。
@@ -1349,9 +1371,6 @@ cloudra/benchmark/accuracy.py:463	    raw_penalty = 1.0 - rep.gaussian_score
 cloudra/benchmark/accuracy.py:464	    graded_penalty = (graded_weight - graded_score_sum) / weight_total
 cloudra/benchmark/accuracy.py:465	    capped_graded = min(graded_penalty, rubric.max_penalty_fraction)
 cloudra/benchmark/accuracy.py:466	    rep.capped_penalty = capped_graded + structural_penalty / weight_total
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=467,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/accuracy.py:467	    rep.final_score = 1.0 - rep.capped_penalty
 cloudra/benchmark/accuracy.py:468	    if graded_penalty > rubric.max_penalty_fraction:
 cloudra/benchmark/accuracy.py:469	        rep.notes.append(
@@ -1385,6 +1404,9 @@ cloudra/benchmark/api_pool.py:24
 cloudra/benchmark/api_pool.py:25	from cloudra.runtime_v2.adapters import LegacyLLMProvider
 cloudra/benchmark/api_pool.py:26	
 cloudra/benchmark/api_pool.py:27	logger = logging.getLogger(__name__)
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=28,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/api_pool.py:28	
 cloudra/benchmark/api_pool.py:29	
 cloudra/benchmark/api_pool.py:30	@dataclass(frozen=True)
@@ -1404,9 +1426,6 @@ cloudra/benchmark/api_pool.py:43	# 共享同一个 provider 实例也不会串�
 cloudra/benchmark/api_pool.py:44	_current_endpoint: contextvars.ContextVar[Optional[Endpoint]] = contextvars.ContextVar(
 cloudra/benchmark/api_pool.py:45	    "benchmark_api_pool_endpoint", default=None
 cloudra/benchmark/api_pool.py:46	)
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=47,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/api_pool.py:47	
 cloudra/benchmark/api_pool.py:48	
 cloudra/benchmark/api_pool.py:49	def load_endpoints(path: Path | str) -> list[Endpoint]:
@@ -1440,6 +1459,9 @@ cloudra/benchmark/api_pool.py:76	class PooledLLMProvider(LegacyLLMProvider):
 cloudra/benchmark/api_pool.py:77	    """LegacyLLMProvider whose transport endpoint is pinned per call from a pool."""
 cloudra/benchmark/api_pool.py:78	
 cloudra/benchmark/api_pool.py:79	    def __init__(self, endpoints: list[Endpoint], *, rng: Any = None) -> None:
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=80,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/api_pool.py:80	        super().__init__()
 cloudra/benchmark/api_pool.py:81	        self._endpoints = list(endpoints)
 cloudra/benchmark/api_pool.py:82	        # rng 可注入（测试用固定顺序）；生产默认 Random()
@@ -1459,9 +1481,6 @@ cloudra/benchmark/api_pool.py:95	        )
 cloudra/benchmark/api_pool.py:96	
 cloudra/benchmark/api_pool.py:97	    async def complete(self, agent, messages, tools, on_delta=None):
 cloudra/benchmark/api_pool.py:98	        if not self._endpoints:
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=99,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/api_pool.py:99	            return await super().complete(agent, messages, tools, on_delta)
 cloudra/benchmark/api_pool.py:100	        # 每次调用随机洗牌端点顺序：既摊初始负载，又保证 429 时不重复试同一个
 cloudra/benchmark/api_pool.py:101	        order = self._rng.sample(self._endpoints, k=len(self._endpoints))
@@ -1495,6 +1514,9 @@ cloudra/benchmark/backend.py:13	Process-wide isolation is the caller's job: the 
 cloudra/benchmark/backend.py:14	global config's `data_dir` at the benchmark data dir before any tool runs, so
 cloudra/benchmark/backend.py:15	session stores, compute jobs and MEMORY.md never touch the live conversation
 cloudra/benchmark/backend.py:16	data dir. LLM credentials still come from the normal global config slots
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=17,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/backend.py:17	(coordinator/follower), unchanged.
 cloudra/benchmark/backend.py:18	"""
 cloudra/benchmark/backend.py:19	
@@ -1514,9 +1536,6 @@ cloudra/benchmark/backend.py:32
 cloudra/benchmark/backend.py:33	logger = logging.getLogger(__name__)
 cloudra/benchmark/backend.py:34	
 cloudra/benchmark/backend.py:35	class RuntimeV2Backend:
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=36,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/backend.py:36	    """`AgentBackend` implementation: run each task on the real runtime_v2.
 cloudra/benchmark/backend.py:37	
 cloudra/benchmark/backend.py:38	    `llm` / `tools` are injectable so tests can run the
@@ -1550,6 +1569,9 @@ cloudra/benchmark/backend.py:65	        self._cores: dict[str, Any] = {}
 cloudra/benchmark/backend.py:66	        self._cores_lock = threading.Lock()
 cloudra/benchmark/backend.py:67	
 cloudra/benchmark/backend.py:68	    @property
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=69,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/backend.py:69	    def last_core(self) -> Any:
 cloudra/benchmark/backend.py:70	        """最近一次任务的 core（串行调试便利）；并行时用 core_by_task()。"""
 cloudra/benchmark/backend.py:71	        with self._cores_lock:
@@ -1569,9 +1591,6 @@ cloudra/benchmark/backend.py:84	            LegacyPromptProvider,
 cloudra/benchmark/backend.py:85	            LegacyToolExecutor,
 cloudra/benchmark/backend.py:86	            legacy_default_runtime_settings,
 cloudra/benchmark/backend.py:87	        )
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=88,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/backend.py:88	        from cloudra.runtime_v2.agent_runner import AgentRunner
 cloudra/benchmark/backend.py:89	        from cloudra.runtime_v2.commands import CommandBus
 cloudra/benchmark/backend.py:90	        from cloudra.runtime_v2.compute_notify import ComputeNotifyBroker
@@ -1605,6 +1624,9 @@ cloudra/benchmark/backend.py:117	        stage = MethodPolicyStage(task.method_p
 cloudra/benchmark/backend.py:118	        stages = [*default_stages(core), stage]
 cloudra/benchmark/backend.py:119	        executor = self.tools or LegacyToolExecutor(core)
 cloudra/benchmark/backend.py:120	        from cloudra.runtime_v2.invocation import InvocationService
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=121,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/backend.py:121	
 cloudra/benchmark/backend.py:122	        invocations = InvocationService(
 cloudra/benchmark/backend.py:123	            event_writer=core.event_writer, stages=stages, tools=executor, agents=core.agents
@@ -1624,9 +1646,6 @@ cloudra/benchmark/backend.py:136	        # CLI uses a private RuntimeCore, so th
 cloudra/benchmark/backend.py:137	        # broker cannot see its sessions.  Start one here to deliver terminal
 cloudra/benchmark/backend.py:138	        # compute notices and wake parked child runs.
 cloudra/benchmark/backend.py:139	        broker = ComputeNotifyBroker(core, poll_interval=self.poll_interval_s)
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=140,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/benchmark/backend.py:140	        scheduler = None
 cloudra/benchmark/backend.py:141	        agent = None
 cloudra/benchmark/backend.py:142	        bus = CommandBus(core)
@@ -1660,25 +1679,6 @@ cloudra/benchmark/backend.py:169	                                "orchestration_
 cloudra/benchmark/backend.py:170	                                # 无人值守：破坏性工具审批走 yolo 自动通道
 cloudra/benchmark/backend.py:171	                                "yolo": True,
 cloudra/benchmark/backend.py:172	                                # 无人值守（GH #31）：隐藏并 fail-closed 拦截
-cloudra/benchmark/backend.py:173	                                # ask_user，绝不允许挂进 waiting_input
-cloudra/benchmark/backend.py:174	                                "unattended": True,
-cloudra/benchmark/backend.py:175	                                # Each benchmark case is isolated from global
-cloudra/benchmark/backend.py:176	                                # cross-task memory and AGENTS injection.
-cloudra/benchmark/backend.py:177	                                "clean_context": True,
-cloudra/benchmark/backend.py:178	                            },
-cloudra/benchmark/backend.py:179	                        },
-cloudra/benchmark/backend.py:180	                    )
-cloudra/benchmark/backend.py:181	                )
-cloudra/benchmark/backend.py:182	                ).data
-cloudra/benchmark/backend.py:183	            await self._wait_terminal(bus, agent)
-cloudra/benchmark/backend.py:184	            # 评分只读交付物（图 + 日志）：后端不回传任何
-cloudra/benchmark/backend.py:185	            # 供评分使用的文本/数字，杜绝"拿模型自述给自己打分"。
-cloudra/benchmark/backend.py:186	        finally:
-cloudra/benchmark/backend.py:187	            await broker.close()
-cloudra/benchmark/backend.py:188	            if agent is not None and core.runner is not None:
-cloudra/benchmark/backend.py:189	                await core.runner.cancel(agent.id)
-cloudra/benchmark/backend.py:190	            # 契约性关机补快照：core 接了 store 时把会话上下文投影落盘。
-cloudra/benchmark/backend.py:191	            await bus.flush_snapshot()
 \end{lstlisting}
 \clearpage
 \end{document}
