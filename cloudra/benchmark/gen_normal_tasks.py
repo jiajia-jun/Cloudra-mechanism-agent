@@ -7,7 +7,7 @@ pool keeps 50 entries but only the finalized list is generated — 见 normal.md
 新收 Q1（芳香 Claisen）与 U3（磷叶立德+甲醛）。v4（2026-09-25）换血：换出
 A2/A5/O3（质子交换边饱和、四面体中心过多），换入 R4（Wolff 重排，池内回归）/
 U8（重氮甲烷+乙烯 [3+2]/挤出串联）/Q5（oxy-Cope + 互变异构）——三条均中性
-闭壳两步链，新题各边一律不挂参考垒（诚实缺测，gold 战役后补；Q5 第 2 步
+闭壳两步链；R4 第 2 步与 Q5 第 1 步已回填自算参考垒（Q5 第 2 步
 互变异构按 2026-09-25 PT 边规则留在图里但不挂垒）。方法白名单与 hard 对齐：
 `MethodPolicy(allowed_methods=["xtb", "pm7", "b3lyp/def2svp"])`（B3LYP-D3(BJ)/def2-SVP）。The markdown is the human-curated
 source of truth for SMILES / charges / barriers; this generator is deterministic
@@ -80,7 +80,7 @@ DEFAULT_OUT = REPO_ROOT / "ideapool" / "tasks" / "normal"
 # （质子交换(PT)边饱和、四面体中心过多），换入 R4 Wolff 重排（池内回归）/
 # U8 重氮甲烷+乙烯→吡唑啉→环丙烷+N₂ / Q5 oxy-Cope→5-己烯醛经烯醇——三条均
 # 中性、闭壳、线性两步链；PT 边最小化（Q5 互变异构步按 2026-09-25 PT 边规则
-# 留在图里但不挂参考垒），新题各边一律不写 barrier（构建期诚实缺测，gold 战役后补）。
+# 留在图里但不挂参考垒）；R4 第 2 步、Q5 第 1 步已回填自算参考垒。
 # v4 保留：I1 亚胺 / Y3 BAC2 皂化 / R1 pinacol / U3 磷叶立德+甲醛 / U5 Passerini /
 # U6 Staudinger / Q1 芳香 Claisen。
 # v4.1（2026-09-25 用户裁决）：I1 气相版保留，水溶液对偶版 I5 单开（题库 10 → 11）。

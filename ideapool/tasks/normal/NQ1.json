@@ -99,6 +99,10 @@
           "bond_changes": {
             "break": [
               [
+                1,
+                2
+              ],
+              [
                 3,
                 4
               ],
@@ -121,8 +125,12 @@
             ],
             "form": [
               [
-                3,
+                1,
                 6
+              ],
+              [
+                2,
+                3
               ],
               [
                 4,
@@ -139,7 +147,7 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null,
+          "barrier_kcal_mol": 37.75,
           "weight": 1.0,
           "channel": null,
           "favored": null

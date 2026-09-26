@@ -11,8 +11,8 @@ Q1（芳香 Claisen，v3 新收）：烯丙基苯基醚 → 2-烯丙基苯酚，
 
 Q5（oxy-Cope，v4 新收 2026-09-25）：1,5-己二烯-3-醇 → 5-己烯醛，两步：① [3,3]-σ
 迁移（椅式 TS 优先）→ 烯醇中间体；② 烯醇 → 醛互变异构。第 2 步是质子转移（PT）
-边，按 2026-09-25 PT 边规则留在图里但不挂参考垒；两步均不写 barrier（构建期
-诚实缺测，gold 战役后补）。竞争（船式 TS、分步双自由基）按约定不进 gold。
+边，按 2026-09-25 PT 边规则留在图里但不挂参考垒；第 1 步已回填自算参考垒。
+竞争（船式 TS、分步双自由基）按约定不进 gold。
 """
 
 TASKS = {
@@ -26,14 +26,15 @@ TASKS = {
         "mapped_reactants": "[CH2:1]=[CH:2][CH2:3][O:4][c:5]1[c:6]([H:14])[cH:7][cH:8][cH:9][cH:10]1",
         "steps": [
             {
-                # [3,3]：断 O4-C3 与芳环原 ipso-邻位 π 耦合，成 C3-C6（烯丙基到邻位），
+                # [3,3]：断 O4-C3 与芳环原 ipso-邻位 π 耦合，成 C1-C6（烯丙基末端到邻位），
                 # O4 留在原 ipso 碳 C5 上成羰基 → 邻位环己二烯酮（去芳构化）
-                "out": "[CH2:1]=[CH:2][CH2:3][C:6]1([H:14])[CH:7]=[CH:8][CH:9]=[CH:10][C:5](=[O:4])1",
+                "out": "[CH2:3]=[CH:2][CH2:1][C:6]1([H:14])[CH:7]=[CH:8][CH:9]=[CH:10][C:5](=[O:4])1",
                 "type": "[3,3]-sigmatropic rearrangement (allyl vinyl ether substructure): O-allyl bond cleavage with allyl migration to the ortho carbon and dearomatization to the ortho-cyclohexadienone (capturable intermediate)",
+                "barrier": 37.75,
             },
             {
                 # 烯醇-酚互变异构：C6-H14 迁到羰基 O4，环 π 回排恢复芳香 → 2-烯丙基苯酚
-                "out": "[CH2:1]=[CH:2][CH2:3][c:6]1[cH:7][cH:8][cH:9][cH:10][c:5]1[O:4][H:14]",
+                "out": "[CH2:3]=[CH:2][CH2:1][c:6]1[cH:7][cH:8][cH:9][cH:10][c:5]1[O:4][H:14]",
                 "type": "keto-enol tautomerization of the ortho-cyclohexadienone: proton migration from the ring sp3 carbon onto the carbonyl oxygen restores aromaticity -> 2-allylphenol",
                 "barrier": 53.3,
             },
@@ -50,6 +51,7 @@ TASKS = {
                 # 烯醇 = C3(OH)=C2 双键 + C3 原 carbinol H，闭壳
                 "out": "[CH:3]([O:7][H:8])=[CH:2][CH2:1][CH2:6][CH:5]=[CH2:4]",
                 "type": "[3,3]-sigmatropic shift (chair TS preferred) -> hex-5-enal enol intermediate",
+                "barrier": 30.96,
             },
             {
                 # 2026-09-25 PT 边规则：质子转移步保留在图里但不挂参考垒、gold 战役不花算力

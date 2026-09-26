@@ -1809,6 +1809,21 @@ def test_normal_tasks_regenerate_identically():
         assert t.method_policy.allowed_methods == ["xtb", "pm7", "b3lyp/def2svp"]
 
 
+def test_aromatic_claisen_terminal_allyl_atom_forms_ortho_bond():
+    pytest.importorskip("rdkit")
+    from cloudra.benchmark import gen_normal_tasks
+
+    task = next(
+        t for t in gen_normal_tasks.parse_normal_md(gen_normal_tasks.DEFAULT_SRC)
+        if t.task_id == "NQ1"
+    )
+    edge = task.gold.mechanism_graph.edges[0]
+    assert [1, 6] in edge.bond_changes.form
+    assert [3, 4] in edge.bond_changes.break_
+    assert [3, 6] not in edge.bond_changes.form
+    assert edge.barrier_kcal_mol == 37.75
+
+
 def test_hard_tasks_regenerate_identically():
     """hard 档题库（v3：10 题立体化学档）必须与生成器输出一致。"""
     pytest.importorskip("rdkit")  # 生成器的映射校验依赖 RDKit；CI 只装 dev extra
