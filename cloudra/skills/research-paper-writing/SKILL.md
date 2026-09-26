@@ -7,13 +7,13 @@ description: Guide academic paper writing from draft to publication-ready format
 
 ## Overview
 
-This skill guides you through the complete paper writing workflow: from structuring your story to producing publication-ready typeset documents.
+This skill covers drafting and typesetting papers. The Writer can read and write source files but cannot execute commands. For Pandoc conversion, LaTeX compilation, or package installation, the Writer sends the source path and requested output to the Coordinator or an agent with command execution access.
 
 **Core workflow:**
 1. Clarify the paper story (what, why, how, evidence)
 2. Draft content in Markdown for rapid iteration
-3. Convert and typeset to LaTeX journal template
-4. Use command-line tools to align formatting
+3. Convert and typeset to LaTeX journal template with an agent that can run commands
+4. Align formatting
 5. Run adversarial self-review before submission
 
 ## How to Tell a Story (Critical)

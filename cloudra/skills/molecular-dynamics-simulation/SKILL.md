@@ -16,7 +16,7 @@ Anchor MD simulation stages in the `CLOUDRA` toolchain and Python ecosystem:
 
 - **System Preparation & Solvation**: Use `PDBFixer` to repair crystal structures and OpenMM `Modeller` or GROMACS `gmx solvate` / `gmx genion` to add explicit solvent boxes and neutralizing salt (0.15 M NaCl).
 - **Small-Molecule Parameterization**: For non-standard ligands and organic molecules, parameterize using AmberTools (`antechamber` for AM1-BCC charge calculation + `parmchk2` for GAFF2 force fields) or `openff-toolkit` / `openff-interchange`.
-- **Job Dispatch**: MD simulations are computationally intensive. Submit all production stages via `submit_compute_job` with `is_async=True`.
+- **Job Execution**: Run GROMACS, LAMMPS, or OpenMM workflows with the available command or script tools. `submit_compute_job` accepts Gaussian, VASP, ORCA, CP2K, and xTB inputs; it cannot schedule an arbitrary MD script. For an unavailable compute route, coordinate with the Coordinator or environment specialist.
 - **Trajectory Processing & Analysis**: Process trajectories using `MDAnalysis` or GROMACS tools (`gmx rms`, `gmx rmsf`, `gmx cluster`). Extract thermodynamic stability and compute binding free energies using **MM-GBSA / MM-PBSA** (`gmx_MMPBSA` or `MMPBSA.py`).
 
 ---
