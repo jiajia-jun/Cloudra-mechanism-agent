@@ -7,28 +7,29 @@ v3（2026-09-09）收窄为两条酰基转移/氧转移网络；Y2/O2/O4/O5 剔�
 TASKS = {
     # [OH-].COC=O>>O=C[O-].CO  (−1/1)  BAC2 皂化
     "Y3": {
-        "name_en": "Ester saponification: methyl formate + OH- -> formate + methanol",
+        "name_en": "Ester saponification: methyl formate + NaOH -> sodium formate + methanol",
         "conditions_en": "aqueous NaOH",
-        "mapped_reactants": "[O-:1][H:6].[CH3:2][O:3][CH:4]=[O:5]",
+        # 2026-09-25 用户裁决：裸 OH⁻ 在 CPCM 里无对离子制衡、加成必跑成无垒
+        # （模型失真），改为 Na⁺ 制衡的中性模型（总电荷 0）重算全图。
+        # Na⁺ 在 SMILES 里作游离组分（映射号 7），不参与键变化跟踪；
+        # 计算中的真实配位位置由 agent 自决。三步能垒待 Na 模型战役回填；
+        # 旧值（15.5 文献 ΔG 裸离子 / 12.5、0.0 裸离子自算）全部作废。
+        "mapped_reactants": "[Na+:7].[O-:1][H:6].[CH3:2][O:3][CH:4]=[O:5]",
         "steps": [
             {
-                # OH- 加成：成 O1-C4，断 C4=O5 π → 四面体烷氧盐
-                "out": "[CH3:2][O:3][CH:4]([O:1][H:6])[O-:5]",
-                "type": "hydroxide addition to the carbonyl carbon -> tetrahedral alkoxide intermediate (capturable)",
-                "barrier": 15.5,
-                "weight": 1.0,
+                # OH- 加成：成 O1-C4，断 C4=O5 π → 四面体烷氧盐（Na+ 旁观）
+                "out": "[Na+:7].[CH3:2][O:3][CH:4]([O:1][H:6])[O-:5]",
+                "type": "hydroxide addition to the carbonyl carbon -> tetrahedral alkoxide intermediate (capturable; Na+ counterion present)",
             },
             {
-                # 消除 MeO-：断 C4-O3，成 C4=O5 π → 甲酸 + 甲醇盐
-                "out": "[CH3:2][O-:3].[CH:4](=[O:5])[O:1][H:6]",
-                "type": "methoxide elimination: C-OMe cleavage with C=O pi reformation -> formic acid + methoxide",
-                "barrier": 12.5,
+                # 消除 MeO-：断 C4-O3，成 C4=O5 π → 甲酸 + 甲醇盐（Na+ 旁观）
+                "out": "[Na+:7].[CH3:2][O-:3].[CH:4](=[O:5])[O:1][H:6]",
+                "type": "methoxide elimination: C-OMe cleavage with C=O pi reformation -> formic acid + methoxide (Na+ counterion present)",
             },
             {
-                # 质子转移：断 O1-H6，成 O3-H6 → 甲酸根 + 甲醇
-                "out": "[CH3:2][O:3][H:6].[CH:4](=[O:5])[O-:1]",
-                "type": "proton transfer from formic acid to methoxide -> formate + methanol",
-                "barrier": 0.0,
+                # 质子转移：断 O1-H6，成 O3-H6 → 甲酸根 + 甲醇（Na+ 旁观）
+                "out": "[Na+:7].[CH3:2][O:3][H:6].[CH:4](=[O:5])[O-:1]",
+                "type": "proton transfer from formic acid to methoxide -> formate + methanol (Na+ counterion present)",
             },
         ],
     },

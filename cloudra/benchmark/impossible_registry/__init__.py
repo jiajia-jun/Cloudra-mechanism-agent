@@ -1,7 +1,7 @@
 """impossible 档任务登记表（按族组分文件，避免并行登记冲突）。
 
 每个子模块导出 `TASKS: dict[str, dict]`，键为池内 id（如 "A1"），值为
-impossible 正选题与其兄弟题（sibling 对照题）的全部机器契约：
+impossible 正选题的全部机器契约：
 
 - `name_zh`: 池内 md 条目标题（生成器与 impossible.md 头行做全等校验，
   防登记与题源漂移；标题取去掉尾部【…】标记与最后一个（英文）括注后）。
@@ -11,7 +11,7 @@ impossible 正选题与其兄弟题（sibling 对照题）的全部机器契约�
 - `question_en`: 题面英文（问什么；不泄漏"本题多参考"的答案）。
 - `deliverable_en`: 最终摘要必须报告的量（含单位与参考态；query 另有统一的
   accessible=false 协议句——某元素在允许方法下无法可信计算时把对应节点/边
-  标 accessible=false 并照常交付其余图，impossible 与 sibling 同款措辞，不泄题）。
+  标 accessible=false 并照常交付其余图，不泄题）。
 - `deliverable_kind`: 交付物类型，决定 query 交付句的生成方式：
     - "mechanism"（机理/能垒类，有 TS 有边）：能垒声明在决速步边的
       `barrier_kcal_mol` 上；可选 `product_property_keys`（list[str]，如
@@ -41,9 +41,6 @@ impossible 正选题与其兄弟题（sibling 对照题）的全部机器契约�
     - "no_mapping": True（笼状价异构等键重组无法从 SMILES 级映射差集推导
       键变化——显式声明，bond_changes 留双空，不冒充构象步）。
   末步 out 去映射后必须等于 products。
-- `sibling`: 兄弟题登记（同构，去掉 sibling 键；全部节点必须
-  accessible=True——校验强制）。
-
 粒度规则：gold 边 = 一个造成重原子骨架键变化的事件或一次被考察的态变化；
 bond_changes 由生成器从相邻步映射 SMILES 差集自动推导，禁止手填（唯一
 例外是显式 no_mapping 声明的键重组步）。

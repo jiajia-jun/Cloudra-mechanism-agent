@@ -1,26 +1,22 @@
 """Generate impossible-tier benchmark task JSONs from ideapool/reaction_candidates/impossible.md.
 
 Reads the curated impossible-tier markdown (strong multireference tier)
-and emits two TaskSpec JSONs per task into ideapool/tasks/impossible/:
+and emits one ``I<id>.json`` TaskSpec per selected task into
+ideapool/tasks/impossible/（gold 图带 accessible=False 节点；正确交付 =
+图照交 + 不可达元素标 accessible=false）。
 
-- ``I<id>.json``  — the impossible task itself（gold 图带 accessible=False
-  节点；正确交付 = 图照交 + 不可达元素标 accessible=false）；
-- ``S<id>.json``  — the sibling control task（同反应族、单参考可解的纯标准题）。
-
-只读 impossible.md "定稿圈定"段的 v3 正选 10 个池 id（TASK_IDS；池子其余留档；
-每个池 id 产 I+S 两 JSON，共 20）。
+只读 impossible.md "定稿圈定"段的正选 11 个池 id（TASK_IDS；池子其余留档）。
 md 是人策事实源（条目化学与判分哲学），机器契约在
 ``cloudra/benchmark/impossible_registry/``（按族分文件）；生成器做 fail-loud
 校验：登记标题与 md 头行全等、逐步原子映射号/形式电荷守恒、末步产物去映射
 等于登记产物、每步有键级变化（conformational 态变化与显式 no_mapping 的
-笼状键重组除外）、impossible 题至少一个不可达节点、sibling 题全部可达。
+笼状键重组除外）、impossible 题至少一个不可达节点。
 
 task_id 前缀纪律：impossible 正选用 "I" 前缀（池内 A1 -> IA1）。注意池内
-I 族编号与此前缀撞形：池内 I2 -> II2、I8 -> II8（两个 I 连写），兄弟题
-"S" 前缀同理（SI2/SI8）。判分哲学：不内嵌不可能性特判 rubric——I 题与
-sibling 都走标准 composite，query 只统一给"某元素（物种或 TS）在允许方法下
-无法可信计算时，把交付图中对应节点/边标 accessible=false 并照常交付其余图"
-的协议句（impossible 与 sibling 同款措辞，不泄题）。
+I 族编号与此前缀撞形：池内 I2 -> II2、I8 -> II8（两个 I 连写）。
+判分哲学：不内嵌不可能性特判 rubric；query 统一给"某元素（物种或 TS）
+在允许方法下无法可信计算时，把交付图中对应节点/边标 accessible=false
+并照常交付其余图"的协议句。
 
 交付句按 registry 的 `deliverable_kind` 生成（见 `_deliverable_clause`）：
 mechanism 类维持 RDS 边 `barrier_kcal_mol` 声明（ΔE‡ 口径，可选
@@ -54,7 +50,6 @@ from cloudra.benchmark.query_builder import (
     format_allowed_methods_clause,
 )
 from cloudra.benchmark.schema import (
-    AccuracyRubric,
     BondChangeSet,
     GoldMechanismGraph,
     GoldSpec,
@@ -75,13 +70,14 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SRC = REPO_ROOT / "ideapool" / "reaction_candidates" / "impossible.md"
 DEFAULT_OUT = REPO_ROOT / "ideapool" / "tasks" / "impossible"
 
-# impossible.md "定稿圈定"段的正选名单（v3 缩减：20 → 10 个池 id，每个产 I+S 两题；
-# 池子其余 60 条留档）。v3 保留 10 对（I/S）：A1 环丁二烯 / A5 反旋开环 / A7 Bergman /
+# impossible.md "定稿圈定"段的正选名单（v3 选 10 条；2026-09-26 加 B9 至 11 条）。
+# v3 保留 10 对（I/S）：A1 环丁二烯 / A5 反旋开环 / A7 Bergman /
 # A8 CH2OO / A9 二氧环丁烷 / C3 苯基氮烯 / D2 FOOF / E2 N2 / F3 三角烯 / G8 Cr2。
 # 灰区 6 条（G7/H7/H8/I8/J6/J7）与 ¹O2/苯炔等边缘对全数剔除：灰色条目的
 # 多参考论断本身是机理外推，gold 不可达标注不稳，进题库只会污染信号。
+# B9 接收原 normal U8：1-吡唑啉脱氮过渡区的多参考限制有专门研究支撑。
 TASK_IDS = (
-    "A1 A5 A7 A8 A9 C3 D2 E2 F3 G8"
+    "A1 A5 A7 A8 A9 B9 C3 D2 E2 F3 G8"
 ).split()
 
 _HEADER_RE = re.compile(r"^### ([A-J]\d+)\.\s*(.+)$")
@@ -128,7 +124,7 @@ def _elements_of(smiles: list[str]) -> tuple[list[str], int]:
     return sorted(chem_elements), heavy
 
 
-def _validate_entry(pid: str, entry: dict, md_names: dict[str, str], *, is_sibling: bool) -> list[str]:
+def _validate_entry(pid: str, entry: dict, md_names: dict[str, str]) -> list[str]:
     errors: list[str] = []
     for key in (
         "name_zh", "name_en", "kind", "question_en", "deliverable_en",
@@ -183,12 +179,10 @@ def _validate_entry(pid: str, entry: dict, md_names: dict[str, str], *, is_sibli
         if extra:
             errors.append(f"gold_properties 键未在契约键中登记: {sorted(extra)}")
 
-    # 登记标题与题源对齐（正选与 sibling 同属一个 md 条目）
+    # 登记标题与题源对齐
     if pid in md_names:
         if entry["name_zh"] != md_names[pid]:
             errors.append(f"name_zh 与 md 头行不一致: {entry['name_zh']!r} != {md_names[pid]!r}")
-        if not is_sibling and entry.get("sibling", {}).get("name_zh") not in (None, md_names[pid]):
-            errors.append("sibling.name_zh 与 md 头行不一致")
     else:
         errors.append(f"md 中无此条目: {pid}")
 
@@ -238,14 +232,11 @@ def _validate_entry(pid: str, entry: dict, md_names: dict[str, str], *, is_sibli
     except ValueError as e:
         errors.append(str(e))
 
-    # 可达性纪律：sibling 全真；impossible 至少一假
+    # impossible 题至少一个不可达节点
     flags = [entry.get("reactant_accessible", True)]
     flags += [s.get("ts_accessible", True) for s in steps if s.get("with_ts")]
     flags += [s.get("node_accessible", True) for s in steps]
-    if is_sibling:
-        if entry.get("reactant_accessible") is False or any(f is False for f in flags):
-            errors.append("sibling 题不得携带不可达节点")
-    elif all(f is not False for f in flags):
+    if all(f is not False for f in flags):
         errors.append("impossible 题至少需要一个 accessible=False 节点")
     return errors
 
@@ -431,23 +422,14 @@ def _query(entry: dict, allowed_methods: Sequence[str] | None = None) -> str:
     )
 
 
-def _assemble(pid: str, entry: dict, prefix: str) -> TaskSpec:
-    tid = f"{prefix}{pid}"
-    impossible = prefix == "I"
+def _assemble(pid: str, entry: dict) -> TaskSpec:
+    tid = f"I{pid}"
     elements, heavy = _elements_of(entry["reactants"])
     graph = _build_graph(tid, entry)
     # 拒答特判已随 refusal 线删除：I 题 rubric 全默认（accuracy 默认 enabled——
     # I 题 gold 边无参考能垒，新语义下可达无参考边记 1.0、不可达边记 0.0，
     # 评分由 accuracy.py 按图判定，生成器只管字段合法）；
-    # sibling：有性质锚点（gold_properties，回填后）才启用 accuracy 层
-    #（enabled=false = 可算不评，accuracy 分量直通 1.0）
-    rubric = (
-        RubricSpec()
-        if impossible
-        else RubricSpec(
-            accuracy=AccuracyRubric(enabled=bool(entry.get("gold_properties"))),
-        )
-    )
+    rubric = RubricSpec()
     policy = MethodPolicy(
         allowed_methods=get_config().method_policy.allowed_methods_impossible
     )
@@ -489,16 +471,11 @@ def parse_impossible_md(src: Path, only: set[str] | None = None) -> list[TaskSpe
         if entry is None:
             all_errors[pid] = ["未在 impossible_registry 登记"]
             continue
-        errors = _validate_entry(pid, entry, md_names, is_sibling=False)
-        if "sibling" not in entry:
-            errors.append("缺兄弟题登记（sibling 键）")
-        else:
-            errors.extend(_validate_entry(pid, entry["sibling"], md_names, is_sibling=True))
+        errors = _validate_entry(pid, entry, md_names)
         if errors:
             all_errors[pid] = errors
             continue
-        tasks.append(_assemble(pid, entry, "I"))
-        tasks.append(_assemble(pid, entry["sibling"], "S"))
+        tasks.append(_assemble(pid, entry))
     if all_errors:
         lines = [f"{pid}: {msg}" for pid, msgs in all_errors.items() for msg in msgs]
         raise SystemExit("registry 校验失败：\n  " + "\n  ".join(lines))
@@ -526,9 +503,9 @@ def main() -> None:
                 f"OK {t.task_id}: {len(t.gold.mechanism_graph.nodes)} nodes, {n_edges} edges, "
                 f"inaccessible={len(inacc)}"
             )
-        print(f"check passed: {len(tasks)} tasks (10 impossible + 10 siblings expected)")
+        print(f"check passed: {len(tasks)} impossible tasks expected=11")
         return
-    assert len(tasks) == 20, f"expected 20 tasks, got {len(tasks)}"
+    assert len(tasks) == 11, f"expected 11 tasks, got {len(tasks)}"
     args.out.mkdir(parents=True, exist_ok=True)
     for t in tasks:
         out = args.out / f"{t.task_id}.json"

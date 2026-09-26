@@ -1794,13 +1794,13 @@ def test_easy_tasks_regenerate_identically():
 
 
 def test_normal_tasks_regenerate_identically():
-    """normal 档题库（v4.1：11 题多步网络——I1 气相版 + I5 水溶液对偶）必须与
+    """normal 档题库（10 题；原 U8 已移入 impossible B9）必须与
     生成器输出一致。"""
     pytest.importorskip("rdkit")  # 生成器的映射校验依赖 RDKit；CI 只装 dev extra
     from cloudra.benchmark import gen_normal_tasks
 
     tasks = gen_normal_tasks.parse_normal_md(gen_normal_tasks.DEFAULT_SRC)
-    assert len(tasks) == 11
+    assert len(tasks) == 10
     for t in tasks:
         committed = gen_normal_tasks.DEFAULT_OUT / f"{t.task_id}.json"
         assert committed.is_file(), f"missing committed task file: {committed}"
@@ -1827,19 +1827,14 @@ def test_hard_tasks_regenerate_identically():
 
 
 def test_impossible_tasks_regenerate_identically():
-    """impossible 档题库（v3：10 道 I 题 + 10 道 sibling 对照题）必须与生成器
-    输出一致。
-
-    同时锚定结构性纪律：I 题 gold 图至少一个 accessible=false 节点（正确交付
-    = 同构图 + 对应元素标 accessible=false，走标准 composite，无任何拒答特判）；
-    sibling 全图可达；全档 query 带同一句 accessible=false 协议句（不泄题）。"""
+    """impossible 档只生成 11 道 I 题；每题至少一个不可达节点。"""
     pytest.importorskip("rdkit")  # 生成器的映射校验依赖 RDKit；CI 只装 dev extra
     from cloudra.benchmark import gen_impossible_tasks
 
     tasks = gen_impossible_tasks.parse_impossible_md(gen_impossible_tasks.DEFAULT_SRC)
-    assert len(tasks) == 20
-    assert sum(t.task_id.startswith("I") for t in tasks) == 10
-    assert sum(t.task_id.startswith("S") for t in tasks) == 10
+    assert len(tasks) == 11
+    assert sum(t.task_id.startswith("I") for t in tasks) == 11
+    assert not list(gen_impossible_tasks.DEFAULT_OUT.glob("S*.json"))
     protocol = 'mark the corresponding node or edge "accessible": false'
     for t in tasks:
         committed = gen_impossible_tasks.DEFAULT_OUT / f"{t.task_id}.json"
@@ -1851,10 +1846,7 @@ def test_impossible_tasks_regenerate_identically():
         # accessible=false 协议句全档同款、一字不动
         assert protocol in t.prompt.query, t.task_id
         graph = t.gold.mechanism_graph
-        if t.task_id.startswith("I"):
-            assert any(not n.accessible for n in graph.nodes), t.task_id
-        else:
-            assert all(n.accessible for n in graph.nodes), t.task_id
+        assert any(not n.accessible for n in graph.nodes), t.task_id
 
 
 def test_query_declares_electronic_barrier_type():
@@ -1953,18 +1945,16 @@ def test_impossible_deliverable_clause_by_kind():
     for t in tasks:
         assert protocol in t.prompt.query, t.task_id
         assert "refusal" not in t.prompt.query, t.task_id
-    # 机理类（IA1/SA5 等）：维持边能垒声明
+    # 机理类维持边能垒声明
     assert "as `barrier_kcal_mol`" in by_id["IA1"].prompt.query
     assert "rate-determining step's edge" in by_id["IA1"].prompt.query
     # 机理类附带产物节点性质（IA7 反应能）
     assert "`reaction_energy_kcal_mol` in a `properties` object on the product node" in by_id["IA7"].prompt.query
     # 性质类无边题（ID2 FOOF）：挂物种节点而非边
     assert "`properties` object on the reactant species node" in by_id["ID2"].prompt.query
-    assert "`bond_length_angstrom`" in by_id["SE2"].prompt.query
+    assert "`f_o_bond_length_angstrom`" in by_id["ID2"].prompt.query
     # 态序类：state_ordering 字符串
     assert "`state_ordering`" in by_id["IC3"].prompt.query
-    # 相对能挂目标态节点（SA8）
-    assert "target-state (product) node" in by_id["SA8"].prompt.query
 
 
 def test_runner_wires_stereo_tier_rule():

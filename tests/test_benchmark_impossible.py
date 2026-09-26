@@ -2,7 +2,7 @@
 性质锚点 / hard 定性选择性的测试。
 
 拒答路线（refusal.py/impossible.py、expected_outcome/pair_id/impossible_case
-特判）已删除：I 题与 sibling 都走标准 composite——I 题的正确交付 = 同构图
+特判）已删除：I 题走标准 composite——正确交付 = 同构图
 + 不可达元素标 accessible=false（图分满分、自洽豁免、accuracy 不可达边记 0.0，
 final = 0.1·图 + 0.3·自洽）；硬算（不可达元素标 accessible=true）被图分的
 标志一致性闸门按代价 1.0 倒扣。
@@ -427,37 +427,6 @@ def test_runner_hard_selectivity_slot(tmp_path):
     assert res2.accuracy_score == 0.0
 
 
-# --- sibling 性质锚点回填（gold_properties）与泄题守卫 ---
-
-
-def test_sibling_property_anchors_backfilled():
-    """七个 sibling 性质/态序题已回填 gold 锚点且 accuracy 自动启用；
-    数值键的 σ 都能命中 _PROPERTY_SIGMAS（表外 fail-loud 的前置核对）。"""
-    pytest.importorskip("rdkit")
-    from cloudra.benchmark import gen_impossible_tasks
-    from cloudra.benchmark.accuracy import _property_sigma
-
-    tasks = {t.task_id: t for t in gen_impossible_tasks.parse_impossible_md(gen_impossible_tasks.DEFAULT_SRC)}
-    anchored = {"SE2", "SD2", "SA9", "SF3", "SG8", "SC3", "SA8"}
-    for tid in anchored:
-        t = tasks[tid]
-        props = t.gold.reference_properties
-        assert props, f"{tid} 缺 gold 性质锚点"
-        assert t.rubric.accuracy.enabled, f"{tid} 有锚点但 accuracy 未启用"
-        for key, val in props.items():
-            if not isinstance(val, str):
-                _property_sigma(key)  # 表外键在此即抛（fail-loud 前置）
-    # 抽查回填值（出处见 registry 注释）
-    assert tasks["SE2"].gold.reference_properties == {
-        "bond_length_angstrom": 1.0977,
-        "harmonic_frequency_cm-1": 2358.57,
-    }
-    assert tasks["SA8"].gold.reference_properties == {
-        "energy_relative_to_reactant_kcal_mol": 90.9,
-        "state_ordering": "formic acid below dioxirane",
-    }
-
-
 def test_state_order_anchor_not_leaked_in_query():
     """泄题守卫：任何 impossible 题的 query 不得包含 gold 字符串锚点值
     （state_ordering 的答案顺序）；契约示例必须用占位物种名。"""
@@ -475,11 +444,20 @@ def test_state_order_anchor_not_leaked_in_query():
             assert "triplet below singlet" not in t.prompt.query, t.task_id
 
 
-def test_removed_contract_keys_not_in_query():
-    """SC3 频率键 / SF3 几何汇总键已从契约移除：query 不再要求这两个键。"""
+def test_pyrazoline_denitrogenation_moved_to_impossible():
+    """NU8 的脱氮边只在 impossible 交付，普通题集不再把它当可算闭壳层边。"""
     pytest.importorskip("rdkit")
-    from cloudra.benchmark import gen_impossible_tasks
+    from cloudra.benchmark import gen_impossible_tasks, gen_normal_tasks
 
-    tasks = {t.task_id: t for t in gen_impossible_tasks.parse_impossible_md(gen_impossible_tasks.DEFAULT_SRC)}
-    assert "`harmonic_frequencies_cm-1`" not in tasks["SC3"].prompt.query
-    assert "`principal_geometry_summary`" not in tasks["SF3"].prompt.query
+    normal = {t.task_id for t in gen_normal_tasks.parse_normal_md(gen_normal_tasks.DEFAULT_SRC)}
+    impossible = {
+        t.task_id: t
+        for t in gen_impossible_tasks.parse_impossible_md(gen_impossible_tasks.DEFAULT_SRC)
+    }
+    assert "NU8" not in normal
+    assert "IB9" in impossible and "SB9" not in impossible
+    graph = impossible["IB9"].gold.mechanism_graph
+    assert len(graph.edges) == 2
+    assert graph.nodes[0].accessible
+    assert next(n for n in graph.nodes if n.id == "IB9_TS1").accessible
+    assert not next(n for n in graph.nodes if n.id == "IB9_TS2").accessible

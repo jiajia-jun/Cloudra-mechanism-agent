@@ -2,30 +2,33 @@
   "task_id": "NY3",
   "tier": "normal",
   "family": "Y",
-  "name": "Ester saponification: methyl formate + OH- -> formate + methanol",
+  "name": "Ester saponification: methyl formate + NaOH -> sodium formate + methanol",
   "prompt": {
-    "query": "Determine the mechanism of the following reaction: Ester saponification: methyl formate + OH- -> formate + methanol. Reactant SMILES: [OH-].COC=O; product SMILES: O=C[O-].CO; total charge -1, multiplicity 1; conditions: aqueous NaOH. Within the allowed methods, model the system so that it approximates the real conditions stated above as closely as the level of theory permits. Atom-mapped reactant SMILES: [O-:1][H:6].[CH3:2][O:3][CH:4]=[O:5]. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). The reaction may proceed through a multi-step network: represent each intermediate you identify as a node and each elementary step as an edge; competing pathways you investigate deserve their own edges. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. Use exactly this JSON shape (key names matter: nodes carry `id`, `role` (one of reactant/intermediate/product/transition_state) and `smiles` (a list of SMILES strings), and may optionally carry a `properties` object for declared quantities; edges carry `id`, `from`, `to`, `via`, `bond_changes` and optionally `barrier_kcal_mol`, `channel` and `favored`): {\"nodes\": [{\"id\": \"RC\", \"role\": \"reactant\", \"smiles\": [\"C=O.CN\"]}, {\"id\": \"TS1\", \"role\": \"transition_state\", \"smiles\": []}, {\"id\": \"P\", \"role\": \"product\", \"smiles\": [\"...\"]}], \"edges\": [{\"id\": \"e1\", \"from\": \"RC\", \"to\": \"P\", \"via\": \"TS1\", \"bond_changes\": {\"break\": [[1, 2]], \"form\": [[1, 5]]}, \"barrier_kcal_mol\": 21.3}]}. A species made of several molecules (a pre-reaction or ion-dipole complex) is ONE node whose `smiles` holds a single dot-joined complex SMILES (like the RC node above), never a list of separate component SMILES; evidence files for such a species must carry that same dot-joined complex SMILES in their `smiles:` annotation. If such a complex is not a clean minimum at the allowed level of theory, still keep the single complex node in the graph, but you may then annotate its evidence files per component species instead (each component with its own `smiles:` annotation). The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or inversion step carries two empty lists. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. Declare every barrier you actually compute in kcal/mol on that elementary step's edge as `barrier_kcal_mol` in mechanism_graph.json. Barriers are electronic energy differences (ΔE‡) in kcal/mol, without ZPE or thermal corrections, each relative to that step's own starting minimum: for a bimolecular reaction that minimum is the reactant complex (e.g. the ion-dipole complex), and for a unimolecular process it is simply the reactant minimum. The scorer derives every declared step barrier from your log files and takes the highest as the rate-determining step; a barrier that is undeclared, has no bound ORCA/Gaussian log, or disagrees with those logs is not scorable. Every species node and transition-state node must declare `properties.energy_hartree` (the electronic energy of the geometry you delivered for that node, in Hartree, exactly as it appears in that node's evidence log) and `properties.evidence_log` (the sandbox-relative path of that log). The scorer uses the declared energy to identify which evidence file you delivered for each node; a node missing either field violates the delivery contract. A transition-state evidence file must carry `smiles: <the SMILES of that step's reactant>` so the scorer can attach the saddle to the step it belongs to. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to xTB, pm7, and B3LYP-D3(BJ)/def2-SVP; calls beyond the whitelist are intercepted.",
+    "query": "Determine the mechanism of the following reaction: Ester saponification: methyl formate + NaOH -> sodium formate + methanol. Reactant SMILES: [Na+].[OH-].COC=O; product SMILES: O=C[O-].[Na+].CO; total charge 0, multiplicity 1; conditions: aqueous NaOH. Within the allowed methods, model the system so that it approximates the real conditions stated above as closely as the level of theory permits. Atom-mapped reactant SMILES: [Na+:7].[O-:1][H:6].[CH3:2][O:3][CH:4]=[O:5]. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). The reaction may proceed through a multi-step network: represent each intermediate you identify as a node and each elementary step as an edge; competing pathways you investigate deserve their own edges. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. Use exactly this JSON shape (key names matter: nodes carry `id`, `role` (one of reactant/intermediate/product/transition_state) and `smiles` (a list of SMILES strings), and may optionally carry a `properties` object for declared quantities; edges carry `id`, `from`, `to`, `via`, `bond_changes` and optionally `barrier_kcal_mol`, `channel` and `favored`): {\"nodes\": [{\"id\": \"RC\", \"role\": \"reactant\", \"smiles\": [\"C=O.CN\"]}, {\"id\": \"TS1\", \"role\": \"transition_state\", \"smiles\": []}, {\"id\": \"P\", \"role\": \"product\", \"smiles\": [\"...\"]}], \"edges\": [{\"id\": \"e1\", \"from\": \"RC\", \"to\": \"P\", \"via\": \"TS1\", \"bond_changes\": {\"break\": [[1, 2]], \"form\": [[1, 5]]}, \"barrier_kcal_mol\": 21.3}]}. A species made of several molecules (a pre-reaction or ion-dipole complex) is ONE node whose `smiles` holds a single dot-joined complex SMILES (like the RC node above), never a list of separate component SMILES; evidence files for such a species must carry that same dot-joined complex SMILES in their `smiles:` annotation. If such a complex is not a clean minimum at the allowed level of theory, still keep the single complex node in the graph, but you may then annotate its evidence files per component species instead (each component with its own `smiles:` annotation). The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or inversion step carries two empty lists. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. Declare every barrier you actually compute in kcal/mol on that elementary step's edge as `barrier_kcal_mol` in mechanism_graph.json. Barriers are electronic energy differences (ΔE‡) in kcal/mol, without ZPE or thermal corrections, each relative to that step's own starting minimum: for a bimolecular reaction that minimum is the reactant complex (e.g. the ion-dipole complex), and for a unimolecular process it is simply the reactant minimum. The scorer derives every declared step barrier from your log files and takes the highest as the rate-determining step; a barrier that is undeclared, has no bound ORCA/Gaussian log, or disagrees with those logs is not scorable. A transition-state evidence file must carry `smiles: <the SMILES of that step's reactant>` so the scorer can attach the saddle to the step it belongs to. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to xTB, pm7, and B3LYP-D3(BJ)/def2-SVP; calls beyond the whitelist are intercepted.",
     "role": "coordinator",
     "orchestration_mode": "dag_guided"
   },
   "system": {
     "reactants": [
+      "[Na+]",
       "[OH-]",
       "COC=O"
     ],
     "products": [
       "O=C[O-]",
+      "[Na+]",
       "CO"
     ],
-    "charge": -1,
+    "charge": 0,
     "multiplicity": 1,
     "conditions": "aqueous NaOH",
     "elements": [
       "C",
       "H",
-      "O"
+      "O",
+      "Na"
     ],
-    "max_heavy_atoms": 5,
+    "max_heavy_atoms": 6,
     "closed_shell": true,
     "single_step": false
   },
@@ -48,7 +51,7 @@
           "id": "NY3_R",
           "role": "reactant",
           "smiles": [
-            "[OH-].COC=O"
+            "[Na+].[OH-].COC=O"
           ],
           "accessible": true,
           "label": "reactant",
@@ -66,7 +69,7 @@
           "id": "NY3_I1",
           "role": "intermediate",
           "smiles": [
-            "COC([O-])O"
+            "[Na+].COC([O-])O"
           ],
           "accessible": true,
           "label": "intermediate 1",
@@ -84,7 +87,7 @@
           "id": "NY3_I2",
           "role": "intermediate",
           "smiles": [
-            "C[O-].O=CO"
+            "[Na+].C[O-].O=CO"
           ],
           "accessible": true,
           "label": "intermediate 2",
@@ -102,7 +105,7 @@
           "id": "NY3_P",
           "role": "product",
           "smiles": [
-            "O=C[O-].CO"
+            "O=C[O-].[Na+].CO"
           ],
           "accessible": true,
           "label": "product",
@@ -115,7 +118,7 @@
           "from": "NY3_R",
           "to": "NY3_I1",
           "via": "NY3_TS1",
-          "step_type": "hydroxide addition to the carbonyl carbon -> tetrahedral alkoxide intermediate (capturable)",
+          "step_type": "hydroxide addition to the carbonyl carbon -> tetrahedral alkoxide intermediate (capturable; Na+ counterion present)",
           "bond_changes": {
             "break": [
               [
@@ -131,7 +134,7 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": 15.5,
+          "barrier_kcal_mol": null,
           "weight": 1.0,
           "channel": null,
           "favored": null
@@ -141,7 +144,7 @@
           "from": "NY3_I1",
           "to": "NY3_I2",
           "via": "NY3_TS2",
-          "step_type": "methoxide elimination: C-OMe cleavage with C=O pi reformation -> formic acid + methoxide",
+          "step_type": "methoxide elimination: C-OMe cleavage with C=O pi reformation -> formic acid + methoxide (Na+ counterion present)",
           "bond_changes": {
             "break": [
               [
@@ -157,7 +160,7 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": 12.5,
+          "barrier_kcal_mol": null,
           "weight": 1.0,
           "channel": null,
           "favored": null
@@ -167,7 +170,7 @@
           "from": "NY3_I2",
           "to": "NY3_P",
           "via": "NY3_TS3",
-          "step_type": "proton transfer from formic acid to methoxide -> formate + methanol",
+          "step_type": "proton transfer from formic acid to methoxide -> formate + methanol (Na+ counterion present)",
           "bond_changes": {
             "break": [
               [
@@ -183,7 +186,7 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": 0.0,
+          "barrier_kcal_mol": null,
           "weight": 1.0,
           "channel": null,
           "favored": null
@@ -207,7 +210,7 @@
       "stereo_tier_rule": "easy_normal_stereo_free"
     },
     "accuracy": {
-      "enabled": true,
+      "enabled": false,
       "sigma_kcal_mol": 2.0,
       "max_penalty_fraction": 0.3,
       "small_barrier_threshold_kcal": 10.0,

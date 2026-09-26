@@ -1,7 +1,7 @@
 """Generate normal-tier benchmark task JSONs from ideapool/reaction_candidates/normal.md.
 
 Reads the curated normal-tier markdown and emits one TaskSpec JSON per task into
-ideapool/tasks/normal/N<id>.json for the finalized 10-task list (TASK_IDS; the
+ideapool/tasks/normal/N<id>.json for the current 10-task list (TASK_IDS; the
 pool keeps 50 entries but only the finalized list is generated — 见 normal.md
 "定稿圈定"段)。v3（2026-09-09）将 30 条缩至 10 条并按"多步网络 + 尽量 xtb 友好"重选，
 新收 Q1（芳香 Claisen）与 U3（磷叶立德+甲醛）。v4（2026-09-25）换血：换出
@@ -84,8 +84,9 @@ DEFAULT_OUT = REPO_ROOT / "ideapool" / "tasks" / "normal"
 # v4 保留：I1 亚胺 / Y3 BAC2 皂化 / R1 pinacol / U3 磷叶立德+甲醛 / U5 Passerini /
 # U6 Staudinger / Q1 芳香 Claisen。
 # v4.1（2026-09-25 用户裁决）：I1 气相版保留，水溶液对偶版 I5 单开（题库 10 → 11）。
+# 2026-09-26：U8 脱氮多参考区无法按 normal 白名单核实，移入 impossible B9（11 → 10）。
 TASK_IDS = (
-    "I1 I5 Y3 R1 R4 U3 U5 U6 U8 Q1 Q5"
+    "I1 I5 Y3 R1 R4 U3 U5 U6 Q1 Q5"
 ).split()
 
 # ---------------------------------------------------------------------------
@@ -455,7 +456,7 @@ def main() -> None:
             print(f"OK {t.task_id}: {len(t.gold.mechanism_graph.nodes)} nodes, {n_edges} steps")
         print(f"check passed: {len(tasks)} tasks")
         return
-    assert len(tasks) == 11, f"expected 11 tasks, got {len(tasks)}"
+    assert len(tasks) == 10, f"expected 10 tasks, got {len(tasks)}"
     args.out.mkdir(parents=True, exist_ok=True)
     for t in tasks:
         out = args.out / f"{t.task_id}.json"

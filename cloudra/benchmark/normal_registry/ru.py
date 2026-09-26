@@ -1,11 +1,11 @@
-"""R 族 + U 族登记（v4 换血后）：R1 pinacol、R4 Wolff 重排（v4 池内回归）、
-U3 磷叶立德+甲醛、U5 Passerini、U6 Staudinger、U8 重氮甲烷+乙烯 [3+2]/挤出
-串联（v4 新收）。
+"""R 族 + U 族登记：R1 pinacol、R4 Wolff 重排、
+U3 磷叶立德+甲醛、U5 Passerini、U6 Staudinger。
 
 v3（2026-09-09）收窄为四条多步/中间体网络；R2/R3/U1/U7 剔出定稿名单留档池
 （条目见 normal.md）。v4（2026-09-25）换血：R4/U8 入正选替 A5/O3 槽——两条
-各边一律不写 barrier（构建期诚实缺测，gold 战役后补）。竞争通道（R1 分步
-碳正离子路径、U6 协同 [2+2]、R4 协同 Wolff 通道与 oxirene、U8 卡宾 [2+1] 等）
+各边一律不写 barrier（构建期诚实缺测，gold 战役后补）。U8 于 2026-09-26
+移入 impossible B9。竞争通道（R1 分步碳正离子路径、U6 协同 [2+2]、
+R4 协同 Wolff 通道与 oxirene 等）
 按 normal.md 约定不进 gold，由 agent 自行探索。
 """
 
@@ -147,22 +147,6 @@ TASKS = {
                 "type": "oxaphosphetane cycloreversion: C-P and C-O cleavage with C=C and P=O pi formation -> ethylene + phosphine oxide",
                 "barrier": 23.76,
                 "weight": 1.0,
-            },
-        ],
-    },
-    # C=[N+]=[N-].C=C>>C1CC1.N#N  (0/1)  重氮甲烷+乙烯 [3+2]/挤出串联
-    "U8": {
-        "name_en": "diazomethane + ethylene -> cyclopropane + N2 via 1-pyrazoline ([3+2] cycloaddition then cheletropic N2 extrusion)",
-        "conditions_en": "gas-phase thermolysis",
-        "mapped_reactants": "[CH2:1]=[N+:2]=[N-:3].[CH2:4]=[CH2:5]",
-        "steps": [
-            {
-                "out": "[CH2:1]1[N:2]=[N:3][CH2:4][CH2:5]1",
-                "type": "[3+2] cycloaddition -> 1-pyrazoline intermediate",
-            },
-            {
-                "out": "[N:2]#[N:3].[CH2:1]1[CH2:4][CH2:5]1",
-                "type": "cheletropic N2 extrusion with C-C closure -> cyclopropane",
             },
         ],
     },
