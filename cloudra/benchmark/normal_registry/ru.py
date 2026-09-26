@@ -64,23 +64,17 @@ TASKS = {
     # 映射：1=OH- 的 O，7=其 H；2=受体醛 C，3=其 O，6=转移的氢负 H；
     # C=O.O=CO.C[N+]#[C-]>>CNC(=O)COC=O  (0/1)  Passerini
     # 映射：1=醛 C，2=醛 O；3=甲酸羰基 C，4=其羰基 O，5=其羟基 O，6=酸性 H；
-    # 7=异腈甲基，8=N，9=异腈 C。
+    # 7=异腈甲基，8=N，9=异腈 C。首步把酸质子转移与异腈加成合并。
     "U5": {
         "name_en": "Passerini reaction: formaldehyde + formic acid + methyl isocyanide -> N-methyl-alpha-formyloxyacetamide",
-        "conditions_en": "nonpolar solvent, room temperature, high concentration",
+        "conditions_en": "dichloromethane (DCM), room temperature, high concentration",
         "mapped_reactants": "[CH2:1]=[O:2].[O:4]=[CH:3][O:5][H:6].[CH3:7][N+:8]#[C-:9]",
         "steps": [
             {
-                # PT：甲酸向甲醛质子转移 → 质子化甲醛 + 甲酸根
-                # 本机仅约束扫描上界 11.9、未定位鞍点 → 无可信锚点，撤回旧 0.0（无垒无证据；沿用 A2/A5 缺省 None 约定）
-                "out": "[CH2:1]=[O+:2][H:6].[O-:5][CH:3]=[O:4].[CH3:7][N+:8]#[C-:9]",
-                "type": "proton transfer from formic acid to formaldehyde -> protonated formaldehyde + formate",
-            },
-            {
-                # 异腈 C α-加成醛碳：成 C9-C1，断 C1=O2 π → nitrilium
+                # 联合：甲酸 O5-H6 断裂、O2-H6/C1-C9 成键、C1=O2 π 回落 → nitrilium/formate
                 "out": "[CH2:1]([O:2][H:6])[C:9]#[N+:8][CH3:7].[O-:5][CH:3]=[O:4]",
-                "type": "alpha-addition of the isocyanide carbon to the aldehyde carbon -> nitrilium ion",
-                "barrier": 8.2,
+                "type": "concerted formic-acid proton transfer and isocyanide C attack on formaldehyde -> nitrilium/formate contact ion pair",
+                "barrier": 8.21,
                 "weight": 0.5,
             },
             {

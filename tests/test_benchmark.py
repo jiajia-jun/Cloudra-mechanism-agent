@@ -1824,6 +1824,38 @@ def test_aromatic_claisen_terminal_allyl_atom_forms_ortho_bond():
     assert edge.barrier_kcal_mol == 37.75
 
 
+def test_aqueous_imine_barrier_stays_separate_from_gas_phase_task():
+    pytest.importorskip("rdkit")
+    from cloudra.benchmark import gen_normal_tasks
+
+    tasks = {
+        t.task_id: t
+        for t in gen_normal_tasks.parse_normal_md(gen_normal_tasks.DEFAULT_SRC, only={"I1", "I5"})
+    }
+    gas_edges = tasks["NI1"].gold.mechanism_graph.edges
+    aqueous_edges = tasks["NI5"].gold.mechanism_graph.edges
+    assert [e.barrier_kcal_mol for e in gas_edges] == [27.9, 57.67]
+    assert [e.barrier_kcal_mol for e in aqueous_edges] == [None, 3.59, 31.2]
+    assert [e.to_node for e in aqueous_edges[:2]] == ["NI5_I1", "NI5_I2"]
+    assert [1, 3] in aqueous_edges[0].bond_changes.form
+    assert [3, 5] in aqueous_edges[1].bond_changes.break_
+    assert [2, 5] in aqueous_edges[1].bond_changes.form
+    assert tasks["NI5"].rubric.accuracy.enabled
+
+
+def test_passerini_first_edge_couples_proton_transfer_and_isocyanide_attack():
+    pytest.importorskip("rdkit")
+    from cloudra.benchmark import gen_normal_tasks
+
+    task = gen_normal_tasks.parse_normal_md(gen_normal_tasks.DEFAULT_SRC, only={"U5"})[0]
+    edges = task.gold.mechanism_graph.edges
+    assert len(edges) == 3
+    assert edges[0].barrier_kcal_mol == 8.21
+    assert [5, 6] in edges[0].bond_changes.break_
+    assert [2, 6] in edges[0].bond_changes.form
+    assert [1, 9] in edges[0].bond_changes.form
+
+
 def test_hard_tasks_regenerate_identically():
     """hard 档题库（v3：10 题立体化学档）必须与生成器输出一致。"""
     pytest.importorskip("rdkit")  # 生成器的映射校验依赖 RDKit；CI 只装 dev extra

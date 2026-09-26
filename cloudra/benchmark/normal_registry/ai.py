@@ -118,18 +118,25 @@ TASKS = {
         "conditions_en": "aqueous solution, weakly acidic (pH 4-6, bell-shaped rate profile)",
         "smiles_schematic": True,
         "mapped_reactants": "[CH2:1]=[O:2].[CH3:4][N:3]([H:5])([H:6])",
-        # 步结构暂沿用 I1 的气相图；水溶液模型下水接力可能使 PT 解耦，
-        # 待水助 gold（CPCM(water) ± 接力水，战役中）落地后按实修订。
-        # 能垒一律缺测：战役出数后回填。文献对照：两水辅助 ≈ 26.7
+        # 显式水接力使 C-N 加成与双质子转移解耦：先得两性离子，再经
+        # 六元环水接力成羟胺。E2 的 3.59 相对加成中间体·H2O 极小值；
+        # E3 的 31.2 相对羟胺·H2O 极小值。接力水未画入净反应式，
+        # 由 smiles_schematic 和步类型声明；文献两水辅助 ≈ 26.7
         # （Hall & Smith 1998 JPCA 102, 4930, DOI 10.1021/jp9810825）。
         "steps": [
             {
+                "out": "[O-:2][CH2:1][N+:3]([H:5])([H:6])[CH3:4]",
+                "type": "amine addition to the carbonyl -> zwitterionic C-N addition intermediate (relay water omitted from schematic SMILES)",
+            },
+            {
                 "out": "[O:2]([H:5])[CH2:1][N:3]([H:6])[CH3:4]",
-                "type": "amine addition to the carbonyl -> carbinolamine (step structure provisional, pending the water-assisted gold)",
+                "type": "six-membered water relay transfers N-H to O through a coupled two-proton shuttle -> carbinolamine (net step; relay water omitted from schematic SMILES)",
+                "barrier": 3.59,
             },
             {
                 "out": "[O:2]([H:5])([H:6]).[CH2:1]=[N:3][CH3:4]",
-                "type": "carbinolamine dehydration -> N-methylmethanimine + water (step structure provisional, pending the water-assisted gold)",
+                "type": "water-relayed carbinolamine dehydration -> N-methylmethanimine + water (net step; relay water omitted from schematic SMILES)",
+                "barrier": 31.2,
             },
         ],
     },
