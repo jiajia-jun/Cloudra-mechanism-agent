@@ -62,10 +62,12 @@
 | # | 反应（中/EN） | SMILES (reactant>>product)，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
 |---|---|---|---|---|---|---|---|
 | D1 | 反-2,3-二甲基环氧乙烷酸催化水解（trans-2,3-dimethyloxirane，anti 开环→meso）| `[OH3+].C[C@H]1[C@@H](O1)C.O>>[OH3+].C[C@H]([C@H](C)O)O`（meso-2,3-丁二醇 (2R,3S)），+1/1 | 稀酸水溶液，室温 | ① 环氧 O 质子化；② 水背面 SN2 型开环（决速），受进攻碳构型翻转。trans 环氧 → **meso** 二醇；dl（(2R,3R)/(2S,3S)）为错误非对映体（旧池 H-19 误写为 dl，已勘误）。竞争：cis-2-丁烯经环氧水解应给 dl（整体 anti 双羟化的立体化学对应） | 能垒数值未核（教材标准案例 Clayden ch.33、Carey & Sundberg Part A ch.5；Fürst & Plattner 1949 HCA 32, 275）[已核实] | C,H,O；7 重原子；✅ | 环氧开环立体专属性必修案例 |
-| D2 | 环氧环己烷亲核开环（cyclohexene oxide，Fürst–Plattner trans-diaxial）| `C1CCC2OC2C1.[OH-]>>O[C@@H]1CCCC[C@H]1[O-]`（trans-1,2-环己二醇盐 (1R,2R) 对映对之一），−1/1 | NaOH 水溶液加热 | 反式双轴向开环唯一产物：椅式构象锁定下 SN2 进攻必须轴向进入；顺式/双赤道开环为高能路径。竞争：无（构象锁死） | ΔE‡ ≈ 14.3 kcal/mol（B3LYP/6-311+G(d,p) 微溶剂化碱性；环氧乙烷类似物，非环己烯氧化物；Lundin, Panas & Ahlberg 2007 J. Phys. Chem. A 111, 9087-9092, DOI 10.1021/jp073285b）[部分核实] | C,H,O；8 重原子；✅ | 构象分析×立体电子效应经典交汇 |
+| D2 | 环氧环己烷亲核开环（cyclohexene oxide，Fürst–Plattner trans-diaxial）| `C1CCC2OC2C1.[OH-]>>O[C@@H]1CCCC[C@H]1[O-]`（trans-1,2-环己二醇盐 (1R,2R) 对映对之一），−1/1 | NaOH 水溶液加热 | 反式双轴向开环唯一产物：椅式构象锁定下 SN2 进攻必须轴向进入；顺式/双赤道开环为高能路径。竞争：无（构象锁死） | ΔE‡ = 16.42 kcal/mol（本战役自算；ORCA 5.0.2 B3LYP-D3BJ/def2-SVP CPCM(Water)，相对 IRC 连通的反应物离子偶极络合物极小值；双向 IRC 与两端零虚频验证。松散络合物构象导致参考态有数 kcal/mol 不确定性） | C,H,O；8 重原子；✅ | 构象分析×立体电子效应经典交汇 |
 | D3 | 氧化苯乙烯酸/碱条件区位翻转（styrene oxide，regioselectivity switch）| `c1ccccc1[C@@H]2CO2.C[O-]>>COC[C@@H](c1ccccc1)[O-]`（碱性：进攻末端碳，苄位中心不动 (R) 保持），−1/1 | NaOMe/MeOH（碱）；MeOH/H⁺（酸，走苄位进攻翻转，写入机理格） | 碱性 SN2 进攻末端碳（位阻控制），苄位立体中心不受触及；酸性条件下进攻苄位（部分 SN1 特征稳定化）并构型翻转——区位随条件翻转。竞争：两条区位通道互为竞争（条件依赖） | ΔΔG‡ ≈ 1.5–3 kcal/mol（区位选择性量级；教材 Clayden ch.33、March）[已核实] | C,H,O；11 重原子；✅ | 区域/立体选择性耦合经典 |
 | D4 | 环氧丙烷碱性开环（propylene oxide，最小 SN2 位阻选择性）| `C[C@H]1CO1.[OH-]>>C[C@H]([O-])CO`（(S)→(S) 空间保持，末端进攻），−1/1 | NaOH 水溶液 | SN2 少取代碳进攻 ≫ 多取代碳；立体中心不被触及（区域选择性题+立体"不动点"对照）。竞争：多取代碳进攻 | ΔΔG‡ ≈ 2–3 kcal/mol（区位选择性量级；教材 Clayden ch.33）[已核实] | C,H,O；5 重原子；✅ | 最简位阻控制区位选择性模型 |
 | D5 | 2-甲基氮杂环丙烷活化开环（2-methylaziridine，O/N 类比）| `[OH3+].C[C@H]1CN1.CO>>[OH3+].C[C@@H](OC)CN`（(S) 底物→进攻取代碳构型翻转为 (R)），+1/1 | 酸性醇溶液 | N 质子化活化后进攻**取代碳**占优（与未活化底物相反），背面进攻构型翻转；与 D3 环氧体系构成 O/N 类比对照。竞争：进攻末端碳 | 能垒数值未核（Dermer & Ham《Ethylenimine and Other Aziridines》Academic Press 1969；教材 Clayden ch.33）[部分核实] | C,H,N,O；7 重原子；✅ | 氮杂环化学标准专著覆盖体系 |
+
+D2 自算证据：`computed_by_us=True`；类型为纯电子 ΔE‡，参考态为 IRC 反应物侧重新优化的离子偶极络合物极小值。gold 上 `/public/home/yyywaa/cloudra_workspace/HD2_gold_20260927/REPORT.md` 记录方法、几何及检查；原始 ORCA 日志为同目录 `ts/typ_05b/.cloudra/calc-545.out.log`（TS）、`ts/typ_05b/.cloudra/calc-546.out.log`（IRC）、`rc/.cloudra/calc-569.out.log`（反应物）、`product/.cloudra/calc-563.out.log`（产物）。
 
 ## E. 羰基 π-面选择性与手性还原（旧 H-24~H-26，3 个）
 

@@ -32,7 +32,7 @@ TASKS = {
             {
                 "out": "[OH:1][C@@H:2]1[CH2:5][CH2:6][CH2:7][CH2:8][C@H:4]1[O-:3]",
                 "type": "backside SN2 attack of hydroxide on one epoxide carbon, trans-diaxial ring opening with C-O cleavage at the attacked carbon -> trans-1,2-diolate (stereospecific, no competing channel)",
-                "barrier": 14.3,
+                "barrier": 16.42,
                 "weight": 0.5,
             },
         ],
