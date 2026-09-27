@@ -228,11 +228,12 @@ async def test_distance_filters(tool, mock_session, tmp_path):
     assert result.is_success is True
     passing = [c for c in result.conformers if c["passes_filters"]]
     failing = [c for c in result.conformers if not c["passes_filters"]]
-    assert result.counts["passing_filters"] == len(passing)
-    assert len(passing) >= 1 and len(failing) >= 1
+    assert result.counts["retained"] == len(passing)
+    assert len(passing) >= 1 and len(failing) == 0
+    assert all(3.5 <= c["achieved_distances"]["1-4"] <= 4.5 for c in passing)
     # 通过过滤的是最低能（anti）构象
     assert passing[0]["conf_id"] == 0
-    assert "reactive conformer" in result.message
+    assert result.seed_kind == "constrained_preorganization"
 
 
 @pytest.mark.asyncio
@@ -326,16 +327,16 @@ async def test_multifragment_input_returns_assembled_complex_candidates(tool, mo
     )
     assert result.is_success is True, result.message
     assert result.conformers, "多碎片输入必须产出组装候选"
-    assert result.counts["generated"] == 32, "取向采样数即批准值 32"
-    assert result.counts["collision_rejected"] == 0
-    assert result.ensemble_path.endswith("confs.xyz")
-    assert (out_dir / "structure_build" / "assembly" / "assembly.json").is_file()
+    assert result.counts["generated"] >= result.counts["retained"]
+    assert result.seed_kind == "constrained_preorganization"
+    assert result.ensemble_path.endswith(".xyz")
+    assert (out_dir / "guided_assembly" / "assembly" / "assembly.json").is_file()
 
     # 系综文件里每一帧都不得含亚 1 Å 的片间接触。
     # 碎片分组取自构建器自己记录的**稳定身份表**（component_id），不靠重新推导——
     # 构建器逐组分加氢，输出原子顺序与 Chem.AddHs(MolFromSmiles(...)) 并不相同。
     prepared = json.loads(
-        (out_dir / "structure_build" / "prepared_structure.json").read_text(encoding="utf-8")
+        (out_dir / "guided_assembly" / "prepared_structure.json").read_text(encoding="utf-8")
     )
     component_ids = [identity["component_id"] for identity in prepared["atom_identities"]]
     frag_of = {index: int(cid.removeprefix("frag")) for index, cid in enumerate(component_ids)}
@@ -358,8 +359,8 @@ async def test_multifragment_input_returns_assembled_complex_candidates(tool, mo
         frames += 1
         index += 2 + count
     assert frames == len(result.conformers)
-    assert "approved complex assembly" in result.message
-    assert "randomize the relative" in result.message
+    assert result.constraint_manifest_path
+    assert all(row["passes_filters"] for row in result.conformers)
 
 
 @pytest.mark.asyncio

@@ -38,7 +38,10 @@ _TS_NOTICE = (
     "ts_prepare process (build → map → assemble → guess → validate → submit → "
     "refine, autonomously; if it stops blocked, fix the named declaration and "
     "ts_resume). QST2/QST3 are banned; the ceiling is mapped interpolation/NEB, "
-    "with relaxed scans as the agent-side workhorse. If you are deliberately "
+    "with declared scans handled by ts_prepare/ts_resume via scan={method, scans, freeze}. "
+    "For known endpoints prefer that process over manually chaining scan, submission and refinement. "
+    "When waiting, wait for the compute notification then call ts_resume(run_id) without adjustments. "
+    "Standalone exploration remains valid for unknown endpoints or explicitly requested manual work. If you are deliberately "
     "running a manual chain, state the reason in one line in your next message. "
     "Choose IRC extent by the remaining uncertainty and cost, not a fixed point "
     "count. Weigh further tracing against unconstrained optimization of both "
@@ -125,6 +128,16 @@ class GuidanceStage:
                 key=_PIN_PHYSICAL_THINKING,
                 content=_PHYSICAL_THINKING_NOTICE,
             )
+        if call.name == "ts_guess" and self._needs_physical_thinking(call):
+            notices.pin(ctx.agent.id, key=_PIN_TS_SOP, content=_TS_NOTICE)
+        if call.name == "qm_input_writer":
+            from cloudra.tools.core.calculation_intent import intent_from_writer
+            try:
+                intent = intent_from_writer(call.arguments)
+            except (TypeError, ValueError, KeyError):
+                intent = None
+            if intent is not None and any(task in intent.tasks for task in ("ts_opt", "irc")):
+                notices.pin(ctx.agent.id, key=_PIN_TS_SOP, content=_TS_NOTICE)
         if call.name == "submit_compute_job":
             self._guide_submit(ctx, call, notices)
         elif call.name == "bash":

@@ -11,6 +11,8 @@ from cloudra.persistence.fs_utils import atomic_write_text
 from cloudra.persistence.workspace import resolve_tool_path
 from cloudra.tools.core.crest_runner import CrestRunRequest, run_crest
 from cloudra.tools.core.geometry import kabsch_rmsd as _kabsch_rmsd
+from cloudra.tools.core.geometry_inputs import DistanceWindowInput
+from cloudra.tools.core.ring_conformation import describe_structure_rings, ring_summaries
 from cloudra.tools.core.structure_builder import (
     BUILD_DIR_NAME,
     BuildStrategy,
@@ -133,7 +135,7 @@ def _all_float(tokens: list[str]) -> bool:
 description = (
     "Conformer-ensemble search: from SMILES or xyz/sdf, generate an ensemble and an energy/Boltzmann-population table. "
     "Set ring_order to the atoms of a prospective cycle in order (1-based complete builder order); "
-    "with ring_order, distance_filters become soft generation windows and strict output filters. "
+    "ring_order and distance_filters work independently or together as soft generation windows and strict output filters. "
     "Missing nonbonded cycle edges receive a visible 1.6–3.0 Å fallback; guided output is a constrained TS seed, not an equilibrium ensemble. "
     "with optional reaction-distance filters (distance_filters) to keep reactive conformers whose bonding-atom distances fall in a preorganization window. "
     "All coordinates go to ensemble files (confs.sdf / confs.xyz); context only gets the numeric table. "
@@ -226,7 +228,7 @@ class ConformerSearch_input_schema(input_schema):
     )
     temperature: float = Field(default=298.15, description="Temperature for Boltzmann populations (K).")
     random_seed: int = Field(default=42, description="RDKit conformer-sampling random seed for reproducibility.")
-    distance_filters: list[dict] = Field(
+    distance_filters: list[DistanceWindowInput] = Field(
         default_factory=list,
         description="Reaction-distance filters; each item like {\"atoms\": [i, j], \"min_ang\": 1.8, \"max_ang\": 2.6}, "
                     "1-based atom indices. Keeps conformers whose key atom-pair distances fall in the preorganization window (reactive conformers)."
@@ -339,7 +341,8 @@ class ConformerSearch(Tool):
         rows = [
             {"conf_id": index, "xyz_path": candidate.xyz_path,
              "mol_path": candidate.mol_path, "achieved_distances": candidate.achieved_distances,
-             "passes_filters": True, "seed_kind": candidate.seed_kind}
+             "passes_filters": True, "seed_kind": candidate.seed_kind,
+             "rings": ring_summaries(candidate.ring_shapes)}
             for index, candidate in enumerate(result.candidates)
         ]
         lines = ["seed  xyz_path  achieved_distances"]
@@ -353,7 +356,7 @@ class ConformerSearch(Tool):
             is_success=result.status == "ok" and bool(rows),
             table="\n".join(lines) if rows else "",
             conformers=rows, counts=result.counts,
-            ensemble_path=rows[0]["xyz_path"] if rows else "",
+            ensemble_path=result.ensemble_path,
             message=result.message + (f" Diagnostics: {result.diagnostics}" if result.diagnostics else ""),
             seed_kind="constrained_preorganization",
             effective_windows=result.effective_windows,
@@ -378,7 +381,7 @@ class ConformerSearch(Tool):
     @staticmethod
     def _check_filters(user_input: ConformerSearch_input_schema, natoms: int):
         for flt in user_input.distance_filters:
-            atoms = flt.get("atoms", [])
+            atoms = flt.atoms
             if len(atoms) != 2:
                 raise ValueError(f"Each distance_filters entry's atoms must contain 2 atom indices: {flt}")
             i, j = int(atoms[0]), int(atoms[1])
@@ -390,9 +393,10 @@ class ConformerSearch(Tool):
         import numpy as np
 
         for flt in filters:
-            i, j = int(flt["atoms"][0]) - 1, int(flt["atoms"][1]) - 1
+            flt = DistanceWindowInput.model_validate(flt)
+            i, j = flt.atoms[0] - 1, flt.atoms[1] - 1
             d = float(np.linalg.norm(positions[i] - positions[j]))
-            if not (float(flt["min_ang"]) <= d <= float(flt["max_ang"])):
+            if not (flt.min_ang <= d <= flt.max_ang):
                 return False
         return True
 
@@ -439,9 +443,17 @@ class ConformerSearch(Tool):
                 "boltzmann_pct": k["boltzmann_pct"],
                 "rmsd_to_conf0": round(k["rmsd_to_conf0"], 3),
                 "passes_filters": k["passes_filters"],
+                "rings": ring_summaries(k.get("ring_shapes", [])),
             }
             for k in kept
         ]
+        if any(k.get("ring_shapes") for k in kept):
+            import json
+            path = os.path.join(user_input.output_dir, "ring_shapes.json")
+            atomic_write_text(path, json.dumps([
+                {"conf_id": k["conf_id"], "rings": k.get("ring_shapes", [])} for k in kept
+            ], indent=2) + "\n")
+            extra_message += f" Ring geometry descriptors (0-based atoms): {path}."
         table = self._render_table(conformers, bool(user_input.distance_filters))
 
         message = (
@@ -724,6 +736,8 @@ class ConformerSearch(Tool):
                     "rmsd_to_conf0": 0.0,
                 })
 
+            for candidate in kept:
+                candidate["ring_shapes"] = describe_structure_rings(mol, candidate["positions"])
             ref_pos = kept[0]["positions"]
             for k in kept:
                 k["rmsd_to_conf0"] = _kabsch_rmsd(k["positions"], ref_pos)
@@ -911,6 +925,12 @@ class ConformerSearch(Tool):
             if not kept:
                 return ConformerSearch_output_schema(is_success=False, message="No conformers within the energy window; aborting.")
 
+            if user_input.mode in ("conformers", "nci"):
+                from cloudra.tools.core.preorganization import load_resolved_graph
+                graph = load_resolved_graph(prepared)
+                for candidate in kept:
+                    if len(candidate["positions"]) == graph.GetNumAtoms():
+                        candidate["ring_shapes"] = describe_structure_rings(graph, candidate["positions"])
             ref_pos = kept[0]["positions"]
             for k in kept:
                 k["rmsd_to_conf0"] = _kabsch_rmsd(k["positions"], ref_pos)
@@ -992,10 +1012,10 @@ class ConformerSearch(Tool):
                 is_success=False,
                 message=f"multiplicity must be >= 1 (2S+1), got {user_input.multiplicity}.",
             )
-        if user_input.ring_order and user_input.mode not in ("conformers", "nci"):
+        if (user_input.ring_order or user_input.distance_filters) and user_input.mode not in ("conformers", "nci"):
             return ConformerSearch_output_schema(
                 is_success=False,
-                message=f"ring_order is unsupported with mode={user_input.mode!r}; use conformers or CREST nci",
+                message=f"ring_order/distance_filters is unsupported with mode={user_input.mode!r}; use conformers or CREST nci",
             )
         if user_input.mode != "conformers" and user_input.backend != "crest":
             return ConformerSearch_output_schema(
@@ -1028,7 +1048,7 @@ class ConformerSearch(Tool):
             user_input.input_path = resolve_tool_path(self, user_input.input_path)
         user_input.output_dir = resolve_tool_path(self, out_dir)
 
-        if user_input.ring_order:
+        if user_input.ring_order or user_input.distance_filters:
             from cloudra.tools.core.preorganization import search_guided
 
             try:
@@ -1037,7 +1057,7 @@ class ConformerSearch(Tool):
                     structure=self._structure_input(user_input),
                     output_dir=user_input.output_dir,
                     ring_order=user_input.ring_order,
-                    distance_filters=user_input.distance_filters,
+                    distance_filters=[row.model_dump() for row in user_input.distance_filters],
                     charge=user_input.charge, multiplicity=user_input.multiplicity,
                     backend=user_input.backend, mode=user_input.mode,
                     num_confs=user_input.num_confs, random_seed=user_input.random_seed,

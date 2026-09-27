@@ -487,7 +487,7 @@ async def test_scan_prepare_orca(tmp_path, mock_session):
         "engine": "orca",
         "scans": [{
             "coord_type": "angle",
-            "atoms": [2, 1, 3],
+            "atoms": [1, 0, 2],
             "scan_start": 90.0,
             "scan_end": 120.0,
             "scan_steps": 6,
@@ -525,7 +525,7 @@ async def test_scan_prepare_orca_extopt_mlip_blocks(tmp_path, mock_session):
         "input_text": _WATER_XYZ,
         "engine": "orca",
         "method": "ExtOpt",
-        "scans": [{"coord_type": "bond", "atoms": [1, 2], "scan_end": 2.0, "scan_steps": 10}],
+        "scans": [{"coord_type": "bond", "atoms": [0, 1], "scan_end": 2.0, "scan_steps": 10}],
         "orca_blocks": prog_block,
         "output_path": str(out),
     }), mock_session)
@@ -549,7 +549,7 @@ async def test_scan_prepare_rejects_multi_coord_on_orca(tmp_path, mock_session):
         "input_text": _WATER_XYZ,
         "engine": "orca",
         "scans": [
-            {"coord_type": "bond", "atoms": [1, 2], "scan_end": 2.0, "scan_steps": 10},
+            {"coord_type": "bond", "atoms": [0, 1], "scan_end": 2.0, "scan_steps": 10},
             {"coord_type": "bond", "atoms": [1, 3], "scan_end": 1.2, "scan_steps": 8},
         ],
         "output_path": str(tmp_path / "x.inp"),
@@ -561,8 +561,8 @@ async def test_scan_prepare_rejects_multi_coord_on_orca(tmp_path, mock_session):
 @pytest.mark.asyncio
 async def test_scan_prepare_atoms_validation(tmp_path, mock_session):
     """原子个数/序号校验：dihedral 需要 4 个原子。"""
-    tool = _make_tool()
-    result = await tool.safe_call(TsGuess_input_schema(**{
+    with pytest.raises(ValueError, match="4 distinct"):
+        TsGuess_input_schema(**{
         "mode": "scan_prepare",
         "method": "b3lyp/def2svp",
         "input_text": _WATER_XYZ,
@@ -573,9 +573,7 @@ async def test_scan_prepare_atoms_validation(tmp_path, mock_session):
             "scan_steps": 5,
         }],
         "output_path": str(tmp_path / "x.gjf"),
-    }), mock_session)
-    assert not result.is_success
-    assert "4 atom indices" in result.message
+        })
 
 
 @pytest.mark.asyncio
@@ -1238,15 +1236,15 @@ async def test_scan_parse_no_peak_reports_h_distances_and_heuristic_change(tmp_p
     _write_h2_scan_sidecar(tmp_path)
     result = await _make_tool().safe_call(TsGuess_input_schema(**{
         "mode": "scan_parse", "engine": "orca", "log_path": str(tmp_path / "h2.out"),
-        "watch_pairs": [[1, 2]],
+        "watch_pairs": [[0, 1]],
     }), mock_session)
     assert result.is_success, result.message
     assert result.candidate is None
     assert result.barrier_kcal is None
-    assert "H1-H2" in result.distance_table
+    assert "H0-H1" in result.distance_table
     assert "0  observed  0.7000" in result.distance_table
     assert "2  observed  1.4000" in result.distance_table
-    assert any("Frames 0->1: perceived connectivity" in v and "H1-H2" in v
+    assert any("Frames 0->1: perceived connectivity" in v and "H0-H1" in v
                for v in result.verdicts)
     assert any("do not prove" in v for v in result.verdicts)
 
@@ -1256,7 +1254,7 @@ async def test_scan_parse_missing_middle_frame_has_no_bridged_topology(tmp_path,
     _write_h2_scan_sidecar(tmp_path, missing=2)
     result = await _make_tool().safe_call(TsGuess_input_schema(**{
         "mode": "scan_parse", "engine": "orca", "log_path": str(tmp_path / "h2.out"),
-        "watch_pairs": [[1, 2]],
+        "watch_pairs": [[0, 1]],
     }), mock_session)
     assert result.is_success, result.message
     assert result.candidate_unavailable
@@ -2288,7 +2286,7 @@ def _connectivity_input(reactant_text, product_text):
     return SimpleNamespace(
         reactant_path=None, reactant_text=reactant_text,
         product_path=None, product_text=product_text,
-        charge=0,
+        charge=0, engine="gaussian",
     )
 
 

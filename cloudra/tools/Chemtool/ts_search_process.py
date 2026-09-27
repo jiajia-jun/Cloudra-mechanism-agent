@@ -21,6 +21,7 @@ from pydantic import Field
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.workspace import resolve_tool_path
+from cloudra.tools.core.geometry_inputs import normalize_ts_atoms
 from cloudra.tools.core.ts_process import (
     TsAdjustment,
     TsBlocked,
@@ -35,8 +36,8 @@ from cloudra.tools.core.ts_process import (
 
 description = (
     "Run the transition-state search SOP as a durable process: build both endpoints from SMILES. "
-    "For cyclic TS preorganization, declare ring_order (1-based complete atom order) and optional "
-    "distance_filters windows; missing forming pairs receive a visible 1.6–3.0 Å fallback. "
+    "For cyclic TS preorganization, declare ring_order and/or distance_filters in complete atom order (Gaussian 1-based, ORCA 0-based). Use explicit "
+    "windows; missing forming pairs receive a visible 1.6–3.0 Å fallback. "
     "The process uses only qualified constrained reactant seeds, and ts_resume can correct the "
     "guidance before refinement submission. "
     "map atoms, assemble the reactive complex, generate a path guess (xTB metadynamics, falling back "
@@ -53,18 +54,11 @@ description = (
 
 class TsPrepare_input_schema(input_schema):
     declaration: TsDeclaration = Field(
-        description="The reaction declaration. Every field here is a scientific decision you make; "
-                    "the tool never guesses one. `method` is REQUIRED (no default). "
-                    "Provide `atom_map` (full 1-based correspondence: atom_map[k-1] = reactant "
-                    "atom for product atom k, EVERY atom including hydrogens; numbering follows "
-                    "the built endpoint XYZs, not raw SMILES order) — without it the process "
-                    "blocks at the map stage and returns the built XYZ numbering to write it "
-                    "against. Provide `reaction_center` as 0-based pairs in the full built atom "
-                    "order (including hydrogens; unlike the 1-based `atom_map`) to guide assembly "
-                    "around the atoms that form/break bonds. For a prospective cycle, give "
-                    "ring_order=[...] in cycle order and optionally distance_filters=[{\"atoms\":[i,j],"
-                    "\"min_ang\":...,\"max_ang\":...}]; ring_order and filters use 1-based complete "
-                    "atom order and may coexist with reaction_center."
+        description="Reaction declaration. All atom fields use complete built XYZ order including H: "
+                    "Gaussian starts at 1; ORCA at 0. A three-atom identity atom_map is [1,2,3] "
+                    "for Gaussian or [0,1,2] for ORCA; entries follow product atom order. "
+                    "method is required. Missing maps return built atom tables. ring_order and "
+                    "distance_filters work independently or together.",
     )
     workspace_dir: Optional[str] = Field(
         default=None,
@@ -77,6 +71,7 @@ class TsPrepare_input_schema(input_schema):
 class TsResume_input_schema(input_schema):
     run_id: str = Field(description="run_id returned by ts_prepare")
     adjustment: TsAdjustment = Field(
+        default_factory=TsAdjustment,
         description="Local overrides only: ring_order, distance_filters, reaction_center, atom_map, path_refinement_runs, "
                     "max_interventions. This is not a re-declaration of the whole reaction.",
     )
@@ -205,7 +200,7 @@ class TsPrepare(Tool):
             # 归属与 submit_compute_job 同一来源：项目 conversation_id + 调用 agent 的
             # session.id——作业终态推送只认这两个字段
             request = TsStartRequest(
-                declaration=user_input.declaration,
+                declaration=normalize_ts_atoms(user_input.declaration, engine=user_input.declaration.engine),
                 workspace_dir=workspace,
                 owner_conversation_id=getattr(self.subagent, "conversation_id", None) or "",
                 owner_session_id=getattr(session, "id", None) if session else None,
@@ -250,7 +245,8 @@ class TsResume(Tool):
                 ),
             )
         try:
-            record = await asyncio.to_thread(resume, record, user_input.adjustment)
+            adjustment = normalize_ts_atoms(user_input.adjustment, engine=record.declaration.engine)
+            record = await asyncio.to_thread(resume, record, adjustment)
         except ValueError as exc:
             # 终态不可续：明确报出终态与原因，不静默重开
             return TsProcess_output_schema(

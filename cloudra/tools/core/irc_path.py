@@ -119,8 +119,8 @@ def xyz_block(symbols, positions) -> str:
     return "\n".join(lines) + "\n"
 
 
-def pair_label(symbols, pair: tuple[int, int]) -> str:
-    return f"{symbols[pair[0]]}{pair[0] + 1}-{symbols[pair[1]]}{pair[1] + 1}"
+def pair_label(symbols, pair: tuple[int, int], base: int = 1) -> str:
+    return f"{symbols[pair[0]]}{pair[0] + base}-{symbols[pair[1]]}{pair[1] + base}"
 
 
 def dist_matrix(coords):
@@ -354,7 +354,7 @@ def classify_watch_pairs(symbols, d_ts, d_int, ts_bonds, int_bonds) -> dict:
 
 def evaluate_endpoint_between(symbols: Sequence[str], ts_pos, end_pos,
                               intermediate_pos, watch_pairs: Sequence[Sequence[int]],
-                              charge: int = 0) -> dict:
+                              charge: int = 0, *, index_base: int = 1) -> dict:
     """判断一个部分 IRC 端点是否位于 TS 与某个端点参考几何之间。
 
     判定对来源（硬闸门）：显式 watch_pairs > 键图 diff（A 层，两侧感知均为
@@ -385,7 +385,7 @@ def evaluate_endpoint_between(symbols: Sequence[str], ts_pos, end_pos,
                     "pair_layer": "", "perception": "", "warnings": [],
                     "details": [f"watch_pairs entries must contain two atom indices: {raw_pair}"],
                 }
-            i, j = int(raw_pair[0]) - 1, int(raw_pair[1]) - 1
+            i, j = int(raw_pair[0]) - index_base, int(raw_pair[1]) - index_base
             if not (0 <= i < n and 0 <= j < n) or i == j:
                 return {
                     "is_decidable": False, "is_between": False, "score": float("inf"),
@@ -449,14 +449,14 @@ def evaluate_endpoint_between(symbols: Sequence[str], ts_pos, end_pos,
     score = dist_end_to_int / dist_ts_to_int if dist_ts_to_int > 0 else float("inf")
 
     details = [
-        f"{pair_label(symbols, pair)}: TS={d_ts[pair]:.3f} Å, "
+        f"{pair_label(symbols, pair, index_base)}: TS={d_ts[pair]:.3f} Å, "
         f"IRC_endpoint={d_end[pair]:.3f} Å, intermediate={d_int[pair]:.3f} Å, "
         f"{'inside interval' if inside[k] else 'outside interval'}"
         for k, pair in enumerate(pairs)
     ]
     for pair in warnings:
         details.append(
-            f"[warning] {pair_label(symbols, pair)}: endpoint deviates from the "
+            f"[warning] {pair_label(symbols, pair, index_base)}: endpoint deviates from the "
             f"interval on a weak contact (H-bond/non-covalent at the minimum, "
             f"d={d_int[pair]:.3f} Å); IRC need not preserve such pairs."
         )
@@ -464,7 +464,7 @@ def evaluate_endpoint_between(symbols: Sequence[str], ts_pos, end_pos,
     details.append(f"Gate pairs layer: {layer} (perception: {perception}).")
     for pair in b_pairs:
         details.append(
-            f"[advisory-B] {pair_label(symbols, pair)}: TS={d_ts[pair]:.3f} Å, "
+            f"[advisory-B] {pair_label(symbols, pair, index_base)}: TS={d_ts[pair]:.3f} Å, "
             f"IRC_endpoint={d_end[pair]:.3f} Å, intermediate={d_int[pair]:.3f} Å"
         )
     return {
@@ -484,7 +484,7 @@ def evaluate_endpoint_between(symbols: Sequence[str], ts_pos, end_pos,
 def assign_irc_endpoints(symbols: Sequence[str], ts_pos, end_a_pos, end_b_pos,
                          intermediate_a_pos, intermediate_b_pos,
                          watch_pairs: Sequence[Sequence[int]],
-                         charge: int = 0) -> dict:
+                         charge: int = 0, *, index_base: int = 1) -> dict:
     """尝试 IRC 两端与两个端点参考几何的 direct/swapped 无序配对。"""
     assignments = []
     for name, target_a, target_b in (
@@ -492,10 +492,10 @@ def assign_irc_endpoints(symbols: Sequence[str], ts_pos, end_a_pos, end_b_pos,
         ("swapped", intermediate_b_pos, intermediate_a_pos),
     ):
         result_a = evaluate_endpoint_between(
-            symbols, ts_pos, end_a_pos, target_a, watch_pairs, charge
+            symbols, ts_pos, end_a_pos, target_a, watch_pairs, charge, index_base=index_base
         )
         result_b = evaluate_endpoint_between(
-            symbols, ts_pos, end_b_pos, target_b, watch_pairs, charge
+            symbols, ts_pos, end_b_pos, target_b, watch_pairs, charge, index_base=index_base
         )
         assignments.append({
             "name": name,
@@ -534,6 +534,7 @@ def prove_irc_endpoint_direction(
     intermediate_b: tuple[Sequence[str], object],
     watch_pairs: Sequence[Sequence[int]],
     charge: int = 0,
+    *, index_base: int = 1,
 ) -> dict:
     """Align four geometries to the TS and apply the shared IRC direction test.
 
@@ -566,7 +567,7 @@ def prove_irc_endpoint_direction(
         ts_pos,
         aligned[0], aligned[1], aligned[2], aligned[3],
         watch_pairs,
-        charge,
+        charge, index_base=index_base,
     )
     result["aligned_positions"] = aligned
     return result

@@ -31,6 +31,12 @@ from cloudra.tools.Chemtool.internal_coordinates import (
     _dihedral_deg,
 )
 from cloudra.tools.core import gaussian_frames, orca_frames
+from cloudra.tools.core.geometry_inputs import (
+    FrozenCoordinateInput,
+    ScanCoordinateInput,
+    atom_index_base,
+    atom_indices,
+)
 from cloudra.tools.core.irc_path import (
     COVALENT_RADII as _COVALENT_RADII,
 )
@@ -140,13 +146,13 @@ class TsGuess_input_schema(input_schema):
     )
     atom_map: list[int] = Field(
         default_factory=list,
-        description="interpolate: 1-based atom map; product atom k corresponds to reactant atom atom_map[k-1]. "
-                    "Default is the identity; must be a valid permutation of 1..N with matching elements.",
+        description="interpolate: atom map in product order, Gaussian values start at 1, ORCA at 0. "
+                    "Default is the identity; must cover every atom exactly once with matching elements (Gaussian 1..N, ORCA 0..N-1).",
     )
     watch_pairs: list[list[int]] = Field(
         default_factory=list,
         description="interpolate/scan_parse: atom pairs to monitor distances; strict/verify: pairs used for direction proof and imaginary-mode alignment. "
-                    "All 1-based; default auto-picks the 5 pairs with the largest distance change between TS and intermediates "
+                    "Gaussian 1-based, ORCA 0-based; default auto-picks the 5 pairs with the largest distance change between TS and intermediates "
                     "(imaginary-mode alignment is skipped if not provided).",
     )
     output_dir: Optional[str] = Field(
@@ -174,19 +180,22 @@ class TsGuess_input_schema(input_schema):
     input_path: Optional[str] = Field(default=None, description="scan_prepare: input structure file path (xyz). Absolute as-is, or relative to the Agent working directory.")
     input_text: Optional[str] = Field(default=None, description="scan_prepare: input structure xyz text.")
     engine: Literal["gaussian", "orca"] = Field(default="gaussian", description="Target QM program.")
-    scans: Optional[list[dict]] = Field(
+    scans: Optional[list[ScanCoordinateInput]] = Field(
         default=None,
         description=(
             "scan_prepare: scan-coordinate list, one entry per scanned coordinate. "
-            "Each entry: {\"coord_type\": \"bond\"|\"angle\"|\"dihedral\", \"atoms\": [2|3|4 atom indices, 1-based], "
-            "Use the 1-based indices from internal_coordinates here; for ORCA this tool converts them "
-            "to 0-based %geom Scan indices automatically, so do not subtract 1 yourself. "
+            "Each entry: {\"coord_type\": \"bond\"|\"angle\"|\"dihedral\", \"atoms\": [2|3|4 atom indices, Gaussian 1-based / ORCA 0-based], "
+            "Gaussian uses 1-based indices; ORCA uses 0-based indices. internal_coordinates is 1-based: subtract 1 when transferring its atom numbers to ORCA. "
             "\"scan_start\": optional start value (default the current geometry value), \"scan_end\": end value, "
             "\"scan_steps\": step count}. A single entry drives a 1D scan; a second entry makes a 2D coupled scan "
             "(Gaussian only — ORCA relaxed scans are 1D, so pass exactly one entry). "
             "Scanning only one geometric coordinate is often not enough: TS search frequently needs a second, "
             "coupled coordinate (e.g. both the forming and the breaking bond) to see a barrier."
         )
+    )
+    freeze: list[FrozenCoordinateInput] = Field(
+        default_factory=list,
+        description="scan_prepare: coordinates held at the input geometry value. Gaussian atoms start at 1; ORCA at 0. Do not freeze a scanned coordinate.",
     )
     method: Optional[str] = Field(default=None, description="scan_prepare requires an explicit method/basis. For exploratory PES scans, choose a MethodPolicy-permitted and available semiempirical method (Gaussian PM7 if allowed, or ORCA GFN2-xTB if available and allowed). Use DFT for a narrow follow-up scan or unconstrained TS refinement. For MLIP/external pass 'ExtOpt' (ORCA; pair with orca_blocks %method ProgExt) or 'external' (Gaussian; pair with extra_route='external=\"<prog>\"').")
     charge: int = Field(default=0, description="Total charge.")
@@ -364,7 +373,7 @@ def _kabsch_rotate(mobile, ref):
     return np.asarray(mobile) @ rot.T
 
 
-def _select_watch_pairs(symbols, d_start, d_end, watch_pairs) -> list[tuple[int, int]]:
+def _select_watch_pairs(symbols, d_start, d_end, watch_pairs, *, index_base=1) -> list[tuple[int, int]]:
     """选监测原子对：给了 watch_pairs 就用它（1-based 输入，越界即报错）；否则用
     irc_path.classify_watch_pairs 的闸门对（键图 diff ∪ |Δd| top-5，唯一实现，
     键图由距离矩阵按共价半径判据派生）。两端无任何显著变化（闸门为空，如刚性
@@ -378,7 +387,7 @@ def _select_watch_pairs(symbols, d_start, d_end, watch_pairs) -> list[tuple[int,
         for pair in watch_pairs:
             if len(pair) != 2:
                 raise ValueError(f"Each watch_pairs entry must contain 2 atom indices: {pair}")
-            i, j = pair[0] - 1, pair[1] - 1
+            i, j = pair[0] - index_base, pair[1] - index_base
             if not (0 <= i < n and 0 <= j < n) or i == j:
                 raise ValueError(
                     f"watch_pairs atom indices out of range: {pair} (system has {n} atoms)"
@@ -397,7 +406,7 @@ def _select_watch_pairs(symbols, d_start, d_end, watch_pairs) -> list[tuple[int,
     return sorted({(int(iu[0][o]), int(iu[1][o])) for o in order})
 
 
-def _scan_geometry_report(energies, frames, watch_pairs):
+def _scan_geometry_report(energies, frames, watch_pairs, *, index_base=1):
     """Observed distances and adjacent-frame connectivity; neither proves a reaction."""
     import numpy as np
 
@@ -447,13 +456,13 @@ def _scan_geometry_report(energies, frames, watch_pairs):
     valid = [(i, syms, pos) for i, frame in enumerate(frames)
              if frame is not None for syms, pos in [frame]]
     if watch_pairs:
-        pairs = _select_watch_pairs(ref_syms, None, None, watch_pairs)
+        pairs = _select_watch_pairs(ref_syms, None, None, watch_pairs, index_base=index_base)
     elif len(valid) >= 2:
         pairs = _select_watch_pairs(ref_syms, _dist_matrix(valid[0][2]),
                                     _dist_matrix(valid[-1][2]), [])
     else:
         pairs = []
-    labels = [_pair_label(ref_syms, (i, j)) for i, j in pairs]
+    labels = [_pair_label(ref_syms, (i, j), index_base) for i, j in pairs]
     lines = ["frame  geometry" + ("  " + "  ".join(f"{label} (A)" for label in labels) if labels else "")]
     for i, frame in enumerate(frames):
         if frame is None:
@@ -476,8 +485,8 @@ def _scan_geometry_report(energies, frames, watch_pairs):
         if formed or broken:
             changes.append(
                 f"Frames {i - 1}->{i}: perceived connectivity formed "
-                f"{[_pair_label(ref_syms, pair) for pair in formed]}, "
-                f"broken {[_pair_label(ref_syms, pair) for pair in broken]}."
+                f"{[_pair_label(ref_syms, pair, index_base) for pair in formed]}, "
+                f"broken {[_pair_label(ref_syms, pair, index_base) for pair in broken]}."
             )
     return "\n".join(lines), [
         "Per-frame distances are observed geometry values. Adjacent-frame perceived connectivity "
@@ -806,6 +815,7 @@ def _assess_imag_mode_alignment(
     symbols: Optional[Sequence[str]] = None,
     positions=None,
     charge: int = 0,
+    index_base: int = 1,
     **_kwargs,
 ) -> dict[str, Any]:
     """检查最低虚频模式是否主要落在 watch_pairs 反应中心上。
@@ -878,7 +888,7 @@ def _assess_imag_mode_alignment(
             "status": "skipped",
             "aligned": None,
             "message": "No watch_pairs provided; skipping the imaginary-mode vs reaction-coordinate alignment check.",
-            "details": [f"Global max relative-displacement pair=({max_pair[0] + 1},{max_pair[1] + 1})"],
+            "details": [f"Global max relative-displacement pair=({max_pair[0] + index_base},{max_pair[1] + index_base})"],
         }
 
     threshold = _IMAG_MODE_WATCH_RATIO * max_rel
@@ -888,7 +898,7 @@ def _assess_imag_mode_alignment(
     for raw in watch_pairs:
         if len(raw) != 2:
             continue
-        i, j = int(raw[0]) - 1, int(raw[1]) - 1
+        i, j = int(raw[0]) - index_base, int(raw[1]) - index_base
         if not (0 <= i < n and 0 <= j < n) or i == j:
             watch_details.append(f"watch_pairs atom indices invalid: {raw}")
             continue
@@ -897,7 +907,7 @@ def _assess_imag_mode_alignment(
         rel = float(np.linalg.norm(disps[lo] - disps[hi]))
         best_watch = max(best_watch, rel)
         watch_details.append(
-            f"Atom pair ({lo + 1},{hi + 1}) relative displacement={rel:.3f}"
+            f"Atom pair ({lo + index_base},{hi + index_base}) relative displacement={rel:.3f}"
             f" (threshold {_IMAG_MODE_WATCH_RATIO:.2f}×{max_rel:.3f}={threshold:.3f})"
         )
 
@@ -912,7 +922,7 @@ def _assess_imag_mode_alignment(
         message = (
             f"Imaginary mode is consistent with the declared reaction coordinate: watch_pairs max relative displacement {best_watch:.3f} "
             f"≥ {_IMAG_MODE_WATCH_RATIO:.2f}×global max {max_rel:.3f} "
-            f"(max pair=({max_pair[0] + 1},{max_pair[1] + 1}))."
+            f"(max pair=({max_pair[0] + index_base},{max_pair[1] + index_base}))."
         )
         status = "aligned"
     else:
@@ -928,7 +938,7 @@ def _assess_imag_mode_alignment(
                 "aligned": None,
                 "message": (
                     f"The imaginary mode's dominant motion is on the NON-BONDED atom pair "
-                    f"({max_pair[0] + 1},{max_pair[1] + 1}): a torsion/angle-dominated mode "
+                    f"({max_pair[0] + index_base},{max_pair[1] + index_base}): a torsion/angle-dominated mode "
                     "(hindered rotation, ring flip, pyramidal inversion) barely moves bonded-pair "
                     "distances, so pair-distance alignment against watch_pairs cannot judge its "
                     "direction. The material is insufficient for a pass/fail verdict."
@@ -938,7 +948,7 @@ def _assess_imag_mode_alignment(
         message = (
             f"Imaginary mode is inconsistent with the declared reaction coordinate: watch_pairs max relative displacement {best_watch:.3f} "
             f"< {_IMAG_MODE_WATCH_RATIO:.2f}×global max {max_rel:.3f} "
-            f"(dominant motion on atom pair ({max_pair[0] + 1},{max_pair[1] + 1}))."
+            f"(dominant motion on atom pair ({max_pair[0] + index_base},{max_pair[1] + index_base}))."
         )
         status = "misaligned"
     return {
@@ -1155,19 +1165,20 @@ class TsGuess(Tool):
 
         # atom_map 重排产物：产物第 k 个原子（0-based k-1）对应反应物第 atom_map[k-1] 个原子
         if user_input.atom_map:
-            am = user_input.atom_map
-            if sorted(am) != list(range(1, n + 1)):
-                raise ValueError(f"atom_map must be a valid permutation of 1..{n}, got: {am}")
+            base = atom_index_base(user_input.engine)
+            am = atom_indices(user_input.atom_map, base=base, count=n)
+            if sorted(am) != list(range(n)):
+                raise ValueError(f"atom_map must be a permutation of {base}..{n - 1 + base}")
             new_pos = np.zeros_like(p_pos)
             new_syms: list[str] = [""] * n
             for k, target in enumerate(am):
-                if p_syms[k] != r_syms[target - 1]:
+                if p_syms[k] != r_syms[target]:
                     raise ValueError(
-                        f"atom_map element mismatch: product atom {k + 1} ({p_syms[k]}) maps to "
-                        f"reactant atom {target} ({r_syms[target - 1]})"
+                        f"atom_map element mismatch: product atom {k + base} ({p_syms[k]}) maps to "
+                        f"reactant atom {target + base} ({r_syms[target]})"
                     )
-                new_pos[target - 1] = p_pos[k]
-                new_syms[target - 1] = p_syms[k]
+                new_pos[target] = p_pos[k]
+                new_syms[target] = p_syms[k]
             p_pos = new_pos
             p_syms = new_syms
         elif r_syms != p_syms:
@@ -1204,10 +1215,10 @@ class TsGuess(Tool):
         # 监测原子对
         d_r = _dist_matrix(images[0])
         d_p = _dist_matrix(images[-1])
-        pairs = _select_watch_pairs(r_syms, d_r, d_p, user_input.watch_pairs)
+        pairs = _select_watch_pairs(r_syms, d_r, d_p, user_input.watch_pairs, index_base=atom_index_base(user_input.engine))
 
         # 距离表
-        header = f"{'frame':>4}" + "".join(f"  {_pair_label(r_syms, pr):>12}" for pr in pairs)
+        header = f"{'frame':>4}" + "".join(f"  {_pair_label(r_syms, pr, atom_index_base(user_input.engine)):>12}" for pr in pairs)
         lines = [header]
         for k in range(n_img):
             d_k = _dist_matrix(images[k])
@@ -1237,7 +1248,7 @@ class TsGuess(Tool):
             ts_candidate_path=ts_path,
             message=(
                 f"Generated {n_img} images ({user_input.interp_method}) in {out_dir}. "
-                f"TS candidate frame: img_{ts_index:02d}.xyz (watched pair {_pair_label(r_syms, key_pair)} crosses the endpoint midpoint). "
+                f"TS candidate frame: img_{ts_index:02d}.xyz (watched pair {_pair_label(r_syms, key_pair, atom_index_base(user_input.engine))} crosses the endpoint midpoint). "
                 "These images can serve directly as a NEB initial path, or be optimized frame by frame with constraints to find a TS guess; "
                 "you can also use scan_prepare to generate a constrained-scan input to further locate the barrier top."
             ),
@@ -1350,8 +1361,8 @@ class TsGuess(Tool):
         # 距离表：与 interpolate 同一套监测对选择
         d_r = _dist_matrix(r_pos)
         d_p = _dist_matrix(p_pos)
-        pairs = _select_watch_pairs(r_syms, d_r, d_p, user_input.watch_pairs)
-        lines = [f"{'frame':>4}" + "".join(f"  {_pair_label(r_syms, pr):>12}" for pr in pairs)]
+        pairs = _select_watch_pairs(r_syms, d_r, d_p, user_input.watch_pairs, index_base=atom_index_base(user_input.engine))
+        lines = [f"{'frame':>4}" + "".join(f"  {_pair_label(r_syms, pr, atom_index_base(user_input.engine)):>12}" for pr in pairs)]
         for frame in run.frames:
             d_k = _dist_matrix(np.asarray(frame.positions, dtype=float))
             lines.append(
@@ -1414,6 +1425,7 @@ class TsGuess(Tool):
         specs = []
         start_mismatches: list[str] = []
         for raw in user_input.scans:
+            raw = raw.model_dump()
             coord_type = raw.get("coord_type") or "bond"
             if coord_type not in need:
                 raise ValueError(f"coord_type must be one of bond/angle/dihedral, got: {coord_type}")
@@ -1426,7 +1438,7 @@ class TsGuess(Tool):
             steps = int(raw.get("scan_steps") or 0)
             if steps < 1:
                 raise ValueError(f"scan_steps must be ≥ 1 (in {raw})")
-            idx = [a - 1 for a in atoms_list]
+            idx = atom_indices(atoms_list, base=atom_index_base(user_input.engine), count=n)
             for a in idx:
                 if not (0 <= a < n):
                     raise ValueError(
@@ -1454,6 +1466,33 @@ class TsGuess(Tool):
                 "step_size": (end - start) / steps,
             })
 
+        frozen = []
+        scanned = {(spec["coord_type"], min(tuple(spec["idx"]), tuple(reversed(spec["idx"])))) for spec in specs}
+        if len(scanned) != len(specs):
+            raise ValueError("Duplicate scanned coordinate (including reversed atom order)")
+        seen = set()
+        for entry in user_input.freeze:
+            idx = atom_indices(entry.atoms, base=atom_index_base(user_input.engine), count=n)
+            key = (entry.coord_type, min(tuple(idx), tuple(reversed(idx))))
+            if key in scanned:
+                raise ValueError(f"Coordinate {entry.atoms} is both scanned and frozen")
+            if key in seen:
+                continue
+            if entry.coord_type != "bond":
+                vectors = [pos[b] - pos[a] for a, b in zip(idx, idx[1:])]
+                if any(np.linalg.norm(v) <= np.finfo(float).eps for v in vectors):
+                    raise ValueError(f"Degenerate frozen coordinate {entry.atoms}")
+                if entry.coord_type == "dihedral" and any(
+                    np.linalg.norm(np.cross(a, b)) <= np.finfo(float).eps
+                    for a, b in zip(vectors, vectors[1:])
+                ):
+                    raise ValueError(f"Degenerate frozen dihedral {entry.atoms}")
+            seen.add(key)
+            frozen.append((entry.coord_type, idx))
+        if user_input.engine == "orca" and user_input.orca_blocks:
+            if any(token.casefold() == "%geom" for token in user_input.orca_blocks.split()):
+                raise ValueError("orca_blocks cannot contain %geom; use scans and freeze")
+
         if start_mismatches and user_input.engine == "gaussian":
             return TsGuess_output_schema(
                 is_success=False,
@@ -1471,7 +1510,7 @@ class TsGuess(Tool):
         extra = user_input.extra_route.strip()
         coord_letter = {"bond": "B", "angle": "A", "dihedral": "D"}
         scan_labels = [
-            f"{coord_letter[spec['coord_type']]} {' '.join(str(a + 1) for a in spec['idx'])}"
+            f"{coord_letter[spec['coord_type']]} {' '.join(str(a + atom_index_base(user_input.engine)) for a in spec['idx'])}"
             f" from {spec['start']:.4f} to {spec['end']:.4f} "
             f"({spec['steps']} steps, {spec['step_size']:+.6f})"
             for spec in specs
@@ -1489,6 +1528,11 @@ class TsGuess(Tool):
                 f"S {spec['steps']} {spec['step_size']:.6f}"
                 for spec in specs
             )
+            if frozen:
+                scan_block += "\n" + "\n".join(
+                    f"{coord_letter[kind]} {' '.join(str(a + 1) for a in idx)} F"
+                    for kind, idx in frozen
+                )
             content = "\n".join([
                 f"%nprocshared={user_input.nprocs}",
                 f"%chk={user_input.job_name}.chk",
@@ -1525,6 +1569,11 @@ class TsGuess(Tool):
                 f"    Scan {coord_letter[spec['coord_type']]} {' '.join(str(a) for a in idx0)} "
                 f"= {spec['start']:.6f}, {spec['end']:.6f}, {spec['steps']} end"
             )
+            if frozen:
+                blocks.append("    Constraints")
+                blocks.extend(f"        {{ {coord_letter[kind]} {' '.join(str(a) for a in idx)} C }}"
+                              for kind, idx in frozen)
+                blocks.append("    end")
             blocks.append("end")
             if user_input.orca_blocks:
                 blocks.append(user_input.orca_blocks.strip())
@@ -1554,6 +1603,9 @@ class TsGuess(Tool):
             message=(
                 f"{user_input.engine} constrained-scan input written to {user_input.output_path}: "
                 + "; ".join(scan_labels)
+                + ("; frozen at current values: " + "; ".join(
+                    f"{kind} {[i + atom_index_base(user_input.engine) for i in idx]}={_coord_current(kind, idx):.6f}"
+                    for kind, idx in frozen) if frozen else "")
                 + ". If you hand-edit the input: for Gaussian keep one blank line between the coordinate "
                 "block and the ModRedundant B/A/D lines; each scanned coordinate takes exactly one S line "
                 "(two S lines in the same job = a 2D grid scan, N×M points, not a 1D diagonal scan)."
@@ -1630,7 +1682,7 @@ class TsGuess(Tool):
                     for k, e in enumerate(rel_kcal):
                         lines.append(f"{k:>4}  {e:>18.4f}")
                     distance_table, geometry_verdicts, _ = _scan_geometry_report(
-                        energies_eh, None, user_input.watch_pairs,
+                        energies_eh, None, user_input.watch_pairs, index_base=atom_index_base(user_input.engine),
                     )
                     return TsGuess_output_schema(
                         is_success=True,
@@ -1671,7 +1723,7 @@ class TsGuess(Tool):
                     profile = analyze_scan_profile(rel_kcal)
                     peak = profile["ts_index"]
                     distance_table, geometry_verdicts, _ = _scan_geometry_report(
-                        energies_eh, exc.frames, user_input.watch_pairs,
+                        energies_eh, exc.frames, user_input.watch_pairs, index_base=atom_index_base(user_input.engine),
                     )
                     lines = [f"{'frame':>4}  {'rel. energy (kcal/mol)':>18}"]
                     for k, e in enumerate(rel_kcal):
@@ -1775,7 +1827,7 @@ class TsGuess(Tool):
             lines.append(f"{k:>4}  {e:>18.4f}{marker}")
         profile_table = "\n".join(lines)
         distance_table, geometry_verdicts, reference_symbols = _scan_geometry_report(
-            energies_eh, scan_frames, user_input.watch_pairs,
+            energies_eh, scan_frames, user_input.watch_pairs, index_base=atom_index_base(user_input.engine),
         )
         if has_internal_peak:
             candidate_coords = np.asarray(ts_coords, dtype=float) if ts_coords is not None else None
@@ -1900,6 +1952,7 @@ class TsGuess(Tool):
                 user_input.watch_pairs,
                 symbols=freq.get("symbols"),
                 positions=freq.get("positions"),
+                index_base=atom_index_base(user_input.engine),
                 charge=user_input.charge,
             )
             imag_mode_aligned = assessment["aligned"]
@@ -2193,7 +2246,7 @@ class TsGuess(Tool):
             list(ts_symbols), np.asarray(ts_positions, dtype=float),
             endpoint_geometries[0], endpoint_geometries[1],
             endpoint_geometries[2], endpoint_geometries[3],
-            user_input.watch_pairs, user_input.charge,
+            user_input.watch_pairs, user_input.charge, index_base=atom_index_base(user_input.engine),
         )
         for label, aligned in zip(
             ("IRC endpoint A", "IRC endpoint B", "intermediate A", "intermediate B"),
@@ -2269,7 +2322,7 @@ class TsGuess(Tool):
 
         def bond_table(name, bonds):
             if bonds:
-                return f"{name} bonds: " + ", ".join(_pair_label(syms, pr) for pr in sorted(bonds))
+                return f"{name} bonds: " + ", ".join(_pair_label(syms, pr, atom_index_base(user_input.engine)) for pr in sorted(bonds))
             return f"{name} bonds: (none)"
 
         if not (user_input.reactant_path or user_input.reactant_text) and \
@@ -2327,12 +2380,12 @@ class TsGuess(Tool):
             if covalent:
                 diff_lines.append(
                     f"{end_name} vs {exp_name} (covalent differences: "
-                    + ", ".join(_pair_label(syms, pr) for pr in covalent) + ")"
+                    + ", ".join(_pair_label(syms, pr, atom_index_base(user_input.engine)) for pr in covalent) + ")"
                 )
             if weak:
                 warning_lines.append(
                     f"{end_name} vs {exp_name} (weak-contact differences: "
-                    + ", ".join(_pair_label(syms, pr) for pr in weak) + ")"
+                    + ", ".join(_pair_label(syms, pr, atom_index_base(user_input.engine)) for pr in weak) + ")"
                 )
 
         if diff_lines:

@@ -26,7 +26,7 @@ from cloudra.tools.core.ts_process import (  # noqa: E402
 REACTANT = "[F-].CCl"
 PRODUCT = "CF.[Cl-]"
 REACTION_CENTER = [(0, 1)]
-ATOM_MAP = [2, 1, 4, 5, 6, 3]
+ATOM_MAP = [1, 0, 3, 4, 5, 2]
 
 
 def _declaration(**overrides) -> TsDeclaration:
@@ -65,11 +65,11 @@ async def _prepare(tmp_path, **overrides):
 async def test_prepare_and_resume_accept_ring_guidance(tmp_path):
     declaration = _declaration(
         reactant_smiles="CCO.O", product_smiles="CCO.O", charge=0,
-        reaction_center=[], atom_map=[], ring_order=[1, 2, 3, 10],
+        reaction_center=[], atom_map=[], ring_order=[0, 1, 2, 9],
         distance_filters=[
-            {"atoms": [3, 10], "min_ang": 2.5, "max_ang": 3.8},
-            {"atoms": [1, 10], "min_ang": 2.5, "max_ang": 3.8},
-            {"atoms": [2, 10], "min_ang": 2.5, "max_ang": 3.8},
+            {"atoms": [2, 9], "min_ang": 2.5, "max_ang": 3.8},
+            {"atoms": [0, 9], "min_ang": 2.5, "max_ang": 3.8},
+            {"atoms": [1, 9], "min_ang": 2.5, "max_ang": 3.8},
         ],
     )
     prepare_tool = TsPrepare()
@@ -84,9 +84,9 @@ async def test_prepare_and_resume_accept_ring_guidance(tmp_path):
     updated = await resume_tool.tool_call(TsResume_input_schema(
         run_id=first.run_id,
         adjustment=TsAdjustment(distance_filters=[
-            {"atoms": [3, 10], "min_ang": 2.5, "max_ang": 4.0},
-            {"atoms": [1, 10], "min_ang": 2.5, "max_ang": 3.8},
-            {"atoms": [2, 10], "min_ang": 2.5, "max_ang": 3.8},
+            {"atoms": [2, 9], "min_ang": 2.5, "max_ang": 4.0},
+            {"atoms": [0, 9], "min_ang": 2.5, "max_ang": 3.8},
+            {"atoms": [1, 9], "min_ang": 2.5, "max_ang": 3.8},
         ]),
         workspace_dir=str(tmp_path),
     ), session=None)

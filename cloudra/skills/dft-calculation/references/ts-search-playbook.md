@@ -30,7 +30,7 @@ QST interpolates a single quadratic transit curve between endpoint geometries an
 - SCF struggling near the barrier top is normal (`SlowConv`-class settings are acceptable there).
 - **When 2D is worth it**: two coordinates move concertedly (concerted double-bond shifts, proton transfer coupled to donor–acceptor distance), a 1D profile jumps/discontinues (another degree of freedom relaxed abruptly), or NEB initial paths keep collapsing. Cost is N² constrained optimizations (10×10 = 100) and results depend on scan direction/coordinate order — so confirm NEB cannot take the case before going beyond 2D. A diagonal alternative is a synchronous multi-coordinate scan (ORCA `Simul_Scan`), cost of one 1D scan but only the diagonal slice.
 - Keep per-point `*.NNN.xyz` and the `*.relaxscanact.dat` sidecar for `scan_parse`; it reports the peak as a `candidate` with `scan_index`/`energy`/`geometry_ref` and never substitutes the last frame for a missing peak.
-- Pass relevant 1-based `watch_pairs` to `scan_parse` and inspect its per-frame `distance_table` alongside the energy profile and perceived connectivity changes, including hydrogen motion outside the scanned coordinate. Missing frames leave gaps in the audit. Distance-based connectivity changes are clues, not identified products or validated reaction paths.
+- Pass relevant software-native `watch_pairs` (Gaussian 1-based, ORCA 0-based) to `scan_parse` and inspect its per-frame `distance_table` alongside the energy profile and perceived connectivity changes, including hydrogen motion outside the scanned coordinate. Missing frames leave gaps in the audit. Distance-based connectivity changes are clues, not identified products or validated reaction paths.
 - **The peak is a seed**: extract it, write a fresh input without any `Scan`/`Constraints` remnants, refine as TS.
 
 ## 5. TS refinement and the convergence ladder
@@ -78,3 +78,9 @@ Magnitude sanity: |ν| ≥ 100 cm⁻¹ is a healthy saddle signal; 20–100 cm�
 ## 8. Failure bookkeeping
 
 One-shot TS success is under half even in good pipelines; experts land ~3/4 of cases only after physical replans. Every failed attempt gets: the input kept, the failure class recorded (mode followed, wrong basin, SCF, pseudo-saddle, soft-mode oscillation), and the next physical move decided **before** resubmission. A failure without a recorded diagnosis is a promise to pay for the same compute twice.
+
+### Automated scan continuation
+
+With declared endpoints, use `ts_prepare` and optionally `scan={method, scans, freeze}`. `scan.method` is the explicitly chosen exploration method; the declaration's `method` remains the refinement method. If path search fails, supply the scan through `ts_resume` instead of manually writing/submitting/parsing the chain. The process extracts an internal peak and performs fresh unconstrained refinement; a scan peak is never TS evidence. When waiting, wait for the compute notification and call `ts_resume(run_id)` without adjustments. Unknown-endpoint exploration and explicitly requested manual work may use standalone tools.
+
+All atom fields in an engine workflow use Gaussian 1-based or ORCA 0-based numbers, including maps, ring_order, distance_filters, scans, freeze and watch_pairs. `conformer_search`, `internal_coordinates` and `reaction_mapping` use 1-based numbers: subtract one when transferring their atom numbers to ORCA. Ring and filters work independently or together; both guide generation and qualify output. Ring shape labels describe final geometry and do not establish minima or TS validity.

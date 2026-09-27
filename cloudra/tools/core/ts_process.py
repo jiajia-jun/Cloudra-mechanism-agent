@@ -31,6 +31,7 @@ from typing import Callable, Literal, Optional
 from pydantic import BaseModel, Field
 
 from cloudra.persistence.fs_utils import atomic_write_text
+from cloudra.tools.core.geometry_inputs import DistanceWindowInput, ScanPlanInput, atom_index_base
 from cloudra.tools.core.structure_builder import (
     BuildStrategy,
     PreparationRequest,
@@ -58,7 +59,7 @@ TsStage = Literal[
 ]
 TsTerminal = Literal["verified", "candidate_only", "search_failed", "invalid_input"]
 StageStatus = Literal["pending", "done", "blocked", "waiting", "not_implemented"]
-PathKind = Literal["", "xtb_path", "xtb_path_failed", "idpp_fallback", "not_attempted"]
+PathKind = Literal["", "xtb_path", "xtb_path_failed", "idpp_fallback", "not_attempted", "scan"]
 
 #: 尚未接线的阶段：停下来并如实说明，绝不假装跑过
 #: 尚未接线的阶段（保留机制：新增阶段若还没实现，必须标 not_implemented 并停下，不假装跑过）
@@ -81,9 +82,6 @@ class TsBudget(BaseModel):
         description="路径精修的轮数上限（$path nrun）；**只是机时上限**，不是收敛判据。"
                     "0 = 声明未给出，由 runner 的默认值决定；撞上限后可用 ts_resume 抬高重跑",
     )
-    max_compute_seconds: int = Field(
-        default=0, description="提交计算的总机时上限（秒）；0 表示声明未给出"
-    )
 
 
 class ProductGeometry(BaseModel):
@@ -101,7 +99,7 @@ class ProductGeometry(BaseModel):
                     "（片内几何完全不变，只有两侧相对取向改变）——阻转异构/联芳旋转就是这种",
     )
     atoms: tuple[int, int] = Field(
-        description="绕哪根键旋转（完整结构的输出原子序号，0-based，顺序无关）",
+        description="绕哪根键旋转（完整结构输出原子序号，Gaussian 1-based / ORCA 0-based，顺序无关）",
     )
     degrees: float = Field(description="旋转角（度）。180 = 转到对面的阻转异构体")
 
@@ -123,17 +121,18 @@ class TsDeclaration(BaseModel):
                     "要用 Gaussian 必须显式声明。引擎选择同样是声明项，不由工具临时决定",
     )
     budget: TsBudget = Field(default_factory=TsBudget)
+    scan: Optional[ScanPlanInput] = Field(default=None, description="Optional exploratory scan; method is explicit, coordinates use this engine atom numbering. The process owns submission and refinement.")
     reaction_center: list[tuple[int, int]] = Field(
         default_factory=list,
         description="反应物/产物映射得到的反应中心原子对（完整结构的输出原子序号，"
-                    "0-based，包含所有氢；不同于 1-based 的 atom_map）；"
+                    "软件原生编号（Gaussian 1-based，ORCA 0-based），包含所有氢）；"
                     "给出即按反应模式组装",
     )
     ring_order: list[int] = Field(
         default_factory=list,
-        description="拟成环原子顺序，1-based 完整构建原子序号；空列表保持普通 TS 流程",
+        description="拟成环原子顺序，Gaussian 1-based / ORCA 0-based 完整构建原子序号；空列表保持普通 TS 流程",
     )
-    distance_filters: list[dict] = Field(
+    distance_filters: list[DistanceWindowInput] = Field(
         default_factory=list,
         description="原子对距离窗口，与 conformer_search 同一格式；可与 ring_order 并用",
     )
@@ -152,12 +151,11 @@ class TsDeclaration(BaseModel):
     )
     atom_map: list[int] = Field(
         default_factory=list,
-        description="Full 1-based atom correspondence: atom_map[k-1] is the reactant atom "
-                    "corresponding to product atom k, covering EVERY atom including hydrogens "
+        description="Full atom correspondence in product order; values use Gaussian 1-based / ORCA 0-based numbering, covering EVERY atom including hydrogens "
                     "(a heavy-atom-only map is rejected). Atom numbers refer to the endpoint "
                     "XYZs built by this process (component-wise assembly order, NOT raw SMILES "
                     "order). If empty, the map stage blocks and returns the built XYZ paths "
-                    "with their 1-based element sequences; reaction_mapping on the built "
+                    "with their software-native element sequences; reaction_mapping on the built "
                     "structures can draft a candidate for you to verify",
     )
 
@@ -182,6 +180,7 @@ class TsStageRecord(BaseModel):
 class TsProcessRecord(BaseModel):
     """持久运行记录（``ts/<run_id>/process.json``）。"""
 
+    format_version: Literal[2] = 2
     run_id: str
     run_dir: str
     workspace_dir: str = Field(default="", description="工作区根（证据快照的沙箱边界）")
@@ -215,6 +214,7 @@ class TsProcessRecord(BaseModel):
         description="非空表示正在等某个已提交的作业（如 'job:12'）。**等计算不是阻塞**："
                     "不推事件、不需要 agent 做决策；作业终态由既有 compute 通知路径投递",
     )
+    scan_step: Optional["TsJobStep"] = None
     job_steps: list["TsJobStep"] = Field(
         default_factory=list,
         description="精修作业序列（TS Opt/Freq → IRC → 两端 Opt/Freq），每步记 job_id/输入/状态",
@@ -250,9 +250,10 @@ class TsStartRequest(BaseModel):
 class TsAdjustment(BaseModel):
     """`ts_resume` 的输入：**只接受局部覆盖**，不是重新声明整条反应。"""
 
+    scan: Optional[ScanPlanInput] = None
     reaction_center: Optional[list[tuple[int, int]]] = None
     ring_order: Optional[list[int]] = None
-    distance_filters: Optional[list[dict]] = None
+    distance_filters: Optional[list[DistanceWindowInput]] = None
     atom_map: Optional[list[int]] = None
     path_refinement_runs: Optional[int] = Field(
         default=None, ge=1,
@@ -299,7 +300,10 @@ def save_record(record: TsProcessRecord) -> str:
 
 def load_record(workspace_dir: str, run_id: str) -> TsProcessRecord:
     path = os.path.join(workspace_dir, TS_ROOT_NAME, run_id, PROCESS_JSON_NAME)
-    return TsProcessRecord.model_validate_json(Path(path).read_text(encoding="utf-8"))
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    if data.get("format_version") != 2:
+        raise ValueError("This TS record predates software-native atom numbering; start a new declaration.")
+    return TsProcessRecord.model_validate(data)
 
 
 def _record_stage(record: TsProcessRecord, stage: TsStage, status: StageStatus,
@@ -371,14 +375,11 @@ def _declare(record: TsProcessRecord) -> TsProcessRecord:
 
 def _build(record: TsProcessRecord) -> TsProcessRecord:
     """建两端结构。多组分会被组装，因此这里要求 embed=True。"""
-    import math
-
-    from cloudra.tools.core.preorganization import resolve_explicit_filters, search_guided
-    from cloudra.tools.core.structure_artifacts import read_xyz_atoms
+    from cloudra.tools.core.preorganization import search_guided
 
     declaration = record.declaration
     out_dir = os.path.join(record.run_dir, BUILD_STAGE_DIR)
-    if declaration.ring_order and not record.active_attempt_dir:
+    if (declaration.ring_order or declaration.distance_filters) and not record.active_attempt_dir:
         record.guidance_attempt += 1
         record.active_attempt_dir = os.path.join(
             out_dir, f"guided_attempt_{record.guidance_attempt:04d}",
@@ -389,18 +390,20 @@ def _build(record: TsProcessRecord) -> TsProcessRecord:
     # 第二端几何由声明派生（绕键旋转）时**不单独建**：那一端就是第一端的一个刚体旋转，
     # 另外建一个构象既浪费又可能被误当成"产物"（两端 SMILES 相同的题型必然踩这个坑）
     for role, smiles in endpoints:
-        if role == "reactant" and declaration.ring_order:
+        if role == "reactant" and (declaration.ring_order or declaration.distance_filters):
             try:
                 guided = search_guided(
                     structure=StructureInput(kind="smiles", value=smiles),
                     output_dir=os.path.join(record.active_attempt_dir, "reactant"),
-                    ring_order=declaration.ring_order,
-                    distance_filters=declaration.distance_filters,
+                    ring_order=[i + (0 if declaration.engine == "orca" else 1) for i in declaration.ring_order],
+                    index_base=0 if declaration.engine == "orca" else 1,
+                    distance_filters=[dict(row.model_dump(), atoms=[i + (0 if declaration.engine == "orca" else 1) for i in row.atoms])
+                                      for row in declaration.distance_filters],
                     charge=declaration.charge, multiplicity=declaration.multiplicity,
                 )
             except ValueError as exc:
                 return _block(
-                    record, "build", "invalid_ring_guidance", str(exc),
+                    record, "build", "invalid_geometry_guidance", str(exc),
                     atom_details=[str(exc)], needs=["ring_order", "distance_filters"],
                 )
             if guided.status != "ok" or not guided.candidates:
@@ -465,41 +468,6 @@ def _build(record: TsProcessRecord) -> TsProcessRecord:
             )
         if role == "reactant":
             record.current_reactant_prepared_path = prepared.artifact_path
-            if declaration.distance_filters:
-                try:
-                    windows = resolve_explicit_filters(prepared, declaration.distance_filters)
-                except ValueError as exc:
-                    return _block(
-                        record, "build", "invalid_distance_filters", str(exc),
-                        atom_details=[str(exc)], needs=["distance_filters"],
-                    )
-                attempts = []
-                chosen_path = ""
-                for path in prepared.candidate_paths:
-                    if not path.endswith(".xyz"):
-                        continue
-                    atoms = read_xyz_atoms(path)
-                    positions = [position for _symbol, position in atoms]
-                    measured = {
-                        f"{window.atoms[0] + 1}-{window.atoms[1] + 1}":
-                        math.dist(positions[window.atoms[0]], positions[window.atoms[1]])
-                        for window in windows
-                    }
-                    attempts.append(f"{path}: {measured}")
-                    if all(window.min_ang <= math.dist(
-                        positions[window.atoms[0]], positions[window.atoms[1]],
-                    ) <= window.max_ang for window in windows):
-                        chosen_path = path
-                        break
-                if not chosen_path:
-                    return _block(
-                        record, "build", "distance_filters_no_match",
-                        "No built reactant candidate satisfies all distance_filters; "
-                        + "; ".join(attempts),
-                        atom_details=attempts, needs=["distance_filters"],
-                    )
-                record.current_seed_xyz_path = chosen_path
-                record.current_seed_mol_path = os.path.splitext(chosen_path)[0] + ".mol"
         record.evidence_candidates.extend(prepared.candidate_paths)
     detail = "both endpoints built" if len(endpoints) == 2 else (
         "first endpoint built; the second endpoint is derived from it by the declared rotation"
@@ -509,7 +477,7 @@ def _build(record: TsProcessRecord) -> TsProcessRecord:
 
 
 def _active_reaction_center(record: TsProcessRecord) -> list[tuple[int, int]]:
-    return (record.effective_reaction_center if record.declaration.ring_order
+    return (record.effective_reaction_center if (record.declaration.ring_order or record.declaration.distance_filters)
             else record.declaration.reaction_center)
 
 
@@ -621,9 +589,10 @@ def _endpoint_numbering(record: TsProcessRecord) -> list[str]:
             continue
         symbols, _, path, _mol = built
         lines.append(f"{role} built geometry: {path}")
+        base = 0 if record.declaration.engine == "orca" else 1
         lines.append(
-            f"{role} atoms (1-based): "
-            + ", ".join(f"{i}={s}" for i, s in enumerate(symbols, start=1))
+            f"{role} atoms ({base}-based): "
+            + ", ".join(f"{i}={s}" for i, s in enumerate(symbols, start=base))
         )
     return lines
 
@@ -636,6 +605,7 @@ def _map(record: TsProcessRecord) -> TsProcessRecord:
     路径搜索要求两端是同一套、同序的原子。歧义与错映射必须**点名到原子**地报出来。
     """
     declaration = record.declaration
+    base = 0 if declaration.engine == "orca" else 1
     if declaration.product_geometry is not None:
         # 第二端几何由第一端绕键旋转而来 -> 原子对应关系是**恒等**（构造保证），不需要 atom_map
         built = _read_built_xyz(record, "reactant")
@@ -671,7 +641,7 @@ def _map(record: TsProcessRecord) -> TsProcessRecord:
             "no atom_map was declared: the reactant→product atom correspondence is ambiguous, and "
             "an ambiguous mapping must be declared rather than guessed (a wrong mapping produces a "
             "non-physical path no matter how good the path search is). To fix: declare the FULL "
-            "1-based map — atom_map[k-1] is the reactant atom corresponding to product atom k, "
+            "software-native map (Gaussian 1-based, ORCA 0-based), in product atom order, "
             "covering EVERY atom including hydrogens (a heavy-atom-only map is rejected). Atom "
             "numbers refer to the built endpoint XYZs listed in atom_details (component-wise "
             "assembly order, NOT raw SMILES order): read them, or call reaction_mapping on the "
@@ -700,13 +670,12 @@ def _map(record: TsProcessRecord) -> TsProcessRecord:
             atom_details=[f"reactant: {r_symbols}", f"product: {p_symbols}"],
             needs=["reactant_smiles", "product_smiles"],
         )
-    if sorted(declaration.atom_map) != list(range(1, n + 1)):
+    if sorted(declaration.atom_map) != list(range(n)):
         got = declaration.atom_map
         diagnosis = ""
-        if got and min(got) < 1:
-            diagnosis = (" The map contains values below 1 — it looks 0-based; atom_map is "
-                         "1-based (reactant atoms are numbered 1..N).")
-        elif 0 < len(got) < n and sorted(got) == list(range(1, len(got) + 1)):
+        if got and min(got) < 0:
+            diagnosis = (" The map contains negative internal indices.")
+        elif 0 < len(got) < n and sorted(got) == list(range(len(got))):
             heavy = sum(1 for s in p_symbols if s != "H")
             if len(got) == heavy:
                 diagnosis = (f" The map has {len(got)} entries, exactly the heavy-atom count — "
@@ -714,8 +683,8 @@ def _map(record: TsProcessRecord) -> TsProcessRecord:
                              "atom_map must cover EVERY atom including hydrogens.")
         return _block(
             record, "map", "atom_map_not_a_permutation",
-            f"atom_map must be a permutation of 1..{n} (one reactant atom per product atom); got "
-            f"{got}.{diagnosis} Atom numbering refers to the built endpoint XYZs listed in "
+            f"atom_map must cover every atom once ({base}..{n-1+base}); got "
+            f"{[i+base for i in got]}.{diagnosis} Atom numbering refers to the built endpoint XYZs listed in "
             "atom_details.",
             atom_details=_endpoint_numbering(record),
             needs=["atom_map"],
@@ -723,16 +692,16 @@ def _map(record: TsProcessRecord) -> TsProcessRecord:
 
     mismatches: list[str] = []
     for product_index, target in enumerate(declaration.atom_map):
-        if p_symbols[product_index] != r_symbols[target - 1]:
+        if p_symbols[product_index] != r_symbols[target]:
             mismatches.append(
-                f"product atom {product_index} is {p_symbols[product_index]} but the map points it "
-                f"at reactant atom {target} which is {r_symbols[target - 1]}"
+                f"product atom {product_index + base} is {p_symbols[product_index]} but the map points it "
+                f"at reactant atom {target + base} which is {r_symbols[target]}"
             )
     if mismatches:
         return _block(
             record, "map", "atom_map_element_mismatch",
             "the declared atom_map does not line up the two endpoints element-wise; reordering the "
-            "product by it would put the wrong element on the wrong atom. The full 1-based element "
+            "product by it would put the wrong element on the wrong atom. The full software-native element "
             "sequences of both built endpoints are in atom_details — rebuild the whole map against "
             "them (do not patch single entries by trial and error).",
             atom_details=mismatches[:10] + _endpoint_numbering(record),
@@ -771,13 +740,15 @@ def _assemble(record: TsProcessRecord) -> TsProcessRecord:
         if not (0 <= left < atom_count and 0 <= right < atom_count) or left == right
     ]
     if invalid_pairs and record.declaration.product_geometry is None:
-        numbering = ", ".join(f"{atom['index']}={atom['symbol']}" for atom in identities)
+        base = 0 if record.declaration.engine == "orca" else 1
+        invalid_pairs = [(left + base, right + base) for left, right in invalid_pairs]
+        numbering = ", ".join(f"{atom['index'] + base}={atom['symbol']}" for atom in identities)
         return _block(
             record, "assemble", "invalid_reaction_center",
             f"reaction_center pair(s) {invalid_pairs} are invalid for the built reactant with "
-            f"{atom_count} atoms. Use 0-based indices 0..{atom_count - 1} in the full output "
+            f"{atom_count} atoms. Use {base}-based indices {base}..{atom_count - 1 + base} in the full output "
             "atom order, including hydrogens; each pair must name two different atoms.",
-            atom_details=[f"reactant atoms (0-based): {numbering}"],
+            atom_details=[f"reactant atoms ({base}-based): {numbering}"],
             needs=["reaction_center"],
         )
     if components <= 1 and record.declaration.product_geometry is not None:
@@ -810,6 +781,86 @@ def _assemble(record: TsProcessRecord) -> TsProcessRecord:
     return record
 
 
+def _guess_scan(record: TsProcessRecord) -> TsProcessRecord:
+    """Advance a declared scan via the same job ledger and parser as manual scans."""
+    import math
+
+    from cloudra.services.compute_store import TERMINAL_STATES
+    from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_input_schema
+
+    declaration = record.declaration
+    plan = declaration.scan
+    if record.scan_step is None:
+        built = _read_built_xyz(record, "reactant")
+        if built is None:
+            return _block(record, "guess", "missing_built_geometry", "Reactant geometry missing", needs=["reactant_smiles"])
+        root = Path(record.run_dir) / PATH_STAGE_DIR
+        root.mkdir(parents=True, exist_ok=True)
+        folder = root / f"scan_{len(list(root.glob('scan_*'))) + 1:04d}"
+        folder.mkdir()
+        base = 0 if declaration.engine == "orca" else 1
+        def public_rows(rows):
+            return [dict(row.model_dump(), atoms=[i + base for i in row.atoms]) for row in rows]
+        request = TsGuess_input_schema(
+            mode="scan_prepare", input_path=built[2], engine=declaration.engine,
+            method=plan.method, charge=declaration.charge, spin=declaration.multiplicity,
+            scans=public_rows(plan.scans), freeze=public_rows(plan.freeze),
+            output_path=str(folder / ("scan.inp" if declaration.engine == "orca" else "scan.gjf")),
+            nprocs=REFINEMENT_CPUS,
+        )
+        try:
+            prepared = TsGuess()._scan_prepare(request)
+        except ValueError as exc:
+            return _block(record, "guess", "invalid_scan", str(exc), needs=["scan"])
+        if not prepared.is_success:
+            return _block(record, "guess", "invalid_scan", prepared.message, needs=["scan"])
+        error, job_id = _submit_step(record, "scan", prepared.input_file_path, declaration.engine)
+        if error:
+            return _block(record, "guess", "compute_admission_rejected", error, needs=["scan"])
+        record.scan_step = TsJobStep(purpose="scan", job_id=job_id, input_path=prepared.input_file_path, state="ready")
+        record.waiting_for = f"job:{job_id}"
+        _record_stage(record, "guess", "waiting", f"Scan job {job_id} submitted; wait for notification, then ts_resume.", [prepared.input_file_path])
+        return record
+    step = record.scan_step
+    step.state = _read_job_state(record, step.job_id)
+    if step.state not in TERMINAL_STATES and step.state != "missing":
+        record.waiting_for = f"job:{step.job_id}"
+        return record
+    record.waiting_for = ""
+    if step.state != "done":
+        return _block(record, "guess", "scan_job_failed", f"Scan job {step.job_id}: {step.state}", needs=["scan"])
+    target = str(Path(step.input_path).parent / "scan_peak.xyz")
+    try:
+        parsed = TsGuess()._scan_parse(TsGuess_input_schema(
+            mode="scan_parse", engine=declaration.engine,
+            log_path=_refinement_log_path(record, step), ts_candidate_path=target,
+        ))
+    except (ValueError, OSError) as exc:
+        return _block(record, "guess", "scan_parse_failed", str(exc), needs=["scan"])
+    if (not parsed.is_success or parsed.scan_has_internal_peak is not True
+            or parsed.candidate_unavailable or not parsed.ts_candidate_path
+            or not Path(parsed.ts_candidate_path).is_file()):
+        return _block(record, "guess", "scan_no_candidate",
+                      "Scan produced no usable internal-peak geometry. " + parsed.message,
+                      atom_details=parsed.verdicts, needs=["scan"])
+    from cloudra.tools.core.structure_artifacts import read_xyz_atoms
+
+    try:
+        candidate_atoms = read_xyz_atoms(parsed.ts_candidate_path)
+        built = _read_built_xyz(record, "reactant")
+        if built is None or [symbol for symbol, _ in candidate_atoms] != built[0]:
+            raise ValueError("Scan peak atom identity/order differs from the assembled reactant")
+        if not all(math.isfinite(value) for _, position in candidate_atoms for value in position):
+            raise ValueError("Scan peak has nonfinite coordinates")
+    except (ValueError, OSError) as exc:
+        return _block(record, "guess", "scan_invalid_geometry", str(exc), needs=["scan"])
+    record.current_ts_guess_path = parsed.ts_candidate_path
+    record.path_kind = "scan"
+    record.evidence_candidates.extend([_refinement_log_path(record, step), parsed.ts_candidate_path])
+    _record_stage(record, "guess", "done", "Scan internal peak extracted; unconstrained refinement still required.", [parsed.ts_candidate_path])
+    return record
+
+
 def _guess(record: TsProcessRecord) -> TsProcessRecord:
     """路径初猜：**先把产物按 atom_map 重排到与反应物同序**，再跑 xTB MTD 路径。
 
@@ -817,6 +868,9 @@ def _guess(record: TsProcessRecord) -> TsProcessRecord:
     （实测元素序列不同）。重排后的产物几何落在 ``path/product_reordered.xyz``，可复查。
     xTB 缺失时退回 IDPP 并**显式写进 path_kind**。
     """
+    if record.declaration.scan is not None:
+        return _guess_scan(record)
+
     from cloudra.persistence.fs_utils import atomic_write_text
     from cloudra.tools.core.xtb_path_runner import (
         XTB_ENGINE_STARTED_TERMINATIONS,
@@ -867,7 +921,7 @@ def _guess(record: TsProcessRecord) -> TsProcessRecord:
         # 产物第 k 个原子 → 反应物第 atom_map[k]-1 个位置
         reordered = [None] * len(r_symbols)
         for product_index, target in enumerate(atom_map):
-            reordered[target - 1] = list(p_pos[product_index])
+            reordered[target] = list(p_pos[product_index])
         if any(position is None for position in reordered):
             return _block(
                 record, "guess", "atom_map_not_a_permutation",
@@ -944,14 +998,14 @@ def _guess(record: TsProcessRecord) -> TsProcessRecord:
             record, "guess", run.termination_reason,
             f"the xTB path search did not produce a usable guess ({run.termination_reason}, "
             f"returncode={run.returncode}).{partial} Persistent run directory: {run.run_dir}. "
-            f"Next steps: (a) ts_guess mode='scan_prepare' — the default seed route when one "
+            f"Next step: ts_resume with adjustment.scan (method, scans, optional freeze) when one "
             f"forming/breaking bond or angle is clear (take the atom indices from "
             f"internal_coordinates first); (b) ts_guess mode='interpolate' (IDPP) — only when both "
             f"endpoint geometries and the all-atom map are already trustworthy. Either way the "
             f"result is a path/guess, not a saddle: an unconstrained OptTS with frequency and IRC "
             f"is still required.",
             atom_details=list(run.diagnostics),
-            needs=["reaction_center", "atom_map", "reactant_smiles", "product_smiles"],
+            needs=["scan", "reaction_center", "atom_map", "reactant_smiles", "product_smiles"],
         )
     record.path_kind = "xtb_path"
     record.current_ts_guess_path = run.ts_xyz_path
@@ -973,8 +1027,8 @@ def _validate(record: TsProcessRecord) -> TsProcessRecord:
     run_dirs = sorted(
         Path(guess_dir).glob("xtb_path_runs/*")
     ) if os.path.isdir(guess_dir) else []
-    if record.path_kind == "xtb_path" and (record.current_ts_guess_path or run_dirs):
-        ts_path = (record.current_ts_guess_path if record.active_attempt_dir else
+    if record.path_kind in ("xtb_path", "scan") and (record.current_ts_guess_path or run_dirs):
+        ts_path = (record.current_ts_guess_path if (record.active_attempt_dir or record.current_ts_guess_path or record.path_kind == "scan") else
                    os.path.join(str(run_dirs[-1]), "xtbpath_ts.xyz"))
         if os.path.isfile(ts_path):
             lines = Path(ts_path).read_text(encoding="utf-8").splitlines()
@@ -985,17 +1039,18 @@ def _validate(record: TsProcessRecord) -> TsProcessRecord:
             )
             # 反应中心距离：超出合理区间就是可执行的、点名到原子的反馈
             detail: list[str] = []
+            base = 0 if record.declaration.engine == "orca" else 1
             for left, right in params:
                 distance = float(np.linalg.norm(positions[left] - positions[right]))
                 if distance < 0.5:
                     detail.append(
-                        f"reaction-centre pair ({left}, {right}) is {distance:.3f} A apart in the "
+                        f"reaction-centre pair ({left + base}, {right + base}) is {distance:.3f} A apart in the "
                         "TS candidate — below 0.5 A, which is not a chemically meaningful saddle "
                         "region"
                     )
                 elif distance > 4.0:
                     detail.append(
-                        f"reaction-centre pair ({left}, {right}) is {distance:.3f} A apart in the "
+                        f"reaction-centre pair ({left + base}, {right + base}) is {distance:.3f} A apart in the "
                         "TS candidate — the path never brought them together"
                     )
             if detail:
@@ -1036,7 +1091,7 @@ def _write_refinement_input(record: TsProcessRecord, job_dir: str) -> tuple[str,
 
     guess_dir = os.path.join(record.run_dir, PATH_STAGE_DIR)
     source = ""
-    if record.active_attempt_dir:
+    if record.active_attempt_dir or record.current_ts_guess_path or record.path_kind == "scan":
         source = record.current_ts_guess_path
         if source and not os.path.isfile(source):
             source = ""
@@ -1168,7 +1223,7 @@ class TsJobStep(BaseModel):
     """精修作业序列里的一步（TS、IRC 与两端极小值验证）。"""
 
     purpose: Literal[
-        "ts_opt", "frequency", "irc", "reactant_opt", "reactant_frequency",
+        "scan", "ts_opt", "frequency", "irc", "reactant_opt", "reactant_frequency",
         "product_opt", "product_frequency",
     ]
     job_id: Optional[int] = None
@@ -1806,7 +1861,7 @@ def _endpoint_identity_error(
         return f"{role} built MOL does not match its declared SMILES; connectivity is unverified"
     n = mol.GetNumAtoms()
     if role == "product" and record.declaration.product_geometry is None:
-        remap = [index - 1 for index in record.declaration.atom_map]
+        remap = list(record.declaration.atom_map)
     else:
         remap = list(range(n))
     if sorted(remap) != list(range(n)) or len(optimized[0]) != n:
@@ -1882,7 +1937,7 @@ def _endpoint_identity_error(
                 if math.dist(optimized[1][left], optimized[1][right]) <= limit:
                     return (
                         f"{role} has an ambiguous close interfragment contact "
-                        f"{left + 1}-{right + 1}; connectivity cannot be verified"
+                        f"{left + atom_index_base(record.declaration.engine)}-{right + atom_index_base(record.declaration.engine)}; connectivity cannot be verified"
                     )
 
     missing = set(expected_bonds) - set(actual_bonds)
@@ -2191,6 +2246,11 @@ def resume(record: TsProcessRecord, adjustment: TsAdjustment,
             f"run {record.run_id} is terminal ({record.terminal}); a terminal run is not resumed"
         )
     declaration = record.declaration.model_copy(deep=True)
+    scan_changed = adjustment.scan is not None and adjustment.scan != declaration.scan
+    if scan_changed:
+        if record.job_id is not None or record.job_steps or record.waiting_for:
+            raise ValueError("scan cannot change with a pending job or after refinement submission")
+        declaration.scan = adjustment.scan
     if adjustment.ring_order is not None:
         declaration.ring_order = list(adjustment.ring_order)
     if adjustment.distance_filters is not None:
@@ -2221,13 +2281,14 @@ def resume(record: TsProcessRecord, adjustment: TsAdjustment,
         getattr(adjustment, field) is None
         for field in (
             "reaction_center", "ring_order", "distance_filters", "atom_map",
-            "path_refinement_runs", "max_interventions",
+            "path_refinement_runs", "max_interventions", "scan",
         )
     ) and not adjustment.budget_override_note
     if not compute_continuation:
         record.intervention_count += 1
     record.blocked = None
     if geometry_changed:
+        record.scan_step = None
         record.stage = "build"
         record.stage_records = [
             entry for entry in record.stage_records
@@ -2246,6 +2307,14 @@ def resume(record: TsProcessRecord, adjustment: TsAdjustment,
         record.guidance_manifest_path = ""
         record.effective_reaction_center = []
         record.path_kind = "not_attempted"
+    if scan_changed:
+        record.scan_step = None
+        record.current_ts_guess_path = ""
+        record.path_kind = "not_attempted"
+        if not geometry_changed and STAGE_ORDER.index(record.stage) >= STAGE_ORDER.index("guess"):
+            record.stage = "guess"
+            record.stage_records = [entry for entry in record.stage_records
+                                    if STAGE_ORDER.index(entry.stage) < STAGE_ORDER.index("guess")]
     # 回到阻塞发生的那个阶段重跑；校验是内部的，agent 不需要知道细节
     save_record(record)
     record = advance(record)

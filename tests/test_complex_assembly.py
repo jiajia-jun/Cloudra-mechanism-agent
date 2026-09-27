@@ -382,3 +382,12 @@ def test_unconstrained_relaxation_failure_is_caught(tmp_path, monkeypatch):
     )
     assert result.status == "no_candidate"
     assert result.unconverged_after_relaxation > 0
+
+
+def test_contact_graph_accepts_chain_but_rejects_isolated_component():
+    from cloudra.tools.core.complex_assembly import interfragment_clusters
+    groups = [[0], [1], [2]]
+    # Carbon vdW contact = 3.4 A; approved factor 1.7 => 5.78 A.
+    assert interfragment_clusters([[0, 0, 0], [5.6, 0, 0], [11.2, 0, 0]], groups, [6]*3) == [[0, 1, 2]]
+    assert interfragment_clusters([[0, 0, 0], [5.6, 0, 0], [20, 0, 0]], groups, [6]*3) == [[0, 1], [2]]
+    assert interfragment_clusters([[0, 0, 0]], [[0]], [6]) == [[0]]

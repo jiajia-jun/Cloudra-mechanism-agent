@@ -49,7 +49,7 @@ PRODUCT = "CF.[Cl-]"
 REACTION_CENTER = [(0, 1)]  # F(0) 进攻 C(1)
 # 反应物构建顺序 [F,C,Cl,H,H,H]，产物构建顺序 [C,F,H,H,H,Cl]（各自按连通分量拼装）：
 # 产物第 k 个原子 → 反应物第 atom_map[k] 个（1-based）
-ATOM_MAP = [2, 1, 4, 5, 6, 3]
+ATOM_MAP = [1, 0, 3, 4, 5, 2]  # internal zero-based mapping
 
 
 def _declaration(**overrides) -> TsDeclaration:
@@ -62,6 +62,14 @@ def _declaration(**overrides) -> TsDeclaration:
         "reaction_center": REACTION_CENTER,
         "atom_map": ATOM_MAP,
     }
+    # Historical fixture literals below use human-readable 1-based ring/map rows;
+    # the process core now receives only normalized zero-based declarations.
+    for field in ("atom_map", "ring_order"):
+        if field in overrides:
+            overrides[field] = [i - 1 for i in overrides[field]]
+    if "distance_filters" in overrides:
+        overrides["distance_filters"] = [dict(row, atoms=[i - 1 for i in row["atoms"]])
+                                          for row in overrides["distance_filters"]]
     payload.update(overrides)
     return TsDeclaration(**payload)
 
@@ -130,7 +138,7 @@ def test_guidance_correction_rebuilds_and_keeps_old_attempt(tmp_path):
     old_seed = record.current_seed_xyz_path
     changed = [dict(row) for row in _GUIDED_WINDOWS]
     changed[0] = {"atoms": [3, 10], "min_ang": 2.5, "max_ang": 4.0}
-    updated = resume(record, TsAdjustment(distance_filters=changed))
+    updated = resume(record, TsAdjustment(distance_filters=[dict(row, atoms=[i-1 for i in row["atoms"]]) for row in changed]))
     assert updated.guidance_attempt == 2
     assert updated.current_seed_xyz_path != old_seed
     assert Path(old_seed).is_file() and Path(updated.current_seed_xyz_path).is_file()
@@ -155,13 +163,15 @@ def test_guidance_change_after_submitted_job_is_rejected_without_rewrite(tmp_pat
     assert process_path.read_text() == before
 
 
-def test_filter_only_ts_selects_built_candidate_without_guided_search(tmp_path, monkeypatch):
+def test_filter_only_ts_uses_guided_generation(tmp_path, monkeypatch):
     import cloudra.tools.core.preorganization as preorganization
 
-    def forbidden(**_kwargs):
-        raise AssertionError("filter-only TS must not invoke guided search")
-
-    monkeypatch.setattr(preorganization, "search_guided", forbidden)
+    calls = []
+    original = preorganization.search_guided
+    def traced(**kwargs):
+        calls.append(kwargs)
+        return original(**kwargs)
+    monkeypatch.setattr(preorganization, "search_guided", traced)
     record = _start(
         tmp_path, reactant_smiles="CCC", product_smiles="CCC", charge=0,
         reaction_center=[], atom_map=[], ring_order=[],
@@ -170,6 +180,10 @@ def test_filter_only_ts_selects_built_candidate_without_guided_search(tmp_path, 
     assert record.blocked.stage == "map"
     assert Path(record.current_seed_xyz_path).is_file()
 
+    assert calls[0]["ring_order"] == []
+    assert calls[0]["distance_filters"][0]["atoms"] == [0, 2]
+    assert calls[0]["index_base"] == 0
+
 
 def test_guided_ts_no_seed_blocks_with_declared_pair_and_manifest(tmp_path, monkeypatch):
     import cloudra.tools.core.preorganization as preorganization
@@ -177,10 +191,10 @@ def test_guided_ts_no_seed_blocks_with_declared_pair_and_manifest(tmp_path, monk
 
     def no_seed(**_kwargs):
         return GuidedSearchResult(
-            status="no_candidate", message="No candidate qualified for pair 3-10",
+            status="no_candidate", message="No candidate qualified for pair 2-9",
             manifest_path=str(tmp_path / "guidance_manifest.json"),
             closest_path=str(tmp_path / "closest_attempt.xyz"),
-            diagnostics=["closest achieved distances: {'3-10': 3.4}"],
+            diagnostics=["closest achieved distances: {'2-9': 3.4}"],
         )
 
     monkeypatch.setattr(preorganization, "search_guided", no_seed)
@@ -192,7 +206,7 @@ def test_guided_ts_no_seed_blocks_with_declared_pair_and_manifest(tmp_path, monk
     assert record.blocked.stage == "build"
     assert record.blocked.failure_class == "guided_preorganization_failed"
     assert "distance_filters" in record.blocked.needs
-    assert "3-10" in record.blocked.message
+    assert "2-9" in record.blocked.message
     assert "guidance_manifest.json" in record.blocked.message
 
 
@@ -202,8 +216,8 @@ def test_guided_ts_impossible_window_fails_loud_before_sampling(tmp_path):
         reaction_center=[], atom_map=[], ring_order=[1, 2, 3, 10],
         distance_filters=[{"atoms": [3, 10], "min_ang": 0.1, "max_ang": 0.2}],
     )
-    assert record.blocked.failure_class == "invalid_ring_guidance"
-    assert "3-10" in record.blocked.message
+    assert record.blocked.failure_class == "invalid_geometry_guidance"
+    assert "2-9" in record.blocked.message
 
 
 def test_filter_only_ts_no_match_blocks_with_pair_distances(tmp_path):
@@ -212,8 +226,8 @@ def test_filter_only_ts_no_match_blocks_with_pair_distances(tmp_path):
         reaction_center=[], atom_map=[], ring_order=[],
         distance_filters=[{"atoms": [1, 3], "min_ang": 0.1, "max_ang": 0.2}],
     )
-    assert record.blocked.failure_class == "distance_filters_no_match"
-    assert "1-3" in record.blocked.message
+    assert record.blocked.failure_class == "invalid_geometry_guidance"
+    assert "0-2" in record.blocked.message
 
 
 def test_guided_validation_and_refinement_ignore_old_ts_candidate(tmp_path):
@@ -251,7 +265,7 @@ def test_guided_resume_uses_new_path_attempt_for_reordered_product(tmp_path):
     assert record.path_kind == "idpp_fallback"
     changed = [dict(row) for row in _GUIDED_WINDOWS]
     changed[0] = {"atoms": [3, 10], "min_ang": 2.5, "max_ang": 4.0}
-    updated = resume(record, TsAdjustment(distance_filters=changed))
+    updated = resume(record, TsAdjustment(distance_filters=[dict(row, atoms=[i-1 for i in row["atoms"]]) for row in changed]))
     new_path = Path(updated.run_dir) / "path" / "guided_attempt_0002" / "product_reordered.xyz"
     assert new_path.is_file() and old_path.is_file()
     assert new_path != old_path
@@ -377,19 +391,19 @@ def test_missing_atom_map_block_carries_endpoint_numbering(tmp_path):
     record = _start(tmp_path, atom_map=[])
     blocked = record.blocked
     details = "\n".join(blocked.atom_details)
-    assert "reactant atoms (1-based): 1=F, 2=C, 3=Cl, 4=H, 5=H, 6=H" in details
-    assert "product atoms (1-based): 1=C, 2=F, 3=H, 4=H, 5=H, 6=Cl" in details
+    assert "reactant atoms (0-based): 0=F, 1=C, 2=Cl, 3=H, 4=H, 5=H" in details
+    assert "product atoms (0-based): 0=C, 1=F, 2=H, 3=H, 4=H, 5=Cl" in details
     assert ".xyz" in details
     assert "reaction_mapping" in blocked.message
     assert "hydrogen" in blocked.message.lower()
 
 
-def test_zero_based_atom_map_is_diagnosed(tmp_path):
+def test_negative_internal_atom_map_is_diagnosed(tmp_path):
     """含 0 的映射点名 0-based 笔误：重试引导必须说清错在哪，不只是"不对"。"""
     record = _start(tmp_path, atom_map=[1, 0, 3, 4, 5, 2])
     blocked = record.blocked
     assert blocked.failure_class == "atom_map_not_a_permutation"
-    assert "0-based" in blocked.message
+    assert "negative" in blocked.message
 
 
 def test_heavy_atom_only_map_is_diagnosed(tmp_path):
@@ -1996,7 +2010,7 @@ def test_engine_crash_frames_are_visible_and_next_steps_are_named(tmp_path, monk
     assert "not a usable guess" in record.blocked.message
     assert any("partial iteration frame" in d for d in record.blocked.atom_details)
     # 下一步选项：默认种子路线在前，插值标出适用条件
-    assert "scan_prepare" in record.blocked.message
+    assert "scan" in record.blocked.needs
     assert "internal_coordinates" in record.blocked.message
     assert "interpolate" in record.blocked.message
 
@@ -2016,4 +2030,4 @@ def test_no_partial_frame_noise_when_the_engine_left_none(tmp_path, monkeypatch)
 
     assert "partial iteration frame" not in record.blocked.message
     assert record.blocked.atom_details == []
-    assert "scan_prepare" in record.blocked.message
+    assert "scan" in record.blocked.needs

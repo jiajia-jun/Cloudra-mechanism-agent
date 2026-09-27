@@ -401,3 +401,16 @@ def test_reflection_reparse_after_notice_restore_does_not_emit_again(tmp_path):
     _after(stage, _ctx("small_mol", restored, str(tmp_path)), reparse, result)
     assert len(_reflection_pins(restored)) == 1
     assert sum(event.type == "context.pin_set" for event in log) == 1
+
+
+@pytest.mark.parametrize('mode', ['scan_prepare', 'interpolate', 'xtb_path'])
+def test_manual_ts_preparation_pins_workflow_before_submission(mode):
+    notices = NoticeManager()
+    ctx = _ctx('small_mol', notices)
+    stage = GuidanceStage()
+    call = ToolCall(id='prepare', name='ts_guess', arguments={'mode': mode})
+    _run(stage, ctx, call)
+    assert notices.pin_content('as_g', 'guidance-ts-sop') is not None
+    count = len(notices.render_current('as_g'))
+    _run(stage, ctx, call)
+    assert len(notices.render_current('as_g')) == count

@@ -391,3 +391,26 @@ def test_guided_crest_nci_uses_qualified_multicomponent_seed(tmp_path, monkeypat
         ], backend="crest", mode="nci",
     )
     assert result.status == "ok" and result.candidates
+
+
+def test_filters_without_ring_guide_generation_without_declaring_bonds(tmp_path):
+    prepared = _graph_only('CCO.O', tmp_path)
+    plan = resolve_guidance(prepared, [], [{'atoms': [3, 10], 'min_ang': 2.5, 'max_ang': 3.8}])
+    assert plan.ring_order == ()
+    assert plan.forming_pairs == ()
+    assert plan.windows[0].atoms == (2, 9)
+    result = search_guided(structure=StructureInput(kind='smiles', value='CCO.O'),
+                           output_dir=str(tmp_path/'search'), ring_order=[],
+                           distance_filters=[{'atoms': [3, 10], 'min_ang': 2.5, 'max_ang': 3.8}])
+    assert result.status == 'ok'
+    assert result.candidates
+    assert all(2.5 <= candidate.achieved_distances['3-10'] <= 3.8 for candidate in result.candidates)
+
+
+def test_guided_filter_does_not_hide_disconnected_spectator(tmp_path):
+    prepared = _graph_only('[He].[He].[He]', tmp_path)
+    graph = load_resolved_graph(prepared)
+    plan = resolve_guidance(prepared, [], [{'atoms':[1,2], 'min_ang':3, 'max_ang':4}])
+    ok, reasons, _ = qualify_geometry(plan, graph, ['He']*3, [[0,0,0],[3.5,0,0],[100,0,0]])
+    assert not ok
+    assert any('disconnected' in reason for reason in reasons)

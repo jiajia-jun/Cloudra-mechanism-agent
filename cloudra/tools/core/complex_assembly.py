@@ -88,7 +88,7 @@ class AssemblyParameters(BaseModel):
         default=1.0, description="片间碰撞判据：任意两碎片原子间距必须 ≥ 此值（Å）"
     )
     max_interfragment_vdw_factor: float = Field(
-        default=1.5,
+        default=1.7,
         description="片间解离判据：弛豫后最近片间原子对的距离超过其 vdW 接触距离（两原子 "
                     "vdW 半径之和）的此倍数，即判为已解离——碎片只是被推开而没有相互作用，"
                     "丢弃不交付",
@@ -270,6 +270,38 @@ def _separate_along_axis(positions, groups, required_gap: float):
             step = (worst_vec / norm) if norm > 1e-12 else np.array([1.0, 0.0, 0.0])
             positions[group] = positions[group] + step * required_gap
     return positions
+
+
+def interfragment_clusters(positions, groups, atomic_numbers, *, factor=1.7):
+    """Connected fragment groups using each pair's closest atoms (all indices internal)."""
+    import math
+
+    table = Chem.GetPeriodicTable()
+    neighbors = [set() for _ in groups]
+    for left in range(len(groups)):
+        for right in range(left + 1, len(groups)):
+            distance, a, b = min(
+                (math.dist(positions[a], positions[b]), a, b)
+                for a in groups[left] for b in groups[right]
+            )
+            contact = factor * (table.GetRvdw(atomic_numbers[a]) + table.GetRvdw(atomic_numbers[b]))
+            if distance <= contact:
+                neighbors[left].add(right)
+                neighbors[right].add(left)
+    remaining = set(range(len(groups)))
+    clusters = []
+    while remaining:
+        stack = [min(remaining)]
+        cluster = set()
+        while stack:
+            node = stack.pop()
+            if node in cluster:
+                continue
+            cluster.add(node)
+            stack.extend(neighbors[node] - cluster)
+        remaining -= cluster
+        clusters.append(sorted(cluster))
+    return clusters
 
 
 def _sample_placements(mol, groups, parameters: AssemblyParameters):
@@ -594,18 +626,16 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
                 f"(< {params.min_interfragment_distance} A) - discarded, never delivered as a complex"
             )
             continue
-        periodic_table = Chem.GetPeriodicTable()
-        contact = (
-            periodic_table.GetRvdw(mol.GetAtomWithIdx(closest_pair[0]).GetAtomicNum())
-            + periodic_table.GetRvdw(mol.GetAtomWithIdx(closest_pair[1]).GetAtomicNum())
+        clusters = interfragment_clusters(
+            mol.GetConformer(conf_id).GetPositions(), groups,
+            [atom.GetAtomicNum() for atom in mol.GetAtoms()],
+            factor=params.max_interfragment_vdw_factor,
         )
-        if min_gap > params.max_interfragment_vdw_factor * contact:
+        if len(clusters) > 1:
             dissociated += 1
             diagnostics.append(
-                f"placement {placement_index}: relaxation left the closest inter-fragment pair "
-                f"({closest_pair[0]}-{closest_pair[1]}) {min_gap:.3f} A apart, beyond "
-                f"{params.max_interfragment_vdw_factor}x its vdW contact distance ({contact:.3f} A) - "
-                "the fragments are dissociated, not a complex; discarded, never delivered as a complex"
+                f"placement {placement_index}: disconnected fragment clusters (0-based) {clusters}; "
+                f"contact limit is {params.max_interfragment_vdw_factor}x vdW contact radii sum; discarded"
             )
             continue
 

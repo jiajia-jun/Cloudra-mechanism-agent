@@ -25,7 +25,7 @@ async def test_repeated_monotonic_scan_pins_one_reflection_for_next_turn(tmp_pat
         "mode": "scan_parse",
         "engine": "orca",
         "log_path": str(tmp_path / "scan.out"),
-        "watch_pairs": [[1, 2]],
+        "watch_pairs": [[0, 1]],
     }
     provider = ScriptedProvider(by_role={
         "dft": [

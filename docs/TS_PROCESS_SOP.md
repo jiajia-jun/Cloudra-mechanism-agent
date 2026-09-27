@@ -1,6 +1,6 @@
 # 过渡态搜索 SOP（process 包）规格
 
-> 状态：设计稿，**未实现、未跑计算**。上游依据
+> 状态：流程已实现；2026-09-27 增加扫描接管与统一编号。正式引擎的新扫描语法尚未端到端实跑。上游依据
 > `docs/superpowers/plans/2026-09-11-chemical-structure-and-ts-workflow.md` 与
 > `docs/TS_BACKEND_SELECTION_GATE.md`。
 >
@@ -43,15 +43,15 @@ ts.resume(run_id, adjusted)
 | `ts.prepare` | 起一次搜索。进程随后**自主**跑完：建结构 → 映射 → 组装 → 路径初猜 → TS 精修/频率/IRC → 两端 Opt/Freq → 连通性判定 |
 | `ts.resume` | 进程在**阻塞**处停下后，带上调整过的声明从当前位置继续 |
 
-成环过渡态的反应物初猜可在 `ts_prepare` 声明 `ring_order=[1,2,3,10]`，并用
-`distance_filters=[{"atoms":[3,10],"min_ang":2.5,"max_ang":3.8}]` 给原子对窗口。
-两者都是构建器输出的完整 **1-based** 原子序号（包括氢）；原有 `reaction_center` 仍是
-**0-based**。额外距离窗口可放在同一 `distance_filters` 列表。尚未共价成键的环边若
-没有显式窗口，就明示使用 `AssemblyParameters.reaction_center_window`（当前 1.8–2.6 Å）
-兜底；错误的显式窗口直接失败。引导仅用于生成反应物 TS 初猜，结果须通过全部窗口与
-拓扑检查，不能当作平衡构象或 TS 证据。用作 IRC 参考端点前须无约束优化、
-确认优化收敛与零虚频，并核对优化后仍是声明的物种。`ts_resume` 可局部覆盖 `ring_order` /
-`distance_filters` 重建初猜；新旧 attempt 各自留档，已提交精修作业后不能改动几何引导。
+`ring_order` 和 `distance_filters` 可以各自使用，也可叠加。二者均引导生成并严格验收最终候选；filter 本身不声明成键。ring 还保留有序环构象入口。六元环自动返回 chair-like、boat-like 等最近参考族，详细几何描述落 manifest；标签不证明稳定性或 TS 有效性。
+
+流程所有原子字段统一 **Gaussian 1-based / ORCA 0-based**，包含氢，涵盖 map、reaction_center、ring、filter、scan、freeze 和产物旋转。独立结构工具使用 1-based，转入 ORCA 时减一。内部记录固定 0-based，旧无版本记录明确拒绝恢复。
+
+缺省非键合环边窗口仍为 `AssemblyParameters.reaction_center_window` 的 **1.6–3.0 Å**，显式错误窗口直接失败。组分整体按 **1.7×vdW** 接触图连通性验收，碰撞下限仍为 1.0 Å。候选不是平衡构象；IRC 端点仍需无约束 Opt/Freq 和身份验证。
+
+需要扫描时，在 `ts_prepare.declaration.scan` 或受阻后的 `ts_resume.adjustment.scan` 声明 `{method, scans, freeze}`。扫描方法显式给出；freeze 只声明坐标类型和原子，冻结当前值。流程负责提交、等通知、解析内峰，再做不继承 freeze 的无约束 TS 精修和既有验证。正常收到计算通知后，只需 `ts_resume({run_id})`，不消耗干预次数。无内峰、缺日志或缺几何会明确阻塞；扫描峰不等于 TS。
+
+几何引导改变后清除旧扫描状态、重建初猜，新旧产物留档；在途作业或已提交精修时拒绝修改。补扫描不会跳过未完成的 build/map/assemble。
 
 要点：
 
@@ -77,7 +77,7 @@ ts.resume(run_id, adjusted)
 **不推**：阶段推进、中间进度。这些只留在 process 记录里，agent 需要时自己读那一个文件，
 不走上下文。
 
-`path_kind` ∈ `xtb_path` / `xtb_path_failed` / `idpp_fallback` / `not_attempted` 随**事件**报送
+`path_kind` ∈ `scan` / `xtb_path` / `xtb_path_failed` / `idpp_fallback` / `not_attempted` 随**事件**报送
 （`xtb_path_failed` = 引擎确实跑过但没产出可用初猜，与"根本没搜"的 `not_attempted` 分开）：
 **初猜是怎么来的必须写明**，不许静默降级。
 
@@ -91,7 +91,7 @@ ts.resume(run_id, adjusted)
 | `build` | 流程 | `structure_builder` 建两端结构（拆分/加氢/稳定原子身份/逐组分优化） | 结构 + 轨迹 + 身份表 |
 | `map` | 流程 | 核对声明的 `atom_map` 能把产物**重排到与反应物同序**；缺映射/错映射则**阻塞** | 校验结果 |
 | `assemble` | 流程 | `complex_assembly` 反应模式：反应中心引导的预组织复合物 | 组装候选 |
-| `guess` | 流程 | 路径初猜：优先 xTB `--path`（MTD，**需目标几何**），xTB 缺失退回 IDPP 插值；失败即阻塞并在消息里点名下一步（`ts_guess` 的 `scan_prepare` 是默认种子路线，`interpolate` 只在两端几何与全原子映射都可信时用），引擎崩溃留下的中间帧只作可发现性上报、不作初猜 | 多帧路径 + 随机种子 + `path_kind` |
+| `guess` | 流程 | 路径初猜：优先 xTB `--path`（MTD，**需目标几何**），xTB 缺失退回 IDPP 插值；失败即阻塞并在消息里点名下一步（通过 `ts_resume.adjustment.scan` 声明扫描是默认补救路线，`interpolate` 只在两端几何与全原子映射都可信时用），引擎崩溃留下的中间帧只作可发现性上报、不作初猜 | 多帧路径 + 随机种子 + `path_kind` |
 | `validate` | 流程 | 第 4 节的校验；失败则**阻塞** | 校验报告（进 process 记录） |
 | `submit` | 流程 | 经 `submit_compute_job` 提交精修作业（OptTS / NEB-TS） | `job_id` |
 | `refine` | 计算链 | TS Opt/Freq → IRC → 两端各自无约束 Opt/Freq | 引擎日志、末帧几何 |
@@ -219,7 +219,7 @@ ts/<run_id>/
 
 ## 9. 有界推进
 
-必须有界：最大干预次数、最大机时、最大采样数。否则退化成无收敛保证的循环。
+必须有界：已生效的最大干预次数、路径精修轮数与作业资源限制；未实现的总机时字段已删除。否则退化成无收敛保证的循环。
 上限来自声明的 `budget`；耗尽即落终态，不无限续。计算作业完成通知引起的空调整
 `ts_resume` 不计入人工干预次数。
 
