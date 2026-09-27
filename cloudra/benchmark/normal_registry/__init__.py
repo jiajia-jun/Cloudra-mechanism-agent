@@ -25,10 +25,10 @@
 SMILES 差集自动推导，禁止手填。
 """
 
-from cloudra.benchmark.normal_registry import ai, qh, ru, x, yo
+from cloudra.benchmark.normal_registry import ai, b, qh, ru, x, yo
 
 REGISTRY: dict[str, dict] = {}
-for module in (ai, yo, x, ru, qh):
+for module in (ai, b, yo, x, ru, qh):
     overlap = set(REGISTRY) & set(module.TASKS)
     if overlap:
         raise SystemExit(f"normal_registry 登记重复: {overlap}")

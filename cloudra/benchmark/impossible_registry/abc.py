@@ -249,4 +249,42 @@ TASKS = {
             },
         ],
     },
+    # 原 NR4：甲酰卡宾及相邻过渡区有多参考证据；旧 4.34 仅作历史 DFT 记录。
+    "B10": {
+        "name_zh": "Wolff 重排经甲酰卡宾路径",
+        "name_en": "Wolff rearrangement: diazoacetaldehyde to ketene and nitrogen via formylcarbene",
+        "kind": "reaction",
+        "question_en": (
+            "Determine the stepwise Wolff rearrangement mechanism of diazoacetaldehyde "
+            "to ketene and nitrogen via formylcarbene."
+        ),
+        "deliverable_en": (
+            "the rate-determining activation barrier in kcal/mol, relative to its "
+            "own reactant minimum"
+        ),
+        "deliverable_kind": "mechanism",
+        "conditions_en": "gas-phase thermolysis",
+        "charge": 0,
+        "multiplicity": 1,
+        "closed_shell": True,
+        "reactants": ["O=CC=[N+]=[N-]"],
+        "products": ["C=C=O", "N#N"],
+        "mapped_reactants": "[N-:1]=[N+:2]=[CH:3][C:4]([H:6])=[O:5]",
+        "steps": [
+            {
+                "out": "[N:1]#[N:2].[CH:3][C:4]([H:6])=[O:5]",
+                "type": "N2 extrusion to singlet formylcarbene",
+                "with_ts": True,
+                "ts_accessible": False,
+                "node_accessible": False,
+            },
+            {
+                "out": "[N:1]#[N:2].[CH:3]([H:6])=[C:4]=[O:5]",
+                "type": "1,2-H shift from formylcarbene to ketene",
+                "with_ts": True,
+                "ts_accessible": False,
+            },
+        ],
+    },
+
 }

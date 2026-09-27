@@ -1794,7 +1794,7 @@ def test_easy_tasks_regenerate_identically():
 
 
 def test_normal_tasks_regenerate_identically():
-    """normal 档题库（10 题；原 U8 已移入 impossible B9）必须与
+    """normal 档题库（10 题；U8/R4 已移入 impossible，B1 已补入）必须与
     生成器输出一致。"""
     pytest.importorskip("rdkit")  # 生成器的映射校验依赖 RDKit；CI 只装 dev extra
     from cloudra.benchmark import gen_normal_tasks
@@ -1807,6 +1807,20 @@ def test_normal_tasks_regenerate_identically():
         regenerated = json.loads(json.dumps(t.model_dump(mode="json", by_alias=True)))
         assert json.loads(committed.read_text(encoding="utf-8")) == regenerated
         assert t.method_policy.allowed_methods == ["xtb", "pm7", "b3lyp/def2svp"]
+
+
+def test_malonic_decarboxylation_gold_edges():
+    pytest.importorskip("rdkit")
+    from cloudra.benchmark import gen_normal_tasks
+
+    (task,) = gen_normal_tasks.parse_normal_md(gen_normal_tasks.DEFAULT_SRC, only={"B1"})
+    first, second = task.gold.mechanism_graph.edges
+    assert first.barrier_kcal_mol == 27.94
+    assert second.barrier_kcal_mol is None
+    assert [2, 4] in first.bond_changes.break_
+    assert [3, 8] in first.bond_changes.break_
+    assert [6, 8] in first.bond_changes.form
+    assert [4, 8] in second.bond_changes.form
 
 
 def test_aromatic_claisen_terminal_allyl_atom_forms_ortho_bond():
@@ -1894,8 +1908,8 @@ def test_impossible_tasks_regenerate_identically():
     from cloudra.benchmark import gen_impossible_tasks
 
     tasks = gen_impossible_tasks.parse_impossible_md(gen_impossible_tasks.DEFAULT_SRC)
-    assert len(tasks) == 11
-    assert sum(t.task_id.startswith("I") for t in tasks) == 11
+    assert len(tasks) == 12
+    assert sum(t.task_id.startswith("I") for t in tasks) == 12
     assert not list(gen_impossible_tasks.DEFAULT_OUT.glob("S*.json"))
     protocol = 'mark the corresponding node or edge "accessible": false'
     for t in tasks:

@@ -1,12 +1,11 @@
-"""R 族 + U 族登记：R1 pinacol、R4 Wolff 重排、
+"""R 族 + U 族登记：R1 pinacol、
 U3 磷叶立德+甲醛、U5 Passerini、U6 Staudinger。
 
 v3（2026-09-09）收窄为四条多步/中间体网络；R2/R3/U1/U7 剔出定稿名单留档池
 （条目见 normal.md）。v4（2026-09-25）换血：R4/U8 入正选替 A5/O3 槽——两条
-构建期各边暂不写 barrier；R4 第 2 步已回填自算参考垒。U8 于 2026-09-26
-移入 impossible B9。竞争通道（U6 协同 [2+2]、
-R4 协同 Wolff 通道与 oxirene 等）
-按 normal.md 约定不进 gold，由 agent 自行探索。
+构建期各边暂不写 barrier；R4 于 2026-09-27 移入 impossible B10。U8 于 2026-09-26
+移入 impossible B9。U6 协同 [2+2] 竞争通道按 normal.md 约定不进 gold，
+由 agent 自行探索。
 """
 
 TASKS = {
@@ -40,23 +39,6 @@ TASKS = {
                 "out": "[OH2+:1][H:11].[OH:6][H:2].[CH3:3][C:4]([CH3:5])([CH3:8])[C:7](=[O:10])[CH3:9]",
                 "type": "proton transfer from protonated pinacolone to water, regenerating H3O+",
                 "barrier": 5.74,
-            },
-        ],
-    },
-    # O=CC=[N+]=[N-]>>C=C=O.N#N  (0/1)  Wolff 重排（分步经甲酰卡宾；协同通道按约定不进 gold）
-    "R4": {
-        "name_en": "Wolff rearrangement: diazoacetaldehyde -> ketene + N2 (stepwise via formylcarbene)",
-        "conditions_en": "gas-phase thermolysis",
-        "mapped_reactants": "[N-:1]=[N+:2]=[CH:3][C:4]([H:6])=[O:5]",
-        "steps": [
-            {
-                "out": "[N:1]#[N:2].[CH:3][C:4]([H:6])=[O:5]",
-                "type": "N2 extrusion -> singlet formylcarbene (stepwise Wolff path)",
-            },
-            {
-                "out": "[N:1]#[N:2].[CH:3]([H:6])=[C:4]=[O:5]",
-                "type": "1,2-H shift from the formyl carbon to the carbene carbon -> ketene",
-                "barrier": 4.34,
             },
         ],
     },
