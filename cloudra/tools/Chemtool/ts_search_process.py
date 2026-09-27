@@ -57,8 +57,10 @@ class TsPrepare_input_schema(input_schema):
         description="Reaction declaration. All atom fields use complete built XYZ order including H: "
                     "Gaussian starts at 1; ORCA at 0. A three-atom identity atom_map is [1,2,3] "
                     "for Gaussian or [0,1,2] for ORCA; entries follow product atom order. "
-                    "method is required. Missing maps return built atom tables. ring_order and "
-                    "distance_filters work independently or together.",
+                    "method is required. For solvation, set extra_keywords on the DFT declaration "
+                    "(e.g. CPCM(Water)), scan.extra_route for an exploratory scan, and "
+                    "path_solvation for the optional xTB path guess. Missing maps return built atom "
+                    "tables. ring_order and distance_filters work independently or together.",
     )
     workspace_dir: Optional[str] = Field(
         default=None,

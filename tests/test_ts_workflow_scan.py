@@ -1,3 +1,4 @@
+from pathlib import Path
 
 
 def test_scan_workflow_waits_without_duplicate_submission_and_accepts_only_internal_peak(tmp_path, monkeypatch):
@@ -29,6 +30,40 @@ def test_scan_workflow_waits_without_duplicate_submission_and_accepts_only_inter
 def test_scan_is_visible_in_public_schema():
     from cloudra.tools.core.ts_process import TsDeclaration
     assert 'scan' in TsDeclaration.model_json_schema()['properties']
+
+
+def test_scan_and_refinement_keep_distinct_declared_solvation(tmp_path, monkeypatch):
+    import cloudra.tools.core.ts_process as process
+
+    xyz = tmp_path / 'water.xyz'
+    xyz.write_text('3\nwater\nO 0 0 0\nH 1 0 0\nH 0 1 0\n')
+    declaration = process.TsDeclaration(
+        reactant_smiles='O', product_smiles='O', method='B3LYP/def2-SVP',
+        extra_keywords='CPCM(Water)',
+        scan={'method': 'GFN2-xTB', 'extra_route': 'ALPB(Water)',
+              'scans': [{'atoms': [0, 1], 'scan_end': 2, 'scan_steps': 5}]},
+    )
+    record = process.TsProcessRecord(
+        run_id='scan', run_dir=str(tmp_path), declaration=declaration,
+        owner_conversation_id='test', stage='guess',
+    )
+    monkeypatch.setattr(process, '_read_built_xyz', lambda *_: (['O', 'H', 'H'], [], str(xyz), ''))
+    monkeypatch.setattr(process, '_submit_step', lambda *_: ('', 42))
+    monkeypatch.setattr(process, '_read_job_state', lambda *_: 'running')
+
+    process._guess(record)
+    scan_text = (tmp_path / 'path' / 'scan_0001' / 'scan.inp').read_text()
+    assert 'ALPB(Water)' in scan_text
+    assert 'CPCM(Water)' not in scan_text
+
+    record.current_ts_guess_path = str(xyz)
+    job_dir = tmp_path / 'job'
+    job_dir.mkdir()
+    error, path = process._write_refinement_input(record, str(job_dir))
+    assert error == ''
+    refine_text = Path(path).read_text()
+    assert 'CPCM(Water)' in refine_text
+    assert 'ALPB(Water)' not in refine_text
 
 
 def test_geometry_correction_invalidates_finished_scan(tmp_path, monkeypatch):

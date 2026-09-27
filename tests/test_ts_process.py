@@ -839,6 +839,60 @@ def test_verdict_cannot_reach_verified_without_irc(tmp_path):
 # ---------------------------------------------------------------------------
 
 
+def test_ts_frequency_input_keeps_declared_solvation(tmp_path):
+    from cloudra.tools.core.ts_process import TsJobStep, _write_frequency_input
+
+    record = _start(tmp_path, extra_keywords="CPCM(Water)")
+    source = Path(record.run_dir) / "jobs" / "job_0001"
+    source.mkdir(parents=True, exist_ok=True)
+    input_path = source / "refine.inp"
+    input_path.write_text("! OptTS\n")
+    record.job_steps.append(TsJobStep(
+        purpose="ts_opt", job_id=9001, input_path=str(input_path), state="done",
+    ))
+    from cloudra.tools.core.ts_process import _refinement_log_path
+
+    log_path = Path(_refinement_log_path(record, record.job_steps[-1]))
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_text(
+        "CARTESIAN COORDINATES (ANGSTROEM)\n"
+        "---------------------------------\n"
+        "O 0.000000 0.000000 0.000000\n"
+        "H 0.960000 0.000000 0.000000\n"
+        "H -0.240000 0.930000 0.000000\n\n",
+    )
+    job_dir = Path(record.run_dir) / "jobs" / "job_0002"
+    job_dir.mkdir()
+    error, path = _write_frequency_input(record, str(job_dir))
+    assert error == ""
+    assert "CPCM(Water)" in Path(path).read_text()
+
+
+def test_xtb_path_guess_uses_explicit_path_solvation(tmp_path, monkeypatch):
+    from cloudra.tools.core.xtb_path_runner import XtbPathResult, build_xtb_path_command
+
+    captured = []
+
+    def unavailable_path(request):
+        captured.append(build_xtb_path_command(request))
+        return XtbPathResult(run_dir=str(tmp_path), termination_reason="executable_missing")
+
+    monkeypatch.setattr("cloudra.tools.core.xtb_path_runner.run_xtb_path", unavailable_path)
+    _start(tmp_path, path_solvation={"model": "alpb", "solvent": "water"})
+    assert captured
+    assert captured[0][-2:] == ["--alpb", "water"]
+
+
+def test_ts_declaration_rejects_unrecognized_solvent_field():
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match="solvent"):
+        TsDeclaration(
+            reactant_smiles="O", product_smiles="O", method="B3LYP/def2-SVP",
+            solvent="water",
+        )
+
+
 @pytest.mark.real_xtb
 @pytest.mark.skipif(
     __import__("shutil").which("xtb") is None, reason="未安装 xtb，跳过真实引擎验收"
@@ -899,7 +953,7 @@ def test_irc_input_reuses_the_hessian_only_when_the_file_is_actually_there(tmp_p
     """Hessian 分支由**证据**决定：文件在就用 read+Hess_Filename，不在就 calc_numfreq。"""
     from cloudra.tools.core.ts_process import TsJobStep, _write_irc_input
 
-    record = _start(tmp_path)
+    record = _start(tmp_path, extra_keywords="CPCM(Water)")
     job2 = Path(record.run_dir) / "jobs" / "job_0002"
     job2.mkdir(parents=True, exist_ok=True)
     (job2 / "optimized.xyz").write_text(
@@ -925,6 +979,7 @@ def test_irc_input_reuses_the_hessian_only_when_the_file_is_actually_there(tmp_p
     content = Path(path).read_text(encoding="utf-8")
     assert "InitHess read" in content
     assert str(job2 / "frequency.hess") in content
+    assert "CPCM(Water)" in content
 
 
 def test_refine_submits_unconstrained_endpoint_optimization_after_irc(tmp_path, monkeypatch):
@@ -984,7 +1039,7 @@ def test_refine_endpoint_jobs_survive_reload_and_use_optimized_frames(tmp_path, 
     import cloudra.tools.core.ts_process as process
     from cloudra.tools.core.ts_process import TsJobStep, load_record, save_record
 
-    record = _start(tmp_path)
+    record = _start(tmp_path, extra_keywords="CPCM(Water)")
     record.blocked = None
     record.stage = "refine"
     record.job_steps = [TsJobStep(
@@ -1018,6 +1073,7 @@ def test_refine_endpoint_jobs_survive_reload_and_use_optimized_frames(tmp_path, 
         assert record.blocked is None, record.blocked and record.blocked.message
         assert record.job_steps[-1].purpose == purpose
         assert record.waiting_for == f"job:{record.job_steps[-1].job_id}"
+        assert "CPCM(Water)" in Path(record.job_steps[-1].input_path).read_text()
         if purpose.endswith("_opt"):
             opt_log = Path(process._refinement_log_path(record, record.job_steps[-1]))
             opt_log.parent.mkdir(parents=True, exist_ok=True)

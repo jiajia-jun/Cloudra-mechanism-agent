@@ -28,7 +28,7 @@ import os
 from pathlib import Path
 from typing import Callable, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from cloudra.persistence.fs_utils import atomic_write_text
 from cloudra.tools.core.geometry_inputs import DistanceWindowInput, ScanPlanInput, atom_index_base
@@ -104,8 +104,16 @@ class ProductGeometry(BaseModel):
     degrees: float = Field(description="旋转角（度）。180 = 转到对面的阻转异构体")
 
 
+class PathSolvation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    model: Literal["alpb", "gbsa"]
+    solvent: str = Field(min_length=1)
+
+
 class TsDeclaration(BaseModel):
     """一次 TS 搜索的声明。**这些是化学决策，由 agent/人给出，工具不猜。**"""
+
+    model_config = ConfigDict(extra="forbid")
 
     reactant_smiles: str
     product_smiles: str
@@ -119,6 +127,14 @@ class TsDeclaration(BaseModel):
         default="orca",
         description="精修作业的引擎。默认 orca（NEB-TS 路线只在 ORCA 上）；"
                     "要用 Gaussian 必须显式声明。引擎选择同样是声明项，不由工具临时决定",
+    )
+    extra_keywords: str = Field(
+        default="",
+        description="Explicit route keywords for TS refinement, frequency, IRC and endpoint Opt/Freq; e.g. ORCA CPCM(Water) or Gaussian scrf=(solvent=water). Scan uses scan.extra_route separately.",
+    )
+    path_solvation: Optional[PathSolvation] = Field(
+        default=None,
+        description="Explicit xTB path-guess solvation model and solvent, e.g. {'model':'alpb','solvent':'water'}. Separate from scan and refinement.",
     )
     budget: TsBudget = Field(default_factory=TsBudget)
     scan: Optional[ScanPlanInput] = Field(default=None, description="Optional exploratory scan; method is explicit, coordinates use this engine atom numbering. The process owns submission and refinement.")
@@ -804,6 +820,7 @@ def _guess_scan(record: TsProcessRecord) -> TsProcessRecord:
         request = TsGuess_input_schema(
             mode="scan_prepare", input_path=built[2], engine=declaration.engine,
             method=plan.method, charge=declaration.charge, spin=declaration.multiplicity,
+            extra_route=plan.extra_route,
             scans=public_rows(plan.scans), freeze=public_rows(plan.freeze),
             output_path=str(folder / ("scan.inp" if declaration.engine == "orca" else "scan.gjf")),
             nprocs=REFINEMENT_CPUS,
@@ -949,6 +966,10 @@ def _guess(record: TsProcessRecord) -> TsProcessRecord:
         charge=record.declaration.charge,
         multiplicity=record.declaration.multiplicity,
         run_label="guess",
+        extra_args=(
+            [f"--{record.declaration.path_solvation.model}", record.declaration.path_solvation.solvent]
+            if record.declaration.path_solvation else []
+        ),
     )
     # 声明给了上限就用它（GH #39：撞上限的截断路径不是初猜，抬高上限重跑才是出路）；
     # 0 = 未声明，交给 runner 默认值。
@@ -1135,6 +1156,7 @@ def _write_refinement_input(record: TsProcessRecord, job_dir: str) -> tuple[str,
         method=method_name,
         basis_set=basis_name,
         task_type=task_type,
+        extra_keywords=declaration.extra_keywords,
         orca_blocks=orca_blocks,
         charge=declaration.charge,
         multiplicity=declaration.multiplicity,
@@ -1351,6 +1373,7 @@ def _write_frequency_input(record: TsProcessRecord, job_dir: str) -> tuple[str, 
         method=head.strip(),
         basis_set=basis.strip(),
         task_type=[{"freq": None}],
+        extra_keywords=declaration.extra_keywords,
         charge=declaration.charge,
         multiplicity=declaration.multiplicity,
         title=f"frequency at the refined stationary point: {declaration.reactant_smiles}",
@@ -1438,6 +1461,7 @@ def _write_irc_input(record: TsProcessRecord, job_dir: str) -> tuple[str, str]:
         method=head.strip(),
         basis_set=basis.strip(),
         task_type=task_type,
+        extra_keywords=declaration.extra_keywords,
         orca_blocks=orca_blocks,
         charge=declaration.charge,
         multiplicity=declaration.multiplicity,
@@ -1572,6 +1596,7 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
         engine=declaration.engine,
         source_type="xyz_file", source_value=source,
         method=head.strip(), basis_set=basis.strip(), task_type=task_type,
+        extra_keywords=declaration.extra_keywords,
         charge=declaration.charge, multiplicity=declaration.multiplicity,
         title=f"IRC side {'A' if role == 'reactant' else 'B'} endpoint {task}",
         output_dir=input_path,

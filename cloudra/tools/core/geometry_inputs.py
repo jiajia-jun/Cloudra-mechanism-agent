@@ -88,5 +88,6 @@ def normalize_ts_atoms(declaration, *, engine):
 class ScanPlanInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     method: str = Field(min_length=1)
+    extra_route: str = Field(default="", description="Explicit engine route keywords for this exploratory scan, such as ALPB(Water) or scrf=(solvent=water).")
     scans: list[ScanCoordinateInput] = Field(min_length=1, max_length=2)
     freeze: list[FrozenCoordinateInput] = Field(default_factory=list)
