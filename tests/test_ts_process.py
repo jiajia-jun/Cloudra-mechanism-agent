@@ -269,7 +269,9 @@ def test_guided_resume_uses_new_path_attempt_for_reordered_product(tmp_path):
     new_path = Path(updated.run_dir) / "path" / "guided_attempt_0002" / "product_reordered.xyz"
     assert new_path.is_file() and old_path.is_file()
     assert new_path != old_path
-    assert updated.current_ts_guess_path == ""
+    assert Path(updated.current_ts_guess_path).is_file()
+    assert "guided_attempt_0002/idpp_images" in updated.current_ts_guess_path
+    assert "guided_attempt_0001" not in updated.current_ts_guess_path
 
 
 def test_removing_ring_guidance_still_isolates_new_attempt_from_old_ts(tmp_path):
@@ -726,12 +728,23 @@ def test_front_half_with_real_xtb_records_xtb_path_kind(tmp_path):
 
 
 def test_guess_reports_idpp_fallback_when_xtb_is_absent(tmp_path, monkeypatch):
-    """xTB 缺失：前端仍走完，但 path_kind 必须标成降级路线——不静默。"""
+    """xTB 缺失时必须产出可用于无约束精修的 IDPP 初猜。"""
+    import cloudra.tools.core.ts_process as ts_process
+
     empty = tmp_path / "empty-path"
     empty.mkdir()
     monkeypatch.setenv("PATH", str(empty))
+    monkeypatch.setattr(ts_process, "_submit_step", lambda *_args: ("", 123))
     record = _start(tmp_path)
     assert record.path_kind == "idpp_fallback"
+    assert Path(record.current_ts_guess_path).is_file()
+    assert Path(record.current_ts_guess_path).parent.name == "idpp_images"
+    assert record.current_ts_guess_path in evidence_binding_candidates(record)
+    assert record.stage_record("validate").status == "done"
+    assert record.blocked is None
+    assert record.stage_record("refine").status == "waiting"
+    assert record.job_id == 123
+    assert Path(record.job_input_path).is_file()
     detail = record.stage_record("guess").detail
     assert "idpp_fallback" in detail
     assert "degraded" in detail.lower()

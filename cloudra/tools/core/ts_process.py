@@ -977,13 +977,40 @@ def _guess(record: TsProcessRecord) -> TsProcessRecord:
         request.refinement_runs = record.declaration.budget.path_refinement_runs
     run = run_xtb_path(request)
     if run.termination_reason == "executable_missing":
-        # 降级路线**必须**写在记录里：path_kind 是判断初猜可信度的唯一依据
+        from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_input_schema
+
+        # 复用 ts_guess 的同一份 IDPP 实现；两端已按显式 atom_map 对齐。
+        # 插值帧只是无约束 OptTS 的几何种子，不提供鞍点或能垒证据。
+        try:
+            fallback = TsGuess()._interpolate(TsGuess_input_schema(
+                mode="interpolate",
+                reactant_text=reactant_xyz,
+                product_text=product_xyz,
+                engine=record.declaration.engine,
+                interp_method="idpp",
+                output_dir=os.path.join(out_dir, "idpp_images"),
+            ))
+        except (ValueError, OSError) as exc:
+            return _block(
+                record, "guess", "idpp_fallback_failed",
+                f"xtb is unavailable and IDPP interpolation failed: {exc}",
+                needs=["reactant_smiles", "product_smiles", "atom_map"],
+            )
+        if not fallback.is_success or not fallback.ts_candidate_path or not os.path.isfile(fallback.ts_candidate_path):
+            return _block(
+                record, "guess", "idpp_fallback_failed",
+                "xtb is unavailable and IDPP interpolation produced no candidate geometry",
+                needs=["reactant_smiles", "product_smiles", "atom_map"],
+            )
         record.path_kind = "idpp_fallback"
+        record.current_ts_guess_path = fallback.ts_candidate_path
+        record.evidence_candidates.extend([reordered_path, fallback.ts_candidate_path])
         _record_stage(
             record, "guess", "done",
             "xtb is not on PATH: the path guess fell back to IDPP interpolation "
-            "(path_kind=idpp_fallback). This is a degraded route, reported explicitly, never silent.",
-            [reordered_path, run.run_dir],
+            "(path_kind=idpp_fallback). This is a degraded geometric seed for unconstrained "
+            "refinement, not a saddle point or energy peak.",
+            [reordered_path, fallback.ts_candidate_path],
         )
         return record
     if not run.usable_as_guess:
@@ -1048,7 +1075,7 @@ def _validate(record: TsProcessRecord) -> TsProcessRecord:
     run_dirs = sorted(
         Path(guess_dir).glob("xtb_path_runs/*")
     ) if os.path.isdir(guess_dir) else []
-    if record.path_kind in ("xtb_path", "scan") and (record.current_ts_guess_path or run_dirs):
+    if record.path_kind in ("xtb_path", "scan", "idpp_fallback") and (record.current_ts_guess_path or run_dirs):
         ts_path = (record.current_ts_guess_path if (record.active_attempt_dir or record.current_ts_guess_path or record.path_kind == "scan") else
                    os.path.join(str(run_dirs[-1]), "xtbpath_ts.xyz"))
         if os.path.isfile(ts_path):
