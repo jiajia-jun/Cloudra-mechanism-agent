@@ -3,24 +3,37 @@
   "edges": [
     {
       "edge_id": "HF1_E1",
-      "barrier_kcal_mol": 9.2,
+      "barrier_kcal_mol": 16.82,
       "barrier_type": "dE-ddagger",
-      "frame": "separated reactants (analogue)",
-      "source": "Koskowich, Johnson, Paley, Rablen 2008 J. Org. Chem. 73, 3492-3496",
-      "doi": "10.1021/jo702722g",
-      "verification": "partial",
-      "method": "B3LYP/6-31G(d)",
-      "note": "analogue carene + peroxyformic acid; syn/major; no same-substrate value exists"
+      "frame": "reactant complex minimum (rc_syn)",
+      "source": "self-computed (this work)",
+      "verification": "full",
+      "method": "ORCA 5.0.2 B3LYP-D3BJ/def2-SVP RIJCOSX def2/J CPCM(CH2Cl2)",
+      "note": "IRC-verified concerted peracid epoxidation TS; 1 imaginary freq aligned to C-O formation + O-O cleavage + H transfer; favored = cis (directed face), minor = trans (opposite face); alternative reference frames in reference_frames_kcal_mol"
     },
     {
       "edge_id": "HF1_EM1",
-      "barrier_kcal_mol": 10.9,
+      "barrier_kcal_mol": 20.7,
       "barrier_type": "dE-ddagger",
-      "frame": "separated reactants (analogue)",
-      "source": "Koskowich et al. 2008",
-      "doi": "10.1021/jo702722g",
-      "verification": "partial",
-      "note": "anti/minor; dd 1.7 vs gold spread 1.4"
+      "frame": "reactant complex minimum (rc_syn)",
+      "source": "self-computed (this work)",
+      "verification": "full",
+      "note": "IRC-verified concerted peracid epoxidation TS; 1 imaginary freq aligned to C-O formation + O-O cleavage + H transfer; favored = cis (directed face), minor = trans (opposite face); alternative reference frames in reference_frames_kcal_mol",
+      "method": "ORCA 5.0.2 B3LYP-D3BJ/def2-SVP RIJCOSX def2/J CPCM(CH2Cl2)"
     }
-  ]
+  ],
+  "reference_frames_kcal_mol": {
+    "reactant_complex_min_rc_syn": {
+      "HF1_E1": 16.82,
+      "HF1_EM1": 20.7
+    },
+    "irc_connected_directed_precomplex_synB": {
+      "HF1_E1": 13.96,
+      "HF1_EM1": 17.83
+    },
+    "separated_reactants": {
+      "HF1_E1": 3.4,
+      "HF1_EM1": 7.28
+    }
+  }
 }
