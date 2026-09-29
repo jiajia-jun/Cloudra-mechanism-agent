@@ -16,7 +16,7 @@ Hard-tier specifics vs normal (gen_normal_tasks):
   承载**在 gold 边 `barrier_kcal_mol` 上（来源为 registry 各步 `barrier` 键），
   accuracy 逐边加权评分（σ=2.0，同 normal）。题级锚点路由由登记表 `anchor` 键给：
   "selectivity" / "barrier" / None（"barrier" 仅用于校验题源格锚点与 registry
-  逐边最大能垒一致；不再写任何题级 reference_computation）。
+  对应能垒一致；同端点竞争路径以主路径为锚；不再写题级 reference_computation）。
 - gold 机理图带竞争立体化学通道：主写出线照旧为主线边列，登记表
   `competing` 列出副通道（默认从反应物络合物出发到副产物/副中间体节点），
   子图打分据此要求 agent 两条 TS 都交付才算覆盖。立体专一题（副通道被
@@ -105,7 +105,7 @@ TASK_IDS = (
     "A1 A6 D2 E2 E3 F1 G2 H1 I1 L1"
 ).split()
 
-# 绝对能垒逐边承载在 gold 边 barrier_kcal_mol（H1 消旋阻垒 ΔG‡ 23.5 等），
+# 绝对能垒逐边承载在 gold 边 barrier_kcal_mol（H1 两条自算 ΔE‡ 等），
 # accuracy 逐边加权评分（σ=2.0 同 normal）；有参考边才 enabled（selectivity 题
 # 的 accuracy 槽位由定性选择性评分占用）。
 _BARRIER_SIGMA = 2.0
@@ -204,12 +204,17 @@ def _validate_task(pid: str, entry: dict, pool_reactants: list[str], pool_produc
                 f"末步产物去映射后与池内产物不一致: "
                 f"{sorted(_unmap_canonical(steps[-1]['out']))} != {pool_p}"
             )
-        # 副通道：守恒规则相同；副产物/副中间体必须与主线节点立体/连接性可区分
+        # 副通道：通常须有不同产物；阻转异构的两条路径可共享同一端点。
         for k, step in enumerate(entry.get("competing", []), 1):
             origin = entry["mapped_reactants"] if step.get("from_step", 0) == 0 else steps[step["from_step"] - 1]["out"]
             errors.extend(_validate_step_conservation(f"副通道 {k}", origin, step))
             minor = sorted(_unmap_canonical(step["out"]))
-            if minor in main_outs or minor == pool_p:
+            if step.get("same_endpoint"):
+                if step.get("from_step", 0) != 0 or minor != pool_p or not step.get("conformational"):
+                    errors.append(f"副通道 {k} same_endpoint 仅适用于从反应物出发、与主产物相同的构象路径")
+                if not step.get("channel") or step["channel"] == steps[-1].get("channel"):
+                    errors.append(f"副通道 {k} same_endpoint 必须有不同的 channel")
+            elif minor in main_outs or minor == pool_p:
                 errors.append(f"副通道 {k} 产物与主线节点不可区分（立体或连接性必须不同）")
     except ValueError as e:
         errors.append(str(e))
@@ -277,7 +282,8 @@ def _build_graph(pid: str, reactants: list[str], products: list[str], entry: dic
         origin_mapped = entry["mapped_reactants"] if from_step == 0 else steps[from_step - 1]["out"]
         is_product = step.get("is_product", True)
         default_label = f"minor {'product' if is_product else 'intermediate'} {k}"
-        minor = MechanismNode(
+        same_endpoint = bool(step.get("same_endpoint"))
+        minor = None if same_endpoint else MechanismNode(
             id=f"{tid}_M{k}",
             role=NodeRole.PRODUCT if is_product else NodeRole.INTERMEDIATE,
             smiles=_unmap_canonical(step["out"]),
@@ -289,7 +295,7 @@ def _build_graph(pid: str, reactants: list[str], products: list[str], entry: dic
         edges.append(
             MechanismEdge(
                 id=f"{tid}_EM{k}",
-                **{"from": origin_id, "to": minor.id},
+                **{"from": origin_id, "to": f"{tid}_P" if same_endpoint else minor.id},
                 via=ts.id,
                 step_type=step["type"],
                 bond_changes=BondChangeSet(**{"break": breaks}, form=forms),
@@ -301,7 +307,9 @@ def _build_graph(pid: str, reactants: list[str], products: list[str], entry: dic
                 favored=_step_favored(step, main=False),
             )
         )
-        nodes.extend([ts, minor])
+        nodes.append(ts)
+        if minor is not None:
+            nodes.append(minor)
     return GoldMechanismGraph(nodes=nodes, edges=edges)
 
 
@@ -427,14 +435,16 @@ def parse_hard_md(src: Path, only: set[str] | None = None) -> list[TaskSpec]:
             e.barrier_kcal_mol for e in graph.edges if e.barrier_kcal_mol is not None
         ]
         if anchor == "barrier":
-            # 题源格的绝对能垒锚点必须与 registry 逐边值一致（决速步 = 最大逐边值）
+            # 独立竞争通道共用端点时，题源格锚定主路径，其余逐边承载。
             if not edge_barriers:
                 all_errors[pid] = ["anchor='barrier' 但 registry 未给出任何逐边能垒"]
                 continue
-            if abs(max(edge_barriers) - anchor_val) > 1e-9:
+            parallel = any(s.get("same_endpoint") for s in entry.get("competing", []))
+            anchor_barrier = entry["steps"][-1].get("barrier") if parallel else max(edge_barriers)
+            if anchor_barrier is None or abs(anchor_barrier - anchor_val) > 1e-9:
                 all_errors[pid] = [
-                    f"题源能垒锚点 {anchor_val} 与 registry 逐边最大能垒 "
-                    f"{max(edge_barriers)} 不一致"
+                    f"题源能垒锚点 {anchor_val} 与 registry 对应能垒 "
+                    f"{anchor_barrier} 不一致"
                 ]
                 continue
 

@@ -228,17 +228,23 @@ def _lift(graph: GoldMechanismGraph) -> nx.MultiDiGraph:
     同口径可比。"""
     g = nx.MultiDiGraph()
     ts_ids = {n.id for n in graph.nodes if n.role.value == "transition_state"}
+    signatures = [
+        (e.from_node, e.to_node, frozenset(e.bond_changes.pairs()))
+        for e in graph.edges
+    ]
     for n in graph.nodes:
         if n.id in ts_ids:
             continue
         g.add_node(n.id, smiles=tuple(sorted(n.smiles)), accessible=n.accessible)
-    for e in graph.edges:
+    for e, signature in zip(graph.edges, signatures):
         g.add_edge(
             e.from_node,
             e.to_node,
             bond_changes=e.bond_changes.pairs(),
             has_ts=bool(e.via),
             accessible=graph.edge_effectively_accessible(e),
+            channel=e.channel,
+            require_channel=e.channel is not None and signatures.count(signature) > 1,
         )
     return g
 
@@ -272,6 +278,8 @@ def _edge_subst_checked(aattrs, gattrs, cfg: GedConfig) -> float:
     """边级 accessible 标志一致性闸门（同节点口径；比较的是 lift 时折叠的
     有效可达性——边自身 AND 经由的 TS 节点，见 schema.edge_effectively_accessible）。"""
     if aattrs.get("accessible", True) != gattrs.get("accessible", True):
+        return 1.0
+    if gattrs.get("require_channel") and aattrs.get("channel") != gattrs.get("channel"):
         return 1.0
     return _edge_subst(aattrs, gattrs, cfg)
 
@@ -374,13 +382,24 @@ def _subgraph_similarity(
 
     def edge_cost_of(asn: dict[str, Optional[str]]) -> float:
         total = 0.0
+        grouped: dict[tuple[str, str], list[dict]] = {}
         for u, v, gattrs in gg.edges(data=True):
             mu, mv = asn.get(u), asn.get(v)
-            step = cfg.edge_insert_cost
-            if mu is not None and mv is not None:
-                for _key, aattrs in ga.get_edge_data(mu, mv, default={}).items():
-                    step = min(step, _edge_subst_checked(aattrs, gattrs, cfg))
-            total += min(step, cfg.edge_insert_cost)
+            if mu is None or mv is None:
+                total += cfg.edge_insert_cost
+            else:
+                grouped.setdefault((mu, mv), []).append(gattrs)
+        for (mu, mv), gold_edges in grouped.items():
+            delivered_edges = list(ga.get_edge_data(mu, mv, default={}).values())
+            matching = nx.Graph()
+            for i, gattrs in enumerate(gold_edges):
+                for j, aattrs in enumerate(delivered_edges):
+                    cost = _edge_subst_checked(aattrs, gattrs, cfg)
+                    if cost < cfg.edge_insert_cost:
+                        matching.add_edge(("g", i), ("a", j), weight=cfg.edge_insert_cost - cost)
+            covered = nx.max_weight_matching(matching, weight="weight")
+            gain = sum(matching[u][v]["weight"] for u, v in covered)
+            total += len(gold_edges) * cfg.edge_insert_cost - gain
         return total
 
     assignment = _assign_gold_nodes(gold_nodes, agent_nodes, cost_of, edge_cost_of)

@@ -228,6 +228,7 @@ def _find_matching_step(
     delivered_graph: Optional[GoldMechanismGraph],
     cfg,
     match_threshold: float,
+    require_channel: bool = False,
 ):
     """按**物种对应**找 gold 边的交付步（edge id 是题库内部约定，agent 不可知，
     绝不参与匹配）：交付边的 from/to 端点物种与 gold 边**同向**端点分别匹配
@@ -249,6 +250,8 @@ def _find_matching_step(
     for step in steps:
         d_edge = delivered_edges.get(step.edge_id)
         if d_edge is None:
+            continue
+        if require_channel and d_edge.channel != gold_edge.channel:
             continue
         d_from = delivered_nodes.get(d_edge.from_node)
         d_to = delivered_nodes.get(d_edge.to_node)
@@ -316,13 +319,17 @@ def score_accuracy(
         )
     weights = {e.id: (1.0 if equal_fallback else e.weight) for e in scored_edges}
     weight_total = sum(weights.values())
+    edge_signatures = [
+        (e.from_node, e.to_node, frozenset(e.bond_changes.pairs()))
+        for e in scored_edges
+    ]
 
     failures: list[str] = []
     weighted_sum = 0.0
     graded_weight = 0.0        # 带参考值边的权重和（高斯/定义差异罚分只从这里出）
     graded_score_sum = 0.0     # Σ w·g（带参考值边）
     structural_penalty = 0.0   # Σ w·(1-s)（无参考边的结构记账：可算未给参考 s=1.0，标答不可达 s=0.0）
-    for edge in scored_edges:
+    for edge, signature in zip(scored_edges, edge_signatures):
         if edge.barrier_kcal_mol is None:
             if gold.mechanism_graph.edge_effectively_accessible(edge):
                 rep.edge_scores[edge.id] = 1.0
@@ -341,7 +348,8 @@ def score_accuracy(
                 )
             continue
         step = _find_matching_step(
-            edge, gold_nodes, evidence.steps, delivered_graph, cfg, match_threshold
+            edge, gold_nodes, evidence.steps, delivered_graph, cfg, match_threshold,
+            require_channel=edge.channel is not None and edge_signatures.count(signature) > 1,
         )
         if step is None:
             rep.edge_scores[edge.id] = 0.0

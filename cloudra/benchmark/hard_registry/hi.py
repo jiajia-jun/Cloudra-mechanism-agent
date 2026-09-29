@@ -2,8 +2,7 @@
 v3（2026-09-09）由 20 条缩至 10 条：I4（硫脲 Strecker）剔出定稿名单留档池（条目见 hard.md）。
 
 H1：池 SMILES 左右相同（消旋体表示，轴手性由 query 文本与 gold 3D 锚定），20 个碳全部
-映射、无键变化——登记为单步纯构象过程（conformational: True）；两条 peri-H 对穿路径
-键变化相同，不写 competing，差异（~1 kcal/mol）写进 step type 文本。
+映射、无键变化。两条 peri-H 对穿路径共享 P/M 端点，以独立 TS 和 channel 区分。
 
 I1：三步网络（① 烯胺生成 ② C–C 加成（立体决定步）③ 水解）。粒度判断：N–C 成键与
 C–O 断键并成一条边（羟胺/亚铵不单独成节点，同 normal A4 直接缩合的处理），脯氨酸
@@ -24,19 +23,31 @@ I4：单基元步协同氰基转移（C–C 成、N–H 成、C–H 断、C=N π
 
 TASKS = {
     # C1=CC=C2C(=C1)C=CC=C2C3=CC=CC4=CC=CC=C43>>同左  (0/1)
-    # 1,1′-联萘消旋化：无键变化的纯构象步，anchor="barrier"（ΔG‡ ≈ 23.5 逐边承载）
+    # 1,1′-联萘消旋化：无键变化的两条纯构象路径，电子能垒逐边承载
     "H1": {
         "name_en": "1,1'-binaphthyl thermal racemization",
-        "conditions_en": "thermal racemization, ~50 degC, polar solvent",
+        "conditions_en": "thermal racemization, ~50 degC, DMF",
         "anchor": "barrier",
         "mapped_reactants": "[cH:1]1[cH:2][cH:3][c:4]2[c:5]([cH:6]1)[cH:7][cH:8][cH:9][c:10]2-[c:11]1[cH:12][cH:13][cH:14][c:15]2[cH:16][cH:17][cH:18][cH:19][c:20]12",
         "steps": [
             {
                 "out": "[cH:1]1[cH:2][cH:3][c:4]2[c:5]([cH:6]1)[cH:7][cH:8][cH:9][c:10]2-[c:11]1[cH:12][cH:13][cH:14][c:15]2[cH:16][cH:17][cH:18][cH:19][c:20]12",
-                "type": "atropisomerization via peri-H squeeze through a double-leaf flip TS (syn/anti peri-H paths differ by ~1 kcal/mol)",
-                "barrier": 23.5,
+                "type": "atropisomerization through the lower syn peri-H crossing (torsion near 0 deg)",
+                "barrier": 23.01,
                 "weight": 0.5,
                 "conformational": True,
+                "channel": "syn",
+            },
+        ],
+        "competing": [
+            {
+                "out": "[cH:1]1[cH:2][cH:3][c:4]2[c:5]([cH:6]1)[cH:7][cH:8][cH:9][c:10]2-[c:11]1[cH:12][cH:13][cH:14][c:15]2[cH:16][cH:17][cH:18][cH:19][c:20]12",
+                "type": "atropisomerization through the higher anti peri-H crossing (torsion near 180 deg)",
+                "barrier": 32.36,
+                "weight": 0.5,
+                "conformational": True,
+                "same_endpoint": True,
+                "channel": "anti",
             },
         ],
     },

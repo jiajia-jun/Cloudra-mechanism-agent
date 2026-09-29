@@ -660,6 +660,43 @@ def test_accuracy_matches_gold_edge_by_endpoint_species_not_edge_id():
     assert rep2.final_score == 0.0
 
 
+def test_accuracy_parallel_same_endpoint_edges_require_distinct_channels():
+    """HH1 的 syn/anti 同端点、同键变化边不可复用同一交付能垒。"""
+    nodes = [
+        MechanismNode(id="R", role=NodeRole.REACTANT, smiles=["C1=CC=CC=C1"]),
+        MechanismNode(id="P", role=NodeRole.PRODUCT, smiles=["C1=CC=CC=C1"]),
+    ]
+    gold = GoldSpec(mechanism_graph=GoldMechanismGraph(
+        nodes=nodes,
+        edges=[
+            MechanismEdge(id="G1", **{"from": "R", "to": "P"}, channel="syn", barrier_kcal_mol=23.01),
+            MechanismEdge(id="G2", **{"from": "R", "to": "P"}, channel="anti", barrier_kcal_mol=32.36),
+        ],
+    ))
+    syn_only = GoldMechanismGraph(nodes=nodes, edges=[
+        MechanismEdge(id="candidate", **{"from": "R", "to": "P"}, channel="syn"),
+    ])
+    rubric = AccuracyRubric(sigma_kcal_mol=2.0)
+    missing = score_accuracy(
+        evidence=_evidence([("candidate", 23.01, 23.01)]), gold=gold,
+        rubric=rubric, delivered_graph=syn_only,
+    )
+    assert missing.edge_scores["G1"] == pytest.approx(1.0)
+    assert missing.edge_scores["G2"] == 0.0
+    assert missing.final_score == 0.0
+
+    both = GoldMechanismGraph(nodes=nodes, edges=[
+        *syn_only.edges,
+        MechanismEdge(id="other", **{"from": "R", "to": "P"}, channel="anti"),
+    ])
+    complete = score_accuracy(
+        evidence=_evidence([("candidate", 23.01, 23.01), ("other", 32.36, 32.36)]),
+        gold=gold, rubric=rubric, delivered_graph=both,
+    )
+    assert complete.edge_scores == {"G1": pytest.approx(1.0), "G2": pytest.approx(1.0)}
+    assert complete.final_score == pytest.approx(1.0)
+
+
 def test_accuracy_small_barrier_widens_sigma():
     """小能垒口径：gold 边 ≤ 阈值时对 gold 的比较放宽到小能垒 sigma
     （2.01 vs 5.0 在 sigma=3 下 ~0.61，放宽到 5 后 ~0.84）；大能垒仍用
@@ -1900,6 +1937,41 @@ def test_hard_tasks_regenerate_identically():
         # hard 档一律 stereo 计代价
         assert t.rubric.graph_similarity.stereo_tier_rule == "hard_stereo_costly"
         assert t.method_policy.allowed_methods == ["xtb", "pm7", "b3lyp/def2svp"]
+
+
+def test_hh1_shared_endpoint_channels():
+    pytest.importorskip("rdkit")
+    from cloudra.benchmark import gen_hard_tasks
+
+    task = gen_hard_tasks.parse_hard_md(gen_hard_tasks.DEFAULT_SRC, only={"H1"})[0]
+    graph = task.gold.mechanism_graph
+    assert len(graph.nodes) == 4  # R, P, and two distinct transition states
+    assert len(graph.edges) == 2
+    assert {e.channel: e.barrier_kcal_mol for e in graph.edges} == {
+        "syn": 23.01, "anti": 32.36,
+    }
+    assert len({(e.from_node, e.to_node) for e in graph.edges}) == 1
+    assert len({e.via for e in graph.edges}) == 2
+    committed = json.loads((gen_hard_tasks.DEFAULT_OUT / "HH1.json").read_text(encoding="utf-8"))
+    assert committed == task.model_dump(mode="json", by_alias=True)
+    one_path = GoldMechanismGraph(
+        nodes=[n for n in graph.nodes if n.id != "HH1_TSM1"],
+        edges=[graph.edges[0]],
+    )
+    assert mechanism_similarity(graph, graph, GedConfig()).score == pytest.approx(1.0)
+    assert mechanism_similarity(one_path, graph, GedConfig()).score < 1.0
+
+
+def test_hf1_regenerated_gold_scores_barriers():
+    pytest.importorskip("rdkit")
+    from cloudra.benchmark import gen_hard_tasks
+
+    task = gen_hard_tasks.parse_hard_md(gen_hard_tasks.DEFAULT_SRC, only={"F1"})[0]
+    assert not task.gold.reference_properties  # provenance is not a scored property
+    assert {e.channel: e.barrier_kcal_mol for e in task.gold.mechanism_graph.edges} == {
+        "directed_face": 16.82, "opposite_face": 20.70,
+    }
+    assert task.gold.selectivity.spread_kcal_mol == pytest.approx(3.87)
 
 
 def test_impossible_tasks_regenerate_identically():

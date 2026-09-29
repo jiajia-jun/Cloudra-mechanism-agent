@@ -86,7 +86,7 @@ D2 自算证据：`computed_by_us=True`；类型为纯电子 ΔE‡，参考态�
 
 | # | 反应（中/EN） | SMILES (reactant>>product)，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
 |---|---|---|---|---|---|---|---|
-| F1 | 环己-2-烯-1-醇过酸环氧化（Henbest directed epoxidation）| `OC1C=CCCC1.O=COO>>O[C@H]1[C@H]2O[C@H]2CCC1.O=CO`（cis：OH 与环氧同侧，3D 嵌入已核对 syn），0/1 | 过苯甲酸/过甲酸，CH2Cl2 或苯，0–25 °C | 烯丙位 OH 与过酸氢键缔合导向 **syn/cis** 环氧化（Henbest 规则），蝶形 TS。竞争：trans（非导向面） | ΔΔG‡ ≈ 1.4 kcal/mol（cis:trans ≈ 91:9（Whitham 重测 Henbest 体系）；Henbest & Wilson 1957 JCS 1958；Houk 1986 Science 231, 1108）[已核实] | C,H,O；11 重原子；✅ | 底物导向立体选择性开端文献 |
+| F1 | 环己-2-烯-1-醇过酸环氧化（Henbest directed epoxidation）| `OC1C=CCCC1.O=COO>>O[C@H]1[C@H]2O[C@H]2CCC1.O=CO`（cis：OH 与环氧同侧，3D 嵌入已核对 syn），0/1 | 过甲酸，CH2Cl2，0–25 °C | 烯丙位 OH 与过酸氢键缔合导向 **syn/cis** 环氧化（Henbest 规则），蝶形 TS。竞争：trans（非导向面） | 自算 ΔΔE‡ 3.87 kcal/mol（同一最低反应物络合物作参考：cis 16.82、trans 20.70 kcal/mol；ORCA 5.0.2 B3LYP-D3(BJ)/def2-SVP CPCM(CH2Cl2)，TS、IRC、端点验证；原实验 ΔΔG‡ ≈ 1.4 kcal/mol 属不同能量口径，不能直接当电子能真值）[自算核实] | C,H,O；11 重原子；✅ | 底物导向立体选择性开端文献 |
 | F2 | 无环手性烯丙醇过酸环氧化（(S)-(E)-pent-3-en-2-ol，acyclic π-face）| `C/C=C/[C@H](C)O.O=COO>>C[C@H]1O[C@@H]1[C@H](C)O.O=CO`（主/次归属按 Houk 模型，构型待 3D 核对），0/1 | 过酸，非配位溶剂 | OH 导向+无环构象竞争（"inside alkoxy"效应）预测主非对映体；比环状体系弱，更考验构象搜索完备性 | ΔΔG‡ ≈ 0.5–0.8 kcal/mol（dr ≈ 2–3:1 量级；Houk 1986 Science 231, 1108；Chamberlin 1987 JACS 109, 672）[部分核实] | C,H,O；10 重原子；✅ | Houk"立体选择性反应的理论与建模"名文体系 |
 
 ## G. [3,3]-σ 迁移：椅式/船式竞争（旧 H-29~H-31，3 个）
@@ -101,7 +101,7 @@ D2 自算证据：`computed_by_us=True`；类型为纯电子 ΔE‡，参考态�
 
 | # | 反应（中/EN） | SMILES (reactant>>product)，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
 |---|---|---|---|---|---|---|---|
-| H1 | 1,1′-联萘消旋化（1,1′-binaphthyl atropisomerization）| `C1=CC=C2C(=C1)C=CC=C2C3=CC=CC4=CC=CC=C43>>C1=CC=C2C(=C1)C=CC=C2C3=CC=CC4=CC=CC=C43`（Ra↔Sa 消旋体表示；轴手性标记 gold 构建时以 3D 锚定），0/1 | 热消旋 ~50 °C，极性溶剂 | 经 peri-H 挤过的双叶翻转 TS 消旋；两条路径（syn/anti peri-H 对穿）能差 ~1 kcal/mol 量级 | ΔG‡ ≈ 23.5 kcal/mol（t1/2 ≈ 14.5 min @ 50 °C；Cooke & Harris 1963 JCS（经二手文献一致转引）；Carter & Liljefors 1976 Tetrahedron 32, 2915，DOI 10.1016/0040-4020(76)80145-7）[部分核实] | C,H；20 重原子（恰在边界）；✅ | 轴手性消旋动力学第一个定量经典体系 |
+| H1 | 1,1′-联萘消旋化（1,1′-binaphthyl atropisomerization）| `C1=CC=C2C(=C1)C=CC=C2C3=CC=CC4=CC=CC=C43>>C1=CC=C2C(=C1)C=CC=C2C3=CC=CC4=CC=CC=C43`（Ra↔Sa 消旋体表示；轴手性以 3D 锚定），0/1 | 热消旋 ~50 °C，DMF 隐式溶剂 | 两条 peri-H 对穿的消旋路径共用 P/M 端点：syn（扭转角约 0°）较低，anti（约 180°）较高；自算电子能垒差 9.35 kcal/mol，取代旧“约 1”估计 | 自算 ΔE‡ 23.01 kcal/mol（syn）与 32.36 kcal/mol（anti），相对 P 极小值；ORCA 5.0.2 B3LYP-D3(BJ)/def2-SVP CPCM(DMF)，TS 各一相关虚频，双向 IRC 及两侧零虚频端点对应 P/M；gold 工作区 `HH1_gold_20260928/REPORT.md`，作业 615–618、621、623–627；旧实验 ΔG‡ ≈ 23.5 kcal/mol（50 °C 半衰期约 14.5 min）不是本题电子能垒真值 [自算核实] | C,H；20 重原子（恰在边界）；✅ | 轴手性消旋动力学第一个定量经典体系 |
 | H2 | 6,6′-二硝基联苯-2,2′-二甲酸消旋（6,6′-dinitrodiphenic acid，首例拆分阻转异构体）| `O=C(O)c1cccc([N+](=O)[O-])c1-c1c(C(=O)O)cccc1[N+](=O)[O-]>>O=C(O)c1cccc([N+](=O)[O-])c1-c1c(C(=O)O)cccc1[N+](=O)[O-]`（消旋体表示），0/1 | 加热消旋（溶液） | 邻位四取代（2,2′-COOH+6,6′-NO2）使室温可拆分；阻转阻垒测定对象 | ΔG‡ ≈ 28–32 kcal/mol（估计值，gold 构建需查原始动力学文献或 Eliel 教材表格；Christie & Kenner 1922 JCS 121, 614，DOI 10.1039/CT9222100614）[未核实] | C,H,N,O；**24 重原子，超预算标注**；闭壳层 ✓ | 阻转异构现象开天辟地文献（1922 首例拆分） |
 | H3 | 1,1′-联萘-2,2′-二酚消旋（BINOL racemization barrier）| `Oc1ccc2ccccc2c1-c1c(O)ccc2ccccc12>>Oc1ccc2ccccc2c1-c1c(O)ccc2ccccc12`（消旋体表示），0/1 | 高温（>100 °C）溶液消旋；酸/碱催化加速 | 消旋阻垒高（中性条件 100 °C 长期稳定）；syn/anti 路径竞争 | ΔG‡ ≈ 35–37 kcal/mol（diglyme 150 °C 20 h 仅 ~10% 消旋实验锚点；Can. J. Chem. 1980, 58, 2134，DOI 10.1139/v80-021；DFT 阻垒 Meca, Řeha & Havlas 2003 JOC 68, 5677 页码待回查）[部分核实] | C,H,O；**22 重原子，略超预算标注**；闭壳层 ✓ | 不对称催化最著名轴手性骨架 |
 
