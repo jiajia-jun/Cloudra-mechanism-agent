@@ -100,42 +100,6 @@
           "properties": {}
         },
         {
-          "id": "HL1_I3",
-          "role": "intermediate",
-          "smiles": [
-            "CCN=C(C)[OH2+].O"
-          ],
-          "accessible": true,
-          "label": "intermediate 3",
-          "properties": {}
-        },
-        {
-          "id": "HL1_TS4",
-          "role": "transition_state",
-          "smiles": [],
-          "accessible": true,
-          "label": "TS4",
-          "properties": {}
-        },
-        {
-          "id": "HL1_I4",
-          "role": "intermediate",
-          "smiles": [
-            "CCN=C(C)O.[OH3+]"
-          ],
-          "accessible": true,
-          "label": "intermediate 4",
-          "properties": {}
-        },
-        {
-          "id": "HL1_TS5",
-          "role": "transition_state",
-          "smiles": [],
-          "accessible": true,
-          "label": "TS5",
-          "properties": {}
-        },
-        {
           "id": "HL1_P",
           "role": "product",
           "smiles": [
@@ -168,7 +132,7 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": 0.0,
+          "barrier_kcal_mol": null,
           "weight": 1.0,
           "channel": null,
           "favored": null
@@ -210,63 +174,15 @@
         {
           "id": "HL1_E3",
           "from": "HL1_I2",
-          "to": "HL1_I3",
-          "via": "HL1_TS3",
-          "step_type": "water attack on the nitrilium carbon: C-O formation with one C-N pi bond broken -> O-protonated imidic acid",
-          "bond_changes": {
-            "break": [
-              [
-                4,
-                6
-              ]
-            ],
-            "form": [
-              [
-                1,
-                4
-              ]
-            ]
-          },
-          "accessible": true,
-          "barrier_kcal_mol": null,
-          "weight": 1.0,
-          "channel": null,
-          "favored": null
-        },
-        {
-          "id": "HL1_E4",
-          "from": "HL1_I3",
-          "to": "HL1_I4",
-          "via": "HL1_TS4",
-          "step_type": "proton transfer from the imidic acid OH2+ to water -> neutral imidic acid + H3O+",
-          "bond_changes": {
-            "break": [
-              [
-                1,
-                9
-              ]
-            ],
-            "form": [
-              [
-                7,
-                9
-              ]
-            ]
-          },
-          "accessible": true,
-          "barrier_kcal_mol": 0.0,
-          "weight": 1.0,
-          "channel": null,
-          "favored": null
-        },
-        {
-          "id": "HL1_E5",
-          "from": "HL1_I4",
           "to": "HL1_P",
-          "via": "HL1_TS5",
-          "step_type": "imidic acid -> amide tautomerization: intramolecular O-to-N proton shift with C=N pi to C=O pi migration -> N-ethylacetamide",
+          "via": "HL1_TS3",
+          "step_type": "net hydration and proton relay from nitrilium plus two waters to N-ethylacetamide plus hydronium; no stable imidic-acid intermediates at the specified gas-phase method",
           "bond_changes": {
             "break": [
+              [
+                1,
+                9
+              ],
               [
                 1,
                 10
@@ -284,6 +200,10 @@
               [
                 6,
                 10
+              ],
+              [
+                7,
+                9
               ]
             ]
           },

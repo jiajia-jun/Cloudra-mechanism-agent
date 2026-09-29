@@ -24,7 +24,6 @@ TASKS = {
                 # PT：H3O+ 质子化肟 OH
                 "out": "[O:1]([H:9])[H:10].[CH3:11][CH2:5]/[C:4](=[N:6]/[O+:7]([H:8])[H:2])/[CH3:3]",
                 "type": "proton transfer from H3O+ to the oxime OH (leaving-group activation)",
-                "barrier": 0.0,
             },
             {
                 # 决速：断 N6-O7 与 C4-C5，成 C5-N6（anti 乙基迁移）与 C4≡N6 π → nitrilium + H2O
@@ -34,20 +33,10 @@ TASKS = {
                 "weight": 0.5,
             },
             {
-                # 水 O1 进攻 nitrilium 碳：成 C4-O1，断一根 C≡N π → O-质子化亚胺酸
-                "out": "[O+:1]([H:9])([H:10])[C:4](=[N:6][CH2:5][CH3:11])[CH3:3].[O:7]([H:8])[H:2]",
-                "type": "water attack on the nitrilium carbon: C-O formation with one C-N pi bond broken -> O-protonated imidic acid",
-            },
-            {
-                # PT：另一分子水拔掉 OH2+ 的一个质子 → 中性亚胺酸 + H3O+
-                "out": "[O:1]([H:10])[C:4](=[N:6][CH2:5][CH3:11])[CH3:3].[O+:7]([H:8])([H:2])[H:9]",
-                "type": "proton transfer from the imidic acid OH2+ to water -> neutral imidic acid + H3O+",
-                "barrier": 0.0,
-            },
-            {
-                # 亚胺酸→酰胺互变异构：分子内 O→N 质子迁移，C=N π 断、C=O π 成
+                # I3/I4 在既定气相方法下坍缩回 I2；水合及质子接力只声明净步骤。
+                # 孤立亚胺酸的 28.46 kcal/mol 不属于这条带水、带电荷的边。
                 "out": "[O:1]=[C:4]([CH3:3])[N:6]([H:10])[CH2:5][CH3:11].[O+:7]([H:8])([H:2])[H:9]",
-                "type": "imidic acid -> amide tautomerization: intramolecular O-to-N proton shift with C=N pi to C=O pi migration -> N-ethylacetamide",
+                "type": "net hydration and proton relay from nitrilium plus two waters to N-ethylacetamide plus hydronium; no stable imidic-acid intermediates at the specified gas-phase method",
             },
         ],
     },

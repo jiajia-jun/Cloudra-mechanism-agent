@@ -1939,6 +1939,26 @@ def test_hard_tasks_regenerate_identically():
         assert t.method_policy.allowed_methods == ["xtb", "pm7", "b3lyp/def2svp"]
 
 
+def test_hard_replacement_and_hl1_reframed_graph():
+    pytest.importorskip("rdkit")
+    from cloudra.benchmark import gen_hard_tasks
+
+    tasks = {t.task_id: t for t in gen_hard_tasks.parse_hard_md(gen_hard_tasks.DEFAULT_SRC)}
+    assert "HE2" not in tasks
+    assert not (gen_hard_tasks.DEFAULT_OUT / "HE2.json").exists()
+
+    da = tasks["HB1"]
+    assert {e.channel: e.barrier_kcal_mol for e in da.gold.mechanism_graph.edges} == {
+        "endo": None, "exo": None,
+    }
+    assert da.gold.selectivity.favored_channel == "endo"
+
+    beckmann = tasks["HL1"].gold.mechanism_graph
+    assert [e.id for e in beckmann.edges] == ["HL1_E1", "HL1_E2", "HL1_E3"]
+    assert [e.barrier_kcal_mol for e in beckmann.edges] == [None, 23.13, None]
+    assert {e.from_node for e in beckmann.edges} == {"HL1_R", "HL1_I1", "HL1_I2"}
+
+
 def test_hh1_shared_endpoint_channels():
     pytest.importorskip("rdkit")
     from cloudra.benchmark import gen_hard_tasks

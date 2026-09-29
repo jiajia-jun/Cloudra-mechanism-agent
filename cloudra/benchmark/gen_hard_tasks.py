@@ -3,7 +3,7 @@
 Reads the curated hard-tier markdown (stereochemistry tier) and emits one
 TaskSpec JSON per task into ideapool/tasks/hard/H<id>.json for the finalized
 10-task list (TASK_IDS; the pool keeps 51 entries but only the finalized list
-is generated — 见 hard.md "定稿圈定"段)。v3（2026-09-09）将 20 条缩至 10 条并为
+is generated — 见 hard.md "定稿圈定"段)。2026-09-30 以 B1 替换 E2；v3（2026-09-09）将 20 条缩至 10 条并为
 hard 开放 DFT（B3LYP-D3(BJ)/def2-SVP）白名单。The markdown is the
 human-curated source of truth for SMILES / charges / anchors; this generator
 is deterministic and re-runnable.
@@ -98,11 +98,10 @@ DEFAULT_SRC = REPO_ROOT / "ideapool" / "reaction_candidates" / "hard.md"
 DEFAULT_OUT = REPO_ROOT / "ideapool" / "tasks" / "hard"
 
 # hard.md "定稿圈定"段的权威名单（v3 缩减：20 → 10；池子其余条目留档不生成）。
-# v3 保留：A1 torqueselection / A6 WH×torqueselection / D2 Fürst–Plattner /
-# E2 轴向进攻 / E3 CBS / F1 Henbest / G2 Claisen 椅-船 / H1 联萘消旋 /
-# I1 脯氨酸 aldol / L1 肟 Beckmann（全 ≤20 重原子，开放 B3LYP-D3(BJ)/def2-SVP）。
+# 正选：A1/A6 电环化，B1 Diels-Alder，D2 环氧开环，E3 CBS，F1 环氧化，
+# G2 Claisen，H1 联萘，I1 aldol，L1 Beckmann（全 ≤20 重原子）。
 TASK_IDS = (
-    "A1 A6 D2 E2 E3 F1 G2 H1 I1 L1"
+    "A1 A6 B1 D2 E3 F1 G2 H1 I1 L1"
 ).split()
 
 # 绝对能垒逐边承载在 gold 边 barrier_kcal_mol（H1 两条自算 ΔE‡ 等），

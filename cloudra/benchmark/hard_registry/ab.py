@@ -2,13 +2,36 @@
 
 A 族两条均为 4π 顺旋开环的竞争方向题：主线 = 优势旋转方向，competing =
 另一旋转方向（同一步骤、同一反应物络合物出发，产物互为 E/Z 异构）。
-v3（2026-09-09）由 20 条缩至 10 条：A2（受体内向）、B7（DA π-面）剔出名单
-留档池（条目仍见 hard.md），registry 只留定稿条目。
+v3（2026-09-09）由 20 条缩至 10 条；2026-09-30 用 B1 替换 E2。
+A2（受体内向）、B7（DA π-面）仍留在候选池。
 
 A1 是框架参考条目（已随 gen_hard_tasks 框架验证通过）；A6 同款登记。
 """
 
 TASKS = {
+    # 环戊二烯 + 顺丁烯二酸酐：协同 [4+2]，两条 endo/exo 竞争通道。
+    # 无本题自算能垒时保留逐边 barrier=null，不能把实验 ΔΔG‡ 当电子 ΔE‡。
+    "B1": {
+        "name_en": "cyclopentadiene + maleic anhydride Diels-Alder: determine endo/exo outcome",
+        "conditions_en": "benzene, room temperature or mild heating",
+        "anchor": "selectivity",
+        "minor_channel_en": "exo cycloadduct",
+        "mapped_reactants": "[CH:1]1=[CH:2][CH2:3][CH:4]=[CH:5]1.[O:6]=[C:7]1[O:8][C:9](=[O:10])[CH:11]=[CH:12]1",
+        "steps": [
+            {
+                "out": "[CH2:3]1[C@@H:2]2[CH:1]=[CH:5][C@H:4]1[C@@H:11]3[C@H:12]2[C:7](=[O:6])[O:8][C:9]3=[O:10]",
+                "type": "concerted endo [4+2] cycloaddition of cyclopentadiene and maleic anhydride",
+                "channel": "endo",
+            },
+        ],
+        "competing": [
+            {
+                "out": "[CH2:3]1[C@@H:2]2[CH:1]=[CH:5][C@H:4]1[C@H:11]3[C@@H:12]2[C:7](=[O:6])[O:8][C:9]3=[O:10]",
+                "type": "concerted exo [4+2] cycloaddition, preserving the cis dienophile configuration",
+                "channel": "exo",
+            },
+        ],
+    },
     # CC1CC=C1>>C=C/C=C/C  (0/1)  甲基外向旋转 → (E)-1,3-戊二烯
     # 断 sp3-sp3 σ（甲基所在碳–CH2）与旧 π，成两个新 π
     "A1": {
