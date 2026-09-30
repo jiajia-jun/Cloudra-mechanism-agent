@@ -100,6 +100,24 @@
           "properties": {}
         },
         {
+          "id": "HL1_I3",
+          "role": "intermediate",
+          "smiles": [
+            "CCN=C(C)[OH2+].O"
+          ],
+          "accessible": true,
+          "label": "intermediate 3",
+          "properties": {}
+        },
+        {
+          "id": "HL1_TS4",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS4",
+          "properties": {}
+        },
+        {
           "id": "HL1_P",
           "role": "product",
           "smiles": [
@@ -174,9 +192,35 @@
         {
           "id": "HL1_E3",
           "from": "HL1_I2",
-          "to": "HL1_P",
+          "to": "HL1_I3",
           "via": "HL1_TS3",
-          "step_type": "net hydration and proton relay from nitrilium plus two waters to O-protonated N-ethylacetamide plus water; no stable imidic-acid intermediates at the specified gas-phase method",
+          "step_type": "water addition to nitrilium with C-N triple-to-double bond reduction -> stable O-protonated imidic acid plus water",
+          "bond_changes": {
+            "break": [
+              [
+                4,
+                6
+              ]
+            ],
+            "form": [
+              [
+                1,
+                4
+              ]
+            ]
+          },
+          "accessible": true,
+          "barrier_kcal_mol": 10.44,
+          "weight": 1.0,
+          "channel": null,
+          "favored": null
+        },
+        {
+          "id": "HL1_E4",
+          "from": "HL1_I3",
+          "to": "HL1_P",
+          "via": "HL1_TS4",
+          "step_type": "O-to-N proton transfer with C-O double bond formation and C-N double-to-single bond reduction -> O-protonated N-ethylacetamide plus water",
           "bond_changes": {
             "break": [
               [
@@ -200,7 +244,7 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null,
+          "barrier_kcal_mol": 13.46,
           "weight": 1.0,
           "channel": null,
           "favored": null
