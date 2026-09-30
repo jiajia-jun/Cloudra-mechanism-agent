@@ -19,7 +19,7 @@ description = (
     "Dispatch many distinct tasks in parallel to the same sub-agent role (swarm). The Coordinator expands a template once per item in items, starts one same-role instance each, runs them concurrently, and aggregates all results.\n"
     "Important guidelines:\n"
     "- **Placeholder**: prompt_template must contain the {{item}} placeholder; each task is expanded from it; expanded task descriptions must all differ.\n"
-    "- **Absolute paths and tool bounds**: the template or context must give the working directory's absolute path, and must name allowed and forbidden tools.\n"
+    "- **Assignment contract**: give absolute working paths, inputs, scope boundaries, expected output, evidence, and done criteria. Do not prescribe tool whitelists or step-by-step tool sequences; specialists choose methods within their existing permissions.\n"
     "- **AgentHub**: parallel subtasks can share findings/questions/answers via `agent_hub` and address someone with to_agent (posts are public; addressees and authors of replied-to posts are notified); when dispatching overlapping work, tell them to check the hub first and post conclusions to the hub.\n"
     "- **Concurrency cap**: max_concurrency > 0 limits how many sub-agent instances run at once; default 0 means unlimited.\n"
     "- **agent_id**: pass ids such as a-1, a-2 — not names like explorer or writer; multiple instances of the same agent_id run in parallel, each with its own session and plan store.\n"
@@ -40,7 +40,7 @@ class SubAgentSwarm_input_schema(input_schema):
     prompt_template: str = Field(
         description=(
             "Task template; must contain the {{item}} placeholder, expanded per item in items. "
-            "The template must include: goal, required absolute paths/input data, allowed tools, forbidden tools, output format, and done criteria."
+            "Include: goal, required absolute paths/input data, scope boundaries, output format, evidence, and done criteria. Do not prescribe tool whitelists or step-by-step tool sequences."
         )
     )
     items: list[str] = Field(

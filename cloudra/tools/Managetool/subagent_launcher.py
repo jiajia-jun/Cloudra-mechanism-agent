@@ -7,11 +7,11 @@ from cloudra.base.tool_actor import ToolActorContext
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "Launch a sub-agent to run a specific task. The Coordinator may split a complex job into subtasks.\n"
+    "Launch a sub-agent to run a specific task. Use proactively for substantive assignments; do not wait until the Coordinator has already performed the work.\n"
     "Important guidelines:\n"
     "- **Absolute paths**: you must provide the working directory's absolute path in query or context.\n"
     "- **Safety**: a security audit is enabled. explorer is read-only; writer may write files but cannot run scripts or destructive operations; the other sub-agents (researcher, small_mol, md, dft, experiment, env) may write/script/delete. Instruct them to spell out intent, blast radius, and rollback in Thought to aid approval.\n"
-    "- **Task definition**: the task description must be extremely specific: name the tools to use, and explicitly forbid tools unrelated to the task.\n"
+    "- **Task definition**: define the goal, inputs, scope boundaries, expected output, evidence, and done criteria. Do not prescribe tool whitelists or step-by-step tool sequences; specialists choose methods within their existing permissions.\n"
     "- **AgentHub**: sub-agents can share findings/questions/answers with other parallel Agents via `agent_hub`, and can address someone with to_agent (posts are public; addressees and authors of replied-to posts are notified). When dispatching overlapping work, tell them to check the hub first and post conclusions to the hub.\n"
     "- **agent_id is a stable role id**: pass ids such as a-1, a-2 — not names like explorer or writer; the same role id may be dispatched repeatedly for different tasks to run in parallel; for batch parallelism prefer subagent_swarm.\n"
     "Available sub-agents:\n"
@@ -31,7 +31,7 @@ class SubAgentLauncher_input_schema(input_schema):
     query: str = Field(
         description=(
             "Task description. Write only what this task needs, not the sub-agent's identity (already injected via prompt). "
-            "Must include: goal, required absolute paths/input data, allowed tools, forbidden tools, output format, and done criteria."
+            "Include: goal, required absolute paths/input data, scope boundaries, output format, evidence, and done criteria. Do not prescribe tool whitelists or step-by-step tool sequences."
         )
     )
     context: list = Field(
