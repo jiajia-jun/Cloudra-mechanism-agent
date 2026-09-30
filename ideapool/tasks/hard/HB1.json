@@ -128,7 +128,7 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null,
+          "barrier_kcal_mol": 8.46,
           "weight": 1.0,
           "channel": "endo",
           "favored": true
@@ -170,7 +170,7 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null,
+          "barrier_kcal_mol": 10.17,
           "weight": 1.0,
           "channel": "exo",
           "favored": false
@@ -179,7 +179,7 @@
     },
     "reference_properties": {},
     "selectivity": {
-      "spread_kcal_mol": 1.5,
+      "spread_kcal_mol": 1.71,
       "minor_channel": "exo cycloadduct",
       "favored_channel": "endo"
     }
@@ -198,7 +198,7 @@
       "stereo_tier_rule": "hard_stereo_costly"
     },
     "accuracy": {
-      "enabled": false,
+      "enabled": true,
       "sigma_kcal_mol": 2.0,
       "max_penalty_fraction": 0.3,
       "small_barrier_threshold_kcal": 10.0,

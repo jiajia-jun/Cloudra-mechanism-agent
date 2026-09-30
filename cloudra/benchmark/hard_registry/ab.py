@@ -10,7 +10,7 @@ A1 是框架参考条目（已随 gen_hard_tasks 框架验证通过）；A6 同�
 
 TASKS = {
     # 环戊二烯 + 顺丁烯二酸酐：协同 [4+2]，两条 endo/exo 竞争通道。
-    # 无本题自算能垒时保留逐边 barrier=null，不能把实验 ΔΔG‡ 当电子 ΔE‡。
+    # 本战役 ORCA CPCM(benzene) 自算，以同一零虚频 RC(job 652)为参考。
     "B1": {
         "name_en": "cyclopentadiene + maleic anhydride Diels-Alder: determine endo/exo outcome",
         "conditions_en": "benzene, room temperature or mild heating",
@@ -22,6 +22,7 @@ TASKS = {
                 "out": "[CH2:3]1[C@@H:2]2[CH:1]=[CH:5][C@H:4]1[C@@H:11]3[C@H:12]2[C:7](=[O:6])[O:8][C:9]3=[O:10]",
                 "type": "concerted endo [4+2] cycloaddition of cyclopentadiene and maleic anhydride",
                 "channel": "endo",
+                "barrier": 8.46,
             },
         ],
         "competing": [
@@ -29,6 +30,7 @@ TASKS = {
                 "out": "[CH2:3]1[C@@H:2]2[CH:1]=[CH:5][C@H:4]1[C@H:11]3[C@@H:12]2[C:7](=[O:6])[O:8][C:9]3=[O:10]",
                 "type": "concerted exo [4+2] cycloaddition, preserving the cis dienophile configuration",
                 "channel": "exo",
+                "barrier": 10.17,
             },
         ],
     },

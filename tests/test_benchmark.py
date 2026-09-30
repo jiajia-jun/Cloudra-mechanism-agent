@@ -1949,7 +1949,7 @@ def test_hard_replacement_and_hl1_reframed_graph():
 
     da = tasks["HB1"]
     assert {e.channel: e.barrier_kcal_mol for e in da.gold.mechanism_graph.edges} == {
-        "endo": None, "exo": None,
+        "endo": 8.46, "exo": 10.17,
     }
     assert da.gold.selectivity.favored_channel == "endo"
 
