@@ -118,7 +118,7 @@ async def test_cancel_effects_and_idempotent_noop(tmp_path, monkeypatch):
             Command(type="agent.spawn", target={"project_id": project.id}, payload={"role_id": "coordinator"})
         )
     ).data
-    core.agent_host.start_run(agent)
+    await core.agent_host.start_run(agent)
 
     timeline.clear()
     result = await bus.execute(
@@ -126,10 +126,8 @@ async def test_cancel_effects_and_idempotent_noop(tmp_path, monkeypatch):
     )
     assert result.data.state == "cancelled"
     assert timeline == [
-        # start_run appended out-of-band (no publish); the shared EventWriter
-        # publishes that backlog before this command's own events.
-        ("event", "agent.state_changed"),
-        ("event", "run.started"),
+        # start_run 走 persist-then-apply：state_changed / run.started 在调用时
+        # 就已落盘并发布，不再有"积压到下一个命令才顺带发布"的尾巴。
         ("event", "agent.cancel_requested"),
         ("event", "agent.message_injected"),
         ("event", "agent.state_changed"),
@@ -194,7 +192,7 @@ async def test_decide_is_pure_no_io_no_mutation(tmp_path):
     assert [type(e).__name__ for e in spawn_decision.effects] == ["DeliverMessage", "ScheduleAgent"]
 
     # RUNNING agent 的 message：只有投递，无 wake 草稿、无 ScheduleAgent
-    core.agent_host.start_run(agent)
+    await core.agent_host.start_run(agent)
     log_len = len(core.event_log)
     running_decision = DECIDERS["agent.message"](
         core,

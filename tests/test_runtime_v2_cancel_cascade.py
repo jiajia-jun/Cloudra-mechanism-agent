@@ -114,13 +114,13 @@ async def _parked_child_with_job():
         path="/tmp/parked-cancel.gjf", state="ready", jobtype="gaussian",
         node_id="local",
     )
-    run_id = await core.agent_host.start_run_durable(child)
+    run_id = await core.agent_host.start_run(child)
     await core.event_writer.commit(EventDraft(
         "agent.completion_gate", stream="agent", project_id=project.id,
         session_id=child.id, run_id=run_id,
         data={"action": "wait_background", "reason": "compute pending", "source": "schedule"},
     ))
-    await core.agent_host.finish_run_durable(child, outcome="succeeded")
+    await core.agent_host.finish_run(child, outcome="succeeded")
     assert child.state is AgentState.SUCCEEDED
     return core, project, parent, child, job_id
 

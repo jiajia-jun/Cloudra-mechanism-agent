@@ -89,15 +89,15 @@ async def test_failed_run_requires_a_structured_kind():
             )
         )
     ).data
-    core.agent_host.start_run(agent)
+    await core.agent_host.start_run(agent)
 
     with pytest.raises(ValueError, match="failure_kind"):
-        core.agent_host.finish_run(agent, outcome="failed", error="boom")
+        await core.agent_host.finish_run(agent, outcome="failed", error="boom")
     assert agent.state is AgentState.RUNNING
     assert not [e for e in core.event_log.query_session(agent.id) if e.type == "run.finished"]
 
     # 带上分类才允许收尾。
-    core.agent_host.finish_run(
+    await core.agent_host.finish_run(
         agent,
         outcome="failed",
         error="boom",
@@ -108,9 +108,9 @@ async def test_failed_run_requires_a_structured_kind():
     assert finished[-1].data["error"] == "boom"
 
     # 成功的 run 不背分类。
-    core.agent_host.restart(agent)
-    core.agent_host.start_run(agent)
-    core.agent_host.finish_run(agent, outcome="succeeded")
+    await core.agent_host.restart(agent)
+    await core.agent_host.start_run(agent)
+    await core.agent_host.finish_run(agent, outcome="succeeded")
     finished = [e for e in core.event_log.query_session(agent.id) if e.type == "run.finished"]
     assert finished[-1].data["failure_kind"] is None
 

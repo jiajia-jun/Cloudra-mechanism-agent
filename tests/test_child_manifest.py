@@ -64,15 +64,15 @@ async def _child(
                 tools=LegacyToolExecutor(core),
             ),
         )
-    core.agent_host.start_run(child)
+    await core.agent_host.start_run(child)
     return core, child
 
 
-def _finish(core, child, outcome: str, **kwargs) -> None:
+async def _finish(core, child, outcome: str, **kwargs) -> None:
     """收尾：失败 run 必须带 failure_kind（#63 硬不变量）；未给时用 pipeline_internal。"""
     if outcome != "succeeded" and kwargs.get("failure_kind") is None:
         kwargs["failure_kind"] = RunFailureKind.PIPELINE_INTERNAL
-    core.agent_host.finish_run(child, outcome=outcome, **kwargs)
+    await core.agent_host.finish_run(child, outcome=outcome, **kwargs)
 
 
 @pytest.mark.asyncio
@@ -86,7 +86,7 @@ async def test_manifest_shapes_succeeded_cancelled_and_no_final_text():
         run_id=child.current_run.run_id,
         data={"content": "explorer done"},
     )
-    _finish(core, child, "succeeded")
+    await _finish(core, child, "succeeded")
     manifest = build_child_manifest(core, child)
     assert manifest["state"] == "succeeded"
     assert manifest["terminal"] is True
@@ -114,7 +114,7 @@ async def test_manifest_shapes_succeeded_cancelled_and_no_final_text():
 @pytest.mark.asyncio
 async def test_manifest_failed_child_has_stable_structure_and_next_steps():
     core, child = await _child(role_id="small_mol")
-    _finish(
+    await _finish(
         core,
         child,
         "failed",
@@ -148,7 +148,7 @@ async def test_manifest_treats_legacy_missing_failure_kind_as_unclassified():
     from cloudra.runtime_v2.apply import apply_event
 
     apply_event(core, list(core.event_log)[-1])
-    core.agent_host.transition(child, AgentState.FAILED, reason="failed", run_id=run_id)
+    await core.agent_host.transition(child, AgentState.FAILED, reason="failed", run_id=run_id)
     manifest = build_child_manifest(core, child)
     assert manifest["unresolved"] == ["last run failed (unclassified)"]
     assert manifest["next_steps"] == [
@@ -176,7 +176,7 @@ def test_next_steps_map_covers_every_failure_kind(kind, expected_fragment):
 @pytest.mark.asyncio
 async def test_render_is_deterministic_and_from_manifest_only():
     core, child = await _child()
-    _finish(core, child, "succeeded")
+    await _finish(core, child, "succeeded")
     manifest = build_child_manifest(core, child)
     text = render_child_report(manifest)
     assert text == render_child_report(manifest)
@@ -202,7 +202,7 @@ async def test_delivery_carries_structured_manifest_but_inbox_stays_text_only():
         )
     ).data
     child.parent_session_id = parent.id
-    _finish(core, child, "succeeded")
+    await _finish(core, child, "succeeded")
 
     await deliver_child_completion_to_parent(core, child, wake=False)
 
@@ -262,7 +262,7 @@ async def test_manifest_and_report_never_leak_secrets_or_raw_output():
         run_id=child.current_run.run_id,
         data={"tool_name": "bash", "result": {"summary": raw, "data": {"api_key": secret}}},
     )
-    _finish(core, child, "failed", error="provider rejected the request")
+    await _finish(core, child, "failed", error="provider rejected the request")
     manifest = build_child_manifest(core, child)
     text = render_child_report(manifest)
     blob = json.dumps(manifest) + text

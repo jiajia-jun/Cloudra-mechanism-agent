@@ -57,15 +57,15 @@ def _watcher(**kwargs) -> RunWatcher:
     return RunWatcher(**params)
 
 
-def _set(core, agent, to: AgentState, reason: str) -> None:
-    core.agent_host.transition(agent, to, reason=reason)
+async def _set(core, agent, to: AgentState, reason: str) -> None:
+    await core.agent_host.transition(agent, to, reason=reason)
 
 
-def _terminal(core, agent, to: AgentState, reason: str) -> None:
+async def _terminal(core, agent, to: AgentState, reason: str) -> None:
     """QUEUED 不能直接落终态：先补 RUNNING 再落终态（对齐真实状态机）。"""
     if agent.state is AgentState.QUEUED:
-        _set(core, agent, AgentState.RUNNING, "run_started")
-    _set(core, agent, to, reason)
+        await _set(core, agent, AgentState.RUNNING, "run_started")
+    await _set(core, agent, to, reason)
 
 
 @pytest.mark.asyncio
@@ -73,15 +73,15 @@ async def test_succeeded_with_live_sibling_keeps_waiting(tmp_path):
     """C1 事故：SUCCEEDED 只是当前 run 休眠（wait_background），子 agent 未竟
     前不得判题目完成。"""
     core, _project, parent, sibling = await _core_with_agents(tmp_path)
-    _set(core, parent, AgentState.RUNNING, "run_started")
-    _set(core, parent, AgentState.SUCCEEDED, "wait_background")
+    await _set(core, parent, AgentState.RUNNING, "run_started")
+    await _set(core, parent, AgentState.SUCCEEDED, "wait_background")
     watcher = _watcher()
 
     decision = await watcher.decide(core, parent)
     assert decision.kind == "continue"
 
     # 子 agent 到终态后，后台排空 → 真正完成
-    _terminal(core, sibling, AgentState.CANCELLED, "cancel")
+    await _terminal(core, sibling, AgentState.CANCELLED, "cancel")
     decision = await watcher.decide(core, parent)
     assert decision.kind == "done"
 
@@ -89,9 +89,9 @@ async def test_succeeded_with_live_sibling_keeps_waiting(tmp_path):
 @pytest.mark.asyncio
 async def test_succeeded_without_background_is_done(tmp_path):
     core, _project, parent, sibling = await _core_with_agents(tmp_path)
-    _terminal(core, sibling, AgentState.SUCCEEDED, "done")  # 兄弟已终态，不构成后台
-    _set(core, parent, AgentState.RUNNING, "run_started")
-    _set(core, parent, AgentState.SUCCEEDED, "allow_final")
+    await _terminal(core, sibling, AgentState.SUCCEEDED, "done")  # 兄弟已终态，不构成后台
+    await _set(core, parent, AgentState.RUNNING, "run_started")
+    await _set(core, parent, AgentState.SUCCEEDED, "allow_final")
     decision = await _watcher().decide(core, parent)
     assert decision.kind == "done"
 
@@ -99,9 +99,9 @@ async def test_succeeded_without_background_is_done(tmp_path):
 @pytest.mark.asyncio
 async def test_injected_background_extends_succeeded_wait(tmp_path):
     core, _project, parent, sibling = await _core_with_agents(tmp_path)
-    _terminal(core, sibling, AgentState.CANCELLED, "cancel")
-    _set(core, parent, AgentState.RUNNING, "run_started")
-    _set(core, parent, AgentState.SUCCEEDED, "wait_background")
+    await _terminal(core, sibling, AgentState.CANCELLED, "cancel")
+    await _set(core, parent, AgentState.RUNNING, "run_started")
+    await _set(core, parent, AgentState.SUCCEEDED, "wait_background")
 
     async def pending() -> bool:
         return True
@@ -118,14 +118,14 @@ async def test_parked_run_waits_for_notice_then_requests_resume(tmp_path):
     from cloudra.runtime_v2.dispatcher import WakePolicy
 
     core, _project, parent, sibling = await _core_with_agents(tmp_path)
-    _terminal(core, sibling, AgentState.CANCELLED, "cancel")
-    run_id = core.agent_host.start_run(parent)
+    await _terminal(core, sibling, AgentState.CANCELLED, "cancel")
+    run_id = await core.agent_host.start_run(parent)
     core.event_log.append(
         "agent.completion_gate", stream="agent", project_id=parent.project_id,
         session_id=parent.id, run_id=run_id,
         data={"action": "wait_background", "basis": "background_wait", "reason": "compute pending"},
     )
-    core.agent_host.finish_run(parent, outcome="succeeded")
+    await core.agent_host.finish_run(parent, outcome="succeeded")
     pending = True
 
     async def background_pending():
@@ -147,20 +147,20 @@ async def test_watcher_resumes_parked_run_once_notice_is_ready(tmp_path):
     from cloudra.runtime_v2.dispatcher import WakePolicy
 
     core, _project, parent, sibling = await _core_with_agents(tmp_path)
-    _terminal(core, sibling, AgentState.CANCELLED, "cancel")
-    run_id = core.agent_host.start_run(parent)
+    await _terminal(core, sibling, AgentState.CANCELLED, "cancel")
+    run_id = await core.agent_host.start_run(parent)
     core.event_log.append(
         "agent.completion_gate", stream="agent", project_id=parent.project_id,
         session_id=parent.id, run_id=run_id,
         data={"action": "wait_background", "basis": "background_wait", "reason": "compute pending"},
     )
-    core.agent_host.finish_run(parent, outcome="succeeded")
+    await core.agent_host.finish_run(parent, outcome="succeeded")
     resumed = []
 
     async def resume():
         resumed.append(True)
-        core.agent_host.wake(parent)
-        core.agent_host.finish_run(parent, outcome="succeeded")
+        await core.agent_host.wake(parent)
+        await core.agent_host.finish_run(parent, outcome="succeeded")
 
     pending = True
 
@@ -186,13 +186,13 @@ async def test_parked_run_resumes_once_when_peers_finish_without_new_notice(tmp_
     from types import SimpleNamespace
 
     core, _project, parent, sibling = await _core_with_agents(tmp_path)
-    run_id = core.agent_host.start_run(parent)
+    run_id = await core.agent_host.start_run(parent)
     core.event_log.append(
         "agent.completion_gate", stream="agent", project_id=parent.project_id,
         session_id=parent.id, run_id=run_id,
         data={"action": "wait_background", "basis": "background_wait"},
     )
-    core.agent_host.finish_run(parent, outcome="succeeded")
+    await core.agent_host.finish_run(parent, outcome="succeeded")
     reconciled = []
 
     async def reconcile(project_id):
@@ -205,7 +205,7 @@ async def test_parked_run_resumes_once_when_peers_finish_without_new_notice(tmp_
         pending_background=lambda: asyncio.sleep(0, result=False),
     )
     assert (await watcher.decide(core, parent)).kind == "continue"
-    _terminal(core, sibling, AgentState.SUCCEEDED, "done")
+    await _terminal(core, sibling, AgentState.SUCCEEDED, "done")
     reasons = []
 
     async def cancel(reason):
@@ -221,30 +221,30 @@ async def test_parked_succeeded_child_still_counts_as_live_peer(tmp_path):
     from cloudra.benchmark.watch import has_running_peers
 
     core, project, parent, sibling = await _core_with_agents(tmp_path)
-    _terminal(core, sibling, AgentState.CANCELLED, "cancel")
+    await _terminal(core, sibling, AgentState.CANCELLED, "cancel")
     bus = CommandBus(core)
     child = (await bus.execute(Command(
         type="agent.spawn", target={"project_id": project.id},
         payload={"role_id": "explorer", "parent_session_id": parent.id},
     ))).data
-    run_id = core.agent_host.start_run(child)
+    run_id = await core.agent_host.start_run(child)
     core.event_log.append(
         "agent.completion_gate", stream="agent", project_id=project.id,
         session_id=child.id, run_id=run_id,
         data={"action": "wait_background", "basis": "background_wait"},
     )
-    core.agent_host.finish_run(child, outcome="succeeded")
+    await core.agent_host.finish_run(child, outcome="succeeded")
     cache = {}
     assert has_running_peers(core, parent, final_cache=cache) is True
     assert has_running_peers(core, parent, final_cache=cache) is True
 
-    run_id = core.agent_host.start_run(child)
+    run_id = await core.agent_host.start_run(child)
     core.event_log.append(
         "agent.completion_gate", stream="agent", project_id=project.id,
         session_id=child.id, run_id=run_id,
         data={"action": "allow_final", "basis": "declared"},
     )
-    core.agent_host.finish_run(child, outcome="succeeded")
+    await core.agent_host.finish_run(child, outcome="succeeded")
     assert has_running_peers(core, parent, final_cache=cache) is False
 
 
@@ -252,15 +252,15 @@ async def test_parked_succeeded_child_still_counts_as_live_peer(tmp_path):
 async def test_wait_review_with_live_supervisor_not_stuck(tmp_path):
     """NI1 事故：wait_review 挂起等内部 Supervisor，不是人工审批卡死。"""
     core, project, parent, supervisor = await _core_with_agents(tmp_path, second_role="supervisor")
-    _set(core, supervisor, AgentState.RUNNING, "run_started")
-    _set(core, parent, AgentState.RUNNING, "run_started")
-    _set(core, parent, AgentState.WAITING_APPROVAL, "wait_review")
+    await _set(core, supervisor, AgentState.RUNNING, "run_started")
+    await _set(core, parent, AgentState.RUNNING, "run_started")
+    await _set(core, parent, AgentState.WAITING_APPROVAL, "wait_review")
 
     decision = await _watcher().decide(core, parent)
     assert decision.kind == "continue"
 
     # 督导自身结束（无人会再裁决）→ 落入卡死取消，而不是永远挂着
-    _terminal(core, supervisor, AgentState.SUCCEEDED, "done")
+    await _terminal(core, supervisor, AgentState.SUCCEEDED, "done")
     decision = await _watcher().decide(core, parent)
     assert decision.kind == "cancel"
     assert "no live supervisor" in decision.reason
@@ -269,8 +269,8 @@ async def test_wait_review_with_live_supervisor_not_stuck(tmp_path):
 @pytest.mark.asyncio
 async def test_wait_review_without_any_supervisor_cancels(tmp_path):
     core, _project, parent, _sibling = await _core_with_agents(tmp_path)
-    _set(core, parent, AgentState.RUNNING, "run_started")
-    _set(core, parent, AgentState.WAITING_APPROVAL, "wait_review")
+    await _set(core, parent, AgentState.RUNNING, "run_started")
+    await _set(core, parent, AgentState.WAITING_APPROVAL, "wait_review")
     decision = await _watcher().decide(core, parent)
     assert decision.kind == "cancel"
     assert "no live supervisor" in decision.reason
@@ -279,16 +279,16 @@ async def test_wait_review_without_any_supervisor_cancels(tmp_path):
 @pytest.mark.asyncio
 async def test_unanswered_hangs_are_stuck(tmp_path):
     core, _project, parent, sibling = await _core_with_agents(tmp_path)
-    _terminal(core, sibling, AgentState.SUCCEEDED, "done")
-    _set(core, parent, AgentState.RUNNING, "run_started")
+    await _terminal(core, sibling, AgentState.SUCCEEDED, "done")
+    await _set(core, parent, AgentState.RUNNING, "run_started")
 
-    _set(core, parent, AgentState.WAITING_INPUT, "ask_user")
+    await _set(core, parent, AgentState.WAITING_INPUT, "ask_user")
     decision = await _watcher().decide(core, parent)
     assert decision.kind == "cancel"
     assert "waiting_input" in decision.reason and "nobody to answer" in decision.reason
 
-    _set(core, parent, AgentState.RUNNING, "resumed")
-    _set(core, parent, AgentState.WAITING_APPROVAL, "approval")
+    await _set(core, parent, AgentState.RUNNING, "resumed")
+    await _set(core, parent, AgentState.WAITING_APPROVAL, "approval")
     decision = await _watcher().decide(core, parent)
     assert decision.kind == "cancel"
     assert "waiting_approval" in decision.reason
@@ -297,9 +297,9 @@ async def test_unanswered_hangs_are_stuck(tmp_path):
 @pytest.mark.asyncio
 async def test_wait_applies_stuck_grace_then_cancels(tmp_path):
     core, _project, parent, sibling = await _core_with_agents(tmp_path)
-    _terminal(core, sibling, AgentState.SUCCEEDED, "done")
-    _set(core, parent, AgentState.RUNNING, "run_started")
-    _set(core, parent, AgentState.WAITING_INPUT, "ask_user")
+    await _terminal(core, sibling, AgentState.SUCCEEDED, "done")
+    await _set(core, parent, AgentState.RUNNING, "run_started")
+    await _set(core, parent, AgentState.WAITING_INPUT, "ask_user")
 
     reasons: list[str] = []
 
@@ -315,9 +315,9 @@ async def test_wait_applies_stuck_grace_then_cancels(tmp_path):
 @pytest.mark.asyncio
 async def test_wait_wait_review_survives_grace_with_live_supervisor(tmp_path):
     core, _project, parent, supervisor = await _core_with_agents(tmp_path, second_role="supervisor")
-    _set(core, supervisor, AgentState.RUNNING, "run_started")
-    _set(core, parent, AgentState.RUNNING, "run_started")
-    _set(core, parent, AgentState.WAITING_APPROVAL, "wait_review")
+    await _set(core, supervisor, AgentState.RUNNING, "run_started")
+    await _set(core, parent, AgentState.RUNNING, "run_started")
+    await _set(core, parent, AgentState.WAITING_APPROVAL, "wait_review")
 
     cancelled: list[str] = []
 
@@ -333,7 +333,7 @@ async def test_wait_wait_review_survives_grace_with_live_supervisor(tmp_path):
         assert not wait_task.done()
     finally:
         # 督导死亡 → 落入卡死取消，等待收尾
-        _terminal(core, supervisor, AgentState.SUCCEEDED, "done")
+        await _terminal(core, supervisor, AgentState.SUCCEEDED, "done")
         reason = await asyncio.wait_for(wait_task, timeout=2.0)
         assert reason is not None and "no live supervisor" in reason
         assert cancelled == [reason]
@@ -342,8 +342,8 @@ async def test_wait_wait_review_survives_grace_with_live_supervisor(tmp_path):
 @pytest.mark.asyncio
 async def test_wait_run_timeout_cancels_running_agent(tmp_path):
     core, _project, parent, sibling = await _core_with_agents(tmp_path)
-    _terminal(core, sibling, AgentState.SUCCEEDED, "done")
-    _set(core, parent, AgentState.RUNNING, "run_started")
+    await _terminal(core, sibling, AgentState.SUCCEEDED, "done")
+    await _set(core, parent, AgentState.RUNNING, "run_started")
 
     reasons: list[str] = []
 
@@ -362,6 +362,6 @@ async def test_latest_state_reason_reads_event_log(tmp_path):
 
     core, _project, parent, _sibling = await _core_with_agents(tmp_path)
     assert latest_state_reason(core, parent.id) == ""
-    _set(core, parent, AgentState.RUNNING, "run_started")
-    _set(core, parent, AgentState.WAITING_APPROVAL, "wait_review")
+    await _set(core, parent, AgentState.RUNNING, "run_started")
+    await _set(core, parent, AgentState.WAITING_APPROVAL, "wait_review")
     assert latest_state_reason(core, parent.id) == "wait_review"

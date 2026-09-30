@@ -81,8 +81,8 @@ async def test_message_wakes_succeeded_agent_with_new_run():
     core = RuntimeCore(strict_events=True)
     project = (await _execute(core, "project.create", payload={"name": "p"})).data
     agent = (await _spawn(core, project.id)).data
-    run_id = core.agent_host.start_run(agent)
-    core.agent_host.finish_run(agent, outcome="succeeded")
+    run_id = await core.agent_host.start_run(agent)
+    await core.agent_host.finish_run(agent, outcome="succeeded")
     assert agent.state == "succeeded"
 
     result = await _execute(
@@ -103,7 +103,7 @@ async def test_cancel_and_restart_state_machine():
     core = RuntimeCore(strict_events=True)
     project = (await _execute(core, "project.create", payload={"name": "p"})).data
     agent = (await _spawn(core, project.id)).data
-    core.agent_host.start_run(agent)
+    await core.agent_host.start_run(agent)
 
     cancelled = await _execute(
         core,

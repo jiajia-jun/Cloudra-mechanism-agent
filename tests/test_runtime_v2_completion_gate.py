@@ -741,8 +741,8 @@ async def test_terminal_notice_during_gate_is_read_before_child_reports(tmp_path
     llm = _RoutingLLM([_stop_call(reason="waiting"), LLMResponse(content="verified result")])
     core, bus, project = await _new_core(llm, workspace_dir=tmp_path)
     parent = await _spawn_coordinator(bus, project, query=None)
-    core.agent_host.start_run(parent)
-    core.agent_host.finish_run(
+    await core.agent_host.start_run(parent)
+    await core.agent_host.finish_run(
         parent, outcome="failed", error="park parent", failure_kind=RunFailureKind.PIPELINE_INTERNAL
     )
     child = (

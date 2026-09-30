@@ -148,5 +148,5 @@ class MessageDispatcher:
             # 4) 再按状态决定唤醒。
             target = core.agents.get(to_session_id)
             if target is not None and should_wake(core, target, WakePolicy(wake)):
-                core.agent_host.wake(target, runner=core.runner)
+                await core.agent_host.wake(target, runner=core.runner)
             return envelope

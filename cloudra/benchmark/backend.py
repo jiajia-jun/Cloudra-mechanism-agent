@@ -224,7 +224,7 @@ class RuntimeV2Backend:
             # general broker.  This unattended benchmark watcher resumes its
             # coordinator once the notice reaches the inbox.
             if agent.state is AgentState.SUCCEEDED and core.runner is not None:
-                core.agent_host.wake(agent, runner=core.runner)
+                await core.agent_host.wake(agent, runner=core.runner)
 
         watcher = RunWatcher(
             run_timeout_s=self.run_timeout_s,

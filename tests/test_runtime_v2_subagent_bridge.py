@@ -410,7 +410,7 @@ async def test_child_completion_to_failed_parent_parks_without_reopening():
             )
         )
     ).data
-    run_id = core.agent_host.start_run(child)
+    run_id = await core.agent_host.start_run(child)
     core.event_log.append(
         "agent.message_emitted",
         stream="agent",
@@ -419,9 +419,9 @@ async def test_child_completion_to_failed_parent_parks_without_reopening():
         run_id=run_id,
         data={"sender": "explorer", "content": "explored everything"},
     )
-    core.agent_host.finish_run(child, outcome="succeeded")
-    core.agent_host.start_run(parent)
-    core.agent_host.finish_run(
+    await core.agent_host.finish_run(child, outcome="succeeded")
+    await core.agent_host.start_run(parent)
+    await core.agent_host.finish_run(
         parent,
         outcome="failed",
         error="parent boom",
@@ -472,7 +472,7 @@ async def test_child_completion_to_cancelled_parent_parks_without_reopening():
             )
         )
     ).data
-    run_id = core.agent_host.start_run(child)
+    run_id = await core.agent_host.start_run(child)
     core.event_log.append(
         "agent.message_emitted",
         stream="agent",
@@ -481,7 +481,7 @@ async def test_child_completion_to_cancelled_parent_parks_without_reopening():
         run_id=run_id,
         data={"sender": "explorer", "content": "explored everything"},
     )
-    core.agent_host.finish_run(child, outcome="succeeded")
+    await core.agent_host.finish_run(child, outcome="succeeded")
     await bus.execute(Command(type="agent.cancel", target={"session_id": parent.id}, payload={}))
     assert parent.state is AgentState.CANCELLED
     runs_before = len([e for e in core.event_log.query_session(parent.id) if e.type == "run.started"])
@@ -514,8 +514,8 @@ async def test_final_text_surfaces_recorded_failure_reason():
             )
         )
     ).data
-    core.agent_host.start_run(child)
-    core.agent_host.finish_run(
+    await core.agent_host.start_run(child)
+    await core.agent_host.finish_run(
         child,
         outcome="failed",
         error="kaplam: ts_opt diverged at step 7",
@@ -551,7 +551,7 @@ async def test_child_report_waits_for_first_final_run_and_is_delivered_once(tmp_
     ))).data
 
     async def finish(text: str, action: str):
-        run_id = await core.agent_host.start_run_durable(child)
+        run_id = await core.agent_host.start_run(child)
         await core.event_writer.commit(EventDraft(
             "agent.message_emitted", stream="agent", project_id=project.id,
             session_id=child.id, run_id=run_id,
@@ -562,7 +562,7 @@ async def test_child_report_waits_for_first_final_run_and_is_delivered_once(tmp_
             session_id=child.id, run_id=run_id,
             data={"action": action, "reason": "test", "source": "test"},
         ))
-        await core.agent_host.finish_run_durable(child, outcome="succeeded")
+        await core.agent_host.finish_run(child, outcome="succeeded")
         await deliver_child_completion_to_parent(core, child, wake=False)
 
     def reports(kernel):
@@ -612,8 +612,8 @@ async def test_restore_repairs_unreported_final_child_without_waking_parent(tmp_
         type="agent.spawn", target={"project_id": project.id},
         payload={"role_id": "explorer", "parent_session_id": parent.id},
     ))).data
-    await core.agent_host.start_run_durable(child)
-    await core.agent_host.finish_run_durable(child, outcome="succeeded")
+    await core.agent_host.start_run(child)
+    await core.agent_host.finish_run(child, outcome="succeeded")
 
     restored = RuntimeCore(strict_events=True)
     restored.store = store
@@ -656,13 +656,13 @@ async def test_waiting_launcher_ignores_parked_child_run():
     await asyncio.sleep(0)
 
     async def finish(action):
-        run_id = await core.agent_host.start_run_durable(child)
+        run_id = await core.agent_host.start_run(child)
         await core.event_writer.commit(EventDraft(
             "agent.completion_gate", stream="agent", project_id=project.id,
             session_id=child.id, run_id=run_id,
             data={"action": action, "reason": "test", "source": "test"},
         ))
-        await core.agent_host.finish_run_durable(child, outcome="succeeded")
+        await core.agent_host.finish_run(child, outcome="succeeded")
 
     await finish("wait_background")
     assert not waiter.done()

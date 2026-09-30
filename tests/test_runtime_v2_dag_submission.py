@@ -960,7 +960,7 @@ async def test_real_submission_respects_supervisor_state_table(tmp_path, target_
                 await asyncio.wait_for(llm.entered.wait(), timeout=5)
                 assert supervisor.state.value == "running"
                 if target_state == "waiting":
-                    core.agent_host.transition(
+                    await core.agent_host.transition(
                         supervisor,
                         AgentState.WAITING_APPROVAL,
                         reason="wait_approval",

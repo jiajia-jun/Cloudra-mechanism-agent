@@ -79,7 +79,7 @@ async def test_spawn_cannot_combine_peer_requester_with_child_parent(tmp_path):
 
 
 async def _finish(core, peer, *, text: str, outcome: str, failure_kind=None, gate_action=None):
-    run_id = await core.agent_host.start_run_durable(peer)
+    run_id = await core.agent_host.start_run(peer)
     await core.event_writer.commit(
         EventDraft(
             "agent.message_emitted",
@@ -101,7 +101,7 @@ async def _finish(core, peer, *, text: str, outcome: str, failure_kind=None, gat
                 data={"action": gate_action, "reason": "test gate", "source": "test"},
             )
         )
-    await core.agent_host.finish_run_durable(
+    await core.agent_host.finish_run(
         peer, outcome=outcome, failure_kind=failure_kind,
         error="pipeline failed" if outcome == "failed" else None,
     )
@@ -357,7 +357,7 @@ async def test_failed_completion_write_is_not_visible_and_restore_repairs_it(tmp
 @pytest.mark.asyncio
 async def test_restore_reports_interrupted_peer_and_does_not_wake_requester(tmp_path):
     core, store, _bus, requester, peer = await _sessions(tmp_path)
-    await core.agent_host.start_run_durable(peer)
+    await core.agent_host.start_run(peer)
     restored = RuntimeCore(strict_events=True)
     restored.store = store
     restore_core(restored, store)

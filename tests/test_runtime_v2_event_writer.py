@@ -378,7 +378,7 @@ async def test_context_broker_persist_failure_does_not_apply():
 
 
 @pytest.mark.asyncio
-async def test_start_run_durable_persist_failure_leaves_queued():
+async def test_start_run_persist_failure_leaves_queued():
     from cloudra.runtime_v2.event_writer import EventPersistenceError
     from cloudra.runtime_v2.schemas import AgentState
 
@@ -396,9 +396,104 @@ async def test_start_run_durable_persist_failure_leaves_queued():
     agent = next(iter(core.agents.values()))
     core.store = FailingStore()
     with pytest.raises(EventPersistenceError):
-        await core.agent_host.start_run_durable(agent)
+        await core.agent_host.start_run(agent)
     assert agent.state is AgentState.QUEUED
     assert not any(envelope.type == "run.started" for envelope in core.event_log)
+
+
+class RecordingRunner:
+    def __init__(self) -> None:
+        self.scheduled: list[str] = []
+
+    def schedule(self, session_id: str) -> None:
+        self.scheduled.append(session_id)
+
+
+@pytest.mark.asyncio
+async def test_wake_persists_before_scheduling():
+    """wake 落盘先于调度：落库失败既不推进状态，也不 schedule runner。"""
+    from cloudra.runtime_v2.event_writer import EventPersistenceError
+    from cloudra.runtime_v2.schemas import AgentState
+
+    core = RuntimeCore()
+    bus = CommandBus(core)
+    project = (
+        await bus.execute(Command(type="project.create", payload={"name": "p"}))
+    ).data
+    agent = (
+        await bus.execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": project.id},
+                payload={"role_id": "coordinator"},
+            )
+        )
+    ).data
+    runner = RecordingRunner()
+
+    # 正常路径：先落盘，再调度。
+    await core.agent_host.wake(agent, runner=runner)
+    assert runner.scheduled == [agent.id]
+    assert agent.state is AgentState.RUNNING
+
+    # 落库失败：状态不推进、日志不新增、绝不调度。
+    runs_before = [
+        envelope
+        for envelope in core.event_log
+        if envelope.type == "run.started" and envelope.session_id == agent.id
+    ]
+    core.store = FailingStore()
+    live = core.agents[agent.id]
+    live.state = AgentState.QUEUED
+    live.current_run = None
+    runner.scheduled.clear()
+    with pytest.raises(EventPersistenceError):
+        await core.agent_host.wake(live, runner=runner)
+    assert runner.scheduled == []
+    assert live.state is AgentState.QUEUED
+    runs_after = [
+        envelope
+        for envelope in core.event_log
+        if envelope.type == "run.started" and envelope.session_id == agent.id
+    ]
+    assert runs_after == runs_before
+
+
+@pytest.mark.asyncio
+async def test_transition_persist_failure_does_not_apply_or_keep_the_draft():
+    """transition 落库失败时既不投影状态，也不把草稿留在内存日志里。"""
+    from cloudra.runtime_v2.event_writer import EventPersistenceError
+    from cloudra.runtime_v2.schemas import AgentState
+
+    core = RuntimeCore()
+    core.store = RecordingStore()
+    bus = CommandBus(core)
+    project = (
+        await bus.execute(Command(type="project.create", payload={"name": "p"}))
+    ).data
+    agent = (
+        await bus.execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": project.id},
+                payload={"role_id": "coordinator"},
+            )
+        )
+    ).data
+    run_id = await core.agent_host.start_run(agent)
+    assert agent.state is AgentState.RUNNING
+
+    core.store = FailingStore()
+    with pytest.raises(EventPersistenceError):
+        await core.agent_host.transition(
+            agent, AgentState.WAITING_APPROVAL, reason="wait_review", run_id=run_id
+        )
+    assert agent.state is AgentState.RUNNING
+    assert not any(
+        envelope.type == "agent.state_changed"
+        and envelope.data.get("to") == AgentState.WAITING_APPROVAL.value
+        for envelope in core.event_log
+    )
 
 
 def test_persisted_watermarks_ignore_unpersisted_tail():

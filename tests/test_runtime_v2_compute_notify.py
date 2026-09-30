@@ -413,8 +413,8 @@ async def test_subagent_waits_for_all_owned_jobs_before_one_wake():
             )
         )
     ).data
-    core.agent_host.start_run(child)
-    core.agent_host.finish_run(child, outcome="succeeded")
+    await core.agent_host.start_run(child)
+    await core.agent_host.finish_run(child, outcome="succeeded")
     finished = [
         _insert_terminal_job(project.id, session_id=child.id, path=f"/tmp/done-{i}.gjf")
         for i in range(2)
@@ -462,8 +462,8 @@ async def test_same_poll_batch_wakes_subagent_once():
             )
         )
     ).data
-    core.agent_host.start_run(child)
-    core.agent_host.finish_run(child, outcome="succeeded")
+    await core.agent_host.start_run(child)
+    await core.agent_host.finish_run(child, outcome="succeeded")
     job_ids = [
         _insert_terminal_job(project.id, session_id=child.id, path=f"/tmp/batch-{i}.gjf")
         for i in range(2)
@@ -497,8 +497,8 @@ async def test_subagent_wakes_only_after_terminal_backlog_exceeds_poll_batch():
             )
         )
     ).data
-    core.agent_host.start_run(child)
-    core.agent_host.finish_run(child, outcome="succeeded")
+    await core.agent_host.start_run(child)
+    await core.agent_host.finish_run(child, outcome="succeeded")
     job_ids = [
         _insert_terminal_job(project.id, session_id=child.id, path="")
         for _ in range(51)
@@ -642,8 +642,8 @@ async def test_notified_mark_failure_holds_later_notice_and_wake(monkeypatch):
             )
         )
     ).data
-    core.agent_host.start_run(child)
-    core.agent_host.finish_run(child, outcome="succeeded")
+    await core.agent_host.start_run(child)
+    await core.agent_host.finish_run(child, outcome="succeeded")
     job_ids = [
         _insert_terminal_job(project.id, session_id=child.id, path="")
         for _ in range(2)
@@ -691,8 +691,8 @@ async def test_final_notice_ack_failure_does_not_wake_or_duplicate(monkeypatch):
             )
         )
     ).data
-    core.agent_host.start_run(child)
-    core.agent_host.finish_run(child, outcome="succeeded")
+    await core.agent_host.start_run(child)
+    await core.agent_host.finish_run(child, outcome="succeeded")
     job_id = _insert_terminal_job(project.id, session_id=child.id, path="")
     wakes = []
 

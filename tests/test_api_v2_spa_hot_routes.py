@@ -133,7 +133,7 @@ async def test_cancel_agent_http_marks_cancelled():
         assert resp.status_code == 201
         agent = resp.json()["data"]
         live = core.require_agent(agent["id"])
-        core.agent_host.start_run(live)
+        await core.agent_host.start_run(live)
         assert live.state is AgentState.RUNNING
 
         resp = await client.post(f"/api/v2/agents/{agent['id']}/cancel", json={})
@@ -156,7 +156,7 @@ async def test_approval_decision_http_approve_and_deny():
         project, agent = await _project_with_agent(client)
         live = core.require_agent(agent["id"])
         await _wait_for(lambda: live.state is AgentState.SUCCEEDED)
-        core.agent_host.start_run(live)
+        await core.agent_host.start_run(live)
 
         async def ask():
             return await core.pending.request_approval(
@@ -219,7 +219,7 @@ async def test_interaction_response_http():
         project, agent = await _project_with_agent(client)
         live = core.require_agent(agent["id"])
         await _wait_for(lambda: live.state is AgentState.SUCCEEDED)
-        core.agent_host.start_run(live)
+        await core.agent_host.start_run(live)
 
         task = asyncio.create_task(core.pending.request_interaction(live, "which solvent?"))
         await _wait_for(lambda: core.pending.list_pending_interactions(project["id"]))

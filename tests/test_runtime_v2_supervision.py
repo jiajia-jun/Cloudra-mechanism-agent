@@ -574,7 +574,7 @@ async def test_waiting_supervisor_keeps_notification_without_bypassing_wait():
         await asyncio.wait_for(llm.entered.wait(), timeout=5)
 
         # 进入等待态（agent_host 是非命令路径的命令式壳，runner 内部同款）。
-        core.agent_host.transition(
+        await core.agent_host.transition(
             supervisor,
             AgentState.WAITING_APPROVAL,
             reason="wait_approval",
@@ -2017,21 +2017,21 @@ async def _supervisor_in_state(bus, core, project, coordinator, target_state: st
     ).data
     host = core.agent_host
     if target_state == "running":
-        host.start_run(supervisor)
+        await host.start_run(supervisor)
     elif target_state == "waiting":
-        host.start_run(supervisor)
-        host.transition(
+        await host.start_run(supervisor)
+        await host.transition(
             supervisor,
             AgentState.WAITING_APPROVAL,
             reason="wait_approval",
             run_id=supervisor.current_run.run_id,
         )
     elif target_state == "succeeded":
-        host.start_run(supervisor)
-        host.finish_run(supervisor, outcome="succeeded")
+        await host.start_run(supervisor)
+        await host.finish_run(supervisor, outcome="succeeded")
     elif target_state == "failed":
-        host.start_run(supervisor)
-        host.finish_run(
+        await host.start_run(supervisor)
+        await host.finish_run(
             supervisor,
             outcome="failed",
             error="boom",
@@ -2372,8 +2372,8 @@ async def test_reconcile_without_auto_wake_parks_succeeded_supervisor():
                 )
             )
         ).data
-        core.agent_host.start_run(supervisor)
-        core.agent_host.finish_run(supervisor, outcome="succeeded")
+        await core.agent_host.start_run(supervisor)
+        await core.agent_host.finish_run(supervisor, outcome="succeeded")
         assert supervisor.state.value == "succeeded"
         calls_before = llm.supervisor_calls
 
@@ -2442,8 +2442,8 @@ async def test_find_project_supervisor_prefers_non_terminal_when_duplicate():
                 )
             )
         ).data
-        core.agent_host.start_run(first)
-        core.agent_host.finish_run(
+        await core.agent_host.start_run(first)
+        await core.agent_host.finish_run(
             first,
             outcome="failed",
             error="old",
