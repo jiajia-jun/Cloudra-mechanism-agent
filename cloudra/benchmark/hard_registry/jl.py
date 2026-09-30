@@ -8,7 +8,7 @@ registry 只留定稿条目。
 """
 
 TASKS = {
-    # [OH3+].CC/C(=N/O)/C>>[OH3+].CCNC(C)=O  (+1/1)  (E)-丁酮肟 Beckmann
+    # [OH3+].CC/C(=N/O)/C>>CCNC(C)=[OH+].O  (+1/1)  (E)-丁酮肟 Beckmann
     # 骨架照 normal R2（丙酮肟）五步，唯一差别：迁移基团为乙基（R2 为甲基）。
     # 映射：1=H3O+ 的 O，2=迁移质子，9/10=H3O+ 其余 H；3=肟碳上的甲基（不迁移），
     # 4=肟 C，5/11=anti 迁移乙基（CH2/CH3），6=N，7=肟 OH 的 O，8=其 H。
@@ -33,10 +33,11 @@ TASKS = {
                 "weight": 0.5,
             },
             {
-                # I3/I4 在既定气相方法下坍缩回 I2；水合及质子接力只声明净步骤。
-                # 孤立亚胺酸的 28.46 kcal/mol 不属于这条带水、带电荷的边。
-                "out": "[O:1]=[C:4]([CH3:3])[N:6]([H:10])[CH2:5][CH3:11].[O+:7]([H:8])([H:2])[H:9]",
-                "type": "net hydration and proton relay from nitrilium plus two waters to N-ethylacetamide plus hydronium; no stable imidic-acid intermediates at the specified gas-phase method",
+                # I3/I4 在既定气相方法下坍缩回 I2；声明的酰胺+H3O+也会自发转为
+                # O-质子化酰胺+水（job 665，零虚频）。孤立亚胺酸的 28.46 kcal/mol
+                # 不属于这条带水、带电荷的净边。
+                "out": "[O+:1]([H:9])=[C:4]([CH3:3])[N:6]([H:10])[CH2:5][CH3:11].[O:7]([H:8])[H:2]",
+                "type": "net hydration and proton relay from nitrilium plus two waters to O-protonated N-ethylacetamide plus water; no stable imidic-acid intermediates at the specified gas-phase method",
             },
         ],
     },
