@@ -486,7 +486,7 @@ def _greedy_heavy_atom_clusters(kept_positions, heavy_indices, threshold: float)
 def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParameters] = None,
              reaction_center: Optional[list[tuple[int, int]]] = None,
              guided_windows: Optional[list[tuple[int, int, float, float]]] = None,
-             seed: int = 42) -> AssemblyResult:
+             seed: int = 42, candidate_sink=None) -> AssemblyResult:
     """组装反应复合物/普通复合物。
 
     ``components``：``(mol, conf_id)`` 序列（来自 ``structure_builder`` 的逐组分构建）。
@@ -527,6 +527,11 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
     placements = _sample_placements(mol, groups, params)
     collision_rejected = 0
     scored: list[tuple[float, int, list[list[float]]]] = []
+    captured_parents = {}
+    if candidate_sink:
+        for placement_index, positions in placements:
+            _set_positions(mol, conf_id, positions)
+            captured_parents[placement_index] = candidate_sink.capture(mol, conf_id, generator="rigid_placement", seed=seed)
     for placement_index, positions in placements:
         worst = min(
             min_distance(positions, groups[i], groups[j])
@@ -534,6 +539,11 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
         )
         if worst < params.min_interfragment_distance:
             collision_rejected += 1
+            if candidate_sink:
+                from cloudra.tools.core.conformer_catalog import Qualification
+                _set_positions(mol,conf_id,positions)
+                candidate_sink.capture(mol,conf_id,generator='placement_qualification',parent_id=captured_parents[placement_index].candidate_id,
+                    state='rejected',qualification=Qualification(status='rejected',reasons=['interfragment_collision']))
             continue
         if guided_windows or reaction_center:
             _set_positions(mol, conf_id, positions)
@@ -582,6 +592,21 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
             release_when_in_window=(params.reaction_center_window if reaction_center else None),
             guided_windows=guided_windows,
         )
+        if candidate_sink:
+            from cloudra.tools.core.conformer_catalog import Qualification
+            optimized_capture = candidate_sink.capture(mol, conf_id, generator="assembly_MMFF94", parent_id=captured_parents[placement_index].candidate_id,
+                state="failed" if failure or not converged else "optimized",
+                qualification=Qualification(status="rejected" if failure or not converged else "unknown",
+                reasons=[failure or "optimization_not_converged"] if failure or not converged else []))
+        def archive_outcome(reason=None, energy=None):
+            if candidate_sink:
+                from cloudra.tools.core.conformer_catalog import EnergyObservation, Qualification
+                energies=[EnergyObservation(value=energy,unit='kcal/mol',method_fingerprint='MMFF94/unconstrained_potential',
+                    species_key=optimized_capture.species_key,charge=Chem.GetFormalCharge(mol),
+                    multiplicity=candidate_sink.multiplicity,convergence='converged',artifact_ref=output_dir)] if energy is not None else []
+                candidate_sink.capture(mol,conf_id,generator='assembly_qualification',parent_id=optimized_capture.candidate_id,
+                    state='rejected' if reason else 'optimized',
+                    qualification=Qualification(status='rejected' if reason else 'unknown',reasons=[reason] if reason else ['assembly checks passed; reaction geometry qualification remains separate']),energies=energies)
         if failure:
             if writer.frame_count == 0:
                 # 力场构造失败时一帧都没写：先补上刚性放置这一帧，失败轨迹才有内容可查
@@ -620,6 +645,7 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
             mol.GetConformer(conf_id).GetPositions(), groups,
         )
         if min_gap < params.min_interfragment_distance:
+            archive_outcome('interfragment_collision_after_relaxation')
             collapsed += 1
             diagnostics.append(
                 f"placement {placement_index}: relaxation collapsed the components to {min_gap:.3f} A "
@@ -632,6 +658,7 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
             factor=params.max_interfragment_vdw_factor,
         )
         if len(clusters) > 1:
+            archive_outcome('disconnected_fragment_clusters_after_relaxation')
             dissociated += 1
             diagnostics.append(
                 f"placement {placement_index}: disconnected fragment clusters (0-based) {clusters}; "
@@ -644,6 +671,7 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
             # 候选的无约束能量不可直接相减比较；先用无约束力场对最终几何做单点重估再进排序。
             ff_free = _mmff_force_field(mol, conf_id)
             if ff_free is None:
+                archive_outcome('unconstrained_energy_unavailable')
                 diagnostics.append(
                     f"placement {placement_index}: the constraint was not released and an "
                     "unconstrained MMFF94 single point could not be constructed, so its "
@@ -667,6 +695,7 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
         checked_windows = guided_windows if guided_windows is not None else [
             (left, right, *params.reaction_center_window) for left, right in reaction_center or []
         ]
+        archive_outcome(energy=energy_kcal)
         candidates.append(AssemblyCandidate(
             candidate_id=len(candidates),
             placement_index=placement_index,
@@ -820,3 +849,41 @@ def _finalize(result: AssemblyResult, output_dir: str) -> AssemblyResult:
     result.artifact_path = os.path.join(output_dir, ASSEMBLY_JSON_NAME)
     atomic_write_text(result.artifact_path, result.model_dump_json(indent=2) + "\n")
     return result
+
+
+class Placement(BaseModel):
+    positions: list[list[float]]
+    fragment_transforms: list[dict]
+    seed: int
+    sampling_method: str = "independent_rigid_fragments"
+
+
+def sample_independent_placements(mol, groups: list[list[int]], *, seed: int, count: int,
+                                  parameters: AssemblyParameters, conformer_id: int = -1) -> list[Placement]:
+    """Supplemental seeded sampling; first fragment fixed, intrafragment geometry preserved."""
+    import numpy as np
+
+    if count < 1 or not groups or sorted(i for g in groups for i in g) != list(range(mol.GetNumAtoms())):
+        raise ValueError("positive count and complete nonoverlapping fragment groups required")
+    random = np.random.default_rng(seed)
+    base = mol.GetConformer(conformer_id).GetPositions()
+    placements = []
+    for _ in range(count):
+        positions = base.copy()
+        transforms = [{"axis": [0.,0.,1.], "angle_rad": 0., "translation_ang": [0.,0.,0.]}]
+        for group in groups[1:]:
+            axis = random.normal(size=3)
+            axis /= np.linalg.norm(axis)
+            angle = float(random.uniform(-np.pi, np.pi))
+            cross = np.array([[0.,-axis[2],axis[1]],[axis[2],0.,-axis[0]],[-axis[1],axis[0],0.]])
+            rotation = np.eye(3) * np.cos(angle) + (1-np.cos(angle))*np.outer(axis,axis) + np.sin(angle)*cross
+            center = positions[group].mean(axis=0)
+            shift = random.normal(size=3)
+            positions[group] = (positions[group]-center) @ rotation.T + center + shift
+            transforms.append({"axis": axis.tolist(), "angle_rad": angle, "translation_ang": shift.tolist()})
+        separated = _separate_along_axis(positions, groups, parameters.min_interfragment_distance)
+        for group, transform in zip(groups, transforms):
+            delta = separated[group].mean(axis=0) - positions[group].mean(axis=0)
+            transform["translation_ang"] = (np.asarray(transform["translation_ang"])+delta).tolist()
+        placements.append(Placement(positions=separated.tolist(),fragment_transforms=transforms,seed=seed))
+    return placements

@@ -1,0 +1,9 @@
+{
+  "provenance": "Synthetic coordinate measurements; no QM results or physical basin ground truth.",
+  "cases": [
+    {"name": "separated_distances", "kind": "distance", "atom_ids": ["a","b"], "values": [1.00,1.01,0.99,1.02,0.98,1.03,3.00,3.01,2.99,3.02,2.98,3.03], "expected": "strong_exploratory_split"},
+    {"name": "periodic_seam", "kind": "dihedral", "atom_ids": ["a","b","c","d"], "values": [179,-179,178,-178,177,-177,176,-176], "expected": "short_contiguous_arc"},
+    {"name": "identical_measurements", "kind": "distance", "atom_ids": ["a","b"], "values": [1,1,1,1,1,1], "expected": "no_identifiable_split"},
+    {"name": "too_few", "kind": "distance", "atom_ids": ["a","b"], "values": [1,2,3], "expected": "insufficient_samples"}
+  ]
+}

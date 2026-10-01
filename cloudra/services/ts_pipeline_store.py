@@ -1,0 +1,272 @@
+"""Durable TS processes and stage bindings in the existing compute ledger."""
+from __future__ import annotations
+
+import hashlib
+import json
+from pathlib import Path
+from typing import Literal
+
+from pydantic import Field
+
+from cloudra.persistence.database import ComputeDB, retry_on_locked
+from cloudra.services.exploration_budget_store import ExplorationBudget
+from cloudra.tools.core.conformer_catalog import CatalogModel, content_digest
+
+
+class ProcessPayload(CatalogModel):
+    project_id: str = Field(min_length=1)
+    owner_id: str | None = None
+    workspace_dir: str = Field(min_length=1)
+    declaration: dict
+    exploration_budget: ExplorationBudget | None = None
+    compute_estimates: dict[str, float] = Field(default_factory=dict)
+    candidate_catalog: dict | None = None
+    compute_cpus: int | None = Field(default=None,ge=1)
+    compute_memory_mb: int = Field(default=4096,ge=1)
+
+    def validated(self):
+        from cloudra.tools.core.ts_process import TsDeclaration
+        return self.model_copy(update={'declaration': TsDeclaration.model_validate(self.declaration).model_dump(mode='json')})
+
+
+class StageJobPayload(CatalogModel):
+    conversation_id: str
+    session_id: str | None = None
+    path: str = Field(min_length=1)
+    state: Literal['ready'] = 'ready'
+    jobtype: str
+    node_id: str
+    scheduler: str = 'local'
+    scheduler_options: str = '{}'
+    priority: int = 0
+    req_cpus: int = Field(default=1, ge=1)
+    req_memory_mb: int | None = Field(default=None, ge=1)
+    charge: int = 0
+    multiplicity: int = Field(default=1, ge=1)
+    xtb_task: str = 'sp'
+    xtb_solvent: str | None = None
+    start_timestamp: float = -1
+
+
+class StageBindingRequest(CatalogModel):
+    process_id: str
+    declaration_revision: int = Field(ge=1)
+    stage_key: str = Field(min_length=1)
+    attempt: int = Field(ge=1)
+    job_payload: StageJobPayload
+
+
+class StageEvidence(CatalogModel):
+    status: Literal['done', 'failed', 'blocked']
+    artifacts: list[str]
+    input_hash: str
+    detail: str = ''
+
+
+def create_process(db: ComputeDB, *, request_key: str, payload: dict) -> dict:
+    if not request_key:
+        raise ValueError('nonempty request key required')
+    data = ProcessPayload.model_validate(payload).validated()
+    text = data.model_dump_json()
+    pid = content_digest([data.project_id, data.owner_id, request_key])
+    def operation():
+        with db.connect() as con:
+            con.execute('BEGIN IMMEDIATE')
+            old = con.execute('SELECT payload FROM ts_pipeline_processes WHERE process_id=?', (pid,)).fetchone()
+            if old and old[0] != text:
+                raise ValueError('request key declaration/scope conflict')
+            con.execute('INSERT OR IGNORE INTO ts_pipeline_processes VALUES (?,?,?,?,?,1,0,?,NULL)',
+                        (pid, request_key, data.project_id, data.owner_id, text, 'running'))
+            con.execute('INSERT OR IGNORE INTO ts_pipeline_declarations VALUES (?,1,?)',
+                        (pid, json.dumps(data.declaration,sort_keys=True)))
+        return get_process(db, pid)
+    return retry_on_locked(operation)
+
+
+def get_process(db: ComputeDB, process_id: str) -> dict | None:
+    with db.connect() as con:
+        row = con.execute('SELECT process_id,payload,declaration_revision,revision,status,record '
+                          'FROM ts_pipeline_processes WHERE process_id=?', (process_id,)).fetchone()
+    if row is None:
+        return None
+    return dict(process_id=row[0], payload=json.loads(row[1]), declaration_revision=row[2], revision=row[3],
+                status=row[4], record=json.loads(row[5]) if row[5] else None)
+
+
+def bind_stage_job(db: ComputeDB, *, process_id: str, declaration_revision: int, stage_key: str,
+                   attempt: int, job_payload: dict, reservation_id: str | None = None,
+                   action_key: str | None = None) -> int:
+    from cloudra.services.compute_store import insert_compute_job_in_transaction
+    job = StageJobPayload.model_validate(job_payload)
+    if not stage_key or declaration_revision < 1 or attempt < 1:
+        raise ValueError('valid stage key, declaration revision and attempt required')
+    if (reservation_id is None) != (action_key is None):
+        raise ValueError('complete budget binding required')
+    input_hash = hashlib.sha256(Path(job.path).read_bytes()).hexdigest()
+    fingerprint = content_digest([job.model_dump(), input_hash, reservation_id, action_key])
+    def operation():
+        with db.connect() as con:
+            con.execute('BEGIN IMMEDIATE')
+            scope = con.execute('SELECT project_id,owner_id,declaration_revision FROM ts_pipeline_processes '
+                                'WHERE process_id=?', (process_id,)).fetchone()
+            if scope is None or scope[:2] != (job.conversation_id, job.session_id):
+                raise ValueError('stage job owner mismatch')
+            if scope[2] != declaration_revision:
+                raise ValueError('stale declaration revision')
+            key = (process_id, declaration_revision, stage_key, attempt)
+            existing = con.execute('SELECT job_id,input_hash FROM ts_pipeline_stages '
+                                   'WHERE process_id=? AND declaration_revision=? AND stage_key=? AND attempt=?', key).fetchone()
+            if existing:
+                if existing[1] != fingerprint:
+                    raise ValueError('immutable stage input conflict')
+                return int(existing[0])
+            if reservation_id is not None:
+                released=con.execute('SELECT 1 FROM exploration_released_actions WHERE process_id=? AND action_key=?',(process_id,action_key)).fetchone()
+                if released:
+                    raise ValueError('reservation action released')
+                accounting = con.execute('SELECT process_id,job_id,actual FROM exploration_actions '
+                                         'WHERE reservation_id=? AND action_key=?', (reservation_id, action_key)).fetchone()
+                if accounting is None or accounting[0] != process_id or accounting[1] is not None or accounting[2] is not None:
+                    raise ValueError('reservation missing, foreign, consumed or settled')
+            job_id = insert_compute_job_in_transaction(con, **job.model_dump())
+            con.execute('INSERT INTO ts_pipeline_stages VALUES (?,?,?,?,?,?,NULL)', (*key, job_id, fingerprint))
+            con.execute('INSERT INTO ts_pipeline_inputs VALUES (?,?)',(job_id,input_hash))
+            if reservation_id is not None:
+                con.execute('UPDATE exploration_actions SET job_id=? WHERE reservation_id=? AND action_key=?',
+                            (job_id, reservation_id, action_key))
+            con.execute('UPDATE ts_pipeline_processes SET revision=revision+1 WHERE process_id=?', (process_id,))
+            return job_id
+    return retry_on_locked(operation)
+
+
+def commit_stage_result(db: ComputeDB, *, process_id: str, expected_revision: int, stage_key: str,
+                        attempt: int, evidence: dict) -> bool:
+    result = StageEvidence.model_validate(evidence)
+    def operation():
+        with db.connect() as con:
+            con.execute('BEGIN IMMEDIATE')
+            row = con.execute('SELECT declaration_revision,revision FROM ts_pipeline_processes WHERE process_id=?',
+                              (process_id,)).fetchone()
+            if row is None or row[1] != expected_revision:
+                return False
+            key = (process_id, row[0], stage_key, attempt)
+            old = con.execute('SELECT evidence FROM ts_pipeline_stages WHERE process_id=? '
+                              'AND declaration_revision=? AND stage_key=? AND attempt=?', key).fetchone()
+            if old is None:
+                raise ValueError('stage binding missing')
+            if old[0] is not None:
+                if old[0] != result.model_dump_json():
+                    raise ValueError('immutable stage result conflict')
+                return True
+            con.execute('UPDATE ts_pipeline_stages SET evidence=? WHERE process_id=? AND declaration_revision=? '
+                        'AND stage_key=? AND attempt=?', (result.model_dump_json(), *key))
+            con.execute('UPDATE ts_pipeline_processes SET revision=revision+1 WHERE process_id=?', (process_id,))
+            return True
+    return retry_on_locked(operation)
+
+
+def process_for_job(db: ComputeDB, job_id: int) -> str | None:
+    with db.connect() as con:
+        row = con.execute('SELECT process_id FROM ts_pipeline_stages WHERE job_id=?', (job_id,)).fetchone()
+    return row[0] if row else None
+
+
+def list_unfinished_processes(db: ComputeDB, project_id: str) -> list[str]:
+    with db.connect() as con:
+        return [row[0] for row in con.execute("SELECT process_id FROM ts_pipeline_processes WHERE project_id=? "
+                                             "AND status NOT IN ('completed','failed','cancelled') ORDER BY process_id",
+                                             (project_id,)).fetchall()]
+
+
+def save_process_record(db: ComputeDB, *, process_id: str, record: dict,
+                        expected_revision: int | None = None) -> bool:
+    from cloudra.tools.core.ts_process import TsProcessRecord
+    state = TsProcessRecord.model_validate(record)
+    if state.pipeline_id != process_id:
+        raise ValueError('record process mismatch')
+    status = 'completed' if state.terminal == 'verified' else 'failed' if state.terminal else 'blocked' if state.blocked else 'waiting' if state.waiting_for else 'running'
+    def operation():
+        with db.connect() as con:
+            con.execute('BEGIN IMMEDIATE')
+            scope = con.execute('SELECT project_id,owner_id,revision,declaration_revision FROM ts_pipeline_processes WHERE process_id=?',
+                                (process_id,)).fetchone()
+            if scope is None or scope[:2] != (state.owner_conversation_id, state.owner_session_id):
+                raise ValueError('record owner mismatch')
+            if state.declaration_revision != scope[3]:
+                raise ValueError('stale record declaration revision')
+            if expected_revision is not None and scope[2] != expected_revision:
+                return False
+            con.execute('UPDATE ts_pipeline_processes SET record=?,status=?,revision=revision+1 WHERE process_id=?',
+                        (state.model_dump_json(), status, process_id))
+            return True
+    return retry_on_locked(operation)
+
+
+def revise_declaration(db: ComputeDB, *, process_id: str, expected_declaration_revision: int,
+                       declaration: dict) -> int:
+    from cloudra.tools.core.ts_process import TsDeclaration
+    text=TsDeclaration.model_validate(declaration).model_dump_json()
+    def operation():
+        with db.connect() as con:
+            con.execute('BEGIN IMMEDIATE')
+            current=con.execute('SELECT declaration_revision FROM ts_pipeline_processes WHERE process_id=?',(process_id,)).fetchone()
+            if current is None or current[0]!=expected_declaration_revision:
+                raise ValueError('stale declaration revision')
+            revision=current[0]+1
+            con.execute('INSERT INTO ts_pipeline_declarations VALUES (?,?,?)',(process_id,revision,text))
+            con.execute('UPDATE ts_pipeline_processes SET declaration_revision=?,revision=revision+1 WHERE process_id=?',(revision,process_id))
+            return revision
+    return retry_on_locked(operation)
+
+
+def commit_adjusted_record(db: ComputeDB, *, process_id: str, expected_declaration_revision: int,
+                           record: dict, released_action_keys: list[str]) -> None:
+    """Commit declaration, invalidated branch checkpoint and unused releases together."""
+    from cloudra.tools.core.ts_process import TsProcessRecord
+    state=TsProcessRecord.model_validate(record)
+    if state.pipeline_id!=process_id or state.declaration_revision not in (expected_declaration_revision,expected_declaration_revision+1):
+        raise ValueError('adjustment revision mismatch')
+    status='completed' if state.terminal=='verified' else 'failed' if state.terminal else 'blocked' if state.blocked else 'waiting' if state.waiting_for else 'running'
+    def operation():
+        with db.connect() as con:
+            con.execute('BEGIN IMMEDIATE')
+            scope=con.execute('SELECT project_id,owner_id,declaration_revision FROM ts_pipeline_processes WHERE process_id=?',(process_id,)).fetchone()
+            if scope is None or scope[:2]!=(state.owner_conversation_id,state.owner_session_id) or scope[2]!=expected_declaration_revision:
+                raise ValueError('stale adjustment or owner mismatch')
+            if state.declaration_revision!=expected_declaration_revision:
+                con.execute('INSERT INTO ts_pipeline_declarations VALUES (?,?,?)',(process_id,state.declaration_revision,state.declaration.model_dump_json()))
+            con.execute('UPDATE ts_pipeline_processes SET declaration_revision=?,record=?,status=?,revision=revision+1 WHERE process_id=?',
+                (state.declaration_revision,state.model_dump_json(),status,process_id))
+            if state.exploration_budget is not None:
+                old=con.execute('SELECT payload FROM exploration_budgets WHERE process_id=?',(process_id,)).fetchone()
+                if old:
+                    previous=ExplorationBudget.model_validate_json(old[0])
+                    for field in ('max_compute_actions','estimated_cpu_hours','max_model_calls'):
+                        prior=getattr(previous,field)
+                        value=getattr(state.exploration_budget,field)
+                        if prior is not None and (value is None or value>prior):
+                            raise ValueError('agent adjustment cannot raise an authorized hard budget')
+                    if previous.source!=state.exploration_budget.source:
+                        raise ValueError('budget source mismatch')
+                con.execute('INSERT INTO exploration_budgets VALUES (?,?,?,?) ON CONFLICT(process_id) DO UPDATE SET payload=excluded.payload',
+                    (process_id,state.owner_conversation_id,state.owner_session_id,state.exploration_budget.model_dump_json()))
+            for key in released_action_keys:
+                con.execute('INSERT OR IGNORE INTO exploration_released_actions SELECT process_id,action_key,? FROM exploration_actions '
+                            'WHERE process_id=? AND action_key=? AND job_id IS NULL AND actual IS NULL',('branch adjusted',process_id,key))
+    retry_on_locked(operation)
+
+
+def verify_stage_input(db: ComputeDB, job_id: int) -> str | None:
+    """Check bytes only; the compute execution core never parses QM input."""
+    with db.connect() as con:
+        row = con.execute('SELECT j.path,i.input_digest FROM ts_pipeline_stages s '
+            'JOIN compute_jobs j ON j.id=s.job_id LEFT JOIN ts_pipeline_inputs i ON i.job_id=j.id '
+            'WHERE s.job_id=?',(job_id,)).fetchone()
+    if row is None:
+        return None
+    if row[1] is None:
+        raise ValueError('stage input digest missing')
+    digest = hashlib.sha256(Path(row[0]).read_bytes()).hexdigest()
+    if digest != row[1]:
+        raise ValueError('stage input bytes changed after binding')
+    return digest

@@ -1,5 +1,7 @@
 # TS search playbook
 
+**Temporary restriction:** The engine recipes below describe scientific methods; manual TS/IRC submission is currently disabled. Use `ts_prepare`/`ts_resume` for TS/IRC jobs, including OptTS, ScanTS and NEB-TS. Ordinary exploratory scans remain available. If the durable workflow cannot express the required calculation, report the limitation for repair instead of submitting a manual chain or executing the engine through `bash`.
+
 How to get from "we know the step" to a validated first-order saddle point, without burning the queue. The doctrine in one line: **convergence is decided by guess quality and Hessian quality, not optimizer settings** — the best-documented replays after failure are physical (new conformer, new path, better endpoints), and IDPP-class guesses cut MEP-search cost by half or more relative to naive interpolation.
 
 ## 1. Seed hierarchy (use the highest rung that fits)
@@ -81,6 +83,11 @@ One-shot TS success is under half even in good pipelines; experts land ~3/4 of c
 
 ### Automated scan continuation
 
-With declared endpoints, use `ts_prepare` and optionally `scan={method, scans, freeze}`. `scan.method` is the explicitly chosen exploration method; the declaration's `method` remains the refinement method. If path search fails, supply the scan through `ts_resume` instead of manually writing/submitting/parsing the chain. The process extracts an internal peak and performs fresh unconstrained refinement; a scan peak is never TS evidence. When waiting, wait for the compute notification and call `ts_resume(run_id)` without adjustments. Unknown-endpoint exploration and explicitly requested manual work may use standalone tools.
+With declared endpoints, use `ts_prepare` and optionally `scan={method, scans, freeze}`. `scan.method` is the explicitly chosen exploration method; the declaration's `method` remains the refinement method. If path search fails, supply the scan through `ts_resume` instead of manually writing/submitting/parsing the chain. The process extracts an internal peak and performs fresh unconstrained refinement; a scan peak is never TS evidence. Ordinary completion advances the system driver without an agent call. Use ts_resume for blocked adjustments; an empty adjustment only reads the checkpoint. Unknown-endpoint exploration may use standalone scans; manual TS/IRC submission remains disabled.
 
 All atom fields in an engine workflow use Gaussian 1-based or ORCA 0-based numbers, including maps, ring_order, distance_filters, scans, freeze and watch_pairs. `conformer_search`, `internal_coordinates` and `reaction_mapping` use 1-based numbers: subtract one when transferring their atom numbers to ORCA. Ring and filters work independently or together; both guide generation and qualify output. Ring shape labels describe final geometry and do not establish minima or TS validity.
+
+
+## 实验性构象档案与选择
+
+regions 模式保存原始候选及其父子谱系；结构区域卡片中的内坐标、能量来源和失败证据用于选择下一步。固定容差分区仅作对照；statistical_partition 输出探索性全搜索校准评分与稳定性，记录抽样假设，不给正式 p 值。显式选择坐标/理由、接受建议并更新 partition_revision。没有测量的能量、未验证的种子和未计算的分支不能标记成功；预算不足保留未完成证据。选择已有候选优先复用身份/映射和已完成独立分支；选择、补采样和预算通过同库原子 READY 绑定执行；普通完成由系统续接，能力缺失或预算不足明确受阻，不绕过手动提交禁令。

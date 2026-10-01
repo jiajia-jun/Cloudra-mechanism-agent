@@ -7,9 +7,13 @@
 ``DeliverMessage`` 入队——两边都是持久化成功才可见，不再有「先入队、事后
 flush」的第二条语义。
 
-易失性（3e）：inbox 是**刻意易失**的内存队列（shell 私有，重启即弃）——
-run 只活在内存，重启后没有消费者在等队列里的载荷；``agent.message_injected``
-事件是投递的审计记录，但不据此重建队列（恢复后由新发消息驱动唤醒）。
+易失性（3e）与恢复语义：inbox 是进程内的内存队列（shell 私有），但**不是一次性的**。
+它的权威来源是 ``agent.message_injected`` 事件，重建的唯一实现在
+``persistence._rebuild_inboxes_from_events``（``restore_core`` 调用）：尚未进入会话
+上下文投影的投递（按 message_id 判重）重新入队，所以「已持久化、还没被消费」的用户
+消息与子 agent 回传跨重启不丢；CANCELLED agent 只补 peer 完成与 hub 定向通知。
+重投只恢复「待消费」这一事实，**不重放唤醒**：恢复期不 wake 任何人（含休眠父），
+载荷驻留信箱直到显式 resume 或下一条消息带来唤醒。
 """
 
 from __future__ import annotations

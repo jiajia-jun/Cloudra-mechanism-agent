@@ -22,6 +22,7 @@ _REQUIRED_BINS = {
     "orca": ["orca"],
     "cp2k": ["cp2k.popt", "cp2k.ssmp", "cp2k.psmp", "cp2k"],
     "xtb": ["xtb"],
+    "chem_task": ["python3"],
 }
 
 # guard 轮询间隔（秒）
@@ -219,6 +220,8 @@ def build_calculator_cmd(
     cmd = [bash_path, script_path, input_file, job_type]
     if job_type == "xtb":
         cmd.extend((xtb_params or XtbParams()).cli_args())
+    elif job_type == "chem_task":
+        cmd.extend([sys.executable, str(Path(__file__).resolve().parents[2])])
     return True, cmd, ""
 
 
@@ -352,6 +355,8 @@ def get_log_path(input_file: str, job_type: str = "gaussian") -> str:
     VASP 的日志命名不固定，默认仍按 .out 处理。
     """
     path = Path(input_file)
+    if job_type == "chem_task":
+        return input_file
     if job_type == "gaussian":
         return str(path.with_suffix(".log"))
     return str(path.with_suffix(".out"))
@@ -367,6 +372,8 @@ def resolve_log_path(input_file: str, job_type: str = "gaussian", task_id: int |
     优先级：state json 记录的真实 log_file（文件仍存在）→ calc 落盘文件
     （存在时）→ get_log_path 的纯字符串预测。
     """
+    if job_type == 'chem_task':
+        return input_file
     if input_file and task_id is not None:
         workdir = Path(input_file).parent
         try:

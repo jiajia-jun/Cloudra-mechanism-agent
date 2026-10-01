@@ -284,6 +284,15 @@ def admit_job(
             scheduler_options["memory"] = f"{memory_mb}M"
 
     # 显式申请低于输入自述需求：返回诊断，不静默超额占用节点。
+    if job_type == 'chem_task':
+        from cloudra.runtime.chem_task import ChemTask
+        try:
+            manifest = ChemTask.model_validate_json(Path(f_path).read_text())
+            if manifest.cpus > cpus:
+                raise ValueError('chemistry task CPU allocation is smaller than manifest request')
+        except (OSError, ValueError) as exc:
+            return AdmissionOutcome(ok=False, message=str(exc))
+
     underestimate = resource_underestimate(job_type, f_path, cpus, memory_mb)
     if underestimate:
         return AdmissionOutcome(

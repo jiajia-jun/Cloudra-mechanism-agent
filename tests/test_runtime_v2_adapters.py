@@ -20,6 +20,15 @@ from cloudra.runtime_v2.core import RuntimeCore
 from cloudra.runtime_v2.schemas import Command, RuntimeSettings
 
 
+@pytest.fixture(autouse=True)
+def isolated_model_accounting(monkeypatch):
+    # Provider-shape unit tests use minimal agents; scoped accounting is covered
+    # separately with real process/budget rows.
+    async def no_process(*args):
+        return None
+    monkeypatch.setattr('cloudra.services.conformer_model_budget.ModelRequestAccounting.for_agent', no_process)
+
+
 def test_legacy_tool_schemas_filters_by_name():
     schemas = legacy_tool_schemas(["stop"])
     names = [s["function"]["name"] for s in schemas]
@@ -902,3 +911,24 @@ async def test_usage_cache_details_pass_through_to_response():
     response = await provider.complete(_js_agent("traditional"), [{"role": "user", "content": "hi"}], ["stop"])
     assert response.usage["prompt_tokens_details"]["cached_tokens"] == 80
     assert response.usage["prompt_tokens"] == 100
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('failure_at', ['lookup', 'finish'])
+async def test_provider_closes_client_when_model_accounting_fails(monkeypatch, failure_at):
+    from unittest.mock import AsyncMock
+
+    from cloudra.runtime_v2.schemas import InvocationProtocol
+
+    client = _recording_client({})
+    client.aclose = AsyncMock()
+    accounting = SimpleNamespace(finish=AsyncMock(side_effect=RuntimeError('accounting failed')))
+    async def lookup(*args):
+        if failure_at == 'lookup':
+            raise RuntimeError('accounting failed')
+        return accounting
+    monkeypatch.setattr('cloudra.services.conformer_model_budget.ModelRequestAccounting.for_agent', lookup)
+    provider = LegacyLLMProvider(client_factory=lambda settings: client)
+    with pytest.raises(RuntimeError, match='accounting failed'):
+        await provider.complete(_js_agent(InvocationProtocol.JAVASCRIPT), [{'role': 'user', 'content': 'hi'}], [])
+    client.aclose.assert_awaited_once()

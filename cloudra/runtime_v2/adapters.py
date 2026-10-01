@@ -619,13 +619,21 @@ class LegacyLLMProvider:
     ) -> LLMResponse:
         settings = legacy_default_settings(agent)
         client = self._make_client(settings)
+        from cloudra.persistence.database import ComputeDB
+        from cloudra.services.conformer_model_budget import ModelRequestAccounting
+        accounting = None
+        succeeded = False
         try:
-            return await asyncio.wait_for(
+            accounting = await ModelRequestAccounting.for_agent(ComputeDB(), getattr(agent, 'project_id', ''), getattr(agent, 'id', ''))
+            client.request_accounting = accounting
+            result = await asyncio.wait_for(
                 self._complete_with_client(
                     agent, client, settings, messages, tools, on_delta
                 ),
                 timeout=settings.timeout,
             )
+            succeeded = True
+            return result
         except TimeoutError as exc:
             logger.error(
                 "llm complete timed out after %ss agent=%s model=%s",
@@ -638,14 +646,17 @@ class LegacyLLMProvider:
                 f"(agent={getattr(agent, 'id', '?')} model={settings.model})"
             ) from exc
         finally:
-            # _make_client 每次 complete 新建 LLMClient（独立 httpx 连接池）：
-            # 用完必须关闭，否则每个轮次泄漏一个连接池（Task 0 取证 T7）。
-            aclose = getattr(client, "aclose", None)
-            if aclose is not None:
-                try:
-                    await aclose()
-                except Exception:
-                    pass
+            try:
+                if accounting is not None:
+                    await accounting.finish(success=succeeded, usage=client.last_usage)
+            finally:
+                # Always close the per-request pool, including accounting failures.
+                aclose = getattr(client, "aclose", None)
+                if aclose is not None:
+                    try:
+                        await aclose()
+                    except Exception:
+                        pass
 
     def _log_request_fingerprint(
         self, agent: AgentSession, kwargs: dict[str, Any], *, kind: str

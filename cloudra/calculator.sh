@@ -286,6 +286,13 @@ case "$JOB_TYPE" in
     cp2k)
         run_cp2k
         ;;
+    chem_task)
+        if [ "$#" -ne 2 ] || [ -z "$1" ] || [ -z "$2" ]; then
+            echo "chem_task requires the trusted executor Python and module root" >&2
+            exit 1
+        fi
+        "$1" -c 'import sys; sys.path.insert(0,sys.argv[1]); from cloudra.runtime.chem_task import run_task; sys.exit(run_task(sys.argv[2]))' "$2" "$INPUT_FILE"
+        ;;
     xtb)
         run_xtb "$@"
         ;;

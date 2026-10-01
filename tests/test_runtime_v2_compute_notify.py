@@ -863,3 +863,47 @@ async def test_system_compute_notify_does_not_wake_cancelled_subagent():
     assert subagent.id not in scheduled_sessions
     events = core.event_log.query_session(subagent.id, types={"agent.message_injected"})
     assert any(f"task_id={job_id}" in e.data["content"] for e in events)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("recover_acknowledged",[False,True])
+async def test_pipeline_intermediate_job_advances_without_agent_message(tmp_path, monkeypatch, recover_acknowledged):
+    from cloudra.services.compute_admission import AdmissionOutcome
+    from cloudra.services.ts_pipeline_store import bind_stage_job, create_process, save_process_record
+    from cloudra.tools.core.ts_process import TsDeclaration, TsJobStep, TsProcessRecord
+    core, project, coordinator = await _setup_core()
+    db = await asyncio.to_thread(ComputeDB().init)
+    declaration = TsDeclaration(reactant_smiles='CC',product_smiles='CC',method='b3lyp/def2svp')
+    process = await asyncio.to_thread(create_process, db, request_key='notify-ts', payload=dict(
+        project_id=project.id,owner_id=coordinator.id,workspace_dir=str(tmp_path),declaration=declaration.model_dump()))
+    await asyncio.to_thread((tmp_path/'ts.inp').write_text,'synthetic engine input')
+    job = await asyncio.to_thread(bind_stage_job, db, process_id=process['process_id'],declaration_revision=1,
+        stage_key='ts_opt',attempt=1,job_payload=dict(conversation_id=project.id,session_id=coordinator.id,
+        path=str(tmp_path/'ts.inp'),state='ready',jobtype='orca',node_id='fixture'))
+    record = TsProcessRecord(run_id='notify',run_dir=str(tmp_path/'ts'/'notify'),workspace_dir=str(tmp_path),
+        owner_conversation_id=project.id,owner_session_id=coordinator.id,pipeline_id=process['process_id'],
+        declaration=declaration,stage='refine',waiting_for=f'job:{job}',job_steps=[TsJobStep(purpose='ts_opt',job_id=job)])
+    await asyncio.to_thread(save_process_record,db,process_id=process['process_id'],record=record.model_dump(mode='json'))
+    def complete():
+        with db.connect() as con:
+            con.execute("UPDATE compute_jobs SET state='done' WHERE id=?",(job,))
+    await asyncio.to_thread(complete)
+    def writer(record, directory):
+        from pathlib import Path
+        path=Path(directory)/'frequency.inp'
+        path.write_text('fixture')
+        return '',str(path)
+    monkeypatch.setattr('cloudra.tools.core.ts_process._write_frequency_input',writer)
+    monkeypatch.setattr('cloudra.services.compute_admission.admit_job',lambda **_: AdmissionOutcome(ok=True,node_id='fixture',scheduler='local'))
+    broker=ComputeNotifyBroker(core)
+    if recover_acknowledged:
+        await asyncio.to_thread(broker._mark_notified,job)
+        await broker.ensure_project(project.id)
+    else:
+        await broker._poll_project(project.id)
+    assert _inbox_texts(core,coordinator.id) == []
+    assert await asyncio.to_thread(_notified_at,job) is not None
+    def jobs():
+        with db.connect() as con:
+            return con.execute('SELECT COUNT(*) FROM compute_jobs').fetchone()[0]
+    assert await asyncio.to_thread(jobs) == 2

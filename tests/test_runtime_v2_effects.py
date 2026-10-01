@@ -148,6 +148,42 @@ async def test_cancel_effects_and_idempotent_noop(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_cancel_decides_background_parked_once(tmp_path, monkeypatch):
+    """background parked 判定在一条 cancel 命令里只求值一次。
+
+    它要扫事件日志，且下游「拒绝」与「级联」两条路径必须看同一个值——两处各判
+    一次是判据漂移的入口。
+    """
+    from cloudra.runtime_v2 import commands as commands_module
+
+    core = RuntimeCore(strict_events=True)
+    core.runner = FakeRunner()
+    bus = CommandBus(core)
+    await bus.execute(Command(type="project.create", payload={"name": "c"}))
+    project = next(iter(core.projects.values()))
+    agent = (
+        await bus.execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": project.id},
+                payload={"role_id": "coordinator"},
+            )
+        )
+    ).data
+
+    calls: list[str] = []
+    real = commands_module.is_background_parked
+
+    def counting(core_arg, agent_arg):
+        calls.append(agent_arg.id)
+        return real(core_arg, agent_arg)
+
+    monkeypatch.setattr(commands_module, "is_background_parked", counting)
+    await bus.execute(Command(type="agent.cancel", target={"session_id": agent.id}))
+    assert calls == [agent.id]
+
+
+@pytest.mark.asyncio
 async def test_decide_is_pure_no_io_no_mutation(tmp_path):
     """decide 零 IO、零 mutate：不调 bus 直接调 decider，世界必须纹丝不动。"""
     core = RuntimeCore(strict_events=True)

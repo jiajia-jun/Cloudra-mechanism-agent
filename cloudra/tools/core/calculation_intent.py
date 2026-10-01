@@ -260,6 +260,12 @@ def validate_writer_request(arguments: dict[str, Any]) -> list[dict]:
 _ORCA_SIMPLE_TASK_TOKENS = {
     "opt": "minimum_opt",
     "optts": "ts_opt",
+    "scants": "ts_opt",
+    "neb-ts": "ts_opt",
+    "loose-neb-ts": "ts_opt",
+    "tight-neb-ts": "ts_opt",
+    "fast-neb-ts": "ts_opt",
+    "zoom-neb-ts": "ts_opt",
     "freq": "frequency",
     "numfreq": "frequency",
     "irc": "irc",
@@ -282,11 +288,33 @@ def _orca_has_geom_scan(text: str) -> bool:
     return False
 
 
+def _orca_task_text(text: str) -> str:
+    """Remove quoted strings and ORCA comments, preserving code after closed #...#."""
+    return re.sub(
+        r'"[^"\n]*"|\'[^\'\n]*\'|#[^#\n]*(?:#|$)', " ", text, flags=re.M,
+    )
+
+
+def _orca_has_neb_ts(text: str) -> bool:
+    """Native %neb NEB_TS true also enables TS refinement without ! NEB-TS."""
+    enabled = False
+    for block in re.finditer(
+        r"^\s*%neb\b(.*?)(?:\bend\b|(?=^\s*[%*!])|\Z)",
+        text, re.I | re.M | re.S,
+    ):
+        for setting in re.finditer(
+            r"\bNEB_TS\s*(?:=\s*)?(true|false)\b", block.group(1), re.I,
+        ):
+            enabled = setting.group(1).lower() == "true"
+    return enabled
+
+
 def _inspect_orca(text: str) -> CalculationIntent:
     tasks: set[str] = set()
     frequency_mode: str = "auto"
     saw_simple_line = False
-    for line in text.splitlines():
+    task_text = _orca_task_text(text)
+    for line in task_text.splitlines():
         s = line.strip()
         if s.startswith("!/") or not s.startswith("!"):
             continue
@@ -299,7 +327,9 @@ def _inspect_orca(text: str) -> CalculationIntent:
                     frequency_mode = "numeric"
                 elif token.lower() == "freq" and frequency_mode == "auto":
                     frequency_mode = "analytic"
-    if _orca_has_geom_scan(text):
+    if _orca_has_neb_ts(task_text):
+        tasks.add("ts_opt")
+    if _orca_has_geom_scan(task_text):
         # Opt enables the constrained optimization at each scan point; it is
         # not a separate minimum optimization in this input.
         tasks.discard("minimum_opt")
@@ -343,27 +373,44 @@ def _inspect_orca(text: str) -> CalculationIntent:
 
 
 def _inspect_gaussian(text: str) -> CalculationIntent:
-    route = ""
+    # Gaussian routes span lines up to a blank separator. Inspect every Link1
+    # section too: a later TS/IRC calculation is still part of this job.
+    route_lines: list[str] = []
+    in_route = False
+    seen_route = False
     for line in text.splitlines():
         s = line.strip()
-        if s.startswith("#"):
-            route = s.lower()
-            break
+        if s.lower() == "--link1--":
+            in_route = seen_route = False
+            continue
+        if s.startswith("#") and not seen_route:
+            in_route = True
+            seen_route = True
+        elif not s:
+            in_route = False
+        if in_route:
+            route_lines.append(s.lower())
+    route = " ".join(route_lines)
     tasks: set[str] = set()
     frequency_mode = "auto"
     if route:
-        if re.search(r"\bopt\b", route):
-            if "ts" in route:
+        # Quoted External command/path arguments are not Gaussian task keywords.
+        task_route = re.sub(r'"[^"\n]*"|\'[^\'\n]*\'', "", route)
+        for opt in re.finditer(
+            r"\bopt\b\s*(?:=?\s*\(([^)]*)\)|=\s*([a-z0-9]+))?", task_route,
+        ):
+            options = set(re.findall(r"[a-z0-9]+", opt.group(1) or opt.group(2) or ""))
+            if options & {"ts", "qst2", "qst3"}:
                 tasks.add("ts_opt")
             else:
                 tasks.add("minimum_opt")
-        if re.search(r"\bfreq\b", route):
+        if re.search(r"\bfreq\b", task_route):
             tasks.add("frequency")
-            if re.search(r"freq\s*=\s*\(?\s*(num|numer)", route):
+            if re.search(r"freq\s*=\s*\(?\s*(num|numer)", task_route):
                 frequency_mode = "numeric"
-        if re.search(r"\birc\b", route):
+        if re.search(r"\birc\b", task_route):
             tasks.add("irc")
-        if re.search(r"\bscan\b", route):
+        if re.search(r"\bscan\b", task_route):
             tasks.add("relaxed_scan")
         if not tasks:
             tasks.add("single_point")

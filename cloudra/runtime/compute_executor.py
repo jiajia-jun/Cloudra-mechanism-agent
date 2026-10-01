@@ -115,6 +115,14 @@ async def run_compute(
         await _mark_failed(db, task_id, f"compute job {task_id} is missing path or job type")
         return 1
 
+    if not row.get("scheduler_job_id"):
+        from cloudra.services.ts_pipeline_store import verify_stage_input
+        try:
+            await asyncio.to_thread(verify_stage_input, db, task_id)
+        except (OSError, ValueError) as exc:
+            await _mark_failed(db, task_id, str(exc))
+            return 1
+
     if kind == "slurm" or kind in REMOTE_KINDS:
         # poller 型作业（本机 Slurm / SSH 远端）：认领进程内轮询即看守，租约随 poll 续
         stop = asyncio.Event()
