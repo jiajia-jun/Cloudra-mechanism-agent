@@ -1,6 +1,7 @@
 ---
 name: reaction-mechanisms
 description: Organic reaction mechanism encyclopedia and competing pathway playbook. Use when proposing mechanism graphs (dag_propose_mechanism), identifying competing pathways (regiochemical, stereochemical, concerted vs. stepwise, elimination vs. substitution), formulating reaction center seeds, or reviewing mechanism drafts across 9 major organic reaction classes.
+license: MIT
 ---
 
 # Organic Reaction Mechanisms & Competing Pathways Playbook

@@ -1,6 +1,7 @@
 ---
 name: molecular-docking
 description: Domain expertise for molecular docking workflows (AutoDock Vina, GNINA, Vinardo). Use when preparing protein receptors (PDBFixer, protonation, tautomers), generating 3D ligand conformers (RDKit, Meeko, AM1-BCC/Gasteiger charges), defining grid boxes, validating via re-docking (RMSD < 2.0 Å), analyzing interaction fingerprints (PLIF, hydrogen bonds, pi-stacking), and evaluating ligand efficiency (LE, LLE) or preparing poses for MD/MM-GBSA rescoring.
+license: MIT
 ---
 
 # Molecular Docking Standard Operating Procedure (SOP)

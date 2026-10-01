@@ -266,4 +266,6 @@ Cloudra 的分发是希望它能有用，但不提供任何担保；甚至不提
 
 本仓库内嵌的第三方组件各自保留其原有许可证，见 [docs/licenses/](docs/licenses/README.md)。
 
+`cloudra/skills/` 下的技能是有意的例外：每个技能在 frontmatter 中声明 `license: MIT`，采用 MIT 许可，以便这些知识能被其他 Agent harness 无障碍采用。引擎、DAG、工具与调度器仍然遵循 AGPL。
+
 贡献采用 Developer Certificate of Origin 模式，请使用 `git commit -s` 签署提交，详见 [CONTRIBUTING.md](CONTRIBUTING.md)。

@@ -1,6 +1,7 @@
 ---
 name: dft-calculation
 description: Use when planning or running molecular/cluster mechanism calculations, TS searches, relaxed scans (1D/2D), NEB paths, frequencies, IRC, or barrier calculations with Gaussian/ORCA, including external MLIP potentials; also for method selection and calculation failures. For periodic solids use first-principles-calculation.
+license: MIT
 ---
 
 # Molecular mechanism calculations

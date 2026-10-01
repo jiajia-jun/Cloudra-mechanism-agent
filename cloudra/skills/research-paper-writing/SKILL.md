@@ -1,6 +1,7 @@
 ---
 name: research-paper-writing
 description: Guide academic paper writing from draft to publication-ready format. Covers storytelling structure, Markdown/LaTeX typesetting for journal templates, command-line formatting tools, and section-level refinement. Use when drafting, revising, or formatting any academic paper section.
+license: MIT
 ---
 
 # Research Paper Writing

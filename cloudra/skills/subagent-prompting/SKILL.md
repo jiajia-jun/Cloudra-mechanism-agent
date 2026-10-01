@@ -1,6 +1,7 @@
 ---
 name: subagent-prompting
 description: Best practices, contracts, and templates for dispatching specialized sub-agents in Cloudra runtime_v2 (e.g. explorer, researcher, small_mol, dft, md, writer, experiment, env). Use when composing instructions for subagent_launcher or subagent_swarm, coordinating via agent_hub, isolating concurrent task directories, preventing hallucinations, and enforcing circuit breakers.
+license: MIT
 ---
 
 # Sub-Agent Prompting & Multi-Agent Coordination Guide

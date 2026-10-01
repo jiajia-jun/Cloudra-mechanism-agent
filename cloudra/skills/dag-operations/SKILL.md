@@ -1,6 +1,7 @@
 ---
 name: dag-operations
 description: How to use the dag_* tool family in dag_record/dag_guided sessions — propose the mechanism (dag_propose_mechanism), submit file evidence (dag_submit_step_evidence / dag_submit_species_evidence), review items (dag_review_step / dag_review_species), and inspect delivery coverage. Use when composing DAG tool calls.
+license: MIT
 ---
 
 # dag_* tool-family handbook

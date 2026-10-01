@@ -1,6 +1,7 @@
 ---
 name: first-principles-calculation
 description: Provide domain expertise for periodic DFT / first-principles calculations (VASP, CP2K, Quantum ESPRESSO, ASE). Use when setting up INCAR parameters, optimizing k-points and ENCUT, configuring DFT+U, calculating surface slabs, adsorption energies, heterogeneous catalysis mechanisms (LH/ER/MvK), electrocatalytic CHE free energy diagrams (HER, OER, ORR, CO2RR, NRR), CI-NEB surface transition states, partial Hessian vibrations, or troubleshooting SCF/ZBRENT/EDDAV errors.
+license: MIT
 ---
 
 # 1. Local Toolchain Mapping (Toolchain Mapping)

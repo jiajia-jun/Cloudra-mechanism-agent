@@ -1,7 +1,7 @@
 ---
 name: molecular-dynamics-simulation
 description: Domain expertise for classical molecular dynamics (MD) simulations (OpenMM, GROMACS, AMBER). Use when selecting biomolecular/small-molecule force fields (AMBER ff14SB/ff19SB, CHARMM36m, GAFF2, OpenFF), parameterizing ligands (Antechamber, AM1-BCC), configuring equilibration protocols (EM -> NVT heating -> NPT density equilibration -> Production), and analyzing trajectories (RMSD, RMSF, Gromos clustering, MM-PBSA/MM-GBSA binding free energies).
-license: AGPL-3.0-or-later
+license: MIT
 metadata:
   original-skill: "molecular-dynamics"
   source: "https://github.com/K-Dense-AI/scientific-agent-skills"

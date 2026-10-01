@@ -272,5 +272,9 @@ even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE
 Third-party components bundled in this repository keep their own licenses — see
 [docs/licenses/](docs/licenses/README.md).
 
+The skills under `cloudra/skills/` are a deliberate exception: each declares `license: MIT`
+and is MIT licensed, so the knowledge stays portable across agent harnesses. The engine,
+the DAG, the tools and the scheduler remain AGPL.
+
 Contributions are accepted under the Developer Certificate of Origin; sign your commits with
 `git commit -s`. See [CONTRIBUTING.md](CONTRIBUTING.md).

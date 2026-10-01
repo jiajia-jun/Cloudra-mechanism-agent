@@ -1,6 +1,7 @@
 ---
 name: peer-review-standards
 description: Scientific rigor and peer-review standards (case library). Must be invoked when the task involves experimental/computational design, interpreting the physical basis of data, accepting calculation results, or deriving conclusions from literature. Supplies a reviewer's critical eye, a critical-analysis framework, and real scientific-fallacy cases; blocks sycophantic agreement so research conclusions stay objective and credible.
+license: MIT
 ---
 
 # Scientific rigor and peer-review standards (Peer Review Standards & Case Law)
