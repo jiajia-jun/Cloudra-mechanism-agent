@@ -50,8 +50,8 @@ Use for asynchronous communication, sharing intermediate discoveries, and collab
 
 When delegating complex tasks, structure the prompt using the **S.C.A.R.F.** framework:
 
-- **(S) System Role & Scope**: Explicitly declare role identity and behavioral red lines.
-  *(e.g., "You are a specialized DFT sub-agent (dft). Focus strictly on setting up the Gaussian input for transition state TS1; do not perform literature searches.")*
+- **(S) System Role & Scope**: Define task scope and boundaries; the runtime already injects role identity.
+  *(e.g., "Locate and validate transition state TS1 from the supplied molecular endpoints; report the evidence and any unresolved gap.")*
 - **(C) Context & Established Facts**: Provide verified ground truth (molecular SMILES, working directory, previous calculation energies) so the sub-agent does not re-compute or guess.
   *(e.g., "The reactant complex energy is -450.2134 Hartree. The optimized coordinates are stored at /abs/path/to/reactant.xyz.")*
 - **(A) Actionable Atomic Goal**: Define unambiguous, verifiable goals as objectives with acceptance criteria.
