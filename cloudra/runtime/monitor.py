@@ -114,6 +114,12 @@ async def _parse_log(
     ``xtb_task`` 是 compute_jobs 行声明的 xtb 运行级别（sp/opt/hess/ohess）：
     优化收敛第二判据只对 opt/ohess 生效，hess 任务不被"优化未收敛"误伤。
     """
+    if job_type == 'chem_task':
+        from cloudra.runtime.chem_task import read_task_result
+        try:
+            return await asyncio.to_thread(read_task_result, str(log_path))
+        except (OSError, ValueError, KeyError):
+            return None, False
     target, _ = _resolve_log_target(log_path, fallback_log_path)
     if target is None:
         return None, None
@@ -518,6 +524,12 @@ async def run_guard(
         return
     try:
         await _register_pid(db, taskid, "guard_pid", os.getpid())
+        from cloudra.services.ts_pipeline_store import verify_stage_input
+        try:
+            await asyncio.to_thread(verify_stage_input, db, taskid)
+        except (OSError, ValueError) as exc:
+            await _mark_failed(db, taskid, str(exc))
+            return
 
         # xtb 任务参数的唯一事实来源是 compute_jobs 行（submit 时校验入库）；
         # guard 据此拼 calculator 命令，charge/mult/task/solvent/cpus 全部透传。

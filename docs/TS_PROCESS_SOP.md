@@ -10,6 +10,14 @@
 
 ## 1. 定位
 
+### 手动提交暂时关闭（2026-10-01）
+
+`submit_compute_job` 在准入、入库及启动引擎之前读取 Gaussian/ORCA 输入，拒绝手动 TS/IRC 作业：Gaussian 的 TS/QST2/QST3/IRC，以及 ORCA 的 OptTS/ScanTS/NEB-TS（含变体）/IRC。识别覆盖 Gaussian 多行 route 和 Link1 后续段，不依赖文件名；标题与注释中的任务词不会触发禁令。该限制位于公开提交入口，流程内部的 `_submit_step` 仍复用共享计算准入和调度链路。普通优化、频率、单点及探索扫描仍可提交。
+
+Agent 必须使用 `ts_prepare` / `ts_resume` 提交 TS/IRC；受阻时修正声明或报告工具缺口，不允许说明理由后手动绕过，也不允许改用 `bash` 直接执行引擎。这里没有新增通用 shell 沙箱；代码硬拒绝覆盖的是 `submit_compute_job` 入口。
+
+禁令不自动解除。开放前需要用真实引擎通过工具完成 TS 优化及频率、双向 IRC、端点无约束优化与频率及身份验证，并保留可审查的流程记录和产物；单元测试通过不等于真实流水线验收完成。
+
 SOP 是**一条可被 agent 在阻塞处接管的自主流水线**，不是固定脚本。从属关系：
 
 ```
@@ -49,9 +57,9 @@ ts.resume(run_id, adjusted)
 
 缺省非键合环边窗口仍为 `AssemblyParameters.reaction_center_window` 的 **1.6–3.0 Å**，显式错误窗口直接失败。组分整体按 **1.7×vdW** 接触图连通性验收，碰撞下限仍为 1.0 Å。候选不是平衡构象；IRC 端点仍需无约束 Opt/Freq 和身份验证。
 
-需要扫描时，在 `ts_prepare.declaration.scan` 或受阻后的 `ts_resume.adjustment.scan` 声明 `{method, scans, freeze}`。扫描方法显式给出；freeze 只声明坐标类型和原子，冻结当前值。流程负责提交、等通知、解析内峰，再做不继承 freeze 的无约束 TS 精修和既有验证。正常收到计算通知后，只需 `ts_resume({run_id})`，不消耗干预次数。无内峰、缺日志或缺几何会明确阻塞；扫描峰不等于 TS。
+需要扫描时，在 `ts_prepare.declaration.scan` 或受阻后的 `ts_resume.adjustment.scan` 声明 `{method, scans, freeze}`。扫描方法显式给出；freeze 只声明坐标类型和原子，冻结当前值。流程负责提交、等通知、解析内峰，再做不继承 freeze 的无约束 TS 精修和既有验证。普通完成由系统 driver 自动续接，不唤醒 agent；受阻后提交显式 adjustment，空 adjustment 只读 checkpoint。无内峰、缺日志或缺几何会明确阻塞；扫描峰不等于 TS。
 
-几何引导改变后清除旧扫描状态、重建初猜，新旧产物留档；在途作业或已提交精修时拒绝修改。补扫描不会跳过未完成的 build/map/assemble。
+几何引导改变后清除旧扫描状态、重建初猜，新旧产物留档；在途作业时拒绝修改几何；已结束作业可在受阻后建立新声明分支，保留不受影响的结果。补扫描不会跳过未完成的 build/map/assemble。
 
 要点：
 
@@ -219,7 +227,7 @@ ts/<run_id>/
 
 ## 9. 有界推进
 
-必须有界：已生效的最大干预次数、路径精修轮数与作业资源限制；未实现的总机时字段已删除。否则退化成无收敛保证的循环。
+预算只控制新动作准入；用户显式声明动作数、预计 CPU 小时和模型调用上限，未配置不暗设上限。预算不取消已接受作业，不给 native 优化/路径注入超时或迭代上限。
 上限来自声明的 `budget`；耗尽即落终态，不无限续。计算作业完成通知引起的空调整
 `ts_resume` 不计入人工干预次数。
 
@@ -285,3 +293,25 @@ forward/backward 只是轨迹标签，须依据优化后结构身份与声明物
    **仍未实现**：只跑 `! NEB` 时逐图像的几何提取（那段几何在 ORCA 的路径输出文件里，
    主输出只有逐迭代能量表）。本机没有真实 ORCA NEB 日志可对照，按项目规则不凭猜测写解析器；
    补这块需要一次真实的 ORCA NEB 运行。
+
+## 实验性构象档案（2026-10-01）
+
+显式 `conformer_search(catalog_mode="regions")` 保存原始候选、内坐标区域、测量卡片与下一步选择建议，不默认优化所有生成结构。其固定容差区域仅为对照策略；统计启发拆区输出全搜索重采样的探索性评分、效应量与稳定性；不提供正式 p 值或显著性主张。候选优化产生子记录，展示筛减不删除档案。
+
+选择建议与科学成功分开：原始种子无优化/能量证据时明确未知，预算不足或必需验证未完成时仍未完成。AI 选择契约不能更改方法、硬预算或通过任意命令提交。预算预留、候选动作、READY 与阶段同库绑定；重复请求/事件不重交，系统 driver 与项目加载 reconcile 接续普通完成。手动 TS/IRC 禁令保持。
+
+
+### 候选级续接与探索性分区
+
+1. conformer_search(catalog_mode="regions") 保存原始候选及卡片；将 catalog_id/partition_revision 传入 ts_prepare.candidate_catalog。
+2. 系统排队优化一个选中反应物种子、一个产物种子，再接续路径和正式 TS/Freq/IRC/两端 Opt/Freq。普通完成无须 ts_resume。
+3. 受阻时读取 cards_path；selection_decision 引用当前卡片版本、声明摘要、理由和证据。合格种子切换保留 build/map，失效依赖种子的后续链；未优化选择用 refine_representative。
+4. supplement_sampling 支持显式 ETKDGv3 或 independent_rigid_fragments，指定 count/seed；系统排队生成、归档全部返回帧并等待下一次选择，不批量优化。
+5. statistical_partition 指定 seed/resamples，按化学理由选 coordinate_keys/coordinate_reasons。全搜索校准依赖拟合单峰参考；batch bootstrap 不证明样本独立。include_energy 只接纳完整同方法/身份且收敛的能量集合。
+6. source_catalog_id/source_revision 分析现有档案；additional_candidate_ids 显式加入优化子候选。proposal_indices/decision_id/reason 接受建议，创建新快照；ts_resume.partition_revision 更新引用并保留几何。
+7. endpoint_retry={retry_id,role,seed_xyz_path,reason} 只重做失败的 IRC 端点，保留 TS/Freq/IRC 和另一端。native 产物种子失败用 endpoint_seed_retry（role=product），保留反应物种子。路径限于工作区，独立复核实际几何和身份。
+8. exploration_budget 单独下调保留几何和已接受作业；agent 不能抬高硬上限。拥有受阻候选流程的 agent 实际模型请求/传输重试计配置预算；未知 token/费用保持缺失。
+
+能力边界：regions 是 RDKit opt-in。CREST 实际返回帧有归档适配器，CREST regions 预算入口暂未开放。窗口约束的选中优化通过可序列化 Cartesian RFO/KKT 执行：同方法初始 Hessian 和逐点梯度各自作为 chem_task 接入现有计算账本，按点保存、幂等绑定与计费。窗口内部不拉向中点；收敛后仍独立核对身份、碰撞和实际窗口。数值参数及适配差异见 docs/licenses/autode-derived-code.md；这是受 fixture 验证的适配，不宣称等同 autodE DIC。初始导数、单步优化、READY 与完成后检查点均可恢复；预算不足阻止新动作，保留已接受作业与历史证据。真实远端科学收益和部署未验证，手动提交禁令继续保持。
+
+逐点评估估计：`compute_estimates.candidate_hessian` / `candidate_gradient` 分别是单次初始 Hessian / 梯度动作的估计 CPU 小时。配置 CPU 上限时缺估计会阻塞新动作；不按零成本计费。步数未知，单步估计不能保证总优化费用。预算单独调整复用数值状态、原始检查点目录与已接受作业；化学请求、窗口或种子变化才生成新的数值状态。

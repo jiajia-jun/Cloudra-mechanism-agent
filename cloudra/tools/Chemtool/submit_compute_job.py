@@ -1,6 +1,7 @@
 import asyncio
 import json
 import time
+from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import Field
@@ -14,6 +15,7 @@ from cloudra.persistence.database import ComputeDB
 from cloudra.persistence.workspace import resolve_tool_path
 from cloudra.services.compute_admission import admit_job, declared_cpus, declared_memory_mb
 from cloudra.services.compute_store import afinalize_compute_job, ainsert_compute_job
+from cloudra.tools.core.calculation_intent import inspect_input
 
 description = (
     "Submit a compute job: take a prepared input-file path, insert a record in compute_jobs, "
@@ -32,7 +34,9 @@ description = (
     "For ORCA, memory_mb is total memory (nprocs * maxcore); for xtb, cpus is passed to "
     "the engine as --parallel. "
     "Under-declaring oversubscribes the node; over-declaring wastes queue time. "
-    "Use query_compute_queue to check node capacity and queue length before choosing how much to request."
+    "Use query_compute_queue to check node capacity and queue length before choosing how much to request. "
+    "Manual TS/IRC submission is temporarily disabled, including QST2/QST3, OptTS, ScanTS and NEB-TS. "
+    "Use ts_prepare to start the durable workflow and ts_resume to continue or correct it."
 )
 
 
@@ -141,7 +145,8 @@ class SubmitComputeJob(Tool):
         "Submit a quantum chemistry job. With is_async=true, a Slurm backend, or an "
         "SSH remote node (node_id), return the queued job id immediately; local jobs "
         "with is_async=false wait for completion. Provide the prepared input path; "
-        "CPU and memory reservations are inferred from its declarations when omitted."
+        "CPU and memory reservations are inferred from its declarations when omitted. "
+        "Manual TS/IRC jobs are temporarily disabled; use ts_prepare/ts_resume."
     )
     input_schema: Any = SubmitComputeJob_input_schema
     output_schema: Any = SubmitComputeJob_output_schema
@@ -167,6 +172,32 @@ class SubmitComputeJob(Tool):
                     "refusing to attribute the job to 'default'."
                 ),
             )
+
+        # Temporary manual-entry restriction, deliberately outside shared
+        # admission: ts_process must still submit its own TS and IRC steps.
+        if user_input.job_type in {"gaussian", "orca"}:
+            try:
+                content = await asyncio.to_thread(
+                    Path(f_path).read_text, encoding="utf-8", errors="replace",
+                )
+            except OSError as exc:
+                return SubmitComputeJob_output_schema(
+                    is_success=False, message=f"Cannot inspect compute input: {exc}",
+                )
+            intent = inspect_input(content, engine=user_input.job_type)
+            if intent.tasks & {"ts_opt", "irc"}:
+                return SubmitComputeJob_output_schema(
+                    is_success=False,
+                    message=(
+                        "Manual TS/IRC submission is temporarily disabled while the durable "
+                        "workflow is being validated. No job was created. Use ts_prepare "
+                        "to start a TS workflow; for an existing run, use ts_resume with "
+                        "the required declaration adjustments (or without adjustments after "
+                        "a compute notification). If the workflow blocks, correct the "
+                        "named declaration or report the tool limitation; do not bypass "
+                        "it with a manual input or direct engine execution."
+                    ),
+                )
 
         # Omitted resources follow the input file's declarations.  Explicit
         # under-declarations remain errors in the shared admission check.

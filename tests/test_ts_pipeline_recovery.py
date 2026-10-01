@@ -1,0 +1,273 @@
+from pathlib import Path
+
+import pytest
+
+from cloudra.services.ts_pipeline_store import get_process, save_process_record
+from cloudra.tools.core import ts_process
+from tests.test_ts_pipeline_driver import waiting_process
+
+
+def checkpoint(tmp_path):
+    db, pid, job = waiting_process(tmp_path)
+    record = ts_process.TsProcessRecord.model_validate(get_process(db, pid)["record"])
+    record.stage = "guess"
+    record.waiting_for = ""
+    record.job_steps = [ts_process.TsJobStep(purpose="path", job_id=job, input_path=record.job_steps[0].input_path)]
+    record.current_seed_xyz_path = "/fixture/seed.xyz"
+    record.current_ts_guess_path = "/fixture/old-ts.xyz"
+    record.path_kind = "xtb_path"
+    record.declaration.budget.path_refinement_runs = 3
+    record.blocked = ts_process.TsBlocked(
+        stage="guess", failure_class="path_not_converged", message="fixture failed path"
+    )
+    with db.connect() as con:
+        con.execute("UPDATE compute_jobs SET state='failed' WHERE id=?", (job,))
+        con.execute("UPDATE ts_pipeline_stages SET stage_key='path' WHERE job_id=?", (job,))
+    save_process_record(db, process_id=pid, record=record.model_dump(mode="json"))
+    return db, pid, record
+
+
+def test_path_effort_change_invalidates_path_but_keeps_endpoint_seed(tmp_path, monkeypatch):
+    db, pid, record = checkpoint(tmp_path)
+    monkeypatch.setattr(ts_process, "advance", lambda record: record)
+    result = ts_process.resume(record, ts_process.TsAdjustment(path_refinement_runs=5))
+    assert result.declaration_revision == 2
+    assert result.stage == "guess"
+    assert result.current_seed_xyz_path == "/fixture/seed.xyz"
+    assert result.current_ts_guess_path == ""
+    assert not result.job_steps
+    assert result.attempt_history[-1].job_steps[-1].purpose == "path"
+
+
+def test_scan_remedy_accepts_terminal_path_preparation_job(tmp_path, monkeypatch):
+    db, pid, record = checkpoint(tmp_path)
+    monkeypatch.setattr(ts_process, "advance", lambda record: record)
+    result = ts_process.resume(
+        record,
+        ts_process.TsAdjustment(
+            scan={
+                "method": "GFN2-xTB",
+                "scans": [{"coord_type": "bond", "atoms": [0, 1], "scan_start": 1, "scan_end": 2, "scan_steps": 5}],
+            }
+        ),
+    )
+    assert result.stage == "guess"
+    assert result.declaration.scan is not None
+    assert not result.job_steps
+    assert result.attempt_history[-1].job_steps[-1].purpose == "path"
+
+
+@pytest.mark.parametrize("crash_after_ready", [False, True])
+def test_scan_submission_recovers_exact_input_after_checkpoint_crash(tmp_path, monkeypatch, crash_after_ready):
+    from types import SimpleNamespace
+
+    from cloudra.services.compute_admission import AdmissionOutcome
+    from cloudra.tools.core.ts_pipeline_driver import advance_process
+
+    db, pid, record = checkpoint(tmp_path)
+    record.blocked = None
+    record.job_steps = []
+    record.declaration.scan = ts_process.ScanPlanInput(
+        method="fixture",
+        scans=[{"coord_type": "bond", "atoms": [0, 1], "scan_start": 1, "scan_end": 2, "scan_steps": 5}],
+    )
+    save_process_record(db, process_id=pid, record=record.model_dump(mode="json"))
+    monkeypatch.setattr(
+        ts_process, "_read_built_xyz", lambda *args: (["H", "H"], [[0, 0, 0], [1, 0, 0]], "seed.xyz", "")
+    )
+
+    def prepare(self, request):
+        path = Path(request.output_path)
+        ts_process._write_immutable_input(str(path), "fixture scan")
+        return SimpleNamespace(is_success=True, input_file_path=str(path))
+
+    monkeypatch.setattr("cloudra.tools.Chemtool.ts_guess.TsGuess._scan_prepare", prepare)
+    monkeypatch.setattr(
+        "cloudra.services.compute_admission.admit_job",
+        lambda **_: AdmissionOutcome(ok=True, node_id="fixture", scheduler="local"),
+    )
+    submit = ts_process._submit_step
+
+    def die(*args):
+        if crash_after_ready:
+            submit(*args)
+        raise RuntimeError("crash before checkpoint")
+
+    monkeypatch.setattr(ts_process, "_submit_step", die)
+    with pytest.raises(RuntimeError, match="crash before checkpoint"):
+        advance_process(db, pid)
+    monkeypatch.setattr(ts_process, "_submit_step", submit)
+    first = advance_process(db, pid)["record"]
+    again = advance_process(db, pid)["record"]
+    assert first["scan_step"]["job_id"] == again["scan_step"]["job_id"]
+    with db.connect() as con:
+        assert con.execute("SELECT COUNT(*) FROM compute_jobs").fetchone()[0] == 2
+    assert len(list(Path(record.run_dir).rglob("scan.inp"))) == 1
+
+
+@pytest.mark.parametrize("imaginary", [[], [-300.0], [-300.0, -100.0], None])
+def test_frequency_gate_checks_first_order_saddle_before_irc_spend(tmp_path, monkeypatch, imaginary):
+    from types import SimpleNamespace
+
+    from cloudra.services.compute_admission import AdmissionOutcome
+
+    db, pid, record = checkpoint(tmp_path)
+    record.stage = "refine"
+    record.blocked = None
+    record.job_steps[0].purpose = "frequency"
+    with db.connect() as con:
+        con.execute("UPDATE compute_jobs SET state='done'")
+    log = tmp_path / "frequency.out"
+    log.write_text("synthetic frequency evidence")
+    monkeypatch.setattr(ts_process, "_refinement_log_path", lambda *args: str(log))
+    monkeypatch.setattr(
+        "cloudra.dag.evidence_ingest.snapshot_evidence_file",
+        lambda *args, **kwargs: SimpleNamespace(frequencies=imaginary, imaginary_frequencies=imaginary),
+    )
+
+    def writer(record, folder):
+        target = Path(folder) / "irc.inp"
+        target.write_text("fixture IRC")
+        return "", str(target)
+
+    monkeypatch.setattr(ts_process, "_write_irc_input", writer)
+    monkeypatch.setattr(
+        "cloudra.services.compute_admission.admit_job",
+        lambda **_: AdmissionOutcome(ok=True, node_id="fixture", scheduler="local"),
+    )
+    result = ts_process._refine(record)
+    expected_jobs = 2 if imaginary is not None and len(imaginary) == 1 else 1
+    with db.connect() as con:
+        assert con.execute("SELECT COUNT(*) FROM compute_jobs").fetchone()[0] == expected_jobs
+    assert (result.blocked is None) == (expected_jobs == 2)
+
+
+@pytest.mark.parametrize("stage", ["path", "ts_opt"])
+def test_scientific_job_failure_reaches_cards_and_rejects_unchanged_candidate(tmp_path, monkeypatch, stage):
+    from cloudra.tools.core.conformer_cards import build_region_cards
+    from cloudra.tools.core.conformer_catalog import Qualification, content_digest
+    from cloudra.tools.core.conformer_regions import DescriptorSpec, RegionConfig, partition_candidates
+    from cloudra.tools.core.conformer_selection import SelectionContext, SelectionDecision, validate_selection
+    from cloudra.tools.core.xtb_path_runner import XtbPathResult
+    from tests.test_conformer_catalog import make_candidate
+
+    db, pid, record = checkpoint(tmp_path)
+    candidate = make_candidate(
+        tmp_path, qualification=Qualification(status="qualified", evidence_refs=["fixture qualification"])
+    )
+    record.catalog_id = candidate.catalog_id
+    record.selected_candidate_id = candidate.candidate_id
+    record.job_steps[0].purpose = stage
+    if stage == "path":
+        monkeypatch.setattr(ts_process, "_read_built_xyz", lambda *args: (["H"], [[0, 0, 0]], "", ""))
+        record.declaration.atom_map = [0]
+        monkeypatch.setattr(
+            ts_process,
+            "_queued_path",
+            lambda *args: (
+                XtbPathResult(
+                    run_dir=str(tmp_path), returncode=1, termination_reason="path_not_converged", refinement_runs=3
+                ),
+                record,
+            ),
+        )
+        result = ts_process._guess(record)
+    else:
+        log = tmp_path / "failed.out"
+        log.write_text("GEOMETRY OPTIMIZATION DID NOT CONVERGE")
+        monkeypatch.setattr(ts_process, "_refinement_log_path", lambda *args: str(log))
+        result = ts_process._refine(record)
+    assert result.candidate_attempts
+    assert result.candidate_attempts[-1].job_id == record.job_steps[0].job_id
+    assert result.candidate_attempts[-1].failure_class in ("path_failed", "nonconvergence")
+    snapshot = partition_candidates(
+        [candidate], RegionConfig(descriptor_specs=[DescriptorSpec(kind="distance", stable_atom_ids=["C1", "O1"])])
+    )
+    cards = build_region_cards(snapshot, [candidate], result.candidate_attempts)
+    context = SelectionContext(
+        project_id=candidate.project_id,
+        owner_id=candidate.owner_id,
+        catalog_id=candidate.catalog_id,
+        partition_revision=snapshot.revision,
+        declaration_hash=content_digest(record.declaration.model_dump(mode="json")),
+        cards=cards,
+        attempts=result.candidate_attempts,
+        method_fingerprint="fixture",
+    )
+    decision = SelectionDecision(
+        decision_id="repeat",
+        catalog_id=context.catalog_id,
+        partition_revision=context.partition_revision,
+        declaration_hash=context.declaration_hash,
+        candidate_id=candidate.candidate_id,
+        region_id=cards[0].region_id,
+        reason="fixture same-input repeat",
+        evidence_refs=cards[0].evidence_refs,
+    )
+    with pytest.raises(ValueError, match="same failed input"):
+        validate_selection(decision, context)
+
+
+def test_remote_path_pullback_continues_to_budgeted_ts_submission(tmp_path, monkeypatch):
+    import shutil
+
+    from cloudra.runtime import chem_task
+    from cloudra.services.compute_admission import AdmissionOutcome
+    from cloudra.tools.core.xtb_path_runner import XtbPathResult
+
+    db, pid, record = checkpoint(tmp_path)
+    remote = tmp_path / "remote"
+    local = tmp_path / "pulled-back"
+    remote.mkdir()
+    manifest = remote / "path.json"
+    manifest.write_text(
+        chem_task.ChemTask(task="xtb_path", reactant_xyz="x", product_xyz="y", cpus=1).model_dump_json()
+    )
+    seed = remote / "ts.xyz"
+    seed.write_text("2\nsynthetic remote TS seed\nH 0 0 0\nH 0 0 0.74\n")
+    monkeypatch.setattr(
+        "cloudra.tools.core.xtb_path_runner.run_xtb_path",
+        lambda *args: XtbPathResult(
+            run_dir=str(remote),
+            returncode=0,
+            usable_as_guess=True,
+            ts_xyz_path=str(seed),
+            path_xyz_path=str(seed),
+            ts_candidate_energy_eh=-1,
+            termination_reason="completed",
+        ),
+    )
+    assert chem_task.run_task(str(manifest)) == 0
+    shutil.copytree(remote, local)
+    shutil.rmtree(remote)
+    record.job_steps[0].input_path = str(local / "path.json")
+    with db.connect() as con:
+        con.execute("UPDATE compute_jobs SET state='done'")
+    record.blocked = None
+    record.declaration.atom_map = [0, 1]
+    monkeypatch.setattr(ts_process, "_read_built_xyz", lambda *args: (["H", "H"], [[0, 0, 0], [0, 0, 0.74]], "", ""))
+    monkeypatch.setattr(
+        "cloudra.services.compute_admission.admit_job",
+        lambda **_: AdmissionOutcome(ok=True, node_id="fixture", scheduler="local"),
+    )
+    result = ts_process._guess(record)
+    assert Path(result.current_ts_guess_path) == local / "ts.xyz"
+    assert result.blocked is None
+    result = ts_process._submit(result)
+    assert result.blocked is None
+    assert result.job_steps[-1].purpose == "ts_opt"
+    assert Path(result.job_steps[-1].input_path).is_file()
+    with db.connect() as con:
+        assert con.execute("SELECT COUNT(*) FROM compute_jobs").fetchone()[0] == 2
+
+
+def test_reaction_center_change_without_ring_invalidates_geometry_dependencies(tmp_path,monkeypatch):
+    db,pid,record=checkpoint(tmp_path)
+    assert not record.declaration.ring_order
+    monkeypatch.setattr(ts_process,'advance',lambda record:record)
+    result=ts_process.resume(record,ts_process.TsAdjustment(reaction_center=[(0,1)]))
+    assert result.stage=='build'
+    assert result.current_seed_xyz_path==''
+    assert result.current_ts_guess_path==''
+    assert not result.job_steps
+    assert result.attempt_history[-1].job_steps[-1].purpose=='path'

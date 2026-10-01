@@ -123,6 +123,7 @@ def build_remote_runner_script(
     *,
     xtb_params: XtbParams | None = None,
     workdir: str,
+    calculator_cmd: list[str] | None = None,
 ) -> str:
     """ssh_local 直跑脚本（无 SBATCH 头）。
 
@@ -139,7 +140,7 @@ def build_remote_runner_script(
         f"echo $$ > {shlex.quote(f'.cloudra-runner-{task_id}.pid')}",
         "mkdir -p .cloudra",
         *scheduler_setup_lines(scheduler),
-        f"{shlex.join(remote_calculator_argv(input_name, job_type, xtb_params))}"
+        f"{shlex.join(calculator_cmd or remote_calculator_argv(input_name, job_type, xtb_params))}"
         f" > {shlex.quote(capture)} 2>&1 &",
         "calc_pid=$!",
         f"echo \"$calc_pid\" > {shlex.quote(f'.cloudra-pid-{task_id}')}",
@@ -266,6 +267,30 @@ def probe_remote_shell_handle(row: dict) -> str | None:
     return f"{_SHELL_HANDLE_PREFIX}{pid}" if pid.isdigit() else None
 
 
+def _stage_chem_runtime(workdir: Path) -> str:
+    """Stage trusted application source; dependencies remain the node runtime's."""
+    import hashlib
+    import io
+    import zipfile
+    package = Path(_default_calculator_path()).resolve().parent
+    stream = io.BytesIO()
+    with zipfile.ZipFile(stream, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
+        for source in sorted(package.rglob('*.py')):
+            if '__pycache__' in source.parts:
+                continue
+            info = zipfile.ZipInfo(str(Path('cloudra') / source.relative_to(package)))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            archive.writestr(info, source.read_bytes())
+    body = stream.getvalue()
+    name = '.cloudra-chem-runtime-' + hashlib.sha256(body).hexdigest() + '.zip'
+    target = workdir / name
+    if not target.exists():
+        target.write_bytes(body)
+    elif target.read_bytes() != body:
+        raise ValueError('trusted chemistry runtime bundle changed')
+    return name
+
+
 def _stage_and_submit(
     transport,
     kind: str,
@@ -280,6 +305,12 @@ def _stage_and_submit(
     """推 stage 并远端提交；返回 ``(句柄, 本地脚本路径)``。"""
     xtb_params = XtbParams.from_row(row) if job_type == "xtb" else None
     calc_argv = remote_calculator_argv(input_file.name, job_type, xtb_params)
+    if job_type == "chem_task":
+        python = (options.get('environment') or {}).get('CLOUDRA_CHEM_PYTHON')
+        if not isinstance(python, str) or not Path(python).is_absolute():
+            raise ValueError('remote chem_task requires trusted node environment CLOUDRA_CHEM_PYTHON as an absolute interpreter path')
+        transport.checked(shlex.join([python, '-c', 'import pydantic,numpy,rdkit']), timeout=30)
+        calc_argv.extend([python, _stage_chem_runtime(workdir)])
     if kind == "ssh_slurm":
         script = build_batch_script(
             input_file,
@@ -299,6 +330,7 @@ def _stage_and_submit(
             options,
             xtb_params=xtb_params,
             workdir=remote_dir,
+            calculator_cmd=calc_argv,
         )
         script_name = f".cloudra-run-{task_id}.sh"
     script_path = workdir / script_name

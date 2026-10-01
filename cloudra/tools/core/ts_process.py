@@ -12,8 +12,8 @@
   且搜索失败 ≠ 反应不可能。
 - **有界推进**：预算来自声明；干预次数耗尽即落终态，不无限续。
 - **目录约定**：``ts/<run_id>/``，逐迭代帧只允许出现在 ``build/trajectories/``。
-- **不新增存储**：状态是每个运行目录里的一个 ``process.json``；干预记进 runtime 事件
-  （由调用方注入 ``event_sink``，本模块自己不建存储）。
+- **统一账本**：系统拥有的流水线使用既有 ComputeDB 阶段/作业事务；运行目录的
+  ``process.json`` 是可读检查点，干预仍可通过 ``event_sink`` 记录。
 - **阶段诚实**：尚未接线的阶段标 ``not_implemented`` 并**停下**，绝不假装跑过。
 
 **本模块当前实现到哪**：declare → build → map → assemble → guess → validate →
@@ -31,13 +31,18 @@ from typing import Callable, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from cloudra.persistence.fs_utils import atomic_write_text
+from cloudra.services.exploration_budget_store import ExplorationBudget
+from cloudra.tools.core.conformer_cards import AttemptEvidence
+from cloudra.tools.core.conformer_selection import SelectionDecision
 from cloudra.tools.core.geometry_inputs import DistanceWindowInput, ScanPlanInput, atom_index_base
+from cloudra.tools.core.geometry_optimization import OptimizationCheckpoint
 from cloudra.tools.core.structure_builder import (
     BuildStrategy,
     PreparationRequest,
     StructureInput,
     prepare_structure,
 )
+from cloudra.tools.core.ts_candidate_pipeline import CandidateCatalogReference
 
 #: 运行目录名（工作区下）。与 SOP §7 一致。
 TS_ROOT_NAME = "ts"
@@ -76,7 +81,7 @@ REFINEMENT_MEMORY_MB = 4096
 class TsBudget(BaseModel):
     """声明的预算。有界推进的上限来自这里，不来自实现里的常量的隐式假设。"""
 
-    max_interventions: int = Field(default=8, description="允许 agent 介入（resume）的次数上限")
+    max_interventions: int | None = Field(default=None, ge=0, description="允许 agent 介入（resume）的次数上限")
     path_refinement_runs: int = Field(
         default=0,
         description="路径精修的轮数上限（$path nrun）；**只是机时上限**，不是收敛判据。"
@@ -193,11 +198,46 @@ class TsStageRecord(BaseModel):
     artifacts: list[str] = Field(default_factory=list)
 
 
+class TsAttemptHistory(BaseModel):
+    declaration_revision: int
+    selected_candidate_id: str | None = None
+    job_steps: list["TsJobStep"]
+    stage_records: list[TsStageRecord]
+    reason: str
+
+
+
 class TsProcessRecord(BaseModel):
     """持久运行记录（``ts/<run_id>/process.json``）。"""
 
     format_version: Literal[2] = 2
     run_id: str
+    pipeline_id: str = ""
+    declaration_revision: int = 1
+    exploration_budget: ExplorationBudget | None = None
+    compute_estimates: dict[str, float] = Field(default_factory=dict)
+    optimization_checkpoints: dict[str, OptimizationCheckpoint] = Field(default_factory=dict)
+    compute_cpus: int = Field(default=1,ge=1)
+    compute_memory_mb: int = Field(default=4096,ge=1)
+    budget_action_keys: dict[str, str] = Field(default_factory=dict)
+    budget_reservations: dict[str, str] = Field(default_factory=dict)
+    attempt_history: list[TsAttemptHistory] = Field(default_factory=list)
+    catalog_id: str | None = None
+    partition_revision: str | None = None
+    selection_decision_id: str | None = None
+    sampling_pending: SelectionDecision | None = None
+    selection_decisions: list[SelectionDecision] = Field(default_factory=list)
+    candidate_attempts: list[AttemptEvidence] = Field(default_factory=list)
+    cards_path: str = ""
+    budget_history: list[ExplorationBudget] = Field(default_factory=list)
+    endpoint_seed_overrides: dict[str,str] = Field(default_factory=dict)
+    product_seed_candidate_id: str | None = None
+    product_seed_xyz_path: str = ""
+    product_seed_mol_path: str = ""
+    endpoint_retry_pending: Literal["reactant","product"] | None = None
+    endpoint_retry_decisions: dict[str,"EndpointRetry"] = Field(default_factory=dict)
+    seed_retry_decisions: dict[str,"EndpointRetry"] = Field(default_factory=dict)
+    selected_candidate_id: str | None = None
     run_dir: str
     workspace_dir: str = Field(default="", description="工作区根（证据快照的沙箱边界）")
     owner_conversation_id: str = Field(
@@ -253,6 +293,13 @@ class TsProcessRecord(BaseModel):
 class TsStartRequest(BaseModel):
     """`ts_prepare` 的输入。"""
 
+    model_config = ConfigDict(extra="forbid")
+    request_key: str | None = None
+    candidate_catalog: CandidateCatalogReference | None = None
+    compute_cpus: int | None = Field(default=None,ge=1)
+    compute_memory_mb: int = Field(default=4096,ge=1)
+    exploration_budget: ExplorationBudget | None = None
+    compute_estimates: dict[str, float] = Field(default_factory=dict)
     declaration: TsDeclaration
     workspace_dir: str = Field(description="工作区根目录；运行目录建在 <workspace_dir>/ts/<run_id>/")
     owner_conversation_id: str = Field(
@@ -263,9 +310,23 @@ class TsStartRequest(BaseModel):
     )
 
 
+class EndpointRetry(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    retry_id: str = Field(min_length=1)
+    role: Literal['reactant','product']
+    seed_xyz_path: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
+
+
 class TsAdjustment(BaseModel):
     """`ts_resume` 的输入：**只接受局部覆盖**，不是重新声明整条反应。"""
 
+    model_config = ConfigDict(extra="forbid")
+    selection_decision: SelectionDecision | None = None
+    partition_revision: str | None = None
+    endpoint_retry: EndpointRetry | None = None
+    endpoint_seed_retry: EndpointRetry | None = None
+    exploration_budget: ExplorationBudget | None = None
     scan: Optional[ScanPlanInput] = None
     reaction_center: Optional[list[tuple[int, int]]] = None
     ring_order: Optional[list[int]] = None
@@ -303,8 +364,32 @@ def _make_stage_dirs(run_dir: str) -> None:
         os.makedirs(os.path.join(run_dir, name), exist_ok=True)
 
 
+def _write_immutable_input(path: str, content: str) -> None:
+    """A bound engine input may be retried, never silently overwritten."""
+    existing = Path(path)
+    if existing.exists():
+        if existing.read_bytes() != content.encode('utf-8'):
+            raise ValueError('immutable stage input conflict')
+        return
+    atomic_write_text(path, content)
+
+
 def save_record(record: TsProcessRecord) -> str:
     """落 ``process.json``；同时刷新 ``declare.json``（声明单独可读，便于人核对）。"""
+    if record.pipeline_id:
+        from cloudra.services.ts_pipeline_context import pipeline_database
+        from cloudra.services.ts_pipeline_store import save_process_record
+        if record.catalog_id and record.partition_revision:
+            from cloudra.services.conformer_store import get_region_snapshot, list_candidates
+            from cloudra.tools.core.conformer_cards import build_region_cards
+            snapshot=get_region_snapshot(pipeline_database(),record.catalog_id,record.partition_revision,
+                project_id=record.owner_conversation_id,owner_id=record.owner_session_id)
+            members=list_candidates(pipeline_database(),record.catalog_id,project_id=record.owner_conversation_id,owner_id=record.owner_session_id)
+            members=[c for c in members if c.candidate_id in snapshot.descriptors]
+            cards=build_region_cards(snapshot,members,record.candidate_attempts)
+            record.cards_path=str(Path(record.run_dir)/'candidate_cards.json')
+            atomic_write_text(record.cards_path,json.dumps([c.model_dump() for c in cards],ensure_ascii=False))
+        save_process_record(pipeline_database(), process_id=record.pipeline_id, record=record.model_dump(mode='json'))
     path = os.path.join(record.run_dir, PROCESS_JSON_NAME)
     atomic_write_text(path, record.model_dump_json(indent=2) + "\n")
     atomic_write_text(
@@ -339,6 +424,17 @@ def _block(record: TsProcessRecord, stage: TsStage, failure_class: str, message:
     )
     _record_stage(record, stage, "blocked", message)
     return record
+
+
+def _record_candidate_failure(record, failure_class, step, evidence_path):
+    if not record.catalog_id or not record.selected_candidate_id:
+        return
+    from cloudra.tools.core.conformer_catalog import content_digest
+    attempt=AttemptEvidence(candidate_id=record.selected_candidate_id,region_id='',stage=step.purpose,
+        input_hash=content_digest(Path(step.input_path).read_bytes().hex()) if Path(step.input_path).is_file() else record.selected_candidate_id,
+        failure_class=failure_class,job_id=step.job_id,evidence_refs=[evidence_path])
+    if attempt not in record.candidate_attempts:
+        record.candidate_attempts.append(attempt)
 
 
 def _terminal(record: TsProcessRecord, stage: TsStage, terminal: TsTerminal,
@@ -393,6 +489,10 @@ def _build(record: TsProcessRecord) -> TsProcessRecord:
     """建两端结构。多组分会被组装，因此这里要求 embed=True。"""
     from cloudra.tools.core.preorganization import search_guided
 
+    record.stage = "build"
+    if record.sampling_pending is not None:
+        from cloudra.tools.core.ts_sampling_pipeline import advance_sampling
+        return advance_sampling(record)
     declaration = record.declaration
     out_dir = os.path.join(record.run_dir, BUILD_STAGE_DIR)
     if (declaration.ring_order or declaration.distance_filters) and not record.active_attempt_dir:
@@ -406,7 +506,7 @@ def _build(record: TsProcessRecord) -> TsProcessRecord:
     # 第二端几何由声明派生（绕键旋转）时**不单独建**：那一端就是第一端的一个刚体旋转，
     # 另外建一个构象既浪费又可能被误当成"产物"（两端 SMILES 相同的题型必然踩这个坑）
     for role, smiles in endpoints:
-        if role == "reactant" and (declaration.ring_order or declaration.distance_filters):
+        if role == "reactant" and not record.catalog_id and (declaration.ring_order or declaration.distance_filters):
             try:
                 guided = search_guided(
                     structure=StructureInput(kind="smiles", value=smiles),
@@ -452,7 +552,7 @@ def _build(record: TsProcessRecord) -> TsProcessRecord:
             total_charge=declaration.charge,
             multiplicity=declaration.multiplicity,
             strategy=BuildStrategy(
-                name="per_component", embed=True, optimize=True,
+                name="per_component", embed=role != "reactant" or not bool(record.catalog_id), optimize=not bool(record.catalog_id),
                 # Ring-derived pairs index the reactant graph; product atom order is
                 # only established at the later map stage.
                 reaction_center=list(declaration.reaction_center),
@@ -475,7 +575,18 @@ def _build(record: TsProcessRecord) -> TsProcessRecord:
                 atom_details=list(prepared.diagnostics),
                 needs=["reaction_center"],
             )
-        if prepared.status != "ok":
+        if record.catalog_id and role == "reactant":
+            from cloudra.tools.core.ts_candidate_pipeline import prepare_candidate_seed
+            record=prepare_candidate_seed(record,prepared)
+            if record.blocked or record.waiting_for:
+                return record
+        if record.catalog_id and role == 'product':
+            from cloudra.tools.core.ts_candidate_pipeline import prepare_product_seed
+            record=prepare_product_seed(record,prepared)
+            if record.blocked or record.waiting_for:
+                return record
+        graph_only_selected = bool(record.catalog_id) and all(c.embed_status in ('not_required','embedded') for c in prepared.components)
+        if prepared.status != "ok" and not graph_only_selected:
             return _block(
                 record, "build", prepared.status,
                 f"{role} ({smiles}) could not be built: {prepared.message}",
@@ -505,6 +616,11 @@ def _read_built_xyz(record: TsProcessRecord, role: str):
     """
     from cloudra.tools.core.structure_artifacts import read_xyz_atoms
 
+    if role=='product' and record.product_seed_xyz_path:
+        if not Path(record.product_seed_xyz_path).is_file():
+            return None
+        atoms=read_xyz_atoms(record.product_seed_xyz_path)
+        return ([s for s,_ in atoms],[p for _,p in atoms],record.product_seed_xyz_path,record.product_seed_mol_path)
     if role == "reactant" and record.current_seed_xyz_path:
         path = record.current_seed_xyz_path
         if not os.path.isfile(path):
@@ -812,8 +928,8 @@ def _guess_scan(record: TsProcessRecord) -> TsProcessRecord:
             return _block(record, "guess", "missing_built_geometry", "Reactant geometry missing", needs=["reactant_smiles"])
         root = Path(record.run_dir) / PATH_STAGE_DIR
         root.mkdir(parents=True, exist_ok=True)
-        folder = root / f"scan_{len(list(root.glob('scan_*'))) + 1:04d}"
-        folder.mkdir()
+        folder = Path(_job_directory(record, 'scan'))
+        folder.mkdir(parents=True, exist_ok=True)
         base = 0 if declaration.engine == "orca" else 1
         def public_rows(rows):
             return [dict(row.model_dump(), atoms=[i + base for i in row.atoms]) for row in rows]
@@ -823,7 +939,7 @@ def _guess_scan(record: TsProcessRecord) -> TsProcessRecord:
             extra_route=plan.extra_route,
             scans=public_rows(plan.scans), freeze=public_rows(plan.freeze),
             output_path=str(folder / ("scan.inp" if declaration.engine == "orca" else "scan.gjf")),
-            nprocs=REFINEMENT_CPUS,
+            nprocs=record.compute_cpus if record.pipeline_id else REFINEMENT_CPUS,
         )
         try:
             prepared = TsGuess()._scan_prepare(request)
@@ -878,6 +994,38 @@ def _guess_scan(record: TsProcessRecord) -> TsProcessRecord:
     return record
 
 
+def _queued_path(record: TsProcessRecord, reactant_xyz: str, product_xyz: str):
+    from cloudra.runtime.chem_task import ChemTask, read_task_result
+    from cloudra.services.compute_store import TERMINAL_STATES
+    from cloudra.tools.core.xtb_path_runner import XtbPathResult
+    step = next((step for step in record.job_steps if step.purpose == 'path'), None)
+    if step is None:
+        directory = _job_directory(record, 'path')
+        os.makedirs(directory, exist_ok=True)
+        path = os.path.join(directory, 'path-task.json')
+        task = ChemTask(task='xtb_path',reactant_xyz=reactant_xyz,product_xyz=product_xyz,
+            charge=record.declaration.charge,multiplicity=record.declaration.multiplicity,cpus=record.compute_cpus if record.pipeline_id else REFINEMENT_CPUS,
+            solvation=record.declaration.path_solvation.model_dump() if record.declaration.path_solvation else None,
+            refinement_runs=record.declaration.budget.path_refinement_runs or None)
+        _write_immutable_input(path,task.model_dump_json())
+        error,job = _submit_step(record, 'path', path, 'chem_task')
+        if error:
+            return None,_block(record,'guess','path_admission_failed',error,needs=['compute_capability','exploration_budget'])
+        step = TsJobStep(purpose='path',job_id=job,input_path=path,state='ready')
+        record.job_steps.append(step)
+        record.waiting_for=f'job:{job}'
+        return None,record
+    step.state=_read_job_state(record,step.job_id)
+    if step.state not in TERMINAL_STATES:
+        record.waiting_for=f'job:{step.job_id}'
+        return None,record
+    try:
+        data,_=read_task_result(step.input_path)
+        return XtbPathResult.model_validate(data['result']),record
+    except (OSError,ValueError,KeyError) as exc:
+        return None,_block(record,'guess','path_result_missing',str(exc),needs=['compute_artifacts'])
+
+
 def _guess(record: TsProcessRecord) -> TsProcessRecord:
     """路径初猜：**先把产物按 atom_map 重排到与反应物同序**，再跑 xTB MTD 路径。
 
@@ -885,6 +1033,7 @@ def _guess(record: TsProcessRecord) -> TsProcessRecord:
     （实测元素序列不同）。重排后的产物几何落在 ``path/product_reordered.xyz``，可复查。
     xTB 缺失时退回 IDPP 并**显式写进 path_kind**。
     """
+    record.stage = "guess"
     if record.declaration.scan is not None:
         return _guess_scan(record)
 
@@ -975,7 +1124,12 @@ def _guess(record: TsProcessRecord) -> TsProcessRecord:
     # 0 = 未声明，交给 runner 默认值。
     if record.declaration.budget.path_refinement_runs > 0:
         request.refinement_runs = record.declaration.budget.path_refinement_runs
-    run = run_xtb_path(request)
+    if record.pipeline_id:
+        run, record = _queued_path(record, reactant_xyz, product_xyz)
+        if run is None:
+            return record
+    else:
+        run = run_xtb_path(request)
     if run.termination_reason == "executable_missing":
         from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_input_schema
 
@@ -1014,6 +1168,11 @@ def _guess(record: TsProcessRecord) -> TsProcessRecord:
         )
         return record
     if not run.usable_as_guess:
+        path_step = next((step for step in reversed(record.job_steps) if step.purpose == 'path'), None)
+        if path_step:
+            evidence = run.stdout_path or path_step.input_path
+            failure = 'path_failed' if run.termination_reason in XTB_ENGINE_STARTED_TERMINATIONS else 'unclassified_failure'
+            _record_candidate_failure(record, failure, path_step, evidence)
         # "跑了但没出可用初猜" ≠ "根本没搜"：引擎确实启动过的终止类别单独上报，
         # not_attempted 只留给引擎没起来的失败（端点非法等）——GH #39 实测
         # incomplete_artifacts 时 run_dir 里已有 24 帧采样，报成 not_attempted
@@ -1177,6 +1336,8 @@ def _write_refinement_input(record: TsProcessRecord, job_dir: str) -> tuple[str,
         task_type = [{"opt": "TS,calcfc,noeigen"}]
         orca_blocks = None
     request = QmInputWriter_input_schema(
+        nproc=record.compute_cpus if record.pipeline_id else REFINEMENT_CPUS,
+        mem=f"{record.compute_memory_mb if record.pipeline_id else REFINEMENT_MEMORY_MB}MB",
         engine=declaration.engine,
         source_type="xyz_file",
         source_value=source,
@@ -1211,8 +1372,14 @@ def _write_refinement_input(record: TsProcessRecord, job_dir: str) -> tuple[str,
             f"{sorted(inspected.tasks)} but {sorted(requested.tasks)} were requested",
             "",
         )
-    atomic_write_text(input_path, content)
+    _write_immutable_input(input_path, content)
     return "", input_path
+
+
+def _job_directory(record: TsProcessRecord, purpose: str) -> str:
+    if record.pipeline_id:
+        return os.path.join(record.run_dir, JOBS_STAGE_DIR, f'declaration_{record.declaration_revision:04d}', purpose)
+    return os.path.join(record.run_dir, JOBS_STAGE_DIR, f'job_{len(record.job_steps) + 1:04d}')
 
 
 def _submit(record: TsProcessRecord) -> TsProcessRecord:
@@ -1234,8 +1401,7 @@ def _submit(record: TsProcessRecord) -> TsProcessRecord:
         )
     jobs_root = os.path.join(record.run_dir, JOBS_STAGE_DIR)
     os.makedirs(jobs_root, exist_ok=True)
-    existing = [name for name in os.listdir(jobs_root) if name.startswith("job_")]
-    job_dir = os.path.join(jobs_root, f"job_{len(existing) + 1:04d}")
+    job_dir = _job_directory(record, "ts_opt")
     os.makedirs(job_dir, exist_ok=True)
 
     error, input_path = _write_refinement_input(record, job_dir)
@@ -1272,7 +1438,7 @@ class TsJobStep(BaseModel):
     """精修作业序列里的一步（TS、IRC 与两端极小值验证）。"""
 
     purpose: Literal[
-        "scan", "ts_opt", "frequency", "irc", "reactant_opt", "reactant_frequency",
+        "sampling", "path", "candidate_opt", "candidate_evaluation", "product_seed_opt", "scan", "ts_opt", "frequency", "irc", "reactant_opt", "reactant_frequency",
         "product_opt", "product_frequency",
     ]
     job_id: Optional[int] = None
@@ -1284,25 +1450,26 @@ def _read_job_state(record: TsProcessRecord, job_id: Optional[int]) -> str:
     """读作业当前状态；读不到返回 ``"missing"``（不猜成成功）。"""
     if job_id is None:
         return "missing"
-    from cloudra.persistence.database import ComputeDB
+    from cloudra.services.ts_pipeline_context import pipeline_database
 
-    db = ComputeDB().init()
+    db = pipeline_database().init()
     with db.connect() as con:
         row = con.execute("SELECT state FROM compute_jobs WHERE id = ?", (job_id,)).fetchone()
     return str(row[0]) if row else "missing"
 
 
 def _submit_step(record: TsProcessRecord, purpose: str, input_path: str,
-                 job_type: str) -> tuple[str, int]:
+                 job_type: str, *, stage_key: str | None = None, action_kind: str | None = None,
+                 estimate_key: str | None = None) -> tuple[str, int]:
     """准入 + 入库为 ready，并把这一步登记进作业序列。返回 ``(错误, job_id)``。
 
     归属与 ``submit_compute_job`` 同一纪律：conversation_id 是发起项目、
     session_id 是发起 agent——终态推送（ComputeNotifyBroker）只认这两个字段，
     缺归属的作业是投递不到的死信，宁可拒收也不入库。
     """
-    from cloudra.persistence.database import ComputeDB
     from cloudra.services.compute_admission import admit_job
     from cloudra.services.compute_store import insert_compute_job
+    from cloudra.services.ts_pipeline_context import pipeline_database
 
     if not record.owner_conversation_id:
         return (
@@ -1317,16 +1484,15 @@ def _submit_step(record: TsProcessRecord, purpose: str, input_path: str,
     admission = admit_job(
         input_file=input_path,
         job_type=job_type,
-        cpus=REFINEMENT_CPUS,
-        memory_mb=REFINEMENT_MEMORY_MB,
+        cpus=record.compute_cpus if record.pipeline_id else REFINEMENT_CPUS,
+        memory_mb=record.compute_memory_mb if record.pipeline_id else REFINEMENT_MEMORY_MB,
         execution_backend="auto",
     )
     if not admission.ok:
         return admission.message, -1
 
-    db = ComputeDB().init()
-    job_id = int(insert_compute_job(
-        db,
+    db = pipeline_database().init()
+    payload = dict(
         conversation_id=record.owner_conversation_id,
         session_id=record.owner_session_id,
         path=input_path,
@@ -1336,9 +1502,34 @@ def _submit_step(record: TsProcessRecord, purpose: str, input_path: str,
         scheduler=admission.scheduler,
         scheduler_options=json.dumps(admission.scheduler_options, ensure_ascii=False),
         priority=0,
-        req_cpus=REFINEMENT_CPUS,
-        req_memory_mb=REFINEMENT_MEMORY_MB,
-    ))
+        req_cpus=record.compute_cpus if record.pipeline_id else REFINEMENT_CPUS,
+        req_memory_mb=record.compute_memory_mb if record.pipeline_id else REFINEMENT_MEMORY_MB,
+    )
+    if record.pipeline_id:
+        from cloudra.services.ts_pipeline_store import bind_stage_job
+        effective_stage = stage_key or purpose
+        binding = {}
+        if record.exploration_budget is not None:
+            from cloudra.services.exploration_budget_store import CostEstimate, reserve_actions
+            stages = ['ts_opt','frequency','irc','reactant_opt','reactant_frequency','product_opt','product_frequency'] if purpose == 'ts_opt' else [purpose,purpose.removesuffix('_opt')+'_frequency'] if purpose in ('reactant_opt','product_opt') else [effective_stage]
+            tag=f"{record.declaration_revision}:{record.selected_candidate_id or record.run_id}"
+            keys={stage:f'{tag}:{stage}' for stage in stages}
+            # Subsequent stages consume the previously reserved validation chain.
+            if effective_stage not in record.budget_action_keys:
+                try:
+                    reserved=reserve_actions(db,process_id=record.pipeline_id,decision_id=f'validation:{tag}' if purpose=='ts_opt' else f'{tag}:{effective_stage}',estimates=[CostEstimate(
+                        action_key=keys[stage],action_kind=action_kind or ('sampling' if stage=='sampling' else 'path' if stage=='path' else 'ts' if stage=='ts_opt' else 'irc' if stage=='irc' else 'frequency' if 'frequency' in stage else 'optimization'),
+                        cpu_hours=record.compute_estimates.get(stage,record.compute_estimates.get(estimate_key)),source='explicit_request' if stage in record.compute_estimates or estimate_key in record.compute_estimates else 'unestimated') for stage in stages])
+                except ValueError as exc:
+                    return str(exc), -1
+                for stage in stages:
+                    record.budget_action_keys[stage]=keys[stage]
+                    record.budget_reservations[stage]=reserved.reservation_id
+            binding=dict(reservation_id=record.budget_reservations[effective_stage],action_key=record.budget_action_keys[effective_stage])
+        job_id = bind_stage_job(db, process_id=record.pipeline_id, declaration_revision=record.declaration_revision,
+                               stage_key=effective_stage, attempt=1, job_payload=payload, **binding)
+    else:
+        job_id = int(insert_compute_job(db, **payload))
     return "", job_id
 
 
@@ -1394,6 +1585,8 @@ def _write_frequency_input(record: TsProcessRecord, job_dir: str) -> tuple[str, 
     head, _sep, basis = method.partition("/")
     input_path = os.path.join(job_dir, f"frequency.{'inp' if declaration.engine == 'orca' else 'gjf'}")
     request = QmInputWriter_input_schema(
+        nproc=record.compute_cpus if record.pipeline_id else REFINEMENT_CPUS,
+        mem=f"{record.compute_memory_mb if record.pipeline_id else REFINEMENT_MEMORY_MB}MB",
         engine=declaration.engine,
         source_type="xyz_file",
         source_value=optimized_xyz,
@@ -1424,7 +1617,7 @@ def _write_frequency_input(record: TsProcessRecord, job_dir: str) -> tuple[str, 
             f"{sorted(inspected.tasks)} but {sorted(requested.tasks)} were requested",
             "",
         )
-    atomic_write_text(input_path, content)
+    _write_immutable_input(input_path, content)
     return "", input_path
 
 
@@ -1482,6 +1675,8 @@ def _write_irc_input(record: TsProcessRecord, job_dir: str) -> tuple[str, str]:
         orca_blocks = None
 
     request = QmInputWriter_input_schema(
+        nproc=record.compute_cpus if record.pipeline_id else REFINEMENT_CPUS,
+        mem=f"{record.compute_memory_mb if record.pipeline_id else REFINEMENT_MEMORY_MB}MB",
         engine=declaration.engine,
         source_type="xyz_file",
         source_value=geometry,
@@ -1513,7 +1708,7 @@ def _write_irc_input(record: TsProcessRecord, job_dir: str) -> tuple[str, str]:
             f"{sorted(requested.tasks)} were requested",
             "",
         )
-    atomic_write_text(input_path, content)
+    _write_immutable_input(input_path, content)
     return "", input_path
 
 
@@ -1576,7 +1771,9 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
         validate_writer_request,
     )
 
-    if task == "opt":
+    if task == "opt" and role in record.endpoint_seed_overrides:
+        source=record.endpoint_seed_overrides[role]
+    elif task == "opt":
         irc_step = next(
             (step for step in reversed(record.job_steps) if step.purpose == "irc"), None,
         )
@@ -1614,12 +1811,17 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
         source = os.path.join(job_dir, "optimized.xyz")
         atomic_write_text(source, xyz.rstrip() + "\n")
 
+    source_copy=os.path.join(job_dir,f'{role}_source.xyz')
+    _write_immutable_input(source_copy,Path(source).read_text())
+    source=source_copy
     declaration = record.declaration
     head, _sep, basis = declaration.method.strip().partition("/")
     task_type = [{"opt": None}] if task == "opt" else [{"freq": None}]
     name = f"{role}_{task}.{'inp' if declaration.engine == 'orca' else 'gjf'}"
     input_path = os.path.join(job_dir, name)
     request = QmInputWriter_input_schema(
+        nproc=record.compute_cpus if record.pipeline_id else REFINEMENT_CPUS,
+        mem=f"{record.compute_memory_mb if record.pipeline_id else REFINEMENT_MEMORY_MB}MB",
         engine=declaration.engine,
         source_type="xyz_file", source_value=source,
         method=head.strip(), basis_set=basis.strip(), task_type=task_type,
@@ -1642,18 +1844,36 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
         request.model_dump()
     ).tasks:
         return f"{role} {task} input task mismatch", ""
-    atomic_write_text(input_path, content)
+    _write_immutable_input(input_path, content)
     return "", input_path
+
+
+def _advance_endpoint_retry(record):
+    role=record.endpoint_retry_pending
+    directory=_job_directory(record,role+'_opt')
+    os.makedirs(directory,exist_ok=True)
+    error,path=_write_endpoint_input(record,directory,role,'opt')
+    if not error:
+        error,job=_submit_step(record,role+'_opt',path,record.declaration.engine)
+    if error:
+        return _block(record,'refine','endpoint_retry_submission_failed',error,needs=['endpoint_retry','exploration_budget'])
+    record.job_steps.append(TsJobStep(purpose=role+'_opt',job_id=job,input_path=path,state='ready'))
+    record.waiting_for=f'job:{job}'
+    record.endpoint_retry_pending=None
+    return record
 
 
 def _refine(record: TsProcessRecord) -> TsProcessRecord:
     """推进 TS Opt/Freq → IRC → 两端 Opt/Freq 作业序列。**从不轮询**。
 
     还没到终态时本阶段置 ``waiting`` 并**不推事件**：等计算不算"阻塞"，agent 不该被叫醒。
-    作业终态由既有的 compute 通知路径投递，agent 收到后调 `ts_resume`（无需调整），
-    本阶段重新读一次库里那一行继续推进。
+    作业终态由既有的 compute 通知路径交给系统 driver，
+    系统 driver 重新读账本并推进；agent 只处理受阻后的显式调整。
     """
     from cloudra.services.compute_store import TERMINAL_STATES
+
+    if record.endpoint_retry_pending is not None:
+        return _advance_endpoint_retry(record)
 
     if not record.job_steps:
         return _block(
@@ -1670,7 +1890,7 @@ def _refine(record: TsProcessRecord) -> TsProcessRecord:
         _record_stage(
             record, "refine", "waiting",
             f"waiting for job {current.job_id} ({current.purpose}) to reach a terminal state; "
-            "the existing compute notification path wakes the agent, so this stage never polls "
+            "the existing compute notification path advances the system driver, so this stage never polls "
             "and emits no event",
         )
         return record
@@ -1683,6 +1903,15 @@ def _refine(record: TsProcessRecord) -> TsProcessRecord:
             with open(log_path, encoding="utf-8", errors="replace") as handle:
                 tail = handle.read().splitlines()[-15:]
         details = tail if tail else [f"log not found at {log_path}"]
+        failure = 'unclassified_failure'
+        if Path(log_path).is_file():
+            engine_text = Path(log_path).read_text(errors='replace').upper()
+            if any(marker in engine_text for marker in (
+                'GEOMETRY OPTIMIZATION DID NOT CONVERGE', 'FAILED TO CONVERGE',
+                'SCF NOT CONVERGED', 'CONVERGENCE FAILURE', 'NUMBER OF STEPS EXCEEDED',
+            )):
+                failure = 'nonconvergence'
+        _record_candidate_failure(record, failure, current, log_path)
         return _block(
             record, "refine", f"job_{state}",
             f"refinement job {current.job_id} ({current.purpose}) ended as {state!r}; plain "
@@ -1694,8 +1923,7 @@ def _refine(record: TsProcessRecord) -> TsProcessRecord:
 
     if current.purpose == "ts_opt":
         # 优化完成：取优化末帧写频率作业（频率是独立作业，见 skill）
-        jobs_root = os.path.join(record.run_dir, JOBS_STAGE_DIR)
-        job_dir = os.path.join(jobs_root, f"job_{len(record.job_steps) + 1:04d}")
+        job_dir = _job_directory(record, "frequency")
         os.makedirs(job_dir, exist_ok=True)
         error, input_path = _write_frequency_input(record, job_dir)
         if error:
@@ -1724,8 +1952,21 @@ def _refine(record: TsProcessRecord) -> TsProcessRecord:
 
     if current.purpose == "frequency":
         # 频率完成：TS 已由频率数据支持，接着跑 IRC（第二道闸），复用同一几何的 Hessian
-        jobs_root = os.path.join(record.run_dir, JOBS_STAGE_DIR)
-        job_dir = os.path.join(jobs_root, f"job_{len(record.job_steps) + 1:04d}")
+        from cloudra.dag.evidence_ingest import snapshot_evidence_file
+        log_path = _refinement_log_path(record, current)
+        if not Path(log_path).is_file():
+            return _block(record, 'refine', 'frequency_evidence_missing',
+                          'TS frequency log is missing; IRC cannot be admitted.', needs=['compute_artifacts'])
+        snapshot = snapshot_evidence_file(log_path, workspace_root=record.workspace_dir)
+        if snapshot.frequencies is None and snapshot.imaginary_frequencies is None:
+            return _block(record, 'refine', 'frequency_evidence_missing',
+                          'TS frequency data is unavailable; IRC cannot be admitted.', needs=['compute_artifacts'])
+        imaginary = snapshot.imaginary_frequencies if snapshot.imaginary_frequencies is not None else [f for f in snapshot.frequencies if f < 0]
+        if len(imaginary) != 1:
+            _record_candidate_failure(record, 'wrong_mode', current, log_path)
+            return _block(record, 'refine', 'wrong_mode',
+                          f'TS frequency evidence has {len(imaginary)} imaginary modes; exactly one is required before IRC.', needs=['selection_decision','reaction_center'])
+        job_dir = _job_directory(record, "irc")
         os.makedirs(job_dir, exist_ok=True)
         error, input_path = _write_irc_input(record, job_dir)
         if error:
@@ -1766,10 +2007,23 @@ def _refine(record: TsProcessRecord) -> TsProcessRecord:
         "reactant_frequency": ("product", "opt"),
         "product_opt": ("product", "frequency"),
     }.get(current.purpose)
+    while endpoint_next is not None:
+        role, task=endpoint_next
+        purpose=role+'_'+task
+        existing=next((s for s in reversed(record.job_steps) if s.purpose==purpose),None)
+        if existing is None:
+            break
+        existing.state=_read_job_state(record,existing.job_id)
+        if existing.state=='done':
+            endpoint_next={"reactant_opt":("reactant","frequency"),"reactant_frequency":("product","opt"),"product_opt":("product","frequency")}.get(purpose)
+            continue
+        if existing.state not in TERMINAL_STATES:
+            record.waiting_for=f'job:{existing.job_id}'
+            return record
+        return _block(record,'refine','endpoint_retry_needed','Existing endpoint attempt failed; a changed qualified seed is required.',needs=['endpoint_retry'])
     if endpoint_next is not None:
         role, task = endpoint_next
-        jobs_root = os.path.join(record.run_dir, JOBS_STAGE_DIR)
-        job_dir = os.path.join(jobs_root, f"job_{len(record.job_steps) + 1:04d}")
+        job_dir = _job_directory(record, f"{role}_{task}")
         os.makedirs(job_dir, exist_ok=True)
         error, input_path = _write_endpoint_input(record, job_dir, role, task)
         if error:
@@ -1923,6 +2177,12 @@ def _endpoint_identity_error(
         expected_symbols[remap[atom.GetIdx()]] = atom.GetSymbol()
     if expected_symbols != optimized[0]:
         return f"{role} optimized atom order differs from the declared species; connectivity is unverified"
+    from cloudra.tools.core.preorganization import geometry_stereochemistry_errors
+    stereo_errors = geometry_stereochemistry_errors(
+        mol, [optimized[1][remap[index]] for index in range(n)],
+    )
+    if stereo_errors:
+        return f"{role} " + "; ".join(stereo_errors)
     expected_bonds = {
         tuple(sorted((remap[bond.GetBeginAtomIdx()], remap[bond.GetEndAtomIdx()]))):
         float(bond.GetBondTypeAsDouble())
@@ -2145,6 +2405,7 @@ def _verdict(record: TsProcessRecord) -> TsProcessRecord:
         )
     imag = imaginary if imaginary is not None else [f for f in (freqs or []) if f < 0]
     if len(imag) != 1:
+        _record_candidate_failure(record,'wrong_mode',freq_step,log_path)
         kind = "a local minimum" if not imag else f"a point with {len(imag)} imaginary modes"
         return _terminal(
             record, "verdict", "candidate_only",
@@ -2242,7 +2503,7 @@ def advance(record: TsProcessRecord) -> TsProcessRecord:
     """
     if record.is_terminal:
         return record
-    if record.intervention_count > record.declaration.budget.max_interventions:
+    if record.declaration.budget.max_interventions is not None and record.intervention_count > record.declaration.budget.max_interventions:
         return _terminal(
             record, record.stage, "search_failed",
             f"the intervention budget ({record.declaration.budget.max_interventions}) is exhausted; "
@@ -2254,6 +2515,8 @@ def advance(record: TsProcessRecord) -> TsProcessRecord:
         if stage in _NOT_IMPLEMENTED_STAGES:
             return _stop_at_unimplemented(record, stage)
         record = _STAGE_FUNCS[stage](record)
+        if record.pipeline_id:
+            save_record(record)
         # 三种停下方式：终态、需要 agent 决策的阻塞、以及在等计算（waiting）。
         # 少了 waiting 这一条，循环会继续往下一阶段走——那就变成"作业还没算完就去判定"。
         if record.terminal is not None or record.blocked is not None or record.waiting_for:
@@ -2266,25 +2529,79 @@ def advance(record: TsProcessRecord) -> TsProcessRecord:
 # ---------------------------------------------------------------------------
 
 
+def _resolve_pipeline_cpus(workspace_dir: str, explicit: int | None) -> int:
+    if explicit is not None:
+        return explicit
+    from cloudra.services.nodes import NodeRegistry
+    try:
+        node,_=NodeRegistry.from_environment().route_for_path(Path(workspace_dir))
+        available=int(node.resources['cpus'])
+    except (ValueError,KeyError,TypeError,OSError):
+        available=os.cpu_count() or 1
+    return max(1,min(8,available))
+
+
 def start(request: TsStartRequest,
           event_sink: Optional[Callable[[str, dict], None]] = None) -> TsProcessRecord:
     """起一次 TS 搜索：建运行目录、落声明、沿阶段推进到阻塞/终态/未接线处。
 
     同步函数（CPU + 文件 IO）；异步调用方必须经 ``asyncio.to_thread`` 卸载。
     """
-    run_id = _next_run_id(request.workspace_dir)
-    run_dir = os.path.join(request.workspace_dir, TS_ROOT_NAME, run_id)
-    os.makedirs(run_dir, exist_ok=False)
-    _make_stage_dirs(run_dir)
-    record = TsProcessRecord(
-        run_id=run_id, run_dir=run_dir, workspace_dir=request.workspace_dir,
-        owner_conversation_id=request.owner_conversation_id,
-        owner_session_id=request.owner_session_id,
-        declaration=request.declaration,
-    )
-    save_record(record)
-    record = advance(record)
-    save_record(record)
+    import uuid
+
+    from cloudra.infra.flocks import locked
+    from cloudra.services.ts_pipeline_context import pipeline_database
+    from cloudra.services.ts_pipeline_store import create_process
+    from cloudra.tools.core.ts_pipeline_driver import advance_process
+
+    if request.candidate_catalog is not None:
+        from cloudra.services.conformer_store import get_region_snapshot, list_candidates
+        if not request.owner_conversation_id or not request.owner_session_id:
+            raise ValueError('candidate catalog requires explicit project/owner scope')
+        reference=request.candidate_catalog
+        snapshot=get_region_snapshot(pipeline_database(),reference.catalog_id,reference.partition_revision,
+            project_id=request.owner_conversation_id,owner_id=request.owner_session_id)
+        archived=list_candidates(pipeline_database(),reference.catalog_id,
+            project_id=request.owner_conversation_id,owner_id=request.owner_session_id)
+        if not set(snapshot.descriptors)<={c.candidate_id for c in archived}:
+            raise ValueError('candidate partition references missing archived members')
+        for candidate in archived:
+            if candidate.candidate_id in snapshot.descriptors:
+                candidate.verify_artifact()
+    root = os.path.join(request.workspace_dir, TS_ROOT_NAME)
+    os.makedirs(root, exist_ok=True)
+    with locked(os.path.join(root, '.creation.lock')):
+        process = None
+        if request.owner_conversation_id:
+            process = create_process(pipeline_database(), request_key=request.request_key or str(uuid.uuid4()), payload=dict(
+                project_id=request.owner_conversation_id, owner_id=request.owner_session_id,
+                workspace_dir=request.workspace_dir, declaration=request.declaration.model_dump(mode='json'),
+                exploration_budget=request.exploration_budget.model_dump() if request.exploration_budget else None,
+                compute_estimates=request.compute_estimates,candidate_catalog=request.candidate_catalog.model_dump() if request.candidate_catalog else None,
+                compute_cpus=request.compute_cpus,compute_memory_mb=request.compute_memory_mb))
+            if process['record'] is not None:
+                return TsProcessRecord.model_validate(process['record'])
+        run_id = _next_run_id(request.workspace_dir)
+        run_dir = os.path.join(root, run_id)
+        os.makedirs(run_dir, exist_ok=False)
+        _make_stage_dirs(run_dir)
+        record = TsProcessRecord(run_id=run_id, run_dir=run_dir, workspace_dir=request.workspace_dir,
+            owner_conversation_id=request.owner_conversation_id, owner_session_id=request.owner_session_id,
+            declaration=request.declaration, pipeline_id=process['process_id'] if process else '',
+            exploration_budget=request.exploration_budget, compute_estimates=request.compute_estimates,
+            catalog_id=request.candidate_catalog.catalog_id if request.candidate_catalog else None,
+            partition_revision=request.candidate_catalog.partition_revision if request.candidate_catalog else None,
+            compute_cpus=_resolve_pipeline_cpus(request.workspace_dir,request.compute_cpus),compute_memory_mb=request.compute_memory_mb)
+        if record.pipeline_id and record.exploration_budget:
+            from cloudra.services.exploration_budget_store import configure_budget
+            configure_budget(pipeline_database(),process_id=record.pipeline_id,project_id=record.owner_conversation_id,
+                             owner_id=record.owner_session_id,budget=record.exploration_budget)
+        save_record(record)
+    if record.pipeline_id:
+        record = TsProcessRecord.model_validate(advance_process(pipeline_database(), record.pipeline_id)['record'])
+    else:
+        record = advance(record)
+        save_record(record)
     if event_sink is not None:
         _emit(event_sink, record)
     return record
@@ -2292,15 +2609,293 @@ def start(request: TsStartRequest,
 
 def resume(record: TsProcessRecord, adjustment: TsAdjustment,
            event_sink: Optional[Callable[[str, dict], None]] = None) -> TsProcessRecord:
+    """Serialize adjustments with automatic progression and reload the ledger."""
+    if not record.pipeline_id:
+        return _resume_checkpoint(record, adjustment, event_sink)
+    from cloudra.infra.flocks import locked
+    from cloudra.services.ts_pipeline_context import pipeline_database
+    from cloudra.services.ts_pipeline_store import get_process
+    state = get_process(pipeline_database(), record.pipeline_id)
+    if state is None or state['record'] is None:
+        raise ValueError('process checkpoint missing')
+    authoritative = TsProcessRecord.model_validate(state['record'])
+    if (authoritative.owner_conversation_id, authoritative.owner_session_id) != (record.owner_conversation_id, record.owner_session_id):
+        raise ValueError('process owner mismatch')
+    with locked(os.path.join(authoritative.run_dir, '.pipeline.lock')):
+        state = get_process(pipeline_database(), record.pipeline_id)
+        return _resume_checkpoint(TsProcessRecord.model_validate(state['record']), adjustment, event_sink)
+
+
+def _accept_candidate_decision(record: TsProcessRecord, decision: SelectionDecision) -> TsProcessRecord:
+    from cloudra.services.conformer_store import get_region_snapshot, list_candidates
+    from cloudra.services.ts_pipeline_context import pipeline_database
+    from cloudra.tools.core.conformer_cards import build_region_cards
+    from cloudra.tools.core.conformer_catalog import content_digest
+    from cloudra.tools.core.conformer_selection import SelectionContext, validate_selection
+    db=pipeline_database()
+    if not record.catalog_id or not record.partition_revision:
+        raise ValueError('process has no declared candidate catalog')
+    candidates=list_candidates(db,record.catalog_id,project_id=record.owner_conversation_id,owner_id=record.owner_session_id)
+    snapshot=get_region_snapshot(db,record.catalog_id,record.partition_revision,
+        project_id=record.owner_conversation_id,owner_id=record.owner_session_id)
+    members=[c for c in candidates if c.candidate_id in snapshot.descriptors]
+    attempts=list(record.candidate_attempts)
+    cards=build_region_cards(snapshot,members,attempts)
+    context=SelectionContext(project_id=record.owner_conversation_id,owner_id=record.owner_session_id,
+        catalog_id=record.catalog_id,partition_revision=record.partition_revision,
+        declaration_hash=content_digest(record.declaration.model_dump(mode='json')),method_fingerprint=record.declaration.method,
+        cards=cards,attempts=attempts)
+    decision=validate_selection(decision,context)
+    if decision.action=='supplement_sampling' and decision.status=='ready':
+        if decision.sampling.method=='independent_rigid_fragments' and '.' not in record.declaration.reactant_smiles:
+            raise ValueError('rigid sampling requires multiple fragments')
+        record.declaration_revision+=1
+        record.selection_decisions.append(decision)
+        record.selection_decision_id=decision.decision_id
+        record.sampling_pending=decision
+        record.blocked=None
+        record.terminal=None
+        record.stage='build'
+        return record
+    if decision.status=='stopped':
+        record.selection_decisions.append(decision)
+        record.selection_decision_id=decision.decision_id
+        return _block(record,record.stage,'incomplete','Exploration stopped by recorded decision; TS remains unverified.',needs=[])
+    if decision.status!='ready' or decision.action not in ('select_candidate','refine_representative'):
+        return _block(record,record.stage,'decision_needed',decision.blocked_reason or 'This action requires a supported execution adapter.',needs=['selection_decision'])
+    if decision.reuse_job_id is not None:
+        return _block(record,record.stage,'infrastructure_reconciliation_needed','Reconcile the recorded existing job before changing chemistry.',needs=['compute_artifacts'])
+    by_id={c.candidate_id:c for c in candidates}
+    candidate=by_id[decision.candidate_id]
+    candidate.verify_artifact()
+    previous=by_id.get(record.selected_candidate_id)
+    if previous is None or candidate.species_key!=previous.species_key or dict(zip(candidate.atom_ids,candidate.symbols))!=dict(zip(previous.atom_ids,previous.symbols)):
+        raise ValueError('candidate identity differs from current reaction endpoint')
+    coords=dict(zip(candidate.atom_ids,candidate.positions))
+    symbols=dict(zip(candidate.atom_ids,candidate.symbols))
+    ids=previous.atom_ids
+    directory=Path(record.run_dir)/'selected_candidates'/candidate.candidate_id
+    directory.mkdir(parents=True,exist_ok=True)
+    path=str(directory/'seed.xyz')
+    xyz='\n'.join([str(len(ids)),'catalog candidate '+candidate.candidate_id,*[
+        f'{symbols[a]} '+ ' '.join(f'{v:.12f}' for v in coords[a]) for a in ids]])+'\n'
+    _write_immutable_input(path,xyz)
+    if record.current_seed_mol_path and Path(record.current_seed_mol_path).is_file():
+        from rdkit import Chem
+        mol=Chem.MolFromMolFile(record.current_seed_mol_path,removeHs=False)
+        if mol is None or mol.GetNumAtoms()!=len(ids):
+            raise ValueError('current seed atom identity graph missing')
+        from cloudra.tools.core.preorganization import geometry_stereochemistry_errors
+        stereo_errors=geometry_stereochemistry_errors(mol,[coords[a] for a in ids])
+        if stereo_errors:
+            raise ValueError('; '.join(stereo_errors))
+        if decision.action=='select_candidate':
+            from cloudra.tools.core.preorganization import qualify_geometry, resolve_guidance
+            from cloudra.tools.core.structure_builder import PreparedStructure
+            if record.current_reactant_prepared_path:
+                prepared=PreparedStructure.model_validate_json(Path(record.current_reactant_prepared_path).read_text())
+                plan=resolve_guidance(prepared,record.declaration.ring_order,[w.model_dump() for w in record.declaration.distance_filters],index_base=0)
+                passed,reasons,_=qualify_geometry(plan,mol,[symbols[a] for a in ids],[coords[a] for a in ids])
+                if not passed:
+                    raise ValueError('candidate geometry qualification failed: '+'; '.join(reasons))
+        for i,a in enumerate(ids):
+            mol.GetConformer().SetAtomPosition(i,coords[a])
+        molpath=str(directory/'seed.mol')
+        _write_immutable_input(molpath,Chem.MolToMolBlock(mol))
+        record.current_seed_mol_path=molpath
+    old_revision=record.declaration_revision
+    record.declaration_revision=old_revision+1
+    record.attempt_history.append(TsAttemptHistory(declaration_revision=old_revision,
+        selected_candidate_id=record.selected_candidate_id,job_steps=[s.model_copy(deep=True) for s in record.job_steps],
+        stage_records=[s.model_copy(deep=True) for s in record.stage_records],reason=decision.reason))
+    record.budget_action_keys={}
+    record.budget_reservations={}
+    record.current_seed_xyz_path=path
+    record.selected_candidate_id=candidate.candidate_id
+    record.selection_decision_id=decision.decision_id
+    record.selection_decisions.append(decision)
+    record.current_ts_guess_path=''
+    record.path_kind='not_attempted'
+    record.scan_step=None
+    record.job_steps=[]
+    record.job_id=None
+    record.job_input_path=''
+    record.waiting_for=''
+    record.blocked=None
+    record.terminal=None
+    record.stage='build' if decision.action=='refine_representative' else 'assemble'
+    record.stage_records=[s for s in record.stage_records if STAGE_ORDER.index(s.stage)<STAGE_ORDER.index('assemble')]
+    return record
+
+
+def _retry_endpoint(record, adjustment):
+    from cloudra.tools.core.conformer_catalog import content_digest
+    from cloudra.tools.core.structure_artifacts import read_xyz_atoms
+    if not adjustment.reason.strip():
+        raise ValueError('endpoint retry reason required')
+    path=Path(adjustment.seed_xyz_path).resolve()
+    path.relative_to(Path(record.workspace_dir).resolve())
+    atoms=read_xyz_atoms(str(path))
+    geometry=([s for s,_ in atoms],[p for _,p in atoms])
+    error=_endpoint_identity_error(record,adjustment.role,geometry)
+    if error:
+        raise ValueError(error)
+    old=next((s for s in reversed(record.job_steps) if s.purpose==adjustment.role+'_opt'),None)
+    if old is None or _read_job_state(record,old.job_id) not in ('failed','done','cancelled'):
+        raise ValueError('endpoint retry requires an existing terminal endpoint job')
+    prior_source=Path(old.input_path).parent/f'{adjustment.role}_source.xyz'
+    if prior_source.is_file() and read_xyz_atoms(str(prior_source))==atoms:
+        raise ValueError('same failed endpoint input cannot be requeued')
+    irc=next((s for s in record.job_steps if s.purpose=='irc'),None)
+    if irc is None or _read_job_state(record,irc.job_id)!='done':
+        raise ValueError('endpoint retry requires completed IRC evidence')
+    target=Path(record.run_dir)/'endpoint_retry_seeds'/content_digest(geometry)/'seed.xyz'
+    target.parent.mkdir(parents=True,exist_ok=True)
+    _write_immutable_input(str(target),path.read_text())
+    revision=record.declaration_revision
+    record.attempt_history.append(TsAttemptHistory(declaration_revision=revision,selected_candidate_id=record.selected_candidate_id,
+        job_steps=[s.model_copy(deep=True) for s in record.job_steps],stage_records=[s.model_copy(deep=True) for s in record.stage_records],reason=adjustment.reason))
+    record.declaration_revision+=1
+    prefixes=(adjustment.role+'_opt',adjustment.role+'_frequency')
+    record.job_steps=[s for s in record.job_steps if s.purpose not in prefixes]
+    for key in prefixes:
+        record.budget_action_keys.pop(key,None)
+        record.budget_reservations.pop(key,None)
+    record.endpoint_seed_overrides[adjustment.role]=str(target)
+    record.endpoint_retry_pending=adjustment.role
+    record.endpoint_retry_decisions[adjustment.retry_id]=adjustment
+    record.stage='refine'
+    record.terminal=None
+    record.blocked=None
+    record.waiting_for=''
+    return record
+
+
+def _commit_adjustment(record, previous_revision, previous_action_keys):
+    if record.pipeline_id:
+        from cloudra.services.ts_pipeline_context import pipeline_database
+        from cloudra.services.ts_pipeline_store import commit_adjusted_record
+        retained=set(record.budget_action_keys.values())
+        commit_adjusted_record(pipeline_database(),process_id=record.pipeline_id,
+            expected_declaration_revision=previous_revision,record=record.model_dump(mode='json'),
+            released_action_keys=[key for key in previous_action_keys if key not in retained])
+
+
+def _resume_checkpoint(record: TsProcessRecord, adjustment: TsAdjustment,
+           event_sink: Optional[Callable[[str, dict], None]] = None) -> TsProcessRecord:
     """在阻塞处带调整继续：**只接受局部覆盖**，不是重新声明整条反应。"""
-    if record.is_terminal:
+    explicit_actions=[adjustment.selection_decision,adjustment.endpoint_retry,adjustment.endpoint_seed_retry,adjustment.partition_revision,adjustment.exploration_budget]
+    if sum(value is not None for value in explicit_actions)>1:
+        raise ValueError('one explicit action per resume required')
+    if any(value is not None for value in explicit_actions) and any(getattr(adjustment,field) is not None for field in
+            ('scan','reaction_center','ring_order','distance_filters','atom_map','path_refinement_runs','max_interventions')):
+        raise ValueError('explicit action cannot be mixed with declaration changes')
+    if adjustment.endpoint_seed_retry is not None:
+        old=record.seed_retry_decisions.get(adjustment.endpoint_seed_retry.retry_id)
+        if old is not None:
+            if old!=adjustment.endpoint_seed_retry:
+                raise ValueError('seed retry id conflict')
+            return record
+    if adjustment.endpoint_retry is not None:
+        old=record.endpoint_retry_decisions.get(adjustment.endpoint_retry.retry_id)
+        if old is not None:
+            if old!=adjustment.endpoint_retry:
+                raise ValueError('endpoint retry id conflict')
+            return record
+    if adjustment.selection_decision is not None:
+        old=next((d for d in record.selection_decisions if d.decision_id==adjustment.selection_decision.decision_id),None)
+        if old is not None:
+            if old != adjustment.selection_decision:
+                raise ValueError('decision id conflict')
+            return record
+    original_declaration_revision=record.declaration_revision
+    original_action_keys=list(record.budget_action_keys.values())
+    empty = not adjustment.model_dump(exclude_unset=True)
+    if empty:
+        return record
+    if adjustment.exploration_budget is not None:
+        if set(adjustment.model_dump(exclude_unset=True))!={'exploration_budget'}:
+            raise ValueError('budget revision must be a separate adjustment')
+        if not record.pipeline_id:
+            raise ValueError('budget revision requires a durable pipeline')
+        old=record.exploration_budget
+        new=adjustment.exploration_budget
+        if old is not None and new.source!=old.source:
+            raise ValueError('budget source cannot change through agent adjustment')
+        for field in ('max_compute_actions','estimated_cpu_hours','max_model_calls'):
+            prior=getattr(old,field) if old else None
+            value=getattr(new,field)
+            if prior is not None and (value is None or value>prior):
+                raise ValueError('agent adjustment cannot raise an authorized hard budget')
+        if old!=new:
+            if old:
+                record.budget_history.append(old)
+            record.exploration_budget=new
+            _commit_adjustment(record,original_declaration_revision,original_action_keys)
+            save_record(record)
+        return record
+    if record.waiting_for:
+        raise ValueError('waiting process cannot accept an adjustment while its job is active')
+    if record.is_terminal and not (record.terminal=="candidate_only" and (adjustment.endpoint_retry is not None or adjustment.selection_decision is not None)):
         raise ValueError(
             f"run {record.run_id} is terminal ({record.terminal}); a terminal run is not resumed"
         )
+    if adjustment.endpoint_seed_retry is not None:
+        from cloudra.tools.core.ts_candidate_pipeline import replace_product_seed
+        record=replace_product_seed(record,adjustment.endpoint_seed_retry)
+        _commit_adjustment(record,original_declaration_revision,original_action_keys)
+        record=advance(record)
+        save_record(record)
+        return record
+    if adjustment.partition_revision is not None:
+        from cloudra.services.conformer_store import get_region_snapshot
+        from cloudra.services.ts_pipeline_context import pipeline_database
+        if not record.catalog_id or not record.partition_revision:
+            raise ValueError('process has no candidate partition')
+        old=get_region_snapshot(pipeline_database(),record.catalog_id,record.partition_revision,
+            project_id=record.owner_conversation_id,owner_id=record.owner_session_id)
+        new=get_region_snapshot(pipeline_database(),record.catalog_id,adjustment.partition_revision,
+            project_id=record.owner_conversation_id,owner_id=record.owner_session_id)
+        if new.revision==old.revision:
+            return record
+        if not set(old.descriptors)<=set(new.descriptors):
+            raise ValueError('new partition must retain previous members')
+        if new.previous_revision!=old.revision:
+            raise ValueError('partition must directly extend current revision')
+        record.partition_revision=new.revision
+        if record.blocked and record.blocked.failure_class=='partition_revision_needed':
+            record.blocked=None
+            record.stage='build'
+        _commit_adjustment(record,original_declaration_revision,original_action_keys)
+        if not record.blocked:
+            record=advance(record)
+        save_record(record)
+        return record
+    if adjustment.endpoint_retry is not None:
+        if not record.pipeline_id:
+            raise ValueError('endpoint retry requires a durable pipeline')
+        record=_retry_endpoint(record,adjustment.endpoint_retry)
+        _commit_adjustment(record,original_declaration_revision,original_action_keys)
+        record=_advance_endpoint_retry(record)
+        save_record(record)
+        return record
+    if adjustment.selection_decision is not None:
+        if not record.pipeline_id:
+            raise ValueError('candidate decisions require a durable pipeline')
+        record=_accept_candidate_decision(record,adjustment.selection_decision)
+        _commit_adjustment(record,original_declaration_revision,original_action_keys)
+        save_record(record)
+        if not record.blocked:
+            record=advance(record)
+            save_record(record)
+        return record
     declaration = record.declaration.model_copy(deep=True)
     scan_changed = adjustment.scan is not None and adjustment.scan != declaration.scan
     if scan_changed:
-        if record.job_id is not None or record.job_steps or record.waiting_for:
+        preparation = {'path', 'candidate_opt', 'candidate_evaluation', 'product_seed_opt', 'sampling', 'scan'}
+        active = any(_read_job_state(record, step.job_id) not in ('done', 'failed', 'cancelled')
+                     for step in [*record.job_steps, *([record.scan_step] if record.scan_step else [])])
+        if record.job_id is not None or record.waiting_for or active or any(step.purpose not in preparation for step in record.job_steps):
             raise ValueError("scan cannot change with a pending job or after refinement submission")
         declaration.scan = adjustment.scan
     if adjustment.ring_order is not None:
@@ -2319,12 +2914,29 @@ def resume(record: TsProcessRecord, adjustment: TsAdjustment,
         declaration.ring_order != record.declaration.ring_order
         or declaration.distance_filters != record.declaration.distance_filters
     )
-    geometry_changed = guidance_changed or (
-        bool(declaration.ring_order)
-        and declaration.reaction_center != record.declaration.reaction_center
-    )
-    if geometry_changed and (record.job_id is not None or record.job_steps or record.waiting_for):
+    geometry_changed = guidance_changed or declaration.reaction_center != record.declaration.reaction_center
+    path_effort_changed = declaration.budget.path_refinement_runs != record.declaration.budget.path_refinement_runs
+    if not record.pipeline_id and geometry_changed and (record.job_id is not None or record.job_steps or record.waiting_for):
         raise ValueError("guidance cannot change after refinement was submitted in this run")
+    mapping_changed = declaration.atom_map != record.declaration.atom_map
+    if record.pipeline_id and declaration != record.declaration:
+        old_revision=record.declaration_revision
+        record.declaration_revision=old_revision+1
+        if geometry_changed or scan_changed or mapping_changed or path_effort_changed:
+            record.attempt_history.append(TsAttemptHistory(declaration_revision=old_revision,
+                selected_candidate_id=record.selected_candidate_id,job_steps=[step.model_copy(deep=True) for step in record.job_steps],
+                stage_records=[stage.model_copy(deep=True) for stage in record.stage_records],reason='declaration inputs changed'))
+            retained = {'candidate_opt', 'candidate_evaluation', 'product_seed_opt', 'sampling'} if not geometry_changed else set()
+            record.job_steps=[step for step in record.job_steps if step.purpose in retained]
+            record.job_id=None
+            record.job_input_path=''
+            record.budget_action_keys={}
+            record.budget_reservations={}
+            if mapping_changed and not geometry_changed:
+                record.stage='map'
+                record.stage_records=[entry for entry in record.stage_records if STAGE_ORDER.index(entry.stage)<STAGE_ORDER.index('map')]
+                record.current_ts_guess_path=''
+                record.path_kind='not_attempted'
     record.declaration = declaration
     # A compute notification calls resume with an empty adjustment. It advances
     # the persisted job sequence, but is not an agent intervention and must not
@@ -2359,7 +2971,7 @@ def resume(record: TsProcessRecord, adjustment: TsAdjustment,
         record.guidance_manifest_path = ""
         record.effective_reaction_center = []
         record.path_kind = "not_attempted"
-    if scan_changed:
+    if scan_changed or path_effort_changed:
         record.scan_step = None
         record.current_ts_guess_path = ""
         record.path_kind = "not_attempted"
@@ -2367,7 +2979,8 @@ def resume(record: TsProcessRecord, adjustment: TsAdjustment,
             record.stage = "guess"
             record.stage_records = [entry for entry in record.stage_records
                                     if STAGE_ORDER.index(entry.stage) < STAGE_ORDER.index("guess")]
-    # 回到阻塞发生的那个阶段重跑；校验是内部的，agent 不需要知道细节
+    # Commit declaration and its checkpoint before submitting dependent work.
+    _commit_adjustment(record,original_declaration_revision,original_action_keys)
     save_record(record)
     record = advance(record)
     save_record(record)

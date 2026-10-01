@@ -297,6 +297,7 @@ class LLMClient:
         self._closed = False
         # 传输层状态回调（见类 docstring）；由 reAct 在任务启动时挂接
         self.on_status = None
+        self.request_accounting = None
         # 兼容被中转站拦截的 OpenAI 客户端：启用后改用 requests 发送请求
         self._curl_mode = False
         # 启用 OpenAI 客户端 + 自定义请求头（比 requests 更规范）
@@ -526,6 +527,19 @@ class LLMClient:
                 except Exception:
                     pass
 
+    async def _accounted_request(self, factory):
+        """Admission happens before each physical request, including fallback."""
+        self._raise_if_aborted()
+        accounting = self.request_accounting
+        attempt = await accounting.before_request() if accounting is not None else None
+        self._last_usage = None
+        try:
+            return await factory()
+        except BaseException:
+            if accounting is not None:
+                await accounting.failed_request(attempt)
+            raise
+
     async def create(self, **kwargs) -> ChatResponse:
         """单次调用 chat completions，内部完成三级 fallback（不重试瞬时错误）。"""
         self._raise_if_aborted()
@@ -550,7 +564,7 @@ class LLMClient:
             client = self._openai_client_with_custom_headers()
             self._raise_if_aborted()
             try:
-                response = await client.chat.completions.create(**kwargs)
+                response = await self._accounted_request(lambda: client.chat.completions.create(**kwargs))
                 if kwargs.get("stream"):
                     return self._wrap_stream(response)
                 self._last_usage = self._extract_usage(response)
@@ -581,7 +595,7 @@ class LLMClient:
 
         self._raise_if_aborted()
         try:
-            response = await client.chat.completions.create(**kwargs)
+            response = await self._accounted_request(lambda: client.chat.completions.create(**kwargs))
             if kwargs.get("stream"):
                 return self._wrap_stream(response)
             self._last_usage = self._extract_usage(response)
@@ -594,7 +608,7 @@ class LLMClient:
                 client2 = self._openai_client_with_custom_headers()
                 self._raise_if_aborted()
                 try:
-                    response = await client2.chat.completions.create(**kwargs)
+                    response = await self._accounted_request(lambda: client2.chat.completions.create(**kwargs))
                     if kwargs.get("stream"):
                         return self._wrap_stream(response)
                     self._last_usage = self._extract_usage(response)
@@ -734,13 +748,13 @@ class LLMClient:
         self._raise_if_aborted()
         try:
             if stream:
-                events = await asyncio.to_thread(
+                events = await self._accounted_request(lambda: asyncio.to_thread(
                     self._responses_start_stream, url, payload
-                )
+                ))
                 return self._wrap_responses_stream(events)
-            result = await asyncio.to_thread(
+            result = await self._accounted_request(lambda: asyncio.to_thread(
                 self._responses_non_stream, url, payload
-            )
+            ))
             web = getattr(getattr(result, "_data", None), "get", lambda *a: None)("_web_search")
             for w in web or []:
                 await self._emit_status("web_search", query=w.get("query"))
@@ -893,11 +907,14 @@ class LLMClient:
         """异步包装：把同步的 requests 调用放到线程池执行，避免阻塞事件循环。"""
         self._raise_if_aborted()
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None,
-            self._chat_completions_via_requests_sync,
-            kwargs,
-        )
+        try:
+            return await self._accounted_request(lambda: loop.run_in_executor(
+                None, self._chat_completions_via_requests_sync, kwargs))
+        except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError):
+            if not kwargs.get("stream"):
+                raise
+            return await self._accounted_request(lambda: loop.run_in_executor(
+                None, self._chat_completions_via_requests_sync, {**kwargs, "stream": False}))
 
     def _chat_completions_via_requests_sync(self, kwargs: dict) -> ChatResponse:
         """使用 requests 直接调用 chat completions，模拟 openai 接口返回结构。"""
@@ -932,8 +949,7 @@ class LLMClient:
             except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError):
                 # 部分中转站不支持 SSE，退化为非流式返回
                 print("\033[93m[LLM fallback] 流式连接被重置，退化为非流式返回\033[0m")
-                payload["stream"] = False
-                stream = False
+                raise
 
         resp = requests.post(url, headers=headers, json=payload, timeout=self.timeout)
         try:

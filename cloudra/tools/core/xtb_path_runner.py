@@ -126,8 +126,8 @@ class XtbPathRequest(BaseModel):
     output_dir: str = Field(description="持久运行目录的父目录；每次运行在其 xtb_path_runs/ 下新建")
     charge: int = Field(default=0, description="总电荷（--chrg）")
     multiplicity: int = Field(default=1, description="自旋多重度 2S+1，透传为 --uhf = multiplicity-1")
-    timeout: int = Field(default=900, description="子进程耗时上限（秒）；超时只终止本次运行自己的进程组")
-    refinement_runs: int = Field(
+    timeout: int | None = Field(default=900, description="子进程耗时上限（秒）；超时只终止本次运行自己的进程组")
+    refinement_runs: int | None = Field(
         default=DEFAULT_REFINEMENT_RUNS, ge=1,
         description="路径精修的轮数上限（$path nrun）。**只是机时上限**：收敛由引擎自己判，"
                     "触到这个上限即报 path_not_converged。实测内建默认 3 轮远不够收敛，"
@@ -162,7 +162,7 @@ class XtbPathResult(BaseModel):
     returncode: Optional[int] = None
     path_kind: Literal["xtb_path"] = PATH_KIND_XTB
     termination_reason: PathTermination = "unknown_failure"
-    refinement_runs: int = Field(default=0, description="本次传给引擎的路径精修轮数上限")
+    refinement_runs: int | None = Field(default=0, description="本次传给引擎的路径精修轮数上限")
     refinement_termination: RefinementTermination = Field(
         default="",
         description="引擎自己报的精修结局：converged（引擎判收敛）/ cycles_exhausted（触顶截断）",
@@ -198,13 +198,15 @@ class XtbPathResult(BaseModel):
     message: str = ""
 
 
-def build_path_input(refinement_runs: int) -> str:
+def build_path_input(refinement_runs: int | None) -> str:
     """``$path`` 输入块：把精修轮数上限显式交给引擎，**不使用内建默认 3 轮**。
 
     本机 6.7.1 实测：``$path`` 块被读取；它认得的键是 ``nrun`` / ``npoint`` / ``kpush`` /
     ``kpull``，其余（``npoints`` / ``alpha`` / ``step`` / ``time`` / ``seed`` 等）会被逐字拒掉
     （``the key '...' is not recognized by path``），因此这里只写实测可用的键。
     """
+    if refinement_runs is None:
+        return "$path\n$end\n"
     if refinement_runs < 1:
         raise ValueError(f"refinement_runs must be >= 1, got {refinement_runs}")
     return f"$path\n   nrun={refinement_runs}\n$end\n"
