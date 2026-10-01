@@ -10,9 +10,10 @@
 import contextvars
 import json
 import os
-import re
 from pathlib import Path
 from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr, ValidationError
 
 from cloudra.infra.config import get_config
 from cloudra.infra.llm_client import LLMClient
@@ -95,6 +96,14 @@ def _format_content(content: Any, max_len: int = 1000) -> str:
     return "\n".join(text_parts)
 
 
+class _ApprovalDecision(BaseModel):
+    """The sole approval payload contract: no truthiness coercion or text guessing."""
+
+    model_config = ConfigDict(extra="forbid")
+    approved: StrictBool = Field(description="Whether to allow the operation")
+    reason: StrictStr | None = Field(default=None, description="Brief rationale")
+
+
 class YoloGuard:
     """独立的安全判断 Agent。"""
 
@@ -148,20 +157,7 @@ class YoloGuard:
             "function": {
                 "name": "submit_approval_decision",
                 "description": "提交针对当前拦截操作的安全审计结论。**尽可能使用该工具进行审批！！**",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "approved": {
-                            "type": "boolean",
-                            "description": "是否允许该操作执行。允许为 true，拒绝为 false。"
-                        },
-                        "reason": {
-                            "type": ["string", "null"],
-                            "description": "简要说明允许或拒绝的理由。如无特殊说明可为空或忽略。"
-                        }
-                    },
-                    "required": ["approved"]
-                }
+                "parameters": _ApprovalDecision.model_json_schema(),
             }
         }]
 
@@ -266,47 +262,20 @@ class YoloGuard:
         返回 ((approved, reason), "")；无法提取时返回 (None, 问题描述)。
         """
         try:
-            # 强制提取 Tool Call 参数，彻底杜绝大模型啰嗦文本导致的解析错误
             message = response.choices[0].message
-            # 某些 provider 不返回 tool_calls 而是返回 content，做兼容处理
-            if not message.tool_calls:
-                content = message.content or ""
-                if not isinstance(content, str):
-                    content = str(content)
-                # 尝试从 content 中解析 JSON
-                try:
-                    result = json.loads(content)
-                    approved = bool(result.get("approved", False))
-                    raw_reason = result.get("reason")
-                    reason = str(raw_reason).strip() if raw_reason is not None else ""
-                    return (approved, reason), ""
-                except Exception:
-                    pass
-
-                # 兼容不支持 function calling 的模型返回的 XML 格式
-                xml_approved = re.search(
-                    r"<parameter\s*=\s*approved\s*>\s*(true|false)\s*</parameter>",
-                    content, re.IGNORECASE
-                )
-                xml_reason = re.search(
-                    r"<parameter\s*=\s*reason\s*>(.*?)</parameter>",
-                    content, re.DOTALL
-                )
-                if xml_approved:
-                    approved = xml_approved.group(1).lower() == "true"
-                    reason = xml_reason.group(1).strip() if xml_reason else ""
-                    return (approved, reason), ""
-
-                return None, f"未返回 tool_call 且 content 无法解析: {content[:200]}"
-
-            tool_call = message.tool_calls[0]
-            result = json.loads(tool_call.function.arguments)
-            approved = bool(result.get("approved", False))
-
-            # 支持 NoneType 处理
-            raw_reason = result.get("reason")
-            reason = str(raw_reason).strip() if raw_reason is not None else ""
-
-            return (approved, reason), ""
-        except Exception as e:
-            return None, f"Tool Call 结构提取失败: {e}"
+            if message.tool_calls:
+                if len(message.tool_calls) != 1:
+                    raise ValueError("expected exactly one approval decision tool call")
+                function = message.tool_calls[0].function
+                if function.name != "submit_approval_decision":
+                    raise ValueError("unexpected approval decision tool name")
+                payload = function.arguments
+            else:
+                payload = message.content
+            decision = _ApprovalDecision.model_validate_json(payload)
+            return (decision.approved, (decision.reason or "").strip()), ""
+        except ValidationError as exc:
+            # Report the failing fields/types without echoing the model's input.
+            return None, "审批结论校验失败: " + str(exc.errors(include_input=False, include_url=False))
+        except (AttributeError, IndexError, TypeError, ValueError) as exc:
+            return None, f"审批响应结构无效: {exc}"

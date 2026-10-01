@@ -7,6 +7,7 @@ from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_
 
 @pytest.mark.parametrize('basis, expected', [
     ('def2svp', 'def2-SVP'), ('DEF2TZVPP', 'def2-TZVPP'),
+    (' def2svp ', 'def2-SVP'), ('\tDEF2TZVPP\n', 'def2-TZVPP'),
     ('def2-SVP', 'def2-SVP'), ('cc-pVDZ', 'cc-pVDZ'), ('', ''),
 ])
 def test_orca_writer_renders_basis_alias_and_preserves_declared_keywords(basis, expected):
@@ -81,3 +82,24 @@ def test_scan_to_ts_followups_keep_declared_method_basis_and_keywords(tmp_path, 
         assert header[2:] == ['b3lyp', 'def2-SVP', 'D3BJ', 'RIJCOSX', 'def2/J', 'TightSCF', 'CPCM(DCM)'], path
     assert record.declaration.method == 'b3lyp/def2svp'
     assert record.declaration.extra_keywords == extras
+
+
+@pytest.mark.parametrize('method, expected', [
+    ('b3lyp / def2svp RIJCOSX def2/J', '! OPT b3lyp def2-SVP RIJCOSX def2/J'),
+    ('b3lyp /def2svp RIJCOSX def2/J', '! OPT b3lyp def2-SVP RIJCOSX def2/J'),
+    ('b3lyp/ def2svp RIJCOSX def2/J', '! OPT b3lyp def2-SVP RIJCOSX def2/J'),
+    ('b3lyp/def2svp RIJCOSX def2/J', '! OPT b3lyp def2-SVP RIJCOSX def2/J'),
+    ('b3lyp def2svp RIJK def2/JK', '! OPT b3lyp def2-SVP RIJK def2/JK'),
+    ('MP2/cc-pVDZ cc-pVDZ/C', '! OPT MP2 cc-pVDZ cc-pVDZ/C'),
+])
+def test_scan_keeps_auxiliary_basis_slashes(tmp_path, method, expected):
+    from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_input_schema
+
+    xyz = tmp_path / 'water.xyz'
+    xyz.write_text('3\nwater\nO 0 0 0\nH 1 0 0\nH 0 1 0\n')
+    target = tmp_path / 'scan.inp'
+    result = TsGuess()._scan_prepare(TsGuess_input_schema(mode='scan_prepare', engine='orca',
+        input_path=str(xyz), method=method, output_path=str(target),
+        scans=[{'atoms': [0, 1], 'scan_end': 2, 'scan_steps': 3}]))
+    assert result.is_success
+    assert target.read_text().splitlines()[0] == expected

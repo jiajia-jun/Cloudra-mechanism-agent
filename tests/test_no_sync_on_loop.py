@@ -124,6 +124,7 @@ def test_yolo_guard_tolerates_missing_message_history():
     guard.model = "test-model"
     mock_response = MagicMock()
     tool_call = MagicMock()
+    tool_call.function.name = "submit_approval_decision"
     tool_call.function.arguments = json.dumps({"approved": True, "reason": "ok"})
     mock_response.choices[0].message.tool_calls = [tool_call]
 

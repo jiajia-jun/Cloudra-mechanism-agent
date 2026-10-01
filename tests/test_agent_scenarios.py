@@ -1115,3 +1115,35 @@ async def test_failed_ts_scan_unchanged_resume_keeps_failure_without_budget_exha
         assert await asyncio.to_thread(queued_jobs) == 0
     finally:
         await harness.aclose()
+
+
+@pytest.mark.asyncio
+async def test_yolo_invalid_boolean_never_applies_agent_file_write(tmp_path, monkeypatch):
+    """An invalid approval is rejected within the real Agent/tool/file mutation path."""
+    from unittest.mock import AsyncMock
+
+    from cloudra.infra.yolo_guard import YoloGuard
+    from tests.test_yolo_guard import _approval_response
+
+    monkeypatch.setenv("CLOUDRA_YOLO_MODE", "true")
+    client = SimpleNamespace(create=AsyncMock(return_value=_approval_response({"approved": "false"})))
+    monkeypatch.setattr(YoloGuard, "_client", lambda _: client)
+    provider = ScriptedProvider(default=[
+        Step(tools=[("write", {"path": "blocked.txt", "content": "must not be applied"})]),
+        Step(stop=True),
+    ])
+    harness = await ScenarioHarness.start(tmp_path, provider=provider)
+    try:
+        agent = await harness.spawn("coordinator", protocol="traditional")
+        await harness.wait_terminal(agent)
+        calls = harness.tool_events(agent)
+        assert [call["tool_name"] for call in calls] == ["write"]
+        assert calls[0]["started"] is True, harness.describe(agent)
+        result = calls[0]["result_data"]
+        assert result["status"] == "declined"
+        assert result["is_written"] is False
+        assert client.create.call_count == 3
+        target = _workspace(harness.project.id) / "blocked.txt"
+        assert not await asyncio.to_thread(target.exists)
+    finally:
+        await harness.aclose()
