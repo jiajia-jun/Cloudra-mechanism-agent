@@ -50,6 +50,8 @@ def test_two_connections_bind_one_stage_job(tmp_path):
 
     db = ComputeDB(data_dir=tmp_path).init()
     process = create_process(db, request_key="request", payload=payload())
+    # Prepare immutable bytes before racing the two independent DB connections.
+    stage_job = job_payload()
 
     def bind(_):
         return bind_stage_job(
@@ -58,7 +60,7 @@ def test_two_connections_bind_one_stage_job(tmp_path):
             declaration_revision=1,
             stage_key="ts_opt",
             attempt=1,
-            job_payload=job_payload(),
+            job_payload=stage_job,
         )
 
     with ThreadPoolExecutor(max_workers=2) as pool:

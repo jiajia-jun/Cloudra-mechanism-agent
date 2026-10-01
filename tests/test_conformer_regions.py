@@ -101,6 +101,7 @@ def test_invalid_descriptor_rejected():
 
 
 def test_key_torsion_prefers_heavy_neighbors_and_explains_relevance():
+    pytest.importorskip("rdkit", reason="requires RDKit (chem extra)")
     from rdkit import Chem
 
     from cloudra.tools.core.conformer_regions import build_descriptor_specs

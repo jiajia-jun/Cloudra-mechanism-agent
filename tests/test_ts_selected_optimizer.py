@@ -2,6 +2,8 @@ from types import SimpleNamespace
 
 import pytest
 
+pytest.importorskip("rdkit", reason="selected candidate preparation requires RDKit (chem extra)")
+
 from cloudra.services.compute_admission import AdmissionOutcome
 from cloudra.tools.Chemtool.conformer_search import ConformerSearch, ConformerSearch_input_schema
 from cloudra.tools.core.ts_process import TsDeclaration, TsStartRequest, start

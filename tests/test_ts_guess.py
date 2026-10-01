@@ -386,6 +386,7 @@ H  0.000000  -0.757200  -0.469200
 @pytest.mark.asyncio
 async def test_scan_prepare_rejects_mol_path_with_xyz_guidance(tmp_path, mock_session):
     """A MOL input passed as scan geometry should fail with a format instruction."""
+    pytest.importorskip("rdkit", reason="requires RDKit (chem extra)")
     from rdkit import Chem
     from rdkit.Chem import AllChem
 

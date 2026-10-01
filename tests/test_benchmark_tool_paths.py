@@ -26,6 +26,7 @@ from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.core import RuntimeCore
 from cloudra.runtime_v2.policies.base import ToolCall
 from cloudra.runtime_v2.schemas import Command
+from cloudra.services.nodes import default_resources
 from tests.fixtures.benchmark_engines.engine import install_engine
 
 _WATER_XYZ = (
@@ -49,6 +50,9 @@ _RDKIT_AVAILABLE = importlib.util.find_spec("rdkit") is not None
 # 计算资源由 agent 显式申请、节点按容量硬校验：CI runner 只 2 核，写死 cpus=4
 # 会在 2 核 runner 上被合法拒收（同 tests/test_xtb_channel.py 的口径）。
 _TEST_CPUS = max(1, min(2, os.cpu_count() or 1))
+# submit 从输入推导内存；引擎替身无需 writer 默认 4GB（超过 CI 的 3968MB 额度）。
+# 最多用 512MB，并留一半节点额度给并发测试中的另一条作业。
+_TEST_MEMORY_MB = max(1, min(512, default_resources()["memory_mb"] // 2))
 # qm_input_writer 在缺 RDKit 时整体拒工（工具首个前置检查），因此走 writer 的
 # 用例需要 chem extra；盘点类/原语类用例不依赖 RDKit，始终运行。
 _REQUIRES_RDKIT = pytest.mark.skipif(
@@ -228,6 +232,7 @@ async def test_relative_source_and_submit_use_same_workspace(core, server_cwd, t
             "source_type": "xyz_file",
             "source_value": "xyz/water.xyz",
             "engine": "gaussian", "nproc": _TEST_CPUS,
+            "mem": f"{_TEST_MEMORY_MB}MB",
             "output_dir": "calc/input.gjf",
         },
     )
@@ -291,6 +296,8 @@ async def test_concurrent_projects_do_not_cross_write(core, server_cwd, tmp_path
     project1, agent1 = await _spawn(core, ws1)
     project2, agent2 = await _spawn(core, ws2)
     executor = LegacyToolExecutor(core)
+    # 两条同步作业须同时放进 2 核 CI 节点；每条只申请 1 核。
+    job_cpus = 1
 
     async def write_and_submit(agent, workspace: Path):
         writer = await _execute(
@@ -300,7 +307,8 @@ async def test_concurrent_projects_do_not_cross_write(core, server_cwd, tmp_path
             {
                 "source_type": "xyz_file",
                 "source_value": str(workspace / "src.xyz"),
-                "engine": "gaussian", "nproc": _TEST_CPUS,
+                "engine": "gaussian", "nproc": job_cpus,
+                "mem": f"{_TEST_MEMORY_MB}MB",
                 "output_dir": "calc/input.gjf",
             },
         )
@@ -309,7 +317,7 @@ async def test_concurrent_projects_do_not_cross_write(core, server_cwd, tmp_path
             executor,
             agent,
             "submit_compute_job",
-            {"input_file": "calc/input.gjf", "job_type": "gaussian", "is_async": False, "cpus": _TEST_CPUS},
+            {"input_file": "calc/input.gjf", "job_type": "gaussian", "is_async": False, "cpus": job_cpus},
         )
         assert submitted.is_success, submitted.summary
         return submitted
@@ -342,6 +350,8 @@ async def test_concurrent_projects_do_not_cross_write(core, server_cwd, tmp_path
     db = ComputeDB()
     rows = list_compute_jobs(db)
     assert len(rows) == 2
+    assert all(r["req_cpus"] == job_cpus for r in rows)
+    assert all(r["req_memory_mb"] == _TEST_MEMORY_MB for r in rows)
     by_path = {str(r["path"]): r for r in rows}
     assert str((ws1 / "calc" / "input.gjf").resolve()) in by_path
     assert str((ws2 / "calc" / "input.gjf").resolve()) in by_path

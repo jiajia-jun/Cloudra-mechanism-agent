@@ -12,8 +12,9 @@ the turn pipeline; the state machine itself is handle-agnostic.
   统一落日志/投影。
 - **命令式方法**（``AgentHost``）：``plan + 落盘 + apply_event`` 的薄异步壳，
   供非命令路径（runner / pending 翻状态 / 依赖唤醒的投递与计算通知）使用。
-  **运行期只有一条写路径**（``_persist_then_apply``）：先 append、flush 成功
-  才 ``apply_event``——落库失败丢未持久化尾巴并抛出，绝不让内存状态超前于磁盘。
+  **运行期只有一条写路径**（``_persist_then_apply``）：先 append、落盘
+  才 ``apply_event``——落库失败仅应用已持久化前缀，丢掉未持久化尾巴；本批
+  未完整落盘才抛出，绝不让内存状态超前于磁盘。
 
 恢复路径（``persistence.restore_core``：同步、无事件循环）不经过这些壳：它用
 同一批纯 ``plan_*`` 规划器产出草稿，自己 append + ``apply_event`` 并收进
@@ -395,8 +396,8 @@ class AgentHost:
     ) -> None:
         """运行期唯一写路径：落库成功才投影，绝不让内存状态超前于磁盘。
 
-        落库失败时丢掉本次未持久化的尾巴再抛出——下次 flush 不会把从未 apply
-        的事件写进磁盘。
+        落库失败时仍应用本次已持久化的前缀，丢掉未持久化的尾巴。本批全部
+        落盘后其他写入失败不影响本批成功；本批不完整则抛出，绝不执行后续效果。
         """
         from cloudra.runtime_v2.event_writer import EventPersistenceError
 
@@ -417,7 +418,19 @@ class AgentHost:
             await self.core.event_writer.flush()
         except EventPersistenceError:
             self.core.event_writer.discard_unpersisted(keep=keep)
-            raise
+            # Only our durable envelopes can survive the tail discard. Keep
+            # the live projection aligned with that prefix, even when the
+            # failure was inside our batch rather than in a concurrent tail.
+            durable = [
+                envelope for envelope in envelopes
+                if self.event_log.get(envelope.event_id) is not None
+            ]
+            for envelope in durable:
+                apply_event(self.core, envelope)
+            await self.core.event_writer.publish_persisted()
+            if len(durable) != len(envelopes):
+                raise
+            return
         for envelope in envelopes:
             apply_event(self.core, envelope)
 

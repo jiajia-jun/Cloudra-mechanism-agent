@@ -52,7 +52,9 @@ def test_scan_and_refinement_keep_distinct_declared_solvation(tmp_path, monkeypa
     monkeypatch.setattr(process, '_read_job_state', lambda *_: 'running')
 
     process._guess(record)
-    scan_text = (tmp_path / 'path' / 'scan_0001' / 'scan.inp').read_text()
+    assert record.blocked is None
+    assert record.scan_step is not None
+    scan_text = Path(record.scan_step.input_path).read_text()
     assert 'ALPB(Water)' in scan_text
     assert 'CPCM(Water)' not in scan_text
 

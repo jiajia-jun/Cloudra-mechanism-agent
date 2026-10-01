@@ -30,6 +30,7 @@ from cloudra.benchmark.runner import BenchmarkRunner
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.core import RuntimeCore
 from cloudra.runtime_v2.schemas import AgentState, OrchestrationMode
+from cloudra.services.nodes import default_resources
 from tests.benchmark_support import (
     Receipt,
     ScriptedLLM,
@@ -93,20 +94,26 @@ _BARRIER = "Done. The computed barrier is 5.0 kcal/mol."
 # 计算资源由 agent 显式申请、节点按容量硬校验：申请超过本机核数会被合法拒收
 # （那是 submit 工具的正确行为，不是被测的链路行为）。CI runner 只有 2 核，
 # 所以脚本申请 min(2, 本机核数)，与 tests/test_xtb_channel.py 的既有口径一致。
+# 输入声明的内存也会由 submit 推导并记账；writer 默认 4GB 超过 CI 的 3968MB
+# 额度。引擎替身只需少量内存，显式写入最多 512MB，并给并发用例留一半额度。
 _TEST_CPUS = max(1, min(2, os.cpu_count() or 1))
+_TEST_MEMORY_MB = max(1, min(512, default_resources()["memory_mb"] // 2))
 _CPUS_TOKEN = "__CPUS__"
+_MEMORY_TOKEN = "__MEMORY_MB__"
 
 
-def _fit_cpus(program: str) -> str:
-    """把脚本里的 __CPUS__ 占位换成这台机器真能申请到的核数。"""
-    return program.replace(_CPUS_TOKEN, str(_TEST_CPUS))
+def _fit_resources(program: str) -> str:
+    """把脚本里的资源占位换成这台机器能申请到的测试额度。"""
+    return program.replace(_CPUS_TOKEN, str(_TEST_CPUS)).replace(
+        _MEMORY_TOKEN, str(_TEST_MEMORY_MB)
+    )
 
-_CHILD_SYNC_CHAIN_PROGRAM = _fit_cpus(r"""
+_CHILD_SYNC_CHAIN_PROGRAM = _fit_resources(r"""
 const w = await tools.qm_input_writer({
   source_type: "smiles", source_value: "O",
   method: "b3lyp", basis_set: "6-31g(d)",
   task_type: [{ "sp": null }],
-  nproc: __CPUS__,
+  nproc: __CPUS__, mem: "__MEMORY_MB__MB",
   output_dir: "calc/input.gjf",
 });
 if (!w.is_success) { text("WRITER FAIL: " + w.summary); }
@@ -129,7 +136,7 @@ else {
 
 # 父 agent（run2）：异步提交同一输入（真实 scheduler 认领 → guard → 引擎），
 # 随后按真实门禁挂起等唤醒；终态由 watcher 的 compute.db 判定收口。
-_PARENT_ASYNC_SUBMIT_PROGRAM = _fit_cpus(r"""
+_PARENT_ASYNC_SUBMIT_PROGRAM = _fit_resources(r"""
 const s = await tools.submit_compute_job({
   input_file: "calc/input.gjf", job_type: "gaussian", is_async: true, cpus: __CPUS__,
 });
@@ -139,12 +146,12 @@ else { text("PARENT SUBMITTED job=" + s.data.job_id + " state=" + s.data.state);
 
 # 引擎失败 → 修正后重提：第一次同步提交必须带回 failed 回执（含编号），
 # 第二次同输入成功，两个编号不同、旧失败记录保留。
-_CHILD_FAIL_THEN_RESUBMIT_PROGRAM = _fit_cpus(r"""
+_CHILD_FAIL_THEN_RESUBMIT_PROGRAM = _fit_resources(r"""
 const w = await tools.qm_input_writer({
   source_type: "smiles", source_value: "O",
   method: "b3lyp", basis_set: "6-31g(d)",
   task_type: [{ "sp": null }],
-  nproc: __CPUS__,
+  nproc: __CPUS__, mem: "__MEMORY_MB__MB",
   output_dir: "calc/input.gjf",
 });
 if (!w.is_success) { text("WRITER FAIL: " + w.summary); }
@@ -157,12 +164,12 @@ else {
 }
 """)
 
-_CHILD_RESUBMIT_CHAIN_PROGRAM = _fit_cpus(r"""
+_CHILD_RESUBMIT_CHAIN_PROGRAM = _fit_resources(r"""
 const w = await tools.qm_input_writer({
   source_type: "smiles", source_value: "O",
   method: "b3lyp", basis_set: "6-31g(d)",
   task_type: [{ "sp": null }],
-  nproc: __CPUS__,
+  nproc: __CPUS__, mem: "__MEMORY_MB__MB",
   output_dir: "calc/input.gjf",
 });
 if (!w.is_success) { text("WRITER FAIL: " + w.summary); }
@@ -206,12 +213,12 @@ text("WRITTEN bad=" + badWrite.is_success + " good=" + goodWrite.is_success +
      " | BAD OPTION ok=" + badOption.is_success);
 """
 
-_CHILD_CORRECTED_CHAIN_PROGRAM = _fit_cpus(r"""
+_CHILD_CORRECTED_CHAIN_PROGRAM = _fit_resources(r"""
 const w = await tools.qm_input_writer({
   source_type: "xyz_file", source_value: "xyz/water.xyz",
   method: "b3lyp", basis_set: "6-31g(d)",
   task_type: [{ "sp": null }],
-  nproc: __CPUS__,
+  nproc: __CPUS__, mem: "__MEMORY_MB__MB",
   output_dir: "calc/input.gjf",
 });
 if (!w.is_success) { text("WRITER FAIL: " + w.summary); }
@@ -238,12 +245,12 @@ if (parsed.is_success) {
 """
 
 # Web 路径子 agent：提交后不轮询——ComputeNotifyBroker 回传唤醒后 query+parser。
-_CHILD_PREP_PROGRAM = _fit_cpus(r"""
+_CHILD_PREP_PROGRAM = _fit_resources(r"""
 const w = await tools.qm_input_writer({
   source_type: "smiles", source_value: "O",
   method: "b3lyp", basis_set: "6-31g(d)",
   task_type: [{ "sp": null }],
-  nproc: __CPUS__,
+  nproc: __CPUS__, mem: "__MEMORY_MB__MB",
   output_dir: "calc/input.gjf",
 });
 if (!w.is_success) { text("WRITER FAIL: " + w.summary); }
@@ -271,14 +278,14 @@ else {
 }
 """
 
-_SPAWN_PROGRAM = r"""
+_SPAWN_PROGRAM = _fit_resources(r"""
 const r = await tools.subagent_launcher({
   agent_id: "a-4",
-  query: "Prepare a water single-point Gaussian input from SMILES O, submit it asynchronously with cpus=4, wait for completion and parse the log.",
+  query: "Prepare a water single-point Gaussian input from SMILES O, submit it asynchronously with cpus=__CPUS__, wait for completion and parse the log.",
 });
 if (!r.is_success) { text("SPAWN FAIL: " + r.summary); }
 else { text("SPAWNED session=" + r.data.session_id); }
-"""
+""")
 
 
 def _task_json(task_id: str, *, mode: OrchestrationMode = OrchestrationMode.STANDARD,
@@ -467,6 +474,8 @@ def _assert_job_chain(core, *, engine, workspace: Path, project_id: str,
         assert row["state"] == "done"
         assert row["conversation_id"] == project_id
         assert row["path"] == str(gjf.resolve())
+        assert row["req_cpus"] == _TEST_CPUS
+        assert row["req_memory_mb"] == _TEST_MEMORY_MB
 
     # 事件：每条作业恰好一次 submit，requested/started/finished 一一闭合，
     # 无重复提交、无越权 job id
@@ -725,6 +734,7 @@ def test_cli_full_chain_traditional_equivalent(tmp_path, monkeypatch):
             "source_type": "smiles", "source_value": "O",
             "method": "b3lyp", "basis_set": "6-31g(d)",
             "task_type": [{"sp": None}], "nproc": _TEST_CPUS,
+            "mem": f"{_TEST_MEMORY_MB}MB",
             "output_dir": "calc/input.gjf",
         })], run=1),
         calls(2, [("submit_compute_job", {
@@ -980,7 +990,7 @@ const w = await tools.qm_input_writer({{
   source_type: "smiles", source_value: "O",
   method: "b3lyp", basis_set: "6-31g(d)",
   task_type: [{{ "freq": null }}],
-  nproc: {_TEST_CPUS},
+  nproc: {_TEST_CPUS}, mem: "{_TEST_MEMORY_MB}MB",
   output_dir: "calc/input.gjf",
 }});
 if (!w.is_success) {{ text("WRITER FAIL: " + w.summary); }}
