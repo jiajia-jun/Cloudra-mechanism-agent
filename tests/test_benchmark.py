@@ -1944,7 +1944,19 @@ def test_hard_replacement_and_hl1_reframed_graph():
     from cloudra.benchmark import gen_hard_tasks
 
     tasks = {t.task_id: t for t in gen_hard_tasks.parse_hard_md(gen_hard_tasks.DEFAULT_SRC)}
-    assert "HE2" not in tasks
+    assert {"HE2", "HE3", "HG2"}.isdisjoint(tasks)
+    assert {"HA8", "HB10"}.issubset(tasks)
+    assert tasks["HA8"].gold.mechanism_graph.edges[0].barrier_kcal_mol == 29.48
+    da_cn = tasks["HB10"]
+    assert {e.channel: e.barrier_kcal_mol for e in da_cn.gold.mechanism_graph.edges} == {
+        "endo": 14.34, "exo": 14.12,
+    }
+    assert da_cn.gold.selectivity is None  # near-degenerate electronic gap is not a favored answer
+    assert len({e.to_node for e in da_cn.gold.mechanism_graph.edges}) == 2
+    assert all(e.bond_changes.form == [[1, 5], [2, 6], [4, 7]] for e in da_cn.gold.mechanism_graph.edges)
+    for pid in ("HE3", "HG2"):
+        assert not (gen_hard_tasks.DEFAULT_OUT / f"{pid}.json").exists()
+        assert (gen_hard_tasks.REPO_ROOT / "gold_compute/archive/retired_tasks_20261001" / f"{pid}.json").exists()
     assert not (gen_hard_tasks.DEFAULT_OUT / "HE2.json").exists()
 
     da = tasks["HB1"]
@@ -2091,6 +2103,13 @@ def test_hard_selectivity_qualitative_contract():
 
     tasks = gen_hard_tasks.parse_hard_md(gen_hard_tasks.DEFAULT_SRC)
     for t in tasks:
+        if t.task_id in {"HA8", "HB10"}:
+            assert t.gold.selectivity is None
+            assert t.rubric.accuracy.enabled
+            assert all(e.favored is None for e in t.gold.mechanism_graph.edges)
+            assert "no favored-channel assignment is scored" in t.prompt.query
+            assert "`favored: true`" not in t.prompt.query
+            continue
         assert "`channel`" in t.prompt.query and "`favored: true`" in t.prompt.query
         assert "scored qualitatively" in t.prompt.query
         assert "not scored numerically" in t.prompt.query

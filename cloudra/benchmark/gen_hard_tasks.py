@@ -98,10 +98,10 @@ DEFAULT_SRC = REPO_ROOT / "ideapool" / "reaction_candidates" / "hard.md"
 DEFAULT_OUT = REPO_ROOT / "ideapool" / "tasks" / "hard"
 
 # hard.md "定稿圈定"段的权威名单（v3 缩减：20 → 10；池子其余条目留档不生成）。
-# 正选：A1/A6 电环化，B1 Diels-Alder，D2 环氧开环，E3 CBS，F1 环氧化，
-# G2 Claisen，H1 联萘，I1 aldol，L1 Beckmann（全 ≤20 重原子）。
+# 2026-10-01：A8/H6PI 替换 E3，B10/HDA_CN 替换 G2；旧源与证据留档。
+# 正选：A1/A6/A8 电环化，B1/B10 DA，D2 环氧开环，F1 环氧化，H1 联萘，I1 aldol，L1 Beckmann。
 TASK_IDS = (
-    "A1 A6 B1 D2 E3 F1 G2 H1 I1 L1"
+    "A1 A6 B1 D2 A8 F1 B10 H1 I1 L1"
 ).split()
 
 # 绝对能垒逐边承载在 gold 边 barrier_kcal_mol（H1 两条自算 ΔE‡ 等），
@@ -323,6 +323,7 @@ def _query(
     mapped: str,
     allowed_methods: Sequence[str] | None = None,
     require_node_energies: bool = True,
+    score_selectivity: bool = True,
 ) -> str:
     rs = ".".join(reactants)
     ps = ".".join(products)
@@ -341,9 +342,15 @@ def _query(
         "The 1-based map numbers in it are the indexing convention for `bond_changes` "
         "(keep using the plain SMILES above for graph nodes and evidence annotations). "
         "The product SMILES above state connectivity only: resolving the stereochemical "
-        "outcome is part of the deliverable. Investigate the competing stereochemical "
-        "channels (not only the major one), and make sure the stereochemistry of every "
-        "product and intermediate node is stated in its SMILES. "
+        "outcome is part of the deliverable. "
+        + (
+            "Investigate the competing stereochemical channels (not only the major one), and make sure "
+            "the stereochemistry of every product and intermediate node is stated in its SMILES. "
+            if score_selectivity else
+            "Investigate the stereochemical pathways compatible with the stated conditions; "
+            "a forbidden counterfactual pathway is not required. Make sure the stereochemistry "
+            "of every product and intermediate node is stated in its SMILES. "
+        ) +
         "The reaction may proceed through a multi-step network: represent each intermediate "
         "you identify as a node and each elementary step as an edge; competing pathways you "
         "investigate deserve their own edges. "
@@ -367,13 +374,18 @@ def _query(
         "can bind each graph element to concrete evidence. "
         + barrier_declaration_clause(require_node_energies)
         + TS_EVIDENCE_CLAUSE +
-        "For each competing stereochemical channel, declare on that channel's edge a "
-        "`channel` field (a short label identifying the channel) and `favored: true` on "
-        "exactly the one channel your computed barriers favor (`favored: false` on the "
-        "other channels); the favored-channel assignment is scored qualitatively (right "
-        "or wrong). Also record the barrier difference (minor-channel TS minus "
-        "major-channel TS) in kcal/mol in your report; the numeric difference is "
-        "recorded but not scored numerically. "
+        (
+            "For each competing stereochemical channel, declare on that channel's edge a "
+            "`channel` field (a short label identifying the channel) and `favored: true` on "
+            "exactly the one channel your computed barriers favor (`favored: false` on the "
+            "other channels); the favored-channel assignment is scored qualitatively (right "
+            "or wrong). Also record the barrier difference (minor-channel TS minus "
+            "major-channel TS) in kcal/mol in your report; the numeric difference is "
+            "recorded but not scored numerically. "
+            if score_selectivity else
+            "For each stereochemical channel you investigate, state its identity and barrier. "
+            "Report any energy difference and its uncertainty; no favored-channel assignment is scored for this task. "
+        ) +
         "Run the computations with ORCA or Gaussian: the scorer parses only these two "
         f"programs' log formats, so output from any other program cannot count as evidence.{methods_part}"
     )
@@ -487,6 +499,7 @@ def parse_hard_md(src: Path, only: set[str] | None = None) -> list[TaskSpec]:
                         entry["mapped_reactants"],
                         allowed_methods=policy.allowed_methods,
                         require_node_energies=require_node_energies,
+                        score_selectivity=entry.get("score_selectivity", True),
                     )
                 ),
                 method_policy=policy,

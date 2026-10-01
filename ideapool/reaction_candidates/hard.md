@@ -182,7 +182,7 @@ D2 自算证据：`computed_by_us=True`；类型为纯电子 ΔE‡，参考态�
 >
 > **收录规则不变**：1,3-偶极环加成不考虑（C 族整体剔除）；多参考体系划归 impossible 档。
 
-- **正选 10（2026-09-30 更新）**：A1, A6, B1, D2, E3, F1, G2, H1, I1, L1。
+- **正选 10（2026-10-01 更新）**：A1, A6, B1, D2, A8, F1, B10, H1, I1, L1。
 - **2026-09-30 替换**：用户决定停算 E2（HE2，硼氢化物还原）。补入 B1（HB1，环戊二烯＋顺丁烯二酸酐 endo/exo 加成）；先按苯溶剂模型试算，两条电子能垒未得到自算值前均保持 null。E2 仍留在候选池，不生成正式题。
 - **v2 定稿 20 期留档**：A2, B7, E1, G1, I4, J1, J2, J4, K1, L4（v3 剔出）+ A1, A6, D2, E2,
   E3, F1, G2, H1, I1, L1（v3 保留）。
@@ -206,3 +206,15 @@ D2 自算证据：`computed_by_us=True`；类型为纯电子 ΔE‡，参考态�
 - 产物 SMILES 标注"构型待 3D 核对"者（B2–B4、B6–B9、C2/C3、E1/E3、F2、G2/G3、I1–I4、K2、L3/L4），gold 构建阶段以文献结构图/计算 3D 锚定后替换。
 - 轴手性条目（H1–H3）SMILES 为消旋体表示（无 `@` 标记）——轴手性/Ra/Sa 由 query 文本与 gold 3D 锚定；RDKit 对联芳轴手性支持有限，生成器注意。
 - **评审打标台**：`ideapool/reaction_candidates/hard_tagging.html`（浏览器直接打开；由 `scripts/gen_hard_tagging.py` 从本文件生成，条目变更后重跑脚本重建）。打标存浏览器 localStorage、不回写本文件，可导出/导入 JSON 与正选/替补名单文本。
+
+
+## 2026-10-01 独立换题与自算验收
+
+用户要求难算就换题。E3/CBS 与 G2/Claisen 多轮探索后的缺口及全部原始证据留档，退出正式生成名单。新题标识 A8（HA8，计算代号 H6PI）替换 HE3；B10（HB10，HDA_CN）替换 HG2。未复用旧题化学身份或旧数值。
+
+| # | 反应（中/EN） | SMILES (reactant>>product)，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
+|---|---|---|---|---|---|---|---|
+| A8 | E,Z,E-辛三烯热6π电环化 / octatriene first thermal ring closure | `C/C=C/C=C\C=C\C>>C[C@@H]1C=CC=C[C@@H]1C`，0 / 1 | 气相；第一允许热环化 | 允许对旋闭环至cis/meso产物；无禁阻MR竞争通道 | 自算 ΔE‡ 29.48 kcal/mol，ORCA6.1.1气相B3LYP-D3BJ/def2-SVP | C,H；8 重原子；✅ | Marvell 1973，DOI10.1016/0040-4020(73)80195-4；实验溶液参数仅背景，不混减 |
+| B10 | 环戊二烯+丙烯腈endo/exo DA / cyclopentadiene + acrylonitrile | `C1=CCC=C1.C=CC#N>>N#C[C@H]1C[C@H]2C=C[C@@H]1C2`，0 / 1 | 气相；协同[4+2] | 两条独立相关一阶TS及正确endo/exo端点；共用已知最低正确RC86 | 自算 ΔE‡ 14.34 kcal/mol（endo）；exo逐边14.12，差0.22不作稳健favored评分 | C,H,N；9 重原子；✅ | James2013，DOI10.1021/jo400900x；自算同ORCA6.1.1气相方法 |
+
+两题IRC均到原生20步上限，未自收敛；实际双向轨迹加无约束零虚频端点确认连接性。H6PI初始反应端88有-45.19软虚频，唯一修正90已零虚频。参考80是已知最低合格EZE构象，未穷尽全局构象；HDA两IRC反应构象不同，以86共同基准，构象互变能垒未计算。详见 `gold_compute/hard_replacements_verified_2026-10-01.md`。原E3/G2表格与registry保留历史，旧TaskSpec保存到证据归档。

@@ -31,10 +31,10 @@
 差集自动推导，禁止手填。
 """
 
-from cloudra.benchmark.hard_registry import ab, de, fgk, hi, jl
+from cloudra.benchmark.hard_registry import ab, de, fgk, hi, jl, replacements
 
 REGISTRY: dict[str, dict] = {}
-for module in (ab, de, fgk, hi, jl):
+for module in (ab, de, fgk, hi, jl, replacements):
     overlap = set(REGISTRY) & set(module.TASKS)
     if overlap:
         raise SystemExit(f"hard_registry 登记重复: {overlap}")
