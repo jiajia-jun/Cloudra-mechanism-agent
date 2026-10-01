@@ -1,0 +1,2007 @@
+[
+  {
+    "package_path": "raw/HL1/job_9/.cloudra/calc-9.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_9/.cloudra/calc-9.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_min_ORCA6/.cloudra/calc-9.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_min_ORCA6/.cloudra/calc-9.out.log",
+    "bytes": 237486,
+    "sha256": "9c654b53fa95f8f6ffc9b5c0e70dfdd73f4658eb936281d02b18d6c5f6eb2301"
+  },
+  {
+    "package_path": "raw/HL1/job_9/I3p_min_ORCA6.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_9/I3p_min_ORCA6.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_min_ORCA6/I3p_min_ORCA6.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_min_ORCA6/I3p_min_ORCA6.hess",
+    "bytes": 149748,
+    "sha256": "febb6a840d25d41a89d0cc8bb4ec132b46fdc55f360e49b8ed617e7667283dc0"
+  },
+  {
+    "package_path": "raw/HL1/job_9/I3p_min_ORCA6.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_9/I3p_min_ORCA6.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_min_ORCA6/I3p_min_ORCA6.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_min_ORCA6/I3p_min_ORCA6.inp",
+    "bytes": 1168,
+    "sha256": "5c8ac2257cc5c33e4a4239de5f0d5b17b771f9abf0fe540e29ef55cbb99bd8b4"
+  },
+  {
+    "package_path": "raw/HL1/job_9/I3p_min_ORCA6.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_9/I3p_min_ORCA6.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_min_ORCA6/I3p_min_ORCA6.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_min_ORCA6/I3p_min_ORCA6.xyz",
+    "bytes": 1583,
+    "sha256": "bb403dad55d7368e9f83031baa93fb9598de59083e9342ee7afa209bb947261a"
+  },
+  {
+    "package_path": "raw/HL1/job_9/I3p_min_ORCA6_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_9/I3p_min_ORCA6_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_min_ORCA6/I3p_min_ORCA6_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_min_ORCA6/I3p_min_ORCA6_trj.xyz",
+    "bytes": 3153,
+    "sha256": "1cd2a318184a0bafa34254f736646520f9684513ee42a89cf6c80863021588af"
+  },
+  {
+    "package_path": "raw/HL1/job_16/.cloudra/calc-16.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_16/.cloudra/calc-16.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/Pmin_ORCA6/.cloudra/calc-16.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/Pmin_ORCA6/.cloudra/calc-16.out.log",
+    "bytes": 201937,
+    "sha256": "f7c01601244876cf9b68e3899c7b0a7f82b10ed20510a0eeb03b8a15a00d6aba"
+  },
+  {
+    "package_path": "raw/HL1/job_16/Pmin_ORCA6.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_16/Pmin_ORCA6.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/Pmin_ORCA6/Pmin_ORCA6.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/Pmin_ORCA6/Pmin_ORCA6.hess",
+    "bytes": 149748,
+    "sha256": "c7f80f5827d145f37ac65ba2b57dd0979adb6dbce091fe6cee517e1ac68433de"
+  },
+  {
+    "package_path": "raw/HL1/job_16/Pmin_ORCA6.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_16/Pmin_ORCA6.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/Pmin_ORCA6/Pmin_ORCA6.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/Pmin_ORCA6/Pmin_ORCA6.inp",
+    "bytes": 1153,
+    "sha256": "ba2c979ef679445d7cfedecebf6ee56251d11b5d38e159a8eb582c833653e934"
+  },
+  {
+    "package_path": "raw/HL1/job_16/Pmin_ORCA6.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_16/Pmin_ORCA6.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/Pmin_ORCA6/Pmin_ORCA6.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/Pmin_ORCA6/Pmin_ORCA6.xyz",
+    "bytes": 1577,
+    "sha256": "b3aa6f87f3c856789340729f373feb9da690c235199a288fe596ea68224ffbc0"
+  },
+  {
+    "package_path": "raw/HL1/job_16/Pmin_ORCA6_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_16/Pmin_ORCA6_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/Pmin_ORCA6/Pmin_ORCA6_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/Pmin_ORCA6/Pmin_ORCA6_trj.xyz",
+    "bytes": 2090,
+    "sha256": "c5b1d46b0041fb462f8a3d3c2523a4dc60ceffe42ffb8bb8ab1a18931370286e"
+  },
+  {
+    "package_path": "raw/HL1/job_17/.cloudra/calc-17.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_17/.cloudra/calc-17.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_ORCA6/.cloudra/calc-17.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_ORCA6/.cloudra/calc-17.out.log",
+    "bytes": 498851,
+    "sha256": "64c471c4fb9be749487340a46c5cdf64f976373cf095fe2ccb98ab6e42fa69ef"
+  },
+  {
+    "package_path": "raw/HL1/job_17/TS669_ORCA6.001.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_17/TS669_ORCA6.001.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_ORCA6/TS669_ORCA6.001.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_ORCA6/TS669_ORCA6.001.hess",
+    "bytes": 149748,
+    "sha256": "149338c0ea3274af985032037da77a9fa0aa4974102c4966814add2468bcbb0d"
+  },
+  {
+    "package_path": "raw/HL1/job_17/TS669_ORCA6.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_17/TS669_ORCA6.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_ORCA6/TS669_ORCA6.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_ORCA6/TS669_ORCA6.hess",
+    "bytes": 149748,
+    "sha256": "2e84f0dc3af69b315e03eb4749f60b468ce200e01f18a776a493ee1322d66744"
+  },
+  {
+    "package_path": "raw/HL1/job_17/TS669_ORCA6.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_17/TS669_ORCA6.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_ORCA6/TS669_ORCA6.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_ORCA6/TS669_ORCA6.inp",
+    "bytes": 1181,
+    "sha256": "a42ff6280e4f6a8e5e7444e7372e6892ac38e47b833ae762d1e3fe9106835840"
+  },
+  {
+    "package_path": "raw/HL1/job_17/TS669_ORCA6.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_17/TS669_ORCA6.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_ORCA6/TS669_ORCA6.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_ORCA6/TS669_ORCA6.xyz",
+    "bytes": 1579,
+    "sha256": "22e40d836ad50a215fbd9682e439b9d31d763df9dec4719b4b616ab3e92e1da9"
+  },
+  {
+    "package_path": "raw/HL1/job_17/TS669_ORCA6_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_17/TS669_ORCA6_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_ORCA6/TS669_ORCA6_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_ORCA6/TS669_ORCA6_trj.xyz",
+    "bytes": 8376,
+    "sha256": "074e1a21b531f93682794abec537e11598ca3ffd4dc3f253973c7347c98296fd"
+  },
+  {
+    "package_path": "raw/HL1/job_30/.cloudra/calc-30.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_30/.cloudra/calc-30.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I2min_ORCA6/.cloudra/calc-30.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I2min_ORCA6/.cloudra/calc-30.out.log",
+    "bytes": 202706,
+    "sha256": "c2cab46d97dc7feb4e43ce7c661d29bcae324bc40ddfc064ab162bb4fa2c35e3"
+  },
+  {
+    "package_path": "raw/HL1/job_30/I2min_ORCA6.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_30/I2min_ORCA6.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I2min_ORCA6/I2min_ORCA6.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I2min_ORCA6/I2min_ORCA6.hess",
+    "bytes": 149747,
+    "sha256": "afcb6e4cf59e8804367945507108face842e12a22ff2dd277ca504c92b3fec00"
+  },
+  {
+    "package_path": "raw/HL1/job_30/I2min_ORCA6.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_30/I2min_ORCA6.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I2min_ORCA6/I2min_ORCA6.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I2min_ORCA6/I2min_ORCA6.inp",
+    "bytes": 1145,
+    "sha256": "1e7ce5ac143d2595fd8851720f1e4ebe7f733c4c155aa73257d4ee0629a7871a"
+  },
+  {
+    "package_path": "raw/HL1/job_30/I2min_ORCA6.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_30/I2min_ORCA6.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I2min_ORCA6/I2min_ORCA6.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I2min_ORCA6/I2min_ORCA6.xyz",
+    "bytes": 1579,
+    "sha256": "620f6d2a5002887fc510dc3f39f71627e5863ff61267bb45d597f03b55c63b3f"
+  },
+  {
+    "package_path": "raw/HL1/job_30/I2min_ORCA6_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_30/I2min_ORCA6_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I2min_ORCA6/I2min_ORCA6_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I2min_ORCA6/I2min_ORCA6_trj.xyz",
+    "bytes": 2094,
+    "sha256": "31fb519773c8bab8622e2e576f1e841e291eb44de10dc5b80172ad508d7b2807"
+  },
+  {
+    "package_path": "raw/HL1/job_31/.cloudra/calc-31.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_31/.cloudra/calc-31.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_ORCA6/.cloudra/calc-31.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_ORCA6/.cloudra/calc-31.out.log",
+    "bytes": 87114,
+    "sha256": "2d658a7e2b140993784c01c5471456c95b8c63cf0a1801cb27520a7fa4eed377"
+  },
+  {
+    "package_path": "raw/HL1/job_31/TS669_IRC_ORCA6.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_31/TS669_IRC_ORCA6.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_ORCA6/TS669_IRC_ORCA6.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_ORCA6/TS669_IRC_ORCA6.inp",
+    "bytes": 1310,
+    "sha256": "c05834af58b9f5da03a43ed28b3b3163c64be62339014fb11eedd5a7f781bdd6"
+  },
+  {
+    "package_path": "raw/HL1/job_31/TS669_IRC_ORCA6_IRC_B.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_31/TS669_IRC_ORCA6_IRC_B.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_ORCA6/TS669_IRC_ORCA6_IRC_B.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_ORCA6/TS669_IRC_ORCA6_IRC_B.xyz",
+    "bytes": 1593,
+    "sha256": "357165d11136456d09ab9bfab6b68b214b01ec941deea9842fd8be977dcaeae9"
+  },
+  {
+    "package_path": "raw/HL1/job_31/TS669_IRC_ORCA6_IRC_B_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_31/TS669_IRC_ORCA6_IRC_B_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_ORCA6/TS669_IRC_ORCA6_IRC_B_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_ORCA6/TS669_IRC_ORCA6_IRC_B_trj.xyz",
+    "bytes": 38196,
+    "sha256": "16717a20e9fb6e0e239a7c30dec282f9031c74efac31cd2ef23a2309d05f9843"
+  },
+  {
+    "package_path": "raw/HL1/job_31/TS669_IRC_ORCA6_IRC_F.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_31/TS669_IRC_ORCA6_IRC_F.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_ORCA6/TS669_IRC_ORCA6_IRC_F.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_ORCA6/TS669_IRC_ORCA6_IRC_F.xyz",
+    "bytes": 1593,
+    "sha256": "738190508874d8937e2da992c2d671fa5e597376e3131847356289800b0c3ea9"
+  },
+  {
+    "package_path": "raw/HL1/job_31/TS669_IRC_ORCA6_IRC_F_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_31/TS669_IRC_ORCA6_IRC_F_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_ORCA6/TS669_IRC_ORCA6_IRC_F_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_ORCA6/TS669_IRC_ORCA6_IRC_F_trj.xyz",
+    "bytes": 42440,
+    "sha256": "d893a51db89d94e3d412c1f72dad1630b4c61b179806d95441b606d012c84367"
+  },
+  {
+    "package_path": "raw/HL1/job_31/TS669_IRC_ORCA6_IRC_Full_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_31/TS669_IRC_ORCA6_IRC_Full_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_ORCA6/TS669_IRC_ORCA6_IRC_Full_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_ORCA6/TS669_IRC_ORCA6_IRC_Full_trj.xyz",
+    "bytes": 81928,
+    "sha256": "ce5c9df8c058c0f148a494de04eb51dc6cba8288eeecf9c73bb665039a8c34ac"
+  },
+  {
+    "package_path": "raw/HL1/job_37/.cloudra/calc-37.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_37/.cloudra/calc-37.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS/.cloudra/calc-37.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS/.cloudra/calc-37.out.log",
+    "bytes": 3242101,
+    "sha256": "fd9f732d249e9f0436941e080a4f20ba57503eb08c8d6257bcb90d9f4cbae8cb"
+  },
+  {
+    "package_path": "raw/HL1/job_37/I3p_P_TS.001.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_37/I3p_P_TS.001.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS/I3p_P_TS.001.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS/I3p_P_TS.001.hess",
+    "bytes": 149748,
+    "sha256": "de9a3869badaca4df2cefe08e9605e10ecfa98b7cdd7aa1405425501bec17727"
+  },
+  {
+    "package_path": "raw/HL1/job_37/I3p_P_TS.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_37/I3p_P_TS.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS/I3p_P_TS.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS/I3p_P_TS.hess",
+    "bytes": 149748,
+    "sha256": "a30f8ac1ea97acf4e0150f36f041a6cdf257aa46c2836a83c1ad89fae13ec129"
+  },
+  {
+    "package_path": "raw/HL1/job_37/I3p_P_TS.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_37/I3p_P_TS.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS/I3p_P_TS.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS/I3p_P_TS.inp",
+    "bytes": 1176,
+    "sha256": "c571fbf0d20bccb58d9ef00aa4cfbd120fbae43af7d9ed1acbc5af1d61064677"
+  },
+  {
+    "package_path": "raw/HL1/job_37/I3p_P_TS.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_37/I3p_P_TS.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS/I3p_P_TS.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS/I3p_P_TS.xyz",
+    "bytes": 1573,
+    "sha256": "b8313e80819b26f33154634a79e390feebc49c81583d69067f946976278a5e94"
+  },
+  {
+    "package_path": "raw/HL1/job_37/I3p_P_TS_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_37/I3p_P_TS_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS/I3p_P_TS_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS/I3p_P_TS_trj.xyz",
+    "bytes": 77034,
+    "sha256": "ac1a48376a4fa26853e7fa1e7cf69bd064d061911992d43267b8fae7cf86dc63"
+  },
+  {
+    "package_path": "raw/HL1/job_42/.cloudra/calc-42.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_42/.cloudra/calc-42.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_epF/.cloudra/calc-42.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_epF/.cloudra/calc-42.out.log",
+    "bytes": 3246580,
+    "sha256": "06c803ce15f78a0a92b585c84bb18be6c6993ad8d5550fe065dddb8e34bb30a8"
+  },
+  {
+    "package_path": "raw/HL1/job_42/TS669_IRC_epF.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_42/TS669_IRC_epF.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_epF/TS669_IRC_epF.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_epF/TS669_IRC_epF.hess",
+    "bytes": 149747,
+    "sha256": "28df17f95a9393092180d522ab8e5582b4715cfaf0fc3ebce1841e061eec07a3"
+  },
+  {
+    "package_path": "raw/HL1/job_42/TS669_IRC_epF.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_42/TS669_IRC_epF.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_epF/TS669_IRC_epF.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_epF/TS669_IRC_epF.inp",
+    "bytes": 1151,
+    "sha256": "86f789263117d2149a01a26181a476b300e010b11980828290cc3500e93d67f8"
+  },
+  {
+    "package_path": "raw/HL1/job_42/TS669_IRC_epF.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_42/TS669_IRC_epF.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_epF/TS669_IRC_epF.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_epF/TS669_IRC_epF.xyz",
+    "bytes": 1583,
+    "sha256": "c2309a22cd1e1b36f98886c80208d72e0cf552621fa61205d37f4580c81c767b"
+  },
+  {
+    "package_path": "raw/HL1/job_42/TS669_IRC_epF_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_42/TS669_IRC_epF_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_epF/TS669_IRC_epF_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_epF/TS669_IRC_epF_trj.xyz",
+    "bytes": 83029,
+    "sha256": "5b3031b2cc73a6d739269214759f40ecdefe2a282fe0a6146439252cee871a00"
+  },
+  {
+    "package_path": "raw/HL1/job_43/.cloudra/calc-43.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_43/.cloudra/calc-43.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_epB/.cloudra/calc-43.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_epB/.cloudra/calc-43.out.log",
+    "bytes": 486472,
+    "sha256": "2a0e04930bb89b86048b1858a98c41bdac1c86748957a71cbf790377de9f7414"
+  },
+  {
+    "package_path": "raw/HL1/job_43/TS669_IRC_epB.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_43/TS669_IRC_epB.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_epB/TS669_IRC_epB.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_epB/TS669_IRC_epB.hess",
+    "bytes": 149748,
+    "sha256": "f1e95cfd7421a50bebc9dbef86b25738f9b7fb373f5649723af88054f3dd5243"
+  },
+  {
+    "package_path": "raw/HL1/job_43/TS669_IRC_epB.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_43/TS669_IRC_epB.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_epB/TS669_IRC_epB.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_epB/TS669_IRC_epB.inp",
+    "bytes": 1158,
+    "sha256": "cafe67b002b2fb8e31a9e21875bfb1a56263e02d347579d971eedd14db844ad5"
+  },
+  {
+    "package_path": "raw/HL1/job_43/TS669_IRC_epB.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_43/TS669_IRC_epB.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_epB/TS669_IRC_epB.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_epB/TS669_IRC_epB.xyz",
+    "bytes": 1583,
+    "sha256": "292a0f88e546637d08e4626221adbab8870f92c139afb0064bf1850e96522655"
+  },
+  {
+    "package_path": "raw/HL1/job_43/TS669_IRC_epB_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_43/TS669_IRC_epB_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_epB/TS669_IRC_epB_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_epB/TS669_IRC_epB_trj.xyz",
+    "bytes": 10510,
+    "sha256": "6898abf8c6f348ac86d6ff160ae6ecfa861a03490f57fc91b70b25a1b223e3f5"
+  },
+  {
+    "package_path": "raw/HL1/job_44/.cloudra/calc-44.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_44/.cloudra/calc-44.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS_IRC/.cloudra/calc-44.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS_IRC/.cloudra/calc-44.out.log",
+    "bytes": 83026,
+    "sha256": "7aac36b3501b5052781087eecfa6b28301896267c5ec693a52c674c71e5f0db2"
+  },
+  {
+    "package_path": "raw/HL1/job_44/I3p_P_TS_IRC.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_44/I3p_P_TS_IRC.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS_IRC/I3p_P_TS_IRC.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS_IRC/I3p_P_TS_IRC.inp",
+    "bytes": 1285,
+    "sha256": "9432463c0ebd41e7897b507caa791be352fab25626a8f5181dd0ffc9367df60b"
+  },
+  {
+    "package_path": "raw/HL1/job_44/I3p_P_TS_IRC_IRC_B.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_44/I3p_P_TS_IRC_IRC_B.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS_IRC/I3p_P_TS_IRC_IRC_B.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS_IRC/I3p_P_TS_IRC_IRC_B.xyz",
+    "bytes": 1587,
+    "sha256": "1e1db3d96eed6cde02380a4a4a0649feff9059359470182a9b4e5418975cb5fb"
+  },
+  {
+    "package_path": "raw/HL1/job_44/I3p_P_TS_IRC_IRC_B_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_44/I3p_P_TS_IRC_IRC_B_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS_IRC/I3p_P_TS_IRC_IRC_B_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS_IRC/I3p_P_TS_IRC_IRC_B_trj.xyz",
+    "bytes": 21100,
+    "sha256": "104f0820623d36ce4c5e340cf42b15aac3d501d68738c2d56ef78df226071cc1"
+  },
+  {
+    "package_path": "raw/HL1/job_44/I3p_P_TS_IRC_IRC_F.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_44/I3p_P_TS_IRC_IRC_F.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS_IRC/I3p_P_TS_IRC_IRC_F.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS_IRC/I3p_P_TS_IRC_IRC_F.xyz",
+    "bytes": 1587,
+    "sha256": "8bea7ed6cd49abb75b31656e536d0966451ab399b7fff8d6b2879ccacd0397fb"
+  },
+  {
+    "package_path": "raw/HL1/job_44/I3p_P_TS_IRC_IRC_F_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_44/I3p_P_TS_IRC_IRC_F_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS_IRC/I3p_P_TS_IRC_IRC_F_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS_IRC/I3p_P_TS_IRC_IRC_F_trj.xyz",
+    "bytes": 21100,
+    "sha256": "a2121ba1df527b5fdb24986c464731c204374acabb463e36c2b3a5c4213d8bf2"
+  },
+  {
+    "package_path": "raw/HL1/job_44/I3p_P_TS_IRC_IRC_Full_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_44/I3p_P_TS_IRC_IRC_Full_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS_IRC/I3p_P_TS_IRC_IRC_Full_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS_IRC/I3p_P_TS_IRC_IRC_Full_trj.xyz",
+    "bytes": 43378,
+    "sha256": "a701cc5a978f30641966a1c017ee95409e5d71d4cfe29857e191be212c76333c"
+  },
+  {
+    "package_path": "raw/HL1/job_46/.cloudra/calc-46.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_46/.cloudra/calc-46.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_IRC_epF/.cloudra/calc-46.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_IRC_epF/.cloudra/calc-46.out.log",
+    "bytes": 1317343,
+    "sha256": "b0af2a3ba560272937329f521f8582ac6b666c278f930bd82cb141bf48445ecd"
+  },
+  {
+    "package_path": "raw/HL1/job_46/I3p_P_IRC_epF.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_46/I3p_P_IRC_epF.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_IRC_epF/I3p_P_IRC_epF.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_IRC_epF/I3p_P_IRC_epF.hess",
+    "bytes": 149748,
+    "sha256": "91bb6b14b93ea479f31618a09d0c4e5474c7d3a1ddf035d97b7fc5ff3c14ecbd"
+  },
+  {
+    "package_path": "raw/HL1/job_46/I3p_P_IRC_epF.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_46/I3p_P_IRC_epF.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_IRC_epF/I3p_P_IRC_epF.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_IRC_epF/I3p_P_IRC_epF.inp",
+    "bytes": 1132,
+    "sha256": "ee124acda28de67aa441d34a5d9a63fe0ec244bd89864693984988fec37dfb85"
+  },
+  {
+    "package_path": "raw/HL1/job_46/I3p_P_IRC_epF.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_46/I3p_P_IRC_epF.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_IRC_epF/I3p_P_IRC_epF.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_IRC_epF/I3p_P_IRC_epF.xyz",
+    "bytes": 1583,
+    "sha256": "702993a97ef9c0bb1eefc4674f1b4fceda14ec61db60ae7fb5f0d53b92b5c473"
+  },
+  {
+    "package_path": "raw/HL1/job_46/I3p_P_IRC_epF_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_46/I3p_P_IRC_epF_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_IRC_epF/I3p_P_IRC_epF_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_IRC_epF/I3p_P_IRC_epF_trj.xyz",
+    "bytes": 34683,
+    "sha256": "f13a5120f8fe8af1fece2bc689e52a7512f1bcd30ab1da03e699bab5a47fcf1e"
+  },
+  {
+    "package_path": "raw/HL1/job_47/.cloudra/calc-47.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_47/.cloudra/calc-47.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_IRC_epB/.cloudra/calc-47.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_IRC_epB/.cloudra/calc-47.out.log",
+    "bytes": 559368,
+    "sha256": "e303d8a72a2125f4b4dca3b7bb519f7fcded58beb8d47394a6adafb5fccf6806"
+  },
+  {
+    "package_path": "raw/HL1/job_47/I3p_P_IRC_epB.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_47/I3p_P_IRC_epB.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_IRC_epB/I3p_P_IRC_epB.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_IRC_epB/I3p_P_IRC_epB.hess",
+    "bytes": 149748,
+    "sha256": "3b81728bda673dc1b996bff9fec97e9c0be389626ffcbbb4c5f8fbd0188e8db4"
+  },
+  {
+    "package_path": "raw/HL1/job_47/I3p_P_IRC_epB.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_47/I3p_P_IRC_epB.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_IRC_epB/I3p_P_IRC_epB.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_IRC_epB/I3p_P_IRC_epB.inp",
+    "bytes": 1135,
+    "sha256": "602c413e89e0f88426dec0a8e2971f7b59dea3b39cb5e56024ad0a5dbd904cde"
+  },
+  {
+    "package_path": "raw/HL1/job_47/I3p_P_IRC_epB.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_47/I3p_P_IRC_epB.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_IRC_epB/I3p_P_IRC_epB.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_IRC_epB/I3p_P_IRC_epB.xyz",
+    "bytes": 1583,
+    "sha256": "67c86566b03d860ece4172df4e6e18d14e9b457dc7a9e946711598afb2908637"
+  },
+  {
+    "package_path": "raw/HL1/job_47/I3p_P_IRC_epB_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HL1/job_47/I3p_P_IRC_epB_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_IRC_epB/I3p_P_IRC_epB_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_IRC_epB/I3p_P_IRC_epB_trj.xyz",
+    "bytes": 12612,
+    "sha256": "01a14eb9a11f6213bbacf690355e4f82e290fec79481dcd2c1536cb037a90992"
+  },
+  {
+    "package_path": "raw/HG2/job_4/.cloudra/calc-4.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_4/.cloudra/calc-4.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g2/.cloudra/calc-4.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g2/.cloudra/calc-4.out.log",
+    "bytes": 1056289,
+    "sha256": "27ac55c47d1c9bb906cd41c608cc543d37b51fe8e031a626d06c0a8afe0c5e12"
+  },
+  {
+    "package_path": "raw/HG2/job_4/syn_ts_g2.001.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_4/syn_ts_g2.001.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g2/syn_ts_g2.001.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g2/syn_ts_g2.001.hess",
+    "bytes": 164314,
+    "sha256": "3b96c632b5145929e0562e919ec390f2114e33be0e01392a352e014c1339d088"
+  },
+  {
+    "package_path": "raw/HG2/job_4/syn_ts_g2.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_4/syn_ts_g2.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g2/syn_ts_g2.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g2/syn_ts_g2.hess",
+    "bytes": 164314,
+    "sha256": "688f92e964d7be59f1f15f75a1738729b1e92c7ec70f19aa48e7bd04be4a4efe"
+  },
+  {
+    "package_path": "raw/HG2/job_4/syn_ts_g2.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_4/syn_ts_g2.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g2/syn_ts_g2.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g2/syn_ts_g2.inp",
+    "bytes": 1140,
+    "sha256": "d324424d7f2e371ef3ae8a7d06f6483683a119d49b18c3b5bbb26511cdf3c19c"
+  },
+  {
+    "package_path": "raw/HG2/job_4/syn_ts_g2.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_4/syn_ts_g2.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g2/syn_ts_g2.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g2/syn_ts_g2.xyz",
+    "bytes": 1650,
+    "sha256": "e196b3179a44c7005ca08530e87d0ba5a7fd26ca632d244a7b5a804a41ac77c1"
+  },
+  {
+    "package_path": "raw/HG2/job_4/syn_ts_g2_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_4/syn_ts_g2_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g2/syn_ts_g2_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g2/syn_ts_g2_trj.xyz",
+    "bytes": 18530,
+    "sha256": "caa000b691b1921e5a0ecc758187e8b0eb93f4e6351f781f8db9d4d998cf2d1f"
+  },
+  {
+    "package_path": "raw/HG2/job_21/.cloudra/calc-21.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_21/.cloudra/calc-21.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/R_ref/.cloudra/calc-21.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/R_ref/.cloudra/calc-21.out.log",
+    "bytes": 209388,
+    "sha256": "0716aa76312e73b0b2e1b6472e695521baba15fbc31b077a018e1163f83d497e"
+  },
+  {
+    "package_path": "raw/HG2/job_21/R_ref.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_21/R_ref.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/R_ref/R_ref.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/R_ref/R_ref.hess",
+    "bytes": 164314,
+    "sha256": "ea2e2f923def1da82df1dc26d88f905d4b531072cc615d26b179bc2bd78cc454"
+  },
+  {
+    "package_path": "raw/HG2/job_21/R_ref.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_21/R_ref.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/R_ref/R_ref.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/R_ref/R_ref.inp",
+    "bytes": 1107,
+    "sha256": "e049515ca424a0372c3d34331af76d172e596188cc12ffa7d4061d138786b486"
+  },
+  {
+    "package_path": "raw/HG2/job_21/R_ref.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_21/R_ref.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/R_ref/R_ref.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/R_ref/R_ref.xyz",
+    "bytes": 1642,
+    "sha256": "007a715d80939b8d55a70dd4d8e221ebb7dce64840c8a2b8f70bb367591ebcbe"
+  },
+  {
+    "package_path": "raw/HG2/job_21/R_ref_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_21/R_ref_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/R_ref/R_ref_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/R_ref/R_ref_trj.xyz",
+    "bytes": 2164,
+    "sha256": "1106a4af6551aaf28e63485f1c46217653998f5482a1f820533cff473164a1b0"
+  },
+  {
+    "package_path": "raw/HG2/job_32/.cloudra/calc-32.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_32/.cloudra/calc-32.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2/.cloudra/calc-32.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2/.cloudra/calc-32.out.log",
+    "bytes": 86566,
+    "sha256": "397646634738b0ede8f44c647756533a6a03b637d505bcab6640a3177d40657b"
+  },
+  {
+    "package_path": "raw/HG2/job_32/irc_g2.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_32/irc_g2.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2/irc_g2.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2/irc_g2.inp",
+    "bytes": 1280,
+    "sha256": "6c39f427b529435816bd162d308f6d5c527d582c1587df77cf285bea258ec964"
+  },
+  {
+    "package_path": "raw/HG2/job_32/irc_g2_IRC_B.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_32/irc_g2_IRC_B.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2/irc_g2_IRC_B.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2/irc_g2_IRC_B.xyz",
+    "bytes": 1650,
+    "sha256": "daf4e37b910d98c99793c83b6a242a13d652809567a494cb47528863e2b6c424"
+  },
+  {
+    "package_path": "raw/HG2/job_32/irc_g2_IRC_B_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_32/irc_g2_IRC_B_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2/irc_g2_IRC_B_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2/irc_g2_IRC_B_trj.xyz",
+    "bytes": 32700,
+    "sha256": "aadfd954d8f8d471b6c9d8fd7dfb8795925c5f915f9cbcb4fbf4630d8b741dbf"
+  },
+  {
+    "package_path": "raw/HG2/job_32/irc_g2_IRC_F.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_32/irc_g2_IRC_F.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2/irc_g2_IRC_F.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2/irc_g2_IRC_F.xyz",
+    "bytes": 1650,
+    "sha256": "71144a51d621ed0187ec18f0f1a17f431a36246e5113cc5c3480f3f0ff9876f6"
+  },
+  {
+    "package_path": "raw/HG2/job_32/irc_g2_IRC_F_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_32/irc_g2_IRC_F_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2/irc_g2_IRC_F_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2/irc_g2_IRC_F_trj.xyz",
+    "bytes": 32700,
+    "sha256": "aa57ee4f6c3f688cc5777ac8daf377c3e31af6cef0ef920a0c43ca07d2dd520e"
+  },
+  {
+    "package_path": "raw/HG2/job_32/irc_g2_IRC_Full_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_32/irc_g2_IRC_Full_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2/irc_g2_IRC_Full_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2/irc_g2_IRC_Full_trj.xyz",
+    "bytes": 66673,
+    "sha256": "2c659a98a8ac5e40f4bc0c9f8adcfa708698a2e74e44c9cfe3590e5befdecf46"
+  },
+  {
+    "package_path": "raw/HG2/job_40/.cloudra/calc-40.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_40/.cloudra/calc-40.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_F/.cloudra/calc-40.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_F/.cloudra/calc-40.out.log",
+    "bytes": 796888,
+    "sha256": "6e7e39c16cb6ef39a7c78f190b8dc40dd129fd362aac5fe689f77aaf1e98be49"
+  },
+  {
+    "package_path": "raw/HG2/job_40/irc_g2_ep_F.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_40/irc_g2_ep_F.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_F/irc_g2_ep_F.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_F/irc_g2_ep_F.hess",
+    "bytes": 164314,
+    "sha256": "212e31c24bc488a1398480618c7e364ce2c67a6cdafc20a0fc8bf4f8763f86b5"
+  },
+  {
+    "package_path": "raw/HG2/job_40/irc_g2_ep_F.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_40/irc_g2_ep_F.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_F/irc_g2_ep_F.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_F/irc_g2_ep_F.inp",
+    "bytes": 1113,
+    "sha256": "7d4f20cbb95dd5b185a99bbbf9c999b83a884e276512fa84d0f5fe987f7c4870"
+  },
+  {
+    "package_path": "raw/HG2/job_40/irc_g2_ep_F.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_40/irc_g2_ep_F.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_F/irc_g2_ep_F.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_F/irc_g2_ep_F.xyz",
+    "bytes": 1654,
+    "sha256": "dec09bcc7027c229402c2796fe3a13322c28dd9a9865398e69bc416b8839ac48"
+  },
+  {
+    "package_path": "raw/HG2/job_40/irc_g2_ep_F_opt.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_40/irc_g2_ep_F_opt.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_F/irc_g2_ep_F_opt.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_F/irc_g2_ep_F_opt.xyz",
+    "bytes": 609,
+    "sha256": "ac9d3a881585d92e6285dd589405f7192b528387282f50160f0276a20b6ffa0d"
+  },
+  {
+    "package_path": "raw/HG2/job_40/irc_g2_ep_F_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_40/irc_g2_ep_F_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_F/irc_g2_ep_F_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_F/irc_g2_ep_F_trj.xyz",
+    "bytes": 19692,
+    "sha256": "d97e0c39a69d3190d28d4d04b4375c4539dcc2e4e951f3ca4fe70543fd22c235"
+  },
+  {
+    "package_path": "raw/HG2/job_41/.cloudra/calc-41.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_41/.cloudra/calc-41.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_B/.cloudra/calc-41.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_B/.cloudra/calc-41.out.log",
+    "bytes": 583500,
+    "sha256": "6ac4bf4d25b5f1c600a4d7c84a5c96e5134bb00df5c8c11526f9c3d22642b01c"
+  },
+  {
+    "package_path": "raw/HG2/job_41/irc_g2_ep_B.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_41/irc_g2_ep_B.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_B/irc_g2_ep_B.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_B/irc_g2_ep_B.hess",
+    "bytes": 164314,
+    "sha256": "858a2bef62d301bd8c7c75ba089ea2d2372015d74327910231fb548aaffd58f5"
+  },
+  {
+    "package_path": "raw/HG2/job_41/irc_g2_ep_B.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_41/irc_g2_ep_B.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_B/irc_g2_ep_B.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_B/irc_g2_ep_B.inp",
+    "bytes": 1113,
+    "sha256": "7ceefffbf9ad63fbd0824c6e7a174f7143b587263dc6e7fa5d96e8526d4d2dcd"
+  },
+  {
+    "package_path": "raw/HG2/job_41/irc_g2_ep_B.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_41/irc_g2_ep_B.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_B/irc_g2_ep_B.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_B/irc_g2_ep_B.xyz",
+    "bytes": 1654,
+    "sha256": "f0c3f9b4ed535341c1ae86587deda7f6eea0e773e237c20234f241ed1e4a9cc6"
+  },
+  {
+    "package_path": "raw/HG2/job_41/irc_g2_ep_B_opt.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_41/irc_g2_ep_B_opt.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_B/irc_g2_ep_B_opt.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_B/irc_g2_ep_B_opt.xyz",
+    "bytes": 615,
+    "sha256": "1f948d2b04db848c745861aa8248753913ca3a0ee722161d521d5bb56705faba"
+  },
+  {
+    "package_path": "raw/HG2/job_41/irc_g2_ep_B_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_41/irc_g2_ep_B_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_B/irc_g2_ep_B_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_B/irc_g2_ep_B_trj.xyz",
+    "bytes": 13128,
+    "sha256": "3010d033822aab0386aa639cbc972b2fc61419334a34e2a99719bbb2e222e0f7"
+  },
+  {
+    "package_path": "raw/HG2/job_53/.cloudra/calc-53.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_53/.cloudra/calc-53.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ts_legacy/.cloudra/calc-53.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ts_legacy/.cloudra/calc-53.out.log",
+    "bytes": 996132,
+    "sha256": "91203ce9e28a6565015937ec50324798fac3d636df8605a363248193e4f86faa"
+  },
+  {
+    "package_path": "raw/HG2/job_53/HG2_anti_ts_legacy.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_53/HG2_anti_ts_legacy.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ts_legacy/HG2_anti_ts_legacy.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ts_legacy/HG2_anti_ts_legacy.hess",
+    "bytes": 164314,
+    "sha256": "46442db5034a38685c01a23684ff2d7f779fe09041bfb674cde2a3d09ad4078f"
+  },
+  {
+    "package_path": "raw/HG2/job_53/HG2_anti_ts_legacy.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_53/HG2_anti_ts_legacy.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ts_legacy/HG2_anti_ts_legacy.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ts_legacy/HG2_anti_ts_legacy.inp",
+    "bytes": 1122,
+    "sha256": "d9a45ce4c2e80053259771ffbf8a6c0b344edfa02d6bf49c5c3a2b5aaacf1f06"
+  },
+  {
+    "package_path": "raw/HG2/job_53/HG2_anti_ts_legacy.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_53/HG2_anti_ts_legacy.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ts_legacy/HG2_anti_ts_legacy.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ts_legacy/HG2_anti_ts_legacy.xyz",
+    "bytes": 1664,
+    "sha256": "1c3d8448f8eb9516173d31e7e98d20d814440ad874f7eff57379cdb744520c8a"
+  },
+  {
+    "package_path": "raw/HG2/job_53/HG2_anti_ts_legacy_opt.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_53/HG2_anti_ts_legacy_opt.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ts_legacy/HG2_anti_ts_legacy_opt.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ts_legacy/HG2_anti_ts_legacy_opt.xyz",
+    "bytes": 610,
+    "sha256": "1930cd7a8e7cc22c956ce5b7f45d2d01f1a840adf664e283d3bb15d484d51183"
+  },
+  {
+    "package_path": "raw/HG2/job_53/HG2_anti_ts_legacy_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_53/HG2_anti_ts_legacy_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ts_legacy/HG2_anti_ts_legacy_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ts_legacy/HG2_anti_ts_legacy_trj.xyz",
+    "bytes": 23184,
+    "sha256": "39a514ee3428e5f903686d68d9a8fac96b2a7d820e02a75830f5ae1b2309065d"
+  },
+  {
+    "package_path": "raw/HG2/job_55/.cloudra/calc-55.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_55/.cloudra/calc-55.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_irc/.cloudra/calc-55.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_irc/.cloudra/calc-55.out.log",
+    "bytes": 84184,
+    "sha256": "50e016c19cad5a73aa0f711cd6788cb0fa91b00a6971e82e07c4798503a611b4"
+  },
+  {
+    "package_path": "raw/HG2/job_55/HG2_anti_irc.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_55/HG2_anti_irc.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_irc/HG2_anti_irc.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_irc/HG2_anti_irc.inp",
+    "bytes": 1272,
+    "sha256": "32d5d4fcc73f02bd6ae72abc9e46771f96be4a0113216d04d9654acc72d2fee6"
+  },
+  {
+    "package_path": "raw/HG2/job_55/HG2_anti_irc_IRC_B.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_55/HG2_anti_irc_IRC_B.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_irc/HG2_anti_irc_IRC_B.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_irc/HG2_anti_irc_IRC_B.xyz",
+    "bytes": 1658,
+    "sha256": "0e520bcdd437f09fa4a24b809d37aff595936814afca21860f68171d1ad9bbed"
+  },
+  {
+    "package_path": "raw/HG2/job_55/HG2_anti_irc_IRC_B_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_55/HG2_anti_irc_IRC_B_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_irc/HG2_anti_irc_IRC_B_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_irc/HG2_anti_irc_IRC_B_trj.xyz",
+    "bytes": 21960,
+    "sha256": "5eacfd6064b96400e6b9e42d5a5b363d786cb2aa6dcd503c08fbdd18444177a2"
+  },
+  {
+    "package_path": "raw/HG2/job_55/HG2_anti_irc_IRC_F.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_55/HG2_anti_irc_IRC_F.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_irc/HG2_anti_irc_IRC_F.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_irc/HG2_anti_irc_IRC_F.xyz",
+    "bytes": 1658,
+    "sha256": "b2015e26cf5922b9e32c2f9a490274d18b947a7b80456ecca6254587450391f6"
+  },
+  {
+    "package_path": "raw/HG2/job_55/HG2_anti_irc_IRC_F_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_55/HG2_anti_irc_IRC_F_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_irc/HG2_anti_irc_IRC_F_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_irc/HG2_anti_irc_IRC_F_trj.xyz",
+    "bytes": 21960,
+    "sha256": "7db428fae905a2c11e069c9b980ec68eb206907989f1ed9fe236908e25b1b261"
+  },
+  {
+    "package_path": "raw/HG2/job_55/HG2_anti_irc_IRC_Full_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_55/HG2_anti_irc_IRC_Full_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_irc/HG2_anti_irc_IRC_Full_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_irc/HG2_anti_irc_IRC_Full_trj.xyz",
+    "bytes": 45141,
+    "sha256": "e263142e83084039ba1f1480783c0f43cfe5df6e6c46b0bb41b37d9a27d6ea21"
+  },
+  {
+    "package_path": "raw/HG2/job_56/.cloudra/calc-56.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_56/.cloudra/calc-56.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_F/.cloudra/calc-56.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_F/.cloudra/calc-56.out.log",
+    "bytes": 732497,
+    "sha256": "8cf0adf0bc265df1376cc7877faaa9b1a1c750644152d29953a1993e7ef5ae3c"
+  },
+  {
+    "package_path": "raw/HG2/job_56/HG2_anti_ep_F.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_56/HG2_anti_ep_F.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_F/HG2_anti_ep_F.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_F/HG2_anti_ep_F.hess",
+    "bytes": 164314,
+    "sha256": "1c7be88a35e0e53b77939ebcc029b8647141037c9672a941a8f821e7a0ff76c0"
+  },
+  {
+    "package_path": "raw/HG2/job_56/HG2_anti_ep_F.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_56/HG2_anti_ep_F.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_F/HG2_anti_ep_F.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_F/HG2_anti_ep_F.inp",
+    "bytes": 1115,
+    "sha256": "3a1baef03d73411202d8a4dd37f83f01931b1e53aeb15abcaee7327c530af141"
+  },
+  {
+    "package_path": "raw/HG2/job_56/HG2_anti_ep_F.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_56/HG2_anti_ep_F.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_F/HG2_anti_ep_F.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_F/HG2_anti_ep_F.xyz",
+    "bytes": 1654,
+    "sha256": "a246c8335421034739343a95c1054c9a3a9b62072d7806848a6243458cdba321"
+  },
+  {
+    "package_path": "raw/HG2/job_56/HG2_anti_ep_F_opt.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_56/HG2_anti_ep_F_opt.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_F/HG2_anti_ep_F_opt.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_F/HG2_anti_ep_F_opt.xyz",
+    "bytes": 610,
+    "sha256": "88b1cab610c9618513d9eabccc343b4f422d1e7f33b5910ad817e863f341c2f4"
+  },
+  {
+    "package_path": "raw/HG2/job_56/HG2_anti_ep_F_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_56/HG2_anti_ep_F_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_F/HG2_anti_ep_F_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_F/HG2_anti_ep_F_trj.xyz",
+    "bytes": 17504,
+    "sha256": "8a2688320dd9aeaaaa3dcb76763a36e9ab343405ff07db3f78a0f96b294bdcba"
+  },
+  {
+    "package_path": "raw/HG2/job_57/.cloudra/calc-57.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_57/.cloudra/calc-57.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_B/.cloudra/calc-57.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_B/.cloudra/calc-57.out.log",
+    "bytes": 725144,
+    "sha256": "df903093092cd567e25158f553fcec92106428ba5eb2935eb4625b46f9565454"
+  },
+  {
+    "package_path": "raw/HG2/job_57/HG2_anti_ep_B.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_57/HG2_anti_ep_B.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_B/HG2_anti_ep_B.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_B/HG2_anti_ep_B.hess",
+    "bytes": 164314,
+    "sha256": "68eb21034d8b8444187d2d4cda33c551d7a045a91999c1cd764e429926c17317"
+  },
+  {
+    "package_path": "raw/HG2/job_57/HG2_anti_ep_B.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_57/HG2_anti_ep_B.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_B/HG2_anti_ep_B.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_B/HG2_anti_ep_B.inp",
+    "bytes": 1115,
+    "sha256": "8803d9a00a39f0260e862cfe8f3d01b7c225f123a50da10551f943711d7c86aa"
+  },
+  {
+    "package_path": "raw/HG2/job_57/HG2_anti_ep_B.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_57/HG2_anti_ep_B.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_B/HG2_anti_ep_B.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_B/HG2_anti_ep_B.xyz",
+    "bytes": 1654,
+    "sha256": "3e99ba56703f667544d06eb1b819ee040db6ad98fed4f2bbb12ca92867785417"
+  },
+  {
+    "package_path": "raw/HG2/job_57/HG2_anti_ep_B_opt.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_57/HG2_anti_ep_B_opt.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_B/HG2_anti_ep_B_opt.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_B/HG2_anti_ep_B_opt.xyz",
+    "bytes": 614,
+    "sha256": "9a9b9fcb103d0e2cd93a0591ff8bc452073f9b6284ef570cb63a941d76a36eb2"
+  },
+  {
+    "package_path": "raw/HG2/job_57/HG2_anti_ep_B_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HG2/job_57/HG2_anti_ep_B_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_B/HG2_anti_ep_B_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_B/HG2_anti_ep_B_trj.xyz",
+    "bytes": 17504,
+    "sha256": "ea359b09ca7f3180388ed99121cde7470901ce5dcaf71f4b3cf3edd6aba78d57"
+  },
+  {
+    "package_path": "raw/HE3/job_23/.cloudra/calc-23.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_23/.cloudra/calc-23.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/tsA_ORCA6_np1/.cloudra/calc-23.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/tsA_ORCA6_np1/.cloudra/calc-23.out.log",
+    "bytes": 597844,
+    "sha256": "00f495fc952a9bf44bb3720aff6f39024bf2c128b966333cf1162357dc1604e5"
+  },
+  {
+    "package_path": "raw/HE3/job_23/HE3_tsA_np1.001.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_23/HE3_tsA_np1.001.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/tsA_ORCA6_np1/HE3_tsA_np1.001.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/tsA_ORCA6_np1/HE3_tsA_np1.001.hess",
+    "bytes": 483824,
+    "sha256": "700d8c3a14cac73662471b895ebab1d33aae20fe53820eab4ef7868349614206"
+  },
+  {
+    "package_path": "raw/HE3/job_23/HE3_tsA_np1.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_23/HE3_tsA_np1.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/tsA_ORCA6_np1/HE3_tsA_np1.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/tsA_ORCA6_np1/HE3_tsA_np1.hess",
+    "bytes": 483824,
+    "sha256": "e8a1f584f2dc4bc4433f41d0bf8e010ed8b462f3ef79315c7514f849c4d97ea8"
+  },
+  {
+    "package_path": "raw/HE3/job_23/HE3_tsA_np1.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_23/HE3_tsA_np1.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/tsA_ORCA6_np1/HE3_tsA_np1.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/tsA_ORCA6_np1/HE3_tsA_np1.inp",
+    "bytes": 1909,
+    "sha256": "d3ec668a095ceb687d83dbffe4f5ec847ac46f19f7be899342edaaff39797d3e"
+  },
+  {
+    "package_path": "raw/HE3/job_23/HE3_tsA_np1.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_23/HE3_tsA_np1.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/tsA_ORCA6_np1/HE3_tsA_np1.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/tsA_ORCA6_np1/HE3_tsA_np1.xyz",
+    "bytes": 2781,
+    "sha256": "990fd31554e97dacff64053717a01078e6bf805234f489cf97941fcba2fcf361"
+  },
+  {
+    "package_path": "raw/HE3/job_23/HE3_tsA_np1_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_23/HE3_tsA_np1_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/tsA_ORCA6_np1/HE3_tsA_np1_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/tsA_ORCA6_np1/HE3_tsA_np1_trj.xyz",
+    "bytes": 5403,
+    "sha256": "a63627c85fafc7c90757e71fe139a4bbaa6736eab58f1e2a81bfc09c080adf10"
+  },
+  {
+    "package_path": "raw/HE3/job_25/.cloudra/calc-25.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_25/.cloudra/calc-25.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/rcA_ref_np1/.cloudra/calc-25.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/rcA_ref_np1/.cloudra/calc-25.out.log",
+    "bytes": 613495,
+    "sha256": "6701b8017e95bb73e5af91da376d01b09fecca7d03ad87d1df67e763b4e0b903"
+  },
+  {
+    "package_path": "raw/HE3/job_25/HE3_rcA_np1.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_25/HE3_rcA_np1.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/rcA_ref_np1/HE3_rcA_np1.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/rcA_ref_np1/HE3_rcA_np1.hess",
+    "bytes": 483823,
+    "sha256": "51317dab02c275e4244925cc968fa997dc285102adfaa5cee74167870031a09d"
+  },
+  {
+    "package_path": "raw/HE3/job_25/HE3_rcA_np1.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_25/HE3_rcA_np1.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/rcA_ref_np1/HE3_rcA_np1.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/rcA_ref_np1/HE3_rcA_np1.inp",
+    "bytes": 1880,
+    "sha256": "e07794f817ba8b60f2cabf95aea74086f4470f04782b5fab756f3fb265553314"
+  },
+  {
+    "package_path": "raw/HE3/job_25/HE3_rcA_np1.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_25/HE3_rcA_np1.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/rcA_ref_np1/HE3_rcA_np1.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/rcA_ref_np1/HE3_rcA_np1.xyz",
+    "bytes": 2779,
+    "sha256": "3c3076307fbb74da1a446d94297f5456411741748dfaf9cf06ef5deacd71da87"
+  },
+  {
+    "package_path": "raw/HE3/job_25/HE3_rcA_np1_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_25/HE3_rcA_np1_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/rcA_ref_np1/HE3_rcA_np1_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/rcA_ref_np1/HE3_rcA_np1_trj.xyz",
+    "bytes": 12593,
+    "sha256": "386ef7fafc2b89dc51f2ad1cbe826f9151c67d73dc867b64e9b531f174e2467c"
+  },
+  {
+    "package_path": "raw/HE3/job_35/.cloudra/calc-35.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_35/.cloudra/calc-35.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/ircA_np4/.cloudra/calc-35.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/ircA_np4/.cloudra/calc-35.out.log",
+    "bytes": 119828,
+    "sha256": "fca2206fecd6ad5442593e42ea5d078abd6f6a7a2189ac9b28a565419aecb3f6"
+  },
+  {
+    "package_path": "raw/HE3/job_35/HE3_ircA_np8.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_35/HE3_ircA_np8.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/ircA_np4/HE3_ircA_np8.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/ircA_np4/HE3_ircA_np8.hess",
+    "bytes": 482455,
+    "sha256": "5eeec0b3b8b5822c61d0797d520eb97c78f6cd8427be41650b23c33f3bd8f25e"
+  },
+  {
+    "package_path": "raw/HE3/job_35/HE3_ircA_np8.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_35/HE3_ircA_np8.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/ircA_np4/HE3_ircA_np8.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/ircA_np4/HE3_ircA_np8.inp",
+    "bytes": 1876,
+    "sha256": "3ae1ed51a812db059ab8e542dccd97bbed8df9bda8b4d294c5834e4afeca3876"
+  },
+  {
+    "package_path": "raw/HE3/job_35/HE3_ircA_np8_IRC_B.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_35/HE3_ircA_np8_IRC_B.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/ircA_np4/HE3_ircA_np8_IRC_B.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/ircA_np4/HE3_ircA_np8_IRC_B.xyz",
+    "bytes": 2783,
+    "sha256": "3014ecdb672a179644bd1ad24069478378d27d253984fdef2338389a7698bea3"
+  },
+  {
+    "package_path": "raw/HE3/job_35/HE3_ircA_np8_IRC_B_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_35/HE3_ircA_np8_IRC_B_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/ircA_np4/HE3_ircA_np8_IRC_B_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/ircA_np4/HE3_ircA_np8_IRC_B_trj.xyz",
+    "bytes": 9015,
+    "sha256": "3fd6ce6169c4714dc83fdd681de642c4315509e814ec5a72f4916660b4b47b13"
+  },
+  {
+    "package_path": "raw/HE3/job_35/HE3_ircA_np8_IRC_F.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_35/HE3_ircA_np8_IRC_F.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/ircA_np4/HE3_ircA_np8_IRC_F.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/ircA_np4/HE3_ircA_np8_IRC_F.xyz",
+    "bytes": 2783,
+    "sha256": "8ce56aae27d1db5c11f267733d04ede08dce16c9ea1a75d9be59d355c8d915c6"
+  },
+  {
+    "package_path": "raw/HE3/job_35/HE3_ircA_np8_IRC_F_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_35/HE3_ircA_np8_IRC_F_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/ircA_np4/HE3_ircA_np8_IRC_F_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/ircA_np4/HE3_ircA_np8_IRC_F_trj.xyz",
+    "bytes": 21636,
+    "sha256": "8a935b85a1d94156348c1aa96c739462e4e969e9cb96c85cf741966e54a37291"
+  },
+  {
+    "package_path": "raw/HE3/job_35/HE3_ircA_np8_IRC_Full_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_35/HE3_ircA_np8_IRC_Full_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/ircA_np4/HE3_ircA_np8_IRC_Full_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/ircA_np4/HE3_ircA_np8_IRC_Full_trj.xyz",
+    "bytes": 32508,
+    "sha256": "92af24a81005dcf9529452c821b664aca8add599cae38fab23e8b6593cb0c9ad"
+  },
+  {
+    "package_path": "raw/HE3/job_39/.cloudra/calc-39.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_39/.cloudra/calc-39.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/prodA_tight/.cloudra/calc-39.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/prodA_tight/.cloudra/calc-39.out.log",
+    "bytes": 1090009,
+    "sha256": "981b4cc8479af5a75ea55e1007472511fd909196e649f3a206f541d0f8859ba0"
+  },
+  {
+    "package_path": "raw/HE3/job_39/HE3_prodA_tight_np8.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_39/HE3_prodA_tight_np8.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/prodA_tight/HE3_prodA_tight_np8.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/prodA_tight/HE3_prodA_tight_np8.hess",
+    "bytes": 483823,
+    "sha256": "716a86b2eb2b0c3987fe84877affab0f232e145f8db11d31444e91d355125cdf"
+  },
+  {
+    "package_path": "raw/HE3/job_39/HE3_prodA_tight_np8.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_39/HE3_prodA_tight_np8.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/prodA_tight/HE3_prodA_tight_np8.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/prodA_tight/HE3_prodA_tight_np8.inp",
+    "bytes": 1908,
+    "sha256": "c267e942c632681281c9556658bdf4a47576d56a900ede528434838aa45d463e"
+  },
+  {
+    "package_path": "raw/HE3/job_39/HE3_prodA_tight_np8.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_39/HE3_prodA_tight_np8.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/prodA_tight/HE3_prodA_tight_np8.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/prodA_tight/HE3_prodA_tight_np8.xyz",
+    "bytes": 2799,
+    "sha256": "971b285da88845f3e82cf1734fcc6b557ef2457bbf7556654a35c1de7e5cc1ee"
+  },
+  {
+    "package_path": "raw/HE3/job_39/HE3_prodA_tight_np8_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_39/HE3_prodA_tight_np8_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/prodA_tight/HE3_prodA_tight_np8_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/prodA_tight/HE3_prodA_tight_np8_trj.xyz",
+    "bytes": 29104,
+    "sha256": "30266898198f7e6a86cf2b582cb142b33a62da7f72e9d92bd25a78c682db0214"
+  },
+  {
+    "package_path": "raw/HE3/job_48/.cloudra/calc-48.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_48/.cloudra/calc-48.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/irc_ep_react/.cloudra/calc-48.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/irc_ep_react/.cloudra/calc-48.out.log",
+    "bytes": 1506792,
+    "sha256": "cad23621e75fda7d3b8add9e6b5aad32e81b6f39b8fb5c4771ce211d3b146786"
+  },
+  {
+    "package_path": "raw/HE3/job_48/HE3_irc_ep_react_np8.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_48/HE3_irc_ep_react_np8.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/irc_ep_react/HE3_irc_ep_react_np8.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/irc_ep_react/HE3_irc_ep_react_np8.hess",
+    "bytes": 483823,
+    "sha256": "623d7c60073c404e79c8b0eddf61d304e727745321d300c6a7c9668332bd1a47"
+  },
+  {
+    "package_path": "raw/HE3/job_48/HE3_irc_ep_react_np8.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_48/HE3_irc_ep_react_np8.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/irc_ep_react/HE3_irc_ep_react_np8.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/irc_ep_react/HE3_irc_ep_react_np8.inp",
+    "bytes": 1917,
+    "sha256": "1172d23ed030c9a85a17a528a37a97a2e17d334387eae4b49bf7ac0ed73d1995"
+  },
+  {
+    "package_path": "raw/HE3/job_48/HE3_irc_ep_react_np8.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_48/HE3_irc_ep_react_np8.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/irc_ep_react/HE3_irc_ep_react_np8.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/irc_ep_react/HE3_irc_ep_react_np8.xyz",
+    "bytes": 2801,
+    "sha256": "434574dbf8b2d4842b643316f737ee130aa99b497788ecab4bd0b1515b4497b1"
+  },
+  {
+    "package_path": "raw/HE3/job_48/HE3_irc_ep_react_np8_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_48/HE3_irc_ep_react_np8_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/irc_ep_react/HE3_irc_ep_react_np8_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/irc_ep_react/HE3_irc_ep_react_np8_trj.xyz",
+    "bytes": 43704,
+    "sha256": "9c026743731e073c337b44ba8b2c90e49f7a969a205554e501afe52493c43408"
+  },
+  {
+    "package_path": "raw/HE3/job_49/.cloudra/calc-49.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_49/.cloudra/calc-49.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/irc_ep_prod/.cloudra/calc-49.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/irc_ep_prod/.cloudra/calc-49.out.log",
+    "bytes": 3585432,
+    "sha256": "2b75fa2d9dc1cb5100608bc791bb481305010b21e7438d4fc41ed62cbfa52d2a"
+  },
+  {
+    "package_path": "raw/HE3/job_49/HE3_irc_ep_prod_np8.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_49/HE3_irc_ep_prod_np8.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/irc_ep_prod/HE3_irc_ep_prod_np8.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/irc_ep_prod/HE3_irc_ep_prod_np8.hess",
+    "bytes": 483823,
+    "sha256": "7465ba7620f98413ce8442f671a046dffc8b7c54ff9b355a1363f28954a0d94f"
+  },
+  {
+    "package_path": "raw/HE3/job_49/HE3_irc_ep_prod_np8.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_49/HE3_irc_ep_prod_np8.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/irc_ep_prod/HE3_irc_ep_prod_np8.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/irc_ep_prod/HE3_irc_ep_prod_np8.inp",
+    "bytes": 1916,
+    "sha256": "ea7ebe713482d12b37be0be79f0f48998dd7d95827aa8573b97309a186da01ef"
+  },
+  {
+    "package_path": "raw/HE3/job_49/HE3_irc_ep_prod_np8.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_49/HE3_irc_ep_prod_np8.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/irc_ep_prod/HE3_irc_ep_prod_np8.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/irc_ep_prod/HE3_irc_ep_prod_np8.xyz",
+    "bytes": 2799,
+    "sha256": "dcdf689940b0b66178f1885f6dc4edf3d5fb1f6a9ff108497534db535fead8d8"
+  },
+  {
+    "package_path": "raw/HE3/job_49/HE3_irc_ep_prod_np8_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_49/HE3_irc_ep_prod_np8_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/irc_ep_prod/HE3_irc_ep_prod_np8_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/irc_ep_prod/HE3_irc_ep_prod_np8_trj.xyz",
+    "bytes": 116416,
+    "sha256": "088779971327d65de4d8282eab3510831e1b2bd1ec5c1cec92d89591d9f98194"
+  },
+  {
+    "package_path": "raw/HE3/job_62/.cloudra/calc-62.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_62/.cloudra/calc-62.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/tsB_scanseed/.cloudra/calc-62.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/tsB_scanseed/.cloudra/calc-62.out.log",
+    "bytes": 771890,
+    "sha256": "a79e01f2ee2183831c44b4698f0a2587ea1ce86f3043dfbb469be811dade12e9"
+  },
+  {
+    "package_path": "raw/HE3/job_62/HE3_tsB_scanseed_np8.001.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_62/HE3_tsB_scanseed_np8.001.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/tsB_scanseed/HE3_tsB_scanseed_np8.001.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/tsB_scanseed/HE3_tsB_scanseed_np8.001.hess",
+    "bytes": 483824,
+    "sha256": "bb3117c10f3774cb9f22fffd56a570e8cedb74bf36852d823e671d4417f48d28"
+  },
+  {
+    "package_path": "raw/HE3/job_62/HE3_tsB_scanseed_np8.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_62/HE3_tsB_scanseed_np8.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/tsB_scanseed/HE3_tsB_scanseed_np8.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/tsB_scanseed/HE3_tsB_scanseed_np8.hess",
+    "bytes": 483824,
+    "sha256": "fe66a0549e2927a1de71e3f481bc0eaee9a41d4d9a523b9ece98e28c70e4f0d5"
+  },
+  {
+    "package_path": "raw/HE3/job_62/HE3_tsB_scanseed_np8.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_62/HE3_tsB_scanseed_np8.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/tsB_scanseed/HE3_tsB_scanseed_np8.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/tsB_scanseed/HE3_tsB_scanseed_np8.inp",
+    "bytes": 1949,
+    "sha256": "434402e43d6b6b38c6c8342999ee29b9ae7b740db792277a295f53a27bc0f127"
+  },
+  {
+    "package_path": "raw/HE3/job_62/HE3_tsB_scanseed_np8.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_62/HE3_tsB_scanseed_np8.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/tsB_scanseed/HE3_tsB_scanseed_np8.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/tsB_scanseed/HE3_tsB_scanseed_np8.xyz",
+    "bytes": 2801,
+    "sha256": "00c4485a7e78b8a4253923a49468c28e2346527e4ca95e71b791337d1345246b"
+  },
+  {
+    "package_path": "raw/HE3/job_62/HE3_tsB_scanseed_np8_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_62/HE3_tsB_scanseed_np8_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/tsB_scanseed/HE3_tsB_scanseed_np8_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/tsB_scanseed/HE3_tsB_scanseed_np8_trj.xyz",
+    "bytes": 10926,
+    "sha256": "dff2a08683c64fac4e7b640b589f49b49a7ab521a7ee6301a8f5914b614ee868"
+  },
+  {
+    "package_path": "raw/HE3/job_63/.cloudra/calc-63.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_63/.cloudra/calc-63.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/ircB/.cloudra/calc-63.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/ircB/.cloudra/calc-63.out.log",
+    "bytes": 119846,
+    "sha256": "7bdb4fbdcc27e3b3b61ab8f0b82b9770976839cf2bc85b15652b38e76144a210"
+  },
+  {
+    "package_path": "raw/HE3/job_63/HE3_ircB_np8.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_63/HE3_ircB_np8.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/ircB/HE3_ircB_np8.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/ircB/HE3_ircB_np8.hess",
+    "bytes": 482455,
+    "sha256": "409b67c68191e36eafe4a0ed678e529a1761fac22a9dbfdb8309f8044ec795be"
+  },
+  {
+    "package_path": "raw/HE3/job_63/HE3_ircB_np8.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_63/HE3_ircB_np8.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/ircB/HE3_ircB_np8.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/ircB/HE3_ircB_np8.inp",
+    "bytes": 1886,
+    "sha256": "1c7fb384fe70daf4ed03c48e0e66133a931a308ace02fe1f222da7ff0afd7713"
+  },
+  {
+    "package_path": "raw/HE3/job_63/HE3_ircB_np8_IRC_B.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_63/HE3_ircB_np8_IRC_B.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/ircB/HE3_ircB_np8_IRC_B.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/ircB/HE3_ircB_np8_IRC_B.xyz",
+    "bytes": 2791,
+    "sha256": "83fab032d02df9ce1c7f047d4e1e4d43a1903e848eb8934770e4e8d202db7dc6"
+  },
+  {
+    "package_path": "raw/HE3/job_63/HE3_ircB_np8_IRC_B_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_63/HE3_ircB_np8_IRC_B_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/ircB/HE3_ircB_np8_IRC_B_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/ircB/HE3_ircB_np8_IRC_B_trj.xyz",
+    "bytes": 9055,
+    "sha256": "36ab8babe939dd97f5d6f83e59af064cc1b1602a17c2e78e913c1f893f75fb7d"
+  },
+  {
+    "package_path": "raw/HE3/job_63/HE3_ircB_np8_IRC_F.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_63/HE3_ircB_np8_IRC_F.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/ircB/HE3_ircB_np8_IRC_F.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/ircB/HE3_ircB_np8_IRC_F.xyz",
+    "bytes": 2791,
+    "sha256": "3d955d788394b4d3ba73f56901b0a7605acd2a14e6d1aca12140754c38ba77de"
+  },
+  {
+    "package_path": "raw/HE3/job_63/HE3_ircB_np8_IRC_F_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_63/HE3_ircB_np8_IRC_F_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/ircB/HE3_ircB_np8_IRC_F_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/ircB/HE3_ircB_np8_IRC_F_trj.xyz",
+    "bytes": 19921,
+    "sha256": "4bd9ddca248e720fe102b3524c00f9523060da87f61d5368f3682f2929ae1507"
+  },
+  {
+    "package_path": "raw/HE3/job_63/HE3_ircB_np8_IRC_Full_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HE3/job_63/HE3_ircB_np8_IRC_Full_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/ircB/HE3_ircB_np8_IRC_Full_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/ircB/HE3_ircB_np8_IRC_Full_trj.xyz",
+    "bytes": 30838,
+    "sha256": "233c96efee2c3c4d8edb966127eec8897f8a7afb9c4f051d8219fcd18b292653"
+  },
+  {
+    "package_path": "raw/HI1/job_51/.cloudra/calc-51.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_51/.cloudra/calc-51.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/rc_clean_orca6/.cloudra/calc-51.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/rc_clean_orca6/.cloudra/calc-51.out.log",
+    "bytes": 2492182,
+    "sha256": "0ef881849dfdd31ca4cac66815365ec3c0a395d028f165bae530904d57a2240d"
+  },
+  {
+    "package_path": "raw/HI1/job_51/rc_clean_np8.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_51/rc_clean_np8.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/rc_clean_orca6/rc_clean_np8.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/rc_clean_orca6/rc_clean_np8.hess",
+    "bytes": 659940,
+    "sha256": "cd3488d0ab4d31080148fa798fb62f5c2a5869af253e96523046205ad6b0168b"
+  },
+  {
+    "package_path": "raw/HI1/job_51/rc_clean_np8.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_51/rc_clean_np8.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/rc_clean_orca6/rc_clean_np8.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/rc_clean_orca6/rc_clean_np8.inp",
+    "bytes": 2245,
+    "sha256": "e38291a1fb5665c40c4271f3a0f22f81ec41f618b287b6ee9fbe7afd64c83d76"
+  },
+  {
+    "package_path": "raw/HI1/job_51/rc_clean_np8.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_51/rc_clean_np8.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/rc_clean_orca6/rc_clean_np8.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/rc_clean_orca6/rc_clean_np8.xyz",
+    "bytes": 3244,
+    "sha256": "5b7b7aa2df9466c456614c9af3ddfe4e264339fd1b39a2dadd58690fb5f9b594"
+  },
+  {
+    "package_path": "raw/HI1/job_51/rc_clean_np8_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_51/rc_clean_np8_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/rc_clean_orca6/rc_clean_np8_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/rc_clean_orca6/rc_clean_np8_trj.xyz",
+    "bytes": 81744,
+    "sha256": "2f4e01bc536fbd1f43ef6b1dca61613e003d09a10d5a722dbb33babc5ac77a06"
+  },
+  {
+    "package_path": "raw/HI1/job_52/.cloudra/calc-52.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_52/.cloudra/calc-52.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/shared_rc/.cloudra/calc-52.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/shared_rc/.cloudra/calc-52.out.log",
+    "bytes": 3956233,
+    "sha256": "db9ff1594d3518d4f5ad61abc593b50d412b8f32a676278411830a44588f41bf"
+  },
+  {
+    "package_path": "raw/HI1/job_52/rc_shared.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_52/rc_shared.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/shared_rc/rc_shared.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/shared_rc/rc_shared.hess",
+    "bytes": 659940,
+    "sha256": "cdf25c0be6ff37aa5de1eb383cdff7ef60c930de0f6c2e948ff5da7c13dc3f91"
+  },
+  {
+    "package_path": "raw/HI1/job_52/rc_shared.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_52/rc_shared.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/shared_rc/rc_shared.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/shared_rc/rc_shared.inp",
+    "bytes": 2277,
+    "sha256": "de7eceeafe8bc2542e10e5a79cbdde4241067c0be76ffb9251a4aad5307aef15"
+  },
+  {
+    "package_path": "raw/HI1/job_52/rc_shared.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_52/rc_shared.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/shared_rc/rc_shared.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/shared_rc/rc_shared.xyz",
+    "bytes": 3225,
+    "sha256": "6c9104329a50ad66386ac03fe045a0cc08e7da772273d1dc78af19db6bbdcc86"
+  },
+  {
+    "package_path": "raw/HI1/job_52/rc_shared_opt.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_52/rc_shared_opt.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/shared_rc/rc_shared_opt.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/shared_rc/rc_shared_opt.xyz",
+    "bytes": 1250,
+    "sha256": "460aa78fde5def3d42741f0c6ad6b6b47ec5c7e29edeeb4ce1bae87931ba5f8d"
+  },
+  {
+    "package_path": "raw/HI1/job_52/rc_shared_seed.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_52/rc_shared_seed.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/shared_rc/rc_shared_seed.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/shared_rc/rc_shared_seed.xyz",
+    "bytes": 2360,
+    "sha256": "c51cff1503bfc4268812b590f0f4620443eaa7419f1f9ec3ea78a223ebe968f0"
+  },
+  {
+    "package_path": "raw/HI1/job_52/rc_shared_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_52/rc_shared_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/shared_rc/rc_shared_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/shared_rc/rc_shared_trj.xyz",
+    "bytes": 118389,
+    "sha256": "a038453d80bd4e88d292e48c4875e328b9a6fbde1bab02b8a3c58d07080f3eec"
+  },
+  {
+    "package_path": "raw/HI1/job_54/.cloudra/calc-54.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_54/.cloudra/calc-54.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/minor_rc/.cloudra/calc-54.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/minor_rc/.cloudra/calc-54.out.log",
+    "bytes": 2945382,
+    "sha256": "6904f5e103528dd6e111199e1f9cc030909b5b9e38c1d66bf04fb7bcfa0b84a5"
+  },
+  {
+    "package_path": "raw/HI1/job_54/minor_rc.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_54/minor_rc.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/minor_rc/minor_rc.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/minor_rc/minor_rc.hess",
+    "bytes": 659940,
+    "sha256": "3e784950028333165d95d2f7047fe560d0a5d504d53807203ff710209dee61a8"
+  },
+  {
+    "package_path": "raw/HI1/job_54/minor_rc.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_54/minor_rc.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/minor_rc/minor_rc.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/minor_rc/minor_rc.inp",
+    "bytes": 2285,
+    "sha256": "62eb90bf5baf2551cba46239561b2f62041a7593c1e05d49a280ce48a815ca8e"
+  },
+  {
+    "package_path": "raw/HI1/job_54/minor_rc.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_54/minor_rc.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/minor_rc/minor_rc.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/minor_rc/minor_rc.xyz",
+    "bytes": 3234,
+    "sha256": "fb365bb951b52e9a18f5a5205d1b9a54081e9009f5c346edf2a68eabb0ccaf40"
+  },
+  {
+    "package_path": "raw/HI1/job_54/minor_rc_opt.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_54/minor_rc_opt.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/minor_rc/minor_rc_opt.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/minor_rc/minor_rc_opt.xyz",
+    "bytes": 1257,
+    "sha256": "1bed5958e8826676044a1b83d256542b5ad93641f02e120d0b7791e1864ebdb8"
+  },
+  {
+    "package_path": "raw/HI1/job_54/minor_rc_seed.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_54/minor_rc_seed.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/minor_rc/minor_rc_seed.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/minor_rc/minor_rc_seed.xyz",
+    "bytes": 2054,
+    "sha256": "3e8c3185dc4c67f45b57a5c0c164c8b2b1c72751c9ea13dc87f933b0ec45ee11"
+  },
+  {
+    "package_path": "raw/HI1/job_54/minor_rc_seed_hbaxis.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_54/minor_rc_seed_hbaxis.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/minor_rc/minor_rc_seed_hbaxis.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/minor_rc/minor_rc_seed_hbaxis.xyz",
+    "bytes": 2054,
+    "sha256": "2ca04ca15f39ca184055e13227c6216c7e91b94624b1ab0ba06de24553e0c4b1"
+  },
+  {
+    "package_path": "raw/HI1/job_54/minor_rc_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_54/minor_rc_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/minor_rc/minor_rc_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/minor_rc/minor_rc_trj.xyz",
+    "bytes": 87612,
+    "sha256": "c58d8ff95eca1cece221c8cded77b87262ad08d6d1eaa574c82210c559db6eee"
+  },
+  {
+    "package_path": "raw/HI1/job_58/.cloudra/calc-58.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_58/.cloudra/calc-58.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/.cloudra/calc-58.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/.cloudra/calc-58.out.log",
+    "bytes": 18033133,
+    "sha256": "7db5b7d236fa89a039bcc02675a74f7429694a02ed610c6b4121862e0a9b846f"
+  },
+  {
+    "package_path": "raw/HI1/job_58/scan_clean_np8.001.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_58/scan_clean_np8.001.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/scan_clean_np8.001.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/scan_clean_np8.001.xyz",
+    "bytes": 3242,
+    "sha256": "f4cb46f6f8850c04a48d05a0d99a4b4d0ea798f5e8d1875da9e9cb41dce213d6"
+  },
+  {
+    "package_path": "raw/HI1/job_58/scan_clean_np8.002.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_58/scan_clean_np8.002.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/scan_clean_np8.002.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/scan_clean_np8.002.xyz",
+    "bytes": 3242,
+    "sha256": "0533f12f4c6dcce45189f125661d4d5cc0effb458d8fa7605044c192cd4c94fb"
+  },
+  {
+    "package_path": "raw/HI1/job_58/scan_clean_np8.003.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_58/scan_clean_np8.003.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/scan_clean_np8.003.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/scan_clean_np8.003.xyz",
+    "bytes": 3242,
+    "sha256": "882f03b94025e2cc8ac0ce77abfb566a750fbf227243868ab2f971217bee1f9c"
+  },
+  {
+    "package_path": "raw/HI1/job_58/scan_clean_np8.004.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_58/scan_clean_np8.004.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/scan_clean_np8.004.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/scan_clean_np8.004.xyz",
+    "bytes": 3242,
+    "sha256": "7ebda53df78e1bf40b18e19d2f40a37aca5094b8d64a8c6d4472fa9ed925f766"
+  },
+  {
+    "package_path": "raw/HI1/job_58/scan_clean_np8.005.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_58/scan_clean_np8.005.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/scan_clean_np8.005.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/scan_clean_np8.005.xyz",
+    "bytes": 3242,
+    "sha256": "8cb24ddd0e91025ebc73f632a9e046c51b2bfa7529e6d74d4fa5323fe16c2249"
+  },
+  {
+    "package_path": "raw/HI1/job_58/scan_clean_np8.006.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_58/scan_clean_np8.006.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/scan_clean_np8.006.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/scan_clean_np8.006.xyz",
+    "bytes": 3242,
+    "sha256": "0d87f573d38273c69288e0bdd800ec8cca1d62a3030957d246c2d4469be659f4"
+  },
+  {
+    "package_path": "raw/HI1/job_58/scan_clean_np8.007.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_58/scan_clean_np8.007.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/scan_clean_np8.007.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/scan_clean_np8.007.xyz",
+    "bytes": 3242,
+    "sha256": "e662627fe9d91cc7822961c1a26a4f3f8e08863af9e5f394ef2c7fab8e8f6a36"
+  },
+  {
+    "package_path": "raw/HI1/job_58/scan_clean_np8.008.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_58/scan_clean_np8.008.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/scan_clean_np8.008.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/scan_clean_np8.008.xyz",
+    "bytes": 3242,
+    "sha256": "6c92457397e11cc1754774a34aabc25dc3b09fcec273bfbc3d7cd4704fdadb9e"
+  },
+  {
+    "package_path": "raw/HI1/job_58/scan_clean_np8.009.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_58/scan_clean_np8.009.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/scan_clean_np8.009.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/scan_clean_np8.009.xyz",
+    "bytes": 3242,
+    "sha256": "4bed7b1e4d44b7d305da05142dfa0a3e5eee25e7a49a119bfad62f72b58358eb"
+  },
+  {
+    "package_path": "raw/HI1/job_58/scan_clean_np8.allxyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_58/scan_clean_np8.allxyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/scan_clean_np8.allxyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/scan_clean_np8.allxyz",
+    "bytes": 19114,
+    "sha256": "c83b7fd5faa48ea8edafd12f747db9c585cf8ec1635ef1502be06b64b240de51"
+  },
+  {
+    "package_path": "raw/HI1/job_58/scan_clean_np8.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_58/scan_clean_np8.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/scan_clean_np8.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/scan_clean_np8.inp",
+    "bytes": 2302,
+    "sha256": "21ed4480f3ef68033e1243ad0952e018ae647cc905d06da6c5dbcc51a6421518"
+  },
+  {
+    "package_path": "raw/HI1/job_58/scan_clean_np8.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_58/scan_clean_np8.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/scan_clean_np8.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/scan_clean_np8.xyz",
+    "bytes": 3242,
+    "sha256": "4bed7b1e4d44b7d305da05142dfa0a3e5eee25e7a49a119bfad62f72b58358eb"
+  },
+  {
+    "package_path": "raw/HI1/job_58/scan_clean_np8_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_58/scan_clean_np8_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/scan_clean_np8_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/scan_clean_np8_trj.xyz",
+    "bytes": 642858,
+    "sha256": "43d7df5e3d1b3161abf601aded40ebd4ad7c572f6c21cc5dc0569a2a6c3ed00c"
+  },
+  {
+    "package_path": "raw/HI1/job_59/.cloudra/calc-59.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_59/.cloudra/calc-59.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/.cloudra/calc-59.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/.cloudra/calc-59.out.log",
+    "bytes": 22914804,
+    "sha256": "d6ec1fcdf54f51797b5165815f51953fba2540460756e7e2ba727fd4d354d6a1"
+  },
+  {
+    "package_path": "raw/HI1/job_59/scan_minor_clean.001.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_59/scan_minor_clean.001.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/scan_minor_clean.001.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/scan_minor_clean.001.xyz",
+    "bytes": 3250,
+    "sha256": "73725ec0e57ecbe69b8ba4c619eda10e48380dbae8bbb7d0f564e0abe541bed7"
+  },
+  {
+    "package_path": "raw/HI1/job_59/scan_minor_clean.002.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_59/scan_minor_clean.002.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/scan_minor_clean.002.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/scan_minor_clean.002.xyz",
+    "bytes": 3250,
+    "sha256": "0d96a40924ed6e01bbcabd6514b921e096c23bbca9654f378dfd0be566431365"
+  },
+  {
+    "package_path": "raw/HI1/job_59/scan_minor_clean.003.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_59/scan_minor_clean.003.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/scan_minor_clean.003.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/scan_minor_clean.003.xyz",
+    "bytes": 3250,
+    "sha256": "207058786dfcfa4149b8b258a045db6fe7ad737feea039585250ddb8fdf29fca"
+  },
+  {
+    "package_path": "raw/HI1/job_59/scan_minor_clean.004.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_59/scan_minor_clean.004.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/scan_minor_clean.004.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/scan_minor_clean.004.xyz",
+    "bytes": 3250,
+    "sha256": "ed45b0ed5413c7e83dd7736dc4d393638c97dff06e6d188b54888f484bbef086"
+  },
+  {
+    "package_path": "raw/HI1/job_59/scan_minor_clean.005.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_59/scan_minor_clean.005.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/scan_minor_clean.005.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/scan_minor_clean.005.xyz",
+    "bytes": 3250,
+    "sha256": "9e1ef05bc9e64d26f5cd066b950e79f54cc0fbdb3bb68ac188817aef45c2caf4"
+  },
+  {
+    "package_path": "raw/HI1/job_59/scan_minor_clean.006.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_59/scan_minor_clean.006.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/scan_minor_clean.006.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/scan_minor_clean.006.xyz",
+    "bytes": 3250,
+    "sha256": "b49320e2c5a1bf258daf5d9610e2ecfee480d143acfdbfe2b9460338d4d1e91c"
+  },
+  {
+    "package_path": "raw/HI1/job_59/scan_minor_clean.007.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_59/scan_minor_clean.007.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/scan_minor_clean.007.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/scan_minor_clean.007.xyz",
+    "bytes": 3250,
+    "sha256": "de717a1da35e2a576a8b6e59e7e03ac182d3c4fea267214ce87df8e0a0e686ba"
+  },
+  {
+    "package_path": "raw/HI1/job_59/scan_minor_clean.008.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_59/scan_minor_clean.008.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/scan_minor_clean.008.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/scan_minor_clean.008.xyz",
+    "bytes": 3250,
+    "sha256": "3a02449e3210c1f2f22ed4a5668e368f86dc2e538eee52e814e2b8b58c2cbf09"
+  },
+  {
+    "package_path": "raw/HI1/job_59/scan_minor_clean.009.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_59/scan_minor_clean.009.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/scan_minor_clean.009.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/scan_minor_clean.009.xyz",
+    "bytes": 3250,
+    "sha256": "ae2ca403265e2c24bc9036ec36f6c1a001cf59a5f4fffc03460eecbb0e75e0fa"
+  },
+  {
+    "package_path": "raw/HI1/job_59/scan_minor_clean.010.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_59/scan_minor_clean.010.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/scan_minor_clean.010.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/scan_minor_clean.010.xyz",
+    "bytes": 3250,
+    "sha256": "858435aaafb7d69f45406ba872d110f5eee2322ec9b14ba629c5638d27c7d3e5"
+  },
+  {
+    "package_path": "raw/HI1/job_59/scan_minor_clean.allxyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_59/scan_minor_clean.allxyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/scan_minor_clean.allxyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/scan_minor_clean.allxyz",
+    "bytes": 21319,
+    "sha256": "e2209788ecbb3c68bdd1e43c42efede13868a3c10be054d1a531f537cb295d96"
+  },
+  {
+    "package_path": "raw/HI1/job_59/scan_minor_clean.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_59/scan_minor_clean.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/scan_minor_clean.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/scan_minor_clean.inp",
+    "bytes": 2305,
+    "sha256": "ed980a94b0d77c5a4a64caa54b02626dbf3bcbbf3de3adc8e7cf93b1155df99d"
+  },
+  {
+    "package_path": "raw/HI1/job_59/scan_minor_clean.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_59/scan_minor_clean.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/scan_minor_clean.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/scan_minor_clean.xyz",
+    "bytes": 3250,
+    "sha256": "858435aaafb7d69f45406ba872d110f5eee2322ec9b14ba629c5638d27c7d3e5"
+  },
+  {
+    "package_path": "raw/HI1/job_59/scan_minor_clean_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_59/scan_minor_clean_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/scan_minor_clean_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/scan_minor_clean_trj.xyz",
+    "bytes": 760924,
+    "sha256": "f291d1726ac6ead1c04746a91fb1a97e5834f66ce8b4eb3c22509ab65bbae672"
+  },
+  {
+    "package_path": "raw/HI1/job_64/.cloudra/calc-64.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_64/.cloudra/calc-64.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_orca6/.cloudra/calc-64.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_orca6/.cloudra/calc-64.out.log",
+    "bytes": 5742577,
+    "sha256": "611cdfcef1a0d3eb94115c3bc6fbc41ffe4772f02bfa26d30c653086836e0e08"
+  },
+  {
+    "package_path": "raw/HI1/job_64/ts2_np8.001.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_64/ts2_np8.001.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_orca6/ts2_np8.001.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_orca6/ts2_np8.001.hess",
+    "bytes": 659939,
+    "sha256": "f4a03091c8fba3a74c02155f808d754c28b3a88daa50dbfc35e912e5ccbad529"
+  },
+  {
+    "package_path": "raw/HI1/job_64/ts2_np8.hess",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_64/ts2_np8.hess",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_orca6/ts2_np8.hess",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_orca6/ts2_np8.hess",
+    "bytes": 659939,
+    "sha256": "f4a03091c8fba3a74c02155f808d754c28b3a88daa50dbfc35e912e5ccbad529"
+  },
+  {
+    "package_path": "raw/HI1/job_64/ts2_np8.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_64/ts2_np8.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_orca6/ts2_np8.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_orca6/ts2_np8.inp",
+    "bytes": 2290,
+    "sha256": "4bc23077cbbaf9b3d5872aa4357b5932c00136974d8a5eb68a86b765e0ebacf9"
+  },
+  {
+    "package_path": "raw/HI1/job_64/ts2_np8.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_64/ts2_np8.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_orca6/ts2_np8.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_orca6/ts2_np8.xyz",
+    "bytes": 3214,
+    "sha256": "26b53f25a511c050fe71d6fb566fb74b995de9465655f159ec0e90ece3b1031b"
+  },
+  {
+    "package_path": "raw/HI1/job_64/ts2_np8_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_64/ts2_np8_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_orca6/ts2_np8_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_orca6/ts2_np8_trj.xyz",
+    "bytes": 177310,
+    "sha256": "b294729751f39935ec5cfc40ffd91005ec7b5ce1a45c790dac8afcf1b5aa69d7"
+  },
+  {
+    "package_path": "raw/HI1/job_65/.cloudra/calc-65.out.log",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_65/.cloudra/calc-65.out.log",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_cont/.cloudra/calc-65.out.log",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_cont/.cloudra/calc-65.out.log",
+    "bytes": 1435927,
+    "sha256": "9c0df139b01edb4f1622e22ddb341c466430bb5462582cd7638fa80d7adf601f"
+  },
+  {
+    "package_path": "raw/HI1/job_65/scan_minor_cont.001.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_65/scan_minor_cont.001.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_cont/scan_minor_cont.001.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_cont/scan_minor_cont.001.xyz",
+    "bytes": 3248,
+    "sha256": "058015688f610137dae37c9a7240c9bf22003b6f28be2b611e34f1c332283cc5"
+  },
+  {
+    "package_path": "raw/HI1/job_65/scan_minor_cont.allxyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_65/scan_minor_cont.allxyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_cont/scan_minor_cont.allxyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_cont/scan_minor_cont.allxyz",
+    "bytes": 2128,
+    "sha256": "fb8109af75471f0e893f0af88dd10218da81eba0c758fb938ac599c587a5c6b1"
+  },
+  {
+    "package_path": "raw/HI1/job_65/scan_minor_cont.inp",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_65/scan_minor_cont.inp",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_cont/scan_minor_cont.inp",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_cont/scan_minor_cont.inp",
+    "bytes": 2329,
+    "sha256": "2fff4be4f657ef000e1929ad971ba344d7378ddce2b5b6fcc035e658a530548a"
+  },
+  {
+    "package_path": "raw/HI1/job_65/scan_minor_cont.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_65/scan_minor_cont.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_cont/scan_minor_cont.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_cont/scan_minor_cont.xyz",
+    "bytes": 3228,
+    "sha256": "81a5fe213ff9cba91a2b2b3142aa8a40d0a31d4faabc612ef3de38ac2ddc9cc7"
+  },
+  {
+    "package_path": "raw/HI1/job_65/scan_minor_cont_trj.xyz",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/raw/HI1/job_65/scan_minor_cont_trj.xyz",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_cont/scan_minor_cont_trj.xyz",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_cont/scan_minor_cont_trj.xyz",
+    "bytes": 42000,
+    "sha256": "f79452f21977b1e4dd8049e824abc93a446391539ac66aad703c27f9deffb738"
+  },
+  {
+    "package_path": "reports/HL1/REPORT.md",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/reports/HL1/REPORT.md",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/REPORT.md",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/REPORT.md",
+    "bytes": 19471,
+    "sha256": "2ab26bcfc816b07f0e33b878d53ef7b8d5eecfec75a2c1b6ca0f5848ec28f8e3"
+  },
+  {
+    "package_path": "reports/HL1/HANDOFF.md",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/reports/HL1/HANDOFF.md",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/HANDOFF.md",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/HANDOFF.md",
+    "bytes": 40127,
+    "sha256": "16948adf2b5f241dfe3150f5f74fc3cc5853e9d2f9d112b69d39b4864b122ff0"
+  },
+  {
+    "package_path": "reports/HG2/REPORT.md",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/reports/HG2/REPORT.md",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/REPORT.md",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/REPORT.md",
+    "bytes": 17402,
+    "sha256": "1c1622681ebc51184f845926920689618875a60a574aba750dc7bc59482b01a1"
+  },
+  {
+    "package_path": "reports/HG2/HANDOFF.md",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/reports/HG2/HANDOFF.md",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/HANDOFF.md",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/HANDOFF.md",
+    "bytes": 18141,
+    "sha256": "a80846a0da0aa6c0e2cd363d4ee0189385c68ab2871f43af544637928188d58e"
+  },
+  {
+    "package_path": "reports/HE3/REPORT.md",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/reports/HE3/REPORT.md",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/REPORT.md",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/REPORT.md",
+    "bytes": 4547,
+    "sha256": "5091f5f3039db793d39854abcfaac514bbf5d890c831efa7c633df7a47fddc92"
+  },
+  {
+    "package_path": "reports/HE3/HANDOFF.md",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/reports/HE3/HANDOFF.md",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HE3_gold_20260929/HANDOFF.md",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HE3_gold_20260929/HANDOFF.md",
+    "bytes": 26906,
+    "sha256": "ddc3f6439d49b4a9f797f7c8c2a1945185528b7734008afef1f6e436511d1336"
+  },
+  {
+    "package_path": "reports/HI1/REPORT.md",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/reports/HI1/REPORT.md",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/REPORT.md",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/REPORT.md",
+    "bytes": 2216,
+    "sha256": "3658cafc78a3661c6c30d884fce6380d41baae54a4405cd3f000832573048ec5"
+  },
+  {
+    "package_path": "reports/HI1/HANDOFF.md",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/reports/HI1/HANDOFF.md",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/HANDOFF.md",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/HANDOFF.md",
+    "bytes": 18509,
+    "sha256": "f21a95701feefba2494d922c75dc9d3addb50c536f5600c3bd410bd08655ab7a"
+  },
+  {
+    "package_path": "reports/HL1/CURRENT_ADJUDICATION.md",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/reports/HL1/CURRENT_ADJUDICATION.md",
+    "original_local_path": "/private/tmp/cloudra-hl1-20260930/gold_compute/hard_hl1_2026-10-01.md",
+    "original_remote_path": null,
+    "bytes": 4228,
+    "sha256": "51132be526a2824479c1f76df43bf715b7d4822c8147ce42e0e19a8123a15bed"
+  },
+  {
+    "package_path": "reports/HG2/CURRENT_ADJUDICATION.md",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/reports/HG2/CURRENT_ADJUDICATION.md",
+    "original_local_path": "/private/tmp/cloudra-hl1-20260930/gold_compute/hard_hg2_2026-10-01.md",
+    "original_remote_path": null,
+    "bytes": 4239,
+    "sha256": "2b70439d71e8039a10cfe6f80442090cbaac12fec62eab8c7d932bacd3485cba"
+  },
+  {
+    "package_path": "task_sources/HL1.json",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/task_sources/HL1.json",
+    "original_local_path": "/private/tmp/cloudra-hl1-20260930/ideapool/tasks/hard/HL1.json",
+    "original_remote_path": null,
+    "bytes": 12269,
+    "sha256": "d7b7023b1c17e211cd0029605c3168a7475b04fc31b4455b51f5ec877f20cea9"
+  },
+  {
+    "package_path": "task_sources/HL1_step_declare.json",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/task_sources/HL1_step_declare.json",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HL1_gold_20260929/tsprepare_E3/ts/ts_0001/declare.json",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HL1_gold_20260929/tsprepare_E3/ts/ts_0001/declare.json",
+    "bytes": 730,
+    "sha256": "d21313137fcc02b7a15424489b734c3a407ae6ee5093ad8e6e0eaa459486a864"
+  },
+  {
+    "package_path": "task_sources/HG2.json",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/task_sources/HG2.json",
+    "original_local_path": "/private/tmp/cloudra-hl1-20260930/ideapool/tasks/hard/HG2.json",
+    "original_remote_path": null,
+    "bytes": 10402,
+    "sha256": "95dbd3896208e99eccd2b56295c77945e7bd68ffa8179853d7b1a789b2a4ef47"
+  },
+  {
+    "package_path": "task_sources/HG2_original_step_declare.json",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/task_sources/HG2_original_step_declare.json",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/ts/ts_0001/declare.json",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/ts/ts_0001/declare.json",
+    "bytes": 684,
+    "sha256": "c8cfe725a284ca4684c801dde26b1bcc4ede5ee31c6c35340726662c5b34bff6"
+  },
+  {
+    "package_path": "task_sources/HG2_paratera_step_declare.json",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/task_sources/HG2_paratera_step_declare.json",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/ts/ts_0001/declare.json",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/ts/ts_0001/declare.json",
+    "bytes": 843,
+    "sha256": "99a48a94b04126257377ed405b325ed91eb5ecafa617a1c10ee4220e9166236a"
+  },
+  {
+    "package_path": "task_sources/HI1.json",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/task_sources/HI1.json",
+    "original_local_path": "/private/tmp/cloudra-hl1-20260930/ideapool/tasks/hard/HI1.json",
+    "original_remote_path": null,
+    "bytes": 13322,
+    "sha256": "b83ebbcd2a89a9961ac115e3c361825ece55b8a537e05018d1f2f51b6af3887e"
+  },
+  {
+    "package_path": "task_sources/HI1_step_declare.json",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/task_sources/HI1_step_declare.json",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/workspace/hard_resume_20260930/HI1_gold_20260929/ts/ts_0001/declare.json",
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/ts/ts_0001/declare.json",
+    "bytes": 999,
+    "sha256": "7dd91a8171b5db49b81988fe0407df2a31cca6761594e2ae94607f642ccdc7e4"
+  },
+  {
+    "package_path": "recovery/COORD_RECOVERY_STANCE.md",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/recovery/COORD_RECOVERY_STANCE.md",
+    "original_local_path": null,
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/COORD_RECOVERY_STANCE.md",
+    "bytes": 13987,
+    "sha256": "a579e39b0d3b41af72c70470483ca8e2cc489273e44012773e405d4c5c44aa2c",
+    "capture": "read-only SSH export; document at capture time"
+  },
+  {
+    "package_path": "recovery/FRAME8_SEED_EVIDENCE.md",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/recovery/FRAME8_SEED_EVIDENCE.md",
+    "original_local_path": null,
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_recovery/FRAME8_SEED_EVIDENCE.md",
+    "bytes": 6197,
+    "sha256": "88425d69f30657d51ec11ef607cf3ee928dadf90d0175413ab767bf8d0cd7063",
+    "capture": "read-only SSH export; document at capture time"
+  },
+  {
+    "package_path": "recovery/README.md",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/recovery/README.md",
+    "original_local_path": null,
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_recovery/README.md",
+    "bytes": 3226,
+    "sha256": "e01e1cd038a1c13b76e26620bf31dea6e7381900cd6c5c90c5c8f426f395b6dd",
+    "capture": "read-only SSH export; document at capture time"
+  },
+  {
+    "package_path": "recovery/RECOVERY_job65.md",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/recovery/RECOVERY_job65.md",
+    "original_local_path": null,
+    "original_remote_path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_cont2/RECOVERY_job65.md",
+    "bytes": 6934,
+    "sha256": "3a2a9aef4fb98b2848721ef7a4e8792787c777effad380da888fe18aee191c19",
+    "capture": "read-only SSH export; document at capture time"
+  },
+  {
+    "package_path": "recovery/RECOVERY_PROVENANCE.json",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/recovery/RECOVERY_PROVENANCE.json",
+    "original_local_path": null,
+    "original_remote_path": "/data/cloudra/runtime/recovery_20261001/RECOVERY_PROVENANCE.json",
+    "bytes": 592,
+    "sha256": "ec7aa6357cf45c134afc7d99dd1f3769b3c0dd3396d1dc1c4ff8d5814c827173",
+    "capture": "read-only SSH export; document at capture time"
+  },
+  {
+    "package_path": "recovery/BACKUP_VERIFICATION.json",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/recovery/BACKUP_VERIFICATION.json",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/BACKUP_VERIFICATION.json",
+    "original_remote_path": null,
+    "bytes": 739,
+    "sha256": "3db4b67f8f780c2266860e211e940038b4b820bf30e40589746cc759d800a50f"
+  },
+  {
+    "package_path": "recovery/RECOVERY_DATABASE_VERIFICATION.json",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/recovery/RECOVERY_DATABASE_VERIFICATION.json",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/RECOVERY_DATABASE_VERIFICATION.json",
+    "original_remote_path": null,
+    "bytes": 258,
+    "sha256": "d28e6376e0dae637ee98fb41e45710880baac28d4f02ba32bce952ce2d3a37dc"
+  },
+  {
+    "package_path": "recovery/MIGRATION_README.md",
+    "package_absolute_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/grant_materials_20261001/recovery/MIGRATION_README.md",
+    "original_local_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/remote_backups/paratera_final_20261001_0830/MIGRATION_README.md",
+    "original_remote_path": null,
+    "bytes": 2931,
+    "sha256": "8e052fe470f02603b2caa075d8183b694d2634cd9c0930a2273e819a948db237"
+  }
+]

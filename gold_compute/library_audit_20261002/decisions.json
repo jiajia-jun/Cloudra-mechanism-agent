@@ -1,0 +1,235 @@
+{
+  "open": {
+    "NI5_E1": {
+      "label": "水溶液亚胺形成：C–N 加成",
+      "reason": "最新题源明确写尚无无约束 TS 能垒、暂缺测；未见明确放弃。",
+      "evidence": [
+        "ideapool/reaction_candidates/normal.md",
+        "cloudra/benchmark/normal_registry/ai.py"
+      ]
+    },
+    "NR1_E1": {
+      "label": "频哪醇 OH 质子化",
+      "reason": "最新源写 PT 未确立非零垒；旧 Gaussian 约束扫描的 0 不是当前合格回填或正式豁免。分子内互变规则不自动适用于本分子间酸活化。",
+      "evidence": [
+        "ideapool/reaction_candidates/normal.md",
+        "gold_compute/edge_barriers/computed/NR1.json"
+      ]
+    },
+    "NR1_E2": {
+      "label": "质子化频哪醇脱水",
+      "reason": "最新源明确未找到独立鞍点，参考垒缺测；搜索失败不是已明确放弃。",
+      "evidence": [
+        "ideapool/reaction_candidates/normal.md",
+        "cloudra/benchmark/normal_registry/ru.py"
+      ]
+    },
+    "NU5_E2": {
+      "label": "Passerini：甲酸根捕获腈鎓",
+      "reason": "最新题源明确捕获能垒缺测；旧四步图的 E2/E3 编号及 8.2/0 不可移植到当前三步图。",
+      "evidence": [
+        "ideapool/reaction_candidates/normal.md",
+        "cloudra/benchmark/normal_registry/ru.py"
+      ]
+    },
+    "NY3_E1": {
+      "label": "Na⁺ 模型：OH⁻ 加成",
+      "reason": "用户改为 Na⁺ 制衡中性模型后明确要求重算全图；裸离子旧值作废，未见新模型闭环或放弃记录。 9/26 复盘记录有限 TS/扫描尝试失败及机理耦合疑点，预算耗尽、待科学裁决不是正式放弃。",
+      "evidence": [
+        "cloudra/benchmark/normal_registry/yo.py",
+        "ideapool/reaction_candidates/normal.md",
+        "gold_compute/agent_hint_dead_ends_2026-09-26.md"
+      ]
+    },
+    "NY3_E2": {
+      "label": "Na⁺ 模型：甲氧基消除",
+      "reason": "同上；裸 OH⁻ 旧 12.5 不能回填 Na⁺ 新模型。 9/26 复盘记录有限 TS/扫描尝试失败及机理耦合疑点，预算耗尽、待科学裁决不是正式放弃。",
+      "evidence": [
+        "cloudra/benchmark/normal_registry/yo.py",
+        "ideapool/reaction_candidates/normal.md",
+        "gold_compute/agent_hint_dead_ends_2026-09-26.md"
+      ]
+    },
+    "NY3_E3": {
+      "label": "Na⁺ 模型：甲酸→甲氧基 PT",
+      "reason": "同上；该边虽为 PT，源明确三步待 Na 模型战役回填；旧裸离子 0.0 及分子内互变豁免均不自动关闭此边。 9/26 复盘记录有限 TS/扫描尝试失败及机理耦合疑点，预算耗尽、待科学裁决不是正式放弃。",
+      "evidence": [
+        "cloudra/benchmark/normal_registry/yo.py",
+        "ideapool/reaction_candidates/normal.md",
+        "gold_compute/agent_hint_dead_ends_2026-09-26.md"
+      ]
+    },
+    "HI1_E1": {
+      "label": "脯氨酸烯胺缩合",
+      "reason": "本轮只验收两条 C–C 加成，E1 未计算且撤回旧 19.2；属于本轮范围外/暂留缺口，没有永久放弃记录。",
+      "evidence": [
+        "gold_compute/hard_hi1_2026-10-01.md",
+        "ideapool/reaction_candidates/hard.md"
+      ]
+    },
+    "HI1_E3": {
+      "label": "iminium-aldolate 水解",
+      "reason": "本轮范围外且撤回旧 16.9；未计算不能等同明确永久放弃。",
+      "evidence": [
+        "gold_compute/hard_hi1_2026-10-01.md",
+        "ideapool/reaction_candidates/hard.md"
+      ]
+    },
+    "HL1_E1": {
+      "label": "Beckmann：肟 OH 质子化",
+      "reason": "最新源保持 null；旧 Gaussian 的无鞍点扫描与 ORCA 错位 PT 候选均不是现行合格回填。未见正式豁免/放弃。",
+      "evidence": [
+        "gold_compute/hard_hl1_2026-10-01.md",
+        "cloudra/benchmark/hard_registry/jl.py"
+      ]
+    }
+  },
+  "waived": {
+    "NB1_E2": {
+      "label": "1,1-乙烯二醇→乙酸互变",
+      "reason": "明确按既定分子内 PT 规则保留图边，不要求参考垒、不追加大规模扫描。",
+      "evidence": [
+        "gold_compute/normal_malonic_acid_2026-09-27.md",
+        "cloudra/benchmark/normal_registry/b.py",
+        "cloudra/benchmark/normal_registry/__init__.py"
+      ]
+    },
+    "NQ5_E2": {
+      "label": "oxy-Cope 烯醇→醛互变",
+      "reason": "逐边明确写 barrier deliberately unanchored per 2026-09-25 PT-edge rule，gold 战役不花算力。",
+      "evidence": [
+        "cloudra/benchmark/normal_registry/qh.py",
+        "ideapool/reaction_candidates/normal.md"
+      ]
+    }
+  },
+  "numeric_caveats": {
+    "D1_E1": {
+      "reason": "已回填 18.83，但直接 IRC 反应端优化未收敛，仅有独立零虚频络合物，路径端点未严格闭合。",
+      "evidence": [
+        "gold_compute/easy_backfill_2026-09-23.md"
+      ]
+    },
+    "G2_E1": {
+      "reason": "已回填 0.87；IRC 产物 vdW 加合物有 −7.6 软虚频，分离 N₂/乙烷零虚频不等于该复合端严格闭合。",
+      "evidence": [
+        "gold_compute/easy_backfill_2026-09-23.md"
+      ]
+    },
+    "G3_E1": {
+      "reason": "已回填 30.15；源记录 TS 非协同、具双自由基特征，而 step_type 仍写 concerted。这是机制/适用性审查问题，不自行撤回或补算。",
+      "evidence": [
+        "ideapool/reaction_candidates/easy.md",
+        "gold_compute/easy_backfill_2026-09-25.md"
+      ]
+    },
+    "M1_E1": {
+      "reason": "已回填 15.10，但为 τ=180° 约束弛豫的软虚频驻点，无约束 OptTS 滑向甲基旋转赝鞍点；不能称无约束相关 TS 全验收。",
+      "evidence": [
+        "ideapool/reaction_candidates/easy.md",
+        "gold_compute/easy_backfill_2026-09-25.md"
+      ]
+    },
+    "NI1_E1": {
+      "reason": "已回填 D3BJ 自算 27.90；源明确 IRC 只有一向收敛且端点未重优化闭合。",
+      "evidence": [
+        "ideapool/reaction_candidates/normal.md"
+      ]
+    },
+    "NI1_E2": {
+      "reason": "已回填 D3BJ 自算 57.67；源明确 IRC 只有一向收敛且端点未重优化闭合。",
+      "evidence": [
+        "ideapool/reaction_candidates/normal.md"
+      ]
+    },
+    "NR1_E4": {
+      "reason": "已回填旧 Gaussian 自算 5.74，旧边 NR1_E3 现对应去质子步 E4；原证据记录替代质子接力拓扑及一点评 IRC，仅按 supervisor-supported 接受，须保留身份/拓扑 caveat。",
+      "evidence": [
+        "gold_compute/edge_barriers/computed/NR1.json"
+      ]
+    },
+    "NU6_E1": {
+      "reason": "已回填 2.66，但本地旧验收树注明 RC 有 −24.32 软虚频；本次未找到该起点零虚频修正记录，不能把旧源的 verified 当作严格最小值全过。",
+      "evidence": [
+        "LOCAL:gold_compute/verified_evidence/NU6/README.md"
+      ]
+    },
+    "HL1_E2": {
+      "reason": "保留旧 23.13，一阶迁移鞍点存在，但 IRC 反向未回声明 I1 的 partial caveat；本轮没有重新验证 E2。",
+      "evidence": [
+        "gold_compute/hard_hl1_2026-10-01.md",
+        "gold_compute/archive/HANDOFF_CAMPAIGN.md"
+      ]
+    },
+    "IB9_E1": {
+      "reason": "已回填 14.74；9/26 复盘记录第一阶段产物 IRC 再优化仍有浅环翻转虚频。本次未见该端点后续零虚频修复证明，列为待复核旧限制；不据此自动撤回数值。",
+      "evidence": [
+        "gold_compute/agent_hint_dead_ends_2026-09-26.md",
+        "ideapool/reaction_candidates/impossible.md"
+      ]
+    }
+  },
+  "provenance": {
+    "easy_default": [
+      "ideapool/reaction_candidates/easy.md",
+      "gold_compute/easy_backfill_2026-09-23.md",
+      "gold_compute/easy_backfill_2026-09-25.md",
+      "gold_compute/easy_replacements_2026-09-24.md"
+    ],
+    "normal_default": [
+      "ideapool/reaction_candidates/normal.md",
+      "gold_compute/archive/HANDOFF_backfill.md",
+      "gold_compute/archive/HANDOFF_CAMPAIGN.md"
+    ],
+    "hard_default": [
+      "ideapool/reaction_candidates/hard.md"
+    ],
+    "impossible_default": [
+      "ideapool/reaction_candidates/impossible.md"
+    ],
+    "NB1": [
+      "gold_compute/normal_malonic_acid_2026-09-27.md"
+    ],
+    "NU3": [
+      "LOCAL:gold_compute/verified_evidence/NU3/README.md"
+    ],
+    "NU5": [
+      "LOCAL:gold_compute/verified_evidence/NU5/README.md"
+    ],
+    "NU6": [
+      "LOCAL:gold_compute/verified_evidence/NU6/README.md"
+    ],
+    "NQ1": [
+      "gold_compute/edge_barriers/computed/NQ1.json"
+    ],
+    "NR1": [
+      "gold_compute/edge_barriers/computed/NR1.json"
+    ],
+    "HA8": [
+      "gold_compute/hard_replacements_verified_2026-10-01.md",
+      "gold_compute/hard_replacements_20261001/FINAL_INDEPENDENT_AUDIT.json"
+    ],
+    "HB10": [
+      "gold_compute/hard_replacements_verified_2026-10-01.md",
+      "gold_compute/hard_replacements_20261001/FINAL_INDEPENDENT_AUDIT.json"
+    ],
+    "HH1": [
+      "gold_compute/hard_backfill_2026-09-29.md"
+    ],
+    "HF1": [
+      "gold_compute/hard_backfill_2026-09-29.md"
+    ],
+    "HB1": [
+      "gold_compute/hard_swap_2026-09-30.md"
+    ],
+    "HD2": [
+      "gold_compute/hard_swap_2026-09-30.md"
+    ],
+    "HI1": [
+      "gold_compute/hard_hi1_2026-10-01.md"
+    ],
+    "HL1": [
+      "gold_compute/hard_hl1_2026-10-01.md"
+    ]
+  }
+}

@@ -1,0 +1,168 @@
+# Easy 档题集（化学反应 + 分子内过程，最终版）
+
+> **⚠ 存量题源（2026-09-21）**：本文件是历史策展入库的 easy 题池，**不是**本轮「边选边填 gold」的候选清单。新候选不从本文档抄题；现行策略见 `gold_compute/README.md`。
+>
+> 定稿日期：2026-08-29。Easy 档 = **小分子、好算、多样化**，不限于净化学反应，纳入旋转/翻转/构象/异构化等分子内过程。用途：量子化学机理推导 agent benchmark 的 Easy 档最终题集（经评审台筛选，收录 20 条（v3 2026-09-09 缩减，原 30 中剔 10 留档；2026-09-25 C1/C3 退役留档，F4/M17 补入，总数仍 20））。
+>
+> **Easy 档定义**：教材级经典单步过程；重原子 ≤7（双分子 DA 底物放宽到 ≤10，轴手性特例放宽到 14）；CHNO 主族原型（含少量 F/Cl/Br/S/B，均为 MACE-OMol25 / OMol25 训练覆盖元素）；闭壳层单重态；气相可算。方法白名单与 normal/hard 对齐：**开放 B3LYP-D3(BJ)/def2-SVP**（`MethodPolicy(allowed_methods=["xtb","b3lyp/def2svp"])`），xtb 做路径探索、b3lyp 做能垒/驻点验证。
+>
+> **范围**：两大块——
+> - **化学反应**（D/P/L/X/E/F/G 七类；C SN2 与 T 互变 2026-09-25 / v3 起为空档留档）：Diels-Alder、[3,3]/[1,5]-σ 迁移、电环化、挤出/脱羧、E2、羰基加成、协同加成/氢转移。
+> - **分子内过程**（M 类）：轴手性阻转、N 翻转、构象旋转、异构化、脱氢、质子团簇转移。这些不是净化学反应，但同样要求 TS + IRC + 频率的自洽闭环，且能垒普遍更低、更适合 Easy 阶段。
+>
+> **金标准引擎适配自查**：MACE-OMol25 训练于 ωB97M-V/def2-TZVPD 级别的 OMol25（含 Transition-1x 反应子集），其舒适区为"重原子 ≤7、CHNO、单步气相过程"。每条的"舒适区自查"栏给出元素集合 + 重原子数 + 闭壳层确认；✅ = 完全落在高密度区。
+>
+> **能垒锚点标注约定**：
+> - [已核实] = 经 WebSearch 确认文献真实存在且关键数值被核对；[部分核实] = 文献存在已确认、但具体数值或卷页为回忆值待二次核对；[未核实] = 出处凭记忆，使用前必须复查；[已核实存在] = 文献真实存在已确认、数值按所引报道转录、未独立复核。
+> - 能垒口径统一为 `central_complex`（TS 相对反应物络合物/预反应络合物；双分子离子-分子反应即离子-偶极络合物，单分子与分子内过程的反应物阱即络合物）；单元格括号内的口径注明（如"TS 相对反应物渐近线"）是该锚点数值的出处属性，予以保留。参考能垒逐边承载于 gold 边。
+> - gold 机理图边的 `bond_changes`（原子映射的断键/成键对）与 query 展示给 agent 的原子映射反应物 SMILES 登记在生成器 `gen_easy_tasks.py` 的 `_BOND_CHANGES`/`_MAPPED_REACTANTS`（口径：键级下降=break、键级上升=form；纯构象/翻转步两空）。
+> - **评分绑定 agent 实际计算证据（TS 搜索 + IRC + 频率），锚点只作 ±2 kcal/mol 参考，不作 pass/fail 硬线**——Easy 档考"自洽的机理闭环"，不追绝对真值。
+> - 对分子内过程（M 类），"产物"= 互变后的构型/构象（常为等价构型或另一极小），同样走 TS + IRC + 频率闭环。
+
+---
+
+## D. Diels-Alder 环加成（3 个）
+
+| # | 反应（中/EN） | SMILES (reactant>>product)，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
+|---|---|---|---|---|---|---|---|
+| D1 | 丁二烯+乙烯 Diels-Alder（parent DA）| `C=CC=C.C=C>>C1CC=CCC1`，0/1 | 气相 487–648 °C 动力学 | 协同 [4+2] 环加成，单步过对称 TS | 自算 ΔE‡ 18.83 kcal/mol（computed_by_us=True；气相 ORCA 5.0.2 B3LYP-D3(BJ)/def2-SVP/def2-J RIJCOSX；相对本题反应物极小值或络合物，纯电子能；证据与原始能量见 gold_compute/easy_backfill_2026-09-23.md；路径端点尚未严格闭合；原文献锚点：ΔE‡ 22.3 kcal/mol（计算值，W1/W2-F12，Karton & Goerigk 2015 J. Comput. Chem. 36, 622，DOI 10.1002/jcc.23837，GMTKN55/BHPERI #7；分离反应物口径）[已核实]） | C,H；6 重原子；✅ | 整个 benchmark 的"定标星"；Transition-1x/RDB7 均含 |
+| D3 | 环戊二烯二聚（endo，自身 DA）| `C1=CCC=C1.C1=CCC=C1>>C12C=CC(C1)C1C=CCC12`，0/1 | 气相/液相室温慢 | 协同 [4+2]，bispericyclic TS，一分子作二烯一分子作亲双烯体 | 自算 ΔE‡ 14.65 kcal/mol（computed_by_us=True；气相 ORCA 5.0.2 B3LYP-D3(BJ)/def2-SVP/def2-J RIJCOSX；TS 相对 endo 预反应络合物，纯电子能；分离反应物口径 10.06；证据与原始能量见 gold_compute/easy_backfill_2026-09-25.md；原文献锚点：ΔE‡ 14.5 kcal/mol（计算值，Karton & Goerigk 2015 J. Comput. Chem. 36, 622，DOI 10.1002/jcc.23837，GMTKN55/BHPERI #9/TS11，endo 电子垒；分离反应物口径）[已核实]） | C,H；10 重原子；✅ | 低能垒 DA，二聚经典体系 |
+| D4 | 环戊二烯 + 丙烯醛 DA（含杂原子亲双烯体）| `C1=CCC=C1.C=CC=O>>O=CC1CC2C=CC1C2`，0/1 | 气相/烃溶剂加热 | 协同 [4+2]，endo/exo 选择性，醛基亲双烯体 | 自算 ΔE‡ 11.30（endo）/11.35（exo）kcal/mol（computed_by_us=True；气相 ORCA 5.0.2 B3LYP-D3(BJ)/def2-SVP/def2-J RIJCOSX；TS 相对预反应络合物（结合 6.18），纯电子能；两鞍点近简并、顺序 endo 低于 exo 与文献一致；分离反应物口径 endo 5.12/exo 5.17；证据与原始能量见 gold_compute/easy_backfill_2026-09-25.md；原文献锚点：ΔE‡ 13.6（endo）/14.1（exo）kcal/mol（理论 ωB97X-D/6-311G(d,p)，气相，相对分离反应物；Domingo, Pérez, Ríos-Gutiérrez & Aurell 2024 Tetrahedron Chem 10, 100064, DOI 10.1016/j.tchem.2024.100064）[已核实]） | C,H,O；9 重原子；✅ | 含杂原子 DA，endo/exo 选择性范例 |
+
+## P. σ 迁移重排（2 个）
+
+| # | 反应（中/EN） | SMILES，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
+|---|---|---|---|---|---|---|---|
+| P2 | 环戊二烯 [1,5]-H 迁移（简并）| `C1=CCC=C1>>C1=CCC=C1`，0/1 | 气相/溶液室温即快 | [1,5]-σ 氢迁移，同面允许，单分子机理 | 自算 ΔE‡ 26.55 kcal/mol（computed_by_us=True；气相 ORCA 5.0.2 B3LYP-D3(BJ)/def2-SVP/def2-J RIJCOSX；相对本题反应物极小值或络合物，纯电子能；证据与原始能量见 gold_compute/easy_backfill_2026-09-23.md；原文献锚点：ΔG‡ ≈ 25 kcal/mol（ωB97X-D / DLPNO-CCSD(T)，Tran, Sengupta & Houk 2022 JOC, DOI 10.1021/acs.joc.2c02145）[已核实]） | C,H；5 重原子；✅ | [1,5]-迁移速率随环尺寸变化；简并步 |
+| P3 | 烯丙基乙烯基醚 Claisen 重排（[3,3]）| `C=CCOC=C>>O=CCCC=C`，0/1 | 气相 ~200 °C | [3,3]-σ 迁移，椅式 TS，含 O 的 Claisen（与 P1 全碳 Cope 互补）→ 4-戊烯醛 | 自算 ΔE‡ 30.23 kcal/mol（computed_by_us=True；气相 ORCA 5.0.2 B3LYP-D3(BJ)/def2-SVP/def2-J RIJCOSX；相对本题反应物极小值或络合物，纯电子能；证据与原始能量见 gold_compute/easy_backfill_2026-09-23.md；原文献锚点：ΔH‡ 30.6 kcal/mol（气相实验，Schuler & Murphy 1950 JACS 72, 3155）[已核实]） | C,H,O；6 重原子；✅ | Claisen 原型，周环教科书核心 |
+
+## L. 电环化（2 个）
+
+> 周环反应第三类（DA / σ迁移之外的电环化）：Woodward-Hoffmann 顺旋/对旋选择规则原型。
+
+| # | 反应（中/EN） | SMILES，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
+|---|---|---|---|---|---|---|---|
+| L1 | 环丁烯 → 丁二烯 顺旋开环 | `C1=CCC1>>C=CC=C`，0/1 | 气相 403–448 K | 4π 电环化，**顺旋**（conrotatory）开环，单步 | 自算 ΔE‡ 35.17 kcal/mol（computed_by_us=True；气相 ORCA 5.0.2 B3LYP-D3(BJ)/def2-SVP/def2-J RIJCOSX；相对本题反应物极小值或络合物，纯电子能；证据与原始能量见 gold_compute/easy_backfill_2026-09-23.md；原文献锚点：Ea 32.7±0.2 kcal/mol（气相实验；Karton/Goerigk pericyclic benchmark 反应1）[已核实]） | C,H；4 重原子；✅ | **4π 顺旋原型**，W-H 规则教学核心 |
+| L2 | 己三烯 → 环己二烯 对旋闭环 | `C=CC=CC=C>>C1=CC=CCC1`，0/1 | 气相 390–434 K | 6π 电环化，**对旋**（disrotatory）闭环，单步 | 自算 ΔE‡ 29.77 kcal/mol（computed_by_us=True；气相 ORCA 5.0.2 B3LYP-D3(BJ)/def2-SVP/def2-J RIJCOSX；相对本题反应物极小值或络合物，纯电子能；证据与原始能量见 gold_compute/easy_backfill_2026-09-23.md；原文献锚点：Ea 29.9±0.5 kcal/mol（气相实验；Karton/Goerigk pericyclic benchmark 反应2）[已核实]） | C,H；6 重原子；✅ | **6π 对旋原型**，与 L1 顺旋/对旋对照 |
+
+## X. 挤出 / 脱羧（1 个）
+
+| # | 反应（中/EN） | SMILES，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
+|---|---|---|---|---|---|---|---|
+| X1 | β-丙内酯 → 乙烯 + CO₂（脱羧挤出）| `O=C1OCC1>>C=C.C(=O)=O`，0/1 | 气相 ~350 °C | 协同非同步断 C-C/C-O，挤出 CO₂ | 自算 ΔE‡ 40.90 kcal/mol（computed_by_us=True；气相 ORCA 5.0.2 B3LYP-D3(BJ)/def2-SVP/def2-J RIJCOSX；相对本题反应物极小值，纯电子能；TS 1 虚频 −894.65 cm⁻¹，IRC 双向连通、端点重优化零虚频；证据与原始能量见 gold_compute/easy_backfill_2026-09-25.md；原文献锚点：Ea 43.1（实验；MP4 计算 44.4，James & Wellington 1969 / Frey & Pidgeon 1985）[已核实]）；⚠ 能垒偏高 | C,H,O；5 重原子；✅ | β-内酯脱羧原型 |
+
+## C. SN2 亲核取代（0 个；2026-09-25 退役留档）
+
+> 2026-09-25 退役：C1（F⁻ + CH₃Cl 背面进攻）、C3（同体系双反转 retention 路径）。
+> 气相双阱势能面 TS 深低于反应物渐近线（淹没），固定方法产不出可用 gold 作业
+> （F⁻ 络合物软模使驻点搜索滑向无关鞍点）；C3 的反转/保持判别还需原子分辨证据，
+> 单边图 schema 表达不了。条目留档（内容见 git 历史与
+> `gold_compute/easy_replacements_2026-09-24.md`）；空位由 F4/M17 补入。
+
+| # | 反应（中/EN） | SMILES，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
+|---|---|---|---|---|---|---|---|
+
+## E. E2 消除（1 个）
+
+| # | 反应（中/EN） | SMILES，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
+|---|---|---|---|---|---|---|---|
+| E1 | F⁻ + CH₃CH₂Cl anti-E2 → 乙烯 + HF + Cl⁻ | `[F-].CCCl>>C=C.F.[Cl-]`，−1/1 | 气相 | 反式共平面协同消除，单步（与 SN2 竞争）| 自算中央能垒 ΔE‡ 0.88 kcal/mol（computed_by_us=True；气相 ORCA 5.0.2 B3LYP-D3(BJ)/def2-SVP/def2-J RIJCOSX；TS 相对离子-偶极络合物，纯电子能；络合物结合 43.8，TS 低于分离反应物渐近线 42.9，为近淹没浅垒、文献锚点未复现；TS 1 虚频 −289.71 cm⁻¹，IRC 双向连通、端点重优化零虚频；证据与原始能量见 gold_compute/easy_backfill_2026-09-25.md；原文献锚点：经典 6.9、ZPE 校正后 3.1（相对离子-偶极络合物 −18.0；Czako 学派 2017 JPCA 121, 2847）[已核实]） | C,H,F,Cl；4 重原子；✅ | 气相 E2/SN2 竞争奠基体系 |
+
+## F. 羰基亲核加成与还原（2 个）
+
+| # | 反应（中/EN） | SMILES，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
+|---|---|---|---|---|---|---|---|
+| F1 | BH₄⁻ + 甲醛 → 硼烷–甲氧基配位加合物 [CH₃OBH₃]⁻ | `[BH4-].C=O>>CO[BH3-]`，−1/1 | 气相 | 氢负转移（B–H 断、C–H 成）耦合 B→O 配位成键，经非同步 TS 单步 | 自算 ΔE‡ 39.41 kcal/mol（computed_by_us=True；气相 ORCA 5.0.2 B3LYP-D3(BJ)/def2-SVP/def2-J RIJCOSX；TS 相对离子-偶极络合物 RC，纯电子能；TS 1 虚频 −875.35 cm⁻¹，IRC 双向连通、端点重优化零虚频；本轮复算重现 2026-09-20 自算值 39.36（差 0.05）；RC 结合 11.8、分离反应物口径 30.4 恰与原文献值一致；证据与原始能量见 gold_compute/easy_backfill_2026-09-25.md） | C,H,O,B；3 重原子；✅ | 硼氢化还原最小模型 |
+| F4 | BH₃ + 甲醛 → 甲氧基硼烷 CH₃O–BH₂（经 Lewis 加合物）| `[BH3].C=O>>COB`，0/1 | 气相 | 氢负转移（B–H 断、C–H 成）耦合 B→O 配位，自 H₃B←O=CH₂ Lewis 加合物经非同步 TS 单步 | 自算 ΔE‡ 16.02 kcal/mol（computed_by_us=True；气相 ORCA 5.0.2 B3LYP-D3(BJ)/def2-SVP/def2-J RIJCOSX；TS 相对 H₃B←O=CH₂ Lewis 加合物（预反应络合物），纯电子能；TS 1 虚频 −396.96 cm⁻¹，IRC 双向连通（正向经下坡续跑收敛）、端点重优化零虚频且身份闭合；分离反应物口径 −4.26（淹没，加合物放热结合所致）；证据见 gold_compute/campaign/pilots/R4_borane_formaldehyde_20260924/pilot_result.json；文献背景：硼烷–羰基还原计算 JOC 1996 DOI 10.1021/jo961159q） | B,C,H,O；3 重原子；✅ | 中性硼烷还原原型，F1 的中性对照（2026-09-25 补入，替 C1 槽） |
+
+## T. 质子转移 / 互变异构 / 1,2-迁移（0 个；v3 全剔留档）
+
+> 2026-09-09 v3 缩减剔除：T1（乙醛水助互变）、T3（HNC→HCN）——水助质子梭（判据1）与
+> 平坦/IRC 反常区（判据2）风险，条目留档（内容见 git 历史与筛查报告附录）。
+
+
+| # | 反应（中/EN） | SMILES，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
+|---|---|---|---|---|---|---|---|
+
+## G. 协同加成 / 氢转移（2 个）
+
+> 小分子协同键形成/氢转移：二亚胺还原、ene 反应。G3（ene 协同 vs 分步）含机理判别成分，
+> 评分时注意其判别属性（G1 氢硼化已于 v3 剔出，气相近无能垒/TST 失效）。
+
+| # | 反应（中/EN） | SMILES，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
+|---|---|---|---|---|---|---|---|
+| G2 | 二亚胺 N₂H₂ 顺式还原乙烯（双 H 转移）| `N=N.C=C>>N#N.CC`（cis-HN=NH 供体），0/1 | 气相 | 协同 [σ2s+σ2s+π2s] 双氢转移，syn 立体专一，放出 N₂ | 自算 ΔE‡ 0.87 kcal/mol（computed_by_us=True；气相 ORCA 5.0.2 B3LYP-D3(BJ)/def2-SVP/def2-J RIJCOSX；相对本题反应物极小值或络合物，纯电子能；证据与原始能量见 gold_compute/easy_backfill_2026-09-23.md；路径端点尚未严格闭合；原文献锚点：ΔE‡ 18.8 kcal/mol（cis-diimide 同步双 H 转移，相对分离反应物；Flood & Skancke 1978 Chem. Phys. Lett. 54, 53-56, DOI 10.1016/0009-2614(78)85662-0）[已核实]） | N,C,H；4 重原子；✅ | **金属-free 氢化原型**，立体专一 |
+| G3 | 丙烯 + 乙烯 ene 反应（Alder-ene）| `C=CC.C=C>>C=CCCC`，0/1 | 气相高温 | 协同 [σ2s+π2s+π2s]，烯丙基 H 迁移 + C-C 形成 + π 迁移 | 自算 ΔE‡ 30.15 kcal/mol（computed_by_us=True；气相 ORCA 5.0.2 B3LYP-D3(BJ)/def2-SVP/def2-J RIJCOSX；TS 相对预反应络合物，纯电子能；分离反应物口径 27.57；TS 非协同（烯丙基 H 先迁移，TS 处 C-C 尚未闭合）且具一定双自由基特征，IRC 达迭代上限、端点由重优化零虚频确认；TS 1 虚频 −1157.39 cm⁻¹；证据与原始能量见 gold_compute/easy_backfill_2026-09-25.md；原文献锚点：ΔE‡ 33 kcal/mol（138 kJ/mol，气相，相对分离反应物；M06-2X/def2-TZVPP，Fernández & Bickelhaupt 2012 J. Comput. Chem. 33, 509-516, DOI 10.1002/jcc.22877；CASSCF 分步路径低约 4 kcal/mol：Sakai 2006 J. Phys. Chem. A 110, 12891-12899, DOI 10.1021/jp064588t）[部分核实]） | C,H；5 重原子；✅ | ene 反应原型，补全周环类型；⚠ 协同 vs 分步判别 |
+
+## M. 分子内过程（旋转 / 翻转 / 构象 / 异构化 / 脱氢，7 个）
+
+> 非净化学反应：产物 = 互变后的构型/构象（常为等价构型或另一极小）。同样走 TS + IRC + 频率闭环。能垒普遍更低，最适合 Easy 阶段。M16 脱氢能垒偏高已收录，评分时留意。
+
+| # | 过程（中/EN） | SMILES (起点>>终点)，q / mult | 类型 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
+|---|---|---|---|---|---|---|---|
+| M1 | 2,2'-二甲基联苯 轴手性旋转 | `Cc1ccccc1-c1c(C)cccc1>>Cc1ccccc1-c1c(C)cccc1`，0/1 | 轴手性阻转 | 邻位甲基阻转，Ra↔Sa 经近共平面 TS | 自算 ΔE‡ 15.10 kcal/mol（computed_by_us=True；气相 ORCA 5.0.2 B3LYP-D3(BJ)/def2-SVP/def2-J RIJCOSX；相对本题反应物极小值（τ≈∓90°），纯电子能；TS 为 τ=180° 约束弛豫的单一软虚频（−33.15 cm⁻¹，甲基耦合）驻点，无约束 OptTS 会滑向甲基旋转赝鞍点，连通性由 IRC 连接两个对映极小值证明；证据与原始能量见 gold_compute/easy_backfill_2026-09-25.md；原文献锚点：ΔG‡ 18.1 kcal/mol（实验，25 °C 溶液消旋动力学；Theilacker & Böhm 1967 Angew. Chem. Int. Ed. Engl. 6, 251, DOI 10.1002/anie.196702511；经 Bednářová et al. 2018 Adv. Synth. Catal. 360, 2869 转引核对；计算佐证 Karton 2020 J. Phys. Chem. A 124, 6977）[部分核实]） | C,H；14 重原子（轴手性特例）；✅ | **轴手性入门**（你组方向） |
+| M3 | NH₃ 伞形翻转 | `N>>N`，0/1 | N 翻转 | 经平面 D₃h TS 的双阱翻转，隧穿分裂 | 自算 ΔE‡ 5.94 kcal/mol（computed_by_us=True；气相 ORCA 5.0.2 B3LYP-D3(BJ)/def2-SVP/def2-J RIJCOSX；相对本题反应物极小值或络合物，纯电子能；证据与原始能量见 gold_compute/easy_backfill_2026-09-23.md；原文献锚点：5.8（实验；Rauk/Allen/Clementi 1970 JCP 52, 4133）[已核实]） | N,H；1 重原子；✅ | 翻转原型，maser 基础 |
+| M8 | 环己烷椅式翻转 | `C1CCCCC1>>C1CCCCC1`，0/1 | 构象翻转 | 经半椅 TS 的椅-椅互变 | 自算 ΔE‡ 12.00 kcal/mol（computed_by_us=True；气相 ORCA 5.0.2 B3LYP-D3(BJ)/def2-SVP/def2-J RIJCOSX；相对本题反应物极小值或络合物，纯电子能；证据与原始能量见 gold_compute/easy_backfill_2026-09-23.md；原文献锚点：ΔG‡ 10.3 kcal/mol（实验，VT-1H NMR 线形分析；Anet & Bourn 1967 J. Am. Chem. Soc. 89, 760-768, DOI 10.1021/ja00980a006；half-chair TS）[已核实]） | C,H；6 重原子；✅ | A 值/构象分析基础 |
+| M14 | 丙烯醛 s-trans ↔ s-cis 旋转 | `C=CC=O>>C=CC=O`，0/1 | 构象旋转 | C(sp2)-C(sp2) 单键扭转，trans 较稳定 | 自算 ΔE‡ 9.05 kcal/mol（computed_by_us=True；气相 ORCA 5.0.2 B3LYP-D3(BJ)/def2-SVP/def2-J RIJCOSX；相对本题反应物极小值或络合物，纯电子能；证据与原始能量见 gold_compute/easy_backfill_2026-09-23.md；原文献锚点：垒 ~7（trans→cis；实验/理论，Can. J. Chem. 1985 DOI 10.1139/v85-280）[已核实]） | C,H,O；4 重原子；✅ | 共轭醛构象旋转基准 |
+| M15 | HONO 顺反异构化 | `O=NO>>O=NO`（cis/trans），0/1 | 构象异构化 | N-O 扭转，trans 为基态，cis 高 ~0.5-0.6 | 自算 ΔE‡ 14.54 kcal/mol（computed_by_us=True；气相 ORCA 5.0.2 B3LYP-D3(BJ)/def2-SVP/def2-J RIJCOSX；相对本题反应物极小值或络合物，纯电子能；证据与原始能量见 gold_compute/easy_backfill_2026-09-23.md；原文献锚点：垒 ~9.7-11.6（trans→cis 扭转垒，实验/IR；Darsey 1987 JPC DOI 10.1021/j100296a013）[已核实]） | N,O,H；3 重原子；✅ | 极小 N,O 体系扭转基准 |
+| M16 | 甲酸脱氢 HCOOH → CO₂ + H₂ | `OC=O>>C(=O)=O.[H][H]`，0/1 | 脱氢反应 | 协同脱 H₂ 出 CO₂（与脱水 →CO+H₂O 竞争）| 自算 ΔE‡ 70.97 kcal/mol（computed_by_us=True；气相 ORCA 5.0.2 B3LYP-D3(BJ)/def2-SVP/def2-J RIJCOSX；相对 syn-HCOOH 极小值，纯电子能；TS 为 anti 构象（相对 anti 反应物口径 66.15），TS 1 虚频 −2212.24 cm⁻¹，IRC 双向连通、端点重优化零虚频；注意原文献锚点含 ZPE，与本纯电子能值不同基准、不可直接等同；证据与原始能量见 gold_compute/easy_backfill_2026-09-25.md；原文献锚点：ΔE‡ ≈ 71 kcal/mol（气相静态 PES，CCSD(TZ2P)/CCSDT-1//DZP，Goddard, Yamaguchi & Schaefer 1992 J. Chem. Phys. 96, 1158, DOI 10.1063/1.462203；HCOOH→CO2+H2 通道；竞争脱水 ≈68）[已核实]） | C,H,O；3 重原子；✅ | 脱氢原型；⚠ 能垒偏高 |
+| M17 | 甲基异腈 → 乙腈 重排 | `C[N+]#[C-]>>CC#N`，0/1 | 异构化 | 单分子甲基迁移（C–N 断、C–C 成），经近三角 TS | 自算 ΔE‡ 44.50 kcal/mol（computed_by_us=True；气相 ORCA 5.0.2 B3LYP-D3(BJ)/def2-SVP/def2-J RIJCOSX；相对反应物极小值，纯电子能；TS 1 虚频 −457.09 cm⁻¹，IRC 双向收敛、端点重优化零虚频且端点身份/能量闭合；证据见 gold_compute/campaign/pilots/R9_methyl_isocyanide_20260924/pilot_result.json；文献锚点：CH₃NC→CH₃CN 重排计算研究 Nguyen et al. 2018 JPCL，DOI 10.1021/acs.jpclett.8b01259）[已核实存在]）；⚠ 能垒偏高 | C,H,N；3 重原子；✅ | 异腈→腈重排原型（教科书重排；2026-09-25 补入，替 C3 槽） |
+
+---
+
+## 汇总
+
+### 数量与分布
+
+- 收录总数：**20**（v3 2026-09-09 缩减；2026-09-25 C1/C3 退役、F4/M17 补入；化学反应 13 + 分子内过程 7）。v3 剔除 10 条
+  （C2/F2/F3/G1/M6/M10/M12/P1/T1/T3）留档——剔除依据见各族注记与
+  `docs/benchmark_survey/xtb_screening_2026-09-09.md`（判据：氢键溶剂化依赖 / TS 平坦 / MR 混杂）。
+- D DA：3；P σ迁移：2；L 电环化：2；X 挤出/脱羧：1；C SN2：0（2026-09-25 退役）；E E2：1；F 羰基：2；
+  T 质子转移/互变：0（全剔）；G 协同加成/氢转移：2；M 分子内过程：7。
+- 能垒梯度（自算 ΔE‡）：~5.9（M3）→ ~71（M16 甲酸脱氢），主体覆盖 低（<10）/中（10-25）/中高（25-35）；
+  X1（40.9）、M17（44.5）、M16（71）偏高但已收录。
+- 重原子分布：1–6 个（主体）、9–10 个（D3 二聚 / D4 含杂 DA）、轴手性特例 14（M1）。
+- 全部闭壳层单重态；电荷态：0（多数）、−1（阴离子 E/F）。
+- 简并/恒等过程（产物=反应物，等价构型即自洽）：P2、M1、M3、M8、M14、M15 —— M 组为主。
+
+### 类型-难度矩阵
+
+| 类型 | 代表 | 能垒档 | 考点 |
+|---|---|---|---|
+| DA | D1（定标）/D3（低垒二聚）/D4（含杂）| 中/低 | 协同环化、endo/exo |
+| σ迁移 | P2（[1,5]-H）/P3（Claisen）| 中 | 简并、含 O |
+| 电环化 | L1（4π 顺旋）/L2（6π 对旋）| 中 | W-H 顺旋/对旋 |
+| 挤出 | X1（脱羧）| 高 | 协同断裂、挤出 CO₂ |
+| ~~SN2~~ | C1/C3 已退役（2026-09-25） | — | 双阱淹没、判别不可表达 |
+| E2 | E1 | 低 | 双阱、E2/SN2 竞争 |
+| 羰基加成 | F1（阴离子）/F4（中性 BH₃）| 低-中 | 双阱、进攻角、氢负转移 |
+| 协同加成 | G2（二亚胺）/G3（ene）| 低-中 | 氢转移、周环、TST |
+| 轴手性 | M1（邻位联苯）| 低-中 | 阻转、atropisomer |
+| N 翻转 | M3（NH₃）| 低 | 双阱隧穿 |
+| 构象旋转 | M8/M14/M15 | 低-极低 | torsion/翻转基准 |
+| 脱氢 | M16 | 高 | 协同脱 H₂ |
+| 异构化 | M17（异腈→腈）| 高 | 甲基迁移、重排 |
+
+### 使用注意
+
+- M 组为**分子内过程**，产物多为等价构型/构象——评分以 TS + IRC 连通到等价极小 + 频率闭环计，不要求区分对称等价端点。
+- **G 组为协同加成/氢转移**：G3（ene 反应，协同 vs 分步竞争）含机理判别成分，评分时留意其判别属性。
+- 锚点只作 ±2 kcal/mol 参考，不作 pass/fail 硬线；参考能垒逐边承载于 gold 边（越难算准的边权重越小）。
+- X1（脱羧 40.9）、M17（异腈重排 44.5）、M16（脱氢 71）能垒偏高（自算 ΔE‡），超出常规 easy 窗口（~7-35），已收录但评分时注意其非常规性。
+- M1 重原子 14 超出常规 ≤7，但为**轴手性特例**且 C,H 组成，已确认在 MACE 舒适区边缘；作为"放宽边界"示例保留。
+- 评分绑 agent 计算证据自洽性（TS + IRC + 频率），不以锚点数值作 pass/fail 硬线。
+
+---
+
+## 落选留档（v3 2026-09-09 剔除 10 条；仅存档不在生成表内，内容见 git 历史）
+
+> 下列体系于 v3 缩减时剔出（判据详见 `docs/benchmark_survey/xtb_screening_2026-09-09.md`），
+> 以 prose 留档以免被 easy 生成器（全表解析、无 TASK_IDS 过滤）误收：
+> - **C2** CN⁻ + CH₃Cl → 乙腈 + Cl⁻（近沉没垒/判据2）；
+> - **F2** CN⁻ + 甲醛 → 氰醇负离子（近沉没垒/判据2）；
+> - **F3** 甲醛 + 2 水 → 甲二醇（水质子梭/判据1）；
+> - **G1** BH₃ + 乙烯 氢硼化（气相近无能垒、TST 失效/判据2）；
+> - **M6** 乙烷旋转 / **M10** 乙醛甲基旋转（垒 1–3 kcal、低于 xtb 精度/判据2）；
+> - **M12** H₅O₂⁺ Zundel 质子转移（单阱无 TS/判据2，必剔）；
+> - **P1** 1,5-己二烯 Cope 重排（边缘 MR/判据3）；
+> - **T1** 乙醛 + H₂O 水助互变（水质子梭/判据1）；**T3** HNC→HCN（IRC 反常平坦区/判据2）。

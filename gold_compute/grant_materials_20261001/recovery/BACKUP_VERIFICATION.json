@@ -1,0 +1,38 @@
+{
+  "time_utc": "2026-10-01T08:48:47.652877+00:00",
+  "metadata_files": 1525,
+  "metadata_bytes": 207616227,
+  "metadata_mismatches": [],
+  "sqlite": [
+    {
+      "path": "runtime/compute.db",
+      "integrity": [
+        [
+          "ok"
+        ]
+      ]
+    },
+    {
+      "path": "runtime/knowledge/chem_kg.db",
+      "integrity": [
+        [
+          "ok"
+        ]
+      ]
+    },
+    {
+      "path": "runtime/conversations/prj_a15fc9525cbf4572/tasks/database.db",
+      "integrity": [
+        [
+          "ok"
+        ]
+      ]
+    }
+  ],
+  "workspace_files": 4389,
+  "workspace_bytes": 1971375104,
+  "workspace_mismatches": [],
+  "verified_current_running_snapshot": true,
+  "all_QM_completed": false,
+  "billing_stopped": false
+}

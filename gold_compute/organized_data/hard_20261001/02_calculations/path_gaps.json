@@ -1,0 +1,12 @@
+{
+  "missing_inputs": [],
+  "missing_expected_logs": [
+    38,
+    50
+  ],
+  "meaning": "Expected path absent, not proof that all evidence is lost. Search catalog and legacy snapshots before making a claim.",
+  "expected_missing_log_reasons": {
+    "38": "guard permission failure before QM",
+    "50": "cancelled READY before QM"
+  }
+}

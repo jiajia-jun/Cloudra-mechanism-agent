@@ -1,0 +1,51 @@
+{
+  "reactant_smiles": "C/C=C/CO/C=C/C",
+  "product_smiles": "C=C[C@H](C)[C@H](C)C=O",
+  "charge": 0,
+  "multiplicity": 1,
+  "method": "B3LYP/def2-SVP",
+  "engine": "orca",
+  "extra_keywords": "D3BJ RIJCOSX def2/J",
+  "path_solvation": null,
+  "budget": {
+    "max_interventions": 8,
+    "path_refinement_runs": 0
+  },
+  "scan": null,
+  "reaction_center": [
+    [
+      3,
+      4
+    ],
+    [
+      1,
+      6
+    ]
+  ],
+  "ring_order": [],
+  "distance_filters": [],
+  "product_geometry": null,
+  "irc_log": "",
+  "atom_map": [
+    3,
+    2,
+    6,
+    7,
+    1,
+    0,
+    5,
+    4,
+    13,
+    14,
+    12,
+    16,
+    17,
+    18,
+    19,
+    11,
+    8,
+    9,
+    10,
+    15
+  ]
+}

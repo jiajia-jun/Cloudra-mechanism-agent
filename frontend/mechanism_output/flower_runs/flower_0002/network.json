@@ -1,0 +1,199 @@
+{
+  "reactant_input": "C[N+](=O)[O-].O=Cc1ccccc1",
+  "root": "C[N+](=O)[O-].O=Cc1ccccc1",
+  "sample_size": 16,
+  "skipped_edges": 0,
+  "nodes": [
+    "C[N+](=O)[O-].O=Cc1ccccc1",
+    "C[N+](=O)[O-].[O+]=Cc1ccccc1",
+    "C=[N+]([O-])O.O=Cc1ccccc1",
+    "[CH2][N+](=O)[O-].[OH+]=Cc1ccccc1",
+    "C[N+](=O)[O-].[O+2]=Cc1ccccc1",
+    "O=[N+](O)CC([O-])c1ccccc1",
+    "[O-]C(C[N+2]([O-])O)c1ccccc1",
+    "[O-]C(C[N+]([O-])=[OH+])c1ccccc1",
+    "O=[N+]([O-])CC([OH+])c1ccccc1",
+    "C[N+](=O)[O-].[O+3]=Cc1ccccc1",
+    "O=[N+]([O-])CC(O)c1ccccc1",
+    "C=[N+]([O-])[O-].[H].[O+3]=Cc1ccccc1",
+    "[CH2][N+](=O)[O-].[OH+3]=Cc1ccccc1",
+    "C=[N+]([O-])[O-].[H+].[O+2]=Cc1ccccc1"
+  ],
+  "edges": [
+    {
+      "reactant": "C=[N+]([O-])O.O=Cc1ccccc1",
+      "product": "O=[N+](O)CC([O-])c1ccccc1",
+      "rank": 0,
+      "count": 8,
+      "probability": 0.5
+    },
+    {
+      "reactant": "C=[N+]([O-])[O-].[H+].[O+2]=Cc1ccccc1",
+      "product": "C=[N+]([O-])[O-].[H+].[O+2]=Cc1ccccc1",
+      "rank": 0,
+      "count": 1,
+      "probability": 0.0625
+    },
+    {
+      "reactant": "C=[N+]([O-])[O-].[H].[O+3]=Cc1ccccc1",
+      "product": "C=[N+]([O-])[O-].[H].[O+3]=Cc1ccccc1",
+      "rank": 0,
+      "count": 3,
+      "probability": 0.1875
+    },
+    {
+      "reactant": "C[N+](=O)[O-].O=Cc1ccccc1",
+      "product": "C[N+](=O)[O-].O=Cc1ccccc1",
+      "rank": 0,
+      "count": 8,
+      "probability": 0.5
+    },
+    {
+      "reactant": "C[N+](=O)[O-].[O+2]=Cc1ccccc1",
+      "product": "C[N+](=O)[O-].[O+2]=Cc1ccccc1",
+      "rank": 0,
+      "count": 9,
+      "probability": 0.5625
+    },
+    {
+      "reactant": "C[N+](=O)[O-].[O+3]=Cc1ccccc1",
+      "product": "C[N+](=O)[O-].[O+3]=Cc1ccccc1",
+      "rank": 0,
+      "count": 1,
+      "probability": 0.0625
+    },
+    {
+      "reactant": "C[N+](=O)[O-].[O+]=Cc1ccccc1",
+      "product": "[CH2][N+](=O)[O-].[OH+]=Cc1ccccc1",
+      "rank": 0,
+      "count": 6,
+      "probability": 0.375
+    },
+    {
+      "reactant": "O=[N+](O)CC([O-])c1ccccc1",
+      "product": "O=[N+]([O-])CC(O)c1ccccc1",
+      "rank": 0,
+      "count": 9,
+      "probability": 0.5625
+    },
+    {
+      "reactant": "O=[N+]([O-])CC(O)c1ccccc1",
+      "product": "O=[N+]([O-])CC(O)c1ccccc1",
+      "rank": 0,
+      "count": 15,
+      "probability": 0.9375
+    },
+    {
+      "reactant": "O=[N+]([O-])CC([OH+])c1ccccc1",
+      "product": "O=[N+]([O-])CC([OH+])c1ccccc1",
+      "rank": 0,
+      "count": 13,
+      "probability": 0.8125
+    },
+    {
+      "reactant": "[CH2][N+](=O)[O-].[OH+3]=Cc1ccccc1",
+      "product": "[CH2][N+](=O)[O-].[OH+3]=Cc1ccccc1",
+      "rank": 0,
+      "count": 13,
+      "probability": 0.8125
+    },
+    {
+      "reactant": "[CH2][N+](=O)[O-].[OH+]=Cc1ccccc1",
+      "product": "O=[N+]([O-])CC([OH+])c1ccccc1",
+      "rank": 0,
+      "count": 5,
+      "probability": 0.3125
+    },
+    {
+      "reactant": "[O-]C(C[N+2]([O-])O)c1ccccc1",
+      "product": "[O-]C(C[N+2]([O-])O)c1ccccc1",
+      "rank": 0,
+      "count": 10,
+      "probability": 0.625
+    },
+    {
+      "reactant": "[O-]C(C[N+]([O-])=[OH+])c1ccccc1",
+      "product": "O=[N+]([O-])CC(O)c1ccccc1",
+      "rank": 0,
+      "count": 6,
+      "probability": 0.375
+    },
+    {
+      "reactant": "C=[N+]([O-])O.O=Cc1ccccc1",
+      "product": "[O-]C(C[N+2]([O-])O)c1ccccc1",
+      "rank": 1,
+      "count": 1,
+      "probability": 0.0625
+    },
+    {
+      "reactant": "C=[N+]([O-])[O-].[H].[O+3]=Cc1ccccc1",
+      "product": "C=[N+]([O-])[O-].[H+].[O+2]=Cc1ccccc1",
+      "rank": 1,
+      "count": 3,
+      "probability": 0.1875
+    },
+    {
+      "reactant": "C[N+](=O)[O-].O=Cc1ccccc1",
+      "product": "C[N+](=O)[O-].[O+]=Cc1ccccc1",
+      "rank": 1,
+      "count": 1,
+      "probability": 0.0625
+    },
+    {
+      "reactant": "C[N+](=O)[O-].[O+2]=Cc1ccccc1",
+      "product": "C[N+](=O)[O-].[O+3]=Cc1ccccc1",
+      "rank": 1,
+      "count": 1,
+      "probability": 0.0625
+    },
+    {
+      "reactant": "C[N+](=O)[O-].[O+3]=Cc1ccccc1",
+      "product": "C=[N+]([O-])[O-].[H].[O+3]=Cc1ccccc1",
+      "rank": 1,
+      "count": 1,
+      "probability": 0.0625
+    },
+    {
+      "reactant": "C[N+](=O)[O-].[O+]=Cc1ccccc1",
+      "product": "C[N+](=O)[O-].[O+2]=Cc1ccccc1",
+      "rank": 1,
+      "count": 1,
+      "probability": 0.0625
+    },
+    {
+      "reactant": "[CH2][N+](=O)[O-].[OH+]=Cc1ccccc1",
+      "product": "[CH2][N+](=O)[O-].[OH+]=Cc1ccccc1",
+      "rank": 1,
+      "count": 3,
+      "probability": 0.1875
+    },
+    {
+      "reactant": "[O-]C(C[N+]([O-])=[OH+])c1ccccc1",
+      "product": "[O-]C(C[N+]([O-])=[OH+])c1ccccc1",
+      "rank": 1,
+      "count": 1,
+      "probability": 0.0625
+    },
+    {
+      "reactant": "C=[N+]([O-])O.O=Cc1ccccc1",
+      "product": "[O-]C(C[N+]([O-])=[OH+])c1ccccc1",
+      "rank": 2,
+      "count": 1,
+      "probability": 0.0625
+    },
+    {
+      "reactant": "C[N+](=O)[O-].O=Cc1ccccc1",
+      "product": "C=[N+]([O-])O.O=Cc1ccccc1",
+      "rank": 2,
+      "count": 1,
+      "probability": 0.0625
+    },
+    {
+      "reactant": "C[N+](=O)[O-].[O+3]=Cc1ccccc1",
+      "product": "[CH2][N+](=O)[O-].[OH+3]=Cc1ccccc1",
+      "rank": 2,
+      "count": 1,
+      "probability": 0.0625
+    }
+  ]
+}

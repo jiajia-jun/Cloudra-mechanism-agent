@@ -1,0 +1,8 @@
+{
+  "id": "db08",
+  "source_path": "gold_compute/remote_backups/paratera_final_20261001_0830/migration_snapshot/runtime/knowledge/chem_kg.db",
+  "sha256": "39ead8124f169735f91d6775d48e5d07da267fed1b2fcd3688e902f5178bb5c1",
+  "bytes": 14868480,
+  "epoch": "migration",
+  "integrity": "ok"
+}

@@ -1,0 +1,254 @@
+[
+  {
+    "table": "compute_jobs",
+    "rows": 90,
+    "columns": [
+      {
+        "cid": 0,
+        "name": "id",
+        "type": "INTEGER",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 1
+      },
+      {
+        "cid": 1,
+        "name": "conversation_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 2,
+        "name": "session_id",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 3,
+        "name": "state",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 4,
+        "name": "path",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 5,
+        "name": "start_timestamp",
+        "type": "INTEGER",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 6,
+        "name": "end_timestamp",
+        "type": "INTEGER",
+        "notnull": 0,
+        "dflt_value": "-1",
+        "pk": 0
+      },
+      {
+        "cid": 7,
+        "name": "jobtype",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": "'gaussian'",
+        "pk": 0
+      },
+      {
+        "cid": 8,
+        "name": "node_id",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 9,
+        "name": "scheduler",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": "'local'",
+        "pk": 0
+      },
+      {
+        "cid": 10,
+        "name": "scheduler_options",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": "'{}'",
+        "pk": 0
+      },
+      {
+        "cid": 11,
+        "name": "scheduler_job_id",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 12,
+        "name": "scheduler_state",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 13,
+        "name": "scheduler_script",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 14,
+        "name": "last_error",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 15,
+        "name": "lease_owner",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 16,
+        "name": "lease_expires_at",
+        "type": "REAL",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 17,
+        "name": "attempt_count",
+        "type": "INTEGER",
+        "notnull": 0,
+        "dflt_value": "0",
+        "pk": 0
+      },
+      {
+        "cid": 18,
+        "name": "priority",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": "0",
+        "pk": 0
+      },
+      {
+        "cid": 19,
+        "name": "req_cpus",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": "1",
+        "pk": 0
+      },
+      {
+        "cid": 20,
+        "name": "req_memory_mb",
+        "type": "INTEGER",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 21,
+        "name": "charge",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": "0",
+        "pk": 0
+      },
+      {
+        "cid": 22,
+        "name": "multiplicity",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": "1",
+        "pk": 0
+      },
+      {
+        "cid": 23,
+        "name": "xtb_task",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'sp'",
+        "pk": 0
+      },
+      {
+        "cid": 24,
+        "name": "xtb_solvent",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 25,
+        "name": "guard_pid",
+        "type": "INTEGER",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 26,
+        "name": "calc_pid",
+        "type": "INTEGER",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 27,
+        "name": "notified_at",
+        "type": "REAL",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      }
+    ]
+  },
+  {
+    "table": "sqlite_sequence",
+    "rows": 1,
+    "columns": [
+      {
+        "cid": 0,
+        "name": "name",
+        "type": "",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 1,
+        "name": "seq",
+        "type": "",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      }
+    ]
+  }
+]

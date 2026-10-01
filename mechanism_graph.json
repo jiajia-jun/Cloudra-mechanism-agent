@@ -1,0 +1,51 @@
+{
+  "nodes": [
+    {
+      "id": "F1_R",
+      "role": "reactant",
+      "smiles": [
+        "[BH4-].C=O"
+      ]
+    },
+    {
+      "id": "F1_TS",
+      "role": "transition_state",
+      "smiles": []
+    },
+    {
+      "id": "F1_P",
+      "role": "product",
+      "smiles": [
+        "C[O-].B"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "F1_E1",
+      "from": "F1_R",
+      "to": "F1_P",
+      "via": "F1_TS",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 39.36,
+      "note": "B3LYP-D3(BJ)/def2-SVP, gas phase. dE#=E(TS)-E(RC)=+39.36 kcal (pure electronic, RC=BH4-/HCHO ion-dipole complex). TS verified: n_imag=1 (-879.87 cm-1), IRC bidirectional -> RC and CH3O-.BH3. True product minimum is the borane-methoxide adduct CH3-O-BH3- (B-O=1.49 A); the product node here is kept as the declared separated 'C[O-].B'."
+    }
+  ]
+}

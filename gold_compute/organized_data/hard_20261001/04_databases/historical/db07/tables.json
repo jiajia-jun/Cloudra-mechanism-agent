@@ -1,0 +1,1694 @@
+[
+  {
+    "table": "artifact_download_tokens",
+    "rows": 0,
+    "columns": [
+      {
+        "cid": 0,
+        "name": "token_hash",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 1
+      },
+      {
+        "cid": 1,
+        "name": "artifact_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 2,
+        "name": "expires_at",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 3,
+        "name": "created_at",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      }
+    ]
+  },
+  {
+    "table": "artifacts",
+    "rows": 311,
+    "columns": [
+      {
+        "cid": 0,
+        "name": "artifact_id",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 1
+      },
+      {
+        "cid": 1,
+        "name": "session_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 2,
+        "name": "name",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 3,
+        "name": "mime_type",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 4,
+        "name": "size",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 5,
+        "name": "sha256",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 6,
+        "name": "storage_path",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 7,
+        "name": "source_path",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "''",
+        "pk": 0
+      },
+      {
+        "cid": 8,
+        "name": "created_at",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      }
+    ]
+  },
+  {
+    "table": "dag_call_reviews",
+    "rows": 0,
+    "columns": [
+      {
+        "cid": 0,
+        "name": "review_id",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 1
+      },
+      {
+        "cid": 1,
+        "name": "tool_call_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "''",
+        "pk": 0
+      },
+      {
+        "cid": 2,
+        "name": "tool_name",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 3,
+        "name": "is_success",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": "0",
+        "pk": 0
+      },
+      {
+        "cid": 4,
+        "name": "caller_session_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "''",
+        "pk": 0
+      },
+      {
+        "cid": 5,
+        "name": "caller_role_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "''",
+        "pk": 0
+      },
+      {
+        "cid": 6,
+        "name": "caller_legacy_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "''",
+        "pk": 0
+      },
+      {
+        "cid": 7,
+        "name": "arguments_digest",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "''",
+        "pk": 0
+      },
+      {
+        "cid": 8,
+        "name": "result_summary",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "''",
+        "pk": 0
+      },
+      {
+        "cid": 9,
+        "name": "source_path",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "''",
+        "pk": 0
+      },
+      {
+        "cid": 10,
+        "name": "result_kind",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "''",
+        "pk": 0
+      },
+      {
+        "cid": 11,
+        "name": "compute_job_id",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 12,
+        "name": "suggested_target_id",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 13,
+        "name": "suggested_stage",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "''",
+        "pk": 0
+      },
+      {
+        "cid": 14,
+        "name": "state",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'pending'",
+        "pk": 0
+      },
+      {
+        "cid": 15,
+        "name": "created_at",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 16,
+        "name": "claim",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "''",
+        "pk": 0
+      },
+      {
+        "cid": 17,
+        "name": "rationale",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "''",
+        "pk": 0
+      },
+      {
+        "cid": 18,
+        "name": "submitter",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "''",
+        "pk": 0
+      },
+      {
+        "cid": 19,
+        "name": "evidence_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "''",
+        "pk": 0
+      },
+      {
+        "cid": 20,
+        "name": "source",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'legacy_auto'",
+        "pk": 0
+      }
+    ]
+  },
+  {
+    "table": "dag_coverage",
+    "rows": 0,
+    "columns": [
+      {
+        "cid": 0,
+        "name": "graph_id",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 1
+      },
+      {
+        "cid": 1,
+        "name": "revision",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": "0",
+        "pk": 0
+      },
+      {
+        "cid": 2,
+        "name": "coverage",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'{}'",
+        "pk": 0
+      },
+      {
+        "cid": 3,
+        "name": "updated_at",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      }
+    ]
+  },
+  {
+    "table": "dag_delivery_dispositions",
+    "rows": 0,
+    "columns": [
+      {
+        "cid": 0,
+        "name": "disposition_id",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 1
+      },
+      {
+        "cid": 1,
+        "name": "session_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 2,
+        "name": "disposition",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 3,
+        "name": "graph_revision",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 4,
+        "name": "report",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 5,
+        "name": "created_at",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      }
+    ]
+  },
+  {
+    "table": "dag_drafts",
+    "rows": 0,
+    "columns": [
+      {
+        "cid": 0,
+        "name": "draft_id",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 1
+      },
+      {
+        "cid": 1,
+        "name": "state",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'open'",
+        "pk": 0
+      },
+      {
+        "cid": 2,
+        "name": "rationale",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "''",
+        "pk": 0
+      },
+      {
+        "cid": 3,
+        "name": "operations",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 4,
+        "name": "stage_contracts",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'{}'",
+        "pk": 0
+      },
+      {
+        "cid": 5,
+        "name": "actor_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "''",
+        "pk": 0
+      },
+      {
+        "cid": 6,
+        "name": "reject_reason",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "''",
+        "pk": 0
+      },
+      {
+        "cid": 7,
+        "name": "created_at",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 8,
+        "name": "decided_at",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 9,
+        "name": "claim_spec",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "''",
+        "pk": 0
+      }
+    ]
+  },
+  {
+    "table": "dag_edges",
+    "rows": 0,
+    "columns": [
+      {
+        "cid": 0,
+        "name": "graph_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 1
+      },
+      {
+        "cid": 1,
+        "name": "edge_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 2
+      },
+      {
+        "cid": 2,
+        "name": "source_node_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 3,
+        "name": "target_node_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 4,
+        "name": "edge_type",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 5,
+        "name": "label",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "''",
+        "pk": 0
+      },
+      {
+        "cid": 6,
+        "name": "refs",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'[]'",
+        "pk": 0
+      },
+      {
+        "cid": 7,
+        "name": "payload",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'{}'",
+        "pk": 0
+      },
+      {
+        "cid": 8,
+        "name": "stages",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'[]'",
+        "pk": 0
+      },
+      {
+        "cid": 9,
+        "name": "created_revision",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 10,
+        "name": "updated_revision",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      }
+    ]
+  },
+  {
+    "table": "dag_evidence",
+    "rows": 0,
+    "columns": [
+      {
+        "cid": 0,
+        "name": "evidence_id",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 1
+      },
+      {
+        "cid": 1,
+        "name": "session_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 2,
+        "name": "source_type",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 3,
+        "name": "source_name",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 4,
+        "name": "content_hash",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 5,
+        "name": "payload",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 6,
+        "name": "created_at",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 7,
+        "name": "tool_call_id",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 8,
+        "name": "compute_job_id",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      }
+    ]
+  },
+  {
+    "table": "dag_evidence_bindings",
+    "rows": 0,
+    "columns": [
+      {
+        "cid": 0,
+        "name": "graph_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 1
+      },
+      {
+        "cid": 1,
+        "name": "target_type",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 2
+      },
+      {
+        "cid": 2,
+        "name": "target_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 3
+      },
+      {
+        "cid": 3,
+        "name": "evidence_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 4
+      },
+      {
+        "cid": 4,
+        "name": "evidence_role",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 5,
+        "name": "derived_level",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 6,
+        "name": "created_revision",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      }
+    ]
+  },
+  {
+    "table": "dag_evidence_facts",
+    "rows": 0,
+    "columns": [
+      {
+        "cid": 0,
+        "name": "fact_id",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 1
+      },
+      {
+        "cid": 1,
+        "name": "check_name",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 2,
+        "name": "outcome",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 3,
+        "name": "subject",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'{}'",
+        "pk": 0
+      },
+      {
+        "cid": 4,
+        "name": "source_refs",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'[]'",
+        "pk": 0
+      },
+      {
+        "cid": 5,
+        "name": "details",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'{}'",
+        "pk": 0
+      },
+      {
+        "cid": 6,
+        "name": "adapter_version",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 7,
+        "name": "dedup_key",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 8,
+        "name": "created_at",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      }
+    ]
+  },
+  {
+    "table": "dag_graphs",
+    "rows": 0,
+    "columns": [
+      {
+        "cid": 0,
+        "name": "graph_id",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 1
+      },
+      {
+        "cid": 1,
+        "name": "graph_kind",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 2,
+        "name": "revision",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": "0",
+        "pk": 0
+      },
+      {
+        "cid": 3,
+        "name": "metadata",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'{}'",
+        "pk": 0
+      },
+      {
+        "cid": 4,
+        "name": "created_at",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 5,
+        "name": "updated_at",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      }
+    ]
+  },
+  {
+    "table": "dag_links",
+    "rows": 0,
+    "columns": [
+      {
+        "cid": 0,
+        "name": "link_id",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 1
+      },
+      {
+        "cid": 1,
+        "name": "process_node_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 2,
+        "name": "delivery_element_type",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 3,
+        "name": "delivery_element_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 4,
+        "name": "payload",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'{}'",
+        "pk": 0
+      },
+      {
+        "cid": 5,
+        "name": "created_revision",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      }
+    ]
+  },
+  {
+    "table": "dag_mutations",
+    "rows": 0,
+    "columns": [
+      {
+        "cid": 0,
+        "name": "mutation_id",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 1
+      },
+      {
+        "cid": 1,
+        "name": "graph_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 2,
+        "name": "base_revision",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 3,
+        "name": "resulting_revision",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 4,
+        "name": "actor_type",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 5,
+        "name": "actor_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 6,
+        "name": "session_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "''",
+        "pk": 0
+      },
+      {
+        "cid": 7,
+        "name": "rationale",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "''",
+        "pk": 0
+      },
+      {
+        "cid": 8,
+        "name": "base_revisions",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'{}'",
+        "pk": 0
+      },
+      {
+        "cid": 9,
+        "name": "resulting_revisions",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'{}'",
+        "pk": 0
+      },
+      {
+        "cid": 10,
+        "name": "operations",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 11,
+        "name": "accepted",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": "1",
+        "pk": 0
+      },
+      {
+        "cid": 12,
+        "name": "rejection_code",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 13,
+        "name": "rejection_reason",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 14,
+        "name": "created_at",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      }
+    ]
+  },
+  {
+    "table": "dag_nodes",
+    "rows": 0,
+    "columns": [
+      {
+        "cid": 0,
+        "name": "graph_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 1
+      },
+      {
+        "cid": 1,
+        "name": "node_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 2
+      },
+      {
+        "cid": 2,
+        "name": "node_type",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 3,
+        "name": "label",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "''",
+        "pk": 0
+      },
+      {
+        "cid": 4,
+        "name": "refs",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'[]'",
+        "pk": 0
+      },
+      {
+        "cid": 5,
+        "name": "payload",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'{}'",
+        "pk": 0
+      },
+      {
+        "cid": 6,
+        "name": "stages",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'[]'",
+        "pk": 0
+      },
+      {
+        "cid": 7,
+        "name": "created_revision",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 8,
+        "name": "updated_revision",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      }
+    ]
+  },
+  {
+    "table": "dag_review_decisions",
+    "rows": 0,
+    "columns": [
+      {
+        "cid": 0,
+        "name": "decision_id",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 1
+      },
+      {
+        "cid": 1,
+        "name": "request_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 2,
+        "name": "basis_fingerprint",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 3,
+        "name": "verdict",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 4,
+        "name": "reason",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 5,
+        "name": "evidence_refs",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'[]'",
+        "pk": 0
+      },
+      {
+        "cid": 6,
+        "name": "findings",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'[]'",
+        "pk": 0
+      },
+      {
+        "cid": 7,
+        "name": "next_action",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 8,
+        "name": "claim_token",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": "0",
+        "pk": 0
+      },
+      {
+        "cid": 9,
+        "name": "created_at",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      }
+    ]
+  },
+  {
+    "table": "dag_review_notifications",
+    "rows": 0,
+    "columns": [
+      {
+        "cid": 0,
+        "name": "notification_id",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 1
+      },
+      {
+        "cid": 1,
+        "name": "kind",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'review_decision'",
+        "pk": 0
+      },
+      {
+        "cid": 2,
+        "name": "decision_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 3,
+        "name": "request_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "''",
+        "pk": 0
+      },
+      {
+        "cid": 4,
+        "name": "recipient_session_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "''",
+        "pk": 0
+      },
+      {
+        "cid": 5,
+        "name": "payload",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'{}'",
+        "pk": 0
+      },
+      {
+        "cid": 6,
+        "name": "state",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'pending'",
+        "pk": 0
+      },
+      {
+        "cid": 7,
+        "name": "created_at",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      }
+    ]
+  },
+  {
+    "table": "dag_review_requests",
+    "rows": 0,
+    "columns": [
+      {
+        "cid": 0,
+        "name": "request_id",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 1
+      },
+      {
+        "cid": 1,
+        "name": "kind",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 2,
+        "name": "requester",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 3,
+        "name": "target_ids",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'[]'",
+        "pk": 0
+      },
+      {
+        "cid": 4,
+        "name": "question",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 5,
+        "name": "supporting_refs",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'[]'",
+        "pk": 0
+      },
+      {
+        "cid": 6,
+        "name": "counterevidence_refs",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'[]'",
+        "pk": 0
+      },
+      {
+        "cid": 7,
+        "name": "proposal",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'{}'",
+        "pk": 0
+      },
+      {
+        "cid": 8,
+        "name": "basis_fingerprint",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 9,
+        "name": "state",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'queued'",
+        "pk": 0
+      },
+      {
+        "cid": 10,
+        "name": "created_at",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 11,
+        "name": "updated_at",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 12,
+        "name": "owner",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 13,
+        "name": "claim_token",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": "0",
+        "pk": 0
+      },
+      {
+        "cid": 14,
+        "name": "lease_expires_at",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      }
+    ]
+  },
+  {
+    "table": "dag_species",
+    "rows": 0,
+    "columns": [
+      {
+        "cid": 0,
+        "name": "species_id",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 1
+      },
+      {
+        "cid": 1,
+        "name": "canonical_key",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 2,
+        "name": "charge",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 3,
+        "name": "multiplicity",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 4,
+        "name": "identifiers",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'{}'",
+        "pk": 0
+      },
+      {
+        "cid": 5,
+        "name": "metadata",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'{}'",
+        "pk": 0
+      },
+      {
+        "cid": 6,
+        "name": "created_at",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      }
+    ]
+  },
+  {
+    "table": "schema_migrations",
+    "rows": 1,
+    "columns": [
+      {
+        "cid": 0,
+        "name": "version",
+        "type": "INTEGER",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 1
+      },
+      {
+        "cid": 1,
+        "name": "applied_at",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      }
+    ]
+  },
+  {
+    "table": "session",
+    "rows": 10,
+    "columns": [
+      {
+        "cid": 0,
+        "name": "session_id",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 1
+      },
+      {
+        "cid": 1,
+        "name": "agent_id",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 2,
+        "name": "agent_type",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 3,
+        "name": "parent_session_id",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 4,
+        "name": "query",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 5,
+        "name": "state",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'queued'",
+        "pk": 0
+      },
+      {
+        "cid": 6,
+        "name": "result",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 7,
+        "name": "error",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 8,
+        "name": "pid",
+        "type": "INTEGER",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 9,
+        "name": "worker_id",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 10,
+        "name": "created_at",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 11,
+        "name": "started_at",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 12,
+        "name": "heartbeat_at",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 13,
+        "name": "finished_at",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 14,
+        "name": "exit_code",
+        "type": "INTEGER",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 15,
+        "name": "node_id",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 16,
+        "name": "workspace_id",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 17,
+        "name": "working_directory",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 18,
+        "name": "orchestration_mode",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'standard'",
+        "pk": 0
+      },
+      {
+        "cid": 19,
+        "name": "orchestration_config",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'{}'",
+        "pk": 0
+      }
+    ]
+  },
+  {
+    "table": "session_events",
+    "rows": 959,
+    "columns": [
+      {
+        "cid": 0,
+        "name": "id",
+        "type": "INTEGER",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 1
+      },
+      {
+        "cid": 1,
+        "name": "session_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 2,
+        "name": "event_type",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 3,
+        "name": "data",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "'{}'",
+        "pk": 0
+      },
+      {
+        "cid": 4,
+        "name": "created_at",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      }
+    ]
+  },
+  {
+    "table": "sqlite_sequence",
+    "rows": 1,
+    "columns": [
+      {
+        "cid": 0,
+        "name": "name",
+        "type": "",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 1,
+        "name": "seq",
+        "type": "",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      }
+    ]
+  }
+]

@@ -1,0 +1,8 @@
+{
+  "id": "db07",
+  "source_path": "gold_compute/remote_backups/paratera_final_20261001_0830/migration_snapshot/runtime/conversations/prj_a15fc9525cbf4572/tasks/database.db",
+  "sha256": "9221637a775c7ab1f6871814227467674923e9c7d0cfe7f180acd94bcf39a416",
+  "bytes": 5824512,
+  "epoch": "migration",
+  "integrity": "ok"
+}

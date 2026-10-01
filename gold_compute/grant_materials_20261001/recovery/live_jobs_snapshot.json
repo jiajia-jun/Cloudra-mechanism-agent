@@ -1,0 +1,55 @@
+{
+  "captured_at_utc": "2026-10-01T10:07:11.611774+00:00",
+  "jobs": [
+    {
+      "id": 14,
+      "state": "failed",
+      "path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/scan_major_np1/scan_major_np1.inp",
+      "session_id": "as_6e41a64a7961424c",
+      "start_timestamp": 1790779497.6990492,
+      "end_timestamp": 1790844769.8743374,
+      "req_cpus": 1,
+      "req_memory_mb": 7000
+    },
+    {
+      "id": 64,
+      "state": "failed",
+      "path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_orca6/ts2_np8.inp",
+      "session_id": "as_c627b84dbfa14bf7",
+      "start_timestamp": 1790836662.5128064,
+      "end_timestamp": 1790844769.8048446,
+      "req_cpus": 8,
+      "req_memory_mb": 14000
+    },
+    {
+      "id": 65,
+      "state": "failed",
+      "path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_cont/scan_minor_cont.inp",
+      "session_id": "as_ce8beb1a7405450f",
+      "start_timestamp": 1790842583.8371532,
+      "end_timestamp": 1790844769.8643281,
+      "req_cpus": 8,
+      "req_memory_mb": 13000
+    },
+    {
+      "id": 66,
+      "state": "running",
+      "path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_cont2/scan_minor_cont2.inp",
+      "session_id": "as_ce8beb1a7405450f",
+      "start_timestamp": 1790845741.3732073,
+      "end_timestamp": -1,
+      "req_cpus": 8,
+      "req_memory_mb": 13000
+    },
+    {
+      "id": 67,
+      "state": "running",
+      "path": "/data/cloudra/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_recovery/orca_ts/ts2r_major_np8.inp",
+      "session_id": "as_c627b84dbfa14bf7",
+      "start_timestamp": 1790845979.925244,
+      "end_timestamp": -1,
+      "req_cpus": 8,
+      "req_memory_mb": 12288
+    }
+  ]
+}

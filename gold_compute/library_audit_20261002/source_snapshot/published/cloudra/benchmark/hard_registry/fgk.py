@@ -1,0 +1,80 @@
+"""F/G/K 族登记（v3 缩减后）：Henbest 导向环氧化（F1）+ Claisen 椅式立体选择性（G2）。
+
+F1/G2 为 anchor="selectivity" 题：主线与 competing 为同一起点（反应物络合物）
+出发的两条对映/非对映通道，能垒格数值为竞争 TS 能垒差 ΔΔ。优势（favored）
+通道由各条目显式声明：F1 优势即主线 directed 面；G2 优势为 competing 一侧的
+chair 通道（见该条目 favored_channel 与逐边 favored 标记）。
+v3（2026-09-09）由 20 条缩至 10 条：G1（meso-Cope 椅/船，TS 边缘 MR）与
+K1（Z–T 硼 aldol）剔出定稿名单留档池（条目见 hard.md），registry 只留定稿条目。
+
+键变化均由生成器从相邻步映射 SMILES 差集推导（禁止手填），化学口径：
+- F1 蝶形 TS 一体完成 O 转移与过酸内质子迁移：断 C=C π / O–O / 端基 O–H
+  （显式 [H:12]），成两个环氧 C–O 与羧酸 O–H（派生 break [3,4],[10,11],[11,12]；
+  form [3,11],[4,11],[10,12]）。
+- G2 Claisen [3,3]：同 easy P3 口径——断两个 π 与 C–O σ，成端碳间新 C–C σ、
+  迁移 π 与 C=O π（break [2,3],[4,5],[6,7]；form [2,7],[3,4],[5,6]）；两个甲基
+  （映射 1/8）为旁观取代基。
+"""
+
+TASKS = {
+    # OC1C=CCCC1.O=COO>>O[C@H]1[C@H]2O[C@H]2CCC1.O=CO  (0/1)
+    # 烯丙位 OH 氢键缔合导向 syn 面环氧化（Henbest），主产物 cis（OH 与环氧同侧，
+    # 池内 3D 嵌入已核对）；副通道 = 非导向面 → trans。
+    "F1": {
+        "name_en": "cyclohex-2-en-1-ol peracid epoxidation: determine the stereochemical outcome",
+        "conditions_en": "performic acid, CH2Cl2, 0-25 degC",
+        "anchor": "selectivity",
+        "minor_channel_en": "undirected opposite-face epoxidation -> trans-2,3-epoxycyclohexanol",
+        "mapped_reactants": "[OH:2][CH:1]1[CH:3]=[CH:4][CH2:5][CH2:6][CH2:7]1.[O:9]=[CH:8][O:10][O:11][H:12]",
+        "steps": [
+            {
+                "out": "[OH:2][C@H:1]1[C@H:3]2[O:11][C@H:4]2[CH2:5][CH2:6][CH2:7]1.[O:9]=[CH:8][O:10][H:12]",
+                "type": "concerted epoxidation via butterfly TS, allylic OH...OOH hydrogen bond directs O delivery to the syn face: O-O and terminal O-H cleavage with internal proton transfer to the carbonyl-side oxygen, C=C pi cleavage, two epoxide C-O formations -> cis-2,3-epoxycyclohexanol",
+                "barrier": 16.82,
+                "weight": 0.5,
+                "channel": "directed_face",
+            },
+        ],
+        "competing": [
+            {
+                "out": "[OH:2][C@H:1]1[C@@H:3]2[O:11][C@H:4]2[CH2:5][CH2:6][CH2:7]1.[O:9]=[CH:8][O:10][H:12]",
+                "type": "same concerted epoxidation on the undirected (opposite) face -> trans-2,3-epoxycyclohexanol (minor channel)",
+                "barrier": 20.70,
+                "weight": 0.5,
+                "channel": "opposite_face",
+            },
+        ],
+    },
+    # (E,E) 底物的 anti 鞍点已按 ORCA 6.1.1 同版最低 RC 回填 26.38。
+    # 新 syn 候选的 IRC 反应物端实际为 (E,Z)，不能回填本题；syn 保持缺测。
+    # chair/boat 优势与 3.28 的题源锚仍是历史文献口径，不是本轮计算出的差值。
+    # 原始几何的 E/Z、CIP 与端点审查见 gold_compute/hard_hg2_2026-10-01.md。
+    "G2": {
+        "name_en": "(E,E)-crotyl propenyl ether Claisen rearrangement: determine the stereochemical outcome",
+        "conditions_en": "gas phase; thermal, ~150-200 degC",
+        "anchor": "selectivity",
+        "minor_channel_en": "boat TS -> syn-2,3-dimethylpent-4-enal",
+        "favored_channel": "chair_ts",
+        "mapped_reactants": "[CH3:1]/[CH:2]=[CH:3]/[CH2:4][O:5]/[CH:6]=[CH:7]/[CH3:8]",
+        "steps": [
+            {
+                "out": "[CH2:4]=[CH:3][C@H:2]([CH3:1])[C@H:7]([CH3:8])[CH:6]=[O:5]",
+                "type": "[3,3]-sigmatropic Claisen rearrangement via boat TS (higher-energy minor channel for the (E,E) substrate): allyl/vinyl pi and C-O sigma cleavage, new terminal C-C sigma between the two methyl-bearing termini, migrated allyl pi and C=O pi formation -> syn-2,3-dimethylpent-4-enal (minor channel)",
+                "barrier": None,
+                "channel": "boat_ts",
+                "favored": False,
+                "node_label": "minor product",
+            },
+        ],
+        "competing": [
+            {
+                "out": "[CH2:4]=[CH:3][C@H:2]([CH3:1])[C@@H:7]([CH3:8])[CH:6]=[O:5]",
+                "type": "[3,3]-sigmatropic Claisen rearrangement via chair TS with both methyls pseudo-equatorial (lower-energy favored channel for the (E,E) substrate): allyl/vinyl pi and C-O sigma cleavage, new terminal C-C sigma between the two methyl-bearing termini, migrated allyl pi and C=O pi formation -> anti-2,3-dimethylpent-4-enal (major channel)",
+                "barrier": 26.38,
+                "channel": "chair_ts",
+                "favored": True,
+                "node_label": "major product",
+            },
+        ],
+    },
+}

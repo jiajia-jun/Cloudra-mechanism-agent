@@ -1,0 +1,481 @@
+{"kind":"deck","id":"pr/fckwx9","name":"Deck"}
+{"kind":"layout","id":"ly/90nitkna","editable":false,"name":"Master","type":"master"}
+{"kind":"layout","id":"ly/jexcjy98","editable":false,"name":"Title Slide","type":"title"}
+{"kind":"slide","id":"sl/i91qtu","slideIndex":0,"layout":{"id":"ly/jexcjy98","name":"Title Slide"},"title":"Slide 1","textShapes":0,"backgroundColor":"rgba(255,255,255,1)"}
+{"kind":"shape","id":"sh/bupgfq1k","slideIndex":0,"position":{"left":0,"top":0,"width":1280,"height":15},"geometry":"rect","fillColor":"#1F4E79","lineWidth":0}
+{"kind":"shape","id":"sh/cvyxobi5","slideIndex":0,"position":{"left":70,"top":170,"width":10,"height":340},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"image","id":"im/w76xone1","slideIndex":0,"position":{"left":107,"top":548,"width":950,"height":42},"fit":"contain","name":"","alt":"杨程驿  ｜  长沙理工大学 化学与医药工程学院"}
+{"kind":"image","id":"im/juxwj2dc","slideIndex":0,"position":{"left":107,"top":390,"width":700,"height":43},"fit":"contain","name":"","alt":"省自然科学基金答辩 · 学术论证版"}
+{"kind":"image","id":"im/ytofqxwr","slideIndex":0,"position":{"left":105,"top":178,"width":1080,"height":180},"fit":"contain","name":"","alt":"基于智能代理的轴手性体系\n过渡态自动化搜索与催化模型研究"}
+{"kind":"notes","id":"nt/i91qtu","slideIndex":0,"text":"研究主线：为什么复杂有机机理需要可验证的自主探索；已有工作做到了什么；本项目聚焦的轴手性挑战与研究计划。\n\n参考文献 / 图源：\n项目申请材料（内部）"}
+{"kind":"slide","id":"sl/gklu14","slideIndex":1,"layout":{"id":"ly/jexcjy98","name":"Title Slide"},"title":"Slide 2","textShapes":0,"backgroundColor":"rgba(255,255,255,1)"}
+{"kind":"shape","id":"sh/u1gni5or","slideIndex":1,"position":{"left":0,"top":0,"width":1280,"height":12},"geometry":"rect","fillColor":"#1F4E79","lineWidth":0}
+{"kind":"shape","id":"sh/h47mtk7i","slideIndex":1,"position":{"left":60,"top":139,"width":1160,"height":2},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/g3y5kf6x","slideIndex":1,"position":{"left":70,"top":183,"width":545,"height":102},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/36p4va58","slideIndex":1,"position":{"left":70,"top":183,"width":5,"height":102},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/25gnmpo3","slideIndex":1,"position":{"left":665,"top":183,"width":545,"height":102},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/p87mxkne","slideIndex":1,"position":{"left":665,"top":183,"width":5,"height":102},"geometry":"rect","fillColor":"#2564A8","lineWidth":0}
+{"kind":"shape","id":"sh/ed436lcj","slideIndex":1,"position":{"left":0,"top":665,"width":1280,"height":55},"geometry":"rect","fillColor":"#F8FAFD","lineWidth":0}
+{"kind":"shape","id":"sh/fex4zqt4","slideIndex":1,"position":{"left":60,"top":665,"width":1160,"height":1},"geometry":"rect","fillColor":"#D7E1EC","lineWidth":0}
+{"kind":"image","id":"im/1gn2xwr6","slideIndex":1,"position":{"left":60,"top":32,"width":300,"height":24},"fit":"contain","name":"","alt":"研究背景"}
+{"kind":"image","id":"im/q9cjyh83","slideIndex":1,"position":{"left":90,"top":195,"width":510,"height":30},"fit":"contain","name":"","alt":"传统计算自动化"}
+{"kind":"image","id":"im/ral0rm9o","slideIndex":1,"position":{"left":90,"top":228,"width":510,"height":46},"fit":"contain","name":"","alt":"给定结构与任务后，软件可靠完成优化、频率和能量计算。"}
+{"kind":"image","id":"im/36tovqlg","slideIndex":1,"position":{"left":685,"top":195,"width":510,"height":30},"fit":"contain","name":"","alt":"自主科研系统"}
+{"kind":"image","id":"im/25k72l4v","slideIndex":1,"position":{"left":115,"top":307,"width":1050,"height":326},"fit":"contain","name":"","alt":"传统计算与自主科研计算流程示意"}
+{"kind":"image","id":"im/bad8zqls","slideIndex":1,"position":{"left":1162,"top":674,"width":58,"height":29},"fit":"contain","name":"","alt":"02"}
+{"kind":"image","id":"im/q9k76l47","slideIndex":1,"position":{"left":60,"top":674,"width":1100,"height":29},"fit":"contain","name":"","alt":"文献依据｜Boiko et al., Nature 2023；Bran et al., Nat. Mach. Intell. 2024"}
+{"kind":"image","id":"im/xcvq103i","slideIndex":1,"position":{"left":685,"top":228,"width":510,"height":46},"fit":"contain","name":"","alt":"需要把问题解释、工具选择、结果核验与下一轮决策连起来。"}
+{"kind":"image","id":"im/cbmp8vmx","slideIndex":1,"position":{"left":60,"top":63,"width":1160,"height":68},"fit":"contain","name":"","alt":"研究自动化正从“执行步骤”扩展到“提出、执行并核验假设”"}
+{"kind":"notes","id":"nt/gklu14","slideIndex":1,"text":"Coscientist展示了由语言模型协调文献、代码与实验工具的闭环；ChemCrow展示专业化学工具可扩展语言模型的化学任务能力。这里的“科研自主化”是能力范围的演进，不表示所有科研判断可交给模型。\n\n参考文献 / 图源：\nhttps://doi.org/10.1038/s41586-023-06792-0\nhttps://doi.org/10.1038/s42256-024-00832-8"}
+{"kind":"slide","id":"sl/09lwur","slideIndex":2,"layout":{"id":"ly/jexcjy98","name":"Title Slide"},"title":"Slide 3","textShapes":0,"backgroundColor":"rgba(255,255,255,1)"}
+{"kind":"shape","id":"sh/xo369k7e","slideIndex":2,"position":{"left":0,"top":0,"width":1280,"height":12},"geometry":"rect","fillColor":"#1F4E79","lineWidth":0}
+{"kind":"shape","id":"sh/qlcny58n","slideIndex":2,"position":{"left":60,"top":139,"width":1160,"height":2},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/oju5wfqh","slideIndex":2,"position":{"left":798,"top":180,"width":412,"height":102},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/pk3m5k72","slideIndex":2,"position":{"left":798,"top":180,"width":5,"height":102},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/2hsnu58r","slideIndex":2,"position":{"left":798,"top":302,"width":412,"height":102},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/3i143a9c","slideIndex":2,"position":{"left":798,"top":302,"width":5,"height":102},"geometry":"rect","fillColor":"#2564A8","lineWidth":0}
+{"kind":"shape","id":"sh/gva5svql","slideIndex":2,"position":{"left":798,"top":424,"width":412,"height":102},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/1wjm10r6","slideIndex":2,"position":{"left":798,"top":424,"width":5,"height":102},"geometry":"rect","fillColor":"#2564A8","lineWidth":0}
+{"kind":"shape","id":"sh/tor61gvi","slideIndex":2,"position":{"left":0,"top":665,"width":1280,"height":55},"geometry":"rect","fillColor":"#F8FAFD","lineWidth":0}
+{"kind":"shape","id":"sh/sni58bex","slideIndex":2,"position":{"left":60,"top":665,"width":1160,"height":1},"geometry":"rect","fillColor":"#D7E1EC","lineWidth":0}
+{"kind":"image","id":"im/qxwzal8r","slideIndex":2,"position":{"left":62,"top":176,"width":710,"height":430},"fit":"contain","name":"","alt":"反应能量剖面示意"}
+{"kind":"image","id":"im/snm9wr69","slideIndex":2,"position":{"left":818,"top":192,"width":377,"height":30},"fit":"contain","name":"","alt":"路径不是一张能量曲线"}
+{"kind":"image","id":"im/dovq5wne","slideIndex":2,"position":{"left":60,"top":32,"width":300,"height":24},"fit":"contain","name":"","alt":"研究背景"}
+{"kind":"image","id":"im/e94ry1oz","slideIndex":2,"position":{"left":818,"top":314,"width":377,"height":30},"fit":"contain","name":"","alt":"可核验的物理证据"}
+{"kind":"image","id":"im/fax8765k","slideIndex":2,"position":{"left":818,"top":347,"width":377,"height":46},"fit":"contain","name":"","alt":"驻点类型由频率支持；IRC 用于检查 TS 两侧连接的反应方向。"}
+{"kind":"image","id":"im/0b690b65","slideIndex":2,"position":{"left":60,"top":63,"width":1160,"height":68},"fit":"contain","name":"","alt":"机理计算的交付物，是有端点与能垒证据的反应路径"}
+{"kind":"image","id":"im/1cfq9gnq","slideIndex":2,"position":{"left":818,"top":225,"width":377,"height":46},"fit":"contain","name":"","alt":"每一步必须对应明确的物种、过渡态与连接关系。"}
+{"kind":"image","id":"im/2dor2lob","slideIndex":2,"position":{"left":1162,"top":674,"width":58,"height":29},"fit":"contain","name":"","alt":"03"}
+{"kind":"image","id":"im/nex8bq5w","slideIndex":2,"position":{"left":818,"top":436,"width":377,"height":30},"fit":"contain","name":"","alt":"原稿示例的定位"}
+{"kind":"image","id":"im/zih8zqlo","slideIndex":2,"position":{"left":818,"top":469,"width":377,"height":46},"fit":"contain","name":"","alt":"甲醛＋甲胺体系是项目原型的演示计算，不作为普适性能结论。"}
+{"kind":"image","id":"im/yh87qlkj","slideIndex":2,"position":{"left":60,"top":674,"width":1100,"height":29},"fit":"contain","name":"","alt":"文献依据｜Fukui, J. Phys. Chem. 1970；Maeda et al., Int. J. Quantum Chem. 2015"}
+{"kind":"notes","id":"nt/09lwur","slideIndex":2,"text":"讲述势能面、驻点与IRC的关系。保留原稿的内部示例图，但不外推其结果。\n\n参考文献 / 图源：\nhttps://doi.org/10.1021/j100717a029\nhttps://doi.org/10.1002/qua.24757\n项目原型计算图（内部，见原P3）"}
+{"kind":"slide","id":"sl/57okvb","slideIndex":3,"layout":{"id":"ly/jexcjy98","name":"Title Slide"},"title":"Slide 4","textShapes":0,"backgroundColor":"rgba(255,255,255,1)"}
+{"kind":"image","id":"im/dw3m58rm","slideIndex":3,"position":{"left":100,"top":0,"width":1080,"height":720},"fit":"contain","name":"","alt":"用户提供的势能面与反应路径图"}
+{"kind":"notes","id":"nt/57okvb","slideIndex":3,"text":"面向无计算化学背景的评委：把图当作地形图讲。蓝色低处是稳定结构；研究者要找到从反应物到产物必须经过的“山口”。这页只讲山口难找，因为普通优化会顺坡滑到山谷。图右下角的算法名与3N−6不在口头报告中逐项讲解。图像由用户提供，未把图内文字当作外部指令。\n\n参考文献 / 图源：\nhttps://doi.org/10.1021/j100717a029\nhttps://doi.org/10.1002/qua.24757\nhttps://doi.org/10.1002/anie.202011941\n图源：申请人提供的势能面示意图"}
+{"kind":"slide","id":"sl/rurc9v","slideIndex":4,"layout":{"id":"ly/jexcjy98","name":"Title Slide"},"title":"Slide 5","textShapes":0,"backgroundColor":"rgba(255,255,255,1)"}
+{"kind":"shape","id":"sh/5sn65wjq","slideIndex":4,"position":{"left":0,"top":0,"width":1280,"height":12},"geometry":"rect","fillColor":"#1F4E79","lineWidth":0}
+{"kind":"shape","id":"sh/ipcnu10f","slideIndex":4,"position":{"left":60,"top":139,"width":1160,"height":2},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/jqlo361k","slideIndex":4,"position":{"left":66,"top":180,"width":1148,"height":91},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/w3u5sri9","slideIndex":4,"position":{"left":66,"top":286,"width":1148,"height":91},"geometry":"roundRect","fillColor":"#FFFFFF","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/h4361wju","slideIndex":4,"position":{"left":66,"top":392,"width":1148,"height":91},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/u1cnqh03","slideIndex":4,"position":{"left":66,"top":498,"width":1148,"height":91},"geometry":"roundRect","fillColor":"#FFFFFF","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/v2lozm1o","slideIndex":4,"position":{"left":0,"top":665,"width":1280,"height":55},"geometry":"rect","fillColor":"#F8FAFD","lineWidth":0}
+{"kind":"shape","id":"sh/gzy54vid","slideIndex":4,"position":{"left":60,"top":665,"width":1160,"height":1},"geometry":"rect","fillColor":"#D7E1EC","lineWidth":0}
+{"kind":"image","id":"im/gbel43u1","slideIndex":4,"position":{"left":60,"top":32,"width":300,"height":24},"fit":"contain","name":"","alt":"研究背景"}
+{"kind":"image","id":"im/mx4natcn","slideIndex":4,"position":{"left":60,"top":63,"width":1160,"height":68},"fit":"contain","name":"","alt":"当反应步骤能形式化，确定性自动化已经有很强的先例"}
+{"kind":"image","id":"im/nydojyd8","slideIndex":4,"position":{"left":970,"top":198,"width":210,"height":54},"fit":"contain","name":"","alt":"有目标反应表示"}
+{"kind":"image","id":"im/8zm5c3ut","slideIndex":4,"position":{"left":84,"top":301,"width":210,"height":60},"fit":"contain","name":"","alt":"AutoMeKin"}
+{"kind":"image","id":"im/90v6l8vy","slideIndex":4,"position":{"left":298,"top":299,"width":650,"height":65},"fit":"contain","name":"","alt":"由反应分子动力学与图算法探索反应网络，并进行动力学分析"}
+{"kind":"image","id":"im/a14nedcj","slideIndex":4,"position":{"left":970,"top":304,"width":210,"height":54},"fit":"contain","name":"","alt":"反应空间探索"}
+{"kind":"image","id":"im/v2donyd4","slideIndex":4,"position":{"left":84,"top":407,"width":210,"height":60},"fit":"contain","name":"","alt":"AFIR / GRRM"}
+{"kind":"image","id":"im/w365g3up","slideIndex":4,"position":{"left":298,"top":405,"width":650,"height":65},"fit":"contain","name":"","alt":"借助人工力系统探索局部极小值与反应路径，包括意外通道"}
+{"kind":"image","id":"im/x4f6p8va","slideIndex":4,"position":{"left":84,"top":195,"width":210,"height":60},"fit":"contain","name":"","alt":"autodE"}
+{"kind":"image","id":"im/i5o7idcv","slideIndex":4,"position":{"left":84,"top":513,"width":210,"height":60},"fit":"contain","name":"","alt":"KinBot"}
+{"kind":"image","id":"im/j6xoridg","slideIndex":4,"position":{"left":298,"top":193,"width":650,"height":65},"fit":"contain","name":"","alt":"由2D/1D表示构建有机及有机金属反应剖面；包含极小值与TS构象采样"}
+{"kind":"image","id":"im/fux4zi98","slideIndex":4,"position":{"left":970,"top":516,"width":210,"height":54},"fit":"contain","name":"","alt":"气相动力学"}
+{"kind":"image","id":"im/u9on6dsn","slideIndex":4,"position":{"left":1162,"top":674,"width":58,"height":29},"fit":"contain","name":"","alt":"05"}
+{"kind":"image","id":"im/hwzm1sre","slideIndex":4,"position":{"left":60,"top":674,"width":1100,"height":29},"fit":"contain","name":"","alt":"文献依据｜Young 2021；Martínez-Núñez 2021；Maeda & Morokuma 2016；Van de Vijver & Zádor 2020"}
+{"kind":"image","id":"im/gvq58nat","slideIndex":4,"position":{"left":970,"top":410,"width":210,"height":54},"fit":"contain","name":"","alt":"势能面路径搜索"}
+{"kind":"image","id":"im/76x4vi9c","slideIndex":4,"position":{"left":298,"top":511,"width":650,"height":65},"fit":"contain","name":"","alt":"自动搜索气相有机物种的驻点与反应通道"}
+{"kind":"notes","id":"nt/rurc9v","slideIndex":4,"text":"避免将现有自动化贬为只能做固定流水线。这里按论文所展示的输入、目标和应用域比较。\n\n参考文献 / 图源：\nhttps://doi.org/10.1002/anie.202011941\nhttps://doi.org/10.1002/jcc.26734\nhttps://doi.org/10.1021/acs.accounts.6b00023\nhttps://doi.org/10.1016/j.cpc.2019.106947"}
+{"kind":"slide","id":"sl/ab9j6v","slideIndex":5,"layout":{"id":"ly/jexcjy98","name":"Title Slide"},"title":"Slide 6","textShapes":0,"backgroundColor":"rgba(255,255,255,1)"}
+{"kind":"shape","id":"sh/mlobypgr","slideIndex":5,"position":{"left":0,"top":0,"width":1280,"height":12},"geometry":"rect","fillColor":"#1F4E79","lineWidth":0}
+{"kind":"shape","id":"sh/98fu94zi","slideIndex":5,"position":{"left":60,"top":139,"width":1160,"height":2},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/a9ob29g3","slideIndex":5,"position":{"left":742,"top":183,"width":470,"height":102},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/xczud4ze","slideIndex":5,"position":{"left":742,"top":183,"width":5,"height":102},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/wbqt4zyt","slideIndex":5,"position":{"left":742,"top":307,"width":470,"height":102},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/jehcfehk","slideIndex":5,"position":{"left":742,"top":307,"width":5,"height":102},"geometry":"rect","fillColor":"#2564A8","lineWidth":0}
+{"kind":"shape","id":"sh/id8b69gz","slideIndex":5,"position":{"left":742,"top":431,"width":470,"height":102},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/cji9crmt","slideIndex":5,"position":{"left":742,"top":431,"width":5,"height":102},"geometry":"rect","fillColor":"#2564A8","lineWidth":0}
+{"kind":"shape","id":"sh/xkra5w3e","slideIndex":5,"position":{"left":0,"top":665,"width":1280,"height":55},"geometry":"rect","fillColor":"#F8FAFD","lineWidth":0}
+{"kind":"shape","id":"sh/ah0ra143","slideIndex":5,"position":{"left":60,"top":665,"width":1160,"height":1},"geometry":"rect","fillColor":"#D7E1EC","lineWidth":0}
+{"kind":"image","id":"im/9wvqpc3q","slideIndex":5,"position":{"left":60,"top":63,"width":1160,"height":68},"fit":"contain","name":"","alt":"复杂有机体系的搜索空间同时包含路径、构象与初猜"}
+{"kind":"image","id":"im/ypk7qx43","slideIndex":5,"position":{"left":66,"top":183,"width":646,"height":410},"fit":"contain","name":"","alt":"三维化学空间示意"}
+{"kind":"image","id":"im/03u5o3ax","slideIndex":5,"position":{"left":762,"top":195,"width":435,"height":30},"fit":"contain","name":"","alt":"路径"}
+{"kind":"image","id":"im/n6lozit8","slideIndex":5,"position":{"left":762,"top":228,"width":435,"height":46},"fit":"contain","name":"","alt":"竞争反应与中间体改变拓扑。"}
+{"kind":"image","id":"im/m5c7qdsn","slideIndex":5,"position":{"left":762,"top":319,"width":435,"height":30},"fit":"contain","name":"","alt":"构象"}
+{"kind":"image","id":"im/98n618be","slideIndex":5,"position":{"left":762,"top":352,"width":435,"height":46},"fit":"contain","name":"","alt":"同一键连关系可对应多个低能三维结构。"}
+{"kind":"image","id":"im/o7ups3at","slideIndex":5,"position":{"left":762,"top":443,"width":435,"height":30},"fit":"contain","name":"","alt":"初猜"}
+{"kind":"image","id":"im/ba5o3itk","slideIndex":5,"position":{"left":762,"top":476,"width":435,"height":46},"fit":"contain","name":"","alt":"不同取向会导向不同驻点或失败模式。"}
+{"kind":"image","id":"im/a9w7udsz","slideIndex":5,"position":{"left":60,"top":674,"width":1100,"height":29},"fit":"contain","name":"","alt":"文献依据｜Young et al. 2021；Pracht et al., J. Chem. Phys. 2024（CREST）"}
+{"kind":"image","id":"im/65grmhc7","slideIndex":5,"position":{"left":60,"top":32,"width":300,"height":24},"fit":"contain","name":"","alt":"研究背景"}
+{"kind":"image","id":"im/76p8vmds","slideIndex":5,"position":{"left":1162,"top":674,"width":58,"height":29},"fit":"contain","name":"","alt":"06"}
+{"kind":"notes","id":"nt/ab9j6v","slideIndex":5,"text":"“路径×构象×初猜”是概念分解而非严格数学乘积。autodE论文明确涉及极小值与TS构象采样；CREST用于低能构象空间探索。\n\n参考文献 / 图源：\nhttps://doi.org/10.1002/anie.202011941\nhttps://doi.org/10.1063/5.0197592"}
+{"kind":"slide","id":"sl/ge66cy","slideIndex":6,"layout":{"id":"ly/jexcjy98","name":"Title Slide"},"title":"Slide 7","textShapes":0,"backgroundColor":"rgba(255,255,255,1)"}
+{"kind":"shape","id":"sh/qpwzexs7","slideIndex":6,"position":{"left":0,"top":0,"width":1280,"height":12},"geometry":"rect","fillColor":"#1F4E79","lineWidth":0}
+{"kind":"shape","id":"sh/dsnipsri","slideIndex":6,"position":{"left":60,"top":139,"width":1160,"height":2},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/i1czadsv","slideIndex":6,"position":{"left":770,"top":184,"width":441,"height":102},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/5onilsrm","slideIndex":6,"position":{"left":770,"top":184,"width":5,"height":102},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/4nuhcna1","slideIndex":6,"position":{"left":770,"top":313,"width":441,"height":102},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/vyl0fi9k","slideIndex":6,"position":{"left":770,"top":313,"width":5,"height":102},"geometry":"rect","fillColor":"#2564A8","lineWidth":0}
+{"kind":"shape","id":"sh/uxcz6dsz","slideIndex":6,"position":{"left":770,"top":442,"width":441,"height":102},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/wj65gzuh","slideIndex":6,"position":{"left":770,"top":442,"width":5,"height":102},"geometry":"rect","fillColor":"#2564A8","lineWidth":0}
+{"kind":"shape","id":"sh/hkz6p4b2","slideIndex":6,"position":{"left":0,"top":665,"width":1280,"height":55},"geometry":"rect","fillColor":"#F8FAFD","lineWidth":0}
+{"kind":"shape","id":"sh/uhonepcr","slideIndex":6,"position":{"left":60,"top":665,"width":1160,"height":1},"geometry":"rect","fillColor":"#D7E1EC","lineWidth":0}
+{"kind":"image","id":"im/lgj6twfe","slideIndex":6,"position":{"left":60,"top":63,"width":1160,"height":68},"fit":"contain","name":"","alt":"机理探索需要依据新证据改变下一步，而非只执行既定流程"}
+{"kind":"image","id":"im/mhs7m1wz","slideIndex":6,"position":{"left":55,"top":178,"width":680,"height":430},"fit":"contain","name":"","alt":"固定流程与运行中改变路径示意"}
+{"kind":"image","id":"im/ozmxcbut","slideIndex":6,"position":{"left":790,"top":196,"width":406,"height":30},"fit":"contain","name":"","alt":"固定工作流"}
+{"kind":"image","id":"im/zutwz6dc","slideIndex":6,"position":{"left":790,"top":229,"width":406,"height":46},"fit":"contain","name":"","alt":"适合已定义输入、目标和搜索规则的任务；autodE、KinBot已有成熟实践。"}
+{"kind":"image","id":"im/etkf61cr","slideIndex":6,"position":{"left":790,"top":358,"width":406,"height":46},"fit":"contain","name":"","alt":"可能出现计划外中间体、错误虚频模式或多条竞争路径。"}
+{"kind":"image","id":"im/1wve1gvi","slideIndex":6,"position":{"left":790,"top":454,"width":406,"height":30},"fit":"contain","name":"","alt":"可核验的决策"}
+{"kind":"image","id":"im/0vmx8bux","slideIndex":6,"position":{"left":790,"top":487,"width":406,"height":46},"fit":"contain","name":"","alt":"新假设必须回到计算证据，而不是仅由语言模型叙述。"}
+{"kind":"image","id":"im/jqxgbqtg","slideIndex":6,"position":{"left":1162,"top":674,"width":58,"height":29},"fit":"contain","name":"","alt":"07"}
+{"kind":"image","id":"im/ypofi5cb","slideIndex":6,"position":{"left":60,"top":32,"width":300,"height":24},"fit":"contain","name":"","alt":"研究背景"}
+{"kind":"image","id":"im/ulszapwj","slideIndex":6,"position":{"left":790,"top":325,"width":406,"height":30},"fit":"contain","name":"","alt":"开放式机理问题"}
+{"kind":"image","id":"im/vm103uxo","slideIndex":6,"position":{"left":60,"top":674,"width":1100,"height":29},"fit":"contain","name":"","alt":"文献依据｜Young 2021；Van de Vijver & Zádor 2020；Li et al., ARCHE 2026（预印本）"}
+{"kind":"notes","id":"nt/ge66cy","slideIndex":6,"text":"这页强调任务类型差异，不构成对已有自动化系统能力的否定。ARCHE预印本公开展示了机理假设、计算与迭代验证。\n\n参考文献 / 图源：\nhttps://doi.org/10.1002/anie.202011941\nhttps://doi.org/10.1016/j.cpc.2019.106947\nhttps://arxiv.org/abs/2609.11147"}
+{"kind":"slide","id":"sl/r3upqt","slideIndex":7,"layout":{"id":"ly/jexcjy98","name":"Title Slide"},"title":"Slide 8","textShapes":0,"backgroundColor":"rgba(255,255,255,1)"}
+{"kind":"shape","id":"sh/7adcr29g","slideIndex":7,"position":{"left":0,"top":0,"width":1280,"height":12},"geometry":"rect","fillColor":"#1F4E79","lineWidth":0}
+{"kind":"shape","id":"sh/8bmtk7a1","slideIndex":7,"position":{"left":60,"top":139,"width":1160,"height":2},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/tcvutcr6","slideIndex":7,"position":{"left":60,"top":178,"width":370,"height":431},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/ud4bmhsr","slideIndex":7,"position":{"left":60,"top":178,"width":370,"height":8},"geometry":"rect","fillColor":"#2564A8","lineWidth":0}
+{"kind":"shape","id":"sh/vedcvm9c","slideIndex":7,"position":{"left":80,"top":274,"width":330,"height":35},"geometry":"roundRect","fillColor":"#EEF4FB","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/gfmtorax","slideIndex":7,"position":{"left":455,"top":178,"width":370,"height":431},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/hgvuxcri","slideIndex":7,"position":{"left":455,"top":178,"width":370,"height":8},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/ih4bqhs3","slideIndex":7,"position":{"left":475,"top":274,"width":330,"height":35},"geometry":"roundRect","fillColor":"#EEF4FB","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/3ixczm9o","slideIndex":7,"position":{"left":850,"top":178,"width":370,"height":431},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/nylgfmp0","slideIndex":7,"position":{"left":850,"top":178,"width":370,"height":8},"geometry":"rect","fillColor":"#2564A8","lineWidth":0}
+{"kind":"shape","id":"sh/2xcz6hof","slideIndex":7,"position":{"left":870,"top":274,"width":330,"height":35},"geometry":"roundRect","fillColor":"#EEF4FB","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/pk3yhw7q","slideIndex":7,"position":{"left":0,"top":665,"width":1280,"height":55},"geometry":"rect","fillColor":"#F8FAFD","lineWidth":0}
+{"kind":"shape","id":"sh/ozuh8r6l","slideIndex":7,"position":{"left":60,"top":665,"width":1160,"height":1},"geometry":"rect","fillColor":"#D7E1EC","lineWidth":0}
+{"kind":"image","id":"im/ojml8jy5","slideIndex":7,"position":{"left":60,"top":32,"width":300,"height":24},"fit":"contain","name":"","alt":"研究背景"}
+{"kind":"image","id":"im/9kvm1ozq","slideIndex":7,"position":{"left":60,"top":63,"width":1160,"height":68},"fit":"contain","name":"","alt":"化学智能体已有三类路线，差异首先在任务与证据层"}
+{"kind":"image","id":"im/mhk369gz","slideIndex":7,"position":{"left":80,"top":202,"width":330,"height":58},"fit":"contain","name":"","alt":"工具增强的语言模型"}
+{"kind":"image","id":"im/nid4zehk","slideIndex":7,"position":{"left":88,"top":276,"width":314,"height":30},"fit":"contain","name":"","alt":"ChemCrow / ChemGraph"}
+{"kind":"image","id":"im/0f2l4zy9","slideIndex":7,"position":{"left":82,"top":331,"width":326,"height":120},"fit":"contain","name":"","alt":"将语言推理与化学工具、分子模拟工作流连接。"}
+{"kind":"image","id":"im/1gbmx4zu","slideIndex":7,"position":{"left":82,"top":465,"width":326,"height":105},"fit":"contain","name":"","alt":"论文展示范围：论文主要演示多领域任务执行与计算流程。"}
+{"kind":"image","id":"im/h03alwn6","slideIndex":7,"position":{"left":475,"top":202,"width":330,"height":58},"fit":"contain","name":"","alt":"特定领域的多代理系统"}
+{"kind":"image","id":"im/gzatcrml","slideIndex":7,"position":{"left":483,"top":276,"width":314,"height":30},"fit":"contain","name":"","alt":"CatDT"}
+{"kind":"image","id":"im/vy1sj650","slideIndex":7,"position":{"left":477,"top":465,"width":326,"height":105},"fit":"contain","name":"","alt":"论文展示范围：论文证据集中于气固/液固催化案例。"}
+{"kind":"image","id":"im/uxsba14v","slideIndex":7,"position":{"left":477,"top":331,"width":326,"height":120},"fit":"contain","name":"","alt":"围绕异相催化数字孪生，联合表面、路径、TS与动力学计算。"}
+{"kind":"image","id":"im/twjahwna","slideIndex":7,"position":{"left":870,"top":202,"width":330,"height":58},"fit":"contain","name":"","alt":"机理研究闭环"}
+{"kind":"image","id":"im/8vat8r6p","slideIndex":7,"position":{"left":878,"top":276,"width":314,"height":30},"fit":"contain","name":"","alt":"ARCHE"}
+{"kind":"image","id":"im/7u1sfm54","slideIndex":7,"position":{"left":872,"top":465,"width":326,"height":105},"fit":"contain","name":"","alt":"论文展示范围：预印本给出三个机理研究场景。"}
+{"kind":"image","id":"im/6tsb6hoj","slideIndex":7,"position":{"left":872,"top":331,"width":326,"height":120},"fit":"contain","name":"","alt":"提出机理假设、协调计算，并依据结果迭代修正。"}
+{"kind":"image","id":"im/dsnutgne","slideIndex":7,"position":{"left":60,"top":674,"width":1100,"height":29},"fit":"contain","name":"","alt":"文献依据｜Bran 2024；ChemGraph 2025；Song et al. 2026；Li et al. 2026"}
+{"kind":"image","id":"im/srutkbmt","slideIndex":7,"position":{"left":1162,"top":674,"width":58,"height":29},"fit":"contain","name":"","alt":"08"}
+{"kind":"notes","id":"nt/r3upqt","slideIndex":7,"text":"按论文展示范围分类，不代表这些系统的完整能力边界。CatDT是异相催化；ARCHE是2026年9月预印本。\n\n参考文献 / 图源：\nhttps://doi.org/10.1038/s42256-024-00832-8\nhttps://doi.org/10.1038/s42004-025-01776-9\nhttps://arxiv.org/abs/2606.05050\nhttps://arxiv.org/abs/2609.11147"}
+{"kind":"slide","id":"sl/1mszjy","slideIndex":8,"layout":{"id":"ly/jexcjy98","name":"Title Slide"},"title":"Slide 9","textShapes":0,"backgroundColor":"rgba(255,255,255,1)"}
+{"kind":"shape","id":"sh/kj61cnyt","slideIndex":8,"position":{"left":0,"top":0,"width":1280,"height":12},"geometry":"rect","fillColor":"#1F4E79","lineWidth":0}
+{"kind":"shape","id":"sh/jixkjixo","slideIndex":8,"position":{"left":60,"top":139,"width":1160,"height":2},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/ihojadg3","slideIndex":8,"position":{"left":64,"top":178,"width":192,"height":54},"geometry":"rect","fillColor":"#1F4E79","lineWidth":0}
+{"kind":"shape","id":"sh/t8z2psfq","slideIndex":8,"position":{"left":256,"top":178,"width":252,"height":54},"geometry":"rect","fillColor":"#1F4E79","lineWidth":0}
+{"kind":"shape","id":"sh/sn6lgny5","slideIndex":8,"position":{"left":508,"top":178,"width":250,"height":54},"geometry":"rect","fillColor":"#1F4E79","lineWidth":0}
+{"kind":"shape","id":"sh/rmxknixk","slideIndex":8,"position":{"left":758,"top":178,"width":251,"height":54},"geometry":"rect","fillColor":"#1F4E79","lineWidth":0}
+{"kind":"shape","id":"sh/6lojexgz","slideIndex":8,"position":{"left":1009,"top":178,"width":205,"height":54},"geometry":"rect","fillColor":"#1F4E79","lineWidth":0}
+{"kind":"shape","id":"sh/1cz2tcfm","slideIndex":8,"position":{"left":64,"top":232,"width":192,"height":76},"geometry":"rect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/gbqlk7y1","slideIndex":8,"position":{"left":256,"top":232,"width":252,"height":76},"geometry":"rect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/a98zu9oz","slideIndex":8,"position":{"left":508,"top":232,"width":250,"height":76},"geometry":"rect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/bahgnepk","slideIndex":8,"position":{"left":758,"top":232,"width":251,"height":76},"geometry":"rect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/wbqhwj65","slideIndex":8,"position":{"left":1009,"top":232,"width":205,"height":76},"geometry":"rect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/xczip4nq","slideIndex":8,"position":{"left":64,"top":308,"width":192,"height":76},"geometry":"rect","fillColor":"#FFFFFF","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/id8zy9ob","slideIndex":8,"position":{"left":256,"top":308,"width":252,"height":76},"geometry":"rect","fillColor":"#FFFFFF","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/jeh0re5w","slideIndex":8,"position":{"left":508,"top":308,"width":250,"height":76},"geometry":"rect","fillColor":"#FFFFFF","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/kfah0j61","slideIndex":8,"position":{"left":758,"top":308,"width":251,"height":76},"geometry":"rect","fillColor":"#FFFFFF","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/5gjitonm","slideIndex":8,"position":{"left":1009,"top":308,"width":205,"height":76},"geometry":"rect","fillColor":"#FFFFFF","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/ehozmpor","slideIndex":8,"position":{"left":64,"top":384,"width":192,"height":76},"geometry":"rect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/zixgfupc","slideIndex":8,"position":{"left":256,"top":384,"width":252,"height":76},"geometry":"rect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/3mtwnq54","slideIndex":8,"position":{"left":508,"top":384,"width":250,"height":76},"geometry":"rect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/2lkvel4j","slideIndex":8,"position":{"left":758,"top":384,"width":251,"height":76},"geometry":"rect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/povep0na","slideIndex":8,"position":{"left":1009,"top":384,"width":205,"height":76},"geometry":"rect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/4n2dgvmp","slideIndex":8,"position":{"left":64,"top":460,"width":192,"height":76},"geometry":"rect","fillColor":"#FFFFFF","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/fitwj658","slideIndex":8,"position":{"left":256,"top":460,"width":252,"height":76},"geometry":"rect","fillColor":"#FFFFFF","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/uxkva14n","slideIndex":8,"position":{"left":508,"top":460,"width":250,"height":76},"geometry":"rect","fillColor":"#FFFFFF","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/hkbelgny","slideIndex":8,"position":{"left":758,"top":460,"width":251,"height":76},"geometry":"rect","fillColor":"#FFFFFF","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/gj2dcbmt","slideIndex":8,"position":{"left":1009,"top":460,"width":205,"height":76},"geometry":"rect","fillColor":"#FFFFFF","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/zedwvalc","slideIndex":8,"position":{"left":64,"top":536,"width":192,"height":76},"geometry":"rect","fillColor":"#FFF8EB","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/ed4fm54r","slideIndex":8,"position":{"left":256,"top":536,"width":252,"height":76},"geometry":"rect","fillColor":"#FFF8EB","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/wzytg729","slideIndex":8,"position":{"left":508,"top":536,"width":250,"height":76},"geometry":"rect","fillColor":"#FFF8EB","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/x07upc3u","slideIndex":8,"position":{"left":758,"top":536,"width":251,"height":76},"geometry":"rect","fillColor":"#FFF8EB","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/axgbexk3","slideIndex":8,"position":{"left":1009,"top":536,"width":205,"height":76},"geometry":"rect","fillColor":"#FFF8EB","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/vypsn2lo","slideIndex":8,"position":{"left":0,"top":665,"width":1280,"height":55},"geometry":"rect","fillColor":"#F8FAFD","lineWidth":0}
+{"kind":"shape","id":"sh/k3ytk72l","slideIndex":8,"position":{"left":60,"top":665,"width":1160,"height":1},"geometry":"rect","fillColor":"#D7E1EC","lineWidth":0}
+{"kind":"image","id":"im/el0nulkz","slideIndex":8,"position":{"left":60,"top":32,"width":300,"height":24},"fit":"contain","name":"","alt":"研究背景"}
+{"kind":"image","id":"im/1or6pgjq","slideIndex":8,"position":{"left":60,"top":63,"width":1160,"height":68},"fit":"contain","name":"","alt":"对比要落到同一组问题：输入、探索、证据与适用体系"}
+{"kind":"image","id":"im/0ni5wv25","slideIndex":8,"position":{"left":72,"top":185,"width":176,"height":38},"fit":"contain","name":"","alt":"项目"}
+{"kind":"image","id":"im/ripoj6lo","slideIndex":8,"position":{"left":264,"top":185,"width":236,"height":38},"fit":"contain","name":"","alt":"论文输入"}
+{"kind":"image","id":"im/qhgnq1k3","slideIndex":8,"position":{"left":516,"top":185,"width":234,"height":38},"fit":"contain","name":"","alt":"探索对象"}
+{"kind":"image","id":"im/6pkru9gn","slideIndex":8,"position":{"left":766,"top":185,"width":235,"height":38},"fit":"contain","name":"","alt":"验证证据"}
+{"kind":"image","id":"im/rqtsneh8","slideIndex":8,"position":{"left":1017,"top":185,"width":189,"height":38},"fit":"contain","name":"","alt":"演示体系"}
+{"kind":"image","id":"im/sr29wjyt","slideIndex":8,"position":{"left":72,"top":239,"width":176,"height":61},"fit":"contain","name":"","alt":"autodE"}
+{"kind":"image","id":"im/tsbap4zy","slideIndex":8,"position":{"left":264,"top":239,"width":236,"height":61},"fit":"contain","name":"","alt":"反应物/产物表示"}
+{"kind":"image","id":"im/i10rqpgb","slideIndex":8,"position":{"left":516,"top":239,"width":234,"height":61},"fit":"contain","name":"","alt":"目标反应能量剖面"}
+{"kind":"image","id":"im/j29sjuhw","slideIndex":8,"position":{"left":766,"top":239,"width":235,"height":61},"fit":"contain","name":"","alt":"TS、极小值与构象"}
+{"kind":"image","id":"im/4ni9szyh","slideIndex":8,"position":{"left":1017,"top":239,"width":189,"height":61},"fit":"contain","name":"","alt":"有机/有机金属"}
+{"kind":"image","id":"im/5oral4z2","slideIndex":8,"position":{"left":72,"top":315,"width":176,"height":61},"fit":"contain","name":"","alt":"AutoMeKin"}
+{"kind":"image","id":"im/uxgrmpgf","slideIndex":8,"position":{"left":264,"top":315,"width":236,"height":61},"fit":"contain","name":"","alt":"起始结构"}
+{"kind":"image","id":"im/vy9sfuh0","slideIndex":8,"position":{"left":516,"top":315,"width":234,"height":61},"fit":"contain","name":"","alt":"反应网络"}
+{"kind":"image","id":"im/dsfulsji","slideIndex":8,"position":{"left":766,"top":315,"width":235,"height":61},"fit":"contain","name":"","alt":"路径与动力学"}
+{"kind":"image","id":"im/cr6dsnix","slideIndex":8,"position":{"left":1017,"top":315,"width":189,"height":61},"fit":"contain","name":"","alt":"分子反应网络"}
+{"kind":"image","id":"im/bqxcji1c","slideIndex":8,"position":{"left":72,"top":391,"width":176,"height":61},"fit":"contain","name":"","alt":"CatDT"}
+{"kind":"image","id":"im/qpovqd0r","slideIndex":8,"position":{"left":516,"top":391,"width":234,"height":61},"fit":"contain","name":"","alt":"催化表面路径"}
+{"kind":"image","id":"im/povuh8j6","slideIndex":8,"position":{"left":264,"top":391,"width":236,"height":61},"fit":"contain","name":"","alt":"晶体＋反应描述"}
+{"kind":"image","id":"im/onmdoni1","slideIndex":8,"position":{"left":1017,"top":391,"width":189,"height":61},"fit":"contain","name":"","alt":"异相催化"}
+{"kind":"image","id":"im/3mdcfi1g","slideIndex":8,"position":{"left":766,"top":391,"width":235,"height":61},"fit":"contain","name":"","alt":"TS、动力学、实验对照"}
+{"kind":"image","id":"im/2l4vmd0v","slideIndex":8,"position":{"left":72,"top":467,"width":176,"height":61},"fit":"contain","name":"","alt":"ARCHE"}
+{"kind":"image","id":"im/1kvud8ja","slideIndex":8,"position":{"left":264,"top":467,"width":236,"height":61},"fit":"contain","name":"","alt":"机理研究问题"}
+{"kind":"image","id":"im/gjmtk3ip","slideIndex":8,"position":{"left":516,"top":467,"width":234,"height":61},"fit":"contain","name":"","alt":"假设与计算迭代"}
+{"kind":"image","id":"im/s3qd03ql","slideIndex":8,"position":{"left":766,"top":467,"width":235,"height":61},"fit":"contain","name":"","alt":"案例级计算核验"}
+{"kind":"image","id":"im/t4zu98r6","slideIndex":8,"position":{"left":72,"top":543,"width":176,"height":61},"fit":"contain","name":"","alt":"Cloudra（本项目）"}
+{"kind":"image","id":"im/61ovyt8f","slideIndex":8,"position":{"left":1017,"top":467,"width":189,"height":61},"fit":"contain","name":"","alt":"有机/催化案例"}
+{"kind":"image","id":"im/72hc7y90","slideIndex":8,"position":{"left":264,"top":543,"width":236,"height":61},"fit":"contain","name":"","alt":"反应体系＋研究目标"}
+{"kind":"image","id":"im/kz6dw3qp","slideIndex":8,"position":{"left":516,"top":543,"width":234,"height":61},"fit":"contain","name":"","alt":"复杂三维机理图"}
+{"kind":"image","id":"im/50fu58ru","slideIndex":8,"position":{"left":1017,"top":543,"width":189,"height":61},"fit":"contain","name":"","alt":"轴手性有机反应"}
+{"kind":"image","id":"im/ixovut8j","slideIndex":8,"position":{"left":766,"top":543,"width":235,"height":61},"fit":"contain","name":"","alt":"拟用分层物理证据门禁"}
+{"kind":"image","id":"im/jyxc3y94","slideIndex":8,"position":{"left":1162,"top":674,"width":58,"height":29},"fit":"contain","name":"","alt":"09"}
+{"kind":"image","id":"im/4vad8nqt","slideIndex":8,"position":{"left":60,"top":674,"width":1100,"height":29},"fit":"contain","name":"","alt":"文献依据｜依据各项目原始论文；Cloudra 栏为本项目研究设计，尚非跨项目实验结论"}
+{"kind":"notes","id":"nt/1mszjy","slideIndex":8,"text":"该表比较论文任务设计与证据形式，不进行未做统一基准时的性能排名。\n\n参考文献 / 图源：\nhttps://doi.org/10.1002/anie.202011941\nhttps://doi.org/10.1002/jcc.26734\nhttps://arxiv.org/abs/2606.05050\nhttps://arxiv.org/abs/2609.11147\n项目申请书与系统原型（内部）"}
+{"kind":"slide","id":"sl/pqbtvv","slideIndex":9,"layout":{"id":"ly/jexcjy98","name":"Title Slide"},"title":"Slide 10","textShapes":0,"backgroundColor":"rgba(255,255,255,1)"}
+{"kind":"shape","id":"sh/xsnu5cna","slideIndex":9,"position":{"left":0,"top":0,"width":1280,"height":12},"geometry":"rect","fillColor":"#1F4E79","lineWidth":0}
+{"kind":"shape","id":"sh/apcbuhoj","slideIndex":9,"position":{"left":60,"top":139,"width":1160,"height":2},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/vqlc3m54","slideIndex":9,"position":{"left":65,"top":190,"width":1148,"height":112},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/kvet0r61","slideIndex":9,"position":{"left":65,"top":190,"width":155,"height":112},"geometry":"rect","fillColor":"#2564A8","lineWidth":0}
+{"kind":"shape","id":"sh/5wnu9wn6","slideIndex":9,"position":{"left":65,"top":326,"width":1148,"height":112},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/itwbyhov","slideIndex":9,"position":{"left":65,"top":326,"width":155,"height":112},"geometry":"rect","fillColor":"#2564A8","lineWidth":0}
+{"kind":"shape","id":"sh/ju5c7m5g","slideIndex":9,"position":{"left":65,"top":462,"width":1148,"height":112},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/szyt4r6x","slideIndex":9,"position":{"left":65,"top":462,"width":155,"height":112},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/t07udwni","slideIndex":9,"position":{"left":0,"top":665,"width":1280,"height":55},"geometry":"rect","fillColor":"#F8FAFD","lineWidth":0}
+{"kind":"shape","id":"sh/1sjy1sne","slideIndex":9,"position":{"left":60,"top":665,"width":1160,"height":1},"geometry":"rect","fillColor":"#D7E1EC","lineWidth":0}
+{"kind":"image","id":"im/n6p87mlw","slideIndex":9,"position":{"left":60,"top":32,"width":300,"height":24},"fit":"contain","name":"","alt":"相关工作"}
+{"kind":"image","id":"im/o7y9grmh","slideIndex":9,"position":{"left":80,"top":221,"width":126,"height":46},"fit":"contain","name":"","alt":"2020–21"}
+{"kind":"image","id":"im/987q9w32","slideIndex":9,"position":{"left":60,"top":63,"width":1160,"height":68},"fit":"contain","name":"","alt":"研究脉络：从工具编排到机理假设的计算闭环"}
+{"kind":"image","id":"im/a9grihk7","slideIndex":9,"position":{"left":246,"top":205,"width":905,"height":39},"fit":"contain","name":"","alt":"autodE / AutoMeKin"}
+{"kind":"image","id":"im/bap8bmls","slideIndex":9,"position":{"left":246,"top":247,"width":905,"height":38},"fit":"contain","name":"","alt":"反应剖面与反应网络自动化"}
+{"kind":"image","id":"im/wby9kr2d","slideIndex":9,"position":{"left":80,"top":357,"width":126,"height":46},"fit":"contain","name":"","alt":"2024–25"}
+{"kind":"image","id":"im/xc7qdw3y","slideIndex":9,"position":{"left":80,"top":493,"width":126,"height":46},"fit":"contain","name":"","alt":"2026"}
+{"kind":"image","id":"im/qdc76x43","slideIndex":9,"position":{"left":246,"top":383,"width":905,"height":38},"fit":"contain","name":"","alt":"语言模型编排化学与量化工具"}
+{"kind":"image","id":"im/re58z2lo","slideIndex":9,"position":{"left":246,"top":341,"width":905,"height":39},"fit":"contain","name":"","alt":"ChemCrow / ChemGraph / El Agente"}
+{"kind":"image","id":"im/v6hwrux4","slideIndex":9,"position":{"left":246,"top":477,"width":905,"height":39},"fit":"contain","name":"","alt":"CatDT / ARCHE"}
+{"kind":"image","id":"im/u58fipgj","slideIndex":9,"position":{"left":1162,"top":674,"width":58,"height":29},"fit":"contain","name":"","alt":"10"}
+{"kind":"image","id":"im/h8zet4fa","slideIndex":9,"position":{"left":246,"top":519,"width":905,"height":38},"fit":"contain","name":"","alt":"多代理系统推进路径探索与机制验证"}
+{"kind":"image","id":"im/g7qxkzyp","slideIndex":9,"position":{"left":60,"top":674,"width":1100,"height":29},"fit":"contain","name":"","alt":"文献依据｜Young 2021；Martínez-Núñez 2021；Bran 2024；Zou 2025；Song 2026；Li 2026"}
+{"kind":"notes","id":"nt/pqbtvv","slideIndex":9,"text":"原P11提前至Cloudra论断之前。时间轴按代表论文发表/预印本时间，不表示线性技术继承。\n\n参考文献 / 图源：\nhttps://doi.org/10.1002/anie.202011941\nhttps://doi.org/10.1002/jcc.26734\nhttps://doi.org/10.1038/s42256-024-00832-8\nhttps://doi.org/10.1038/s42004-025-01776-9\nhttps://arxiv.org/abs/2505.02484\nhttps://arxiv.org/abs/2606.05050\nhttps://arxiv.org/abs/2609.11147"}
+{"kind":"slide","id":"sl/kaxkyf","slideIndex":10,"layout":{"id":"ly/jexcjy98","name":"Title Slide"},"title":"Slide 11","textShapes":0,"backgroundColor":"rgba(255,255,255,1)"}
+{"kind":"shape","id":"sh/cnalgfel","slideIndex":10,"position":{"left":0,"top":0,"width":1280,"height":12},"geometry":"rect","fillColor":"#1F4E79","lineWidth":0}
+{"kind":"shape","id":"sh/bmh4nadg","slideIndex":10,"position":{"left":60,"top":139,"width":1160,"height":2},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/al83epwv","slideIndex":10,"position":{"left":58,"top":174,"width":561,"height":442},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/pkzmlkva","slideIndex":10,"position":{"left":659,"top":174,"width":561,"height":442},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/8fu5ozet","slideIndex":10,"position":{"left":0,"top":665,"width":1280,"height":55},"geometry":"rect","fillColor":"#F8FAFD","lineWidth":0}
+{"kind":"shape","id":"sh/ytgrid8n","slideIndex":10,"position":{"left":60,"top":665,"width":1160,"height":1},"geometry":"rect","fillColor":"#D7E1EC","lineWidth":0}
+{"kind":"image","id":"im/5wz65kzq","slideIndex":10,"position":{"left":60,"top":32,"width":300,"height":24},"fit":"contain","name":"","alt":"相关工作"}
+{"kind":"image","id":"im/i98nu5gz","slideIndex":10,"position":{"left":78,"top":190,"width":520,"height":40},"fit":"contain","name":"","alt":"CatDT｜异相催化数字孪生"}
+{"kind":"image","id":"im/3aho3ahk","slideIndex":10,"position":{"left":73,"top":237,"width":528,"height":285},"fit":"contain","name":"","alt":"CatDT论文Fig. 1异相催化数字孪生图"}
+{"kind":"image","id":"im/sza50fyh","slideIndex":10,"position":{"left":674,"top":237,"width":528,"height":285},"fit":"contain","name":"","alt":"ARCHE预印本Fig. 1系统架构图"}
+{"kind":"image","id":"im/03eh8ryl","slideIndex":10,"position":{"left":679,"top":190,"width":520,"height":40},"fit":"contain","name":"","alt":"ARCHE｜机理假设与计算验证闭环"}
+{"kind":"image","id":"im/f25gz6x0","slideIndex":10,"position":{"left":60,"top":63,"width":1160,"height":68},"fit":"contain","name":"","alt":"论文原图对照：CatDT 与 ARCHE 面向不同的机理研究对象"}
+{"kind":"image","id":"im/e1wz61gv","slideIndex":10,"position":{"left":79,"top":538,"width":520,"height":52},"fit":"contain","name":"","alt":"论文展示：表面状态、路径、TS 与动力学联动。"}
+{"kind":"image","id":"im/ps7i5gfi","slideIndex":10,"position":{"left":679,"top":538,"width":520,"height":52},"fit":"contain","name":"","alt":"论文展示：假设提出、工具执行与证据反馈。"}
+{"kind":"image","id":"im/oryhcbex","slideIndex":10,"position":{"left":1162,"top":674,"width":58,"height":29},"fit":"contain","name":"","alt":"11"}
+{"kind":"image","id":"im/n6p036xc","slideIndex":10,"position":{"left":60,"top":674,"width":1100,"height":29},"fit":"contain","name":"","alt":"论文图源｜左图：Song et al., CatDT 2026, Fig. 1；右图：Li et al., ARCHE 2026, Fig. 1"}
+{"kind":"notes","id":"nt/kaxkyf","slideIndex":10,"text":"两幅图均取自各自原始预印本，分别说明论文研究对象与系统结构。它们是有力的相关工作，不应被表述为缺乏验证。\n\n参考文献 / 图源：\nhttps://arxiv.org/abs/2606.05050\nhttps://arxiv.org/abs/2609.11147"}
+{"kind":"slide","id":"sl/nv1jrq","slideIndex":11,"layout":{"id":"ly/jexcjy98","name":"Title Slide"},"title":"Slide 12","textShapes":0,"backgroundColor":"rgba(255,255,255,1)"}
+{"kind":"shape","id":"sh/0rm9sryt","slideIndex":11,"position":{"left":0,"top":0,"width":1280,"height":12},"geometry":"rect","fillColor":"#1F4E79","lineWidth":0}
+{"kind":"shape","id":"sh/zqdsjmh8","slideIndex":11,"position":{"left":60,"top":139,"width":1160,"height":2},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/yp4rq1gn","slideIndex":11,"position":{"left":70,"top":185,"width":1139,"height":112},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/dovahwz2","slideIndex":11,"position":{"left":70,"top":317,"width":1139,"height":112},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/cnm9oryh","slideIndex":11,"position":{"left":70,"top":449,"width":1139,"height":112},"geometry":"roundRect","fillColor":"#FFF8EB","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/bmdsfmhw","slideIndex":11,"position":{"left":0,"top":665,"width":1280,"height":55},"geometry":"rect","fillColor":"#F8FAFD","lineWidth":0}
+{"kind":"shape","id":"sh/ql4rmhgr","slideIndex":11,"position":{"left":60,"top":665,"width":1160,"height":1},"geometry":"rect","fillColor":"#D7E1EC","lineWidth":0}
+{"kind":"image","id":"im/83a10z2h","slideIndex":11,"position":{"left":60,"top":32,"width":300,"height":24},"fit":"contain","name":"","alt":"研究定位"}
+{"kind":"image","id":"im/94j2t4jm","slideIndex":11,"position":{"left":95,"top":205,"width":240,"height":65},"fit":"contain","name":"","alt":"现有基础"}
+{"kind":"image","id":"im/d4juxone","slideIndex":11,"position":{"left":60,"top":63,"width":1160,"height":68},"fit":"contain","name":"","alt":"本项目切入点：让轴手性机理的建模与证据可追溯、可复核"}
+{"kind":"image","id":"im/s3ad4j6t","slideIndex":11,"position":{"left":345,"top":200,"width":830,"height":78},"fit":"contain","name":"","alt":"自动化搜索、工具编排和多代理机理研究已有实证。"}
+{"kind":"image","id":"im/r2hcvep8","slideIndex":11,"position":{"left":95,"top":337,"width":240,"height":65},"fit":"contain","name":"","alt":"待检验的研究问题"}
+{"kind":"image","id":"im/q18v2ton","slideIndex":11,"position":{"left":95,"top":469,"width":240,"height":65},"fit":"contain","name":"","alt":"本项目拟验证"}
+{"kind":"image","id":"im/1sju18na","slideIndex":11,"position":{"left":1162,"top":674,"width":58,"height":29},"fit":"contain","name":"","alt":"12"}
+{"kind":"image","id":"im/0rad836p","slideIndex":11,"position":{"left":345,"top":332,"width":830,"height":78},"fit":"contain","name":"","alt":"如何显式记录轴构型，并从构象集合中找到有化学意义的反应姿态？"}
+{"kind":"image","id":"im/fq1czy54","slideIndex":11,"position":{"left":345,"top":464,"width":830,"height":78},"fit":"contain","name":"","alt":"用明确任务集比较路径覆盖、证据闭合与计算成本；不预设优于所有现有系统。"}
+{"kind":"image","id":"im/epsv6toz","slideIndex":11,"position":{"left":60,"top":674,"width":1100,"height":29},"fit":"contain","name":"","alt":"文献依据｜研究依据：Young 2021；Song 2026；Li 2026；轴手性实例见 Zhang & Yang 2026"}
+{"kind":"notes","id":"nt/nv1jrq","slideIndex":11,"text":"Cloudra在本页才首次作为本项目研究方案提出。普通二维连接图不能自动给出轴构型及反应姿态；现有软件可在明确标记时编码部分阻转异构体。Cloudra性能需后续实验验证。\n\n参考文献 / 图源：\nhttps://doi.org/10.1002/anie.202011941\nhttps://arxiv.org/abs/2606.05050\nhttps://arxiv.org/abs/2609.11147\nhttps://doi.org/10.1002/cjoc.70691\nhttps://www.rdkit.org/docs/RDKit_Book.html#atropisomeric-bonds"}
+{"kind":"slide","id":"sl/bouiva","slideIndex":12,"layout":{"id":"ly/jexcjy98","name":"Title Slide"},"title":"Slide 13","textShapes":0,"backgroundColor":"rgba(255,255,255,1)"}
+{"kind":"shape","id":"sh/61o76hob","slideIndex":12,"position":{"left":0,"top":0,"width":1280,"height":12},"geometry":"rect","fillColor":"#1F4E79","lineWidth":0}
+{"kind":"shape","id":"sh/tozq1w72","slideIndex":12,"position":{"left":60,"top":139,"width":1160,"height":2},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/ixo72xof","slideIndex":12,"position":{"left":70,"top":568,"width":1140,"height":68},"geometry":"roundRect","fillColor":"#EEF4FB","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/50f6xc7q","slideIndex":12,"position":{"left":0,"top":665,"width":1280,"height":55},"geometry":"rect","fillColor":"#F8FAFD","lineWidth":0}
+{"kind":"shape","id":"sh/kz6p4765","slideIndex":12,"position":{"left":60,"top":665,"width":1160,"height":1},"geometry":"rect","fillColor":"#D7E1EC","lineWidth":0}
+{"kind":"image","id":"im/5sbepk3i","slideIndex":12,"position":{"left":60,"top":32,"width":300,"height":24},"fit":"contain","name":"","alt":"研究方案"}
+{"kind":"image","id":"im/6t4fip43","slideIndex":12,"position":{"left":65,"top":192,"width":1145,"height":355},"fit":"contain","name":"","alt":"Cloudra生成选择规划执行验证恢复流程"}
+{"kind":"image","id":"im/ux4fmp4z","slideIndex":12,"position":{"left":1162,"top":674,"width":58,"height":29},"fit":"contain","name":"","alt":"13"}
+{"kind":"image","id":"im/fydwvulk","slideIndex":12,"position":{"left":60,"top":674,"width":1100,"height":29},"fit":"contain","name":"","alt":"方案与依据｜Cloudra 原型设计（内部）；相关背景：ChemGraph 2025；CatDT 2026"}
+{"kind":"image","id":"im/futcf210","slideIndex":12,"position":{"left":60,"top":63,"width":1160,"height":68},"fit":"contain","name":"","alt":"Cloudra 的设计：模型做选择与异常处理，计算和验收走确定性工具"}
+{"kind":"image","id":"im/etkvmxkf","slideIndex":12,"position":{"left":92,"top":578,"width":1100,"height":49},"fit":"contain","name":"","alt":"研究假设：把机理状态与证据留在可查询的图和日志中，可减少对单次模型上下文的依赖。"}
+{"kind":"notes","id":"nt/bouiva","slideIndex":12,"text":"这里是系统设计与待检验假设，不应表述为已经完成的跨项目性能结论。\n\n参考文献 / 图源：\nhttps://doi.org/10.1038/s42004-025-01776-9\nhttps://arxiv.org/abs/2606.05050\nCloudra 系统原型与项目申请书（内部）"}
+{"kind":"slide","id":"sl/ves74a","slideIndex":13,"layout":{"id":"ly/jexcjy98","name":"Title Slide"},"title":"Slide 14","textShapes":0,"backgroundColor":"rgba(255,255,255,1)"}
+{"kind":"shape","id":"sh/6d83exo7","slideIndex":13,"position":{"left":0,"top":0,"width":1280,"height":12},"geometry":"rect","fillColor":"#1F4E79","lineWidth":0}
+{"kind":"shape","id":"sh/t0zmpcny","slideIndex":13,"position":{"left":60,"top":139,"width":1160,"height":2},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/u183iho3","slideIndex":13,"position":{"left":817,"top":184,"width":390,"height":102},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/h4jmtcnu","slideIndex":13,"position":{"left":817,"top":184,"width":5,"height":102},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/g3a5k769","slideIndex":13,"position":{"left":817,"top":309,"width":390,"height":102},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/v6x4fi5k","slideIndex":13,"position":{"left":817,"top":309,"width":5,"height":102},"geometry":"rect","fillColor":"#2564A8","lineWidth":0}
+{"kind":"shape","id":"sh/a5o36doz","slideIndex":13,"position":{"left":817,"top":434,"width":390,"height":102},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/4vmlcve9","slideIndex":13,"position":{"left":817,"top":434,"width":5,"height":102},"geometry":"rect","fillColor":"#2564A8","lineWidth":0}
+{"kind":"shape","id":"sh/pwvm50fu","slideIndex":13,"position":{"left":0,"top":665,"width":1280,"height":55},"geometry":"rect","fillColor":"#F8FAFD","lineWidth":0}
+{"kind":"shape","id":"sh/2tk3alwj","slideIndex":13,"position":{"left":60,"top":665,"width":1160,"height":1},"geometry":"rect","fillColor":"#D7E1EC","lineWidth":0}
+{"kind":"image","id":"im/5ovulwf2","slideIndex":13,"position":{"left":60,"top":32,"width":300,"height":24},"fit":"contain","name":"","alt":"研究方案"}
+{"kind":"image","id":"im/uhkbmhgf","slideIndex":13,"position":{"left":65,"top":175,"width":730,"height":430},"fit":"contain","name":"","alt":"Cloudra机理图和多代理闭环示意"}
+{"kind":"image","id":"im/o3e9k72d","slideIndex":13,"position":{"left":60,"top":63,"width":1160,"height":68},"fit":"contain","name":"","alt":"机理图承担“科学状态”：物种、路径、能量与证据绑定"}
+{"kind":"image","id":"im/b6p8fml4","slideIndex":13,"position":{"left":837,"top":196,"width":355,"height":30},"fit":"contain","name":"","alt":"可追溯"}
+{"kind":"image","id":"im/q5grmhkj","slideIndex":13,"position":{"left":837,"top":321,"width":355,"height":30},"fit":"contain","name":"","alt":"可比较"}
+{"kind":"image","id":"im/d87ahc3a","slideIndex":13,"position":{"left":837,"top":229,"width":355,"height":46},"fit":"contain","name":"","alt":"每个节点与边保留计算来源、方法、几何与验证状态。"}
+{"kind":"image","id":"im/c7y9o72p","slideIndex":13,"position":{"left":837,"top":354,"width":355,"height":46},"fit":"contain","name":"","alt":"竞争路径和构象并存；失败记录不直接写成结论。"}
+{"kind":"image","id":"im/zupsjml0","slideIndex":13,"position":{"left":837,"top":446,"width":355,"height":30},"fit":"contain","name":"","alt":"可恢复"}
+{"kind":"image","id":"im/y9grqhkf","slideIndex":13,"position":{"left":1162,"top":674,"width":58,"height":29},"fit":"contain","name":"","alt":"14"}
+{"kind":"image","id":"im/upkbil4n","slideIndex":13,"position":{"left":837,"top":479,"width":355,"height":46},"fit":"contain","name":"","alt":"状态保存在系统中，后续任务可从已验证证据继续。"}
+{"kind":"image","id":"im/vqtcrq58","slideIndex":13,"position":{"left":60,"top":674,"width":1100,"height":29},"fit":"contain","name":"","alt":"方案与依据｜Cloudra 原型设计（内部）；相关背景：AutoMeKin 2021；ARCHE 2026"}
+{"kind":"notes","id":"nt/ves74a","slideIndex":13,"text":"这些是Cloudra设计目标及原型架构。AutoMeKin和ARCHE是有关反应网络与机理闭环的先例，不应说它们没有状态管理。\n\n参考文献 / 图源：\nhttps://doi.org/10.1002/jcc.26734\nhttps://arxiv.org/abs/2609.11147\nCloudra 系统原型（内部）"}
+{"kind":"slide","id":"sl/bkitpd","slideIndex":14,"layout":{"id":"ly/jexcjy98","name":"Title Slide"},"title":"Slide 15","textShapes":0,"backgroundColor":"rgba(255,255,255,1)"}
+{"kind":"shape","id":"sh/ozmhwrql","slideIndex":14,"position":{"left":0,"top":0,"width":1280,"height":12},"geometry":"rect","fillColor":"#1F4E79","lineWidth":0}
+{"kind":"shape","id":"sh/3yd03mp0","slideIndex":14,"position":{"left":60,"top":139,"width":1160,"height":2},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/2x4zuh8v","slideIndex":14,"position":{"left":62,"top":183,"width":373,"height":346},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/d4fi9g7i","slideIndex":14,"position":{"left":62,"top":183,"width":373,"height":72},"geometry":"rect","fillColor":"#2564A8","lineWidth":0}
+{"kind":"shape","id":"sh/c36h0bqx","slideIndex":14,"position":{"left":460,"top":183,"width":373,"height":346},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/b2x076pc","slideIndex":14,"position":{"left":460,"top":183,"width":373,"height":72},"geometry":"rect","fillColor":"#2564A8","lineWidth":0}
+{"kind":"shape","id":"sh/q1ozy18r","slideIndex":14,"position":{"left":858,"top":183,"width":373,"height":346},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/lsfidg7e","slideIndex":14,"position":{"left":858,"top":183,"width":373,"height":72},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/0r6h4bqt","slideIndex":14,"position":{"left":65,"top":558,"width":1148,"height":76},"geometry":"roundRect","fillColor":"#FFF8EB","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/i943qd4b","slideIndex":14,"position":{"left":0,"top":665,"width":1280,"height":55},"geometry":"rect","fillColor":"#F8FAFD","lineWidth":0}
+{"kind":"shape","id":"sh/jadkji5w","slideIndex":14,"position":{"left":60,"top":665,"width":1160,"height":1},"geometry":"rect","fillColor":"#D7E1EC","lineWidth":0}
+{"kind":"image","id":"im/rm58f65w","slideIndex":14,"position":{"left":60,"top":32,"width":300,"height":24},"fit":"contain","name":"","alt":"方法学"}
+{"kind":"image","id":"im/qlwrm14b","slideIndex":14,"position":{"left":82,"top":196,"width":333,"height":45},"fit":"contain","name":"","alt":"01 计算层"}
+{"kind":"image","id":"im/1s7qlgny","slideIndex":14,"position":{"left":84,"top":276,"width":329,"height":102},"fit":"contain","name":"","alt":"程序正常结束、产物文件完整"}
+{"kind":"image","id":"im/0ry9sbmd","slideIndex":14,"position":{"left":84,"top":407,"width":329,"height":76},"fit":"contain","name":"","alt":"只能说明作业执行完成"}
+{"kind":"image","id":"im/fqp8j658","slideIndex":14,"position":{"left":60,"top":63,"width":1160,"height":68},"fit":"contain","name":"","alt":"计算终止、驻点类型与目标路径是三层不同的判断"}
+{"kind":"image","id":"im/epwrq14n","slideIndex":14,"position":{"left":480,"top":196,"width":333,"height":45},"fit":"contain","name":"","alt":"02 驻点层"}
+{"kind":"image","id":"im/hw3q9cnu","slideIndex":14,"position":{"left":482,"top":276,"width":329,"height":102},"fit":"contain","name":"","alt":"极小值零虚频；TS 一阶鞍点"}
+{"kind":"image","id":"im/wvupg7m9","slideIndex":14,"position":{"left":878,"top":196,"width":333,"height":45},"fit":"contain","name":"","alt":"03 机理层"}
+{"kind":"image","id":"im/8zy9wru5","slideIndex":14,"position":{"left":482,"top":407,"width":329,"height":76},"fit":"contain","name":"","alt":"确认局部势能面类型"}
+{"kind":"image","id":"im/907qpcvq","slideIndex":14,"position":{"left":880,"top":276,"width":329,"height":102},"fit":"contain","name":"","alt":"核查 IRC 方向与端点身份"}
+{"kind":"image","id":"im/mxgruhcz","slideIndex":14,"position":{"left":880,"top":407,"width":329,"height":76},"fit":"contain","name":"","alt":"确认是否支持目标反应边"}
+{"kind":"image","id":"im/nyp8nmdk","slideIndex":14,"position":{"left":1162,"top":674,"width":58,"height":29},"fit":"contain","name":"","alt":"15"}
+{"kind":"image","id":"im/w3y90ru1","slideIndex":14,"position":{"left":60,"top":674,"width":1100,"height":29},"fit":"contain","name":"","alt":"文献依据｜Fukui 1970；Maeda et al. 2015；Young et al. 2021"}
+{"kind":"image","id":"im/x4rqtwvm","slideIndex":14,"position":{"left":88,"top":572,"width":1105,"height":48},"fit":"contain","name":"","alt":"严格验证的研究目标：不把“优化收敛＋一个虚频”直接等同于目标反应已被证明。"}
+{"kind":"notes","id":"nt/bkitpd","slideIndex":14,"text":"原稿P12的演示截图尚未提供，本版以方法学证据链替代占位。IRC用于核查路径方向；具体准入阈值以研究方案和实验设置为准，不能暗示所有工作流都必须双侧端点重优化。\n\n参考文献 / 图源：\nhttps://doi.org/10.1021/j100717a029\nhttps://doi.org/10.1002/qua.24757\nhttps://doi.org/10.1002/anie.202011941"}
+{"kind":"slide","id":"sl/f4rgeh","slideIndex":15,"layout":{"id":"ly/jexcjy98","name":"Title Slide"},"title":"Slide 16","textShapes":0,"backgroundColor":"rgba(255,255,255,1)"}
+{"kind":"shape","id":"sh/a5wbq94f","slideIndex":15,"position":{"left":0,"top":0,"width":1280,"height":12},"geometry":"rect","fillColor":"#1F4E79","lineWidth":0}
+{"kind":"shape","id":"sh/x8na1onq","slideIndex":15,"position":{"left":60,"top":139,"width":1160,"height":2},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/i9wbut4b","slideIndex":15,"position":{"left":772,"top":187,"width":438,"height":102},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/5c7u58n2","slideIndex":15,"position":{"left":772,"top":187,"width":5,"height":102},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/kbytw3mh","slideIndex":15,"position":{"left":772,"top":319,"width":438,"height":102},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/7epc7y5s","slideIndex":15,"position":{"left":772,"top":319,"width":5,"height":102},"geometry":"rect","fillColor":"#2564A8","lineWidth":0}
+{"kind":"shape","id":"sh/6dgbyd47","slideIndex":15,"position":{"left":772,"top":451,"width":438,"height":102},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/0vetwjed","slideIndex":15,"position":{"left":772,"top":451,"width":5,"height":102},"geometry":"rect","fillColor":"#2564A8","lineWidth":0}
+{"kind":"shape","id":"sh/lwnu5ovy","slideIndex":15,"position":{"left":0,"top":665,"width":1280,"height":55},"geometry":"rect","fillColor":"#F8FAFD","lineWidth":0}
+{"kind":"shape","id":"sh/etcbu9w7","slideIndex":15,"position":{"left":60,"top":665,"width":1160,"height":1},"geometry":"rect","fillColor":"#D7E1EC","lineWidth":0}
+{"kind":"image","id":"im/h83m9kz2","slideIndex":15,"position":{"left":60,"top":32,"width":300,"height":24},"fit":"contain","name":"","alt":"研究对象"}
+{"kind":"image","id":"im/6hc3u5gf","slideIndex":15,"position":{"left":65,"top":189,"width":680,"height":420},"fit":"contain","name":"","alt":"张与杨等2026年N-N轴手性论文图示"}
+{"kind":"image","id":"im/wjylwjy1","slideIndex":15,"position":{"left":792,"top":199,"width":403,"height":30},"fit":"contain","name":"","alt":"已有研究基础"}
+{"kind":"image","id":"im/jmpkryxs","slideIndex":15,"position":{"left":792,"top":331,"width":403,"height":30},"fit":"contain","name":"","alt":"关键机理变量"}
+{"kind":"image","id":"im/ylg3ytg7","slideIndex":15,"position":{"left":792,"top":232,"width":403,"height":46},"fit":"contain","name":"","alt":"申请人共同一作论文报道了金字塔化 N–N 阻转异构体的有机催化对映选择性构建。"}
+{"kind":"image","id":"im/lo72tofy","slideIndex":15,"position":{"left":60,"top":63,"width":1160,"height":68},"fit":"contain","name":"","alt":"已有 N–N 轴手性研究显示构型与构象的复杂耦合"}
+{"kind":"image","id":"im/knyl03yd","slideIndex":15,"position":{"left":792,"top":463,"width":403,"height":30},"fit":"contain","name":"","alt":"研究延伸"}
+{"kind":"image","id":"im/zq5kfuho","slideIndex":15,"position":{"left":792,"top":364,"width":403,"height":46},"fit":"contain","name":"","alt":"需要区分轴旋转与氮反转等构型转化通道，比较其相对能垒。"}
+{"kind":"image","id":"im/epcjmpg3","slideIndex":15,"position":{"left":1162,"top":674,"width":58,"height":29},"fit":"contain","name":"","alt":"16"}
+{"kind":"image","id":"im/ilknux0r","slideIndex":15,"position":{"left":792,"top":496,"width":403,"height":46},"fit":"contain","name":"","alt":"本项目把这类三维构象与TS竞争作为自主机理探索的压力测试。"}
+{"kind":"image","id":"im/3mto32hc","slideIndex":15,"position":{"left":60,"top":674,"width":1100,"height":29},"fit":"contain","name":"","alt":"文献依据｜Zhang, Yang et al., Chin. J. Chem. 2026, 44, 3033–3042；图源：该论文 TOC"}
+{"kind":"notes","id":"nt/f4rgeh","slideIndex":15,"text":"原P13的29.8与2.6 kcal/mol数字需从正文或支持信息逐项核对后再用于正式答辩。本版暂不展示未经单独核验的具体数值。图源为论文TOC。\n\n参考文献 / 图源：\nhttps://doi.org/10.1002/cjoc.70691"}
+{"kind":"slide","id":"sl/pu6asn","slideIndex":16,"layout":{"id":"ly/jexcjy98","name":"Title Slide"},"title":"Slide 17","textShapes":0,"backgroundColor":"rgba(255,255,255,1)"}
+{"kind":"shape","id":"sh/r6lovu9g","slideIndex":16,"position":{"left":0,"top":0,"width":1280,"height":12},"geometry":"rect","fillColor":"#1F4E79","lineWidth":0}
+{"kind":"shape","id":"sh/c7e5oza1","slideIndex":16,"position":{"left":60,"top":139,"width":1160,"height":2},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/32loru94","slideIndex":16,"position":{"left":772,"top":178,"width":437,"height":102},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/43u5kfap","slideIndex":16,"position":{"left":772,"top":178,"width":5,"height":102},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/p436tkra","slideIndex":16,"position":{"left":772,"top":302,"width":437,"height":102},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/udsnu5sn","slideIndex":16,"position":{"left":772,"top":302,"width":5,"height":102},"geometry":"rect","fillColor":"#2564A8","lineWidth":0}
+{"kind":"shape","id":"sh/fe1ona98","slideIndex":16,"position":{"left":772,"top":426,"width":437,"height":102},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/nypsfalw","slideIndex":16,"position":{"left":772,"top":426,"width":5,"height":102},"geometry":"rect","fillColor":"#2564A8","lineWidth":0}
+{"kind":"shape","id":"sh/mxgrm54b","slideIndex":16,"position":{"left":0,"top":665,"width":1280,"height":55},"geometry":"rect","fillColor":"#F8FAFD","lineWidth":0}
+{"kind":"shape","id":"sh/907ahk32","slideIndex":16,"position":{"left":60,"top":665,"width":1160,"height":1},"geometry":"rect","fillColor":"#D7E1EC","lineWidth":0}
+{"kind":"image","id":"im/8r6h4nqp","slideIndex":16,"position":{"left":60,"top":32,"width":300,"height":24},"fit":"contain","name":"","alt":"科学问题"}
+{"kind":"image","id":"im/vexgz2p0","slideIndex":16,"position":{"left":60,"top":178,"width":687,"height":420},"fit":"contain","name":"","alt":"中心手性与轴手性示意"}
+{"kind":"image","id":"im/relk3m5s","slideIndex":16,"position":{"left":792,"top":190,"width":402,"height":30},"fit":"contain","name":"","alt":"中心手性"}
+{"kind":"image","id":"im/03ul0b69","slideIndex":16,"position":{"left":792,"top":223,"width":402,"height":46},"fit":"contain","name":"","alt":"常规分子表示可在局部原子上附加四面体手性标记。"}
+{"kind":"image","id":"im/14329wnu","slideIndex":16,"position":{"left":60,"top":63,"width":1160,"height":68},"fit":"contain","name":"","alt":"第一难关：二维连接图不足以自动确定轴构型"}
+{"kind":"image","id":"im/ehc3y1oj","slideIndex":16,"position":{"left":792,"top":314,"width":402,"height":30},"fit":"contain","name":"","alt":"轴手性"}
+{"kind":"image","id":"im/z2lk765o","slideIndex":16,"position":{"left":792,"top":438,"width":402,"height":30},"fit":"contain","name":"","alt":"可编码 ≠ 可判定"}
+{"kind":"image","id":"im/o7el4b6l","slideIndex":16,"position":{"left":792,"top":347,"width":402,"height":46},"fit":"contain","name":"","alt":"同一连接关系可对应两种轴构型；须显式标记手性轴或核查三维几何。"}
+{"kind":"image","id":"im/98n2dgn6","slideIndex":16,"position":{"left":1162,"top":674,"width":58,"height":29},"fit":"contain","name":"","alt":"17"}
+{"kind":"image","id":"im/xoj2hgfa","slideIndex":16,"position":{"left":792,"top":471,"width":402,"height":46},"fit":"contain","name":"","alt":"RDKit 能记录部分阻转异构体，但不会仅由标记判断旋转是否真正受阻。"}
+{"kind":"image","id":"im/wnalobyp","slideIndex":16,"position":{"left":60,"top":674,"width":1100,"height":29},"fit":"contain","name":"","alt":"文献依据｜RDKit Book, “Atropisomeric Bonds”；Zhang, Yang et al., Chin. J. Chem. 2026"}
+{"kind":"notes","id":"nt/pu6asn","slideIndex":16,"text":"核心论断要避免绝对化：轴手性不是不能用化学信息学表示，而是普通二维连接图不足以直接给出构型、构型稳定性或反应姿态。RDKit支持Mol/MRV/CXSMILES中的轴手性标记，但文档明确不自动判断真实的旋转受阻。申请人论文中的金字塔化N–N体系展示了轴旋转与氮中心构型判别的复杂性。\n\n参考文献 / 图源：\nhttps://www.rdkit.org/docs/RDKit_Book.html#atropisomeric-bonds\nhttps://doi.org/10.1002/cjoc.70691"}
+{"kind":"slide","id":"sl/7g9uux","slideIndex":17,"layout":{"id":"ly/jexcjy98","name":"Title Slide"},"title":"Slide 18","textShapes":0,"backgroundColor":"rgba(255,255,255,1)"}
+{"kind":"shape","id":"sh/l4r65gn6","slideIndex":17,"position":{"left":0,"top":0,"width":1280,"height":12},"geometry":"rect","fillColor":"#1F4E79","lineWidth":0}
+{"kind":"shape","id":"sh/yhgnu14f","slideIndex":17,"position":{"left":60,"top":139,"width":1160,"height":2},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/98r690n2","slideIndex":17,"position":{"left":791,"top":183,"width":420,"height":102},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/m50nyl4r","slideIndex":17,"position":{"left":791,"top":183,"width":5,"height":102},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/769o7q5c","slideIndex":17,"position":{"left":791,"top":310,"width":420,"height":102},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/obe5or6d","slideIndex":17,"position":{"left":791,"top":310,"width":5,"height":102},"geometry":"rect","fillColor":"#2564A8","lineWidth":0}
+{"kind":"shape","id":"sh/pcnmxwny","slideIndex":17,"position":{"left":791,"top":437,"width":420,"height":102},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/1wzalw32","slideIndex":17,"position":{"left":791,"top":437,"width":5,"height":102},"geometry":"rect","fillColor":"#2564A8","lineWidth":0}
+{"kind":"shape","id":"sh/0vqtsr2h","slideIndex":17,"position":{"left":0,"top":665,"width":1280,"height":55},"geometry":"rect","fillColor":"#F8FAFD","lineWidth":0}
+{"kind":"shape","id":"sh/zuhsjmlw","slideIndex":17,"position":{"left":60,"top":665,"width":1160,"height":1},"geometry":"rect","fillColor":"#D7E1EC","lineWidth":0}
+{"kind":"image","id":"im/qdoz6lgf","slideIndex":17,"position":{"left":60,"top":32,"width":300,"height":24},"fit":"contain","name":"","alt":"科学问题"}
+{"kind":"image","id":"im/1kzilkf2","slideIndex":17,"position":{"left":67,"top":181,"width":691,"height":430},"fit":"contain","name":"","alt":"构象与反应坐标耦合势能面示意"}
+{"kind":"image","id":"im/hwbmp0vi","slideIndex":17,"position":{"left":811,"top":195,"width":385,"height":30},"fit":"contain","name":"","alt":"不是只找最低构象"}
+{"kind":"image","id":"im/2xk3y5w3","slideIndex":17,"position":{"left":811,"top":322,"width":385,"height":30},"fit":"contain","name":"","alt":"需要化学假设"}
+{"kind":"image","id":"im/3yt4rado","slideIndex":17,"position":{"left":811,"top":228,"width":385,"height":46},"fit":"contain","name":"","alt":"低能静态构象未必就是进入低能反应通道的姿态。"}
+{"kind":"image","id":"im/4z2l0fe9","slideIndex":17,"position":{"left":60,"top":63,"width":1160,"height":68},"fit":"contain","name":"","alt":"第二难关：构象决定反应姿态与可达的竞争过渡态"}
+{"kind":"image","id":"im/p0bmtkvu","slideIndex":17,"position":{"left":811,"top":449,"width":385,"height":30},"fit":"contain","name":"","alt":"压测点"}
+{"kind":"image","id":"im/i1g3mlwz","slideIndex":17,"position":{"left":811,"top":355,"width":385,"height":46},"fit":"contain","name":"","alt":"催化剂—底物取向、进攻面与质子转移路径需被提出并筛选。"}
+{"kind":"image","id":"im/j29kvqdk","slideIndex":17,"position":{"left":1162,"top":674,"width":58,"height":29},"fit":"contain","name":"","alt":"18"}
+{"kind":"image","id":"im/nuls7ip0","slideIndex":17,"position":{"left":811,"top":482,"width":385,"height":46},"fit":"contain","name":"","alt":"漏掉关键构象或反应姿态，就可能漏掉决定选择性的 TS。"}
+{"kind":"image","id":"im/mtcred8f","slideIndex":17,"position":{"left":60,"top":674,"width":1100,"height":29},"fit":"contain","name":"","alt":"文献依据｜Houk et al., Science 1986；Hansen et al., Acc. Chem. Res. 2016；Zhang & Yang 2026"}
+{"kind":"notes","id":"nt/7g9uux","slideIndex":17,"text":"Houk等讨论了立体选择性反应过渡态的构象分析。Q2MM综述明确指出准确预测选择性需要充分采样决定选择性的过渡态。这里的“化学直觉”具体指提出值得计算的结合方式、进攻方向和转移路径；研究目标是将其显式化并用物理证据筛选。\n\n参考文献 / 图源：\nhttps://doi.org/10.1126/science.3945819\nhttps://doi.org/10.1021/acs.accounts.6b00037\nhttps://doi.org/10.1002/cjoc.70691"}
+{"kind":"slide","id":"sl/e5whtq","slideIndex":18,"layout":{"id":"ly/jexcjy98","name":"Title Slide"},"title":"Slide 19","textShapes":0,"backgroundColor":"rgba(255,255,255,1)"}
+{"kind":"shape","id":"sh/kf2tozmd","slideIndex":18,"position":{"left":0,"top":0,"width":1280,"height":12},"geometry":"rect","fillColor":"#1F4E79","lineWidth":0}
+{"kind":"shape","id":"sh/zetsvu5s","slideIndex":18,"position":{"left":60,"top":139,"width":1160,"height":2},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/ydkbmp4n","slideIndex":18,"position":{"left":62,"top":190,"width":374,"height":375},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/xcratkn2","slideIndex":18,"position":{"left":82,"top":210,"width":58,"height":58},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/cbitkfmh","slideIndex":18,"position":{"left":459,"top":190,"width":374,"height":375},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/ba9sra5w","slideIndex":18,"position":{"left":479,"top":210,"width":58,"height":58},"geometry":"rect","fillColor":"#2564A8","lineWidth":0}
+{"kind":"shape","id":"sh/a90bi54b","slideIndex":18,"position":{"left":856,"top":190,"width":374,"height":375},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/p8rap0nq","slideIndex":18,"position":{"left":876,"top":210,"width":58,"height":58},"geometry":"rect","fillColor":"#2564A8","lineWidth":0}
+{"kind":"shape","id":"sh/onitgf65","slideIndex":18,"position":{"left":63,"top":588,"width":1147,"height":50},"geometry":"roundRect","fillColor":"#FFF8EB","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/adcjelsb","slideIndex":18,"position":{"left":0,"top":665,"width":1280,"height":55},"geometry":"rect","fillColor":"#F8FAFD","lineWidth":0}
+{"kind":"shape","id":"sh/velknq9w","slideIndex":18,"position":{"left":60,"top":665,"width":1160,"height":1},"geometry":"rect","fillColor":"#D7E1EC","lineWidth":0}
+{"kind":"image","id":"im/7adsny1k","slideIndex":18,"position":{"left":60,"top":32,"width":300,"height":24},"fit":"contain","name":"","alt":"研究计划"}
+{"kind":"image","id":"im/m94rut0z","slideIndex":18,"position":{"left":82,"top":216,"width":58,"height":45},"fit":"contain","name":"","alt":"一"}
+{"kind":"image","id":"im/h0fat8zm","slideIndex":18,"position":{"left":479,"top":216,"width":58,"height":45},"fit":"contain","name":"","alt":"二"}
+{"kind":"image","id":"im/wz6903i1","slideIndex":18,"position":{"left":154,"top":215,"width":250,"height":48},"fit":"contain","name":"","alt":"轴构型建模"}
+{"kind":"image","id":"im/vexsryhg","slideIndex":18,"position":{"left":60,"top":63,"width":1160,"height":68},"fit":"contain","name":"","alt":"研究内容按“立体状态—构象假设—物理验证”递进"}
+{"kind":"image","id":"im/udoryt0v","slideIndex":18,"position":{"left":92,"top":297,"width":315,"height":154},"fit":"contain","name":"","alt":"显式表示手性轴及三维状态；在结构变换后核查构型。"}
+{"kind":"image","id":"im/x4vqhoji","slideIndex":18,"position":{"left":551,"top":215,"width":250,"height":48},"fit":"contain","name":"","alt":"构象与反应姿态"}
+{"kind":"image","id":"im/c329ojix","slideIndex":18,"position":{"left":876,"top":216,"width":58,"height":45},"fit":"contain","name":"","alt":"三"}
+{"kind":"image","id":"im/on694jqt","slideIndex":18,"position":{"left":489,"top":297,"width":315,"height":154},"fit":"contain","name":"","alt":"生成并筛选催化剂—底物取向、进攻面与竞争路径。"}
+{"kind":"image","id":"im/pofadory","slideIndex":18,"position":{"left":948,"top":215,"width":250,"height":48},"fit":"contain","name":"","alt":"TS 证据与选择性"}
+{"kind":"image","id":"im/2lor298n","slideIndex":18,"position":{"left":1162,"top":674,"width":58,"height":29},"fit":"contain","name":"","alt":"19"}
+{"kind":"image","id":"im/3mxsbe98","slideIndex":18,"position":{"left":886,"top":297,"width":315,"height":154},"fit":"contain","name":"","alt":"核查驻点和路径；比较不同通道的能垒与构象贡献。"}
+{"kind":"image","id":"im/crq98jqp","slideIndex":18,"position":{"left":60,"top":674,"width":1100,"height":29},"fit":"contain","name":"","alt":"研究计划｜方法依据：RDKit Book；Hansen 2016；Young 2021；Zhang & Yang 2026"}
+{"kind":"image","id":"im/dszahora","slideIndex":18,"position":{"left":85,"top":594,"width":1100,"height":37},"fit":"contain","name":"","alt":"预期交付：可复核的机理图、计算日志、竞争路径与选择性分析，而非仅有叙述性答案。"}
+{"kind":"notes","id":"nt/e5whtq","slideIndex":18,"text":"三项研究内容按轴构型表征、构象与反应姿态、TS证据与选择性递进。预期交付是研究计划而非完成结果。\n\n参考文献 / 图源：\nhttps://www.rdkit.org/docs/RDKit_Book.html#atropisomeric-bonds\nhttps://doi.org/10.1021/acs.accounts.6b00037\nhttps://doi.org/10.1002/anie.202011941\nhttps://doi.org/10.1002/cjoc.70691\n项目申请书（内部）"}
+{"kind":"slide","id":"sl/cqg70d","slideIndex":19,"layout":{"id":"ly/jexcjy98","name":"Title Slide"},"title":"Slide 20","textShapes":0,"backgroundColor":"rgba(255,255,255,1)"}
+{"kind":"shape","id":"sh/wvytkjqh","slideIndex":19,"position":{"left":0,"top":0,"width":1280,"height":12},"geometry":"rect","fillColor":"#1F4E79","lineWidth":0}
+{"kind":"shape","id":"sh/bupsby9c","slideIndex":19,"position":{"left":60,"top":139,"width":1160,"height":2},"geometry":"rect","fillColor":"#D69325","lineWidth":0}
+{"kind":"shape","id":"sh/atgbit8r","slideIndex":19,"position":{"left":64,"top":160,"width":1150,"height":40},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/9s7a9or6","slideIndex":19,"position":{"left":64,"top":204,"width":1150,"height":40},"geometry":"roundRect","fillColor":"#FFFFFF","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/orytgjql","slideIndex":19,"position":{"left":64,"top":248,"width":1150,"height":40},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/nqps7e90","slideIndex":19,"position":{"left":64,"top":292,"width":1150,"height":40},"geometry":"roundRect","fillColor":"#FFFFFF","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/mpgre98f","slideIndex":19,"position":{"left":64,"top":336,"width":1150,"height":40},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/1o7a54ru","slideIndex":19,"position":{"left":64,"top":380,"width":1150,"height":40},"geometry":"roundRect","fillColor":"#FFFFFF","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/0ne9czqp","slideIndex":19,"position":{"left":64,"top":424,"width":1150,"height":40},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/yh4vuxcr","slideIndex":19,"position":{"left":64,"top":468,"width":1150,"height":40},"geometry":"roundRect","fillColor":"#FFFFFF","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/zidwnitc","slideIndex":19,"position":{"left":64,"top":512,"width":1150,"height":40},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/0jmxwnuh","slideIndex":19,"position":{"left":64,"top":556,"width":1150,"height":40},"geometry":"roundRect","fillColor":"#FFFFFF","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/lkfepsb2","slideIndex":19,"position":{"left":64,"top":600,"width":1150,"height":40},"geometry":"roundRect","fillColor":"#F8FAFD","lineColor":"#D7E1EC","lineWidth":1}
+{"kind":"shape","id":"sh/qd4vqdcf","slideIndex":19,"position":{"left":0,"top":665,"width":1280,"height":55},"geometry":"rect","fillColor":"#F8FAFD","lineWidth":0}
+{"kind":"shape","id":"sh/bedwjid0","slideIndex":19,"position":{"left":60,"top":665,"width":1160,"height":1},"geometry":"rect","fillColor":"#D7E1EC","lineWidth":0}
+{"kind":"image","id":"im/3m1o3yx4","slideIndex":19,"position":{"left":60,"top":32,"width":300,"height":24},"fit":"contain","name":"","alt":"参考文献"}
+{"kind":"image","id":"im/2lsnudgj","slideIndex":19,"position":{"left":79,"top":164,"width":1114,"height":32},"fit":"contain","name":"","alt":"1  Fukui, J. Phys. Chem. 1970, 74, 4161–4163. DOI: 10.1021/j100717a029"}
+{"kind":"image","id":"im/h0j618fe","slideIndex":19,"position":{"left":60,"top":63,"width":1160,"height":68},"fit":"contain","name":"","alt":"主要参考文献与图示来源"}
+{"kind":"image","id":"im/gza5s3yt","slideIndex":19,"position":{"left":79,"top":208,"width":1114,"height":32},"fit":"contain","name":"","alt":"2  Young et al., Angew. Chem. Int. Ed. 2021, 60, 4266–4274. DOI: 10.1002/anie.202011941"}
+{"kind":"image","id":"im/83epo36p","slideIndex":19,"position":{"left":79,"top":252,"width":1114,"height":32},"fit":"contain","name":"","alt":"3  Martínez-Núñez et al., J. Comput. Chem. 2021. DOI: 10.1002/jcc.26734"}
+{"kind":"image","id":"im/t4n6h8nu","slideIndex":19,"position":{"left":79,"top":296,"width":1114,"height":32},"fit":"contain","name":"","alt":"4  Maeda & Morokuma, Acc. Chem. Res. 2016, 49, 763–773. DOI: 10.1021/acs.accounts.6b00023"}
+{"kind":"image","id":"im/61c7mtoj","slideIndex":19,"position":{"left":79,"top":384,"width":1114,"height":32},"fit":"contain","name":"","alt":"6  Zou et al., El Agente Q, arXiv:2505.02484 (2025)."}
+{"kind":"image","id":"im/725ofy54","slideIndex":19,"position":{"left":79,"top":340,"width":1114,"height":32},"fit":"contain","name":"","alt":"5  Bran et al., Nat. Mach. Intell. 2024, 6, 525–535. DOI: 10.1038/s42256-024-00832-8"}
+{"kind":"image","id":"im/kfupk36d","slideIndex":19,"position":{"left":79,"top":428,"width":1114,"height":32},"fit":"contain","name":"","alt":"7  Song et al., CatDT, arXiv:2606.05050 (2026)."}
+{"kind":"image","id":"im/l036dony","slideIndex":19,"position":{"left":79,"top":472,"width":1114,"height":32},"fit":"contain","name":"","alt":"8  Li et al., ARCHE, arXiv:2609.11147 (2026)."}
+{"kind":"image","id":"im/ydc7ito7","slideIndex":19,"position":{"left":79,"top":560,"width":1114,"height":32},"fit":"contain","name":"","alt":"10 RDKit Book, Atropisomeric Bonds, rdkit.org/docs/RDKit_Book.html"}
+{"kind":"image","id":"im/jeloby5s","slideIndex":19,"position":{"left":79,"top":516,"width":1114,"height":32},"fit":"contain","name":"","alt":"9  Zhang, Yang et al., Chin. J. Chem. 2026, 44, 3033–3042. DOI: 10.1002/cjoc.70691"}
+{"kind":"image","id":"im/4bypwn6h","slideIndex":19,"position":{"left":79,"top":604,"width":1114,"height":32},"fit":"contain","name":"","alt":"11 Hansen et al., Acc. Chem. Res. 2016, 49, 996–1005. DOI: 10.1021/acs.accounts.6b00037"}
+{"kind":"image","id":"im/5w7qpsn2","slideIndex":19,"position":{"left":1162,"top":674,"width":58,"height":29},"fit":"contain","name":"","alt":"20"}
+{"kind":"image","id":"im/z2t0bqtg","slideIndex":19,"position":{"left":60,"top":674,"width":1100,"height":29},"fit":"contain","name":"","alt":"文献依据｜完整链接与逐页讲稿见每页演讲者备注；预印本已明确标注"}
+{"kind":"notes","id":"nt/cqg70d","slideIndex":19,"text":"以上为主文献，逐页备注中另列ChemGraph、KinBot、CREST、IRC综述等来源。\n\n参考文献 / 图源：\nhttps://www.rdkit.org/docs/RDKit_Book.html#atropisomeric-bonds\nhttps://doi.org/10.1126/science.3945819\nhttps://doi.org/10.1021/acs.accounts.6b00037\nhttps://doi.org/10.1038/s41586-023-06792-0\nhttps://doi.org/10.1038/s42256-024-00832-8\nhttps://doi.org/10.1002/anie.202011941\nhttps://doi.org/10.1021/acs.accounts.6b00023\nhttps://doi.org/10.1002/jcc.26734\nhttps://doi.org/10.1016/j.cpc.2019.106947\nhttps://doi.org/10.1063/5.0197592\nhttps://doi.org/10.1021/j100717a029\nhttps://doi.org/10.1002/qua.24757\nhttps://arxiv.org/abs/2505.02484\nhttps://arxiv.org/abs/2606.05050\nhttps://arxiv.org/abs/2609.11147\nhttps://doi.org/10.1038/s42004-025-01776-9\nhttps://doi.org/10.1002/cjoc.70691\nhttps://doi.org/10.1039/D4CS00868E\nhttps://rmg.mit.edu/"}

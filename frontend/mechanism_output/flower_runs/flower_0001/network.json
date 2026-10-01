@@ -1,0 +1,48 @@
+{
+  "reactant_input": "CC(=O)C.c1ccccc1C=O",
+  "root": "CC(C)=O.O=Cc1ccccc1",
+  "sample_size": 16,
+  "skipped_edges": 0,
+  "nodes": [
+    "CC(C)=O.O=Cc1ccccc1",
+    "CC(C)=[O+].O=Cc1ccccc1",
+    "CC(C)=[OH+].O=[C]c1ccccc1"
+  ],
+  "edges": [
+    {
+      "reactant": "CC(C)=O.O=Cc1ccccc1",
+      "product": "CC(C)=O.O=Cc1ccccc1",
+      "rank": 0,
+      "count": 8,
+      "probability": 0.5
+    },
+    {
+      "reactant": "CC(C)=[O+].O=Cc1ccccc1",
+      "product": "CC(C)=[OH+].O=[C]c1ccccc1",
+      "rank": 0,
+      "count": 4,
+      "probability": 0.25
+    },
+    {
+      "reactant": "CC(C)=[OH+].O=[C]c1ccccc1",
+      "product": "CC(C)=[OH+].O=[C]c1ccccc1",
+      "rank": 0,
+      "count": 11,
+      "probability": 0.6875
+    },
+    {
+      "reactant": "CC(C)=O.O=Cc1ccccc1",
+      "product": "CC(C)=[O+].O=Cc1ccccc1",
+      "rank": 1,
+      "count": 2,
+      "probability": 0.125
+    },
+    {
+      "reactant": "CC(C)=[O+].O=Cc1ccccc1",
+      "product": "CC(C)=[O+].O=Cc1ccccc1",
+      "rank": 1,
+      "count": 4,
+      "probability": 0.25
+    }
+  ]
+}

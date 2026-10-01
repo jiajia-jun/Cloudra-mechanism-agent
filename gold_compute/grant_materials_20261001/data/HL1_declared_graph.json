@@ -1,0 +1,208 @@
+{
+  "nodes": [
+    {
+      "id": "HL1_R",
+      "role": "reactant",
+      "smiles": [
+        "[OH3+].CC/C(=N/O)/C"
+      ],
+      "accessible": true,
+      "label": "reactant",
+      "properties": {}
+    },
+    {
+      "id": "HL1_TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "accessible": true,
+      "label": "TS1",
+      "properties": {}
+    },
+    {
+      "id": "HL1_I1",
+      "role": "intermediate",
+      "smiles": [
+        "O.CC/C(C)=N/[OH2+]"
+      ],
+      "accessible": true,
+      "label": "intermediate 1",
+      "properties": {}
+    },
+    {
+      "id": "HL1_TS2",
+      "role": "transition_state",
+      "smiles": [],
+      "accessible": true,
+      "label": "TS2",
+      "properties": {}
+    },
+    {
+      "id": "HL1_I2",
+      "role": "intermediate",
+      "smiles": [
+        "O.O.CC#[N+]CC"
+      ],
+      "accessible": true,
+      "label": "intermediate 2",
+      "properties": {}
+    },
+    {
+      "id": "HL1_TS3",
+      "role": "transition_state",
+      "smiles": [],
+      "accessible": true,
+      "label": "TS3",
+      "properties": {}
+    },
+    {
+      "id": "HL1_I3",
+      "role": "intermediate",
+      "smiles": [
+        "CCN=C(C)[OH2+].O"
+      ],
+      "accessible": true,
+      "label": "intermediate 3",
+      "properties": {}
+    },
+    {
+      "id": "HL1_TS4",
+      "role": "transition_state",
+      "smiles": [],
+      "accessible": true,
+      "label": "TS4",
+      "properties": {}
+    },
+    {
+      "id": "HL1_P",
+      "role": "product",
+      "smiles": [
+        "CCNC(C)=[OH+].O"
+      ],
+      "accessible": true,
+      "label": "product",
+      "properties": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "HL1_E1",
+      "from": "HL1_R",
+      "to": "HL1_I1",
+      "via": "HL1_TS1",
+      "step_type": "proton transfer from H3O+ to the oxime OH (leaving-group activation)",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ]
+        ],
+        "form": [
+          [
+            2,
+            7
+          ]
+        ]
+      },
+      "accessible": true,
+      "barrier_kcal_mol": null,
+      "weight": 1.0,
+      "channel": null,
+      "favored": null
+    },
+    {
+      "id": "HL1_E2",
+      "from": "HL1_I1",
+      "to": "HL1_I2",
+      "via": "HL1_TS2",
+      "step_type": "concerted Beckmann rearrangement (rate-determining): N-O cleavage with anti 1,2-ethyl migration from C to N and C-N pi bond formation -> nitrilium ion + water ((E)-oxime geometry puts the ethyl group anti to OH, so ethyl migrates)",
+      "bond_changes": {
+        "break": [
+          [
+            4,
+            5
+          ],
+          [
+            6,
+            7
+          ]
+        ],
+        "form": [
+          [
+            4,
+            6
+          ],
+          [
+            5,
+            6
+          ]
+        ]
+      },
+      "accessible": true,
+      "barrier_kcal_mol": 23.13,
+      "weight": 0.5,
+      "channel": null,
+      "favored": null
+    },
+    {
+      "id": "HL1_E3",
+      "from": "HL1_I2",
+      "to": "HL1_I3",
+      "via": "HL1_TS3",
+      "step_type": "water addition to nitrilium with C-N triple-to-double bond reduction -> stable O-protonated imidic acid plus water",
+      "bond_changes": {
+        "break": [
+          [
+            4,
+            6
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ]
+        ]
+      },
+      "accessible": true,
+      "barrier_kcal_mol": 10.44,
+      "weight": 1.0,
+      "channel": null,
+      "favored": null
+    },
+    {
+      "id": "HL1_E4",
+      "from": "HL1_I3",
+      "to": "HL1_P",
+      "via": "HL1_TS4",
+      "step_type": "O-to-N proton transfer with C-O double bond formation and C-N double-to-single bond reduction -> O-protonated N-ethylacetamide plus water",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            10
+          ],
+          [
+            4,
+            6
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            6,
+            10
+          ]
+        ]
+      },
+      "accessible": true,
+      "barrier_kcal_mol": 13.46,
+      "weight": 1.0,
+      "channel": null,
+      "favored": null
+    }
+  ]
+}

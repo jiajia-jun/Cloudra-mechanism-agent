@@ -1,0 +1,20 @@
+{
+  "created_at_utc": "2026-10-01T09:05:24.932786+00:00",
+  "source": "saved API agent metadata plus filesystem handoffs; original volatile context history not reconstructed",
+  "project_id": "prj_a15fc9525cbf4572",
+  "agent_ids": [
+    "as_a449ed83488e4cee",
+    "as_7d0691fbca814cb8",
+    "as_6e41a64a7961424c",
+    "as_d8143bca94e14ef4",
+    "as_b61637108f234ac4",
+    "as_19aee01c357c4bfc",
+    "as_0af3d08a16c94d6a",
+    "as_cba0d6a330004abc",
+    "as_c627b84dbfa14bf7",
+    "as_ce8beb1a7405450f"
+  ],
+  "original_api_port": 8420,
+  "recovery_api_port": 8422,
+  "new_qm_started": false
+}

@@ -1,0 +1,11 @@
+{
+  "verified_at_SGT": "2026-10-01T18:10:26.211477+08:00",
+  "raw_file_SHA_match_count": 250,
+  "mismatches": [],
+  "final_frequency_block_checks": "TS17/37/53 exactly one negative; selected minima zero negative",
+  "job_count": 35,
+  "actual_event_records": 125,
+  "selected_review_records": 6,
+  "no_new_QM_started": true,
+  "scientific_completeness": "HL1 downstream local evidence; HG2 anti valid and EE-syn missing; HI1 search/recovery ongoing, not final gold"
+}

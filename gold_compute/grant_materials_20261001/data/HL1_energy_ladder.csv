@@ -1,0 +1,6 @@
+species,job_id,energy_Eh,relative_to_I2_kcal_mol,energy_type
+I2,30,-364.137564264435,0.0,"electronic, gas, no ZPE or thermal correction"
+TS3,17,-364.120933530307,10.435943657294413,"electronic, gas, no ZPE or thermal correction"
+I3prime,9,-364.128159827467,5.901373539569787,"electronic, gas, no ZPE or thermal correction"
+TS4,37,-364.106714752931,19.358361539129287,"electronic, gas, no ZPE or thermal correction"
+P_lower,46,-364.196816183201,-37.181141918889864,"electronic, gas, no ZPE or thermal correction"

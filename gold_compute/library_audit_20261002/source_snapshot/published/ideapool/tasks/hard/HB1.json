@@ -1,0 +1,208 @@
+{
+  "task_id": "HB1",
+  "tier": "hard",
+  "family": "B",
+  "name": "cyclopentadiene + maleic anhydride Diels-Alder: determine endo/exo outcome",
+  "prompt": {
+    "query": "Determine the mechanism of the following reaction: cyclopentadiene + maleic anhydride Diels-Alder: determine endo/exo outcome. Reactant SMILES: C1=CCC=C1.O=C1OC(=O)C=C1; product SMILES: O=C1OC(=O)C2C3C=CC(C3)C12; total charge 0, multiplicity 1; conditions: benzene, room temperature or mild heating. Within the allowed methods, model the system so that it approximates the real conditions stated above as closely as the level of theory permits. Atom-mapped reactant SMILES: [CH:1]1=[CH:2][CH2:3][CH:4]=[CH:5]1.[O:6]=[C:7]1[O:8][C:9](=[O:10])[CH:11]=[CH:12]1. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). The product SMILES above state connectivity only: resolving the stereochemical outcome is part of the deliverable. Investigate the competing stereochemical channels (not only the major one), and make sure the stereochemistry of every product and intermediate node is stated in its SMILES. The reaction may proceed through a multi-step network: represent each intermediate you identify as a node and each elementary step as an edge; competing pathways you investigate deserve their own edges. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. Use exactly this JSON shape (key names matter: nodes carry `id`, `role` (one of reactant/intermediate/product/transition_state) and `smiles` (a list of SMILES strings), and may optionally carry a `properties` object for declared quantities; edges carry `id`, `from`, `to`, `via`, `bond_changes` and optionally `barrier_kcal_mol`, `channel` and `favored`): {\"nodes\": [{\"id\": \"RC\", \"role\": \"reactant\", \"smiles\": [\"C=O.CN\"]}, {\"id\": \"TS1\", \"role\": \"transition_state\", \"smiles\": []}, {\"id\": \"P\", \"role\": \"product\", \"smiles\": [\"...\"]}], \"edges\": [{\"id\": \"e1\", \"from\": \"RC\", \"to\": \"P\", \"via\": \"TS1\", \"bond_changes\": {\"break\": [[1, 2]], \"form\": [[1, 5]]}, \"barrier_kcal_mol\": 21.3}]}. A species made of several molecules (a pre-reaction or ion-dipole complex) is ONE node whose `smiles` holds a single dot-joined complex SMILES (like the RC node above), never a list of separate component SMILES; evidence files for such a species must carry that same dot-joined complex SMILES in their `smiles:` annotation. If such a complex is not a clean minimum at the allowed level of theory, still keep the single complex node in the graph, but you may then annotate its evidence files per component species instead (each component with its own `smiles:` annotation). The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or inversion step carries two empty lists. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. Declare every barrier you actually compute in kcal/mol on that elementary step's edge as `barrier_kcal_mol` in mechanism_graph.json. Barriers are electronic energy differences (ΔE‡) in kcal/mol, without ZPE or thermal corrections, each relative to that step's own starting minimum: for a bimolecular reaction that minimum is the reactant complex (e.g. the ion-dipole complex), and for a unimolecular process it is simply the reactant minimum. The scorer derives every declared step barrier from your log files and takes the highest as the rate-determining step; a barrier that is undeclared, has no bound ORCA/Gaussian log, or disagrees with those logs is not scorable. A transition-state evidence file must carry `smiles: <the SMILES of that step's reactant>` so the scorer can attach the saddle to the step it belongs to. For each competing stereochemical channel, declare on that channel's edge a `channel` field (a short label identifying the channel) and `favored: true` on exactly the one channel your computed barriers favor (`favored: false` on the other channels); the favored-channel assignment is scored qualitatively (right or wrong). Also record the barrier difference (minor-channel TS minus major-channel TS) in kcal/mol in your report; the numeric difference is recorded but not scored numerically. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to xTB, pm7, and B3LYP-D3(BJ)/def2-SVP; calls beyond the whitelist are intercepted.",
+    "role": "coordinator",
+    "orchestration_mode": "dag_guided"
+  },
+  "system": {
+    "reactants": [
+      "C1=CCC=C1",
+      "O=C1OC(=O)C=C1"
+    ],
+    "products": [
+      "O=C1OC(=O)C2C3C=CC(C3)C12"
+    ],
+    "charge": 0,
+    "multiplicity": 1,
+    "conditions": "benzene, room temperature or mild heating",
+    "elements": [
+      "C",
+      "H",
+      "O"
+    ],
+    "max_heavy_atoms": 12,
+    "closed_shell": true,
+    "single_step": false
+  },
+  "method_policy": {
+    "allowed_methods": [
+      "xtb",
+      "pm7",
+      "b3lyp/def2svp"
+    ],
+    "intercept_layers": [
+      "bash",
+      "submit_compute_job",
+      "qm_input_writer"
+    ]
+  },
+  "gold": {
+    "mechanism_graph": {
+      "nodes": [
+        {
+          "id": "HB1_R",
+          "role": "reactant",
+          "smiles": [
+            "C1=CCC=C1.O=C1OC(=O)C=C1"
+          ],
+          "accessible": true,
+          "label": "reactant",
+          "properties": {}
+        },
+        {
+          "id": "HB1_TS1",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS1",
+          "properties": {}
+        },
+        {
+          "id": "HB1_P",
+          "role": "product",
+          "smiles": [
+            "C1[C@@H]2C=C[C@H]1[C@@H]3[C@H]2C(=O)OC3=O"
+          ],
+          "accessible": true,
+          "label": "product",
+          "properties": {}
+        },
+        {
+          "id": "HB1_TSM1",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS minor 1",
+          "properties": {}
+        },
+        {
+          "id": "HB1_M1",
+          "role": "product",
+          "smiles": [
+            "O=C1OC(=O)[C@H]2[C@@H]1[C@@H]1C=C[C@H]2C1"
+          ],
+          "accessible": true,
+          "label": "minor product 1",
+          "properties": {}
+        }
+      ],
+      "edges": [
+        {
+          "id": "HB1_E1",
+          "from": "HB1_R",
+          "to": "HB1_P",
+          "via": "HB1_TS1",
+          "step_type": "concerted endo [4+2] cycloaddition of cyclopentadiene and maleic anhydride",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                2
+              ],
+              [
+                4,
+                5
+              ],
+              [
+                11,
+                12
+              ]
+            ],
+            "form": [
+              [
+                1,
+                5
+              ],
+              [
+                2,
+                12
+              ],
+              [
+                4,
+                11
+              ]
+            ]
+          },
+          "accessible": true,
+          "barrier_kcal_mol": 8.46,
+          "weight": 1.0,
+          "channel": "endo",
+          "favored": true
+        },
+        {
+          "id": "HB1_EM1",
+          "from": "HB1_R",
+          "to": "HB1_M1",
+          "via": "HB1_TSM1",
+          "step_type": "concerted exo [4+2] cycloaddition, preserving the cis dienophile configuration",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                2
+              ],
+              [
+                4,
+                5
+              ],
+              [
+                11,
+                12
+              ]
+            ],
+            "form": [
+              [
+                1,
+                5
+              ],
+              [
+                2,
+                12
+              ],
+              [
+                4,
+                11
+              ]
+            ]
+          },
+          "accessible": true,
+          "barrier_kcal_mol": 10.17,
+          "weight": 1.0,
+          "channel": "exo",
+          "favored": false
+        }
+      ]
+    },
+    "reference_properties": {},
+    "selectivity": {
+      "spread_kcal_mol": 1.71,
+      "minor_channel": "exo cycloadduct",
+      "favored_channel": "endo"
+    }
+  },
+  "rubric": {
+    "integrity": {
+      "match_threshold": 0.2,
+      "protonation_partial_quality": 0.7,
+      "no_evidence_penalty": 1.0
+    },
+    "self_consistency": {
+      "ts_first_order_saddle": true,
+      "irc_connects_endpoints": true
+    },
+    "graph_similarity": {
+      "stereo_tier_rule": "hard_stereo_costly"
+    },
+    "accuracy": {
+      "enabled": true,
+      "sigma_kcal_mol": 2.0,
+      "max_penalty_fraction": 0.3,
+      "small_barrier_threshold_kcal": 10.0,
+      "small_barrier_sigma_kcal": 5.0
+    }
+  }
+}

@@ -1,0 +1,136 @@
+{
+  "nodes": [
+    {
+      "id": "HG2_R",
+      "role": "reactant",
+      "smiles": [
+        "C/C=C/CO/C=C/C"
+      ],
+      "accessible": true,
+      "label": "reactant",
+      "properties": {}
+    },
+    {
+      "id": "HG2_TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "accessible": true,
+      "label": "TS1",
+      "properties": {}
+    },
+    {
+      "id": "HG2_P",
+      "role": "product",
+      "smiles": [
+        "C=C[C@H](C)[C@H](C)C=O"
+      ],
+      "accessible": true,
+      "label": "minor product",
+      "properties": {}
+    },
+    {
+      "id": "HG2_TSM1",
+      "role": "transition_state",
+      "smiles": [],
+      "accessible": true,
+      "label": "TS minor 1",
+      "properties": {}
+    },
+    {
+      "id": "HG2_M1",
+      "role": "product",
+      "smiles": [
+        "C=C[C@H](C)[C@@H](C)C=O"
+      ],
+      "accessible": true,
+      "label": "major product",
+      "properties": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "HG2_E1",
+      "from": "HG2_R",
+      "to": "HG2_P",
+      "via": "HG2_TS1",
+      "step_type": "[3,3]-sigmatropic Claisen rearrangement via boat TS (higher-energy minor channel for the (E,E) substrate): allyl/vinyl pi and C-O sigma cleavage, new terminal C-C sigma between the two methyl-bearing termini, migrated allyl pi and C=O pi formation -> syn-2,3-dimethylpent-4-enal (minor channel)",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            6,
+            7
+          ]
+        ],
+        "form": [
+          [
+            2,
+            7
+          ],
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ]
+        ]
+      },
+      "accessible": true,
+      "barrier_kcal_mol": null,
+      "weight": 1.0,
+      "channel": "boat_ts",
+      "favored": false
+    },
+    {
+      "id": "HG2_EM1",
+      "from": "HG2_R",
+      "to": "HG2_M1",
+      "via": "HG2_TSM1",
+      "step_type": "[3,3]-sigmatropic Claisen rearrangement via chair TS with both methyls pseudo-equatorial (lower-energy favored channel for the (E,E) substrate): allyl/vinyl pi and C-O sigma cleavage, new terminal C-C sigma between the two methyl-bearing termini, migrated allyl pi and C=O pi formation -> anti-2,3-dimethylpent-4-enal (major channel)",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            6,
+            7
+          ]
+        ],
+        "form": [
+          [
+            2,
+            7
+          ],
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ]
+        ]
+      },
+      "accessible": true,
+      "barrier_kcal_mol": 26.38,
+      "weight": 1.0,
+      "channel": "chair_ts",
+      "favored": true
+    }
+  ]
+}

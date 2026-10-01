@@ -1,0 +1,89 @@
+"""A/B 族登记（v3 缩减后）：电环化 torqueselection（A1/A6）。
+
+A 族两条均为 4π 顺旋开环的竞争方向题：主线 = 优势旋转方向，competing =
+另一旋转方向（同一步骤、同一反应物络合物出发，产物互为 E/Z 异构）。
+v3（2026-09-09）由 20 条缩至 10 条；2026-09-30 用 B1 替换 E2。
+A2（受体内向）、B7（DA π-面）仍留在候选池。
+
+A1 是框架参考条目（已随 gen_hard_tasks 框架验证通过）；A6 同款登记。
+"""
+
+TASKS = {
+    # 环戊二烯 + 顺丁烯二酸酐：协同 [4+2]，两条 endo/exo 竞争通道。
+    # 本战役 ORCA CPCM(benzene) 自算，以同一零虚频 RC(job 652)为参考。
+    "B1": {
+        "name_en": "cyclopentadiene + maleic anhydride Diels-Alder: determine endo/exo outcome",
+        "conditions_en": "benzene, room temperature or mild heating",
+        "anchor": "selectivity",
+        "minor_channel_en": "exo cycloadduct",
+        "mapped_reactants": "[CH:1]1=[CH:2][CH2:3][CH:4]=[CH:5]1.[O:6]=[C:7]1[O:8][C:9](=[O:10])[CH:11]=[CH:12]1",
+        "steps": [
+            {
+                "out": "[CH2:3]1[C@@H:2]2[CH:1]=[CH:5][C@H:4]1[C@@H:11]3[C@H:12]2[C:7](=[O:6])[O:8][C:9]3=[O:10]",
+                "type": "concerted endo [4+2] cycloaddition of cyclopentadiene and maleic anhydride",
+                "channel": "endo",
+                "barrier": 8.46,
+            },
+        ],
+        "competing": [
+            {
+                "out": "[CH2:3]1[C@@H:2]2[CH:1]=[CH:5][C@H:4]1[C@H:11]3[C@@H:12]2[C:7](=[O:6])[O:8][C:9]3=[O:10]",
+                "type": "concerted exo [4+2] cycloaddition, preserving the cis dienophile configuration",
+                "channel": "exo",
+                "barrier": 10.17,
+            },
+        ],
+    },
+    # CC1CC=C1>>C=C/C=C/C  (0/1)  甲基外向旋转 → (E)-1,3-戊二烯
+    # 断 sp3-sp3 σ（甲基所在碳–CH2）与旧 π，成两个新 π
+    "A1": {
+        "name_en": "3-methylcyclobutene ring opening: determine the stereochemical outcome",
+        "conditions_en": "gas phase or inert solvent, ~150-200 degC, thermal",
+        "anchor": "selectivity",
+        "minor_channel_en": "inward methyl rotation -> (Z)-1,3-pentadiene",
+        "mapped_reactants": "[CH3:1][CH:2]1[CH2:3][CH:4]=[CH:5]1",
+        "steps": [
+            {
+                "out": "[CH3:1]/[CH:2]=[CH:5]/[CH:4]=[CH2:3]",
+                "type": "4pi conrotatory electrocyclic ring opening, outward rotation of the methyl group (torquoselection) -> (E)-1,3-pentadiene",
+                "barrier": 33.04,
+                "channel": "outward_rotation",
+            },
+        ],
+        "competing": [
+            {
+                "out": "[CH3:1]/[CH:2]=[CH:5]\\[CH:4]=[CH2:3]",
+                "type": "conrotatory opening with inward methyl rotation -> (Z)-1,3-pentadiene (minor channel of the torquoselection)",
+                "barrier": 38.75,
+                "channel": "inward_rotation",
+            },
+        ],
+    },
+    # C[C@H]1C=C[C@@H]1C>>C/C=C/C=C/C  (0/1)  (3S,4S) 底物双甲基外向 → (E,E)-2,4-己二烯
+    # 断两个甲基所在 sp3 碳之间的 σ，旧 π 位移，成两个新 π
+    # 注：池机理格副产物 SMILES C/C=C\C=C\C 实为 (Z,E)；双内向顺旋的化学
+    # 产物是 (Z,Z)（RDKit 枚举核对，canonical C/C=C\C=C/C），按化学正确登记。
+    "A6": {
+        "name_en": "trans-3,4-dimethylcyclobutene ring opening: determine the stereochemical outcome",
+        "conditions_en": "gas phase or inert solvent, heating, thermal",
+        "anchor": "selectivity",
+        "minor_channel_en": "double inward methyl rotation -> (Z,Z)-2,4-hexadiene",
+        "mapped_reactants": "[CH3:1][C@H:2]1[CH:3]=[CH:4][C@@H:5]1[CH3:6]",
+        "steps": [
+            {
+                "out": "[CH3:1]/[CH:2]=[CH:3]/[CH:4]=[CH:5]/[CH3:6]",
+                "type": "4pi conrotatory electrocyclic ring opening, both methyl groups rotating outward (steric torquoselection) -> (E,E)-2,4-hexadiene",
+                "barrier": 31.31,
+                "channel": "double_outward_rotation",
+            },
+        ],
+        "competing": [
+            {
+                "out": "[CH3:1]\\[CH:2]=[CH:3]/[CH:4]=[CH:5]\\[CH3:6]",
+                "type": "conrotatory opening with both methyl groups rotating inward -> (Z,Z)-2,4-hexadiene (minor channel of the torquoselection)",
+                "barrier": 42.31,
+                "channel": "double_inward_rotation",
+            },
+        ],
+    },
+}

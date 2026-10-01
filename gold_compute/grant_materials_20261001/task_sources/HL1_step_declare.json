@@ -1,0 +1,58 @@
+{
+  "reactant_smiles": "O.O.CC#[N+]CC",
+  "product_smiles": "[OH3+].CCNC(C)=O",
+  "charge": 1,
+  "multiplicity": 1,
+  "method": "b3lyp/def2svp",
+  "engine": "orca",
+  "extra_keywords": "D3BJ def2/J RIJCOSX",
+  "path_solvation": null,
+  "budget": {
+    "max_interventions": 8,
+    "path_refinement_runs": 100
+  },
+  "scan": null,
+  "reaction_center": [
+    [
+      0,
+      7
+    ],
+    [
+      1,
+      8
+    ],
+    [
+      2,
+      3
+    ],
+    [
+      7,
+      8
+    ]
+  ],
+  "ring_order": [],
+  "distance_filters": [],
+  "product_geometry": null,
+  "irc_log": "",
+  "atom_map": [
+    3,
+    4,
+    5,
+    2,
+    10,
+    9,
+    8,
+    7,
+    6,
+    0,
+    16,
+    17,
+    18,
+    14,
+    15,
+    1,
+    11,
+    12,
+    13
+  ]
+}

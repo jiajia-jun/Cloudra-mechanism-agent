@@ -1,0 +1,6 @@
+{
+  "ref": "refs/heads/master",
+  "sha": "3ec62c55c8e3433854246ea50f889668b2659cc4",
+  "checked_at": "2026-10-01T16:58:29.995717+00:00",
+  "method": "git ls-remote origin refs/heads/master; read-only; independently returned this exact SHA in current audit turn"
+}

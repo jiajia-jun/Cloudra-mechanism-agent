@@ -1,0 +1,1238 @@
+[
+  {
+    "path": "03_context_and_events/RECOVERY_PROVENANCE.json",
+    "target": "../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/runtime/recovery_20261001/RECOVERY_PROVENANCE.json"
+  },
+  {
+    "path": "06_environment_and_private_config/source",
+    "target": "../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/rebuild/source"
+  },
+  {
+    "path": "06_environment_and_private_config/environment",
+    "target": "../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/rebuild"
+  },
+  {
+    "path": "05_snapshots/2026-09-23",
+    "target": "../../../remote_backups/2026-09-23"
+  },
+  {
+    "path": "05_snapshots/2026-09-25",
+    "target": "../../../remote_backups/2026-09-25"
+  },
+  {
+    "path": "05_snapshots/2026-09-23-split",
+    "target": "../../../remote_backups/2026-09-23-split"
+  },
+  {
+    "path": "05_snapshots/final",
+    "target": "../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522"
+  },
+  {
+    "path": "05_snapshots/increments",
+    "target": "../../../remote_backups/paratera_final_20261001_0830/post_recovery_20261001"
+  },
+  {
+    "path": "05_snapshots/migration",
+    "target": "../../../remote_backups/paratera_final_20261001_0830/migration_snapshot"
+  },
+  {
+    "path": "05_snapshots/migration_workspace",
+    "target": "../../../remote_backups/paratera_final_20261001_0830/workspace"
+  },
+  {
+    "path": "02_calculations/HI1/raw_case",
+    "target": "../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929"
+  },
+  {
+    "path": "02_calculations/HE3/raw_case",
+    "target": "../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929"
+  },
+  {
+    "path": "02_calculations/HB10/raw_case",
+    "target": "../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/HDA_CN"
+  },
+  {
+    "path": "02_calculations/HL1/raw_case",
+    "target": "../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929"
+  },
+  {
+    "path": "02_calculations/HA8/raw_case",
+    "target": "../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/H6PI"
+  },
+  {
+    "path": "02_calculations/HG2/raw_case",
+    "target": "../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job041/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_B"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job041/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_B/irc_g2_ep_B.inp"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job041/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_B/.cloudra/calc-41.out.log"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job022/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/P_syn_ref"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job022/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/P_syn_ref/P_syn_ref.inp"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job022/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/P_syn_ref/.cloudra/calc-22.out.log"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job040/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_F"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job040/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_F/irc_g2_ep_F.inp"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job040/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2_ep_F/.cloudra/calc-40.out.log"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job053/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ts_legacy"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job053/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ts_legacy/HG2_anti_ts_legacy.inp"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job053/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ts_legacy/.cloudra/calc-53.out.log"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job055/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_irc"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job055/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_irc/HG2_anti_irc.inp"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job055/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_irc/.cloudra/calc-55.out.log"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job029/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g6"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job029/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g6/syn_ts_g6.inp"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job029/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g6/.cloudra/calc-29.out.log"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job020/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g4"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job020/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g4/syn_ts_g4.inp"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job020/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g4/.cloudra/calc-20.out.log"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job019/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g3"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job019/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g3/syn_ts_g3.inp"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job019/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g3/.cloudra/calc-19.out.log"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job021/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/R_ref"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job021/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/R_ref/R_ref.inp"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job021/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/R_ref/.cloudra/calc-21.out.log"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job028/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g5"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job028/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g5/syn_ts_g5.inp"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job028/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g5/.cloudra/calc-28.out.log"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job032/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job032/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2/irc_g2.inp"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job032/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/irc_g2/.cloudra/calc-32.out.log"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job003/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g1"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job003/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g1/syn_ts_g1.inp"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job003/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g1/.cloudra/calc-3.out.log"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job004/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g2"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job004/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g2/syn_ts_g2.inp"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job004/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/syn_ts_g2/.cloudra/calc-4.out.log"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job057/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_B"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job057/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_B/HG2_anti_ep_B.inp"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job057/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_B/.cloudra/calc-57.out.log"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job056/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_F"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job056/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_F/HG2_anti_ep_F.inp"
+  },
+  {
+    "path": "02_calculations/HG2/jobs/job056/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HG2_gold_20260929/paratera_20260930/anti_ep_F/.cloudra/calc-56.out.log"
+  },
+  {
+    "path": "02_calculations/HA8/jobs/job077/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/H6PI/orca_inputs"
+  },
+  {
+    "path": "02_calculations/HA8/jobs/job077/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/H6PI/orca_inputs/04_ts_optfreq.inp"
+  },
+  {
+    "path": "02_calculations/HA8/jobs/job077/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/H6PI/orca_inputs/.cloudra/calc-77.out.log"
+  },
+  {
+    "path": "02_calculations/HA8/jobs/job090/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/H6PI/orca_inputs"
+  },
+  {
+    "path": "02_calculations/HA8/jobs/job090/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/H6PI/orca_inputs/10_ircF_reactant_endpoint_relax2.inp"
+  },
+  {
+    "path": "02_calculations/HA8/jobs/job090/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/H6PI/orca_inputs/.cloudra/calc-90.out.log"
+  },
+  {
+    "path": "02_calculations/HA8/jobs/job080/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/H6PI/orca_inputs"
+  },
+  {
+    "path": "02_calculations/HA8/jobs/job080/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/H6PI/orca_inputs/01_reactant_extended_optfreq.inp"
+  },
+  {
+    "path": "02_calculations/HA8/jobs/job080/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/H6PI/orca_inputs/.cloudra/calc-80.out.log"
+  },
+  {
+    "path": "02_calculations/HA8/jobs/job089/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/H6PI/orca_inputs"
+  },
+  {
+    "path": "02_calculations/HA8/jobs/job089/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/H6PI/orca_inputs/09_ircB_product_endpoint_optfreq.inp"
+  },
+  {
+    "path": "02_calculations/HA8/jobs/job089/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/H6PI/orca_inputs/.cloudra/calc-89.out.log"
+  },
+  {
+    "path": "02_calculations/HA8/jobs/job088/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/H6PI/orca_inputs"
+  },
+  {
+    "path": "02_calculations/HA8/jobs/job088/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/H6PI/orca_inputs/08_ircF_reactant_endpoint_optfreq.inp"
+  },
+  {
+    "path": "02_calculations/HA8/jobs/job088/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/H6PI/orca_inputs/.cloudra/calc-88.out.log"
+  },
+  {
+    "path": "02_calculations/HA8/jobs/job081/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/H6PI/orca_inputs"
+  },
+  {
+    "path": "02_calculations/HA8/jobs/job081/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/H6PI/orca_inputs/07_irc_from_convergedTS.inp"
+  },
+  {
+    "path": "02_calculations/HA8/jobs/job081/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/H6PI/orca_inputs/.cloudra/calc-81.out.log"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job046/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_IRC_epF"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job046/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_IRC_epF/I3p_P_IRC_epF.inp"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job046/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_IRC_epF/.cloudra/calc-46.out.log"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job047/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_IRC_epB"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job047/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_IRC_epB/I3p_P_IRC_epB.inp"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job047/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_IRC_epB/.cloudra/calc-47.out.log"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job009/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_min_ORCA6"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job009/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_min_ORCA6/I3p_min_ORCA6.inp"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job009/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_min_ORCA6/.cloudra/calc-9.out.log"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job031/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_ORCA6"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job031/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_ORCA6/TS669_IRC_ORCA6.inp"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job031/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_ORCA6/.cloudra/calc-31.out.log"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job030/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I2min_ORCA6"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job030/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I2min_ORCA6/I2min_ORCA6.inp"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job030/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I2min_ORCA6/.cloudra/calc-30.out.log"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job037/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job037/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS/I3p_P_TS.inp"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job037/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS/.cloudra/calc-37.out.log"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job042/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_epF"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job042/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_epF/TS669_IRC_epF.inp"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job042/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_epF/.cloudra/calc-42.out.log"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job016/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/Pmin_ORCA6"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job016/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/Pmin_ORCA6/Pmin_ORCA6.inp"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job016/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/Pmin_ORCA6/.cloudra/calc-16.out.log"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job044/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS_IRC"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job044/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS_IRC/I3p_P_TS_IRC.inp"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job044/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_P_TS_IRC/.cloudra/calc-44.out.log"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job043/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_epB"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job043/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_epB/TS669_IRC_epB.inp"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job043/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_IRC_epB/.cloudra/calc-43.out.log"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job017/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_ORCA6"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job017/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_ORCA6/TS669_ORCA6.inp"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job017/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/TS669_ORCA6/.cloudra/calc-17.out.log"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job010/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_hts_seed"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job010/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_hts_seed/I3p_hts_seed.inp"
+  },
+  {
+    "path": "02_calculations/HL1/jobs/job010/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HL1_gold_20260929/paratera_20260930/I3p_hts_seed/.cloudra/calc-10.out.log"
+  },
+  {
+    "path": "02_calculations/HB10/jobs/job084/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/HDA_CN/endpoints"
+  },
+  {
+    "path": "02_calculations/HB10/jobs/job084/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/HDA_CN/endpoints/ep_endo_F.inp"
+  },
+  {
+    "path": "02_calculations/HB10/jobs/job084/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/HDA_CN/endpoints/.cloudra/calc-84.out.log"
+  },
+  {
+    "path": "02_calculations/HB10/jobs/job079/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/HDA_CN/irc"
+  },
+  {
+    "path": "02_calculations/HB10/jobs/job079/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/HDA_CN/irc/irc_exo.inp"
+  },
+  {
+    "path": "02_calculations/HB10/jobs/job079/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/HDA_CN/irc/.cloudra/calc-79.out.log"
+  },
+  {
+    "path": "02_calculations/HB10/jobs/job078/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/HDA_CN/irc"
+  },
+  {
+    "path": "02_calculations/HB10/jobs/job078/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/HDA_CN/irc/irc_endo.inp"
+  },
+  {
+    "path": "02_calculations/HB10/jobs/job078/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/HDA_CN/irc/.cloudra/calc-78.out.log"
+  },
+  {
+    "path": "02_calculations/HB10/jobs/job085/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/HDA_CN/endpoints"
+  },
+  {
+    "path": "02_calculations/HB10/jobs/job085/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/HDA_CN/endpoints/ep_endo_B.inp"
+  },
+  {
+    "path": "02_calculations/HB10/jobs/job085/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/HDA_CN/endpoints/.cloudra/calc-85.out.log"
+  },
+  {
+    "path": "02_calculations/HB10/jobs/job076/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/HDA_CN/orca_inputs_ready"
+  },
+  {
+    "path": "02_calculations/HB10/jobs/job076/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/HDA_CN/orca_inputs_ready/03_ts_exo_optts.inp"
+  },
+  {
+    "path": "02_calculations/HB10/jobs/job076/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/HDA_CN/orca_inputs_ready/.cloudra/calc-76.out.log"
+  },
+  {
+    "path": "02_calculations/HB10/jobs/job087/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/HDA_CN/endpoints"
+  },
+  {
+    "path": "02_calculations/HB10/jobs/job087/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/HDA_CN/endpoints/ep_exo_B.inp"
+  },
+  {
+    "path": "02_calculations/HB10/jobs/job087/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/HDA_CN/endpoints/.cloudra/calc-87.out.log"
+  },
+  {
+    "path": "02_calculations/HB10/jobs/job074/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/HDA_CN/orca_inputs_ready"
+  },
+  {
+    "path": "02_calculations/HB10/jobs/job074/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/HDA_CN/orca_inputs_ready/01_rc_optfreq.inp"
+  },
+  {
+    "path": "02_calculations/HB10/jobs/job074/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/HDA_CN/orca_inputs_ready/.cloudra/calc-74.out.log"
+  },
+  {
+    "path": "02_calculations/HB10/jobs/job075/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/HDA_CN/orca_inputs_ready"
+  },
+  {
+    "path": "02_calculations/HB10/jobs/job075/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/HDA_CN/orca_inputs_ready/02_ts_endo_optts.inp"
+  },
+  {
+    "path": "02_calculations/HB10/jobs/job075/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/HDA_CN/orca_inputs_ready/.cloudra/calc-75.out.log"
+  },
+  {
+    "path": "02_calculations/HB10/jobs/job086/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/HDA_CN/endpoints"
+  },
+  {
+    "path": "02_calculations/HB10/jobs/job086/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/HDA_CN/endpoints/ep_exo_F.inp"
+  },
+  {
+    "path": "02_calculations/HB10/jobs/job086/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/hard_replacements_20261001/HDA_CN/endpoints/.cloudra/calc-86.out.log"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job012/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/_diag_cpcm_np4"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job012/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/_diag_cpcm_np4/diag_np4.inp"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job012/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/_diag_cpcm_np4/.cloudra/calc-12.out.log"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job024/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/tsB_ORCA6_np1"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job024/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/tsB_ORCA6_np1/HE3_tsB_np1.inp"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job024/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/tsB_ORCA6_np1/.cloudra/calc-24.out.log"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job023/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/tsA_ORCA6_np1"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job023/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/tsA_ORCA6_np1/HE3_tsA_np1.inp"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job023/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/tsA_ORCA6_np1/.cloudra/calc-23.out.log"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job048/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/irc_ep_react"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job048/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/irc_ep_react/HE3_irc_ep_react_np8.inp"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job048/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/irc_ep_react/.cloudra/calc-48.out.log"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job025/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/rcA_ref_np1"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job025/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/rcA_ref_np1/HE3_rcA_np1.inp"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job025/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/rcA_ref_np1/.cloudra/calc-25.out.log"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job013/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/_diag_real_np1"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job013/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/_diag_real_np1/diag_real_np1.inp"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job013/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/_diag_real_np1/.cloudra/calc-13.out.log"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job049/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/irc_ep_prod"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job049/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/irc_ep_prod/HE3_irc_ep_prod_np8.inp"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job049/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/irc_ep_prod/.cloudra/calc-49.out.log"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job062/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/tsB_scanseed"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job062/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/tsB_scanseed/HE3_tsB_scanseed_np8.inp"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job062/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/tsB_scanseed/.cloudra/calc-62.out.log"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job063/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/ircB"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job063/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/ircB/HE3_ircB_np8.inp"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job063/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/ircB/.cloudra/calc-63.out.log"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job001/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/tsA_ORCA6"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job001/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/tsA_ORCA6/HE3_tsA_ORCA6.inp"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job001/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/tsA_ORCA6/.cloudra/calc-1.out.log"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job039/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/prodA_tight"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job039/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/prodA_tight/HE3_prodA_tight_np8.inp"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job039/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanA_owner/prodA_tight/.cloudra/calc-39.out.log"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job011/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/_diag_cpcm_np1"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job011/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/_diag_cpcm_np1/diag_np1.inp"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job011/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/_diag_cpcm_np1/.cloudra/calc-11.out.log"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job018/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/_diag_real_np2"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job018/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/_diag_real_np2/diag_real_np2.inp"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job018/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/_diag_real_np2/.cloudra/calc-18.out.log"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job026/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/rcB_ref_np1"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job026/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/rcB_ref_np1/HE3_rcB_np1.inp"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job026/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/rcB_ref_np1/.cloudra/calc-26.out.log"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job035/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/ircA_np4"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job035/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/ircA_np4/HE3_ircA_np8.inp"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job035/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/ircA_np4/.cloudra/calc-35.out.log"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job061/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/scanB_run2"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job061/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/scanB_run2/HE3_scanB_C7H34_np8.inp"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job061/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/scanB_run2/.cloudra/calc-61.out.log"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job002/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/tsB_ORCA6"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job002/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/tsB_ORCA6/HE3_tsB_ORCA6.inp"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job002/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/tsB_ORCA6/.cloudra/calc-2.out.log"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job034/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/prodB_ref"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job034/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/prodB_ref/HE3_prodB_ref_np8.inp"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job034/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/prodB_ref/.cloudra/calc-34.out.log"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job033/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/prodA_ref"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job033/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/prodA_ref/HE3_prodA_ref_np8.inp"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job033/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/prodA_ref/.cloudra/calc-33.out.log"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job060/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/scanB_run"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job060/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/scanB_run/HE3_scanB_C7H34_np8.inp"
+  },
+  {
+    "path": "02_calculations/HE3/jobs/job060/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HE3_gold_20260929/paratera_20260930/chanB_owner/scanB_run/.cloudra/calc-60.out.log"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job015/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/rc_min_np1"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job015/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/rc_min_np1/rc_min_np1.inp"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job015/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/rc_min_np1/.cloudra/calc-15.out.log"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job083/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/em1_endpoints"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job083/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/em1_endpoints/em1_epB_optfreq.inp"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job083/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/em1_endpoints/.cloudra/calc-83.out.log"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job070/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/em1_ts_seed"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job070/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/em1_ts_seed/em1_ts_clean.inp"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job070/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/em1_ts_seed/.cloudra/calc-70.out.log"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job014/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/scan_major_np1"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job014/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/scan_major_np1/scan_major_np1.inp"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job014/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/scan_major_np1/.cloudra/calc-14.out.log"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job071/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_recovery/irc/endpoints"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job071/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_recovery/irc/endpoints/epF_opt_np8.inp"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job071/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_recovery/irc/endpoints/.cloudra/calc-71.out.log"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job082/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/em1_endpoints"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job082/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/em1_endpoints/em1_epF_optfreq.inp"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job082/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/em1_endpoints/.cloudra/calc-82.out.log"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job054/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/minor_rc"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job054/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/minor_rc/minor_rc.inp"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job054/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/minor_rc/.cloudra/calc-54.out.log"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job065/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_cont"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job065/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_cont/scan_minor_cont.inp"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job065/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_cont/.cloudra/calc-65.out.log"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job036/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/scan_minor_np8"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job036/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/scan_minor_np8/scan_minor_np8.inp"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job036/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/scan_minor_np8/.cloudra/calc-36.out.log"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job038/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/rc_minor_prep"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job038/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/rc_minor_prep/rc_minor_prep.inp"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job007/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/scan_major"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job007/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/scan_major/scan_major.inp"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job007/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/scan_major/.cloudra/calc-7.out.log"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job064/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_orca6"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job064/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_orca6/ts2_np8.inp"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job064/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_orca6/.cloudra/calc-64.out.log"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job052/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/shared_rc"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job052/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/shared_rc/rc_shared.inp"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job052/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/shared_rc/.cloudra/calc-52.out.log"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job006/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/rc_min"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job006/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/rc_min/rc_min.inp"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job006/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/rc_min/.cloudra/calc-6.out.log"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job008/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/rc_min"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job008/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/rc_min/rc_min.inp"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job008/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/rc_min/.cloudra/calc-8.out.log"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job073/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/em1_irc"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job073/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/em1_irc/em1_irc_np8.inp"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job073/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/em1_irc/.cloudra/calc-73.out.log"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job045/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/rc_minor_prep"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job045/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/rc_minor_prep/rc_minor_prep.inp"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job045/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/rc_minor_prep/.cloudra/calc-45.out.log"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job027/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/i2_min_np1"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job027/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/i2_min_np1/i2_min_np1.inp"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job027/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/i2_min_np1/.cloudra/calc-27.out.log"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job072/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_recovery/irc/endpoints"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job072/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_recovery/irc/endpoints/epB_opt_np8.inp"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job072/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_recovery/irc/endpoints/.cloudra/calc-72.out.log"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job050/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/rc_minor"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job050/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/rc_minor/rc_minor.inp"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job068/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_recovery/irc"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job068/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_recovery/irc/ts2_irc_np8.inp"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job068/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_recovery/irc/.cloudra/calc-68.out.log"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job066/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_cont2"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job066/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_cont2/scan_minor_cont2.inp"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job066/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_cont2/.cloudra/calc-66.out.log"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job059/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job059/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/scan_minor_clean.inp"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job059/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/scan_minor_clean/.cloudra/calc-59.out.log"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job005/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/scan_major"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job005/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/scan_major/scan_major.inp"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job005/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/scan_major/.cloudra/calc-5.out.log"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job067/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_recovery/orca_ts"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job067/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_recovery/orca_ts/ts2r_major_np8.inp"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job067/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/ts2_recovery/orca_ts/.cloudra/calc-67.out.log"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job058/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job058/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/scan_clean_np8.inp"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job058/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/scan_clean/.cloudra/calc-58.out.log"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job069/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/em1_ts_seed"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job069/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/em1_ts_seed/em1_ts_final.inp"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job069/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/minor_spec/em1_ts_seed/.cloudra/calc-69.out.log"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job051/run_directory",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/rc_clean_orca6"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job051/input.inp",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/rc_clean_orca6/rc_clean_np8.inp"
+  },
+  {
+    "path": "02_calculations/HI1/jobs/job051/raw_output.log",
+    "target": "../../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/workspace/hard_resume_20260930/HI1_gold_20260929/paratera_20260930/major_spec/rc_clean_orca6/.cloudra/calc-51.out.log"
+  },
+  {
+    "path": "04_databases/current/db05/snapshot.sqlite3",
+    "target": "../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/runtime/recovery_20261001/runtime-v2.db"
+  },
+  {
+    "path": "04_databases/current/db02/snapshot.sqlite3",
+    "target": "../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/runtime/conversations/prj_a15fc9525cbf4572/tasks/database.db"
+  },
+  {
+    "path": "04_databases/current/db03/snapshot.sqlite3",
+    "target": "../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/runtime/knowledge/chem_kg.db"
+  },
+  {
+    "path": "04_databases/current/db04/snapshot.sqlite3",
+    "target": "../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/runtime/recovery_20261001/backup/runtime-v2.db"
+  },
+  {
+    "path": "04_databases/current/db01/snapshot.sqlite3",
+    "target": "../../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/runtime/compute.db"
+  },
+  {
+    "path": "04_databases/historical/db06/snapshot.sqlite3",
+    "target": "../../../../../remote_backups/paratera_final_20261001_0830/migration_snapshot/runtime/compute.db"
+  },
+  {
+    "path": "04_databases/historical/db08/snapshot.sqlite3",
+    "target": "../../../../../remote_backups/paratera_final_20261001_0830/migration_snapshot/runtime/knowledge/chem_kg.db"
+  },
+  {
+    "path": "04_databases/historical/db09/snapshot.sqlite3",
+    "target": "../../../../../remote_backups/paratera_final_20261001_0830/migration_snapshot/runtime/recovery_20261001/backup/runtime-v2.db"
+  },
+  {
+    "path": "04_databases/historical/db07/snapshot.sqlite3",
+    "target": "../../../../../remote_backups/paratera_final_20261001_0830/migration_snapshot/runtime/conversations/prj_a15fc9525cbf4572/tasks/database.db"
+  },
+  {
+    "path": "08_integrity/final_snapshot/STATE.json",
+    "target": "../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/STATE.json"
+  },
+  {
+    "path": "08_integrity/final_snapshot/CASE_SENSITIVE_PATH_MAP.json",
+    "target": "../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/CASE_SENSITIVE_PATH_MAP.json"
+  },
+  {
+    "path": "08_integrity/final_snapshot/BILLING_STOP_VERIFICATION.json",
+    "target": "../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/BILLING_STOP_VERIFICATION.json"
+  },
+  {
+    "path": "08_integrity/final_snapshot/MANIFEST.json",
+    "target": "../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/MANIFEST.json"
+  },
+  {
+    "path": "08_integrity/final_snapshot/VERIFICATION.json",
+    "target": "../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/VERIFICATION.json"
+  },
+  {
+    "path": "08_integrity/final_snapshot/FINAL_README.md",
+    "target": "../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/FINAL_README.md"
+  },
+  {
+    "path": "06_environment_and_private_config/private/config.yaml",
+    "target": "../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/runtime/config.yaml"
+  },
+  {
+    "path": "06_environment_and_private_config/private/.api_token",
+    "target": "../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/runtime/.api_token"
+  },
+  {
+    "path": "06_environment_and_private_config/private/nodes.json",
+    "target": "../../../../remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/runtime/nodes.json"
+  },
+  {
+    "path": "03_context_and_events/pre_reboot_excerpts/last-events-as_ce8beb1a7405450f.json",
+    "target": "../../../../remote_backups/paratera_final_20261001_0830/migration_snapshot/last-events-as_ce8beb1a7405450f.json"
+  },
+  {
+    "path": "03_context_and_events/pre_reboot_excerpts/migration-message-as_c627b84dbfa14bf7.json",
+    "target": "../../../../remote_backups/paratera_final_20261001_0830/migration_snapshot/migration-message-as_c627b84dbfa14bf7.json"
+  },
+  {
+    "path": "03_context_and_events/pre_reboot_excerpts/last-events-as_6e41a64a7961424c.json",
+    "target": "../../../../remote_backups/paratera_final_20261001_0830/migration_snapshot/last-events-as_6e41a64a7961424c.json"
+  },
+  {
+    "path": "03_context_and_events/pre_reboot_excerpts/agents.json",
+    "target": "../../../../remote_backups/paratera_final_20261001_0830/migration_snapshot/agents.json"
+  },
+  {
+    "path": "03_context_and_events/pre_reboot_excerpts/migration-message-as_6e41a64a7961424c.json",
+    "target": "../../../../remote_backups/paratera_final_20261001_0830/migration_snapshot/migration-message-as_6e41a64a7961424c.json"
+  },
+  {
+    "path": "03_context_and_events/pre_reboot_excerpts/last-events-as_c627b84dbfa14bf7.json",
+    "target": "../../../../remote_backups/paratera_final_20261001_0830/migration_snapshot/last-events-as_c627b84dbfa14bf7.json"
+  },
+  {
+    "path": "03_context_and_events/pre_reboot_excerpts/migration-message-as_ce8beb1a7405450f.json",
+    "target": "../../../../remote_backups/paratera_final_20261001_0830/migration_snapshot/migration-message-as_ce8beb1a7405450f.json"
+  }
+]

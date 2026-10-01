@@ -1,0 +1,522 @@
+[
+  {
+    "tier": "easy",
+    "task_id": "D1",
+    "name": "butadiene + ethylene Diels-Alder (parent DA)",
+    "edge_count": 1,
+    "sha256": "d9323864dfab273ea992620b1445bf085cd00efb7b5a7334781b7e1be7b0aeec",
+    "source": "ideapool/tasks/easy/D1.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "easy",
+    "task_id": "D3",
+    "name": "cyclopentadiene dimerization (self Diels-Alder)",
+    "edge_count": 1,
+    "sha256": "88e3fec291bdecf5ebdcb75d0482c9d7b8e526f9a4cd8228cbf4b03dd380be87",
+    "source": "ideapool/tasks/easy/D3.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "easy",
+    "task_id": "D4",
+    "name": "cyclopentadiene + acrolein Diels-Alder",
+    "edge_count": 1,
+    "sha256": "bf61432ef55794f86f45c57e98a6d0a5f26cdd22d8469fe59e8110cfc7a07f82",
+    "source": "ideapool/tasks/easy/D4.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "easy",
+    "task_id": "E1",
+    "name": "F- + CH3CH2Cl elimination -> ethylene + HF + Cl-",
+    "edge_count": 1,
+    "sha256": "f0a7067a749e849a33aa4bf2fa4f2aa5dd2ee98957d82d9cc81d035b409e7417",
+    "source": "ideapool/tasks/easy/E1.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "easy",
+    "task_id": "F1",
+    "name": "BH4- + formaldehyde -> borane-methoxide adduct [CH3OBH3]-",
+    "edge_count": 1,
+    "sha256": "5400ffc2e8d17850976c96be652d7b524db2c39310f358ee5211d7984ced9e2e",
+    "source": "ideapool/tasks/easy/F1.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "easy",
+    "task_id": "F4",
+    "name": "BH3 + formaldehyde -> methoxyborane via Lewis adduct",
+    "edge_count": 1,
+    "sha256": "9314f1d0a1591de704f6c9b4e6e1b251c5a0be3fd6e7ee87e2122ea9e8bae80f",
+    "source": "ideapool/tasks/easy/F4.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "easy",
+    "task_id": "G2",
+    "name": "diimide cis reduction of ethylene",
+    "edge_count": 1,
+    "sha256": "e80380264b1dc798826cf360bd1baedf53c5b27ec3083967f8194876e0286155",
+    "source": "ideapool/tasks/easy/G2.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "easy",
+    "task_id": "G3",
+    "name": "propylene + ethylene ene reaction (Alder-ene)",
+    "edge_count": 1,
+    "sha256": "2bf6349d27c8325f9021a1ec47a5ac4c51f6634627f4ab66542e5a65dd63df1c",
+    "source": "ideapool/tasks/easy/G3.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "easy",
+    "task_id": "L1",
+    "name": "cyclobutene -> butadiene ring opening",
+    "edge_count": 1,
+    "sha256": "552c58dacd40b0847f50cb8622cd71608c1e3f6bdd44a0ff863eb57fd02ffbdb",
+    "source": "ideapool/tasks/easy/L1.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "easy",
+    "task_id": "L2",
+    "name": "hexatriene -> cyclohexadiene ring closure",
+    "edge_count": 1,
+    "sha256": "163724ec0a4aab80b33f29a92353c60e90fa6cbb5af2442a33ce880662c48a1c",
+    "source": "ideapool/tasks/easy/L2.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "easy",
+    "task_id": "M1",
+    "name": "2,2'-dimethylbiphenyl aryl-aryl rotation",
+    "edge_count": 1,
+    "sha256": "25860b7fca29284cfb33a2f12c19f54f418fe873715ca34463959822fd47112c",
+    "source": "ideapool/tasks/easy/M1.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "easy",
+    "task_id": "M14",
+    "name": "acrolein s-trans <-> s-cis rotation",
+    "edge_count": 1,
+    "sha256": "c0e68d17b5ee87c1b71394fa7b6358d86323ca5ea46bdfa5e99660098c16932d",
+    "source": "ideapool/tasks/easy/M14.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "easy",
+    "task_id": "M15",
+    "name": "HONO cis-trans isomerization",
+    "edge_count": 1,
+    "sha256": "96328cb2d14eb27a031664719ac00e1259ea7ae5091b76fc5ac18eda827dedbe",
+    "source": "ideapool/tasks/easy/M15.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "easy",
+    "task_id": "M16",
+    "name": "formic acid dehydrogenation HCOOH -> CO2 + H2",
+    "edge_count": 1,
+    "sha256": "fc0b5f3d8bf42eef6be59e1f0c5d6c27705ca527915cbd6058e79e4a3919136a",
+    "source": "ideapool/tasks/easy/M16.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "easy",
+    "task_id": "M17",
+    "name": "methyl isocyanide -> acetonitrile rearrangement",
+    "edge_count": 1,
+    "sha256": "9dbc412e356cce5c2a193e553a0acf847fc3fbbc646d502aca50ce1e053972b1",
+    "source": "ideapool/tasks/easy/M17.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "easy",
+    "task_id": "M3",
+    "name": "NH3 umbrella inversion",
+    "edge_count": 1,
+    "sha256": "18c18e73bb28405a05d85eb033cd548eb3cbf50435d29b05d0a07e1175cf8ae5",
+    "source": "ideapool/tasks/easy/M3.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "easy",
+    "task_id": "M8",
+    "name": "cyclohexane chair flip",
+    "edge_count": 1,
+    "sha256": "c66d5840723cea77bb6155ff455cafb20b9fe804846cfd56aea1e646f25cd7c7",
+    "source": "ideapool/tasks/easy/M8.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "easy",
+    "task_id": "P2",
+    "name": "cyclopentadiene degenerate H shift",
+    "edge_count": 1,
+    "sha256": "d674c688e3123c951d4f299c51f0100237d15a341e2d3843cb642b30b047159c",
+    "source": "ideapool/tasks/easy/P2.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "easy",
+    "task_id": "P3",
+    "name": "allyl vinyl ether Claisen rearrangement",
+    "edge_count": 1,
+    "sha256": "99293e58740b4063e7a97a22e5bae053eed63b08b1e81796e3c5f804e11ef76d",
+    "source": "ideapool/tasks/easy/P3.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "easy",
+    "task_id": "X1",
+    "name": "beta-propiolactone -> ethylene + CO2",
+    "edge_count": 1,
+    "sha256": "03703e5841123966ecccd49516dea0c21b01a1192c88c2b8eaeff5e53139cbc4",
+    "source": "ideapool/tasks/easy/X1.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "hard",
+    "task_id": "HA1",
+    "name": "3-methylcyclobutene ring opening: determine the stereochemical outcome",
+    "edge_count": 2,
+    "sha256": "c0b689a3786520ecd0d4530bd3bd00148837570c97cc7d573e20968632eade19",
+    "source": "ideapool/tasks/hard/HA1.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "hard",
+    "task_id": "HA6",
+    "name": "trans-3,4-dimethylcyclobutene ring opening: determine the stereochemical outcome",
+    "edge_count": 2,
+    "sha256": "43f4596556df5dba542a7ff7ffc6ef335dd37e8ccb7fae44bdd278ff6a24bcf1",
+    "source": "ideapool/tasks/hard/HA6.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "hard",
+    "task_id": "HA8",
+    "name": "(2E,4Z,6E)-octa-2,4,6-triene thermal 6-pi electrocyclization: determine the stereochemical outcome",
+    "edge_count": 1,
+    "sha256": "f1c2b203ffe4c84820630bd58888c4bfecfa7250c9ee05c9f822788d400ac434",
+    "source": "ideapool/tasks/hard/HA8.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "hard",
+    "task_id": "HB1",
+    "name": "cyclopentadiene + maleic anhydride Diels-Alder: determine endo/exo outcome",
+    "edge_count": 2,
+    "sha256": "08e9394b7be919711b780069ca5ad2fc5bc38e973d940b4699c5b01cc1fea72b",
+    "source": "ideapool/tasks/hard/HB1.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "hard",
+    "task_id": "HB10",
+    "name": "cyclopentadiene + acrylonitrile Diels-Alder reaction: determine both stereochemical pathways",
+    "edge_count": 2,
+    "sha256": "0fa323771c933eef10d8f35fed95bda1e293031ef05f5ad9cda7fe00e33b25fc",
+    "source": "ideapool/tasks/hard/HB10.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "hard",
+    "task_id": "HD2",
+    "name": "cyclohexene oxide + hydroxide: determine the stereochemical outcome of the epoxide opening",
+    "edge_count": 1,
+    "sha256": "3ca1dd70bf9bd8cdfa9f59706ce454cf35838d0a9f9cb197a951caffddbdf327",
+    "source": "ideapool/tasks/hard/HD2.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "hard",
+    "task_id": "HF1",
+    "name": "cyclohex-2-en-1-ol peracid epoxidation: determine the stereochemical outcome",
+    "edge_count": 2,
+    "sha256": "78634c0e777b74053bcd7f2225dd3ffd3ae045b00fe956369f5d4df027ba11f3",
+    "source": "ideapool/tasks/hard/HF1.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "hard",
+    "task_id": "HH1",
+    "name": "1,1'-binaphthyl thermal racemization",
+    "edge_count": 2,
+    "sha256": "9c8e44710f3b13056ad6a02392ce7c07b32a5791ee4e6d7f6bff5d83c4599970",
+    "source": "ideapool/tasks/hard/HH1.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "hard",
+    "task_id": "HI1",
+    "name": "(S)-proline-catalyzed direct aldol reaction of acetone with benzaldehyde: determine the stereochemical outcome",
+    "edge_count": 4,
+    "sha256": "35535532bba2c88ac9697807876138491697ff64434eea5d8dafe5ee50615c0b",
+    "source": "ideapool/tasks/hard/HI1.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "hard",
+    "task_id": "HL1",
+    "name": "Beckmann rearrangement of (E)-butanone oxime: determine which group migrates",
+    "edge_count": 4,
+    "sha256": "d7b7023b1c17e211cd0029605c3168a7475b04fc31b4455b51f5ec877f20cea9",
+    "source": "ideapool/tasks/hard/HL1.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "impossible",
+    "task_id": "IA1",
+    "name": "cyclobutadiene D4h automerization",
+    "edge_count": 1,
+    "sha256": "aef70bf928715fb9f79afb8edcca02d187a89ec8690b4ff6c3f28ab1fe9067da",
+    "source": "ideapool/tasks/impossible/IA1.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "impossible",
+    "task_id": "IA5",
+    "name": "cyclobutene disrotatory ring opening",
+    "edge_count": 1,
+    "sha256": "a18e476c383de09303cdb8c0b9e1a004ce087109a2e472ee9e3d7350ca068f7b",
+    "source": "ideapool/tasks/impossible/IA5.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "impossible",
+    "task_id": "IA7",
+    "name": "Bergman cyclization of (Z)-hex-3-ene-1,5-diyne",
+    "edge_count": 1,
+    "sha256": "089f0c5338f2a55c44b5590ce0019edd1b41b8172d2575ad2a9ad9b340c1fe5b",
+    "source": "ideapool/tasks/impossible/IA7.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "impossible",
+    "task_id": "IA8",
+    "name": "Criegee intermediate CH2OO isomerization to dioxirane",
+    "edge_count": 1,
+    "sha256": "00029a86b04b11211463b09ea505191962db382150b05afaaa43379f5b81d15c",
+    "source": "ideapool/tasks/impossible/IA8.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "impossible",
+    "task_id": "IA9",
+    "name": "1,2-dioxetane thermolysis to two formaldehyde",
+    "edge_count": 1,
+    "sha256": "ae4d2f727f377a5dc65618ba2097b512f93064b854d169a71b4e532501e87436",
+    "source": "ideapool/tasks/impossible/IA9.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "impossible",
+    "task_id": "IB10",
+    "name": "Wolff rearrangement: diazoacetaldehyde to ketene and nitrogen via formylcarbene",
+    "edge_count": 2,
+    "sha256": "e456f3cef96344de377a15bca9b1b29004ea1e9baec47c2c283bebc7df285949",
+    "source": "ideapool/tasks/impossible/IB10.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "impossible",
+    "task_id": "IB9",
+    "name": "diazomethane and ethylene to cyclopropane via 1-pyrazoline",
+    "edge_count": 2,
+    "sha256": "d5d9d34845a66cb7f9c5cf4fefe3bd5e4804eace62e99391f744ec49eaac5064",
+    "source": "ideapool/tasks/impossible/IB9.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "impossible",
+    "task_id": "IC3",
+    "name": "phenylnitrene open-shell singlet state",
+    "edge_count": 1,
+    "sha256": "ccdb6656b4be35ae6841d283a400bac235f82ece36ab0b3c67d741df7a786761",
+    "source": "ideapool/tasks/impossible/IC3.json",
+    "deliverable_kind": "state_order",
+    "reference_properties": {}
+  },
+  {
+    "tier": "impossible",
+    "task_id": "ID2",
+    "name": "anomalous bonding in dioxygen difluoride (FOOF)",
+    "edge_count": 0,
+    "sha256": "c1c9d5f8bf865abc8ab68b1242f2f6a2193c82e0b66412378f95da961709fb45",
+    "source": "ideapool/tasks/impossible/ID2.json",
+    "deliverable_kind": "property",
+    "reference_properties": {}
+  },
+  {
+    "tier": "impossible",
+    "task_id": "IE2",
+    "name": "nitrogen triple-bond dissociation curve",
+    "edge_count": 1,
+    "sha256": "4f8af8981eec14aa33cccd0bc318d4cb2459bc4af822a94009097bb09072edaa",
+    "source": "ideapool/tasks/impossible/IE2.json",
+    "deliverable_kind": "property",
+    "reference_properties": {}
+  },
+  {
+    "tier": "impossible",
+    "task_id": "IF3",
+    "name": "triangulene triplet ground state and singlet-triplet gap",
+    "edge_count": 1,
+    "sha256": "b938b60b238c4bb529aa9dda89ce8451b7ca0eadfb817e27d3346236fa18b448",
+    "source": "ideapool/tasks/impossible/IF3.json",
+    "deliverable_kind": "state_order",
+    "reference_properties": {}
+  },
+  {
+    "tier": "impossible",
+    "task_id": "IG8",
+    "name": "chromium dimer ground-state dissociation curve",
+    "edge_count": 1,
+    "sha256": "78c9ef154dad551e09d2a8b0a8b503536ba09c11468145ec2ade209462ae242a",
+    "source": "ideapool/tasks/impossible/IG8.json",
+    "deliverable_kind": "property",
+    "reference_properties": {}
+  },
+  {
+    "tier": "normal",
+    "task_id": "NB1",
+    "name": "malonic acid thermal decarboxylation: malonic acid -> acetic acid + CO2",
+    "edge_count": 2,
+    "sha256": "8124cf7a2b57c65f257727a5df2ba275288171fcd797eaef911fe1235313e079",
+    "source": "ideapool/tasks/normal/NB1.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "normal",
+    "task_id": "NI1",
+    "name": "imine formation: formaldehyde + methylamine -> N-methylmethanimine + water",
+    "edge_count": 2,
+    "sha256": "b33504581366b069ff4bf05f193a65cc5a91df54cc62cfa21a5c99b0496e7865",
+    "source": "ideapool/tasks/normal/NI1.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "normal",
+    "task_id": "NI5",
+    "name": "imine formation (aqueous): formaldehyde + methylamine -> N-methylmethanimine + water",
+    "edge_count": 3,
+    "sha256": "4e6f012b9e779675e9ce5fa41fd6d61bbce93c702ad50c8baa1136dba85dfcc8",
+    "source": "ideapool/tasks/normal/NI5.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "normal",
+    "task_id": "NQ1",
+    "name": "aromatic Claisen rearrangement: allyl phenyl ether -> 2-allylphenol",
+    "edge_count": 2,
+    "sha256": "c14d1c007173d389c56e91755ad14d9ff4bcfcdc7e164cade54f8202059acf5a",
+    "source": "ideapool/tasks/normal/NQ1.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "normal",
+    "task_id": "NQ5",
+    "name": "oxy-Cope rearrangement: 1,5-hexadien-3-ol -> hex-5-enal ([3,3] then enol-keto tautomerization)",
+    "edge_count": 2,
+    "sha256": "b5a2fd4459238b0b70ae9a246dc84ed36dc309f95bc1da7ea571965c0fe65e36",
+    "source": "ideapool/tasks/normal/NQ5.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "normal",
+    "task_id": "NR1",
+    "name": "pinacol rearrangement: pinacol -> pinacolone (acid-catalyzed)",
+    "edge_count": 4,
+    "sha256": "451299296d12a711162cd3ab9909bb27ee22e87f2c51713ff63714a92daa7e8c",
+    "source": "ideapool/tasks/normal/NR1.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "normal",
+    "task_id": "NU3",
+    "name": "H3P=CH2 ylide + formaldehyde -> ethylene + H3P=O",
+    "edge_count": 3,
+    "sha256": "5fcd1b9268066626e3c41bb77199c1e966156719f94e7b29aae5c9a08c3193f7",
+    "source": "ideapool/tasks/normal/NU3.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "normal",
+    "task_id": "NU5",
+    "name": "Passerini reaction: formaldehyde + formic acid + methyl isocyanide -> N-methyl-alpha-formyloxyacetamide",
+    "edge_count": 3,
+    "sha256": "6e227ecdacbd3b35ca388d2b560019de72d83c287e44872edc694cd47d9c13e7",
+    "source": "ideapool/tasks/normal/NU5.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "normal",
+    "task_id": "NU6",
+    "name": "Staudinger beta-lactam synthesis: ketene + methanimine -> 2-azetidinone",
+    "edge_count": 2,
+    "sha256": "7f0f5a7cbe4481dedc173983f864d1622e136ebafc9b67d75b4d2eb2554b027b",
+    "source": "ideapool/tasks/normal/NU6.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  },
+  {
+    "tier": "normal",
+    "task_id": "NY3",
+    "name": "Ester saponification: methyl formate + NaOH -> sodium formate + methanol",
+    "edge_count": 3,
+    "sha256": "8d871517596d0574314cf2c2a16114ac8ec6ff61f0ec917e9d8154586a52ce15",
+    "source": "ideapool/tasks/normal/NY3.json",
+    "deliverable_kind": "mechanism",
+    "reference_properties": {}
+  }
+]

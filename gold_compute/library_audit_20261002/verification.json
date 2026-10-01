@@ -1,0 +1,61 @@
+{
+  "published_commit": "3ec62c55c8e3433854246ea50f889668b2659cc4",
+  "remote_master_observed": "3ec62c55c8e3433854246ea50f889668b2659cc4",
+  "workspace_head": "9fa8775b7e29c7f941451b38e516c42422701b09",
+  "task_count": 52,
+  "edge_count": 81,
+  "numeric_count": 57,
+  "null_count": 24,
+  "status_counts": {
+    "backfilled": 57,
+    "open": 10,
+    "inaccessible_ts": 8,
+    "non_barrier_property": 4,
+    "waived": 2
+  },
+  "tiers": {
+    "easy": {
+      "tasks": 20,
+      "edges": 20,
+      "statuses": {
+        "backfilled": 20
+      }
+    },
+    "normal": {
+      "tasks": 10,
+      "edges": 26,
+      "statuses": {
+        "backfilled": 17,
+        "waived": 2,
+        "open": 7
+      }
+    },
+    "hard": {
+      "tasks": 10,
+      "edges": 22,
+      "statuses": {
+        "backfilled": 19,
+        "open": 3
+      }
+    },
+    "impossible": {
+      "tasks": 12,
+      "edges": 13,
+      "statuses": {
+        "inaccessible_ts": 8,
+        "backfilled": 1,
+        "non_barrier_property": 4
+      }
+    }
+  },
+  "numeric_caveat_count": 10,
+  "working_tree_difference_count": 10,
+  "scope": "52 active generated TaskSpecs in all four tiers; archived/unused candidate pools excluded",
+  "limits": [
+    "Read-only source/provenance closure audit; not a fresh scientific validation of every raw QM log.",
+    "No numeric value and no explicit per-edge waiver => open, even when deferred or previous attempts failed.",
+    "Historic computed JSON and edge ids may be stale; committed current registry/TaskSpec takes precedence."
+  ],
+  "errors": [],
+  "verified": true
+}

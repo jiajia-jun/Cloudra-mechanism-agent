@@ -1,0 +1,25 @@
+{
+  "conversion_Eh_to_kcal_mol": 627.5095,
+  "HL1_E3": {
+    "TS_job": 17,
+    "reference_job": 30,
+    "barrier_kcal_mol": 10.435943657294413
+  },
+  "HL1_E4": {
+    "TS_job": 37,
+    "reference_job": 9,
+    "barrier_kcal_mol": 13.456987999559502
+  },
+  "HG2_anti": {
+    "TS_job": 53,
+    "reference_job": 21,
+    "barrier_kcal_mol": 26.380371469710344
+  },
+  "HG2_syn_EE": null,
+  "HE3_hydride_only": {
+    "TS_job": 23,
+    "reference_job": 25,
+    "barrier_kcal_mol": 8.276851511143578,
+    "not_full_graph_edge_gold": true
+  }
+}
