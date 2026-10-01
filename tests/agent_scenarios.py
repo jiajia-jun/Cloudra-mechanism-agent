@@ -23,6 +23,7 @@
 | 压缩阈值与摘要 | context overflow |
 | 结题门禁 + 编排模式 | dag_guided 证据门与督导裁决 |
 | 消息投递/恢复语义 | 异步子 Agent 回传、重启 |
+| TS 故障检查点 + 干预预算 | 重复相同 scan 续接保留原故障、不耗尽预算 |
 """
 
 from __future__ import annotations

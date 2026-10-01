@@ -1062,3 +1062,56 @@ async def test_context_budget_compacts_once_then_short_turns_continue(tmp_path, 
         assert agent.id in contexts
     finally:
         await harness.aclose()
+
+
+@pytest.mark.asyncio
+async def test_failed_ts_scan_unchanged_resume_keeps_failure_without_budget_exhaustion(tmp_path):
+    """TS failure checkpoint: repeated tool calls preserve evidence and intervention budget."""
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.tools.core.ts_process import (
+        TsBlocked,
+        TsBudget,
+        TsDeclaration,
+        TsJobStep,
+        TsProcessRecord,
+        load_record,
+        save_record,
+    )
+
+    provider = ScriptedProvider(by_role={})
+    harness = await ScenarioHarness.start(tmp_path, provider=provider)
+    try:
+        workspace = _workspace(harness.project.id)
+        run_dir = workspace / "ts" / "failed_scan"
+        await asyncio.to_thread(run_dir.mkdir, parents=True, exist_ok=True)
+        scan = {"method": "b3lyp/def2svp", "extra_route": "D3BJ RIJCOSX def2/J TightSCF",
+                "scans": [{"atoms": [0, 1], "scan_start": 1, "scan_end": 2, "scan_steps": 7}]}
+        record = TsProcessRecord(run_id="failed_scan", run_dir=str(run_dir), stage="guess",
+            declaration=TsDeclaration(engine="orca", reactant_smiles="O", product_smiles="O",
+                method="b3lyp/def2svp", scan=scan, budget=TsBudget(max_interventions=1)),
+            blocked=TsBlocked(stage="guess", failure_class="scan_job_failed", message="native SHARK failure"),
+            scan_step=TsJobStep(purpose="scan", job_id=42, state="failed"))
+        await asyncio.to_thread(save_record, record)
+        provider.script("small_mol", *[
+            Step(tools=[("ts_resume", {"run_id": record.run_id, "adjustment": {"scan": scan}})])
+            for _ in range(3)
+        ], Step(stop=True))
+        agent = await harness.spawn("small_mol", protocol="traditional")
+        await harness.wait_terminal(agent)
+        calls = harness.tool_events(agent)
+        assert [call["tool_name"] for call in calls] == ["ts_resume"] * 3
+        assert all(call["is_success"] for call in calls), harness.describe(agent)
+        for call in calls:
+            result = call["result_data"]
+            assert result["blocked"]["failure_class"] == "scan_job_failed"
+            assert result["intervention_count"] == 0
+            assert result["terminal"] is None
+        after = await asyncio.to_thread(load_record, str(workspace), record.run_id)
+        assert after.model_dump() == record.model_dump()
+        def queued_jobs():
+            db = ComputeDB().init()
+            with db.connect() as con:
+                return con.execute("SELECT COUNT(*) FROM compute_jobs").fetchone()[0]
+        assert await asyncio.to_thread(queued_jobs) == 0
+    finally:
+        await harness.aclose()

@@ -961,7 +961,20 @@ def _guess_scan(record: TsProcessRecord) -> TsProcessRecord:
         return record
     record.waiting_for = ""
     if step.state != "done":
-        return _block(record, "guess", "scan_job_failed", f"Scan job {step.job_id}: {step.state}", needs=["scan"])
+        log_path = _refinement_log_path(record, step)
+        details = [f"native scan log: {log_path}"]
+        if Path(log_path).is_file():
+            details.extend(Path(log_path).read_text(errors="replace").splitlines()[-20:])
+        else:
+            details.append("native scan log is missing")
+        return _block(
+            record, "guess", "scan_job_failed",
+            f"Scan job {step.job_id}: {step.state}. Inspect the native log and execution artifacts "
+            "to identify the cause before proposing a correction. An unchanged adjustment does "
+            "not retry the job; changing only the point count starts another scan and does not "
+            "resolve an unexplained engine failure.",
+            atom_details=details, needs=["compute_artifacts"],
+        )
     target = str(Path(step.input_path).parent / "scan_peak.xyz")
     try:
         parsed = TsGuess()._scan_parse(TsGuess_input_schema(
@@ -2910,6 +2923,10 @@ def _resume_checkpoint(record: TsProcessRecord, adjustment: TsAdjustment,
         declaration.budget.path_refinement_runs = adjustment.path_refinement_runs
     if adjustment.max_interventions is not None:
         declaration.budget.max_interventions = adjustment.max_interventions
+    # Repeating declaration values is a checkpoint read, not a new intervention.
+    # Keep the original failure and budget intact instead of clearing/reblocking.
+    if declaration == record.declaration:
+        return record
     guidance_changed = (
         declaration.ring_order != record.declaration.ring_order
         or declaration.distance_filters != record.declaration.distance_filters

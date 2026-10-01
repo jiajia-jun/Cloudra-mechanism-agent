@@ -83,7 +83,7 @@ class TsResume_input_schema(input_schema):
         default_factory=TsAdjustment,
         description="Local overrides only: ring_order, distance_filters, reaction_center, atom_map, path_refinement_runs, "
                     "max_interventions, selection_decision, partition_revision, endpoint_retry, endpoint_seed_retry and exploration_budget. "
-                    "Use one explicit action per call; empty adjustment reads the checkpoint without advancing.",
+                    "Use one explicit action per call; empty or unchanged declaration adjustments read the checkpoint without advancing or consuming intervention budget.",
     )
     workspace_dir: Optional[str] = Field(
         default=None,
@@ -102,7 +102,7 @@ class TsProcess_output_schema(output_schema):
     exploration_budget: ExplorationBudget | None = None
 
     is_success: bool = Field(
-        description="Whether the process state was advanced. NOTE: a blocked or terminal process "
+        description="Whether the checkpoint was read or adjusted. NOTE: a blocked or terminal process "
                     "still reports is_success=True — read `blocked` / `terminal` for the outcome; "
                     "is_success=False means the call itself could not run.",
     )
@@ -124,8 +124,8 @@ class TsProcess_output_schema(output_schema):
     )
     blocked: Optional[TsBlocked] = Field(
         default=None,
-        description="Present when the process needs you to change the declaration: failure class, "
-                    "stage, atom-level details and which declaration items to fix.",
+        description="Present when the process needs evidence review or a correction: failure class, "
+                    "stage, native diagnostics and the information needed next.",
     )
     path_kind: str = Field(
         default="not_attempted",
@@ -134,7 +134,7 @@ class TsProcess_output_schema(output_schema):
                     "idpp_fallback (xtb unavailable: a DEGRADED interpolation route) / "
                     "not_attempted (no path search was started).",
     )
-    intervention_count: int = Field(default=0, description="How many times ts_resume was called")
+    intervention_count: int = Field(default=0, description="How many declaration-changing interventions were accepted")
     stage_records: list[TsStageRecord] = Field(
         default_factory=list, description="Per-stage outcome, including not_implemented stages"
     )

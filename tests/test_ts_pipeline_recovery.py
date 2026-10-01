@@ -271,3 +271,23 @@ def test_reaction_center_change_without_ring_invalidates_geometry_dependencies(t
     assert result.current_ts_guess_path==''
     assert not result.job_steps
     assert result.attempt_history[-1].job_steps[-1].purpose=='path'
+
+
+@pytest.mark.parametrize("note", ["", "retain the existing scan"])
+def test_repeated_unchanged_scan_adjustment_preserves_failure_and_budget(tmp_path, note):
+    db, pid, record = checkpoint(tmp_path)
+    record.declaration.scan = ts_process.ScanPlanInput(
+        method="b3lyp/def2svp", extra_route="D3BJ RIJCOSX def2/J TightSCF",
+        scans=[{"atoms": [0, 1], "scan_start": 1, "scan_end": 2, "scan_steps": 7}],
+    )
+    record.declaration.budget.max_interventions = 1
+    record.scan_step = record.job_steps.pop().model_copy(update={"purpose": "scan", "state": "failed"})
+    record.blocked = ts_process.TsBlocked(stage="guess", failure_class="scan_job_failed", message="SHARK failure")
+    save_process_record(db, process_id=pid, record=record.model_dump(mode="json"))
+    before = get_process(db, pid)
+    for _ in range(3):
+        record = ts_process.resume(record, ts_process.TsAdjustment(scan=record.declaration.scan, budget_override_note=note))
+        assert record.model_dump(mode="json") == before["record"]
+        assert get_process(db, pid) == before
+    with db.connect() as con:
+        assert con.execute("SELECT COUNT(*) FROM compute_jobs").fetchone()[0] == 1
