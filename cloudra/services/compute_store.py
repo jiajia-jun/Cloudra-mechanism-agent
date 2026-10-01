@@ -105,6 +105,12 @@ def _insert_params(
     )
 
 
+def insert_compute_job_in_transaction(con, **kwargs) -> int:
+    """Insert into a caller-owned transaction; never commits or opens a queue."""
+    params = _insert_params(**kwargs)
+    return int(con.execute(_INSERT_SQL, params).lastrowid)
+
+
 def insert_compute_job(
     db: ComputeDB,
     *,

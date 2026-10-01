@@ -44,7 +44,7 @@
 | **本 README** | 本轮策略与口径的唯一权威说明 |
 | 新策展题源（待建，不在旧 `reaction_candidates` 名单里） | 本轮反应 + gold 的写入面 |
 | `edge_barriers/computed/` 等 | **历史**自算产物；可参考方法与踩坑，不是本轮待办列表 |
-| `archive/` | 已废止的战役计划 / 文献填充 / 批次手记（含「全边 DFT 旧池」与「只填文献」） |
+| `archive/` | 已废止的战役计划 / 文献填充 / 批次手记（含「全边 DFT 旧池」与「只填文献」），以及已完成的 [gold 回填](archive/HANDOFF_backfill.md) / [HG2 配对纠正](archive/HANDOFF_hg2_pairing.md)交接 |
 | `archive/gold_ledger.py` | **考古**：旧池边来源分类复算；禁止当本轮待办队列 |
 
 ## 已废止（勿再当现行计划）

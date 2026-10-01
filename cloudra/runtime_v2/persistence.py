@@ -475,6 +475,11 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
     # the previous process and has no runner anymore.  Mark the run failed so
     # the UI doesn't show a zombie "running" agent forever; a user message
     # reopens it (message-to-terminal auto-restart).
+    #
+    # 恢复期没有事件循环，不能走 AgentHost 的 persist-then-apply 壳：用同一批纯
+    # planner 产出草稿，自己 append + apply 并收进 new_events，由本函数末尾的
+    # 一次性落库屏障统一补盘（与下面 launch_group 收口同一写法）。
+    from cloudra.runtime_v2.agent_host import plan_finish_run, plan_transition
     from cloudra.runtime_v2.schemas import AgentState
 
     zombies = []
@@ -485,19 +490,30 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
             AgentState.WAITING_APPROVAL,
         }:
             continue
-        before = len(core.event_log)
         if agent.current_run is not None:
-            core.agent_host.finish_run(
+            _, drafts = plan_finish_run(
                 agent,
                 outcome="failed",
                 error="interrupted by process restart",
                 failure_kind=RunFailureKind.RUNTIME_INTERRUPTED,
             )
         else:
-            core.agent_host.transition(
-                agent, AgentState.FAILED, reason="interrupted by process restart"
+            drafts = [
+                plan_transition(
+                    agent, AgentState.FAILED, reason="interrupted by process restart"
+                )
+            ]
+        for draft in drafts:
+            envelope = core.event_log.append(
+                draft.type,
+                stream=draft.stream,
+                project_id=draft.project_id,
+                session_id=draft.session_id,
+                run_id=draft.run_id,
+                data=draft.data,
             )
-        new_events.extend(list(core.event_log)[before:])
+            apply_event(core, envelope)
+            new_events.append(envelope)
         zombies.append(agent)
     # 跨重启子终态回传：僵尸子的父还在等它的结果（is_wait=False 派发只有这
     # 一条通知通道），与普通完成回传同一载荷构造送达父信箱；恢复路径不 wake

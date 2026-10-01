@@ -35,8 +35,10 @@
   agent.cancel_requested / agent.restart_requested / agent.restarted /
   command.rejected /
   agent.message_emitted / agent.warning / loop.detected / project.synced
-- 消息与对话：agent.message_injected / agent.thinking（inbox 内容不重建：
-  输入消息由 context.appended 进会话上下文投影；mailbox 队列是易失 shell）
+- 消息与对话：agent.message_injected / agent.thinking（本函数对二者不投影任何
+  projects/agents/roles 状态；输入消息进入会话上下文走 context.appended，inbox
+  队列则由恢复路径 ``persistence._rebuild_inboxes_from_events`` 从
+  agent.message_injected 重建——不是"易失即弃"）
 - 运行过程流：llm.* / tool.* / run.retry / dag.gate_blocked /
   hub.posted / compaction.started / compaction.finished
 - 自有恢复通道的投影（不经本函数）：approval.* / interaction.*

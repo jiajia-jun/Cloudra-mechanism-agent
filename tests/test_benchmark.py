@@ -1954,9 +1954,13 @@ def test_hard_replacement_and_hl1_reframed_graph():
     assert da.gold.selectivity.favored_channel == "endo"
 
     beckmann = tasks["HL1"].gold.mechanism_graph
-    assert [e.id for e in beckmann.edges] == ["HL1_E1", "HL1_E2", "HL1_E3"]
-    assert [e.barrier_kcal_mol for e in beckmann.edges] == [None, 23.13, None]
-    assert {e.from_node for e in beckmann.edges} == {"HL1_R", "HL1_I1", "HL1_I2"}
+    assert [e.id for e in beckmann.edges] == ["HL1_E1", "HL1_E2", "HL1_E3", "HL1_E4"]
+    assert [e.barrier_kcal_mol for e in beckmann.edges] == [None, 23.13, 10.44, 13.46]
+    assert {e.from_node for e in beckmann.edges} == {"HL1_R", "HL1_I1", "HL1_I2", "HL1_I3"}
+    nodes = {n.id: n for n in beckmann.nodes}
+    assert nodes["HL1_I3"].smiles == ["CCN=C(C)[OH2+].O"]
+    assert beckmann.edges[2].to_node == "HL1_I3"
+    assert beckmann.edges[3].to_node == "HL1_P"
 
 
 def test_hh1_shared_endpoint_channels():

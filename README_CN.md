@@ -210,23 +210,22 @@ Cloudra 深度集成了计算化学主流工具链与高性能计算基础设施
 ## 仓库结构
 
 ```text
-cloudra/
-├── core/                        Agent 基类与科学督导（Supervisor）
-├── services/                    控制面 API 服务（api_v2 包：app/routers/context/models）
-├── persistence/                 SQLite 持久化、不可变产物快照、长期记忆、路径管理
-├── base/                        数据契约与工具/技能加载基类
-├── infra/                       配置（磁盘 YAML 唯一事实源）、LLM 传输层、flock 原语、统一日志
-├── dag/                         机理证据交付图子系统（Engine, Store, Controller）
-├── runtime/                     确定性 prompt 组装、工作区快照、计算 guard 与日志监视
-├── scheduler/                   进程隔离的计算调度守护进程（排队/容量记账/flock 崩溃对账）
-├── runtime_v2/                  事件驱动推理新内核（Pipeline, Commands, PolicyStages, Bridges）
-├── benchmark/                   评测生成器、三层证据评分与批量测试运行器
-├── tools/, subagents/           几何与电子感知工具库、领域专长 Agent（dft, md, explorer 等）
-├── skills/, prompts/            实验方法学技能包与经过版本控制的角色策略
-└── frontend/                    React + TypeScript + Vite 现代化 Web 控制台
-docs/                            系统架构规范、SOP 规格、实验门禁、基准调研与设计规格
-paper/                           学术论文手稿、文献缺口分析与基准构建叙事
+cloudra/                         Python 包：运行内核、服务、工具、评测、prompts 与 skills
+frontend/                        React + TypeScript + Vite Web 控制台
+scripts/                         安装、运行、数据脚本与 application_docs/ 一次性文档编辑脚本
+deploy/                          部署与远程计算指南
+tests/                           回归测试与科学验证样本
+docs/                            当前架构/SOP、证据、许可证、标志资源与 archive/
+paper/                           论文正文、literature/ 文献原件与 archive/ 调研快照
+ideapool/                        版本化题源、生成题集与历史调研
+gold_compute/                    gold 方法口径、科学记录与交接归档
+kg_data/, vector_store/          知识图谱输入与向量元数据
+知识卡片/                       知识卡片源档案
+申请材料/, 软著申请材料/        外部申报交付物（保留原路径）
+archive/                         本地实验残留（默认忽略，已跟踪 README 除外）
 ```
+
+详细入口见[文档中心](docs/README.md)、[脚本索引](scripts/README.md)和[文献索引](paper/literature/README.md)。根目录保留配置、许可证/引用文件与 `install.sh`、`web.sh`；临时运行目录和构建产物不入库。
 
 ---
 

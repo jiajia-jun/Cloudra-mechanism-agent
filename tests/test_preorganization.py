@@ -414,3 +414,18 @@ def test_guided_filter_does_not_hide_disconnected_spectator(tmp_path):
     ok, reasons, _ = qualify_geometry(plan, graph, ['He']*3, [[0,0,0],[3.5,0,0],[100,0,0]])
     assert not ok
     assert any('disconnected' in reason for reason in reasons)
+
+
+def test_qualification_rejects_mirrored_declared_stereocenter():
+    from rdkit import Chem
+    from rdkit.Chem import AllChem
+
+    from cloudra.tools.core.preorganization import GuidancePlan, qualify_geometry
+    mol=Chem.AddHs(Chem.MolFromSmiles('N[C@@](C)(F)Cl'))
+    AllChem.EmbedMolecule(mol,randomSeed=42)
+    plan=GuidancePlan(ring_order=(),windows=(),forming_pairs=(),bonded_pairs=(),index_base=0)
+    positions=mol.GetConformer().GetPositions()
+    mirrored=positions.copy()
+    mirrored[:,0]*=-1
+    eligible,reasons,_=qualify_geometry(plan,mol,[a.GetSymbol() for a in mol.GetAtoms()],mirrored)
+    assert not eligible and any('stereo' in r for r in reasons)

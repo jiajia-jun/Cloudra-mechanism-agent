@@ -211,23 +211,22 @@ Cloudra seamlessly bridges local exploratory modeling and remote cluster computi
 ## Repository Layout
 
 ```text
-cloudra/
-├── core/                        Agent base types and scientific supervision (Supervisor)
-├── services/                    Control plane API service (api_v2 package: app/routers/context/models)
-├── persistence/                 SQLite store, immutable artifacts, long-term memory, paths
-├── base/                        Data classes and tool/skill loading contracts
-├── infra/                       Config (disk-YAML source of truth), LLM transports, flock primitives, unified logging
-├── dag/                         Mechanism evidence graph subsystem (Engine, Store, Controller)
-├── runtime/                     Deterministic prompt assembly, workspace observer, compute guard & monitoring
-├── scheduler/                   Process-isolated compute scheduler daemon (queueing, capacity accounting, flock-based crash reconciliation)
-├── runtime_v2/                  Event-driven reasoning kernel (Pipeline, Commands, PolicyStages, Bridges)
-├── benchmark/                   Task generators, 3-layer evidence scoring, and batch evaluation runner
-├── tools/, subagents/           Perception toolboxes and specialized domain roles (dft, md, explorer, etc.)
-├── skills/, prompts/            Domain methodology skills and version-controlled role prompts
-└── frontend/                    Modern React + TypeScript + Vite web console
-docs/                            System architecture specs, SOPs, experimental gates, benchmark surveys
-paper/                           Academic paper manuscripts, literature gap analysis, and benchmark construction
+cloudra/                         Python package: runtime, services, tools, benchmark, prompts and skills
+frontend/                        React + TypeScript + Vite web console
+scripts/                         Setup, runtime/data helpers and application_docs/ one-off editors
+deploy/                          Deployment and remote-compute guides
+tests/                           Regression tests and scientific fixtures
+docs/                            Current architecture/SOPs, evidence, licenses, assets and archive/
+paper/                           Manuscripts, literature/ sources and archive/ research snapshots
+ideapool/                        Versioned task sources, generated tasks and historical research
+gold_compute/                    Gold methodology, scientific records and archived handoffs
+kg_data/, vector_store/          Knowledge graph inputs and vector metadata
+知识卡片/                       Knowledge-card source archive
+申请材料/, 软著申请材料/        External application deliverables (existing paths preserved)
+archive/                         Local experiment remnants (ignored; tracked README exception)
 ```
+
+See the [documentation hub](docs/README.md), [script index](scripts/README.md) and [literature index](paper/literature/README.md) for details. Root configuration, license/citation files, `install.sh` and `web.sh` remain in place; temporary runtime and build outputs are ignored.
 
 ---
 

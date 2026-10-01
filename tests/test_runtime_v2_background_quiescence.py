@@ -46,13 +46,13 @@ async def _spawn(bus, project, role, *, parent=None):
 
 
 async def _finish(core, agent, action, *, source="dag"):
-    run_id = await core.agent_host.start_run_durable(agent)
+    run_id = await core.agent_host.start_run(agent)
     await core.event_writer.commit(EventDraft(
         "agent.completion_gate", stream="agent", project_id=agent.project_id,
         session_id=agent.id, run_id=run_id,
         data={"action": action, "source": source, "reason": "test"},
     ))
-    await core.agent_host.finish_run_durable(agent, outcome="succeeded")
+    await core.agent_host.finish_run(agent, outcome="succeeded")
     return run_id
 
 
@@ -75,19 +75,19 @@ async def test_guided_parent_wakes_after_previously_reported_child_and_superviso
     await runner._deliver_completion(child)
     assert len(_notices(core, parent, "child_completion")) == 1
     core.mailbox.inbox(parent.id).get_nowait()
-    await core.agent_host.finish_run_durable(parent, outcome="succeeded")
+    await core.agent_host.finish_run(parent, outcome="succeeded")
 
-    await core.agent_host.start_run_durable(child)
-    await core.agent_host.start_run_durable(supervisor)
+    await core.agent_host.start_run(child)
+    await core.agent_host.start_run(supervisor)
     parked_run = await _finish(core, parent, "wait_background")
     assert parent.state.value == "succeeded"
 
-    await core.agent_host.finish_run_durable(child, outcome="succeeded")
+    await core.agent_host.finish_run(child, outcome="succeeded")
     await runner._deliver_completion(child)
     assert parent.state.value == "succeeded", "supervisor still running"
     assert len(_notices(core, parent, "child_completion")) == 1
 
-    await core.agent_host.finish_run_durable(supervisor, outcome="succeeded")
+    await core.agent_host.finish_run(supervisor, outcome="succeeded")
     await runner._deliver_completion(supervisor)
     assert parent.state.value == "running"
     notices = _notices(core, parent, "background_quiescence")
@@ -165,7 +165,7 @@ async def test_parked_child_is_unfinished_background_work(tmp_path):
 async def test_running_parent_does_not_hold_its_child_open(tmp_path):
     core, _runner, bus, project, parent = await _setup(tmp_path)
     child = await _spawn(bus, project, "explorer", parent=parent)
-    await core.agent_host.start_run_durable(parent)
+    await core.agent_host.start_run(parent)
 
     assert not has_running_siblings(
         core, project_id=project.id, session_id=child.id,
@@ -182,7 +182,7 @@ async def test_queued_group_item_blocks_delivery_between_child_runs(tmp_path):
     await _finish(core, child, "allow_final", source="declared")
     await runner._deliver_completion(child)
     core.mailbox.inbox(parent.id).get_nowait()
-    await core.agent_host.finish_run_durable(parent, outcome="succeeded")
+    await core.agent_host.finish_run(parent, outcome="succeeded")
 
     group_id = "grp_quiescence"
     async def group_event(type_, data):

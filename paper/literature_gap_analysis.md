@@ -1,7 +1,7 @@
 # Cloudra 论文文献空缺分析（Literature Gap Analysis）
 
 > 目的：识别当前论文（`paper/main.tex` + `paper/sections/*`）在文献覆盖上的空缺，作为下一步文献补充/深读的执行清单。
-> 分析基准：`paper/references.bib`（当前 18 条引用）与 `chemistry_ai_agents_literature_report.md`（2026-02 调研报告，19 篇核心候选）。
+> 分析基准：`paper/references.bib`（当前 18 条引用）与 [`chemistry_ai_agents_literature_report.md`](archive/chemistry_ai_agents_literature_report.md)（2026-02 调研报告，19 篇核心候选）。
 
 ---
 
@@ -21,7 +21,7 @@
 
 ## 二、文献空缺 — 调研报告已收录但论文未引用（首要补齐项）
 
-调研报告 `chemistry_ai_agents_literature_report.md` 收录了 19 篇，其中以下 12 篇**没有**进入 `references.bib`，属于"已经调研、尚未落到论文引用"的直接空缺：
+调研报告 [`chemistry_ai_agents_literature_report.md`](archive/chemistry_ai_agents_literature_report.md) 收录了 19 篇，其中以下 12 篇**没有**进入 `references.bib`，属于"已经调研、尚未落到论文引用"的直接空缺：
 
 | 空缺文献 | 对 Cloudra 论文的具体价值 | 建议落点 |
 |----------|--------------------------|----------|

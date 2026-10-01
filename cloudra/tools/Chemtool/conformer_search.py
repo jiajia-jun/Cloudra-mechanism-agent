@@ -9,6 +9,7 @@ from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.fs_utils import atomic_write_text
 from cloudra.persistence.workspace import resolve_tool_path
+from cloudra.tools.core.conformer_statistical_regions import StatisticalPartitionRequest
 from cloudra.tools.core.crest_runner import CrestRunRequest, run_crest
 from cloudra.tools.core.geometry import kabsch_rmsd as _kabsch_rmsd
 from cloudra.tools.core.geometry_inputs import DistanceWindowInput
@@ -160,6 +161,9 @@ description = (
 
 
 class ConformerSearch_input_schema(input_schema):
+    statistical_partition: StatisticalPartitionRequest | None = None
+    catalog_mode: Literal["legacy", "regions"] = Field(default="legacy", description="regions preserves raw choices without optimizing all generated structures")
+
     smiles: Optional[str] = Field(
         default=None,
         description="Input molecule SMILES. One of smiles/input_path/input_text; smiles is preferred. "
@@ -249,6 +253,13 @@ class ConformerSearch_input_schema(input_schema):
 
 
 class ConformerSearch_output_schema(output_schema):
+    catalog_id: str = ""
+    catalog_path: str = ""
+    statistical_evidence_path: str = ""
+    region_snapshot_path: str = ""
+    cards_path: str = ""
+    selection_decision_path: str = ""
+
     is_success: bool = Field(description="Whether the search succeeded")
     table: str = Field(default="", description="Energy/population text table (at most 10 rows, no coordinates)")
     conformers: list[dict] = Field(
@@ -312,7 +323,7 @@ class ConformerSearch(Tool):
         return os.path.join(out_dir, _BUILD_DIR_NAME)
 
     def _prepare(self, user_input: ConformerSearch_input_schema, out_dir: str,
-                 *, embed: bool, optimize: bool) -> PreparedStructure:
+                 *, embed: bool, optimize: bool, candidate_sink=None) -> PreparedStructure:
         """调用共享构建器解析/构建结构（本工具不再自带解析与 Embed/MMFF 快捷路径）。"""
         return prepare_structure(PreparationRequest(
             structure=self._structure_input(user_input),
@@ -321,7 +332,7 @@ class ConformerSearch(Tool):
             multiplicity=user_input.multiplicity,
             random_seed=user_input.random_seed,
             strategy=BuildStrategy(name="per_component", embed=embed, optimize=optimize),
-        ))
+        ),candidate_sink=candidate_sink)
 
     @staticmethod
     def _build_failure(prepared: PreparedStructure) -> ConformerSearch_output_schema:
@@ -508,7 +519,7 @@ class ConformerSearch(Tool):
                 return energy, "UFF geometry, MMFF single-point"
         return None
 
-    def _run_complex(self, user_input: ConformerSearch_input_schema, out_dir: str) -> ConformerSearch_output_schema:
+    def _run_complex(self, user_input: ConformerSearch_input_schema, out_dir: str, *, candidate_sink=None) -> ConformerSearch_output_schema:
         """多组分输入：以**组装结果**作为复合物构象候选（组装参数由用户批准）。
 
         不再对整体做 ETKDG 系综嵌入——那会把碎片相对取向随机化，等于把"复合物"退回随机叠加。
@@ -517,7 +528,7 @@ class ConformerSearch(Tool):
         """
         from cloudra.tools.core.structure_artifacts import read_xyz_atoms
 
-        prepared = self._prepare(user_input, out_dir, embed=True, optimize=True)
+        prepared = self._prepare(user_input, out_dir, embed=True, optimize=True,candidate_sink=candidate_sink)
         if prepared.status != "ok" or not prepared.has_coordinates or prepared.assembly is None:
             return self._build_failure(prepared)
 
@@ -598,7 +609,142 @@ class ConformerSearch(Tool):
         )
         return self._finalize(user_input, frames, counts, xyz_path, extra_message=extra)
 
-    def _run_rdkit(self, user_input: ConformerSearch_input_schema, out_dir: str) -> ConformerSearch_output_schema:
+    def _statistical_snapshot(self, request, snapshot, candidates, out_dir):
+        from cloudra.tools.core.conformer_statistical_regions import (
+            apply_statistical_partition,
+            propose_statistical_splits,
+            statistical_coordinates,
+        )
+        rows,coordinates,warnings=statistical_coordinates(snapshot,candidates,request)
+        evidence = propose_statistical_splits(rows, coordinates,
+            seed=request.seed, resamples=request.resamples,
+            sampling_batches={c.candidate_id:str(c.seed) for c in candidates})
+        evidence=evidence.model_copy(update={'warnings':[*evidence.warnings,*warnings,'sampling_batches_defined_by_generator_seed']})
+        path = os.path.join(out_dir,'statistical_partition_evidence.json')
+        atomic_write_text(path,evidence.model_dump_json(indent=2))
+        if request.proposal_indices is not None:
+            snapshot = apply_statistical_partition(candidates,snapshot,evidence,
+                proposal_indices=request.proposal_indices,decision_id=request.decision_id,reason=request.reason)
+        return snapshot,path
+
+    def _repartition_archived(self, user_input, out_dir):
+        import json
+
+        from cloudra.persistence.database import ComputeDB
+        from cloudra.services.conformer_store import get_region_snapshot, list_candidates, put_region_snapshot
+        from cloudra.tools.core.conformer_cards import build_region_cards
+        from cloudra.tools.core.conformer_catalog import content_digest
+        request=user_input.statistical_partition
+        project=getattr(self.subagent,'conversation_id',None) or 'standalone:'+content_digest(os.path.abspath(out_dir))
+        owner=getattr(self.subagent,'id',None) or project
+        db=ComputeDB()
+        old=get_region_snapshot(db,request.source_catalog_id,request.source_revision,project_id=project,owner_id=owner)
+        candidates=list_candidates(db,old.catalog_id,project_id=project,owner_id=owner)
+        by_id={c.candidate_id:c for c in candidates}
+        if not set(request.additional_candidate_ids)<=set(by_id):
+            raise ValueError('additional candidate missing from scoped archive')
+        species={by_id[cid].species_key for cid in old.descriptors}
+        if any(by_id[cid].species_key not in species for cid in request.additional_candidate_ids):
+            raise ValueError('additional candidate changes partition species scope')
+        wanted=set(old.descriptors)|set(request.additional_candidate_ids)
+        candidates=[c for c in candidates if c.candidate_id in wanted]
+        os.makedirs(out_dir,exist_ok=True)
+        snapshot,path=self._statistical_snapshot(request,old,candidates,out_dir)
+        put_region_snapshot(db,snapshot,project_id=project,owner_id=owner)
+        region_path=os.path.join(out_dir,'conformer_regions.json')
+        cards_path=os.path.join(out_dir,'conformer_cards.json')
+        atomic_write_text(region_path,snapshot.model_dump_json(indent=2))
+        atomic_write_text(cards_path,json.dumps([c.model_dump() for c in build_region_cards(snapshot,candidates,[])],ensure_ascii=False))
+        return ConformerSearch_output_schema(is_success=True,catalog_id=old.catalog_id,
+            region_snapshot_path=region_path,cards_path=cards_path,statistical_evidence_path=path,
+            message='Archived candidates repartitioned with recorded exploratory evidence.' if request.proposal_indices is not None else 'Exploratory proposals generated; accepted partition unchanged.')
+
+    def _run_regions(self, user_input: ConformerSearch_input_schema, out_dir: str) -> ConformerSearch_output_schema:
+        import json
+
+        from cloudra.persistence.database import ComputeDB
+        from cloudra.services.conformer_store import put_candidate, put_region_snapshot
+        from cloudra.tools.core.conformer_capture import CandidateCapture
+        from cloudra.tools.core.conformer_catalog import content_digest
+        from cloudra.tools.core.conformer_regions import (
+            DescriptorSpec,
+            RegionConfig,
+            build_descriptor_specs,
+            partition_candidates,
+        )
+
+        if user_input.statistical_partition and user_input.statistical_partition.source_catalog_id:
+            return self._repartition_archived(user_input,out_dir)
+        if user_input.backend != "rdkit" or user_input.mode != "conformers":
+            return ConformerSearch_output_schema(is_success=False, message="Raw regions mode currently supports RDKit conformers; CREST requires explicit optimization budget integration.")
+        prepared = self._prepare(user_input, out_dir, embed=False, optimize=False)
+        parse_only_complex = (prepared.status == "assembly_failed" and len(prepared.components) > 1
+                              and all(c.embed_status == "not_required" for c in prepared.components))
+        if prepared.status != "ok" and not parse_only_complex:
+            return self._build_failure(prepared)
+        from cloudra.tools.core.preorganization import _validated_bounds, load_resolved_graph, resolve_guidance
+        mol = load_resolved_graph(prepared)
+        params = AllChem.ETKDGv3()
+        params.randomSeed = user_input.random_seed
+        params.pruneRmsThresh = -1
+        plan = resolve_guidance(prepared, user_input.ring_order,
+                                [row.model_dump() for row in user_input.distance_filters], index_base=1)
+        if plan.windows:
+            params.SetBoundsMat(_validated_bounds(prepared, plan))
+        cids = list(AllChem.EmbedMultipleConfs(mol, numConfs=user_input.num_confs, params=params))
+        if not cids:
+            return ConformerSearch_output_schema(is_success=False, message="No raw conformers generated; optimization not attempted.")
+        project = getattr(self.subagent, "conversation_id", None) or "standalone:" + content_digest(os.path.abspath(out_dir))
+        owner = getattr(self.subagent, "id", None) or project
+        catalog_id = content_digest([project, owner, os.path.abspath(out_dir), self._structure_input(user_input).model_dump(), user_input.random_seed])
+        db = ComputeDB()
+        ids = []
+        for identity in prepared.atom_identities:
+            ids.append(f"a{identity.input_atom_index}" if identity.origin == "input_atom" else f"h{identity.parent_input_atom_index}:{identity.hydrogen_ordinal}")
+        capture = CandidateCapture(catalog_id=catalog_id, project_id=project, owner_id=owner,
+                                   output_dir=out_dir, sink=lambda record: put_candidate(db, record),
+                                   atom_ids=ids, multiplicity=user_input.multiplicity)
+        for atom, atom_id in zip(mol.GetAtoms(), ids):
+            atom.SetProp('cloudra_atom_id', atom_id)
+        explicit = [DescriptorSpec(kind="distance", stable_atom_ids=[ids[i] for i in window.atoms], source="declared_window") for window in plan.windows]
+        parents = {cid: capture.capture(mol, cid, generator="ETKDGv3", seed=user_input.random_seed) for cid in cids}
+        selected_records = list(capture.records)
+        if len(prepared.components) > 1:
+            from cloudra.tools.core.complex_assembly import AssemblyParameters, sample_independent_placements
+            groups = [list(group) for group in Chem.GetMolFrags(mol)]
+            selected_records = []
+            for ordinal, cid in enumerate(cids):
+                seed = user_input.random_seed + ordinal
+                placement = sample_independent_placements(mol, groups, seed=seed, count=1,
+                    parameters=AssemblyParameters(), conformer_id=cid)[0]
+                for index, position in enumerate(placement.positions):
+                    mol.GetConformer(cid).SetAtomPosition(index, position)
+                selected_records.append(capture.capture(mol, cid, generator=placement.sampling_method, seed=seed,
+                    parent_id=parents[cid].candidate_id,
+                    parameters={"fragment_transforms": json.dumps(placement.fragment_transforms, sort_keys=True)}))
+        snapshot = partition_candidates(selected_records, RegionConfig(descriptor_specs=build_descriptor_specs(mol, [], explicit)))
+        put_region_snapshot(db, snapshot, project_id=project, owner_id=owner)
+        statistical_path = ""
+        if user_input.statistical_partition:
+            snapshot,statistical_path=self._statistical_snapshot(user_input.statistical_partition,snapshot,selected_records,out_dir)
+            put_region_snapshot(db,snapshot,project_id=project,owner_id=owner)
+        catalog_path = os.path.join(out_dir, "conformer_catalog.json")
+        region_path = os.path.join(out_dir, "conformer_regions.json")
+        atomic_write_text(catalog_path, json.dumps({"catalog_id": catalog_id, "candidates": [c.model_dump() for c in capture.records]}, ensure_ascii=False))
+        atomic_write_text(region_path, snapshot.model_dump_json())
+        from cloudra.tools.core.conformer_cards import build_region_cards
+        cards_path = os.path.join(out_dir, "conformer_cards.json")
+        atomic_write_text(cards_path, json.dumps([card.model_dump() for card in build_region_cards(snapshot, selected_records, [])], ensure_ascii=False))
+        from cloudra.tools.core.conformer_selection import SelectionContext, select_default
+        cards = build_region_cards(snapshot, selected_records, [])
+        decision = select_default(cards, SelectionContext(project_id=project,owner_id=owner,catalog_id=catalog_id,
+            partition_revision=snapshot.revision,declaration_hash=content_digest(self._structure_input(user_input).model_dump()),
+            method_fingerprint="unselected",cards=cards))
+        decision_path = os.path.join(out_dir,"conformer_selection.json")
+        atomic_write_text(decision_path, decision.model_dump_json())
+        return ConformerSearch_output_schema(is_success=True, message="Raw candidates archived and structurally partitioned; energies and optimization remain unmeasured.", catalog_id=catalog_id, catalog_path=catalog_path, statistical_evidence_path=statistical_path, region_snapshot_path=region_path, cards_path=cards_path, selection_decision_path=decision_path)
+
+    def _run_rdkit(self, user_input: ConformerSearch_input_schema, out_dir: str, *, candidate_sink=None) -> ConformerSearch_output_schema:
         try:
             # 结构解析（含拆分自检、形式电荷自检、自旋自检）统一走共享构建器；
             # 系综嵌入由本后端的 ETKDGv3 批量采样承担，故 embed=False。
@@ -607,7 +753,7 @@ class ConformerSearch(Tool):
                 # 多组分输入的"构象系综"就是**组装**：ETKDG 对整体系综重新嵌入会把碎片相对取向
                 # 随机化，得到的是无意义的叠加。因此这里改走已批准的组装方案（complex_assembly），
                 # 候选即组装结果。
-                return self._run_complex(user_input, out_dir)
+                return self._run_complex(user_input, out_dir,candidate_sink=candidate_sink)
             if prepared.status != "ok":
                 return self._build_failure(prepared)
 
@@ -621,6 +767,7 @@ class ConformerSearch(Tool):
             cids = list(AllChem.EmbedMultipleConfs(mol, numConfs=user_input.num_confs, params=params))
             if not cids:
                 return ConformerSearch_output_schema(is_success=False, message="RDKit conformer generation failed (no conformers embedded).")
+            parents = {cid: candidate_sink.capture(mol, cid, generator="ETKDGv3", seed=user_input.random_seed) for cid in cids} if candidate_sink else {}
             counts = {"generated": len(cids)}
 
             # 单组分体系不涉及碎片间相互作用：构建器已保证多组分输入在进入本后端之前被拒。
@@ -658,6 +805,14 @@ class ConformerSearch(Tool):
                     "their energies are MMFF single-point re-evaluations on the UFF geometries, so all reported "
                     "energies share the MMFF zero point and UFF energies never enter ranking or populations)"
                 )
+            if candidate_sink:
+                from cloudra.tools.core.conformer_catalog import EnergyObservation, Qualification
+                for cid in cids:
+                    passed = cid in energies
+                    candidate_sink.capture(mol, cid, generator="MMFF94_optimization", parent_id=parents[cid].candidate_id,
+                        state="optimized" if passed else "failed",
+                        qualification=Qualification(status="qualified" if passed else "rejected", reasons=[] if passed else ["optimization_not_converged"]),
+                        energies=[EnergyObservation(value=energies[cid], unit="kcal/mol", method_fingerprint="MMFF94", species_key=parents[cid].species_key, convergence="converged", charge=user_input.charge, multiplicity=user_input.multiplicity)] if passed else [])
             counts["optimized"] = len(energies)
             counts["optimization_failed"] = len(cids) - len(energies)
             if not energies:
@@ -820,11 +975,11 @@ class ConformerSearch(Tool):
         with open(solvent_path, encoding="utf-8") as handle:
             return handle.read()
 
-    def _run_crest(self, user_input: ConformerSearch_input_schema, out_dir: str) -> ConformerSearch_output_schema:
+    def _run_crest(self, user_input: ConformerSearch_input_schema, out_dir: str, *, candidate_sink=None) -> ConformerSearch_output_schema:
         try:
             # 种子结构由共享构建器产出（embed+optimize）：多组分输入在这里就被拒，
             # 互穿几何绝不会被喂给 CREST/xTB（issue #33 的直接病因）。
-            prepared = self._prepare(user_input, out_dir, embed=True, optimize=True)
+            prepared = self._prepare(user_input, out_dir, embed=True, optimize=True,candidate_sink=candidate_sink)
             if prepared.status != "ok" or not prepared.has_coordinates:
                 return self._build_failure(prepared)
 
@@ -862,6 +1017,32 @@ class ConformerSearch(Tool):
                 solvent_xyz_text=solvent_xyz,
                 nsolv=user_input.nsolv,
             ))
+            frames = run.conformers
+            if candidate_sink:
+                from cloudra.tools.core.conformer_catalog import EnergyObservation
+                from cloudra.tools.core.preorganization import load_resolved_graph
+                graph=load_resolved_graph(prepared)
+                source=run.conformers_path or run.stdout_path or str(os.path.join(run.run_dir,'crest_conformers.xyz'))
+                for frame in frames:
+                    symbols=frame.symbols or prepared.symbols
+                    params={'source_artifact':source,'frame_index':frame.frame_index,'upstream_internal_deleted_choices_unavailable':True}
+                    if symbols==[a.GetSymbol() for a in graph.GetAtoms()]:
+                        conf=Chem.Conformer(graph.GetNumAtoms())
+                        for i,position in enumerate(frame.positions):
+                            conf.SetAtomPosition(i,position)
+                        graph.RemoveAllConformers()
+                        cid=graph.AddConformer(conf,assignId=True)
+                        raw=candidate_sink.capture(graph,cid,generator='CREST_returned_frame',parameters=params)
+                        # Energy is observed, while geometry optimization evidence
+                        # for each returned frame remains unspecified by this adapter.
+                        observation=EnergyObservation(value=frame.energy_eh,unit='Ha',method_fingerprint='CREST/returned_energy',
+                            species_key=raw.species_key,charge=user_input.charge,multiplicity=user_input.multiplicity,
+                            convergence='unknown',artifact_ref=source)
+                        candidate_sink.capture(graph,cid,generator='CREST_returned_energy',parent_id=raw.candidate_id,
+                            parameters=params,energies=[observation])
+                    else:
+                        candidate_sink.capture_unresolved_frame(symbols,frame.positions,generator='CREST_returned_frame',
+                            parameters=params,energy_hartree=frame.energy_eh)
             if not run.scientific_success:
                 details = " | ".join(run.diagnostics) if run.diagnostics else ""
                 return ConformerSearch_output_schema(
@@ -875,7 +1056,6 @@ class ConformerSearch(Tool):
                     ),
                 )
 
-            frames = run.conformers
             natoms = len(frames[0].positions)
             self._check_filters(user_input, natoms)
 
@@ -1047,6 +1227,9 @@ class ConformerSearch(Tool):
         if user_input.input_path:
             user_input.input_path = resolve_tool_path(self, user_input.input_path)
         user_input.output_dir = resolve_tool_path(self, out_dir)
+
+        if user_input.catalog_mode == "regions":
+            return await asyncio.to_thread(self._run_regions, user_input, user_input.output_dir)
 
         if user_input.ring_order or user_input.distance_filters:
             from cloudra.tools.core.preorganization import search_guided

@@ -138,14 +138,24 @@ async def test_watchdog_ticks_until_shutdown(monkeypatch):
     monkeypatch.setenv("CLOUDRA_DAEMON_WATCHDOG", "on")  # 覆盖 conftest 的 off
     monkeypatch.setenv("CLOUDRA_DAEMON_WATCHDOG_SECONDS", "0.05")
     ticks: list[int] = []
-    monkeypatch.setattr(daemon_supervisor, "ensure_daemons", lambda: ticks.append(1))
+    second_tick = asyncio.Event()
+    loop = asyncio.get_running_loop()
+
+    def _tick() -> None:
+        ticks.append(1)
+        if len(ticks) == 2:
+            loop.call_soon_threadsafe(second_tick.set)  # ensure_daemons 在线程池执行
+
+    monkeypatch.setattr(daemon_supervisor, "ensure_daemons", _tick)
 
     app = _make_app()
     async with app.router.lifespan_context(app):
-        await asyncio.sleep(0.3)
+        watchdog_task, = (task for task in asyncio.all_tasks() if task.get_name() == "daemon-watchdog")
+        await asyncio.wait_for(second_tick.wait(), timeout=5.0)
         assert len(ticks) >= 2
         count_at_shutdown = len(ticks)
-    await asyncio.sleep(0.15)
+    assert watchdog_task.done()
+    assert watchdog_task.cancelled()
     assert len(ticks) == count_at_shutdown  # lifespan 收尾后 task 已取消，不再增长
 
 
@@ -154,16 +164,20 @@ async def test_watchdog_survives_ensure_exception(monkeypatch):
     monkeypatch.setenv("CLOUDRA_DAEMON_WATCHDOG", "on")
     monkeypatch.setenv("CLOUDRA_DAEMON_WATCHDOG_SECONDS", "0.05")
     ticks: list[int] = []
+    second_tick = asyncio.Event()
+    loop = asyncio.get_running_loop()
 
     def _boom() -> None:
         ticks.append(1)
+        if len(ticks) == 2:
+            loop.call_soon_threadsafe(second_tick.set)
         raise RuntimeError("boom")
 
     monkeypatch.setattr(daemon_supervisor, "ensure_daemons", _boom)
 
     app = _make_app()
     async with app.router.lifespan_context(app):
-        await asyncio.sleep(0.3)
+        await asyncio.wait_for(second_tick.wait(), timeout=5.0)
         assert len(ticks) >= 2  # 异常只记日志，loop 继续 tick
 
 

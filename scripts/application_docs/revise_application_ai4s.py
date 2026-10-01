@@ -12,7 +12,6 @@ from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
 from PIL import Image, ImageDraw, ImageFont
 
-
 OLD_TITLE = "基于智能代理的轴手性体系过渡态自动化搜索与催化模型研究"
 NEW_TITLE = "基于化学智能体的轴手性反应过渡态自动搜索与机理解析研究"
 NEW_EN_TITLE = "Chemical-Agent-Based Automated Transition-State Search and Mechanistic Elucidation for Axially Chiral Reactions"
@@ -102,7 +101,8 @@ def arrow(draw, x1, y1, x2, y2, color="#2878B5", width=10):
 
 def make_runtime_figure(path: Path) -> None:
     w, h = 2400, 1180
-    im = Image.new("RGB", (w, h), "white"); d = ImageDraw.Draw(im)
+    im = Image.new("RGB", (w, h), "white")
+    d = ImageDraw.Draw(im)
     d.text((w // 2, 55), "Cloudra：重新划分智能与自动化的边界", font=font(60, True), fill="#102A43", anchor="ma")
     layers = [
         (145, 245, 2255, 440, "科学决策层  智能体议会", "提出竞争机理假设｜选择探索方向｜诊断异常｜处理证据冲突｜决定继续或停止", "#E8F1FB", "#2878B5"),
@@ -123,7 +123,8 @@ def make_runtime_figure(path: Path) -> None:
 
 def make_toolchain_figure(path: Path) -> None:
     w, h = 2400, 940
-    im=Image.new("RGB",(w,h),"white"); d=ImageDraw.Draw(im)
+    im=Image.new("RGB",(w,h),"white")
+    d=ImageDraw.Draw(im)
     d.text((w//2,48),"从反应定义到可核验机理的化学工具链",font=font(58,True),fill="#102A43",anchor="ma")
     items=[
         ("反应映射","原子对应与反应中心\n成键/断键及竞争通道"),
@@ -134,12 +135,14 @@ def make_toolchain_figure(path: Path) -> None:
     ]
     x0,y0,bw,bh,gap=70,205,390,430,70
     for i,(head,body) in enumerate(items):
-        x=x0+i*(bw+gap); fill="#EAF2F8" if i<3 else ("#EAF6F2" if i==3 else "#F3E9FF")
+        x=x0+i*(bw+gap)
+        fill="#EAF2F8" if i<3 else ("#EAF6F2" if i==3 else "#F3E9FF")
         edge="#2878B5" if i<3 else ("#259B79" if i==3 else "#7653A6")
         d.rounded_rectangle((x,y0,x+bw,y0+bh),radius=25,fill=fill,outline=edge,width=5)
         d.text((x+bw/2,y0+72),head,font=font(39,True),fill=edge,anchor="ma")
         draw_centered(d,(x+28,y0+135,x+bw-28,y0+365),body,font(29),"#263746",12)
-        if i<len(items)-1: arrow(d,x+bw+10,y0+bh/2,x+bw+gap-10,y0+bh/2)
+        if i<len(items)-1:
+            arrow(d,x+bw+10,y0+bh/2,x+bw+gap-10,y0+bh/2)
     d.rounded_rectangle((420,715,1980,860),radius=24,fill="#FFF3DF",outline="#E69528",width=4)
     draw_centered(d,(420,715,1980,860),"智能体只在假设选择、异常诊断、证据冲突和方法边界处介入",font(34,True),"#9A5A12")
     im.save(path,dpi=(220,220))
@@ -147,7 +150,8 @@ def make_toolchain_figure(path: Path) -> None:
 
 def make_benchmark_figure(path: Path) -> None:
     w,h=2400,950
-    im=Image.new("RGB",(w,h),"white"); d=ImageDraw.Draw(im)
+    im=Image.new("RGB",(w,h),"white")
+    d=ImageDraw.Draw(im)
     d.text((w//2,52),"形式化评测：不仅看答案，还审计科学过程",font=font(58,True),fill="#102A43",anchor="ma")
     cols=[
         ("交付诚信","计算材料是否真实存在\n声明与日志是否一致"),
@@ -159,7 +163,8 @@ def make_benchmark_figure(path: Path) -> None:
     x0,y0,bw,bh,gap=70,205,390,380,70
     colors=[("#E8F1FB","#2878B5"),("#EAF6F2","#259B79"),("#F3E9FF","#7653A6"),("#FFF3DF","#E69528"),("#FDECEC","#C64B4B")]
     for i,((head,body),(fill,edge)) in enumerate(zip(cols,colors)):
-        x=x0+i*(bw+gap); d.rounded_rectangle((x,y0,x+bw,y0+bh),radius=25,fill=fill,outline=edge,width=5)
+        x=x0+i*(bw+gap)
+        d.rounded_rectangle((x,y0,x+bw,y0+bh),radius=25,fill=fill,outline=edge,width=5)
         d.text((x+bw/2,y0+65),head,font=font(39,True),fill=edge,anchor="ma")
         draw_centered(d,(x+24,y0+130,x+bw-24,y0+335),body,font(29),"#263746",10)
     d.rounded_rectangle((285,675,2115,855),radius=25,fill="#F5F7FA",outline="#5D6D7E",width=4)
@@ -176,14 +181,17 @@ def make_dogfood_figure(path: Path, report_page3: Path, report_page8: Path) -> N
     binding_plot=page8.crop((120,305,845,720))
     acidic_model=acidic_model.resize((708,500),Image.Resampling.LANCZOS)
     binding_plot=binding_plot.resize((820,470),Image.Resampling.LANCZOS)
-    w,h=2400,900; im=Image.new("RGB",(w,h),"white"); d=ImageDraw.Draw(im)
+    w,h=2400,900
+    im=Image.new("RGB",(w,h),"white")
+    d=ImageDraw.Draw(im)
     d.text((w//2,42),"未发表合作研究中的代表性模型与定量结果",font=font(55,True),fill="#102A43",anchor="ma")
     panels=[("A  酸性 Glu⁻ / Li⁺ / Ag + Li 终态模型",acidic_model),("B  Li 吸附能定量比较",binding_plot)]
     for i,(label,panel) in enumerate(panels):
         x=105+i*1165
         d.rounded_rectangle((x,140,x+1025,790),radius=22,fill="#FAFCFE",outline="#B7C9D6",width=4)
         d.text((x+35,170),label,font=font(34,True),fill="#2878B5",anchor="la")
-        px=x+(1025-panel.width)//2; py=225+(535-panel.height)//2
+        px=x+(1025-panel.width)//2
+        py=225+(535-panel.height)//2
         im.paste(panel,(px,py))
     d.text((w//2,850),"结构模型与吸附能相互对应，酸性 Glu 修饰体系表现出更强的 Li 结合",font=font(30,True),fill="#263746",anchor="mm")
     im.save(path,dpi=(220,220))
@@ -205,20 +213,27 @@ def style_table(table) -> None:
             tcPr=cell._tc.get_or_add_tcPr()
             shd=tcPr.find(qn("w:shd")) or OxmlElement("w:shd")
             shd.set(qn("w:fill"), "DCE6F1" if r==0 else ("F5F7FA" if r%2==0 else "FFFFFF"))
-            if shd.getparent() is None: tcPr.append(shd)
+            if shd.getparent() is None:
+                tcPr.append(shd)
             for p in cell.paragraphs:
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER if c<2 else WD_ALIGN_PARAGRAPH.LEFT
                 for run in p.runs:
-                    run.font.size=Pt(8.5); run.font.name="Arial"
+                    run.font.size=Pt(8.5)
+                    run.font.name="Arial"
                     run._element.get_or_add_rPr().get_or_add_rFonts().set(qn("w:eastAsia"), "PingFang SC")
                     run.font.color.rgb=RGBColor(0,0,0)
-                    if r==0: run.bold=True
+                    if r==0:
+                        run.bold=True
             borders=tcPr.find(qn("w:tcBorders")) or OxmlElement("w:tcBorders")
-            if borders.getparent() is None: tcPr.append(borders)
+            if borders.getparent() is None:
+                tcPr.append(borders)
             for edge in ("top","left","bottom","right","insideH","insideV"):
                 e=borders.find(qn(f"w:{edge}")) or OxmlElement(f"w:{edge}")
-                e.set(qn("w:val"),"single"); e.set(qn("w:sz"),"4"); e.set(qn("w:color"),"D9D9D9")
-                if e.getparent() is None: borders.append(e)
+                e.set(qn("w:val"),"single")
+                e.set(qn("w:sz"),"4")
+                e.set(qn("w:color"),"D9D9D9")
+                if e.getparent() is None:
+                    borders.append(e)
 
 
 def insert_comparison_table(document, paragraph):
@@ -234,25 +249,34 @@ def insert_comparison_table(document, paragraph):
     ]
     table=document.add_table(rows=len(data),cols=4)
     for i,row in enumerate(data):
-        for j,val in enumerate(row): table.cell(i,j).text=val
+        for j,val in enumerate(row):
+            table.cell(i,j).text=val
     widths=[1.15,1.65,1.85,3.05]
     for row in table.rows:
-        for cell,width in zip(row.cells,widths): cell.width=Inches(width)
+        for cell,width in zip(row.cells,widths):
+            cell.width=Inches(width)
     style_table(table)
     paragraph._p.addnext(table._tbl)
     cap=insert_paragraph_after(paragraph,"表1. Cloudra与近邻化学智能体的系统设计比较")
     cap._p.addnext(table._tbl)
     cap.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    for run in cap.runs: run.font.size=Pt(9)
+    for run in cap.runs:
+        run.font.size=Pt(9)
     return table
 
 
 def main(src: Path, out: Path, asset_dir: Path, emf_png: Path, report_dir: Path) -> None:
     asset_dir.mkdir(parents=True,exist_ok=True)
-    runtime=asset_dir/"runtime_boundary.png"; toolchain=asset_dir/"chemical_toolchain.png"
-    benchmark=asset_dir/"formal_benchmark.png"; dogfood=asset_dir/"lab_dogfood.png"; cjc=asset_dir/"cjc_prior_work.png"
-    make_runtime_figure(runtime); make_toolchain_figure(toolchain); make_benchmark_figure(benchmark)
-    make_dogfood_figure(dogfood,report_dir/"page-03.png",report_dir/"page-08.png"); crop_cjc(emf_png,cjc)
+    runtime=asset_dir/"runtime_boundary.png"
+    toolchain=asset_dir/"chemical_toolchain.png"
+    benchmark=asset_dir/"formal_benchmark.png"
+    dogfood=asset_dir/"lab_dogfood.png"
+    cjc=asset_dir/"cjc_prior_work.png"
+    make_runtime_figure(runtime)
+    make_toolchain_figure(toolchain)
+    make_benchmark_figure(benchmark)
+    make_dogfood_figure(dogfood,report_dir/"page-03.png",report_dir/"page-08.png")
+    crop_cjc(emf_png,cjc)
 
     doc=Document(src)
     # Remove embedded OLE preview objects; they are replaced by stable PNG figures below.
@@ -260,12 +284,14 @@ def main(src: Path, out: Path, asset_dir: Path, emf_png: Path, report_dir: Path)
         if p._p.xpath('.//w:object'):
             p._element.getparent().remove(p._element)
     for p in list(doc.paragraphs):
-        if OLD_TITLE in p.text: replace_paragraph(p,p.text.replace(OLD_TITLE,NEW_TITLE))
+        if OLD_TITLE in p.text:
+            replace_paragraph(p,p.text.replace(OLD_TITLE,NEW_TITLE))
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
                 for p in cell.paragraphs:
-                    if OLD_TITLE in p.text: replace_paragraph(p,p.text.replace(OLD_TITLE,NEW_TITLE))
+                    if OLD_TITLE in p.text:
+                        replace_paragraph(p,p.text.replace(OLD_TITLE,NEW_TITLE))
 
     info=doc.tables[3]
     set_cell_text(info.cell(14,2),NEW_EN_TITLE)
@@ -319,11 +345,14 @@ def main(src: Path, out: Path, asset_dir: Path, emf_png: Path, report_dir: Path)
     # Insert stable replacements for the two former OLE figures before their captions.
     for p in list(doc.paragraphs):
         if p.text.strip().startswith("图4. N–N轴手性"):
-            before=insert_paragraph_after(doc.paragraphs[58]) if False else None
-            pic=doc.add_paragraph(); pic.alignment=WD_ALIGN_PARAGRAPH.CENTER; pic.add_run().add_picture(str(cjc),width=Inches(7.1))
+            pic=doc.add_paragraph()
+            pic.alignment=WD_ALIGN_PARAGRAPH.CENTER
+            pic.add_run().add_picture(str(cjc),width=Inches(7.1))
             p._p.addprevious(pic._p)
         if p.text.strip().startswith("图5. 未发表合作研究"):
-            pic=doc.add_paragraph(); pic.alignment=WD_ALIGN_PARAGRAPH.CENTER; pic.add_run().add_picture(str(dogfood),width=Inches(7.3))
+            pic=doc.add_paragraph()
+            pic.alignment=WD_ALIGN_PARAGRAPH.CENTER
+            pic.add_run().add_picture(str(dogfood),width=Inches(7.3))
             system_p=next(q for q in doc.paragraphs if q.text.strip().startswith("在系统研发方面"))
             # Keep the figure with the unpublished-collaboration paragraph;
             # the Cloudra platform paragraph belongs after the figure.

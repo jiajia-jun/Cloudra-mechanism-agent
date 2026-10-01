@@ -244,7 +244,7 @@ class AgentRunner:
                 AgentState.WAITING_APPROVAL,
             }:
                 run_id = agent.current_run.run_id
-                core.agent_host.resume(agent)
+                await core.agent_host.resume(agent)
                 # 上下文是 session 级投影：resume 不重置它；pending 压缩请求
                 # 跨 run 存活，由下面的主循环应用到会话上下文。
             elif agent.current_run is not None and agent.state is AgentState.RUNNING:
@@ -252,7 +252,7 @@ class AgentRunner:
                 # scheduled the task afterwards.
                 run_id = agent.current_run.run_id
             else:
-                run_id = await core.agent_host.start_run_durable(agent)
+                run_id = await core.agent_host.start_run(agent)
             contexts = core.contexts
             # 上下文前缀 owner（Task 2/4）：每个 run 创建一个，但状态从会话
             # 级上下文投影回灌（restored）——跨 run/重启不重装前缀，
@@ -421,7 +421,7 @@ class AgentRunner:
                                 "message to resume with fresh instructions."
                             )
                             self._emit_run_message(agent, run_id, notice)
-                            core.agent_host.finish_run(
+                            await core.agent_host.finish_run(
                                 agent,
                                 outcome="failed",
                                 error=(
@@ -448,7 +448,7 @@ class AgentRunner:
                         # Supervisor 已按状态表通知；挂起等裁决，不落终态。
                         if outcome.content:
                             self._emit_run_message(agent, run_id, outcome.content)
-                        core.agent_host.transition(
+                        await core.agent_host.transition(
                             agent,
                             AgentState.WAITING_APPROVAL,
                             reason="wait_review",
@@ -457,7 +457,7 @@ class AgentRunner:
                         # 裁决通知/新消息可能恰在判定期间投递：与 wait_approval
                         # 分支同一防 lost-wakeup 握手，迁移后立即复查收件箱。
                         if self._inbox_has_pending(agent):
-                            core.agent_host.transition(
+                            await core.agent_host.transition(
                                 agent,
                                 AgentState.RUNNING,
                                 reason="review_notification_received",
@@ -497,15 +497,15 @@ class AgentRunner:
                     async with core.dispatcher.target_lock(agent.id):
                         if agent.parent_session_id and self._inbox_has_pending(agent):
                             continue
-                        await core.agent_host.finish_run_durable(agent, outcome="succeeded")
+                        await core.agent_host.finish_run(agent, outcome="succeeded")
                         # CommandBus may enqueue outside MessageDispatcher; keep
                         # the existing post-finish wake handshake for that path.
                         if self._inbox_has_pending(agent):
-                            core.agent_host.wake(agent, runner=core.runner)
+                            await core.agent_host.wake(agent, runner=core.runner)
                     await self._deliver_completion(agent)
                     break
                 if outcome.decision in {"wait_input", "wait_approval"}:
-                    core.agent_host.transition(
+                    await core.agent_host.transition(
                         agent,
                         (
                             AgentState.WAITING_INPUT
@@ -524,7 +524,7 @@ class AgentRunner:
                         # AgentHost.wake() would refuse to schedule a second
                         # task. Resume this task explicitly and let its next
                         # iteration drain the notification.
-                        core.agent_host.transition(
+                        await core.agent_host.transition(
                             agent,
                             AgentState.RUNNING,
                             reason="review_notification_received",
@@ -545,7 +545,7 @@ class AgentRunner:
             if agent.state is AgentState.RUNNING:
                 # 失败分类只在这一处派生（failures.classify_failure），事件里
                 # 落枚举，error 文本只供人阅读。
-                await core.agent_host.finish_run_durable(
+                await core.agent_host.finish_run(
                     agent,
                     outcome="failed",
                     error=str(exc),
@@ -650,7 +650,7 @@ class AgentRunner:
                                     content=str(marker.data["content"]),
                                 ),
                             )
-                        core.agent_host.wake(coordinator, runner=core.runner)
+                        await core.agent_host.wake(coordinator, runner=core.runner)
                     continue
                 await core.dispatcher.commit_and_deliver(
                     to_session_id=coordinator.id,

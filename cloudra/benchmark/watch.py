@@ -15,10 +15,11 @@ old benchmark loop misread:
   by a liveness rule: if the project has no live Supervisor left, nobody will
   ever decide, so the stuck grace applies.
 
-Everything here is a projection of durable state (``core.agents``, the event
-log, compute.db). The watcher remembers which parked runs it has resumed after
-their background peers drained, preventing a missing notice from causing a
-resume loop. That per-run memory is only needed for this benchmark process.
+Decisions read durable state (``core.agents``, the event log, compute.db) and
+live runner tasks whose terminal completion reports may still be in flight.
+The watcher remembers which parked runs it has resumed after their background
+peers drained, preventing a missing notice from causing a resume loop. That
+per-run memory is only needed for this benchmark process.
 """
 
 from __future__ import annotations
@@ -73,9 +74,15 @@ def has_running_peers(core, agent, *, final_cache: dict | None = None) -> bool:
     from cloudra.runtime_v2.subagent_bridge import build_child_completion_index
 
     parked_children = []
+    task_for = getattr(getattr(core, "runner", None), "task_for", None)
     for peer in core.agents.values():
         if peer.id == agent.id or peer.project_id != agent.project_id:
             continue
+        # A terminal projection can precede the completion report and its wake.
+        # Wait for the real peer task to finish that delivery before scoring.
+        task = task_for(peer.id) if task_for is not None else None
+        if task is not None and not task.done():
+            return True
         if peer.state not in {AgentState.SUCCEEDED, AgentState.FAILED, AgentState.CANCELLED}:
             return True
         if peer.state is AgentState.SUCCEEDED and peer.parent_session_id:
@@ -154,13 +161,25 @@ class RunWatcher:
 
     async def decide(self, core, agent) -> WaitDecision:
         """纯投影判定一步：done / cancel（给出理由）/ continue。"""
-        state = agent.state
+        snapshot = (
+            agent.state, agent.updated_at,
+            agent.current_run.run_id if agent.current_run is not None else None,
+        )
+        state = snapshot[0]
         if state in _TERMINAL_STATES:
             return WaitDecision("done")
         if state is AgentState.SUCCEEDED:
             # wait_background 收尾 = 当前 run 休眠等唤醒，不是交付（GH #30/C1）。
             if await self._background_pending(core, agent):
                 return WaitDecision("continue")
+            # DB probes yield: a notice can wake this session, or a new run can
+            # even finish, before they return. Re-evaluate on the next poll.
+            current = (
+                agent.state, agent.updated_at,
+                agent.current_run.run_id if agent.current_run is not None else None,
+            )
+            if current != snapshot:
+                return WaitDecision("continue", "agent changed during background probe")
             parked_run_id = self._parked_for_background(core, agent)
             if parked_run_id:
                 inbox = core.mailbox.inbox(agent.id)

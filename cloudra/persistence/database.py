@@ -609,6 +609,8 @@ class ComputeDB:
     @staticmethod
     def _migrate_compute_schema(cur) -> None:
         """为既有中央库补齐 compute_jobs 的新列（幂等；列迁移语法复用会话库的守卫）。"""
+        for ddl in (*_CREATE_CONFORMER_TABLES, *_CREATE_EXPLORATION_TABLES, *_CREATE_TS_PIPELINE_TABLES):
+            cur.execute(ddl)
         existing = {row[1] for row in cur.execute("PRAGMA table_info(compute_jobs)").fetchall()}
         for name, definition in _COMPUTE_JOB_EXTRA_COLUMNS.items():
             if name not in existing:
@@ -616,6 +618,8 @@ class ComputeDB:
 
     @staticmethod
     async def _amigrate_compute_schema(cur) -> None:
+        for ddl in (*_CREATE_CONFORMER_TABLES, *_CREATE_EXPLORATION_TABLES, *_CREATE_TS_PIPELINE_TABLES):
+            await cur.execute(ddl)
         await cur.execute("PRAGMA table_info(compute_jobs)")
         existing = {row[1] for row in await cur.fetchall()}
         for name, definition in _COMPUTE_JOB_EXTRA_COLUMNS.items():
@@ -1162,3 +1166,36 @@ def get_database_path(conversation_id: Optional[str] = None) -> str:
 def init_conversation_db(conversation_id: Optional[str] = None) -> ConversationDB:
     """初始化并返回指定 conversation 的数据库对象。"""
     return ConversationDB(conversation_id).init()
+
+
+# Append-only candidate archives; no second compute queue.
+_CREATE_CONFORMER_TABLES = (
+    "CREATE TABLE IF NOT EXISTS conformer_catalogs (catalog_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, owner_id TEXT NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS conformer_candidates (candidate_id TEXT PRIMARY KEY, catalog_id TEXT NOT NULL, payload TEXT NOT NULL)",
+    "CREATE INDEX IF NOT EXISTS idx_conformer_catalog ON conformer_candidates(catalog_id)",
+    "CREATE TABLE IF NOT EXISTS conformer_regions (catalog_id TEXT NOT NULL, revision TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(catalog_id,revision))",
+)
+
+_CREATE_EXPLORATION_TABLES = (
+    'CREATE TABLE IF NOT EXISTS exploration_released_actions ('
+    'process_id TEXT NOT NULL, action_key TEXT NOT NULL, reason TEXT NOT NULL, '
+    'PRIMARY KEY(process_id,action_key))',
+    "CREATE TABLE IF NOT EXISTS exploration_budgets (process_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, owner_id TEXT NOT NULL, payload TEXT NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS exploration_reservations (reservation_id TEXT PRIMARY KEY, process_id TEXT NOT NULL, decision_id TEXT NOT NULL, payload TEXT NOT NULL, UNIQUE(process_id,decision_id))",
+    "CREATE TABLE IF NOT EXISTS exploration_actions (process_id TEXT NOT NULL, action_key TEXT NOT NULL, reservation_id TEXT NOT NULL, estimate TEXT NOT NULL, job_id INTEGER UNIQUE, actual TEXT, PRIMARY KEY(process_id,action_key))",
+)
+
+_CREATE_TS_PIPELINE_TABLES = (
+    "CREATE TABLE IF NOT EXISTS ts_pipeline_inputs (job_id INTEGER PRIMARY KEY, input_digest TEXT NOT NULL)",
+    'CREATE TABLE IF NOT EXISTS ts_pipeline_declarations ('
+    'process_id TEXT NOT NULL, declaration_revision INTEGER NOT NULL, payload TEXT NOT NULL, '
+    'PRIMARY KEY(process_id,declaration_revision))',
+    'CREATE TABLE IF NOT EXISTS ts_pipeline_processes ('
+    'process_id TEXT PRIMARY KEY, request_key TEXT NOT NULL, project_id TEXT NOT NULL, owner_id TEXT, '
+    'payload TEXT NOT NULL, declaration_revision INTEGER NOT NULL, revision INTEGER NOT NULL, '
+    'status TEXT NOT NULL, record TEXT)',
+    'CREATE TABLE IF NOT EXISTS ts_pipeline_stages ('
+    'process_id TEXT NOT NULL, declaration_revision INTEGER NOT NULL, stage_key TEXT NOT NULL, '
+    'attempt INTEGER NOT NULL, job_id INTEGER NOT NULL UNIQUE, input_hash TEXT NOT NULL, evidence TEXT, '
+    'PRIMARY KEY(process_id,declaration_revision,stage_key,attempt))',
+)

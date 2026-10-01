@@ -90,13 +90,13 @@ async def test_background_wait_does_not_finish_group_item(tmp_path):
     child = core.agents[group.items[0].child_session_id]
 
     async def finish(action):
-        run_id = await core.agent_host.start_run_durable(child)
+        run_id = await core.agent_host.start_run(child)
         await core.event_writer.commit(EventDraft(
             "agent.completion_gate", stream="agent", project_id=project.id,
             session_id=child.id, run_id=run_id,
             data={"action": action, "reason": "test", "source": "test"},
         ))
-        await core.agent_host.finish_run_durable(child, outcome="succeeded")
+        await core.agent_host.finish_run(child, outcome="succeeded")
 
     await finish("wait_background")
     await asyncio.sleep(0.05)

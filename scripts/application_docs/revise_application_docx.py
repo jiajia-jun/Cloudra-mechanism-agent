@@ -11,7 +11,6 @@ from docx.oxml.ns import qn
 from docx.shared import Inches, Pt
 from PIL import Image, ImageDraw, ImageFont
 
-
 OLD_TITLE = "基于智能代理的轴手性体系过渡态自动化搜索与催化模型研究"
 NEW_TITLE = "基于化学智能体的轴手性反应过渡态自动搜索与机理解析研究"
 NEW_EN_TITLE = (

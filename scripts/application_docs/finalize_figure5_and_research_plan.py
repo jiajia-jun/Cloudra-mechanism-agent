@@ -1,12 +1,11 @@
 from copy import deepcopy
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
 from docx.shared import Inches
-
+from PIL import Image, ImageDraw, ImageFont
 
 DOCX = Path("/Users/cloudrayyy/Desktop/申报书_附件4_杨程驿_AI4S融合润色版.docx")
 FIGURE = Path("/tmp/cloudra-application-review.ip4vOO/figure5_screening_loop.png")

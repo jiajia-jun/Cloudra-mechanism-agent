@@ -127,7 +127,7 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": 29.67,
+          "barrier_kcal_mol": null,
           "weight": 1.0,
           "channel": "boat_ts",
           "favored": false
@@ -169,7 +169,7 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": 26.39,
+          "barrier_kcal_mol": 26.38,
           "weight": 1.0,
           "channel": "chair_ts",
           "favored": true

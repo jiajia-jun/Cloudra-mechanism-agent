@@ -68,7 +68,7 @@
 - **逐边能垒已回填到题源**（easy.md / normal_registry / hard_registry 的 step barrier），重跑 gen_easy/normal/hard_tasks，`uv run pytest tests/test_benchmark.py -q` = **136 passed**（impossible 22 passed）。未手改生成的 JSON。
 - **HG2 选择性配对已纠正**：gold 现为 chair→anti favored/major(26.39)、boat→syn minor(29.67)、spread 3.28；生成器加向后兼容可选键（其余 9 个 hard 题逐字节不变）。hard.md G2 散文同步。
 - HL1 anchor（hard.md）39.9→23.13（生成器强制 = 该题逐边最大；文献值括注保留）。
-- 交接记录：`HANDOFF_backfill.md`、`HANDOFF_hg2_pairing.md`（工作区根）。
+- 交接记录：[`HANDOFF_backfill.md`](HANDOFF_backfill.md)、[`HANDOFF_hg2_pairing.md`](HANDOFF_hg2_pairing.md)（本归档目录）。
 
 ## 10. 待办
 - 若需，刷新审核树 `gold_compute/review/`（其内容基于更新前的 JSON）。

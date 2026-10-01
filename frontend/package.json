@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "dagre": "^0.8.5",
-    "katex": "^0.18.7",
+    "katex": "^0.18.9",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
@@ -28,7 +28,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^6.1.1",
-    "typescript": "^5.7.2",
-    "vite": "^8.3.0"
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1"
   }
 }

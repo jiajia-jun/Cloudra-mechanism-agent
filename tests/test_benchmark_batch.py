@@ -88,7 +88,7 @@ async def test_batch_runs_task_scores_and_persists(tmp_path):
     st = batch.task_states[0]
     agent = core.require_agent(st.agent_id)
     assert st.project_id.startswith("prj")
-    core.agent_host.start_run(agent)  # finish_run 需要 current_run
+    await core.agent_host.start_run(agent)  # finish_run 需要 current_run
     core.event_log.append(
         "agent.message_emitted",
         stream="agent",
@@ -96,7 +96,7 @@ async def test_batch_runs_task_scores_and_persists(tmp_path):
         session_id=agent.id,
         data={"content": "Done. The computed barrier is 5.0 kcal/mol."},
     )
-    core.agent_host.finish_run(agent, outcome="succeeded")
+    await core.agent_host.finish_run(agent, outcome="succeeded")
 
     await asyncio.wait_for(batch._task, timeout=5.0)
     final = service.status()
@@ -126,7 +126,7 @@ async def test_batch_stop_cancels_running_tasks(tmp_path):
     await _wait_until(lambda: all(st.agent_id for st in batch.task_states))
 
     for st in batch.task_states:
-        core.agent_host.transition(
+        await core.agent_host.transition(
             core.require_agent(st.agent_id), AgentState.RUNNING, reason="run_started"
         )
 
@@ -157,13 +157,13 @@ async def test_batch_stop_converges_with_succeeded_agent_and_live_compute(
     batch = service._batch
     await _wait_until(lambda: batch.task_states[0].agent_id)
     agent = core.require_agent(batch.task_states[0].agent_id)
-    run_id = core.agent_host.start_run(agent)
+    run_id = await core.agent_host.start_run(agent)
     core.event_log.append(
         "agent.completion_gate", stream="agent", project_id=agent.project_id,
         session_id=agent.id, run_id=run_id,
         data={"action": gate_action, "source": "schedule"},
     )
-    core.agent_host.finish_run(agent, outcome="succeeded")
+    await core.agent_host.finish_run(agent, outcome="succeeded")
     db = await ComputeDB().ainit()
     job_id = await ainsert_compute_job(
         db, node_id="node-local", conversation_id=agent.project_id,
@@ -357,8 +357,8 @@ async def test_watcher_timeout_never_scores_parked_succeeded_agent(tmp_path, mon
     from cloudra.benchmark.watch import RunWatcher
 
     async def timeout(self, core, agent, cancel):
-        core.agent_host.start_run(agent)
-        core.agent_host.finish_run(agent, outcome="succeeded")
+        await core.agent_host.start_run(agent)
+        await core.agent_host.finish_run(agent, outcome="succeeded")
         await cancel("benchmark run timeout (test)")
         return "benchmark run timeout (test)"
 

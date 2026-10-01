@@ -21,7 +21,9 @@ from pydantic import Field
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.workspace import resolve_tool_path
+from cloudra.services.exploration_budget_store import ExplorationBudget
 from cloudra.tools.core.geometry_inputs import normalize_ts_atoms
+from cloudra.tools.core.ts_candidate_pipeline import CandidateCatalogReference
 from cloudra.tools.core.ts_process import (
     TsAdjustment,
     TsBlocked,
@@ -39,9 +41,8 @@ description = (
     "For cyclic TS preorganization, declare ring_order and/or distance_filters in complete atom order (Gaussian 1-based, ORCA 0-based). Use explicit "
     "windows; missing forming pairs receive a visible 1.6–3.0 Å fallback. "
     "The process uses only qualified constrained reactant seeds, and ts_resume can correct the "
-    "guidance before refinement submission. "
-    "map atoms, assemble the reactive complex, generate a path guess (xTB metadynamics, falling back "
-    "to IDPP interpolation when xtb is absent), validate internally, then submit and judge. "
+    "guidance at blocked checkpoints; valid results are retained. "
+    "map atoms, assemble the reactive complex, queue a path guess, validate internally, then submit and judge. "
     "Returns a run_id; the process advances autonomously and STOPS with a `blocked` payload when it "
     "needs you to change the declaration — fix what the payload names and call ts_resume. "
     "There is deliberately NO status/progress query function: state changes are delivered to you, so "
@@ -53,6 +54,12 @@ description = (
 
 
 class TsPrepare_input_schema(input_schema):
+    candidate_catalog: CandidateCatalogReference | None = None
+    compute_cpus: int | None = Field(default=None,ge=1)
+    compute_memory_mb: int = Field(default=4096,ge=1)
+    exploration_budget: ExplorationBudget | None = None
+    compute_estimates: dict[str, float] = Field(default_factory=dict)
+    request_key: str | None = Field(default=None, description="Stable idempotency key; retries return the original process, conflicting declarations are rejected.")
     declaration: TsDeclaration = Field(
         description="Reaction declaration. All atom fields use complete built XYZ order including H: "
                     "Gaussian starts at 1; ORCA at 0. A three-atom identity atom_map is [1,2,3] "
@@ -75,7 +82,8 @@ class TsResume_input_schema(input_schema):
     adjustment: TsAdjustment = Field(
         default_factory=TsAdjustment,
         description="Local overrides only: ring_order, distance_filters, reaction_center, atom_map, path_refinement_runs, "
-                    "max_interventions. This is not a re-declaration of the whole reaction.",
+                    "max_interventions, selection_decision, partition_revision, endpoint_retry, endpoint_seed_retry and exploration_budget. "
+                    "Use one explicit action per call; empty adjustment reads the checkpoint without advancing.",
     )
     workspace_dir: Optional[str] = Field(
         default=None,
@@ -84,6 +92,15 @@ class TsResume_input_schema(input_schema):
 
 
 class TsProcess_output_schema(output_schema):
+    catalog_id: str | None = None
+    partition_revision: str | None = None
+    selected_candidate_id: str | None = None
+    selection_decision_id: str | None = None
+    cards_path: str = ""
+    decision_needed: bool = False
+    legal_actions: list[str] = Field(default_factory=list)
+    exploration_budget: ExplorationBudget | None = None
+
     is_success: bool = Field(
         description="Whether the process state was advanced. NOTE: a blocked or terminal process "
                     "still reports is_success=True — read `blocked` / `terminal` for the outcome; "
@@ -96,8 +113,8 @@ class TsProcess_output_schema(output_schema):
         default="",
         description="Set when the process is waiting on a submitted compute job (e.g. 'job:12'). "
                     "Waiting is NOT blocked: nothing needs your decision, no event is emitted, and "
-                    "the existing compute notification path will wake you. Just call ts_resume "
-                    "(with an empty adjustment) when that happens.",
+                    "the system advances the persisted pipeline when the job finishes. Do not poll or call "
+                    "ts_resume to advance ordinary successful stages.",
     )
     terminal: Optional[str] = Field(
         default=None,
@@ -144,7 +161,7 @@ def _to_output(record: TsProcessRecord) -> TsProcess_output_schema:
     elif record.waiting_for:
         headline = (
             f"{record.run_id} is waiting on {record.waiting_for} at stage '{record.stage}'; the "
-            "compute notification path wakes you, so do not poll — call ts_resume when it arrives."
+            "system advances from compute completion; do not poll or call ts_resume for normal completion."
         )
     elif record.blocked is not None:
         headline = (
@@ -155,6 +172,11 @@ def _to_output(record: TsProcessRecord) -> TsProcess_output_schema:
         headline = f"{record.run_id} is at stage '{record.stage}' and can advance."
     return TsProcess_output_schema(
         is_success=True,
+        catalog_id=record.catalog_id,partition_revision=record.partition_revision,selected_candidate_id=record.selected_candidate_id,
+        selection_decision_id=record.selection_decision_id,cards_path=record.cards_path,
+        decision_needed=bool(record.blocked and record.catalog_id),
+        legal_actions=['select_candidate','refine_representative','supplement_sampling','propose_adjustment','stop'] if record.blocked and record.catalog_id else [],
+        exploration_budget=record.exploration_budget,
         run_id=record.run_id,
         run_dir=record.run_dir,
         stage=record.stage,
@@ -202,6 +224,10 @@ class TsPrepare(Tool):
             # 归属与 submit_compute_job 同一来源：项目 conversation_id + 调用 agent 的
             # session.id——作业终态推送只认这两个字段
             request = TsStartRequest(
+                request_key=user_input.request_key,
+                candidate_catalog=user_input.candidate_catalog,compute_cpus=user_input.compute_cpus,compute_memory_mb=user_input.compute_memory_mb,
+                exploration_budget=user_input.exploration_budget,
+                compute_estimates=user_input.compute_estimates,
                 declaration=normalize_ts_atoms(user_input.declaration, engine=user_input.declaration.engine),
                 workspace_dir=workspace,
                 owner_conversation_id=getattr(self.subagent, "conversation_id", None) or "",
@@ -247,7 +273,14 @@ class TsResume(Tool):
                 ),
             )
         try:
+            if record.pipeline_id:
+                caller=(getattr(self.subagent,'conversation_id',None) or '',getattr(session,'id',None) if session else None)
+                if caller!=(record.owner_conversation_id,record.owner_session_id):
+                    raise ValueError('TS process belongs to a different project or owner')
             adjustment = normalize_ts_atoms(user_input.adjustment, engine=record.declaration.engine)
+            for retry in (adjustment.endpoint_retry,adjustment.endpoint_seed_retry):
+                if retry is not None:
+                    retry.seed_xyz_path=resolve_tool_path(self,retry.seed_xyz_path)
             record = await asyncio.to_thread(resume, record, adjustment)
         except ValueError as exc:
             # 终态不可续：明确报出终态与原因，不静默重开

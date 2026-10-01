@@ -69,7 +69,7 @@ async def test_approval_approve_and_deny():
     core, project, agent = await _setup()
     await _wait_for(lambda: agent.state is AgentState.SUCCEEDED)
     # Pretend a fresh run is live so the broker can park the agent.
-    core.agent_host.start_run(agent)
+    await core.agent_host.start_run(agent)
 
     async def ask():
         return await core.pending.request_approval(
@@ -114,7 +114,7 @@ async def test_decide_unknown_approval_rejected():
 async def test_interaction_roundtrip():
     core, project, agent = await _setup()
     await _wait_for(lambda: agent.state is AgentState.SUCCEEDED)
-    core.agent_host.start_run(agent)
+    await core.agent_host.start_run(agent)
 
     task = asyncio.create_task(core.pending.request_interaction(agent, "which solvent?"))
     await _wait_for(lambda: agent.state is AgentState.WAITING_INPUT)
@@ -134,7 +134,7 @@ async def test_interaction_roundtrip():
 async def test_cancel_while_waiting_expires_request():
     core, project, agent = await _setup()
     await _wait_for(lambda: agent.state is AgentState.SUCCEEDED)
-    core.agent_host.start_run(agent)
+    await core.agent_host.start_run(agent)
 
     task = asyncio.create_task(core.pending.request_interaction(agent, "ping?"))
     await _wait_for(lambda: agent.state is AgentState.WAITING_INPUT)

@@ -4,7 +4,6 @@ from pathlib import Path
 from docx import Document
 from docx.oxml.ns import qn
 
-
 PATH = Path("/Users/cloudrayyy/Desktop/申报书_附件4_杨程驿_AI4S融合润色版.docx")
 
 

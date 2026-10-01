@@ -118,7 +118,7 @@ async def test_cancel_effects_and_idempotent_noop(tmp_path, monkeypatch):
             Command(type="agent.spawn", target={"project_id": project.id}, payload={"role_id": "coordinator"})
         )
     ).data
-    core.agent_host.start_run(agent)
+    await core.agent_host.start_run(agent)
 
     timeline.clear()
     result = await bus.execute(
@@ -126,10 +126,8 @@ async def test_cancel_effects_and_idempotent_noop(tmp_path, monkeypatch):
     )
     assert result.data.state == "cancelled"
     assert timeline == [
-        # start_run appended out-of-band (no publish); the shared EventWriter
-        # publishes that backlog before this command's own events.
-        ("event", "agent.state_changed"),
-        ("event", "run.started"),
+        # start_run 走 persist-then-apply：state_changed / run.started 在调用时
+        # 就已落盘并发布，不再有"积压到下一个命令才顺带发布"的尾巴。
         ("event", "agent.cancel_requested"),
         ("event", "agent.message_injected"),
         ("event", "agent.state_changed"),
@@ -147,6 +145,42 @@ async def test_cancel_effects_and_idempotent_noop(tmp_path, monkeypatch):
     assert again.accepted is True
     assert again.event_id == ""
     assert timeline == []
+
+
+@pytest.mark.asyncio
+async def test_cancel_decides_background_parked_once(tmp_path, monkeypatch):
+    """background parked 判定在一条 cancel 命令里只求值一次。
+
+    它要扫事件日志，且下游「拒绝」与「级联」两条路径必须看同一个值——两处各判
+    一次是判据漂移的入口。
+    """
+    from cloudra.runtime_v2 import commands as commands_module
+
+    core = RuntimeCore(strict_events=True)
+    core.runner = FakeRunner()
+    bus = CommandBus(core)
+    await bus.execute(Command(type="project.create", payload={"name": "c"}))
+    project = next(iter(core.projects.values()))
+    agent = (
+        await bus.execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": project.id},
+                payload={"role_id": "coordinator"},
+            )
+        )
+    ).data
+
+    calls: list[str] = []
+    real = commands_module.is_background_parked
+
+    def counting(core_arg, agent_arg):
+        calls.append(agent_arg.id)
+        return real(core_arg, agent_arg)
+
+    monkeypatch.setattr(commands_module, "is_background_parked", counting)
+    await bus.execute(Command(type="agent.cancel", target={"session_id": agent.id}))
+    assert calls == [agent.id]
 
 
 @pytest.mark.asyncio
@@ -194,7 +228,7 @@ async def test_decide_is_pure_no_io_no_mutation(tmp_path):
     assert [type(e).__name__ for e in spawn_decision.effects] == ["DeliverMessage", "ScheduleAgent"]
 
     # RUNNING agent 的 message：只有投递，无 wake 草稿、无 ScheduleAgent
-    core.agent_host.start_run(agent)
+    await core.agent_host.start_run(agent)
     log_len = len(core.event_log)
     running_decision = DECIDERS["agent.message"](
         core,

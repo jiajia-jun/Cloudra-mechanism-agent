@@ -54,8 +54,8 @@ def _schedule_call(action: str, **arguments) -> ToolCall:
 async def test_create_fires_and_reopens_agent_with_reminder_message():
     core = RuntimeCore(strict_events=True)
     project, agent = await _spawn_ready(core)
-    core.agent_host.start_run(agent)
-    core.agent_host.finish_run(agent, outcome="succeeded")
+    await core.agent_host.start_run(agent)
+    await core.agent_host.finish_run(agent, outcome="succeeded")
     assert agent.state.value == "succeeded"
 
     executor = LegacyToolExecutor(core)
@@ -163,8 +163,8 @@ async def test_check_command_success_wakes_with_reason(monkeypatch):
     core = RuntimeCore(strict_events=True)
     _project, agent = await _spawn_ready(core)
     agent.settings = agent.settings.model_copy(update={"yolo": True})
-    core.agent_host.start_run(agent)
-    core.agent_host.finish_run(agent, outcome="succeeded")
+    await core.agent_host.start_run(agent)
+    await core.agent_host.finish_run(agent, outcome="succeeded")
 
     created = await core.reminders.handle(
         agent,
@@ -193,8 +193,8 @@ async def test_check_command_timeout_wakes_with_reason(monkeypatch):
     core = RuntimeCore(strict_events=True)
     _project, agent = await _spawn_ready(core)
     agent.settings = agent.settings.model_copy(update={"yolo": True})
-    core.agent_host.start_run(agent)
-    core.agent_host.finish_run(agent, outcome="succeeded")
+    await core.agent_host.start_run(agent)
+    await core.agent_host.finish_run(agent, outcome="succeeded")
 
     created = await core.reminders.handle(
         agent,
@@ -312,7 +312,7 @@ async def test_check_command_requires_approval_when_not_yolo(monkeypatch):
     _tiny_interval(monkeypatch)
     core = RuntimeCore(strict_events=True)
     project, agent = await _spawn_ready(core)
-    core.agent_host.start_run(agent)
+    await core.agent_host.start_run(agent)
     task = asyncio.create_task(
         core.reminders.handle(
             agent,
@@ -366,7 +366,7 @@ async def test_reminder_parks_waiting_approval_agent():
 
     core = RuntimeCore(strict_events=True)
     project, agent = await _spawn_ready(core)
-    core.agent_host.start_run(agent)
+    await core.agent_host.start_run(agent)
     parked = core.event_log.append(
         "agent.state_changed",
         stream="agent",

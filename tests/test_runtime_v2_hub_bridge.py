@@ -168,8 +168,8 @@ async def test_broadcast_reply_parks_notice_for_failed_original_author():
     original = await handle_hub_tool(
         core, author, _hub({"action": "post", "topic": "t", "content": "finding"})
     )
-    core.agent_host.start_run(author)
-    core.agent_host.finish_run(
+    await core.agent_host.start_run(author)
+    await core.agent_host.finish_run(
         author, outcome="failed", error="prior task failed",
         failure_kind=RunFailureKind.PROVIDER_PERMANENT,
     )
@@ -322,8 +322,8 @@ async def test_call_to_failed_agent_parks_without_reopening():
     core, _, coordinator = await _setup()
     await _wait_state(coordinator, "succeeded")
     child = await _spawn(core, coordinator, "small_mol")
-    core.agent_host.start_run(child)
-    core.agent_host.finish_run(
+    await core.agent_host.start_run(child)
+    await core.agent_host.finish_run(
         child,
         outcome="failed",
         error="boom",
@@ -348,8 +348,8 @@ async def test_call_to_role_replaces_failed_session_with_new_peer():
     core, _, coordinator = await _setup()
     await _wait_state(coordinator, "succeeded")
     failed = await _spawn(core, coordinator, "small_mol")
-    core.agent_host.start_run(failed)
-    core.agent_host.finish_run(
+    await core.agent_host.start_run(failed)
+    await core.agent_host.finish_run(
         failed,
         outcome="failed",
         error="prior work failed",
@@ -646,8 +646,8 @@ async def test_broadcast_notifies_all_other_sessions_regardless_of_author_role()
     child = await _spawn(core, coordinator, "small_mol")
     peer = await _spawn(core, coordinator, "explorer")
     failed = await _spawn(core, coordinator, "dft")
-    core.agent_host.start_run(failed)
-    core.agent_host.finish_run(
+    await core.agent_host.start_run(failed)
+    await core.agent_host.finish_run(
         failed,
         outcome="failed",
         error="prior work failed",
@@ -836,7 +836,7 @@ async def test_restore_repairs_reply_notice_for_cancelled_original_author(tmp_pa
         core, original_author,
         _hub({"action": "post", "topic": "original topic", "content": "finding"}),
     )
-    core.agent_host.start_run(original_author)
+    await core.agent_host.start_run(original_author)
     cancelled = await CommandBus(core).execute(
         Command(type="agent.cancel", target={"session_id": original_author.id})
     )

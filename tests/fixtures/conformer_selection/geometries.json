@@ -1,0 +1,1 @@
+{"source":"synthetic; repository authors","license":"repository license","units":"angstrom","cases":{"near":[[0,0,0],[1.4,0,0]],"far":[[0,0,0],[2.1,0,0]],"collinear":[[0,0,0],[1,0,0],[2,0,0],[3,0,0]]},"periodic_dihedral":{"left_deg":179,"right_deg":-179,"difference_deg":2}}

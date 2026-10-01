@@ -574,7 +574,7 @@ async def test_waiting_supervisor_keeps_notification_without_bypassing_wait():
         await asyncio.wait_for(llm.entered.wait(), timeout=5)
 
         # 进入等待态（agent_host 是非命令路径的命令式壳，runner 内部同款）。
-        core.agent_host.transition(
+        await core.agent_host.transition(
             supervisor,
             AgentState.WAITING_APPROVAL,
             reason="wait_approval",
@@ -1800,12 +1800,12 @@ class _StopWindowTrap:
 
 
 @pytest.mark.asyncio
-async def test_new_review_arriving_between_stop_decision_and_finish_wakes_new_run(tmp_path):
+async def test_new_review_arriving_between_stop_decision_and_finish_is_consumed_before_completion(tmp_path):
     """结束竞态（窗口 b：stop 裁决后、finish_run 前到达）。
 
     督导读到空信箱决定 stop；trap 在 on_run_end 注入新送审（deliver 撞
-    RUNNING，wake no-op）。finish_run 后的 inbox 复查必须显式 wake 开新
-    run 消费它（agent_runner 收尾竞态边界），不由下一次偶然工具调用救活。
+    RUNNING，wake no-op）。子 Agent 在 finish_run 前复查并继续当前 run，
+    新送审必须先消费完才能向父 Agent 报终态，不由下一次偶然调用救活。
     """
     core = RuntimeCore(strict_events=True)
     bus_probe = CommandBus(core)
@@ -1888,17 +1888,28 @@ async def test_new_review_arriving_between_stop_decision_and_finish_wakes_new_ru
         )
         # 第一 run 读空信箱 → stop；trap 在收尾窗口注入新送审。
         await asyncio.wait_for(trap.fired.wait(), timeout=5)
-        # 等第二 run 消费完新送审（轮询只作失败上限）。
+        # 等当前 run 消费完新送审（轮询只作失败上限）。
         deadline = asyncio.get_running_loop().time() + 5.0
         while await asyncio.to_thread(_queued_request_ids, project.id):
             if asyncio.get_running_loop().time() > deadline:
                 raise AssertionError("late submission was never adjudicated (lost wakeup)")
             await asyncio.sleep(0.01)
-        runs = await _wait_run_count(core, supervisor, 2)
-        assert runs[1].run_id != runs[0].run_id
-        await _wait_state(supervisor, "succeeded")  # 第二 run 收尾
+        await _wait_state(supervisor, "succeeded")
+        runs = await _wait_run_count(core, supervisor, 1)
+        assert len(runs) == 1
+        # 新送审在首次终态回报前处理完；不能先报完成再依赖二次唤醒。
+        events = core.event_log.query_session(supervisor.id)
+        finished = [event for event in events if event.type == "run.finished"]
+        reviewed = [
+            event for event in events
+            if event.type == "tool.finished"
+            and event.data.get("tool_name") == "dag_review_evidence"
+            and event.data.get("is_success") is True
+        ]
+        assert len(finished) == len(reviewed) == 1
+        assert reviewed[0].seq < finished[0].seq
 
-        # 新送审最终被消费者处理（第二 run 裁决），不丢唤醒。
+        # 新送审最终被同一 run 的消费者处理，不丢唤醒。
         assert await asyncio.to_thread(_queued_request_ids, project.id) == []
         supervisors = [
             a
@@ -2017,21 +2028,21 @@ async def _supervisor_in_state(bus, core, project, coordinator, target_state: st
     ).data
     host = core.agent_host
     if target_state == "running":
-        host.start_run(supervisor)
+        await host.start_run(supervisor)
     elif target_state == "waiting":
-        host.start_run(supervisor)
-        host.transition(
+        await host.start_run(supervisor)
+        await host.transition(
             supervisor,
             AgentState.WAITING_APPROVAL,
             reason="wait_approval",
             run_id=supervisor.current_run.run_id,
         )
     elif target_state == "succeeded":
-        host.start_run(supervisor)
-        host.finish_run(supervisor, outcome="succeeded")
+        await host.start_run(supervisor)
+        await host.finish_run(supervisor, outcome="succeeded")
     elif target_state == "failed":
-        host.start_run(supervisor)
-        host.finish_run(
+        await host.start_run(supervisor)
+        await host.finish_run(
             supervisor,
             outcome="failed",
             error="boom",
@@ -2372,8 +2383,8 @@ async def test_reconcile_without_auto_wake_parks_succeeded_supervisor():
                 )
             )
         ).data
-        core.agent_host.start_run(supervisor)
-        core.agent_host.finish_run(supervisor, outcome="succeeded")
+        await core.agent_host.start_run(supervisor)
+        await core.agent_host.finish_run(supervisor, outcome="succeeded")
         assert supervisor.state.value == "succeeded"
         calls_before = llm.supervisor_calls
 
@@ -2442,8 +2453,8 @@ async def test_find_project_supervisor_prefers_non_terminal_when_duplicate():
                 )
             )
         ).data
-        core.agent_host.start_run(first)
-        core.agent_host.finish_run(
+        await core.agent_host.start_run(first)
+        await core.agent_host.finish_run(
             first,
             outcome="failed",
             error="old",

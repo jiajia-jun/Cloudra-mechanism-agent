@@ -219,7 +219,7 @@ async def test_events_after_snapshot_are_replayed(tmp_path):
 
     # 快照之后、下一次命令之前，模拟运行期状态事件未进快照
     before = len(core.event_log)
-    run_id = core.agent_host.start_run(agent)
+    run_id = await core.agent_host.start_run(agent)
     core.event_log.append(
         "tool.started",
         stream="agent",
@@ -264,7 +264,7 @@ async def test_restore_marks_zombie_running_agents_failed(tmp_path):
     )
     agent = next(iter(core.agents.values()))
     # 无 runner：手动把 agent 推进 running（模拟进程崩溃前的快照状态）
-    core.agent_host.start_run(agent)
+    await core.agent_host.start_run(agent)
     for event in list(core.event_log)[-2:]:
         await _persist_event(store, event)
     store.save_snapshot(
@@ -335,9 +335,9 @@ async def _seed_parent_with_running_child(store):
         )
     ).data
     # 父跑完一轮正常休眠；子仍在跑（进程此刻"崩溃"）。
-    core.agent_host.start_run(parent)
-    core.agent_host.finish_run(parent, outcome="succeeded")
-    core.agent_host.start_run(child)
+    await core.agent_host.start_run(parent)
+    await core.agent_host.finish_run(parent, outcome="succeeded")
+    await core.agent_host.start_run(child)
     for event in list(core.event_log):
         await _persist_event(store, event)
     store.save_snapshot(
@@ -410,7 +410,7 @@ async def test_restore_parks_zombie_child_notification_when_parent_also_zombie(t
     store = RuntimeStore(tmp_path / "runtime.db")
     core, project, parent, child = await _seed_parent_with_running_child(store)
     # 把父也变成 running 僵尸：在已休眠的父上再起一个 run，补落盘+快照。
-    core.agent_host.start_run(parent)
+    await core.agent_host.start_run(parent)
     for event in list(core.event_log):
         await _persist_event(store, event)
     store.save_snapshot(
@@ -1068,8 +1068,8 @@ async def test_reconcile_after_restore_only_schedules_notification_events(tmp_pa
         )
     ).data
     # 手动驱动到 succeeded（正常休眠）并落盘。
-    core1.agent_host.start_run(supervisor1)
-    core1.agent_host.finish_run(supervisor1, outcome="succeeded")
+    await core1.agent_host.start_run(supervisor1)
+    await core1.agent_host.finish_run(supervisor1, outcome="succeeded")
     await core1.event_writer.flush()
     await _seed_structured_request(project.id, coordinator.id, question="notify me after restart")
 
