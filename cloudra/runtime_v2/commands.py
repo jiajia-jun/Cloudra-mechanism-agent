@@ -512,8 +512,11 @@ def _cancel_agent_drafts(
 
 def _decide_cancel_agent(core: RuntimeCore, command: Command) -> Decision:
     agent = core.require_agent(command.target.get("session_id", ""))
+    # background parked 判定只求值一次：它要扫事件日志，而且下面「拒绝」与「级联」
+    # 两条路径必须看同一个值，否则两处判据会被分别编辑而漂移。
+    parked = is_background_parked(core, agent)
     cancel_drafts = plan_cancel(
-        agent, allow_parked=is_background_parked(core, agent)
+        agent, allow_parked=parked
     )  # genuine succeeded/failed reject; parked succeeded is still live
     if not cancel_drafts:
         return Decision(result=ResultRef("agent", agent.id))
@@ -524,7 +527,7 @@ def _decide_cancel_agent(core: RuntimeCore, command: Command) -> Decision:
     descendants = _live_descendants(core, agent.id)
     drafts: list[EventDraft] = _cancel_agent_drafts(
         agent, actor=command.actor, message=message, cause="explicit",
-        allow_parked=is_background_parked(core, agent),
+        allow_parked=parked,
     )
     effects: list[Effect] = []
     if message:
