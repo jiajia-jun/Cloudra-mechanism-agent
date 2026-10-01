@@ -25,6 +25,7 @@
 | 消息投递/恢复语义 | 异步子 Agent 回传、重启 |
 | YOLO 审批结构校验 | 非布尔结论不得写入文件 |
 | TS 故障检查点 + 干预预算 | 重复相同 scan 续接保留原故障、不耗尽预算 |
+| TS fixture 频率门禁 + 终态事件 | 真实零虚频日志阻止 IRC，重复 resume 保留故障与预算 |
 """
 
 from __future__ import annotations
