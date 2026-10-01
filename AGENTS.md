@@ -69,10 +69,13 @@ npm --prefix cloudra/runtime_v2/js_host test   # JS 宿主测试；先 npm ci --
 
 `tools/core/conformer_catalog.py` / `services/conformer_store.py` 保存不可变候选与区域快照；`conformer_capture.py` 在筛减前记录生成/优化谱系。`conformer_regions.py` 是固定容差对照；`conformer_statistical_regions.py` 提供显式接受的全搜索重采样探索性评分/稳定性，不提供正式 p 值或默认科学阈值。关键坐标可通过 coordinate_keys/coordinate_reasons 记录反应语义选择。`conformer_cards.py` / `conformer_selection.py` 提供证据卡片和结构化回退校验。预算和 TS stage/job 绑定在既有 ComputeDB 同事务接受 READY，driver/reconcile 自动续接。`conformer_replay.py` 对未知分支和合成/真实成本分开报告。
 
-## 顶层散件
+## 仓库导航
 
 - `kg_data/`（知识图谱 CSV，`cloudra knowledge import` 的输入）、`ideapool/reaction_candidates/`（**存量** benchmark 四档题源 md；新候选见 `gold_compute/README.md`）、`vector_store/`（知识卡片 bge-m3 向量，微服务跑在外部 `.venv-trans`）、`deploy/`、`docs/`（治理规则见 `docs/README.md`：阶段性文档完成使命即归档）。
 - `gold_compute/`（gold 战役权威说明在 `README.md`：主线是边选反应边填自算 gold，存量题不承诺全边 DFT 清零）、`archive/`（一次性实验/运行残留，gitignored；`archive/NA1_clean_env` 仍跟踪为例外）。
+- `paper/` 保存论文正文；`paper/literature/` 收拢文献原件与明确标记的下载残留，阶段性综述在 `paper/archive/`。已完成的 gold 交接在 `gold_compute/archive/`，运行/TS 交接在 `docs/archive/`。
+- `scripts/README.md` 是脚本索引；一次性申报文档编辑脚本在 `scripts/application_docs/`，运行时/知识库/评测脚本保留现有入口。`申请材料/`、`软著申请材料/` 保持外部交付路径。
+- `docs/assets/` 保存标志原图，前端发布资源仍在 `frontend/public/`；许可证入口在 `docs/licenses/README.md`。
 - `build/`、`.worktrees/`、`cloudra.egg-info/` 为构建副产物，勿手改；软著源程序清单由 `scripts/gen_copyright_source.py` 重建（改代码后重跑）。
 
 ## 工作约定

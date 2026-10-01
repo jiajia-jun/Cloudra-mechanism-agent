@@ -27,7 +27,7 @@
 > (4) **评测体系由单一标量得分升级为运行轨迹多维评估（Trajectory-Level Multi-dimensional Evaluation）**：重点考察假设构建完整性、工具调用物理自洽性、报错闭环纠错韧性与方法边界自知度；
 > (5) 废弃原机械文献打分池，启动基于教材与高质量手性/多参考文献的结构化反应题库重建。
 > 性质：组内工作文档；文献范围以 2024–2026 年为主。
-> 关联文档：`chemistry_ai_agents_literature_report.md`（框架级综述）；论文草稿骨架位于 `paper/`。
+> 关联文档：[`chemistry_ai_agents_literature_report.md`](../../paper/archive/chemistry_ai_agents_literature_report.md)（框架级综述）；论文草稿骨架位于 `paper/`。
 >
 > **v0.4 变更摘要**：
 > (1) **测试集规模定稿**：Easy 30 / Normal 30 / Hard 20 / Impossible 20（共 100 个反应体系）；
