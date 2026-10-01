@@ -42,6 +42,20 @@ def _path_stage_uses_fast_idpp_fallback(monkeypatch, tmp_path, request):
     empty = tmp_path / "_no_xtb_on_path"
     empty.mkdir(exist_ok=True)
     monkeypatch.setenv("PATH", str(empty))
+    # Scientific-stage unit tests consume a finished queue artifact. Queue,
+    # admission and event idempotency are exercised in pipeline-driver tests.
+    from cloudra.tools.core import xtb_path_runner as runner
+    original_run = runner.run_xtb_path
+    def completed_fixture(record, reactant, product):
+        request = runner.XtbPathRequest(reactant_xyz=reactant,product_xyz=product,
+            output_dir=str(tmp_path),timeout=None,refinement_runs=record.declaration.budget.path_refinement_runs or None,
+            extra_args=[f'--{record.declaration.path_solvation.model}',record.declaration.path_solvation.solvent] if record.declaration.path_solvation else [])
+        if runner.run_xtb_path is original_run:
+            result = runner.XtbPathResult(run_dir=str(tmp_path),termination_reason='executable_missing')
+        else:
+            result = runner.run_xtb_path(request)
+        return result,record
+    monkeypatch.setattr('cloudra.tools.core.ts_process._queued_path',completed_fixture)
 
 # 简单可用的两端：SN2 类（F- + CH3Cl → CH3F + Cl-）。原子序号与 SMILES 顺序一致。
 REACTANT = "[F-].CCl"
@@ -146,21 +160,18 @@ def test_guidance_correction_rebuilds_and_keeps_old_attempt(tmp_path):
     assert updated.blocked.stage == "map"
 
 
-def test_guidance_change_after_submitted_job_is_rejected_without_rewrite(tmp_path):
-    record = _start(
-        tmp_path, reactant_smiles="CCO.O", product_smiles="CCO.O", charge=0,
-        reaction_center=[], atom_map=[], ring_order=[1, 2, 3, 10],
-        distance_filters=_GUIDED_WINDOWS,
-    )
-    record.job_id = 42
+def test_guidance_change_after_submitted_job_preserves_historical_branch(tmp_path):
+    record = _start(tmp_path, reactant_smiles="CCO.O",product_smiles="CCO.O",charge=0,
+        reaction_center=[],atom_map=[],ring_order=[1,2,3,10],distance_filters=_GUIDED_WINDOWS)
+    record.job_id=42
     from cloudra.tools.core.ts_process import save_record
-
     save_record(record)
-    process_path = Path(record.run_dir) / "process.json"
-    before = process_path.read_text()
-    with pytest.raises(ValueError, match="guidance cannot change"):
-        resume(record, TsAdjustment(distance_filters=[]))
-    assert process_path.read_text() == before
+    old_revision=record.declaration_revision
+    result=resume(record,TsAdjustment(distance_filters=[]))
+    assert result.declaration_revision==old_revision+1
+    assert result.attempt_history[0].declaration_revision==old_revision
+    assert result.declaration.distance_filters==[]
+
 
 
 def test_filter_only_ts_uses_guided_generation(tmp_path, monkeypatch):
@@ -544,7 +555,7 @@ def test_resume_is_recorded_and_bounded(tmp_path):
     assert "NOT a claim" in detail
 
 
-def test_compute_notification_resume_does_not_spend_intervention_budget(tmp_path):
+def test_empty_resume_queries_without_progress_or_intervention(tmp_path):
     """A no-adjustment resume after a job finishes is progress, not an agent intervention."""
     from cloudra.tools.core.ts_process import TsProcessRecord
 
@@ -557,8 +568,9 @@ def test_compute_notification_resume_does_not_spend_intervention_budget(tmp_path
     # consume the intervention budget or falsely report search_failed.
     continued = resume(record, TsAdjustment())
     assert continued.intervention_count == 0
-    assert continued.blocked is not None
-    assert continued.blocked.failure_class == "no_job_submitted"
+    assert continued.blocked is None
+    assert continued.waiting_for == "job:1"
+    assert continued.model_dump() == record.model_dump()
 
 
 def test_terminal_run_is_not_resumed(tmp_path):
@@ -987,7 +999,9 @@ def test_irc_input_reuses_the_hessian_only_when_the_file_is_actually_there(tmp_p
 
     # 落下 .hess -> 复用同一几何的 Hessian
     (job2 / "frequency.hess").write_text("$hessian\n", encoding="utf-8")
-    error, path = _write_irc_input(record, str(job3))
+    new_attempt = job3 / "with_hessian"
+    new_attempt.mkdir()
+    error, path = _write_irc_input(record, str(new_attempt))
     assert error == ""
     content = Path(path).read_text(encoding="utf-8")
     assert "InitHess read" in content
@@ -1943,7 +1957,7 @@ def _xtb_path_stub(tmp_path, seen, termination="path_not_converged"):
     return fake_run
 
 
-def test_refinement_ceiling_defaults_to_runner_default_and_resume_can_raise_it(
+def test_refinement_ceiling_is_absent_unless_explicit_and_resume_can_raise_it(
     tmp_path, monkeypatch
 ):
     """未声明 → runner 默认；resume 抬高后 → 新数字必须真的到引擎。
@@ -1958,7 +1972,7 @@ def test_refinement_ceiling_defaults_to_runner_default_and_resume_can_raise_it(
 
     record = _start(tmp_path)
     # 未声明：交给 runner 默认，不发明数字
-    assert seen == [runner.DEFAULT_REFINEMENT_RUNS]
+    assert seen == [None]
     assert record.blocked is not None and record.blocked.failure_class == "path_not_converged"
     assert record.blocked.needs == ["budget"]
     # 阻塞消息点名出路，不让 agent 自己猜
@@ -1969,7 +1983,7 @@ def test_refinement_ceiling_defaults_to_runner_default_and_resume_can_raise_it(
         load_record(str(tmp_path), record.run_id),
         TsAdjustment(path_refinement_runs=350, budget_override_note="100 轮不够"),
     )
-    assert seen == [runner.DEFAULT_REFINEMENT_RUNS, 350]
+    assert seen == [None, 350]
     assert record.blocked is not None  # 替身仍报触顶，所以应再次阻塞
     # 落在记录上（否则重启恢复就丢了）
     assert load_record(str(tmp_path), record.run_id).declaration.budget.path_refinement_runs == 350
@@ -1994,7 +2008,7 @@ def test_zero_means_undeclared_not_zero_runs(tmp_path, monkeypatch):
     monkeypatch.setattr(runner, "run_xtb_path", _xtb_path_stub(tmp_path, seen))
 
     _start(tmp_path, budget=TsBudget(path_refinement_runs=0))
-    assert seen == [runner.DEFAULT_REFINEMENT_RUNS]
+    assert seen == [None]
 
 
 # ---------------------------------------------------------------------------

@@ -558,7 +558,7 @@ class _ComponentBuild:
 
 def _build_component(mol, indices: list[int], component_id: str, request: PreparationRequest,
                      out_dir: str, artifacts: list[TrajectoryArtifact],
-                     index_offset: int) -> _ComponentBuild:
+                     index_offset: int, candidate_sink=None) -> _ComponentBuild:
     """构建单个组分：切分 → 加氢 → （可选）嵌入 → 力场优化（含轨迹）→ 落盘。"""
     submol, old_to_new = _submol_by_input_indices(mol, indices)
     submol_atom_to_input = {new: old for old, new in old_to_new.items()}
@@ -573,6 +573,8 @@ def _build_component(mol, indices: list[int], component_id: str, request: Prepar
         mol_h, submol_atom_to_input, hydrogen_by_index, component_id, index_offset,
     )
 
+    component_capture=candidate_sink.for_component(identities) if candidate_sink else None
+    parent=None
     single_atom = mol_h.GetNumAtoms() == 1
     embed_status: EmbedStatus = "not_required"
     optimization_status: OptimizationStatus = "not_required"
@@ -617,11 +619,16 @@ def _build_component(mol, indices: list[int], component_id: str, request: Prepar
         else:
             embed_status = "embedded"
             conf_id = embedded
+            if component_capture:
+                parent=component_capture.capture(mol_h,conf_id,generator="component_ETKDGv3",seed=request.random_seed)
             engine = _select_engine(mol_h) or ""
             if not request.strategy.optimize:
                 optimization_status = "not_required"
                 diagnostics.append("force-field optimization disabled by the approved build strategy")
             elif not engine:
+                if component_capture:
+                    from cloudra.tools.core.conformer_catalog import Qualification
+                    component_capture.capture(mol_h,conf_id,generator="component_force_field_unavailable",parent_id=parent.candidate_id,state="failed",qualification=Qualification(status="rejected",reasons=["missing_parameters"]))
                 optimization_status = "missing_parameters"
                 diagnostics.append(
                     "no force field covers every atom of this component (MMFF94 and UFF both "
@@ -636,6 +643,17 @@ def _build_component(mol, indices: list[int], component_id: str, request: Prepar
                 trajectory_id = record.trajectory_id
                 final_energy = record.final_frame.energy
                 optimization_status = record.status
+                if component_capture:
+                    from cloudra.tools.core.conformer_catalog import EnergyObservation, Qualification
+                    energies=[]
+                    if final_energy is not None:
+                        energies=[EnergyObservation(value=final_energy,unit='kcal/mol',method_fingerprint=engine,
+                            species_key=parent.species_key,charge=formal_charge,multiplicity=request.multiplicity,
+                            convergence='converged' if record.status=='converged' else 'unconverged',artifact_ref=record.trajectory_id)]
+                    component_capture.capture(mol_h,conf_id,generator='component_'+engine,parent_id=parent.candidate_id,
+                        state='optimized' if record.status=='converged' else 'failed',energies=energies,
+                        qualification=Qualification(status='unknown' if record.status=='converged' else 'rejected',
+                            reasons=[] if record.status=='converged' else [record.status],evidence_refs=[record.trajectory_id]))
                 if record.status == "not_converged":
                     gradient = record.final_frame.max_gradient
                     gradient_text = "n/a" if gradient is None else f"{gradient:.6g}"
@@ -727,7 +745,7 @@ def _component_is_usable(build: _ComponentBuild) -> bool:
     )
 
 
-def prepare_structure(request: PreparationRequest) -> PreparedStructure:
+def prepare_structure(request: PreparationRequest, *, candidate_sink=None) -> PreparedStructure:
     """把请求解析成 ``PreparedStructure``。
 
     所有可预期失败都返回带显式 ``status`` 的产物（不抛异常、也不返回半成品冒充成功）；
@@ -801,7 +819,7 @@ def prepare_structure(request: PreparationRequest) -> PreparedStructure:
     for position, indices in enumerate(fragments):
         component_id = f"frag{position}"
         build = _build_component(
-            mol, list(indices), component_id, request, out_dir, artifacts, index_offset,
+            mol, list(indices), component_id, request, out_dir, artifacts, index_offset, candidate_sink,
         )
         identity_symbols = [a.symbol for a in build.identities]
         if identity_symbols != build.component.symbols:
@@ -895,7 +913,7 @@ def prepare_structure(request: PreparationRequest) -> PreparedStructure:
                 parameters=request.strategy.assembly,
                 reaction_center=list(request.strategy.reaction_center) or None,
                 guided_windows=list(request.strategy.guided_windows) or None,
-                seed=request.random_seed,
+                seed=request.random_seed, candidate_sink=candidate_sink,
             )
             diagnostics.extend(assembly.diagnostics)
             if assembly.status == "ok":

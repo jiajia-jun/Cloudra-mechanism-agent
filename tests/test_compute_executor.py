@@ -383,3 +383,25 @@ def test_reconcile_keeps_fresh_slurm_cancel_requested_without_handle(monkeypatch
     orphans = daemon._reconcile_central()
     assert job_id not in orphans
     assert get_compute_job(db, job_id)["state"] == "cancel_requested"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('scheduler', ['slurm', 'ssh_slurm'])
+async def test_accepted_scheduler_job_remains_polled_after_local_input_change(monkeypatch, scheduler):
+    from cloudra.runtime.compute_executor import run_compute
+    db = ComputeDB().init()
+    job = _insert_job(db, state='running', scheduler=scheduler)
+    with db.connect() as con:
+        con.execute("UPDATE compute_jobs SET scheduler_job_id='123' WHERE id=?", (job,))
+    def changed(*args):
+        raise ValueError('stage input bytes changed after binding')
+    monkeypatch.setattr('cloudra.services.ts_pipeline_store.verify_stage_input', changed)
+    called = []
+    async def poll(task_id, db_path, **kwargs):
+        called.append(task_id)
+        return 0
+    monkeypatch.setattr('cloudra.runtime.compute_executor.run_slurm_compute', poll)
+    monkeypatch.setattr('cloudra.runtime.compute_executor.run_remote_compute', poll)
+    assert await run_compute(job, db) == 0
+    assert called == [job]
+    assert _job_row(db, job)['state'] == 'running'

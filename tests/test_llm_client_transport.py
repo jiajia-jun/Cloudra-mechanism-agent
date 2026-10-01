@@ -231,7 +231,8 @@ class TestRequestsShim:
         assert len(chunks) == 1
         assert chunks[0].a == 1
 
-    def test_stream_connection_reset_degrades_to_non_stream(self, client, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_stream_connection_reset_degrades_to_non_stream(self, client, monkeypatch):
         # 固定行为：流式连接被重置后，自动以 stream=False 重发；
         # 此时直接返回非流式的 ResponseDictWrapper（并非单 chunk 流）
         import requests as real_requests
@@ -242,7 +243,7 @@ class TestRequestsShim:
         post = MagicMock(side_effect=[real_requests.exceptions.ConnectionError("reset"), ok_resp])
         monkeypatch.setattr("cloudra.infra.llm_client.requests.post", post)
 
-        result = client._chat_completions_via_requests_sync({"model": "m", "stream": True})
+        result = await client._chat_completions_via_requests(model="m", stream=True)
 
         assert post.call_count == 2
         # 第二次请求必须是非流式

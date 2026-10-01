@@ -244,6 +244,12 @@ def _engine_success_from_log(
     """本地 guard 同款文本标记。None = 没有可判定的引擎日志，调用方保持 sacct。"""
     if not input_path:
         return None
+    if job_type == 'chem_task':
+        from cloudra.runtime.chem_task import read_task_result
+        try:
+            return read_task_result(str(input_path))[1]
+        except (OSError, ValueError, KeyError):
+            return False
     from cloudra.infra.compute_utils import resolve_log_path
 
     log_path = resolve_log_path(

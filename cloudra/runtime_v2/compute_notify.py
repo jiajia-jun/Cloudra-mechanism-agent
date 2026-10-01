@@ -75,6 +75,9 @@ class ComputeNotifyBroker:
 
     async def ensure_project(self, project_id: str) -> None:
         """项目打开时立即扫一次该项目，不等下个 tick。"""
+        if project_id in self.core.projects:
+            from cloudra.tools.core.ts_pipeline_driver import reconcile_processes
+            await asyncio.to_thread(reconcile_processes,ComputeDB(),project_id)
         await self._poll_project(project_id)
 
     async def _poll_loop(self) -> None:
@@ -237,11 +240,19 @@ class ComputeNotifyBroker:
     ) -> None:
         if project_id not in self.core.projects:
             return
+        from cloudra.tools.core.ts_pipeline_driver import handle_process_job_terminal
+        pipeline = await asyncio.to_thread(handle_process_job_terminal, ComputeDB(), task_id)
+        if pipeline is not None and pipeline['status'] in ('waiting', 'running'):
+            await asyncio.to_thread(self._mark_notified, task_id)
+            return
         self._load_durable_deliveries()
         job_key = (project_id, task_id)
         target_id = self._delivered_jobs.get(job_key)
         if target_id is None:
             content = await self._content_for(task_id, state)
+            if pipeline is not None:
+                record = pipeline['record']
+                content += f"\nTS process {record['run_id']}: {pipeline['status']}; terminal={record['terminal']}; blocked={record['blocked']}"
             snapshot_note, complete = await self._snapshot_core_evidence(
                 project_id, task_id, session_id
             )

@@ -64,7 +64,7 @@ def _bad(prepared: PreparedStructure, detail: str, *, index_base: int = 1) -> Va
     return ValueError(f"{detail}. Resolved atoms ({index_base}-based): {_numbering(prepared, index_base)}")
 
 
-def load_resolved_graph(prepared: PreparedStructure, *, index_base: int = 1) -> Chem.Mol:
+def load_resolved_graph(prepared: PreparedStructure, *, index_base: int = 1, allow_unoptimized: bool = False) -> Chem.Mol:
     """Load the builder's resolved, explicit-H graph without inventing coordinates."""
     graph_only_multi = (
         prepared.status == "assembly_failed"
@@ -72,7 +72,8 @@ def load_resolved_graph(prepared: PreparedStructure, *, index_base: int = 1) -> 
         and all(not component.xyz_path for component in prepared.components)
     )
     bad = partial(_bad, prepared, index_base=index_base)
-    if prepared.status != "ok" and not graph_only_multi:
+    explicitly_unoptimized = allow_unoptimized and all(c.embed_status in ("embedded","not_required") and c.optimization_status=="not_required" for c in prepared.components)
+    if prepared.status != "ok" and not graph_only_multi and not explicitly_unoptimized:
         raise bad(f"builder status {prepared.status!r} has no usable resolved graph")
     if not prepared.components or not prepared.atom_identities:
         raise bad( "builder returned no components or atom identities")
@@ -205,6 +206,36 @@ def measure_windows(
     return distances
 
 
+def geometry_stereochemistry_errors(graph, positions) -> list[str]:
+    """Compare declared stereochemistry with actual 3D geometry, without inference."""
+    expected = Chem.Mol(graph)
+    Chem.AssignStereochemistry(expected, cleanIt=True, force=True)
+    chiral = {a.GetIdx():a.GetProp('_CIPCode') for a in expected.GetAtoms() if a.HasProp('_CIPCode')}
+    bonds = {b.GetIdx():b.GetStereo() for b in expected.GetBonds()
+             if b.GetStereo() not in (Chem.BondStereo.STEREONONE,Chem.BondStereo.STEREOANY)}
+    if not chiral and not bonds:
+        return []
+    actual = Chem.Mol(graph)
+    Chem.RemoveStereochemistry(actual)
+    actual.RemoveAllConformers()
+    conf = Chem.Conformer(actual.GetNumAtoms())
+    conf.Set3D(True)
+    for i,p in enumerate(positions):
+        conf.SetAtomPosition(i,p)
+    actual.AddConformer(conf)
+    Chem.AssignStereochemistryFrom3D(actual, replaceExistingTags=True)
+    Chem.AssignStereochemistry(actual, cleanIt=True, force=True)
+    errors = []
+    for i,code in chiral.items():
+        atom=actual.GetAtomWithIdx(i)
+        if not atom.HasProp('_CIPCode') or atom.GetProp('_CIPCode')!=code:
+            errors.append(f'declared stereochemistry changed or unresolved at atom {i}')
+    for i,stereo in bonds.items():
+        if actual.GetBondWithIdx(i).GetStereo()!=stereo:
+            errors.append(f'declared bond stereochemistry changed or unresolved at bond {i}')
+    return errors
+
+
 def qualify_geometry(
     plan: GuidancePlan,
     graph: Chem.Mol,
@@ -221,7 +252,7 @@ def qualify_geometry(
         return False, ["nonfinite or incomplete coordinates"], {}
 
     distances = measure_windows(plan, positions)
-    reasons = []
+    reasons = geometry_stereochemistry_errors(graph, positions)
     for window in plan.windows:
         key = f"{window.atoms[0] + plan.index_base}-{window.atoms[1] + plan.index_base}"
         actual = distances[key]
@@ -385,7 +416,7 @@ def _save_guided_result(result: GuidedSearchResult, plan: GuidancePlan,
 
 def _single_component_rdkit(
     prepared: PreparedStructure, plan: GuidancePlan, output_dir: str,
-    num_confs: int, random_seed: int, rmsd_threshold: float,
+    num_confs: int, random_seed: int, rmsd_threshold: float, candidate_sink=None,
 ) -> GuidedSearchResult:
     mol = load_resolved_graph(prepared)
     if not AllChem.MMFFHasAllMoleculeParams(mol):
@@ -402,6 +433,7 @@ def _single_component_rdkit(
     params.pruneRmsThresh = -1.0
     params.SetBoundsMat(bounds)
     conf_ids = list(AllChem.EmbedMultipleConfs(mol, numConfs=num_confs, params=params))
+    parents = {cid: candidate_sink.capture(mol, cid, generator="ETKDG_guided", seed=random_seed) for cid in conf_ids} if candidate_sink else {}
     result = GuidedSearchResult(
         status="no_candidate",
         message="",
@@ -433,6 +465,10 @@ def _single_component_rdkit(
         )
         if force_field is None:
             rejected["force_field_unavailable"] += 1
+            if candidate_sink:
+                from cloudra.tools.core.conformer_catalog import Qualification
+                candidate_sink.capture(mol,conf_id,generator='guided_MMFF94',parent_id=parents[conf_id].candidate_id,
+                    state='failed',qualification=Qualification(status='rejected',reasons=['force_field_unavailable']))
             continue
         for window in plan.windows:
             force_field.MMFFAddDistanceConstraint(
@@ -442,6 +478,13 @@ def _single_component_rdkit(
         force_field.Initialize()
         converged = force_field.Minimize(maxIts=2000) == 0
         note_closest(conf_id)
+        if candidate_sink:
+            from cloudra.tools.core.conformer_catalog import Qualification
+            candidate_passed, candidate_reasons, _ = qualify_geometry(plan, mol, symbols, mol.GetConformer(conf_id).GetPositions())
+            qualified = converged and candidate_passed
+            candidate_sink.capture(mol, conf_id, generator="guided_MMFF94", parent_id=parents[conf_id].candidate_id,
+                state="optimized" if qualified else "failed", qualification=Qualification(status="qualified" if qualified else "rejected",
+                reasons=candidate_reasons + ([] if converged else ["optimization_not_converged"])))
         if not converged:
             rejected["optimization_not_converged"] += 1
             continue
@@ -515,7 +558,7 @@ def _single_component_rdkit(
 def _multi_component_rdkit(
     structure: StructureInput, prepared: PreparedStructure, plan: GuidancePlan,
     output_dir: str, charge: int, multiplicity: int, random_seed: int,
-    rmsd_threshold: float,
+    rmsd_threshold: float, candidate_sink=None,
 ) -> GuidedSearchResult:
     graph = load_resolved_graph(prepared, index_base=plan.index_base)
     _validated_bounds(prepared, plan)
@@ -533,7 +576,7 @@ def _multi_component_rdkit(
                 for window in plan.windows
             ],
         ),
-    ))
+    ), candidate_sink=candidate_sink)
     result = GuidedSearchResult(
         status="no_candidate", message="", prepared_path=built.artifact_path,
         diagnostics=list(built.diagnostics),
@@ -737,6 +780,7 @@ def search_guided(
     rmsd_threshold: float = 0.5,
     timeout: int = 600,
     index_base: int = 1,
+    candidate_sink=None,
 ) -> GuidedSearchResult:
     """Build constrained TS seeds. Later adapters extend this core to complexes/CREST."""
     if num_confs < 1 or rmsd_threshold < 0 or timeout < 1:
@@ -760,11 +804,11 @@ def search_guided(
     if len(prepared.components) != 1:
         seed_result = _multi_component_rdkit(
             structure, prepared, plan, output_dir, charge, multiplicity, random_seed,
-            rmsd_threshold,
+            rmsd_threshold, candidate_sink,
         )
     else:
         seed_result = _single_component_rdkit(
-            prepared, plan, output_dir, num_confs, random_seed, rmsd_threshold,
+            prepared, plan, output_dir, num_confs, random_seed, rmsd_threshold, candidate_sink,
         )
     if backend == "crest":
         return _crest_guided(

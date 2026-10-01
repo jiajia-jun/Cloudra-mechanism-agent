@@ -361,3 +361,36 @@ def test_probe_remote_shell_handle_reads_pid_file(monkeypatch):
         lambda endpoint, cmd, **kwargs: (0, "", ""),
     )
     assert probe_remote_shell_handle(row) is None
+
+
+@pytest.mark.parametrize('kind', ['ssh_local', 'ssh_slurm'])
+def test_remote_helper_carries_trusted_runtime_and_code_bundle(tmp_path, kind):
+    import sys
+    import zipfile
+
+    from cloudra.runtime.remote_compute import _stage_and_submit
+    transport = FakeTransport()
+    source = tmp_path / 'task.json'
+    source.write_text('{}')
+    options = {'environment': {'CLOUDRA_CHEM_PYTHON': sys.executable}}
+    _handle, script = _stage_and_submit(transport, kind, 1, source, tmp_path,
+        '/remote/job', 'chem_task', {}, options)
+    text = __import__('pathlib').Path(script).read_text()
+    assert sys.executable in text
+    bundles = list(tmp_path.glob('.cloudra-chem-runtime-*.zip'))
+    assert len(bundles) == 1
+    assert bundles[0].name in text
+    with zipfile.ZipFile(bundles[0]) as archive:
+        assert 'cloudra/runtime/chem_task.py' in archive.namelist()
+    assert transport.pushes
+
+
+def test_remote_helper_requires_explicit_node_python_before_submission(tmp_path):
+    from cloudra.runtime.remote_compute import _stage_and_submit
+    transport = FakeTransport()
+    source = tmp_path / 'task.json'
+    source.write_text('{}')
+    with pytest.raises(ValueError, match='CLOUDRA_CHEM_PYTHON'):
+        _stage_and_submit(transport, 'ssh_local', 1, source, tmp_path, '/remote/job', 'chem_task', {}, {})
+    assert not transport.pushes
+    assert not any('nohup' in command for command in transport.commands)
