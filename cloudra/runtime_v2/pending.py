@@ -82,8 +82,10 @@ class PendingBroker:
         return None
 
     async def _flip(self, agent: AgentSession, to: AgentState, reason: str) -> None:
-        self.core.agent_host.transition(agent, to, reason=reason, run_id=self._run_id(agent.id))
-        await self.core.event_writer.flush()
+        # transition 已经就是 persist-then-apply（落库成功才投影），不需要再补 flush。
+        await self.core.agent_host.transition(
+            agent, to, reason=reason, run_id=self._run_id(agent.id)
+        )
 
     async def _park(self, agent: AgentSession, state: AgentState, reason: str) -> None:
         if agent.state is AgentState.RUNNING:

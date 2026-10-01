@@ -366,7 +366,7 @@ async def test_incremental_replay_after_stale_snapshot(tmp_path):
         )
         await _persist_event(store, envelope)
     before = len(core.event_log)
-    core.agent_host.finish_run(agent, outcome="succeeded")
+    await core.agent_host.finish_run(agent, outcome="succeeded")
     for envelope in list(core.event_log)[before:]:
         await _persist_event(store, envelope)
     # 故意不再 save_snapshot：restore 必须靠增量重放追平。

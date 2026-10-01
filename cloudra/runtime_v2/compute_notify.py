@@ -310,7 +310,7 @@ class ComputeNotifyBroker:
                 and not inbox.empty()
                 and should_wake(self.core, agent, WakePolicy.PARK_TERMINAL)
             ):
-                self.core.agent_host.wake(agent, runner=self.core.runner)
+                await self.core.agent_host.wake(agent, runner=self.core.runner)
 
     async def _content_for(self, task_id: int, state: str) -> str:
         """通知文本一律由 DB 重建（唯一路径）：提交者信息 + 终态错误 + 日志路径。"""

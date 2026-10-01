@@ -269,13 +269,13 @@ def _pipeline_agent(protocol, *, agent_id: str) -> AgentSession:
     return agent
 
 
-def _pipeline(script, *, notices=None):
+def _pipeline(script, *, notices=None, hooks=None):
     capture: list[dict] = []
     pipeline = TurnPipeline(
         event_log=EventLog(strict=True),
         stages=[],
         llm=LegacyLLMProvider(
-            client_factory=lambda settings: _ScriptedClient(capture, script, {})
+            client_factory=lambda settings: _ScriptedClient(capture, script, hooks or {})
         ),
         tools=_EchoTools(),
         notices=notices,
@@ -694,7 +694,8 @@ async def test_cancel_never_confirms_notice_consumption():
     """run_turn 在 LLM 流期间被取消：通知批次保持 pending 不确认，
     下次 collect 原样重发（取消不提前确认消费，不丢消息）。"""
     notices = NoticeManager()
-    pipeline, capture = _pipeline([_HANG])
+    request_started = asyncio.Event()
+    pipeline, capture = _pipeline([_HANG], hooks={0: request_started.set})
     agent = _pipeline_agent(InvocationProtocol.TRADITIONAL, agent_id="as_cache_cancel")
     prefix = _begin_prefix(agent)
     notices.push(agent.id, FIXTURE_PUSH)
@@ -710,8 +711,12 @@ async def test_cancel_never_confirms_notice_consumption():
             context_prefix=prefix,
         )
     )
-    await asyncio.sleep(0.05)
-    task.cancel()
+    try:
+        # Wait for the actual transport call, not a machine-speed dependent
+        # delay: cancellation before this boundary does not test consumption.
+        await asyncio.wait_for(request_started.wait(), timeout=5)
+    finally:
+        task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await task
     # 请求确实发出且尾部带着这条 push。

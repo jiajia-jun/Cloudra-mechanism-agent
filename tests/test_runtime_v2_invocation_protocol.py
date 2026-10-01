@@ -107,7 +107,7 @@ async def test_protocol_frozen_for_run_and_applied_on_next_run():
     assert agent.current_run.invocation_protocol is InvocationProtocol.JAVASCRIPT
 
     # Finish the run; the next run picks up the configured value.
-    core.agent_host.finish_run(agent, outcome="succeeded")
+    await core.agent_host.finish_run(agent, outcome="succeeded")
     assert agent.current_run is None
     assert effective_invocation_protocol(agent) is InvocationProtocol.TRADITIONAL
     await bus.execute(Command(type="agent.message", target={"session_id": agent.id}, payload={"content": "again"}))
@@ -129,7 +129,7 @@ async def test_waiting_resume_keeps_the_frozen_protocol():
     )
     await bus.execute(Command(type="agent.message", target={"session_id": agent.id}, payload={"content": "go"}))
     run_id = agent.current_run.run_id
-    core.agent_host.transition(agent, AgentState.WAITING_INPUT, reason="ask_user", run_id=run_id)
+    await core.agent_host.transition(agent, AgentState.WAITING_INPUT, reason="ask_user", run_id=run_id)
     started_before = len(_run_started_events(core, agent.id))
     await bus.execute(Command(type="agent.message", target={"session_id": agent.id}, payload={"content": "answer"}))
     # Resume opens no new run, so the frozen protocol is untouched.

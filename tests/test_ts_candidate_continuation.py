@@ -120,6 +120,8 @@ def test_candidate_decision_is_scoped_recorded_and_switch_keeps_map_and_old_job(
 
 @pytest.mark.parametrize("crash", [False, True])
 def test_endpoint_only_retry_preserves_ts_frequency_irc_and_other_endpoint(tmp_path, monkeypatch, crash):
+    pytest.importorskip("rdkit", reason="endpoint geometry preparation requires RDKit (chem extra)")
+
     from cloudra.services.compute_admission import AdmissionOutcome
     from cloudra.services.ts_pipeline_store import bind_stage_job, get_process, save_process_record
     from cloudra.tools.core.structure_builder import (
@@ -270,6 +272,7 @@ def test_partition_revision_update_preserves_seed_and_rejects_incomplete_snapsho
 
 @pytest.mark.parametrize("role", ["reactant", "product"])
 def test_formal_endpoint_rejects_mirrored_declared_stereochemistry(tmp_path, monkeypatch, role):
+    pytest.importorskip("rdkit", reason="requires RDKit (chem extra)")
     from rdkit import Chem
     from rdkit.Chem import AllChem
 

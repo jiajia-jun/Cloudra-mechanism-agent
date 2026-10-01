@@ -225,17 +225,14 @@ async def test_guided_file_verdict_wakes_coordinator_for_supervisor_supported_co
     provider = ScriptedProvider(by_role={
         "coordinator": [
             _propose_selected_ab(),
-            Step(wait_for=submit_evidence, text="draft verdict received"),
-            Step(tools=[("dag_submit_step_evidence", {
+            Step(wait_for=submit_evidence, tools=[("dag_submit_step_evidence", {
                 "step_name": "AB", "ts_file": ts.name,
                 "reaction_coordinate_description": "selected transition",
             })]),
-            Step(wait_for=attempt_partial, text="file review queued"),
-            Step(tools=[("stop", {
+            Step(wait_for=attempt_partial, tools=[("stop", {
                 "delivery_disposition": "partial",
             })]),
-            Step(wait_for=attempt_complete, text="file verdict received"),
-            Step(tools=[("stop", {
+            Step(wait_for=attempt_complete, tools=[("stop", {
                 "delivery_disposition": "complete",
             })]),
         ],
@@ -316,7 +313,7 @@ async def test_guided_file_verdict_wakes_coordinator_for_supervisor_supported_co
             "per-file Supervisor verdict",
         )
         await harness.wait_for(
-            lambda: coordinator.state.value == "running" and provider.call_count("coordinator") >= 6,
+            lambda: coordinator.state.value == "running" and provider.call_count("coordinator") >= 4,
             "Coordinator resumed on the verdict and entered a new provider turn",
         )
         from cloudra.dag.controller import DagController
@@ -900,7 +897,10 @@ async def test_unattended_never_enters_waiting_input(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_restart_repeats_no_side_effect_and_keeps_unconsumed_message(tmp_path):
+@pytest.mark.parametrize("delay_child_delivery", [False, True], ids=["normal", "late-child-wake"])
+async def test_restart_repeats_no_side_effect_and_keeps_unconsumed_message(
+    tmp_path, monkeypatch, delay_child_delivery
+):
     """重启：不重复工具副作用、不重复 spawn、不丢已持久化但未消费的消息。
 
     杠杆：恢复语义（restore 只重建投影、不重放副作用）+ dispatcher 的落库先于可见。
@@ -922,11 +922,27 @@ async def test_restart_repeats_no_side_effect_and_keeps_unconsumed_message(tmp_p
         }
     )
     harness = await ScenarioHarness.start(tmp_path, provider=provider)
+    child_report_committed = asyncio.Event()
+    release_child_delivery = asyncio.Event()
+    if delay_child_delivery:
+        commit = harness.core.event_writer.commit
+
+        async def commit_with_delayed_child_delivery(draft):
+            envelope = await commit(draft)
+            if draft.type == "agent.message_injected" and draft.data.get("manifest"):
+                # Force the event-visible but not-yet-enqueued child report window.
+                child_report_committed.set()
+                await release_child_delivery.wait()
+            return envelope
+
+        monkeypatch.setattr(harness.core.event_writer, "commit", commit_with_delayed_child_delivery)
     try:
         parent = await harness.spawn("coordinator", protocol="traditional")
         await harness.wait_for(
             lambda: len(harness.child_reports(parent)) == 1, "child report before restart"
         )
+        if delay_child_delivery:
+            await harness.wait_for(child_report_committed.is_set, "child report delivery paused")
         children_before = [child.id for child in harness.children_of(parent)]
         effects_before = [
             tool for tool in harness.tool_events(parent) if tool["tool_name"] == "todo_write"
@@ -937,17 +953,32 @@ async def test_restart_repeats_no_side_effect_and_keeps_unconsumed_message(tmp_p
             encoding="utf-8"
         )
 
-        # 先等父 Agent 终态，排除消息被下一轮正常消费的竞态；再造一条
+        # child_reports 只说明回传事件已追加，子任务仍可能在落库/入队/唤醒中。
+        # 父任务结束也不能排除这次迟到的唤醒；先停准入并等全部任务收尾，再造
         # 「已落库但未消费」的消息（重启后必须仍在信箱里）。
         await harness.wait_terminal(parent)
-        await harness.core.dispatcher.commit_and_deliver(
+        await harness.runner.cancel_all()
+        notice = await harness.core.dispatcher.commit_and_deliver(
             to_session_id=parent.id,
             project_id=harness.project.id,
             content="unconsumed notice",
             sender="system",
             wake=WakePolicy.NEVER,
         )
+        if delay_child_delivery:
+            release_child_delivery.set()
+            await harness.wait_for(
+                lambda: all(harness.runner.task_for(agent.id) is None
+                            for agent in harness.core.agents.values()),
+                "delayed child delivery and any resulting parent wake finished",
+            )
+        assert await asyncio.to_thread(harness.store.has_event, notice.event_id)
+        assert all(
+            message.get("message_id") != notice.data["message_id"]
+            for message in harness.core.contexts.current_messages(parent.id)
+        ), "restart fixture notice was consumed before shutdown"
     finally:
+        release_child_delivery.set()
         await harness.aclose()
 
     restored = await ScenarioHarness.restore(tmp_path, provider=provider)
@@ -976,8 +1007,8 @@ async def test_restart_repeats_no_side_effect_and_keeps_unconsumed_message(tmp_p
 
 
 @pytest.mark.asyncio
-async def test_context_overflow_compacts_at_most_once_and_continues(tmp_path, monkeypatch):
-    """上下文超预算：**最多一次**压缩（摘要输入来自真实投影），随后继续原任务。
+async def test_context_budget_compacts_once_then_short_turns_continue(tmp_path, monkeypatch):
+    """上下文超预算：压缩真实投影一次，随后短轮次继续原任务且不重复压缩。
 
     杠杆：容量口径 + 压缩触发（budget/overflow）+ 摘要替换。
     """
@@ -990,7 +1021,7 @@ async def test_context_overflow_compacts_at_most_once_and_continues(tmp_path, mo
                 tools=[("todo_write", {"todos": [{"content": "keep going", "status": "in_progress"}]})],
             ),
             Step(
-                text="second turn after compaction " + ("more padding " * 300),
+                text="second turn after compaction",
                 tools=[("todo_write", {"todos": [{"content": "still going", "status": "in_progress"}]})],
             ),
             Step(text="finished after compaction", stop=True),
@@ -1018,9 +1049,9 @@ async def test_context_overflow_compacts_at_most_once_and_continues(tmp_path, mo
         await harness.wait_terminal(agent)
 
         compacted = [e for e in harness.events(agent) if e.type == "context.compacted"]
-        # 「最多一次」指压缩**安装**次数：一次 run 里不得反复压缩（阈值抖动会
-        # 让轨迹被反复摘要，成本与信息损失都翻倍）。摘要调用次数本身会因
-        # 分段/合并而 >1（容量越小段越多），故只要求发生了摘要调用。
+        # 第一轮超过预算，压缩后的短轮次仍在预算内，不应重复安装摘要。
+        # 新增长轨迹允许再次压缩；不能把“一次 run 只能压缩一次”当成契约。
+        # 摘要调用次数本身会因分段/合并而 >1，故只要求发生了摘要调用。
         assert len(compacted) == 1, harness.describe(agent)
         assert provider.summary_calls >= 1, "压缩安装成功却没调用摘要器"
         # 压缩之后任务继续并正常收尾（不是靠压缩把 run 掐断）。

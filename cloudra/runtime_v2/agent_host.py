@@ -10,9 +10,15 @@ the turn pipeline; the state machine itself is handle-agnostic.
   ``CommandRejected``）+ 产出 ``EventDraft`` 列表。零 IO、零 mutate——
   命令侧（``commands.py`` 的 decide）据此组装 Decision，由 CommandBus
   统一落日志/投影。
-- **命令式方法**（``AgentHost``）：``plan + event_log.append + apply_event``
-  的薄执行壳，供非命令路径（runner / pending 翻状态 / restore 僵尸收尾 /
-  dag_stage 督导壳 / hub_bridge 点对点消息）使用。
+- **命令式方法**（``AgentHost``）：``plan + 落盘 + apply_event`` 的薄异步壳，
+  供非命令路径（runner / pending 翻状态 / 依赖唤醒的投递与计算通知）使用。
+  **运行期只有一条写路径**（``_persist_then_apply``）：先 append、落盘
+  才 ``apply_event``——落库失败仅应用已持久化前缀，丢掉未持久化尾巴；本批
+  未完整落盘才抛出，绝不让内存状态超前于磁盘。
+
+恢复路径（``persistence.restore_core``：同步、无事件循环）不经过这些壳：它用
+同一批纯 ``plan_*`` 规划器产出草稿，自己 append + ``apply_event`` 并收进
+``new_events``，由函数末尾的一次性落库屏障统一补盘。
 
 两条路径共享同一份守卫表与事件形状，杜绝双实现漂移。状态的唯一事实来源是
 事件日志，应用器只有 ``cloudra.runtime_v2.apply.apply_event`` 一个。
@@ -270,6 +276,36 @@ def plan_wake(agent: AgentSession) -> tuple[list[EventDraft], bool]:
     return drafts, True
 
 
+def plan_finish_run(
+    agent: AgentSession,
+    *,
+    outcome: str,
+    error: str | None = None,
+    failure_kind: RunFailureKind | None = None,
+) -> tuple[str | None, list[EventDraft]]:
+    """Guard + drafts for closing the agent's current run.
+
+    没有活 run 时返回空计划（无事可做）。失败载荷先校验再产出草稿：漏传
+    ``failure_kind`` 的失败 run 在任何事件落地前就 fail-loud。
+    """
+    run_id = agent.current_run.run_id if agent.current_run else None
+    if run_id is None:
+        return None, []
+    data = _run_finished_data(outcome, error=error, failure_kind=failure_kind)
+    target = AgentState.SUCCEEDED if outcome == "succeeded" else AgentState.FAILED
+    return run_id, [
+        plan_transition(agent, target, reason=outcome, run_id=run_id),
+        EventDraft(
+            "run.finished",
+            stream="agent",
+            project_id=agent.project_id,
+            session_id=agent.id,
+            run_id=run_id,
+            data=data,
+        ),
+    ]
+
+
 def resolve_orchestration_mode(
     project: Project,
     role: RoleProfile,
@@ -355,23 +391,14 @@ class AgentHost:
 
     # ------------------------------------------------------- imperative shells
 
-    def _execute_drafts(self, drafts: list[EventDraft] | tuple[EventDraft, ...]) -> None:
-        """plan 的命令式落地：逐条 append + apply_event（事件先于状态）。"""
-        for draft in drafts:
-            envelope = self.event_log.append(
-                draft.type,
-                stream=draft.stream,
-                project_id=draft.project_id,
-                session_id=draft.session_id,
-                run_id=draft.run_id,
-                data=draft.data,
-            )
-            apply_event(self.core, envelope)
-
-    async def _execute_drafts_durable(
+    async def _persist_then_apply(
         self, drafts: list[EventDraft] | tuple[EventDraft, ...]
     ) -> None:
-        """persist-then-apply：落库成功才投影，避免崩溃窗口内存超前。"""
+        """运行期唯一写路径：落库成功才投影，绝不让内存状态超前于磁盘。
+
+        落库失败时仍应用本次已持久化的前缀，丢掉未持久化的尾巴。本批全部
+        落盘后其他写入失败不影响本批成功；本批不完整则抛出，绝不执行后续效果。
+        """
         from cloudra.runtime_v2.event_writer import EventPersistenceError
 
         keep = len(self.event_log)
@@ -391,11 +418,23 @@ class AgentHost:
             await self.core.event_writer.flush()
         except EventPersistenceError:
             self.core.event_writer.discard_unpersisted(keep=keep)
-            raise
+            # Only our durable envelopes can survive the tail discard. Keep
+            # the live projection aligned with that prefix, even when the
+            # failure was inside our batch rather than in a concurrent tail.
+            durable = [
+                envelope for envelope in envelopes
+                if self.event_log.get(envelope.event_id) is not None
+            ]
+            for envelope in durable:
+                apply_event(self.core, envelope)
+            await self.core.event_writer.publish_persisted()
+            if len(durable) != len(envelopes):
+                raise
+            return
         for envelope in envelopes:
             apply_event(self.core, envelope)
 
-    def transition(
+    async def transition(
         self,
         agent: AgentSession,
         to: AgentState,
@@ -403,19 +442,16 @@ class AgentHost:
         reason: str,
         run_id: str | None = None,
     ) -> None:
-        self._execute_drafts([plan_transition(agent, to, reason=reason, run_id=run_id)])
+        await self._persist_then_apply(
+            [plan_transition(agent, to, reason=reason, run_id=run_id)]
+        )
 
-    def start_run(self, agent: AgentSession) -> str:
+    async def start_run(self, agent: AgentSession) -> str:
         run_id, drafts = plan_start_run(agent)
-        self._execute_drafts(drafts)
+        await self._persist_then_apply(drafts)
         return run_id
 
-    async def start_run_durable(self, agent: AgentSession) -> str:
-        run_id, drafts = plan_start_run(agent)
-        await self._execute_drafts_durable(drafts)
-        return run_id
-
-    def finish_run(
+    async def finish_run(
         self,
         agent: AgentSession,
         *,
@@ -423,68 +459,36 @@ class AgentHost:
         error: str | None = None,
         failure_kind: RunFailureKind | None = None,
     ) -> None:
-        run_id = agent.current_run.run_id if agent.current_run else None
-        if run_id is None:
-            return
-        # 先校验载荷再动状态：漏传分类的失败 run 必须在任何事件落地前就炸掉。
-        data = _run_finished_data(outcome, error=error, failure_kind=failure_kind)
-        target = AgentState.SUCCEEDED if outcome == "succeeded" else AgentState.FAILED
-        self.transition(agent, target, reason=outcome, run_id=run_id)
-        envelope = self.event_log.append(
-            "run.finished",
-            stream="agent",
-            project_id=agent.project_id,
-            session_id=agent.id,
-            run_id=run_id,
-            data=data,
+        # 先校验载荷再动状态：漏传分类的失败 run 在任何事件落地前就炸掉。
+        _, drafts = plan_finish_run(
+            agent, outcome=outcome, error=error, failure_kind=failure_kind
         )
-        apply_event(self.core, envelope)
+        if drafts:
+            await self._persist_then_apply(drafts)
 
-    async def finish_run_durable(
-        self,
-        agent: AgentSession,
-        *,
-        outcome: str,
-        error: str | None = None,
-        failure_kind: RunFailureKind | None = None,
-    ) -> None:
-        run_id = agent.current_run.run_id if agent.current_run else None
-        if run_id is None:
-            return
-        data = _run_finished_data(outcome, error=error, failure_kind=failure_kind)
-        target = AgentState.SUCCEEDED if outcome == "succeeded" else AgentState.FAILED
-        drafts = [plan_transition(agent, target, reason=outcome, run_id=run_id)]
-        drafts.append(
-            EventDraft(
-                "run.finished",
-                stream="agent",
-                project_id=agent.project_id,
-                session_id=agent.id,
-                run_id=run_id,
-                data=data,
-            )
-        )
-        await self._execute_drafts_durable(drafts)
-
-    def resume(self, agent: AgentSession) -> str:
+    async def resume(self, agent: AgentSession) -> str:
         """Resume the existing run after an external wakeup (message/response)."""
         run_id, drafts = plan_resume(agent)
-        self._execute_drafts(drafts)
+        await self._persist_then_apply(drafts)
         return run_id
 
-    def restart(self, agent: AgentSession) -> str:
+    async def restart(self, agent: AgentSession) -> str:
         run_id, drafts = plan_restart(agent)
-        self._execute_drafts(drafts)
+        await self._persist_then_apply(drafts)
         return run_id
 
-    def wake(self, agent: AgentSession, runner: Any = None) -> None:
+    async def wake(self, agent: AgentSession, runner: Any = None) -> None:
         """Wake a sleeping or idle agent so pending inbox messages take effect.
 
-        命令式薄壳（plan_wake 的执行版），供 hub_bridge 等非命令路径使用；
-        命令侧走 decide 产出同一份草稿。``runner`` 可空，纯状态模式（测试）
-        只落事件不调度。
+        命令式薄壳（plan_wake 的执行版），供 MessageDispatcher / 计算通知 /
+        benchmark 等非命令路径使用；命令侧走 decide 产出同一份草稿。
+        ``runner`` 可空，纯状态模式（测试）只落事件不调度。
+
+        落盘先于调度：跨 run 的事件（state_changed + run.started）持久化成功
+        之后才 schedule，避免「run 已调度、磁盘上却没有它」的窗口。
         """
         drafts, should_schedule = plan_wake(agent)
-        self._execute_drafts(drafts)
+        if drafts:
+            await self._persist_then_apply(drafts)
         if should_schedule and runner is not None:
             runner.schedule(agent.id)

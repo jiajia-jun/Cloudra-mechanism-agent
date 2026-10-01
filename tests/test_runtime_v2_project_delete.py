@@ -130,8 +130,8 @@ async def test_delete_removes_project_and_agents_from_core():
     await _archive(core, project.id)
     agent = await _spawn(core, project.id)
     # 终态 agent 不阻塞删除
-    core.agent_host.start_run(agent)
-    core.agent_host.finish_run(agent, outcome="succeeded")
+    await core.agent_host.start_run(agent)
+    await core.agent_host.finish_run(agent, outcome="succeeded")
     core.mailbox.ensure_inbox(agent.id)
 
     result = await _execute(core, "project.delete", target={"project_id": project.id})
@@ -165,8 +165,8 @@ async def test_delete_tombstone_survives_replay(tmp_path):
             )
         )
     ).data
-    core.agent_host.start_run(agent)
-    core.agent_host.finish_run(agent, outcome="succeeded")
+    await core.agent_host.start_run(agent)
+    await core.agent_host.finish_run(agent, outcome="succeeded")
     await bus.execute(
         Command(type="project.update", target={"project_id": project.id}, payload={"archived": True})
     )

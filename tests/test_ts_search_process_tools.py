@@ -50,12 +50,22 @@ class _OwnerStub:
     working_directory = None
 
 
-async def _prepare(tmp_path, **overrides):
-    tool = TsPrepare()
+def _owned_tool(tool_class):
+    tool = tool_class()
     object.__setattr__(tool, "subagent", _OwnerStub())
+    return tool
+
+
+async def _prepare(tmp_path, **overrides):
+    from cloudra.services.nodes import default_resources
+
+    resources = default_resources()
+    tool = _owned_tool(TsPrepare)
     return await tool.tool_call(
         TsPrepare_input_schema(
-            declaration=_declaration(**overrides), workspace_dir=str(tmp_path)
+            declaration=_declaration(**overrides), workspace_dir=str(tmp_path),
+            compute_cpus=max(1, min(2, resources["cpus"])),
+            compute_memory_mb=min(4096, resources["memory_mb"]),
         ),
         session=None,
     )
@@ -99,8 +109,18 @@ async def test_prepare_and_resume_accept_ring_guidance(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_prepare_returns_a_run_id_and_stops_with_a_blocked_payload(tmp_path):
-    """前端 + 提交跑完后在 refine 等作业终态：is_success=True，且 waiting 不是 blocked。"""
+@pytest.mark.parametrize("memory_limit", [None, 3968])
+async def test_prepare_returns_a_run_id_and_waits_for_queued_path(tmp_path, monkeypatch, memory_limit):
+    """Durable preparation queues the path job before refinement; waiting is not blocked."""
+    import asyncio
+
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.services import nodes
+    from cloudra.tools.core.ts_process import load_record
+
+    if memory_limit is not None:
+        resources = dict(nodes.default_resources(), memory_mb=memory_limit)
+        monkeypatch.setattr(nodes, "default_resources", lambda: resources)
     out = await _prepare(tmp_path)
     assert out.is_success is True, out.message
     assert out.run_id == "ts_0001"
@@ -111,9 +131,24 @@ async def test_prepare_returns_a_run_id_and_stops_with_a_blocked_payload(tmp_pat
     assert out.waiting_for.startswith("job:")
     assert "do not poll" in out.message
     statuses = {r.stage: r.status for r in out.stage_records}
-    # 提交真的发生了（作业号 + 精修输入）
-    assert statuses["submit"] == "done"
-    assert statuses["refine"] == "waiting"
+    assert out.stage == "guess"
+    assert "submit" not in statuses and "refine" not in statuses
+
+    def submitted_path():
+        record = load_record(str(tmp_path), out.run_id)
+        with ComputeDB().connect() as con:
+            job = con.execute(
+                "SELECT state, jobtype, path FROM compute_jobs WHERE id=?",
+                (record.job_steps[0].job_id,),
+            ).fetchone()
+        return record, job
+
+    record, job = await asyncio.to_thread(submitted_path)
+    assert [step.purpose for step in record.job_steps] == ["path"]
+    assert out.waiting_for == f"job:{record.job_steps[0].job_id}"
+    assert tuple(job) == ("ready", "chem_task", record.job_steps[0].input_path)
+    if memory_limit is not None:
+        assert record.compute_memory_mb == memory_limit
 
 
 @pytest.mark.asyncio
@@ -173,7 +208,7 @@ def test_the_sop_surface_is_exactly_two_functions_and_no_status_query():
 async def test_resume_supplies_the_missing_declaration_and_advances(tmp_path):
     first = await _prepare(tmp_path, atom_map=[])
     assert first.blocked.needs == ["atom_map"]
-    out = await TsResume().tool_call(
+    out = await _owned_tool(TsResume).tool_call(
         TsResume_input_schema(
             run_id=first.run_id,
             adjustment=TsAdjustment(atom_map=ATOM_MAP),
@@ -188,11 +223,40 @@ async def test_resume_supplies_the_missing_declaration_and_advances(tmp_path):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("foreign_scope", ["project", "owner"])
+async def test_resume_rejects_a_different_project_or_owner(tmp_path, foreign_scope):
+    import asyncio
+    from types import SimpleNamespace
+
+    from cloudra.tools.core.ts_process import load_record
+
+    first = await _prepare(tmp_path, atom_map=[])
+    original = await asyncio.to_thread(load_record, str(tmp_path), first.run_id)
+    tool = _owned_tool(TsResume)
+    session = None
+    if foreign_scope == "project":
+        tool.subagent.conversation_id = "another_project"
+    else:
+        session = SimpleNamespace(id="another_owner")
+    out = await tool.tool_call(
+        TsResume_input_schema(
+            run_id=first.run_id, adjustment=TsAdjustment(atom_map=ATOM_MAP),
+            workspace_dir=str(tmp_path),
+        ),
+        session=session,
+    )
+    assert out.is_success is False
+    assert "different project or owner" in out.message
+    unchanged = await asyncio.to_thread(load_record, str(tmp_path), first.run_id)
+    assert unchanged.model_dump() == original.model_dump()
+
+
+@pytest.mark.asyncio
 async def test_resume_on_a_terminal_run_is_refused_with_the_terminal_state(tmp_path):
     """终态不可续：明确报出终态，不静默重开一条新流程。"""
     first = await _prepare(tmp_path, method="")
     assert first.terminal == "invalid_input"
-    out = await TsResume().tool_call(
+    out = await _owned_tool(TsResume).tool_call(
         TsResume_input_schema(
             run_id=first.run_id,
             adjustment=TsAdjustment(atom_map=ATOM_MAP),
@@ -207,7 +271,7 @@ async def test_resume_on_a_terminal_run_is_refused_with_the_terminal_state(tmp_p
 
 @pytest.mark.asyncio
 async def test_resume_with_an_unknown_run_id_is_a_clear_caller_error(tmp_path):
-    out = await TsResume().tool_call(
+    out = await _owned_tool(TsResume).tool_call(
         TsResume_input_schema(
             run_id="ts_9999", adjustment=TsAdjustment(atom_map=ATOM_MAP),
             workspace_dir=str(tmp_path),
@@ -222,35 +286,33 @@ async def test_resume_with_an_unknown_run_id_is_a_clear_caller_error(tmp_path):
 async def test_resume_budget_exhaustion_lands_terminal_search_failed(tmp_path):
     """预算耗尽落 search_failed，并注明"搜索失败 ≠ 反应不可能"。"""
     first = await _prepare(tmp_path, atom_map=[], budget=TsBudget(max_interventions=1))
-    second = await TsResume().tool_call(
-        TsResume_input_schema(
-            run_id=first.run_id, adjustment=TsAdjustment(atom_map=ATOM_MAP),
-            workspace_dir=str(tmp_path),
-        ),
-        session=None,
-    )
-    third = await TsResume().tool_call(
+    second = await _owned_tool(TsResume).tool_call(
         TsResume_input_schema(
             run_id=first.run_id, adjustment=TsAdjustment(reaction_center=[]),
             workspace_dir=str(tmp_path),
         ),
         session=None,
     )
+    assert second.is_success is True, second.message
+    assert second.blocked.needs == ["atom_map"]
+    assert second.intervention_count == 1
+    third = await _owned_tool(TsResume).tool_call(
+        TsResume_input_schema(
+            run_id=first.run_id, adjustment=TsAdjustment(atom_map=ATOM_MAP),
+            workspace_dir=str(tmp_path),
+        ),
+        session=None,
+    )
     assert third.terminal == "search_failed"
     assert "NOT a claim" in third.message or "not a claim" in third.message.lower()
-    del second
 
 
 @pytest.mark.asyncio
-async def test_resume_after_a_compute_wake_needs_no_adjustment(tmp_path):
-    """计算通知唤醒后 agent 调 ts_resume 时**没有什么要改**——空 adjustment 必须合法。
-
-    这是 wait→wake→resume 这条主路径的契约：等待期间没有决策可做，唤醒后只是让流程
-    重新读一次作业那一行继续推进。空 adjustment 非法的话，这条路径就走不通了。
-    """
+async def test_empty_resume_reads_waiting_checkpoint_without_advancing(tmp_path):
+    """An empty adjustment is legal and reads the system-owned checkpoint unchanged."""
     first = await _prepare(tmp_path)
     assert first.waiting_for.startswith("job:")
-    out = await TsResume().tool_call(
+    out = await _owned_tool(TsResume).tool_call(
         TsResume_input_schema(
             run_id=first.run_id, adjustment=TsAdjustment(), workspace_dir=str(tmp_path),
         ),
@@ -261,3 +323,4 @@ async def test_resume_after_a_compute_wake_needs_no_adjustment(tmp_path):
     # 作业还没到终态（测试里没有调度守护），所以仍是 waiting，没有伪造终态
     assert out.terminal is None
     assert out.waiting_for.startswith("job:")
+    assert out.model_dump() == first.model_dump()

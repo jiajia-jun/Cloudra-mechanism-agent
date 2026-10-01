@@ -368,7 +368,7 @@ async def test_wake_during_final_event_flush_reschedules_after_task_done():
                 sender="supervisor",
                 wake=WakePolicy.NEVER,
             )
-            core.agent_host.wake(agent, runner=runner)
+            await core.agent_host.wake(agent, runner=runner)
             assert agent.state.value == "running"
         await asyncio.sleep(0)
         await original_publish(cursor)

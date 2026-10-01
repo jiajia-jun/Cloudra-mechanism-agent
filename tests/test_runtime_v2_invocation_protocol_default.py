@@ -76,7 +76,7 @@ async def test_new_project_agent_and_run_default_to_javascript():
     agent = spawned.data
     assert agent.settings.invocation_protocol is InvocationProtocol.JAVASCRIPT
 
-    core.agent_host.start_run(agent)
+    await core.agent_host.start_run(agent)
     started = [e for e in core.event_log.query_session(agent.id) if e.type == "run.started"]
     assert len(started) == 1
     assert started[0].data["invocation_protocol"] == "javascript"
@@ -111,7 +111,7 @@ async def test_explicit_project_default_protocol_is_honoured_end_to_end():
     agent = spawned.data
     assert agent.settings.invocation_protocol is InvocationProtocol.TRADITIONAL
 
-    core.agent_host.start_run(agent)
+    await core.agent_host.start_run(agent)
     started = [e for e in core.event_log.query_session(agent.id) if e.type == "run.started"]
     assert started[0].data["invocation_protocol"] == "traditional"
     assert agent.current_run.invocation_protocol is InvocationProtocol.TRADITIONAL

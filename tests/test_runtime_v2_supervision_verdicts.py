@@ -397,8 +397,8 @@ async def test_call_verdict_does_not_wake_waiting_approval():
     review_id = await asyncio.to_thread(
         _seed_explicit_review, project.id, coordinator.id
     )
-    core.agent_host.start_run(coordinator)
-    core.agent_host.transition(
+    await core.agent_host.start_run(coordinator)
+    await core.agent_host.transition(
         coordinator, AgentState.WAITING_APPROVAL, reason="approval"
     )
 
@@ -434,8 +434,8 @@ async def test_call_verdict_wakes_wait_review_parking():
     review_id = await asyncio.to_thread(
         _seed_explicit_review, project.id, coordinator.id
     )
-    core.agent_host.start_run(coordinator)
-    core.agent_host.transition(
+    await core.agent_host.start_run(coordinator)
+    await core.agent_host.transition(
         coordinator, AgentState.WAITING_APPROVAL, reason="wait_review"
     )
 
@@ -521,8 +521,8 @@ async def _failed_supervisor(bus, core, project, coordinator):
             )
         )
     ).data
-    core.agent_host.start_run(supervisor)
-    core.agent_host.finish_run(
+    await core.agent_host.start_run(supervisor)
+    await core.agent_host.finish_run(
         supervisor,
         outcome="failed",
         error="boom",
@@ -593,7 +593,7 @@ async def test_no_alert_for_absent_or_runnable_supervisor():
     assert _pin_events(core, coordinator.id, TERMINAL_SUPERVISOR_PIN_KEY) == []
 
     # succeeded（正常休眠）：wake 开新 run（无 runner 只落事件），无告警。
-    core.agent_host.finish_run(supervisor, outcome="succeeded")
+    await core.agent_host.finish_run(supervisor, outcome="succeeded")
     assert supervisor.state is AgentState.SUCCEEDED
     await notify_supervisor(core, project.id, reason="second submission")
     assert _alert_injections(core, coordinator.id) == []

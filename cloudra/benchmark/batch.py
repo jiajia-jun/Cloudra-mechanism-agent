@@ -373,7 +373,7 @@ class BenchmarkBatch:
                 # once a notice is in the durable mailbox, resume the parked
                 # coordinator so it can inspect the result before scoring.
                 if agent.state is AgentState.SUCCEEDED and self.core.runner is not None:
-                    self.core.agent_host.wake(agent, runner=self.core.runner)
+                    await self.core.agent_host.wake(agent, runner=self.core.runner)
 
             watcher = RunWatcher(
                 pending_background=self._pending_background_factory(project.id, agent.id),

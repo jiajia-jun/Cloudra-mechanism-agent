@@ -121,14 +121,18 @@ class EventWriter:
             # publish its durable prefix and do not provoke a duplicate retry.
             if self._persisted <= before_append or self._log.get(envelope.event_id) is None:
                 raise
-            async with self._lock:
-                events = list(self._log)
-                unpublished = events[self._published : self._persisted]
-                self._published = max(self._published, self._persisted)
-            if self._hub is not None:
-                for durable in unpublished:
-                    await self._hub.publish(durable)
+            await self.publish_persisted()
         return envelope
+
+    async def publish_persisted(self) -> None:
+        """Publish only the durable prefix after a failed flush, without retrying writes."""
+        async with self._lock:
+            events = list(self._log)
+            unpublished = events[self._published : self._persisted]
+            self._published = max(self._published, self._persisted)
+        if self._hub is not None:
+            for envelope in unpublished:
+                await self._hub.publish(envelope)
 
     def discard_unpersisted(self, keep: int | None = None) -> None:
         """Drop log events that never made it to the store.

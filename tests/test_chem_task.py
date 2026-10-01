@@ -110,6 +110,7 @@ def test_native_optimizer_records_nonconvergence_without_fallback_or_limits(tmp_
 
 
 def test_sampling_task_returns_all_raw_choices_without_optimizer(tmp_path, monkeypatch):
+    pytest.importorskip("rdkit", reason="requires RDKit (chem extra)")
     from rdkit import Chem
     from rdkit.Chem import AllChem
 
@@ -167,6 +168,7 @@ def test_calculator_uses_cloudra_interpreter_for_rdkit_sampling(tmp_path, monkey
     import os
     import subprocess
 
+    pytest.importorskip("rdkit", reason="requires RDKit (chem extra)")
     from rdkit import Chem
 
     from cloudra.infra.compute_utils import build_calculator_cmd
@@ -198,6 +200,7 @@ def test_calculator_can_execute_staged_source_bundle_without_installed_cloudra(t
     import subprocess
     import sys
 
+    pytest.importorskip("rdkit", reason="requires RDKit (chem extra)")
     from rdkit import Chem
 
     from cloudra.infra.compute_utils import _default_calculator_path

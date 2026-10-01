@@ -188,7 +188,7 @@ async def test_api_never_reports_a_declared_run_as_verified_complete():
         # 没跑过 / 正在跑：都没有结论。
         assert spawn.json()["data"]["completion"] is None
         live = core.require_agent(agent["id"])
-        run_id = core.agent_host.start_run(live)
+        run_id = await core.agent_host.start_run(live)
         detail = (await client.get(f"/api/v2/agents/{agent['id']}")).json()
         assert detail["completion"] is None
 
@@ -208,7 +208,7 @@ async def test_api_never_reports_a_declared_run_as_verified_complete():
                 "basis": "declared",
             },
         )
-        core.agent_host.finish_run(live, outcome="succeeded")
+        await core.agent_host.finish_run(live, outcome="succeeded")
 
         expected = {
             "run_id": run_id,

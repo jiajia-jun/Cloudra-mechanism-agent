@@ -130,7 +130,7 @@ jobs:
       - name: Install chemistry extras
         run: |
           python -m pip install --upgrade pip
-          pip install -e .[chem,pdf]
+          pip install -e .[dev,chem,pdf]
 
       - name: Install JS host dependencies
         # JS 宿主用例的第二个前置：node_modules/quickjs-emscripten 必须在位
