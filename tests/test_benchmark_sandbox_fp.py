@@ -791,9 +791,10 @@ def test_cli_full_chain_traditional_equivalent(tmp_path, monkeypatch):
 
 def _run_cli_task(tmp_path, monkeypatch, llm, *, task_id: str = "T1",
                   mode: OrchestrationMode = OrchestrationMode.STANDARD,
-                  method_allowed: tuple[str, ...] = ("b3lyp",)):
+                  method_allowed: tuple[str, ...] = ("b3lyp",),
+                  backend: RuntimeV2Backend | None = None):
     """CLI 入口跑一题（引擎由调用方先 install_engine 并设好控制文件）。"""
-    backend = RuntimeV2Backend(
+    backend = backend or RuntimeV2Backend(
         llm=llm, start_scheduler=True,
         poll_interval_s=0.05, run_timeout_s=60.0, stuck_grace_s=10.0,
     )
@@ -1091,7 +1092,8 @@ def _exit_stop_arguments(core, agent) -> dict:
 
 
 @_REQUIRES_HOST_AND_RDKIT
-def test_cli_guided_supervisor_loop(tmp_path, monkeypatch):
+@pytest.mark.parametrize("draft_order", ["before_suspend", "after_suspend"])
+def test_cli_guided_supervisor_loop(tmp_path, monkeypatch, draft_order):
     """dag_guided 主场景（四个事实源 + 真实督导裁决回路）。
 
     所有图/证据事件都经生产工具（dag_propose_mechanism / dag_bind_evidence /
@@ -1100,46 +1102,60 @@ def test_cli_guided_supervisor_loop(tmp_path, monkeypatch):
     DAG 状态绕过门禁。
     """
     engine = install_engine(monkeypatch, tmp_path / "bin", "gaussian")
-    llm = ScriptedLLM()
+    class GuidedLLM(ScriptedLLM):
+        """通知可在当前 run 或下一 run 到达；业务动作按真实草稿状态选择。"""
 
-    # 父 agent（Coordinator）：提草稿 → 派子 → partial 挂起等裁决 → 带审批结束。
-    # 每个 run 内用幂等 stop 生成式补位：督导每完成一轮都会给父发一条子完成
-    # 回传，多出的轮次照常重声明 partial（同 basis 的退出请求被复用，不重复
-    # 入队），屏障文本随每轮一并给出，最终消息始终可抓取。
-    # 通知驱动多 run：每个 run 用 run 键控 + 幂等补位（未用到的条目无害），
-    # 通知扎堆时多出的轮次照常收尾，不会把后续 run 的脚本错位。
-    coordinator_steps = [
-        js(1, _GUIDED_PROPOSE_PROGRAM, run=1),
-        text(2, "suspended until the Supervisor decides on the draft", run=1),
-    ]
-    for turn in range(3, 7):
-        coordinator_steps.append(
-            text(turn, "still awaiting the draft decision", run=1)
-        )
-    # 新 run 的历史不跨 run（context_reset）：不能在这里校验上一轮回执
-    coordinator_steps.append(js(1, _GUIDED_SPAWN_PROGRAM, run=2))
-    for turn in range(2, 9):
-        coordinator_steps.append(
-            text(turn, "suspended until the child reports", run=2)
-        )
-    for turn in range(1, 9):
-        coordinator_steps.append(
-            calls(turn, [("stop", {"delivery_disposition": "partial"})], run=3,
-                  content="Partial delivery; the compute chain reports a barrier of 5.0 kcal/mol.")
-        )
-    for turn in range(1, 5):
-        coordinator_steps.append(
-            calls(turn, [("stop", _exit_stop_arguments)], run=4, content=_BARRIER)
-        )
-    # 多出的收尾 run 的幂等补位（Task 4 注：per-run finalize 摘要管线删除后
-    # run 间不再夹着一次摘要 LLM 调用，通知与 run 边界的交错窗口随之移动，
-    # 收尾通知可能多驱动一个 run——内容同为幂等 stop，未用到的条目无害）。
-    for extra_run in range(5, 9):
-        for turn in range(1, 5):
-            coordinator_steps.append(
-                calls(turn, [("stop", _exit_stop_arguments)], run=extra_run, content=_BARRIER)
-            )
-    llm.script("coordinator", coordinator_steps)
+        phase = "propose"
+        draft_order_checked = False
+
+        async def complete(self, agent, messages, tools, **kwargs):
+            self.core = backend.last_core
+            if agent.role_id == "supervisor" and not self.calls_seen_for_supervisor():
+                if draft_order == "after_suspend":
+                    await wait_until(
+                        lambda: any(
+                            a.role_id == "coordinator" and a.state is AgentState.SUCCEEDED
+                            for a in self.core.agents.values()
+                        ),
+                        what="coordinator parks before the draft verdict",
+                    )
+            if agent.role_id == "coordinator":
+                key = (agent.role_id, agent.id, agent.current_run.run_id)
+                turn = self._turn_index.get(key, 0) + 1
+                if self.phase == "propose":
+                    step = js(turn, _GUIDED_PROPOSE_PROGRAM)
+                    self.phase = "spawn"
+                elif self.phase == "spawn":
+                    if draft_order == "before_suspend" and not self.draft_order_checked:
+                        await wait_until(
+                            lambda: any(
+                                a.role_id == "supervisor" and a.state is AgentState.SUCCEEDED
+                                for a in self.core.agents.values()
+                            ),
+                            what="draft supervisor finishes before coordinator continues",
+                        )
+                        self.draft_order_checked = True
+                    draft = await asyncio.to_thread(
+                        lambda: _dag_store(agent.project_id).latest_draft()
+                    )
+                    if draft is not None and draft.get("state") == "accepted":
+                        step = js(turn, _GUIDED_SPAWN_PROGRAM)
+                        self.phase = "finish"
+                    else:
+                        step = text(turn, "suspended until the Supervisor decides on the draft")
+                else:
+                    step = calls(turn, [("stop", _exit_stop_arguments)], content=_BARRIER)
+                self.script("coordinator", [step])
+            return await super().complete(agent, messages, tools, **kwargs)
+
+        def calls_seen_for_supervisor(self):
+            return any(c["role"] == "supervisor" for c in self.calls_seen)
+
+    llm = GuidedLLM()
+    backend = RuntimeV2Backend(
+        llm=llm, start_scheduler=True,
+        poll_interval_s=0.05, run_timeout_s=60.0, stuck_grace_s=10.0,
+    )
 
     # 子 agent：run1 = 确定性 compute 链 + 显式送审；run2 = 收到 call verdict 后收尾
     child_steps = [
@@ -1151,7 +1167,7 @@ def test_cli_guided_supervisor_loop(tmp_path, monkeypatch):
         child_steps.append(text(turn, "evidence submitted for review", run=1))
     for turn in range(1, 5):
         child_steps.append(text(turn, "call verdict received", run=2))
-    # 多出的收尾 run 的幂等补位（同 coordinator 注：run 边界交错窗口移动）
+    # 通知可多驱动一次收尾 run；未用到的幂等回执步骤无害。
     for extra_run in range(3, 7):
         for turn in range(1, 4):
             child_steps.append(text(turn, "call verdict received", run=extra_run))
@@ -1168,7 +1184,7 @@ def test_cli_guided_supervisor_loop(tmp_path, monkeypatch):
     llm.script("supervisor", supervisor_steps)
 
     runner, result, core = _run_cli_task(
-        tmp_path, monkeypatch, llm, mode=OrchestrationMode.DAG_GUIDED
+        tmp_path, monkeypatch, llm, mode=OrchestrationMode.DAG_GUIDED, backend=backend
     )
     workspace = Path(result.sandbox).resolve()
     project_id = next(iter(core.projects))
@@ -1180,6 +1196,16 @@ def test_cli_guided_supervisor_loop(tmp_path, monkeypatch):
     child = agents["small_mol"]
     parent = agents["coordinator"]
     supervisor = agents["supervisor"]      # 真实 spawn 出来的督导 agent
+
+    # 显式验证两种合法交错，不能靠机器速度碰巧覆盖其中一种。
+    parent_events = core.event_log.query_session(parent.id)
+    draft_notice = next(
+        e for e in parent_events
+        if e.type == "agent.message_injected"
+        and str(e.data.get("content", "")).startswith("[Supervisor draft verdict]")
+    )
+    first_parent_finish = next(e for e in parent_events if e.type == "run.finished")
+    assert (draft_notice.seq < first_parent_finish.seq) == (draft_order == "before_suspend")
     assert child.state is AgentState.SUCCEEDED, (
         f"child ended {child.state.value}:\n{_dump_session(core, child.id)}"
     )
@@ -1235,8 +1261,15 @@ def test_cli_guided_supervisor_loop(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 _GUEST_FAIL_CLOSED_PROGRAM = r"""
-const stopped = await tools.stop({ reason: "guest direct control attempt" });
-text("GUEST STOP ok=" + stopped.is_success + " " + stopped.summary);
+const stopType = typeof tools.stop;
+text("GUEST STOP typeof=" + stopType);
+try {
+  const stopped = await tools.stop({ reason: "guest direct control attempt" });
+  text("GUEST STOP ok=" + stopped.is_success + " " + stopped.summary);
+} catch (err) {
+  if (stopType !== "undefined" || !(err instanceof TypeError)) { throw err; }
+  text("GUEST STOP rejected=TypeError");
+}
 """
 
 _ASK_USER_PROGRAM = r"""
@@ -1293,9 +1326,17 @@ def test_cli_guest_fail_closed_and_role_projection(tmp_path, monkeypatch):
     llm.script("small_mol", [
         js(1, _GUEST_FAIL_CLOSED_PROGRAM),
         text(2, "guest surface checked", expect=Receipt(
-            tool="js_exec", contains=["GUEST STOP ok=false"])),
+            tool="js_exec", contains=[
+                "GUEST STOP typeof=undefined", "GUEST STOP rejected=TypeError",
+            ])),
     ])
-    _run_cli_task(tmp_path, monkeypatch, llm)
+    _, _, core = _run_cli_task(tmp_path, monkeypatch, llm)
+    child = next(a for a in core.agents.values() if a.role_id == "small_mol")
+    assert child.state is AgentState.SUCCEEDED, _dump_session(core, child.id)
+    assert _tool_call_ids(core, child.id, "stop") == []
+    outputs = _program_outputs(core, child)
+    assert "GUEST STOP typeof=undefined" in outputs, outputs
+    assert "GUEST STOP rejected=TypeError" in outputs, outputs
 
     # 客体调用被拒（stop 是 direct-only，不能从程序内调用）
     child_calls = [c for c in llm.calls_seen if c["role"] == "small_mol"]
