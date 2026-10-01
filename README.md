@@ -5,7 +5,7 @@
 
 [![CI](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/ci.yml)
 [![Python ≥ 3.11](https://img.shields.io/badge/python-%E2%89%A53.11-blue)](pyproject.toml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
 
 [中文文档](README_CN.md) · [Documentation Hub](docs/README.md) · [Core Novelty](docs/novelty.md) · [DAG Orchestration Spec](docs/DAG_ORCHESTRATION.md) · [TS Process SOP](docs/TS_PROCESS_SOP.md) · [Plugin Guide](docs/PLUGINS.md)
 
@@ -259,4 +259,18 @@ If you use or reference Cloudra in your scientific research, please cite the rep
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+Copyright (C) 2026 Cloudra Team.
+
+Cloudra is free software: you can redistribute it and/or modify it under the terms of the
+[GNU Affero General Public License](LICENSE) as published by the Free Software Foundation,
+either version 3 of the License, or (at your option) any later version.
+
+Cloudra is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+[GNU Affero General Public License](LICENSE) for more details.
+
+Third-party components bundled in this repository keep their own licenses — see
+[docs/licenses/](docs/licenses/README.md).
+
+Contributions are accepted under the Developer Certificate of Origin; sign your commits with
+`git commit -s`. See [CONTRIBUTING.md](CONTRIBUTING.md).

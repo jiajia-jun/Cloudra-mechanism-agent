@@ -1,7 +1,7 @@
 ---
 name: literature-search
 description: Professional academic literature search, metadata retrieval, and full-text analysis. Guides converting a research question into a reproducible retrieval chain, dispatching Cloudra native tools (search with source=openalex/arxiv/web, browser, read) for grounded evidence and provenance.
-license: MIT
+license: AGPL-3.0-or-later
 metadata:
   version: "2.1"
   skill-author: "Cloudra Team"

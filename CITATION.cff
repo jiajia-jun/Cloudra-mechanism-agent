@@ -9,7 +9,7 @@ abstract: >-
 authors:
   - name: "Cloudra Team"
 type: software
-license: MIT
+license: AGPL-3.0-or-later
 url: "https://github.com/yyywaa/Cloudra-mechanism-agent"
 repository-code: "https://github.com/yyywaa/Cloudra-mechanism-agent"
 keywords:

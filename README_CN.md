@@ -5,7 +5,7 @@
 
 [![CI](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/ci.yml)
 [![Python ≥ 3.11](https://img.shields.io/badge/python-%E2%89%A53.11-blue)](pyproject.toml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
 
 [English](README.md) · [文档中心](docs/README.md) · [核心创新点](docs/novelty.md) · [DAG 编排规范](docs/DAG_ORCHESTRATION.md) · [过渡态 SOP](docs/TS_PROCESS_SOP.md) · [插件系统](docs/PLUGINS.md)
 
@@ -258,4 +258,12 @@ uv run ruff check cloudra tests    # 代码规范检查（line-length 120）
 
 ## 开源许可证
 
-本项目采用 [MIT 许可证](LICENSE)。
+Copyright (C) 2026 Cloudra Team。
+
+Cloudra 是自由软件：你可以依照[ GNU Affero 通用公共许可证](LICENSE)（由自由软件基金会发布）的条款重新发布和/或修改它，许可证版本为第 3 版，或（由你选择）任何更新的版本。
+
+Cloudra 的分发是希望它能有用，但不提供任何担保；甚至不提供适销性或特定用途适用性的默示担保。详情见 [GNU Affero 通用公共许可证](LICENSE)。
+
+本仓库内嵌的第三方组件各自保留其原有许可证，见 [docs/licenses/](docs/licenses/README.md)。
+
+贡献采用 Developer Certificate of Origin 模式，请使用 `git commit -s` 签署提交，详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
