@@ -1,12 +1,19 @@
 ---
 name: molecular-dynamics-simulation
 description: Domain expertise for classical molecular dynamics (MD) simulations (OpenMM, GROMACS, AMBER). Use when selecting biomolecular/small-molecule force fields (AMBER ff14SB/ff19SB, CHARMM36m, GAFF2, OpenFF), parameterizing ligands (Antechamber, AM1-BCC), configuring equilibration protocols (EM -> NVT heating -> NPT density equilibration -> Production), and analyzing trajectories (RMSD, RMSF, Gromos clustering, MM-PBSA/MM-GBSA binding free energies).
-license: MIT
+license: AGPL-3.0-or-later
+metadata:
+  original-skill: "molecular-dynamics"
+  source: "https://github.com/K-Dense-AI/scientific-agent-skills"
+  adapted-by: "Cloudra"
+  upstream-license: "MIT, Copyright (c) 2025 K-Dense Inc."
 ---
 
 # Molecular Dynamics Simulation Standard Operating Procedure (SOP)
 
 This skill provides comprehensive methodology for classical molecular dynamics (MD) simulations across biomolecular, protein-ligand, and condensed-matter systems using OpenMM and GROMACS.
+
+> **Provenance**: adapted from the `molecular-dynamics` skill of [K-Dense-AI/scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills) (MIT License, Copyright (c) 2025 K-Dense Inc.), then substantially extended for the Cloudra toolchain. The OpenMM and MDAnalysis implementations in sections 4 and 5 derive from that upstream skill; the remainder is Cloudra's own methodology. The upstream permission notice is preserved in [docs/licenses/k-dense-scientific-agent-skills.md](../../../docs/licenses/k-dense-scientific-agent-skills.md).
 
 ---
 
