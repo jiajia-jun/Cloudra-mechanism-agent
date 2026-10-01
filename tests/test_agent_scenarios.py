@@ -897,7 +897,10 @@ async def test_unattended_never_enters_waiting_input(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_restart_repeats_no_side_effect_and_keeps_unconsumed_message(tmp_path):
+@pytest.mark.parametrize("delay_child_delivery", [False, True], ids=["normal", "late-child-wake"])
+async def test_restart_repeats_no_side_effect_and_keeps_unconsumed_message(
+    tmp_path, monkeypatch, delay_child_delivery
+):
     """重启：不重复工具副作用、不重复 spawn、不丢已持久化但未消费的消息。
 
     杠杆：恢复语义（restore 只重建投影、不重放副作用）+ dispatcher 的落库先于可见。
@@ -919,11 +922,27 @@ async def test_restart_repeats_no_side_effect_and_keeps_unconsumed_message(tmp_p
         }
     )
     harness = await ScenarioHarness.start(tmp_path, provider=provider)
+    child_report_committed = asyncio.Event()
+    release_child_delivery = asyncio.Event()
+    if delay_child_delivery:
+        commit = harness.core.event_writer.commit
+
+        async def commit_with_delayed_child_delivery(draft):
+            envelope = await commit(draft)
+            if draft.type == "agent.message_injected" and draft.data.get("manifest"):
+                # Force the event-visible but not-yet-enqueued child report window.
+                child_report_committed.set()
+                await release_child_delivery.wait()
+            return envelope
+
+        monkeypatch.setattr(harness.core.event_writer, "commit", commit_with_delayed_child_delivery)
     try:
         parent = await harness.spawn("coordinator", protocol="traditional")
         await harness.wait_for(
             lambda: len(harness.child_reports(parent)) == 1, "child report before restart"
         )
+        if delay_child_delivery:
+            await harness.wait_for(child_report_committed.is_set, "child report delivery paused")
         children_before = [child.id for child in harness.children_of(parent)]
         effects_before = [
             tool for tool in harness.tool_events(parent) if tool["tool_name"] == "todo_write"
@@ -934,21 +953,32 @@ async def test_restart_repeats_no_side_effect_and_keeps_unconsumed_message(tmp_p
             encoding="utf-8"
         )
 
-        # 先等父 Agent 终态，排除消息被下一轮正常消费的竞态；再造一条
+        # child_reports 只说明回传事件已追加，子任务仍可能在落库/入队/唤醒中。
+        # 父任务结束也不能排除这次迟到的唤醒；先停准入并等全部任务收尾，再造
         # 「已落库但未消费」的消息（重启后必须仍在信箱里）。
         await harness.wait_terminal(parent)
-        await harness.wait_for(
-            lambda: harness.runner.task_for(parent.id) is None,
-            "parent run finalization before injecting the restart-only notice",
-        )
-        await harness.core.dispatcher.commit_and_deliver(
+        await harness.runner.cancel_all()
+        notice = await harness.core.dispatcher.commit_and_deliver(
             to_session_id=parent.id,
             project_id=harness.project.id,
             content="unconsumed notice",
             sender="system",
             wake=WakePolicy.NEVER,
         )
+        if delay_child_delivery:
+            release_child_delivery.set()
+            await harness.wait_for(
+                lambda: all(harness.runner.task_for(agent.id) is None
+                            for agent in harness.core.agents.values()),
+                "delayed child delivery and any resulting parent wake finished",
+            )
+        assert await asyncio.to_thread(harness.store.has_event, notice.event_id)
+        assert all(
+            message.get("message_id") != notice.data["message_id"]
+            for message in harness.core.contexts.current_messages(parent.id)
+        ), "restart fixture notice was consumed before shutdown"
     finally:
+        release_child_delivery.set()
         await harness.aclose()
 
     restored = await ScenarioHarness.restore(tmp_path, provider=provider)

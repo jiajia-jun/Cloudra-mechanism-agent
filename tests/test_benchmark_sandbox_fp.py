@@ -1524,6 +1524,21 @@ async def test_web_concurrent_mixed_success_and_failure(tmp_path, monkeypatch):
 async def test_web_stop_cascades_but_keeps_live_compute(tmp_path, monkeypatch):
     """batch stop：级联取消推理子树并停止新请求；已提交的计算继续登记与运行
     （测试用控制文件释放引擎后自行收尾），绝不被 kill。"""
+    from cloudra.infra.compute_utils import calc_lock_path, guard_lock_path
+    from cloudra.infra.flocks import is_lock_held
+
+    # 只观察真实 spawn 返回的句柄；stop 取消同步等待后，由测试负责等 guard
+    # 自然退出并 reap，不能因账本先写 done 就提前关掉事件循环。
+    guard_processes = []
+    original_spawn = asyncio.create_subprocess_exec
+
+    async def capture_guard(*args, **kwargs):
+        proc = await original_spawn(*args, **kwargs)
+        if args[1:3] == ("-m", "cloudra.runtime.monitor"):
+            guard_processes.append(proc)
+        return proc
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", capture_guard)
     engine = install_engine(monkeypatch, tmp_path / "bin", "gaussian")
     engine.set_control("wait")
     core = RuntimeCore(strict_events=True)
@@ -1543,8 +1558,20 @@ async def test_web_stop_cascades_but_keeps_live_compute(tmp_path, monkeypatch):
     _, scheduler, broker, service = await _web_harness(core, llm, tmp_path)
     try:
         await service.start(tasks_dirs=[tasks_dir], only="", concurrency=1, timeout=60.0)
-        # 等到计算已提交（同步 guard 链在跑，引擎被控制文件挡住）
-        await wait_until(lambda: bool(_compute_rows()), timeout=60.0, what="job submission")
+        # running 行先于 guard 启动落库，不能拿它当活计算的同步点；等待引擎
+        # 已读到输入，再用生产 flock 口径确认 guard/calculator 都已启动。
+        await wait_until(lambda: bool(engine.runs()), timeout=60.0, what="live calculator startup")
+        started_runs = engine.runs()
+        rows = _compute_rows()
+        assert len(started_runs) == len(rows) == 1, (started_runs, rows)
+        job_id = rows[0]["id"]
+        workdir = str(Path(rows[0]["path"]).parent)
+        assert started_runs[0]["input"] == rows[0]["path"]
+        assert rows[0]["state"] == "running", rows[0]
+        guard_lock = guard_lock_path(workdir, job_id)
+        calc_lock = calc_lock_path(workdir, job_id)
+        assert is_lock_held(guard_lock)
+        assert is_lock_held(calc_lock)
         await service.stop()
         await wait_until(
             lambda: service.status()["status"] == "stopped",
@@ -1569,8 +1596,10 @@ async def test_web_stop_cascades_but_keeps_live_compute(tmp_path, monkeypatch):
 
         # 活计算仍在册且未终态（没有被 kill、没有被标失败）
         rows = _compute_rows()
-        assert rows, "compute row disappeared"
-        assert rows[0]["state"] in {"ready", "running"}, rows[0]
+        assert len(rows) == 1 and rows[0]["id"] == job_id, rows
+        assert rows[0]["state"] == "running", rows[0]
+        assert is_lock_held(guard_lock)
+        assert is_lock_held(calc_lock)
         assert not rows[0]["end_timestamp"] or rows[0]["end_timestamp"] <= 0, rows[0]
 
         # 释放引擎：计算自行跑到终态（证明 stop 没碰它）
@@ -1580,9 +1609,15 @@ async def test_web_stop_cascades_but_keeps_live_compute(tmp_path, monkeypatch):
             timeout=60.0,
             what="compute completion after stop",
         )
+        assert _compute_rows()[0]["id"] == job_id
+        assert engine.runs() == started_runs, "stop must not restart the calculator"
     finally:
+        engine.release()
         await broker.close()
         await scheduler.close()
+        await asyncio.wait_for(
+            asyncio.gather(*(proc.wait() for proc in guard_processes)), timeout=60.0
+        )
 
 
 @_REQUIRES_HOST_AND_RDKIT

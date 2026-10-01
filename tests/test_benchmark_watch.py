@@ -97,6 +97,85 @@ async def test_succeeded_without_background_is_done(tmp_path):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("finish_new_run", [False, True])
+async def test_background_probe_discards_a_changed_run_snapshot(tmp_path, finish_new_run):
+    core, _project, parent, sibling = await _core_with_agents(tmp_path)
+    await _terminal(core, sibling, AgentState.CANCELLED, "cancel")
+    await core.agent_host.start_run(parent)
+    await core.agent_host.finish_run(parent, outcome="succeeded")
+    probe_entered = asyncio.Event()
+    release_probe = asyncio.Event()
+
+    async def pending():
+        probe_entered.set()
+        await release_probe.wait()
+        return False
+
+    watcher = _watcher(pending_background=pending)
+    decision_task = asyncio.create_task(watcher.decide(core, parent))
+    try:
+        await asyncio.wait_for(probe_entered.wait(), timeout=1.0)
+        await core.agent_host.wake(parent)
+        if finish_new_run:
+            await core.agent_host.finish_run(parent, outcome="succeeded")
+        release_probe.set()
+        decision = await asyncio.wait_for(decision_task, timeout=1.0)
+        assert decision.kind == "continue"
+        # The next poll can use the new snapshot; the invalidated result is not cached.
+        assert (await watcher.decide(core, parent)).kind == (
+            "done" if finish_new_run else "continue"
+        )
+    finally:
+        release_probe.set()
+        await asyncio.gather(decision_task, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_terminal_child_is_pending_until_its_completion_delivery_finishes(tmp_path, monkeypatch):
+    from tests.benchmark_support import ScriptedLLM, assemble_live_pipeline, text
+
+    core, project, parent, sibling = await _core_with_agents(tmp_path)
+    await _terminal(core, sibling, AgentState.CANCELLED, "cancel")
+    await core.agent_host.start_run(parent)
+    await core.agent_host.finish_run(parent, outcome="succeeded")
+    llm = ScriptedLLM(core)
+    llm.script("explorer", [text(1, "child result")])
+    llm.script("coordinator", [text(1, "child result received")])
+    _, runner = assemble_live_pipeline(core, llm)
+    delivery_entered = asyncio.Event()
+    release_delivery = asyncio.Event()
+    original_delivery = runner._deliver_completion
+
+    async def held_delivery(agent):
+        if agent.role_id == "explorer":
+            delivery_entered.set()
+            await release_delivery.wait()
+        await original_delivery(agent)
+
+    monkeypatch.setattr(runner, "_deliver_completion", held_delivery)
+    child = (await CommandBus(core).execute(Command(
+        type="agent.spawn", target={"project_id": project.id},
+        payload={"role_id": "explorer", "parent_session_id": parent.id, "query": "finish"},
+    ))).data
+    child_task = runner.task_for(child.id)
+    try:
+        await asyncio.wait_for(delivery_entered.wait(), timeout=5.0)
+        assert child.state is AgentState.SUCCEEDED
+        assert child_task is not None and not child_task.done()
+        assert (await _watcher().decide(core, parent)).kind == "continue"
+        release_delivery.set()
+        await asyncio.wait_for(child_task, timeout=5.0)
+        parent_task = runner.task_for(parent.id)
+        if parent_task is not None:
+            await asyncio.wait_for(parent_task, timeout=5.0)
+        assert parent.state is AgentState.SUCCEEDED
+        assert (await _watcher().decide(core, parent)).kind == "done"
+    finally:
+        release_delivery.set()
+        await runner.cancel_all()
+
+
+@pytest.mark.asyncio
 async def test_injected_background_extends_succeeded_wait(tmp_path):
     core, _project, parent, sibling = await _core_with_agents(tmp_path)
     await _terminal(core, sibling, AgentState.CANCELLED, "cancel")
