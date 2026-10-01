@@ -1,10 +1,9 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Inches
-
 from revise_application_ai4s import (
     add_picture_after,
     crop_cjc,
