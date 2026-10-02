@@ -11,6 +11,111 @@ from pydantic import Field
 from cloudra.persistence.database import ComputeDB, retry_on_locked
 from cloudra.services.exploration_budget_store import ExplorationBudget
 from cloudra.tools.core.conformer_catalog import CatalogModel, content_digest
+from cloudra.tools.core.ts_inputs import TsInput, TsRecovery, TsResumeRequest
+
+
+class TsEvidenceReference(CatalogModel):
+    declaration_revision: int = Field(ge=1)
+    stage_key: str = Field(min_length=1)
+    attempt: int = Field(ge=1)
+    job_id: int | None = None
+
+
+class TsRevisionReceipt(CatalogModel):
+    request_key: str = Field(min_length=1)
+    request_digest: str = Field(min_length=1)
+    previous_revision: int = Field(ge=0)
+    revision: int = Field(ge=1)
+    previous_input_revision: int = Field(ge=1)
+    input_revision: int = Field(ge=2)
+    changes: list[str]
+    retained: list[TsEvidenceReference]
+    invalidated: list[TsEvidenceReference]
+    recovery: TsRecovery | None = None
+    released_action_keys: list[str] = Field(default_factory=list)
+    status: Literal['accepted'] = 'accepted'
+
+
+def revision_request_digest(request: TsResumeRequest) -> str:
+    return content_digest(request.model_dump(mode='json', exclude_unset=True))
+
+
+def get_revision_receipt(db: ComputeDB, *, process_id: str, request_key: str) -> TsRevisionReceipt | None:
+    with db.connect() as con:
+        row = con.execute('SELECT payload FROM ts_pipeline_revision_receipts WHERE process_id=? AND request_key=?',
+                          (process_id, request_key)).fetchone()
+    return TsRevisionReceipt.model_validate_json(row[0]) if row else None
+
+
+def commit_input_revision(db: ComputeDB, *, process_id: str, request: TsResumeRequest,
+                          record: dict, receipt: TsRevisionReceipt) -> TsRevisionReceipt:
+    """Accept once, before any new work, without modifying historical jobs."""
+    digest = revision_request_digest(request)
+
+    def operation():
+        with db.connect() as con:
+            con.execute('BEGIN IMMEDIATE')
+            old = con.execute('SELECT payload FROM ts_pipeline_revision_receipts WHERE process_id=? AND request_key=?',
+                              (process_id, request.request_key)).fetchone()
+            # A response-loss replay is legal even after the run has advanced.
+            if old:
+                accepted = TsRevisionReceipt.model_validate_json(old[0])
+                if accepted.request_digest != digest:
+                    raise ValueError('revision request key conflict')
+                return accepted
+            scope = con.execute('SELECT project_id,owner_id,revision,declaration_revision FROM ts_pipeline_processes '
+                                'WHERE process_id=?', (process_id,)).fetchone()
+            if scope is None or scope[2] != request.expected_revision:
+                raise ValueError('stale process revision')
+            if (record['owner_conversation_id'], record['owner_session_id']) != scope[:2] or record['pipeline_id'] != process_id:
+                raise ValueError('revision owner mismatch')
+            if (receipt.request_key != request.request_key or receipt.request_digest != digest
+                    or receipt.previous_revision != scope[2] or receipt.revision != scope[2] + 1
+                    or receipt.previous_input_revision != scope[3] or receipt.input_revision != scope[3] + 1
+                    or record['declaration_revision'] != receipt.input_revision):
+                raise ValueError('revision receipt mismatch')
+            active = con.execute('SELECT 1 FROM ts_pipeline_stages s JOIN compute_jobs j ON j.id=s.job_id '
+                                 "WHERE s.process_id=? AND j.state NOT IN ('done','failed','cancelled') LIMIT 1",
+                                 (process_id,)).fetchone()
+            if active:
+                raise ValueError('active stage job prevents input revision')
+            value = TsInput.model_validate(record['input'])
+            for ref in receipt.retained + receipt.invalidated:
+                binding = con.execute('SELECT job_id FROM ts_pipeline_stages WHERE process_id=? AND '
+                                      'declaration_revision=? AND stage_key=? AND attempt=?',
+                                      (process_id, ref.declaration_revision, ref.stage_key, ref.attempt)).fetchone()
+                if binding is None or binding[0] != ref.job_id:
+                    raise ValueError('revision evidence binding mismatch')
+            limits = value.execution.limits
+            if limits:
+                budget = ExplorationBudget(source=limits.source, max_compute_actions=limits.max_compute_actions,
+                                           max_model_calls=limits.max_model_calls)
+                old_budget = con.execute('SELECT payload FROM exploration_budgets WHERE process_id=?', (process_id,)).fetchone()
+                if old_budget:
+                    previous = ExplorationBudget.model_validate_json(old_budget[0])
+                    if previous.source != budget.source:
+                        raise ValueError('budget source mismatch')
+                    for field in ('max_compute_actions', 'max_model_calls'):
+                        before, after = getattr(previous, field), getattr(budget, field)
+                        if before is not None and (after is None or after > before):
+                            raise ValueError('revision cannot raise an authorized hard budget')
+                con.execute('INSERT INTO exploration_budgets VALUES (?,?,?,?) ON CONFLICT(process_id) '
+                            'DO UPDATE SET payload=excluded.payload', (process_id, *scope[:2], budget.model_dump_json()))
+            elif con.execute('SELECT 1 FROM exploration_budgets WHERE process_id=?', (process_id,)).fetchone():
+                raise ValueError('revision cannot remove an authorized hard budget')
+            status = 'blocked' if record.get('blocked') else 'waiting' if record.get('waiting_for') else 'running'
+            con.execute('INSERT INTO ts_pipeline_declarations VALUES (?,?,?)',
+                        (process_id, receipt.input_revision, value.model_dump_json()))
+            con.execute('UPDATE ts_pipeline_processes SET declaration_revision=?,revision=?,record=?,status=? WHERE process_id=?',
+                        (receipt.input_revision, receipt.revision, json.dumps(record, sort_keys=True), status, process_id))
+            for key in receipt.released_action_keys:
+                con.execute('INSERT OR IGNORE INTO exploration_released_actions SELECT process_id,action_key,? '
+                            'FROM exploration_actions WHERE process_id=? AND action_key=? AND job_id IS NULL AND actual IS NULL',
+                            ('input revised', process_id, key))
+            con.execute('INSERT INTO ts_pipeline_revision_receipts VALUES (?,?,?)',
+                        (process_id, request.request_key, receipt.model_dump_json()))
+            return receipt
+    return retry_on_locked(operation)
 
 
 class ProcessPayload(CatalogModel):
