@@ -41,7 +41,7 @@ _TS_NOTICE = (
     "ts_resume). QST2/QST3 are banned; the ceiling is mapped interpolation/NEB, "
     "with explicit grouped inputs: reaction, conformers, guess, ts_optimization, verification, execution. Scan uses guess.kind=scan with guess.calculation/scans/freeze; scan and formal methods are independently declared. "
     "Use that process for TS/IRC submission rather than manually chaining the jobs. "
-    "Call ts_prepare once per path. Successful jobs automatically advance without an agent call. Use ts_inspect to read state, actual methods, evidence and next required inputs. Revise the same run with ts_resume(changes, reason, request_key, expected_revision); failed attempts require relevant recovery evidence. "
+    "Call ts_prepare once per path. Successful jobs automatically advance without an agent call. Use ts_inspect to read state, actual methods, evidence and next required inputs. Revise the same run with ts_resume(changes, reason, request_key, expected_revision). Failed attempts can be revised or retried on the same run without recovery evidence; use changes={} to retry unchanged input. "
     "Standalone exploratory scans remain valid for unknown endpoints, but they do not "
     "authorize manual TS/IRC submission. If the process blocks, correct the named "
     "declaration or report the tool limitation; do not bypass it through bash or direct engine execution. "

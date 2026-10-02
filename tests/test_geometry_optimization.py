@@ -175,3 +175,29 @@ def test_numeric_failure_records_candidate_attempt_before_blocking(tmp_path,monk
 
 
 pytestmark = pytest.mark.usefixtures("ts_producer_authority")
+
+
+def test_failed_constrained_attempt_can_retry_without_repair_evidence(tmp_path, monkeypatch):
+    from cloudra.tools.core.geometry_optimization import advance_optimization
+    from cloudra.tools.core.ts_inputs import TsResumeRequest
+    from cloudra.tools.core.ts_revision import plan_input_revision, revise_record
+    db, record, calculation = setup_record(tmp_path, monkeypatch)
+    record.stage = 'build'
+    assert advance_optimization(record, 'selected', calculation) is None
+    old_job = record.job_steps[-1].job_id
+    finish(db, record.job_steps[-1], failed=True)
+    assert advance_optimization(record, 'selected', calculation) is None
+    assert record.blocked is not None
+    request = TsResumeRequest(reason='retry failed derivative', request_key='retry', expected_revision=record.revision)
+    receipt = plan_input_revision(record, request)
+    revised = revise_record(record, request, receipt)
+    from cloudra.services.ts_pipeline_store import commit_input_revision
+    commit_input_revision(db, process_id=record.pipeline_id, request=request,
+                          record=revised.model_dump(mode='json'), receipt=receipt)
+    assert revised.optimization_checkpoints == {}
+    assert revised.terminal is None
+    assert advance_optimization(revised, 'selected', calculation) is None
+    assert revised.job_steps[-1].job_id != old_job
+    with db.connect() as con:
+        assert con.execute('SELECT state FROM compute_jobs WHERE id=?', (old_job,)).fetchone()[0] == 'failed'
+        assert con.execute('SELECT COUNT(*) FROM compute_jobs').fetchone()[0] == 2

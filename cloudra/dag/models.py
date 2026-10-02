@@ -1010,7 +1010,7 @@ class CoverageWaiver(BaseModel):
 
 class CoverageContract(BaseModel):
     """覆盖契约。live 带 stages 的元素以阶段清单为权威（默认草稿边 =
-    ts_opt+frequency；IRC 不是结题必要）。``required_*_level`` 只约束
+    ts_opt+frequency+short_irc）。``required_*_level`` 只约束
     无 stages 的旧边/节点。"""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -1128,8 +1128,9 @@ _COORDINATOR_ACTOR_IDS = frozenset({"a-0", "coordinator"})
 _STAGE_GLOSSARY = (
     "Delivery stage semantics (list order is the bind order). A step only owes "
     "stages declared on its contract. Default mechanism drafts require ts_opt + "
-    "frequency (ts_guess is advisory). short_irc and later stages are optional "
-    "path-proof extras, not the live complete bar.\n"
+    "frequency + short_irc (ts_guess is advisory). The default completion gate "
+    "requires IRC direction proof; a saddle frequency alone cannot complete a step. "
+    "Later stages are optional unless required by the contract.\n"
     "- geometry: optimized minimum structure of a species occurrence (0 imaginary frequencies).\n"
     "- frequency: frequency analysis — for a species, all real; for a step, exactly one imaginary.\n"
     "- single_point: a single-point energy of a species.\n"

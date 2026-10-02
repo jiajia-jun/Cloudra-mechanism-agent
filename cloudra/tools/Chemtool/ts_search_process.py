@@ -104,7 +104,7 @@ class TsPrepare(Tool):
 class TsResume(Tool):
     tool_id: str = 't-60'
     tool_name: str = 'ts_resume'
-    tool_description: str = 'Revise input groups on the existing TS path. Omitted fields remain; optional null clears; lists, methods and typed sources replace. Requires reason, expected_revision and stable request_key; failures require relevant recovery evidence. Active jobs prevent revisions. Use ts_inspect for reads.'
+    tool_description: str = 'Revise input groups on the existing TS path. Omitted fields remain; optional null clears; lists, methods and typed sources replace. Requires reason, expected_revision and stable request_key. Failed attempts can be revised or retried on the same run without recovery evidence; use changes={} to retry unchanged input. Active jobs prevent revisions. Use ts_inspect for reads.'
     input_schema: Any = TsResume_input_schema
     output_schema: Any = TsProcess_output_schema
 

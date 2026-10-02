@@ -11,7 +11,7 @@ from pydantic import Field
 from cloudra.persistence.database import ComputeDB, retry_on_locked
 from cloudra.services.exploration_budget_store import ExplorationBudget
 from cloudra.tools.core.conformer_catalog import CatalogModel, content_digest
-from cloudra.tools.core.ts_inputs import TsInput, TsRecovery, TsResumeRequest
+from cloudra.tools.core.ts_inputs import TsInput, TsResumeRequest
 
 
 class TsEvidenceReference(CatalogModel):
@@ -32,7 +32,6 @@ class TsRevisionReceipt(CatalogModel):
     changes: list[str]
     retained: list[TsEvidenceReference]
     invalidated: list[TsEvidenceReference]
-    recovery: TsRecovery | None = None
     released_action_keys: list[str] = Field(default_factory=list)
     status: Literal['accepted'] = 'accepted'
 

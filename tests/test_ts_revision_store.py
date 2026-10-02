@@ -30,7 +30,7 @@ def receipt(request, **overrides):
     data = dict(request_key=request.request_key, request_digest=revision_request_digest(request), reason=request.reason,
                 previous_revision=request.expected_revision, revision=request.expected_revision + 1,
                 previous_input_revision=1, input_revision=2,
-                changes=["verification.irc"], retained=[], invalidated=[], recovery=None, released_action_keys=[])
+                changes=["verification.irc"], retained=[], invalidated=[], released_action_keys=[])
     data.update(overrides)
     return TsRevisionReceipt.model_validate(data)
 

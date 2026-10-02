@@ -691,7 +691,7 @@ def _optimize_conformer_source(record, role):
     record.waiting_for = ''
     if step.state != 'done':
         _record_candidate_failure(record, 'conformer_optimization_failed', step, _refinement_log_path(record, step))
-        return _block(record, 'build', 'conformer_optimization_failed', f'{purpose} job {step.job_id} failed; recovery evidence required.', needs=[f'conformers.{role}'])
+        return _block(record, 'build', 'conformer_optimization_failed', f'{purpose} job {step.job_id} failed; revise or retry through ts_resume.', needs=[f'conformers.{role}'])
     if calculation.engine == 'xtb':
         data, _ = read_task_result(step.input_path)
         result = data['result']
@@ -2306,7 +2306,7 @@ def _refine(record: TsProcessRecord) -> TsProcessRecord:
             "per-engine failure classes come from the log below — the run is stopped, not silently "
             "retried",
             atom_details=details,
-            needs=[_calculation_field(current.purpose), "execution", "reaction.reaction_center", "recovery"],
+            needs=[_calculation_field(current.purpose), "execution", "reaction.reaction_center"],
         )
 
     if current.purpose == "ts_opt":
@@ -2358,7 +2358,7 @@ def _refine(record: TsProcessRecord) -> TsProcessRecord:
         if len(imaginary) != 1:
             _record_candidate_failure(record, 'wrong_mode', current, log_path)
             return _block(record, 'refine', 'wrong_mode',
-                          f'TS frequency evidence has {len(imaginary)} imaginary modes; exactly one is required before IRC.', needs=['conformers', 'guess', 'verification.frequency', 'recovery'])
+                          f'TS frequency evidence has {len(imaginary)} imaginary modes; exactly one is required before IRC.', needs=['conformers', 'guess', 'verification.frequency'])
         if record.input.verification.irc_log:
             try:
                 record.job_steps.append(_reuse_existing_irc(record))
@@ -2422,7 +2422,7 @@ def _refine(record: TsProcessRecord) -> TsProcessRecord:
             record.waiting_for=f'job:{existing.job_id}'
             return record
         _record_candidate_failure(record, 'endpoint_failed', existing, _refinement_log_path(record, existing))
-        return _block(record,'refine','endpoint_failed','Existing endpoint attempt failed; relevant repair evidence is required.',needs=[f'verification.{role}_endpoint', 'recovery'])
+        return _block(record,'refine','endpoint_failed','Existing endpoint attempt failed; revise or retry through ts_resume.',needs=[f'verification.{role}_endpoint'])
     if endpoint_next is not None:
         role, task = endpoint_next
         purpose = f'{role}_{task}'
@@ -2436,7 +2436,7 @@ def _refine(record: TsProcessRecord) -> TsProcessRecord:
                 return _terminal(
                     record, "verdict", "candidate_only",
                     f"{role} endpoint optimization cannot support a minimum: {error}. "
-                    "Revise this run with an explicit endpoint seed and relevant recovery evidence through ts_resume",
+                    "Revise this run with an explicit endpoint seed through ts_resume",
                 )
             return _block(
                 record, "refine", "endpoint_input_failed", error,

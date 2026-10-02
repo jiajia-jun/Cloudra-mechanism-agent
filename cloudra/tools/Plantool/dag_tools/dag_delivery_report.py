@@ -42,7 +42,8 @@ class DagDeliveryReport(DagToolBase):
             return self._standard_disabled()
         ctx = await self._prepare(session)
         controller = DagController(
-            ctx.db, session.id, ctx.mode, conversation_id=ctx.conversation_id
+            ctx.db, session.id, ctx.mode, conversation_id=ctx.conversation_id,
+            working_directory=getattr(self.subagent, "working_directory", None),
         )
         report = await asyncio.to_thread(controller.delivery_report)
         return DagToolOutput(

@@ -322,3 +322,42 @@ def verify_short_irc_direction(
             "endpoint minima (the geometric direction proof failed)"
         )
     return False, [header, *list((last_verdict or {}).get("details") or [])]
+
+
+def verify_short_irc_pair(forward_log, reverse_log, ts_logs, endpoint_a_logs, endpoint_b_logs):
+    """Combine explicitly submitted directional logs using the same interval proof."""
+    def outer_geometry(path, direction):
+        engine = qm_engine.detect_qm_engine(str(path))
+        if engine == 'orca':
+            orca_frames.extract_irc(str(path))
+            endpoints = orca_frames.extract_irc_endpoints(str(path))
+            for side in (direction, 'backward' if direction == 'forward' else 'forward'):
+                xyz = orca_frames.read_endpoint_geometry(endpoints[side])
+                if xyz:
+                    return parse_xyz(xyz)
+        elif engine == 'gaussian':
+            frames = [f for f in irc_frames_for(path) if f.xyz.strip() and f.reaction_coordinate]
+            preferred = [f for f in frames if (f.reaction_coordinate > 0) == (direction == 'forward')]
+            candidates = preferred or frames
+            if candidates:
+                return parse_xyz(max(candidates, key=lambda f: abs(f.reaction_coordinate)).xyz)
+        return None
+
+    details = []
+    try:
+        forward = outer_geometry(forward_log, 'forward')
+        reverse = outer_geometry(reverse_log, 'backward')
+    except (ValueError, OSError) as exc:
+        return False, [f'Directional IRC evidence could not be read: {exc}']
+    if forward is None or reverse is None:
+        return False, ['Both submitted directional logs must supply an outer endpoint geometry.']
+    ts = _usable_ts_geometries(ts_logs, max_scan_bytes=None, details=details)
+    source = _usable_minimum_geometries(endpoint_b_logs, side='SOURCE', max_scan_bytes=None, details=details)
+    target = _usable_minimum_geometries(endpoint_a_logs, side='TARGET', max_scan_bytes=None, details=details)
+    if not (ts and source and target):
+        return False, [*details, 'Bind the TS and frequency-verified source/target minimum logs.']
+    for verdict in iter_direction_verdicts((forward, reverse), ts, source, target):
+        if verdict['is_decidable'] and verdict['is_match']:
+            return True, list(verdict.get('details') or [])
+        details.extend(verdict.get('details') or [])
+    return False, ['The paired IRC endpoint interval proof failed or is undecidable.', *details]

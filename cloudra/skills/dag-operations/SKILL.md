@@ -75,7 +75,7 @@ Coordinator-only. Input structure:
 - No `occurrence`, `role`, or stage arrays are required.
 - `rationale` is mandatory. In `dag_guided` it is the Coordinator's message to the Supervisor: **Considered** / **Observed** / **Chose** (what was weighed, what the mechanism-inference tool actually showed or why it was not run, which steps are on the graph and why any other channel was left off). A single-path graph is allowed when Chose states that trade-off. The Supervisor rejects an unexplained omission, not a single path. `dag_record` auto-accepts and does not apply this dialogue.
 
-Step stage contracts may include `ts_guess`, but it is an advisory stage: never `required`, and it never blocks binding `ts_opt`/`frequency` evidence (a passing TS gate — ts_opt + frequency — is what counts). Default drafts do **not** include IRC/endpoints/direction; add those stages only when that step needs a path proof. Live `complete` does not require IRC.
+Step stage contracts may include `ts_guess`, but it is an advisory stage: never `required`, and it never blocks binding `ts_opt`/`frequency` evidence. Default drafts and newly added steps require **ts_opt + frequency + short_irc**. Live `complete` requires the IRC direction proof as well as the saddle evidence; accepting TS/frequency evidence alone leaves the IRC gap open. The proof uses geometries from both IRC directions lying between the TS and the corresponding endpoint minima; full IRC convergence to the minima is not required.
 
 ## Adjusting an accepted mechanism
 
@@ -98,7 +98,7 @@ Submit finished QM logs explicitly:
     "reaction_coordinate_description": "The unstable mode forms two carbon-carbon bonds."
   }
   ```
-  In `dag_record`, the TS calculation must verify exactly 1 imaginary frequency (`n_imag == 1`). In `dag_guided`, an undecidable frequency result can still be submitted for the Supervisor's explicit judgement. IRC files are optional unless the step's contract requires path evidence.
+  In `dag_record`, the TS calculation must verify exactly 1 imaginary frequency (`n_imag == 1`). In `dag_guided`, an undecidable frequency result can still be submitted for the Supervisor's explicit judgement. Default steps require IRC evidence for final delivery. You may submit TS/frequency evidence first, then submit it again with a combined IRC log or both directional IRC logs when available.
 - `dag_submit_species_evidence`:
   ```json
   {
@@ -136,4 +136,4 @@ they are not file-review verdicts.
 
 - `dag_view`: Inspect current graph topology, pending review items, and open gaps.
 - `dag_delivery_report`: Coverage report for the current declared delivery scope. It includes relevant unresolved reviews and pending scope decisions; exploratory graph branches outside that scope do not block delivery.
-- Delivery can be backed entirely by machine checks (`dag_verified`) or by accepted Supervisor file reviews (`supervisor_supported`). Both remain separate from independent benchmark scoring.
+- In dag_guided, file delivery requires BOTH Supervisor acceptance and scientific checks. Review acceptance never fills a failed or incomplete science check. Read `scientific_checks` and its `next_action` in submission results or `dag_view_evidence(review_id)`; supply missing evidence and re-submit the same target. Exploration and review remain available during repair. Benchmark scoring is independent.

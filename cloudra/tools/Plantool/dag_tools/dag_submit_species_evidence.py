@@ -213,6 +213,10 @@ class DagSubmitSpeciesEvidence(DagToolBase):
                 accepted=False,
             )
 
+        from cloudra.dag.file_science import file_scientific_checks
+        graph = await asyncio.to_thread(ctx.store.load_snapshot)
+        scientific_checks = await asyncio.to_thread(file_scientific_checks, ctx.store, graph.delivery, species.node_id)
+
         review = ActiveReview(
             review_id=f"rev_{uuid.uuid4().hex}",
             kind="species",
@@ -220,6 +224,7 @@ class DagSubmitSpeciesEvidence(DagToolBase):
             target_id=species.node_id,
             requester=session.id,
             details={
+                "scientific_checks": scientific_checks,
                 "element_type": "species",
                 "species_name": user_input.species_name,
                 "target_identity": review_target_identity(snapshot.delivery, "species", species.node_id),
@@ -248,6 +253,7 @@ class DagSubmitSpeciesEvidence(DagToolBase):
             result={
                 "species_name": user_input.species_name,
                 "status": "submitted_for_review",
+                "scientific_checks": scientific_checks,
                 "validation": val.model_dump(),
                 "review_id": review.review_id,
                 "enqueued": enqueued,

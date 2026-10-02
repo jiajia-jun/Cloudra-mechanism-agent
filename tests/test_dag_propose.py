@@ -80,6 +80,7 @@ async def test_record_proposal_auto_accepts(tmp_path):
         ("ts_guess", "pending"),
         ("ts_opt", "pending"),
         ("frequency", "pending"),
+        ("short_irc", "pending"),
     ]
 
 
@@ -313,6 +314,7 @@ async def test_guided_propose_then_supervisor_accept_unlocks_compute(tmp_path):
         ("ts_guess", "pending"),
         ("ts_opt", "pending"),
         ("frequency", "pending"),
+        ("short_irc", "pending"),
     ]
     node = next(n for n in _graph(db).delivery.nodes if getattr(n, "name", "") == "R" or n.node_id == "r")
     assert [(s.kind.value, s.status.value) for s in node.stages] == [
@@ -702,4 +704,5 @@ async def test_ts_guess_contract_normalized_to_advisory_on_accept(tmp_path):
         "ts_guess": False,
         "ts_opt": True,
         "frequency": True,
+        "short_irc": True,
     }

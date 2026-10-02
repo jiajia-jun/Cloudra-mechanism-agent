@@ -21,8 +21,7 @@ def test_resume_requires_revision_and_reason_and_limits_have_no_time_estimate():
     from cloudra.tools.core.ts_inputs import TsExecutionLimits
     with pytest.raises(ValidationError):
         TsResume_input_schema(run_id='run')
-    request = TsResume_input_schema(run_id='run',reason='Repair environment',request_key='repair',expected_revision=2,
-        recovery={'failed_attempt':'1:scan:7','evidence_refs':['probe.out']})
+    request = TsResume_input_schema(run_id='run',reason='Repair environment',request_key='repair',expected_revision=2)
     assert request.changes.model_fields_set == set()
     assert 'estimated_cpu_hours' not in TsExecutionLimits.model_json_schema()['properties']
 

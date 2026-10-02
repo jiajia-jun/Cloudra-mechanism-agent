@@ -57,7 +57,7 @@ def advance_optimization(record, stage_key: str, request: OptimizationRequest):
         state = checkpoint.state
         if state.status == 'blocked':
             record.waiting_for = ''
-            _block(record, 'build', 'candidate_constrained_optimization_failed', state.error, needs=['conformers.reactant', 'recovery'])
+            _block(record, 'build', 'candidate_constrained_optimization_failed', state.error, needs=['conformers.reactant'])
             return None
         if state.status == 'converged':
             result = dict(symbols=request.symbols, positions=state.positions,

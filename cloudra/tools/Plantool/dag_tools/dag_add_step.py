@@ -89,6 +89,7 @@ class DagAddStep(DagToolBase):
                 StageState(kind=StageKind.TS_GUESS, status=StageStatus.PENDING, required=False),
                 StageState(kind=StageKind.TS_OPT, status=StageStatus.PENDING, required=True),
                 StageState(kind=StageKind.FREQUENCY, status=StageStatus.PENDING, required=True),
+                StageState(kind=StageKind.SHORT_IRC, status=StageStatus.PENDING, required=True),
             ],
         }
         _, mutation = await self._apply(
@@ -108,4 +109,3 @@ class DagAddStep(DagToolBase):
 
 def get_class():
     return DagAddStep
-

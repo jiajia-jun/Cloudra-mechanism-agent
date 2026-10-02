@@ -144,6 +144,8 @@ class DagView(DagToolBase):
                         "requester": req.requester,
                         "target_ids": [name_map.get(t, t) for t in req.target_ids],
                         "question": req.question,
+                        "scientific_checks": req.proposal.get("scientific_checks", {}),
+                        "evidence_view": f"dag_view_evidence(review_id={req.request_id!r})",
                         "created_at": req.created_at,
                     }
                     for req in ctx.store.list_review_requests("queued")

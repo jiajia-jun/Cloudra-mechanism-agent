@@ -57,7 +57,9 @@ class DagProposeMechanism(DagToolBase):
         "named in new steps; delivery_targets alone updates the selected scope. "
         "In dag_guided, pending scope expansion blocks final delivery against "
         "the old scope until reviewed; exploration without targets does not. "
-        "Names must resolve uniquely within the delivery graph."
+        "Names must resolve uniquely within the delivery graph. "
+        "Default steps require ts_opt, frequency, and short_irc direction proof "
+        "before final delivery; ts_guess is advisory."
     )
     input_schema: Any = DagProposeMechanismInput
     output_schema: Any = DagToolOutput

@@ -289,9 +289,8 @@ def evaluate_delivery(
         if edge.stages:
             # 带阶段契约的元素以 stages 为权威：模型写 status='supported'
             # 不能盖过仍 pending 的阶段证据缺口（只更新 status 不改变阶段）。
-            # 2026-09-21：live complete 不对照 required_edge_level；默认草稿
-            # 只欠 ts_opt+frequency，IRC 不是结题必要（无 stages 的旧边仍走
-            # 下面的 level 阶梯）。
+            # live complete 不对照 required_edge_level；默认草稿要求
+            # ts_opt+frequency+short_irc（无 stages 的边走下面的 level 阶梯）。
             evaluate_stages("edge", edge.edge_id, edge.stages)
             if contract.require_thermochemistry and not (
                 derive_evidence_level(edge.stages, is_edge=True)

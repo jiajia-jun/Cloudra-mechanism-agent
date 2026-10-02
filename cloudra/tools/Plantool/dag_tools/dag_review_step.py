@@ -41,7 +41,9 @@ class DagReviewStep(DagToolBase):
     tool_name: str = "dag_review_step"
     tool_description: str = (
         "Adjudicate the evidence submitted for an elementary step (Supervisor only in dag_guided). "
-        "'supported' judges the submitted TS/frequency evidence sufficient, including machine-inconclusive cases; IRC is included when supplied. 'rejected' leaves an open gap. A scientific rationale is required."
+        "'supported' records your review acceptance; it cannot override failed or incomplete scientific checks. Read scientific_checks and next_action with dag_view_evidence. "
+        "Default steps still require short_irc: accepting TS/frequency evidence alone leaves the IRC delivery gap open. "
+        "'rejected' leaves an open gap. A scientific rationale is required."
     )
     input_schema: Any = DagReviewStepInput
     output_schema: Any = DagToolOutput
@@ -97,12 +99,20 @@ class DagReviewStep(DagToolBase):
                 != review_target_identity(snapshot.delivery, "step", step.edge_id)
             ):
                 return fail("dag_review_step", "the reviewed step changed after submission", accepted=False)
+            from cloudra.dag.file_science import file_scientific_checks
+            scientific_checks = await asyncio.to_thread(
+                file_scientific_checks, ctx.store, snapshot.delivery, step.edge_id, irc_files=request.proposal.get("irc_files"),
+                workspace_root=getattr(self.subagent, "working_directory", None))
+            pending = {stage.kind.value for stage in step.stages if stage.required and stage.status.value == "pending"}
+            repairs = [check["next_action"] for stage, check in scientific_checks.items()
+                       if stage in pending and check["status"] != "passed"]
             decision = ReviewDecision(
                 request_id=request.request_id,
                 basis_fingerprint=request.basis_fingerprint,
                 verdict="accept" if user_input.verdict == "supported" else "reject",
                 reason=user_input.rationale.strip(),
                 evidence_refs=request.supporting_refs,
+                next_action=" ".join(dict.fromkeys(repairs)) or None,
             )
             reviewed = await asyncio.to_thread(
                 ctx.store.resolve_review,
@@ -124,6 +134,7 @@ class DagReviewStep(DagToolBase):
             result={
                 "step_name": user_input.step_name,
                 "verdict": user_input.verdict,
+                "scientific_checks": scientific_checks,
                 **reviewed,
             },
         )

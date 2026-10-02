@@ -128,9 +128,7 @@ def _script_compute(monkeypatch, first_scan='peak'):
 @pytest.mark.usefixtures("rdkit_chemistry")
 async def test_ts_failed_scan_repair_same_run(tmp_path,monkeypatch):
     assert TS_SCENARIOS[1]=='ts_failed_scan_repair_same_run'
-    from cloudra.infra.compute_utils import resolve_log_path
     from cloudra.persistence.database import ComputeDB
-    from cloudra.services.compute_store import insert_compute_job
     from cloudra.tools.core import ts_process as process
     from cloudra.tools.core.ts_pipeline_driver import handle_process_job_terminal
     submissions=_script_compute(monkeypatch,first_scan='missing_log')
@@ -144,13 +142,7 @@ async def test_ts_failed_scan_repair_same_run(tmp_path,monkeypatch):
             record=process.TsProcessRecord.model_validate(handle_process_job_terminal(ComputeDB(),record.scan_step.job_id)['record'])
         provider.records.append(record)
         if record.failed_attempt and record.declaration_revision==1:
-            repair=tmp_path/'repaired.inp'
-            repair.write_bytes(Path(record.scan_step.input_path).read_bytes())
-            job=insert_compute_job(ComputeDB(),conversation_id=record.owner_conversation_id,session_id=record.owner_session_id,path=str(repair),state='done',jobtype='orca',node_id='fixture')
-            log=Path(resolve_log_path(str(repair),job_type='orca',task_id=job))
-            log.parent.mkdir(parents=True,exist_ok=True)
-            log.write_text('ORCA TERMINATED NORMALLY\n')
-            provider._scripts['small_mol'][0].tools=[('ts_resume',{'run_id':record.run_id,'reason':'native same-input execution confirms environment repair','request_key':'repair','expected_revision':record.revision,'recovery':{'failed_attempt':record.failed_attempt['attempt_id'],'evidence_refs':[str(log)]}})]
+            provider._scripts['small_mol'][0].tools=[('ts_resume',{'run_id':record.run_id,'reason':'retry failed scan without prerequisite repair calculation','request_key':'repair','expected_revision':record.revision})]
     provider=StateProvider(tmp_path,[Step(tools=[('ts_prepare',{'input':payload,'request_key':'scan-path'})]),Step(),Step(stop=True)],complete)
     harness=await ScenarioHarness.start(tmp_path,workspace_dir=tmp_path,provider=provider)
     provider.harness=harness

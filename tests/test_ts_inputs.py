@@ -108,7 +108,7 @@ def test_switching_engine_preserves_bound_atom_identity():
     assert changed.guess.scans[0].atoms == [0, 1]
 
 
-def test_recovery_and_revision_are_required_for_mutation():
+def test_revision_and_reason_are_required_for_mutation():
     from cloudra.tools.core.ts_inputs import TsResumeRequest
 
     request = TsResumeRequest.model_validate({

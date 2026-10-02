@@ -214,17 +214,11 @@ def apply_input_changes(current: TsInput, changes: TsInputChanges) -> TsInput:
     return TsInput.model_validate(merge(current.model_dump(mode="json"), changes))
 
 
-class TsRecovery(InputModel):
-    failed_attempt: str = Field(min_length=1)
-    evidence_refs: list[str] = Field(min_length=1)
-
-
 class TsResumeRequest(InputModel):
     changes: TsInputChanges = Field(default_factory=TsInputChanges)
     reason: str = Field(min_length=1)
     request_key: str = Field(min_length=1)
     expected_revision: StrictInt = Field(ge=0)
-    recovery: TsRecovery | None = None
 
     @field_validator("reason", "request_key")
     @classmethod

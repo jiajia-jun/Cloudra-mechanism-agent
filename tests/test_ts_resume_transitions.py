@@ -44,21 +44,21 @@ def test_endpoint_revision_retains_independent_completed_branch(tmp_path):
     assert [ref.stage_key for ref in receipt.invalidated] == ['reactant_opt', 'reactant_frequency']
 
 
-def test_failed_scan_point_count_only_does_not_requeue(tmp_path):
+def test_failed_scan_can_revise_without_recovery_evidence(tmp_path):
     from cloudra.tools.core.ts_process import TsBlocked, TsJobStep
-    from cloudra.tools.core.ts_revision import validate_recovery
-
-    record = record_fixture(tmp_path, stage='guess', blocked=TsBlocked(stage='guess', failure_class='scan_job_failed', message='First point optimization / SHARK temporary file failed', needs=['guess']))
-    path = tmp_path / 'scan.inp'
-    path.write_text('accepted scan input')
-    record.scan_step = TsJobStep(purpose='scan', job_id=7, state='failed', input_path=str(path))
+    from cloudra.tools.core.ts_revision import plan_input_revision, revise_record
+    record = record_fixture(tmp_path, stage='guess', blocked=TsBlocked(stage='guess', failure_class='scan_job_failed', message='native failure'))
+    record.scan_step = TsJobStep(purpose='scan', job_id=7, state='failed')
     guess = record.input.guess.model_dump(mode='json')
     guess['scans'][0]['scan_steps'] = 8
     change = request(record, {'guess': guess})
-    before = record.model_dump()
-    with pytest.raises(ValueError, match='recovery evidence'):
-        validate_recovery(record, change)
-    assert record.model_dump() == before
+    revised = revise_record(record, change, plan_input_revision(record, change))
+    assert revised.run_id == record.run_id
+    assert revised.scan_step is None and revised.blocked is None
+    assert revised.terminal is None
+    assert revised.attempt_history[-1].job_steps[-1].job_id == 7
+    assert revised.attempt_history[-1].blocked.failure_class == 'scan_job_failed'
+    assert record.scan_step.state == 'failed'
 
 
 def test_active_job_and_empty_resume_are_rejected_without_side_effects(tmp_path):
@@ -74,17 +74,6 @@ def test_active_job_and_empty_resume_are_rejected_without_side_effects(tmp_path)
     assert record.job_steps[0].state == 'ready'
 
 
-def test_unbound_recovery_artifact_cannot_authorize_retry(tmp_path):
-    from cloudra.tools.core.ts_process import TsBlocked, TsJobStep
-    from cloudra.tools.core.ts_revision import validate_recovery
-
-    record = record_fixture(tmp_path, stage='guess', blocked=TsBlocked(stage='guess', failure_class='scan_job_failed', message='native failure'))
-    record.scan_step = TsJobStep(purpose='scan', job_id=7, state='failed')
-    evidence = tmp_path / 'claim.txt'
-    evidence.write_text('environment repaired')
-    change = request(record, {}, recovery={'failed_attempt': '1:scan:7', 'evidence_refs': [str(evidence)]})
-    with pytest.raises(ValueError, match='authoritative'):
-        validate_recovery(record, change)
 
 
 def test_optional_null_changes_do_not_reinterpret_internal_atom_numbers(tmp_path):
@@ -127,8 +116,7 @@ def test_custom_derivative_binding_is_preserved_in_revision_receipt(tmp_path):
     assert receipt.invalidated[0].stage_key == 'candidate_constraints:point'
 
 
-def test_environment_repair_evidence_allows_same_input_new_attempt(tmp_path):
-    from cloudra.infra.compute_utils import resolve_log_path
+def test_failed_job_allows_same_input_retry_without_extra_calculation_proof(tmp_path):
     from cloudra.persistence.database import ComputeDB
     from cloudra.services.compute_store import insert_compute_job
     from cloudra.services.ts_pipeline_context import use_pipeline_database
@@ -138,15 +126,9 @@ def test_environment_repair_evidence_allows_same_input_new_attempt(tmp_path):
     old = tmp_path / 'failed.inp'
     old.write_text('accepted native input')
     failed = insert_compute_job(db, conversation_id='project', session_id='owner', path=str(old), state='failed', jobtype='orca', node_id='fixture')
-    repaired = tmp_path / 'repaired.inp'
-    repaired.write_bytes(old.read_bytes())
-    success = insert_compute_job(db, conversation_id='project', session_id='owner', path=str(repaired), state='done', jobtype='orca', node_id='fixture')
-    log = Path(resolve_log_path(str(repaired),job_type='orca',task_id=success))
-    log.parent.mkdir(parents=True,exist_ok=True)
-    log.write_text('ORCA TERMINATED NORMALLY')
     record = record_fixture(tmp_path, stage='guess', blocked=TsBlocked(stage='guess', failure_class='scan_job_failed', message='SHARK temporary directory failure'),
         scan_step=TsJobStep(purpose='scan', job_id=failed, input_path=str(old),state='failed'))
-    change = request(record, {}, recovery={'failed_attempt':f'1:scan:{failed}', 'evidence_refs':[str(log)]})
+    change = request(record, {})
     with use_pipeline_database(db):
         revised = revise_record(record,change,plan_input_revision(record,change))
     assert revised.scan_step is None and revised.blocked is None
@@ -154,7 +136,7 @@ def test_environment_repair_evidence_allows_same_input_new_attempt(tmp_path):
     assert revised.attempt_history[-1].blocked.failure_class == 'scan_job_failed'
     with db.connect() as con:
         assert con.execute('SELECT state FROM compute_jobs WHERE id=?',(failed,)).fetchone()[0] == 'failed'
-        assert con.execute('SELECT COUNT(*) FROM compute_jobs').fetchone()[0] == 2
+        assert con.execute('SELECT COUNT(*) FROM compute_jobs').fetchone()[0] == 1
 
 
 def test_nonempty_unchanged_revision_preserves_outcome_and_usage(tmp_path, monkeypatch):
@@ -180,21 +162,21 @@ def test_nonempty_unchanged_revision_preserves_outcome_and_usage(tmp_path, monke
 pytestmark = pytest.mark.usefixtures("ts_producer_authority")
 
 
-def test_scientific_failure_requires_bound_recovery_even_when_job_done(tmp_path):
-    import pytest
-
-    from cloudra.tools.core.ts_inputs import TsResumeRequest
+def test_failed_scientific_check_can_retry_without_claiming_verification(tmp_path):
     from cloudra.tools.core.ts_process import TsJobStep, _record_candidate_failure
-    from cloudra.tools.core.ts_revision import plan_input_revision
-    from tests.test_ts_stage_inputs import record_fixture
-    record = record_fixture(tmp_path)
-    step = TsJobStep(purpose='frequency', job_id=7, input_path=str(tmp_path/'freq.inp'), state='done')
-    record.job_steps = [step]
-    _record_candidate_failure(record, 'wrong_mode', step, str(tmp_path/'freq.out'))
+    from cloudra.tools.core.ts_revision import plan_input_revision, revise_record
+    record = record_fixture(tmp_path, stage='refine')
+    record.job_steps = [TsJobStep(purpose='frequency', job_id=7, state='done')]
+    _record_candidate_failure(record, 'wrong_mode', record.job_steps[0], str(tmp_path/'freq.out'))
+    change = request(record, {})
+    receipt = plan_input_revision(record, change)
+    revised = revise_record(record, change, receipt)
+    assert [ref.job_id for ref in receipt.invalidated] == [7]
+    assert revised.job_steps == [] and revised.terminal is None
+    assert revised.stage == 'refine'
+    assert revised.failed_attempt is None
+    assert revised.attempt_history[-1].failed_attempt['failure_class'] == 'wrong_mode'
     assert record.failed_attempt['failure_class'] == 'wrong_mode'
-    request = TsResumeRequest(expected_revision=0, request_key='retry', reason='change frequency', changes={'verification':{'frequency':{'engine':'orca','method':'HF/STO-3G','keywords':''}}})
-    with pytest.raises(ValueError, match='recovery evidence'):
-        plan_input_revision(record, request)
 
 
 def test_intervention_limit_blocks_changes_without_erasing_history(tmp_path):
@@ -205,3 +187,21 @@ def test_intervention_limit_blocks_changes_without_erasing_history(tmp_path):
     with pytest.raises(ValueError,match='intervention'):
         plan_input_revision(record,request(record,{'ts_optimization':None}))
     assert record.intervention_count==1
+
+
+@pytest.mark.parametrize('purpose,stage,restart', [('ts_opt','refine','submit'), ('frequency','verdict','refine'), ('scan','guess','guess')])
+def test_same_input_retry_restarts_at_failed_job_producer(tmp_path, purpose, stage, restart):
+    from cloudra.tools.core.ts_process import TsJobStep, _record_candidate_failure
+    from cloudra.tools.core.ts_revision import plan_input_revision, revise_record
+    record = record_fixture(tmp_path, stage=stage, terminal='candidate_only' if stage == 'verdict' else None)
+    step = TsJobStep(purpose=purpose, job_id=7, state='failed')
+    if purpose == 'scan':
+        record.scan_step = step
+    else:
+        record.job_steps = [step]
+    _record_candidate_failure(record, 'nonconvergence', step, str(tmp_path/'failed.out'))
+    change = request(record, {})
+    revised = revise_record(record, change, plan_input_revision(record, change))
+    assert revised.stage == restart
+    assert revised.attempt_history[-1].job_steps[-1].job_id == 7
+    assert revised.terminal is None

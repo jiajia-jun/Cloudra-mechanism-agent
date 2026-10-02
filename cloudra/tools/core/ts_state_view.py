@@ -42,15 +42,13 @@ def build_process_view(state: dict, jobs: list[dict], *, can_write: bool) -> TsP
     detail = (blocked or {}).get("message") or current_stage.get("detail", "")
     supported = state.get("format_version") == 3
     status = "isolated" if not supported else "waiting" if active or waiting else "ended" if terminal else "blocked" if blocked else "running"
-    next_action = dict(action="inspect", required_inputs=[], recovery_required=False, editable_groups=[])
+    next_action = dict(action="inspect", required_inputs=[], editable_groups=[])
     if supported and can_write:
         if active or waiting or status == "running":
             next_action["action"] = "wait_for_system"
         else:
             next_action.update(action="resume", editable_groups=list(state.get("input", {})),
-                               required_inputs=list((blocked or {}).get("needs", [])),
-                               recovery_required=bool(state.get('failed_attempt') or any(job.get('state') in ('failed','cancelled','missing') for job in jobs)))
-    next_action["recovery_required"] = bool(state.get("failed_attempt") or any(step.get("state") in ("failed", "cancelled", "missing") for step in [*state.get("job_steps", []), *([state["scan_step"]] if state.get("scan_step") else [])]))
+                               required_inputs=list((blocked or {}).get("needs", [])))
     method_entries = []
     value = state.get("input", {})
     guess = value.get("guess") or {}
