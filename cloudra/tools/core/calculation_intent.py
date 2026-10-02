@@ -447,8 +447,13 @@ def _inspect_gaussian(text: str) -> CalculationIntent:
     tasks, provider, mode = set(), None, "auto"
     for route in routes:
         for token in route:
-            key, _, value = token.partition("=")
-            if key == "opt" or key.startswith("opt("):
+            head, opening, options = token.partition("(")
+            if opening and head.removesuffix("=") in {"opt", "freq", "irc", "scan"}:
+                key = head.removesuffix("=")
+                value = options.removesuffix(")")
+            else:
+                key, _, value = token.partition("=")
+            if key == "opt":
                 options = set(value.strip("()").replace(" ", "").split(","))
                 tasks.add("ts_opt" if options & {"ts", "qst2", "qst3"} else "minimum_opt")
             elif key == "freq":

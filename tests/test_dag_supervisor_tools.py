@@ -375,12 +375,12 @@ async def test_hub_call_to_missing_role_spawns_peer(tmp_path):
     executor = _executor(tmp_path, core=core, project_id=project.id)
     result = await executor.execute(
         "agent_hub",
-        {"action": "call", "to": "small_mol", "message": "ping"},
+        {"action": "call", "to": "explorer", "message": "ping"},
         session_id=supervisor.id,
     )
     assert result["is_success"] is True
     peer = core.agents[result["session_id"]]
-    assert peer.role_id == "small_mol"
+    assert peer.role_id == "explorer"
     assert peer.parent_session_id is None
     assert supervisor.settings.orchestration_mode.value == "dag_guided"
     assert peer.settings.orchestration_mode.value == "standard"
@@ -406,3 +406,16 @@ async def test_hub_without_core_reports_unavailable(tmp_path):
     )
     assert result["is_success"] is False
     assert "unavailable" in result["message"]
+
+
+@pytest.mark.asyncio
+async def test_supervisor_hub_cannot_spawn_writable_peer(tmp_path):
+    core=RuntimeCore(strict_events=True)
+    bus=CommandBus(core)
+    project=(await bus.execute(Command(type='project.create',payload={'name':'readonly-hub'}))).data
+    supervisor=(await bus.execute(Command(type='agent.spawn',target={'project_id':project.id},payload={'role_id':'supervisor'}))).data
+    before=set(core.agents)
+    result=await _executor(tmp_path,core=core,project_id=project.id).execute(
+        'agent_hub',{'action':'call','to':'small_mol','message':'calculate'},session_id=supervisor.id)
+    assert result['is_success'] is False
+    assert set(core.agents)==before

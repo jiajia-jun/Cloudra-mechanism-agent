@@ -225,3 +225,74 @@ def test_route_change_rejects_unrelated_failure_provenance(tmp_path):
     req=request({'guess':{'kind':'provided','xyz_path':str(seed),'evidence_refs':[str(unrelated)]}},[seed,unrelated])
     with use_pipeline_database(db),pytest.raises(ValueError,match='recovery evidence'):
         validate_recovery(record,req)
+
+
+@pytest.mark.parametrize('route,tasks,mode', [
+    ('opt(ts) freq(num)', {'ts_opt', 'frequency'}, 'numeric'),
+    ('opt=(ts,calcfc) freq=(numer)', {'ts_opt', 'frequency'}, 'numeric'),
+    ('irc(maxpoints=20)', {'irc'}, 'auto'),
+    ('opt(qst2) freq(analytic)', {'ts_opt', 'frequency'}, 'auto'),
+])
+def test_gaussian_parenthesis_routes_preserve_native_intent(route, tasks, mode):
+    from cloudra.tools.core.calculation_intent import inspect_input
+    result=inspect_input(f'#p HF/STO-3G {route}\n\ntitle\n\n0 1\nH 0 0 0\nH 0 0 .74\n\n', engine='gaussian')
+    assert result.tasks == tasks
+    assert result.frequency_mode == mode
+
+
+def test_scan_parse_failure_cannot_use_generic_normal_job_as_repair(tmp_path, monkeypatch):
+    from cloudra.infra.compute_utils import resolve_log_path
+    from cloudra.services.compute_store import insert_compute_job
+    from cloudra.services.ts_pipeline_context import use_pipeline_database
+    from cloudra.tools.core.ts_inputs import TsCalculation
+    from cloudra.tools.core.ts_revision import validate_recovery
+    db,record,old,request=recovery_fixture(tmp_path,purpose='scan',failure='scan_parse_failed')
+    record.scan_step=record.job_steps.pop()
+    repaired=tmp_path/'later.inp'
+    repaired.write_bytes(old.read_bytes())
+    job=insert_compute_job(db,conversation_id='project',session_id='owner',path=str(repaired),state='done',jobtype='orca',node_id='fixture')
+    log=Path(resolve_log_path(str(repaired),job_type='orca',task_id=job))
+    log.parent.mkdir(parents=True,exist_ok=True)
+    log.write_text('ORCA TERMINATED NORMALLY\n')
+    monkeypatch.setattr('cloudra.tools.core.ts_process.stage_calculation',lambda *_:TsCalculation(engine='orca',method='HF/STO-3G',keywords=''))
+    monkeypatch.setattr('cloudra.tools.core.ts_process._check_calculation_submission',lambda *_:None)
+    with use_pipeline_database(db),pytest.raises(ValueError,match='recovery evidence'):
+        validate_recovery(record,request({},[log]))
+
+
+@pytest.mark.parametrize('role', ['reactant','product'])
+def test_source_revision_clears_only_its_catalog_identity(tmp_path,role):
+    from cloudra.tools.core.ts_inputs import TsResumeRequest
+    from cloudra.tools.core.ts_revision import plan_input_revision, revise_record
+    record=record_fixture(tmp_path,stage='verdict',terminal='verified',catalog_id='old',
+        partition_revision='partition',selected_candidate_id='reactant-candidate',
+        product_seed_candidate_id='product-candidate',cards_path='old-cards.json')
+    req=TsResumeRequest(reason='use generated endpoint',request_key='new-source',expected_revision=0,
+        changes={'conformers':{role:{'kind':'generate','generation':'ETKDGv3','seed':123}}})
+    revised=revise_record(record,req,plan_input_revision(record,req))
+    if role=='reactant':
+        assert (revised.catalog_id,revised.partition_revision,revised.selected_candidate_id)==(None,None,None)
+        assert revised.cards_path==''
+        assert revised.product_seed_candidate_id=='product-candidate'
+    else:
+        assert revised.product_seed_candidate_id is None
+        assert revised.selected_candidate_id=='reactant-candidate'
+    assert record.catalog_id=='old'
+
+
+def test_rotated_product_failure_names_public_grouped_input(tmp_path,monkeypatch):
+    from cloudra.tools.core.ts_process import _guess
+    record=record_fixture(tmp_path)
+    from cloudra.tools.core.ts_inputs import XtbPathGuess
+    record.input.guess=XtbPathGuess(kind='xtb_path',method='GFN2-xTB')
+    monkeypatch.setattr('cloudra.tools.core.ts_process._rotated_product',lambda *_:object())
+    monkeypatch.setattr('cloudra.tools.core.ts_process._read_built_xyz',lambda *_:(['H','H'],[[0,0,0],[0,0,.74]],'seed.xyz',''))
+    monkeypatch.setattr('cloudra.tools.core.ts_process._derive_product_geometry',lambda *_:('rotation failed',None))
+    assert _guess(record).blocked.needs==['conformers.product']
+
+
+def test_gaussian_external_path_parentheses_are_not_task_options():
+    from cloudra.tools.core.calculation_intent import inspect_input
+    result=inspect_input('#p HF/STO-3G external="/opt/(native)/xtb" opt(ts)\n\ntitle\n\n0 1\nH 0 0 0\nH 0 0 .74\n\n',engine='gaussian')
+    assert result.tasks=={'ts_opt'}
+    assert result.provider=='xtb'

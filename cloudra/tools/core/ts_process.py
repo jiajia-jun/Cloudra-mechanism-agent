@@ -940,14 +940,14 @@ def _map(record: TsProcessRecord) -> TsProcessRecord:
         error, positions = _derive_product_geometry(record, built)
         if error:
             return _block(
-                record, "map", "product_geometry_failed", error, needs=["product_geometry"],
+                record, "map", "product_geometry_failed", error, needs=["conformers.product"],
             )
         if len(positions) != len(built[0]):
             return _block(
                 record, "map", "product_geometry_failed",
                 f"the derived second endpoint has {len(positions)} atoms but the first endpoint has "
                 f"{len(built[0])}",
-                needs=["product_geometry"],
+                needs=["conformers.product"],
             )
         directory = Path(record.run_dir) / BUILD_STAGE_DIR / f"input_{record.declaration_revision:04d}" / "product"
         directory.mkdir(parents=True, exist_ok=True)
@@ -1329,7 +1329,7 @@ def _guess(record: TsProcessRecord) -> TsProcessRecord:
         error, reordered = _derive_product_geometry(record, reactant)
         if error:
             return _block(
-                record, "guess", "product_geometry_failed", error, needs=["product_geometry"],
+                record, "guess", "product_geometry_failed", error, needs=["conformers.product"],
             )
     else:
         product = _read_built_xyz(record, "product")

@@ -121,3 +121,16 @@ RED 复现后 GREEN。初始新回归 fixture 的 ORCA 尾部字段及不可变 
 整合后的本地验证：compileall 与 `ruff check --no-cache .` 通过；相关 TS/原生 fixture/runtime/Agent 组合 **715 passed / 4 skipped**（23.38 秒，退出码 0）；MCP/审批/lint 边界组合 **62 passed**（2.25 秒，退出码 0）。合计 777 passed / 4 skipped。没有在本地跑全套测试；全套交由 PR CI。真实 ORCA/Gaussian 作业没有运行。
 
 PR CI 首轮基础 Python 作业在收集 test_ts_input_evidence 时暴露可选 RDKit 缺失。按 AGENTS 环境探针规范，仅为消费真实化学栈的用例添加 importorskip/依赖 fixture；纯输入、账本及恢复测试保留执行。独立导入环境模拟缺少 RDKit：97 passed / 17 skipped；完整 RDKit 相同相关组合：119 passed。compileall 与仓库 Ruff 通过；没有改科学判据或将失败断言改为跳过。
+
+
+## 合并前 CI 集成修复（2026-10-02）
+
+CI 全套测试暴露了旧测试的只读权限前提与新接口不一致：peer completion 的正向场景改为可委派的 coordinator；DAG 和方法拦截测试显式提供其要验证的计算写权限。Supervisor Hub 的正向创建改为只读 explorer，另有可写 peer 拒绝回归。生产权限守卫保持启用。
+
+真实 Node/QuickJS 督导场景还复现了 DAG 工具继承 MANAGE 声明的问题：只读 DAG 查看声明 READ，研究侧证据送审和督导请求声明 READ/WRITE；图管理工具保留 MANAGE，实际图操作仍经 DAG actor 判定。新增执行层回归验证只读不可送审、研究角色可送审，以及只读可查看。
+
+四档 52 个题库 JSON 从现有生成器重新生成。程序逐项比较确认唯一变化为 method_policy.calculation_contracts 的空映射，既有科学数据、方法及评分参数均未改变。
+
+自动审查反馈逐项复现：Gaussian 无等号括号 route 需正确识别任务与数值频率；scan_parse_failed 不能由泛化的正常终止作业认作恢复；构象来源替换需清除该端活动 catalog 身份；旋转产物失败的 needs 必须指向 conformers.product。修复均有定向回归，不增加科学阈值或方法默认值。
+
+最终定向验证：真实 Node/QuickJS 督导场景与 DAG/TS 权限、反馈回归组合 61 项通过；扩大相关模块组合通过 1021 项、跳过 4 项，并发现旧 Agent 恢复场景误把扫描解析失败当执行故障。该场景改为真实 ledger failed 的执行故障；最终 TS 反馈、Agent 场景、原生意图、方法契约与事件循环组合 93 项通过。compileall 与全仓 Ruff 通过；全套最终结果以本次 PR 最新 CI 为准。

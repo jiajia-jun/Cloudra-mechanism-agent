@@ -73,7 +73,7 @@ async def test_dag_stage_allows_compute_before_mechanism_accepted(tmp_path):
         agent=agent,
         run_id="run_dag",
         settings=agent.settings,
-        capabilities=AgentCapabilities(permissions=PermissionSet(), tools=["*"]),
+        capabilities=AgentCapabilities(permissions=PermissionSet(write=True), tools=["*"]),
         inbox_messages=[],
         workspace_dir=str(tmp_path),
     )
@@ -97,7 +97,7 @@ async def test_dag_stage_noop_in_standard_mode(tmp_path):
         agent=agent,
         run_id="run_std",
         settings=agent.settings,
-        capabilities=AgentCapabilities(permissions=PermissionSet(), tools=["*"]),
+        capabilities=AgentCapabilities(permissions=PermissionSet(write=True), tools=["*"]),
         inbox_messages=[],
         workspace_dir=str(tmp_path),
     )

@@ -36,23 +36,23 @@ async def _sessions(tmp_path):
             Command(
                 type="agent.spawn",
                 target={"project_id": project.id},
-                payload={"role_id": "explorer"},
+                payload={"role_id": "coordinator"},
             )
         )
     ).data
-    peer = (
-        await bus.execute(
-            Command(
-                type="agent.spawn",
-                target={"project_id": project.id},
-                payload={
-                    "role_id": "researcher",
-                    "requested_by_session_id": requester.id,
-                    "query": "Research this question",
-                },
-            )
+    peer_result = await bus.execute(
+        Command(
+            type="agent.spawn",
+            target={"project_id": project.id},
+            payload={
+                "role_id": "researcher",
+                "requested_by_session_id": requester.id,
+                "query": "Research this question",
+            },
         )
-    ).data
+    )
+    assert peer_result.accepted, peer_result.data
+    peer = peer_result.data
     return core, store, bus, requester, peer
 
 
@@ -138,23 +138,23 @@ async def test_runner_sends_peer_result_without_parent_relationship(tmp_path):
             Command(
                 type="agent.spawn",
                 target={"project_id": project.id},
-                payload={"role_id": "explorer"},
+                payload={"role_id": "coordinator"},
             )
         )
     ).data
-    peer = (
-        await bus.execute(
-            Command(
-                type="agent.spawn",
-                target={"project_id": project.id},
-                payload={
-                    "role_id": "researcher",
-                    "requested_by_session_id": requester.id,
-                    "query": "Find evidence",
-                },
-            )
+    peer_result = await bus.execute(
+        Command(
+            type="agent.spawn",
+            target={"project_id": project.id},
+            payload={
+                "role_id": "researcher",
+                "requested_by_session_id": requester.id,
+                "query": "Find evidence",
+            },
         )
-    ).data
+    )
+    assert peer_result.accepted, peer_result.data
+    peer = peer_result.data
     assert peer.parent_session_id is None
     deadline = asyncio.get_running_loop().time() + 5.0
     while not _reports(core, requester.id):

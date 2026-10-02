@@ -139,7 +139,8 @@ async def test_ts_failed_scan_repair_same_run(tmp_path,monkeypatch):
         record=process.load_record(str(tmp_path),'ts_0001')
         if record.scan_step and record.waiting_for==f'job:{record.scan_step.job_id}':
             with ComputeDB().connect() as con:
-                con.execute("UPDATE compute_jobs SET state='done' WHERE id=?",(record.scan_step.job_id,))
+                state = 'failed' if record.declaration_revision == 1 else 'done'
+                con.execute("UPDATE compute_jobs SET state=? WHERE id=?",(state,record.scan_step.job_id))
             record=process.TsProcessRecord.model_validate(handle_process_job_terminal(ComputeDB(),record.scan_step.job_id)['record'])
         provider.records.append(record)
         if record.failed_attempt and record.declaration_revision==1:
@@ -160,7 +161,7 @@ async def test_ts_failed_scan_repair_same_run(tmp_path,monkeypatch):
         assert [(e['tool_name'],e['is_success']) for e in harness.tool_events(agent)]==[('ts_prepare',True),('ts_resume',True)],harness.describe(agent)
         current=provider.records[-1]
         assert current.run_id=='ts_0001' and current.intervention_count==1
-        assert current.attempt_history[-1].failed_attempt['failure_class']=='scan_parse_failed'
+        assert current.attempt_history[-1].failed_attempt['failure_class']=='scan_job_failed'
         assert [s['purpose'] for s in submissions]==['scan','scan','ts_opt']
     finally:
         await harness.aclose()

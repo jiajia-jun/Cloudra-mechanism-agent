@@ -163,7 +163,7 @@ def validate_recovery(record, request: TsResumeRequest) -> None:
                     imaginary = imaginary if imaginary is not None else [f for f in frequencies if f < 0]
                     if len(imaginary) != (1 if failed.purpose == 'frequency' else 0):
                         continue
-                elif record.failed_attempt and record.failed_attempt['failure_class'] in ('wrong_mode', 'endpoint_unconfirmed', 'scan_no_candidate', 'scan_invalid_geometry'):
+                elif record.failed_attempt and record.failed_attempt['failure_class'] in ('wrong_mode', 'endpoint_unconfirmed', 'scan_no_candidate', 'scan_invalid_geometry', 'scan_parse_failed'):
                     # These outcomes require their specific scientific proof; a
                     # generic normal termination cannot certify their repair.
                     continue
@@ -289,6 +289,11 @@ def revise_record(record, request, receipt):
         revised.current_reactant_prepared_path = ''
         revised.active_attempt_dir, revised.guidance_manifest_path = '', ''
         revised.effective_reaction_center = []
+        if record.input.conformers.reactant != revised.input.conformers.reactant:
+            revised.catalog_id = revised.partition_revision = revised.selected_candidate_id = None
+            revised.cards_path = ''
+        if record.input.conformers.product != revised.input.conformers.product:
+            revised.product_seed_candidate_id = None
         if any(path.startswith(('reaction.', 'conformers.reactant', 'conformers.guidance')) for path in receipt.changes):
             revised.optimization_checkpoints = {}
     revised.evidence_candidates = [artifact for row in revised.stage_records for artifact in row.artifacts]

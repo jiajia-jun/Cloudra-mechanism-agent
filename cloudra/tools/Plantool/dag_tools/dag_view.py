@@ -45,6 +45,9 @@ class DagViewInput(input_schema):
 
 
 class DagView(DagToolBase):
+    def is_manage(self) -> bool:
+        return False
+
     tool_id: str = "t-dag-view"
     tool_name: str = "dag_view"
     tool_description: str = (

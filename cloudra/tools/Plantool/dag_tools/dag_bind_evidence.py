@@ -115,6 +115,12 @@ class DagBindEvidenceInput(input_schema):
 
 
 class DagBindEvidence(DagToolBase):
+    def is_manage(self) -> bool:
+        return False
+
+    def is_write(self) -> bool:
+        return True
+
     tool_id: str = "t-dag-bind"
     tool_name: str = "dag_bind_evidence"
     tool_description: str = (

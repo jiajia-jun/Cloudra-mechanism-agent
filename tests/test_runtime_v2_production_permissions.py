@@ -95,3 +95,28 @@ def test_automatic_pipeline_uses_current_owner_permissions(tmp_path, monkeypatch
     with db.connect() as con:
         assert con.execute('SELECT COUNT(*) FROM compute_jobs').fetchone()[0] == 1
         assert con.execute('SELECT state FROM compute_jobs WHERE id=?',(job,)).fetchone()[0] == 'done'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('name', ['dag_bind_evidence','dag_submit_species_evidence','dag_submit_step_evidence','dag_message_supervisor'])
+async def test_producer_can_reach_evidence_submission_without_manage(tmp_path,name):
+    from cloudra.runtime_v2.adapters import LegacyToolExecutor
+    from cloudra.runtime_v2.policies.base import ToolCall
+    core,_,reviewer,producer=await readonly_and_producer()
+    assert not producer.capabilities.permissions.manage
+    executor=LegacyToolExecutor(core)
+    result=await executor.execute(producer,ToolCall(id='submit',name=name,arguments={}))
+    assert 'permissions absent' not in result.summary
+    denied=await executor.execute(reviewer,ToolCall(id='denied',name=name,arguments={}))
+    assert not denied.is_success
+    assert 'permissions absent' in denied.summary
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('name', ['dag_view','dag_view_evidence','dag_delivery_report'])
+async def test_readonly_agent_can_reach_dag_inspection(name):
+    from cloudra.runtime_v2.adapters import LegacyToolExecutor
+    from cloudra.runtime_v2.policies.base import ToolCall
+    core,_,reviewer,_=await readonly_and_producer()
+    result=await LegacyToolExecutor(core).execute(reviewer,ToolCall(id='inspect',name=name,arguments={}))
+    assert 'permissions absent' not in result.summary
