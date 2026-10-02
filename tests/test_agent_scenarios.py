@@ -239,22 +239,72 @@ async def test_guided_complete_waits_for_selected_step_review_and_evidence(tmp_p
         await harness.aclose()
 
 
+def _seed_synthetic_step_science(project_id: str) -> None:
+    """Parser/gate contract data, not computed chemistry; keep all checks real.
+
+    The toy geometries match test_irc_evidence_semantics: each IRC endpoint
+    lies between the TS and its frequency-verified reference minimum.
+    """
+    from cloudra.dag.engine import DagEngine
+    from cloudra.dag.evidence_ingest import snapshot_evidence_file
+    from cloudra.dag.models import AttachRef, GraphActor, MutationBatch
+    from cloudra.dag.store import DagStore
+    from cloudra.persistence.database import ConversationDB
+
+    workspace = _workspace(project_id)
+    store = DagStore(ConversationDB(project_id).init())
+    operations = []
+    for name, z, frequency in [("ts", 1.0, -300.0), ("r", 0.1, 100.0), ("p", 1.9, 100.0)]:
+        path = workspace / f"{name}.out"
+        path.write_text(
+            "* O   R   C   A *\n# Synthetic scenario contract data\n"
+            "FINAL SINGLE POINT ENERGY -100.0\n"
+            "CARTESIAN COORDINATES (ANGSTROEM)\n-----------------------------\n"
+            f"C 0 0 0\nN 0 0 2\nH 0 0 {z}\n\n"
+            f"VIBRATIONAL FREQUENCIES\n0: {frequency} cm**-1\n1: 200.0 cm**-1\n"
+            "ORCA TERMINATED NORMALLY\n"
+        )
+        if name != "ts":
+            snapshot = snapshot_evidence_file(path, workspace)
+            ref = store.register_evidence(
+                "scenario-endpoints", path.name, snapshot.model_dump(mode="json"), source_type="file",
+            )
+            operations.append(AttachRef(
+                op="attach_ref", graph="delivery", target_type="node", target_id=name, ref=ref,
+            ))
+    result = DagEngine(store).apply_batch(MutationBatch(
+        session_id="scenario-endpoints", actor=GraphActor.HARNESS,
+        actor_id="scenario-endpoints", base_revisions=store.load_bundle().revisions,
+        rationale="bind synthetic reference minimum logs", operations=operations,
+    ))
+    assert result.accepted
+    irc = Path(__file__).parent / "fixtures" / "orca" / "hcn_irc_orca60.out"
+    shutil.copy2(irc, workspace / "irc.out")
+    for suffix, z in [("F", 0.7), ("B", 1.3)]:
+        (workspace / f"irc_IRC_{suffix}.xyz").write_text(
+            f"3\nsynthetic scenario endpoint\nC 0 0 0\nN 0 0 2\nH 0 0 {z}\n"
+        )
+
+
 @pytest.mark.asyncio
-async def test_guided_file_verdict_wakes_coordinator_for_supervisor_supported_completion(
-    tmp_path, monkeypatch
+@pytest.mark.parametrize("complete_evidence", [False, True], ids=["missing-irc", "scientific-evidence"])
+async def test_guided_file_verdict_wakes_coordinator_and_enforces_scientific_completion(
+    tmp_path, monkeypatch, complete_evidence
 ):
-    """A per-file verdict wakes the parked Coordinator; complete uses file credit."""
+    """A verdict wakes once; only scientifically supported files permit complete."""
     submit_evidence = asyncio.Event()
     attempt_partial = asyncio.Event()
     review_file = asyncio.Event()
     finish_supervisor = asyncio.Event()
     attempt_complete = asyncio.Event()
+    hold_after_gate = asyncio.Event()
     ts = Path(__file__).parent / "fixtures" / "xtb" / "ts_hess_xtb.out"
+    files = {"ts_file": "ts.out", "irc_file": "irc.out"} if complete_evidence else {"ts_file": ts.name}
     provider = ScriptedProvider(by_role={
         "coordinator": [
             _propose_selected_ab(),
             Step(wait_for=submit_evidence, tools=[("dag_submit_step_evidence", {
-                "step_name": "AB", "ts_file": ts.name,
+                "step_name": "AB", **files,
                 "reaction_coordinate_description": "selected transition",
             })]),
             Step(wait_for=attempt_partial, tools=[("stop", {
@@ -263,6 +313,7 @@ async def test_guided_file_verdict_wakes_coordinator_for_supervisor_supported_co
             Step(wait_for=attempt_complete, tools=[("stop", {
                 "delivery_disposition": "complete",
             })]),
+            Step(wait_for=hold_after_gate, text="continue scientific work"),
         ],
         "supervisor": [
             Step(tools=[("dag_accept_mechanism", {"verdict": "accept"})]),
@@ -282,6 +333,8 @@ async def test_guided_file_verdict_wakes_coordinator_for_supervisor_supported_co
         workspace = _workspace(harness.project.id)
         workspace.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ts, workspace / ts.name)
+        if complete_evidence:
+            await asyncio.to_thread(_seed_synthetic_step_science, harness.project.id)
         coordinator = await harness.spawn(
             "coordinator", protocol="traditional", orchestration_mode="dag_guided"
         )
@@ -305,6 +358,9 @@ async def test_guided_file_verdict_wakes_coordinator_for_supervisor_supported_co
         submitted = next(t for t in harness.tool_events(coordinator)
                          if t["tool_name"] == "dag_submit_step_evidence")
         assert submitted["is_success"], harness.describe(coordinator)
+        checks = submitted["result_data"]["result"]["scientific_checks"]
+        assert checks["ts_opt"]["status"] == checks["frequency"]["status"] == "passed"
+        assert checks["short_irc"]["status"] == ("passed" if complete_evidence else "incomplete")
         review_id = submitted["result_data"]["result"]["review_id"]
         await harness.wait_for(
             lambda: any(a.role_id == "supervisor" and a.state.value == "succeeded"
@@ -351,6 +407,11 @@ async def test_guided_file_verdict_wakes_coordinator_for_supervisor_supported_co
         store = DagStore(db)
         request = await asyncio.to_thread(store.get_review_request, review_id)
         assert request is not None and request.state == "resolved"
+        snapshot = await asyncio.to_thread(store.load_snapshot)
+        edge = next(edge for edge in snapshot.delivery.edges if edge.name == "AB")
+        assert {stage.kind.value for stage in edge.stages if stage.required} == {
+            "ts_opt", "frequency", "short_irc",
+        }
         decision = await asyncio.to_thread(store.get_review_decision_for_request, review_id)
         assert decision is not None and decision.verdict == "accept"
         assert flush_counts == [1]
@@ -374,8 +435,17 @@ async def test_guided_file_verdict_wakes_coordinator_for_supervisor_supported_co
         report = await asyncio.to_thread(
             DagController(db, coordinator.id, "dag_guided", conversation_id=harness.project.id).delivery_report
         )
-        assert report.complete
-        assert any(gate.code == "supervisor_evidence_accepted" for gate in report.satisfied)
+        assert report.complete is complete_evidence
+        if complete_evidence:
+            assert any(gate.code == "supervisor_evidence_accepted" for gate in report.satisfied)
+        else:
+            assert {"missing_stage_evidence", "scientific_check_incomplete"} <= {
+                gap.code for gap in report.unresolved
+            }
+            assert any(gap.code == "scientific_check_incomplete" and gap.target_id == edge.edge_id
+                       and gap.detail.startswith("short_irc:")
+                       for gap in report.unresolved)
+            assert not any(gate.code == "supervisor_evidence_accepted" for gate in report.satisfied)
 
         finish_supervisor.set()
         await harness.wait_for(
@@ -385,18 +455,32 @@ async def test_guided_file_verdict_wakes_coordinator_for_supervisor_supported_co
             "Supervisor idle before final delivery",
         )
         attempt_complete.set()
-        await harness.wait_terminal(coordinator)
         from cloudra.runtime_v2.completion import completion_summary
 
-        completion = completion_summary(harness.events(coordinator))
-        assert completion["completion_basis"] == "supervisor_supported"
-        assert completion["verification_label"] == "supervisor_reviewed"
+        if complete_evidence:
+            await harness.wait_terminal(coordinator)
+            completion = completion_summary(harness.events(coordinator))
+            assert completion["completion_basis"] == "supervisor_supported"
+            assert completion["verification_label"] == "supervisor_reviewed"
+        else:
+            await harness.wait_for(
+                lambda: any(e.type == "agent.completion_gate" and e.data.get("explicit_stop")
+                            and e.data.get("action") == "continue_work" for e in harness.events(coordinator)),
+                "scientific gap blocks explicit complete after Supervisor acceptance",
+            )
+            gate = next(e.data for e in harness.events(coordinator)
+                        if e.type == "agent.completion_gate" and e.data.get("explicit_stop")
+                        and e.data.get("action") == "continue_work")
+            assert gate["basis"] is None
+            assert coordinator.state.value != "succeeded"
+            assert completion_summary(harness.events(coordinator)) is None
     finally:
         submit_evidence.set()
         attempt_partial.set()
         review_file.set()
         finish_supervisor.set()
         attempt_complete.set()
+        hold_after_gate.set()
         await harness.aclose()
 
 
