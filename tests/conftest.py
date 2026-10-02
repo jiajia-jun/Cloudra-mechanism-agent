@@ -47,3 +47,9 @@ def ts_producer_authority():
     policy = MethodPolicy(allowed_methods=['xtb', 'pm7', 'b3lyp/def2svp', 'hf/sto3g', 'b97-3c', 'pbe0/def2svp'])
     with use_pipeline_authority(lambda project, owner: (True, policy)):
         yield
+
+
+@pytest.fixture
+def rdkit_chemistry():
+    """Probe the optional chemistry dependency only for tests that consume it."""
+    pytest.importorskip('rdkit', reason='requires RDKit (chem extra)')

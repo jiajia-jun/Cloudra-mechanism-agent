@@ -26,6 +26,7 @@ def catalog_seed(tmp_path, qualification=None):
     return dict(kind='catalog',catalog_id='cat',partition_revision=snapshot.revision,candidate_id=candidate.candidate_id), xyz
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_catalog_prepare_requires_explicit_member_optimizer_and_deduplicates(tmp_path,monkeypatch):
     from cloudra.services.compute_admission import AdmissionOutcome
     from cloudra.tools.core.ts_inputs import CatalogConformer, FileConformer
@@ -48,6 +49,7 @@ def test_catalog_prepare_requires_explicit_member_optimizer_and_deduplicates(tmp
         assert con.execute('SELECT COUNT(*) FROM compute_jobs').fetchone()[0]==1
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_completed_explicit_seed_opt_advances_other_seed_once(tmp_path,monkeypatch):
     from cloudra.runtime.chem_task import ChemTask, result_path
     from cloudra.services.compute_admission import AdmissionOutcome

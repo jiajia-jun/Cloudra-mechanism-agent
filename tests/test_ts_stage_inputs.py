@@ -56,6 +56,7 @@ def test_provided_candidate_skips_search_and_checks_atom_order(tmp_path, monkeyp
     assert Path(result.current_ts_guess_path).read_bytes() == accepted
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_guided_source_uses_its_explicit_calculation_and_bound_windows(tmp_path, monkeypatch):
     from rdkit import Chem
 
@@ -120,6 +121,7 @@ def test_no_hidden_xtb_to_interpolation_fallback(tmp_path, monkeypatch):
     assert result.current_ts_guess_path == ""
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_explicit_generation_delivers_seed_without_hidden_force_field(tmp_path, monkeypatch):
     from cloudra.tools.core.ts_process import _build, _read_built_xyz
     def forbidden(*args, **kwargs):
@@ -137,6 +139,7 @@ def test_explicit_generation_delivers_seed_without_hidden_force_field(tmp_path, 
     assert record.job_steps == []
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_one_prepare_advances_complete_declared_chain_without_agent_resume(tmp_path, monkeypatch):
     from types import SimpleNamespace
 

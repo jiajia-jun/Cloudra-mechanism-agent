@@ -1,3 +1,7 @@
+import pytest
+
+pytest.importorskip("rdkit", reason="concrete chemistry evidence requires the chem extra")
+
 from rdkit import Chem
 from rdkit.Chem import AllChem
 

@@ -119,3 +119,5 @@ RED 复现后 GREEN。初始新回归 fixture 的 ORCA 尾部字段及不可变 
 上游反应中心更改测试先复现 `assemble` 未重建几何的问题，再将该修订依赖恢复为 `build`，保留旧尝试。native fixture 继续断言真实解析器、不可变输入、错误虚频、IRC 边文件缺失、端点优化/频率相同几何、重复终态无重复作业。Agent 用真实工具调用验证相同 scan 修订不增加介入次数、不清除失败、不入新作业。
 
 整合后的本地验证：compileall 与 `ruff check --no-cache .` 通过；相关 TS/原生 fixture/runtime/Agent 组合 **715 passed / 4 skipped**（23.38 秒，退出码 0）；MCP/审批/lint 边界组合 **62 passed**（2.25 秒，退出码 0）。合计 777 passed / 4 skipped。没有在本地跑全套测试；全套交由 PR CI。真实 ORCA/Gaussian 作业没有运行。
+
+PR CI 首轮基础 Python 作业在收集 test_ts_input_evidence 时暴露可选 RDKit 缺失。按 AGENTS 环境探针规范，仅为消费真实化学栈的用例添加 importorskip/依赖 fixture；纯输入、账本及恢复测试保留执行。独立导入环境模拟缺少 RDKit：97 passed / 17 skipped；完整 RDKit 相同相关组合：119 passed。compileall 与仓库 Ruff 通过；没有改科学判据或将失败断言改为跳过。

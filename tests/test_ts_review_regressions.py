@@ -31,6 +31,7 @@ def test_irc_hessian_requires_complete_scientific_settings(tmp_path, field):
     assert 'InitHess read' not in Path(path).read_text()
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_mol_cannot_mask_dissociated_xyz_before_conformer_optimization(tmp_path, monkeypatch):
     from rdkit import Chem
 
@@ -133,6 +134,8 @@ def test_failed_scan_can_change_route_with_bound_new_route_artifacts(tmp_path,ro
     from cloudra.services.ts_pipeline_context import use_pipeline_database
     from cloudra.tools.core.ts_process import TsBlocked
     from cloudra.tools.core.ts_revision import plan_input_revision, revise_record
+    if route == 'xtb_path':
+        pytest.importorskip('rdkit', reason='bound endpoint identity requires RDKit')
     db,record,old,request=recovery_fixture(tmp_path,purpose='scan',failure='scan_no_candidate')
     record.scan_step=record.job_steps.pop()
     record.stage='guess'

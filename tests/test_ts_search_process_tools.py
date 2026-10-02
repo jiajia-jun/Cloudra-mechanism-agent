@@ -26,6 +26,7 @@ def inputs(*, mapped=True):
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_prepare_queues_one_path_and_response_replay_reuses_it(tmp_path, monkeypatch):
     from cloudra.persistence.database import ComputeDB
     from cloudra.services.compute_admission import AdmissionOutcome
@@ -43,6 +44,7 @@ async def test_prepare_queues_one_path_and_response_replay_reuses_it(tmp_path, m
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_prepare_reports_missing_map_and_keeps_explicit_stage_methods(tmp_path):
     first = await owned_tool(TsPrepare).tool_call(TsPrepare_input_schema(request_key='fixture-prepare', input=inputs(mapped=False), workspace_dir=str(tmp_path)),None)
     assert first.is_success and first.blocked["stage"] == 'map'
@@ -52,6 +54,7 @@ async def test_prepare_reports_missing_map_and_keeps_explicit_stage_methods(tmp_
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_resume_revises_same_path_and_returns_durable_receipt(tmp_path, monkeypatch):
     from cloudra.services.compute_admission import AdmissionOutcome
     monkeypatch.setattr('cloudra.services.compute_admission.admit_job',
@@ -72,6 +75,7 @@ async def test_resume_revises_same_path_and_returns_durable_receipt(tmp_path, mo
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('project,owner',[('foreign',None),('project','foreign-owner')])
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_resume_rejects_other_project_or_owner(tmp_path,project,owner):
     first = await owned_tool(TsPrepare).tool_call(TsPrepare_input_schema(request_key='fixture-prepare', input=inputs(mapped=False),workspace_dir=str(tmp_path)),None)
     request = TsResume_input_schema(run_id=first.run_id,workspace_dir=str(tmp_path),
@@ -91,6 +95,7 @@ async def test_resume_unknown_run_reports_error(tmp_path):
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_resume_uses_authoritative_record_when_export_is_missing(tmp_path, monkeypatch):
     from pathlib import Path
 

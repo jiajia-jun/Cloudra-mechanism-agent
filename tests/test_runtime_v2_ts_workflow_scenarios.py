@@ -40,6 +40,7 @@ class StateProvider(ScriptedProvider):
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_ts_prepare_once_auto_complete(tmp_path,monkeypatch):
     assert TS_SCENARIOS[0]=='ts_prepare_once_auto_complete'
     from cloudra.persistence.database import ComputeDB
@@ -124,6 +125,7 @@ def _script_compute(monkeypatch, first_scan='peak'):
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_ts_failed_scan_repair_same_run(tmp_path,monkeypatch):
     assert TS_SCENARIOS[1]=='ts_failed_scan_repair_same_run'
     from cloudra.infra.compute_utils import resolve_log_path
