@@ -36,6 +36,9 @@ jobs:
       - name: Run ruff
         run: ruff check .
 
+      - name: Compile Python sources
+        run: python -m compileall -q cloudra tests
+
       - name: Run tests
         # faulthandler_timeout：单测超过 5 分钟自动 dump 所有线程堆栈，便于定位挂起
         # 覆盖率只在 3.11 这一格出：coverage 的 tracer 在 3.12 上对解析型用例慢
