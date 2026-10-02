@@ -810,6 +810,7 @@ async def test_real_bind_notifies_supervisor_roundtrip(tmp_path, protocol):
             assert _tool_events(core, coordinator.id, "submit-1") == [
                 "tool.requested",
                 "tool.started",
+                "tool.progress",
                 "tool.result_recorded",
                 "tool.finished",
             ]
@@ -818,6 +819,22 @@ async def test_real_bind_notifies_supervisor_roundtrip(tmp_path, protocol):
                 core, coordinator.id, "dag_bind_evidence"
             )
             assert finished.data["is_success"] is True
+
+        # Both protocols expose validated inputs on the exact bind attempt.
+        requested = core.event_log.get(finished.data["request_event_id"])
+        assert requested.type == "tool.requested"
+        assert requested.data["tool_name"] == "dag_bind_evidence"
+        progress = [
+            e for e in core.event_log.query_session(coordinator.id)
+            if e.type == "tool.progress" and e.data.get("request_event_id") == requested.event_id
+        ]
+        assert len(progress) == 1
+        assert progress[0].data["tool_call_id"] == requested.data["tool_call_id"]
+        assert progress[0].data["execution_id"] == requested.data["execution_id"]
+        assert progress[0].data["phase"] == "executing"
+        assert progress[0].data["effective_arguments"]["attachments"] == [
+            {**_BIND_CALL.arguments["attachments"][0], "rationale": ""}
+        ]
 
         # 通知唤醒真实 Supervisor 完成裁决（不经私有通知实现观察）。
         deadline = asyncio.get_running_loop().time() + 15
@@ -874,6 +891,9 @@ async def test_real_bind_notifies_supervisor_roundtrip(tmp_path, protocol):
                 assert _tool_events(core, session_id, child_id) == [
                     "tool.requested",
                     "tool.started",
+                    # Only the coordinator takes the validating legacy path;
+                    # supervisor business tools use their restricted executor.
+                    *(["tool.progress"] if session_id == coordinator.id else []),
                     "tool.result_recorded",
                     "tool.finished",
                 ]
