@@ -270,11 +270,13 @@ async def test_supervisor_reads_evidence_without_self_review_loop(tmp_path):
     try:
         await _wait_state(supervisor, "succeeded")
 
-        # InvocationService 事件序：每次调用 requested→started→result_recorded→finished。
+        # Supervisor business reads use the restricted executor; only the
+        # direct stop control reports validated inputs via LegacyToolExecutor.
         for call_id in ("tc1", "tc2", "tc3"):
             assert _tool_events(core, supervisor.id, call_id) == [
                 "tool.requested",
                 "tool.started",
+                *(["tool.progress"] if call_id == "tc3" else []),
                 "tool.result_recorded",
                 "tool.finished",
             ]
@@ -388,6 +390,7 @@ async def test_supervisor_js_mode_rejects_top_level_business_call(tmp_path):
         assert _tool_events(core, supervisor.id, "tc2") == [
             "tool.requested",
             "tool.started",
+            "tool.progress",
             "tool.result_recorded",
             "tool.finished",
         ]
@@ -546,6 +549,7 @@ async def test_research_agent_js_program_removes_node(tmp_path):
         assert _tool_events(core, coordinator.id, child_id) == [
             "tool.requested",
             "tool.started",
+            "tool.progress",
             "tool.result_recorded",
             "tool.finished",
         ]
