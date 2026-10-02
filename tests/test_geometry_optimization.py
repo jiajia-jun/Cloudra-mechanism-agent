@@ -10,18 +10,24 @@ from cloudra.services.compute_admission import AdmissionOutcome
 from cloudra.services.ts_pipeline_store import create_process
 from cloudra.tools.core.conformer_catalog import content_digest
 from cloudra.tools.core.constrained_optimization import OptimizationRequest
-from cloudra.tools.core.ts_process import TsDeclaration, TsProcessRecord
+from cloudra.tools.core.ts_inputs import TsInput
+from cloudra.tools.core.ts_process import TsProcessRecord
 
 
 def setup_record(tmp_path, monkeypatch, budget=None):
     from cloudra.services.exploration_budget_store import configure_budget
     db = ComputeDB().init()
-    declaration = TsDeclaration(reactant_smiles='[H][H]', product_smiles='[H][H]', method='b3lyp/def2svp')
-    payload = dict(project_id='project', owner_id='owner', workspace_dir=str(tmp_path), declaration=declaration.model_dump())
+    from tests.test_ts_inputs import input_payload
+    value = input_payload()
+    value['reaction'].update(reactant_smiles='[H][H]', product_smiles='[H][H]', charge=0, atom_map=[0, 1])
+    value['conformers']['reactant']['optimization'] = dict(engine='xtb', method='GFN2-xTB', keywords='')
+    if budget:
+        value['execution']['limits'] = dict(source=budget.source,max_compute_actions=budget.max_compute_actions,max_model_calls=budget.max_model_calls)
+    inputs = TsInput.model_validate(value)
+    payload = dict(project_id='project', owner_id='owner', workspace_dir=str(tmp_path), input=inputs.model_dump(mode='json'))
     pid = create_process(db, request_key='constrained', payload=payload)['process_id']
     record = TsProcessRecord(run_id='constrained', run_dir=str(tmp_path/'ts'), workspace_dir=str(tmp_path),
-        owner_conversation_id='project', owner_session_id='owner', pipeline_id=pid, declaration=declaration,
-        exploration_budget=budget)
+        owner_conversation_id='project', owner_session_id='owner', pipeline_id=pid, input=inputs)
     Path(record.run_dir).mkdir()
     if budget:
         configure_budget(db, process_id=pid, project_id='project', owner_id='owner', budget=budget)
@@ -166,3 +172,6 @@ def test_numeric_failure_records_candidate_attempt_before_blocking(tmp_path,monk
     assert record.blocked and calls
     assert calls[-1][1]=='geometry'
     assert calls[-1][2].job_id==record.job_steps[-1].job_id
+
+
+pytestmark = pytest.mark.usefixtures("ts_producer_authority")

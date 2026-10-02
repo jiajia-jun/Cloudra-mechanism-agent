@@ -1,315 +1,130 @@
-"""TS state machine tools: prepare once, resume revisions, inspect read-only.
+"""Prepare one TS path, revise through resume, inspect without mutation."""
+from typing import Any
 
-- `ts_prepare`：起一次搜索。进程随后自主推进（建结构 → 映射 → 组装 → 路径初猜 → 校验 →
-  提交 → 精修 → 判定）。
-- `ts_resume`：进程在**阻塞**处停下后，带上调整过的声明从当前位置继续。**只接受局部覆盖**，
-  不是重新声明整条反应。
-
-校验是**流程自己的职责**（SOP §4）：这里不设"要不要提交"的确认步骤，校验失败就以阻塞
-返回，并**点名到原子**，agent 据此改声明再 `ts_resume`。
-
-状态机与目录约定在 `cloudra.tools.core.ts_process`；本文件只是薄接口。
-"""
-
-from typing import Any, Optional
-
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.workspace import resolve_tool_path
-from cloudra.services.exploration_budget_store import ExplorationBudget
-from cloudra.tools.core.geometry_inputs import normalize_ts_atoms
-from cloudra.tools.core.ts_candidate_pipeline import CandidateCatalogReference
-from cloudra.tools.core.ts_process import (
-    TsAdjustment,
-    TsBlocked,
-    TsDeclaration,
-    TsProcessRecord,
-    TsStageRecord,
-    TsStartRequest,
-    load_record,
-    resume,
-    start,
-)
-from cloudra.tools.core.ts_state_view import TsProcessView, inspect_process
-
-description = (
-    "Run the transition-state search SOP as a durable process: build both endpoints from SMILES. "
-    "For cyclic TS preorganization, declare ring_order and/or distance_filters in complete atom order (Gaussian 1-based, ORCA 0-based). Use explicit "
-    "windows; missing forming pairs receive a visible 1.6–3.0 Å fallback. "
-    "The process uses only qualified constrained reactant seeds, and ts_resume can correct the "
-    "guidance at blocked checkpoints; valid results are retained. "
-    "map atoms, assemble the reactive complex, queue a path guess, validate internally, then submit and judge. "
-    "Returns a run_id; the process advances autonomously and STOPS with a `blocked` payload when it "
-    "needs you to change the declaration — fix what the payload names and call ts_resume. "
-    "Use ts_inspect to read authoritative progress and missing inputs without changing the run. "
-    "A blocked process is a normal outcome, not an error. "
-    "Use for: locating a transition state from reactant/product SMILES. "
-    "Do not use for: single-point energies, conformer ensembles (use conformer_search) or plain "
-    "input writing (use qm_input_writer)."
-)
+from cloudra.services.ts_pipeline_store import TsRevisionReceipt
+from cloudra.tools.core.ts_inputs import TsInput, TsResumeRequest, normalize_ts_input_atoms
+from cloudra.tools.core.ts_process import TsProcessRecord, TsStartRequest, resume, start
+from cloudra.tools.core.ts_state_view import TsProcessView, build_process_view, inspect_process
 
 
 class TsPrepare_input_schema(input_schema):
-    candidate_catalog: CandidateCatalogReference | None = None
-    compute_cpus: int | None = Field(default=None,ge=1)
-    compute_memory_mb: int = Field(default=4096,ge=1)
-    exploration_budget: ExplorationBudget | None = None
-    compute_estimates: dict[str, float] = Field(default_factory=dict)
-    request_key: str | None = Field(default=None, description="Stable idempotency key; retries return the original process, conflicting declarations are rejected.")
-    declaration: TsDeclaration = Field(
-        description="Reaction declaration. All atom fields use complete built XYZ order including H: "
-                    "Gaussian starts at 1; ORCA at 0. A three-atom identity atom_map is [1,2,3] "
-                    "for Gaussian or [0,1,2] for ORCA; entries follow product atom order. "
-                    "method is required. For solvation, set extra_keywords on the DFT declaration "
-                    "(e.g. CPCM(Water)), scan.extra_route for an exploratory scan, and "
-                    "path_solvation for the optional xTB path guess. Missing maps return built atom "
-                    "tables. ring_order and distance_filters work independently or together.",
-    )
-    workspace_dir: Optional[str] = Field(
-        default=None,
-        description="Workspace root; the run directory is created at <workspace_dir>/ts/<run_id>/. "
-                    "Defaults to the Agent working directory. Relative paths resolve against the "
-                    "Agent working directory."
-    )
+    model_config = ConfigDict(extra='forbid')
+    input: TsInput = Field(description='Scientific inputs grouped by reaction, conformers, guess, ts_optimization, verification and execution. Each calculation has its own explicit method. Structure atom references are 1-based; scan coordinates use its engine numbering (ORCA 0-based, Gaussian 1-based).')
+    request_key: str | None = None
+    workspace_dir: str | None = None
 
 
-class TsResume_input_schema(input_schema):
-    run_id: str = Field(description="run_id returned by ts_prepare")
-    adjustment: TsAdjustment = Field(
-        default_factory=TsAdjustment,
-        description="Local overrides only: ring_order, distance_filters, reaction_center, atom_map, path_refinement_runs, "
-                    "max_interventions, selection_decision, partition_revision, endpoint_retry, endpoint_seed_retry and exploration_budget. "
-                    "Use one explicit action per call; empty adjustment reads the checkpoint without advancing.",
-    )
-    workspace_dir: Optional[str] = Field(
-        default=None,
-        description="Workspace root, same as ts_prepare. Defaults to the Agent working directory.",
-    )
+class TsResume_input_schema(TsResumeRequest, input_schema):
+    run_id: str = Field(min_length=1)
+    workspace_dir: str | None = None
 
 
-class TsProcess_output_schema(output_schema):
-    catalog_id: str | None = None
-    partition_revision: str | None = None
-    selected_candidate_id: str | None = None
-    selection_decision_id: str | None = None
-    cards_path: str = ""
-    decision_needed: bool = False
-    legal_actions: list[str] = Field(default_factory=list)
-    exploration_budget: ExplorationBudget | None = None
-
-    is_success: bool = Field(
-        description="Whether the process state was advanced. NOTE: a blocked or terminal process "
-                    "still reports is_success=True — read `blocked` / `terminal` for the outcome; "
-                    "is_success=False means the call itself could not run.",
-    )
-    run_id: str = Field(default="", description="Process run id (pass it to ts_resume)")
-    run_dir: str = Field(default="", description="Run directory holding the whole site")
-    stage: str = Field(default="", description="Stage the process stopped at")
-    waiting_for: str = Field(
-        default="",
-        description="Set when the process is waiting on a submitted compute job (e.g. 'job:12'). "
-                    "Waiting is NOT blocked: nothing needs your decision, no event is emitted, and "
-                    "the system advances the persisted pipeline when the job finishes. Do not poll or call "
-                    "ts_resume to advance ordinary successful stages.",
-    )
-    terminal: Optional[str] = Field(
-        default=None,
-        description="Terminal state: verified / candidate_only / search_failed / invalid_input. "
-                    "null while the process can still advance. `search_failed` is NOT a claim that "
-                    "the reaction is impossible.",
-    )
-    blocked: Optional[TsBlocked] = Field(
-        default=None,
-        description="Present when the process needs you to change the declaration: failure class, "
-                    "stage, atom-level details and which declaration items to fix.",
-    )
-    path_kind: str = Field(
-        default="not_attempted",
-        description="How the path guess was produced: xtb_path (real metadynamics path search) / "
-                    "xtb_path_failed (the engine ran but produced no usable guess) / "
-                    "idpp_fallback (xtb unavailable: a DEGRADED interpolation route) / "
-                    "not_attempted (no path search was started).",
-    )
-    intervention_count: int = Field(default=0, description="How many times ts_resume was called")
-    stage_records: list[TsStageRecord] = Field(
-        default_factory=list, description="Per-stage outcome, including not_implemented stages"
-    )
-    evidence_candidates: list[str] = Field(
-        default_factory=list,
-        description="Small artifacts that may be bound as evidence. Per-iteration trajectory frames "
-                    "are deliberately excluded.",
-    )
-    message: str = Field(default="", description="Status or error message")
+class TsInspect_input_schema(input_schema):
+    model_config = ConfigDict(extra='forbid')
+    run_id: str = Field(min_length=1)
+    workspace_dir: str | None = None
 
 
-def _to_output(record: TsProcessRecord) -> TsProcess_output_schema:
-    if record.terminal is not None:
-        headline = (
-            f"{record.run_id} reached terminal state '{record.terminal}' at stage '{record.stage}'."
-        )
-        try:
-            detail = record.stage_record(record.stage).detail
-        except KeyError:
-            detail = ""
-        if detail:
-            # 终态的原因要能直接被 agent 读到（否则它只有状态没有依据）
-            headline += f" {detail}"
-    elif record.waiting_for:
-        headline = (
-            f"{record.run_id} is waiting on {record.waiting_for} at stage '{record.stage}'; the "
-            "system advances from compute completion; do not poll or call ts_resume for normal completion."
-        )
-    elif record.blocked is not None:
-        headline = (
-            f"{record.run_id} is blocked at stage '{record.blocked.stage}' "
-            f"({record.blocked.failure_class}): {record.blocked.message}"
-        )
-    else:
-        headline = f"{record.run_id} is at stage '{record.stage}' and can advance."
-    return TsProcess_output_schema(
-        is_success=True,
-        catalog_id=record.catalog_id,partition_revision=record.partition_revision,selected_candidate_id=record.selected_candidate_id,
-        selection_decision_id=record.selection_decision_id,cards_path=record.cards_path,
-        decision_needed=bool(record.blocked and record.catalog_id),
-        legal_actions=['select_candidate','refine_representative','supplement_sampling','propose_adjustment','stop'] if record.blocked and record.catalog_id else [],
-        exploration_budget=record.exploration_budget,
-        run_id=record.run_id,
-        run_dir=record.run_dir,
-        stage=record.stage,
-        waiting_for=record.waiting_for,
-        terminal=record.terminal,
-        blocked=record.blocked,
-        path_kind=record.path_kind,
-        intervention_count=record.intervention_count,
-        stage_records=record.stage_records,
-        evidence_candidates=list(record.evidence_candidates),
-        message=headline,
-    )
+class TsProcess_output_schema(TsProcessView, output_schema):
+    is_success: bool = True
+    receipt: TsRevisionReceipt | None = None
 
 
-def _resolve_workspace(tool: Tool, value: Optional[str]) -> str:
-    """工作区根目录：显式值走既有路径语义；否则用绑定 agent 的工作目录。"""
+def _resolve_workspace(tool: Tool, value: str | None) -> str:
     if value:
         return resolve_tool_path(tool, value)
-    subagent = getattr(tool, "subagent", None)
-    root = getattr(subagent, "working_directory", None)
+    root = getattr(getattr(tool, 'subagent', None), 'working_directory', None)
     if not root:
-        raise ValueError(
-            "no workspace_dir was given and no Agent working directory is bound; pass "
-            "workspace_dir explicitly"
-        )
+        raise ValueError('no workspace_dir or Agent working directory is bound')
     return str(root)
+
+
+def _to_output(record, *, can_write=True):
+    from cloudra.services.ts_pipeline_context import pipeline_database
+    if record.pipeline_id:
+        view = inspect_process(pipeline_database(), project_id=record.owner_conversation_id,
+                               run_id=record.run_id, workspace_dir=record.workspace_dir, can_write=can_write)
+    else:
+        view = build_process_view(record.model_dump(mode='json'), [], can_write=can_write)
+    return TsProcess_output_schema(**view.model_dump())
+
+
+def _read_resume_record(db, workspace, run_id, project):
+    from cloudra.services.ts_pipeline_store import read_process_snapshot
+    state, jobs = read_process_snapshot(db, project_id=project, run_id=run_id, workspace_dir=workspace)
+    if state.get('format_version') != 3:
+        raise ValueError('Unsupported TS input format; existing compute jobs remain intact.')
+    record = TsProcessRecord.model_validate(state)
+    states = {job['job_id']: job['state'] for job in jobs}
+    for step in [*record.job_steps, *([record.scan_step] if record.scan_step else [])]:
+        if step.job_id in states:
+            step.state = states[step.job_id]
+    return record
 
 
 class TsPrepare(Tool):
     tool_id: str = 't-59'
     tool_name: str = 'ts_prepare'
-    tool_description: str = description
+    tool_description: str = 'Create one durable TS path with grouped explicit scientific inputs. Successful jobs automatically advance. Missing inputs or failed evidence stop at an inspectable checkpoint. Use ts_resume for future revisions on this run; ts_inspect reads state without advancing.'
     input_schema: Any = TsPrepare_input_schema
     output_schema: Any = TsProcess_output_schema
 
-    def is_write(self) -> bool:
+    def is_write(self):
         return True
 
-    async def tool_call(self, user_input: TsPrepare_input_schema, session: Session) -> TsProcess_output_schema:
+    async def tool_call(self, user_input: TsPrepare_input_schema, session: Session):
         import asyncio
-
         try:
-            # 工作区解析失败（没给也没绑定工作目录）属调用错误，必须回 schema 而不是抛出去
+            from cloudra.tools.core.permission_model import Permission
+            if not self.subagent.permission_all() & Permission.WRITE:
+                raise ValueError('TS mutation requires producer write permission')
             workspace = _resolve_workspace(self, user_input.workspace_dir)
-            # 归属与 submit_compute_job 同一来源：项目 conversation_id + 调用 agent 的
-            # session.id——作业终态推送只认这两个字段
-            request = TsStartRequest(
-                request_key=user_input.request_key,
-                candidate_catalog=user_input.candidate_catalog,compute_cpus=user_input.compute_cpus,compute_memory_mb=user_input.compute_memory_mb,
-                exploration_budget=user_input.exploration_budget,
-                compute_estimates=user_input.compute_estimates,
-                declaration=normalize_ts_atoms(user_input.declaration, engine=user_input.declaration.engine),
-                workspace_dir=workspace,
-                owner_conversation_id=getattr(self.subagent, "conversation_id", None) or "",
-                owner_session_id=getattr(session, "id", None) if session else None,
-            )
-            # 阶段推进是 CPU + 子进程 + 文件 IO，必须离开事件循环
+            request = TsStartRequest(input=normalize_ts_input_atoms(user_input.input, atom_tables={}),
+                workspace_dir=workspace, request_key=user_input.request_key,
+                owner_conversation_id=self.subagent.conversation_id,
+                owner_session_id=session.id if session else None)
             record = await asyncio.to_thread(start, request)
-        except Exception as exc:  # noqa: BLE001 - 起不来就是工具调用失败，如实返回
-            return TsProcess_output_schema(
-                is_success=False, message=f"ts_prepare could not start a run: {exc}"
-            )
-        return _to_output(record)
+            return await asyncio.to_thread(_to_output, record)
+        except (ValueError, OSError) as exc:
+            return TsProcess_output_schema(is_success=False, message=f'ts_prepare: {exc}')
 
 
 class TsResume(Tool):
     tool_id: str = 't-60'
     tool_name: str = 'ts_resume'
-    tool_description: str = description
+    tool_description: str = 'Revise input groups on the existing TS path. Omitted fields remain; optional null clears; lists, methods and typed sources replace. Requires reason, expected_revision and stable request_key; failures require relevant recovery evidence. Active jobs prevent revisions. Use ts_inspect for reads.'
     input_schema: Any = TsResume_input_schema
     output_schema: Any = TsProcess_output_schema
 
-    def is_write(self) -> bool:
+    def is_write(self):
         return True
 
-    async def tool_call(self, user_input: TsResume_input_schema, session: Session) -> TsProcess_output_schema:
+    async def tool_call(self, user_input: TsResume_input_schema, session: Session):
         import asyncio
 
+        from cloudra.services.ts_pipeline_context import pipeline_database
+        from cloudra.services.ts_pipeline_store import get_revision_receipt
         try:
+            from cloudra.tools.core.permission_model import Permission
+            if not self.subagent.permission_all() & Permission.WRITE:
+                raise ValueError('TS mutation requires producer write permission')
             workspace = _resolve_workspace(self, user_input.workspace_dir)
-        except ValueError as exc:
-            return TsProcess_output_schema(
-                is_success=False, run_id=user_input.run_id, message=str(exc)
-            )
-        try:
-            record = await asyncio.to_thread(load_record, workspace, user_input.run_id)
-        except Exception as exc:  # noqa: BLE001 - 找不到运行目录就是调用错误
-            return TsProcess_output_schema(
-                is_success=False,
-                run_id=user_input.run_id,
-                message=(
-                    f"ts_resume could not load run {user_input.run_id!r} from {workspace}: {exc}. "
-                    "Check the run_id returned by ts_prepare."
-                ),
-            )
-        try:
-            if record.pipeline_id:
-                caller=(getattr(self.subagent,'conversation_id',None) or '',getattr(session,'id',None) if session else None)
-                if caller!=(record.owner_conversation_id,record.owner_session_id):
-                    raise ValueError('TS process belongs to a different project or owner')
-            adjustment = normalize_ts_atoms(user_input.adjustment, engine=record.declaration.engine)
-            for retry in (adjustment.endpoint_retry,adjustment.endpoint_seed_retry):
-                if retry is not None:
-                    retry.seed_xyz_path=resolve_tool_path(self,retry.seed_xyz_path)
-            record = await asyncio.to_thread(resume, record, adjustment)
-        except ValueError as exc:
-            # 终态不可续：明确报出终态与原因，不静默重开
-            return TsProcess_output_schema(
-                is_success=False,
-                run_id=record.run_id,
-                run_dir=record.run_dir,
-                stage=record.stage,
-                terminal=record.terminal,
-                message=str(exc),
-            )
-        except Exception as exc:  # noqa: BLE001
-            return TsProcess_output_schema(
-                is_success=False,
-                run_id=user_input.run_id,
-                message=f"ts_resume could not advance run {user_input.run_id!r}: {exc}",
-            )
-        return _to_output(record)
-
-
-def get_class():
-    return TsPrepare
-
-
-class TsInspect_input_schema(input_schema):
-    run_id: str = Field(min_length=1)
-    workspace_dir: str | None = None
-
-
-class TsInspect_output_schema(TsProcessView, output_schema):
-    is_success: bool = True
+            record = await asyncio.to_thread(_read_resume_record, pipeline_database(), workspace, user_input.run_id, self.subagent.conversation_id)
+            if (self.subagent.conversation_id, session.id if session else None) != (record.owner_conversation_id, record.owner_session_id):
+                raise ValueError('TS process belongs to a different project or owner')
+            request = TsResumeRequest.model_validate(user_input.model_dump(exclude={'run_id', 'workspace_dir'}, exclude_unset=True))
+            request.changes = normalize_ts_input_atoms(request.changes, atom_tables={})
+            record = await asyncio.to_thread(resume, record, request)
+            out = await asyncio.to_thread(_to_output, record)
+            out.receipt = await asyncio.to_thread(get_revision_receipt, pipeline_database(), process_id=record.pipeline_id, request_key=request.request_key)
+            return out
+        except (ValueError, OSError) as exc:
+            return TsProcess_output_schema(is_success=False, run_id=user_input.run_id, message=f'ts_resume: {exc}')
 
 
 class TsInspect(Tool):
@@ -317,22 +132,27 @@ class TsInspect(Tool):
     tool_name: str = 'ts_inspect'
     tool_description: str = 'Read authoritative TS state, jobs, methods, evidence and missing inputs. Does not advance, retry or change a process. Same-project read-only reviewers may inspect another agent’s run.'
     input_schema: Any = TsInspect_input_schema
-    output_schema: Any = TsInspect_output_schema
+    output_schema: Any = TsProcess_output_schema
 
-    def is_read(self) -> bool:
+    def is_read(self):
         return True
 
-    async def tool_call(self, user_input: TsInspect_input_schema, session: Session) -> TsInspect_output_schema:
+    async def tool_call(self, user_input: TsInspect_input_schema, session: Session):
         import asyncio
 
         from cloudra.services.ts_pipeline_context import pipeline_database
         from cloudra.tools.core.permission_model import Permission
+        try:
+            workspace = _resolve_workspace(self, user_input.workspace_dir)
+            permissions = self.subagent.permission_all()
+            if not permissions & Permission.READ:
+                raise ValueError('TS inspection requires read permission')
+            view = await asyncio.to_thread(inspect_process, pipeline_database(), project_id=self.subagent.conversation_id,
+                run_id=user_input.run_id, workspace_dir=workspace, can_write=bool(permissions & Permission.WRITE), owner_id=session.id if session else None)
+            return TsProcess_output_schema(**view.model_dump())
+        except (ValueError, OSError) as exc:
+            return TsProcess_output_schema(is_success=False, run_id=user_input.run_id, message=f'ts_inspect: {exc}')
 
-        workspace = _resolve_workspace(self, user_input.workspace_dir)
-        permissions = self.subagent.permission_all()
-        if not permissions & Permission.READ:
-            raise ValueError('TS inspection requires read permission')
-        view = await asyncio.to_thread(inspect_process, pipeline_database(),
-            project_id=self.subagent.conversation_id, run_id=user_input.run_id, workspace_dir=workspace,
-            can_write=bool(permissions & Permission.WRITE))
-        return TsInspect_output_schema(**view.model_dump())
+
+def get_class():
+    return TsPrepare

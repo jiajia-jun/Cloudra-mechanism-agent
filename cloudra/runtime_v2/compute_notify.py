@@ -76,8 +76,10 @@ class ComputeNotifyBroker:
     async def ensure_project(self, project_id: str) -> None:
         """项目打开时立即扫一次该项目，不等下个 tick。"""
         if project_id in self.core.projects:
+            from cloudra.services.ts_pipeline_context import use_runtime_authority
             from cloudra.tools.core.ts_pipeline_driver import reconcile_processes
-            await asyncio.to_thread(reconcile_processes,ComputeDB(),project_id)
+            with use_runtime_authority(self.core):
+                await asyncio.to_thread(reconcile_processes,ComputeDB(),project_id)
         await self._poll_project(project_id)
 
     async def _poll_loop(self) -> None:
@@ -240,8 +242,10 @@ class ComputeNotifyBroker:
     ) -> None:
         if project_id not in self.core.projects:
             return
+        from cloudra.services.ts_pipeline_context import use_runtime_authority
         from cloudra.tools.core.ts_pipeline_driver import handle_process_job_terminal
-        pipeline = await asyncio.to_thread(handle_process_job_terminal, ComputeDB(), task_id)
+        with use_runtime_authority(self.core):
+            pipeline = await asyncio.to_thread(handle_process_job_terminal, ComputeDB(), task_id)
         if pipeline is not None and pipeline['status'] in ('waiting', 'running'):
             await asyncio.to_thread(self._mark_notified, task_id)
             return
@@ -252,7 +256,11 @@ class ComputeNotifyBroker:
             content = await self._content_for(task_id, state)
             if pipeline is not None:
                 record = pipeline['record']
-                content += f"\nTS process {record['run_id']}: {pipeline['status']}; terminal={record['terminal']}; blocked={record['blocked']}"
+                import json
+
+                from cloudra.tools.core.ts_state_view import recorded_notification_view
+                view = await asyncio.to_thread(recorded_notification_view, ComputeDB(), record)
+                content += '\nTS state: ' + json.dumps(view, ensure_ascii=False)
             snapshot_note, complete = await self._snapshot_core_evidence(
                 project_id, task_id, session_id
             )

@@ -62,6 +62,7 @@ class FileConformer(InputModel):
     xyz_path: str = Field(min_length=1)
     mol_path: str | None = None
     evidence_refs: list[str] = Field(default_factory=list)
+    optimization: TsCalculation | None = None
 
 
 class CatalogConformer(InputModel):
@@ -69,6 +70,7 @@ class CatalogConformer(InputModel):
     catalog_id: str = Field(min_length=1)
     candidate_id: str = Field(min_length=1)
     partition_revision: str = Field(min_length=1)
+    optimization: TsCalculation | None = None
 
 
 class RotatedConformer(InputModel):
@@ -122,8 +124,15 @@ class ProvidedGuess(InputModel):
 TsGuess = Annotated[XtbPathGuess | ScanGuess | ProvidedGuess, Field(discriminator="kind")]
 
 
+class EndpointSeed(InputModel):
+    kind: Literal['file']
+    xyz_path: str = Field(min_length=1)
+    mol_path: str | None = None
+    evidence_refs: list[str] = Field(min_length=1)
+
+
 class EndpointVerification(InputModel):
-    seed: ConformerSource | None = None
+    seed: EndpointSeed | None = None
     optimization: TsCalculation | None = None
     frequency: TsCalculation | None = None
 
@@ -211,7 +220,7 @@ class TsRecovery(InputModel):
 
 
 class TsResumeRequest(InputModel):
-    changes: TsInputChanges
+    changes: TsInputChanges = Field(default_factory=TsInputChanges)
     reason: str = Field(min_length=1)
     request_key: str = Field(min_length=1)
     expected_revision: StrictInt = Field(ge=0)
@@ -225,8 +234,8 @@ class TsResumeRequest(InputModel):
         return value
 
 
-def normalize_ts_input_atoms(value: TsInput, *, atom_tables: dict) -> TsInput:
-    data = value.model_dump(mode="json")
+def normalize_ts_input_atoms(value: TsInput | TsInputChanges, *, atom_tables: dict) -> TsInput | TsInputChanges:
+    data = value.model_dump(mode="json", exclude_unset=isinstance(value, TsInputChanges))
 
     def indices(values, base, side="reactant"):
         count = len(atom_tables[side]) if side in atom_tables else None
@@ -234,20 +243,25 @@ def normalize_ts_input_atoms(value: TsInput, *, atom_tables: dict) -> TsInput:
             raise ValueError(f"{side} atom references must use base {base} and the bound atom table")
         return [atom - base for atom in values]
 
-    reaction = data["reaction"]
-    reaction["atom_map"] = indices(reaction["atom_map"], 1)
-    reaction["reaction_center"] = [indices(pair, 1) for pair in reaction["reaction_center"]]
-    guidance = data["conformers"]["guidance"]
-    guidance["ring_order"] = indices(guidance["ring_order"], 1)
-    for window in guidance["distance_filters"]:
+    reaction = data.get("reaction") or {}
+    if reaction.get("atom_map") is not None:
+        reaction["atom_map"] = indices(reaction["atom_map"], 1)
+    if reaction.get("reaction_center") is not None:
+        reaction["reaction_center"] = [indices(pair, 1) for pair in reaction["reaction_center"]]
+    conformers = data.get("conformers") or {}
+    guidance = conformers.get("guidance") or {}
+    if guidance.get("ring_order") is not None:
+        guidance["ring_order"] = indices(guidance["ring_order"], 1)
+    for window in guidance.get("distance_filters") or []:
         window["atoms"] = indices(window["atoms"], 1)
     for side in ("reactant", "product"):
-        for source in (data["conformers"][side], data["verification"][f"{side}_endpoint"]["seed"]):
+        endpoint = (data.get("verification") or {}).get(f"{side}_endpoint") or {}
+        for source in (conformers.get(side), endpoint.get("seed")):
             if source and source["kind"] == "rotate_about_bond":
                 source["atoms"] = indices(source["atoms"], 1, side)
-    guess = data["guess"]
+    guess = data.get("guess")
     if guess and guess["kind"] == "scan":
         base = atom_index_base(guess["calculation"]["engine"])
         for row in guess["scans"] + guess["freeze"]:
             row["atoms"] = indices(row["atoms"], base)
-    return TsInput.model_validate(data)
+    return type(value).model_validate(data)

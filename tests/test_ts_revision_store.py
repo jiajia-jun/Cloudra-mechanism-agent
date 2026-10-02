@@ -3,7 +3,6 @@ from copy import deepcopy
 import pytest
 
 from cloudra.persistence.database import ComputeDB
-from tests.test_ts_inputs import input_payload
 from tests.test_ts_pipeline_store import job_payload, payload
 
 
@@ -13,21 +12,22 @@ def revision_fixture(tmp_path):
 
     db = ComputeDB(data_dir=tmp_path).init()
     process = create_process(db, request_key="prepare", payload=payload())
-    value = TsInput.model_validate(input_payload())
+    value = TsInput.model_validate(payload()['input'])
     request = TsResumeRequest(
         changes=TsInputChanges.model_validate({"verification": {"irc": {"engine": "orca", "method": "b97-3c", "keywords": ""}}}),
         reason="supply IRC method", request_key="resume-1", expected_revision=0,
     )
-    state = dict(pipeline_id=process["process_id"], owner_conversation_id="project", owner_session_id="owner",
+    state = dict(run_id='revision', run_dir=str(tmp_path / 'run'), workspace_dir=payload()['workspace_dir'],
+                 pipeline_id=process["process_id"], owner_conversation_id="project", owner_session_id="owner",
                  format_version=3, declaration_revision=2, input=apply_input_changes(value, request.changes).model_dump(mode="json"),
-                 stage="refine", blocked=None, waiting_for=None, terminal=None)
+                 stage="refine", blocked=None, waiting_for='', terminal=None)
     return db, process["process_id"], request, state
 
 
 def receipt(request, **overrides):
     from cloudra.services.ts_pipeline_store import TsRevisionReceipt, revision_request_digest
 
-    data = dict(request_key=request.request_key, request_digest=revision_request_digest(request),
+    data = dict(request_key=request.request_key, request_digest=revision_request_digest(request), reason=request.reason,
                 previous_revision=request.expected_revision, revision=request.expected_revision + 1,
                 previous_input_revision=1, input_revision=2,
                 changes=["verification.irc"], retained=[], invalidated=[], recovery=None, released_action_keys=[])
@@ -47,6 +47,16 @@ def test_replay_after_response_loss_reuses_revision_and_jobs(tmp_path):
     with db.connect() as con:
         assert con.execute("SELECT COUNT(*) FROM ts_pipeline_revision_receipts").fetchone()[0] == 1
         assert con.execute("SELECT COUNT(*) FROM compute_jobs").fetchone()[0] == 0
+
+
+def test_receipt_cannot_accept_an_undeclared_input_change(tmp_path):
+    from cloudra.services.ts_pipeline_store import commit_input_revision, get_process
+    db, pid, request, state = revision_fixture(tmp_path)
+    state['input']['reaction']['charge'] += 1
+    before = get_process(db, pid)
+    with pytest.raises(ValueError,match='accepted request'):
+        commit_input_revision(db,process_id=pid,request=request,record=state,receipt=receipt(request))
+    assert get_process(db,pid) == before
 
 
 def test_conflicting_key_and_stale_revision_do_not_mutate(tmp_path):

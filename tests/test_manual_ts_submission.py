@@ -108,16 +108,17 @@ def test_input_inspection_recognizes_ts_irc(engine, content):
 
 @pytest.mark.parametrize("purpose,content", [
     ("ts_opt", "! B3LYP def2-SVP OptTS\n"),
-    ("irc_forward", "! B3LYP def2-SVP IRC\n"),
+    ("irc", "! B3LYP def2-SVP IRC\n"),
 ])
 def test_durable_process_can_queue_ts_and_irc(tmp_path, queue_admission, purpose, content):
-    from cloudra.tools.core.ts_process import TsDeclaration, TsProcessRecord, _submit_step
+    from cloudra.tools.core.ts_process import TsProcessRecord, _submit_step
+    from tests.ts_fixtures import calculation_input
 
     path = tmp_path / "workflow.inp"
-    path.write_text(content, encoding="utf-8")
+    path.write_text(content + "* xyz 0 1\nO 0 0 0\n*\n", encoding="utf-8")
     record = TsProcessRecord(
         run_id="ts_0001", run_dir=str(tmp_path), workspace_dir=str(tmp_path),
-        declaration=TsDeclaration(
+        input=calculation_input(
             reactant_smiles="C", product_smiles="C", method="b3lyp/def2svp",
         ), owner_conversation_id="project", owner_session_id="agent-session",
     )
@@ -128,3 +129,6 @@ def test_durable_process_can_queue_ts_and_irc(tmp_path, queue_admission, purpose
     assert jobs[0]["id"] == job_id
     assert jobs[0]["conversation_id"] == "project"
     assert jobs[0]["session_id"] == "agent-session"
+
+
+pytestmark = pytest.mark.usefixtures("ts_producer_authority")

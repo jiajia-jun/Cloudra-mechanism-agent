@@ -16,6 +16,9 @@ class PermissionStage:
     name = "permission"
 
     async def before_tool(self, ctx: PipelineContext, call: ToolCall) -> PolicyResult:
+        from cloudra.tools.capabilities import is_dag_compute_entry
+        if is_dag_compute_entry(call.name, call.arguments) and not ctx.capabilities.permissions.write:
+            return PolicyResult.block("Compute production requires write permission in the current task")
         tools = set(ctx.capabilities.tools)
         if "*" not in tools and call.name not in tools:
             return PolicyResult.block(
@@ -39,3 +42,11 @@ class PermissionStage:
 
     async def before_llm(self, ctx: PipelineContext, messages: list[dict]) -> None:
         return None
+
+
+def require_delegation_permissions(caller, target):
+    """A task cannot gain effective permissions by delegating its instruction."""
+    from cloudra.runtime_v2.schemas import CommandRejected
+    missing = [name for name, granted in target.model_dump().items() if granted and not getattr(caller,name)]
+    if missing:
+        raise CommandRejected('forbidden', 'Delegation would grant permissions absent from the caller: '+', '.join(missing))

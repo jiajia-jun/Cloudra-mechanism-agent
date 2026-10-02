@@ -24,6 +24,7 @@ class TsEvidenceReference(CatalogModel):
 class TsRevisionReceipt(CatalogModel):
     request_key: str = Field(min_length=1)
     request_digest: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
     previous_revision: int = Field(ge=0)
     revision: int = Field(ge=1)
     previous_input_revision: int = Field(ge=1)
@@ -69,7 +70,7 @@ def commit_input_revision(db: ComputeDB, *, process_id: str, request: TsResumeRe
                 raise ValueError('stale process revision')
             if (record['owner_conversation_id'], record['owner_session_id']) != scope[:2] or record['pipeline_id'] != process_id:
                 raise ValueError('revision owner mismatch')
-            if (receipt.request_key != request.request_key or receipt.request_digest != digest
+            if (receipt.request_key != request.request_key or receipt.request_digest != digest or receipt.reason != request.reason
                     or receipt.previous_revision != scope[2] or receipt.revision != scope[2] + 1
                     or receipt.previous_input_revision != scope[3] or receipt.input_revision != scope[3] + 1
                     or record['declaration_revision'] != receipt.input_revision):
@@ -80,7 +81,27 @@ def commit_input_revision(db: ComputeDB, *, process_id: str, request: TsResumeRe
             if active:
                 raise ValueError('active stage job prevents input revision')
             value = TsInput.model_validate(record['input'])
+            from cloudra.tools.core.ts_inputs import apply_input_changes
+            from cloudra.tools.core.ts_process import TsProcessRecord
+            prior_input = con.execute('SELECT payload FROM ts_pipeline_declarations WHERE process_id=? AND declaration_revision=?',
+                                      (process_id, scope[3])).fetchone()
+            expected_input = apply_input_changes(TsInput.model_validate_json(prior_input[0]), request.changes)
+            if value != expected_input:
+                raise ValueError('revision input differs from the accepted request')
+            validated_record = TsProcessRecord.model_validate(record)
+            validated_record.revision = receipt.revision
+            accepted_record = validated_record.model_dump(mode='json')
             for ref in receipt.retained + receipt.invalidated:
+                if ref.job_id is None:
+                    previous_record = json.loads(con.execute('SELECT record FROM ts_pipeline_processes WHERE process_id=?', (process_id,)).fetchone()[0])
+                    source = next((step for step in previous_record.get('job_steps', [])
+                        if step.get('source_input_revision') == ref.declaration_revision and step.get('stage_key') == ref.stage_key and step.get('external_source')), None)
+                    if source is None:
+                        raise ValueError('revision external evidence binding mismatch')
+                    for path, artifact_digest in (source['external_source']['artifact_hashes'].items() if ref in receipt.retained else []):
+                        if hashlib.sha256(Path(path).read_bytes()).hexdigest() != artifact_digest:
+                            raise ValueError('revision external evidence artifact changed')
+                    continue
                 binding = con.execute('SELECT job_id FROM ts_pipeline_stages WHERE process_id=? AND '
                                       'declaration_revision=? AND stage_key=? AND attempt=?',
                                       (process_id, ref.declaration_revision, ref.stage_key, ref.attempt)).fetchone()
@@ -107,7 +128,7 @@ def commit_input_revision(db: ComputeDB, *, process_id: str, request: TsResumeRe
             con.execute('INSERT INTO ts_pipeline_declarations VALUES (?,?,?)',
                         (process_id, receipt.input_revision, value.model_dump_json()))
             con.execute('UPDATE ts_pipeline_processes SET declaration_revision=?,revision=?,record=?,status=? WHERE process_id=?',
-                        (receipt.input_revision, receipt.revision, json.dumps(record, sort_keys=True), status, process_id))
+                        (receipt.input_revision, receipt.revision, json.dumps(accepted_record, sort_keys=True), status, process_id))
             for key in receipt.released_action_keys:
                 con.execute('INSERT OR IGNORE INTO exploration_released_actions SELECT process_id,action_key,? '
                             'FROM exploration_actions WHERE process_id=? AND action_key=? AND job_id IS NULL AND actual IS NULL',
@@ -122,16 +143,8 @@ class ProcessPayload(CatalogModel):
     project_id: str = Field(min_length=1)
     owner_id: str | None = None
     workspace_dir: str = Field(min_length=1)
-    declaration: dict
-    exploration_budget: ExplorationBudget | None = None
-    compute_estimates: dict[str, float] = Field(default_factory=dict)
-    candidate_catalog: dict | None = None
-    compute_cpus: int | None = Field(default=None,ge=1)
-    compute_memory_mb: int = Field(default=4096,ge=1)
+    input: TsInput
 
-    def validated(self):
-        from cloudra.tools.core.ts_process import TsDeclaration
-        return self.model_copy(update={'declaration': TsDeclaration.model_validate(self.declaration).model_dump(mode='json')})
 
 
 class StageJobPayload(CatalogModel):
@@ -171,7 +184,7 @@ class StageEvidence(CatalogModel):
 def create_process(db: ComputeDB, *, request_key: str, payload: dict) -> dict:
     if not request_key:
         raise ValueError('nonempty request key required')
-    data = ProcessPayload.model_validate(payload).validated()
+    data = ProcessPayload.model_validate(payload)
     text = data.model_dump_json()
     pid = content_digest([data.project_id, data.owner_id, request_key])
     def operation():
@@ -183,7 +196,7 @@ def create_process(db: ComputeDB, *, request_key: str, payload: dict) -> dict:
             con.execute('INSERT OR IGNORE INTO ts_pipeline_processes VALUES (?,?,?,?,?,1,0,?,NULL)',
                         (pid, request_key, data.project_id, data.owner_id, text, 'running'))
             con.execute('INSERT OR IGNORE INTO ts_pipeline_declarations VALUES (?,1,?)',
-                        (pid, json.dumps(data.declaration,sort_keys=True)))
+                        (pid, data.input.model_dump_json()))
         return get_process(db, pid)
     return retry_on_locked(operation)
 
@@ -321,64 +334,11 @@ def save_process_record(db: ComputeDB, *, process_id: str, record: dict,
                 raise ValueError('stale record declaration revision')
             if expected_revision is not None and scope[2] != expected_revision:
                 return False
+            state.revision = scope[2] + 1
             con.execute('UPDATE ts_pipeline_processes SET record=?,status=?,revision=revision+1 WHERE process_id=?',
                         (state.model_dump_json(), status, process_id))
             return True
     return retry_on_locked(operation)
-
-
-def revise_declaration(db: ComputeDB, *, process_id: str, expected_declaration_revision: int,
-                       declaration: dict) -> int:
-    from cloudra.tools.core.ts_process import TsDeclaration
-    text=TsDeclaration.model_validate(declaration).model_dump_json()
-    def operation():
-        with db.connect() as con:
-            con.execute('BEGIN IMMEDIATE')
-            current=con.execute('SELECT declaration_revision FROM ts_pipeline_processes WHERE process_id=?',(process_id,)).fetchone()
-            if current is None or current[0]!=expected_declaration_revision:
-                raise ValueError('stale declaration revision')
-            revision=current[0]+1
-            con.execute('INSERT INTO ts_pipeline_declarations VALUES (?,?,?)',(process_id,revision,text))
-            con.execute('UPDATE ts_pipeline_processes SET declaration_revision=?,revision=revision+1 WHERE process_id=?',(revision,process_id))
-            return revision
-    return retry_on_locked(operation)
-
-
-def commit_adjusted_record(db: ComputeDB, *, process_id: str, expected_declaration_revision: int,
-                           record: dict, released_action_keys: list[str]) -> None:
-    """Commit declaration, invalidated branch checkpoint and unused releases together."""
-    from cloudra.tools.core.ts_process import TsProcessRecord
-    state=TsProcessRecord.model_validate(record)
-    if state.pipeline_id!=process_id or state.declaration_revision not in (expected_declaration_revision,expected_declaration_revision+1):
-        raise ValueError('adjustment revision mismatch')
-    status='completed' if state.terminal=='verified' else 'failed' if state.terminal else 'blocked' if state.blocked else 'waiting' if state.waiting_for else 'running'
-    def operation():
-        with db.connect() as con:
-            con.execute('BEGIN IMMEDIATE')
-            scope=con.execute('SELECT project_id,owner_id,declaration_revision FROM ts_pipeline_processes WHERE process_id=?',(process_id,)).fetchone()
-            if scope is None or scope[:2]!=(state.owner_conversation_id,state.owner_session_id) or scope[2]!=expected_declaration_revision:
-                raise ValueError('stale adjustment or owner mismatch')
-            if state.declaration_revision!=expected_declaration_revision:
-                con.execute('INSERT INTO ts_pipeline_declarations VALUES (?,?,?)',(process_id,state.declaration_revision,state.declaration.model_dump_json()))
-            con.execute('UPDATE ts_pipeline_processes SET declaration_revision=?,record=?,status=?,revision=revision+1 WHERE process_id=?',
-                (state.declaration_revision,state.model_dump_json(),status,process_id))
-            if state.exploration_budget is not None:
-                old=con.execute('SELECT payload FROM exploration_budgets WHERE process_id=?',(process_id,)).fetchone()
-                if old:
-                    previous=ExplorationBudget.model_validate_json(old[0])
-                    for field in ('max_compute_actions','estimated_cpu_hours','max_model_calls'):
-                        prior=getattr(previous,field)
-                        value=getattr(state.exploration_budget,field)
-                        if prior is not None and (value is None or value>prior):
-                            raise ValueError('agent adjustment cannot raise an authorized hard budget')
-                    if previous.source!=state.exploration_budget.source:
-                        raise ValueError('budget source mismatch')
-                con.execute('INSERT INTO exploration_budgets VALUES (?,?,?,?) ON CONFLICT(process_id) DO UPDATE SET payload=excluded.payload',
-                    (process_id,state.owner_conversation_id,state.owner_session_id,state.exploration_budget.model_dump_json()))
-            for key in released_action_keys:
-                con.execute('INSERT OR IGNORE INTO exploration_released_actions SELECT process_id,action_key,? FROM exploration_actions '
-                            'WHERE process_id=? AND action_key=? AND job_id IS NULL AND actual IS NULL',('branch adjusted',process_id,key))
-    retry_on_locked(operation)
 
 
 def verify_stage_input(db: ComputeDB, job_id: int) -> str | None:

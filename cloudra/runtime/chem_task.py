@@ -73,7 +73,7 @@ def run_task(manifest_path: str) -> int:
     elif task.task=='xtb_path':
         result=run_xtb_path(XtbPathRequest(reactant_xyz=task.reactant_xyz,product_xyz=task.product_xyz,
             charge=task.charge,multiplicity=task.multiplicity,timeout=None,refinement_runs=task.refinement_runs,
-            output_dir=str(path.parent),run_label='queued_path',extra_args=['--parallel',str(task.cpus),
+            output_dir=str(path.parent),run_label='queued_path',extra_args=['--gfn','2','--parallel',str(task.cpus),
             *([f'--{task.solvation.model}',task.solvation.solvent] if task.solvation else [])]))
         result_data=result.model_dump(mode='json')
         code=result.returncode if result.returncode is not None else 1

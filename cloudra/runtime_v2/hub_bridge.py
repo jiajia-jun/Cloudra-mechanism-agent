@@ -83,17 +83,25 @@ async def _notify(
     sender: str,
     content: str,
     post_id: str | None = None,
+    author: AgentSession | None = None,
 ) -> None:
     # 统一不复活纪律（park-don't-wake）：failed/cancelled 终态 agent 不被
     # mention/call 自动 reopen——消息驻留 durable 信箱，用户显式复活后首轮
     # 即可读到。其余状态照常唤醒（策略由 dispatcher 唯一解析）。
+    wake = WakePolicy.PARK_TERMINAL
+    if author is not None:
+        from cloudra.runtime_v2.policies.permission import require_delegation_permissions
+        try:
+            require_delegation_permissions(author.capabilities.permissions, target.capabilities.permissions)
+        except CommandRejected:
+            wake = WakePolicy.NEVER
     await core.dispatcher.commit_and_deliver(
         to_session_id=target.id,
         project_id=project_id,
         content=content,
         sender=sender,
         post_id=post_id,
-        wake=WakePolicy.PARK_TERMINAL,
+        wake=wake,
     )
 
 
@@ -228,7 +236,7 @@ async def _post(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
         try:
             await _notify(
                 core, author.project_id, target, sender=author.role_id,
-                content=notification, post_id=envelope.event_id,
+                content=notification, post_id=envelope.event_id, author=author,
             )
         except EventPersistenceError:
             failed_ids.append(target_id)
@@ -525,7 +533,9 @@ async def _call(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     )
 
     if target is not None:
-        await _notify(core, author.project_id, target, sender=author.role_id, content=text)
+        from cloudra.runtime_v2.policies.permission import require_delegation_permissions
+        require_delegation_permissions(author.capabilities.permissions, target.capabilities.permissions)
+        await _notify(core, author.project_id, target, sender=author.role_id, content=text, author=author)
         return _ok(f"Called {target.id} (non-blocking).", session_id=target.id)
 
     # A missing role is a request for a new peer, independent of the caller's
@@ -565,7 +575,7 @@ async def _call(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     # an empty peer; the returned id lets the caller retry the existing one.
     for attempt in range(2):
         try:
-            await _notify(core, author.project_id, peer, sender=author.role_id, content=text)
+            await _notify(core, author.project_id, peer, sender=author.role_id, content=text, author=author)
             break
         except EventPersistenceError:
             if attempt:

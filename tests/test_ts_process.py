@@ -18,17 +18,14 @@ import pytest
 
 pytest.importorskip("rdkit", reason="ts_process requires RDKit (chem extra)")
 
+from cloudra.tools.core.ts_inputs import TsInput
 from cloudra.tools.core.ts_process import (  # noqa: E402
-    TsAdjustment,
-    TsBudget,
-    TsDeclaration,
     TsStartRequest,
-    advance,
     evidence_binding_candidates,
     load_record,
-    resume,
     start,
 )
+from tests.ts_fixtures import calculation_input
 
 
 @pytest.fixture(autouse=True)
@@ -48,8 +45,8 @@ def _path_stage_uses_fast_idpp_fallback(monkeypatch, tmp_path, request):
     original_run = runner.run_xtb_path
     def completed_fixture(record, reactant, product):
         request = runner.XtbPathRequest(reactant_xyz=reactant,product_xyz=product,
-            output_dir=str(tmp_path),timeout=None,refinement_runs=record.declaration.budget.path_refinement_runs or None,
-            extra_args=[f'--{record.declaration.path_solvation.model}',record.declaration.path_solvation.solvent] if record.declaration.path_solvation else [])
+            output_dir=str(tmp_path),timeout=None,refinement_runs=record.input.guess.refinement_runs,
+            extra_args=[f'--{record.input.guess.solvation.model}',record.input.guess.solvation.solvent] if record.input.guess.solvation else [])
         if runner.run_xtb_path is original_run:
             result = runner.XtbPathResult(run_dir=str(tmp_path),termination_reason='executable_missing')
         else:
@@ -66,7 +63,7 @@ REACTION_CENTER = [(0, 1)]  # F(0) 进攻 C(1)
 ATOM_MAP = [1, 0, 3, 4, 5, 2]  # internal zero-based mapping
 
 
-def _declaration(**overrides) -> TsDeclaration:
+def _declaration(**overrides) -> TsInput:
     payload = {
         "reactant_smiles": REACTANT,
         "product_smiles": PRODUCT,
@@ -85,12 +82,12 @@ def _declaration(**overrides) -> TsDeclaration:
         overrides["distance_filters"] = [dict(row, atoms=[i - 1 for i in row["atoms"]])
                                           for row in overrides["distance_filters"]]
     payload.update(overrides)
-    return TsDeclaration(**payload)
+    return calculation_input(**payload)
 
 
 def _start(tmp_path, **overrides):
     return start(TsStartRequest(
-        declaration=_declaration(**overrides),
+        input=_declaration(**overrides),
         workspace_dir=str(tmp_path),
         owner_conversation_id="test_project",
         owner_session_id="test_session",
@@ -104,204 +101,27 @@ _GUIDED_WINDOWS = [
 ]
 
 
-def test_guided_ts_build_selects_reactant_seed_and_derives_reaction_center(tmp_path):
-    record = _start(
-        tmp_path, reactant_smiles="CCO.O", product_smiles="CCO.O", charge=0,
-        reaction_center=[], atom_map=[], ring_order=[1, 2, 3, 10],
-        distance_filters=_GUIDED_WINDOWS,
-    )
-    assert record.blocked.stage == "map"
-    assert record.guidance_attempt == 1
-    assert Path(record.current_seed_xyz_path).is_file()
-    from cloudra.tools.core.ts_process import _read_built_xyz
-
-    assert _read_built_xyz(record, "reactant")[2] == record.current_seed_xyz_path
-    assert record.current_seed_xyz_path in record.evidence_candidates
-    assert (2, 9) in record.effective_reaction_center
-    assert (0, 9) in record.effective_reaction_center
-    assert Path(record.guidance_manifest_path).is_file()
-
-
-def test_guided_ts_does_not_apply_reactant_forming_pairs_to_product(tmp_path, monkeypatch):
-    import cloudra.tools.core.ts_process as ts_process
-
-    original = ts_process.prepare_structure
-    product_centers = []
-
-    def capture(request):
-        if request.output_dir.endswith("/product"):
-            product_centers.append(request.strategy.reaction_center)
-        return original(request)
-
-    monkeypatch.setattr(ts_process, "prepare_structure", capture)
-    record = _start(
-        tmp_path, reactant_smiles="CCO.O", product_smiles="CCO.O", charge=0,
-        reaction_center=[], atom_map=[], ring_order=[1, 2, 3, 10],
-        distance_filters=_GUIDED_WINDOWS,
-    )
-    assert record.blocked.stage == "map"
-    assert product_centers == [[]]
-
-
-def test_guidance_correction_rebuilds_and_keeps_old_attempt(tmp_path):
-    record = _start(
-        tmp_path, reactant_smiles="CCO.O", product_smiles="CCO.O", charge=0,
-        reaction_center=[], atom_map=[], ring_order=[1, 2, 3, 10],
-        distance_filters=_GUIDED_WINDOWS,
-    )
-    old_seed = record.current_seed_xyz_path
-    changed = [dict(row) for row in _GUIDED_WINDOWS]
-    changed[0] = {"atoms": [3, 10], "min_ang": 2.5, "max_ang": 4.0}
-    updated = resume(record, TsAdjustment(distance_filters=[dict(row, atoms=[i-1 for i in row["atoms"]]) for row in changed]))
-    assert updated.guidance_attempt == 2
-    assert updated.current_seed_xyz_path != old_seed
-    assert Path(old_seed).is_file() and Path(updated.current_seed_xyz_path).is_file()
-    assert old_seed not in updated.evidence_candidates
-    assert updated.blocked.stage == "map"
-
-
-def test_guidance_change_after_submitted_job_preserves_historical_branch(tmp_path):
-    record = _start(tmp_path, reactant_smiles="CCO.O",product_smiles="CCO.O",charge=0,
-        reaction_center=[],atom_map=[],ring_order=[1,2,3,10],distance_filters=_GUIDED_WINDOWS)
-    record.job_id=42
-    from cloudra.tools.core.ts_process import save_record
-    save_record(record)
-    old_revision=record.declaration_revision
-    result=resume(record,TsAdjustment(distance_filters=[]))
-    assert result.declaration_revision==old_revision+1
-    assert result.attempt_history[0].declaration_revision==old_revision
-    assert result.declaration.distance_filters==[]
 
 
 
-def test_filter_only_ts_uses_guided_generation(tmp_path, monkeypatch):
-    import cloudra.tools.core.preorganization as preorganization
-
-    calls = []
-    original = preorganization.search_guided
-    def traced(**kwargs):
-        calls.append(kwargs)
-        return original(**kwargs)
-    monkeypatch.setattr(preorganization, "search_guided", traced)
-    record = _start(
-        tmp_path, reactant_smiles="CCC", product_smiles="CCC", charge=0,
-        reaction_center=[], atom_map=[], ring_order=[],
-        distance_filters=[{"atoms": [1, 3], "min_ang": 0.5, "max_ang": 100.0}],
-    )
-    assert record.blocked.stage == "map"
-    assert Path(record.current_seed_xyz_path).is_file()
-
-    assert calls[0]["ring_order"] == []
-    assert calls[0]["distance_filters"][0]["atoms"] == [0, 2]
-    assert calls[0]["index_base"] == 0
 
 
-def test_guided_ts_no_seed_blocks_with_declared_pair_and_manifest(tmp_path, monkeypatch):
-    import cloudra.tools.core.preorganization as preorganization
-    from cloudra.tools.core.preorganization import GuidedSearchResult
-
-    def no_seed(**_kwargs):
-        return GuidedSearchResult(
-            status="no_candidate", message="No candidate qualified for pair 2-9",
-            manifest_path=str(tmp_path / "guidance_manifest.json"),
-            closest_path=str(tmp_path / "closest_attempt.xyz"),
-            diagnostics=["closest achieved distances: {'2-9': 3.4}"],
-        )
-
-    monkeypatch.setattr(preorganization, "search_guided", no_seed)
-    record = _start(
-        tmp_path, reactant_smiles="CCO.O", product_smiles="CCO.O", charge=0,
-        reaction_center=[], atom_map=[], ring_order=[1, 2, 3, 10],
-        distance_filters=_GUIDED_WINDOWS,
-    )
-    assert record.blocked.stage == "build"
-    assert record.blocked.failure_class == "guided_preorganization_failed"
-    assert "distance_filters" in record.blocked.needs
-    assert "2-9" in record.blocked.message
-    assert "guidance_manifest.json" in record.blocked.message
 
 
-def test_guided_ts_impossible_window_fails_loud_before_sampling(tmp_path):
-    record = _start(
-        tmp_path, reactant_smiles="CCO.O", product_smiles="CCO.O", charge=0,
-        reaction_center=[], atom_map=[], ring_order=[1, 2, 3, 10],
-        distance_filters=[{"atoms": [3, 10], "min_ang": 0.1, "max_ang": 0.2}],
-    )
-    assert record.blocked.failure_class == "invalid_geometry_guidance"
-    assert "2-9" in record.blocked.message
 
 
-def test_filter_only_ts_no_match_blocks_with_pair_distances(tmp_path):
-    record = _start(
-        tmp_path, reactant_smiles="CCC", product_smiles="CCC", charge=0,
-        reaction_center=[], atom_map=[], ring_order=[],
-        distance_filters=[{"atoms": [1, 3], "min_ang": 0.1, "max_ang": 0.2}],
-    )
-    assert record.blocked.failure_class == "invalid_geometry_guidance"
-    assert "0-2" in record.blocked.message
 
 
-def test_guided_validation_and_refinement_ignore_old_ts_candidate(tmp_path):
-    from cloudra.tools.core.ts_process import _validate, _write_refinement_input
-
-    record = _start(
-        tmp_path, reactant_smiles="CCO.O", product_smiles="CCO.O", charge=0,
-        reaction_center=[], atom_map=[], ring_order=[1, 2, 3, 10],
-        distance_filters=_GUIDED_WINDOWS,
-    )
-    old_run = Path(record.run_dir) / "path" / "xtb_path_runs" / "old"
-    old_run.mkdir(parents=True)
-    rows = Path(record.current_seed_xyz_path).read_text().splitlines()
-    parts = rows[2].split()
-    parts[1] = str(float(parts[1]) + 20.0)
-    rows[2] = " ".join(parts)
-    (old_run / "xtbpath_ts.xyz").write_text("\n".join(rows) + "\n")
-    record.path_kind = "xtb_path"
-    record.current_ts_guess_path = ""
-    record.blocked = None
-    _validate(record)
-    assert record.blocked is None
-    error, input_path = _write_refinement_input(record, str(tmp_path / "job"))
-    assert "no TS candidate" in error and input_path == ""
 
 
-def test_guided_resume_uses_new_path_attempt_for_reordered_product(tmp_path):
-    record = _start(
-        tmp_path, reactant_smiles="CCO.O", product_smiles="CCO.O", charge=0,
-        reaction_center=[], atom_map=list(range(1, 13)), ring_order=[1, 2, 3, 10],
-        distance_filters=_GUIDED_WINDOWS,
-    )
-    old_path = Path(record.run_dir) / "path" / "guided_attempt_0001" / "product_reordered.xyz"
-    assert old_path.is_file()
-    assert record.path_kind == "idpp_fallback"
-    changed = [dict(row) for row in _GUIDED_WINDOWS]
-    changed[0] = {"atoms": [3, 10], "min_ang": 2.5, "max_ang": 4.0}
-    updated = resume(record, TsAdjustment(distance_filters=[dict(row, atoms=[i-1 for i in row["atoms"]]) for row in changed]))
-    new_path = Path(updated.run_dir) / "path" / "guided_attempt_0002" / "product_reordered.xyz"
-    assert new_path.is_file() and old_path.is_file()
-    assert new_path != old_path
-    assert Path(updated.current_ts_guess_path).is_file()
-    assert "guided_attempt_0002/idpp_images" in updated.current_ts_guess_path
-    assert "guided_attempt_0001" not in updated.current_ts_guess_path
 
 
-def test_removing_ring_guidance_still_isolates_new_attempt_from_old_ts(tmp_path):
-    from cloudra.tools.core.ts_process import _write_refinement_input
 
-    record = _start(
-        tmp_path, reactant_smiles="CCO.O", product_smiles="CCO.O", charge=0,
-        reaction_center=[], atom_map=[], ring_order=[1, 2, 3, 10],
-        distance_filters=_GUIDED_WINDOWS,
-    )
-    stale = Path(record.run_dir) / "path" / "xtb_path_runs" / "guess_0001"
-    stale.mkdir(parents=True)
-    (stale / "xtbpath_ts.xyz").write_text(Path(record.current_seed_xyz_path).read_text())
-    updated = resume(record, TsAdjustment(ring_order=[], distance_filters=[]))
-    assert updated.guidance_attempt == 2
-    assert "guided_attempt_0002" in updated.active_attempt_dir
-    assert "guided_attempt_0002" in updated.current_reactant_prepared_path
-    error, path = _write_refinement_input(updated, str(tmp_path / "job"))
-    assert "no TS candidate" in error and not path
+
+
+
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -311,21 +131,18 @@ def test_removing_ring_guidance_still_isolates_new_attempt_from_old_ts(tmp_path)
 
 def test_missing_method_is_invalid_input_because_method_is_a_scientific_decision(tmp_path):
     """方法/基组属科学决策：不接受工具默认值，缺了就是 invalid_input（终态）。"""
-    record = _start(tmp_path, method="")
-    assert record.terminal == "invalid_input"
-    assert "method is empty" in record.stage_record("declare").detail
-    # 终态不再可推进
-    assert advance(record).terminal == "invalid_input"
+    with pytest.raises(ValueError, match="method"):
+        _start(tmp_path, method="")
 
 
 def test_empty_endpoints_are_invalid_input(tmp_path):
-    record = _start(tmp_path, reactant_smiles="")
-    assert record.terminal == "invalid_input"
+    with pytest.raises(ValueError):
+        _start(tmp_path, reactant_smiles="")
 
 
 def test_nonpositive_multiplicity_is_invalid_input(tmp_path):
-    record = _start(tmp_path, multiplicity=0)
-    assert record.terminal == "invalid_input"
+    with pytest.raises(ValueError):
+        _start(tmp_path, multiplicity=0)
 
 
 # ---------------------------------------------------------------------------
@@ -343,10 +160,10 @@ def test_run_directory_layout_and_persistence(tmp_path):
         assert (run_dir / name).exists(), name
     on_disk = json.loads((run_dir / "process.json").read_text(encoding="utf-8"))
     assert on_disk["run_id"] == record.run_id
-    assert on_disk["declaration"]["method"] == "b3lyp/def2svp"
+    assert on_disk["input"]["ts_optimization"]["method"] == "b3lyp/def2svp"
     # declare.json 单独可读（便于人核对声明，不用解析整份状态）
     declare = json.loads((run_dir / "declare.json").read_text(encoding="utf-8"))
-    assert declare["reactant_smiles"] == REACTANT
+    assert declare["reaction"]["reactant_smiles"] == REACTANT
 
 
 def test_run_ids_are_numbered_and_isolated(tmp_path):
@@ -361,7 +178,7 @@ def test_per_iteration_frames_are_confined_to_build_trajectories(tmp_path):
     record = _start(tmp_path)
     run_dir = Path(record.run_dir)
     frame_files = sorted(run_dir.rglob("frames.*"))
-    assert frame_files, "构建阶段必须留下轨迹（否则说明没跑）"
+    assert not frame_files, "No optimization or iterative trajectory was declared"
     for path in frame_files:
         # 不变量：逐迭代帧只能躺在某个 trajectories/ 目录里，且该分支必须源自 build/
         assert path.parent.parent.name == "trajectories", path
@@ -377,7 +194,7 @@ def test_evidence_candidates_never_include_per_iteration_frames(tmp_path):
     candidates = evidence_binding_candidates(record)
     assert candidates, "至少应有端点候选结构"
     assert all("trajectories" not in path for path in candidates)
-    assert all(path.endswith((".xyz", ".mol")) for path in candidates)
+    assert all(path.endswith((".xyz", ".mol", ".json")) for path in candidates)
 
 
 # ---------------------------------------------------------------------------
@@ -393,7 +210,7 @@ def test_missing_atom_map_blocks_with_an_actionable_request(tmp_path):
     assert blocked is not None
     assert blocked.stage == "map"
     assert blocked.failure_class == "atom_map_missing"
-    assert blocked.needs == ["atom_map"]
+    assert blocked.needs == ["reaction.atom_map"]
     assert "ambiguous" in blocked.message
 
 
@@ -404,8 +221,8 @@ def test_missing_atom_map_block_carries_endpoint_numbering(tmp_path):
     record = _start(tmp_path, atom_map=[])
     blocked = record.blocked
     details = "\n".join(blocked.atom_details)
-    assert "reactant atoms (0-based): 0=F, 1=C, 2=Cl, 3=H, 4=H, 5=H" in details
-    assert "product atoms (0-based): 0=C, 1=F, 2=H, 3=H, 4=H, 5=Cl" in details
+    assert "reactant atoms (1-based): 1=F, 2=C, 3=Cl, 4=H, 5=H, 6=H" in details
+    assert "product atoms (1-based): 1=C, 2=F, 3=H, 4=H, 5=H, 6=Cl" in details
     assert ".xyz" in details
     assert "reaction_mapping" in blocked.message
     assert "hydrogen" in blocked.message.lower()
@@ -435,7 +252,7 @@ def test_missing_reaction_center_blocks_with_a_reason(tmp_path):
     assert record.terminal is None
     assert record.blocked.stage == "assemble"
     assert record.blocked.failure_class == "reaction_center_missing"
-    assert record.blocked.needs == ["reaction_center"]
+    assert record.blocked.needs == ["reaction.reaction_center"]
 
 
 def test_out_of_range_reaction_center_blocks_with_built_atom_numbering(tmp_path):
@@ -445,25 +262,19 @@ def test_out_of_range_reaction_center_blocks_with_built_atom_numbering(tmp_path)
         reactant_smiles="[F-].N",
         product_smiles="[F-].N",
         reaction_center=[(0, 5)],
-        atom_map=[],
+        atom_map=[1,2,3,4,5],
     )
 
     assert record.run_id == "ts_0001"
     assert record.terminal is None
     assert record.blocked is not None
-    assert record.blocked.stage == "build"
+    assert record.blocked.stage == "assemble"
     assert record.blocked.failure_class == "invalid_reaction_center"
-    assert record.blocked.needs == ["reaction_center"]
-    assert "0-based" in record.blocked.message
-    assert "0..4" in record.blocked.message
-    assert any("0=F" in detail and "4=H" in detail for detail in record.blocked.atom_details)
+    assert record.blocked.needs == ["reaction.reaction_center"]
+    assert "1-based" in record.blocked.message
+    assert "1..5" in record.blocked.message
+    assert any("1=F" in detail and "5=H" in detail for detail in record.blocked.atom_details)
     assert load_record(str(tmp_path), record.run_id).blocked == record.blocked
-
-    resumed = resume(record, TsAdjustment(reaction_center=[(0, 1)]))
-    assert resumed.run_id == record.run_id
-    assert resumed.blocked is not None
-    assert resumed.blocked.stage == "map"
-    assert resumed.blocked.needs == ["atom_map"]
 
 
 def test_m16_product_reaction_center_reports_its_five_built_atoms(tmp_path):
@@ -478,13 +289,13 @@ def test_m16_product_reaction_center_reports_its_five_built_atoms(tmp_path):
     )
 
     assert record.blocked is not None
-    assert record.blocked.stage == "build"
+    assert record.blocked.stage == "assemble"
     assert record.blocked.failure_class == "invalid_reaction_center"
-    assert record.blocked.needs == ["reaction_center"]
-    assert "product" in record.blocked.message
-    assert "0..4" in record.blocked.message
+    assert record.blocked.needs == ["reaction.reaction_center"]
+    assert "reactant" in record.blocked.message
+    assert "1..5" in record.blocked.message
     artifact = json.loads(
-        (Path(record.run_dir) / "build" / "product" / "prepared_structure.json").read_text()
+        (Path(record.run_dir) / "build" / "input_0001" / "product" / "prepared_structure.json").read_text()
     )
     assert [atom["symbol"] for atom in artifact["atom_identities"]] == ["O", "C", "O", "H", "H"]
     assert artifact["atom_identities"][3]["component_id"] == "frag1"
@@ -504,8 +315,8 @@ def test_single_fragment_reaction_center_is_checked_after_atom_mapping(tmp_path)
     assert record.blocked is not None
     assert record.blocked.stage == "assemble"
     assert record.blocked.failure_class == "invalid_reaction_center"
-    assert record.blocked.needs == ["reaction_center"]
-    assert "0..4" in record.blocked.message
+    assert record.blocked.needs == ["reaction.reaction_center"]
+    assert "1..5" in record.blocked.message
 
 
 def test_charge_mismatch_is_invalid_input_not_a_block(tmp_path):
@@ -518,7 +329,7 @@ def test_charge_mismatch_is_invalid_input_not_a_block(tmp_path):
 def test_built_endpoints_are_delivered_through_the_shared_builder(tmp_path):
     """build 阶段必须真的走共享构建器（留下 prepared_structure.json + 轨迹）。"""
     record = _start(tmp_path)
-    build_dir = Path(record.run_dir) / "build"
+    build_dir = Path(record.run_dir) / "build" / "input_0001"
     assert (build_dir / "reactant" / "prepared_structure.json").is_file()
     assert (build_dir / "product" / "prepared_structure.json").is_file()
 
@@ -528,56 +339,12 @@ def test_built_endpoints_are_delivered_through_the_shared_builder(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_resume_supplies_the_missing_declaration_and_continues(tmp_path):
-    """resume 只接受局部覆盖；此处用文件级 IDPP 替身隔离 xTB 路径收敛。"""
-    record = _start(tmp_path, atom_map=[])
-    assert record.blocked.stage == "map"
-    record = resume(record, TsAdjustment(atom_map=ATOM_MAP))
-    assert record.intervention_count == 1
-    assert record.stage_record("map").status == "done"
-    # map 通过后进入路径/提交阶段；IDPP 可能无法提供 TS 候选，不能据此判 resume 失败。
-    assert record.stage_record("guess").status == "done"
-    assert record.blocked is None or record.blocked.stage != "map"
 
 
-def test_resume_is_recorded_and_bounded(tmp_path):
-    """干预次数计入记录；超预算即落终态，不无限续。"""
-    record = _start(tmp_path, atom_map=[], budget=TsBudget(max_interventions=1))
-    record = resume(record, TsAdjustment(atom_map=ATOM_MAP))
-    assert record.intervention_count == 1
-    # 再阻塞一次（把反应中心清空），resume 后预算耗尽
-    record = resume(record, TsAdjustment(reaction_center=[]))
-    assert record.intervention_count == 2
-    assert record.terminal == "search_failed"
-    detail = record.stage_record(record.stage).detail
-    assert "budget" in detail
-    # 搜索失败绝不等于反应不可能
-    assert "NOT a claim" in detail
 
 
-def test_empty_resume_queries_without_progress_or_intervention(tmp_path):
-    """A no-adjustment resume after a job finishes is progress, not an agent intervention."""
-    from cloudra.tools.core.ts_process import TsProcessRecord
-
-    record = TsProcessRecord(
-        run_id="ts_notify", run_dir=str(tmp_path), workspace_dir=str(tmp_path),
-        declaration=_declaration(budget=TsBudget(max_interventions=0)),
-        stage="refine", waiting_for="job:1",
-    )
-    # No job steps means refine blocks, but its automatic continuation must not
-    # consume the intervention budget or falsely report search_failed.
-    continued = resume(record, TsAdjustment())
-    assert continued.intervention_count == 0
-    assert continued.blocked is None
-    assert continued.waiting_for == "job:1"
-    assert continued.model_dump() == record.model_dump()
 
 
-def test_terminal_run_is_not_resumed(tmp_path):
-    record = _start(tmp_path, method="")
-    assert record.terminal == "invalid_input"
-    with pytest.raises(ValueError):
-        resume(record, TsAdjustment(atom_map=ATOM_MAP))
 
 
 def test_load_record_round_trips_from_disk(tmp_path):
@@ -596,48 +363,25 @@ def test_only_blocked_and_terminal_events_are_emitted(tmp_path):
     """阶段推进不推事件（避免污染上下文）；阻塞与终态才推。"""
     events: list[tuple[str, dict]] = []
     start(
-        TsStartRequest(declaration=_declaration(atom_map=[]), workspace_dir=str(tmp_path)),
+        TsStartRequest(input=_declaration(atom_map=[]), workspace_dir=str(tmp_path)),
         event_sink=lambda name, payload: events.append((name, payload)),
     )
     assert [name for name, _ in events] == ["ts.blocked"]
     payload = events[0][1]
-    assert payload["needs"] == ["atom_map"]
-    assert payload["failure_class"] == "atom_map_missing"
+    assert payload["blocked"]["needs"] == ["reaction.atom_map"]
+    assert payload["blocked"]["failure_class"] == "atom_map_missing"
 
 
 def test_terminal_event_carries_evidence_candidates(tmp_path):
     events: list[tuple[str, dict]] = []
     start(
-        TsStartRequest(declaration=_declaration(method=""), workspace_dir=str(tmp_path)),
+        TsStartRequest(input=_declaration(reactant_smiles="invalid SMILES"), workspace_dir=str(tmp_path)),
         event_sink=lambda name, payload: events.append((name, payload)),
     )
     assert [name for name, _ in events] == ["ts.terminal"]
-    assert events[0][1]["terminal"] == "invalid_input"
+    assert events[0][1]["result"]["outcome"] == "invalid_input"
 
 
-@pytest.mark.real_xtb
-@pytest.mark.skipif(
-    __import__("shutil").which("xtb") is None, reason="未安装 xtb，跳过真实引擎验收"
-)
-def test_waiting_on_compute_emits_no_event(tmp_path):
-    """等计算**不算阻塞**：不推事件，agent 不该被叫醒来做没有决策的事。"""
-    events: list[tuple[str, dict]] = []
-    record = start(
-        TsStartRequest(
-            declaration=_declaration(),
-            workspace_dir=str(tmp_path),
-            owner_conversation_id="test_project",
-            owner_session_id="test_session",
-        ),
-        event_sink=lambda name, payload: events.append((name, payload)),
-    )
-    # declare/build/map/assemble/guess/validate/submit 跑完后在 refine 等作业终态
-    assert record.blocked is None
-    assert record.terminal is None
-    assert record.waiting_for.startswith("job:")
-    assert record.stage_record("refine").status == "waiting"
-    # 只推阻塞与终态两类事件 -> 等待一个都不推
-    assert events == []
 
 
 # ---------------------------------------------------------------------------
@@ -645,63 +389,20 @@ def test_waiting_on_compute_emits_no_event(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.real_xtb
-@pytest.mark.skipif(
-    __import__("shutil").which("xtb") is None, reason="未安装 xtb，跳过真实引擎验收"
-)
-def test_submit_submits_a_ready_job_and_refine_waits_for_it(tmp_path):
-    """submit 阶段真的提交一个 ready 作业；refine 进入 waiting 等它的终态（不轮询）。"""
-    record = _start(tmp_path)
-    statuses = {r.stage: r.status for r in record.stage_records}
-    assert statuses["submit"] == "done"
-    assert record.job_id is not None and record.job_id > 0
-    assert os.path.isfile(record.job_input_path)
-    detail = record.stage_record("submit").detail
-    assert "submitted as 'ready'" in detail
-    # refine 在等这个作业，且说明走的是既有通知路径（不是轮询）
-    assert statuses["refine"] == "waiting"
-    assert record.waiting_for == f"job:{record.job_id}"
-    assert "never polls" in record.stage_record("refine").detail
-    assert record.terminal is None
-    # verdict 还没轮到（作业没到终态）
-    assert "verdict" not in statuses
 
 
-@pytest.mark.real_xtb
-@pytest.mark.skipif(
-    __import__("shutil").which("xtb") is None, reason="未安装 xtb，跳过真实引擎验收"
-)
-def test_submitted_job_is_in_ready_state_in_the_central_queue(tmp_path):
-    """submit 之后作业真的躺在中央 compute_jobs 里且状态为 ready（调度守护去认领）。"""
-    from cloudra.persistence.database import ComputeDB
-
-    record = _start(tmp_path)
-    db = ComputeDB().init()
-    with db.connect() as con:
-        row = con.execute(
-            "SELECT state, path, jobtype, conversation_id, session_id FROM compute_jobs WHERE id = ?",
-            (record.job_id,),
-        ).fetchone()
-    assert row[0] == "ready"
-    assert row[1] == record.job_input_path
-    assert row[2] == "orca"
-    # 归属与 submit_compute_job 同一纪律：终态推送只认这两个字段
-    assert row[3] == "test_project"
-    assert row[4] == "test_session"
-    # 现场落在 jobs/<job_dir>/ 下，与作业现场同处
-    assert "jobs" in Path(record.job_input_path).parts
 
 
 def test_submit_without_owner_is_refused(tmp_path):
     """无归属的 run 到 submit 阶段 fail-loud 拒收：归属缺失的作业是投递不到
     的死信（ComputeNotifyBroker 只按 conversation/session 路由），宁可阻塞。"""
     record = start(TsStartRequest(
-        declaration=_declaration(), workspace_dir=str(tmp_path),
+        input=_declaration(), workspace_dir=str(tmp_path),
     ))
     assert record.blocked is not None
-    assert record.blocked.failure_class == "owner_missing"
-    assert record.blocked.stage == "submit"
-    assert "owner" in record.blocked.message
+    from cloudra.tools.core.ts_process import _submit_step
+    error, job = _submit_step(record, "ts_opt", "unused.inp", "orca")
+    assert job == -1 and "owner identity" in error
 
 
 # ---------------------------------------------------------------------------
@@ -709,57 +410,8 @@ def test_submit_without_owner_is_refused(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.real_xtb
-@pytest.mark.skipif(
-    __import__("shutil").which("xtb") is None, reason="未安装 xtb，跳过真实引擎验收"
-)
-def test_front_half_with_real_xtb_records_xtb_path_kind(tmp_path):
-    """真实引擎跑完整前端：两端构建 → 映射重排 → MTD 路径 → 校验通过。
-
-    这条同时验证了一件必需的事：构建器按连通分量拼装两端，**原子顺序本来不同**
-    （实测反应物 [F,C,Cl,H,H,H]、产物 [C,F,H,H,H,H]→重排后同序），路径搜索要求同序，
-    所以 map 阶段的重排是必需的，不是形式。
-    """
-    record = _start(tmp_path)
-    statuses = {r.stage: r.status for r in record.stage_records}
-    assert statuses.get("build") == "done"
-    assert statuses.get("map") == "done"
-    assert statuses.get("guess") == "done"
-    assert statuses.get("validate") == "done"
-    assert record.path_kind == "xtb_path"
-    # 重排后的产物可复查（否则 agent 无法核对重排是否合理）
-    reordered = Path(record.run_dir) / "path" / "product_reordered.xyz"
-    assert reordered.is_file()
-    # 提交后在 refine 等作业终态，且不伪造终态
-    assert record.blocked is None
-    assert record.stage_record("refine").status == "waiting"
-    assert record.terminal is None
-    assert record.job_id is not None
-    # TS 候选进了证据候选（小产物），逐迭代帧没有
-    assert any("xtbpath_ts.xyz" in path for path in evidence_binding_candidates(record))
 
 
-def test_guess_reports_idpp_fallback_when_xtb_is_absent(tmp_path, monkeypatch):
-    """xTB 缺失时必须产出可用于无约束精修的 IDPP 初猜。"""
-    import cloudra.tools.core.ts_process as ts_process
-
-    empty = tmp_path / "empty-path"
-    empty.mkdir()
-    monkeypatch.setenv("PATH", str(empty))
-    monkeypatch.setattr(ts_process, "_submit_step", lambda *_args: ("", 123))
-    record = _start(tmp_path)
-    assert record.path_kind == "idpp_fallback"
-    assert Path(record.current_ts_guess_path).is_file()
-    assert Path(record.current_ts_guess_path).parent.name == "idpp_images"
-    assert record.current_ts_guess_path in evidence_binding_candidates(record)
-    assert record.stage_record("validate").status == "done"
-    assert record.blocked is None
-    assert record.stage_record("refine").status == "waiting"
-    assert record.job_id == 123
-    assert Path(record.job_input_path).is_file()
-    detail = record.stage_record("guess").detail
-    assert "idpp_fallback" in detail
-    assert "degraded" in detail.lower()
 
 
 def test_wrong_atom_map_blocks_with_element_level_detail(tmp_path):
@@ -769,7 +421,7 @@ def test_wrong_atom_map_blocks_with_element_level_detail(tmp_path):
     blocked = record.blocked
     assert blocked.stage == "map"
     assert blocked.failure_class == "atom_map_element_mismatch"
-    assert blocked.needs == ["atom_map"]
+    assert blocked.needs == ["reaction.atom_map"]
     # 每个错配都要说清是哪个原子对不上哪个元素
     assert blocked.atom_details
     assert any("but the map points it at reactant atom" in d for d in blocked.atom_details)
@@ -908,70 +560,8 @@ def test_xtb_path_guess_uses_explicit_path_solvation(tmp_path, monkeypatch):
     assert captured[0][-2:] == ["--alpb", "water"]
 
 
-def test_ts_declaration_rejects_unrecognized_solvent_field():
-    from pydantic import ValidationError
-
-    with pytest.raises(ValidationError, match="solvent"):
-        TsDeclaration(
-            reactant_smiles="O", product_smiles="O", method="B3LYP/def2-SVP",
-            solvent="water",
-        )
 
 
-@pytest.mark.real_xtb
-@pytest.mark.skipif(
-    __import__("shutil").which("xtb") is None, reason="未安装 xtb，跳过真实引擎验收"
-)
-def test_refine_submits_the_irc_job_after_frequency(tmp_path):
-    """频率完成后自动提交 IRC：顺带验证它在同一几何上用 %irc 原生块。
-
-    这条守的是"verified 可达"：只跑频率的流程最高只能到 candidate_only。
-    """
-    from cloudra.tools.core.ts_process import TsJobStep, _refine
-
-    record = _start(tmp_path)
-    # 把 TS 优化与频率两步都标记为已完成，并把频率的优化几何放好
-    job2 = Path(record.run_dir) / "jobs" / "job_0002"
-    job2.mkdir(parents=True, exist_ok=True)
-    optimized = job2 / "optimized.xyz"
-    optimized.write_text(
-        "3\noptimised\nO 0.0 0.0 0.0\nH 0.96 0.0 0.0\nH -0.24 0.93 0.0\n", encoding="utf-8"
-    )
-    freq_input = job2 / "frequency.inp"
-    freq_input.write_text("! Freq\n", encoding="utf-8")
-    # 作业状态是**从库里读的**，所以必须真的插一行 done（手写 state 会被覆盖）
-    from cloudra.persistence.database import ComputeDB
-    from cloudra.services.compute_store import insert_compute_job
-
-    db = ComputeDB().init()
-    for step, path in ((record.job_steps[0], record.job_steps[0].input_path),
-                       (None, str(freq_input))):
-        job_id = insert_compute_job(
-            db, node_id="node-local", conversation_id="test", session_id=None,
-            path=path, state="done", jobtype="orca",
-        )
-        if step is not None:
-            step.job_id = job_id
-            step.state = "done"
-        else:
-            record.job_steps.append(TsJobStep(
-                purpose="frequency", job_id=job_id, input_path=path, state="done",
-            ))
-    record.waiting_for = ""
-
-    record = _refine(record)
-    assert record.blocked is None, record.blocked and record.blocked.message
-    assert [step.purpose for step in record.job_steps] == ["ts_opt", "frequency", "irc"]
-    irc_step = record.job_steps[-1]
-    assert irc_step.job_id is not None
-    content = Path(irc_step.input_path).read_text(encoding="utf-8")
-    # ORCA：! IRC + 原生 %irc 块，双向，且 Hessian 分支由证据决定
-    assert "IRC" in content
-    assert "%irc" in content
-    assert "MaxIter" not in content
-    assert "Direction both" in content
-    assert ("InitHess read" in content) or ("InitHess calc_numfreq" in content)
-    assert record.waiting_for == f"job:{irc_step.job_id}"
 
 
 def test_irc_input_reuses_the_hessian_only_when_the_file_is_actually_there(tmp_path):
@@ -1178,12 +768,12 @@ def test_gaussian_irc_uses_the_skill_recipe(tmp_path):
 
 def test_product_geometry_rejects_a_different_declared_product_graph(tmp_path):
     """A coordinate rotation cannot turn one molecular graph into another species."""
-    from cloudra.tools.core.ts_process import ProductGeometry
+    from cloudra.tools.core.ts_inputs import RotatedConformer
 
     record = _start(
         tmp_path, reactant_smiles="CC", product_smiles="CO", charge=0,
         reaction_center=[], atom_map=[],
-        product_geometry=ProductGeometry(atoms=(0, 1), degrees=180),
+        product_geometry=RotatedConformer(kind="rotate_about_bond", atoms=(0, 1), degrees=180).model_dump(),
     )
     assert record.terminal == "invalid_input"
     assert "product_geometry" in record.stage_record("declare").detail
@@ -1213,8 +803,8 @@ def _biaryl_bond(mol) -> tuple[int, int]:
     raise AssertionError("no biaryl bond found")
 
 
-def _m1_declaration(mol) -> TsDeclaration:
-    return TsDeclaration(
+def _m1_declaration(mol) -> TsInput:
+    return calculation_input(
         reactant_smiles=M1_SMILES,
         product_smiles=M1_SMILES,  # 阻转异构：两端是同一个分子
         charge=0,
@@ -1297,7 +887,7 @@ def test_same_smiles_endpoints_are_distinguished_by_declared_geometry(tmp_path):
     workspace = tmp_path
     declaration = _m1_declaration(mol)
     record = start(TsStartRequest(
-        declaration=declaration,
+        input=declaration,
         workspace_dir=str(workspace),
         owner_conversation_id="test_project",
         owner_session_id="test_session",
@@ -1393,6 +983,13 @@ def _record_with_freq_and_converged_irc(tmp_path, monkeypatch):
         purpose="frequency", job_id=job_id, input_path=str(freq_input), state="done",
     ))
 
+    from cloudra.tools.core.ts_process import _refinement_log_path
+    irc_input = job_dir/'irc.inp'
+    irc_input.write_text('! IRC B3LYP def2SVP\n')
+    irc_step = TsJobStep(purpose='irc',job_id=9002,input_path=str(irc_input),state='done',actual_calculation=record.input.verification.irc)
+    record.job_steps.append(irc_step)
+    Path(_refinement_log_path(record, irc_step)).write_text('irc evidence\n')
+
     # 交付物替身：频率快照（1 虚频）+ IRC 元数据（双向收敛）
     monkeypatch.setattr(
         "cloudra.dag.evidence_ingest.snapshot_evidence_file",
@@ -1482,7 +1079,7 @@ def _install_endpoint_minimum_jobs(record, monkeypatch, symbols, reactant, produ
         )
 
     ts_log = _refinement_log_path(record, record.job_steps[0])
-    reactant_log = _refinement_log_path(record, record.job_steps[2])
+    reactant_log = _refinement_log_path(record, next(s for s in record.job_steps if s.purpose=="reactant_frequency"))
 
     def snapshot(path, **_kwargs):
         frequencies = (
@@ -1733,7 +1330,7 @@ def test_verdict_rejects_endpoint_xyz_unrelated_to_optimization_log(
         monkeypatch, symbols, 0.75 * a + 0.25 * b, 0.25 * a + 0.75 * b,
     )
     _install_endpoint_minimum_jobs(record, monkeypatch, symbols, a, b)
-    stale = Path(record.job_steps[2].input_path).parent / "optimized.xyz"
+    stale = Path(next(s for s in record.job_steps if s.purpose=="reactant_frequency").input_path).parent / "optimized.xyz"
     shifted = [[x + 0.01, y, z] for x, y, z in a]
     stale.write_text(_xyz_text(symbols, shifted, "stale"), encoding="utf-8")
 
@@ -1769,7 +1366,7 @@ def test_endpoint_identity_accepts_a_nonbonded_entrance_complex(tmp_path):
     record = _start(tmp_path)
     symbols, raw_positions, _xyz, _mol = _read_built_xyz(record, "reactant")
     positions = np.asarray(raw_positions, dtype=float)
-    direction = positions[0] - positions[1]
+    direction = positions[1] - positions[2]
     positions[0] = positions[1] + 1.75 * direction / np.linalg.norm(direction)
 
     assert _endpoint_identity_error(
@@ -1827,7 +1424,7 @@ def test_refine_stops_before_product_jobs_when_reactant_is_not_a_minimum(
     _install_endpoint_minimum_jobs(
         record, monkeypatch, symbols, a, b, reactant_freqs=[-20.0, 120.0],
     )
-    record.job_steps = record.job_steps[:3]  # TS Freq, reactant Opt, reactant Freq
+    record.job_steps = [step for step in record.job_steps if step.purpose in ("reactant_opt", "reactant_frequency")]
     record.stage = "refine"
     record.blocked = None
     record.waiting_for = f"job:{record.job_steps[-1].job_id}"
@@ -1839,7 +1436,7 @@ def test_refine_stops_before_product_jobs_when_reactant_is_not_a_minimum(
 
     result = process._refine(record)
     assert result.terminal == "candidate_only"
-    assert len(result.job_steps) == 3
+    assert len(result.job_steps) == 2
 
 
 def test_refine_unconverged_endpoint_opt_is_candidate_not_unfixable_block(
@@ -1957,58 +1554,10 @@ def _xtb_path_stub(tmp_path, seen, termination="path_not_converged"):
     return fake_run
 
 
-def test_refinement_ceiling_is_absent_unless_explicit_and_resume_can_raise_it(
-    tmp_path, monkeypatch
-):
-    """未声明 → runner 默认；resume 抬高后 → 新数字必须真的到引擎。
-
-    撞上限（path_not_converged）是 blocked 而不是终态，出路正是"抬高上限重跑"——
-    所以这条链不能停在 schema 里（GH #39：此前写进声明的预算没人消费）。
-    """
-    from cloudra.tools.core import xtb_path_runner as runner
-
-    seen = []
-    monkeypatch.setattr(runner, "run_xtb_path", _xtb_path_stub(tmp_path, seen))
-
-    record = _start(tmp_path)
-    # 未声明：交给 runner 默认，不发明数字
-    assert seen == [None]
-    assert record.blocked is not None and record.blocked.failure_class == "path_not_converged"
-    assert record.blocked.needs == ["budget"]
-    # 阻塞消息点名出路，不让 agent 自己猜
-    assert "path_refinement_runs" in record.blocked.message
-
-    # 抬高上限后 resume：数字真要过引擎
-    record = resume(
-        load_record(str(tmp_path), record.run_id),
-        TsAdjustment(path_refinement_runs=350, budget_override_note="100 轮不够"),
-    )
-    assert seen == [None, 350]
-    assert record.blocked is not None  # 替身仍报触顶，所以应再次阻塞
-    # 落在记录上（否则重启恢复就丢了）
-    assert load_record(str(tmp_path), record.run_id).declaration.budget.path_refinement_runs == 350
 
 
-def test_declared_refinement_ceiling_is_used_on_the_first_guess(tmp_path, monkeypatch):
-    """声明里直接给上限时，第一次 guess 就用它——不必先撞一次墙（负向：默认路径没被这条抢走）。"""
-    from cloudra.tools.core import xtb_path_runner as runner
-
-    seen = []
-    monkeypatch.setattr(runner, "run_xtb_path", _xtb_path_stub(tmp_path, seen))
-
-    _start(tmp_path, budget=TsBudget(path_refinement_runs=250))
-    assert seen == [250]
 
 
-def test_zero_means_undeclared_not_zero_runs(tmp_path, monkeypatch):
-    """0 = 未声明，**不是**"跑 0 轮"：必须落到 runner 默认（否则会把上限设成非法值）。"""
-    from cloudra.tools.core import xtb_path_runner as runner
-
-    seen = []
-    monkeypatch.setattr(runner, "run_xtb_path", _xtb_path_stub(tmp_path, seen))
-
-    _start(tmp_path, budget=TsBudget(path_refinement_runs=0))
-    assert seen == [None]
 
 
 # ---------------------------------------------------------------------------
@@ -2093,7 +1642,7 @@ def test_engine_crash_frames_are_visible_and_next_steps_are_named(tmp_path, monk
     assert "not a usable guess" in record.blocked.message
     assert any("partial iteration frame" in d for d in record.blocked.atom_details)
     # 下一步选项：默认种子路线在前，插值标出适用条件
-    assert "scan" in record.blocked.needs
+    assert "guess" in record.blocked.needs
     assert "internal_coordinates" in record.blocked.message
     assert "interpolate" in record.blocked.message
 
@@ -2113,4 +1662,7 @@ def test_no_partial_frame_noise_when_the_engine_left_none(tmp_path, monkeypatch)
 
     assert "partial iteration frame" not in record.blocked.message
     assert record.blocked.atom_details == []
-    assert "scan" in record.blocked.needs
+    assert "guess" in record.blocked.needs
+
+
+pytestmark = pytest.mark.usefixtures("ts_producer_authority")

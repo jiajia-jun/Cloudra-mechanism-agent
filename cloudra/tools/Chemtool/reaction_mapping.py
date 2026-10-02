@@ -635,7 +635,7 @@ def _identity_and_binding(expected_smiles: str, structure) -> tuple[str, list[in
     if structure is None:
         return "not_provided", [], ""
     expected = _parse_heavy_smiles(expected_smiles, "Endpoint")
-    expected_labels = [atom.GetAtomMapNum() for atom in expected.GetAtoms()]
+    expected_labels = [atom.GetAtomMapNum() for atom in expected.GetAtoms() if atom.GetAtomicNum() != 1]
     concrete_heavy_atoms = [atom for atom in structure.GetAtoms() if atom.GetAtomicNum() != 1]
     concrete_labels = [atom.GetAtomMapNum() for atom in concrete_heavy_atoms]
     structure_heavy = Chem.RemoveHs(_clear_atom_maps(structure))
@@ -654,6 +654,8 @@ def _identity_and_binding(expected_smiles: str, structure) -> tuple[str, list[in
             atom.GetAtomMapNum(): atom.GetIdx() for atom in concrete_heavy_atoms
         }
         for expected_atom in expected.GetAtoms():
+            if expected_atom.GetAtomicNum() == 1:
+                continue
             concrete_atom = structure.GetAtomWithIdx(
                 concrete_by_label[expected_atom.GetAtomMapNum()]
             )
@@ -769,7 +771,7 @@ def _expand_full_atom_map(
     return [idx + 1 for idx in full_map], "Full-atom mapping bound to the concrete structure order."
 
 
-def _bind_concrete_structures(user_input, mapping_result: dict) -> dict:
+def check_concrete_binding(user_input, mapping_result: dict) -> dict:
     reactant = _read_structure(
         user_input.reactant_path, user_input.reactant_text,
         user_input.reactant_format, user_input.reactant_charge, "Reactant",
@@ -845,9 +847,19 @@ def _bind_concrete_structures(user_input, mapping_result: dict) -> dict:
                 item for item in (r_diagnostic, p_diagnostic) if item
             ],
         }
-    atom_map, diagnostic = _expand_full_atom_map(
-        reactant, product, r_binding, p_binding, mapping_result["heavy_atom_map"],
-    )
+    if "atom_map" in mapping_result:
+        atom_map = list(mapping_result["atom_map"])
+        diagnostic = ""
+        if sorted(atom_map) != list(range(1, reactant.GetNumAtoms() + 1)) or len(atom_map) != product.GetNumAtoms():
+            atom_map, diagnostic = [], "The explicit map must cover every concrete atom exactly once."
+        elif any((product.GetAtomWithIdx(i).GetAtomicNum(), product.GetAtomWithIdx(i).GetIsotope()) !=
+                 (reactant.GetAtomWithIdx(target - 1).GetAtomicNum(), reactant.GetAtomWithIdx(target - 1).GetIsotope())
+                 for i, target in enumerate(atom_map)):
+            atom_map, diagnostic = [], "The explicit map changes an atom's element or isotope identity."
+    else:
+        atom_map, diagnostic = _expand_full_atom_map(
+            reactant, product, r_binding, p_binding, mapping_result["heavy_atom_map"],
+        )
     concrete_pairs = [
         sorted([r_binding[i - 1] + 1, r_binding[j - 1] + 1])
         for i, j in mapping_result["watch_pairs"]
@@ -931,7 +943,7 @@ class ReactionMapping(Tool):
                 selected_candidate=user_input.selected_candidate,
             )
             # 具体结构绑定（3D 生成/比对）同样是同步重活，一并卸载出事件循环。
-            binding = await asyncio.to_thread(_bind_concrete_structures, user_input, result)
+            binding = await asyncio.to_thread(check_concrete_binding, user_input, result)
             result["graph_watch_pairs"] = list(result["watch_pairs"])
             result.update(binding)
             if binding["binding_status"] == "complete":

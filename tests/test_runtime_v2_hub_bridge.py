@@ -408,7 +408,7 @@ async def test_call_normalizes_case_and_at_prefix_for_absent_role():
 async def test_non_coordinator_call_spawns_peer_without_inheriting_caller_settings():
     core, _, coordinator = await _setup()
     await _wait_state(coordinator, "succeeded")
-    explorer = await _spawn(core, coordinator, "explorer")
+    explorer = await _spawn(core, coordinator, "small_mol")
     await CommandBus(core).execute(
         Command(
             type="agent.settings_update",
@@ -534,7 +534,7 @@ async def test_cancel_peer_succeeds_when_completion_notice_cannot_persist():
     project = (await bus.execute(Command(type="project.create", payload={"name": "cancel-peer"}))).data
     caller = (
         await bus.execute(
-            Command(type="agent.spawn", target={"project_id": project.id}, payload={"role_id": "explorer"})
+            Command(type="agent.spawn", target={"project_id": project.id}, payload={"role_id": "researcher"})
         )
     ).data
     peer = (

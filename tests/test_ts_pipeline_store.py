@@ -7,11 +7,18 @@ from cloudra.persistence.database import ComputeDB
 
 
 def payload(**overrides):
+    from tests.test_ts_inputs import input_payload
+
+    value = input_payload()
+    calculation = dict(engine='orca', method='b3lyp/def2svp', keywords='')
+    value['verification'] = dict(frequency=calculation, irc=calculation,
+        reactant_endpoint=dict(optimization=calculation, frequency=calculation),
+        product_endpoint=dict(optimization=calculation, frequency=calculation))
     data = dict(
         project_id="project",
         owner_id="owner",
         workspace_dir="/fixture",
-        declaration=dict(reactant_smiles="CC", product_smiles="CC", method="b3lyp/def2svp"),
+        input=value,
     )
     data.update(overrides)
     return data
@@ -192,41 +199,6 @@ def test_budget_api_binds_stage_and_job_in_one_transaction(tmp_path):
         bind_reserved_job(db, reservation_id=reservation.reservation_id, action_key="ts", stage_job_payload=data)
         == first
     )
-
-
-def test_declaration_revision_preserves_original_request_and_stage_history(tmp_path):
-    from cloudra.services.ts_pipeline_store import bind_stage_job, create_process, revise_declaration
-
-    db = ComputeDB(data_dir=tmp_path).init()
-    original = payload()
-    process = create_process(db, request_key="revision", payload=original)
-    first = bind_stage_job(
-        db,
-        process_id=process["process_id"],
-        declaration_revision=1,
-        stage_key="ts_opt",
-        attempt=1,
-        job_payload=job_payload(),
-    )
-    changed = dict(original["declaration"], atom_map=[0, 1])
-    revision = revise_declaration(
-        db, process_id=process["process_id"], expected_declaration_revision=1, declaration=changed
-    )
-    assert revision == 2
-    second = bind_stage_job(
-        db,
-        process_id=process["process_id"],
-        declaration_revision=2,
-        stage_key="ts_opt",
-        attempt=1,
-        job_payload=job_payload(path="/revision2"),
-    )
-    assert first != second
-    assert create_process(db, request_key="revision", payload=original)["process_id"] == process["process_id"]
-    with db.connect() as con:
-        assert con.execute("SELECT COUNT(*) FROM ts_pipeline_stages").fetchone()[0] == 2
-    with pytest.raises(ValueError, match="stale"):
-        revise_declaration(db, process_id=process["process_id"], expected_declaration_revision=1, declaration=changed)
 
 
 def test_same_bound_path_with_changed_bytes_is_rejected(tmp_path):

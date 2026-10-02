@@ -34,7 +34,8 @@ class ModelRequestAccounting:
             selected=[]
             for pid,record in rows:
                 data=json.loads(record) if record else {}
-                if data.get('catalog_id') and (data.get('blocked') or data.get('terminal')=='candidate_only'):
+                limits = data.get('input', {}).get('execution', {}).get('limits') or {}
+                if (data.get('catalog_id') or (data.get('format_version') == 3 and limits.get('max_model_calls') is not None)) and (data.get('blocked') or data.get('terminal') in ('candidate_only','search_failed','invalid_input')):
                     selected.append(pid)
             return selected
         processes = await asyncio.to_thread(scopes)

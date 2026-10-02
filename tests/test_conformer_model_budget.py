@@ -146,3 +146,23 @@ async def test_candidate_only_terminal_keeps_model_decision_budget(tmp_path):
     assert accounting is not None
     with pytest.raises(ValueError,match='budget exhausted'):
         await accounting.before_request()
+
+
+@pytest.mark.asyncio
+async def test_explicit_ts_model_limit_applies_without_catalog(tmp_path):
+    from cloudra.services.conformer_model_budget import ModelRequestAccounting
+    from cloudra.services.exploration_budget_store import ExplorationBudget, configure_budget
+    from cloudra.services.ts_pipeline_store import get_process, save_process_record
+    from cloudra.tools.core.ts_inputs import TsExecutionLimits
+    from cloudra.tools.core.ts_process import TsBlocked, TsProcessRecord
+    db,pid,_=waiting_process(tmp_path)
+    record=TsProcessRecord.model_validate(get_process(db,pid)['record'])
+    record.input.execution.limits=TsExecutionLimits(source='explicit_user',max_model_calls=0)
+    record.waiting_for=''
+    record.blocked=TsBlocked(stage='map',failure_class='mapping_required',message='explicit binding required')
+    save_process_record(db,process_id=pid,record=record.model_dump(mode='json'))
+    configure_budget(db,process_id=pid,project_id='project',owner_id='owner',budget=ExplorationBudget(source='explicit_user',max_model_calls=0))
+    accounting=await ModelRequestAccounting.for_agent(db,'project','owner')
+    assert accounting is not None
+    with pytest.raises(ValueError,match='budget exhausted'):
+        await accounting.before_request()
