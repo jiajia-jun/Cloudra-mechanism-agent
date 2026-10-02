@@ -97,3 +97,59 @@ def test_inspect_is_registered_as_readonly_evidence():
     assert not TsInspect().is_write()
     assert "ts_inspect" not in role_hidden_tools("explorer")
     assert supervisor_access_for("ts_inspect") == "evidence_read"
+
+
+@pytest.mark.parametrize("outcome,verified", [
+    ("verified", True), ("candidate_only", False),
+    ("search_failed", False), ("invalid_input", False),
+])
+def test_terminal_tool_return_exposes_scientific_verdict_and_recorded_reason(tmp_path, outcome, verified):
+    from cloudra.tools.Chemtool.ts_search_process import _to_output
+    from cloudra.tools.core.ts_process import _terminal
+    from tests.test_ts_stage_inputs import record_fixture
+
+    record = record_fixture(tmp_path)
+    _terminal(record, "verdict", outcome, "Recorded scientific judgement for this attempt")
+    output = _to_output(record)
+    assert output.is_success  # Successful reading is separate from scientific qualification.
+    assert output.status == "ended"
+    assert output.result["outcome"] == outcome
+    assert output.result["verified"] is verified
+    assert output.result["reason"] == "Recorded scientific judgement for this attempt"
+    assert output.message == "Recorded scientific judgement for this attempt"
+    assert output.available_results[-1]["detail"] == "Recorded scientific judgement for this attempt"
+    assert output.available_results[-1]["status"] == "done"
+
+
+def test_blocked_summary_returns_current_block_reason_without_claiming_a_verdict(tmp_path):
+    from cloudra.tools.core.ts_state_view import build_process_view
+
+    _, _, _, record = process_fixture(tmp_path)
+    record["stage_records"] = [{"stage": "verdict", "status": "done", "detail": "Previous attempt passed", "artifacts": []}]
+    view = build_process_view(record, [], can_write=True)
+    assert view.status == "blocked" and view.result is None
+    assert view.message == "native first point failed"
+
+
+def test_available_stage_results_preserve_recorded_details_without_labeling_jobs_verified(tmp_path):
+    from cloudra.tools.core.ts_state_view import build_process_view
+
+    _, _, _, record = process_fixture(tmp_path, status="waiting")
+    record["stage"] = "refine"
+    record["stage_records"] = [{"stage": "refine", "status": "waiting", "detail": "Waiting for frequency evidence", "artifacts": []},
+        {"stage": "guess", "status": "done", "detail": "Candidate only; formal verification remains required", "artifacts": ["guess.xyz"]}]
+    view = build_process_view(record, [], can_write=False)
+    assert view.result is None
+    assert view.message == "Waiting for frequency evidence"
+    assert view.available_results[0]["detail"] == "Candidate only; formal verification remains required"
+    assert view.available_results[0]["artifacts"] == ["guess.xyz"]
+
+
+def test_isolated_input_format_cannot_claim_scientific_verification(tmp_path):
+    from cloudra.tools.core.ts_state_view import build_process_view
+
+    _, _, _, record = process_fixture(tmp_path, status="ended")
+    record.update(format_version=2, terminal="verified")
+    view = build_process_view(record, [], can_write=False)
+    assert view.status == "isolated"
+    assert view.result is None

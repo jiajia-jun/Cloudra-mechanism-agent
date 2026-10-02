@@ -18,7 +18,7 @@ class TsProcessView(BaseModel):
     run_dir: str = ""
     status: Literal["running", "waiting", "blocked", "ended", "isolated"] | None = None
     stage: str = ""
-    result: dict | None = None
+    result: dict | None = Field(default=None, description="Scientific verdict: outcome, verified and recorded reason. Tool-call success and an ended workflow do not imply scientific verification.")
     waiting_for: list[dict] = Field(default_factory=list)
     available_results: list[dict] = Field(default_factory=list)
     blocked: dict | None = None
@@ -37,6 +37,9 @@ def build_process_view(state: dict, jobs: list[dict], *, can_write: bool) -> TsP
     waiting = bool(state.get("waiting_for"))
     blocked = deepcopy(state.get("blocked"))
     terminal = state.get("terminal")
+    current_stage = next((row for row in reversed(state.get("stage_records", []))
+                          if row.get("stage") == state.get("stage")), {})
+    detail = (blocked or {}).get("message") or current_stage.get("detail", "")
     supported = state.get("format_version") == 3
     status = "isolated" if not supported else "waiting" if active or waiting else "ended" if terminal else "blocked" if blocked else "running"
     next_action = dict(action="inspect", required_inputs=[], recovery_required=False, editable_groups=[])
@@ -80,7 +83,7 @@ def build_process_view(state: dict, jobs: list[dict], *, can_write: bool) -> TsP
         usage_jobs.append(dict(job_id=job.get("job_id"), runtime_seconds=elapsed, cpus=cpus,
                                memory_mb=job.get("req_memory_mb"), measured_cpu_hours=None,
                                allocated_cpu_hours=cpus * elapsed / 3600 if elapsed is not None and cpus else None))
-    available = [dict(stage=row["stage"], artifacts=row.get("artifacts", []),
+    available = [dict(stage=row["stage"], status=row["status"], detail=row.get("detail", ""), artifacts=row.get("artifacts", []),
                       source_input_revision=row.get("source_input_revision"))
                  for row in state.get("stage_records", []) if row.get("status") == "done"]
     available.extend(dict(stage=step['purpose'], artifacts=list(step['external_source']['artifact_hashes']),
@@ -88,12 +91,13 @@ def build_process_view(state: dict, jobs: list[dict], *, can_write: bool) -> TsP
         for step in state.get('job_steps', []) if step.get('external_source'))
     return TsProcessView(
         run_id=state["run_id"], revision=state["revision"], run_dir=state["run_dir"], status=status,
-        stage=state["stage"], result=dict(outcome=terminal, evidence_refs=state.get("evidence_candidates", [])) if terminal else None,
+        stage=state["stage"], result=dict(outcome=terminal, verified=terminal == "verified", reason=detail,
+                                           evidence_refs=state.get("evidence_candidates", [])) if supported and terminal else None,
         waiting_for=active or deepcopy(jobs) if waiting else active, failed_attempt=state.get("failed_attempt"),
         available_results=available, blocked=blocked, next=next_action, methods=method_entries,
         usage=dict(interventions=state.get("intervention_count", 0), compute_actions=len(jobs), model_calls=None, limits=value.get("execution", {}).get("limits"), **state.get("accounted_usage", {}), jobs=usage_jobs),
         details_path=str(Path(state["run_dir"]) / "process.json"), export_revision=state.get("export_revision"),
-        message="Unsupported input format: automatic continuation isolated; existing compute jobs remain intact." if not supported else "",
+        message="Unsupported input format: automatic continuation isolated; existing compute jobs remain intact." if not supported else detail,
     )
 
 

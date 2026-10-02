@@ -909,3 +909,44 @@ async def test_pipeline_intermediate_job_advances_without_agent_message(tmp_path
         with db.connect() as con:
             return con.execute('SELECT COUNT(*) FROM compute_jobs').fetchone()[0]
     assert await asyncio.to_thread(jobs) == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("outcome,verified", [("verified", True), ("candidate_only", False)])
+async def test_terminal_ts_notice_delivers_scientific_verdict_reason_to_agent(tmp_path, outcome, verified):
+    from cloudra.services.ts_pipeline_store import bind_stage_job, create_process, save_process_record
+    from cloudra.tools.core.ts_process import TsJobStep, _terminal
+    from tests.test_ts_stage_inputs import record_fixture
+
+    core, project, coordinator = await _setup_core()
+    def completed_pipeline():
+        db = ComputeDB().init()
+        record = record_fixture(tmp_path, owner_conversation_id=project.id, owner_session_id=coordinator.id)
+        process = create_process(db, request_key="verdict-notice", payload=dict(project_id=project.id,
+            owner_id=coordinator.id, workspace_dir=str(tmp_path), input=record.input.model_dump(mode="json")))
+        source = tmp_path / "frequency.inp"
+        source.write_text("Recorded native input")
+        job = bind_stage_job(db, process_id=process["process_id"], declaration_revision=1,
+            stage_key="product_frequency", attempt=1, job_payload=dict(conversation_id=project.id,
+            session_id=coordinator.id, path=str(source), state="ready", jobtype="orca", node_id="fixture"))
+        record.pipeline_id = process["process_id"]
+        record.job_steps = [TsJobStep(purpose="product_frequency", job_id=job, state="done", input_path=str(source))]
+        _terminal(record, "verdict", outcome, "Recorded endpoint direction judgement")
+        save_process_record(db, process_id=process["process_id"], record=record.model_dump(mode="json"))
+        with db.connect() as con:
+            con.execute("UPDATE compute_jobs SET state='done' WHERE id=?", (job,))
+        return job
+    job = await asyncio.to_thread(completed_pipeline)
+    broker = ComputeNotifyBroker(core)
+    await broker._poll_project(project.id)
+    messages = _inbox_texts(core, coordinator.id)
+    assert len(messages) == 1
+    _, separator, content = messages[0].partition("\nTS state: ")
+    assert separator
+    view, _ = json.JSONDecoder().raw_decode(content)
+    assert view["status"] == "ended"
+    assert view["result"]["outcome"] == outcome
+    assert view["result"]["verified"] is verified
+    assert view["result"]["reason"] == "Recorded endpoint direction judgement"
+    assert view["message"] == "Recorded endpoint direction judgement"
+    assert await asyncio.to_thread(_notified_at, job) is not None

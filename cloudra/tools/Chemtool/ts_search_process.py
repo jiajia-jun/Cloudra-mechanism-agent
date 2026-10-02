@@ -38,7 +38,7 @@ class TsInspect_input_schema(input_schema):
 
 
 class TsProcess_output_schema(TsProcessView, output_schema):
-    is_success: bool = True
+    is_success: bool = Field(default=True, description="Tool call succeeded; this is not scientific validation. Only result.verified=true means the TS passed the recorded scientific checks.")
     receipt: TsRevisionReceipt | None = None
 
 
