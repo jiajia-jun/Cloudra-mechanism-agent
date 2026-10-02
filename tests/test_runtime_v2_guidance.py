@@ -414,3 +414,13 @@ def test_manual_ts_preparation_pins_workflow_before_submission(mode):
     count = len(notices.render_current('as_g'))
     _run(stage, ctx, call)
     assert len(notices.render_current('as_g')) == count
+
+
+def test_ts_notice_uses_inspection_and_grouped_explicit_inputs(tmp_path):
+    path=tmp_path/'ts.inp'
+    path.write_text('! OptTS HF STO-3G\n')
+    notices=NoticeManager()
+    _run(GuidanceStage(),_ctx('small_mol',notices,str(tmp_path)),_submit(str(path)))
+    pin=notices.pin_content('as_g','guidance-ts-sop')
+    assert 'ts_inspect' in pin and 'guess.calculation' in pin
+    assert 'ts_resume(run_id) without adjustments' not in pin

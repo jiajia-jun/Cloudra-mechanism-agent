@@ -62,11 +62,11 @@
 
 ### 2.2 选一个能回答问题的初猜路线
 
-**首选自动 TS 搜索流程 `ts_prepare`**：声明两端 SMILES + `atom_map` + `reaction_center`，流程自主完成建结构 → 映射 → 组装 → 路径初猜 → 校验 → 提交 → 精修 → 判定。校验失败会**阻塞并点名到原子**，按点名修订声明后 `ts_resume` 续跑；不要轮询状态（状态变更会回流给你）。`atom_map` 是**全原子（含每个氢）1-based** 映射，`atom_map[k-1]` = 产物第 k 个原子对应的反应物原子号；序号以**流程构建的两端 XYZ** 为准（按组分拼装，不是 SMILES/RDKit 序），也**不是** `reaction_mapping` 的 `heavy_atom_map`。map 阶段阻塞时负载自带两端 built XYZ 路径与 1-based 元素序列，照它写映射；草稿可用 `reaction_mapping` 生成再逐元素核对。**柔性（relaxed）扫描是 agent 侧的正当主力手段，不是兜底**：流程不接的耦合坐标、需要手工控制扫描方向/维度的情形（含二维扫描）都走它——扫描恰好是流程不做、只有 agent 能做的一档。手工路线：`internal_coordinates` 读出原子序号 → `ts_guess scan_prepare` → 提交 → `scan_parse`；扫描给出的是**受限极大附近的候选几何**，不是已验证 TS，导出峰帧后建**新作业**做无约束 `OptTS`（见 §2.3）。**QST2/QST3 一律禁止**（同步插值系统性失效且无路径校正），复杂度上限是映射插值/NEB。
+**首选 TS 状态机**：同一路径只 `ts_prepare` 一次，`input` 分为 reaction / conformers / guess / ts_optimization / verification / execution。构象来源和优化、探索扫描、正式 TS 与各项验证方法分别显式指定；缺失则停在点名字段的 checkpoint。成功作业由系统自动续接。用 `ts_inspect` 读取状态、实际方法和证据；用带 changes/reason/request_key/expected_revision 的 `ts_resume` 修订同一个 run，失败另需绑定 recovery 证据。在途作业不允许修订。`reaction.atom_map` 是含氢全原子的 1-based 产物→反应物映射；结构编号 1-based，ORCA 原生扫描编号 0-based。元素排列通过不能消除具体结构身份或对称绑定歧义；须保留实际结构图、坐标与输入版本。扫描峰仅是候选，正式 TS 无约束精修与频率/双向 IRC/两端 Opt/Freq 仍必需。QST2/QST3 禁令及既有科学验收规则不变。
 
 | 已知信息 | 主路线 | 检查什么 |
 | --- | --- | --- |
-| **默认**：端点可声明（SMILES + `atom_map`，最好加 `reaction_center`） | **`ts_prepare` 自动流程**；阻塞时按点名修订声明再 `ts_resume` | 不轮询；不手工补丁绕过流程内部的初猜/校验失败——阻塞负载里点名什么就改什么 |
+| **默认**：端点可声明（SMILES + `atom_map`，最好加 `reaction_center`） | **`ts_prepare` 自动流程**；阻塞时按点名修订声明再 `ts_resume` | 用 ts_inspect 只读检查；按所需字段和恢复证据修订同一个 run |
 | 流程接不住（声明不齐、需手工耦合坐标） | **柔性（relaxed）扫描**：固定扫描坐标，各点放松其余自由度 | `internal_coordinates` 确认原子序号 → `scan_prepare` → 提交 → `scan_parse`；检查内部峰值、连续性、每帧实际结构；**导出峰帧做无约束 TS**，不要把扫描收敛当驻点 |
 | 两端结构可信且全原子对应已绑定 | IDPP 插值；需要时用支持的路径优化方法 | 插值只给几何路径，推荐帧不代表能量最高点；必须实际求能/优化 |
 | 两个键变化明显耦合，1D 扫描滑谷/单调 | 先用 `internal_coordinates` 核对坐标与预组织；换坐标/构象，或有依据的耦合扫描/路径搜索 | 写出缺失自由度与预计成本；不直接堆大网格；不要在未复核二面角的构象上重扫 |
