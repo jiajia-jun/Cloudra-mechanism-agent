@@ -1062,3 +1062,73 @@ async def test_context_budget_compacts_once_then_short_turns_continue(tmp_path, 
         assert agent.id in contexts
     finally:
         await harness.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures('ts_producer_authority')
+async def test_failed_ts_scan_unchanged_resume_keeps_failure_without_budget_exhaustion(tmp_path, monkeypatch):
+    """Real grouped resume preserves a fixture-driven failed scan and its budget."""
+    from cloudra.services.compute_admission import AdmissionOutcome
+    from cloudra.tools.core.ts_process import load_record
+    from tests.test_ts_fixture_pipeline import finish, install_log, job_count, waiting_fixture_stage
+
+    monkeypatch.setattr('cloudra.services.compute_admission.admit_job',lambda **_:AdmissionOutcome(ok=True,node_id='fixture',scheduler='local'))
+    ready=asyncio.Event()
+    steps=[Step(wait_for=ready) for _ in range(3)]
+    provider=ScriptedProvider(by_role={'small_mol':[*steps,Step(stop=True)]})
+    harness=await ScenarioHarness.start(tmp_path,workspace_dir=tmp_path,provider=provider)
+    try:
+        agent=await harness.spawn('small_mol',protocol='traditional')
+        db,record,step=await asyncio.to_thread(waiting_fixture_stage,tmp_path,purpose='scan',project_id=harness.project.id,owner_id=agent.id)
+        await asyncio.to_thread(install_log,record,step,'orca/segfault_mid_opt/dvb_opt_truncated_no_termination.out')
+        await asyncio.to_thread(finish,db,step.job_id,'failed')
+        before=await asyncio.to_thread(load_record,str(tmp_path),record.run_id)
+        for index,item in enumerate(steps):
+            item.tools=[('ts_resume',{'run_id':record.run_id,'changes':{'guess':before.input.guess.model_dump()},'reason':'retain accepted scan','request_key':f'unchanged-{index}','expected_revision':before.revision})]
+        ready.set()
+        await harness.wait_terminal(agent)
+        calls=harness.tool_events(agent)
+        assert [call['tool_name'] for call in calls]==['ts_resume']*3
+        assert all(call['is_success'] for call in calls),harness.describe(agent)
+        for call in calls:
+            result=call['result_data']
+            assert result['blocked']['failure_class']=='scan_job_failed'
+            assert result['usage']['interventions']==0 and result['result'] is None
+        after=await asyncio.to_thread(load_record,str(tmp_path),record.run_id)
+        assert after.model_dump()==before.model_dump()
+        assert await asyncio.to_thread(job_count,db)==1
+    finally:
+        ready.set()
+        await harness.aclose()
+
+
+@pytest.mark.asyncio
+async def test_yolo_invalid_boolean_never_applies_agent_file_write(tmp_path, monkeypatch):
+    """An invalid approval is rejected within the real Agent/tool/file mutation path."""
+    from unittest.mock import AsyncMock
+
+    from cloudra.infra.yolo_guard import YoloGuard
+    from tests.test_yolo_guard import _approval_response
+
+    monkeypatch.setenv("CLOUDRA_YOLO_MODE", "true")
+    client = SimpleNamespace(create=AsyncMock(return_value=_approval_response({"approved": "false"})))
+    monkeypatch.setattr(YoloGuard, "_client", lambda _: client)
+    provider = ScriptedProvider(default=[
+        Step(tools=[("write", {"path": "blocked.txt", "content": "must not be applied"})]),
+        Step(stop=True),
+    ])
+    harness = await ScenarioHarness.start(tmp_path, provider=provider)
+    try:
+        agent = await harness.spawn("coordinator", protocol="traditional")
+        await harness.wait_terminal(agent)
+        calls = harness.tool_events(agent)
+        assert [call["tool_name"] for call in calls] == ["write"]
+        assert calls[0]["started"] is True, harness.describe(agent)
+        result = calls[0]["result_data"]
+        assert result["status"] == "declined"
+        assert result["is_written"] is False
+        assert client.create.call_count == 3
+        target = _workspace(harness.project.id) / "blocked.txt"
+        assert not await asyncio.to_thread(target.exists)
+    finally:
+        await harness.aclose()

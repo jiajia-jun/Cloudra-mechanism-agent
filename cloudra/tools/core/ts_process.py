@@ -1166,7 +1166,20 @@ def _guess_scan(record: TsProcessRecord) -> TsProcessRecord:
     record.waiting_for = ""
     if step.state != "done":
         _record_candidate_failure(record, "scan_job_failed", step, _refinement_log_path(record, step))
-        return _block(record, "guess", "scan_job_failed", f"Scan job {step.job_id}: {step.state}", needs=["guess"])
+        log_path = _refinement_log_path(record, step)
+        details = [f"native scan log: {log_path}"]
+        if Path(log_path).is_file():
+            details.extend(Path(log_path).read_text(errors="replace").splitlines()[-20:])
+        else:
+            details.append("native scan log is missing")
+        return _block(
+            record, "guess", "scan_job_failed",
+            f"Scan job {step.job_id}: {step.state}. Inspect the native log and execution artifacts "
+            "to identify the cause before proposing a correction. An unchanged adjustment does "
+            "not retry the job; changing only the point count starts another scan and does not "
+            "resolve an unexplained engine failure.",
+            atom_details=details, needs=["compute_artifacts"],
+        )
     target = str(Path(step.input_path).parent / "scan_peak.xyz")
     try:
         parsed = TsGuess()._scan_parse(TsGuess_input_schema(

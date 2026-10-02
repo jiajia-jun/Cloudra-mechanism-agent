@@ -109,4 +109,31 @@ def test_scan_peak_must_preserve_atom_identity(tmp_path, monkeypatch):
     assert record.blocked.failure_class == 'scan_invalid_geometry'
 
 
+def test_failed_scan_exposes_native_log_and_requests_diagnosis(tmp_path, monkeypatch):
+    import cloudra.tools.core.ts_process as process
+
+    record = process.TsProcessRecord(run_id="failed-scan", run_dir=str(tmp_path),
+        input=calculation_input(reactant_smiles="O", product_smiles="O", method="HF", engine="orca",
+            scan={"method": "HF", "scans": [{"atoms": [0, 1], "scan_end": 2, "scan_steps": 7}]}),
+        stage="guess", waiting_for="job:42",
+        scan_step=process.TsJobStep(purpose="scan", job_id=42, input_path=str(tmp_path / "scan.inp")))
+    log = Path(process._refinement_log_path(record, record.scan_step))
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text("THE OPTIMIZATION HAS CONVERGED\n" * 8
+        + "The optimization did not converge but reached the maximum number of optimization cycles.\n"
+        + "ERROR (SHARK): Failed to read input file scan.SHARKINP.tmp\n"
+        + "Primary job terminated normally, but 1 process returned a non-zero exit code.\n"
+        + "ORCA finished by error termination in PROPERTIES\n")
+    monkeypatch.setattr(process, "_read_job_state", lambda *_: "failed")
+    result = process._guess(record)
+    assert result.blocked.failure_class == "scan_job_failed"
+    assert result.waiting_for == ""
+    assert result.scan_step.job_id == 42
+    assert result.current_ts_guess_path == ""
+    assert result.blocked.needs == ["compute_artifacts"]
+    details = "\n".join(result.blocked.atom_details)
+    assert str(log) in details
+    assert "ERROR (SHARK): Failed to read input file" in details
+    assert "ORCA finished by error termination in PROPERTIES" in details
+
 pytestmark = pytest.mark.usefixtures("ts_producer_authority")

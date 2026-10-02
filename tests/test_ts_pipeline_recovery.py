@@ -236,5 +236,40 @@ def test_remote_path_pullback_continues_to_budgeted_ts_submission(tmp_path, monk
         assert con.execute("SELECT COUNT(*) FROM compute_jobs").fetchone()[0] == 2
 
 
+def test_reaction_center_change_without_ring_invalidates_geometry_dependencies(tmp_path):
+    from cloudra.tools.core.ts_inputs import TsResumeRequest
+    from cloudra.tools.core.ts_revision import plan_input_revision, revise_record
+    from tests.test_ts_stage_inputs import record_fixture
+    record = record_fixture(tmp_path, stage='guess', current_seed_xyz_path='old.xyz', current_ts_guess_path='old-ts.xyz')
+    record.input.conformers.guidance.ring_order=[]
+    record.job_steps=[ts_process.TsJobStep(purpose='path',job_id=7,state='done')]
+    request=TsResumeRequest(changes={'reaction':{'reaction_center':[(0,1)]}},reason='change assembly centre',request_key='assembly',expected_revision=record.revision)
+    result=revise_record(record,request,plan_input_revision(record,request))
+    assert result.stage=='build'
+    assert result.current_seed_xyz_path==''
+    assert result.current_ts_guess_path==''
+    assert not result.job_steps
+    assert result.attempt_history[-1].job_steps[-1].purpose=='path'
+
+
+@pytest.mark.parametrize("note", ["", "retain the existing scan"])
+def test_repeated_unchanged_scan_adjustment_preserves_failure_and_budget(tmp_path, note):
+    db, pid, record = checkpoint(tmp_path)
+    from cloudra.tools.core.ts_inputs import ScanGuess, TsExecutionLimits, TsResumeRequest
+    record.input.guess = ScanGuess(kind="scan",calculation={"engine":"orca","method":"b3lyp/def2svp","keywords":"D3BJ RIJCOSX def2/J TightSCF"},
+        scans=[{"atoms": [0, 1], "scan_start": 1, "scan_end": 2, "scan_steps": 7}],
+    )
+    record.input.execution.limits = TsExecutionLimits(source="explicit_user",max_interventions=1)
+    record.scan_step = record.job_steps.pop().model_copy(update={"purpose": "scan", "state": "failed"})
+    record.blocked = ts_process.TsBlocked(stage="guess", failure_class="scan_job_failed", message="SHARK failure")
+    save_process_record(db, process_id=pid, record=record.model_dump(mode="json"))
+    before = get_process(db, pid)
+    for index in range(3):
+        record = ts_process.resume(record, TsResumeRequest(changes={'guess':record.input.guess.model_dump()},reason=note or 'retain existing scan',request_key=f'unchanged-{index}',expected_revision=before['revision']))
+        assert record.model_dump(mode="json") == before["record"]
+        assert get_process(db, pid) == before
+    with db.connect() as con:
+        assert con.execute("SELECT COUNT(*) FROM compute_jobs").fetchone()[0] == 1
+
 
 pytestmark = pytest.mark.usefixtures("ts_producer_authority")

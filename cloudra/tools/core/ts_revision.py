@@ -195,9 +195,9 @@ def plan_input_revision(record, request: TsResumeRequest) -> TsRevisionReceipt:
                 raise ValueError('input revision cannot raise authorized limits')
     invalidated = set()
     for path in differences:
-        if path.startswith(('reaction.reactant_smiles', 'reaction.product_smiles', 'reaction.charge', 'reaction.multiplicity', 'conformers.')):
+        if path.startswith(('reaction.reactant_smiles', 'reaction.product_smiles', 'reaction.charge', 'reaction.multiplicity', 'reaction.reaction_center', 'conformers.')):
             invalidated.update(_DEPENDENTS['build'])
-        elif path.startswith(('reaction.atom_map', 'reaction.reaction_center', 'guess')):
+        elif path.startswith(('reaction.atom_map', 'guess')):
             invalidated.update(_DEPENDENTS['guess'])
         elif path.startswith('ts_optimization'):
             invalidated.update(_DEPENDENTS['ts_opt'])
@@ -252,7 +252,7 @@ def revise_record(record, request, receipt):
         elif path.startswith('reaction.atom_map'):
             restart.append('map')
         elif path.startswith('reaction.reaction_center'):
-            restart.append('assemble')
+            restart.append('build')
         elif path.startswith('guess'):
             restart.append('guess')
         elif path.startswith('ts_optimization'):

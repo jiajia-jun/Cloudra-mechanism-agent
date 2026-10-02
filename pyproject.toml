@@ -80,7 +80,7 @@ dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.20",
     "pytest-cov>=4.0",
-    "ruff>=0.4",
+    "ruff>=0.6",
 ]
 
 [project.scripts]
@@ -119,6 +119,9 @@ markers = [
 [tool.ruff]
 line-length = 120
 target-version = "py311"
+# This dated evidence bundle pins its scripts and source snapshots by SHA-256.
+# Preserve those historical bytes; maintained code and other archives stay linted.
+extend-exclude = ["gold_compute/organized_data/hard_20261001"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]

@@ -1,6 +1,6 @@
 # TS 状态机实现验收（2026-10-02）
 
-分支 `codex/ts-state-machine`。接口行为与本地回归已完成；独立审查另记在本文结尾。当前仅通过替代计算器、原生输入/日志 fixture 和真实账本/Agent dispatch 验证；未启动真实 ORCA/Gaussian 全链，未远端关闭 issue 或合并分支。
+分支 `codex/ts-state-machine`。接口行为与本地回归已完成；独立审查另记在本文结尾。当前仅通过替代计算器、原生输入/日志 fixture 和真实账本/Agent dispatch 验证；未启动真实 ORCA/Gaussian 全链，真实引擎验收仍待进行；远端集成状态以 PR 为准。
 
 ## 四个 issue
 
@@ -110,3 +110,12 @@ RED 复现后 GREEN。初始新回归 fixture 的 ORCA 尾部字段及不可变 
 - Ruling: catalog geometry/table alignment uses the existing eight-decimal writer precision, while copied artifact bytes retain their exact archived hash — no new chemistry tolerance — cost if wrong: identity metadata incompatible with the artifact stops at a checkpoint.
 - Ruling: regrade the atom-map-missing message from Minor to Important because it directly instructs ORCA callers to supply rejected indices at a blocked decision checkpoint, contrary to the requested interface clarity — fixed in the same author pass with RED/GREEN prompt-semantic regression — cost if wrong: only clarification wording changes.
 - Ruling: reviewer Declined to judge real ORCA/Gaussian numerical convergence, scientific validity and remote execution — accept this as unverified native-engine acceptance, not as a pass — no real QM jobs were authorized/run; cost if wrong: fixture success may not predict real-engine behavior.
+
+
+## 推送前与最新 master 整合
+
+2026-10-02 用户授权推送并合并。先合入 `origin/master` 的 `3ec0b6ea`，保留其 ORCA 原生基组写法、辅助基组关键词、SHARK 原始失败诊断、严格审批决策、lint 范围与原生 TS/IRC fixture 回归。旧 flat 接口用例迁移到已批准的分组输入和只读 inspect；不添加兼容垫片。
+
+上游反应中心更改测试先复现 `assemble` 未重建几何的问题，再将该修订依赖恢复为 `build`，保留旧尝试。native fixture 继续断言真实解析器、不可变输入、错误虚频、IRC 边文件缺失、端点优化/频率相同几何、重复终态无重复作业。Agent 用真实工具调用验证相同 scan 修订不增加介入次数、不清除失败、不入新作业。
+
+整合后的本地验证：compileall 与 `ruff check --no-cache .` 通过；相关 TS/原生 fixture/runtime/Agent 组合 **715 passed / 4 skipped**（23.38 秒，退出码 0）；MCP/审批/lint 边界组合 **62 passed**（2.25 秒，退出码 0）。合计 777 passed / 4 skipped。没有在本地跑全套测试；全套交由 PR CI。真实 ORCA/Gaussian 作业没有运行。

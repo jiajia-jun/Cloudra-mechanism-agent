@@ -23,6 +23,7 @@ from cloudra.tools.core.calculation_intent import (
     intent_from_writer,
     validate_writer_request,
 )
+from cloudra.tools.core.qm_keywords import orca_basis_keyword
 from cloudra.tools.core.structure_artifacts import read_xyz_atoms
 from cloudra.tools.core.structure_builder import (
     BuildStrategy,
@@ -497,7 +498,7 @@ class QmInputWriter(Tool):
             if user_input.method:
                 simple.append(user_input.method)
             if user_input.basis_set:
-                simple.append(user_input.basis_set)
+                simple.append(orca_basis_keyword(user_input.basis_set))
         if user_input.extra_keywords:
             simple.append(user_input.extra_keywords)
 

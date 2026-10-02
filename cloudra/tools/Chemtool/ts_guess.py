@@ -64,6 +64,7 @@ from cloudra.tools.core.irc_path import (
 from cloudra.tools.core.irc_path import (
     prove_irc_endpoint_direction as _prove_irc_endpoint_direction,
 )
+from cloudra.tools.core.qm_keywords import orca_basis_keyword
 from cloudra.tools.core.topology_change import default_connectivity
 from cloudra.tools.core.xtb_path_runner import DEFAULT_REFINEMENT_RUNS, PathTermination
 
@@ -340,17 +341,18 @@ def _load_xyz(input_path: Optional[str], input_text: Optional[str]):
 
 
 def _orca_keyword_method(method: str) -> str:
-    """组合拼写转 ORCA `!` 关键字行形式：slash 拆成空格；def2 基组补 ORCA
-    原生连字符（归一拼写 `def2svp` 不是合法 ORCA 基组关键字，照写会让
-    ORCA 报未知基组，也会被 method_policy 误拆成两个方法候选）。"""
-    toks = []
-    for tok in method.replace("/", " ").split():
-        t = tok.lower()
-        if t.startswith("def2") and not t.startswith("def2-"):
-            toks.append("def2-" + t[4:].upper())
-        else:
-            toks.append(tok)
-    return " ".join(toks)
+    """Split the leading method/basis pair; preserve auxiliary basis slashes."""
+    tokens = method.split()
+    if not tokens:
+        return ""
+    head, separator, basis = tokens[0].partition("/")
+    if separator:
+        tokens[:1] = [head, *([basis] if basis else [])]
+    elif len(tokens) > 1 and tokens[1].startswith("/"):
+        tokens[1] = tokens[1][1:]
+        if not tokens[1]:
+            del tokens[1]
+    return " ".join(orca_basis_keyword(token) for token in tokens)
 
 
 def _atoms_to_xyz_block(symbols, positions, comment: str = "") -> str:
