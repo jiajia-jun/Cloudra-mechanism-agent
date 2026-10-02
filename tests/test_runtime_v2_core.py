@@ -606,6 +606,30 @@ async def test_runtime_config_endpoints_read_patch_and_persist(tmp_path, monkeyp
 
 
 @pytest.mark.asyncio
+async def test_runtime_config_reads_config_off_event_loop(monkeypatch):
+    """The config GET must not perform synchronous file access on the loop."""
+    import threading
+
+    from cloudra.infra import config as config_module
+
+    loop_thread = threading.get_ident()
+    original = config_module.get_config
+    observed: list[int] = []
+
+    def wrapped_get_config():
+        observed.append(threading.get_ident())
+        return original()
+
+    monkeypatch.setattr(config_module, "get_config", wrapped_get_config)
+    app = create_v2_app()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+        resp = await client.get("/api/v2/runtime/config")
+
+    assert resp.status_code == 200
+    assert observed and all(thread_id != loop_thread for thread_id in observed)
+
+
+@pytest.mark.asyncio
 async def test_api_v2_dag_mutations_malformed_operation_is_422():
     """请求体里的畸形 operation 是客户端校验错误（422），不得冒 500。"""
     app = create_v2_app(RuntimeCore(strict_events=True))

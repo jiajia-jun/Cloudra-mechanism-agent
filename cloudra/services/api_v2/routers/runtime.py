@@ -147,7 +147,9 @@ def build_router(ctx: ApiContext) -> APIRouter:
         from cloudra.infra.config import get_config
         from cloudra.infra.providers import detect_provider_from_url
 
-        cfg = get_config()
+        # Loading the config may read the YAML file and touch the filesystem;
+        # keep that synchronous work off the event-loop thread.
+        cfg = await asyncio.to_thread(get_config)
 
         def slot(role) -> dict[str, Any]:
             provider_id = role.provider
