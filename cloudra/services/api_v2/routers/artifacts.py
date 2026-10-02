@@ -16,11 +16,14 @@ _UPLOAD_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 _UPLOAD_MAX_BYTES = 20 * 1024 * 1024
 
 
-def _artifacts_service():
+async def _artifacts_service():
     from cloudra.infra.config import get_config
     from cloudra.persistence.artifacts import ArtifactService
 
-    return ArtifactService(Path(get_config().data_dir))
+    def build():
+        return ArtifactService(Path(get_config().data_dir))
+
+    return await asyncio.to_thread(build)
 
 
 def build_router(ctx: ApiContext) -> APIRouter:
@@ -31,9 +34,8 @@ def build_router(ctx: ApiContext) -> APIRouter:
         project_id: str, session_id: str | None = None
     ) -> list[dict[str, Any]]:
         ctx.core.require_project(project_id)
-        artifacts = await asyncio.to_thread(
-            _artifacts_service().list, project_id, session_id=session_id
-        )
+        service = await _artifacts_service()
+        artifacts = await asyncio.to_thread(service.list, project_id, session_id=session_id)
         return [artifact.to_dict() for artifact in artifacts]
 
     @router.post("/api/v2/projects/{project_id}/uploads", dependencies=ctx.protected, status_code=status.HTTP_201_CREATED)
@@ -92,7 +94,7 @@ def build_router(ctx: ApiContext) -> APIRouter:
 
         from cloudra.persistence.artifacts import ArtifactDownloadDenied, ArtifactNotFound
 
-        artifacts = _artifacts_service()
+        artifacts = await _artifacts_service()
         try:
             token, _ = await asyncio.to_thread(
                 artifacts.issue_download_token, project_id, artifact_id
