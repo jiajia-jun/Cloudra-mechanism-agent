@@ -9,11 +9,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import tempfile
 from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
+from starlette.background import BackgroundTask
 
 from cloudra.persistence import paths
 from cloudra.services import telemetry
@@ -89,18 +92,23 @@ def build_router(ctx: ApiContext) -> APIRouter:
 
     @router.get("/api/v2/telemetry/export/project/{project_id}", dependencies=ctx.protected)
     async def telemetry_export_project(project_id: str) -> Response:
+        fd, path = tempfile.mkstemp(prefix="cloudra-telemetry-", suffix=".zip")
+        os.close(fd)
         try:
-            payload = await asyncio.to_thread(
-                telemetry.build_project_zip_bytes, _db_path(), project_id
+            await asyncio.to_thread(
+                telemetry.write_project_zip, _db_path(), project_id, path
             )
         except telemetry.TelemetryError as exc:
+            try:
+                os.unlink(path)
+            except FileNotFoundError:
+                pass
             raise HTTPException(status_code=404, detail=str(exc)) from exc
-        return Response(
-            content=payload,
+        return FileResponse(
+            path,
             media_type="application/zip",
-            headers={
-                "Content-Disposition": f'attachment; filename="{project_id}.zip"'
-            },
+            filename=f"{project_id}.zip",
+            background=BackgroundTask(os.unlink, path),
         )
 
     return router
