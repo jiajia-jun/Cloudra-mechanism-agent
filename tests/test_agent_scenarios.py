@@ -88,6 +88,34 @@ async def test_snapshot_restore_keeps_invocations_on_the_live_agent_registry(tmp
 
 
 @pytest.mark.asyncio
+async def test_tool_progress_persistence_failure_fails_run_without_retry(tmp_path, monkeypatch):
+    """杠杆：真实工具适配器、进度事件落盘、Agent fail-fast 分类。"""
+    provider = ScriptedProvider(default=[Step(tools=[("stop", {"reason": "done"})])])
+    harness = await ScenarioHarness.start(tmp_path, provider=provider)
+    original = harness.store.append_event
+
+    def append(event):
+        if event.type == "tool.progress":
+            raise OSError("fixture disk full")
+        original(event)
+
+    monkeypatch.setattr(harness.store, "append_event", append)
+    try:
+        agent = await harness.spawn("coordinator", protocol="traditional")
+        await harness.wait_terminal(agent)
+        rows = harness.run_rows(agent)
+        assert len(rows) == 1
+        assert rows[0]["outcome"] == "failed", harness.describe(agent)
+        assert rows[0]["failure_kind"] == "event_persistence"
+        events = harness.events(agent)
+        assert len([e for e in events if e.type == "tool.requested"]) == 1
+        assert not any(e.type == "run.retry" for e in events)
+        assert not any(e.type == "tool.result_recorded" for e in events)
+    finally:
+        await harness.aclose()
+
+
+@pytest.mark.asyncio
 async def test_plain_qa_ends_with_declared_basis(tmp_path):
     """普通问答：纯文本收尾（**默认 invocation protocol**），完成依据 = declared。
 

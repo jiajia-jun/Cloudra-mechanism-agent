@@ -155,6 +155,11 @@ class SubmitComputeJob(Tool):
         return True
 
     async def tool_call(self, user_input: SubmitComputeJob_input_schema, session: Session) -> SubmitComputeJob_output_schema:
+        from cloudra.runtime_v2.event_writer import EventPersistenceError
+        from cloudra.runtime_v2.invocation_context import report_tool_progress
+        from cloudra.runtime_v2.schemas import ToolProgress, ToolWaitTarget
+
+        await report_tool_progress(ToolProgress(phase="validating", message="Checking compute input and admission"))
         # 兼容测试或旧调用中 session 为 None 的情况。
         session_id = getattr(session, "id", None) if session else None
         # 路径语义与 read/write 一致：相对路径解析到 agent 工作目录（沙箱），绝不读进程
@@ -203,10 +208,10 @@ class SubmitComputeJob(Tool):
         # under-declarations remain errors in the shared admission check.
         cpus = user_input.cpus
         if cpus is None:
-            cpus = declared_cpus(f_path, user_input.job_type) or 1
+            cpus = await asyncio.to_thread(declared_cpus, f_path, user_input.job_type) or 1
         memory_mb = user_input.memory_mb
         if memory_mb is None:
-            memory_mb = declared_memory_mb(f_path, user_input.job_type)
+            memory_mb = await asyncio.to_thread(declared_memory_mb, f_path, user_input.job_type)
 
         # 准入可能含 SSH 远端环境探测（阻塞 subprocess），一律离开事件循环线程。
         admission = await asyncio.to_thread(
@@ -227,6 +232,12 @@ class SubmitComputeJob(Tool):
         workdir = admission.workdir
         scheduler = admission.scheduler
         scheduler_options = admission.scheduler_options
+        await report_tool_progress(ToolProgress(
+            phase="submitting", message="Admission passed; recording job in compute ledger",
+            effective_arguments={**user_input.model_dump(mode="json"), "input_file": f_path,
+                                 "cpus": cpus, "memory_mb": memory_mb,
+                                 "node_id": admission.node_id, "execution_backend": scheduler},
+        ))
 
         # compute_jobs 住中央库（data_dir/compute.db）；ainit 幂等，保证表存在
         db = await ComputeDB().ainit()
@@ -254,6 +265,10 @@ class SubmitComputeJob(Tool):
                     xtb_solvent=user_input.solvent,
                 )
                 # 调度守护进程轮询 DB 认领 ready 作业，无需事件通知
+                await report_tool_progress(ToolProgress(
+                    phase="submitting", message="Job recorded; scheduler will claim it",
+                    compute_job_ids=[job_id],
+                ))
                 return SubmitComputeJob_output_schema(
                         is_success=True,
                         job_id=job_id,
@@ -266,6 +281,8 @@ class SubmitComputeJob(Tool):
                         ),
                     )
 
+            except EventPersistenceError:
+                raise
             except Exception as e:
                 return SubmitComputeJob_output_schema(
                         is_success=False,
@@ -318,6 +335,11 @@ class SubmitComputeJob(Tool):
                     start_timestamp=time.time(),
                 )
                 # 任务提交是昂贵的，必须在数据库留痕才允许进行。
+                await report_tool_progress(ToolProgress(
+                    phase="waiting", message="Job recorded; starting local execution and awaiting result",
+                    compute_job_ids=[job_id],
+                    waits=[ToolWaitTarget(kind="compute_job", target_id=str(job_id))],
+                ))
                 state = await self.run_now(job_id, db.path, f_path, user_input.job_type, conv_id)
                 return SubmitComputeJob_output_schema(
                     is_success=True,
@@ -327,6 +349,8 @@ class SubmitComputeJob(Tool):
                     message=f"Job finished, final state: {state}",
                 )
 
+            except EventPersistenceError:
+                raise
             except Exception as e:
                 # 已入库的作业不得丢编号：执行失败是"已提交作业失败"，回执必须
                 # 带 job_id/job_dir/state 让调用方 query 同一编号拿到失败详情

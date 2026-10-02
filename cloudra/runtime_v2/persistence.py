@@ -90,14 +90,25 @@ def plan_interrupted_invocations(events: list[EventEnvelope]) -> list[EventDraft
     empty, so a repeated restore adds nothing.
     """
 
-    by_call: dict[str, dict[str, EventEnvelope]] = {}
+    by_request: dict[str, dict[str, EventEnvelope]] = {}
+    current_requests: dict[tuple[str | None, str | None, str], str] = {}
     programs: dict[str, dict[str, Any]] = {}
     for envelope in events:
         data = envelope.data or {}
         if envelope.type.startswith("tool."):
             call_id = data.get("tool_call_id")
             if isinstance(call_id, str) and call_id:
-                by_call.setdefault(call_id, {})[envelope.type] = envelope
+                key = (envelope.session_id, envelope.run_id, call_id)
+                if envelope.type == "tool.requested":
+                    current_requests[key] = envelope.event_id
+                    by_request[envelope.event_id] = {envelope.type: envelope}
+                else:
+                    request_id = data.get("request_event_id") or current_requests.get(key)
+                    kinds = by_request.get(request_id)
+                    if kinds is not None:
+                        requested = kinds["tool.requested"]
+                        if (requested.session_id, requested.run_id, requested.data["tool_call_id"]) == key:
+                            kinds[envelope.type] = envelope
         elif envelope.type == "program.submitted":
             execution_id = data.get("execution_id")
             if isinstance(execution_id, str) and execution_id:
@@ -108,12 +119,12 @@ def plan_interrupted_invocations(events: list[EventEnvelope]) -> list[EventDraft
                 programs[execution_id]["finished"] = True
 
     drafts: list[EventDraft] = []
-    closed: dict[str, dict[str, Any]] = {}  # call_id -> terminal projection
-    for call_id, kinds in by_call.items():
+    closed: dict[str, dict[str, Any]] = {}  # request event ID -> terminal projection
+    for request_id, kinds in by_request.items():
         finished = kinds.get("tool.finished")
         if finished is not None:
             data = finished.data
-            closed[call_id] = {
+            closed[request_id] = {
                 "status": data.get("status"),
                 "effect_state": data.get("effect_state"),
                 "raw_result_event_id": data.get("raw_result_event_id"),
@@ -131,7 +142,8 @@ def plan_interrupted_invocations(events: list[EventEnvelope]) -> list[EventDraft
         else:
             effect_state = "not_started"
         data = {
-            "tool_call_id": call_id,
+            "tool_call_id": requested.data["tool_call_id"],
+            "request_event_id": request_id,
             "tool_name": requested.data.get("tool_name"),
             "execution_id": requested.data.get("execution_id"),
             "status": "interrupted",
@@ -142,7 +154,7 @@ def plan_interrupted_invocations(events: list[EventEnvelope]) -> list[EventDraft
             "raw_result_event_id": recorded.event_id if recorded is not None else None,
             "error": {"code": "interrupted", "message": _INTERRUPTED_MESSAGE},
         }
-        closed[call_id] = {
+        closed[request_id] = {
             "status": "interrupted",
             "effect_state": effect_state,
             "raw_result_event_id": data["raw_result_event_id"],
@@ -163,14 +175,15 @@ def plan_interrupted_invocations(events: list[EventEnvelope]) -> list[EventDraft
             continue
         submitted = info["submitted"]
         receipts = []
-        for call_id, kinds in by_call.items():
+        for request_id, kinds in by_request.items():
             requested = kinds.get("tool.requested")
             if requested is None or requested.data.get("execution_id") != execution_id:
                 continue
-            terminal = closed.get(call_id) or {}
+            terminal = closed.get(request_id) or {}
             receipts.append(
                 {
-                    "call_id": call_id,
+                    "call_id": requested.data["tool_call_id"],
+                    "request_event_id": request_id,
                     "tool_name": requested.data.get("tool_name"),
                     "status": terminal.get("status") or "interrupted",
                     "effect_state": terminal.get("effect_state") or "not_started",

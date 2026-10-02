@@ -132,6 +132,7 @@ class PendingBroker:
                 # Host-stamped invocation correlation (None outside a tool).
                 "tool_call_id": scope.tool_call_id if scope else None,
                 "execution_id": scope.execution_id if scope else None,
+                "request_event_id": scope.request_event_id if scope else None,
             },
             publish=True,
         )
@@ -215,6 +216,7 @@ class PendingBroker:
                 "prompt": prompt,
                 "tool_call_id": scope.tool_call_id if scope else None,
                 "execution_id": scope.execution_id if scope else None,
+                "request_event_id": scope.request_event_id if scope else None,
             },
             publish=True,
         )

@@ -58,6 +58,7 @@ EVENT_TYPES: dict[str, str] = {
     "agent.thinking": "persisted reasoning segment of one LLM call",
     "tool.requested": "tool call requested (durable before any policy/tool effect)",
     "tool.started": "tool admitted by policy; executor about to run",
+    "tool.progress": "executor-reported phase, normalized inputs and explicit job/wait links",
     "tool.result_recorded": "raw tool result durably recorded before postprocessing",
     "tool.blocked": "tool blocked by a policy stage",
     "tool.finished": "tool finished",

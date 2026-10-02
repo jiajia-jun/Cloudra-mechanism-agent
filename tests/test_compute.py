@@ -668,6 +668,33 @@ async def test_submit_compute_job_async_creates_record(isolated_db, mock_calc_wo
 
 
 @pytest.mark.asyncio
+async def test_submit_progress_links_ledger_job_and_resolved_resources(isolated_db, mock_calc_workdir):
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.runtime_v2.invocation_context import InvocationScope, reset_invocation_scope, set_invocation_scope
+    from cloudra.services.compute_store import aget_compute_job
+
+    progress = []
+    async def capture(update):
+        progress.append(update)
+    tool = SubmitComputeJob()
+    tool.subagent = MockAgent('a-0', 'test_conv')
+    token = set_invocation_scope(InvocationScope('call', 'submit_compute_job', report_progress=capture))
+    try:
+        result = await tool.tool_call(SubmitComputeJob_input_schema(
+            input_file=os.path.join(mock_calc_workdir, 'h2.gjf'), job_type='gaussian', is_async=True,
+        ), session=None)
+    finally:
+        reset_invocation_scope(token)
+    assert result.is_success
+    row = await aget_compute_job(ComputeDB(), result.job_id)
+    assert any(result.job_id in update.compute_job_ids for update in progress)
+    resolved = next(p.effective_arguments for p in progress if p.phase == 'submitting')
+    assert resolved['cpus'] == row['req_cpus']
+    assert resolved['node_id'] == row['node_id']
+    assert resolved['input_file'] == row['path']
+
+
+@pytest.mark.asyncio
 async def test_submit_async_then_execution_failure_same_id(isolated_db, mock_calc_workdir_fail):
     """异步提交先 ready；执行（认领 → 真实 guard → calculator 失败）后同编号
     变 failed；全程只有一条作业行，query 同编号取同终态。"""

@@ -9,7 +9,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Literal, Optional
+from typing import Annotated, Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
@@ -20,6 +20,29 @@ def new_id(prefix: str) -> str:
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+class ToolWaitTarget(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    kind: Literal["agent", "compute_job"]
+    target_id: str = Field(min_length=1)
+
+
+class ToolProgress(BaseModel):
+    """Executor-reported facts, never guessed percentages or scientific verdicts.
+
+    effective_arguments is the validated/normalized input at this phase, not a
+    claim that every external program option has been observed.
+    """
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    phase: Literal["validating", "preparing", "executing", "submitting", "waiting", "parsing", "postprocessing"]
+    message: str = ""
+    effective_arguments: dict[str, Any] | None = None
+    compute_job_ids: list[Annotated[int, Field(strict=True, gt=0)]] = Field(default_factory=list)
+    waits: list[ToolWaitTarget] = Field(default_factory=list)
 
 
 class OrchestrationMode(str, Enum):

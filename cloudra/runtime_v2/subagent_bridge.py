@@ -297,6 +297,13 @@ async def _handle_launcher(core, parent: AgentSession, args: dict[str, Any]) -> 
         )
         return ToolResult(is_success=True, summary=data["result"], data=data)
     try:
+        from cloudra.runtime_v2.invocation_context import report_tool_progress
+        from cloudra.runtime_v2.schemas import ToolProgress, ToolWaitTarget
+
+        await report_tool_progress(ToolProgress(
+            phase="waiting", message="Waiting for child agent",
+            waits=[ToolWaitTarget(kind="agent", target_id=child.id)],
+        ))
         child = await _await_terminal(core, child.id)
     except asyncio.CancelledError:
         await _cancel_child(core, child.id)
@@ -371,6 +378,24 @@ async def _handle_swarm(core, parent: AgentSession, args: dict[str, Any]) -> Too
     semaphore = asyncio.Semaphore(max_concurrency) if max_concurrency > 0 else None
 
     spawned: list[str] = []
+    waiting: set[str] = set()
+
+    async def wait_for_child(child):
+        from cloudra.runtime_v2.invocation_context import report_tool_progress
+        from cloudra.runtime_v2.schemas import ToolProgress, ToolWaitTarget
+
+        waiting.add(child.id)
+        await report_tool_progress(ToolProgress(
+            phase="waiting", message="Waiting for child agents",
+            waits=[ToolWaitTarget(kind="agent", target_id=sid) for sid in sorted(waiting)],
+        ))
+        child = await _await_terminal(core, child.id)
+        waiting.discard(child.id)
+        await report_tool_progress(ToolProgress(
+            phase="waiting" if waiting else "executing", message="Child agent returned",
+            waits=[ToolWaitTarget(kind="agent", target_id=sid) for sid in sorted(waiting)],
+        ))
+        return child
 
     async def run_one(item: str) -> tuple[str, AgentSession]:
         query = template.replace("{{item}}", item)
@@ -378,13 +403,13 @@ async def _handle_swarm(core, parent: AgentSession, args: dict[str, Any]) -> Too
             child, _receipt = await _spawn_child(bus, parent, role_id=role_id, query=query, context=context)
             spawned.append(child.id)
             if is_wait:
-                child = await _await_terminal(core, child.id)
+                child = await wait_for_child(child)
             return item, child
         async with semaphore:
             child, _receipt = await _spawn_child(bus, parent, role_id=role_id, query=query, context=context)
             spawned.append(child.id)
             if is_wait:
-                child = await _await_terminal(core, child.id)
+                child = await wait_for_child(child)
         return item, child
 
     try:

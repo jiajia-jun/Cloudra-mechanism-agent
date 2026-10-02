@@ -75,6 +75,81 @@ def _finished(core: RuntimeCore) -> list:
 
 
 @pytest.mark.asyncio
+async def test_progress_is_durable_live_and_scoped_to_parallel_invocations():
+    from cloudra.runtime_v2 import invocation_context, schemas
+
+    core = RuntimeCore(strict_events=True)
+    store = RecordingStore()
+    received = []
+    gate = asyncio.Event()
+
+    class ReportingExecutor:
+        async def execute(self, agent, call):
+            await invocation_context.report_tool_progress(schemas.ToolProgress(
+                phase="executing", message=call.id,
+                effective_arguments={"value": call.id},
+            ))
+            if call.id == "first":
+                gate.set()
+                await asyncio.sleep(0)
+            else:
+                await gate.wait()
+            return ToolResult(True, call.id)
+
+    async def observe(event):
+        if event.type == "tool.progress":
+            assert "tool.progress" in store.observations
+            received.append(event)
+
+    core.event_hub.subscribe(observe)
+    writer = EventWriter(core.event_log, core.event_hub, store_provider=lambda: store)
+    service = InvocationService(event_writer=writer, stages=[], tools=ReportingExecutor())
+    await asyncio.gather(*(
+        service.invoke(_ctx(_agent()), ToolCall(cid, "echo", {}), execution_id="js1")
+        for cid in ["first", "second"]
+    ))
+    assert len(received) == 2
+    assert {e.data["tool_call_id"] for e in received} == {"first", "second"}
+    for event in received:
+        assert event.data["message"] == event.data["tool_call_id"]
+        assert event.data["execution_id"] == "js1"
+        req = core.event_log.get(event.data["request_event_id"])
+        assert req.type == "tool.requested"
+        assert req.data["tool_call_id"] == event.data["tool_call_id"]
+    assert invocation_context.current_invocation_scope() is None
+
+
+def test_progress_rejects_fabricated_or_invalid_structured_values():
+    from pydantic import ValidationError
+
+    from cloudra.runtime_v2 import schemas
+
+    for payload in [
+        {"phase": "invented"}, {"phase": "executing", "compute_job_ids": [True]},
+        {"phase": "executing", "compute_job_ids": [-1]},
+        {"phase": "executing", "percent": 50},
+    ]:
+        with pytest.raises(ValidationError):
+            schemas.ToolProgress.model_validate(payload)
+
+
+@pytest.mark.asyncio
+async def test_progress_persistence_failure_is_not_a_retryable_tool_failure():
+    from cloudra.runtime_v2.invocation_context import report_tool_progress
+    from cloudra.runtime_v2.schemas import ToolProgress
+
+    class ReportingExecutor:
+        async def execute(self, agent, call):
+            await report_tool_progress(ToolProgress(phase="executing"))
+            pytest.fail("must stop after failed durable progress")
+
+    core = RuntimeCore(strict_events=True)
+    service, _ = _service(core, RecordingStore(fail_on={"tool.progress"}), tools=ReportingExecutor())
+    with pytest.raises(EventPersistenceError):
+        await service.invoke(_ctx(_agent()), ToolCall("call", "echo", {}))
+
+
+@pytest.mark.asyncio
 async def test_effect_waits_for_durable_request():
     core = RuntimeCore(strict_events=True)
     agent = _agent()

@@ -20,6 +20,7 @@ from . import (
     fs,
     hub,
     knowledge,
+    observability,
     pending,
     projects,
     reminders,
@@ -34,6 +35,7 @@ def build_routers(ctx: ApiContext) -> list[APIRouter]:
         runtime.build_router(ctx),
         projects.build_router(ctx),
         agents.build_router(ctx),
+        observability.build_router(ctx),
         knowledge.build_router(ctx),
         roles.build_router(ctx),
         pending.build_router(ctx),
@@ -48,4 +50,3 @@ def build_routers(ctx: ApiContext) -> list[APIRouter]:
         fs.build_router(ctx),
         telemetry.build_router(ctx),
     ]
-

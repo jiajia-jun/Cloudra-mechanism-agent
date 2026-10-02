@@ -15,11 +15,13 @@ from __future__ import annotations
 
 import asyncio
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from cloudra.persistence.database import ComputeDB
 from cloudra.services.compute_store import (
+    _db_ready,
     acancel_all_compute_jobs,
+    aget_compute_job,
     alist_compute_jobs,
 )
 
@@ -30,6 +32,15 @@ _ACTIVE_STATES = ("ready", "running", "cancel_requested")
 
 def build_router(ctx: ApiContext) -> APIRouter:
     router = APIRouter()
+
+    @router.get("/api/v2/projects/{project_id}/compute/jobs/{job_id}", dependencies=ctx.protected)
+    async def project_compute_job(project_id: str, job_id: int) -> dict:
+        ctx.core.require_project(project_id)
+        db = ComputeDB()
+        job = await aget_compute_job(db, job_id) if await asyncio.to_thread(_db_ready, db) else None
+        if job is None or job["conversation_id"] != project_id:
+            raise HTTPException(404, "compute job not found")
+        return job
 
     @router.get("/api/v2/projects/{project_id}/compute/jobs", dependencies=ctx.protected)
     async def list_project_compute_jobs(

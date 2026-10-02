@@ -1027,6 +1027,13 @@ class LegacyToolExecutor:
             parsed = schema_cls.model_validate(call.arguments)
         except ValidationError as exc:
             return ToolResult(is_success=False, summary=validation_feedback(exc))
+        from cloudra.runtime_v2.invocation_context import report_tool_progress
+        from cloudra.runtime_v2.schemas import ToolProgress
+
+        await report_tool_progress(ToolProgress(
+            phase="executing", message="Validated tool inputs; entering tool execution",
+            effective_arguments=parsed.model_dump(mode="json"),
+        ))
         token = set_session_yolo(agent.settings.yolo)
         try:
             # v2-native user decisions: destructive-tool approvals and ask_user
@@ -1043,12 +1050,21 @@ class LegacyToolExecutor:
             from cloudra.tools.Interactool.ask_user import use_input_handler
             with use_approval_handler(_approval), use_input_handler(_interaction), use_runtime_authority(self.core):
                 output = await tool.safe_call(parsed, Session(id=agent.id, path=""))
-        except Exception:
+        except Exception as exc:
             # An unexpected safe_call fault is not a business failure: package
             # it as structured tool_exception metadata so the invocation
             # service closes the lifecycle with effect_state=unknown.
             # Validation errors above stay ordinary unsuccessful results.
+            from cloudra.runtime_v2.event_writer import EventPersistenceError
             from cloudra.runtime_v2.invocation_types import InvocationError
+
+            # safe_call wraps tool exceptions; a failed durable progress write
+            # must retain the runtime's non-retryable persistence semantics.
+            cause = exc
+            while cause is not None:
+                if isinstance(cause, EventPersistenceError):
+                    raise cause
+                cause = cause.__cause__
 
             logging.getLogger(__name__).exception("Tool execution failed: %s", call.name)
             message = "Tool execution failed internally. The error was logged; report the tool call instead of inspecting application source."

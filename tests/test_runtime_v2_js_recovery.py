@@ -14,6 +14,31 @@ from cloudra.runtime_v2.persistence import (
 from cloudra.runtime_v2.schemas import Command
 
 
+def test_recovery_keeps_reused_call_ids_in_distinct_attempts():
+    from cloudra.runtime_v2.schemas import AgentSession
+
+    core = RuntimeCore(strict_events=True)
+    agent = AgentSession(id="a", project_id="p", role_id="explorer", display_name="a")
+    first = _append(core, "tool.requested", agent, "run", {"tool_call_id": "same", "tool_name": "echo"})
+    second = _append(core, "tool.requested", agent, "run", {"tool_call_id": "same", "tool_name": "echo"})
+    raw = _append(core, "tool.result_recorded", agent, "run", {
+        "tool_call_id": "same", "request_event_id": first.event_id, "result": {"data": 1},
+    })
+    another = _append(core, "tool.requested", agent, "next", {"tool_call_id": "same", "tool_name": "echo"})
+    drafts = plan_interrupted_invocations(list(core.event_log))
+    assert len(drafts) == 3
+    by_request = {d.data["request_event_id"]: d.data for d in drafts}
+    assert by_request[first.event_id]["effect_state"] == "completed"
+    assert by_request[first.event_id]["raw_result_event_id"] == raw.event_id
+    for req in (second, another):
+        assert by_request[req.event_id]["effect_state"] == "not_started"
+        assert by_request[req.event_id]["raw_result_event_id"] is None
+    for draft in drafts:
+        core.event_log.append(draft.type, stream=draft.stream, project_id=draft.project_id,
+            session_id=draft.session_id, run_id=draft.run_id, data=draft.data)
+    assert plan_interrupted_invocations(list(core.event_log)) == []
+
+
 def _append(core: RuntimeCore, type_: str, agent, run_id: str, data: dict):
     return core.event_log.append(
         type_,

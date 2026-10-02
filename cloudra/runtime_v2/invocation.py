@@ -209,6 +209,11 @@ class InvocationService:
         return await self.event_writer.commit(draft)
 
     def _draft(self, type: str, ctx: PipelineContext, data: dict[str, Any]) -> EventDraft:
+        from cloudra.runtime_v2.invocation_context import current_invocation_scope
+
+        scope = current_invocation_scope()
+        if scope is not None and scope.request_event_id is not None:
+            data = {**data, "request_event_id": scope.request_event_id}
         return EventDraft(type, "agent", ctx.agent.project_id, ctx.agent.id, ctx.run_id, data)
 
     async def _commit_finished(
@@ -263,14 +268,26 @@ class InvocationService:
     ) -> InvocationOutcome:
         # 1. The request is a durable fact before any policy/tool effect.
         draft, effect = decide_invocation(ctx, call, execution_id=execution_id)
-        await self._commit(draft)
+        requested = await self._commit(draft)
         call = effect.call
         self._refresh_context(ctx)
-        scope = InvocationScope(call.id, call.name, execution_id)
+        active = True
+
+        async def report(progress):
+            if not active:
+                raise RuntimeError("cannot report progress after invocation ended")
+            await self._commit(self._draft("tool.progress", ctx, {
+                **_detach_json(progress.model_dump(mode="json")),
+                "tool_call_id": call.id, "tool_name": call.name,
+                "execution_id": execution_id, "request_event_id": requested.event_id,
+            }))
+
+        scope = InvocationScope(call.id, call.name, execution_id, report, requested.event_id)
         token = set_invocation_scope(scope)
         try:
             return await self._invoke_scoped(ctx, call, execution_id=execution_id)
         finally:
+            active = False
             reset_invocation_scope(token)
 
     async def _invoke_scoped(
@@ -388,6 +405,8 @@ class InvocationService:
                 raise
             except Exception:
                 logger.exception("failed to record tool cancellation for %s", call.id)
+            raise
+        except EventPersistenceError:
             raise
         except Exception as exc:
             error = InvocationError("tool_exception", str(exc), "unknown")

@@ -113,6 +113,8 @@ async def test_launcher_wait_spawns_v2_child_and_returns_result():
     child_events = [e.type for e in core.event_log.query_session(child.id)]
     assert "run.started" in child_events
     assert "agent.message_emitted" in child_events
+    waits = [e for e in core.event_log.query_session(coordinator.id) if e.type == "tool.progress"]
+    assert any({'kind': 'agent', 'target_id': child.id} in e.data['waits'] for e in waits)
 
 
 @pytest.mark.asyncio
