@@ -62,21 +62,57 @@ def validate_recovery(record, request: TsResumeRequest) -> None:
                            (record.owner_conversation_id, failed.job_id or 0)).fetchall()
     old = Path(failed.input_path)
     digest = hashlib.sha256(old.read_bytes()).hexdigest() if old.is_file() else None
-    # A changed sampling grid cannot repair first-point execution. A later
-    # successful execution of the accepted bytes is checkable environmental
-    # recovery evidence, unlike a free-text claim of repaired conditions.
+    # An execution repair is distinct from a scientifically invalid result.
+    # Require native normal termination even when the authoritative ledger says done.
+    execution_failure = failed.state in ('failed', 'cancelled', 'missing') and (
+        not record.failed_attempt or record.failed_attempt['failure_class'] in (
+            'scan_job_failed', 'unclassified_failure', 'conformer_optimization_failed'))
     for job_id, path, engine in jobs:
         input_path = Path(path).resolve()
         log_path = Path(resolve_log_path(path, job_type=engine, task_id=job_id)).resolve()
-        if supplied & {str(input_path), str(log_path)} and digest is not None:
-            if input_path.is_file() and hashlib.sha256(input_path.read_bytes()).hexdigest() == digest:
-                return
+        if not execution_failure or not supplied & {str(input_path), str(log_path)} or digest is None:
+            continue
+        if engine not in ('orca', 'gaussian') or not input_path.is_file() or hashlib.sha256(input_path.read_bytes()).hexdigest() != digest:
+            continue
+        frames = __import__('cloudra.tools.core.' + ('orca_frames' if engine == 'orca' else 'gaussian_frames'), fromlist=['normal_termination'])
+        if log_path.is_file() and frames.normal_termination(log_path.read_text()):
+            return
     updated = apply_input_changes(record.input, request.changes)
     from cloudra.tools.core.calculation_intent import native_input_geometry
     from cloudra.tools.core.structure_artifacts import read_xyz_atoms
-    from cloudra.tools.core.ts_process import _check_calculation_submission, stage_calculation
+    from cloudra.tools.core.ts_process import _check_calculation_submission, _step_calculation, stage_calculation
     trial = record.model_copy(deep=True)
     trial.input = updated
+    # Changing the search route is a new exploration attempt, not an assertion
+    # that the old scan succeeded. Bind the old failure and inspect the new inputs.
+    if failed.purpose in ('scan', 'path') and updated.guess and record.input.guess and updated.guess.kind != record.input.guess.kind:
+        from cloudra.tools.core.ts_process import _bound_input_structure, _read_built_xyz
+        failure_refs = {str(old.resolve())}
+        if record.failed_attempt:
+            failure_refs.update(str(Path(ref).resolve()) for ref in record.failed_attempt['evidence_refs'])
+        if supplied & failure_refs:
+            guess = updated.guess
+            if guess.kind == 'provided':
+                candidate = Path(guess.xyz_path).resolve()
+                candidate.relative_to(root)
+                atoms = read_xyz_atoms(str(candidate))
+                built = _read_built_xyz(record, 'reactant')
+                refs = {str(Path(ref).resolve()) for ref in guess.evidence_refs}
+                if built and [symbol for symbol, _ in atoms] == built[0] and str(candidate) in supplied and refs and refs <= supplied:
+                    return
+            elif guess.kind == 'xtb_path' and guess.method == 'GFN2-xTB':
+                # Both concrete endpoints must retain their checked species and
+                # full mapping; the normal driver then applies live method policy.
+                for role in ('reactant', 'product'):
+                    built = _read_built_xyz(record, role)
+                    if built is None or str(Path(built[2]).resolve()) not in supplied:
+                        break
+                    _bound_input_structure(trial, role, persist_artifact=False)
+                else:
+                    reactant, product = _read_built_xyz(record, 'reactant'), _read_built_xyz(record, 'product')
+                    mapping = record.input.reaction.atom_map
+                    if sorted(mapping) == list(range(len(reactant[0]))) and len(product[0]) == len(mapping) and all(product[0][i] == reactant[0][j] for i, j in enumerate(mapping)):
+                        return
     # A new seed must have archived qualification, or native successful evidence
     # at that seed and the explicitly revised calculation. Free text is never proof.
     for role in ('reactant', 'product'):
@@ -105,7 +141,7 @@ def validate_recovery(record, request: TsResumeRequest) -> None:
         return [(symbol, tuple(format(float(x), '.8f') for x in point)) for symbol, point in atoms]
     if calculation and calculation.engine in ('orca', 'gaussian'):
         try:
-            target_geometry = canonical(read_xyz_atoms(seed)) if seed else canonical(native_input_geometry(old.read_text(), engine=calculation.engine))
+            target_geometry = canonical(read_xyz_atoms(seed)) if seed else canonical(native_input_geometry(old.read_text(), engine=_step_calculation(record, failed).engine))
         except (OSError, ValueError):
             target_geometry = None
         for job_id, path, engine in jobs:
@@ -117,8 +153,21 @@ def validate_recovery(record, request: TsResumeRequest) -> None:
                 content = input_path.read_text()
                 _check_calculation_submission(trial, failed.purpose, str(input_path), engine)
                 frames = __import__('cloudra.tools.core.' + ('orca_frames' if engine == 'orca' else 'gaussian_frames'), fromlist=['normal_termination'])
-                if frames.normal_termination(log_path.read_text()) and canonical(native_input_geometry(content, engine=engine)) == target_geometry:
-                    return
+                if not frames.normal_termination(log_path.read_text()) or canonical(native_input_geometry(content, engine=engine)) != target_geometry:
+                    continue
+                if failed.purpose in ('frequency', 'reactant_frequency', 'product_frequency'):
+                    from cloudra.dag.evidence_ingest import _extract_qm_log
+                    _, _, frequencies, imaginary, _, _ = _extract_qm_log(log_path)
+                    if frequencies is None and imaginary is None:
+                        continue
+                    imaginary = imaginary if imaginary is not None else [f for f in frequencies if f < 0]
+                    if len(imaginary) != (1 if failed.purpose == 'frequency' else 0):
+                        continue
+                elif record.failed_attempt and record.failed_attempt['failure_class'] in ('wrong_mode', 'endpoint_unconfirmed', 'scan_no_candidate', 'scan_invalid_geometry'):
+                    # These outcomes require their specific scientific proof; a
+                    # generic normal termination cannot certify their repair.
+                    continue
+                return
             except (ValueError, OSError):
                 continue
     raise ValueError('recovery evidence must reference an authoritative successful relevant calculation or a changed qualified catalog seed; unrelated artifacts cannot authorize retry')

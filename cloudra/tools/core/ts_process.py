@@ -28,7 +28,7 @@ import os
 from pathlib import Path
 from typing import Callable, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from cloudra.persistence.fs_utils import atomic_write_text
 from cloudra.tools.core.conformer_cards import AttemptEvidence
@@ -193,7 +193,7 @@ class TsStartRequest(BaseModel):
     """`ts_prepare` 的输入。"""
 
     model_config = ConfigDict(extra="forbid")
-    request_key: str | None = None
+    request_key: str = Field(min_length=1)
     input: TsInput
     workspace_dir: str = Field(description="工作区根目录；运行目录建在 <workspace_dir>/ts/<run_id>/")
     owner_conversation_id: str = Field(
@@ -203,7 +203,12 @@ class TsStartRequest(BaseModel):
         default=None, description="发起 agent 的 session_id（作业终态推送的收件人）"
     )
 
-
+    @field_validator('request_key')
+    @classmethod
+    def stable_key(cls, value):
+        if not value.strip():
+            raise ValueError('nonblank request_key required for prepare replay')
+        return value
 
 
 # ---------------------------------------------------------------------------
@@ -831,7 +836,7 @@ def _endpoint_numbering(record: TsProcessRecord) -> list[str]:
         )
     return lines
 
-def _bound_input_structure(record, role, *, require_identity=True):
+def _bound_input_structure(record, role, *, require_identity=True, persist_artifact=True):
     """Check one concrete source before spending compute, retaining its graph."""
     import hashlib
 
@@ -852,6 +857,9 @@ def _bound_input_structure(record, role, *, require_identity=True):
         conf.SetAtomPosition(i, point)
     mol.RemoveAllConformers()
     mol.AddConformer(conf)
+    connectivity = _geometry_connectivity_error(mol, (symbols, positions), record.input.reaction.charge, role)
+    if connectivity:
+        raise ValueError(connectivity)
     source = getattr(record.input.conformers, role)
     constructed_role = 'reactant' if source and source.kind == 'rotate_about_bond' else role
     original_source = getattr(record.input.conformers, constructed_role)
@@ -874,6 +882,8 @@ def _bound_input_structure(record, role, *, require_identity=True):
     stereo = geometry_stereochemistry_errors(mol, positions)
     if require_identity and stereo:
         raise ValueError(f'{role}: {stereo}')
+    if not mol_path and not persist_artifact:
+        return expected_smiles, mol, hashes
     if not mol_path:
         mol_path = str(Path(xyz_path).with_suffix('.bound.mol'))
         _write_immutable_input(mol_path, Chem.MolToMolBlock(mol))
@@ -962,7 +972,7 @@ def _map(record: TsProcessRecord) -> TsProcessRecord:
             "no atom_map was declared: the reactant→product atom correspondence is ambiguous, and "
             "an ambiguous mapping must be declared rather than guessed (a wrong mapping produces a "
             "non-physical path no matter how good the path search is). To fix: declare the FULL "
-            "software-native map (Gaussian 1-based, ORCA 0-based), in product atom order, "
+            "1-based structure map, in product atom order for every engine, "
             "covering EVERY atom including hydrogens (a heavy-atom-only map is rejected). Atom "
             "numbers refer to the built endpoint XYZs listed in atom_details (component-wise "
             "assembly order, NOT raw SMILES order): read them, or call reaction_mapping on the "
@@ -1129,7 +1139,8 @@ def _guess_scan(record: TsProcessRecord) -> TsProcessRecord:
         request = TsGuess_input_schema(
             mode="scan_prepare", input_path=built[2], engine=calculation.engine,
             method=calculation.method, charge=declaration.charge, spin=declaration.multiplicity,
-            extra_route=calculation.keywords,
+            extra_route=calculation.keywords, orca_blocks=calculation.orca_blocks,
+            end_setting=calculation.end_setting,
             scans=public_rows(plan.scans), freeze=public_rows(plan.freeze),
             output_path=str(folder / ("scan.inp" if calculation.engine == "orca" else "scan.gjf")),
             nprocs=record.compute_cpus,
@@ -2008,7 +2019,7 @@ def _write_irc_input(record: TsProcessRecord, job_dir: str) -> tuple[str, str]:
         task_type: list[dict] = [{"irc": None}]
         hess_path = os.path.splitext(frequency_step.input_path)[0] + ".hess"
         previous_calculation = _step_calculation(record, frequency_step)
-        same_theory = (previous_calculation.engine, previous_calculation.method, previous_calculation.keywords) == (calculation.engine, calculation.method, calculation.keywords)
+        same_theory = previous_calculation.model_dump(exclude={'frequency_mode'}) == calculation.model_dump(exclude={'frequency_mode'})
         if os.path.isfile(hess_path) and same_theory:
             # 频率作业真的落下了 Hessian：复用同一几何的 Hessian（skill 的首选做法）
             irca = (
@@ -2517,15 +2528,7 @@ def _endpoint_identity_error(
     optimized: tuple[list[str], list[list[float]]],
 ) -> str:
     """Require the optimized full-atom bond graph to remain the declared species."""
-    import math
-
     from rdkit import Chem
-
-    from cloudra.tools.core.irc_path import (
-        COVALENT_RADII,
-        DISTANCE_CONNECTIVITY_FACTOR,
-        perceive_bonds,
-    )
 
     source_role = (
         "reactant" if role == "product" and _rotated_product(record) is not None
@@ -2562,6 +2565,17 @@ def _endpoint_identity_error(
     )
     if stereo_errors:
         return f"{role} " + "; ".join(stereo_errors)
+    return _geometry_connectivity_error(mol, optimized, record.input.reaction.charge, role, remap)
+
+def _geometry_connectivity_error(mol, optimized, charge, role, remap=None):
+    """Use the existing endpoint bond-perception contract for concrete seeds too."""
+    import math
+
+    from rdkit import Chem
+
+    from cloudra.tools.core.irc_path import COVALENT_RADII, DISTANCE_CONNECTIVITY_FACTOR, perceive_bonds
+    n = mol.GetNumAtoms()
+    remap = list(range(n)) if remap is None else remap
     expected_bonds = {
         tuple(sorted((remap[bond.GetBeginAtomIdx()], remap[bond.GetEndAtomIdx()]))):
         float(bond.GetBondTypeAsDouble())
@@ -2570,7 +2584,7 @@ def _endpoint_identity_error(
     fragments = Chem.GetMolFrags(mol)
     if len(fragments) == 1:
         actual_bonds, source = perceive_bonds(
-            optimized[0], optimized[1], record.input.reaction.charge,
+            optimized[0], optimized[1], charge,
         )
         if source != "rdDetermineBonds":
             return f"{role} optimized connectivity could not be determined by RDKit"
@@ -2910,8 +2924,6 @@ def start(request: TsStartRequest,
 
     同步函数（CPU + 文件 IO）；异步调用方必须经 ``asyncio.to_thread`` 卸载。
     """
-    import uuid
-
     from cloudra.infra.flocks import locked
     from cloudra.services.ts_pipeline_context import pipeline_database, require_pipeline_producer
     from cloudra.services.ts_pipeline_store import create_process
@@ -2922,7 +2934,7 @@ def start(request: TsStartRequest,
     with locked(os.path.join(root, '.creation.lock')):
         process = None
         if request.owner_conversation_id:
-            process = create_process(pipeline_database(), request_key=request.request_key or str(uuid.uuid4()), payload=dict(
+            process = create_process(pipeline_database(), request_key=request.request_key, payload=dict(
                 project_id=request.owner_conversation_id, owner_id=request.owner_session_id,
                 workspace_dir=request.workspace_dir, input=request.input.model_dump(mode='json')))
             if process['record'] is not None:

@@ -85,8 +85,8 @@ def _declaration(**overrides) -> TsInput:
     return calculation_input(**payload)
 
 
-def _start(tmp_path, **overrides):
-    return start(TsStartRequest(
+def _start(tmp_path, request_key='fixture-prepare', **overrides):
+    return start(TsStartRequest(request_key=request_key,
         input=_declaration(**overrides),
         workspace_dir=str(tmp_path),
         owner_conversation_id="test_project",
@@ -168,7 +168,7 @@ def test_run_directory_layout_and_persistence(tmp_path):
 
 def test_run_ids_are_numbered_and_isolated(tmp_path):
     first = _start(tmp_path)
-    second = _start(tmp_path)
+    second = _start(tmp_path, request_key='another-path')
     assert (first.run_id, second.run_id) == ("ts_0001", "ts_0002")
     assert first.run_dir != second.run_dir
 
@@ -363,7 +363,7 @@ def test_only_blocked_and_terminal_events_are_emitted(tmp_path):
     """阶段推进不推事件（避免污染上下文）；阻塞与终态才推。"""
     events: list[tuple[str, dict]] = []
     start(
-        TsStartRequest(input=_declaration(atom_map=[]), workspace_dir=str(tmp_path)),
+        TsStartRequest(request_key='fixture-prepare', input=_declaration(atom_map=[]), workspace_dir=str(tmp_path)),
         event_sink=lambda name, payload: events.append((name, payload)),
     )
     assert [name for name, _ in events] == ["ts.blocked"]
@@ -375,7 +375,7 @@ def test_only_blocked_and_terminal_events_are_emitted(tmp_path):
 def test_terminal_event_carries_evidence_candidates(tmp_path):
     events: list[tuple[str, dict]] = []
     start(
-        TsStartRequest(input=_declaration(reactant_smiles="invalid SMILES"), workspace_dir=str(tmp_path)),
+        TsStartRequest(request_key='fixture-prepare', input=_declaration(reactant_smiles="invalid SMILES"), workspace_dir=str(tmp_path)),
         event_sink=lambda name, payload: events.append((name, payload)),
     )
     assert [name for name, _ in events] == ["ts.terminal"]
@@ -396,7 +396,7 @@ def test_terminal_event_carries_evidence_candidates(tmp_path):
 def test_submit_without_owner_is_refused(tmp_path):
     """无归属的 run 到 submit 阶段 fail-loud 拒收：归属缺失的作业是投递不到
     的死信（ComputeNotifyBroker 只按 conversation/session 路由），宁可阻塞。"""
-    record = start(TsStartRequest(
+    record = start(TsStartRequest(request_key='fixture-prepare',
         input=_declaration(), workspace_dir=str(tmp_path),
     ))
     assert record.blocked is not None
@@ -886,7 +886,7 @@ def test_same_smiles_endpoints_are_distinguished_by_declared_geometry(tmp_path):
 
     workspace = tmp_path
     declaration = _m1_declaration(mol)
-    record = start(TsStartRequest(
+    record = start(TsStartRequest(request_key='fixture-prepare',
         input=declaration,
         workspace_dir=str(workspace),
         owner_conversation_id="test_project",

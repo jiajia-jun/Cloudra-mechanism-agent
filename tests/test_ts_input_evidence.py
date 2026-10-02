@@ -59,8 +59,9 @@ def test_identity_is_rechecked_after_geometry_source_changes(tmp_path, monkeypat
     monkeypatch.setattr('cloudra.tools.core.ts_process._queued_path',lambda *_: (_ for _ in ()).throw(AssertionError('identity mismatch cannot enter path search')))
     _guess(record)
     assert record.blocked.failure_class=='input_identity_unconfirmed'
-    assert record.input_binding['reactant_identity']=='mismatch'
-    assert record.input_binding['hashes']!=original
+    assert record.input_binding['binding_status']=='inconclusive'
+    assert 'connectivity' in record.input_binding['binding_diagnostics'][0]
+    assert record.input_binding.get('hashes')!=original
 
 
 def test_conformer_identity_checked_before_optimizer_submission(tmp_path, monkeypatch):

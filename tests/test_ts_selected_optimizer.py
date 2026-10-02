@@ -10,7 +10,7 @@ from cloudra.tools.core import ts_process
 pytestmark = pytest.mark.usefixtures('ts_producer_authority')
 
 
-def catalog_seed(tmp_path):
+def catalog_seed(tmp_path, qualification=None):
     from cloudra.services.conformer_store import put_candidate, put_region_snapshot
     from cloudra.tools.core.conformer_catalog import CandidateRecord
     from cloudra.tools.core.conformer_regions import DescriptorSpec, RegionConfig, partition_candidates
@@ -18,7 +18,7 @@ def catalog_seed(tmp_path):
     xyz.write_text('3\nWater\nO 0 0 0\nH 0.96 0 0\nH -0.24 0.93 0\n')
     candidate = CandidateRecord(catalog_id='cat',project_id='project',owner_id='owner',species_key='water',
         atom_ids=['O1','H1','H2'],fragment_ids=['f','f','f'],symbols=['O','H','H'],
-        positions=[[0,0,0],[0.96,0,0],[-0.24,0.93,0]],geometry_ref=str(xyz),generator='fixture',seed=42)
+        positions=[[0,0,0],[0.96,0,0],[-0.24,0.93,0]],geometry_ref=str(xyz),generator='fixture',seed=42, **({'qualification':qualification} if qualification else {}))
     db=ComputeDB().init()
     put_candidate(db,candidate)
     snapshot=partition_candidates([candidate],RegionConfig(descriptor_specs=[DescriptorSpec(kind='distance',stable_atom_ids=['O1','H1'])]))
@@ -61,7 +61,7 @@ def test_completed_explicit_seed_opt_advances_other_seed_once(tmp_path,monkeypat
     inputs.conformers.reactant=CatalogConformer(**source,optimization=calculation)
     inputs.conformers.product=FileConformer(kind='file',xyz_path=str(xyz),optimization=calculation)
     monkeypatch.setattr('cloudra.services.compute_admission.admit_job',lambda **_: AdmissionOutcome(ok=True,node_id='fixture',scheduler='local'))
-    record=ts_process.start(ts_process.TsStartRequest(input=inputs,workspace_dir=str(tmp_path),owner_conversation_id='project',owner_session_id='owner'))
+    record=ts_process.start(ts_process.TsStartRequest(request_key='fixture-prepare', input=inputs,workspace_dir=str(tmp_path),owner_conversation_id='project',owner_session_id='owner'))
     step=record.job_steps[-1]
     task=ChemTask.model_validate_json(Path(step.input_path).read_text())
     Path(result_path(step.input_path)).write_text(json.dumps(dict(manifest_digest=content_digest(task.model_dump()),process_exit_code=0,

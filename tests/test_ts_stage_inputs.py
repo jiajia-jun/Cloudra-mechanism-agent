@@ -63,20 +63,20 @@ def test_guided_source_uses_its_explicit_calculation_and_bound_windows(tmp_path,
 
     mol = Chem.AddHs(Chem.MolFromSmiles('[H][H]'))
     seed = tmp_path / 'seed.xyz'
-    seed.write_text('2\nseed\nH 0 0 0\nH 1.5 0 0\n')
+    seed.write_text('2\nseed\nH 0 0 0\nH .74 0 0\n')
     mol_path = tmp_path / 'seed.mol'
     Chem.MolToMolFile(mol, str(mol_path))
     value = input_payload()
     value['reaction'].update(reactant_smiles='[H][H]', product_smiles='[H][H]')
     value['conformers'] = dict(reactant=dict(kind='file', xyz_path=str(seed), mol_path=str(mol_path),
         optimization=dict(engine='xtb', method='GFN2-xTB', keywords='')),
-        guidance=dict(distance_filters=[dict(atoms=[0, 1], min_ang=1., max_ang=2.)]))
+        guidance=dict(distance_filters=[dict(atoms=[0, 1], min_ang=.7, max_ang=1.)]))
     record = record_fixture(tmp_path, input=TsInput.model_validate(value),
         current_seed_xyz_path=str(seed), current_seed_mol_path=str(mol_path))
     received = []
     def optimizer(state, key, request):
         received.append(request)
-        return dict(symbols=request.symbols, positions=[[0., 0., 0.], [1.2, 0., 0.]])
+        return dict(symbols=request.symbols, positions=[[0., 0., 0.], [.8, 0., 0.]])
     monkeypatch.setattr('cloudra.tools.core.geometry_optimization.advance_optimization', optimizer)
     _optimize_conformer_source(record, 'reactant')
     assert received[0].method_fingerprint == 'GFN2-xTB'

@@ -209,6 +209,8 @@ class TsGuess_input_schema(input_schema):
         description="scan_prepare, ORCA only: raw % blocks appended after %pal/%geom, e.g. the external-potential block '%method\\n  ProgExt \"/abs/path/to/mace\"\\n  Ext_Params \"--model /abs/model --device cpu --dtype float64\"\\nend' when method='ExtOpt'. Ignored for engine='gaussian'.",
     )
 
+    end_setting: str = Field(default='', description='scan_prepare: explicit Gaussian trailing native settings, after ModRedundant coordinates. ORCA uses orca_blocks.')
+
     # ---------- scan_parse ----------
     log_path: Optional[str] = Field(default=None, description="scan_parse: scan log file path. Absolute as-is, or relative to the Agent working directory.")
     ts_candidate_path: Optional[str] = Field(
@@ -1399,6 +1401,10 @@ class TsGuess(Tool):
                 "scan_prepare requires an explicit method. For exploratory PES scans, choose a "
                 "MethodPolicy-permitted and available semiempirical method."
             )
+        if user_input.engine == 'orca' and user_input.end_setting:
+            raise ValueError('ORCA scan does not support end_setting; use orca_blocks')
+        if user_input.engine == 'gaussian' and user_input.orca_blocks:
+            raise ValueError('Gaussian scan does not support orca_blocks; use end_setting')
         need = {"bond": 2, "angle": 3, "dihedral": 4}
         if not user_input.scans:
             raise ValueError("scan_prepare requires scans: at least one scanned coordinate")
@@ -1545,6 +1551,7 @@ class TsGuess(Tool):
                 "",
                 scan_block,
                 "",
+                user_input.end_setting,
                 "",
             ])
             dim = "2D coupled" if len(specs) > 1 else "1D"

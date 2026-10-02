@@ -4,7 +4,7 @@
 
 ## 三个入口
 
-- `ts_prepare(input, request_key, workspace_dir?)`：创建路径一次，接受显式输入并保存 checkpoint；同一个幂等键重放返回原 run。
+- `ts_prepare(input, request_key, workspace_dir?)`：创建路径一次，接受显式输入并保存 checkpoint；必须提供非空稳定 request_key；同一个幂等键重放返回原 run。
 - `ts_inspect(run_id, workspace_dir?)`：读取同项目权威状态、作业、方法、证据、实际费用和下一步；只读审查员可检查别人的 run。不会推进、重新解析或提交计算。
 - `ts_resume(run_id, changes, reason, request_key, expected_revision, recovery?, workspace_dir?)`：原 owner 修订同一个 run。正常成功链自动推进，无需调用 resume；空修订报错引导 inspect。非空但值不变不消耗介入次数、不推进、不写回执。
 
@@ -58,3 +58,8 @@ TS Opt 须原生正常结束并收敛；TS Freq 有且仅有 1 个虚频。双�
 prepare / resume / inspect / 终态通知共用状态投影：status、stage、result、waiting_for、available_results、blocked、failed_attempt、next、methods、usage、details_path/export_revision。完整输入、历史和证据在权威账本与 process.json 快照；导出 revision 与账本分开展示。
 
 删除 estimated wall/CPU hours、time_budget_hours、预计 CPU 小时准入及缺估计阻塞。动作数、实际模型请求（含 transport 重试）、介入次数保留。runtime_seconds 是经过时间；allocated_cpu_hours 是申请核数×经过时间；measured_cpu_hours 缺测量为 null，不能冒充实测。历史和约束优化的各梯度/Hessian 作业都计入真实动作。旧格式记录停止自动接续，现存计算和排他锁不动；不迁移/默默兼容旧科学输入。
+
+
+失败恢复区分执行修复与新路线探索。执行修复不能仅凭账本 done 或相同输入字节通过，还需原生正常终止；已知 wrong_mode 的频率修复必须满足对应一虚频/零虚频证据。失败 scan/path 改为 provided 时，recovery 引用原失败产物、新候选 XYZ 及其 provenance；改为 xtb_path 时引用原失败及两端已绑定结构。旧路线无需先成功，新路线仍经过正常准入和最终科学校验。
+
+MOL 的键图不能代替实际 XYZ 连通性证据。预优化、映射和端点校验沿用同一既有连通性判据；无法证明时保持 inconclusive。IRC 复用 Hessian 要求完整科学方法声明相同，包括原生溶剂等设置块；不同声明重新计算 Hessian。

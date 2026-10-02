@@ -1,7 +1,7 @@
 """Prepare one TS path, revise through resume, inspect without mutation."""
 from typing import Any
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, field_validator
 
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
@@ -15,8 +15,15 @@ from cloudra.tools.core.ts_state_view import TsProcessView, build_process_view, 
 class TsPrepare_input_schema(input_schema):
     model_config = ConfigDict(extra='forbid')
     input: TsInput = Field(description='Scientific inputs grouped by reaction, conformers, guess, ts_optimization, verification and execution. Each calculation has its own explicit method. Structure atom references are 1-based; scan coordinates use its engine numbering (ORCA 0-based, Gaussian 1-based).')
-    request_key: str | None = None
+    request_key: str = Field(min_length=1, description='Stable prepare request key; reuse the same key when replaying this request.')
     workspace_dir: str | None = None
+
+    @field_validator('request_key')
+    @classmethod
+    def stable_key(cls, value):
+        if not value.strip():
+            raise ValueError('nonblank request_key required for prepare replay')
+        return value
 
 
 class TsResume_input_schema(TsResumeRequest, input_schema):

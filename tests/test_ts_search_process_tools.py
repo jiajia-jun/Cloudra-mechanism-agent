@@ -44,7 +44,7 @@ async def test_prepare_queues_one_path_and_response_replay_reuses_it(tmp_path, m
 
 @pytest.mark.asyncio
 async def test_prepare_reports_missing_map_and_keeps_explicit_stage_methods(tmp_path):
-    first = await owned_tool(TsPrepare).tool_call(TsPrepare_input_schema(input=inputs(mapped=False), workspace_dir=str(tmp_path)),None)
+    first = await owned_tool(TsPrepare).tool_call(TsPrepare_input_schema(request_key='fixture-prepare', input=inputs(mapped=False), workspace_dir=str(tmp_path)),None)
     assert first.is_success and first.blocked["stage"] == 'map'
     assert first.blocked["failure_class"] == 'atom_map_missing'
     assert first.run_id
@@ -56,7 +56,7 @@ async def test_resume_revises_same_path_and_returns_durable_receipt(tmp_path, mo
     from cloudra.services.compute_admission import AdmissionOutcome
     monkeypatch.setattr('cloudra.services.compute_admission.admit_job',
         lambda **_: AdmissionOutcome(ok=True,node_id='fixture',scheduler='local'))
-    first = await owned_tool(TsPrepare).tool_call(TsPrepare_input_schema(input=inputs(mapped=False),workspace_dir=str(tmp_path)),None)
+    first = await owned_tool(TsPrepare).tool_call(TsPrepare_input_schema(request_key='fixture-prepare', input=inputs(mapped=False),workspace_dir=str(tmp_path)),None)
     request = TsResume_input_schema(run_id=first.run_id, workspace_dir=str(tmp_path),
         changes={'reaction':{'atom_map':[1,2,3]}}, reason='Bind the complete atom order',
         request_key='mapping', expected_revision=first.revision)
@@ -73,7 +73,7 @@ async def test_resume_revises_same_path_and_returns_durable_receipt(tmp_path, mo
 @pytest.mark.asyncio
 @pytest.mark.parametrize('project,owner',[('foreign',None),('project','foreign-owner')])
 async def test_resume_rejects_other_project_or_owner(tmp_path,project,owner):
-    first = await owned_tool(TsPrepare).tool_call(TsPrepare_input_schema(input=inputs(mapped=False),workspace_dir=str(tmp_path)),None)
+    first = await owned_tool(TsPrepare).tool_call(TsPrepare_input_schema(request_key='fixture-prepare', input=inputs(mapped=False),workspace_dir=str(tmp_path)),None)
     request = TsResume_input_schema(run_id=first.run_id,workspace_dir=str(tmp_path),
         reason='Change method', request_key='foreign', expected_revision=first.revision,
         changes={'ts_optimization':{'engine':'orca','method':'HF/STO-3G','keywords':'D3BJ'}})
@@ -97,7 +97,7 @@ async def test_resume_uses_authoritative_record_when_export_is_missing(tmp_path,
     from cloudra.services.compute_admission import AdmissionOutcome
     monkeypatch.setattr('cloudra.services.compute_admission.admit_job',
         lambda **_: AdmissionOutcome(ok=True,node_id='fixture',scheduler='local'))
-    first = await owned_tool(TsPrepare).tool_call(TsPrepare_input_schema(input=inputs(mapped=False),workspace_dir=str(tmp_path)),None)
+    first = await owned_tool(TsPrepare).tool_call(TsPrepare_input_schema(request_key='fixture-prepare', input=inputs(mapped=False),workspace_dir=str(tmp_path)),None)
     Path(first.run_dir, 'process.json').unlink()
     result = await owned_tool(TsResume).tool_call(TsResume_input_schema(run_id=first.run_id,workspace_dir=str(tmp_path),
         changes={'reaction':{'atom_map':[1,2,3]}},reason='Bind atoms',request_key='after-export-loss',expected_revision=first.revision),None)
@@ -107,7 +107,7 @@ async def test_resume_uses_authoritative_record_when_export_is_missing(tmp_path,
 
 @pytest.mark.asyncio
 async def test_prepare_without_workspace_reports_caller_error():
-    result = await owned_tool(TsPrepare).tool_call(TsPrepare_input_schema(input=inputs()),None)
+    result = await owned_tool(TsPrepare).tool_call(TsPrepare_input_schema(request_key='fixture-prepare', input=inputs()),None)
     assert not result.is_success and 'workspace' in result.message
 
 
@@ -118,7 +118,7 @@ def test_public_surface_has_two_writers_and_readonly_inspection():
     fields = TsPrepare_input_schema.model_json_schema()['properties']
     assert 'input' in fields and 'compute_estimates' not in fields and 'declaration' not in fields
     with pytest.raises(ValueError):
-        TsPrepare_input_schema(input=inputs(),estimated_cpu_hours=2)
+        TsPrepare_input_schema(request_key='fixture-prepare', input=inputs(),estimated_cpu_hours=2)
 
 
 pytestmark = pytest.mark.usefixtures("ts_producer_authority")
