@@ -47,6 +47,12 @@ class DagSubmitSpeciesEvidenceInput(input_schema):
 
 
 class DagSubmitSpeciesEvidence(DagToolBase):
+    def is_manage(self) -> bool:
+        return False
+
+    def is_write(self) -> bool:
+        return True
+
     tool_id: str = "t-dag-submit-species-evidence"
     tool_name: str = "dag_submit_species_evidence"
     tool_description: str = (

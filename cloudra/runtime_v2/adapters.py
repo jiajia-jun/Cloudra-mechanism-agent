@@ -1019,6 +1019,9 @@ class LegacyToolExecutor:
             tool = entry.instantiate(subagent=actor)
         else:
             tool = entry.instantiate()
+        from cloudra.tools.core.permission_model import check_permission
+        if not check_permission(_LegacyAgentBridge(agent, project.workspace_dir).permission_all(), tool.tool_permission_all()):
+            return ToolResult(is_success=False, summary="Tool requires permissions absent from this task")
         schema_cls = entry.input_schema or LegacyInputSchema
         try:
             parsed = schema_cls.model_validate(call.arguments)
@@ -1036,9 +1039,9 @@ class LegacyToolExecutor:
                 return await self.core.pending.request_interaction(agent, prompt)
 
             from cloudra.base.tools_class import use_approval_handler
+            from cloudra.services.ts_pipeline_context import use_runtime_authority
             from cloudra.tools.Interactool.ask_user import use_input_handler
-
-            with use_approval_handler(_approval), use_input_handler(_interaction):
+            with use_approval_handler(_approval), use_input_handler(_interaction), use_runtime_authority(self.core):
                 output = await tool.safe_call(parsed, Session(id=agent.id, path=""))
         except Exception:
             # An unexpected safe_call fault is not a business failure: package
@@ -1058,5 +1061,7 @@ class LegacyToolExecutor:
             reset_session_yolo(token)
         data = output.toJson() if hasattr(output, "toJson") else output.model_dump(mode="json")
         is_success = bool(data.get("is_success", True))
+        if call.name == "bash":
+            is_success = is_success and data.get("exit_code", 1) == 0
         summary = json.dumps(data, ensure_ascii=False, default=str)
         return ToolResult(is_success=is_success, summary=summary, data=data)

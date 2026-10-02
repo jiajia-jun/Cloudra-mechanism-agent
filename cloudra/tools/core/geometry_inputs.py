@@ -58,36 +58,5 @@ def atom_indices(atoms, *, base: int, count: int) -> list[int]:
     return [atom - base for atom in atoms]
 
 
-def normalize_ts_atoms(declaration, *, engine):
-    """Public software-native declaration/adjustment to internal zero-based fields."""
-    base = atom_index_base(engine)
-    data = declaration.model_dump(exclude_unset=True)
-
-    def indices(values):
-        if any(type(i) is not int or i < base for i in values):
-            raise ValueError(f"{engine} atom indices start at {base}")
-        return [i - base for i in values]
-
-    for name in ("ring_order", "atom_map"):
-        if data.get(name) is not None:
-            data[name] = indices(data[name])
-    if data.get("reaction_center") is not None:
-        data["reaction_center"] = [indices(pair) for pair in data["reaction_center"]]
-    if data.get("distance_filters") is not None:
-        for row in data["distance_filters"]:
-            row["atoms"] = indices(row["atoms"])
-    if data.get("product_geometry") is not None:
-        data["product_geometry"]["atoms"] = indices(data["product_geometry"]["atoms"])
-    if data.get("scan") is not None:
-        for name in ("scans", "freeze"):
-            for row in data["scan"].get(name, []):
-                row["atoms"] = indices(row["atoms"])
-    return type(declaration).model_validate(data)
 
 
-class ScanPlanInput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    method: str = Field(min_length=1)
-    extra_route: str = Field(default="", description="Explicit engine route keywords for this exploratory scan, such as ALPB(Water) or scrf=(solvent=water).")
-    scans: list[ScanCoordinateInput] = Field(min_length=1, max_length=2)
-    freeze: list[FrozenCoordinateInput] = Field(default_factory=list)

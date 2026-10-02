@@ -55,6 +55,12 @@ class DagSubmitStepEvidenceInput(input_schema):
 
 
 class DagSubmitStepEvidence(DagToolBase):
+    def is_manage(self) -> bool:
+        return False
+
+    def is_write(self) -> bool:
+        return True
+
     tool_id: str = "t-dag-submit-step-evidence"
     tool_name: str = "dag_submit_step_evidence"
     tool_description: str = (

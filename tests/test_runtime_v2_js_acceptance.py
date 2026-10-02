@@ -99,7 +99,7 @@ async def _spawn(core: RuntimeCore, tmp_path, *, settings=None, protocol=Invocat
     return agent
 
 
-async def _run_turn(core: RuntimeCore, agent, tmp_path, response, tools, *, tool_names, run_id="run_acc"):
+async def _run_turn(core: RuntimeCore, agent, tmp_path, response, tools, *, tool_names, run_id="run_acc", permissions=None):
     pipeline = TurnPipeline(
         event_log=core.event_log,
         stages=default_stages(core),
@@ -110,7 +110,7 @@ async def _run_turn(core: RuntimeCore, agent, tmp_path, response, tools, *, tool
         agent=agent,
         run_id=run_id,
         settings=RuntimeSettings(),
-        capabilities=AgentCapabilities(permissions=PermissionSet(), tools=tool_names),
+        capabilities=AgentCapabilities(permissions=permissions or PermissionSet(), tools=tool_names),
         inbox_messages=[{"content": "go"}],
         workspace_dir=str(tmp_path),
     )
@@ -213,7 +213,8 @@ async def test_method_policy_denial_reaches_both_paths_without_launching_compute
                      "}"},
         )
     outcome = await _run_turn(
-        core, agent, tmp_path, LLMResponse(tool_calls=[wire]), tools, tool_names=["submit_compute_job"]
+        core, agent, tmp_path, LLMResponse(tool_calls=[wire]), tools,
+        tool_names=["submit_compute_job"], permissions=PermissionSet(write=True)
     )
     assert outcome.decision == "continue"
     # No compute was launched on either wire.

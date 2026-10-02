@@ -40,6 +40,9 @@ class DagViewEvidenceInput(input_schema):
 
 
 class DagViewEvidence(DagToolBase):
+    def is_manage(self) -> bool:
+        return False
+
     tool_id: str = "t-dag-view-evidence"
     tool_name: str = "dag_view_evidence"
     tool_description: str = (

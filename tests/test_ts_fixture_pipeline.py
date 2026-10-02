@@ -18,6 +18,9 @@ from cloudra.services.ts_pipeline_context import use_pipeline_database
 from cloudra.services.ts_pipeline_store import create_process
 from cloudra.tools.core import ts_process as process
 from cloudra.tools.core.ts_pipeline_driver import advance_process, handle_process_job_terminal
+from tests.ts_fixtures import calculation_input
+
+pytestmark = pytest.mark.usefixtures("ts_producer_authority")
 
 FIXTURES = Path(__file__).parent / "fixtures"
 CO2_XYZ = "3\nfixture CO2 final frame\nO 0 0 -1.252682\nC 0 0 0\nO 0 0 1.252682\n"
@@ -37,23 +40,23 @@ def waiting_fixture_stage(tmp_path, *, purpose="frequency", engine="orca", seed=
                           project_id="project", owner_id="owner"):
     """Prepare one real immutable binding as a calculator's queued input boundary."""
     db = ComputeDB().init()
-    declaration = process.TsDeclaration(
+    declaration = calculation_input(
         reactant_smiles="O=C=O", product_smiles="O=C=O", engine=engine,
         method="b3lyp/def2svp", atom_map=[0, 1, 2],
     )
     if purpose == "scan":
-        declaration.scan = process.ScanPlanInput(
-            method="b3lyp/def2svp",
+        from cloudra.tools.core.ts_inputs import ScanGuess
+        declaration.guess = ScanGuess(kind="scan",calculation={"engine":engine,"method":"b3lyp/def2svp","keywords":""},
             scans=[dict(atoms=[0, 1], scan_start=1.0, scan_end=2.0, scan_steps=5)],
             freeze=[dict(coord_type="bond", atoms=[0, 2])],
         )
     state = create_process(db, request_key="fixture", payload=dict(
         project_id=project_id, owner_id=owner_id, workspace_dir=str(tmp_path),
-        declaration=declaration.model_dump(mode="json"),
+        input=declaration.model_dump(mode="json"),
     ))
     record = process.TsProcessRecord(
         run_id="ts_0001", pipeline_id=state["process_id"], workspace_dir=str(tmp_path),
-        run_dir=str(tmp_path / "ts" / "ts_0001"), declaration=declaration,
+        run_dir=str(tmp_path / "ts" / "ts_0001"), input=declaration,
         owner_conversation_id=project_id, owner_session_id=owner_id,
         stage="guess" if purpose == "scan" else "refine",
     )
@@ -69,7 +72,7 @@ def waiting_fixture_stage(tmp_path, *, purpose="frequency", engine="orca", seed=
     if purpose == "scan":
         TsGuess()._scan_prepare(TsGuess_input_schema(
             mode="scan_prepare", input_path=str(geometry), output_path=str(source),
-            engine=engine, method=declaration.method,
+            engine=engine, method=declaration.guess.calculation.method,
             scans=[dict(atoms=[0, 1], scan_start=1.0, scan_end=2.0, scan_steps=5)],
             freeze=[dict(coord_type="bond", atoms=[0, 2])],
         ))
@@ -85,7 +88,7 @@ def waiting_fixture_stage(tmp_path, *, purpose="frequency", engine="orca", seed=
     with use_pipeline_database(db):
         error, job = process._submit_step(record, purpose, str(source), engine)
     assert error == ""
-    step = process.TsJobStep(purpose=purpose, job_id=job, input_path=str(source), state="ready")
+    step = process.TsJobStep(purpose=purpose, job_id=job, input_path=str(source), state="ready", actual_calculation=process.stage_calculation(record,purpose),source_input_revision=record.declaration_revision)
     if purpose == "scan":
         record.scan_step = step
     else:
@@ -244,7 +247,8 @@ def test_failed_scan_keeps_fixture_artifacts_and_unchanged_resume_budget(tmp_pat
     assert result["blocked"]["needs"] == ["compute_artifacts"]
     assert result["current_ts_guess_path"] == ""
     saved = process.load_record(str(tmp_path), record.run_id)
-    resumed = process.resume(saved, process.TsAdjustment(scan=saved.declaration.scan.model_dump()))
+    from cloudra.tools.core.ts_inputs import TsResumeRequest
+    resumed = process.resume(saved, TsResumeRequest(changes={'guess':saved.input.guess.model_dump()},reason='keep unchanged scan',request_key='unchanged',expected_revision=saved.revision))
     assert resumed.intervention_count == 0
     assert resumed.declaration_revision == 1
     assert resumed.blocked.model_dump() == result["blocked"]
@@ -369,7 +373,7 @@ async def test_native_monitor_result_flows_into_pipeline_without_bypassing_scien
 
 
 @pytest.mark.asyncio
-async def test_agent_native_frequency_failure_survives_repeated_resume_without_irc_spend(tmp_path, admission):
+async def test_agent_native_frequency_failure_survives_repeated_inspection_without_irc_spend(tmp_path, admission):
     """Real Agent calls observe the durable fixture-driven frequency gate and budget."""
     import asyncio
 
@@ -377,10 +381,10 @@ async def test_agent_native_frequency_failure_survives_repeated_resume_without_i
 
     ready, completed = asyncio.Event(), asyncio.Event()
     provider = ScriptedProvider(by_role={"small_mol": [
-        Step(wait_for=ready, tools=[("ts_resume", {"run_id": "ts_0001"})]),
-        Step(wait_for=completed, tools=[("ts_resume", {"run_id": "ts_0001"})]),
-        Step(tools=[("ts_resume", {"run_id": "ts_0001"})]),
-        Step(tools=[("ts_resume", {"run_id": "ts_0001", "adjustment": {"atom_map": [0, 1, 2]}})]),
+        Step(wait_for=ready, tools=[("ts_inspect", {"run_id": "ts_0001"})]),
+        Step(wait_for=completed, tools=[("ts_inspect", {"run_id": "ts_0001"})]),
+        Step(tools=[("ts_inspect", {"run_id": "ts_0001"})]),
+        Step(tools=[("ts_inspect", {"run_id": "ts_0001"})]),
         Step(stop=True),
     ]})
     harness = await ScenarioHarness.start(tmp_path, workspace_dir=tmp_path, provider=provider)
@@ -400,12 +404,12 @@ async def test_agent_native_frequency_failure_survives_repeated_resume_without_i
         await harness.wait_terminal(agent)
         calls = harness.tool_events(agent)
         assert len(calls) == 4 and all(call["is_success"] for call in calls), harness.describe(agent)
-        assert calls[0]["result_data"]["waiting_for"] == f"job:{step.job_id}"
+        assert calls[0]["result_data"]["waiting_for"][0]["job_id"] == step.job_id
         for call in calls[1:]:
             result = call["result_data"]
             assert result["blocked"]["failure_class"] == "wrong_mode"
-            assert result["intervention_count"] == 0 and result["terminal"] is None
-            assert result["waiting_for"] == ""
+            assert result["usage"]["interventions"] == 0 and result["result"] is None
+            assert result["waiting_for"] == []
         saved = await asyncio.to_thread(process.load_record, str(tmp_path), record.run_id)
         assert saved.declaration_revision == 1 and saved.intervention_count == 0
         assert [step.purpose for step in saved.job_steps] == ["frequency"]

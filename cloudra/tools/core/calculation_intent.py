@@ -19,9 +19,8 @@ this module is not an alternative input DSL.
 from __future__ import annotations
 
 import hashlib
-import re
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Mapping
 
 from pydantic import BaseModel, Field
 
@@ -45,15 +44,6 @@ _GAUSSIAN_ONLY_OPT_SUBOPTIONS = {"calcfc", "noeigen", "calcall", "qst2", "qst3"}
 
 _FREQ_NUMERIC_ALIASES = {"num", "numer", "numeric", "numfreq"}
 
-_ORCA_CONSTRAINT_RE = re.compile(
-    r"\{\s*([BADC])\s+([\d\s]+?)\s+([\d.+-]+)\s*C\s*\}", re.I
-)
-_ORCA_PAL_RE = re.compile(r"%pal\s+nprocs\s+(\d+)", re.I)
-_ORCA_MAXCORE_RE = re.compile(r"%maxcore\s+(\d+)", re.I)
-_ORCA_PROGEXT_RE = re.compile(r'^\s*ProgExt\s+"?([^"\s]+)"?', re.I | re.M)
-_ORCA_XYZ_RE = re.compile(r"^\*\s*xyz\s+(-?\d+)\s+(\d+)", re.M)
-_GAUSSIAN_CHARGE_RE = re.compile(r"^\s*(-?\d+)\s+(\d+)\s*$", re.M)
-_EXTERNAL_ROUTE_RE = re.compile(r'external="?([^"\s]+)"?', re.I)
 
 
 class CalculationIntent(BaseModel):
@@ -272,169 +262,225 @@ _ORCA_SIMPLE_TASK_TOKENS = {
 }
 
 
-def _orca_has_geom_scan(text: str) -> bool:
-    """Find a native Scan directive inside an ORCA %geom block."""
-    in_geom = False
-    for raw_line in text.splitlines():
-        line = raw_line.split("#", 1)[0].strip()
-        geom_start = re.match(r"^%geom\b", line, re.I)
-        if geom_start:
-            in_geom = True
-            line = line[geom_start.end():].strip()
-        elif line.startswith(("%", "*")):
-            in_geom = False
-        if in_geom and re.match(r"^Scan\b", line, re.I):
-            return True
-    return False
+def native_tokens(text: str) -> list[str]:
+    """Tokenize native directives, keeping parenthesized and quoted values intact."""
+    tokens, current = [], []
+    quote = ""
+    depth = 0
+    for char in text:
+        if quote:
+            current.append(char)
+            if char == quote:
+                quote = ""
+        elif char in ("\"", "'"):
+            quote = char
+            current.append(char)
+        elif char == "(":
+            depth += 1
+            current.append(char)
+        elif char == ")":
+            depth -= 1
+            if depth < 0:
+                raise ValueError("unbalanced native parentheses")
+            current.append(char)
+        elif char.isspace() and depth == 0:
+            if current:
+                tokens.append("".join(current).lower())
+                current = []
+        else:
+            current.append(char)
+    if quote or depth:
+        raise ValueError("unclosed native quote or parentheses")
+    if current:
+        tokens.append("".join(current).lower())
+    joined = []
+    i = 0
+    while i < len(tokens):
+        token = tokens[i]
+        if i + 2 < len(tokens) and tokens[i + 1] == '=':
+            token += '=' + tokens[i + 2]
+            i += 2
+        elif i + 1 < len(tokens) and token.endswith('='):
+            token += tokens[i + 1]
+            i += 1
+        elif i + 1 < len(tokens) and tokens[i + 1].startswith('='):
+            token += tokens[i + 1]
+            i += 1
+        joined.append(token)
+        i += 1
+    return joined
 
 
-def _orca_task_text(text: str) -> str:
-    """Remove quoted strings and ORCA comments, preserving code after closed #...#."""
-    return re.sub(
-        r'"[^"\n]*"|\'[^\'\n]*\'|#[^#\n]*(?:#|$)', " ", text, flags=re.M,
-    )
+def _orca_code(text: str) -> str:
+    lines = []
+    for line in text.splitlines():
+        code, quote, comment = [], "", False
+        for char in line:
+            if quote:
+                code.append(char)
+                if char == quote:
+                    quote = ""
+            elif char in ("\"", "'") and not comment:
+                quote = char
+                code.append(char)
+            elif char == "#":
+                comment = not comment
+                code.append(" ")
+            elif not comment:
+                code.append(char)
+        lines.append("".join(code))
+    return "\n".join(lines)
 
 
-def _orca_has_neb_ts(text: str) -> bool:
-    """Native %neb NEB_TS true also enables TS refinement without ! NEB-TS."""
-    enabled = False
-    for block in re.finditer(
-        r"^\s*%neb\b(.*?)(?:\bend\b|(?=^\s*[%*!])|\Z)",
-        text, re.I | re.M | re.S,
-    ):
-        for setting in re.finditer(
-            r"\bNEB_TS\s*(?:=\s*)?(true|false)\b", block.group(1), re.I,
-        ):
-            enabled = setting.group(1).lower() == "true"
-    return enabled
+def gaussian_routes(text: str) -> list[list[str]]:
+    routes, current = [], []
+    awaiting_route = True
+    for raw in text.splitlines():
+        line = raw.strip()
+        if line.lower() == '--link1--':
+            if current:
+                routes.append(native_tokens(' '.join(current)))
+                current = []
+            awaiting_route = True
+            continue
+        if line.startswith("#!"):
+            continue
+        if awaiting_route and line.startswith("#"):
+            awaiting_route = False
+            if current:
+                routes.append(native_tokens(" ".join(current)))
+            line = line[1:]
+            head, _, rest = line.partition(" ")
+            if head.lower() in {"p", "n", "t"}:
+                line = rest
+            current = [line]
+        elif current and line and line.lower() != "--link1--":
+            current.append(line)
+        elif current:
+            routes.append(native_tokens(" ".join(current)))
+            current = []
+    if current:
+        routes.append(native_tokens(" ".join(current)))
+    return routes
+
+
+def orca_directives(text: str) -> tuple[list[str], dict[str, list[str]]]:
+    simple, blocks = [], {}
+    active = None
+    for line in _orca_code(text).splitlines():
+        line = line.strip()
+        if line.startswith("!/"):
+            continue
+        if line.startswith("!"):
+            simple.extend(native_tokens(line[1:]))
+            active = None
+        elif line.startswith("%"):
+            tokens = native_tokens(line)
+            active = tokens[0][1:]
+            blocks.setdefault(active, []).extend(tokens[1:])
+        elif line.startswith("*"):
+            active = None
+        elif active:
+            blocks[active].extend(native_tokens(line))
+    return simple, blocks
+
+
+def _native_charges(text: str, engine: str) -> list[tuple[int, int]]:
+    values = []
+    for raw in text.splitlines():
+        tokens = raw.strip().split()
+        if engine == "orca":
+            if len(tokens) >= 4 and tokens[:2] == ["*", "xyz"]:
+                tokens = tokens[2:4]
+            else:
+                continue
+        if len(tokens) == 2:
+            try:
+                values.append((int(tokens[0]), int(tokens[1])))
+            except ValueError:
+                pass
+    return values
 
 
 def _inspect_orca(text: str) -> CalculationIntent:
-    tasks: set[str] = set()
-    frequency_mode: str = "auto"
-    saw_simple_line = False
-    task_text = _orca_task_text(text)
-    for line in task_text.splitlines():
-        s = line.strip()
-        if s.startswith("!/") or not s.startswith("!"):
-            continue
-        saw_simple_line = True
-        for token in s[1:].split():
-            mapped = _ORCA_SIMPLE_TASK_TOKENS.get(token.lower())
-            if mapped:
-                tasks.add(mapped)
-                if token.lower() == "numfreq":
-                    frequency_mode = "numeric"
-                elif token.lower() == "freq" and frequency_mode == "auto":
-                    frequency_mode = "analytic"
-    if _orca_has_neb_ts(task_text):
-        tasks.add("ts_opt")
-    if _orca_has_geom_scan(task_text):
-        # Opt enables the constrained optimization at each scan point; it is
-        # not a separate minimum optimization in this input.
+    tokens, blocks = orca_directives(text)
+    tasks = {_ORCA_SIMPLE_TASK_TOKENS[t] for t in tokens if t in _ORCA_SIMPLE_TASK_TOKENS}
+    geom = blocks.get("geom", [])
+    neb = blocks.get("neb", [])
+    for i, token in enumerate(neb):
+        if token.partition("=")[0] == "neb_ts":
+            tail = [token.partition("=")[2]] if "=" in token else [t for t in neb[i + 1:i + 3] if t != "="]
+            if tail and tail[0] == "true":
+                tasks.add("ts_opt")
+            elif tail and tail[0] == "false":
+                tasks.discard("ts_opt")
+    if "scan" in geom:
         tasks.discard("minimum_opt")
         tasks.add("relaxed_scan")
-    if not tasks and saw_simple_line:
+    if not tasks and tokens:
         tasks.add("single_point")
-
-    constraints = [
-        {
-            "type": {"B": "bond", "A": "angle", "D": "dihedral", "C": "cartesian"}[m.group(1).upper()],
-            "atoms": [int(x) for x in m.group(2).split()],
-            "value": float(m.group(3)),
-        }
-        for m in _ORCA_CONSTRAINT_RE.finditer(text)
-    ]
-
+    constraints = []
+    for raw in _orca_code(text).splitlines():
+        tokens_c = raw.replace("{", " { ").replace("}", " } ").split()
+        if "{" in tokens_c and "}" in tokens_c:
+            start, end = tokens_c.index("{"), tokens_c.index("}")
+            body = tokens_c[start + 1:end]
+            if len(body) >= 4 and body[0].upper() in {"B", "A", "D", "C"} and body[-1].upper() == "C":
+                constraints.append(dict(type={"B": "bond", "A": "angle", "D": "dihedral", "C": "cartesian"}[body[0].upper()], atoms=[int(x) for x in body[1:-2]], value=float(body[-2])))
     provider = None
-    method_signature = None
-    if re.search(r"^!", text, re.M) and "extopt" in text.lower():
-        m = _ORCA_PROGEXT_RE.search(text)
-        if m is not None:
-            provider = Path(m.group(1)).name.lower()
-            method_signature = f"external:{provider}"
-    charge = multiplicity = None
-    m = _ORCA_XYZ_RE.search(text)
-    if m is not None:
-        charge, multiplicity = int(m.group(1)), int(m.group(2))
-
-    certainty = "known" if tasks else "unknown"
-    return CalculationIntent(
-        engine="orca",
-        provider=provider,
-        tasks=tasks,
-        frequency_mode=frequency_mode,  # type: ignore[arg-type]
-        constraints=constraints,
-        charge=charge,
-        multiplicity=multiplicity,
-        method_signature=method_signature,
-        certainty=certainty,
-    )
+    method_tokens = blocks.get("method", [])
+    if "extopt" in tokens and "progext" in method_tokens:
+        pos = method_tokens.index("progext")
+        if pos + 1 < len(method_tokens):
+            provider = Path(method_tokens[pos + 1].strip("\"'")).name.lower()
+    charges = _native_charges(text, "orca")
+    return CalculationIntent(engine="orca", provider=provider, tasks=tasks,
+        frequency_mode="numeric" if "numfreq" in tokens else "analytic" if "freq" in tokens else "auto",
+        constraints=constraints, charge=charges[0][0] if charges else None,
+        multiplicity=charges[0][1] if charges else None,
+        method_signature=f"external:{provider}" if provider else None,
+        certainty="known" if tasks else "unknown")
 
 
 def _inspect_gaussian(text: str) -> CalculationIntent:
-    # Gaussian routes span lines up to a blank separator. Inspect every Link1
-    # section too: a later TS/IRC calculation is still part of this job.
-    route_lines: list[str] = []
-    in_route = False
-    seen_route = False
-    for line in text.splitlines():
-        s = line.strip()
-        if s.lower() == "--link1--":
-            in_route = seen_route = False
-            continue
-        if s.startswith("#") and not seen_route:
-            in_route = True
-            seen_route = True
-        elif not s:
-            in_route = False
-        if in_route:
-            route_lines.append(s.lower())
-    route = " ".join(route_lines)
-    tasks: set[str] = set()
-    frequency_mode = "auto"
-    if route:
-        # Quoted External command/path arguments are not Gaussian task keywords.
-        task_route = re.sub(r'"[^"\n]*"|\'[^\'\n]*\'', "", route)
-        for opt in re.finditer(
-            r"\bopt\b\s*(?:=?\s*\(([^)]*)\)|=\s*([a-z0-9]+))?", task_route,
-        ):
-            options = set(re.findall(r"[a-z0-9]+", opt.group(1) or opt.group(2) or ""))
-            if options & {"ts", "qst2", "qst3"}:
-                tasks.add("ts_opt")
+    routes = gaussian_routes(text)
+    tasks, provider, mode = set(), None, "auto"
+    for route in routes:
+        for token in route:
+            head, opening, options = token.partition("(")
+            if opening and head.removesuffix("=") in {"opt", "freq", "irc", "scan"}:
+                key = head.removesuffix("=")
+                value = options.removesuffix(")")
             else:
-                tasks.add("minimum_opt")
-        if re.search(r"\bfreq\b", task_route):
-            tasks.add("frequency")
-            if re.search(r"freq\s*=\s*\(?\s*(num|numer)", task_route):
-                frequency_mode = "numeric"
-        if re.search(r"\birc\b", task_route):
-            tasks.add("irc")
-        if re.search(r"\bscan\b", task_route):
-            tasks.add("relaxed_scan")
-        if not tasks:
-            tasks.add("single_point")
-    provider = None
-    method_signature = None
-    m = _EXTERNAL_ROUTE_RE.search(route)
-    if m is not None:
-        provider = Path(m.group(1)).name.lower()
-        method_signature = f"external:{provider}"
-    charge = multiplicity = None
-    m = _GAUSSIAN_CHARGE_RE.search(text)
-    if m is not None:
-        charge, multiplicity = int(m.group(1)), int(m.group(2))
-    certainty = "known" if route else "unknown"
-    return CalculationIntent(
-        engine="gaussian",
-        provider=provider,
-        tasks=tasks,
-        frequency_mode=frequency_mode,  # type: ignore[arg-type]
-        charge=charge,
-        multiplicity=multiplicity,
-        method_signature=method_signature,
-        certainty=certainty,
-    )
+                key, _, value = token.partition("=")
+            if key == "opt":
+                options = set(value.strip("()").replace(" ", "").split(","))
+                tasks.add("ts_opt" if options & {"ts", "qst2", "qst3"} else "minimum_opt")
+            elif key == "freq":
+                tasks.add("frequency")
+                if value.strip("()").split(",")[0] in _FREQ_NUMERIC_ALIASES:
+                    mode = "numeric"
+            elif key in {"irc", "scan"}:
+                tasks.add("irc" if key == "irc" else "relaxed_scan")
+            elif key == "external" and value:
+                provider = Path(value.strip("\"'")).name.lower()
+    if not tasks and routes:
+        tasks.add("single_point")
+    constraints = []
+    for line in text.splitlines():
+        tokens = line.upper().split()
+        if tokens and tokens[0] in {'B','A','D'} and 'S' in tokens:
+            if 'minimum_opt' in tasks:
+                tasks.remove('minimum_opt')
+                tasks.add('relaxed_scan')
+        if tokens and tokens[0] in {'B','A','D'} and tokens[-1] == 'F':
+            constraints.append(dict(type=tokens[0], atoms=tokens[1:-1]))
+    charges = _native_charges(text, "gaussian")
+    return CalculationIntent(engine="gaussian", provider=provider, tasks=tasks, constraints=constraints,
+        frequency_mode=mode, charge=charges[0][0] if charges else None,
+        multiplicity=charges[0][1] if charges else None,
+        method_signature=f"external:{provider}" if provider else None,
+        certainty="known" if routes else "unknown")
 
 
 def inspect_input(text: str, *, engine: str) -> CalculationIntent:
@@ -451,3 +497,210 @@ def geometry_hash_of(xyz_block: str) -> str:
     """Stable hash over coordinate lines (element + xyz), for intent linking."""
     lines = [ln.strip() for ln in xyz_block.splitlines() if ln.strip()]
     return hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()[:16]
+
+
+def _gaussian_trailing_cards(content):
+    cards = []
+    segments = [[]]
+    for line in content.splitlines():
+        if line.strip().lower() == '--link1--':
+            segments.append([])
+        else:
+            segments[-1].append(line)
+    for segment in segments:
+        charge_index = None
+        for index, line in enumerate(segment):
+            tokens = line.split()
+            if len(tokens) != 2:
+                continue
+            try:
+                int(tokens[0])
+                int(tokens[1])
+            except ValueError:
+                continue
+            charge_index = index
+            break
+        tail = []
+        if charge_index is not None:
+            after_geometry = False
+            for line in segment[charge_index + 1:]:
+                if not after_geometry and not line.strip():
+                    after_geometry = True
+                elif after_geometry and line.strip():
+                    tail.extend(native_tokens(line))
+        cards.append(tail)
+    return cards
+
+
+def _generated_gaussian_coordinates(tokens):
+    i = 0
+    while i < len(tokens):
+        count = {'b': 2, 'a': 3, 'd': 4}.get(tokens[i])
+        if count is None or i + count + 1 >= len(tokens):
+            return False
+        try:
+            for atom in tokens[i+1:i+count+1]:
+                int(atom)
+            i += count + 1
+            if tokens[i] == 'f':
+                i += 1
+            elif tokens[i] == 's' and i + 2 < len(tokens):
+                int(tokens[i+1])
+                float(tokens[i+2])
+                i += 3
+            else:
+                return False
+        except ValueError:
+            return False
+    return True
+
+
+def _writer_orca_controls(name, tokens):
+    if name in ('pal', 'maxcore'):
+        return True  # Shared admission independently validates resources.
+    allowed = {'geom': {'calc_hess','true','inhess','read','inhessname','scan','constraints','b','a','d','c','{','}','=','end'},
+        'irc': {'direction','both','inithess','read','calc_numfreq','hess_filename','end'}}.get(name)
+    if allowed is None:
+        return not tokens
+    for i, token in enumerate(tokens):
+        if token in allowed:
+            continue
+        if i and tokens[i - 1] in ('inhessname','hess_filename'):
+            continue
+        try:
+            for value in token.split('='):
+                float(value.rstrip(','))
+        except ValueError:
+            return False
+    return True
+
+
+class MethodDifference(BaseModel):
+    field: str
+    expected: object
+    actual: object
+    message: str
+
+
+def compare_calculation_input(content: str, expected: Mapping[str, object], *, charge: int, multiplicity: int) -> list[MethodDifference]:
+    """Compare the complete accepted declaration with every native method card.
+
+    Scheduling resources and writer-owned task/geometry controls are independent
+    of the electronic-structure contract. Unrecognized electronic tokens remain
+    visible differences, rather than being guessed into an allowed method.
+    """
+    from cloudra.runtime_v2.method_policy import _norm_basis
+    engine = str(expected["engine"]).lower()
+    differences = []
+    def diff(field, want, got):
+        if want != got:
+            differences.append(MethodDifference(field=field, expected=want, actual=got, message=f"{field}: expected {want!r}; actual {got!r}"))
+    try:
+        actual = inspect_input(content, engine=engine)
+        diff("certainty", "known", actual.certainty)
+        charges = _native_charges(content, engine)
+        diff("charge", [charge] * max(1, len(charges)), [c for c, _ in charges])
+        diff("multiplicity", [multiplicity] * max(1, len(charges)), [m for _, m in charges])
+        family, slash, basis = str(expected["method"]).lower().partition("/")
+        want_method = [family] + ([_norm_basis(basis)] if slash else [])
+        want_keywords = sorted(t.replace(" ", "") for t in native_tokens(str(expected.get("keywords") or "")))
+        if engine == "orca":
+            tokens, blocks = orca_directives(content)
+            cards = [[t for t in tokens if t not in _ORCA_SIMPLE_TASK_TOKENS and t not in {"sp"}]]
+            expected_blocks = orca_directives(str(expected.get("orca_blocks") or ""))[1]
+            # These blocks are generated by the writer for the requested task;
+            # other blocks must exactly match the explicit native declaration.
+            owned = {'pal', 'maxcore', 'geom', 'irc'}
+            for name in sorted(set(blocks) | set(expected_blocks)):
+                actual_block = list(blocks.get(name, []))
+                expected_block = list(expected_blocks.get(name, []))
+                if name not in owned:
+                    diff('orca_blocks', (name, expected_blocks.get(name)), (name, blocks.get(name)))
+                    continue
+                if expected_block:
+                    position = next((i for i in range(len(actual_block)) if actual_block[i:i+len(expected_block)] == expected_block), None)
+                    if position is None:
+                        diff('orca_blocks', (name, expected_block), (name, actual_block))
+                        continue
+                    del actual_block[position:position+len(expected_block)]
+                if not _writer_orca_controls(name, actual_block):
+                    diff('orca_blocks', (name, 'only explicit settings and writer task controls'), (name, actual_block))
+        elif engine == "gaussian":
+            trailing = _gaussian_trailing_cards(content)
+            expected_tail = native_tokens(str(expected.get('end_setting') or ''))
+            for tail in trailing:
+                # Generated ModRedundant scan/freeze cards are task coordinates,
+                # not extra electronic settings. All other trailing directives
+                # must be explicitly declared.
+                if 'relaxed_scan' in actual.tasks:
+                    remaining_tail = list(tail)
+                    if expected_tail:
+                        position = next((i for i in range(len(tail)) if tail[i:i+len(expected_tail)] == expected_tail), None)
+                        if position is None:
+                            diff('end_setting', expected_tail, tail)
+                            continue
+                        del remaining_tail[position:position+len(expected_tail)]
+                    if not _generated_gaussian_coordinates(remaining_tail):
+                        diff('end_setting', 'only explicit settings and generated scan coordinates', tail)
+                else:
+                    diff('end_setting', expected_tail, tail)
+            cards = [[t for t in card if t.partition("=")[0] not in {"opt", "freq", "irc", "scan", "sp"}] for card in gaussian_routes(content)]
+        else:
+            diff("engine", "native ORCA or Gaussian input", engine)
+            return differences
+        for card in cards:
+            remaining = list(card)
+            if engine == "gaussian":
+                matched = next((t for t in remaining if t.partition("/")[0] == family and (not slash or _norm_basis(t.partition("/")[2]) == _norm_basis(basis))), None)
+                diff("method", family + ("/" + _norm_basis(basis) if slash else ""), (matched.partition("/")[0] + ("/" + _norm_basis(matched.partition("/")[2]) if slash else "")) if matched else None)
+                if matched:
+                    remaining.remove(matched)
+            else:
+                for token in want_method:
+                    matched = next((t for t in remaining if (t == token if token == family else _norm_basis(t) == token)), None)
+                    diff("method", token, (matched if token == family else _norm_basis(matched)) if matched else None)
+                    if matched:
+                        remaining.remove(matched)
+            diff("keywords", want_keywords, sorted(t.replace(" ", "") for t in remaining))
+        mode = expected.get("frequency_mode", "auto")
+        if "frequency" in actual.tasks and mode != "auto":
+            diff("frequency_mode", mode, actual.frequency_mode)
+        if expected.get("end_setting"):
+            # Native trailing directives remain ordered; require an exact token
+            # sequence at the end, including every scientific setting.
+            tail = native_tokens(str(expected["end_setting"]))
+            diff("end_setting", tail, native_tokens(content)[-len(tail):])
+    except (ValueError, TypeError, KeyError) as exc:
+        differences.append(MethodDifference(field="parse", expected="determinate native input", actual=str(exc), message=str(exc)))
+    return differences
+
+
+def native_input_geometry(content: str, *, engine: str) -> list[tuple[str, tuple[float, float, float]]]:
+    """Read one Cartesian geometry; unsupported/ambiguous cards fail loudly."""
+    lines = content.splitlines()
+    starts = []
+    for i, line in enumerate(lines):
+        tokens = line.strip().split()
+        if engine == "orca":
+            if len(tokens) == 4 and tokens[:2] == ["*", "xyz"]:
+                starts.append(i + 1)
+        elif len(tokens) == 2:
+            try:
+                int(tokens[0])
+                int(tokens[1])
+            except ValueError:
+                continue
+            starts.append(i + 1)
+    if len(starts) != 1:
+        raise ValueError("Exactly one explicit Cartesian input geometry is required")
+    atoms = []
+    for line in lines[starts[0]:]:
+        tokens = line.strip().split()
+        if not tokens or tokens == ["*"]:
+            break
+        if len(tokens) != 4:
+            raise ValueError("Unsupported native Cartesian geometry card")
+        atoms.append((tokens[0], tuple(float(x) for x in tokens[1:])))
+    if not atoms:
+        raise ValueError("Native input geometry is missing")
+    return atoms

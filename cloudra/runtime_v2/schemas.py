@@ -266,6 +266,9 @@ class MethodPolicy(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    calculation_contracts: dict[str, dict[str, Any]] = Field(default_factory=dict,
+        description="Optional complete task/user calculation contracts by TS purpose; supplied through trusted project settings, never Agent tool input.")
+
     allowed_methods: list[str] = Field(
         default_factory=lambda: ["xtb"]
     )

@@ -1186,6 +1186,9 @@ _CREATE_EXPLORATION_TABLES = (
 )
 
 _CREATE_TS_PIPELINE_TABLES = (
+    'CREATE TABLE IF NOT EXISTS ts_pipeline_revision_receipts ('
+    'process_id TEXT NOT NULL, request_key TEXT NOT NULL, payload TEXT NOT NULL, '
+    'PRIMARY KEY(process_id,request_key))',
     "CREATE TABLE IF NOT EXISTS ts_pipeline_inputs (job_id INTEGER PRIMARY KEY, input_digest TEXT NOT NULL)",
     'CREATE TABLE IF NOT EXISTS ts_pipeline_declarations ('
     'process_id TEXT NOT NULL, declaration_revision INTEGER NOT NULL, payload TEXT NOT NULL, '

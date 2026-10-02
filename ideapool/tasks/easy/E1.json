@@ -32,6 +32,7 @@
     "single_step": true
   },
   "method_policy": {
+    "calculation_contracts": {},
     "allowed_methods": [
       "xtb",
       "pm7",

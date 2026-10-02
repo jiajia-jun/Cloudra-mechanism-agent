@@ -394,3 +394,7 @@ class ScenarioHarness:
             f"agent={agent.id} state={agent.state.value} "
             f"runs={self.run_rows(agent)} tools={self.tool_events(agent)}"
         )
+
+
+# Names shared by the zero-key TS state-machine regressions.
+TS_SCENARIOS = ('ts_prepare_once_auto_complete', 'ts_failed_scan_repair_same_run', 'ts_readonly_inspection')

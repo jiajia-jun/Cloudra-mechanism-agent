@@ -18,6 +18,9 @@ class DagDeliveryReportInput(input_schema):
 
 
 class DagDeliveryReport(DagToolBase):
+    def is_manage(self) -> bool:
+        return False
+
     tool_id: str = "t-dag-report"
     tool_name: str = "dag_delivery_report"
     tool_description: str = (

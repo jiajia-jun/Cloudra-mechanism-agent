@@ -3,6 +3,9 @@ from pathlib import Path
 import pytest
 
 from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
+from tests.ts_fixtures import calculation_input
+
+pytestmark = pytest.mark.usefixtures("ts_producer_authority")
 
 
 @pytest.mark.parametrize('basis, expected', [
@@ -27,15 +30,24 @@ def test_scan_to_ts_followups_keep_declared_method_basis_and_keywords(tmp_path, 
 
     xyz = tmp_path / 'water.xyz'
     xyz.write_text('3\nwater\nO 0 0 0\nH 1 0 0\nH 0 1 0\n')
+    Chem = pytest.importorskip('rdkit.Chem')
+    mol=Chem.AddHs(Chem.MolFromSmiles('O'))
+    conf=Chem.Conformer(3)
+    positions=[[0,0,0],[1,0,0],[0,1,0]]
+    for i,position in enumerate(positions):
+        conf.SetAtomPosition(i,position)
+    mol.AddConformer(conf)
+    graph=tmp_path/'water.mol'
+    graph.write_text(Chem.MolToMolBlock(mol))
     extras = 'D3BJ RIJCOSX def2/J TightSCF CPCM(DCM)'
-    declaration = process.TsDeclaration(
-        engine='orca', reactant_smiles='O', product_smiles='O', method='b3lyp/def2svp', extra_keywords=extras,
+    declaration = calculation_input(
+        engine='orca', reactant_smiles='O', product_smiles='O', method='b3lyp/def2svp', extra_keywords=extras, atom_map=[0,1,2],
         scan={'method': 'b3lyp/def2svp', 'extra_route': extras,
               'scans': [{'atoms': [0, 1], 'scan_end': 2, 'scan_steps': 5}]},
     )
-    record = process.TsProcessRecord(run_id='scan', run_dir=str(tmp_path),
-        declaration=declaration, owner_conversation_id='test', stage='guess')
-    monkeypatch.setattr(process, '_read_built_xyz', lambda *_: (['O', 'H', 'H'], [], str(xyz), ''))
+    record = process.TsProcessRecord(run_id='scan', run_dir=str(tmp_path), workspace_dir=str(tmp_path),
+        input=declaration, owner_conversation_id='test', stage='guess')
+    monkeypatch.setattr(process, '_read_built_xyz', lambda *_: (['O', 'H', 'H'], positions, str(xyz), str(graph)))
     monkeypatch.setattr(process, '_submit_step', lambda *_: ('', 42))
     process._guess(record)
     paths = [record.scan_step.input_path]
@@ -64,7 +76,10 @@ def test_scan_to_ts_followups_keep_declared_method_basis_and_keywords(tmp_path, 
     assert error == ''
     paths.append(path)
     for role in ('reactant', 'product'):
-        record.endpoint_seed_overrides[role] = str(xyz)
+        from cloudra.tools.core.ts_inputs import EndpointSeed
+        evidence=tmp_path/'seed-provenance.txt'
+        evidence.write_text('fixture provenance')
+        getattr(record.input.verification,role+'_endpoint').seed=EndpointSeed(kind='file',xyz_path=str(xyz),evidence_refs=[str(evidence)])
         endpoint_dir = tmp_path / role
         endpoint_dir.mkdir()
         error, path = process._write_endpoint_input(record, str(endpoint_dir), role, 'opt')
@@ -80,8 +95,8 @@ def test_scan_to_ts_followups_keep_declared_method_basis_and_keywords(tmp_path, 
     for path in paths:
         header = next(line for line in Path(path).read_text().splitlines() if line.startswith('!')).split()
         assert header[2:] == ['b3lyp', 'def2-SVP', 'D3BJ', 'RIJCOSX', 'def2/J', 'TightSCF', 'CPCM(DCM)'], path
-    assert record.declaration.method == 'b3lyp/def2svp'
-    assert record.declaration.extra_keywords == extras
+    assert record.input.ts_optimization.method == 'b3lyp/def2svp'
+    assert record.input.ts_optimization.keywords == extras
 
 
 @pytest.mark.parametrize('method, expected', [

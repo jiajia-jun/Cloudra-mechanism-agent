@@ -1,4 +1,9 @@
+
 from pathlib import Path
+
+import pytest
+
+from tests.ts_fixtures import calculation_input
 
 
 def test_scan_workflow_waits_without_duplicate_submission_and_accepts_only_internal_peak(tmp_path, monkeypatch):
@@ -6,8 +11,8 @@ def test_scan_workflow_waits_without_duplicate_submission_and_accepts_only_inter
     from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_output_schema
     payload = dict(reactant_smiles='O', product_smiles='O', method='HF/STO-3G', engine='orca',
                    scan={'method':'HF/STO-3G','scans':[{'atoms':[0,1],'scan_end':2,'scan_steps':5}]})
-    decl = process.TsDeclaration(**payload)
-    record = process.TsProcessRecord(run_id='scan', run_dir=str(tmp_path), declaration=decl,
+    decl = calculation_input(**payload)
+    record = process.TsProcessRecord(run_id='scan', run_dir=str(tmp_path), input=decl,
                                     owner_conversation_id='test', stage='guess')
     xyz = tmp_path/'r.xyz'
     xyz.write_text('3\nwater\nO 0 0 0\nH 1 0 0\nH 0 1 0\n')
@@ -27,9 +32,6 @@ def test_scan_workflow_waits_without_duplicate_submission_and_accepts_only_inter
     assert len(submissions) == 1
 
 
-def test_scan_is_visible_in_public_schema():
-    from cloudra.tools.core.ts_process import TsDeclaration
-    assert 'scan' in TsDeclaration.model_json_schema()['properties']
 
 
 def test_scan_and_refinement_keep_distinct_declared_solvation(tmp_path, monkeypatch):
@@ -37,14 +39,14 @@ def test_scan_and_refinement_keep_distinct_declared_solvation(tmp_path, monkeypa
 
     xyz = tmp_path / 'water.xyz'
     xyz.write_text('3\nwater\nO 0 0 0\nH 1 0 0\nH 0 1 0\n')
-    declaration = process.TsDeclaration(
+    declaration = calculation_input(
         reactant_smiles='O', product_smiles='O', method='B3LYP/def2-SVP',
         extra_keywords='CPCM(Water)',
         scan={'method': 'GFN2-xTB', 'extra_route': 'ALPB(Water)',
               'scans': [{'atoms': [0, 1], 'scan_end': 2, 'scan_steps': 5}]},
     )
     record = process.TsProcessRecord(
-        run_id='scan', run_dir=str(tmp_path), declaration=declaration,
+        run_id='scan', run_dir=str(tmp_path), input=declaration,
         owner_conversation_id='test', stage='guess',
     )
     monkeypatch.setattr(process, '_read_built_xyz', lambda *_: (['O', 'H', 'H'], [], str(xyz), ''))
@@ -68,32 +70,15 @@ def test_scan_and_refinement_keep_distinct_declared_solvation(tmp_path, monkeypa
     assert 'ALPB(Water)' not in refine_text
 
 
-def test_geometry_correction_invalidates_finished_scan(tmp_path, monkeypatch):
-    import cloudra.tools.core.ts_process as p
-    declaration = p.TsDeclaration(reactant_smiles='O',product_smiles='O',method='HF',
-        scan={'method':'HF','scans':[{'atoms':[0,1],'scan_end':2,'scan_steps':5}]})
-    record = p.TsProcessRecord(run_id='r',run_dir=str(tmp_path), declaration=declaration,
-        stage='guess', scan_step=p.TsJobStep(purpose='scan',job_id=42,state='done'))
-    monkeypatch.setattr(p,'advance',lambda record: record)
-    p.resume(record, p.TsAdjustment(distance_filters=[{'atoms':[0,1],'min_ang':0.8,'max_ang':1.2}]))
-    assert record.scan_step is None
-    assert record.stage == 'build'
 
 
-def test_scan_adjustment_cannot_skip_mapping(tmp_path, monkeypatch):
-    import cloudra.tools.core.ts_process as p
-    record = p.TsProcessRecord(run_id='r', run_dir=str(tmp_path),
-        declaration=p.TsDeclaration(reactant_smiles='O', product_smiles='O', method='HF'), stage='map')
-    monkeypatch.setattr(p, 'advance', lambda record: record)
-    p.resume(record, p.TsAdjustment(scan={'method':'HF','scans':[{'atoms':[0,1],'scan_end':2,'scan_steps':5}]}))
-    assert record.stage == 'map'
 
 
 def test_completed_scan_with_missing_log_is_recoverably_blocked(tmp_path, monkeypatch):
     import cloudra.tools.core.ts_process as p
     from cloudra.tools.Chemtool.ts_guess import TsGuess
     record = p.TsProcessRecord(run_id='r', run_dir=str(tmp_path),
-        declaration=p.TsDeclaration(reactant_smiles='O', product_smiles='O', method='HF',
+        input=calculation_input(reactant_smiles='O', product_smiles='O', method='HF',
             scan={'method':'HF','scans':[{'atoms':[0,1],'scan_end':2,'scan_steps':5}]}),
         stage='guess', waiting_for='job:42',
         scan_step=p.TsJobStep(purpose='scan', job_id=42, input_path=str(tmp_path/'scan.inp')))
@@ -104,14 +89,14 @@ def test_completed_scan_with_missing_log_is_recoverably_blocked(tmp_path, monkey
     p._guess(record)
     assert record.blocked.failure_class == 'scan_parse_failed'
     assert record.waiting_for == ''
-    assert record.blocked.needs == ['scan']
+    assert record.blocked.needs == ['guess']
 
 
 def test_scan_peak_must_preserve_atom_identity(tmp_path, monkeypatch):
     import cloudra.tools.core.ts_process as p
     from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_output_schema
     record = p.TsProcessRecord(run_id='r', run_dir=str(tmp_path),
-        declaration=p.TsDeclaration(reactant_smiles='O', product_smiles='O', method='HF',
+        input=calculation_input(reactant_smiles='O', product_smiles='O', method='HF',
             scan={'method':'HF','scans':[{'atoms':[0,1],'scan_end':2,'scan_steps':5}]}),
         stage='guess', scan_step=p.TsJobStep(purpose='scan', job_id=42, input_path=str(tmp_path/'scan.inp')))
     peak = tmp_path/'peak.xyz'
@@ -128,7 +113,7 @@ def test_failed_scan_exposes_native_log_and_requests_diagnosis(tmp_path, monkeyp
     import cloudra.tools.core.ts_process as process
 
     record = process.TsProcessRecord(run_id="failed-scan", run_dir=str(tmp_path),
-        declaration=process.TsDeclaration(reactant_smiles="O", product_smiles="O", method="HF", engine="orca",
+        input=calculation_input(reactant_smiles="O", product_smiles="O", method="HF", engine="orca",
             scan={"method": "HF", "scans": [{"atoms": [0, 1], "scan_end": 2, "scan_steps": 7}]}),
         stage="guess", waiting_for="job:42",
         scan_step=process.TsJobStep(purpose="scan", job_id=42, input_path=str(tmp_path / "scan.inp")))
@@ -150,3 +135,5 @@ def test_failed_scan_exposes_native_log_and_requests_diagnosis(tmp_path, monkeyp
     assert str(log) in details
     assert "ERROR (SHARK): Failed to read input file" in details
     assert "ORCA finished by error termination in PROPERTIES" in details
+
+pytestmark = pytest.mark.usefixtures("ts_producer_authority")

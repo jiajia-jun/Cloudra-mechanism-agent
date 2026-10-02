@@ -16,7 +16,8 @@ def checkpoint(tmp_path):
     record.current_seed_xyz_path = "/fixture/seed.xyz"
     record.current_ts_guess_path = "/fixture/old-ts.xyz"
     record.path_kind = "xtb_path"
-    record.declaration.budget.path_refinement_runs = 3
+    from cloudra.tools.core.ts_inputs import XtbPathGuess
+    record.input.guess = XtbPathGuess(kind="xtb_path",method="GFN2-xTB",refinement_runs=3)
     record.blocked = ts_process.TsBlocked(
         stage="guess", failure_class="path_not_converged", message="fixture failed path"
     )
@@ -27,34 +28,8 @@ def checkpoint(tmp_path):
     return db, pid, record
 
 
-def test_path_effort_change_invalidates_path_but_keeps_endpoint_seed(tmp_path, monkeypatch):
-    db, pid, record = checkpoint(tmp_path)
-    monkeypatch.setattr(ts_process, "advance", lambda record: record)
-    result = ts_process.resume(record, ts_process.TsAdjustment(path_refinement_runs=5))
-    assert result.declaration_revision == 2
-    assert result.stage == "guess"
-    assert result.current_seed_xyz_path == "/fixture/seed.xyz"
-    assert result.current_ts_guess_path == ""
-    assert not result.job_steps
-    assert result.attempt_history[-1].job_steps[-1].purpose == "path"
 
 
-def test_scan_remedy_accepts_terminal_path_preparation_job(tmp_path, monkeypatch):
-    db, pid, record = checkpoint(tmp_path)
-    monkeypatch.setattr(ts_process, "advance", lambda record: record)
-    result = ts_process.resume(
-        record,
-        ts_process.TsAdjustment(
-            scan={
-                "method": "GFN2-xTB",
-                "scans": [{"coord_type": "bond", "atoms": [0, 1], "scan_start": 1, "scan_end": 2, "scan_steps": 5}],
-            }
-        ),
-    )
-    assert result.stage == "guess"
-    assert result.declaration.scan is not None
-    assert not result.job_steps
-    assert result.attempt_history[-1].job_steps[-1].purpose == "path"
 
 
 @pytest.mark.parametrize("crash_after_ready", [False, True])
@@ -67,8 +42,8 @@ def test_scan_submission_recovers_exact_input_after_checkpoint_crash(tmp_path, m
     db, pid, record = checkpoint(tmp_path)
     record.blocked = None
     record.job_steps = []
-    record.declaration.scan = ts_process.ScanPlanInput(
-        method="fixture",
+    from cloudra.tools.core.ts_inputs import ScanGuess, TsCalculation
+    record.input.guess = ScanGuess(kind="scan", calculation=TsCalculation(engine="orca", method="b3lyp/def2svp", keywords=""),
         scans=[{"coord_type": "bond", "atoms": [0, 1], "scan_start": 1, "scan_end": 2, "scan_steps": 5}],
     )
     save_process_record(db, process_id=pid, record=record.model_dump(mode="json"))
@@ -78,7 +53,7 @@ def test_scan_submission_recovers_exact_input_after_checkpoint_crash(tmp_path, m
 
     def prepare(self, request):
         path = Path(request.output_path)
-        ts_process._write_immutable_input(str(path), "fixture scan")
+        ts_process._write_immutable_input(str(path), "! Opt B3LYP def2SVP\n%geom Scan B 0 1 = 1., 2., 5 end end\n* xyz 0 1\nH 0 0 0\nH 1 0 0\n*\n")
         return SimpleNamespace(is_success=True, input_file_path=str(path))
 
     monkeypatch.setattr("cloudra.tools.Chemtool.ts_guess.TsGuess._scan_prepare", prepare)
@@ -127,7 +102,7 @@ def test_frequency_gate_checks_first_order_saddle_before_irc_spend(tmp_path, mon
 
     def writer(record, folder):
         target = Path(folder) / "irc.inp"
-        target.write_text("fixture IRC")
+        target.write_text("! IRC B3LYP def2SVP\n* xyz 0 1\nH 0 0 0\nH 1 0 0\n*\n")
         return "", str(target)
 
     monkeypatch.setattr(ts_process, "_write_irc_input", writer)
@@ -160,7 +135,7 @@ def test_scientific_job_failure_reaches_cards_and_rejects_unchanged_candidate(tm
     record.job_steps[0].purpose = stage
     if stage == "path":
         monkeypatch.setattr(ts_process, "_read_built_xyz", lambda *args: (["H"], [[0, 0, 0]], "", ""))
-        record.declaration.atom_map = [0]
+        record.input.reaction.atom_map = [0]
         monkeypatch.setattr(
             ts_process,
             "_queued_path",
@@ -189,7 +164,7 @@ def test_scientific_job_failure_reaches_cards_and_rejects_unchanged_candidate(tm
         owner_id=candidate.owner_id,
         catalog_id=candidate.catalog_id,
         partition_revision=snapshot.revision,
-        declaration_hash=content_digest(record.declaration.model_dump(mode="json")),
+        declaration_hash=content_digest(record.input.model_dump(mode="json")),
         cards=cards,
         attempts=result.candidate_attempts,
         method_fingerprint="fixture",
@@ -244,7 +219,7 @@ def test_remote_path_pullback_continues_to_budgeted_ts_submission(tmp_path, monk
     with db.connect() as con:
         con.execute("UPDATE compute_jobs SET state='done'")
     record.blocked = None
-    record.declaration.atom_map = [0, 1]
+    record.input.reaction.atom_map = [0, 1]
     monkeypatch.setattr(ts_process, "_read_built_xyz", lambda *args: (["H", "H"], [[0, 0, 0], [0, 0, 0.74]], "", ""))
     monkeypatch.setattr(
         "cloudra.services.compute_admission.admit_job",
@@ -261,11 +236,15 @@ def test_remote_path_pullback_continues_to_budgeted_ts_submission(tmp_path, monk
         assert con.execute("SELECT COUNT(*) FROM compute_jobs").fetchone()[0] == 2
 
 
-def test_reaction_center_change_without_ring_invalidates_geometry_dependencies(tmp_path,monkeypatch):
-    db,pid,record=checkpoint(tmp_path)
-    assert not record.declaration.ring_order
-    monkeypatch.setattr(ts_process,'advance',lambda record:record)
-    result=ts_process.resume(record,ts_process.TsAdjustment(reaction_center=[(0,1)]))
+def test_reaction_center_change_without_ring_invalidates_geometry_dependencies(tmp_path):
+    from cloudra.tools.core.ts_inputs import TsResumeRequest
+    from cloudra.tools.core.ts_revision import plan_input_revision, revise_record
+    from tests.test_ts_stage_inputs import record_fixture
+    record = record_fixture(tmp_path, stage='guess', current_seed_xyz_path='old.xyz', current_ts_guess_path='old-ts.xyz')
+    record.input.conformers.guidance.ring_order=[]
+    record.job_steps=[ts_process.TsJobStep(purpose='path',job_id=7,state='done')]
+    request=TsResumeRequest(changes={'reaction':{'reaction_center':[(0,1)]}},reason='change assembly centre',request_key='assembly',expected_revision=record.revision)
+    result=revise_record(record,request,plan_input_revision(record,request))
     assert result.stage=='build'
     assert result.current_seed_xyz_path==''
     assert result.current_ts_guess_path==''
@@ -276,18 +255,21 @@ def test_reaction_center_change_without_ring_invalidates_geometry_dependencies(t
 @pytest.mark.parametrize("note", ["", "retain the existing scan"])
 def test_repeated_unchanged_scan_adjustment_preserves_failure_and_budget(tmp_path, note):
     db, pid, record = checkpoint(tmp_path)
-    record.declaration.scan = ts_process.ScanPlanInput(
-        method="b3lyp/def2svp", extra_route="D3BJ RIJCOSX def2/J TightSCF",
+    from cloudra.tools.core.ts_inputs import ScanGuess, TsExecutionLimits, TsResumeRequest
+    record.input.guess = ScanGuess(kind="scan",calculation={"engine":"orca","method":"b3lyp/def2svp","keywords":"D3BJ RIJCOSX def2/J TightSCF"},
         scans=[{"atoms": [0, 1], "scan_start": 1, "scan_end": 2, "scan_steps": 7}],
     )
-    record.declaration.budget.max_interventions = 1
+    record.input.execution.limits = TsExecutionLimits(source="explicit_user",max_interventions=1)
     record.scan_step = record.job_steps.pop().model_copy(update={"purpose": "scan", "state": "failed"})
     record.blocked = ts_process.TsBlocked(stage="guess", failure_class="scan_job_failed", message="SHARK failure")
     save_process_record(db, process_id=pid, record=record.model_dump(mode="json"))
     before = get_process(db, pid)
-    for _ in range(3):
-        record = ts_process.resume(record, ts_process.TsAdjustment(scan=record.declaration.scan, budget_override_note=note))
+    for index in range(3):
+        record = ts_process.resume(record, TsResumeRequest(changes={'guess':record.input.guess.model_dump()},reason=note or 'retain existing scan',request_key=f'unchanged-{index}',expected_revision=before['revision']))
         assert record.model_dump(mode="json") == before["record"]
         assert get_process(db, pid) == before
     with db.connect() as con:
         assert con.execute("SELECT COUNT(*) FROM compute_jobs").fetchone()[0] == 1
+
+
+pytestmark = pytest.mark.usefixtures("ts_producer_authority")

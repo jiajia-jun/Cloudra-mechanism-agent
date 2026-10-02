@@ -87,9 +87,6 @@ _ORCA_JOB_TOKENS = {
 # bare aliases (svp/tzvp/qzvpp/lanl2dz/...) that have no prefix. def2 的连字符
 # 可选：归一化组合拼写 `def2svp`（Gaussian 风格）与 ORCA 原生 `def2-SVP` 是
 # 同一基组，漏识别会把基组当独立方法候选误杀。
-_BASIS_RE = re.compile(
-    r"^(?:def2-?|cc-pv|aug-|sto-|pcseg|pc-\d|ano|minao|ma-|jun-|jul-|\d+-\d+)"
-)
 _BASIS_ALIAS = {
     "sv", "svp", "sv(p)", "dz", "dzp", "tz", "tzp", "tzvp", "tzvpp",
     "qz", "qzvp", "qzvpp", "lanl2dz", "lanl2mb", "minis", "midi",
@@ -109,10 +106,6 @@ _MAX_EMBED_DEPTH = 2
 # 才是方法候选；裸 `external`（无值）保持 fail-closed。引号必须成对——
 # `external="mace`（未闭合）不匹配，否则 `external="mace --inject x"` 这类
 # 注入会被截断成合法引擎值而 fail-open。
-_EXTERNAL_VALUE_RE = re.compile(r"^external=([\"']?)([a-z0-9_.-]+)\1$")
-# ORCA `%method` 块里的 ProgExt 外部程序（ExtOpt 路由）：程序路径的 basename
-# 才是方法候选；裸 `ExtOpt`（无 ProgExt）保持 fail-closed
-_PROGEXT_RE = re.compile(r'^\s*ProgExt\s+"?([^"\s]+)"?', re.I | re.M)
 
 
 @dataclass
@@ -124,7 +117,7 @@ class MethodVerdict:
 
 
 def _normalize(s: str) -> str:
-    return re.sub(r"\s+", " ", s.strip().lower())
+    return " ".join(s.strip().lower().split())
 
 
 def _norm_basis(b: str) -> str:
@@ -193,7 +186,9 @@ def check_method(method: str, policy: MethodPolicy, basis: str = "") -> MethodVe
 
 
 def _is_basis_token(tok: str) -> bool:
-    return tok in _BASIS_ALIAS or bool(_BASIS_RE.match(tok))
+    head, sep, tail = tok.partition("-")
+    numeric_basis = bool(sep and head.isdigit() and tail and tail[0].isdigit())
+    return tok in _BASIS_ALIAS or numeric_basis or tok.startswith(("def2", "cc-pv", "aug-", "sto-", "pcseg", "ano", "minao", "ma-", "jun-", "jul-")) or (tok.startswith("pc-") and tok[3:4].isdigit())
 
 
 def _is_orca_aux_basis_token(tok: str) -> bool:
@@ -206,43 +201,18 @@ def _is_orca_aux_basis_token(tok: str) -> bool:
     return bool(sep and _is_basis_token(head) and suffix in {"j", "jk", "jksmall", "c"})
 
 
+def valid_external_engine_value(value: str) -> bool:
+    return bool(value) and all(c.isascii() and (c.isalnum() or c in '_.-') for c in value)
+
+
 def _gaussian_route_cards(content: str) -> list[list[str]]:
     """全部路由卡的 token 序列（拼接跨行缠绕；覆盖 --Link1-- 多步输入的
     每一张卡）。每张卡 = 从 `#` 行到空行。"""
-    cards: list[list[str]] = []
-    current: list[str] = []
-    in_route = False
-    for line in content.splitlines():
-        s = line.strip()
-        if s.startswith("#!"):  # shebang 不是路由卡
-            continue
-        if s.startswith("#"):
-            if current:
-                cards.append(current)
-            current = []
-            in_route = True
-            s = s[1:]
-            head, _, rest = s.partition(" ")
-            if head.lower() in ("p", "n", "t"):
-                s = rest  # `#p`/`#n`/`#t` 前缀
-            elif not head:
-                s = rest
-            else:
-                s = s  # `#opt ...`：head 即首个有效 token
-                current.extend(head.split())
-                s = rest
-        elif in_route and not s:
-            in_route = False
-            if current:
-                cards.append(current)
-                current = []
-            continue
-        elif not in_route:
-            continue
-        current.extend(s.split())
-    if current:
-        cards.append(current)
-    return cards
+    from cloudra.tools.core.calculation_intent import gaussian_routes
+    try:
+        return gaussian_routes(content)
+    except ValueError:
+        return [["unparseable_native_route"]]
 
 
 def _extract_gaussian_methods(content: str) -> list[list[str]]:
@@ -258,9 +228,11 @@ def _extract_gaussian_methods(content: str) -> list[list[str]]:
         for tok in tokens:
             t = tok.lower()
             if t == "external" or t.startswith("external="):
-                m = _EXTERNAL_VALUE_RE.match(t)
-                if m is not None:
-                    slashed.append(m.group(2))  # group(1) 是引号，group(2) 是引擎值
+                value = t.partition("=")[2]
+                if value[:1] in {"'", '"'} and value[-1:] == value[:1] and len(value) >= 2:
+                    value = value[1:-1]
+                if valid_external_engine_value(value):
+                    slashed.append(value)  # group(1) 是引号，group(2) 是引擎值
                 elif t == "external":
                     bare.append(t)  # 裸 external：留候选，白名单外 fail-closed
                 else:
@@ -293,38 +265,21 @@ def _extract_orca_methods(content: str) -> list[str]:
     外部程序给出，方法候选取该程序的 basename（如 mace）——与 Gaussian
     `external="engine"` 的"引擎值即方法候选"对齐。裸 ExtOpt（无 ProgExt）
     保留 extopt 候选，白名单外必拦（fail-closed）。"""
-    candidates: list[str] = []
-    has_extopt = False
-    for line in content.splitlines():
-        s = line.strip()
-        if s.startswith("!/"):  # shebang
-            continue
-        if not s.startswith("!"):
-            continue
-        fns: list[str] = []
-        bases: list[str] = []
-        for tok in s[1:].split():
-            t = tok.lower()
-            if t == "extopt":
-                has_extopt = True
-                continue  # 路由标记不是方法本身；真正的候选来自 ProgExt
-            if t in _ORCA_JOB_TOKENS:
-                continue
-            if _is_orca_aux_basis_token(t):
-                continue
-            if _is_basis_token(t):
-                bases.append(_norm_basis(t))
-                continue
-            fns.append(t)
-        basis = bases[0] if len(bases) == 1 else ""
-        for f in fns:
-            candidates.append(f"{f}/{basis}" if basis else f)
-    if has_extopt:
-        m = _PROGEXT_RE.search(content)
-        if m is not None:
-            candidates.append(Path(m.group(1)).name.lower())
+    from cloudra.tools.core.calculation_intent import orca_directives
+    try:
+        tokens, blocks = orca_directives(content)
+    except ValueError:
+        return ["unparseable_native_route"]
+    bases = [_norm_basis(t) for t in tokens if _is_basis_token(t) and not _is_orca_aux_basis_token(t)]
+    basis = bases[0] if len(bases) == 1 else ""
+    candidates = [f"{t}/{basis}" if basis else t for t in tokens if t not in _ORCA_JOB_TOKENS and t != "extopt" and not _is_basis_token(t) and not _is_orca_aux_basis_token(t)]
+    if "extopt" in tokens:
+        method = blocks.get("method", [])
+        if "progext" in method and method.index("progext") + 1 < len(method):
+            value = method[method.index("progext") + 1].strip("\"'")
+            candidates.append(Path(value).name.lower())
         else:
-            candidates.append("extopt")  # 裸 ExtOpt：方法不可验证，fail-closed
+            candidates.append("extopt")
     return candidates
 
 

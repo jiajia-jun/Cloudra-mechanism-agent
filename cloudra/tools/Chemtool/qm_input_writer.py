@@ -236,15 +236,14 @@ class QmInputWriter(Tool):
         白名单，agent 在自己工作目录放个同名恶意脚本即可过审，故路径必须在
         agent 可写范围之外）。
         Gaussian：值是 external="..." 路由关键字的引擎名——写入前用
-        method_policy 的引擎值词法（_EXTERNAL_VALUE_RE）校验，写出的 token
+        method_policy 的引擎值词法（valid_external_engine_value）校验，写出的 token
         必须能被策略层解析回同一个值，畸形值直接拒绝。
         """
         value = (user_input.external_program or "").strip()
         if user_input.engine == "gaussian":
-            from cloudra.runtime_v2.method_policy import _EXTERNAL_VALUE_RE
+            from cloudra.runtime_v2.method_policy import valid_external_engine_value
 
-            token = f'external="{value}"'.lower()
-            if _EXTERNAL_VALUE_RE.match(token) is None:
+            if not valid_external_engine_value(value):
                 return (
                     f"external_program {value!r} is not a valid Gaussian external engine value: "
                     "only a single [a-z0-9_.-] token is accepted (e.g. 'mace'); values with "

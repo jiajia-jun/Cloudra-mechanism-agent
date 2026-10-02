@@ -38,10 +38,13 @@ def advance_optimization(record, stage_key: str, request: OptimizationRequest):
         _submit_step,
         _write_immutable_input,
         save_record,
+        stage_calculation,
     )
-
-    key = content_digest([stage_key, request.model_dump(mode='json'),record.declaration.charge,
-        record.declaration.multiplicity,record.declaration.path_solvation.model_dump() if record.declaration.path_solvation else None])
+    calculation = stage_calculation(record, 'candidate_evaluation')
+    if calculation is None or calculation.engine != 'xtb' or calculation.method != request.method_fingerprint or calculation.keywords:
+        raise ValueError('Constrained evaluations require an explicit supported conformer calculation')
+    key = content_digest([stage_key, request.model_dump(mode='json'),record.input.reaction.charge,
+        record.input.reaction.multiplicity, calculation.model_dump(mode='json')])
     checkpoint = record.optimization_checkpoints.get(key)
     if checkpoint is None:
         checkpoint = OptimizationCheckpoint(state=OptimizationState.model_validate(initialize_constrained_state(request)),
@@ -54,7 +57,7 @@ def advance_optimization(record, stage_key: str, request: OptimizationRequest):
         state = checkpoint.state
         if state.status == 'blocked':
             record.waiting_for = ''
-            _block(record, 'build', 'candidate_constrained_optimization_failed', state.error, needs=['selection_decision'])
+            _block(record, 'build', 'candidate_constrained_optimization_failed', state.error, needs=['conformers.reactant', 'recovery'])
             return None
         if state.status == 'converged':
             result = dict(symbols=request.symbols, positions=state.positions,
@@ -77,21 +80,21 @@ def advance_optimization(record, stage_key: str, request: OptimizationRequest):
         directory = Path(checkpoint.directory)/(kind+'_'+point_key)
         directory.mkdir(parents=True, exist_ok=True)
         manifest = directory/'task.json'
-        task = ChemTask(task=kind, reactant_xyz=xyz, charge=record.declaration.charge,
-            multiplicity=record.declaration.multiplicity, cpus=record.compute_cpus,
-            solvation=record.declaration.path_solvation.model_dump() if record.declaration.path_solvation else None)
+        task = ChemTask(task=kind, reactant_xyz=xyz, charge=record.input.reaction.charge,
+            multiplicity=record.input.reaction.multiplicity, cpus=record.compute_cpus)
         _write_immutable_input(str(manifest), task.model_dump_json())
         step = next((s for s in record.job_steps if s.purpose=='candidate_evaluation' and s.input_path==str(manifest)),None)
         if step is None:
             error, job = _submit_step(record, 'candidate_evaluation', str(manifest), 'chem_task',
                 stage_key=f'candidate_constraints:{key}:{kind}:{point_key}',
-                action_kind='frequency' if kind=='xtb_hessian' else 'gradient',
-                estimate_key='candidate_hessian' if kind=='xtb_hessian' else 'candidate_gradient')
+                action_kind='frequency' if kind=='xtb_hessian' else 'gradient')
             if error:
                 record.waiting_for = ''
-                _block(record,'build','candidate_optimization_admission_failed',error,needs=['compute_capability','exploration_budget'])
+                _block(record,'build','candidate_optimization_admission_failed',error,needs=['execution.compute_node','execution.limits'])
                 return None
-            step = TsJobStep(purpose='candidate_evaluation',job_id=job,input_path=str(manifest),state='ready')
+            step = TsJobStep(purpose='candidate_evaluation',job_id=job,input_path=str(manifest),state='ready',
+                actual_calculation=calculation, source_input_revision=record.declaration_revision,
+                stage_key=f'candidate_constraints:{key}:{kind}:{point_key}')
             record.job_steps.append(step)
             checkpoint = checkpoint.model_copy(update={'job_ids': list(dict.fromkeys([*checkpoint.job_ids,job]))})
             record.optimization_checkpoints[key] = checkpoint

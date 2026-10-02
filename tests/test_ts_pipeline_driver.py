@@ -1,12 +1,13 @@
 import pytest
 
 from cloudra.persistence.database import ComputeDB
+from cloudra.tools.core.ts_inputs import TsInput, TsResumeRequest
 from tests.test_ts_pipeline_store import job_payload, payload
 
 
 def waiting_process(tmp_path):
     from cloudra.services.ts_pipeline_store import bind_stage_job, create_process, save_process_record
-    from cloudra.tools.core.ts_process import TsDeclaration, TsJobStep, TsProcessRecord
+    from cloudra.tools.core.ts_process import TsJobStep, TsProcessRecord
 
     db = ComputeDB().init()
     created = create_process(db, request_key="driver", payload=payload(workspace_dir=str(tmp_path)))
@@ -20,7 +21,7 @@ def waiting_process(tmp_path):
         workspace_dir=str(tmp_path),
         owner_conversation_id="project",
         owner_session_id="owner",
-        declaration=TsDeclaration(**payload()["declaration"]),
+        input=TsInput.model_validate(payload()["input"]),
         pipeline_id=pid,
         stage="refine",
         waiting_for=f"job:{job}",
@@ -56,7 +57,7 @@ def test_terminal_event_advances_without_resume_and_repeated_event_reuses_job(tm
         from pathlib import Path
 
         path = Path(directory) / "frequency.inp"
-        path.write_text("fixture")
+        path.write_text("! Freq B3LYP def2-SVP\n* xyz 0 1\nO 0 0 0\n*\n")
         return "", str(path)
 
     monkeypatch.setattr(ts_process, "_write_frequency_input", writer)
@@ -74,18 +75,17 @@ def test_terminal_event_advances_without_resume_and_repeated_event_reuses_job(tm
 
 def test_empty_resume_is_query_and_waiting_adjustment_is_rejected(tmp_path):
     from cloudra.services.ts_pipeline_store import get_process
-    from cloudra.tools.core.ts_process import TsAdjustment, TsProcessRecord, resume
+    from cloudra.tools.core.ts_process import TsProcessRecord, resume
 
     db, pid, _ = waiting_process(tmp_path)
     record = TsProcessRecord.model_validate(get_process(db, pid)["record"])
-    assert resume(record, TsAdjustment()).model_dump() == record.model_dump()
-    with pytest.raises(ValueError, match="waiting"):
-        resume(record, TsAdjustment(atom_map=[0, 1]))
+    with pytest.raises(ValueError, match="active"):
+        resume(record, TsResumeRequest(changes={"reaction":{"atom_map":[0,1]}}, reason="fix mapping", request_key="mapping", expected_revision=get_process(db,pid)["revision"]))
 
 
 def test_prepare_response_retry_returns_original_checkpoint(tmp_path, monkeypatch):
     from cloudra.tools.core import ts_process
-    from cloudra.tools.core.ts_process import TsDeclaration, TsStartRequest, start
+    from cloudra.tools.core.ts_process import TsStartRequest, start
 
     def blocked(record):
         return ts_process._block(record, "map", "mapping_needed", "explicit mapping needed", needs=["atom_map"])
@@ -95,7 +95,7 @@ def test_prepare_response_retry_returns_original_checkpoint(tmp_path, monkeypatc
         workspace_dir=str(tmp_path),
         owner_conversation_id="project",
         owner_session_id="owner",
-        declaration=TsDeclaration(**payload()["declaration"]),
+        input=TsInput.model_validate(payload()["input"]),
         request_key="retry-key",
     )
     first = start(request)
@@ -130,7 +130,7 @@ def test_driver_uses_supplied_ledger_and_never_default_database(tmp_path, monkey
         workspace_dir=str(tmp_path),
         owner_conversation_id="project",
         owner_session_id="owner",
-        declaration=ts_process.TsDeclaration(**payload()["declaration"]),
+        input=ts_process.TsInput.model_validate(payload()["input"]),
         stage="refine",
         waiting_for=f"job:{job}",
         job_steps=[ts_process.TsJobStep(purpose="ts_opt", job_id=job, input_path=job_payload()["path"])],
@@ -143,7 +143,7 @@ def test_driver_uses_supplied_ledger_and_never_default_database(tmp_path, monkey
         from pathlib import Path
 
         path = Path(directory) / "frequency.inp"
-        path.write_text("fixture")
+        path.write_text("! Freq B3LYP def2-SVP\n* xyz 0 1\nO 0 0 0\n*\n")
         return "", str(path)
 
     monkeypatch.setattr(ts_process, "_write_frequency_input", writer)
@@ -159,13 +159,13 @@ def test_driver_uses_supplied_ledger_and_never_default_database(tmp_path, monkey
 
 def test_resume_reload_uses_authoritative_waiting_checkpoint(tmp_path):
     from cloudra.services.ts_pipeline_store import get_process
-    from cloudra.tools.core.ts_process import TsAdjustment, TsProcessRecord, resume
+    from cloudra.tools.core.ts_process import TsProcessRecord, resume
 
     db, pid, job = waiting_process(tmp_path)
     stale = TsProcessRecord.model_validate(get_process(db, pid)["record"])
     stale.waiting_for = ""
-    with pytest.raises(ValueError, match="waiting"):
-        resume(stale, TsAdjustment(atom_map=[0, 1]))
+    with pytest.raises(ValueError, match="active"):
+        resume(stale, TsResumeRequest(changes={"reaction":{"atom_map":[0,1]}}, reason="fix mapping", request_key="mapping", expected_revision=get_process(db,pid)["revision"]))
     assert get_process(db, pid)["record"]["waiting_for"] == f"job:{job}"
 
 
@@ -179,7 +179,9 @@ def test_pipeline_path_is_queued_without_running_engine_in_tool_worker(tmp_path,
     record.stage = "guess"
     record.waiting_for = ""
     record.job_steps = []
-    record.declaration.atom_map = [0]
+    record.input.reaction.atom_map = [0]
+    from cloudra.tools.core.ts_inputs import XtbPathGuess
+    record.input.guess = XtbPathGuess(kind="xtb_path", method="GFN2-xTB")
     monkeypatch.setattr(ts_process, "_read_built_xyz", lambda *args: (["H"], [[0, 0, 0]], "", ""))
     monkeypatch.setattr(
         "cloudra.services.compute_admission.admit_job",
@@ -215,3 +217,6 @@ def test_terminal_stage_records_immutable_execution_evidence(tmp_path, monkeypat
         evidence = con.execute("SELECT evidence FROM ts_pipeline_stages WHERE job_id=?", (job,)).fetchone()[0]
     assert json.loads(evidence)["status"] == "failed"
     assert len(json.loads(evidence)["input_hash"]) == 64
+
+
+pytestmark = pytest.mark.usefixtures("ts_producer_authority")

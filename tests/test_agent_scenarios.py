@@ -1065,55 +1065,40 @@ async def test_context_budget_compacts_once_then_short_turns_continue(tmp_path, 
 
 
 @pytest.mark.asyncio
-async def test_failed_ts_scan_unchanged_resume_keeps_failure_without_budget_exhaustion(tmp_path):
-    """TS failure checkpoint: repeated tool calls preserve evidence and intervention budget."""
-    from cloudra.persistence.database import ComputeDB
-    from cloudra.tools.core.ts_process import (
-        TsBlocked,
-        TsBudget,
-        TsDeclaration,
-        TsJobStep,
-        TsProcessRecord,
-        load_record,
-        save_record,
-    )
+@pytest.mark.usefixtures('ts_producer_authority')
+async def test_failed_ts_scan_unchanged_resume_keeps_failure_without_budget_exhaustion(tmp_path, monkeypatch):
+    """Real grouped resume preserves a fixture-driven failed scan and its budget."""
+    from cloudra.services.compute_admission import AdmissionOutcome
+    from cloudra.tools.core.ts_process import load_record
+    from tests.test_ts_fixture_pipeline import finish, install_log, job_count, waiting_fixture_stage
 
-    provider = ScriptedProvider(by_role={})
-    harness = await ScenarioHarness.start(tmp_path, provider=provider)
+    monkeypatch.setattr('cloudra.services.compute_admission.admit_job',lambda **_:AdmissionOutcome(ok=True,node_id='fixture',scheduler='local'))
+    ready=asyncio.Event()
+    steps=[Step(wait_for=ready) for _ in range(3)]
+    provider=ScriptedProvider(by_role={'small_mol':[*steps,Step(stop=True)]})
+    harness=await ScenarioHarness.start(tmp_path,workspace_dir=tmp_path,provider=provider)
     try:
-        workspace = _workspace(harness.project.id)
-        run_dir = workspace / "ts" / "failed_scan"
-        await asyncio.to_thread(run_dir.mkdir, parents=True, exist_ok=True)
-        scan = {"method": "b3lyp/def2svp", "extra_route": "D3BJ RIJCOSX def2/J TightSCF",
-                "scans": [{"atoms": [0, 1], "scan_start": 1, "scan_end": 2, "scan_steps": 7}]}
-        record = TsProcessRecord(run_id="failed_scan", run_dir=str(run_dir), stage="guess",
-            declaration=TsDeclaration(engine="orca", reactant_smiles="O", product_smiles="O",
-                method="b3lyp/def2svp", scan=scan, budget=TsBudget(max_interventions=1)),
-            blocked=TsBlocked(stage="guess", failure_class="scan_job_failed", message="native SHARK failure"),
-            scan_step=TsJobStep(purpose="scan", job_id=42, state="failed"))
-        await asyncio.to_thread(save_record, record)
-        provider.script("small_mol", *[
-            Step(tools=[("ts_resume", {"run_id": record.run_id, "adjustment": {"scan": scan}})])
-            for _ in range(3)
-        ], Step(stop=True))
-        agent = await harness.spawn("small_mol", protocol="traditional")
+        agent=await harness.spawn('small_mol',protocol='traditional')
+        db,record,step=await asyncio.to_thread(waiting_fixture_stage,tmp_path,purpose='scan',project_id=harness.project.id,owner_id=agent.id)
+        await asyncio.to_thread(install_log,record,step,'orca/segfault_mid_opt/dvb_opt_truncated_no_termination.out')
+        await asyncio.to_thread(finish,db,step.job_id,'failed')
+        before=await asyncio.to_thread(load_record,str(tmp_path),record.run_id)
+        for index,item in enumerate(steps):
+            item.tools=[('ts_resume',{'run_id':record.run_id,'changes':{'guess':before.input.guess.model_dump()},'reason':'retain accepted scan','request_key':f'unchanged-{index}','expected_revision':before.revision})]
+        ready.set()
         await harness.wait_terminal(agent)
-        calls = harness.tool_events(agent)
-        assert [call["tool_name"] for call in calls] == ["ts_resume"] * 3
-        assert all(call["is_success"] for call in calls), harness.describe(agent)
+        calls=harness.tool_events(agent)
+        assert [call['tool_name'] for call in calls]==['ts_resume']*3
+        assert all(call['is_success'] for call in calls),harness.describe(agent)
         for call in calls:
-            result = call["result_data"]
-            assert result["blocked"]["failure_class"] == "scan_job_failed"
-            assert result["intervention_count"] == 0
-            assert result["terminal"] is None
-        after = await asyncio.to_thread(load_record, str(workspace), record.run_id)
-        assert after.model_dump() == record.model_dump()
-        def queued_jobs():
-            db = ComputeDB().init()
-            with db.connect() as con:
-                return con.execute("SELECT COUNT(*) FROM compute_jobs").fetchone()[0]
-        assert await asyncio.to_thread(queued_jobs) == 0
+            result=call['result_data']
+            assert result['blocked']['failure_class']=='scan_job_failed'
+            assert result['usage']['interventions']==0 and result['result'] is None
+        after=await asyncio.to_thread(load_record,str(tmp_path),record.run_id)
+        assert after.model_dump()==before.model_dump()
+        assert await asyncio.to_thread(job_count,db)==1
     finally:
+        ready.set()
         await harness.aclose()
 
 

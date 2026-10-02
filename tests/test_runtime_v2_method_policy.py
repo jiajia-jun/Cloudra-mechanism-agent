@@ -16,7 +16,6 @@ from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
 from cloudra.runtime_v2.schemas import (
     AgentCapabilities,
     InvocationProtocol,
-    PermissionSet,
     ProjectSettings,
     RuntimeSettings,
 )
@@ -89,7 +88,7 @@ async def _run_tool_turn(core: RuntimeCore, agent, tmp_path, call: ToolCall, run
         agent=agent,
         run_id=run_id,
         settings=RuntimeSettings(),
-        capabilities=AgentCapabilities(permissions=PermissionSet(), tools=["*"]),
+        capabilities=AgentCapabilities(permissions=agent.capabilities.permissions, tools=["*"]),
         inbox_messages=[{"content": "go"}],
         workspace_dir=str(tmp_path),
     )
