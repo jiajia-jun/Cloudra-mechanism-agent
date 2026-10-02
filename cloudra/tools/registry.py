@@ -218,7 +218,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         supervisor_access='evidence_read',
         role_allowlist=_SCIENCE_ROLES,
     ),
-    # TS 搜索 SOP 的 agent 可见接口（只有这两个函数；刻意没有 status/查询接口）
+    # TS writes and independent read-only inspection.
     ToolRegistration(
         'cloudra.tools.Chemtool.ts_search_process', 'TsPrepare', tool_name='ts_prepare',
         role_allowlist=_SCIENCE_ROLES,
@@ -226,6 +226,10 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
     ToolRegistration(
         'cloudra.tools.Chemtool.ts_search_process', 'TsResume', tool_name='ts_resume',
         role_allowlist=_SCIENCE_ROLES,
+    ),
+    ToolRegistration(
+        'cloudra.tools.Chemtool.ts_search_process', 'TsInspect', tool_name='ts_inspect',
+        supervisor_access='evidence_read', dag_observe=False,
     ),
     ToolRegistration(
         module='cloudra.tools.Chemtool.smiles_to_mol',

@@ -1,7 +1,4 @@
-"""TS 搜索 SOP 的 agent 可见接口：`ts_prepare` 与 `ts_resume` 两个函数。
-
-**这是这条 SOP 暴露给 agent 的全部接口**（SOP §2「两个函数」）。刻意**没有** status/查询
-函数：状态变更会经事件回流，暴露查询接口只会诱导模型反复轮询、白烧轮次与上下文。
+"""TS state machine tools: prepare once, resume revisions, inspect read-only.
 
 - `ts_prepare`：起一次搜索。进程随后自主推进（建结构 → 映射 → 组装 → 路径初猜 → 校验 →
   提交 → 精修 → 判定）。
@@ -35,6 +32,7 @@ from cloudra.tools.core.ts_process import (
     resume,
     start,
 )
+from cloudra.tools.core.ts_state_view import TsProcessView, inspect_process
 
 description = (
     "Run the transition-state search SOP as a durable process: build both endpoints from SMILES. "
@@ -45,8 +43,8 @@ description = (
     "map atoms, assemble the reactive complex, queue a path guess, validate internally, then submit and judge. "
     "Returns a run_id; the process advances autonomously and STOPS with a `blocked` payload when it "
     "needs you to change the declaration — fix what the payload names and call ts_resume. "
-    "There is deliberately NO status/progress query function: state changes are delivered to you, so "
-    "do not poll. A blocked process is a normal outcome, not an error. "
+    "Use ts_inspect to read authoritative progress and missing inputs without changing the run. "
+    "A blocked process is a normal outcome, not an error. "
     "Use for: locating a transition state from reactant/product SMILES. "
     "Do not use for: single-point energies, conformer ensembles (use conformer_search) or plain "
     "input writing (use qm_input_writer)."
@@ -303,3 +301,38 @@ class TsResume(Tool):
 
 def get_class():
     return TsPrepare
+
+
+class TsInspect_input_schema(input_schema):
+    run_id: str = Field(min_length=1)
+    workspace_dir: str | None = None
+
+
+class TsInspect_output_schema(TsProcessView, output_schema):
+    is_success: bool = True
+
+
+class TsInspect(Tool):
+    tool_id: str = 't-ts-inspect'
+    tool_name: str = 'ts_inspect'
+    tool_description: str = 'Read authoritative TS state, jobs, methods, evidence and missing inputs. Does not advance, retry or change a process. Same-project read-only reviewers may inspect another agent’s run.'
+    input_schema: Any = TsInspect_input_schema
+    output_schema: Any = TsInspect_output_schema
+
+    def is_read(self) -> bool:
+        return True
+
+    async def tool_call(self, user_input: TsInspect_input_schema, session: Session) -> TsInspect_output_schema:
+        import asyncio
+
+        from cloudra.services.ts_pipeline_context import pipeline_database
+        from cloudra.tools.core.permission_model import Permission
+
+        workspace = _resolve_workspace(self, user_input.workspace_dir)
+        permissions = self.subagent.permission_all()
+        if not permissions & Permission.READ:
+            raise ValueError('TS inspection requires read permission')
+        view = await asyncio.to_thread(inspect_process, pipeline_database(),
+            project_id=self.subagent.conversation_id, run_id=user_input.run_id, workspace_dir=workspace,
+            can_write=bool(permissions & Permission.WRITE))
+        return TsInspect_output_schema(**view.model_dump())

@@ -198,6 +198,26 @@ def get_process(db: ComputeDB, process_id: str) -> dict | None:
                 status=row[4], record=json.loads(row[5]) if row[5] else None)
 
 
+def read_process_snapshot(db: ComputeDB, *, project_id: str, run_id: str, workspace_dir: str) -> tuple[dict, list[dict]]:
+    """Read process and jobs in one snapshot; ownership restricts writes, not project reads."""
+    with db.connect() as con:
+        con.execute('BEGIN')
+        row = con.execute('SELECT process_id,revision,record FROM ts_pipeline_processes WHERE project_id=? '
+                          "AND json_extract(record,'$.run_id')=? AND json_extract(payload,'$.workspace_dir')=?",
+                          (project_id, run_id, workspace_dir)).fetchone()
+        if row is None:
+            raise ValueError('TS run not found in the authorized project and workspace')
+        state = json.loads(row[2])
+        state['revision'] = row[1]
+        rows = con.execute('SELECT j.id,s.stage_key,j.state,j.req_cpus,j.req_memory_mb,j.start_timestamp,j.end_timestamp,'
+                           's.declaration_revision,s.attempt,s.evidence FROM ts_pipeline_stages s '
+                           'JOIN compute_jobs j ON j.id=s.job_id WHERE s.process_id=? ORDER BY j.id', (row[0],)).fetchall()
+        keys = ('job_id', 'purpose', 'state', 'req_cpus', 'req_memory_mb', 'start_timestamp', 'end_timestamp',
+                'source_input_revision', 'attempt', 'evidence')
+        jobs = [dict(zip(keys, values, strict=True)) for values in rows]
+    return state, jobs
+
+
 def bind_stage_job(db: ComputeDB, *, process_id: str, declaration_revision: int, stage_key: str,
                    attempt: int, job_payload: dict, reservation_id: str | None = None,
                    action_key: str | None = None) -> int:

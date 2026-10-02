@@ -181,8 +181,8 @@ async def test_prepare_without_workspace_reports_a_caller_error(tmp_path):
     assert "workspace_dir" in out.message
 
 
-def test_the_sop_surface_is_exactly_two_functions_and_no_status_query():
-    """SOP §2：流程只暴露两个函数，**刻意没有** status/查询接口（否则诱导轮询）。
+def test_the_state_machine_surface_has_two_writers_and_readonly_inspection():
+    """One prepare, revisions through resume, independent read-only inspection.
 
     注意 ``ts_guess`` 是既有的**底层原语**工具（guess 阶段与它共用同一个 xTB 路径运行器），
     不属于流程接口，也不被流程取代——它仍然可以被直接调用。
@@ -190,10 +190,9 @@ def test_the_sop_surface_is_exactly_two_functions_and_no_status_query():
     from cloudra.tools import get_tools_lst
 
     names = {entry.tool_name for entry in get_tools_lst()}
-    # 流程接口恰好这两个
     sop_tools = {n for n in names if n.startswith("ts_")} - {"ts_guess"}
-    assert sop_tools == {"ts_prepare", "ts_resume"}
-    # 没有任何形态的状态查询入口
+    assert sop_tools == {"ts_prepare", "ts_resume", "ts_inspect"}
+    # No redundant status aliases.
     assert not {n for n in names if n in {
         "ts_status", "ts_process_status", "ts_progress", "ts_query", "ts_poll",
     }}
