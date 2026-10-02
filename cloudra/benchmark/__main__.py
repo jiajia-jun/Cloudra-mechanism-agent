@@ -3,7 +3,7 @@
 Default is a dry-run (no-op backend: sandboxes stay empty, every task scores
 0 through the real scoring pipeline — useful for checking the harness itself).
 `--backend runtime_v2` runs each task on the real in-process runtime_v2 kernel
-with the method whitelist enforced.
+with the method whitelist enforced. Tasks have no overall duration limit.
 
 Example:
     python -m cloudra.benchmark --backend runtime_v2 --data-dir bench_out --only C1,D3
@@ -28,7 +28,6 @@ def main(argv: list[str] | None = None) -> int:
                     help="benchmark data dir (sandboxes + benchmark.db)")
     ap.add_argument("--backend", choices=["none", "runtime_v2"], default="none")
     ap.add_argument("--only", default="", help="comma-separated task ids (default: all)")
-    ap.add_argument("--timeout", type=float, default=7200.0, help="per-task run timeout, seconds")
     ap.add_argument("--concurrency", type=int, default=1,
                     help="parallel tasks (threads, per-task event loop + sandbox; default 1 = serial)")
     ap.add_argument("--api-pool", type=Path, default=None,
@@ -64,7 +63,6 @@ def main(argv: list[str] | None = None) -> int:
         from cloudra.benchmark.backend import RuntimeV2Backend
 
         backend = RuntimeV2Backend(
-            run_timeout_s=args.timeout,
             llm=llm,
             store_path=args.data_dir / "runtime" / "runtime-v2.db",
         )
@@ -81,7 +79,6 @@ def main(argv: list[str] | None = None) -> int:
         "tasks_dirs": [str(d) for d in (args.tasks_dir or [Path("ideapool/tasks/easy")])],
         "task_ids": [t.task_id for t in tasks],
         "concurrency": max(1, args.concurrency),
-        "run_timeout_s": args.timeout,
     })
     status = "done"
     try:

@@ -75,7 +75,6 @@ export default function BenchmarkPanel({ onClose, onOpenProject, onToast }: Benc
   const [dirPickerOpen, setDirPickerOpen] = useState(false);
   const [only, setOnly] = useState('');
   const [concurrency, setConcurrency] = useState('1');
-  const [timeout, setTimeoutS] = useState('7200');
   const [busy, setBusy] = useState(false);
   const sourceRef = useRef<EventSource | null>(null);
 
@@ -132,7 +131,6 @@ export default function BenchmarkPanel({ onClose, onOpenProject, onToast }: Benc
           .filter(Boolean),
         only: only.trim(),
         concurrency: Math.max(1, Number(concurrency) || 1),
-        timeout: Math.max(60, Number(timeout) || 7200),
       };
       const snap = await api.benchmarkStart(body);
       setStatus(snap);
@@ -265,15 +263,6 @@ export default function BenchmarkPanel({ onClose, onOpenProject, onToast }: Benc
                 className="input bm-num"
                 value={concurrency}
                 onChange={(e) => setConcurrency(e.target.value)}
-                disabled={running}
-              />
-            </label>
-            <label className="bm-field" title="per-task run timeout, seconds">
-              timeout s
-              <input
-                className="input bm-num"
-                value={timeout}
-                onChange={(e) => setTimeoutS(e.target.value)}
                 disabled={running}
               />
             </label>

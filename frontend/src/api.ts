@@ -330,7 +330,7 @@ export const api = {
     ),
   benchmarkStatus: () => request<BenchmarkStatus>('/api/v2/benchmark/status'),
   benchmarkCatalog: () => request<BenchmarkCatalog>('/api/v2/benchmark/catalog'),
-  benchmarkStart: (body: { tiers?: string[]; tasks_dirs?: string[]; only?: string; concurrency?: number; timeout?: number }) =>
+  benchmarkStart: (body: { tiers?: string[]; tasks_dirs?: string[]; only?: string; concurrency?: number }) =>
     request<BenchmarkStatus>('/api/v2/benchmark/start', {
       method: 'POST',
       body: JSON.stringify(body),

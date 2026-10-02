@@ -141,7 +141,6 @@ class BenchmarkBatch:
         tasks: list[TaskSpec],
         tasks_dirs: list[str],
         concurrency: int,
-        run_timeout_s: float,
         stuck_grace_s: float,
         poll_interval_s: float,
         emit: Callable[[str, dict], None],
@@ -161,11 +160,9 @@ class BenchmarkBatch:
             "tasks_dirs": [str(d) for d in tasks_dirs],
             "task_ids": [t.task_id for t in tasks],
             "concurrency": self.concurrency,
-            "run_timeout_s": run_timeout_s,
         }
         self.task_states = [_TaskRunState(t) for t in tasks]
         self._watcher_kwargs = {
-            "run_timeout_s": run_timeout_s,
             "stuck_grace_s": stuck_grace_s,
             "poll_interval_s": poll_interval_s,
         }
@@ -387,8 +384,8 @@ class BenchmarkBatch:
                     await self._mark_cancelled(st)
                 else:
                     # A parked run has state SUCCEEDED, so agent.cancel may be
-                    # rejected on timeout.  The watcher verdict still means
-                    # there was no final result; never score that sandbox.
+                    # rejected after a watcher cancellation. The watcher still
+                    # reports no final result; never score that sandbox.
                     st.status = "error"
                     st.error = wait_error
                     result = RunResult(
@@ -615,7 +612,7 @@ class BenchmarkService:
         return {"tiers": await asyncio.to_thread(task_catalog)}
 
     async def start(self, *, tasks_dirs: list[str] | None, only: str,
-                    concurrency: int, timeout: float,
+                    concurrency: int,
                     tiers: list[str] | None = None) -> dict:
         async with self._lock:
             active = self._active_batch()
@@ -635,7 +632,6 @@ class BenchmarkService:
                 tasks=tasks,
                 tasks_dirs=[str(d) for d in resolved],
                 concurrency=concurrency,
-                run_timeout_s=timeout,
                 stuck_grace_s=300.0,
                 poll_interval_s=2.0,
                 emit=self._emit,

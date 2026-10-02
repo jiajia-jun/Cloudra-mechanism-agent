@@ -86,7 +86,6 @@ class BenchmarkStart(BaseModel):
     tasks_dirs: list[str] = Field(default_factory=list)
     only: str = ""
     concurrency: int = Field(default=1, ge=1, le=8)
-    timeout: float = Field(default=7200.0, ge=60.0)
 
 
 class GoalSetRequest(BaseModel):

@@ -2366,7 +2366,6 @@ def test_backend_runs_to_terminal_and_scores_from_deliverables(tmp_path, monkeyp
         tools=tools,
         start_scheduler=False,
         poll_interval_s=0.01,
-        run_timeout_s=30.0,
         stuck_grace_s=5.0,
     )
     result = backend(
@@ -2411,13 +2410,13 @@ def test_cli_backend_starts_and_closes_compute_notifier(tmp_path, monkeypatch):
     backend = RuntimeV2Backend(
         llm=_ScriptedLLM([LLMResponse(content="done")]),
         tools=_RecordingTools(), start_scheduler=False,
-        poll_interval_s=0.01, run_timeout_s=5.0, stuck_grace_s=1.0,
+        poll_interval_s=0.01, stuck_grace_s=1.0,
     )
     backend(_tiny_task(), tmp_path / "sandbox")
     assert calls == ["start", "close"]
 
 
-def test_cli_backend_timeout_survives_finished_agent_cancel_rejection(tmp_path, monkeypatch):
+def test_cli_backend_stuck_wait_survives_finished_agent_cancel_rejection(tmp_path, monkeypatch):
     import asyncio
 
     from cloudra.benchmark.backend import RuntimeV2Backend
@@ -2425,22 +2424,22 @@ def test_cli_backend_timeout_survives_finished_agent_cancel_rejection(tmp_path, 
     from cloudra.runtime_v2.schemas import AgentState
     from cloudra.runtime_v2.turn_pipeline import LLMResponse
 
-    async def timeout_after_agent_finishes(self, core, agent, cancel):
+    async def stuck_after_agent_finishes(self, core, agent, cancel):
         for _ in range(100):
             if agent.state is AgentState.SUCCEEDED:
                 break
             await asyncio.sleep(0.01)
         assert agent.state is AgentState.SUCCEEDED
-        await cancel("benchmark run timeout (test)")
-        return "benchmark run timeout (test)"
+        await cancel("agent stuck in waiting_approval with no live supervisor to decide wait_review")
+        return "agent stuck in waiting_approval with no live supervisor to decide wait_review"
 
-    monkeypatch.setattr(RunWatcher, "wait", timeout_after_agent_finishes)
+    monkeypatch.setattr(RunWatcher, "wait", stuck_after_agent_finishes)
     backend = RuntimeV2Backend(
         llm=_ScriptedLLM([LLMResponse(content="done")]),
         tools=_RecordingTools(), start_scheduler=False,
-        poll_interval_s=0.01, run_timeout_s=5.0, stuck_grace_s=1.0,
+        poll_interval_s=0.01, stuck_grace_s=1.0,
     )
-    with pytest.raises(TimeoutError, match="benchmark run timeout"):
+    with pytest.raises(TimeoutError, match="no live supervisor"):
         backend(_tiny_task(), tmp_path / "sandbox")
     assert any(
         event.type == "command.rejected"
@@ -2481,7 +2480,6 @@ def test_backend_unattended_ask_user_blocked_without_parking(tmp_path, monkeypat
         tools=_RecordingTools(),
         start_scheduler=False,
         poll_interval_s=0.01,
-        run_timeout_s=30.0,
         stuck_grace_s=5.0,
     )
     result = backend(_tiny_task(), tmp_path / "sandbox")
@@ -3848,6 +3846,7 @@ def test_cli_records_batch_with_provenance(tmp_path):
     assert len(batches) == 1
     batch = batches[0]
     assert batch["status"] == "done"
+    assert "run_timeout_s" not in batch["config"]
     assert batch["config"]["backend"] == "cli"
     assert batch["config"]["orchestration_modes"] == {"BENCH_T": "standard"}
     # 溯源只记 provider/model，绝不记 API key
@@ -3881,7 +3880,6 @@ def test_backend_persists_events_to_store(tmp_path, monkeypatch):
         tools=_RecordingTools(),
         start_scheduler=False,
         poll_interval_s=0.01,
-        run_timeout_s=30.0,
         stuck_grace_s=5.0,
         store_path=store_path,
     )
@@ -3919,7 +3917,7 @@ def test_backend_installs_trusted_task_policy_before_agent_runs(tmp_path, role):
             return LLMResponse(content='probe complete',stop_requested=True)
 
     backend=RuntimeV2Backend(llm=AuthorityProbe(),tools=_RecordingTools(),start_scheduler=False,
-        poll_interval_s=.01,run_timeout_s=10,stuck_grace_s=1)
+        poll_interval_s=.01,stuck_grace_s=1)
     backend(task,tmp_path/'sandbox')
     assert observed==[task.method_policy]
     project=next(iter(backend.last_core.projects.values()))

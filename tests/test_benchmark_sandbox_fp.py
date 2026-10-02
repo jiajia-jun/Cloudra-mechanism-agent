@@ -505,7 +505,6 @@ def test_cli_full_chain_standard_js(tmp_path, monkeypatch):
         llm=llm,
         start_scheduler=True,
         poll_interval_s=0.05,
-        run_timeout_s=60.0,
         stuck_grace_s=10.0,
     )
 
@@ -619,7 +618,7 @@ async def test_web_full_chain_standard_js(tmp_path, monkeypatch):
     try:
         service = BenchmarkService(core, bus, data_dir=tmp_path / "bench")
         tasks_dir = _write_tasks(tmp_path / "tasks", "T1")
-        snap = await service.start(tasks_dirs=[tasks_dir], only="", concurrency=1, timeout=90.0)
+        snap = await service.start(tasks_dirs=[tasks_dir], only="", concurrency=1)
         batch = service._batch
         batch_id = snap["batch_id"]
 
@@ -749,7 +748,7 @@ def test_cli_full_chain_traditional_equivalent(tmp_path, monkeypatch):
 
     backend = RuntimeV2Backend(
         llm=llm, start_scheduler=True, poll_interval_s=0.05,
-        run_timeout_s=60.0, stuck_grace_s=10.0,
+        stuck_grace_s=10.0,
     )
 
     tasks_dir = _write_tasks(tmp_path / "tasks", "T1")
@@ -796,7 +795,7 @@ def _run_cli_task(tmp_path, monkeypatch, llm, *, task_id: str = "T1",
     """CLI 入口跑一题（引擎由调用方先 install_engine 并设好控制文件）。"""
     backend = backend or RuntimeV2Backend(
         llm=llm, start_scheduler=True,
-        poll_interval_s=0.05, run_timeout_s=60.0, stuck_grace_s=10.0,
+        poll_interval_s=0.05, stuck_grace_s=10.0,
     )
     tasks_dir = _write_tasks(
         tmp_path / "tasks", task_id, mode=mode, method_allowed=method_allowed
@@ -1154,7 +1153,7 @@ def test_cli_guided_supervisor_loop(tmp_path, monkeypatch, draft_order):
     llm = GuidedLLM()
     backend = RuntimeV2Backend(
         llm=llm, start_scheduler=True,
-        poll_interval_s=0.05, run_timeout_s=60.0, stuck_grace_s=10.0,
+        poll_interval_s=0.05, stuck_grace_s=10.0,
     )
 
     # 子 agent：run1 = 确定性 compute 链 + 显式送审；run2 = 收到 call verdict 后收尾
@@ -1444,7 +1443,7 @@ def test_cli_method_policy_blocks_before_compute(tmp_path, monkeypatch):
 # Task 5（P1）：并发隔离、stop 级联与关闭时真实 JS host 回收
 # ---------------------------------------------------------------------------
 
-async def _web_harness(core, llm, tmp_path, *, concurrency=1, timeout=90.0):
+async def _web_harness(core, llm, tmp_path, *, concurrency=1):
     """Web 入口装配：live core + 测试 scheduler + broker + BenchmarkService。"""
     from cloudra.benchmark.batch import BenchmarkService
     from cloudra.runtime_v2.compute_notify import ComputeNotifyBroker
@@ -1488,7 +1487,7 @@ async def test_web_concurrent_mixed_success_and_failure(tmp_path, monkeypatch):
     tasks_dir = _write_tasks(tmp_path / "tasks", "T1", "T2")
     _, scheduler, broker, service = await _web_harness(core, llm, tmp_path, concurrency=2)
     try:
-        await service.start(tasks_dirs=[tasks_dir], only="", concurrency=2, timeout=60.0)
+        await service.start(tasks_dirs=[tasks_dir], only="", concurrency=2)
         batch = service._batch
         await wait_until(
             lambda: service.status()["status"] in {"done", "error"},
@@ -1557,7 +1556,7 @@ async def test_web_stop_cascades_but_keeps_live_compute(tmp_path, monkeypatch):
     tasks_dir = _write_tasks(tmp_path / "tasks", "T1")
     _, scheduler, broker, service = await _web_harness(core, llm, tmp_path)
     try:
-        await service.start(tasks_dirs=[tasks_dir], only="", concurrency=1, timeout=60.0)
+        await service.start(tasks_dirs=[tasks_dir], only="", concurrency=1)
         # running 行先于 guard 启动落库，不能拿它当活计算的同步点；等待引擎
         # 已读到输入，再用生产 flock 口径确认 guard/calculator 都已启动。
         await wait_until(lambda: bool(engine.runs()), timeout=60.0, what="live calculator startup")
@@ -1643,7 +1642,7 @@ async def test_web_shutdown_reaps_real_js_host(tmp_path, monkeypatch):
     js_runtime = core.runner.pipeline.js_runtime
     observed: list = []
     try:
-        await service.start(tasks_dirs=[tasks_dir], only="", concurrency=1, timeout=60.0)
+        await service.start(tasks_dirs=[tasks_dir], only="", concurrency=1)
 
         def capture() -> bool:
             procs = js_runtime.active_executions()

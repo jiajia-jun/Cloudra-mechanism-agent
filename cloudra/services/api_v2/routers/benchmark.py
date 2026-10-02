@@ -33,7 +33,6 @@ def build_router(ctx: ApiContext) -> APIRouter:
             tasks_dirs=body.tasks_dirs or None,
             only=body.only,
             concurrency=body.concurrency,
-            timeout=body.timeout,
             tiers=body.tiers or None,
         )
 

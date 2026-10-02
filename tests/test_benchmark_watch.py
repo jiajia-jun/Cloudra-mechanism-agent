@@ -4,7 +4,7 @@
 - SUCCEEDED + 存活子 agent/后台 = 未完成，继续等（C1 事故回归）；
 - WAITING_APPROVAL(reason=wait_review) = 内部督导等待，不套 300s 人工卡死
   取消（NI1 事故回归），只有督导已死才按卡死处理；
-- 其余无应答挂起（waiting_input / approval）与整体超时照旧取消。
+- 其余无应答挂起（waiting_input / approval）照旧取消；运行时长不设上限。
 """
 
 from __future__ import annotations
@@ -49,7 +49,6 @@ async def _core_with_agents(tmp_path, second_role: str = "coordinator"):
 
 def _watcher(**kwargs) -> RunWatcher:
     params = {
-        "run_timeout_s": 30.0,
         "stuck_grace_s": 5.0,
         "poll_interval_s": 0.01,
     }
@@ -279,9 +278,10 @@ async def test_parked_run_resumes_once_when_peers_finish_without_new_notice(tmp_
 
     core.runner = SimpleNamespace(maybe_wake_parked_delivery=reconcile)
 
+    stop = asyncio.Event()
     watcher = _watcher(
-        run_timeout_s=0.05,
         pending_background=lambda: asyncio.sleep(0, result=False),
+        stop_event=stop,
     )
     assert (await watcher.decide(core, parent)).kind == "continue"
     await _terminal(core, sibling, AgentState.SUCCEEDED, "done")
@@ -290,9 +290,15 @@ async def test_parked_run_resumes_once_when_peers_finish_without_new_notice(tmp_
     async def cancel(reason):
         reasons.append(reason)
 
-    assert await watcher.wait(core, parent, cancel) is not None
-    assert reconciled == [parent.project_id]
-    assert len(reasons) == 1
+    wait_task = asyncio.create_task(watcher.wait(core, parent, cancel))
+    try:
+        await asyncio.sleep(0.05)
+        assert reconciled == [parent.project_id]
+        assert not wait_task.done()
+        assert reasons == []
+    finally:
+        stop.set()
+        assert await asyncio.wait_for(wait_task, timeout=1.0) == "benchmark batch stopped"
 
 
 @pytest.mark.asyncio
@@ -419,20 +425,52 @@ async def test_wait_wait_review_survives_grace_with_live_supervisor(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_wait_run_timeout_cancels_running_agent(tmp_path):
-    core, _project, parent, sibling = await _core_with_agents(tmp_path)
-    await _terminal(core, sibling, AgentState.SUCCEEDED, "done")
+@pytest.mark.parametrize("waiting", ["running", "background", "review"])
+async def test_long_running_task_finishes_without_duration_cancel(tmp_path, monkeypatch, waiting):
+    """Elapsed wall time cannot cancel active work or internal waits."""
+    from types import SimpleNamespace
+
+    import cloudra.benchmark.watch as watch_module
+
+    core, _project, parent, peer = await _core_with_agents(
+        tmp_path, second_role="supervisor" if waiting == "review" else "coordinator",
+    )
     await _set(core, parent, AgentState.RUNNING, "run_started")
+    if waiting == "background":
+        await _set(core, parent, AgentState.SUCCEEDED, "wait_background")
+    elif waiting == "review":
+        await _set(core, parent, AgentState.WAITING_APPROVAL, "wait_review")
+    else:
+        await _terminal(core, peer, AgentState.SUCCEEDED, "done")
 
-    reasons: list[str] = []
+    now = 0.0
+    polls = 0
+    reasons = []
+    watcher = _watcher()
+    monkeypatch.setattr(
+        watch_module, "asyncio",
+        SimpleNamespace(get_running_loop=lambda: SimpleNamespace(time=lambda: now)),
+    )
 
-    async def cancel(reason: str) -> None:
+    async def advance_work():
+        nonlocal now, polls
+        now += 24 * 60 * 60
+        polls += 1
+        if polls == 3:
+            if peer.state is not AgentState.SUCCEEDED:
+                await _terminal(core, peer, AgentState.SUCCEEDED, "done")
+            if parent.state is AgentState.WAITING_APPROVAL:
+                await _set(core, parent, AgentState.RUNNING, "review_complete")
+            if parent.state is not AgentState.SUCCEEDED:
+                await _set(core, parent, AgentState.SUCCEEDED, "allow_final")
+
+    async def cancel(reason):
         reasons.append(reason)
 
-    watcher = _watcher(run_timeout_s=0.05, stuck_grace_s=5.0)
-    reason = await watcher.wait(core, parent, cancel)
-    assert reason is not None and "run timeout" in reason
-    assert reasons == [reason]
+    monkeypatch.setattr(watcher, "_poll_delay", advance_work)
+    assert await watcher.wait(core, parent, cancel) is None
+    assert polls == 3
+    assert reasons == []
 
 
 @pytest.mark.asyncio

@@ -41,7 +41,6 @@ class RuntimeV2Backend:
     def __init__(
         self,
         *,
-        run_timeout_s: float = 7200.0,
         stuck_grace_s: float = 300.0,
         poll_interval_s: float = 2.0,
         llm: Any = None,
@@ -49,7 +48,6 @@ class RuntimeV2Backend:
         start_scheduler: bool = True,
         store_path: Any = None,
     ) -> None:
-        self.run_timeout_s = run_timeout_s
         self.stuck_grace_s = stuck_grace_s
         self.poll_interval_s = poll_interval_s
         self.llm = llm
@@ -196,7 +194,7 @@ class RuntimeV2Backend:
 
     async def _wait_terminal(self, bus, agent) -> None:
         """等题目真正结束（watch.RunWatcher 的 wait_background/wait_review
-        语义，GH #30），卡死/超时则取消该题。"""
+        语义，GH #30），无人回应的卡死状态才按宽限期取消该题。"""
         from cloudra.persistence.database import ComputeDB
         from cloudra.runtime_v2.schemas import AgentState, Command
         from cloudra.services.compute_store import (
@@ -229,7 +227,6 @@ class RuntimeV2Backend:
                 await core.agent_host.wake(agent, runner=core.runner)
 
         watcher = RunWatcher(
-            run_timeout_s=self.run_timeout_s,
             stuck_grace_s=self.stuck_grace_s,
             poll_interval_s=self.poll_interval_s,
             pending_background=background_pending,

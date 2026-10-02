@@ -11,9 +11,8 @@ old benchmark loop misread:
 - ``wait_review``: the coordinator parks in ``WAITING_APPROVAL`` (reason
   ``wait_review``) awaiting the project's internal Supervisor exit decision.
   That is not a human-approval hang and must not hit the 300s "nobody to
-  answer" cancel.  It is bounded by the overall run timeout, and additionally
-  by a liveness rule: if the project has no live Supervisor left, nobody will
-  ever decide, so the stuck grace applies.
+  answer" cancel.  It follows a liveness rule: if the project has no live
+  Supervisor left, nobody will ever decide, so the stuck grace applies.
 
 Decisions read durable state (``core.agents``, the event log, compute.db) and
 live runner tasks whose terminal completion reports may still be in flight.
@@ -114,14 +113,12 @@ class RunWatcher:
     def __init__(
         self,
         *,
-        run_timeout_s: float,
         stuck_grace_s: float,
         poll_interval_s: float,
         pending_background: Optional[Callable[[], Awaitable[bool]]] = None,
         resume_background: Optional[Callable[[], Awaitable[None]]] = None,
         stop_event: asyncio.Event | None = None,
     ) -> None:
-        self.run_timeout_s = run_timeout_s
         self.stuck_grace_s = stuck_grace_s
         self.poll_interval_s = poll_interval_s
         self.pending_background = pending_background
@@ -223,19 +220,14 @@ class RunWatcher:
         """轮询直到 done，返回 None；取消时调用 ``cancel(reason)`` 并返回理由。
 
         cancel 类判定按同一 stuck_grace 宽限计时（连续处于该挂起超过
-        stuck_grace_s 才取消）；整体由 run_timeout_s 无条件封顶。
+        stuck_grace_s 才取消）；运行和内部等待不设整体时长上限。
         """
         loop = asyncio.get_running_loop()
-        deadline = loop.time() + self.run_timeout_s
         stuck_since: float | None = None
         while True:
             if self.stop_event is not None and self.stop_event.is_set():
                 return "benchmark batch stopped"
             now = loop.time()
-            if now > deadline:
-                reason = f"benchmark run timeout ({self.run_timeout_s}s)"
-                await cancel(reason)
-                return reason
             decision = await self.decide(core, agent)
             if decision.kind == "done":
                 return None
