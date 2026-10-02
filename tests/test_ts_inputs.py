@@ -131,3 +131,19 @@ def test_scan_numbering_belongs_to_scan_engine_and_checks_bound_range():
     payload["reaction"]["atom_map"] = [1, 2, 4]
     with pytest.raises(ValueError, match="bound atom table"):
         normalize_ts_input_atoms(TsInput.model_validate(payload), atom_tables={"reactant": ["C", "C", "O"]})
+
+
+@pytest.mark.parametrize("engine,atoms", [("orca", [0, 1]), ("gaussian", [1, 2])])
+def test_resume_scan_replacement_can_omit_default_freeze(engine, atoms):
+    from cloudra.tools.core.ts_inputs import TsInput, TsInputChanges, apply_input_changes, normalize_ts_input_atoms
+
+    changes = TsInputChanges.model_validate({"guess": {
+        "kind": "scan", "calculation": {"engine": engine, "method": "GFN2-xTB", "keywords": ""},
+        "scans": [{"atoms": atoms, "scan_end": 2.0, "scan_steps": 7}],
+    }})
+    normalized = normalize_ts_input_atoms(changes, atom_tables={"reactant": ["C", "O"]})
+    assert normalized.guess.scans[0].atoms == [0, 1]
+    assert normalized.guess.freeze == []
+    updated = apply_input_changes(TsInput.model_validate(input_payload()), normalized)
+    assert updated.guess.freeze == []
+    assert updated.guess.scans[0].atoms == [0, 1]

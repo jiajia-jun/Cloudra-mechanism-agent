@@ -4,8 +4,8 @@ Per task this spins up an in-process runtime_v2 kernel (RuntimeCore +
 TurnPipeline + AgentRunner), spawns the task's coordinator agent with the task
 query against the per-task sandbox as the project workspace, and waits for the
 task to genuinely finish (see ``watch.py`` for the wait_background /
-wait_review state machine, GH #30). The method whitelist is enforced by
-appending `MethodPolicyStage` to the pipeline; compute jobs submitted via
+wait_review state machine, GH #30). The task method policy is installed in project settings before agents start,
+so the default policy chain and automatic TS submissions share its authority; compute jobs submitted via
 `submit_compute_job` are claimed and executed by a per-task in-process
 `SchedulerDaemon` (production runs it as a separate `cloudra scheduler`
 process instead).
@@ -26,7 +26,6 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from cloudra.benchmark.policy_stage import MethodPolicyStage
 from cloudra.benchmark.schema import TaskSpec
 from cloudra.benchmark.watch import RunWatcher
 
@@ -114,8 +113,7 @@ class RuntimeV2Backend:
 
             core.event_hub.subscribe(persist_event)
         core.runtime_defaults = legacy_default_runtime_settings()
-        stage = MethodPolicyStage(task.method_policy, base_dir=sandbox)
-        stages = [*default_stages(core), stage]
+        stages = default_stages(core)
         executor = self.tools or LegacyToolExecutor(core)
         from cloudra.runtime_v2.invocation import InvocationService
 
@@ -153,7 +151,11 @@ class RuntimeV2Backend:
                 await bus.execute(
                     Command(
                         type="project.create",
-                        payload={"name": f"benchmark:{task.task_id}", "workspace_dir": str(sandbox)},
+                        payload={
+                            "name": f"benchmark:{task.task_id}",
+                            "workspace_dir": str(sandbox),
+                            "settings": {"method_policy": task.method_policy.model_dump(mode="json")},
+                        },
                     )
                 )
             ).data

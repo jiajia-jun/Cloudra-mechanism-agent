@@ -262,6 +262,6 @@ def normalize_ts_input_atoms(value: TsInput | TsInputChanges, *, atom_tables: di
     guess = data.get("guess")
     if guess and guess["kind"] == "scan":
         base = atom_index_base(guess["calculation"]["engine"])
-        for row in guess["scans"] + guess["freeze"]:
+        for row in guess["scans"] + guess.get("freeze", []):
             row["atoms"] = indices(row["atoms"], base)
     return type(value).model_validate(data)

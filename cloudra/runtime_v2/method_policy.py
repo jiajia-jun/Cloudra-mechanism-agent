@@ -71,7 +71,7 @@ _ORCA_JOB_TOKENS = {
     "verytightscf", "slowconv", "normalprint", "smallprint", "largeprint",
     "noproperty", "d3", "d3bj", "d3zero", "d4", "ri", "rijcosx", "noautostart", "enzym",
     # 波函数类型修饰符，不是方法本身
-    "rks", "uks", "roks", "rhf", "uhf", "rohf", "hf",
+    "rks", "uks", "roks", "rhf", "uhf", "rohf",
     # 以下为计算控制修饰词，不是方法（本行注释即语义依据）：
     # 优化收敛等级
     "looseopt", "normalopt", "tightopt", "verytightopt",

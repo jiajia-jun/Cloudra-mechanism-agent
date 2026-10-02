@@ -192,3 +192,47 @@ async def test_ts_readonly_inspection(tmp_path):
         assert await asyncio.to_thread(jobs)==0
     finally:
         await harness.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
+async def test_ts_resume_scan_without_freeze(tmp_path, monkeypatch):
+    """A real Agent dispatch can replace an absent guess and queue the scan on the same run."""
+    assert 'ts_resume_scan_without_freeze' in TS_SCENARIOS
+    from cloudra.tools.core import ts_process as process
+
+    submissions = _script_compute(monkeypatch)
+    payload = water_input(tmp_path, scan=True)
+    scan = payload.pop('guess')
+    scan.pop('freeze')
+
+    def complete(provider):
+        record = process.load_record(str(tmp_path), 'ts_0001')
+        provider.records.append(record)
+        if record.input.guess is None:
+            provider._scripts['small_mol'][0].tools = [('ts_resume', {
+                'run_id': record.run_id, 'reason': 'provide explicit scan declaration',
+                'request_key': 'declare-scan', 'expected_revision': record.revision,
+                'changes': {'guess': scan},
+            })]
+
+    provider = StateProvider(tmp_path, [
+        Step(tools=[('ts_prepare', {'input': payload, 'request_key': 'one-scan-path'})]),
+        Step(), Step(stop=True),
+    ], complete)
+    harness = await ScenarioHarness.start(tmp_path, workspace_dir=tmp_path, provider=provider)
+    provider.harness = harness
+    harness.project.settings.method_policy = MethodPolicy(allowed_methods=['hf/sto3g'])
+    try:
+        agent = await harness.spawn('small_mol', protocol='traditional')
+        await harness.wait_terminal(agent)
+        assert [(e['tool_name'], e['is_success']) for e in harness.tool_events(agent)] == [
+            ('ts_prepare', True), ('ts_resume', True),
+        ], harness.describe(agent)
+        record = provider.records[-1]
+        assert record.run_id == 'ts_0001' and record.intervention_count == 1
+        assert record.input.guess.freeze == []
+        assert len(submissions) == 1 and submissions[0]['purpose'] == 'scan'
+        assert record.waiting_for == f"job:{submissions[0]['id']}"
+    finally:
+        await harness.aclose()

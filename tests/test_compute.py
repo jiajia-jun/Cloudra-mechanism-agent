@@ -1822,3 +1822,25 @@ async def test_project_pending_compute_includes_cancel_requested(tmp_path):
             jobtype="gaussian", node_id="local",
         )
     assert await acount_pending_compute_jobs(db, "project-pending") == 3
+
+
+@pytest.mark.skipif(not __import__('cloudra.infra.platform_utils', fromlist=['is_posix']).is_posix(), reason='calculator.sh needs POSIX bash')
+def test_calculator_sh_orca_nested_input_uses_basename_and_keeps_bytes(tmp_path, monkeypatch):
+    """Real ORCA A/B reproduced SIGABRT with a long absolute argument and normal termination with basename."""
+    import hashlib
+
+    from tests.fixtures.benchmark_engines.engine import install_engine
+
+    engine = install_engine(monkeypatch, tmp_path / 'bin', 'orca')
+    workdir = tmp_path / ('nested_' + 'p' * 100) / ('stage_' + 'q' * 80)
+    workdir.mkdir(parents=True)
+    inp = workdir / 'reactant_frequency.inp'
+    inp.write_text(_ORCA_SP_INPUT, encoding='utf-8')
+    original = hashlib.sha256(inp.read_bytes()).hexdigest()
+    result = _run_calculator_orca(inp, workdir)
+    assert result.returncode == 0, result.stderr
+    run, = engine.runs()
+    assert run['argv'][0] == inp.name
+    assert run['cwd'] == str(workdir)
+    assert run['input_sha256'] == original
+    assert hashlib.sha256(inp.read_bytes()).hexdigest() == original

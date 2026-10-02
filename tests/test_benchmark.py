@@ -3894,3 +3894,35 @@ def test_backend_persists_events_to_store(tmp_path, monkeypatch):
         ).fetchone()[0]
     assert n_events > 0
     assert n_chunks == 0
+
+
+@pytest.mark.parametrize('role', ['coordinator', 'small_mol'])
+def test_backend_installs_trusted_task_policy_before_agent_runs(tmp_path, role):
+    from cloudra.benchmark.backend import RuntimeV2Backend
+    from cloudra.runtime_v2.turn_pipeline import LLMResponse
+    from cloudra.services.ts_pipeline_context import require_pipeline_authority, use_runtime_authority
+
+    task=_tiny_task(method_policy={
+        'allowed_methods':['pm7'],
+        'calculation_contracts':{'scan':{'engine':'orca','method':'PM7','keywords':''}},
+    })
+    task.prompt=task.prompt.model_copy(update={'role':role})
+    observed=[]
+
+    class AuthorityProbe:
+        async def complete(self, agent, messages, tools, **kwargs):
+            with use_runtime_authority(backend.last_core):
+                try:
+                    observed.append(require_pipeline_authority(agent.project_id,agent.id))
+                except ValueError as exc:
+                    observed.append(str(exc))
+            return LLMResponse(content='probe complete',stop_requested=True)
+
+    backend=RuntimeV2Backend(llm=AuthorityProbe(),tools=_RecordingTools(),start_scheduler=False,
+        poll_interval_s=.01,run_timeout_s=10,stuck_grace_s=1)
+    backend(task,tmp_path/'sandbox')
+    assert observed==[task.method_policy]
+    project=next(iter(backend.last_core.projects.values()))
+    assert project.settings.method_policy==task.method_policy
+    created=next(e for e in backend.last_core.event_log if e.type=='project.created')
+    assert created.data['settings']['method_policy']==task.method_policy.model_dump(mode='json')

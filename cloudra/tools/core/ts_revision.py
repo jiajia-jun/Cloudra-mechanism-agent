@@ -113,6 +113,23 @@ def validate_recovery(record, request: TsResumeRequest) -> None:
                     mapping = record.input.reaction.atom_map
                     if sorted(mapping) == list(range(len(reactant[0]))) and len(product[0]) == len(mapping) and all(product[0][i] == reactant[0][j] for i, j in enumerate(mapping)):
                         return
+    # A diagnosed scan with no usable candidate may change its coordinate or
+    # range on this path. This authorizes a new exploration, not a successful
+    # result; merely increasing scan_steps cannot release the failed attempt.
+    if (failed.purpose == 'scan' and record.failed_attempt and
+            record.failed_attempt['failure_class'] == 'scan_no_candidate' and
+            record.input.guess and record.input.guess.kind == 'scan' and
+            updated.guess and updated.guess.kind == 'scan'):
+        before = [row.model_dump(exclude={'scan_steps'}) for row in record.input.guess.scans]
+        after = [row.model_dump(exclude={'scan_steps'}) for row in updated.guess.scans]
+        failure_refs = {str(old.resolve()), *(str(Path(ref).resolve()) for ref in record.failed_attempt['evidence_refs'])}
+        if before != after and supplied & failure_refs:
+            from cloudra.tools.core.ts_process import _bound_input_structure, _read_built_xyz
+            built = _read_built_xyz(record, 'reactant')
+            if built and str(Path(built[2]).resolve()) in supplied:
+                _bound_input_structure(trial, 'reactant', persist_artifact=False)
+                if all(0 <= atom < len(built[0]) for row in updated.guess.scans + updated.guess.freeze for atom in row.atoms):
+                    return
     # A new seed must have archived qualification, or native successful evidence
     # at that seed and the explicitly revised calculation. Free text is never proof.
     for role in ('reactant', 'product'):

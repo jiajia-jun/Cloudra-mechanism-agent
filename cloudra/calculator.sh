@@ -148,34 +148,21 @@ run_orca() {
     # 会把命令失败的状态统一改写成 1，吞掉 exec 失败的 127 与 orca 真实退出码；
     # 只能暂时关 set -e 取到真实状态再退出（GH #15）。
     #
-    # 输入参数安全执行名：ORCA 内部把输入参数按空白切词（orca_startup 命令行
-    # 重建 argv），含空格的路径会被截断（C1 167/168 与真机对照复现：
-    # /…/Application Support/job/water.inp → "Cannot open input file /…/Application"，
-    # 且 orca 竟以 0 退出，只有文本标记能判定失败）。WORKDIR 已 cd 到输入目录：
-    #   - 参数无空白：保持原样（既有绝对路径行为不变）；
-    #   - 仅父路径含空白：改传 basename（同目录等价引用，辅助文件仍按输入
-    #     stem 落在作业目录，与绝对参数完全一致）；
-    #   - basename 本身含空白：在作业目录内建硬链接安全名执行，运行后删除，
-    #     绝不改写用户文件；映射关系打印进捕获日志（.cloudra/calc-<id>.out.log）
-    #     保追踪。
-    local input_arg="$INPUT_FILE"
+    # WORKDIR 已切到输入目录。总是用同目录 basename：既避免 ORCA 对
+    # 含空白父路径拆词，也避免原生 PropertyIntegralDriver 在长绝对输入
+    # 参数下触发栈溢出（相同输入字节的真实 A/B：绝对参数 SIGABRT，basename 正常）。
+    # 二进制仍用真实完整路径，满足并行启动要求；原始输入和证据路径不变。
+    # basename 本身含空白时继续使用作业目录内的硬链接安全名，并在日志留映射。
+    local input_arg
+    input_arg=$(basename "$INPUT_FILE")
     local safe_input_name=""
-    case "$INPUT_FILE" in
+    case "$input_arg" in
         *[[:space:]]*)
-            local base_name
-            base_name=$(basename "$INPUT_FILE")
-            case "$base_name" in
-                *[[:space:]]*)
-                    safe_input_name=$(printf '%s' "$base_name" | tr '[:space:]' '_')
-                    safe_input_name=".cloudra_orasafe_$$_$safe_input_name"
-                    ln "$INPUT_FILE" "$WORKDIR/$safe_input_name"
-                    input_arg="$safe_input_name"
-                    echo "[calculator] orca input mapped to safe execution name: $safe_input_name (original: $INPUT_FILE)" >&2
-                    ;;
-                *)
-                    input_arg="$base_name"
-                    ;;
-            esac
+            safe_input_name=$(printf '%s' "$input_arg" | tr '[:space:]' '_')
+            safe_input_name=".cloudra_orasafe_$$_$safe_input_name"
+            ln "$INPUT_FILE" "$WORKDIR/$safe_input_name"
+            input_arg="$safe_input_name"
+            echo "[calculator] orca input mapped to safe execution name: $safe_input_name (original: $INPUT_FILE)" >&2
             ;;
     esac
     set +e

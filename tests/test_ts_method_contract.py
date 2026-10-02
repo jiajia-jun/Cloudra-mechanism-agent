@@ -92,3 +92,42 @@ def test_explicit_geometry_block_can_coexist_with_writer_hessian():
     declaration=dict(engine='orca',method='HF/STO-3G',keywords='',orca_blocks='%geom MaxIter 200 end',end_setting='')
     text='! HF STO-3G OptTS\n%geom Calc_Hess true end\n%geom MaxIter 200 end\n* xyz 0 1\nO 0 0 0\n*\n'
     assert intent.compare_calculation_input(text,declaration,charge=0,multiplicity=1)==[]
+
+
+def test_whitelist_checks_complete_native_method_when_basis_is_in_keywords(tmp_path):
+    from cloudra.runtime_v2.schemas import MethodPolicy
+    from cloudra.services.ts_pipeline_context import use_pipeline_authority
+    from cloudra.tools.core.ts_inputs import TsCalculation
+    from cloudra.tools.core.ts_process import _check_calculation_submission
+    from tests.test_ts_stage_inputs import record_fixture
+
+    record = record_fixture(tmp_path)
+    record.input.ts_optimization = TsCalculation(engine="orca", method="B3LYP", keywords="D3BJ def2-SVP")
+    source = tmp_path / "ts.inp"
+    source.write_text("! OptTS B3LYP def2-SVP D3BJ\n* xyz 0 1\nO 0 0 0\n*\n")
+    policy = MethodPolicy(allowed_methods=["b3lyp/def2svp"])
+    with use_pipeline_authority(lambda project, owner: (True, policy)):
+        _check_calculation_submission(record, "ts_opt", str(source), "orca")
+    assert record.method_checks[str(source)]["matched"]
+    for keywords, text in [
+        ("D3BJ", "! OptTS B3LYP D3BJ\n* xyz 0 1\nO 0 0 0\n*\n"),
+        ("D3BJ def2-TZVP", "! OptTS B3LYP def2-TZVP D3BJ\n* xyz 0 1\nO 0 0 0\n*\n"),
+        ("D3BJ def2-SVP PBE0", "! OptTS B3LYP PBE0 def2-SVP D3BJ\n* xyz 0 1\nO 0 0 0\n*\n"),
+    ]:
+        record.input.ts_optimization = TsCalculation(engine="orca", method="B3LYP", keywords=keywords)
+        source.write_text(text)
+        with use_pipeline_authority(lambda project, owner: (True, policy)):
+            import pytest
+            with pytest.raises(ValueError, match="allowed_methods"):
+                _check_calculation_submission(record, "ts_opt", str(source), "orca")
+
+
+def test_native_whitelist_recognizes_explicit_hf_instead_of_discarding_it():
+    from cloudra.runtime_v2.method_policy import check_input_content
+    from cloudra.runtime_v2.schemas import MethodPolicy
+
+    text = "! OptTS HF STO-3G\n* xyz 0 1\nO 0 0 0\n*\n"
+    assert check_input_content(text, MethodPolicy(allowed_methods=["hf/sto3g"]), filename="ts.inp", strict=True).allowed
+    assert not check_input_content(text, MethodPolicy(allowed_methods=["b3lyp/def2svp"]), filename="ts.inp", strict=True).allowed
+    mixed = "! OptTS B3LYP HF def2-SVP\n* xyz 0 1\nO 0 0 0\n*\n"
+    assert not check_input_content(mixed, MethodPolicy(allowed_methods=["b3lyp/def2svp"]), filename="ts.inp", strict=True).allowed

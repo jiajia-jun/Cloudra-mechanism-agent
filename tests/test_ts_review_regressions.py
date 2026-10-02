@@ -296,3 +296,42 @@ def test_gaussian_external_path_parentheses_are_not_task_options():
     result=inspect_input('#p HF/STO-3G external="/opt/(native)/xtb" opt(ts)\n\ntitle\n\n0 1\nH 0 0 0\nH 0 0 .74\n\n',engine='gaussian')
     assert result.tasks=={'ts_opt'}
     assert result.provider=='xtb'
+
+
+@pytest.mark.usefixtures('rdkit_chemistry')
+@pytest.mark.parametrize('field,value,accepted', [('coord_type', 'angle', True), ('atoms', [0, 2], True), ('scan_end', 3.0, True), ('scan_steps', 8, False), ('atoms', [0, 9], False)])
+def test_failed_scan_accepts_bound_coordinate_change_on_same_run(tmp_path, field, value, accepted):
+    from cloudra.services.ts_pipeline_context import use_pipeline_database
+    from cloudra.tools.core.ts_process import TsBlocked
+    from cloudra.tools.core.ts_revision import plan_input_revision, revise_record
+    db, record, old, request = recovery_fixture(tmp_path, purpose='scan', failure='scan_no_candidate')
+    record.scan_step = record.job_steps.pop()
+    record.stage = 'guess'
+    record.blocked = TsBlocked(stage='guess', failure_class='scan_no_candidate', message='No internal peak')
+    record.failed_attempt['failure_class'] = 'scan_no_candidate'
+    diagnostic = old.with_suffix('.out')
+    diagnostic.write_text('Native scan diagnostic bound to the failed attempt')
+    record.failed_attempt['evidence_refs'] = [str(diagnostic)]
+    seed = tmp_path / 'seed.xyz'
+    seed.write_text('3\nwater\nO 0 0 0\nH .96 0 0\nH -.24 .93 0\n')
+    record.current_seed_xyz_path = record.product_seed_xyz_path = str(seed)
+    record.input.reaction.reactant_smiles = record.input.reaction.product_smiles = 'O'
+    record.input.reaction.atom_map = [0, 1, 2]
+    guess = record.input.guess.model_dump()
+    if field == 'coord_type':
+        guess['scans'][0]['atoms'] = [0, 1, 2]
+    guess['scans'][0][field] = value
+    req = request({'guess': guess}, [diagnostic, seed])
+    with use_pipeline_database(db):
+        if not accepted:
+            before = record.model_dump()
+            with pytest.raises(ValueError):
+                plan_input_revision(record, req)
+            assert record.model_dump() == before
+            return
+        receipt = plan_input_revision(record, req)
+        revised = revise_record(record, req, receipt)
+    assert revised.run_id == record.run_id and revised.scan_step is None
+    assert revised.input.guess.scans[0].model_dump()[field] == value
+    assert revised.attempt_history[-1].failed_attempt['failure_class'] == 'scan_no_candidate'
+    assert revised.terminal is None

@@ -1768,17 +1768,18 @@ def _reuse_existing_irc(record):
         source_input_revision=record.declaration_revision, stage_key='external:irc', external_source=facts)
 
 def _check_calculation_submission(record, purpose, input_path, job_type):
-    from cloudra.runtime_v2.method_policy import check_method
+    from cloudra.runtime_v2.method_policy import check_input_content, check_method
     from cloudra.services.ts_pipeline_context import require_pipeline_authority
     from cloudra.tools.core.calculation_intent import compare_calculation_input
     policy = require_pipeline_authority(record.owner_conversation_id, record.owner_session_id)
     calculation = stage_calculation(record, purpose)
     if calculation is None:
         raise ValueError(f"{purpose} has no explicit calculation")
-    verdict = check_method(calculation.method, policy)
+    content = Path(input_path).read_text()
+    verdict = (check_method(calculation.method, policy) if job_type == 'chem_task' else
+        check_input_content(content, policy, filename=input_path, strict=True))
     if not verdict.allowed:
         raise ValueError(verdict.reason)
-    content = Path(input_path).read_text()
     if job_type == 'chem_task':
         from cloudra.runtime.chem_task import ChemTask
         task = ChemTask.model_validate_json(content)
