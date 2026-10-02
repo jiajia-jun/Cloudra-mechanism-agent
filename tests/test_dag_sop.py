@@ -10,7 +10,7 @@ SOP = (
     / "mechanism-elucidation-sop.md"
 )
 SKILL = ROOT / "cloudra" / "skills" / "dft-calculation" / "SKILL.md"
-PERICYCLIC = SOP.parent / "mechanisms" / "pericyclic.md"
+PERICYCLIC = ROOT / "cloudra" / "skills" / "reaction-mechanisms" / "references" / "pericyclic.md"
 COORDINATOR = ROOT / "cloudra" / "prompts" / "coordinator.md"
 SUPERVISOR = ROOT / "cloudra" / "prompts" / "supervisor.md"
 
