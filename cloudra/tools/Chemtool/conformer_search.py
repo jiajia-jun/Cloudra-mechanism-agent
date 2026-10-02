@@ -172,8 +172,8 @@ class ConformerSearch_input_schema(input_schema):
     input_path: Optional[str] = Field(
         default=None,
         description="Input structure file path (xyz/sdf/mol). xyz input infers bond orders via "
-                    "rdDetermineBonds. Absolute path, or relative to the agent process's current "
-                    "working directory; absolute paths are recommended."
+                    "rdDetermineBonds. Absolute paths are used as given; relative paths resolve "
+                    "against the Agent working directory."
     )
     input_text: Optional[str] = Field(
         default=None,
@@ -246,7 +246,8 @@ class ConformerSearch_input_schema(input_schema):
     output_dir: Optional[str] = Field(
         default=None,
         description="Ensemble output directory. Default: <stem>_confs/ next to input_path, else ./confs_output/. "
-                    "Relative paths resolve against the agent process's current working directory. The shared "
+                    "Absolute paths are used as given; relative paths and the text/SMILES default resolve "
+                    "against the Agent working directory. The shared "
                     "builder writes its artifacts under <output_dir>/structure_build/."
     )
     timeout: int = Field(default=600, description="CREST backend subprocess timeout (seconds).")
@@ -316,7 +317,7 @@ class ConformerSearch(Tool):
             base = os.path.dirname(os.path.abspath(user_input.input_path))
             stem = os.path.splitext(os.path.basename(user_input.input_path))[0]
             return os.path.join(base, f"{stem}_confs")
-        return os.path.abspath("confs_output")
+        return "confs_output"
 
     @staticmethod
     def _build_dir(out_dir: str) -> str:
@@ -1223,9 +1224,9 @@ class ConformerSearch(Tool):
             )
 
         # 路径语义收口：相对路径解析到 agent 工作目录（沙箱），绝对路径保持既有权限语义。
-        out_dir = self._resolve_output_dir(user_input)
         if user_input.input_path:
             user_input.input_path = resolve_tool_path(self, user_input.input_path)
+        out_dir = self._resolve_output_dir(user_input)
         user_input.output_dir = resolve_tool_path(self, out_dir)
 
         if user_input.catalog_mode == "regions":

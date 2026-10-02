@@ -74,10 +74,10 @@ Load a reference with `get_skill(skill_name="dft-calculation", reference="ts-sea
 
 - [TS search playbook](references/ts-search-playbook.md): seed hierarchy, QST ban rationale, NEB-TS workflow, 1D/2D scan practice, OptTS convergence ladder, soft-mode regimes, imaginary-mode chemical assignment — with per-engine templates.
 - [Modeling sanity](references/modeling-sanity.md): the pre-compute self-audit — solvent/ions/counterions, conformer sampling, spin states, standard states, and the unreasonable-modeling blacklist.
-- [Reaction-class geometry](references/reaction-class-geometry.md): hypothesis and coordinate selection; then load only the relevant `mechanisms/<domain>.md` reference.
+- [Reaction-class geometry](references/reaction-class-geometry.md): hypothesis and coordinate selection; then load the relevant reaction guide with `get_skill(skill_name="reaction-mechanisms", reference="<domain>.md")`.
 - [Method selection](references/method-selection.md): functionals, bases, solvent, method limits; **§4.1 is the mandatory ΔG‡/ΔΔG‡ checklist** (standard state, quasi-harmonic, Boltzmann, cross-engine ban).
 - [Supervisor review](references/supervisor-review.md): how the scientific Supervisor adjudicates drafts, evidence, and exit requests; what a contract requires and what it must not add.
-- DAG-guided / DAG-record sessions: SOP §3 and the `dag-operations` skill for current permissions and bindings. Evidence may be computed independently; current stage binding is still ordered. Graph completion does not establish scientific validity.
+- DAG-guided / DAG-record sessions: SOP §3 and the `dag-operations` skill for current permissions and bindings. Submit completed evidence as it becomes available; the active contract and scientific dependency checks determine valid bindings. Graph completion does not establish scientific validity.
 
 ### Automated scan continuation
 

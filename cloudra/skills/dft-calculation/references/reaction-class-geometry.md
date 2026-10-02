@@ -1,6 +1,6 @@
 # 反应建模参考：如何思考反应过程中的化学问题
 
-> **本文档的定位**：本文档是 agent 的建模参考总入口。领域知识已按反应结果拆分到 `mechanisms/` 目录分文件按需加载；本文件只含：建模思考框架（§1）、反应结果分类索引（§2）、跨领域通用基元步与规则（§3）、人类维护指南（§4）。使用方式：先读 §1；按键变化与产物类型在 §2 索引中判定反应结果归属；用 `get_skill("dft-calculation", reference="mechanisms/<文件>")` 只取对应领域文件；拿不准归属时读相关候选文件（归属判定看"结果"不看机理——机理类型正是要你计算裁决的东西）。
+> **本文档的定位**：本文档是 agent 的建模参考总入口。领域知识统一保存在 `reaction-mechanisms` 技能的 `references/` 目录，按反应结果分文件加载；本文件只含：建模思考框架（§1）、反应结果分类索引（§2）、跨领域通用基元步与规则（§3）、人类维护指南（§4）。使用方式：先读 §1；按键变化与产物类型在 §2 索引中判定反应结果归属；用 `get_skill(skill_name="reaction-mechanisms", reference="<文件>.md")` 只取对应领域文件；拿不准归属时读相关候选文件（归属判定看"结果"不看机理——机理类型正是要你计算裁决的东西）。
 
 本文件及领域文件的几何/能量区间用于形成假设，不是验收门槛。计算流程、方法白名单、引擎参数、失败处置以 `mechanism-elucidation-sop.md` 和引擎参考为准；其中的轨道/布居诊断只在实际方法提供相应数据时使用。`distance_filters` 是构象筛选条件，不是在后续优化中冻结原子。**建模默认纪律：先 `internal_coordinates` 读键与二面角，能用一根成/断键描述的变化就先做柔性扫描找 TS 初猜，不要直接对非 TS 几何盲跑 OptTS。**
 
@@ -37,15 +37,15 @@
 
 | 反应结果 | 文件 | 覆盖 | 典型反应示例 |
 | :--- | :--- | :--- | :--- |
-| 取代（一个原子/基团被替换） | `mechanisms/substitution.md` | SN1/SN2、SEAr、SNAr（加成-消除/苯炔/SRN1）、自由基取代 | 卤代烃水解、硝化、氟代芳烃取代 |
-| 不饱和键加成 | `mechanisms/addition.md` | 亲电加成（碳正离子/鎓离子/协同）、硼氢化、Michael 与共轭加成 | HX/Br2 加烯、硼氢化、硫醇-Michael |
-| 羰基 sp2 碳成键 | `mechanisms/carbonyl.md` | 亲核加成、酰基转移、烯醇(盐)化学（aldol/Claisen/Mannich/α-官能化）、Wittig/HWE 烯化 | 格氏加成、酯水解、羟醛缩合 |
-| 消除（脱去两基团成 π 键） | `mechanisms/elimination.md` | E1/E2/E1cB、Ei（酯热解/Chugaev/Cope）、脱羧 | 卤代烃脱 HX、β-酮酸脱羧 |
-| 周环（环状 TS 协同） | `mechanisms/pericyclic.md` | 环加成、电环化、σ 迁移、ene、螯变 | Diels–Alder、Cope/Claisen |
-| 自由基（开壳层中间体） | `mechanisms/radical.md` | 链式三段式、取代/加成/HAT/环化/碎片化、笼效应、开壳层工作流 | 自由基环化、HAT 氟化 |
-| 重排（基团带电子对迁移） | `mechanisms/rearrangement.md` | 碳正离子/缺电子 N/缺电子 O/阴离子重排 | pinacol、Beckmann、Baeyer–Villiger |
-| 氧化还原（氧/氢转移） | `mechanisms/redox.md` | 环氧化、双羟化、醇氧化、氢化物/催化氢化/转移氢化、C-H 氧化 | 环氧化、Swern、NaBH4 还原 |
-| 过渡金属偶联 | `mechanisms/coupling.md` | 交叉偶联循环、Heck、复分解、CMD | Suzuki、Heck |
+| 取代（一个原子/基团被替换） | [substitution.md](../../reaction-mechanisms/references/substitution.md) | SN1/SN2、SEAr、SNAr（加成-消除/苯炔/SRN1）、自由基取代 | 卤代烃水解、硝化、氟代芳烃取代 |
+| 不饱和键加成 | [addition.md](../../reaction-mechanisms/references/addition.md) | 亲电加成（碳正离子/鎓离子/协同）、硼氢化、Michael 与共轭加成 | HX/Br2 加烯、硼氢化、硫醇-Michael |
+| 羰基 sp2 碳成键 | [carbonyl.md](../../reaction-mechanisms/references/carbonyl.md) | 亲核加成、酰基转移、烯醇(盐)化学（aldol/Claisen/Mannich/α-官能化）、Wittig/HWE 烯化 | 格氏加成、酯水解、羟醛缩合 |
+| 消除（脱去两基团成 π 键） | [elimination.md](../../reaction-mechanisms/references/elimination.md) | E1/E2/E1cB、Ei（酯热解/Chugaev/Cope）、脱羧 | 卤代烃脱 HX、β-酮酸脱羧 |
+| 周环（环状 TS 协同） | [pericyclic.md](../../reaction-mechanisms/references/pericyclic.md) | 环加成、电环化、σ 迁移、ene、螯变 | Diels–Alder、Cope/Claisen |
+| 自由基（开壳层中间体） | [radical.md](../../reaction-mechanisms/references/radical.md) | 链式三段式、取代/加成/HAT/环化/碎片化、笼效应、开壳层工作流 | 自由基环化、HAT 氟化 |
+| 重排（基团带电子对迁移） | [rearrangement.md](../../reaction-mechanisms/references/rearrangement.md) | 碳正离子/缺电子 N/缺电子 O/阴离子重排 | pinacol、Beckmann、Baeyer–Villiger |
+| 氧化还原（氧/氢转移） | [redox.md](../../reaction-mechanisms/references/redox.md) | 环氧化、双羟化、醇氧化、氢化物/催化氢化/转移氢化、C-H 氧化 | 环氧化、Swern、NaBH4 还原 |
+| 过渡金属偶联 | [coupling.md](../../reaction-mechanisms/references/coupling.md) | 交叉偶联循环、Heck、复分解、CMD | Suzuki、Heck |
 
 归属策略：一个反应可能落进多个结果类（如 Michael 加成既是加成也是羰基化学），此时每个候选文件都读；文件内部按机理变体组织假设空间，枚举后由计算证据裁决，不要因为"觉得像某机理"而跳过假设空间表。
 
@@ -90,4 +90,4 @@
 4. **保持条目可消费**：每个几何谓词必须能直接写成 `distance_filters`（原子对 + 距离区间）、`watch_pairs` 或扫描坐标；写不成工具输入的知识对本系统没有价值。
 5. **竞争边与常见误诊信号是最稀缺的内容**：教材查不到"agent 会在这里犯什么错"，请优先补充你实际机理计算中踩过的坑（什么体系容易滑谷、什么反应常找错 TS、什么假设常被漏建）。
 6. 存疑数值请显式标注"待核实"并附来源；教材推荐 Carey & Sundberg、Anslyn & Dougherty、Clayden，规则类溯原始文献（Bürgi–Dunitz、Baldwin、Woodward–Hoffmann、Felkin–Anh）。
-7. **结构规范**：新反应领域在 `mechanisms/` 下新建文件并在本文件 §2 索引登记一行；本文件不内联任何单一领域的内容；跨领域通用知识（如质子转移）才放 §3。
+7. **结构规范**：新反应领域在 `reaction-mechanisms/references/` 下新建文件，并同步维护该技能目录与本文件 §2 索引；本文件不内联任何单一领域的内容；跨领域通用知识（如质子转移）才放 §3。

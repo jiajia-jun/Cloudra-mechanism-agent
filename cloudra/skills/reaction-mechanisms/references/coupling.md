@@ -1,6 +1,8 @@
 # 过渡金属催化偶联：机理可能性与建模
 
-范围界定：Pd/Ni 催化的 C–C（与 C–杂原子）偶联——经典交叉偶联（Suzuki/Stille/Negishi/Kumada 等，氧化加成–转金属–还原消除循环）、Heck 烯基化、烯烃复分解、C–H 活化偶联。假设生成与 TS 验证的通用流程见 `mechanism-elucidation-sop.md`，五问题框架见 `reaction-class-geometry.md`；本文只补充金属有机循环特有的机理变体与几何谓词。所有数值为典型区间，随底物、配体、金属与溶剂漂移（Hammond），**不是硬判据**。
+章节读取：同技能参考用 `get_skill(skill_name="reaction-mechanisms", reference="<文件名>.md")`；下文链接的通用计算参考用 `get_skill(skill_name="dft-calculation", reference="<文件名>.md")`。
+
+范围界定：Pd/Ni 催化的 C–C（与 C–杂原子）偶联——经典交叉偶联（Suzuki/Stille/Negishi/Kumada 等，氧化加成–转金属–还原消除循环）、Heck 烯基化、烯烃复分解、C–H 活化偶联。假设生成与 TS 验证的通用流程见 [mechanism-elucidation-sop.md](../../dft-calculation/references/mechanism-elucidation-sop.md)，五问题框架见 [reaction-class-geometry.md](../../dft-calculation/references/reaction-class-geometry.md)；本文只补充金属有机循环特有的机理变体与几何谓词。所有数值为典型区间，随底物、配体、金属与溶剂漂移（Hammond），**不是硬判据**。
 
 ## 机理假设空间
 
@@ -58,7 +60,7 @@
 
 - **Q1 键变化**：[2+2] 环加成 = M=C 与 C=C 各断一根 π、M–C 与 C–C 各成一根 σ；`watch_pairs` = (M, C_卡宾), (M, C_烯近端), (C_卡宾, C_烯远端), (Cα, Cβ 烯烃)。环逆转为镜像。扫描坐标：C_卡宾–C_烯远端（缩短）。
 - **Q2 预组织**：烯烃需 η2 配位于 M=C 键侧面、`C=C` 与 `M=C` 近似平行接近。`distance_filters`：M···两烯烃碳均 ≈ 2.4–3.0，且 C_卡宾···C_烯远端 ≈ 2.4–3.2。Grubbs 体系需先膦解离生成 14e 活性卡宾——**解离边单独建模**（典型 15–25 kcal/mol，含熵效应，温度敏感）。
-- **Q3 TS 期望**：[2+2] TS 为近似平面四中心（M–C–C–C），forming M–C 与 C–C 典型 2.0–2.3（典型区间，Hammond：卡宾越亲电 TS 越早）。金属环丁烷中间体为浅阱，环加成/环逆转能垒典型 5–15 kcal/mol（随 Ru vs Mo/W、取代基漂移）。两 forming 键长差 >0.3 提示异步 TS（判读参见 `mechanisms/pericyclic.md` 协同与异步 Diels–Alder 节的同步性判据）。
+- **Q3 TS 期望**：[2+2] TS 为近似平面四中心（M–C–C–C），forming M–C 与 C–C 典型 2.0–2.3（典型区间，Hammond：卡宾越亲电 TS 越早）。金属环丁烷中间体为浅阱，环加成/环逆转能垒典型 5–15 kcal/mol（随 Ru vs Mo/W、取代基漂移）。两 forming 键长差 >0.3 提示异步 TS（判读参见 [pericyclic.md](pericyclic.md) 协同与异步 Diels–Alder 节的同步性判据）。
 - **Q4 竞争边**：生产性 vs 非生产性环逆转（金属环丁烷两个开裂方向，端点互换即得）；E/Z 烯烃产物各一条边；底物进攻卡宾的两种取向（决定 RCM/交叉复分解区域与立体化学）；引发步（膦解离）vs 链增长步的决速竞争。
 - **Q5 误诊信号**：金属环丁烷优化塌缩回 π-络合物→初猜中 forming 键过长或取向非平行，回 `conformer_search` 补 η2 构象；找不到 [2+2] 协同 TS 却找到分步双自由基路径→检查自旋态（Ru 卡宾通常为闭壳层，出现强双自由基特征时单参考结论打折）；E/Z 选择性算反→确认比较的是环逆转而非环加成的 ΔΔG‡。
 
@@ -75,7 +77,7 @@
 1. **配位数与配体解离被当成黑箱**：L2→L1 解离、X 解离（中性/阳离子路径切换）往往是隐含决速步；每个循环边都要显式写出配位数的节点，解离能用热化学校正后的 ΔG（熵贡献大，单电子能会系统性低估）。
 2. **碱/抗衡离子不显式建模**：转金属与 CMD 的碱是结构参与者（进四元/六元环 TS），只加隐式溶剂不建碱分子会得到假高垒或找不到 TS。
 3. **泛函依赖性大**：3d/4d 金属成键与能垒对泛函敏感——基准研究显示 M06 对 Ni/Pd 键活化能垒表现最好之一、双杂化（B2PLYP）对反应能量好（Steinmetz 2013）；至少用两个泛函（如 M06 与 ωB97X-D）复算决速步单点，加色散校正（D3）；Pd 用相对论 ECP 基组（def2/SDD），几何与频率同基组、单点升级（SOP §5）。
-4. **多参考与自旋污染**：Ni(I)/Ni(III)、3d 金属、双核物种有近简并风险；`⟨S²⟩` 偏差 ≳0.1 或 T1 诊断偏大（>0.02 量级，经验阈值，待核实）时，按 `method-selection.md` 将单参考 DFT 能垒只作定性证据并标注不确定性；必要时换泛函/开壳层单重态（`guess=mix`）交叉验证。
+4. **多参考与自旋污染**：Ni(I)/Ni(III)、3d 金属、双核物种有近简并风险；`⟨S²⟩` 偏差 ≳0.1 或 T1 诊断偏大（>0.02 量级，经验阈值，待核实）时，按 [method-selection.md](../../dft-calculation/references/method-selection.md) 将单参考 DFT 能垒只作定性证据并标注不确定性；必要时换泛函/开壳层单重态（`guess=mix`）交叉验证。
 5. **trans 中间体直接拿去扫还原消除**：还原消除只能 cis，漏建顺反异构边会假性否决整条循环；同样，β-H 消除漏建顺式空位/agostic 预组织会找不到 TS。
 6. **把单电子边当闭壳层算**：XEC/光氧化还原/Ni 自由基链在闭壳层下可能给出看似合理实则错误的中间体；假设图含 SET/自由基节点时全路径 spin≥2 重算并核对自旋布居迁移。
 

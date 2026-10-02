@@ -58,6 +58,19 @@ def _hub(args: dict) -> ToolCall:
     return ToolCall(id="t1", name="agent_hub", arguments=args)
 
 
+@pytest.mark.parametrize("text,want", [
+    ("CO2_GAP + 90%", {"co2_gap", "90"}),
+    ("反应机理, 单", {"反应", "应机", "机理", "单"}),
+    ("Sn2反应 / C_H 键", {"sn2", "反应", "c_h", "键"}),
+    ("é-water-ΔG", {"water", "g"}),
+    ("", set()),
+])
+def test_hub_search_tokenizes_words_and_cjk_bigrams(text, want):
+    from cloudra.tools.Managetool.agent_hub import _query_tokens
+
+    assert _query_tokens(text) == want
+
+
 async def _spawn(core, parent, role_id: str, query: str = "help out"):
     bus = CommandBus(core)
     result = await bus.execute(
@@ -123,6 +136,57 @@ async def test_post_validation():
         await handle_hub_tool(core, coordinator, _hub({"action": "post", "topic": "t", "content": "c", "kind": "message"}))
     ).is_success is False
     assert (await handle_hub_tool(core, coordinator, _hub({"action": "teleport"}))).is_success is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("role_id", ["coordinator", "supervisor"])
+async def test_hub_native_entry_rejects_unknown_fields_before_posting(role_id):
+    core, project, author = await _setup()
+    await _wait_state(author, "succeeded")
+    if role_id == "supervisor":
+        author = (await CommandBus(core).execute(Command(
+            type="agent.spawn", target={"project_id": project.id},
+            payload={"role_id": "supervisor", "settings": {"orchestration_mode": "dag_guided"}},
+            actor="system",
+        ))).data
+    result = await LegacyToolExecutor(core).execute(author, _hub({
+        "action": "post", "topic": "t", "content": "must not be published", "typo": True,
+    }))
+    assert result.is_success is False
+    assert "arguments.typo" in result.summary
+    assert core.event_log.query_project(project.id, types={"hub.posted"}) == []
+    await core.runner.cancel_all()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("arguments,field", [
+    ({"action": "post", "topic": "t", "content": "reply", "parent_id": 1}, "parent_id"),
+    ({"action": "browse", "cursor": 1}, "cursor"),
+])
+async def test_hub_rejects_integer_event_identifiers(arguments, field):
+    core, project, author = await _setup()
+    await _wait_state(author, "succeeded")
+    result = await handle_hub_tool(core, author, _hub(arguments))
+    assert result.is_success is False
+    assert f"arguments.{field}" in result.summary
+    assert core.event_log.query_project(project.id, types={"hub.posted"}) == []
+    await core.runner.cancel_all()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("action", ["call", "post"])
+async def test_hub_rejects_legacy_role_targets_without_side_effects(action):
+    core, project, author = await _setup()
+    await _wait_state(author, "succeeded")
+    arguments = (
+        {"action": "call", "to": "a-4", "message": "work"} if action == "call" else
+        {"action": "post", "to_agent": "a-4", "topic": "t", "content": "work"}
+    )
+    result = await handle_hub_tool(core, author, _hub(arguments))
+    assert result.is_success is False
+    assert not any(a.role_id == "small_mol" for a in core.agents.values())
+    assert core.event_log.query_project(project.id, types={"hub.posted"}) == []
+    await core.runner.cancel_all()
 
 
 @pytest.mark.asyncio
@@ -372,7 +436,7 @@ async def test_call_to_role_spawns_independent_peer():
     await _wait_state(coordinator, "succeeded")
 
     result = await handle_hub_tool(
-        core, coordinator, _hub({"action": "call", "to": "a-4", "message": "optimize water"})
+        core, coordinator, _hub({"action": "call", "to": "small_mol", "message": "optimize water"})
     )
     assert result.is_success is True
     peer = core.agents[result.data["session_id"]]
@@ -912,4 +976,3 @@ async def test_call_unknown_role_fuzzy_suggestion():
     assert "Did you mean 'small_mol'?" in result.summary
     assert "Available roles:" in result.summary
     await core.runner.cancel_all()
-

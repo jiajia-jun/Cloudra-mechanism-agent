@@ -233,7 +233,7 @@ async def test_swarm_partial_failure_returns_one_manifest_per_child():
             id="tc1",
             name="subagent_swarm",
             arguments={
-                "agent_id": "a-1",
+                "role_id": "explorer",
                 "prompt_template": "explore {{item}}",
                 "items": ["alpha", "beta"],
                 "is_wait": True,

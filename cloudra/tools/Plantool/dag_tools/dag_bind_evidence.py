@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from pydantic import Field, model_validator
+from pydantic import Field
 
 from cloudra.base.session_class import Session
 from cloudra.base.tool_actor import ToolActorContext
@@ -49,37 +49,11 @@ class DagBindEvidenceAttachment(input_schema):
 
 
 class DagBindEvidenceInput(input_schema):
-    tool_call_id: Optional[str] = Field(
-        default=None,
+    attachments: list[DagBindEvidenceAttachment] = Field(
+        min_length=1,
         description=(
-            "Legacy single-bind form: tool_call_id of the finished call. "
-            "Prefer `attachments` for batch binds."
-        ),
-    )
-    bind_target: Optional[str] = Field(
-        default=None,
-        description="Legacy single-bind form: delivery node or edge id.",
-    )
-    stage_kind: Optional[str] = Field(
-        default=None,
-        description="Legacy single-bind form: stage to bind.",
-    )
-    claim: Optional[str] = Field(
-        default=None,
-        description=(
-            "Legacy single-bind form: what this evidence proves for the stage "
-            "(REQUIRED in dag_guided)."
-        ),
-    )
-    rationale: Optional[str] = Field(
-        default=None,
-        description="Legacy single-bind form: why this call was selected (optional).",
-    )
-    attachments: Optional[list[DagBindEvidenceAttachment]] = Field(
-        default=None,
-        description=(
-            "Batch attachments, each with tool_call_id/bind_target/stage_kind. "
-            "Either this field or the legacy trio must be provided, not both."
+            "Evidence attachments, each with tool_call_id/bind_target/stage_kind and its own claim/rationale. "
+            "Use a one-element list for a single bind."
         ),
     )
     expected_revision: Optional[int] = Field(
@@ -92,28 +66,6 @@ class DagBindEvidenceInput(input_schema):
         ),
     )
 
-    @model_validator(mode="after")
-    def _validate_bind_mode(self):
-        legacy_provided = bool(self.tool_call_id or self.bind_target or self.stage_kind)
-        has_attachments = bool(self.attachments)
-        if legacy_provided and has_attachments:
-            raise ValueError(
-                "provide either the legacy single-bind fields "
-                "(tool_call_id/bind_target/stage_kind) or `attachments`, not both"
-            )
-        if not legacy_provided and not has_attachments:
-            raise ValueError(
-                "dag_bind_evidence requires a single bind or at least one attachment"
-            )
-        if legacy_provided and not (
-            self.tool_call_id and self.bind_target and self.stage_kind
-        ):
-            raise ValueError(
-                "legacy single-bind form requires tool_call_id, bind_target, and stage_kind together"
-            )
-        return self
-
-
 class DagBindEvidence(DagToolBase):
     def is_manage(self) -> bool:
         return False
@@ -125,8 +77,8 @@ class DagBindEvidence(DagToolBase):
     tool_name: str = "dag_bind_evidence"
     tool_description: str = (
         "Bind finished tool calls to declared stages of delivery elements. "
-        "In dag_record the Coordinator binds directly (single or batch). In "
-        "dag_guided this is the ONLY way evidence reaches the Supervisor: "
+        "In dag_record the Coordinator binds the attachment list directly. In "
+        "dag_guided finished calls are submitted for Supervisor review: "
         "finished tool calls are NEVER auto-submitted — first select the calls "
         "whose result actually supports a stage, then submit each with a claim "
         "(what it proves) and an optional rationale; unsubmitted exploration "
@@ -143,29 +95,6 @@ class DagBindEvidence(DagToolBase):
     output_schema: Any = DagToolOutput
     subagent: ToolActorContext | None = None
 
-    @staticmethod
-    def _legacy_attachments(user_input: DagBindEvidenceInput) -> list[dict[str, str]]:
-        if user_input.attachments:
-            return [
-                {
-                    "tool_call_id": item.tool_call_id,
-                    "bind_target": item.bind_target,
-                    "stage_kind": item.stage_kind,
-                    "claim": item.claim,
-                    "rationale": item.rationale,
-                }
-                for item in user_input.attachments
-            ]
-        return [
-            {
-                "tool_call_id": user_input.tool_call_id,
-                "bind_target": user_input.bind_target,
-                "stage_kind": user_input.stage_kind,
-                "claim": user_input.claim or "",
-                "rationale": user_input.rationale or "",
-            }
-        ]
-
     async def tool_call(
         self, user_input: DagBindEvidenceInput, session: Session
     ) -> DagToolOutput:
@@ -176,7 +105,7 @@ class DagBindEvidence(DagToolBase):
         controller = DagController(
             ctx.db, session.id, ctx.mode, conversation_id=ctx.conversation_id
         )
-        attachments = self._legacy_attachments(user_input)
+        attachments = [item.model_dump(mode="json") for item in user_input.attachments]
         if mode is OrchestrationMode.DAG_GUIDED:
             # §5 显式送审口：dag_guided 下不直接绑定——把筛选后的调用产物连同
             # 提交者主张（claim/rationale）持久化为 pending CallReview，等

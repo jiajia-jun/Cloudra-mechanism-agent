@@ -396,7 +396,7 @@ async def test_guided_submission_requires_a_claim(tmp_path):
     agent, session, db, _controller = await _guided_seed(tmp_path, "no-claim", n_calls=1)
     out = await DagBindEvidence(subagent=agent).tool_call(
         DagBindEvidence.model_fields["input_schema"].default(
-            tool_call_id="tc-0", bind_target="step1", stage_kind="ts_opt"
+            attachments=[{"tool_call_id": "tc-0", "bind_target": "step1", "stage_kind": "ts_opt"}]
         ),
         session,
     )
@@ -413,8 +413,10 @@ async def test_identical_claim_resubmission_returns_existing_review(tmp_path):
     agent, session, db, _controller = await _guided_seed(tmp_path, "idem", n_calls=1)
     schema = DagBindEvidence.model_fields["input_schema"].default
     kwargs = dict(
-        tool_call_id="tc-0", bind_target="step1", stage_kind="ts_opt",
-        claim="tc-0 supports the ts_opt stage",
+        attachments=[{
+            "tool_call_id": "tc-0", "bind_target": "step1", "stage_kind": "ts_opt",
+            "claim": "tc-0 supports the ts_opt stage",
+        }],
     )
     first = await DagBindEvidence(subagent=agent).tool_call(schema(**kwargs), session)
     assert first.is_success and first.accepted

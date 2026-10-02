@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any
 
 from pydantic import Field
@@ -55,6 +56,9 @@ class GetSkill(Tool):
         user_input: GetSkill_input_schema,
         session: Session
     ) -> GetSkill_output_schema:
+        return await asyncio.to_thread(self._load_skill, user_input)
+
+    def _load_skill(self, user_input: GetSkill_input_schema) -> GetSkill_output_schema:
         import difflib
 
         loader = skill_loader()
@@ -74,8 +78,7 @@ class GetSkill(Tool):
             )
 
         # 2. Check skill existence with fuzzy suggestion
-        content = loader.get_content(skill_name)
-        if content in ('skill不存在。', 'skill does not exist.'):
+        if skill_name not in skill_names:
             matches = difflib.get_close_matches(skill_name, skill_names, n=3, cutoff=0.35)
             suggestion = f" Did you mean '{matches[0]}'?" if matches else ""
             return GetSkill_output_schema(
@@ -104,10 +107,10 @@ class GetSkill(Tool):
                     content=f"Reference '{ref}' not found in skill '{skill_name}'.\n\n{ref_guide}",
                     result=f"Reference '{ref}' not found in skill '{skill_name}'. Available references: {available_refs}.",
                 )
-            content += f"\n\n--- Reference: {ref} ---\n\n{ref_content}"
-            result = f"Loaded skill '{skill_name}' and reference '{ref}'."
+            content = f"# Reference: {skill_name}/{ref}\n\n{ref_content}"
+            result = f"Loaded reference '{ref}' from skill '{skill_name}'."
         else:
-            content += ref_guide
+            content = loader.get_content(skill_name) + ref_guide
             result = f"Loaded skill '{skill_name}'."
             if available_refs:
                 result += f" ({len(available_refs)} reference guides available)."

@@ -191,7 +191,7 @@ async def test_child_resolves_role_defaults_not_parent_overrides():
             core,
             parent,
             ToolCall(id="tc1", name="subagent_launcher",
-                     arguments={"agent_id": "a-4", "query": "opt the molecule", "is_wait": False}),
+                     arguments={"role_id": "small_mol", "query": "opt the molecule", "is_wait": False}),
         )
         child_id = result.data["session_id"]
         child = core.agents.get(child_id)
@@ -233,7 +233,7 @@ async def test_child_inherits_parent_authorization_flags_and_hides_secrets():
             core,
             parent,
             ToolCall(id="tc1", name="subagent_launcher",
-                     arguments={"agent_id": "a-4", "query": "opt", "is_wait": False}),
+                     arguments={"role_id": "small_mol", "query": "opt", "is_wait": False}),
         )
         child = core.agents[result.data["session_id"]]
         assert child.settings.yolo is True

@@ -280,7 +280,7 @@ else {
 
 _SPAWN_PROGRAM = _fit_resources(r"""
 const r = await tools.subagent_launcher({
-  agent_id: "a-4",
+  role_id: "small_mol",
   query: "Prepare a water single-point Gaussian input from SMILES O, submit it asynchronously with cpus=__CPUS__, wait for completion and parse the log.",
 });
 if (!r.is_success) { text("SPAWN FAIL: " + r.summary); }
@@ -721,7 +721,7 @@ def test_cli_full_chain_traditional_equivalent(tmp_path, monkeypatch):
 
     llm.script("coordinator", [
         calls(1, [("subagent_launcher", {
-            "agent_id": "a-4",
+            "role_id": "small_mol",
             "query": "traditional protocol equivalent chain",
         })]),
         text(2, "suspended"),
@@ -965,7 +965,7 @@ text("PROPOSED ok=" + proposal.is_success + " " + proposal.summary);
 
 _GUIDED_SPAWN_PROGRAM = r"""
 const r = await tools.subagent_launcher({
-  agent_id: "a-4",
+  role_id: "small_mol",
   query: "Run the input preparation and compute for step1, then explicitly submit the finished parse as frequency evidence for species R.",
 });
 if (!r.is_success) { text("SPAWN FAIL: " + r.summary); }
@@ -1005,11 +1005,13 @@ else {{
     if (!p.is_success) {{ text("PARSE FAIL: " + p.summary); }}
     else {{
       const bound = await tools.dag_bind_evidence({{
-        tool_call_id: p.call_id,
-        bind_target: "{node.node_id}",
-        stage_kind: "geometry",
-        claim: "R is the optimized water minimum (opt+freq job, only real frequencies)",
-        rationale: "step1 compute chain",
+        attachments: [{{
+          tool_call_id: p.call_id,
+          bind_target: "{node.node_id}",
+          stage_kind: "geometry",
+          claim: "R is the optimized water minimum (opt+freq job, only real frequencies)",
+          rationale: "step1 compute chain",
+        }}],
       }});
       text("SUBMITTED evidence ok=" + bound.is_success + " job=" + s.data.job_id +
            " " + bound.summary);

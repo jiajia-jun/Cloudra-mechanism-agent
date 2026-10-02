@@ -1,6 +1,8 @@
 # 消除反应：机理可能性与建模
 
-范围：底物脱去两个相邻原子/基团形成 π 键（多为 C=C）的反应结果。覆盖碱诱导消除（E1/E2/E1cB）、分子内热消除（Ei：酯热解、Chugaev、Cope）与脱羧消除（β-酮酸等六元环 TS）。通用五问题框架见 `mechanism-elucidation-sop.md` 与 `reaction-class-geometry.md` §1（E2/E1cB 基线谓词已并入本文相应节；E1 与 SN1 共用的离子化步基线见 `mechanisms/substitution.md`）；与 SN1/SN2 的竞争判定参见 `mechanisms/substitution.md`。所有数值均为典型区间，随底物、碱强度、离去基团与溶剂漂移（Hammond / More O'Ferrall 可变 TS 模型），仅用于初猜与筛选，裁决靠频率 + IRC。
+章节读取：同技能参考用 `get_skill(skill_name="reaction-mechanisms", reference="<文件名>.md")`；下文链接的通用计算参考用 `get_skill(skill_name="dft-calculation", reference="<文件名>.md")`。
+
+范围：底物脱去两个相邻原子/基团形成 π 键（多为 C=C）的反应结果。覆盖碱诱导消除（E1/E2/E1cB）、分子内热消除（Ei：酯热解、Chugaev、Cope）与脱羧消除（β-酮酸等六元环 TS）。通用五问题框架见 [mechanism-elucidation-sop.md](../../dft-calculation/references/mechanism-elucidation-sop.md) 与 [reaction-class-geometry.md](../../dft-calculation/references/reaction-class-geometry.md) §1（E2/E1cB 基线谓词已并入本文相应节；E1 与 SN1 共用的离子化步基线见 [substitution.md](substitution.md)）；与 SN1/SN2 的竞争判定参见 [substitution.md](substitution.md)。所有数值均为典型区间，随底物、碱强度、离去基团与溶剂漂移（Hammond / More O'Ferrall 可变 TS 模型），仅用于初猜与筛选，裁决靠频率 + IRC。
 
 ## 机理假设空间
 
@@ -27,7 +29,7 @@
 
 - 键变化：第一步 Cα–LG 异裂（决速）；第二步 Base（或溶剂）夺 β-H。`watch_pairs`：Cα–LG；第二步 Base–H、H–Cβ。扫描坐标：Cα–LG（拉长）。
 - 预组织：无强几何要求；离子化需溶剂稳定，**隐式溶剂（SMD）几乎必需**；注意离子对 → 溶剂分离离子对可能给出多峰剖面。
-- TS 期望：TS1 中 Cα–LG ≈ 2.2–2.8 Å，中心碳趋平面（→sp2，键角 →120°）；TS2 是晚 TS 之外的常规质子转移（见 reaction-class-geometry.md §3.1）。
+- TS 期望：TS1 中 Cα–LG ≈ 2.2–2.8 Å，中心碳趋平面（→sp2，键角 →120°）；TS2 是晚 TS 之外的常规质子转移（见 [reaction-class-geometry.md](../../dft-calculation/references/reaction-class-geometry.md) §3.1）。
 - 必须并建的竞争边：① 碳正离子重排（1,2-H/烷基迁移，三元环状 TS）——有更稳定碳正离子可达时务必建；② SN1 边（共用 TS1，竞争在碳正离子分叉之后，参见 substitution.md）；③ 多个 β-H 位点去质子各一条边（E1 的 Saytzeff 选择性由 TS2 决定，不由底物构象决定）。
 - 误诊信号：Cα–LG 扫描无峰、直接解离 → 溶剂化未建模或该底物离子化本无垒（换 E2/E1cB 假设）；IRC 从"离子化 TS"接回反应物但中心碳未平面化 → 初猜落在构象变化鞍点上。
 
@@ -35,7 +37,7 @@
 
 - 键变化：第一步 Base 夺 β-H 成碳负离子（Cα–LG 不动）；第二步 Cα–LG 异裂。`watch_pairs`：第一步 Base–H、H–Cβ；第二步 Cα–LG、Cα–Cβ。
 - 预组织：无共平面要求（逐步机理解除立体电子约束，这是与 E2 的关键判别点）；`distance_filters`：Base···Hβ < 3.0 Å。
-- TS 期望：TS1 为常规质子转移（D–H···A 近线性，见 reaction-class-geometry.md §3.1）；TS2 为 C–LG 拉长至 2.0–2.6 Å（典型区间，随 LG 漂移）伴随碳负离子平面化。E1cB_R：TS2 > TS1（夺氢可逆）；E1cB_irr：TS1 ≥ TS2。
+- TS 期望：TS1 为常规质子转移（D–H···A 近线性，见 [reaction-class-geometry.md](../../dft-calculation/references/reaction-class-geometry.md) §3.1）；TS2 为 C–LG 拉长至 2.0–2.6 Å（典型区间，随 LG 漂移）伴随碳负离子平面化。E1cB_R：TS2 > TS1（夺氢可逆）；E1cB_irr：TS1 ≥ TS2。
 - 必须并建的竞争边：① E2 协同边——E1cB 与 E2 在 More O'Ferrall 面上是连续谱，碳负离子越稳定越靠边；两者都建让能垒裁决；② 碳负离子的其他出路（如对 EWG 的质子化返回，即氘代交换表现）。
 - 误诊信号：第一步扫描后碳负离子优化不掉（塌回反应物）→ 该体系碳负离子不是极小点，改 E2 假设；中间体"碳负离子"中 Cα–LG 已自发断裂 → 实际是 E2 无中间体，假设图多建了一个节点。
 
@@ -58,7 +60,7 @@
 - 键变化：O–H（羧基）断、H···O（β-羰基氧）成、Cα–COOH 断、Cα=C（烯醇）成、CO₂ 中 C=O 重组。`watch_pairs`：O–H、H···O_keto、Cα–C(COOH)、Cα–C_keto。首选扫描坐标：Cα–C(COOH)（拉长）或 H···O_keto（缩短）。
 - 预组织：分子内氢键把 COOH 的 H 递到 β-羰基氧上，形成六元环 O=C–C–C–O–H。`distance_filters`：O_keto···H(COOH) < 2.0 Å；筛后查 O=C–C–C 主链二面角使两端可闭环。丙二酸类第二个 COOH 的羰基氧充当受体，谓词同构。
 - TS 期望：六元环状协同 TS（半椅式），典型区间：O–H 1.1–1.4 Å、H···O 1.2–1.6 Å、C–CO₂ 1.9–2.3 Å（Hammond 漂移）。能垒锚点：β-酮酸气相计算约 20–30 kcal/mol（甲酰乙酸报道 28.6 kcal/mol、其负离子 20.6 kcal/mol，**待核实**，随级别漂移）；无 β-受体时直接脱羧通常 > 40 kcal/mol，不要硬建。
-- 必须并建的竞争边：① 产物是**烯醇节点**——后续酮-烯醇互变异构必须单独建边，直接 [1,3]-H 迁移 suprafacial 禁阻，真实路径为溶剂/酸碱介导穿梭（穿梭谓词见 mechanisms/carbonyl.md 加成-消除节与 reaction-class-geometry.md §3.1）；② 羧酸负离子路径（去质子后脱羧，能垒常更低，碱性/水相条件必建）；③ 若体系另有 β-H 与 LG，经典消除边（E1cB/E2）并行。
+- 必须并建的竞争边：① 产物是**烯醇节点**——后续酮-烯醇互变异构必须单独建边，直接 [1,3]-H 迁移 suprafacial 禁阻，真实路径为溶剂/酸碱介导穿梭（穿梭谓词见 [carbonyl.md](carbonyl.md) 加成-消除节与 reaction-class-geometry.md §3.1）；② 羧酸负离子路径（去质子后脱羧，能垒常更低，碱性/水相条件必建）；③ 若体系另有 β-H 与 LG，经典消除边（E1cB/E2）并行。
 - 误诊信号：六元环 TS 优化塌缩成羧酸二聚体/氢键络合物 → 初猜的氢键取向错，先把反应物预组织成环内氢键构象再扫；IRC 产物端给出酮而非烯醇 → TS 连的是互变异构后的边，检查是否把两步并成了一步。
 
 ## 领域级陷阱

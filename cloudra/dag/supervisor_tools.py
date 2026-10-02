@@ -20,6 +20,7 @@ from the prompt. This module enforces; it does not re-declare the allow-list.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -27,6 +28,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+from pydantic import ValidationError
+
+from cloudra.infra.tool_errors import validation_feedback
 from cloudra.persistence.workspace import WorkspaceError, WorkspaceService
 from cloudra.tools import capabilities
 
@@ -160,7 +164,13 @@ class SupervisorToolExecutor:
                 return f"[permission denied] {name}: {exc}"
         return None
 
-    async def _execute_read(self, arguments: dict[str, Any]) -> dict[str, Any]:
+    def _execute_read(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        from cloudra.tools.Searchtool.read import Read_input_schema
+
+        try:
+            arguments = Read_input_schema.model_validate(arguments).model_dump()
+        except ValidationError as exc:
+            return _error(validation_feedback(exc))
         raw_path = str(arguments.get("path") or "")
         try:
             resolved = self._resolve_evidence_path(raw_path)
@@ -244,12 +254,8 @@ class SupervisorToolExecutor:
             return _error(f"[permission denied] Tool {name!r} is not registered.")
         try:
             input_obj = entry.input_schema(**arguments)
-        except Exception as exc:
-            return _error(
-                f"{name} argument validation failed: {exc}. "
-                "Arguments are this tool's own flat fields as declared in its "
-                "input schema; resend with those fields."
-            )
+        except ValidationError as exc:
+            return _error(validation_feedback(exc))
         session = self._session or SimpleNamespace(id=session_id or "supervisor")
         # Several tool classes narrow the `subagent` field to the legacy Agent
         # type (dag_* verdict tools among them), so pydantic construction with
@@ -276,9 +282,9 @@ class SupervisorToolExecutor:
         if access == "hub":
             return await self._execute_hub(arguments, session_id=session_id)
         if name == "read":
-            return await self._execute_read(arguments)
+            return await asyncio.to_thread(self._execute_read, arguments)
         if access == "evidence_read" and not name.startswith("dag_"):
-            denied = self._normalize_path_arguments(name, arguments)
+            denied = await asyncio.to_thread(self._normalize_path_arguments, name, arguments)
             if denied:
                 return _error(denied)
         try:

@@ -1,6 +1,8 @@
 # 重排反应：机理可能性与建模
 
-范围：底物骨架中一个基团（H/烷基/芳基）带电子对从**迁移起点**搬到邻位**迁移终点**的反应。按终点分类：碳正离子（Wagner–Meerwein、pinacol）、缺电子氮（Beckmann、Hofmann/Curtius/Lossen）、缺电子氧（Baeyer–Villiger、Hock/氢过氧化物）、缺电子碳/阴离子体系（Favorskii、[1,2]/[2,3]-Wittig、benzilic acid）。通用 SOP、五问题框架与能垒判读见 `mechanism-elucidation-sop.md` 与 `reaction-class-geometry.md`，本文件不重复。
+章节读取：同技能参考用 `get_skill(skill_name="reaction-mechanisms", reference="<文件名>.md")`；下文链接的通用计算参考用 `get_skill(skill_name="dft-calculation", reference="<文件名>.md")`。
+
+范围：底物骨架中一个基团（H/烷基/芳基）带电子对从**迁移起点**搬到邻位**迁移终点**的反应。按终点分类：碳正离子（Wagner–Meerwein、pinacol）、缺电子氮（Beckmann、Hofmann/Curtius/Lossen）、缺电子氧（Baeyer–Villiger、Hock/氢过氧化物）、缺电子碳/阴离子体系（Favorskii、[1,2]/[2,3]-Wittig、benzilic acid）。通用 SOP、五问题框架与能垒判读见 [mechanism-elucidation-sop.md](../../dft-calculation/references/mechanism-elucidation-sop.md) 与 [reaction-class-geometry.md](../../dft-calculation/references/reaction-class-geometry.md)，本文件不重复。
 
 所有数值为**典型区间（Å / kcal/mol），随底物、取代基、溶剂与催化模式漂移（Hammond）**，只用于初猜与筛选，裁决永远是频率 + IRC。
 
@@ -64,7 +66,7 @@
 
 ## O1 Baeyer–Villiger
 
-- **键变化**：第一步过氧酸 O–H 的羰基 O 加成 C=O（Bürgi–Dunitz 角 ≈ 107，谓词见 `mechanisms/carbonyl.md` 直接亲核加成节）生成 Criegee 中间体；第二步 M 从 C 到端基 O（M–C 断、M–O 成）、O–O 断、羰基重建。`watch_pairs` = (M–C, M–O_terminal, O–O)。扫描坐标：迁移步扫 M–O 或 O–O。
+- **键变化**：第一步过氧酸 O–H 的羰基 O 加成 C=O（Bürgi–Dunitz 角 ≈ 107，谓词见 [carbonyl.md](carbonyl.md) 直接亲核加成节）生成 Criegee 中间体；第二步 M 从 C 到端基 O（M–C 断、M–O 成）、O–O 断、羰基重建。`watch_pairs` = (M–C, M–O_terminal, O–O)。扫描坐标：迁移步扫 M–O 或 O–O。
 - **预组织**：两条立体电子约束都须满足——**迁移基团与 O–O 键 anti-periplanar**（一级立体电子效应，σ_M–C→σ*_O–O）；**羟基 O 孤对与迁移基团 anti**（二级效应）。`conformer_search`：Criegee 中间体上 `distance_filters` 锁 M–O_terminal ≤ 3.2 Å，`internal_coordinates` 核对 M–C–O–O 二面角 ≈ 180（可接受约 150–180）。
 - **TS 期望**：迁移 TS 中 O–O 典型 1.8–2.2 Å，M–O 2.0–2.5 Å，M 带部分正电（漂移）。迁移步通常决速，但无酸催化时加成步也可决速——**两步两个 TS 都算再裁决**。
 - **竞争边**：每个可迁移基团一条边（能力近似 3° > 2° ≈ 苄基 > 苯基 > 1° > CH₃，芳环给电子取代加速）；酸催化 vs 非催化路径（质子穿梭显著降低加成步能垒）。
@@ -90,9 +92,9 @@
 
 - **键变化**（A3）：C–O 均裂 → 自由基对 → M–C 重组。`watch_pairs` = (M–O, M–C_new)。（A4）：五元 envelope TS 中 O–C_allyl 断、C_carbanion–C_allyl 成。`watch_pairs` = (O–C_allyl, C_carbanion–C_allyl 末端)。扫描坐标（A4）：forming C–C 缩短。
 - **预组织**（A4）：烯丙基与碳负离子需构成五元环几何。`distance_filters`：C_carbanion–C_allyl_末端 ≤ 3.2 Å；envelope 取向决定立体化学，多个 envelope 构象各建边。
-- **TS 期望**（A4）：forming C–C 与 breaking O–C 典型均 2.0–2.4 Å（漂移）；阴离子加速，能垒通常明显低于对应中性 [2,3]。A3 **不要建协同 [1,2] 边**（suprafacial 对称性禁阻，交叉引用 `mechanisms/pericyclic.md` [1,5]-H 与禁阻的 [1,2]/[1,3] σ 迁移节）；建模走 C–O 均裂扫描 + 自由基对重组，`electronic_analysis` spin≥2 验证自旋布居与 `<S²>`。
+- **TS 期望**（A4）：forming C–C 与 breaking O–C 典型均 2.0–2.4 Å（漂移）；阴离子加速，能垒通常明显低于对应中性 [2,3]。A3 **不要建协同 [1,2] 边**（suprafacial 对称性禁阻，交叉引用 [pericyclic.md](pericyclic.md) [1,5]-H 与禁阻的 [1,2]/[1,3] σ 迁移节）；建模走 C–O 均裂扫描 + 自由基对重组，`electronic_analysis` spin≥2 验证自旋布居与 `<S²>`。
 - **竞争边**：A3 vs A4（烯丙基醚两类都建，能垒裁决）；A3 笼内重组 vs 自由基逃逸（溶剂笼效应用系综/显式溶剂粗评）；阴离子稳定性差时 [2,3] 可走异裂分步（Haeffner 等 DFT 工作）。
-- **误诊信号**：A4 TS 出现显著自旋布居/双自由基特征 → 机制滑向 A3；`⟨S²⟩` 偏差 ≳0.1 → 按 `method-selection.md` 打折能垒结论并诊断（实用触发器，非自动 fail）。
+- **误诊信号**：A4 TS 出现显著自旋布居/双自由基特征 → 机制滑向 A3；`⟨S²⟩` 偏差 ≳0.1 → 按 [method-selection.md](../../dft-calculation/references/method-selection.md) 打折能垒结论并诊断（实用触发器，非自动 fail）。
 
 ## A5 Benzilic acid 重排
 
@@ -100,13 +102,13 @@
 - **预组织**：加成后需绕 C–C 旋转把 M 摆到迁移位（文献：加成、旋转、迁移、质子接力四事件）。`distance_filters`：M–C_acceptor ≤ 3.0 Å。
 - **TS 期望**：迁移终点只是**部分正电的羰基碳**（非完整碳正离子），迁移 TS 较晚、M 带部分正电荷（计算示例甲基迁移电荷 +0.22，待核实量级）；M–C 两键典型 1.9–2.4 Å（漂移）。建议显式 3–4 个水分子承载 OH⁻ 与质子接力。
 - **竞争边**：迁移 vs 四面体中间体直接解离；环状 1,2-二酮缩环取向；烷氧基亲核试剂 → benzilic ester 变体；有 α-H 时羟醛副反应边。
-- **误诊信号**：不加显式水时质子接力步能垒 > 35 → 直接 [1,2]/[1,3]-H 迁移禁阻/高垒，必须走溶剂接力（交叉引用 `reaction-class-geometry.md` §3.1）；IRC 接回二酮+OH⁻ → 加成-解离占优，迁移边需重新预组织。
+- **误诊信号**：不加显式水时质子接力步能垒 > 35 → 直接 [1,2]/[1,3]-H 迁移禁阻/高垒，必须走溶剂接力（交叉引用 [reaction-class-geometry.md](../../dft-calculation/references/reaction-class-geometry.md) §3.1）；IRC 接回二酮+OH⁻ → 加成-解离占优，迁移边需重新预组织。
 
 ## 领域级陷阱
 
 1. **协同 vs 分步是本领域的第一判别问题**，且答案随底物翻转（Beckmann：环己酮肟协同、小肟分步；Curtius：热协同、光分步；pinacol：稳碳正离子分步、否则协同）。判别证据 = 中间体极小点存在性 + IRC 端点，**不是靠扫描峰数**（平台/肩峰会骗人）。
 2. **立体电子约束（anti-periplanar）没预组织就硬扫是本领域最大浪费源**：BV 的 M–C–O–O、semipinacol 的 M–C–C–LG、Hock 的 M–C–O–O 二面角必须先在 `conformer_search`/`internal_coordinates` 层面锁定；不满足约束的构象上扫出来的"迁移 TS"全是错的。
-3. **阴离子重排的环境与基组**：溶液结论需适当溶剂化，涉及抗衡离子/质子穿梭时显式建模；气相任务保留气相定义。几何/能量检查弥散函数需求；不能仅为布居/键级分析而删掉描述阴离子所需的弥散函数，见 `method-selection.md` §2。
+3. **阴离子重排的环境与基组**：溶液结论需适当溶剂化，涉及抗衡离子/质子穿梭时显式建模；气相任务保留气相定义。几何/能量检查弥散函数需求；不能仅为布居/键级分析而删掉描述阴离子所需的弥散函数，见 [method-selection.md](../../dft-calculation/references/method-selection.md) §2。
 4. **质子位置与酸簇决定路径**（Beckmann 的 N- vs O-质子化、BV 的催化 vs 非催化）：质子化异构体是不同的反应物，各建节点；显式 1–3 个酸/水分子常把"不可能的能垒"变为合理值。
 5. **开壳层中间体漏检**：nitrene、oxyallyl、[1,2]-Wittig 自由基对都可能是单重态双自由基——做单重态稳定性检查（`stable=opt`）与 `electronic_analysis` 自旋布居；不稳定则单参考 DFT 能垒只作定性参考。
 6. **桥式/π-配合物中间体漏建**：芳基迁移可经 phenonium 型桥式结构、Beckmann 可经 σ/π 配合物——IRC 端点出现非预期物种时，优先怀疑漏了这类节点，而不是计算失败。

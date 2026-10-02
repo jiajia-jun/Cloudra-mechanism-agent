@@ -76,26 +76,6 @@ def unwire_search_name(calls: list[ToolCall], *, rename_search: bool) -> list[To
     ]
 
 
-def _parse_tool_calls(choice: Any) -> list[ToolCall]:
-    calls = []
-    for raw in getattr(getattr(choice, "message", None), "tool_calls", None) or []:
-        function = getattr(raw, "function", None)
-        if function is None:
-            continue
-        try:
-            arguments = json.loads(getattr(function, "arguments", None) or "{}")
-        except json.JSONDecodeError:
-            arguments = {}
-        calls.append(
-            ToolCall(
-                id=getattr(raw, "id", "") or f"tc_{len(calls)}",
-                name=getattr(function, "name", "") or "unknown",
-                arguments=arguments if isinstance(arguments, dict) else {},
-            )
-        )
-    return calls
-
-
 def legacy_default_settings(agent: AgentSession) -> RuntimeSettings:
     """Fill empty settings fields from the existing global config.
 

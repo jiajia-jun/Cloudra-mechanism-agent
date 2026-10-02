@@ -1,7 +1,9 @@
 # 周环反应：机理可能性与建模
 
+章节读取：同技能参考用 `get_skill(skill_name="reaction-mechanisms", reference="<文件名>.md")`；下文链接的通用计算参考用 `get_skill(skill_name="dft-calculation", reference="<文件名>.md")`。
+
 范围界定：底物通过环状过渡态发生成键/断键重排，产出环加成产物（环己烯、环丁烷、五元杂环）、重排异构体（Cope/Claisen 产物、H 迁移异构体）、开环/闭环产物（电环化）或挤出小分子（CO、N2、SO2）的反应。本文档面向"产物已知、机理未知"的场景：同一产物可能来自协同周环 TS、逐步双自由基/两性离子、或光化学激发态路径，agent 必须并建假设再用计算裁决。
-通用流程与五问题框架见 `mechanism-elucidation-sop.md` 与 `reaction-class-geometry.md` §1；DA 与 σ 迁移/电环化的基线数值已并入本文相应节。
+通用流程与五问题框架见 [mechanism-elucidation-sop.md](../../dft-calculation/references/mechanism-elucidation-sop.md) 与 [reaction-class-geometry.md](../../dft-calculation/references/reaction-class-geometry.md) §1；DA 与 σ 迁移/电环化的基线数值已并入本文相应节。
 
 ## 机理假设空间
 
@@ -28,7 +30,7 @@
 - 预组织：二烯中心单键二面角 ≈ 0°（s-cis）；`distance_filters` 设两组端基对距离均 < 3.2 Å 筛 reactive conformer（典型区间，随底物漂移）。
 - TS 期望：forming 键典型 2.1–2.3 Å（典型区间，Hammond：给-受体组合放热强则更早、键更长）。同步性判据 |Δr|：< 0.3 Å 同步协同；0.3–1.0 Å 异步协同（仍允许，常见于不对称取代）；> 1.0 Å 警惕逐步。
 - 必须并建的竞争边：endo/exo（Alder 内型规则：次级轨道相互作用使内型通常低 1–3 kcal/mol，位阻大时有例外）；两种区域取向（regioisomeric TS）；逐步双自由基边（尤其非极性底物，如丙烯腈 + 非极性二烯体系计算显示协同与 diradical 能垒差可小至 2–8 kcal/mol，见参考来源）；ambimodal 可能（[6+4]/bis-pericyclic 体系，单个 TS 后势能面分叉——IRC 只能到一种产物，产物比须动力学方法，标注单参考局限）。
-- 误诊信号：① TS 两根 forming 键差 > 1.0 Å 且 IRC 中途落入极小点 → 实为逐步，回假设图补 diradical/zwitterion 节点；② `electronic_analysis` 报 `⟨S²⟩` 偏差 ≳0.1 → 按 `method-selection.md` 打折闭壳层能垒并诊断双自由基特征（spin 投影校正可改变协同/逐步排序 2–5 kcal/mol，待核实具体体系；实用触发器，非自动 fail）；③ 频率出现 2+ 虚频且第二虚频是另一根 forming 键的伸缩 → 高阶鞍点，沿该模式位移重搜异步 TS。
+- 误诊信号：① TS 两根 forming 键差 > 1.0 Å 且 IRC 中途落入极小点 → 实为逐步，回假设图补 diradical/zwitterion 节点；② `electronic_analysis` 报 `⟨S²⟩` 偏差 ≳0.1 → 按 [method-selection.md](../../dft-calculation/references/method-selection.md) 打折闭壳层能垒并诊断双自由基特征（spin 投影校正可改变协同/逐步排序 2–5 kcal/mol，待核实具体体系；实用触发器，非自动 fail）；③ 频率出现 2+ 虚频且第二虚频是另一根 forming 键的伸缩 → 高阶鞍点，沿该模式位移重搜异步 TS。
 
 ## [2+2] 环加成：热禁阻 vs 逐步 vs 光化学
 
@@ -38,7 +40,7 @@
   1. **逐步双自由基**：先成一根 σ 键（TS1 中 forming 键 ~2.0–2.4 Å，另一对 > 3.0 Å，典型区间），diradical 中间体须绕新 σ 键旋转再闭环（TS2）。用 `electronic_analysis` spin=2 起步查自旋布居；注意 diradical 中间体旋转垒常与失稳（回断键）竞争。
   2. **逐步两性离子**：推-拉烯或 Lewis 酸存在时优先；TS1 后电荷分离中间体（meta-Löwdin 电荷 ±0.5 以上），闭壳层。隐式溶剂模型会显著影响排序，气相结论不可外推。
   3. **[2s+2a] 协同**：仅当一个组分能扭曲成 antarafacial（如烯酮的 C=C 与 C=O 正交轨道、或大环体系）时允许；TS 几何特征为一根 forming 键从 π 面同侧、另一根从对侧接近，`watch_pairs` 中体现为两烯平面二面角显著扭曲。
-  4. **光化学**：激发态 supra-supra 允许。基面 S0 上找不到合理路径时，TD-DFT 算 S1 垂直激发能确认可达性，T1 优化（`electronic_analysis`/`submit_compute_job` spin=3）找三重态 diradical 路径；锥形交叉超越单基态 TS 工具链能力，标注"需多参考/表面跳跃，超出当前裁决精度"。
+  4. **光化学**：激发态 supra-supra 允许。基面 S0 上找不到合理路径时，TD-DFT 算 S1 垂直激发能确认可达性，T1 优化（`electronic_analysis` 用 `spin=3`；`submit_compute_job` 的对应字段是 `multiplicity=3`，仅对 xTB 生效，Gaussian/ORCA 的多重度在输入文件中声明）找三重态 diradical 路径；锥形交叉超越单基态 TS 工具链能力，标注"需多参考/表面跳跃，超出当前裁决精度"。
 - 误诊信号：基态扫描出"协同 [2+2] TS"且虚频正常但 ΔG‡ > 35 kcal/mol → 这是禁阻路径的高垒鞍点，不是实验机理，回假设图建逐步边；diradical 中间体 `<S^2>` ≈ 1.0 → 接近纯双自由基，单参考能量定性即可。
 
 ## 1,3-偶极环加成
@@ -62,7 +64,7 @@
 
 - 键变化：断 σ 键（C3–C4）与成 σ 键（C1–C6），两 π 键移位。`watch_pairs` 两 σ 键；扫描坐标 = 断键拉长或成键缩短。
 - 两个 SMILES 的落地例：`C=COCC=C` → `C=CCCC=O` 在无标签时原子映射并不唯一，先让 `reaction_mapping` 返回候选。教材 [3,3] 候选的 product-heavy→reactant-heavy 映射为 `[4,5,6,1,2,3]`，对应断 C3–O4、成 C1–C6；应显式选择该候选，再把具体显式氢结构绑定所得 `atom_map` 交给 `ts_guess interpolate`，不能因为另一个候选图编辑数更少就静默换掉机理。
-- 该反应在 `mechanism-elucidation-sop.md` §3 有 Claisen DAG-guided 示例：delivery DAG 保存中间体 occurrence、候选 elementary edges、stage 契约及证据指针。初猜和扫描只能支撑 `ts_guess` advisory 阶段；鞍点、双向路径、两侧优化极小点、方向与身份需要独立证据。当前绑定顺序和 ORCA strict 验证器限制见 SOP；不能为满足工具形式要求而重复已充分的计算。
+- 该反应在 [mechanism-elucidation-sop.md](../../dft-calculation/references/mechanism-elucidation-sop.md) §3 有 Claisen DAG-guided 示例：delivery DAG 保存中间体 occurrence、候选 elementary edges、stage 契约及证据指针。初猜和扫描只能支撑 `ts_guess` advisory 阶段；鞍点、双向路径、两侧优化极小点、方向与身份需要独立证据。当前绑定顺序和 ORCA strict 验证器限制见 SOP；不能为满足工具形式要求而重复已充分的计算。
 - 预组织：1,5-二烯骨架须能取六元环状椅式排列；`distance_filters` 成键端基对（C1–C6）< 3.0 Å 筛预组织构象。
 - TS 期望：椅式六元环 TS 优先；断/成 σ 键均典型 1.95–2.25 Å（典型区间，芳香性稳定化体系如 Claisen 可偏早）。船式高 5–10 kcal/mol（教材值，随底物漂移）；简并 Cope（bullvalene 类）注意 TS 与中间体之分——某些体系"TS"实为双自由基中间体两侧的耦合鞍点。
 - 必须并建的竞争边：椅式多种取向（决定 Claisen E/Z、手性转移）；船式；解离为两个烯丙基自由基的分步边（含稳定自由基取代基时，如 2,5-二苯基体系，diradical 路径可与协同竞争——`electronic_analysis` spin>1 检查）。

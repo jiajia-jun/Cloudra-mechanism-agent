@@ -51,7 +51,7 @@ When drawing a mechanism graph or proposing a hypothesis to the Supervisor, syst
 
 ## How to Load In-Depth References
 
-Load specific reference chapters for detailed reaction coordinate diagrams, expected transition-state bond lengths, and troubleshooting guides:
+Load specific reference chapters for detailed reaction coordinate diagrams, expected transition-state bond lengths, and troubleshooting guides. The nine guides live only in this skill. Cross-references to computation workflows and method selection belong to `dft-calculation`; load those with `get_skill(skill_name="dft-calculation", reference="<filename>")`:
 
 ```python
 # Example: Load the pericyclic reactions guide

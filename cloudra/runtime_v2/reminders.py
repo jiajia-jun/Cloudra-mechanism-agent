@@ -22,6 +22,9 @@ import time
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
+from pydantic import ValidationError
+
+from cloudra.infra.tool_errors import validation_feedback
 from cloudra.runtime_v2.check_command import (
     CHECK_RUN_TIMEOUT_SECONDS,
     CheckCommandError,
@@ -349,7 +352,12 @@ class ReminderBroker:
     # ------------------------------------------------------------------ tool
 
     async def handle(self, agent: AgentSession, call: ToolCall) -> ToolResult:
-        args = call.arguments or {}
+        from cloudra.tools.Managetool.schedule import ScheduleInput
+
+        try:
+            args = ScheduleInput.model_validate(call.arguments).model_dump()
+        except ValidationError as exc:
+            return _err(validation_feedback(exc))
         action = str(args.get("action") or "create")
         if action == "list":
             schedules = [

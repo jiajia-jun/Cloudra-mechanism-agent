@@ -943,13 +943,13 @@ async def test_stage_bind_makes_stages_supported_in_order(tmp_path):
 
     first = await _call(
         DagBindEvidence, agent, session,
-        tool_call_id="tc-bind", bind_target="step1", stage_kind="ts_opt",
+        attachments=[{'tool_call_id': "tc-bind", 'bind_target': "step1", 'stage_kind': "ts_opt"}],
     )
     assert first.is_success
     assert first.accepted is True
     second = await _call(
         DagBindEvidence, agent, session,
-        tool_call_id="tc-bind", bind_target="step1", stage_kind="frequency",
+        attachments=[{'tool_call_id': "tc-bind", 'bind_target': "step1", 'stage_kind': "frequency"}],
     )
     assert second.is_success
     assert second.accepted is True
@@ -972,7 +972,7 @@ async def test_stage_bind_out_of_order_rejected(tmp_path):
 
     bound = await _call(
         DagBindEvidence, agent, session,
-        tool_call_id="tc-bind", bind_target="step1", stage_kind="frequency",
+        attachments=[{'tool_call_id': "tc-bind", 'bind_target': "step1", 'stage_kind': "frequency"}],
     )
 
     assert not bound.is_success
@@ -1002,7 +1002,7 @@ async def test_ts_guess_agree_never_supports_saddle_stages(tmp_path):
 
     bound = await _call(
         DagBindEvidence, agent, session,
-        tool_call_id="tc-guess", bind_target="step1", stage_kind="ts_guess",
+        attachments=[{'tool_call_id': "tc-guess", 'bind_target': "step1", 'stage_kind': "ts_guess"}],
     )
 
     assert bound.is_success
@@ -1031,7 +1031,7 @@ async def test_pending_ts_guess_never_blocks_ts_opt_bind(tmp_path):
 
     bound = await _call(
         DagBindEvidence, agent, session,
-        tool_call_id="tc-bind", bind_target="step1", stage_kind="ts_opt",
+        attachments=[{'tool_call_id': "tc-bind", 'bind_target': "step1", 'stage_kind': "ts_opt"}],
     )
     assert bound.is_success
     assert bound.accepted is True
@@ -1060,7 +1060,7 @@ async def test_ts_guess_advisory_keeps_other_order_gates(tmp_path):
 
     bound = await _call(
         DagBindEvidence, agent, session,
-        tool_call_id="tc-bind", bind_target="step1", stage_kind="frequency",
+        attachments=[{'tool_call_id': "tc-bind", 'bind_target': "step1", 'stage_kind': "frequency"}],
     )
 
     assert not bound.is_success
@@ -1132,7 +1132,7 @@ async def test_rejected_stage_blocks_later_stages_until_rebound(tmp_path):
 
     rebound = await _call(
         DagBindEvidence, agent, session,
-        tool_call_id="tc-bind", bind_target="step1", stage_kind="ts_opt",
+        attachments=[{'tool_call_id': "tc-bind", 'bind_target': "step1", 'stage_kind': "ts_opt"}],
     )
     assert rebound.is_success
     assert rebound.accepted is True
@@ -1149,7 +1149,7 @@ async def test_bind_evidence_without_registered_evidence_rejected(tmp_path):
 
     bound = await _call(
         DagBindEvidence, agent, session,
-        tool_call_id="tc-running", bind_target="step1", stage_kind="ts_opt",
+        attachments=[{'tool_call_id': "tc-running", 'bind_target': "step1", 'stage_kind': "ts_opt"}],
     )
 
     assert not bound.is_success
@@ -1167,7 +1167,7 @@ async def test_bind_evidence_failed_call_rejected(tmp_path):
 
     bound = await _call(
         DagBindEvidence, agent, session,
-        tool_call_id="tc-bind", bind_target="step1", stage_kind="ts_opt",
+        attachments=[{'tool_call_id': "tc-bind", 'bind_target': "step1", 'stage_kind': "ts_opt"}],
     )
 
     assert not bound.is_success
@@ -1183,7 +1183,7 @@ async def test_bind_evidence_rejected_in_standard_mode(tmp_path):
 
     bound = await _call(
         DagBindEvidence, agent, session,
-        tool_call_id="tc-x", bind_target="step1", stage_kind="ts_opt",
+        attachments=[{'tool_call_id': "tc-x", 'bind_target': "step1", 'stage_kind': "ts_opt"}],
     )
 
     assert not bound.is_success
@@ -2004,8 +2004,7 @@ async def test_bind_evidence_submits_for_review_in_guided_mode(tmp_path):
 
     bound = await _call(
         DagBindEvidence, agent, session,
-        tool_call_id="tc-conv", bind_target="step1", stage_kind="ts_opt",
-        claim="the converted IRC CSV anchors the TS optimization stage",
+        attachments=[{'tool_call_id': "tc-conv", 'bind_target': "step1", 'stage_kind': "ts_opt", 'claim': "the converted IRC CSV anchors the TS optimization stage"}],
     )
     assert bound.is_success is True
     assert bound.accepted is True
@@ -2118,7 +2117,7 @@ async def test_submit_compute_job_call_is_never_stage_evidence(tmp_path):
     # 同一工具调用走 dag_bind_evidence 高层入口同样被拒
     bound = await _call(
         DagBindEvidence, agent, session,
-        tool_call_id="tc-submit", bind_target="step1", stage_kind="ts_opt",
+        attachments=[{'tool_call_id': "tc-submit", 'bind_target': "step1", 'stage_kind': "ts_opt"}],
     )
     assert not bound.is_success
     assert bound.rejection_code == "bind_target_is_submit"

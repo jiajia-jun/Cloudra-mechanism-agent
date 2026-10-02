@@ -51,6 +51,61 @@ async def test_get_skill_includes_references():
     assert "radical.md" in res.content
 
 
+@pytest.fixture
+def isolated_skill_library(tmp_path, monkeypatch):
+    skill = tmp_path / "skills" / "probe"
+    references = skill / "references"
+    references.mkdir(parents=True)
+    (skill / "SKILL.md").write_text(
+        "---\nname: probe\ndescription: Test workflow\n---\nPARENT_WORKFLOW_BODY",
+        encoding="utf-8",
+    )
+    (references / "details.md").write_text("REFERENCE_BODY", encoding="utf-8")
+    monkeypatch.setattr("cloudra.base.skill_class.skill_loader.base_path", str(skill.parent))
+    return skill.parent
+
+
+@pytest.mark.asyncio
+async def test_get_skill_reference_returns_only_requested_guide(isolated_skill_library):
+    """Loading a reference must not re-inject the already loaded parent workflow."""
+    result = await GetSkill().tool_call(
+        GetSkill_input_schema(skill_name="probe", reference="details.md"), None,
+    )
+    assert result.is_success is True
+    assert "REFERENCE_BODY" in result.content
+    assert "PARENT_WORKFLOW_BODY" not in result.content
+    assert "probe" in result.content
+    assert "details.md" in result.content
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("reference", ["", "details.md"])
+async def test_get_skill_file_reads_run_off_event_loop(
+    isolated_skill_library, monkeypatch, reference,
+):
+    """Real skill file reads must not block the caller's async event loop."""
+    import builtins
+    import threading
+    from pathlib import Path
+
+    original_open = builtins.open
+    loop_thread = threading.get_ident()
+    reader_threads = []
+
+    def tracked_open(file, *args, **kwargs):
+        if isinstance(file, (str, Path)) and Path(file).is_relative_to(isolated_skill_library):
+            reader_threads.append(threading.get_ident())
+        return original_open(file, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", tracked_open)
+    result = await GetSkill().tool_call(
+        GetSkill_input_schema(skill_name="probe", reference=reference), None,
+    )
+    assert result.is_success is True
+    assert reader_threads
+    assert all(thread != loop_thread for thread in reader_threads)
+
+
 @pytest.mark.asyncio
 async def test_hub_search_finds_skills():
     """agent_hub(action='search', keyword=...) searches skills dynamically."""

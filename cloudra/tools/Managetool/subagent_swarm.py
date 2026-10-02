@@ -6,11 +6,12 @@
 
 from typing import Any
 
-from pydantic import Field
+from pydantic import ConfigDict, Field, model_validator
 
 from cloudra.base.session_class import Session
 from cloudra.base.tool_actor import ToolActorContext
 from cloudra.base.tools_class import Tool, input_schema, output_schema
+from cloudra.runtime_v2.roles import builtin_role_directory
 
 MIN_ITEMS = 2
 MAX_ITEMS = 128
@@ -22,21 +23,16 @@ description = (
     "- **Assignment contract**: give absolute working paths, inputs, scope boundaries, expected output, evidence, and done criteria. Do not prescribe tool whitelists or step-by-step tool sequences; specialists choose methods within their existing permissions.\n"
     "- **AgentHub**: parallel subtasks can share findings/questions/answers via `agent_hub` and address someone with to_agent (posts are public; addressees and authors of replied-to posts are notified); when dispatching overlapping work, tell them to check the hub first and post conclusions to the hub.\n"
     "- **Concurrency cap**: max_concurrency > 0 limits how many sub-agent instances run at once; default 0 means unlimited.\n"
-    "- **agent_id**: pass ids such as a-1, a-2 — not names like explorer or writer; multiple instances of the same agent_id run in parallel, each with its own session and plan store.\n"
-    "Available sub-agents:\n"
-    "1. explorer (a-1): explore + review. Map project structure and locate files; read-only review of code/docs/data with an evidence-backed report. Read-only.\n"
-    "2. writer (a-2): papers and documents. Write reports, papers, docs. May write files, but cannot run scripts or destructive operations; must pass the security audit.\n"
-    "3. researcher (a-3): literature. Academic search, method breakdown, literature comparison. Full permissions; dangerous ops need strict review.\n"
-    "4. small_mol (a-4): small-molecule compute. Gaussian/ORCA molecular/cluster QM: conformers, TS, spectra, energies.\n"
-    "5. md (a-5): molecular dynamics. GROMACS/LAMMPS system build, equilibration, sampling, and trajectory analysis.\n"
-    "6. dft (a-6): first-principles. VASP/CP2K periodic systems: bulk, surfaces, defects, electronic properties.\n"
-    "7. experiment (a-7): experimental design. DOE, controls, characterization matrix, safety assessment, and failure diagnosis.\n"
-    "8. env (a-8): environment management. Dependency install, conda/venvs, build config, HPC job environments. Full permissions; strict review."
+    "- **role_id**: use a semantic role id, such as explorer or small_mol; "
+    "instances of that role run in parallel, each with its own session and plan store.\n"
+    + builtin_role_directory()
 )
 
 
 class SubAgentSwarm_input_schema(input_schema):
-    agent_id: str = Field(description="Unique id of the sub-agent to dispatch in parallel, e.g. a-1, a-4 — not a name such as explorer or small_mol")
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    role_id: str = Field(description="Semantic role id from the role directory, e.g. explorer or small_mol")
     prompt_template: str = Field(
         description=(
             "Task template; must contain the {{item}} placeholder, expanded per item in items. "
@@ -44,9 +40,11 @@ class SubAgentSwarm_input_schema(input_schema):
         )
     )
     items: list[str] = Field(
+        min_length=MIN_ITEMS,
+        max_length=MAX_ITEMS,
         description=f"List of task items to run in parallel ({MIN_ITEMS}–{MAX_ITEMS} items); each replaces {{{{item}}}} in the template to form one subtask."
     )
-    context: list = Field(
+    context: list[dict[str, Any]] = Field(
         default_factory=list,
         description=(
             "Initial context injected into every subtask. "
@@ -65,8 +63,17 @@ class SubAgentSwarm_input_schema(input_schema):
     )
     max_concurrency: int = Field(
         default=0,
+        ge=0,
         description="Max number of sub-agent instances running at once. 0 means unlimited; >0 uses a semaphore."
     )
+
+    @model_validator(mode="after")
+    def validate_tasks(self):
+        if "{{item}}" not in self.prompt_template:
+            raise ValueError("prompt_template must contain the {{item}} placeholder")
+        if len(set(self.items)) != len(self.items):
+            raise ValueError("items must expand to distinct task descriptions")
+        return self
 
 
 class SubAgentSwarm_output_schema(output_schema):
@@ -112,10 +119,6 @@ class SubAgentSwarm(Tool):
         return self._error(
             "[System error] SubAgentSwarm is handled by runtime_v2; the legacy dispatch path no longer exists."
         )
-
-    def get_subagents(self) -> list[str]:
-        return []
-
 
 def get_class():
     return SubAgentSwarm

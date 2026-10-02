@@ -219,7 +219,7 @@ async def test_cancel_parent_cascades_to_async_child():
                     ToolCall(
                         id="t1",
                         name="subagent_launcher",
-                        arguments={"agent_id": "a-1", "query": "explore X", "is_wait": False},
+                        arguments={"role_id": "explorer", "query": "explore X", "is_wait": False},
                     )
                 ],
             ),
@@ -263,7 +263,7 @@ async def test_cancel_parent_cancels_launch_group():
                         id="t1",
                         name="subagent_swarm",
                         arguments={
-                            "agent_id": "a-1",
+                            "role_id": "explorer",
                             "prompt_template": "scan {{item}}",
                             "items": ["alpha", "beta", "gamma"],
                             "is_wait": False,
@@ -309,7 +309,7 @@ async def test_cancel_during_wait_swarm_still_cascades():
                         id="t1",
                         name="subagent_swarm",
                         arguments={
-                            "agent_id": "a-1",
+                            "role_id": "explorer",
                             "prompt_template": "scan {{item}}",
                             "items": ["alpha", "beta"],
                             "is_wait": True,
@@ -346,7 +346,7 @@ async def test_aclose_with_live_launch_group_leaves_no_orphans():
                         id="t1",
                         name="subagent_swarm",
                         arguments={
-                            "agent_id": "a-1",
+                            "role_id": "explorer",
                             "prompt_template": "scan {{item}}",
                             "items": ["alpha", "beta", "gamma"],
                             "is_wait": False,

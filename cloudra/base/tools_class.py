@@ -2,14 +2,11 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from pydantic_core import PydanticUndefined
 
 from cloudra.base.session_class import Session
 from cloudra.persistence.database import ConversationDB, get_database_path
-
-# HACK: 这里原本缺少 import，属于历史遗留问题；get_tools_lst 定义在 tools/__init__.py
-from cloudra.tools import get_tools_lst
 from cloudra.tools.core.permission_model import Permission
 
 if TYPE_CHECKING:
@@ -39,16 +36,6 @@ def _tool_db_path(subagent) -> str:
     return get_database_path(conv_id)
 
 
-def get_tools() -> list[dict]:
-    """将工具类加载为 OpenAI function 格式的 dict 列表。"""
-    entries = get_tools_lst()
-    tools_list = []
-    for entry in entries:
-        tool_instance = entry.instantiate()
-        tools_list.append(tool_instance.tool_schema_json())
-    return tools_list
-
-
 class input_schema(BaseModel):
     '''
     工具输入模式基类，定义工具需要的输入参数和格式。
@@ -60,6 +47,8 @@ class input_schema(BaseModel):
 
     通过 to_parameters_schema() 可自动生成符合 OpenAI Function Calling 规范的 parameters 字典。
     '''
+
+    model_config = ConfigDict(extra="forbid")
 
     @classmethod
     def to_parameters_schema(cls) -> dict:
@@ -79,26 +68,6 @@ class input_schema(BaseModel):
         if "$defs" in schema:
             parameters["$defs"] = schema["$defs"]
         return parameters
-
-    @classmethod
-    def from_args(cls, arg_dict: dict) -> "input_schema":
-        '''从 LLM 返回的 arguments dict 构造输入实例，带 Pydantic 类型校验。'''
-        return cls(**arg_dict)
-
-    def toClass(self, arg_dict: dict) -> "input_schema":
-        '''
-        兼容旧接口，供 reAct.py 调用。
-        实际调用链通常为 tool.input_schema.toClass(tool_args)，此时 self 为 input_schema 子类本身。
-        '''
-        # 当通过类调用时（如 TextReader_input_schema.toClass(args)），self 即为类对象
-        if isinstance(self, type) and issubclass(self, input_schema):
-            return self(**arg_dict)
-        return self.__class__(**arg_dict)
-
-    def toJson(self) -> dict:
-        '''实例序列化为 dict，用于日志或上下文回传。'''
-        return self.model_dump(mode="json")
-
 
 class output_schema(BaseModel):
     '''
@@ -181,8 +150,7 @@ class Tool(BaseModel):
     async def safe_call(self, user_input: input_schema, session: Session) -> output_schema:
         '''
         带有通用异常捕获的工具调用包装器。
-        工具执行失败时抛出包含工具名的 RuntimeError，由 reAct.act_result() 统一捕获并回传给 LLM。
-        消息以 [Tool error] 前缀 + 工具名 + 恢复指引成形；react 层识别该前缀后不再二次套壳。
+        工具执行失败时抛出包含工具名的 RuntimeError，由 runtime_v2 执行边界记录和回传。
         '''
         try:
             return await self.tool_call(user_input, session)
@@ -323,23 +291,3 @@ class Tool(BaseModel):
                 "parameters": (self._get_field_default('input_schema') or input_schema).to_parameters_schema(),
             }
         }
-
-    def toJson(self) -> dict:
-        '''
-        实例级序列化，主要用于日志或调试。
-        若需获取 OpenAI schema，请使用类方法 tool_schema_json()。
-        '''
-        return {
-            "tool_id": self.tool_id,
-            "tool_name": self.tool_name,
-            "tool_description": self.tool_description,
-        }
-
-    @classmethod
-    def build_input(cls, arg_dict: dict) -> input_schema:
-        '''
-        将 LLM 返回的参数字典转换为 input_schema 实例。
-        供 reAct.py 调用，替代原有的 tool.input_schema.toClass(tool_args)。
-        '''
-        schema_cls = cls._get_field_default('input_schema') or input_schema
-        return schema_cls.from_args(arg_dict)

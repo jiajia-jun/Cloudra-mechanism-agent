@@ -1,6 +1,8 @@
 # 氧化还原：机理可能性与建模
 
-范围：底物与氧化剂/还原剂之间发生形式氧转移、氢（氢化物/氢原子/质子+电子）转移的反应结果——烯烃环氧化、双羟化、醇氧化、羰基与烯还原、C–H 氧化。同一净结果常有多条机理通道（协同氧转移 vs 金属杂环 vs 自由基逐步；直接氢化物转移 vs 表面加氢 vs 环状氢转移），agent 必须先枚举假设再让能垒与电子结构裁决。通用流程见 `mechanism-elucidation-sop.md`；五问题框架与通用几何见 `reaction-class-geometry.md`；质子穿梭见 `reaction-class-geometry.md` §3.1，自由基工作流见 `mechanisms/radical.md`（本文不重复展开）。
+章节读取：同技能参考用 `get_skill(skill_name="reaction-mechanisms", reference="<文件名>.md")`；下文链接的通用计算参考用 `get_skill(skill_name="dft-calculation", reference="<文件名>.md")`。
+
+范围：底物与氧化剂/还原剂之间发生形式氧转移、氢（氢化物/氢原子/质子+电子）转移的反应结果——烯烃环氧化、双羟化、醇氧化、羰基与烯还原、C–H 氧化。同一净结果常有多条机理通道（协同氧转移 vs 金属杂环 vs 自由基逐步；直接氢化物转移 vs 表面加氢 vs 环状氢转移），agent 必须先枚举假设再让能垒与电子结构裁决。通用流程见 [mechanism-elucidation-sop.md](../../dft-calculation/references/mechanism-elucidation-sop.md)；五问题框架与通用几何见 [reaction-class-geometry.md](../../dft-calculation/references/reaction-class-geometry.md)；质子穿梭见 [reaction-class-geometry.md](../../dft-calculation/references/reaction-class-geometry.md) §3.1，自由基工作流见 [radical.md](radical.md)（本文不重复展开）。
 
 ## 机理假设空间
 
@@ -108,9 +110,9 @@
 ## 硼氢化物氢转移（NaBH₄ 等）
 
 - 键变化：forming C–H、breaking B–H；羰基 π 断。`watch_pairs`：B–H、H–C、C–O。扫描坐标：H–C（缩短）。
-- 预组织：Bürgi–Dunitz 进攻角（谓词参见 `mechanisms/carbonyl.md` 直接亲核加成节）；Na⁺/质子溶剂配位羰基 O 显著降垒——**阳离子与溶剂壳要显式进模型**。`distance_filters`：转移 H 到羰基 C 1.5–2.5 Å；Na⁺–O(carbonyl) 2.0–2.6 Å。
+- 预组织：Bürgi–Dunitz 进攻角（谓词参见 [carbonyl.md](carbonyl.md) 直接亲核加成节）；Na⁺/质子溶剂配位羰基 O 显著降垒——**阳离子与溶剂壳要显式进模型**。`distance_filters`：转移 H 到羰基 C 1.5–2.5 Å；Na⁺–O(carbonyl) 2.0–2.6 Å。
 - TS 期望：forming C–H 约 1.4–1.8 Å、breaking B–H 约 1.3–1.6 Å（典型区间，待核实，随 Lewis 酸活化程度漂移）；醛早 TS、酮晚 TS（Hammond）。
-- 必须并建：Felkin–Anh 两面（手性酮，谓词见 `mechanisms/carbonyl.md` 直接亲核加成节）；第二/三/四次氢转移（BH₄⁻ 四个氢活性递增不同，烷氧基累积改变后续垒）按需要建后续节点；Luche 条件（Ce³⁺）配位模式不同。
+- 必须并建：Felkin–Anh 两面（手性酮，谓词见 [carbonyl.md](carbonyl.md) 直接亲核加成节）；第二/三/四次氢转移（BH₄⁻ 四个氢活性递增不同，烷氧基累积改变后续垒）按需要建后续节点；Luche 条件（Ce³⁺）配位模式不同。
 - 误诊信号：气相无反离子的裸模型垒虚高 → 不是机理错，是模型缺 Na⁺/溶剂；CBS 类催化还原另有自己的环状 TS，勿套用裸 BH₄ 边。
 
 ## 催化氢化（表面，Horiuti–Polanyi）
@@ -145,14 +147,14 @@
 - 预组织：C–H 指向 oxo，近线性 σ 通道；`distance_filters`：O(oxo) 到目标 H 1.5–2.5 Å；C–H···O 角 > 140 °（π 通道/σ 通道影响位点选择，角度区间典型值，随体系漂移）。
 - TS 期望：HAT TS 中 O–H 约 1.2–1.4 Å、C–H 约 1.3–1.5 Å（典型区间，Bell–Evans–Polanyi：垒随 C–H BDE 与极性效应漂移）；回弹垒常很低（约 1–10 kcal/mol，漂移大）。M=O 键长约 1.6–1.7 Å（Feᴵⱽ，典型值）。
 - 必须并建：每个可夺氢位点一条 HAT 边（BDE + 极性/位阻排序）；各可行自旋态各一条（两态反应性：HS/LS 面交叉，决速 TS 可能不在基态面）；回弹 vs 非回弹（自由基逃逸、第二次夺氢脱饱和、重排）边。
-- 误诊信号：回弹垒 > HAT 垒 → 检查自旋态或该体系实为非回弹机理；中间体优化直接塌缩成醇（无自由基极小点）→ 垒极小，符合快速回弹；`⟨S²⟩` 偏差 ≳0.1 → 按 `method-selection.md` 打折能垒结论并诊断（`electronic_analysis` spin>1 自动 UKS；实用触发器，非自动 fail）。
+- 误诊信号：回弹垒 > HAT 垒 → 检查自旋态或该体系实为非回弹机理；中间体优化直接塌缩成醇（无自由基极小点）→ 垒极小，符合快速回弹；`⟨S²⟩` 偏差 ≳0.1 → 按 [method-selection.md](../../dft-calculation/references/method-selection.md) 打折能垒结论并诊断（`electronic_analysis` spin>1 自动 UKS；实用触发器，非自动 fail）。
 
 ## 领域级陷阱
 
 - **先定活性种再建边**：H₂O₂/过氧体系真正转移氧的是过酸、金属过氧或金属氧代物种，不是 H₂O₂ 本身；活性种没定（配位数、质子化态、自旋态）就开始扫是全流程最贵的错误。
 - **自旋态枚举漏建**：金属氧代/过氧体系每个节点枚举可行自旋态，两态反应性下基态势能面可能不含决速 TS；只算一个自旋面的结论不可信。
 - **把已淘汰机理当主假设**：Mimoun 金属杂环、OsO₄ [2+2]、平面过酸 TS 的历史角色是判别对象；正确用法是建成竞争边用键级/IRC/立体化学裁决，而非默认主路径。
-- **教科书决速步不可预设**：Swern 苄醇体系实测去质子化决速而非消除；酰基转移类同理（参见 `mechanisms/carbonyl.md` 加成-消除节）。预平衡节点全部进假设图，各边都算。
+- **教科书决速步不可预设**：Swern 苄醇体系实测去质子化决速而非消除；酰基转移类同理（参见 [carbonyl.md](carbonyl.md) 加成-消除节）。预平衡节点全部进假设图，各边都算。
 - **多相表面机理的模型层级**：催化氢化簇模型结论不能外推表面；报告必须标注模型层级（簇/ slab /实验），不要拿小簇 ΔG‡ 与实验速率直接定量比较。
 - **立体化学是最便宜的机理探针**：cis 烯出 trans 环氧（自由基逐步）、羟化构型打乱（长寿命自由基）、syn vs anti 二醇——算完务必拿产物立体化学回验机理假设，再写结论。
 

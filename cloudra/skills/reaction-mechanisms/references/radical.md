@@ -1,6 +1,8 @@
 # 自由基反应：机理可能性与建模
 
-范围：涉及开壳层中间体的有机反应——链式取代/加成、HAT、自由基环化与碎片化，以及引发/终止步。总 SOP 与五问题框架参见 `mechanism-elucidation-sop.md` 与 `reaction-class-geometry.md` §1；开壳层通用判据（`<S^2>`、自旋污染）见本文"开壳层计算工作流差异"节。本文展开自由基领域特有的假设空间与几何谓词。
+章节读取：同技能参考用 `get_skill(skill_name="reaction-mechanisms", reference="<文件名>.md")`；下文链接的通用计算参考用 `get_skill(skill_name="dft-calculation", reference="<文件名>.md")`。
+
+范围：涉及开壳层中间体的有机反应——链式取代/加成、HAT、自由基环化与碎片化，以及引发/终止步。总 SOP 与五问题框架参见 [mechanism-elucidation-sop.md](../../dft-calculation/references/mechanism-elucidation-sop.md) 与 [reaction-class-geometry.md](../../dft-calculation/references/reaction-class-geometry.md) §1；开壳层通用判据（`<S^2>`、自旋污染）见本文"开壳层计算工作流差异"节。本文展开自由基领域特有的假设空间与几何谓词。
 
 # 机理假设空间
 
@@ -13,7 +15,7 @@
 | β-scission（碎片化） | 烷氧基自由基、β-位有可断 C–C/C–X 键的碳自由基 | R· → 断键 TS → 烯烃/羰基 + 小自由基 | 断键键级近 0、SOMO 与 σ* 需共平面对齐；与分子内 HAT（1,5-H 迁移）竞争，两条边并建 |
 | 笼效应路径 | 引发剂分解、光解生成的自由基对、高粘度介质 | 笼内自由基对 → [笼内重组 / 扩散逃逸] → 自由自由基 | 气相/单分子计算给出均裂无垒曲线即提示笼与扩散是真实瓶颈；重组边用自由基对复合物为节点 |
 
-通用基元步剪枝、决速步判据与 ΔΔG‡→选择性换算见 `reaction-class-geometry.md` §3.3，不重复。
+通用基元步剪枝、决速步判据与 ΔΔG‡→选择性换算见 [reaction-class-geometry.md](../../dft-calculation/references/reaction-class-geometry.md) §3.3，不重复。
 
 # 链式机理三段式：假设图建法
 
@@ -36,7 +38,7 @@
 
 - **Q1 键变化**：forming R–C（自由基中心 → 烯烃一个碳），C=C π 断、自由基中心转移到远端碳。`watch_pairs` = [R···C、C=C]；扫描坐标 = R···C 缩短。
 - **Q3 TS 期望**：进攻角约 100–110；R–C 在 TS 约 2.2–2.6（放热加成 → 早 TS）。
-- **Q4 竞争边**：烯烃两端各一条边决定区域选择性；与 HAT（夺烯丙位氢）、闭壳层加成边并建——闭壳层机理的判别入口与 1,2-/1,4- 竞争见 `mechanisms/addition.md`。
+- **Q4 竞争边**：烯烃两端各一条边决定区域选择性；与 HAT（夺烯丙位氢）、闭壳层加成边并建——闭壳层机理的判别入口与 1,2-/1,4- 竞争见 [addition.md](addition.md)。
 - **Q5 误诊信号**：TS 上自旋布居未从进攻自由基迁移到远端碳 → 找的不是加成 TS；双自由基特征明显时单参考 DFT 能垒要打折。
 
 # HAT（氢原子转移）
@@ -52,7 +54,7 @@
 - **Q1 键变化**：forming C–C（自由基中心 → 烯烃近端碳）。`watch_pairs` = [C·–C=C 近端碳、C=C 本身（环化后变单键）]。
 - **Q2 预组织**：`distance_filters`：自由基中心到目标烯碳 < 3.5 Å；链节构象决定椅式/船式——取代基伪赤道位的椅式构象（Beckwith–Houk 模型）通常是优势边，船式边也必须建。
 - **Q3 TS 期望**：forming C–C ≈ 2.2–2.4 Å、进攻角 C·–C=C ≈ 108°（5-己烯基环化计算值 2.30 Å / 108.2°，典型区间随底物与 Hammond 漂移）；环化多为放热 → 早 TS，产物样结构输入常导致 TS 塌缩，初猜键长宁长勿短。
-- **Q4 竞争边**：① 5-exo vs 6-endo 各一条边——**5-exo 动力学优先（Baldwin 规则，参见 `reaction-class-geometry.md` §3.2），即使 endo 产物自由基更稳定**；② 椅式/船式、取代基伪赤道/伪轴向各一条边，ΔΔG‡ 决定非对映选择性；③ 环化自由基的后续边（HAT 猝灭 vs 串联再环化）。
+- **Q4 竞争边**：① 5-exo vs 6-endo 各一条边——**5-exo 动力学优先（Baldwin 规则，参见 [reaction-class-geometry.md](../../dft-calculation/references/reaction-class-geometry.md) §3.2），即使 endo 产物自由基更稳定**；② 椅式/船式、取代基伪赤道/伪轴向各一条边，ΔΔG‡ 决定非对映选择性；③ 环化自由基的后续边（HAT 猝灭 vs 串联再环化）。
 - **Q5 误诊信号**：IRC 从 5-exo TS 接出更稳定产物 → 初猜实际落在 6-endo 边上；exo 边算出的能垒反而高于 endo 边很多（>5 kcal/mol）→ 检查烯烃取代基电子效应是否反转了区域选择性（缺电子烯 + 亲核自由基可翻转偏好），而非直接判计算错。
 
 # 碎片化（β-scission）
@@ -73,7 +75,7 @@
 
 - 所有自由基物种 `electronic_analysis` 设 `spin≥2`（自动 UKS）；TS 搜索输入文件同样用非限制性（`qm_input_writer` 选 UKS/UNO 初猜）。
 - 每条边验证后加一步：反应物/TS/产物的**自旋布居轨迹**——自由基中心必须按假设路径迁移；TS 上未成对电子应分布在"旧中心 + 新中心"上（各 ~0.5 典型），若全在一侧说明找的是络合物而非反应 TS。
-- `⟨S²⟩` 验证：双自由基/开壳层单重态用破缺对称性 UKS（`guess=mix`），`⟨S²⟩` 显著偏离 0/1 且结构合理时可用 Yamaguchi 自旋投影校正能量。偏差 ≳0.1 是**实用触发器**：按 `method-selection.md` 打折单参考结论、核对自旋布居/stability；不是自动 pass/fail，也不能给 MLIP 强加不存在的波函数诊断。
+- `⟨S²⟩` 验证：双自由基/开壳层单重态用破缺对称性 UKS（`guess=mix`），`⟨S²⟩` 显著偏离 0/1 且结构合理时可用 Yamaguchi 自旋投影校正能量。偏差 ≳0.1 是**实用触发器**：按 [method-selection.md](../../dft-calculation/references/method-selection.md) 打折单参考结论、核对自旋布居/stability；不是自动 pass/fail，也不能给 MLIP 强加不存在的波函数诊断。
 - 能垒报告注明方法敏感性：强双自由基特征的 TS（如碎片化晚 TS、环化早 TS 的极端异步情形）单参考 DFT 能垒系统性偏差可达数 kcal/mol（典型量级，待逐体系核实），竞争边 ΔΔG‡ < 3 kcal/mol 时不应过度解读。
 
 # 领域级陷阱

@@ -10,8 +10,7 @@ runtime_v2 的各 Agent 共享项目事件日志。本工具把事件日志变�
 不引入向量检索依赖。
 """
 
-import re
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import Field
 
@@ -26,12 +25,23 @@ _SEARCH_SCAN_LIMIT = 500
 
 def _query_tokens(text: str) -> set[str]:
     """英文按词、中文按 bigram 切 token，供模糊检索。"""
-    tokens = set(re.findall(r"[a-z0-9_]+", text.lower()))
-    for run in re.findall(r"[一-鿿]+", text):
-        if len(run) == 1:
-            tokens.add(run)
-        else:
-            tokens.update(run[i : i + 2] for i in range(len(run) - 1))
+    tokens: set[str] = set()
+    run: list[str] = []
+    kind = ""
+    for char in text.lower() + " ":
+        current = (
+            "word" if char in "abcdefghijklmnopqrstuvwxyz0123456789_" else
+            "cjk" if "一" <= char <= "鿿" else ""
+        )
+        if current != kind:
+            if kind == "word" or (kind == "cjk" and len(run) == 1):
+                tokens.add("".join(run))
+            elif kind == "cjk":
+                tokens.update("".join(run[i:i + 2]) for i in range(len(run) - 1))
+            run = []
+            kind = current
+        if current:
+            run.append(char)
     return tokens
 
 
@@ -50,7 +60,7 @@ def _fuzzy_score(query: str, text: str) -> float:
 description = (
     "AgentHub: a shared information forum for all parallel Agents. Every post is public to every Agent. You can:\n"
     "- **post**: publish a finding, question, answer, broadcast, or message; pass parent_id to reply to a post.\n"
-    "- **Addressing and notifications**: on post you may set to_agent (role name such as small_mol, ID such as a-4, or coordinator) "
+    "- **Addressing and notifications**: on post you may set to_agent (semantic role_id such as small_mol or coordinator, or session_id) "
     "to say who the content is mainly for — the post itself remains a public discussion trail anyone can read; "
     "the addressed Agent is notified immediately, and the original author is notified when their post is replied to.\n"
     "- **browse**: list recent topics and activity.\n"
@@ -66,27 +76,29 @@ description = (
 
 
 class AgentHub_input_schema(input_schema):
-    action: str = Field(description="Action: post / browse / read / search / directory / call")
+    action: Literal["post", "browse", "read", "search", "directory", "call"] = Field(
+        description="Action: post / browse / read / search / directory / call",
+    )
     topic: str = Field(default="", description="Topic name (required for post/read), e.g. 'CO2 hydrogenation - literature'")
     content: str = Field(default="", description="Post body (required for post); must be self-contained")
-    kind: str = Field(
+    kind: Literal["finding", "question", "answer", "broadcast", "message"] = Field(
         default="finding",
         description="Post kind: finding / question / answer / broadcast / message; all posts are public"
     )
     to_agent: str = Field(
         default="",
-        description="Addressee: role name (e.g. small_mol), Agent ID (e.g. a-4), or coordinator; the post stays public and the addressee is notified"
+        description="Addressee: semantic role_id (e.g. small_mol or coordinator) or session_id; the post stays public and the addressee is notified"
     )
     to: str = Field(
         default="",
-        description="call target: session_id, agent_id (e.g. a-4), role name (e.g. small_mol), or coordinator",
+        description="call target: session_id or semantic role_id (e.g. small_mol or coordinator)",
     )
     message: str = Field(default="", description="What you say to the other side on call (not a role prompt)")
     post_id: Optional[str] = Field(
         default=None,
         description="Related post ID for call; for post, retry missing notifications on this same post ID with unchanged fields",
     )
-    parent_id: Optional[str] = Field(default=None, description="Post ID to reply to (string event id; old integer ids are accepted by the bridge)")
+    parent_id: Optional[str] = Field(default=None, description="Post ID to reply to (string event id)")
     keyword: str = Field(default="", description="Search keyword (required for search); fuzzy match, synonyms/inexact phrasing OK")
     limit: int = Field(default=20, description="Maximum number of items to return")
     cursor: Optional[str] = Field(default=None, description="Opaque browse cursor returned by a previous browse page")

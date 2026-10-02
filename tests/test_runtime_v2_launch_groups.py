@@ -181,7 +181,7 @@ async def test_capped_swarm_dispatches_after_compute_park_and_caps_resumed_runs(
         llm=llm, tools=NoTools(),
     ))
     dispatched = await _handle_swarm(core, parent, {
-        "agent_id": "a-4", "prompt_template": "work on {{item}}",
+        "role_id": "small_mol", "prompt_template": "work on {{item}}",
         "items": ["one", "two", "three"], "is_wait": False,
         "max_concurrency": 1,
     })

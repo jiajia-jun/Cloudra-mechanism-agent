@@ -11,7 +11,7 @@ from cloudra.runtime_v2.adapters import (
     LegacyLLMProvider,
     LegacyPromptProvider,
     LegacyToolExecutor,
-    _parse_tool_calls,
+    _parse_merged_tool_calls,
     _to_api_message,
     legacy_tool_schemas,
 )
@@ -358,18 +358,11 @@ def test_extract_delta_reasoning_compatibility():
     assert _extract_delta_reasoning(d7) is None
 
 
-def test_parse_tool_calls_handles_json_args():
-    raw = SimpleNamespace(
-        message=SimpleNamespace(
-            tool_calls=[
-                SimpleNamespace(
-                    id="tc1",
-                    function=SimpleNamespace(name="stop", arguments='{"reason": "done"}'),
-                )
-            ]
-        )
-    )
-    calls = _parse_tool_calls(raw)
+def test_parse_merged_tool_calls_handles_json_args():
+    calls = _parse_merged_tool_calls([{
+        "id": "tc1", "function": {"name": "stop", "arguments": '{"reason": "done"}'},
+    }])
+    assert calls[0].id == "tc1"
     assert calls[0].name == "stop"
     assert calls[0].arguments == {"reason": "done"}
 

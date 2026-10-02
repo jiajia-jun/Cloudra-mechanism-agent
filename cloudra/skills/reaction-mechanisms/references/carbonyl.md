@@ -1,6 +1,8 @@
 # 羰基化合物反应：机理可能性与建模
 
-范围：醛酮/羧酸衍生物的 sp² 碳上成键（亲核加成、酰基转移、α-碳成键、烯化）。总 SOP 与五问题框架见 `mechanism-elucidation-sop.md` 与 `reaction-class-geometry.md` §1（羰基加成与酰基转移的基线谓词已并入本文相应节；质子转移通用谓词见 `reaction-class-geometry.md` §3.1）。所有数值为典型区间，随底物、亲核试剂、溶剂与催化条件漂移（Hammond），只用于初猜与筛选，裁决永远是频率 + IRC。
+章节读取：同技能参考用 `get_skill(skill_name="reaction-mechanisms", reference="<文件名>.md")`；下文链接的通用计算参考用 `get_skill(skill_name="dft-calculation", reference="<文件名>.md")`。
+
+范围：醛酮/羧酸衍生物的 sp² 碳上成键（亲核加成、酰基转移、α-碳成键、烯化）。总 SOP 与五问题框架见 [mechanism-elucidation-sop.md](../../dft-calculation/references/mechanism-elucidation-sop.md) 与 [reaction-class-geometry.md](../../dft-calculation/references/reaction-class-geometry.md) §1（羰基加成与酰基转移的基线谓词已并入本文相应节；质子转移通用谓词见 [reaction-class-geometry.md](../../dft-calculation/references/reaction-class-geometry.md) §3.1）。所有数值为典型区间，随底物、亲核试剂、溶剂与催化条件漂移（Hammond），只用于初猜与筛选，裁决永远是频率 + IRC。
 
 ## 机理假设空间
 
@@ -19,7 +21,7 @@
 | 酸催化烯醇路径 | 酸催化 α-卤化、氘代、外消旋 | 羰基质子化 → 去 α-H → 烯醇 → 亲电进攻 → 去质子 | 中间体为中性烯醇（C=C），进攻步无金属配位 |
 | Wittig（[2+2] 直接成环） | 磷叶立德 + 醛酮，无/少 Li 盐 | 络合物 → [2+2] TS → 氧磷杂环丁烷 → syn 环反转 → 烯烃 + Ph₃P=O | 无 betaine 极小点；两步 TS（成环、解环） |
 | Horner–Wadsworth–Emmons | 膦酸酯碳负离子 + 醛酮 | 加成 → 氧磷杂环丁烷（或开式氧负离子）→ 消除 → E 烯烃 | P 上有额外烷氧基；消除步伴随磷酸酯离去 |
-| 羰基还原 | 氢化物/催化氢化/转移氢化 | 参见 mechanisms/redox.md | — |
+| 羰基还原 | 氢化物/催化氢化/转移氢化 | 参见 [redox.md](redox.md) | — |
 
 ## 直接亲核加成（含 Lewis 酸/酸催化变体）
 
@@ -71,7 +73,7 @@
 ## 烯醇盐酰基化（Claisen 缩合 / Dieckmann）
 
 - 键变化：Cα–C(酰基) 成 → 四面体中间体 → C–OR 断；末尾产物 α-H 被碱拔掉（热力学汇）。`watch_pairs` = [Cα–C, C–OR, Base–H(产物α)]。
-- 预组织：同 aldol 的金属螯合谓词；Dieckmann 环化另按 Baldwin 规则预筛环尺寸（参见 `reaction-class-geometry.md` §3.2）。
+- 预组织：同 aldol 的金属螯合谓词；Dieckmann 环化另按 Baldwin 规则预筛环尺寸（参见 [reaction-class-geometry.md](../../dft-calculation/references/reaction-class-geometry.md) §3.2）。
 - TS 期望：加成 TS forming C–C 约 2.0–2.3；消除 TS C–OR 约 1.9–2.3（典型区间，随底物漂移）。
 - 必须并建的竞争边：酮醇副反应（产物 β-酮酯再被烯醇盐进攻）；酯交换边（碱烷氧基与底物烷氧基不匹配时）；自缩合 vs 交叉缩合取向边。
 - 误诊信号：ΔG 剖面漏掉末尾去质子节点 → 整个缩合显示为热力学禁行而误判机理不可行；酯 pKa 约 25 vs 醇约 16，烷氧碱生成的烯醇盐是低浓度平衡物种，不要把"烯醇盐"当自由反应物零点。
@@ -126,4 +128,4 @@
 - 有机催化（脯氨酸 Mannich、烯胺/亚胺离子）计算综述：Cheong et al., "Quantum Mechanical Investigations of Organocatalysis", https://pmc.ncbi.nlm.nih.gov/articles/PMC3154597/。
 - Wittig 机理统一图景（无 Li 盐 [2+2]、cis-OPA 选择性）：Gilheany 组实验证据（ResearchGate 记录）及 McLeod 博士论文, https://macsphere.mcmaster.ca/bitstream/11375/20458/2/McLeod_David_A_201609_phd.pdf；氧磷杂环丁烷形成的计算分析：Chamorro et al. 2020, https://pubmed.ncbi.nlm.nih.gov/32293888/；P–C/C–O 扫描网格实例：Quapp et al., https://www.mathematik.uni-leipzig.de/MI/quapp/Wittig_OEEF06_GA.pdf。
 - Claisen 缩合机理与去质子驱动：β-二酮配体综述（MDPI Molecules）及 Clayden《Organic Chemistry》2nd ed. 相关章节。
-- 反应类跨领域通用判读（质子转移、Baldwin 规则、判读速查）：`reaction-class-geometry.md` §3；还原反应参见 mechanisms/redox.md。
+- 反应类跨领域通用判读（质子转移、Baldwin 规则、判读速查）：[reaction-class-geometry.md](../../dft-calculation/references/reaction-class-geometry.md) §3；还原反应参见 [redox.md](redox.md)。

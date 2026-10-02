@@ -23,7 +23,7 @@ There is exactly one persistent graph — the delivery (mechanism) graph. A guid
 - `dag_review_step` / `dag_review_species`: Supervisor only (`dag_guided`): adjudicate the active item with `step_name` or `species_name`, `verdict` (`supported` or `rejected`), and `rationale`.
 - `dag_review_evidence`: Supervisor only (`dag_guided`): Resolve a queued structured review request with a basis-matched decision.
 - `dag_review_call`: Supervisor lower-level review interface (adjudicates a CallReview by `stage_kind` and verdict).
-- `dag_bind_evidence`: Lower-level evidence binding interface.
+- `dag_bind_evidence`: Bind finished calls using `attachments: [{tool_call_id, bind_target, stage_kind, claim, rationale}]`. Each claim and rationale belongs to its attachment; use a one-element list for a single bind. In `dag_guided`, each attachment needs a claim and enters the Supervisor's review queue.
 - `dag_set_coverage_contract`: Supervisor only (`dag_guided`): Strengthen delivery coverage requirements.
 - `dag_message_supervisor`: Send a structured review request (appeals, blockers, notes) to the Supervisor.
 - `dag_delivery_report` / `dag_view`: Inspect graph topology, review status, and element delivery coverage.
@@ -42,7 +42,7 @@ Advance through these activities as evidence becomes available:
 4. **Supervisor review**: Supervisor is woken (`mechanism_proposed`) and calls `dag_accept_mechanism`. Accept records the draft review state; computation and branching do not wait for that decision. Reject returns the draft with a reason for revision.
 5. **Compute & Advance**: sub-agents run calculations and report outputs.
 6. **Explicit evidence submission**: submit finished outputs with `dag_submit_step_evidence` and `dag_submit_species_evidence`. Only submitted logs enter the Supervisor's active review queue.
-7. **Supervisor adjudication**: Supervisor reviews the active item via `dag_review_step` / `dag_review_species` with `verdict` and `reason`. Verdict notifications arrive in the submitter's mailbox.
+7. **Supervisor adjudication**: Supervisor reviews the active item via `dag_review_step` / `dag_review_species` with `verdict` and `rationale`. Verdict notifications arrive in the submitter's mailbox.
 8. **Delivery**: verify with `dag_delivery_report` before calling `stop`.
 
 ## dag_record workflow

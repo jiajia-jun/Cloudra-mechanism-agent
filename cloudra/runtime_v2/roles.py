@@ -110,6 +110,17 @@ BUILTIN_ROLES: tuple[RoleProfile, ...] = (
 )
 
 
+def builtin_role_directory() -> str:
+    """Describe built-in identities without freezing mutable permission claims."""
+    lines = [
+        "Built-in role directory (role_id: description):",
+        *(f"- {role.role_id}: {role.description}" for role in BUILTIN_ROLES),
+        "Dispatch availability and permissions are checked against the current role registry; "
+        "role.update may change them.",
+    ]
+    return "\n".join(lines)
+
+
 class RoleRegistry:
     def __init__(self, roles: tuple[RoleProfile, ...] = BUILTIN_ROLES) -> None:
         self._roles = {role.role_id: role for role in roles}

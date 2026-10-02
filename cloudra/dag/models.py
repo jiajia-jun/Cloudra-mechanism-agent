@@ -185,7 +185,7 @@ class ClaimSpec(BaseModel):
 
 
 class StageContract(BaseModel):
-    """元素的阶段契约：list 顺序即允许的绑定顺序。"""
+    """元素的阶段契约：阶段清单及要求，绑定约束由当前交付契约执行。"""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -1059,33 +1059,42 @@ class DeliveryReport(BaseModel):
 _MODE_GUIDANCE = {
     OrchestrationMode.DAG_RECORD: (
         "Current orchestration mode: dag_record (DAG is recorded by the system; Supervisor is offline)\n"
-        "- Your first delivery artifact is a mechanism proposal: dag_propose_mechanism (delivery draft + "
-        "per-element stage contracts you choose). The harness auto-accepts it; computation may proceed immediately.\n"
-        "- Run the task as usual afterwards; tool and compute results are recorded as evidence automatically.\n"
-        "- Bind a finished call to a stage with dag_bind_evidence (tool_call_id, bind_target, stage_kind); "
-        "stages bind strictly in contract order, ts_guess is advisory (never required) — it never "
+        "- Propose candidates with dag_propose_mechanism: rationale, species [{name, smiles}], "
+        "steps [{name, from, to}], and optional delivery_targets. The harness assigns stage "
+        "contracts and auto-accepts the proposal; computation may proceed immediately.\n"
+        "- Tool and compute results are recorded automatically. Explicitly submit finished files "
+        "with dag_submit_species_evidence or dag_submit_step_evidence to attach them to the graph.\n"
+        "- Bind a finished call to a stage with dag_bind_evidence, using attachments: "
+        "[{tool_call_id, bind_target, stage_kind, claim, rationale}]; "
+        "bindings follow the active contract's evidence and dependency checks. "
+        "ts_guess is advisory (never required) — it never "
         "satisfies nor blocks ts_opt/frequency — and a "
-        "submit_compute_job call is never evidence (bind the finished job's parser output)."
+        "submit_compute_job call is never evidence (bind the finished job's parser output).\n"
+        "- Check dag_delivery_report before stop(delivery_disposition=complete); selected "
+        "delivery targets must satisfy their required stages and scientific checks."
     ),
     OrchestrationMode.DAG_GUIDED: (
         "Current orchestration mode: dag_guided (DAG-guided orchestration; Supervisor is online)\n"
         "You must follow this orchestration discipline:\n"
-        "1. Your first delivery artifact is a mechanism proposal: dag_propose_mechanism (delivery draft + "
-        "per-element stage contracts — you choose which stages each element owes, in bind order). "
-        "No compute runs before the Supervisor accepts the draft with dag_accept_mechanism.\n"
-        "2. Work at your own pace afterwards — there is no frontier. Sub-agents run tools and report; "
+        "1. Propose candidates with dag_propose_mechanism: rationale, species [{name, smiles}], "
+        "steps [{name, from, to}], and optional delivery_targets. The harness assigns stage "
+        "contracts. Candidate graph changes take effect immediately; computation can continue "
+        "while the Supervisor reviews the proposal with dag_accept_mechanism.\n"
+        "2. Work at your own pace — there is no frontier. Sub-agents run tools and report; "
         "they never write the graph. Structural changes (dag_add_species / dag_add_step / "
         "dag_update_delivery_element) wake the Supervisor for audit.\n"
-        "3. Evidence reaches the Supervisor only when explicitly submitted with dag_bind_evidence "
-        "(with a claim) — finished calls are never auto-submitted. The Supervisor adjudicates each "
-        "claim via dag_review_call. A disagree means the stage is still owed — re-run and submit a "
-        "later call, or close it with an explicit skip/not_applicable with a reason. ts_guess is "
-        "advisory (never required): it never satisfies nor blocks ts_opt/frequency binds; a "
-        "submit_compute_job call is never evidence.\n"
+        "3. Explicitly submit finished files with dag_submit_species_evidence or "
+        "dag_submit_step_evidence; the Supervisor uses dag_review_species or dag_review_step "
+        "with verdict and rationale. For finished tool-call evidence, use dag_bind_evidence "
+        "with attachments [{tool_call_id, bind_target, stage_kind, claim, rationale}]; "
+        "each claim is adjudicated via dag_review_call. Finished calls are never auto-submitted; "
+        "a submit_compute_job call is never evidence.\n"
         "4. Delivery completeness is decided by stage coverage, not by your declaration; before "
         "stop(delivery_disposition=complete), self-check with dag_delivery_report: every required "
-        "stage must be supported or skipped/not_applicable with a reason. If there are gaps, keep "
-        "filling evidence or explicitly choose partial / user_terminated."
+        "stage must be supported or explicitly skipped/not_applicable with a reason when the "
+        "contract permits it. Supervisor acceptance does not fill failed or incomplete scientific "
+        "checks. Read scientific_checks and next_action, supply missing evidence, and re-submit. "
+        "Delivery targets declare scope; exploratory branches outside it do not become delivery debt."
     ),
 }
 
@@ -1095,7 +1104,8 @@ _MODE_GUIDANCE = {
 _DAG_GUIDED_FOLLOWER_GUIDANCE = (
     "Current orchestration mode: dag_guided (DAG-guided orchestration; Supervisor is online)\n"
     "You are a sub-agent in this orchestration: the Coordinator designs the mechanism hypothesis "
-    "and chooses stage contracts; the Supervisor reviews evidence. You do not maintain the graph. "
+    "and declares delivery targets; the harness assigns stage contracts and the Supervisor reviews "
+    "evidence. You do not maintain the graph. "
     "Your discipline:\n"
     "1. Run the tools your task requires and report results with concrete tool_call_ids and file "
     "paths; never write the graph yourself.\n"
@@ -1110,7 +1120,7 @@ _DAG_GUIDED_FOLLOWER_GUIDANCE = (
 _DAG_RECORD_FOLLOWER_GUIDANCE = (
     "Current orchestration mode: dag_record (DAG is recorded by the system; Supervisor is offline)\n"
     "You are a sub-agent in this orchestration: the Coordinator designs the mechanism hypothesis, "
-    "chooses stage contracts, and binds evidence. You do not maintain the graph. "
+    "declares delivery targets, and submits evidence. You do not maintain the graph. "
     "Your discipline:\n"
     "1. Run the tools your task requires and report results with concrete tool_call_ids and file "
     "paths; never write the graph yourself.\n"
@@ -1124,9 +1134,9 @@ _COORDINATOR_ACTOR_IDS = frozenset({"a-0", "coordinator"})
 
 # 阶段语义词典：随投影注入，让 Coordinator 与子 agent 对每个阶段的含义
 # （尤其 endpoint_a/b 的端点定义）有共同理解，避免子 agent 凭直觉把
-# endpoint_a/b 命名反了。stage list 的顺序即绑定顺序。
+# endpoint_a/b 命名反了。绑定与科学依赖由当前交付契约校验。
 _STAGE_GLOSSARY = (
-    "Delivery stage semantics (list order is the bind order). A step only owes "
+    "Delivery stage semantics and evidence dependencies. A step only owes "
     "stages declared on its contract. Default mechanism drafts require ts_opt + "
     "frequency + short_irc (ts_guess is advisory). The default completion gate "
     "requires IRC direction proof; a saddle frequency alone cannot complete a step. "
@@ -1136,12 +1146,12 @@ _STAGE_GLOSSARY = (
     "- single_point: a single-point energy of a species.\n"
     "- ts_guess: advisory scan/guess for a transition structure; NEVER satisfies ts_opt/frequency.\n"
     "- ts_opt: transition-state optimization converging to a first-order saddle point.\n"
-    "- short_irc: an IRC path from the saddle whose binding requires a geometric "
+    "- short_irc: an IRC path from the saddle whose delivery requires a geometric "
     "direction proof (the ts_guess verify strict criterion): both IRC endpoint "
     "geometries must lie between the TS and the corresponding verified endpoint "
-    "minima — convergence or point counts alone never suffice. Declare it after "
-    "ts_opt/frequency and the endpoint stages in the contract; binding fails "
-    "while the TS or endpoint-minimum evidence is missing.\n"
+    "minima — convergence or point counts alone never suffice. Supply the "
+    "TS/frequency and verified endpoint-minimum evidence for that proof; "
+    "missing evidence remains a scientific delivery gap.\n"
     "- endpoint_a: the TARGET-node side of the step (the product); bind a normally "
     "terminated, frequency-verified minimum (0 imaginary frequencies).\n"
     "- endpoint_b: the SOURCE-node side of the step (the reactant complex); bind a "

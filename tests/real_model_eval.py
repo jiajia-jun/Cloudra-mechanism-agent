@@ -677,7 +677,7 @@ SCENARIOS: tuple[Scenario, ...] = (
         role_id="coordinator",
         protocol="traditional",
         query=(
-            "Delegate one exploration task: call `subagent_launcher` with agent_id \"a-1\" (explorer), "
+            "Delegate one exploration task: call `subagent_launcher` with role_id \"explorer\" (explorer), "
             "is_wait=false, asking it to list the files in the working directory and report back. "
             "Then finish your turn with a one-line status."
         ),
@@ -691,7 +691,7 @@ SCENARIOS: tuple[Scenario, ...] = (
                         (
                             "subagent_launcher",
                             {
-                                "agent_id": "a-1",
+                                "role_id": "explorer",
                                 "query": "List the files in the working directory and report back.",
                                 "is_wait": False,
                             },
@@ -710,7 +710,7 @@ SCENARIOS: tuple[Scenario, ...] = (
         query=(
             "Do exactly two things and then finish: (1) call `todo_write` with one item "
             "{content: \"record the eval step\", status: \"in_progress\"}; "
-            "(2) call `subagent_launcher` with agent_id \"a-1\", is_wait=false, asking it to report "
+            "(2) call `subagent_launcher` with role_id \"explorer\", is_wait=false, asking it to report "
             "that the process restarted cleanly. Finish with a one-line summary."
         ),
         check=_check_restart,
@@ -724,7 +724,7 @@ SCENARIOS: tuple[Scenario, ...] = (
                         (
                             "subagent_launcher",
                             {
-                                "agent_id": "a-1",
+                                "role_id": "explorer",
                                 "query": "Report that the process restarted cleanly.",
                                 "is_wait": False,
                             },

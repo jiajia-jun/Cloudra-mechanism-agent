@@ -1,9 +1,8 @@
 """角色身份唯一事实源（评审 5.4 第 2 步）。
 
 验收对应：
-- 角色 → DAG 词表 id 的映射只此一张（RoleProfile 投影 + 反向查询都取自它）；
-- 旧词表只在**输入边界**归一（launcher/swarm 收到 a-4 → small_mol），
-  不再有第二张手写映射表；
+- 角色 → DAG 词表 id 的映射只此一张（RoleProfile 投影取自它）；
+- 运行时输入使用语义 role_id，旧词表仅留在 DAG 存储边界；
 - 新增/改名角色不需要同步多处：清单漂移会被这里抓出来。
 """
 
@@ -17,7 +16,6 @@ import pytest
 from cloudra.base.role_identity import (
     LEGACY_AGENT_ID_BY_ROLE,
     legacy_agent_id_for_role,
-    role_id_for_legacy_agent_id,
 )
 from cloudra.runtime_v2.roles import BUILTIN_ROLES, RoleRegistry
 
@@ -71,15 +69,12 @@ def test_builtin_roles_project_the_single_mapping_table():
     assert registry.get("small_mol").legacy_agent_id == "a-4"
 
 
-def test_roundtrip_and_passthrough():
+def test_dag_identity_projection_and_passthrough():
     for role_id, legacy in LEGACY_AGENT_ID_BY_ROLE.items():
         assert legacy_agent_id_for_role(role_id) == legacy
-        assert role_id_for_legacy_agent_id(legacy) == role_id
     # 未知值（含已是另一套词表的值）原样透传——读取边界不改写历史身份。
     assert legacy_agent_id_for_role("a-4") == "a-4"
     assert legacy_agent_id_for_role("custom_role") == "custom_role"
-    assert role_id_for_legacy_agent_id("small_mol") == "small_mol"
-    assert role_id_for_legacy_agent_id("a-99") == "a-99"
 
 
 def test_no_second_legacy_id_table_in_the_codebase():
@@ -99,11 +94,8 @@ def test_no_second_legacy_id_table_in_the_codebase():
 
 
 @pytest.mark.asyncio
-async def test_launcher_accepts_role_id_and_legacy_alias():
-    """launcher 参数以 role_id 为首选，历史 a-N 输入在边界归一。
-
-    （身份来源是同一个 RoleProfile；工具参数不再需要调用方自己查表。）
-    """
+async def test_launcher_semantic_role_preserves_dag_legacy_identity():
+    """语义 role_id 派单保留同一 RoleProfile 的 DAG legacy 身份边界。"""
     from cloudra.runtime_v2.commands import CommandBus
     from cloudra.runtime_v2.core import RuntimeCore
     from cloudra.runtime_v2.schemas import Command
@@ -125,18 +117,17 @@ async def test_launcher_accepts_role_id_and_legacy_alias():
     from cloudra.runtime_v2.policies.base import ToolCall
     from cloudra.runtime_v2.subagent_bridge import handle_native_tool
 
-    for agent_id, expected in (("small_mol", "small_mol"), ("a-4", "small_mol")):
-        result = await handle_native_tool(
-            core,
-            parent,
-            ToolCall(
-                id=f"tc_{agent_id}",
-                name="subagent_launcher",
-                arguments={"agent_id": agent_id, "query": "compute", "context": []},
-            ),
-        )
-        assert result.is_success, result.summary
-        child = [
-            a for a in core.agents.values() if a.parent_session_id == parent.id
-        ][-1]
-        assert child.role_id == expected
+    result = await handle_native_tool(
+        core,
+        parent,
+        ToolCall(
+            id="tc_small_mol",
+            name="subagent_launcher",
+            arguments={"role_id": "small_mol", "query": "compute", "context": []},
+        ),
+    )
+    assert result.is_success, result.summary
+    children = [a for a in core.agents.values() if a.parent_session_id == parent.id]
+    assert len(children) == 1
+    assert children[0].role_id == "small_mol"
+    assert core.roles.require(children[0].role_id).legacy_agent_id == "a-4"

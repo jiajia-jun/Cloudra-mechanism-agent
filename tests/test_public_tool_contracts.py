@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from cloudra.runtime_v2.adapters import LegacyToolExecutor, legacy_tool_schemas
 from cloudra.runtime_v2.commands import CommandBus
@@ -12,6 +13,113 @@ from cloudra.runtime_v2.core import RuntimeCore
 from cloudra.runtime_v2.policies.base import ToolCall
 from cloudra.runtime_v2.schemas import Command, InvocationProtocol, RuntimeSettings
 from cloudra.runtime_v2.tool_catalog import tool_declarations
+
+
+@pytest.mark.parametrize("field,value", [("spin", 3), ("multiplicty", 3), ("tasks", "ohess")])
+def test_compute_submission_rejects_unknown_calculation_fields(field, value):
+    from cloudra.tools.Chemtool.submit_compute_job import SubmitComputeJob_input_schema
+
+    with pytest.raises(ValidationError) as error:
+        SubmitComputeJob_input_schema.model_validate({
+            "input_file": "probe.xyz", "job_type": "xtb", field: value,
+        })
+    assert any(
+        item["loc"] == (field,) and item["type"] == "extra_forbidden"
+        for item in error.value.errors()
+    )
+
+
+@pytest.mark.asyncio
+async def test_executor_rejects_unknown_fields_instead_of_loading_skill():
+    core = RuntimeCore(strict_events=True)
+    bus = CommandBus(core)
+    await bus.execute(Command(type="project.create", payload={"name": "strict tool inputs"}))
+    project = next(iter(core.projects.values()))
+    spawned = await bus.execute(Command(
+        type="agent.spawn", target={"project_id": project.id},
+        payload={"role_id": "coordinator"},
+    ))
+    result = await LegacyToolExecutor(core).execute(spawned.data, ToolCall(
+        id="unknown-field", name="get_skill",
+        arguments={"skill_name": "dft-calculation", "name": "ignored before validation fix"},
+    ))
+    assert not result.is_success
+    assert "arguments.name" in result.summary
+    assert not result.data
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tool_name,arguments", [
+    ("get_subagent_report", {"session_id": "child"}),
+    ("agent_hub", {"action": "post", "topic": "test", "content": "must not be posted"}),
+    ("schedule", {"message": "must not be scheduled", "delay_seconds": 60}),
+])
+async def test_native_tools_reject_unknown_fields_before_effects(tool_name, arguments):
+    core = RuntimeCore(strict_events=True)
+    bus = CommandBus(core)
+    await bus.execute(Command(type="project.create", payload={"name": "native input contract"}))
+    project = next(iter(core.projects.values()))
+    parent = (await bus.execute(Command(
+        type="agent.spawn", target={"project_id": project.id},
+        payload={"role_id": "coordinator"},
+    ))).data
+    child = (await bus.execute(Command(
+        type="agent.spawn", target={"project_id": project.id},
+        payload={"role_id": "explorer"},
+    ))).data
+    if tool_name == "get_subagent_report":
+        arguments = {"session_id": child.id}
+    before = len(core.event_log.query_project(project.id))
+    try:
+        result = await LegacyToolExecutor(core).execute(parent, ToolCall(
+            id="native-unknown-field", name=tool_name,
+            arguments={**arguments, "unexpected": True},
+        ))
+        assert not result.is_success
+        assert "arguments.unexpected" in result.summary
+        assert len(core.event_log.query_project(project.id)) == before
+    finally:
+        await core.reminders.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("field,value", [("unexpected", True), ("offset", "two")])
+async def test_supervisor_read_uses_the_published_input_schema(tmp_path, field, value):
+    from cloudra.dag.supervisor_tools import SupervisorToolExecutor
+
+    (tmp_path / "evidence.out").write_text("evidence content", encoding="utf-8")
+    executor = SupervisorToolExecutor(workspace_root=str(tmp_path))
+    result = await executor.execute("read", {"path": "evidence.out", field: value})
+    assert not result["is_success"]
+    assert f"arguments.{field}" in result["message"]
+    assert "content" not in result
+
+
+@pytest.mark.parametrize("field", ["claim", "rationale"])
+def test_evidence_bind_rejects_top_level_claim_fields(field):
+    from cloudra.tools.Plantool.dag_tools.dag_bind_evidence import DagBindEvidenceInput
+
+    with pytest.raises(ValidationError) as error:
+        DagBindEvidenceInput.model_validate({
+            "attachments": [{
+                "tool_call_id": "finished-call", "bind_target": "step1", "stage_kind": "ts_opt",
+            }],
+            field: "This assertion must belong to its attachment.",
+        })
+    assert any(
+        item["loc"] == (field,) and item["type"] == "extra_forbidden"
+        for item in error.value.errors()
+    )
+
+
+def test_evidence_bind_rejects_single_bind_fields():
+    from cloudra.tools.Plantool.dag_tools.dag_bind_evidence import DagBindEvidenceInput
+
+    with pytest.raises(ValidationError):
+        DagBindEvidenceInput.model_validate({
+            "tool_call_id": "finished-call", "bind_target": "step1", "stage_kind": "ts_opt",
+            "claim": "Use the same attachment shape for single and multiple binds.",
+        })
 
 
 def test_proposal_wire_schema_describes_declarative_species_and_steps():

@@ -240,15 +240,16 @@ async def test_guided_complete_waits_for_selected_step_review_and_evidence(tmp_p
 
 
 @pytest.mark.asyncio
-async def test_guided_file_verdict_wakes_coordinator_for_supervisor_supported_completion(
+async def test_guided_file_verdict_resumes_coordinator_for_scientific_gap_repair(
     tmp_path, monkeypatch
 ):
-    """A per-file verdict wakes the parked Coordinator; complete uses file credit."""
+    """A file verdict wakes the Coordinator; missing IRC evidence still requires repair."""
     submit_evidence = asyncio.Event()
     attempt_partial = asyncio.Event()
     review_file = asyncio.Event()
     finish_supervisor = asyncio.Event()
     attempt_complete = asyncio.Event()
+    hold_repair = asyncio.Event()
     ts = Path(__file__).parent / "fixtures" / "xtb" / "ts_hess_xtb.out"
     provider = ScriptedProvider(by_role={
         "coordinator": [
@@ -260,9 +261,10 @@ async def test_guided_file_verdict_wakes_coordinator_for_supervisor_supported_co
             Step(wait_for=attempt_partial, tools=[("stop", {
                 "delivery_disposition": "partial",
             })]),
-            Step(wait_for=attempt_complete, tools=[("stop", {
-                "delivery_disposition": "complete",
-            })]),
+            Step(wait_for=attempt_complete, tools=[("dag_delivery_report", {})]),
+            Step(tools=[("stop", {"delivery_disposition": "complete"})]),
+            Step(tools=[("dag_delivery_report", {})]),
+            Step(wait_for=hold_repair, text="collect missing IRC direction evidence"),
         ],
         "supervisor": [
             Step(tools=[("dag_accept_mechanism", {"verdict": "accept"})]),
@@ -374,29 +376,52 @@ async def test_guided_file_verdict_wakes_coordinator_for_supervisor_supported_co
         report = await asyncio.to_thread(
             DagController(db, coordinator.id, "dag_guided", conversation_id=harness.project.id).delivery_report
         )
-        assert report.complete
-        assert any(gate.code == "supervisor_evidence_accepted" for gate in report.satisfied)
+        assert report.complete is False
+        assert any(gap.code == "scientific_check_incomplete" and "short_irc" in gap.detail
+                   for gap in report.unresolved)
+        assert decision.next_action
 
         finish_supervisor.set()
         await harness.wait_for(
             lambda: any(a.role_id == "supervisor" and a.state.value == "succeeded"
                         and len(harness.run_rows(a)) >= 3
                         for a in harness.core.agents.values()),
-            "Supervisor idle before final delivery",
+            "Supervisor idle before the incomplete delivery attempt",
         )
         attempt_complete.set()
-        await harness.wait_terminal(coordinator)
-        from cloudra.runtime_v2.completion import completion_summary
-
-        completion = completion_summary(harness.events(coordinator))
-        assert completion["completion_basis"] == "supervisor_supported"
-        assert completion["verification_label"] == "supervisor_reviewed"
+        await harness.wait_for(
+            lambda: any(e.type == "agent.completion_gate" and e.data.get("explicit_stop")
+                        and e.data.get("action") == "continue_work"
+                        for e in harness.events(coordinator)),
+            "explicit complete is rejected while the IRC proof is missing",
+        )
+        gate = next(e for e in harness.events(coordinator)
+                    if e.type == "agent.completion_gate" and e.data.get("explicit_stop")
+                    and e.data.get("action") == "continue_work")
+        assert gate.data["basis"] is None
+        await harness.wait_for(
+            lambda: len([t for t in harness.tool_events(coordinator)
+                         if t["tool_name"] == "dag_delivery_report" and t["status"] == "completed"]) == 2,
+            "Coordinator rechecks scientific gaps after the rejected exit",
+        )
+        repair_request = [e for e in harness.events(coordinator)
+                          if e.type == "tool.requested"
+                          and e.data.get("tool_name") == "dag_delivery_report"][-1]
+        assert repair_request.seq > gate.seq
+        repair_report = [t for t in harness.tool_events(coordinator)
+                         if t["tool_name"] == "dag_delivery_report"][-1]["result_data"]["result"]
+        assert repair_report["complete"] is False
+        assert any(gap["code"] == "scientific_check_incomplete" and "short_irc" in gap["detail"]
+                   for gap in repair_report["unresolved"])
+        assert coordinator.state.value == "running"
+        assert not any(row["outcome"] == "succeeded" for row in harness.run_rows(coordinator))
     finally:
         submit_evidence.set()
         attempt_partial.set()
         review_file.set()
         finish_supervisor.set()
         attempt_complete.set()
+        hold_repair.set()
         await harness.aclose()
 
 
@@ -801,7 +826,7 @@ async def test_async_subagent_reports_once_and_wakes_parent(tmp_path):
     provider = ScriptedProvider(
         by_role={
             "coordinator": [
-                Step(tools=[("subagent_launcher", {"agent_id": "explorer", "query": "look around", "is_wait": False})]),
+                Step(tools=[("subagent_launcher", {"role_id": "explorer", "query": "look around", "is_wait": False})]),
                 Step(text="continuing on the main line", stop=True),
             ],
             "explorer": [Step(text="explored the workspace", stop=True)],
@@ -941,7 +966,7 @@ async def test_restart_repeats_no_side_effect_and_keeps_unconsumed_message(
                         # todo_write 的副作用是 per-agent 存储文件，不需要人工审批：
                         # 这样场景专测「重启是否重放副作用」，不掺审批状态机。
                         ("todo_write", {"todos": [{"content": "note once", "status": "in_progress"}]}),
-                        ("subagent_launcher", {"agent_id": "explorer", "query": "look", "is_wait": False}),
+                        ("subagent_launcher", {"role_id": "explorer", "query": "look", "is_wait": False}),
                     ]
                 ),
                 Step(text="did the work", stop=True),
@@ -1158,5 +1183,26 @@ async def test_yolo_invalid_boolean_never_applies_agent_file_write(tmp_path, mon
         assert client.create.call_count == 3
         target = _workspace(harness.project.id) / "blocked.txt"
         assert not await asyncio.to_thread(target.exists)
+    finally:
+        await harness.aclose()
+
+
+@pytest.mark.asyncio
+async def test_old_launcher_role_field_is_rejected_without_orphan_child(tmp_path):
+    provider = ScriptedProvider(by_role={
+        "coordinator": [
+            Step(tools=[("subagent_launcher", {"agent_id": "a-1", "query": "inspect workspace", "is_wait": False})]),
+            Step(stop=True),
+        ],
+    })
+    harness = await ScenarioHarness.start(tmp_path, provider=provider)
+    try:
+        parent = await harness.spawn("coordinator", protocol="traditional")
+        await harness.wait_terminal(parent)
+        dispatched = [event for event in harness.tool_events(parent) if event["tool_name"] == "subagent_launcher"]
+        assert len(dispatched) == 1
+        assert dispatched[0]["is_success"] is False
+        assert harness.children_of(parent) == []
+        assert harness.child_reports(parent) == []
     finally:
         await harness.aclose()

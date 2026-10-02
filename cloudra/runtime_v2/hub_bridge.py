@@ -24,7 +24,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from cloudra.base.role_identity import role_id_for_legacy_agent_id
+from pydantic import ValidationError
+
+from cloudra.infra.tool_errors import validation_feedback
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.dispatcher import WakePolicy
 from cloudra.runtime_v2.effects import EventDraft
@@ -32,7 +34,12 @@ from cloudra.runtime_v2.event_writer import EventPersistenceError
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
 from cloudra.runtime_v2.schemas import AgentSession, AgentState, Command, CommandRejected, EventEnvelope
 from cloudra.tools.Managetool._hub_call import format_incoming_call
-from cloudra.tools.Managetool.agent_hub import _FUZZY_FLOOR, _SEARCH_SCAN_LIMIT, _fuzzy_score
+from cloudra.tools.Managetool.agent_hub import (
+    _FUZZY_FLOOR,
+    _SEARCH_SCAN_LIMIT,
+    AgentHub_input_schema,
+    _fuzzy_score,
+)
 
 _POST_KINDS = ("finding", "question", "answer", "broadcast", "message")
 
@@ -66,8 +73,7 @@ def _resolve_live_target(
     by_id = core.agents.get(t)
     if by_id is not None and by_id.project_id == project_id:
         return by_id
-    role_id = role_id_for_legacy_agent_id(clean)
-    matches = [a for a in sessions if a.role_id == role_id]
+    matches = [a for a in sessions if a.role_id == clean]
     if wakeable_role_only:
         matches = [
             a for a in matches if a.state not in {AgentState.FAILED, AgentState.CANCELLED}
@@ -149,9 +155,12 @@ async def _post(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     if kind not in _POST_KINDS:
         return _err(f"Unknown kind: {kind}")
     to_agent = str(args.get("to_agent") or "").strip()
+    if (
+        to_agent and _resolve_live_target(core, author.project_id, to_agent) is None
+        and core.roles.get(to_agent.lstrip("@").lower()) is None
+    ):
+        return _err(f"Addressee {to_agent!r} is neither a project session nor a known role_id.")
     parent_id = args.get("parent_id") or None
-    if parent_id is not None:
-        parent_id = str(parent_id)
     if kind == "message" and not to_agent:
         return _err("message posts need to_agent to name the addressee (the post is still public).")
     retry_post_id = str(args.get("post_id") or "").strip()
@@ -349,12 +358,10 @@ async def post_user_post(
 
 def _browse(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     limit = max(1, min(int(args.get("limit") or 20), 100))
-    cursor = str(args.get("cursor") or "").strip()
+    cursor = (args.get("cursor") or "").strip()
     posts = _posts(core, author.project_id)
-    # Cursor is an event id (string). Old integer cursors are accepted for
-    # backward compatibility and normalized to the matching event id.
     if cursor:
-        cursor_post = next((p for p in posts if str(p["id"]) == str(cursor)), None)
+        cursor_post = next((p for p in posts if p["id"] == cursor), None)
         if cursor_post is None:
             return _err(f"cursor not found: {cursor!r}")
         # Browse is newest-first; a cursor advances to older activity.
@@ -519,7 +526,6 @@ async def _call(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     post_line = None
     raw_post_id = args.get("post_id")
     if raw_post_id is not None:
-        raw_post_id = str(raw_post_id)
         post = next((p for p in _posts(core, author.project_id) if p["id"] == raw_post_id), None)
         if post is not None:
             post_line = f"Related post {post['id']} (topic {post['topic']})."
@@ -541,7 +547,7 @@ async def _call(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     # A missing role is a request for a new peer, independent of the caller's
     # role, settings, and cancellation tree. Supervisor is system-managed and
     # has one instance per project; every caller uses the same rule for it.
-    role_id = role_id_for_legacy_agent_id(raw_to.lstrip("@").lower())
+    role_id = raw_to.lstrip("@").lower()
     try:
         core.roles.require(role_id)
     except CommandRejected:
@@ -626,8 +632,11 @@ async def _call(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
 
 
 async def handle_hub_tool(core, author: AgentSession, call: ToolCall) -> ToolResult:
-    args = call.arguments or {}
-    action = str(args.get("action") or "").strip().lower()
+    try:
+        args = AgentHub_input_schema.model_validate(call.arguments).model_dump()
+    except ValidationError as exc:
+        return _err(validation_feedback(exc))
+    action = args["action"]
     if action == "post":
         return await _post(core, author, args)
     if action == "browse":

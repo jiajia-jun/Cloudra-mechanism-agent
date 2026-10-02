@@ -1,14 +1,8 @@
-"""v2-native execution for the legacy Managetool dispatch tools.
+"""Native sub-agent launcher, swarm and report execution on the v2 kernel.
 
-``subagent_launcher`` / ``subagent_swarm`` / ``get_subagent_report``
-(legacy classes ``SubAgentLauncher`` / ``SubAgentSwarm``) are
-intercepted by LegacyToolExecutor and reimplemented on the v2 kernel:
-children become first-class v2 agents (streaming, cancel, message injection,
-DAG policy stage) instead of legacy executor sessions in the conversation DB.
-The legacy dispatch module is untouched — CLI/Flet keep using it.
-
-Role mapping mirrors the launcher prompt (a-1..a-8 → role names); passing a
-role name directly is also accepted.
+Dispatch accepts semantic role_id values and checks the live role registry.
+Children are first-class v2 agents with streaming, cancellation, mailbox
+injection and DAG policy stages.
 """
 
 from __future__ import annotations
@@ -18,13 +12,15 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from cloudra.base.role_identity import role_id_for_legacy_agent_id
+from pydantic import ValidationError
+
+from cloudra.infra.tool_errors import validation_feedback
 from cloudra.runtime_v2.child_manifest import build_child_manifest, render_child_report
 from cloudra.runtime_v2.child_settings import resolve_child_settings
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.dispatcher import WakePolicy
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
-from cloudra.runtime_v2.schemas import AgentSession, AgentState, Command, CommandRejected, EventEnvelope
+from cloudra.runtime_v2.schemas import AgentSession, AgentState, Command, CommandRejected, EventEnvelope, RoleProfile
 
 _TERMINAL_STATES = {AgentState.SUCCEEDED, AgentState.FAILED, AgentState.CANCELLED}
 _LAUNCHER = "subagent_launcher"
@@ -129,15 +125,22 @@ def _render_settings_receipt(receipt: dict[str, Any]) -> str:
     )
 
 
-async def _spawn_child(
-    bus: CommandBus, parent: AgentSession, *, role_id: str, query: str,
-    context: list[Any], defer_schedule: bool = False,
-) -> tuple[AgentSession, dict[str, Any]]:
-    parent_role = bus.core.roles.require(parent.role_id)
+def _require_spawn_role(core, parent: AgentSession, role_id: str) -> RoleProfile:
+    """Resolve current identities and dispatch authority before creating work."""
+    role = core.roles.require(role_id)
+    parent_role = core.roles.require(parent.role_id)
     if not parent_role.can_spawn:
         raise CommandRejected("forbidden", f"role {parent.role_id!r} cannot spawn sub-agents")
     if parent_role.spawn_roles is not None and role_id not in parent_role.spawn_roles:
         raise CommandRejected("forbidden", f"role {parent.role_id!r} cannot spawn {role_id!r}")
+    return role
+
+
+async def _spawn_child(
+    bus: CommandBus, parent: AgentSession, *, role_id: str, query: str,
+    context: list[Any], defer_schedule: bool = False,
+) -> tuple[AgentSession, dict[str, Any]]:
+    role = _require_spawn_role(bus.core, parent, role_id)
     # 空任务字段绝不发送：空 query 的 spawn 只会产出永不调度的僵尸子 agent
     # （只落 agent.spawned，无 run、无 prompt 注入），上层轮询无果即挂死。
     # 响亮拒绝并留反馈给模型重试，而不是静默造一个空壳。
@@ -151,7 +154,7 @@ async def _spawn_child(
     plan = resolve_child_settings(
         parent,
         project=bus.core.require_project(parent.project_id),
-        role=bus.core.roles.require(role_id),
+        role=role,
     )
     result = await bus.execute(
         Command(
@@ -283,9 +286,9 @@ async def _cancel_child(core, session_id: str) -> None:
 
 async def _handle_launcher(core, parent: AgentSession, args: dict[str, Any]) -> ToolResult:
     bus = CommandBus(core)
-    role_id = role_id_for_legacy_agent_id(str(args.get("agent_id") or ""))
+    role_id = args["role_id"]
     child, settings_receipt = await _spawn_child(
-        bus, parent, role_id=role_id, query=str(args.get("query") or ""), context=args.get("context") or []
+        bus, parent, role_id=role_id, query=args["query"], context=args["context"]
     )
     data = {"session_id": child.id, "act_agent": child.role_id, "settings": settings_receipt}
     if not args.get("is_wait"):
@@ -336,16 +339,13 @@ def _launch_group_manager(core):
 
 async def _handle_swarm(core, parent: AgentSession, args: dict[str, Any]) -> ToolResult:
     bus = CommandBus(core)
-    role_id = role_id_for_legacy_agent_id(str(args.get("agent_id") or ""))
-    template = str(args.get("prompt_template") or "")
-    items = [str(item) for item in args.get("items") or []]
-    context = args.get("context") or []
-    is_wait = bool(args.get("is_wait", True))
-    max_concurrency = int(args.get("max_concurrency") or 0)
-    if "{{item}}" not in template:
-        return ToolResult(is_success=False, summary="prompt_template must contain the {{item}} placeholder")
-    if not items:
-        return ToolResult(is_success=False, summary="items must be a non-empty list")
+    role_id = args["role_id"]
+    _require_spawn_role(core, parent, role_id)
+    template = args["prompt_template"]
+    items = args["items"]
+    context = args.get("context", [])
+    is_wait = args.get("is_wait", True)
+    max_concurrency = args.get("max_concurrency", 0)
 
     # New non-blocking + capped path uses LaunchGroupManager.  The semaphore
     # covers child lifetime (not just spawn), unlike the legacy is_wait=false
@@ -487,9 +487,20 @@ async def _handle_report(core, args: dict[str, Any]) -> ToolResult:
 async def handle_native_tool(core, parent: AgentSession, call: ToolCall) -> ToolResult:
     try:
         if call.name == _LAUNCHER:
-            return await _handle_launcher(core, parent, call.arguments)
+            from cloudra.tools.Managetool.subagent_launcher import SubAgentLauncher_input_schema
+
+            args = SubAgentLauncher_input_schema.model_validate(call.arguments)
+            return await _handle_launcher(core, parent, args.model_dump())
         if call.name == _SWARM:
-            return await _handle_swarm(core, parent, call.arguments)
-        return await _handle_report(core, call.arguments)
+            from cloudra.tools.Managetool.subagent_swarm import SubAgentSwarm_input_schema
+
+            args = SubAgentSwarm_input_schema.model_validate(call.arguments)
+            return await _handle_swarm(core, parent, args.model_dump())
+        from cloudra.tools.Managetool.get_subagent_report import GetSubAgentReport_input_schema
+
+        args = GetSubAgentReport_input_schema.model_validate(call.arguments)
+        return await _handle_report(core, args.model_dump())
+    except ValidationError as exc:
+        return ToolResult(is_success=False, summary=validation_feedback(exc))
     except CommandRejected as exc:
         return ToolResult(is_success=False, summary=f"[dispatch rejected] {exc.message}")

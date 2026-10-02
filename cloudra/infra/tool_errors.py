@@ -1,15 +1,19 @@
 """Public validation feedback, without exception dumps or implementation names."""
 
-import re
-
 from pydantic import ValidationError
 
 
 def validation_feedback(exc: ValidationError, *, prefix: str = "arguments") -> str:
     issues = []
     for error in exc.errors(include_url=False, include_input=False, include_context=False)[:8]:
-        parts = [str(part) for part in error["loc"] if isinstance(part, int) or
-                 re.fullmatch(r"[a-z_][a-z0-9_]*", str(part))]
+        parts = []
+        for part in error["loc"]:
+            if isinstance(part, int) or (
+                isinstance(part, str) and part
+                and part[0] in "abcdefghijklmnopqrstuvwxyz_"
+                and all(char in "abcdefghijklmnopqrstuvwxyz_0123456789" for char in part)
+            ):
+                parts.append(str(part))
         path = ".".join([prefix, *parts])
         kind = error["type"]
         if kind == "missing":

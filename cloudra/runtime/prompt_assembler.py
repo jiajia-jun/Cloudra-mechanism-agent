@@ -580,21 +580,21 @@ class PromptAssembler:
                 if rec_items:
                     lines = [
                         "## Recommended Domain Skills\n",
-                        "The following core skills are tailored to your role. Use `get_skill(name=...)` to view details:",
+                        "The following core skills are tailored to your role. Use `get_skill(skill_name=...)` to view details:",
                     ]
                     for item in rec_items:
                         lines.append(f"- {item['name']}: {item['description']}")
                     lines.append(
                         "\n> **On-Demand Skills**: More domain skills are available on AgentHub. "
                         "When tackling specialized tasks, search for relevant skills via `agent_hub(action=\"search\", keyword=\"skill <domain>\")` "
-                        "and load them via `get_skill(name=\"<skill-name>\")`."
+                        "and load them via `get_skill(skill_name=\"<skill-name>\")`."
                     )
                     identity_sections.append("\n".join(lines))
                 else:
                     identity_sections.append(
                         "## Domain Skills On-Demand\n\n"
                         "Domain skills can be searched and loaded on demand. Call `agent_hub(action=\"search\", keyword=\"skill <domain>\")` "
-                        "to discover available skills, and `get_skill(name=\"<skill-name>\")` to read detailed guides and workflows."
+                        "to discover available skills, and `get_skill(skill_name=\"<skill-name>\")` to read detailed guides and workflows."
                     )
             else:
                 identity_sections.append(
