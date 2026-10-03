@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from itertools import islice
 
 
 def _sse(event) -> str:
@@ -18,12 +19,24 @@ async def _sse_replay(core, project, cursor: int):
     from cloudra.runtime_v2.schemas import EventEnvelope
 
     replayed_through = cursor
-    events = await asyncio.to_thread(
-        lambda: list(core.event_log.query_project(project.id, after_seq=cursor, limit=None))
+    # Snapshot the append-only log's initial prefix without copying its backlog.
+    # One iterator avoids rescanning all history for every page. Events appended
+    # after this boundary are already captured by the router's live subscription.
+    history = islice(iter(core.event_log), len(core.event_log))
+    matching = (
+        event for event in history
+        if event.project_id == project.id and event.seq > cursor
     )
-    for event in events:
-        replayed_through = max(replayed_through, event.seq)
-        yield _sse(event)
+    page_size = 500
+    while True:
+        events = await asyncio.to_thread(lambda: list(islice(matching, page_size)))
+        if not events:
+            break
+        for event in events:
+            replayed_through = max(replayed_through, event.seq)
+            yield _sse(event)
+        if len(events) < page_size:
+            break
     # seq=0 不影响客户端 cursor
     yield _sse(
         EventEnvelope(
