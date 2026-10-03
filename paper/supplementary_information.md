@@ -1,78 +1,62 @@
 # Supplementary Information
 
-## Supplementary Information for: Cloudra: An Autonomous Multi-Agent Research Runtime for Quantum-Chemical Organic Reaction Mechanism Elucidation
+For **Cloudra: An Evidence-Gated Harness for Autonomous Organic Reaction Mechanism Elucidation**
+Revision: 3 October 2026. This supplement records source provenance and evidence limits; it is not a completed experimental dataset.
 
----
+## S1. Manuscript source map
 
-### Section S1: System Architecture, Delivery DAG, and Knowledge Graph Implementation Details
-- **S1.1 Event-Sourced Kernel (Runtime v2) Specification:**
-  - Event types (`agent.thinking`, `tool.finished`, `hub.posted`, `dag.mutation`, etc.).
-  - Deterministic state replay and session persistence.
-- **S1.2 Peer-to-Peer AgentHub Protocol:**
-  - Broadcast, direct call, and subscription schema.
-  - Sub-agent specialization prompts and capability mappings (Coordinator, small_mol, researcher, explorer, Supervisor).
-- **S1.3 Delivery DAG Formal Specification:**
-  - Node schema (`OccurrenceNode`) and Edge schema (`ElementaryStepEdge`).
-  - Stage contracts ($s_1 \rightarrow s_8$) and Allowed Stage Sequences.
-  - Mathematical definition of Delivery Coverage:
+| Manuscript claim | Repository source | Scope of support |
+|---|---|---|
+| Harness delegation, chemical evidence DAG, formal benchmark as headline contributions | `docs/novelty.md` | Narrative positioning; its older scoring and refusal language is superseded by current project instructions. |
+| Persistent prepare / inspect / resume interface | `docs/TS_PROCESS_SOP.md` | Current interface and verification contract; explicitly marks native ORCA/Gaussian full-chain acceptance as incomplete. |
+| Granular stage vocabulary and derived evidence levels | `cloudra/dag/models.py` | Schema and stage semantics; not an empirical success rate. |
+| Three-component weights, clawback, integrity short circuit | `cloudra/benchmark/runner.py` | Implemented scoring behavior. |
+| Gaussian kernel, caps, missing references, inaccessible-edge handling | `cloudra/benchmark/accuracy.py` | Important qualifications to the simple headline score. |
+| Bound-element physical coverage and short-IRC direction semantics | `cloudra/benchmark/selfconsistency.py` | Distinguishes valid bound artifacts from unrelated or superseded attempts. |
+| Log-derived barriers | `cloudra/benchmark/barrier_evidence.py` | Numerical provenance; no blanket claim of complete parser robustness. |
+| Coordinate-writing guidance | `cloudra/runtime_v2/policies/guidance.py` | Guidance is not described as an absolute coordinate firewall. |
+| 52 tasks / 81 edges and reference limitations | `gold_compute/library_audit_20261002/README.md` | Dated inventory, not a freshly repeated scientific audit or autonomous benchmark run. |
 
-$$\mathcal{C}(\mathcal{G}) = \prod_{e \in \mathcal{E}} \mathbb{I}\left( \forall s \in \mathcal{S}_\mathrm{req}(e), \text{status}(s) \in \{\text{supported}, \text{skipped\_with\_reason}\} \right)$$
+## S2. Reference inventory
 
-- **S1.4 Computational Chemistry Knowledge Graph (GraphRAG) Ontology & Decision Trees:**
-  - Decision DAG schema (Symptom, Diagnostic Criterion, Mitigation Action, Fallback Escalation).
-  - $L_0/L_1/L_2$ tiered evidence validation and falsified entry penalty weighting.
-  - Formatted examples of injected Decision Tree Walks for multi-imaginary TS, SCF divergence, spin contamination, and solvent cluster selection.
-- **S1.5 Policy Guards & Security:**
-  - `coord_guard` regex patterns and AST inspection blocking manual coordinate blocks.
-  - Substantive compute entry gate specifications.
+The audit identifies reference commit `3ec62c55c8e3433854246ea50f889668b2659cc4`. Its inventory is:
 
----
+| Tier | Tasks | Edges | Numerical values | Open gaps | Explicit PT exemptions | Inaccessible TS edges | Property/state edges |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Easy | 20 | 20 | 20 | 0 | 0 | 0 | 0 |
+| Normal | 10 | 26 | 17 | 7 | 2 | 0 | 0 |
+| Hard | 10 | 22 | 19 | 3 | 0 | 0 | 0 |
+| Impossible | 12 | 13 | 1 | 0 | 0 | 8 | 4 |
+| Total | 52 | 81 | 57 | 10 | 2 | 8 | 4 |
 
-### Section S2: Quantum-Chemical Calculation Details
-- **S2.1 Software and Computational Levels:**
-  - Semi-empirical & Machine Learning Potentials: GFN2-xTB / CREST v2.12, MACE-OMol25 foundation model.
-  - Density Functional Theory: Gaussian 16 Rev C.01 / ORCA 5.0.4.
-  - Functionals and Basis Sets: $\omega\text{B97X-D}/\text{def2-TZVP}$, $\text{B3LYP-D3(BJ)}/\text{def2-SVP}$, etc.
-  - Solvation Models: SMD (Solvation Model based on Density) with specified solvent parameters.
-- **S2.2 Vibrational and Thermochemical Protocols:**
-  - GoodVibes quasi-harmonic corrections ($T = 298.15\ \mathrm{K}$, $P = 1.0\ \mathrm{atm}$, concentration $1.0\ \mathrm{M}$).
-  - Low-frequency vibrational cutoff criteria ($100\ \mathrm{cm^{-1}}$).
-  - Intrinsic Reaction Coordinate (IRC) integration steps and convergence thresholds.
+Ten populated values have recorded scientific or mechanistic caveats. The audit's caveats are carried forward as unresolved source limitations; this rewrite does not independently adjudicate whether each caveat changes acceptance under the latest short-IRC protocol. Later supplementation must be reconciled against a new fixed snapshot before changing these counts.
 
----
+## S3. Scientific protocol disclosure
 
-### Section S3: 100-Reaction Benchmark Test Set and Two-Stage Serial Ablation
-- **S3.1 Curated 100-Reaction Benchmark Test Set Specification:**
-  - **Easy Tier (30 reactions):** Textbook classic single-step reactions (Diels-Alder, Claisen, SN2, E2, keto-enol tautomerism).
-  - **Normal Tier (30 reactions):** Multi-step named transformations (Robinson, Beckmann, Fischer indole, HWE, Biginelli).
-  - **Hard Tier (20 reactions):** Stereochemical / asymmetric reactions, dynamic kinetic resolution, explicit $(\mathrm{HFIP})_n$ solvent cluster catalysis.
-  - **Impossible Tier (20 reactions):** Pathological electronic systems (strong multireference, diradicals, spin-forbidden) testing early justified refusal.
-  - Standardized reactant/product SMILES, ground-truth reference DAGs, and literature free-energy barriers.
-- **S3.2 Trajectory-Level Multi-Dimensional Metrics and Progress-Cost Curve Calculation:**
-  - Graph Edit Distance (GED) formulation with chemistry-aware edge and node pricing.
-  - Physical self-consistency validation criteria.
-  - Progress-Cost Curve AUC, inflection point cost (90% completion), and wasted compute ratio calculations.
-- **S3.3 Two-Stage Serial Ablation Protocols:**
-  - Stage 1: Detailed run logs, tool call distributions, and failure mode analysis for `standard`, `dag_record`, and `dag_guided` modes.
-  - Stage 2: Knowledge Graph augmentation (`dag_guided` vs. `dag_guided + GraphRAG`) measuring error-recovery acceleration and compute waste reduction.
+Each empirical release must identify the reaction model, atom mapping, charge and multiplicity, conformer sources, stage-specific engine/method/basis/keywords, solvent treatment, energy reference, frequency protocol, direction evidence, and thermochemical conventions actually used. Electronic barriers and free-energy barriers must remain distinct. A conformer window, temperature, standard state, frequency cutoff, or level of theory must not be copied from an old draft and presented as a protocol actually executed.
 
----
+The native TS process requires evidence for a first-order saddle and verified endpoint minima with matching identity and stereochemistry. Partial IRC trajectories can support direction when the defined geometric criterion is satisfied. This does not mean an unconverged endpoint optimization or absent endpoint frequency calculation is automatically acceptable.
 
-### Section S4: Real-World Frontier Research Case Studies Details
-- **S4.1 HFIP Solvent-Cluster Mediated Quinone Formation Case Study (Prof. Jun Zhou):**
-  - $(\mathrm{HFIP})_n$ cluster binding energies and optimized hydrogen-bonding geometries.
-  - IRC path coordinates verifying explicit proton-shuttle mechanism.
-  - Interaction region indicator (IRI) / Independent Gradient Model (IGM) analysis of non-covalent interactions.
-- **S4.2 Axial-Chiral Atropisomeric Benchmark (Prof. Weiwei Luo):**
-  - Competing $(R)$- and $(S)$-forming transition state geometries and imaginary mode vectors.
-  - Torsional potential energy scan of biaryl rotation.
-  - Boltzmann-weighted enantiomeric excess ($\%ee$) and thermal racemization half-life ($t_{1/2}$) calculations.
-- **S4.3 Open-Shell Small-Molecule Radical Reaction (Prof. Wenkun Luo):**
-  - Broken-symmetry DFT calculation logs, spin density distributions, and $\langle S^2 \rangle$ diagnostic outputs across all radical intermediates and transition states.
-  - Full reactant, intermediate, TS, and product Cartesian geometries (.xyz) across all elementary steps.
+## S4. Scoring discrepancy requiring scientific resolution
 
----
+Project instructions state that correctly delivered inaccessible mechanisms may receive full credit. The current `accuracy.py` instead assigns zero barrier-accuracy credit to inaccessible reference edges without barriers, while `runner.py` retains the common 0.1/0.3/0.6 weights. Thus the manuscript does not claim that this intention is already realized by every Impossible task.
 
-### Section S5: Complete Agent Prompts and Tool Specifications
-- Full system prompts for Coordinator, Supervisor, small_mol, researcher, and explorer.
-- Tool schemas and JSON specifications for all 18+ integrated tools.
+Accessible edges without numerical references currently receive nominal accuracy credit. Hard tasks with a favored-channel anchor use qualitative selectivity in the accuracy slot. These behaviors must accompany any released aggregate score. This rewrite changes neither the implementation nor the scientific scoring policy.
+
+## S5. Evidence required for performance claims
+
+A results release needs a frozen task and evaluator revision, model configuration, matched allowed methods and resources, repeated-run design, per-run artifacts, component scores, reference coverage, failures, and uncertainty estimates. Tests with substitute calculators cannot establish native-engine chemical validity. Reference-generation jobs cannot be relabeled as autonomous-agent benchmark trials.
+
+The proposed comparisons concern evidence gating, automatic progression, and diagnostic retrieval. No efficiency gain, hallucination rate, quantitative selectivity prediction, or completed HFIP/radical research application is reported as a measured result in this revision.
+
+## S6. Literature verification
+
+The rewrite checked the primary ARCHE abstract and public repository, the YARP publisher page, and the autodE publisher page. The El Agente publisher full text could not be retrieved; its use is restricted to the general published system identity rather than a detailed negative comparison.
+
+- El Agente: <https://doi.org/10.1016/j.matt.2025.102263>
+- YARP: <https://doi.org/10.1038/s43588-021-00101-3>
+- autodE: <https://doi.org/10.1002/anie.202011941>
+- ARCHE: <https://arxiv.org/abs/2609.11147>
+- ARCHE repository: <https://github.com/JetAstra/Arche-Harness>
+
+The standalone LaTeX manuscript embeds its four cited references so that it can compile in the native editor without an external bibliography file. `references.bib` retains the broader historical collection; uncited entries have not all been reverified.

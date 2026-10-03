@@ -1,0 +1,32 @@
+{
+  "at_utc": "2026-10-01T18:12:35.119304+00:00",
+  "deployment": "verified 52477b99",
+  "budget_last_verified_cny": 51.93,
+  "open_edges_total": 10,
+  "jobs_running": [
+    99,
+    101,
+    102,
+    103
+  ],
+  "jobs_failed": [
+    91,
+    92,
+    95,
+    98,
+    100
+  ],
+  "full_supplement_complete": false,
+  "monitor_id": "ny3-gold",
+  "interval_minutes": 5,
+  "active_work_scope": "ten audited gaps, no waived or retired tasks",
+  "precopy_session_exit": 24,
+  "precopy_limit": "live QM temporary files naturally vanished; remote_round_snapshot is preparation/precopy, not final consistent archive",
+  "budget_verified_at_utc": "2026-10-01T18:12:35.119366+00:00",
+  "followup104": "HL1 worker reports unique ts_prepare job104 submitted after95 terminal; current queue state needs next snapshot",
+  "gold_method_risks": {
+    "101": "plain B3LYP scan exploratory geometry only; no energy mixing",
+    "102": "unapproved B97-3c scan exploratory geometry only; no energy mixing"
+  },
+  "xtb_environment": "Installed xtb6.7.1 linked in ORCA executable directory as instructed by original ORCA error; path/version verified, actual future ORCA coupling pending"
+}

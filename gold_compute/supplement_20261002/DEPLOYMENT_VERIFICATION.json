@@ -1,0 +1,17 @@
+{
+  "verified_at_utc": "2026-10-01T17:47:25.126888+00:00",
+  "git_head": "52477b99f7cc81841318014feef15926a30db9c5",
+  "remote_release": "/opt/cloudra/releases/20261002-52477b99",
+  "source_link": "/opt/cloudra/source",
+  "old_source_preserved": "/opt/cloudra/source_preupgrade_20261002",
+  "uploaded_hashes": 1044,
+  "python_focused_tests": 126,
+  "js_host_tests": 18,
+  "frontend_built_with_locked_vite": "8.3.1",
+  "original_agents_retained": 11,
+  "persistent_events_retained": 22025,
+  "sqlite_backups": 5,
+  "configuration_unchanged": true,
+  "api8422_and_frontend_http": 200,
+  "scheduler_reload": "verified: PID4883, cwd /opt/cloudra/releases/20261002-52477b99"
+}

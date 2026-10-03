@@ -1,0 +1,298 @@
+{
+  "utc": "2026-10-01T19:27:01.426082+00:00",
+  "ledger": [
+    {
+      "id": 91,
+      "session_id": "as_19aee01c357c4bfc",
+      "state": "failed",
+      "path": "/data/cloudra/workspace/hard_resume_20260930/supplement_20261002/NI5_E1/orca/rc_optfreq.inp",
+      "req_cpus": 8,
+      "req_memory_mb": 14000,
+      "last_error": "ORCA 几何优化未收敛（达到最大优化步数），结果不可信",
+      "lock": false
+    },
+    {
+      "id": 92,
+      "session_id": "as_cba0d6a330004abc",
+      "state": "failed",
+      "path": "/data/cloudra/workspace/hard_resume_20260930/supplement_20261002/NU5/ref_I1_optfreq.inp",
+      "req_cpus": 8,
+      "req_memory_mb": 14000,
+      "last_error": "calculator 退出码 126；* Working dir.:  /data/cloudra/workspace/hard_resume_20260930/supplement_20261002/NU5 | *********************************** | ERROR: expect a '$', '!', '%', '*' or '[' in the input | Line 2 of /data/cloudra/workspace/hard_resume_20260930/supplement_20261002/NU5/ref_I1_optfreq.inp (CCO.O)",
+      "lock": false
+    },
+    {
+      "id": 93,
+      "session_id": "as_cba0d6a330004abc",
+      "state": "done",
+      "path": "/data/cloudra/workspace/hard_resume_20260930/supplement_20261002/NU5/ref_I1_optfreq.inp",
+      "req_cpus": 8,
+      "req_memory_mb": 14000,
+      "last_error": null,
+      "lock": false
+    },
+    {
+      "id": 94,
+      "session_id": "as_c627b84dbfa14bf7",
+      "state": "done",
+      "path": "/data/cloudra/workspace/hard_resume_20260930/supplement_20261002/HI1_E1/ts/ts/ts_0001/jobs/declaration_0003/path/path-task.json",
+      "req_cpus": 8,
+      "req_memory_mb": 4096,
+      "last_error": null,
+      "lock": false
+    },
+    {
+      "id": 95,
+      "session_id": "as_0af3d08a16c94d6a",
+      "state": "failed",
+      "path": "/data/cloudra/workspace/hard_resume_20260930/supplement_20261002/HL1_E1/HL1_E1_RC_optfreq.inp",
+      "req_cpus": 8,
+      "req_memory_mb": 14000,
+      "last_error": "ORCA 几何优化未收敛（达到最大优化步数），结果不可信",
+      "lock": false
+    },
+    {
+      "id": 96,
+      "session_id": "as_ce8beb1a7405450f",
+      "state": "done",
+      "path": "/data/cloudra/workspace/hard_resume_20260930/supplement_20261002/HI1_E3/ts/ts_0001/jobs/declaration_0003/path/path-task.json",
+      "req_cpus": 8,
+      "req_memory_mb": 4096,
+      "last_error": null,
+      "lock": false
+    },
+    {
+      "id": 97,
+      "session_id": "as_cba0d6a330004abc",
+      "state": "done",
+      "path": "/data/cloudra/workspace/hard_resume_20260930/supplement_20261002/NU5/ts/ts_0001/jobs/declaration_0003/path/path-task.json",
+      "req_cpus": 8,
+      "req_memory_mb": 4096,
+      "last_error": null,
+      "lock": false
+    },
+    {
+      "id": 98,
+      "session_id": "as_cba0d6a330004abc",
+      "state": "failed",
+      "path": "/data/cloudra/workspace/hard_resume_20260930/supplement_20261002/NU5/ts/ts_0001/jobs/declaration_0004/scan/scan.inp",
+      "req_cpus": 8,
+      "req_memory_mb": 4096,
+      "last_error": "calculator 退出码 52；Aborting the run. | [file orca_tools/Tool-Misc/mmtopol.cpp, line 1801]: Error (ORCA_MAIN): ... aborting the run",
+      "lock": false
+    },
+    {
+      "id": 99,
+      "session_id": "as_ce8beb1a7405450f",
+      "state": "running",
+      "path": "/data/cloudra/workspace/hard_resume_20260930/supplement_20261002/HI1_E3/ts/ts_0001/jobs/declaration_0004/scan/scan.inp",
+      "req_cpus": 8,
+      "req_memory_mb": 4096,
+      "last_error": null,
+      "lock": true,
+      "size": 3605907,
+      "tail": "   -938.6477819760248167     1.62e-08  3.75e-06  6.31e-05  1.87e-05     3.3\n   10    -938.6477820077830074    -3.18e-08  2.06e-06  2.94e-05  9.75e-06     2.7\n   11    -938.6477820167378923    -8.95e-09  9.52e-07  1.78e-05  1.13e-05     2.6\n                 **** Energy Check signals convergence ****\n"
+    },
+    {
+      "id": 100,
+      "session_id": "as_c627b84dbfa14bf7",
+      "state": "failed",
+      "path": "/data/cloudra/workspace/hard_resume_20260930/supplement_20261002/HI1_E1/ts/ts/ts_0001/jobs/declaration_0004/scan/scan.inp",
+      "req_cpus": 8,
+      "req_memory_mb": 4096,
+      "last_error": "calculator 退出码 52；Aborting the run. | [file orca_tools/Tool-Misc/mmtopol.cpp, line 1801]: Error (ORCA_MAIN): ... aborting the run",
+      "lock": false
+    },
+    {
+      "id": 101,
+      "session_id": "as_cba0d6a330004abc",
+      "state": "done",
+      "path": "/data/cloudra/workspace/hard_resume_20260930/supplement_20261002/NU5/ts/ts_0001/jobs/declaration_0005/scan/scan.inp",
+      "req_cpus": 8,
+      "req_memory_mb": 4096,
+      "last_error": null,
+      "lock": false
+    },
+    {
+      "id": 102,
+      "session_id": "as_c627b84dbfa14bf7",
+      "state": "running",
+      "path": "/data/cloudra/workspace/hard_resume_20260930/supplement_20261002/HI1_E1/ts/ts/ts_0001/jobs/declaration_0005/scan/scan.inp",
+      "req_cpus": 8,
+      "req_memory_mb": 4096,
+      "last_error": null,
+      "lock": true,
+      "size": 7465648,
+      "tail": "0e-07\n  Last RMS-Density change    ...    2.2913e-06  Tolerance :   5.0000e-09\n  Last DIIS Error            ...    2.6635e-03  Tolerance :   5.0000e-07\n  Last Orbital Gradient      ...    9.4694e-06  Tolerance :   1.0000e-05\n  Last Orbital Rotation      ...    8.0697e-06  Tolerance :   1.0000e-05\n\n\n"
+    },
+    {
+      "id": 103,
+      "session_id": "as_7351e4579cad4113",
+      "state": "failed",
+      "path": "/data/cloudra/workspace/hard_resume_20260930/supplement_20261002/NI5_E1/orca/scan_C1N6.inp",
+      "req_cpus": 8,
+      "req_memory_mb": 12288,
+      "last_error": "*              working on a common directory               * | ************************************************************ | ERROR (SHARK): Failed to read input file (/data/cloudra/workspace/hard_resume_20260930/supplement_20261002/NI5_E1/orca/scan_C1N6.SHARKINP.tmp) | --------------------------------------------------------------------------",
+      "lock": false
+    },
+    {
+      "id": 104,
+      "session_id": "as_0af3d08a16c94d6a",
+      "state": "done",
+      "path": "/data/cloudra/workspace/hard_resume_20260930/supplement_20261002/HL1_E1/ts/ts_0001/jobs/declaration_0002/path/path-task.json",
+      "req_cpus": 8,
+      "req_memory_mb": 4096,
+      "last_error": null,
+      "lock": false
+    },
+    {
+      "id": 105,
+      "session_id": "as_0af3d08a16c94d6a",
+      "state": "done",
+      "path": "/data/cloudra/workspace/hard_resume_20260930/supplement_20261002/HL1_E1/ts/ts_0001/jobs/declaration_0003/path/path-task.json",
+      "req_cpus": 8,
+      "req_memory_mb": 4096,
+      "last_error": null,
+      "lock": false
+    },
+    {
+      "id": 106,
+      "session_id": "as_7351e4579cad4113",
+      "state": "failed",
+      "path": "/data/cloudra/workspace/hard_resume_20260930/supplement_20261002/NI5_E1/ts/ts_0001/jobs/declaration_0003/scan/scan.inp",
+      "req_cpus": 8,
+      "req_memory_mb": 4096,
+      "last_error": "*              working on a common directory               * | ************************************************************ | ERROR (SHARK): Failed to read input file (/data/cloudra/workspace/hard_resume_20260930/supplement_20261002/NI5_E1/ts/ts_0001/jobs/declaration_0003/scan/scan.SHARKINP.tmp) | --------------------------------------------------------------------------",
+      "lock": false
+    },
+    {
+      "id": 107,
+      "session_id": "as_0af3d08a16c94d6a",
+      "state": "failed",
+      "path": "/data/cloudra/workspace/hard_resume_20260930/supplement_20261002/HL1_E1/ts/ts_0001/jobs/declaration_0004/scan/scan.inp",
+      "req_cpus": 8,
+      "req_memory_mb": 4096,
+      "last_error": "*              working on a common directory               * | ************************************************************ | ERROR (SHARK): Failed to read input file (/data/cloudra/workspace/hard_resume_20260930/supplement_20261002/HL1_E1/ts/ts_0001/jobs/declaration_0004/scan/scan.SHARKINP.tmp) | --------------------------------------------------------------------------",
+      "lock": false
+    },
+    {
+      "id": 108,
+      "session_id": "as_7351e4579cad4113",
+      "state": "cancelled",
+      "path": "/data/cloudra/workspace/hard_resume_20260930/supplement_20261002/NI5_E1/orca/scan_C1N6_h2.inp",
+      "req_cpus": 8,
+      "req_memory_mb": 12288,
+      "last_error": "Scope protection: read-only reviewer submitted repeated NI5 route without root authorization; files retained; no QM killed",
+      "lock": false
+    },
+    {
+      "id": 109,
+      "session_id": "as_bd9718d3c4634014",
+      "state": "cancelled",
+      "path": "/data/cloudra/workspace/hard_resume_20260930/supplement_20261002/NI5_E1/orca/scan_C1N6_h2.inp",
+      "req_cpus": 8,
+      "req_memory_mb": 14000,
+      "last_error": "Scope protection: duplicate of cancelled108; repeated NI5 scan route closed; original evidence retained",
+      "lock": false
+    },
+    {
+      "id": 110,
+      "session_id": "as_cba0d6a330004abc",
+      "state": "failed",
+      "path": "/data/cloudra/workspace/hard_resume_20260930/supplement_20261002/NU5/ts/ts_0001/jobs/declaration_0005/ts_opt/refine.inp",
+      "req_cpus": 8,
+      "req_memory_mb": 4096,
+      "last_error": "calculator 退出码 4；*********************************** | !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! | INPUT ERROR | UNRECOGNIZED OR DUPLICATED KEYWORD(S) IN SIMPLE INPUT LINE",
+      "lock": false
+    },
+    {
+      "id": 111,
+      "session_id": "as_cba0d6a330004abc",
+      "state": "failed",
+      "path": "/data/cloudra/workspace/hard_resume_20260930/supplement_20261002/NU5/ts/ts_0002/jobs/declaration_0001/scan/scan.inp",
+      "req_cpus": 8,
+      "req_memory_mb": 4096,
+      "last_error": "*              working on a common directory               * | ************************************************************ | ERROR (SHARK): Failed to read input file (/data/cloudra/workspace/hard_resume_20260930/supplement_20261002/NU5/ts/ts_0002/jobs/declaration_0001/scan/scan.SHARKINP.tmp) | --------------------------------------------------------------------------",
+      "lock": false
+    },
+    {
+      "id": 112,
+      "session_id": "as_0af3d08a16c94d6a",
+      "state": "running",
+      "path": "/data/cloudra/workspace/hard_resume_20260930/supplement_20261002/NR1_E1/NR1_E1_RC_optfreq.inp",
+      "req_cpus": 8,
+      "req_memory_mb": 14000,
+      "last_error": null,
+      "lock": true,
+      "size": 1492238,
+      "tail": "IENT CALCULATION\n------------------------------------------------------------------------------\n\nNuc. rep. gradient        (SHARK) ... done (  0.0 sec)\nHCore & Overlap gradient  (SHARK) ... done (  0.1 sec)\nSplit-RIJ-J gradient      (SHARK) ... done (  0.5 sec)\nCOSX-gradient                     ... "
+    },
+    {
+      "id": 113,
+      "session_id": "as_cba0d6a330004abc",
+      "state": "failed",
+      "path": "/data/cloudra/workspace/hard_resume_20260930/supplement_20261002/NU5/ts/ts_0002/jobs/declaration_0002/scan/scan.inp",
+      "req_cpus": 8,
+      "req_memory_mb": 4096,
+      "last_error": "*              working on a common directory               * | ************************************************************ | ERROR (SHARK): Failed to read input file (/data/cloudra/workspace/hard_resume_20260930/supplement_20261002/NU5/ts/ts_0002/jobs/declaration_0002/scan/scan.SHARKINP.tmp) | --------------------------------------------------------------------------",
+      "lock": false
+    }
+  ],
+  "events": {
+    "as_ce8beb1a7405450f": [
+      {
+        "type": "agent.message_emitted",
+        "data": {
+          "sender": "small_mol",
+          "content": "Recorded. Waiting for scan job 99 to complete, then `ts_resume` with no adjustments."
+        },
+        "at": "2026-10-01T17:57:40.520011Z"
+      }
+    ],
+    "as_c627b84dbfa14bf7": [
+      {
+        "type": "agent.message_emitted",
+        "data": {
+          "sender": "small_mol",
+          "content": "Acknowledged the ruling. Waiting for job 102's terminal state."
+        },
+        "at": "2026-10-01T18:06:09.379271Z"
+      }
+    ],
+    "as_cba0d6a330004abc": [
+      {
+        "type": "agent.message_emitted",
+        "data": {
+          "sender": "small_mol",
+          "content": "Factual report posted. NU5_E2 is now an honest unmeasured gap; the route is stopped and nothing further was submitted.\n\n**NU5_E2 final status:**\n- **I1 reference confirmed** (job 93: normal, opt_converged, 0 imaginary, E = −436.477279011099 Ha).\n- **Decisive E2 measurement: NOT obtained.** The ts_prepare path-guess (job 97) and reduced-level scan (job 98, ORCA GFN2-XTB unavailable) failed; the full-method narrow scan failed mechanically twice (jobs 111 and 113, identical `SHARK: Failed to read scan.SHARKINP.tmp` in PROPERTIES; job 113 only differed by 7→8 points with identical point-1 geometry).\n- Per the governing instruction the **route is stopped**: no third identical scan, no reduced-level fallback (STEP 2 withdrawn). **No barrier claim, no forced 0, no \"unreachable\"**, source graph unchanged.\n- Kept as evidence: jobs 111/113 (logs+inputs), job 101 reduced-level scan (geometric hint only, internal max ≈2.29 Å), ts_0001/job 110 (basis-spelling failure), job 93.\n- Tool/env items for the monitor: ts_prepare basis-token rendering (`def2svp`), no method override in ts_resume, xTB route unusable, scan PROPERTIES SHARKINP/geometry-store flakiness.\n\nNY3_E1/E2/E3: not started. Awaiting direction; no further production submitted."
+        },
+        "at": "2026-10-01T19:26:51.691787Z"
+      }
+    ],
+    "as_0af3d08a16c94d6a": [
+      {
+        "type": "agent.message_emitted",
+        "data": {
+          "sender": "small_mol",
+          "content": "Coordinator's corrected ruling accepted; no reply needed. NR1 job 112 is running — waiting for its terminal notification."
+        },
+        "at": "2026-10-01T19:15:46.765955Z"
+      }
+    ]
+  },
+  "services": "active\nactive\n",
+  "release": "/opt/cloudra/releases/20261002-52477b99",
+  "journal": "-- No entries --\n",
+  "audit": {
+    "manual_submit_ts_irc_guard_loaded": true,
+    "manual_submit_requests_since_1740Z": 8,
+    "no_direct_ts_irc_submission_found": true,
+    "workflow_ts_attempt": 110,
+    "workflow_irc_attempts": 0,
+    "focused_test_file": "tests/test_manual_ts_submission.py",
+    "focused_tests_passed": 72,
+    "service_release": "52477b99",
+    "remaining_budget_last_UI_CNY": 44.32,
+    "scope": "supplement jobs >=91; previous hard campaign not included"
+  }
+}

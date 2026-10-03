@@ -1,136 +1,39 @@
-# 2. System Architecture and Methodology
+## 2. Architecture and Methods
 
-Cloudra is organized as an anarchic peer collective rather than a hierarchical agent tree: all agents share equal standing and differ only in their division of labor. Four core pillars uphold this design:
-1. **`AgentHub`:** The peer-to-peer collaboration fabric connecting all agents directly;
-2. **Event-Sourced Runtime v2:** Underpinning the collective with immutable event sourcing, command buses, and asynchronous task resumption;
-3. **Delivery DAG Evidence Engine:** Enforcing ordered stage contracts $s_1 \rightarrow s_8$ with deterministic gating, monitored by an independent scientific `Supervisor`;
-4. **Computational Chemistry Knowledge Graph (GraphRAG):** Providing structured diagnostic decision trees and cross-task troubleshooting heuristics.
+### 2.1 The division of responsibility
 
-```
-+-----------------------------------------------------------------------------+
-|                     CLOUDRA PEER-COLLECTIVE ARCHITECTURE                    |
-+-----------------------------------------------------------------------------+
-|                                                                             |
-|      [Coordinator] <-----> [AgentHub Forum] <-----> [small_mol (QC)]        |
-|      (Architect)                    |               (Quantum Chemist)       |
-|                                     |                                       |
-|      [researcher]  <--------->      |      <---------> [dft / md]           |
-|      (Literature)                   |               (Specialist Compute)    |
-|                                     |                                       |
-|      [explorer]    <--------->      |      <---------> [writer]             |
-|      (Auditor)                      |               (Reporting)             |
-|                                     v                                       |
-|                      +-----------------------------+                        |
-|                      |  Knowledge Graph (GraphRAG) |                        |
-|                      |  (Methodology & Diagnostics)|                        |
-|                      +-----------------------------+                        |
-|                                     |                                       |
-|      [Supervisor] ------------------+ (Scientific Gatekeeper / Auditor)     |
-|                                     |                                       |
-|                                     v                                       |
-|  +-----------------------------------------------------------------------+  |
-|  |  Delivery DAG Engine: Ordered Stage Contracts (s1 -> s8), Gate, Proof |  |
-|  +-----------------------------------------------------------------------+  |
-|  |  Event-Sourced Runtime v2: Immutable Log, Mailbox, Reminders, State    |  |
-|  +-----------------------------------------------------------------------+  |
-|  |  Execution Plane: Gaussian 16, ORCA 5.0, CREST/xTB, MACE-OMol25, ASE   |  |
-|  +-----------------------------------------------------------------------+  |
-+-----------------------------------------------------------------------------+
-```
+Cloudra separates three responsibilities: agents propose chemical hypotheses and authorized revisions; numerical tools generate structures and computational artifacts; the harness governs state transitions and evidence acceptance. A proposed hypothesis is consequently allowed to be wrong without being recorded as a verified result. Conversely, a successful tool call is not sufficient to upgrade the associated chemical claim.
 
-### 2.1 Event-Driven Runtime and Agent Roles
-Unlike conventional synchronous conversational loops, Cloudra operates on an asynchronous event-driven core (`Runtime v2`). State transitions, tool invocations, and agent dialogues are logged as immutable events within an event log. This design ensures that every computational conclusion is fully reproducible and replayable across interrupted execution runs.
+Specialized roles exchange findings through AgentHub. A supervisory role can examine the pending review work recorded in the DAG and request additional evidence. Scientific review complements the deterministic predicates; it does not turn missing frequency or direction evidence into a passed calculation. Knowledge retrieval supplies methodological context, but retrieved advice is not a substitute for an artifact generated for the particular structure and method under investigation.
 
-Cloudra organizes research workflows through specialized agent roles rather than a single monolithic LLM prompt:
-- **Coordinator:** The mechanism architect role---a peer among equals, not a superior of other agents. It decomposes overall objectives, proposes reaction networks, designs stage contracts, and synthesizes intermediate findings; coordination itself emerges through `AgentHub` rather than through centralized command.
-- **small_mol (Quantum Chemist):** Specializes in molecular quantum mechanics, orchestrating conformer generation, coordinate scans, transition state optimizations, vibrational analyses, and electronic structure diagnostics.
-- **researcher (Literature Specialist):** Queries bibliographic databases (OpenAlex, arXiv) to extract reported reaction conditions, analogous mechanisms, and kinetic parameters.
-- **explorer (Code & Workspace Auditor):** Performs read-only inspection of trajectory logs, output files, and data structures.
-- **Supervisor (Scientific Auditor):** A dedicated evaluation agent operating under `dag_guided` mode. The Supervisor independently audits proposed mechanism drafts, reviews incoming computational evidence from `CallReview` queues, and enforces adherence to peer-review quantum-chemical standards.
+### 2.2 Persistent transition-state procedures
 
-### 2.2 Peer-to-Peer Collaboration via AgentHub
-To avoid communication bottlenecks inherent in strictly centralized hierarchical agent trees, Cloudra features **AgentHub**, an open peer-to-peer forum that functions as the glue of the system. Every agent---including the Coordinator---communicates through AgentHub directly: parallel sub-agents broadcast reusable computational findings (such as discovered low-energy conformers, optimized basis set parameters, or spin-contamination warnings), pose cross-domain queries, and conduct direct peer calls. Because all shared knowledge is posted as addressable, threaded artifacts, AgentHub's post/topic structure enables seamless real-time horizontal information exchange.
+The current interface provides three operations: ts_prepare creates a run from explicit inputs, ts_inspect reads its authoritative state, and ts_resume revises that run with a reason and an expected revision. Inputs separately describe the reaction, conformers, guess strategy, saddle optimization, verification calculations, and execution resources. The method for one group is not silently inherited by another. This separation matters when an inexpensive exploratory path provides a candidate for a different, formally declared refinement method.
 
-When a specialized agent identifies an electronic structure anomaly (e.g., severe spin contamination $\langle S^2 \rangle > 0.85$ on a nominally doublet intermediate), it posts a finding to AgentHub, enabling parallel workers to immediately adapt their functional or basis set configurations without waiting for global round-trip orchestration.
+The process advances through preparation, structural binding, mapping, assembly, candidate generation, validation, submission, refinement, and verdict. Candidate generation can draw on the supported path, scan, or supplied-geometry routes. A peak on a scan or an exploratory trajectory remains a candidate until the formal saddle and direction checks succeed. Successful calculation notifications advance the process without requiring the agent to restate the next routine instruction.
 
-### 2.3 Delivery DAG Formalism and Ordered Stage Contracts
-The defining formal mechanism in Cloudra is the **Delivery Directed Acyclic Graph (Delivery DAG)**. In Cloudra, a proposed reaction mechanism is represented as a typed directed graph $\mathcal{G} = (\mathcal{V}, \mathcal{E})$:
-- **Occurrence Nodes ($v \in \mathcal{V}$):** Represent distinct chemical species (reactants, intermediates, products, and non-covalent solvent complexes) assigned with canonical SMILES representations and formal roles.
-- **Elementary Step Edges ($e \in \mathcal{E}$):** Represent elementary chemical transformations connecting source and target species nodes.
+A failed or inconclusive attempt preserves its inputs, artifacts, and costs. Revisions invalidate the affected downstream results while retaining independently valid upstream evidence. A change to one endpoint calculation therefore need not erase the saddle calculation or the other endpoint. Stable request identifiers and persisted receipts support deduplication and recovery around submission. These are execution guarantees; they do not guarantee that a suitable transition state exists or will be found.
 
-Crucially, Cloudra eliminates "completion by assertion" by binding every graph element to an immutable **Stage Contract**. An elementary step edge $e_{ij}$ is required to pass through a strictly ordered sequence of physical verification stages:
+Scientific method selection remains explicit. The manuscript does not prescribe a universal functional, basis set, solvent model, conformer window, or barrier cutoff. Those choices belong to the authorized task protocol and must remain attached to the corresponding evidence.
 
-$$\text{Stage Sequence: } s_1 \rightarrow s_2 \rightarrow s_3 \rightarrow s_4 \rightarrow s_5 \rightarrow s_6 \rightarrow s_7 \rightarrow s_8$$
+### 2.3 Chemical evidence graphs and stage contracts
 
-Where:
-1. $s_1 = \texttt{ts\_guess}$: Preliminary transition state geometric hypothesis generated via IDPP interpolation or relaxed coordinate scan (advisory).
-2. $s_2 = \texttt{ts\_opt}$: First-order saddle point optimization convergence under quantum-chemical electronic structure methods (e.g., DFT / MLIP).
-3. $s_3 = \texttt{frequency}$: Harmonic vibrational analysis verifying exactly one imaginary vibrational frequency ($n_\mathrm{imag} = 1$) corresponding to the target reaction vector.
-4. $s_4 = \texttt{short\_irc}$: Initial bidirectional steepest-descent displacement along the transition vector ($\Delta s > 0$ and $\Delta s < 0$) confirming exit from the saddle region.
-5. $s_5 = \texttt{endpoint\_a}$: Full gradient relaxation of the forward trajectory to a stationary intermediate, confirming connectivity to target species $v_j$.
-6. $s_6 = \texttt{endpoint\_b}$: Full gradient relaxation of the backward trajectory, confirming connectivity to source species $v_i$.
-7. $s_7 = \texttt{direction}$: Verification of geometric and reaction coordinate orientation consistency between endpoints and the transition state.
-8. $s_8 = \texttt{thermochemistry}$: Quasi-harmonic free energy evaluation (including solvent corrections and low-frequency entropy damping) at standard state.
+The delivery graph represents chemical occurrences and elementary transformations rather than a list of tool calls. Occurrences reference species identity and state; elementary-step records connect occurrences and bind the relevant evidence. The runtime delivery schema and the exported benchmark schema serve different purposes and should not be conflated: a benchmark graph may represent a transition state as a node referenced by an edge, while a runtime edge carries its own stage contract.
 
-A stage $s_k$ cannot be bound until all antecedent required stages $s_{1 \dots k-1}$ are either fully supported by parsed computational artifacts or explicitly waived with scientific justification.
+At the scientific level, an elementary transformation proceeds from a transition-state guess to saddle optimization and frequency qualification, short-IRC direction evidence, and thermochemical annotation. The implementation retains more granular stage kinds, including frequency, endpoint, direction, and identity checks, selected by the relevant contract. This is not an unconditional eight-step chain imposed on every graph element. The guess stage is advisory and cannot replace evidence for a saddle.
 
-```
-+-----------------------------------------------------------------------------+
-|                     ORDERED STAGE CONTRACT STATE MACHINE                    |
-+-----------------------------------------------------------------------------+
-|  [ts_guess]      (Advisory TS Guess from IDPP / Relaxed Scan)               |
-|      |                                                                      |
-|      v                                                                      |
-|  [ts_opt]        (Saddle Point Optimization: Grad Conv = OK)                |
-|      |                                                                      |
-|      v                                                                      |
-|  [frequency]     (Harmonic Hessian: Exact n_imag == 1, Vector Matches)       |
-|      |                                                                      |
-|      v                                                                      |
-|  [short_irc]     (Bidirectional Descent: rx_coord displacement > 0)         |
-|      |                                                                      |
-|      v                                                                      |
-|  [endpoint_a/b]  (Endpoint Optimizations -> Structure Matches Graph Node)   |
-|      |                                                                      |
-|      v                                                                      |
-|  [direction]     (Reaction Coordinate Continuity & Path Direction Proof)    |
-|      |                                                                      |
-|      v                                                                      |
-|  [thermochem]    (Quasi-harmonic Solution Free Energies: dG_act, dG_rxn)    |
-+-----------------------------------------------------------------------------+
-```
+For a species claimed as a verified minimum, bound frequency evidence must establish zero imaginary frequencies. A transition state requires exactly one imaginary frequency together with evidence for the intended reaction direction. Missing frequency analysis remains missing evidence, even if geometry optimization reports success. The evidence level is derived by the harness; the agent cannot promote its own claim merely by changing the language used to describe it.
 
-### 2.4 Deterministic Gating, coord_guard, and Three-Mode Ablation
-To guarantee that neither LLM hallucinations nor unverified claims bypass scientific verification, Cloudra embeds deterministic runtime policies directly into the tool-execution pipeline:
+Short-IRC verification requires usable frames on both sides of the saddle and geometric direction consistency with the corresponding verified minima. The IRC trajectories themselves need not converge all the way to those minima. This allowance does not waive the independent requirement that the endpoint minima be verified. The current TS process additionally retains endpoint optimization, frequency, identity, and stereochemical checks before its verified verdict.
 
-1. **Substantive Compute Gating:** When a mechanism is initialized, the Coordinator must formulate a formal hypothesis via `dag_propose_mechanism`. Direct computational submission tools (`submit_compute_job`, `qm_input_writer`) remain locked until the hypothesis graph and stage contracts are accepted by the Supervisor (or auto-accepted under record mode), preventing unguided resource exhaustion.
-2. **coord_guard (Coordinate Hallucination Firewall):** LLMs exhibit notorious difficulty in outputting accurate floating-point Cartesian atomic matrices. Attempting to write hand-crafted coordinate matrices directly into `.gjf` or `.xyz` files triggers runtime policy warnings. All 3D structural operations must originate from verified structural generation tools (`smiles_to_mol`, `conformer_search`, `internal_coordinates`, `ts_guess`).
-3. **Electronic Structure Perception:** Open-shell and radical systems require vigilant monitoring of non-physical spin states. Cloudra provides native electronic analysis tools extracting Mulliken and meta-Löwdin atomic spin populations, Mayer bond orders, and localized Intrinsic Bond Orbitals (IBO), flagging spin contamination ($\langle S^2 \rangle - S(S+1) > 0.1$) before costly transition state searches proceed.
+A DAG is a representation of the delivered exploration, not a claim that all chemistry is acyclic. Repeated occurrences can describe a finite unfolding of a catalytic sequence; representation choices and coverage limits must be stated when comparing such a delivery with a reference graph.
 
-To rigorously benchmark the impact of these safeguards, Cloudra natively supports three operational modes:
-- **`standard` Mode:** Classical ReAct conversational loop without Delivery DAG tracking or Supervisor auditing.
-- **`dag_record` Mode:** The Delivery DAG tracks species, steps, and stage contracts; evidence is bound directly by the Coordinator without an active Supervisor agent.
-- **`dag_guided` Mode:** Complete supervisory architecture where the Supervisor audits mechanism proposals, inspects incoming `CallReview` outputs, and independently binds stage verdicts.
+### 2.4 Asynchronous execution and evidence provenance
 
-### 2.5 Computational Chemistry Knowledge Graph (GraphRAG) Layer
-While pre-trained LLMs possess broad parametric chemistry knowledge, they frequently struggle when encountering domain-specific quantum-chemical execution failures—such as multi-imaginary frequency saddle points, oscillatory SCF non-convergence, disconnected IRC trajectories, severe spin contamination, or implicit solvation breakdowns in strong hydrogen-bonding media.
+Long-running calculations are managed outside the model's conversational lifetime. The event-driven runtime records state changes and reacts to calculation outcomes, while the scheduler maintains durable job records. Recovery can therefore resume research decisions without treating a disconnected conversation as evidence that a calculation has stopped.
 
-To empower agents with actionable troubleshooting expertise, Cloudra integrates a domain-specialized **Computational Chemistry Knowledge Graph (GraphRAG)**. Grounded in established computational chemistry methodology and expert troubleshooting protocols (distilled from canonical quantum-chemical guidelines and peer-reviewed literature), the knowledge graph is formulated as an actionable **Decision DAG** rather than a flat textual corpus:
-- **Ontological Nodes:** Comprise *Symptom nodes* (e.g., $n_\mathrm{imag} > 1$, SCF energy divergence, IRC single-basin relapse, $\langle S^2 \rangle$ elevation), *Diagnostic Criteria nodes* (e.g., verifying whether secondary imaginary modes $< 50\ \mathrm{cm^{-1}}$ represent methyl rotations, evaluating $T_1 / D_1$ multireference diagnostics), *Mitigation Action nodes* (e.g., displacing along normal coordinates by $0.1\ \mathrm{\AA}$, applying quadratic convergence `scf(xqc)`, twisting dihedral angles to break spurious higher-order saddle symmetries, activating broken-symmetry guess), and *Fallback / Escalation nodes* (e.g., recomputing analytical Hessians with elevated basis sets or triggering justified rejection for multireference breakdown).
-- **Relational Edges:** Link symptoms to diagnoses (`DIAGNOSED_BY`), conditional branches (`BRANCHES_IF`), actions (`RESOLVED_BY`), and hierarchical fallbacks (`FALLBACK_TO`).
-- **Tiered Evidence Hierarchy:** Knowledge entities are stratified into $L_0$ (methodological guidelines and verified community troubleshooting protocols), $L_1$ (physically converged, IRC-validated calculations from prior tasks), and $L_2$ (provisional theoretical conjectures), with falsified records assigned negative retrieval weights.
-- **Decision Tree Walk Retrieval:** When an agent encounters a calculation failure or requests method advice, GraphRAG performs node matching and traverses 1–2 hops along causal edges, injecting an indented, branch-structured decision tree directly into the LLM's context:
+Calculation liveness is determined through the project's exclusive-lock mechanism. Cancellation is requested through the ledger and handled by the execution side; a reasoning or review failure must not terminate a running quantum-chemical process. Native program termination markers are checked independently of numerical parsing. Reading an energy or geometry from a partial output does not establish that the underlying job finished normally.
 
-```text
-[QC Troubleshooting Graph: TS Multi-Imaginary Frequency Mitigation]
-Symptom: Transition state optimization converged with n_imag > 1
-├─ Step 1: Inspect secondary imaginary mode (freq_2) magnitude & character
-│  ├─ Branch A: freq_2 < 50 cm^-1 & corresponds to spectator side-chain / methyl rotation
-│  │  └─ Action: Displace geometry 0.1 A along normal mode -> opt(ts,calcfc,noeigentest)
-│  └─ Branch B: freq_2 is large and involves core bond-forming/breaking framework
-│     ├─ Root Cause: Geometry is trapped at a higher-order symmetric saddle point
-│     └─ Action: Manually distort key dihedral angle by 5-10 deg -> restart TS search
-└─ Fallback: If 2 attempts fail -> recompute full initial Hessian with tighter grid/basis
-```
+Provenance connects the chemical claim, input revision, declared method, actual structure, job, and resulting artifacts. Geometry tools reduce dependence on model-written Cartesian coordinates, but guidance against manual coordinates is not described as a universal security guarantee. The stronger scientific requirement is that the geometry actually submitted and the evidence actually accepted correspond to the declared structure and method.
 
-By decoupling horizontal intra-task communication (`AgentHub`) from vertical cross-task knowledge retrieval (`GraphRAG`), Cloudra provides agents with immediate, structured diagnostic remediation, converting repetitive computational trial-and-error into targeted, physical error recovery.
+Event records improve traceability and recovery. They do not make stochastic model outputs or numerical searches exactly reproducible by themselves. Reproduction also requires model and software versions, seeds where applicable, calculation settings, and the relevant artifacts.
