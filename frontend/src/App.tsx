@@ -30,6 +30,9 @@ import { resolveComposerSendTarget } from './composerSend';
 import { planSseReconnect } from './sseReconnect';
 import {
   archiveProjectConfirm,
+  cancelAllComputeConfirm,
+  formatCancelAllToast,
+  hardDeleteProjectConfirm,
 } from './destructiveActions';
 import { ToolRow } from './ToolRow';
 import { ProgramCard } from './ProgramCard';
@@ -1026,6 +1029,38 @@ export default function App() {
     }
   };
 
+  async function deleteProject(p: Project) {
+    if (!window.confirm(hardDeleteProjectConfirm(p.name))) {
+      return;
+    }
+    try {
+      const resp = await api.deleteProject(p.id);
+      if (!resp.accepted) {
+        const err = (resp.data as { error?: { message?: string } } | null)?.error;
+        pushToast('error', err?.message ?? 'Delete rejected');
+        return;
+      }
+      setProjects((prev) => prev.filter((x) => x.id !== p.id));
+      if (activeProjectId === p.id) setActiveProjectId(null);
+      pushToast('ok', `Project "${p.name}" permanently deleted`);
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
+  async function cancelAllComputeJobs() {
+    if (!window.confirm(cancelAllComputeConfirm())) {
+      return;
+    }
+    try {
+      const counts = await api.cancelAllComputeJobs();
+      void loadSidebarOps();
+      pushToast('ok', formatCancelAllToast(counts));
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
   async function sendMessage() {
     const target = resolveComposerSendTarget({
       draft,
@@ -1943,6 +1978,15 @@ export default function App() {
                       >
                         {t.sidebarRestore}
                       </button>
+                      <button
+                        type="button"
+                        className="btn ghost sm"
+                        data-testid={`hard-delete-${p.id}`}
+                        title={lang === 'zh' ? '永久删除（保留工作区目录）' : 'Permanently delete (keep workspace)'}
+                        onClick={(e) => { e.stopPropagation(); void deleteProject(p); }}
+                      >
+                        {lang === 'zh' ? '永久删除' : 'Delete'}
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -1951,8 +1995,16 @@ export default function App() {
           </div>
         </div>
 
-        {/* The single button at the foot: Settings */}
+        {/* Sidebar actions */}
         <div className="left-sidebar-foot">
+          <button
+            type="button"
+            className="btn outline sm"
+            data-testid="cancel-all-compute-foot"
+            onClick={() => void cancelAllComputeJobs()}
+          >
+            {lang === 'zh' ? '取消全部计算' : 'Cancel All Compute'}
+          </button>
           <button
             type="button"
             className="btn outline sm settings-btn"

@@ -7,10 +7,6 @@ export interface Atom3D {
   x: number;
   y: number;
   z: number;
-  // Optional normal mode displacement vector for imaginary frequency animation
-  dx?: number;
-  dy?: number;
-  dz?: number;
 }
 
 export interface Bond3D {
@@ -25,7 +21,7 @@ export interface Molecule3DViewerProps {
   xyz?: string;
   title?: string;
   isTransitionState?: boolean;
-  imaginaryFreq?: number;
+  saddleEvidenceSupported?: boolean;
   className?: string;
 }
 
@@ -78,21 +74,7 @@ export function parseXyz(xyzText: string): Atom3D[] {
       const y = parseFloat(parts[2]);
       const z = parseFloat(parts[3]);
       if (!isNaN(x) && !isNaN(y) && !isNaN(z) && symbol) {
-        // Check if normal mode displacement vector is present
-        let dx: number | undefined = undefined;
-        let dy: number | undefined = undefined;
-        let dz: number | undefined = undefined;
-        if (parts.length >= 7) {
-          const vx = parseFloat(parts[4]);
-          const vy = parseFloat(parts[5]);
-          const vz = parseFloat(parts[6]);
-          if (!isNaN(vx) && !isNaN(vy) && !isNaN(vz)) {
-            dx = vx;
-            dy = vy;
-            dz = vz;
-          }
-        }
-        atoms.push({ index: atoms.length, symbol, x, y, z, dx, dy, dz });
+        atoms.push({ index: atoms.length, symbol, x, y, z });
       }
     }
   }
@@ -131,7 +113,7 @@ export function Molecule3DViewer({
   xyz,
   title,
   isTransitionState = false,
-  imaginaryFreq,
+  saddleEvidenceSupported = false,
   className = '',
 }: Molecule3DViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -150,7 +132,7 @@ export function Molecule3DViewer({
   const [autoSpin, setAutoSpin] = useState<boolean>(false);
   const [showLabels, setShowLabels] = useState<boolean>(false);
   const [renderMode, setRenderMode] = useState<'ball_stick' | 'spacefill' | 'wireframe'>('ball_stick');
-  const [vibrating, setVibrating] = useState<boolean>(isTransitionState);
+  const [vibrating, setVibrating] = useState<boolean>(false);
   const [showCoords, setShowCoords] = useState<boolean>(false);
 
   // Drag interaction refs
@@ -159,6 +141,9 @@ export function Molecule3DViewer({
   const lastMouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const animFrameRef = useRef<number | null>(null);
   const vibPhaseRef = useRef<number>(0);
+
+  // Stop illustration when selecting another structure, including identical XYZs.
+  useEffect(() => { setVibrating(false); }, [xyz, smiles, title, isTransitionState]);
 
   // Load coordinates from XYZ or SMILES
   useEffect(() => {
@@ -340,19 +325,12 @@ export function Molecule3DViewer({
         let y = a.y - center.y;
         let z = a.z - center.z;
 
-        // Apply TS imaginary vibration mode perturbation
+        // Purely illustrative motion; never presented as a computed normal mode.
         if (vibrating) {
-          if (a.dx !== undefined && a.dy !== undefined && a.dz !== undefined) {
-            x += a.dx * vibAmp;
-            y += a.dy * vibAmp;
-            z += a.dz * vibAmp;
-          } else {
-            // Simulated transition state mode perturbation based on atom position
-            const wave = Math.sin(idx * 1.5 + vibPhaseRef.current);
-            x += (x / (maxRadius || 1)) * vibAmp * 0.4;
-            y += (y / (maxRadius || 1)) * vibAmp * 0.4;
-            z += wave * vibAmp * 0.25;
-          }
+          const wave = Math.sin(idx * 1.5 + vibPhaseRef.current);
+          x += (x / (maxRadius || 1)) * vibAmp * 0.4;
+          y += (y / (maxRadius || 1)) * vibAmp * 0.4;
+          z += wave * vibAmp * 0.25;
         }
 
         // Rotate around Y axis
@@ -569,14 +547,18 @@ export function Molecule3DViewer({
 
   return (
     <div className={`molecule-3d-container ${className}`}>
+      <div className="viewer-3d-badge" role="note">
+        当前显示几何未与科学证据绑定
+        {vibrating && ' · 示意动画：非计算简正模，不作为虚频证据'}
+      </div>
       {/* Viewer Header / Toolbar */}
       <div className="viewer-3d-header">
         <div className="viewer-3d-title">
           <span className="viewer-3d-badge">3D 立体结构展示器</span>
           {title && <span className="viewer-3d-molname">{title}</span>}
           {isTransitionState && (
-            <span className="badge-ts-marker" title="确证的过渡态鞍点结构">
-              鞍点 TS {imaginaryFreq ? `(${imaginaryFreq.toFixed(1)} cm⁻¹)` : ''}
+            <span className="badge-ts-marker" title="证据状态不代表当前显示几何已确证">
+              {saddleEvidenceSupported ? '鞍点证据已支持' : '候选 TS · 未确证'} · 虚频未知
             </span>
           )}
           {atoms.length > 0 && (
@@ -637,9 +619,9 @@ export function Molecule3DViewer({
             type="button"
             className={`btn outline sm ${vibrating ? 'active' : ''}`}
             onClick={() => setVibrating(!vibrating)}
-            title="模拟虚频振动简正模式 (Imaginary Normal Mode Vibration)"
+            title="仅供结构展示的示意动画，不代表计算简正模"
           >
-            {vibrating ? '振动开' : '振动'}
+            {vibrating ? '停止示意振动' : '示意振动'}
           </button>
 
           <button

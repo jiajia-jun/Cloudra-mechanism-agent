@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import dagre from 'dagre';
 import { api } from './api';
 import type { Project } from './types';
+import { hasSaddleEvidence } from './tsEvidence';
 import { Molecule3DViewer } from './Molecule3DViewer';
 
 /* Structured DAG panel:
@@ -645,6 +646,7 @@ export default function DagPanel({
         smiles: String(selNode.smiles ?? '').trim(),
         role: String(selNode.role ?? 'intermediate'),
         isTS: false,
+        saddleEvidenceSupported: false,
         evidenceLevel: String(selNode.evidence_level ?? 'proposed'),
         stages: (selNode.stages as Json[] | undefined) ?? [],
         xyz: String(selNode.xyz ?? selNode.metadata?.xyz ?? ''),
@@ -659,6 +661,7 @@ export default function DagPanel({
         smiles: String(selEdge.smiles ?? '').trim(),
         role: 'transition_state',
         isTS: true,
+        saddleEvidenceSupported: hasSaddleEvidence(selEdge),
         evidenceLevel: String(selEdge.evidence_level ?? 'proposed'),
         stages: (selEdge.stages as Json[] | undefined) ?? [],
         xyz: String(selEdge.xyz ?? selEdge.metadata?.xyz ?? ''),
@@ -689,10 +692,7 @@ export default function DagPanel({
       return st.some((s) => s.kind === 'frequency' && s.status === 'supported');
     }).length;
 
-    const verifiedTs = edges.filter((e) => {
-      const st = (e.stages as Json[] | undefined) ?? [];
-      return st.some((s) => s.kind === 'ts_opt' && s.status === 'supported');
-    }).length;
+    const verifiedTs = edges.filter(hasSaddleEvidence).length;
 
     const verifiedIrc = edges.filter((e) => {
       const st = (e.stages as Json[] | undefined) ?? [];
@@ -764,7 +764,7 @@ export default function DagPanel({
               xyz={currentItem?.xyz}
               title={currentItem?.label}
               isTransitionState={currentItem?.isTS}
-              imaginaryFreq={currentItem?.isTS ? 420.5 : undefined}
+              saddleEvidenceSupported={currentItem?.saddleEvidenceSupported}
             />
           </div>
 

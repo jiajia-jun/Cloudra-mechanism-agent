@@ -182,7 +182,7 @@ export async function installApiMocks(page: Page, opts: MockOpts = {}) {
 
 export async function openSpa(page: Page, hash = '') {
   await page.goto(`/${hash}`);
-  await page.getByText('Welcome to Cloudra').or(page.getByPlaceholder('New project…')).first().waitFor({
+  await page.getByPlaceholder('新建项目名…').waitFor({
     state: 'visible',
     timeout: 15_000,
   });
