@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-import re
 import shlex
 import shutil
 import subprocess
@@ -21,11 +20,8 @@ from cloudra.services.compute_store import (
     aupdate_scheduler_state,
 )
 
-_SBATCH_VALUE = re.compile(r"[A-Za-z0-9_.:@+/%-]{1,100}\Z")
-_MEMORY = re.compile(r"[1-9][0-9]{0,6}(?:[KMGTP])?\Z", re.IGNORECASE)
-_TIME_LIMIT = re.compile(r"(?:[0-9]{1,3}-)?[0-9]{1,2}:[0-9]{2}:[0-9]{2}\Z")
-_JOB_ID = re.compile(r"[0-9]+(?:_[0-9]+)?\Z")
-_ENVIRONMENT_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
+_SBATCH_CHARS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.:@+/%-")
+_MEMORY_SUFFIXES = frozenset("KMGTPkmgtp")
 
 SLURM_TERMINAL_SUCCESS = frozenset({"COMPLETED"})
 SLURM_TERMINAL_FAILURE = frozenset(
@@ -47,9 +43,47 @@ def check_slurm_tools() -> tuple[bool, str]:
     return True, ""
 
 
-def _directive(name: str, value: object, validator: re.Pattern[str] = _SBATCH_VALUE) -> str:
+def _is_sbatch_value(text: str) -> bool:
+    return 1 <= len(text) <= 100 and all(char in _SBATCH_CHARS for char in text)
+
+
+def _is_memory(text: str) -> bool:
+    number = text[:-1] if text and text[-1] in _MEMORY_SUFFIXES else text
+    return 1 <= len(number) <= 7 and number[0] != "0" and number.isascii() and number.isdecimal()
+
+
+def _is_time_limit(text: str) -> bool:
+    if not text.isascii():
+        return False
+    day, separator, clock = text.partition("-")
+    if separator and (not day.isdecimal() or not 1 <= len(day) <= 3):
+        return False
+    parts = (clock if separator else text).split(":")
+    return (
+        len(parts) == 3
+        and 1 <= len(parts[0]) <= 2
+        and parts[0].isdecimal()
+        and len(parts[1]) == 2
+        and parts[1].isdecimal()
+        and len(parts[2]) == 2
+        and parts[2].isdecimal()
+    )
+
+
+def _is_job_id(text: str) -> bool:
+    base, separator, array = text.partition("_")
+    return text.isascii() and bool(base) and base.isdecimal() and (not separator or (bool(array) and array.isdecimal()))
+
+
+def _is_environment_name(text: str) -> bool:
+    return text.isascii() and bool(text) and (text[0].isalpha() or text[0] == "_") and all(
+        char.isalnum() or char == "_" for char in text[1:]
+    )
+
+
+def _directive(name: str, value: object, validator: Callable[[str], bool] = _is_sbatch_value) -> str:
     text = str(value).strip()
-    if not validator.fullmatch(text):
+    if not validator(text):
         raise SlurmError(f"无效的 Slurm {name}: {text!r}")
     return f"#SBATCH --{name}={text}"
 
@@ -73,7 +107,7 @@ def scheduler_setup_lines(scheduler: dict) -> list[str]:
     if not isinstance(environment, dict):
         raise SlurmError("Slurm environment 必须是对象")
     for name, value in environment.items():
-        if not isinstance(name, str) or not _ENVIRONMENT_NAME.fullmatch(name):
+        if not isinstance(name, str) or not _is_environment_name(name):
             raise SlurmError(f"无效的 Slurm environment 变量名: {name!r}")
         if (
             not isinstance(value, str)
@@ -123,14 +157,14 @@ def build_batch_script(
         if value:
             lines.append(_directive(directive_name, value))
     if scheduler.get("time_limit"):
-        lines.append(_directive("time", scheduler["time_limit"], _TIME_LIMIT))
+        lines.append(_directive("time", scheduler["time_limit"], _is_time_limit))
     if scheduler.get("cpus") is not None:
         cpus = int(scheduler["cpus"])
         if cpus < 1 or cpus > 4096:
             raise SlurmError("Slurm cpus 必须在 1..4096")
         lines.append(f"#SBATCH --cpus-per-task={cpus}")
     if scheduler.get("memory"):
-        lines.append(_directive("mem", scheduler["memory"], _MEMORY))
+        lines.append(_directive("mem", scheduler["memory"], _is_memory))
     lines.append("set -euo pipefail")
     lines.extend(scheduler_setup_lines(scheduler))
     lines.append(f"cd {shlex.quote(workdir or str(input_file.parent))}")
@@ -159,7 +193,7 @@ def submit_batch(script_path: Path) -> str:
     if completed.returncode != 0:
         raise SlurmError((completed.stderr or completed.stdout or "sbatch failed")[:2000])
     job_id = completed.stdout.strip().split(";", 1)[0]
-    if not _JOB_ID.fullmatch(job_id):
+    if not _is_job_id(job_id):
         raise SlurmError(f"sbatch 返回了无效 job id: {job_id!r}")
     return job_id
 
@@ -181,14 +215,14 @@ def parse_sacct_job_id(text: str) -> str | None:
             state = "CANCELLED"
         if state in terminal:
             continue
-        if _JOB_ID.fullmatch(job_id):
+        if _is_job_id(job_id):
             return job_id
     return None
 
 
 def query_job_by_name(job_name: str) -> str | None:
     """按 ``#SBATCH --job-name=cloudra-{task_id}`` 找回 sbatch 已提交但未回写的句柄。"""
-    if not _SBATCH_VALUE.fullmatch(job_name):
+    if not _is_sbatch_value(job_name):
         raise SlurmError("无效的 Slurm job name")
     try:
         completed = subprocess.run(
@@ -221,7 +255,7 @@ def parse_sacct_state(text: str) -> tuple[str, str]:
 
 
 def query_job(job_id: str) -> tuple[str, str]:
-    if not _JOB_ID.fullmatch(job_id):
+    if not _is_job_id(job_id):
         raise SlurmError("无效的 Slurm job id")
     completed = subprocess.run(
         [
@@ -290,7 +324,7 @@ def _engine_success_from_log(
 
 
 def cancel_job(job_id: str) -> None:
-    if not _JOB_ID.fullmatch(job_id):
+    if not _is_job_id(job_id):
         raise SlurmError("无效的 Slurm job id")
     completed = subprocess.run(
         ["scancel", job_id],

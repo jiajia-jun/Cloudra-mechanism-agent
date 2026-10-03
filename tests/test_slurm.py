@@ -5,12 +5,27 @@ import pytest
 from cloudra.infra.slurm import (
     SlurmError,
     _engine_success_from_log,
+    _is_environment_name,
+    _is_job_id,
+    _is_memory,
+    _is_time_limit,
     build_batch_script,
     cancel_job,
     query_job,
     query_job_by_name,
     submit_batch,
 )
+
+
+def test_slurm_validators_use_explicit_token_rules():
+    assert _is_environment_name("OMPI_MCA_slots")
+    assert not _is_environment_name("9BAD")
+    assert _is_job_id("12345_7")
+    assert not _is_job_id("123;rm")
+    assert _is_memory("32G")
+    assert not _is_memory("0G")
+    assert _is_time_limit("1-02:03:04")
+    assert not _is_time_limit("1-2:3:4")
 
 
 def test_batch_script_uses_validated_directives_and_shell_quoting(
@@ -204,3 +219,31 @@ def test_engine_success_from_log_uses_xtb_and_vasp_markers(tmp_path):
         encoding="utf-8",
     )
     assert _engine_success_from_log("vasp", str(poscar)) is True
+
+@pytest.mark.parametrize("time_limit", ["02:03:04", "2:03:04", "1-02:03:04"])
+def test_time_limit_accepts_clock_with_optional_days(tmp_path, time_limit):
+    script = build_batch_script(
+        tmp_path / "h2.gjf", "gaussian", 1,
+        {"time_limit": time_limit}, calculator_cmd=["true"],
+    )
+    assert f"#SBATCH --time={time_limit}" in script
+
+
+@pytest.mark.parametrize(
+    ("validator", "value"),
+    [
+        (_is_memory, "٣٢G"),
+        (_is_memory, "０G"),
+        (_is_time_limit, "١-02:03:04"),
+        (_is_time_limit, "1-٠٢:03:04"),
+        (_is_time_limit, "1-02:٠٣:04"),
+        (_is_time_limit, "1-02:03:٠٤"),
+        (_is_job_id, "١٢٣"),
+        (_is_job_id, "123_٧"),
+        (_is_environment_name, "ÉNV"),
+        (_is_environment_name, "ENVé"),
+        (_is_environment_name, "ENV²"),
+    ],
+)
+def test_slurm_validators_reject_non_ascii_tokens(validator, value):
+    assert not validator(value)

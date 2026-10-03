@@ -33,10 +33,10 @@ from pathlib import Path
 
 from cloudra.infra.compute_utils import XtbParams, _default_calculator_path
 from cloudra.infra.slurm import (
-    _JOB_ID,
     SLURM_TERMINAL_FAILURE,
     SLURM_TERMINAL_SUCCESS,
     _engine_success_from_log,
+    _is_job_id,
     build_batch_script,
     parse_sacct_job_id,
     parse_sacct_state,
@@ -157,7 +157,7 @@ def _submit_slurm(transport, remote_dir: str, script_name: str) -> str:
         f"cd {shlex.quote(remote_dir)} && sbatch --parsable {shlex.quote(script_name)}"
     )
     job_id = out.strip().split(";", 1)[0]
-    if not _JOB_ID.fullmatch(job_id):
+    if not _is_job_id(job_id):
         raise SshError(f"远端 sbatch 返回了无效 job id: {job_id!r}")
     return job_id
 
