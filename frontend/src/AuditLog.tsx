@@ -308,7 +308,7 @@ export default function AuditLog({ agentId, projectId, liveEvents, onError }: Au
             download
             title="Download the full project transcript as Markdown — every event with complete payloads (messages, thinking chains, tool arguments/results, compaction and context-tree snapshots)"
           >
-            ⬇ full log
+            ↓ full log
           </a>
         )}
       </div>

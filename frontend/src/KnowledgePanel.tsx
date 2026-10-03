@@ -346,7 +346,7 @@ export default function KnowledgePanel({ onClose, onToast }: KnowledgePanelProps
                         <rect
                           width={n.w}
                           height={n.h}
-                          rx={8}
+                          rx={0}
                           style={{
                             fill: 'var(--bg-panel)',
                             stroke,

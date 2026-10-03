@@ -274,7 +274,10 @@ function SlotSection({
   );
 }
 
-export default function GlobalConfig({ onClose, onToast }: GlobalConfigProps) {
+export default function GlobalConfig({
+  onClose,
+  onToast,
+}: GlobalConfigProps) {
   const [cfg, setCfg] = useState<RuntimeConfig | null>(null);
   const [presets, setPresets] = useState<ProviderPreset[]>([]);
   const [drafts, setDrafts] = useState<Record<Slot, SlotDraft>>({
@@ -438,6 +441,8 @@ export default function GlobalConfig({ onClose, onToast }: GlobalConfigProps) {
           written to <span className="mono-path">{cfg?.config_file ?? '…'}</span> and apply on the
           next LLM request.
         </div>
+
+
         {cfg === null ? (
           <div className="empty-hint">Loading config…</div>
         ) : (

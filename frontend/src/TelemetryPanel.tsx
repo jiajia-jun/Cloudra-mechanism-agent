@@ -71,7 +71,7 @@ function IdBadge({ id, fallback = '—' }: { id: string | null | undefined; fall
   return (
     <span className="tm-id-badge" title={`${id} (点击复制完整 ID)`} onClick={handleCopy}>
       <code className="tm-id-text">{short}</code>
-      <span className="tm-id-copy" title="复制">{copied ? '✓' : '📋'}</span>
+      <span className="tm-id-copy" title="复制">{copied ? '✓' : '复制'}</span>
     </span>
   );
 }
@@ -286,35 +286,35 @@ export default function TelemetryPanel({ onClose, onToast }: TelemetryPanelProps
             className={`tab ${tab === 'overview' ? 'active' : ''}`}
             onClick={() => setTab('overview')}
           >
-            📊 总览与模型
+            总览与模型
           </button>
           <button
             type="button"
             className={`tab ${tab === 'agents' ? 'active' : ''}`}
             onClick={() => setTab('agents')}
           >
-            🤖 会话明细 ({tokens?.agents.length ?? 0})
+            会话明细 ({tokens?.agents.length ?? 0})
           </button>
           <button
             type="button"
             className={`tab ${tab === 'projects' ? 'active' : ''}`}
             onClick={() => setTab('projects')}
           >
-            📁 项目统计 ({tokens?.projects.length ?? 0})
+            项目统计 ({tokens?.projects.length ?? 0})
           </button>
           <button
             type="button"
             className={`tab ${tab === 'cache' ? 'active' : ''}`}
             onClick={() => setTab('cache')}
           >
-            ⚡ 缓存分析
+            缓存分析
           </button>
           <button
             type="button"
             className={`tab ${tab === 'export' ? 'active' : ''}`}
             onClick={() => setTab('export')}
           >
-            📦 数据导出
+            数据导出
           </button>
         </div>
 
@@ -510,7 +510,7 @@ export default function TelemetryPanel({ onClose, onToast }: TelemetryPanelProps
               <div className="tm-table-box">
                 <div className="tm-table-box-head">
                   <div className="tm-table-box-title">
-                    <span>🤖 模型调用与消耗分布 (By Model)</span>
+                    <span>模型调用与消耗分布 (By Model)</span>
                   </div>
                   <span style={{ fontSize: 11, color: 'var(--fg-tertiary)' }}>
                     共 {sortedModels.length} 个模型
@@ -550,7 +550,7 @@ export default function TelemetryPanel({ onClose, onToast }: TelemetryPanelProps
               <div className="tm-table-box">
                 <div className="tm-table-box-head">
                   <div className="tm-table-box-title">
-                    <span>📅 按日消耗趋势 (By Day)</span>
+                    <span>按日消耗趋势 (By Day)</span>
                   </div>
                   <span style={{ fontSize: 11, color: 'var(--fg-tertiary)' }}>
                     共 {(cache?.by_day ?? []).length} 天
@@ -588,7 +588,7 @@ export default function TelemetryPanel({ onClose, onToast }: TelemetryPanelProps
               <div className="tm-table-box">
                 <div className="tm-table-box-head">
                   <div className="tm-table-box-title">
-                    <span>📈 单会话调用频次分桶 (By Session Request Count)</span>
+                    <span>单会话调用频次分桶 (By Session Request Count)</span>
                   </div>
                   <span style={{ fontSize: 11, color: 'var(--fg-tertiary)' }}>
                     长短会话缓存效益对比
@@ -622,7 +622,7 @@ export default function TelemetryPanel({ onClose, onToast }: TelemetryPanelProps
             <div className="tm-table-box" style={{ flex: 1 }}>
               <div className="tm-table-box-head">
                 <div className="tm-table-box-title">
-                  <span>🤖 Agent 会话消耗明细 (By Agent)</span>
+                  <span>Agent 会话消耗明细 (By Agent)</span>
                 </div>
                 <span style={{ fontSize: 11, color: 'var(--fg-tertiary)' }}>
                   显示 {filteredAgents.length} / {tokens?.agents.length ?? 0} 条
@@ -674,7 +674,7 @@ export default function TelemetryPanel({ onClose, onToast }: TelemetryPanelProps
             <div className="tm-table-box" style={{ flex: 1 }}>
               <div className="tm-table-box-head">
                 <div className="tm-table-box-title">
-                  <span>📁 项目消耗明细 (By Project)</span>
+                  <span>项目消耗明细 (By Project)</span>
                 </div>
                 <span style={{ fontSize: 11, color: 'var(--fg-tertiary)' }}>
                   显示 {filteredProjects.length} / {tokens?.projects.length ?? 0} 个项目
@@ -800,7 +800,7 @@ export default function TelemetryPanel({ onClose, onToast }: TelemetryPanelProps
               <div className="tm-table-box" style={{ flex: 1 }}>
                 <div className="tm-table-box-head">
                   <div className="tm-table-box-title">
-                    <span>⚠️ Top 缓存未命中调用 (Top Cache Misses)</span>
+                    <span>Top 缓存未命中调用 (Top Cache Misses)</span>
                   </div>
                   <span style={{ fontSize: 11, color: 'var(--fg-tertiary)' }}>
                     显示 {filteredMisses.length} 条调用
@@ -852,7 +852,7 @@ export default function TelemetryPanel({ onClose, onToast }: TelemetryPanelProps
             <div className="tm-export-grid">
               <div className="tm-export-card">
                 <div className="tm-export-title">
-                  <span>📄 单会话上下文导出 (Session JSONL)</span>
+                  <span>单会话上下文导出 (Session JSONL)</span>
                 </div>
                 <div className="tm-export-desc">
                   导出指定 Agent 会话的完整上下文事件序列（包含 Prompt 前缀、追加内容、压缩摘要与 LLM 回复），采用 JSON Lines 格式。
@@ -883,7 +883,7 @@ export default function TelemetryPanel({ onClose, onToast }: TelemetryPanelProps
 
               <div className="tm-export-card">
                 <div className="tm-export-title">
-                  <span>📦 项目全量会话打包 (Project ZIP)</span>
+                  <span>项目全量会话打包 (Project ZIP)</span>
                 </div>
                 <div className="tm-export-desc">
                   打包导出指定项目下的所有 Agent 会话上下文文件，压缩为 ZIP 文件，便于离线回放、审计或分析提示词缓存效率。

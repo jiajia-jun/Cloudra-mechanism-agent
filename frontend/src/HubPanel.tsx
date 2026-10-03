@@ -1,30 +1,74 @@
 /**
  * HubPanel — AgentHub 论坛：项目内 agent 帖子的完整可视化 + 用户发帖。
- *
- * 布局仿网页论坛：左侧话题列表（按最新活动排序），右侧帖子流；进入一个
- * 话题后按 parent_id 缩进成线程，每帖可回复。底部是发帖框（可新开话题、
- * 选 kind、@ 具体 agent）。数据来自 routers/hub.py：初始 GET 投影，之后
- * 用项目 SSE 流增量追加 hub.posted（按 id 去重）。
+ * 支持作为控制台嵌入式 Tab 面板，也支持作为弹窗运行。
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, streamProject } from './api';
 import type { Agent, HubPost, Project } from './types';
+import { useI18n } from './i18n';
 
-interface HubPanelProps {
+export interface HubPanelProps {
   projects: Project[];
   initialProjectId: string | null;
-  onClose: () => void;
+  onClose?: () => void;
   onToast: (kind: 'ok' | 'error' | 'info', text: string) => void;
+  embedded?: boolean;
 }
 
-const KIND_LABELS: Record<string, string> = {
-  finding: '发现',
-  question: '提问',
-  answer: '回答',
-  broadcast: '广播',
-  message: '定向',
-};
+function RefreshSvg() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+    </svg>
+  );
+}
+
+function CloseSvg() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
+}
+
+function ForumSvg() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+    </svg>
+  );
+}
+
+function ReplySvg() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="9 17 4 12 9 7" />
+      <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+    </svg>
+  );
+}
+
+function SendSvg() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="22" y1="2" x2="11" y2="13" />
+      <polygon points="22 2 15 22 11 13 2 9 22 2" />
+    </svg>
+  );
+}
+
+function HashSvg() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="4" y1="9" x2="20" y2="9" />
+      <line x1="4" y1="15" x2="20" y2="15" />
+      <line x1="10" y1="3" x2="8" y2="21" />
+      <line x1="16" y1="3" x2="14" y2="21" />
+    </svg>
+  );
+}
 
 function fmtTs(iso: string): string {
   const d = new Date(iso);
@@ -57,16 +101,49 @@ function PostCard({
   depth: number;
   onReply: (post: HubPost) => void;
 }) {
+  const { t } = useI18n();
+  const kindLabels: Record<string, string> = {
+    finding: t.hubKindFinding,
+    question: t.hubKindQuestion,
+    answer: t.hubKindAnswer,
+    broadcast: t.hubKindBroadcast,
+    message: t.hubKindMessage,
+  };
   const isUser = post.author_agent === 'user';
+  const roleLower = post.author_agent.toLowerCase();
+  const authorBadgeClass = isUser
+    ? 'author-user'
+    : roleLower.includes('coordinator')
+    ? 'author-coordinator'
+    : roleLower.includes('supervisor')
+    ? 'author-supervisor'
+    : roleLower.includes('calc') || roleLower.includes('compute') || roleLower.includes('small_mol')
+    ? 'author-compute'
+    : 'author-agent';
+
   return (
     <div className={`hub-post ${depth > 0 ? `hub-depth-${Math.min(depth, 4)}` : ''}`}>
       <div className="hub-post-head">
-        <span className={`hub-author ${isUser ? 'user' : ''}`}>{isUser ? '👤 用户' : post.author_agent}</span>
-        <span className={`hub-kind hub-kind-${post.kind}`}>{KIND_LABELS[post.kind] ?? post.kind}</span>
-        {post.to_agent && <span className="hub-to">→ @{post.to_agent}</span>}
+        <span className={`hub-author ${authorBadgeClass}`}>
+          {isUser ? t.hubUser : post.author_agent}
+        </span>
+        <span className={`hub-kind hub-kind-${post.kind}`}>
+          {kindLabels[post.kind] ?? post.kind}
+        </span>
+        {post.to_agent && (
+          <span className="hub-to" title={`@${post.to_agent}`}>
+            → @{post.to_agent}
+          </span>
+        )}
         <span className="hub-time">{fmtTs(post.created_at)}</span>
-        <button type="button" className="btn ghost sm hub-reply-btn" onClick={() => onReply(post)}>
-          回复
+        <button
+          type="button"
+          className="btn ghost sm hub-reply-btn"
+          onClick={() => onReply(post)}
+          title={t.hubReplyAction}
+        >
+          <ReplySvg />
+          <span>{t.hubReplyAction}</span>
         </button>
       </div>
       <div className="hub-post-content">{post.content}</div>
@@ -74,7 +151,14 @@ function PostCard({
   );
 }
 
-export default function HubPanel({ projects, initialProjectId, onClose, onToast }: HubPanelProps) {
+export default function HubPanel({
+  projects,
+  initialProjectId,
+  onClose,
+  onToast,
+  embedded = false,
+}: HubPanelProps) {
+  const { t } = useI18n();
   const [projectId, setProjectId] = useState<string | null>(initialProjectId ?? projects[0]?.id ?? null);
   const [posts, setPosts] = useState<HubPost[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -87,6 +171,13 @@ export default function HubPanel({ projects, initialProjectId, onClose, onToast 
   const [toAgent, setToAgent] = useState('');
   const [content, setContent] = useState('');
   const [sending, setSending] = useState(false);
+
+  // Sync if initialProjectId changes
+  useEffect(() => {
+    if (initialProjectId && initialProjectId !== projectId) {
+      setProjectId(initialProjectId);
+    }
+  }, [initialProjectId]);
 
   const load = useCallback(
     async (pid: string) => {
@@ -171,6 +262,12 @@ export default function HubPanel({ projects, initialProjectId, onClose, onToast 
     [posts, selectedTopic],
   );
 
+  const startReply = (post: HubPost) => {
+    setReplyTo(post);
+    setSelectedTopic(post.topic);
+    setTopic(post.topic);
+  };
+
   const renderThread = (post: HubPost, depth: number): ReactNode => (
     <div key={post.id}>
       <PostCard post={post} depth={depth} onReply={startReply} />
@@ -178,22 +275,16 @@ export default function HubPanel({ projects, initialProjectId, onClose, onToast 
     </div>
   );
 
-  const startReply = (post: HubPost) => {
-    setReplyTo(post);
-    setSelectedTopic(post.topic);
-    setTopic(post.topic);
-  };
-
-  const selectTopic = (t: string | null) => {
-    setSelectedTopic(t);
+  const selectTopic = (tName: string | null) => {
+    setSelectedTopic(tName);
     setReplyTo(null);
-    if (t) setTopic(t);
+    if (tName) setTopic(tName);
   };
 
   const submit = async () => {
     if (!projectId || sending) return;
     if (!topic.trim() || !content.trim()) {
-      onToast('error', '话题和内容都不能为空');
+      onToast('error', t.hubPostEmpty);
       return;
     }
     setSending(true);
@@ -210,7 +301,7 @@ export default function HubPanel({ projects, initialProjectId, onClose, onToast 
       setContent('');
       setToAgent('');
       setReplyTo(null);
-      onToast('ok', res.notified_count > 0 ? `已发布，通知了 ${res.notified_count} 个会话` : '已发布');
+      onToast('ok', t.hubPostedToast(res.notified_count));
     } catch (e) {
       onToast('error', e instanceof Error ? e.message : String(e));
     } finally {
@@ -224,158 +315,220 @@ export default function HubPanel({ projects, initialProjectId, onClose, onToast 
     return [...roles].sort();
   }, [agents]);
 
-  return (
-    <div className="modal-backdrop">
-      <div className="modal hub-modal">
-        <div className="hub-head">
-          <div className="hub-head-left">
-            <span className="hub-title">AgentHub 论坛</span>
-            <select
-              className="select hub-project-select"
-              value={projectId ?? ''}
-              onChange={(e) => setProjectId(e.target.value || null)}
-              title="选择项目（论坛按项目隔离）"
-            >
-              {!projectId && <option value="">选择项目…</option>}
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-            <span className="hub-count">{posts.length} 帖</span>
-          </div>
-          <div className="hub-head-right">
-            <button
-              type="button"
-              className="btn ghost sm"
-              onClick={() => projectId && void load(projectId)}
-              disabled={!projectId || loading}
-              title="重新加载"
-            >
-              ↻ 刷新
-            </button>
-            <button className="btn ghost sm" type="button" onClick={onClose} title="关闭 (Esc)">
-              ✕
-            </button>
+  const kindOptions: Record<string, string> = {
+    finding: t.hubKindFinding,
+    question: t.hubKindQuestion,
+    answer: t.hubKindAnswer,
+    broadcast: t.hubKindBroadcast,
+    message: t.hubKindMessage,
+  };
+
+  const panelBody = (
+    <div className={`hub-panel-root ${embedded ? 'embedded' : 'modal hub-modal'}`}>
+      <div className="hub-head">
+        <div className="hub-head-left">
+          <span className="hub-header-icon-wrap icon-indigo">
+            <ForumSvg />
+          </span>
+          <div className="hub-header-titles">
+            <div className="hub-title-row">
+              <span className="hub-title">{t.hubTitle}</span>
+              <span className="badge sm neutral">{t.hubPostsCount(posts.length)}</span>
+            </div>
+            <div className="hub-subtitle">
+              {t.hubSubtitle}
+            </div>
           </div>
         </div>
+        <div className="hub-head-right">
+          <select
+            className="select sm hub-project-select"
+            value={projectId ?? ''}
+            onChange={(e) => setProjectId(e.target.value || null)}
+            title={t.hubProjectSelectHint}
+          >
+            {!projectId && <option value="">{t.hubChooseProject}</option>}
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="btn ghost sm hub-refresh-btn"
+            onClick={() => projectId && void load(projectId)}
+            disabled={!projectId || loading}
+            title={t.hubRefresh}
+          >
+            <RefreshSvg />
+            <span>{t.hubRefresh}</span>
+          </button>
+          {!embedded && onClose && (
+            <button className="btn ghost sm" type="button" onClick={onClose} title="关闭 (Esc)">
+              <CloseSvg />
+            </button>
+          )}
+        </div>
+      </div>
 
-        {!projectId ? (
-          <div className="hub-empty">先创建一个项目，AgentHub 论坛是按项目隔离的。</div>
-        ) : (
-          <div className="hub-body">
-            <div className="hub-topics">
+      {!projectId ? (
+        <div className="hub-empty">{t.hubProjectEmptyHint}</div>
+      ) : (
+        <div className="hub-body">
+          <div className="hub-topics">
+            <button
+              type="button"
+              className={`hub-topic-row ${selectedTopic === null ? 'active' : ''}`}
+              onClick={() => selectTopic(null)}
+            >
+              <div className="hub-topic-row-main">
+                <span className="hub-topic-name">{t.hubLatestTopicTitle}</span>
+                <span className="badge sm neutral">{posts.length}</span>
+              </div>
+              <span className="hub-topic-preview">{t.hubLatestTopicDesc}</span>
+            </button>
+            <div className="hub-topics-divider">
+              <span>{t.hubTopicsCategoryTitle(topics.length)}</span>
+            </div>
+            {topics.map((tItem) => (
               <button
+                key={tItem.topic}
                 type="button"
-                className={`hub-topic-row ${selectedTopic === null ? 'active' : ''}`}
-                onClick={() => selectTopic(null)}
+                className={`hub-topic-row ${selectedTopic === tItem.topic ? 'active' : ''}`}
+                onClick={() => selectTopic(tItem.topic)}
+                title={tItem.topic}
               >
-                <span className="hub-topic-name">📋 最新动态</span>
-                <span className="hub-topic-count">{posts.length}</span>
-              </button>
-              {topics.map((t) => (
-                <button
-                  key={t.topic}
-                  type="button"
-                  className={`hub-topic-row ${selectedTopic === t.topic ? 'active' : ''}`}
-                  onClick={() => selectTopic(t.topic)}
-                  title={t.topic}
-                >
-                  <span className="hub-topic-name"># {t.topic}</span>
-                  <span className="hub-topic-preview">{t.preview}</span>
-                  <span className="hub-topic-meta">
-                    <span className="hub-topic-count">{t.count} 帖</span>
-                    <span>{fmtTs(t.latestAt)}</span>
+                <div className="hub-topic-row-main">
+                  <span className="hub-topic-name">
+                    <HashSvg />
+                    <span>{tItem.topic}</span>
                   </span>
-                </button>
-              ))}
-              {topics.length === 0 && !loading && <div className="hub-topics-empty">还没有话题</div>}
+                  <span className="badge sm neutral">{tItem.count}</span>
+                </div>
+                <span className="hub-topic-preview">{tItem.preview}</span>
+                <div className="hub-topic-meta">
+                  <span>{fmtTs(tItem.latestAt)}</span>
+                </div>
+              </button>
+            ))}
+            {topics.length === 0 && !loading && (
+              <div className="hub-topics-empty">{t.hubTopicsEmpty}</div>
+            )}
+          </div>
+
+          <div className="hub-main">
+            <div className="hub-posts">
+              {loading && posts.length === 0 && <div className="hub-empty">{t.hubLoadingPosts}</div>}
+              {!loading && posts.length === 0 && (
+                <div className="hub-empty-state">
+                  <span className="empty-svg-wrap icon-indigo">
+                    <ForumSvg />
+                  </span>
+                  <span className="empty-title">{t.hubEmptyTitle}</span>
+                  <span className="empty-desc">{t.hubEmptyDesc}</span>
+                </div>
+              )}
+              {selectedTopic === null
+                ? latestPosts.map((p) => (
+                    <div key={p.id}>
+                      <div className="hub-latest-topic" onClick={() => selectTopic(p.topic)}>
+                        <HashSvg />
+                        <span>{p.topic}</span>
+                      </div>
+                      <PostCard post={p} depth={0} onReply={startReply} />
+                    </div>
+                  ))
+                : roots.map((p) => renderThread(p, 0))}
             </div>
 
-            <div className="hub-main">
-              <div className="hub-posts">
-                {loading && posts.length === 0 && <div className="hub-empty">加载中…</div>}
-                {!loading && posts.length === 0 && (
-                  <div className="hub-empty">论坛还没有帖子 — 用下面的发帖框发第一帖，agent 也能看到。</div>
-                )}
-                {selectedTopic === null
-                  ? latestPosts.map((p) => (
-                      <div key={p.id}>
-                        <div className="hub-latest-topic" onClick={() => selectTopic(p.topic)}>
-                          # {p.topic}
-                        </div>
-                        <PostCard post={p} depth={0} onReply={startReply} />
-                      </div>
-                    ))
-                  : roots.map((p) => renderThread(p, 0))}
-              </div>
-
-              <div className="hub-composer">
-                {replyTo && (
-                  <div className="hub-reply-chip">
-                    回复 {replyTo.author_agent === 'user' ? '用户' : replyTo.author_agent} 的帖子
-                    <button type="button" className="hub-reply-cancel" onClick={() => setReplyTo(null)} title="取消回复">
-                      ✕
-                    </button>
-                  </div>
-                )}
-                <div className="hub-composer-row">
-                  <input
-                    className="input hub-topic-input"
-                    list="hub-topic-options"
-                    placeholder="话题（可新开）"
-                    value={topic}
-                    onChange={(e) => setTopic(e.target.value)}
-                  />
-                  <datalist id="hub-topic-options">
-                    {topics.map((t) => (
-                      <option key={t.topic} value={t.topic} />
-                    ))}
-                  </datalist>
-                  <select className="select hub-kind-select" value={kind} onChange={(e) => setKind(e.target.value)} title="帖子类型">
-                    {Object.entries(KIND_LABELS).map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    className="input hub-to-input"
-                    list="hub-agent-options"
-                    placeholder="@ 通知谁（可选）"
-                    value={toAgent}
-                    onChange={(e) => setToAgent(e.target.value)}
-                    title="role 名（如 small_mol）或会话 ID；留空不通知任何人，广播类型通知全部会话"
-                  />
-                  <datalist id="hub-agent-options">
-                    {roleOptions.map((r) => (
-                      <option key={r} value={r} />
-                    ))}
-                  </datalist>
-                </div>
-                <div className="hub-composer-row">
-                  <textarea
-                    className="textarea hub-content-input"
-                    placeholder={replyTo ? '写下你的回复…' : '写下帖子内容…（帖子对项目内所有 agent 公开）'}
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    rows={2}
-                  />
+            <div className="hub-composer">
+              {replyTo && (
+                <div className="hub-reply-chip">
+                  <ReplySvg />
+                  <span>
+                    {t.hubReplyToAuthor(replyTo.author_agent === 'user' ? t.hubUser : replyTo.author_agent)}
+                  </span>
                   <button
                     type="button"
-                    className="btn primary sm hub-send"
-                    onClick={() => void submit()}
-                    disabled={sending || !topic.trim() || !content.trim()}
+                    className="hub-reply-cancel"
+                    onClick={() => setReplyTo(null)}
+                    title={t.hubCancelReply}
                   >
-                    {sending ? '发布中…' : replyTo ? '回复' : '发布'}
+                    <CloseSvg />
                   </button>
                 </div>
+              )}
+              <div className="hub-composer-row">
+                <input
+                  className="input sm hub-topic-input"
+                  list="hub-topic-options"
+                  placeholder={t.hubTopicPlaceholder}
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                />
+                <datalist id="hub-topic-options">
+                  {topics.map((item) => (
+                    <option key={item.topic} value={item.topic} />
+                  ))}
+                </datalist>
+                <select
+                  className="select sm hub-kind-select"
+                  value={kind}
+                  onChange={(e) => setKind(e.target.value)}
+                >
+                  {Object.entries(kindOptions).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  className="input sm hub-to-input"
+                  list="hub-agent-options"
+                  placeholder={t.hubToAgentPlaceholder}
+                  value={toAgent}
+                  onChange={(e) => setToAgent(e.target.value)}
+                  title={t.hubTypePlaceholder}
+                />
+                <datalist id="hub-agent-options">
+                  {roleOptions.map((r) => (
+                    <option key={r} value={r} />
+                  ))}
+                </datalist>
+              </div>
+              <div className="hub-composer-row">
+                <textarea
+                  className="textarea hub-content-input"
+                  placeholder={replyTo ? t.hubReplyContentPlaceholder : t.hubContentPlaceholder}
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  rows={2}
+                />
+                <button
+                  type="button"
+                  className="btn primary sm hub-send"
+                  onClick={() => void submit()}
+                  disabled={sending || !topic.trim() || !content.trim()}
+                >
+                  <SendSvg />
+                  <span>{sending ? t.hubPublishingBtn : replyTo ? t.hubReplyAction : t.hubPublishBtn}</span>
+                </button>
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+    </div>
+  );
+
+  if (embedded) {
+    return panelBody;
+  }
+
+  return (
+    <div className="modal-backdrop">
+      {panelBody}
     </div>
   );
 }

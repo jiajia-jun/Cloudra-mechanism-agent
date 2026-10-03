@@ -190,7 +190,7 @@ export const PathPickerModal: React.FC<PathPickerModalProps> = ({
               disabled={systemPickerLoading}
               onClick={() => void handleNativePicker()}
             >
-              {systemPickerLoading ? 'Opening…' : '🖥️ System Dialog'}
+              {systemPickerLoading ? 'Opening…' : 'System Dialog'}
             </button>
             <button type="button" className="btn ghost sm modal-close-btn" onClick={onClose}>
               ✕
@@ -210,16 +210,16 @@ export const PathPickerModal: React.FC<PathPickerModalProps> = ({
               onClick={() => void loadDirectory(sc.path)}
             >
               {sc.name === 'Home'
-                ? '🏠 Home'
+                ? 'Home'
                 : sc.name === 'Desktop'
-                  ? '🖥️ Desktop'
+                  ? 'Desktop'
                   : sc.name === 'Documents'
-                    ? '📄 Docs'
+                    ? 'Docs'
                     : sc.name === 'CWD'
-                      ? '💼 CWD'
+                      ? 'CWD'
                       : sc.name === 'Root'
-                        ? '💾 /'
-                        : `📁 ${sc.name}`}
+                        ? '/'
+                        : sc.name}
             </button>
           ))}
         </div>
@@ -233,7 +233,7 @@ export const PathPickerModal: React.FC<PathPickerModalProps> = ({
             title={parentPath ? `Up to ${parentPath}` : 'At root'}
             onClick={() => parentPath && void loadDirectory(parentPath)}
           >
-            ⬆️ Up
+            ↑ Up
           </button>
           <button
             type="button"
@@ -242,7 +242,7 @@ export const PathPickerModal: React.FC<PathPickerModalProps> = ({
             title="Refresh current folder"
             onClick={() => void loadDirectory(currentPath)}
           >
-            🔄
+            ↻
           </button>
 
           <div className="path-breadcrumbs-wrap">
@@ -270,7 +270,7 @@ export const PathPickerModal: React.FC<PathPickerModalProps> = ({
                 />
               </form>
             ) : (
-              <div className="path-breadcrumbs" title="Click a segment to jump; click ✏️ to edit">
+              <div className="path-breadcrumbs" title="Click a segment to jump; click to edit">
                 {breadcrumbs.map((crumb, idx) => (
                   <React.Fragment key={crumb.path}>
                     {idx > 1 && <span className="crumb-sep">/</span>}
@@ -294,7 +294,7 @@ export const PathPickerModal: React.FC<PathPickerModalProps> = ({
                 setIsEditingPath(!isEditingPath);
               }}
             >
-              ✏️
+              编辑
             </button>
           </div>
         </div>
@@ -320,7 +320,7 @@ export const PathPickerModal: React.FC<PathPickerModalProps> = ({
             className="btn ghost sm"
             onClick={() => setIsCreatingFolder(!isCreatingFolder)}
           >
-            ➕ New Folder
+            + New Folder
           </button>
         </div>
 
@@ -358,7 +358,7 @@ export const PathPickerModal: React.FC<PathPickerModalProps> = ({
         )}
 
         {/* Error notice if any */}
-        {error && <div className="path-picker-error">⚠️ {error}</div>}
+        {error && <div className="path-picker-error">{error}</div>}
 
         {/* Folder List */}
         <div className="path-picker-list-wrap">
@@ -380,7 +380,6 @@ export const PathPickerModal: React.FC<PathPickerModalProps> = ({
                     onDoubleClick={() => void loadDirectory(entry.path)}
                     title={`Click to select; double-click to open (${entry.path})`}
                   >
-                    <span className="folder-icon">📁</span>
                     <span className="folder-name">{entry.name}</span>
                     {entry.mtime && (
                       <span className="folder-mtime">

@@ -3,14 +3,18 @@ import { api, EVENTS_WINDOW, HISTORY_PAGE_SIZE, streamProject } from './api';
 import Markdown from './Markdown';
 import DagPanel from './DagPanel';
 import OpsPanel from './OpsPanel';
-import type { Agent, CompletionSummary, ComputeJob, EventEnvelope, PendingReminder, Project } from './types';
-import AuditLog from './AuditLog';
+import type { Agent, CompletionSummary, ComputeJob, EventEnvelope, Project } from './types';
 import GlobalConfig from './GlobalConfig';
+import ProjectSettingsModal from './ProjectSettingsModal';
 import KnowledgePanel from './KnowledgePanel';
 import BenchmarkPanel from './BenchmarkPanel';
 import TelemetryPanel from './TelemetryPanel';
 import HubPanel from './HubPanel';
+import { ConsoleIndexPage, type ConsoleTab } from './ConsoleIndexPage';
+import { ArtifactsPanel } from './ArtifactsPanel';
+import AuditLog from './AuditLog';
 import AttentionDock, { type NotifPermission } from './AttentionDock';
+import InteractionPrompt from './InteractionPrompt';
 import { collectPending, diffNewItems, type PendingAttention, type ProjectPending } from './attention';
 import {
   applyStreamEvent,
@@ -26,16 +30,12 @@ import { resolveComposerSendTarget } from './composerSend';
 import { planSseReconnect } from './sseReconnect';
 import {
   archiveProjectConfirm,
-  cancelAllComputeConfirm,
-  formatCancelAllToast,
-  hardDeleteProjectConfirm,
 } from './destructiveActions';
 import { ToolRow } from './ToolRow';
 import { ProgramCard } from './ProgramCard';
 import { PathPickerModal } from './PathPickerModal';
-import { completionChipFor, stateBadgeText } from './completion';
-
-export type InspectorTab = 'overview' | 'ops' | 'dag' | 'approvals' | 'interactions' | 'artifacts' | 'settings' | 'events';
+import { completionChipFor } from './completion';
+import { useI18n } from './i18n';
 
 /* ------------------------------------------------------------------ helpers */
 
@@ -43,22 +43,6 @@ type ToastKind = 'error' | 'ok' | 'info';
 interface Toast { id: number; kind: ToastKind; text: string }
 
 let toastSeq = 0;
-
-function elapsed(startTs: number | null): string {
-  if (!startTs || startTs <= 0) return '—';
-  const secs = Math.max(0, Math.floor(Date.now() / 1000 - startTs));
-  if (secs < 60) return `${secs}s`;
-  if (secs < 3600) return `${Math.floor(secs / 60)}m${secs % 60}s`;
-  return `${Math.floor(secs / 3600)}h${Math.floor((secs % 3600) / 60)}m`;
-}
-
-function wakeCountdown(wakeTs: number): string {
-  const secs = Math.floor(wakeTs - Date.now() / 1000);
-  if (secs <= 0) return '已到期';
-  if (secs < 60) return `${secs}s 后`;
-  if (secs < 3600) return `${Math.floor(secs / 60)}m 后`;
-  return `${Math.floor(secs / 3600)}h 后`;
-}
 
 function short(text: unknown, max = 80): string {
   const s = typeof text === 'string' ? text : JSON.stringify(text);
@@ -77,14 +61,6 @@ function dedupeAgents(list: Agent[]): Agent[] {
   const seen = new Map<string, Agent>();
   for (const a of list) seen.set(a.id, a);
   return [...seen.values()];
-}
-
-function stamp(iso: unknown): string {
-  if (!iso || typeof iso !== 'string') return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
 function cleanPromptText(raw: unknown): string {
@@ -166,7 +142,7 @@ function noteIcon(level: 'warn' | 'info' | 'error'): string {
 /** 完成依据标签：只渲染服务端给出的验证等级，不本地推导、不猜未知值。 */
 function CompletionChip({ completion }: { completion?: CompletionSummary | null }) {
   const chip = completionChipFor(completion);
-  if (!chip) return null;
+  if (!chip || chip.tone === 'neutral') return null;
   return (
     <span className={`completion-badge ${chip.tone}`} title={chip.detail}>
       {chip.label}
@@ -219,6 +195,7 @@ function ThinkingBlock({ item }: { item: ThinkingItem }) {
 /* ------------------------------------------------------------------ app */
 
 export default function App() {
+  const { lang, setLang, t } = useI18n();
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -231,31 +208,18 @@ export default function App() {
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasOlder, setHasOlder] = useState(true);
   const [streamView, setStreamView] = useState<StreamView>({ streamText: '', frozen: [] });
-  const [sidebarView, setSidebarView] = useState<'ops' | 'projects'>('ops');
   const [sidebarJobs, setSidebarJobs] = useState<ComputeJob[] | null>(null);
-  const [sidebarReminders, setSidebarReminders] = useState<PendingReminder[] | null>(null);
-  const [inspectorTab, setInspectorTab] = useState<InspectorTab>('overview');
-  // Resizing and collapsing state
-  const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
-    const saved = localStorage.getItem('cloudra:sidebar-width');
-    const parsed = saved ? parseInt(saved, 10) : 260;
-    return Number.isFinite(parsed) && parsed >= 180 && parsed <= 500 ? parsed : 260;
-  });
+  const [viewMode, setViewMode] = useState<'dialogue' | 'console'>('dialogue');
+  const [consoleTab, setConsoleTab] = useState<ConsoleTab>('overview');
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
-    const saved = localStorage.getItem('cloudra:sidebar-open');
+    const saved = localStorage.getItem('cloudra:sidebar-open') ?? localStorage.getItem('cloudra:right-sidebar-open');
     return saved !== null ? saved === 'true' : true;
   });
-  const [inspectorWidth, setInspectorWidth] = useState<number>(() => {
-    const saved = localStorage.getItem('cloudra:inspector-width');
-    const parsed = saved ? parseInt(saved, 10) : 380;
-    return Number.isFinite(parsed) && parsed >= 280 && parsed <= 900 ? parsed : 380;
-  });
-  const [inspectorOpen, setInspectorOpen] = useState<boolean>(() => {
-    const saved = localStorage.getItem('cloudra:inspector-open');
-    return saved !== null ? saved === 'true' : true;
-  });
-  const [resizingSide, setResizingSide] = useState<'sidebar' | 'inspector' | null>(null);
-  const [editingWs, setEditingWs] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('cloudra:sidebar-open', String(sidebarOpen));
+  }, [sidebarOpen]);
+
   const [pendingMessages, setPendingMessages] = useState<MessageItem[]>([]);
   const [roles, setRoles] = useState<Array<{ role_id: string; display_name: string }>>([]);
   const [draft, setDraft] = useState('');
@@ -263,13 +227,12 @@ export default function App() {
   const [slashDismissed, setSlashDismissed] = useState(false);
   const composerTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [newProject, setNewProject] = useState('');
-  const [newProjectWs, setNewProjectWs] = useState('');
-  const [inlineCreate, setInlineCreate] = useState<{ ws: string; name: string } | null>(null);
   const [sending, setSending] = useState(false);
   const [connState, setConnState] = useState<'connecting' | 'live' | 'offline'>('connecting');
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [approvals, setApprovals] = useState<Array<Record<string, unknown>>>([]);
   const [interactions, setInteractions] = useState<Array<Record<string, unknown>>>([]);
+  const [interactionCollapsed, setInteractionCollapsed] = useState(false);
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(new Set());
   const [globalOpen, setGlobalOpen] = useState(() => {
     return Boolean(
@@ -281,6 +244,7 @@ export default function App() {
   const [benchmarkOpen, setBenchmarkOpen] = useState(false);
   const [telemetryOpen, setTelemetryOpen] = useState(false);
   const [hubOpen, setHubOpen] = useState(false);
+  const [projectSettingsOpen, setProjectSettingsOpen] = useState(false);
   const [pendingImages, setPendingImages] = useState<Array<{ path: string; artifactId: string; name: string; size: number }>>([]);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -307,6 +271,20 @@ export default function App() {
     ? (activeAgent?.settings.visual_mode ?? activeProject.settings.defaults?.visual_mode ?? true) !== false
     : false;
 
+  const hasActiveAgentDecision = Boolean(
+    interactions.find(
+      (ixn) =>
+        (activeAgent?.id && String(ixn.session_id) === String(activeAgent.id)) ||
+        (activeAgent?.role_id && String(ixn.agent_id) === String(activeAgent.role_id))
+    ) ||
+    approvals.find(
+      (appr) =>
+        (activeAgent?.id && String(appr.session_id) === String(activeAgent.id)) ||
+        (activeAgent?.role_id && (String(appr.agent_name) === String(activeAgent.role_id) || String(appr.agent_name) === String(activeAgent.display_name)))
+    ) ||
+    ((interactions.length > 0 || approvals.length > 0) && !activeAgent)
+  );
+
   // Slash commands autocomplete calculation
   const isSlashPrompt = draft.startsWith('/') && !draft.includes('\n');
   const slashPrefix = isSlashPrompt ? draft.trim().toLowerCase() : '';
@@ -332,7 +310,7 @@ export default function App() {
     const groups = new Map<string, Project[]>();
     for (const p of projects) {
       if (p.archived) continue;
-      const key = p.workspace_dir ?? '';
+      const key = (p.workspace_dir ?? '').trim();
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(p);
     }
@@ -342,6 +320,20 @@ export default function App() {
   }, [projects]);
 
   const archivedProjects = useMemo(() => projects.filter((p) => p.archived), [projects]);
+
+  const [collapsedWorkspaces, setCollapsedWorkspaces] = useState<Set<string>>(new Set());
+  const toggleWorkspace = (ws: string) => {
+    setCollapsedWorkspaces((prev) => {
+      const next = new Set(prev);
+      if (next.has(ws)) next.delete(ws);
+      else next.add(ws);
+      return next;
+    });
+  };
+
+  const [inlineCreate, setInlineCreate] = useState<{ ws: string; name: string } | null>(null);
+  const [newProjectWs, setNewProjectWs] = useState('');
+
 
   const workspaceSuggestions = useMemo(
     () =>
@@ -390,21 +382,7 @@ export default function App() {
   const activeAgentIdRef = useRef(activeAgentId);
   const maxSeqRef = useRef(0);
 
-  // Sync panel widths and visibility to localStorage
-  useEffect(() => {
-    localStorage.setItem('cloudra:sidebar-width', String(sidebarWidth));
-  }, [sidebarWidth]);
-  useEffect(() => {
-    localStorage.setItem('cloudra:sidebar-open', String(sidebarOpen));
-  }, [sidebarOpen]);
-  useEffect(() => {
-    localStorage.setItem('cloudra:inspector-width', String(inspectorWidth));
-  }, [inspectorWidth]);
-  useEffect(() => {
-    localStorage.setItem('cloudra:inspector-open', String(inspectorOpen));
-  }, [inspectorOpen]);
-
-  // Shortcut Cmd+B / Ctrl+B toggles sidebar
+  // Shortcut Cmd+B / Ctrl+B toggles project sidebar
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && (e.key === 'b' || e.key === 'B')) {
@@ -415,29 +393,6 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
-
-  // Window drag listeners for sidebar / inspector resizers
-  useEffect(() => {
-    if (!resizingSide) return;
-    const handleMouseMove = (e: MouseEvent) => {
-      if (resizingSide === 'sidebar') {
-        const next = Math.max(180, Math.min(500, e.clientX));
-        setSidebarWidth(next);
-      } else if (resizingSide === 'inspector') {
-        const next = Math.max(280, Math.min(900, Math.min(window.innerWidth - 300, window.innerWidth - e.clientX)));
-        setInspectorWidth(next);
-      }
-    };
-    const handleMouseUp = () => {
-      setResizingSide(null);
-    };
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [resizingSide]);
 
   // SSE events arrive in bursts (full history replay on connect, and one
   // llm.*/tool.* event per token/step during a run).  Feeding each event
@@ -513,37 +468,29 @@ export default function App() {
 
   const selectProject = useCallback((projectId: string) => {
     setActiveProjectId(projectId);
-    setSidebarView('ops');
   }, []);
 
   const loadSidebarOps = useCallback(async () => {
     if (!activeProjectId) {
       setSidebarJobs(null);
-      setSidebarReminders(null);
       return;
     }
     try {
-      const [jobs, reminders] = await Promise.all([
-        api.listComputeJobs(activeProjectId, true),
-        api.listPendingReminders(activeProjectId),
-      ]);
+      const jobs = await api.listComputeJobs(activeProjectId, true);
       setSidebarJobs(jobs);
-      setSidebarReminders(reminders);
     } catch {
       // ignore transient poll error
     }
   }, [activeProjectId]);
 
   useEffect(() => {
-    if (!activeProjectId || !sidebarOpen || sidebarView !== 'ops') {
-      return;
-    }
+    if (!activeProjectId) return;
     void loadSidebarOps();
     const timer = setInterval(() => {
       void loadSidebarOps();
     }, 4000);
     return () => clearInterval(timer);
-  }, [activeProjectId, sidebarOpen, sidebarView, loadSidebarOps]);
+  }, [activeProjectId, loadSidebarOps]);
 
   const selectAgent = useCallback(
     async (agentId: string) => {
@@ -688,6 +635,12 @@ export default function App() {
             dedupeAgents(prev.map((a) => (a.id === sessionId ? { ...a, state: to } : a))),
           );
         }
+        if (event.type === 'agent.task_updated' && sessionId && !replaying) {
+          const task = event.data?.current_task != null ? String(event.data.current_task) : null;
+          setAgents((prev) =>
+            dedupeAgents(prev.map((a) => (a.id === sessionId ? { ...a, current_task: task } : a))),
+          );
+        }
         if (event.type === 'run.started' && sessionId && !replaying) {
           const runId = String(event.data.run_id ?? event.run_id ?? '');
           const protocol = event.data.invocation_protocol;
@@ -758,7 +711,12 @@ export default function App() {
             pushToast('error', `Compaction refused: ${reason}${err ? ` (${err})` : ''}`);
           }
         }
-        if (event.type === 'interaction.requested' && activeProjectId) {
+        if (
+          (event.type === 'interaction.requested' ||
+            event.type === 'interaction.responded' ||
+            event.type === 'interaction.expired') &&
+          activeProjectId
+        ) {
           api.interactions(activeProjectId).then(setInteractions).catch(() => undefined);
         }
         // Timeline events for the visible agent.
@@ -971,15 +929,26 @@ export default function App() {
   }
 
   async function submitInlineCreate() {
-    const name = inlineCreate?.name.trim();
-    if (!name || !inlineCreate) return;
+    if (!inlineCreate || !inlineCreate.name.trim()) return;
     try {
-      await createProject(name, inlineCreate.ws || undefined);
+      await createProject(inlineCreate.name.trim(), inlineCreate.ws.trim() || undefined);
       setInlineCreate(null);
     } catch (e) {
       reportError(e);
     }
   }
+
+  async function unarchiveProject(p: Project) {
+    try {
+      await api.unarchiveProject(p.id);
+      setProjects((prev) => prev.map((x) => (x.id === p.id ? { ...x, archived: false } : x)));
+      pushToast('ok', `Project "${p.name}" restored`);
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
+
 
   async function changeWorkspace(dir: string) {
     if (!activeProject) return;
@@ -1008,47 +977,54 @@ export default function App() {
     }
   }
 
-  async function unarchiveProject(p: Project) {
-    try {
-      await api.unarchiveProject(p.id);
-      setProjects((prev) => prev.map((x) => (x.id === p.id ? { ...x, archived: false } : x)));
-      pushToast('ok', `Project "${p.name}" restored`);
-    } catch (e) {
-      reportError(e);
-    }
-  }
 
-  async function deleteProject(p: Project) {
-    if (!window.confirm(hardDeleteProjectConfirm(p.name))) {
-      return;
-    }
+
+  const handleRespondInteraction = async (interactionId: string | number, answer: string) => {
+    if (!activeProject) return;
     try {
-      const resp = await api.deleteProject(p.id);
-      if (!resp.accepted) {
-        const err = (resp.data as { error?: { message?: string } } | null)?.error;
-        pushToast('error', err?.message ?? 'Delete rejected');
-        return;
+      setSending(true);
+      await api.respondInteraction(activeProject.id, interactionId, answer);
+      pushToast('ok', t.interactionSentToast || 'Response sent to agent');
+      const updated = await api.interactions(activeProject.id);
+      setInteractions(updated);
+      if (activeProjectId) {
+        const sessList = await api.listAgents(activeProjectId);
+        setAgents(dedupeAgents(sessList));
       }
-      setProjects((prev) => prev.filter((x) => x.id !== p.id));
-      if (activeProjectId === p.id) setActiveProjectId(null);
-      pushToast('ok', `Project "${p.name}" permanently deleted`);
-    } catch (e) {
-      reportError(e);
+    } catch (err: unknown) {
+      reportError(err);
+    } finally {
+      setSending(false);
     }
-  }
+  };
 
-  async function cancelAllComputeJobs() {
-    if (!window.confirm(cancelAllComputeConfirm())) {
-      return;
-    }
+  const handleDecideApproval = async (
+    approvalId: string | number,
+    decision: 'approve' | 'deny',
+    reason = ''
+  ) => {
+    if (!activeProject) return;
     try {
-      const counts = await api.cancelAllComputeJobs();
-      void loadSidebarOps();
-      pushToast('ok', formatCancelAllToast(counts));
-    } catch (e) {
-      reportError(e);
+      setSending(true);
+      await api.decideApproval(
+        activeProject.id,
+        approvalId,
+        decision,
+        reason || (decision === 'deny' ? 'denied by user' : '')
+      );
+      pushToast('ok', decision === 'approve' ? t.approvalApprovedToast : t.approvalDeniedToast);
+      const updated = await api.approvals(activeProject.id);
+      setApprovals(updated);
+      if (activeProjectId) {
+        const sessList = await api.listAgents(activeProjectId);
+        setAgents(dedupeAgents(sessList));
+      }
+    } catch (err: unknown) {
+      reportError(err);
+    } finally {
+      setSending(false);
     }
-  }
+  };
 
   async function sendMessage() {
     const target = resolveComposerSendTarget({
@@ -1151,9 +1127,7 @@ export default function App() {
       }
       if (target.kind === 'respond') {
         setDraft('');
-        await api.respondInteraction(activeProject.id, target.interactionId, content);
-        pushToast('ok', 'Response sent to agent');
-        api.interactions(activeProject.id).then(setInteractions).catch(reportError);
+        await handleRespondInteraction(target.interactionId, content);
         return;
       }
       setPendingImages([]);
@@ -1163,6 +1137,7 @@ export default function App() {
         const resp = await api.spawnAgent(activeProject.id, {
           role_id: 'coordinator',
           query: images.length > 0 ? undefined : content,
+          language: lang,
           settings: {
             orchestration_mode: activeProject.settings.orchestration_mode,
             yolo: activeProject.settings.defaults?.yolo ?? false,
@@ -1173,7 +1148,7 @@ export default function App() {
         });
         setDraft('');
         if (images.length > 0) {
-          await api.sendMessage(resp.data.id, content, images, imageArtifactIds);
+          await api.sendMessage(resp.data.id, content, images, imageArtifactIds, lang);
         }
         await selectAgent(resp.data.id);
       } else {
@@ -1193,7 +1168,7 @@ export default function App() {
           },
         ]);
         setDraft('');
-        await api.sendMessage(activeAgent!.id, content, images, imageArtifactIds);
+        await api.sendMessage(activeAgent!.id, content, images, imageArtifactIds, lang);
       }
     } catch (e) {
       setPendingMessages((prev) => prev.filter((m) => m.content !== content));
@@ -1224,38 +1199,66 @@ export default function App() {
     }
   }
 
-  async function changeOrchestrationMode(mode: string) {
+  async function handleSaveProjectSettings(patch: {
+    orchestration_mode?: 'standard' | 'dag_record' | 'dag_guided';
+    defaults?: Record<string, unknown>;
+    name?: string;
+  }) {
     if (!activeProject) return;
     try {
-      const resp = await api.patchProject(activeProject.id, {
+      const mode = patch.orchestration_mode || activeProject.settings.orchestration_mode;
+      const currentDefaults = activeProject.settings.defaults || {};
+      const newDefaults = Object.fromEntries(
+        Object.entries({
+          ...currentDefaults,
+          ...(patch.defaults || {}),
+          orchestration_mode: mode,
+        }).filter(([, v]) => v !== null && v !== undefined && v !== ''),
+      );
+
+      const payload: Record<string, unknown> = {
         settings: {
           orchestration_mode: mode,
-          // The wire shape of `defaults` carries explicit nulls for every
-          // unset field; never echo those back into a patch.
-          defaults: Object.fromEntries(
-            Object.entries({ ...activeProject.settings.defaults, orchestration_mode: mode }).filter(
-              ([, v]) => v !== null && v !== undefined,
-            ),
-          ),
+          defaults: newDefaults,
         },
-      });
-      setProjects((prev) => prev.map((p) => (p.id === activeProject.id ? resp.data : p)));
-      // Agents snapshot their settings at spawn time, so a mid-project mode
-      // switch must also patch every existing agent for dag tools to see it.
-      const targets = dedupeAgents(
-        agents.filter((a) => a.project_id === activeProject.id && a.settings.orchestration_mode !== mode),
-      );
-      const updated = await Promise.all(
-        targets.map((a) => api.patchSettings(a.id, { orchestration_mode: mode })),
-      );
-      if (updated.length > 0) {
-        setAgents((prev) =>
-          dedupeAgents(prev.map((a) => updated.find((u) => u.data.id === a.id)?.data ?? a)),
-        );
+      };
+      if (patch.name && patch.name !== activeProject.name) {
+        payload.name = patch.name;
       }
-      pushToast('ok', `Orchestration mode → ${mode}`);
+
+      const resp = await api.patchProject(activeProject.id, payload);
+      setProjects((prev) => prev.map((p) => (p.id === activeProject.id ? resp.data : p)));
+
+      // If orchestration_mode changed, cascade to existing agents in project
+      if (patch.orchestration_mode && patch.orchestration_mode !== activeProject.settings.orchestration_mode) {
+        const targets = dedupeAgents(
+          agents.filter((a) => a.project_id === activeProject.id && a.settings.orchestration_mode !== patch.orchestration_mode),
+        );
+        if (targets.length > 0) {
+          const updated = await Promise.all(
+            targets.map((a) => api.patchSettings(a.id, { orchestration_mode: patch.orchestration_mode })),
+          );
+          setAgents((prev) =>
+            dedupeAgents(prev.map((a) => updated.find((u) => u.data.id === a.id)?.data ?? a)),
+          );
+        }
+      }
+
+      pushToast('ok', '项目全局设置已更新');
     } catch (e) {
       reportError(e);
+      throw e;
+    }
+  }
+
+  async function handleSaveAgentSettings(agentId: string, patch: Record<string, unknown>) {
+    try {
+      const resp = await api.patchSettings(agentId, patch);
+      setAgents((prev) => dedupeAgents(prev.map((a) => (a.id === agentId ? resp.data : a))));
+      pushToast('ok', `Agent 设置已更新: ${resp.data.display_name}`);
+    } catch (e) {
+      reportError(e);
+      throw e;
     }
   }
 
@@ -1406,17 +1409,7 @@ export default function App() {
     }
   }
 
-  async function patchSettings(patch: Record<string, unknown>) {
-    if (!activeAgent) return;
-    try {
-      // 单个 agent 的设置覆盖（项目级 YOLO 开关在 AgentBar）。
-      const resp = await api.patchSettings(activeAgent.id, patch);
-      setAgents((prev) => dedupeAgents(prev.map((a) => (a.id === activeAgent.id ? resp.data : a))));
-      pushToast('ok', 'Settings saved');
-    } catch (e) {
-      reportError(e);
-    }
-  }
+
 
   async function onPickImages(files: FileList | null) {
     if (!files || files.length === 0 || !activeProject) return;
@@ -1581,10 +1574,7 @@ export default function App() {
     }
     return m;
   }, [agents]);
-  const rootAgents = useMemo(() => {
-    const ids = new Set(agents.map((a) => a.id));
-    return agents.filter((a) => !a.parent_session_id || !ids.has(a.parent_session_id));
-  }, [agents]);
+
 
   const toggleAgentExpanded = useCallback((id: string) => {
     setExpandedAgents((prev) => {
@@ -1717,596 +1707,445 @@ export default function App() {
   const totalPending = approvals.length + interactions.length;
 
   return (
-    <div className={`app ${resizingSide ? 'resizing' : ''}`}>
+    <div className="app">
       <datalist id="workspace-dirs">
         {workspaceSuggestions.map((ws) => (
           <option key={ws} value={ws} />
         ))}
       </datalist>
-      {sidebarOpen && (
-        <aside className="sidebar" style={{ width: sidebarWidth }}>
-          {activeProject && sidebarView === 'ops' ? (
-            <>
-              <div className="sidebar-ops-header">
-                <div className="sidebar-nav-row">
-                  <button
-                    type="button"
-                    className="sidebar-back-btn"
-                    onClick={() => setSidebarView('projects')}
-                    title="Switch project / view all projects"
-                  >
-                    ← All Projects
-                  </button>
-                  <button
-                    type="button"
-                    className="btn ghost sm project-archive"
-                    title={`Archive "${activeProject.name}"`}
-                    onClick={() => void archiveProject(activeProject)}
-                  >
-                    ⬇ Archive
-                  </button>
-                </div>
-                <div className="sidebar-project-info">
-                  <div className="sidebar-project-title" title={activeProject.name}>
-                    {activeProject.name}
-                  </div>
-                  {editingWs ? (
-                    <div className="ws-edit-row">
-                      <input
-                        key={`sidebar-ws-${activeProject.id}`}
-                        className="input ws-input"
-                        autoFocus
-                        defaultValue={activeProject.workspace_dir ?? ''}
-                        placeholder="workspace dir…"
-                        title="Workspace directory: this project's agents read/write within it. Edit and press Enter to change; clear to unset."
-                        list="workspace-dirs"
-                        onBlur={(e) => {
-                          setEditingWs(false);
-                          changeWorkspace(e.target.value);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            setEditingWs(false);
-                            changeWorkspace((e.target as HTMLInputElement).value);
-                          } else if (e.key === 'Escape') {
-                            setEditingWs(false);
-                          }
-                        }}
-                      />
-                      <button
-                        type="button"
-                        className="btn ghost sm ws-browse-btn"
-                        title="Browse directory"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => {
-                          setEditingWs(false);
-                          openPathPicker({
-                            title: `Select Workspace for ${activeProject.name}`,
-                            initialPath: activeProject.workspace_dir ?? undefined,
-                            onSelect: (p) => changeWorkspace(p),
-                          });
-                        }}
-                      >
-                        📁
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="ws-pill-row">
-                      <button
-                        type="button"
-                        className={`agentbar-ws-pill ${!activeProject.workspace_dir ? 'empty' : ''}`}
-                        title={activeProject.workspace_dir ? `Workspace: ${activeProject.workspace_dir} (click to edit)` : 'Set workspace directory (click to edit)'}
-                        onClick={() => setEditingWs(true)}
-                      >
-                        <span className="ws-pill-icon">WS:</span>
-                        <span className="ws-pill-text">
-                          {activeProject.workspace_dir
-                            ? (activeProject.workspace_dir.split('/').filter(Boolean).pop() || activeProject.workspace_dir)
-                            : 'bind workspace'}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        className="btn ghost sm ws-pill-browse"
-                        title="Browse and select workspace folder"
-                        onClick={() =>
-                          openPathPicker({
-                            title: `Select Workspace for ${activeProject.name}`,
-                            initialPath: activeProject.workspace_dir ?? undefined,
-                            onSelect: (p) => changeWorkspace(p),
-                          })
-                        }
-                      >
-                        📁
-                      </button>
-                    </div>
-                  )}
-                </div>
+      <aside className={`left-sidebar ${!sidebarOpen ? 'collapsed' : ''}`}>
+        <div className="left-sidebar-head">
+          <div className="left-sidebar-title">
+            <span>{t.sidebarProjectsTitle}</span>
+          </div>
+          <button
+            type="button"
+            className="btn ghost sm"
+            style={{ padding: '0 6px', height: 22 }}
+            onClick={() => setSidebarOpen(false)}
+            title="收起项目侧栏"
+          >
+            ◀
+          </button>
+        </div>
+
+        <div className="left-sidebar-content">
+          {/* New Project Creator Bar */}
+          <div className="new-project-bar">
+            <div className="new-project-row">
+              <input
+                className="input"
+                value={newProject}
+                onChange={(e) => setNewProject(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && createProjectAndSelect()}
+                placeholder={t.sidebarNewProjectPlaceholder}
+                style={{ height: 28, fontSize: 12, flex: 1 }}
+              />
+              <button
+                type="button"
+                className="btn primary sm"
+                style={{ height: 28, padding: '0 10px' }}
+                onClick={createProjectAndSelect}
+                disabled={!newProject.trim()}
+                title="新建项目"
+              >
+                +
+              </button>
+            </div>
+            <div className="new-project-ws-row">
+              <input
+                className="input ws-path"
+                value={newProjectWs}
+                onChange={(e) => setNewProjectWs(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && createProjectAndSelect()}
+                placeholder={t.sidebarNewProjectWsPlaceholder}
+                title="项目工作区路径：机理计算文件与日志落盘目录"
+                list="workspace-dirs"
+              />
+              <button
+                type="button"
+                className="btn ghost sm ws-browse-btn"
+                title="浏览选择工作区文件夹"
+                onClick={() =>
+                  openPathPicker({
+                    title: '选择项目工作区文件夹',
+                    initialPath: newProjectWs,
+                    onSelect: (p) => setNewProjectWs(p),
+                  })
+                }
+              >
+                {t.sidebarBrowseWs}
+              </button>
+            </div>
+          </div>
+
+          {/* Workspace Groups (按项目地址分类会话) */}
+          <div className="workspace-groups-list">
+            {projects.length === 0 && (
+              <div className="chat-empty" style={{ padding: '20px 0' }}>
+                {t.sidebarNoProjectsHint}
               </div>
+            )}
 
-              <div className="sidebar-ops-content">
-                {/* Agent Swarm Section */}
-                <div className="sidebar-section">
-                  <div className="sidebar-section-header">
-                    <span className="sidebar-section-title">Agent Swarm ({agents.length})</span>
-                    <div className="sidebar-spawn-wrap">
-                      <select
-                        className="select sidebar-spawn-select"
-                        value=""
-                        onChange={(e) => {
-                          if (e.target.value) void spawnRole(e.target.value);
-                        }}
-                        title="Spawn specialized subagent"
-                      >
-                        <option value="">+ Spawn…</option>
-                        {roles.map((r) => (
-                          <option key={r.role_id} value={r.role_id}>{r.display_name}</option>
-                        ))}
-                      </select>
+            {groupedProjects.map(([ws, list]) => {
+              const isCollapsed = collapsedWorkspaces.has(ws);
+              const folderName = ws
+                ? ws.split('/').filter(Boolean).pop() || ws
+                : '未指定地址 (临时)';
+              const hasActiveProject = list.some((p) => p.id === activeProjectId);
+
+              return (
+                <div key={ws || '__none'} className={`ws-group ${hasActiveProject ? 'has-active' : ''}`}>
+                  <div
+                    className="ws-group-header"
+                    onClick={() => toggleWorkspace(ws)}
+                    title={ws || '未绑定工作区目录（内存/临时工作区）'}
+                  >
+                    <span className="ws-folder-toggle">{isCollapsed ? '▶' : '▼'}</span>
+                    <div className="ws-folder-info">
+                      <span className="ws-folder-name">{folderName}</span>
+                      {ws && <span className="ws-folder-path">{ws}</span>}
                     </div>
+                    <span className="badge sm ws-count">{list.length}</span>
+                    <button
+                      type="button"
+                      className="btn ghost sm ws-add-btn"
+                      title={ws ? `在 ${folderName} 下新建项目` : '新建未绑定项目'}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setInlineCreate({ ws, name: '' });
+                        setCollapsedWorkspaces((prev) => {
+                          const next = new Set(prev);
+                          next.delete(ws);
+                          return next;
+                        });
+                      }}
+                    >
+                      +
+                    </button>
                   </div>
 
-                  {agents.length === 0 ? (
-                    <div className="sidebar-empty-hint">No agents spawned yet.</div>
-                  ) : (
-                    <div className="sidebar-agent-tree">
-                      {rootAgents.map((a) => renderSidebarAgentItem(a, 0))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Ops Telemetry Section */}
-                <div className="sidebar-section sidebar-ops-section">
-                  <div className="sidebar-section-header">
-                    <span className="sidebar-section-title">
-                      Compute Queue {sidebarJobs && sidebarJobs.length > 0 ? `(${sidebarJobs.length})` : ''}
-                    </span>
-                    {sidebarJobs && sidebarJobs.length > 0 && (
-                      <button
-                        type="button"
-                        className="btn ghost xs sidebar-cancel-all-btn"
-                        title="Cancel all active compute jobs"
-                        data-testid="cancel-all-compute"
-                        onClick={() => void cancelAllComputeJobs()}
-                      >
-                        Cancel All
-                      </button>
-                    )}
-                  </div>
-                  {sidebarJobs === null ? (
-                    <div className="sidebar-ops-empty">Loading jobs…</div>
-                  ) : sidebarJobs.length === 0 ? (
-                    <div className="sidebar-ops-empty">No active compute jobs</div>
-                  ) : (
-                    <div className="sidebar-jobs-list">
-                      {sidebarJobs.slice(0, 5).map((j) => (
-                        <div
-                          key={j.id}
-                          className="sidebar-job-row"
-                          title={`#${j.id} ${j.jobtype} @ ${j.node_id ?? 'unassigned'} - ${j.path}`}
-                        >
-                          <span className="sidebar-job-id">#{j.id}</span>
-                          <span className="sidebar-job-type">{j.jobtype}</span>
-                          <span className={`state-badge xs ${j.state}`}>{j.state}</span>
-                          <span className="sidebar-job-time">{elapsed(j.start_timestamp)}</span>
+                  {!isCollapsed && (
+                    <div className="ws-group-body">
+                      {inlineCreate?.ws === ws && (
+                        <div className="ws-inline-create">
+                          <input
+                            className="input"
+                            autoFocus
+                            value={inlineCreate.name}
+                            onChange={(e) => setInlineCreate({ ws, name: e.target.value })}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') void submitInlineCreate();
+                              if (e.key === 'Escape') setInlineCreate(null);
+                            }}
+                            placeholder="输入项目名…"
+                            style={{ height: 26, fontSize: 11.5 }}
+                          />
+                          <button
+                            type="button"
+                            className="btn primary sm"
+                            style={{ height: 26, padding: '0 8px', fontSize: 11 }}
+                            disabled={!inlineCreate.name.trim()}
+                            onClick={() => void submitInlineCreate()}
+                          >
+                            创建
+                          </button>
+                          <button
+                            type="button"
+                            className="btn ghost sm"
+                            style={{ height: 26, padding: '0 6px', fontSize: 11 }}
+                            onClick={() => setInlineCreate(null)}
+                          >
+                            ✕
+                          </button>
                         </div>
-                      ))}
-                      {sidebarJobs.length > 5 && (
-                        <div className="sidebar-ops-more">+{sidebarJobs.length - 5} more jobs</div>
                       )}
+
+                      {list.map((p) => {
+                        const isActive = p.id === activeProjectId;
+                        return (
+                          <div
+                            key={p.id}
+                            className={`project-node ${isActive ? 'active' : ''}`}
+                          >
+                            <div
+                              className="project-node-header"
+                              onClick={() => selectProject(p.id)}
+                              title={`选择项目: ${p.name}`}
+                            >
+                              <div className="project-node-title">
+                                {isActive && <span className="active-dot" />}
+                                <span className="project-title-text">{p.name}</span>
+                                {p.name.startsWith('benchmark:') && (
+                                  <span className="badge sm bm-tag">BM</span>
+                                )}
+                              </div>
+                              <div className="project-node-actions">
+                                <button
+                                  type="button"
+                                  className="btn ghost sm mini-icon-btn"
+                                  title={`${t.sidebarRename} "${p.name}"`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openPathPicker({
+                                      title: `${t.sidebarRename} ${p.name}`,
+                                      initialPath: p.workspace_dir ?? undefined,
+                                      onSelect: (newDir) => void changeWorkspace(newDir),
+                                    });
+                                  }}
+                                >
+                                  {t.sidebarRename}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn ghost sm mini-icon-btn"
+                                  title={`归档 "${p.name}"`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void archiveProject(p);
+                                  }}
+                                >
+                                  {t.sidebarArchive}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
-
-                  {sidebarReminders && sidebarReminders.length > 0 && (
-                    <>
-                      <div className="sidebar-section-header" style={{ marginTop: 10 }}>
-                        <span className="sidebar-section-title">
-                          Reminders ({sidebarReminders.length})
-                        </span>
-                      </div>
-                      <div className="sidebar-reminders-list">
-                        {sidebarReminders.slice(0, 3).map((r) => (
-                          <div key={r.schedule_id} className="sidebar-reminder-row" title={r.message}>
-                            <span className="sidebar-reminder-time">{wakeCountdown(r.wake_ts)}</span>
-                            <span className="sidebar-reminder-msg">{r.message}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  )}
-
-                  <button
-                    type="button"
-                    className="sidebar-open-ops-btn"
-                    onClick={() => {
-                      setInspectorOpen(true);
-                      setInspectorTab('ops');
-                    }}
-                  >
-                    Open Ops in Inspector →
-                  </button>
                 </div>
-              </div>
+              );
+            })}
 
-              <div className="sidebar-foot">
-                <button
-                  type="button"
-                  className="sidebar-foot-item"
-                  onClick={() => setSidebarView('projects')}
-                  title="Switch to another project"
-                >
-                  <span className="sidebar-foot-label">Switch Project</span>
-                </button>
-                <button
-                  type="button"
-                  className={`sidebar-foot-item sidebar-global ${globalOpen ? 'active' : ''}`}
-                  title="Global LLM config"
-                  onClick={() => setGlobalOpen(true)}
-                >
-                  <span className="sidebar-foot-label">Global Settings</span>
-                </button>
-                <button
-                  type="button"
-                  className={`sidebar-foot-item sidebar-knowledge ${knowledgeOpen ? 'active' : ''}`}
-                  title="chem-kb knowledge base"
-                  onClick={() => setKnowledgeOpen(true)}
-                >
-                  <span className="sidebar-foot-label">Knowledge Base</span>
-                </button>
-                <button
-                  type="button"
-                  className={`sidebar-foot-item sidebar-benchmark ${benchmarkOpen ? 'active' : ''}`}
-                  title="Benchmark cockpit"
-                  onClick={() => setBenchmarkOpen(true)}
-                >
-                  <span className="sidebar-foot-label">Benchmark</span>
-                </button>
-                <button
-                  type="button"
-                  className={`sidebar-foot-item sidebar-hub ${hubOpen ? 'active' : ''}`}
-                  title="AgentHub forum: browse agent posts by topic and post as user"
-                  onClick={() => setHubOpen(true)}
-                >
-                  <span className="sidebar-foot-label">AgentHub</span>
-                </button>
-                <button
-                  type="button"
-                  className={`sidebar-foot-item sidebar-telemetry ${telemetryOpen ? 'active' : ''}`}
-                  title="LLM telemetry: token usage, prompt cache analysis, context export"
-                  onClick={() => setTelemetryOpen(true)}
-                >
-                  <span className="sidebar-foot-label">Telemetry</span>
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="sidebar-head">
-                <img className="brand-logo" src="/logo.png" alt="Cloudra" />
-              </div>
-              {activeProject && (
-                <button
-                  type="button"
-                  className="sidebar-back-to-active"
-                  onClick={() => setSidebarView('ops')}
-                  title={`Return to active project: ${activeProject.name}`}
-                >
-                  <span>← Current:</span>
-                  <strong style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeProject.name}</strong>
-                </button>
-              )}
-              <div className="sidebar-new">
-                <input
-                  className="input"
-                  value={newProject}
-                  onChange={(e) => setNewProject(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && createProjectAndSelect()}
-                  placeholder="New project…"
-                />
-                <button className="btn primary sm" style={{ height: 30 }} onClick={createProjectAndSelect} disabled={!newProject.trim()}>
-                  +
-                </button>
-                <div className="ws-input-wrap">
-                  <input
-                    className="input ws-path"
-                    value={newProjectWs}
-                    onChange={(e) => setNewProjectWs(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && createProjectAndSelect()}
-                    placeholder="workspace dir (optional)…"
-                    title="Workspace directory: agents read/write within it"
-                    list="workspace-dirs"
-                  />
-                  <button
-                    type="button"
-                    className="btn ghost sm ws-browse-btn"
-                    title="Browse and select workspace folder"
-                    onClick={() =>
-                      openPathPicker({
-                        title: 'Select Workspace Directory',
-                        initialPath: newProjectWs,
-                        onSelect: (p) => setNewProjectWs(p),
-                      })
-                    }
-                  >
-                    📁
-                  </button>
-                </div>
-              </div>
-              <div className="project-list">
-                {projects.length === 0 && <div className="empty-hint">No projects yet — create one above.</div>}
-                {groupedProjects.map(([ws, list]) => (
-                  <div key={ws || '__none'} className="ws-group">
-                    <div className="ws-header-row">
-                      <div className="ws-header" title={ws || undefined}>{ws || 'no workspace'}</div>
+            {archivedProjects.length > 0 && (
+              <details className="archived-group" style={{ marginTop: 12 }}>
+                <summary className="archived-summary">
+                  {t.sidebarArchivedCount(archivedProjects.length)}
+                </summary>
+                <div className="archived-list">
+                  {archivedProjects.map((p) => (
+                    <div
+                      key={p.id}
+                      className="archived-item"
+                      onClick={() => selectProject(p.id)}
+                    >
+                      <span className="archived-name">{p.name}</span>
                       <button
                         type="button"
-                        className="btn ghost sm ws-add"
-                        title={ws ? `New project in ${ws}` : 'New project without workspace'}
-                        onClick={() => setInlineCreate({ ws, name: '' })}
+                        className="btn ghost sm"
+                        style={{ height: 20, fontSize: 11, padding: '0 6px' }}
+                        title={`${t.sidebarRestore} "${p.name}"`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void unarchiveProject(p);
+                        }}
                       >
-                        +
+                        {t.sidebarRestore}
                       </button>
                     </div>
-                    {inlineCreate?.ws === ws && (
-                      <div className="ws-inline-create">
-                        <input
-                          className="input"
-                          autoFocus
-                          value={inlineCreate.name}
-                          onChange={(e) => setInlineCreate({ ws, name: e.target.value })}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') void submitInlineCreate();
-                            if (e.key === 'Escape') setInlineCreate(null);
-                          }}
-                          placeholder="Project name…"
-                        />
-                        <button
-                          type="button"
-                          className="btn primary sm"
-                          disabled={!inlineCreate.name.trim()}
-                          onClick={() => void submitInlineCreate()}
-                        >
-                          Create
-                        </button>
-                      </div>
-                    )}
-                    {list.map((p) => (
-                      <div
-                        key={p.id}
-                        className={`project-item ${p.id === activeProjectId ? 'active' : ''}`}
-                        data-testid={`project-row-${p.id}`}
-                        onClick={() => selectProject(p.id)}
-                      >
-                        <div className="project-name">{p.name}</div>
-                        <div className="project-meta">
-                          {p.name.startsWith('benchmark:') ? '[Benchmark] ' : ''}
-                          {p.settings.orchestration_mode}
-                        </div>
-                        <button
-                          type="button"
-                          className="btn ghost sm project-archive"
-                          title={`Archive "${p.name}"`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void archiveProject(p);
-                          }}
-                        >
-                          ⬇
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-                {archivedProjects.length > 0 && (
-                  <details className="archived-group">
-                    <summary>Archived ({archivedProjects.length})</summary>
-                    {archivedProjects.map((p) => (
-                      <div
-                        key={p.id}
-                        className={`project-item archived ${p.id === activeProjectId ? 'active' : ''}`}
-                        data-testid={`project-row-${p.id}`}
-                        onClick={() => selectProject(p.id)}
-                      >
-                        <div className="project-name">{p.name}</div>
-                        <div className="project-meta">archived · {p.settings.orchestration_mode}</div>
-                        <button
-                          type="button"
-                          className="btn ghost sm project-archive"
-                          title={`Restore "${p.name}"`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void unarchiveProject(p);
-                          }}
-                        >
-                          ⬆
-                        </button>
-                        <button
-                          type="button"
-                          className="btn ghost sm project-archive"
-                          title={`Delete "${p.name}" permanently (workspace directory is kept)`}
-                          data-testid={`hard-delete-${p.id}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void deleteProject(p);
-                          }}
-                        >
-                          🗑
-                        </button>
-                      </div>
-                    ))}
-                  </details>
-                )}
-              </div>
-              <div className="sidebar-foot">
-                <button
-                  type="button"
-                  className={`sidebar-foot-item sidebar-global ${globalOpen ? 'active' : ''}`}
-                  title="Global LLM config: the fallback slots behind empty per-agent settings"
-                  onClick={() => setGlobalOpen(true)}
-                >
-                  <span className="sidebar-foot-label">Global Settings</span>
-                </button>
-                <button
-                  type="button"
-                  className={`sidebar-foot-item sidebar-knowledge ${knowledgeOpen ? 'active' : ''}`}
-                  title="chem-kb knowledge base: overview, entity search and ego graph"
-                  onClick={() => setKnowledgeOpen(true)}
-                >
-                  <span className="sidebar-foot-label">Knowledge Base</span>
-                </button>
-                <button
-                  type="button"
-                  className={`sidebar-foot-item sidebar-benchmark ${benchmarkOpen ? 'active' : ''}`}
-                  title="Benchmark cockpit: run task batches and drill into per-task scores"
-                  onClick={() => setBenchmarkOpen(true)}
-                >
-                  <span className="sidebar-foot-label">Benchmark</span>
-                </button>
-                <button
-                  type="button"
-                  className={`sidebar-foot-item sidebar-hub ${hubOpen ? 'active' : ''}`}
-                  title="AgentHub forum: browse agent posts by topic and post as user"
-                  onClick={() => setHubOpen(true)}
-                >
-                  <span className="sidebar-foot-label">AgentHub</span>
-                </button>
-                <button
-                  type="button"
-                  className={`sidebar-foot-item sidebar-telemetry ${telemetryOpen ? 'active' : ''}`}
-                  title="LLM telemetry: token usage, prompt cache analysis, context export"
-                  onClick={() => setTelemetryOpen(true)}
-                >
-                  <span className="sidebar-foot-label">Telemetry</span>
-                </button>
-                <button
-                  type="button"
-                  className="sidebar-foot-item sidebar-compute-cancel"
-                  title="Cancel all unfinished compute jobs (ledger-level; never kills processes)"
-                  data-testid="cancel-all-compute-foot"
-                  onClick={() => void cancelAllComputeJobs()}
-                >
-                  <span className="sidebar-foot-label">Cancel All Compute Jobs</span>
-                </button>
-              </div>
-            </>
-          )}
-        </aside>
-      )}
-      {sidebarOpen && (
-        <div
-          className={`resizer resizer-sidebar ${resizingSide === 'sidebar' ? 'active' : ''}`}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            setResizingSide('sidebar');
-          }}
-          title="Drag to resize sidebar"
-        />
-      )}
+                  ))}
+                </div>
+              </details>
+            )}
+          </div>
+        </div>
+
+        {/* The single button at the foot: Settings */}
+        <div className="left-sidebar-foot">
+          <button
+            type="button"
+            className="btn outline sm settings-btn"
+            onClick={() => setGlobalOpen(true)}
+            title={t.sidebarGlobalSettingsTip}
+          >
+            <span>{t.sidebarGlobalSettings}</span>
+          </button>
+        </div>
+      </aside>
 
       <main className="main">
         <div className="agentbar">
           <div className="agentbar-left">
             <button
               type="button"
-              className="btn ghost sm panel-toggle"
-              title={sidebarOpen ? 'Hide sidebar (Cmd+B)' : 'Show sidebar (Cmd+B)'}
+              className={`btn ghost sm sidebar-toggle-btn ${sidebarOpen ? 'active' : ''}`}
               onClick={() => setSidebarOpen((v) => !v)}
+              title={sidebarOpen ? '◀' : '▶'}
+              style={{ height: 26, padding: '0 8px', fontSize: 11.5 }}
             >
-              {sidebarOpen ? '◀' : '▶'}
+              {sidebarOpen ? '◀' : `▶ ${t.sidebarProjectsTitle}`}
             </button>
+            <div
+              className="brand-logo-wrap"
+              title="Cloudra — Computational Chemistry Agent Workbench"
+              onClick={() => {
+                setSidebarOpen(true);
+              }}
+            >
+              <img src="/logo.png" alt="Cloudra" className="brand-logo-icon" />
+              <span className="brand-logo-text">Cloudra</span>
+            </div>
+            <div className="agentbar-divider" />
             <div className="header-breadcrumb">
               <span
                 className="breadcrumb-project"
-                title={activeProject?.name ? `Project: ${activeProject.name} (click to view in sidebar)` : 'Select a project'}
+                title={activeProject?.name ? `${t.projectSettings}: ${activeProject.name}` : t.breadcrumbSelectProject}
                 onClick={() => {
-                  if (!sidebarOpen) setSidebarOpen(true);
-                  if (activeProject) setSidebarView('ops');
+                  setSidebarOpen(true);
                 }}
               >
-                {activeProject?.name ?? 'Select a project'}
+                {activeProject?.name ?? t.breadcrumbSelectProject}
               </span>
               {activeAgent && (
                 <>
                   <span className="breadcrumb-separator">/</span>
-                  <span className="breadcrumb-agent" title={`Active Agent: ${activeAgent.display_name} (${activeAgent.role_id}) · state: ${activeAgent.state}`}>
-                    <span className={`state-dot ${activeAgent.state}`} />
-                    <span className="breadcrumb-agent-name">{activeAgent.display_name}</span>
-                    <span className="badge role-badge">{activeAgent.role_id}</span>
-                    <CompletionChip completion={activeAgent.completion} />
-                  </span>
+                  {agents.length > 1 ? (
+                    <div className="breadcrumb-agent-wrap">
+                      <span className={`state-dot ${activeAgent.state}`} />
+                      <select
+                        className="breadcrumb-agent-select"
+                        value={activeAgent.id}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val.startsWith('spawn:')) {
+                            void spawnRole(val.slice(6));
+                          } else {
+                            void selectAgent(val);
+                          }
+                        }}
+                      >
+                        <optgroup label={t.breadcrumbActiveAgents}>
+                          {agents.map((a) => (
+                            <option key={a.id} value={a.id}>
+                              {a.display_name} ({a.role_id})
+                            </option>
+                          ))}
+                        </optgroup>
+                        {roles.length > 0 && (
+                          <optgroup label={t.breadcrumbSpawnAgent}>
+                            {roles.map((r) => (
+                              <option key={r.role_id} value={`spawn:${r.role_id}`}>
+                                + {r.display_name} ({r.role_id})
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                      </select>
+                      {activeAgent.current_task && (
+                        <span className="breadcrumb-current-task" title={activeAgent.current_task}>
+                          <span className="task-banner-pulse" />
+                          <span className="breadcrumb-task-text">{activeAgent.current_task}</span>
+                        </span>
+                      )}
+                      <CompletionChip completion={activeAgent.completion} />
+                    </div>
+                  ) : (
+                    <span className="breadcrumb-agent" title={`Active Agent: ${activeAgent.display_name} (${activeAgent.role_id}) · state: ${activeAgent.state}`}>
+                      <span className={`state-dot ${activeAgent.state}`} />
+                      <span className="breadcrumb-agent-name">{activeAgent.display_name}</span>
+                      <span className="badge role-badge">{activeAgent.role_id}</span>
+                      {activeAgent.current_task && (
+                        <span className="breadcrumb-current-task" title={activeAgent.current_task}>
+                          <span className="task-banner-pulse" />
+                          <span className="breadcrumb-task-text">{activeAgent.current_task}</span>
+                        </span>
+                      )}
+                      <CompletionChip completion={activeAgent.completion} />
+                    </span>
+                  )}
                 </>
               )}
             </div>
           </div>
 
-          <div className="agentbar-group system-controls">
-            {activeAgent && (
-              <div
-                className={`agentbar-activity-pill ${currentAgentActivity.type}`}
-                title={`Active agent: ${activeAgent.display_name} · ${currentAgentActivity.label}`}
-              >
-                <span className={`state-dot ${currentAgentActivity.type === 'idle' ? 'idle' : currentAgentActivity.type === 'waiting' ? 'waiting_input' : 'running'}`} />
-                <span className="activity-label">{currentAgentActivity.label}</span>
-              </div>
-            )}
-            {activeProject && (
-              <div className="agentbar-control-item" title="Orchestration mode: Controls DAG generation and supervision workflow">
-                <span className="control-label">Mode</span>
-                <select
-                  className="select agentbar-select mode"
-                  value={activeProject.settings.orchestration_mode}
-                  onChange={(e) => changeOrchestrationMode(e.target.value)}
-                >
-                  <option value="standard">standard (Direct)</option>
-                  <option value="dag_record">dag_record (Record)</option>
-                  <option value="dag_guided">dag_guided (Supervised)</option>
-                </select>
-              </div>
-            )}
-            {activeProject && (
-              <div
-                className="agentbar-control-item"
-                title="Tool invocation protocol (project-wide): traditional = direct tool calls; javascript = js_exec programs. Applies to the next run; active runs keep their frozen protocol."
-              >
-                <span className="control-label">Protocol</span>
-                <select
-                  className="select agentbar-select protocol"
-                  value={activeProject.settings.defaults?.invocation_protocol ?? 'javascript'}
-                  onChange={(e) => changeProjectInvocationProtocol(e.target.value)}
-                >
-                  <option value="traditional">traditional</option>
-                  <option value="javascript">javascript</option>
-                </select>
-              </div>
-            )}
-            {activeProject && (
-              <button
-                type="button"
-                className={`yolo-toggle-badge ${activeProject.settings.defaults?.yolo === true ? 'active' : 'guarded'}`}
-                title="Safety Policy: YOLO mode auto-approves destructive shell & compute actions via guard model. Click to toggle project-wide."
-                onClick={() => toggleProjectYolo(!(activeProject.settings.defaults?.yolo === true))}
-              >
-                <span className="yolo-tag">{activeProject.settings.defaults?.yolo === true ? 'YOLO' : 'SAFE'}</span>
-              </button>
-            )}
-            <span className="conn-status" title={`SSE stream status: ${connLabel}`}>
-              {activeProject && <span className={`state-dot ${connState === 'live' ? 'running' : 'waiting_input'}`} />}
-              <span className="conn-label">{connLabel}</span>
-            </span>
+          {/* Central View Mode Switcher */}
+          <div className="view-mode-switcher">
             <button
               type="button"
-              className={`btn ghost sm panel-toggle inspector-toggle-btn ${inspectorOpen ? 'active' : ''} ${totalPending > 0 ? 'attention' : ''}`}
-              title={inspectorOpen ? 'Hide inspector' : `Show inspector${totalPending > 0 ? ` (${totalPending} action required)` : ''}`}
-              onClick={() => setInspectorOpen((v) => !v)}
+              className={`view-mode-btn ${viewMode === 'dialogue' ? 'active' : ''}`}
+              onClick={() => setViewMode('dialogue')}
+              title={lang === 'zh' ? '切换至对话流模式 (全屏推演与交互)' : 'Switch to Dialogue Mode'}
             >
-              <span>{inspectorOpen ? 'Inspector ▶' : '◀ Inspector'}</span>
-              {totalPending > 0 && <span className="badge attention-badge">{totalPending}</span>}
+              <span>{t.dialogue}</span>
             </button>
+            <button
+              type="button"
+              className={`view-mode-btn ${viewMode === 'console' ? 'active' : ''}`}
+              onClick={() => setViewMode('console')}
+              title={lang === 'zh' ? '切换至控制台模式 (机理图与计算队列)' : 'Switch to Console Mode'}
+            >
+              <span>{t.console}</span>
+              {sidebarJobs && sidebarJobs.length > 0 && (
+                <span className="mode-badge">{sidebarJobs.length}</span>
+              )}
+            </button>
+          </div>
+
+          <div className="agentbar-group system-controls">
+            <button
+              type="button"
+              className="btn outline sm project-settings-btn"
+              onClick={() => setProjectSettingsOpen(true)}
+              title={activeProject ? `${t.projectSettings}: ${activeProject.name}` : t.selectProjectHint}
+              disabled={!activeProject}
+            >
+              <span>{t.projectSettings}</span>
+            </button>
+            <div className="lang-switcher-pill" title={t.langToggle}>
+              <button
+                type="button"
+                className={`lang-pill-btn ${lang === 'zh' ? 'active' : ''}`}
+                onClick={() => setLang('zh')}
+              >
+                中
+              </button>
+              <button
+                type="button"
+                className={`lang-pill-btn ${lang === 'en' ? 'active' : ''}`}
+                onClick={() => setLang('en')}
+              >
+                EN
+              </button>
+            </div>
+            <span className="conn-status" title={`SSE stream status: ${connLabel}`}>
+              {activeProject && <span className={`state-dot ${connState === 'live' ? 'running' : 'waiting_input'}`} />}
+              <span className="conn-label">{connState === 'live' ? t.live : connLabel}</span>
+            </span>
+            {totalPending > 0 && (
+              <span className="badge attention-badge" title={`${totalPending} 项决策等待审核`}>
+                {totalPending} 待审核
+              </span>
+            )}
           </div>
         </div>
 
-        <div
-          className="chat-scroll"
+        {viewMode === 'dialogue' ? (
+          <>
+            {activeAgent && (
+              <div className={`live-agent-pulse ${currentAgentActivity.type}`}>
+                <span className="pulse-indicator">
+                  <span className="pulse-dot" />
+                </span>
+                <span className="pulse-agent">{activeAgent.display_name}</span>
+                <span className="pulse-divider">·</span>
+                <span className="pulse-status">{currentAgentActivity.label}</span>
+                {sidebarJobs && sidebarJobs.length > 0 && (
+                  <span
+                    className="pulse-compute-tag"
+                    onClick={() => {
+                      setViewMode('console');
+                      setConsoleTab('compute');
+                    }}
+                    title="切换至控制台查看计算队列"
+                  >
+                    {sidebarJobs.length} 个计算任务运行中 →
+                  </span>
+                )}
+              </div>
+            )}
+            <div
+              className="chat-scroll"
           ref={chatRef}
           onScroll={(e) => {
             const el = e.currentTarget;
@@ -2316,8 +2155,8 @@ export default function App() {
           <div className="chat-column">
             {!activeProject && (
               <div className="chat-empty">
-                <div className="big">Welcome to Cloudra</div>
-                Pick a project on the left, or create a new one.
+                <div className="big">{t.emptyHeroTitle}</div>
+                {t.selectProjectHint}
               </div>
             )}
             {activeProject && timeline.length === 0 && activeAgent?.state !== 'running' && (
@@ -2408,7 +2247,7 @@ export default function App() {
             {activeAgent?.state === 'waiting_approval' && (
               <div className="run-status">
                 <span className="state-dot waiting_approval" />
-                <span style={{ color: 'var(--yellow-soft)' }}>waiting for approval — see the approvals tab</span>
+                <span style={{ color: 'var(--yellow-soft)' }}>{t.approvalTimelineWaiting}</span>
               </div>
             )}
             {activeAgent?.state === 'queued' && timeline.length > 0 && (
@@ -2443,16 +2282,25 @@ export default function App() {
               </div>
             </div>
           )}
-          {interactions.length > 0 && (
-            <div className="ask-banner">
-              <span className="state-dot waiting_input" />
-              <span>
-                Agent is asking: {short(cleanPromptText(interactions[0].prompt ?? interactions[0].message), 100)} (type below to answer)
-                {interactions.length > 1 ? ` (+${interactions.length - 1} more)` : ''}
-              </span>
-            </div>
+          {(interactions.length > 0 || approvals.length > 0) && (
+            <InteractionPrompt
+              interactions={interactions}
+              approvals={approvals}
+              activeAgent={activeAgent}
+              agents={agents}
+              onRespond={handleRespondInteraction}
+              onDecide={handleDecideApproval}
+              onSelectAgent={(agentId: string) => void selectAgent(agentId)}
+              onToggleYolo={(yoloVal: boolean) => toggleProjectYolo(yoloVal)}
+              isYolo={activeProject?.settings.defaults?.yolo === true}
+              sending={sending}
+              t={t}
+              isCollapsed={interactionCollapsed}
+              onToggleCollapse={(c: boolean) => setInteractionCollapsed(c)}
+            />
           )}
-          <div className="composer">
+          {(!hasActiveAgentDecision || interactionCollapsed) && (
+            <div className="composer">
             {pendingImages.length > 0 && activeProject && (
               <div className="composer-attachments">
                 {pendingImages.map((img) => (
@@ -2533,6 +2381,20 @@ export default function App() {
               disabled={!activeProject}
             />
             <div className="composer-actions">
+              {activeProject && (
+                <button
+                  type="button"
+                  className={`yolo-toggle-badge ${activeProject.settings.defaults?.yolo === true ? 'active' : 'guarded'}`}
+                  title={
+                    activeProject.settings.defaults?.yolo === true
+                      ? '安全策略：当前处于 YOLO 模式（敏感破坏性操作自动放行）'
+                      : '安全策略：当前处于 SAFE 模式（敏感操作与计算需人工审批）'
+                  }
+                  onClick={() => toggleProjectYolo(!(activeProject.settings.defaults?.yolo === true))}
+                >
+                  <span className="yolo-tag">{activeProject.settings.defaults?.yolo === true ? 'YOLO' : 'SAFE'}</span>
+                </button>
+              )}
               <span className="composer-hint">Enter to send · Shift+Enter for newline</span>
               {visualOn && (
                 <>
@@ -2563,45 +2425,142 @@ export default function App() {
               </button>
             </div>
           </div>
+          )}
         </div>
-      </main>
+      </>
+    ) : (
+      <div className="console-view-wrapper">
+        {/* Console Sub-navigation Bar */}
+        <div className="console-subnav-bar">
+          <div className="console-subnav-pills">
+            <button
+              type="button"
+              className={`console-subnav-btn ${consoleTab === 'overview' ? 'active' : ''}`}
+              onClick={() => setConsoleTab('overview')}
+            >
+              <span>{t.tabOverview}</span>
+            </button>
+            <button
+              type="button"
+              className={`console-subnav-btn ${consoleTab === 'dag' ? 'active' : ''}`}
+              onClick={() => setConsoleTab('dag')}
+            >
+              <span>{t.tabDag}</span>
+              {(activeProject?.settings.orchestration_mode === 'dag_guided' ||
+                activeProject?.settings.defaults?.orchestration_mode === 'dag_guided') && (
+                <span className="subnav-dot-active" />
+              )}
+            </button>
+            <button
+              type="button"
+              className={`console-subnav-btn ${consoleTab === 'compute' ? 'active' : ''}`}
+              onClick={() => setConsoleTab('compute')}
+            >
+              <span>{t.tabCompute}</span>
+              {sidebarJobs && sidebarJobs.length > 0 && (
+                <span className="badge sm">{sidebarJobs.length}</span>
+              )}
+            </button>
+            <button
+              type="button"
+              className={`console-subnav-btn ${consoleTab === 'artifacts' ? 'active' : ''}`}
+              onClick={() => setConsoleTab('artifacts')}
+            >
+              <span>{t.tabArtifacts}</span>
+            </button>
+            <button
+              type="button"
+              className={`console-subnav-btn ${consoleTab === 'audit' ? 'active' : ''}`}
+              onClick={() => setConsoleTab('audit')}
+            >
+              <span>{t.tabAudit}</span>
+            </button>
+            <button
+              type="button"
+              className={`console-subnav-btn ${consoleTab === 'telemetry' ? 'active' : ''}`}
+              onClick={() => setConsoleTab('telemetry')}
+            >
+              <span>{t.tabTelemetry}</span>
+            </button>
+            <button
+              type="button"
+              className={`console-subnav-btn ${consoleTab === 'hub' ? 'active' : ''}`}
+              onClick={() => setConsoleTab('hub')}
+            >
+              <span>{t.tabHub}</span>
+            </button>
+          </div>
 
-      {inspectorOpen && (
-        <div
-          className={`resizer resizer-inspector ${resizingSide === 'inspector' ? 'active' : ''}`}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            setResizingSide('inspector');
-          }}
-          title="Drag to resize inspector"
-        />
-      )}
+          {consoleTab !== 'overview' && (
+            <button
+              type="button"
+              className="btn ghost sm console-back-overview-btn"
+              onClick={() => setConsoleTab('overview')}
+            >
+              {t.backToOverview}
+            </button>
+          )}
+        </div>
 
-      {inspectorOpen && (
-        <Inspector
-          width={inspectorWidth}
-          activeAgent={activeAgent}
-          activeProject={activeProject}
-          agents={agents}
-          liveEvents={sessionEvents}
-          onPatchSettings={patchSettings}
-          approvals={approvals}
-          interactions={interactions}
-          onRefreshApprovals={() => activeProject && api.approvals(activeProject.id).then(setApprovals).catch(reportError)}
-          onRefreshInteractions={() => activeProject && api.interactions(activeProject.id).then(setInteractions).catch(reportError)}
-          onError={reportError}
-          onToast={pushToast}
-          onClose={() => setInspectorOpen(false)}
-          currentAgentActivity={currentAgentActivity}
-          onToggleYolo={(yolo) => toggleProjectYolo(yolo)}
-          onChangeMode={(mode) => changeOrchestrationMode(mode)}
-          onChangeProtocol={(protocol) => changeProjectInvocationProtocol(protocol)}
-          onChangeWorkspace={(ws) => changeWorkspace(ws)}
-          onOpenPathPicker={openPathPicker}
-          tab={inspectorTab}
-          onSelectTab={setInspectorTab}
-        />
-      )}
+        {/* Console Active Tab Viewport */}
+        <div className="console-tab-viewport">
+          {!activeProject ? (
+            <div className="chat-empty">{t.selectProjectHint}</div>
+          ) : consoleTab === 'overview' ? (
+            <ConsoleIndexPage
+              project={activeProject}
+              agents={agents}
+              activeAgent={activeAgent}
+              sidebarJobs={sidebarJobs}
+              onNavigate={(tab) => setConsoleTab(tab)}
+              onOpenProjectSettings={() => setProjectSettingsOpen(true)}
+              onSelectAgent={(agentId) => selectAgent(agentId)}
+              onOpenDialogue={(agentId) => {
+                selectAgent(agentId);
+                setViewMode('dialogue');
+              }}
+              onError={reportError}
+              onToast={(text, kind) => pushToast(kind === 'warn' ? 'info' : (kind ?? 'info'), text)}
+            />
+          ) : consoleTab === 'dag' ? (
+            <DagPanel
+              project={activeProject}
+              onError={reportError}
+              onToast={pushToast}
+            />
+          ) : consoleTab === 'compute' ? (
+            <div className="console-compute-container">
+              <OpsPanel project={activeProject} agents={agents} onError={reportError} />
+            </div>
+          ) : consoleTab === 'artifacts' ? (
+            <ArtifactsPanel project={activeProject} onError={reportError} />
+          ) : consoleTab === 'audit' ? (
+            <div className="console-audit-container">
+              <AuditLog
+                agentId={activeAgentId}
+                projectId={activeProjectId}
+                liveEvents={events}
+                onError={reportError}
+              />
+            </div>
+          ) : consoleTab === 'telemetry' ? (
+            <div className="console-telemetry-embedded">
+              <TelemetryPanel onClose={() => setConsoleTab('overview')} onToast={pushToast} />
+            </div>
+          ) : consoleTab === 'hub' ? (
+            <div className="console-hub-container">
+              <HubPanel
+                projects={projects}
+                initialProjectId={activeProjectId}
+                embedded
+                onToast={pushToast}
+              />
+            </div>
+          ) : null}
+        </div>
+      </div>
+    )}
+  </main>
 
       <div className="floating-stack">
         <div className="toasts">
@@ -2625,7 +2584,24 @@ export default function App() {
           onRespond={handleAttentionRespond}
         />
       </div>
-        {globalOpen && <GlobalConfig onClose={() => setGlobalOpen(false)} onToast={pushToast} />}
+        {projectSettingsOpen && activeProject && (
+          <ProjectSettingsModal
+            project={activeProject}
+            agents={agents.filter((a) => a.project_id === activeProject.id)}
+            activeAgentId={activeAgentId}
+            roles={roles}
+            onClose={() => setProjectSettingsOpen(false)}
+            onSaveProjectSettings={handleSaveProjectSettings}
+            onSaveAgentSettings={handleSaveAgentSettings}
+            onToast={pushToast}
+          />
+        )}
+        {globalOpen && (
+          <GlobalConfig
+            onClose={() => setGlobalOpen(false)}
+            onToast={pushToast}
+          />
+        )}
         {knowledgeOpen && <KnowledgePanel onClose={() => setKnowledgeOpen(false)} onToast={pushToast} />}
         {benchmarkOpen && (
           <BenchmarkPanel
@@ -2654,1048 +2630,5 @@ export default function App() {
           onClose={() => setPathPicker((prev) => ({ ...prev, isOpen: false }))}
         />
     </div>
-  );
-}
-
-/* ------------------------------------------------------------------ inspector */
-
-const TAB_CONFIG: Record<InspectorTab, { label: string; title: string }> = {
-  overview: { label: 'Status', title: 'Project status, active agent & quick controls' },
-  ops: { label: 'Ops', title: 'Agent tree, compute queue & pending reminders' },
-  dag: { label: 'DAG', title: 'Mechanism DAG graph and verification status' },
-  approvals: { label: 'Approvals', title: 'Pending sensitive tool approvals' },
-  interactions: { label: 'Prompts', title: 'Agent questions and input requests' },
-  artifacts: { label: 'Artifacts', title: 'Generated files, figures and outputs' },
-  settings: { label: 'Settings', title: 'Agent LLM overrides, context memory & skills' },
-  events: { label: 'Events', title: 'Live execution audit log & tool calls' },
-};
-
-interface GoalForm {
-  objective: string;
-  completion_criteria: string;
-  current_focus: string;
-}
-
-interface ContextStats {
-  session_id: string;
-  messages: number;
-  tokens: number;
-  by_role: Record<string, { messages: number; tokens: number }>;
-  last_prompt_tokens: number | null;
-}
-
-const EMPTY_GOAL: GoalForm = { objective: '', completion_criteria: '', current_focus: '' };
-
-function InteractionCard({
-  item,
-  projectId,
-  onRefresh,
-  onError,
-  onToast,
-}: {
-  item: Record<string, unknown>;
-  projectId: string | null;
-  onRefresh: () => void;
-  onError: (e: unknown) => void;
-  onToast: (kind: ToastKind, text: string) => void;
-}) {
-  const [response, setResponse] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const interactionId = (item.interaction_id ?? item.id) as string | number | undefined;
-  const agentId = String(item.agent_id ?? item.session_id ?? 'agent');
-  const prompt = cleanPromptText(item.prompt ?? item.message);
-  const createdAt = String(item.created_at ?? '');
-
-  const handleSend = async () => {
-    if (!projectId || !interactionId) return;
-    const trimmed = response.trim();
-    if (!trimmed || submitting) return;
-    try {
-      setSubmitting(true);
-      await api.respondInteraction(projectId, interactionId, trimmed);
-      onToast('ok', 'Response sent to agent');
-      setResponse('');
-      onRefresh();
-    } catch (err) {
-      onError(err);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="card interaction-card">
-      <div className="card-header-row">
-        <span className="badge role-badge">{agentId}</span>
-        <span className="interaction-title">Needs your input</span>
-        {createdAt && (
-          <span className="card-meta" style={{ marginLeft: 'auto', marginBottom: 0 }}>
-            {stamp(createdAt)}
-          </span>
-        )}
-      </div>
-      <div className="interaction-prompt">
-        {prompt ? <Markdown text={prompt} /> : <span className="muted-note">(Empty prompt)</span>}
-      </div>
-      {projectId && interactionId && (
-        <div className="interaction-input-box">
-          <textarea
-            className="input interaction-textarea"
-            rows={2}
-            placeholder="Type your response here (Enter to send, Shift+Enter for new line)…"
-            value={response}
-            disabled={submitting}
-            onChange={(e) => setResponse(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                void handleSend();
-              }
-            }}
-          />
-          <div className="interaction-actions">
-            <button
-              type="button"
-              className="btn green sm"
-              disabled={submitting || !response.trim()}
-              onClick={handleSend}
-            >
-              {submitting ? 'Sending…' : 'Send response ↵'}
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Inspector({
-  activeAgent,
-  activeProject,
-  agents,
-  liveEvents,
-  onPatchSettings,
-  approvals,
-  interactions,
-  onRefreshApprovals,
-  onRefreshInteractions,
-  onError,
-  onToast,
-  width,
-  onClose,
-  currentAgentActivity,
-  onToggleYolo,
-  onChangeMode,
-  onChangeProtocol,
-  onChangeWorkspace,
-  onOpenPathPicker,
-  tab: controlledTab,
-  onSelectTab,
-}: {
-  activeAgent: Agent | null;
-  activeProject: Project | null;
-  agents: Agent[];
-  liveEvents: EventEnvelope[];
-  onPatchSettings: (patch: Record<string, unknown>) => void;
-  approvals: Array<Record<string, unknown>>;
-  interactions: Array<Record<string, unknown>>;
-  onRefreshApprovals: () => void;
-  onRefreshInteractions: () => void;
-  onError: (e: unknown) => void;
-  onToast: (kind: ToastKind, text: string) => void;
-  width?: number;
-  onClose?: () => void;
-  currentAgentActivity?: { type: string; label: string };
-  onToggleYolo?: (yolo: boolean) => void;
-  onChangeMode?: (mode: string) => void;
-  onChangeProtocol?: (protocol: string) => void;
-  onChangeWorkspace?: (ws: string) => void;
-  onOpenPathPicker?: (options: {
-    title?: string;
-    initialPath?: string;
-    onSelect: (path: string) => void;
-  }) => void;
-  tab?: InspectorTab;
-  onSelectTab?: (tab: InspectorTab) => void;
-}) {
-  const [internalTab, setInternalTab] = useState<InspectorTab>('overview');
-  const tab = controlledTab ?? internalTab;
-  const setTab = onSelectTab ?? setInternalTab;
-  const [settingsSubTab, setSettingsSubTab] = useState<'model' | 'context' | 'skills'>('model');
-  const [artifacts, setArtifacts] = useState<Array<Record<string, unknown>>>([]);
-  const [deciding, setDeciding] = useState<string | null>(null);
-  const [goal, setGoal] = useState<GoalForm>(EMPTY_GOAL);
-  const [goalLoaded, setGoalLoaded] = useState(false);
-  const [stats, setStats] = useState<ContextStats | null>(null);
-  const [skills, setSkills] = useState<Array<Record<string, unknown>>>([]);
-  const [dagSummary, setDagSummary] = useState<{
-    mode: string;
-    nodeCount: number;
-    edgeCount: number;
-    draftAccepted: boolean;
-    hasDraft: boolean;
-  } | null>(null);
-
-  const loadDagSummary = useCallback(async () => {
-    if (!activeProject) {
-      setDagSummary(null);
-      return;
-    }
-    try {
-      const [deliv, draft] = await Promise.allSettled([
-        api.dagDelivery(activeProject.id),
-        api.dagDraft(activeProject.id),
-      ]);
-      const graph = deliv.status === 'fulfilled' ? deliv.value.graph : null;
-      const nodes = graph && Array.isArray((graph as any).nodes) ? (graph as any).nodes.length : 0;
-      const edges = graph && Array.isArray((graph as any).edges) ? (graph as any).edges.length : 0;
-      const isAccepted = draft.status === 'fulfilled' ? Boolean(draft.value?.mechanism_accepted) : false;
-      const hasDraft = draft.status === 'fulfilled' ? Boolean(draft.value?.draft) : false;
-      setDagSummary({
-        mode: activeProject.settings.orchestration_mode ?? 'standard',
-        nodeCount: nodes,
-        edgeCount: edges,
-        draftAccepted: isAccepted,
-        hasDraft,
-      });
-    } catch {
-      // ignore
-    }
-  }, [activeProject]);
-
-  useEffect(() => {
-    if (tab === 'overview') {
-      void loadDagSummary();
-      if (activeAgent) {
-        api.getContextStats(activeAgent.id).then(setStats).catch(() => {});
-      }
-    }
-  }, [tab, activeProject?.id, activeAgent?.id, loadDagSummary]);
-
-  async function loadTab(next: InspectorTab) {
-    setTab(next);
-    try {
-      if (next === 'overview') {
-        void loadDagSummary();
-        if (activeAgent) {
-          api.getContextStats(activeAgent.id).then(setStats).catch(() => {});
-        }
-      } else if (next === 'artifacts' && activeProject) {
-        setArtifacts(await api.artifacts(activeProject.id));
-      } else if (next === 'settings') {
-        if (activeAgent) {
-          const [goalResp, statsResp] = await Promise.all([
-            api.getGoal(activeAgent.id),
-            api.getContextStats(activeAgent.id),
-          ]);
-          setGoal(goalResp.goal ?? EMPTY_GOAL);
-          setGoalLoaded(true);
-          setStats(statsResp);
-        }
-        setSkills(await api.listSkills());
-      }
-    } catch (e) {
-      onError(e);
-    }
-  }
-
-  async function decide(approvalId: number | string, decision: 'approve' | 'deny') {
-    if (!activeProject) return;
-    setDeciding(`${approvalId}:${decision}`);
-    try {
-      await api.decideApproval(activeProject.id, approvalId, decision, decision === 'deny' ? 'denied by user' : '');
-      onToast('ok', `${decision === 'approve' ? 'Approved' : 'Denied'}`);
-      onRefreshApprovals();
-    } catch (e) {
-      onError(e);
-    } finally {
-      setDeciding(null);
-    }
-  }
-
-  async function refreshStats() {
-    if (!activeAgent) return;
-    try {
-      setStats(await api.getContextStats(activeAgent.id));
-    } catch (e) {
-      onError(e);
-    }
-  }
-
-  return (
-    <aside className="inspector" style={width ? { width } : undefined}>
-      <div className="inspector-header">
-        <div className="inspector-title-wrap">
-          <span className="inspector-title">Inspector</span>
-          {activeAgent ? (
-            <span className="inspector-target-badge" title={`Inspecting agent ${activeAgent.display_name} (${activeAgent.role_id})`}>
-              <span className={`state-dot ${activeAgent.state}`} />
-              <span className="badge-name">{activeAgent.display_name}</span>
-            </span>
-          ) : activeProject ? (
-            <span className="inspector-target-badge" title={`Inspecting project ${activeProject.name}`}>
-              <span className="badge-name">{activeProject.name}</span>
-            </span>
-          ) : null}
-        </div>
-        {onClose && (
-          <button
-            type="button"
-            className="inspector-close-btn"
-            title="Close inspector"
-            onClick={onClose}
-          >
-            ✕
-          </button>
-        )}
-      </div>
-      <div className="tabs">
-        {(['overview', 'ops', 'dag', 'approvals', 'interactions', 'artifacts', 'settings', 'events'] as const).map((t) => {
-          const cfg = TAB_CONFIG[t];
-          const hasBadge = (t === 'approvals' && approvals.length > 0) || (t === 'interactions' && interactions.length > 0);
-          const badgeCount = t === 'approvals' ? approvals.length : interactions.length;
-          return (
-            <button
-              key={t}
-              className={`tab ${tab === t ? 'active' : ''} ${hasBadge ? 'has-badge' : ''}`}
-              title={cfg.title}
-              onClick={() => loadTab(t)}
-            >
-              <span className="tab-label">{cfg.label}</span>
-              {hasBadge && <span className="badge">{badgeCount}</span>}
-            </button>
-          );
-        })}
-      </div>
-      <div className="inspector-body">
-        {tab === 'overview' && (
-          <div className="overview-dashboard">
-            {/* 1. Active Agent Status */}
-            <div className="card overview-card">
-              <div className="card-header-row">
-                <span className="card-section-label">Active Agent</span>
-                {activeAgent && (
-                  <span className="agent-header-chips" style={{ marginLeft: 'auto' }}>
-                    <CompletionChip completion={activeAgent.completion} />
-                    <span
-                      className={`state-badge ${activeAgent.state}`}
-                      title={`state: ${activeAgent.state}`}
-                    >
-                      {stateBadgeText(activeAgent.state)}
-                    </span>
-                  </span>
-                )}
-              </div>
-              {activeAgent ? (
-                <div className="overview-agent-body">
-                  <div className="overview-agent-title-row">
-                    <span className="overview-agent-name">{activeAgent.display_name}</span>
-                    <span className="badge role-badge">{activeAgent.role_id}</span>
-                    {activeAgent.settings.model && (
-                      <span className="badge model-badge">{activeAgent.settings.model}</span>
-                    )}
-                  </div>
-                  <div className="overview-activity-desc">
-                    <span className="activity-label-bold">Status:</span>{' '}
-                    <span className="activity-text">{currentAgentActivity?.label ?? activeAgent.state}</span>
-                  </div>
-                  {stats && (
-                    <div className="overview-metrics-strip">
-                      <div className="overview-metric">
-                        <span className="metric-val">{stats.messages}</span>
-                        <span className="metric-lbl">Messages</span>
-                      </div>
-                      <div className="overview-metric">
-                        <span className="metric-val">{(stats.tokens ?? 0).toLocaleString()}</span>
-                        <span className="metric-lbl">Est. Tokens</span>
-                      </div>
-                      {stats.last_prompt_tokens != null && (
-                        <div className="overview-metric">
-                          <span className="metric-val">{stats.last_prompt_tokens.toLocaleString()}</span>
-                          <span className="metric-lbl">Last Prompt</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="empty-hint">No active agent selected</div>
-              )}
-            </div>
-
-            {/* 2. Pending Actions (Approvals & Prompts) */}
-            {(approvals.length > 0 || interactions.length > 0) && (
-              <div className="overview-attention-section">
-                <div className="overview-section-title">
-                  <span>Action Required ({approvals.length + interactions.length})</span>
-                </div>
-                {approvals.map((approval) => {
-                  const id = approval.id as number | string;
-                  const tool = String(approval.tool_name ?? approval.tool ?? 'tool');
-                  const details = String(approval.details ?? '');
-                  const risk = String(approval.risk_summary ?? '');
-                  return (
-                    <div key={`overview-app-${id}`} className="card approval-card">
-                      <div className="card-header-row">
-                        <span className="badge tool-badge">{tool}</span>
-                        <span className="card-meta" style={{ marginLeft: 'auto', marginBottom: 0 }}>#{String(id)}</span>
-                      </div>
-                      {risk && <div className="approval-risk-banner">[Risk] {risk}</div>}
-                      {details && <div className="approval-details-text">{details}</div>}
-                      <div className="card-actions">
-                        <button className="btn green sm" disabled={deciding !== null} onClick={() => decide(id, 'approve')}>
-                          {deciding === `${id}:approve` ? 'Approving…' : 'Approve'}
-                        </button>
-                        <button className="btn yellow sm" disabled={deciding !== null} onClick={() => decide(id, 'deny')}>
-                          {deciding === `${id}:deny` ? 'Denying…' : 'Deny'}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-                {interactions.map((item) => (
-                  <InteractionCard
-                    key={`overview-prompt-${String(item.interaction_id ?? item.id ?? '')}`}
-                    item={item}
-                    projectId={activeProject?.id ?? null}
-                    onRefresh={onRefreshInteractions}
-                    onError={onError}
-                    onToast={onToast}
-                  />
-                ))}
-              </div>
-            )}
-
-            {/* 3. Mechanism & DAG Summary */}
-            {activeProject && (
-              <div className="card overview-card">
-                <div className="card-header-row">
-                  <span className="card-section-label">Mechanism DAG</span>
-                  <span className="badge mode-badge" style={{ marginLeft: 'auto' }}>
-                    {activeProject.settings.orchestration_mode}
-                  </span>
-                </div>
-                <div className="overview-dag-body">
-                  {dagSummary ? (
-                    <div className="overview-dag-stats">
-                      <div className="overview-dag-status-pill">
-                        <span className="dag-status-label">Status:</span>
-                        <span className={`dag-status-val ${dagSummary.draftAccepted ? 'ok' : dagSummary.hasDraft ? 'pending' : 'neutral'}`}>
-                          {dagSummary.draftAccepted ? 'Mechanism Accepted' : dagSummary.hasDraft ? 'Draft Proposed (Pending Review)' : 'No Draft Yet'}
-                        </span>
-                      </div>
-                      <div className="overview-metrics-strip">
-                        <div className="overview-metric">
-                          <span className="metric-val">{dagSummary.nodeCount}</span>
-                          <span className="metric-lbl">Species Nodes</span>
-                        </div>
-                        <div className="overview-metric">
-                          <span className="metric-val">{dagSummary.edgeCount}</span>
-                          <span className="metric-lbl">Elementary Steps</span>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="empty-hint">Loading DAG summary…</div>
-                  )}
-                  <div className="card-actions" style={{ marginTop: '0.6rem' }}>
-                    <button
-                      type="button"
-                      className="btn outline sm"
-                      onClick={() => loadTab('dag')}
-                    >
-                      Open Interactive DAG →
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* 4. Quick Project Controls */}
-            {activeProject && (
-              <div className="card overview-card">
-                <div className="card-header-row">
-                  <span className="card-section-label">Quick Controls</span>
-                </div>
-                <div className="overview-controls-grid">
-                  <div className="overview-control-row">
-                    <span className="control-name">Safety Policy</span>
-                    <button
-                      type="button"
-                      className={`btn sm ${activeProject.settings.defaults?.yolo === true ? 'yellow' : 'outline'}`}
-                      onClick={() => onToggleYolo?.(!(activeProject.settings.defaults?.yolo === true))}
-                    >
-                      {activeProject.settings.defaults?.yolo === true ? 'YOLO: ON (Auto-approve)' : 'Guarded (Require Approval)'}
-                    </button>
-                  </div>
-                  <div className="overview-control-row">
-                    <span className="control-name">Orchestration Mode</span>
-                    <select
-                      className="select sm"
-                      value={activeProject.settings.orchestration_mode}
-                      onChange={(e) => onChangeMode?.(e.target.value)}
-                    >
-                      <option value="standard">standard (Direct)</option>
-                      <option value="dag_record">dag_record (Record)</option>
-                      <option value="dag_guided">dag_guided (Supervised)</option>
-                    </select>
-                  </div>
-                  <div className="overview-control-row">
-                    <span className="control-name">Invocation Protocol</span>
-                    <select
-                      className="select sm"
-                      value={activeProject.settings.defaults?.invocation_protocol ?? 'javascript'}
-                      onChange={(e) => onChangeProtocol?.(e.target.value)}
-                    >
-                      <option value="traditional">traditional (direct tool calls)</option>
-                      <option value="javascript">javascript (js_exec programs)</option>
-                    </select>
-                  </div>
-                  <div className="overview-control-row">
-                    <span className="control-name">Workspace</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flexWrap: 'wrap' }}>
-                      <span className="mono-path" title={activeProject.workspace_dir ?? undefined}>
-                        {activeProject.workspace_dir || '(none)'}
-                      </span>
-                      {onOpenPathPicker && (
-                        <button
-                          type="button"
-                          className="btn ghost sm"
-                          style={{ height: 22, padding: '0 6px', fontSize: 11 }}
-                          title="Browse and set workspace directory"
-                          onClick={() =>
-                            onOpenPathPicker({
-                              title: `Change Workspace for ${activeProject.name}`,
-                              initialPath: activeProject.workspace_dir ?? undefined,
-                              onSelect: (p) => onChangeWorkspace?.(p),
-                            })
-                          }
-                        >
-                          📁 Change
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {tab === 'dag' && (
-          activeProject ? (
-            <DagPanel project={activeProject} onError={onError} onToast={onToast} />
-          ) : (
-            <div className="inspector-empty-guide">
-              <span className="badge sm">DAG</span>
-              <div className="empty-title">No Project Selected</div>
-              <div className="empty-desc">Select a project on the left to view and edit its mechanism DAG graph.</div>
-            </div>
-          )
-        )}
-
-        {tab === 'ops' && (
-          activeProject ? (
-            <OpsPanel project={activeProject} agents={agents} onError={onError} />
-          ) : (
-            <div className="inspector-empty-guide">
-              <span className="badge sm">Ops</span>
-              <div className="empty-title">No Project Selected</div>
-              <div className="empty-desc">Select a project on the left to view its agent tree, compute queue and pending reminders.</div>
-            </div>
-          )
-        )}
-
-        {tab === 'approvals' && (
-          <>
-            {approvals.length === 0 && (
-              <div className="inspector-empty-guide">
-                <span className="badge sm">Approvals</span>
-                <div className="empty-title">No Pending Approvals</div>
-                <div className="empty-desc">
-                  When an agent requests potentially destructive operations (e.g. bash commands or file writes), approval requests will appear here for review.
-                </div>
-              </div>
-            )}
-            {approvals.map((approval) => {
-              const id = approval.id as number | string;
-              const tool = String(approval.tool_name ?? approval.tool ?? 'tool');
-              const agentName = String(approval.agent_name ?? '');
-              const details = String(approval.details ?? '');
-              const risk = String(approval.risk_summary ?? '');
-              const diff = String(approval.candidate_diff ?? '');
-              const createdAt = String(approval.created_at ?? '');
-              return (
-                <div key={String(id)} className="card approval-card">
-                  <div className="card-header-row">
-                    <span className="badge tool-badge">{tool}</span>
-                    {agentName && <span className="badge role-badge">{agentName}</span>}
-                    <span className="card-meta" style={{ marginLeft: 'auto', marginBottom: 0 }}>
-                      #{String(id)}{createdAt ? ` · ${stamp(createdAt)}` : ''}
-                    </span>
-                  </div>
-                  {risk && <div className="approval-risk-banner">[Risk] {risk}</div>}
-                  {details && <div className="approval-details-text">{details}</div>}
-                  {diff && (
-                    <div className="approval-diff-wrap">
-                      <div className="approval-diff-title">Proposed Changes</div>
-                      <pre className="approval-diff-content">{diff}</pre>
-                    </div>
-                  )}
-                  <div className="card-actions">
-                    <button className="btn green sm" disabled={deciding !== null} onClick={() => decide(id, 'approve')}>
-                      {deciding === `${id}:approve` ? 'Approving…' : 'Approve'}
-                    </button>
-                    <button className="btn yellow sm" disabled={deciding !== null} onClick={() => decide(id, 'deny')}>
-                      {deciding === `${id}:deny` ? 'Denying…' : 'Deny'}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </>
-        )}
-
-        {tab === 'interactions' && (
-          <>
-            {interactions.length === 0 && (
-              <div className="inspector-empty-guide">
-                <span className="badge sm">Prompts</span>
-                <div className="empty-title">No Pending Prompts</div>
-                <div className="empty-desc">
-                  When an agent requires clarification, parameter inputs, or guidance, interactive prompt cards will appear here.
-                </div>
-              </div>
-            )}
-            {interactions.map((item) => (
-              <InteractionCard
-                key={String(item.interaction_id ?? item.id ?? '')}
-                item={item}
-                projectId={activeProject?.id ?? null}
-                onRefresh={onRefreshInteractions}
-                onError={onError}
-                onToast={onToast}
-              />
-            ))}
-          </>
-        )}
-
-        {tab === 'artifacts' && (
-          <>
-            {artifacts.length === 0 && (
-              <div className="inspector-empty-guide">
-                <span className="badge sm">Artifacts</span>
-                <div className="empty-title">No Artifacts Yet</div>
-                <div className="empty-desc">
-                  Files, molecular structures, and figures generated in this project will appear here for preview and download.
-                </div>
-              </div>
-            )}
-            {artifacts.map((artifact) => (
-              <div key={String(artifact.artifact_id)} className="card">
-                <div className="card-title">{String(artifact.name)}</div>
-                <div className="card-meta">
-                  {String(artifact.mime_type ?? '')} · {String(artifact.size ?? '')} bytes
-                </div>
-                {activeProject && String(artifact.mime_type ?? '').startsWith('image/') && (
-                  <a
-                    className="artifact-thumb"
-                    href={api.artifactDownloadUrl(activeProject.id, String(artifact.artifact_id))}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    <img
-                      src={api.artifactDownloadUrl(activeProject.id, String(artifact.artifact_id))}
-                      alt={String(artifact.name)}
-                      loading="lazy"
-                    />
-                  </a>
-                )}
-                {activeProject && (
-                  <div className="card-actions">
-                    <a
-                      className="btn outline sm"
-                      href={api.artifactDownloadUrl(activeProject.id, String(artifact.artifact_id))}
-                      download={String(artifact.name)}
-                    >
-                      download
-                    </a>
-                  </div>
-                )}
-              </div>
-            ))}
-          </>
-        )}
-
-        {tab === 'settings' && (
-          <div className="settings-panel">
-            <div className="settings-subtabs">
-              <button
-                type="button"
-                className={`tab sm ${settingsSubTab === 'model' ? 'active' : ''}`}
-                onClick={() => setSettingsSubTab('model')}
-              >
-                Model & LLM
-              </button>
-              <button
-                type="button"
-                className={`tab sm ${settingsSubTab === 'context' ? 'active' : ''}`}
-                onClick={() => setSettingsSubTab('context')}
-              >
-                Memory & Context
-              </button>
-              <button
-                type="button"
-                className={`tab sm ${settingsSubTab === 'skills' ? 'active' : ''}`}
-                onClick={() => setSettingsSubTab('skills')}
-              >
-                Skills ({skills.length})
-              </button>
-            </div>
-
-            {settingsSubTab === 'model' && (
-              activeAgent ? (
-                <>
-                  <div className="settings-hierarchy-card">
-                    <div className="hierarchy-title">Agent Level Override</div>
-                    <div className="hierarchy-desc">
-                      Settings applied to <b>{activeAgent.display_name}</b> alone. Values left empty inherit from the global config (<b>{activeAgent.role_id === 'coordinator' ? 'Coordinator' : 'Follower'}</b> slot).
-                    </div>
-                  </div>
-                  <label className="field">
-                    model
-                    <input
-                      className="input"
-                      key={`model-${activeAgent.id}`}
-                      list="agent-model-suggestions"
-                      defaultValue={activeAgent.settings.model}
-                      onBlur={(e) => e.target.value !== activeAgent.settings.model && onPatchSettings({ model: e.target.value })}
-                    />
-                    <datalist id="agent-model-suggestions">
-                      <option value="anthropic/claude-sonnet-5" />
-                      <option value="deepseek-v4-pro" />
-                      <option value="openai/gpt-6-astra" />
-                      <option value="google/gemini-3.8-flash" />
-                      <option value="qwen/qwen3.8-max-0902" />
-                      <option value="kimi-for-coding" />
-                      <option value="kimi-k3" />
-                      <option value="glm-5.3" />
-                      <option value="minimax-m3" />
-                      <option value="deepseek-ai/DeepSeek-V4-Pro" />
-                    </datalist>
-                    <span className="field-hint">
-                      empty → global config ({activeAgent.role_id === 'coordinator' ? 'coordinator' : 'follower'} slot)
-                    </span>
-                  </label>
-                  <label className="field">
-                    base_url
-                    <input
-                      className="input"
-                      key={`url-${activeAgent.id}`}
-                      list="agent-url-suggestions"
-                      defaultValue={activeAgent.settings.base_url}
-                      onBlur={(e) => e.target.value !== activeAgent.settings.base_url && onPatchSettings({ base_url: e.target.value })}
-                    />
-                    <datalist id="agent-url-suggestions">
-                      <option value="https://openrouter.ai/api/v1" label="OpenRouter" />
-                      <option value="https://opencode.ai/zen/go/v1" label="OpenCode Go" />
-                      <option value="https://api.kimi.com/coding/v1" label="Kimi Coding Plan (Kimi Code)" />
-                      <option value="https://api.moonshot.cn/v1" label="Moonshot (Kimi 开放平台)" />
-                      <option value="https://api.deepseek.com" label="DeepSeek" />
-                      <option value="https://api.openai.com/v1" label="OpenAI" />
-                      <option value="https://generativelanguage.googleapis.com/v1beta/openai/" label="Google Gemini" />
-                      <option value="https://dashscope.aliyuncs.com/compatible-mode/v1" label="通义千问 (DashScope)" />
-                      <option value="https://api.siliconflow.cn/v1" label="硅基流动 (SiliconFlow)" />
-                      <option value="https://api.minimaxi.com/v1" label="MiniMax" />
-                      <option value="http://localhost:11434/v1" label="Ollama (Local)" />
-                    </datalist>
-                    <span className="field-hint">
-                      empty → global config ({activeAgent.role_id === 'coordinator' ? 'coordinator' : 'follower'} slot)
-                    </span>
-                  </label>
-                  <div className="field">
-                    api key
-                    <div className="api-key-row">
-                      <span className={`api-key-state ${activeAgent.settings.api_key_set ? 'ok' : ''}`}>
-                        {activeAgent.settings.api_key_set ? 'overriding' : 'not set'}
-                      </span>
-                      {activeAgent.settings.api_key_set && (
-                        <button className="btn ghost sm" onClick={() => onPatchSettings({ api_key: '' })}>
-                          clear override
-                        </button>
-                      )}
-                    </div>
-                    <input
-                      className="input"
-                      type="password"
-                      autoComplete="off"
-                      key={`key-${activeAgent.id}`}
-                      placeholder={
-                        activeAgent.settings.api_key_set
-                          ? 'type a new key to replace the override…'
-                          : 'type to override the global key for this agent…'
-                      }
-                      onBlur={(e) => {
-                        const value = e.target.value;
-                        e.target.value = '';
-                        if (value) onPatchSettings({ api_key: value });
-                      }}
-                    />
-                    <span className="field-hint">
-                      write-only: the stored key is never shown. Leave the box empty to keep the
-                      current setting; use “clear override” to fall back to the global key.
-                    </span>
-                  </div>
-                  <label className="field-row">
-                    <input type="checkbox" checked={activeAgent.settings.yolo} onChange={(e) => onPatchSettings({ yolo: e.target.checked })} />
-                    YOLO (this agent only; project-wide toggle is in the top bar)
-                  </label>
-                  <label className="field-row" title="Vision tools + image input for this agent">
-                    <input
-                      type="checkbox"
-                      checked={activeAgent.settings.visual_mode !== false}
-                      onChange={(e) => onPatchSettings({ visual_mode: e.target.checked })}
-                    />
-                    Visual (this agent only; project-wide toggle via /visual)
-                  </label>
-                  <label className="field-row" title="Enforce autonomous wake-up timers before stopping">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(activeAgent.settings.schedule_mode)}
-                      onChange={(e) => onPatchSettings({ schedule_mode: e.target.checked })}
-                    />
-                    Schedule mode (autonomous self-wake guard)
-                  </label>
-                  <label className="field" title="Tool invocation protocol for this agent's NEXT run (frozen once a run starts)">
-                    invocation protocol
-                    <select
-                      className="input"
-                      value={activeAgent.settings.invocation_protocol ?? 'javascript'}
-                      onChange={(e) => onPatchSettings({ invocation_protocol: e.target.value })}
-                    >
-                      <option value="traditional">traditional (direct tool calls)</option>
-                      <option value="javascript">javascript (js_exec programs)</option>
-                    </select>
-                    <span className="field-hint">
-                      this agent only; project-wide toggle is in the top bar / Overview /{' '}
-                      <code>/protocol</code>. Applies to the next run; active run keeps its frozen
-                      protocol
-                      {activeAgent.current_run?.invocation_protocol &&
-                      activeAgent.current_run.invocation_protocol !==
-                        (activeAgent.settings.invocation_protocol ?? 'javascript')
-                        ? ` — active run: ${activeAgent.current_run.invocation_protocol}`
-                        : ''}
-                    </span>
-                  </label>
-                  <label className="field">
-                    temperature
-                    <input
-                      className="input"
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      max="2"
-                      key={`temp-${activeAgent.id}`}
-                      defaultValue={activeAgent.settings.temperature}
-                      onBlur={(e) => Number(e.target.value) !== activeAgent.settings.temperature && onPatchSettings({ temperature: Number(e.target.value) })}
-                    />
-                    <span className="field-hint">sampling temperature, 0–2</span>
-                  </label>
-                  <label className="field" title="Reasoning effort passed as the OpenAI-compatible reasoning_effort parameter">
-                    reasoning effort
-                    <select
-                      className="input"
-                      value={activeAgent.settings.reasoning_effort ?? ''}
-                      onChange={(e) => onPatchSettings({ reasoning_effort: e.target.value || null })}
-                    >
-                      <option value="">default (not sent)</option>
-                      <option value="minimal">minimal</option>
-                      <option value="low">low</option>
-                      <option value="medium">medium</option>
-                      <option value="high">high</option>
-                    </select>
-                    <span className="field-hint">
-                      thinking strength; empty falls back to the global config slot
-                    </span>
-                  </label>
-                  <div className="muted-note">Changes apply to this session on the next LLM request.</div>
-                </>
-              ) : (
-                <div className="inspector-empty-guide">
-                  <span className="badge sm">Settings</span>
-                  <div className="empty-title">Select an Agent</div>
-                  <div className="empty-desc">Pick an agent from the top bar to inspect or override its model and LLM credentials.</div>
-                </div>
-              )
-            )}
-
-            {settingsSubTab === 'context' && (
-              activeAgent ? (
-                <>
-                  <div className="ctx-section">
-                    <div className="ctx-title">Goal anchor</div>
-                    {goalLoaded ? (
-                      <>
-                        <label className="field">
-                          objective
-                          <input
-                            className="input"
-                            value={goal.objective}
-                            onChange={(e) => setGoal((g) => ({ ...g, objective: e.target.value }))}
-                          />
-                        </label>
-                        <label className="field">
-                          completion_criteria
-                          <input
-                            className="input"
-                            value={goal.completion_criteria}
-                            onChange={(e) => setGoal((g) => ({ ...g, completion_criteria: e.target.value }))}
-                          />
-                        </label>
-                        <label className="field">
-                          current_focus
-                          <input
-                            className="input"
-                            value={goal.current_focus}
-                            onChange={(e) => setGoal((g) => ({ ...g, current_focus: e.target.value }))}
-                          />
-                        </label>
-                        <button
-                          className="btn primary sm"
-                          onClick={async () => {
-                            try {
-                              await api.setGoal(activeAgent.id, goal);
-                              onToast('ok', 'Goal saved');
-                            } catch (e) {
-                              onError(e);
-                            }
-                          }}
-                        >
-                          Save
-                        </button>
-                      </>
-                    ) : (
-                      <div className="empty-hint">Loading goal…</div>
-                    )}
-                  </div>
-
-                  <div className="ctx-section">
-                    <div className="ctx-title">
-                      Context stats
-                      <button className="btn ghost sm" style={{ marginLeft: 'auto' }} onClick={refreshStats}>
-                        Refresh
-                      </button>
-                    </div>
-                    {stats ? (
-                      <>
-                        <div className="stats-metric-grid">
-                          <div className="stat-metric-card">
-                            <span className="stat-metric-val">{stats.messages}</span>
-                            <span className="stat-metric-lbl">Messages</span>
-                          </div>
-                          <div className="stat-metric-card">
-                            <span className="stat-metric-val">{(stats.tokens ?? 0).toLocaleString()}</span>
-                            <span className="stat-metric-lbl">Est. Tokens</span>
-                          </div>
-                          <div className="stat-metric-card">
-                            <span className="stat-metric-val">{stats.last_prompt_tokens != null ? stats.last_prompt_tokens.toLocaleString() : '—'}</span>
-                            <span className="stat-metric-lbl">Last Prompt</span>
-                          </div>
-                        </div>
-                        <table className="ctx-table">
-                          <thead>
-                            <tr>
-                              <th>role</th>
-                              <th>messages</th>
-                              <th>tokens</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {Object.entries(stats.by_role).map(([role, s]) => (
-                              <tr key={role}>
-                                <td>{role}</td>
-                                <td>{s.messages}</td>
-                                <td>{s.tokens}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                        <div className="muted-note">
-                          tokens estimated from persisted events; last_prompt_tokens is the exact value from the latest LLM call
-                        </div>
-                      </>
-                    ) : (
-                      <div className="empty-hint">Loading stats…</div>
-                    )}
-                  </div>
-
-                  <div className="ctx-section">
-                    <div className="ctx-title">Compact context</div>
-                    <div className="empty-hint">
-                      Replaces the whole conversation history with one structured
-                      summary (applies on the next turn).
-                    </div>
-                    <button
-                      className="btn outline sm"
-                      onClick={async () => {
-                        try {
-                          await api.compactAgent(activeAgent.id);
-                          const st = String(activeAgent.state ?? '');
-                          if (st === 'running' || st === 'queued' || st === 'waiting_approval' || st === 'waiting_input') {
-                            onToast('ok', 'Compaction queued — the running agent executes it at its next turn boundary');
-                          } else {
-                            onToast('error', `Agent is ${st || 'not running'} — compaction is queued but will NOT run until the agent runs again (send it a message or restart it)`);
-                          }
-                        } catch (e) {
-                          onError(e);
-                        }
-                      }}
-                    >
-                      Compact
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <div className="inspector-empty-guide">
-                  <span className="badge sm">Context</span>
-                  <div className="empty-title">Select an Agent</div>
-                  <div className="empty-desc">Pick an agent from the top bar to inspect its goal anchor, token stats, and context memory.</div>
-                </div>
-              )
-            )}
-
-            {settingsSubTab === 'skills' && (
-              <>
-                {skills.length === 0 && (
-                  <div className="inspector-empty-guide">
-                    <span className="badge sm">Skills</span>
-                    <div className="empty-title">No Skills Found</div>
-                    <div className="empty-desc">No specialized skills are registered for the current agent or environment.</div>
-                  </div>
-                )}
-                {skills.map((skill) => (
-                  <details key={String(skill.name)} className="skill-item">
-                    <summary>
-                      <span className="skill-name">{String(skill.name ?? '(unnamed)')}</span>
-                      {skill.description != null && <span className="skill-desc">{String(skill.description)}</span>}
-                    </summary>
-                    <div className="skill-body">{String(skill.content ?? '')}</div>
-                  </details>
-                ))}
-              </>
-            )}
-          </div>
-        )}
-
-        {tab === 'events' && (
-          <AuditLog
-            agentId={activeAgent?.id ?? null}
-            projectId={activeProject?.id ?? null}
-            liveEvents={liveEvents}
-            onError={onError}
-          />
-        )}
-      </div>
-    </aside>
   );
 }

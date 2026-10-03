@@ -174,7 +174,7 @@ export const api = {
     ),
   spawnAgent: async (
     projectId: string,
-    body: { role_id: string; query?: string; parent_session_id?: string | null; settings?: Record<string, unknown> },
+    body: { role_id: string; query?: string; parent_session_id?: string | null; settings?: Record<string, unknown>; language?: string },
   ) =>
     assertAccepted(
       await request<CommandResponse<Agent>>(`/api/v2/projects/${projectId}/agents`, {
@@ -199,14 +199,20 @@ export const api = {
     const q = `after=0&limit=${limit}&tail=true${before != null ? `&before=${before}` : ''}`;
     return request<EventEnvelope[]>(`/api/v2/agents/${agentId}/events?${q}`);
   },
-  sendMessage: async (agentId: string, content: string, images?: string[], imageArtifactIds?: (string | null)[]) =>
+  sendMessage: async (
+    agentId: string,
+    content: string,
+    images?: string[],
+    imageArtifactIds?: (string | null)[],
+    language?: string,
+  ) =>
     assertAccepted(
       await request<CommandResponse<Agent>>(`/api/v2/agents/${agentId}/messages`, {
         method: 'POST',
         body: JSON.stringify(
           images && images.length > 0
-            ? { content, images, image_artifact_ids: imageArtifactIds ?? [] }
-            : { content },
+            ? { content, images, image_artifact_ids: imageArtifactIds ?? [], language }
+            : { content, language },
         ),
       }),
       'Message rejected',
@@ -272,6 +278,19 @@ export const api = {
   // 2D molecular structure diagram rendered from SMILES.
   chemRenderSmilesUrl: (smiles: string, width = 200, height = 140, theme = 'dark') =>
     withToken(`${runtimeUrl}/api/v2/chem/render-smiles?smiles=${encodeURIComponent(smiles)}&width=${width}&height=${height}&theme=${theme}&v=w4`),
+  // 3D Cartesian coordinates generated from SMILES via RDKit embedding.
+  chemSmilesToXyz: (smiles: string) =>
+    request<{
+      success: boolean;
+      xyz: string;
+      num_atoms: number;
+      formula: string;
+      bonds?: Array<{ atom1: number; atom2: number; order: number }>;
+      num_fragments?: number;
+      error?: string;
+    }>(
+      `/api/v2/chem/smiles-to-xyz?smiles=${encodeURIComponent(smiles)}`,
+    ),
   dagDelivery: (projectId: string) =>
     request<{ mode: string; graph: Record<string, unknown> | null }>(`/api/v2/projects/${projectId}/dag/delivery`),
   dagReviews: (projectId: string) =>

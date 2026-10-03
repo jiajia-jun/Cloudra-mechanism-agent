@@ -303,7 +303,7 @@ export default function BenchmarkPanel({ onClose, onOpenProject, onToast }: Benc
                   disabled={running}
                   onClick={() => setDirPickerOpen(true)}
                 >
-                  📁
+                  浏览
                 </button>
               </div>
               <input

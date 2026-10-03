@@ -151,6 +151,9 @@ cloudra.md
 # gold_compute 战役运行目录（append-only 本地证据，日志量大不入库）
 gold_compute/campaign/
 gold_compute/review
+gold_compute/remote_backups/
+gold_compute/**/deployment_backup/
+gold_compute/**/remote_round_snapshot/
 gold_compute/verified_evidence/
 !gold_compute/verified_evidence/INDEX.md
 !gold_compute/verified_evidence/**/README.md

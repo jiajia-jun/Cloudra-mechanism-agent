@@ -14,6 +14,8 @@ export interface RuntimeSettings {
   reasoning_effort?: string | null;
   orchestration_mode: 'standard' | 'dag_record' | 'dag_guided';
   invocation_protocol?: 'traditional' | 'javascript';
+  unattended?: boolean;
+  clean_context?: boolean;
 }
 
 export interface PermissionSet {
@@ -49,6 +51,7 @@ export interface Agent {
   settings_revision: number;
   capabilities: AgentCapabilities;
   current_run: { run_id: string; started_at: string; invocation_protocol?: string } | null;
+  current_task?: string | null;
   // 运行期投影（服务端从收尾事件算出）：该 agent 最近一次已结束 run 的完成
   // 依据；正在跑/挂起或从未收尾时为 null。
   completion?: CompletionSummary | null;
