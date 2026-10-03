@@ -16,8 +16,8 @@ interface InteractionPromptProps {
   approvals?: Array<Record<string, unknown>>;
   activeAgent: Agent | null;
   agents: Agent[];
-  onRespond: (interactionId: string | number, answer: string) => Promise<void>;
-  onDecide?: (approvalId: string | number, decision: 'approve' | 'deny', reason?: string) => Promise<void>;
+  onRespond: (interactionId: string | number, answer: string) => Promise<boolean>;
+  onDecide?: (approvalId: string | number, decision: 'approve' | 'deny', reason?: string) => Promise<boolean>;
   onSelectAgent?: (agentId: string) => void;
   onToggleYolo?: (enabled: boolean) => Promise<void>;
   isYolo?: boolean;
@@ -85,6 +85,19 @@ export default function InteractionPrompt({
     }
   }, [decisionItems.length, currentIndex]);
 
+  const selectedItem = decisionItems[currentIndex] ?? decisionItems[0];
+  const selectedKey = selectedItem
+    ? `${selectedItem.kind}:${selectedItem.data.session_id ?? ''}:${selectedItem.kind === 'interaction' ? selectedItem.data.interaction_id ?? selectedItem.data.id : selectedItem.data.id}`
+    : '';
+  const selectedKeyRef = useRef(selectedKey);
+  selectedKeyRef.current = selectedKey;
+  useEffect(() => {
+    setAnswerDraft('');
+    setShowRejectInput(false);
+    setRejectReason('');
+    setForceInlineReply(false);
+  }, [selectedKey]);
+
   if (decisionItems.length === 0) {
     return null;
   }
@@ -123,7 +136,7 @@ export default function InteractionPrompt({
     const finalAnswer = (responseValue !== undefined ? responseValue : answerDraft).trim();
     if (!finalAnswer && !parsedInteraction?.defaultAnswer) return;
     const submission = finalAnswer || parsedInteraction?.defaultAnswer || '';
-    await onRespond(itemId, submission);
+    if (!(await onRespond(itemId, submission)) || selectedKeyRef.current !== selectedKey) return;
     setAnswerDraft('');
     setShowRejectInput(false);
     setRejectReason('');
@@ -133,7 +146,7 @@ export default function InteractionPrompt({
     if (sending || isApproval) return;
     const reason = rejectReason.trim();
     const finalReject = reason ? `拒绝: ${reason}` : '拒绝';
-    await onRespond(itemId, finalReject);
+    if (!(await onRespond(itemId, finalReject)) || selectedKeyRef.current !== selectedKey) return;
     setAnswerDraft('');
     setShowRejectInput(false);
     setRejectReason('');
@@ -142,7 +155,7 @@ export default function InteractionPrompt({
   // Handlers for approval
   const handleApprove = async () => {
     if (sending || !isApproval || !onDecide) return;
-    await onDecide(itemId, 'approve');
+    if (!(await onDecide(itemId, 'approve')) || selectedKeyRef.current !== selectedKey) return;
     setShowRejectInput(false);
     setRejectReason('');
   };
@@ -150,7 +163,7 @@ export default function InteractionPrompt({
   const handleDeny = async () => {
     if (sending || !isApproval || !onDecide) return;
     const reason = rejectReason.trim();
-    await onDecide(itemId, 'deny', reason || 'denied by user');
+    if (!(await onDecide(itemId, 'deny', reason || 'denied by user')) || selectedKeyRef.current !== selectedKey) return;
     setShowRejectInput(false);
     setRejectReason('');
   };
@@ -601,3 +614,4 @@ export default function InteractionPrompt({
     </div>
   );
 }
+

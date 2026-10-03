@@ -382,7 +382,12 @@ export default function App() {
   );
 
   // Refs so the long-lived SSE subscription always sees current values.
+  const activeProjectIdRef = useRef(activeProjectId);
+  activeProjectIdRef.current = activeProjectId;
+  const decisionSendingRef = useRef(false);
+  const pendingRevisionRef = useRef(0);
   const activeAgentIdRef = useRef(activeAgentId);
+  const agentSelectionVersionRef = useRef(0);
   const maxSeqRef = useRef(0);
 
   // Shortcut Cmd+B / Ctrl+B toggles project sidebar
@@ -497,6 +502,7 @@ export default function App() {
 
   const selectAgent = useCallback(
     async (agentId: string) => {
+      const version = ++agentSelectionVersionRef.current;
       activeAgentIdRef.current = agentId;
       setActiveAgentId(agentId);
       setPendingMessages([]);
@@ -514,6 +520,7 @@ export default function App() {
       }
       try {
         const [agent, eventList] = await Promise.all([api.getAgent(agentId), api.events(agentId)]);
+        if (version !== agentSelectionVersionRef.current) return;
         setAgents((prev) =>
           dedupeAgents(
             prev.some((a) => a.id === agentId)
@@ -528,14 +535,16 @@ export default function App() {
         // triggering user message, and no SSE echo ever re-bases them.
         maxSeqRef.current = eventList.reduce((m, e) => Math.max(m, e.session_seq ?? 0), 0);
       } catch (e) {
-        reportError(e);
+        if (version === agentSelectionVersionRef.current) reportError(e);
       }
     },
     [reportError],
   );
 
   useEffect(() => {
-    if (!activeProjectId) return;
+    let cancelled = false;
+    ++agentSelectionVersionRef.current;
+    ++pendingRevisionRef.current;
     setAgents([]);
     activeAgentIdRef.current = null;
     setActiveAgentId(null);
@@ -547,9 +556,14 @@ export default function App() {
     maxSeqRef.current = 0;
     setPendingMessages([]);
     setPendingImages([]);
+    setApprovals([]);
+    setInteractions([]);
+    setSidebarJobs(null);
+    if (!activeProjectId) return;
     api
       .listAgents(activeProjectId)
       .then((list) => {
+        if (cancelled) return;
         const agents = dedupeAgents(list);
         setAgents(agents);
         // A jump from the attention dock / a desktop notification overrides
@@ -562,7 +576,16 @@ export default function App() {
           void selectAgent(agents[0].id);
         }
       })
-      .catch(reportError);
+      .catch((error) => { if (!cancelled) reportError(error); });
+    return () => {
+      cancelled = true;
+      ++agentSelectionVersionRef.current;
+      eventBufferRef.current = [];
+      if (flushRafRef.current != null) {
+        cancelAnimationFrame(flushRafRef.current);
+        flushRafRef.current = null;
+      }
+    };
   }, [activeProjectId, selectAgent, reportError]);
 
   /* ------------------------------------------------------------ SSE stream */
@@ -575,6 +598,15 @@ export default function App() {
     let source: ReturnType<typeof streamProject> | null = null;
     let closed = false;
     let reconnectTimer: number | null = null;
+
+    const refreshPending = (kind: 'approvals' | 'interactions') => {
+      const revision = pendingRevisionRef.current;
+      void api[kind](activeProjectId).then((items) => {
+        if (closed || pendingRevisionRef.current !== revision) return;
+        if (kind === 'approvals') setApprovals(items);
+        else setInteractions(items);
+      }).catch(() => undefined);
+    };
 
     const connect = () => {
       if (closed) return;
@@ -597,12 +629,13 @@ export default function App() {
           }
         },
         onEvent: (event) => {
+          if (closed) return;
           if (event.type === 'project.synced') {
             replaying = false;
             if (activeProjectId) {
               api
                 .listAgents(activeProjectId)
-                .then((list) => setAgents(dedupeAgents(list)))
+                .then((list) => { if (!closed) setAgents(dedupeAgents(list)); })
                 .catch(() => undefined);
             }
             return;
@@ -624,7 +657,7 @@ export default function App() {
         if (event.type === 'agent.spawned' && activeProjectId) {
           api
             .listAgents(activeProjectId)
-            .then((list) => setAgents(dedupeAgents(list)))
+            .then((list) => { if (!closed) setAgents(dedupeAgents(list)); })
             .catch(() => undefined);
           // Surface the new sub-agent: auto-expand its parent's chip.
           const parentId = event.data?.parent_session_id;
@@ -689,10 +722,10 @@ export default function App() {
           if (!replaying) {
             pushToast('info', `Approval requested: ${short(event.data.tool_name ?? event.data.message ?? '', 60)}`);
           }
-          if (activeProjectId) api.approvals(activeProjectId).then(setApprovals).catch(() => undefined);
+          if (activeProjectId) refreshPending('approvals');
         }
         if (event.type === 'approval.decided' && activeProjectId) {
-          api.approvals(activeProjectId).then(setApprovals).catch(() => undefined);
+          refreshPending('approvals');
         }
         // Compact feedback: the button only queues the request — the actual
         // run happens at the next turn boundary and can take minutes on
@@ -720,7 +753,7 @@ export default function App() {
             event.type === 'interaction.expired') &&
           activeProjectId
         ) {
-          api.interactions(activeProjectId).then(setInteractions).catch(() => undefined);
+          refreshPending('interactions');
         }
         // Timeline events for the visible agent.
         if (sessionId && sessionId === activeAgentIdRef.current) {
@@ -764,12 +797,13 @@ export default function App() {
     if (!activeProjectId) return;
     let cancelled = false;
     const poll = async () => {
+      const revision = pendingRevisionRef.current;
       try {
         const [a, i] = await Promise.all([
           api.approvals(activeProjectId),
           api.interactions(activeProjectId),
         ]);
-        if (cancelled) return;
+        if (cancelled || pendingRevisionRef.current !== revision) return;
         setApprovals(a);
         setInteractions(i);
       } catch {
@@ -982,51 +1016,67 @@ export default function App() {
 
 
 
-  const handleRespondInteraction = async (interactionId: string | number, answer: string) => {
-    if (!activeProject) return;
+  const handleRespondInteraction = async (interactionId: string | number, answer: string): Promise<boolean> => {
+    if (!activeProject || decisionSendingRef.current) return false;
+    const projectId = activeProject.id;
+    decisionSendingRef.current = true;
+    setSending(true);
     try {
-      setSending(true);
-      await api.respondInteraction(activeProject.id, interactionId, answer);
-      pushToast('ok', t.interactionSentToast || 'Response sent to agent');
-      const updated = await api.interactions(activeProject.id);
-      setInteractions(updated);
-      if (activeProjectId) {
-        const sessList = await api.listAgents(activeProjectId);
-        setAgents(dedupeAgents(sessList));
-      }
+      await api.respondInteraction(projectId, interactionId, answer);
     } catch (err: unknown) {
       reportError(err);
+      return false;
     } finally {
+      decisionSendingRef.current = false;
       setSending(false);
     }
+    const revision = ++pendingRevisionRef.current;
+    pushToast('ok', t.interactionSentToast || 'Response sent to agent');
+    if (activeProjectIdRef.current === projectId) {
+      setInteractions((items) => items.filter((item) => String(item.interaction_id ?? item.id) !== String(interactionId)));
+    }
+    // The mutation succeeded. A failed refresh must not suggest resubmission.
+    void Promise.all([api.interactions(projectId), api.listAgents(projectId)])
+      .then(([updated, sessions]) => {
+        if (activeProjectIdRef.current !== projectId || pendingRevisionRef.current !== revision) return;
+        setInteractions(updated);
+        setAgents(dedupeAgents(sessions));
+      })
+      .catch(() => undefined);
+    return true;
   };
 
   const handleDecideApproval = async (
     approvalId: string | number,
     decision: 'approve' | 'deny',
     reason = ''
-  ) => {
-    if (!activeProject) return;
+  ): Promise<boolean> => {
+    if (!activeProject || decisionSendingRef.current) return false;
+    const projectId = activeProject.id;
+    decisionSendingRef.current = true;
+    setSending(true);
     try {
-      setSending(true);
-      await api.decideApproval(
-        activeProject.id,
-        approvalId,
-        decision,
-        reason || (decision === 'deny' ? 'denied by user' : '')
-      );
-      pushToast('ok', decision === 'approve' ? t.approvalApprovedToast : t.approvalDeniedToast);
-      const updated = await api.approvals(activeProject.id);
-      setApprovals(updated);
-      if (activeProjectId) {
-        const sessList = await api.listAgents(activeProjectId);
-        setAgents(dedupeAgents(sessList));
-      }
+      await api.decideApproval(projectId, approvalId, decision, reason || (decision === 'deny' ? 'denied by user' : ''));
     } catch (err: unknown) {
       reportError(err);
+      return false;
     } finally {
+      decisionSendingRef.current = false;
       setSending(false);
     }
+    const revision = ++pendingRevisionRef.current;
+    pushToast('ok', decision === 'approve' ? t.approvalApprovedToast : t.approvalDeniedToast);
+    if (activeProjectIdRef.current === projectId) {
+      setApprovals((items) => items.filter((item) => String(item.id) !== String(approvalId)));
+    }
+    void Promise.all([api.approvals(projectId), api.listAgents(projectId)])
+      .then(([updated, sessions]) => {
+        if (activeProjectIdRef.current !== projectId || pendingRevisionRef.current !== revision) return;
+        setApprovals(updated);
+        setAgents(dedupeAgents(sessions));
+      })
+      .catch(() => undefined);
+    return true;
   };
 
   async function deleteProject(p: Project) {
@@ -1161,8 +1211,9 @@ export default function App() {
         // Unknown slash: fall through to message/spawn so the agent can see it.
       }
       if (target.kind === 'respond') {
-        setDraft('');
-        await handleRespondInteraction(target.interactionId, content);
+        if (await handleRespondInteraction(target.interactionId, content)) {
+          if (activeProjectIdRef.current === activeProject.id) setDraft((current) => current === draft ? '' : current);
+        }
         return;
       }
       setPendingImages([]);
@@ -1724,9 +1775,11 @@ export default function App() {
     if (!Number.isFinite(oldest)) return;
     const el = chatRef.current;
     if (el) scrollRestoreRef.current = { height: el.scrollHeight };
+    const version = agentSelectionVersionRef.current;
     setLoadingOlder(true);
     try {
       const page = await api.eventsPage(activeAgentId, { before: oldest, limit: HISTORY_PAGE_SIZE });
+      if (version !== agentSelectionVersionRef.current) return;
       const known = new Set([...olderEvents, ...events].map((e) => e.event_id));
       const fresh = page.filter((e) => !known.has(e.event_id));
       setOlderEvents((prev) => [...fresh, ...prev]);
@@ -1734,7 +1787,7 @@ export default function App() {
     } catch (e) {
       reportError(e);
     } finally {
-      setLoadingOlder(false);
+      if (version === agentSelectionVersionRef.current) setLoadingOlder(false);
     }
   }, [activeAgentId, loadingOlder, hasOlder, olderEvents, events, reportError]);
 
@@ -2336,6 +2389,7 @@ export default function App() {
           )}
           {(interactions.length > 0 || approvals.length > 0) && (
             <InteractionPrompt
+              key={activeProjectId}
               interactions={interactions}
               approvals={approvals}
               activeAgent={activeAgent}
@@ -2684,3 +2738,4 @@ export default function App() {
     </div>
   );
 }
+
