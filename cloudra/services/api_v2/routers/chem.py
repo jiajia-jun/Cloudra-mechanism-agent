@@ -207,4 +207,148 @@ def build_router(ctx: ApiContext) -> APIRouter:
             },
         )
 
+    @router.get("/api/v2/chem/smiles-to-xyz", dependencies=ctx.protected)
+    async def smiles_to_xyz(smiles: str) -> dict:
+        """Convert a SMILES string to 3D Cartesian coordinates (XYZ block)."""
+        cleaned = smiles.strip()
+        if not cleaned:
+            return {"success": False, "xyz": "", "num_atoms": 0, "formula": ""}
+
+        def _generate() -> dict:
+            if not _RDKIT_AVAILABLE or Chem is None:
+                return {"success": False, "xyz": "", "num_atoms": 0, "formula": "", "error": "RDKit not available"}
+            try:
+                import numpy as np
+                from rdkit.Chem import AllChem, rdMolDescriptors
+
+                mol = Chem.MolFromSmiles(cleaned)
+                if mol is None:
+                    return {"success": False, "xyz": "", "num_atoms": 0, "formula": "", "error": "Invalid SMILES"}
+                formula = rdMolDescriptors.CalcMolFormula(mol)
+                frags = Chem.GetMolFrags(mol, asMols=True, sanitizeFrags=True)
+                if not frags:
+                    return {"success": False, "xyz": "", "num_atoms": 0, "formula": "", "error": "No fragments found"}
+
+                frag_data = []
+                for f in frags:
+                    f_h = Chem.AddHs(f)
+                    res = AllChem.EmbedMolecule(f_h, randomSeed=42)
+                    if res != 0:
+                        res = AllChem.EmbedMolecule(f_h, useRandomCoords=True, randomSeed=42)
+                    try:
+                        AllChem.MMFFOptimizeMolecule(f_h)
+                    except Exception:
+                        try:
+                            AllChem.UFFOptimizeMolecule(f_h)
+                        except Exception:
+                            pass
+
+                    n = f_h.GetNumAtoms()
+                    if n > 0:
+                        conf = f_h.GetConformer()
+                        pos = np.array([list(conf.GetAtomPosition(i)) for i in range(n)], dtype=float)
+                        symbols = [f_h.GetAtomWithIdx(i).GetSymbol() for i in range(n)]
+                        # Center fragment at its centroid
+                        pos -= np.mean(pos, axis=0)
+                    else:
+                        pos = np.zeros((0, 3), dtype=float)
+                        symbols = []
+
+                    bonds = [
+                        {
+                            "atom1": b.GetBeginAtomIdx(),
+                            "atom2": b.GetEndAtomIdx(),
+                            "order": int(b.GetBondTypeAsDouble()),
+                        }
+                        for b in f_h.GetBonds()
+                    ]
+                    frag_data.append({
+                        "pos": pos,
+                        "symbols": symbols,
+                        "bonds": bonds,
+                    })
+
+                gap = 3.2  # Angstroms separation between bounding boxes
+                placed_pos = []
+                all_symbols = []
+                all_bonds = []
+                global_atom_offset = 0
+
+                if len(frag_data) == 1:
+                    placed_pos.append(frag_data[0]["pos"])
+                    all_symbols.extend(frag_data[0]["symbols"])
+                    all_bonds.extend(frag_data[0]["bonds"])
+                elif len(frag_data) == 2:
+                    pos0 = frag_data[0]["pos"]
+                    pos1 = frag_data[1]["pos"]
+                    max_x0 = float(np.max(pos0[:, 0])) if len(pos0) > 0 else 0.0
+                    min_x1 = float(np.min(pos1[:, 0])) if len(pos1) > 0 else 0.0
+
+                    shifted_0 = pos0.copy()
+                    shifted_0[:, 0] += -(max_x0 + gap / 2.0)
+
+                    shifted_1 = pos1.copy()
+                    shifted_1[:, 0] += -(min_x1 - gap / 2.0)
+
+                    placed_pos.append(shifted_0)
+                    placed_pos.append(shifted_1)
+
+                    all_symbols.extend(frag_data[0]["symbols"])
+                    all_symbols.extend(frag_data[1]["symbols"])
+
+                    all_bonds.extend(frag_data[0]["bonds"])
+                    for b in frag_data[1]["bonds"]:
+                        all_bonds.append({
+                            "atom1": b["atom1"] + len(frag_data[0]["symbols"]),
+                            "atom2": b["atom2"] + len(frag_data[0]["symbols"]),
+                            "order": b["order"],
+                        })
+                else:
+                    current_x = 0.0
+                    for data in frag_data:
+                        pos = data["pos"]
+                        if len(pos) > 0:
+                            min_x = float(np.min(pos[:, 0]))
+                            max_x = float(np.max(pos[:, 0]))
+                            shift_x = current_x - min_x
+                            current_x = shift_x + max_x + gap
+                            shifted = pos.copy()
+                            shifted[:, 0] += shift_x
+                            placed_pos.append(shifted)
+                        else:
+                            placed_pos.append(pos)
+                        all_symbols.extend(data["symbols"])
+                        for b in data["bonds"]:
+                            all_bonds.append({
+                                "atom1": b["atom1"] + global_atom_offset,
+                                "atom2": b["atom2"] + global_atom_offset,
+                                "order": b["order"],
+                            })
+                        global_atom_offset += len(data["symbols"])
+
+                if placed_pos and any(len(p) > 0 for p in placed_pos):
+                    all_coords = np.vstack([p for p in placed_pos if len(p) > 0])
+                    all_coords -= np.mean(all_coords, axis=0)
+                else:
+                    all_coords = np.zeros((0, 3), dtype=float)
+
+                lines = [f"{len(all_symbols)}", f"{cleaned} ({len(frags)} fragments separated)"]
+                for sym, coord in zip(all_symbols, all_coords):
+                    lines.append(f"{sym:<2} {coord[0]:12.6f} {coord[1]:12.6f} {coord[2]:12.6f}")
+                xyz_block = "\n".join(lines)
+
+                return {
+                    "success": True,
+                    "xyz": xyz_block,
+                    "num_atoms": len(all_symbols),
+                    "formula": formula,
+                    "bonds": all_bonds,
+                    "num_fragments": len(frags),
+                }
+            except Exception as exc:
+                return {"success": False, "xyz": "", "num_atoms": 0, "formula": "", "error": str(exc)}
+
+        return await asyncio.to_thread(_generate)
+
     return router
+

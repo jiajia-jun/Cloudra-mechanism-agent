@@ -1,0 +1,414 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 770" width="1600" height="770">
+  <defs>
+    <!-- Crisp Gradients -->
+    <linearGradient id="cleanGreenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#047857" />
+      <stop offset="50%" stop-color="#059669" />
+      <stop offset="100%" stop-color="#0D9488" />
+    </linearGradient>
+    <linearGradient id="softYellowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FEF08A" />
+      <stop offset="100%" stop-color="#FDE047" />
+    </linearGradient>
+    <linearGradient id="curveGreen" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#059669" />
+      <stop offset="50%" stop-color="#10B981" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+
+    <!-- Marker Arrows -->
+    <marker id="arrGreen" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 1 L 8 5 L 0 9 z" fill="#047857" />
+    </marker>
+    <marker id="arrEmerald" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 1 L 8 5 L 0 9 z" fill="#10B981" />
+    </marker>
+    <marker id="arrYellow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 1 L 8 5 L 0 9 z" fill="#CA8A04" />
+    </marker>
+    <marker id="arrSlate" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 1 L 8 5 L 0 9 z" fill="#64748B" />
+    </marker>
+  </defs>
+
+  <style>
+    .f-heavy { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; font-weight: 800; }
+    .f-title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; font-weight: 700; }
+    .f-med { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; font-weight: 600; }
+    .chem-text { font-family: "Helvetica Neue", Arial, sans-serif; font-weight: 700; }
+  </style>
+
+  <!-- Clean Pure White Background -->
+  <rect width="1600" height="770" fill="#FFFFFF" rx="16" />
+
+  <!-- ================= TOP 3 MAIN PANELS (Y: 15 -> 565) ================= -->
+
+  <!-- 1. LEFT PANEL: 科学目标 · 反应假设 (INPUT) -->
+  <g id="panel-input" transform="translate(25, 15)">
+    <!-- Container -->
+    <rect width="335" height="535" rx="18" fill="#FFFFFF" stroke="#047857" stroke-width="2.4" />
+    
+    <!-- Header Pill -->
+    <rect x="18" y="16" width="299" height="56" rx="14" fill="#F0FDF4" stroke="#047857" stroke-width="2" />
+    <circle cx="50" cy="44" r="16" fill="#047857" />
+    <text x="50" y="52" class="f-heavy" font-size="20" fill="#FDE047" text-anchor="middle">1</text>
+    <text x="80" y="53" class="f-heavy" font-size="25" fill="#047857">科学目标 · 反应假设</text>
+
+    <!-- Visual: Professional Kekule Organic Chemistry Reaction Scheme -->
+    <g transform="translate(18, 90)">
+      <rect width="299" height="320" rx="14" fill="#FAFCFB" stroke="#CBD5E1" stroke-width="1.6" />
+      
+  <!-- Starting material Acetophenone (Standard ChemDraw) -->
+  <polygon points="42.0,145.0 61.9,156.5 61.9,179.5 42.0,191.0 22.1,179.5 22.1,156.5" fill="#FFFFFF" stroke="#047857" stroke-width="2.5" stroke-linejoin="round" />
+<line x1="26.5" y1="159.0" x2="26.5" y2="177.0" stroke="#047857" stroke-width="2.1" stroke-linecap="round" />
+<line x1="42.0" y1="150.1" x2="57.5" y2="159.0" stroke="#047857" stroke-width="2.1" stroke-linecap="round" />
+<line x1="57.5" y1="177.0" x2="42.0" y2="185.9" stroke="#047857" stroke-width="2.1" stroke-linecap="round" />
+
+  <line x1="61.9" y1="156.5" x2="80.1" y2="146.0" stroke="#047857" stroke-width="2.5" stroke-linecap="round" />
+  <line x1="77.1" y1="146.0" x2="77.1" y2="125.0" stroke="#DC2626" stroke-width="2.4" stroke-linecap="round" />
+  <line x1="83.1" y1="146.0" x2="83.1" y2="125.0" stroke="#DC2626" stroke-width="2.4" stroke-linecap="round" />
+  <text x="80.1" y="121.0" class="chem-text" font-size="18" fill="#DC2626" text-anchor="middle">O</text>
+  <line x1="80.1" y1="146.0" x2="98.3" y2="156.5" stroke="#047857" stroke-width="2.5" stroke-linecap="round" />
+
+  <!-- Reagents / Chiral Catalyst Arrow -->
+  <line x1="113.3" y1="158.0" x2="145.3" y2="158.0" stroke="#047857" stroke-width="2.8" marker-end="arrGreen" />
+  <rect x="111.3" y="135.0" width="38" height="19" rx="5" fill="#FEF9C3" stroke="#EAB308" stroke-width="1.3" />
+  <text x="130.3" y="149.0" class="chem-text" font-size="12" fill="#854D0E" text-anchor="middle">Cat*</text>
+
+  <!-- Products Branching Curves -->
+  <path d="M 149.3 154.0 C 159.3 154.0, 159.3 86.0, 169.3 86.0" fill="none" stroke="#10B981" stroke-width="2.6" marker-end="arrEmerald" />
+  <path d="M 149.3 162.0 C 159.3 162.0, 159.3 250.0, 169.3 250.0" fill="none" stroke="#CA8A04" stroke-width="2.6" marker-end="arrYellow" />
+
+  <!-- Product 1 (Favored Chiral Enantiomer, Wedge to OH: narrow at C, wide at OH) -->
+  <polygon points="189.3,65.0 207.5,75.5 207.5,96.5 189.3,107.0 171.1,96.5 171.1,75.5" fill="#FFFFFF" stroke="#047857" stroke-width="2.4" stroke-linejoin="round" />
+<line x1="175.1" y1="77.8" x2="175.1" y2="94.2" stroke="#047857" stroke-width="2.0" stroke-linecap="round" />
+<line x1="189.3" y1="69.6" x2="203.5" y2="77.8" stroke="#047857" stroke-width="2.0" stroke-linecap="round" />
+<line x1="203.5" y1="94.2" x2="189.3" y2="102.4" stroke="#047857" stroke-width="2.0" stroke-linecap="round" />
+
+  <line x1="207.5" y1="75.5" x2="223.9" y2="66.0" stroke="#047857" stroke-width="2.4" stroke-linecap="round" />
+  <line x1="223.9" y1="66.0" x2="240.4" y2="75.5" stroke="#047857" stroke-width="2.4" stroke-linecap="round" />
+  <polygon points="223.9,66.0 219.9,45.0 227.9,45.0" fill="#047857" />
+  <text x="223.9" y="40.0" class="chem-text" font-size="16" fill="#047857" text-anchor="middle">OH</text>
+  <circle cx="248.4" cy="68.0" r="12" fill="#ECFDF5" stroke="#10B981" stroke-width="2" />
+  <polyline points="242.4,68.0 246.4,72.0 254.4,64.0" stroke="#047857" stroke-width="2.5" fill="none" stroke-linecap="round" />
+
+  <!-- Product 2 (Undesired Isomer, Dashed Wedge to OH: narrow at C, wide at OH) -->
+  <polygon points="189.3,229.0 207.5,239.5 207.5,260.5 189.3,271.0 171.1,260.5 171.1,239.5" fill="#FFFFFF" stroke="#64748B" stroke-width="2.2" stroke-linejoin="round" />
+<line x1="175.1" y1="241.8" x2="175.1" y2="258.2" stroke="#64748B" stroke-width="1.9" stroke-linecap="round" />
+<line x1="189.3" y1="233.6" x2="203.5" y2="241.8" stroke="#64748B" stroke-width="1.9" stroke-linecap="round" />
+<line x1="203.5" y1="258.2" x2="189.3" y2="266.4" stroke="#64748B" stroke-width="1.9" stroke-linecap="round" />
+
+  <line x1="207.5" y1="239.5" x2="223.9" y2="230.0" stroke="#64748B" stroke-width="2.2" stroke-linecap="round" />
+  <line x1="223.9" y1="230.0" x2="240.4" y2="239.5" stroke="#64748B" stroke-width="2.2" stroke-linecap="round" />
+  <line x1="222.6" y1="225.0" x2="225.2" y2="225.0" stroke="#B45309" stroke-width="2.2" stroke-linecap="round" />
+  <line x1="221.7" y1="220.0" x2="226.1" y2="220.0" stroke="#B45309" stroke-width="2.2" stroke-linecap="round" />
+  <line x1="220.8" y1="215.0" x2="227.0" y2="215.0" stroke="#B45309" stroke-width="2.2" stroke-linecap="round" />
+  <line x1="219.9" y1="210.0" x2="227.9" y2="210.0" stroke="#B45309" stroke-width="2.2" stroke-linecap="round" />
+  <text x="223.9" y="204.0" class="chem-text" font-size="16" fill="#B45309" text-anchor="middle">OH</text>
+  <circle cx="248.4" cy="232.0" r="12" fill="#FEF9C3" stroke="#EAB308" stroke-width="2" />
+  <text x="248.4" y="237.0" class="f-heavy" font-size="14" fill="#854D0E" text-anchor="middle">?</text>
+
+    </g>
+
+    <!-- Bottom Punchy Label -->
+    <rect x="18" y="426" width="299" height="88" rx="14" fill="#F0FDF4" stroke="#047857" stroke-width="2" />
+    <text x="167" y="462" class="f-heavy" font-size="22" fill="#047857" text-anchor="middle">输入待解反应与分子</text>
+    <text x="167" y="494" class="f-heavy" font-size="19" fill="#10B981" text-anchor="middle">提出多种竞争路径假说</text>
+  </g>
+
+  <!-- Flow Arrow 1: Input -> Engine -->
+  <g transform="translate(365, 275)">
+    <line x1="0" y1="0" x2="30" y2="0" stroke="#047857" stroke-width="4.5" marker-end="arrGreen" />
+  </g>
+
+  <!-- 2. CENTER PANEL: CLOUDRA 核心计算大脑 (ENGINE) -->
+  <g id="panel-engine" transform="translate(400, 15)">
+    <!-- Container -->
+    <rect width="800" height="535" rx="18" fill="#FFFFFF" stroke="#047857" stroke-width="2.6" />
+    
+    <!-- Top System Header Banner -->
+    <rect x="0" y="0" width="800" height="74" rx="18" fill="url(#cleanGreenGrad)" />
+    
+    <!-- Golden Horns Motif (Soft warm gold) -->
+    <g transform="translate(735, 18)">
+      <polygon points="0,0 20,26 12,28 -4,8" fill="#FDE047" />
+      <polygon points="12,28 20,26 17,22" fill="#1E293B" />
+      <polygon points="22,10 36,30 30,32 17,14" fill="#FDE047" />
+      <polygon points="30,32 36,30 34,27" fill="#1E293B" />
+    </g>
+
+    <text x="32" y="47" class="f-heavy" font-size="26" fill="#FFFFFF">Cloudra · AI 自主机理推演与物理计算系统</text>
+    <rect x="595" y="21" width="128" height="32" rx="16" fill="#FEF08A" stroke="#EAB308" stroke-width="1.2" />
+    <text x="659" y="43" class="f-heavy" font-size="16" fill="#854D0E" text-anchor="middle">★ 核心计算大脑</text>
+
+    <!-- Sub-engine Left: 反应路径推导与剪枝 (Clean, NO loose text inside!) -->
+    <g transform="translate(18, 88)">
+      <rect width="368" height="428" rx="14" fill="#FAFCFB" stroke="#047857" stroke-width="2" />
+      
+      <!-- Card Title -->
+      <g transform="translate(16, 16)">
+        <circle cx="18" cy="18" r="18" fill="#F0FDF4" stroke="#10B981" stroke-width="2" />
+        <text x="18" y="26" class="f-heavy" font-size="20" fill="#047857" text-anchor="middle">🌱</text>
+        <text x="46" y="27" class="f-heavy" font-size="24" fill="#047857">自主路径推导与剪枝</text>
+      </g>
+
+      <line x1="16" y1="58" x2="352" y2="58" stroke="#E2E8F0" stroke-width="1.5" />
+
+      <!-- Reaction Network Diagram: Pure Visual Nodes, NO internal floating texts -->
+      <g transform="translate(14, 70)">
+        <rect width="340" height="258" rx="12" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.4" />
+        
+        <!-- Root node: Starting substrate -->
+        <circle cx="50" cy="128" r="28" fill="#047857" />
+        <circle cx="50" cy="128" r="18" fill="#059669" />
+        <circle cx="50" cy="128" r="7" fill="#FDE047" />
+
+        <!-- Pathway 1: Low-Energy Favored Path (Thick Emerald Line) -->
+        <path d="M 78 116 Q 115 54, 155 54" fill="none" stroke="#10B981" stroke-width="6" />
+        <circle cx="155" cy="54" r="22" fill="#F0FDF4" stroke="#10B981" stroke-width="3" />
+        <circle cx="155" cy="54" r="8" fill="#10B981" />
+        
+        <path d="M 177 54 Q 205 54, 230 54" fill="none" stroke="#10B981" stroke-width="6" marker-end="arrEmerald" />
+        
+        <!-- TS 1 Saddle Node -->
+        <rect x="232" y="32" width="44" height="44" rx="12" fill="#FEF9C3" stroke="#EAB308" stroke-width="3" />
+        <text x="254" y="60" class="f-heavy" font-size="24" fill="#854D0E" text-anchor="middle">‡</text>
+
+        <path d="M 276 54 Q 295 54, 305 54" fill="none" stroke="#10B981" stroke-width="6" marker-end="arrEmerald" />
+        <!-- Final Product Node (Green Check) -->
+        <circle cx="316" cy="54" r="18" fill="#047857" />
+        <polyline points="309,54 314,60 324,47" stroke="#34D399" stroke-width="3.5" fill="none" stroke-linecap="round" />
+
+        <!-- Pathway 2: High-Energy Disfavored Path (Dashed Slate) -->
+        <path d="M 78 140 Q 115 202, 155 202" fill="none" stroke="#94A3B8" stroke-width="4" stroke-dasharray="8 6" />
+        <circle cx="155" cy="202" r="22" fill="#F8FAFC" stroke="#94A3B8" stroke-width="2.5" />
+        <circle cx="155" cy="202" r="8" fill="#CBD5E1" />
+
+        <path d="M 177 202 Q 205 202, 230 202" fill="none" stroke="#94A3B8" stroke-width="4" stroke-dasharray="8 6" />
+        <!-- TS 2 Node -->
+        <rect x="232" y="180" width="44" height="44" rx="12" fill="#F8FAFC" stroke="#94A3B8" stroke-width="2.5" />
+        <text x="254" y="208" class="f-heavy" font-size="24" fill="#94A3B8" text-anchor="middle">‡</text>
+
+        <!-- Large Scissors / Pruning Cut -->
+        <g transform="translate(288, 182)">
+          <circle cx="8" cy="8" r="7" fill="none" stroke="#EAB308" stroke-width="2.6" />
+          <circle cx="8" cy="30" r="7" fill="none" stroke="#EAB308" stroke-width="2.6" />
+          <line x1="14" y1="13" x2="30" y2="28" stroke="#EAB308" stroke-width="3.6" />
+          <line x1="14" y1="28" x2="30" y2="13" stroke="#EAB308" stroke-width="3.6" />
+        </g>
+      </g>
+
+      <!-- Bottom Punchy Label -->
+      <g transform="translate(14, 340)">
+        <rect x="0" y="0" width="340" height="76" rx="12" fill="#F0FDF4" stroke="#047857" stroke-width="1.8" />
+        <text x="170" y="33" class="f-heavy" font-size="21" fill="#047857" text-anchor="middle">自动推导基元反应网络</text>
+        <text x="170" y="60" class="f-heavy" font-size="18" fill="#10B981" text-anchor="middle">智能修剪死路 · 算力聚焦最优解</text>
+      </g>
+    </g>
+
+    <!-- Sub-engine Right: 物理验算 (Clean PES curve, NO internal text!) -->
+    <g transform="translate(414, 88)">
+      <rect width="368" height="428" rx="14" fill="#FFFDF9" stroke="#EAB308" stroke-width="2" />
+      
+      <!-- Card Title -->
+      <g transform="translate(16, 16)">
+        <circle cx="18" cy="18" r="18" fill="#FEF9C3" stroke="#EAB308" stroke-width="2" />
+        <text x="18" y="26" class="f-heavy" font-size="20" fill="#854D0E" text-anchor="middle">⚡</text>
+        <text x="46" y="27" class="f-heavy" font-size="24" fill="#854D0E">量子力学物理验算</text>
+      </g>
+
+      <line x1="16" y1="58" x2="352" y2="58" stroke="#F1F5F9" stroke-width="1.5" />
+
+      <!-- Reaction PES Profile (Pure Visual Geometry, NO text inside!) -->
+      <g transform="translate(14, 70)">
+        <rect width="340" height="258" rx="12" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.4" />
+        
+        <!-- Coordinate Axes with clean arrowheads -->
+        <line x1="30" y1="225" x2="320" y2="225" stroke="#94A3B8" stroke-width="2.4" marker-end="arrSlate" />
+        <line x1="30" y1="225" x2="30" y2="20" stroke="#94A3B8" stroke-width="2.4" marker-end="arrSlate" />
+
+        <!-- High Barrier Curve (Soft Yellow Dashed) -->
+        <path d="M 40 185 C 80 185, 100 45, 140 45 C 180 45, 205 190, 280 190" fill="none" stroke="#EAB308" stroke-width="4" stroke-dasharray="8 6" />
+        <circle cx="140" cy="45" r="8.5" fill="#FEF08A" stroke="#CA8A04" stroke-width="2.8" />
+
+        <!-- Low Barrier Favored Curve (Solid Emerald Green) -->
+        <path d="M 40 185 C 80 185, 110 98, 150 98 C 190 98, 215 175, 285 175" fill="none" stroke="url(#curveGreen)" stroke-width="6" />
+        <circle cx="150" cy="98" r="9.5" fill="#10B981" stroke="#047857" stroke-width="3" />
+
+        <!-- Barrier Height Dimension Bracket (Visual indication without text) -->
+        <line x1="150" y1="98" x2="215" y2="98" stroke="#047857" stroke-width="1.8" stroke-dasharray="4 3" />
+        <line x1="40" y1="185" x2="215" y2="185" stroke="#047857" stroke-width="1.8" stroke-dasharray="4 3" />
+        <line x1="205" y1="104" x2="205" y2="179" stroke="#047857" stroke-width="2.6" marker-start="arrGreen" marker-end="arrGreen" />
+
+        <!-- Delta G symbol on bracket -->
+        <rect x="214" y="130" width="36" height="24" rx="6" fill="#F0FDF4" stroke="#10B981" stroke-width="1.5" />
+        <text x="232" y="147" class="chem-text" font-size="14" fill="#047857" text-anchor="middle">ΔG‡</text>
+      </g>
+
+      <!-- Bottom Punchy Label -->
+      <g transform="translate(14, 340)">
+        <rect x="0" y="0" width="340" height="76" rx="12" fill="#FEF9C3" stroke="#EAB308" stroke-width="1.8" />
+        <text x="170" y="33" class="f-heavy" font-size="21" fill="#854D0E" text-anchor="middle">精确测量活化自由能垒</text>
+        <text x="170" y="60" class="f-heavy" font-size="18" fill="#047857" text-anchor="middle">三维构型确证 · 坚实物理依据</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- Flow Arrow 2: Engine -> Output -->
+  <g transform="translate(1210, 275)">
+    <line x1="0" y1="0" x2="30" y2="0" stroke="#047857" stroke-width="4.5" marker-end="arrGreen" />
+  </g>
+
+  <!-- 3. RIGHT PANEL: 决策输出与实验指导 (OUTPUT) -->
+  <g id="panel-output" transform="translate(1245, 15)">
+    <!-- Container (Soft Light Yellow) -->
+    <rect width="330" height="535" rx="18" fill="#FFFFFF" stroke="#EAB308" stroke-width="2.4" />
+    
+    <!-- Header Pill -->
+    <rect x="18" y="16" width="294" height="56" rx="14" fill="#FEF9C3" stroke="#EAB308" stroke-width="2" />
+    <circle cx="50" cy="44" r="16" fill="#EAB308" />
+    <text x="50" y="52" class="f-heavy" font-size="20" fill="#FFFFFF" text-anchor="middle">3</text>
+    <text x="80" y="53" class="f-heavy" font-size="25" fill="#854D0E">决策输出 · 指导实验</text>
+
+    <!-- Visual Area: AI Robot with Speech Bubble pointing to Wet Lab Apparatus -->
+    <g transform="translate(16, 88)">
+      <rect width="298" height="320" rx="14" fill="#FAFCFB" stroke="#CBD5E1" stroke-width="1.6" />
+      
+      <!-- 1. Sleek AI Robot Assistant -->
+      <g transform="translate(12, 10)">
+        <!-- Antenna -->
+        <line x1="30" y1="14" x2="30" y2="4" stroke="#047857" stroke-width="2.5" />
+        <circle cx="30" cy="3" r="4.5" fill="#FDE047" stroke="#047857" stroke-width="1.8" />
+        
+        <!-- Head -->
+        <rect x="6" y="14" width="48" height="38" rx="10" fill="#F0FDF4" stroke="#047857" stroke-width="2.4" />
+        <!-- Digital Face Screen -->
+        <rect x="12" y="20" width="36" height="24" rx="6" fill="#047857" />
+        <!-- Happy Glowing Eyes ^ ^ -->
+        <path d="M 18 33 Q 23 26, 28 33" stroke="#34D399" stroke-width="2.6" fill="none" stroke-linecap="round" />
+        <path d="M 32 33 Q 37 26, 42 33" stroke="#34D399" stroke-width="2.6" fill="none" stroke-linecap="round" />
+        
+        <!-- Torso -->
+        <rect x="12" y="55" width="36" height="28" rx="7" fill="#F0FDF4" stroke="#047857" stroke-width="2.2" />
+        <circle cx="30" cy="68" r="6" fill="#10B981" />
+        
+        <!-- Arm gesturing toward speech bubble -->
+        <path d="M 46 64 Q 58 55, 66 45" fill="none" stroke="#047857" stroke-width="2.8" stroke-linecap="round" />
+        <circle cx="67" cy="44" r="3.5" fill="#047857" />
+      </g>
+
+      <!-- 2. Speech Bubble (AI Proposing Optimal Scheme) -->
+      <g transform="translate(86, 8)">
+        <path d="M 12 28 L 0 35 L 12 42 Z" fill="#FEF9C3" stroke="#EAB308" stroke-width="1.8" />
+        <rect x="10" y="0" width="190" height="74" rx="12" fill="#FEF9C3" stroke="#EAB308" stroke-width="2" />
+        <text x="22" y="26" class="f-heavy" font-size="16" fill="#854D0E">★ 推荐首选方案</text>
+        <text x="22" y="47" class="f-title" font-size="13.5" fill="#047857">优势催化剂 A* + 配比</text>
+        <text x="22" y="65" class="chem-text" font-size="12.5" fill="#047857">&gt;99% ee · 92% 产率</text>
+      </g>
+
+      <!-- 3. Downward Flow Arrow pointing to Lab Apparatus -->
+      <g transform="translate(185, 86)">
+        <path d="M 0 0 L 0 28" fill="none" stroke="#EAB308" stroke-width="3.5" marker-end="arrYellow" />
+      </g>
+
+      <!-- 4. Professional Organic Synthesis Apparatus (Reflux + Magnetic Stirrer) -->
+      <g transform="translate(24, 118)">
+        <!-- Magnetic Stirring Hotplate Base -->
+        <rect x="35" y="147" width="180" height="42" rx="8" fill="#F8FAFC" stroke="#64748B" stroke-width="2" />
+        <rect x="45" y="139" width="160" height="8" rx="2" fill="#E2E8F0" stroke="#64748B" stroke-width="1.5" />
+        <!-- Digital LED on stirrer -->
+        <rect x="52" y="157" width="58" height="22" rx="4" fill="#0F172A" />
+        <text x="81" y="172" class="chem-text" font-size="10.5" fill="#34D399" text-anchor="middle">60℃ / 800</text>
+        <!-- Knobs -->
+        <circle cx="140" cy="168" r="7" fill="#CBD5E1" stroke="#475569" stroke-width="1.5" />
+        <circle cx="170" cy="168" r="7" fill="#CBD5E1" stroke="#475569" stroke-width="1.5" />
+
+        <!-- Stand Rod & Clamp -->
+        <line x1="205" y1="5" x2="205" y2="162" stroke="#94A3B8" stroke-width="3.5" stroke-linecap="round" />
+        <line x1="145" y1="65" x2="205" y2="65" stroke="#64748B" stroke-width="3" />
+        
+        <!-- Round Bottom Flask -->
+        <circle cx="125" cy="106" r="33" fill="#FFFFFF" stroke="#047857" stroke-width="2.5" />
+        <!-- Liquid & Stir Bar -->
+        <path d="M 96 112 Q 125 120, 154 112 A 33 33 0 0 1 96 112 Z" fill="#D1FAE5" opacity="0.85" />
+        <!-- Stir bar -->
+        <rect x="115" y="128" width="20" height="7" rx="3.5" fill="#047857" />
+        
+        <!-- Flask Neck -->
+        <rect x="117" y="60" width="16" height="22" fill="#FFFFFF" stroke="#047857" stroke-width="2.2" />
+
+        <!-- Reflux Condenser Column -->
+        <rect x="110" y="7" width="30" height="55" rx="5" fill="#F0FDF4" stroke="#047857" stroke-width="2" />
+        <line x1="125" y1="7" x2="125" y2="62" stroke="#047857" stroke-width="1.6" />
+        <!-- Water in / out nipples -->
+        <line x1="110" y1="50" x2="98" y2="50" stroke="#047857" stroke-width="2.2" />
+        <line x1="140" y1="18" x2="152" y2="18" stroke="#047857" stroke-width="2.2" />
+      </g>
+    </g>
+
+    <!-- Bottom Punchy Label -->
+    <rect x="18" y="426" width="294" height="88" rx="14" fill="#FEF9C3" stroke="#EAB308" stroke-width="2" />
+    <text x="165" y="462" class="f-heavy" font-size="22" fill="#854D0E" text-anchor="middle">交付优先候选方案</text>
+    <text x="165" y="494" class="f-heavy" font-size="19" fill="#047857" text-anchor="middle">拒绝盲目试错 · 直击目标</text>
+  </g>
+
+  <!-- ================= BOTTOM CLOSED LOOP (Y: 565 -> 755) ================= -->
+  <g id="bottom-feedback-loop" transform="translate(25, 565)">
+    <!-- Container -->
+    <rect width="1550" height="185" rx="18" fill="#FAFCFB" stroke="#047857" stroke-width="2.4" stroke-dasharray="10 6" />
+    
+    <!-- Central Wet-Lab Box: Bold & Clear -->
+    <g transform="translate(355, 14)">
+      <rect width="840" height="156" rx="16" fill="#FFFFFF" stroke="#047857" stroke-width="2.6" />
+      
+      <!-- Laboratory Flask Icon -->
+      <g transform="translate(24, 24)">
+        <rect x="0" y="0" width="78" height="78" rx="16" fill="#F0FDF4" stroke="#10B981" stroke-width="2" />
+        <g transform="translate(19, 15)" stroke="#047857" stroke-width="3" fill="none" stroke-linejoin="round">
+          <path d="M 16 4 L 24 4 M 20 4 L 20 16 L 34 38 C 36 42 32 46 27 46 L 13 46 C 8 46 4 42 6 38 L 20 16" />
+          <path d="M 10 33 Q 20 38, 30 33" stroke="#EAB308" stroke-width="3" />
+          <circle cx="15" cy="39" r="3.2" fill="#FDE047" stroke="none" />
+          <circle cx="23" cy="37" r="2.4" fill="#FDE047" stroke="none" />
+          <circle cx="20" cy="24" r="2.4" fill="#10B981" stroke="none" />
+        </g>
+      </g>
+
+      <text x="122" y="47" class="f-heavy" font-size="25" fill="#047857">实验室真实验证 · 闭环反哺迭代</text>
+      
+      <!-- 3 Flow Step Cards -->
+      <g transform="translate(122, 66)">
+        <!-- Step 1: Soft Light Yellow -->
+        <rect x="0" y="0" width="206" height="72" rx="10" fill="#FEF9C3" stroke="#EAB308" stroke-width="2" />
+        <text x="16" y="32" class="f-heavy" font-size="19" fill="#854D0E">1. 靶向定向合成</text>
+        <text x="16" y="56" class="f-heavy" font-size="15.5" fill="#A16207">仅需极少数关键实验</text>
+
+        <!-- Arrow -->
+        <text x="223" y="45" class="f-heavy" font-size="28" fill="#047857" text-anchor="middle">➔</text>
+
+        <!-- Step 2 -->
+        <rect x="240" y="0" width="206" height="72" rx="10" fill="#F0FDF4" stroke="#10B981" stroke-width="2" />
+        <text x="256" y="32" class="f-heavy" font-size="19" fill="#047857">2. 测定真实产率</text>
+        <text x="256" y="56" class="f-heavy" font-size="15.5" fill="#059669">HPLC / NMR 验证构型</text>
+
+        <!-- Arrow -->
+        <text x="463" y="45" class="f-heavy" font-size="28" fill="#047857" text-anchor="middle">➔</text>
+
+        <!-- Step 3 -->
+        <rect x="480" y="0" width="206" height="72" rx="10" fill="#E8F4EE" stroke="#047857" stroke-width="2" />
+        <text x="496" y="32" class="f-heavy" font-size="19" fill="#047857">3. 真实数据反哺</text>
+        <text x="496" y="56" class="f-heavy" font-size="15.5" fill="#059669">持续校准机理模型</text>
+      </g>
+    </g>
+
+    <!-- Flow line 1: Right -->
+    <path d="M 1410 -15 L 1410 92 L 1210 92" fill="none" stroke="#EAB308" stroke-width="4.5" marker-end="arrYellow" />
+    <rect x="1225" y="72" width="210" height="40" rx="10" fill="#FEF9C3" stroke="#EAB308" stroke-width="1.8" />
+    <text x="1330" y="98" class="f-heavy" font-size="18" fill="#854D0E" text-anchor="middle">输出优先方案 ➔ 验证</text>
+
+    <!-- Flow line 2: Left -->
+    <path d="M 340 92 L 190 92 L 190 -15" fill="none" stroke="#047857" stroke-width="4.5" marker-end="arrGreen" />
+    <rect x="160" y="72" width="205" height="40" rx="10" fill="#F0FDF4" stroke="#047857" stroke-width="1.8" />
+    <text x="262" y="98" class="f-heavy" font-size="18" fill="#047857" text-anchor="middle">⟲ 真实数据反哺闭环</text>
+  </g>
+
+</svg>

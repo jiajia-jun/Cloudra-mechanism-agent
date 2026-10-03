@@ -47,6 +47,7 @@ EVENT_TYPES: dict[str, str] = {
     "command.rejected": "command rejected with stable error code",
     # agent run events
     "agent.state_changed": "state machine transition",
+    "agent.task_updated": "agent running task description updated",
     "run.started": "run started",
     "run.retry": "crashed turn auto-retried with preserved history",
     "run.finished": "run finished",

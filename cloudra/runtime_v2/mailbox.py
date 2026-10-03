@@ -51,6 +51,7 @@ class Mailbox:
         image_artifact_ids: list[str | None] | None = None,
         post_id: str | None = None,
         manifest: dict[str, Any] | None = None,
+        language: str | None = None,
     ) -> dict[str, Any]:
         """agent.message_injected 的事件载荷。"""
         data: dict[str, Any] = {"message_id": message_id, "sender": sender, "content": content}
@@ -69,6 +70,8 @@ class Mailbox:
             # Parallel to images: artifact ids let the frontend rebuild bubble
             # image URLs after a reload (paths alone are not HTTP-reachable).
             data["image_artifact_ids"] = list(image_artifact_ids)
+        if language:
+            data["language"] = language
         return data
 
     @staticmethod

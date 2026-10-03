@@ -26,12 +26,14 @@ class AgentSpawn(BaseModel):
     display_name: Optional[str] = None
     query: Optional[str] = None
     settings: dict[str, Any] = Field(default_factory=dict)
+    language: Optional[str] = None
 
 
 class MessagePost(BaseModel):
     content: str = Field(min_length=1)
     images: Optional[list[str]] = None
     image_artifact_ids: Optional[list[Optional[str]]] = None
+    language: Optional[str] = None
 
 
 class HubPostCreate(BaseModel):

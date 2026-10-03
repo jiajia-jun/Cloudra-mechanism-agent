@@ -230,6 +230,7 @@ class AgentSession(BaseModel):
         default_factory=lambda: AgentCapabilities(permissions=PermissionSet())
     )
     current_run: Optional[CurrentRun] = None
+    current_task: Optional[str] = None
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
 

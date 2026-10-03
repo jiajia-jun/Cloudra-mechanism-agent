@@ -305,6 +305,8 @@ def create_v2_app(
         await core.reminders.rearm_all()
         await core.email_listener.start()
         await compute_notify.start()
+        if getattr(core, "task_describer", None) is not None:
+            core.task_describer.start()
         # 事件驱动督导的恢复接线（Task 3 挂点，Task 4 补测试矩阵）：
         # 项目装载后扫描持久化督导待办并补通知（覆盖"落库后通知前崩溃"
         # 窗口），含 legacy_auto 待办的一次性 Coordinator 提示。只在

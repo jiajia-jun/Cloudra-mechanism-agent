@@ -119,6 +119,7 @@ def _message_drafts(
     run_id: str | None = None,
     images: list[str] | None = None,
     image_artifact_ids: list[str | None] | None = None,
+    language: str | None = None,
 ) -> tuple[EventDraft, DeliverMessage]:
     """一条投递 = message_injected 草稿 + DeliverMessage 效果（message_id 一致）。
 
@@ -138,6 +139,7 @@ def _message_drafts(
                 content=content,
                 images=images,
                 image_artifact_ids=image_artifact_ids,
+                language=language,
             ),
         ),
         DeliverMessage(
@@ -347,7 +349,11 @@ def _decide_spawn_agent(core: RuntimeCore, command: Command) -> Decision:
     query = str(payload.get("query") or "").strip()
     if query:
         message_draft, deliver = _message_drafts(
-            project_id=project_id, session_id=agent.id, sender=query_sender, content=query
+            project_id=project_id,
+            session_id=agent.id,
+            sender=query_sender,
+            content=query,
+            language=payload.get("language"),
         )
         drafts.append(message_draft)
         effects.append(deliver)
@@ -419,6 +425,7 @@ def _decide_inject_agent_message(core: RuntimeCore, command: Command) -> Decisio
         run_id=agent.current_run.run_id if agent.current_run else None,
         images=images or None,
         image_artifact_ids=image_artifact_ids or None,
+        language=command.payload.get("language"),
     )
     # A message to a sleeping or terminal agent is a fresh instruction to the
     # same identity: wake it (reopening a new run) instead of making the user

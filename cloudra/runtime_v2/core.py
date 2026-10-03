@@ -281,6 +281,9 @@ class RuntimeCore:
         # Event-sourced: pin/push changes land in the log (deduplicated), so
         # injections are auditable, replayable, and reachable via commands.
         self.notices.attach(self.event_log, self._project_of_session)
+        from cloudra.runtime_v2.task_describer import TaskDescriber
+
+        self.task_describer = TaskDescriber(self)
         # 会话级 LLM 上下文投影（Task 4）：session_id -> SessionContext，
         # 由 apply_event 从 context.* 事件重建；ContextBroker 是唯一写口。
         self.session_contexts: dict[str, SessionContext] = {}
@@ -322,6 +325,8 @@ class RuntimeCore:
                     logging.getLogger(__name__).warning(
                         "js runtime shutdown failed", exc_info=True
                     )
+        if getattr(self, "task_describer", None) is not None:
+            self.task_describer.close()
 
     # ------------------------------------------------------------------ lookups
 

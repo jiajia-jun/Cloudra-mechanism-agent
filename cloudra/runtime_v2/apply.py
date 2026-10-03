@@ -164,6 +164,13 @@ def _apply_agent_state_changed(core: RuntimeCore, envelope: EventEnvelope) -> No
     agent.updated_at = envelope.created_at
 
 
+def _apply_agent_task_updated(core: RuntimeCore, envelope: EventEnvelope) -> None:
+    agent = core.agents.get(envelope.session_id or "")
+    if agent is not None:
+        agent.current_task = envelope.data.get("current_task")
+        agent.updated_at = envelope.created_at
+
+
 def _apply_run_started(core: RuntimeCore, envelope: EventEnvelope) -> None:
     agent = core.require_agent(envelope.session_id or "")
     protocol = envelope.data.get("invocation_protocol") or InvocationProtocol.TRADITIONAL
@@ -254,6 +261,7 @@ _APPLIERS: dict[str, Callable[[RuntimeCore, EventEnvelope], None]] = {
     "agent.spawned": _apply_agent_spawned,
     "agent.settings_changed": _apply_agent_settings_changed,
     "agent.state_changed": _apply_agent_state_changed,
+    "agent.task_updated": _apply_agent_task_updated,
     "run.started": _apply_run_started,
     "run.finished": _apply_run_cleared,
     "agent.cancelled": _apply_run_cleared,

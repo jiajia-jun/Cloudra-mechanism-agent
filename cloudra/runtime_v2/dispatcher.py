@@ -108,6 +108,7 @@ class MessageDispatcher:
         image_artifact_ids: list[str | None] | None = None,
         post_id: str | None = None,
         manifest: dict[str, Any] | None = None,
+        language: str | None = None,
         wake: WakePolicy = WakePolicy.PARK_TERMINAL,
     ) -> EventEnvelope:
         """持久化一条 ``agent.message_injected``，成功后才入队并按策略唤醒。"""
@@ -127,6 +128,7 @@ class MessageDispatcher:
                 image_artifact_ids=image_artifact_ids,
                 post_id=post_id,
                 manifest=manifest,
+                language=language,
             ),
         )
         # 2) 先 durable（失败即抛，不入队不唤醒）——这是本入口存在的理由。
