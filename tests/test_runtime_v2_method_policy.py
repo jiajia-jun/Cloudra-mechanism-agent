@@ -11,11 +11,13 @@ import pytest
 from pydantic import ValidationError
 
 from cloudra.runtime_v2.core import RuntimeCore
+from cloudra.runtime_v2.method_policy import check_input_content
 from cloudra.runtime_v2.policies import default_stages
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
 from cloudra.runtime_v2.schemas import (
     AgentCapabilities,
     InvocationProtocol,
+    MethodPolicy,
     ProjectSettings,
     RuntimeSettings,
 )
@@ -396,3 +398,29 @@ def test_orca_non_whitelisted_functional_still_blocked():
     verdict = check_input_content(content, policy, filename="t.inp")
     assert verdict.allowed is False
     assert "pbe0/def2svp" in verdict.matched_forbidden
+
+
+@pytest.mark.parametrize('solvent', ['DCM', 'Water', 'DMSO'])
+def test_orca_cpcm_option_is_not_a_second_method(solvent):
+    policy = MethodPolicy(allowed_methods=['b3lyp/def2svp'])
+    content = (
+        '! OptTS B3LYP def2-SVP D3BJ RIJCOSX def2/J TightSCF '
+        f'CPCM({solvent})\n%pal nprocs 1 end\n'
+        '* xyz 0 1\nO 0 0 0\n*\n'
+    )
+    verdict = check_input_content(content, policy, filename='refine.inp', strict=True)
+    assert verdict.allowed, verdict.reason
+
+
+@pytest.mark.parametrize('route', [
+    'B3LYP def2-SVP CPCM(DCM) PBE0',
+    'B3LYP def2-SVP CPCM(DCM',
+    'B3LYP def2-SVP CPCM(DCM)PBE0',
+    'B3LYP def2-SVP CPCM(DCM)(PBE0)',
+    'B3LYP def2-SVP CPCM()',
+    'def2-SVP CPCM(DCM)',
+])
+def test_orca_cpcm_option_does_not_hide_unverifiable_methods(route):
+    policy = MethodPolicy(allowed_methods=['b3lyp/def2svp'])
+    content = f'! OptTS {route}\n* xyz 0 1\nO 0 0 0\n*\n'
+    assert not check_input_content(content, policy, filename='refine.inp', strict=True).allowed

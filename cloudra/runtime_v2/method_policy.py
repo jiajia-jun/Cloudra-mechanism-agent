@@ -254,6 +254,17 @@ def _extract_gaussian_methods(content: str) -> list[list[str]]:
     return per_card
 
 
+def _is_orca_cpcm_option(token: str) -> bool:
+    """Recognize the complete native solvent option, without hiding trailing tokens."""
+    return (
+        token.startswith("cpcm(")
+        and token.endswith(")")
+        and token.count("(") == 1
+        and token.count(")") == 1
+        and bool(token[5:-1].strip())
+    )
+
+
 def _extract_orca_methods(content: str) -> list[str]:
     """ORCA 关键字行的方法候选：跳过 `%` 块（maxcore/pal 等控制段）。每行
     `!` 上既非作业类型/波函数修饰也非基组形状的 token 是泛函候选；同行的
@@ -272,7 +283,15 @@ def _extract_orca_methods(content: str) -> list[str]:
         return ["unparseable_native_route"]
     bases = [_norm_basis(t) for t in tokens if _is_basis_token(t) and not _is_orca_aux_basis_token(t)]
     basis = bases[0] if len(bases) == 1 else ""
-    candidates = [f"{t}/{basis}" if basis else t for t in tokens if t not in _ORCA_JOB_TOKENS and t != "extopt" and not _is_basis_token(t) and not _is_orca_aux_basis_token(t)]
+    candidates = [
+        f"{t}/{basis}" if basis else t
+        for t in tokens
+        if t not in _ORCA_JOB_TOKENS
+        and t != "extopt"
+        and not _is_basis_token(t)
+        and not _is_orca_aux_basis_token(t)
+        and not _is_orca_cpcm_option(t)
+    ]
     if "extopt" in tokens:
         method = blocks.get("method", [])
         if "progext" in method and method.index("progext") + 1 < len(method):
