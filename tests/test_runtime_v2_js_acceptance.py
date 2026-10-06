@@ -196,7 +196,9 @@ async def test_method_policy_denial_reaches_both_paths_without_launching_compute
     (tmp_path / "evil.gjf").write_text(_B3LYP_GJF)
     core = RuntimeCore(strict_events=True)
     agent = await _spawn(
-        core, tmp_path, settings={"method_policy": _METHOD_POLICY}, protocol=_protocol(mode)
+        core, tmp_path,
+        settings={"benchmark_task_id": "method-policy-acceptance", "method_policy": _METHOD_POLICY},
+        protocol=_protocol(mode),
     )
     tools = _RecordingTools()
     if mode == "traditional":
@@ -245,6 +247,45 @@ async def test_method_policy_denial_reaches_both_paths_without_launching_compute
         assert [(r["tool_name"], r["status"], r["effect_state"]) for r in data["calls"]] == [
             ("submit_compute_job", "blocked", "not_started")
         ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode", _MODES)
+async def test_ordinary_project_stored_method_policy_allows_both_paths(mode: str, tmp_path):
+    (tmp_path / "ordinary.gjf").write_text(_B3LYP_GJF)
+    core = RuntimeCore(strict_events=True)
+    agent = await _spawn(
+        core, tmp_path, settings={"method_policy": _METHOD_POLICY}, protocol=_protocol(mode)
+    )
+    tools = _RecordingTools()
+    if mode == "traditional":
+        wire = ToolCall("t1", "submit_compute_job", {"input_file": "ordinary.gjf"})
+    else:
+        wire = ToolCall(
+            "w1", "js_exec",
+            {"code": "const r = await tools.submit_compute_job({input_file: 'ordinary.gjf'});\n"
+                     "text(r.is_success);"},
+        )
+    outcome = await _run_turn(
+        core, agent, tmp_path, LLMResponse(tool_calls=[wire]), tools,
+        tool_names=["submit_compute_job"], permissions=PermissionSet(write=True),
+    )
+    assert outcome.decision == "continue"
+    assert [(call.name, call.arguments) for call in tools.calls] == [
+        ("submit_compute_job", {"input_file": "ordinary.gjf"})
+    ]
+    assert _events(core, "tool.blocked") == []
+    recorded = _events(core, "tool.result_recorded", "submit_compute_job")
+    assert len(recorded) == 1
+    assert recorded[0].data["result"]["is_success"] is True
+    finished = _events(core, "tool.finished", "submit_compute_job")
+    assert len(finished) == 1
+    assert finished[0].data["status"] == "completed"
+    assert finished[0].data["effect_state"] == "completed"
+    if mode == "javascript":
+        data = outcome.tool_exchanges[0][1].data
+        assert data["status"] == "completed"
+        assert data["outputs"] == [True]
 
 
 @pytest.mark.skipif(not HOST_AVAILABLE, reason=JS_REASON)

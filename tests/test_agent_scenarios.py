@@ -88,6 +88,7 @@ async def test_snapshot_restore_keeps_invocations_on_the_live_agent_registry(tmp
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_ordinary_project_method_input_survives_stored_policy(tmp_path):
     from cloudra.runtime_v2.schemas import AgentState, Command, InvocationProtocol
     from tests.agent_scenarios import ordinary_method_input_steps
