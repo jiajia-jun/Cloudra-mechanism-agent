@@ -1776,10 +1776,11 @@ def _check_calculation_submission(record, purpose, input_path, job_type):
     if calculation is None:
         raise ValueError(f"{purpose} has no explicit calculation")
     content = Path(input_path).read_text()
-    verdict = (check_method(calculation.method, policy) if job_type == 'chem_task' else
-        check_input_content(content, policy, filename=input_path, strict=True))
-    if not verdict.allowed:
-        raise ValueError(verdict.reason)
+    if policy is not None:
+        verdict = (check_method(calculation.method, policy) if job_type == 'chem_task' else
+            check_input_content(content, policy, filename=input_path, strict=True))
+        if not verdict.allowed:
+            raise ValueError(verdict.reason)
     if job_type == 'chem_task':
         from cloudra.runtime.chem_task import ChemTask
         task = ChemTask.model_validate_json(content)
@@ -1807,11 +1808,12 @@ def _check_calculation_submission(record, purpose, input_path, job_type):
             raise ValueError(f'Actual task {actual_intent.tasks} differs from accepted purpose {purpose}')
         differences = compare_calculation_input(content, calculation.model_dump(), charge=record.input.reaction.charge, multiplicity=record.input.reaction.multiplicity)
         # Complete task/user contracts, when present, come from project settings.
-        contract = policy.calculation_contracts.get(purpose)
+        contract = policy.calculation_contracts.get(purpose) if policy is not None else None
         if contract:
             differences += compare_calculation_input(content, contract, charge=contract.get('charge', record.input.reaction.charge), multiplicity=contract.get('multiplicity', record.input.reaction.multiplicity))
     result = dict(input_revision=record.declaration_revision, purpose=purpose, actual=calculation.model_dump(),
-        source='project_method_policy', differences=[d.model_dump() for d in differences], matched=not differences)
+        source='project_method_policy' if policy is not None else 'stage_declaration',
+        differences=[d.model_dump() for d in differences], matched=not differences)
     record.method_checks[input_path] = result
     if differences:
         raise ValueError('; '.join(d.message for d in differences))

@@ -88,6 +88,30 @@ async def test_snapshot_restore_keeps_invocations_on_the_live_agent_registry(tmp
 
 
 @pytest.mark.asyncio
+async def test_ordinary_project_method_input_survives_stored_policy(tmp_path):
+    from cloudra.runtime_v2.schemas import AgentState, Command, InvocationProtocol
+    from tests.agent_scenarios import ordinary_method_input_steps
+
+    source = tmp_path / "source.xyz"
+    source.write_text("2\nfixture\nH 0 0 0\nH 0 0 0.74\n")
+    output = tmp_path / "ordinary.inp"
+    provider = ScriptedProvider(default=ordinary_method_input_steps(source, output))
+    harness = await ScenarioHarness.start(tmp_path, provider=provider, workspace_dir=tmp_path)
+    try:
+        await harness.bus.execute(Command(type="project.update", target={"project_id": harness.project.id},
+            payload={"settings": {"method_policy": {"allowed_methods": ["xtb"]}}}))
+        agent = await harness.spawn("small_mol", protocol=InvocationProtocol.TRADITIONAL)
+        await harness.wait_terminal(agent)
+        assert agent.state == AgentState.SUCCEEDED
+        assert output.is_file()
+        assert "PBE0" in output.read_text() and "def2-TZVP" in output.read_text()
+        assert not any(e.type == "tool.blocked" and e.data.get("stage") == "method_policy" for e in harness.events(agent))
+        assert any(e.type == "tool.result_recorded" for e in harness.events(agent))
+    finally:
+        await harness.aclose()
+
+
+@pytest.mark.asyncio
 async def test_tool_progress_persistence_failure_fails_run_without_retry(tmp_path, monkeypatch):
     """杠杆：真实工具适配器、进度事件落盘、Agent fail-fast 分类。"""
     provider = ScriptedProvider(default=[Step(tools=[("stop", {"reason": "done"})])])

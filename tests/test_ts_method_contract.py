@@ -1,6 +1,64 @@
 from cloudra.tools.core import calculation_intent as intent
 
 
+def test_ordinary_ts_submission_needs_no_method_policy(tmp_path, monkeypatch):
+    from cloudra.services.compute_admission import AdmissionOutcome
+    from cloudra.services.ts_pipeline_context import use_pipeline_authority
+    from cloudra.tools.core.ts_inputs import TsCalculation
+    from cloudra.tools.core.ts_process import _submit_step
+    from tests.test_ts_stage_inputs import record_fixture
+
+    record = record_fixture(tmp_path)
+    record.input.ts_optimization = TsCalculation(engine="orca", method="PBE0/def2-TZVP", keywords="")
+    source = tmp_path / "ts.inp"
+    source.write_text("! OptTS PBE0 def2-TZVP\n* xyz 0 1\nO 0 0 0\n*\n")
+    monkeypatch.setattr("cloudra.services.compute_admission.admit_job", lambda **_: AdmissionOutcome(ok=True, node_id="fixture", scheduler="local"))
+    with use_pipeline_authority(lambda project, owner: (True, None)):
+        error, job_id = _submit_step(record, "ts_opt", str(source), "orca")
+    assert not error and job_id > 0
+    assert record.method_checks[str(source)]["matched"]
+
+
+def test_runtime_method_authority_is_benchmark_only(tmp_path):
+    from cloudra.runtime_v2.core import RuntimeCore
+    from cloudra.runtime_v2.schemas import AgentSession, MethodPolicy, Project, ProjectSettings
+    from cloudra.services.ts_pipeline_context import require_pipeline_authority, use_runtime_authority
+
+    core = RuntimeCore()
+    policy = MethodPolicy(allowed_methods=["xtb"])
+    project = Project(id="project", name="ordinary", settings=ProjectSettings(method_policy=policy))
+    agent = AgentSession(id="owner", project_id=project.id, role_id="small_mol", display_name="owner")
+    agent.capabilities.permissions.write = True
+    core.projects[project.id] = project
+    core.agents[agent.id] = agent
+    with use_runtime_authority(core):
+        assert require_pipeline_authority(project.id, agent.id) is None
+        project.settings.benchmark_task_id = "fixture"
+        assert require_pipeline_authority(project.id, agent.id) == policy
+        project.settings.method_policy = None
+        import pytest
+        with pytest.raises(ValueError, match="Benchmark"):
+            require_pipeline_authority(project.id, agent.id)
+        project.settings.benchmark_task_id = None
+        agent.capabilities.permissions.write = False
+        with pytest.raises(ValueError, match="write permission"):
+            require_pipeline_authority(project.id, agent.id)
+
+
+def test_ordinary_ts_still_checks_accepted_input(tmp_path):
+    import pytest
+
+    from cloudra.services.ts_pipeline_context import use_pipeline_authority
+    from cloudra.tools.core.ts_process import _check_calculation_submission
+    from tests.test_ts_stage_inputs import record_fixture
+
+    source = tmp_path / "ts.inp"
+    source.write_text("! OptTS PBE0 def2-TZVP\n* xyz 0 1\nO 0 0 0\n*\n")
+    with use_pipeline_authority(lambda project, owner: (True, None)):
+        with pytest.raises(ValueError, match="method"):
+            _check_calculation_submission(record_fixture(tmp_path), "ts_opt", str(source), "orca")
+
+
 def expected(engine='orca', **changes):
     return dict(engine=engine, method='B3LYP/def2-SVP', keywords='D3BJ CPCM(water)', frequency_mode='auto', orca_blocks=None, end_setting='', **changes)
 

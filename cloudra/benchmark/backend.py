@@ -152,7 +152,8 @@ class RuntimeV2Backend:
                         payload={
                             "name": f"benchmark:{task.task_id}",
                             "workspace_dir": str(sandbox),
-                            "settings": {"method_policy": task.method_policy.model_dump(mode="json")},
+                            "settings": {"benchmark_task_id": task.task_id,
+                                         "method_policy": task.method_policy.model_dump(mode="json")},
                         },
                     )
                 )

@@ -79,8 +79,8 @@ class QmInputWriter_input_schema(input_schema):
         default="b3lyp",
         description="Electronic-structure method, e.g. 'b3lyp', 'hf', 'mp2', 'wb97xd', 'pbe0' "
                     "(written as-is; ORCA expects e.g. 'wB97X-V', Gaussian 'wb97xd'). "
-                    "Honor project/session MethodPolicy first (production often xtb + b3lyp); "
-                    "do not pick a freer functional from this list unless policy/budget allows a comparison. "
+                    "Benchmark projects must honor their MethodPolicy; ordinary projects have no "
+                    "method/basis whitelist. Follow the user's calculation requirements and budget. "
                     "Ignored when external_program is set (external potentials carry no method/basis)."
     )
     basis_set: str = Field(

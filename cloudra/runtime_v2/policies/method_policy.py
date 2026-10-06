@@ -5,10 +5,10 @@ that actually blocks. Policy supply comes in two forms:
 
 - Explicit policy (benchmark backend): `MethodPolicyStage(task.method_policy,
   base_dir=sandbox)` — one stage instance covers the whole benchmark core.
-- Core projection (live pipeline, GH #25): `MethodPolicyStage(core=core)`
-  resolves the policy per tool call from the agent's project settings
-  (`ProjectSettings.method_policy`); a project without one (None) is never
-  intercepted. `default_stages(core)` wires this form.
+- Core projection: `MethodPolicyStage(core=core)` resolves the policy only
+  for projects carrying `ProjectSettings.benchmark_task_id`. Ordinary projects
+  are never intercepted, even when a stored method policy is present.
+  `default_stages(core)` wires this form.
 
 Otherwise the interception semantics are identical:
 
@@ -58,7 +58,11 @@ class MethodPolicyStage:
         if self._core is None:
             return None
         project = self._core.projects.get(ctx.agent.project_id)
-        return project.settings.method_policy if project is not None else None
+        if project is None or project.settings.benchmark_task_id is None:
+            return None
+        if project.settings.method_policy is None:
+            raise ValueError("Benchmark project is missing its MethodPolicy")
+        return project.settings.method_policy
 
     def _base(self, ctx: PipelineContext) -> Path | None:
         if self._base_dir is not None:

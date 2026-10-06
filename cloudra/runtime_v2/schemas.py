@@ -285,8 +285,7 @@ class MethodPolicy(BaseModel):
     method-*family* granularity (any token containing `xtb` matches the xTB entry).
     Attempting a non-whitelisted method is intercepted, never penalized.
 
-    benchmark 任务与 per-project live 设置共用本模型；live 侧项目未显式
-    设置（`ProjectSettings.method_policy is None`）时完全不启用拦截。"""
+    仅 Benchmark 项目启用此策略；普通项目不启用方法或基组白名单。"""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -306,8 +305,8 @@ class ProjectSettings(BaseModel):
 
     orchestration_mode: OrchestrationMode = OrchestrationMode.STANDARD
     defaults: RuntimeSettingsPatch = Field(default_factory=RuntimeSettingsPatch)
-    # 方法白名单（GH #25）：None = 不启用拦截；设置后由 policies 的
-    # MethodPolicyStage 在 intercept_layers 声明的工具层拦截。
+    benchmark_task_id: Optional[str] = Field(default=None, min_length=1)
+    # 仅 benchmark_task_id 标识的评测项目启用；普通项目忽略此字段。
     method_policy: Optional[MethodPolicy] = None
 
 

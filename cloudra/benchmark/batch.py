@@ -316,6 +316,7 @@ class BenchmarkBatch:
                             "name": f"benchmark:{task.task_id}",
                             "workspace_dir": str(sandbox),
                             "settings": {
+                                "benchmark_task_id": task.task_id,
                                 "orchestration_mode": task.prompt.orchestration_mode.value,
                                 "method_policy": task.method_policy.model_dump(),
                             },

@@ -3921,6 +3921,7 @@ def test_backend_installs_trusted_task_policy_before_agent_runs(tmp_path, role):
     backend(task,tmp_path/'sandbox')
     assert observed==[task.method_policy]
     project=next(iter(backend.last_core.projects.values()))
+    assert project.settings.benchmark_task_id == task.task_id
     assert project.settings.method_policy==task.method_policy
     created=next(e for e in backend.last_core.event_log if e.type=='project.created')
     assert created.data['settings']['method_policy']==task.method_policy.model_dump(mode='json')

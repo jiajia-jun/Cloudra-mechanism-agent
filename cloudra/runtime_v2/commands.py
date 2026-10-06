@@ -208,13 +208,21 @@ def _decide_update_project(core: RuntimeCore, command: Command) -> Decision:
         )
     if "settings" in payload:
         # decide 侧校验：非法 settings 必须在事件落日志之前抛错。
-        new_settings = ProjectSettings.model_validate(payload["settings"])
+        settings_changes = dict(payload["settings"])
+        benchmark_task_id = project.settings.benchmark_task_id
+        if benchmark_task_id is not None:
+            if settings_changes.get("benchmark_task_id", benchmark_task_id) != benchmark_task_id:
+                raise CommandRejected("invalid_request", "Benchmark task identity cannot be changed")
+            settings_changes["benchmark_task_id"] = benchmark_task_id
+            settings_changes.setdefault("method_policy", project.settings.method_policy.model_dump(mode="json")
+                if project.settings.method_policy is not None else None)
+        new_settings = ProjectSettings.model_validate(settings_changes)
         drafts.append(
             EventDraft(
                 "project.settings_changed",
                 stream="project",
                 project_id=project.id,
-                data={"changes": payload["settings"], "actor": command.actor},
+                data={"changes": settings_changes, "actor": command.actor},
             )
         )
         # 事件驱动督导（Task 4）：切回 dag_guided 沿补一次待办通知——退出

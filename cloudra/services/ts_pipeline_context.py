@@ -45,10 +45,7 @@ def require_pipeline_producer(project_id, owner_session_id):
 
 
 def require_pipeline_authority(project_id, owner_session_id):
-    policy = require_pipeline_producer(project_id, owner_session_id)
-    if policy is None:
-        raise ValueError('Trusted TS method authorization is missing; configure the project MethodPolicy')
-    return policy
+    return require_pipeline_producer(project_id, owner_session_id)
 
 
 @contextmanager
@@ -57,6 +54,11 @@ def use_runtime_authority(core):
         agent = core.agents.get(owner_session_id)
         project = core.projects.get(project_id)
         allowed = bool(agent and project and agent.project_id == project_id and agent.capabilities.permissions.write)
-        return allowed, project.settings.method_policy if project else None
+        policy = None
+        if allowed and project.settings.benchmark_task_id is not None:
+            policy = project.settings.method_policy
+            if policy is None:
+                raise ValueError('Benchmark project is missing its MethodPolicy')
+        return allowed, policy
     with use_pipeline_authority(resolve):
         yield

@@ -1,9 +1,4 @@
-"""per-project 方法白名单 stage：live pipeline 拦截（GH #25）。
-
-此前 MethodPolicyStage 只由 benchmark 后端注入；本文件守 live 路径：
-项目 settings 带 method_policy 时 `default_stages(core)` 即按白名单拦截，
-未设置（None）则完全不拦，行为与修复前一致。
-"""
+"""Benchmark 方法与基组拦截；普通项目即使残留策略也不拦截。"""
 
 from __future__ import annotations
 
@@ -108,7 +103,7 @@ def _blocked_events(core: RuntimeCore, session_id: str):
 @pytest.mark.asyncio
 async def test_policy_project_blocks_non_whitelisted_bash(tmp_path):
     core = RuntimeCore(strict_events=True)
-    _, agent = await _spawn(core, tmp_path, settings={"method_policy": _POLICY})
+    _, agent = await _spawn(core, tmp_path, settings={"benchmark_task_id": "method-policy-fixture", "method_policy": _POLICY})
     outcome, tools = await _run_tool_turn(
         core, agent, tmp_path, ToolCall(id="t1", name="bash", arguments={"command": _BASH_B3LYP})
     )
@@ -122,7 +117,7 @@ async def test_policy_project_blocks_non_whitelisted_bash(tmp_path):
 @pytest.mark.asyncio
 async def test_policy_project_allows_whitelisted_bash(tmp_path):
     core = RuntimeCore(strict_events=True)
-    _, agent = await _spawn(core, tmp_path, settings={"method_policy": _POLICY})
+    _, agent = await _spawn(core, tmp_path, settings={"benchmark_task_id": "method-policy-fixture", "method_policy": _POLICY})
     outcome, tools = await _run_tool_turn(
         core, agent, tmp_path, ToolCall(id="t1", name="bash", arguments={"command": _BASH_MACE})
     )
@@ -136,7 +131,7 @@ async def test_policy_project_submit_compute_job_layer(tmp_path):
     (tmp_path / "evil.gjf").write_text("#p b3lyp/6-31g* opt\n\nt\n\n0 1\nC 0 0 0\n")
     (tmp_path / "ok.gjf").write_text('#p external="mace" opt\n\nt\n\n0 1\nC 0 0 0\n')
     core = RuntimeCore(strict_events=True)
-    _, agent = await _spawn(core, tmp_path, settings={"method_policy": _POLICY})
+    _, agent = await _spawn(core, tmp_path, settings={"benchmark_task_id": "method-policy-fixture", "method_policy": _POLICY})
 
     _, tools = await _run_tool_turn(
         core, agent, tmp_path,
@@ -160,7 +155,7 @@ async def test_policy_project_bash_referencing_disk_input(tmp_path):
     check_input_files 接线（stage 侧；纯函数覆盖在 test_benchmark.py）。"""
     (tmp_path / "evil.gjf").write_text("#p b3lyp/6-31g* opt\n\nt\n\n0 1\nC 0 0 0\n")
     core = RuntimeCore(strict_events=True)
-    _, agent = await _spawn(core, tmp_path, settings={"method_policy": _POLICY})
+    _, agent = await _spawn(core, tmp_path, settings={"benchmark_task_id": "method-policy-fixture", "method_policy": _POLICY})
 
     _, tools = await _run_tool_turn(
         core, agent, tmp_path,
@@ -182,6 +177,40 @@ async def test_project_without_policy_unaffected(tmp_path):
     assert outcome.decision == "continue"
     assert tools.calls == ["bash"]
     assert _blocked_events(core, agent.id) == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tool,args", [
+    ("bash", {"command": _BASH_B3LYP}),
+    ("qm_input_writer", {"method": "PBE0", "basis_set": "def2-TZVP"}),
+    ("submit_compute_job", {"input_file": "ordinary.gjf"}),
+])
+async def test_ordinary_project_ignores_stored_method_policy(tmp_path, tool, args):
+    (tmp_path / "ordinary.gjf").write_text("#p PBE0/def2TZVP opt\n\nt\n\n0 1\nO 0 0 0\n")
+    core = RuntimeCore(strict_events=True)
+    _, agent = await _spawn(core, tmp_path, settings={"method_policy": _POLICY})
+    _, tools = await _run_tool_turn(core, agent, tmp_path, ToolCall(id="ordinary", name=tool, arguments=args))
+    assert tools.calls == [tool]
+    assert _blocked_events(core, agent.id) == []
+
+
+@pytest.mark.asyncio
+async def test_benchmark_settings_save_keeps_method_restrictions(tmp_path):
+    from cloudra.runtime_v2.commands import CommandBus
+    from cloudra.runtime_v2.schemas import Command
+
+    core = RuntimeCore(strict_events=True)
+    project, agent = await _spawn(core, tmp_path, settings={"benchmark_task_id": "fixture", "method_policy": _POLICY})
+    await CommandBus(core).execute(Command(type="project.update", target={"project_id": project.id},
+        payload={"settings": {"orchestration_mode": "standard", "defaults": {}}}))
+    _, tools = await _run_tool_turn(core, agent, tmp_path, ToolCall(id="after-save", name="bash", arguments={"command": _BASH_B3LYP}))
+    assert tools.calls == []
+    assert _blocked_events(core, agent.id)
+
+    result = await CommandBus(core).execute(Command(type="project.update", target={"project_id": project.id},
+        payload={"settings": {"benchmark_task_id": None}}))
+    assert result.data["error"]["code"] == "invalid_request"
+    assert core.projects[project.id].settings.benchmark_task_id == "fixture"
 
 
 # ---------------------------------------------------------------------------

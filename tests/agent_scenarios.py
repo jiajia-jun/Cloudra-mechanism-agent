@@ -18,6 +18,7 @@
 | 杠杆 | 受影响的场景 |
 | :--- | :--- |
 | 默认 invocation protocol | 普通问答（默认协议下的纯文本收尾） |
+| Benchmark 方法策略作用域 | 普通项目残留白名单仍能生成用户指定的计算输入 |
 | 角色权限矩阵 | small_mol 技能→计算入口、unattended 拒批 |
 | 重试预算与 fail-fast 分类 | provider 暂态重试 / 永久 4xx |
 | 压缩阈值与摘要 | context overflow |
@@ -173,6 +174,14 @@ def _summary_json(messages: list[dict[str, Any]]) -> str:
         },
         ensure_ascii=False,
     )
+
+
+def ordinary_method_input_steps(source: Path, output: Path) -> list[Step]:
+    """普通项目生成不在旧白名单里的方法/基组；无需启动 QM。"""
+    return [Step(tools=[("qm_input_writer", {
+        "engine": "orca", "source_type": "xyz_file", "source_value": str(source),
+        "method": "PBE0", "basis_set": "def2-TZVP", "output_dir": str(output),
+    })]), Step(stop=True)]
 
 
 class ScenarioHarness:

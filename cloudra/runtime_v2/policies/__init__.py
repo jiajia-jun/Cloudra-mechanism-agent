@@ -23,8 +23,7 @@ def default_stages(core=None) -> list[PolicyStage]:
         # 无人值守 fail-closed（GH #31）：ask_user 不经过审批通道，
         # yolo 罩不住，必须独立拦截。
         UnattendedStage(),
-        # per-project 方法白名单（GH #25）：core=None 或项目未设置
-        # method_policy 时完全放行。
+        # 方法与基组白名单仅用于明确标识的 Benchmark 项目。
         MethodPolicyStage(core=core),
         DagPolicyStage(core),
         GoalStage(),
