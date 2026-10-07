@@ -60,11 +60,12 @@ async def generate_task_description(
     """Generate a crisp active description using the agent's LLM configuration."""
     target_lang = "zh" if (language == "zh" or (not language and _has_chinese(instruction))) else "en"
 
+    from cloudra.infra.codex_auth import is_codex_url
     from cloudra.infra.llm_client import LLMClient
     from cloudra.runtime_v2.adapters import legacy_default_settings
 
     settings = legacy_default_settings(agent)
-    if not settings.model or not settings.api_key:
+    if not settings.model or (not settings.api_key and not is_codex_url(settings.base_url)):
         return _extractive_fallback(instruction, target_lang)
 
     if target_lang == "zh":
@@ -109,7 +110,7 @@ async def generate_task_description(
             kwargs["reasoning_effort"] = settings.reasoning_effort
 
         response = await client.create_with_retry(**kwargs)
-        raw_text = (response.content or "").strip()
+        raw_text = (response.choices[0].message.content or "").strip()
         cleaned = raw_text.strip("\"'`").split("\n")[0].strip()
         if cleaned:
             return cleaned

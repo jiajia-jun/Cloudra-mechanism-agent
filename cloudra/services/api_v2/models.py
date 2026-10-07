@@ -132,6 +132,12 @@ class OpenRouterExchangeRequest(BaseModel):
     slot: Optional[Literal["coordinator", "follower"]] = None
 
 
+class CodexDevicePollRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    login_id: str = Field(min_length=1)
+
+
 class CommandResponse(BaseModel):
     command_id: str
     accepted: bool

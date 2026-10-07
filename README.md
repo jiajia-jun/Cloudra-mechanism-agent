@@ -67,6 +67,29 @@ export CLOUDRA_COORDINATOR__NATIVE_SEARCH_PARAMS='{}' # Custom provider paramete
 
 When native search is not enabled, the system automatically falls back to external search tools (Tavily, Brave, Bing, or DuckDuckGo).
 
+### 5. ChatGPT / Codex OAuth
+
+Select **OpenAI Codex (ChatGPT account)** in Global Settings, click the ChatGPT / Codex login button, open the authorization page and enter the displayed device code. After authorization, save the coordinator and/or follower model configuration. Both slots share the Cloudra account login.
+
+The same flow is available from the CLI:
+
+```bash
+cloudra auth codex login
+cloudra config set coordinator.provider openai-codex
+cloudra config set coordinator.model gpt-6-sol
+cloudra config set follower.provider openai-codex
+cloudra config set follower.model gpt-6-sol
+cloudra auth codex status
+# Sign out of the Cloudra account session:
+cloudra auth codex logout
+```
+
+The provider accepts the aliases `codex` and `openai_codex`. Model access depends on your ChatGPT account. Device authorization may need to be enabled in your ChatGPT account or workspace security settings; see [OpenAI authentication guidance](https://developers.openai.com/codex/auth/).
+
+Cloudra stores its independent OAuth session in `.codex_oauth.json` under its configured data directory, with owner-only permissions. It refreshes expiring access tokens and saves rotated refresh tokens under a process lock. Status queries are read-only. Login credentials are never returned to the Web UI or saved as model API keys.
+
+Codex requests use the dedicated `https://chatgpt.com/backend-api/codex/responses` endpoint with `store=false`. Agent, compaction and auxiliary calls share this transport. The endpoint requires streaming; Cloudra also assembles a normal response for callers using `stream=false`. Generic sampling parameters (`temperature`, `top_p`) and output-token limits are omitted on this route.
+
 ---
 
 ## Core Novelty: DAG-Driven Reaction Mechanism Elucidation

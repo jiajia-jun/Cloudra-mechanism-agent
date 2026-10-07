@@ -150,12 +150,14 @@ class MemoryManager:
 
     async def _llm_compress(self, text: str) -> str:
         """调用 FOLLOWER 配置的大模型把记忆压缩成核心原则。"""
+        from cloudra.infra.codex_auth import is_codex_url
+
         cfg = get_config().follower
         model = cfg.model
         base_url = cfg.url
         api_key = cfg.key
 
-        if not all([model, base_url, api_key]):
+        if not model or not base_url or (not api_key and not is_codex_url(base_url)):
             # 未配置 LLM 时做简单的启发式截断
             return self._fallback_compress(text)
 

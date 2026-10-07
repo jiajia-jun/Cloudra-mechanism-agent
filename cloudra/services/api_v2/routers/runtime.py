@@ -7,13 +7,13 @@ import os
 import signal
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse
 
 from cloudra import __version__
 
 from ..context import ApiContext
-from ..models import GlobalConfigPatch, OpenRouterExchangeRequest
+from ..models import CodexDevicePollRequest, GlobalConfigPatch, OpenRouterExchangeRequest
 
 
 def build_router(ctx: ApiContext) -> APIRouter:
@@ -54,6 +54,48 @@ def build_router(ctx: ApiContext) -> APIRouter:
         """返回支持的模型供应商预设列表。"""
         from cloudra.infra.providers import list_provider_presets
         return [p.to_dict() for p in list_provider_presets()]
+
+    @router.get("/api/v2/runtime/providers/codex/status", dependencies=ctx.protected)
+    async def codex_status() -> dict[str, Any]:
+        from cloudra.infra.codex_auth import CodexAuthError, codex_auth_status
+
+        try:
+            status = await asyncio.to_thread(codex_auth_status)
+        except CodexAuthError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {field: status[field] for field in ("authenticated", "expires_at", "account_id")}
+
+    @router.post("/api/v2/runtime/providers/codex/device-login", dependencies=ctx.protected)
+    async def codex_device_login() -> dict[str, Any]:
+        from cloudra.infra.codex_auth import CodexAuthError, start_device_login
+
+        try:
+            login = await asyncio.to_thread(start_device_login)
+        except CodexAuthError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {field: login[field] for field in (
+            "login_id", "user_code", "verification_uri", "interval", "expires_at",
+        )}
+
+    @router.post("/api/v2/runtime/providers/codex/device-poll", dependencies=ctx.protected)
+    async def codex_device_poll(body: CodexDevicePollRequest) -> dict[str, str]:
+        from cloudra.infra.codex_auth import CodexAuthError, poll_device_login
+
+        try:
+            result = await asyncio.to_thread(poll_device_login, body.login_id)
+        except CodexAuthError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"status": result["status"]}
+
+    @router.delete("/api/v2/runtime/providers/codex/auth", dependencies=ctx.protected)
+    async def codex_logout() -> dict[str, str]:
+        from cloudra.infra.codex_auth import CodexAuthError, logout_codex
+
+        try:
+            await asyncio.to_thread(logout_codex)
+        except CodexAuthError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"status": "logged_out"}
 
     @router.get("/api/v2/runtime/providers/openrouter/pkce", dependencies=ctx.protected)
     async def openrouter_pkce(callback_url: str | None = None) -> dict[str, str]:

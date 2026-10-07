@@ -118,9 +118,11 @@ class YoloGuard:
         self.api_key = cfg.key
 
     def _client(self) -> LLMClient:
-        if not self.model or not self.base_url or not self.api_key:
+        from cloudra.infra.codex_auth import is_codex_url
+
+        if not self.model or not self.base_url or (not self.api_key and not is_codex_url(self.base_url)):
             raise RuntimeError(
-                "YOLO 模式需要 Follower LLM 配置（model / url / key）。"
+                "YOLO 模式需要 Follower LLM 配置（model / url，以及 API Key 或 Codex 账号授权）。"
                 "请运行 `cloudra config init` 进行配置。"
             )
         return LLMClient(api_key=self.api_key, base_url=self.base_url)

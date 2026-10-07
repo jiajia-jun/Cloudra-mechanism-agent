@@ -10,6 +10,7 @@
 
 import { useEffect, useState } from 'react';
 import { api } from './api';
+import CodexAuthPanel from './CodexAuthPanel';
 import { isTrustedAuthMessageOrigin } from './runtimeUrl';
 import type { ProviderPreset, RuntimeConfig } from './types';
 
@@ -80,6 +81,7 @@ function SlotSection({
   onConnectOpenRouter: (slot: Slot) => void;
 }) {
   const keySet = savedCfg[slot].key_set;
+  const usesCodex = draft.provider === 'openai-codex';
   const currentPreset = presets.find((p) => p.id === draft.provider);
 
   const handleProviderChange = (newProviderId: string) => {
@@ -91,6 +93,7 @@ function SlotSection({
         model: p.default_model,
         context_window: String(p.context_window),
         supports_vision: p.supports_vision,
+        ...(p.id === 'openai-codex' ? { key: '' } : {}),
       });
     } else {
       onChange({ provider: 'custom' });
@@ -113,7 +116,7 @@ function SlotSection({
       <div className="modal-section-title">
         {title}
         <span className={`api-key-state ${keySet ? 'ok' : ''}`}>
-          key {keySet ? 'set' : 'not set'}
+          {usesCodex ? 'OAuth' : `key ${keySet ? 'set' : 'not set'}`}
         </span>
       </div>
       <div className="muted-note">{hint}</div>
@@ -142,6 +145,7 @@ function SlotSection({
         <input
           className="input"
           value={draft.url}
+          disabled={usesCodex}
           onChange={(e) => handleUrlChange(e.target.value)}
           placeholder="https://…"
         />
@@ -169,7 +173,7 @@ function SlotSection({
         </span>
       </label>
 
-      <label className="field">
+      {!usesCodex && <label className="field">
         api key
         <input
           className="input"
@@ -188,7 +192,7 @@ function SlotSection({
         <span className="field-hint">
           write-only: the stored key is never shown. Leave empty to keep the current key.
         </span>
-      </label>
+      </label>}
 
       {draft.provider === 'openrouter' && (
         <div style={{ marginTop: '0.35rem', marginBottom: '0.65rem' }}>
@@ -257,7 +261,7 @@ function SlotSection({
       </label>
 
       <div className="modal-actions">
-        {keySet && (
+        {keySet && !usesCodex && (
           <button
             className="btn ghost sm"
             disabled={saving}
@@ -410,7 +414,7 @@ export default function GlobalConfig({
       if (Number.isFinite(cw) && cw >= 1) changes.context_window = cw;
       const timeout = parseInt(d.timeout, 10);
       if (Number.isFinite(timeout) && timeout >= 1) changes.timeout = timeout;
-      if (clearKey) {
+      if (clearKey || d.provider === 'openai-codex') {
         changes.key = '';
       } else if (d.key.trim()) {
         changes.key = d.key.trim();
@@ -447,6 +451,9 @@ export default function GlobalConfig({
           <div className="empty-hint">Loading config…</div>
         ) : (
           <>
+            {(drafts.coordinator.provider === 'openai-codex' || drafts.follower.provider === 'openai-codex') && (
+              <CodexAuthPanel onToast={onToast} />
+            )}
             <SlotSection
               title="Coordinator slot"
               hint="Fallback for the coordinator role (per-agent settings take precedence)."

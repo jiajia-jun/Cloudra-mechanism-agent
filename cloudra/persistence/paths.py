@@ -57,6 +57,21 @@ def api_token_path(data_dir: Optional[PathLike] = None) -> Path:
     return _root(data_dir) / ".api_token"
 
 
+def codex_auth_path(data_dir: Optional[PathLike] = None) -> Path:
+    """Cloudra's independent Codex OAuth token store (0600)."""
+    return _root(data_dir) / ".codex_oauth.json"
+
+
+def codex_auth_lock_path(data_dir: Optional[PathLike] = None) -> Path:
+    """Cross-process lock covering Codex OAuth refresh and token writes."""
+    return _root(data_dir) / ".codex_oauth.lock"
+
+
+def codex_auth_epoch_path(data_dir: Optional[PathLike] = None) -> Path:
+    """Shared logout epoch invalidating pending Codex logins in every process."""
+    return _root(data_dir) / ".codex_oauth.epoch"
+
+
 def contexts_dir(conv_id: Optional[str] = None, data_dir: Optional[PathLike] = None) -> Path:
     """会话级 contexts 目录；conv_id 为空或 'default' 时回退到全局 contexts。"""
     if conv_id and conv_id != "default":

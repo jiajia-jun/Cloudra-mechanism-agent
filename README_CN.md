@@ -66,6 +66,29 @@ export CLOUDRA_COORDINATOR__NATIVE_SEARCH_PARAMS='{}' # 自定义注入参数（
 
 若未开启原生搜索，系统会自动回落至外部检索工具（Tavily / Brave / Bing / DuckDuckGo）。
 
+### 5. ChatGPT / Codex OAuth 登录
+
+在“全局设置”中选择 **OpenAI Codex (ChatGPT 账号)**，点击登录按钮，打开授权页面并输入显示的一次性设备码。授权完成后，保存 Coordinator 或 Follower 的模型配置即可使用；两个角色共用 Cloudra 的账号登录。
+
+也可以通过命令行完成：
+
+```bash
+cloudra auth codex login
+cloudra config set coordinator.provider openai-codex
+cloudra config set coordinator.model gpt-6-sol
+cloudra config set follower.provider openai-codex
+cloudra config set follower.model gpt-6-sol
+cloudra auth codex status
+# 退出 Cloudra 保存的账号登录：
+cloudra auth codex logout
+```
+
+供应商别名支持 `codex`、`openai_codex`。可用模型以 ChatGPT 账号权限为准。设备码登录可能需要在 ChatGPT 账号或工作区安全设置中开启，参见 [OpenAI 认证说明](https://developers.openai.com/codex/auth/)。
+
+Cloudra 在配置的数据目录下独立保存 `.codex_oauth.json`，文件仅允许当前用户读写。临近过期时自动刷新 access token，并在跨进程锁内保存轮换后的 refresh token；查询登录状态不会刷新。登录凭据不会返回给前端，也不会写入模型配置的 API Key 字段。
+
+Codex 请求使用专用的 `https://chatgpt.com/backend-api/codex/responses` 端点，并设置 `store=false`。Agent、上下文压缩和辅助模型调用共用该传输；端点要求流式响应，Cloudra 会为 `stream=false` 的调用方汇总完整结果。通用的 `temperature`、`top_p` 与输出 token 上限不会发送到此端点。
+
 ---
 
 ## 核心 Novelty：DAG 驱动的有机小分子机理计算

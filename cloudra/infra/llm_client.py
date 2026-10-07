@@ -306,6 +306,7 @@ class LLMClient:
         # 惰性创建，保证构造本身不做任何 I/O。
         self._openai_client: Optional[AsyncOpenAI] = None
         self._openai_client_custom: Optional[AsyncOpenAI] = None
+        self._codex_transport = None
         # requests 路径在飞的流式响应句柄（_StreamHandle）：取消/close 时据此
         # 断开底层连接（to_thread 工作线程不可取消，断连让它有界退出，不留
         # 无限悬挂线程）。
@@ -325,6 +326,9 @@ class LLMClient:
         账单不可撤销（停止语义契约 4），aclose 不承诺撤回。
         """
         self._closed = True
+        if self._codex_transport is not None:
+            await self._codex_transport.aclose()
+            self._codex_transport = None
         for handle in list(self._inflight_streams):
             try:
                 handle.abort()
@@ -546,6 +550,11 @@ class LLMClient:
         if self.model is not None:
             kwargs.setdefault("model", self.model)
 
+        from cloudra.infra.codex_auth import is_codex_url
+
+        if is_codex_url(self.base_url):
+            return await self._create_codex(kwargs)
+
         # 流式调用时请求 provider 返回 usage，避免只能 token 估算
         if kwargs.get("stream"):
             kwargs.setdefault("stream_options", {"include_usage": True})
@@ -738,6 +747,10 @@ class LLMClient:
         """
         if self.model is not None:
             kwargs.setdefault("model", self.model)
+        from cloudra.infra.codex_auth import is_codex_url
+
+        if is_codex_url(self.base_url):
+            return await self._create_codex(kwargs)
         if kwargs.get("stream"):
             kwargs.setdefault("stream_options", {"include_usage": True})
 
@@ -762,6 +775,14 @@ class LLMClient:
         except Exception as e:
             await self._emit_status("llm_error", error=str(e), level="responses")
             raise
+
+    async def _create_codex(self, kwargs: dict):
+        self._raise_if_aborted()
+        if self._codex_transport is None:
+            from cloudra.infra.codex_transport import CodexTransport
+
+            self._codex_transport = CodexTransport(self)
+        return await self._codex_transport.create(kwargs)
 
     @staticmethod
     def _raise_for_status_with_body(resp) -> None:

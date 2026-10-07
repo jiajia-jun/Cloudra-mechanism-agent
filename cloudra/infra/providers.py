@@ -21,6 +21,8 @@ from urllib.parse import urlsplit
 
 import requests
 
+from cloudra.infra.codex_auth import CODEX_BASE_URL, is_codex_url
+
 
 @dataclass(frozen=True)
 class ProviderPreset:
@@ -124,6 +126,24 @@ _BUILTIN_PROVIDERS: list[ProviderPreset] = [
         native_search="auto",
         key_hint="sk-proj-...",
         match_hosts=("api.openai.com",),
+    ),
+    ProviderPreset(
+        id="openai-codex",
+        name="OpenAI Codex (ChatGPT 账号)",
+        default_url=CODEX_BASE_URL,
+        default_model="gpt-6-sol",
+        models=[
+            "gpt-6-sol",
+            "gpt-6-luna",
+            "gpt-5.6-sol",
+            "gpt-5.6-terra",
+            "gpt-5.6-luna",
+            "gpt-5.5",
+        ],
+        context_window=200000,
+        supports_vision=True,
+        native_search="off",
+        key_hint="使用 ChatGPT 账号授权，无需 API Key",
     ),
     ProviderPreset(
         id="gemini",
@@ -279,6 +299,8 @@ _BUILTIN_PROVIDERS: list[ProviderPreset] = [
 ]
 
 _ALIASES: dict[str, str] = {
+    "codex": "openai-codex",
+    "openai_codex": "openai-codex",
     "opencode": "opencode_go",
     "opencode-go": "opencode_go",
     "opencodego": "opencode_go",
@@ -321,6 +343,8 @@ def detect_provider_from_url(url: str) -> ProviderPreset | None:
     """根据 base_url 主机名与路径智能反向匹配供应商预设。"""
     if not url:
         return None
+    if is_codex_url(url):
+        return get_provider_preset("openai-codex")
     url_lower = url.lower()
     # 特殊专一路径优先判定：Kimi Coding Plan
     if "api.kimi.com/coding" in url_lower or "kimi.com/coding" in url_lower:
@@ -373,6 +397,8 @@ def apply_provider_preset(
         elif hasattr(target, field):
             setattr(target, field, val)
 
+    if preset.id == "openai-codex" and _get("provider") != preset.id:
+        _set("key", "")
     _set("provider", preset.id)
     if preset.default_url:
         _set("url", preset.default_url)

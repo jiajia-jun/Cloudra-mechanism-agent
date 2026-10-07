@@ -100,6 +100,81 @@ def web(host, port, rebuild, skip_build):
                             host=host, port=port))
 
 
+def _login_codex_account() -> None:
+    """Run the device authorization flow without changing LLM slots."""
+    import time
+
+    from cloudra.infra.codex_auth import (
+        CodexAuthError,
+        poll_device_login,
+        start_device_login,
+    )
+
+    try:
+        login = start_device_login()
+        console.print("[bold cyan]使用 ChatGPT 账号登录 Codex[/bold cyan]")
+        console.print(f"授权页面: {login['verification_uri']}", markup=False)
+        console.print(f"设备授权码: {login['user_code']}", markup=False)
+        try:
+            click.launch(login["verification_uri"])
+        except Exception:
+            pass
+        while time.time() < login["expires_at"]:
+            result = poll_device_login(login["login_id"])
+            if result["status"] == "authorized":
+                console.print("[green]✓ Codex 账号授权成功。[/green]")
+                return
+            time.sleep(login["interval"])
+        raise click.ClickException("Codex 设备授权已过期，请重新登录。")
+    except CodexAuthError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+
+@cli.group(name="auth")
+def auth_cmd():
+    """模型账号授权管理。"""
+
+
+@auth_cmd.group(name="codex")
+def codex_auth_cmd():
+    """Codex ChatGPT 账号（login, status, logout）。"""
+
+
+@codex_auth_cmd.command(name="login")
+def codex_login():
+    """通过设备授权登录 ChatGPT 账号。"""
+    _login_codex_account()
+
+
+@codex_auth_cmd.command(name="status")
+def codex_status():
+    """显示 Codex 账号授权状态，不显示令牌。"""
+    from cloudra.infra.codex_auth import CodexAuthError, codex_auth_status
+
+    try:
+        status = codex_auth_status()
+    except CodexAuthError as exc:
+        raise click.ClickException(str(exc)) from exc
+    if status["authenticated"]:
+        console.print("[green]Codex 账号已授权。[/green]")
+        if status.get("account_id"):
+            console.print(f"账号: {status['account_id']}", markup=False)
+    else:
+        console.print("Codex 账号未授权，请运行 cloudra auth codex login。")
+
+
+@codex_auth_cmd.command(name="logout")
+def codex_logout():
+    """删除 Cloudra 保存的 Codex 账号授权。"""
+    from cloudra.infra.codex_auth import CodexAuthError, logout_codex
+
+    try:
+        logout_codex()
+    except CodexAuthError as exc:
+        raise click.ClickException(str(exc)) from exc
+    console.print("Codex 账号已退出登录。")
+
+
 @cli.group(name="config")
 def config_cmd():
     """配置管理（init, show, get, set）"""
@@ -197,7 +272,16 @@ def config_init(force):
                 else:
                     console.print("[yellow]等待重定向超时，未能自动捕获授权码。[/yellow]")
 
-        if not key:
+        if chosen.id == "openai-codex":
+            from cloudra.infra.codex_auth import CodexAuthError, codex_auth_status
+
+            try:
+                authenticated = codex_auth_status()["authenticated"]
+            except CodexAuthError as exc:
+                raise click.ClickException(str(exc)) from exc
+            if not authenticated:
+                _login_codex_account()
+        elif not key:
             key_hint = f" ({chosen.key_hint})" if chosen.key_hint else ""
             key = click.prompt(f"{role_name} API Key{key_hint}", default="", hide_input=True)
 
@@ -455,10 +539,13 @@ def tag_build(limit, batch_size, concurrency, refresh, dry_run, model, base_url,
     断点安全：已打过的卡（内容哈希命中缓存）自动跳过。词表外的 LLM 提议
     进 vector_store/_tag_state/pending_tags.json，人工审核后补进词表。
     """
+    from cloudra.infra.codex_auth import is_codex_url
     from cloudra.knowledge import tagging
 
-    if not (api_key or get_config().coordinator.key):
-        console.print("[red]未配置 LLM key：先 cloudra config set coordinator.key …"
+    coordinator = get_config().coordinator
+    if not (api_key or coordinator.key or is_codex_url(base_url or coordinator.url)):
+        console.print("[red]未配置 LLM 授权：先 cloudra config set coordinator.key …"
+                      "，或选择 Codex 后运行 cloudra auth codex login"
                       "（或用 --key/--url/--model 覆盖）[/red]")
         sys.exit(1)
     report = tagging.tag_cards(

@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from cloudra.infra.llm_client import ResponseDictWrapper
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.core import RuntimeCore
 from cloudra.runtime_v2.schemas import Command
@@ -52,8 +53,9 @@ async def test_generate_task_description_with_mock_llm(tmp_path):
     )
     agent = res.data
 
-    mock_resp = AsyncMock()
-    mock_resp.content = '"正在优化反应物TS过渡态构型"\n'
+    mock_resp = ResponseDictWrapper({
+        "choices": [{"message": {"content": '"正在优化反应物TS过渡态构型"\n'}}],
+    })
 
     with patch("cloudra.infra.llm_client.LLMClient.create_with_retry", new=AsyncMock(return_value=mock_resp)):
         desc = await generate_task_description(agent, "请帮我优化过渡态TS构型", language="zh")
@@ -85,8 +87,9 @@ async def test_task_describer_triggers_on_user_message_and_subagent_spawn(tmp_pa
         )
     ).data
 
-    mock_coord_resp = AsyncMock()
-    mock_coord_resp.content = "正在分析反应机理全貌"
+    mock_coord_resp = ResponseDictWrapper({
+        "choices": [{"message": {"content": "正在分析反应机理全貌"}}],
+    })
 
     with patch("cloudra.infra.llm_client.LLMClient.create_with_retry", new=AsyncMock(return_value=mock_coord_resp)):
         # Trigger 1: User sends a message
@@ -105,8 +108,9 @@ async def test_task_describer_triggers_on_user_message_and_subagent_spawn(tmp_pa
         assert updated_coord.current_task == "正在分析反应机理全貌"
 
     # Trigger 2: Parent spawns subagent with query
-    mock_child_resp = AsyncMock()
-    mock_child_resp.content = "计算过渡态TS-1虚频"
+    mock_child_resp = ResponseDictWrapper({
+        "choices": [{"message": {"content": "计算过渡态TS-1虚频"}}],
+    })
 
     with patch("cloudra.infra.llm_client.LLMClient.create_with_retry", new=AsyncMock(return_value=mock_child_resp)):
         child = (

@@ -129,6 +129,20 @@ export interface RuntimeConfig {
   follower: RuntimeConfigSlot;
 }
 
+export interface CodexAuthStatus {
+  authenticated: boolean;
+  expires_at: number | null;
+  account_id: string | null;
+}
+
+export interface CodexDeviceLogin {
+  login_id: string;
+  user_code: string;
+  verification_uri: string;
+  interval: number;
+  expires_at: number;
+}
+
 export interface KgOverview {
   db_present: boolean;
   entities: number;

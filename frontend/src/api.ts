@@ -2,6 +2,8 @@ import type {
   Agent,
   ComputeJob,
   ComputeNode,
+  CodexAuthStatus,
+  CodexDeviceLogin,
   EventEnvelope,
   FsBrowseResponse,
   HubPost,
@@ -242,6 +244,18 @@ export const api = {
     }),
   listRoles: () => request<Array<{ role_id: string; display_name: string }>>('/api/v2/roles'),
   providers: () => request<ProviderPreset[]>('/api/v2/runtime/providers'),
+  codexAuthStatus: () => request<CodexAuthStatus>('/api/v2/runtime/providers/codex/status'),
+  startCodexLogin: () => request<CodexDeviceLogin>('/api/v2/runtime/providers/codex/device-login', {
+    method: 'POST',
+  }),
+  pollCodexLogin: (login_id: string) =>
+    request<{ status: 'pending' | 'authorized' }>('/api/v2/runtime/providers/codex/device-poll', {
+      method: 'POST',
+      body: JSON.stringify({ login_id }),
+    }),
+  logoutCodex: () => request<{ status: 'logged_out' }>('/api/v2/runtime/providers/codex/auth', {
+    method: 'DELETE',
+  }),
   getOpenRouterPkce: (callbackUrl?: string) =>
     request<{ auth_url: string; code_verifier: string; code_challenge: string }>(
       `/api/v2/runtime/providers/openrouter/pkce${callbackUrl ? `?callback_url=${encodeURIComponent(callbackUrl)}` : ''}`
