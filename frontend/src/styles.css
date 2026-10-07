@@ -603,6 +603,34 @@ body {
   height: 30px;
   font-size: 12px;
 }
+.left-sidebar-foot {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+.sidebar-more {
+  font-size: 12px;
+  color: var(--fg-tertiary);
+}
+.sidebar-more > summary {
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.sidebar-more > summary:hover,
+.sidebar-more > summary:focus-visible {
+  color: var(--fg);
+  background: var(--bg-hover);
+}
+.sidebar-more-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 4px;
+}
+.sidebar-more-actions .btn {
+  width: 100%;
+  text-align: left;
+}
 .breadcrumb-agent-wrap {
   display: inline-flex;
   align-items: center;

@@ -2052,20 +2052,38 @@ export default function App() {
         <div className="left-sidebar-foot">
           <button
             type="button"
-            className="btn outline sm"
-            data-testid="cancel-all-compute-foot"
-            onClick={() => void cancelAllComputeJobs()}
-          >
-            {lang === 'zh' ? '取消全部计算' : 'Cancel All Compute'}
-          </button>
-          <button
-            type="button"
             className="btn outline sm settings-btn"
             onClick={() => setGlobalOpen(true)}
             title={t.sidebarGlobalSettingsTip}
           >
             <span>{t.sidebarGlobalSettings}</span>
           </button>
+          <details className="sidebar-more">
+            <summary>{t.sidebarMore}</summary>
+            <div className="sidebar-more-actions">
+              <button
+                type="button"
+                className="btn ghost sm"
+                onClick={(event) => {
+                  event.currentTarget.closest('details')?.removeAttribute('open');
+                  setBenchmarkOpen(true);
+                }}
+              >
+                {t.sidebarBenchmark}
+              </button>
+              <button
+                type="button"
+                className="btn ghost sm"
+                data-testid="cancel-all-compute-foot"
+                onClick={(event) => {
+                  event.currentTarget.closest('details')?.removeAttribute('open');
+                  void cancelAllComputeJobs();
+                }}
+              >
+                {lang === 'zh' ? '取消全部计算' : 'Cancel All Compute'}
+              </button>
+            </div>
+          </details>
         </div>
       </aside>
 
@@ -2738,4 +2756,3 @@ export default function App() {
     </div>
   );
 }
-

@@ -20,6 +20,7 @@ test.describe('destructive confirms', () => {
       await dialog.dismiss();
     });
     await openSpa(page);
+    await page.locator('aside.left-sidebar summary').filter({ hasText: '更多' }).click();
     await page.getByTestId('cancel-all-compute-foot').click();
     await expect.poll(() => mocks.cancelAllHits.length).toBe(0);
   });
@@ -31,6 +32,7 @@ test.describe('destructive confirms', () => {
       await dialog.accept();
     });
     await openSpa(page);
+    await page.locator('aside.left-sidebar summary').filter({ hasText: '更多' }).click();
     await page.getByTestId('cancel-all-compute-foot').click();
     await expect.poll(() => mocks.cancelAllHits.length).toBe(1);
     await expect(
