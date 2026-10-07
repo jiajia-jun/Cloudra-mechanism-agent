@@ -533,3 +533,12 @@ def test_engine_crash_leaves_partial_frames_visible_not_usable(tmp_path, monkeyp
     # 诊断里点名"有多少帧、不是初猜"
     assert any("4 partial iteration frame(s)" in d for d in result.diagnostics)
     assert any("not a usable TS guess" in d for d in result.diagnostics)
+
+
+def test_native_default_limit_is_not_reported_as_none_runs(fake_xtb, tmp_path):
+    fake_xtb("path_truncated")
+    result = run_xtb_path(_request(tmp_path, refinement_runs=None))
+    assert result.termination_reason == "path_not_converged"
+    assert "None-run" not in result.message
+    assert "engine-default" in result.message
+    assert "Inspect" in result.message

@@ -1192,12 +1192,15 @@ def _assemble(record: TsProcessRecord) -> TsProcessRecord:
 
     prepared_path = (record.current_reactant_prepared_path or
                      os.path.join(record.run_dir, BUILD_STAGE_DIR, "reactant", "prepared_structure.json"))
-    components = 1
+    components = record.structures.get("reactant", {}).get("components")
     prepared_data: dict = {}
     if os.path.isfile(prepared_path):
         with open(prepared_path, encoding="utf-8") as handle:
             prepared_data = _json.load(handle)
-        components = len(prepared_data.get("components", []))
+    if not isinstance(components, int) or components < 1:
+        return _block(record, "assemble", "missing_component_identity",
+                      "Reactant component count is unavailable; repair the concrete structure binding.",
+                      needs=["conformers.reactant"])
     identities = prepared_data.get("atom_identities", [])
     active_center = _active_reaction_center(record)
     if active_center and not identities:
@@ -1554,8 +1557,7 @@ def _guess(record: TsProcessRecord) -> TsProcessRecord:
             if guess.solvation else []
         ),
     )
-    # 声明给了上限就用它（GH #39：撞上限的截断路径不是初猜，抬高上限重跑才是出路）；
-    # 0 = 未声明，交给 runner 默认值。
+    # An explicit cap overrides the runner default; a truncated path remains unverified.
     if guess.refinement_runs is not None:
         request.refinement_runs = guess.refinement_runs
     if record.pipeline_id:
@@ -1582,18 +1584,9 @@ def _guess(record: TsProcessRecord) -> TsProcessRecord:
             else "not_attempted"
         )
         if run.termination_reason == "path_not_converged":
-            # 触顶 = 路径被截断（引擎没判收敛）。实测：这种路径的最高帧落在反应物自己的盆地里
-            # （离起点 21°），拿去做 OptTS 不收敛。因此**不**把它当初猜交出去。
             return _block(
-                record, "guess", run.termination_reason,
-                f"the xTB path refinement hit its {run.refinement_runs}-cycle ceiling before the "
-                f"engine declared convergence, so the path's highest frame is a truncated sample "
-                f"and must not be used as a TS guess ({run.refinement_runs} is a compute ceiling, "
-                f"not a convergence criterion). Raise the ceiling via ts_resume with "
-                f"adjustment.path_refinement_runs and rerun. Persistent run directory "
-                f"(truncated path kept for inspection): {run.run_dir}",
-                atom_details=list(run.diagnostics),
-                needs=["budget"],
+                record, "guess", run.termination_reason, run.message,
+                atom_details=list(run.diagnostics), needs=["guess"],
             )
         partial = (
             f" {len(run.partial_frames)} partial iteration frame(s) were left behind "

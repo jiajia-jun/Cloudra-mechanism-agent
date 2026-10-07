@@ -222,11 +222,17 @@ def read_process_snapshot(db: ComputeDB, *, project_id: str, run_id: str, worksp
         state = json.loads(row[2])
         state['revision'] = row[1]
         rows = con.execute('SELECT j.id,s.stage_key,j.state,j.req_cpus,j.req_memory_mb,j.start_timestamp,j.end_timestamp,'
-                           's.declaration_revision,s.attempt,s.evidence FROM ts_pipeline_stages s '
+                           's.declaration_revision,s.attempt,s.evidence,j.path,j.jobtype FROM ts_pipeline_stages s '
                            'JOIN compute_jobs j ON j.id=s.job_id WHERE s.process_id=? ORDER BY j.id', (row[0],)).fetchall()
         keys = ('job_id', 'purpose', 'state', 'req_cpus', 'req_memory_mb', 'start_timestamp', 'end_timestamp',
-                'source_input_revision', 'attempt', 'evidence')
+                'source_input_revision', 'attempt', 'evidence', 'input_path', 'job_type')
         jobs = [dict(zip(keys, values, strict=True)) for values in rows]
+    from cloudra.infra.compute_utils import resolve_log_path
+    for job in jobs:
+        if job["state"] == "done":
+            log_path = resolve_log_path(job["input_path"], job["job_type"], job["job_id"])
+            if Path(log_path).is_file() and Path(log_path).resolve().is_relative_to(Path(workspace_dir).resolve()):
+                job["log_path"] = log_path
     return state, jobs
 
 

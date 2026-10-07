@@ -167,7 +167,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         # ML 机理假设生成器（FlowER 外部 conda env）：不是计算证据；
         # flower.enabled 默认开（未装环境时调用层引导 setup_flower.sh）。
         config_gate='flower.enabled',
-        role_allowlist=_SCIENCE_ROLES,
+        role_allowlist=_SCIENCE_ROLES | {'researcher'},
     ),
     ToolRegistration(
         module='cloudra.tools.Chemtool.name_to_structure',

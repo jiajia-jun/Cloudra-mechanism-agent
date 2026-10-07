@@ -587,19 +587,21 @@ def run_xtb_path(request: XtbPathRequest) -> XtbPathResult:
         # 这里把截断的现场（路径帧 + TS 候选）保留下来供复查，但明确标成不可用。
         result.termination_reason = "path_not_converged"
         result.usable_as_guess = False
+        limit = f"{request.refinement_runs}-run" if request.refinement_runs is not None else "engine-default"
+        advice = (
+            "Inspect endpoint identities, geometry and the retained path before choosing the next attempt. "
+            "Raise `refinement_runs` only when the evidence supports further refinement; "
+            "more iterations do not guarantee convergence."
+        )
         result.diagnostics.append(
-            f"the engine stopped its path refinement at the {request.refinement_runs}-run cap "
+            f"the engine stopped its path refinement at the {limit} cap "
             f"({MARKER_PATH_CYCLES_EXHAUSTED!r}); that is a truncated path, not a converged one. "
-            "The frames and TS candidate are kept for inspection only. Measured consequence of "
-            "accepting a truncated path (docs/evidence/ts_guess_mtd_artifact/): its highest frame "
-            "sits in the reactant's own basin, 21 deg from the start, and an ORCA OptTS started "
-            "from it never converged (56 cycles, slid back to the minimum). Raise "
-            "`refinement_runs` and rerun"
+            "The frames and TS candidate are kept for inspection only. " + advice
         )
         result.message = (
-            f"the xTB path refinement hit its {request.refinement_runs}-run cap before the engine "
-            f"declared convergence, so no usable TS guess was produced. Raise `refinement_runs` and "
-            f"rerun. Run directory (truncated path kept for inspection): {run_dir}"
+            f"the xTB path refinement hit its {limit} cap before the engine declared convergence, "
+            f"so no usable TS guess was produced. {advice} "
+            f"Run directory (truncated path kept for inspection): {run_dir}"
         )
         return result
 

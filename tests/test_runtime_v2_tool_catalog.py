@@ -269,6 +269,7 @@ def test_role_allowlist_keeps_chem_tools_for_science_roles():
 def test_role_allowlist_filters_guest_names_and_declarations():
     guest = guest_tool_names(["*"], role_id="researcher")
     assert "log_parser" not in guest
+    assert "mechanism_predict" in guest
     assert "bash" in guest
     text = tool_declarations(["*"], role_id="researcher")
     assert "log_parser(" not in text
@@ -303,6 +304,8 @@ def test_permission_stage_blocks_role_restricted_tool():
     assert allowed.outcome == "allow"
     unrestricted = asyncio.run(stage.before_tool(ctx("researcher"), ToolCall(id="t3", name="bash")))
     assert unrestricted.outcome == "allow"
+    hypothesis = asyncio.run(stage.before_tool(ctx("researcher"), ToolCall(id="t4", name="mechanism_predict")))
+    assert hypothesis.outcome == "allow"
 
 
 # ----------------------------------------------------------------------- routing

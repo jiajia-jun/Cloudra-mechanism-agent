@@ -429,3 +429,26 @@ def test_qualification_rejects_mirrored_declared_stereocenter():
     mirrored[:,0]*=-1
     eligible,reasons,_=qualify_geometry(plan,mol,[a.GetSymbol() for a in mol.GetAtoms()],mirrored)
     assert not eligible and any('stereo' in r for r in reasons)
+
+
+def test_heavy_atom_numbers_mistaken_for_full_atoms_fail_before_sampling(tmp_path, monkeypatch):
+    from cloudra.tools.core import preorganization
+    prepared = _graph_only("C=CC=C.C=C", tmp_path)
+    plan = resolve_guidance(prepared, [], [
+        {"atoms": [1, 5], "min_ang": 3., "max_ang": 4.2},
+        {"atoms": [4, 6], "min_ang": 3., "max_ang": 4.2},
+    ])
+    def no_sampling(*args, **kwargs):
+        pytest.fail("incompatible covalent window reached structure sampling")
+    monkeypatch.setattr(preorganization, "prepare_structure", no_sampling)
+    with pytest.raises(ValueError, match="input covalent bond") as error:
+        preorganization._multi_component_rdkit(StructureInput(kind="smiles", value="C=CC=C.C=C"),
+            prepared, plan, str(tmp_path / "search"), 0, 1, 42, .5)
+    assert "5=H" in str(error.value) and "11=C" in str(error.value)
+
+
+def test_explicit_hydrogen_window_with_intact_bond_is_allowed(tmp_path):
+    from cloudra.tools.core.preorganization import _validated_bounds
+    prepared = _graph_only("C=CC=C.C=C", tmp_path)
+    plan = resolve_guidance(prepared, [], [{"atoms": [1, 5], "min_ang": 1., "max_ang": 1.2}])
+    assert _validated_bounds(prepared, plan) is not None

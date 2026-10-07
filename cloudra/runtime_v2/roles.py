@@ -45,7 +45,7 @@ BUILTIN_ROLES: tuple[RoleProfile, ...] = (
         role_id="researcher",
         legacy_agent_id=legacy_agent_id_for_role("researcher"),
         display_name="Researcher",
-        description="Literature search and method comparison.",
+        description="Literature search, method comparison and ML mechanism hypotheses (mechanism_predict); no QM submission.",
         permissions=PermissionSet(read=True, write=True, script=True, destructive=True),
         can_spawn=False,
     ),

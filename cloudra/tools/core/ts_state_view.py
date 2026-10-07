@@ -88,6 +88,11 @@ def build_process_view(state: dict, jobs: list[dict], *, can_write: bool) -> TsP
     available.extend(dict(stage=step['purpose'], artifacts=list(step['external_source']['artifact_hashes']),
         source_input_revision=step['source_input_revision'], source_job_id=step['external_source']['source_job_id'])
         for step in state.get('job_steps', []) if step.get('external_source'))
+    current_job_ids = {step["job_id"] for step in state.get("job_steps", [])}
+    available.extend(dict(stage=job["purpose"], status="done", job_id=job["job_id"],
+        artifacts=[job["log_path"]], source_input_revision=job.get("source_input_revision"),
+        detail="Original compute output for direct evidence submission; keep IRC sidecars in place. Job completion is not scientific verification.")
+        for job in jobs if job["job_id"] in current_job_ids and job.get("state") == "done" and job.get("log_path"))
     return TsProcessView(
         run_id=state["run_id"], revision=state["revision"], run_dir=state["run_dir"], status=status,
         stage=state["stage"], result=dict(outcome=terminal, verified=terminal == "verified", reason=detail,

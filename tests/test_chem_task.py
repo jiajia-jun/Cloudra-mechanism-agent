@@ -12,7 +12,8 @@ def test_internal_task_rejects_arbitrary_commands_and_parameters():
         ChemTask(task="xtb_path", reactant_xyz="a", product_xyz="b", cpus=1, extra_args=["--anything"])
 
 
-def test_helper_path_has_no_hidden_iteration_or_time_limit(tmp_path, monkeypatch):
+@pytest.mark.parametrize("declared,effective", [(None, 100), (7, 7)])
+def test_helper_path_preserves_runner_default_and_has_no_timeout(tmp_path, monkeypatch, declared, effective):
     from cloudra.runtime import chem_task
     from cloudra.tools.core.xtb_path_runner import XtbPathResult
 
@@ -26,11 +27,12 @@ def test_helper_path_has_no_hidden_iteration_or_time_limit(tmp_path, monkeypatch
     manifest = tmp_path / "task.json"
     manifest.write_text(
         chem_task.ChemTask(
-            task="xtb_path", reactant_xyz="1\nfake\nH 0 0 0\n", product_xyz="1\nfake\nH 1 0 0\n", cpus=2
+            task="xtb_path", reactant_xyz="1\nfake\nH 0 0 0\n", product_xyz="1\nfake\nH 1 0 0\n", cpus=2, refinement_runs=declared
         ).model_dump_json()
     )
     assert chem_task.run_task(str(manifest)) == 1
-    assert observed[0].timeout is None and observed[0].refinement_runs is None
+    assert observed[0].timeout is None
+    assert observed[0].refinement_runs == effective
     data, success = chem_task.read_task_result(str(manifest))
     assert success is False and data["result"]["returncode"] == 1
     assert data["result"]["termination_reason"] == "failed"

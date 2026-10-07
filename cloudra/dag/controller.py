@@ -249,6 +249,7 @@ class DagController(SupervisionMixin, StopAuditMixin, EvidenceInboxMixin, Drafts
         """Only unresolved draft opinions about this delivery remain final debts."""
         latest = {}
         for draft_id, draft, reason in self.store.list_delivery_drafts():
+            targets = set(draft.claim_spec.scope.get("targets", [])) if draft.claim_spec else set()
             for operation in draft.operations:
                 element = getattr(operation, "node", None) or getattr(operation, "edge", None)
                 target = (
@@ -257,8 +258,10 @@ class DagController(SupervisionMixin, StopAuditMixin, EvidenceInboxMixin, Drafts
                     or getattr(operation, "node_id", None)
                     or getattr(operation, "edge_id", None)
                 )
-                if target in selected:
-                    latest[target] = (draft_id, draft.state, reason)
+                if target:
+                    targets.add(target)
+            for target in targets & selected:
+                latest[target] = (draft_id, draft.state, reason)
         gaps = []
         for target, (draft_id, state, reason) in latest.items():
             if state not in {"open", "rejected"}:

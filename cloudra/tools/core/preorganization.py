@@ -358,6 +358,16 @@ def _validated_bounds(prepared: PreparedStructure, plan: GuidancePlan):
     for window in plan.windows:
         left, right = window.atoms
         name = f"{left + plan.index_base}-{right + plan.index_base} ({window.source})"
+        if graph.GetBondBetweenAtoms(left, right) is not None:
+            symbols = [graph.GetAtomWithIdx(i).GetSymbol() for i in (left, right)]
+            # Qualification already requires every input bond to survive. Check
+            # that same connectivity rule at the shortest allowed distance.
+            if not default_connectivity()(symbols, [(0., 0., 0.), (window.min_ang, 0., 0.)]):
+                raise bad(
+                    f"guided window {name} cannot preserve the input covalent bond "
+                    f"({symbols[0]}-{symbols[1]}) under the existing qualification rule; "
+                    "indices refer to the full structure including H, not SMILES heavy atoms; no search was run",
+                )
         if (graph_distances[left, right] > 2
                 and window.max_ang < AssemblyParameters().min_interfragment_distance):
             raise bad(

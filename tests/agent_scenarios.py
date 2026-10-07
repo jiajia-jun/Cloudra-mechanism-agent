@@ -22,7 +22,7 @@
 | 角色权限矩阵 | small_mol 技能→计算入口、unattended 拒批 |
 | 重试预算与 fail-fast 分类 | provider 暂态重试 / 永久 4xx |
 | 压缩阈值与摘要 | context overflow |
-| 结题门禁 + 编排模式 | dag_guided 证据门与督导裁决 |
+| 结题门禁 + 编排模式 | dag_guided 证据门与督导裁决、仅修订论证后清除旧拒绝 |
 | 消息投递/恢复语义 | 异步子 Agent 回传、重启 |
 | 工具进度持久化 | 阶段记录落盘失败立即终止 Agent，不重试工具副作用 |
 | YOLO 审批结构校验 | 非布尔结论不得写入文件 |
@@ -445,3 +445,9 @@ def d1_component_order_files(workspace: Path) -> tuple[Path, Path]:
     xyz.write_text(Chem.MolToXYZBlock(combined))
     graph.write_text(Chem.MolToMolBlock(combined))
     return xyz, graph
+
+
+def scope_review_completion_steps() -> list[Step]:
+    """Read authoritative delivery, then request completion after scoped re-review."""
+    return [Step(tools=[("dag_delivery_report", {})]),
+            Step(tools=[("stop", {"delivery_disposition": "complete"})])]

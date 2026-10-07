@@ -1329,3 +1329,35 @@ async def test_old_launcher_role_field_is_rejected_without_orphan_child(tmp_path
         assert harness.child_reports(parent) == []
     finally:
         await harness.aclose()
+
+
+@pytest.mark.asyncio
+async def test_scope_only_reapproval_clears_stale_completion_debt(tmp_path):
+    from cloudra.dag.drafts import MechanismDraft
+    from cloudra.dag.models import AddEdge, ClaimSpec, ElementaryStepEdge
+    from tests.agent_scenarios import scope_review_completion_steps
+    from tests.test_dag_async_evidence_review import _seed_simple_complete_graph
+
+    harness = await ScenarioHarness.start(tmp_path, provider=ScriptedProvider(by_role={
+        "coordinator": scope_review_completion_steps(),
+        "supervisor": [Step(stop=True)],
+    }))
+    def seed():
+        _, _, store = _seed_simple_complete_graph(tmp_path, harness.project.id)
+        store.save_draft(MechanismDraft(operations=[AddEdge(op="add_edge", graph="delivery",
+            edge=ElementaryStepEdge(edge_id="step1", name="step1", source_node_id="r", target_node_id="p"))],
+            rationale="initial reasoning rejected", state="rejected"), actor_id="coordinator")
+        store.save_draft(MechanismDraft(operations=[], rationale="revised reasoning accepted",
+            state="accepted", claim_spec=ClaimSpec(kind="mechanism", scope={"targets": ["r", "p", "step1"]})),
+            actor_id="harness:auto")
+    try:
+        await asyncio.to_thread(seed)
+        agent = await harness.spawn("coordinator", protocol="traditional", orchestration_mode="dag_guided")
+        await harness.wait_terminal(agent)
+        reports = [call for call in harness.tool_events(agent) if call["tool_name"] == "dag_delivery_report"]
+        assert reports and reports[0]["result_data"]["result"]["complete"] is True
+        assert agent.state.value == "succeeded", harness.describe(agent)
+        assert any(event.type == "agent.completion_gate" and event.data.get("explicit_stop")
+                   for event in harness.events(agent))
+    finally:
+        await harness.aclose()

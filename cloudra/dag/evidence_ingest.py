@@ -166,6 +166,12 @@ def snapshot_evidence_file(
             pass
         else:
             irc_endpoints = orca_frames.extract_irc_endpoints(str(resolved))
+            if not any(endpoint.get("geometry_ref") for endpoint in irc_endpoints.values()):
+                raise ValueError(
+                    "ORCA IRC output has no associated endpoint geometries. Submit the original IRC log "
+                    "from the compute job directory with its native endpoint/trajectory files; "
+                    "do not copy or rename the log alone. The evidence snapshot archives the bundle automatically."
+                )
             for endpoint in irc_endpoints.values():
                 if endpoint.get("geometry_ref"):
                     sidecar = Path(endpoint["geometry_ref"]).resolve(strict=True)

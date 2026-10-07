@@ -235,7 +235,7 @@ class ConformerSearch_input_schema(input_schema):
     distance_filters: list[DistanceWindowInput] = Field(
         default_factory=list,
         description="Reaction-distance filters; each item like {\"atoms\": [i, j], \"min_ang\": 1.8, \"max_ang\": 2.6}, "
-                    "1-based atom indices. Keeps conformers whose key atom-pair distances fall in the preorganization window (reactive conformers)."
+                    "1-based indices in the builder complete atom order INCLUDING H, not SMILES heavy-atom indices. Keeps conformers whose key atom-pair distances fall in the preorganization window (reactive conformers)."
     )
     ring_order: list[int] = Field(
         default_factory=list,

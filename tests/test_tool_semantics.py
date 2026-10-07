@@ -176,3 +176,10 @@ def test_get_skill_schema_has_reference_not_other():
     skill = next(e for e in get_tools_lst() if e.tool_name == "get_skill")
     props = skill.instantiate().tool_schema_json()["function"]["parameters"]["properties"]
     assert "reference" in props and "other" not in props
+
+
+def test_researcher_can_generate_ml_hypotheses_without_qm_tools():
+    from cloudra.tools.capabilities import role_hidden_tools
+    hidden = role_hidden_tools("researcher")
+    assert "mechanism_predict" not in hidden
+    assert "submit_compute_job" in hidden

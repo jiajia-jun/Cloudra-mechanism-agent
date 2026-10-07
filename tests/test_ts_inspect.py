@@ -153,3 +153,41 @@ def test_isolated_input_format_cannot_claim_scientific_verification(tmp_path):
     view = build_process_view(record, [], can_write=False)
     assert view.status == "isolated"
     assert view.result is None
+
+
+def test_inspect_exposes_completed_current_job_logs_for_direct_evidence_submission(tmp_path):
+    from cloudra.tools.core.ts_state_view import build_process_view
+    _, _, _, state = process_fixture(tmp_path, status="ended")
+    state["terminal"] = "candidate_only"
+    state["job_steps"] = [{"purpose": "irc", "job_id": 674}]
+    jobs = [dict(job_id=674, purpose="irc", state="done", log_path="/workspace/irc/.cloudra/calc-674.out.log"),
+            dict(job_id=600, purpose="irc", state="done", log_path="/workspace/obsolete.out")]
+    view = build_process_view(state, jobs, can_write=False)
+    evidence = [row for row in view.available_results if row.get("job_id") == 674]
+    assert evidence and evidence[0]["artifacts"] == ["/workspace/irc/.cloudra/calc-674.out.log"]
+    assert not any("/workspace/obsolete.out" in row.get("artifacts", []) for row in view.available_results)
+    assert not view.result["verified"]
+
+
+def test_inspect_resolves_native_stdout_from_completed_ledger_job(tmp_path):
+    from cloudra.services.ts_pipeline_store import bind_stage_job
+    from cloudra.tools.core.ts_state_view import inspect_process
+    db, pid, workspace, state = process_fixture(tmp_path, status="ended")
+    source = workspace / "irc.inp"
+    source.write_text("synthetic IRC input")
+    job = job_payload()
+    job["path"] = str(source)
+    jid = bind_stage_job(db, process_id=pid, declaration_revision=1, stage_key="irc", attempt=1,
+                         job_payload=job)
+    captured = workspace / ".cloudra" / f"calc-{jid}.out.log"
+    captured.parent.mkdir()
+    captured.write_text("ORCA TERMINATED NORMALLY")
+    state["job_steps"] = [{"purpose": "irc", "job_id": jid}]
+    with db.connect() as con:
+        con.execute("UPDATE compute_jobs SET state='done' WHERE id=?", (jid,))
+        con.execute("UPDATE ts_pipeline_processes SET record=? WHERE process_id=?", (json.dumps(state), pid))
+    view = inspect_process(db, project_id="project", run_id=state["run_id"], workspace_dir=str(workspace), can_write=False)
+    evidence = next(row for row in view.available_results if row.get("job_id") == jid)
+    assert evidence["artifacts"] == [str(captured)]
+    assert captured.read_text() == "ORCA TERMINATED NORMALLY"
+    assert not view.result["verified"]

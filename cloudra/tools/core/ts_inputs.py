@@ -111,7 +111,7 @@ class XtbPathGuess(InputModel):
     kind: Literal["xtb_path"]
     method: str = Field(min_length=1)
     solvation: PathSolvation | None = None
-    refinement_runs: StrictInt | None = Field(default=None, ge=1)
+    refinement_runs: StrictInt | None = Field(default=None, ge=1, description="xTB path refinement cap; omitted/null uses the runner default of 100. This is a compute limit, not a convergence criterion.")
 
 
 class ScanGuess(InputModel):

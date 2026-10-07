@@ -1117,3 +1117,20 @@ async def test_public_delivery_report_matches_final_controller_after_file_accept
         and gate["target_id"] == "r"
         for gate in public.result["unresolved"]
     )
+
+
+@pytest.mark.parametrize("scope", [["step1"], ["r"]])
+def test_scope_only_review_supersedes_only_its_named_draft_debt(tmp_path, scope):
+    _, db, store = _seed_simple_complete_graph(tmp_path, "scope-only-revision")
+    controller = DagController(db, "s1", "dag_guided", conversation_id=db.conversation_id)
+    store.save_draft(MechanismDraft(
+        operations=[AddEdge(op="add_edge", graph="delivery", edge=ElementaryStepEdge(
+            edge_id="step1", name="step1", source_node_id="r", target_node_id="p"))],
+        rationale="initial proposal", state="rejected"), actor_id="coordinator")
+    revised = store.save_draft(MechanismDraft(
+        operations=[], rationale="revised rationale for existing graph", state="open",
+        claim_spec=ClaimSpec(kind="mechanism", scope={"targets": scope})), actor_id="coordinator")
+    store.set_draft_state(revised, "accepted")
+    gaps = controller._draft_gaps({"r", "p", "step1"}, {"step1": ("edge", None)})
+    debts = [g for g in gaps if g.code == "rejected_mechanism_review" and g.target_id == "step1"]
+    assert bool(debts) == ("step1" not in scope)

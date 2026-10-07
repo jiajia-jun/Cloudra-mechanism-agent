@@ -181,6 +181,8 @@ def test_snapshot_checks_reject_modified_direction_manifest(tmp_path):
     from cloudra.dag.file_science import _logs
     log = tmp_path/'irc.out'
     log.write_text((FIXTURES_DIR/'orca/hcn_irc_orca60.out').read_text())
+    for suffix in ('F', 'B'):
+        (tmp_path / f'irc_IRC_{suffix}.xyz').write_text('2\nendpoint\nH 0 0 0\nH 0 0 .74\n')
     snap = snapshot_evidence_file(log, tmp_path)
     payload = snap.model_dump(mode='json')
     store = SimpleNamespace(resolve_evidence=lambda _: payload)
@@ -190,3 +192,12 @@ def test_snapshot_checks_reject_modified_direction_manifest(tmp_path):
     manifest.write_text('{}')
     logs, problems = _logs(store, element)
     assert not logs and any('Immutable IRC' in problem for problem in problems)
+
+
+def test_detached_irc_log_fails_with_original_log_repair_before_snapshot(tmp_path):
+    from cloudra.dag.evidence_ingest import snapshot_evidence_file
+    log = tmp_path / "copied.out"
+    log.write_text((FIXTURES_DIR / "orca/hcn_irc_orca60.out").read_text())
+    with pytest.raises(ValueError, match="original IRC log"):
+        snapshot_evidence_file(log, tmp_path)
+    assert not list((tmp_path / ".cloudra/evidence").rglob("irc_endpoints.json"))

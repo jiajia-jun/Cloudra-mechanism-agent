@@ -1666,3 +1666,24 @@ def test_no_partial_frame_noise_when_the_engine_left_none(tmp_path, monkeypatch)
 
 
 pytestmark = pytest.mark.usefixtures("ts_producer_authority")
+
+
+def test_file_complex_assembly_uses_bound_structure_components(tmp_path):
+    from cloudra.tools.core.ts_process import TsProcessRecord, _assemble
+    prepared = tmp_path / "atom_table.json"
+    prepared.write_text(json.dumps({"components": [], "atom_identities": [
+        {"index": i, "symbol": symbol} for i, symbol in enumerate(["F", "C", "Cl", "H", "H", "H"])]}))
+    record = TsProcessRecord(run_id="file-complex", run_dir=str(tmp_path), workspace_dir=str(tmp_path),
+        owner_conversation_id="test", owner_session_id="test", input=_declaration(reaction_center=[]),
+        current_reactant_prepared_path=str(prepared),
+        structures={"reactant": {"components": 2}})
+    result = _assemble(record)
+    assert result.blocked is not None
+    assert result.blocked.failure_class == "reaction_center_missing"
+
+
+def test_truncated_path_requests_current_guess_revision_not_obsolete_budget(tmp_path, monkeypatch):
+    monkeypatch.setattr("cloudra.tools.core.xtb_path_runner.run_xtb_path", _xtb_path_stub(tmp_path, []))
+    record = _start(tmp_path)
+    assert record.blocked.failure_class == "path_not_converged"
+    assert record.blocked.needs == ["guess"]

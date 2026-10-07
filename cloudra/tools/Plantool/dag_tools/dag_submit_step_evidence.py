@@ -38,7 +38,7 @@ class DagSubmitStepEvidenceInput(input_schema):
     )
     irc_file: Optional[str] = Field(
         default=None,
-        description="Optional path to combined IRC calculation output file.",
+        description="Optional original combined IRC output path. Keep native ORCA endpoint/trajectory files in the job directory; this tool archives them together. Do not submit a renamed standalone copy.",
     )
     irc_forward_file: Optional[str] = Field(
         default=None,
