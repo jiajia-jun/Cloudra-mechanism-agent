@@ -539,7 +539,7 @@ def _seed_simple_complete_graph(tmp_path, conversation_id, *, pending=False):
             rationale="seed complete graph",
             operations=[
                 AddNode(op="add_node", graph="delivery", node=OccurrenceNode(
-                    node_id="r", label="R", role="reactant", evidence_level="structure_supported",
+                    node_id="r", label="R", role="reactant", smiles="O", evidence_level="structure_supported",
                     stages=[StageState(kind="geometry")] if pending else [])),
                 AddNode(op="add_node", graph="delivery", node=OccurrenceNode(
                     node_id="p", label="P", role="product", evidence_level="structure_supported",

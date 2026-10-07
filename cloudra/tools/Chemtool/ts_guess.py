@@ -64,6 +64,7 @@ from cloudra.tools.core.irc_path import (
 from cloudra.tools.core.irc_path import (
     prove_irc_endpoint_direction as _prove_irc_endpoint_direction,
 )
+from cloudra.tools.core.qm_engine import detect_qm_engine
 from cloudra.tools.core.qm_keywords import orca_basis_keyword
 from cloudra.tools.core.topology_change import default_connectivity
 from cloudra.tools.core.ts_inputs import PathSolvation, ScanGuess, TsCalculation
@@ -181,7 +182,7 @@ class TsGuess_input_schema(input_schema):
     # ---------- scan_prepare ----------
     input_path: Optional[str] = Field(default=None, description="scan_prepare: input structure file path (xyz). Absolute as-is, or relative to the Agent working directory.")
     input_text: Optional[str] = Field(default=None, description="scan_prepare: input structure xyz text.")
-    engine: Literal["gaussian", "orca", "xtb"] = Field(default="gaussian", description="Target scan engine; xTB scan atom numbers are 1-based.")
+    engine: Literal["gaussian", "orca", "xtb"] = Field(default="gaussian", description="Target scan engine (default Gaussian); xTB scan atom numbers are 1-based. For verify, omit to detect Gaussian/ORCA from freq_log; an explicit engine must match the log.")
     scans: Optional[list[ScanCoordinateInput]] = Field(
         default=None,
         description=(
@@ -2044,6 +2045,15 @@ class TsGuess(Tool):
         if not os.path.isfile(user_input.freq_log):
             raise ValueError(f"Frequency log does not exist: {user_input.freq_log}")
 
+        engine = detect_qm_engine(user_input.freq_log)
+        if engine not in {"gaussian", "orca"}:
+            raise ValueError(f"Cannot verify frequency log with unknown or unsupported engine: {engine}")
+        if "engine" in user_input.model_fields_set and user_input.engine != engine:
+            raise ValueError(
+                f"Frequency log engine mismatch: requested {user_input.engine}, detected {engine}"
+            )
+        # Use the same detected engine for native parsing, IRC dispatch and atom indices.
+        user_input = user_input.model_copy(update={"engine": engine})
         freq = _parse_freq_log(user_input.freq_log, user_input.engine)
         vibfreqs = freq["vibfreqs"]
         imag = [f for f in vibfreqs if f < 0]

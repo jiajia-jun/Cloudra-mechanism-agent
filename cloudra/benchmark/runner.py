@@ -376,6 +376,8 @@ class BenchmarkRunner:
             sandbox,
             task.rubric.self_consistency,
             charge=task.system.charge,
+            integrity_rubric=task.rubric.integrity,
+            ged_config=ged_config,
         )
         res.selfconsistency_passed = sc.passed
         res.notes.extend(sc.notes)

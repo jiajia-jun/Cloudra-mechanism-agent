@@ -232,7 +232,7 @@ class DagSubmitStepEvidence(DagToolBase):
 
         from cloudra.dag.file_science import file_scientific_checks
         graph = await asyncio.to_thread(ctx.store.load_snapshot)
-        scientific_checks = await asyncio.to_thread(file_scientific_checks, ctx.store, graph.delivery, step.edge_id, irc_files=irc_snaps, workspace_root=workspace_root)
+        scientific_checks = await asyncio.to_thread(file_scientific_checks, ctx.store, graph.delivery, step.edge_id, irc_files=irc_snaps, workspace_root=workspace_root, evidence_refs=[ref, *irc_refs])
 
         review = ActiveReview(
             review_id=f"rev_{uuid.uuid4().hex}",

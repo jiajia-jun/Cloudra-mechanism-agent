@@ -6,7 +6,7 @@ import asyncio
 import os
 import uuid
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import Field
 
@@ -33,12 +33,12 @@ class DagSubmitSpeciesEvidenceInput(input_schema):
     species_name: str = Field(
         description="Name of the species/intermediate in the delivery graph (e.g. 'R' or 'Int1')."
     )
-    opt_file: str = Field(
-        description="Path to the geometry optimization output file."
+    opt_file: str | list[str] = Field(
+        description="Optimization output path, or a list containing every component when submitting component evidence."
     )
-    freq_file: Optional[str] = Field(
+    freq_file: str | list[str] | None = Field(
         default=None,
-        description="Optional path to the frequency analysis output file (to confirm 0 imaginary frequencies).",
+        description="Frequency output path, or a list paired in the same order with opt_file; omit for combined opt/frequency logs.",
     )
     description: str = Field(
         default="",
@@ -92,63 +92,39 @@ class DagSubmitSpeciesEvidence(DagToolBase):
             )
         species = matching_nodes[0]
 
-        # 2. Snapshot optimization and optional frequency files
-        # snapshot_evidence_file 全量读文件 + cclib 解析（同步重活），卸载出事件循环。
-        try:
-            opt_snap = await asyncio.to_thread(
-                snapshot_evidence_file,
-                user_input.opt_file,
-                workspace_root=workspace_root,
-                conversation_id=ctx.conversation_id,
-            )
-        except Exception as exc:
-            return fail("dag_submit_species_evidence", f"Failed to ingest opt file: {exc}", accepted=False)
-
-        freq_snap = None
-        if user_input.freq_file:
+        # One submission is one complete evidence set. Do not borrow files
+        # from previous attempts to fill missing components or frequencies.
+        opt_files = [user_input.opt_file] if isinstance(user_input.opt_file, str) else user_input.opt_file
+        freq_files = ([user_input.freq_file] if isinstance(user_input.freq_file, str)
+                      else user_input.freq_file)
+        if not opt_files or any(not path.strip() for path in opt_files):
+            return fail("dag_submit_species_evidence", "opt_file must contain non-empty paths", accepted=False)
+        if freq_files is not None and len(freq_files) != len(opt_files):
+            return fail("dag_submit_species_evidence", "freq_file must pair one-to-one with opt_file", accepted=False)
+        refs, validations = [], []
+        for index, opt_path in enumerate(opt_files):
             try:
-                freq_snap = await asyncio.to_thread(
-                    snapshot_evidence_file,
-                    user_input.freq_file,
-                    workspace_root=workspace_root,
-                    conversation_id=ctx.conversation_id,
-                )
+                opt_snap = await asyncio.to_thread(snapshot_evidence_file, opt_path,
+                    workspace_root=workspace_root, conversation_id=ctx.conversation_id)
+                freq_snap = None
+                if freq_files is not None:
+                    freq_snap = await asyncio.to_thread(snapshot_evidence_file, freq_files[index],
+                        workspace_root=workspace_root, conversation_id=ctx.conversation_id)
+                    from cloudra.dag.file_science import validate_frequency_geometry
+                    await asyncio.to_thread(validate_frequency_geometry, opt_snap, freq_snap)
             except Exception as exc:
-                return fail("dag_submit_species_evidence", f"Failed to ingest freq file: {exc}", accepted=False)
-
-        # 3. Validate stationary minimum (0 imaginary frequencies)
-        check_freqs = freq_snap.frequencies if freq_snap and freq_snap.frequencies is not None else opt_snap.frequencies
-        check_imag = freq_snap.imaginary_frequencies if freq_snap and freq_snap.imaginary_frequencies is not None else opt_snap.imaginary_frequencies
-        val = validate_species_minimum(check_freqs, imaginary_freqs=check_imag)
-        # A known imaginary mode is a hard contradiction for an endpoint
-        # minimum, including guided review. Missing frequency data may still
-        # be sent to the Supervisor in guided mode as unverified evidence.
-        if not val.is_valid and (ctx.mode is OrchestrationMode.DAG_RECORD or val.verified):
-            kind = "was not verified" if not val.verified else "failed validation"
-            return fail(
-                "dag_submit_species_evidence",
-                f"Stationary point {kind}: {val.message}",
-                accepted=False,
-            )
-
-        # 4. Register evidence in store
-        ref = await asyncio.to_thread(
-            ctx.store.register_evidence,
-            session.id,
-            Path(user_input.opt_file).name,
-            opt_snap.model_dump(mode="json"),
-            source_type="file",
-        )
-
-        refs = [ref]
-        if freq_snap is not None:
-            refs.append(await asyncio.to_thread(
-                ctx.store.register_evidence,
-                session.id,
-                Path(user_input.freq_file).name,
-                freq_snap.model_dump(mode="json"),
-                source_type="file",
-            ))
+                return fail("dag_submit_species_evidence", f"Failed to ingest species evidence: {exc}", accepted=False)
+            frequency = freq_snap if freq_snap is not None else opt_snap
+            val = validate_species_minimum(frequency.frequencies,
+                imaginary_freqs=frequency.imaginary_frequencies)
+            if not val.is_valid and (ctx.mode is OrchestrationMode.DAG_RECORD or val.verified):
+                return fail("dag_submit_species_evidence", f"Stationary point failed validation: {val.message}", accepted=False)
+            validations.append(val.model_dump())
+            for snap in [opt_snap, *([freq_snap] if freq_snap is not None else [])]:
+                ref = await asyncio.to_thread(ctx.store.register_evidence, session.id,
+                    Path(snap.original_path).name, snap.model_dump(mode="json"), source_type="file")
+                refs.append(ref)
+        validation = validations[0] if len(validations) == 1 else {"components": validations}
 
         operations: list[GraphOperation] = [
             AttachRef(
@@ -187,7 +163,7 @@ class DagSubmitSpeciesEvidence(DagToolBase):
                 result={
                     "species_name": user_input.species_name,
                     "status": "attached",
-                    "validation": val.model_dump(),
+                    "validation": validation,
                     "message": (
                         f"Species '{user_input.species_name}' evidence attached; "
                         "bind stages with dag_bind_evidence / dag_review_call."
@@ -215,7 +191,7 @@ class DagSubmitSpeciesEvidence(DagToolBase):
 
         from cloudra.dag.file_science import file_scientific_checks
         graph = await asyncio.to_thread(ctx.store.load_snapshot)
-        scientific_checks = await asyncio.to_thread(file_scientific_checks, ctx.store, graph.delivery, species.node_id)
+        scientific_checks = await asyncio.to_thread(file_scientific_checks, ctx.store, graph.delivery, species.node_id, evidence_refs=refs)
 
         review = ActiveReview(
             review_id=f"rev_{uuid.uuid4().hex}",
@@ -230,11 +206,10 @@ class DagSubmitSpeciesEvidence(DagToolBase):
                 "target_identity": review_target_identity(snapshot.delivery, "species", species.node_id),
                 "opt_file": user_input.opt_file,
                 "freq_file": user_input.freq_file,
-                "validation": val.model_dump(),
+                "validation": validation,
                 "description": user_input.description,
             },
             supporting_refs=refs,
-            basis_fingerprint=opt_snap.sha256,
         )
         enqueued = await asyncio.to_thread(
             ReviewContextManager.set_active_review,
@@ -254,7 +229,7 @@ class DagSubmitSpeciesEvidence(DagToolBase):
                 "species_name": user_input.species_name,
                 "status": "submitted_for_review",
                 "scientific_checks": scientific_checks,
-                "validation": val.model_dump(),
+                "validation": validation,
                 "review_id": review.review_id,
                 "enqueued": enqueued,
                 "message": f"Species '{user_input.species_name}' evidence submitted for Supervisor review.",

@@ -689,9 +689,18 @@ class DagStore:
             item for item in [*delivery.get("nodes", []), *delivery.get("edges", [])]
             if item.get("node_id", item.get("edge_id")) in target_ids
         ]
+        from cloudra.dag.review_context import review_target_identity
+
         payload = {
             "kind": request.kind,
             "targets": sorted(target_ids),
+            "target_identities": [
+                review_target_identity(
+                    snapshot.delivery, "species" if "node_id" in item else "step",
+                    item.get("node_id", item.get("edge_id")),
+                )
+                for item in scoped
+            ],
             "question": request.question,
             "proposal": request.proposal,
             "supporting_refs": [ref.model_dump(mode="json") for ref in request.supporting_refs],

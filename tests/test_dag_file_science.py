@@ -201,3 +201,96 @@ def test_detached_irc_log_fails_with_original_log_repair_before_snapshot(tmp_pat
     with pytest.raises(ValueError, match="original IRC log"):
         snapshot_evidence_file(log, tmp_path)
     assert not list((tmp_path / ".cloudra/evidence").rglob("irc_endpoints.json"))
+
+
+def _species_checks(tmp_path, smiles, filenames):
+    from types import SimpleNamespace
+
+    from cloudra.dag.evidence_ingest import snapshot_evidence_file
+    from cloudra.dag.file_science import file_scientific_checks
+    from cloudra.dag.models import GraphData, GraphRef, SpeciesNode
+    payloads = {}
+    refs = []
+    for i, filename in enumerate(filenames):
+        source = FIXTURES_DIR / filename
+        copied = tmp_path / source.name
+        copied.write_bytes(source.read_bytes())
+        ref = GraphRef(ref_type='file', ref_id=str(i))
+        refs.append(ref)
+        payloads[str(i)] = snapshot_evidence_file(copied, tmp_path).model_dump(mode='json')
+    store = SimpleNamespace(resolve_evidence=lambda ref: payloads[ref.ref_id])
+    graph = GraphData(graph_id='delivery', graph_kind='delivery', revision=0, nodes=[SpeciesNode(node_id='rc', smiles=smiles, refs=refs)])
+    return file_scientific_checks(store, graph, 'rc')
+
+
+def test_fragment_minimum_cannot_certify_whole_species(tmp_path):
+    checks = _species_checks(tmp_path, 'O.O=C=O', ['gaussian/water_opt_freq_g16.out'])
+    assert checks['geometry']['status'] != 'passed'
+    assert checks['geometry']['next_action']
+
+
+def test_same_atom_count_wrong_species_cannot_certify_minimum(tmp_path):
+    checks = _species_checks(tmp_path, 'C#N', ['gaussian/water_opt_freq_g16.out'])
+    assert checks['geometry']['status'] != 'passed'
+
+
+def test_all_component_minima_explicitly_report_component_coverage(tmp_path):
+    checks = _species_checks(tmp_path, 'O.O=C=O',
+        ['gaussian/water_opt_freq_g16.out', 'orca/co2_freq_orca42.out'])
+    assert checks['geometry']['status'] == 'passed'
+    assert 'component' in checks['geometry']['detail'].lower()
+    assert 'complex minimum' in checks['geometry']['detail'].lower()
+
+
+@pytest.mark.asyncio
+async def test_partial_stage_credit_reports_only_remaining_stages(tmp_path):
+    from cloudra.dag.engine import DagEngine
+    from cloudra.dag.models import GraphActor, MutationBatch, UpdateEdge
+    session, db, store = _seed_review_graph(tmp_path, 'partial-stage-credits')
+    result = DagEngine(store).apply_batch(MutationBatch(session_id='s1', actor=GraphActor.HARNESS,
+        actor_id='test', base_revisions=store.load_bundle().revisions, rationale='IRC required',
+        operations=[UpdateEdge(op='update_edge',graph='delivery',edge_id='step1',changes={
+            'stages':[{'kind':'ts_opt'},{'kind':'frequency'},{'kind':'short_irc'}]})]))
+    assert result.accepted
+    await call_dag_tool(DagSubmitStepEvidence, _coordinator(db.conversation_id), session,
+        step_name='step1', ts_file=str(FIXTURES_DIR/'xtb/ts_hess_xtb.out'))
+    await call_dag_tool(DagReviewStep, make_supervisor(db.conversation_id,workspace_dir=str(tmp_path)),
+        session, step_name='step1',verdict='supported',rationale='accept available TS evidence')
+    controller = DagController(db,'s1','dag_guided',conversation_id=db.conversation_id)
+    report = await asyncio.to_thread(controller.delivery_report)
+    gap = next(g for g in report.unresolved if g.code=='missing_stage_evidence' and g.target_id=='step1')
+    assert 'short_irc' in gap.detail
+    assert 'ts_opt' not in gap.detail
+    assert 'frequency' not in gap.detail
+
+
+@pytest.mark.asyncio
+async def test_component_files_submit_as_one_review_without_borrowing_history(tmp_path):
+    from cloudra.dag.engine import DagEngine
+    from cloudra.dag.models import GraphActor, MutationBatch, UpdateNode
+    from cloudra.tools.Plantool.dag_tools.dag_submit_species_evidence import DagSubmitSpeciesEvidence
+    session, db, store = _seed_review_graph(tmp_path, 'component-set-review')
+    assert DagEngine(store).apply_batch(MutationBatch(session_id='s1',actor=GraphActor.HARNESS,
+        actor_id='test',base_revisions=store.load_bundle().revisions,rationale='declare complex',
+        operations=[UpdateNode(op='update_node',graph='delivery',node_id='r',changes={'smiles':'O.O=C=O'})])).accepted
+    agent = _coordinator(db.conversation_id)
+    water = str(FIXTURES_DIR/'gaussian/water_opt_freq_g16.out')
+    co2 = str(FIXTURES_DIR/'orca/co2_freq_orca42.out')
+    whole = await call_dag_tool(DagSubmitSpeciesEvidence,agent,session,species_name='R',opt_file=[water,co2])
+    assert whole.is_success
+    assert whole.result['scientific_checks']['geometry']['status']=='passed'
+    request = store.get_review_request(whole.result['review_id'])
+    assert len(request.supporting_refs)==2
+    # A later incomplete submission must not borrow the old CO2 evidence.
+    later = await call_dag_tool(DagSubmitSpeciesEvidence,agent,session,species_name='R',opt_file=water)
+    assert later.result['scientific_checks']['geometry']['status']!='passed'
+
+
+@pytest.mark.asyncio
+async def test_species_submission_rejects_unrelated_frequency_file(tmp_path):
+    from cloudra.tools.Plantool.dag_tools.dag_submit_species_evidence import DagSubmitSpeciesEvidence
+    session, db, _ = _seed_review_graph(tmp_path,'unrelated-frequency')
+    result = await call_dag_tool(DagSubmitSpeciesEvidence,_coordinator(db.conversation_id),session,
+        species_name='R',opt_file=str(FIXTURES_DIR/'gaussian/water_opt_freq_g16.out'),
+        freq_file=str(FIXTURES_DIR/'orca/co2_freq_orca42.out'))
+    assert not result.is_success

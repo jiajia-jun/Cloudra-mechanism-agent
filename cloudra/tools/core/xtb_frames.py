@@ -223,3 +223,25 @@ def detect_job_types_from_text(text: str) -> set[str]:
     if "opt" not in jobs:
         jobs.add("sp")
     return jobs
+
+
+def final_xyz_from_text(text: str) -> str:
+    """Read xTB's final structure XYZ block, never a neighboring mutable file."""
+    lines = text.splitlines()
+    starts = [i for i, line in enumerate(lines) if line.strip().lower() == 'final structure:']
+    if not starts:
+        return ''
+    index = starts[-1] + 1
+    while index < len(lines) and (not lines[index].strip() or set(lines[index].strip()) == {'='}):
+        index += 1
+    if index >= len(lines):
+        return ''
+    try:
+        count = int(lines[index].strip())
+    except ValueError:
+        return ''
+    if count <= 0 or index + count + 2 > len(lines):
+        return ''
+    xyz = '\n'.join(lines[index:index + count + 2]) + '\n'
+    from cloudra.tools.core.irc_path import parse_xyz
+    return xyz if parse_xyz(xyz) is not None else ''

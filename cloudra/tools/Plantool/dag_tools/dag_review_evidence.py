@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Literal
 
 from pydantic import Field
@@ -71,7 +72,7 @@ class DagReviewEvidence(DagToolBase):
                 accepted=False,
             )
         store = ctx.store
-        request = store.get_review_request(user_input.request_id)
+        request = await asyncio.to_thread(store.get_review_request, user_input.request_id)
         if request is None:
             return fail(
                 "dag_review_evidence",
@@ -105,6 +106,38 @@ class DagReviewEvidence(DagToolBase):
                 GraphRef(**item) if isinstance(item, dict) else item
                 for item in user_input.evidence_refs
             ]
+            next_action = user_input.next_action
+            scientific_checks = None
+            if (
+                request.kind == "evidence"
+                and request.proposal.get("element_type") in {"species", "step"}
+                and len(request.target_ids) == 1
+            ):
+                from cloudra.dag.file_science import file_scientific_checks
+
+                snapshot = await asyncio.to_thread(store.load_snapshot)
+                scientific_checks = await asyncio.to_thread(
+                    file_scientific_checks, store, snapshot.delivery, request.target_ids[0],
+                    irc_files=request.proposal.get("irc_files"),
+                    evidence_refs=request.supporting_refs,
+                    workspace_root=getattr(self.subagent, "working_directory", None),
+                )
+                # A generic verdict addresses the immutable submitted files,
+                # just like directed species/step review. Supplemental decision
+                # refs cannot silently substitute a different submission.
+                evidence_refs = [*request.supporting_refs, *[
+                    ref for ref in evidence_refs if ref not in request.supporting_refs
+                ]]
+                repairs = [check["next_action"] for check in scientific_checks.values()
+                           if check["status"] != "passed" and check.get("next_action")]
+                next_action = " ".join(dict.fromkeys([*repairs, *([next_action] if next_action else [])])) or None
+            if request.kind == "exception" and user_input.verdict == "accept":
+                next_action = (
+                    "Administrative acceptance only: no stage was changed or waived. "
+                    "Inspect the remaining scientific gaps and provide the required evidence "
+                    "or use an explicitly authorized stage disposition."
+                    + (f" Reviewer next action: {next_action}" if next_action else "")
+                )
             decision = ReviewDecision(
                 request_id=request.request_id,
                 basis_fingerprint=request.basis_fingerprint,
@@ -112,12 +145,11 @@ class DagReviewEvidence(DagToolBase):
                 reason=user_input.reason,
                 evidence_refs=evidence_refs,
                 findings=user_input.findings,
-                next_action=user_input.next_action,
+                next_action=next_action,
             )
-            import asyncio
             current_basis = await asyncio.to_thread(store.review_basis, request)
-            resolved = store.resolve_review(
-                decision,
+            resolved = await asyncio.to_thread(
+                store.resolve_review, decision,
                 expected_basis=request.basis_fingerprint,
                 current_basis=current_basis,
             )
@@ -131,6 +163,21 @@ class DagReviewEvidence(DagToolBase):
                 rejection_code=resolved["rejection_code"],
                 error=resolved["rejection_reason"] or "",
                 result=resolved,
+            )
+        resolved["stage_changed"] = False
+        if scientific_checks is not None:
+            resolved.update(scientific_checks=scientific_checks, next_action=decision.next_action)
+        if request.kind == "exception":
+            target_ids = request.target_ids
+            if not target_ids:
+                snapshot = await asyncio.to_thread(store.load_snapshot)
+                target_ids = [*[node.node_id for node in snapshot.delivery.nodes],
+                              *[edge.edge_id for edge in snapshot.delivery.edges]]
+            remaining = await asyncio.to_thread(store.collect_review_exceptions, target_ids)
+            resolved.update(
+                scientific_status="unresolved" if remaining else "not_evaluated",
+                remaining_gaps=remaining,
+                next_action=decision.next_action,
             )
         return DagToolOutput(
             is_success=True,

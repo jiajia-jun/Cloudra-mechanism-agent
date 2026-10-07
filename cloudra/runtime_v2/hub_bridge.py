@@ -28,7 +28,7 @@ from pydantic import ValidationError
 
 from cloudra.infra.tool_errors import validation_feedback
 from cloudra.runtime_v2.commands import CommandBus
-from cloudra.runtime_v2.dispatcher import WakePolicy
+from cloudra.runtime_v2.dispatcher import WakePolicy, should_wake
 from cloudra.runtime_v2.effects import EventDraft
 from cloudra.runtime_v2.event_writer import EventPersistenceError
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
@@ -90,7 +90,7 @@ async def _notify(
     content: str,
     post_id: str | None = None,
     author: AgentSession | None = None,
-) -> None:
+) -> dict[str, str]:
     # 统一不复活纪律（park-don't-wake）：failed/cancelled 终态 agent 不被
     # mention/call 自动 reopen——消息驻留 durable 信箱，用户显式复活后首轮
     # 即可读到。其余状态照常唤醒（策略由 dispatcher 唯一解析）。
@@ -100,7 +100,21 @@ async def _notify(
         try:
             require_delegation_permissions(author.capabilities.permissions, target.capabilities.permissions)
         except CommandRejected:
-            wake = WakePolicy.NEVER
+            from cloudra.runtime_v2.supervision import find_project_supervisor
+
+            # Review feedback from the project's bound Supervisor is control
+            # plane traffic to its Coordinator, not permission delegation.
+            # A role name alone cannot authorize a privileged peer wake.
+            supervisor_feedback = (
+                post_id is not None
+                and author.project_id == project_id == target.project_id
+                and find_project_supervisor(core, project_id) is author
+                and author.parent_session_id == target.id
+                and author.requested_by_session_id is None
+                and target.role_id == "coordinator"
+            )
+            if not supervisor_feedback:
+                wake = WakePolicy.NEVER
     await core.dispatcher.commit_and_deliver(
         to_session_id=target.id,
         project_id=project_id,
@@ -109,6 +123,12 @@ async def _notify(
         post_id=post_id,
         wake=wake,
     )
+    return {
+        "session_id": target.id,
+        "delivery": "delivered" if should_wake(core, target, wake) else "parked",
+        "wake_policy": wake.value,
+        "target_state": target.state.value,
+    }
 
 
 def post_notification_text(core, post: EventEnvelope, target_id: str) -> str:
@@ -225,6 +245,7 @@ async def _post(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
         if retry_post_id else set()
     )
     notices: list[str] = []
+    notifications: list[dict[str, str]] = []
     failed_ids: list[str] = []
     for target_id in envelope.data.get("notification_target_ids", []):
         if target_id in delivered_ids:
@@ -243,7 +264,7 @@ async def _post(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
         else:
             receipt = f"Notified {to_agent or target.role_id}."
         try:
-            await _notify(
+            delivery = await _notify(
                 core, author.project_id, target, sender=author.role_id,
                 content=notification, post_id=envelope.event_id, author=author,
             )
@@ -251,6 +272,9 @@ async def _post(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
             failed_ids.append(target_id)
             continue
         delivered_ids.add(target_id)
+        notifications.append(delivery)
+        if delivery["delivery"] == "parked":
+            receipt += " Delivery parked in the mailbox; recipient was not woken."
         if kind != "broadcast":
             notices.append(receipt)
     message = f"Posted to topic '{topic}' (id={envelope.event_id})."
@@ -258,13 +282,17 @@ async def _post(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
         message += f" Notified {len(delivered_ids)} project sessions."
     elif notices:
         message += " " + " ".join(notices)
+    if kind == "broadcast":
+        parked_count = sum(item["delivery"] == "parked" for item in notifications)
+        if parked_count:
+            message += f" {parked_count} delivery/deliveries parked without waking the recipient."
     if failed_ids:
         return _err(
             message + " Some notifications failed; retry post with this post_id and the same fields.",
             post_id=envelope.event_id, notified_count=len(delivered_ids),
-            failed_session_ids=failed_ids,
+            failed_session_ids=failed_ids, notifications=notifications,
         )
-    return _ok(message, post_id=envelope.event_id, notified_count=len(delivered_ids))
+    return _ok(message, post_id=envelope.event_id, notified_count=len(delivered_ids), notifications=notifications)
 
 
 async def post_user_post(

@@ -537,7 +537,16 @@ async def test_guided_file_verdict_wakes_coordinator_and_enforces_scientific_com
             assert any(gap.code == "scientific_check_incomplete" and gap.target_id == edge.edge_id
                        and gap.detail.startswith("short_irc:")
                        for gap in report.unresolved)
-            assert not any(gate.code == "supervisor_evidence_accepted" for gate in report.satisfied)
+            accepted = next(gate for gate in report.satisfied
+                            if gate.code == "supervisor_evidence_accepted"
+                            and gate.target_id == edge.edge_id)
+            assert "ts_opt" in accepted.detail and "frequency" in accepted.detail
+            assert "short_irc" not in accepted.detail
+            pending = next(gap for gap in report.unresolved
+                           if gap.code == "missing_stage_evidence"
+                           and gap.target_id == edge.edge_id)
+            assert "short_irc" in pending.detail
+            assert "ts_opt" not in pending.detail and "frequency" not in pending.detail
             assert decision.next_action
 
         finish_supervisor.set()
@@ -1404,4 +1413,55 @@ async def test_scope_only_reapproval_clears_stale_completion_debt(tmp_path):
         assert any(event.type == "agent.completion_gate" and event.data.get("explicit_stop")
                    for event in harness.events(agent))
     finally:
+        await harness.aclose()
+
+
+@pytest.mark.asyncio
+async def test_supervisor_feedback_resumes_background_waiting_coordinator(tmp_path):
+    """Permission + mailbox + completion gate: review feedback must start a new run."""
+    from cloudra.runtime_v2.hub_bridge import handle_hub_tool
+    from cloudra.runtime_v2.policies.base import ToolCall
+    from cloudra.runtime_v2.supervision import _spawn_supervisor
+    from tests.agent_scenarios import supervisor_feedback_recovery_steps
+    from tests.test_runtime_v2_compute_notify import _insert_terminal_job
+
+    release = asyncio.Event()
+    provider = ScriptedProvider(by_role={"coordinator": [Step(wait_for=release, stop=True)]})
+    harness = await ScenarioHarness.start(tmp_path, provider=provider)
+    try:
+        coordinator = await harness.spawn("coordinator", protocol="traditional", orchestration_mode="dag_guided")
+        await asyncio.to_thread(
+            _insert_terminal_job, harness.project.id, session_id=coordinator.id, state="running", path="",
+        )
+        release.set()
+        await harness.wait_terminal(coordinator)
+        gates = [e for e in harness.events(coordinator) if e.type == "agent.completion_gate"]
+        assert gates[-1].data["action"] == "wait_background"
+        supervisor = await _spawn_supervisor(harness.core, harness.project.id)
+        assert supervisor is not None
+        provider.script("coordinator", *supervisor_feedback_recovery_steps())
+        result = await handle_hub_tool(harness.core, supervisor, ToolCall(
+            id="review-feedback", name="agent_hub", arguments={
+                "action": "post", "topic": "review", "content": "Revise the pending evidence",
+                "to_agent": coordinator.id,
+            },
+        ))
+        assert result.is_success
+        await harness.wait_for(
+            lambda: harness.types(coordinator).count("run.started") == 2, "feedback recovery run",
+        )
+        await harness.wait_terminal(coordinator)
+        events = harness.events(coordinator)
+        injected = next(e for e in events if e.type == "agent.message_injected"
+                        and e.data.get("post_id") == result.data["post_id"])
+        resumed = [e for e in events if e.type == "run.started"][-1]
+        consumed = next(e for e in events if e.type == "hub.notification_consumed"
+                        and e.data.get("post_id") == result.data["post_id"])
+        assert gates[-1].seq < injected.seq < resumed.seq < consumed.seq
+        assert [e for e in events if e.type == "agent.completion_gate"][-1].data["action"] == "wait_background"
+        assert any(e["tool_name"] == "agent_hub" and e["is_success"] for e in harness.tool_events(coordinator))
+        saved = await asyncio.to_thread(harness.store.events_after, {})
+        assert any(e["event_id"] == injected.event_id for e in saved)
+    finally:
+        release.set()
         await harness.aclose()

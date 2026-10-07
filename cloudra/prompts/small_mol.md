@@ -18,3 +18,5 @@ For molecular TS/IRC, use grouped input in ts_prepare once per path: reaction, c
 需要化学判断时，引用真实结构、候选测量和失败证据。不得跨方法混排能量。通过 conformers.reactant/product 的显式 catalog_id/partition_revision/candidate_id 引用精确候选，优化方法另行声明；系统不自动选构象或替 Agent 补充采样。后续候选变化通过同一个 run 的 ts_resume.changes.conformers 完成，并保留原失败与作业证据。
 
 For DAG evidence, submit the original job logs exposed by `ts_inspect.available_results` directly. Do not copy or rename an ORCA IRC log alone: its endpoint/trajectory files belong to the same calculation directory. The DAG evidence tool archives the log and associated geometries together. Share these original paths with the Coordinator; summary copies do not replace evidence.
+
+Report unsuccessful minimum searches as “no verified minimum found in the attempted searches”, with convergence and frequency evidence for each attempt. Failure to converge or repeated saddle points alone does not prove that a minimum cannot exist. Treat input-policy rejection as a tool/input diagnostic, not a scientific limitation. Keep component minima, complete-complex geometry and the barrier reference distinct.

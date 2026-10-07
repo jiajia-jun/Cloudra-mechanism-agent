@@ -337,7 +337,8 @@ class DagController(SupervisionMixin, StopAuditMixin, EvidenceInboxMixin, Drafts
             if not expected:
                 continue
             checks = file_scientific_checks(self.store, delivery, target,
-                                            irc_files=proposal.get("irc_files"), workspace_root=self.working_directory)
+                                            irc_files=proposal.get("irc_files"), workspace_root=self.working_directory,
+                                            evidence_refs=refs)
             for stage in expected:
                 check = checks[stage]
                 if check["status"] == "passed":
@@ -363,15 +364,17 @@ class DagController(SupervisionMixin, StopAuditMixin, EvidenceInboxMixin, Drafts
                 stage.kind.value for stage in target_stages
                 if stage.required and stage.status.value == "pending"
             }
-            if not required_pending or not required_pending <= credits[gate.target_id]:
-                unresolved.append(gate)
-                continue
+            remaining = required_pending - credits[gate.target_id]
+            if remaining:
+                unresolved.append(gate.model_copy(update={
+                    "detail": "required stages pending: " + ", ".join(sorted(remaining)),
+                }))
             satisfied.append(CoverageGateResult(
                 code="supervisor_evidence_accepted",
                 target_type=gate.target_type,
                 target_id=gate.target_id,
                 detail="Supervisor accepted immutable per-file evidence for stages: "
-                + ", ".join(sorted(required_pending)),
+                + ", ".join(sorted(required_pending & credits[gate.target_id])),
             ))
         return report.model_copy(update={"satisfied": satisfied, "unresolved": [*unresolved, *scientific_gaps]})
 

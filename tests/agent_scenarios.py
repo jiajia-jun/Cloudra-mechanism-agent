@@ -24,6 +24,7 @@
 | 压缩阈值与摘要 | context overflow |
 | 结题门禁 + 编排模式 | dag_guided 证据门与督导裁决、仅修订论证后清除旧拒绝 |
 | 消息投递/恢复语义 | 异步子 Agent 回传、重启 |
+| 督导反馈通知 + 后台等待 | 只读督导反馈唤醒协调员，消费消息后仍保护运行中的计算 |
 | 计算完成通知 + 后台等待 | 高通量仍在运行时消费单个结果，再回到等待状态 |
 | 工具进度持久化 | 阶段记录落盘失败立即终止 Agent，不重试工具副作用 |
 | YOLO 审批结构校验 | 非布尔结论不得写入文件 |
@@ -200,6 +201,11 @@ def compute_result_recovery_steps() -> list[Step]:
         Step(tools=[("todo_write", {"todos": [{"content": "Review completed calculation", "status": "done"}]})]),
         Step(stop=True),
     ]
+
+
+def supervisor_feedback_recovery_steps() -> list[Step]:
+    """协调员收到督导反馈后重新进入一轮，未完成计算仍受结题门禁保护。"""
+    return [Step(tools=[("agent_hub", {"action": "browse"})]), Step(stop=True)]
 
 
 class ScenarioHarness:

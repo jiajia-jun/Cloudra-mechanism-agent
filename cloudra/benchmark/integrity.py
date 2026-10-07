@@ -324,6 +324,10 @@ def _species_file_qualities(
             continue
         q = 0.0
         for fs in f.smiles_found:
+            # A similar fingerprint cannot replace missing molecular components.
+            # Separate component evidence is handled by _component_union_coverage.
+            if len(fs.split(".")) != len(species_smiles.split(".")):
+                continue
             if species_substitution_cost([species_smiles], [fs], cfg) <= match_threshold:
                 q = 1.0
                 break

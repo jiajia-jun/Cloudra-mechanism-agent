@@ -78,7 +78,7 @@ class DagViewEvidence(DagToolBase):
                     from cloudra.dag.file_science import file_scientific_checks
                     snapshot = await asyncio.to_thread(store.load_snapshot)
                     result["scientific_checks"] = await asyncio.to_thread(
-                        file_scientific_checks, store, snapshot.delivery, request.target_ids[0], irc_files=request.proposal.get("irc_files"),
+                        file_scientific_checks, store, snapshot.delivery, request.target_ids[0], irc_files=request.proposal.get("irc_files"), evidence_refs=request.supporting_refs,
                         workspace_root=getattr(self.subagent, "working_directory", None))
                 return DagToolOutput(is_success=True, action="dag_view_evidence", result=result)
             ref = await asyncio.to_thread(

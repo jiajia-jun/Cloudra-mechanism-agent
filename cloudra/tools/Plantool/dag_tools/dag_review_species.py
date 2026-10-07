@@ -99,7 +99,7 @@ class DagReviewSpecies(DagToolBase):
                 return fail("dag_review_species", "the reviewed species changed after submission", accepted=False)
             from cloudra.dag.file_science import file_scientific_checks
             scientific_checks = await asyncio.to_thread(
-                file_scientific_checks, ctx.store, snapshot.delivery, species.node_id)
+                file_scientific_checks, ctx.store, snapshot.delivery, species.node_id, evidence_refs=request.supporting_refs)
             pending = {stage.kind.value for stage in species.stages if stage.required and stage.status.value == "pending"}
             repairs = [check["next_action"] for stage, check in scientific_checks.items()
                        if stage in pending and check["status"] != "passed"]
@@ -111,10 +111,12 @@ class DagReviewSpecies(DagToolBase):
                 evidence_refs=request.supporting_refs,
                 next_action=" ".join(dict.fromkeys(repairs)) or None,
             )
+            current_basis = await asyncio.to_thread(ctx.store.review_basis, request)
             reviewed = await asyncio.to_thread(
                 ctx.store.resolve_review,
                 decision,
                 expected_basis=request.basis_fingerprint,
+                current_basis=current_basis,
             )
         except Exception as exc:
             return fail("dag_review_species", str(exc), accepted=False)

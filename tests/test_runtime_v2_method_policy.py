@@ -382,6 +382,25 @@ def test_orca_control_modifiers_not_method_candidates():
     assert check_input_content(content, policy, filename="t.inp").allowed is True
 
 
+@pytest.mark.parametrize("grid", ["DefGrid1", "DefGrid2", "DefGrid3"])
+def test_orca_defgrid_control_keeps_only_the_electronic_method(grid):
+    from cloudra.runtime_v2.method_policy import _extract_orca_methods
+
+    content = f"! B3LYP def2-SVP RIJCOSX def2/J D3BJ TightOpt {grid} Freq\n"
+    assert _extract_orca_methods(content) == ["b3lyp/def2svp"]
+    policy = MethodPolicy(allowed_methods=["b3lyp/def2svp"])
+    assert check_input_content(content, policy, filename="t.inp").allowed
+
+
+@pytest.mark.parametrize("extra", ["PBE0", "DefGridUnknown", "DefGrid3PBE0"])
+def test_orca_defgrid_does_not_hide_unknown_methods(extra):
+    content = f"! B3LYP def2-SVP DefGrid3 {extra}\n"
+    policy = MethodPolicy(allowed_methods=["b3lyp/def2svp"])
+    verdict = check_input_content(content, policy, filename="t.inp")
+    assert not verdict.allowed
+    assert f"{extra.lower()}/def2svp" in verdict.matched_forbidden
+
+
 def test_orca_grid_modifier_out_of_whitelist_basis_still_blocked():
     """Grid5 不算方法候选，但 def2-tzvp 超白名单（只许 def2svp）仍 fail-closed。"""
     from cloudra.runtime_v2.method_policy import _extract_orca_methods, check_input_content

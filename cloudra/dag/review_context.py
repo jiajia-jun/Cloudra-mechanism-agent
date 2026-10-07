@@ -81,6 +81,20 @@ class ReviewContextManager:
         if db is None:
             return False
         try:
+            from cloudra.dag.review_requests import ReviewRequest
+            from cloudra.dag.store import DagStore
+
+            request = ReviewRequest(
+                request_id=review.review_id,
+                kind="evidence" if review.kind in ("step", "species") else "draft",
+                requester=review.requester,
+                target_ids=[review.target_id],
+                question=f"Review {review.kind} '{review.target_name}'",
+                supporting_refs=review.supporting_refs,
+                proposal={**review.details, "element_type": review.kind},
+                basis_fingerprint="sha256:pending",
+            )
+            review = review.model_copy(update={"basis_fingerprint": DagStore(db).review_basis(request)})
             now = datetime.now(timezone.utc).isoformat()
             with db.connect() as con:
                 if review.kind in ("step", "species"):
@@ -103,12 +117,12 @@ class ReviewContextManager:
                     """,
                     (
                         review.review_id,
-                        "evidence" if review.kind in ("step", "species") else "draft",
-                        review.requester,
-                        json.dumps([review.target_id]),
-                        f"Review {review.kind} '{review.target_name}'",
-                        json.dumps({**review.details, "element_type": review.kind}),
-                        review.basis_fingerprint or "default",
+                        request.kind,
+                        request.requester,
+                        json.dumps(request.target_ids),
+                        request.question,
+                        json.dumps(request.proposal),
+                        review.basis_fingerprint,
                         review.created_at or now,
                         now,
                     ),

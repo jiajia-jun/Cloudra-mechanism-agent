@@ -8,9 +8,10 @@ graph element** (species node / TS-bearing edge), not the sandbox directory:
   explicitly declares them meaningless via ``accessible=false`` — for edges the
   effective accessibility applies (an edge routed via an inaccessible TS node
   counts as declared inaccessible; ``GoldMechanismGraph.edge_effectively_accessible``).
-- For each element, **any single usable piece of its bound evidence** covers
-  its required checks (existential, not universal): one verified minimum
-  covers a species; one first-order saddle plus one direction-proven IRC
+- For each element, usable bound evidence must cover its required checks:
+  one verified minimum covers a species; a separately evidenced complex
+  needs a verified minimum for every component under Layer 1 binding rules.
+  One first-order saddle plus one direction-proven IRC
   covers a TS edge. Trial-and-error leftovers in the sandbox are never
   judged — unbound files do not exist for this layer — and a superseded
   failed attempt that *is* bound cannot veto a good log bound alongside it.
@@ -18,7 +19,8 @@ graph element** (species node / TS-bearing edge), not the sandbox directory:
 Required evidence per element:
 
 - species node (reactant/product/intermediate): one bound QM log whose
-  frequency block shows zero imaginary frequencies (a verified minimum);
+  frequency block shows zero imaginary frequencies (a verified minimum),
+  or verified minimum logs jointly covering every component of a complex;
 - edge via a TS node (candidate pool = bound files of the TS node and both
   endpoints): one bound log with exactly one imaginary frequency
   (``ts_first_order_saddle``) and one bound IRC log passing the strict
@@ -33,9 +35,10 @@ Required evidence per element:
 - TS node: rides on its edges — covered when at least one accessible edge
   through it is covered, otherwise it must itself be declared inaccessible.
 
-Species identity (SMILES consistency) is Layer 1's evidence-binding job and
-is not re-checked here. Only ORCA/Gaussian logs at or below MAX_SCAN_BYTES
-are parsed (aligned with Layer 1, which never read them either).
+Species identity (SMILES consistency) follows Layer 1's evidence-binding
+rules, reapplied to eligible minimum logs for complexes. Only ORCA/Gaussian
+logs at or below MAX_SCAN_BYTES are parsed (aligned with Layer 1, which never
+read them either).
 """
 
 from __future__ import annotations
@@ -44,9 +47,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from cloudra.benchmark.integrity import MAX_SCAN_BYTES, EvidenceFile, NodeBinding
+from cloudra.benchmark.graph_similarity import GedConfig
+from cloudra.benchmark.integrity import (
+    MAX_SCAN_BYTES,
+    EvidenceFile,
+    NodeBinding,
+    bind_graph_to_evidence,
+)
 from cloudra.benchmark.schema import (
     GoldMechanismGraph,
+    IntegrityRubric,
     NodeRole,
     SelfConsistencyRubric,
 )
@@ -212,8 +222,12 @@ def audit_self_consistency(
     sandbox: Path,
     rubric: Optional[SelfConsistencyRubric] = None,
     charge: int = 0,
+    *,
+    integrity_rubric: Optional[IntegrityRubric] = None,
+    ged_config: Optional[GedConfig] = None,
 ) -> SelfConsistencyReport:
     rubric = rubric or SelfConsistencyRubric()
+    integrity_rubric = integrity_rubric or IntegrityRubric()
     report = SelfConsistencyReport()
     if not (rubric.ts_first_order_saddle or rubric.irc_connects_endpoints):
         report.passed = True
@@ -223,12 +237,13 @@ def audit_self_consistency(
         report.notes.append("no delivered graph; self-consistency not assessable")
         return report
 
-    probe = _LogProbe(sandbox, {f.path: f for f in evidence_files})
+    files_by_path = {f.path: f for f in evidence_files}
+    probe = _LogProbe(sandbox, files_by_path)
     bmap = {b.node_id: b for b in bindings}
     species_covered: dict[str, bool] = {}
     edge_checks: dict[str, ElementCheck] = {}
 
-    # 物种节点：任一绑定日志验证为极小值（频率块零虚频）即覆盖
+    # 物种节点：极小值证据须覆盖整络合物或每个分开交付的组分。
     for node in graph.nodes:
         if node.role == NodeRole.TRANSITION_STATE:
             continue
@@ -244,12 +259,27 @@ def audit_self_consistency(
             if not chk.bound:
                 chk.notes.append("no evidence bound to this node")
             else:
-                for p in b.bound_files:
-                    if probe.n_imag(p) == 0:
+                if any("." in species for species in node.smiles):
+                    minimum_files = [files_by_path[p] for p in b.bound_files if probe.n_imag(p) == 0]
+                    minimum_binding = bind_graph_to_evidence(
+                        GoldMechanismGraph(nodes=[node], edges=[]), minimum_files,
+                        ged_config,
+                        match_threshold=integrity_rubric.match_threshold,
+                        partial_quality=integrity_rubric.protonation_partial_quality,
+                    )[0]
+                    chk.covered = minimum_binding.matched
+                    if chk.covered:
+                        chk.evidence_used.extend(minimum_binding.bound_files)
+                    else:
+                        chk.notes.append("verified minima do not cover the whole complex or every component")
+                else:
+                    for p in b.bound_files:
+                        if probe.n_imag(p) != 0:
+                            continue
                         chk.covered = True
                         chk.evidence_used.append(p)
                         break
-                if not chk.covered:
+                if not chk.covered and not chk.notes:
                     chk.notes.append(
                         "no verified minimum (frequency block with zero "
                         "imaginary frequencies) among bound evidence"

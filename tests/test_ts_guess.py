@@ -1633,7 +1633,7 @@ async def test_verify_orca_engine_dispatches_native_irc_endpoints(tmp_path, mock
 
     log = _orca_irc_log_with_sidecars(tmp_path, backward_converged=True)
     freq_log = tmp_path / "ts_freq.out"
-    freq_log.write_text("placeholder (freq parsing stubbed)\n", encoding="utf-8")
+    freq_log.write_text("O   R   C   A\nplaceholder (freq parsing stubbed)\n", encoding="utf-8")
     monkeypatch.setattr(ts_mod, "_parse_freq_log", lambda path, engine: {
         "vibfreqs": [-512.3, 100.0, 200.0],
         "vibdisps": None,
@@ -2536,6 +2536,63 @@ CARTESIAN COORDINATES (ANGSTROEM)
   N      0.000000    0.000000    2.000000
   H      0.000000    0.000000    1.000000
 """
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("engine_args", [{}, {"engine": "orca"}])
+async def test_verify_detects_orca_when_cclib_fails(tmp_path, mock_session, monkeypatch, engine_args):
+    def cclib_crash(*_args, **_kwargs):
+        raise IndexError("ORCA 6.1 parser failure")
+
+    monkeypatch.setattr("cclib.io.ccread", cclib_crash)
+    freq_log = tmp_path / "frequency.log"
+    freq_log.write_text("O   R   C   A\n" + _ORCA_FREQ_LOG + "\nORCA TERMINATED NORMALLY\n")
+    irc_log = _orca_irc_log_with_sidecars(tmp_path, backward_converged=True)
+    result = await _make_tool().safe_call(TsGuess_input_schema(
+        mode="verify", freq_log=str(freq_log), irc_log=str(irc_log),
+        watch_pairs=[[0, 2]], **engine_args,
+    ), mock_session)
+
+    assert result.is_success, result.message
+    assert result.n_imag == 1
+    assert result.imag_freqs == pytest.approx([-915.34])
+    assert result.imag_mode_aligned is True
+    assert Path(result.irc_end_a_path).is_file()
+    assert Path(result.irc_end_b_path).is_file()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("text,engine", [
+    ("O   R   C   A\n" + _ORCA_FREQ_LOG, "gaussian"),
+    (_TS_FREQ_SNIPPET, "orca"),
+    (_TS_FREQ_SNIPPET, "xtb"),
+], ids=["orca-as-gaussian", "gaussian-as-orca", "gaussian-as-xtb"])
+async def test_verify_rejects_explicit_engine_mismatch(tmp_path, mock_session, text, engine):
+    freq_log = tmp_path / "frequency.log"
+    freq_log.write_text(text)
+    result = await _make_tool().safe_call(TsGuess_input_schema(
+        mode="verify", freq_log=str(freq_log), engine=engine,
+    ), mock_session)
+    assert not result.is_success
+    assert "engine" in result.message.lower()
+    assert "mismatch" in result.message.lower()
+    assert result.n_imag is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("text", [
+    "Frequencies -- -100.0 200.0 300.0\nNormal termination\n",
+    "O   R   C   A\nVIBRATIONAL FREQUENCIES\ncorrupt block\n",
+    "xtb version 6.7.1\n",
+], ids=["unknown", "corrupt-orca", "unsupported-xtb"])
+async def test_verify_rejects_unknown_unsupported_or_corrupt_log(tmp_path, mock_session, text):
+    freq_log = tmp_path / "frequency.log"
+    freq_log.write_text(text)
+    result = await _make_tool().safe_call(TsGuess_input_schema(
+        mode="verify", freq_log=str(freq_log),
+    ), mock_session)
+    assert not result.is_success
+    assert result.n_imag is None
 
 
 def test_orca_vibdisps_from_text_parses_normal_modes_block():

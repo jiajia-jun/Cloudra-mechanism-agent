@@ -976,3 +976,108 @@ async def test_call_unknown_role_fuzzy_suggestion():
     assert "Did you mean 'small_mol'?" in result.summary
     assert "Available roles:" in result.summary
     await core.runner.cancel_all()
+
+
+@pytest.mark.asyncio
+async def test_project_supervisor_feedback_wakes_its_coordinator():
+    from cloudra.runtime_v2.supervision import _spawn_supervisor
+
+    core, project, coordinator = await _setup()
+    await _wait_state(coordinator, "succeeded")
+    supervisor = await _spawn_supervisor(core, project.id)
+    assert supervisor is not None
+    before = len(core.event_log.query_session(coordinator.id, types={"run.started"}))
+    posted = await handle_hub_tool(core, supervisor, _hub({
+        "action": "post", "topic": "review", "content": "Review needs revision",
+        "to_agent": coordinator.id,
+    }))
+    await _wait_state(coordinator, "succeeded")
+    assert len(core.event_log.query_session(coordinator.id, types={"run.started"})) == before + 1
+    assert posted.data["notifications"][0]["wake_policy"] == "park_terminal"
+    await core.runner.cancel_all()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("author_kind", ["ordinary", "unbound_supervisor"])
+async def test_low_permission_posts_are_truthfully_parked(author_kind):
+    from cloudra.runtime_v2.schemas import PermissionSet
+
+    core, project, coordinator = await _setup()
+    await _wait_state(coordinator, "succeeded")
+    author = (await CommandBus(core).execute(Command(
+        type="agent.spawn", target={"project_id": project.id},
+        payload={"role_id": "supervisor" if author_kind == "unbound_supervisor" else "explorer"},
+        actor="system",
+    ))).data
+    author.capabilities.permissions = PermissionSet(read=True)
+    before = len(core.event_log.query_session(coordinator.id, types={"run.started"}))
+    posted = await handle_hub_tool(core, author, _hub({
+        "action": "post", "topic": "review", "content": "Run privileged work",
+        "to_agent": coordinator.id,
+    }))
+    assert coordinator.state.value == "succeeded"
+    assert len(core.event_log.query_session(coordinator.id, types={"run.started"})) == before
+    assert posted.data["notifications"][0]["delivery"] == "parked"
+    assert posted.data["notifications"][0]["wake_policy"] == "never"
+    assert core.mailbox.inbox(coordinator.id).qsize() == 1
+    await core.runner.cancel_all()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("terminal", ["failed", "cancelled"])
+async def test_supervisor_feedback_never_revives_terminal_coordinator(terminal):
+    from cloudra.runtime_v2.supervision import _spawn_supervisor
+
+    core, project, coordinator = await _setup()
+    await _wait_state(coordinator, "succeeded")
+    supervisor = await _spawn_supervisor(core, project.id)
+    await core.agent_host.start_run(coordinator)
+    if terminal == "failed":
+        await core.agent_host.finish_run(
+            coordinator, outcome="failed", error="failed before review",
+            failure_kind=RunFailureKind.PROVIDER_PERMANENT,
+        )
+    else:
+        await CommandBus(core).execute(Command(type="agent.cancel", target={"session_id": coordinator.id}))
+    before = len(core.event_log.query_session(coordinator.id, types={"run.started"}))
+    result = await handle_hub_tool(core, supervisor, _hub({
+        "action": "post", "topic": "review", "content": "Review needs revision", "to_agent": coordinator.id,
+    }))
+    assert coordinator.state.value == terminal
+    assert len(core.event_log.query_session(coordinator.id, types={"run.started"})) == before
+    assert result.data["notifications"][0]["delivery"] == "parked"
+    assert result.data["notifications"][0]["target_state"] == terminal
+    await core.runner.cancel_all()
+
+
+@pytest.mark.asyncio
+async def test_supervisor_feedback_does_not_authorize_calls_or_other_recipients():
+    from cloudra.runtime_v2.supervision import _spawn_supervisor
+
+    core, project, coordinator = await _setup()
+    await _wait_state(coordinator, "succeeded")
+    supervisor = await _spawn_supervisor(core, project.id)
+    call = await handle_hub_tool(core, supervisor, _hub({
+        "action": "call", "to": coordinator.id, "message": "Run privileged work",
+    }))
+    assert call.is_success is False
+    assert not any(e.data.get("sender") == "supervisor" for e in core.event_log.query_session(
+        coordinator.id, types={"agent.message_injected"},
+    ))
+    peer = await _spawn(core, coordinator, "small_mol")
+    posted = await handle_hub_tool(core, supervisor, _hub({
+        "action": "post", "topic": "review", "content": "Run privileged work", "to_agent": peer.id,
+    }))
+    assert posted.data["notifications"][0]["delivery"] == "parked"
+    assert posted.data["notifications"][0]["wake_policy"] == "never"
+    other_core, other_project, other = await _setup()
+    await _wait_state(other, "succeeded")
+    core.projects[other_project.id] = other_project
+    core.agents[other.id] = other
+    cross = await handle_hub_tool(core, supervisor, _hub({
+        "action": "post", "topic": "review", "content": "Run privileged work", "to_agent": other.id,
+    }))
+    assert cross.is_success is False
+    assert core.event_log.query_session(other.id, types={"agent.message_injected"}) == []
+    await core.runner.cancel_all()
+    await other_core.runner.cancel_all()

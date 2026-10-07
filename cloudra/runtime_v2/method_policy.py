@@ -77,6 +77,7 @@ _ORCA_JOB_TOKENS = {
     "looseopt", "normalopt", "tightopt", "verytightopt",
     # 积分网格
     "grid", "grid0", "grid1", "grid2", "grid3", "grid4", "grid5", "grid6", "grid7",
+    "defgrid1", "defgrid2", "defgrid3",
     "finalgrid", "finalgrid1", "finalgrid2", "finalgrid3", "finalgrid4", "finalgrid5",
     "finalgrid6", "finalgrid7", "nofinalgrid", "gridx", "nogridx",
     # 轨道读取与输出级别

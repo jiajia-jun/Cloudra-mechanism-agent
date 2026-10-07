@@ -1348,6 +1348,30 @@ def test_complex_unbound_when_only_one_component_evidenced(tmp_path):
     b = rep.node_bindings[0]
     assert not b.matched and b.quality == 0.0
 
+
+@pytest.mark.parametrize("annotations,matched,quality,paths", [
+    (["CN"], False, 0.0, []),
+    (["O", "CN"], True, 0.7, ["0.log", "1.log"]),
+    (["O.CN"], True, 1.0, ["0.log"]),
+])
+def test_complex_binding_requires_all_fragments_before_fingerprint_matching(
+    annotations, matched, quality, paths,
+):
+    pytest.importorskip("rdkit")
+    from cloudra.benchmark.integrity import bind_graph_to_evidence
+
+    graph = GoldMechanismGraph(nodes=[
+        MechanismNode(id="RC", role=NodeRole.REACTANT, smiles=["[OH3+].CN"]),
+    ], edges=[])
+    files = [EvidenceFile(path=f"{i}.log", smiles_found=[smiles])
+             for i, smiles in enumerate(annotations)]
+
+    binding = bind_graph_to_evidence(graph, files)[0]
+
+    assert binding.matched is matched
+    assert binding.quality == pytest.approx(quality)
+    assert binding.bound_files == paths
+
 # --- self-consistency ---
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -2759,6 +2783,100 @@ def _patch_sc_probe(monkeypatch, freq_by_name):
         sc_mod, "_imag_freqs", lambda freqs: [f for f in freqs if f < 0]
     )
     monkeypatch.setattr(sc_mod, "_last_geometry", lambda path, frames: None)
+
+
+@pytest.mark.parametrize("logs,want_covered,want_used", [
+    ([("a", "C=O", [100.0]), ("b", "CN", [])], False, []),
+    ([("a", "C=O", [100.0]), ("b", "CN", [-300.0, 100.0])], False, []),
+    ([("a", "C=O", [100.0]), ("b", "CN", [200.0])], True, ["a.log", "b.log"]),
+    ([("whole", "C=O.CN", [100.0])], True, ["whole.log"]),
+    ([("a", "C=O", [100.0]), ("b_old", "CN", [-300.0]),
+      ("b", "CN", [200.0])], True, ["a.log", "b.log"]),
+], ids=["missing-frequency", "saddle-component", "all-components", "whole-complex", "superseded-attempt"])
+def test_selfconsistency_complex_requires_verified_component_coverage(
+    tmp_path, monkeypatch, logs, want_covered, want_used,
+):
+    from cloudra.benchmark.integrity import bind_graph_to_evidence
+
+    graph = GoldMechanismGraph(nodes=[
+        MechanismNode(id="RC", role=NodeRole.REACTANT, smiles=["C=O.CN"]),
+    ], edges=[])
+    files = [EvidenceFile(path=f"{name}.log", kind="gaussian", smiles_found=[smiles])
+             for name, smiles, freqs in logs]
+    bindings = bind_graph_to_evidence(graph, files)
+    assert bindings[0].matched
+    _patch_sc_probe(monkeypatch, {f"{name}.log": freqs for name, smiles, freqs in logs})
+
+    report = audit_self_consistency(graph, bindings, files, tmp_path)
+
+    assert report.passed is want_covered
+    assert report.checks[0].covered is want_covered
+    assert report.checks[0].evidence_used == want_used
+
+
+def test_selfconsistency_complex_keeps_protonation_variant_coverage(tmp_path, monkeypatch):
+    pytest.importorskip("rdkit")
+    from cloudra.benchmark.integrity import bind_graph_to_evidence
+
+    graph = GoldMechanismGraph(nodes=[
+        MechanismNode(id="RC", role=NodeRole.REACTANT, smiles=["C=O.C[NH3+]"]),
+    ], edges=[])
+    files = [EvidenceFile(path="a.log", kind="gaussian", smiles_found=["C=O"]),
+             EvidenceFile(path="b.log", kind="gaussian", smiles_found=["CN"])]
+    bindings = bind_graph_to_evidence(graph, files)
+    assert bindings[0].matched and 0 < bindings[0].quality < 1
+    _patch_sc_probe(monkeypatch, {"a.log": [100.0], "b.log": [200.0]})
+
+    report = audit_self_consistency(graph, bindings, files, tmp_path)
+
+    assert report.passed
+    assert report.checks[0].evidence_used == ["a.log", "b.log"]
+
+
+@pytest.mark.parametrize("water_frequencies,want", [([], False), ([100.0], True)])
+def test_complex_minimum_cannot_hide_an_unverified_fragment_in_the_whole_match(
+    tmp_path, monkeypatch, water_frequencies, want,
+):
+    pytest.importorskip("rdkit")
+    from cloudra.benchmark.integrity import bind_graph_to_evidence
+
+    graph = GoldMechanismGraph(nodes=[
+        MechanismNode(id="RC", role=NodeRole.REACTANT, smiles=["[OH3+].CN"]),
+    ], edges=[])
+    files = [EvidenceFile(path="water.log", kind="gaussian", smiles_found=["O"]),
+             EvidenceFile(path="amine.log", kind="gaussian", smiles_found=["CN"])]
+    bindings = bind_graph_to_evidence(graph, files)
+    _patch_sc_probe(monkeypatch, {"water.log": water_frequencies, "amine.log": [200.0]})
+
+    report = audit_self_consistency(graph, bindings, files, tmp_path)
+
+    assert report.passed is want
+    assert report.checks[0].evidence_used == (["amine.log", "water.log"] if want else [])
+
+
+@pytest.mark.parametrize("custom_setting", ["match_threshold", "ged_config"])
+def test_runner_complex_minimum_coverage_preserves_matching_settings(tmp_path, monkeypatch, custom_setting):
+    pytest.importorskip("rdkit")
+    from cloudra.benchmark.runner import BenchmarkRunner
+
+    graph = GoldMechanismGraph(nodes=[
+        MechanismNode(id="RC", role=NodeRole.REACTANT, smiles=["C=O.CN"]),
+    ], edges=[])
+    task = _sc_task(graph)
+    config = GedConfig()
+    if custom_setting == "match_threshold":
+        task.rubric.integrity.match_threshold = 1.0
+    else:
+        config.sigmoid_center = -2.0
+    (tmp_path / "mechanism_graph.json").write_text(graph.model_dump_json(by_alias=True))
+    (tmp_path / "minimum.log").write_text("Gaussian log\n# smiles: CC\n")
+    _patch_sc_probe(monkeypatch, {"minimum.log": [100.0]})
+    integrity = audit_integrity(tmp_path, task.rubric.integrity, config)
+    assert integrity.node_bindings[0].matched
+
+    result = BenchmarkRunner(tmp_path / "data", ged_config=config).score_sandbox(task, tmp_path)
+
+    assert result.selfconsistency_passed, result.notes
 
 
 def _extra_edge_delivery(tmp_path):
