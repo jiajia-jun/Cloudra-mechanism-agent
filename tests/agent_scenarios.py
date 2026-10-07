@@ -24,6 +24,7 @@
 | 压缩阈值与摘要 | context overflow |
 | 结题门禁 + 编排模式 | dag_guided 证据门与督导裁决、仅修订论证后清除旧拒绝 |
 | 消息投递/恢复语义 | 异步子 Agent 回传、重启 |
+| 计算完成通知 + 后台等待 | 高通量仍在运行时消费单个结果，再回到等待状态 |
 | 工具进度持久化 | 阶段记录落盘失败立即终止 Agent，不重试工具副作用 |
 | YOLO 审批结构校验 | 非布尔结论不得写入文件 |
 | TS 故障检查点 + 干预预算 | 重复相同 scan 续接保留原故障、不耗尽预算 |
@@ -189,6 +190,14 @@ def malformed_shell_steps() -> list[Step]:
     return [
         Step(tools=[("bash", {"command": 'echo "unfinished'})]),
         Step(tools=[("todo_write", {"todos": [{"content": "Recovered after invalid input", "status": "done"}]})]),
+        Step(stop=True),
+    ]
+
+
+def compute_result_recovery_steps() -> list[Step]:
+    """已完成计算唤醒后处理结果，其他作业继续运行时再次挂起。"""
+    return [
+        Step(tools=[("todo_write", {"todos": [{"content": "Review completed calculation", "status": "done"}]})]),
         Step(stop=True),
     ]
 

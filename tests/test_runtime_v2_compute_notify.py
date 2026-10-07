@@ -401,8 +401,9 @@ async def test_subagent_compute_job_does_not_notify_or_wake_coordinator():
 
 
 @pytest.mark.asyncio
-async def test_subagent_waits_for_all_owned_jobs_before_one_wake():
-    """Several terminal notices accumulate while one sibling job is active."""
+@pytest.mark.parametrize("state", ["done", "failed", "cancelled"])
+async def test_subagent_receives_results_while_other_owned_jobs_run(state):
+    """A long-running batch must not delay processing completed jobs or repairs."""
     core, project, coordinator = await _setup_core()
     child = (
         await CommandBus(core).execute(
@@ -416,7 +417,7 @@ async def test_subagent_waits_for_all_owned_jobs_before_one_wake():
     await core.agent_host.start_run(child)
     await core.agent_host.finish_run(child, outcome="succeeded")
     finished = [
-        _insert_terminal_job(project.id, session_id=child.id, path=f"/tmp/done-{i}.gjf")
+        _insert_terminal_job(project.id, session_id=child.id, state=state, path=f"/tmp/done-{i}.gjf")
         for i in range(2)
     ]
     pending = _insert_terminal_job(project.id, session_id=child.id, path="/tmp/pending.gjf")
@@ -434,17 +435,20 @@ async def test_subagent_waits_for_all_owned_jobs_before_one_wake():
 
     await broker._poll_project(project.id)
 
-    assert child.state.value == "succeeded"
-    assert wakes == []
+    assert child.state.value == "running"
+    assert wakes == [child.id]
     assert all(_notified_at(job_id) is not None for job_id in finished)
     assert len(core.event_log.query_session(child.id, types={"agent.message_injected"})) == 2
+
+    _inbox_texts(core, child.id)
+    await core.agent_host.finish_run(child, outcome="succeeded")
 
     with ComputeDB().connect() as con:
         con.execute("UPDATE compute_jobs SET state='done' WHERE id=?", (pending,))
         con.commit()
     await broker._poll_project(project.id)
 
-    assert wakes == [child.id]
+    assert wakes == [child.id, child.id]
     assert child.state.value == "running"
     assert _notified_at(pending) is not None
     assert len(core.event_log.query_session(child.id, types={"agent.message_injected"})) == 3
@@ -485,8 +489,8 @@ async def test_same_poll_batch_wakes_subagent_once():
 
 
 @pytest.mark.asyncio
-async def test_subagent_wakes_only_after_terminal_backlog_exceeds_poll_batch():
-    """A 50-row SELECT must not treat its last row as the final pending job."""
+async def test_subagent_processes_results_before_terminal_backlog_is_drained():
+    """A poll limit must not postpone already delivered results behind the backlog."""
     core, project, coordinator = await _setup_core()
     child = (
         await CommandBus(core).execute(
@@ -514,8 +518,8 @@ async def test_subagent_wakes_only_after_terminal_backlog_exceeds_poll_batch():
 
     await broker._poll_project(project.id)
 
-    assert wakes == []
-    assert child.state.value == "succeeded"
+    assert wakes == [child.id]
+    assert child.state.value == "running"
     assert all(_notified_at(job_id) is not None for job_id in job_ids[:50])
     assert _notified_at(job_ids[-1]) is None
 
@@ -527,7 +531,7 @@ async def test_subagent_wakes_only_after_terminal_backlog_exceeds_poll_batch():
 
 
 @pytest.mark.asyncio
-async def test_snapshot_recovery_does_not_wake_before_other_terminal_notice(monkeypatch):
+async def test_snapshot_recovery_wakes_despite_other_pending_jobs(monkeypatch):
     core, project, coordinator = await _setup_core()
     child = (
         await CommandBus(core).execute(
@@ -538,6 +542,8 @@ async def test_snapshot_recovery_does_not_wake_before_other_terminal_notice(monk
             )
         )
     ).data
+    await core.agent_host.start_run(child)
+    await core.agent_host.finish_run(child, outcome="succeeded")
     recovered_job = _insert_terminal_job(project.id, session_id=child.id, path="")
     other_job = _insert_terminal_job(project.id, session_id=child.id, path="")
     from cloudra.services.compute_store import mark_notified
@@ -550,18 +556,12 @@ async def test_snapshot_recovery_does_not_wake_before_other_terminal_notice(monk
     async def recovered(*_args):
         return "snapshot ready", True
 
-    sent = []
-
-    async def record_send(session_id, content, *, wake=True):
-        sent.append((session_id, content, wake))
-
     monkeypatch.setattr(broker, "_snapshot_core_evidence", recovered)
-    monkeypatch.setattr(broker, "_send_message", record_send)
     await broker._retry_snapshots()
 
-    assert len(sent) == 1
-    assert sent[0][0] == child.id
-    assert sent[0][2] is False
+    assert child.state.value == "running"
+    assert len(_inbox_texts(core, child.id)) == 1
+    assert _notified_at(other_job) is None
 
 
 @pytest.mark.asyncio
@@ -596,7 +596,7 @@ async def test_project_scan_and_periodic_scan_deliver_each_job_once(monkeypatch)
 
 
 @pytest.mark.asyncio
-async def test_waitable_job_lookup_failure_retries_without_losing_wake(monkeypatch):
+async def test_pipeline_advancement_failure_retries_without_losing_notice(monkeypatch):
     core, project, coordinator = await _setup_core()
     child = (
         await CommandBus(core).execute(
@@ -610,12 +610,12 @@ async def test_waitable_job_lookup_failure_retries_without_losing_wake(monkeypat
     job_id = _insert_terminal_job(project.id, session_id=child.id)
     broker = ComputeNotifyBroker(core, poll_interval=0.05)
 
-    async def unavailable(*_args):
+    def unavailable(*_args):
         raise RuntimeError("compute.db temporarily unavailable")
 
     with monkeypatch.context() as patcher:
         patcher.setattr(
-            "cloudra.runtime_v2.compute_notify.acount_waitable_compute_jobs_for_session",
+            "cloudra.tools.core.ts_pipeline_driver.handle_process_job_terminal",
             unavailable,
         )
         await broker._poll_project(project.id)
@@ -866,24 +866,36 @@ async def test_system_compute_notify_does_not_wake_cancelled_subagent():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("recover_acknowledged",[False,True])
-async def test_pipeline_intermediate_job_advances_without_agent_message(tmp_path, monkeypatch, recover_acknowledged):
+@pytest.mark.parametrize("recover_acknowledged", [False, True])
+@pytest.mark.parametrize("ordinary_result", [False, True])
+async def test_pipeline_intermediate_job_advances_without_agent_message(tmp_path, monkeypatch, recover_acknowledged, ordinary_result):
     from cloudra.services.compute_admission import AdmissionOutcome
     from cloudra.services.ts_pipeline_store import bind_stage_job, create_process, save_process_record
     from cloudra.tools.core.ts_process import TsJobStep, TsProcessRecord
     core, project, coordinator = await _setup_core()
+    child = (await CommandBus(core).execute(Command(
+        type="agent.spawn", target={"project_id": project.id},
+        payload={"role_id": "small_mol", "parent_session_id": coordinator.id},
+    ))).data
+    await core.agent_host.start_run(child)
+    await core.agent_host.finish_run(child, outcome="succeeded")
+    if ordinary_result:
+        # This notice precedes a TS intermediate result suppressed by the driver.
+        ordinary_job = await asyncio.to_thread(
+            _insert_terminal_job, project.id, session_id=child.id, path="",
+        )
     project.settings.method_policy = __import__('cloudra.runtime_v2.schemas',fromlist=['MethodPolicy']).MethodPolicy(allowed_methods=['b3lyp/def2svp'])
     db = await asyncio.to_thread(ComputeDB().init)
     from tests.ts_fixtures import calculation_input
     declaration = calculation_input(reactant_smiles='CC',product_smiles='CC',method='b3lyp/def2svp')
     process = await asyncio.to_thread(create_process, db, request_key='notify-ts', payload=dict(
-        project_id=project.id,owner_id=coordinator.id,workspace_dir=str(tmp_path),input=declaration.model_dump(mode="json")))
+        project_id=project.id,owner_id=child.id,workspace_dir=str(tmp_path),input=declaration.model_dump(mode="json")))
     await asyncio.to_thread((tmp_path/'ts.inp').write_text,'synthetic engine input')
     job = await asyncio.to_thread(bind_stage_job, db, process_id=process['process_id'],declaration_revision=1,
-        stage_key='ts_opt',attempt=1,job_payload=dict(conversation_id=project.id,session_id=coordinator.id,
+        stage_key='ts_opt',attempt=1,job_payload=dict(conversation_id=project.id,session_id=child.id,
         path=str(tmp_path/'ts.inp'),state='ready',jobtype='orca',node_id='fixture'))
     record = TsProcessRecord(run_id='notify',run_dir=str(tmp_path/'ts'/'notify'),workspace_dir=str(tmp_path),
-        owner_conversation_id=project.id,owner_session_id=coordinator.id,pipeline_id=process['process_id'],
+        owner_conversation_id=project.id,owner_session_id=child.id,pipeline_id=process['process_id'],
         input=declaration,stage='refine',waiting_for=f'job:{job}',job_steps=[TsJobStep(purpose='ts_opt',job_id=job)])
     await asyncio.to_thread(save_process_record,db,process_id=process['process_id'],record=record.model_dump(mode='json'))
     def complete():
@@ -903,35 +915,51 @@ async def test_pipeline_intermediate_job_advances_without_agent_message(tmp_path
         await broker.ensure_project(project.id)
     else:
         await broker._poll_project(project.id)
-    assert _inbox_texts(core,coordinator.id) == []
+    messages = _inbox_texts(core, child.id)
+    assert len(messages) == int(ordinary_result)
+    assert child.state.value == ("running" if ordinary_result else "succeeded")
+    assert _inbox_texts(core, coordinator.id) == []
+    if ordinary_result:
+        assert await asyncio.to_thread(_notified_at, ordinary_job) is not None
     assert await asyncio.to_thread(_notified_at,job) is not None
     def jobs():
         with db.connect() as con:
             return con.execute('SELECT COUNT(*) FROM compute_jobs').fetchone()[0]
-    assert await asyncio.to_thread(jobs) == 2
+    assert await asyncio.to_thread(jobs) == 2 + int(ordinary_result)
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("outcome,verified", [("verified", True), ("candidate_only", False)])
-async def test_terminal_ts_notice_delivers_scientific_verdict_reason_to_agent(tmp_path, outcome, verified):
+@pytest.mark.parametrize("outcome,verified", [("verified", True), ("candidate_only", False), ("blocked", None)])
+async def test_ts_outcome_wakes_owner_while_high_throughput_jobs_run(tmp_path, outcome, verified):
     from cloudra.services.ts_pipeline_store import bind_stage_job, create_process, save_process_record
-    from cloudra.tools.core.ts_process import TsJobStep, _terminal
+    from cloudra.tools.core.ts_process import TsJobStep, _block, _terminal
     from tests.test_ts_stage_inputs import record_fixture
 
     core, project, coordinator = await _setup_core()
+    child = (await CommandBus(core).execute(Command(
+        type="agent.spawn", target={"project_id": project.id},
+        payload={"role_id": "small_mol", "parent_session_id": coordinator.id},
+    ))).data
+    await core.agent_host.start_run(child)
+    await core.agent_host.finish_run(child, outcome="succeeded")
+    await asyncio.to_thread(_insert_terminal_job, project.id, session_id=child.id, state="running", path="")
+
     def completed_pipeline():
         db = ComputeDB().init()
-        record = record_fixture(tmp_path, owner_conversation_id=project.id, owner_session_id=coordinator.id)
+        record = record_fixture(tmp_path, owner_conversation_id=project.id, owner_session_id=child.id)
         process = create_process(db, request_key="verdict-notice", payload=dict(project_id=project.id,
-            owner_id=coordinator.id, workspace_dir=str(tmp_path), input=record.input.model_dump(mode="json")))
+            owner_id=child.id, workspace_dir=str(tmp_path), input=record.input.model_dump(mode="json")))
         source = tmp_path / "frequency.inp"
         source.write_text("Recorded native input")
         job = bind_stage_job(db, process_id=process["process_id"], declaration_revision=1,
             stage_key="product_frequency", attempt=1, job_payload=dict(conversation_id=project.id,
-            session_id=coordinator.id, path=str(source), state="ready", jobtype="orca", node_id="fixture"))
+            session_id=child.id, path=str(source), state="ready", jobtype="orca", node_id="fixture"))
         record.pipeline_id = process["process_id"]
         record.job_steps = [TsJobStep(purpose="product_frequency", job_id=job, state="done", input_path=str(source))]
-        _terminal(record, "verdict", outcome, "Recorded endpoint direction judgement")
+        if outcome == "blocked":
+            _block(record, "refine", "wrong_mode", "Recorded endpoint direction judgement", needs=["verification.frequency"])
+        else:
+            _terminal(record, "verdict", outcome, "Recorded endpoint direction judgement")
         save_process_record(db, process_id=process["process_id"], record=record.model_dump(mode="json"))
         with db.connect() as con:
             con.execute("UPDATE compute_jobs SET state='done' WHERE id=?", (job,))
@@ -939,14 +967,20 @@ async def test_terminal_ts_notice_delivers_scientific_verdict_reason_to_agent(tm
     job = await asyncio.to_thread(completed_pipeline)
     broker = ComputeNotifyBroker(core)
     await broker._poll_project(project.id)
-    messages = _inbox_texts(core, coordinator.id)
+    messages = _inbox_texts(core, child.id)
+    assert child.state.value == "running"
+    assert _inbox_texts(core, coordinator.id) == []
     assert len(messages) == 1
     _, separator, content = messages[0].partition("\nTS state: ")
     assert separator
     view, _ = json.JSONDecoder().raw_decode(content)
-    assert view["status"] == "ended"
-    assert view["result"]["outcome"] == outcome
-    assert view["result"]["verified"] is verified
-    assert view["result"]["reason"] == "Recorded endpoint direction judgement"
+    if outcome == "blocked":
+        assert view["status"] == "blocked"
+        assert view["blocked"]["failure_class"] == "wrong_mode"
+    else:
+        assert view["status"] == "ended"
+        assert view["result"]["outcome"] == outcome
+        assert view["result"]["verified"] is verified
+        assert view["result"]["reason"] == "Recorded endpoint direction judgement"
     assert view["message"] == "Recorded endpoint direction judgement"
     assert await asyncio.to_thread(_notified_at, job) is not None

@@ -45,6 +45,50 @@ def _workspace(project_id: str) -> Path:
 
 
 @pytest.mark.asyncio
+async def test_compute_result_wakes_agent_during_high_throughput_batch(tmp_path):
+    """逐作业通知应触发结果处理；剩余作业仍须阻止最终交付。"""
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.runtime_v2.compute_notify import ComputeNotifyBroker
+    from tests.agent_scenarios import compute_result_recovery_steps
+    from tests.test_runtime_v2_compute_notify import _insert_terminal_job
+
+    release = asyncio.Event()
+    provider = ScriptedProvider(default=[Step(wait_for=release, stop=True)])
+    harness = await ScenarioHarness.start(tmp_path, provider=provider)
+    try:
+        agent = await harness.spawn("small_mol", protocol="traditional")
+        finished = await asyncio.to_thread(
+            _insert_terminal_job, harness.project.id, session_id=agent.id, state="failed", path="",
+        )
+        running = await asyncio.to_thread(
+            _insert_terminal_job, harness.project.id, session_id=agent.id, state="running", path="",
+        )
+        release.set()
+        await harness.wait_terminal(agent)
+        assert any(e.type == "agent.completion_gate" and e.data.get("action") == "wait_background"
+                   for e in harness.events(agent)), harness.describe(agent)
+        provider.script_default(*compute_result_recovery_steps())
+
+        broker = ComputeNotifyBroker(harness.core)
+        await broker._poll_project(harness.project.id)
+        await harness.wait_for(lambda: len(harness.run_rows(agent)) == 2, "result processing run")
+
+        assert any(call["tool_name"] == "todo_write" and call["is_success"]
+                   for call in harness.tool_events(agent)), harness.describe(agent)
+        gates = [e for e in harness.events(agent) if e.type == "agent.completion_gate"]
+        assert gates[-1].data["action"] == "wait_background"
+        notices = [e for e in harness.events(agent)
+                   if e.type == "agent.message_injected" and (e.data.get("manifest") or {}).get("kind") == "compute_completion"]
+        assert [e.data["manifest"]["task_id"] for e in notices] == [finished]
+        async with ComputeDB().aconnect() as con:
+            row = await (await con.execute("SELECT state FROM compute_jobs WHERE id=?", (running,))).fetchone()
+        assert row[0] == "running"
+    finally:
+        release.set()
+        await harness.aclose()
+
+
+@pytest.mark.asyncio
 async def test_malformed_shell_is_blocked_without_crashing_agent(tmp_path):
     """Shell 校验失败需落 requested/blocked/finished，且后续回合可执行。"""
     harness = await ScenarioHarness.start(

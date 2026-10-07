@@ -8,7 +8,8 @@
 的行（未加载项目跳过、不落 notified_at，项目打开时 ``ensure_project`` 立即
 扫该项目；**已硬删除的项目**——事件日志里有 project.deleted tombstone——
 永不加载，记 warning 并落 notified_at 终结）。每批逐作业持久化通知并落
-``notified_at``；同一子 Agent 的未终态作业全部结束后才唤醒一次。
+``notified_at``；普通作业逐个通知，同轮已投递通知合并唤醒，不等待其他作业。
+TS 流水线中间作业由系统自动推进，仅受阻或终态才通知并唤醒所属 Agent。
 投递失败不落 notified_at，下一 tick 自然重试。
 
 锁纪律（细粒度，防跨进程 "database is locked"）：同步 SQLite 全部经
@@ -25,7 +26,6 @@ from cloudra.persistence.database import ComputeDB
 from cloudra.runtime.compute_notify import build_compute_finish_content, resolve_submission_info
 from cloudra.runtime_v2.dispatcher import WakePolicy, should_wake
 from cloudra.services.compute_store import (
-    acount_waitable_compute_jobs_for_session,
     mark_notified,
     pending_terminal_jobs,
 )
@@ -145,67 +145,35 @@ class ComputeNotifyBroker:
     async def _deliver_batch(
         self, rows: list[tuple[str, int, str, str | None]]
     ) -> None:
-        """Deliver each job durably, waking a child only after its final notice.
+        """Wake once per recipient with an acknowledged notice in this poll.
 
-        Intermediate notices stay in the inbox while any job owned by that
-        child remains active or has an undelivered terminal notice. The last
-        notice for that child performs one wake only when this bounded poll
-        contains every remaining notice.
+        Other active jobs or a terminal backlog cannot delay result handling.
+        _deliver suppresses system-owned TS intermediate results and returns
+        a recipient only after a visible notice has been delivered and acked.
         """
-        last_index: dict[tuple[str, str], int] = {}
-        selected_count: dict[tuple[str, str], int] = {}
-        for index, (project_id, _task_id, _state, session_id) in enumerate(rows):
-            if session_id:
-                key = (project_id, session_id)
-                last_index[key] = index
-                selected_count[key] = selected_count.get(key, 0) + 1
-        all_waitable_selected: dict[tuple[str, str], bool] = {}
-        lookup_failed: set[tuple[str, str]] = set()
-        for project_id, session_id in last_index:
-            agent = self.core.agents.get(session_id)
-            if agent is None or agent.role_id == "coordinator":
-                continue
-            try:
-                key = (project_id, session_id)
-                all_waitable_selected[key] = (
-                    await acount_waitable_compute_jobs_for_session(
-                        ComputeDB(), project_id, session_id
-                    )
-                    == selected_count[key]
-                )
-            except Exception:
-                # A failed lookup cannot prove when to wake. Leave this
-                # session's rows unnotified so the next tick retries them.
-                lookup_failed.add((project_id, session_id))
-                logger.exception(
-                    "compute notify active-job lookup failed for %s session %s",
-                    project_id,
-                    session_id,
-                )
+        recipients: dict[str, None] = {}
         delivery_failed: set[tuple[str, str]] = set()
-        for index, (project_id, task_id, state, session_id) in enumerate(rows):
+        for project_id, task_id, state, session_id in rows:
             key = (project_id, session_id) if session_id else None
-            if key is not None and (key in lookup_failed or key in delivery_failed):
+            if key is not None and key in delivery_failed:
                 continue
-            wake = bool(
-                session_id
-                and index == last_index[key]
-                and all_waitable_selected.get(key, False)
-            )
             try:
-                await self._deliver(
+                target_id = await self._deliver(
                     project_id, task_id=task_id, state=state,
-                    session_id=session_id, wake=wake,
+                    session_id=session_id, wake=False,
                 )
+                if target_id is not None:
+                    recipients[target_id] = None
             except Exception:
                 if key is not None:
-                    # Keep the remaining notices pending.  Waking on the last
-                    # row after an earlier delivery failed would give the LLM
-                    # an incomplete batch and force another run on retry.
+                    # Retry the failed notice and later rows in order; any
+                    # earlier acknowledged results remain available now.
                     delivery_failed.add(key)
                 logger.exception(
                     "compute notify delivery failed for %s job %s", project_id, task_id
                 )
+        for target_id in recipients:
+            await self._wake_notified_child(target_id)
         # A coordinator can already have consumed the child's first final
         # report and be parked waiting for later compute. Once all notices in
         # this batch are durable, let the runner test project quiescence.
@@ -239,7 +207,7 @@ class ComputeNotifyBroker:
         state: str,
         session_id: str | None,
         wake: bool = True,
-    ) -> None:
+    ) -> str | None:
         if project_id not in self.core.projects:
             return
         from cloudra.services.ts_pipeline_context import use_runtime_authority
@@ -292,6 +260,7 @@ class ComputeNotifyBroker:
         await asyncio.to_thread(self._mark_notified, task_id)
         if wake:
             await self._wake_notified_child(target_id)
+        return target_id
 
     def _load_durable_deliveries(self) -> None:
         if self._delivered_index_built:
@@ -502,23 +471,10 @@ class ComputeNotifyBroker:
                 coordinator = self._coordinator_for(project_id)
                 target = coordinator.id if coordinator is not None else None
             if target is not None:
-                wake = True
-                agent = self.core.agents.get(target)
-                if agent is not None and agent.role_id != "coordinator":
-                    try:
-                        wake = not bool(await acount_waitable_compute_jobs_for_session(
-                            ComputeDB(), project_id, target
-                        ))
-                    except Exception:
-                        logger.exception(
-                            "compute evidence notification active-job lookup failed for %s",
-                            target,
-                        )
-                        continue
                 await self._send_message(
                     target,
                     f"[Compute job] Evidence for job {task_id} is now available for review.\n{note}",
-                    wake=wake,
+                    wake=True,
                 )
             del self._snapshot_retries[task_id]
 
