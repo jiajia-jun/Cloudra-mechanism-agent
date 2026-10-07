@@ -56,6 +56,27 @@ def test_complete_atom_map_labels_are_authoritative():
     assert result["candidates"][0]["source"] == "atom_map_labels"
 
 
+@pytest.mark.parametrize('use_labels', [False, True])
+def test_declared_binding_is_not_limited_by_symmetric_match_enumeration(use_labels):
+    from cloudra.tools.Chemtool.reaction_mapping import _identity_and_binding
+
+    smiles = 'C(C(C)(C)C)(C(C)(C)C)(C(C)(C)C)C(C)(C)C'
+    expected = Chem.MolFromSmiles(smiles)
+    automorphisms = expected.GetSubstructMatches(expected, uniquify=False, maxMatches=257)
+    assert len(automorphisms) == 257
+    binding = list(automorphisms[-1])
+    structure = Chem.AddHs(expected)
+    if use_labels:
+        for index, target in enumerate(binding):
+            expected.GetAtomWithIdx(index).SetAtomMapNum(index + 1)
+            structure.GetAtomWithIdx(target).SetAtomMapNum(index + 1)
+        smiles = Chem.MolToSmiles(expected, canonical=False)
+    identity, actual, diagnostic = _identity_and_binding(
+        smiles, structure, None if use_labels else binding)
+    assert identity == 'match'
+    assert actual == binding, diagnostic
+
+
 def test_complete_atom_map_labels_cannot_cross_elements():
     with pytest.raises(ValueError, match="element|isotope"):
         analyze_reaction_mapping(

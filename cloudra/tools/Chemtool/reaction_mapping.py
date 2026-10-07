@@ -16,6 +16,7 @@ from pydantic import Field
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.workspace import resolve_existing_tool_path
+from cloudra.tools.core.ts_inputs import HeavyAtomBinding
 
 _MAX_EXHAUSTIVE_MAPPINGS = 100_000
 _MAX_RETURNED_CANDIDATES = 16
@@ -628,7 +629,20 @@ def _read_structure(
     return mol
 
 
-def _identity_and_binding(expected_smiles: str, structure) -> tuple[str, list[int], str]:
+def concrete_structure_digest(role: str, smiles: str, charge: int, multiplicity: int, structure) -> str:
+    """Digest the declared identity, concrete atom order, graph and coordinates."""
+    from cloudra.tools.core.conformer_catalog import content_digest
+
+    return content_digest(dict(role=role, smiles=smiles, charge=charge, multiplicity=multiplicity,
+        atoms=[(a.GetAtomicNum(), a.GetIsotope(), a.GetFormalCharge(), a.GetAtomMapNum())
+               for a in structure.GetAtoms()],
+        bonds=sorted((min(b.GetBeginAtomIdx(), b.GetEndAtomIdx()),
+                      max(b.GetBeginAtomIdx(), b.GetEndAtomIdx()), b.GetBondTypeAsDouble())
+                     for b in structure.GetBonds()),
+        positions=structure.GetConformer().GetPositions().tolist() if structure.GetNumConformers() else None))
+
+
+def _identity_and_binding(expected_smiles: str, structure, explicit_indices: list[int] | None = None) -> tuple[str, list[int], str]:
     """返回图身份、expected heavy -> concrete full-atom index，以及绑定诊断。"""
     from rdkit import Chem
 
@@ -638,10 +652,60 @@ def _identity_and_binding(expected_smiles: str, structure) -> tuple[str, list[in
     expected_labels = [atom.GetAtomMapNum() for atom in expected.GetAtoms() if atom.GetAtomicNum() != 1]
     concrete_heavy_atoms = [atom for atom in structure.GetAtoms() if atom.GetAtomicNum() != 1]
     concrete_labels = [atom.GetAtomMapNum() for atom in concrete_heavy_atoms]
-    structure_heavy = Chem.RemoveHs(_clear_atom_maps(structure))
+    structure_copy = _clear_atom_maps(structure)
+    for atom in structure_copy.GetAtoms():
+        atom.SetIntProp("_full_idx", atom.GetIdx())
+    structure_heavy = Chem.RemoveHs(structure_copy)
     if _canonical_heavy_smiles(expected) != _canonical_heavy_smiles(structure_heavy):
         return "mismatch", [], "The concrete structure's molecular graph differs from the declared SMILES."
 
+    for labels in (expected_labels, concrete_labels):
+        if any(labels) and (any(label <= 0 for label in labels) or len(set(labels)) != len(labels)):
+            return "match", [], "Heavy-atom map labels must be complete and unique wherever supplied."
+    if (all(expected_labels) and all(concrete_labels)
+            and set(expected_labels) != set(concrete_labels)):
+        return "match", [], "Declared and concrete heavy-atom map labels conflict."
+
+    expected_clean = _clear_atom_maps(expected)
+    expected_heavy_positions = [atom.GetIdx() for atom in expected.GetAtoms() if atom.GetAtomicNum() != 1]
+    full_indices = [atom.GetIntProp("_full_idx") for atom in structure_heavy.GetAtoms()]
+    if explicit_indices is not None:
+        if len(explicit_indices) != len(expected_heavy_positions) or len(set(explicit_indices)) != len(explicit_indices):
+            return 'match', [], 'Explicit heavy-atom binding has wrong length or repeated indices.'
+        if any(index < 0 or index >= structure.GetNumAtoms() or structure.GetAtomWithIdx(index).GetAtomicNum() == 1
+               for index in explicit_indices):
+            return 'match', [], 'Explicit heavy-atom binding references an out-of-range atom or hydrogen.'
+
+    selected = explicit_indices
+    if selected is None and expected_labels and all(expected_labels) and all(concrete_labels):
+        by_label = {atom.GetAtomMapNum(): atom.GetIdx() for atom in concrete_heavy_atoms}
+        selected = [by_label[label] for label in expected_labels]
+    parameters = Chem.SubstructMatchParameters()
+    parameters.uniquify = False
+    parameters.useChirality = True
+    parameters.maxMatches = 256 if selected is None else 1
+    if selected is not None:
+        # Pin the declared correspondence before graph matching, rather than
+        # requiring it to appear among a truncated enumeration of automorphisms.
+        property_name = '_cloudra_binding_position'
+        for atom in (*expected_clean.GetAtoms(), *structure_heavy.GetAtoms()):
+            atom.SetIntProp(property_name, 0)
+        concrete_positions = {full: index for index, full in enumerate(full_indices)}
+        for position, (expected_index, concrete_index) in enumerate(zip(expected_heavy_positions, selected), 1):
+            expected_clean.GetAtomWithIdx(expected_index).SetIntProp(property_name, position)
+            structure_heavy.GetAtomWithIdx(concrete_positions[concrete_index]).SetIntProp(property_name, position)
+        parameters.atomProperties = [property_name]
+    matches = structure_heavy.GetSubstructMatches(expected_clean, parameters)
+    full_matches = [tuple(full_indices[idx] for idx in match) for match in matches]
+    allowed = {tuple(match[idx] for idx in expected_heavy_positions) for match in full_matches}
+    if explicit_indices is not None:
+        if tuple(explicit_indices) not in allowed:
+            return 'match', [], 'Explicit heavy-atom binding does not preserve the declared molecular graph, bonds or stereochemistry.'
+        selected_matches = [match for match in full_matches
+                            if tuple(match[idx] for idx in expected_heavy_positions) == tuple(explicit_indices)]
+        axis_diag = _axis_config_consistency(expected, structure, selected_matches)
+        if axis_diag:
+            return 'mismatch', [], axis_diag
     if (
         expected_labels
         and all(expected_labels)
@@ -666,30 +730,30 @@ def _identity_and_binding(expected_smiles: str, structure) -> tuple[str, list[in
                     f"The concrete structure's atom-map label {expected_atom.GetAtomMapNum()} has a mismatched element or isotope.",
                 )
         binding = [concrete_by_label[label] for label in expected_labels]
+        if tuple(binding) not in allowed:
+            return 'match', [], 'Concrete atom-map labels conflict with the declared molecular graph.'
+        if explicit_indices is not None and binding != explicit_indices:
+            return 'match', [], 'Explicit heavy-atom binding conflicts with concrete atom-map labels.'
         return "match", binding, "The concrete structure's atom-map labels determine the heavy-atom binding."
 
-    expected_clean = _clear_atom_maps(expected)
-    matches = structure_heavy.GetSubstructMatches(
-        expected_clean, uniquify=False, useChirality=True, maxMatches=256,
-    )
+    if explicit_indices is not None:
+        return 'match', explicit_indices, 'Explicit heavy-atom binding accepted against the concrete graph.'
     if not matches:
         return "inconclusive", [], "Same molecular graph, but SMILES atoms could not be bound to the concrete structure."
     # useChirality 对 atropisomer/轴手性子结构匹配未实现；声明了轴构型时用
     # 3D 二面角单独校验，不一致则身份判 mismatch。
-    axis_diag = _axis_config_consistency(expected, structure, matches)
+    axis_diag = _axis_config_consistency(expected, structure, full_matches)
     if axis_diag is not None:
         return "mismatch", [], axis_diag
-    original_heavy_indices = [
-        atom.GetIdx() for atom in structure.GetAtoms() if atom.GetAtomicNum() != 1
-    ]
-    distinct = sorted(set(matches))
+    distinct = sorted(allowed)
     if len(distinct) != 1:
+        count = f'at least {len(distinct)}' if len(matches) == 256 else str(len(distinct))
         return (
             "match",
             [],
-            f"The concrete structure has {len(distinct)} symmetric heavy-atom bindings; without concrete atom-map labels the binding is not unique.",
+            f"The concrete structure has {count} symmetric heavy-atom bindings; without concrete atom-map labels the binding is not unique.",
         )
-    return "match", [original_heavy_indices[idx] for idx in distinct[0]], ""
+    return "match", list(distinct[0]), ""
 
 
 def _axis_config_consistency(expected, structure, matches) -> Optional[str]:
@@ -771,7 +835,7 @@ def _expand_full_atom_map(
     return [idx + 1 for idx in full_map], "Full-atom mapping bound to the concrete structure order."
 
 
-def check_concrete_binding(user_input, mapping_result: dict) -> dict:
+def check_concrete_binding(user_input, mapping_result: dict, *, known_digests: dict[str, str] | None = None) -> dict:
     reactant = _read_structure(
         user_input.reactant_path, user_input.reactant_text,
         user_input.reactant_format, user_input.reactant_charge, "Reactant",
@@ -780,8 +844,25 @@ def check_concrete_binding(user_input, mapping_result: dict) -> dict:
         user_input.product_path, user_input.product_text,
         user_input.product_format, user_input.product_charge, "Product",
     )
-    r_identity, r_binding, r_diagnostic = _identity_and_binding(user_input.reactant_smiles, reactant)
-    p_identity, p_binding, p_diagnostic = _identity_and_binding(user_input.product_smiles, product)
+    def bind(role, structure):
+        declaration = getattr(user_input, role + '_binding', None)
+        if declaration is None or structure is None:
+            identity, binding, diagnostic = _identity_and_binding(getattr(user_input, role + '_smiles'), structure)
+            return identity, binding, f'{role}: {diagnostic}' if diagnostic else ''
+        digest = ((known_digests or {}).get(role) or concrete_structure_digest(role,
+            getattr(user_input, role + '_smiles'), getattr(user_input, role + '_charge'),
+            getattr(user_input, role + '_multiplicity'), structure))
+        if declaration.structure_digest != digest:
+            return 'match', [], f'{role} heavy-atom binding structure_digest is stale or mismatched; actual digest is {digest}.'
+        identity, binding, diagnostic = _identity_and_binding(getattr(user_input, role + '_smiles'), structure,
+            [index - 1 for index in declaration.indices])
+        return identity, binding, f'{role}: {diagnostic}' if diagnostic else ''
+    r_identity, r_binding, r_diagnostic = bind('reactant', reactant)
+    p_identity, p_binding, p_diagnostic = bind('product', product)
+    digests = dict(structure_digests={role: (known_digests or {}).get(role) or
+        concrete_structure_digest(role, getattr(user_input, role + '_smiles'),
+            getattr(user_input, role + '_charge'), getattr(user_input, role + '_multiplicity'), structure)
+        for role, structure in (('reactant', reactant), ('product', product)) if structure is not None})
     if reactant is None and product is None:
         from rdkit import Chem
 
@@ -805,6 +886,7 @@ def check_concrete_binding(user_input, mapping_result: dict) -> dict:
             for i, j in mapping_result["watch_pairs"]
         ]
         return {
+            **digests,
             "binding_status": "complete" if atom_map else "inconclusive",
             "binding_source": "internal_generated" if atom_map else "not_available",
             "reactant_identity": r_identity,
@@ -815,6 +897,7 @@ def check_concrete_binding(user_input, mapping_result: dict) -> dict:
         }
     if reactant is None or product is None:
         return {
+            **digests,
             "binding_status": "inconclusive",
             "binding_source": "not_available",
             "reactant_identity": r_identity,
@@ -825,6 +908,7 @@ def check_concrete_binding(user_input, mapping_result: dict) -> dict:
         }
     if r_identity != "match" or p_identity != "match":
         return {
+            **digests,
             "binding_status": "inconclusive",
             "binding_source": "not_available",
             "reactant_identity": r_identity,
@@ -837,6 +921,7 @@ def check_concrete_binding(user_input, mapping_result: dict) -> dict:
         }
     if not r_binding or not p_binding:
         return {
+            **digests,
             "binding_status": "inconclusive",
             "binding_source": "not_available",
             "reactant_identity": r_identity,
@@ -865,12 +950,15 @@ def check_concrete_binding(user_input, mapping_result: dict) -> dict:
         for i, j in mapping_result["watch_pairs"]
     ]
     return {
+        **digests,
         "binding_status": "complete" if atom_map else "inconclusive",
         "binding_source": "concrete" if atom_map else "not_available",
         "reactant_identity": r_identity,
         "product_identity": p_identity,
         "atom_map": atom_map,
         "concrete_watch_pairs": sorted(concrete_pairs) if atom_map else [],
+        "heavy_atom_bindings": {"reactant": [index + 1 for index in r_binding],
+                                "product": [index + 1 for index in p_binding]} if atom_map else {},
         "binding_diagnostics": [
             item for item in (r_diagnostic, p_diagnostic, diagnostic) if item
         ],
@@ -889,6 +977,10 @@ class ReactionMapping_input_schema(input_schema):
     product_format: Literal["auto", "mol", "sdf", "xyz"] = "auto"
     reactant_charge: int = Field(default=0, description="Reactant total charge, used when inferring XYZ bond orders.")
     product_charge: int = Field(default=0, description="Product total charge, used when inferring XYZ bond orders.")
+    reactant_multiplicity: int = 1
+    product_multiplicity: int = 1
+    reactant_binding: HeavyAtomBinding | None = None
+    product_binding: HeavyAtomBinding | None = None
 
 
 class ReactionMapping_output_schema(output_schema):
@@ -902,6 +994,8 @@ class ReactionMapping_output_schema(output_schema):
     reactant_identity: Literal["match", "mismatch", "inconclusive", "not_provided"] = "not_provided"
     product_identity: Literal["match", "mismatch", "inconclusive", "not_provided"] = "not_provided"
     binding_diagnostics: list[str] = Field(default_factory=list)
+    structure_digests: dict[str, str] = Field(default_factory=dict)
+    heavy_atom_bindings: dict[str, list[int]] = Field(default_factory=dict)
     formed_bonds: list[list[int]] = Field(default_factory=list)
     broken_bonds: list[list[int]] = Field(default_factory=list)
     order_changes: list[dict] = Field(default_factory=list)

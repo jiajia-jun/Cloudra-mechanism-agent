@@ -7,7 +7,7 @@ import pytest
 
 from cloudra.runtime_v2.schemas import MethodPolicy
 from cloudra.services.ts_pipeline_context import use_runtime_authority
-from tests.agent_scenarios import TS_SCENARIOS, ScenarioHarness, ScriptedProvider, Step
+from tests.agent_scenarios import TS_SCENARIOS, ScenarioHarness, ScriptedProvider, Step, d1_component_order_files
 
 
 def water_input(tmp_path, *, scan=False):
@@ -74,7 +74,7 @@ async def test_ts_prepare_once_auto_complete(tmp_path,monkeypatch):
             assert handle_process_job_terminal(ComputeDB(),job)['record']==state['record']
             record=process.TsProcessRecord.model_validate(state['record'])
         provider.records.append(record)
-    provider=StateProvider(tmp_path,[Step(tools=[('ts_prepare',{'input':payload,'request_key':'one-path'})]),Step(stop=True)],complete)
+    provider=StateProvider(tmp_path,[Step(tools=[('ts_prepare',{'input':payload})]),Step(stop=True)],complete)
     harness=await ScenarioHarness.start(tmp_path,workspace_dir=tmp_path,provider=provider)
     provider.harness=harness
     harness.project.settings.method_policy=MethodPolicy(allowed_methods=['hf/sto3g'])
@@ -142,8 +142,8 @@ async def test_ts_failed_scan_repair_same_run(tmp_path,monkeypatch):
             record=process.TsProcessRecord.model_validate(handle_process_job_terminal(ComputeDB(),record.scan_step.job_id)['record'])
         provider.records.append(record)
         if record.failed_attempt and record.declaration_revision==1:
-            provider._scripts['small_mol'][0].tools=[('ts_resume',{'run_id':record.run_id,'reason':'retry failed scan without prerequisite repair calculation','request_key':'repair','expected_revision':record.revision})]
-    provider=StateProvider(tmp_path,[Step(tools=[('ts_prepare',{'input':payload,'request_key':'scan-path'})]),Step(),Step(stop=True)],complete)
+            provider._scripts['small_mol'][0].tools=[('ts_resume',{'run_id':record.run_id,'reason':'retry failed scan without prerequisite repair calculation','expected_revision':record.revision})]
+    provider=StateProvider(tmp_path,[Step(tools=[('ts_prepare',{'input':payload})]),Step(),Step(stop=True)],complete)
     harness=await ScenarioHarness.start(tmp_path,workspace_dir=tmp_path,provider=provider)
     provider.harness=harness
     harness.project.settings.method_policy=MethodPolicy(allowed_methods=['hf/sto3g'])
@@ -166,8 +166,8 @@ async def test_ts_readonly_inspection(tmp_path):
     from cloudra.tools.core.ts_process import load_record
     inputs=water_input(tmp_path)
     inputs['conformers']={}
-    provider=ScriptedProvider(by_role={'small_mol':[Step(tools=[('ts_prepare',{'input':inputs,'request_key':'blocked'})]),Step(stop=True)],
-        'explorer':[Step(tools=[('ts_inspect',{'run_id':'ts_0001'})]),Step(tools=[('ts_prepare',{'input':inputs,'request_key':'readonly'})]),Step(stop=True)]})
+    provider=ScriptedProvider(by_role={'small_mol':[Step(tools=[('ts_prepare',{'input':inputs})]),Step(stop=True)],
+        'explorer':[Step(tools=[('ts_inspect',{'run_id':'ts_0001'})]),Step(tools=[('ts_prepare',{'input':inputs})]),Step(stop=True)]})
     harness=await ScenarioHarness.start(tmp_path,workspace_dir=tmp_path,provider=provider)
     try:
         owner=await harness.spawn('small_mol',protocol='traditional')
@@ -204,12 +204,12 @@ async def test_ts_resume_scan_without_freeze(tmp_path, monkeypatch):
         if record.input.guess is None:
             provider._scripts['small_mol'][0].tools = [('ts_resume', {
                 'run_id': record.run_id, 'reason': 'provide explicit scan declaration',
-                'request_key': 'declare-scan', 'expected_revision': record.revision,
+                'expected_revision': record.revision,
                 'changes': {'guess': scan},
             })]
 
     provider = StateProvider(tmp_path, [
-        Step(tools=[('ts_prepare', {'input': payload, 'request_key': 'one-scan-path'})]),
+        Step(tools=[('ts_prepare', {'input': payload})]),
         Step(), Step(stop=True),
     ], complete)
     harness = await ScenarioHarness.start(tmp_path, workspace_dir=tmp_path, provider=provider)
@@ -226,5 +226,66 @@ async def test_ts_resume_scan_without_freeze(tmp_path, monkeypatch):
         assert record.input.guess.freeze == []
         assert len(submissions) == 1 and submissions[0]['purpose'] == 'scan'
         assert record.waiting_for == f"job:{submissions[0]['id']}"
+    finally:
+        await harness.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures('rdkit_chemistry')
+async def test_ts_d1_atom_binding_native_scan_recovery(tmp_path, monkeypatch):
+    """A scripted Agent reads the true 16-atom table and repairs both bindings without probing numbers."""
+    assert 'ts_d1_atom_binding_native_scan_recovery' in TS_SCENARIOS
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.services.compute_admission import AdmissionOutcome
+    from cloudra.tools.core.ts_process import load_record
+    from tests.ts_fixtures import calculation_input
+
+    xyz, graph = d1_component_order_files(tmp_path)
+    base = calculation_input(reactant_smiles='C=CC=C.C=C', product_smiles='C=CC=C.C=C',
+                             method='HF/STO-3G').model_dump(mode='json')
+    base['reaction']['atom_map'] = []
+    base['conformers'] = {'reactant': {'kind':'file','xyz_path':str(xyz),'mol_path':str(graph)},
+                          'product': {'kind':'file','xyz_path':str(xyz),'mol_path':str(graph)}}
+    base['guess'] = {'kind':'scan','calculation':{'engine':'xtb','method':'GFN2-xTB'},
+                     'scans':[{'atoms':[4,11],'scan_start':7.,'scan_end':4.,'scan_steps':3}],
+                     'force_constant':.5}
+    invalid = {**base, 'guess': {key:value for key,value in base['guess'].items() if key != 'force_constant'}}
+    monkeypatch.setattr('cloudra.services.compute_admission.admit_job',
+                        lambda **_: AdmissionOutcome(ok=True,node_id='fixture',scheduler='local'))
+
+    def repair(provider):
+        if provider.call_count('small_mol') != 3:
+            return
+        record = load_record(str(tmp_path), 'ts_0001')
+        assert record.blocked.failure_class == 'atom_map_missing'
+        assert [row['symbol'] for row in record.structures['reactant']['atoms'][4:6]] == ['H','H']
+        assert [record.structures['reactant']['atoms'][i-1]['symbol'] for i in (1,2,3,4,11,12)] == ['C']*6
+        changes = {'reaction':{'atom_map':list(range(1,17))},'conformers':{}}
+        for role in ('reactant','product'):
+            changes['conformers'][role] = {'kind':'file','xyz_path':str(xyz),'mol_path':str(graph),
+                'heavy_atom_binding':{'structure_digest':record.structures[role]['structure_digest'],
+                                      'indices':[1,2,3,4,11,12]}}
+        provider._scripts['small_mol'][0].tools = [('ts_resume', {
+            'run_id':record.run_id,'expected_revision':record.revision,
+            'reason':'Bind both concrete endpoint atom orders and the complete all-atom map',
+            'changes':changes})]
+
+    provider = StateProvider(tmp_path, [Step(tools=[('ts_prepare', {'input':invalid})]),
+        Step(tools=[('ts_prepare', {'input':base})]),
+        Step(tools=[('ts_inspect', {'run_id':'ts_0001'})]), Step(), Step(stop=True)], repair)
+    harness = await ScenarioHarness.start(tmp_path,workspace_dir=tmp_path,provider=provider)
+    provider.harness = harness
+    try:
+        agent = await harness.spawn('small_mol',protocol='traditional')
+        await harness.wait_terminal(agent)
+        calls = harness.tool_events(agent)
+        assert [(item['tool_name'],item['is_success']) for item in calls] == [
+            ('ts_prepare',False),('ts_prepare',True),('ts_inspect',True),('ts_resume',True)], harness.describe(agent)
+        record = await asyncio.to_thread(load_record,str(tmp_path),'ts_0001')
+        assert record.input_binding['binding_status'] == 'complete', record.input_binding
+        assert record.waiting_for and record.scan_step and record.scan_step.purpose == 'scan'
+        with ComputeDB().connect() as con:
+            jobs = con.execute('SELECT jobtype FROM compute_jobs').fetchall()
+        assert [row[0] for row in jobs] == ['chem_task']
     finally:
         await harness.aclose()

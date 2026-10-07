@@ -1,5 +1,6 @@
 import asyncio
 import json
+import math
 import time
 from pathlib import Path
 from typing import Any, Literal
@@ -24,7 +25,7 @@ description = (
     "owned jobs finish; coordinator notices stay in its inbox until another wake event. "
     "Do not poll query_compute_job or re-parse the log to wait. If you need an interim checkpoint, call `schedule` "
     "with a read-only check_command instead of polling in a loop. "
-    "Use for: formally running long Gaussian, CP2K, VASP, ORCA, or xtb jobs; prepare the input first with qm_input_writer or similar (CP2K uses .inp; xtb takes a plain .xyz coordinate file). "
+    "Use for: formally running long Gaussian, CP2K, VASP, ORCA, or xtb jobs; prepare the input first with qm_input_writer or similar (CP2K uses .inp; ordinary xtb takes .xyz; native xTB scans use the typed manifest prepared by ts_guess and job_type='chem_task'). "
     "For xtb jobs you must also declare charge, multiplicity, task (sp/opt/hess/ohess) and optionally solvent — "
     "xtb is CLI-flag driven and ignores any charge/multiplicity written inside the .xyz file. "
     "Do not use for: generating the input (use qm_input_writer), failure diagnosis (use query_compute_job), "
@@ -45,10 +46,9 @@ class SubmitComputeJob_input_schema(input_schema):
         description="Path of the input file (e.g. a .gjf file): absolute as-is, "
                     "or relative to the Agent working directory."
     )
-    job_type: Literal["gaussian", "vasp", "orca", "cp2k", "xtb"] = Field(
+    job_type: Literal["gaussian", "vasp", "orca", "cp2k", "xtb", "chem_task"] = Field(
         default="gaussian",
-        description="Job type. Currently supports 'gaussian', 'vasp', 'orca', 'cp2k', and 'xtb'. "
-                    "For 'xtb' the input file is a plain .xyz coordinate file (xtb is CLI-flag driven and has no input-file format)."
+        description="Job type. For 'xtb' the input is a plain XYZ; 'chem_task' accepts only a typed xtb_scan manifest prepared by ts_guess."
     )
     is_async: bool = Field(
         default=False,
@@ -204,11 +204,36 @@ class SubmitComputeJob(Tool):
                     ),
                 )
 
+        scan_task = None
+        if user_input.job_type == 'chem_task':
+            from cloudra.runtime.chem_task import ChemTask
+            from cloudra.tools.core.irc_path import parse_xyz
+            from cloudra.tools.core.xtb_scan_runner import _xcontrol
+
+            if {'charge', 'multiplicity', 'task', 'solvent'} & user_input.model_fields_set:
+                return SubmitComputeJob_output_schema(is_success=False,
+                    message='chem_task takes charge, multiplicity, task and solvent from its typed scan manifest')
+            try:
+                workspace = getattr(self.subagent, 'working_directory', None)
+                if not workspace:
+                    raise ValueError('native scan requires an Agent workspace')
+                await asyncio.to_thread(lambda: Path(f_path).resolve().relative_to(Path(workspace).resolve()))
+                scan_task = await asyncio.to_thread(lambda: ChemTask.model_validate_json(Path(f_path).read_text()))
+                if scan_task.task != 'xtb_scan':
+                    raise ValueError('public chem_task submission accepts only xtb_scan')
+                xyz = parse_xyz(scan_task.reactant_xyz)
+                if (xyz is None or len(scan_task.reactant_xyz.splitlines()) != len(xyz[0]) + 2
+                        or not all(math.isfinite(value) for point in xyz[1] for value in point)):
+                    raise ValueError('xtb_scan manifest has an invalid single-frame XYZ')
+                _xcontrol(scan_task.scan, len(xyz[0]))
+            except (OSError, ValueError) as exc:
+                return SubmitComputeJob_output_schema(is_success=False, message=f'Invalid xtb_scan manifest: {exc}')
+
         # Omitted resources follow the input file's declarations.  Explicit
         # under-declarations remain errors in the shared admission check.
         cpus = user_input.cpus
         if cpus is None:
-            cpus = await asyncio.to_thread(declared_cpus, f_path, user_input.job_type) or 1
+            cpus = scan_task.cpus if scan_task else await asyncio.to_thread(declared_cpus, f_path, user_input.job_type) or 1
         memory_mb = user_input.memory_mb
         if memory_mb is None:
             memory_mb = await asyncio.to_thread(declared_memory_mb, f_path, user_input.job_type)

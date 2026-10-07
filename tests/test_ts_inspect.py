@@ -16,7 +16,7 @@ def process_fixture(tmp_path, *, status="blocked"):
     run_dir = workspace / "ts" / "ts_0001"
     run_dir.mkdir(parents=True)
     pid = create_process(db, request_key="inspect", payload=payload(workspace_dir=str(workspace)))["process_id"]
-    record = dict(format_version=3, pipeline_id=pid, run_id="ts_0001", revision=7, declaration_revision=1,
+    record = dict(format_version=4, pipeline_id=pid, run_id="ts_0001", revision=7, declaration_revision=1,
                   run_dir=str(run_dir), workspace_dir=str(workspace), owner_conversation_id="project", owner_session_id="owner",
                   stage="guess", input=input_payload(), intervention_count=2, evidence_candidates=["scan.log"],
                   job_steps=[], stage_records=[], blocked={"failure_class": "scan_failed", "message": "native first point failed",
@@ -149,7 +149,7 @@ def test_isolated_input_format_cannot_claim_scientific_verification(tmp_path):
     from cloudra.tools.core.ts_state_view import build_process_view
 
     _, _, _, record = process_fixture(tmp_path, status="ended")
-    record.update(format_version=2, terminal="verified")
+    record.update(format_version=3, terminal="verified")
     view = build_process_view(record, [], can_write=False)
     assert view.status == "isolated"
     assert view.result is None

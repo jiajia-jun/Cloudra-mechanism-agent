@@ -1,12 +1,12 @@
 # TS 状态机使用与验收
 
-2026-10-02：分组接口已接通并以测试替代计算器验证；真实 ORCA/Gaussian 全链尚未验收。上游接口语义见 `superpowers/specs/2026-10-02-ts-state-machine-interface-design.md`。不新增化学阈值、默认理论方法或兼容旧字段。
+2026-10-08：分组接口与原生 xTB 柔性扫描已接通；xTB 6.7.1 测试分子的原生扫描完成逐点核验。真实 D1 路径与 ORCA/Gaussian 全链尚未验收。上游接口语义见 `superpowers/specs/2026-10-02-ts-state-machine-interface-design.md` 和 `superpowers/specs/2026-10-08-ts-atom-binding-and-scan-contract-design.md`。不新增化学阈值或默认理论方法。
 
 ## 三个入口
 
-- `ts_prepare(input, request_key, workspace_dir?)`：创建路径一次，接受显式输入并保存 checkpoint；必须提供非空稳定 request_key；同一个幂等键重放返回原 run。
-- `ts_inspect(run_id, workspace_dir?)`：读取同项目权威状态、作业、方法、证据、实际费用和下一步；只读审查员可检查别人的 run。不会推进、重新解析或提交计算。
-- `ts_resume(run_id, changes, reason, request_key, expected_revision, recovery?, workspace_dir?)`：原 owner 修订同一个 run。正常成功链自动推进，无需调用 resume；空修订报错引导 inspect。非空但值不变不消耗介入次数、不推进、不写回执。
+- `ts_prepare(input)`：创建路径一次，接受显式输入并保存 checkpoint；运行时用稳定工具调用身份去重重放。
+- `ts_inspect(run_id)`：读取同项目权威状态、实际结构原子表、作业、方法、证据、费用和下一步；只读审查员可检查别人的 run。不会推进、重新解析或提交计算。
+- `ts_resume(run_id, changes, reason, expected_revision)`：原 owner 修订同一个 run；`expected_revision` 使用已观察版本，防止并发覆盖。正常成功链自动推进，无需调用 resume；失败尝试可用 `changes={}` 在同一 run 重试。运行时负责工作目录和稳定重放键。
 
 普通 Opt/Freq/单点/探索扫描仍用已有计算入口；手动 TS/IRC 提交暂时关闭，含 TS/QST2/QST3/OptTS/ScanTS/NEB-TS/IRC。不得通过其他 Agent 或 bash 绕过。关闭限制前须保留真实 TS 优化频率、双向 IRC 和两端 Opt/Freq 及身份验证产物；单测不构成真实引擎验收。
 
@@ -21,9 +21,11 @@
 | verification | 独立 TS frequency、irc、各向 endpoint.optimization/frequency；可声明已完成的 irc_log 或端点 file seed（XYZ、可选 MOL、证据） |
 | execution | 计算节点/CPU/内存和可选有来源的动作、模型请求、介入次数额度 |
 
-`calculation` 明确 engine/method/keywords；可带对应原生 orca_blocks/end_setting。方法不从其他组继承；不替 Agent 决定半经验扫描方法。当前 native 构象优化和路径能力只支持已有 GFN2-xTB；其他明确方法使用已有 ORCA/Gaussian 写入器，能力不足点名阻塞。缺失方法不填默认。构象生成不暗中做力场优化；带指导的构象使用已声明约束优化方法。
+`calculation` 明确 engine/method；只有需要时才填 keywords 或对应原生 orca_blocks/end_setting。方法不从其他组继承；不替 Agent 决定半经验扫描方法。当前 native 构象优化、路径与扫描能力只支持显式 GFN2-xTB；其他明确方法使用已有 ORCA/Gaussian 写入器，能力不足点名阻塞。缺失方法不填默认。构象生成不暗中做力场优化；带指导的构象使用已声明约束优化方法。
 
-结构字段 1-based；ORCA 原生 scan/freeze 字段 0-based，Gaussian 1-based。atom_map 含全部氢，产物第 k 个原子映射到反应物 atom_map[k-1]。
+结构字段 1-based；ORCA 原生 scan/freeze 字段 0-based，Gaussian/xTB 1-based。atom_map 含全部氢，产物第 k 个原子映射到反应物 atom_map[k-1]。`structures` 返回实际 XYZ 的完整 1-based 原子表和结构摘要；对称外部结构可在 `conformers.<role>.heavy_atom_binding` 填该摘要及 SMILES 重原子顺序对应的完整结构编号。只填跨端点 atom_map 不会消除本侧身份歧义。
+
+xTB 柔性扫描复用 `guess.kind=scan`：`calculation={engine:"xtb",method:"GFN2-xTB"}`，每条 scans 明确起点、终点、点数，并显式给正的 `force_constant`。单坐标不需 `mode`；双坐标明确选择 `concerted` 或 `sequential`。不要求 Agent 填优化等级或原生命令；实际命令、xTB 版本、逐点收敛、电子能与约束势分开留证。完成扫描只可能提供未经验证的 TS 初猜；正式方法需在独立 `ts_optimization` 中声明。
 
 部分修订：省略保留；可选 null 清除；列表、方法、判别式来源及 guess 整体替换。未知字段 fail loud，不解释为旧接口。
 
@@ -31,11 +33,11 @@
 
 declare → build → map → assemble → guess → validate → submit → refine → verdict。方法、结构、方向和证据缺失均点名暂停；waiting 是等待系统作业而非 Agent 决策。计算终态通知和重启 reconcile 自动接续，重复事件不重复建作业。后续变化继续用同一 run，不用重新 prepare。
 
-verified / candidate_only / search_failed / invalid_input 是一次尝试的结果，不封死路径。修订将原输入、失败、作业和证据归档，生成新 input_revision 和结构化 receipt。expected_revision 来自 inspect；相同 request_key 先去重再检查过期，键冲突报错。回执先持久化，随后提交副作用。原生输入文件和旧证据不可覆盖。
+verified / candidate_only / search_failed / invalid_input 是一次尝试的结果，不封死路径。修订将原输入、失败、作业和证据归档，生成新 input_revision 和结构化 receipt。expected_revision 来自 inspect；运行时稳定调用键先去重再检查过期，键冲突报错。回执先持久化，随后提交副作用。原生输入文件和旧证据不可覆盖。换结构来源或覆盖外部 XYZ/MOL 时，旧原子编号声明自动清空；重建后 inspect 新原子表，再明确填写新编号。
 
 在途 READY/running/cancel_requested 作业禁止修订，不终止计算。固定依赖失效：构象变更重建下游；映射/初猜变更重跑探索及正式链；TS 方法重跑正式链；TS Freq 变更保留 TS Opt；IRC 变更保留 TS/Freq；单侧端点变更只重算该侧 Opt/Freq，另一侧及 TS/IRC 保留。
 
-恢复必须绑定 `failed_attempt="输入版本:purpose:job_id"` 和工作区内实际 evidence_refs。单纯 reason、扫描 7 点改 8 点或自由文本“环境修好了”不能清除第一点 SHARK/临时文件失败。可核验的后续同输入成功执行证明环境已恢复；改种子须有相关成功原生计算或精确归档候选资格。计算正常退出但虚频不合格同样记录失败。历史失败和费用不清零。
+失败尝试可在同一 run 中修订或用 `changes={}` 重试；旧失败、日志和费用保留，重试不等于失败原因已科学解决。扫描 7 点改 8 点也不会自动证明先前 SHARK/临时文件失败已排除。计算正常退出但虚频不合格仍记录失败。
 
 既有 IRC 来源须来自同项目 authoritative done 作业，输入摘要、原生正常结束、自己的方法契约、TS 频率参考几何和双向外帧全部可核验；几何按写入器已有 8 位坐标精度比较。复制为不可变证据并保留来源；不重新提交 IRC，不从无来源路径直接接受 verdict。
 
@@ -55,11 +57,11 @@ TS Opt 须原生正常结束并收敛；TS Freq 有且仅有 1 个虚频。双�
 
 ## 观测与费用
 
-prepare / resume / inspect / 终态通知共用状态投影：status、stage、result、waiting_for、available_results、blocked、failed_attempt、next、methods、usage、details_path/export_revision。完整输入、历史和证据在权威账本与 process.json 快照；导出 revision 与账本分开展示。
+prepare / resume / inspect / 终态通知共用状态投影：status、stage、result、waiting_for、available_results、structures、blocked、failed_attempt、next、methods、usage、details_path/export_revision。完整输入、历史和证据在权威账本与 process.json 快照；导出 revision 与账本分开展示。
 
-删除 estimated wall/CPU hours、time_budget_hours、预计 CPU 小时准入及缺估计阻塞。动作数、实际模型请求（含 transport 重试）、介入次数保留。runtime_seconds 是经过时间；allocated_cpu_hours 是申请核数×经过时间；measured_cpu_hours 缺测量为 null，不能冒充实测。历史和约束优化的各梯度/Hessian 作业都计入真实动作。旧格式记录停止自动接续，现存计算和排他锁不动；不迁移/默默兼容旧科学输入。
+删除 estimated wall/CPU hours、time_budget_hours、预计 CPU 小时准入及缺估计阻塞。动作数、实际模型请求（含 transport 重试）、介入次数保留。runtime_seconds 是经过时间；allocated_cpu_hours 是申请核数×经过时间；measured_cpu_hours 缺测量为 null，不能冒充实测。历史和约束优化的各梯度/Hessian 作业都计入真实动作。本次扫描契约变更使用格式 4；格式 3 的旧记录只读隔离，现存计算和排他锁不动；不迁移/默默兼容旧科学输入。
 
 
-失败恢复区分执行修复与新路线探索。执行修复不能仅凭账本 done 或相同输入字节通过，还需原生正常终止；已知 wrong_mode 的频率修复必须满足对应一虚频/零虚频证据。失败 scan/path 改为 provided 时，recovery 引用原失败产物、新候选 XYZ 及其 provenance；改为 xtb_path 时引用原失败及两端已绑定结构。旧路线无需先成功，新路线仍经过正常准入和最终科学校验。
+失败恢复区分执行修复与新路线探索。后续作业仍需原生正常终止；已知 wrong_mode 的频率修复必须满足对应一虚频/零虚频证据。失败 scan/path 改为 provided 时须提供新候选 XYZ 及其来源证据；改为 xtb_path 时仍使用两端已绑定结构。旧路线无需先成功，新路线仍经过正常准入和最终科学校验。
 
 MOL 的键图不能代替实际 XYZ 连通性证据。预优化、映射和端点校验沿用同一既有连通性判据；无法证明时保持 inconclusive。IRC 复用 Hessian 要求完整科学方法声明相同，包括原生溶剂等设置块；不同声明重新计算 Hessian。

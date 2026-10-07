@@ -21,6 +21,7 @@ class TsProcessView(BaseModel):
     result: dict | None = Field(default=None, description="Scientific verdict: outcome, verified and recorded reason. Tool-call success and an ended workflow do not imply scientific verification.")
     waiting_for: list[dict] = Field(default_factory=list)
     available_results: list[dict] = Field(default_factory=list)
+    structures: dict[str, dict] = Field(default_factory=dict, description="Recorded full XYZ atom tables and binding facts")
     blocked: dict | None = None
     failed_attempt: dict | None = None
     next: dict = Field(default_factory=dict)
@@ -40,7 +41,7 @@ def build_process_view(state: dict, jobs: list[dict], *, can_write: bool) -> TsP
     current_stage = next((row for row in reversed(state.get("stage_records", []))
                           if row.get("stage") == state.get("stage")), {})
     detail = (blocked or {}).get("message") or current_stage.get("detail", "")
-    supported = state.get("format_version") == 3
+    supported = state.get("format_version") == 4
     status = "isolated" if not supported else "waiting" if active or waiting else "ended" if terminal else "blocked" if blocked else "running"
     next_action = dict(action="inspect", required_inputs=[], editable_groups=[])
     if supported and can_write:
@@ -92,7 +93,7 @@ def build_process_view(state: dict, jobs: list[dict], *, can_write: bool) -> TsP
         stage=state["stage"], result=dict(outcome=terminal, verified=terminal == "verified", reason=detail,
                                            evidence_refs=state.get("evidence_candidates", [])) if supported and terminal else None,
         waiting_for=active or deepcopy(jobs) if waiting else active, failed_attempt=state.get("failed_attempt"),
-        available_results=available, blocked=blocked, next=next_action, methods=method_entries,
+        available_results=available, structures=deepcopy(state.get('structures', {})), blocked=blocked, next=next_action, methods=method_entries,
         usage=dict(interventions=state.get("intervention_count", 0), compute_actions=len(jobs), model_calls=None, limits=value.get("execution", {}).get("limits"), **state.get("accounted_usage", {}), jobs=usage_jobs),
         details_path=str(Path(state["run_dir"]) / "process.json"), export_revision=state.get("export_revision"),
         message="Unsupported input format: automatic continuation isolated; existing compute jobs remain intact." if not supported else detail,

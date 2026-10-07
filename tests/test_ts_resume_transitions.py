@@ -96,7 +96,81 @@ def test_source_revision_clears_old_geometry_and_numeric_checkpoints(tmp_path):
     assert revised.current_seed_xyz_path == revised.current_seed_mol_path == ''
     assert revised.product_seed_xyz_path == revised.active_attempt_dir == ''
     assert revised.job_id is None and revised.job_input_path == ''
+    assert revised.input.reaction.atom_map == []
+    assert revised.input.conformers.guidance.ring_order == []
+    assert revised.input.guess is None
     assert record.current_seed_xyz_path == 'old.xyz'
+
+
+def test_overwritten_external_xyz_invalidates_old_atom_numbers(tmp_path):
+    from cloudra.tools.core.ts_inputs import FileConformer
+    from cloudra.tools.core.ts_revision import plan_input_revision, revise_record
+
+    source = tmp_path / 'reactant.xyz'
+    source.write_text('2\nold\nH 0 0 0\nH 0 0 .74\n')
+    snapshot = tmp_path / 'build' / 'input_0001' / 'reactant' / 'seed.xyz'
+    snapshot.parent.mkdir(parents=True)
+    snapshot.write_bytes(source.read_bytes())
+    record = record_fixture(tmp_path, stage='verdict', terminal='candidate_only')
+    record.input.conformers.reactant = FileConformer(kind='file', xyz_path=str(source))
+    record.structures['reactant'] = {'xyz_sha256': 'old', 'input_revision': 1}
+    source.write_text('2\nchanged\nH 0 0 .74\nH 0 0 0\n')
+    change = request(record, {})
+    receipt = plan_input_revision(record, change)
+    revised = revise_record(record, change, receipt)
+    assert 'reaction.atom_map' in receipt.changes
+    assert revised.stage == 'build'
+    assert revised.input.reaction.atom_map == [] and revised.input.guess is None
+    assert snapshot.read_text().startswith('2\nold')
+
+
+def test_repeated_method_revisions_retain_unchanged_source_binding(tmp_path):
+    from cloudra.tools.core.ts_inputs import FileConformer
+    from cloudra.tools.core.ts_revision import plan_input_revision, revise_record
+
+    source = tmp_path / 'reactant.xyz'
+    source.write_text('2\nunchanged\nH 0 0 0\nH 0 0 .74\n')
+    snapshot = tmp_path / 'build' / 'input_0001' / 'reactant' / 'seed.xyz'
+    snapshot.parent.mkdir(parents=True)
+    snapshot.write_bytes(source.read_bytes())
+    record = record_fixture(tmp_path, stage='verdict', terminal='candidate_only')
+    record.input.conformers.reactant = FileConformer(kind='file', xyz_path=str(source))
+    record.structures['reactant'] = {'input_revision': 1, 'xyz_path': str(snapshot)}
+    original_input = record.input.model_copy(deep=True)
+    for method in ('b97-3c', 'b3lyp/def2svp'):
+        calculation = record.input.ts_optimization.model_dump()
+        calculation['method'] = method
+        change = request(record, {'ts_optimization': calculation})
+        receipt = plan_input_revision(record, change)
+        record = revise_record(record, change, receipt)
+        assert record.stage == 'submit'
+        assert record.input.reaction.atom_map == original_input.reaction.atom_map
+        assert record.input.guess == original_input.guess
+        assert record.structures['reactant']['input_revision'] == 1
+        assert receipt.changes == ['ts_optimization.method']
+    source.write_text('2\nchanged\nH 0 0 .74\nH 0 0 0\n')
+    change = request(record, {})
+    revised = revise_record(record, change, plan_input_revision(record, change))
+    assert revised.stage == 'build'
+    assert revised.input.reaction.atom_map == [] and revised.input.guess is None
+
+
+def test_missing_external_source_can_be_supplied_at_same_path(tmp_path):
+    from cloudra.tools.core.ts_inputs import FileConformer
+    from cloudra.tools.core.ts_process import TsBlocked
+    from cloudra.tools.core.ts_revision import plan_input_revision, revise_record
+
+    source = tmp_path / 'delayed.xyz'
+    record = record_fixture(tmp_path, stage='build', blocked=TsBlocked(
+        stage='build', failure_class='conformer_source_invalid', message='missing source',
+        issues=[{'code':'source_missing','role':'reactant','field':'conformers.reactant.xyz_path',
+                 'path':str(source)}]))
+    record.input.conformers.reactant = FileConformer(kind='file', xyz_path=str(source))
+    source.write_text('2\nsupplied\nH 0 0 0\nH 0 0 .74\n')
+    change = request(record, {})
+    revised = revise_record(record, change, plan_input_revision(record, change))
+    assert revised.stage == 'build'
+    assert revised.input.reaction.atom_map == [] and revised.input.guess is None
 
 
 def test_guess_revision_cannot_skip_an_unfinished_mapping_dependency(tmp_path):

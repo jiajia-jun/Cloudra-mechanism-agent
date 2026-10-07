@@ -70,11 +70,13 @@ class MethodPolicyStage:
         return Path(ctx.workspace_dir) if ctx.workspace_dir else None
 
     async def before_tool(self, ctx: PipelineContext, call: ToolCall) -> PolicyResult:
+        import asyncio
+
         policy = self._resolve_policy(ctx)
         if policy is None:
             return PolicyResult.allow()
         base = self._base(ctx)
-        verdict = intercept(call.name, call.arguments, policy, base_dir=base)
+        verdict = await asyncio.to_thread(intercept, call.name, call.arguments, policy, base_dir=base)
         if not verdict.allowed:
             return PolicyResult.block(f"[method_policy] {verdict.reason}")
         if call.name == "bash" and "bash" in set(policy.intercept_layers):
@@ -84,7 +86,7 @@ class MethodPolicyStage:
                 p = Path(raw)
                 refs.append(p if p.is_absolute() or base is None else base / p)
             if refs:
-                verdict = check_input_files(refs, policy)
+                verdict = await asyncio.to_thread(check_input_files, refs, policy)
                 if not verdict.allowed:
                     return PolicyResult.block(f"[method_policy] {verdict.reason}")
         return PolicyResult.allow()

@@ -284,6 +284,7 @@ def admit_job(
             scheduler_options["memory"] = f"{memory_mb}M"
 
     # 显式申请低于输入自述需求：返回诊断，不静默超额占用节点。
+    manifest = None
     if job_type == 'chem_task':
         from cloudra.runtime.chem_task import ChemTask
         try:
@@ -303,6 +304,8 @@ def admit_job(
 
     if scheduler == "local":
         ok, msg = check_job_type(job_type, workdir)
+        if ok and manifest is not None and manifest.task == 'xtb_scan':
+            ok, msg = check_job_type('xtb', workdir)
     elif scheduler == "slurm":
         from cloudra.infra.slurm import check_slurm_tools
 

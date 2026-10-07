@@ -66,6 +66,7 @@ from cloudra.tools.core.irc_path import (
 )
 from cloudra.tools.core.qm_keywords import orca_basis_keyword
 from cloudra.tools.core.topology_change import default_connectivity
+from cloudra.tools.core.ts_inputs import PathSolvation, ScanGuess, TsCalculation
 from cloudra.tools.core.xtb_path_runner import DEFAULT_REFINEMENT_RUNS, PathTermination
 
 KCAL_PER_HARTREE = 627.5095
@@ -85,8 +86,8 @@ description = (
     "Transition-state (TS) guess workflow: four sub-functions selected by mode. "
     "interpolate: linear or IDPP interpolation from reactant/product xyz to generate NEB candidate-path images "
     "(auto-align, optional atom_map reordering, distance-monitor table, and TS-candidate frame verdict); "
-    "scan_prepare: write a Gaussian/ORCA constrained-scan input — one scan coordinate or two coupled ones "
-    "(bond/angle/dihedral, modredundant or %geom Scan); for MLIP/external potentials pass "
+    "scan_prepare: write a Gaussian/ORCA constrained-scan input or a typed native xTB scan manifest "
+    "(bond/angle/dihedral; xTB requires an explicit method and force_constant); for MLIP/external potentials pass "
     "method='ExtOpt' (ORCA, plus orca_blocks with the %method ProgExt block) or method='external' "
     "(Gaussian, plus extra_route='external=\"mace\"'); "
     "scan_parse: parse a scan log into a relative-energy profile table, constrained-scan diagnostic barrier, and monotonicity/discontinuity/boundary-extremum/multipeak verdicts, "
@@ -180,16 +181,16 @@ class TsGuess_input_schema(input_schema):
     # ---------- scan_prepare ----------
     input_path: Optional[str] = Field(default=None, description="scan_prepare: input structure file path (xyz). Absolute as-is, or relative to the Agent working directory.")
     input_text: Optional[str] = Field(default=None, description="scan_prepare: input structure xyz text.")
-    engine: Literal["gaussian", "orca"] = Field(default="gaussian", description="Target QM program.")
+    engine: Literal["gaussian", "orca", "xtb"] = Field(default="gaussian", description="Target scan engine; xTB scan atom numbers are 1-based.")
     scans: Optional[list[ScanCoordinateInput]] = Field(
         default=None,
         description=(
             "scan_prepare: scan-coordinate list, one entry per scanned coordinate. "
-            "Each entry: {\"coord_type\": \"bond\"|\"angle\"|\"dihedral\", \"atoms\": [2|3|4 atom indices, Gaussian 1-based / ORCA 0-based], "
-            "Gaussian uses 1-based indices; ORCA uses 0-based indices. internal_coordinates is 1-based: subtract 1 when transferring its atom numbers to ORCA. "
+            "Each entry: {\"coord_type\": \"bond\"|\"angle\"|\"dihedral\", \"atoms\": [2|3|4 atom indices], "
+            "Gaussian and xTB use 1-based indices; ORCA uses 0-based indices. internal_coordinates is 1-based: subtract 1 only for ORCA. "
             "\"scan_start\": optional start value (default the current geometry value), \"scan_end\": end value, "
             "\"scan_steps\": step count}. A single entry drives a 1D scan; a second entry makes a 2D coupled scan "
-            "(Gaussian only — ORCA relaxed scans are 1D, so pass exactly one entry). "
+            "(Gaussian or xTB — ORCA relaxed scans are 1D, so pass exactly one entry). "
             "Scanning only one geometric coordinate is often not enough: TS search frequently needs a second, "
             "coupled coordinate (e.g. both the forming and the breaking bond) to see a barrier."
         )
@@ -203,7 +204,7 @@ class TsGuess_input_schema(input_schema):
     spin: int = Field(default=1, description="Spin multiplicity (2S+1).")
     extra_route: str = Field(default="", description="Extra route keywords (e.g. 'scrf=(solvent=water)' for Gaussian, or the external-program keyword for method='external').")
     nprocs: int = Field(default=4, description="Parallel cores (Gaussian %nprocshared / ORCA %pal).")
-    output_path: Optional[str] = Field(default=None, description="scan_prepare: path to write the input file (gjf/inp, required). Absolute as-is, or relative to the Agent working directory.")
+    output_path: Optional[str] = Field(default=None, description="scan_prepare: path to write the Gaussian/ORCA input or xTB typed manifest (required). Absolute as-is, or relative to the Agent working directory.")
     job_name: str = Field(default="scan", description="Job name (used for chk file and title).")
     orca_blocks: Optional[str] = Field(
         default=None,
@@ -211,9 +212,12 @@ class TsGuess_input_schema(input_schema):
     )
 
     end_setting: str = Field(default='', description='scan_prepare: explicit Gaussian trailing native settings, after ModRedundant coordinates. ORCA uses orca_blocks.')
+    force_constant: float | None = Field(default=None, gt=0, allow_inf_nan=False, description='Native xTB scan restraint force constant in atomic units; required for engine=xtb.')
+    scan_mode: Literal['concerted', 'sequential'] | None = Field(default=None, description='Native xTB scan mode; required only for two coordinates.')
+    solvation: PathSolvation | None = Field(default=None, description='Native xTB solvation declaration, when used.')
 
     # ---------- scan_parse ----------
-    log_path: Optional[str] = Field(default=None, description="scan_parse: scan log file path. Absolute as-is, or relative to the Agent working directory.")
+    log_path: Optional[str] = Field(default=None, description="scan_parse: Gaussian/ORCA scan log path, or xTB typed manifest path after completion. Absolute as-is, or relative to the Agent working directory.")
     ts_candidate_path: Optional[str] = Field(
         default=None, description="scan_parse: path to write the TS-guess xyz (default <log_stem>_ts_guess.xyz). Absolute as-is, or relative to the Agent working directory."
     )
@@ -1398,6 +1402,10 @@ class TsGuess(Tool):
     def _scan_prepare(self, user_input: TsGuess_input_schema) -> TsGuess_output_schema:
         import numpy as np
 
+        if user_input.engine == 'xtb':
+            return self._xtb_scan_prepare(user_input)
+        if any(value is not None for value in (user_input.force_constant, user_input.scan_mode, user_input.solvation)):
+            raise ValueError('force_constant, scan_mode and solvation are native xTB scan fields')
         if not user_input.method or not user_input.method.strip():
             raise ValueError(
                 "scan_prepare requires an explicit method. For exploratory PES scans, choose a "
@@ -1621,11 +1629,105 @@ class TsGuess(Tool):
             ),
         )
 
+    def _xtb_scan_prepare(self, user_input: TsGuess_input_schema) -> TsGuess_output_schema:
+        from pathlib import Path
+
+        from cloudra.runtime.chem_task import ChemTask
+
+        if not user_input.method or not user_input.method.strip():
+            raise ValueError('xTB scan requires an explicitly declared method')
+        if not {'charge', 'spin'} <= user_input.model_fields_set:
+            raise ValueError('xTB scan requires explicit charge and spin multiplicity for the bound XYZ')
+        if not user_input.output_path or not user_input.scans:
+            raise ValueError('xTB scan requires output_path and scans')
+        workspace = getattr(getattr(self, 'subagent', None), 'working_directory', None)
+        if workspace:
+            root = Path(workspace).resolve()
+            Path(user_input.output_path).resolve().relative_to(root)
+            if user_input.input_path:
+                Path(user_input.input_path).resolve().relative_to(root)
+        if user_input.freeze or user_input.extra_route or user_input.orca_blocks or user_input.end_setting:
+            raise ValueError('xTB scan rejects Gaussian/ORCA directives and frozen coordinates')
+        atoms = _load_xyz(user_input.input_path, user_input.input_text)
+        symbols = atoms.get_chemical_symbols()
+        positions = atoms.get_positions()
+        coordinates = []
+        for row in user_input.scans:
+            coordinates.append(row.model_copy(update={
+                'atoms': atom_indices(row.atoms, base=1, count=len(symbols)),
+            }))
+        scan = ScanGuess(kind='scan', calculation=TsCalculation(engine='xtb', method=user_input.method),
+            scans=coordinates, force_constant=user_input.force_constant,
+            mode=user_input.scan_mode, solvation=user_input.solvation)
+        xyz = '\n'.join([str(len(symbols)), 'bound xTB scan input',
+            *[f'{symbol} ' + ' '.join(f'{float(value):.14f}' for value in point)
+              for symbol, point in zip(symbols, positions)]]) + '\n'
+        task = ChemTask(task='xtb_scan', reactant_xyz=xyz, cpus=user_input.nprocs,
+                        charge=user_input.charge, multiplicity=user_input.spin, scan=scan)
+        output = Path(user_input.output_path)
+        if output.exists():
+            raise ValueError(f'xTB scan manifest already exists: {output}')
+        output.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_text(str(output), task.model_dump_json())
+        return TsGuess_output_schema(is_success=True, input_file_path=str(output),
+            run_hint=f"Submit {output} with submit_compute_job(job_type='chem_task'); parse the finished manifest with ts_guess(mode='scan_parse', engine='xtb', log_path='{output}').",
+            message='Typed xTB scan manifest written; this has not run a calculation or validated a TS.')
+
+    def _xtb_scan_parse(self, user_input: TsGuess_input_schema) -> TsGuess_output_schema:
+        from pathlib import Path
+
+        from cloudra.runtime.chem_task import ChemTask, read_task_result
+
+        if not user_input.log_path:
+            raise ValueError('xTB scan parsing requires log_path pointing to the typed manifest')
+        manifest = Path(user_input.log_path)
+        workspace = getattr(getattr(self, 'subagent', None), 'working_directory', None)
+        if workspace:
+            root = Path(workspace).resolve()
+            manifest.resolve().relative_to(root)
+            if user_input.ts_candidate_path:
+                Path(user_input.ts_candidate_path).resolve().relative_to(root)
+        task = ChemTask.model_validate_json(manifest.read_text())
+        if task.task != 'xtb_scan':
+            raise ValueError('xTB scan parsing accepts only a native xtb_scan manifest')
+        data, _ = read_task_result(str(manifest))
+        result = data['result']
+        points = result.get('points', [])
+        profile = 'point segment electronic_hartree relative_kcal frame_path\n'
+        segment_starts = {}
+        for point in points:
+            energy = point.get('energy_hartree')
+            first = segment_starts.setdefault(point['segment'], energy)
+            relative = (energy - first) * KCAL_PER_HARTREE if energy is not None and first is not None else None
+            profile += f"{point['index']} {point['segment']} {energy if energy is not None else 'unresolved'} {relative if relative is not None else 'unresolved'} {point['frame_path']}\n"
+        candidates = result.get('candidates', [])
+        candidate = candidates[0] if len(candidates) == 1 else None
+        candidate_path = result.get('candidate_path') if candidate else None
+        if candidate_path and user_input.ts_candidate_path:
+            atomic_write_text(user_input.ts_candidate_path, Path(candidate_path).read_text())
+            candidate_path = user_input.ts_candidate_path
+        complete = result.get('scan_status') == 'complete'
+        verdicts = list(result.get('issues', []))
+        if len(candidates) > 1:
+            verdicts.append('Multiple segment peaks: choose a specific candidate frame from the recorded scan result')
+        elif complete and not candidates:
+            verdicts.append('No interior electronic-energy peak; no automatic TS guess')
+        barrier = None
+        if complete and points and len(segment_starts) == 1 and all(point.get('energy_hartree') is not None for point in points):
+            barrier = (max(point['energy_hartree'] for point in points) - points[0]['energy_hartree']) * KCAL_PER_HARTREE
+        return TsGuess_output_schema(is_success=complete, message='Native xTB scan complete' if complete else 'Native xTB scan incomplete; inspect recorded issues',
+            profile_table=profile, verdicts=verdicts, scan_has_internal_peak=bool(candidates) if complete else None,
+            barrier_kcal=barrier, candidate=candidate, candidate_unavailable=False,
+            ts_candidate_index=candidate['point_index'] - 1 if candidate else None,
+            ts_candidate_path=candidate_path or '')
+
     # ---------- mode=scan_parse ----------
 
     def _scan_parse(self, user_input: TsGuess_input_schema) -> TsGuess_output_schema:
         import numpy as np
 
+        if user_input.engine == 'xtb':
+            return self._xtb_scan_parse(user_input)
         if not user_input.log_path:
             raise ValueError("scan_parse requires log_path")
         log_exists = os.path.isfile(user_input.log_path)

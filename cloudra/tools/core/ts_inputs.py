@@ -10,7 +10,7 @@ from copy import deepcopy
 from types import UnionType
 from typing import Annotated, Literal, Union, get_args, get_origin
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, create_model, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, create_model, field_validator, model_validator
 
 from cloudra.tools.core.geometry_inputs import (
     DistanceWindowInput,
@@ -28,7 +28,7 @@ class TsCalculation(InputModel):
     """An explicit calculation; keywords replace rather than accumulate."""
     engine: Literal["orca", "gaussian", "xtb"]
     method: str = Field(min_length=1)
-    keywords: str
+    keywords: str = ""
     frequency_mode: Literal["auto", "analytic", "numeric"] = "auto"
     orca_blocks: str | None = None
     end_setting: str = ""
@@ -57,12 +57,18 @@ class GeneratedConformer(InputModel):
     optimization: TsCalculation | None = None
 
 
+class HeavyAtomBinding(InputModel):
+    structure_digest: str = Field(min_length=1)
+    indices: list[StrictInt] = Field(min_length=1)
+
+
 class FileConformer(InputModel):
     kind: Literal["file"]
     xyz_path: str = Field(min_length=1)
     mol_path: str | None = None
     evidence_refs: list[str] = Field(default_factory=list)
     optimization: TsCalculation | None = None
+    heavy_atom_binding: HeavyAtomBinding | None = None
 
 
 class CatalogConformer(InputModel):
@@ -113,6 +119,41 @@ class ScanGuess(InputModel):
     calculation: TsCalculation
     scans: list[ScanCoordinateInput] = Field(min_length=1, max_length=2)
     freeze: list[FrozenCoordinateInput] = Field(default_factory=list)
+    force_constant: float | None = Field(default=None, gt=0, description="xTB restraint force constant in atomic units; explicitly declared")
+    mode: Literal["concerted", "sequential"] | None = None
+    solvation: PathSolvation | None = None
+
+    @model_validator(mode="after")
+    def scan_contract(self):
+        engine = self.calculation.engine
+        if engine != "xtb":
+            if any(value is not None for value in (self.force_constant, self.mode, self.solvation)):
+                raise ValueError("force_constant, mode and solvation are native xTB scan fields")
+            if engine == "orca" and len(self.scans) != 1:
+                raise ValueError("ORCA relaxed scan accepts exactly one coordinate")
+            return self
+        if self.calculation.method != "GFN2-xTB":
+            raise ValueError("native xTB scan currently supports explicitly declared GFN2-xTB")
+        if self.calculation.keywords or self.calculation.orca_blocks or self.calculation.end_setting:
+            raise ValueError("native xTB scan rejects ORCA/Gaussian directives")
+        if self.force_constant is None:
+            raise ValueError("force_constant is required for native xTB scan")
+        if self.freeze:
+            raise ValueError("native xTB scan does not silently reinterpret freeze as a soft restraint")
+        if len(self.scans) == 1 and self.mode is not None:
+            raise ValueError("mode is derived for a one-coordinate xTB scan")
+        if len(self.scans) == 2:
+            if self.mode is None:
+                raise ValueError("mode is required for two-coordinate xTB scan")
+            if self.mode == "concerted" and self.scans[0].scan_steps != self.scans[1].scan_steps:
+                raise ValueError("concerted xTB scans require equal scan_steps")
+        for row in self.scans:
+            if row.scan_start is None or row.scan_steps < 2:
+                raise ValueError("native xTB scan requires scan_start and at least two scan points")
+        keys = [(row.coord_type, min(tuple(row.atoms), tuple(reversed(row.atoms)))) for row in self.scans]
+        if len(set(keys)) != len(keys):
+            raise ValueError("duplicate scan coordinate")
+        return self
 
 
 class ProvidedGuess(InputModel):
@@ -170,7 +211,7 @@ class TsInput(InputModel):
 # Scientific operations and sources are immutable units. All other nested
 # groups derive their patch fields from the same definition as prepare.
 _ATOMIC = {
-    TsCalculation, GeneratedConformer, FileConformer, CatalogConformer,
+    TsCalculation, GeneratedConformer, HeavyAtomBinding, FileConformer, CatalogConformer,
     RotatedConformer, PathSolvation, XtbPathGuess, ScanGuess, ProvidedGuess,
     DistanceWindowInput, FrozenCoordinateInput, ScanCoordinateInput,
 }

@@ -1,4 +1,5 @@
 """Pure TS revision planning on the fixed scientific dependency chain."""
+import hashlib
 from pathlib import Path
 
 from cloudra.services.ts_pipeline_store import TsEvidenceReference, TsRevisionReceipt, revision_request_digest
@@ -33,6 +34,70 @@ def _failed_step(record):
     return next((step for step in reversed(steps) if step.state in ('failed', 'cancelled', 'missing')), None)
 
 
+def _source_identity(source):
+    if source is None:
+        return None
+    fields = {'file': ('xyz_path', 'mol_path'), 'catalog': ('catalog_id', 'candidate_id', 'partition_revision'),
+              'generate': ('generation', 'seed'), 'rotate_about_bond': ()}[source.kind]
+    return (source.kind, *(getattr(source, field) for field in fields))
+
+
+def _file_source_drift(record, role):
+    source = getattr(record.input.conformers, role)
+    if source is None or source.kind != 'file' or role not in record.structures:
+        return False
+    source_revision = record.structures[role]['input_revision']
+    snapshot = Path(record.run_dir) / 'build' / f'input_{source_revision:04d}' / role
+    for name, source_path in (('seed.xyz', source.xyz_path), ('seed.mol', source.mol_path)):
+        if source_path is None:
+            continue
+        old = snapshot / name
+        current = Path(source_path)
+        if not old.is_file() or not current.is_file():
+            return True
+        if hashlib.sha256(old.read_bytes()).digest() != hashlib.sha256(current.read_bytes()).digest():
+            return True
+    return False
+
+
+def _missing_source_arrived(record, role):
+    if role in record.structures or record.blocked is None:
+        return False
+    return any(issue.get('code') == 'source_missing' and issue.get('role') == role
+               and Path(issue.get('path', '')).is_file() for issue in record.blocked.issues)
+
+
+def _stale_atom_references(record, updated, changes):
+    identity_changed = any(
+        getattr(record.input.reaction, field) != getattr(updated.reaction, field)
+        for field in ('reactant_smiles', 'product_smiles')
+    ) or any(
+        _source_identity(getattr(record.input.conformers, role)) !=
+        _source_identity(getattr(updated.conformers, role)) or _file_source_drift(record, role)
+        or _missing_source_arrived(record, role)
+        for role in ('reactant', 'product')
+    )
+    if not identity_changed:
+        return []
+    reaction_fields = changes.reaction.model_fields_set if changes.reaction is not None else set()
+    conformers = changes.conformers
+    guidance = conformers.guidance if conformers is not None else None
+    guidance_fields = guidance.model_fields_set if guidance is not None else set()
+    stale = []
+    if record.input.reaction.atom_map and 'atom_map' not in reaction_fields:
+        stale.append('reaction.atom_map')
+    if record.input.reaction.reaction_center and 'reaction_center' not in reaction_fields:
+        stale.append('reaction.reaction_center')
+    existing_guidance = record.input.conformers.guidance
+    if existing_guidance.ring_order and 'ring_order' not in guidance_fields:
+        stale.append('conformers.guidance.ring_order')
+    if existing_guidance.distance_filters and 'distance_filters' not in guidance_fields:
+        stale.append('conformers.guidance.distance_filters')
+    if record.input.guess is not None and 'guess' not in changes.model_fields_set:
+        stale.append('guess')
+    return stale
+
+
 def plan_input_revision(record, request: TsResumeRequest) -> TsRevisionReceipt:
     """Return affected job references; do not mutate record, files or ledger."""
     steps = list(record.job_steps) + ([record.scan_step] if record.scan_step else [])
@@ -40,6 +105,11 @@ def plan_input_revision(record, request: TsResumeRequest) -> TsRevisionReceipt:
         raise ValueError('active compute jobs prevent input revisions; use ts_inspect')
     updated = apply_input_changes(record.input, request.changes)
     differences = _differences(record.input.model_dump(mode='json'), updated.model_dump(mode='json'))
+    differences.extend(_stale_atom_references(record, updated, request.changes))
+    for role in ('reactant', 'product'):
+        if _file_source_drift(record, role) or _missing_source_arrived(record, role):
+            differences.append(f'conformers.{role}.xyz_path')
+    differences = sorted(set(differences))
     failed = _failed_step(record)
     if not differences and failed is None:
         raise ValueError('no input change or failed attempt to retry; use ts_inspect')
@@ -95,6 +165,17 @@ def revise_record(record, request, receipt):
         selected_candidate_id=record.selected_candidate_id, job_steps=[*record.job_steps, *([record.scan_step] if record.scan_step else [])], stage_records=record.stage_records,
         input=record.input, terminal=record.terminal, blocked=record.blocked, failed_attempt=record.failed_attempt, reason=request.reason))
     revised.input = apply_input_changes(record.input, request.changes)
+    stale = _stale_atom_references(record, revised.input, request.changes)
+    if 'reaction.atom_map' in stale:
+        revised.input.reaction.atom_map = []
+    if 'reaction.reaction_center' in stale:
+        revised.input.reaction.reaction_center = []
+    if 'conformers.guidance.ring_order' in stale:
+        revised.input.conformers.guidance.ring_order = []
+    if 'conformers.guidance.distance_filters' in stale:
+        revised.input.conformers.guidance.distance_filters = []
+    if 'guess' in stale:
+        revised.input.guess = None
     revised.declaration_revision = receipt.input_revision
     revised.revision = receipt.revision
     invalid_refs = {(ref.stage_key, ref.job_id) for ref in receipt.invalidated}
@@ -148,7 +229,11 @@ def revise_record(record, request, receipt):
         revised.job_id, revised.job_input_path = None, ''
     if STAGE_ORDER.index(revised.stage) <= STAGE_ORDER.index('map'):
         revised.input_binding = {}
+        for table in revised.structures.values():
+            table['binding_status'] = 'unverified'
+            table.pop('heavy_atom_indices', None)
     if STAGE_ORDER.index(revised.stage) <= STAGE_ORDER.index('build'):
+        revised.structures = {}
         revised.current_seed_xyz_path, revised.current_seed_mol_path = '', ''
         revised.product_seed_xyz_path, revised.product_seed_mol_path = '', ''
         revised.current_reactant_prepared_path = ''
@@ -201,7 +286,9 @@ def resume_revised_process(record, request, *, event_sink=None):
             step.state = _step_state(current, step)
         if current.waiting_for and all(s.state not in ('ready', 'running', 'cancel_requested') for s in [*current.job_steps, *([current.scan_step] if current.scan_step else [])]):
             current.waiting_for = ''
-        if request.changes.model_fields_set and apply_input_changes(current.input,request.changes) == current.input:
+        if (request.changes.model_fields_set and apply_input_changes(current.input,request.changes) == current.input
+                and not any(_file_source_drift(current, role) or _missing_source_arrived(current, role)
+                            for role in ('reactant', 'product'))):
             return current
         receipt = plan_input_revision(current, request)
         revised = revise_record(current, request, receipt)

@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from cloudra.runtime_v2.invocation_context import InvocationScope, reset_invocation_scope, set_invocation_scope
 from cloudra.tools.Chemtool.ts_search_process import (
     TsPrepare,
     TsPrepare_input_schema,
@@ -13,11 +14,26 @@ from cloudra.tools.core.permission_model import Permission
 from tests.ts_fixtures import calculation_input
 
 
-def owned_tool(cls, project='project'):
+@pytest.fixture(autouse=True)
+def tool_invocation():
+    token = set_invocation_scope(InvocationScope(tool_call_id='stable-test-call', tool_name='ts_prepare'))
+    yield
+    reset_invocation_scope(token)
+
+
+def owned_tool(cls, project='project', workspace=None):
     tool = cls()
     object.__setattr__(tool, 'subagent', SimpleNamespace(conversation_id=project,
-        working_directory=None, permission_all=lambda: Permission.READ | Permission.WRITE))
+        working_directory=str(workspace) if workspace else None, permission_all=lambda: Permission.READ | Permission.WRITE))
     return tool
+
+
+async def invoke(tool, request, session=None, *, call_id='stable-test-call'):
+    token = set_invocation_scope(InvocationScope(tool_call_id=call_id, tool_name=tool.tool_name))
+    try:
+        return await tool.tool_call(request, session)
+    finally:
+        reset_invocation_scope(token)
 
 
 def inputs(*, mapped=True):
@@ -32,10 +48,10 @@ async def test_prepare_queues_one_path_and_response_replay_reuses_it(tmp_path, m
     from cloudra.services.compute_admission import AdmissionOutcome
     monkeypatch.setattr('cloudra.services.compute_admission.admit_job',
         lambda **_: AdmissionOutcome(ok=True,node_id='fixture',scheduler='local'))
-    tool = owned_tool(TsPrepare)
-    request = TsPrepare_input_schema(input=inputs(), workspace_dir=str(tmp_path), request_key='prepare')
-    first = await tool.tool_call(request, None)
-    second = await tool.tool_call(request, None)
+    tool = owned_tool(TsPrepare, workspace=tmp_path)
+    request = TsPrepare_input_schema(input=inputs())
+    first = await invoke(tool, request)
+    second = await invoke(tool, request)
     assert first.is_success and first.status == 'waiting', first.message
     assert first.run_id == second.run_id
     assert first.next["action"] == 'wait_for_system'
@@ -46,7 +62,7 @@ async def test_prepare_queues_one_path_and_response_replay_reuses_it(tmp_path, m
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("rdkit_chemistry")
 async def test_prepare_reports_missing_map_and_keeps_explicit_stage_methods(tmp_path):
-    first = await owned_tool(TsPrepare).tool_call(TsPrepare_input_schema(request_key='fixture-prepare', input=inputs(mapped=False), workspace_dir=str(tmp_path)),None)
+    first = await invoke(owned_tool(TsPrepare, workspace=tmp_path), TsPrepare_input_schema(input=inputs(mapped=False)))
     assert first.is_success and first.blocked["stage"] == 'map'
     assert first.blocked["failure_class"] == 'atom_map_missing'
     assert first.run_id
@@ -59,13 +75,13 @@ async def test_resume_revises_same_path_and_returns_durable_receipt(tmp_path, mo
     from cloudra.services.compute_admission import AdmissionOutcome
     monkeypatch.setattr('cloudra.services.compute_admission.admit_job',
         lambda **_: AdmissionOutcome(ok=True,node_id='fixture',scheduler='local'))
-    first = await owned_tool(TsPrepare).tool_call(TsPrepare_input_schema(request_key='fixture-prepare', input=inputs(mapped=False),workspace_dir=str(tmp_path)),None)
-    request = TsResume_input_schema(run_id=first.run_id, workspace_dir=str(tmp_path),
+    first = await invoke(owned_tool(TsPrepare, workspace=tmp_path), TsPrepare_input_schema(input=inputs(mapped=False)))
+    request = TsResume_input_schema(run_id=first.run_id,
         changes={'reaction':{'atom_map':[1,2,3]}}, reason='Bind the complete atom order',
-        request_key='mapping', expected_revision=first.revision)
-    tool = owned_tool(TsResume)
-    revised = await tool.tool_call(request,None)
-    replay = await tool.tool_call(request,None)
+        expected_revision=first.revision)
+    tool = owned_tool(TsResume, workspace=tmp_path)
+    revised = await invoke(tool, request)
+    replay = await invoke(tool, request)
     assert revised.is_success, revised.message
     assert revised.run_id == first.run_id
     assert revised.receipt.input_revision == 2
@@ -74,23 +90,40 @@ async def test_resume_revises_same_path_and_returns_durable_receipt(tmp_path, mo
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures('rdkit_chemistry')
+async def test_new_tool_call_cannot_overwrite_revision_agent_did_not_observe(tmp_path, monkeypatch):
+    from cloudra.services.compute_admission import AdmissionOutcome
+
+    monkeypatch.setattr('cloudra.services.compute_admission.admit_job',
+        lambda **_: AdmissionOutcome(ok=True,node_id='fixture',scheduler='local'))
+    first = await invoke(owned_tool(TsPrepare, workspace=tmp_path), TsPrepare_input_schema(input=inputs(mapped=False)))
+    request = TsResume_input_schema(run_id=first.run_id, reason='Bind atom map',
+        changes={'reaction':{'atom_map':[1,2,3]}}, expected_revision=first.revision)
+    tool = owned_tool(TsResume, workspace=tmp_path)
+    accepted = await invoke(tool, request, call_id='repair-1')
+    assert accepted.is_success
+    stale = await invoke(tool, request, call_id='repair-2')
+    assert not stale.is_success and 'stale process revision' in stale.message
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('project,owner',[('foreign',None),('project','foreign-owner')])
 @pytest.mark.usefixtures("rdkit_chemistry")
 async def test_resume_rejects_other_project_or_owner(tmp_path,project,owner):
-    first = await owned_tool(TsPrepare).tool_call(TsPrepare_input_schema(request_key='fixture-prepare', input=inputs(mapped=False),workspace_dir=str(tmp_path)),None)
-    request = TsResume_input_schema(run_id=first.run_id,workspace_dir=str(tmp_path),
-        reason='Change method', request_key='foreign', expected_revision=first.revision,
+    first = await invoke(owned_tool(TsPrepare, workspace=tmp_path), TsPrepare_input_schema(input=inputs(mapped=False)))
+    request = TsResume_input_schema(run_id=first.run_id,
+        reason='Change method', expected_revision=first.revision,
         changes={'ts_optimization':{'engine':'orca','method':'HF/STO-3G','keywords':'D3BJ'}})
     session = SimpleNamespace(id=owner) if owner else None
-    result = await owned_tool(TsResume,project).tool_call(request,session)
+    result = await invoke(owned_tool(TsResume, project, tmp_path), request, session)
     assert not result.is_success
     assert 'owner' in result.message or 'project' in result.message
 
 
 @pytest.mark.asyncio
 async def test_resume_unknown_run_reports_error(tmp_path):
-    result = await owned_tool(TsResume).tool_call(TsResume_input_schema(run_id='ts_9999',workspace_dir=str(tmp_path),
-        reason='Change method',request_key='unknown',expected_revision=0),None)
+    result = await invoke(owned_tool(TsResume, workspace=tmp_path), TsResume_input_schema(run_id='ts_9999',
+        reason='Change method',expected_revision=0))
     assert not result.is_success
 
 
@@ -102,18 +135,18 @@ async def test_resume_uses_authoritative_record_when_export_is_missing(tmp_path,
     from cloudra.services.compute_admission import AdmissionOutcome
     monkeypatch.setattr('cloudra.services.compute_admission.admit_job',
         lambda **_: AdmissionOutcome(ok=True,node_id='fixture',scheduler='local'))
-    first = await owned_tool(TsPrepare).tool_call(TsPrepare_input_schema(request_key='fixture-prepare', input=inputs(mapped=False),workspace_dir=str(tmp_path)),None)
+    first = await invoke(owned_tool(TsPrepare, workspace=tmp_path), TsPrepare_input_schema(input=inputs(mapped=False)))
     Path(first.run_dir, 'process.json').unlink()
-    result = await owned_tool(TsResume).tool_call(TsResume_input_schema(run_id=first.run_id,workspace_dir=str(tmp_path),
-        changes={'reaction':{'atom_map':[1,2,3]}},reason='Bind atoms',request_key='after-export-loss',expected_revision=first.revision),None)
+    result = await invoke(owned_tool(TsResume, workspace=tmp_path), TsResume_input_schema(run_id=first.run_id,
+        changes={'reaction':{'atom_map':[1,2,3]}},reason='Bind atoms',expected_revision=first.revision))
     assert result.is_success, result.message
     assert result.run_id == first.run_id
 
 
 @pytest.mark.asyncio
 async def test_prepare_without_workspace_reports_caller_error():
-    result = await owned_tool(TsPrepare).tool_call(TsPrepare_input_schema(request_key='fixture-prepare', input=inputs()),None)
-    assert not result.is_success and 'workspace' in result.message
+    result = await invoke(owned_tool(TsPrepare), TsPrepare_input_schema(input=inputs()))
+    assert not result.is_success and 'working directory' in result.message
 
 
 def test_public_surface_has_two_writers_and_readonly_inspection():
@@ -122,8 +155,10 @@ def test_public_surface_has_two_writers_and_readonly_inspection():
     assert {name for name in names if name.startswith('ts_')} - {'ts_guess'} == {'ts_prepare','ts_resume','ts_inspect'}
     fields = TsPrepare_input_schema.model_json_schema()['properties']
     assert 'input' in fields and 'compute_estimates' not in fields and 'declaration' not in fields
+    assert 'request_key' not in fields and 'workspace_dir' not in fields
+    assert 'request_key' not in TsResume_input_schema.model_json_schema()['properties']
     with pytest.raises(ValueError):
-        TsPrepare_input_schema(request_key='fixture-prepare', input=inputs(),estimated_cpu_hours=2)
+        TsPrepare_input_schema(input=inputs(),estimated_cpu_hours=2)
 
 
 pytestmark = pytest.mark.usefixtures("ts_producer_authority")

@@ -539,6 +539,18 @@ def intercept(
                 allowed=False,
                 reason=f"input file not found: {input_file}; cannot verify the whitelist",
             )
+        if str(arguments.get('job_type') or '').lower() == 'chem_task':
+            try:
+                from cloudra.runtime.chem_task import ChemTask
+
+                if base_dir is not None:
+                    p.resolve().relative_to(Path(base_dir).resolve())
+                task = ChemTask.model_validate_json(p.read_text(encoding='utf-8'))
+                if task.task != 'xtb_scan':
+                    raise ValueError('public chemistry-task submission accepts only xtb_scan')
+            except (OSError, ValueError) as exc:
+                return MethodVerdict(allowed=False, reason=f'cannot verify native scan manifest: {exc}')
+            return check_method(task.scan.calculation.method, policy)
         try:
             content = p.read_text(encoding="utf-8", errors="replace")
         except Exception as exc:

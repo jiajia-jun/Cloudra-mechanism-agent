@@ -6,7 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from cloudra.runtime_v2.core import RuntimeCore
-from cloudra.runtime_v2.method_policy import check_input_content
+from cloudra.runtime_v2.method_policy import check_input_content, intercept
 from cloudra.runtime_v2.policies import default_stages
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
 from cloudra.runtime_v2.schemas import (
@@ -24,6 +24,21 @@ _POLICY = {
 }
 _BASH_B3LYP = "cat > ts.gjf <<'EOF'\n#p b3lyp/6-31g* opt\n\nt\n\n0 1\nC 0 0 0\nEOF\n"
 _BASH_MACE = 'cat > ts.gjf <<\'EOF\'\n#p external="mace" opt freq\n\nt\n\n0 1\nC 0 0 0\nEOF\n'
+
+
+def test_policy_reads_native_scan_method_from_typed_manifest(tmp_path):
+    from cloudra.runtime.chem_task import ChemTask
+
+    task = ChemTask(task='xtb_scan', reactant_xyz='2\nH2\nH 0 0 0\nH 0 0 .74\n', cpus=1,
+        scan={'kind': 'scan', 'calculation': {'engine': 'xtb', 'method': 'GFN2-xTB'},
+              'scans': [{'atoms': [0, 1], 'scan_start': .74, 'scan_end': .8, 'scan_steps': 2}],
+              'force_constant': .5})
+    manifest = tmp_path / 'scan.json'
+    manifest.write_text(task.model_dump_json())
+    arguments = {'input_file': 'scan.json', 'job_type': 'chem_task'}
+    assert intercept('submit_compute_job', arguments, MethodPolicy(allowed_methods=['xtb']), tmp_path).allowed
+    verdict = intercept('submit_compute_job', arguments, MethodPolicy(allowed_methods=['pm7']), tmp_path)
+    assert not verdict.allowed
 
 
 def test_project_settings_method_policy_field():

@@ -16,6 +16,7 @@ from pydantic import Field, model_validator
 from cloudra.persistence.fs_utils import atomic_write_text
 from cloudra.tools.core.conformer_catalog import CatalogModel, content_digest
 from cloudra.tools.core.conformer_selection import SamplingRequest
+from cloudra.tools.core.ts_inputs import ScanGuess
 
 
 class Solvation(CatalogModel):
@@ -30,7 +31,7 @@ class Solvation(CatalogModel):
 
 
 class ChemTask(CatalogModel):
-    task: Literal['xtb_path','xtb_opt','xtb_gradient','xtb_hessian','rdkit_sampling']
+    task: Literal['xtb_path','xtb_opt','xtb_gradient','xtb_hessian','xtb_scan','rdkit_sampling']
     reactant_xyz: str
     product_xyz: str | None = None
     cpus: int = Field(ge=1)
@@ -40,9 +41,15 @@ class ChemTask(CatalogModel):
     mol_block: str | None = None
     sampling: SamplingRequest | None = None
     refinement_runs: int | None = Field(default=None,ge=1)
+    scan: ScanGuess | None = None
 
     @model_validator(mode='after')
     def task_endpoints(self):
+        if self.task == 'xtb_scan':
+            if self.scan is None or self.scan.calculation.engine != 'xtb' or self.product_xyz is not None or self.refinement_runs is not None or self.solvation is not None or self.mol_block is not None or self.sampling is not None:
+                raise ValueError('native scan requires its own typed declaration and one input XYZ')
+        elif self.scan is not None:
+            raise ValueError('scan declaration belongs only to xtb_scan')
         if self.task=='rdkit_sampling':
             if not self.mol_block or self.sampling is None or self.product_xyz is not None or self.refinement_runs is not None or self.solvation is not None:
                 raise ValueError('sampling requires graph and typed sampling request only')
@@ -80,6 +87,10 @@ def run_task(manifest_path: str) -> int:
         result_data['returncode']=code
     elif task.task in ('xtb_gradient', 'xtb_hessian'):
         result_data=_run_native_evaluation(task,path)
+        code=result_data['returncode']
+    elif task.task == 'xtb_scan':
+        from cloudra.tools.core.xtb_scan_runner import run_xtb_scan
+        result_data=run_xtb_scan(task,path)
         code=result_data['returncode']
     else:
         result_data=_run_native_optimization(task,path)
@@ -212,7 +223,8 @@ def read_task_result(manifest_path: str) -> tuple[dict,bool]:
         result = data['result']
         keys = ('run_dir', 'reactant_path', 'product_path', 'command_path',
                 'path_input_path', 'versions_path', 'stdout_path', 'stderr_path',
-                'path_xyz_path', 'ts_xyz_path', 'optimized_xyz', 'log_file', 'gradient_file', 'hessian_file')
+                'path_xyz_path', 'ts_xyz_path', 'optimized_xyz', 'log_file', 'gradient_file', 'hessian_file',
+                'scan_xyz_path', 'scan_input_path', 'input_xyz_path', 'candidate_path')
         for key in keys:
             if key in result:
                 result[key] = local_path(result[key])
@@ -220,6 +232,17 @@ def read_task_result(manifest_path: str) -> tuple[dict,bool]:
             artifact['path'] = local_path(artifact['path'])
         if 'partial_frames' in result:
             result['partial_frames'] = [local_path(value) for value in result['partial_frames']]
+        for point in result.get('points', []):
+            if point.get('frame_path'):
+                point['frame_path'] = local_path(point['frame_path'])
+        for candidate in result.get('candidates', []):
+            candidate['frame_path'] = local_path(candidate['frame_path'])
+        for relative, expected_hash in result.get('artifact_hashes', {}).items():
+            import hashlib
+            artifact = (root / relative).resolve()
+            artifact.relative_to(root)
+            if not artifact.is_file() or hashlib.sha256(artifact.read_bytes()).hexdigest() != expected_hash:
+                raise ValueError(f'chemistry task artifact digest mismatch: {relative}')
     return data,code==0
 
 

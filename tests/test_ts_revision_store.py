@@ -19,7 +19,7 @@ def revision_fixture(tmp_path):
     )
     state = dict(run_id='revision', run_dir=str(tmp_path / 'run'), workspace_dir=payload()['workspace_dir'],
                  pipeline_id=process["process_id"], owner_conversation_id="project", owner_session_id="owner",
-                 format_version=3, declaration_revision=2, input=apply_input_changes(value, request.changes).model_dump(mode="json"),
+                 format_version=4, declaration_revision=2, input=apply_input_changes(value, request.changes).model_dump(mode="json"),
                  stage="refine", blocked=None, waiting_for='', terminal=None)
     return db, process["process_id"], request, state
 

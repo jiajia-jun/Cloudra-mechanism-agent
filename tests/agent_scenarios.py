@@ -416,4 +416,32 @@ class ScenarioHarness:
 
 
 # Names shared by the zero-key TS state-machine regressions.
-TS_SCENARIOS = ('ts_prepare_once_auto_complete', 'ts_failed_scan_repair_same_run', 'ts_readonly_inspection', 'ts_resume_scan_without_freeze')
+TS_SCENARIOS = ('ts_prepare_once_auto_complete', 'ts_failed_scan_repair_same_run', 'ts_readonly_inspection',
+                'ts_resume_scan_without_freeze', 'ts_d1_atom_binding_native_scan_recovery')
+
+
+def d1_component_order_files(workspace: Path) -> tuple[Path, Path]:
+    """Isolated 16-atom D1 reactant-order fixture; no live Gold or compute data."""
+    from rdkit import Chem
+    from rdkit.Chem import AllChem
+
+    fragments = []
+    for fragment in Chem.GetMolFrags(Chem.MolFromSmiles('C=CC=C.C=C'), asMols=True):
+        molecule = Chem.AddHs(fragment)
+        if AllChem.EmbedMolecule(molecule, randomSeed=42) != 0:
+            raise ValueError('D1 fixture embedding failed')
+        fragments.append(molecule)
+    combined = Chem.CombineMols(*fragments)
+    geometry = Chem.Conformer(combined.GetNumAtoms())
+    offset = 0
+    for index, molecule in enumerate(fragments):
+        for atom in range(molecule.GetNumAtoms()):
+            point = molecule.GetConformer().GetAtomPosition(atom)
+            geometry.SetAtomPosition(offset + atom, (point.x + (7 if index else 0), point.y, point.z))
+        offset += molecule.GetNumAtoms()
+    combined.RemoveAllConformers()
+    combined.AddConformer(geometry)
+    xyz, graph = workspace / 'd1_component_order.xyz', workspace / 'd1_component_order.mol'
+    xyz.write_text(Chem.MolToXYZBlock(combined))
+    graph.write_text(Chem.MolToMolBlock(combined))
+    return xyz, graph

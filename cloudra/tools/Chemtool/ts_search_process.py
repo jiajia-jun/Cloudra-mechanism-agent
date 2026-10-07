@@ -1,40 +1,33 @@
 """Prepare one TS path, revise through resume, inspect without mutation."""
 from typing import Any
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, StrictInt
 
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
-from cloudra.persistence.workspace import resolve_tool_path
+from cloudra.runtime_v2.invocation_context import current_invocation_scope
 from cloudra.services.ts_pipeline_store import TsRevisionReceipt
-from cloudra.tools.core.ts_inputs import TsInput, TsResumeRequest, normalize_ts_input_atoms
+from cloudra.tools.core.ts_inputs import TsInput, TsInputChanges, TsResumeRequest, normalize_ts_input_atoms
 from cloudra.tools.core.ts_process import TsProcessRecord, TsStartRequest, resume, start
 from cloudra.tools.core.ts_state_view import TsProcessView, build_process_view, inspect_process
 
 
 class TsPrepare_input_schema(input_schema):
     model_config = ConfigDict(extra='forbid')
-    input: TsInput = Field(description='Scientific inputs grouped by reaction, conformers, guess, ts_optimization, verification and execution. Each calculation has its own explicit method. Structure atom references are 1-based; scan coordinates use its engine numbering (ORCA 0-based, Gaussian 1-based).')
-    request_key: str = Field(min_length=1, description='Stable prepare request key; reuse the same key when replaying this request.')
-    workspace_dir: str | None = None
-
-    @field_validator('request_key')
-    @classmethod
-    def stable_key(cls, value):
-        if not value.strip():
-            raise ValueError('nonblank request_key required for prepare replay')
-        return value
+    input: TsInput = Field(description='Scientific inputs grouped by reaction, conformers, guess, ts_optimization, verification and execution. Each calculation has its own explicit method. Structure atom references are 1-based; scan coordinates use its engine numbering (ORCA 0-based, Gaussian/xTB 1-based).')
 
 
-class TsResume_input_schema(TsResumeRequest, input_schema):
+class TsResume_input_schema(input_schema):
+    model_config = ConfigDict(extra='forbid')
     run_id: str = Field(min_length=1)
-    workspace_dir: str | None = None
+    changes: TsInputChanges = Field(default_factory=TsInputChanges)
+    reason: str = Field(min_length=1)
+    expected_revision: StrictInt = Field(ge=0)
 
 
 class TsInspect_input_schema(input_schema):
     model_config = ConfigDict(extra='forbid')
     run_id: str = Field(min_length=1)
-    workspace_dir: str | None = None
 
 
 class TsProcess_output_schema(TsProcessView, output_schema):
@@ -42,13 +35,18 @@ class TsProcess_output_schema(TsProcessView, output_schema):
     receipt: TsRevisionReceipt | None = None
 
 
-def _resolve_workspace(tool: Tool, value: str | None) -> str:
-    if value:
-        return resolve_tool_path(tool, value)
+def _resolve_workspace(tool: Tool) -> str:
     root = getattr(getattr(tool, 'subagent', None), 'working_directory', None)
     if not root:
-        raise ValueError('no workspace_dir or Agent working directory is bound')
+        raise ValueError('no Agent working directory is bound')
     return str(root)
+
+
+def _request_key(tool_name: str) -> str:
+    scope = current_invocation_scope()
+    if scope is None or scope.tool_name != tool_name or not scope.tool_call_id:
+        raise ValueError('stable tool invocation identity is unavailable')
+    return scope.tool_call_id
 
 
 def _to_output(record, *, can_write=True):
@@ -64,7 +62,7 @@ def _to_output(record, *, can_write=True):
 def _read_resume_record(db, workspace, run_id, project):
     from cloudra.services.ts_pipeline_store import read_process_snapshot
     state, jobs = read_process_snapshot(db, project_id=project, run_id=run_id, workspace_dir=workspace)
-    if state.get('format_version') != 3:
+    if state.get('format_version') != 4:
         raise ValueError('Unsupported TS input format; existing compute jobs remain intact.')
     record = TsProcessRecord.model_validate(state)
     states = {job['job_id']: job['state'] for job in jobs}
@@ -90,9 +88,9 @@ class TsPrepare(Tool):
             from cloudra.tools.core.permission_model import Permission
             if not self.subagent.permission_all() & Permission.WRITE:
                 raise ValueError('TS mutation requires producer write permission')
-            workspace = _resolve_workspace(self, user_input.workspace_dir)
+            workspace = _resolve_workspace(self)
             request = TsStartRequest(input=normalize_ts_input_atoms(user_input.input, atom_tables={}),
-                workspace_dir=workspace, request_key=user_input.request_key,
+                workspace_dir=workspace, request_key=_request_key(self.tool_name),
                 owner_conversation_id=self.subagent.conversation_id,
                 owner_session_id=session.id if session else None)
             record = await asyncio.to_thread(start, request)
@@ -104,7 +102,7 @@ class TsPrepare(Tool):
 class TsResume(Tool):
     tool_id: str = 't-60'
     tool_name: str = 'ts_resume'
-    tool_description: str = 'Revise input groups on the existing TS path. Omitted fields remain; optional null clears; lists, methods and typed sources replace. Requires reason, expected_revision and stable request_key. Failed attempts can be revised or retried on the same run without recovery evidence; use changes={} to retry unchanged input. Active jobs prevent revisions. Use ts_inspect for reads.'
+    tool_description: str = 'Revise input groups on the existing TS path. Omitted fields remain; optional null clears; lists, methods and typed sources replace. Requires reason and the revision observed from ts_inspect. Failed attempts can be revised or retried on the same run without recovery evidence; use changes={} to retry unchanged input. Active jobs prevent revisions. Use ts_inspect for reads.'
     input_schema: Any = TsResume_input_schema
     output_schema: Any = TsProcess_output_schema
 
@@ -120,11 +118,12 @@ class TsResume(Tool):
             from cloudra.tools.core.permission_model import Permission
             if not self.subagent.permission_all() & Permission.WRITE:
                 raise ValueError('TS mutation requires producer write permission')
-            workspace = _resolve_workspace(self, user_input.workspace_dir)
+            workspace = _resolve_workspace(self)
             record = await asyncio.to_thread(_read_resume_record, pipeline_database(), workspace, user_input.run_id, self.subagent.conversation_id)
             if (self.subagent.conversation_id, session.id if session else None) != (record.owner_conversation_id, record.owner_session_id):
                 raise ValueError('TS process belongs to a different project or owner')
-            request = TsResumeRequest.model_validate(user_input.model_dump(exclude={'run_id', 'workspace_dir'}, exclude_unset=True))
+            request = TsResumeRequest.model_validate({**user_input.model_dump(exclude={'run_id'}, exclude_unset=True),
+                                                      'request_key': _request_key(self.tool_name)})
             request.changes = normalize_ts_input_atoms(request.changes, atom_tables={})
             record = await asyncio.to_thread(resume, record, request)
             out = await asyncio.to_thread(_to_output, record)
@@ -150,7 +149,7 @@ class TsInspect(Tool):
         from cloudra.services.ts_pipeline_context import pipeline_database
         from cloudra.tools.core.permission_model import Permission
         try:
-            workspace = _resolve_workspace(self, user_input.workspace_dir)
+            workspace = _resolve_workspace(self)
             permissions = self.subagent.permission_all()
             if not permissions & Permission.READ:
                 raise ValueError('TS inspection requires read permission')

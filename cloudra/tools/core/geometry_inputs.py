@@ -47,7 +47,7 @@ class ScanCoordinateInput(BaseModel):
 def atom_index_base(engine: str | None = None) -> int:
     if engine == "orca":
         return 0
-    if engine in (None, "gaussian"):
+    if engine in (None, "gaussian", "xtb"):
         return 1
     raise ValueError(f"Unknown atom numbering context: {engine!r}")
 
@@ -56,7 +56,6 @@ def atom_indices(atoms, *, base: int, count: int) -> list[int]:
     if any(type(atom) is not int or not base <= atom < count + base for atom in atoms):
         raise ValueError(f"Atom indices {atoms!r} must be in {base}..{count + base - 1}")
     return [atom - base for atom in atoms]
-
 
 
 

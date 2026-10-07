@@ -147,3 +147,40 @@ def test_resume_scan_replacement_can_omit_default_freeze(engine, atoms):
     updated = apply_input_changes(TsInput.model_validate(input_payload()), normalized)
     assert updated.guess.freeze == []
     assert updated.guess.scans[0].atoms == [0, 1]
+
+
+def test_xtb_scan_uses_minimal_explicit_scientific_input_and_one_based_atoms():
+    from cloudra.tools.core.ts_inputs import TsInput, normalize_ts_input_atoms
+
+    payload = input_payload()
+    payload["guess"] = {
+        "kind": "scan",
+        "calculation": {"engine": "xtb", "method": "GFN2-xTB"},
+        "scans": [{"coord_type": "bond", "atoms": [1, 2], "scan_start": 1.0,
+                   "scan_end": 1.3, "scan_steps": 3}],
+        "force_constant": 0.5,
+    }
+    normalized = normalize_ts_input_atoms(TsInput.model_validate(payload), atom_tables={"reactant": ["C", "C", "O"]})
+    assert normalized.guess.scans[0].atoms == [0, 1]
+    assert normalized.guess.mode is None
+    assert normalized.guess.calculation.keywords == ""
+
+
+def test_xtb_scan_requires_force_and_two_coordinate_mode():
+    from cloudra.tools.core.ts_inputs import TsInput
+
+    payload = input_payload()
+    payload["guess"] = {
+        "kind": "scan", "calculation": {"engine": "xtb", "method": "GFN2-xTB"},
+        "scans": [{"atoms": [1, 2], "scan_start": 1.0, "scan_end": 1.3, "scan_steps": 3}],
+    }
+    with pytest.raises(ValidationError, match="force_constant"):
+        TsInput.model_validate(payload)
+    payload["guess"]["force_constant"] = 0.5
+    payload["guess"]["mode"] = "sequential"
+    with pytest.raises(ValidationError, match="one-coordinate"):
+        TsInput.model_validate(payload)
+    payload["guess"].pop("mode")
+    payload["guess"]["scans"].append({"atoms": [2, 3], "scan_start": 1.0, "scan_end": 1.3, "scan_steps": 3})
+    with pytest.raises(ValidationError, match="mode"):
+        TsInput.model_validate(payload)

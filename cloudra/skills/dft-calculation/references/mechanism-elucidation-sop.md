@@ -62,7 +62,7 @@
 
 ### 2.2 选一个能回答问题的初猜路线
 
-**首选 TS 状态机**：同一路径只 `ts_prepare` 一次，`input` 分为 reaction / conformers / guess / ts_optimization / verification / execution。构象来源和优化、探索扫描、正式 TS 与各项验证方法分别显式指定；缺失则停在点名字段的 checkpoint。成功作业由系统自动续接。用 `ts_inspect` 读取状态、实际方法和证据；用带 changes/reason/request_key/expected_revision 的 `ts_resume` 修订同一个 run；失败后可直接修订或重试，保留失败历史并重新执行科学验证。在途作业不允许修订。`reaction.atom_map` 是含氢全原子的 1-based 产物→反应物映射；结构编号 1-based，ORCA 原生扫描编号 0-based。元素排列通过不能消除具体结构身份或对称绑定歧义；须保留实际结构图、坐标与输入版本。扫描峰仅是候选，正式 TS 无约束精修与频率/双向 IRC/两端 Opt/Freq 仍必需。QST2/QST3 禁令及既有科学验收规则不变。
+**首选 TS 状态机**：同一路径只 `ts_prepare` 一次，`input` 分为 reaction / conformers / guess / ts_optimization / verification / execution。构象来源和优化、探索扫描、正式 TS 与各项验证方法分别显式指定；缺失则停在点名字段的 checkpoint。成功作业由系统自动续接。用 `ts_inspect` 读取状态、实际方法和证据；用带 run_id/changes/reason/expected_revision 的 `ts_resume` 修订同一个 run；失败后可直接修订或重试，保留失败历史并重新执行科学验证。在途作业不允许修订。`reaction.atom_map` 是含氢全原子的 1-based 产物→反应物映射；结构编号 1-based，ORCA 原生扫描编号 0-based。元素排列通过不能消除具体结构身份或对称绑定歧义；须保留实际结构图、坐标与输入版本。扫描峰仅是候选，正式 TS 无约束精修与频率/双向 IRC/两端 Opt/Freq 仍必需。QST2/QST3 禁令及既有科学验收规则不变。
 
 | 已知信息 | 主路线 | 检查什么 |
 | --- | --- | --- |

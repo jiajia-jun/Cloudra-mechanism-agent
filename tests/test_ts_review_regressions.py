@@ -54,15 +54,18 @@ def test_mol_cannot_mask_dissociated_xyz_before_conformer_optimization(tmp_path,
 
 
 @pytest.mark.parametrize('key', [None, '', '   '])
-def test_prepare_requires_nonblank_stable_request_key(tmp_path, key):
+def test_internal_prepare_requires_nonblank_stable_request_key(tmp_path, key):
     from cloudra.tools.Chemtool.ts_search_process import TsPrepare_input_schema
     from cloudra.tools.core.ts_process import TsStartRequest
     record=record_fixture(tmp_path)
     payload={'input':record.input}
     if key is not None:
         payload['request_key']=key
-    with pytest.raises(ValidationError):
-        TsPrepare_input_schema(**payload)
+    if key is None:
+        assert TsPrepare_input_schema(**payload).input == record.input
+    else:
+        with pytest.raises(ValidationError):
+            TsPrepare_input_schema(**payload)
     with pytest.raises(ValidationError):
         TsStartRequest(**payload,workspace_dir=str(tmp_path))
 
@@ -91,6 +94,55 @@ def test_scan_preserves_declared_native_scientific_settings(tmp_path, monkeypatc
     if engine=='orca':
         assert calculation['orca_blocks'] in captured[0]
         assert not compare_calculation_input(captured[0],record.input.guess.calculation.model_dump(),charge=0,multiplicity=1)
+
+
+def test_xtb_scan_submits_typed_manifest_from_bound_structure(tmp_path, monkeypatch):
+    from cloudra.runtime.chem_task import ChemTask
+    from cloudra.tools.core.ts_inputs import ScanGuess
+    from cloudra.tools.core.ts_process import _guess_scan
+
+    xyz = tmp_path / 'seed.xyz'
+    xyz.write_text('2\nseed\nH 0 0 0\nH 0 0 .74\n')
+    record = record_fixture(tmp_path)
+    record.input.guess = ScanGuess(kind='scan', calculation={'engine': 'xtb', 'method': 'GFN2-xTB'},
+        scans=[{'atoms': [0, 1], 'scan_start': .74, 'scan_end': 1.0, 'scan_steps': 3}],
+        force_constant=.5)
+    monkeypatch.setattr('cloudra.tools.core.ts_process._read_built_xyz',
+                        lambda *_: (['H', 'H'], [[0, 0, 0], [0, 0, .74]], str(xyz), ''))
+    submitted = []
+    def submit(_record, purpose, path, job_type):
+        submitted.append((purpose, ChemTask.model_validate_json(Path(path).read_text()), job_type))
+        return '', 42
+    monkeypatch.setattr('cloudra.tools.core.ts_process._submit_step', submit)
+    _guess_scan(record)
+    assert record.waiting_for == 'job:42'
+    assert submitted[0][0] == 'scan' and submitted[0][2] == 'chem_task'
+    assert submitted[0][1].task == 'xtb_scan'
+    assert submitted[0][1].scan.force_constant == .5
+
+
+def test_xtb_scan_respects_trusted_stage_contract_before_submission(tmp_path, monkeypatch):
+    from cloudra.runtime.chem_task import ChemTask
+    from cloudra.runtime_v2.schemas import MethodPolicy
+    from cloudra.tools.core.ts_inputs import ScanGuess
+    from cloudra.tools.core.ts_process import _check_calculation_submission
+
+    xyz = tmp_path / 'seed.xyz'
+    xyz.write_text('2\nseed\nH 0 0 0\nH 0 0 .74\n')
+    record = record_fixture(tmp_path)
+    record.input.guess = ScanGuess(kind='scan', calculation={'engine':'xtb','method':'GFN2-xTB'},
+        scans=[{'atoms':[0,1],'scan_start':.74,'scan_end':1.,'scan_steps':2}],force_constant=.5)
+    monkeypatch.setattr('cloudra.tools.core.ts_process._read_built_xyz',
+                        lambda *_: (['H','H'],[[0,0,0],[0,0,.74]],str(xyz),''))
+    manifest = tmp_path / 'scan.json'
+    manifest.write_text(ChemTask(task='xtb_scan', reactant_xyz=xyz.read_text(), cpus=record.compute_cpus,
+                                  scan=record.input.guess).model_dump_json())
+    policy = MethodPolicy(allowed_methods=['xtb'], calculation_contracts={'scan':{'engine':'orca'}})
+    monkeypatch.setattr('cloudra.services.ts_pipeline_context.require_pipeline_authority', lambda *_: policy)
+    with pytest.raises(ValueError, match='trusted scan calculation contract'):
+        _check_calculation_submission(record,'scan',str(manifest),'chem_task')
+    policy.calculation_contracts['scan'] = {'engine':'xtb','method':'GFN2-xTB','force_constant':.5}
+    _check_calculation_submission(record,'scan',str(manifest),'chem_task')
 
 
 def recovery_fixture(tmp_path, purpose='frequency', failure='wrong_mode'):
