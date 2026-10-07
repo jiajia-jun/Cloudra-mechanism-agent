@@ -395,8 +395,7 @@ TOOL_PATH_FIELDS: dict[str, dict[str, str]] = {
     },
     "conformer_search": {"input_path": "workspace_input", "output_dir": "workspace_dir"},
     "mechanism_predict": {"output_dir": "workspace_dir"},
-    "ts_prepare": {"workspace_dir": "workspace_dir"},
-    "ts_resume": {"workspace_dir": "workspace_dir"},
+    # TS workspace is bound by the caller, not exposed in the input schema.
     "log_parser": {"log_path": "workspace_input"},
     "ts_guess": {
         "reactant_path": "workspace_input",

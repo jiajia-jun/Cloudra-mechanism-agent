@@ -197,7 +197,7 @@ def test_failed_scan_can_change_route_with_bound_new_route_artifacts(tmp_path,ro
     assert revised.attempt_history[-1].failed_attempt['failure_class']=='scan_no_candidate'
 
 
-def test_catalog_source_binds_stable_atom_table_before_assemble(tmp_path):
+def test_catalog_source_binds_stable_atom_table(tmp_path):
     import json
 
     from cloudra.persistence.database import ComputeDB
@@ -205,21 +205,47 @@ def test_catalog_source_binds_stable_atom_table_before_assemble(tmp_path):
     from cloudra.tools.core.conformer_catalog import Qualification
     from cloudra.tools.core.ts_candidate_pipeline import use_catalog_source
     from cloudra.tools.core.ts_inputs import CatalogConformer
-    from cloudra.tools.core.ts_process import _assemble
     from tests.test_ts_selected_optimizer import catalog_seed
     source,_=catalog_seed(tmp_path,Qualification(status='qualified'))
     db=ComputeDB()
     selected=list_candidates(db,'cat',project_id='project',owner_id='owner')[0]
     record=record_fixture(tmp_path)
-    record.input.conformers.guidance.ring_order=[]
-    record.input.reaction.reaction_center=[(0,1)]
     use_catalog_source(record,CatalogConformer(**source),'reactant')
-    _assemble(record)
     assert record.blocked is None
     table=json.loads(Path(record.current_reactant_prepared_path).read_text())
     assert [a['stable_atom_id'] for a in table['atom_identities']]==selected.atom_ids
     assert [a['symbol'] for a in table['atom_identities']]==selected.symbols
+    assert [a['fragment_id'] for a in table['atom_identities']]==selected.fragment_ids
     assert table['candidate_id']==selected.candidate_id
+
+
+@pytest.mark.usefixtures('rdkit_chemistry')
+@pytest.mark.parametrize('reaction_center', [[], [(0, 1)]])
+def test_catalog_build_binds_concrete_components_before_assemble(tmp_path, reaction_center):
+    from cloudra.tools.core.conformer_catalog import Qualification
+    from cloudra.tools.core.ts_inputs import CatalogConformer
+    from cloudra.tools.core.ts_process import _assemble, _build
+    from tests.test_ts_selected_optimizer import catalog_seed
+
+    source, _ = catalog_seed(tmp_path, Qualification(status='qualified'))
+    record = record_fixture(tmp_path)
+    record.input.reaction.reactant_smiles = record.input.reaction.product_smiles = 'O'
+    record.input.reaction.reaction_center = reaction_center
+    record.input.conformers.guidance.ring_order = []
+    record.input.conformers.reactant = CatalogConformer(**source)
+    record.input.conformers.product = CatalogConformer(**source)
+
+    _build(record)
+
+    assert record.blocked is None
+    for role in ('reactant', 'product'):
+        table = record.structures[role]
+        assert table['source_kind'] == 'catalog'
+        assert table['components'] == 1
+        assert table['structure_digest']
+        assert Path(table['table_path']).is_file()
+    _assemble(record)
+    assert record.blocked is None
 
 
 def test_missing_atom_map_prompt_uses_the_grouped_structure_numbering(tmp_path):

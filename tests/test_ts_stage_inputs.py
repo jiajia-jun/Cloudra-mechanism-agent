@@ -86,6 +86,7 @@ def test_guided_source_uses_its_explicit_calculation_and_bound_windows(tmp_path,
     assert record.current_seed_xyz_path != str(seed)
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_file_sources_are_copied_immutably_and_missing_source_blocks(tmp_path):
     from cloudra.tools.core.ts_process import _build, _read_built_xyz
 

@@ -249,6 +249,8 @@ async def test_ts_d1_atom_binding_native_scan_recovery(tmp_path, monkeypatch):
     base['guess'] = {'kind':'scan','calculation':{'engine':'xtb','method':'GFN2-xTB'},
                      'scans':[{'atoms':[4,11],'scan_start':7.,'scan_end':4.,'scan_steps':3}],
                      'force_constant':.5}
+    # This two-component fixture must declare the same pair used by its scan.
+    base['reaction']['reaction_center'] = [[4,11]]
     invalid = {**base, 'guess': {key:value for key,value in base['guess'].items() if key != 'force_constant'}}
     monkeypatch.setattr('cloudra.services.compute_admission.admit_job',
                         lambda **_: AdmissionOutcome(ok=True,node_id='fixture',scheduler='local'))
@@ -283,6 +285,7 @@ async def test_ts_d1_atom_binding_native_scan_recovery(tmp_path, monkeypatch):
             ('ts_prepare',False),('ts_prepare',True),('ts_inspect',True),('ts_resume',True)], harness.describe(agent)
         record = await asyncio.to_thread(load_record,str(tmp_path),'ts_0001')
         assert record.input_binding['binding_status'] == 'complete', record.input_binding
+        assert record.blocked is None, record.blocked
         assert record.waiting_for and record.scan_step and record.scan_step.purpose == 'scan'
         with ComputeDB().connect() as con:
             jobs = con.execute('SELECT jobtype FROM compute_jobs').fetchall()
