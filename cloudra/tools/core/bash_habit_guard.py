@@ -14,17 +14,8 @@ edit / submit_compute_job 等结构化工具。这些行为绕过文件变更审
 
 from __future__ import annotations
 
-import re
-import shlex
-
 from .command_analyzer import BashCommandClassifier
 
-# 写操作重定向符（可带数字 fd：2>、3>>；`2>&1` 这类 fd 重定向不匹配，见
-# _is_real_file_target 的 fd 判定）。
-_REDIRECT_RE = re.compile(r"^\d*(?:>>|>|&>|&>>|<>)$")
-# heredoc 起始符：`<<`、`<<-`、`<<EOF`、`<<'EOF'`（shlex 可能拆成独立 token
-# 也可能粘连成单个 token）。
-_HEREDOC_RE = re.compile(r"^<<-?")
 # 向文件"键入内容"的命令：echo / printf 本身以打印内容为目的。
 _CONTENT_WRITE_CMDS = frozenset({"echo", "printf", "print"})
 
@@ -45,88 +36,63 @@ _FILE_WRITE_GUIDANCE = (
 )
 
 
-def _tokenize(command: str) -> list[str]:
-    """尽力把命令拆成 token；shlex 失败时退化为空白分词。"""
-    try:
-        return shlex.split(command, comments=False, posix=True)
-    except ValueError:
-        return command.split()
-
-
-def _redirect_targets(tokens: list[str]) -> list[str]:
-    """返回重定向符后面的目标 token 列表（`> file` 取 `file`）。"""
-    targets = []
-    for i, tok in enumerate(tokens):
-        if _REDIRECT_RE.fullmatch(tok) and i + 1 < len(tokens):
-            targets.append(tokens[i + 1])
-    return targets
-
-
 def _is_real_file_target(target: str) -> bool:
-    """过滤 fd / 系统设备目标：/dev/null、2>&1 后的 fd、/proc 等不算文件写入。"""
+    """系统设备目标不算工作区文件写入；数字文件名仍是文件。"""
     if not target:
         return False
     if target.startswith(("/dev/", "/proc/", "/sys/")):
         return False
-    if target.isdigit():
-        return False
     return True
-
-
-def _primary_word(tokens: list[str]) -> str:
-    """返回命令中的主命令（跳过开头的变量赋值与重定向符）。"""
-    for tok in tokens:
-        if _REDIRECT_RE.fullmatch(tok):
-            continue
-        if "=" in tok and tok.index("=") > 0 and tok[: tok.index("=")].isidentifier():
-            continue
-        return tok
-    return ""
 
 
 def _is_inplace_edit(tokens: list[str]) -> bool:
     """sed -i / awk -i inplace / perl -pi 这类原地编辑。"""
-    for i, tok in enumerate(tokens):
-        if tok in {"sed", "awk", "perl"}:
-            flags = tokens[i + 1 :]
-            if tok == "sed" and any(re.fullmatch(r"-[a-zA-Z]*i[a-zA-Z]*", f) for f in flags):
+    if not tokens:
+        return False
+    primary = tokens[0].rsplit("/", 1)[-1]
+    flags = tokens[1:]
+    if "--" in flags:
+        flags = flags[:flags.index("--")]
+    if primary in {"sed", "perl"}:
+        for flag in flags:
+            if primary == "sed" and (flag == "--in-place" or flag.startswith("--in-place=")):
                 return True
-            if tok == "awk":
-                for j, f in enumerate(flags):
-                    if f == "-i" and j + 1 < len(flags) and flags[j + 1] == "inplace":
-                        return True
-            if tok == "perl" and any(f.startswith("-") and "i" in f[1:] for f in flags):
+            if flag.startswith("-") and not flag.startswith("--") and "i" in flag[1:]:
+                return True
+    if primary == "awk":
+        for index, flag in enumerate(flags):
+            if flag in {"-i", "--include"} and index + 1 < len(flags) and flags[index + 1] == "inplace":
+                return True
+            if flag in {"-iinplace", "--include=inplace"}:
                 return True
     return False
 
 
-def _is_content_write(tokens: list[str]) -> bool:
+def _is_content_write(tokens: list[str], redirects: list[tuple[str, str]]) -> bool:
     """向文件"键入内容"：heredoc 写文件、echo/printf 重定向、tee 写文件、
     裸重定向建/清空文件。刻意不拦 `python x.py > out.log` 这类输出捕获。"""
-    if not tokens:
-        return False
-    has_heredoc = any(_HEREDOC_RE.match(tok) for tok in tokens)
-    targets = [t for t in _redirect_targets(tokens) if _is_real_file_target(t)]
-    primary = _primary_word(tokens)
+    has_heredoc = any(operator in {"<<", "<<-", "<<<"} for operator, _ in redirects)
+    targets = [target for operator, target in redirects
+               if operator in {">", ">>", ">|", "<>", "&>", "&>>", ">&"}
+               and not (operator == ">&" and (target.isdigit() or target == "-"))
+               and _is_real_file_target(target)]
+    primary = tokens[0].rsplit("/", 1)[-1] if tokens else ""
 
     if has_heredoc and targets:
         return True
     if primary in _CONTENT_WRITE_CMDS and targets:
         return True
-    # tee 出现在管道任意位置、且带真实文件操作数（单独 `tee` 只写 stdout）。
-    for i, tok in enumerate(tokens):
-        if tok != "tee":
-            continue
-        for nxt in tokens[i + 1 :]:
-            if _REDIRECT_RE.fullmatch(nxt) or nxt in ("|", "|&", "||", "&&", ";"):
-                break
-            if nxt.startswith("-"):
+    if primary == "tee":
+        operands_only = False
+        for word in tokens[1:]:
+            if word == "--" and not operands_only:
+                operands_only = True
                 continue
-            if _is_real_file_target(nxt):
+            if not operands_only and word.startswith("-"):
+                continue
+            if _is_real_file_target(word):
                 return True
-    if _REDIRECT_RE.fullmatch(tokens[0]) and _is_real_file_target(
-        tokens[1] if len(tokens) > 1 else ""
-    ):
+    if not tokens and targets:
         return True
     return False
 
@@ -136,20 +102,16 @@ def bash_file_write_warning(command: str) -> str | None:
 
     命中返回警告消息（调用方照常执行命令，把警告附在结果里），无命中返回 None。
     """
-    tokens = _tokenize(command)
-    if not tokens:
-        return None
-    if _is_inplace_edit(tokens) or _is_content_write(tokens):
-        return f"[Warning: suspected bash habit] {_FILE_WRITE_GUIDANCE}"
+    analysis = BashCommandClassifier.classify(command)
+    for segment in analysis.segments:
+        if _is_inplace_edit(segment.words) or _is_content_write(segment.words, segment.redirects):
+            return f"[Warning: suspected bash habit] {_FILE_WRITE_GUIDANCE}"
     return None
 
 
 def _direct_compute_program(command: str) -> str | None:
     """返回命令主流程中直接调用的量化程序名（无则 None）。"""
-    try:
-        analysis = BashCommandClassifier.classify(command)
-    except Exception:
-        return None
+    analysis = BashCommandClassifier.classify(command)
     for cmd in analysis.pipe_commands:
         lowered = cmd.lower()
         if lowered in _COMPUTE_PROGRAMS:

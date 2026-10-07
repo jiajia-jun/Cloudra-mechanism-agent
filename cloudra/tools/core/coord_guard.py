@@ -18,15 +18,9 @@ harness 层检测并警告：write / edit / bash 在写入几何或计算
 
 from __future__ import annotations
 
-import re
+import math
 
-# 元素符号 + 三个浮点数（允许科学计数法），一行一个原子。
-_COORD_LINE = re.compile(
-    r"^\s*[A-Z][a-z]?\s+"
-    r"[-+]?\d+\.\d+(?:[eE][-+]?\d+)?\s+"
-    r"[-+]?\d+\.\d+(?:[eE][-+]?\d+)?\s+"
-    r"[-+]?\d+\.\d+(?:[eE][-+]?\d+)?\s*$"
-)
+_NUMBER_CHARACTERS = frozenset("0123456789.eE+-")
 
 # 几何/计算输入文件扩展名。刻意不含 .inp（ORCA/CP2K 输入常由 ASE 等脚本
 # 程序化生成，误伤面大）与 .md 等报告文件（嵌入 xyz 块属正当内容）。
@@ -52,13 +46,34 @@ def count_consecutive_coord_lines(text: str) -> int:
     """文本中最长的连续坐标行数。"""
     best = run = 0
     for line in text.splitlines():
-        if _COORD_LINE.match(line):
+        if _is_coord_line(line):
             run += 1
             if run > best:
                 best = run
         else:
             run = 0
     return best
+
+
+def _is_coord_line(line: str) -> bool:
+    """元素符号与三个完整有限数值 token；整数和科学计数法同样是坐标。"""
+    tokens = line.split()
+    if len(tokens) != 4:
+        return False
+    symbol, *coordinates = tokens
+    if len(symbol) not in (1, 2) or not "A" <= symbol[0] <= "Z":
+        return False
+    if len(symbol) == 2 and not "a" <= symbol[1] <= "z":
+        return False
+    for token in coordinates:
+        if not all(character in _NUMBER_CHARACTERS for character in token):
+            return False
+        try:
+            if not math.isfinite(float(token)):
+                return False
+        except ValueError:
+            return False
+    return True
 
 
 def is_geometry_path(path: str) -> bool:

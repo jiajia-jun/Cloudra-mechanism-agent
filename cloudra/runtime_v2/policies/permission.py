@@ -17,7 +17,11 @@ class PermissionStage:
 
     async def before_tool(self, ctx: PipelineContext, call: ToolCall) -> PolicyResult:
         from cloudra.tools.capabilities import is_dag_compute_entry
-        if is_dag_compute_entry(call.name, call.arguments) and not ctx.capabilities.permissions.write:
+        try:
+            compute_entry = is_dag_compute_entry(call.name, call.arguments)
+        except ValueError as exc:
+            return PolicyResult.block(f"Invalid tool arguments: {exc}")
+        if compute_entry and not ctx.capabilities.permissions.write:
             return PolicyResult.block("Compute production requires write permission in the current task")
         tools = set(ctx.capabilities.tools)
         if "*" not in tools and call.name not in tools:

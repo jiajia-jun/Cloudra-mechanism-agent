@@ -184,6 +184,15 @@ def ordinary_method_input_steps(source: Path, output: Path) -> list[Step]:
     })]), Step(stop=True)]
 
 
+def malformed_shell_steps() -> list[Step]:
+    """非法 shell 必须终结为被拦工具调用，后续 Agent 回合仍能继续。"""
+    return [
+        Step(tools=[("bash", {"command": 'echo "unfinished'})]),
+        Step(tools=[("todo_write", {"todos": [{"content": "Recovered after invalid input", "status": "done"}]})]),
+        Step(stop=True),
+    ]
+
+
 class ScenarioHarness:
     """一次场景的完整运行时。"""
 

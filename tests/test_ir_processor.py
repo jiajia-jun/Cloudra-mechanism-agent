@@ -1,7 +1,8 @@
 """ir_processor 工具测试（cloudra/tools/Chemtool/ir_processor.py）。
 
 全离线：用合成的 JCAMP-DX 透过率光谱驱动真实 spectrochempy 读取 + 工具管线，
-不依赖任何外部 IR 数据文件。spectrochempy 缺失时整体跳过。
+不依赖任何外部 IR 数据文件。spectrochempy 缺失时只跳过真实读取集成测试，
+元数据校验和单位转换回归仍运行。
 
 覆盖审计发现：
 - I1：%T → 吸光度换算方向（吸收带必须是峰，基线 A=0，不允许 log10(%T) 倒置）；
@@ -14,17 +15,19 @@ import os
 import tempfile
 from pathlib import Path
 
+import numpy as np
 import pytest
 
-pytest.importorskip("spectrochempy")
-
-import numpy as np  # noqa: E402
-
-import cloudra.tools.Chemtool.ir_processor as ir_mod  # noqa: E402
-from cloudra.tools.Chemtool.ir_processor import IRProcessor, IRProcessor_input_schema  # noqa: E402
+import cloudra.tools.Chemtool.ir_processor as ir_mod
+from cloudra.tools.Chemtool.ir_processor import IRProcessor, IRProcessor_input_schema
 
 # matplotlib（spectrochempy 传递依赖）需要可写配置目录；测试进程常有只读 HOME。
 os.environ.setdefault("MPLCONFIGDIR", os.path.join(tempfile.gettempdir(), "cloudra_mpl"))
+
+
+@pytest.fixture
+def spectrochempy_available():
+    pytest.importorskip("spectrochempy")
 
 
 # ---------------------------------------------------------------------------
@@ -43,10 +46,10 @@ def _percent_spectrum_values() -> tuple[np.ndarray, np.ndarray]:
     return xs, ys
 
 
-def _write_jcamp_percent_transmittance(tmp_path: Path, yunit: str = "TRANSMITTANCE") -> Path:
+def _write_jcamp_percent_transmittance(tmp_path: Path, yunit: str = "TRANSMITTANCE", yscale: float = 1.0) -> Path:
     """写一张 %T 光谱 JCAMP-DX（YUNITS 可选 TRANSMITTANCE / PERCENT TRANSMITTANCE）。"""
     xs, ys = _percent_spectrum_values()
-    row = " ".join(f"{v:.4f}" for v in ys)
+    row = " ".join(f"{v:.4f}" for v in ys * yscale)
     text = (
         "##TITLE=test ir\n"
         "##JCAMP-DX=5.00\n"
@@ -95,7 +98,7 @@ def _spectrum_arrays(result: ir_mod.IRProcessor_output_schema):
 
 
 @pytest.mark.asyncio
-async def test_percent_transmittance_converted_to_absorbance_bands_are_peaks(tmp_path):
+async def test_percent_transmittance_converted_to_absorbance_bands_are_peaks(tmp_path, spectrochempy_available):
     """I1（JCAMP TRANSMITTANCE 路径）：%T 吸收带必须换算成向上的吸光度峰。
 
     1700 cm⁻¹ 处 T=10% → A=1.0（峰），T=100% 基线 → A=0。若沿用 log10(%T)
@@ -124,7 +127,7 @@ async def test_percent_transmittance_converted_to_absorbance_bands_are_peaks(tmp
 
 
 @pytest.mark.asyncio
-async def test_percent_transmittance_jcamp_with_lost_units_still_converts(tmp_path):
+async def test_percent_transmittance_jcamp_with_lost_units_still_converts(tmp_path, spectrochempy_available):
     """I1（JCAMP PERCENT TRANSMITTANCE 路径）：spectrochempy 0.12.6 对该 YUNITS
     不落地 dataset.units，工具必须从文件语义兜底换算，不允许把 0..100 的 %T
     原样当吸光度交给下游（吸收带仍必须是峰、基线 A=0）。"""
@@ -147,7 +150,7 @@ async def test_percent_transmittance_jcamp_with_lost_units_still_converts(tmp_pa
 
 
 @pytest.mark.asyncio
-async def test_normalize_area_integrates_to_unity(tmp_path):
+async def test_normalize_area_integrates_to_unity(tmp_path, spectrochempy_available):
     """I2：normalize='area' 承诺的"归一化到单位谱面积"必须真的发生。"""
     path = _write_jcamp_percent_transmittance(tmp_path, yunit="TRANSMITTANCE")
     # detect_peaks 关闭：本测试只验证归一化本身（归一化后峰值尺度随面积缩放，
@@ -244,7 +247,7 @@ def test_to_absorbance_unitless_ambiguous_range_fails_loud():
 
 
 @pytest.mark.asyncio
-async def test_strong_absorption_percent_jcamp_converts_by_declaration(tmp_path):
+async def test_strong_absorption_percent_jcamp_converts_by_declaration(tmp_path, spectrochempy_available):
     """端到端：PERCENT TRANSMITTANCE 声明的强吸收谱（全谱 ≤1.5 %T）必须按
     %T 定义换算——吸收带 A=2−log10(0.5)≈2.30 高于基线 2−log10(1.4)≈1.85，
     旧实现误判为小数 T 会给出 A≈0.3 的荒谬值且 is_success=True。"""
@@ -281,3 +284,121 @@ async def test_strong_absorption_percent_jcamp_converts_by_declaration(tmp_path)
     assert intensity[i_band] == pytest.approx(2.0 - np.log10(0.5), abs=0.02)
     assert intensity[i_base] == pytest.approx(2.0 - np.log10(1.4), abs=0.02)
     assert intensity[i_band] > intensity[i_base]
+
+
+@pytest.mark.parametrize(
+    ("records", "expected"),
+    [
+        ("##YUNITS=PERCENT TRANSMITTANCE\n", "PERCENT TRANSMITTANCE"),
+        ("##YUNITS=TRANSMITTANCE\n", "TRANSMITTANCE"),
+        ("##YUNITS=ABSORBANCE\n", "ABSORBANCE"),
+        ("##YUNITS=ARBITRARY UNITS\n", "ARBITRARY UNITS"),
+        ("## yunits = percent   transmittance $$ explicit unit\n", "PERCENT TRANSMITTANCE"),
+        ("##YUNITS=ABSORBANCE $$ PERCENT TRANSMITTANCE is only a comment\n", "ABSORBANCE"),
+        ("##TITLE=literal ##YUNITS=PERCENT TRANSMITTANCE\n##YUNITS=ABSORBANCE\n", "ABSORBANCE"),
+        ("##YUNITS=PERCENT TRANSMITTANCE\n##YUNITS=percent transmittance\n", "PERCENT TRANSMITTANCE"),
+    ],
+)
+def test_jcamp_yunit_uses_exact_records_and_excludes_comments(tmp_path, records, expected):
+    """Metadata values and comments must not impersonate a YUNITS record."""
+    path = tmp_path / "metadata.dx"
+    path.write_text(records, encoding="utf-8")
+
+    assert ir_mod._jcamp_yunit(str(path)) == expected
+
+
+def test_jcamp_yunit_reads_units_after_long_header(tmp_path):
+    path = tmp_path / "long_header.jdx"
+    path.write_text("##TITLE=" + "x" * 9000 + "\n##YUNITS=PERCENT TRANSMITTANCE\n", encoding="utf-8")
+
+    assert ir_mod._jcamp_yunit(str(path)) == "PERCENT TRANSMITTANCE"
+
+
+@pytest.mark.parametrize(
+    "records",
+    [
+        "##YUNITS=ABSORBANCE\n##YUNITS=PERCENT TRANSMITTANCE\n",
+        "##YUNITS=PERCENT TRANSMITTANCE\n##YUNITS=ABSORBANCE\n",
+        "##YUNITS=PERCENT TRANSMITTANCE EXTRA\n",
+        "##YUNITS=NOT PERCENT TRANSMITTANCE\n",
+        "##YUNITS=UNKNOWN UNIT\n",
+        "##YUNITS=\n",
+        "##YUNITS= $$ missing value\n",
+        "##YUNITS PERCENT TRANSMITTANCE\n",
+        "##YUNITS=PERCENT TRANSMITTANCE\nEXTRA\n",
+        "##TITLE=no ordinate unit\n##END\n",
+    ],
+)
+def test_jcamp_yunit_rejects_invalid_or_conflicting_units(tmp_path, records):
+    path = tmp_path / "invalid_units.jdx"
+    path.write_text(records, encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        ir_mod._jcamp_yunit(str(path))
+
+
+def test_jcamp_yunit_ignores_binary_formats(tmp_path):
+    path = tmp_path / "spectrum.spa"
+    path.write_bytes(b"\xff\x00##YUNITS=PERCENT TRANSMITTANCE\n")
+
+    assert ir_mod._jcamp_yunit(str(path)) is None
+
+
+def test_jcamp_yunit_does_not_hide_read_errors(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        ir_mod._jcamp_yunit(str(tmp_path / "missing.jdx"))
+
+
+@pytest.mark.asyncio
+async def test_ir_conflicting_jcamp_units_return_failure(tmp_path, spectrochempy_available):
+    """The reader takes its first unit, so the tool must reject the conflict itself."""
+    path = _write_jcamp_percent_transmittance(tmp_path, yunit="ABSORBANCE")
+    text = path.read_text(encoding="utf-8")
+    path.write_text(
+        text.replace("##YUNITS=ABSORBANCE\n", "##YUNITS=ABSORBANCE\n##YUNITS=PERCENT TRANSMITTANCE\n"),
+        encoding="utf-8",
+    )
+
+    result = await _run_ir(path, detect_peaks=False)
+
+    assert result.is_success is False
+    assert "YUNITS" in result.message
+
+
+@pytest.mark.parametrize(
+    ("yunit", "yscale", "band_absorbance", "baseline_absorbance"),
+    [
+        ("transmittance", 1.0, 1.0, 0.0),
+        ("TRANSMITTANCE $$ measured in percent", 1.0, 1.0, 0.0),
+        ("TRANSMITTANCE $$ strong absorption", 0.014, 2.8538719643, 1.8538719643),
+    ],
+)
+@pytest.mark.asyncio
+async def test_ir_uses_canonical_jcamp_transmittance_unit(
+    tmp_path, spectrochempy_available, yunit, yscale, band_absorbance, baseline_absorbance,
+):
+    """A parsed TRANSMITTANCE record retains its meaning when the reader drops units."""
+    path = _write_jcamp_percent_transmittance(tmp_path, yunit=yunit, yscale=yscale)
+
+    result = await _run_ir(path, detect_peaks=False)
+
+    assert result.is_success, result.message
+    wn, intensity = _spectrum_arrays(result)
+    i_band = int(np.argmin(np.abs(wn - 1700.0)))
+    i_base = int(np.argmin(np.abs(wn - 1800.0)))
+    assert intensity[i_band] == pytest.approx(band_absorbance, abs=0.02)
+    assert intensity[i_base] == pytest.approx(baseline_absorbance, abs=0.02)
+
+
+@pytest.mark.parametrize("yunit", ["absorbance", "ABSORBANCE $$ measured absorbance"])
+@pytest.mark.asyncio
+async def test_ir_preserves_canonical_jcamp_absorbance_unit(tmp_path, spectrochempy_available, yunit):
+    path = _write_jcamp_percent_transmittance(tmp_path, yunit=yunit)
+
+    result = await _run_ir(path, detect_peaks=False)
+
+    assert result.is_success, result.message
+    assert result.y_unit in ("a.u.", "Absorbance", "absorbance")
+    wn, intensity = _spectrum_arrays(result)
+    i_band = int(np.argmin(np.abs(wn - 1700.0)))
+    assert intensity[i_band] == pytest.approx(10.0, abs=0.02)

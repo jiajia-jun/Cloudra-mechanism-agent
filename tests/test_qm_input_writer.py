@@ -1,8 +1,11 @@
 """qm_input_writer: generate valid Gaussian input files."""
 
 import asyncio
+import os
+from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 pytest.importorskip("rdkit", reason="qm_input_writer requires RDKit (chem extra)")
 
@@ -14,6 +17,15 @@ _WATER_XYZ = (
     "H  0.000000  0.757200 -0.469200\n"
     "H  0.000000 -0.757200 -0.469200\n"
 )
+
+
+@pytest.mark.parametrize("nproc", [0, -1])
+def test_qm_input_writer_refuses_nonpositive_cpu_counts(nproc):
+    with pytest.raises(ValidationError, match="nproc"):
+        QmInputWriter_input_schema(
+            source_type="xyz_file", source_value="water.xyz",
+            nproc=nproc, output_dir="water.inp",
+        )
 
 
 @pytest.mark.asyncio
@@ -117,6 +129,155 @@ async def test_qm_input_writer_rejects_invalid_xyz_records(tmp_path, xyz_text):
     assert not result.is_success
     assert "XYZ" in result.message
     assert not output.exists()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("coordinate", ["nan", "inf", "-inf", "1e999"])
+async def test_qm_input_writer_refuses_nonfinite_source_coordinates(tmp_path, coordinate):
+    source = tmp_path / "nonfinite.xyz"
+    source.write_text(f"1\ninvalid coordinate\nH {coordinate} 0 0\n", encoding="utf-8")
+    output = tmp_path / "nonfinite.inp"
+
+    result = await QmInputWriter().tool_call(
+        QmInputWriter_input_schema(
+            engine="orca", source_type="xyz_file",
+            source_value=str(source), output_dir=str(output),
+        ),
+        session=None,
+    )
+
+    assert not result.is_success
+    assert "finite" in result.message.lower()
+    assert not output.exists()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mem", ["", "8TB", "garbage", "0GB", "-4GB", "NaNGB", "1_024MB"])
+async def test_qm_input_writer_refuses_invalid_orca_memory(tmp_path, mem):
+    source = tmp_path / "water.xyz"
+    source.write_text(_WATER_XYZ, encoding="utf-8")
+    output = tmp_path / "invalid_memory.inp"
+
+    result = await QmInputWriter().tool_call(
+        QmInputWriter_input_schema(
+            engine="orca", source_type="xyz_file", source_value=str(source),
+            mem=mem, output_dir=str(output),
+        ),
+        session=None,
+    )
+
+    assert not result.is_success
+    assert "mem" in result.message.lower()
+    assert not output.exists()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("mem", "nproc", "per_core_mb"), [
+    (" 1.5 gB ", 3, 512), ("1024 m", 2, 512), ("2048MB", 4, 512),
+])
+async def test_qm_input_writer_preserves_orca_memory_units(tmp_path, mem, nproc, per_core_mb):
+    source = tmp_path / "water.xyz"
+    source.write_text(_WATER_XYZ, encoding="utf-8")
+    output = tmp_path / "memory.inp"
+
+    result = await QmInputWriter().tool_call(
+        QmInputWriter_input_schema(
+            engine="orca", source_type="xyz_file", source_value=str(source),
+            mem=mem, nproc=nproc, output_dir=str(output),
+        ),
+        session=None,
+    )
+
+    assert result.is_success, result.message
+    assert f"%maxcore {per_core_mb}\n" in output.read_text(encoding="utf-8")
+
+
+@pytest.mark.asyncio
+async def test_qm_input_writer_offloads_atomic_output_write(tmp_path, monkeypatch):
+    import threading
+
+    from cloudra.tools.Chemtool import qm_input_writer as module
+
+    loop_thread = threading.get_ident()
+    write_threads = []
+    original_write = module.atomic_write_text
+
+    def record_write_thread(path, content):
+        write_threads.append(threading.get_ident())
+        return original_write(path, content)
+
+    monkeypatch.setattr(module, "atomic_write_text", record_write_thread)
+    source = tmp_path / "water.xyz"
+    source.write_text(_WATER_XYZ, encoding="utf-8")
+    output = tmp_path / "water.inp"
+
+    result = await QmInputWriter().tool_call(
+        QmInputWriter_input_schema(
+            engine="orca", source_type="xyz_file", source_value=str(source),
+            output_dir=str(output),
+        ),
+        session=None,
+    )
+
+    assert result.is_success, result.message
+    assert output.is_file()
+    assert write_threads and all(thread != loop_thread for thread in write_threads)
+
+
+@pytest.mark.asyncio
+async def test_orca_external_program_requires_absolute_path(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    source = tmp_path / "water.xyz"
+    source.write_text(_WATER_XYZ, encoding="utf-8")
+    output = tmp_path / "relative_external.inp"
+
+    result = await QmInputWriter().tool_call(
+        QmInputWriter_input_schema(
+            engine="orca", source_type="xyz_file", source_value=str(source),
+            external_program=os.path.relpath("/bin/sh", tmp_path), output_dir=str(output),
+        ),
+        session=None,
+    )
+
+    assert not result.is_success
+    assert "absolute" in result.message.lower()
+    assert not output.exists()
+
+
+@pytest.mark.asyncio
+async def test_orca_external_program_writes_the_validated_path(tmp_path):
+    source = tmp_path / "water.xyz"
+    source.write_text(_WATER_XYZ, encoding="utf-8")
+    output = tmp_path / "canonical_external.inp"
+
+    result = await QmInputWriter().tool_call(
+        QmInputWriter_input_schema(
+            engine="orca", source_type="xyz_file", source_value=str(source),
+            external_program=" /bin/../bin/sh ", output_dir=str(output),
+        ),
+        session=None,
+    )
+
+    assert result.is_success, result.message
+    assert f'ProgExt "{Path("/bin/sh").resolve()}"' in output.read_text(encoding="utf-8")
+
+
+@pytest.mark.asyncio
+async def test_gaussian_external_program_writes_the_validated_token(tmp_path):
+    source = tmp_path / "water.xyz"
+    source.write_text(_WATER_XYZ, encoding="utf-8")
+    output = tmp_path / "external.gjf"
+
+    result = await QmInputWriter().tool_call(
+        QmInputWriter_input_schema(
+            source_type="xyz_file", source_value=str(source),
+            external_program=" mace ", output_dir=str(output),
+        ),
+        session=None,
+    )
+
+    assert result.is_success, result.message
+    assert 'external="mace"' in output.read_text(encoding="utf-8")
 
 
 @pytest.mark.asyncio

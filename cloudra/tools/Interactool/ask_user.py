@@ -1,5 +1,4 @@
 import asyncio
-import re
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any, Awaitable, Callable, Optional
@@ -127,10 +126,12 @@ class AskUser(Tool):
                 if lowered in ("拒绝", "reject"):
                     is_reject = True
                 else:
-                    reject_match = re.match(r'^(?:拒绝|reject)\s*[:：]\s*(.*)$', answer, re.IGNORECASE)
-                    if reject_match:
+                    prefix, separator, refusal_reason = answer.partition(":")
+                    if "：" in prefix:
+                        prefix, separator, refusal_reason = answer.partition("：")
+                    if separator and prefix.strip().lower() in ("拒绝", "reject"):
                         is_reject = True
-                        reason = reject_match.group(1).strip()
+                        reason = refusal_reason.strip()
 
                 if is_reject:
                     # 如果没有给出原因，再追问一次

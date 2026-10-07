@@ -3,7 +3,6 @@
 import asyncio
 import datetime
 import os
-import re
 from typing import Any, Dict, List
 
 from pydantic import Field
@@ -37,23 +36,47 @@ def _unit_token(proc) -> str:
         return str(unit).lower()
 
 
-def _jcamp_percent_transmittance_hint(path: str) -> bool:
-    """JCAMP-DX 显式声明 PERCENT TRANSMITTANCE 的语义提示。
+def _jcamp_yunit(path: str) -> str | None:
+    """解析 JCAMP-DX 的 YUNITS 记录，拒绝缺失、冲突或不支持的声明。
 
     spectrochempy 0.12.6 的 JCAMP reader 只把 'ABSORBANCE'/'TRANSMITTANCE'/
     'ARBITRARY UNITS' 落地为 dataset.units——最常见的 'PERCENT TRANSMITTANCE'
     不落地（units=None）。这类文件数值是 0..100 的 %T，不是吸光度/任意单位；
     从文件头补足该语义，避免把 %T 原样当吸光度交给下游（GH I1）。
     """
-    if not os.path.isfile(path):
-        return False
-    try:
-        with open(path, "r", encoding="utf-8", errors="replace") as fh:
-            head = fh.read(8192)
-    except OSError:
-        return False
-    m = re.search(r"##\s*YUNITS\s*=\s*([^\n#]+)", head, re.IGNORECASE)
-    return bool(m) and "PERCENT TRANSMITTANCE" in m.group(1).upper()
+    # SpectroChemPy 的 JCAMP reader 支持 .jdx / .dx；SPA 等二进制格式
+    # 的字节不属于 JCAMP 元数据，不能通过文本匹配触发单位换算。
+    if os.path.splitext(path)[1].lower() not in {".jdx", ".dx"}:
+        return None
+    supported_units = {"ABSORBANCE", "TRANSMITTANCE", "ARBITRARY UNITS", "PERCENT TRANSMITTANCE"}
+    declared_unit = None
+    previous_label = ""
+    with open(path, "r", encoding="utf-8") as fh:
+        for line_number, raw_line in enumerate(fh, start=1):
+            # $$ 引入 JCAMP 注释；注释或其他记录的值不是单位声明。
+            line = raw_line.partition("$$")[0].strip()
+            if not line:
+                continue
+            if not line.startswith("##"):
+                if previous_label == "YUNITS":
+                    raise ValueError(f"Unsupported JCAMP YUNITS continuation at line {line_number}")
+                continue
+            label, separator, value = line[2:].partition("=")
+            label = label.strip().upper()
+            if not label or (not separator and label != "END"):
+                raise ValueError(f"Malformed JCAMP record at line {line_number}: expected LABEL=VALUE")
+            previous_label = label
+            if label != "YUNITS":
+                continue
+            unit = " ".join(value.split()).upper()
+            if unit not in supported_units:
+                raise ValueError(f"Unsupported or empty JCAMP YUNITS at line {line_number}: {value!r}")
+            if declared_unit is not None and unit != declared_unit:
+                raise ValueError(f"Conflicting JCAMP YUNITS declarations: {declared_unit!r} and {unit!r}")
+            declared_unit = unit
+    if declared_unit is None:
+        raise ValueError("JCAMP YUNITS declaration is missing")
+    return declared_unit
 
 
 def _to_absorbance(proc, *, percent_declared: bool = False):
@@ -160,6 +183,7 @@ class IRProcessor(Tool):
 
         try:
             # 1. 读取数据
+            jcamp_yunit = _jcamp_yunit(path)
             # SpectroChemPy 具有强大的文件读取引擎
             dataset = scp.read(path)
             if isinstance(dataset, list):
@@ -169,13 +193,23 @@ class IRProcessor(Tool):
             proc = dataset.copy()
             adv = user_input.advanced_settings
 
+            # 已校验的 JCAMP 声明是单位事实源；reader 会丢失带注释或
+            # 大小写变化的单位。沿用它已有的单位定义，避免按数值猜量纲。
+            if jcamp_yunit is not None:
+                proc.units = {
+                    "ABSORBANCE": "absorbance",
+                    "TRANSMITTANCE": "transmittance",
+                    "ARBITRARY UNITS": None,
+                    "PERCENT TRANSMITTANCE": None,
+                }[jcamp_yunit]
+
             # 转换为吸光度 (如果是透过率)。%T 换算必须得到向上吸收峰
             # （T=10% → A=1.0，T=100% → A=0）；log10(%T) 会把谱倒置
             # （基线 2.0 / 带 1.0），find_peaks 于是去检基线噪声（GH I1）。
             # 显式声明的 %T（scp percent 单位 / JCAMP 头）按定义换算；
             # 单位丢失且数值落歧义区时 _to_absorbance fail-loud（GH I5）。
             unit_token = _unit_token(proc)
-            jcamp_percent_hint = _jcamp_percent_transmittance_hint(path)
+            jcamp_percent_hint = jcamp_yunit == "PERCENT TRANSMITTANCE"
             transmittance_like = (
                 any(tok in unit_token for tok in ("transmittance", "percent"))
                 or jcamp_percent_hint

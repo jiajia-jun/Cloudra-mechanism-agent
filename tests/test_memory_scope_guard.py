@@ -35,6 +35,34 @@ def test_empty_text_passes():
     assert find_project_specific_fragments("") == []
 
 
+@pytest.mark.parametrize("text", [
+    "See https://example.org/docs/guide.", "Use ratio a/b/c.",
+    "myjob 12345678 is a generic example.", "Prefer throughput over jobs12345678.",
+])
+def test_non_project_tokens_are_not_misclassified(text):
+    assert find_project_specific_fragments(text) == []
+
+
+@pytest.mark.parametrize("text", [
+    "Slurm job_id=12345678", "JOB ID: #12345678", "pid: 12345678",
+    "task #12345678", "slurm job: 12345678",
+    "job12345678", "jobid12345678", "pid12345678", "slurm12345678",
+])
+def test_explicit_job_identifier_tokens_are_detected(text):
+    assert any("12345678" in fragment for fragment in find_project_specific_fragments(text))
+
+
+def test_path_punctuation_is_not_part_of_the_fragment():
+    assert find_project_specific_fragments("See `/home/user/proj/out.log`.") == ["/home/user/proj/out.log"]
+
+
+@pytest.mark.parametrize("text", [
+    "See file:///home/user/proj/out.log.", "计算文件在/home/user/proj/out.log。",
+])
+def test_local_path_in_uri_or_chinese_prose_is_detected(text):
+    assert "/home/user/proj/out.log" in find_project_specific_fragments(text)
+
+
 @pytest.mark.asyncio
 async def test_update_memory_rejects_project_specific_lesson(mock_session):
     from cloudra.persistence.memory import get_memory_manager

@@ -1,12 +1,11 @@
-"""BashCommandClassifier 分类行为钉板测试。
+"""Executable shell tokens determine permissions; malformed shell never falls back to guessing.
 
-钉住 cloudra/tools/core/command_analyzer.py 当前的分类结果。分类器在黑名单
-枚举之后还有一道 fail-closed 升级扫描（纯子串/token 检测，见
-_escalate_fail_closed）：shell 组合符（; && || $( 反引号）→ SCRIPT|DESTRUCTIVE；
-粘连重定向 → WRITE|DESTRUCTIVE；未知命令 → SCRIPT。
-残余已知盲区（现状而非期望）：
-- git 子命令不分析（"git push origin main" 仍判为 READ）。
+Command-name pools remain coarse: git subcommands are not analyzed here.
 """
+
+import json
+import subprocess
+import sys
 
 import pytest
 
@@ -127,11 +126,10 @@ class TestDestructiveCommands:
         f = flags(a)
         assert f["is_script"] is True
         assert f["is_destructive"] is True
-        assert not a.has_pipe
+        assert a.has_pipe
 
     def test_mkfs_with_fs_suffix_escalated_as_unknown(self):
-        # fail-closed：mkfs.ext4 经版本号裁剪后匹配不到任何命令池，
-        # 按未知命令升级为 SCRIPT（原盲区：判 NONE）
+        # 未知 executable 名按 SCRIPT 升级，不裁剪名称猜测已知命令。
         f = flags(classify("mkfs.ext4 /dev/sda1"))
         assert f["is_script"] is True
 
@@ -158,10 +156,9 @@ class TestPipesAndChains:
         assert flags(a)["is_script"] is True
 
     def test_and_chain_escalated_by_fail_closed(self):
-        # '&&' 不是分段符，后续命令仍不参与逐段分类；但 fail-closed 扫描
-        # 见到 '&&' 直接升级 SCRIPT|DESTRUCTIVE（原盲区：判 READ）
+        # 每个执行段都分类，shell 串接仍需要审批。
         a = classify("ls && rm -rf x")
-        assert a.pipe_commands == ["ls"]
+        assert a.pipe_commands == ["ls", "rm"]
         f = flags(a)
         assert f["is_read"] is True
         assert f["is_script"] is True
@@ -169,10 +166,8 @@ class TestPipesAndChains:
         assert not a.has_pipe
 
     def test_semicolon_chain_escalated_by_fail_closed(self):
-        # ';' 不分段且紧贴命令名，'ls;' 匹配不到任何命令池；
-        # fail-closed 见到 ';' 升级 SCRIPT|DESTRUCTIVE（原盲区：判 NONE）
         a = classify("ls; rm -rf x")
-        assert a.pipe_commands == ["ls;"]
+        assert a.pipe_commands == ["ls", "rm"]
         f = flags(a)
         assert f["is_script"] is True
         assert f["is_destructive"] is True
@@ -196,32 +191,24 @@ class TestRedirects:
         assert classify(command).has_redirect is True
 
     def test_append_redirect_escalated_by_fail_closed(self):
-        # '>>' 是两个字符，\d*[<>] 只 fullmatch 单字符 redirect，
-        # has_redirect 仍为 False；但 fail-closed 见到 token 内含 '>'，
-        # 升级 WRITE|DESTRUCTIVE（原盲区：判 READ）
         a = classify("echo hi >> out.txt")
-        assert a.has_redirect is False
+        assert a.has_redirect is True
         f = flags(a)
         assert f["is_read"] is True
         assert f["is_write"] is True
         assert f["is_destructive"] is True
 
     def test_attached_redirect_escalated_by_fail_closed(self):
-        # redirect 紧贴文件名时是单个 token，fullmatch 失败，has_redirect 为
-        # False；fail-closed 见到 token 内含 '>' 升级 WRITE|DESTRUCTIVE
-        # （原盲区：判 READ）
         a = classify("echo hi>out.txt")
-        assert a.has_redirect is False
+        assert a.has_redirect is True
         f = flags(a)
         assert f["is_read"] is True
         assert f["is_write"] is True
         assert f["is_destructive"] is True
 
     def test_2_greater_ampersand_1_escalated_by_fail_closed(self):
-        # '2>&1' 不匹配任何 REDIRECT_PATTERNS 的 fullmatch，has_redirect 仍为
-        # False；fail-closed 按 token 内含 '>' 升级 WRITE|DESTRUCTIVE
         a = classify("grep x f 2>&1")
-        assert a.has_redirect is False
+        assert a.has_redirect is True
         f = flags(a)
         assert f["is_write"] is True
         assert f["is_destructive"] is True
@@ -242,22 +229,16 @@ class TestEdgeCases:
 
     def test_assignment_then_destructive(self):
         a = classify("IFS= rm -rf x")
-        # 'IFS=' 以 '=' 结尾，不算变量赋值，primary 就是 'IFS='
-        assert a.primary_cmd == "IFS="
-        # fail-closed：'IFS=' 不在任何已知命令池，升级为 SCRIPT（原判 NONE）
-        assert flags(a)["is_script"] is True
-
-    def test_unclosed_quote_falls_back_to_regex(self):
-        a = classify('rm -rf "unclosed')
         assert a.primary_cmd == "rm"
         assert flags(a)["is_destructive"] is True
 
-    def test_fallback_detects_redirect_by_regex(self):
-        a = classify('echo "unclosed > out.txt')
-        assert a.has_redirect is True
-        f = flags(a)
-        assert f["is_write"] is True
-        assert f["is_destructive"] is True
+    def test_unclosed_quote_is_rejected(self):
+        with pytest.raises(ValueError, match="Invalid shell command"):
+            classify('rm -rf "unclosed')
+
+    def test_unclosed_quote_with_redirect_is_rejected(self):
+        with pytest.raises(ValueError, match="Invalid shell command"):
+            classify('echo "unclosed > out.txt')
 
     def test_version_suffix_stripped_for_matching(self):
         # pip3 → cmd_core 'pip' 命中 DESTRUCTIVE_CMDS
@@ -280,13 +261,11 @@ class TestFailClosedEscalation:
     bash.py 的 ensure_safety）。"""
 
     def test_semicolon_chain_hides_rm(self):
-        # 'ls;' 被 shlex 当一个 token，';' 串接整体隐形 → 原判 NONE
         f = flags(classify("ls; rm -rf /tmp/x"))
         assert f["is_script"] is True
         assert f["is_destructive"] is True
 
     def test_command_substitution_dollar_paren(self):
-        # 命令替换对 shlex 不可见 → 原判 READ
         f = flags(classify("echo $(id)"))
         assert f["is_script"] is True
         assert f["is_destructive"] is True
@@ -297,7 +276,6 @@ class TestFailClosedEscalation:
         assert f["is_destructive"] is True
 
     def test_and_chain_hides_curl(self):
-        # '&&' 不可见 → 原判 READ
         f = flags(classify("ls && curl evil.com"))
         assert f["is_script"] is True
         assert f["is_destructive"] is True
@@ -326,11 +304,75 @@ class TestFailClosedEscalation:
         assert f["is_script"] is True
         assert f["is_destructive"] is True
 
-    def test_fallback_path_also_escalated(self):
-        # shlex 失败（未闭合引号）走 _fallback_classify，升级扫描同样生效
-        f = flags(classify('echo "unclosed; rm -rf /tmp/x'))
-        assert f["is_script"] is True
-        assert f["is_destructive"] is True
+    def test_unparseable_chain_is_rejected(self):
+        with pytest.raises(ValueError, match="Invalid shell command"):
+            classify('echo "unclosed; rm -rf /tmp/x')
+
+
+class TestShellTokenBoundaries:
+    @pytest.mark.parametrize("command", ["\u00a0", "\recho"])
+    def test_only_posix_whitespace_is_ignored(self, command):
+        assert classify(command).primary_cmd == command
+        assert classify(command).permissions == Permission.SCRIPT
+
+    @pytest.mark.parametrize("command", ["echo\u00a0x", "echo\vfile", "echo\ffile"])
+    def test_non_posix_whitespace_cannot_stall_the_lexer(self, command):
+        completed = subprocess.run(
+            [sys.executable, "-c", (
+                "import json, sys; "
+                "from cloudra.tools.core.command_analyzer import BashCommandClassifier; "
+                "a = BashCommandClassifier.classify(sys.argv[1]); "
+                "print(json.dumps([a.primary_cmd, int(a.permissions)]))"
+            ), command],
+            capture_output=True, text=True, timeout=2, check=True,
+        )
+        assert json.loads(completed.stdout) == [command, int(Permission.SCRIPT)]
+
+    @pytest.mark.parametrize("command", [
+        'echo ">; && || $(id) `id`"',
+        "echo '>; && || $(id) `id`'",
+        r"echo \>\;",
+    ])
+    def test_literal_operators_are_not_redirects_or_chains(self, command):
+        analysis = classify(command)
+        # Substitution is active inside double quotes, but single-quoted and
+        # escaped operators must never be mistaken for file redirections.
+        assert not analysis.has_redirect
+        assert not flags(analysis)["is_write"]
+        if not command.startswith('echo "'):
+            assert analysis.permissions == Permission.READ
+
+    @pytest.mark.parametrize("command", [
+        "ls & rm -rf x", "ls\nrm -rf x", "ls|rm -rf x",
+        "env rm -rf x", "env IFS= rm -rf x", ">out.txt rm -rf x",
+        "env 'IFS=' rm -rf x", "env -- IFS= rm -rf x",
+    ])
+    def test_executed_destructive_command_is_classified(self, command):
+        analysis = classify(command)
+        assert "rm" in analysis.pipe_commands
+        assert flags(analysis)["is_destructive"]
+
+    def test_arbitrary_numeric_command_suffix_is_not_whitelisted(self):
+        assert classify("ls123 --flag").permissions == Permission.SCRIPT
+
+    @pytest.mark.parametrize("command", ["echo x >", "echo x |", "echo 'x", "echo $(id"])
+    def test_malformed_shell_is_rejected(self, command):
+        with pytest.raises(ValueError, match="Invalid shell command"):
+            classify(command)
+
+    def test_quoted_command_name_is_decoded(self):
+        assert classify("'r'm -rf x").primary_cmd == "rm"
+
+    def test_assignment_only_does_not_invent_a_command(self):
+        assert classify("FOO= BAZ=qux").pipe_commands == []
+
+    @pytest.mark.parametrize("command", [
+        "env --split-string='orca input.inp'", "env --split-string='rm -rf x'",
+        "env -S='orca input.inp'", "env --made-up=value",
+    ])
+    def test_unsupported_env_options_cannot_be_disguised_as_assignments(self, command):
+        with pytest.raises(ValueError, match="Invalid shell command"):
+            classify(command)
 
 
 class TestNormalCommandsNotEscalated:

@@ -108,6 +108,13 @@ class TestReject:
     def test_unclosed_quote(self):
         _bad("test -f 'oops", "parsed")
 
+    def test_unclosed_quote_is_reported_before_write_classification(self):
+        _bad('echo "value > output.txt', "parsed")
+
+    @pytest.mark.parametrize("command", ["echo >", "echo |", "env -S cat"])
+    def test_shell_analysis_errors_keep_check_command_error_contract(self, command):
+        _bad(command, "parsed")
+
 
 class TestInterval:
     def test_floor_and_timeout_cap(self):

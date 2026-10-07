@@ -1,14 +1,226 @@
 """
 Command Analyzer for BashTools.
 
-Replaces the fragile substring matching with proper shlex-based token parsing.
+Uses quote-aware POSIX tokens for executable segments and redirections.
 """
 
-import re
-import shlex
 from dataclasses import dataclass, field
 
 from .permission_model import Permission
+
+_REDIRECTS = frozenset({">", ">>", "<", "<<", "<<-", "<<<", "<>", ">&", "<&", ">|", "&>", "&>>"})
+_OPERATORS = ("&>>", "<<-", "<<<", "&&", "||", "|&", ">>", "<<", ">&", "<&", "<>", ">|", "&>",
+              ";", "&", "|", "<", ">", "(", ")")
+_SEPARATORS = frozenset({";", "&", "|", "|&", "&&", "||", "(", ")"})
+
+
+@dataclass(frozen=True)
+class _ShellToken:
+    value: str
+    raw: str
+    start: int
+    end: int
+    operator: bool = False
+
+
+@dataclass
+class ShellCommand:
+    """One executable segment and its shell redirections."""
+
+    words: list[str] = field(default_factory=list)
+    redirects: list[tuple[str, str]] = field(default_factory=list)
+
+
+def _is_assignment(raw: str) -> bool:
+    name, separator, _ = raw.partition("=")
+    return bool(separator and name and (name[0].isascii() and (name[0].isalpha() or name[0] == "_"))
+                and all(char.isascii() and (char.isalnum() or char == "_") for char in name))
+
+
+def _substitution_end(command: str, start: int) -> int:
+    """Locate a balanced command substitution without treating its text as outer shell tokens."""
+    backtick = command[start] == "`"
+    index = start + (1 if backtick else 2)
+    depth = 1
+    quote = ""
+    while index < len(command):
+        char = command[index]
+        if char == "\\" and quote != "'":
+            index += 2
+            continue
+        if quote:
+            if char == quote:
+                quote = ""
+        elif backtick and char == "`":
+            return index + 1
+        elif char in ("'", '"'):
+            quote = char
+        elif not backtick:
+            if char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+                if depth == 0:
+                    return index + 1
+        index += 1
+    raise ValueError("Invalid shell command: unclosed command substitution")
+
+
+def _shell_tokens(command: str) -> tuple[list[_ShellToken], bool]:
+    """Lex POSIX words/operators, preserving quote boundaries and heredoc data."""
+    tokens: list[_ShellToken] = []
+    pending_heredocs: list[tuple[str, bool]] = []
+    expect_heredoc: str | None = None
+    has_substitution = False
+    index = 0
+    while index < len(command):
+        char = command[index]
+        if char in " \t":
+            index += 1
+            continue
+        if char == "\n":
+            tokens.append(_ShellToken(";", "\n", index, index + 1, True))
+            index += 1
+            for delimiter, strip_tabs in pending_heredocs:
+                while index < len(command):
+                    end = command.find("\n", index)
+                    if end < 0:
+                        end = len(command)
+                    line = command[index:end]
+                    index = end + (end < len(command))
+                    if (line.lstrip("\t") if strip_tabs else line) == delimiter:
+                        break
+                else:
+                    raise ValueError("Invalid shell command: unclosed heredoc")
+            pending_heredocs.clear()
+            continue
+        if char == "#":
+            end = command.find("\n", index)
+            index = len(command) if end < 0 else end
+            continue
+        operator = next((item for item in _OPERATORS if command.startswith(item, index)), None)
+        if operator:
+            tokens.append(_ShellToken(operator, operator, index, index + len(operator), True))
+            index += len(operator)
+            if operator in {"<<", "<<-"}:
+                expect_heredoc = operator
+            continue
+        start = index
+        quote = ""
+        value: list[str] = []
+        while index < len(command):
+            char = command[index]
+            if not quote and (char in " \t\n" or any(command.startswith(item, index) for item in _OPERATORS)):
+                break
+            if char == "\\" and quote != "'":
+                if index + 1 == len(command):
+                    raise ValueError("Invalid shell command: trailing escape")
+                escaped = command[index + 1]
+                if escaped != "\n":
+                    if quote == '"' and escaped not in '$`"\\':
+                        value.append("\\")
+                    value.append(escaped)
+                index += 2
+                continue
+            if char in ("'", '"') and (not quote or char == quote):
+                quote = "" if quote else char
+                index += 1
+                continue
+            if quote != "'" and (command.startswith("$(", index) or char == "`"):
+                end = _substitution_end(command, index)
+                value.append(command[index:end])
+                has_substitution = True
+                index = end
+                continue
+            value.append(char)
+            index += 1
+        if quote:
+            raise ValueError("Invalid shell command: unclosed quote")
+        token = _ShellToken("".join(value), command[start:index], start, index)
+        tokens.append(token)
+        if expect_heredoc is not None:
+            pending_heredocs.append((token.value, expect_heredoc == "<<-"))
+            expect_heredoc = None
+    if pending_heredocs or expect_heredoc is not None:
+        raise ValueError("Invalid shell command: unclosed heredoc")
+    return tokens, has_substitution
+
+
+def _executable_words(tokens: list[_ShellToken]) -> list[str]:
+    """Remove shell assignments and the explicit env command wrapper."""
+    index = 0
+    while index < len(tokens) and _is_assignment(tokens[index].raw):
+        index += 1
+    tokens = tokens[index:]
+    words = [token.value for token in tokens]
+    while words and words[0].rsplit("/", 1)[-1] == "env":
+        index = 1
+        options_enabled = True
+        while index < len(words):
+            word = words[index]
+            if word == "--" and options_enabled:
+                index += 1
+                options_enabled = False
+                continue
+            if options_enabled and word in {"-i", "--ignore-environment"}:
+                index += 1
+                continue
+            if options_enabled and word in {"-u", "--unset", "-C", "--chdir"}:
+                if index + 1 >= len(words):
+                    raise ValueError("Invalid shell command: env option requires an argument")
+                index += 2
+                continue
+            if options_enabled and word.startswith(("--unset=", "--chdir=")):
+                index += 1
+                continue
+            if options_enabled and word.startswith("-"):
+                raise ValueError(f"Invalid shell command: unsupported env option {word!r}")
+            name, separator, _ = word.partition("=")
+            if separator and name:
+                index += 1
+                continue
+            break
+        if index < len(words):
+            words = words[index:]
+        else:
+            break
+    return words
+
+
+def _command_segments(tokens: list[_ShellToken]) -> list[ShellCommand]:
+    segments: list[ShellCommand] = []
+    words: list[_ShellToken] = []
+    redirects: list[tuple[str, str]] = []
+    last_operator = ""
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token.operator and token.value in _REDIRECTS:
+            if words and words[-1].raw.isascii() and words[-1].raw.isdigit() and words[-1].end == token.start:
+                words.pop()  # Attached file descriptor, e.g. the 2 in 2>err.log.
+            if index + 1 == len(tokens) or tokens[index + 1].operator:
+                raise ValueError("Invalid shell command: redirection requires a target")
+            redirects.append((token.value, tokens[index + 1].value))
+            last_operator = ""
+            index += 2
+            continue
+        if token.operator and token.value in _SEPARATORS:
+            if words or redirects:
+                segments.append(ShellCommand(_executable_words(words), redirects))
+            elif token.value in {"|", "|&", "&&", "||"}:
+                raise ValueError("Invalid shell command: missing command before operator")
+            words, redirects = [], []
+            if token.raw != "\n":
+                last_operator = token.value
+        else:
+            words.append(token)
+            last_operator = ""
+        index += 1
+    if last_operator in {"|", "|&", "&&", "||", "("}:
+        raise ValueError("Invalid shell command: missing command after operator")
+    if words or redirects:
+        segments.append(ShellCommand(_executable_words(words), redirects))
+    return segments
 
 
 @dataclass
@@ -18,6 +230,8 @@ class CommandAnalysis:
     pipe_commands: list[str] = field(default_factory=list)
     has_redirect: bool = False
     has_pipe: bool = False
+    has_substitution: bool = False
+    segments: list[ShellCommand] = field(default_factory=list)
     permissions: Permission = Permission.NONE
 
     def permission_dict(self) -> dict[str, bool]:
@@ -33,7 +247,7 @@ class CommandAnalysis:
 
 class BashCommandClassifier:
     """
-    Classifies shell commands into permission categories using shlex parsing.
+    Classifies shell commands into permission categories using explicit tokens.
     """
 
     # Command name -> Permission mapping
@@ -44,23 +258,16 @@ class BashCommandClassifier:
         'uname', 'free', 'uptime', 'date', 'echo', 'printenv', 'env',
         'git', 'hg', 'svn',
         'cd', 'nproc',
-        # Windows equivalents
-        'dir', 'type', 'findstr', 'ver', 'systeminfo', 'hostname', 'ipconfig',
-        'tasklist', 'sc', 'set', 'where', 'assoc', 'ftype', 'vol', 'label',
     }
 
     WRITE_CMDS = {
         'awk', 'sed', 'tee', 'truncate', 'touch', 'mkdir',
-        # Windows equivalents
-        'copy', 'xcopy', 'robocopy', 'move', 'ren', 'rename', 'md', 'rd', 'attrib', 'setx',
     }
 
     SCRIPT_CMDS = {
         'python', 'python3', 'python2', 'bash', 'sh', 'zsh', 'fish',
         'cargo', 'yarn', 'go', 'g16', 'g09', 'perl', 'ruby', 'node', 'nodejs',
         'npm', 'npx', 'conda', 'pip', 'pip3', 'xtb',
-        # Windows equivalents
-        'powershell', 'pwsh', 'cmd', 'cscript', 'wscript', 'batch',
     }
 
     DESTRUCTIVE_CMDS = {
@@ -77,202 +284,43 @@ class BashCommandClassifier:
         'source', 'export',
         'pip', 'pip3', 'conda', 'npm', 'npx', 'yarn',
         'mkdir', 'touch', 'sed',
-        # Windows equivalents
-        'del', 'erase', 'rd', 'rmdir', 'move', 'ren', 'rename', 'format', 'taskkill', 'net',
-        'icacls', 'takeown', 'cipher',
     }
-
-    # Shell metacharacters that indicate write/destructive behavior
-    REDIRECT_PATTERNS = [
-        re.compile(r'\d*[<>]'),        # >, >>, <, 2>, etc.
-        re.compile(r'\d*>&'),          # >&
-    ]
-
-    # Fail-closed: 原始命令串里出现这些子串说明存在 shlex 分段看不见的 shell
-    # 组合（串接 / 命令替换），一律升级为必审批。纯子串检测，不引入正则。
-    SHELL_COMPOSITION_MARKERS = (';', '&&', '||', '$(', '`')
 
     @classmethod
     def classify(cls, command: str) -> CommandAnalysis:
-        """
-        Parse and classify a shell command.
-
-        Handles pipes, redirects, variable assignments, and quoted strings.
-        """
-        import platform
-        is_windows = platform.system() == 'Windows'
-
+        """Classify explicit executable and operator tokens; malformed input raises ValueError."""
         analysis = CommandAnalysis()
-
-        if not command or not command.strip():
+        if command is None or command == "":
             return analysis
-
-        # 1. Tokenize with shlex
-        try:
-            # On Windows, posix=False is usually better for cmd.exe
-            tokens = shlex.split(command, comments=False, posix=not is_windows)
-        except ValueError:
-            # Unclosed quotes or other shlex failures: fall back to string analysis
-            return cls._fallback_classify(command)
-
-        # 2. Detect redirects at token level
-        for tok in tokens:
-            for pattern in cls.REDIRECT_PATTERNS:
-                if pattern.fullmatch(tok):
-                    analysis.has_redirect = True
-                    break
-            # Pipes in Windows are also |
-            if tok in ('|', '|&'):
-                analysis.has_pipe = True
-
-        # 3. Split by pipes to get individual command segments
-        pipe_indices = [-1]
-        for i, tok in enumerate(tokens):
-            if tok == '|' or tok == '|&':
-                pipe_indices.append(i)
-        pipe_indices.append(len(tokens))
-
-        commands = []
-        for start, end in zip(pipe_indices[:-1], pipe_indices[1:]):
-            segment = tokens[start + 1:end]
-            if not segment:
-                continue
-
-            # Strip leading variable assignments (Unix style)
-            cmd_idx = 0
-            if not is_windows:
-                for idx, tok in enumerate(segment):
-                    if '=' in tok and not tok.startswith('=') and not tok.endswith('='):
-                        parts = tok.split('=', 1)
-                        if parts[0].isidentifier():
-                            continue
-                    cmd_idx = idx
-                    break
-
-            if cmd_idx >= len(segment):
-                continue
-
-            cmd_name = segment[cmd_idx]
-
-            # Handle absolute paths: /usr/bin/python or C:\Python39\python.exe
-            # Replace backslashes for uniform processing
-            cmd_name_clean = cmd_name.replace('\\', '/')
-            cmd_base = cmd_name_clean.split('/')[-1]
-
-            # Remove .exe suffix if present
-            if cmd_base.lower().endswith('.exe'):
-                cmd_base = cmd_base[:-4]
-
-            commands.append(cmd_base)
-
-        if not commands:
+        if not isinstance(command, str):
+            raise ValueError("Invalid shell command: expected a string")
+        if not command.strip(" \t\n"):
             return analysis
-
-        analysis.primary_cmd = commands[0]
-        analysis.pipe_commands = commands
-
-        # 4. Classify each command in the pipeline
-        perms = Permission.NONE
-        for cmd in commands:
-            cmd_lower = cmd.lower()
-            # Remove common version suffixes for matching
-            cmd_core = cmd_lower.rstrip('0123456789.')
-
-            if cmd_lower in cls.READ_CMDS or cmd_core in cls.READ_CMDS:
-                perms |= Permission.READ
-            if cmd_lower in cls.WRITE_CMDS or cmd_core in cls.WRITE_CMDS:
-                perms |= Permission.WRITE
-            if cmd_lower in cls.SCRIPT_CMDS or cmd_core in cls.SCRIPT_CMDS:
-                perms |= Permission.SCRIPT
-            if cmd_lower in cls.DESTRUCTIVE_CMDS or cmd_core in cls.DESTRUCTIVE_CMDS:
-                perms |= Permission.DESTRUCTIVE
-
-        # 5. Redirects imply write + destructive (can overwrite files)
-        if analysis.has_redirect:
-            perms |= Permission.WRITE | Permission.DESTRUCTIVE
-
-        analysis.permissions = perms
-        cls._escalate_fail_closed(command, tokens, analysis)
-        return analysis
-
-    @classmethod
-    def _escalate_fail_closed(cls, command: str, tokens: list[str], analysis: CommandAnalysis) -> None:
-        """Fail-closed 兜底升级：黑名单枚举漏判的可疑形态一律抬高权限（必审批）。
-
-        纯子串/token 检测，不引入正则：
-        1. 原始命令含 shell 组合符（; && || $( 反引号）→ SCRIPT|DESTRUCTIVE；
-        2. token 内含 > 或 < 但未识别为独立重定向 token（粘连重定向）→ WRITE|DESTRUCTIVE；
-        3. 主命令/管道命令 basename 不在全部已知命令池（如 osascript）→ SCRIPT。
-        """
-        if any(marker in command for marker in cls.SHELL_COMPOSITION_MARKERS):
-            analysis.permissions |= Permission.SCRIPT | Permission.DESTRUCTIVE
-
-        if not analysis.has_redirect:
-            for tok in tokens:
-                if '>' in tok or '<' in tok:
-                    analysis.permissions |= Permission.WRITE | Permission.DESTRUCTIVE
-                    break
-
+        tokens, analysis.has_substitution = _shell_tokens(command)
+        analysis.segments = _command_segments(tokens)
+        analysis.has_redirect = any(segment.redirects for segment in analysis.segments)
+        analysis.has_pipe = any(token.operator and token.value in {"|", "|&"} for token in tokens)
+        analysis.pipe_commands = [segment.words[0].rsplit("/", 1)[-1]
+                                  for segment in analysis.segments if segment.words]
+        if analysis.pipe_commands:
+            analysis.primary_cmd = analysis.pipe_commands[0]
         known = cls.READ_CMDS | cls.WRITE_CMDS | cls.SCRIPT_CMDS | cls.DESTRUCTIVE_CMDS
-        for cmd in analysis.pipe_commands:
-            cmd_lower = cmd.lower()
-            if cmd_lower in known or cmd_lower.rstrip('0123456789.') in known:
-                continue
-            analysis.permissions |= Permission.SCRIPT
-
-    @classmethod
-    def _fallback_classify(cls, command: str) -> CommandAnalysis:
-        """
-        Fallback when shlex fails (e.g. unclosed quotes).
-        Uses regex-based word-boundary matching.
-        """
-        import platform
-        is_windows = platform.system() == 'Windows'
-
-        analysis = CommandAnalysis()
-
-        # Detect redirects with regex
-        if re.search(r'\d*[<>]', command):
-            analysis.has_redirect = True
-
-        # Extract the first "word" that looks like a command
-        # Windows command regex needs to handle backslashes and drive letters
-        if is_windows:
-            # Matches C:\foo\bar.exe or just command
-            first_word_match = re.search(r'^[\s]*([^\s|;&]+)', command)
-        else:
-            # Unix: handles variable assignments FOO=bar command
-            first_word_match = re.search(r'^[\s]*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s]*[\s]+)*([^\s|;&]+)', command)
-
-        if first_word_match:
-            cmd_full = first_word_match.group(1)
-            # Clean up Windows paths
-            cmd_clean = cmd_full.replace('\\', '/')
-            cmd = cmd_clean.split('/')[-1].lower()
-
-            # Remove .exe
-            if cmd.endswith('.exe'):
-                cmd = cmd[:-4]
-
-            analysis.primary_cmd = cmd
-            analysis.pipe_commands = [cmd]
-
-            perms = Permission.NONE
-            cmd_core = cmd.rstrip('0123456789.')
-
-            for pool, perm in [
+        for command_name in analysis.pipe_commands:
+            lowered = command_name.lower()
+            for pool, permission in (
                 (cls.READ_CMDS, Permission.READ),
                 (cls.WRITE_CMDS, Permission.WRITE),
                 (cls.SCRIPT_CMDS, Permission.SCRIPT),
                 (cls.DESTRUCTIVE_CMDS, Permission.DESTRUCTIVE),
-            ]:
-                if cmd in pool or cmd_core in pool:
-                    perms |= perm
-
-            if analysis.has_redirect:
-                perms |= Permission.WRITE | Permission.DESTRUCTIVE
-
-            analysis.permissions = perms
-
-        cls._escalate_fail_closed(command, command.split(), analysis)
+            ):
+                if lowered in pool:
+                    analysis.permissions |= permission
+            if lowered not in known:
+                analysis.permissions |= Permission.SCRIPT
+        if analysis.has_redirect:
+            analysis.permissions |= Permission.WRITE | Permission.DESTRUCTIVE
+        if analysis.has_substitution or any(
+            token.operator and token.value in {";", "&", "&&", "||", "(", ")"} for token in tokens
+        ):
+            analysis.permissions |= Permission.SCRIPT | Permission.DESTRUCTIVE
         return analysis

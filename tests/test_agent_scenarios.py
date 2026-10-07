@@ -20,6 +20,7 @@ from tests.agent_scenarios import (
     ScenarioHarness,
     ScriptedProvider,
     Step,
+    malformed_shell_steps,
 )
 
 
@@ -41,6 +42,28 @@ def _workspace(project_id: str) -> Path:
 
 
 # ------------------------------------------------------ harness 自身契约
+
+
+@pytest.mark.asyncio
+async def test_malformed_shell_is_blocked_without_crashing_agent(tmp_path):
+    """Shell 校验失败需落 requested/blocked/finished，且后续回合可执行。"""
+    harness = await ScenarioHarness.start(
+        tmp_path, provider=ScriptedProvider(default=malformed_shell_steps()),
+    )
+    try:
+        agent = await harness.spawn("coordinator", protocol="traditional")
+        await harness.wait_terminal(agent)
+        calls = harness.tool_events(agent)
+        shell = next((call for call in calls if call["tool_name"] == "bash"), None)
+        assert shell is not None, harness.describe(agent)
+        assert shell["status"] == "blocked"
+        assert shell["effect_state"] == "not_started"
+        assert shell["block_stage"] == "permission"
+        assert shell["started"] is False
+        assert any(call["tool_name"] == "todo_write" and call["is_success"] for call in calls)
+        assert agent.state.value == "succeeded"
+    finally:
+        await harness.aclose()
 
 
 @pytest.mark.asyncio

@@ -11,7 +11,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import re
 import shlex
 
 from cloudra.tools.core.bash_habit_guard import bash_file_write_warning, is_substantive_bash_command
@@ -36,7 +35,7 @@ CHECK_READ_CMDS = frozenset({
 
 _SPLITTERS = frozenset({"|", "||", "&&", "|&"})
 _ALLOWED_REDIRECTS = frozenset({"2>/dev/null", "2>&1"})
-_WRITE_REDIRECT_RE = re.compile(r"^\d*(?:>>|>|&>|&>>|<>)$")
+_WRITE_REDIRECTS = frozenset({">>", ">", "&>", "&>>", "<>", ">&", ">>&"})
 _FORBIDDEN_RAW = ("\n", "\r", "`", "$(", "${")
 
 _SSH_FORBIDDEN_FLAGS = frozenset({"-L", "-R", "-D", "-W", "-N", "-f", "-s"})
@@ -99,14 +98,18 @@ def _validate(command: str, *, depth: int) -> None:
             raise CheckCommandError(f"check_command must not contain {token!r}.")
     if ";" in text:
         raise CheckCommandError("check_command must not contain ';'.")
-    if bash_file_write_warning(text) or is_substantive_bash_command({"command": text}):
-        raise CheckCommandError("check_command must be read-only (no file writes or compute programs).")
     try:
         tokens = shlex.split(text, comments=False, posix=True)
     except ValueError as exc:
         raise CheckCommandError(f"check_command could not be parsed: {exc}") from exc
     if not tokens:
         raise CheckCommandError("check_command is empty.")
+    try:
+        substantive = bash_file_write_warning(text) or is_substantive_bash_command({"command": text})
+    except ValueError as exc:
+        raise CheckCommandError(f"check_command could not be parsed: {exc}") from exc
+    if substantive:
+        raise CheckCommandError("check_command must be read-only (no file writes or compute programs).")
     if "&" in tokens:
         raise CheckCommandError("check_command must not background jobs.")
     for seg in _segments(tokens):
@@ -160,7 +163,8 @@ def _strip_redirects(seg: list[str]) -> list[str]:
         if tok in _ALLOWED_REDIRECTS:
             i += 1
             continue
-        if tok in {"<", "0<"} or re.fullmatch(r"\d*<", tok):
+        operator = tok.lstrip("0123456789")
+        if operator == "<":
             if i + 1 >= len(seg):
                 raise CheckCommandError("read redirect is missing a file.")
             i += 2
@@ -168,7 +172,7 @@ def _strip_redirects(seg: list[str]) -> list[str]:
         if tok in {"2>", "2>>"} and i + 1 < len(seg) and seg[i + 1] == "/dev/null":
             i += 2
             continue
-        if _WRITE_REDIRECT_RE.fullmatch(tok) or tok in {">", ">>", "&>", ">&", ">>&"}:
+        if operator in _WRITE_REDIRECTS:
             raise CheckCommandError(
                 "check_command must not redirect output to a file. "
                 "Use a plain read-only check instead, e.g. grep -q 'Normal termination' job.log."

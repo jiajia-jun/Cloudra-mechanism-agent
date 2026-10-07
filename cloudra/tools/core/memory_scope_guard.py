@@ -12,14 +12,71 @@ update_memory 工具在写入前调用并**硬拦**：命中时返回 is_success
 
 from __future__ import annotations
 
-import re
+_PATH_BOUNDARIES = frozenset("([{<\"'`=:,;，。；：！？")
+_PATH_ENDINGS = frozenset(")]}>\"'`,;，。；：！？")
+_JOB_LABELS = frozenset({"job", "jobid", "job_id", "slurm", "pid", "task"})
 
-# POSIX 绝对路径（至少两段：/home/user/x、/data/proj/job.gjf）。
-_POSIX_PATH_RE = re.compile(r"/(?:[^\s/]+/)+[^\s/]+")
-# Windows 盘符路径（C:\...、D:\...）。
-_WINDOWS_PATH_RE = re.compile(r"[A-Za-z]:\\[^\s]+")
-# 作业号特征：job/slurm/pid/task 等词后紧跟 5 位以上数字（job 12345678）。
-_JOB_ID_RE = re.compile(r"(?:job(?:\s*id)?|slurm|pid|task)\s*#?\s*:?\s*\d{5,}", re.IGNORECASE)
+
+def _path_fragments(text: str) -> list[str]:
+    """Recognize absolute path tokens, rather than slashes inside URLs or relative paths."""
+    fragments: list[str] = []
+    index = 0
+    while index < len(text):
+        previous = text[index - 1] if index else ""
+        boundary = (index == 0 or previous.isspace() or previous in _PATH_BOUNDARIES
+                    or "\u3400" <= previous <= "\u9fff" or text[max(0, index - 7):index] == "file://")
+        posix = text[index] == "/" and not text.startswith("//", index)
+        drive = (text[index].isascii() and text[index].isalpha() and text[index + 1:index + 3] == ":\\")
+        if not boundary or not (posix or drive):
+            index += 1
+            continue
+        end = index + 1
+        while end < len(text) and not text[end].isspace() and text[end] not in _PATH_ENDINGS:
+            end += 1
+        fragment = text[index:end].rstrip(".!?:")
+        if drive or len([part for part in fragment.split("/") if part]) >= 2:
+            fragments.append(fragment)
+        index = end
+    return fragments
+
+
+def _job_fragments(text: str) -> list[str]:
+    """Match explicit job labels followed by numeric identifier tokens (at least five digits)."""
+    tokens: list[tuple[str, int, int]] = []
+    index = 0
+    while index < len(text):
+        if not (text[index].isascii() and (text[index].isalnum() or text[index] == "_")):
+            index += 1
+            continue
+        start = index
+        while index < len(text) and text[index].isascii() and (text[index].isalnum() or text[index] == "_"):
+            index += 1
+        tokens.append((text[start:index].casefold(), start, index))
+    fragments: list[str] = []
+    for index, (word, start, end) in enumerate(tokens):
+        attached_number = next((word[len(label):] for label in _JOB_LABELS
+                                if word.startswith(label) and word[len(label):].isdigit()), "")
+        if len(attached_number) >= 5:
+            fragments.append(text[start:end])
+            continue
+        if word not in _JOB_LABELS:
+            continue
+        next_index = index + 1
+        if word == "job" and next_index < len(tokens) and tokens[next_index][0] == "id":
+            if not text[end:tokens[next_index][1]].isspace():
+                continue
+            end = tokens[next_index][2]
+            next_index += 1
+        if next_index >= len(tokens):
+            continue
+        number, number_start, number_end = tokens[next_index]
+        separator = text[end:number_start]
+        if len(number) >= 5 and number.isascii() and number.isdigit() and all(
+            char.isspace() or char in "#:=_"
+            for char in separator
+        ):
+            fragments.append(text[start:number_end])
+    return fragments
 
 
 def _data_dir() -> str:
@@ -40,9 +97,7 @@ def find_project_specific_fragments(text: str) -> list[str]:
     data_dir = _data_dir()
     if data_dir and data_dir in text:
         fragments.append(data_dir)
-    for pattern in (_POSIX_PATH_RE, _WINDOWS_PATH_RE, _JOB_ID_RE):
-        for match in pattern.finditer(text):
-            fragment = match.group(0)
-            if fragment not in fragments:
-                fragments.append(fragment)
+    for fragment in _path_fragments(text) + _job_fragments(text):
+        if fragment not in fragments:
+            fragments.append(fragment)
     return fragments

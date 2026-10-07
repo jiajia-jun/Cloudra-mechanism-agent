@@ -47,6 +47,26 @@ def test_coord_line_counter():
     assert count_consecutive_coord_lines("| C2H4 | -78.5355 | opt/eth.log |\n文本") == 0
 
 
+@pytest.mark.parametrize("coordinates", [
+    "0 1 -2",
+    "1e2 -2E-3 +3e0",
+    ".5 -.25 +1.",
+])
+def test_warning_detects_complete_numeric_coordinate_tokens(coordinates):
+    block = "\n".join(f"{symbol} {coordinates}" for symbol in ("C", "H", "O"))
+
+    assert count_consecutive_coord_lines(block) == 3
+    assert handwritten_coord_warning(block, path="typed.xyz") is not None
+
+
+@pytest.mark.parametrize("line", [
+    "C nan 0 0", "C inf 0 0", "C 1e999 0 0", "C 1_000 0 0",
+    "C 0 0 0 trailing", "Carbon 0 0 0", "C 0 0", "C １ 0 0",
+])
+def test_coord_counter_rejects_incomplete_or_invalid_tokens(line):
+    assert count_consecutive_coord_lines(f"C 0.0 0.0 0.0\n{line}\nH 1.0 0.0 0.0") == 1
+
+
 def test_warning_only_for_geometry_paths():
     assert handwritten_coord_warning(_XYZ_BLOCK, path="ts1.gjf") is not None
     assert handwritten_coord_warning(_XYZ_BLOCK, path="o3.xyz") is not None

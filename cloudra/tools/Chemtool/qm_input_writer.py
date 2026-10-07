@@ -1,4 +1,5 @@
 import asyncio
+import math
 import os
 from pathlib import Path
 from typing import Any, Literal, Optional
@@ -137,6 +138,7 @@ class QmInputWriter_input_schema(input_schema):
     )
     nproc: int = Field(
         default=4,
+        ge=1,
         description="Number of CPU cores for parallel compute (Gaussian %nprocshared / ORCA %pal)."
     )
     extra_keywords: Optional[str] = Field(
@@ -249,10 +251,14 @@ class QmInputWriter(Tool):
                     "only a single [a-z0-9_.-] token is accepted (e.g. 'mace'); values with "
                     "spaces, quotes or shell characters would bypass method-policy parsing."
                 )
+            user_input.external_program = value
             return None
 
         # ORCA ProgExt 可执行文件
-        path = Path(value).expanduser().resolve()
+        path = Path(value).expanduser()
+        if not path.is_absolute():
+            return f"external_program {value!r} must be an absolute executable path for ORCA."
+        path = path.resolve()
         if not path.exists() or not path.is_file():
             return (
                 f"external_program {value!r} does not resolve to an existing regular file "
@@ -277,6 +283,7 @@ class QmInputWriter(Tool):
                 "(method-policy matches on the basename only). Install the engine in a "
                 "system location and reference that path."
             )
+        user_input.external_program = str(path)
         return None
 
     @staticmethod
@@ -285,6 +292,8 @@ class QmInputWriter(Tool):
         lines = []
         for symbol, position in atoms:
             x, y, z = position
+            if not all(math.isfinite(value) for value in (x, y, z)):
+                raise ValueError(f"Coordinates for {symbol} must be finite numbers")
             lines.append(f"{symbol:<4} {x:>14.8f} {y:>14.8f} {z:>14.8f}")
         return "\n".join(lines)
 
@@ -453,6 +462,30 @@ class QmInputWriter(Tool):
     # ------------------------------------------------------------------
 
     @staticmethod
+    def _orca_memory_mb(mem: str) -> float:
+        """显式解析当前支持的总内存单位；非法值不能静默省略 %maxcore。"""
+        text = mem.strip().lower()
+        for unit, multiplier in (("gb", 1024), ("mb", 1), ("g", 1024), ("m", 1)):
+            if not text.endswith(unit):
+                continue
+            number = text[:-len(unit)].strip()
+            integer, dot, fraction = number.partition(".")
+            digits = integer + fraction
+            if (
+                not integer or (dot and not fraction)
+                or not digits.isascii() or not digits.isdecimal()
+            ):
+                break
+            amount = float(number) * multiplier
+            if math.isfinite(amount) and amount > 0:
+                return amount
+            break
+        raise ValueError(
+            f"ORCA mem {mem!r} must be a positive finite amount in MB/GB (or M/G), "
+            "for example '4096MB' or '4GB'"
+        )
+
+    @staticmethod
     def _orca_task_keywords(task_type: list[dict], frequency_mode: str = "auto") -> list[str]:
         """严格任务归一化：只翻译已支持的键；无法实现的选项在
         validate_writer_request 阶段已经报错，这里不会静默丢弃。"""
@@ -514,15 +547,10 @@ class QmInputWriter(Tool):
         lines.append("! " + " ".join(simple))
         lines.append(f"%pal nprocs {user_input.nproc} end")
 
-        # %maxcore 按核均分（ORCA 语义是每核 MB）；mem 解析失败则不写
-        import re as _re
-
-        m = _re.match(r"^\s*(\d+(?:\.\d+)?)\s*([GgMm][Bb]?)\s*$", user_input.mem or "")
-        if m:
-            amount = float(m.group(1))
-            mb = amount * 1024 if m.group(2).lower().startswith("g") else amount
-            per_core = max(256, int(mb / max(1, user_input.nproc)))
-            lines.append(f"%maxcore {per_core}")
+        # %maxcore 按核均分（ORCA 语义是每核 MB）。
+        mb = QmInputWriter._orca_memory_mb(user_input.mem)
+        per_core = max(256, int(mb / user_input.nproc))
+        lines.append(f"%maxcore {per_core}")
         if method_block:
             lines.append(method_block)
         if user_input.orca_blocks:
@@ -578,6 +606,15 @@ class QmInputWriter(Tool):
                 message="RDKit is not installed; cannot generate the input file. "
                         "Install it with: pip install 'cloudra[chem]', then retry."
             )
+        if user_input.engine == "orca":
+            try:
+                self._orca_memory_mb(user_input.mem)
+            except ValueError as exc:
+                return QmInputWriter_output_schema(
+                    is_success=False,
+                    message=f"qm_input_writer refused: {exc}",
+                    unapplied_options=[str(exc)],
+                )
         # 外部 MLIP 路由的参数校验（fail-loud，不静默吞掉配错的字段）
         if user_input.external_params and not user_input.external_program:
             return QmInputWriter_output_schema(
@@ -596,7 +633,7 @@ class QmInputWriter(Tool):
         # 外部程序本身的安全校验：ORCA 可执行路径必须在 agent 可写范围之外，
         # Gaussian 引擎值必须能被 method_policy 词法解析（防白名单绕过）。
         if user_input.external_program:
-            ext_error = self._validate_external_program(user_input)
+            ext_error = await asyncio.to_thread(self._validate_external_program, user_input)
             if ext_error:
                 return QmInputWriter_output_schema(
                     is_success=False,
@@ -636,10 +673,10 @@ class QmInputWriter(Tool):
         # 路径语义收口：相对路径解析到 agent 工作目录（沙箱），绝对路径
         # 保持既有权限语义。SMILES 源不经过路径解析（绝不把 SMILES 当路径）。
         if user_input.source_type in ("xyz_file", "mol_file"):
-            user_input.source_value = resolve_tool_path(self, user_input.source_value)
-        user_input.output_dir = resolve_tool_path(self, user_input.output_dir)
+            user_input.source_value = await asyncio.to_thread(resolve_tool_path, self, user_input.source_value)
+        user_input.output_dir = await asyncio.to_thread(resolve_tool_path, self, user_input.output_dir)
         if user_input.artifact_dir:
-            user_input.artifact_dir = resolve_tool_path(self, user_input.artifact_dir)
+            user_input.artifact_dir = await asyncio.to_thread(resolve_tool_path, self, user_input.artifact_dir)
         else:
             base = os.path.dirname(user_input.output_dir)
             stem = os.path.splitext(os.path.basename(user_input.output_dir))[0]
@@ -689,7 +726,7 @@ class QmInputWriter(Tool):
             output_dir = os.path.dirname(user_input.output_dir)
             if output_dir:
                 try:
-                    os.makedirs(output_dir, exist_ok=True)
+                    await asyncio.to_thread(os.makedirs, output_dir, exist_ok=True)
                 except FileExistsError:
                     # exist_ok=True 仍会在叶子已存在且不是目录时炸 Errno 17——
                     # 必须翻译成有指引的报错，不把裸 errno 抛给调用方
@@ -706,9 +743,8 @@ class QmInputWriter(Tool):
 
             # 同路径重复生成：内容逐字节相同 → 幂等复用；不同 → fail-loud 给指引，
             # 绝不静默覆盖一份来源不明的既有文件。
-            if os.path.isfile(input_path):
-                with open(input_path, "rb") as fh:
-                    existing = fh.read()
+            if await asyncio.to_thread(os.path.isfile, input_path):
+                existing = await asyncio.to_thread(Path(input_path).read_bytes)
                 if existing == content.encode("utf-8"):
                     return QmInputWriter_output_schema(
                         is_success=True,
@@ -731,7 +767,7 @@ class QmInputWriter(Tool):
                     ),
                 )
 
-            atomic_write_text(input_path, content)
+            await asyncio.to_thread(atomic_write_text, input_path, content)
 
             return QmInputWriter_output_schema(
                 is_success=True,
