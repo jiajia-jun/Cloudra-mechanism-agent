@@ -264,7 +264,3 @@ class PymolRender(Tool):
             image_path=image_file,
             message=f"Image rendered: {image_file}. Inspect it with read to verify the result.",
         )
-
-
-def get_class():
-    return PymolRender

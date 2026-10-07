@@ -247,6 +247,3 @@ class NMRProcessor(Tool):
         except Exception as e:
             import traceback
             return NMRProcessor_output_schema(is_success=False, message=f"Processing raised an exception: {str(e)}\n{traceback.format_exc()}")
-
-def get_class():
-    return NMRProcessor

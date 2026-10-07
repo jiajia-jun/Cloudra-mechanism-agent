@@ -876,8 +876,6 @@ class ThermoAnalysis(Tool):
         )
 
 
-def get_class():
-    return ThermoAnalysis
 
 
 def derive_delivery_changes(

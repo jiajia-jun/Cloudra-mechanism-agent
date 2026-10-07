@@ -289,12 +289,10 @@ async def test_crest_backend(mock_session, tmp_path):
     for name in ("command.txt", "input.xyz", "versions.txt", "stdout.log", "stderr.log",
                  "crest_conformers.xyz"):
         assert (run_dir / name).is_file(), f"CREST 现场缺少 {name}"
-    assert "crest_conformers.xyz" not in result.message or True
 
 
 def test_tool_metadata():
     tool = ConformerSearch()
-    assert tool.tool_id == "t-43"
     assert tool.tool_name == "conformer_search"
     assert tool.is_write() is True
 

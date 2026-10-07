@@ -138,7 +138,3 @@ class DagReviewStep(DagToolBase):
                 **reviewed,
             },
         )
-
-
-def get_class():
-    return DagReviewStep

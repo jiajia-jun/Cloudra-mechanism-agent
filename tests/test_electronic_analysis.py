@@ -109,7 +109,6 @@ async def test_xtb_backend(mock_session, tmp_path):
 
 def test_tool_metadata():
     tool = ElectronicAnalysis()
-    assert tool.tool_id == "t-44"
     assert tool.tool_name == "electronic_analysis"
     assert tool.is_write() is True
 

@@ -69,8 +69,3 @@ class DagAddSpecies(DagToolBase):
             rationale=f"add species {clean_name}",
         )
         return mutation_output("dag_add_species", mutation)
-
-
-def get_class():
-    return DagAddSpecies
-

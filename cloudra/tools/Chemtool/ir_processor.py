@@ -291,6 +291,3 @@ class IRProcessor(Tool):
             if low <= wn <= high:
                 results.append(name)
         return results
-
-def get_class():
-    return IRProcessor

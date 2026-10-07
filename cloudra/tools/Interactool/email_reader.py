@@ -131,6 +131,3 @@ class EmailReader(Tool):
         mail.close()
         mail.logout()
         return result_list
-
-def get_class():
-    return EmailReader

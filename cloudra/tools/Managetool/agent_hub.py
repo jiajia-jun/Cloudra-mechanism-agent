@@ -136,7 +136,3 @@ class AgentHub(Tool):
             is_success=False,
             message="agent_hub is handled by runtime_v2; the legacy forum storage no longer exists.",
         )
-
-
-def get_class():
-    return AgentHub

@@ -74,6 +74,3 @@ class SubAgentLauncher(Tool):
             act_agent="none",
             result="[System error] SubAgentLauncher is handled by runtime_v2; the legacy dispatch path no longer exists.",
         )
-
-def get_class():
-    return SubAgentLauncher

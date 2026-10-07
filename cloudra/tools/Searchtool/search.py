@@ -56,7 +56,3 @@ class Search(Tool):
         else:
             data = await _openalex.run(user_input.query, user_input.max_results, user_input.mode)
         return Search_output_schema(**data)
-
-
-def get_class():
-    return Search

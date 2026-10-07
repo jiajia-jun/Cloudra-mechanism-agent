@@ -159,7 +159,3 @@ class TsInspect(Tool):
             return TsProcess_output_schema(**view.model_dump())
         except (ValueError, OSError) as exc:
             return TsProcess_output_schema(is_success=False, run_id=user_input.run_id, message=f'ts_inspect: {exc}')
-
-
-def get_class():
-    return TsPrepare

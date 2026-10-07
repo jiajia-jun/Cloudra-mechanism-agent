@@ -83,7 +83,3 @@ class DagAcceptMechanism(DagToolBase):
             accepted=True,
             result=decided,
         )
-
-
-def get_class():
-    return DagAcceptMechanism

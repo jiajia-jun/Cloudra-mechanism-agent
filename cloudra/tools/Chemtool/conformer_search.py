@@ -1261,7 +1261,3 @@ class ConformerSearch(Tool):
                 message="RDKit is not installed. Install it with: pip install 'cloudra[chem]'"
             )
         return await asyncio.to_thread(self._run_rdkit, user_input, user_input.output_dir)
-
-
-def get_class():
-    return ConformerSearch

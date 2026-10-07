@@ -214,7 +214,3 @@ class DagMessageSupervisor(DagToolBase):
                 "enqueued": True,
             },
         )
-
-
-def get_class():
-    return DagMessageSupervisor

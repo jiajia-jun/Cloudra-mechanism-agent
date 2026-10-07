@@ -106,7 +106,3 @@ class Schedule(Tool):
                 "the legacy reminder table is no longer consulted."
             ),
         )
-
-
-def get_class():
-    return Schedule

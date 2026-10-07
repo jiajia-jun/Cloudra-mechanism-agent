@@ -162,7 +162,3 @@ class DagBindEvidence(DagToolBase):
             accepted=True,
             result={"attachments": results},
         )
-
-
-def get_class():
-    return DagBindEvidence

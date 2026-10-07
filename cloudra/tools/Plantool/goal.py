@@ -75,7 +75,3 @@ class GoalSet(Tool):
             result=f"Goal anchor set:\n{self._format(goal)}",
             goal=goal,
         )
-
-
-def get_class():
-    return GoalSet

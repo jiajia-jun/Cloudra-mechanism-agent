@@ -448,7 +448,3 @@ class MechanismPredict(Tool):
         run_dir = os.path.join(runs_root, f"flower_{index:04d}")
         os.makedirs(run_dir, exist_ok=False)
         return run_dir
-
-
-def get_class():
-    return MechanismPredict

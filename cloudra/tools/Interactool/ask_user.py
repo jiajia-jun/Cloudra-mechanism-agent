@@ -185,7 +185,3 @@ class AskUser(Tool):
                 reason="",
                 message=f"An exception occurred while getting user input: {str(e)}"
             )
-
-
-def get_class():
-    return AskUser

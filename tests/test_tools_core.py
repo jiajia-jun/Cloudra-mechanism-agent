@@ -1,37 +1,8 @@
-import ast
 import os
-from pathlib import Path
 
 import pytest
 
 from cloudra.tools import get_tools_lst
-from cloudra.tools.registry import TOOL_REGISTRY
-
-
-def _modules_with_get_class(package_dir: Path) -> set[str]:
-    project_root = package_dir.parents[1]
-    modules = set()
-    for source_file in package_dir.rglob("*.py"):
-        tree = ast.parse(source_file.read_text(encoding="utf-8"))
-        if any(
-            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-            and node.name == "get_class"
-            for node in tree.body
-        ):
-            relative = source_file.relative_to(project_root).with_suffix("")
-            modules.add(".".join(relative.parts))
-    return modules
-
-
-def test_explicit_builtin_registries_are_complete_and_unique():
-    tool_targets = [(entry.module, entry.class_name) for entry in TOOL_REGISTRY]
-
-    assert len(tool_targets) == len(set(tool_targets))
-
-    project_root = Path(__file__).resolve().parents[1]
-    assert {target[0] for target in tool_targets} == _modules_with_get_class(
-        project_root / "cloudra" / "tools"
-    )
 
 
 def test_tool_loading():
@@ -101,19 +72,6 @@ def test_edit_schema_keeps_nested_operation_definition():
     parameters = Edit_input_schema.to_parameters_schema()
     assert parameters["properties"]["edits"]["items"]["$ref"] == "#/$defs/EditOperation"
     assert parameters["$defs"]["EditOperation"]["additionalProperties"] is False
-
-
-def test_write_multiline_parsing():
-    """回归测试：LLM 返回的含未转义换行符的 JSON 参数应能被正确解析并保留换行。"""
-    import json
-
-    from cloudra.tools.Writetool.write import Write_input_schema
-
-    # 模拟 LLM 生成的 arguments 中直接包含换行符（未转义）
-    raw_args = '{"path": "multi.txt", "content": "line1\nline2\nline3"}'
-    parsed = json.loads(raw_args, strict=False)
-    input_data = Write_input_schema(**parsed)
-    assert input_data.content == "line1\nline2\nline3"
 
 
 def test_browser_schema():

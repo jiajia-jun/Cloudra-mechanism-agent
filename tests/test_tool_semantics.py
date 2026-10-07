@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
+from pydantic import ValidationError
+
 from cloudra.tools import get_tools_lst
 from cloudra.tools.capabilities import (
     android_tools,
@@ -142,14 +145,31 @@ def test_edit_schema_uses_path_and_old_string():
     edit = next(e for e in get_tools_lst() if e.tool_name == "edit")
     params = edit.instantiate().tool_schema_json()["function"]["parameters"]
     props = params["properties"]
-    assert "path" in props and "filepath" not in props
+    assert {"path", "expected_sha256", "edits"} <= props.keys()
+    assert "filepath" not in props
+    assert {"path", "expected_sha256", "edits"} <= set(params["required"])
     edit_item = props["edits"]["items"]
-    keys = edit_item.get("properties") or edit_item
     if "$ref" in edit_item:
-        ref = edit_item["$ref"].rsplit("/", 1)[-1]
-        keys = params.get("$defs", {}).get(ref, {}).get("properties", keys)
-    # $ref unwrap if needed
-    assert "old_string" in keys or "old_string" in str(params)
+        prefix, ref = edit_item["$ref"].rsplit("/", 1)
+        assert prefix == "#/$defs"
+        edit_item = params["$defs"][ref]
+    assert {"old_string", "new_string", "replace_all"} <= edit_item["properties"].keys()
+    assert {"old_string", "new_string"} <= set(edit_item["required"])
+
+
+@pytest.mark.parametrize("missing", ["old_string", "new_string"])
+def test_edit_operation_requires_both_published_text_fields(missing):
+    edit = next(e for e in get_tools_lst() if e.tool_name == "edit")
+    replacement = {"old_string": "before", "new_string": "after"}
+    del replacement[missing]
+    with pytest.raises(ValidationError) as error:
+        edit.input_schema.model_validate({
+            "path": "notes.txt", "expected_sha256": "0" * 64, "edits": [replacement],
+        })
+    assert any(
+        item["loc"] == ("edits", 0, missing) and item["type"] == "missing"
+        for item in error.value.errors()
+    )
 
 
 def test_get_skill_schema_has_reference_not_other():

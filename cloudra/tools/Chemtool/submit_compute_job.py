@@ -392,7 +392,3 @@ class SubmitComputeJob(Tool):
         state = 'done'
         await afinalize_compute_job(db, job_id, state)
         return state
-
-
-def get_class():
-    return SubmitComputeJob

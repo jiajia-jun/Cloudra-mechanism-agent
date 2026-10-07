@@ -157,6 +157,3 @@ class MoleculeDrawer(Tool):
 
         except Exception as e:
             return MoleculeDrawer_output_schema(is_success=False, image_path="", message=f"Drawing raised an exception: {str(e)}")
-
-def get_class():
-    return MoleculeDrawer

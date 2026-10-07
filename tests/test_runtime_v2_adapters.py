@@ -613,7 +613,7 @@ async def test_legacy_tool_executor_runs_stop_tool():
 
     output = await executor.execute(agent, ToolCall(id="tc1", name="stop", arguments={"reason": "done"}))
     assert output.is_success is True
-    assert "Task stopped" in output.summary
+    assert output.data["stopped"] is True
 
 
 @pytest.mark.asyncio
@@ -640,7 +640,9 @@ async def test_legacy_tool_executor_attaches_bridge_to_narrowed_tools():
         result.data, ToolCall(id="tc1", name="goal_set", arguments={"objective": "hold the line"})
     )
     assert output.is_success is True, output.summary
-    assert "Goal anchor set" in output.summary
+    assert output.data["goal"] == {
+        "objective": "hold the line", "completion_criteria": "", "current_focus": "",
+    }
 
 
 @pytest.mark.asyncio

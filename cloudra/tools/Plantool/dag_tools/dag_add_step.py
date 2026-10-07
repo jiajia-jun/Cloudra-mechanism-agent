@@ -105,7 +105,3 @@ class DagAddStep(DagToolBase):
             prepared=ctx,
         )
         return mutation_output("dag_add_step", mutation)
-
-
-def get_class():
-    return DagAddStep

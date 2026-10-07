@@ -51,7 +51,3 @@ class DagDeliveryReport(DagToolBase):
             action="dag_delivery_report",
             result=report.model_dump(mode="json"),
         )
-
-
-def get_class():
-    return DagDeliveryReport

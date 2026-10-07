@@ -133,7 +133,3 @@ class DagReviewCall(DagToolBase):
             accepted=True,
             result=reviewed,
         )
-
-
-def get_class():
-    return DagReviewCall

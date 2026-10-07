@@ -434,7 +434,3 @@ class FormatConverter(Tool):
                         f"Check that {input_path} is a valid {user_input.input_format} file and that "
                         f"'{user_input.output_format}' is supported, then retry."
             )
-
-
-def get_class():
-    return FormatConverter

@@ -80,7 +80,3 @@ class DagRemoveEdge(DagToolBase):
             prepared=ctx,
         )
         return mutation_output(self.tool_name, mutation, extra={"target_id": edge.edge_id})
-
-
-def get_class():
-    return DagRemoveEdge

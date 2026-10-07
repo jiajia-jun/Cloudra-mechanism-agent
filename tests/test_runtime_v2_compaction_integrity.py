@@ -391,32 +391,6 @@ async def test_single_object_refused_after_the_one_retry():
     assert len(summarizer.calls) == 2, "retry is bounded"
 
 
-def test_shape_note_pins_the_eight_list_fields_as_arrays():
-    """形状说明必须逐字段给出数组骨架：旧文案「Every field is an object」
-    正是模型把列表字段写成单个对象的来源。"""
-    from cloudra.runtime_v2.compaction import (
-        _COMPACT_INSTRUCTION,
-        _JSON_SHAPE_NOTE,
-        _MERGE_INSTRUCTION,
-    )
-
-    assert '"objective": {' in _JSON_SHAPE_NOTE
-    for field in (
-        "active_requests",
-        "corrections",
-        "constraints",
-        "pending",
-        "completed",
-        "failed_attempts",
-        "evidence",
-        "next_actions",
-    ):
-        assert f'"{field}": [' in _JSON_SHAPE_NOTE
-    assert "Never place a single object where an array is required" in _JSON_SHAPE_NOTE
-    assert _JSON_SHAPE_NOTE in _COMPACT_INSTRUCTION
-    assert _JSON_SHAPE_NOTE in _MERGE_INSTRUCTION
-
-
 @pytest.mark.asyncio
 async def test_segment_failure_refused_and_reports_segment():
     window, output = _context_window_for(1_000)

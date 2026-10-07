@@ -105,7 +105,3 @@ class Write(Tool):
         if guard_warning and out.is_written:
             out.message = f"{guard_warning}\n\n{out.message}"
         return out
-
-
-def get_class():
-    return Write

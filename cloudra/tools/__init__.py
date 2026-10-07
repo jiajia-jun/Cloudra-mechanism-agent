@@ -10,11 +10,11 @@ import sys
 from dataclasses import dataclass
 from typing import Any
 
+from pydantic_core import PydanticUndefined
+
 from cloudra.tools.registry import TOOL_REGISTRY
 
 _TOOL_ENTRIES_CACHE: list | None = None
-_EXTRA_ENTRIES: list = []
-_TOOL_LOAD_ERRORS: dict[str, str] = {}
 
 
 @dataclass
@@ -33,17 +33,12 @@ class ToolEntry:
         return self.cls(**kwargs)
 
 
-def _get_default(tool_cls: type, field_name: str):
-    """从 Pydantic 类的 model_fields 读取字段默认值。"""
-    fields = getattr(tool_cls, "model_fields", {})
-    field_info = fields.get(field_name)
-    if field_info is not None and field_info.default is not ...:
-        return field_info.default
-    return None
-
-
 def _make_entry(tool_cls: type) -> ToolEntry:
-    return ToolEntry(
+    from cloudra.base.tools_class import Tool, input_schema, output_schema
+
+    if not isinstance(tool_cls, type) or not issubclass(tool_cls, Tool):
+        raise RuntimeError(f"注册工具必须是 Tool 子类: {tool_cls!r}")
+    entry = ToolEntry(
         cls=tool_cls,
         tool_name=_get_default(tool_cls, "tool_name") or "",
         tool_id=_get_default(tool_cls, "tool_id") or "",
@@ -51,20 +46,38 @@ def _make_entry(tool_cls: type) -> ToolEntry:
         output_schema=_get_default(tool_cls, "output_schema"),
         tool_description=_get_default(tool_cls, "tool_description") or "",
     )
+    owner = f"{tool_cls.__module__}:{tool_cls.__name__}"
+    for field in ("tool_name", "tool_id"):
+        value = getattr(entry, field)
+        if not isinstance(value, str) or not value.strip():
+            raise RuntimeError(f"工具 {owner} 的 {field} 必须有非空字符串默认值")
+    for field, base in (("input_schema", input_schema), ("output_schema", output_schema)):
+        schema = getattr(entry, field)
+        if not isinstance(schema, type) or not issubclass(schema, base):
+            raise RuntimeError(f"工具 {owner} 的 {field} 必须是 {base.__name__} 子类")
+    return entry
 
 
-def _assert_unique_tool_ids(entries: list[ToolEntry]) -> None:
-    """tool_id 全局唯一：重复 id 直接 raise，防止注册表静默撞号。"""
-    seen: dict[str, str] = {}
+def _get_default(tool_cls: type, field_name: str):
+    """Read declared schema metadata without constructing the tool."""
+    field = tool_cls.model_fields.get(field_name)
+    if field is not None and field.default is not PydanticUndefined:
+        return field.default
+    return None
+
+
+def _assert_unique_tool_identities(entries: list[ToolEntry]) -> None:
+    """tool_id 和 wire tool_name 都必须唯一，防止声明与执行指向不同工具。"""
+    seen: dict[str, dict[str, str]] = {"tool_id": {}, "tool_name": {}}
     for entry in entries:
-        if not entry.tool_id:
-            continue
         owner = f"{entry.cls.__module__}:{entry.cls.__name__}"
-        if entry.tool_id in seen:
-            raise RuntimeError(
-                f"工具 tool_id 重复: {entry.tool_id!r} ({seen[entry.tool_id]} 与 {owner})"
-            )
-        seen[entry.tool_id] = owner
+        for field, owners in seen.items():
+            value = getattr(entry, field)
+            if value in owners:
+                raise RuntimeError(
+                    f"工具 {field} 重复: {value!r} ({owners[value]} 与 {owner})"
+                )
+            owners[value] = owner
 
 
 def get_tools_lst() -> list[ToolEntry]:
@@ -74,7 +87,6 @@ def get_tools_lst() -> list[ToolEntry]:
         return _TOOL_ENTRIES_CACHE
 
     entries = []
-    _TOOL_LOAD_ERRORS.clear()
     for registration in TOOL_REGISTRY:
         try:
             module = importlib.import_module(registration.module)
@@ -82,12 +94,10 @@ def get_tools_lst() -> list[ToolEntry]:
             if e.name == registration.module or registration.module.startswith(f"{e.name}."):
                 raise RuntimeError(f"显式工具注册模块不存在: {registration.module}") from e
             error = f"{type(e).__name__}: {e}"
-            _TOOL_LOAD_ERRORS[registration.module] = error
             print(f"警告: 加载显式工具 {registration.module}:{registration.class_name} 失败: {error}", file=sys.stderr)
             continue
         except ImportError as e:
             error = f"{type(e).__name__}: {e}"
-            _TOOL_LOAD_ERRORS[registration.module] = error
             print(f"警告: 加载显式工具 {registration.module}:{registration.class_name} 失败: {error}", file=sys.stderr)
             continue
         except Exception as e:
@@ -101,27 +111,14 @@ def get_tools_lst() -> list[ToolEntry]:
             raise RuntimeError(
                 f"显式工具注册类不存在: {registration.module}:{registration.class_name}"
             ) from e
-        entries.append(_make_entry(tool_cls))
+        entry = _make_entry(tool_cls)
+        if registration.tool_name and registration.tool_name != entry.tool_name:
+            raise RuntimeError(
+                f"显式工具名称不一致: {registration.module}:{registration.class_name} "
+                f"声明 {registration.tool_name!r}，实现 {entry.tool_name!r}"
+            )
+        entries.append(entry)
 
-    if _EXTRA_ENTRIES:
-        entries.extend(_EXTRA_ENTRIES)
-        _EXTRA_ENTRIES.clear()
-    _assert_unique_tool_ids(entries)
+    _assert_unique_tool_identities(entries)
     _TOOL_ENTRIES_CACHE = entries
     return entries
-
-
-def get_tool_load_errors() -> dict[str, str]:
-    """返回当前依赖环境中显式工具的导入失败诊断。"""
-    get_tools_lst()
-    return dict(_TOOL_LOAD_ERRORS)
-
-
-def register_tool_class(tool_cls) -> None:
-    """向全局工具注册表追加一个额外工具类（例如 benchmark 专用工具）。"""
-    entry = _make_entry(tool_cls)
-    if _TOOL_ENTRIES_CACHE is not None:
-        _assert_unique_tool_ids([*_TOOL_ENTRIES_CACHE, entry])
-        _TOOL_ENTRIES_CACHE.append(entry)
-    else:
-        _EXTRA_ENTRIES.append(entry)

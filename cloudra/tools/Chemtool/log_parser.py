@@ -613,8 +613,6 @@ class LogParser(Tool):
             )
 
 
-def get_class():
-    return LogParser
 
 
 def _has_frequency_data(result: dict[str, Any]) -> bool:

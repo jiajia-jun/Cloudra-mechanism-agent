@@ -172,7 +172,3 @@ class DagView(DagToolBase):
             status_filter=user_input.status_filter,
         )
         return DagToolOutput(is_success=True, action="dag_view", result=result)
-
-
-def get_class():
-    return DagView

@@ -12,6 +12,7 @@ import copy
 import inspect
 import json
 import logging
+import math
 from typing import Any, Iterable
 
 from pydantic import ValidationError
@@ -42,10 +43,12 @@ logger = logging.getLogger(__name__)
 
 
 def legacy_tool_schemas(tool_names: list[str] | None = None) -> list[dict[str, Any]]:
-    """OpenAI tool schemas from the existing registry, filtered by names."""
+    """Schemas for explicit capabilities; only ``*`` expands the registry."""
     from cloudra.tools import get_tools_lst
 
-    wanted = None if not tool_names or "*" in tool_names else set(tool_names)
+    if not tool_names:
+        return []
+    wanted = None if "*" in tool_names else set(tool_names)
     schemas = []
     for entry in get_tools_lst():
         if wanted is not None and entry.tool_name not in wanted:
@@ -801,6 +804,10 @@ class LegacyLLMProvider:
                 if reason == "tool_calls" or (reason == "stop" and tool_call_buffer):
                     tool_calls.extend(_parse_merged_tool_calls(tool_call_buffer.values()))
                     tool_call_buffer.clear()
+            # A leftover buffer may contain a truncated call; keep validation
+            # inside the stream boundary so parse failures also close it.
+            if tool_call_buffer:
+                tool_calls.extend(_parse_merged_tool_calls(tool_call_buffer.values()))
         except asyncio.CancelledError:
             # 取消不是普通异常：也必须关流（停止语义契约 4），然后原样上抛。
             await _close_stream(response)
@@ -810,10 +817,6 @@ class LegacyLLMProvider:
             raise
         if pumper is not None:
             await pumper.flush()
-        # A non-empty leftover buffer means the tool_call JSON was cut off
-        # mid-stream; parse what arrived (broken JSON degrades to {}).
-        if tool_call_buffer:
-            tool_calls.extend(_parse_merged_tool_calls(tool_call_buffer.values()))
         if not reasoning_content and final_message_reasoning:
             reasoning_content = final_message_reasoning
         usage = client.last_usage or {}
@@ -828,19 +831,51 @@ class LegacyLLMProvider:
 
 
 def _parse_merged_tool_calls(merged: Iterable[dict[str, Any]]) -> list[ToolCall]:
-    """ToolCalls from stream-merged tool_call chunks (wire-shaped dicts)."""
+    """Parse wire calls without inventing identities or repairing arguments."""
+    def reject_constant(value: str) -> None:
+        raise ValueError("tool call arguments cannot contain non-finite numbers")
+
+    def finite_float(value: str) -> float:
+        number = float(value)
+        if not math.isfinite(number):
+            reject_constant(value)
+        return number
+
+    def unique_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("tool call arguments cannot contain duplicate object keys")
+            result[key] = value
+        return result
+
     calls = []
     for raw in merged:
-        function = raw.get("function") or {}
-        try:
-            arguments = json.loads(function.get("arguments") or "{}")
-        except json.JSONDecodeError:
-            arguments = {}
+        if not isinstance(raw, dict):
+            raise ValueError("tool call must be a JSON object")
+        call_id = raw.get("id")
+        if not isinstance(call_id, str) or not call_id.strip():
+            raise ValueError("tool call id must be a non-empty string")
+        function = raw.get("function")
+        if not isinstance(function, dict):
+            raise ValueError("tool call function must be a JSON object")
+        name = function.get("name")
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("tool name must be a non-empty string")
+        serialized_arguments = function.get("arguments")
+        if not isinstance(serialized_arguments, str):
+            raise ValueError("tool call arguments must be a JSON object string")
+        arguments = json.loads(
+            serialized_arguments, parse_constant=reject_constant,
+            parse_float=finite_float, object_pairs_hook=unique_keys,
+        )
+        if not isinstance(arguments, dict):
+            raise ValueError("tool call arguments must be a JSON object")
         calls.append(
             ToolCall(
-                id=str(raw.get("id") or f"tc_{len(calls)}"),
-                name=str(function.get("name") or "unknown"),
-                arguments=arguments if isinstance(arguments, dict) else {},
+                id=call_id,
+                name=name,
+                arguments=arguments,
             )
         )
     return calls
@@ -1030,6 +1065,13 @@ class LegacyToolExecutor:
             from cloudra.tools.Interactool.ask_user import use_input_handler
             with use_approval_handler(_approval), use_input_handler(_interaction), use_runtime_authority(self.core):
                 output = await tool.safe_call(parsed, Session(id=agent.id, path=""))
+            if not isinstance(output, entry.output_schema):
+                raise TypeError(f"Tool {call.name!r} returned an undeclared output schema")
+            data = output.model_dump(mode="json")
+            is_success = bool(data.get("is_success", True))
+            if call.name == "bash":
+                is_success = is_success and data.get("exit_code", 1) == 0
+            summary = json.dumps(data, ensure_ascii=False, allow_nan=False)
         except Exception as exc:
             # An unexpected safe_call fault is not a business failure: package
             # it as structured tool_exception metadata so the invocation
@@ -1055,9 +1097,4 @@ class LegacyToolExecutor:
             )
         finally:
             reset_session_yolo(token)
-        data = output.toJson() if hasattr(output, "toJson") else output.model_dump(mode="json")
-        is_success = bool(data.get("is_success", True))
-        if call.name == "bash":
-            is_success = is_success and data.get("exit_code", 1) == 0
-        summary = json.dumps(data, ensure_ascii=False, default=str)
         return ToolResult(is_success=is_success, summary=summary, data=data)

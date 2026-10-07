@@ -174,6 +174,3 @@ class EmailSender(Tool):
         server.login(config.user, config.password)
         server.send_message(msg)
         server.quit()
-
-def get_class():
-    return EmailSender

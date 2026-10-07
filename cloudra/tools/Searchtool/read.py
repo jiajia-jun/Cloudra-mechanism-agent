@@ -112,7 +112,3 @@ class Read(Tool):
             return Read_output_schema(is_success=True, kind="text", **data)
         except (OSError, WorkspaceError, ValueError) as exc:
             return self._fail(path, str(exc))
-
-
-def get_class():
-    return Read

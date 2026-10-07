@@ -120,7 +120,3 @@ class GetSkill(Tool):
             content=content,
             result=result
         )
-
-
-def get_class():
-    return GetSkill

@@ -141,7 +141,3 @@ class QueryComputeJob(Tool):
             jobs=jobs,
             message=message,
         )
-
-
-def get_class():
-    return QueryComputeJob

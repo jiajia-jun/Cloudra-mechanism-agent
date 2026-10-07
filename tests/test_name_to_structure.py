@@ -135,7 +135,6 @@ async def test_generate_3d_writes_xyz(tool, mock_session, monkeypatch, tmp_path)
 
 def test_tool_metadata():
     tool = NameToStructure()
-    assert tool.tool_id == "t-46"
     assert tool.tool_name == "name_to_structure"
     assert tool.is_write() is True
 

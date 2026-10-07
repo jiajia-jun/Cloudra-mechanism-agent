@@ -3,7 +3,6 @@ from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Optional
 
 from pydantic import BaseModel, ConfigDict
-from pydantic_core import PydanticUndefined
 
 from cloudra.base.session_class import Session
 from cloudra.persistence.database import ConversationDB, get_database_path
@@ -74,10 +73,6 @@ class output_schema(BaseModel):
     工具输出模式基类，定义工具输出的格式。
     子类按普通 Pydantic Model 声明字段即可。
     '''
-
-    def toJson(self) -> dict:
-        return self.model_dump(mode="json")
-
 
 class Tool(BaseModel):
     '''
@@ -187,7 +182,6 @@ class Tool(BaseModel):
             guard = YoloGuard()
             return await self._yolo_judge(session, tool_args or {}, guard, risk_summary=risk_summary)
 
-        db_path = _tool_db_path(self.subagent)
         candidate_diff = ""
         for marker in ("Unified Diff:\n", "【Unified Diff】:\n"):
             if marker in details:
@@ -195,8 +189,6 @@ class Tool(BaseModel):
                 break
 
         return await self.request_approval(
-            db_path,
-            session.id,
             details,
             tool_name=self.tool_name,
             normalized_arguments=tool_args or {},
@@ -240,8 +232,6 @@ class Tool(BaseModel):
 
     async def request_approval(
         self,
-        db_path: str,
-        session_id: str,
         details: str,
         *,
         tool_name: str = "",
@@ -265,29 +255,16 @@ class Tool(BaseModel):
             candidate_diff=candidate_diff,
         )
 
-    @classmethod
-    def _get_field_default(cls, field_name: str):
-        '''获取类字段的默认值，兼容 Pydantic v2（类级别无法直接访问普通字段）。'''
-        field = cls.model_fields.get(field_name)
-        if field and field.default is not PydanticUndefined:
-            return field.default
-        return None
-
     def tool_schema_json(self) -> dict:
         '''
         返回标准 OpenAI function 格式，可直接用于 client.chat.completions.create(..., tools=[...])。
         优先读取实例级别的 tool_description，使动态生成的描述能够生效。
         '''
-        # HACK: 这里用 getattr + or fallback 链是因为 Pydantic v2 的类字段默认值在实例上可能
-        # 被 shadow，但某些情况下实例属性又还没覆盖。动态 description（如 Bash 的权限列表、
-        # GetSkill 的 skills 列表）必须在 __init__ 之后才能确定，因此必须是实例方法而非类方法。
-        # 如果后续有更好方式（如 descriptor / property），可替换掉这个 ugly fallback。
-        description = getattr(self, 'tool_description', '') or self._get_field_default('tool_description') or ''
         return {
             "type": "function",
             "function": {
-                "name": getattr(self, 'tool_name', '') or self._get_field_default('tool_name') or '',
-                "description": description,
-                "parameters": (self._get_field_default('input_schema') or input_schema).to_parameters_schema(),
+                "name": self.tool_name,
+                "description": self.tool_description,
+                "parameters": self.input_schema.to_parameters_schema(),
             }
         }

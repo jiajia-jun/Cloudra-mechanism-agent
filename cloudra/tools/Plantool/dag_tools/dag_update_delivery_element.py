@@ -98,7 +98,3 @@ class DagUpdateDeliveryElement(DagToolBase):
             prepared=ctx,
         )
         return mutation_output("dag_update_delivery_element", mutation)
-
-
-def get_class():
-    return DagUpdateDeliveryElement

@@ -10,7 +10,6 @@ from cloudra.runtime_v2.js_protocol import (
     MAX_REQUEST_ID_LENGTH,
     ProgramLimits,
     ProtocolError,
-    decode_client_frame,
     decode_host_frame,
     encode_start_frame,
     encode_tool_error_frame,
@@ -25,23 +24,15 @@ def _line(frame: dict) -> bytes:
 # --------------------------------------------------------------------- limits
 
 
-def test_limits_wire_round_trip() -> None:
+def test_start_frame_sends_guest_limits_only() -> None:
     limits = ProgramLimits(source_bytes=128, eval_ms=50)
-    wire = limits.to_wire()
+    wire = json.loads(encode_start_frame("exec-1", "text(1)", [], limits=limits))["limits"]
     assert wire["source_bytes"] == 128
     assert wire["eval_ms"] == 50
-    assert all(isinstance(key, str) and "_" in key for key in wire)
-    restored = ProgramLimits.from_wire(wire)
-    assert restored.source_bytes == 128
-    assert restored.eval_ms == 50
     # startup/watchdog/kill-grace are Python-side only, never sent to the host
     assert "startup_timeout_ms" not in wire
     assert "watchdog_ms" not in wire
-
-
-def test_limits_from_wire_tolerates_garbage() -> None:
-    assert ProgramLimits.from_wire({}) == ProgramLimits()
-    assert ProgramLimits.from_wire("nope") == ProgramLimits()
+    assert "kill_grace_ms" not in wire
 
 
 # -------------------------------------------------------------- host decoding
@@ -50,6 +41,12 @@ def test_limits_from_wire_tolerates_garbage() -> None:
 def test_decode_ready_ok() -> None:
     frame = decode_host_frame(_line({"type": "ready", "version": 1}))
     assert frame["type"] == "ready"
+
+
+@pytest.mark.parametrize("version", [True, 1.0, "1", None, [], {}])
+def test_decode_ready_rejects_non_integer_version(version) -> None:
+    with pytest.raises(ProtocolError, match="version"):
+        decode_host_frame(_line({"type": "ready", "version": version}))
 
 
 def test_decode_tool_call_ok() -> None:
@@ -64,6 +61,12 @@ def test_decode_finished_requires_known_status() -> None:
         decode_host_frame(_line({"type": "finished", "status": status, "error": None}))
     with pytest.raises(ProtocolError, match="status"):
         decode_host_frame(_line({"type": "finished", "status": "maybe", "error": None}))
+
+
+@pytest.mark.parametrize("status", [None, 1, True, [], {}])
+def test_decode_finished_rejects_non_string_status(status) -> None:
+    with pytest.raises(ProtocolError, match="status"):
+        decode_host_frame(_line({"type": "finished", "status": status}))
 
 
 def test_decode_rejects_unknown_type() -> None:
@@ -118,6 +121,18 @@ def test_decode_rejects_non_finite_numbers() -> None:
         decode_host_frame(b'{"type": "output", "value": Infinity}')
 
 
+@pytest.mark.parametrize("value", [b"1e309", b"-1e309"])
+def test_decode_rejects_float_overflow(value) -> None:
+    with pytest.raises(ProtocolError, match="non-finite"):
+        decode_host_frame(b'{"type": "output", "value": ' + value + b'}')
+
+
+def test_decode_rejects_parser_recursion_as_protocol_error() -> None:
+    value = b"[" * 2000 + b"0" + b"]" * 2000
+    with pytest.raises(ProtocolError, match="depth"):
+        decode_host_frame(b'{"type": "output", "value": ' + value + b'}')
+
+
 def test_decode_rejects_duplicate_keys() -> None:
     with pytest.raises(ProtocolError, match="duplicate object key"):
         decode_host_frame(b'{"type": "output", "value": 1, "value": 2}')
@@ -164,46 +179,17 @@ def test_decode_arguments_may_carry_dunder_proto_key() -> None:
     assert frame["arguments"]["__proto__"] == {"polluted": True}
 
 
-# ------------------------------------------------------------ client decoding
+# ------------------------------------------------------------- start encoding
 
 
-def test_decode_start_frame_ok() -> None:
+def test_encode_start_frame_includes_identity_and_tools() -> None:
     line = encode_start_frame("exec-1", "text(1)", ["echo"])
-    frame = decode_client_frame(line)
+    frame = json.loads(line)
     assert frame["type"] == "start"
     assert frame["version"] == 1
     assert frame["execution_id"] == "exec-1"
     assert frame["tools"] == ["echo"]
     assert isinstance(frame["limits"], dict)
-
-
-def test_decode_start_rejects_wrong_version_and_bad_code() -> None:
-    with pytest.raises(ProtocolError, match="version"):
-        decode_client_frame(
-            _line(
-                {
-                    "type": "start",
-                    "version": 2,
-                    "execution_id": "e",
-                    "code": "",
-                    "tools": [],
-                    "limits": {},
-                }
-            )
-        )
-    with pytest.raises(ProtocolError, match="code"):
-        decode_client_frame(
-            _line(
-                {
-                    "type": "start",
-                    "version": 1,
-                    "execution_id": "e",
-                    "code": 42,
-                    "tools": [],
-                    "limits": {},
-                }
-            )
-        )
 
 
 # ------------------------------------------------------------------- encoding
@@ -223,7 +209,9 @@ def test_encode_tool_result_round_trip_and_data_cap() -> None:
         "data": {"v": 1},
         "duration_ms": 3,
     }
-    frame = decode_client_frame(encode_tool_result_frame("r1", result))
+    frame = json.loads(encode_tool_result_frame("r1", result))
+    assert frame["type"] == "tool_result"
+    assert frame["request_id"] == "r1"
     assert frame["result"]["data"] == {"v": 1}
 
     limits = ProgramLimits(tool_result_bytes=16)
@@ -233,7 +221,7 @@ def test_encode_tool_result_round_trip_and_data_cap() -> None:
 
 
 def test_encode_tool_error_round_trip() -> None:
-    frame = decode_client_frame(
+    frame = json.loads(
         encode_tool_error_frame("r2", {"code": "policy_blocked", "message": "no"})
     )
     assert frame["type"] == "tool_error"

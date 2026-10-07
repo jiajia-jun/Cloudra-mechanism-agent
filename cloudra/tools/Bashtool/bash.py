@@ -221,7 +221,3 @@ class Bash(Tool):
             stem="bash",
         )
         return Bash_output_schema(result=result, task_description=task_description, run_command=command, exit_code=exit_code)
-
-
-def get_class():
-    return Bash

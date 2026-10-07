@@ -959,8 +959,6 @@ class ReactionMapping(Tool):
             )
 
 
-def get_class():
-    return ReactionMapping
 
 
 def derive_delivery_changes(

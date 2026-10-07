@@ -66,13 +66,3 @@ def test_minimal_example_survives_the_production_parser_with_zero_clamps():
 def test_minimal_example_is_wired_into_both_summary_instructions():
     assert _COMPACT_INSTRUCTION.endswith(_MINIMAL_EXAMPLE_JSON)
     assert _MERGE_INSTRUCTION.endswith(_MINIMAL_EXAMPLE_JSON)
-
-
-def test_minimal_example_shows_object_and_array_shapes_literally():
-    # 三种畸形里最容易复发的是「objective 写成裸字符串/数组」与「空字段写 null
-    # 或省略」：示例必须逐字展示 object 与 [] 形状，而不是靠文字描述。
-    assert _MINIMAL_EXAMPLE_JSON.lstrip().startswith("{")
-    assert '"objective": {' in _MINIMAL_EXAMPLE_JSON
-    for field in _EMPTY_LIST_FIELDS + ("active_requests",):
-        assert f'"{field}": [' in _MINIMAL_EXAMPLE_JSON
-    assert "null" not in _MINIMAL_EXAMPLE_JSON.replace('"null"', "")

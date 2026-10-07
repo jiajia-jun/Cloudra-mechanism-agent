@@ -260,7 +260,3 @@ class DagSubmitSpeciesEvidence(DagToolBase):
                 "message": f"Species '{user_input.species_name}' evidence submitted for Supervisor review.",
             },
         )
-
-
-def get_class():
-    return DagSubmitSpeciesEvidence

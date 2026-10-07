@@ -7,7 +7,7 @@
 更完整的 dynamic_deep_merge 用例见 tests/test_react_dispatch.py。
 """
 
-import asyncio
+import threading
 import time
 from types import SimpleNamespace
 
@@ -61,27 +61,19 @@ class TestAiterChunks:
         received = [c.choices[0].delta.content async for c in _aiter_chunks(_FakeAsyncStream(chunks))]
         assert received == ["a", "b", "c"]
 
-    async def test_sync_generator(self):
+    async def test_sync_generator_reads_off_event_loop(self):
         # requests fallback 返回的同步生成器也应被正确消费，且不阻塞事件循环
-        chunks = [_make_chunk("x"), _make_chunk("y")]
-        received = [c.choices[0].delta.content async for c in _aiter_chunks(iter(chunks))]
+        loop_thread = threading.get_ident()
+        next_threads = []
+
+        def chunks():
+            for text in ("x", "y"):
+                next_threads.append(threading.get_ident())
+                yield _make_chunk(text)
+
+        received = [c.choices[0].delta.content async for c in _aiter_chunks(chunks())]
         assert received == ["x", "y"]
-
-    async def test_sync_generator_yields_loop(self):
-        # 消费同步生成器时事件循环应保持响应
-        ticks = 0
-
-        async def ticker():
-            nonlocal ticks
-            for _ in range(3):
-                await asyncio.sleep(0.01)
-                ticks += 1
-
-        async def consume():
-            return [c async for c in _aiter_chunks(iter([_make_chunk("z")]))]
-
-        _, _ = await asyncio.gather(ticker(), consume())
-        assert ticks == 3
+        assert next_threads and all(thread != loop_thread for thread in next_threads)
 
 
 @pytest.mark.asyncio

@@ -74,12 +74,14 @@ class EchoExecutor:
         return ToolResult(True, "ok", {"value": call.arguments.get("value")})
 
 
-def _runtime(core: RuntimeCore, *, stages=None, tools=None, limits=None):
+def _runtime(core: RuntimeCore, *, stages=None, tools=None, limits=None, host_path=None):
     writer = EventWriter(core.event_log)
     service = InvocationService(
         event_writer=writer, stages=stages or [], tools=tools or EchoExecutor()
     )
-    return JavaScriptRuntime(event_writer=writer, invocations=service, limits=limits)
+    return JavaScriptRuntime(
+        event_writer=writer, invocations=service, limits=limits, host_path=host_path
+    )
 
 
 def _events(core: RuntimeCore, type_: str) -> list:
@@ -498,6 +500,99 @@ async def test_identity_forgery_frame_is_protocol_error(tmp_path):
     assert not result.is_success
     assert result.data["error"]["code"] == "protocol_error"
     assert executor.calls == []
+
+
+@pytest.mark.asyncio
+async def test_host_cannot_bypass_total_tool_request_budget(tmp_path):
+    core = RuntimeCore(strict_events=True)
+    executor = EchoExecutor()
+    host = _fake_host(tmp_path, [
+        {"type": "tool_call", "request_id": f"r{i}", "name": "echo", "arguments": {"value": i}}
+        for i in range(1, 4)
+    ] + [{"type": "finished", "status": "completed"}])
+    runtime = _runtime(core, tools=executor, host_path=host, limits=ProgramLimits(tool_requests=2))
+    result = await runtime.execute(_ctx(_agent()), ToolCall("w", "js_exec", {"code": ""}))
+    assert not result.is_success
+    assert result.data["error"]["code"] == "tool_request_limit_exceeded"
+    assert [call.arguments for call in executor.calls] == [{"value": 1}, {"value": 2}]
+    assert len(_events(core, "tool.requested")) == 2
+    assert _events(core, "program.finished")[0].data["status"] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_host_cannot_bypass_argument_byte_budget(tmp_path):
+    core = RuntimeCore(strict_events=True)
+    executor = EchoExecutor()
+    host = _fake_host(tmp_path, [
+        {"type": "tool_call", "request_id": "r1", "name": "echo",
+         "arguments": {"value": "x" * 64}},
+        {"type": "finished", "status": "completed"},
+    ])
+    runtime = _runtime(core, tools=executor, host_path=host, limits=ProgramLimits(argument_bytes=32))
+    result = await runtime.execute(_ctx(_agent()), ToolCall("w", "js_exec", {"code": ""}))
+    assert not result.is_success
+    assert result.data["error"]["code"] == "argument_too_large"
+    assert executor.calls == []
+    assert not _events(core, "tool.requested")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("limits", [ProgramLimits(output_entries=2), ProgramLimits(output_bytes=8)])
+async def test_host_cannot_bypass_cumulative_output_budget(tmp_path, limits):
+    core = RuntimeCore(strict_events=True)
+    host = _fake_host(tmp_path, [
+        {"type": "output", "value": value} for value in ("ab", "cd", "ef")
+    ] + [{"type": "finished", "status": "completed"}])
+    runtime = _runtime(core, host_path=host, limits=limits)
+    result = await runtime.execute(_ctx(_agent()), ToolCall("w", "js_exec", {"code": ""}))
+    assert not result.is_success
+    assert result.data["error"]["code"] == "output_limit_exceeded"
+    assert result.data["outputs"] == ["ab", "cd"]
+    assert [event.data["value"] for event in _events(core, "program.output")] == ["ab", "cd"]
+
+
+@pytest.mark.asyncio
+async def test_output_byte_boundary_uses_host_number_encoding():
+    core = RuntimeCore(strict_events=True)
+    runtime = _runtime(core, limits=ProgramLimits(output_bytes=4))
+    result = await runtime.execute(_ctx(_agent()), ToolCall("w", "js_exec", {"code": "text(1e-7);"}))
+    assert result.is_success
+    assert result.data["outputs"] == [1e-7]
+
+
+@pytest.mark.asyncio
+async def test_argument_byte_boundary_uses_host_number_encoding():
+    core = RuntimeCore(strict_events=True)
+    executor = EchoExecutor()
+    runtime = _runtime(core, tools=executor, limits=ProgramLimits(argument_bytes=14))
+    result = await runtime.execute(
+        _ctx(_agent()), ToolCall("w", "js_exec", {"code": "await tools.echo({value: 1e-7});"})
+    )
+    assert result.is_success
+    assert executor.calls[0].arguments == {"value": 1e-7}
+
+
+@pytest.mark.asyncio
+async def test_malformed_host_status_records_program_failure(tmp_path):
+    core = RuntimeCore(strict_events=True)
+    host = _fake_host(tmp_path, [{"type": "finished", "status": []}])
+    runtime = _runtime(core, host_path=host)
+    result = await runtime.execute(_ctx(_agent()), ToolCall("w", "js_exec", {"code": ""}))
+    assert not result.is_success
+    assert result.data["error"]["code"] == "protocol_error"
+    assert _events(core, "program.finished")[0].data["status"] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_oversized_host_stream_line_records_program_failure(tmp_path):
+    core = RuntimeCore(strict_events=True)
+    host = _fake_host(tmp_path, [{"type": "output", "value": "x" * 16384}])
+    runtime = _runtime(core, host_path=host, limits=ProgramLimits(rpc_line_bytes=2048))
+    result = await runtime.execute(_ctx(_agent()), ToolCall("w", "js_exec", {"code": ""}))
+    assert not result.is_success
+    assert result.data["error"]["code"] == "protocol_error"
+    assert result.data["outputs"] == []
+    assert _events(core, "program.finished")[0].data["status"] == "failed"
 
 
 @pytest.mark.asyncio

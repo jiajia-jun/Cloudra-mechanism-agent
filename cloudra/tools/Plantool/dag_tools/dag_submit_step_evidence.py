@@ -277,7 +277,3 @@ class DagSubmitStepEvidence(DagToolBase):
                 "message": f"Step '{user_input.step_name}' evidence submitted for Supervisor review.",
             },
         )
-
-
-def get_class():
-    return DagSubmitStepEvidence

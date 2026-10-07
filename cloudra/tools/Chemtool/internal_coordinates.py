@@ -2105,7 +2105,3 @@ class InternalCoordinates(Tool):
         if user_input.mode == "transform":
             return await asyncio.to_thread(self._transform, user_input)
         return self._zmatrix_to_cartesian(user_input)
-
-
-def get_class():
-    return InternalCoordinates

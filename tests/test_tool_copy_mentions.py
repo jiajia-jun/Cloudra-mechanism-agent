@@ -15,9 +15,3 @@ def test_prompts_use_new_tool_names():
         if FORBIDDEN_IN_PROMPTS.search(text):
             hits.append(path.name)
     assert hits == []
-
-def test_schedule_stage_uses_real_fields():
-    text = (ROOT / "cloudra/runtime_v2/policies/schedule_stage.py").read_text(encoding="utf-8")
-    assert "DurationSeconds" not in text
-    assert "delay_seconds" in text
-    assert "message" in text

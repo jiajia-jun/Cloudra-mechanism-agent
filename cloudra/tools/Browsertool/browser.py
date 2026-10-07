@@ -274,7 +274,3 @@ class HeadlessBrowser(Tool):
             is_success=True, url=url, title=title, text=text,
             error="Static HTTP fallback was used (headless browser not ready)"
         )
-
-
-def get_class():
-    return HeadlessBrowser

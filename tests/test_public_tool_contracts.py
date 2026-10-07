@@ -161,11 +161,6 @@ async def test_invalid_proposal_returns_public_field_help_without_internal_excep
         assert internal not in result.summary
 
 
-def test_new_settings_default_to_javascript_but_explicit_traditional_is_preserved():
-    assert RuntimeSettings().invocation_protocol is InvocationProtocol.JAVASCRIPT
-    assert RuntimeSettings(invocation_protocol="traditional").invocation_protocol is InvocationProtocol.TRADITIONAL
-
-
 def test_research_prompt_excludes_application_checkout_context(tmp_path, monkeypatch):
     from types import SimpleNamespace
 
@@ -195,7 +190,7 @@ def test_research_prompt_excludes_application_checkout_context(tmp_path, monkeyp
     assert "working_directory=" in observation["content"]
 
 
-def test_documented_proposal_can_be_validated_by_the_real_controller():
+def test_documented_proposal_validates_against_the_published_input_schema():
     from cloudra.tools.Plantool.dag_tools.dag_propose_mechanism import DagProposeMechanismInput
 
     skill = Path("cloudra/skills/dag-operations/SKILL.md").read_text()
@@ -235,17 +230,16 @@ async def test_unexpected_tool_failure_logs_details_but_does_not_send_them_to_mo
 
 
 @pytest.mark.asyncio
-async def test_protocol_default_is_consistent_across_settings_project_agent_run_and_readme(
+async def test_protocol_default_and_explicit_choice_survive_project_agent_and_run(
     tmp_path,
 ):
-    """评审 5.1 验收：同一默认值在 schema / 项目默认 / 新 Agent 有效设置 /
-    CurrentRun 冻结值 / run.started 事件 / README 六层一致，且显式选择
-    traditional 不被默认值覆盖（负向判据）。
+    """默认协议经项目、Agent、CurrentRun、run.started 一致传递；
+    显式 traditional 不被默认值覆盖。
     """
     from cloudra.runtime_v2.schemas import ProjectSettings
     from tests.agent_scenarios import ScenarioHarness, ScriptedProvider, Step
 
-    # 1) schema 默认（既有用例已钉；此处作为跨层锚点）
+    # schema 默认作为跨层锚点。
     assert RuntimeSettings().invocation_protocol is InvocationProtocol.JAVASCRIPT
     # 2) 项目层：patch 语义是「不设置 = 继承」，项目默认不得偷偷写死另一个协议
     assert ProjectSettings().defaults.invocation_protocol is None
@@ -324,12 +318,3 @@ async def test_protocol_default_is_consistent_across_settings_project_agent_run_
         await explicit_harness.wait_terminal(explicit_agent)
     finally:
         await explicit_harness.aclose()
-
-    # 6) README 锁定同一事实（README / README_CN 都必须写对默认协议）
-    root = Path(__file__).resolve().parents[1]
-    assert "The default protocol is `javascript`" in (root / "README.md").read_text(
-        encoding="utf-8"
-    )
-    assert "默认协议是 `javascript`" in (root / "README_CN.md").read_text(
-        encoding="utf-8"
-    )

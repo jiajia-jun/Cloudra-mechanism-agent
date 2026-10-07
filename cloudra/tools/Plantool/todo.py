@@ -109,7 +109,3 @@ class TodoWrite(Tool):
             result=f"Todo list updated ({len(todos)} items):\n{formatted}",
             todos=todos,
         )
-
-
-def get_class():
-    return TodoWrite

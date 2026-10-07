@@ -85,7 +85,3 @@ class DagRemoveNode(DagToolBase):
             prepared=ctx,
         )
         return mutation_output(self.tool_name, mutation, extra={"target_id": node.node_id})
-
-
-def get_class():
-    return DagRemoveNode

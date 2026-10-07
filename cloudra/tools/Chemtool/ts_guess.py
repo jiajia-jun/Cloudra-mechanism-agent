@@ -2415,8 +2415,6 @@ class TsGuess(Tool):
         return True
 
 
-def get_class():
-    return TsGuess
 
 
 def is_compute_entry_call(arguments: dict[str, Any]) -> bool:

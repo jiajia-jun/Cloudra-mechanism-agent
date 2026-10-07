@@ -135,7 +135,3 @@ class DagReviewSpecies(DagToolBase):
                 **reviewed,
             },
         )
-
-
-def get_class():
-    return DagReviewSpecies

@@ -8,9 +8,11 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from cloudra.base.tool_actor import ToolActorContext
 from cloudra.runtime_v2.adapters import LegacyToolExecutor, _LegacyAgentBridge
@@ -95,8 +97,12 @@ async def test_tool_model_accepts_the_protocol_and_rejects_others(tmp_path):
     tool = GoalSet(subagent=actor)
     assert tool.subagent is actor
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError) as error:
         GoalSet(subagent=object())
+    assert any(
+        item["loc"] == ("subagent",) and item["type"] == "is_instance_of"
+        for item in error.value.errors()
+    )
 
 
 @pytest.mark.asyncio
@@ -115,8 +121,46 @@ async def test_tool_receives_actor_identity_through_the_executor(tmp_path):
         ),
     )
     assert output.is_success is True, output.summary
+    expected = [{"content": "hold the line", "status": "pending", "id": "t1"}]
+    assert output.data["todos"] == expected
 
     plan_dir = data_dir() / "conversations" / project.id / "plan"
-    files = sorted(p.name for p in plan_dir.glob("*.json"))
-    assert files, f"tool did not receive the actor identity: {plan_dir}"
-    assert any(agent.id in name for name in files)
+    files = list(plan_dir.glob("*.json"))
+    assert len(files) == 1, f"tool did not receive the actor identity: {plan_dir}"
+    assert files[0].name.startswith(f"{agent.id}_")
+    assert json.loads(files[0].read_text(encoding="utf-8")) == expected
+
+
+@pytest.mark.asyncio
+async def test_same_role_actor_todos_remain_isolated_after_one_actor_updates(tmp_path):
+    """同项目同角色两个调用者不能覆盖彼此的持久任务清单。"""
+    from cloudra.persistence.paths import data_dir
+
+    core, project, first = await _spawn()
+    second = (await CommandBus(core).execute(Command(
+        type="agent.spawn", target={"project_id": project.id},
+        payload={"role_id": "coordinator", "query": "another task"},
+    ))).data
+    executor = LegacyToolExecutor(core)
+    for agent, content in ((first, "first actor task"), (second, "second actor task")):
+        result = await executor.execute(agent, ToolCall(
+            id=f"write-{agent.id}", name="todo_write",
+            arguments={"todos": [{"id": "stable", "content": content, "status": "pending"}]},
+        ))
+        assert result.is_success is True, result.summary
+    updated = await executor.execute(first, ToolCall(
+        id="update-first", name="todo_write",
+        arguments={"todos": [{"id": "stable", "content": "first actor task", "status": "done"}]},
+    ))
+    assert updated.is_success is True, updated.summary
+
+    plan_dir = data_dir() / "conversations" / project.id / "plan"
+    files = list(plan_dir.glob("*.json"))
+    assert len(files) == 2
+    for agent, expected in (
+        (first, [{"id": "stable", "content": "first actor task", "status": "done"}]),
+        (second, [{"id": "stable", "content": "second actor task", "status": "pending"}]),
+    ):
+        own_files = [path for path in files if path.name.startswith(f"{agent.id}_")]
+        assert len(own_files) == 1
+        assert json.loads(own_files[0].read_text(encoding="utf-8")) == expected

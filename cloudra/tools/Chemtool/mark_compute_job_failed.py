@@ -111,7 +111,3 @@ class MarkComputeJobFailed(Tool):
             previous_state=previous_state,
             message=f"job {user_input.job_id} marked failed (was {previous_state}); reason recorded.",
         )
-
-
-def get_class():
-    return MarkComputeJobFailed

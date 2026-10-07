@@ -102,7 +102,3 @@ class DagProposeMechanism(DagToolBase):
             accepted=bool(proposed.get("accepted")),
             result=proposed,
         )
-
-
-def get_class():
-    return DagProposeMechanism

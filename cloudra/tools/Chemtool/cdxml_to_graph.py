@@ -821,7 +821,3 @@ class CdxmlToGraph(Tool):
                 is_success=False,
                 message=f"CDXML parsing failed: {exc}",
             )
-
-
-def get_class():
-    return CdxmlToGraph

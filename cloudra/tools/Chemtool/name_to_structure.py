@@ -238,7 +238,3 @@ class NameToStructure(Tool):
             xyz_path=xyz_path,
             message=msg + ". Verify the structure matches expectations (isomers, stereochemistry, protonation state).",
         )
-
-
-def get_class():
-    return NameToStructure

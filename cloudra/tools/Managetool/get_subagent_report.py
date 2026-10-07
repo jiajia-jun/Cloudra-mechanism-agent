@@ -42,6 +42,3 @@ class GetSubAgentReport(Tool):
             is_success=False,
             message="[System error] get_subagent_report is handled by runtime_v2; the legacy report path no longer exists.",
         )
-
-def get_class():
-    return GetSubAgentReport

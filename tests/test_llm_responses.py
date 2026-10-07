@@ -284,7 +284,6 @@ def test_stream_chunks_support_react_delta_attribute_access():
     for chunk in chunks:
         delta = chunk.choices[0].delta
         # 这三个属性直接访问必须不抛异常
-        assert delta.content is not None or delta.tool_calls is not None or delta.content is None
         _ = delta.tool_calls
         _ = delta.content
     assert chunks[0].choices[0].delta.content == "A"

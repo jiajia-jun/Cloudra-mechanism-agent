@@ -107,6 +107,17 @@ def _format_program_output(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, allow_nan=False, default=str)
 
 
+def _payload_bytes(frame: dict[str, Any], line_bytes: int, key: str) -> int:
+    """Measure the wire payload without changing the host's number encoding.
+
+    Host frames use compact JSON. Replacing the payload with null yields the
+    fixed string-only metadata size; any extra host whitespace or escaping
+    consumes budget as well.
+    """
+    metadata = json.dumps({**frame, key: None}, ensure_ascii=False, separators=(",", ":"))
+    return line_bytes - len(metadata.encode("utf-8", "backslashreplace")) + len(b"null")
+
+
 def _summary_with_program_outputs(summary: str, outputs: list[Any]) -> str:
     """Append bounded guest output to the single JS result summary boundary."""
     if not outputs:
@@ -326,11 +337,18 @@ class JavaScriptRuntime:
                 pass
             tmpdir.cleanup()
 
-    async def _read_frame(self, proc, timeout_s: float) -> dict[str, Any]:
-        line = await asyncio.wait_for(proc.stdout.readline(), timeout=timeout_s)
+    async def _read_frame(self, proc, timeout_s: float) -> tuple[dict[str, Any], int]:
+        try:
+            line = await asyncio.wait_for(proc.stdout.readline(), timeout=timeout_s)
+        except ValueError as exc:
+            # StreamReader rejects extreme lines before the JSON decoder runs.
+            raise ProtocolError(
+                f"bridge frame exceeds rpc_line_bytes {self.limits.rpc_line_bytes}"
+            ) from exc
         if not line:
             raise _HostDied("host closed stdout without a finished frame")
-        return decode_host_frame(line.rstrip(b"\n"), limits=self.limits)
+        line = line.rstrip(b"\n")
+        return decode_host_frame(line, limits=self.limits), len(line)
 
     async def _send(self, proc, payload: bytes) -> None:
         try:
@@ -367,7 +385,7 @@ class JavaScriptRuntime:
         try:
             # 4. Handshake, then durable program.started, then the start frame.
             try:
-                ready = await self._read_frame(proc, limits.startup_timeout_ms / 1000)
+                ready, _ = await self._read_frame(proc, limits.startup_timeout_ms / 1000)
             except asyncio.TimeoutError as exc:
                 raise _HostDied("host startup handshake timed out") from exc
             if ready.get("type") != "ready":
@@ -378,9 +396,10 @@ class JavaScriptRuntime:
             )
 
             output_index = 0
+            output_bytes = 0
             while program_error is None:
                 try:
-                    frame = await self._read_frame(proc, watchdog_s)
+                    frame, line_bytes = await self._read_frame(proc, watchdog_s)
                 except asyncio.TimeoutError:
                     program_error = {
                         "code": "watchdog_timeout",
@@ -390,11 +409,20 @@ class JavaScriptRuntime:
                     break
                 type_ = frame["type"]
                 if type_ == "output":
+                    next_bytes = output_bytes + _payload_bytes(frame, line_bytes, "value")
+                    if output_index >= limits.output_entries or next_bytes > limits.output_bytes:
+                        program_error = {
+                            "code": "output_limit_exceeded",
+                            "message": f"program output exceeds the {limits.output_entries} "
+                            f"entries / {limits.output_bytes} bytes budget",
+                        }
+                        break
                     await self._commit_program(
                         ctx, "program.output",
                         {**base, "output_index": output_index, "value": frame["value"]},
                     )
                     output_index += 1
+                    output_bytes = next_bytes
                     outputs.append(json.loads(json.dumps(frame["value"], default=str)))
                     continue
                 if type_ == "finished":
@@ -419,6 +447,18 @@ class JavaScriptRuntime:
                     }
                     break
                 seen_request_ids.add(request_id)
+                if len(seen_request_ids) > limits.tool_requests:
+                    program_error = {
+                        "code": "tool_request_limit_exceeded",
+                        "message": f"program exceeded the {limits.tool_requests} tool request budget",
+                    }
+                    break
+                if _payload_bytes(frame, line_bytes, "arguments") > limits.argument_bytes:
+                    program_error = {
+                        "code": "argument_too_large",
+                        "message": f"tool call arguments exceed argument_bytes {limits.argument_bytes}",
+                    }
+                    break
                 name = frame["name"]
                 tc_id = new_id("tc")
                 receipt: dict[str, Any] = {

@@ -111,7 +111,3 @@ def _build_contract(user_input: DagSetCoverageContractInput) -> CoverageContract
     )
     extra = {k: v for k, v in fields.items() if k != "require_thermochemistry"}
     return base.model_copy(update=extra) if extra else base
-
-
-def get_class():
-    return DagSetCoverageContract

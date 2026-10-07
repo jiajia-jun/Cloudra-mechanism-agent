@@ -175,8 +175,6 @@ async def test_request_approval_prefers_scoped_handler():
 
     with use_approval_handler(handler):
         approved, reason = await tool.request_approval(
-            "/nonexistent/db.sqlite",
-            "as_x",
             "details text",
             tool_name="test_destructive",
             normalized_arguments={"a": 1},

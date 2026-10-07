@@ -14,6 +14,7 @@ module is the Python-side validator/encoder and holds the shared constants.
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -63,36 +64,18 @@ class ProgramLimits:
             "eval_ms": self.eval_ms,
         }
 
-    @classmethod
-    def from_wire(cls, data: dict[str, Any]) -> "ProgramLimits":
-        """Best-effort parse of a start-frame limits payload (host-side mirror)."""
-        if not isinstance(data, dict):
-            return cls()
-        base = cls()
-        values = {
-            field: int(data.get(field, getattr(base, field)))
-            for field in (
-                "source_bytes",
-                "argument_bytes",
-                "rpc_line_bytes",
-                "tool_result_bytes",
-                "output_bytes",
-                "output_entries",
-                "tool_requests",
-                "pending_requests",
-                "heap_bytes",
-                "stack_bytes",
-                "eval_ms",
-            )
-        }
-        return cls(**values)
-
-
 # --------------------------------------------------------------- frame decoding
 
 
 def _reject_constant(value: str) -> None:
     raise ProtocolError(f"non-finite number {value!r} is not valid bridge JSON")
+
+
+def _finite_float(value: str) -> float:
+    number = float(value)
+    if not math.isfinite(number):
+        _reject_constant(value)
+    return number
 
 
 def _no_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -128,9 +111,14 @@ def _parse_line(line: bytes, *, limits: ProgramLimits) -> dict[str, Any]:
         frame = json.loads(
             text,
             parse_constant=_reject_constant,
+            parse_float=_finite_float,
             object_pairs_hook=_no_duplicate_keys,
         )
-    except json.JSONDecodeError as exc:
+    except ProtocolError:
+        raise
+    except RecursionError as exc:
+        raise ProtocolError(f"bridge frame exceeds maximum JSON depth {MAX_JSON_DEPTH}") from exc
+    except ValueError as exc:
         raise ProtocolError(f"bridge frame is not valid JSON: {exc}") from exc
     if not isinstance(frame, dict):
         raise ProtocolError("bridge frame must be a JSON object")
@@ -172,7 +160,7 @@ def decode_host_frame(line: bytes, *, limits: ProgramLimits = ProgramLimits()) -
         raise ProtocolError("bridge frame has no string type")
     if type_ == "ready":
         _require_fields(frame, type_, ("version",))
-        if frame["version"] != PROTOCOL_VERSION:
+        if type(frame["version"]) is not int or frame["version"] != PROTOCOL_VERSION:
             raise ProtocolError(f"unsupported protocol version {frame['version']!r}")
     elif type_ == "tool_call":
         _require_fields(frame, type_, ("request_id", "name", "arguments"))
@@ -185,47 +173,12 @@ def decode_host_frame(line: bytes, *, limits: ProgramLimits = ProgramLimits()) -
         _require_fields(frame, type_, ("value",))
     elif type_ == "finished":
         _require_fields(frame, type_, ("status", "error"), required=("status",))
-        if frame["status"] not in FINISHED_STATUSES:
+        if not isinstance(frame["status"], str) or frame["status"] not in FINISHED_STATUSES:
             raise ProtocolError(f"unknown finished status {frame['status']!r}")
         if frame.get("error") is not None and not isinstance(frame["error"], dict):
             raise ProtocolError("finished frame error must be an object or null")
     else:
         raise ProtocolError(f"unknown host frame type {type_!r}")
-    return frame
-
-
-def decode_client_frame(line: bytes, *, limits: ProgramLimits = ProgramLimits()) -> dict[str, Any]:
-    """Validate one Python -> host frame (mirrored in host.mjs; kept for tests)."""
-    frame = _parse_line(line, limits=limits)
-    type_ = frame.get("type")
-    if type_ == "start":
-        _require_fields(frame, type_, ("version", "execution_id", "code", "tools", "limits"))
-        if frame["version"] != PROTOCOL_VERSION:
-            raise ProtocolError(f"unsupported protocol version {frame['version']!r}")
-        if not isinstance(frame["execution_id"], str) or not frame["execution_id"]:
-            raise ProtocolError("start frame execution_id must be a non-empty string")
-        if not isinstance(frame["code"], str):
-            raise ProtocolError("start frame code must be a string")
-        if len(frame["code"].encode("utf-8")) > limits.source_bytes:
-            raise ProtocolError("program source exceeds source_bytes limit")
-        if not isinstance(frame["tools"], list) or not all(
-            isinstance(name, str) and name for name in frame["tools"]
-        ):
-            raise ProtocolError("start frame tools must be a list of non-empty strings")
-        if not isinstance(frame["limits"], dict):
-            raise ProtocolError("start frame limits must be an object")
-    elif type_ == "tool_result":
-        _require_fields(frame, type_, ("request_id", "result"))
-        _require_request_id(frame["request_id"])
-        if not isinstance(frame["result"], dict):
-            raise ProtocolError("tool_result frame result must be an object")
-    elif type_ == "tool_error":
-        _require_fields(frame, type_, ("request_id", "error"))
-        _require_request_id(frame["request_id"])
-        if not isinstance(frame["error"], dict):
-            raise ProtocolError("tool_error frame error must be an object")
-    else:
-        raise ProtocolError(f"unknown client frame type {type_!r}")
     return frame
 
 

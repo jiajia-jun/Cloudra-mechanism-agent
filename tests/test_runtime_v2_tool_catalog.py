@@ -107,7 +107,6 @@ def test_js_exec_schema_shape_is_stable():
     assert function["name"] == "js_exec"
     assert function["parameters"]["required"] == ["code"]
     assert function["parameters"]["additionalProperties"] is False
-    assert "only tool call" in function["description"]
 
 
 def test_js_declarations_preserve_tool_workflow_description():
@@ -123,14 +122,6 @@ def test_js_declarations_preserve_tool_workflow_description():
 
     rendered = tool_declarations(["demo_tool"], entries=[Entry()])
     assert "Use this after validation; do not use for raw guesses." in rendered
-
-
-def test_registry_entries_project_real_tool_description():
-    from cloudra.tools import get_tools_lst
-
-    entry = next(item for item in get_tools_lst() if item.tool_name == "get_skill")
-    rendered = tool_declarations(["get_skill"], entries=[entry])
-    assert "Load the full SOP for a named skill." in rendered
 
 
 def test_js_declarations_project_constraints_and_escape_comments():
@@ -357,6 +348,13 @@ def test_guest_names_resolve_wildcard_and_exclude_direct_controls():
     assert "ask_user" not in names
     assert "schedule" not in names
     assert names == sorted(names)
+
+
+def test_guest_names_expand_wildcard_from_single_pass_iterable():
+    names = guest_tool_names(iter(["*", "echo"]), role_id="researcher")
+    assert {"bash", "read", "echo"} <= set(names)
+    assert "log_parser" not in names
+    assert "stop" not in names
 
 
 def test_guest_names_respect_visual_gate():

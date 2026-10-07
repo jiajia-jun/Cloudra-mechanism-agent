@@ -221,7 +221,3 @@ class SmilesToMol(Tool):
                 mol_content="",
                 message=f"Conversion raised an exception: {str(e)}. Check the SMILES and output_path, then retry."
             )
-
-
-def get_class():
-    return SmilesToMol

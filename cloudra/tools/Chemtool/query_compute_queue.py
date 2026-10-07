@@ -193,7 +193,3 @@ class QueryComputeQueue(Tool):
             terminal=terminal,
             message=message,
         )
-
-
-def get_class():
-    return QueryComputeQueue

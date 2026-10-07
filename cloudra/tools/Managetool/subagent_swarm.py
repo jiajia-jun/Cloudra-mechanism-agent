@@ -119,6 +119,3 @@ class SubAgentSwarm(Tool):
         return self._error(
             "[System error] SubAgentSwarm is handled by runtime_v2; the legacy dispatch path no longer exists."
         )
-
-def get_class():
-    return SubAgentSwarm

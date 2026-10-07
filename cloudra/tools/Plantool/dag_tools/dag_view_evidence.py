@@ -133,7 +133,3 @@ class DagViewEvidence(DagToolBase):
             "result": (payload or {}).get("result", {}) if isinstance(payload, dict) else payload,
         }
         return DagToolOutput(is_success=True, action="dag_view_evidence", result=result)
-
-
-def get_class():
-    return DagViewEvidence

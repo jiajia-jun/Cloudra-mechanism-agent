@@ -1,67 +1,144 @@
-"""工具参数 JSON 宽松解析 / 修复。"""
+"""模型工具参数的真实解析入口：离线、完整保留、非法时明确失败。"""
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
+import pytest
 
-from cloudra.infra.json_args import loads_tool_arguments, try_repair_tool_arguments_json
-
-
-def test_repair_supervisor_criegee_mutate_fixture():
-    """真实故障：6 个 add_node 的 payload.spec 各少一个 `}`。"""
-    fixture = (
-        Path.home()
-        / ".local/share/cloudra/conversations"
-        / "conv_20260812_064800_764a39"
-        / "contexts"
-        / "supervisor.json"
-    )
-    if not fixture.is_file():
-        # CI / 无用户数据时用内嵌缩样
-        raw = (
-            '{"action":"mutate","operations":['
-            '{"op":"add_node","graph":"process","data":{"node_id":"a","payload":{"spec":{"x":1}}}},'
-            '{"op":"add_node","graph":"process","data":{"node_id":"b","payload":{"spec":{"x":2}}}}'
-            "]}"
-        )
-        # 上面其实是合法的；构造非法版（每个 op 少一个 }）
-        raw = (
-            '{"action":"mutate","operations":['
-            '{"op":"add_node","graph":"process","data":{"node_id":"a","payload":{"spec":{"x":1}}},'
-            '{"op":"add_node","graph":"process","data":{"node_id":"b","payload":{"spec":{"x":2}}}}'
-            "]}"
-        )
-    else:
-        line = fixture.read_text(encoding="utf-8").splitlines()[26]
-        raw = json.loads(line)["tool_calls"][0]["function"]["arguments"]
-
-    assert json.loads  # silence linters
-    try:
-        json.loads(raw, strict=False)
-        repaired_needed = False
-    except json.JSONDecodeError:
-        repaired_needed = True
-    assert repaired_needed
-
-    repaired = try_repair_tool_arguments_json(raw)
-    assert repaired is not None
-    data = json.loads(repaired)
-    assert data["action"] == "mutate"
-    assert len(data["operations"]) >= 2
+from cloudra.runtime_v2.adapters import _parse_merged_tool_calls
 
 
-def test_loads_tool_arguments_repairs_and_returns_dict():
+def test_tool_arguments_preserve_complete_nested_payload():
     raw = (
         '{"action":"mutate","operations":['
-        '{"op":"add_node","graph":"process","data":{"node_id":"a","payload":{"spec":{"x":1}}},'
-        '{"op":"add_node","graph":"process","data":{"node_id":"b","payload":{"spec":{"x":2}}}}'
-        "]}"
+        '{"op":"add_node","graph":"process","data":{"node_id":"a",'
+        '"payload":{"spec":{"x":1,"label":"含 {, } 字符"}}}},'
+        '{"op":"add_node","graph":"process","data":{"node_id":"b",'
+        '"payload":{"spec":{"x":2,"tags":["candidate",null],"enabled":false}}}}'
+        ']}'
     )
-    data = loads_tool_arguments(raw)
-    assert [op["data"]["node_id"] for op in data["operations"]] == ["a", "b"]
+    calls = _parse_merged_tool_calls([{
+        "id": "nested-batch",
+        "function": {"name": "dag_mutate", "arguments": raw},
+    }])
+
+    assert len(calls) == 1
+    assert calls[0].id == "nested-batch"
+    assert calls[0].name == "dag_mutate"
+    assert calls[0].arguments == {
+        "action": "mutate",
+        "operations": [
+            {
+                "op": "add_node",
+                "graph": "process",
+                "data": {"node_id": "a", "payload": {"spec": {"x": 1, "label": "含 {, } 字符"}}},
+            },
+            {
+                "op": "add_node",
+                "graph": "process",
+                "data": {"node_id": "b", "payload": {"spec": {"x": 2, "tags": ["candidate", None], "enabled": False}}},
+            },
+        ],
+    }
 
 
-def test_loads_tool_arguments_good_json_passthrough():
-    data = loads_tool_arguments('{"action": "view", "graph_kind": "process"}')
-    assert data == {"action": "view", "graph_kind": "process"}
+@pytest.mark.parametrize("raw", [
+    "",
+    "   ",
+    '{"reason":"unfinished}',
+    '{"reason":"done",}',
+    '{"content":"line1\nline2"}',
+    # 历史故障的离线缩样：首个 operation 少一个 }，不许猜测修复。
+    '{"action":"mutate","operations":['
+    '{"op":"add_node","graph":"process","data":{"node_id":"a","payload":{"spec":{"x":1}}},'
+    '{"op":"add_node","graph":"process","data":{"node_id":"b","payload":{"spec":{"x":2}}}}'
+    ']}'
+])
+def test_malformed_tool_arguments_fail_instead_of_becoming_empty_object(raw):
+    with pytest.raises(ValueError):
+        _parse_merged_tool_calls([{
+            "id": "malformed", "function": {"name": "stop", "arguments": raw},
+        }])
+
+
+@pytest.mark.parametrize("raw", ["[]", "null", "true", "3", '"value"'])
+def test_non_object_tool_arguments_fail_instead_of_becoming_empty_object(raw):
+    with pytest.raises(ValueError):
+        _parse_merged_tool_calls([{
+            "id": "non-object", "function": {"name": "stop", "arguments": raw},
+        }])
+
+
+@pytest.mark.parametrize("raw", [
+    '{"x":NaN}', '{"x":Infinity}', '{"x":-Infinity}', '{"x":1e309}',
+    '{"nested":[{"x":-1e309}]}',
+])
+def test_non_finite_tool_argument_values_are_rejected(raw):
+    with pytest.raises(ValueError):
+        _parse_merged_tool_calls([{
+            "id": "non-finite", "function": {"name": "probe", "arguments": raw},
+        }])
+
+
+@pytest.mark.parametrize("raw", [
+    '{"x":1,"x":2}', '{"x":1,"\\u0078":2}',
+    '{"nested":{"x":1,"x":2}}', '{"nested":[{"x":1,"x":2}]}',
+])
+def test_duplicate_tool_argument_keys_are_rejected_without_losing_values(raw):
+    with pytest.raises(ValueError):
+        _parse_merged_tool_calls([{
+            "id": "duplicate-key", "function": {"name": "probe", "arguments": raw},
+        }])
+
+
+@pytest.mark.parametrize("raw,expected", [
+    ('{"x":1e3,"label":"NaN Infinity -Infinity"}', {"x": 1000.0, "label": "NaN Infinity -Infinity"}),
+    ('{"nested":[{"x":1},{"x":2}]}', {"nested": [{"x": 1}, {"x": 2}]}),
+    ('{"content":"line1\\nline2\\nline3"}', {"content": "line1\nline2\nline3"}),
+])
+def test_strict_json_rules_preserve_valid_numbers_strings_and_separate_object_keys(raw, expected):
+    calls = _parse_merged_tool_calls([{
+        "id": "valid-boundary", "function": {"name": "probe", "arguments": raw},
+    }])
+    assert len(calls) == 1
+    assert calls[0].arguments == expected
+
+
+@pytest.mark.parametrize("field,value", [
+    ("arguments", None), ("arguments", {}), ("arguments", []), ("arguments", 1),
+    ("id", None), ("id", ""), ("id", "   "), ("id", 1),
+    ("name", None), ("name", ""), ("name", "   "), ("name", 1),
+])
+def test_invalid_tool_call_envelope_is_rejected(field, value):
+    raw = {"id": "tc1", "function": {"name": "stop", "arguments": "{}"}}
+    target = raw if field == "id" else raw["function"]
+    target[field] = value
+    with pytest.raises(ValueError):
+        _parse_merged_tool_calls([raw])
+
+
+@pytest.mark.parametrize("field", ["id", "function", "name", "arguments"])
+def test_missing_tool_call_envelope_field_is_rejected(field):
+    raw = {"id": "tc1", "function": {"name": "stop", "arguments": "{}"}}
+    target = raw if field in {"id", "function"} else raw["function"]
+    del target[field]
+    with pytest.raises(ValueError):
+        _parse_merged_tool_calls([raw])
+
+
+def test_tool_arguments_preserve_each_call_identity_order_and_empty_object():
+    calls = _parse_merged_tool_calls([
+        {"id": "first", "function": {"name": "stop", "arguments": '{"reason":"done"}'}},
+        {"id": "second", "function": {"name": "dag_view", "arguments": "{}"}},
+    ])
+    assert [(call.id, call.name, call.arguments) for call in calls] == [
+        ("first", "stop", {"reason": "done"}),
+        ("second", "dag_view", {}),
+    ]
+
+
+def test_valid_call_does_not_hide_a_later_malformed_call():
+    with pytest.raises(ValueError):
+        _parse_merged_tool_calls([
+            {"id": "valid", "function": {"name": "stop", "arguments": '{"reason":"done"}'}},
+            {"id": "invalid", "function": {"name": "stop", "arguments": '{"reason":'}},
+        ])

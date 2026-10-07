@@ -133,13 +133,6 @@ def test_agent_hub_guidance_injected_when_tool_present(isolated_prompt_sources):
     assert "AgentHub" not in without_hub.identity_messages[0]["content"]
     assert "handoff" in without_hub.identity_messages[0]["content"]
 
-def test_coordinator_prompt_allows_peer_call():
-    from pathlib import Path
-
-    text = Path("cloudra/prompts/coordinator.md").read_text(encoding="utf-8")
-    assert "不允许直接通信" not in text
-    assert "agent_hub" in text
-
 def test_skill_manifest_collapses_multiline_description(
     tmp_path,
     isolated_prompt_sources,

@@ -783,7 +783,3 @@ class QmInputWriter(Tool):
                 message=f"Failed to generate the {user_input.engine.upper()} input file: {str(e)}. "
                         "Verify the coordinate source and output path, then retry."
             )
-
-
-def get_class():
-    return QmInputWriter

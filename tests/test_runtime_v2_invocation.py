@@ -81,19 +81,20 @@ async def test_progress_is_durable_live_and_scoped_to_parallel_invocations():
     core = RuntimeCore(strict_events=True)
     store = RecordingStore()
     received = []
-    gate = asyncio.Event()
+    entered = {call_id: asyncio.Event() for call_id in ("first", "second")}
+    reported = {call_id: asyncio.Event() for call_id in ("first", "second")}
 
     class ReportingExecutor:
         async def execute(self, agent, call):
+            peer = "second" if call.id == "first" else "first"
+            entered[call.id].set()
+            await entered[peer].wait()
             await invocation_context.report_tool_progress(schemas.ToolProgress(
                 phase="executing", message=call.id,
                 effective_arguments={"value": call.id},
             ))
-            if call.id == "first":
-                gate.set()
-                await asyncio.sleep(0)
-            else:
-                await gate.wait()
+            reported[call.id].set()
+            await reported[peer].wait()
             return ToolResult(True, call.id)
 
     async def observe(event):
@@ -104,10 +105,13 @@ async def test_progress_is_durable_live_and_scoped_to_parallel_invocations():
     core.event_hub.subscribe(observe)
     writer = EventWriter(core.event_log, core.event_hub, store_provider=lambda: store)
     service = InvocationService(event_writer=writer, stages=[], tools=ReportingExecutor())
-    await asyncio.gather(*(
-        service.invoke(_ctx(_agent()), ToolCall(cid, "echo", {}), execution_id="js1")
-        for cid in ["first", "second"]
-    ))
+    await asyncio.wait_for(asyncio.gather(*(
+        service.invoke(
+            _ctx(_agent().model_copy(update={"id": f"agent_{cid}"})),
+            ToolCall(cid, "echo", {}), execution_id="js1",
+        )
+        for cid in ("first", "second")
+    )), timeout=5)
     assert len(received) == 2
     assert {e.data["tool_call_id"] for e in received} == {"first", "second"}
     for event in received:

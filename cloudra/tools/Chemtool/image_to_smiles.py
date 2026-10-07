@@ -126,7 +126,3 @@ def _load_predict_func():
             import_error_msg = str(e)
             continue
     return None, import_error_msg
-
-
-def get_class():
-    return ImageToSmiles

@@ -138,7 +138,3 @@ class DagReviewEvidence(DagToolBase):
             accepted=True,
             result=resolved,
         )
-
-
-def get_class():
-    return DagReviewEvidence

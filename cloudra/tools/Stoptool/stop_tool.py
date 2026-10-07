@@ -83,7 +83,3 @@ class StopTool(Tool):
             stopped=True,
             message=msg
         )
-
-
-def get_class():
-    return StopTool

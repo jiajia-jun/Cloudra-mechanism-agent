@@ -747,7 +747,3 @@ class ElectronicAnalysis(Tool):
             return await asyncio.to_thread(self._run_pyscf, user_input, xyz_text)
         except Exception as e:
             return ElectronicAnalysis_output_schema(is_success=False, message=f"PySCF backend failed: {e}")
-
-
-def get_class():
-    return ElectronicAnalysis

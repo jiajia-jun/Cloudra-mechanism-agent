@@ -85,7 +85,3 @@ class UpdateMemory(Tool):
             result=result,
             word_count=manager._count_words(manager.load()),
         )
-
-
-def get_class():
-    return UpdateMemory
