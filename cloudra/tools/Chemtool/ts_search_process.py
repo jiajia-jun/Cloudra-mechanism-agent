@@ -20,7 +20,7 @@ class TsPrepare_input_schema(input_schema):
 class TsResume_input_schema(input_schema):
     model_config = ConfigDict(extra='forbid')
     run_id: str = Field(min_length=1)
-    changes: TsInputChanges = Field(default_factory=TsInputChanges)
+    changes: TsInputChanges = Field(default_factory=TsInputChanges, description='Use the current atom identities/order reported in structures with each field\'s documented index base: structure/reaction references are 1-based; ORCA scan/freeze references are 0-based; Gaussian/xTB scan references are 1-based. For a newly supplied file order, explicit declarations refer to that incoming order and are converted once when the current XYZ/MOL is overwritten into proven canonical order. If a provided TS guess cannot be associated with a simultaneous source reorder, first normalize the endpoint files, then submit the guess in the reported current order.')
     reason: str = Field(min_length=1)
     expected_revision: StrictInt = Field(ge=0)
 
@@ -32,7 +32,7 @@ class TsInspect_input_schema(input_schema):
 
 class TsProcess_output_schema(TsProcessView, output_schema):
     is_success: bool = Field(default=True, description="Tool call succeeded; this is not scientific validation. Only result.verified=true means the TS passed the recorded scientific checks.")
-    receipt: TsRevisionReceipt | None = None
+    receipt: TsRevisionReceipt | None = Field(default=None, description='Durable accepted revision receipt. Applied structure normalization reports the actual overwritten current paths and hashes; future references use the returned current atom order with each field\'s documented index base. Historical QM files retain their original numbering.')
 
 
 def _resolve_workspace(tool: Tool) -> str:
@@ -102,7 +102,7 @@ class TsPrepare(Tool):
 class TsResume(Tool):
     tool_id: str = 't-60'
     tool_name: str = 'ts_resume'
-    tool_description: str = 'Revise input groups on the existing TS path. Omitted fields remain; optional null clears; lists, methods and typed sources replace. Requires reason and the revision observed from ts_inspect. Failed attempts can be revised or retried on the same run without recovery evidence; use changes={} to retry unchanged input. Active jobs prevent revisions. Use ts_inspect for reads.'
+    tool_description: str = 'Revise input groups on the existing TS path. Omitted fields remain; optional null clears; lists, methods and typed sources replace. Proven atom reorderings overwrite current mutable XYZ/MOL sources in canonical order; new incoming atom declarations convert once. Future calls use the returned current atom order with each field\'s documented index base. Historical QM artifacts retain their original order. Requires reason and the revision observed from ts_inspect. Failed attempts can be revised or retried on the same run without recovery evidence; use changes={} to retry unchanged input. Active jobs prevent revisions. Use ts_inspect for reads.'
     input_schema: Any = TsResume_input_schema
     output_schema: Any = TsProcess_output_schema
 
@@ -136,7 +136,7 @@ class TsResume(Tool):
 class TsInspect(Tool):
     tool_id: str = 't-ts-inspect'
     tool_name: str = 'ts_inspect'
-    tool_description: str = 'Read authoritative TS state, jobs, methods, evidence and missing inputs. Does not advance, retry or change a process. Same-project read-only reviewers may inspect another agent’s run.'
+    tool_description: str = 'Read authoritative TS state, current atom tables, jobs, methods, evidence and missing inputs. Current atom identities/order match persisted canonical files; future references use each field\'s documented index base. export_revision may identify a stale JSON export, while this returned revision is authoritative. Historical artifacts retain their original atom order. Does not submit calculations or initiate input revisions; an incomplete previously authorized source rewrite is recovered before current facts are returned. Same-project read-only reviewers may inspect another agent’s run.'
     input_schema: Any = TsInspect_input_schema
     output_schema: Any = TsProcess_output_schema
 

@@ -7,7 +7,7 @@ from tests.test_ts_pipeline_store import job_payload, payload
 
 
 def revision_fixture(tmp_path):
-    from cloudra.services.ts_pipeline_store import create_process
+    from cloudra.services.ts_pipeline_store import create_process, save_process_record
     from cloudra.tools.core.ts_inputs import TsInput, TsInputChanges, TsResumeRequest, apply_input_changes
 
     db = ComputeDB(data_dir=tmp_path).init()
@@ -15,12 +15,14 @@ def revision_fixture(tmp_path):
     value = TsInput.model_validate(payload()['input'])
     request = TsResumeRequest(
         changes=TsInputChanges.model_validate({"verification": {"irc": {"engine": "orca", "method": "b97-3c", "keywords": ""}}}),
-        reason="supply IRC method", request_key="resume-1", expected_revision=0,
+        reason="supply IRC method", request_key="resume-1", expected_revision=1,
     )
     state = dict(run_id='revision', run_dir=str(tmp_path / 'run'), workspace_dir=payload()['workspace_dir'],
                  pipeline_id=process["process_id"], owner_conversation_id="project", owner_session_id="owner",
                  format_version=4, declaration_revision=2, input=apply_input_changes(value, request.changes).model_dump(mode="json"),
                  stage="refine", blocked=None, waiting_for='', terminal=None)
+    save_process_record(db, process_id=process['process_id'], record=dict(
+        state, declaration_revision=1, input=value.model_dump(mode='json')))
     return db, process["process_id"], request, state
 
 
@@ -132,4 +134,4 @@ def test_simultaneous_response_loss_replay_commits_only_once(tmp_path):
     with ThreadPoolExecutor(max_workers=2) as pool:
         results = list(pool.map(accept, range(2)))
     assert results[0] == results[1]
-    assert get_process(db, pid)["revision"] == 1
+    assert get_process(db, pid)["revision"] == 2

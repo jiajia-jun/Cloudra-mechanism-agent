@@ -107,6 +107,83 @@ def test_file_sources_are_copied_immutably_and_missing_source_blocks(tmp_path):
     assert _build(record).blocked.needs == ["conformers.reactant"]
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
+def test_relative_file_conformers_use_workspace_when_service_cwd_differs(tmp_path, monkeypatch):
+    from rdkit import Chem
+
+    from cloudra.tools.core.ts_inputs import EndpointVerification
+    from cloudra.tools.core.ts_process import _build, _write_endpoint_input
+
+    workspace = tmp_path / 'workspace'
+    workspace.mkdir()
+    cwd = tmp_path / 'service'
+    cwd.mkdir()
+    monkeypatch.chdir(cwd)
+    seed = workspace / 'seed.xyz'
+    seed.write_text('2\nsource\nH 0 0 0\nH 0 0 .74\n')
+    Chem.MolToMolFile(Chem.AddHs(Chem.MolFromSmiles('[H][H]')), str(workspace / 'seed.mol'))
+    value = input_payload()
+    value['reaction'].update(reactant_smiles='[H][H]', product_smiles='[H][H]', atom_map=[0, 1])
+    value['conformers'] = dict(reactant=dict(kind='file', xyz_path='seed.xyz', mol_path='seed.mol'),
+                              product=dict(kind='file', xyz_path='seed.xyz', mol_path='seed.mol'))
+    record = record_fixture(workspace, input=TsInput.model_validate(value))
+    result = _build(record)
+    assert result.blocked is None
+    assert Path(result.current_seed_xyz_path).read_bytes() == seed.read_bytes()
+    assert Path(result.current_seed_mol_path).read_bytes() == (workspace / 'seed.mol').read_bytes()
+    record.input.verification.reactant_endpoint = EndpointVerification(
+        seed={'kind': 'file', 'xyz_path': 'seed.xyz', 'evidence_refs': ['seed.mol']},
+        optimization={'engine': 'orca', 'method': 'HF/STO-3G'},
+    )
+    job_dir = workspace / 'endpoint'
+    job_dir.mkdir()
+    error, input_path = _write_endpoint_input(record, str(job_dir), 'reactant', 'opt')
+    assert error == '' and Path(input_path).is_file()
+    assert (job_dir / 'reactant_source.xyz').read_bytes() == seed.read_bytes()
+
+
+@pytest.mark.parametrize('source_kind', ['parent', 'symlink', 'absolute'])
+def test_file_conformer_cannot_escape_bound_workspace(tmp_path, source_kind):
+    from cloudra.tools.core.ts_process import _build
+
+    workspace = tmp_path / 'workspace'
+    workspace.mkdir()
+    external = tmp_path / 'outside.xyz'
+    external.write_text('2\nexternal\nH 0 0 0\nH 0 0 .74\n')
+    link = workspace / 'linked.xyz'
+    link.symlink_to(external)
+    source = {'parent': '../outside.xyz', 'symlink': 'linked.xyz', 'absolute': str(external)}[source_kind]
+    value = input_payload()
+    value['conformers'] = {'reactant': {'kind': 'file', 'xyz_path': source}}
+    record = record_fixture(workspace, input=TsInput.model_validate(value))
+    result = _build(record)
+    assert result.blocked.failure_class == 'conformer_source_invalid'
+    assert result.current_seed_xyz_path == '' and result.evidence_candidates == []
+
+
+def test_relative_provided_guess_and_provenance_use_workspace(tmp_path, monkeypatch):
+    from cloudra.tools.core.ts_process import _guess
+
+    workspace = tmp_path / 'workspace'
+    workspace.mkdir()
+    cwd = tmp_path / 'service'
+    cwd.mkdir()
+    monkeypatch.chdir(cwd)
+    candidate = workspace / 'candidate.xyz'
+    candidate.write_text('2\nprovided\nH 0 0 0\nH 0 0 .74\n')
+    (workspace / 'scan.log').write_text('recorded scan provenance')
+    value = input_payload()
+    value['guess'] = dict(kind='provided', xyz_path='candidate.xyz', evidence_refs=['scan.log'])
+    record = record_fixture(workspace, input=TsInput.model_validate(value))
+    monkeypatch.setattr('cloudra.tools.core.ts_process._read_built_xyz',
+                        lambda *_: (['H', 'H'], [[0, 0, 0], [0, 0, .74]], str(candidate), ''))
+    result = _guess(record)
+    assert result.blocked is None
+    assert Path(result.current_ts_guess_path).read_bytes() == candidate.read_bytes()
+    provenance = Path(result.current_ts_guess_path).parent / 'provenance_0000.log'
+    assert provenance.read_text() == 'recorded scan provenance'
+
+
 def test_no_hidden_xtb_to_interpolation_fallback(tmp_path, monkeypatch):
     from cloudra.tools.core.ts_process import _guess
     from cloudra.tools.core.xtb_path_runner import XtbPathResult
@@ -200,7 +277,8 @@ def test_one_prepare_advances_complete_declared_chain_without_agent_resume(tmp_p
 pytestmark = pytest.mark.usefixtures("ts_producer_authority")
 
 
-def test_existing_irc_source_requires_authoritative_method_geometry_and_two_sides(tmp_path, monkeypatch):
+@pytest.mark.parametrize('relative_source', [False, True])
+def test_existing_irc_source_requires_authoritative_method_geometry_and_two_sides(tmp_path, monkeypatch, relative_source):
     from cloudra.infra.compute_utils import resolve_log_path
     from cloudra.persistence.database import ComputeDB
     from cloudra.services.ts_pipeline_store import bind_stage_job, create_process
@@ -224,7 +302,10 @@ def test_existing_irc_source_requires_authoritative_method_geometry_and_two_side
     log=Path(resolve_log_path(str(source),job_type='orca',task_id=job))
     log.parent.mkdir(parents=True,exist_ok=True)
     log.write_text('ORCA TERMINATED NORMALLY\n')
-    record.input.verification.irc_log=str(log)
+    cwd = tmp_path / 'service'
+    cwd.mkdir()
+    monkeypatch.chdir(cwd)
+    record.input.verification.irc_log=str(log.relative_to(tmp_path)) if relative_source else str(log)
     monkeypatch.setattr('cloudra.tools.Chemtool.ts_guess.TsGuess._extract_irc_endpoints', lambda *_args,**_kwargs: {'path_a':str(frequency/'optimized.xyz'),'path_b':str(frequency/'optimized.xyz')})
     step=_reuse_existing_irc(record)
     assert step.state=='done' and step.job_id is None

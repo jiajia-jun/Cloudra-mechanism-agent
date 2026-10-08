@@ -1,6 +1,7 @@
 """Read-only projection of authoritative TS state and recorded compute facts."""
 from __future__ import annotations
 
+import hashlib
 import json
 from copy import deepcopy
 from pathlib import Path
@@ -31,16 +32,45 @@ class TsProcessView(BaseModel):
     stage: str = ""
     result: TsVerdict | None = Field(default=None, description="Scientific verdict: outcome, verified, recorded reason and evidence references. Tool-call success and an ended workflow do not imply scientific verification.")
     waiting_for: list[dict] = Field(default_factory=list)
-    available_results: list[dict] = Field(default_factory=list)
-    structures: dict[str, dict] = Field(default_factory=dict, description="Recorded full XYZ atom tables and binding facts")
+    available_results: list[dict] = Field(default_factory=list, description="Recorded artifacts retain their original input atom order. input_revision_relation identifies current, historical or unknown source revisions; historical QM artifacts are unchanged.")
+    structures: dict[str, dict] = Field(default_factory=dict, description="Current full coordinate atom tables with 1-based numbers. Applied normalization means normalization.paths were overwritten in canonical order and canonical_hashes were verified. Future declarations use this atom order with each field's documented index base: structure/reaction references are 1-based, ORCA scan/freeze references are 0-based, and Gaussian/xTB scan references are 1-based. source_to_canonical describes the one-time conversion of the incoming source order.")
     blocked: dict | None = None
     failed_attempt: dict | None = None
     next: dict = Field(default_factory=dict)
     methods: list[dict] = Field(default_factory=list)
     usage: dict = Field(default_factory=dict)
-    details_path: str = ""
-    export_revision: int | None = None
+    details_path: str = Field(default="", description="JSON export path only when its revision and current structure files were verified. Empty for absent or stale exports, or unavailable current structures; this returned view at revision is authoritative.")
+    export_revision: int | None = Field(default=None, description="Revision of the JSON export, or null if absent. When this differs from revision, exported atom tables are historical; use this returned current view.")
     message: str = ""
+
+
+def _current_structure_tables(state: dict) -> tuple[dict[str, dict], list[dict]]:
+    structures, issues = {}, []
+    for role, table in deepcopy(state.get('structures', {})).items():
+        try:
+            normalization = table.get('normalization')
+            if normalization is None:
+                structures[role] = table
+                continue
+            if not isinstance(normalization, dict) or normalization.get('status') != 'applied':
+                raise ValueError(f'{role} canonical normalization has not been applied')
+            paths, hashes = normalization.get('paths'), normalization.get('canonical_hashes')
+            if not isinstance(paths, dict) or not isinstance(hashes, dict) or not paths.get('xyz'):
+                raise ValueError(f'{role} canonical normalization is missing persisted file facts')
+            for kind, path in paths.items():
+                if kind not in ('xyz', 'mol') or not isinstance(path, str) or not path or not hashes.get(kind):
+                    raise ValueError(f'{role} canonical normalization is missing persisted file facts')
+                if hashlib.sha256(Path(path).read_bytes()).hexdigest() != hashes[kind]:
+                    raise ValueError(f'{role} canonical {kind} source changed; revise its declaration before using current atom numbers')
+            for kind in ('xyz', 'mol'):
+                path = table.get(f'{kind}_path')
+                if path and hashlib.sha256(Path(path).read_bytes()).hexdigest() != table.get(f'{kind}_sha256'):
+                    raise ValueError(f'{role} canonical {kind} snapshot changed; current atom table is unavailable')
+        except (ValueError, OSError) as exc:
+            issues.append(dict(code='canonical_structure_unavailable', field=f'conformers.{role}', message=str(exc)))
+        else:
+            structures[role] = table
+    return structures, issues
 
 
 def build_process_view(state: dict, jobs: list[dict], *, can_write: bool) -> TsProcessView:
@@ -49,6 +79,12 @@ def build_process_view(state: dict, jobs: list[dict], *, can_write: bool) -> TsP
     waiting = bool(state.get("waiting_for"))
     blocked = deepcopy(state.get("blocked"))
     terminal = state.get("terminal")
+    structures, structure_issues = _current_structure_tables(state)
+    if structure_issues:
+        blocked = dict(failure_class='canonical_structure_unavailable', stage=state['stage'],
+                       message='; '.join(issue['message'] for issue in structure_issues),
+                       needs=[issue['field'] for issue in structure_issues], atom_details=[], issues=structure_issues)
+        terminal = None
     current_stage = next((row for row in reversed(state.get("stage_records", []))
                           if row.get("stage") == state.get("stage")), {})
     detail = (blocked or {}).get("message") or current_stage.get("detail", "")
@@ -61,6 +97,9 @@ def build_process_view(state: dict, jobs: list[dict], *, can_write: bool) -> TsP
         else:
             next_action.update(action="resume", editable_groups=list(state.get("input", {})),
                                required_inputs=list((blocked or {}).get("needs", [])))
+            if state.get('source_rewrite_recovery_blocked'):
+                next_action.update(action='resolve_source_conflict', editable_groups=[],
+                                   instruction='Resolve the conflicting current source files, then inspect again; repeating ts_resume cannot apply a new revision while recovery is blocked.')
     method_entries = []
     value = state.get("input", {})
     guess = value.get("guess") or {}
@@ -104,15 +143,25 @@ def build_process_view(state: dict, jobs: list[dict], *, can_write: bool) -> TsP
         artifacts=[job["log_path"]], source_input_revision=job.get("source_input_revision"),
         detail="Original compute output for direct evidence submission; keep IRC sidecars in place. Job completion is not scientific verification.")
         for job in jobs if job["job_id"] in current_job_ids and job.get("state") == "done" and job.get("log_path"))
+    for row in available:
+        source_revision = row.get('source_input_revision')
+        row['input_revision_relation'] = ('unknown' if source_revision is None or state.get('declaration_revision') is None
+                                          else 'current' if source_revision == state['declaration_revision'] else 'historical')
+    export_revision = state.get('export_revision')
+    message = "Unsupported input format: automatic continuation isolated; existing compute jobs remain intact." if not supported else detail
+    if export_revision is not None and export_revision != state['revision']:
+        export_note = f'JSON export is stale (revision {export_revision}); use this authoritative revision {state["revision"]} and its current atom tables.'
+        message = f'{message}; {export_note}' if message else export_note
     return TsProcessView(
         run_id=state["run_id"], revision=state["revision"], run_dir=state["run_dir"], status=status,
         stage=state["stage"], result=dict(outcome=terminal, verified=terminal == "verified", reason=detail,
                                            evidence_refs=state.get("evidence_candidates", [])) if supported and terminal else None,
         waiting_for=active or deepcopy(jobs) if waiting else active, failed_attempt=state.get("failed_attempt"),
-        available_results=available, structures=deepcopy(state.get('structures', {})), blocked=blocked, next=next_action, methods=method_entries,
+        available_results=available, structures=structures, blocked=blocked, next=next_action, methods=method_entries,
         usage=dict(interventions=state.get("intervention_count", 0), compute_actions=len(jobs), model_calls=None, limits=value.get("execution", {}).get("limits"), **state.get("accounted_usage", {}), jobs=usage_jobs),
-        details_path=str(Path(state["run_dir"]) / "process.json"), export_revision=state.get("export_revision"),
-        message="Unsupported input format: automatic continuation isolated; existing compute jobs remain intact." if not supported else detail,
+        details_path=str(Path(state["run_dir"]) / "process.json") if export_revision == state['revision']
+                     and not structure_issues and not state.get('source_rewrite_recovery_blocked') else '',
+        export_revision=export_revision, message=message,
     )
 
 
@@ -132,10 +181,8 @@ def inspect_process(db: ComputeDB, *, project_id: str, run_id: str, workspace_di
 
 
 def recorded_notification_view(db, state):
-    from cloudra.services.ts_pipeline_store import read_process_snapshot
-    current, jobs = read_process_snapshot(db, project_id=state['owner_conversation_id'], run_id=state['run_id'], workspace_dir=state['workspace_dir'])
-    _attach_recorded_usage(db, current)
-    return build_process_view(current, jobs, can_write=True).model_dump(mode='json')
+    return inspect_process(db, project_id=state['owner_conversation_id'], run_id=state['run_id'],
+                           workspace_dir=state['workspace_dir'], can_write=True).model_dump(mode='json')
 
 
 def _attach_recorded_usage(db, state):

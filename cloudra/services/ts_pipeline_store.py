@@ -33,6 +33,7 @@ class TsRevisionReceipt(CatalogModel):
     retained: list[TsEvidenceReference]
     invalidated: list[TsEvidenceReference]
     released_action_keys: list[str] = Field(default_factory=list)
+    source_hashes: dict[str, dict[str, str]] = Field(default_factory=dict)
     status: Literal['accepted'] = 'accepted'
 
 
@@ -41,29 +42,164 @@ def revision_request_digest(request: TsResumeRequest) -> str:
 
 
 def get_revision_receipt(db: ComputeDB, *, process_id: str, request_key: str) -> TsRevisionReceipt | None:
-    with db.connect() as con:
-        row = con.execute('SELECT payload FROM ts_pipeline_revision_receipts WHERE process_id=? AND request_key=?',
-                          (process_id, request_key)).fetchone()
+    with _rewrite_lock(db):
+        _recover_source_rewrite(db, process_id)
+        with db.connect() as con:
+            row = con.execute('SELECT payload FROM ts_pipeline_revision_receipts WHERE process_id=? AND request_key=?',
+                              (process_id, request_key)).fetchone()
     return TsRevisionReceipt.model_validate_json(row[0]) if row else None
+
+
+def _rewrite_lock(db):
+    from cloudra.infra.flocks import locked
+
+    db.ensure_dir()
+    return locked(str(Path(db.path).with_suffix('.ts-source-rewrite.lock')))
+
+
+class SourceRewriteRecoveryBlocked(ValueError):
+    """The authoritative checkpoint is readable only as a blocked diagnostic."""
+
+    def __init__(self, message, *, affected_roles):
+        super().__init__(message)
+        self.affected_roles = tuple(affected_roles)
+
+
+def _check_revision_budget(con, process_id, value):
+    limits = value.execution.limits
+    old = con.execute('SELECT payload FROM exploration_budgets WHERE process_id=?', (process_id,)).fetchone()
+    if limits is None:
+        if old:
+            raise ValueError('revision cannot remove an authorized hard budget')
+        return None
+    budget = ExplorationBudget(source=limits.source, max_compute_actions=limits.max_compute_actions,
+                               max_model_calls=limits.max_model_calls)
+    if old:
+        previous = ExplorationBudget.model_validate_json(old[0])
+        if previous.source != budget.source:
+            raise ValueError('budget source mismatch')
+        for field in ('max_compute_actions', 'max_model_calls'):
+            before, after = getattr(previous, field), getattr(budget, field)
+            if before is not None and (after is None or after > before):
+                raise ValueError('revision cannot raise an authorized hard budget')
+    return budget
+
+
+def _persist_prepared_revision(con, process_id, record, receipt):
+    """Commit an already checked rewrite intent using its captured declaration."""
+    scope = con.execute('SELECT project_id,owner_id,revision,declaration_revision FROM ts_pipeline_processes '
+                        'WHERE process_id=?', (process_id,)).fetchone()
+    if scope is None or scope[2] != receipt.previous_revision or scope[3] != receipt.previous_input_revision:
+        raise ValueError('stale process revision during source normalization')
+    active = con.execute('SELECT 1 FROM ts_pipeline_stages s JOIN compute_jobs j ON j.id=s.job_id '
+                         "WHERE s.process_id=? AND j.state NOT IN ('done','failed','cancelled') LIMIT 1",
+                         (process_id,)).fetchone()
+    if active:
+        raise ValueError('active stage job prevents input revision')
+    value = TsInput.model_validate(record['input'])
+    budget = _check_revision_budget(con, process_id, value)
+    if budget:
+        con.execute('INSERT INTO exploration_budgets VALUES (?,?,?,?) ON CONFLICT(process_id) '
+                    'DO UPDATE SET payload=excluded.payload', (process_id, *scope[:2], budget.model_dump_json()))
+    status = 'blocked' if record.get('blocked') else 'waiting' if record.get('waiting_for') else 'running'
+    con.execute('INSERT INTO ts_pipeline_declarations VALUES (?,?,?)',
+                (process_id, receipt.input_revision, value.model_dump_json()))
+    con.execute('UPDATE ts_pipeline_processes SET declaration_revision=?,revision=?,record=?,status=? WHERE process_id=?',
+                (receipt.input_revision, receipt.revision, json.dumps(record, sort_keys=True), status, process_id))
+    for key in receipt.released_action_keys:
+        con.execute('INSERT OR IGNORE INTO exploration_released_actions SELECT process_id,action_key,? '
+                    'FROM exploration_actions WHERE process_id=? AND action_key=? AND job_id IS NULL AND actual IS NULL',
+                    ('input revised', process_id, key))
+    con.execute('INSERT INTO ts_pipeline_revision_receipts VALUES (?,?,?)',
+                (process_id, receipt.request_key, receipt.model_dump_json()))
+
+
+def _write_revision_exports(record):
+    """Refresh exports from accepted state without another ledger mutation."""
+    from cloudra.persistence.fs_utils import atomic_write_text
+    from cloudra.tools.core.ts_process import (
+        BUILD_STAGE_DIR,
+        DECLARE_JSON_NAME,
+        PROCESS_JSON_NAME,
+        TsProcessRecord,
+        _write_immutable_input,
+    )
+
+    value = TsProcessRecord.model_validate(record)
+    Path(value.run_dir).mkdir(parents=True, exist_ok=True)
+    for role, table in value.structures.items():
+        normalization = table.get('normalization')
+        if not normalization or normalization['input_revision'] != value.declaration_revision:
+            continue
+        target = Path(value.run_dir) / BUILD_STAGE_DIR / f'input_{value.declaration_revision:04d}' / role
+        target.mkdir(parents=True, exist_ok=True)
+        for name, source in normalization['paths'].items():
+            data = Path(source).read_bytes()
+            if hashlib.sha256(data).hexdigest() != normalization['canonical_hashes'][name]:
+                raise ValueError('canonical source changed before accepted export; redeclare the source')
+            _write_immutable_input(str(target / f'seed.{name}'), data.decode('utf-8'))
+    atomic_write_text(str(Path(value.run_dir) / PROCESS_JSON_NAME), value.model_dump_json(indent=2) + '\n')
+    atomic_write_text(str(Path(value.run_dir) / DECLARE_JSON_NAME), value.input.model_dump_json(indent=2) + '\n')
+
+
+def _recover_source_rewrite(db, process_id):
+    """Finish an internal rewrite intent before any authoritative read succeeds."""
+    from cloudra.persistence.fs_utils import atomic_write_bytes
+
+    with db.connect() as con:
+        row = con.execute('SELECT payload FROM ts_pipeline_source_rewrites WHERE process_id=?', (process_id,)).fetchone()
+    if row is None:
+        return
+    intent = json.loads(row[0])
+    receipt = TsRevisionReceipt.model_validate(intent['receipt'])
+    roles = [role for role, table in intent['record'].get('structures', {}).items()
+             if table.get('normalization', {}).get('input_revision') == receipt.input_revision]
+    for item in intent['files']:
+        path, before, after = Path(item['path']), item['before'].encode('utf-8'), item['after'].encode('utf-8')
+        try:
+            current = path.read_bytes()
+        except OSError as exc:
+            raise SourceRewriteRecoveryBlocked('source normalization recovery blocked: current source is unavailable',
+                                               affected_roles=roles) from exc
+        if current not in (before, after):
+            raise SourceRewriteRecoveryBlocked('source normalization recovery blocked: current file differs from captured source and canonical bytes',
+                                               affected_roles=roles)
+        if current != after:
+            atomic_write_bytes(str(path), after)
+    with db.connect() as con:
+        con.execute('BEGIN IMMEDIATE')
+        accepted = con.execute('SELECT payload FROM ts_pipeline_revision_receipts WHERE process_id=? AND request_key=?',
+                               (process_id, receipt.request_key)).fetchone()
+        if accepted:
+            if TsRevisionReceipt.model_validate_json(accepted[0]) != receipt:
+                raise ValueError('source normalization recovery receipt conflict')
+        else:
+            _persist_prepared_revision(con, process_id, intent['record'], receipt)
+    _write_revision_exports(intent['record'])
+    with db.connect() as con:
+        con.execute('DELETE FROM ts_pipeline_source_rewrites WHERE process_id=?', (process_id,))
 
 
 def commit_input_revision(db: ComputeDB, *, process_id: str, request: TsResumeRequest,
                           record: dict, receipt: TsRevisionReceipt) -> TsRevisionReceipt:
-    """Accept once, before any new work, without modifying historical jobs."""
+    """Accept once, canonically overwrite current sources, and preserve history."""
+    from cloudra.persistence.fs_utils import atomic_write_bytes
+    from cloudra.tools.core.ts_inputs import apply_input_changes
+
     digest = revision_request_digest(request)
 
     def operation():
+        _recover_source_rewrite(db, process_id)
         with db.connect() as con:
             con.execute('BEGIN IMMEDIATE')
             old = con.execute('SELECT payload FROM ts_pipeline_revision_receipts WHERE process_id=? AND request_key=?',
                               (process_id, request.request_key)).fetchone()
-            # A response-loss replay is legal even after the run has advanced.
             if old:
                 accepted = TsRevisionReceipt.model_validate_json(old[0])
                 if accepted.request_digest != digest:
                     raise ValueError('revision request key conflict')
                 return accepted
-            scope = con.execute('SELECT project_id,owner_id,revision,declaration_revision FROM ts_pipeline_processes '
+            scope = con.execute('SELECT project_id,owner_id,revision,declaration_revision,record FROM ts_pipeline_processes '
                                 'WHERE process_id=?', (process_id,)).fetchone()
             if scope is None or scope[2] != request.expected_revision:
                 raise ValueError('stale process revision')
@@ -80,15 +216,34 @@ def commit_input_revision(db: ComputeDB, *, process_id: str, request: TsResumeRe
             if active:
                 raise ValueError('active stage job prevents input revision')
             value = TsInput.model_validate(record['input'])
-            from cloudra.tools.core.ts_inputs import apply_input_changes
             from cloudra.tools.core.ts_process import TsProcessRecord
+            from cloudra.tools.core.ts_revision import (
+                _project_revision_input,
+                _revision_protected_paths,
+                _revision_rewrite_files,
+                _revision_source_hashes,
+            )
             prior_input = con.execute('SELECT payload FROM ts_pipeline_declarations WHERE process_id=? AND declaration_revision=?',
                                       (process_id, scope[3])).fetchone()
-            expected_input = apply_input_changes(TsInput.model_validate_json(prior_input[0]), request.changes)
+            if scope[4] is None:
+                raise ValueError('process checkpoint missing')
+            prior_record = TsProcessRecord.model_validate_json(scope[4])
+            if prior_record.input != TsInput.model_validate_json(prior_input[0]):
+                raise ValueError('process checkpoint differs from its accepted declaration')
+            raw_input = apply_input_changes(prior_record.input, request.changes)
+            if receipt.source_hashes != _revision_source_hashes(prior_record, raw_input):
+                raise ValueError('revision source changed since the accepted plan')
+            expected_input, projections = _project_revision_input(prior_record, request.changes)
             if value != expected_input:
                 raise ValueError('revision input differs from the accepted request')
             validated_record = TsProcessRecord.model_validate(record)
             validated_record.revision = receipt.revision
+            for role, projection in projections.items():
+                if role not in ('reactant', 'product'):
+                    continue
+                if validated_record.structures.get(role) != projection['table']:
+                    raise ValueError('revision canonical structure differs from the accepted request')
+                validated_record.structures[role]['normalization']['status'] = 'applied'
             accepted_record = validated_record.model_dump(mode='json')
             for ref in receipt.retained + receipt.invalidated:
                 if ref.job_id is None:
@@ -106,36 +261,61 @@ def commit_input_revision(db: ComputeDB, *, process_id: str, request: TsResumeRe
                                       (process_id, ref.declaration_revision, ref.stage_key, ref.attempt)).fetchone()
                 if binding is None or binding[0] != ref.job_id:
                     raise ValueError('revision evidence binding mismatch')
-            limits = value.execution.limits
-            if limits:
-                budget = ExplorationBudget(source=limits.source, max_compute_actions=limits.max_compute_actions,
-                                           max_model_calls=limits.max_model_calls)
-                old_budget = con.execute('SELECT payload FROM exploration_budgets WHERE process_id=?', (process_id,)).fetchone()
-                if old_budget:
-                    previous = ExplorationBudget.model_validate_json(old_budget[0])
-                    if previous.source != budget.source:
-                        raise ValueError('budget source mismatch')
-                    for field in ('max_compute_actions', 'max_model_calls'):
-                        before, after = getattr(previous, field), getattr(budget, field)
-                        if before is not None and (after is None or after > before):
-                            raise ValueError('revision cannot raise an authorized hard budget')
-                con.execute('INSERT INTO exploration_budgets VALUES (?,?,?,?) ON CONFLICT(process_id) '
-                            'DO UPDATE SET payload=excluded.payload', (process_id, *scope[:2], budget.model_dump_json()))
-            elif con.execute('SELECT 1 FROM exploration_budgets WHERE process_id=?', (process_id,)).fetchone():
-                raise ValueError('revision cannot remove an authorized hard budget')
-            status = 'blocked' if record.get('blocked') else 'waiting' if record.get('waiting_for') else 'running'
-            con.execute('INSERT INTO ts_pipeline_declarations VALUES (?,?,?)',
-                        (process_id, receipt.input_revision, value.model_dump_json()))
-            con.execute('UPDATE ts_pipeline_processes SET declaration_revision=?,revision=?,record=?,status=? WHERE process_id=?',
-                        (receipt.input_revision, receipt.revision, json.dumps(accepted_record, sort_keys=True), status, process_id))
-            for key in receipt.released_action_keys:
-                con.execute('INSERT OR IGNORE INTO exploration_released_actions SELECT process_id,action_key,? '
-                            'FROM exploration_actions WHERE process_id=? AND action_key=? AND job_id IS NULL AND actual IS NULL',
-                            ('input revised', process_id, key))
-            con.execute('INSERT INTO ts_pipeline_revision_receipts VALUES (?,?,?)',
-                        (process_id, request.request_key, receipt.model_dump_json()))
+            _check_revision_budget(con, process_id, value)
+            from cloudra.infra.compute_utils import resolve_log_path
+            jobs = con.execute('SELECT path,jobtype,id FROM compute_jobs').fetchall()
+            protected = [path for path, _, _ in jobs]
+            protected.extend(resolve_log_path(path, kind, job_id) for path, kind, job_id in jobs)
+            for path, _, _ in jobs:
+                directory = Path(path).parent
+                for suffix in ('xyz', 'mol', 'log', 'out', 'hess', 'chk', 'fchk', 'gbw'):
+                    protected.extend(directory.glob(f'*.{suffix}'))
+            runs = []
+            for row in con.execute('SELECT record FROM ts_pipeline_processes WHERE record IS NOT NULL'):
+                checkpoint = json.loads(row[0])
+                protected.extend(_revision_protected_paths(checkpoint))
+                if checkpoint.get('run_dir'):
+                    runs.append(checkpoint['run_dir'])
+            files = _revision_rewrite_files(prior_record, projections,
+                                           protected_paths=protected, protected_runs=runs)
+            intent = dict(files=files, record=accepted_record, receipt=receipt.model_dump(mode='json'))
+            # This private ledger preimage is durable before the first file changes.
+            con.execute('INSERT INTO ts_pipeline_source_rewrites VALUES (?,?,?)',
+                        (process_id, request.request_key, json.dumps(intent, sort_keys=True)))
+        committed = False
+        try:
+            for item in files:
+                path = Path(item['path'])
+                before, after = item['before'].encode('utf-8'), item['after'].encode('utf-8')
+                if path.read_bytes() != before:
+                    raise ValueError('source changed before canonical overwrite; redeclare the source')
+                if before != after:
+                    atomic_write_bytes(str(path), after)
+            with db.connect() as con:
+                con.execute('BEGIN IMMEDIATE')
+                _persist_prepared_revision(con, process_id, accepted_record, receipt)
+            committed = True
+            _write_revision_exports(accepted_record)
+            with db.connect() as con:
+                con.execute('DELETE FROM ts_pipeline_source_rewrites WHERE process_id=?', (process_id,))
             return receipt
-    return retry_on_locked(operation)
+        except Exception:
+            if committed:
+                # The durable receipt owns canonical bytes; recovery finishes exports.
+                raise
+            for item in reversed(files):
+                path = Path(item['path'])
+                before, after = item['before'].encode('utf-8'), item['after'].encode('utf-8')
+                current = path.read_bytes()
+                if current == after and before != after:
+                    atomic_write_bytes(str(path), before)
+                elif current != before:
+                    raise ValueError('source normalization rollback blocked by external source changes')
+            with db.connect() as con:
+                con.execute('DELETE FROM ts_pipeline_source_rewrites WHERE process_id=?', (process_id,))
+            raise
+    with _rewrite_lock(db):
+        return retry_on_locked(operation)
 
 
 class ProcessPayload(CatalogModel):
@@ -201,9 +381,11 @@ def create_process(db: ComputeDB, *, request_key: str, payload: dict) -> dict:
 
 
 def get_process(db: ComputeDB, process_id: str) -> dict | None:
-    with db.connect() as con:
-        row = con.execute('SELECT process_id,payload,declaration_revision,revision,status,record '
-                          'FROM ts_pipeline_processes WHERE process_id=?', (process_id,)).fetchone()
+    with _rewrite_lock(db):
+        _recover_source_rewrite(db, process_id)
+        with db.connect() as con:
+            row = con.execute('SELECT process_id,payload,declaration_revision,revision,status,record '
+                              'FROM ts_pipeline_processes WHERE process_id=?', (process_id,)).fetchone()
     if row is None:
         return None
     return dict(process_id=row[0], payload=json.loads(row[1]), declaration_revision=row[2], revision=row[3],
@@ -212,6 +394,30 @@ def get_process(db: ComputeDB, process_id: str) -> dict | None:
 
 def read_process_snapshot(db: ComputeDB, *, project_id: str, run_id: str, workspace_dir: str) -> tuple[dict, list[dict]]:
     """Read process and jobs in one snapshot; ownership restricts writes, not project reads."""
+    with _rewrite_lock(db):
+        with db.connect() as con:
+            row = con.execute('SELECT process_id FROM ts_pipeline_processes WHERE project_id=? '
+                              "AND json_extract(record,'$.run_id')=? AND json_extract(payload,'$.workspace_dir')=?",
+                              (project_id, run_id, workspace_dir)).fetchone()
+        if row is None:
+            raise ValueError('TS run not found in the authorized project and workspace')
+        try:
+            _recover_source_rewrite(db, row[0])
+        except SourceRewriteRecoveryBlocked as exc:
+            state, jobs = _read_process_snapshot(db, project_id=project_id, run_id=run_id, workspace_dir=workspace_dir)
+            state['source_rewrite_recovery_blocked'] = True
+            state['structures'] = {role: table for role, table in state.get('structures', {}).items()
+                                   if role not in exc.affected_roles}
+            state['terminal'] = None
+            state['blocked'] = dict(failure_class='canonical_source_recovery_blocked', stage=state['stage'],
+                message=str(exc), needs=[f'conformers.{role}' for role in exc.affected_roles],
+                issues=[dict(code='source_normalization_recovery_blocked', role=role,
+                    field=f'conformers.{role}') for role in exc.affected_roles])
+            return state, jobs
+        return _read_process_snapshot(db, project_id=project_id, run_id=run_id, workspace_dir=workspace_dir)
+
+
+def _read_process_snapshot(db: ComputeDB, *, project_id: str, run_id: str, workspace_dir: str) -> tuple[dict, list[dict]]:
     with db.connect() as con:
         con.execute('BEGIN')
         row = con.execute('SELECT process_id,revision,record FROM ts_pipeline_processes WHERE project_id=? '

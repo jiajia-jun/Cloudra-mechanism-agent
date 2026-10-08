@@ -232,6 +232,7 @@ class BenchmarkBatch:
     # ------------------------------------------------------------------ 主循环
 
     async def _run(self) -> None:
+        crashed = False
         try:
             sem = asyncio.Semaphore(self.concurrency)
 
@@ -242,14 +243,17 @@ class BenchmarkBatch:
             await asyncio.gather(*(one(st) for st in self.task_states))
         except Exception:
             logger.exception("batch %s crashed", self.batch_id)
-            self.status = "error"
+            crashed = True
         finally:
             # 终态三面同序：先落库（历史 /runs 读 DB）→ 再发布内存（/status 读快照）
             # → 最后发事件。旧顺序把内存翻在前面、DB 经 to_thread 后写：收敛瞬间
             # /status 已报 stopped 而 /runs 仍是 stopping，两个接口对同一批次互相
             # 矛盾（本机全量跑实测偶发红：test_router_status_start_stop_history）。
             # stopping 是 stop() 主动置的：收尾后落 stopped 而不是伪装 done。
-            final_status = "stopped" if self.status == "stopping" else "done"
+            if crashed:
+                final_status = "error"
+            else:
+                final_status = "stopped" if self.status == "stopping" else "done"
             await asyncio.to_thread(
                 self._runner.db.finish_batch, self.batch_id, final_status
             )
@@ -435,12 +439,7 @@ class BenchmarkBatch:
             )
         except Exception as exc:
             logger.exception("benchmark task %s crashed", task.task_id)
-            st.status = "error"
-            st.error = str(exc)
-            self.emit(
-                "benchmark.task_error",
-                {"batch_id": self.batch_id, "task_id": task.task_id, "error": str(exc)},
-            )
+            await self._mark_infra_failure(st, str(exc))
         finally:
             st.finished_at = time.time()
 
@@ -503,7 +502,7 @@ class BenchmarkBatch:
         ]
 
     async def _mark_infra_failure(self, st: _TaskRunState, message: str) -> None:
-        """基建失败终态：不 spawn、不评分，落一行带原因的失败记录并广播。"""
+        """基建失败终态：不评分，落一行带原因的失败记录并广播。"""
         st.status = "error"
         st.error = message
         result = RunResult(
@@ -514,7 +513,7 @@ class BenchmarkBatch:
         result.notes.append(f"infrastructure failure: {message}")
         st.result = result
         await asyncio.to_thread(self._runner.db.record, result)
-        logger.warning("benchmark task %s failed before start: %s", st.task.task_id, message)
+        logger.warning("benchmark task %s failed: %s", st.task.task_id, message)
         self.emit(
             "benchmark.task_error",
             {"batch_id": self.batch_id, "task_id": st.task.task_id, "error": message},

@@ -223,6 +223,14 @@ class TsStartRequest(BaseModel):
 # 目录与持久化
 # ---------------------------------------------------------------------------
 
+def _workspace_input_path(record: TsProcessRecord, path: str) -> Path:
+    """Resolve declared files against the bound workspace and enforce its boundary."""
+    root = Path(record.workspace_dir).resolve()
+    resolved = (root / path).resolve()
+    resolved.relative_to(root)
+    return resolved
+
+
 def _next_run_id(workspace_dir: str) -> str:
     root = os.path.join(workspace_dir, TS_ROOT_NAME)
     os.makedirs(root, exist_ok=True)
@@ -428,27 +436,43 @@ def _build(record: TsProcessRecord) -> TsProcessRecord:
             return _block(record, 'build', 'missing_input', f'Explicit conformer source required for {role}', needs=[f'conformers.{role}'])
         if source.kind == 'file':
             try:
+                import hashlib
+
+                from cloudra.services.ts_pipeline_context import pipeline_database
+                from cloudra.services.ts_pipeline_store import _rewrite_lock
                 from cloudra.tools.core.structure_artifacts import read_xyz_atoms
-                path = Path(source.xyz_path).resolve()
-                path.relative_to(Path(record.workspace_dir).resolve())
-                if not path.is_file():
-                    return _block(record, 'build', 'conformer_source_invalid',
-                        f'{role} XYZ source is missing: {path}', needs=[f'conformers.{role}.xyz_path'],
-                        issues=[dict(code='source_missing', role=role, field=f'conformers.{role}.xyz_path', path=str(path))])
-                atoms = read_xyz_atoms(str(path))
+
+                # Paired reads serialize with current-source canonical overwrites.
+                with _rewrite_lock(pipeline_database()):
+                    path = _workspace_input_path(record, source.xyz_path)
+                    if not path.is_file():
+                        return _block(record, 'build', 'conformer_source_invalid',
+                            f'{role} XYZ source is missing: {path}', needs=[f'conformers.{role}.xyz_path'],
+                            issues=[dict(code='source_missing', role=role, field=f'conformers.{role}.xyz_path', path=str(path))])
+                    # Capture once: the hash must cover the exact bytes copied,
+                    # rather than an earlier read of this mutable workspace source.
+                    source_bytes = {'xyz': path.read_bytes()}
+                    if source.mol_path:
+                        mol = _workspace_input_path(record, source.mol_path)
+                        if not mol.is_file():
+                            return _block(record, 'build', 'conformer_source_invalid',
+                                f'{role} MOL source is missing: {mol}', needs=[f'conformers.{role}.mol_path'],
+                                issues=[dict(code='source_missing', role=role, field=f'conformers.{role}.mol_path', path=str(mol))])
+                        source_bytes['mol'] = mol.read_bytes()
+                    pins = record.input_binding.get('revision_source_hashes', {})
+                    if role in pins and pins[role] != {name: hashlib.sha256(data).hexdigest() for name, data in source_bytes.items()}:
+                        raise ValueError(f'{role} source changed since atom identity was proved; redeclare conformers.{role}')
                 target = Path(record.run_dir) / BUILD_STAGE_DIR / f'input_{record.declaration_revision:04d}' / role
                 target.mkdir(parents=True, exist_ok=True)
-                _write_immutable_input(str(target / 'seed.xyz'), path.read_text())
+                _write_immutable_input(str(target / 'seed.xyz'), source_bytes['xyz'].decode('utf-8'))
+                atoms = read_xyz_atoms(str(target / 'seed.xyz'))
                 mol_path = ''
                 if source.mol_path:
-                    mol = Path(source.mol_path).resolve()
-                    mol.relative_to(Path(record.workspace_dir).resolve())
-                    if not mol.is_file():
-                        return _block(record, 'build', 'conformer_source_invalid',
-                            f'{role} MOL source is missing: {mol}', needs=[f'conformers.{role}.mol_path'],
-                            issues=[dict(code='source_missing', role=role, field=f'conformers.{role}.mol_path', path=str(mol))])
                     mol_path = str(target / 'seed.mol')
-                    _write_immutable_input(mol_path, mol.read_text())
+                    _write_immutable_input(mol_path, source_bytes['mol'].decode('utf-8'))
+                pins.pop(role, None)
+                if not pins:
+                    record.input_binding.pop('revision_source_hashes', None)
                 if role == 'reactant':
                     record.current_seed_xyz_path = str(target / 'seed.xyz')
                     record.current_seed_mol_path = mol_path
@@ -917,6 +941,9 @@ def _store_structure_table(record: TsProcessRecord, role: str) -> None:
                  structure_digest=digest, atom_count=len(rows), components=components,
                  index_base=1, atoms=rows, smiles_heavy_atoms=smiles_heavy_atoms,
                  binding_status='unverified', graph_error=graph_error)
+    normalization = record.structures.get(role, {}).get('normalization')
+    if normalization:
+        table['normalization'] = normalization
     artifact = {key: value for key, value in table.items() if key != 'binding_status'}
     artifact_text = json.dumps(artifact, ensure_ascii=False, sort_keys=True)
     artifact_digest = hashlib.sha256(artifact_text.encode('utf-8')).hexdigest()
@@ -1438,8 +1465,7 @@ def _guess(record: TsProcessRecord) -> TsProcessRecord:
             import math
 
             from cloudra.tools.core.structure_artifacts import read_xyz_atoms
-            candidate = Path(guess.xyz_path).resolve()
-            candidate.relative_to(Path(record.workspace_dir).resolve())
+            candidate = _workspace_input_path(record, guess.xyz_path)
             atoms = read_xyz_atoms(str(candidate))
             reactant = _read_built_xyz(record, 'reactant')
             if reactant is None or [s for s, _ in atoms] != reactant[0]:
@@ -1447,8 +1473,7 @@ def _guess(record: TsProcessRecord) -> TsProcessRecord:
             if not all(math.isfinite(v) for _, point in atoms for v in point):
                 raise ValueError('Provided candidate contains nonfinite coordinates')
             for reference in guess.evidence_refs:
-                artifact = Path(reference).resolve()
-                artifact.relative_to(Path(record.workspace_dir).resolve())
+                artifact = _workspace_input_path(record, reference)
                 if not artifact.is_file():
                     raise ValueError(f'Provided candidate provenance artifact missing: {reference}')
         except (OSError, ValueError) as exc:
@@ -1461,7 +1486,7 @@ def _guess(record: TsProcessRecord) -> TsProcessRecord:
             bound_refs = []
             for index, reference in enumerate(guess.evidence_refs):
                 artifact = target / f'provenance_{index:04d}{Path(reference).suffix}'
-                _write_immutable_input(str(artifact), Path(reference).read_text())
+                _write_immutable_input(str(artifact), _workspace_input_path(record, reference).read_text())
                 bound_refs.append(str(artifact))
         except (OSError, ValueError) as exc:
             return _block(record, 'guess', 'provided_guess_invalid', str(exc), needs=['guess'])
@@ -1743,7 +1768,7 @@ def _write_refinement_input(record: TsProcessRecord, job_dir: str) -> tuple[str,
         end_setting=calculation.end_setting,
         charge=declaration.charge,
         multiplicity=declaration.multiplicity,
-        title=f"TS refinement: {declaration.reactant_smiles} -> {declaration.product_smiles}",
+        title=f"TS refinement: {declaration.reactant_smiles} -> {declaration.product_smiles} | smiles: {declaration.reactant_smiles}",
         output_path=input_path,
     )
     # 输入冲突前置校验（与 qm_input_writer 同一份）
@@ -1881,8 +1906,7 @@ def _reuse_existing_irc(record):
     from cloudra.tools.core.calculation_intent import inspect_input, native_input_geometry
     from cloudra.tools.core.structure_artifacts import read_xyz_atoms
 
-    source_log = Path(record.input.verification.irc_log).resolve()
-    source_log.relative_to(Path(record.workspace_dir).resolve())
+    source_log = _workspace_input_path(record, record.input.verification.irc_log)
     db = pipeline_database()
     with db.connect() as con:
         jobs = con.execute("SELECT id,path,jobtype FROM compute_jobs WHERE conversation_id=? AND state='done'", (record.owner_conversation_id,)).fetchall()
@@ -2151,7 +2175,7 @@ def _write_frequency_input(record: TsProcessRecord, job_dir: str) -> tuple[str, 
         end_setting=calculation.end_setting,
         charge=declaration.charge,
         multiplicity=declaration.multiplicity,
-        title=f"frequency at the refined stationary point: {declaration.reactant_smiles}",
+        title=f"frequency at the refined stationary point: {declaration.reactant_smiles} | smiles: {declaration.reactant_smiles}",
         output_path=input_path,
     )
     conflicts = validate_writer_request(request.model_dump())
@@ -2248,7 +2272,7 @@ def _write_irc_input(record: TsProcessRecord, job_dir: str) -> tuple[str, str]:
         end_setting=calculation.end_setting,
         charge=declaration.charge,
         multiplicity=declaration.multiplicity,
-        title=f"IRC both directions from the refined saddle: {declaration.reactant_smiles}",
+        title=f"IRC both directions from the refined saddle: {declaration.reactant_smiles} | smiles: {declaration.reactant_smiles}",
         output_path=input_path,
     )
     conflicts = validate_writer_request(request.model_dump())
@@ -2333,12 +2357,10 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
         return f'Explicit {_calculation_field(f"{role}_{task}")} required', ''
     endpoint = getattr(record.input.verification, role + '_endpoint')
     if task == 'opt' and endpoint.seed is not None:
-        source = endpoint.seed.xyz_path
-        path = Path(source).resolve()
-        path.relative_to(Path(record.workspace_dir).resolve())
+        path = _workspace_input_path(record, endpoint.seed.xyz_path)
+        source = str(path)
         for reference in endpoint.seed.evidence_refs:
-            artifact = Path(reference).resolve()
-            artifact.relative_to(Path(record.workspace_dir).resolve())
+            artifact = _workspace_input_path(record, reference)
             if not artifact.is_file():
                 return 'Endpoint replacement source/evidence missing', ''
         if not path.is_file():
@@ -2403,7 +2425,7 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
         frequency_mode=calculation.frequency_mode, orca_blocks=calculation.orca_blocks,
         end_setting=calculation.end_setting,
         charge=declaration.charge, multiplicity=declaration.multiplicity,
-        title=f"IRC side {'A' if role == 'reactant' else 'B'} endpoint {task}",
+        title=f"IRC side {'A' if role == 'reactant' else 'B'} endpoint {task} | smiles: {getattr(declaration, role + '_smiles')}",
         output_path=input_path,
     )
     conflicts = validate_writer_request(request.model_dump())

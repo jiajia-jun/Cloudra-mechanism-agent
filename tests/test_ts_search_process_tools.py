@@ -144,6 +144,33 @@ async def test_resume_uses_authoritative_record_when_export_is_missing(tmp_path,
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures('rdkit_chemistry')
+async def test_replacing_conformer_accepts_invalidation_of_stale_atom_binding(tmp_path):
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.services.ts_pipeline_store import read_process_snapshot
+    from cloudra.tools.core.ts_inputs import FileConformer
+
+    value = inputs()
+    value.conformers.reactant = FileConformer(kind='file', xyz_path=str(tmp_path / 'missing.xyz'))
+    first = await invoke(owned_tool(TsPrepare, workspace=tmp_path), TsPrepare_input_schema(input=value))
+    assert first.is_success and first.blocked['stage'] == 'build'
+    replacement = tmp_path / 'replacement.xyz'
+    replacement.write_text('3\nWater replacement\nO 0 0 0\nH 0.96 0 0\nH -0.24 0.93 0\n')
+    revised = await invoke(owned_tool(TsResume, workspace=tmp_path), TsResume_input_schema(
+        run_id=first.run_id, expected_revision=first.revision, reason='Replace the missing endpoint',
+        changes={'conformers': {'reactant': {'kind': 'file', 'xyz_path': str(replacement)}}},
+    ), call_id='replace-source')
+    assert revised.is_success, revised.message
+    assert revised.run_id == first.run_id and revised.receipt.input_revision == 2
+    assert revised.blocked['stage'] == 'map'
+    current, _ = read_process_snapshot(ComputeDB(), project_id='project', run_id=first.run_id,
+                                       workspace_dir=str(tmp_path))
+    assert current['input']['reaction']['atom_map'] == []
+    assert current['input']['guess'] == value.guess.model_dump(mode='json')
+    assert current['attempt_history'][0]['input']['reaction']['atom_map'] == [0, 1, 2]
+
+
+@pytest.mark.asyncio
 async def test_prepare_without_workspace_reports_caller_error():
     result = await invoke(owned_tool(TsPrepare), TsPrepare_input_schema(input=inputs()))
     assert not result.is_success and 'working directory' in result.message

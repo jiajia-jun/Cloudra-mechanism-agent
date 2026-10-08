@@ -294,6 +294,64 @@ async def test_status_and_runs_agree_the_moment_a_batch_reaches_terminal(
     assert history["batches"][0]["status"] == "stopped"
 
 
+@pytest.mark.asyncio
+async def test_batch_unexpected_failure_remains_error_in_status_history_and_event(
+    tmp_path, monkeypatch
+):
+    from cloudra.benchmark.batch import BenchmarkBatch
+
+    def broken_compute_probe(self, sandbox):
+        raise RuntimeError("compute occupancy probe failed")
+
+    monkeypatch.setattr(BenchmarkBatch, "_live_compute_in", broken_compute_probe)
+    _core, _bus, service = _service(tmp_path)
+    tasks_dir = _write_tasks(tmp_path / "tasks", "T1")
+    await service.start(tasks_dirs=[tasks_dir], only="", concurrency=1)
+    await asyncio.wait_for(service._batch._task, timeout=5.0)
+
+    status = service.status()
+    history = await service.history()
+    assert status["status"] == "error"
+    assert status["finished_at"] is not None
+    assert history["batches"][0]["status"] == "error"
+    assert history["batches"][0]["batch_id"] == status["batch_id"]
+    assert service._events[-1] == {
+        "type": "benchmark.batch_finished",
+        "data": {"batch_id": status["batch_id"], "status": "error"},
+    }
+
+
+@pytest.mark.asyncio
+async def test_batch_unexpected_task_failure_persists_zero_score_and_cause(
+    tmp_path, monkeypatch
+):
+    from cloudra.benchmark.watch import RunWatcher
+
+    async def broken_watcher(self, core, agent, cancel):
+        raise RuntimeError("terminal compute lookup failed")
+
+    monkeypatch.setattr(RunWatcher, "wait", broken_watcher)
+    _core, _bus, service = _service(tmp_path)
+    tasks_dir = _write_tasks(tmp_path / "tasks", "T1")
+    await service.start(tasks_dirs=[tasks_dir], only="", concurrency=1)
+    await asyncio.wait_for(service._batch._task, timeout=5.0)
+
+    status = service.status()
+    task = status["tasks"][0]
+    assert task["status"] == "error"
+    assert "terminal compute lookup failed" in task["error"]
+    history = await service.history()
+    runs = history["batches"][0]["runs"]
+    assert len(runs) == 1
+    assert runs[0]["task_id"] == "T1"
+    assert runs[0]["sandbox"] == str(
+        tmp_path / "bench" / "sandboxes" / "T1" / status["batch_id"]
+    )
+    assert task["final_score"] == runs[0]["final_score"] == 0.0
+    assert any("terminal compute lookup failed" in note for note in runs[0]["notes"])
+    assert task["notes"] == runs[0]["notes"]
+
+
 # ---------------------------------------------------------------------------
 # Task 5（P1）：沙箱生命周期契约（失败即基建失败；占用目录拒绝复用）
 # ---------------------------------------------------------------------------
