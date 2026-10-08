@@ -223,17 +223,20 @@ def _species_checks(tmp_path, smiles, filenames):
     return file_scientific_checks(store, graph, 'rc')
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_fragment_minimum_cannot_certify_whole_species(tmp_path):
     checks = _species_checks(tmp_path, 'O.O=C=O', ['gaussian/water_opt_freq_g16.out'])
     assert checks['geometry']['status'] != 'passed'
     assert checks['geometry']['next_action']
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_same_atom_count_wrong_species_cannot_certify_minimum(tmp_path):
     checks = _species_checks(tmp_path, 'C#N', ['gaussian/water_opt_freq_g16.out'])
     assert checks['geometry']['status'] != 'passed'
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_all_component_minima_explicitly_report_component_coverage(tmp_path):
     checks = _species_checks(tmp_path, 'O.O=C=O',
         ['gaussian/water_opt_freq_g16.out', 'orca/co2_freq_orca42.out'])
@@ -265,6 +268,7 @@ async def test_partial_stage_credit_reports_only_remaining_stages(tmp_path):
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_component_files_submit_as_one_review_without_borrowing_history(tmp_path):
     from cloudra.dag.engine import DagEngine
     from cloudra.dag.models import GraphActor, MutationBatch, UpdateNode
@@ -294,3 +298,59 @@ async def test_species_submission_rejects_unrelated_frequency_file(tmp_path):
         species_name='R',opt_file=str(FIXTURES_DIR/'gaussian/water_opt_freq_g16.out'),
         freq_file=str(FIXTURES_DIR/'orca/co2_freq_orca42.out'))
     assert not result.is_success
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('missing_module', ['rdkit', 'rdkit.Chem'])
+async def test_missing_rdkit_keeps_species_reviewable_but_delivery_incomplete(
+    tmp_path, monkeypatch, missing_module,
+):
+    import builtins
+
+    from cloudra.dag.engine import DagEngine
+    from cloudra.dag.models import GraphActor, MutationBatch, UpdateNode
+    from cloudra.tools.Plantool.dag_tools.dag_review_species import DagReviewSpecies
+    from cloudra.tools.Plantool.dag_tools.dag_submit_species_evidence import DagSubmitSpeciesEvidence
+    from tests.test_dag_async_evidence_review import _seed_simple_complete_graph
+
+    original_import = builtins.__import__
+
+    def without_rdkit(name, *args, **kwargs):
+        if name == missing_module:
+            raise ModuleNotFoundError(f'No module named {name!r}', name=name)
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, '__import__', without_rdkit)
+    session, db, store = _seed_simple_complete_graph(tmp_path, 'missing-rdkit-review')
+    required_geometry = DagEngine(store).apply_batch(MutationBatch(
+        session_id='s1', actor=GraphActor.HARNESS, actor_id='test',
+        base_revisions=store.load_bundle().revisions, rationale='require species identity evidence',
+        operations=[UpdateNode(op='update_node', graph='delivery', node_id='r',
+                               changes={'stages': [{'kind': 'geometry'}]})],
+    ))
+    assert required_geometry.accepted
+    submitted = await call_dag_tool(
+        DagSubmitSpeciesEvidence, _coordinator(db.conversation_id), session,
+        species_name='R', opt_file=str(FIXTURES_DIR / 'gaussian/water_opt_freq_g16.out'),
+    )
+    assert submitted.is_success
+    check = submitted.result['scientific_checks']['geometry']
+    assert check['status'] == 'incomplete'
+    assert 'RDKit' in check['detail']
+    assert 'cloudra[chem]' in check['detail']
+    assert check['next_action']
+    review = store.get_review_request(submitted.result['review_id'])
+    assert review.proposal['scientific_checks']['geometry'] == check
+    assert review.supporting_refs
+
+    reviewed = await call_dag_tool(
+        DagReviewSpecies, make_supervisor(db.conversation_id, workspace_dir=str(tmp_path)), session,
+        species_name='R', verdict='supported', rationale='accept hypothesis; identity evidence is incomplete',
+    )
+    assert reviewed.is_success
+    controller = DagController(db, 's1', 'dag_guided', conversation_id=db.conversation_id)
+    report = await asyncio.to_thread(controller.delivery_report)
+    assert not report.complete
+    assert any(g.target_id == 'r' and g.code == 'scientific_check_incomplete' and 'RDKit' in g.detail
+               for g in report.unresolved)
+    assert (await controller.audit_stop('complete')).action != 'allow_final'

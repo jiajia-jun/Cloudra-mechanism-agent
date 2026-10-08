@@ -721,6 +721,7 @@ async def test_missing_or_deleted_scoped_target_is_a_loud_gap(tmp_path, delete_t
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
 @pytest.mark.parametrize("machine_unverified", [False, True])
 async def test_real_species_and_step_files_are_reviewed_once_for_final_delivery(
     tmp_path, monkeypatch, machine_unverified

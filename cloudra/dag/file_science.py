@@ -130,8 +130,14 @@ def _geometry_species(path: str, smiles: str) -> bool:
     """
     from collections import Counter
 
-    from rdkit import Chem
-    from rdkit.Chem import rdDetermineBonds
+    try:
+        from rdkit import Chem
+        from rdkit.Chem import rdDetermineBonds
+    except ImportError as exc:
+        raise RuntimeError(
+            "Species geometry identity requires RDKit; install or repair cloudra[chem] "
+            "and re-submit the evidence."
+        ) from exc
 
     from cloudra.tools.core.irc_path import xyz_block
 
