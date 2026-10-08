@@ -77,21 +77,6 @@ function fmtTs(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function postFromEvent(e: { event_id: string; seq: number; created_at: string; data: Record<string, unknown> }): HubPost {
-  return {
-    id: e.event_id,
-    seq: e.seq,
-    created_at: e.created_at,
-    topic: String(e.data.topic ?? ''),
-    kind: String(e.data.kind ?? 'finding'),
-    author_agent: String(e.data.author_agent ?? ''),
-    author_session: (e.data.author_session as string | null) ?? null,
-    to_agent: (e.data.to_agent as string | null) ?? null,
-    parent_id: (e.data.parent_id as string | null) ?? null,
-    content: String(e.data.content ?? ''),
-  };
-}
-
 function PostCard({
   post,
   depth,
@@ -171,6 +156,9 @@ export default function HubPanel({
   const [toAgent, setToAgent] = useState('');
   const [content, setContent] = useState('');
   const [sending, setSending] = useState(false);
+  const [pendingPosts, setPendingPosts] = useState(0);
+  const maxSeqRef = useRef(0);
+  const loadVersionRef = useRef(0);
 
   // Sync if initialProjectId changes
   useEffect(() => {
@@ -181,41 +169,49 @@ export default function HubPanel({
 
   const load = useCallback(
     async (pid: string) => {
+      const version = ++loadVersionRef.current;
       setLoading(true);
       try {
         const [res, agentRows] = await Promise.all([api.hubPosts(pid), api.listAgents(pid)]);
+        if (version !== loadVersionRef.current) return;
         setPosts(res.posts);
+        const fetchedThrough = res.posts.reduce((max, post) => Math.max(max, post.seq), 0);
+        setPendingPosts(maxSeqRef.current > fetchedThrough ? 1 : 0);
+        maxSeqRef.current = Math.max(maxSeqRef.current, fetchedThrough);
         setAgents(agentRows);
         setLoadedPid(pid);
       } catch (e) {
         onToast('error', e instanceof Error ? e.message : String(e));
       } finally {
-        setLoading(false);
+        if (version === loadVersionRef.current) setLoading(false);
       }
     },
     [onToast],
   );
 
   useEffect(() => {
+    ++loadVersionRef.current;
     setPosts([]);
     setAgents([]);
     setLoadedPid(null);
     setSelectedTopic(null);
     setReplyTo(null);
+    maxSeqRef.current = 0;
+    setPendingPosts(0);
     if (projectId) void load(projectId);
+    return () => { ++loadVersionRef.current; };
   }, [projectId, load]);
 
-  // Live tail: open the project SSE stream once the initial projection is in,
-  // starting after the loaded high-watermark; append new hub.posted by id.
-  const maxSeqRef = useRef(0);
-  maxSeqRef.current = posts.reduce((m, p) => Math.max(m, p.seq), 0);
+  // Keep the browsed forum page stable. New posts are a refresh indicator,
+  // rather than an ever-growing second event history.
   useEffect(() => {
     if (!projectId || loadedPid !== projectId) return;
     const source = streamProject(projectId, maxSeqRef.current, {
       onEvent: (e) => {
         if (e.type !== 'hub.posted') return;
-        const post = postFromEvent(e);
-        setPosts((prev) => (prev.some((p) => p.id === post.id) ? prev : [...prev, post]));
+        if (e.seq <= maxSeqRef.current) return;
+        maxSeqRef.current = e.seq;
+        setPendingPosts((count) => Math.min(count + 1, 10000));
       },
     });
     return () => source.close();
@@ -296,7 +292,7 @@ export default function HubPanel({
         ...(toAgent.trim() ? { to_agent: toAgent.trim() } : {}),
         ...(replyTo ? { parent_id: replyTo.id } : {}),
       });
-      setPosts((prev) => (prev.some((p) => p.id === res.post.id) ? prev : [...prev, res.post]));
+      await load(projectId);
       setSelectedTopic(res.post.topic);
       setContent('');
       setToAgent('');
@@ -418,6 +414,11 @@ export default function HubPanel({
           </div>
 
           <div className="hub-main">
+            {pendingPosts > 0 && (
+              <button className="btn outline sm" disabled={loading} onClick={() => projectId && void load(projectId)}>
+                {pendingPosts >= 10000 ? '10,000+' : pendingPosts} new posts · refresh latest
+              </button>
+            )}
             <div className="hub-posts">
               {loading && posts.length === 0 && <div className="hub-empty">{t.hubLoadingPosts}</div>}
               {!loading && posts.length === 0 && (

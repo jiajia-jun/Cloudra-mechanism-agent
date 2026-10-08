@@ -22,6 +22,25 @@ from cloudra.runtime_v2.turn_pipeline import LLMResponse, TurnPipeline
 from tests.notice_support import commit_notices
 
 
+def test_notice_restore_reads_only_context_projection_events(monkeypatch):
+    log = EventLog(strict=True)
+    log.append("context.pin_set", stream="agent", project_id="p", session_id="s",
+               data={"key": "goal", "content": "retained pin"})
+    log.append("agent.warning", stream="agent", project_id="p", session_id="s",
+               data={"content": "irrelevant large audit payload"})
+
+    def reject_full_history(_self):
+        raise AssertionError("notice restore must not decode unrelated event history")
+
+    monkeypatch.setattr(EventLog, "__iter__", reject_full_history)
+    notices = NoticeManager()
+    notices.restore_from(log)
+    assert notices.pin_content("s", "goal") == "retained pin"
+    notices.push("s", "after restore")
+    notices.collect_batch("s", fresh=False)
+    assert notices.pending_batch("s")[1] == 3
+
+
 def test_unchanged_pin_is_not_repeated():
     notices = NoticeManager()
     notices.pin("s1", "goal", "first")

@@ -465,7 +465,7 @@ def _decide_inject_agent_message(core: RuntimeCore, command: Command) -> Decisio
 _CANCEL_TERMINAL_STATES = {AgentState.SUCCEEDED, AgentState.FAILED, AgentState.CANCELLED}
 
 
-def _live_descendants(core: RuntimeCore, session_id: str) -> list[AgentSession]:
+def _live_descendants(core: RuntimeCore, session_id: str, *, parked_sessions: set[str] | None = None) -> list[AgentSession]:
     """全部存活（非终态）后代，父先子后（BFS，深度不设限）。
 
     今天的 spawn 规则只有 Coordinator 能派生（结构深度 1），但级联按树走，
@@ -484,7 +484,7 @@ def _live_descendants(core: RuntimeCore, session_id: str) -> list[AgentSession]:
         for child in by_parent.get(current, ()):
             if child.id in visited or (
                 child.state in _CANCEL_TERMINAL_STATES
-                and not is_background_parked(core, child)
+                and not (child.id in parked_sessions if parked_sessions is not None else is_background_parked(core, child))
             ):
                 continue
             visited.add(child.id)
@@ -532,11 +532,11 @@ def _cancel_agent_drafts(
     return drafts
 
 
-def _decide_cancel_agent(core: RuntimeCore, command: Command) -> Decision:
+def _decide_cancel_agent(core: RuntimeCore, command: Command, *, parked_sessions: set[str] | None = None) -> Decision:
     agent = core.require_agent(command.target.get("session_id", ""))
     # background parked 判定只求值一次：它要扫事件日志，而且下面「拒绝」与「级联」
     # 两条路径必须看同一个值，否则两处判据会被分别编辑而漂移。
-    parked = is_background_parked(core, agent)
+    parked = agent.id in parked_sessions if parked_sessions is not None else is_background_parked(core, agent)
     cancel_drafts = plan_cancel(
         agent, allow_parked=parked
     )  # genuine succeeded/failed reject; parked succeeded is still live
@@ -546,7 +546,7 @@ def _decide_cancel_agent(core: RuntimeCore, command: Command) -> Decision:
     # 取消级联（C2）：父取消时全部存活后代一并落 cancelled 终态——异步
     # （is_wait=False）子 agent 不再跑到完成空烧 LLM/计算。子的完成回传按
     # park-don't-wake 纪律投递信箱驻留，绝不唤醒已取消的父。
-    descendants = _live_descendants(core, agent.id)
+    descendants = _live_descendants(core, agent.id, parked_sessions=parked_sessions)
     drafts: list[EventDraft] = _cancel_agent_drafts(
         agent, actor=command.actor, message=message, cause="explicit",
         allow_parked=parked,
@@ -571,7 +571,7 @@ def _decide_cancel_agent(core: RuntimeCore, command: Command) -> Decision:
                 message=None,
                 cause="parent_cancelled",
                 parent_session_id=agent.id,
-                allow_parked=is_background_parked(core, child),
+                allow_parked=child.id in parked_sessions if parked_sessions is not None else is_background_parked(core, child),
             )
         )
     # 效果顺序：先停 launch group（不再 spawn 新子 agent），再取消父的
@@ -724,7 +724,7 @@ async def _compact_agent(core: RuntimeCore, command: Command) -> CommandResult:
     # pending_compactions 是 compaction.requested 的事件投影：唯一写入点是
     # apply_event（这里），消费在 runner 的轮次边界。
     apply_event(core, envelope)
-    return CommandResult(command_id=command.command_id, event_id=_last_event_id(core), data=agent)
+    return CommandResult(command_id=command.command_id, event_id=await asyncio.to_thread(_last_event_id, core), data=agent)
 
 
 async def _decide_approval(core: RuntimeCore, command: Command) -> CommandResult:
@@ -738,7 +738,7 @@ async def _decide_approval(core: RuntimeCore, command: Command) -> CommandResult
     await core.pending.decide_approval(project_id, approval_id, decision, str(payload.get("reason") or ""))
     return CommandResult(
         command_id=command.command_id,
-        event_id=_last_event_id(core),
+        event_id=await asyncio.to_thread(_last_event_id, core),
         data={"approval_id": approval_id, "decision": decision},
     )
 
@@ -752,7 +752,7 @@ async def _respond_interaction(core: RuntimeCore, command: Command) -> CommandRe
         str(payload.get("interaction_id") or ""),
         str(payload.get("response") or ""),
     )
-    return CommandResult(command_id=command.command_id, event_id=_last_event_id(core), data=record)
+    return CommandResult(command_id=command.command_id, event_id=await asyncio.to_thread(_last_event_id, core), data=record)
 
 
 async def _inject_context(core: RuntimeCore, command: Command) -> CommandResult:
@@ -782,7 +782,7 @@ async def _inject_context(core: RuntimeCore, command: Command) -> CommandResult:
         core.notices.push(agent.id, content)
     else:
         raise CommandRejected("invalid_request", f"unknown inject kind {kind!r}")
-    return CommandResult(command_id=command.command_id, event_id=_last_event_id(core), data=agent)
+    return CommandResult(command_id=command.command_id, event_id=await asyncio.to_thread(_last_event_id, core), data=agent)
 
 
 WRAPPERS: dict[str, Wrapper] = {
@@ -794,7 +794,7 @@ WRAPPERS: dict[str, Wrapper] = {
 
 
 def _last_event_id(core: RuntimeCore) -> str:
-    events = list(core.event_log)
+    events = core.event_log.events_since(max(0, len(core.event_log) - 1))
     return events[-1].event_id if events else ""
 
 
@@ -942,7 +942,20 @@ class CommandBus:
                     )
             if decider is not None:
                 # 拍 1：纯 decide（守卫校验在这里抛 CommandRejected）
-                decision = decider(core, command)
+                if decider is _decide_cancel_agent:
+                    # Query history off-loop, then validate the captured event
+                    # boundary before making the pure decision atomically.
+                    while True:
+                        boundary = len(core.event_log)
+                        candidates = [agent.model_copy(deep=True) for agent in core.agents.values()]
+                        parked = await asyncio.to_thread(lambda: {
+                            agent.id for agent in candidates if is_background_parked(core, agent)
+                        })
+                        if boundary == len(core.event_log):
+                            break
+                    decision = _decide_cancel_agent(core, command, parked_sessions=parked)
+                else:
+                    decision = decider(core, command)
                 # 拍 2-4：落日志/发布/持久化 → apply → effects
                 result = await self._apply_decision(command, decision)
             else:

@@ -26,6 +26,7 @@ the turn pipeline; the state machine itself is handle-agnostic.
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Any
 
 from cloudra.runtime_v2.apply import apply_event
@@ -421,10 +422,10 @@ class AgentHost:
             # Only our durable envelopes can survive the tail discard. Keep
             # the live projection aligned with that prefix, even when the
             # failure was inside our batch rather than in a concurrent tail.
-            durable = [
+            durable = await asyncio.to_thread(lambda: [
                 envelope for envelope in envelopes
                 if self.event_log.get(envelope.event_id) is not None
-            ]
+            ])
             for envelope in durable:
                 apply_event(self.core, envelope)
             await self.core.event_writer.publish_persisted()

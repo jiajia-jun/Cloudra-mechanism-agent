@@ -49,6 +49,14 @@ class NoticeManager:
         self._event_log: EventLog | None = None
         self._project_of: Callable[[str], str | None] | None = None
 
+    def prune_sessions(self, session_ids: set[str]) -> None:
+        """Discard every notice projection for sessions removed by a tombstone."""
+        for mapping in (
+            self._pins, self._changes, self._consumed, self._pending_batches, self._local_seqs,
+        ):
+            for session_id in mapping.keys() - session_ids:
+                mapping.pop(session_id)
+
     def attach(
         self,
         event_log: EventLog,
@@ -94,7 +102,10 @@ class NoticeManager:
         self._consumed.clear()
         self._pending_batches.clear()
         self._local_seqs.clear()
-        for event in event_log:
+        self._local_seqs.update(event_log.high_session_watermarks)
+        for event in event_log.iter_events(types={
+            "context.pin_set", "context.pin_cleared", "context.injected", "context.appended",
+        }):
             if event.session_id is None:
                 continue
             session_id = event.session_id

@@ -40,7 +40,9 @@ ACTIVITY_EVENT_TYPES = CALL_EVENT_TYPES | {
 }
 
 
-def tool_receipts(events: Iterable[EventEnvelope], *, details: bool = True) -> list[dict[str, Any]]:
+def tool_receipts(
+    events: Iterable[EventEnvelope], *, details: bool = True, request_event_id: str | None = None
+) -> list[dict[str, Any]]:
     """Each request is an attempt, even if the wire call ID is reused.
 
     Events must be in project sequence order. A raw result is accepted only
@@ -57,6 +59,9 @@ def tool_receipts(events: Iterable[EventEnvelope], *, details: bool = True) -> l
         run_key = (event.session_id, event.run_id)
         key = (*run_key, data.get("tool_call_id"))
         if kind == "tool.requested":
+            if request_event_id is not None and event.event_id != request_event_id:
+                current.pop(key, None)
+                continue
             row = {
                 "request_event_id": event.event_id,
                 "request_seq": event.session_seq,
@@ -66,7 +71,7 @@ def tool_receipts(events: Iterable[EventEnvelope], *, details: bool = True) -> l
                 "tool_call_id": data["tool_call_id"],
                 "tool_name": data["tool_name"],
                 "execution_id": data.get("execution_id"),
-                "arguments": data.get("arguments_summary"),
+                "arguments": data.get("arguments_summary") if details else None,
                 "effective_arguments": None,
                 "status": "queued",
                 "effect_state": "not_started",
@@ -145,7 +150,7 @@ def tool_receipts(events: Iterable[EventEnvelope], *, details: bool = True) -> l
             if details:
                 row["progress"].append(event.model_dump(mode="json"))
             row["waits"] = data.get("waits", [])
-            if data.get("effective_arguments") is not None:
+            if details and data.get("effective_arguments") is not None:
                 row["effective_arguments"] = data["effective_arguments"]
             row["compute_job_ids"].extend(data.get("compute_job_ids", []))
         elif kind in {"approval.requested", "interaction.requested"}:
@@ -158,7 +163,7 @@ def tool_receipts(events: Iterable[EventEnvelope], *, details: bool = True) -> l
                 row.update(status="running", waits=[])
         elif kind == "tool.result_recorded":
             row.update(
-                result=data["result"],
+                result=data["result"] if details else None,
                 raw_result_event_id=event.event_id,
                 result_availability="available",
                 effect_state="completed",
@@ -193,6 +198,11 @@ def tool_receipts(events: Iterable[EventEnvelope], *, details: bool = True) -> l
                 row["result_availability"] = "unavailable"
             if data.get("artifact_id"):
                 row["artifact_ids"].append(data["artifact_id"])
+        if not details:
+            text = row.get("result_summary")
+            if isinstance(text, str) and len(text) > 500:
+                row["result_summary"] = text[:500]
+                row["summary_truncated"] = True
     for row in receipts:
         row["compute_job_ids"] = list(dict.fromkeys(row["compute_job_ids"]))
     return receipts
@@ -213,7 +223,9 @@ def call_summary(row: dict) -> dict:
         }
     }
     text = summary.get("result_summary")
-    summary["summary_truncated"] = isinstance(text, str) and len(text) > 500
+    summary["summary_truncated"] = bool(summary.get("summary_truncated")) or (
+        isinstance(text, str) and len(text) > 500
+    )
     if summary["summary_truncated"]:
         summary["result_summary"] = text[:500]
     return summary

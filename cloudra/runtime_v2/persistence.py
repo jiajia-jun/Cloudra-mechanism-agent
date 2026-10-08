@@ -18,12 +18,13 @@ import contextlib
 import json
 import sqlite3
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterator
+from typing import TYPE_CHECKING, Any, Iterable, Iterator
 
 if TYPE_CHECKING:
     from cloudra.runtime_v2.core import RuntimeCore
 
 from cloudra.runtime_v2.apply import (
+    _APPLIERS,
     _strip_computed_fields,
     _strip_removed_agent_fields,
     apply_event,
@@ -63,6 +64,9 @@ CREATE TABLE IF NOT EXISTS meta (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS events_project_seq ON events(project_id, seq);
+CREATE INDEX IF NOT EXISTS events_session_seq ON events(session_id, session_seq);
+CREATE INDEX IF NOT EXISTS events_type ON events(type);
 """
 
 
@@ -76,7 +80,7 @@ CREATE TABLE IF NOT EXISTS meta (
 _INTERRUPTED_MESSAGE = "interrupted by process restart"
 
 
-def plan_interrupted_invocations(events: list[EventEnvelope]) -> list[EventDraft]:
+def plan_interrupted_invocations(events: Iterable[EventEnvelope]) -> list[EventDraft]:
     """Pure scan: terminal EventDrafts for unfinished tool/program lifecycles.
 
     - requested only            -> tool.finished(interrupted, not_started)
@@ -93,8 +97,17 @@ def plan_interrupted_invocations(events: list[EventEnvelope]) -> list[EventDraft
     by_request: dict[str, dict[str, EventEnvelope]] = {}
     current_requests: dict[tuple[str | None, str | None, str], str] = {}
     programs: dict[str, dict[str, Any]] = {}
+    program_calls: dict[str, dict[str, dict[str, Any]]] = {}
     for envelope in events:
         data = envelope.data or {}
+        # Recovery needs lifecycle identities, never raw tool payloads or JS
+        # source. Detach the small metadata before retaining an open attempt.
+        minimal = {key: data.get(key) for key in (
+            "tool_call_id", "tool_name", "execution_id", "request_event_id",
+            "status", "effect_state", "raw_result_event_id", "outer_tool_call_id",
+        ) if key in data}
+        envelope = envelope.model_copy(update={"data": minimal})
+        data = minimal
         if envelope.type.startswith("tool."):
             call_id = data.get("tool_call_id")
             if isinstance(call_id, str) and call_id:
@@ -102,6 +115,14 @@ def plan_interrupted_invocations(events: list[EventEnvelope]) -> list[EventDraft
                 if envelope.type == "tool.requested":
                     current_requests[key] = envelope.event_id
                     by_request[envelope.event_id] = {envelope.type: envelope}
+                    execution_id = data.get("execution_id")
+                    if isinstance(execution_id, str) and execution_id:
+                        program_calls.setdefault(execution_id, {})[envelope.event_id] = {
+                            "call_id": call_id, "request_event_id": envelope.event_id,
+                            "tool_name": data.get("tool_name"),
+                            "status": "interrupted", "effect_state": "unknown",
+                            "raw_result_event_id": None,
+                        }
                 else:
                     request_id = data.get("request_event_id") or current_requests.get(key)
                     kinds = by_request.get(request_id)
@@ -109,27 +130,31 @@ def plan_interrupted_invocations(events: list[EventEnvelope]) -> list[EventDraft
                         requested = kinds["tool.requested"]
                         if (requested.session_id, requested.run_id, requested.data["tool_call_id"]) == key:
                             kinds[envelope.type] = envelope
+                            if envelope.type == "tool.finished":
+                                execution_id = requested.data.get("execution_id")
+                                if execution_id in program_calls:
+                                    receipt = program_calls[execution_id].get(request_id)
+                                    if receipt is not None:
+                                        receipt.update({
+                                            "status": data.get("status"),
+                                            "effect_state": data.get("effect_state"),
+                                            "raw_result_event_id": data.get("raw_result_event_id"),
+                                        })
+                                by_request.pop(request_id)
+                                if current_requests.get(key) == request_id:
+                                    current_requests.pop(key)
         elif envelope.type == "program.submitted":
             execution_id = data.get("execution_id")
             if isinstance(execution_id, str) and execution_id:
-                programs[execution_id] = {"submitted": envelope, "finished": False}
+                programs[execution_id] = {"submitted": envelope}
         elif envelope.type == "program.finished":
             execution_id = data.get("execution_id")
-            if isinstance(execution_id, str) and execution_id in programs:
-                programs[execution_id]["finished"] = True
+            if isinstance(execution_id, str):
+                programs.pop(execution_id, None)
+                program_calls.pop(execution_id, None)
 
     drafts: list[EventDraft] = []
-    closed: dict[str, dict[str, Any]] = {}  # request event ID -> terminal projection
     for request_id, kinds in by_request.items():
-        finished = kinds.get("tool.finished")
-        if finished is not None:
-            data = finished.data
-            closed[request_id] = {
-                "status": data.get("status"),
-                "effect_state": data.get("effect_state"),
-                "raw_result_event_id": data.get("raw_result_event_id"),
-            }
-            continue
         requested = kinds.get("tool.requested")
         if requested is None:
             continue  # orphan mid-lifecycle rows cannot be scoped reliably
@@ -154,11 +179,16 @@ def plan_interrupted_invocations(events: list[EventEnvelope]) -> list[EventDraft
             "raw_result_event_id": recorded.event_id if recorded is not None else None,
             "error": {"code": "interrupted", "message": _INTERRUPTED_MESSAGE},
         }
-        closed[request_id] = {
+        terminal = {
             "status": "interrupted",
             "effect_state": effect_state,
             "raw_result_event_id": data["raw_result_event_id"],
         }
+        execution_id = requested.data.get("execution_id")
+        if execution_id in program_calls:
+            receipt = program_calls[execution_id].get(request_id)
+            if receipt is not None:
+                receipt.update(terminal)
         drafts.append(
             EventDraft(
                 "tool.finished",
@@ -171,25 +201,8 @@ def plan_interrupted_invocations(events: list[EventEnvelope]) -> list[EventDraft
         )
 
     for execution_id, info in programs.items():
-        if info["finished"]:
-            continue
         submitted = info["submitted"]
-        receipts = []
-        for request_id, kinds in by_request.items():
-            requested = kinds.get("tool.requested")
-            if requested is None or requested.data.get("execution_id") != execution_id:
-                continue
-            terminal = closed.get(request_id) or {}
-            receipts.append(
-                {
-                    "call_id": requested.data["tool_call_id"],
-                    "request_event_id": request_id,
-                    "tool_name": requested.data.get("tool_name"),
-                    "status": terminal.get("status") or "interrupted",
-                    "effect_state": terminal.get("effect_state") or "not_started",
-                    "raw_result_event_id": terminal.get("raw_result_event_id"),
-                }
-            )
+        receipts = list(program_calls.get(execution_id, {}).values())
         drafts.append(
             EventDraft(
                 "program.finished",
@@ -266,6 +279,131 @@ class RuntimeStore:
             return con.execute(
                 "SELECT 1 FROM events WHERE event_id = ? LIMIT 1", (event_id,)
             ).fetchone() is not None
+
+    @staticmethod
+    def _envelope(row) -> EventEnvelope:
+        return EventEnvelope.model_validate({
+            "event_id": row[0], "stream": row[1], "project_id": row[2],
+            "session_id": row[3], "run_id": row[4], "seq": row[5],
+            "session_seq": row[6], "type": row[7],
+            "data": json.loads(row[8]), "created_at": row[9],
+        })
+
+    def get_event(self, event_id: str) -> EventEnvelope | None:
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT event_id, stream, project_id, session_id, run_id, seq, session_seq, type, data, created_at "
+                "FROM events WHERE event_id = ?", (event_id,),
+            ).fetchone()
+        return self._envelope(row) if row is not None else None
+
+    def event_metadata(self) -> tuple[int, dict[str, int], dict[str, int]]:
+        with self._connect() as con:
+            count = con.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+            projects = dict(con.execute("SELECT project_id, MAX(seq) FROM events GROUP BY project_id"))
+            sessions = dict(con.execute(
+                "SELECT session_id, MAX(session_seq) FROM events WHERE session_id IS NOT NULL GROUP BY session_id"
+            ))
+        return count, projects, {k: int(v or 0) for k, v in sessions.items()}
+
+    def iter_events(
+        self, *, project_id: str | None = None, session_id: str | None = None,
+        after_seq: int = 0, before_seq: int | None = None,
+        after_session_seq: int = -1, before_session_seq: int | None = None,
+        types: Iterable[str] | None = None, stop_index: int | None = None,
+        start_index: int = 0,
+        last_seqs: dict[str, int] | None = None,
+        limit: int | None = None, tail: bool = False,
+    ) -> Iterator[EventEnvelope]:
+        """Stream a fixed history prefix; callers consume in a worker thread.
+
+        Payloads are decoded one at a time, including large raw tool outputs.
+        SQL pagination limits allocations before JSON decoding.
+        """
+        if stop_index is not None and stop_index <= 0:
+            return
+        conditions, params = [], []
+        for column, value in (("project_id", project_id), ("session_id", session_id)):
+            if value is not None:
+                conditions.append(f"{column} = ?")
+                params.append(value)
+        conditions.append("seq > ?")
+        params.append(after_seq)
+        if before_seq is not None:
+            conditions.append("seq <= ?")
+            params.append(before_seq)
+        if session_id is not None:
+            conditions.append("COALESCE(session_seq, 0) > ?")
+            params.append(after_session_seq)
+        if before_session_seq is not None:
+            conditions.append("COALESCE(session_seq, 0) <= ?")
+            params.append(before_session_seq)
+        if types is not None:
+            wanted = tuple(types)
+            if not wanted:
+                return
+            conditions.append("type IN (" + ",".join("?" for _ in wanted) + ")")
+            params.extend(wanted)
+        if last_seqs:
+            # A missing project postdates the snapshot and is replayed from 0.
+            conditions.append("(" + " OR ".join(
+                ["(project_id = ? AND seq > ?)" for _ in last_seqs]
+                + ["project_id NOT IN (" + ",".join("?" for _ in last_seqs) + ")"]
+            ) + ")")
+            for key, seq in last_seqs.items():
+                params.extend((key, seq))
+            params.extend(last_seqs)
+        order = "DESC" if tail else "ASC"
+        with self._connect() as con:
+            upper_rowid = con.execute("SELECT COALESCE(MAX(rowid), 0) FROM events").fetchone()[0]
+            if stop_index is not None:
+                row = con.execute("SELECT rowid FROM events ORDER BY rowid LIMIT 1 OFFSET ?", (stop_index - 1,)).fetchone()
+                if row is not None:
+                    upper_rowid = row[0]
+            lower_rowid = 0
+            if start_index > 0:
+                row = con.execute("SELECT rowid FROM events ORDER BY rowid LIMIT 1 OFFSET ?", (start_index - 1,)).fetchone()
+                if row is None:
+                    return
+                lower_rowid = row[0]
+        conditions.append("rowid <= ?")
+        params.append(upper_rowid)
+        conditions.append("rowid > ?")
+        params.append(lower_rowid)
+        position = upper_rowid + 1 if tail else lower_rowid
+        remaining = limit
+        while remaining is None or remaining > 0:
+            page_limit = min(64, remaining) if remaining is not None else 64
+            sql = (
+                "SELECT event_id, stream, project_id, session_id, run_id, seq, session_seq, type, data, created_at, rowid "
+                "FROM events WHERE " + " AND ".join(conditions)
+                + (" AND rowid < ?" if tail else " AND rowid > ?")
+                + f" ORDER BY rowid {order} LIMIT ?"
+            )
+            # Close before yielding: successive pages may be consumed by
+            # different asyncio worker threads. Cap bytes as well as row count.
+            rows, page_bytes = [], 0
+            with self._connect() as con:
+                cursor = con.execute(sql, [*params, position, page_limit])
+                while len(rows) < page_limit:
+                    row = cursor.fetchone()
+                    if row is None:
+                        break
+                    rows.append(row)
+                    page_bytes += len(row[8])
+                    if page_bytes >= 512 * 1024:
+                        break
+            if not rows:
+                break
+            position = rows[-1][-1]
+            for row in rows:
+                yield self._envelope(row)
+            if remaining is not None:
+                remaining -= len(rows)
+
+    def read_events(self, *, tail: bool = False, **filters) -> list[EventEnvelope]:
+        events = list(self.iter_events(tail=tail, **filters))
+        return list(reversed(events)) if tail else events
 
     def save_snapshot(
         self,
@@ -449,30 +587,28 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
         for agent in core.agents.values():
             core.mailbox.ensure_inbox(agent.id)
 
-    raw_events = store.events_after(last_seqs)
-    envelopes = [EventEnvelope.model_validate(raw) for raw in raw_events]
-    # Backfill the full event history into the in-memory log so transcripts
-    # and per-session queries survive restarts; only post-snapshot events
-    # drive state replay.  restore() keeps seq counters monotonic via max().
-    backfill = [EventEnvelope.model_validate(raw) for raw in store.events_after({})]
-    core.event_log.restore(backfill)
+    core.event_log.restore_from_store(store)
     # The backfilled history is already durable and was published by the dead
     # process: keep the shared writer from re-persisting/re-publishing it.
     # Recovery events appended below this point stay live for the writer.
     core.event_writer.mark_restored()
-    for envelope in envelopes:
+    for envelope in store.iter_events(last_seqs=last_seqs, types=_APPLIERS):
         apply_event(core, envelope)
     # Notice pins are event-sourced too: rebuild them from the full
     # projection (未消费的 push 变更同样恢复；已消费的由游标挡回——见
     # notices.restore_from 的批次/游标语义）。
     core.notices.restore_from(core.event_log)
+    core.prune_orphaned_state()
     _rebuild_inboxes_from_events(core)
 
     # Unfinished tool/program lifecycles left by the dead process close as
     # interrupted (children before programs) — facts only, never a replay of
     # executors, JS processes or scheduler jobs.
     new_events = []
-    for draft in plan_interrupted_invocations(list(core.event_log)):
+    for draft in plan_interrupted_invocations(store.iter_events(types={
+        "tool.requested", "tool.started", "tool.result_recorded", "tool.finished",
+        "program.submitted", "program.finished",
+    })):
         envelope = core.event_log.append(
             draft.type,
             stream=draft.stream,
@@ -614,7 +750,7 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
     posts = []
     posts_by_id = {}
     delivered_posts: set[tuple[str, str]] = set()
-    for event in core.event_log:
+    for event in core.event_log.iter_events(types={"hub.posted", "agent.message_injected"}):
         if event.type == "hub.posted":
             posts.append(event)
             posts_by_id[event.event_id] = event
@@ -709,6 +845,8 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
             new_events.append(item_envelope)
     for envelope in new_events:
         store.append_event(envelope)
+        core.event_log.mark_persisted(core.event_log._durable_count + 1, envelope)
+    core.event_writer.mark_recovery_persisted()
     # 落库成功之后才把恢复期组装的完成回传放进父信箱（持久化先于可见）。
     for session_id, payload in pending_inbox:
         core.mailbox.ensure_inbox(session_id).put_nowait(payload)
@@ -744,7 +882,7 @@ def _rebuild_inboxes_from_events(core: RuntimeCore) -> None:
         }
 
     seen_enqueued: dict[str, set[str]] = {}
-    for envelope in core.event_log:
+    for envelope in core.event_log.iter_events(types={"agent.message_injected"}):
         if envelope.type != "agent.message_injected":
             continue
         session_id = envelope.session_id

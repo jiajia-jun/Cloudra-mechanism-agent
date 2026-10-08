@@ -44,7 +44,7 @@ def test_endpoint_revision_retains_independent_completed_branch(tmp_path):
     assert [ref.stage_key for ref in receipt.invalidated] == ['reactant_opt', 'reactant_frequency']
 
 
-def test_failed_scan_can_revise_without_recovery_evidence(tmp_path):
+def test_failed_scan_point_count_change_preserves_failure_without_recovery_evidence(tmp_path):
     from cloudra.tools.core.ts_process import TsBlocked, TsJobStep
     from cloudra.tools.core.ts_revision import plan_input_revision, revise_record
     record = record_fixture(tmp_path, stage='guess', blocked=TsBlocked(stage='guess', failure_class='scan_job_failed', message='native failure'))
@@ -52,12 +52,10 @@ def test_failed_scan_can_revise_without_recovery_evidence(tmp_path):
     guess = record.input.guess.model_dump(mode='json')
     guess['scans'][0]['scan_steps'] = 8
     change = request(record, {'guess': guess})
-    revised = revise_record(record, change, plan_input_revision(record, change))
-    assert revised.run_id == record.run_id
-    assert revised.scan_step is None and revised.blocked is None
-    assert revised.terminal is None
-    assert revised.attempt_history[-1].job_steps[-1].job_id == 7
-    assert revised.attempt_history[-1].blocked.failure_class == 'scan_job_failed'
+    with pytest.raises(ValueError, match='recovery evidence'):
+        revise_record(record, change, plan_input_revision(record, change))
+    assert record.blocked.failure_class == 'scan_job_failed'
+    assert record.attempt_history == []
     assert record.scan_step.state == 'failed'
 
 
@@ -191,7 +189,7 @@ def test_custom_derivative_binding_is_preserved_in_revision_receipt(tmp_path):
     assert receipt.invalidated[0].stage_key == 'candidate_constraints:point'
 
 
-def test_failed_job_allows_same_input_retry_without_extra_calculation_proof(tmp_path):
+def test_failed_scan_same_input_retry_requires_recovery_evidence(tmp_path):
     from cloudra.persistence.database import ComputeDB
     from cloudra.services.compute_store import insert_compute_job
     from cloudra.services.ts_pipeline_context import use_pipeline_database
@@ -205,10 +203,11 @@ def test_failed_job_allows_same_input_retry_without_extra_calculation_proof(tmp_
         scan_step=TsJobStep(purpose='scan', job_id=failed, input_path=str(old),state='failed'))
     change = request(record, {})
     with use_pipeline_database(db):
-        revised = revise_record(record,change,plan_input_revision(record,change))
-    assert revised.scan_step is None and revised.blocked is None
-    assert revised.run_id == record.run_id
-    assert revised.attempt_history[-1].blocked.failure_class == 'scan_job_failed'
+        with pytest.raises(ValueError, match='recovery evidence'):
+            revise_record(record,change,plan_input_revision(record,change))
+    assert record.scan_step.job_id == failed
+    assert record.blocked.failure_class == 'scan_job_failed'
+    assert record.attempt_history == []
     with db.connect() as con:
         assert con.execute('SELECT state FROM compute_jobs WHERE id=?',(failed,)).fetchone()[0] == 'failed'
         assert con.execute('SELECT COUNT(*) FROM compute_jobs').fetchone()[0] == 1
@@ -264,7 +263,7 @@ def test_intervention_limit_blocks_changes_without_erasing_history(tmp_path):
     assert record.intervention_count==1
 
 
-@pytest.mark.parametrize('purpose,stage,restart', [('ts_opt','refine','submit'), ('frequency','verdict','refine'), ('scan','guess','guess')])
+@pytest.mark.parametrize('purpose,stage,restart', [('ts_opt','refine','submit'), ('frequency','verdict','refine')])
 def test_same_input_retry_restarts_at_failed_job_producer(tmp_path, purpose, stage, restart):
     from cloudra.tools.core.ts_process import TsJobStep, _record_candidate_failure
     from cloudra.tools.core.ts_revision import plan_input_revision, revise_record

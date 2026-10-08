@@ -98,8 +98,7 @@ function assertAccepted<T>(resp: CommandResponse<T>, fallback: string): CommandR
 // keeps, and O(1) instead of paging the entire session.
 export const EVENTS_WINDOW = 500;
 // One backwards page of older history loaded per "load earlier" click in the
-// chat transcript; same size as the live window so one click visibly doubles
-// the transcript.
+  // chat transcript. Only the displayed page is retained.
 export const HISTORY_PAGE_SIZE = 500;
 
 export const api = {
@@ -195,12 +194,14 @@ export const api = {
    * session_seq cursor (backwards paging). */
   eventsPage: (
     agentId: string,
-    opts: { before?: number; limit?: number } = {},
+    opts: { before?: number; after?: number; limit?: number; tail?: boolean } = {},
   ) => {
-    const { before, limit = 200 } = opts;
-    const q = `after=0&limit=${limit}&tail=true${before != null ? `&before=${before}` : ''}`;
+    const { before, after = 0, limit = 200, tail = true } = opts;
+    const q = `after=${after}&limit=${limit}&tail=${tail}${before != null ? `&before=${before}` : ''}`;
     return request<EventEnvelope[]>(`/api/v2/agents/${agentId}/events?${q}`);
   },
+  eventDetail: (agentId: string, eventId: string) =>
+    request<EventEnvelope>(`/api/v2/agents/${encodeURIComponent(agentId)}/events/${encodeURIComponent(eventId)}`),
   sendMessage: async (
     agentId: string,
     content: string,

@@ -52,6 +52,12 @@ def runtime_db_path(data_dir: Optional[PathLike] = None) -> Path:
     return _root(data_dir) / "runtime-v2.db"
 
 
+def runtime_api_lock_path(store_path: PathLike) -> Path:
+    """One API state owner per canonical runtime database, independent of port."""
+    database = Path(store_path).resolve()
+    return database.with_name(f".{database.name}.api.lock")
+
+
 def api_token_path(data_dir: Optional[PathLike] = None) -> Path:
     """本地 API bearer token 文件路径（.api_token，0600）。"""
     return _root(data_dir) / ".api_token"

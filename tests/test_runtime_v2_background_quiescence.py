@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
 import time
 
 import pytest
@@ -63,6 +64,40 @@ def _notices(core, parent, kind):
         )
         if (event.data.get("manifest") or {}).get("kind") == kind
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mutation", ["spawn", "delete"])
+async def test_parked_history_check_survives_concurrent_registry_changes(tmp_path, monkeypatch, mutation):
+    from cloudra.runtime_v2 import agent_host
+
+    core, runner, _bus, project, parent = await _setup(tmp_path)
+    await _finish(core, parent, "wait_background")
+    entered, release = threading.Event(), threading.Event()
+    original = agent_host.is_background_parked
+    first = True
+
+    def delayed_check(runtime, agent):
+        nonlocal first
+        if first and agent.id == parent.id:
+            first = False
+            entered.set()
+            assert release.wait(5), "test must release the history worker"
+        return original(runtime, agent)
+
+    monkeypatch.setattr(agent_host, "is_background_parked", delayed_check)
+    task = asyncio.create_task(runner.maybe_wake_parked_delivery(project.id))
+    assert await asyncio.to_thread(entered.wait, 5)
+    if mutation == "spawn":
+        core.agents["other"] = parent.model_copy(update={"id": "other", "project_id": "other-project"})
+    else:
+        core.agents.pop(parent.id)
+    release.set()
+    await task
+    if mutation == "delete":
+        assert not _notices(core, parent, "background_quiescence")
+    else:
+        assert parent.state.value == "running"
 
 
 @pytest.mark.asyncio

@@ -10,6 +10,7 @@ import asyncio
 import hmac
 import logging
 import os
+import weakref
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Optional
@@ -301,48 +302,48 @@ def create_v2_app(
         # 守护自愈与拉起从新一轮生命周期重新开始。
         from cloudra.services.daemon_supervisor import clear_daemons_shutdown
 
-        clear_daemons_shutdown()
-        await core.reminders.rearm_all()
-        await core.email_listener.start()
-        await compute_notify.start()
-        if getattr(core, "task_describer", None) is not None:
-            core.task_describer.start()
-        # 事件驱动督导的恢复接线（Task 3 挂点，Task 4 补测试矩阵）：
-        # 项目装载后扫描持久化督导待办并补通知（覆盖"落库后通知前崩溃"
-        # 窗口），含 legacy_auto 待办的一次性 Coordinator 提示。只在
-        # dag_guided 项目上做；standard/dag_record 不消费督导信箱。
-        # auto_wake=False：只驻留信箱/pin，不 spawn、不把休眠督导或协调者
-        # 打进 LLM（issue #35）。显式 resume / 在线切回 guided 才开跑。
-        from cloudra.runtime_v2.schemas import OrchestrationMode
-        from cloudra.runtime_v2.supervision import reconcile_supervision
-
-        for project in list(core.projects.values()):
-            if project.settings.orchestration_mode is not OrchestrationMode.DAG_GUIDED:
-                # 继承模型下项目字段只是默认值：agent 显式覆盖仍可处在
-                # guided（spawn settings / settings_update 显式钉），其持久
-                # 督导待办同样需要补通知。
-                if not any(
-                    agent.project_id == project.id
-                    and agent.settings.orchestration_mode is OrchestrationMode.DAG_GUIDED
-                    for agent in core.agents.values()
-                ):
-                    continue
-            try:
-                await reconcile_supervision(core, project.id, auto_wake=False)
-            except Exception:
-                logger.warning(
-                    "supervision reconcile failed for project %s", project.id,
-                    exc_info=True,
-                )
-        # 计算认领只由独立守护进程（cloudra scheduler）承担，与 API 分家；
-        # web 启动时无活实例会自动 detach 拉起（web_launcher），之后由下面的
-        # 自愈巡检兜底重拉起（CLOUDRA_DAEMON_WATCHDOG=off 关闭，测试默认关）。
         watchdog_task: asyncio.Task | None = None
-        if os.environ.get("CLOUDRA_DAEMON_WATCHDOG", "").strip().lower() not in {"off", "0", "false"}:
-            watchdog_task = asyncio.create_task(
-                _daemon_watchdog_loop(_daemon_watchdog_interval()), name="daemon-watchdog"
-            )
         try:
+            await asyncio.to_thread(clear_daemons_shutdown)
+            await core.reminders.rearm_all()
+            await core.email_listener.start()
+            await compute_notify.start()
+            if getattr(core, "task_describer", None) is not None:
+                core.task_describer.start()
+            # 事件驱动督导的恢复接线（Task 3 挂点，Task 4 补测试矩阵）：
+            # 项目装载后扫描持久化督导待办并补通知（覆盖"落库后通知前崩溃"
+            # 窗口），含 legacy_auto 待办的一次性 Coordinator 提示。只在
+            # dag_guided 项目上做；standard/dag_record 不消费督导信箱。
+            # auto_wake=False：只驻留信箱/pin，不 spawn、不把休眠督导或协调者
+            # 打进 LLM（issue #35）。显式 resume / 在线切回 guided 才开跑。
+            from cloudra.runtime_v2.schemas import OrchestrationMode
+            from cloudra.runtime_v2.supervision import reconcile_supervision
+
+            for project in list(core.projects.values()):
+                if project.settings.orchestration_mode is not OrchestrationMode.DAG_GUIDED:
+                    # 继承模型下项目字段只是默认值：agent 显式覆盖仍可处在
+                    # guided（spawn settings / settings_update 显式钉），其持久
+                    # 督导待办同样需要补通知。
+                    if not any(
+                        agent.project_id == project.id
+                        and agent.settings.orchestration_mode is OrchestrationMode.DAG_GUIDED
+                        for agent in core.agents.values()
+                    ):
+                        continue
+                try:
+                    await reconcile_supervision(core, project.id, auto_wake=False)
+                except Exception:
+                    logger.warning(
+                        "supervision reconcile failed for project %s", project.id,
+                        exc_info=True,
+                    )
+            # 计算认领只由独立守护进程（cloudra scheduler）承担，与 API 分家；
+            # web 启动时无活实例会自动 detach 拉起（web_launcher），之后由下面的
+            # 自愈巡检兜底重拉起（CLOUDRA_DAEMON_WATCHDOG=off 关闭，测试默认关）。
+            if os.environ.get("CLOUDRA_DAEMON_WATCHDOG", "").strip().lower() not in {"off", "0", "false"}:
+                watchdog_task = asyncio.create_task(
+                    _daemon_watchdog_loop(_daemon_watchdog_interval()), name="daemon-watchdog"
+                )
             yield
         finally:
             # 停止语义契约 3 的固定顺序：
@@ -373,10 +374,15 @@ def create_v2_app(
             # 3) 关闭 broker/客户端/流与持久化收尾。
             # 快照是缓存不是权威（事件表才是），但关机前补一次让下次 restore
             # 的增量尾巴尽量短；失败不阻断关停。
-            await bus.flush_snapshot()
-            await compute_notify.close()
-            await core.email_listener.close()
-            await core.reminders.close()
+            try:
+                await bus.flush_snapshot()
+            except Exception:
+                logger.exception("runtime snapshot failed during shutdown")
+            for close in (compute_notify.close, core.email_listener.close, core.reminders.close):
+                try:
+                    await close()
+                except Exception:
+                    logger.exception("%s failed during shutdown", close.__qualname__)
 
     app = FastAPI(title="Cloudra API v2", version=__version__, lifespan=lifespan)
     app.state.runtime_core = core
@@ -455,6 +461,44 @@ def create_v2_app(
 
 
 def create_default_v2_app(*, store_path: str | None = None) -> FastAPI:
+    """Create one authoritative API runtime per durable database."""
+    from cloudra.infra.flocks import try_acquire_lock
+    from cloudra.persistence.paths import runtime_api_lock_path
+
+    store_path = store_path or os.environ.get("CLOUDRA_RUNTIME_STORE") or None
+    if store_path is None:
+        return _build_default_v2_app(store_path=None)
+    lock_path = runtime_api_lock_path(store_path)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    fd = try_acquire_lock(str(lock_path))
+    if fd is None:
+        raise RuntimeError(
+            "This runtime database is already in use by another Cloudra service. "
+            "Close that service or use a different data directory."
+        )
+    try:
+        app = _build_default_v2_app(store_path=store_path)
+    except BaseException:
+        os.close(fd)
+        raise
+    release = weakref.finalize(app, os.close, fd)
+    original_lifespan = app.router.lifespan_context
+
+    @asynccontextmanager
+    async def owned_lifespan(application):
+        if not release.alive:
+            raise RuntimeError("This Cloudra runtime is already closed; create a fresh application to restart.")
+        try:
+            async with original_lifespan(application) as state:
+                yield state
+        finally:
+            await asyncio.to_thread(release)
+
+    app.router.lifespan_context = owned_lifespan
+    return app
+
+
+def _build_default_v2_app(*, store_path: str | None) -> FastAPI:
     """Production wiring: legacy LLM/tool bridges + policy stages + durability."""
     from cloudra.infra.logging_setup import setup_logging
     from cloudra.persistence import paths

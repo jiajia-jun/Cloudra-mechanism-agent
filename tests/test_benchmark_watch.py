@@ -449,7 +449,9 @@ async def test_long_running_task_finishes_without_duration_cancel(tmp_path, monk
     watcher = _watcher()
     monkeypatch.setattr(
         watch_module, "asyncio",
-        SimpleNamespace(get_running_loop=lambda: SimpleNamespace(time=lambda: now)),
+        SimpleNamespace(
+            get_running_loop=lambda: SimpleNamespace(time=lambda: now), to_thread=asyncio.to_thread,
+        ),
     )
 
     async def advance_work():

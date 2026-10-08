@@ -209,7 +209,7 @@ class RuntimeV2Backend:
         async def background_pending() -> bool:
             # compute.db 是计算作业的唯一权威；reminders 与子 agent 存活由
             # watcher 的 core 投影承担（子 agent 见 has_running_peers）。
-            if bool(core.reminders.pending(agent.id)):
+            if await asyncio.to_thread(core.reminders.pending, agent.id):
                 return True
             if await acount_active_compute_job_states(compute_db, agent.project_id):
                 return True

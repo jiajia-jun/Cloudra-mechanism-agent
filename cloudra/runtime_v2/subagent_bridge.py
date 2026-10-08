@@ -57,7 +57,9 @@ def build_child_completion_index(core) -> ChildCompletionIndex:
         "run.started", "run.finished", "agent.message_emitted",
         "agent.completion_gate", "agent.state_changed", "agent.cancelled",
     }
-    for event in core.event_log:
+    if not child_ids:
+        return ChildCompletionIndex(terminal_by_session, events_by_session, reported)
+    for event in core.event_log.iter_events(types=relevant | {"agent.message_injected"}):
         session_id = event.session_id
         if event.type == "agent.message_injected" and session_id:
             manifest = event.data.get("manifest")
@@ -175,7 +177,7 @@ async def _spawn_child(
 
 async def _await_terminal(core, session_id: str) -> AgentSession:
     agent = core.require_agent(session_id)
-    if child_final_event(core, agent) is not None:
+    if await asyncio.to_thread(child_final_event, core, agent) is not None:
         return agent
     done = asyncio.Event()
 
@@ -184,14 +186,14 @@ async def _await_terminal(core, session_id: str) -> AgentSession:
             envelope.type == "agent.state_changed"
             and envelope.session_id == session_id
             and envelope.data.get("to") in {s.value for s in _TERMINAL_STATES}
-            and child_final_event(core, core.require_agent(session_id)) is not None
+            and await asyncio.to_thread(child_final_event, core, core.require_agent(session_id)) is not None
         ):
             done.set()
 
     core.event_hub.subscribe(on_event)
     try:
         # The transition may have landed between the first check and subscribe.
-        if child_final_event(core, core.require_agent(session_id)) is not None:
+        if await asyncio.to_thread(child_final_event, core, core.require_agent(session_id)) is not None:
             return core.require_agent(session_id)
         await done.wait()
     finally:
@@ -247,7 +249,7 @@ async def deliver_child_completion_to_parent(
     ``wake=False`` 给进程恢复：只投递信箱，不把休眠父打进新的 LLM run
     （issue #35）。显式 message / restart 才开跑，届时首轮 drain 可读到。
     """
-    message = child_completion_message(core, child)
+    message = await asyncio.to_thread(child_completion_message, core, child)
     if message is None:
         return
     parent_id, content, manifest = message
@@ -311,7 +313,7 @@ async def _handle_launcher(core, parent: AgentSession, args: dict[str, Any]) -> 
     except asyncio.CancelledError:
         await _cancel_child(core, child.id)
         raise
-    manifest = build_child_manifest(core, child, terminal_event=child_final_event(core, child))
+    manifest = await asyncio.to_thread(lambda: build_child_manifest(core, child, terminal_event=child_final_event(core, child)))
     data["result"] = (
         f"[{_render_settings_receipt(settings_receipt)}]\n\n{render_child_report(manifest)}"
     )
@@ -431,7 +433,7 @@ async def _handle_swarm(core, parent: AgentSession, args: dict[str, Any]) -> Too
     manifests: list[dict[str, Any]] = []
     ok = True
     for item, child in results:
-        manifest = build_child_manifest(core, child, terminal_event=child_final_event(core, child))
+        manifest = await asyncio.to_thread(lambda: build_child_manifest(core, child, terminal_event=child_final_event(core, child)))
         manifests.append(manifest)
         ok = ok and manifest["state"] == AgentState.SUCCEEDED.value
         sections.append(f"## {item[:40]}\n{render_child_report(manifest)}")
@@ -464,13 +466,14 @@ async def _handle_report(core, args: dict[str, Any]) -> ToolResult:
             is_success=False,
             summary=f"Unknown v2 session {session_id!r}. Sessions dispatched before this migration live in the legacy store and are not queryable here.",
         )
-    if child_final_event(core, agent) is None:
+    terminal = await asyncio.to_thread(child_final_event, core, agent)
+    if terminal is None:
         return ToolResult(
             is_success=True,
             summary=f"Sub-agent {session_id} has no final result yet (state={agent.state.value}); ask again later.",
             data={"session_id": session_id, "state": agent.state.value},
         )
-    manifest = build_child_manifest(core, agent, terminal_event=child_final_event(core, agent))
+    manifest = await asyncio.to_thread(build_child_manifest, core, agent, terminal_event=terminal)
     text = render_child_report(manifest)
     return ToolResult(
         is_success=manifest["state"] == AgentState.SUCCEEDED.value,

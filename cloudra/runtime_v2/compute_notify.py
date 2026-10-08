@@ -111,7 +111,7 @@ class ComputeNotifyBroker:
             nonlocal deleted_ids
             if deleted_ids is None:
                 deleted_ids = {
-                    e.project_id for e in self.core.event_log if e.type == "project.deleted"
+                    e.project_id for e in self.core.event_log.iter_events(types={"project.deleted"})
                 }
             return deleted_ids
 
@@ -125,7 +125,7 @@ class ComputeNotifyBroker:
         for conversation_id, task_id, _state, _session_id in parked:
             if conversation_id in loaded:
                 continue
-            if conversation_id in _deleted_project_ids():
+            if conversation_id in await asyncio.to_thread(_deleted_project_ids):
                 logger.warning(
                     "compute job %s belongs to deleted project %s; marking notified "
                     "without delivery",
@@ -217,7 +217,7 @@ class ComputeNotifyBroker:
         if pipeline is not None and pipeline['status'] in ('waiting', 'running'):
             await asyncio.to_thread(self._mark_notified, task_id)
             return
-        self._load_durable_deliveries()
+        await asyncio.to_thread(self._load_durable_deliveries)
         job_key = (project_id, task_id)
         target_id = self._delivered_jobs.get(job_key)
         if target_id is None:
@@ -265,7 +265,7 @@ class ComputeNotifyBroker:
     def _load_durable_deliveries(self) -> None:
         if self._delivered_index_built:
             return
-        for event in self.core.event_log:
+        for event in self.core.event_log.iter_events(types={"agent.message_injected"}):
             if event.type != "agent.message_injected" or not event.session_id:
                 continue
             manifest = event.data.get("manifest")
@@ -285,7 +285,7 @@ class ComputeNotifyBroker:
                 and agent.role_id != "coordinator"
                 and inbox is not None
                 and not inbox.empty()
-                and should_wake(self.core, agent, WakePolicy.PARK_TERMINAL)
+                and await asyncio.to_thread(should_wake, self.core, agent, WakePolicy.PARK_TERMINAL)
             ):
                 await self.core.agent_host.wake(agent, runner=self.core.runner)
 

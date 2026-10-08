@@ -127,6 +127,15 @@ class AgentRunner:
 
     # ------------------------------------------------------------------ public
 
+    def prune_orphaned_state(self) -> None:
+        """Release session/project caches after a hard deletion."""
+        sessions = set(self.core.agents)
+        for mapping in (self._exit_strikes, self._compact_refusals):
+            for session_id in mapping.keys() - sessions:
+                mapping.pop(session_id)
+        for project_id in self._quiescence_locks.keys() - self.core.projects.keys():
+            self._quiescence_locks.pop(project_id)
+
     def task_for(self, session_id: str) -> asyncio.Task | None:
         """Current run task, if any (also includes a queued group permit)."""
         return self._tasks.get(session_id)
@@ -589,21 +598,34 @@ class AgentRunner:
         from cloudra.runtime_v2.agent_host import is_background_parked
 
         core = self.core
-        candidates = [
-            agent for agent in core.agents.values()
+        snapshots = [
+            (agent, agent.model_copy(deep=True)) for agent in core.agents.values()
             if agent.project_id == project_id
             and agent.role_id == "coordinator"
-            and is_background_parked(core, agent)
         ]
+        candidates = await asyncio.to_thread(lambda: [
+            (agent, snapshot) for agent, snapshot in snapshots
+            if is_background_parked(core, snapshot)
+        ])
         if not candidates:
             return
         lock = self._quiescence_locks.setdefault(project_id, asyncio.Lock())
         async with lock:
-            for coordinator in candidates:
-                if not is_background_parked(core, coordinator):
+            for coordinator, snapshot in candidates:
+                def still_parked():
+                    return (
+                        core.agents.get(coordinator.id) is coordinator
+                        and coordinator.state is snapshot.state
+                        and coordinator.current_run is None
+                        and coordinator.updated_at == snapshot.updated_at
+                    )
+
+                if not still_parked():
                     continue
-                gate = core.event_log.query_session(
-                    coordinator.id, types={"agent.completion_gate"}, limit=1,
+                if not await asyncio.to_thread(is_background_parked, core, coordinator):
+                    continue
+                gate = await asyncio.to_thread(
+                    core.event_log.query_session, coordinator.id, types={"agent.completion_gate"}, limit=1,
                 )
                 if not gate or gate[0].data.get("source") != "dag":
                     continue
@@ -614,25 +636,29 @@ class AgentRunner:
                     data_dir=None, project_id=project_id,
                 ):
                     continue
-                if has_running_siblings(
-                    core, project_id=project_id, session_id=coordinator.id,
-                ) or core.reminders.pending(coordinator.id):
+                if await asyncio.to_thread(
+                    has_running_siblings, core, project_id=project_id, session_id=coordinator.id,
+                ) or await asyncio.to_thread(core.reminders.pending, coordinator.id):
                     continue
                 # The DB check awaits; a regular child message may have
                 # already woken this coordinator in the meantime.
-                if not is_background_parked(core, coordinator):
+                if not still_parked() or not await asyncio.to_thread(is_background_parked, core, coordinator):
                     continue
                 # Only scan the durable history after project work has
                 # settled. Most child/compute callbacks return above.
-                marker = next((
-                    event for event in core.event_log
+                marker = await asyncio.to_thread(lambda: next((
+                    event for event in core.event_log.iter_events(
+                        session_id=coordinator.id, types={"agent.message_injected"},
+                    )
                     if event.type == "agent.message_injected"
                     and event.session_id == coordinator.id
                     and (event.data.get("manifest") or {}).get("kind")
                     == "background_quiescence"
                     and (event.data.get("manifest") or {}).get("parked_run_id")
                     == parked_run_id
-                ), None)
+                ), None))
+                if not still_parked():
+                    continue
                 if marker is not None:
                     # A process can stop after persisting the marker but
                     # before enqueue/wake. Reuse that message rather than
@@ -640,6 +666,8 @@ class AgentRunner:
                     from cloudra.runtime_v2.mailbox import Mailbox
 
                     async with core.dispatcher.target_lock(coordinator.id):
+                        if not still_parked():
+                            continue
                         inbox = core.mailbox.inbox(coordinator.id)
                         if inbox is None or inbox.empty():
                             core.mailbox.enqueue(

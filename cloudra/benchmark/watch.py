@@ -68,13 +68,13 @@ def has_live_supervisor(core, project_id: str) -> bool:
     return supervisor.state not in _SUPERVISOR_DEAD_STATES
 
 
-def has_running_peers(core, agent, *, final_cache: dict | None = None) -> bool:
+def has_running_peers(core, agent, *, final_cache: dict | None = None, peers=None) -> bool:
     """Project peers include children parked after a background-wait run."""
     from cloudra.runtime_v2.subagent_bridge import build_child_completion_index
 
     parked_children = []
     task_for = getattr(getattr(core, "runner", None), "task_for", None)
-    for peer in core.agents.values():
+    for peer in list(core.agents.values()) if peers is None else peers:
         if peer.id == agent.id or peer.project_id != agent.project_id:
             continue
         # A terminal projection can precede the completion report and its wake.
@@ -154,7 +154,11 @@ class RunWatcher:
         if self.pending_background is not None:
             if await self.pending_background():
                 return True
-        return has_running_peers(core, agent, final_cache=self._peer_final_cache)
+        peers = [peer.model_copy(deep=True) for peer in list(core.agents.values())]
+        return await asyncio.to_thread(
+            has_running_peers, core, agent.model_copy(deep=True),
+            final_cache=self._peer_final_cache, peers=peers,
+        )
 
     async def decide(self, core, agent) -> WaitDecision:
         """纯投影判定一步：done / cancel（给出理由）/ continue。"""
@@ -162,6 +166,7 @@ class RunWatcher:
             agent.state, agent.updated_at,
             agent.current_run.run_id if agent.current_run is not None else None,
         )
+        history_boundary = core.event_log.high_watermarks.get(agent.project_id, 0)
         state = snapshot[0]
         if state in _TERMINAL_STATES:
             return WaitDecision("done")
@@ -175,9 +180,15 @@ class RunWatcher:
                 agent.state, agent.updated_at,
                 agent.current_run.run_id if agent.current_run is not None else None,
             )
-            if current != snapshot:
+            if current != snapshot or core.event_log.high_watermarks.get(agent.project_id, 0) != history_boundary:
                 return WaitDecision("continue", "agent changed during background probe")
-            parked_run_id = self._parked_for_background(core, agent)
+            parked_run_id = await asyncio.to_thread(self._parked_for_background, core, agent.model_copy(deep=True))
+            current = (
+                agent.state, agent.updated_at,
+                agent.current_run.run_id if agent.current_run is not None else None,
+            )
+            if current != snapshot or core.event_log.high_watermarks.get(agent.project_id, 0) != history_boundary:
+                return WaitDecision("continue", "agent changed during history probe")
             if parked_run_id:
                 inbox = core.mailbox.inbox(agent.id)
                 if inbox is not None and not inbox.empty():
@@ -194,7 +205,13 @@ class RunWatcher:
                 return WaitDecision("continue", "waiting for background notice")
             return WaitDecision("done")
         if state in _UNANSWERED_STATES:
-            reason = latest_state_reason(core, agent.id)
+            reason = await asyncio.to_thread(latest_state_reason, core, agent.id)
+            current = (
+                agent.state, agent.updated_at,
+                agent.current_run.run_id if agent.current_run is not None else None,
+            )
+            if current != snapshot or core.event_log.high_watermarks.get(agent.project_id, 0) != history_boundary:
+                return WaitDecision("continue", "agent changed during history probe")
             if state is AgentState.WAITING_APPROVAL and reason == WAIT_REVIEW_REASON:
                 # 等内部 Supervisor 裁决（GH #30/NI1）：不是人工卡死；只有
                 # 督导已死（无人会裁决）才落入卡死取消。

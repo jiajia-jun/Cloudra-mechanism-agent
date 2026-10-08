@@ -140,6 +140,21 @@ class LaunchGroupManager:
     def groups(self) -> list[LaunchGroup]:
         return list(self._groups.values())
 
+    def prune_projects(self, project_ids: set[str], session_ids: set[str]) -> None:
+        """Release group manifests and local workers for deleted projects."""
+        for group_id, group in list(self._groups.items()):
+            if group.project_id in project_ids:
+                continue
+            self._groups.pop(group_id)
+            self._run_semaphores.pop(group_id, None)
+            if group._task is not None and not group._task.done():
+                group._task.cancel()
+        for child_id, group_id in list(self._child_groups.items()):
+            if child_id not in session_ids or group_id not in self._groups:
+                self._child_groups.pop(child_id)
+        for child_id in self._child_final_cache.keys() - session_ids:
+            self._child_final_cache.pop(child_id)
+
     def snapshot(self) -> list[dict[str, Any]]:
         """组清单的快照载荷（纯数据）。
 
@@ -358,7 +373,7 @@ class LaunchGroupManager:
                 if self._core is not None and getattr(child, "parent_session_id", None):
                     from cloudra.runtime_v2.subagent_bridge import child_final_event
 
-                    terminal = child_final_event(self._core, child)
+                    terminal = await asyncio.to_thread(child_final_event, self._core, child)
                     if terminal is not None:
                         final_state = AgentState(terminal.data["to"])
                 state = (
@@ -426,13 +441,13 @@ class LaunchGroupManager:
             await hook(project_id)
 
     async def _wait_terminal(self, child: AgentSession) -> AgentSession:
-        if self._child_is_final(child):
+        if await asyncio.to_thread(self._child_is_final, child):
             return child
         # AgentHost 状态变化会经 core 事件总线发布，但 spawner 在单测里可能返回
         # 普通对象——轮询是可移植的回退。后台等待不会完成 item，
         # 但 run permit 已在首轮结束时释放。
         while True:
-            if self._child_is_final(child):
+            if await asyncio.to_thread(self._child_is_final, child):
                 return child
             await asyncio.sleep(0.1)
 

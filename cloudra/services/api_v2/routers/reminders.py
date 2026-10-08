@@ -7,6 +7,7 @@ agent——闹钟到点唤醒的就是它。
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from fastapi import APIRouter
@@ -20,6 +21,6 @@ def build_router(ctx: ApiContext) -> APIRouter:
     @router.get("/api/v2/projects/{project_id}/reminders/pending", dependencies=ctx.protected)
     async def list_pending_reminders(project_id: str) -> list[dict[str, Any]]:
         ctx.core.require_project(project_id)
-        return ctx.core.reminders.pending_in_project(project_id)
+        return await asyncio.to_thread(ctx.core.reminders.pending_in_project, project_id)
 
     return router

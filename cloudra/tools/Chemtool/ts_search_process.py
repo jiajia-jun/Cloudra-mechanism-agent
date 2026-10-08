@@ -7,7 +7,13 @@ from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.runtime_v2.invocation_context import current_invocation_scope
 from cloudra.services.ts_pipeline_store import TsRevisionReceipt
-from cloudra.tools.core.ts_inputs import TsInput, TsInputChanges, TsResumeRequest, normalize_ts_input_atoms
+from cloudra.tools.core.ts_inputs import (
+    ScanRecoveryEvidence,
+    TsInput,
+    TsInputChanges,
+    TsResumeRequest,
+    normalize_ts_input_atoms,
+)
 from cloudra.tools.core.ts_process import TsProcessRecord, TsStartRequest, resume, start
 from cloudra.tools.core.ts_state_view import TsProcessView, build_process_view, inspect_process
 
@@ -23,6 +29,7 @@ class TsResume_input_schema(input_schema):
     changes: TsInputChanges = Field(default_factory=TsInputChanges, description='Use the current atom identities/order reported in structures with each field\'s documented index base: structure/reaction references are 1-based; ORCA scan/freeze references are 0-based; Gaussian/xTB scan references are 1-based. For a newly supplied file order, explicit declarations refer to that incoming order and are converted once when the current XYZ/MOL is overwritten into proven canonical order. If a provided TS guess cannot be associated with a simultaneous source reorder, first normalize the endpoint files, then submit the guess in the reported current order.')
     reason: str = Field(min_length=1)
     expected_revision: StrictInt = Field(ge=0)
+    scan_recovery: ScanRecoveryEvidence | None = Field(default=None, description='Required when retrying a failed scan: bind actual repair artifacts to the failed attempt and input/log digests reported by ts_inspect. A reason or point-count change alone is insufficient; existing task authority and budget still apply.')
 
 
 class TsInspect_input_schema(input_schema):

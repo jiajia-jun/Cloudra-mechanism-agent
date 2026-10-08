@@ -459,7 +459,7 @@ class BenchmarkBatch:
         compute_db = ComputeDB()
 
         async def pending_background() -> bool:
-            if bool(self.core.reminders.pending(session_id)):
+            if await asyncio.to_thread(self.core.reminders.pending, session_id):
                 return True
             if await acount_active_compute_job_states(compute_db, project_id):
                 return True

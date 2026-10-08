@@ -11,6 +11,7 @@ marker used by live and restore paths.
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from typing import Any
 
@@ -52,7 +53,10 @@ def build_peer_completion_index(core) -> PeerCompletionIndex:
             reported=reported,
         )
 
-    for event in core.event_log:
+    for event in core.event_log.iter_events(types={
+        "agent.message_injected", "run.finished", "agent.completion_gate",
+        "agent.message_emitted", "agent.state_changed",
+    }):
         session_id = event.session_id
         if event.type == "agent.message_injected" and session_id:
             manifest = event.data.get("manifest")
@@ -154,7 +158,7 @@ def peer_completion_message(
 
 async def deliver_peer_completion(core, peer: AgentSession, *, wake: bool = True) -> None:
     """Commit a peer's first completion report and then enqueue/wake its caller."""
-    message = peer_completion_message(core, peer)
+    message = await asyncio.to_thread(peer_completion_message, core, peer)
     if message is None:
         return
     recipient_id, content, manifest = message

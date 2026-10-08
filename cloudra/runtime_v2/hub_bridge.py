@@ -22,6 +22,7 @@ runtime_v2 handles persistence and dispatch here.
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import replace
 from typing import Any
 
@@ -120,7 +121,7 @@ async def _notify(
     # This snapshot describes wake intent. Persisting the message may yield,
     # so requested is not evidence that the recipient actually started a run.
     target_state = target.state.value
-    wake_allowed = should_wake(core, target, wake)
+    wake_allowed = await asyncio.to_thread(should_wake, core, target, wake)
     envelope = await core.dispatcher.commit_and_deliver(
         to_session_id=target.id,
         project_id=project_id,
@@ -190,7 +191,7 @@ async def _post(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     parent_id = args.get("parent_id") or None
     retry_post_id = str(args.get("post_id") or "").strip()
     if retry_post_id:
-        envelope = core.event_log.get(retry_post_id)
+        envelope = await asyncio.to_thread(core.event_log.get, retry_post_id)
         expected = {
             "topic": topic, "kind": kind, "to_agent": to_agent or None,
             "parent_id": parent_id, "content": content,
@@ -206,7 +207,7 @@ async def _post(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
         # original deliveries; a session created later cannot receive an old
         # broadcast just because one recipient temporarily failed.
         addressee = _resolve_live_target(core, author.project_id, to_agent) if to_agent else None
-        parent = core.event_log.get(parent_id) if parent_id else None
+        parent = await asyncio.to_thread(core.event_log.get, parent_id) if parent_id else None
         original = (
             core.agents.get(parent.session_id)
             if parent is not None and parent.type == "hub.posted"
@@ -241,8 +242,8 @@ async def _post(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     delivered_ids = (
         {
             event.session_id
-            for event in core.event_log.query_project(
-                author.project_id, after_seq=envelope.seq,
+            for event in await asyncio.to_thread(
+                core.event_log.query_project, author.project_id, after_seq=envelope.seq,
                 types={"agent.message_injected"}, limit=None, tail=False,
             )
             if event.data.get("post_id") == envelope.event_id
@@ -262,9 +263,9 @@ async def _post(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
         is_reply = target_id == envelope.data.get("reply_session_id") and (
             target_id != envelope.data.get("addressed_session_id")
         )
-        notification = post_notification_text(core, envelope, target_id)
+        notification = await asyncio.to_thread(post_notification_text, core, envelope, target_id)
         if is_reply:
-            parent = core.event_log.get(parent_id)
+            parent = await asyncio.to_thread(core.event_log.get, parent_id)
             receipt = f"Notified original author {parent.data['author_agent'] if parent else target.role_id}."
         else:
             receipt = f"Notified {to_agent or target.role_id}."
@@ -328,7 +329,7 @@ async def post_user_post(
         )
     core.require_project(project_id)
     addressee = _resolve_live_target(core, project_id, to_agent) if to_agent else None
-    parent = core.event_log.get(parent_id) if parent_id else None
+    parent = await asyncio.to_thread(core.event_log.get, parent_id) if parent_id else None
     if parent_id and (
         parent is None or parent.type != "hub.posted" or parent.project_id != project_id
     ):
@@ -370,7 +371,7 @@ async def post_user_post(
         try:
             await _notify(
                 core, project_id, target, sender="user",
-                content=post_notification_text(core, envelope, target_id),
+                content=await asyncio.to_thread(post_notification_text, core, envelope, target_id),
                 post_id=envelope.event_id,
             )
         except EventPersistenceError:
@@ -448,7 +449,7 @@ def _read(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
 async def _search(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     keyword = str(args.get("keyword") or "").strip()
     limit = int(args.get("limit") or 20)
-    scanned = _posts(core, author.project_id, limit=_SEARCH_SCAN_LIMIT)
+    scanned = await asyncio.to_thread(_posts, core, author.project_id, limit=_SEARCH_SCAN_LIMIT)
     scored = []
     for post in scanned:
         score = max(
@@ -551,7 +552,7 @@ async def _call(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     post_line = None
     raw_post_id = args.get("post_id")
     if raw_post_id is not None:
-        post = next((p for p in _posts(core, author.project_id) if p["id"] == raw_post_id), None)
+        post = await asyncio.to_thread(lambda: next((p for p in _posts(core, author.project_id) if p["id"] == raw_post_id), None))
         if post is not None:
             post_line = f"Related post {post['id']} (topic {post['topic']})."
     target = _resolve_live_target(core, author.project_id, raw_to, wakeable_role_only=True)
@@ -672,9 +673,9 @@ async def _dispatch_hub_tool(core, author: AgentSession, call: ToolCall) -> Tool
     if action == "post":
         return await _post(core, author, args)
     if action == "browse":
-        return _browse(core, author, args)
+        return await asyncio.to_thread(_browse, core, author, args)
     if action == "read":
-        return _read(core, author, args)
+        return await asyncio.to_thread(_read, core, author, args)
     if action == "search":
         return await _search(core, author, args)
     if action == "directory":

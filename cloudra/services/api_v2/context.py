@@ -8,6 +8,7 @@ injection point instead of hiding in an enclosing scope.
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from typing import Any
 
@@ -46,7 +47,7 @@ class ApiContext:
         if isinstance(data, AgentSession):
             # 命令响应里的 agent 与 GET 端点同形：运行期投影（completion）也带上，
             # 否则前端用响应整体替换 agent 时会丢掉它。
-            data = agent_dict(self.core, data)
+            data = await asyncio.to_thread(agent_dict, self.core, data)
         return CommandResponse(
             command_id=result.command_id,
             accepted=result.accepted,

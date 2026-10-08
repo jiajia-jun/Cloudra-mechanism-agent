@@ -155,10 +155,10 @@ class PendingBroker:
                 )
 
     async def decide_approval(self, project_id: str, approval_id: str, decision: str, reason: str) -> None:
-        pending = {p["id"] for p in self.list_pending_approvals(project_id)}
+        pending = {p["id"] for p in await asyncio.to_thread(self.list_pending_approvals, project_id)}
         if approval_id not in pending:
             raise CommandRejected("not_found", f"no pending approval {approval_id!r}")
-        session_id = self._request_session(project_id, approval_id, "approval.requested", "approval_id")
+        session_id = await asyncio.to_thread(self._request_session, project_id, approval_id, "approval.requested", "approval_id")
         await self._emit(
             "approval.decided",
             project_id=project_id,
@@ -240,10 +240,10 @@ class PendingBroker:
                 )
 
     async def respond_interaction(self, project_id: str, interaction_id: str, response: str) -> dict[str, Any]:
-        pending = {p["interaction_id"] for p in self.list_pending_interactions(project_id)}
+        pending = {p["interaction_id"] for p in await asyncio.to_thread(self.list_pending_interactions, project_id)}
         if interaction_id not in pending:
             raise CommandRejected("not_found", f"no pending interaction {interaction_id!r}")
-        session_id = self._request_session(project_id, interaction_id, "interaction.requested", "interaction_id")
+        session_id = await asyncio.to_thread(self._request_session, project_id, interaction_id, "interaction.requested", "interaction_id")
         envelope = await self._emit(
             "interaction.responded",
             project_id=project_id,

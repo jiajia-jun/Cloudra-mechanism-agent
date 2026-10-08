@@ -302,6 +302,25 @@ class RuntimeCore:
 
     # ------------------------------------------------------------- shutdown
 
+    def prune_orphaned_state(self) -> None:
+        """Release projections and local resources whose project/session was deleted.
+
+        Called by the tombstone applier and after snapshot/event restoration.
+        Audit events remain durable; this only drops their unused live projections.
+        """
+        sessions = set(self.agents)
+        projects = set(self.projects)
+        for session_id in self.session_contexts.keys() - sessions:
+            self.session_contexts.pop(session_id)
+        self.pending_compactions.intersection_update(sessions)
+        self.mailbox.prune_sessions(sessions)
+        self.notices.prune_sessions(sessions)
+        self.launch_groups.prune_projects(projects, sessions)
+        self.reminders.prune_projects(projects)
+        self.task_describer.prune_sessions(sessions)
+        if self.runner is not None:
+            self.runner.prune_orphaned_state()
+
     async def aclose(self) -> None:
         """服务关闭唯一入口（停止语义契约 3）：取消并 await 全部 runner 与
         已登记收尾后台任务（含 finalize），再回收本 core 拥有的 JS host。

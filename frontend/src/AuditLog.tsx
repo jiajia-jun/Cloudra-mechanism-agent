@@ -10,8 +10,9 @@
  * structured fields instead of raw JSON; string payloads are never truncated.
  */
 
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api';
+import { boundEventPage, eventMatchesQuery, mergeAndTrimLiveEvents } from './eventWindow';
 import type { EventEnvelope } from './types';
 
 interface AuditLogProps {
@@ -125,7 +126,12 @@ function FieldView({ data }: { data: Record<string, unknown> }) {
   );
 }
 
-const EventCard = memo(function EventCard({ event }: { event: EventEnvelope }) {
+const EventCard = memo(function EventCard({ event, agentId, onError }: {
+  event: EventEnvelope; agentId: string; onError: (e: unknown) => void;
+}) {
+  const [detail, setDetail] = useState<EventEnvelope | null>(null);
+  const [loading, setLoading] = useState(false);
+  const detailsRef = useRef<HTMLDetailsElement | null>(null);
   const alert = isAlert(event.type, event.data);
   const summary = (() => {
     const d = event.data;
@@ -138,7 +144,9 @@ const EventCard = memo(function EventCard({ event }: { event: EventEnvelope }) {
     return '';
   })();
   return (
-    <details className={`audit-card ${alert ? 'alert' : ''}`}>
+    <details ref={detailsRef} className={`audit-card ${alert ? 'alert' : ''}`} onToggle={(event) => {
+      if (!event.currentTarget.open) setDetail(null);
+    }}>
       <summary>
         <span className="ac-time">{stamp(event.created_at)}</span>
         <span className="ac-seq">#{event.session_seq ?? event.seq}</span>
@@ -147,7 +155,15 @@ const EventCard = memo(function EventCard({ event }: { event: EventEnvelope }) {
         {event.run_id && <span className="ac-run">run {shortId(event.run_id)}</span>}
       </summary>
       <div className="ac-body">
-        <FieldView data={event.data} />
+        {Boolean(event.data._payload_omitted) && !detail && (
+          <button className="btn outline sm" disabled={loading} onClick={() => {
+            setLoading(true);
+            api.eventDetail(agentId, event.event_id).then((full) => {
+              if (detailsRef.current?.open) setDetail(full);
+            }).catch(onError).finally(() => setLoading(false));
+          }}>{loading ? 'Loading…' : 'Load full event payload'}</button>
+        )}
+        <FieldView data={detail?.data ?? event.data} />
         <div className="ac-meta">
           <span>event_id {event.event_id}</span>
           <span>seq {event.seq}</span>
@@ -160,12 +176,12 @@ const EventCard = memo(function EventCard({ event }: { event: EventEnvelope }) {
 });
 
 export default function AuditLog({ agentId, projectId, liveEvents, onError }: AuditLogProps) {
-  // Lazily fetched pages, oldest → newest.  The live SSE window (from the
-  // parent) is merged on the newest end; only one page ever renders.
+  // Retain only the displayed page. Older/newer navigation fetches by cursor.
   const [loaded, setLoaded] = useState<EventEnvelope[] | null>(null);
   const [hasOlder, setHasOlder] = useState(true);
   const [loadingOlder, setLoadingOlder] = useState(false);
-  const [pageIndex, setPageIndex] = useState(0);
+  const [isLatest, setIsLatest] = useState(true);
+  const requestVersion = useRef(0);
   const [view, setView] = useState<'tools' | 'system'>('tools');
   const [query, setQuery] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
@@ -177,14 +193,17 @@ export default function AuditLog({ agentId, projectId, liveEvents, onError }: Au
       return;
     }
     let cancelled = false;
+    ++requestVersion.current;
     setLoaded(null);
-    setPageIndex(0);
+    setIsLatest(true);
+    setLoadingOlder(false);
     api
       .eventsPage(agentId, { limit: PAGE_SIZE })
       .then((page) => {
         if (!cancelled) {
-          setLoaded(page);
-          setHasOlder(page.length >= PAGE_SIZE);
+          const bounded = boundEventPage(page, PAGE_SIZE);
+          setLoaded(bounded);
+          setHasOlder(page.length >= PAGE_SIZE || bounded.length < page.length);
         }
       })
       .catch((e) => {
@@ -192,20 +211,19 @@ export default function AuditLog({ agentId, projectId, liveEvents, onError }: Au
       });
     return () => {
       cancelled = true;
+      ++requestVersion.current;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId, reloadKey]);
 
   const merged = useMemo(() => {
     if (loaded === null) return null;
-    const byId = new Map(loaded.map((e) => [e.event_id, e]));
-    for (const e of liveEvents) {
-      if (!byId.has(e.event_id)) byId.set(e.event_id, e);
-    }
-    return [...byId.values()].sort(
-      (a, b) => (a.session_seq ?? 0) - (b.session_seq ?? 0) || a.seq - b.seq,
-    );
-  }, [loaded, liveEvents]);
+    if (!isLatest) return loaded;
+    const newest = loaded.at(-1)?.session_seq ?? 0;
+    return mergeAndTrimLiveEvents(loaded, liveEvents.filter(
+      (event) => event.session_id === agentId && (event.session_seq ?? 0) > newest,
+    ), PAGE_SIZE).live;
+  }, [loaded, liveEvents, isLatest, agentId]);
 
   const oldestSeq = useMemo(() => {
     let min = Number.POSITIVE_INFINITY;
@@ -213,34 +231,31 @@ export default function AuditLog({ agentId, projectId, liveEvents, onError }: Au
     return Number.isFinite(min) ? min : null;
   }, [merged]);
 
-  const loadOlder = useCallback(async () => {
+  const loadPage = useCallback(async (direction: 'older' | 'newer') => {
     if (!agentId || loadingOlder || oldestSeq === null) return;
+    const newestSeq = merged?.at(-1)?.session_seq ?? 0;
+    const version = ++requestVersion.current;
     setLoadingOlder(true);
     try {
-      const page = await api.eventsPage(agentId, { before: oldestSeq, limit: PAGE_SIZE });
-      if (page.length < PAGE_SIZE) setHasOlder(false);
-      setLoaded((prev) => {
-        const base = prev ?? [];
-        const known = new Set(base.map((e) => e.event_id));
-        for (const e of liveEvents) known.add(e.event_id);
-        const fresh = page.filter((e) => !known.has(e.event_id));
-        return [...fresh, ...base];
-      });
+      const page = await api.eventsPage(agentId, direction === 'older'
+        ? { before: oldestSeq, limit: PAGE_SIZE }
+        : { after: newestSeq, tail: false, limit: PAGE_SIZE });
+      if (version !== requestVersion.current) return;
+      if (!page.length) {
+        if (direction === 'older') setHasOlder(false);
+        else setReloadKey((key) => key + 1);
+        return;
+      }
+      const bounded = boundEventPage(page, PAGE_SIZE, direction === 'older' ? 'newest' : 'oldest');
+      setLoaded(bounded);
+      setIsLatest(false);
+      setHasOlder(direction === 'newer' || page.length >= PAGE_SIZE || bounded.length < page.length);
     } catch (e) {
       onError(e);
     } finally {
-      setLoadingOlder(false);
+      if (version === requestVersion.current) setLoadingOlder(false);
     }
-  }, [agentId, loadingOlder, oldestSeq, liveEvents, onError]);
-
-  // Search index built only while a filter is active (stringifying the whole
-  // loaded set on every live event would be wasteful otherwise).
-  const searchMap = useMemo(() => {
-    if (!query.trim() || merged === null) return null;
-    return new Map(
-      merged.map((e) => [e.event_id, (e.type + '\n' + JSON.stringify(e.data)).toLowerCase()]),
-    );
-  }, [merged, query]);
+  }, [agentId, loadingOlder, oldestSeq, merged, onError]);
 
   const { toolCount, systemCount } = useMemo(() => {
     let tools = 0;
@@ -259,20 +274,9 @@ export default function AuditLog({ agentId, projectId, liveEvents, onError }: Au
     return <div className="empty-hint">Loading audit log…</div>;
   }
 
-  const totalPages = Math.max(1, Math.ceil(merged.length / PAGE_SIZE));
-  const clampedIndex = Math.min(pageIndex, totalPages - 1);
-  const pageStart = Math.max(0, merged.length - (clampedIndex + 1) * PAGE_SIZE);
-  const pageEnd = merged.length - clampedIndex * PAGE_SIZE;
   const q = query.trim().toLowerCase();
-  const visible = merged
-    .slice(pageStart, pageEnd)
-    .filter(
-      (e) =>
-        !q ||
-        e.type.toLowerCase().includes(q) ||
-        (searchMap?.get(e.event_id) ?? '').includes(q),
-    );
-  const atLastLoadedPage = clampedIndex >= totalPages - 1;
+  const visible = merged.filter((event) => !q || eventMatchesQuery(event, q));
+  const canLoadOlder = hasOlder || (isLatest && (oldestSeq ?? 0) > 1);
 
   return (
     <div className="audit-log">
@@ -294,7 +298,6 @@ export default function AuditLog({ agentId, projectId, liveEvents, onError }: Au
         <button
           className="btn ghost sm"
           onClick={() => {
-            setPageIndex(0);
             setReloadKey((k) => k + 1);
           }}
           title="Reload the newest page"
@@ -321,33 +324,27 @@ export default function AuditLog({ agentId, projectId, liveEvents, onError }: Au
       <div className="audit-pager">
         <button
           className="btn ghost sm"
-          disabled={clampedIndex === 0}
-          onClick={() => setPageIndex((p) => Math.max(0, p - 1))}
+          disabled={isLatest || loadingOlder}
+          onClick={() => void loadPage('newer')}
         >
           ‹ newer
         </button>
         <span className="audit-page-info">
-          page {clampedIndex + 1} / {totalPages}
-          {hasOlder && atLastLoadedPage ? '+' : ''} · {merged.length} loaded
+          #{oldestSeq ?? 0}–{merged.at(-1)?.session_seq ?? 0} · {merged.length} events · {isLatest ? 'latest' : 'history'}
         </span>
         <button
           className="btn ghost sm"
-          disabled={atLastLoadedPage && !hasOlder}
-          onClick={() => setPageIndex((p) => p + 1)}
+          disabled={!canLoadOlder || loadingOlder}
+          onClick={() => void loadPage('older')}
         >
           older ›
         </button>
-        {clampedIndex > 0 && (
-          <button className="btn ghost sm" onClick={() => setPageIndex(0)}>
+        {!isLatest && (
+          <button className="btn ghost sm" onClick={() => setReloadKey((key) => key + 1)}>
             latest
           </button>
         )}
       </div>
-      {atLastLoadedPage && hasOlder && (
-        <button className="btn outline sm" onClick={loadOlder} disabled={loadingOlder}>
-          {loadingOlder ? 'Loading…' : `Load ${PAGE_SIZE} older events`}
-        </button>
-      )}
       {visible.length === 0 ? (
         <div className="empty-hint">
           {query
@@ -359,7 +356,7 @@ export default function AuditLog({ agentId, projectId, liveEvents, onError }: Au
       ) : (
         visible
           .filter((e) => isToolActivity(e.type) === (view === 'tools'))
-          .map((event) => <EventCard key={event.event_id} event={event} />)
+          .map((event) => <EventCard key={event.event_id} event={event} agentId={agentId} onError={onError} />)
       )}
     </div>
   );

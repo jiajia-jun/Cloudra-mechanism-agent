@@ -88,6 +88,12 @@ def has_running_siblings(core, *, project_id: str, session_id: str) -> bool:
     """
     from cloudra.runtime_v2.agent_host import is_background_parked
 
+    # History probes can release the GIL for SQLite. Freeze registry membership
+    # and values before probing rather than traversing a live dict across I/O.
+    agents = {
+        key: agent.model_copy(deep=True) for key, agent in list(core.agents.items())
+    }
+
     def is_descendant(agent) -> bool:
         seen: set[str] = set()
         owner_id = agent.parent_session_id or agent.requested_by_session_id
@@ -95,7 +101,7 @@ def has_running_siblings(core, *, project_id: str, session_id: str) -> bool:
             if owner_id == session_id:
                 return True
             seen.add(owner_id)
-            owner = core.agents.get(owner_id)
+            owner = agents.get(owner_id)
             owner_id = (
                 owner.parent_session_id or owner.requested_by_session_id
                 if owner is not None else None
@@ -103,7 +109,7 @@ def has_running_siblings(core, *, project_id: str, session_id: str) -> bool:
         return False
 
     terminal = {"succeeded", "failed", "cancelled"}
-    current = core.agents.get(session_id)
+    current = agents.get(session_id)
     # Coordinator audits the whole project (including legacy unowned agents).
     # A child must only wait on work it owns, never its active parent/siblings.
     project_wide = current is not None and current.role_id == "coordinator"
@@ -114,7 +120,7 @@ def has_running_siblings(core, *, project_id: str, session_id: str) -> bool:
             (agent.state.value not in terminal and (project_wide or is_descendant(agent)))
             or (is_descendant(agent) and is_background_parked(core, agent))
         )
-        for agent in core.agents.values()
+        for agent in agents.values()
     ):
         return True
     # A capped launch group can have queued items with no child agent yet.
@@ -127,8 +133,8 @@ def has_running_siblings(core, *, project_id: str, session_id: str) -> bool:
             project_wide
             or group.parent_session_id == session_id
             or (
-                group.parent_session_id in core.agents
-                and is_descendant(core.agents[group.parent_session_id])
+                group.parent_session_id in agents
+                and is_descendant(agents[group.parent_session_id])
             )
         )
         for group in core.launch_groups.groups()
@@ -164,11 +170,12 @@ class StopAuditMixin:
         core = self._core
         if core is None:
             return False
-        if has_running_siblings(
+        if await asyncio.to_thread(
+            has_running_siblings,
             core, project_id=self.conversation_id, session_id=self.session_id
         ):
             return True
-        return bool(core.reminders.pending(self.session_id))
+        return bool(await asyncio.to_thread(core.reminders.pending, self.session_id))
 
     async def audit_stop(
         self,
@@ -190,7 +197,10 @@ class StopAuditMixin:
         # A real user termination is allowed regardless of graph coverage, but
         # the model must not be able to invent that source.
         if disposition == "user_terminated":
-            event = self._core.event_log.get(user_stop_event_id) if self._core is not None and user_stop_event_id else None
+            event = (
+                await asyncio.to_thread(self._core.event_log.get, user_stop_event_id)
+                if self._core is not None and user_stop_event_id else None
+            )
             if (
                 event is None
                 or event.type != "agent.cancel_requested"

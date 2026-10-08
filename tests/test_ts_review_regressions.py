@@ -160,7 +160,19 @@ def recovery_fixture(tmp_path, purpose='frequency', failure='wrong_mode'):
     _record_candidate_failure(record,failure,step,str(old.with_suffix('.out')))
     record.input.verification.frequency=step.actual_calculation
     def request(changes,refs):
-        return TsResumeRequest(reason='bound repair',request_key='repair',expected_revision=0,changes=changes)
+        import hashlib
+        import json
+
+        _record_candidate_failure(record, failure, step, str(old.with_suffix('.out')))
+        repair = tmp_path / 'repair-receipt.json'
+        repair.write_text(json.dumps(dict(failed_attempt_id=record.failed_attempt['attempt_id'],
+            failure_input_sha256=record.failed_attempt['input_sha256'],
+            repair='Explicitly revised route/coordinate input supported by the supplied native diagnostic and seed artifacts')))
+        return TsResumeRequest(reason='bound repair',request_key='repair',expected_revision=0,changes=changes,
+            scan_recovery=dict(failed_attempt_id=record.failed_attempt['attempt_id'],
+                failure_input_sha256=record.failed_attempt['input_sha256'],
+                failure_log_sha256=record.failed_attempt['log_sha256'],
+                evidence_refs=[dict(path=str(repair), sha256=hashlib.sha256(repair.read_bytes()).hexdigest())]))
     return db,record,old,request
 
 

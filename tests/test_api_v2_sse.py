@@ -102,3 +102,30 @@ async def test_sse_replay_keeps_initial_boundary_with_interleaved_projects():
     assert [e['seq'] for e in envelopes[:-1]] == list(range(1, 502))
     assert all(e['project_id'] == 'project-1' for e in envelopes)
     assert envelopes[-1]['data']['replayed_through'] == 501
+
+
+@pytest.mark.asyncio
+async def test_sse_replay_bounds_payload_bytes_as_well_as_event_count(monkeypatch):
+    log = EventLog(strict=True)
+    for index in range(6):
+        log.append(
+            'agent.warning', stream='agent', project_id='project-1',
+            data={'index': index, 'content': 'x' * (2 * 1024 * 1024)},
+        )
+    original = asyncio.to_thread
+    page_counts = []
+
+    async def consume_page(func):
+        page = await original(func)
+        page_counts.append(len(page))
+        assert len(page) <= 4, 'large-payload replay must not fill a 500-event batch'
+        return page
+
+    monkeypatch.setattr(asyncio, 'to_thread', consume_page)
+    chunks = [chunk async for chunk in _sse_replay(
+        SimpleNamespace(event_log=log), SimpleNamespace(id='project-1'), 0
+    )]
+    decoded = [json.loads(chunk.split('data: ', 1)[1]) for chunk in chunks]
+    assert [e['data']['index'] for e in decoded[:-1]] == list(range(6))
+    assert decoded[-1]['data']['replayed_through'] == 6
+    assert sum(page_counts) == 6

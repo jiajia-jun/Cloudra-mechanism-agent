@@ -29,7 +29,7 @@ def build_router(ctx: ApiContext) -> APIRouter:
     @router.get("/api/v2/agents/{session_id}", dependencies=ctx.protected)
     async def get_agent(session_id: str) -> dict[str, Any]:
         agent = ctx.core.require_agent(session_id)
-        data = agent_dict(ctx.core, agent)
+        data = await asyncio.to_thread(agent_dict, ctx.core, agent)
         data["children"] = [
             child.id for child in ctx.core.agents.values() if child.parent_session_id == session_id
         ]
@@ -39,7 +39,8 @@ def build_router(ctx: ApiContext) -> APIRouter:
     async def agent_transcript(session_id: str) -> dict[str, Any]:
         agent = ctx.core.require_agent(session_id)
         messages = []
-        for event in ctx.core.event_log.query_session(session_id):
+        events = await asyncio.to_thread(ctx.core.event_log.query_session, session_id)
+        for event in events:
             if event.type in {"agent.message_injected", "agent.message_emitted"}:
                 data = event.data
                 messages.append(
@@ -70,7 +71,8 @@ def build_router(ctx: ApiContext) -> APIRouter:
         """
         ctx.core.require_agent(session_id)
         wanted = [t.strip() for t in types.split(",") if t.strip()] if types else None
-        events = ctx.core.event_log.query_session(
+        events = await asyncio.to_thread(
+            ctx.core.event_log.query_session,
             session_id,
             after_session_seq=after,
             before_session_seq=before,
@@ -83,7 +85,7 @@ def build_router(ctx: ApiContext) -> APIRouter:
     @router.get("/api/v2/agents/{session_id}/events/{event_id}", dependencies=ctx.protected)
     async def agent_event_detail(session_id: str, event_id: str) -> dict[str, Any]:
         ctx.core.require_agent(session_id)
-        event = ctx.core.event_log.get(event_id)
+        event = await asyncio.to_thread(ctx.core.event_log.get, event_id)
         if event is None or event.session_id != session_id:
             raise HTTPException(status_code=404, detail="event not found")
         return event.model_dump(mode="json")
@@ -185,7 +187,10 @@ def build_router(ctx: ApiContext) -> APIRouter:
                 role: {"messages": 0, "tokens": 0} for role in ("user", "assistant", "tool")
             }
             last_prompt_tokens: int | None = None
-            for event in ctx.core.event_log.query_session(session_id, limit=100000):
+            for event in ctx.core.event_log.iter_events(
+                session_id=session_id,
+                types={"agent.message_injected", "agent.message_emitted", "tool.finished", "llm.completed"},
+            ):
                 if event.type in {"agent.message_injected", "agent.message_emitted"}:
                     role = "user" if event.type == "agent.message_injected" else "assistant"
                     text = str(event.data.get("content") or "")

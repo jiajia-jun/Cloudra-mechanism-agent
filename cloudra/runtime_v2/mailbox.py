@@ -39,6 +39,10 @@ class Mailbox:
         """丢弃指定 inbox（项目硬删除时清理；幂等，无此 inbox 也安全）。"""
         self._inboxes.pop(session_id, None)
 
+    def prune_sessions(self, session_ids: set[str]) -> None:
+        for session_id in self._inboxes.keys() - session_ids:
+            self.drop_inbox(session_id)
+
     # ------------------------------------------------------- payload builders
 
     @staticmethod
@@ -100,4 +104,3 @@ class Mailbox:
     def enqueue(self, to_session_id: str, message: dict[str, Any]) -> None:
         """纯入队（事件已由调用方落日志）——DeliverMessage 效果的执行点。"""
         self.ensure_inbox(to_session_id).put_nowait(message)
-

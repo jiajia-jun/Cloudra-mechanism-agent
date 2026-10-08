@@ -20,6 +20,7 @@ When `agent.settings.schedule_mode` is True:
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from cloudra.runtime_v2.policies.base import PipelineContext, PolicyResult, ToolCall, ToolResult
@@ -97,7 +98,7 @@ class ScheduleStage:
         has_pending_reminder = False
         if core is not None and hasattr(core, "reminders"):
             try:
-                has_pending_reminder = bool(core.reminders.pending(ctx.agent.id))
+                has_pending_reminder = bool(await asyncio.to_thread(core.reminders.pending, ctx.agent.id))
             except Exception:
                 has_pending_reminder = False
 
@@ -147,7 +148,7 @@ class ScheduleStage:
             )
         if not getattr(ctx.agent.settings, "schedule_mode", False):
             return None
-        if core is not None and core.reminders.pending(ctx.agent.id):
+        if core is not None and await asyncio.to_thread(core.reminders.pending, ctx.agent.id):
             return StopGate(
                 action="wait_background",
                 reason="a schedule reminder is pending; the stop suspends until it fires",
@@ -177,8 +178,8 @@ class ScheduleStage:
         from cloudra.persistence.database import ConversationDB
 
         core = self.core
-        if has_running_siblings(
-            core, project_id=ctx.agent.project_id, session_id=ctx.agent.id
+        if await asyncio.to_thread(
+            has_running_siblings, core, project_id=ctx.agent.project_id, session_id=ctx.agent.id
         ):
             return True
         return await pending_compute_jobs_exist(

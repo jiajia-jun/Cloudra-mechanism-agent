@@ -20,8 +20,8 @@ with a single write-ahead path:
 - Persistence and publication cursors are tracked separately: attaching a
   store after memory-only events backfills them without republishing.
 
-The writer is deliberately ephemeral: cursors are process-local indices into
-the in-memory log.  ``mark_restored`` is called right after restore backfill
+The writer is deliberately ephemeral: cursors are global append offsets,
+independent of resident-cache eviction. ``mark_restored`` follows restoration
 to keep replayed history from being re-persisted/re-published.
 """
 
@@ -66,37 +66,46 @@ class EventWriter:
     async def flush(self) -> None:
         """Persist the unflushed prefix in order, then publish unpublished events."""
         async with self._lock:
-            events = list(self._log)
             store = self._store_provider() if self._store_provider is not None else None
             if store is not None:
+                self._log.attach_store(store)
+            start = min(self._persisted, self._published) if store is not None else self._published
+            events = (
+                self._log.events_since(start) if start >= self._log.resident_start_index
+                else await asyncio.to_thread(self._log.events_since, start)
+            )
+            end = start + len(events)
+            if store is not None:
                 index = self._persisted
-                while index < len(events):
+                while index < end:
+                    envelope = events[index - start]
                     # An append can commit and still raise before the caller
                     # receives its acknowledgement. Probe by the durable id
                     # before treating that event as unpersisted.
                     try:
-                        await asyncio.to_thread(store.append_event, events[index])
+                        await asyncio.to_thread(store.append_event, envelope)
                     except Exception as exc:
                         probe = getattr(store, "has_event", None)
                         committed = False
                         if callable(probe):
                             try:
                                 committed = await asyncio.to_thread(
-                                    probe, events[index].event_id
+                                    probe, envelope.event_id
                                 )
                             except Exception:
                                 # Unknown durability must remain a failure.
                                 pass
                         if not committed:
                             raise EventPersistenceError(
-                                f"event persistence failed for {events[index].type}: {exc}"
+                                f"event persistence failed for {envelope.type}: {exc}"
                             ) from exc
                     self._persisted = index + 1
+                    self._log.mark_persisted(index + 1, envelope)
                     index += 1
-            unpublished = events[self._published :]
+            unpublished = events[max(0, self._published - start):]
             # Mark before publishing: hub callbacks may re-enter flush, and
             # the hub dedupes by event_id, so this cannot double-deliver.
-            self._published = len(events)
+            self._published = end
         if self._hub is not None:
             for envelope in unpublished:
                 await self._hub.publish(envelope)
@@ -119,7 +128,7 @@ class EventWriter:
             # flush may have persisted this draft, then failed on a later
             # concurrently appended event. The caller's commit succeeded;
             # publish its durable prefix and do not provoke a duplicate retry.
-            if self._persisted <= before_append or self._log.get(envelope.event_id) is None:
+            if self._persisted <= before_append:
                 raise
             await self.publish_persisted()
         return envelope
@@ -127,8 +136,11 @@ class EventWriter:
     async def publish_persisted(self) -> None:
         """Publish only the durable prefix after a failed flush, without retrying writes."""
         async with self._lock:
-            events = list(self._log)
-            unpublished = events[self._published : self._persisted]
+            unpublished = (
+                self._log.events_since(self._published, self._persisted)
+                if self._published >= self._log.resident_start_index
+                else await asyncio.to_thread(self._log.events_since, self._published, self._persisted)
+            )
             self._published = max(self._published, self._persisted)
         if self._hub is not None:
             for envelope in unpublished:
@@ -164,5 +176,8 @@ class EventWriter:
         self._persisted = len(self._log)
         self._published = len(self._log)
         if self._hub is not None:
-            for envelope in self._log:
-                self._hub.mark_delivered(envelope.event_id)
+            self._hub.mark_restored(self._log.high_watermarks)
+
+    def mark_recovery_persisted(self) -> None:
+        """Recovery writes are durable but remain available for live publication."""
+        self._persisted = len(self._log)

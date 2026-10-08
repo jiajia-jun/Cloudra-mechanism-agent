@@ -11,7 +11,10 @@ Rules:
 from __future__ import annotations
 
 import logging
-from collections import defaultdict
+import sys
+import threading
+from collections import OrderedDict, defaultdict, deque
+from itertools import islice
 from typing import Any, Awaitable, Callable, Iterable
 
 from cloudra.runtime_v2.schemas import EventEnvelope
@@ -100,6 +103,24 @@ class UnknownEventType(ValueError):
     pass
 
 
+def event_size_bytes(envelope: EventEnvelope) -> int:
+    """Estimate retained envelope memory without serializing large payloads."""
+    seen: set[int] = set()
+
+    def size(value) -> int:
+        if id(value) in seen:
+            return 0
+        seen.add(id(value))
+        total = sys.getsizeof(value)
+        if isinstance(value, dict):
+            total += sum(size(k) + size(v) for k, v in value.items())
+        elif isinstance(value, (list, tuple)):
+            total += sum(size(item) for item in value)
+        return total
+
+    return sys.getsizeof(envelope) + size(envelope.__dict__)
+
+
 class EventLog:
     def __init__(self, *, strict: bool = False) -> None:
         self.strict = strict
@@ -107,6 +128,96 @@ class EventLog:
         self._by_id: dict[str, EventEnvelope] = {}
         self._project_seqs: dict[str, int] = defaultdict(int)
         self._session_seqs: dict[str, int] = defaultdict(int)
+        self._store = None
+        self._base_index = 0
+        self._count = 0
+        self._durable_count = 0
+        self._durable_projects: dict[str, int] = {}
+        self._durable_sessions: dict[str, int] = {}
+        self._sizes: deque[int] = deque()
+        self._cached_bytes = 0
+        self._lock = threading.RLock()
+        # Engineering cache limits, independent of chemistry or LLM budgets.
+        self._max_cached_events = 512
+        self._max_cached_bytes = 8 * 1024 * 1024
+
+    def attach_store(self, store) -> None:
+        """Attach complete durable history; this does not load or replay it."""
+        if callable(getattr(store, "iter_events", None)):
+            self._store = store
+
+    def _retain(self, envelope: EventEnvelope) -> None:
+        self._events.append(envelope)
+        self._by_id[envelope.event_id] = envelope
+        size = event_size_bytes(envelope)
+        self._sizes.append(size)
+        self._cached_bytes += size
+
+    def _prune(self) -> None:
+        if self._store is None:
+            return  # Memory-only embedders have no other authority.
+        remove = 0
+        while (
+            len(self._events) - remove > self._max_cached_events
+            or self._cached_bytes > self._max_cached_bytes
+        ) and self._base_index + remove < self._durable_count:
+            event = self._events[remove]
+            self._by_id.pop(event.event_id, None)
+            self._cached_bytes -= self._sizes.popleft()
+            remove += 1
+        if remove:
+            del self._events[:remove]
+            self._base_index += remove
+
+    def mark_persisted(self, count: int, envelope: EventEnvelope) -> None:
+        """Advance the durable prefix only after the store acknowledges it."""
+        with self._lock:
+            self._durable_count = count
+            self._durable_projects[envelope.project_id] = envelope.seq
+            if envelope.session_id is not None and envelope.session_seq is not None:
+                self._durable_sessions[envelope.session_id] = envelope.session_seq
+            self._prune()
+
+    def restore_from_store(self, store) -> None:
+        """Restore counters plus a finite payload cache, keeping history on disk."""
+        self.attach_store(store)
+        count, projects, sessions = store.event_metadata()
+        with self._lock:
+            self._events.clear()
+            self._by_id.clear()
+            self._sizes.clear()
+            self._cached_bytes = 0
+            self._count = self._durable_count = count
+            self._project_seqs = defaultdict(int, projects)
+            self._session_seqs = defaultdict(int, sessions)
+            self._durable_projects = dict(projects)
+            self._durable_sessions = dict(sessions)
+            recent, size = [], 0
+            for event in store.iter_events(limit=self._max_cached_events, tail=True):
+                cost = event_size_bytes(event)
+                if size + cost > self._max_cached_bytes:
+                    break
+                recent.append(event)
+                size += cost
+            recent.reverse()
+            self._base_index = count - len(recent)
+            for event in recent:
+                self._retain(event)
+            self._prune()
+
+    def events_since(self, index: int, stop: int | None = None) -> list[EventEnvelope]:
+        """Global append offsets, unaffected by resident-cache eviction.
+
+        Synchronous: consume through ``asyncio.to_thread`` in async callers.
+        The writer's normal path reads only its small resident pending tail.
+        """
+        with self._lock:
+            stop = min(self._count, self._count if stop is None else stop)
+            if index >= self._base_index:
+                return self._events[max(0, index - self._base_index): max(0, stop - self._base_index)]
+            store, durable = self._store, self._durable_count
+            pending = self._events[max(0, durable - self._base_index): max(0, stop - self._base_index)]
+        return store.read_events(start_index=max(0, index), stop_index=min(stop, durable)) + pending
 
     def append(
         self,
@@ -139,18 +250,27 @@ class EventLog:
             type=type,
             data=data or {},
         )
-        self._events.append(envelope)
-        self._by_id[envelope.event_id] = envelope
+        with self._lock:
+            self._retain(envelope)
+            self._count += 1
         return envelope
 
     def get(self, event_id: str) -> EventEnvelope | None:
-        return self._by_id.get(event_id)
+        with self._lock:
+            resident = self._by_id.get(event_id)
+            store = self._store
+        return resident if resident is not None or store is None else store.get_event(event_id)
 
     def __iter__(self):
-        return iter(self._events)
+        return self.iter_events()
 
     def __len__(self) -> int:
-        return len(self._events)
+        return self._count
+
+    @property
+    def resident_start_index(self) -> int:
+        """First append offset served without touching durable storage."""
+        return self._base_index
 
     @property
     def high_watermarks(self) -> dict[str, int]:
@@ -159,10 +279,16 @@ class EventLog:
         永久漏掉（3b 修复的丢事件 bug）。"""
         return dict(self._project_seqs)
 
+    @property
+    def high_session_watermarks(self) -> dict[str, int]:
+        return dict(self._session_seqs)
+
     def watermarks_for_prefix(self, count: int) -> dict[str, int]:
         """前 ``count`` 条事件的 per-project seq 水位（已落盘前缀用）。"""
+        if count == self._durable_count:
+            return dict(self._durable_projects)
         marks: dict[str, int] = {}
-        for envelope in self._events[: max(0, count)]:
+        for envelope in self.events_since(0, max(0, count)):
             current = marks.get(envelope.project_id, 0)
             if envelope.seq > current:
                 marks[envelope.project_id] = envelope.seq
@@ -171,8 +297,8 @@ class EventLog:
     def restore(self, envelopes: list[EventEnvelope]) -> None:
         """Replay persisted envelopes without generating new seq numbers."""
         for envelope in envelopes:
-            self._events.append(envelope)
-            self._by_id[envelope.event_id] = envelope
+            self._retain(envelope)
+            self._count += 1
             self._project_seqs[envelope.project_id] = max(
                 self._project_seqs[envelope.project_id], envelope.seq
             )
@@ -190,15 +316,21 @@ class EventLog:
         """
         if keep < 0:
             raise ValueError("keep must be >= 0")
-        if keep >= len(self._events):
+        if keep >= self._count:
             return
-        dropped = self._events[keep:]
-        self._events = self._events[:keep]
+        if keep < self._durable_count:
+            raise ValueError("cannot discard durable events")
+        local_keep = keep - self._base_index
+        dropped = self._events[local_keep:]
+        self._events = self._events[:local_keep]
+        while len(self._sizes) > local_keep:
+            self._cached_bytes -= self._sizes.pop()
+        self._count = keep
         for envelope in dropped:
             self._by_id.pop(envelope.event_id, None)
-        self._project_seqs.clear()
-        self._session_seqs.clear()
-        for envelope in self._events:
+        self._project_seqs = defaultdict(int, self._durable_projects)
+        self._session_seqs = defaultdict(int, self._durable_sessions)
+        for envelope in self._events[max(0, self._durable_count - self._base_index):]:
             self._project_seqs[envelope.project_id] = max(
                 self._project_seqs[envelope.project_id], envelope.seq
             )
@@ -216,17 +348,7 @@ class EventLog:
         limit: int | None = 500,
         tail: bool = True,
     ) -> list[EventEnvelope]:
-        wanted = frozenset(types) if types is not None else None
-        matched = [
-            event
-            for event in self._events
-            if event.project_id == project_id
-            and event.seq > after_seq
-            and (wanted is None or event.type in wanted)
-        ]
-        if limit is None:
-            return matched
-        return matched[-limit:] if tail else matched[:limit]
+        return self._query(project_id=project_id, after_seq=after_seq, types=types, limit=limit, tail=tail)
 
     def query_session(
         self,
@@ -238,21 +360,59 @@ class EventLog:
         limit: int = 500,
         tail: bool = True,
     ) -> list[EventEnvelope]:
-        wanted = frozenset(types) if types is not None else None
-        matched = [
-            event
-            for event in self._events
-            if event.session_id == session_id
-            and (event.session_seq or 0) > after_session_seq
-            and (
-                before_session_seq is None
-                or (event.session_seq or 0) <= before_session_seq
+        return self._query(session_id=session_id, after_session_seq=after_session_seq,
+                           before_session_seq=before_session_seq, types=types, limit=limit, tail=tail)
+
+    def _query(self, *, limit, tail, **filters) -> list[EventEnvelope]:
+        wanted = filters.get("types")
+        filters["types"] = frozenset(wanted) if wanted is not None else None
+        with self._lock:
+            store, count = self._store, self._durable_count
+            pending = (
+                iter(list(self._events[max(0, count - self._base_index):]))
+                if store else islice(iter(self._events), self._count)
             )
-            and (wanted is None or event.type in wanted)
-        ]
-        # tail=True：最近 limit 条（默认，看最新；before_session_seq 是向后翻页游标）；
-        # tail=False：从头分页（全量回放）
+        extra = [event for event in pending if self._matches(event, filters)]
+        durable = store.read_events(stop_index=count, limit=limit, tail=tail, **filters) if store else []
+        matched = durable + extra
+        if limit is None:
+            return matched
         return matched[-limit:] if tail else matched[:limit]
+
+    @staticmethod
+    def _matches(event, filters) -> bool:
+        return (
+            (filters.get("project_id") is None or event.project_id == filters["project_id"])
+            and (filters.get("session_id") is None or event.session_id == filters["session_id"])
+            and event.seq > filters.get("after_seq", 0)
+            and (filters.get("before_seq") is None or event.seq <= filters["before_seq"])
+            and (event.session_seq or 0) > filters.get("after_session_seq", -1)
+            and (filters.get("before_session_seq") is None or (event.session_seq or 0) <= filters["before_session_seq"])
+            and (filters.get("types") is None or event.type in filters["types"])
+        )
+
+    def iter_project(self, project_id: str, *, after_seq: int = 0,
+                     before_seq: int | None = None, types=None):
+        """Stream project evidence through a captured durable-prefix boundary."""
+        return self.iter_events(project_id=project_id, after_seq=after_seq,
+                                before_seq=before_seq, types=types)
+
+    def iter_events(self, *, types=None, project_id=None, session_id=None,
+                    after_seq=0, before_seq=None, before_session_seq=None):
+        """Stream filtered evidence without decoding unrelated raw results."""
+        filters = {"project_id": project_id, "session_id": session_id,
+                   "after_seq": after_seq, "before_seq": before_seq,
+                   "before_session_seq": before_session_seq,
+                   "types": frozenset(types) if types is not None else None}
+        with self._lock:
+            store, count = self._store, self._durable_count
+            pending = (
+                iter(list(self._events[max(0, count - self._base_index):]))
+                if store else islice(iter(self._events), self._count)
+            )
+        if store is not None:
+            yield from store.iter_events(stop_index=count, **filters)
+        yield from (event for event in pending if self._matches(event, filters))
 
 
 class EventHub:
@@ -264,7 +424,9 @@ class EventHub:
         # deduplicated by event_id so reentrant flushes (a subscriber that
         # submits commands) never double-deliver.  seq=0 streaming chunks
         # (llm.chunk / project.synced) are hub-only and never deduplicated.
-        self._delivered_ids: set[str] = set()
+        self._delivered_ids: OrderedDict[str, None] = OrderedDict()
+        self._inflight: set[str] = set()
+        self._restored_watermarks: dict[str, int] = {}
 
     def subscribe(self, handler: Callable[[EventEnvelope], Awaitable[None]]) -> Callable:
         self._subscribers.append(handler)
@@ -276,20 +438,30 @@ class EventHub:
 
     def mark_delivered(self, event_id: str) -> None:
         """Record an event as already published (restore backfill)."""
-        self._delivered_ids.add(event_id)
+        self._delivered_ids[event_id] = None
+        while len(self._delivered_ids) > 1024:
+            self._delivered_ids.popitem(last=False)
+
+    def mark_restored(self, watermarks: dict[str, int]) -> None:
+        self._restored_watermarks = dict(watermarks)
 
     async def publish(self, envelope: EventEnvelope) -> None:
         if envelope.seq != 0:
-            if envelope.event_id in self._delivered_ids:
+            if (
+                envelope.event_id in self._delivered_ids
+                or envelope.event_id in self._inflight
+                or envelope.seq <= self._restored_watermarks.get(envelope.project_id, 0)
+            ):
                 return
             # Mark before callbacks: a subscriber re-entering the hub through
             # a nested command must not re-deliver this envelope.
-            self._delivered_ids.add(envelope.event_id)
-        for handler in list(self._subscribers):
-            try:
-                await handler(envelope)
-            except Exception:
-                # Observers must never break the command pipeline.  The hub is
-                # fire-and-forget broadcast; failing subscribers are logged by
-                # the API/SSE layer through its own diagnostics later.
-                logger.exception("event subscriber failed for %s", envelope.type)
+            self._inflight.add(envelope.event_id)
+            self.mark_delivered(envelope.event_id)
+        try:
+            for handler in list(self._subscribers):
+                try:
+                    await handler(envelope)
+                except Exception:
+                    logger.exception("event subscriber failed for %s", envelope.type)
+        finally:
+            self._inflight.discard(envelope.event_id)

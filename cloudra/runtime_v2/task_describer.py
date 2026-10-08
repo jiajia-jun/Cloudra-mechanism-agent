@@ -127,7 +127,7 @@ class TaskDescriber:
 
     def __init__(self, core: "RuntimeCore") -> None:
         self.core = core
-        self._active_tasks: set[asyncio.Task] = set()
+        self._active_tasks: dict[asyncio.Task, str] = {}
         self._started = False
 
     def start(self) -> None:
@@ -142,6 +142,13 @@ class TaskDescriber:
         for t in list(self._active_tasks):
             t.cancel()
         self._active_tasks.clear()
+
+    def prune_sessions(self, session_ids: set[str]) -> None:
+        """Stop descriptions that can no longer update an existing session."""
+        for task, session_id in list(self._active_tasks.items()):
+            if session_id not in session_ids:
+                task.cancel()
+                self._active_tasks.pop(task)
 
     async def _on_event(self, envelope: EventEnvelope) -> None:
         if envelope.type != "agent.message_injected":
@@ -181,8 +188,8 @@ class TaskDescriber:
 
         language = data.get("language")
         task = asyncio.create_task(self._process_task_update(agent, content, language))
-        self._active_tasks.add(task)
-        task.add_done_callback(self._active_tasks.discard)
+        self._active_tasks[task] = session_id
+        task.add_done_callback(lambda done: self._active_tasks.pop(done, None))
 
     async def _process_task_update(
         self, agent: AgentSession, instruction: str, language: Optional[str]

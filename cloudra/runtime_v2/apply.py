@@ -127,7 +127,7 @@ def _apply_project_deleted(core: RuntimeCore, envelope: EventEnvelope) -> None:
     core.projects.pop(project_id, None)
     for session_id in [sid for sid, a in core.agents.items() if a.project_id == project_id]:
         core.agents.pop(session_id, None)
-        core.mailbox.drop_inbox(session_id)
+    core.prune_orphaned_state()
 
 
 def _apply_launch_group(core: RuntimeCore, envelope: EventEnvelope) -> None:

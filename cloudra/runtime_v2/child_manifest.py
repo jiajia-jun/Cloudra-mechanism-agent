@@ -141,9 +141,9 @@ def build_child_manifest(
     state = AgentState(terminal_event.data["to"]) if terminal_event is not None else child.state
     events = None
     if terminal_event is not None:
-        source = session_events if session_events is not None else [
-            e for e in core.event_log if e.session_id == child.id
-        ]
+        source = session_events if session_events is not None else list(core.event_log.iter_events(
+            session_id=child.id, types={"run.started", "run.finished", "agent.message_emitted", "agent.completion_gate"},
+        ))
         cutoff = terminal_event.session_seq or 0
         events = [e for e in source if (e.session_seq or 0) <= cutoff]
         # finish_run emits state_changed then run.finished. Include the matching

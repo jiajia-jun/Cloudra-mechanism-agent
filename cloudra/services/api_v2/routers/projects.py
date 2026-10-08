@@ -104,7 +104,8 @@ def build_router(ctx: ApiContext) -> APIRouter:
 
     @router.get("/api/v2/projects/{project_id}/agents", dependencies=ctx.protected)
     async def list_agents(project_id: str) -> list[dict[str, Any]]:
-        return agent_dicts(ctx.core, ctx.core.list_project_agents(project_id))
+        agents = ctx.core.list_project_agents(project_id)
+        return await asyncio.to_thread(agent_dicts, ctx.core, agents)
 
     @router.post("/api/v2/projects/{project_id}/agents", dependencies=ctx.protected, status_code=status.HTTP_201_CREATED)
     async def spawn_agent(project_id: str, body: AgentSpawn) -> CommandResponse:

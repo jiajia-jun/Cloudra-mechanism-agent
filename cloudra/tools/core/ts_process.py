@@ -112,6 +112,7 @@ class TsAttemptHistory(BaseModel):
     terminal: TsTerminal | None = None
     blocked: TsBlocked | None = None
     failed_attempt: dict | None = None
+    recovery_evidence: dict | None = None
 
 
 class TsProcessRecord(BaseModel):
@@ -304,10 +305,23 @@ def _block(record: TsProcessRecord, stage: TsStage, failure_class: str, message:
     _record_stage(record, stage, "blocked", message)
     return record
 
-def _record_candidate_failure(record, failure_class, step, evidence_path):
+def _artifact_sha256(path: Path) -> str | None:
+    import hashlib
+
+    if not path.is_file():
+        return None
+    with path.open('rb') as handle:
+        return hashlib.file_digest(handle, 'sha256').hexdigest()
+
+
+def _record_candidate_failure(record, failure_class, step, evidence_path, diagnostics=None):
     record.failed_attempt = dict(attempt_id=f'{step.source_input_revision}:{step.purpose}:{step.job_id}',
         failure_class=failure_class, purpose=step.purpose, job_id=step.job_id,
-        input_revision=step.source_input_revision, evidence_refs=[evidence_path])
+        input_revision=step.source_input_revision, evidence_refs=[evidence_path],
+        input_path=step.input_path, log_path=evidence_path,
+        input_sha256=_artifact_sha256(Path(step.input_path)),
+        log_sha256=_artifact_sha256(Path(evidence_path)),
+        diagnostics=list(diagnostics or []))
     if not record.catalog_id or not record.selected_candidate_id:
         return
     from cloudra.tools.core.conformer_catalog import content_digest
@@ -316,6 +330,32 @@ def _record_candidate_failure(record, failure_class, step, evidence_path):
         failure_class=failure_class,job_id=step.job_id,evidence_refs=[evidence_path])
     if attempt not in record.candidate_attempts:
         record.candidate_attempts.append(attempt)
+
+
+def _native_failure_details(log_path: str, engine: str) -> tuple[str, list[str]]:
+    """Preserve native failure warnings even when reference/timing footers follow."""
+    path = Path(log_path)
+    if not path.is_file():
+        return 'unclassified_failure', [f'log not found at {log_path}']
+    text = path.read_text(errors='replace')
+    markers = (
+        'GEOMETRY OPTIMIZATION DID NOT CONVERGE', 'FAILED TO CONVERGE',
+        'SCF NOT CONVERGED', 'CONVERGENCE FAILURE', 'NUMBER OF STEPS EXCEEDED',
+    )
+    nonconverged = any(marker in text.upper() for marker in markers)
+    if engine == 'orca':
+        from cloudra.tools.core.orca_frames import opt_converged
+        nonconverged = nonconverged or opt_converged(text) is False
+    lines = text.splitlines()
+    warnings = [index for index, line in enumerate(lines)
+                if any(marker in line.upper() for marker in
+                       (*markers, 'DID NOT CONVERGE', 'ERROR', 'ABORT', 'FAILED'))]
+    selected = set(range(max(0, len(lines) - 15), len(lines)))
+    for index in warnings[-5:]:
+        selected.update(range(max(0, index - 2), min(len(lines), index + 4)))
+    details = [f'native log: {log_path}', *(lines[index] for index in sorted(selected))]
+    return 'nonconvergence' if nonconverged else 'unclassified_failure', details
+
 
 def _terminal(record: TsProcessRecord, stage: TsStage, terminal: TsTerminal,
               detail: str) -> TsProcessRecord:
@@ -1346,19 +1386,15 @@ def _guess_scan(record: TsProcessRecord) -> TsProcessRecord:
         return record
     record.waiting_for = ""
     if step.state != "done":
-        _record_candidate_failure(record, "scan_job_failed", step, _refinement_log_path(record, step))
         log_path = _refinement_log_path(record, step)
-        details = [f"native scan log: {log_path}"]
-        if Path(log_path).is_file():
-            details.extend(Path(log_path).read_text(errors="replace").splitlines()[-20:])
-        else:
-            details.append("native scan log is missing")
+        failure, details = _native_failure_details(log_path, calculation.engine)
+        _record_candidate_failure(record, failure, step, log_path, details)
         return _block(
             record, "guess", "scan_job_failed",
             f"Scan job {step.job_id}: {step.state}. Inspect the native log and execution artifacts "
             "to identify the cause before proposing a correction. An unchanged adjustment does "
-            "not retry the job; changing only the point count starts another scan and does not "
-            "resolve an unexplained engine failure.",
+            "not retry the job; a point-count change alone does not resolve an unexplained engine "
+            "failure. A retry requires scan_recovery bound to this failure and actual repair artifacts.",
             atom_details=details, needs=["compute_artifacts"],
         )
     target = str(Path(step.input_path).parent / "scan_peak.xyz")
@@ -2493,20 +2529,8 @@ def _refine(record: TsProcessRecord) -> TsProcessRecord:
     record.waiting_for = ""
     if state != "done":
         log_path = _refinement_log_path(record, current)
-        tail: list[str] = []
-        if os.path.isfile(log_path):
-            with open(log_path, encoding="utf-8", errors="replace") as handle:
-                tail = handle.read().splitlines()[-15:]
-        details = tail if tail else [f"log not found at {log_path}"]
-        failure = 'unclassified_failure'
-        if Path(log_path).is_file():
-            engine_text = Path(log_path).read_text(errors='replace').upper()
-            if any(marker in engine_text for marker in (
-                'GEOMETRY OPTIMIZATION DID NOT CONVERGE', 'FAILED TO CONVERGE',
-                'SCF NOT CONVERGED', 'CONVERGENCE FAILURE', 'NUMBER OF STEPS EXCEEDED',
-            )):
-                failure = 'nonconvergence'
-        _record_candidate_failure(record, failure, current, log_path)
+        failure, details = _native_failure_details(log_path, _step_calculation(record, current).engine)
+        _record_candidate_failure(record, failure, current, log_path, details)
         return _block(
             record, "refine", f"job_{state}",
             f"refinement job {current.job_id} ({current.purpose}) ended as {state!r}; plain "

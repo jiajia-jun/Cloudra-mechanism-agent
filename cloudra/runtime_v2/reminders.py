@@ -106,6 +106,15 @@ class ReminderBroker:
         self._last_check: dict[tuple[str, int], tuple[int, str]] = {}
         self._fire_lock = asyncio.Lock()
 
+    def prune_projects(self, project_ids: set[str]) -> None:
+        """Cancel only local reminder timers belonging to deleted projects."""
+        for project_id, schedule_id in list(self._timers):
+            if project_id not in project_ids:
+                self._cancel_timer(project_id, schedule_id)
+        for key in list(self._last_check):
+            if key[0] not in project_ids:
+                self._last_check.pop(key)
+
     async def close(self) -> None:
         groups = list(self._timers.values())
         self._timers.clear()
@@ -286,7 +295,7 @@ class ReminderBroker:
 
     async def _abandon(self, project_id: str, session_id: str, schedule_id: int) -> None:
         async with self._fire_lock:
-            pending = self.pending_in_project(project_id, session_id=session_id)
+            pending = await asyncio.to_thread(self.pending_in_project, project_id, session_id=session_id)
             if not any(item["schedule_id"] == schedule_id for item in pending):
                 self._cancel_timer(project_id, schedule_id)
                 return
@@ -308,7 +317,7 @@ class ReminderBroker:
         output: str = "",
     ) -> None:
         async with self._fire_lock:
-            pending = self.pending_in_project(project_id, session_id=session_id)
+            pending = await asyncio.to_thread(self.pending_in_project, project_id, session_id=session_id)
             row = next((item for item in pending if item["schedule_id"] == schedule_id), None)
             if row is None:
                 return
@@ -346,7 +355,7 @@ class ReminderBroker:
     async def rearm_all(self) -> None:
         """Rebuild timers from the event projection; overdue reminders fire now."""
         await self.close()
-        for row in self._all_pending():
+        for row in await asyncio.to_thread(self._all_pending):
             self._arm(row)
 
     # ------------------------------------------------------------------ tool
@@ -368,7 +377,7 @@ class ReminderBroker:
                     "check_command": row.get("check_command"),
                     "interval_seconds": row.get("interval_seconds"),
                 }
-                for row in self.pending(agent.id)
+                for row in await asyncio.to_thread(self.pending, agent.id)
             ]
             return _ok(
                 f"{len(schedules)} pending reminder(s).",
@@ -382,7 +391,7 @@ class ReminderBroker:
                 return _err("cancel requires schedule_id.")
             schedule_id = int(raw_id)
             row = next(
-                (item for item in self.pending(agent.id) if item["schedule_id"] == schedule_id),
+                (item for item in await asyncio.to_thread(self.pending, agent.id) if item["schedule_id"] == schedule_id),
                 None,
             )
             if row is None:
