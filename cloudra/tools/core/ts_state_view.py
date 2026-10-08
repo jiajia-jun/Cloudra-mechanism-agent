@@ -7,8 +7,19 @@ from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+from typing_extensions import TypedDict
 
 from cloudra.persistence.database import ComputeDB
+from cloudra.tools.core.ts_process import TsTerminal
+
+
+class TsVerdict(TypedDict):
+    __pydantic_config__ = ConfigDict(extra="forbid")
+
+    outcome: TsTerminal
+    verified: bool
+    reason: str
+    evidence_refs: list[str]
 
 
 class TsProcessView(BaseModel):
@@ -18,7 +29,7 @@ class TsProcessView(BaseModel):
     run_dir: str = ""
     status: Literal["running", "waiting", "blocked", "ended", "isolated"] | None = None
     stage: str = ""
-    result: dict | None = Field(default=None, description="Scientific verdict: outcome, verified and recorded reason. Tool-call success and an ended workflow do not imply scientific verification.")
+    result: TsVerdict | None = Field(default=None, description="Scientific verdict: outcome, verified, recorded reason and evidence references. Tool-call success and an ended workflow do not imply scientific verification.")
     waiting_for: list[dict] = Field(default_factory=list)
     available_results: list[dict] = Field(default_factory=list)
     structures: dict[str, dict] = Field(default_factory=dict, description="Recorded full XYZ atom tables and binding facts")

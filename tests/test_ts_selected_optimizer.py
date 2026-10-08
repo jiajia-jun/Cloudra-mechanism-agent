@@ -50,6 +50,34 @@ def test_catalog_prepare_requires_explicit_member_optimizer_and_deduplicates(tmp
 
 
 @pytest.mark.usefixtures("rdkit_chemistry")
+@pytest.mark.parametrize("engine,suffix", [("gaussian", ".gjf"), ("orca", ".inp")])
+def test_native_selected_seed_writes_and_submits_declared_input_once(tmp_path, monkeypatch, engine, suffix):
+    from cloudra.services.compute_admission import AdmissionOutcome
+    from cloudra.tools.core.calculation_intent import inspect_input
+    from cloudra.tools.core.ts_inputs import CatalogConformer, FileConformer
+    from tests.ts_fixtures import calculation_input
+
+    source, xyz = catalog_seed(tmp_path)
+    inputs = calculation_input(reactant_smiles='O', product_smiles='O', method='b3lyp/def2svp', atom_map=[0, 1, 2])
+    inputs.conformers.reactant = CatalogConformer(**source, optimization={
+        'engine': engine, 'method': 'b3lyp/def2svp', 'keywords': '',
+    })
+    inputs.conformers.product = FileConformer(kind='file', xyz_path=str(xyz))
+    monkeypatch.setattr('cloudra.services.compute_admission.admit_job',
+                        lambda **_: AdmissionOutcome(ok=True, node_id='fixture', scheduler='local'))
+    request = ts_process.TsStartRequest(input=inputs, workspace_dir=str(tmp_path),
+        owner_conversation_id='project', owner_session_id='owner', request_key='native-selected')
+    first, second = ts_process.start(request), ts_process.start(request)
+    assert first.waiting_for == second.waiting_for and first.waiting_for
+    step = first.job_steps[-1]
+    assert step.purpose == 'candidate_opt'
+    assert Path(step.input_path).suffix == suffix
+    assert inspect_input(Path(step.input_path).read_text(), engine=engine).tasks == {'minimum_opt'}
+    with ComputeDB().connect() as con:
+        assert con.execute('SELECT COUNT(*) FROM compute_jobs').fetchone()[0] == 1
+
+
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_completed_explicit_seed_opt_advances_other_seed_once(tmp_path,monkeypatch):
     from cloudra.runtime.chem_task import ChemTask, result_path
     from cloudra.services.compute_admission import AdmissionOutcome

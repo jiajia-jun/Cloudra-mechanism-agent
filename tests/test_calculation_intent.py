@@ -48,7 +48,7 @@ def _writer(tmp_path, **overrides):
         "engine": "orca",
         "source_type": "xyz_file",
         "source_value": str(xyz),
-        "output_dir": str(tmp_path / "job.inp"),
+        "output_path": str(tmp_path / "job.inp"),
     }
     args.update(overrides)
     return QmInputWriter().tool_call(QmInputWriter_input_schema(**args), session=None)
@@ -333,7 +333,7 @@ async def test_smiles_provenance_comment_is_unverified(tmp_path):
             source_type="smiles",
             source_value="O",
             task_type=[{"opt": None}],
-            output_dir=str(tmp_path / "w.inp"),
+            output_path=str(tmp_path / "w.inp"),
         ),
         session=None,
     )

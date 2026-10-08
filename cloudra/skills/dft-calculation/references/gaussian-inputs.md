@@ -33,7 +33,7 @@ An illustrative closed-shell neutral DFT candidate, with a chosen gas-phase meth
   "mem": "3GB",
   "title": "TS candidate; identity and connectivity pending",
   "chk_name": "/work/step/ts.chk",
-  "output_dir": "/work/step/ts.gjf"
+  "output_path": "/work/step/ts.gjf"
 }
 ```
 

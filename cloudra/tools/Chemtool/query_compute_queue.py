@@ -18,10 +18,10 @@ description = (
     "Use for: checking free capacity before deciding how many cpus/memory_mb to request in submit_compute_job, "
     "or understanding why a submitted job is still queued. "
     "Do not use for: reading a specific job's result (use query_compute_job), or canceling jobs. "
-    "NEVER poll this to wait on jobs. Terminal states are pushed to the owning agent automatically and wake it, "
-    "so re-querying the queue while you wait can only return information you already had — each poll burns a "
-    "model turn, and repeated no-progress turns are strike-counted by the completion gate (strikes FAIL "
-    "the run). Query ONLY for an on-demand capacity/queue check right before submitting. "
+    "Do not poll this to wait on jobs. Terminal states are pushed to the submitting session. "
+    "Non-coordinator sessions can stop and be woken as individual jobs finish; "
+    "coordinator notifications are stored without waking the coordinator, so schedule a wake-up if waiting directly. "
+    "Use this tool for an on-demand capacity/queue check before submitting or to diagnose queuing. "
     "Scheduling is FIFO within the same priority; running jobs are never preempted."
 )
 
@@ -177,12 +177,11 @@ class QueryComputeQueue(Tool):
         )
         if running or queued:
             message += (
-                " STOP POLLING. Terminal states are pushed to the owning agent automatically and "
-                "will wake it — re-querying this queue does not make jobs finish faster and never "
-                "tells you anything new about completion. Every poll burns a model turn, and "
-                "repeated no-progress turn endings are strike-counted by the completion gate "
-                "(strikes FAIL the run). Do other work or end your turn and wait for the push. "
-                "If you genuinely need an interim checkpoint, use schedule once with a one-shot "
+                " STOP POLLING. Terminal states are pushed to the submitting session. "
+                "Non-coordinator sessions can stop and be woken as individual jobs finish; "
+                "coordinator notifications are stored without waking the coordinator, so schedule a wake-up "
+                "if waiting directly. Do other work while jobs run. If you need an interim checkpoint, "
+                "use schedule once with a one-shot "
                 "read-only check_command."
             )
         return QueryComputeQueue_output_schema(

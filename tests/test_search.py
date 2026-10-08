@@ -1,9 +1,10 @@
 """search surface: schema, native-search mutation, executor reject of source=web."""
 
 import pytest
+from pydantic import ValidationError
 
 from cloudra.runtime_v2.adapters import apply_native_search_to_schemas
-from cloudra.tools.Searchtool.search import Search, Search_input_schema
+from cloudra.tools.Searchtool.search import Search, Search_input_schema, Search_output_schema
 
 
 def test_search_schema_default_source_is_web():
@@ -12,6 +13,32 @@ def test_search_schema_default_source_is_web():
     assert set(schema["properties"]["source"]["enum"]) == {"web", "arxiv", "openalex"}
     assert "mode" in schema["properties"]
     assert Search_input_schema.model_fields["source"].default == "web"
+
+
+@pytest.mark.parametrize("field,hit", [
+    ("results", {"title": "A result", "url": 7, "snippet": "A summary", "source": "brave"}),
+    ("content", {"title": "A paper", "doi": None, "authors": "Jane Doe"}),
+])
+def test_search_output_rejects_malformed_hit_fields(field, hit):
+    """Result items must carry usable URLs and author lists across the bridge."""
+    with pytest.raises(ValidationError):
+        Search_output_schema(**{field: [hit]})
+
+
+@pytest.mark.parametrize("field,hit", [
+    ("results", {"title": None, "url": "https://example.org", "snippet": None,
+                 "source": "tavily", "published": None}),
+    ("content", {"title": "A preprint", "journal_ref": None, "doi": None,
+                 "abstract": "A summary", "authors": ["Jane Doe"], "categories": ["physics"],
+                 "primary_category": "physics", "pdf_url": "https://arxiv.org/pdf/example",
+                 "comment": None, "links": ["https://arxiv.org/abs/example"]}),
+    ("content", {"title": None, "doi": None, "published_date": None, "source": "OpenAlex",
+                 "abstract": "No abstract available", "authors": [None], "concepts": [None],
+                 "pdf_url": None}),
+])
+def test_search_output_preserves_provider_fields_and_nulls(field, hit):
+    output = Search_output_schema(**{field: [hit]})
+    assert output.model_dump(mode="json")[field] == [hit]
 
 
 def test_native_search_drops_web_from_source_not_the_tool():

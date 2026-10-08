@@ -80,7 +80,7 @@ def waiting_fixture_stage(tmp_path, *, purpose="frequency", engine="orca", seed=
         task = {"irc": None} if purpose == "irc" else {"opt": None} if purpose.endswith("_opt") else {"freq": None}
         request = QmInputWriter_input_schema(
             engine=engine, method="b3lyp", basis_set="def2svp", task_type=[task],
-            source_type="xyz_file", source_value=str(geometry), output_dir=str(source),
+            source_type="xyz_file", source_value=str(geometry), output_path=str(source),
         )
         coords = process._xyz_coords(str(geometry))
         source.write_text(QmInputWriter._build_orca_input(request, coords) if engine == "orca"

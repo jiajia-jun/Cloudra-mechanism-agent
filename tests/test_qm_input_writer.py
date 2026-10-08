@@ -24,7 +24,7 @@ def test_qm_input_writer_refuses_nonpositive_cpu_counts(nproc):
     with pytest.raises(ValidationError, match="nproc"):
         QmInputWriter_input_schema(
             source_type="xyz_file", source_value="water.xyz",
-            nproc=nproc, output_dir="water.inp",
+            nproc=nproc, output_path="water.inp",
         )
 
 
@@ -46,7 +46,7 @@ async def test_qm_input_writer_from_xyz_file_produces_valid_gjf(tmp_path):
             mem="8GB",
             nproc=8,
             chk_name="water.chk",
-            output_dir=str(out),
+            output_path=str(out),
         ),
         session=None,
     )
@@ -70,7 +70,7 @@ async def test_qm_input_writer_missing_source_file_fails(tmp_path):
         QmInputWriter_input_schema(
             source_type="xyz_file",
             source_value=str(tmp_path / "nope.xyz"),
-            output_dir=str(tmp_path / "x.gjf"),
+            output_path=str(tmp_path / "x.gjf"),
         ),
         session=None,
     )
@@ -95,7 +95,7 @@ async def test_qm_input_writer_rejects_mol_content_declared_as_xyz(tmp_path):
             engine="orca",
             source_type="xyz_file",
             source_value=str(source),
-            output_dir=str(output),
+            output_path=str(output),
         ),
         session=None,
     ), timeout=2)
@@ -121,7 +121,7 @@ async def test_qm_input_writer_rejects_invalid_xyz_records(tmp_path, xyz_text):
     result = await asyncio.wait_for(QmInputWriter().tool_call(
         QmInputWriter_input_schema(
             engine="orca", source_type="xyz_file",
-            source_value=str(source), output_dir=str(output),
+            source_value=str(source), output_path=str(output),
         ),
         session=None,
     ), timeout=2)
@@ -141,7 +141,7 @@ async def test_qm_input_writer_refuses_nonfinite_source_coordinates(tmp_path, co
     result = await QmInputWriter().tool_call(
         QmInputWriter_input_schema(
             engine="orca", source_type="xyz_file",
-            source_value=str(source), output_dir=str(output),
+            source_value=str(source), output_path=str(output),
         ),
         session=None,
     )
@@ -161,7 +161,7 @@ async def test_qm_input_writer_refuses_invalid_orca_memory(tmp_path, mem):
     result = await QmInputWriter().tool_call(
         QmInputWriter_input_schema(
             engine="orca", source_type="xyz_file", source_value=str(source),
-            mem=mem, output_dir=str(output),
+            mem=mem, output_path=str(output),
         ),
         session=None,
     )
@@ -183,7 +183,7 @@ async def test_qm_input_writer_preserves_orca_memory_units(tmp_path, mem, nproc,
     result = await QmInputWriter().tool_call(
         QmInputWriter_input_schema(
             engine="orca", source_type="xyz_file", source_value=str(source),
-            mem=mem, nproc=nproc, output_dir=str(output),
+            mem=mem, nproc=nproc, output_path=str(output),
         ),
         session=None,
     )
@@ -214,7 +214,7 @@ async def test_qm_input_writer_offloads_atomic_output_write(tmp_path, monkeypatc
     result = await QmInputWriter().tool_call(
         QmInputWriter_input_schema(
             engine="orca", source_type="xyz_file", source_value=str(source),
-            output_dir=str(output),
+            output_path=str(output),
         ),
         session=None,
     )
@@ -234,7 +234,7 @@ async def test_orca_external_program_requires_absolute_path(tmp_path, monkeypatc
     result = await QmInputWriter().tool_call(
         QmInputWriter_input_schema(
             engine="orca", source_type="xyz_file", source_value=str(source),
-            external_program=os.path.relpath("/bin/sh", tmp_path), output_dir=str(output),
+            external_program=os.path.relpath("/bin/sh", tmp_path), output_path=str(output),
         ),
         session=None,
     )
@@ -253,7 +253,7 @@ async def test_orca_external_program_writes_the_validated_path(tmp_path):
     result = await QmInputWriter().tool_call(
         QmInputWriter_input_schema(
             engine="orca", source_type="xyz_file", source_value=str(source),
-            external_program=" /bin/../bin/sh ", output_dir=str(output),
+            external_program=" /bin/../bin/sh ", output_path=str(output),
         ),
         session=None,
     )
@@ -271,7 +271,7 @@ async def test_gaussian_external_program_writes_the_validated_token(tmp_path):
     result = await QmInputWriter().tool_call(
         QmInputWriter_input_schema(
             source_type="xyz_file", source_value=str(source),
-            external_program=" mace ", output_dir=str(output),
+            external_program=" mace ", output_path=str(output),
         ),
         session=None,
     )
@@ -293,7 +293,7 @@ async def test_qm_input_writer_preserves_extxyz_property_order(tmp_path):
     result = await QmInputWriter().tool_call(
         QmInputWriter_input_schema(
             engine="orca", source_type="xyz_file",
-            source_value=str(source), output_dir=str(output),
+            source_value=str(source), output_path=str(output),
         ),
         session=None,
     )
@@ -313,7 +313,7 @@ async def test_qm_input_writer_uses_final_frame_of_xyz_trajectory(tmp_path):
     result = await QmInputWriter().tool_call(
         QmInputWriter_input_schema(
             engine="orca", source_type="xyz_file",
-            source_value=str(source), output_dir=str(output),
+            source_value=str(source), output_path=str(output),
         ),
         session=None,
     )
@@ -333,7 +333,7 @@ async def test_qm_input_writer_reports_invalid_mol_source_for_orca(tmp_path):
             engine="orca",
             source_type="mol_file",
             source_value=str(source),
-            output_dir=str(output),
+            output_path=str(output),
         ),
         session=None,
     ), timeout=2)
@@ -360,7 +360,7 @@ async def test_qm_input_writer_reads_valid_mol_source(tmp_path):
             engine="orca",
             source_type="mol_file",
             source_value=str(source),
-            output_dir=str(output),
+            output_path=str(output),
         ),
         session=None,
     )
@@ -377,7 +377,7 @@ async def test_qm_input_writer_invalid_smiles_fails(tmp_path):
         QmInputWriter_input_schema(
             source_type="smiles",
             source_value="not_a_smiles((",
-            output_dir=str(tmp_path / "x.gjf"),
+            output_path=str(tmp_path / "x.gjf"),
         ),
         session=None,
     )
@@ -403,7 +403,7 @@ async def test_qm_input_writer_orca_engine_produces_valid_inp(tmp_path):
             mem="8GB",
             nproc=8,
             extra_keywords="D3BJ",
-            output_dir=str(out),
+            output_path=str(out),
         ),
         session=None,
     )
@@ -435,7 +435,7 @@ async def test_qm_input_writer_orca_single_point_key(tmp_path):
             method="b3lyp",
             basis_set="def2-svp",
             task_type=[{"single_point": None}],
-            output_dir=str(out),
+            output_path=str(out),
         ),
         session=None,
     )
@@ -461,7 +461,7 @@ async def test_qm_input_writer_gaussian_single_point_key(tmp_path):
             method="b3lyp",
             basis_set="6-31g(d)",
             task_type=[{"single_point": None}],
-            output_dir=str(out),
+            output_path=str(out),
         ),
         session=None,
     )
@@ -486,7 +486,7 @@ async def test_qm_input_writer_orca_plain_opt_maps_keywords(tmp_path):
             method="b3lyp",
             basis_set="def2-svp",
             task_type=[{"opt": None}],
-            output_dir=str(out),
+            output_path=str(out),
         ),
         session=None,
     )
@@ -510,7 +510,7 @@ async def test_qm_input_writer_orca_relaxed_scan_writes_native_geom_scan(tmp_pat
             source_value=str(xyz),
             task_type=[{"scan": None}],
             orca_blocks="%geom\n  Scan B 0 1 = 0.95, 1.20, 4 end\nend",
-            output_dir=str(output),
+            output_path=str(output),
         ),
         session=None,
     )
@@ -544,7 +544,7 @@ async def test_qm_input_writer_orca_extopt_external_mlip(tmp_path):
             external_params="--model /opt/MACE-omol-0.model --device cpu --dtype float64",
             task_type=[{"opt": "ts"}, {"freq": None}],
             nproc=1,
-            output_dir=str(out),
+            output_path=str(out),
         ),
         session=None,
     )
@@ -572,7 +572,7 @@ async def test_qm_input_writer_gaussian_external_route(tmp_path):
             source_value=str(xyz),
             external_program="mace",
             task_type=[{"opt": None}],
-            output_dir=str(out),
+            output_path=str(out),
         ),
         session=None,
     )
@@ -586,7 +586,7 @@ async def test_qm_input_writer_gaussian_external_route(tmp_path):
 
 @pytest.mark.asyncio
 async def test_qm_input_writer_relative_paths_use_agent_workspace(tmp_path, monkeypatch):
-    """相对 output_dir/source_value 解析到绑定 agent 的 working_directory，
+    """相对 output_path/source_value 解析到绑定 agent 的 working_directory，
     绝不落到进程 cwd（C1 沙箱路径缺陷的直接单测）。"""
     workspace = tmp_path / "ws"
     workspace.mkdir()
@@ -605,7 +605,7 @@ async def test_qm_input_writer_relative_paths_use_agent_workspace(tmp_path, monk
         QmInputWriter_input_schema(
             source_type="xyz_file",
             source_value="water.xyz",
-            output_dir="calc/water.gjf",
+            output_path="calc/water.gjf",
         ),
         session=None,
     )
@@ -630,7 +630,7 @@ async def test_qm_input_writer_external_params_requires_external_program(tmp_pat
             source_value=str(xyz),
             external_params="--model /opt/x.model",
             task_type=[{"opt": None}],
-            output_dir=str(tmp_path / "bad.inp"),
+            output_path=str(tmp_path / "bad.inp"),
         ),
         session=None,
     )
@@ -663,7 +663,7 @@ async def test_smiles_source_multifragment_writes_an_assembled_complex(tmp_path)
             source_value="[F-].CCl",
             charge=-1,
             task_type=[{"opt": None}],
-            output_dir=str(gjf),
+            output_path=str(gjf),
         ),
         session=None,
     )
@@ -712,7 +712,7 @@ async def test_smiles_source_single_molecule_uses_shared_builder(tmp_path):
             source_type="smiles",
             source_value="CC(=O)O",
             task_type=[{"opt": None}],
-            output_dir=str(gjf),
+            output_path=str(gjf),
         ),
         session=None,
     )
@@ -733,7 +733,7 @@ async def test_smiles_source_charge_mismatch_is_refused(tmp_path):
             source_value="[F-].CCl",
             charge=0,
             task_type=[{"opt": None}],
-            output_dir=str(gjf),
+            output_path=str(gjf),
         ),
         session=None,
     )
@@ -779,7 +779,7 @@ async def test_orca_external_program_inside_workdir_refused(tmp_path):
             source_value=str(xyz),
             external_program=str(fake_mace),
             task_type=[{"opt": None}],
-            output_dir=str(workspace / "job.inp"),
+            output_path=str(workspace / "job.inp"),
         ),
         session=None,
     )
@@ -807,7 +807,7 @@ async def test_orca_external_program_inside_data_dir_refused(tmp_path):
             source_value=str(xyz),
             external_program=str(fake_mace),
             task_type=[{"opt": None}],
-            output_dir=str(tmp_path / "job.inp"),
+            output_path=str(tmp_path / "job.inp"),
         ),
         session=None,
     )
@@ -827,7 +827,7 @@ async def test_orca_external_program_missing_or_not_executable_refused(tmp_path)
             source_value=str(xyz),
             external_program=str(tmp_path / "no_such_mace"),
             task_type=[{"opt": None}],
-            output_dir=str(tmp_path / "a.inp"),
+            output_path=str(tmp_path / "a.inp"),
         ),
         session=None,
     )
@@ -844,7 +844,7 @@ async def test_orca_external_program_missing_or_not_executable_refused(tmp_path)
             source_value=str(xyz),
             external_program=str(not_exec),
             task_type=[{"opt": None}],
-            output_dir=str(tmp_path / "b.inp"),
+            output_path=str(tmp_path / "b.inp"),
         ),
         session=None,
     )
@@ -866,7 +866,7 @@ async def test_gaussian_external_malformed_values_refused(tmp_path):
                 source_value=str(xyz),
                 external_program=bad,
                 task_type=[{"opt": None}],
-                output_dir=str(tmp_path / "bad.gjf"),
+                output_path=str(tmp_path / "bad.gjf"),
             ),
             session=None,
         )
@@ -886,7 +886,7 @@ async def test_qm_input_writer_same_path_identical_content_reused(tmp_path):
         source_type="xyz_file",
         source_value=str(xyz),
         task_type=[{"opt": None}, {"freq": None}],
-        output_dir=str(out),
+        output_path=str(out),
     )
     first = await QmInputWriter().tool_call(QmInputWriter_input_schema(**kwargs), session=None)
     assert first.is_success is True, first.message
@@ -902,7 +902,7 @@ async def test_qm_input_writer_same_path_identical_content_reused(tmp_path):
 
 @pytest.mark.asyncio
 async def test_qm_input_writer_refuses_overwrite_with_different_content(tmp_path):
-    """目标已存在且内容不同：fail-loud 并给出指引（换 output_dir 或先删除），
+    """目标已存在且内容不同：fail-loud 并给出指引（换 output_path 或先删除），
     绝不静默覆盖、也不抛裸 Errno 17。"""
     xyz = tmp_path / "water.xyz"
     xyz.write_text(_WATER_XYZ, encoding="utf-8")
@@ -914,7 +914,7 @@ async def test_qm_input_writer_refuses_overwrite_with_different_content(tmp_path
             source_type="xyz_file",
             source_value=str(xyz),
             task_type=[{"opt": None}],
-            output_dir=str(out),
+            output_path=str(out),
         ),
         session=None,
     )
@@ -922,13 +922,13 @@ async def test_qm_input_writer_refuses_overwrite_with_different_content(tmp_path
     assert "Errno 17" not in result.message
     assert "already exists" in result.message
     assert "different content" in result.message
-    assert "output_dir" in result.message
+    assert "output_path" in result.message
     # 既有文件原样保留，未被覆盖
     assert out.read_text(encoding="utf-8") == "# unrelated pre-existing content\n"
 
 
 @pytest.mark.asyncio
-async def test_qm_input_writer_output_dir_blocked_by_file_fails_loud(tmp_path):
+async def test_qm_input_writer_output_path_blocked_by_file_fails_loud(tmp_path):
     """输出目录路径被同名普通文件占用：os.makedirs(exist_ok=True) 也会炸
     Errno 17，必须翻译成有指引的报错。"""
     xyz = tmp_path / "water.xyz"
@@ -941,13 +941,13 @@ async def test_qm_input_writer_output_dir_blocked_by_file_fails_loud(tmp_path):
             source_type="xyz_file",
             source_value=str(xyz),
             task_type=[{"opt": None}],
-            output_dir=str(blocker / "water_opt.gjf"),
+            output_path=str(blocker / "water_opt.gjf"),
         ),
         session=None,
     )
     assert result.is_success is False
     assert "Errno 17" not in result.message
-    assert "output_dir" in result.message
+    assert "output_path" in result.message
 
 
 # ---------------------------------------------------------------------------
@@ -974,7 +974,7 @@ async def test_gaussian_bare_scan_refused_with_semantics_recorded(tmp_path):
             source_value=str(xyz),
             task_type=[{"scan": None}],
             end_setting="B 1 2 S 10 0.02",
-            output_dir=str(out),
+            output_path=str(out),
         ),
         session=None,
     )
@@ -995,7 +995,7 @@ async def test_gaussian_scan_relaxed_declaration_refused_with_guidance(tmp_path)
             source_type="xyz_file",
             source_value=str(xyz),
             task_type=[{"scan": "relaxed"}],
-            output_dir=str(tmp_path / "scan.gjf"),
+            output_path=str(tmp_path / "scan.gjf"),
         ),
         session=None,
     )
@@ -1016,7 +1016,7 @@ async def test_gaussian_scan_rigid_declaration_writes_bare_scan_route(tmp_path):
             source_value=str(xyz),
             task_type=[{"scan": "rigid"}],
             end_setting="B 1 2 S 10 0.02",
-            output_dir=str(out),
+            output_path=str(out),
         ),
         session=None,
     )

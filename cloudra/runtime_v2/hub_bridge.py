@@ -22,6 +22,7 @@ runtime_v2 handles persistence and dispatch here.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 from pydantic import ValidationError
@@ -38,6 +39,7 @@ from cloudra.tools.Managetool.agent_hub import (
     _FUZZY_FLOOR,
     _SEARCH_SCAN_LIMIT,
     AgentHub_input_schema,
+    AgentHub_output_schema,
     _fuzzy_score,
 )
 
@@ -115,7 +117,11 @@ async def _notify(
             )
             if not supervisor_feedback:
                 wake = WakePolicy.NEVER
-    await core.dispatcher.commit_and_deliver(
+    # This snapshot describes wake intent. Persisting the message may yield,
+    # so requested is not evidence that the recipient actually started a run.
+    target_state = target.state.value
+    wake_allowed = should_wake(core, target, wake)
+    envelope = await core.dispatcher.commit_and_deliver(
         to_session_id=target.id,
         project_id=project_id,
         content=content,
@@ -125,9 +131,14 @@ async def _notify(
     )
     return {
         "session_id": target.id,
-        "delivery": "delivered" if should_wake(core, target, wake) else "parked",
+        "message_event_id": envelope.event_id,
+        "delivery": "delivered" if wake_allowed else "parked",
+        "wake_status": (
+            "parked" if not wake_allowed else
+            "already_running" if target_state == AgentState.RUNNING.value else "requested"
+        ),
         "wake_policy": wake.value,
-        "target_state": target.state.value,
+        "target_state": target_state,
     }
 
 
@@ -169,11 +180,7 @@ def _ok(summary: str, **data: Any) -> ToolResult:
 async def _post(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     topic = str(args.get("topic") or "").strip()
     content = str(args.get("content") or "").strip()
-    if not topic or not content:
-        return _err("post requires non-empty topic and content.")
-    kind = str(args.get("kind") or "finding").strip().lower()
-    if kind not in _POST_KINDS:
-        return _err(f"Unknown kind: {kind}")
+    kind = args["kind"]
     to_agent = str(args.get("to_agent") or "").strip()
     if (
         to_agent and _resolve_live_target(core, author.project_id, to_agent) is None
@@ -181,8 +188,6 @@ async def _post(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     ):
         return _err(f"Addressee {to_agent!r} is neither a project session nor a known role_id.")
     parent_id = args.get("parent_id") or None
-    if kind == "message" and not to_agent:
-        return _err("message posts need to_agent to name the addressee (the post is still public).")
     retry_post_id = str(args.get("post_id") or "").strip()
     if retry_post_id:
         envelope = core.event_log.get(retry_post_id)
@@ -432,8 +437,6 @@ def _browse(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
 
 def _read(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     topic = str(args.get("topic") or "").strip()
-    if not topic:
-        return _err("read requires a topic.")
     limit = int(args.get("limit") or 20)
     posts = [p for p in _posts(core, author.project_id) if p["topic"] == topic][:limit]
     return _ok(
@@ -444,8 +447,6 @@ def _read(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
 
 async def _search(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     keyword = str(args.get("keyword") or "").strip()
-    if not keyword:
-        return _err("search requires a keyword.")
     limit = int(args.get("limit") or 20)
     scanned = _posts(core, author.project_id, limit=_SEARCH_SCAN_LIMIT)
     scored = []
@@ -545,11 +546,7 @@ def _directory(core, author: AgentSession) -> ToolResult:
 
 async def _call(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     spoken = str(args.get("message") or "").strip()
-    if not spoken:
-        return _err("call requires a non-empty message.")
     raw_to = str(args.get("to") or "").strip()
-    if not raw_to:
-        return _err("call requires a non-empty to.")
 
     post_line = None
     raw_post_id = args.get("post_id")
@@ -569,8 +566,8 @@ async def _call(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     if target is not None:
         from cloudra.runtime_v2.policies.permission import require_delegation_permissions
         require_delegation_permissions(author.capabilities.permissions, target.capabilities.permissions)
-        await _notify(core, author.project_id, target, sender=author.role_id, content=text, author=author)
-        return _ok(f"Called {target.id} (non-blocking).", session_id=target.id)
+        notification = await _notify(core, author.project_id, target, sender=author.role_id, content=text, author=author)
+        return _ok(f"Called {target.id} (non-blocking).", session_id=target.id, notifications=[notification])
 
     # A missing role is a request for a new peer, independent of the caller's
     # role, settings, and cancellation tree. Supervisor is system-managed and
@@ -609,7 +606,7 @@ async def _call(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     # an empty peer; the returned id lets the caller retry the existing one.
     for attempt in range(2):
         try:
-            await _notify(core, author.project_id, peer, sender=author.role_id, content=text, author=author)
+            notification = await _notify(core, author.project_id, peer, sender=author.role_id, content=text, author=author)
             break
         except EventPersistenceError:
             if attempt:
@@ -656,10 +653,17 @@ async def _call(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
         f"model={receipt['model'] or '(unset)'} protocol={receipt['invocation_protocol']}",
         session_id=peer.id,
         settings=receipt,
+        notifications=[notification],
     )
 
 
 async def handle_hub_tool(core, author: AgentSession, call: ToolCall) -> ToolResult:
+    result = await _dispatch_hub_tool(core, author, call)
+    receipt = AgentHub_output_schema.model_validate(result.data)
+    return replace(result, data=receipt.model_dump(exclude_unset=True))
+
+
+async def _dispatch_hub_tool(core, author: AgentSession, call: ToolCall) -> ToolResult:
     try:
         args = AgentHub_input_schema.model_validate(call.arguments).model_dump()
     except ValidationError as exc:

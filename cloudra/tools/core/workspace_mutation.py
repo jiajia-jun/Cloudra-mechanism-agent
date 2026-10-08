@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import sqlite3
-from typing import TypeVar
+from typing import Literal, TypeVar
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, output_schema
@@ -20,14 +20,20 @@ from cloudra.persistence.workspace import (
 
 
 class WorkspaceMutationOutput(output_schema):
+    is_success: bool = Field(default=False, description="Whether the file write completed; derived from is_written")
     is_written: bool = Field(description="Whether the file write completed")
     filepath: str = Field(description="File path relative to the working directory")
-    status: str = Field(description="applied, declined, conflict, or failed")
+    status: Literal["applied", "declined", "conflict", "failed"] = Field(description="File-change outcome")
     change_id: str = Field(default="", description="ID of this file change")
     before_sha256: str | None = Field(default=None, description="File hash before the change")
     after_sha256: str | None = Field(default=None, description="Candidate or post-write file hash")
     diff: str = Field(default="", description="Unified diff of this change")
     message: str = Field(default="", description="Status or error message")
+
+    @model_validator(mode="after")
+    def report_write_success(self) -> "WorkspaceMutationOutput":
+        self.is_success = self.is_written
+        return self
 
 
 _OutputT = TypeVar("_OutputT", bound=WorkspaceMutationOutput)

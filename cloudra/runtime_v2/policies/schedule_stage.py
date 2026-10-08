@@ -12,9 +12,9 @@ When `agent.settings.schedule_mode` is True:
   stops admitted by the handshake and plain-text final replies reach the same
   runner-side boundary.  The handshake's second-stop self-confirmation is NOT
   completion evidence (计划 §6) — the gate re-evaluates verifiable facts:
-  pending reminder → wait_background (a real wake-up source); verifiable
-  background work (running sub-agent / unfinished compute job) without a
-  reminder → continue_work (schedule a wake-up first); nothing pending →
+    owned compute on a non-coordinator session or a pending reminder →
+    wait_background (a real wake-up source); other verifiable background work
+    without a reminder → continue_work (schedule a wake-up first); nothing pending →
   allow_final explicitly labelled agent-declared, not independently verified.
 """
 
@@ -27,12 +27,15 @@ from cloudra.runtime_v2.policies.base import PipelineContext, PolicyResult, Tool
 SCHEDULE_NOTICE = (
     "[AUTONOMOUS SCHEDULE MODE ACTIVE]\n"
     "You are running in autonomous schedule mode.\n"
-    "- If tasks, calculations, or simulations are in progress (or if you submitted background jobs via "
-    "submit_compute_job, SSH/Slurm sbatch, background scripts, or multi-step experiments), you MUST call "
-    "`schedule` before stopping. Prefer a read-only `check_command` plus `interval_seconds` and a timeout "
+    "- For your own jobs submitted through submit_compute_job, a non-coordinator session can stop and wait for "
+    "the automatic terminal notification; an extra schedule is unnecessary. Coordinator compute notifications "
+    "are stored without waking the coordinator.\n"
+    "- For other background work (including SSH/Slurm sbatch, background scripts, multi-step experiments, "
+    "or a coordinator waiting directly on compute), call `schedule` before stopping. Prefer a read-only "
+    "`check_command` plus `interval_seconds` and a timeout "
     "(e.g. `test -f job.log && grep -q 'Normal termination' job.log`, or `ssh <login> 'squeue -j <id>'`) "
     "so you wake when the work is actually done; `delay_seconds` / `wake_at` alone is the fallback timer.\n"
-    "- Do not stop without a pending schedule (timer or check) while work is ongoing.\n"
+    "- While work is ongoing, stop only when an automatic compute notification or a pending schedule provides a wake-up.\n"
     "- If and only if the user's objective is 100% achieved and fully verified, confirm your conclusions and call `stop`."
 )
 

@@ -10,6 +10,7 @@ import math
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 pytest.importorskip("numpy")
 pytest.importorskip("ase")
@@ -40,6 +41,69 @@ OPT_FREQ_LOG = FIXTURES / "water_opt_freq_g16.out"
 
 def _make_tool() -> TsGuess:
     return TsGuess()
+
+
+def test_guess_requires_explicit_mode_before_accepting_endpoints(tmp_path):
+    with pytest.raises(ValidationError, match="mode"):
+        TsGuess_input_schema(
+            reactant_path="reactant.xyz", product_path="product.xyz",
+            output_dir=str(tmp_path / "guess"),
+        )
+    assert not (tmp_path / "guess").exists()
+
+
+@pytest.mark.parametrize("arguments,missing", [
+    ({"mode": "interpolate", "product_path": "product.xyz"}, "reactant"),
+    ({"mode": "xtb_path", "reactant_path": "reactant.xyz"}, "product"),
+    ({"mode": "scan_prepare", "method": "HF", "scans": [{"atoms": [1, 2], "scan_end": 2, "scan_steps": 1}], "output_path": "scan.gjf"}, "input"),
+    ({"mode": "scan_prepare", "input_path": "input.xyz", "scans": [{"atoms": [1, 2], "scan_end": 2, "scan_steps": 1}], "output_path": "scan.gjf"}, "method"),
+    ({"mode": "scan_prepare", "input_path": "input.xyz", "method": "HF", "output_path": "scan.gjf"}, "scans"),
+    ({"mode": "scan_prepare", "input_path": "input.xyz", "method": "HF", "scans": [{"atoms": [1, 2], "scan_end": 2, "scan_steps": 1}]}, "output_path"),
+    ({"mode": "scan_parse"}, "log_path"),
+    ({"mode": "verify"}, "freq_log"),
+    ({"mode": "scan", "method": "HF", "input_path": "input.xyz", "output_path": "scan.gjf"}, "scans"),
+])
+def test_guess_rejects_missing_mode_inputs_at_schema_boundary(arguments, missing):
+    with pytest.raises(ValidationError, match=missing):
+        TsGuess_input_schema(**arguments)
+
+
+@pytest.mark.parametrize("surface", ["wire", "model"])
+@pytest.mark.parametrize("arguments", [
+    {"mode": "interpolate", "product_path": "product.xyz"},
+    {"mode": "xtb_path", "reactant_path": "reactant.xyz"},
+    {"mode": "scan_prepare", "input_path": "input.xyz", "output_path": "scan.gjf"},
+    {"mode": "scan_parse"},
+    {"mode": "verify"},
+    {"mode": "scan", "log_path": None},
+    {"mode": "scan", "log_path": ""},
+])
+def test_model_schema_rejects_incomplete_mode_requests(surface, arguments):
+    jsonschema = pytest.importorskip("jsonschema")
+    schema = (TsGuess_input_schema.to_parameters_schema() if surface == "wire"
+              else TsGuess_input_schema.model_json_schema())
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.Draft202012Validator(schema).validate(arguments)
+
+
+@pytest.mark.parametrize("surface", ["wire", "model"])
+@pytest.mark.parametrize("arguments", [
+    {"mode": "interpolate", "reactant_path": "r.xyz", "product_text": "product XYZ"},
+    {"mode": "xtb_path", "reactant_text": "reactant XYZ", "product_path": "p.xyz"},
+    {"mode": "scan_parse", "log_path": "scan.log"},
+    {"mode": "verify", "freq_log": "frequency.out"},
+    {"mode": "scan", "log_path": "scan.log"},
+    *[dict(mode=mode, input_text="input XYZ", method="HF", output_path="scan.gjf",
+           scans=[{"atoms": [1, 2], "scan_end": 2, "scan_steps": 1}], **extra)
+      for mode, extra in [("scan_prepare", {}), ("scan", {}), ("scan", {"log_path": None}),
+                          ("scan", {"log_path": ""})]],
+])
+def test_model_schema_accepts_complete_mode_requests(surface, arguments):
+    jsonschema = pytest.importorskip("jsonschema")
+    schema = (TsGuess_input_schema.to_parameters_schema() if surface == "wire"
+              else TsGuess_input_schema.model_json_schema())
+    jsonschema.Draft202012Validator.check_schema(schema)
+    jsonschema.Draft202012Validator(schema).validate(arguments)
 
 
 # ---------------------------------------------------------------------------
@@ -593,21 +657,19 @@ async def test_scan_prepare_requires_explicit_method(tmp_path, mock_session, mod
     }
     if method is not None:
         args["method"] = method
-    result = await _make_tool().safe_call(TsGuess_input_schema(**args), mock_session)
-    assert not result.is_success
-    assert "explicit method" in result.message
+    with pytest.raises(ValidationError, match="explicit method"):
+        TsGuess_input_schema(**args)
     assert not out.exists()
 
 
 @pytest.mark.asyncio
 async def test_scan_prepare_explicit_null_method_rejected(tmp_path, mock_session):
-    result = await _make_tool().safe_call(TsGuess_input_schema(**{
-        "mode": "scan_prepare", "method": None, "input_text": _WATER_XYZ,
-        "scans": [{"atoms": [1, 2], "scan_end": 2.0, "scan_steps": 5}],
-        "output_path": str(tmp_path / "scan.gjf"),
-    }), mock_session)
-    assert not result.is_success
-    assert "explicit method" in result.message
+    with pytest.raises(ValidationError, match="explicit method"):
+        TsGuess_input_schema(**{
+            "mode": "scan_prepare", "method": None, "input_text": _WATER_XYZ,
+            "scans": [{"atoms": [1, 2], "scan_end": 2.0, "scan_steps": 5}],
+            "output_path": str(tmp_path / "scan.gjf"),
+        })
 
 
 # ---------------------------------------------------------------------------
@@ -1587,14 +1649,11 @@ def _orca_irc_log_with_sidecars(tmp_path, backward_converged):
 def test_orca_irc_endpoints_unconverged_side_uses_outermost_frame(tmp_path):
     """未收敛方向不再留缺口：与 Gaussian 通道同口径，轨迹末帧仍是合法的
     部分端点，收敛与否只记 note；方向是否成立交给几何区间证明。"""
-    from types import SimpleNamespace
-
     log = _orca_irc_log_with_sidecars(tmp_path, backward_converged=False)
-    user_input = SimpleNamespace(
-        irc_log=str(log), output_dir=str(tmp_path / "out"), freq_log=str(log),
-    )
     checks: list[str] = []
-    result = TsGuess._extract_orca_irc_endpoints(user_input, checks, require_two_sides=True)
+    result = TsGuess._extract_orca_irc_endpoints(
+        str(log), checks, output_dir=str(tmp_path / "out"), require_two_sides=True,
+    )
 
     assert result is not None
     assert Path(result["path_a"]).exists()
@@ -1607,15 +1666,12 @@ def test_orca_irc_endpoints_unconverged_side_uses_outermost_frame(tmp_path):
 
 def test_orca_irc_endpoints_converged_short_path_needs_no_padding(tmp_path):
     """两侧收敛（即使点数很少）→ 端点可提取，且明确 F/B 不等于 R/P。"""
-    from types import SimpleNamespace
-
     log = _orca_irc_log_with_sidecars(tmp_path, backward_converged=True)
     out_dir = tmp_path / "out"
-    user_input = SimpleNamespace(
-        irc_log=str(log), output_dir=str(out_dir), freq_log=str(log),
-    )
     checks: list[str] = []
-    result = TsGuess._extract_orca_irc_endpoints(user_input, checks, require_two_sides=True)
+    result = TsGuess._extract_orca_irc_endpoints(
+        str(log), checks, output_dir=str(out_dir), require_two_sides=True,
+    )
 
     assert result is not None
     assert Path(result["path_a"]).exists()
@@ -1949,11 +2005,12 @@ def fake_xtb_for_ts(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_guess_defaults_to_xtb_path_and_reports_path_kind(fake_xtb_for_ts, tmp_path, mock_session):
-    """默认模式（不给 mode）走 xTB MTD 路径，并写明 path_kind。"""
+async def test_explicit_xtb_path_reports_path_kind(fake_xtb_for_ts, tmp_path, mock_session):
+    """显式选择 xTB MTD 路径，并写明 path_kind。"""
     fake_xtb_for_ts("ok")
     out_dir = tmp_path / "guess_default"
     res = await _make_tool().safe_call(TsGuess_input_schema(**{
+        "mode": "xtb_path",
         "reactant_text": _R_XYZ,
         "product_text": _P_XYZ,
         "output_dir": str(out_dir),
@@ -1979,6 +2036,7 @@ async def test_xtb_missing_falls_back_to_idpp_and_says_so(tmp_path, monkeypatch,
     monkeypatch.setenv("PATH", str(empty))
     out_dir = tmp_path / "guess_fallback"
     res = await _make_tool().safe_call(TsGuess_input_schema(**{
+        "mode": "xtb_path",
         "reactant_text": _R_XYZ,
         "product_text": _P_XYZ,
         "n_images": 4,
@@ -2003,6 +2061,7 @@ async def test_truncated_path_refinement_is_reported_with_the_remedy(
     fake_xtb_for_ts("path_truncated")
     out_dir = tmp_path / "guess_truncated"
     res = await _make_tool().safe_call(TsGuess_input_schema(**{
+        "mode": "xtb_path",
         "reactant_text": _R_XYZ,
         "product_text": _P_XYZ,
         "output_dir": str(out_dir),
@@ -2023,6 +2082,7 @@ async def test_xtb_failure_is_reported_not_silently_replaced(fake_xtb_for_ts, tm
     """xTB 存在但跑失败：报出分类，**不得**偷偷换成 IDPP 插值充数。"""
     fake_xtb_for_ts("fail")
     res = await _make_tool().safe_call(TsGuess_input_schema(**{
+        "mode": "xtb_path",
         "reactant_text": _R_XYZ,
         "product_text": _P_XYZ,
         "output_dir": str(tmp_path / "guess_fail"),
@@ -2087,7 +2147,9 @@ async def test_blocking_handler_does_not_freeze_event_loop(monkeypatch, mock_ses
 
     ticker_task = asyncio.create_task(ticker())
     try:
-        result = await _make_tool().tool_call(TsGuess_input_schema(), mock_session)
+        result = await _make_tool().tool_call(TsGuess_input_schema(
+            mode="xtb_path", reactant_text=_R_XYZ, product_text=_P_XYZ,
+        ), mock_session)
     finally:
         stop = True
         await ticker_task

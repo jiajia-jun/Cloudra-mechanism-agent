@@ -3,11 +3,13 @@
 import json
 
 import pytest
+from pydantic import ValidationError
 
 from cloudra.persistence.database import ComputeDB
 from cloudra.tools.Chemtool.query_compute_job import (
     QueryComputeJob,
     QueryComputeJob_input_schema,
+    QueryComputeJob_output_schema,
 )
 from cloudra.tools.Chemtool.query_compute_queue import (
     QueryComputeQueue,
@@ -16,6 +18,17 @@ from cloudra.tools.Chemtool.query_compute_queue import (
 
 _GUIDANCE_NEEDLE = "STOP POLLING"
 _QUEUE_GUIDANCE_NEEDLE = "STOP POLLING"
+
+
+def test_compute_job_output_rejects_invalid_job_id():
+    row = {
+        "job_id": "not-a-job-id", "state": "running", "node_id": "node-1",
+        "scheduler": "local", "scheduler_state": "", "jobtype": "gaussian",
+        "path": "", "log_path": "", "started_at": "", "ended_at": "",
+        "last_error": "", "attempt_count": 0,
+    }
+    with pytest.raises(ValidationError):
+        QueryComputeJob_output_schema(is_success=True, jobs=[row])
 
 
 def _insert_job(db: ComputeDB, *, state: str = "running") -> int:

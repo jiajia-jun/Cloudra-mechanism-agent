@@ -127,7 +127,7 @@ async def test_writer_relative_output_uses_project_workspace(core, server_cwd, t
             "source_type": "xyz_file",
             "source_value": str(workspace / "water.xyz"),
             "engine": "gaussian",
-            "output_dir": "calc/input.gjf",
+            "output_path": "calc/input.gjf",
         },
     )
 
@@ -161,7 +161,7 @@ async def test_writer_relative_source_reads_workspace_not_cwd(core, server_cwd, 
             "source_type": "xyz_file",
             "source_value": "xyz/water.xyz",
             "engine": "gaussian",
-            "output_dir": "calc/input.gjf",
+            "output_path": "calc/input.gjf",
         },
     )
 
@@ -197,7 +197,7 @@ async def test_writer_relative_output_parametrized_dirs(core, server_cwd, tmp_pa
             "source_type": "xyz_file",
             "source_value": str(ws / "water.xyz"),
             "engine": "gaussian",
-            "output_dir": "nested/calc/input.gjf",
+            "output_path": "nested/calc/input.gjf",
         },
     )
 
@@ -233,7 +233,7 @@ async def test_relative_source_and_submit_use_same_workspace(core, server_cwd, t
             "source_value": "xyz/water.xyz",
             "engine": "gaussian", "nproc": _TEST_CPUS,
             "mem": f"{_TEST_MEMORY_MB}MB",
-            "output_dir": "calc/input.gjf",
+            "output_path": "calc/input.gjf",
         },
     )
     assert writer.is_success, writer.summary
@@ -309,7 +309,7 @@ async def test_concurrent_projects_do_not_cross_write(core, server_cwd, tmp_path
                 "source_value": str(workspace / "src.xyz"),
                 "engine": "gaussian", "nproc": job_cpus,
                 "mem": f"{_TEST_MEMORY_MB}MB",
-                "output_dir": "calc/input.gjf",
+                "output_path": "calc/input.gjf",
             },
         )
         assert writer.is_success, writer.summary
@@ -378,7 +378,7 @@ async def test_concurrent_projects_do_not_cross_write(core, server_cwd, tmp_path
 TOOL_PATH_FIELDS: dict[str, dict[str, str]] = {
     "qm_input_writer": {
         "source_value": "conditional_path",
-        "output_dir": "workspace_output",
+        "output_path": "workspace_output",
         "artifact_dir": "workspace_output",
         "chk_name": "verbatim",
         "rwf_name": "verbatim",

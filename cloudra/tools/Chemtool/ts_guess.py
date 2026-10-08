@@ -1,6 +1,7 @@
 """过渡态初猜工作流工具：插值路径生成 / 约束扫描输入生成 / 扫描日志解析 / TS 候选检查。
 
-工具自身不执行任何量化计算：坐标与输入文件一律落盘，上下文只回数值表、判定与路径。
+xtb_path 执行 xTB 路径搜索；其他模式生成输入、插值或解析证据。
+坐标与输入文件一律落盘，上下文只回数值表、判定与路径。
 引擎输出解析的正则封装在本模块与 cloudra/tools/core/*_frames 共享层
 （gaussian_frames 的 FREQ_LINE_RE / vibdisps_from_text / std_orientation_frames），
 agent 无需啃日志格式。
@@ -20,7 +21,7 @@ from collections import Counter
 from io import StringIO
 from typing import Any, Literal, Optional, Sequence
 
-from pydantic import Field
+from pydantic import ConfigDict, Field, model_validator
 
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
@@ -84,7 +85,8 @@ _IRC_TRUNCATION_REMEDY = (
 )
 
 description = (
-    "Transition-state (TS) guess workflow: four sub-functions selected by mode. "
+    "Transition-state (TS) guess workflow: choose an explicit mode. "
+    "xtb_path: execute an xTB metadynamics path search between two already mapped all-atom endpoints; "
     "interpolate: linear or IDPP interpolation from reactant/product xyz to generate NEB candidate-path images "
     "(auto-align, optional atom_map reordering, distance-monitor table, and TS-candidate frame verdict); "
     "scan_prepare: write a Gaussian/ORCA constrained-scan input or a typed native xTB scan manifest "
@@ -100,17 +102,64 @@ description = (
     "with strict=True, requires one imaginary frequency, valid bidirectional IRC endpoints, and two endpoint reference geometries, "
     "and checks that each partial IRC endpoint lies between the TS and the matching endpoint reference geometry, yielding a path-direction-consistency pass/fail/inconclusive. "
     "DEFAULT seed path when one reaction coordinate is clear: scan_prepare (after internal_coordinates) → submit → scan_parse → fresh unconstrained OptTS; "
-    "xtb_path/interpolate are fallbacks and never a saddle. This tool does no QM calculation itself — it only writes inputs, parses outputs, and issues verdicts; submit jobs with submit_compute_job. "
+    "xtb_path/interpolate are fallbacks and never a saddle. Only xtb_path executes a calculation directly; "
+    "scan_prepare writes an input to submit with submit_compute_job, while interpolate/scan_parse/verify generate or inspect artifacts. "
     "Coordinates never enter context; only numeric tables, verdicts, and file paths are returned."
 )
 
 
+def _mode_json_schema(schema: dict[str, Any]) -> None:
+    """Expose mode requirements alongside the shared field definitions."""
+    def path_or_text(prefix: str) -> dict:
+        return {"anyOf": [
+            {"properties": {field: {"type": "string", "minLength": 1}}, "required": [field]}
+            for field in (prefix + "_path", prefix + "_text")
+        ]}
+
+    branches = [
+        {
+            "properties": {"mode": {"const": mode}}, "required": ["mode"],
+            "allOf": [path_or_text("reactant"), path_or_text("product")],
+        }
+        for mode in ("xtb_path", "interpolate")
+    ]
+    scan_array = next(item for item in schema["properties"]["scans"]["anyOf"]
+                      if item.get("type") == "array")
+    for mode in ("scan_prepare", "scan"):
+        properties = {
+            "mode": {"const": mode},
+            "method": {"type": "string", "minLength": 1},
+            "scans": dict(scan_array, minItems=1),
+            "output_path": {"type": "string", "minLength": 1},
+        }
+        if mode == "scan":
+            properties["log_path"] = {"enum": ["", None]}
+        branches.append({
+            "properties": properties, "required": ["mode", "method", "scans", "output_path"],
+            **path_or_text("input"),
+        })
+    for mode, field in (("scan_parse", "log_path"), ("verify", "freq_log"), ("scan", "log_path")):
+        branches.append({
+            "properties": {"mode": {"const": mode}, field: {"type": "string", "minLength": 1}},
+            "required": ["mode", field],
+        })
+    schema["oneOf"] = branches
+
+
 class TsGuess_input_schema(input_schema):
+    model_config = ConfigDict(json_schema_extra=_mode_json_schema)
+
+    @classmethod
+    def to_parameters_schema(cls) -> dict:
+        parameters = super().to_parameters_schema()
+        parameters["oneOf"] = cls.model_json_schema()["oneOf"]
+        return parameters
+
     mode: Literal[
         "xtb_path", "interpolate", "scan_prepare", "scan_parse", "verify", "scan",
     ] = Field(
-        default="xtb_path",
-        description="Sub-function. DEFAULT SEED PATH when one forming/breaking bond/angle is known: "
+        description="Required sub-function; no calculation path is selected when mode is omitted. "
+                    "DEFAULT SEED PATH when one forming/breaking bond/angle is known: "
                     "scan_prepare → submit → scan_parse (relaxed scan), then unconstrained OptTS from the peak. "
                     "Do NOT default to xtb_path/interpolate just because they are cheap. "
                     "xtb_path: xTB metadynamics path search between endpoints (needs `xtb`); falls back to "
@@ -149,14 +198,19 @@ class TsGuess_input_schema(input_schema):
     )
     atom_map: list[int] = Field(
         default_factory=list,
-        description="interpolate: atom map in product order, Gaussian values start at 1, ORCA at 0. "
-                    "Default is the identity; must cover every atom exactly once with matching elements (Gaussian 1..N, ORCA 0..N-1).",
+        description="interpolate only: for each atom in the concrete product XYZ order, the corresponding atom "
+                    "in the concrete reactant XYZ order, including explicit H. Gaussian/xTB values start at 1; ORCA at 0. "
+                    "Use reaction_mapping's complete concrete binding, not its heavy_atom_map; convert its 1-based map only for ORCA. "
+                    "Default is identity order; must cover every concrete atom exactly once with matching elements.",
     )
     watch_pairs: list[list[int]] = Field(
         default_factory=list,
-        description="interpolate/scan_parse: atom pairs to monitor distances; strict/verify: pairs used for direction proof and imaginary-mode alignment. "
-                    "Gaussian 1-based, ORCA 0-based; default auto-picks the 5 pairs with the largest distance change between TS and intermediates "
-                    "(imaginary-mode alignment is skipped if not provided).",
+        description="xtb_path/interpolate/scan_parse: pairs for distance monitoring; verify: pairs for direction proof and imaginary-mode alignment. "
+                    "Indices refer to the concrete reactant XYZ for path/interpolation, each scan frame for scan_parse, "
+                    "and the TS frequency geometry for verify, including explicit H. Gaussian/xTB are 1-based; ORCA is 0-based. "
+                    "Use internal_coordinates on that file or reaction_mapping's concrete_watch_pairs with complete, current structure binding; "
+                    "SMILES graph indices and indices from another atom order are not interchangeable. "
+                    "If omitted, distance/direction checks nominate bond-change and largest-distance-change pairs; imaginary-mode alignment is skipped.",
     )
     output_dir: Optional[str] = Field(
         default=None,
@@ -188,7 +242,8 @@ class TsGuess_input_schema(input_schema):
         description=(
             "scan_prepare: scan-coordinate list, one entry per scanned coordinate. "
             "Each entry: {\"coord_type\": \"bond\"|\"angle\"|\"dihedral\", \"atoms\": [2|3|4 atom indices], "
-            "Gaussian and xTB use 1-based indices; ORCA uses 0-based indices. internal_coordinates is 1-based: subtract 1 only for ORCA. "
+            "Atoms refer to the exact input_path/input_text XYZ order, including explicit H. "
+            "Gaussian and xTB use 1-based indices; ORCA uses 0-based indices. internal_coordinates on that same structure is 1-based: subtract 1 only for ORCA. "
             "\"scan_start\": optional start value (default the current geometry value), \"scan_end\": end value, "
             "\"scan_steps\": step count}. A single entry drives a 1D scan; a second entry makes a 2D coupled scan "
             "(Gaussian or xTB — ORCA relaxed scans are 1D, so pass exactly one entry). "
@@ -198,7 +253,8 @@ class TsGuess_input_schema(input_schema):
     )
     freeze: list[FrozenCoordinateInput] = Field(
         default_factory=list,
-        description="scan_prepare: coordinates held at the input geometry value. Gaussian atoms start at 1; ORCA at 0. Do not freeze a scanned coordinate.",
+        description="scan_prepare: coordinates held at the input geometry value; atoms belong to the exact input XYZ order including explicit H. "
+                    "Gaussian/xTB atoms start at 1; ORCA at 0. Do not freeze a scanned coordinate.",
     )
     method: Optional[str] = Field(default=None, description="scan_prepare requires an explicit method/basis. For exploratory PES scans, choose a MethodPolicy-permitted and available semiempirical method (Gaussian PM7 if allowed, or ORCA GFN2-xTB if available and allowed). Use DFT for a narrow follow-up scan or unconstrained TS refinement. For MLIP/external pass 'ExtOpt' (ORCA; pair with orca_blocks %method ProgExt) or 'external' (Gaussian; pair with extra_route='external=\"<prog>\"').")
     charge: int = Field(default=0, description="Total charge.")
@@ -235,6 +291,31 @@ class TsGuess_input_schema(input_schema):
         description="verify only: enable a stateless path-direction consistency proof. IRC need not reach a minimum, but bidirectional valid endpoints, "
                     "TS geometry and reference geometries for both endpoints are required.",
     )
+
+    @model_validator(mode="after")
+    def require_mode_inputs(self):
+        mode = "scan_parse" if self.mode == "scan" and self.log_path else (
+            "scan_prepare" if self.mode == "scan" else self.mode
+        )
+        if mode in {"xtb_path", "interpolate"}:
+            if not (self.reactant_path or self.reactant_text):
+                raise ValueError(f"{mode} requires reactant_path or reactant_text")
+            if not (self.product_path or self.product_text):
+                raise ValueError(f"{mode} requires product_path or product_text")
+        elif mode == "scan_prepare":
+            if not (self.input_path or self.input_text):
+                raise ValueError("scan_prepare requires input_path or input_text")
+            if not self.method or not self.method.strip():
+                raise ValueError("scan_prepare requires an explicit method")
+            if not self.scans:
+                raise ValueError("scan_prepare requires scans: at least one scanned coordinate")
+            if not self.output_path:
+                raise ValueError("scan_prepare requires output_path")
+        elif mode == "scan_parse" and not self.log_path:
+            raise ValueError("scan_parse requires log_path")
+        elif mode == "verify" and not self.freq_log:
+            raise ValueError("verify requires freq_log")
+        return self
 
 
 class TsGuess_output_schema(output_schema):
@@ -2141,7 +2222,11 @@ class TsGuess(Tool):
                 )
                 _record_mode_alignment()
                 irc_ok: Optional[bool] = None
-                info = self._extract_irc_endpoints(user_input, checks, require_two_sides=False)
+                info = self._extract_irc_endpoints(
+                    user_input.irc_log, checks, engine=user_input.engine,
+                    output_dir=user_input.output_dir or os.path.splitext(user_input.freq_log)[0] + "_verify",
+                    require_two_sides=False,
+                )
                 if info is not None:
                     irc_end_a_path = info["path_a"]
                     irc_end_b_path = info["path_b"]
@@ -2181,22 +2266,25 @@ class TsGuess(Tool):
         )
 
     @staticmethod
-    def _extract_irc_endpoints(user_input: TsGuess_input_schema, checks: list[str],
+    def _extract_irc_endpoints(irc_log: str | None, checks: list[str], *,
+                               engine: str, output_dir: str,
                                require_two_sides: bool) -> Optional[dict]:
         """提取有坐标的 IRC 外侧帧；strict 时必须分别来自 rx<0 与 rx>0。"""
-        if not user_input.irc_log:
+        if not irc_log:
             checks.append("No IRC log provided.")
             return None
-        if not os.path.isfile(user_input.irc_log):
-            raise ValueError(f"IRC log does not exist: {user_input.irc_log}")
+        if not os.path.isfile(irc_log):
+            raise ValueError(f"IRC log does not exist: {irc_log}")
 
-        if user_input.engine == "orca":
-            return TsGuess._extract_orca_irc_endpoints(user_input, checks, require_two_sides)
+        if engine == "orca":
+            return TsGuess._extract_orca_irc_endpoints(
+                irc_log, checks, output_dir=output_dir, require_two_sides=require_two_sides,
+            )
 
         from cloudra.tools.core import gaussian_frames
 
         try:
-            frames, meta = gaussian_frames.extract_irc(user_input.irc_log)
+            frames, meta = gaussian_frames.extract_irc(irc_log)
         except Exception as e:
             checks.append(f"IRC endpoint extraction failed: {e}")
             return None
@@ -2222,7 +2310,7 @@ class TsGuess(Tool):
                 return None
             end_a, end_b = valid[0], valid[-1]
 
-        out_dir = user_input.output_dir or os.path.splitext(user_input.freq_log)[0] + "_verify"
+        out_dir = output_dir
         os.makedirs(out_dir, exist_ok=True)
         path_a = os.path.join(out_dir, "irc_end_a.xyz")
         path_b = os.path.join(out_dir, "irc_end_b.xyz")
@@ -2246,8 +2334,8 @@ class TsGuess(Tool):
         }
 
     @staticmethod
-    def _extract_orca_irc_endpoints(user_input: TsGuess_input_schema, checks: list[str],
-                                    require_two_sides: bool) -> Optional[dict]:
+    def _extract_orca_irc_endpoints(irc_log: str, checks: list[str], *,
+                                    output_dir: str, require_two_sides: bool) -> Optional[dict]:
         """ORCA IRC 端点：复用 orca_frames 的 final endpoint / F-B trajectory
         读取（解析规则不在这里复制）。forward/backward 是轨迹方向标签，
         不自动映射 reactant/product。收敛与否只记录、绝不做闸门：与 Gaussian
@@ -2257,7 +2345,7 @@ class TsGuess(Tool):
 
         from cloudra.tools.core import orca_frames
 
-        endpoints = orca_frames.extract_irc_endpoints(user_input.irc_log)
+        endpoints = orca_frames.extract_irc_endpoints(irc_log)
         forward, backward = endpoints["forward"], endpoints["backward"]
         for label, info in (("forward", forward), ("backward", backward)):
             converged = info.get("converged")
@@ -2285,7 +2373,7 @@ class TsGuess(Tool):
 
         end_a = SimpleNamespace(xyz=xyz_a, reaction_coordinate=None)
         end_b = SimpleNamespace(xyz=xyz_b, reaction_coordinate=None)
-        out_dir = user_input.output_dir or os.path.splitext(user_input.freq_log)[0] + "_verify"
+        out_dir = output_dir
         os.makedirs(out_dir, exist_ok=True)
         path_a = os.path.join(out_dir, "irc_end_a.xyz")
         path_b = os.path.join(out_dir, "irc_end_b.xyz")
@@ -2325,7 +2413,11 @@ class TsGuess(Tool):
             checks.append("strict requires reference structures for both endpoint species.")
             return "inconclusive", _non_pass("inconclusive: missing the two endpoint reference structures."), None
 
-        info = self._extract_irc_endpoints(user_input, checks, require_two_sides=True)
+        info = self._extract_irc_endpoints(
+            user_input.irc_log, checks, engine=user_input.engine,
+            output_dir=user_input.output_dir or os.path.splitext(user_input.freq_log)[0] + "_verify",
+            require_two_sides=True,
+        )
         if info is None:
             return "inconclusive", _non_pass("inconclusive: no usable bidirectional IRC endpoints."), None
 
@@ -2530,8 +2622,7 @@ class TsGuess(Tool):
 
 
 def is_compute_entry_call(arguments: dict[str, Any]) -> bool:
-    """Phase-3 门槛谓词：interpolate/scan_prepare 会真正拉起计算（xtb/CREST），
-    scan_parse/verify 只是读已有日志，不算计算入口。"""
+    """DAG 前置门的结构/输入准备入口；谓词不表示工具是否直接执行 QM。"""
     return (arguments or {}).get("mode") in {"interpolate", "scan_prepare"}
 
 

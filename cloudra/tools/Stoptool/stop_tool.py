@@ -53,13 +53,14 @@ class StopTool(Tool):
     tool_id: str = 't-stop'
     tool_name: str = 'stop'
     tool_description: str = (
-        "End the current task and stop the ReAct loop; remaining tools in this round still finish, then the loop terminates. "
+        "End the current run and stop the ReAct loop; remaining tools in this round still finish, then the loop terminates. "
         "Use for: the task is done, the goal is met, or you confirm you cannot proceed and need to wrap up. "
         "Also used to suspend while waiting on background work: for jobs submitted by this sub-agent "
         "through submit_compute_job, terminal notifications provide the wake-up; for other background "
         "work, schedule a wake-up first, then stop. "
-        "the session is persisted as waiting (not completed), and the loop resumes when the reminder fires or an external event arrives — "
-        "suspension is not delivery, so DAG mode does not run a delivery audit at this point. "
+        "The completion gate records wait_background for an accepted background wait. This run ends, and a later "
+        "wake-up starts another run in the same session. Pending work is not a final delivery, and DAG mode does not "
+        "run a delivery audit for that background wait. "
         "Do not use for: questions that still need the user (use ask_user), or stopping early while later steps remain and no wake-up is scheduled. "
         "Note: for quiz/eval tasks, put the final concise answer in final_answer. "
         "In DAG mode the stop is audited after this call: the run may be kept working (gap feedback), suspended pending a "

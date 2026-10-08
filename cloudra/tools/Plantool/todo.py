@@ -6,7 +6,8 @@
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+from typing_extensions import TypedDict
 
 from cloudra.base.session_class import Session
 from cloudra.base.tool_actor import ToolActorContext
@@ -30,6 +31,14 @@ class TodoItem(BaseModel):
     )
 
 
+class TodoRecord(TypedDict):
+    __pydantic_config__ = ConfigDict(extra="forbid")
+
+    content: str
+    status: Literal["pending", "in_progress", "done"]
+    id: str
+
+
 class TodoWrite_input_schema(input_schema):
     todos: list[TodoItem] = Field(
         description="Full task list (wholesale replace, not incremental). Pass an empty list to clear the list."
@@ -38,7 +47,7 @@ class TodoWrite_input_schema(input_schema):
 
 class TodoWrite_output_schema(output_schema):
     result: str = Field(description="Tool result.")
-    todos: list[dict] = Field(description="Updated full task list.")
+    todos: list[TodoRecord] = Field(description="Updated full task list.")
 
 
 class TodoWrite(Tool):

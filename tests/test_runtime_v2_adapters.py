@@ -673,6 +673,58 @@ async def test_legacy_tool_executor_reports_unknown_tool():
     assert "read" in retired.summary
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tool_name", ["write", "edit"])
+@pytest.mark.parametrize("status,successful", [
+    ("conflict", False), ("failed", False), ("declined", False), ("applied", True),
+])
+async def test_file_mutation_executor_reports_actual_write_result(
+    tmp_path, monkeypatch, tool_name, status, successful,
+):
+    """A rejected file change must not become successful at the runtime boundary."""
+    from hashlib import sha256
+
+    from cloudra.base.tools_class import Tool
+    from cloudra.runtime_v2.policies.base import ToolCall
+
+    target = tmp_path / "exists.txt"
+    await asyncio.to_thread(target.write_text, "keep\n", encoding="utf-8")
+    expected_sha256 = "0" * 64 if status == "conflict" else sha256(b"keep\n").hexdigest()
+    if tool_name == "write":
+        arguments = {
+            "path": "exists.txt", "expected_sha256": expected_sha256,
+            "content": "keep\n" if status == "failed" else "replace\n",
+        }
+    else:
+        arguments = {
+            "path": "exists.txt", "expected_sha256": expected_sha256,
+            "edits": [{"old_text": "" if status == "failed" else "keep", "new_text": "replace"}],
+        }
+    if status in {"declined", "applied"}:
+        async def user_decision(self, session, details, tool_args=None):
+            return (False, "User declined") if status == "declined" else (True, "")
+
+        monkeypatch.setattr(Tool, "ensure_safety", user_decision)
+
+    core = RuntimeCore(strict_events=True)
+    bus = CommandBus(core)
+    await bus.execute(Command(type="project.create", payload={"name": "p", "workspace_dir": str(tmp_path)}))
+    project = next(iter(core.projects.values()))
+    spawned = await bus.execute(Command(
+        type="agent.spawn", target={"project_id": project.id},
+        payload={"role_id": "coordinator", "query": "Edit a file"},
+    ))
+    output = await LegacyToolExecutor(core).execute(
+        spawned.data, ToolCall(id="tc_file_change", name=tool_name, arguments=arguments),
+    )
+
+    assert output.data["status"] == status
+    assert output.data["is_written"] is successful
+    assert await asyncio.to_thread(target.read_text, encoding="utf-8") == ("replace\n" if successful else "keep\n")
+    assert output.is_success is successful
+    assert output.error is None
+
+
 def _chunk(content=None, finish_reason=None, tool_calls=None):
     delta = SimpleNamespace(
         content=content,

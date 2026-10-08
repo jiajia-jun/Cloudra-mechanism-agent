@@ -114,7 +114,7 @@ const w = await tools.qm_input_writer({
   method: "b3lyp", basis_set: "6-31g(d)",
   task_type: [{ "sp": null }],
   nproc: __CPUS__, mem: "__MEMORY_MB__MB",
-  output_dir: "calc/input.gjf",
+  output_path: "calc/input.gjf",
 });
 if (!w.is_success) { text("WRITER FAIL: " + w.summary); }
 else {
@@ -152,7 +152,7 @@ const w = await tools.qm_input_writer({
   method: "b3lyp", basis_set: "6-31g(d)",
   task_type: [{ "sp": null }],
   nproc: __CPUS__, mem: "__MEMORY_MB__MB",
-  output_dir: "calc/input.gjf",
+  output_path: "calc/input.gjf",
 });
 if (!w.is_success) { text("WRITER FAIL: " + w.summary); }
 else {
@@ -170,7 +170,7 @@ const w = await tools.qm_input_writer({
   method: "b3lyp", basis_set: "6-31g(d)",
   task_type: [{ "sp": null }],
   nproc: __CPUS__, mem: "__MEMORY_MB__MB",
-  output_dir: "calc/input.gjf",
+  output_path: "calc/input.gjf",
 });
 if (!w.is_success) { text("WRITER FAIL: " + w.summary); }
 else {
@@ -200,13 +200,13 @@ const goodWrite = await tools.write({
 });
 const badSource = await tools.qm_input_writer({
   source_type: "xyz_file", source_value: "xyz/bad.xyz",
-  method: "b3lyp", engine: "gaussian", output_dir: "calc/bad_from_xyz.gjf",
+  method: "b3lyp", engine: "gaussian", output_path: "calc/bad_from_xyz.gjf",
 });
 const badOption = await tools.qm_input_writer({
   engine: "orca", source_type: "smiles", source_value: "O",
   method: "b3lyp", basis_set: "def2-svp",
   task_type: [{ "opt": "TS,calcfc,noeigen" }],
-  output_dir: "calc/bad_orca.inp",
+  output_path: "calc/bad_orca.inp",
 });
 text("WRITTEN bad=" + badWrite.is_success + " good=" + goodWrite.is_success +
      " | MALFORMED ok=" + badSource.is_success +
@@ -219,7 +219,7 @@ const w = await tools.qm_input_writer({
   method: "b3lyp", basis_set: "6-31g(d)",
   task_type: [{ "sp": null }],
   nproc: __CPUS__, mem: "__MEMORY_MB__MB",
-  output_dir: "calc/input.gjf",
+  output_path: "calc/input.gjf",
 });
 if (!w.is_success) { text("WRITER FAIL: " + w.summary); }
 else {
@@ -251,7 +251,7 @@ const w = await tools.qm_input_writer({
   method: "b3lyp", basis_set: "6-31g(d)",
   task_type: [{ "sp": null }],
   nproc: __CPUS__, mem: "__MEMORY_MB__MB",
-  output_dir: "calc/input.gjf",
+  output_path: "calc/input.gjf",
 });
 if (!w.is_success) { text("WRITER FAIL: " + w.summary); }
 else {
@@ -734,7 +734,7 @@ def test_cli_full_chain_traditional_equivalent(tmp_path, monkeypatch):
             "method": "b3lyp", "basis_set": "6-31g(d)",
             "task_type": [{"sp": None}], "nproc": _TEST_CPUS,
             "mem": f"{_TEST_MEMORY_MB}MB",
-            "output_dir": "calc/input.gjf",
+            "output_path": "calc/input.gjf",
         })], run=1),
         calls(2, [("submit_compute_job", {
             "input_file": "calc/input.gjf", "job_type": "gaussian",
@@ -991,7 +991,7 @@ const w = await tools.qm_input_writer({{
   method: "b3lyp", basis_set: "6-31g(d)",
   task_type: [{{ "freq": null }}],
   nproc: {_TEST_CPUS}, mem: "{_TEST_MEMORY_MB}MB",
-  output_dir: "calc/input.gjf",
+  output_path: "calc/input.gjf",
 }});
 if (!w.is_success) {{ text("WRITER FAIL: " + w.summary); }}
 else {{
@@ -1296,18 +1296,18 @@ async function attemptWriter(args) {
 const bad = await attemptWriter({
   source_type: "smiles", source_value: "O", method: "b3lyp",
   basis_set: "6-31g(d)", task_type: [{ "sp": null }],
-  output_dir: "calc/bad_method.gjf",
+  output_path: "calc/bad_method.gjf",
 });
 const ext = await attemptWriter({
   engine: "orca", source_type: "smiles", source_value: "O",
   external_program: "/opt/conda/envs/chemai/bin/mace",
   task_type: [{ "opt": null }],
-  output_dir: "calc/bad_external.inp",
+  output_path: "calc/bad_external.inp",
 });
 const good = await tools.qm_input_writer({
   engine: "orca", source_type: "smiles", source_value: "O",
   method: "xTB2", basis_set: "", task_type: [{ "opt": null }],
-  output_dir: "calc/ok.inp",
+  output_path: "calc/ok.inp",
 });
 text("BADM=" + bad + " | EXTM=" + ext + " | GOOD=" + good.is_success);
 """

@@ -46,8 +46,8 @@ class TsReaction(InputModel):
     product_smiles: str = Field(min_length=1)
     charge: StrictInt
     multiplicity: StrictInt = Field(ge=1)
-    atom_map: list[StrictInt] = Field(default_factory=list)
-    reaction_center: list[tuple[StrictInt, StrictInt]] = Field(default_factory=list)
+    atom_map: list[StrictInt] = Field(default_factory=list, description="Full concrete atom mapping in product-coordinate order; each value is a 1-based reactant-coordinate atom index, including explicit hydrogens. Use reaction_mapping.atom_map bound to these structures, not heavy_atom_map or SMILES positions.")
+    reaction_center: list[tuple[StrictInt, StrictInt]] = Field(default_factory=list, description="Forming/breaking atom pairs in the bound reactant's full coordinate order, 1-based and including explicit hydrogens. Use reaction_mapping.concrete_watch_pairs for the same concrete structure.")
 
 
 class GeneratedConformer(InputModel):
@@ -58,8 +58,8 @@ class GeneratedConformer(InputModel):
 
 
 class HeavyAtomBinding(InputModel):
-    structure_digest: str = Field(min_length=1)
-    indices: list[StrictInt] = Field(min_length=1)
+    structure_digest: str = Field(min_length=1, description="Matching reaction_mapping.structure_digests value for this concrete endpoint. Binds its atom order, graph and coordinates; a stale or mismatched digest is rejected.")
+    indices: list[StrictInt] = Field(min_length=1, description="1-based indices in this file's full coordinate atom order, listed in declared SMILES heavy-atom order. Explicit hydrogen rows count toward indices; the selected atoms must be heavy atoms.")
 
 
 class FileConformer(InputModel):
@@ -81,7 +81,7 @@ class CatalogConformer(InputModel):
 
 class RotatedConformer(InputModel):
     kind: Literal["rotate_about_bond"]
-    atoms: tuple[StrictInt, StrictInt]
+    atoms: tuple[StrictInt, StrictInt] = Field(description="Bond-axis atom pair in the bound conformer's full coordinate order, 1-based; do not use SMILES heavy-atom indices.")
     degrees: float
 
 
@@ -92,8 +92,8 @@ ConformerSource = Annotated[
 
 
 class ConformerGuidance(InputModel):
-    ring_order: list[StrictInt] = Field(default_factory=list)
-    distance_filters: list[DistanceWindowInput] = Field(default_factory=list)
+    ring_order: list[StrictInt] = Field(default_factory=list, description="Ordered ring atoms in the bound reactant's full coordinate order, 1-based.")
+    distance_filters: list[DistanceWindowInput] = Field(default_factory=list, description="Distance windows whose atom pairs use the bound reactant's full coordinate order, 1-based, including explicit hydrogen rows.")
 
 
 class TsConformers(InputModel):
@@ -117,8 +117,8 @@ class XtbPathGuess(InputModel):
 class ScanGuess(InputModel):
     kind: Literal["scan"]
     calculation: TsCalculation
-    scans: list[ScanCoordinateInput] = Field(min_length=1, max_length=2)
-    freeze: list[FrozenCoordinateInput] = Field(default_factory=list)
+    scans: list[ScanCoordinateInput] = Field(min_length=1, max_length=2, description="Coordinates in the concrete scan-input atom order. ORCA references are 0-based; Gaussian/xTB references are 1-based. Convert concrete coordinate indices, not SMILES positions.")
+    freeze: list[FrozenCoordinateInput] = Field(default_factory=list, description="Frozen coordinates in the same concrete input atom order and engine-specific numbering as scans.")
     force_constant: float | None = Field(default=None, gt=0, description="xTB restraint force constant in atomic units; explicitly declared")
     mode: Literal["concerted", "sequential"] | None = None
     solvation: PathSolvation | None = None

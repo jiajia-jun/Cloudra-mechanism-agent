@@ -929,8 +929,8 @@ def _install_fake_irc_endpoints(monkeypatch, symbols, end_a_pos, end_b_pos):
 
     from cloudra.tools.Chemtool.ts_guess import TsGuess
 
-    def _fake_extract(user_input, checks, require_two_sides=True, **_kwargs):
-        out_dir = Path(user_input.output_dir)
+    def _fake_extract(irc_log, checks, *, output_dir, require_two_sides=True, **_kwargs):
+        out_dir = Path(output_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         path_a = out_dir / "irc_end_a.xyz"
         path_b = out_dir / "irc_end_b.xyz"

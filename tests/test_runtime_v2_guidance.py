@@ -162,7 +162,7 @@ def test_no_notices_sink_is_noop(tmp_path):
         ("ts_prepare", {"declaration": {}}),
         ("ts_guess", {"mode": "scan_prepare"}),
         ("ts_guess", {"mode": "interpolate"}),
-        ("ts_guess", {}),  # xtb_path is the tool default
+        ("ts_guess", {"mode": "xtb_path"}),
         ("qm_input_writer", {"task_type": [{"scan": "rigid"}]}),
         ("qm_input_writer", {"task_type": [{"opt": None}]}),
         ("qm_input_writer", {"task_type": [{"opt": "modredundant"}]}),
@@ -177,6 +177,14 @@ def test_molecular_pes_preparation_pins_nonblocking_guidance(name, arguments):
     result = _run(GuidanceStage(), ctx, call)
     assert result.outcome == "allow"
     assert notices.pin_content("as_g", "guidance-physical-thinking") is not None
+
+
+def test_missing_ts_guess_mode_does_not_infer_a_compute_path():
+    notices = NoticeManager()
+    ctx = _ctx("small_mol", notices)
+    result = _run(GuidanceStage(), ctx, ToolCall(id="missing-mode", name="ts_guess", arguments={}))
+    assert result.outcome == "allow"
+    assert notices.pin_content("as_g", "guidance-physical-thinking") is None
 
 
 @pytest.mark.parametrize(

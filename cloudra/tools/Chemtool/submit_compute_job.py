@@ -21,8 +21,8 @@ from cloudra.tools.core.calculation_intent import inspect_input
 description = (
     "Submit a compute job: take a prepared input-file path, insert a record in compute_jobs, "
     "and let the framework Compute Scheduler pick it up; returns job_id immediately without waiting for the job to finish. "
-    "Terminal states are PUSHED to the submitting session: child agents are woken after all their "
-    "owned jobs finish; coordinator notices stay in its inbox until another wake event. "
+    "Terminal states are pushed to the submitting session: non-coordinator sessions can be woken as individual "
+    "jobs finish without waiting for their other jobs; coordinator notices stay in its inbox until another wake event. "
     "Do not poll query_compute_job or re-parse the log to wait. If you need an interim checkpoint, call `schedule` "
     "with a read-only check_command instead of polling in a loop. "
     "Use for: formally running long Gaussian, CP2K, VASP, ORCA, or xtb jobs; prepare the input first with qm_input_writer or similar (CP2K uses .inp; ordinary xtb takes .xyz; native xTB scans use the typed manifest prepared by ts_guess and job_type='chem_task'). "

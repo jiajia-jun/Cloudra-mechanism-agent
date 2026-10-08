@@ -167,7 +167,8 @@ class ConformerSearch_input_schema(input_schema):
     smiles: Optional[str] = Field(
         default=None,
         description="Input molecule SMILES. One of smiles/input_path/input_text; smiles is preferred. "
-                    "Must be a single connected component; a dot-separated multi-component input is refused."
+                    "Dot-separated multi-component inputs are assembled into complex candidates; conformers and CREST nci/qcg support complexes. "
+                    "protonate/deprotonate/tautomerize require a single component."
     )
     input_path: Optional[str] = Field(
         default=None,
@@ -235,11 +236,14 @@ class ConformerSearch_input_schema(input_schema):
     distance_filters: list[DistanceWindowInput] = Field(
         default_factory=list,
         description="Reaction-distance filters; each item like {\"atoms\": [i, j], \"min_ang\": 1.8, \"max_ang\": 2.6}, "
-                    "1-based indices in the builder complete atom order INCLUDING H, not SMILES heavy-atom indices. Keeps conformers whose key atom-pair distances fall in the preorganization window (reactive conformers)."
+                    "1-based indices in this input's builder complete atom order INCLUDING H, not SMILES heavy-atom indices "
+                    "or another file's atom order. Read prepared_structure.json atom_identities (stored 0-based; add 1 for this field). "
+                    "Keeps conformers whose key atom-pair distances fall in the preorganization window (reactive conformers)."
     )
     ring_order: list[int] = Field(
         default_factory=list,
         description="Prospective cycle atoms in order, 1-based in the builder's complete atom order including H. "
+                    "Use this input's prepared_structure.json atom_identities; its stored index is 0-based, so add 1 here. "
                     "Nonbonded adjacent pairs receive explicit distance_filters windows or a visible default; "
                     "extra distance_filters can be combined. Soft guidance during search, strict qualification on output.",
     )
@@ -771,7 +775,7 @@ class ConformerSearch(Tool):
             parents = {cid: candidate_sink.capture(mol, cid, generator="ETKDGv3", seed=user_input.random_seed) for cid in cids} if candidate_sink else {}
             counts = {"generated": len(cids)}
 
-            # 单组分体系不涉及碎片间相互作用：构建器已保证多组分输入在进入本后端之前被拒。
+            # 多组分已经由上方分支交给组装；这里仅处理单组分。
             ignore_interfrag = True
 
             # MMFF 优化；逐构象检查收敛标志，失败者加大迭代次数重试并回退 UFF，两者皆败剔除（0.0 绝不当作能量）。
@@ -978,7 +982,7 @@ class ConformerSearch(Tool):
 
     def _run_crest(self, user_input: ConformerSearch_input_schema, out_dir: str, *, candidate_sink=None) -> ConformerSearch_output_schema:
         try:
-            # 种子结构由共享构建器产出（embed+optimize）：多组分输入在这里就被拒，
+            # 种子结构由共享构建器产出（embed+optimize），多组分得到组装复合物，
             # 互穿几何绝不会被喂给 CREST/xTB（issue #33 的直接病因）。
             prepared = self._prepare(user_input, out_dir, embed=True, optimize=True,candidate_sink=candidate_sink)
             if prepared.status != "ok" or not prepared.has_coordinates:

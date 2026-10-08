@@ -1,8 +1,9 @@
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
-from pydantic import Field
+from pydantic import ConfigDict, Field
+from typing_extensions import NotRequired, TypedDict
 
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
@@ -15,9 +16,10 @@ description = (
     "Use for: diagnosing a FAILED job (reading last_error) or confirming a job record exists after a submission error. "
     "Do not use for: submitting a new job (use submit_compute_job), queue/capacity overview (use query_compute_queue), "
     "or parsing a finished log (use log_parser). "
-    "NEVER call this tool to wait on a running/queued job. Terminal states are PUSHED to you automatically — you are "
-    "woken the moment the job finishes, so a poll can only ever return information you already had while burning a "
-    "model turn each time. Polling to wait is a protocol violation: the only acceptable reason to query a "
+    "Do not repeatedly call this tool to wait on a running/queued job. Terminal states are pushed to the submitting "
+    "session. A non-coordinator session can stop and be woken as individual jobs finish. For coordinator sessions, "
+    "the notification is stored in the mailbox without waking the coordinator; schedule a wake-up if waiting directly. "
+    "Polling to wait is a protocol violation: the only acceptable reason to query a "
     "non-terminal job is diagnosing a broken submission. If you genuinely need an interim checkpoint, `schedule` a "
     "one-shot read-only check_command and stop. "
     "Note: the scheduler daemon reconciles crashed workers automatically (lock-based, it never kills processes), "
@@ -37,9 +39,31 @@ class QueryComputeJob_input_schema(input_schema):
     )
 
 
+class ComputeJobRecord(TypedDict):
+    __pydantic_config__ = ConfigDict(extra="forbid", strict=True)
+
+    job_id: int
+    state: str
+    node_id: str
+    scheduler: str | None
+    scheduler_state: str
+    jobtype: str | None
+    path: str
+    log_path: str
+    started_at: str
+    ended_at: str
+    last_error: str
+    attempt_count: int
+    charge: NotRequired[int]
+    multiplicity: NotRequired[int]
+    task: NotRequired[str]
+    solvent: NotRequired[str]
+    cpus: NotRequired[int]
+
+
 class QueryComputeJob_output_schema(output_schema):
     is_success: bool = Field(description="Whether the query succeeded")
-    jobs: List[Dict[str, Any]] = Field(default_factory=list, description="Job records")
+    jobs: list[ComputeJobRecord] = Field(default_factory=list, description="Compute ledger records; a successful query does not imply job completion or scientific verification")
     message: str = Field(default="", description="Status or error message")
 
 
@@ -53,7 +77,7 @@ def _iso(ts) -> str:
     return datetime.fromtimestamp(ts).astimezone().isoformat(timespec="seconds")
 
 
-def _row_to_dict(row: Dict[str, Any]) -> Dict[str, Any]:
+def _row_to_dict(row: Dict[str, Any]) -> ComputeJobRecord:
     path = row["path"] or ""
     # log_path 与完成通知统一走 resolve_log_path（GH #20）：优先 guard state
     # json 记录的真实日志 / calc 落盘文件，都没有才回退引擎惯例预测。
@@ -129,11 +153,9 @@ class QueryComputeJob(Tool):
             message += (
                 " STOP POLLING. Some jobs are still in a non-terminal state, and re-querying "
                 "will NOT change that: terminal states (done/failed/cancelled) are PUSHED to you "
-                "automatically and will wake you the instant the job finishes. Every additional "
-                "query_compute_job call before the push arrives returns nothing new and burns a "
-                "model turn; ending your turn repeatedly with no new progress is strike-counted "
-                "by the completion gate and FAILS your run. Your only correct actions now: do "
-                "other work, or end your turn and wait for the push. If you genuinely need an "
+                "to the submitting session. Non-coordinator sessions can stop and be woken as individual jobs "
+                "finish; coordinator notifications are stored without waking the coordinator, so "
+                "schedule a wake-up if waiting directly. Do other work while the job runs. If you need an "
                 "interim checkpoint, use schedule once with a one-shot read-only check_command."
             )
         return QueryComputeJob_output_schema(

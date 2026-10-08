@@ -37,7 +37,7 @@ Assume a checked singlet anion candidate and an installed external program/model
   "nproc": 1,
   "mem": "3GB",
   "orca_blocks": "%geom\n  Calc_Hess true\n  NumHess true\n  MaxIter 100\nend",
-  "output_dir": "/work/e1/ts.inp"
+  "output_path": "/work/e1/ts.inp"
 }
 ```
 
@@ -62,7 +62,7 @@ After unconstrained convergence, use the final optimized XYZ. For an external pr
   "multiplicity": 1,
   "nproc": 1,
   "mem": "3GB",
-  "output_dir": "/work/e1/ts_freq.inp"
+  "output_path": "/work/e1/ts_freq.inp"
 }
 ```
 
@@ -83,7 +83,7 @@ Once that TS is validated, reuse its same-geometry frequency Hessian for both IR
   "nproc": 1,
   "mem": "3GB",
   "orca_blocks": "%irc\n  Direction both\n  InitHess read\n  Hess_Filename \"/work/e1/ts_freq.hess\"\nend",
-  "output_dir": "/work/e1/ts_irc.inp"
+  "output_path": "/work/e1/ts_irc.inp"
 }
 ```
 
@@ -95,16 +95,16 @@ For free energies, read `method-selection.md` §4: `log_parser` supports ORCA th
 
 ## 4. Relaxed scan example
 
-`ts_guess scan_prepare` uses a different schema from `qm_input_writer`: `spin`, `nprocs`, combined `method`, and raw external `%method`. Its public atom indices are **1-based**; the generator converts to ORCA's **0-based** indices. The example scans atoms 1 and 9; choose real indices/range from the structure.
+`ts_guess mode=scan_prepare` uses a different schema from `qm_input_writer`: `spin`, `nprocs`, combined `method`, and raw external `%method`. With `engine="orca"`, its public atom indices are **0-based**, in the exact input XYZ order including explicit H. The example scans the atoms labeled 1 and 9 by `internal_coordinates`, passed as `[0, 8]`; choose real indices/range from the structure.
 
-**Index check before every scan:** `internal_coordinates` and benchmark atom maps use 1-based labels. Pass those labels unchanged to `ts_guess scan_prepare`. When writing `%geom Scan` yourself in `qm_input_writer.orca_blocks` or a native `.inp`, convert every atom label `i` to `i-1` (bond 1–6 → `Scan B 0 5`; dihedral 3–8–9–10 → `Scan D 2 7 8 9`). Check the element and position of each referenced atom in the exact input XYZ order, then compare the scan's starting coordinate with the intended bond, angle, or dihedral. A valid but shifted index can run to completion while scanning a different coordinate.
+**Index check before every scan:** `internal_coordinates` and concrete `reaction_mapping.atom_map`/`concrete_watch_pairs` use 1-based labels. For ORCA, convert every atom label `i` to `i-1` both in `ts_guess` arguments and in native `%geom Scan` blocks (`qm_input_writer.orca_blocks` or a native `.inp`; bond 1–6 → `Scan B 0 5`, dihedral 3–8–9–10 → `Scan D 2 7 8 9`). Gaussian/xTB `ts_guess` arguments remain 1-based. Use the mapping only when its concrete structure binding is complete and current; heavy-atom SMILES indices do not identify explicit-H XYZ positions. Check the element and position of each referenced atom in that exact input file, then compare the scan's starting coordinate with the intended bond, angle, or dihedral. A valid but shifted index can run to completion while scanning a different coordinate.
 
 ```json
 {
   "mode": "scan_prepare",
   "engine": "orca",
   "input_path": "/work/e1/reactive.xyz",
-  "scans": [{"coord_type": "bond", "atoms": [1, 9], "scan_end": 1.30, "scan_steps": 16}],
+  "scans": [{"coord_type": "bond", "atoms": [0, 8], "scan_end": 1.30, "scan_steps": 16}],
   "method": "ExtOpt",
   "charge": -1,
   "spin": 1,

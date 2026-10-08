@@ -152,7 +152,7 @@ class GuidanceStage:
         data = result.data
         if not isinstance(data, dict):
             return None
-        mode = call.arguments.get("mode", "xtb_path")
+        mode = call.arguments.get("mode")
         if mode == "scan_parse" or (mode == "scan" and call.arguments.get("log_path")):
             if (result.is_success and data.get("scan_has_internal_peak") is False
                     and data.get("candidate_unavailable") is False):
@@ -232,7 +232,7 @@ class GuidanceStage:
         if call.name in ("ts_prepare", "qm_input_writer"):
             return True
         if call.name == "ts_guess":
-            mode = call.arguments.get("mode", "xtb_path")
+            mode = call.arguments.get("mode")
             return mode in ("xtb_path", "interpolate", "scan_prepare") or (
                 mode == "scan" and not call.arguments.get("log_path")
             )

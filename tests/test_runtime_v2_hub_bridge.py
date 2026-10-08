@@ -139,6 +139,84 @@ async def test_post_validation():
 
 
 @pytest.mark.asyncio
+async def test_hub_bridge_validates_receipts_before_returning(monkeypatch):
+    from pydantic import ValidationError
+
+    from cloudra.runtime_v2 import hub_bridge
+    from cloudra.runtime_v2.policies.base import ToolResult
+
+    core, _, coordinator = await _setup()
+    await _wait_state(coordinator, "succeeded")
+    monkeypatch.setattr(hub_bridge, "_directory", lambda *_: ToolResult(
+        is_success=True, summary="bad receipt", data={"is_success": True, "sessions": [{"session_id": 42}]},
+    ))
+    try:
+        with pytest.raises(ValidationError):
+            await handle_hub_tool(core, coordinator, _hub({"action": "directory"}))
+    finally:
+        await core.runner.cancel_all()
+
+
+@pytest.mark.asyncio
+async def test_hub_typed_posts_include_user_authored_posts():
+    from cloudra.runtime_v2.hub_bridge import post_user_post
+
+    core, project, coordinator = await _setup()
+    await _wait_state(coordinator, "succeeded")
+    await post_user_post(core, project.id, topic="user question", content="Please review the result")
+    try:
+        read = await handle_hub_tool(core, coordinator, _hub({"action": "read", "topic": "user question"}))
+        assert read.data["posts"][0]["author_agent"] == "user"
+        assert read.data["posts"][0]["author_session"] is None
+        search = await handle_hub_tool(core, coordinator, _hub({"action": "search", "keyword": "review"}))
+        assert search.data["posts"][0]["author_session"] is None
+    finally:
+        await core.runner.cancel_all()
+
+
+@pytest.mark.asyncio
+async def test_call_receipt_distinguishes_durable_delivery_from_parked_wake():
+    core, _, coordinator = await _setup()
+    await _wait_state(coordinator, "succeeded")
+    target = await _spawn(core, coordinator, "small_mol")
+    await core.agent_host.start_run(target)
+    await CommandBus(core).execute(Command(type="agent.cancel", target={"session_id": target.id}))
+    result = await handle_hub_tool(core, coordinator, _hub({
+        "action": "call", "to": target.id, "message": "Review the result on resume",
+    }))
+    assert result.is_success is True
+    receipt = result.data["notifications"][0]
+    assert receipt["delivery"] == "parked"
+    assert receipt["wake_status"] == "parked"
+    assert receipt["target_state"] == "cancelled"
+    event = core.event_log.get(receipt["message_event_id"])
+    assert event.type == "agent.message_injected"
+    assert event.session_id == target.id
+    assert core.mailbox.inbox(target.id).qsize() > 0
+    assert target.state.value == "cancelled"
+    await core.runner.cancel_all()
+
+
+@pytest.mark.asyncio
+async def test_post_receipt_keeps_delivery_separate_for_already_running_recipient():
+    core, _, coordinator = await _setup()
+    await _wait_state(coordinator, "succeeded")
+    target = await _spawn(core, coordinator, "small_mol")
+    await core.agent_host.start_run(target)
+    before = len(core.event_log.query_session(target.id, types={"run.started"}))
+    result = await handle_hub_tool(core, coordinator, _hub({
+        "action": "post", "topic": "progress", "content": "Review this on the next turn", "to_agent": target.id,
+    }))
+    receipt = result.data["notifications"][0]
+    assert receipt["delivery"] == "delivered"
+    assert receipt["wake_status"] == "already_running"
+    assert receipt["target_state"] == "running"
+    assert len(core.event_log.query_session(target.id, types={"run.started"})) == before
+    assert core.event_log.get(receipt["message_event_id"]).type == "agent.message_injected"
+    await core.runner.cancel_all()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("role_id", ["coordinator", "supervisor"])
 async def test_hub_native_entry_rejects_unknown_fields_before_posting(role_id):
     core, project, author = await _setup()

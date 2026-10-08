@@ -8,11 +8,12 @@
 import json
 
 import pytest
+from pydantic import ValidationError
 
 from cloudra.tools import get_tools_lst
 from cloudra.tools.Plantool._store import agent_store_path
 from cloudra.tools.Plantool.goal import GoalSet, GoalSet_input_schema
-from cloudra.tools.Plantool.todo import TodoWrite, TodoWrite_input_schema
+from cloudra.tools.Plantool.todo import TodoWrite, TodoWrite_input_schema, TodoWrite_output_schema
 from tests.dag_identity import make_session, make_subagent, projected_tool_names
 
 
@@ -92,6 +93,14 @@ class TestTodoWrite:
 
         assert out.todos == []
         assert _read_store(agent, "todos.json") == []
+
+
+def test_todo_output_rejects_unknown_task_status():
+    """The model-visible task records share the accepted task-status vocabulary."""
+    with pytest.raises(ValidationError):
+        TodoWrite_output_schema(result="updated", todos=[{
+            "id": "t1", "content": "Read evidence", "status": "complete",
+        }])
 
 
 _TODO_REMINDER_MARKER = "maintaining a todo list"

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from cloudra.runtime_v2.schemas import (
     AgentSession,
@@ -429,6 +429,63 @@ def test_declarations_render_enum_array_nullable_and_refs():
     assert '"mode"?: string | null;' in text
     assert "type SampleToolArgs_SubModel = {" in text
     assert '"smiles": string;' in text
+
+
+def test_declarations_preserve_fixed_tuple_atom_references():
+    from cloudra.tools.core.ts_inputs import RotatedConformer, TsReaction
+
+    text = tool_declarations(
+        ["rotate", "reaction"],
+        entries=[
+            _entry("rotate", RotatedConformer, SampleData),
+            _entry("reaction", TsReaction, SampleData),
+        ],
+    )
+    assert '"atoms": [number, number];' in text
+    assert '"reaction_center"?: Array<[number, number]>;' in text
+
+
+def test_declarations_preserve_heterogeneous_tuple_members():
+    class TaggedCoordinate(BaseModel):
+        coordinate: tuple[Literal["bond"], int, int]
+        labeled: tuple[SubModel, str | None]
+
+    text = tool_declarations(
+        ["coordinate"], entries=[_entry("coordinate", TaggedCoordinate, SampleData)],
+    )
+    assert '"coordinate": ["bond", number, number];' in text
+    assert '"labeled": [CoordinateArgs_SubModel, string | null];' in text
+
+
+def test_declarations_preserve_shared_fields_with_mode_conditions():
+    class ModeArgs(BaseModel):
+        model_config = ConfigDict(json_schema_extra={"oneOf": [
+            {
+                "properties": {"mode": {"const": "scan"}}, "required": ["mode"],
+                "anyOf": [
+                    {"properties": {"input_path": {"type": "string"}}, "required": ["input_path"]},
+                    {"properties": {"input_text": {"type": "string"}}, "required": ["input_text"]},
+                ],
+            },
+            {
+                "properties": {"mode": {"const": "verify"}, "log_path": {"type": "string"}},
+                "required": ["mode", "log_path"],
+            },
+        ]})
+        mode: Literal["scan", "verify"]
+        engine: str
+        input_path: str | None = None
+        input_text: str | None = None
+        log_path: str | None = None
+
+    text = tool_declarations(["mode_tool"], entries=[_entry("mode_tool", ModeArgs, SampleData)])
+    assert '"engine": string;' in text
+    assert '"mode": "scan";' in text
+    assert '"input_path": string;' in text
+    assert '"input_text": string;' in text
+    assert '"mode": "verify";' in text
+    assert '"log_path": string;' in text
+    assert " & " in text
 
 
 def test_declarations_are_deterministic_and_escape_comments():

@@ -16,7 +16,7 @@ pytestmark = pytest.mark.usefixtures("ts_producer_authority")
 def test_orca_writer_renders_basis_alias_and_preserves_declared_keywords(basis, expected):
     request = QmInputWriter_input_schema(
         engine='orca', source_type='xyz_file', source_value='unused.xyz',
-        output_dir='unused.inp', method='b3lyp', basis_set=basis, task_type=[{'opt': 'ts'}],
+        output_path='unused.inp', method='b3lyp', basis_set=basis, task_type=[{'opt': 'ts'}],
         extra_keywords='D3BJ RIJCOSX def2/J TightSCF CPCM(DCM)',
     )
     header = QmInputWriter._build_orca_input(request, 'H 0 0 0').splitlines()[0].split()

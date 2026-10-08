@@ -692,7 +692,7 @@ def _optimize_conformer_source(record, role):
             request = QmInputWriter_input_schema(engine=calculation.engine, source_type='xyz_file', source_value=built[2],
                 method=head, basis_set=basis, task_type=[{'opt': None}], extra_keywords=calculation.keywords,
                 orca_blocks=calculation.orca_blocks, end_setting=calculation.end_setting,
-                nproc=record.compute_cpus, mem=f'{record.compute_memory_mb}MB',
+                nproc=record.compute_cpus, mem=f'{record.compute_memory_mb}MB', output_path=str(manifest),
                 charge=record.input.reaction.charge, multiplicity=record.input.reaction.multiplicity)
             from cloudra.tools.core.calculation_intent import validate_writer_request
             conflicts = validate_writer_request(request.model_dump())
@@ -1744,7 +1744,7 @@ def _write_refinement_input(record: TsProcessRecord, job_dir: str) -> tuple[str,
         charge=declaration.charge,
         multiplicity=declaration.multiplicity,
         title=f"TS refinement: {declaration.reactant_smiles} -> {declaration.product_smiles}",
-        output_dir=input_path,
+        output_path=input_path,
     )
     # 输入冲突前置校验（与 qm_input_writer 同一份）
     conflicts = validate_writer_request(request.model_dump())
@@ -1876,7 +1876,7 @@ def _reuse_existing_irc(record):
     from cloudra.infra.compute_utils import resolve_log_path
     from cloudra.services.ts_pipeline_context import pipeline_database
     from cloudra.services.ts_pipeline_store import verify_stage_input
-    from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_input_schema
+    from cloudra.tools.Chemtool.ts_guess import TsGuess
     from cloudra.tools.core import gaussian_frames, orca_frames
     from cloudra.tools.core.calculation_intent import inspect_input, native_input_geometry
     from cloudra.tools.core.structure_artifacts import read_xyz_atoms
@@ -1913,8 +1913,8 @@ def _reuse_existing_irc(record):
     if canonical(native_input_geometry(text, engine=engine)) != canonical(read_xyz_atoms(str(geometry))):
         raise ValueError('Existing IRC input geometry differs from the accepted TS frequency frame')
     checks = []
-    info = TsGuess._extract_irc_endpoints(TsGuess_input_schema(mode='verify', irc_log=str(source_log), engine=engine,
-        output_dir=str(Path(_job_directory(record, 'irc')) / 'source_endpoints')), checks, require_two_sides=True)
+    info = TsGuess._extract_irc_endpoints(str(source_log), checks, engine=engine,
+        output_dir=str(Path(_job_directory(record, 'irc')) / 'source_endpoints'), require_two_sides=True)
     if info is None or not all(info.get(key) and Path(info[key]).is_file() for key in ('path_a', 'path_b')):
         raise ValueError('Existing IRC has no usable two-sided endpoint evidence: ' + '; '.join(checks))
     directory = Path(_job_directory(record, 'irc'))
@@ -2152,7 +2152,7 @@ def _write_frequency_input(record: TsProcessRecord, job_dir: str) -> tuple[str, 
         charge=declaration.charge,
         multiplicity=declaration.multiplicity,
         title=f"frequency at the refined stationary point: {declaration.reactant_smiles}",
-        output_dir=input_path,
+        output_path=input_path,
     )
     conflicts = validate_writer_request(request.model_dump())
     if conflicts:
@@ -2249,7 +2249,7 @@ def _write_irc_input(record: TsProcessRecord, job_dir: str) -> tuple[str, str]:
         charge=declaration.charge,
         multiplicity=declaration.multiplicity,
         title=f"IRC both directions from the refined saddle: {declaration.reactant_smiles}",
-        output_dir=input_path,
+        output_path=input_path,
     )
     conflicts = validate_writer_request(request.model_dump())
     if conflicts:
@@ -2357,15 +2357,14 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
         irc_log = _refinement_log_path(record, irc_step)
         if not os.path.isfile(irc_log):
             return f"the IRC job log is missing at {irc_log}", ""
-        from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_input_schema
+        from cloudra.tools.Chemtool.ts_guess import TsGuess
 
         checks: list[str] = []
-        irc_input = TsGuess_input_schema(
-            mode="verify", irc_log=irc_log, engine=_step_calculation(record, irc_step).engine,
-            output_dir=os.path.join(record.run_dir, VERDICT_STAGE_DIR),
-        )
         try:
-            info = TsGuess._extract_irc_endpoints(irc_input, checks, require_two_sides=True)
+            info = TsGuess._extract_irc_endpoints(
+                irc_log, checks, engine=_step_calculation(record, irc_step).engine,
+                output_dir=os.path.join(record.run_dir, VERDICT_STAGE_DIR), require_two_sides=True,
+            )
         except Exception as exc:
             return f"IRC outer-frame extraction failed: {exc}", ""
         if info is None:
@@ -2405,7 +2404,7 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
         end_setting=calculation.end_setting,
         charge=declaration.charge, multiplicity=declaration.multiplicity,
         title=f"IRC side {'A' if role == 'reactant' else 'B'} endpoint {task}",
-        output_dir=input_path,
+        output_path=input_path,
     )
     conflicts = validate_writer_request(request.model_dump())
     if conflicts:
@@ -2882,7 +2881,7 @@ def _irc_interval_proof(
     同一实现）。任何材料缺失、对齐不可判或证明不成立都返回 ``(False, 原因)``——
     调用方落 candidate_only，绝不升格 verified。
     """
-    from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_input_schema
+    from cloudra.tools.Chemtool.ts_guess import TsGuess
     from cloudra.tools.core.irc_path import (
         align_atom_order,
         assign_irc_endpoints,
@@ -2901,14 +2900,12 @@ def _irc_interval_proof(
     ts_pos = [list(position) for _, position in ts_atoms]
 
     checks: list[str] = []
-    irc_input = TsGuess_input_schema(
-        mode="verify",
-        irc_log=irc_log,
+    info = TsGuess._extract_irc_endpoints(
+        irc_log, checks,
         engine=stage_calculation(record, 'irc').engine,
         output_dir=os.path.join(record.run_dir, VERDICT_STAGE_DIR),
-        charge=record.input.reaction.charge,
+        require_two_sides=True,
     )
-    info = TsGuess._extract_irc_endpoints(irc_input, checks, require_two_sides=True)
     if info is None:
         return False, "no usable bidirectional IRC endpoint geometries: " + "; ".join(checks)
     end_a = parse_xyz(info["end_a"].xyz)

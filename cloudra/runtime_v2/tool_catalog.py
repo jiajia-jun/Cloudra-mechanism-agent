@@ -358,9 +358,16 @@ def _ts(schema: Any, defs: dict, prefix: str) -> str:
     for key in ("anyOf", "oneOf"):
         if key in schema:
             parts = [_ts(part, defs, prefix) for part in schema[key]]
-            return " | ".join(parts) if parts else "unknown"
+            union = " | ".join(parts) if parts else "unknown"
+            if schema.get("properties"):
+                # Conditions refine the shared object, rather than replacing
+                # its sibling properties (for example a tool's common fields).
+                return f"({_object_ts(schema, defs, prefix)}) & ({union})"
+            return union
     if "allOf" in schema:
         parts = [_ts(part, defs, prefix) for part in schema["allOf"]]
+        if schema.get("properties"):
+            parts.insert(0, _object_ts(schema, defs, prefix))
         return " & ".join(f"({part})" for part in parts) if parts else "unknown"
     type_ = schema.get("type")
     if isinstance(type_, list):
@@ -375,6 +382,16 @@ def _ts(schema: Any, defs: dict, prefix: str) -> str:
     if type_ == "null":
         return "null"
     if type_ == "array":
+        prefix_items = schema.get("prefixItems")
+        if (
+            isinstance(prefix_items, list)
+            and schema.get("minItems") == len(prefix_items)
+            and schema.get("maxItems") == len(prefix_items)
+        ):
+            # Pydantic fixed tuples use prefixItems rather than items. Preserve
+            # each member and the tuple length instead of exposing unknown[].
+            members = [_ts(item, defs, prefix) for item in prefix_items]
+            return "[" + ", ".join(members) + "]"
         items = schema.get("items")
         inner = _ts(items, defs, prefix) if items is not None else "unknown"
         return f"Array<{inner}>"

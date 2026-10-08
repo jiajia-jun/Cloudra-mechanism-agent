@@ -1,6 +1,7 @@
 from typing import Any, Literal
 
-from pydantic import Field
+from pydantic import ConfigDict, Field
+from typing_extensions import NotRequired, TypedDict
 
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
@@ -28,10 +29,38 @@ class Search_input_schema(input_schema):
     )
 
 
+class WebSearchHit(TypedDict):
+    __pydantic_config__ = ConfigDict(extra="forbid")
+
+    title: str | None
+    url: str
+    snippet: str | None
+    source: str
+    published: NotRequired[str | None]
+
+
+class PaperSearchHit(TypedDict):
+    __pydantic_config__ = ConfigDict(extra="forbid")
+
+    title: str | None
+    doi: str | None
+    journal_ref: NotRequired[str | None]
+    published_date: NotRequired[str | None]
+    source: NotRequired[str]
+    abstract: NotRequired[str]
+    authors: NotRequired[list[str | None]]
+    categories: NotRequired[list[str]]
+    primary_category: NotRequired[str]
+    pdf_url: NotRequired[str | None]
+    comment: NotRequired[str | None]
+    links: NotRequired[list[str]]
+    concepts: NotRequired[list[str | None]]
+
+
 class Search_output_schema(output_schema):
     is_success: bool = True
-    results: list = Field(default_factory=list, description="Web hits: [{title, url, snippet, source}]")
-    content: list = Field(default_factory=list, description="Paper hits when source is arxiv or openalex")
+    results: list[WebSearchHit] = Field(default_factory=list, description="Web hits: title, URL, snippet, source and optional publication date")
+    content: list[PaperSearchHit] = Field(default_factory=list, description="Paper hits when source is arxiv or openalex; optional fields depend on the corpus and mode")
     backend_used: str = ""
     message: str = ""
     error: str = ""
