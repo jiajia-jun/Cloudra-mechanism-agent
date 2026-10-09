@@ -18,7 +18,7 @@
 | 杠杆 | 受影响的场景 |
 | :--- | :--- |
 | 默认 invocation protocol | 普通问答（默认协议下的纯文本收尾） |
-| Benchmark 方法策略作用域 | 普通项目残留白名单仍能生成用户指定的计算输入 |
+| Benchmark 方法策略作用域 | 模型看到当前范围；普通项目残留白名单仍能生成用户指定的计算输入 |
 | 角色权限矩阵 | small_mol 技能→计算入口、unattended 拒批 |
 | 重试预算与 fail-fast 分类 | provider 暂态重试 / 永久 4xx |
 | 压缩阈值与摘要 | context overflow |

@@ -500,7 +500,7 @@ async def test_scan_prepare_gaussian(tmp_path, mock_session):
     assert result.input_file_path == str(out)
     assert "submit_compute_job" in result.run_hint and "gaussian" in result.run_hint
     assert "DFT for every constrained scan point" in result.run_hint
-    assert "MethodPolicy-permitted cheap method" in result.run_hint
+    assert "Benchmark" in result.run_hint and "ordinary" in result.run_hint
     content = out.read_text()
     assert "qst" not in content.lower()
     assert "%chk=h2o_scan.chk" in content

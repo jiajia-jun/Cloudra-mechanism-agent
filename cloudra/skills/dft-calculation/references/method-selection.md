@@ -4,7 +4,7 @@ Read when the method is not already fixed, when interpreting its limits, or when
 
 ## 1. Select a level for the claim
 
-Keep the user's method policy and actual software availability first. If a production level is specified, use it consistently rather than selecting another functional for every job. With a free choice, use benchmarks close to the reaction class, charge/spin state and requested property. No universal accuracy order covers DFT, double hybrids, coupled cluster, xTB and MLIPs. General method-selection guidance: [ORCA recommendations](https://www.faccts.de/docs/orca/6.1/manual/contents/quickstartguide/recommendations.html).
+Keep the user's current calculation requirements, budget and actual software availability first. Only active Benchmark projects apply their actual task MethodPolicy; ordinary research projects have no default method/basis whitelist. Do not infer restrictions from global configuration, examples or earlier tasks. If a production level is specified, use it consistently rather than selecting another functional for every job. With a free choice, use benchmarks close to the reaction class, charge/spin state and requested property. No universal accuracy order covers DFT, double hybrids, coupled cluster, xTB and MLIPs. General method-selection guidance: [ORCA recommendations](https://www.faccts.de/docs/orca/6.1/manual/contents/quickstartguide/recommendations.html).
 
 Useful candidates retained from the project's method guide are below. They are starting choices for a justified comparison, not claims that each is best for every member of a class. Check implementation and derivative availability in the installed engine before choosing a production protocol.
 

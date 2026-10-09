@@ -157,6 +157,8 @@ async def test_snapshot_restore_keeps_invocations_on_the_live_agent_registry(tmp
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("rdkit_chemistry")
 async def test_ordinary_project_method_input_survives_stored_policy(tmp_path):
+    import json
+
     from cloudra.runtime_v2.schemas import AgentState, Command, InvocationProtocol
     from tests.agent_scenarios import ordinary_method_input_steps
 
@@ -173,6 +175,16 @@ async def test_ordinary_project_method_input_survives_stored_policy(tmp_path):
         assert agent.state == AgentState.SUCCEEDED
         assert output.is_file()
         assert "PBE0" in output.read_text() and "def2-TZVP" in output.read_text()
+        scopes = []
+        for _role, messages in provider.calls:
+            for message in messages:
+                content = message.get('content')
+                if isinstance(content, str) and '[Current MethodPolicy scope]' in content:
+                    payload = content.split('[Current MethodPolicy scope]', 1)[1]
+                    scopes.append(json.loads(payload.strip().splitlines()[0]))
+        assert scopes
+        assert all(scope == {'project_id': harness.project.id, 'active': False, 'allowed_methods': []}
+                   for scope in scopes)
         assert not any(e.type == "tool.blocked" and e.data.get("stage") == "method_policy" for e in harness.events(agent))
         assert any(e.type == "tool.result_recorded" for e in harness.events(agent))
     finally:

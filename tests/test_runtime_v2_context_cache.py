@@ -674,8 +674,10 @@ async def test_retry_reuses_identical_prepared_request():
     await _wait_state(agent, "succeeded")
     assert len(capture) == 2
     assert capture[0] == capture[1]
-    assert capture[0]["messages"][-2]["content"] == FIXTURE_PIN
-    assert capture[0]["messages"][-1]["content"] == FIXTURE_PUSH
+    contents = [message["content"] for message in capture[0]["messages"]]
+    assert contents.count(FIXTURE_PIN) == 1
+    assert contents.count(FIXTURE_PUSH) == 1
+    assert contents.index(FIXTURE_PIN) < contents.index(FIXTURE_PUSH)
     types = [e.type for e in core.event_log.query_session(agent.id)]
     assert "run.retry" in types
     # 重试复用已提交输入，消费游标与正文只落一次。
@@ -684,9 +686,10 @@ async def test_retry_reuses_identical_prepared_request():
         if event.type == "context.appended" and "notices_through" in event.data
     ]
     assert len(consumed) == 1
-    assert [m["content"] for m in consumed[0].data["messages"]][-2:] == [
-        FIXTURE_PIN, FIXTURE_PUSH
-    ]
+    committed = [message["content"] for message in consumed[0].data["messages"]]
+    assert committed.count(FIXTURE_PIN) == 1
+    assert committed.count(FIXTURE_PUSH) == 1
+    assert committed.index(FIXTURE_PIN) < committed.index(FIXTURE_PUSH)
 
 
 @pytest.mark.asyncio

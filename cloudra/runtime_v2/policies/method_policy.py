@@ -26,6 +26,7 @@ whitelisted method. `base_dir` defaults to `ctx.workspace_dir`.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from cloudra.runtime_v2.method_policy import (
@@ -95,4 +96,19 @@ class MethodPolicyStage:
         return None
 
     async def before_llm(self, ctx: PipelineContext, messages: list[dict]) -> None:
-        return None
+        policy = self._resolve_policy(ctx)
+        scope = dict(project_id=ctx.agent.project_id, active=policy is not None,
+                     allowed_methods=list(policy.allowed_methods) if policy is not None else [])
+        content = (
+            '[Current MethodPolicy scope]\n' + json.dumps(scope, ensure_ascii=False, sort_keys=True) + '\n'
+            'MethodPolicy is a whitelist for the current Benchmark task only. '
+            'When active=false, this project has no method/basis whitelist: follow the current user\'s '
+            'calculation requirements, budget and available software. Benchmark defaults, examples, '
+            'stored inactive settings and past rejection messages do not create a policy for this request. '
+            'When active=true, use the actual allowed_methods above. If a required calculation conflicts '
+            'with them, report that task/policy mismatch instead of automatically changing its method.'
+        )
+        if ctx.notices is not None:
+            ctx.notices.pin(ctx.agent.id, 'method-policy-scope', content)
+        else:
+            messages.append(dict(role='system', content=content))

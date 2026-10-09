@@ -179,6 +179,20 @@ def test_molecular_pes_preparation_pins_nonblocking_guidance(name, arguments):
     assert notices.pin_content("as_g", "guidance-physical-thinking") is not None
 
 
+def test_physical_guidance_replaces_unscoped_resident_method_policy_hint():
+    notices = NoticeManager()
+    notices.pin("as_g", "guidance-physical-thinking", "Always follow the global method policy.")
+    result = _run(GuidanceStage(), _ctx("small_mol", notices),
+                  ToolCall(id="prepare", name="ts_prepare", arguments={}))
+    assert result.outcome == "allow"
+    pin = notices.pin_content("as_g", "guidance-physical-thinking")
+    assert pin is not None
+    assert "Only active Benchmark projects use MethodPolicy" in pin
+    assert "ordinary research projects have no default method/basis whitelist" in pin
+    assert "global configuration, examples or past tasks" in pin
+    assert len(notices.render_current("as_g")) == 1
+
+
 def test_missing_ts_guess_mode_does_not_infer_a_compute_path():
     notices = NoticeManager()
     ctx = _ctx("small_mol", notices)

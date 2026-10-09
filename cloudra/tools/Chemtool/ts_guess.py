@@ -256,7 +256,7 @@ class TsGuess_input_schema(input_schema):
         description="scan_prepare: coordinates held at the input geometry value; atoms belong to the exact input XYZ order including explicit H. "
                     "Gaussian/xTB atoms start at 1; ORCA at 0. Do not freeze a scanned coordinate.",
     )
-    method: Optional[str] = Field(default=None, description="scan_prepare requires an explicit method/basis. For exploratory PES scans, choose a MethodPolicy-permitted and available semiempirical method (Gaussian PM7 if allowed, or ORCA GFN2-xTB if available and allowed). Use DFT for a narrow follow-up scan or unconstrained TS refinement. For MLIP/external pass 'ExtOpt' (ORCA; pair with orca_blocks %method ProgExt) or 'external' (Gaussian; pair with extra_route='external=\"<prog>\"').")
+    method: Optional[str] = Field(default=None, description="scan_prepare requires an explicit method/basis. Follow the current task's method requirements, budget and available software. MethodPolicy applies only to the current Benchmark task; ordinary projects have no method/basis whitelist, and historical policies or examples do not define one. For exploratory PES scans, consider a suitable available semiempirical method (Gaussian PM7 or ORCA GFN2-xTB) within the task requirements. Use DFT for a narrow follow-up scan or unconstrained TS refinement. For MLIP/external pass 'ExtOpt' (ORCA; pair with orca_blocks %method ProgExt) or 'external' (Gaussian; pair with extra_route='external=\"<prog>\"').")
     charge: int = Field(default=0, description="Total charge.")
     spin: int = Field(default=1, description="Spin multiplicity (2S+1).")
     electronic_character: Literal['closed_shell', 'open_shell'] | None = Field(default=None,
@@ -1492,8 +1492,9 @@ class TsGuess(Tool):
             raise ValueError('force_constant, scan_mode and solvation are native xTB scan fields')
         if not user_input.method or not user_input.method.strip():
             raise ValueError(
-                "scan_prepare requires an explicit method. For exploratory PES scans, choose a "
-                "MethodPolicy-permitted and available semiempirical method."
+                "scan_prepare requires an explicit method consistent with the current task's "
+                "requirements, budget and available software. MethodPolicy applies only to a "
+                "current Benchmark task; ordinary projects have no method/basis whitelist."
             )
         if user_input.engine == 'orca' and user_input.end_setting:
             raise ValueError('ORCA scan does not support end_setting; use orca_blocks')
@@ -1688,8 +1689,10 @@ class TsGuess(Tool):
         if "b3lyp" in method.lower():
             run_hint += (
                 " This input uses DFT for every constrained scan point. Before submitting an exploratory"
-                " full-range scan, consider a MethodPolicy-permitted cheap method (Gaussian PM7 if allowed;"
-                " ORCA GFN2-xTB if available and allowed). Use DFT around the candidate region or for"
+                " full-range scan, consider a suitable available semiempirical method (Gaussian PM7 or"
+                " ORCA GFN2-xTB) within the current task's requirements and budget. MethodPolicy applies"
+                " only to the current Benchmark task; ordinary projects have no method/basis whitelist."
+                " Historical policies and examples do not define the current task's method. Use DFT around the candidate region or for"
                 " unconstrained TS optimization and verification. The scan peak alone is not a validated TS."
             )
 

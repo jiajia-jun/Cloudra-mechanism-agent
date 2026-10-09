@@ -52,7 +52,7 @@ Numeric settings below are **production starting points**. A number is accepted 
 | Slab thickness not converged | Thicken; do not quote absolute surface energies. |
 | CI-NEB end states not at minima, or climbing image has 2+ significant imaginaries in the PHVA subspace | Fix path/ends first; do not quote a barrier. |
 | Polar Tasker III surface without compensation | Model compensation or refuse that surface energy. |
-| Functional / U / dispersion outside session method policy | Fail closed; do not “improve” the method silently. |
+| Functional / U / dispersion differs from the user's current requirements, or from an active Benchmark task's actual MethodPolicy | Do not change the requested method silently. Ordinary research projects have no default method/basis whitelist; global configuration, examples and earlier tasks do not create one. |
 | CO/CO₂/O₂ empirical correction needed but scheme/functional mismatched | Do not apply a foreign offset; state the scheme or refuse the thermodynamic cycle. |
 
 **Literature-backed judgment:** for U values, empirical corrections, and scaling relations, search literature (researcher) before inventing numbers. Record functional + correction scheme in every thermodynamic cycle.

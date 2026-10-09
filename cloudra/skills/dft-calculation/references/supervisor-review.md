@@ -6,9 +6,12 @@ same loaded version for the whole review.
 
 ## Order of one review
 
-1. State the question, the allowed methods, the requested quantity and its
+1. State the question, the user's current method requirements, the requested quantity and its
    reference (reactants, central complex, another electronic state), and what
-   must be decided this turn.
+   must be decided this turn. Only active Benchmark projects apply the actual
+   task MethodPolicy; ordinary research projects have no default method/basis
+   whitelist. Do not infer restrictions from global configuration, examples or
+   earlier tasks.
 2. Read the evidence package and the deterministic checks first. Open raw
    inputs, logs and geometries only where a question is actually open; cite
    full paths and hashes when a reading matters.

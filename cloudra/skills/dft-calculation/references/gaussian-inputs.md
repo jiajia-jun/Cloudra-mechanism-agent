@@ -1,6 +1,6 @@
 # Gaussian inputs for mechanism work
 
-Use with the mechanism SOP; these are Gaussian routes, not ORCA syntax. `qm_input_writer` defaults to Gaussian, but set `engine="gaussian"` explicitly and submit with the same `job_type`. Select an allowed method suited to the task; examples do not override the method policy.
+Use with the mechanism SOP; these are Gaussian routes, not ORCA syntax. `qm_input_writer` defaults to Gaussian, but set `engine="gaussian"` explicitly and submit with the same `job_type`. Select a method suited to the user's current requirements and budget. Only active Benchmark projects apply their actual task MethodPolicy; ordinary research projects have no default method/basis whitelist. Examples do not establish method restrictions or override the user's requirements.
 
 ## 1. Task recipes
 
