@@ -33,18 +33,17 @@ def test_empty_benchmark_whitelist_returns_rejection_without_choosing_a_method()
     assert 'current Benchmark task' in verdict.reason
 
 
-def test_scan_hint_keeps_user_method_and_scopes_whitelist_to_benchmark(tmp_path):
+def test_scan_hint_keeps_user_method_without_reselecting_it(tmp_path):
     from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_input_schema
 
     source = tmp_path / 'h2.xyz'
     source.write_text('2\nH2\nH 0 0 0\nH 0 0 .74\n')
     target = tmp_path / 'scan.gjf'
-    request = TsGuess_input_schema(mode='scan_prepare', engine='gaussian',
-        input_path=str(source), method='B3LYP/def2svp', extra_route='emp=gd3bj',
+    request = TsGuess_input_schema(basis_set='def2svp', mode='scan_prepare', engine='gaussian',
+        input_path=str(source), method='B3LYP', keywords='emp=gd3bj',
         output_path=str(target), scans=[{'atoms': [1, 2], 'scan_end': 1.2, 'scan_steps': 5}])
     result = TsGuess()._scan_prepare(request)
     assert result.is_success
-    assert 'Benchmark' in result.run_hint and 'ordinary' in result.run_hint
-    assert 'MethodPolicy-permitted' not in result.run_hint
-    assert request.method == 'B3LYP/def2svp' and request.extra_route == 'emp=gd3bj'
+    assert 'PM7' not in result.run_hint and 'GFN2-xTB' not in result.run_hint
+    assert request.method == 'B3LYP' and request.basis_set == 'def2svp' and request.keywords == 'emp=gd3bj'
     assert 'B3LYP/def2svp' in target.read_text() and 'emp=gd3bj' in target.read_text()

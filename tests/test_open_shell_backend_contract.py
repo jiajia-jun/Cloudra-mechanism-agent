@@ -81,11 +81,11 @@ def test_ts_path_coupled_singlet_stops_before_path_queue(tmp_path, monkeypatch):
 def test_ts_native_scan_coupled_singlet_stops_before_submit(tmp_path, monkeypatch):
     pytest.importorskip('rdkit')
     from cloudra.tools.core import ts_process
-    from cloudra.tools.core.ts_inputs import ScanGuess, TsCalculation
+    from cloudra.tools.core.ts_inputs import QmCalculation, ScanGuess
     from tests.test_ts_open_shell_identity import _file_record
 
     record, _ = _file_record(tmp_path, '[CH2][CH2]', multiplicity=1)
-    record.input.guess = ScanGuess(kind='scan', calculation=TsCalculation(engine='xtb', method='GFN2-xTB'),
+    record.input.guess = ScanGuess(kind='scan', calculation=QmCalculation(basis_set='', engine='xtb', method='GFN2-xTB'),
         scans=[dict(coord_type='bond', atoms=[1, 2], scan_start=1.5, scan_end=2.0, scan_steps=5)], force_constant=0.1)
     monkeypatch.setattr(ts_process, '_submit_step', lambda *_: pytest.fail('Unsupported scan submitted a job'))
     for stage in (ts_process._declare, ts_process._build, ts_process._map, ts_process._assemble):
@@ -100,11 +100,11 @@ def test_ts_native_scan_coupled_singlet_stops_before_submit(tmp_path, monkeypatc
 def test_ts_seed_singlet_stops_before_native_or_constrained_optimization(tmp_path, monkeypatch, role):
     pytest.importorskip('rdkit')
     from cloudra.tools.core import ts_process
-    from cloudra.tools.core.ts_inputs import TsCalculation
+    from cloudra.tools.core.ts_inputs import QmCalculation
     from tests.test_ts_open_shell_identity import _file_record
 
     record, _ = _file_record(tmp_path, '[CH2][CH2]', multiplicity=1)
-    getattr(record.input.conformers, role).optimization = TsCalculation(engine='xtb', method='GFN2-xTB')
+    getattr(record.input.conformers, role).optimization = QmCalculation(basis_set='', engine='xtb', method='GFN2-xTB')
     monkeypatch.setattr(ts_process, '_read_built_xyz', lambda *_: pytest.fail('Unsupported state entered optimization'))
     monkeypatch.setattr(ts_process, '_submit_step', lambda *_: pytest.fail('Unsupported state submitted a job'))
     ts_process._optimize_conformer_source(record, role)
@@ -116,11 +116,11 @@ def test_ts_seed_singlet_stops_before_native_or_constrained_optimization(tmp_pat
 def test_native_submission_requires_declared_electronic_character(tmp_path, monkeypatch):
     pytest.importorskip('rdkit')
     from cloudra.tools.core import ts_process
-    from cloudra.tools.core.ts_inputs import TsCalculation
+    from cloudra.tools.core.ts_inputs import QmCalculation
     from tests.test_ts_open_shell_identity import _file_record
 
     record, _ = _file_record(tmp_path, '[CH2][CH2]', multiplicity=3, electronic_character='open_shell')
-    record.input.conformers.reactant.optimization = TsCalculation(engine='xtb', method='GFN2-xTB')
+    record.input.conformers.reactant.optimization = QmCalculation(basis_set='', engine='xtb', method='GFN2-xTB')
     monkeypatch.setattr('cloudra.services.ts_pipeline_context.require_pipeline_authority', lambda *_: None)
     task = ChemTask(task='xtb_opt', reactant_xyz=XYZ, charge=0, multiplicity=3, cpus=record.compute_cpus)
     manifest = tmp_path / 'task.json'
@@ -136,7 +136,7 @@ def test_ts_native_manifests_preserve_electronic_declaration(tmp_path, monkeypat
     from pathlib import Path
 
     from cloudra.tools.core import ts_process
-    from cloudra.tools.core.ts_inputs import ScanGuess, TsCalculation, XtbPathGuess
+    from cloudra.tools.core.ts_inputs import QmCalculation, ScanGuess, XtbPathGuess
     from tests.test_ts_open_shell_identity import _file_record
 
     record, _ = _file_record(tmp_path, multiplicity=2, electronic_character='open_shell')
@@ -151,7 +151,7 @@ def test_ts_native_manifests_preserve_electronic_declaration(tmp_path, monkeypat
 
     monkeypatch.setattr(ts_process, '_submit_step', capture_submission)
     if purpose == 'candidate_opt':
-        record.input.conformers.reactant.optimization = TsCalculation(engine='xtb', method='GFN2-xTB')
+        record.input.conformers.reactant.optimization = QmCalculation(basis_set='', engine='xtb', method='GFN2-xTB')
         ts_process._optimize_conformer_source(record, 'reactant')
     elif purpose == 'path':
         record.pipeline_id = 'fixture'
@@ -160,7 +160,7 @@ def test_ts_native_manifests_preserve_electronic_declaration(tmp_path, monkeypat
         record.input.guess = XtbPathGuess(kind='xtb_path', method='GFN2-xTB')
         ts_process._guess(record)
     else:
-        record.input.guess = ScanGuess(kind='scan', calculation=TsCalculation(engine='xtb', method='GFN2-xTB'),
+        record.input.guess = ScanGuess(kind='scan', calculation=QmCalculation(basis_set='', engine='xtb', method='GFN2-xTB'),
             scans=[dict(coord_type='bond', atoms=[0, 1], scan_start=1.5, scan_end=2.0, scan_steps=5)], force_constant=0.1)
         ts_process._guess(record)
     assert len(captured) == 1

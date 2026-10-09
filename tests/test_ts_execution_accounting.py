@@ -20,13 +20,14 @@ def test_ts_subjobs_admit_without_time_estimates_and_action_cap_remains(tmp_path
     from cloudra.services.compute_admission import AdmissionOutcome
     from cloudra.services.exploration_budget_store import ExplorationBudget, budget_usage, configure_budget
     from cloudra.services.ts_pipeline_store import create_process
-    from cloudra.tools.core.ts_inputs import TsCalculation, TsExecutionLimits, XtbPathGuess
+    from cloudra.tools.core.qm_calculation import QmCalculation
+    from cloudra.tools.core.ts_inputs import TsExecutionLimits, XtbPathGuess
     from cloudra.tools.core.ts_process import _submit_step
     from tests.test_ts_pipeline_store import payload
     from tests.test_ts_stage_inputs import record_fixture
     record=record_fixture(tmp_path)
     record.input.execution.limits=TsExecutionLimits(source='explicit_user',max_compute_actions=2)
-    record.input.conformers.reactant.optimization=TsCalculation(engine='xtb',method='GFN2-xTB',keywords='')
+    record.input.conformers.reactant.optimization=QmCalculation(engine='xtb',method='GFN2-xTB',basis_set='',keywords='')
     record.input.guess=XtbPathGuess(kind='xtb_path',method='GFN2-xTB')
     db=ComputeDB().init()
     record.pipeline_id=create_process(db,request_key='accounting',payload=payload(workspace_dir=str(tmp_path),input=record.input.model_dump()))['process_id']
@@ -60,7 +61,7 @@ def test_reconcile_isolates_old_record_and_keeps_active_job_alive(tmp_path, monk
     from tests.test_ts_pipeline_store import payload
     db,new_id,job=waiting_process(tmp_path)
     old=create_process(db,request_key='old',payload=payload(workspace_dir=str(tmp_path)))['process_id']
-    data=dict(get_process(db,new_id)['record'],format_version=2,pipeline_id=old,run_id='old')
+    data=dict(get_process(db,new_id)['record'],format_version=4,pipeline_id=old,run_id='old')
     with db.connect() as con:
         con.execute("UPDATE ts_pipeline_processes SET record=?,status='waiting' WHERE process_id=?",(json.dumps(data),old))
     with locked(str(tmp_path/'qm.lock')):

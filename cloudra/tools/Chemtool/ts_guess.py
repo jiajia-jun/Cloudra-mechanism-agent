@@ -65,10 +65,11 @@ from cloudra.tools.core.irc_path import (
 from cloudra.tools.core.irc_path import (
     prove_irc_endpoint_direction as _prove_irc_endpoint_direction,
 )
+from cloudra.tools.core.qm_calculation import QmCalculation
 from cloudra.tools.core.qm_engine import detect_qm_engine
 from cloudra.tools.core.qm_keywords import orca_basis_keyword
 from cloudra.tools.core.topology_change import default_connectivity
-from cloudra.tools.core.ts_inputs import PathSolvation, ScanGuess, TsCalculation
+from cloudra.tools.core.ts_inputs import PathSolvation, ScanGuess
 from cloudra.tools.core.xtb_path_runner import DEFAULT_REFINEMENT_RUNS, PathTermination
 
 KCAL_PER_HARTREE = 627.5095
@@ -92,7 +93,7 @@ description = (
     "scan_prepare: write a Gaussian/ORCA constrained-scan input or a typed native xTB scan manifest "
     "(bond/angle/dihedral; xTB requires an explicit method and force_constant); for MLIP/external potentials pass "
     "method='ExtOpt' (ORCA, plus orca_blocks with the %method ProgExt block) or method='external' "
-    "(Gaussian, plus extra_route='external=\"mace\"'); "
+    "(Gaussian, plus keywords='external=\"mace\"'); "
     "scan_parse: parse a scan log into a relative-energy profile table, constrained-scan diagnostic barrier, and monotonicity/discontinuity/boundary-extremum/multipeak verdicts, "
     "and extract the highest-energy geometry as a TS-guess xyz — for ORCA relaxed scans it reads "
     "relaxscanact.dat + ts_scan.NNN.xyz frame files so the TS guess is the energy-maximum frame, not the last frame; "
@@ -101,11 +102,27 @@ description = (
     "verify: by default, frequency plus rough IRC-endpoint connectivity yields candidate/unlikely/inconclusive; "
     "with strict=True, requires one imaginary frequency, valid bidirectional IRC endpoints, and two endpoint reference geometries, "
     "and checks that each partial IRC endpoint lies between the TS and the matching endpoint reference geometry, yielding a path-direction-consistency pass/fail/inconclusive. "
-    "DEFAULT seed path when one reaction coordinate is clear: scan_prepare (after internal_coordinates) → submit → scan_parse → fresh unconstrained OptTS; "
+    "For an exploratory scan: scan_prepare (after internal_coordinates) → submit → scan_parse. "
+    "For formal TS refinement and validation, provide the candidate to ts_prepare rather than submitting manual TS/IRC jobs; "
     "xtb_path/interpolate are fallbacks and never a saddle. Only xtb_path executes a calculation directly; "
     "scan_prepare writes an input to submit with submit_compute_job, while interpolate/scan_parse/verify generate or inspect artifacts. "
     "Coordinates never enter context; only numeric tables, verdicts, and file paths are returned."
 )
+
+
+_MODE_FIELDS = {
+    'interpolate': {'engine', 'reactant_path', 'reactant_text', 'product_path', 'product_text',
+                    'n_images', 'interp_method', 'atom_map', 'watch_pairs', 'output_dir'},
+    'xtb_path': {'engine', 'reactant_path', 'reactant_text', 'product_path', 'product_text',
+                 'n_images', 'interp_method', 'watch_pairs', 'output_dir', 'timeout',
+                 'refinement_runs', 'charge', 'spin', 'electronic_character'},
+    'scan_prepare': {*QmCalculation.model_fields, 'input_path', 'input_text', 'scans', 'freeze',
+                     'charge', 'spin', 'electronic_character', 'nprocs', 'output_path',
+                     'job_name', 'force_constant', 'scan_mode', 'solvation'},
+    'scan_parse': {'engine', 'log_path', 'ts_candidate_path', 'watch_pairs'},
+    'verify': {'engine', 'freq_log', 'irc_log', 'reactant_path', 'reactant_text',
+               'product_path', 'product_text', 'watch_pairs', 'charge', 'strict', 'output_dir'},
+}
 
 
 def _mode_json_schema(schema: dict[str, Any]) -> None:
@@ -128,14 +145,16 @@ def _mode_json_schema(schema: dict[str, Any]) -> None:
     for mode in ("scan_prepare", "scan"):
         properties = {
             "mode": {"const": mode},
+            "engine": {"enum": ['gaussian', 'orca', 'xtb']},
             "method": {"type": "string", "minLength": 1},
+            "basis_set": {"type": "string"},
             "scans": dict(scan_array, minItems=1),
             "output_path": {"type": "string", "minLength": 1},
         }
         if mode == "scan":
             properties["log_path"] = {"enum": ["", None]}
         branches.append({
-            "properties": properties, "required": ["mode", "method", "scans", "output_path"],
+            "properties": properties, "required": ["mode", "engine", "method", "basis_set", "scans", "output_path"],
             **path_or_text("input"),
         })
     for mode, field in (("scan_parse", "log_path"), ("verify", "freq_log"), ("scan", "log_path")):
@@ -143,6 +162,13 @@ def _mode_json_schema(schema: dict[str, Any]) -> None:
             "properties": {"mode": {"const": mode}, field: {"type": "string", "minLength": 1}},
             "required": ["mode", field],
         })
+    for branch in branches:
+        mode = branch['properties']['mode']['const']
+        selected = ('scan_parse' if 'log_path' in branch.get('required', []) else 'scan_prepare') if mode == 'scan' else mode
+        allowed = _MODE_FIELDS[selected] | {'mode'}
+        if mode == 'scan' and selected == 'scan_prepare':
+            allowed.add('log_path')
+        branch['properties'].update({field: {'not': {}} for field in schema['properties'] if field not in allowed})
     schema["oneOf"] = branches
 
 
@@ -160,7 +186,7 @@ class TsGuess_input_schema(input_schema):
     ] = Field(
         description="Required sub-function; no calculation path is selected when mode is omitted. "
                     "DEFAULT SEED PATH when one forming/breaking bond/angle is known: "
-                    "scan_prepare → submit → scan_parse (relaxed scan), then unconstrained OptTS from the peak. "
+                    "scan_prepare → submit → scan_parse (relaxed scan), then provide the peak to ts_prepare for formal TS refinement. "
                     "Do NOT default to xtb_path/interpolate just because they are cheap. "
                     "xtb_path: xTB metadynamics path search between endpoints (needs `xtb`); falls back to "
                     "interpolate with path_kind='idpp_fallback' when xtb is absent (never silently). "
@@ -236,7 +262,7 @@ class TsGuess_input_schema(input_schema):
     # ---------- scan_prepare ----------
     input_path: Optional[str] = Field(default=None, description="scan_prepare: input structure file path (xyz). Absolute as-is, or relative to the Agent working directory.")
     input_text: Optional[str] = Field(default=None, description="scan_prepare: input structure xyz text.")
-    engine: Literal["gaussian", "orca", "xtb"] = Field(default="gaussian", description="Target scan engine (default Gaussian); xTB scan atom numbers are 1-based. For verify, omit to detect Gaussian/ORCA from freq_log; an explicit engine must match the log.")
+    engine: Literal["gaussian", "orca", "xtb"] | None = Field(default=None, description="Required explicit engine for scan_prepare. For scan_parse/verify, omit to detect Gaussian/ORCA from the native log; an explicit engine must match the log. For geometry modes this selects atom numbering, not a calculation method.")
     scans: Optional[list[ScanCoordinateInput]] = Field(
         default=None,
         description=(
@@ -256,18 +282,20 @@ class TsGuess_input_schema(input_schema):
         description="scan_prepare: coordinates held at the input geometry value; atoms belong to the exact input XYZ order including explicit H. "
                     "Gaussian/xTB atoms start at 1; ORCA at 0. Do not freeze a scanned coordinate.",
     )
-    method: Optional[str] = Field(default=None, description="scan_prepare requires an explicit method/basis. Follow the current task's method requirements, budget and available software. MethodPolicy applies only to the current Benchmark task; ordinary projects have no method/basis whitelist, and historical policies or examples do not define one. For exploratory PES scans, consider a suitable available semiempirical method (Gaussian PM7 or ORCA GFN2-xTB) within the task requirements. Use DFT for a narrow follow-up scan or unconstrained TS refinement. For MLIP/external pass 'ExtOpt' (ORCA; pair with orca_blocks %method ProgExt) or 'external' (Gaussian; pair with extra_route='external=\"<prog>\"').")
+    method: str | None = Field(default=None, description="scan_prepare requires one native method token. Put the basis only in basis_set and additional native settings only in keywords. Use the same calculation fields as qm_input_writer and ts_prepare. Current task requirements govern the method; MethodPolicy applies only to Benchmark tasks.")
+    basis_set: str | None = Field(default=None, description="scan_prepare requires an explicit basis token, or an explicit empty string for a method with no basis. A method/basis route string is not accepted in method.")
+    keywords: str = Field(default='', description="scan_prepare: explicitly requested native electronic keywords, e.g. D3BJ RIJCOSX def2/J TightSCF CPCM(DCM) for ORCA, or scrf=(solvent=water) for Gaussian.")
+    frequency_mode: Literal['auto', 'analytic', 'numeric'] = Field(default='auto', description="scan_prepare accepts only auto: this operation writes a scan, not a frequency calculation.")
     charge: int = Field(default=0, description="Total charge.")
     spin: int = Field(default=1, description="Spin multiplicity (2S+1).")
     electronic_character: Literal['closed_shell', 'open_shell'] | None = Field(default=None,
         description="Declared electronic character for native scan/path preparation, including open-shell singlets. This does not select a wavefunction or initialize spin. Native xTB cannot represent an open-shell singlet through --uhf 0.")
-    extra_route: str = Field(default="", description="Extra route keywords (e.g. 'scrf=(solvent=water)' for Gaussian, or the external-program keyword for method='external').")
     nprocs: int = Field(default=4, description="Parallel cores (Gaussian %nprocshared / ORCA %pal).")
     output_path: Optional[str] = Field(default=None, description="scan_prepare: path to write the Gaussian/ORCA input or xTB typed manifest (required). Absolute as-is, or relative to the Agent working directory.")
     job_name: str = Field(default="scan", description="Job name (used for chk file and title).")
     orca_blocks: Optional[str] = Field(
         default=None,
-        description="scan_prepare, ORCA only: raw % blocks appended after %pal/%geom, e.g. the external-potential block '%method\\n  ProgExt \"/abs/path/to/mace\"\\n  Ext_Params \"--model /abs/model --device cpu --dtype float64\"\\nend' when method='ExtOpt'. Ignored for engine='gaussian'.",
+        description="scan_prepare, ORCA only: raw % blocks appended after %pal/%geom, e.g. the external-potential block '%method\\n  ProgExt \"/abs/path/to/mace\"\\n  Ext_Params \"--model /abs/model --device cpu --dtype float64\"\\nend' when method='ExtOpt'. Rejected for engine='gaussian'.",
     )
 
     end_setting: str = Field(default='', description='scan_prepare: explicit Gaussian trailing native settings, after ModRedundant coordinates. ORCA uses orca_blocks.')
@@ -309,6 +337,13 @@ class TsGuess_input_schema(input_schema):
                 raise ValueError("scan_prepare requires input_path or input_text")
             if not self.method or not self.method.strip():
                 raise ValueError("scan_prepare requires an explicit method")
+            if self.engine is None:
+                raise ValueError('scan_prepare requires an explicit engine')
+            if self.basis_set is None:
+                raise ValueError("scan_prepare requires an explicit basis_set; use '' for no basis")
+            QmCalculation.model_validate({field: getattr(self, field) for field in QmCalculation.model_fields})
+            if self.frequency_mode != 'auto':
+                raise ValueError('scan_prepare writes a scan, not a frequency job; frequency_mode must be auto')
             if not self.scans:
                 raise ValueError("scan_prepare requires scans: at least one scanned coordinate")
             if not self.output_path:
@@ -317,12 +352,20 @@ class TsGuess_input_schema(input_schema):
             raise ValueError("scan_parse requires log_path")
         elif mode == "verify" and not self.freq_log:
             raise ValueError("verify requires freq_log")
+        allowed = _MODE_FIELDS[mode] | {'mode'}
+        if self.mode == 'scan' and mode == 'scan_prepare':
+            allowed.add('log_path')
+        unused = self.model_fields_set - allowed
+        if unused:
+            raise ValueError(f'{mode} does not use fields: {", ".join(sorted(unused))}; remove them or select the corresponding operation')
         return self
 
 
 class TsGuess_output_schema(output_schema):
     is_success: bool = Field(description="Whether the operation succeeded")
     message: str = Field(default="", description="Status or error message")
+    calculation: QmCalculation | None = Field(default=None,
+        description="scan_prepare: complete settings of the written input/manifest. Preparation is not a calculation result or TS validation.")
 
     # interpolate
     images_dir: str = Field(default="", description="interpolate/xtb_path: image directory, or the retained run directory on an unsuccessful xTB path search")
@@ -426,21 +469,6 @@ def _load_xyz(input_path: Optional[str], input_text: Optional[str]):
             "followed by a comment and atom coordinates. Convert a MOL file to XYZ "
             "with format_converter before calling ts_guess."
         ) from exc
-
-
-def _orca_keyword_method(method: str) -> str:
-    """Split the leading method/basis pair; preserve auxiliary basis slashes."""
-    tokens = method.split()
-    if not tokens:
-        return ""
-    head, separator, basis = tokens[0].partition("/")
-    if separator:
-        tokens[:1] = [head, *([basis] if basis else [])]
-    elif len(tokens) > 1 and tokens[1].startswith("/"):
-        tokens[1] = tokens[1][1:]
-        if not tokens[1]:
-            del tokens[1]
-    return " ".join(orca_basis_keyword(token) for token in tokens)
 
 
 def _atoms_to_xyz_block(symbols, positions, comment: str = "") -> str:
@@ -1496,6 +1524,7 @@ class TsGuess(Tool):
                 "requirements, budget and available software. MethodPolicy applies only to a "
                 "current Benchmark task; ordinary projects have no method/basis whitelist."
             )
+        calculation = QmCalculation.model_validate({field: getattr(user_input, field) for field in QmCalculation.model_fields})
         if user_input.engine == 'orca' and user_input.end_setting:
             raise ValueError('ORCA scan does not support end_setting; use orca_blocks')
         if user_input.engine == 'gaussian' and user_input.orca_blocks:
@@ -1607,8 +1636,8 @@ class TsGuess(Tool):
                 ),
             )
 
-        method = user_input.method.strip()
-        extra = user_input.extra_route.strip()
+        method = calculation.method
+        extra = calculation.keywords.strip()
         coord_letter = {"bond": "B", "angle": "A", "dihedral": "D"}
         scan_labels = [
             f"{coord_letter[spec['coord_type']]} {' '.join(str(a + atom_index_base(user_input.engine)) for a in spec['idx'])}"
@@ -1618,7 +1647,8 @@ class TsGuess(Tool):
         ]
 
         if user_input.engine == "gaussian":
-            route = f"# opt=(modredundant,maxstep=10) {method}"
+            native_method = method + (f'/{calculation.basis_set}' if calculation.basis_set else '')
+            route = f"# opt=(modredundant,maxstep=10) {native_method}"
             if extra:
                 route += f" {extra}"
             coord_lines = "\n".join(
@@ -1657,7 +1687,7 @@ class TsGuess(Tool):
                 "scanned coordinate."
             )
         else:
-            orca_method = _orca_keyword_method(method)
+            orca_method = method + (f' {orca_basis_keyword(calculation.basis_set)}' if calculation.basis_set else '')
             header = f"! OPT {orca_method}"
             if extra:
                 header += f" {extra}"
@@ -1686,16 +1716,6 @@ class TsGuess(Tool):
                 "afterwards parse the log with ts_guess mode='scan_parse' engine='orca' and extract a TS guess."
             )
 
-        if "b3lyp" in method.lower():
-            run_hint += (
-                " This input uses DFT for every constrained scan point. Before submitting an exploratory"
-                " full-range scan, consider a suitable available semiempirical method (Gaussian PM7 or"
-                " ORCA GFN2-xTB) within the current task's requirements and budget. MethodPolicy applies"
-                " only to the current Benchmark task; ordinary projects have no method/basis whitelist."
-                " Historical policies and examples do not define the current task's method. Use DFT around the candidate region or for"
-                " unconstrained TS optimization and verification. The scan peak alone is not a validated TS."
-            )
-
         out_dir = os.path.dirname(os.path.abspath(user_input.output_path))
         os.makedirs(out_dir, exist_ok=True)
         atomic_write_text(user_input.output_path, content)
@@ -1703,9 +1723,11 @@ class TsGuess(Tool):
         return TsGuess_output_schema(
             is_success=True,
             input_file_path=user_input.output_path,
+            calculation=calculation,
             run_hint=run_hint,
             message=(
-                f"{user_input.engine} constrained-scan input written to {user_input.output_path}: "
+                f"{user_input.engine} constrained-scan input written to {user_input.output_path} "
+                f"with method={calculation.method}, basis_set={calculation.basis_set!r}, keywords={calculation.keywords!r}: "
                 + "; ".join(scan_labels)
                 + ("; frozen at current values: " + "; ".join(
                     f"{kind} {[i + atom_index_base(user_input.engine) for i in idx]}={_coord_current(kind, idx):.6f}"
@@ -1733,7 +1755,7 @@ class TsGuess(Tool):
             Path(user_input.output_path).resolve().relative_to(root)
             if user_input.input_path:
                 Path(user_input.input_path).resolve().relative_to(root)
-        if user_input.freeze or user_input.extra_route or user_input.orca_blocks or user_input.end_setting:
+        if user_input.freeze or user_input.keywords or user_input.orca_blocks or user_input.end_setting:
             raise ValueError('xTB scan rejects Gaussian/ORCA directives and frozen coordinates')
         atoms = _load_xyz(user_input.input_path, user_input.input_text)
         symbols = atoms.get_chemical_symbols()
@@ -1743,7 +1765,8 @@ class TsGuess(Tool):
             coordinates.append(row.model_copy(update={
                 'atoms': atom_indices(row.atoms, base=1, count=len(symbols)),
             }))
-        scan = ScanGuess(kind='scan', calculation=TsCalculation(engine='xtb', method=user_input.method),
+        calculation = QmCalculation.model_validate({field: getattr(user_input, field) for field in QmCalculation.model_fields})
+        scan = ScanGuess(kind='scan', calculation=calculation,
             scans=coordinates, force_constant=user_input.force_constant,
             mode=user_input.scan_mode, solvation=user_input.solvation)
         xyz = '\n'.join([str(len(symbols)), 'bound xTB scan input',
@@ -1758,6 +1781,7 @@ class TsGuess(Tool):
         output.parent.mkdir(parents=True, exist_ok=True)
         atomic_write_text(str(output), task.model_dump_json())
         return TsGuess_output_schema(is_success=True, input_file_path=str(output),
+            calculation=calculation,
             run_hint=f"Submit {output} with submit_compute_job(job_type='chem_task'); parse the finished manifest with ts_guess(mode='scan_parse', engine='xtb', log_path='{output}').",
             message='Typed xTB scan manifest written; this has not run a calculation or validated a TS.')
 
@@ -1814,6 +1838,11 @@ class TsGuess(Tool):
     def _scan_parse(self, user_input: TsGuess_input_schema) -> TsGuess_output_schema:
         import numpy as np
 
+        if user_input.engine is None:
+            engine = detect_qm_engine(user_input.log_path or '')
+            if engine not in {'gaussian', 'orca'}:
+                raise ValueError('scan_parse cannot detect a supported native log engine; declare engine explicitly for a manifest or sidecar-only input')
+            user_input = user_input.model_copy(update={'engine': engine})
         if user_input.engine == 'xtb':
             return self._xtb_scan_parse(user_input)
         if not user_input.log_path:
@@ -2135,7 +2164,7 @@ class TsGuess(Tool):
         engine = detect_qm_engine(user_input.freq_log)
         if engine not in {"gaussian", "orca"}:
             raise ValueError(f"Cannot verify frequency log with unknown or unsupported engine: {engine}")
-        if "engine" in user_input.model_fields_set and user_input.engine != engine:
+        if user_input.engine is not None and user_input.engine != engine:
             raise ValueError(
                 f"Frequency log engine mismatch: requested {user_input.engine}, detected {engine}"
             )

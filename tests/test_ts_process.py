@@ -160,7 +160,8 @@ def test_run_directory_layout_and_persistence(tmp_path):
         assert (run_dir / name).exists(), name
     on_disk = json.loads((run_dir / "process.json").read_text(encoding="utf-8"))
     assert on_disk["run_id"] == record.run_id
-    assert on_disk["input"]["ts_optimization"]["method"] == "b3lyp/def2svp"
+    assert on_disk["input"]["ts_optimization"]["method"] == "b3lyp"
+    assert on_disk["input"]["ts_optimization"]["basis_set"] == "def2svp"
     # declare.json 单独可读（便于人核对声明，不用解析整份状态）
     declare = json.loads((run_dir / "declare.json").read_text(encoding="utf-8"))
     assert declare["reaction"]["reactant_smiles"] == REACTANT
@@ -522,7 +523,7 @@ def test_verdict_cannot_reach_verified_without_irc(tmp_path):
 def test_ts_frequency_input_keeps_declared_solvation(tmp_path):
     from cloudra.tools.core.ts_process import TsJobStep, _write_frequency_input
 
-    record = _start(tmp_path, extra_keywords="CPCM(Water)")
+    record = _start(tmp_path, keywords="CPCM(Water)")
     source = Path(record.run_dir) / "jobs" / "job_0001"
     source.mkdir(parents=True, exist_ok=True)
     input_path = source / "refine.inp"
@@ -571,7 +572,7 @@ def test_irc_input_reuses_the_hessian_only_when_the_file_is_actually_there(tmp_p
     """Hessian 分支由**证据**决定：文件在就用 read+Hess_Filename，不在就 calc_numfreq。"""
     from cloudra.tools.core.ts_process import TsJobStep, _write_irc_input
 
-    record = _start(tmp_path, extra_keywords="CPCM(Water)")
+    record = _start(tmp_path, keywords="CPCM(Water)")
     job2 = Path(record.run_dir) / "jobs" / "job_0002"
     job2.mkdir(parents=True, exist_ok=True)
     (job2 / "optimized.xyz").write_text(
@@ -659,7 +660,7 @@ def test_refine_endpoint_jobs_survive_reload_and_use_optimized_frames(tmp_path, 
     import cloudra.tools.core.ts_process as process
     from cloudra.tools.core.ts_process import TsJobStep, load_record, save_record
 
-    record = _start(tmp_path, extra_keywords="CPCM(Water)")
+    record = _start(tmp_path, keywords="CPCM(Water)")
     record.blocked = None
     record.stage = "refine"
     record.job_steps = [TsJobStep(

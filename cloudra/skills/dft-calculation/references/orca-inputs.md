@@ -12,9 +12,9 @@ Use with the mechanism SOP. These recipes target ORCA 6.1 and the current Cloudr
 | Numerical frequencies | `task_type=[{"freq":null}]`, `frequency_mode="numeric"` | `NumFreq`, no `Opt` or `Freq` |
 | IRC | `task_type=[{"irc":null}]`, native `%irc` in `orca_blocks` | `IRC` and explicit IRC settings |
 | Single point | `task_type=[{"sp":null}]` | Method/model only; no geometry task |
-| External energy/gradient provider | `external_program`, `external_params` | `ExtOpt` + `%method ProgExt/Ext_Params`; method/basis suppressed |
+| External energy/gradient provider | `method="ExtOpt"`, `basis_set=""`, `external_program`, `external_params` | `ExtOpt` + `%method ProgExt/Ext_Params`; no DFT method/basis |
 
-The writer refuses unimplementable options instead of silently dropping them: Gaussian sub-options such as `calcfc`/`noeigen` on an ORCA task, unknown task keys such as `numfreq`, duplicate or conflicting task entries, and `frequency_mode` without a frequency task are all hard errors naming the native alternative. Put TS Hessian control in native `orca_blocks`; `extra_keywords` goes on the `!` line. A standalone frequency/SP is declared explicitly (`[{"freq":null}]` / `[{"sp":null}]`), never inferred from an empty task list. Successful writes return `interpreted_intent` (re-inspected from the generated text), an empty `unapplied_options`, and the generation path.
+The writer refuses unimplementable options instead of silently dropping them: Gaussian sub-options such as `calcfc`/`noeigen` on an ORCA task, unknown task keys such as `numfreq`, duplicate or conflicting task entries, and `frequency_mode` without a frequency task are all hard errors naming the native alternative. Put TS Hessian control in native `orca_blocks`; `keywords` goes on the `!` line. Supply explicit `engine`, one-token `method` and `basis_set`, including `""` when there is no basis. A standalone frequency/SP is declared explicitly (`[{"freq":null}]` / `[{"sp":null}]`), never inferred from an empty task list. Successful writes return `interpreted_intent` (re-inspected from the generated text), an empty `unapplied_options`, and the generation path.
 
 `end_setting` is Gaussian-only and rejected for ORCA; constraints/scans go into `orca_blocks`. A non-default `title` becomes an ORCA `#` comment; SMILES sources add an `expected_smiles:` comment marking a user-declared expectation — never label an unverified structure as identity-matched. When delivery/benchmark evidence binding requires it, the agent still ensures a `smiles: <SMILES>` annotation line on inputs/logs (canonical delivery form). `mem` is the job total; ORCA `%maxcore` is written per-core (`mem/nproc`), so request `memory_mb` equal to the total when submitting.
 
@@ -27,7 +27,7 @@ Assume a checked singlet anion candidate and an installed external program/model
   "engine": "orca",
   "source_type": "xyz_file",
   "source_value": "/work/e1/candidate.xyz",
-  "method": "",
+  "method": "ExtOpt",
   "basis_set": "",
   "external_program": "/opt/chem/bin/mace",
   "external_params": "--model /opt/models/mace.model --device cpu --dtype float64",
@@ -54,6 +54,8 @@ After unconstrained convergence, use the final optimized XYZ. For an external pr
   "engine": "orca",
   "source_type": "xyz_file",
   "source_value": "/work/e1/ts.xyz",
+  "method": "ExtOpt",
+  "basis_set": "",
   "external_program": "/opt/chem/bin/mace",
   "external_params": "--model /opt/models/mace.model --device cpu --dtype float64",
   "task_type": [{"freq": null}],
@@ -75,6 +77,8 @@ Once that TS is validated, reuse its same-geometry frequency Hessian for both IR
   "engine": "orca",
   "source_type": "xyz_file",
   "source_value": "/work/e1/ts.xyz",
+  "method": "ExtOpt",
+  "basis_set": "",
   "external_program": "/opt/chem/bin/mace",
   "external_params": "--model /opt/models/mace.model --device cpu --dtype float64",
   "task_type": [{"irc": null}],
@@ -95,7 +99,7 @@ For free energies, read `method-selection.md` §4: `log_parser` supports ORCA th
 
 ## 4. Relaxed scan example
 
-`ts_guess mode=scan_prepare` uses a different schema from `qm_input_writer`: `spin`, `nprocs`, combined `method`, and raw external `%method`. With `engine="orca"`, its public atom indices are **0-based**, in the exact input XYZ order including explicit H. The example scans the atoms labeled 1 and 9 by `internal_coordinates`, passed as `[0, 8]`; choose real indices/range from the structure.
+`ts_guess mode=scan_prepare` uses the same calculation fields as `qm_input_writer`: explicit `engine`, one-token `method`, `basis_set`, `keywords`, `frequency_mode`, `orca_blocks` and `end_setting`. Resource/spin fields remain `nprocs` and `spin`; standalone external scans use raw `%method` rather than writer `external_program`. With `engine="orca"`, its public atom indices are **0-based**, in the exact input XYZ order including explicit H. The example scans the atoms labeled 1 and 9 by `internal_coordinates`, passed as `[0, 8]`; choose real indices/range from the structure.
 
 **Index check before every scan:** `internal_coordinates` and concrete `reaction_mapping.atom_map`/`concrete_watch_pairs` use 1-based labels. For ORCA, convert every atom label `i` to `i-1` both in `ts_guess` arguments and in native `%geom Scan` blocks (`qm_input_writer.orca_blocks` or a native `.inp`; bond 1–6 → `Scan B 0 5`, dihedral 3–8–9–10 → `Scan D 2 7 8 9`). Gaussian/xTB `ts_guess` arguments remain 1-based. Use the mapping only when its concrete structure binding is complete and current; heavy-atom SMILES indices do not identify explicit-H XYZ positions. Check the element and position of each referenced atom in that exact input file, then compare the scan's starting coordinate with the intended bond, angle, or dihedral. A valid but shifted index can run to completion while scanning a different coordinate.
 
@@ -106,6 +110,7 @@ For free energies, read `method-selection.md` §4: `log_parser` supports ORCA th
   "input_path": "/work/e1/reactive.xyz",
   "scans": [{"coord_type": "bond", "atoms": [0, 8], "scan_end": 1.30, "scan_steps": 16}],
   "method": "ExtOpt",
+  "basis_set": "",
   "charge": -1,
   "spin": 1,
   "nprocs": 1,
@@ -114,7 +119,7 @@ For free energies, read `method-selection.md` §4: `log_parser` supports ORCA th
 }
 ```
 
-Expect `! Opt ExtOpt` and `%geom Scan B 0 8 = <current>, 1.30, 16 ...`. The tool supplies `%geom`; do not append another scan/constraint block accidentally. The tool currently accepts only one scan coordinate for ORCA; for coupled two-coordinate scans write the multi-coordinate `%geom Scan` block explicitly via `orca_blocks`, or — usually better — switch to `! NEB-TS` (see `ts-search-playbook.md` §4 for when 2D is worth it and §3 for the NEB-TS recipe). For DFT use ORCA-native spelling in `method` (e.g. `PBE0 def2-SVP`), without the external block. `scan_prepare` has no memory field; set `%maxcore` through `orca_blocks`.
+Expect `! Opt ExtOpt` and `%geom Scan B 0 8 = <current>, 1.30, 16 ...`. The tool supplies `%geom`; do not append another scan/constraint block accidentally. The tool currently accepts only one scan coordinate for ORCA; for coupled two-coordinate scans write the multi-coordinate `%geom Scan` block explicitly via `orca_blocks`, or use another explicitly authorized path strategy (see `ts-search-playbook.md`). For DFT split the chosen level into `method="PBE0"`, `basis_set="def2-SVP"`, without the external block. `scan_prepare` has no memory field; set `%maxcore` through `orca_blocks`. Its calculation snapshot describes the prepared input; preparation does not run the scan or select a different method.
 
 Keep `<stem>.relaxscanact.dat` and per-point `<stem>.NNN.xyz` files for `scan_parse`. Its native sidecar path pairs energies with the correct frame and reports the peak as a `candidate` with `scan_index`/`energy`/`geometry_ref`/`source`. If the peak frame file is missing, the tool returns `candidate_unavailable=true` and never substitutes the last frame; recover or re-run the missing frame before extracting a TS guess. The text-only fallback is best-effort: inspect the returned notes before using it as a peak candidate. Export the chosen seed into a fresh unconstrained TS input.
 

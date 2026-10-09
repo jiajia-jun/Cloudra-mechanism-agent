@@ -37,7 +37,7 @@ class TsProcessView(BaseModel):
     blocked: dict | None = None
     failed_attempt: dict | None = None
     next: dict = Field(default_factory=dict)
-    methods: list[dict] = Field(default_factory=list)
+    methods: list[dict] = Field(default_factory=list, description="Per-stage resolved planned configurations, immutable actual job snapshots and native input contracts, including a separately recorded scan. A reference identifies the selected local profile; planned_error reports an invalid current declaration without hiding historical actual inputs. Isolated older formats retain their raw recorded fields.")
     usage: dict = Field(default_factory=dict)
     details_path: str = Field(default="", description="JSON export path only when its revision and current structure files were verified. Empty for absent or stale exports, or unavailable current structures; this returned view at revision is authoritative.")
     export_revision: int | None = Field(default=None, description="Revision of the JSON export, or null if absent. When this differs from revision, exported atom tables are historical; use this returned current view.")
@@ -88,7 +88,7 @@ def build_process_view(state: dict, jobs: list[dict], *, can_write: bool) -> TsP
     current_stage = next((row for row in reversed(state.get("stage_records", []))
                           if row.get("stage") == state.get("stage")), {})
     detail = (blocked or {}).get("message") or current_stage.get("detail", "")
-    supported = state.get("format_version") == 4
+    supported = state.get("format_version") == 5
     status = "isolated" if not supported else "waiting" if active or waiting else "ended" if terminal else "blocked" if blocked else "running"
     next_action = dict(action="inspect", required_inputs=[], editable_groups=[])
     if supported and can_write:
@@ -102,6 +102,12 @@ def build_process_view(state: dict, jobs: list[dict], *, can_write: bool) -> TsP
                                    instruction='Resolve the conflicting current source files, then inspect again; repeating ts_resume cannot apply a new revision while recovery is blocked.')
     method_entries = []
     value = state.get("input", {})
+    steps = list(state.get('job_steps', []))
+    scan_step = state.get('scan_step')
+    if scan_step:
+        steps = [step for step in steps if (step.get('purpose'), step.get('job_id')) !=
+                 (scan_step.get('purpose'), scan_step.get('job_id'))]
+        steps.append(scan_step)
     guess = value.get("guess") or {}
     if guess.get("kind") == "scan":
         method_entries.append(dict(purpose="scan", planned=guess.get("calculation"), actual=None, contract=None))
@@ -120,10 +126,19 @@ def build_process_view(state: dict, jobs: list[dict], *, can_write: bool) -> TsP
     for purpose, calculation in calculations.items():
         method_entries.append(dict(purpose=purpose, planned=calculation, actual=None, contract=None))
     for entry in method_entries:
-        completed = [step for step in state.get("job_steps", []) if step.get("purpose") == entry["purpose"]]
+        if supported and entry['planned'] is not None and entry['purpose'] != 'path':
+            from cloudra.tools.core.ts_inputs import resolve_calculation
+            declared = deepcopy(entry['planned'])
+            try:
+                entry['planned'] = resolve_calculation(declared, value.get('calculations', {})).model_dump(mode='json')
+            except ValueError as exc:
+                entry['planned_error'] = str(exc)
+            if isinstance(declared, dict) and 'ref' in declared:
+                entry['reference'] = declared['ref']
+        completed = [step for step in steps if step.get("purpose") == entry["purpose"]]
         if completed:
-            entry["actual"] = completed[-1].get("actual_calculation")
-            entry["contract"] = state.get("method_checks", {}).get(completed[-1].get("input_path")) or completed[-1].get("method_contract")
+            entry["actual"] = deepcopy(completed[-1].get("actual_calculation"))
+            entry["contract"] = deepcopy(state.get("method_checks", {}).get(completed[-1].get("input_path")) or completed[-1].get("method_contract"))
     usage_jobs = []
     for job in jobs:
         start, end = job.get("start_timestamp"), job.get("end_timestamp")
@@ -137,8 +152,8 @@ def build_process_view(state: dict, jobs: list[dict], *, can_write: bool) -> TsP
                  for row in state.get("stage_records", []) if row.get("status") == "done"]
     available.extend(dict(stage=step['purpose'], artifacts=list(step['external_source']['artifact_hashes']),
         source_input_revision=step['source_input_revision'], source_job_id=step['external_source']['source_job_id'])
-        for step in state.get('job_steps', []) if step.get('external_source'))
-    current_job_ids = {step["job_id"] for step in state.get("job_steps", [])}
+        for step in steps if step.get('external_source'))
+    current_job_ids = {step.get('job_id') for step in steps if step.get('job_id') is not None}
     available.extend(dict(stage=job["purpose"], status="done", job_id=job["job_id"],
         artifacts=[job["log_path"]], source_input_revision=job.get("source_input_revision"),
         detail="Original compute output for direct evidence submission; keep IRC sidecars in place. Job completion is not scientific verification.")

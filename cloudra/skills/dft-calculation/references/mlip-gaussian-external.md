@@ -6,12 +6,12 @@ Read the active engine recipe (`gaussian-inputs.md` / `orca-inputs.md`) for task
 
 | Host interface | `qm_input_writer` fields | Generated route |
 | --- | --- | --- |
-| Gaussian + a configured g16-mlips command | `engine="gaussian"`, `external_program="mace"` (actual installed command; may include arguments) | `external="mace"`; method/basis suppressed |
-| ORCA + an ORCA-compatible executable | `engine="orca"`, absolute `external_program`, `external_params` for model/device/dtype | `ExtOpt` and `%method ProgExt/Ext_Params` |
+| Gaussian + a configured g16-mlips command | `engine="gaussian"`, `method="external"`, `basis_set=""`, `external_program="mace"` (actual installed command; may include arguments) | `external="mace"`; no DFT method/basis |
+| ORCA + an ORCA-compatible executable | `engine="orca"`, `method="ExtOpt"`, `basis_set=""`, absolute `external_program`, `external_params` for model/device/dtype | `ExtOpt` and `%method ProgExt/Ext_Params` |
 
-Use these dedicated fields, not a duplicate `method="external"` plus `extra_keywords='external=...'`. `external_params` is ORCA-only. An arbitrary MACE Python module or Gaussian external wrapper is not automatically compatible with ORCA's file protocol. Resolve the executable/model on the actual compute host. Interface sources: [g16-mlips](https://github.com/t-0hmura/g16-mlips), [ORCA external-method tutorial](https://www.faccts.de/docs/orca/6.1/tutorials/workflows/extopt.html).
+The declared `method` records the chosen external interface. Put its executable in `external_program`, not a duplicate `keywords='external=...'`. `external_params` is ORCA-only. An arbitrary MACE Python module or Gaussian external wrapper is not automatically compatible with ORCA's file protocol. Resolve the executable/model on the actual compute host. Interface sources: [g16-mlips](https://github.com/t-0hmura/g16-mlips), [ORCA external-method tutorial](https://www.faccts.de/docs/orca/6.1/tutorials/workflows/extopt.html).
 
-`ts_guess scan_prepare` is a separate API: ORCA uses `method="ExtOpt"` with raw `%method` in `orca_blocks`; Gaussian uses `method="external"` with `extra_route='external="mace"'`. The engine recipes describe atom indices and memory handling. Do not transplant the writer's field names into that tool.
+`ts_guess scan_prepare` shares explicit calculation field meanings, including `basis_set=""`: ORCA uses `method="ExtOpt"` with raw `%method` in `orca_blocks`; Gaussian uses `method="external"` with `keywords='external="mace"'`. Standalone scans do not expose writer `external_program`/`external_params`. The engine recipes describe atom indices and memory handling; preparation returns the declared configuration and does not run the calculation.
 
 ## Check capabilities once, then reuse
 

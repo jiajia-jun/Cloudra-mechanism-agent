@@ -16,6 +16,38 @@ _DEPENDENTS = {
 }
 
 
+def _calculation_change_path(path):
+    parts = path.split('.')
+    if parts[0] in ('calculations', 'ts_optimization'):
+        return True
+    if parts[:2] == ['guess', 'calculation']:
+        return True
+    if parts[0] == 'conformers' and len(parts) > 2 and parts[2] == 'optimization':
+        return True
+    if parts[0] == 'verification' and len(parts) > 1:
+        return (parts[1] in ('frequency', 'irc')
+                or (parts[1].endswith('_endpoint') and len(parts) > 2 and parts[2] in ('optimization', 'frequency')))
+    return False
+
+
+def _changed_calculations(record, updated):
+    from cloudra.tools.core.ts_process import stage_calculation
+
+    after = record.model_copy(update={'input': updated})
+    purposes = (*_FORMAL, 'scan', 'path', 'candidate_opt', 'candidate_evaluation', 'product_seed_opt')
+    return {purpose for purpose in purposes if stage_calculation(record, purpose) != stage_calculation(after, purpose)}
+
+
+def _calculation_dependents(purpose):
+    if purpose in ('scan', 'path'):
+        return _DEPENDENTS['guess']
+    if purpose in ('candidate_opt', 'candidate_evaluation'):
+        return {'candidate_opt', 'candidate_evaluation', *_DEPENDENTS['guess']}
+    if purpose == 'product_seed_opt':
+        return {'product_seed_opt', *_DEPENDENTS['guess']}
+    return _DEPENDENTS[purpose]
+
+
 def _differences(before, after, prefix=''):
     if isinstance(before, dict) and isinstance(after, dict):
         result = []
@@ -431,7 +463,10 @@ def _stale_atom_references(record, updated, changes, correspondences):
             and not (conformers and 'product' in conformers.model_fields_set)):
         stale.append('conformers.product')
     guess = record.input.guess
-    if guess is not None and 'guess' not in changes.model_fields_set:
+    refreshed_guess = 'guess' in changes.model_fields_set and changes.guess is not None
+    if guess and guess.kind == 'scan' and refreshed_guess:
+        refreshed_guess = 'scans' in changes.guess.model_fields_set
+    if guess is not None and not refreshed_guess:
         if species_changed or (guess.kind == 'scan' and 'reactant' in unknown):
             stale.append('guess')
         elif guess.kind == 'provided' and ('reactant' in unknown or any(
@@ -462,7 +497,11 @@ def plan_input_revision(record, request: TsResumeRequest) -> TsRevisionReceipt:
             if before is not None and (after is None or after > before):
                 raise ValueError('input revision cannot raise authorized limits')
     invalidated = set()
+    for purpose in _changed_calculations(record, updated):
+        invalidated.update(_calculation_dependents(purpose))
     for path in differences:
+        if _calculation_change_path(path):
+            continue
         if path.startswith(('reaction.reactant_smiles', 'reaction.product_smiles', 'reaction.charge', 'reaction.multiplicity', 'reaction.electronic_character', 'reaction.reaction_center', 'conformers.')):
             invalidated.update(_DEPENDENTS['build'])
         elif path.startswith(('reaction.atom_map', 'guess')):
@@ -516,7 +555,13 @@ def revise_record(record, request, receipt):
     invalid = {step.purpose for step in [*record.job_steps, *([record.scan_step] if record.scan_step else [])]
         if (step.stage_key or step.purpose, step.job_id) in invalid_refs}
     restart = []
+    changed_calculations = _changed_calculations(record, revised.input)
+    for purpose in changed_calculations:
+        restart.append('build' if purpose in ('candidate_opt', 'candidate_evaluation', 'product_seed_opt')
+                       else 'guess' if purpose in ('scan', 'path') else 'submit' if purpose == 'ts_opt' else 'refine')
     for path in receipt.changes:
+        if _calculation_change_path(path):
+            continue
         if path.startswith(('reaction.reactant_smiles', 'reaction.product_smiles', 'reaction.charge', 'reaction.multiplicity', 'reaction.electronic_character')):
             restart.append('declare')
         elif path.startswith('conformers.'):
@@ -579,12 +624,14 @@ def revise_record(record, request, receipt):
         revised.current_reactant_prepared_path = ''
         revised.active_attempt_dir, revised.guidance_manifest_path = '', ''
         revised.effective_reaction_center = []
-        if record.input.conformers.reactant != revised.input.conformers.reactant:
+        if (record.input.conformers.reactant != revised.input.conformers.reactant
+                or changed_calculations & {'candidate_opt', 'candidate_evaluation'}):
             revised.catalog_id = revised.partition_revision = revised.selected_candidate_id = None
             revised.cards_path = ''
-        if record.input.conformers.product != revised.input.conformers.product:
+        if record.input.conformers.product != revised.input.conformers.product or 'product_seed_opt' in changed_calculations:
             revised.product_seed_candidate_id = None
-        if any(path.startswith(('reaction.', 'conformers.reactant', 'conformers.guidance')) for path in receipt.changes):
+        if (any(path.startswith(('reaction.', 'conformers.reactant', 'conformers.guidance')) for path in receipt.changes)
+                or changed_calculations & {'candidate_opt', 'candidate_evaluation'}):
             revised.optimization_checkpoints = {}
     if failed is not None and failed.purpose == 'candidate_evaluation':
         revised.optimization_checkpoints = {}
@@ -660,8 +707,10 @@ def _project_revision_input(record, changes):
         for window in updated.conformers.guidance.distance_filters:
             window.atoms = [translate(index, 'reactant') for index in window.atoms]
     if updated.guess and updated.guess.kind == 'scan' and 'guess' in changes.model_fields_set:
-        for coordinate in [*updated.guess.scans, *updated.guess.freeze]:
-            coordinate.atoms = [translate(index, 'reactant') for index in coordinate.atoms]
+        for field in ('scans', 'freeze'):
+            if field in changes.guess.model_fields_set:
+                for coordinate in getattr(updated.guess, field):
+                    coordinate.atoms = [translate(index, 'reactant') for index in coordinate.atoms]
     source = updated.conformers.product
     if source and source.kind == 'rotate_about_bond' and changes.conformers and 'product' in changes.conformers.model_fields_set:
         source.atoms = tuple(translate(index, 'reactant') for index in source.atoms)

@@ -39,7 +39,7 @@ def test_catalog_prepare_requires_explicit_member_optimizer_and_deduplicates(tmp
     assert first.blocked.needs==['conformers.reactant.optimization']
     with ComputeDB().connect() as con:
         assert con.execute('SELECT COUNT(*) FROM compute_jobs').fetchone()[0]==0
-    inputs.conformers.reactant=CatalogConformer(**source,optimization={'engine':'xtb','method':'GFN2-xTB','keywords':''})
+    inputs.conformers.reactant=CatalogConformer(**source,optimization={'engine':'xtb','method':'GFN2-xTB','basis_set':'','keywords':''})
     monkeypatch.setattr('cloudra.services.compute_admission.admit_job',lambda **_: AdmissionOutcome(ok=True,node_id='fixture',scheduler='local'))
     request=ts_process.TsStartRequest(input=inputs,workspace_dir=str(tmp_path),owner_conversation_id='project',owner_session_id='owner',request_key='explicit-selected')
     first,second=ts_process.start(request),ts_process.start(request)
@@ -60,7 +60,7 @@ def test_native_selected_seed_writes_and_submits_declared_input_once(tmp_path, m
     source, xyz = catalog_seed(tmp_path)
     inputs = calculation_input(reactant_smiles='O', product_smiles='O', method='b3lyp/def2svp', atom_map=[0, 1, 2])
     inputs.conformers.reactant = CatalogConformer(**source, optimization={
-        'engine': engine, 'method': 'b3lyp/def2svp', 'keywords': '',
+        'engine': engine, 'method': 'b3lyp', 'basis_set': 'def2svp', 'keywords': '',
     })
     inputs.conformers.product = FileConformer(kind='file', xyz_path=str(xyz))
     monkeypatch.setattr('cloudra.services.compute_admission.admit_job',
@@ -86,7 +86,7 @@ def test_completed_explicit_seed_opt_advances_other_seed_once(tmp_path,monkeypat
     from cloudra.tools.core.ts_pipeline_driver import advance_process
     from tests.ts_fixtures import calculation_input
     source, xyz=catalog_seed(tmp_path)
-    calculation={'engine':'xtb','method':'GFN2-xTB','keywords':''}
+    calculation={'engine':'xtb','method':'GFN2-xTB','basis_set':'','keywords':''}
     inputs=calculation_input(reactant_smiles='O',product_smiles='O',method='b3lyp/def2svp',atom_map=[0,1,2])
     inputs.conformers.reactant=CatalogConformer(**source,optimization=calculation)
     inputs.conformers.product=FileConformer(kind='file',xyz_path=str(xyz),optimization=calculation)

@@ -42,8 +42,9 @@ def test_scan_submission_recovers_exact_input_after_checkpoint_crash(tmp_path, m
     db, pid, record = checkpoint(tmp_path)
     record.blocked = None
     record.job_steps = []
-    from cloudra.tools.core.ts_inputs import ScanGuess, TsCalculation
-    record.input.guess = ScanGuess(kind="scan", calculation=TsCalculation(engine="orca", method="b3lyp/def2svp", keywords=""),
+    from cloudra.tools.core.qm_calculation import QmCalculation
+    from cloudra.tools.core.ts_inputs import ScanGuess
+    record.input.guess = ScanGuess(kind="scan", calculation=QmCalculation(engine="orca", method="b3lyp", basis_set="def2svp", keywords=""),
         scans=[{"coord_type": "bond", "atoms": [0, 1], "scan_start": 1, "scan_end": 2, "scan_steps": 5}],
     )
     save_process_record(db, process_id=pid, record=record.model_dump(mode="json"))
@@ -256,7 +257,7 @@ def test_reaction_center_change_without_ring_invalidates_geometry_dependencies(t
 def test_repeated_unchanged_scan_adjustment_preserves_failure_and_budget(tmp_path, note):
     db, pid, record = checkpoint(tmp_path)
     from cloudra.tools.core.ts_inputs import ScanGuess, TsExecutionLimits, TsResumeRequest
-    record.input.guess = ScanGuess(kind="scan",calculation={"engine":"orca","method":"b3lyp/def2svp","keywords":"D3BJ RIJCOSX def2/J TightSCF"},
+    record.input.guess = ScanGuess(kind="scan",calculation={"engine":"orca","method":"b3lyp","basis_set":"def2svp","keywords":"D3BJ RIJCOSX def2/J TightSCF"},
         scans=[{"atoms": [0, 1], "scan_start": 1, "scan_end": 2, "scan_steps": 7}],
     )
     record.input.execution.limits = TsExecutionLimits(source="explicit_user",max_interventions=1)

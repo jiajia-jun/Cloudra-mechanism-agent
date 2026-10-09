@@ -58,6 +58,10 @@ from cloudra.runtime_v2.schemas import MethodPolicy
 # suffixes we treat as QM input files
 _QM_INPUT_SUFFIXES = {".gjf", ".com", ".inp"}
 
+# ORCA's Gaussian-definition B3LYP is one native functional keyword.
+# Its internal slash remains part of the method when no basis suffix follows.
+_NATIVE_SLASH_METHODS = {'b3lyp/g'}
+
 # job-type / control tokens that may appear on a Gaussian route card or an
 # ORCA "!" keyword line and are NOT the method. This is a parsing ignore-list,
 # not a security boundary: anything unrecognized is treated as a method
@@ -127,10 +131,12 @@ def _norm_basis(b: str) -> str:
 
 
 def _split_method_basis(token: str) -> tuple[str, str]:
-    """`functional/basis` 组合拆成 (functional, 归一化基组)；无 slash 时基组为空。"""
+    """Split the final policy/input basis suffix, preserving complete native methods."""
     t = token.strip().lower()
-    fam, sep, basis = t.partition("/")
-    return fam.strip(), _norm_basis(basis) if sep else ""
+    if t in _NATIVE_SLASH_METHODS:
+        return t, ''
+    family, separator, basis = t.rpartition('/')
+    return (family.strip(), _norm_basis(basis)) if separator else (t, '')
 
 
 def _entry_matches(family: str, req_basis: str, entries: Iterable[str]) -> bool:
@@ -164,10 +170,12 @@ def _family(token: str) -> str:
 def check_method(method: str, policy: MethodPolicy, basis: str = "") -> MethodVerdict:
     """Structured check for an explicit method string (qm_input_writer path):
     whitelist membership at method-family granularity after normalization.
-    `method` 可自带 slash 基组（`b3lyp/def2svp`），或由 `basis` 参数（工具的
-    `basis_set` 字段）补上；组合条目要求基组精确一致（拼写归一后），请求缺
-    基组时 fail-closed。"""
-    fam_raw, inline_basis = _split_method_basis(_normalize(method))
+    Public calculation tools supply one native method token and an explicit
+    basis_set. Policy/native-input combined identities split only the final
+    basis suffix; B3LYP/G stays distinct from B3LYP. A policy entry
+    with a basis requires the same actual basis (spellings normalized).
+    """
+    fam_raw, inline_basis = (_normalize(method), '') if basis else _split_method_basis(_normalize(method))
     fam = _family(fam_raw)
     req_basis = _norm_basis(basis) or inline_basis
     if _entry_matches(fam, req_basis, policy.allowed_methods):
@@ -242,10 +250,10 @@ def _extract_gaussian_methods(content: str) -> list[list[str]]:
                     slashed.append("external")
                 continue
             if "/" in t:
-                head, _, bset = t.partition("/")
+                head, bset = _split_method_basis(t)
                 if head:
                     # 权威 slash 声明：方法+基组组合候选（`b3lyp/def2svp`）
-                    slashed.append(f"{head}/{_norm_basis(bset)}" if bset else head)
+                    slashed.append(f"{head}/{bset}" if bset else head)
                 continue
             if "=" in t or "(" in t or _is_basis_token(t) or t in _GAUSSIAN_JOB_TOKENS:
                 continue

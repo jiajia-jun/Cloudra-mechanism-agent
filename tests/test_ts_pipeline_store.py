@@ -10,7 +10,7 @@ def payload(**overrides):
     from tests.test_ts_inputs import input_payload
 
     value = input_payload()
-    calculation = dict(engine='orca', method='b3lyp/def2svp', keywords='')
+    calculation = dict(engine='orca', method='b3lyp', basis_set='def2svp', keywords='')
     value['verification'] = dict(frequency=calculation, irc=calculation,
         reactant_endpoint=dict(optimization=calculation, frequency=calculation),
         product_endpoint=dict(optimization=calculation, frequency=calculation))

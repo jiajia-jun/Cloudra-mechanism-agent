@@ -19,7 +19,7 @@ def water_input(tmp_path, *, scan=False):
     evidence.write_text('Explicit candidate provenance')
     inputs=calculation_input(reactant_smiles='O',product_smiles='O',method='HF/STO-3G',atom_map=[0,1,2])
     inputs.conformers.reactant=inputs.conformers.product=FileConformer(kind='file',xyz_path=str(seed))
-    inputs.guess=ScanGuess(kind='scan',calculation={'engine':'orca','method':'HF/STO-3G','keywords':''},scans=[{'atoms':[0,1],'scan_start':1.,'scan_end':2.,'scan_steps':3}]) if scan else ProvidedGuess(kind='provided',xyz_path=str(seed),evidence_refs=[str(evidence)])
+    inputs.guess=ScanGuess(kind='scan',calculation={'engine':'orca','method':'HF','basis_set':'STO-3G','keywords':''},scans=[{'atoms':[0,1],'scan_start':1.,'scan_end':2.,'scan_steps':3}]) if scan else ProvidedGuess(kind='provided',xyz_path=str(seed),evidence_refs=[str(evidence)])
     data=inputs.model_dump(mode='json')
     data['reaction']['atom_map']=[1,2,3]
     return data
@@ -469,7 +469,7 @@ async def test_ts_d1_atom_binding_native_scan_recovery(tmp_path, monkeypatch):
     base['reaction']['atom_map'] = []
     base['conformers'] = {'reactant': {'kind':'file','xyz_path':str(xyz),'mol_path':str(graph)},
                           'product': {'kind':'file','xyz_path':str(xyz),'mol_path':str(graph)}}
-    base['guess'] = {'kind':'scan','calculation':{'engine':'xtb','method':'GFN2-xTB'},
+    base['guess'] = {'kind':'scan','calculation':{'engine':'xtb','method':'GFN2-xTB','basis_set':''},
                      'scans':[{'atoms':[4,11],'scan_start':7.,'scan_end':4.,'scan_steps':3}],
                      'force_constant':.5}
     # This two-component fixture must declare the same pair used by its scan.

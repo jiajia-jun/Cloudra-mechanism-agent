@@ -34,13 +34,14 @@ from cloudra.persistence.fs_utils import atomic_write_text
 from cloudra.tools.core.conformer_cards import AttemptEvidence
 from cloudra.tools.core.geometry_inputs import atom_index_base
 from cloudra.tools.core.geometry_optimization import OptimizationCheckpoint
+from cloudra.tools.core.qm_calculation import QmCalculation
 from cloudra.tools.core.structure_builder import (
     BuildStrategy,
     PreparationRequest,
     StructureInput,
     prepare_structure,
 )
-from cloudra.tools.core.ts_inputs import TsCalculation, TsInput, TsResumeRequest
+from cloudra.tools.core.ts_inputs import TsInput, TsResumeRequest, resolve_calculation
 
 #: 运行目录名（工作区下）。与 SOP §7 一致。
 TS_ROOT_NAME = "ts"
@@ -119,7 +120,7 @@ class TsProcessRecord(BaseModel):
     """持久运行记录（``ts/<run_id>/process.json``）。"""
 
     model_config = ConfigDict(extra='forbid')
-    format_version: Literal[4] = 4
+    format_version: Literal[5] = 5
     run_id: str
     pipeline_id: str = ""
     declaration_revision: int = 1
@@ -285,7 +286,7 @@ def save_record(record: TsProcessRecord) -> str:
 def load_record(workspace_dir: str, run_id: str) -> TsProcessRecord:
     path = os.path.join(workspace_dir, TS_ROOT_NAME, run_id, PROCESS_JSON_NAME)
     data = json.loads(Path(path).read_text(encoding="utf-8"))
-    if data.get("format_version") != 4:
+    if data.get("format_version") != 5:
         raise ValueError("Unsupported TS input format; existing compute jobs remain intact.")
     return TsProcessRecord.model_validate(data)
 
@@ -368,24 +369,26 @@ def _terminal(record: TsProcessRecord, stage: TsStage, terminal: TsTerminal,
 # 阶段实现
 # ---------------------------------------------------------------------------
 
-def stage_calculation(record: TsProcessRecord, purpose: str) -> TsCalculation | None:
+def stage_calculation(record: TsProcessRecord, purpose: str) -> QmCalculation | None:
     if purpose == 'ts_opt':
-        return record.input.ts_optimization
-    if purpose in ('frequency', 'irc'):
-        return getattr(record.input.verification, purpose)
-    if purpose in ('reactant_opt', 'product_opt', 'reactant_frequency', 'product_frequency'):
+        value = record.input.ts_optimization
+    elif purpose in ('frequency', 'irc'):
+        value = getattr(record.input.verification, purpose)
+    elif purpose in ('reactant_opt', 'product_opt', 'reactant_frequency', 'product_frequency'):
         side, task = purpose.split('_', 1)
-        return getattr(getattr(record.input.verification, side + '_endpoint'), 'optimization' if task == 'opt' else task)
-    if purpose == 'scan':
+        value = getattr(getattr(record.input.verification, side + '_endpoint'), 'optimization' if task == 'opt' else task)
+    elif purpose == 'scan':
         guess = record.input.guess
-        return guess.calculation if guess and guess.kind == 'scan' else None
-    if purpose == 'path':
+        value = guess.calculation if guess and guess.kind == 'scan' else None
+    elif purpose == 'path':
         guess = record.input.guess
-        return TsCalculation(engine='xtb', method=guess.method, keywords='') if guess and guess.kind == 'xtb_path' else None
-    if purpose in ('candidate_opt', 'candidate_evaluation', 'product_seed_opt'):
+        value = QmCalculation(engine='xtb', method=guess.method, basis_set='', keywords='') if guess and guess.kind == 'xtb_path' else None
+    elif purpose in ('candidate_opt', 'candidate_evaluation', 'product_seed_opt'):
         source = getattr(record.input.conformers, 'product' if purpose == 'product_seed_opt' else 'reactant')
-        return getattr(source, 'optimization', None)
-    return None
+        value = getattr(source, 'optimization', None)
+    else:
+        return None
+    return resolve_calculation(value, record.input.calculations)
 
 def _calculation_field(purpose: str) -> str:
     if purpose == 'ts_opt':
@@ -439,7 +442,7 @@ def _require_calculation(record, purpose, stage) -> bool:
         return True
     return False
 
-def _step_calculation(record, step) -> TsCalculation:
+def _step_calculation(record, step) -> QmCalculation:
     if step.actual_calculation is None and step.source_input_revision != record.declaration_revision:
         raise ValueError(f"Calculation provenance missing for historical job {step.job_id}")
     value = step.actual_calculation or stage_calculation(record, step.purpose)
@@ -793,11 +796,9 @@ def _optimize_conformer_source(record, role):
             _write_immutable_input(str(manifest), task.model_dump_json())
             job_type = 'chem_task'
         else:
-            head, _, basis = calculation.method.partition('/')
             manifest = directory / ('seed-opt.inp' if calculation.engine == 'orca' else 'seed-opt.gjf')
-            request = QmInputWriter_input_schema(engine=calculation.engine, source_type='xyz_file', source_value=built[2],
-                method=head, basis_set=basis, task_type=[{'opt': None}], extra_keywords=calculation.keywords,
-                orca_blocks=calculation.orca_blocks, end_setting=calculation.end_setting,
+            request = QmInputWriter_input_schema(**calculation.model_dump(mode='json'),
+                source_type='xyz_file', source_value=built[2], task_type=[{'opt': None}],
                 nproc=record.compute_cpus, mem=f'{record.compute_memory_mb}MB', output_path=str(manifest),
                 charge=record.input.reaction.charge, multiplicity=record.input.reaction.multiplicity)
             from cloudra.tools.core.calculation_intent import validate_writer_request
@@ -1420,8 +1421,8 @@ def _guess_scan(record: TsProcessRecord) -> TsProcessRecord:
     from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_input_schema
 
     declaration = record.input.reaction
-    plan = record.input.guess
-    calculation = plan.calculation
+    calculation = stage_calculation(record, 'scan')
+    plan = record.input.guess.model_copy(update={'calculation': calculation})
     if _require_calculation(record, 'scan', 'guess'):
         return record
     if record.scan_step is None:
@@ -1445,10 +1446,8 @@ def _guess_scan(record: TsProcessRecord) -> TsProcessRecord:
             def public_rows(rows):
                 return [dict(row.model_dump(), atoms=[i + base for i in row.atoms]) for row in rows]
             request = TsGuess_input_schema(
-                mode="scan_prepare", input_path=built[2], engine=calculation.engine,
-                method=calculation.method, charge=declaration.charge, spin=declaration.multiplicity,
-                extra_route=calculation.keywords, orca_blocks=calculation.orca_blocks,
-                end_setting=calculation.end_setting,
+                mode="scan_prepare", input_path=built[2], **calculation.model_dump(mode='json'),
+                charge=declaration.charge, spin=declaration.multiplicity,
                 scans=public_rows(plan.scans), freeze=public_rows(plan.freeze),
                 output_path=str(folder / ("scan.inp" if calculation.engine == "orca" else "scan.gjf")),
                 nprocs=record.compute_cpus,
@@ -1834,15 +1833,6 @@ def _write_refinement_input(record: TsProcessRecord, job_dir: str) -> tuple[str,
     calculation = stage_calculation(record, 'ts_opt')
     if calculation is None:
         return 'Explicit ts_optimization calculation required', ''
-    method = calculation.method.strip()
-    if "/" in method:
-        head, _sep, basis = method.partition("/")
-        method_name, basis_name = head.strip(), basis.strip()
-    else:
-        method_name, basis_name = method, ""
-    if not method_name:
-        return f"method {calculation.method!r} has no method part before '/'", ""
-
     guess_dir = os.path.join(record.run_dir, PATH_STAGE_DIR)
     source = ""
     if record.active_attempt_dir or record.current_ts_guess_path or record.path_kind == "scan":
@@ -1883,18 +1873,12 @@ def _write_refinement_input(record: TsProcessRecord, job_dir: str) -> tuple[str,
         task_type = [{"opt": "TS,calcfc,noeigen"}]
         orca_blocks = None
     request = QmInputWriter_input_schema(
+        **calculation.model_copy(update={'orca_blocks': '\n'.join(filter(None, [orca_blocks, calculation.orca_blocks])) or None}).model_dump(mode='json'),
         nproc=record.compute_cpus,
         mem=f"{record.compute_memory_mb}MB",
-        engine=calculation.engine,
         source_type="xyz_file",
         source_value=source,
-        method=method_name,
-        basis_set=basis_name,
         task_type=task_type,
-        extra_keywords=calculation.keywords,
-        orca_blocks='\n'.join(filter(None, [orca_blocks, calculation.orca_blocks])) or None,
-        frequency_mode=calculation.frequency_mode,
-        end_setting=calculation.end_setting,
         charge=declaration.charge,
         multiplicity=declaration.multiplicity,
         title=f"TS refinement: {declaration.reactant_smiles} -> {declaration.product_smiles} | smiles: {declaration.reactant_smiles}",
@@ -1997,7 +1981,7 @@ class TsJobStep(BaseModel):
     job_id: Optional[int] = None
     input_path: str = ""
     state: str = Field(default="", description="compute_jobs 里的状态；终态见 TERMINAL_STATES")
-    actual_calculation: TsCalculation | None = None
+    actual_calculation: QmCalculation | None = None
     source_input_revision: int = 1
     method_contract: dict | None = None
     stage_key: str | None = None
@@ -2113,7 +2097,7 @@ def _check_calculation_submission(record, purpose, input_path, job_type):
         if solvation != expected_solvation:
             raise ValueError('Native task solvation differs from its own accepted stage input')
         if purpose == 'scan':
-            plan = record.input.guess
+            plan = record.input.guess.model_copy(update={'calculation': calculation})
             if task.scan != plan or task.reactant_xyz != Path(_read_built_xyz(record, 'reactant')[2]).read_text():
                 raise ValueError('Native scan declaration or bound XYZ differs from accepted input')
         contract = policy.calculation_contracts.get(purpose) if policy is not None else None
@@ -2288,22 +2272,14 @@ def _write_frequency_input(record: TsProcessRecord, job_dir: str) -> tuple[str, 
     calculation = stage_calculation(record, 'frequency')
     if calculation is None:
         return 'Explicit verification.frequency required', ''
-    method = calculation.method.strip()
-    head, _sep, basis = method.partition("/")
     input_path = os.path.join(job_dir, f"frequency.{'inp' if calculation.engine == 'orca' else 'gjf'}")
     request = QmInputWriter_input_schema(
+        **calculation.model_dump(mode='json'),
         nproc=record.compute_cpus,
         mem=f"{record.compute_memory_mb}MB",
-        engine=calculation.engine,
         source_type="xyz_file",
         source_value=optimized_xyz,
-        method=head.strip(),
-        basis_set=basis.strip(),
         task_type=[{"freq": None}],
-        extra_keywords=calculation.keywords,
-        frequency_mode=calculation.frequency_mode,
-        orca_blocks=calculation.orca_blocks,
-        end_setting=calculation.end_setting,
         charge=declaration.charge,
         multiplicity=declaration.multiplicity,
         title=f"frequency at the refined stationary point: {declaration.reactant_smiles} | smiles: {declaration.reactant_smiles}",
@@ -2366,8 +2342,6 @@ def _write_irc_input(record: TsProcessRecord, job_dir: str) -> tuple[str, str]:
             "",
         )
 
-    method = calculation.method.strip()
-    head, _sep, basis = method.partition("/")
     input_path = os.path.join(job_dir, f"irc.{'inp' if calculation.engine == 'orca' else 'gjf'}")
 
     if calculation.engine == "orca":
@@ -2389,18 +2363,12 @@ def _write_irc_input(record: TsProcessRecord, job_dir: str) -> tuple[str, str]:
         orca_blocks = None
 
     request = QmInputWriter_input_schema(
+        **calculation.model_copy(update={'orca_blocks': '\n'.join(filter(None, [orca_blocks, calculation.orca_blocks])) or None}).model_dump(mode='json'),
         nproc=record.compute_cpus,
         mem=f"{record.compute_memory_mb}MB",
-        engine=calculation.engine,
         source_type="xyz_file",
         source_value=geometry,
-        method=head.strip(),
-        basis_set=basis.strip(),
         task_type=task_type,
-        extra_keywords=calculation.keywords,
-        orca_blocks='\n'.join(filter(None, [orca_blocks, calculation.orca_blocks])) or None,
-        frequency_mode=calculation.frequency_mode,
-        end_setting=calculation.end_setting,
         charge=declaration.charge,
         multiplicity=declaration.multiplicity,
         title=f"IRC both directions from the refined saddle: {declaration.reactant_smiles} | smiles: {declaration.reactant_smiles}",
@@ -2542,19 +2510,15 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
     _write_immutable_input(source_copy,Path(source).read_text())
     source=source_copy
     declaration = record.input.reaction
-    head, _sep, basis = calculation.method.strip().partition("/")
     task_type = [{"opt": None}] if task == "opt" else [{"freq": None}]
     name = f"{role}_{task}.{'inp' if calculation.engine == 'orca' else 'gjf'}"
     input_path = os.path.join(job_dir, name)
     request = QmInputWriter_input_schema(
+        **calculation.model_dump(mode='json'),
         nproc=record.compute_cpus,
         mem=f"{record.compute_memory_mb}MB",
-        engine=calculation.engine,
         source_type="xyz_file", source_value=source,
-        method=head.strip(), basis_set=basis.strip(), task_type=task_type,
-        extra_keywords=calculation.keywords,
-        frequency_mode=calculation.frequency_mode, orca_blocks=calculation.orca_blocks,
-        end_setting=calculation.end_setting,
+        task_type=task_type,
         charge=declaration.charge, multiplicity=declaration.multiplicity,
         title=f"IRC side {'A' if role == 'reactant' else 'B'} endpoint {task} | smiles: {getattr(declaration, role + '_smiles')}",
         output_path=input_path,

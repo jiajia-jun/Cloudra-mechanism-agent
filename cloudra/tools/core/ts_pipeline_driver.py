@@ -14,7 +14,7 @@ def advance_process(db: ComputeDB, process_id: str) -> dict:
     state = get_process(db, process_id)
     if state is None or state['record'] is None:
         raise ValueError('process checkpoint missing')
-    if state['record'].get('format_version') != 4:
+    if state['record'].get('format_version') != 5:
         return dict(state, status='isolated', isolation_reason='Unsupported TS input format; existing jobs remain intact')
     directory = state['record']['run_dir']
     os.makedirs(directory, exist_ok=True)

@@ -35,7 +35,7 @@ class ModelRequestAccounting:
             for pid,record in rows:
                 data=json.loads(record) if record else {}
                 limits = data.get('input', {}).get('execution', {}).get('limits') or {}
-                if (data.get('format_version') == 4 and (data.get('catalog_id') or limits.get('max_model_calls') is not None)
+                if (data.get('format_version') == 5 and (data.get('catalog_id') or limits.get('max_model_calls') is not None)
                         and (data.get('blocked') or data.get('terminal') in ('candidate_only','search_failed','invalid_input'))):
                     selected.append(pid)
             return selected

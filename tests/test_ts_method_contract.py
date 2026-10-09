@@ -15,7 +15,7 @@ def test_cpcm_ts_submission_keeps_native_settings_and_bound_job(tmp_path, monkey
     from cloudra.services.ts_pipeline_context import use_pipeline_authority, use_pipeline_database
     from cloudra.services.ts_pipeline_store import create_process, verify_stage_input
     from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
-    from cloudra.tools.core.ts_inputs import TsCalculation
+    from cloudra.tools.core.ts_inputs import QmCalculation
     from cloudra.tools.core.ts_process import _submit_step
     from tests.test_ts_pipeline_store import payload
     from tests.test_ts_stage_inputs import record_fixture
@@ -24,11 +24,11 @@ def test_cpcm_ts_submission_keeps_native_settings_and_bound_job(tmp_path, monkey
     record.input.execution.cpus = 2
     record.input.execution.memory_mb = 2048
     keywords = f'D3BJ RIJCOSX def2/J TightSCF CPCM({solvent})'
-    calculation = TsCalculation(engine='orca', method='B3LYP/def2svp', keywords=keywords)
+    calculation = QmCalculation(basis_set='def2svp', engine='orca', method='B3LYP', keywords=keywords)
     record.input.ts_optimization = calculation
     source = tmp_path / 'ts.inp'
     request = QmInputWriter_input_schema(engine='orca', source_type='xyz_file', source_value='unused.xyz',
-        method='B3LYP', basis_set='def2svp', task_type=[{'opt': 'ts'}], extra_keywords=keywords,
+        method='B3LYP', basis_set='def2svp', task_type=[{'opt': 'ts'}], keywords=keywords,
         nproc=record.compute_cpus, mem=f'{record.compute_memory_mb}MB', output_path=str(source))
     native = QmInputWriter._build_orca_input(request, 'O 0 0 0')
     source.write_text(native)
@@ -64,12 +64,12 @@ def test_cpcm_ts_submission_keeps_native_settings_and_bound_job(tmp_path, monkey
 def test_ordinary_ts_submission_needs_no_method_policy(tmp_path, monkeypatch):
     from cloudra.services.compute_admission import AdmissionOutcome
     from cloudra.services.ts_pipeline_context import use_pipeline_authority
-    from cloudra.tools.core.ts_inputs import TsCalculation
+    from cloudra.tools.core.ts_inputs import QmCalculation
     from cloudra.tools.core.ts_process import _submit_step
     from tests.test_ts_stage_inputs import record_fixture
 
     record = record_fixture(tmp_path)
-    record.input.ts_optimization = TsCalculation(engine="orca", method="PBE0/def2-TZVP", keywords="")
+    record.input.ts_optimization = QmCalculation(basis_set='def2-TZVP', engine="orca", method='PBE0', keywords="")
     source = tmp_path / "ts.inp"
     source.write_text("! OptTS PBE0 def2-TZVP\n* xyz 0 1\nO 0 0 0\n*\n")
     monkeypatch.setattr("cloudra.services.compute_admission.admit_job", lambda **_: AdmissionOutcome(ok=True, node_id="fixture", scheduler="local"))
@@ -120,7 +120,7 @@ def test_ordinary_ts_still_checks_accepted_input(tmp_path):
 
 
 def expected(engine='orca', **changes):
-    return dict(engine=engine, method='B3LYP/def2-SVP', keywords='D3BJ CPCM(water)', frequency_mode='auto', orca_blocks=None, end_setting='', **changes)
+    return dict(basis_set='def2-SVP', engine=engine, method='B3LYP', keywords='D3BJ CPCM(water)', frequency_mode='auto', orca_blocks=None, end_setting='', **changes)
 
 
 def test_missing_required_keywords_and_actual_charge_spin_are_differences():
@@ -132,7 +132,7 @@ def test_equivalent_basis_spelling_and_multiline_native_input():
     text = '! OptTS B3LYP\n! def2SVP D3BJ CPCM(water)\n%pal nprocs 2 end\n* xyz 0 1\nO 0 0 0\n*\n'
     assert intent.compare_calculation_input(text, expected(), charge=0, multiplicity=1) == []
     gaussian = '#p opt=(ts, calcfc) B3LYP/def2svp\n emp=gd3bj scrf=(solvent=water)\n\ntitle\n\n0 1\nO 0 0 0\n\n'
-    declaration = dict(engine='gaussian', method='B3LYP/def2-SVP', keywords='emp=gd3bj scrf=(solvent=water)', frequency_mode='auto', orca_blocks=None, end_setting='')
+    declaration = dict(basis_set='def2-SVP', engine='gaussian', method='B3LYP', keywords='emp=gd3bj scrf=(solvent=water)', frequency_mode='auto', orca_blocks=None, end_setting='')
     assert intent.compare_calculation_input(gaussian, declaration, charge=0, multiplicity=1) == []
 
 
@@ -142,11 +142,11 @@ def test_unknown_extra_method_or_settings_do_not_pass():
 
 
 def test_native_blocks_and_gaussian_links_are_all_checked():
-    declaration = dict(engine='orca', method='B3LYP/def2svp', keywords='', frequency_mode='auto', orca_blocks='%cpcm\n epsilon 20\nend', end_setting='')
+    declaration = dict(basis_set='def2svp', engine='orca', method='B3LYP', keywords='', frequency_mode='auto', orca_blocks='%cpcm\n epsilon 20\nend', end_setting='')
     text = '! Freq B3LYP def2-SVP\n%cpcm epsilon 30 end\n* xyz 0 1\nO 0 0 0\n*\n'
     assert any(d.field == 'orca_blocks' for d in intent.compare_calculation_input(text, declaration, charge=0, multiplicity=1))
     gaussian = '#p B3LYP/def2svp freq\n\ntitle\n\n0 1\nO 0 0 0\n\n--Link1--\n#p PBE0/def2svp freq\n\ntitle\n\n0 1\nO 0 0 0\n\n'
-    declaration = dict(engine='gaussian', method='B3LYP/def2svp', keywords='', frequency_mode='auto', end_setting='')
+    declaration = dict(basis_set='def2svp', engine='gaussian', method='B3LYP', keywords='', frequency_mode='auto', end_setting='')
     assert any(d.field == 'method' for d in intent.compare_calculation_input(gaussian, declaration, charge=0, multiplicity=1))
 
 
@@ -198,7 +198,7 @@ def test_unknown_trusted_method_source_is_a_checkpoint(tmp_path):
 
 
 def test_undeclared_frequency_block_and_gaussian_trailing_settings_are_differences():
-    declaration=dict(engine='orca',method='HF/STO-3G',keywords='',orca_blocks=None,end_setting='')
+    declaration=dict(basis_set='STO-3G', engine='orca',method='HF',keywords='',orca_blocks=None,end_setting='')
     text='! HF STO-3G Freq\n%freq Temp 999 end\n* xyz 0 1\nO 0 0 0\n*\n'
     assert intent.compare_calculation_input(text,declaration,charge=0,multiplicity=1)
     declaration['engine']='gaussian'
@@ -207,32 +207,32 @@ def test_undeclared_frequency_block_and_gaussian_trailing_settings_are_differenc
 
 
 def test_explicit_geometry_block_can_coexist_with_writer_hessian():
-    declaration=dict(engine='orca',method='HF/STO-3G',keywords='',orca_blocks='%geom MaxIter 200 end',end_setting='')
+    declaration=dict(basis_set='STO-3G', engine='orca',method='HF',keywords='',orca_blocks='%geom MaxIter 200 end',end_setting='')
     text='! HF STO-3G OptTS\n%geom Calc_Hess true end\n%geom MaxIter 200 end\n* xyz 0 1\nO 0 0 0\n*\n'
     assert intent.compare_calculation_input(text,declaration,charge=0,multiplicity=1)==[]
 
 
-def test_whitelist_checks_complete_native_method_when_basis_is_in_keywords(tmp_path):
+def test_whitelist_checks_complete_native_method_and_explicit_basis(tmp_path):
     from cloudra.runtime_v2.schemas import MethodPolicy
     from cloudra.services.ts_pipeline_context import use_pipeline_authority
-    from cloudra.tools.core.ts_inputs import TsCalculation
+    from cloudra.tools.core.ts_inputs import QmCalculation
     from cloudra.tools.core.ts_process import _check_calculation_submission
     from tests.test_ts_stage_inputs import record_fixture
 
     record = record_fixture(tmp_path)
-    record.input.ts_optimization = TsCalculation(engine="orca", method="B3LYP", keywords="D3BJ def2-SVP")
+    record.input.ts_optimization = QmCalculation(basis_set='def2-SVP', engine="orca", method="B3LYP", keywords="D3BJ")
     source = tmp_path / "ts.inp"
     source.write_text("! OptTS B3LYP def2-SVP D3BJ\n* xyz 0 1\nO 0 0 0\n*\n")
     policy = MethodPolicy(allowed_methods=["b3lyp/def2svp"])
     with use_pipeline_authority(lambda project, owner: (True, policy)):
         _check_calculation_submission(record, "ts_opt", str(source), "orca")
     assert record.method_checks[str(source)]["matched"]
-    for keywords, text in [
-        ("D3BJ", "! OptTS B3LYP D3BJ\n* xyz 0 1\nO 0 0 0\n*\n"),
-        ("D3BJ def2-TZVP", "! OptTS B3LYP def2-TZVP D3BJ\n* xyz 0 1\nO 0 0 0\n*\n"),
-        ("D3BJ def2-SVP PBE0", "! OptTS B3LYP PBE0 def2-SVP D3BJ\n* xyz 0 1\nO 0 0 0\n*\n"),
+    for basis_set, keywords, text in [
+        ("", "D3BJ", "! OptTS B3LYP D3BJ\n* xyz 0 1\nO 0 0 0\n*\n"),
+        ("def2-TZVP", "D3BJ", "! OptTS B3LYP def2-TZVP D3BJ\n* xyz 0 1\nO 0 0 0\n*\n"),
+        ("def2-SVP", "D3BJ PBE0", "! OptTS B3LYP PBE0 def2-SVP D3BJ\n* xyz 0 1\nO 0 0 0\n*\n"),
     ]:
-        record.input.ts_optimization = TsCalculation(engine="orca", method="B3LYP", keywords=keywords)
+        record.input.ts_optimization = QmCalculation(basis_set=basis_set, engine="orca", method="B3LYP", keywords=keywords)
         source.write_text(text)
         with use_pipeline_authority(lambda project, owner: (True, policy)):
             import pytest

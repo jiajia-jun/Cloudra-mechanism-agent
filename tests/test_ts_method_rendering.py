@@ -17,12 +17,12 @@ def test_orca_writer_renders_basis_alias_and_preserves_declared_keywords(basis, 
     request = QmInputWriter_input_schema(
         engine='orca', source_type='xyz_file', source_value='unused.xyz',
         output_path='unused.inp', method='b3lyp', basis_set=basis, task_type=[{'opt': 'ts'}],
-        extra_keywords='D3BJ RIJCOSX def2/J TightSCF CPCM(DCM)',
+        keywords='D3BJ RIJCOSX def2/J TightSCF CPCM(DCM)',
     )
     header = QmInputWriter._build_orca_input(request, 'H 0 0 0').splitlines()[0].split()
     assert header == ['!', 'OptTS', 'b3lyp', *([expected] if expected else []),
                       'D3BJ', 'RIJCOSX', 'def2/J', 'TightSCF', 'CPCM(DCM)']
-    assert request.basis_set == basis
+    assert request.basis_set == basis.strip()
 
 
 def test_scan_to_ts_followups_keep_declared_method_basis_and_keywords(tmp_path, monkeypatch):
@@ -40,9 +40,9 @@ def test_scan_to_ts_followups_keep_declared_method_basis_and_keywords(tmp_path, 
     graph=tmp_path/'water.mol'
     graph.write_text(Chem.MolToMolBlock(mol))
     extras = 'D3BJ RIJCOSX def2/J TightSCF CPCM(DCM)'
-    declaration = calculation_input(
-        engine='orca', reactant_smiles='O', product_smiles='O', method='b3lyp/def2svp', extra_keywords=extras, atom_map=[0,1,2],
-        scan={'method': 'b3lyp/def2svp', 'extra_route': extras,
+    declaration = calculation_input(basis_set='def2svp',
+        engine='orca', reactant_smiles='O', product_smiles='O', method='b3lyp', keywords=extras, atom_map=[0,1,2],
+        scan={'basis_set': 'def2svp', 'method': 'b3lyp', 'keywords': extras,
               'scans': [{'atoms': [0, 1], 'scan_end': 2, 'scan_steps': 5}]},
     )
     record = process.TsProcessRecord(run_id='scan', run_dir=str(tmp_path), workspace_dir=str(tmp_path),
@@ -95,26 +95,24 @@ def test_scan_to_ts_followups_keep_declared_method_basis_and_keywords(tmp_path, 
     for path in paths:
         header = next(line for line in Path(path).read_text().splitlines() if line.startswith('!')).split()
         assert header[2:] == ['b3lyp', 'def2-SVP', 'D3BJ', 'RIJCOSX', 'def2/J', 'TightSCF', 'CPCM(DCM)'], path
-    assert record.input.ts_optimization.method == 'b3lyp/def2svp'
+    assert record.input.ts_optimization.method == 'b3lyp'
+    assert record.input.ts_optimization.basis_set == 'def2svp'
     assert record.input.ts_optimization.keywords == extras
 
 
-@pytest.mark.parametrize('method, expected', [
-    ('b3lyp / def2svp RIJCOSX def2/J', '! OPT b3lyp def2-SVP RIJCOSX def2/J'),
-    ('b3lyp /def2svp RIJCOSX def2/J', '! OPT b3lyp def2-SVP RIJCOSX def2/J'),
-    ('b3lyp/ def2svp RIJCOSX def2/J', '! OPT b3lyp def2-SVP RIJCOSX def2/J'),
-    ('b3lyp/def2svp RIJCOSX def2/J', '! OPT b3lyp def2-SVP RIJCOSX def2/J'),
-    ('b3lyp def2svp RIJK def2/JK', '! OPT b3lyp def2-SVP RIJK def2/JK'),
-    ('MP2/cc-pVDZ cc-pVDZ/C', '! OPT MP2 cc-pVDZ cc-pVDZ/C'),
+@pytest.mark.parametrize('method,basis_set,keywords,expected', [
+    ('b3lyp', 'def2svp', 'RIJCOSX def2/J', '! OPT b3lyp def2-SVP RIJCOSX def2/J'),
+    ('b3lyp', 'def2svp', 'RIJK def2/JK', '! OPT b3lyp def2-SVP RIJK def2/JK'),
+    ('MP2', 'cc-pVDZ', 'cc-pVDZ/C', '! OPT MP2 cc-pVDZ cc-pVDZ/C'),
 ])
-def test_scan_keeps_auxiliary_basis_slashes(tmp_path, method, expected):
+def test_scan_keeps_auxiliary_basis_slashes(tmp_path, method, basis_set, keywords, expected):
     from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_input_schema
 
     xyz = tmp_path / 'water.xyz'
     xyz.write_text('3\nwater\nO 0 0 0\nH 1 0 0\nH 0 1 0\n')
     target = tmp_path / 'scan.inp'
     result = TsGuess()._scan_prepare(TsGuess_input_schema(mode='scan_prepare', engine='orca',
-        input_path=str(xyz), method=method, output_path=str(target),
+        input_path=str(xyz), method=method, basis_set=basis_set, keywords=keywords, output_path=str(target),
         scans=[{'atoms': [0, 1], 'scan_end': 2, 'scan_steps': 3}]))
     assert result.is_success
     assert target.read_text().splitlines()[0] == expected

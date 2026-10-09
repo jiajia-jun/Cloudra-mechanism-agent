@@ -6,11 +6,21 @@ another calculation changes engine.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from copy import deepcopy
 from types import UnionType
 from typing import Annotated, Literal, Union, get_args, get_origin
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, create_model, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictInt,
+    TypeAdapter,
+    create_model,
+    field_validator,
+    model_validator,
+)
 
 from cloudra.tools.core.geometry_inputs import (
     DistanceWindowInput,
@@ -18,27 +28,40 @@ from cloudra.tools.core.geometry_inputs import (
     ScanCoordinateInput,
     atom_index_base,
 )
+from cloudra.tools.core.qm_calculation import QmCalculation
 
 
 class InputModel(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
 
-class TsCalculation(InputModel):
-    """An explicit calculation; keywords replace rather than accumulate."""
-    engine: Literal["orca", "gaussian", "xtb"]
-    method: str = Field(min_length=1)
-    keywords: str = ""
-    frequency_mode: Literal["auto", "analytic", "numeric"] = "auto"
-    orca_blocks: str | None = None
-    end_setting: str = ""
+class CalculationRef(InputModel):
+    """Explicitly reuse one complete calculation defined in this TS input."""
+    ref: str = Field(min_length=1)
 
-    @field_validator("method")
+    @field_validator('ref')
     @classmethod
-    def nonempty_method(cls, value):
-        if not value.strip():
-            raise ValueError("method must be explicitly declared")
+    def reference_name(cls, value):
+        if not value.strip() or value != value.strip():
+            raise ValueError('calculation reference must be a nonblank exact definition name')
         return value
+
+
+CalculationValue = QmCalculation | CalculationRef
+
+
+def resolve_calculation(value: CalculationValue | dict | None,
+                        definitions: Mapping[str, QmCalculation | dict]) -> QmCalculation | None:
+    """Resolve local references and return an independent complete snapshot."""
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        value = TypeAdapter(CalculationValue).validate_python(value)
+    if isinstance(value, CalculationRef):
+        if value.ref not in definitions:
+            raise ValueError(f'unknown calculation reference {value.ref!r}')
+        value = QmCalculation.model_validate(definitions[value.ref])
+    return value.model_copy(deep=True)
 
 
 class TsReaction(InputModel):
@@ -56,7 +79,7 @@ class GeneratedConformer(InputModel):
     kind: Literal["generate"]
     generation: Literal["ETKDGv3"]
     seed: StrictInt
-    optimization: TsCalculation | None = None
+    optimization: CalculationValue | None = None
 
 
 class HeavyAtomBinding(InputModel):
@@ -69,7 +92,7 @@ class FileConformer(InputModel):
     xyz_path: str = Field(min_length=1)
     mol_path: str | None = None
     evidence_refs: list[str] = Field(default_factory=list)
-    optimization: TsCalculation | None = None
+    optimization: CalculationValue | None = None
     heavy_atom_binding: HeavyAtomBinding | None = None
 
 
@@ -78,7 +101,7 @@ class CatalogConformer(InputModel):
     catalog_id: str = Field(min_length=1)
     candidate_id: str = Field(min_length=1)
     partition_revision: str = Field(min_length=1)
-    optimization: TsCalculation | None = None
+    optimization: CalculationValue | None = None
 
 
 class RotatedConformer(InputModel):
@@ -118,7 +141,7 @@ class XtbPathGuess(InputModel):
 
 class ScanGuess(InputModel):
     kind: Literal["scan"]
-    calculation: TsCalculation
+    calculation: CalculationValue
     scans: list[ScanCoordinateInput] = Field(min_length=1, max_length=2, description="Coordinates in the concrete scan-input atom order. ORCA references are 0-based; Gaussian/xTB references are 1-based. Convert concrete coordinate indices, not SMILES positions.")
     freeze: list[FrozenCoordinateInput] = Field(default_factory=list, description="Frozen coordinates in the same concrete input atom order and engine-specific numbering as scans.")
     force_constant: float | None = Field(default=None, gt=0, description="xTB restraint force constant in atomic units; explicitly declared")
@@ -127,16 +150,21 @@ class ScanGuess(InputModel):
 
     @model_validator(mode="after")
     def scan_contract(self):
-        engine = self.calculation.engine
+        if isinstance(self.calculation, QmCalculation):
+            self.validate_calculation(self.calculation)
+        return self
+
+    def validate_calculation(self, calculation: QmCalculation):
+        engine = calculation.engine
         if engine != "xtb":
             if any(value is not None for value in (self.force_constant, self.mode, self.solvation)):
                 raise ValueError("force_constant, mode and solvation are native xTB scan fields")
             if engine == "orca" and len(self.scans) != 1:
                 raise ValueError("ORCA relaxed scan accepts exactly one coordinate")
             return self
-        if self.calculation.method != "GFN2-xTB":
+        if calculation.method != "GFN2-xTB":
             raise ValueError("native xTB scan currently supports explicitly declared GFN2-xTB")
-        if self.calculation.keywords or self.calculation.orca_blocks or self.calculation.end_setting:
+        if calculation.keywords or calculation.orca_blocks or calculation.end_setting:
             raise ValueError("native xTB scan rejects ORCA/Gaussian directives")
         if self.force_constant is None:
             raise ValueError("force_constant is required for native xTB scan")
@@ -176,13 +204,13 @@ class EndpointSeed(InputModel):
 
 class EndpointVerification(InputModel):
     seed: EndpointSeed | None = None
-    optimization: TsCalculation | None = None
-    frequency: TsCalculation | None = None
+    optimization: CalculationValue | None = None
+    frequency: CalculationValue | None = None
 
 
 class TsVerification(InputModel):
-    frequency: TsCalculation | None = None
-    irc: TsCalculation | None = None
+    frequency: CalculationValue | None = None
+    irc: CalculationValue | None = None
     irc_log: str | None = None
     reactant_endpoint: EndpointVerification = Field(default_factory=EndpointVerification)
     product_endpoint: EndpointVerification = Field(default_factory=EndpointVerification)
@@ -203,27 +231,59 @@ class TsExecution(InputModel):
 
 class TsInput(InputModel):
     reaction: TsReaction
+    calculations: dict[str, QmCalculation] = Field(default_factory=dict,
+        description='Complete local named calculations. Stages explicitly select a ref; nothing inherits an exploration or formal method automatically.')
     conformers: TsConformers = Field(default_factory=TsConformers)
     guess: TsGuess | None = None
-    ts_optimization: TsCalculation | None = None
+    ts_optimization: CalculationValue | None = None
     verification: TsVerification = Field(default_factory=TsVerification)
     execution: TsExecution = Field(default_factory=TsExecution)
+
+    @model_validator(mode='after')
+    def calculation_references(self):
+        for name in self.calculations:
+            if not name.strip() or name != name.strip():
+                raise ValueError('calculation definition names must be nonblank exact names')
+        values = [self.ts_optimization, self.verification.frequency, self.verification.irc]
+        for role in ('reactant', 'product'):
+            endpoint = getattr(self.verification, role + '_endpoint')
+            values.extend([endpoint.optimization, endpoint.frequency])
+            source = getattr(self.conformers, role)
+            values.append(getattr(source, 'optimization', None))
+        for value in values:
+            resolve_calculation(value, self.calculations)
+        if self.guess and self.guess.kind == 'scan':
+            self.guess.validate_calculation(resolve_calculation(self.guess.calculation, self.calculations))
+        return self
+
+
+class CalculationReplacement(InputModel):
+    """Deliberate replacement; omitted optional settings reset to their defaults."""
+    replace: CalculationValue
 
 
 # Scientific operations and sources are immutable units. All other nested
 # groups derive their patch fields from the same definition as prepare.
 _ATOMIC = {
-    TsCalculation, GeneratedConformer, HeavyAtomBinding, FileConformer, CatalogConformer,
-    RotatedConformer, PathSolvation, XtbPathGuess, ScanGuess, ProvidedGuess,
+    GeneratedConformer, HeavyAtomBinding, FileConformer, CatalogConformer,
+    RotatedConformer, PathSolvation, XtbPathGuess, ProvidedGuess,
     DistanceWindowInput, FrozenCoordinateInput, ScanCoordinateInput,
 }
 _PARTIAL: dict[type[BaseModel], type[BaseModel]] = {}
 
 
 def _patch_annotation(annotation):
+    if annotation is QmCalculation:
+        return _partial_model(QmCalculation) | CalculationReplacement
+    if annotation is CalculationRef:
+        return CalculationReplacement
+    if annotation == TsGuess:
+        return _partial_model(ScanGuess) | XtbPathGuess | ProvidedGuess
     if isinstance(annotation, type) and issubclass(annotation, BaseModel):
         return annotation if annotation in _ATOMIC else _partial_model(annotation)
     origin = get_origin(annotation)
+    if origin is dict and get_args(annotation) == (str, QmCalculation):
+        return dict[str, _partial_model(QmCalculation) | CalculationReplacement | None]
     if origin in (Union, UnionType):
         return Union[tuple(_patch_annotation(arg) for arg in get_args(annotation))]
     return annotation
@@ -245,12 +305,45 @@ TsInputChanges = _partial_model(TsInput)
 
 
 def apply_input_changes(current: TsInput, changes: TsInputChanges) -> TsInput:
+    def calculation_patch(old, patch):
+        if isinstance(patch, CalculationReplacement):
+            return patch.replace.model_dump(mode='json')
+        if old and 'ref' in old:
+            raise ValueError('patch a referenced calculation through its calculations definition, or explicitly replace the stage calculation')
+        fields = patch.model_dump(mode='json', exclude_unset=True)
+        for field in ('engine', 'method', 'basis_set'):
+            if field in fields and isinstance(fields[field], str):
+                fields[field] = fields[field].strip()
+                if old and field in ('method', 'basis_set'):
+                    before, after = old[field].lower(), fields[field].lower()
+                    if field == 'basis_set':
+                        # Match the native input comparator's basis spelling rule.
+                        before, after = before.replace('-', ''), after.replace('-', '')
+                    if before == after:
+                        fields[field] = old[field]
+            if old and field in fields and fields[field] != old[field]:
+                raise ValueError(f'changing calculation {field} requires an explicit replace with a complete calculation')
+        return {**(old or {}), **fields}
+
     def merge(old, patch):
         result = deepcopy(old)
         for name in patch.model_fields_set:
             value = getattr(patch, name)
-            if isinstance(value, BaseModel) and type(value) in _PARTIAL.values():
-                result[name] = merge(result.get(name) or {}, value)
+            if name == 'calculations' and isinstance(value, dict):
+                definitions = deepcopy(result.get(name) or {})
+                for key, change in value.items():
+                    if change is None:
+                        definitions.pop(key, None)
+                    else:
+                        definitions[key] = calculation_patch(definitions.get(key), change)
+                result[name] = definitions
+            elif isinstance(value, (CalculationReplacement, _PARTIAL[QmCalculation])):
+                result[name] = calculation_patch(result.get(name), value)
+            elif isinstance(value, BaseModel) and type(value) in _PARTIAL.values():
+                previous = result.get(name) or {}
+                if isinstance(value, _PARTIAL[ScanGuess]) and 'kind' in value.model_fields_set and previous.get('kind') != value.kind:
+                    previous = {}
+                result[name] = merge(previous, value)
             else:
                 result[name] = value.model_dump(mode="json") if isinstance(value, BaseModel) else value
         return result
@@ -304,7 +397,9 @@ class TsResumeRequest(InputModel):
         return value
 
 
-def normalize_ts_input_atoms(value: TsInput | TsInputChanges, *, atom_tables: dict) -> TsInput | TsInputChanges:
+def normalize_ts_input_atoms(value: TsInput | TsInputChanges, *, atom_tables: dict,
+                             current_input: TsInput | None = None,
+                             calculations: Mapping[str, QmCalculation] | None = None) -> TsInput | TsInputChanges:
     data = value.model_dump(mode="json", exclude_unset=isinstance(value, TsInputChanges))
 
     def indices(values, base, side="reactant"):
@@ -330,8 +425,24 @@ def normalize_ts_input_atoms(value: TsInput | TsInputChanges, *, atom_tables: di
             if source and source["kind"] == "rotate_about_bond":
                 source["atoms"] = indices(source["atoms"], 1, side)
     guess = data.get("guess")
-    if guess and guess["kind"] == "scan":
-        base = atom_index_base(guess["calculation"]["engine"])
-        for row in guess["scans"] + guess.get("freeze", []):
+    if guess and (guess.get('scans') is not None or guess.get('freeze') is not None):
+        if isinstance(value, TsInput):
+            engine = resolve_calculation(value.guess.calculation, value.calculations).engine
+        elif current_input is not None:
+            updated = apply_input_changes(current_input, value)
+            if updated.guess is None or updated.guess.kind != 'scan':
+                raise ValueError('scan coordinates require a current scan declaration')
+            engine = resolve_calculation(updated.guess.calculation, updated.calculations).engine
+        else:
+            declaration = guess.get('calculation') or {}
+            declaration = declaration.get('replace', declaration)
+            if 'engine' in declaration:
+                engine = declaration['engine']
+            elif 'ref' in declaration:
+                engine = resolve_calculation(declaration, calculations or {}).engine
+            else:
+                raise ValueError('scan atom numbering requires current_input or an explicitly resolved calculation')
+        base = atom_index_base(engine)
+        for row in (guess.get('scans') or []) + (guess.get('freeze') or []):
             row["atoms"] = indices(row["atoms"], base)
     return type(value).model_validate(data)

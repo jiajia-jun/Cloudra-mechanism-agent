@@ -9,8 +9,8 @@ from tests.ts_fixtures import calculation_input
 def test_scan_workflow_waits_without_duplicate_submission_and_accepts_only_internal_peak(tmp_path, monkeypatch):
     import cloudra.tools.core.ts_process as process
     from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_output_schema
-    payload = dict(reactant_smiles='O', product_smiles='O', method='HF/STO-3G', engine='orca',
-                   scan={'method':'HF/STO-3G','scans':[{'atoms':[0,1],'scan_end':2,'scan_steps':5}]})
+    payload = dict(basis_set='STO-3G', reactant_smiles='O', product_smiles='O', method='HF', engine='orca',
+                   scan={'basis_set': 'STO-3G', 'method':'HF','scans':[{'atoms':[0,1],'scan_end':2,'scan_steps':5}]})
     decl = calculation_input(**payload)
     record = process.TsProcessRecord(run_id='scan', run_dir=str(tmp_path), input=decl,
                                     owner_conversation_id='test', stage='guess')
@@ -39,10 +39,10 @@ def test_scan_and_refinement_keep_distinct_declared_solvation(tmp_path, monkeypa
 
     xyz = tmp_path / 'water.xyz'
     xyz.write_text('3\nwater\nO 0 0 0\nH 1 0 0\nH 0 1 0\n')
-    declaration = calculation_input(
-        reactant_smiles='O', product_smiles='O', method='B3LYP/def2-SVP',
-        extra_keywords='CPCM(Water)',
-        scan={'method': 'GFN2-xTB', 'extra_route': 'ALPB(Water)',
+    declaration = calculation_input(basis_set='def2-SVP',
+        reactant_smiles='O', product_smiles='O', method='B3LYP',
+        keywords='CPCM(Water)',
+        scan={'basis_set': '', 'method': 'GFN2-xTB', 'keywords': 'ALPB(Water)',
               'scans': [{'atoms': [0, 1], 'scan_end': 2, 'scan_steps': 5}]},
     )
     record = process.TsProcessRecord(
@@ -78,8 +78,8 @@ def test_completed_scan_with_missing_log_is_recoverably_blocked(tmp_path, monkey
     import cloudra.tools.core.ts_process as p
     from cloudra.tools.Chemtool.ts_guess import TsGuess
     record = p.TsProcessRecord(run_id='r', run_dir=str(tmp_path),
-        input=calculation_input(reactant_smiles='O', product_smiles='O', method='HF',
-            scan={'method':'HF','scans':[{'atoms':[0,1],'scan_end':2,'scan_steps':5}]}),
+        input=calculation_input(basis_set='', reactant_smiles='O', product_smiles='O', method='HF',
+            scan={'basis_set': '', 'method':'HF','scans':[{'atoms':[0,1],'scan_end':2,'scan_steps':5}]}),
         stage='guess', waiting_for='job:42',
         scan_step=p.TsJobStep(purpose='scan', job_id=42, input_path=str(tmp_path/'scan.inp')))
     monkeypatch.setattr(p, '_read_job_state', lambda *_: 'done')
@@ -96,8 +96,8 @@ def test_scan_peak_must_preserve_atom_identity(tmp_path, monkeypatch):
     import cloudra.tools.core.ts_process as p
     from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_output_schema
     record = p.TsProcessRecord(run_id='r', run_dir=str(tmp_path),
-        input=calculation_input(reactant_smiles='O', product_smiles='O', method='HF',
-            scan={'method':'HF','scans':[{'atoms':[0,1],'scan_end':2,'scan_steps':5}]}),
+        input=calculation_input(basis_set='', reactant_smiles='O', product_smiles='O', method='HF',
+            scan={'basis_set': '', 'method':'HF','scans':[{'atoms':[0,1],'scan_end':2,'scan_steps':5}]}),
         stage='guess', scan_step=p.TsJobStep(purpose='scan', job_id=42, input_path=str(tmp_path/'scan.inp')))
     peak = tmp_path/'peak.xyz'
     peak.write_text('1\nwrong geometry\nHe 0 0 0\n')
@@ -113,8 +113,8 @@ def test_failed_scan_exposes_native_log_and_requests_diagnosis(tmp_path, monkeyp
     import cloudra.tools.core.ts_process as process
 
     record = process.TsProcessRecord(run_id="failed-scan", run_dir=str(tmp_path),
-        input=calculation_input(reactant_smiles="O", product_smiles="O", method="HF", engine="orca",
-            scan={"method": "HF", "scans": [{"atoms": [0, 1], "scan_end": 2, "scan_steps": 7}]}),
+        input=calculation_input(basis_set='', reactant_smiles="O", product_smiles="O", method="HF", engine="orca",
+            scan={'basis_set': '', "method": "HF", "scans": [{"atoms": [0, 1], "scan_end": 2, "scan_steps": 7}]}),
         stage="guess", waiting_for="job:42",
         scan_step=process.TsJobStep(purpose="scan", job_id=42, input_path=str(tmp_path / "scan.inp")))
     log = Path(process._refinement_log_path(record, record.scan_step))

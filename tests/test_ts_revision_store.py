@@ -14,12 +14,12 @@ def revision_fixture(tmp_path):
     process = create_process(db, request_key="prepare", payload=payload())
     value = TsInput.model_validate(payload()['input'])
     request = TsResumeRequest(
-        changes=TsInputChanges.model_validate({"verification": {"irc": {"engine": "orca", "method": "b97-3c", "keywords": ""}}}),
+        changes=TsInputChanges.model_validate({"verification": {"irc": {"replace": {"engine": "orca", "method": "b97-3c", "basis_set": "", "keywords": ""}}}}),
         reason="supply IRC method", request_key="resume-1", expected_revision=1,
     )
     state = dict(run_id='revision', run_dir=str(tmp_path / 'run'), workspace_dir=payload()['workspace_dir'],
                  pipeline_id=process["process_id"], owner_conversation_id="project", owner_session_id="owner",
-                 format_version=4, declaration_revision=2, input=apply_input_changes(value, request.changes).model_dump(mode="json"),
+                 format_version=5, declaration_revision=2, input=apply_input_changes(value, request.changes).model_dump(mode="json"),
                  stage="refine", blocked=None, waiting_for='', terminal=None)
     save_process_record(db, process_id=process['process_id'], record=dict(
         state, declaration_revision=1, input=value.model_dump(mode='json')))

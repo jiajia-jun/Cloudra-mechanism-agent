@@ -49,7 +49,8 @@ class ChemTask(CatalogModel):
         if self.task.startswith('xtb_') and self.electronic_character == 'open_shell' and self.multiplicity == 1:
             raise ValueError('The native xTB GFN task interface cannot represent an open-shell singlet via --uhf 0; supply a capable QM method and initial spin settings.')
         if self.task == 'xtb_scan':
-            if self.scan is None or self.scan.calculation.engine != 'xtb' or self.product_xyz is not None or self.refinement_runs is not None or self.solvation is not None or self.mol_block is not None or self.sampling is not None:
+            from cloudra.tools.core.qm_calculation import QmCalculation
+            if self.scan is None or not isinstance(self.scan.calculation, QmCalculation) or self.scan.calculation.engine != 'xtb' or self.product_xyz is not None or self.refinement_runs is not None or self.solvation is not None or self.mol_block is not None or self.sampling is not None:
                 raise ValueError('native scan requires its own typed declaration and one input XYZ')
         elif self.scan is not None:
             raise ValueError('scan declaration belongs only to xtb_scan')

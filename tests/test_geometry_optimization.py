@@ -20,7 +20,7 @@ def setup_record(tmp_path, monkeypatch, budget=None):
     from tests.test_ts_inputs import input_payload
     value = input_payload()
     value['reaction'].update(reactant_smiles='[H][H]', product_smiles='[H][H]', charge=0, atom_map=[0, 1])
-    value['conformers']['reactant']['optimization'] = dict(engine='xtb', method='GFN2-xTB', keywords='')
+    value['conformers']['reactant']['optimization'] = dict(engine='xtb', method='GFN2-xTB', basis_set='', keywords='')
     if budget:
         value['execution']['limits'] = dict(source=budget.source,max_compute_actions=budget.max_compute_actions,max_model_calls=budget.max_model_calls)
     inputs = TsInput.model_validate(value)

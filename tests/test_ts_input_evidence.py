@@ -84,7 +84,7 @@ def test_identity_is_rechecked_after_geometry_source_changes(tmp_path, monkeypat
 
 
 def test_conformer_identity_checked_before_optimizer_submission(tmp_path, monkeypatch):
-    from cloudra.tools.core.ts_inputs import FileConformer, TsCalculation
+    from cloudra.tools.core.ts_inputs import FileConformer, QmCalculation
     from cloudra.tools.core.ts_process import _build
     from tests.test_ts_stage_inputs import record_fixture
     record = record_fixture(tmp_path)
@@ -94,7 +94,7 @@ def test_conformer_identity_checked_before_optimizer_submission(tmp_path, monkey
     xyz.write_text(Chem.MolToXYZBlock(mol))
     graph.write_text(Chem.MolToMolBlock(mol))
     record.input.conformers.reactant = FileConformer(kind='file', xyz_path=str(xyz), mol_path=str(graph),
-        optimization=TsCalculation(engine='xtb', method='GFN2-xTB', keywords=''))
+        optimization=QmCalculation(basis_set='', engine='xtb', method='GFN2-xTB', keywords=''))
     monkeypatch.setattr('cloudra.tools.core.ts_process._submit_step', lambda *_: (_ for _ in ()).throw(AssertionError('Wrong identity cannot spend compute')))
     _build(record)
     assert record.blocked.failure_class == 'input_identity_unconfirmed'

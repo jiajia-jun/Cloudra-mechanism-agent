@@ -448,9 +448,9 @@ def test_source_change_between_plan_and_revision_cannot_reuse_stale_dependency_r
     from rdkit import Chem
 
     record, mol = _identity_fixture(tmp_path)
-    change = request(record, dict(ts_optimization=dict(engine="orca", method="HF/STO-3G", keywords="")))
+    change = request(record, dict(ts_optimization=dict(replace=dict(engine="orca", method="HF", basis_set="STO-3G", keywords=""))))
     receipt = plan_input_revision(record, change)
-    assert receipt.changes == ["ts_optimization.keywords", "ts_optimization.method"]
+    assert receipt.changes == ["ts_optimization.basis_set", "ts_optimization.keywords", "ts_optimization.method"]
     if renumber:
         mol = Chem.RenumberAtoms(mol, [2, 0, 1])
     else:

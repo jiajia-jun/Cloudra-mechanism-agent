@@ -46,7 +46,7 @@ def waiting_fixture_stage(tmp_path, *, purpose="frequency", engine="orca", seed=
     )
     if purpose == "scan":
         from cloudra.tools.core.ts_inputs import ScanGuess
-        declaration.guess = ScanGuess(kind="scan",calculation={"engine":engine,"method":"b3lyp/def2svp","keywords":""},
+        declaration.guess = ScanGuess(kind="scan",calculation={"engine":engine,"method":"b3lyp","basis_set":"def2svp","keywords":""},
             scans=[dict(atoms=[0, 1], scan_start=1.0, scan_end=2.0, scan_steps=5)],
             freeze=[dict(coord_type="bond", atoms=[0, 2])],
         )
@@ -72,7 +72,7 @@ def waiting_fixture_stage(tmp_path, *, purpose="frequency", engine="orca", seed=
     if purpose == "scan":
         TsGuess()._scan_prepare(TsGuess_input_schema(
             mode="scan_prepare", input_path=str(geometry), output_path=str(source),
-            engine=engine, method=declaration.guess.calculation.method,
+            **declaration.guess.calculation.model_dump(mode='json'),
             scans=[dict(atoms=[0, 1], scan_start=1.0, scan_end=2.0, scan_steps=5)],
             freeze=[dict(coord_type="bond", atoms=[0, 2])],
         ))

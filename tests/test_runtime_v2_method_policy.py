@@ -30,7 +30,7 @@ def test_policy_reads_native_scan_method_from_typed_manifest(tmp_path):
     from cloudra.runtime.chem_task import ChemTask
 
     task = ChemTask(task='xtb_scan', reactant_xyz='2\nH2\nH 0 0 0\nH 0 0 .74\n', cpus=1,
-        scan={'kind': 'scan', 'calculation': {'engine': 'xtb', 'method': 'GFN2-xTB'},
+        scan={'kind': 'scan', 'calculation': {'engine': 'xtb', 'method': 'GFN2-xTB', 'basis_set': ''},
               'scans': [{'atoms': [0, 1], 'scan_start': .74, 'scan_end': .8, 'scan_steps': 2}],
               'force_constant': .5})
     manifest = tmp_path / 'scan.json'

@@ -149,9 +149,16 @@ def _recover_source_rewrite(db, process_id):
 
     with db.connect() as con:
         row = con.execute('SELECT payload FROM ts_pipeline_source_rewrites WHERE process_id=?', (process_id,)).fetchone()
+        checkpoint = con.execute('SELECT record FROM ts_pipeline_processes WHERE process_id=?', (process_id,)).fetchone() if row else None
     if row is None:
         return
+    # Unsupported checkpoints and their pending intents are historical data.
+    # Isolate before any file writes, revision commits or export validation.
+    if checkpoint and checkpoint[0] and json.loads(checkpoint[0]).get('format_version') != 5:
+        return
     intent = json.loads(row[0])
+    if intent['record'].get('format_version') != 5:
+        return
     receipt = TsRevisionReceipt.model_validate(intent['receipt'])
     roles = [role for role, table in intent['record'].get('structures', {}).items()
              if table.get('normalization', {}).get('input_revision') == receipt.input_revision]

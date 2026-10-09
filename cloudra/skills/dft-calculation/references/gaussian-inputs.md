@@ -1,6 +1,6 @@
 # Gaussian inputs for mechanism work
 
-Use with the mechanism SOP; these are Gaussian routes, not ORCA syntax. `qm_input_writer` defaults to Gaussian, but set `engine="gaussian"` explicitly and submit with the same `job_type`. Select a method suited to the user's current requirements and budget. Only active Benchmark projects apply their actual task MethodPolicy; ordinary research projects have no default method/basis whitelist. Examples do not establish method restrictions or override the user's requirements.
+Use with the mechanism SOP; these are Gaussian routes, not ORCA syntax. Set `engine="gaussian"`, one-token `method`, and `basis_set` explicitly, and submit with the same `job_type`. Select a method suited to the user's current requirements and budget. Only active Benchmark projects apply their actual task MethodPolicy; ordinary research projects have no default method/basis whitelist. Examples do not establish method restrictions or override the user's requirements.
 
 ## 1. Task recipes
 
@@ -26,7 +26,7 @@ An illustrative closed-shell neutral DFT candidate, with a chosen gas-phase meth
   "method": "b3lyp",
   "basis_set": "def2svp",
   "task_type": [{"opt": "ts,calcfc"}, {"freq": null}],
-  "extra_keywords": "empiricaldispersion=gd3bj scf=tight int=ultrafine",
+  "keywords": "empiricaldispersion=gd3bj scf=tight int=ultrafine",
   "charge": 0,
   "multiplicity": 1,
   "nproc": 4,
@@ -45,7 +45,7 @@ Submit with `submit_compute_job`, `job_type="gaussian"`, `memory_mb=4096`, `is_a
 
 **TS-seed hierarchy:** `ts_prepare` first; the relaxed scan below is the agent-side fallback when the process cannot take the case. Either way, read real atom indices with `internal_coordinates` first — do not start from a SMILES minimum and hope OptTS finds a saddle.
 
-Use `ts_guess mode=scan_prepare` with `engine="gaussian"`, `input_path`, `scans`, `method="b3lyp/def2svp"`, `charge`, `spin`, `nprocs`, `output_path`. Each scan entry has `coord_type`, 1-based `atoms`, `scan_end` and `scan_steps`. **Omit `scan_start` for Gaussian**: the current generator uses it to calculate the increment but does not move the input geometry to that value. Gaussian starts from the actual XYZ coordinate. To start elsewhere, prepare that geometry using the supported structure tools first. The tool handles modredundant formatting and supports one or two scan coordinates. It has no memory argument and emits no `%mem`: add the intended Link 0 memory setting with an authorized file edit before submission, and match the scheduler reservation.
+Use `ts_guess mode=scan_prepare` with `engine="gaussian"`, `input_path`, `scans`, `method="b3lyp"`, `basis_set="def2svp"`, `keywords`, `charge`, `spin`, `nprocs`, `output_path`. Each scan entry has `coord_type`, 1-based `atoms`, `scan_end` and `scan_steps`. **Omit `scan_start` for Gaussian**: the current generator uses it to calculate the increment but does not move the input geometry to that value. Gaussian starts from the actual XYZ coordinate. To start elsewhere, prepare that geometry using the supported structure tools first. The tool handles modredundant formatting and supports one or two scan coordinates. It has no memory argument and emits no `%mem`: add the intended Link 0 memory setting with an authorized file edit before submission, and match the scheduler reservation. Native trailing settings use `end_setting`; ORCA blocks do not belong in a Gaussian configuration. Returned configuration describes a prepared input, not a completed scan.
 
 For a relaxed scan, unscanned degrees of freedom optimize at each point. The resulting constrained maximum is a seed. Extract it, build a fresh TS job, and remove `Opt=ModRedundant`/freeze lines. Do not use the scan's convergence to claim an unconstrained stationary point. Read scan notes and structural continuity, not only the maximum energy.
 
@@ -61,6 +61,6 @@ Gaussian documentation entry points: [Opt](https://gaussian.com/opt/), [IRC](htt
 
 ## 5. External MLIP variant
 
-Use `external_program="mace"` (or the installed allowed command), `basis_set=""`; omit DFT-specific dispersion, SCF, integration-grid and solvent keywords. The writer emits a single `external="..."` route and suppresses method/basis. Put command arguments inside `external_program`; `external_params` is ORCA-only.
+Use `method="external"`, `external_program="mace"` (or the installed allowed command), and `basis_set=""`; omit DFT-specific dispersion, SCF, integration-grid and solvent keywords. The writer emits a single `external="..."` route and no DFT method/basis. Put command arguments inside `external_program`; `external_params` is ORCA-only.
 
 External Hessian support depends on the wrapper. Check whether it returns the derivative order Gaussian requests; an energy/gradient-only wrapper needs a supported numerical-Hessian workflow. Do not assume a completed optimization proves `CalcFC`/frequency/IRC support. Read `mlip-gaussian-external.md` for deployment and method limits.

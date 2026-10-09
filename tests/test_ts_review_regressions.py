@@ -11,10 +11,10 @@ pytestmark = pytest.mark.usefixtures('ts_producer_authority')
 
 @pytest.mark.parametrize('field', ['orca_blocks'])
 def test_irc_hessian_requires_complete_scientific_settings(tmp_path, field):
-    from cloudra.tools.core.ts_inputs import TsCalculation
+    from cloudra.tools.core.ts_inputs import QmCalculation
     from cloudra.tools.core.ts_process import TsJobStep, _write_irc_input
     record = record_fixture(tmp_path)
-    old = TsCalculation(engine='orca', method='HF/STO-3G', keywords='', **{field: '%cpcm epsilon 20 end'})
+    old = QmCalculation(basis_set='STO-3G', engine='orca', method='HF', keywords='', **{field: '%cpcm epsilon 20 end'})
     new = old.model_copy(update={field: '%cpcm epsilon 80 end'})
     record.input.verification.frequency = old
     record.input.verification.irc = new
@@ -35,7 +35,7 @@ def test_irc_hessian_requires_complete_scientific_settings(tmp_path, field):
 def test_mol_cannot_mask_dissociated_xyz_before_conformer_optimization(tmp_path, monkeypatch):
     from rdkit import Chem
 
-    from cloudra.tools.core.ts_inputs import FileConformer, TsCalculation
+    from cloudra.tools.core.ts_inputs import FileConformer, QmCalculation
     from cloudra.tools.core.ts_process import _build
     from tests.test_ts_input_evidence import concrete
     record=record_fixture(tmp_path)
@@ -45,7 +45,7 @@ def test_mol_cannot_mask_dissociated_xyz_before_conformer_optimization(tmp_path,
     graph.write_text(concrete('O'))
     xyz=tmp_path/'water.xyz'
     xyz.write_text('3\ndissociated\nO 0 0 0\nH 30 0 0\nH 0 30 0\n')
-    record.input.conformers.reactant=FileConformer(kind='file',xyz_path=str(xyz),mol_path=str(graph),optimization=TsCalculation(engine='xtb',method='GFN2-xTB',keywords=''))
+    record.input.conformers.reactant=FileConformer(kind='file',xyz_path=str(xyz),mol_path=str(graph),optimization=QmCalculation(basis_set='', engine='xtb',method='GFN2-xTB',keywords=''))
     monkeypatch.setattr('cloudra.tools.core.ts_process._submit_step',lambda *_:pytest.fail('Invalid actual geometry cannot spend compute'))
     _build(record)
     assert record.blocked.failure_class=='input_identity_unconfirmed'
@@ -78,7 +78,7 @@ def test_scan_preserves_declared_native_scientific_settings(tmp_path, monkeypatc
     xyz=tmp_path/'seed.xyz'
     xyz.write_text('2\nseed\nH 0 0 0\nH 0 0 .74\n')
     record=record_fixture(tmp_path)
-    calculation={'engine':engine,'method':'HF/STO-3G','keywords':'',
+    calculation={'basis_set': 'STO-3G', 'engine':engine,'method':'HF','keywords':'',
                  'orca_blocks':'%cpcm epsilon 20 end' if engine=='orca' else None,
                  'end_setting':'' if engine=='orca' else 'C 0\nSTO-3G\n****'}
     record.input.guess=ScanGuess(kind='scan',calculation=calculation,scans=[{'atoms':[0,1],'scan_end':1.5,'scan_steps':3}])
@@ -104,7 +104,7 @@ def test_xtb_scan_submits_typed_manifest_from_bound_structure(tmp_path, monkeypa
     xyz = tmp_path / 'seed.xyz'
     xyz.write_text('2\nseed\nH 0 0 0\nH 0 0 .74\n')
     record = record_fixture(tmp_path)
-    record.input.guess = ScanGuess(kind='scan', calculation={'engine': 'xtb', 'method': 'GFN2-xTB'},
+    record.input.guess = ScanGuess(kind='scan', calculation={'basis_set': '', 'engine': 'xtb', 'method': 'GFN2-xTB'},
         scans=[{'atoms': [0, 1], 'scan_start': .74, 'scan_end': 1.0, 'scan_steps': 3}],
         force_constant=.5)
     monkeypatch.setattr('cloudra.tools.core.ts_process._read_built_xyz',
@@ -130,7 +130,7 @@ def test_xtb_scan_respects_trusted_stage_contract_before_submission(tmp_path, mo
     xyz = tmp_path / 'seed.xyz'
     xyz.write_text('2\nseed\nH 0 0 0\nH 0 0 .74\n')
     record = record_fixture(tmp_path)
-    record.input.guess = ScanGuess(kind='scan', calculation={'engine':'xtb','method':'GFN2-xTB'},
+    record.input.guess = ScanGuess(kind='scan', calculation={'basis_set': '', 'engine':'xtb','method':'GFN2-xTB'},
         scans=[{'atoms':[0,1],'scan_start':.74,'scan_end':1.,'scan_steps':2}],force_constant=.5)
     monkeypatch.setattr('cloudra.tools.core.ts_process._read_built_xyz',
                         lambda *_: (['H','H'],[[0,0,0],[0,0,.74]],str(xyz),''))
@@ -141,21 +141,21 @@ def test_xtb_scan_respects_trusted_stage_contract_before_submission(tmp_path, mo
     monkeypatch.setattr('cloudra.services.ts_pipeline_context.require_pipeline_authority', lambda *_: policy)
     with pytest.raises(ValueError, match='trusted scan calculation contract'):
         _check_calculation_submission(record,'scan',str(manifest),'chem_task')
-    policy.calculation_contracts['scan'] = {'engine':'xtb','method':'GFN2-xTB','force_constant':.5}
+    policy.calculation_contracts['scan'] = {'basis_set': '', 'engine':'xtb','method':'GFN2-xTB','force_constant':.5}
     _check_calculation_submission(record,'scan',str(manifest),'chem_task')
 
 
 def recovery_fixture(tmp_path, purpose='frequency', failure='wrong_mode'):
     from cloudra.persistence.database import ComputeDB
     from cloudra.services.compute_store import insert_compute_job
-    from cloudra.tools.core.ts_inputs import TsCalculation, TsResumeRequest
+    from cloudra.tools.core.ts_inputs import QmCalculation, TsResumeRequest
     from cloudra.tools.core.ts_process import TsJobStep, _record_candidate_failure
     db=ComputeDB(data_dir=tmp_path/'ledger').init()
     record=record_fixture(tmp_path)
     old=tmp_path/'failed.inp'
     old.write_text('! Freq HF STO-3G\n* xyz 0 1\nH 0 0 0\nH 0 0 .74\n*\n')
     job=insert_compute_job(db,conversation_id='project',session_id='owner',path=str(old),state='done',jobtype='orca',node_id='fixture')
-    step=TsJobStep(purpose=purpose,job_id=job,state='done',input_path=str(old),actual_calculation=TsCalculation(engine='orca',method='HF/STO-3G',keywords=''))
+    step=TsJobStep(purpose=purpose,job_id=job,state='done',input_path=str(old),actual_calculation=QmCalculation(basis_set='STO-3G', engine='orca',method='HF',keywords=''))
     record.job_steps=[step]
     _record_candidate_failure(record,failure,step,str(old.with_suffix('.out')))
     record.input.verification.frequency=step.actual_calculation

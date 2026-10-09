@@ -16,12 +16,12 @@ def input_payload():
         },
         "guess": {
             "kind": "scan",
-            "calculation": {"engine": "orca", "method": "GFN2-xTB", "keywords": ""},
+            "calculation": {"engine": "orca", "method": "GFN2-xTB", "basis_set": "", "keywords": ""},
             "scans": [{"atoms": [0, 1], "scan_end": 2.0, "scan_steps": 7}],
             "freeze": [],
         },
         "ts_optimization": {
-            "engine": "orca", "method": "b3lyp/def2svp", "keywords": "D3BJ",
+            "engine": "orca", "method": "b3lyp", "basis_set": "def2svp", "keywords": "D3BJ",
         },
         "execution": {"cpus": 2, "memory_mb": 2048},
     }
@@ -35,8 +35,8 @@ def test_input_changes_cover_every_input_group():
         "reaction": {"charge": -1},
         "conformers": {"guidance": {"ring_order": []}},
         "guess": {"kind": "provided", "xyz_path": "candidate.xyz", "evidence_refs": ["scan.log"]},
-        "ts_optimization": {"engine": "gaussian", "method": "b3lyp/def2svp", "keywords": ""},
-        "verification": {"frequency": {"engine": "gaussian", "method": "b3lyp/def2svp", "keywords": ""}},
+        "ts_optimization": {"replace": {"engine": "gaussian", "method": "b3lyp", "basis_set": "def2svp", "keywords": ""}},
+        "verification": {"frequency": {"engine": "gaussian", "method": "b3lyp", "basis_set": "def2svp", "keywords": ""}},
         "execution": {"cpus": 4},
     })
     updated = apply_input_changes(current, changes)
@@ -62,24 +62,25 @@ def test_omitted_null_and_empty_list_have_distinct_effects():
     }))
     assert updated.guess is None
     assert updated.reaction.atom_map == []
-    assert updated.ts_optimization.method == "b3lyp/def2svp"
+    assert updated.ts_optimization.method == "b3lyp"
     with pytest.raises(ValidationError):
         apply_input_changes(current, TsInputChanges.model_validate({"reaction": {"reactant_smiles": None}}))
 
 
-def test_method_and_guess_are_replaced_atomically():
+def test_method_replacement_is_explicit_and_keyword_patch_retains_identity():
     from cloudra.tools.core.ts_inputs import TsInput, TsInputChanges, apply_input_changes
 
     current = TsInput.model_validate(input_payload())
     updated = apply_input_changes(current, TsInputChanges.model_validate({
         "guess": {"kind": "xtb_path", "method": "GFN2-xTB"},
-        "ts_optimization": {"engine": "orca", "method": "b97-3c", "keywords": ""},
+        "ts_optimization": {"replace": {"engine": "orca", "method": "b97-3c", "basis_set": "", "keywords": ""}},
     }))
     assert updated.ts_optimization.keywords == ""
     assert updated.guess.kind == "xtb_path"
     assert "scans" not in updated.guess.model_dump()
-    with pytest.raises(ValidationError):
-        apply_input_changes(current, TsInputChanges.model_validate({"ts_optimization": {"keywords": "TightSCF"}}))
+    patched = apply_input_changes(current, TsInputChanges.model_validate({"ts_optimization": {"keywords": "TightSCF"}}))
+    assert patched.ts_optimization.method == current.ts_optimization.method
+    assert patched.ts_optimization.keywords == 'TightSCF'
     with pytest.raises(ValidationError):
         TsInput.model_validate(dict(input_payload(), guess={"kind": "xtb_path", "method": "GFN2-xTB", "scans": []}))
 
@@ -102,7 +103,7 @@ def test_switching_engine_preserves_bound_atom_identity():
     assert current.conformers.guidance.ring_order == [0, 1, 2]
     assert current.guess.scans[0].atoms == [0, 1]
     changed = apply_input_changes(current, TsInputChanges.model_validate({
-        "ts_optimization": {"engine": "gaussian", "method": "b3lyp/def2svp", "keywords": ""},
+        "ts_optimization": {"replace": {"engine": "gaussian", "method": "b3lyp", "basis_set": "def2svp", "keywords": ""}},
     }))
     assert changed.reaction.atom_map == [0, 1, 2]
     assert changed.guess.scans[0].atoms == [0, 1]
@@ -138,12 +139,12 @@ def test_resume_scan_replacement_can_omit_default_freeze(engine, atoms):
     from cloudra.tools.core.ts_inputs import TsInput, TsInputChanges, apply_input_changes, normalize_ts_input_atoms
 
     changes = TsInputChanges.model_validate({"guess": {
-        "kind": "scan", "calculation": {"engine": engine, "method": "GFN2-xTB", "keywords": ""},
+        "kind": "scan", "calculation": {"replace": {"engine": engine, "method": "GFN2-xTB", "basis_set": "", "keywords": ""}},
         "scans": [{"atoms": atoms, "scan_end": 2.0, "scan_steps": 7}],
     }})
     normalized = normalize_ts_input_atoms(changes, atom_tables={"reactant": ["C", "O"]})
     assert normalized.guess.scans[0].atoms == [0, 1]
-    assert normalized.guess.freeze == []
+    assert normalized.guess.freeze is None
     updated = apply_input_changes(TsInput.model_validate(input_payload()), normalized)
     assert updated.guess.freeze == []
     assert updated.guess.scans[0].atoms == [0, 1]
@@ -155,7 +156,7 @@ def test_xtb_scan_uses_minimal_explicit_scientific_input_and_one_based_atoms():
     payload = input_payload()
     payload["guess"] = {
         "kind": "scan",
-        "calculation": {"engine": "xtb", "method": "GFN2-xTB"},
+        "calculation": {"engine": "xtb", "method": "GFN2-xTB", "basis_set": ""},
         "scans": [{"coord_type": "bond", "atoms": [1, 2], "scan_start": 1.0,
                    "scan_end": 1.3, "scan_steps": 3}],
         "force_constant": 0.5,
@@ -171,7 +172,7 @@ def test_xtb_scan_requires_force_and_two_coordinate_mode():
 
     payload = input_payload()
     payload["guess"] = {
-        "kind": "scan", "calculation": {"engine": "xtb", "method": "GFN2-xTB"},
+        "kind": "scan", "calculation": {"engine": "xtb", "method": "GFN2-xTB", "basis_set": ""},
         "scans": [{"atoms": [1, 2], "scan_start": 1.0, "scan_end": 1.3, "scan_steps": 3}],
     }
     with pytest.raises(ValidationError, match="force_constant"):

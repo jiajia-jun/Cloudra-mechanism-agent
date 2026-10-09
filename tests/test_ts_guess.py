@@ -43,6 +43,75 @@ def _make_tool() -> TsGuess:
     return TsGuess()
 
 
+@pytest.mark.parametrize('unused', ['freq_log', 'strict', 'n_images'])
+def test_scan_schema_refuses_other_operation_fields(unused):
+    arguments = dict(mode='scan_prepare', engine='orca', method='B3LYP', basis_set='def2SVP',
+        input_text='2\nH2\nH 0 0 0\nH 0 0 .74\n',
+        scans=[{'atoms': [0, 1], 'scan_end': 1.2, 'scan_steps': 5}], output_path='scan.inp')
+    arguments[unused] = {'freq_log': 'freq.log', 'strict': True, 'n_images': 1000}[unused]
+    with pytest.raises(ValidationError, match=unused):
+        TsGuess_input_schema(**arguments)
+
+
+def test_parse_schema_refuses_calculation_method_that_would_be_ignored():
+    with pytest.raises(ValidationError, match='method'):
+        TsGuess_input_schema(mode='scan_parse', log_path='scan.log', method='PBE0')
+
+
+@pytest.mark.parametrize('surface', ['wire', 'model'])
+@pytest.mark.parametrize('arguments', [
+    dict(mode='scan_prepare', engine='orca', method='B3LYP', basis_set='def2-SVP',
+         input_text='input XYZ', scans=[{'atoms': [0, 1], 'scan_end': 2, 'scan_steps': 5}],
+         output_path='scan.inp', freq_log='freq.log'),
+    dict(mode='scan_parse', log_path='scan.log', method='PBE0'),
+])
+def test_wire_schema_refuses_parameters_from_a_different_operation(surface, arguments):
+    jsonschema = pytest.importorskip('jsonschema')
+    schema = TsGuess_input_schema.to_parameters_schema() if surface == 'wire' else TsGuess_input_schema.model_json_schema()
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.Draft202012Validator(schema).validate(arguments)
+
+
+@pytest.mark.parametrize('missing', ['engine', 'basis_set'])
+def test_scan_schema_requires_explicit_calculation_fields(missing):
+    arguments = dict(mode='scan_prepare', engine='orca', method='B3LYP', basis_set='def2-SVP',
+        input_text='2\nH2\nH 0 0 0\nH 0 0 .74\n',
+        scans=[{'atoms': [0, 1], 'scan_end': 1.2, 'scan_steps': 5}], output_path='scan.inp')
+    arguments.pop(missing)
+    with pytest.raises(ValidationError, match=missing):
+        TsGuess_input_schema(**arguments)
+
+
+def test_scan_preparation_reports_written_method_without_reselection_hint(tmp_path):
+    keywords = 'D3BJ RIJCOSX def2/J TightSCF CPCM(DCM)'
+    target = tmp_path / 'scan.inp'
+    request = TsGuess_input_schema(mode='scan_prepare', engine='orca', method='B3LYP',
+        basis_set='def2SVP', keywords=keywords, input_text='2\nH2\nH 0 0 0\nH 0 0 .74\n',
+        scans=[{'atoms': [0, 1], 'scan_end': 1.2, 'scan_steps': 5}], output_path=str(target))
+    result = TsGuess()._scan_prepare(request)
+    assert result.is_success
+    assert target.read_text().splitlines()[0] == '! OPT B3LYP def2-SVP ' + keywords
+    assert result.calculation.method == 'B3LYP' and result.calculation.keywords == keywords
+    assert 'PM7' not in result.run_hint and 'GFN2' not in result.run_hint
+    assert 'submit_compute_job' in result.run_hint and 'B3LYP' in result.message
+
+
+def test_scan_and_writer_preserve_native_method_slash_and_auxiliary_basis(tmp_path):
+    from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
+
+    settings = dict(engine='orca', method='B3LYP/G', basis_set='def2-SVP',
+                    keywords='D3BJ RIJCOSX def2/J TightSCF CPCM(DCM)')
+    written = QmInputWriter._build_orca_input(QmInputWriter_input_schema(**settings,
+        source_type='xyz_file', source_value='unused.xyz', output_path='unused.inp'), 'H 0 0 0\nH 0 0 .74')
+    target = tmp_path / 'scan.inp'
+    result = TsGuess()._scan_prepare(TsGuess_input_schema(**settings, mode='scan_prepare',
+        input_text='2\nH2\nH 0 0 0\nH 0 0 .74\n', output_path=str(target),
+        scans=[{'atoms': [0, 1], 'scan_end': 1.2, 'scan_steps': 5}]))
+    assert result.is_success
+    assert written.splitlines()[0].split()[2:] == target.read_text().splitlines()[0].split()[2:]
+    assert result.calculation.method == 'B3LYP/G'
+
+
 def test_guess_requires_explicit_mode_before_accepting_endpoints(tmp_path):
     with pytest.raises(ValidationError, match="mode"):
         TsGuess_input_schema(
@@ -57,11 +126,11 @@ def test_guess_requires_explicit_mode_before_accepting_endpoints(tmp_path):
     ({"mode": "xtb_path", "reactant_path": "reactant.xyz"}, "product"),
     ({"mode": "scan_prepare", "method": "HF", "scans": [{"atoms": [1, 2], "scan_end": 2, "scan_steps": 1}], "output_path": "scan.gjf"}, "input"),
     ({"mode": "scan_prepare", "input_path": "input.xyz", "scans": [{"atoms": [1, 2], "scan_end": 2, "scan_steps": 1}], "output_path": "scan.gjf"}, "method"),
-    ({"mode": "scan_prepare", "input_path": "input.xyz", "method": "HF", "output_path": "scan.gjf"}, "scans"),
-    ({"mode": "scan_prepare", "input_path": "input.xyz", "method": "HF", "scans": [{"atoms": [1, 2], "scan_end": 2, "scan_steps": 1}]}, "output_path"),
+    ({"mode": "scan_prepare", "engine": "gaussian", "method": "HF", "basis_set": "", "input_path": "input.xyz", "output_path": "scan.gjf"}, "scans"),
+    ({"mode": "scan_prepare", "engine": "gaussian", "method": "HF", "basis_set": "", "input_path": "input.xyz", "scans": [{"atoms": [1, 2], "scan_end": 2, "scan_steps": 1}]}, "output_path"),
     ({"mode": "scan_parse"}, "log_path"),
     ({"mode": "verify"}, "freq_log"),
-    ({"mode": "scan", "method": "HF", "input_path": "input.xyz", "output_path": "scan.gjf"}, "scans"),
+    ({"mode": "scan", "engine": "gaussian", "method": "HF", "basis_set": "", "input_path": "input.xyz", "output_path": "scan.gjf"}, "scans"),
 ])
 def test_guess_rejects_missing_mode_inputs_at_schema_boundary(arguments, missing):
     with pytest.raises(ValidationError, match=missing):
@@ -93,7 +162,7 @@ def test_model_schema_rejects_incomplete_mode_requests(surface, arguments):
     {"mode": "scan_parse", "log_path": "scan.log"},
     {"mode": "verify", "freq_log": "frequency.out"},
     {"mode": "scan", "log_path": "scan.log"},
-    *[dict(mode=mode, input_text="input XYZ", method="HF", output_path="scan.gjf",
+    *[dict(mode=mode, engine="gaussian", method="HF", basis_set="", input_text="input XYZ", output_path="scan.gjf",
            scans=[{"atoms": [1, 2], "scan_end": 2, "scan_steps": 1}], **extra)
       for mode, extra in [("scan_prepare", {}), ("scan", {}), ("scan", {"log_path": None}),
                           ("scan", {"log_path": ""})]],
@@ -460,9 +529,9 @@ async def test_scan_prepare_rejects_mol_path_with_xyz_guidance(tmp_path, mock_se
     source.write_text(Chem.MolToMolBlock(mol), encoding="utf-8")
     output = tmp_path / "scan.inp"
 
-    result = await _make_tool().safe_call(TsGuess_input_schema(
+    result = await _make_tool().safe_call(TsGuess_input_schema(basis_set='def2svp',
         mode="scan_prepare",
-        method="b3lyp/def2svp",
+        method='b3lyp',
         input_path=str(source),
         engine="orca",
         scans=[{"coord_type": "bond", "atoms": [1, 2], "scan_end": 2.0, "scan_steps": 8}],
@@ -481,9 +550,9 @@ async def test_scan_prepare_gaussian(tmp_path, mock_session):
     """Gaussian gjf：modredundant 扫描块、路由、电荷自旋、步长符号正确，无 QST。"""
     tool = _make_tool()
     out = tmp_path / "scan.gjf"
-    result = await tool.safe_call(TsGuess_input_schema(**{
+    result = await tool.safe_call(TsGuess_input_schema(**{'basis_set': 'def2svp',
         "mode": "scan_prepare",
-        "method": "b3lyp/def2svp",
+        "method": 'b3lyp',
         "input_text": _WATER_XYZ,
         "engine": "gaussian",
         "scans": [{
@@ -499,8 +568,8 @@ async def test_scan_prepare_gaussian(tmp_path, mock_session):
     assert result.is_success, result.message
     assert result.input_file_path == str(out)
     assert "submit_compute_job" in result.run_hint and "gaussian" in result.run_hint
-    assert "DFT for every constrained scan point" in result.run_hint
-    assert "Benchmark" in result.run_hint and "ordinary" in result.run_hint
+    assert result.calculation.method == 'b3lyp' and result.calculation.basis_set == 'def2svp'
+    assert 'PM7' not in result.run_hint and 'GFN2-xTB' not in result.run_hint
     content = out.read_text()
     assert "qst" not in content.lower()
     assert "%chk=h2o_scan.chk" in content
@@ -519,9 +588,9 @@ async def test_scan_prepare_gaussian_two_coupled_coordinates(tmp_path, mock_sess
     """Gaussian 双坐标耦合扫描：两个 S 行（2D 网格），各自步长独立。"""
     tool = _make_tool()
     out = tmp_path / "scan2d.gjf"
-    result = await tool.safe_call(TsGuess_input_schema(**{
+    result = await tool.safe_call(TsGuess_input_schema(**{'basis_set': 'def2svp',
         "mode": "scan_prepare",
-        "method": "b3lyp/def2svp",
+        "method": 'b3lyp',
         "input_text": _WATER_XYZ,
         "engine": "gaussian",
         "scans": [
@@ -545,9 +614,9 @@ async def test_scan_prepare_orca(tmp_path, mock_session):
     """ORCA inp：%geom Scan 块、原子序号 0-based、%pal，无 QST。"""
     tool = _make_tool()
     out = tmp_path / "scan.inp"
-    result = await tool.safe_call(TsGuess_input_schema(**{
+    result = await tool.safe_call(TsGuess_input_schema(**{'basis_set': 'def2svp',
         "mode": "scan_prepare",
-        "method": "b3lyp/def2svp",
+        "method": 'b3lyp',
         "input_text": _WATER_XYZ,
         "engine": "orca",
         "scans": [{
@@ -585,7 +654,7 @@ async def test_scan_prepare_orca_extopt_mlip_blocks(tmp_path, mock_session):
         '  Ext_Params "--model /Users/x/mace.model --device cpu --dtype float64"\n'
         "end"
     )
-    result = await tool.safe_call(TsGuess_input_schema(**{
+    result = await tool.safe_call(TsGuess_input_schema(**{'basis_set': '',
         "mode": "scan_prepare",
         "input_text": _WATER_XYZ,
         "engine": "orca",
@@ -608,9 +677,9 @@ async def test_scan_prepare_orca_extopt_mlip_blocks(tmp_path, mock_session):
 async def test_scan_prepare_rejects_multi_coord_on_orca(tmp_path, mock_session):
     """ORCA relaxed scan 是 1D：两个扫描坐标报错并提示用 Gaussian。"""
     tool = _make_tool()
-    result = await tool.safe_call(TsGuess_input_schema(**{
+    result = await tool.safe_call(TsGuess_input_schema(**{'basis_set': 'def2svp',
         "mode": "scan_prepare",
-        "method": "b3lyp/def2svp",
+        "method": 'b3lyp',
         "input_text": _WATER_XYZ,
         "engine": "orca",
         "scans": [
@@ -627,9 +696,9 @@ async def test_scan_prepare_rejects_multi_coord_on_orca(tmp_path, mock_session):
 async def test_scan_prepare_atoms_validation(tmp_path, mock_session):
     """原子个数/序号校验：dihedral 需要 4 个原子。"""
     with pytest.raises(ValueError, match="4 distinct"):
-        TsGuess_input_schema(**{
+        TsGuess_input_schema(**{'engine': 'gaussian', 'basis_set': 'def2svp',
         "mode": "scan_prepare",
-        "method": "b3lyp/def2svp",
+        "method": 'b3lyp',
         "input_text": _WATER_XYZ,
         "scans": [{
             "coord_type": "dihedral",
@@ -665,7 +734,7 @@ async def test_scan_prepare_requires_explicit_method(tmp_path, mock_session, mod
 @pytest.mark.asyncio
 async def test_scan_prepare_explicit_null_method_rejected(tmp_path, mock_session):
     with pytest.raises(ValidationError, match="explicit method"):
-        TsGuess_input_schema(**{
+        TsGuess_input_schema(**{'engine': 'gaussian', 'basis_set': '',
             "mode": "scan_prepare", "method": None, "input_text": _WATER_XYZ,
             "scans": [{"atoms": [1, 2], "scan_end": 2.0, "scan_steps": 5}],
             "output_path": str(tmp_path / "scan.gjf"),
@@ -1579,9 +1648,9 @@ async def test_scan_prepare_gaussian_scan_start_mismatch_rejected(tmp_path, mock
     而不是静默只调增量扫错区间。"""
     tool = _make_tool()
     out = tmp_path / "scan.gjf"
-    result = await tool.safe_call(TsGuess_input_schema(**{
+    result = await tool.safe_call(TsGuess_input_schema(**{'basis_set': 'def2svp',
         "mode": "scan_prepare",
-        "method": "b3lyp/def2svp",
+        "method": 'b3lyp',
         "input_text": _WATER_XYZ,
         "engine": "gaussian",
         "scans": [{
@@ -1607,9 +1676,9 @@ async def test_scan_prepare_gaussian_scan_start_matching_current_accepted(tmp_pa
     tool = _make_tool()
     out = tmp_path / "scan.gjf"
     current = _math.dist((0.0, 0.0, 0.1173), (0.0, 0.7572, -0.4692))
-    result = await tool.safe_call(TsGuess_input_schema(**{
+    result = await tool.safe_call(TsGuess_input_schema(**{'basis_set': 'def2svp',
         "mode": "scan_prepare",
-        "method": "b3lyp/def2svp",
+        "method": 'b3lyp',
         "input_text": _WATER_XYZ,
         "engine": "gaussian",
         "scans": [{
@@ -1923,9 +1992,9 @@ async def test_ts_guess_mode_aliases(tmp_path, mock_session):
 
     # scan 别名无 log_path 映射到 scan_prepare
     out_gjf = tmp_path / "scan.gjf"
-    res_prep = await tool.safe_call(TsGuess_input_schema(**{
+    res_prep = await tool.safe_call(TsGuess_input_schema(**{'engine': 'gaussian', 'basis_set': 'def2svp',
         "mode": "scan",
-        "method": "b3lyp/def2svp",
+        "method": 'b3lyp',
         "input_text": _R_XYZ,
         "scans": [{"coord_type": "bond", "atoms": [1, 2], "scan_end": 2.0, "scan_steps": 5}],
         "output_path": str(out_gjf),
@@ -2601,7 +2670,7 @@ CARTESIAN COORDINATES (ANGSTROEM)
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("engine_args", [{}, {"engine": "orca"}])
+@pytest.mark.parametrize("engine_args", [{}, {"engine": None}, {"engine": "orca"}])
 async def test_verify_detects_orca_when_cclib_fails(tmp_path, mock_session, monkeypatch, engine_args):
     def cclib_crash(*_args, **_kwargs):
         raise IndexError("ORCA 6.1 parser failure")

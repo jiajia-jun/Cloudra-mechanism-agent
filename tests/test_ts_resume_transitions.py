@@ -18,7 +18,7 @@ def test_same_run_can_change_guess_and_formal_method_after_attempt_ends(tmp_path
     from cloudra.tools.core.ts_revision import plan_input_revision, revise_record
 
     record = record_fixture(tmp_path, terminal=outcome, stage='verdict')
-    change = request(record, {'ts_optimization': {'engine': 'orca', 'method': 'b97-3c', 'keywords': ''}})
+    change = request(record, {'ts_optimization': {'replace': {'engine': 'orca', 'method': 'b97-3c', 'basis_set': '', 'keywords': ''}}})
     receipt = plan_input_revision(record, change)
     revised = revise_record(record, change, receipt)
     assert revised.run_id == record.run_id
@@ -36,7 +36,7 @@ def test_endpoint_revision_retains_independent_completed_branch(tmp_path):
     record = record_fixture(tmp_path, terminal='verified', stage='verdict')
     purposes = ['ts_opt', 'frequency', 'irc', 'reactant_opt', 'reactant_frequency', 'product_opt', 'product_frequency']
     record.job_steps = [TsJobStep(purpose=p, job_id=i + 1, state='done') for i, p in enumerate(purposes)]
-    change = request(record, {'verification': {'reactant_endpoint': {'optimization': {'engine': 'orca', 'method': 'b97-3c', 'keywords': ''}}}})
+    change = request(record, {'verification': {'reactant_endpoint': {'optimization': {'replace': {'engine': 'orca', 'method': 'b97-3c', 'basis_set': '', 'keywords': ''}}}}})
     receipt = plan_input_revision(record, change)
     revised = revise_record(record, change, receipt)
     assert [s.job_id for s in revised.job_steps] == [1, 2, 3, 6, 7]
@@ -136,17 +136,18 @@ def test_repeated_method_revisions_retain_unchanged_source_binding(tmp_path, mon
     record.input.conformers.reactant = FileConformer(kind='file', xyz_path='reactant.xyz' if relative_source else str(source))
     record.structures['reactant'] = {'input_revision': 1, 'xyz_path': str(snapshot)}
     original_input = record.input.model_copy(deep=True)
-    for method in ('b97-3c', 'b3lyp/def2svp'):
+    for method, basis in (('b97-3c', ''), ('b3lyp', 'def2svp')):
         calculation = record.input.ts_optimization.model_dump()
         calculation['method'] = method
-        change = request(record, {'ts_optimization': calculation})
+        calculation['basis_set'] = basis
+        change = request(record, {'ts_optimization': {'replace': calculation}})
         receipt = plan_input_revision(record, change)
         record = revise_record(record, change, receipt)
         assert record.stage == 'submit'
         assert record.input.reaction.atom_map == original_input.reaction.atom_map
         assert record.input.guess == original_input.guess
         assert record.structures['reactant']['input_revision'] == 1
-        assert receipt.changes == ['ts_optimization.method']
+        assert receipt.changes == ['ts_optimization.basis_set', 'ts_optimization.method']
     source.write_text('2\nchanged\nH 0 0 .74\nH 0 0 0\n')
     change = request(record, {})
     with pytest.raises(ValueError, match='atom correspondence is unproved'):

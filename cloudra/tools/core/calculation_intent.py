@@ -601,8 +601,9 @@ def compare_calculation_input(content: str, expected: Mapping[str, object], *, c
         charges = _native_charges(content, engine)
         diff("charge", [charge] * max(1, len(charges)), [c for c, _ in charges])
         diff("multiplicity", [multiplicity] * max(1, len(charges)), [m for _, m in charges])
-        family, slash, basis = str(expected["method"]).lower().partition("/")
-        want_method = [family] + ([_norm_basis(basis)] if slash else [])
+        family = str(expected["method"]).strip().lower()
+        basis = str(expected["basis_set"]).strip()
+        want_method = [family] + ([_norm_basis(basis)] if basis else [])
         want_keywords = sorted(t.replace(" ", "") for t in native_tokens(str(expected.get("keywords") or "")))
         if engine == "orca":
             tokens, blocks = orca_directives(content)
@@ -651,8 +652,8 @@ def compare_calculation_input(content: str, expected: Mapping[str, object], *, c
         for card in cards:
             remaining = list(card)
             if engine == "gaussian":
-                matched = next((t for t in remaining if t.partition("/")[0] == family and (not slash or _norm_basis(t.partition("/")[2]) == _norm_basis(basis))), None)
-                diff("method", family + ("/" + _norm_basis(basis) if slash else ""), (matched.partition("/")[0] + ("/" + _norm_basis(matched.partition("/")[2]) if slash else "")) if matched else None)
+                matched = next((t for t in remaining if (t == family if not basis else t == family + '/' + basis.lower() or (t.rpartition('/')[0] == family and _norm_basis(t.rpartition('/')[2]) == _norm_basis(basis)))), None)
+                diff("method", family + ("/" + _norm_basis(basis) if basis else ""), (matched.rpartition("/")[0] + "/" + _norm_basis(matched.rpartition("/")[2]) if basis else matched) if matched else None)
                 if matched:
                     remaining.remove(matched)
             else:

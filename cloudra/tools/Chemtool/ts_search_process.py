@@ -20,13 +20,13 @@ from cloudra.tools.core.ts_state_view import TsProcessView, build_process_view, 
 
 class TsPrepare_input_schema(input_schema):
     model_config = ConfigDict(extra='forbid')
-    input: TsInput = Field(description='Scientific inputs grouped by reaction, conformers, guess, ts_optimization, verification and execution. Each calculation has its own explicit method. Structure atom references are 1-based; scan coordinates use its engine numbering (ORCA 0-based, Gaussian/xTB 1-based).')
+    input: TsInput = Field(description='Scientific inputs grouped by reaction, calculations, conformers, guess, ts_optimization, verification and execution. Each calculation explicitly selects engine, one-token method and basis_set (empty for a method without a basis), with keywords and native settings in separate fields. A stage may supply a complete configuration or {ref: name} referring to input.calculations. Sharing a profile is explicit; stages do not inherit another stage\'s method. Structure atom references are 1-based; scan coordinates use its engine numbering (ORCA 0-based, Gaussian/xTB 1-based).')
 
 
 class TsResume_input_schema(input_schema):
     model_config = ConfigDict(extra='forbid')
     run_id: str = Field(min_length=1)
-    changes: TsInputChanges = Field(default_factory=TsInputChanges, description='Use the current atom identities/order reported in structures with each field\'s documented index base: structure/reaction references are 1-based; ORCA scan/freeze references are 0-based; Gaussian/xTB scan references are 1-based. For a newly supplied file order, explicit declarations refer to that incoming order and are converted once when the current XYZ/MOL is overwritten into proven canonical order. If a provided TS guess cannot be associated with a simultaneous source reorder, first normalize the endpoint files, then submit the guess in the reported current order.')
+    changes: TsInputChanges = Field(default_factory=TsInputChanges, description='Within the same calculation, omitted fields retain existing keywords, frequency_mode, orca_blocks and end_setting; explicit empty values clear them. Changing engine, method or basis_set requires {replace: complete_configuration}; changing a named reference uses {replace: {ref: name}}. calculations profile-map omissions remain unchanged, and null removes an unused profile. A scan-coordinate-only patch need not copy calculation. Use the current atom identities/order reported in structures with each field\'s documented index base: structure/reaction references are 1-based; ORCA scan/freeze references are 0-based; Gaussian/xTB scan references are 1-based. For a newly supplied file order, explicit declarations refer to that incoming order and are converted once when the current XYZ/MOL is overwritten into proven canonical order. If a provided TS guess cannot be associated with a simultaneous source reorder, first normalize the endpoint files, then submit the guess in the reported current order.')
     reason: str = Field(min_length=1)
     expected_revision: StrictInt = Field(ge=0)
     scan_recovery: ScanRecoveryEvidence | None = Field(default=None, description='Required when retrying a failed scan: bind actual repair artifacts to the failed attempt and input/log digests reported by ts_inspect. A reason or point-count change alone is insufficient; existing task authority and budget still apply.')
@@ -69,7 +69,7 @@ def _to_output(record, *, can_write=True):
 def _read_resume_record(db, workspace, run_id, project):
     from cloudra.services.ts_pipeline_store import read_process_snapshot
     state, jobs = read_process_snapshot(db, project_id=project, run_id=run_id, workspace_dir=workspace)
-    if state.get('format_version') != 4:
+    if state.get('format_version') != 5:
         raise ValueError('Unsupported TS input format; existing compute jobs remain intact.')
     record = TsProcessRecord.model_validate(state)
     states = {job['job_id']: job['state'] for job in jobs}
@@ -109,7 +109,7 @@ class TsPrepare(Tool):
 class TsResume(Tool):
     tool_id: str = 't-60'
     tool_name: str = 'ts_resume'
-    tool_description: str = 'Revise input groups on the existing TS path. Omitted fields remain; optional null clears; lists, methods and typed sources replace. Proven atom reorderings overwrite current mutable XYZ/MOL sources in canonical order; new incoming atom declarations convert once. Future calls use the returned current atom order with each field\'s documented index base. Historical QM artifacts retain their original order. Requires reason and the revision observed from ts_inspect. Failed attempts can be revised or retried on the same run without recovery evidence; use changes={} to retry unchanged input. Active jobs prevent revisions. Use ts_inspect for reads.'
+    tool_description: str = 'Revise input groups on the existing TS path. Omitted calculation fields retain settings; explicit empty values clear them. Engine, method or basis changes use {replace: complete_configuration}; profile-reference changes use {replace: {ref: name}}. Proven atom reorderings overwrite current mutable XYZ/MOL sources in canonical order; new incoming atom declarations convert once. Future calls use the returned current atom order with each field\'s documented index base. Historical QM artifacts retain their original order. Requires reason and the revision observed from ts_inspect. Failed scans require scan_recovery bound to the failed attempt, input/log digests and actual repair artifacts; a reason, point-count change or changes={} alone cannot retry a failed scan. Other failed attempts may retry unchanged input where their existing stage contract permits it. Active jobs prevent revisions. Use ts_inspect for reads.'
     input_schema: Any = TsResume_input_schema
     output_schema: Any = TsProcess_output_schema
 
@@ -131,7 +131,7 @@ class TsResume(Tool):
                 raise ValueError('TS process belongs to a different project or owner')
             request = TsResumeRequest.model_validate({**user_input.model_dump(exclude={'run_id'}, exclude_unset=True),
                                                       'request_key': _request_key(self.tool_name)})
-            request.changes = normalize_ts_input_atoms(request.changes, atom_tables={})
+            request.changes = normalize_ts_input_atoms(request.changes, atom_tables={}, current_input=record.input)
             record = await asyncio.to_thread(resume, record, request)
             out = await asyncio.to_thread(_to_output, record)
             out.receipt = await asyncio.to_thread(get_revision_receipt, pipeline_database(), process_id=record.pipeline_id, request_key=request.request_key)

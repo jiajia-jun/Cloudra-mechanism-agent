@@ -46,6 +46,8 @@ def _writer(tmp_path, **overrides):
     xyz.write_text(_WATER_XYZ, encoding="utf-8")
     args = {
         "engine": "orca",
+        "method": "ExtOpt" if overrides.get('external_program') else "b3lyp",
+        "basis_set": "" if overrides.get('external_program') else "6-31g(d)",
         "source_type": "xyz_file",
         "source_value": str(xyz),
         "output_path": str(tmp_path / "job.inp"),
@@ -330,6 +332,7 @@ async def test_smiles_provenance_comment_is_unverified(tmp_path):
     result = await QmInputWriter().tool_call(
         QmInputWriter_input_schema(
             engine="orca",
+            method="b3lyp", basis_set="6-31g(d)",
             source_type="smiles",
             source_value="O",
             task_type=[{"opt": None}],

@@ -39,9 +39,9 @@ _TS_NOTICE = (
     "ts_prepare process (build → map → assemble → guess → validate → submit → "
     "refine, autonomously; if it stops blocked, fix the named declaration and "
     "ts_resume). QST2/QST3 are banned; the ceiling is mapped interpolation/NEB, "
-    "with explicit grouped inputs: reaction, conformers, guess, ts_optimization, verification, execution. Scan uses guess.kind=scan with guess.calculation/scans/freeze; scan and formal methods are independently declared. "
+    "with explicit grouped inputs: reaction, calculations, conformers, guess, ts_optimization, verification, execution. Scan uses guess.kind=scan with guess.calculation/scans/freeze; scan and formal methods are independently selected. Complete calculations use engine, one-token method, explicit basis_set (empty when unused), keywords and native settings. Stages may explicitly select {ref: name} from input.calculations. "
     "Use that process for TS/IRC submission rather than manually chaining the jobs. "
-    "Call ts_prepare once per path. Successful jobs automatically advance without an agent call. Use ts_inspect to read state, actual atom tables, methods, evidence and next required inputs. Revise the same run with ts_resume(run_id, changes, reason, expected_revision). Failed attempts can be revised or retried on the same run without recovery evidence; use changes={} to retry unchanged input. "
+    "Call ts_prepare once per path. Successful jobs automatically advance without an agent call. Use ts_inspect to read state, actual atom tables, methods, evidence and next required inputs. Revise the same run with ts_resume(run_id, changes, reason, expected_revision). Calculation patches retain omitted settings; engine/method/basis changes use {replace: complete_configuration}, and changing a profile reference uses {replace: {ref: name}}. A failed scan requires scan_recovery bound to the failed attempt, input/log digests and actual repair artifacts. A reason, point-count change or changes={} alone does not retry a failed scan. Other failed attempts may retry unchanged input where their existing stage contract permits it. "
     "Standalone exploratory scans remain valid for unknown endpoints, but they do not "
     "authorize manual TS/IRC submission. If the process blocks, correct the named "
     "declaration or report the tool limitation; do not bypass it through bash or direct engine execution. "
@@ -187,6 +187,12 @@ class GuidanceStage:
         return None
 
     async def before_llm(self, ctx: PipelineContext, messages: list[dict]) -> None:
+        if ctx.notices is None:
+            return None
+        for key, content in ((_PIN_TS_SOP, _TS_NOTICE),
+                             (_PIN_PHYSICAL_THINKING, _PHYSICAL_THINKING_NOTICE)):
+            if ctx.notices.pin_content(ctx.agent.id, key) is not None:
+                ctx.notices.pin(ctx.agent.id, key=key, content=content)
         return None
 
     # ------------------------------------------------------------- 内部

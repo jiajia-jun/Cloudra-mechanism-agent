@@ -21,7 +21,8 @@ def test_stage_requires_its_own_calculation_without_fallback(tmp_path):
 
     record = record_fixture(tmp_path)
     assert stage_calculation(record, "scan").method == "GFN2-xTB"
-    assert stage_calculation(record, "ts_opt").method == "b3lyp/def2svp"
+    assert stage_calculation(record, "ts_opt").method == "b3lyp"
+    assert stage_calculation(record, "ts_opt").basis_set == "def2svp"
     for purpose in ("frequency", "irc", "reactant_opt", "product_opt", "reactant_frequency", "product_frequency"):
         assert stage_calculation(record, purpose) is None
     from cloudra.tools.core.ts_process import TsJobStep
@@ -70,7 +71,7 @@ def test_guided_source_uses_its_explicit_calculation_and_bound_windows(tmp_path,
     value = input_payload()
     value['reaction'].update(reactant_smiles='[H][H]', product_smiles='[H][H]')
     value['conformers'] = dict(reactant=dict(kind='file', xyz_path=str(seed), mol_path=str(mol_path),
-        optimization=dict(engine='xtb', method='GFN2-xTB', keywords='')),
+        optimization=dict(engine='xtb', method='GFN2-xTB', basis_set='', keywords='')),
         guidance=dict(distance_filters=[dict(atoms=[0, 1], min_ang=.7, max_ang=1.)]))
     record = record_fixture(tmp_path, input=TsInput.model_validate(value),
         current_seed_xyz_path=str(seed), current_seed_mol_path=str(mol_path))
@@ -133,7 +134,7 @@ def test_relative_file_conformers_use_workspace_when_service_cwd_differs(tmp_pat
     assert Path(result.current_seed_mol_path).read_bytes() == (workspace / 'seed.mol').read_bytes()
     record.input.verification.reactant_endpoint = EndpointVerification(
         seed={'kind': 'file', 'xyz_path': 'seed.xyz', 'evidence_refs': ['seed.mol']},
-        optimization={'engine': 'orca', 'method': 'HF/STO-3G'},
+        optimization={'engine': 'orca', 'method': 'HF', 'basis_set': 'STO-3G'},
     )
     job_dir = workspace / 'endpoint'
     job_dir.mkdir()

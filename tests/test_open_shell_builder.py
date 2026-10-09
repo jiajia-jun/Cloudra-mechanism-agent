@@ -253,7 +253,7 @@ def test_public_smiles_seed_entrypoints_forward_explicit_open_shell_singlet(
         assert result.is_success is True, result.message
         assert result.xyz_path
     else:
-        coordinates = QmInputWriter._smiles_coordinates(QmInputWriter_input_schema(
+        coordinates = QmInputWriter._smiles_coordinates(QmInputWriter_input_schema(basis_set='6-31g(d)', engine='gaussian', method='b3lyp',
             source_type="smiles", source_value="CC", multiplicity=1,
             electronic_character="open_shell", output_path=str(tmp_path / "seed.inp"),
         ), str(tmp_path))

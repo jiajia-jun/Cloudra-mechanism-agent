@@ -6,7 +6,7 @@ import pytest
 
 from cloudra.persistence.database import ComputeDB
 from tests.test_ts_inputs import input_payload
-from tests.test_ts_pipeline_store import job_payload, payload
+from tests.test_ts_pipeline_store import job_payload
 
 
 def process_fixture(tmp_path, *, status="blocked"):
@@ -16,10 +16,12 @@ def process_fixture(tmp_path, *, status="blocked"):
     workspace = tmp_path / "workspace"
     run_dir = workspace / "ts" / "ts_0001"
     run_dir.mkdir(parents=True)
-    pid = create_process(db, request_key="inspect", payload=payload(workspace_dir=str(workspace)))["process_id"]
-    record = dict(format_version=4, pipeline_id=pid, run_id="ts_0001", revision=7, declaration_revision=1,
+    inputs = input_payload()
+    pid = create_process(db, request_key="inspect", payload=dict(project_id='project', owner_id='owner',
+        workspace_dir=str(workspace), input=inputs))["process_id"]
+    record = dict(format_version=5, pipeline_id=pid, run_id="ts_0001", revision=7, declaration_revision=1,
                   run_dir=str(run_dir), workspace_dir=str(workspace), owner_conversation_id="project", owner_session_id="owner",
-                  stage="guess", input=input_payload(), intervention_count=2, evidence_candidates=["scan.log"],
+                  stage="guess", input=inputs, intervention_count=2, evidence_candidates=["scan.log"],
                   job_steps=[], stage_records=[], blocked={"failure_class": "scan_failed", "message": "native first point failed",
                   "stage": "guess", "needs": ["guess"], "atom_details": []} if status == "blocked" else None,
                   terminal="search_failed" if status == "ended" else None, waiting_for="job:1" if status == "waiting" else "")
@@ -163,11 +165,12 @@ def test_available_stage_results_preserve_recorded_details_without_labeling_jobs
     assert view.available_results[0]["artifacts"] == ["guess.xyz"]
 
 
-def test_isolated_input_format_cannot_claim_scientific_verification(tmp_path):
+@pytest.mark.parametrize('format_version', [3, 4])
+def test_isolated_input_format_cannot_claim_scientific_verification(tmp_path, format_version):
     from cloudra.tools.core.ts_state_view import build_process_view
 
     _, _, _, record = process_fixture(tmp_path, status="ended")
-    record.update(format_version=3, terminal="verified")
+    record.update(format_version=format_version, terminal="verified")
     view = build_process_view(record, [], can_write=False)
     assert view.status == "isolated"
     assert view.result is None
