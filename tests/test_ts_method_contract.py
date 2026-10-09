@@ -1,4 +1,64 @@
+import pytest
+
 from cloudra.tools.core import calculation_intent as intent
+
+
+@pytest.mark.parametrize('solvent', ['DCM', 'Water', 'DMSO'])
+def test_cpcm_ts_submission_keeps_native_settings_and_bound_job(tmp_path, monkeypatch, solvent):
+    """Synthetic coordinates exercise submission contracts, without running an engine."""
+    from pathlib import Path
+
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.runtime_v2.schemas import MethodPolicy
+    from cloudra.services.compute_admission import AdmissionOutcome
+    from cloudra.services.compute_store import get_compute_job
+    from cloudra.services.ts_pipeline_context import use_pipeline_authority, use_pipeline_database
+    from cloudra.services.ts_pipeline_store import create_process, verify_stage_input
+    from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
+    from cloudra.tools.core.ts_inputs import TsCalculation
+    from cloudra.tools.core.ts_process import _submit_step
+    from tests.test_ts_pipeline_store import payload
+    from tests.test_ts_stage_inputs import record_fixture
+
+    record = record_fixture(tmp_path)
+    record.input.execution.cpus = 2
+    record.input.execution.memory_mb = 2048
+    keywords = f'D3BJ RIJCOSX def2/J TightSCF CPCM({solvent})'
+    calculation = TsCalculation(engine='orca', method='B3LYP/def2svp', keywords=keywords)
+    record.input.ts_optimization = calculation
+    source = tmp_path / 'ts.inp'
+    request = QmInputWriter_input_schema(engine='orca', source_type='xyz_file', source_value='unused.xyz',
+        method='B3LYP', basis_set='def2svp', task_type=[{'opt': 'ts'}], extra_keywords=keywords,
+        nproc=record.compute_cpus, mem=f'{record.compute_memory_mb}MB', output_path=str(source))
+    native = QmInputWriter._build_orca_input(request, 'O 0 0 0')
+    source.write_text(native)
+    policy = MethodPolicy(allowed_methods=['b3lyp/def2svp'],
+        calculation_contracts={'ts_opt': calculation.model_dump(mode='json')})
+    admissions = []
+
+    def admit(**parameters):
+        admissions.append(parameters)
+        return AdmissionOutcome(ok=True, node_id='fixture', scheduler='local')
+
+    monkeypatch.setattr('cloudra.services.compute_admission.admit_job', admit)
+    db = ComputeDB().init()
+    record.pipeline_id = create_process(db, request_key=f'cpcm-{solvent}',
+        payload=payload(workspace_dir=str(tmp_path), input=record.input.model_dump()))['process_id']
+    with use_pipeline_database(db), use_pipeline_authority(lambda *_: (True, policy)):
+        error, job_id = _submit_step(record, 'ts_opt', str(source), 'orca')
+    assert not error and job_id > 0
+    assert admissions == [dict(input_file=str(source), job_type='orca', cpus=2, memory_mb=2048,
+                               execution_backend='auto')]
+    job = get_compute_job(db, job_id)
+    assert (job['state'], job['jobtype'], job['req_cpus'], job['req_memory_mb']) == ('ready', 'orca', 2, 2048)
+    assert Path(job['path']).read_text() == native
+    tokens, blocks = intent.orca_directives(native)
+    assert set(tokens) >= set(keywords.lower().split())
+    assert blocks['pal'] == ['nprocs', '2', 'end']
+    assert blocks['maxcore'] == ['1024']
+    assert intent.compare_calculation_input(native, calculation.model_dump(), charge=0, multiplicity=1) == []
+    assert verify_stage_input(db, job_id) is not None
+    assert record.method_checks[str(source)]['matched'] is True
 
 
 def test_ordinary_ts_submission_needs_no_method_policy(tmp_path, monkeypatch):
