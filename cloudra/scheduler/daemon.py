@@ -37,7 +37,6 @@ from cloudra.runtime.remote_compute import (
     recover_remote_slurm_handle,
 )
 from cloudra.services.compute_store import (
-    cancel_compute_job,
     claim_ready_compute_job_with_capacity,
     extend_compute_lease,
     list_running_jobs,
@@ -238,7 +237,7 @@ class SchedulerDaemon:
             logger.exception("reap failed")
 
     def _reconcile_central(self) -> list[int]:
-        """对中央库跑一次对账：running 的 local 作业逐条探 guard 锁。
+        """对中央库跑一次对账：running/cancel_requested 的 local 作业逐条探 guard 锁。
 
         Slurm/SSH 远端 running 且已有 scheduler_job_id、本进程未在 poll 的作业
         返回给调用方重挂 poller（attach 路径），不改投、不杀进程。无句柄找回：
@@ -277,17 +276,14 @@ class SchedulerDaemon:
                     (row.get("state") or "") == "cancel_requested"
                     and not scheduler_job_id
                 ):
-                    start_ts = float(row.get("start_timestamp") or -1)
-                    if (
-                        start_ts > 0
-                        and (time.time() - start_ts) >= _ADOPT_LAUNCH_GRACE_SECONDS
-                    ):
-                        logger.warning(
-                            "compute job %s: cancel_requested with no recoverable "
-                            "scheduler handle; closing ledger as cancelled",
-                            task_id,
-                        )
-                        cancel_compute_job(self.db, task_id)
+                    # Missing/temporarily unavailable handles and elapsed time
+                    # do not establish that an accepted remote job has stopped.
+                    logger.warning(
+                        "compute job %s: cancel_requested with no recoverable "
+                        "scheduler handle; keeping request pending",
+                        task_id,
+                    )
+                    extend_compute_lease(self.db, task_id, _LEASE_RENEW_AFTER_CHECK)
                 elif (
                     resubmit_remote
                     and (row.get("state") or "") == "running"
@@ -303,7 +299,7 @@ class SchedulerDaemon:
                     )
                     reattach.append(task_id)
                 continue
-            if (row.get("state") or "running") != "running":
+            if (row.get("state") or "running") not in {"running", "cancel_requested"}:
                 continue
             path = row["path"] or ""
             workdir = os.path.dirname(path)

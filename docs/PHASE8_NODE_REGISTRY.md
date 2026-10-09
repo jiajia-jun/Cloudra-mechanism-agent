@@ -109,10 +109,11 @@
 
 ## 恢复与取消
 
-- 守护进程对账器（30s 周期 + 启动时）：`running` 本地作业 guard 锁被持有 → 续租防
+- 守护进程对账器（30s 周期 + 启动时）：`running` / `cancel_requested` 本地作业 guard 锁被持有 → 续租防
   重领；guard 锁空闲（guard 已死）→ spawn adopt guard 接管——calc 锁仍被持有则
   阻塞等计算自然跑完再收尾，锁空闲则直接解析日志落终态，无日志判 failed。
-  **任何路径不 kill 计算进程**；作业目录建议放本地盘（NFS 上 fcntl 锁语义弱）。
+  异常、Agent 取消、服务停止均不向计算发信号；作业目录建议放本地盘（NFS 上 fcntl 锁语义弱）。
+  adopt 没有原始进程句柄，不凭存盘 PID 发信号；取消请求在 calc 锁释放后确认。
 - Slurm 作业以 sacct 为外部权威：服务重启后租约过期被重领，凭 `scheduler_job_id`
   续接管不重复 sbatch；成功拉起即清零 `attempt_count`（重启不消耗重试预算）。
 - SSH 远端作业（`ssh_local`/`ssh_slurm`）重启恢复：对账器按账本行的 connection
@@ -120,9 +121,13 @@
   （只认非终态行，找不回不盲投）；ssh_local 无句柄时探远端 runner pid 文件
   （`.cloudra-runner-<id>.pid` 是 runner 的第一条写操作，查不到即确认未起跑，
   安全重挂 poller 重新 stage+submit）；有柄则续租重挂 poller，不重复提交。
-- 取消只有一条显式路径：agent/用户 `cancel_requested` → `scancel`（本地与
-  ssh_slurm 远端）/ TERM runner 与 calculator（ssh_local，best-effort 远端执行，
-  账本收口不依赖远端应答）。
+- 用户取消计算：排队作业直接 `cancelled`，所有运行中作业先 `cancel_requested`，
+  未确认停止时继续占用容量。本地原始 guard 只向自己创建的独占进程组发送一次
+  TERM，回收子进程并取得已释放的 calc 锁后才写 `cancelled`、清理 Gaussian scratch。
+  忽略 TERM 的计算保持取消中；已运行的旧 guard 不会自动加载新代码。
+- 本机 Slurm 显式请求走 `scancel`，继续查询 `sacct`，确认终态后才落 `cancelled`；
+  请求失败、状态未知或句柄无法恢复均保留取消中。
+- SSH 远端取消仍由 `remote_compute.py` 的 poller 执行；远端提交、取消与恢复的实机验收见下节。
 
 ## 环境变量
 

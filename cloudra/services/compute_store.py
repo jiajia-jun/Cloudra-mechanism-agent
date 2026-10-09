@@ -791,23 +791,17 @@ def reap_exhausted_compute_leases(
 
 
 # ---------------------------------------------------------------------------
-# 取消（账本级，绝不杀计算进程）
+# 取消请求（执行端确认退出后才写终态）
 # ---------------------------------------------------------------------------
 
 async def acancel_all_compute_jobs(db: ComputeDB) -> dict[str, int]:
-    """一键取消全部未竟作业，返回分桶计数。任何路径都不杀计算进程：
+    """取消排队作业，并向所有运行中作业发出账本取消请求。
 
-    - ready → 直接落 cancelled（无进程；认领查询只选 ready，永不会被认领）；
-    - running + slurm/ssh_local/ssh_slurm → cancel_requested，由租约持有方的
-      既有 poll 循环（infra/slurm.py、runtime/remote_compute.py）走远端
-      scancel / runner kill 收尾——写入端正是这里；
-    - running + 其它（含 scheduler 为 NULL 的旧行） → cancelled（账本级）：calculator 物理跑完，guard 的
-      终态 CAS（only_running=True）自然 no-op，不会覆盖已落的 cancelled。
-
-    中央库不存在（从未提交过作业）即全零，不建库。
+    running → cancel_requested 保留容量占用；只有执行端确认计算退出才能
+    落 cancelled。控制面不发信号。中央库不存在时返回全零且不建库。
     """
-    counts = {"ready_cancelled": 0, "slurm_cancel_requested": 0, "local_cancelled": 0}
-    if not _db_ready(db):
+    counts = {"ready_cancelled": 0, "cancel_requested": 0}
+    if not await asyncio.to_thread(_db_ready, db):
         return counts
     now = time.time()
 
@@ -821,16 +815,9 @@ async def acancel_all_compute_jobs(db: ComputeDB) -> dict[str, int]:
             counts["ready_cancelled"] = cur.rowcount
             cur = await con.execute(
                 "UPDATE compute_jobs SET state='cancel_requested' "
-                "WHERE state='running' AND scheduler IN ('slurm','ssh_local','ssh_slurm')"
+                "WHERE state='running'"
             )
-            counts["slurm_cancel_requested"] = cur.rowcount
-            cur = await con.execute(
-                "UPDATE compute_jobs SET state='cancelled', end_timestamp=?, "
-                "last_error='cancelled by cancel-all (ledger-only; process runs on)' "
-                "WHERE state='running' AND COALESCE(scheduler, '') NOT IN ('slurm','ssh_local','ssh_slurm')",
-                (now,),
-            )
-            counts["local_cancelled"] = cur.rowcount
+            counts["cancel_requested"] = cur.rowcount
             await con.commit()
             return counts
 
@@ -924,7 +911,7 @@ async def aupdate_scheduler_state(db: ComputeDB, task_id: int, scheduler_state: 
 
 
 def cancel_compute_job(db: ComputeDB, task_id: int) -> bool:
-    """显式取消（cancel_requested → scancel 后，或无法找回句柄）落 cancelled。
+    """执行端确认计算退出（或确认尚未启动）后，落 cancelled。
 
     只覆盖 running / cancel_requested，不得把 done/failed 改成 cancelled。
     """
@@ -943,7 +930,7 @@ def cancel_compute_job(db: ComputeDB, task_id: int) -> bool:
 
 
 async def acancel_compute_job(db: ComputeDB, task_id: int) -> None:
-    """显式取消（cancel_requested → scancel 后）落 cancelled 终态。
+    """执行端确认取消完成后落 cancelled；发出停止请求本身不算完成。
 
     只覆盖 running / cancel_requested，不得把 done/failed 改成 cancelled。
     """

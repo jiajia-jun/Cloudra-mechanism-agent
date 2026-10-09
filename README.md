@@ -164,7 +164,7 @@ The runtime (`runtime_v2`) is engineered for deterministic execution and crash r
 A running Cloudra deployment is three deliberately separate OS processes:
 
 - **Web process** (`api_v2` + SPA, single port): the control plane. It may crash or restart at any time — no computation dies with it.
-- **Compute scheduler daemon** (`cloudra scheduler`, auto-spawned detached): claims queued jobs under capacity accounting and launches detached `guard` processes. Cloudra never kills a compute process; liveness is judged exclusively by `flock` probing. Terminal states are CAS-written to the central `compute.db`, and completion notifications reach the control plane through fine-grained DB polling — notifications are never lost across API downtime.
+- **Compute scheduler daemon** (`cloudra scheduler`, auto-spawned detached): claims queued jobs under capacity accounting and launches detached `guard` processes. Failures, Agent cancellation, and service shutdown preserve computations. An explicit compute cancellation writes `cancel_requested`; a native guard signals only the process group it created, then confirms child exit and released `flock` before recording `cancelled` and releasing capacity. Terminal states are CAS-written to the central `compute.db`, and completion notifications reach the control plane through fine-grained DB polling — notifications are never lost across API downtime.
 - **Knowledge vector service** (`kg_vec_service.py`, auto-spawned when the chem-kb plugin is installed): runs under a separate interpreter so that torch/sentence-transformers stay out of the main environment.
 
 State synchronization between processes goes through SQLite (WAL) and file locks — never through in-memory channels.

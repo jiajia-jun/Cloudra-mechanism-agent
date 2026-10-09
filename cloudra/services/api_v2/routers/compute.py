@@ -1,14 +1,12 @@
 """Compute job 控制面：项目作业队列只读查询 + 多节点容量视图 + 一键取消全部
-（账本级取消，绝不杀计算进程）。
+（账本请求，由执行端确认停止）。
 
 查询口径：活跃态 = ready/running/cancel_requested（与项目硬删除门禁同一口径）；
 行投影里的 ``session_id`` 即归属 agent（终态推送的收件人），``node_id`` 是作业
 归属的注册节点（容量按节点分池记账）。
 
-取消语义按作业状态分桶（``acancel_all_compute_jobs``）：ready 直接落
-cancelled；running + Slurm 置 cancel_requested，由租约持有方的既有 poll
-循环走 scancel 收尾；running + 本地只落 DB 终态（calculator 物理跑完，
-guard 终态 CAS no-op）。
+取消语义（``acancel_all_compute_jobs``）：ready 直接落 cancelled；全部
+running 置 cancel_requested，执行端确认计算退出后才落 cancelled。
 """
 
 from __future__ import annotations

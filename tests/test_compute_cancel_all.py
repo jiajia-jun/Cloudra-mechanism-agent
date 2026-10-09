@@ -1,10 +1,4 @@
-"""一键取消全部 compute job（账本级取消，绝不杀进程）的存储层与 API 测试。
-
-状态分桶语义（services/compute_store.acancel_all_compute_jobs）：
-- ready → cancelled；running + slurm → cancel_requested（既有 poll 循环
-  走 scancel 收尾）；running + 本地 → cancelled（guard 终态 CAS no-op）；
-- 终态行不动；中央库不存在即全零、不建库。
-"""
+"""取消请求不等于计算退出：所有运行中作业都等待执行端确认。"""
 
 from __future__ import annotations
 
@@ -20,11 +14,12 @@ from cloudra.runtime_v2.core import RuntimeCore
 from cloudra.services.api_v2 import create_v2_app
 from cloudra.services.compute_store import (
     acancel_all_compute_jobs,
+    compute_inflight_usage_by_node,
     get_compute_job,
     insert_compute_job,
 )
 
-_ZERO = {"ready_cancelled": 0, "slurm_cancel_requested": 0, "local_cancelled": 0}
+_ZERO = {"ready_cancelled": 0, "cancel_requested": 0}
 
 
 def _insert(db: ComputeDB, *, state: str, scheduler: str = "local") -> int:
@@ -50,33 +45,37 @@ async def test_cancel_all_state_transitions_and_counts():
 
     counts = await acancel_all_compute_jobs(db)
 
-    assert counts == {"ready_cancelled": 1, "slurm_cancel_requested": 1, "local_cancelled": 1}
+    assert counts == {"ready_cancelled": 1, "cancel_requested": 2}
     ready = get_compute_job(db, ready_id)
     assert ready["state"] == "cancelled"
     assert ready["end_timestamp"] > 0
     assert ready["last_error"] == "cancelled by cancel-all"
-    # Slurm 作业只置 cancel_requested：scancel 收尾是租约持有方 poll 循环的职责
+    # 运行中作业统一由执行端确认，不能先释放计算额度。
     assert get_compute_job(db, slurm_id)["state"] == "cancel_requested"
     local = get_compute_job(db, local_id)
-    assert local["state"] == "cancelled"
-    assert "ledger-only" in local["last_error"]
+    assert local["state"] == "cancel_requested"
+    assert local["end_timestamp"] == -1
+    usage = compute_inflight_usage_by_node(
+        db, default_node_id="node-local", fair_share_mb={"node-local": 1024}
+    )
+    assert usage["node-local"]["slots"] == 2
     # 终态行不动
     assert get_compute_job(db, done_id)["state"] == "done"
 
 
 @pytest.mark.asyncio
-async def test_cancel_all_treats_null_scheduler_as_local():
-    """旧库 scheduler 可为 NULL；`scheduler!='slurm'` 对 NULL 为未知，会漏取消。"""
+@pytest.mark.parametrize("scheduler", [None, "ssh_local", "ssh_slurm"])
+async def test_cancel_all_requests_stop_for_every_running_backend(scheduler):
     db = ComputeDB().init()
     job_id = _insert(db, state="running")
     with db.connect() as con:
-        con.execute("UPDATE compute_jobs SET scheduler=NULL WHERE id=?", (job_id,))
+        con.execute("UPDATE compute_jobs SET scheduler=? WHERE id=?", (scheduler, job_id))
         con.commit()
 
     counts = await acancel_all_compute_jobs(db)
 
-    assert counts["local_cancelled"] == 1
-    assert get_compute_job(db, job_id)["state"] == "cancelled"
+    assert counts["cancel_requested"] == 1
+    assert get_compute_job(db, job_id)["state"] == "cancel_requested"
 
 
 @pytest.mark.asyncio
@@ -96,7 +95,7 @@ async def test_cancel_all_endpoint_returns_counts():
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         resp = await client.post("/api/v2/compute/cancel-all")
         assert resp.status_code == 200
-        assert resp.json() == {"ready_cancelled": 1, "slurm_cancel_requested": 0, "local_cancelled": 1}
+        assert resp.json() == {"ready_cancelled": 1, "cancel_requested": 1}
         # 幂等：再来一遍全零（所有未竟作业已是终态/cancel_requested）
         resp = await client.post("/api/v2/compute/cancel-all")
         assert resp.json() == _ZERO

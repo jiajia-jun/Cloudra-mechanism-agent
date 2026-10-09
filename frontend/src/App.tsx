@@ -210,6 +210,10 @@ export default function App() {
   const [hasOlder, setHasOlder] = useState(true);
   const [streamView, setStreamView] = useState<StreamView & { omitted?: boolean }>({ streamText: '', frozen: [] });
   const [sidebarJobs, setSidebarJobs] = useState<ComputeJob[] | null>(null);
+  const [computeRefreshVersion, setComputeRefreshVersion] = useState(0);
+  const [cancellingCompute, setCancellingCompute] = useState(false);
+  const cancellingComputeRef = useRef(false);
+  const sidebarJobsRequestRef = useRef(0);
   const [viewMode, setViewMode] = useState<'dialogue' | 'console'>('dialogue');
   const [consoleTab, setConsoleTab] = useState<ConsoleTab>('overview');
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
@@ -464,13 +468,16 @@ export default function App() {
   }, []);
 
   const loadSidebarOps = useCallback(async () => {
+    const requestVersion = ++sidebarJobsRequestRef.current;
     if (!activeProjectId) {
       setSidebarJobs(null);
       return;
     }
     try {
       const jobs = await api.listComputeJobs(activeProjectId, true);
-      setSidebarJobs(jobs);
+      if (requestVersion === sidebarJobsRequestRef.current && activeProjectIdRef.current === activeProjectId) {
+        setSidebarJobs(jobs);
+      }
     } catch {
       // ignore transient poll error
     }
@@ -1089,15 +1096,21 @@ export default function App() {
   }
 
   async function cancelAllComputeJobs() {
-    if (!window.confirm(cancelAllComputeConfirm())) {
+    if (cancellingComputeRef.current || !window.confirm(cancelAllComputeConfirm(lang))) {
       return;
     }
+    cancellingComputeRef.current = true;
+    setCancellingCompute(true);
     try {
       const counts = await api.cancelAllComputeJobs();
-      void loadSidebarOps();
-      pushToast('ok', formatCancelAllToast(counts));
+      pushToast('ok', formatCancelAllToast(counts, lang));
     } catch (e) {
       reportError(e);
+    } finally {
+      setComputeRefreshVersion((version) => version + 1);
+      await loadSidebarOps();
+      cancellingComputeRef.current = false;
+      setCancellingCompute(false);
     }
   }
 
@@ -2107,12 +2120,12 @@ export default function App() {
                 type="button"
                 className="btn ghost sm"
                 data-testid="cancel-all-compute-foot"
-                onClick={(event) => {
-                  event.currentTarget.closest('details')?.removeAttribute('open');
-                  void cancelAllComputeJobs();
-                }}
+                disabled={cancellingCompute}
+                onClick={() => { void cancelAllComputeJobs(); }}
               >
-                {lang === 'zh' ? '取消全部计算' : 'Cancel All Compute'}
+                {cancellingCompute
+                  ? (lang === 'zh' ? '请求中…' : 'Requesting…')
+                  : (lang === 'zh' ? '取消全部计算' : 'Cancel All Compute')}
               </button>
             </div>
           </details>
@@ -2294,7 +2307,9 @@ export default function App() {
                     }}
                     title="切换至控制台查看计算队列"
                   >
-                    {sidebarJobs.length} 个计算任务运行中 →
+                    {lang === 'zh'
+                      ? `${sidebarJobs.length} 个计算任务未完成 →`
+                      : `${sidebarJobs.length} unfinished compute jobs →`}
                   </span>
                 )}
               </div>
@@ -2703,7 +2718,7 @@ export default function App() {
             />
           ) : consoleTab === 'compute' ? (
             <div className="console-compute-container">
-              <OpsPanel project={activeProject} agents={agents} onError={reportError} />
+              <OpsPanel project={activeProject} agents={agents} onError={reportError} refreshVersion={computeRefreshVersion} />
             </div>
           ) : consoleTab === 'artifacts' ? (
             <ArtifactsPanel project={activeProject} onError={reportError} />

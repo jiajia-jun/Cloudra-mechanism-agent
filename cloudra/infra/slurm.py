@@ -18,6 +18,7 @@ from cloudra.services.compute_store import (
     aget_compute_job,
     amark_slurm_submitted,
     aupdate_scheduler_state,
+    get_compute_job,
 )
 
 _SBATCH_CHARS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.:@+/%-")
@@ -348,17 +349,23 @@ async def run_slurm_compute(
     row = await aget_compute_job(db, task_id)
     if not row:
         raise SlurmError(f"compute job {task_id} 不存在")
+    if row["state"] not in {"running", "cancel_requested"}:
+        return 0 if row["state"] == "done" else 1
     scheduler_job_id = row["scheduler_job_id"]
     input_file = Path(row["path"]).expanduser()
     if not scheduler_job_id:
-        input_file = input_file.resolve(strict=True)
+        # An absent handle may also mean sbatch succeeded before its handle was
+        # persisted. A request stops new submission but cannot prove remote exit.
+        if row["state"] == "cancel_requested":
+            return 1
+        input_file = await asyncio.to_thread(input_file.resolve, strict=True)
         script_path = input_file.parent / f".cloudra-slurm-{task_id}.sh"
         # xtb 任务参数（charge/mult/task/solvent/cpus）从 compute_jobs 行透传
         xtb_params = (
             XtbParams.from_row(row) if (row["jobtype"] or "") == "xtb" else None
         )
 
-        def _write_and_submit() -> str:
+        def _write_and_submit() -> str | None:
             script_path.write_text(
                 build_batch_script(
                     input_file, row["jobtype"], task_id, scheduler, xtb_params=xtb_params
@@ -366,36 +373,58 @@ async def run_slurm_compute(
                 encoding="utf-8",
             )
             os.chmod(script_path, 0o700)
+            # Script preparation can overlap an accepted cancellation request.
+            latest = get_compute_job(db, task_id)
+            if latest is None or latest["state"] != "running":
+                return None
             return submit_batch(script_path)
 
         scheduler_job_id = await asyncio.to_thread(_write_and_submit)
+        if scheduler_job_id is None:
+            return 1
         await amark_slurm_submitted(db, task_id, str(scheduler_job_id), str(script_path))
 
     poll_seconds = min(max(float(scheduler.get("poll_seconds", 15)), 1), 300)
     last_observed = ""
     empty_after_seen = 0
+    cancel_sent = False
     while True:
         current = await aget_compute_job(db, task_id)
-        if current and current["state"] in {"cancelled", "cancel_requested"}:
-            await asyncio.to_thread(cancel_job, str(scheduler_job_id))
-            await acancel_compute_job(db, task_id)
-            return 1
+        if current and current["state"] not in {"running", "cancel_requested"}:
+            return 0 if current["state"] == "done" else 1
+        if current and current["state"] == "cancel_requested" and not cancel_sent:
+            try:
+                await asyncio.to_thread(cancel_job, str(scheduler_job_id))
+            except (SlurmError, OSError, subprocess.TimeoutExpired):
+                # Keep the request pending. A later iteration retries scancel;
+                # sacct can still independently confirm that the job has exited.
+                pass
+            else:
+                cancel_sent = True
         try:
             state, exit_code = await asyncio.to_thread(query_job, str(scheduler_job_id))
-        except SlurmError:
+        except (SlurmError, OSError, subprocess.TimeoutExpired):
             await sleep(poll_seconds)
             continue
+        # Querying sacct can overlap cancel-all. Only terminal accounting is exit
+        # evidence; scancel acceptance or missing accounting rows are not.
+        current = await aget_compute_job(db, task_id)
         if not state:
-            if last_observed:
+            if last_observed and current and current["state"] == "running":
                 empty_after_seen += 1
                 if empty_after_seen >= 3:
-                    await afinalize_compute_job(
+                    wrote = await afinalize_compute_job(
                         db,
                         task_id,
                         "failed",
                         last_error="Slurm accounting row vanished after "
                         f"{last_observed}",
                     )
+                    if not wrote:
+                        latest = await aget_compute_job(db, task_id)
+                        if latest and latest["state"] == "cancel_requested":
+                            await sleep(poll_seconds)
+                            continue
                     return 1
             await sleep(poll_seconds)
             continue
@@ -403,6 +432,9 @@ async def run_slurm_compute(
         last_observed = state
         await aupdate_scheduler_state(db, task_id, state)
         if state in SLURM_TERMINAL_SUCCESS | SLURM_TERMINAL_FAILURE:
+            if current and current["state"] == "cancel_requested":
+                await acancel_compute_job(db, task_id)
+                return 1
             last_error = None if state in SLURM_TERMINAL_SUCCESS else f"Slurm {state} ({exit_code})"
             final = "done" if state in SLURM_TERMINAL_SUCCESS else "failed"
             if state in SLURM_TERMINAL_SUCCESS:
@@ -423,8 +455,7 @@ async def run_slurm_compute(
             )
             if not wrote:
                 latest = await aget_compute_job(db, task_id)
-                if latest and latest["state"] in {"cancelled", "cancel_requested"}:
-                    await asyncio.to_thread(cancel_job, str(scheduler_job_id))
+                if latest and latest["state"] == "cancel_requested":
                     await acancel_compute_job(db, task_id)
                     return 1
             # 终态通知由 ComputeNotifyBroker 轮询 compute_jobs 表补投，不再发 IPC

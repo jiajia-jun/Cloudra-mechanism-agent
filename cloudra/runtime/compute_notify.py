@@ -55,6 +55,12 @@ def build_compute_finish_content(
             "log path, diagnosis, and attempted fixes to agent_hub with to_agent set to the known "
             "requester session ID or coordinator. Ask the user only when their input is required."
         )
+    elif state == "cancelled":
+        guidance = (
+            "The user cancelled this computation. Do not resubmit or restart it, "
+            "and do not launch replacement calculations without a new explicit user request. "
+            "Keep the existing files for inspection."
+        )
     else:
         guidance = (
             (f"Failure reason: {fail_reason}\n" if fail_reason else "")

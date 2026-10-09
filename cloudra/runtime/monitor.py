@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import io
 import os
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -18,6 +19,7 @@ from cloudra.infra.flocks import try_acquire_lock
 from cloudra.persistence.database import ComputeDB
 from cloudra.persistence.fs_utils import atomic_write_json
 from cloudra.services.compute_store import (
+    acancel_compute_job,
     afinalize_compute_job,
     aget_compute_job,
     aupdate_compute_pid,
@@ -29,6 +31,8 @@ _REASON_MAX_CHARS = 500
 _FAILURE_MARKERS = ("Error termination", "PROGRAM FAILED", "ABORT", "Error:", "ERROR")
 # adopt 模式等 calc 锁释放的探测间隔（秒）
 _ADOPT_POLL_SECONDS = 5
+# Ledger polling is control-plane latency, independent of chemical acceptance.
+_CANCEL_POLL_SECONDS = 0.5
 # calculator 的 nice 降权幅度：CPU 打满时控制面（API/调度守护）按 CFS 权重
 # 优先分到时间片，状态同步链路不被计算任务饿死。降权不需要特权。
 _CALC_NICE_LEVEL = 10
@@ -120,13 +124,13 @@ async def _parse_log(
             return await asyncio.to_thread(read_task_result, str(log_path))
         except (OSError, ValueError, KeyError):
             return None, False
-    target, _ = _resolve_log_target(log_path, fallback_log_path)
+    target, _ = await asyncio.to_thread(_resolve_log_target, log_path, fallback_log_path)
     if target is None:
         return None, None
 
     if job_type == "cp2k":
         # cclib 1.8.x 已移除 CP2K 解析器，这里用轻量文本解析兜底。
-        data_dic, is_success = _parse_cp2k_log(target)
+        data_dic, is_success = await asyncio.to_thread(_parse_cp2k_log, target)
         if data_dic is not None:
             data_dic["log_file"] = str(target)
         return data_dic, is_success
@@ -134,7 +138,7 @@ async def _parse_log(
     if job_type == "xtb":
         # xtb 主输出全部走 stdout（calculator.sh 重定向到 .out），cclib 对
         # xtb 支持薄弱——纯文本判定（GH #26），与 CP2K 同款轻量路径。
-        data_dic, is_success = _parse_xtb_log(target, task=xtb_task)
+        data_dic, is_success = await asyncio.to_thread(_parse_xtb_log, target, task=xtb_task)
         if data_dic is not None:
             data_dic["log_file"] = str(target)
         return data_dic, is_success
@@ -146,7 +150,7 @@ async def _parse_log(
         return await _parse_gaussian_log(target)
 
     if job_type == "vasp":
-        data_dic, is_success = _parse_vasp_log(target)
+        data_dic, is_success = await asyncio.to_thread(_parse_vasp_log, target)
         if data_dic is not None:
             data_dic["log_file"] = str(target)
         return data_dic, is_success
@@ -173,7 +177,7 @@ async def _cclib_parse(target: Path) -> tuple[dict, bool] | None:
     last_error = None
     for attempt in range(max_attempts):
         try:
-            data = cclib.io.ccread(target)
+            data = await asyncio.to_thread(cclib.io.ccread, target)
             if data is None:
                 print(f'cclib 无法识别日志格式：{target}')
                 return None
@@ -186,9 +190,9 @@ async def _cclib_parse(target: Path) -> tuple[dict, bool] | None:
                 return None
             is_success = data.metadata.get('success', False)
             try:
-                state_str = cclib.io.ccwrite(data, outputtype="cjson")
+                state_str = await asyncio.to_thread(cclib.io.ccwrite, data, outputtype="cjson")
                 state_CJSON = cclib.io.cjsonreader.CJSON(io.StringIO(state_str))
-                data_dic = state_CJSON.parse()
+                data_dic = await asyncio.to_thread(state_CJSON.parse)
             except Exception as e:
                 print(f'日志解析后转换失败：{e}')
                 return None
@@ -210,7 +214,7 @@ async def _parse_gaussian_log(target: Path) -> tuple[dict, bool]:
     from cloudra.tools.core.gaussian_frames import normal_termination
 
     try:
-        text = target.read_text(encoding="utf-8", errors="replace")
+        text = await asyncio.to_thread(target.read_text, encoding="utf-8", errors="replace")
     except OSError as e:
         print(f'读取 Gaussian 日志失败：{e}')
         return {"is_success": False, "log_file": str(target)}, False
@@ -242,7 +246,7 @@ async def _parse_orca_log(target: Path) -> tuple[dict, bool]:
     from cloudra.tools.core import orca_frames
 
     try:
-        text = target.read_text(encoding="utf-8", errors="replace")
+        text = await asyncio.to_thread(target.read_text, encoding="utf-8", errors="replace")
     except OSError as e:
         print(f'读取 ORCA 日志失败：{e}')
         return {"is_success": False, "log_file": str(target)}, False
@@ -439,8 +443,8 @@ async def _finalize(
     )
     if data_dic is None:
         # reason 从"实际应解析的日志"取：推导路径缺失时它可能在落盘回退文件里
-        target, _ = _resolve_log_target(log_path, fallback_log_path)
-        reason = _log_tail_reason(target) if target is not None else ""
+        target, _ = await asyncio.to_thread(_resolve_log_target, log_path, fallback_log_path)
+        reason = await asyncio.to_thread(_log_tail_reason, target) if target is not None else ""
         await _mark_failed(
             db,
             taskid,
@@ -457,8 +461,8 @@ async def _finalize(
         # 已知失败标记，通用尾部提取只会捞到无信息的几行）
         parser_reason = str(data_dic.get("error") or "")
         # reason 从"实际应解析的日志"取：推导路径缺失时它可能在落盘回退文件里
-        target, _ = _resolve_log_target(log_path, fallback_log_path)
-        tail = _log_tail_reason(target) if target is not None else ""
+        target, _ = await asyncio.to_thread(_resolve_log_target, log_path, fallback_log_path)
+        tail = await asyncio.to_thread(_log_tail_reason, target) if target is not None else ""
         fail_reason = parser_reason or (
             f"calculator 退出码 {returncode}；" if returncode else ""
         ) + (tail or "未在日志尾部找到明确错误段")
@@ -482,7 +486,7 @@ async def _finalize(
         )
         return
     try:
-        atomic_write_json(json_path, data_dic, indent=4)
+        await asyncio.to_thread(atomic_write_json, json_path, data_dic, indent=4)
     except Exception as e:
         print(f'写入 json 失败（账本已终态）：{e}')
 
@@ -510,7 +514,7 @@ async def run_guard(
     Guard：calculator 的父进程。
 
     0. 对 guard-<id>.lock 持排他 flock（进程死内核放锁）——OS 级防重 + 存活证据。
-    1. 经 calc_lock_wrapper 启动 calculator 并 wait()（事件驱动，不再轮询 mtime）。
+    1. 经 calc_lock_wrapper 启动独占进程组；只消费账本显式取消请求。
     2. calculator 退出后，在 parse_timeout 窗口内尝试解析日志。
     3. 解析成功则写 state.json、更新数据库、注入事件；失败则标记 failed。
     """
@@ -518,12 +522,26 @@ async def run_guard(
     workdir = os.path.dirname(log_path)
     db = ComputeDB.from_path(db_path)
 
-    guard_fd = try_acquire_lock(guard_lock_path(workdir, taskid))
+    guard_lock = await asyncio.to_thread(guard_lock_path, workdir, taskid)
+    guard_fd = await asyncio.to_thread(try_acquire_lock, guard_lock)
     if guard_fd is None:
         print(f'[guard] task {taskid} 已有 guard 持锁在管，退出（OS 级防重）')
         return
     try:
         await _register_pid(db, taskid, "guard_pid", os.getpid())
+        calc_lock = await asyncio.to_thread(calc_lock_path, workdir, taskid)
+        row = await aget_compute_job(db, taskid)
+        if row is None or row["state"] != "running":
+            # No calculator was spawned by this owner. A prior calculator may
+            # still hold the lock, so only acknowledge cancellation when free.
+            calc_fd = await asyncio.to_thread(try_acquire_lock, calc_lock)
+            if calc_fd is not None:
+                try:
+                    if row is not None and row["state"] == "cancel_requested":
+                        await acancel_compute_job(db, taskid)
+                finally:
+                    os.close(calc_fd)
+            return
         from cloudra.services.ts_pipeline_store import verify_stage_input
         try:
             await asyncio.to_thread(verify_stage_input, db, taskid)
@@ -538,13 +556,13 @@ async def run_guard(
             row = await aget_compute_job(db, taskid)
             xtb_params = XtbParams.from_row(row)
 
-        ok, msg = check_job_type(job_type, workdir)
+        ok, msg = await asyncio.to_thread(check_job_type, job_type, workdir)
         if not ok:
             print(f'[guard] 环境检查失败：{msg}')
             await _mark_failed(db, taskid, msg)
             return
 
-        ok, calculator_cmd, msg = build_calculator_cmd(
+        ok, calculator_cmd, msg = await asyncio.to_thread(build_calculator_cmd,
             path, job_type=job_type, xtb_params=xtb_params
         )
         if not ok:
@@ -561,7 +579,7 @@ async def run_guard(
         calc_env = os.environ.copy()
         scratch_dir = None
         if job_type == "gaussian":
-            scratch_dir = allocate_gaussian_scratch(taskid, workdir)
+            scratch_dir = await asyncio.to_thread(allocate_gaussian_scratch, taskid, workdir)
             calc_env["GAUSS_SCRDIR"] = str(scratch_dir)
             print(f'[guard] Gaussian scratch: {scratch_dir}')
 
@@ -571,7 +589,7 @@ async def run_guard(
             sys.executable,
             "-m",
             "cloudra.runtime.calc_lock_wrapper",
-            calc_lock_path(workdir, taskid),
+            calc_lock,
             "--",
             *calculator_cmd,
         ]
@@ -580,8 +598,9 @@ async def run_guard(
         # 丢弃即丢主输出；落盘同时保留 stderr 供失败取证。
         # O_TRUNC：同一 task 重试时新 guard 必须从头写，避免新旧输出混叠
         # （cclib 读到多个 TERMINATION 标记会解析混乱）。
-        calc_log_fd = os.open(
-            _calc_output_log_path(workdir, taskid),
+        output_log = await asyncio.to_thread(_calc_output_log_path, workdir, taskid)
+        calc_log_fd = await asyncio.to_thread(os.open,
+            output_log,
             os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
             0o644,
         )
@@ -596,27 +615,78 @@ async def run_guard(
         }
         returncode: int | None = None
         try:
-            calc_proc = await asyncio.create_subprocess_exec(*wrapped_cmd, **calc_kwargs)
+            # Recheck after setup awaits: an accepted pre-launch request must
+            # not start a new calculation. A request during spawn is consumed
+            # immediately after obtaining the fresh owned process handle.
+            row = await aget_compute_job(db, taskid)
+            if row is None or row["state"] != "running":
+                calc_fd = await asyncio.to_thread(try_acquire_lock, calc_lock)
+                if calc_fd is not None:
+                    try:
+                        if row is not None and row["state"] == "cancel_requested":
+                            await acancel_compute_job(db, taskid)
+                            await asyncio.to_thread(cleanup_gaussian_scratch, scratch_dir)
+                    finally:
+                        os.close(calc_fd)
+                return
+            spawn = asyncio.create_task(asyncio.create_subprocess_exec(*wrapped_cmd, **calc_kwargs))
+            # Cancelling the guard must neither interrupt spawn nor signal its
+            # calculator; a later adopt guard can await the inherited flock.
+            try:
+                calc_proc = await asyncio.shield(spawn)
+            except asyncio.CancelledError:
+                await asyncio.shield(spawn)
+                raise
             await _register_pid(db, taskid, "calc_pid", calc_proc.pid)
             print(f'[guard] calculator 启动 (PID {calc_proc.pid})，等待其结束...')
+            cancel_sent = False
+            while calc_proc.returncode is None:
+                row = await aget_compute_job(db, taskid)
+                if row is None:
+                    raise RuntimeError(f"compute job {taskid} disappeared while calculator runs")
+                if row["state"] == "cancel_requested" and not cancel_sent:
+                    # Only the freshly created session belongs to this owner.
+                    # Never infer a group from a persisted PID, an exception,
+                    # scheduler shutdown, or Agent task cancellation.
+                    if calc_proc.returncode is None:
+                        try:
+                            os.killpg(calc_proc.pid, signal.SIGTERM)
+                        except ProcessLookupError:
+                            pass
+                    cancel_sent = True
+                try:
+                    returncode = await asyncio.wait_for(calc_proc.wait(), _CANCEL_POLL_SECONDS)
+                except TimeoutError:
+                    continue
             returncode = await calc_proc.wait()
             print(f'[guard] calculator 退出，退出码：{returncode}')
         finally:
             os.close(calc_log_fd)
-            # 必须在 g16 退出后再清；运行中删除会制造 FileIO / 假“输入被删”。
-            cleanup_gaussian_scratch(scratch_dir)
 
-        await _finalize(
-            db,
-            taskid,
-            log_path,
-            workdir,
-            parse_timeout,
-            job_type,
-            returncode,
-            fallback_log_path=_calc_output_log_path(workdir, taskid),
-            xtb_task=xtb_params.task if xtb_params else None,
-        )
+        # Reaping the parent does not prove that all engine links exited.
+        # Hold the released calc flock through terminal CAS and scratch cleanup.
+        while (calc_fd := await asyncio.to_thread(try_acquire_lock, calc_lock)) is None:
+            await asyncio.sleep(_CANCEL_POLL_SECONDS)
+        try:
+            row = await aget_compute_job(db, taskid)
+            if row is None:
+                raise RuntimeError(f"compute job {taskid} disappeared before finalization")
+            if row["state"] == "running":
+                await _finalize(
+                    db, taskid, log_path, workdir, parse_timeout, job_type, returncode,
+                    fallback_log_path=output_log,
+                    xtb_task=xtb_params.task if xtb_params else None,
+                )
+            # Cancellation can win while logs are being parsed. The running-only
+            # finalization CAS suppresses success; this owner must still ack it.
+            row = await aget_compute_job(db, taskid)
+            if row is not None and row["state"] == "cancel_requested":
+                await acancel_compute_job(db, taskid)
+                row = await aget_compute_job(db, taskid)
+            if row is not None and row["state"] in {"done", "failed", "cancelled"}:
+                await asyncio.to_thread(cleanup_gaussian_scratch, scratch_dir)
+        finally:
+            os.close(calc_fd)
     finally:
         os.close(guard_fd)
 
@@ -640,36 +710,40 @@ async def run_adopt(
     workdir = os.path.dirname(log_path)
     db = ComputeDB.from_path(db_path)
 
-    guard_fd = try_acquire_lock(guard_lock_path(workdir, taskid))
+    guard_lock = await asyncio.to_thread(guard_lock_path, workdir, taskid)
+    guard_fd = await asyncio.to_thread(try_acquire_lock, guard_lock)
     if guard_fd is None:
         print(f'[guard adopt] task {taskid} 已有 guard 持锁在管，退出')
         return
     try:
         await _register_pid(db, taskid, "guard_pid", os.getpid())
-        calc_lock = calc_lock_path(workdir, taskid)
+        calc_lock = await asyncio.to_thread(calc_lock_path, workdir, taskid)
         while True:
-            calc_fd = try_acquire_lock(calc_lock)
+            calc_fd = await asyncio.to_thread(try_acquire_lock, calc_lock)
             if calc_fd is not None:
-                os.close(calc_fd)
                 break
             print(f'[guard adopt] calc 锁仍被持有，calculator 还在跑；{_ADOPT_POLL_SECONDS}s 后再探...')
             await asyncio.sleep(_ADOPT_POLL_SECONDS)
-        # xtb 运行级别影响终态判定（opt 收敛判据只对 opt/ohess 生效）
-        xtb_task: str | None = None
-        if job_type == "xtb":
+        try:
             row = await aget_compute_job(db, taskid)
-            xtb_task = XtbParams.from_row(row).task
-        await _finalize(
-            db,
-            taskid,
-            log_path,
-            workdir,
-            parse_timeout,
-            job_type,
-            None,
-            fallback_log_path=_calc_output_log_path(workdir, taskid),
-            xtb_task=xtb_task,
-        )
+            if row is None:
+                raise RuntimeError(f"compute job {taskid} disappeared before adopt finalization")
+            if row["state"] == "cancel_requested":
+                await acancel_compute_job(db, taskid)
+                return
+            if row["state"] != "running":
+                return
+            xtb_task = XtbParams.from_row(row).task if job_type == "xtb" else None
+            output_log = await asyncio.to_thread(_calc_output_log_path, workdir, taskid)
+            await _finalize(
+                db, taskid, log_path, workdir, parse_timeout, job_type, None,
+                fallback_log_path=output_log, xtb_task=xtb_task,
+            )
+            row = await aget_compute_job(db, taskid)
+            if row is not None and row["state"] == "cancel_requested":
+                await acancel_compute_job(db, taskid)
+        finally:
+            os.close(calc_fd)
     finally:
         os.close(guard_fd)
 

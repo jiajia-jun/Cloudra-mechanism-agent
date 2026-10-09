@@ -177,7 +177,8 @@ export function ConsoleIndexPage({
     accepted: boolean;
   } | null>(null);
 
-  const activeJobs = sidebarJobs ? sidebarJobs.filter((j) => j.state === 'running' || j.state === 'queued' || j.state === 'ready') : [];
+  const activeJobs = sidebarJobs ? sidebarJobs.filter((j) => ['running', 'queued', 'ready', 'cancel_requested'].includes(j.state)) : [];
+  const stoppingJobs = activeJobs.filter((j) => j.state === 'cancel_requested');
   const dagModeActive =
     project.settings.orchestration_mode === 'dag_guided' ||
     project.settings.defaults?.orchestration_mode === 'dag_guided' ||
@@ -609,7 +610,9 @@ export function ConsoleIndexPage({
                 </svg>
               </div>
               <span className={`badge sm ${activeJobs.length > 0 ? 'running' : 'neutral'}`}>
-                {activeJobs.length > 0 ? t.cardComputeBadgeRunning(activeJobs.length) : t.cardComputeBadgeReady}
+                {stoppingJobs.length > 0
+                  ? t.cardComputeBadgeStopping(stoppingJobs.length)
+                  : activeJobs.length > 0 ? t.cardComputeBadgeRunning(activeJobs.length) : t.cardComputeBadgeReady}
               </span>
             </div>
 

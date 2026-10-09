@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -69,12 +70,101 @@ def test_calc_lock_wrapper_refuses_when_held(tmp_path):
     assert fd is not None
     try:
         rc = subprocess.run(
-            _wrapper_cmd(lock, sys.executable, "-c", "pass"),
+            _wrapper_cmd(lock, sys.executable, "-c", f"from pathlib import Path; Path({str(tmp_path / 'started')!r}).touch()"),
             capture_output=True, timeout=10,
         ).returncode
         assert rc == 3
+        assert not (tmp_path / "started").exists()
     finally:
         os.close(fd)
+
+
+def test_wrapper_term_handler_does_not_make_engine_ignore_term(tmp_path):
+    ready = tmp_path / "ready"
+    proc = subprocess.Popen(_wrapper_cmd(
+        str(tmp_path / "term.lock"), sys.executable, "-c",
+        f"from pathlib import Path; import time; Path({str(ready)!r}).touch(); time.sleep(30)",
+    ), start_new_session=True)
+    try:
+        deadline = time.monotonic() + 3
+        while not ready.exists():
+            assert time.monotonic() < deadline
+            time.sleep(0.02)
+        os.kill(proc.pid, signal.SIGTERM)
+        time.sleep(0.1)
+        assert proc.poll() is None, "wrapper must retain ownership when only it receives TERM"
+        os.killpg(proc.pid, signal.SIGTERM)
+        proc.wait(timeout=3)
+        assert proc.returncode != 0, "exec child must retain default TERM handling"
+        assert not is_lock_held(str(tmp_path / "term.lock"))
+    finally:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        proc.wait(timeout=3)
+
+
+@pytest.mark.parametrize("during_spawn", [False, True], ids=["before_spawn", "spawn_window"])
+def test_wrapper_records_early_term_and_covers_spawn_window(tmp_path, monkeypatch, during_spawn):
+    from cloudra.runtime import calc_lock_wrapper as wrapper
+
+    handlers = {}
+    launches = []
+    signals = []
+
+    def install(sig, handler):
+        previous = handlers.get(sig, signal.SIG_DFL)
+        handlers[sig] = handler
+        if not during_spawn and callable(handler):
+            handler(signal.SIGTERM, None)
+        return previous
+
+    class Calculator:
+        def wait(self):
+            return 0
+
+    def spawn(*args, **kwargs):
+        launches.append("popen")
+        handlers[signal.SIGTERM](signal.SIGTERM, None)
+        return Calculator()
+
+    def forward(group, sig):
+        signals.append((group, sig))
+        handlers[signal.SIGTERM](signal.SIGTERM, None)
+
+    monkeypatch.setattr(signal, "signal", install)
+    monkeypatch.setattr(wrapper.os, "getsid", lambda _pid: os.getpid())
+    monkeypatch.setattr(wrapper.os, "getpgrp", os.getpid)
+    monkeypatch.setattr(wrapper.os, "killpg", forward)
+    monkeypatch.setattr(subprocess, "Popen", spawn)
+    monkeypatch.setattr(wrapper.os, "execvp", lambda *_args: launches.append("exec"))
+    rc = wrapper.main([str(tmp_path / "early.lock"), "--", "synthetic"])
+    if during_spawn:
+        assert launches == ["popen"]
+        assert signals == [(os.getpid(), signal.SIGTERM)]
+    else:
+        assert launches == [], "accepted pre-spawn cancellation must not start an engine"
+        assert rc != 0
+        assert signals == []
+    assert not is_lock_held(str(tmp_path / "early.lock"))
+
+
+def test_wrapper_cannot_launch_or_signal_when_session_isolation_fails(tmp_path, monkeypatch):
+    from cloudra.runtime import calc_lock_wrapper as wrapper
+
+    def cannot_isolate():
+        raise PermissionError("synthetic session isolation failure")
+
+    monkeypatch.setattr(signal, "signal", lambda *_args: signal.SIG_DFL)
+    monkeypatch.setattr(wrapper.os, "getsid", lambda _pid: -1)
+    monkeypatch.setattr(wrapper.os, "getpgrp", lambda: -1)
+    monkeypatch.setattr(wrapper.os, "setsid", cannot_isolate)
+    monkeypatch.setattr(subprocess, "Popen", lambda *_a, **_kw: pytest.fail("engine started without session ownership"))
+    monkeypatch.setattr(wrapper.os, "killpg", lambda *_a: pytest.fail("signal sent without session ownership"))
+    lock = tmp_path / "unowned.lock"
+    assert wrapper.main([str(lock), "--", "synthetic"]) == 1
+    assert not lock.exists()
 
 
 @pytest.mark.asyncio

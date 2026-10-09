@@ -158,6 +158,29 @@ async def test_failed_job_notice_directs_blocker_to_agent_hub():
 
 
 @pytest.mark.asyncio
+async def test_cancelled_job_notice_requires_new_user_request_before_resubmission():
+    core, project, coordinator = await _setup_core()
+    job_id = _insert_terminal_job(
+        project.id, session_id=coordinator.id, state="cancelled"
+    )
+    broker = ComputeNotifyBroker(core)
+
+    await broker._poll_project(project.id)
+
+    notices = core.event_log.query_session(
+        coordinator.id, types={"agent.message_injected"}
+    )
+    assert len(notices) == 1
+    content = notices[0].data["content"]
+    assert f"task_id={job_id}" in content
+    assert "state=cancelled" in content
+    assert "Do not resubmit" in content
+    assert "new explicit user request" in content
+    assert "Failure reason" not in content
+    assert "email the user" not in content
+
+
+@pytest.mark.asyncio
 async def test_poll_falls_back_to_coordinator_for_unknown_session():
     core, project, coordinator = await _setup_core()
     job_id = _insert_terminal_job(project.id, session_id="ghost-agent")

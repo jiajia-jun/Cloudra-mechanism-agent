@@ -146,7 +146,7 @@ export async function installApiMocks(page: Page, opts: MockOpts = {}) {
       });
     }
     if (method === 'POST' && path === '/api/v2/compute/cancel-all') {
-      const body = { ready_cancelled: 1, slurm_cancel_requested: 0, local_cancelled: 1 };
+      const body = { ready_cancelled: 1, cancel_requested: 1 };
       cancelAllHits.push(body);
       return json(route, body);
     }

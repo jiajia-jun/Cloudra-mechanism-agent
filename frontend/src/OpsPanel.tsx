@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api';
 import type { Agent, ComputeJob, ComputeNode, PendingReminder, Project } from './types';
 import { useI18n, type Translations } from './i18n';
@@ -88,13 +88,15 @@ function RefreshSvg({ className = '' }: { className?: string }) {
   );
 }
 
-export default function OpsPanel({ project, agents, onError }: {
+export default function OpsPanel({ project, agents, onError, refreshVersion }: {
   project: Project;
   agents: Agent[];
   onError: (e: unknown) => void;
+  refreshVersion: number;
 }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [jobs, setJobs] = useState<ComputeJob[] | null>(null);
+  const jobsRequestRef = useRef(0);
   const [nodes, setNodes] = useState<ComputeNode[] | null>(null);
   const [reminders, setReminders] = useState<PendingReminder[] | null>(null);
 
@@ -113,9 +115,10 @@ export default function OpsPanel({ project, agents, onError }: {
   );
 
   const loadJobs = useCallback(async () => {
+    const requestVersion = ++jobsRequestRef.current;
     try {
       const data = await api.listComputeJobs(project.id);
-      setJobs(data);
+      if (requestVersion === jobsRequestRef.current) setJobs(data);
     } catch (e) {
       onError(e);
     }
@@ -142,10 +145,16 @@ export default function OpsPanel({ project, agents, onError }: {
   useEffect(() => {
     void loadJobs();
     const timer = setInterval(() => {
-      api.listComputeJobs(project.id).then(setJobs).catch(() => undefined);
+      const requestVersion = ++jobsRequestRef.current;
+      api.listComputeJobs(project.id).then((data) => {
+        if (requestVersion === jobsRequestRef.current) setJobs(data);
+      }).catch(() => undefined);
     }, 4000);
-    return () => clearInterval(timer);
-  }, [loadJobs, project.id]);
+    return () => {
+      ++jobsRequestRef.current;
+      clearInterval(timer);
+    };
+  }, [loadJobs, project.id, refreshVersion]);
 
   useEffect(() => {
     void loadNodes();
@@ -153,7 +162,7 @@ export default function OpsPanel({ project, agents, onError }: {
       api.computeNodes().then(setNodes).catch(() => undefined);
     }, 4000);
     return () => clearInterval(timer);
-  }, [loadNodes]);
+  }, [loadNodes, refreshVersion]);
 
   useEffect(() => {
     void loadReminders();
@@ -431,7 +440,7 @@ export default function OpsPanel({ project, agents, onError }: {
                         <td>
                           <span className={`state-badge ${j.state}`}>
                             <span className="badge-dot" />
-                            {j.state}
+                            {j.state === 'cancel_requested' ? (lang === 'zh' ? '取消中' : 'Stopping') : j.state}
                           </span>
                         </td>
                         <td>

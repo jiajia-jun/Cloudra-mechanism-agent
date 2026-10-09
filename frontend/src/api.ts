@@ -127,9 +127,9 @@ export const api = {
     request<CommandResponse<{ deleted: string }>>(`/api/v2/projects/${projectId}?hard=true`, {
       method: 'DELETE',
     }),
-  // Ledger-level cancel of every unfinished compute job; never kills processes.
+  // Running jobs remain active until the execution owner confirms their exit.
   cancelAllComputeJobs: () =>
-    request<{ ready_cancelled: number; slurm_cancel_requested: number; local_cancelled: number }>(
+    request<{ ready_cancelled: number; cancel_requested: number }>(
       '/api/v2/compute/cancel-all',
       { method: 'POST' },
     ),
