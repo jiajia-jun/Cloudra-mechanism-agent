@@ -1,4 +1,4 @@
-"""Transactional, permission-checked mutations for the two canonical DAGs."""
+"""Transactional, permission-checked mutations for the delivery DAG."""
 
 from __future__ import annotations
 
@@ -13,13 +13,11 @@ from typing import Any, Literal
 
 from cloudra.dag.models import (
     AddEdge,
-    AddLink,
     AddNode,
     AttachRef,
     CoverageContract,
     DagEdge,
     DagNode,
-    DependencyEdge,
     ElementaryStepEdge,
     GraphActor,
     GraphKind,
@@ -76,11 +74,9 @@ class _GraphState:
 
 _MODEL_UPDATE_FIELDS = {
     "status",
-    "priority",
     "label",
     "annotations",
     "reason",
-    "blocked_reason",
     "evidence_level",
     "supersedes",
     "required",
@@ -108,9 +104,7 @@ _DERIVED_EVIDENCE_FIELDS = {
 
 def _contains_key(value: Any, forbidden: str) -> bool:
     if isinstance(value, dict):
-        return forbidden in value or any(
-            _contains_key(item, forbidden) for item in value.values()
-        )
+        return forbidden in value or any(_contains_key(item, forbidden) for item in value.values())
     if isinstance(value, list):
         return any(_contains_key(item, forbidden) for item in value)
     return False
@@ -142,9 +136,7 @@ def apply_stage_verdict(
       advisory 阶段，即使存量契约把它落库为 required=True 也不构成顺序
       门禁的 blocker。
     """
-    index = next(
-        (i for i, stage in enumerate(stages) if stage.kind == stage_kind), None
-    )
+    index = next((i for i, stage in enumerate(stages) if stage.kind == stage_kind), None)
     if index is None:
         raise _Rejected(
             "stage_not_declared",
@@ -163,10 +155,8 @@ def apply_stage_verdict(
             "skip": StageStatus.SKIPPED,
             "not_applicable": StageStatus.NOT_APPLICABLE,
         }[verdict]
-        updated = target.model_copy(
-            update={"status": status, "reason": reason, "ref": None}
-        )
-        return [*stages[:index], updated, *stages[index + 1:]]
+        updated = target.model_copy(update={"status": status, "reason": reason, "ref": None})
+        return [*stages[:index], updated, *stages[index + 1 :]]
     if not tool_succeeded:
         raise _Rejected(
             "tool_not_succeeded",
@@ -196,13 +186,10 @@ def apply_stage_verdict(
         if blockers:
             raise _Rejected(
                 "stage_out_of_order",
-                "previous required stages must be supported, skipped, or not_applicable first: "
-                + ", ".join(blockers),
+                "previous required stages must be supported, skipped, or not_applicable first: " + ", ".join(blockers),
             )
-    updated = target.model_copy(
-        update={"status": StageStatus.SUPPORTED, "reason": "", "ref": ref}
-    )
-    return [*stages[:index], updated, *stages[index + 1:]]
+    updated = target.model_copy(update={"status": StageStatus.SUPPORTED, "reason": "", "ref": ref})
+    return [*stages[:index], updated, *stages[index + 1 :]]
 
 
 def _operation_freeform(operation: GraphOperation) -> dict[str, Any]:
@@ -213,23 +200,17 @@ def _operation_freeform(operation: GraphOperation) -> dict[str, Any]:
         return operation.node.metadata
     if isinstance(operation, AddEdge):
         return operation.edge.metadata
-    if isinstance(operation, AddLink):
-        return operation.payload
     return {}
 
 
 def _is_legacy_process_op(operation: GraphOperation) -> bool:
-    """旧 process 图 op（含 add_link 跨图簿记）：只读重放时 no-op。"""
-    if isinstance(operation, AddLink):
-        return True
+    """旧 process 图 op：只读重放时 no-op。"""
     return getattr(operation, "graph", None) is GraphKind.PROCESS
 
 
 def _legacy_process_op_graphs(operation: GraphOperation) -> set[GraphKind]:
     """旧 op 写入时的 touch 口径——重放必须按同一口径推进 revision，
     journal 的 base/resulting 校验才通过。"""
-    if isinstance(operation, AddLink):
-        return {GraphKind.PROCESS, GraphKind.DELIVERY}
     return {GraphKind.PROCESS}
 
 
@@ -275,9 +256,7 @@ class DagEngine:
         def operation() -> None:
             with self.store.db.connect() as con:
                 con.execute("BEGIN IMMEDIATE")
-                graph_rows = con.execute(
-                    "SELECT graph_id, graph_kind, revision, metadata FROM dag_graphs"
-                ).fetchall()
+                graph_rows = con.execute("SELECT graph_id, graph_kind, revision, metadata FROM dag_graphs").fetchall()
                 if {row[1] for row in graph_rows} != {"process", "delivery"}:
                     raise DagCorruptionError("the canonical graph pair is incomplete")
                 existing_revisions = {row[1]: row[2] for row in graph_rows}
@@ -304,27 +283,21 @@ class DagEngine:
                     """
                 ).fetchall()
                 if not rows and any(existing_revisions.values()):
-                    raise DagCorruptionError(
-                        "materialized revisions are nonzero but the accepted journal is empty"
-                    )
+                    raise DagCorruptionError("materialized revisions are nonzero but the accepted journal is empty")
                 try:
                     ignored_legacy = 0
                     for raw_actor, raw_actor_id, raw_base, raw_result, raw_operations in rows:
                         base = json.loads(raw_base)
-                        expected_base = {
-                            kind.value: state.revision for kind, state in states.items()
-                        }
+                        expected_base = {kind.value: state.revision for kind, state in states.items()}
                         if base != expected_base:
-                            raise DagCorruptionError(
-                                f"journal base revision mismatch: {base} != {expected_base}"
-                            )
+                            raise DagCorruptionError(f"journal base revision mismatch: {base} != {expected_base}")
                         actor = GraphActor(raw_actor)
                         touched: set[GraphKind] = set()
                         for raw_operation in json.loads(raw_operations):
                             parsed = parse_graph_operation(raw_operation)
                             if _is_legacy_process_op(parsed):
                                 # Phase 4：process 图已删除。旧 journal 的 process
-                                # op（含 add_link）重放为 no-op，但 revision 推进
+                                # op 重放为 no-op，但 revision 推进
                                 # 口径与写入时一致，日志校验才能通过。
                                 ignored_legacy += 1
                                 touched.update(_legacy_process_op_graphs(parsed))
@@ -346,9 +319,7 @@ class DagEngine:
                             calculated[kind.value] = states[kind].revision
                         recorded = json.loads(raw_result)
                         if recorded != calculated:
-                            raise DagCorruptionError(
-                                f"journal resulting revision mismatch: {recorded} != {calculated}"
-                            )
+                            raise DagCorruptionError(f"journal resulting revision mismatch: {recorded} != {calculated}")
                 except DagCorruptionError:
                     raise
                 except (TypeError, ValueError, json.JSONDecodeError, _Rejected) as exc:
@@ -365,9 +336,7 @@ class DagEngine:
                 if ignored_legacy:
                     # 留痕：本次重放吞掉的旧 process op 数量。operations 为空、
                     # base==resulting==最终版本——下次重放校验该行时自洽。
-                    final = {
-                        kind.value: state.revision for kind, state in states.items()
-                    }
+                    final = {kind.value: state.revision for kind, state in states.items()}
                     con.execute(
                         """
                         INSERT INTO dag_mutations(
@@ -414,7 +383,8 @@ class DagEngine:
         try:
             revisions = retry_on_locked(
                 lambda: self._apply_transaction(
-                    mutation_id, batch,
+                    mutation_id,
+                    batch,
                     draft=(draft_id, draft, draft_actor_id) if draft_id and draft else None,
                 )
             )
@@ -423,9 +393,7 @@ class DagEngine:
             # 供 retry_on_locked 的重试闭包安全引用
             rejection = exc
             revisions = self.store.load_bundle().revisions
-            retry_on_locked(
-                lambda: self._record_rejection(mutation_id, batch, revisions, rejection)
-            )
+            retry_on_locked(lambda: self._record_rejection(mutation_id, batch, revisions, rejection))
             return MutationResult(
                 accepted=False,
                 mutation_id=mutation_id,
@@ -444,15 +412,13 @@ class DagEngine:
         """批次实际触及的图集合——base revision 只校验这些图。
 
         与 ``_apply_operation`` 的 touch 规则保持一致：waive_gate /
-        set_coverage_contract 触及 delivery，add_link 跨两张图，其余按
+        set_coverage_contract 触及 delivery，其余按
         operation.graph（节点/边操作的 graph 在类型层即必填）。
         """
         targets: set[GraphKind] = set()
         for operation in batch.operations:
             if isinstance(operation, (WaiveGate, SetCoverageContract)):
                 targets.add(GraphKind.DELIVERY)
-            elif isinstance(operation, AddLink):
-                targets.update({GraphKind.PROCESS, GraphKind.DELIVERY})
             else:
                 targets.add(operation.graph)
         return targets
@@ -487,18 +453,14 @@ class DagEngine:
             links = self._load_links(con)
             # 删边/删节点必须给理由：删除要能在变更日志里被人读懂，空
             # rationale 的删除批次直接拒绝。理由是否成立由 Supervisor/用户判断。
-            if any(
-                op.op in ("remove_edge", "remove_node") for op in batch.operations
-            ) and not batch.rationale.strip():
+            if any(op.op in ("remove_edge", "remove_node") for op in batch.operations) and not batch.rationale.strip():
                 raise _Rejected(
                     "rationale_required",
                     "deletion requires a non-empty rationale explaining the removal",
                 )
             touched: set[GraphKind] = set()
             for operation in batch.operations:
-                self._apply_operation(
-                    con, states, links, touched, batch.actor, batch.actor_id, operation
-                )
+                self._apply_operation(con, states, links, touched, batch.actor, batch.actor_id, operation)
 
             for state in states.values():
                 self._validate_structure(con, state)
@@ -506,9 +468,7 @@ class DagEngine:
             # 删除收敛审查待办（同一事务）：被删目标上的 pending CallReview →
             # ignored + call_verdict 通知（target_deleted，告知提交者）；定向到
             # 被删目标的 queued 结构化请求 → superseded。历史裁决与证据行保留。
-            self._converge_deleted_reviews(
-                con, self._collect_deleted_targets(batch), batch.rationale
-            )
+            self._converge_deleted_reviews(con, self._collect_deleted_targets(batch), batch.rationale)
 
             resulting = dict(current)
             for kind in touched:
@@ -532,9 +492,7 @@ class DagEngine:
             return resulting
 
     def _load_states(self, con: sqlite3.Connection) -> dict[GraphKind, _GraphState]:
-        graph_rows = con.execute(
-            "SELECT graph_id, graph_kind, revision, metadata FROM dag_graphs"
-        ).fetchall()
+        graph_rows = con.execute("SELECT graph_id, graph_kind, revision, metadata FROM dag_graphs").fetchall()
         states: dict[GraphKind, _GraphState] = {}
         for graph_id, raw_kind, revision, metadata in graph_rows:
             kind = GraphKind(raw_kind)
@@ -563,9 +521,7 @@ class DagEngine:
                     "node_type": row[1],
                     "label": row[2],
                     "name": row[2],
-                    "refs": _assemble_refs(
-                        json.loads(row[3]), bindings.get(("node", row[0]), [])
-                    ),
+                    "refs": _assemble_refs(json.loads(row[3]), bindings.get(("node", row[0]), [])),
                     **payload,
                 }
                 if is_delivery:
@@ -589,9 +545,7 @@ class DagEngine:
                     "edge_type": row[3],
                     "label": row[4],
                     "name": row[4],
-                    "refs": _assemble_refs(
-                        json.loads(row[5]), bindings.get(("edge", row[0]), [])
-                    ),
+                    "refs": _assemble_refs(json.loads(row[5]), bindings.get(("edge", row[0]), [])),
                     **payload,
                 }
                 if is_delivery:
@@ -678,8 +632,7 @@ class DagEngine:
                     },
                 )
             request_rows = con.execute(
-                "SELECT request_id, target_ids FROM dag_review_requests "
-                "WHERE state = 'queued'"
+                "SELECT request_id, target_ids FROM dag_review_requests WHERE state = 'queued'"
             ).fetchall()
             for request_id, target_ids_json in request_rows:
                 try:
@@ -709,9 +662,7 @@ class DagEngine:
             waiver = operation.waiver
             contract = self._load_contract(con, states[GraphKind.DELIVERY].graph_id)
             if waiver not in contract.waivers:
-                contract = contract.model_copy(
-                    update={"waivers": [*contract.waivers, waiver]}
-                )
+                contract = contract.model_copy(update={"waivers": [*contract.waivers, waiver]})
                 self._write_contract(
                     con,
                     states[GraphKind.DELIVERY].graph_id,
@@ -723,9 +674,7 @@ class DagEngine:
         if isinstance(operation, SetCoverageContract):
             proposed = operation.contract
             current = self._load_contract(con, states[GraphKind.DELIVERY].graph_id)
-            if actor is not GraphActor.USER and not self._coverage_not_weaker(
-                current, proposed
-            ):
+            if actor is not GraphActor.USER and not self._coverage_not_weaker(current, proposed):
                 raise _Rejected(
                     "actor_forbidden",
                     "only the user may remove or lower a coverage requirement",
@@ -738,12 +687,6 @@ class DagEngine:
             )
             touched.add(GraphKind.DELIVERY)
             return
-        if isinstance(operation, AddLink):
-            raise _Rejected(
-                "process_graph_removed",
-                "cross-graph links are gone with the process graph; evidence binds "
-                "to delivery elements directly through stage binds",
-            )
         if operation.graph is GraphKind.PROCESS:
             raise _Rejected(
                 "process_graph_removed",
@@ -852,38 +795,20 @@ class DagEngine:
         )
 
     @staticmethod
-    def _check_element_graph_kind(
-        kind: GraphKind, operation: "AddNode | AddEdge"
-    ) -> None:
-        """图-类型匹配：词表与图种类绑定，是类型系统之外的跨元素规则，由引擎把守。"""
+    def _check_element_graph_kind(kind: GraphKind, operation: "AddNode | AddEdge") -> None:
+        """图-类型匹配：delivery 图只接受物种节点与基元反应边。"""
         if isinstance(operation, AddNode):
             element = operation.node
-            process_types = "planned|observed_tool_call"
-            ok = (
-                isinstance(element, (SpeciesNode, OccurrenceNode))
-                if kind is GraphKind.DELIVERY
-                else not isinstance(element, (SpeciesNode, OccurrenceNode))
-            )
+            ok = isinstance(element, (SpeciesNode, OccurrenceNode)) and kind is GraphKind.DELIVERY
             type_name = element.node_type
         else:
             element = operation.edge
-            process_types = "dependency"
-            ok = (
-                isinstance(element, ElementaryStepEdge)
-                if kind is GraphKind.DELIVERY
-                else isinstance(element, DependencyEdge)
-            )
+            ok = isinstance(element, ElementaryStepEdge) and kind is GraphKind.DELIVERY
             type_name = element.edge_type
         if not ok:
-            expected = (
-                "species/elementary_step"
-                if kind is GraphKind.DELIVERY
-                else process_types
-            )
             raise _Rejected(
                 "invalid_operation",
-                f"{type_name!r} does not belong on the {kind.value} graph; "
-                f"expected {expected}",
+                f"{type_name!r} does not belong on the {kind.value} graph; expected species/elementary_step",
             )
 
     @staticmethod
@@ -930,13 +855,9 @@ class DagEngine:
             "endpoint_supported": 3,
             "thermo_annotated": 4,
         }
-        if ranks.get(proposed.required_node_level, -1) < ranks.get(
-            current.required_node_level, 10_000
-        ):
+        if ranks.get(proposed.required_node_level, -1) < ranks.get(current.required_node_level, 10_000):
             return False
-        if ranks.get(proposed.required_edge_level, -1) < ranks.get(
-            current.required_edge_level, 10_000
-        ):
+        if ranks.get(proposed.required_edge_level, -1) < ranks.get(current.required_edge_level, 10_000):
             return False
         if current.require_branch_disposition and not proposed.require_branch_disposition:
             return False
@@ -960,7 +881,7 @@ class DagEngine:
             suggestion = f" Did you mean '{matches[0]}'?" if matches else ""
             raise _Rejected(
                 "missing_target",
-                f"{id_key} {element_id!r} does not exist.{suggestion} Available {id_key}s: {sorted(elements.keys())}"
+                f"{id_key} {element_id!r} does not exist.{suggestion} Available {id_key}s: {sorted(elements.keys())}",
             )
         if not changes:
             raise _Rejected(
@@ -1001,9 +922,7 @@ class DagEngine:
                 # 未知键来自 harness/用户，并入 metadata 保留。
                 metadata[key] = value
         serialized["metadata"] = metadata
-        elements[element_id] = (
-            parse_dag_node(serialized) if is_node else parse_dag_edge(serialized)
-        )
+        elements[element_id] = parse_dag_node(serialized) if is_node else parse_dag_edge(serialized)
 
     @staticmethod
     def _remove_edge(state: _GraphState, operation: RemoveEdge) -> None:
@@ -1014,7 +933,7 @@ class DagEngine:
             suggestion = f" Did you mean '{matches[0]}'?" if matches else ""
             raise _Rejected(
                 "missing_target",
-                f"edge {operation.edge_id!r} does not exist.{suggestion} Available edges: {sorted(state.edges.keys())}"
+                f"edge {operation.edge_id!r} does not exist.{suggestion} Available edges: {sorted(state.edges.keys())}",
             )
         del state.edges[operation.edge_id]
         state.edge_created.pop(operation.edge_id, None)
@@ -1028,47 +947,35 @@ class DagEngine:
             suggestion = f" Did you mean '{matches[0]}'?" if matches else ""
             raise _Rejected(
                 "missing_target",
-                f"node {operation.node_id!r} does not exist.{suggestion} Available nodes: {sorted(state.nodes.keys())}"
+                f"node {operation.node_id!r} does not exist.{suggestion} Available nodes: {sorted(state.nodes.keys())}",
             )
         linked = sorted(
             {
                 getattr(edge, "name", "") or edge.edge_id
                 for edge in state.edges.values()
-                if edge.source_node_id == operation.node_id
-                or edge.target_node_id == operation.node_id
+                if edge.source_node_id == operation.node_id or edge.target_node_id == operation.node_id
             }
         )
         if linked:
             raise _Rejected(
                 "node_has_edges",
-                f"node {operation.node_id!r} still has edges; remove them first "
-                f"in the same batch: {', '.join(linked)}",
+                f"node {operation.node_id!r} still has edges; remove them first in the same batch: {', '.join(linked)}",
             )
         del state.nodes[operation.node_id]
         state.node_created.pop(operation.node_id, None)
 
     @staticmethod
-    def _attach_ref(
-        con: sqlite3.Connection, state: _GraphState, operation: AttachRef
-    ) -> None:
+    def _attach_ref(con: sqlite3.Connection, state: _GraphState, operation: AttachRef) -> None:
         ref = operation.ref
         elements = state.nodes if operation.target_type == "node" else state.edges
         if operation.target_id not in elements:
-            raise _Rejected(
-                "missing_target", f"target {operation.target_id!r} does not exist"
-            )
+            raise _Rejected("missing_target", f"target {operation.target_id!r} does not exist")
         current = elements[operation.target_id]
         if ref in current.refs:
             return
         serialized = current.model_dump(mode="json", exclude={"payload"})
-        serialized["refs"] = [
-            item.model_dump(mode="json") for item in [*current.refs, ref]
-        ]
-        updated = (
-            parse_dag_node(serialized)
-            if operation.target_type == "node"
-            else parse_dag_edge(serialized)
-        )
+        serialized["refs"] = [item.model_dump(mode="json") for item in [*current.refs, ref]]
+        updated = parse_dag_node(serialized) if operation.target_type == "node" else parse_dag_edge(serialized)
         elements[operation.target_id] = updated
         # 双写：内联 refs 列随 _write_graph 物化重写，关联表在同一事务里记账。
         # 此处 revision 尚未推进，resulting revision = state.revision + 1。
@@ -1114,22 +1021,14 @@ class DagEngine:
 
     def _validate_ref(self, con: sqlite3.Connection, ref: GraphRef) -> None:
         if ref.ref_type == "species":
-            row = con.execute(
-                "SELECT 1 FROM dag_species WHERE species_id = ?", (ref.ref_id,)
-            ).fetchone()
+            row = con.execute("SELECT 1 FROM dag_species WHERE species_id = ?", (ref.ref_id,)).fetchone()
         elif ref.ref_type in ("tool_result", "file"):
-            row = con.execute(
-                "SELECT content_hash FROM dag_evidence WHERE evidence_id = ?", (ref.ref_id,)
-            ).fetchone()
+            row = con.execute("SELECT content_hash FROM dag_evidence WHERE evidence_id = ?", (ref.ref_id,)).fetchone()
             if row is not None and (not ref.content_hash or ref.content_hash != row[0]):
                 row = None
         elif ref.ref_type == "artifact":
-            row = con.execute(
-                "SELECT sha256 FROM artifacts WHERE artifact_id = ?", (ref.ref_id,)
-            ).fetchone()
-            if row is not None and (
-                not ref.content_hash or ref.content_hash not in {row[0], f"sha256:{row[0]}"}
-            ):
+            row = con.execute("SELECT sha256 FROM artifacts WHERE artifact_id = ?", (ref.ref_id,)).fetchone()
+            if row is not None and (not ref.content_hash or ref.content_hash not in {row[0], f"sha256:{row[0]}"}):
                 row = None
         elif ref.ref_type == "compute_job":
             try:
@@ -1182,21 +1081,27 @@ class DagEngine:
     # payload 列 = 显式字段（含默认值）+ metadata 的 JSON；身份列（id/type/label/refs）
     # 各有专列，stages 也有专列（读取侧 _read_element_stages 以专列为准）。
     # 读取侧 parse_dag_node/parse_dag_edge 对新旧形状双兼容。
-    _PAYLOAD_COLUMN_EXCLUDE = {"node_id", "edge_id", "source_node_id", "target_node_id",
-                               "node_type", "edge_type", "label", "refs", "payload", "stages"}
+    _PAYLOAD_COLUMN_EXCLUDE = {
+        "node_id",
+        "edge_id",
+        "source_node_id",
+        "target_node_id",
+        "node_type",
+        "edge_type",
+        "label",
+        "refs",
+        "payload",
+        "stages",
+    }
 
     @staticmethod
     def _payload_column(element: "DagNode | DagEdge") -> str:
-        return _canonical_json(
-            element.model_dump(mode="json", exclude=DagEngine._PAYLOAD_COLUMN_EXCLUDE)
-        )
+        return _canonical_json(element.model_dump(mode="json", exclude=DagEngine._PAYLOAD_COLUMN_EXCLUDE))
 
     @staticmethod
     def _stages_column(element: "DagNode | DagEdge") -> str:
         # process 元素没有 stages 字段，落空数组保持列语义一致
-        return _canonical_json(
-            [stage.model_dump(mode="json") for stage in getattr(element, "stages", [])]
-        )
+        return _canonical_json([stage.model_dump(mode="json") for stage in getattr(element, "stages", [])])
 
     @staticmethod
     def _insert_evidence_binding(
@@ -1407,13 +1312,13 @@ class DagEngine:
                 batch.rationale,
                 _canonical_json(base_revisions),
                 _canonical_json(resulting_revisions),
-                _canonical_json([
-                    # 排除 computed payload 投影（视图派生物），journal 只存权威字段
-                    operation.model_dump(
-                        mode="json", exclude={"node": {"payload"}, "edge": {"payload"}}
-                    )
-                    for operation in batch.operations
-                ]),
+                _canonical_json(
+                    [
+                        # 排除 computed payload 投影（视图派生物），journal 只存权威字段
+                        operation.model_dump(mode="json", exclude={"node": {"payload"}, "edge": {"payload"}})
+                        for operation in batch.operations
+                    ]
+                ),
                 int(accepted),
                 rejection.code if rejection else None,
                 rejection.reason if rejection else None,

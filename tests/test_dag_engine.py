@@ -8,19 +8,15 @@ def _load_engine_api():
         from cloudra.dag.engine import DagEngine
         from cloudra.dag.models import (
             AddEdge,
-            AddLink,
             AddNode,
             AttachRef,
             CoverageContract,
             CoverageWaiver,
-            DependencyEdge,
             ElementaryStepEdge,
             GraphActor,
             GraphRef,
             MutationBatch,
-            ObservedNode,
             OccurrenceNode,
-            PlannedNode,
             RemoveEdge,
             RemoveNode,
             SetCoverageContract,
@@ -45,13 +41,9 @@ def _load_engine_api():
         "UpdateNode": UpdateNode,
         "UpdateEdge": UpdateEdge,
         "AttachRef": AttachRef,
-        "AddLink": AddLink,
         "SetCoverageContract": SetCoverageContract,
         "WaiveGate": WaiveGate,
-        "PlannedNode": PlannedNode,
-        "ObservedNode": ObservedNode,
         "OccurrenceNode": OccurrenceNode,
-        "DependencyEdge": DependencyEdge,
         "ElementaryStepEdge": ElementaryStepEdge,
         "CoverageContract": CoverageContract,
         "CoverageWaiver": CoverageWaiver,
@@ -85,24 +77,12 @@ def _element(cls, kwargs):
 
 
 def _node(api, node_type, **kwargs):
-    if node_type in _PROCESS_NODE_TYPES:
-        cls = api["PlannedNode"]
-    elif node_type == "observed_tool_call":
-        cls = api["ObservedNode"]
-    elif node_type in _DELIVERY_NODE_TYPES:
-        cls = api["OccurrenceNode"]
-    else:
-        raise ValueError(f"unknown node_type {node_type!r}")
+    cls = api["OccurrenceNode"]
     return _element(cls, kwargs)
 
 
 def _edge(api, edge_type, **kwargs):
-    if edge_type in ("depends_on", "dependency"):
-        cls = api["DependencyEdge"]
-    elif edge_type == "elementary_step":
-        cls = api["ElementaryStepEdge"]
-    else:
-        raise ValueError(f"unknown edge_type {edge_type!r}")
+    cls = api["ElementaryStepEdge"]
     return _element(cls, kwargs)
 
 
@@ -120,13 +100,9 @@ def _op(api, name, graph=None, **data):
     if name == "remove_node":
         return api["RemoveNode"](op="remove_node", graph=graph, node_id=data["node_id"])
     if name == "update_node":
-        return api["UpdateNode"](
-            op="update_node", graph=graph, node_id=data["node_id"], changes=data["changes"]
-        )
+        return api["UpdateNode"](op="update_node", graph=graph, node_id=data["node_id"], changes=data["changes"])
     if name == "update_edge":
-        return api["UpdateEdge"](
-            op="update_edge", graph=graph, edge_id=data["edge_id"], changes=data["changes"]
-        )
+        return api["UpdateEdge"](op="update_edge", graph=graph, edge_id=data["edge_id"], changes=data["changes"])
     if name == "attach_ref":
         return api["AttachRef"](
             op="attach_ref",
@@ -136,15 +112,11 @@ def _op(api, name, graph=None, **data):
             ref=api["GraphRef"](**data["ref"]),
             evidence_role=data.get("evidence_role"),
         )
-    if name == "add_link":
-        return api["AddLink"](op="add_link", graph=None, **data)
     if name == "set_coverage_contract":
         contract = data["contract"]
         if isinstance(contract, dict):
             contract = api["CoverageContract"](**contract)
-        return api["SetCoverageContract"](
-            op="set_coverage_contract", graph=None, contract=contract
-        )
+        return api["SetCoverageContract"](op="set_coverage_contract", graph=None, contract=contract)
     if name == "waive_gate":
         waiver = data["waiver"]
         if isinstance(waiver, dict):
@@ -153,8 +125,7 @@ def _op(api, name, graph=None, **data):
     raise ValueError(f"unknown op {name!r}")
 
 
-def _batch(api, store, operations, *, actor="harness", base_revisions=None,
-           rationale="focused test", actor_id=None):
+def _batch(api, store, operations, *, actor="harness", base_revisions=None, rationale="focused test", actor_id=None):
     return api["MutationBatch"](
         session_id="s1",
         actor=api["GraphActor"](actor),
@@ -454,9 +425,7 @@ def test_agent_cannot_lower_a_persisted_coverage_requirement(tmp_path):
                     api,
                     "set_coverage_contract",
                     None,
-                    contract=CoverageContract.mechanism_default().model_dump(
-                        mode="json"
-                    ),
+                    contract=CoverageContract.mechanism_default().model_dump(mode="json"),
                 )
             ],
             actor="agent",
@@ -689,13 +658,11 @@ def test_operation_vocabulary_has_no_delete(tmp_path):
     api, _db, _store, _engine = _new_engine(tmp_path, "no-delete")
 
     with pytest.raises(ValueError):
-        api["parse_graph_operation"](
-            {"op": "delete_node", "graph": "delivery", "data": {"node_id": "n1"}}
-        )
+        api["parse_graph_operation"]({"op": "delete_node", "graph": "delivery", "data": {"node_id": "n1"}})
 
 
-def test_supervisor_is_read_only_on_delivery_and_links_are_gone(tmp_path):
-    """Supervisor 对 delivery 只读；add_link 与 process 写随 process 图一并删除。"""
+def test_supervisor_is_read_only_on_delivery_and_process_writes_are_rejected(tmp_path):
+    """Supervisor 对 delivery 只读；process 写随 process 图一并删除。"""
     api, _db, store, engine = _new_engine(tmp_path, "supervisor-delivery-readonly")
     seeded = engine.apply_batch(
         _batch(
@@ -703,8 +670,12 @@ def test_supervisor_is_read_only_on_delivery_and_links_are_gone(tmp_path):
             store,
             [
                 _op(
-                    api, "add_node", "delivery",
-                    node_id="r", node_type="intermediate_occurrence", label="R",
+                    api,
+                    "add_node",
+                    "delivery",
+                    node_id="r",
+                    node_type="intermediate_occurrence",
+                    label="R",
                     payload={"evidence_level": "proposed"},
                 ),
             ],
@@ -713,11 +684,16 @@ def test_supervisor_is_read_only_on_delivery_and_links_are_gone(tmp_path):
     assert seeded.accepted
 
     forbidden_ops = [
-        _op(api, "add_node", "delivery", node_id="p",
-            node_type="intermediate_occurrence", label="P",
-            payload={"evidence_level": "proposed"}),
-        _op(api, "update_node", "delivery", node_id="r",
-            changes={"evidence_level": "rejected", "reason": "stale"}),
+        _op(
+            api,
+            "add_node",
+            "delivery",
+            node_id="p",
+            node_type="intermediate_occurrence",
+            label="P",
+            payload={"evidence_level": "proposed"},
+        ),
+        _op(api, "update_node", "delivery", node_id="r", changes={"evidence_level": "rejected", "reason": "stale"}),
         _op(api, "update_node", "delivery", node_id="r", changes={"label": "X"}),
     ]
     for op in forbidden_ops:
@@ -725,34 +701,22 @@ def test_supervisor_is_read_only_on_delivery_and_links_are_gone(tmp_path):
         assert not result.accepted
         assert result.rejection_code == "actor_forbidden"
 
-    linked = engine.apply_batch(
-        _batch(
-            api,
-            store,
-            [
-                _op(
-                    api, "add_link", None,
-                    link_id="lk-1",
-                    process_node_id="ts-search",
-                    delivery_element_type="node",
-                    delivery_element_id="r",
-                    payload={"relation": "produces_evidence_for"},
-                )
-            ],
-            actor="supervisor",
-        )
-    )
-    assert not linked.accepted
-    assert linked.rejection_code == "process_graph_removed"
-
     # process 写已整体移除
     process_write = engine.apply_batch(
         _batch(
             api,
             store,
-            [_op(api, "add_node", "process", node_id="ts-search",
-                 node_type="calculation", label="TS search",
-                 payload={"status": "ready"})],
+            [
+                _op(
+                    api,
+                    "add_node",
+                    "process",
+                    node_id="ts-search",
+                    node_type="calculation",
+                    label="TS search",
+                    payload={"status": "ready"},
+                )
+            ],
             actor="supervisor",
         )
     )
@@ -770,9 +734,12 @@ def test_coordinator_designs_delivery_but_process_writes_are_rejected(tmp_path):
             store,
             [
                 _op(
-                    api, "add_node", "process",
-                    node_id="mapping", node_type="calculation", label="mapping",
-                    payload={"status": "ready"},
+                    api,
+                    "add_node",
+                    "process",
+                    node_id="mapping",
+                    node_type="species",
+                    label="mapping",
                 )
             ],
         )
@@ -781,13 +748,17 @@ def test_coordinator_designs_delivery_but_process_writes_are_rejected(tmp_path):
     assert seeded.rejection_code == "process_graph_removed"
 
     forbidden_ops = [
-        _op(api, "add_node", "process", node_id="w", node_type="calculation",
-            label="W", payload={"status": "proposed"}),
-        _op(api, "update_node", "process", node_id="mapping",
-            changes={"priority": 99}),
-        _op(api, "add_edge", "process", edge_id="dep",
-            source_node_id="mapping", target_node_id="mapping",
-            edge_type="dependency"),
+        _op(api, "add_node", "process", node_id="w", node_type="species", label="W"),
+        _op(api, "update_node", "process", node_id="mapping", changes={"label": "updated"}),
+        _op(
+            api,
+            "add_edge",
+            "process",
+            edge_id="dep",
+            source_node_id="mapping",
+            target_node_id="mapping",
+            edge_type="elementary_step",
+        ),
     ]
     for op in forbidden_ops:
         result = engine.apply_batch(_batch(api, store, [op], actor="agent"))
@@ -799,16 +770,35 @@ def test_coordinator_designs_delivery_but_process_writes_are_rejected(tmp_path):
             api,
             store,
             [
-                _op(api, "add_node", "delivery", node_id="r",
-                    node_type="intermediate_occurrence", label="C=COCC=C",
-                    payload={"evidence_level": "proposed"}),
-                _op(api, "add_node", "delivery", node_id="p",
-                    node_type="intermediate_occurrence", label="C=CCCC=O",
-                    payload={"evidence_level": "proposed"}),
-                _op(api, "add_edge", "delivery", edge_id="chair",
-                    source_node_id="r", target_node_id="p",
-                    edge_type="elementary_step", label="chair [3,3]",
-                    payload={"evidence_level": "proposed"}),
+                _op(
+                    api,
+                    "add_node",
+                    "delivery",
+                    node_id="r",
+                    node_type="intermediate_occurrence",
+                    label="C=COCC=C",
+                    payload={"evidence_level": "proposed"},
+                ),
+                _op(
+                    api,
+                    "add_node",
+                    "delivery",
+                    node_id="p",
+                    node_type="intermediate_occurrence",
+                    label="C=CCCC=O",
+                    payload={"evidence_level": "proposed"},
+                ),
+                _op(
+                    api,
+                    "add_edge",
+                    "delivery",
+                    edge_id="chair",
+                    source_node_id="r",
+                    target_node_id="p",
+                    edge_type="elementary_step",
+                    label="chair [3,3]",
+                    payload={"evidence_level": "proposed"},
+                ),
             ],
             actor="agent",
         )
@@ -818,9 +808,15 @@ def test_coordinator_designs_delivery_but_process_writes_are_rejected(tmp_path):
         _batch(
             api,
             store,
-            [_op(api, "update_edge", "delivery", edge_id="chair",
-                 changes={"evidence_level": "inconclusive",
-                          "reason": "IRC endpoints do not match"})],
+            [
+                _op(
+                    api,
+                    "update_edge",
+                    "delivery",
+                    edge_id="chair",
+                    changes={"evidence_level": "inconclusive", "reason": "IRC endpoints do not match"},
+                )
+            ],
             actor="agent",
         )
     )
@@ -836,21 +832,51 @@ def test_remove_edge_open_with_rationale(tmp_path):
             api,
             store,
             [
-                _op(api, "add_node", "delivery", node_id="r",
-                    node_type="intermediate_occurrence", label="R",
-                    payload={"evidence_level": "proposed"}),
-                _op(api, "add_node", "delivery", node_id="p",
-                    node_type="intermediate_occurrence", label="P",
-                    payload={"evidence_level": "proposed"}),
-                _op(api, "add_node", "delivery", node_id="q",
-                    node_type="intermediate_occurrence", label="Q",
-                    payload={"evidence_level": "proposed"}),
-                _op(api, "add_edge", "delivery", edge_id="step",
-                    source_node_id="r", target_node_id="p",
-                    edge_type="elementary_step"),
-                _op(api, "add_edge", "delivery", edge_id="side",
-                    source_node_id="q", target_node_id="p",
-                    edge_type="elementary_step"),
+                _op(
+                    api,
+                    "add_node",
+                    "delivery",
+                    node_id="r",
+                    node_type="intermediate_occurrence",
+                    label="R",
+                    payload={"evidence_level": "proposed"},
+                ),
+                _op(
+                    api,
+                    "add_node",
+                    "delivery",
+                    node_id="p",
+                    node_type="intermediate_occurrence",
+                    label="P",
+                    payload={"evidence_level": "proposed"},
+                ),
+                _op(
+                    api,
+                    "add_node",
+                    "delivery",
+                    node_id="q",
+                    node_type="intermediate_occurrence",
+                    label="Q",
+                    payload={"evidence_level": "proposed"},
+                ),
+                _op(
+                    api,
+                    "add_edge",
+                    "delivery",
+                    edge_id="step",
+                    source_node_id="r",
+                    target_node_id="p",
+                    edge_type="elementary_step",
+                ),
+                _op(
+                    api,
+                    "add_edge",
+                    "delivery",
+                    edge_id="side",
+                    source_node_id="q",
+                    target_node_id="p",
+                    edge_type="elementary_step",
+                ),
             ],
         )
     )
@@ -858,38 +884,41 @@ def test_remove_edge_open_with_rationale(tmp_path):
 
     # 空 rationale 的删边批次：拒绝
     no_reason = engine.apply_batch(
-        _batch(api, store, [_op(api, "remove_edge", "delivery", edge_id="side")],
-               actor="agent", rationale="  ")
+        _batch(api, store, [_op(api, "remove_edge", "delivery", edge_id="side")], actor="agent", rationale="  ")
     )
     assert not no_reason.accepted
     assert no_reason.rejection_code == "rationale_required"
 
     # delivery 边：supervisor 只读被拒；设计者 agent 带理由可删
     sup_blocked = engine.apply_batch(
-        _batch(api, store, [_op(api, "remove_edge", "delivery", edge_id="step")],
-               actor="supervisor", rationale="假设作废")
+        _batch(
+            api, store, [_op(api, "remove_edge", "delivery", edge_id="step")], actor="supervisor", rationale="假设作废"
+        )
     )
     assert not sup_blocked.accepted
     assert sup_blocked.rejection_code == "actor_forbidden"
     designer_removed = engine.apply_batch(
-        _batch(api, store, [_op(api, "remove_edge", "delivery", edge_id="step")],
-               actor="agent", rationale="该基元步假设被文献否定，改走另一通道")
+        _batch(
+            api,
+            store,
+            [_op(api, "remove_edge", "delivery", edge_id="step")],
+            actor="agent",
+            rationale="该基元步假设被文献否定，改走另一通道",
+        )
     )
     assert designer_removed.accepted
     assert "step" not in {edge.edge_id for edge in engine.snapshot().delivery.edges}
 
     # process 删边：随 process 图一并移除
     process_edge = engine.apply_batch(
-        _batch(api, store, [_op(api, "remove_edge", "process", edge_id="side")],
-               actor="agent", rationale="cleanup")
+        _batch(api, store, [_op(api, "remove_edge", "process", edge_id="side")], actor="agent", rationale="cleanup")
     )
     assert not process_edge.accepted
     assert process_edge.rejection_code == "process_graph_removed"
 
     # 不存在的边
     missing = engine.apply_batch(
-        _batch(api, store, [_op(api, "remove_edge", "delivery", edge_id="nope")],
-               actor="agent", rationale="清理")
+        _batch(api, store, [_op(api, "remove_edge", "delivery", edge_id="nope")], actor="agent", rationale="清理")
     )
     assert not missing.accepted
     assert missing.rejection_code == "missing_target"
@@ -900,30 +929,52 @@ def test_process_writes_are_rejected_for_every_actor(tmp_path):
     api, _db, store, engine = _new_engine(tmp_path, "process-gone")
     for actor in ("harness", "supervisor", "agent"):
         result = engine.apply_batch(
-            _batch(api, store, [
-                _op(api, "add_node", "process", node_id=f"w-{actor}",
-                    node_type="calculation", label="X", payload={"status": "proposed"}),
-            ], actor=actor)
+            _batch(
+                api,
+                store,
+                [
+                    _op(
+                        api,
+                        "add_node",
+                        "process",
+                        node_id=f"w-{actor}",
+                        node_type="calculation",
+                        label="X",
+                        payload={"status": "proposed"},
+                    ),
+                ],
+                actor=actor,
+            )
         )
         assert not result.accepted
         assert result.rejection_code == "process_graph_removed"
     assert engine.snapshot().process.nodes == []
+
+
 def test_model_update_rejection_names_offending_fields(tmp_path):
     """回归：changes 带白名单外字段（如 note）被整批拒时，reason 必须点名违规
     字段并给出白名单——否则模型只能盲目重试烧掉轮次预算。"""
     api, _db, store, engine = _new_engine(tmp_path, "mutable-fields")
 
     engine.apply_batch(
-        _batch(api, store, [
-            _op(api, "add_node", "delivery", node_id="w1", node_type="occurrence",
-                label="int1"),
-        ], actor="agent")
+        _batch(
+            api,
+            store,
+            [
+                _op(api, "add_node", "delivery", node_id="w1", node_type="occurrence", label="int1"),
+            ],
+            actor="agent",
+        )
     )
     rejected = engine.apply_batch(
-        _batch(api, store, [
-            _op(api, "update_node", "delivery", node_id="w1",
-                changes={"label": "renamed", "note": "顺手记一笔"}),
-        ], actor="agent")
+        _batch(
+            api,
+            store,
+            [
+                _op(api, "update_node", "delivery", node_id="w1", changes={"label": "renamed", "note": "顺手记一笔"}),
+            ],
+            actor="agent",
+        )
     )
 
     assert not rejected.accepted
@@ -941,50 +992,68 @@ def test_model_cannot_self_certify_stage_statuses(tmp_path):
 
     for actor in ("agent", "supervisor"):
         seeded = engine.apply_batch(
-            _batch(api, store, [
-                _op(api, "add_node", "delivery", node_id=f"r-{actor}",
-                    node_type="occurrence", label=f"R-{actor}", role="reactant"),
-            ], actor="harness")
+            _batch(
+                api,
+                store,
+                [
+                    _op(
+                        api,
+                        "add_node",
+                        "delivery",
+                        node_id=f"r-{actor}",
+                        node_type="occurrence",
+                        label=f"R-{actor}",
+                        role="reactant",
+                    ),
+                ],
+                actor="harness",
+            )
         )
         assert seeded.accepted
         rejected = engine.apply_batch(
-            _batch(api, store, [
-                api["AddNode"](
-                    op="add_node",
-                    graph="delivery",
-                    node=api["OccurrenceNode"](
-                        node_id=f"p-{actor}",
-                        label=f"P-{actor}",
-                        role="product",
-                        stages=[StageState(kind="geometry", status="supported")],
+            _batch(
+                api,
+                store,
+                [
+                    api["AddNode"](
+                        op="add_node",
+                        graph="delivery",
+                        node=api["OccurrenceNode"](
+                            node_id=f"p-{actor}",
+                            label=f"P-{actor}",
+                            role="product",
+                            stages=[StageState(kind="geometry", status="supported")],
+                        ),
                     ),
-                ),
-            ], actor=actor)
+                ],
+                actor=actor,
+            )
         )
         assert not rejected.accepted
         assert rejected.rejection_code == "actor_forbidden"
 
     declared = engine.apply_batch(
-        _batch(api, store, [
-            api["AddNode"](
-                op="add_node",
-                graph="delivery",
-                node=api["OccurrenceNode"](
-                    node_id="p-pending",
-                    label="P",
-                    role="product",
-                    stages=[StageState(kind="geometry")],
+        _batch(
+            api,
+            store,
+            [
+                api["AddNode"](
+                    op="add_node",
+                    graph="delivery",
+                    node=api["OccurrenceNode"](
+                        node_id="p-pending",
+                        label="P",
+                        role="product",
+                        stages=[StageState(kind="geometry")],
+                    ),
                 ),
-            ),
-        ], actor="agent")
+            ],
+            actor="agent",
+        )
     )
     assert declared.accepted
-    node = next(
-        n for n in engine.snapshot().delivery.nodes if n.node_id == "p-pending"
-    )
-    assert [(s.kind.value, s.status.value) for s in node.stages] == [
-        ("geometry", "pending")
-    ]
+    node = next(n for n in engine.snapshot().delivery.nodes if n.node_id == "p-pending")
+    assert [(s.kind.value, s.status.value) for s in node.stages] == [("geometry", "pending")]
 
 
 def test_engine_rejects_duplicate_node_name_in_delivery_graph(tmp_path):
@@ -994,7 +1063,8 @@ def test_engine_rejects_duplicate_node_name_in_delivery_graph(tmp_path):
 
     # 批次内同名
     batch = _batch(
-        api, store,
+        api,
+        store,
         [
             api["AddNode"](
                 op="add_node",
@@ -1020,13 +1090,22 @@ def test_engine_rejects_duplicate_step_name_in_delivery_graph(tmp_path):
     from cloudra.dag.models import ElementaryStepEdge, SpeciesNode
 
     batch1 = _batch(
-        api, store,
+        api,
+        store,
         [
             api["AddNode"](op="add_node", graph="delivery", node=SpeciesNode(node_id="sp1", name="A")),
             api["AddNode"](op="add_node", graph="delivery", node=SpeciesNode(node_id="sp2", name="B")),
             api["AddNode"](op="add_node", graph="delivery", node=SpeciesNode(node_id="sp3", name="C")),
-            api["AddEdge"](op="add_edge", graph="delivery", edge=ElementaryStepEdge(edge_id="e1", name="步骤一", source_node_id="sp1", target_node_id="sp2")),
-            api["AddEdge"](op="add_edge", graph="delivery", edge=ElementaryStepEdge(edge_id="e2", name="步骤一", source_node_id="sp2", target_node_id="sp3")),
+            api["AddEdge"](
+                op="add_edge",
+                graph="delivery",
+                edge=ElementaryStepEdge(edge_id="e1", name="步骤一", source_node_id="sp1", target_node_id="sp2"),
+            ),
+            api["AddEdge"](
+                op="add_edge",
+                graph="delivery",
+                edge=ElementaryStepEdge(edge_id="e2", name="步骤一", source_node_id="sp2", target_node_id="sp3"),
+            ),
         ],
         actor="harness",
     )
@@ -1043,11 +1122,16 @@ def test_engine_remove_edge_without_rationale_rejected(tmp_path):
     # 先加节点和边
     engine.apply_batch(
         _batch(
-            api, store,
+            api,
+            store,
             [
                 api["AddNode"](op="add_node", graph="delivery", node=SpeciesNode(node_id="sp1", name="A")),
                 api["AddNode"](op="add_node", graph="delivery", node=SpeciesNode(node_id="sp2", name="B")),
-                api["AddEdge"](op="add_edge", graph="delivery", edge=ElementaryStepEdge(edge_id="e1", name="步骤一", source_node_id="sp1", target_node_id="sp2")),
+                api["AddEdge"](
+                    op="add_edge",
+                    graph="delivery",
+                    edge=ElementaryStepEdge(edge_id="e1", name="步骤一", source_node_id="sp1", target_node_id="sp2"),
+                ),
             ],
             actor="harness",
         )
@@ -1055,7 +1139,8 @@ def test_engine_remove_edge_without_rationale_rejected(tmp_path):
 
     # 空 rationale 删边
     rm_batch = _batch(
-        api, store,
+        api,
+        store,
         [api["RemoveEdge"](op="remove_edge", graph="delivery", edge_id="e1")],
         actor="agent",
         rationale="",
@@ -1071,7 +1156,8 @@ def test_engine_batch_failure_atomic_rollback(tmp_path):
     from cloudra.dag.models import SpeciesNode
 
     batch = _batch(
-        api, store,
+        api,
+        store,
         [
             api["AddNode"](op="add_node", graph="delivery", node=SpeciesNode(node_id="sp1", name="有效体系")),
             # 第二项同名导致失败
@@ -1093,10 +1179,14 @@ def test_engine_batch_failure_atomic_rollback(tmp_path):
 def _seed_isolated_node(api, store, engine, node_id="lone", label="LONE"):
     """种一个孤立节点，返回 (bundle_revisions_before)。"""
     result = engine.apply_batch(
-        _batch(api, store, [
-            _op(api, "add_node", "delivery", node_id=node_id,
-                node_type="occurrence", label=label),
-        ], actor="agent")
+        _batch(
+            api,
+            store,
+            [
+                _op(api, "add_node", "delivery", node_id=node_id, node_type="occurrence", label=label),
+            ],
+            actor="agent",
+        )
     )
     assert result.accepted
     return result
@@ -1107,8 +1197,13 @@ def test_remove_node_isolated_node_deletable(tmp_path):
     api, _db, store, engine = _new_engine(tmp_path, "remove-node-iso")
     _seed_isolated_node(api, store, engine)
     result = engine.apply_batch(
-        _batch(api, store, [_op(api, "remove_node", "delivery", node_id="lone")],
-               actor="agent", rationale="ruled out by mapping")
+        _batch(
+            api,
+            store,
+            [_op(api, "remove_node", "delivery", node_id="lone")],
+            actor="agent",
+            rationale="ruled out by mapping",
+        )
     )
     assert result.accepted
     assert engine.snapshot().delivery.nodes == []
@@ -1118,8 +1213,7 @@ def test_remove_node_requires_nonempty_rationale(tmp_path):
     api, _db, store, engine = _new_engine(tmp_path, "remove-node-rationale")
     _seed_isolated_node(api, store, engine)
     result = engine.apply_batch(
-        _batch(api, store, [_op(api, "remove_node", "delivery", node_id="lone")],
-               actor="agent", rationale="   ")
+        _batch(api, store, [_op(api, "remove_node", "delivery", node_id="lone")], actor="agent", rationale="   ")
     )
     assert not result.accepted
     assert result.rejection_code == "rationale_required"
@@ -1128,8 +1222,7 @@ def test_remove_node_requires_nonempty_rationale(tmp_path):
 def test_remove_node_missing_target_rejected(tmp_path):
     api, _db, store, engine = _new_engine(tmp_path, "remove-node-missing")
     result = engine.apply_batch(
-        _batch(api, store, [_op(api, "remove_node", "delivery", node_id="ghost")],
-               actor="agent", rationale="cleanup")
+        _batch(api, store, [_op(api, "remove_node", "delivery", node_id="ghost")], actor="agent", rationale="cleanup")
     )
     assert not result.accepted
     assert result.rejection_code == "missing_target"
@@ -1139,16 +1232,27 @@ def test_remove_node_with_edges_rejected(tmp_path):
     """节点有入边或出边时拒绝，返回 node_has_edges 与关联边标识。"""
     api, _db, store, engine = _new_engine(tmp_path, "remove-node-linked")
     engine.apply_batch(
-        _batch(api, store, [
-            _op(api, "add_node", "delivery", node_id="r", node_type="occurrence", label="R"),
-            _op(api, "add_node", "delivery", node_id="p", node_type="occurrence", label="P"),
-            _op(api, "add_edge", "delivery", edge_id="step",
-                source_node_id="r", target_node_id="p", edge_type="elementary_step"),
-        ], actor="agent")
+        _batch(
+            api,
+            store,
+            [
+                _op(api, "add_node", "delivery", node_id="r", node_type="occurrence", label="R"),
+                _op(api, "add_node", "delivery", node_id="p", node_type="occurrence", label="P"),
+                _op(
+                    api,
+                    "add_edge",
+                    "delivery",
+                    edge_id="step",
+                    source_node_id="r",
+                    target_node_id="p",
+                    edge_type="elementary_step",
+                ),
+            ],
+            actor="agent",
+        )
     )
     result = engine.apply_batch(
-        _batch(api, store, [_op(api, "remove_node", "delivery", node_id="r")],
-               actor="agent", rationale="cleanup")
+        _batch(api, store, [_op(api, "remove_node", "delivery", node_id="r")], actor="agent", rationale="cleanup")
     )
     assert not result.accepted
     assert result.rejection_code == "node_has_edges"
@@ -1161,8 +1265,9 @@ def test_remove_node_supervisor_rejected(tmp_path):
     api, _db, store, engine = _new_engine(tmp_path, "remove-node-supervisor")
     _seed_isolated_node(api, store, engine)
     result = engine.apply_batch(
-        _batch(api, store, [_op(api, "remove_node", "delivery", node_id="lone")],
-               actor="supervisor", rationale="cleanup")
+        _batch(
+            api, store, [_op(api, "remove_node", "delivery", node_id="lone")], actor="supervisor", rationale="cleanup"
+        )
     )
     assert not result.accepted
     assert result.rejection_code == "actor_forbidden"
@@ -1173,8 +1278,14 @@ def test_remove_node_stale_revision_rejected(tmp_path):
     _seed_isolated_node(api, store, engine)
     stale = {"delivery": 0}
     result = engine.apply_batch(
-        _batch(api, store, [_op(api, "remove_node", "delivery", node_id="lone")],
-               actor="agent", rationale="cleanup", base_revisions=stale)
+        _batch(
+            api,
+            store,
+            [_op(api, "remove_node", "delivery", node_id="lone")],
+            actor="agent",
+            rationale="cleanup",
+            base_revisions=stale,
+        )
     )
     assert not result.accepted
     assert result.rejection_code == "stale_revision"
@@ -1184,18 +1295,36 @@ def test_remove_node_batch_removes_edges_then_node(tmp_path):
     """同一原子批次内先删相关边再删节点成功。"""
     api, _db, store, engine = _new_engine(tmp_path, "remove-node-batch")
     engine.apply_batch(
-        _batch(api, store, [
-            _op(api, "add_node", "delivery", node_id="r", node_type="occurrence", label="R"),
-            _op(api, "add_node", "delivery", node_id="p", node_type="occurrence", label="P"),
-            _op(api, "add_edge", "delivery", edge_id="step",
-                source_node_id="r", target_node_id="p", edge_type="elementary_step"),
-        ], actor="agent")
+        _batch(
+            api,
+            store,
+            [
+                _op(api, "add_node", "delivery", node_id="r", node_type="occurrence", label="R"),
+                _op(api, "add_node", "delivery", node_id="p", node_type="occurrence", label="P"),
+                _op(
+                    api,
+                    "add_edge",
+                    "delivery",
+                    edge_id="step",
+                    source_node_id="r",
+                    target_node_id="p",
+                    edge_type="elementary_step",
+                ),
+            ],
+            actor="agent",
+        )
     )
     result = engine.apply_batch(
-        _batch(api, store, [
-            _op(api, "remove_edge", "delivery", edge_id="step"),
-            _op(api, "remove_node", "delivery", node_id="r"),
-        ], actor="agent", rationale="path removed entirely")
+        _batch(
+            api,
+            store,
+            [
+                _op(api, "remove_edge", "delivery", edge_id="step"),
+                _op(api, "remove_node", "delivery", node_id="r"),
+            ],
+            actor="agent",
+            rationale="path removed entirely",
+        )
     )
     assert result.accepted
     snapshot = engine.snapshot().delivery
@@ -1206,19 +1335,37 @@ def test_remove_node_batch_failure_rolls_back_everything(tmp_path):
     """批次任一步失败时，图、revision 全部回滚。"""
     api, _db, store, engine = _new_engine(tmp_path, "remove-node-rollback")
     engine.apply_batch(
-        _batch(api, store, [
-            _op(api, "add_node", "delivery", node_id="r", node_type="occurrence", label="R"),
-            _op(api, "add_node", "delivery", node_id="p", node_type="occurrence", label="P"),
-            _op(api, "add_edge", "delivery", edge_id="step",
-                source_node_id="r", target_node_id="p", edge_type="elementary_step"),
-        ], actor="agent")
+        _batch(
+            api,
+            store,
+            [
+                _op(api, "add_node", "delivery", node_id="r", node_type="occurrence", label="R"),
+                _op(api, "add_node", "delivery", node_id="p", node_type="occurrence", label="P"),
+                _op(
+                    api,
+                    "add_edge",
+                    "delivery",
+                    edge_id="step",
+                    source_node_id="r",
+                    target_node_id="p",
+                    edge_type="elementary_step",
+                ),
+            ],
+            actor="agent",
+        )
     )
     before = engine.snapshot().bundle.revisions
     result = engine.apply_batch(
-        _batch(api, store, [
-            _op(api, "remove_edge", "delivery", edge_id="step"),
-            _op(api, "remove_node", "delivery", node_id="ghost"),
-        ], actor="agent", rationale="partial cleanup")
+        _batch(
+            api,
+            store,
+            [
+                _op(api, "remove_edge", "delivery", edge_id="step"),
+                _op(api, "remove_node", "delivery", node_id="ghost"),
+            ],
+            actor="agent",
+            rationale="partial cleanup",
+        )
     )
     assert not result.accepted
     assert result.rejection_code == "missing_target"
@@ -1234,32 +1381,45 @@ def test_remove_node_with_evidence_clears_bindings_keeps_evidence(tmp_path):
     api, db, store, engine = _new_engine(tmp_path, "remove-node-evidence")
     evidence = store.register_evidence("s1", "reaction_mapping", {"mapping_status": "unique"})
     engine.apply_batch(
-        _batch(api, store, [
-            _op(api, "add_node", "delivery", node_id="mapped",
-                node_type="occurrence", label="mapped", refs=[evidence.model_dump()]),
-        ], actor="harness")
+        _batch(
+            api,
+            store,
+            [
+                _op(
+                    api,
+                    "add_node",
+                    "delivery",
+                    node_id="mapped",
+                    node_type="occurrence",
+                    label="mapped",
+                    refs=[evidence.model_dump()],
+                ),
+            ],
+            actor="harness",
+        )
     )
     with db.connect() as con:
-        n_bindings = con.execute(
-            "SELECT COUNT(*) FROM dag_evidence_bindings WHERE target_id = 'mapped'"
-        ).fetchone()[0]
+        n_bindings = con.execute("SELECT COUNT(*) FROM dag_evidence_bindings WHERE target_id = 'mapped'").fetchone()[0]
     assert n_bindings == 1
 
     result = engine.apply_batch(
-        _batch(api, store, [_op(api, "remove_node", "delivery", node_id="mapped")],
-               actor="agent", rationale="mapping evidence superseded")
+        _batch(
+            api,
+            store,
+            [_op(api, "remove_node", "delivery", node_id="mapped")],
+            actor="agent",
+            rationale="mapping evidence superseded",
+        )
     )
     assert result.accepted
     assert engine.snapshot().delivery.nodes == []
     with db.connect() as con:
-        assert con.execute(
-            "SELECT COUNT(*) FROM dag_evidence_bindings WHERE target_id = 'mapped'"
-        ).fetchone()[0] == 0
+        assert con.execute("SELECT COUNT(*) FROM dag_evidence_bindings WHERE target_id = 'mapped'").fetchone()[0] == 0
         # 原始证据仍在证据库
-        assert con.execute(
-            "SELECT COUNT(*) FROM dag_evidence WHERE evidence_id = ?", (evidence.ref_id,)
-        ).fetchone()[0] == 1
+        assert (
+            con.execute("SELECT COUNT(*) FROM dag_evidence WHERE evidence_id = ?", (evidence.ref_id,)).fetchone()[0]
+            == 1
+        )
     # 重放（重建物化视图）不恢复已删节点
     engine.rebuild_materialized()
     assert engine.snapshot().delivery.nodes == []
-

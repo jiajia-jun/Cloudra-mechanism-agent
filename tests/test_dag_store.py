@@ -201,98 +201,6 @@ def test_invalid_journal_raises_without_inventing_an_empty_graph(tmp_path):
     assert remaining == [("p",)]
 
 
-def test_legacy_journal_operations_replay_into_typed_graph(tmp_path):
-    """旧格式兼容：手工构造 data-dict 形状 + 旧词表的 journal 记录可重放；
-    process op 在 Phase 4 后重放为 no-op（revision 照原口径推进），
-    并在 journal 里留 ignored_legacy_process_op 记录。"""
-    import json
-
-    _api, db, store = _new_store(tmp_path, "legacy-journal")
-    store.ensure_bundle("s1")
-    revisions = store.load_bundle().revisions
-    legacy_operations = [
-        {
-            "op": "add_node",
-            "graph": "process",
-            "data": {
-                "node_id": "legacy",
-                "node_type": "workflow",
-                "label": "legacy step",
-                "payload": {"status": "pending", "priority": 5, "custom": "kept"},
-            },
-        },
-        {
-            "op": "update_node",
-            "graph": "process",
-            "data": {"node_id": "legacy", "changes": {"status": "in_progress"}},
-        },
-        {
-            "op": "add_link",
-            "graph": None,
-            "data": {
-                "link_id": "lk-legacy",
-                "process_node_id": "legacy",
-                "delivery_element_type": "node",
-                "delivery_element_id": "r",
-            },
-        },
-        {
-            "op": "add_node",
-            "graph": "delivery",
-            "data": {
-                "node_id": "r",
-                "node_type": "intermediate_occurrence",
-                "label": "R",
-                "payload": {"role": "reactant", "evidence_level": "proposed"},
-            },
-        },
-    ]
-    # touch 口径与写入时一致：每 mutation 按图推进一次——本行 4 个 op
-    # 触及 process（含 add_link 双图）与 delivery，各 +1
-    resulting = {"process": revisions["process"] + 1, "delivery": revisions["delivery"] + 1}
-    with db.connect() as con:
-        con.execute(
-            """
-            INSERT INTO dag_mutations(
-                mutation_id, graph_id, base_revision, resulting_revision,
-                actor_type, actor_id, session_id, rationale, base_revisions,
-                resulting_revisions, operations, accepted, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
-            """,
-            (
-                "mut_legacy",
-                "dag_process",
-                revisions["process"],
-                resulting["process"],
-                "harness",
-                "legacy-test",
-                "s1",
-                "hand-written legacy journal row",
-                json.dumps(revisions),
-                json.dumps(resulting),
-                json.dumps(legacy_operations),
-            ),
-        )
-
-    rebuilt = store.rebuild_materialized()
-
-    assert rebuilt.bundle.revisions == resulting
-    # process op 全部 no-op：不物化任何 process 节点/边
-    assert rebuilt.process.nodes == []
-    assert rebuilt.process.edges == []
-    occurrence = rebuilt.delivery.nodes[0]
-    assert occurrence.node_type in ("occurrence", "species")
-    assert occurrence.name == "R"
-    assert occurrence.evidence_level == "proposed"
-    with db.connect() as con:
-        ignored = con.execute(
-            "SELECT rationale FROM dag_mutations WHERE rationale LIKE 'ignored_legacy_process_op%'"
-        ).fetchall()
-    assert ignored and "3 legacy process operations" in ignored[0][0]
-    # 二次重放（幂等）仍一致
-    assert store.rebuild_materialized() == rebuilt
-
-
 def test_legacy_rows_without_stages_map_from_evidence_level(tmp_path):
     """旧物化行（stages 列为空）读取时按 evidence_level 一次性映射出阶段。"""
     api, db, store = _new_store(tmp_path, "legacy-stage-map")
@@ -337,9 +245,7 @@ def test_legacy_rows_without_stages_map_from_evidence_level(tmp_path):
     inconclusive = next(n for n in snapshot.delivery.nodes if n.node_id == "i1")
     edge = snapshot.delivery.edges[0]
 
-    assert [(s.kind.value, s.status.value) for s in node.stages] == [
-        ("geometry", "supported")
-    ]
+    assert [(s.kind.value, s.status.value) for s in node.stages] == [("geometry", "supported")]
     assert [(s.kind.value, s.status.value, s.reason) for s in inconclusive.stages] == [
         ("geometry", "skipped", "only a scan exists")
     ]
@@ -401,4 +307,3 @@ def test_store_persists_and_loads_species_node_and_step_edge(tmp_path):
     assert edge1.name == "脱氢转化"
     assert edge1.source_node_id == "sp_01"
     assert edge1.target_node_id == "sp_02"
-

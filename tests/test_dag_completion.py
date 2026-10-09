@@ -11,11 +11,8 @@ def _load_completion_api():
         "evaluate_delivery": completion.evaluate_delivery,
         "CoverageContract": models.CoverageContract,
         "CoverageWaiver": models.CoverageWaiver,
-        "DependencyEdge": models.DependencyEdge,
         "ElementaryStepEdge": models.ElementaryStepEdge,
         "OccurrenceNode": models.OccurrenceNode,
-        "ObservedNode": models.ObservedNode,
-        "PlannedNode": models.PlannedNode,
         "GraphBundle": models.GraphBundle,
         "GraphData": models.GraphData,
         "GraphSnapshot": models.GraphSnapshot,
@@ -63,9 +60,7 @@ def test_endpoint_supported_path_satisfies_default_contract():
         ["endpoint_supported"],
     )
 
-    report = api["evaluate_delivery"](
-        delivery, api["CoverageContract"].mechanism_default()
-    )
+    report = api["evaluate_delivery"](delivery, api["CoverageContract"].mechanism_default())
 
     assert report.complete
     assert report.unresolved == []
@@ -81,9 +76,7 @@ def test_ts_guess_or_saddle_without_endpoints_is_not_complete(level):
         edge_payloads=[{"advisory_sources": ["ts_guess", "scan_parse"]}],
     )
 
-    report = api["evaluate_delivery"](
-        delivery, api["CoverageContract"].mechanism_default()
-    )
+    report = api["evaluate_delivery"](delivery, api["CoverageContract"].mechanism_default())
 
     assert not report.complete
     assert "missing_endpoint_evidence" in {gap.code for gap in report.unresolved}
@@ -118,9 +111,7 @@ def test_rejected_branch_is_an_open_gap_even_with_a_reason():
 
     assert not no_reason_report.complete
     assert not reasoned_report.complete
-    rejected_gap = next(
-        gap for gap in reasoned_report.unresolved if gap.code == "branch_rejected"
-    )
+    rejected_gap = next(gap for gap in reasoned_report.unresolved if gap.code == "branch_rejected")
     assert "optimization returns to reactant minimum" in rejected_gap.detail
     assert skipped_report.complete
 
@@ -162,9 +153,7 @@ def test_only_explicit_user_waiver_can_close_a_missing_gate():
         session_id="s1",
         rationale="accept partial endpoint validation for this exploratory run",
     )
-    contract = api["CoverageContract"].mechanism_default(
-        waivers=[waiver]
-    )
+    contract = api["CoverageContract"].mechanism_default(waivers=[waiver])
 
     report = api["evaluate_delivery"](delivery, contract)
 
@@ -248,10 +237,7 @@ def test_projection_is_bounded_deterministic_and_contains_no_evidence_bodies():
         process=api["GraphData"](graph_id="dag_process", graph_kind="process", revision=0),
         delivery=delivery,
     )
-    history = [
-        {"mutation_id": f"mut-{index}", "actor": "harness", "accepted": True}
-        for index in range(15)
-    ]
+    history = [{"mutation_id": f"mut-{index}", "actor": "harness", "accepted": True} for index in range(15)]
     reviews = [
         {
             "review_id": f"rev-{index}",
@@ -326,23 +312,23 @@ def test_supported_and_reasoned_skipped_stages_complete_coverage():
     delivery = _staged_delivery(
         api,
         node_stages=[_supported_geometry(api), _supported_geometry(api)],
-        edge_stages=[[
-            StageState(
-                kind="ts_opt",
-                status="skipped",
-                reason="TS search collapsed back to the reactant minimum",
-            ),
-            StageState(
-                kind="frequency",
-                status="skipped",
-                reason="no stationary point left to confirm",
-            ),
-        ]],
+        edge_stages=[
+            [
+                StageState(
+                    kind="ts_opt",
+                    status="skipped",
+                    reason="TS search collapsed back to the reactant minimum",
+                ),
+                StageState(
+                    kind="frequency",
+                    status="skipped",
+                    reason="no stationary point left to confirm",
+                ),
+            ]
+        ],
     )
 
-    report = api["evaluate_delivery"](
-        delivery, api["CoverageContract"].mechanism_default()
-    )
+    report = api["evaluate_delivery"](delivery, api["CoverageContract"].mechanism_default())
 
     assert report.complete
     assert report.unresolved == []
@@ -355,23 +341,26 @@ def test_all_required_stages_supported_is_complete():
     delivery = _staged_delivery(
         api,
         node_stages=[_supported_geometry(api), _supported_geometry(api)],
-        edge_stages=[[
-            StageState(kind=kind, status="supported")
-            for kind in (
-                "ts_opt", "frequency", "short_irc",
-                "endpoint_a", "endpoint_b", "direction", "identity",
-            )
-        ]],
+        edge_stages=[
+            [
+                StageState(kind=kind, status="supported")
+                for kind in (
+                    "ts_opt",
+                    "frequency",
+                    "short_irc",
+                    "endpoint_a",
+                    "endpoint_b",
+                    "direction",
+                    "identity",
+                )
+            ]
+        ],
     )
 
-    report = api["evaluate_delivery"](
-        delivery, api["CoverageContract"].mechanism_default()
-    )
+    report = api["evaluate_delivery"](delivery, api["CoverageContract"].mechanism_default())
 
     assert report.complete
-    assert "elementary_step_endpoint_supported" in {
-        gate.code for gate in report.satisfied
-    }
+    assert "elementary_step_endpoint_supported" in {gate.code for gate in report.satisfied}
 
 
 def test_required_pending_stage_blocks_completion():
@@ -380,15 +369,15 @@ def test_required_pending_stage_blocks_completion():
     delivery = _staged_delivery(
         api,
         node_stages=[_supported_geometry(api), _supported_geometry(api)],
-        edge_stages=[[
-            StageState(kind="ts_opt", status="supported"),
-            StageState(kind="frequency", status="pending"),
-        ]],
+        edge_stages=[
+            [
+                StageState(kind="ts_opt", status="supported"),
+                StageState(kind="frequency", status="pending"),
+            ]
+        ],
     )
 
-    report = api["evaluate_delivery"](
-        delivery, api["CoverageContract"].mechanism_default()
-    )
+    report = api["evaluate_delivery"](delivery, api["CoverageContract"].mechanism_default())
 
     assert not report.complete
     assert "missing_stage_evidence" in {gap.code for gap in report.unresolved}
@@ -438,9 +427,7 @@ def test_stage_disposition_without_reason_unwaived_is_not_complete(status):
         edge_stages=[[StageState(kind="ts_opt", status=status, reason="  ")]],
     )
 
-    report = api["evaluate_delivery"](
-        delivery, api["CoverageContract"].mechanism_default()
-    )
+    report = api["evaluate_delivery"](delivery, api["CoverageContract"].mechanism_default())
 
     assert not report.complete
     if status == "skipped":
@@ -457,25 +444,23 @@ def test_rejected_stage_with_reason_and_pending_stages_is_incomplete():
     delivery = _staged_delivery(
         api,
         node_stages=[_supported_geometry(api), _supported_geometry(api)],
-        edge_stages=[[
-            StageState(
-                kind="ts_opt",
-                status="rejected",
-                reason="the imaginary frequency does not belong to the target TS",
-            ),
-            StageState(kind="frequency", status="pending"),
-            StageState(kind="short_irc", status="pending"),
-        ]],
+        edge_stages=[
+            [
+                StageState(
+                    kind="ts_opt",
+                    status="rejected",
+                    reason="the imaginary frequency does not belong to the target TS",
+                ),
+                StageState(kind="frequency", status="pending"),
+                StageState(kind="short_irc", status="pending"),
+            ]
+        ],
     )
 
-    report = api["evaluate_delivery"](
-        delivery, api["CoverageContract"].mechanism_default()
-    )
+    report = api["evaluate_delivery"](delivery, api["CoverageContract"].mechanism_default())
 
     assert not report.complete
-    rejected = next(
-        gap for gap in report.unresolved if gap.code == "stage_rejected"
-    )
+    rejected = next(gap for gap in report.unresolved if gap.code == "stage_rejected")
     assert "does not belong to the target TS" in rejected.detail
     assert "missing_stage_evidence" in {gap.code for gap in report.unresolved}
 
@@ -488,10 +473,12 @@ def test_contract_thermochemistry_applies_to_disposed_elements():
     delivery = _staged_delivery(
         api,
         node_stages=[_supported_geometry(api), _supported_geometry(api)],
-        edge_stages=[[
-            StageState(kind="ts_opt", status="skipped", reason="branch abandoned"),
-            StageState(kind="frequency", status="skipped", reason="nothing to confirm"),
-        ]],
+        edge_stages=[
+            [
+                StageState(kind="ts_opt", status="skipped", reason="branch abandoned"),
+                StageState(kind="frequency", status="skipped", reason="nothing to confirm"),
+            ]
+        ],
     )
 
     report = api["evaluate_delivery"](
@@ -509,15 +496,15 @@ def test_non_required_pending_stage_never_blocks_coverage():
     delivery = _staged_delivery(
         api,
         node_stages=[_supported_geometry(api), _supported_geometry(api)],
-        edge_stages=[[
-            StageState(kind="ts_opt", status="supported"),
-            StageState(kind="thermochemistry", status="pending", required=False),
-        ]],
+        edge_stages=[
+            [
+                StageState(kind="ts_opt", status="supported"),
+                StageState(kind="thermochemistry", status="pending", required=False),
+            ]
+        ],
     )
 
-    report = api["evaluate_delivery"](
-        delivery, api["CoverageContract"].mechanism_default()
-    )
+    report = api["evaluate_delivery"](delivery, api["CoverageContract"].mechanism_default())
 
     assert report.complete
     assert report.unresolved == []
@@ -532,32 +519,32 @@ def test_not_applicable_with_reason_counts_as_complete():
     delivery = _staged_delivery(
         api,
         node_stages=[_supported_geometry(api), _supported_geometry(api)],
-        edge_stages=[[
-            StageState(
-                kind="ts_opt",
-                status="not_applicable",
-                reason="barrierless association, no first-order saddle on this PES",
-            ),
-            StageState(
-                kind="frequency",
-                status="not_applicable",
-                reason="no TS to confirm",
-            ),
-            StageState(
-                kind="short_irc",
-                status="not_applicable",
-                reason="no saddle to launch IRC from",
-            ),
-            StageState(kind="endpoint_a", status="supported"),
-            StageState(kind="endpoint_b", status="supported"),
-            StageState(kind="direction", status="supported"),
-            StageState(kind="identity", status="supported"),
-        ]],
+        edge_stages=[
+            [
+                StageState(
+                    kind="ts_opt",
+                    status="not_applicable",
+                    reason="barrierless association, no first-order saddle on this PES",
+                ),
+                StageState(
+                    kind="frequency",
+                    status="not_applicable",
+                    reason="no TS to confirm",
+                ),
+                StageState(
+                    kind="short_irc",
+                    status="not_applicable",
+                    reason="no saddle to launch IRC from",
+                ),
+                StageState(kind="endpoint_a", status="supported"),
+                StageState(kind="endpoint_b", status="supported"),
+                StageState(kind="direction", status="supported"),
+                StageState(kind="identity", status="supported"),
+            ]
+        ],
     )
 
-    report = api["evaluate_delivery"](
-        delivery, api["CoverageContract"].mechanism_default()
-    )
+    report = api["evaluate_delivery"](delivery, api["CoverageContract"].mechanism_default())
 
     assert report.complete
     assert report.unresolved == []
@@ -583,12 +570,8 @@ def test_not_applicable_without_reason_is_not_waivable():
         rationale="trying to excuse a missing reason",
     )
 
-    plain = api["evaluate_delivery"](
-        delivery, api["CoverageContract"].mechanism_default()
-    )
-    waived = api["evaluate_delivery"](
-        delivery, api["CoverageContract"].mechanism_default(waivers=[waiver])
-    )
+    plain = api["evaluate_delivery"](delivery, api["CoverageContract"].mechanism_default())
+    waived = api["evaluate_delivery"](delivery, api["CoverageContract"].mechanism_default(waivers=[waiver]))
 
     assert not plain.complete
     assert not waived.complete
@@ -666,9 +649,7 @@ def test_status_update_does_not_override_pending_stages():
         edges=[edge],
     )
 
-    report = api["evaluate_delivery"](
-        delivery, api["CoverageContract"].mechanism_default()
-    )
+    report = api["evaluate_delivery"](delivery, api["CoverageContract"].mechanism_default())
 
     assert not report.complete
     assert "missing_stage_evidence" in {g.code for g in report.unresolved}
@@ -745,9 +726,7 @@ def test_element_without_stages_status_supported_cannot_bypass_evidence():
         edges=[edge],
     )
 
-    report = api["evaluate_delivery"](
-        delivery, api["CoverageContract"].mechanism_default()
-    )
+    report = api["evaluate_delivery"](delivery, api["CoverageContract"].mechanism_default())
 
     assert not report.complete
     unresolved_codes = {g.code for g in report.unresolved}
@@ -788,9 +767,6 @@ def test_unstaged_supported_level_is_not_endpoint_coverage():
         nodes=[node0, node1],
         edges=[edge],
     )
-    report = api["evaluate_delivery"](
-        delivery, api["CoverageContract"].mechanism_default()
-    )
+    report = api["evaluate_delivery"](delivery, api["CoverageContract"].mechanism_default())
     assert not report.complete
     assert "missing_endpoint_evidence" in {g.code for g in report.unresolved}
-

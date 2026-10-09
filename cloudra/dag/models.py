@@ -131,17 +131,19 @@ class StageState(BaseModel):
 # ClaimSpec.required_checks/optional_checks 只接受这里的词；不允许 Agent
 # 自造检查项。词表变更即版本变更。
 CHECK_VOCABULARY_VERSION = 1
-CHECK_VOCABULARY = frozenset({
-    "stationary_point",
-    "curvature",
-    "mode_relevance",
-    "path",
-    "identity",
-    "mapping",
-    "energy",
-    "thermochemistry",
-    "method_applicability",
-})
+CHECK_VOCABULARY = frozenset(
+    {
+        "stationary_point",
+        "curvature",
+        "mode_relevance",
+        "path",
+        "identity",
+        "mapping",
+        "energy",
+        "thermochemistry",
+        "method_applicability",
+    }
+)
 
 
 class ClaimKind(str, Enum):
@@ -178,8 +180,7 @@ class ClaimSpec(BaseModel):
         unknown = value - CHECK_VOCABULARY
         if unknown:
             raise ValueError(
-                f"unknown checks {sorted(unknown)}; vocabulary "
-                f"v{CHECK_VOCABULARY_VERSION}: {sorted(CHECK_VOCABULARY)}"
+                f"unknown checks {sorted(unknown)}; vocabulary v{CHECK_VOCABULARY_VERSION}: {sorted(CHECK_VOCABULARY)}"
             )
         return value
 
@@ -196,20 +197,20 @@ class StageContract(BaseModel):
 
 
 # occurrence 与 elementary-step 边各自的合法阶段词表（frequency 两边共用）。
-OCCURRENCE_STAGE_KINDS = frozenset(
-    {StageKind.GEOMETRY, StageKind.FREQUENCY, StageKind.SINGLE_POINT}
+OCCURRENCE_STAGE_KINDS = frozenset({StageKind.GEOMETRY, StageKind.FREQUENCY, StageKind.SINGLE_POINT})
+ELEMENTARY_STEP_STAGE_KINDS = frozenset(
+    {
+        StageKind.TS_GUESS,
+        StageKind.TS_OPT,
+        StageKind.FREQUENCY,
+        StageKind.SHORT_IRC,
+        StageKind.ENDPOINT_A,
+        StageKind.ENDPOINT_B,
+        StageKind.DIRECTION,
+        StageKind.IDENTITY,
+        StageKind.THERMOCHEMISTRY,
+    }
 )
-ELEMENTARY_STEP_STAGE_KINDS = frozenset({
-    StageKind.TS_GUESS,
-    StageKind.TS_OPT,
-    StageKind.FREQUENCY,
-    StageKind.SHORT_IRC,
-    StageKind.ENDPOINT_A,
-    StageKind.ENDPOINT_B,
-    StageKind.DIRECTION,
-    StageKind.IDENTITY,
-    StageKind.THERMOCHEMISTRY,
-})
 
 
 class CallReview(BaseModel):
@@ -291,29 +292,18 @@ _LEGACY_EDGE_STAGES = {
 }
 
 
-def map_legacy_stages(
-    evidence_level: str, reason: str = "", *, is_edge: bool
-) -> list[StageState]:
+def map_legacy_stages(evidence_level: str, reason: str = "", *, is_edge: bool) -> list[StageState]:
     """旧物化行（无 stages）→ 阶段列表；rejected/inconclusive 映射为单个
     合成阶段（geometry/ts_opt），带上存储的 reason。"""
     if evidence_level in ("rejected", "inconclusive"):
-        status = (
-            StageStatus.REJECTED
-            if evidence_level == "rejected"
-            else StageStatus.SKIPPED
-        )
+        status = StageStatus.REJECTED if evidence_level == "rejected" else StageStatus.SKIPPED
         kind = StageKind.TS_OPT if is_edge else StageKind.GEOMETRY
         return [StageState(kind=kind, status=status, reason=reason)]
     table = _LEGACY_EDGE_STAGES if is_edge else _LEGACY_OCCURRENCE_STAGES
-    return [
-        StageState(kind=kind, status=StageStatus.SUPPORTED)
-        for kind in table.get(evidence_level, ())
-    ]
+    return [StageState(kind=kind, status=StageStatus.SUPPORTED) for kind in table.get(evidence_level, ())]
 
 
-def derive_evidence_level(
-    stages: list[StageState], *, is_edge: bool
-) -> DeliveryEvidenceLevel:
+def derive_evidence_level(stages: list[StageState], *, is_edge: bool) -> DeliveryEvidenceLevel:
     """由阶段状态确定性派生证据等级（display/compat 专用，模型永不直写）。
 
     not_applicable 阶段视为"该槽不成立、已正确处理"：不计入 pending，也
@@ -336,28 +326,21 @@ def derive_evidence_level(
         return "rejected"
     if has_skipped and not has_rejected and not all_supported:
         return "inconclusive"
-    satisfied = {
-        stage.kind
-        for stage in stages
-        if stage.status in {StageStatus.SUPPORTED, StageStatus.NOT_APPLICABLE}
-    }
+    satisfied = {stage.kind for stage in stages if stage.status in {StageStatus.SUPPORTED, StageStatus.NOT_APPLICABLE}}
     if is_edge:
         # Keep the old ladder meaningful: an edge's top level should imply the
         # saddle/path chain, not merely the presence of one thermochemistry
         # stage or one endpoint stage.
-        if (
-            {
-                StageKind.TS_OPT,
-                StageKind.FREQUENCY,
-                StageKind.SHORT_IRC,
-                StageKind.ENDPOINT_A,
-                StageKind.ENDPOINT_B,
-                StageKind.DIRECTION,
-                StageKind.IDENTITY,
-                StageKind.THERMOCHEMISTRY,
-            }
-            <= satisfied
-        ):
+        if {
+            StageKind.TS_OPT,
+            StageKind.FREQUENCY,
+            StageKind.SHORT_IRC,
+            StageKind.ENDPOINT_A,
+            StageKind.ENDPOINT_B,
+            StageKind.DIRECTION,
+            StageKind.IDENTITY,
+            StageKind.THERMOCHEMISTRY,
+        } <= satisfied:
             return "thermo_annotated"
         if {
             StageKind.TS_OPT,
@@ -373,12 +356,9 @@ def derive_evidence_level(
             return "saddle_supported"
         return "proposed"
     if all_supported and StageKind.GEOMETRY in satisfied:
-        return (
-            "thermo_annotated"
-            if StageKind.SINGLE_POINT in satisfied
-            else "structure_supported"
-        )
+        return "thermo_annotated" if StageKind.SINGLE_POINT in satisfied else "structure_supported"
     return "proposed"
+
 
 # delivery 节点 role 的约定词表（机理图中物种出现的位置）。
 _DELIVERY_NODE_ROLES = {"reactant", "intermediate", "product"}
@@ -499,8 +479,15 @@ class _GraphElement(BaseModel):
         逻辑代码一律读显式字段，不写这个投影。
         """
         skipped = {
-            "node_id", "edge_id", "source_node_id", "target_node_id",
-            "node_type", "edge_type", "label", "refs", "metadata",
+            "node_id",
+            "edge_id",
+            "source_node_id",
+            "target_node_id",
+            "node_type",
+            "edge_type",
+            "label",
+            "refs",
+            "metadata",
         }
         out: dict[str, Any] = {}
         for name, info in type(self).model_fields.items():
@@ -512,47 +499,6 @@ class _GraphElement(BaseModel):
                 out[name] = value
         out.update(self.metadata)
         return out
-
-
-class _ProcessNodeBase(_GraphElement):
-    """process 图节点的公共字段（计划节点与观察记录共用一套状态语义）。"""
-
-    node_id: str
-    label: str
-    status: ProcessStatusValue = "proposed"
-    priority: int = 0
-    # 排产归属：子 agent 只能回报 assignee 等于自己 agent id 的节点
-    assignee: str | None = None
-    reason: str = ""
-    blocked_reason: str = ""
-    required: bool = False
-    supersedes: str | None = None
-    created_at: str = ""
-    # 工具绑定：Supervisor 排产写入 tool_name/delivery_target_*/evidence_role，
-    # harness 观察时回填 tool_call_id/arguments_hash/evidence_source
-    tool_name: str | None = None
-    tool_call_id: str | None = None
-    arguments_hash: str | None = None
-    delivery_target_type: Literal["node", "edge"] | None = None
-    delivery_target_id: str | None = None
-    evidence_role: str | None = None
-    evidence_source: str | None = None
-    unplanned: bool = False
-
-
-class PlannedNode(_ProcessNodeBase):
-    """process 图上的计划工作节点（Supervisor 排产，可进入 frontier）。"""
-
-    node_type: Literal["planned"] = "planned"
-
-
-class ObservedNode(_ProcessNodeBase):
-    """process 图上的工具调用遥测记录（harness 自动记账，不是排产工作）。"""
-
-    node_type: Literal["observed_tool_call"] = "observed_tool_call"
-    # 关键参数的短摘要（路径类优先），供 Coordinator 在多个同工具 observed
-    # 节点间消歧后走 bind_evidence 的 observed_<hex> 别名补挂证据。
-    arguments_summary: str = ""
 
 
 class SpeciesNode(_GraphElement):
@@ -591,22 +537,6 @@ class SpeciesNode(_GraphElement):
 
 
 OccurrenceNode = SpeciesNode
-
-
-class DependencyEdge(_GraphElement):
-    """process 图上的依赖边（ predecessor 成功/跳过后 successor 才 ready）。"""
-
-    edge_id: str
-    source_node_id: str
-    target_node_id: str
-    edge_type: Literal["dependency"] = "dependency"
-    label: str = ""
-    # 边自身的处置状态（skipped/superseded 的边不再参与依赖判定）；None = 生效中
-    status: ProcessStatusValue | None = None
-    reason: str = ""
-    blocked_reason: str = ""
-    required: bool = False
-    supersedes: str | None = None
 
 
 class ElementaryStepEdge(_GraphElement):
@@ -657,14 +587,8 @@ class ElementaryStepEdge(_GraphElement):
         return data
 
 
-DagNode = Annotated[
-    Union[PlannedNode, ObservedNode, SpeciesNode],
-    Field(discriminator="node_type"),
-]
-DagEdge = Annotated[
-    Union[DependencyEdge, ElementaryStepEdge],
-    Field(discriminator="edge_type"),
-]
+DagNode = SpeciesNode
+DagEdge = ElementaryStepEdge
 
 _NODE_ADAPTER = TypeAdapter(DagNode)
 _EDGE_ADAPTER = TypeAdapter(DagEdge)
@@ -887,18 +811,6 @@ class AttachRef(_OperationBase):
     evidence_role: str | None = None
 
 
-class AddLink(_OperationBase):
-    """跨图簿记：把 process 计划节点关联到它服务的 delivery 元素（graph 置空）。"""
-
-    op: Literal["add_link"]
-    graph: GraphKind | None = None
-    link_id: str
-    process_node_id: str
-    delivery_element_type: Literal["node", "edge"]
-    delivery_element_id: str
-    payload: dict[str, Any] = Field(default_factory=dict)
-
-
 class SetCoverageContract(_OperationBase):
     """设定 delivery 覆盖契约（只有用户可以降低要求）。"""
 
@@ -941,7 +853,6 @@ GraphOperation = Annotated[
         UpdateNode,
         UpdateEdge,
         AttachRef,
-        AddLink,
         SetCoverageContract,
         WaiveGate,
     ],
@@ -1213,9 +1124,7 @@ class DagProjection(BaseModel):
         )
 
 
-GRAPH_POLICY_REVISION = "sha256:" + hashlib.sha256(
-    b"cloudra-dag-policy-v1"
-).hexdigest()
+GRAPH_POLICY_REVISION = "sha256:" + hashlib.sha256(b"cloudra-dag-policy-v1").hexdigest()
 
 
 def normalize_orchestration_mode(
@@ -1259,7 +1168,7 @@ def build_orchestration_config(
         from cloudra.infra.config import get_config
 
         snapshot["supervisor_model"] = get_config().follower.model
-        snapshot["supervisor_prompt_revision"] = "sha256:" + hashlib.sha256(
-            load_supervisor_prompt().encode("utf-8")
-        ).hexdigest()
+        snapshot["supervisor_prompt_revision"] = (
+            "sha256:" + hashlib.sha256(load_supervisor_prompt().encode("utf-8")).hexdigest()
+        )
     return snapshot
