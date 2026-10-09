@@ -43,8 +43,11 @@ def advance_optimization(record, stage_key: str, request: OptimizationRequest):
     calculation = stage_calculation(record, 'candidate_evaluation')
     if calculation is None or calculation.engine != 'xtb' or calculation.method != request.method_fingerprint or calculation.keywords:
         raise ValueError('Constrained evaluations require an explicit supported conformer calculation')
-    key = content_digest([stage_key, request.model_dump(mode='json'),record.input.reaction.charge,
-        record.input.reaction.multiplicity, calculation.model_dump(mode='json')])
+    identity = [stage_key, request.model_dump(mode='json'),record.input.reaction.charge,
+        record.input.reaction.multiplicity, calculation.model_dump(mode='json')]
+    if record.input.reaction.electronic_character is not None:
+        identity.append(dict(electronic_character=record.input.reaction.electronic_character))
+    key = content_digest(identity)
     checkpoint = record.optimization_checkpoints.get(key)
     if checkpoint is None:
         checkpoint = OptimizationCheckpoint(state=OptimizationState.model_validate(initialize_constrained_state(request)),
@@ -81,7 +84,8 @@ def advance_optimization(record, stage_key: str, request: OptimizationRequest):
         directory.mkdir(parents=True, exist_ok=True)
         manifest = directory/'task.json'
         task = ChemTask(task=kind, reactant_xyz=xyz, charge=record.input.reaction.charge,
-            multiplicity=record.input.reaction.multiplicity, cpus=record.compute_cpus)
+            multiplicity=record.input.reaction.multiplicity,
+            electronic_character=record.input.reaction.electronic_character, cpus=record.compute_cpus)
         _write_immutable_input(str(manifest), task.model_dump_json())
         step = next((s for s in record.job_steps if s.purpose=='candidate_evaluation' and s.input_path==str(manifest)),None)
         if step is None:

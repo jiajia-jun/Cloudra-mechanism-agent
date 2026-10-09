@@ -225,7 +225,8 @@ def _canonical_file_projection(record, updated, role, permutation):
         inverse[raw_index] = old_index
     hashes = {name: hashlib.sha256(data).hexdigest() for name, data in after.items()}
     digest = concrete_structure_digest(role, getattr(updated.reaction, role + '_smiles'),
-        updated.reaction.charge, updated.reaction.multiplicity, graph)
+        updated.reaction.charge, updated.reaction.multiplicity, graph,
+        electronic_character=updated.reaction.electronic_character)
     normalization = dict(status='pending', input_revision=record.declaration_revision + 1, paths=paths,
         source_to_canonical=[index + 1 for index in inverse],
         canonical_to_source=[index + 1 for index in permutation], canonical_hashes=hashes)
@@ -382,7 +383,8 @@ def _refresh_canonical_bindings(record, updated, changes, projections):
         graph.RemoveAllConformers()
         graph.AddConformer(conf)
         actual = concrete_structure_digest(role, getattr(value.reaction, role + '_smiles'),
-            value.reaction.charge, value.reaction.multiplicity, graph)
+            value.reaction.charge, value.reaction.multiplicity, graph,
+            electronic_character=value.reaction.electronic_character)
         qualifier = 'explicit' if explicit else 'inherited'
         if binding.structure_digest != actual:
             raise ValueError(f'{role}: {qualifier} heavy-atom binding structure digest is stale')
@@ -396,7 +398,8 @@ def _refresh_canonical_bindings(record, updated, changes, projections):
                                             if explicit else list(binding.indices))
         after.heavy_atom_binding.structure_digest = (projection['table']['structure_digest'] if projection else
             concrete_structure_digest(role, getattr(updated.reaction, role + '_smiles'),
-                updated.reaction.charge, updated.reaction.multiplicity, graph))
+                updated.reaction.charge, updated.reaction.multiplicity, graph,
+                electronic_character=updated.reaction.electronic_character))
 
 
 def _stale_atom_references(record, updated, changes, correspondences):
@@ -460,7 +463,7 @@ def plan_input_revision(record, request: TsResumeRequest) -> TsRevisionReceipt:
                 raise ValueError('input revision cannot raise authorized limits')
     invalidated = set()
     for path in differences:
-        if path.startswith(('reaction.reactant_smiles', 'reaction.product_smiles', 'reaction.charge', 'reaction.multiplicity', 'reaction.reaction_center', 'conformers.')):
+        if path.startswith(('reaction.reactant_smiles', 'reaction.product_smiles', 'reaction.charge', 'reaction.multiplicity', 'reaction.electronic_character', 'reaction.reaction_center', 'conformers.')):
             invalidated.update(_DEPENDENTS['build'])
         elif path.startswith(('reaction.atom_map', 'guess')):
             invalidated.update(_DEPENDENTS['guess'])
@@ -514,7 +517,7 @@ def revise_record(record, request, receipt):
         if (step.stage_key or step.purpose, step.job_id) in invalid_refs}
     restart = []
     for path in receipt.changes:
-        if path.startswith(('reaction.reactant_smiles', 'reaction.product_smiles', 'reaction.charge', 'reaction.multiplicity')):
+        if path.startswith(('reaction.reactant_smiles', 'reaction.product_smiles', 'reaction.charge', 'reaction.multiplicity', 'reaction.electronic_character')):
             restart.append('declare')
         elif path.startswith('conformers.'):
             restart.append('build')

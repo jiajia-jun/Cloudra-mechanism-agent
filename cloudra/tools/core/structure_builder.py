@@ -16,6 +16,9 @@
 - **身份**：新增的氢按 ``(父重原子输入序号, 该父原子上的第 k 个氢)`` 登记稳定身份，
   **绝不**用 ``AddHs`` 之后的数组下标充当跨反应映射。
 - **构建**：逐组分独立嵌入 + 力场优化，每一步迭代落一帧轨迹；失败与不收敛的轨迹同样保留。
+- **开壳层**：按声明电荷和总多重度检查电子数奇偶性/范围；自由基数仅作诊断。只生成
+  未优化的 ETKDG 种子，跳过 MMFF/UFF，不把种子冒充科学确证的驻点。
+  显式电子态声明优先；即使声明为闭壳层，带局域自由基标记的图仍保守地跳过力场。
 - **不冒充成功**：可处理状态一律走 ``BuildStatus`` 枚举；"坐标已生成"或"优化返回 0"
   都不构成"几何可用"。
 
@@ -40,6 +43,7 @@ from cloudra.tools.core.complex_assembly import (
     AssemblyResult,
     assemble,
 )
+from cloudra.tools.core.electronic_state import electronic_state_details, electronic_state_issue
 from cloudra.tools.core.structure_artifacts import (
     FORCE_FIELD_ENERGY_UNIT,
     TrajectoryArtifact,
@@ -90,7 +94,7 @@ BuildStatus = Literal[
     "ok",                  # 已按请求完成：单一组分，或多组分经已批准的组装产出了复合物候选
     "assembly_failed",     # 多组分且组装未产出任何通过筛选的复合物候选
     "charge_mismatch",     # 形式电荷总和与请求的总电荷不一致
-    "unsupported_spin",    # 力场后端不支持该多重度（开壳层）
+    "unsupported_spin",    # 总电子数/自旋声明不合法，或所声明电子态/图不支持力场组装
     "missing_parameters",  # 力场缺参数，无法优化该组分
     "optimization_failed", # 组分优化未收敛或抛异常
     "invalid_input",       # 输入无法解析
@@ -104,6 +108,7 @@ OptimizationStatus = Literal[
     "failed",
     "not_required",       # 单原子组分无需力场；未请求嵌入/优化时同样如此
     "missing_parameters",
+    "skipped_electronic_state",  # 电子态声明或自由基图标记需避开力场，仅生成未优化种子
 ]
 
 # 不能被下游当成"可用起点几何"的优化状态。
@@ -135,7 +140,8 @@ class BuildStrategy(BaseModel):
     )
     optimize: bool = Field(
         default=True,
-        description="是否对组分做力场优化（仅在 embed=True 时生效）。False 时嵌入后直接返回",
+        description="是否对组分做力场优化（仅在 embed=True 时生效）。开壳层声明或自由基图标记"
+        "始终跳过力场，其坐标仅作为未优化种子。",
     )
     max_optimization_steps: int = Field(
         default=20000,
@@ -165,6 +171,11 @@ class PreparationRequest(BaseModel):
     output_dir: str = Field(description="本构建产物的输出目录（由本模块独占，不做二级嵌套）")
     total_charge: int = Field(default=0, description="体系总电荷，必须等于各组分形式电荷之和")
     multiplicity: int = Field(default=1, description="自旋多重度 2S+1")
+    electronic_character: Literal["closed_shell", "open_shell"] | None = Field(
+        default=None,
+        description="显式电子态性质；open_shell 支持开壳层单重态。省略时仅依据所声明多重度和"
+        "分子图自由基标记判断是否应避开闭壳层力场，不推断基态或自旋耦合。",
+    )
     random_seed: int = Field(default=42, description="构象嵌入随机种子，写入轨迹元数据")
     strategy: BuildStrategy = Field(default_factory=BuildStrategy)
 
@@ -249,6 +260,11 @@ class PreparedStructure(BaseModel):
     artifact_path: str = Field(default="", description="本产物 JSON 的路径")
     total_charge: int = 0
     formal_charge_sum: int = 0
+    electronic_state: dict = Field(
+        default_factory=dict,
+        description="输入声明、总电子数、局域自由基数、alpha/beta 电子数与开壳层分类；"
+        "局域自由基数仅作诊断，不限制所声明的自旋耦合。",
+    )
     diagnostics: list[str] = Field(default_factory=list)
 
     def atom_identity(self, index: int) -> AtomIdentity:
@@ -337,6 +353,7 @@ def _submol_by_input_indices(mol, indices: list[int]):
         atom.SetChiralTag(source.GetChiralTag())
         atom.SetNumExplicitHs(source.GetNumExplicitHs())
         atom.SetNoImplicit(source.GetNoImplicit())
+        atom.SetNumRadicalElectrons(source.GetNumRadicalElectrons())
         old_to_new[old_index] = rw.AddAtom(atom)
 
     # 两趟：先建齐全部键，再设立体化学。``SetStereoAtoms`` 会校验两个参考原子分别与
@@ -558,7 +575,7 @@ class _ComponentBuild:
 
 def _build_component(mol, indices: list[int], component_id: str, request: PreparationRequest,
                      out_dir: str, artifacts: list[TrajectoryArtifact],
-                     index_offset: int, candidate_sink=None) -> _ComponentBuild:
+                     index_offset: int, candidate_sink=None, *, skip_force_field: bool) -> _ComponentBuild:
     """构建单个组分：切分 → 加氢 → （可选）嵌入 → 力场优化（含轨迹）→ 落盘。"""
     submol, old_to_new = _submol_by_input_indices(mol, indices)
     submol_atom_to_input = {new: old for old, new in old_to_new.items()}
@@ -598,6 +615,9 @@ def _build_component(mol, indices: list[int], component_id: str, request: Prepar
         diagnostics.append(
             "single-atom component: no conformer embedding and no force field were run"
         )
+        if skip_force_field:
+            optimization_status = "skipped_electronic_state"
+            diagnostics.append("single-atom seed: no force-field energy or optimization is claimed")
     else:
         params = AllChem.ETKDGv3()
         params.randomSeed = request.random_seed
@@ -621,8 +641,17 @@ def _build_component(mol, indices: list[int], component_id: str, request: Prepar
             conf_id = embedded
             if component_capture:
                 parent=component_capture.capture(mol_h,conf_id,generator="component_ETKDGv3",seed=request.random_seed)
-            engine = _select_engine(mol_h) or ""
-            if not request.strategy.optimize:
+            if not skip_force_field:
+                engine = _select_engine(mol_h) or ""
+            if skip_force_field:
+                optimization_status = "skipped_electronic_state"
+                diagnostics.append(
+                    "ETKDGv3 seed coordinates are unoptimized: the electronic-state declaration or "
+                    "localized radical graph markers require avoiding MMFF94/UFF. No force-field "
+                    "energy or convergence is claimed; subsequent optimization must preserve the "
+                    "declared electronic state."
+                )
+            elif not request.strategy.optimize:
                 optimization_status = "not_required"
                 diagnostics.append("force-field optimization disabled by the approved build strategy")
             elif not engine:
@@ -719,13 +748,15 @@ def _finalize(prepared: PreparedStructure, out_dir: str) -> PreparedStructure:
 
 def _empty(status: BuildStatus, message: str, total_charge: int, out_dir: str,
            formal_charge_sum: int = 0,
-           diagnostics: Optional[list[str]] = None) -> PreparedStructure:
+           diagnostics: Optional[list[str]] = None,
+           electronic_state: Optional[dict] = None) -> PreparedStructure:
     return _finalize(
         PreparedStructure(
             status=status,
             message=message,
             total_charge=total_charge,
             formal_charge_sum=formal_charge_sum,
+            electronic_state=dict(electronic_state or {}),
             diagnostics=list(diagnostics or []),
         ),
         out_dir,
@@ -733,7 +764,7 @@ def _empty(status: BuildStatus, message: str, total_charge: int, out_dir: str,
 
 
 def _component_is_usable(build: _ComponentBuild) -> bool:
-    """坐标是否可交给下游：嵌入过、且优化真的收敛。
+    """闭壳层力场组装的组分资格：嵌入过、且优化真的收敛。
 
     单原子组分无需嵌入与力场（位置即原点，是确定值），不受"嵌入过+收敛"要求的约束。
     """
@@ -782,31 +813,23 @@ def prepare_structure(request: PreparationRequest, *, candidate_sink=None) -> Pr
         )
 
     formal_charge_sum = sum(a.GetFormalCharge() for a in mol.GetAtoms())
-    if formal_charge_sum != request.total_charge:
+    state_details = electronic_state_details(
+        mol, charge=request.total_charge, multiplicity=request.multiplicity,
+        electronic_character=request.electronic_character,
+    )
+    state_issue = electronic_state_issue(
+        mol, charge=request.total_charge, multiplicity=request.multiplicity,
+        electronic_character=request.electronic_character,
+    )
+    if state_issue:
+        status, message = state_issue
         return _empty(
-            "charge_mismatch",
-            (
-                f"Total charge mismatch: the input structure's formal charges sum to "
-                f"{formal_charge_sum}, but total_charge={request.total_charge} was requested. "
-                "Fix the charge (or the input's formal charges) before building; a wrong total "
-                "charge silently changes the electronic state handed to downstream engines."
-            ),
-            request.total_charge, out_dir, formal_charge_sum,
-        )
-
-    if request.multiplicity != 1:
-        return _empty(
-            "unsupported_spin",
-            (
-                f"The RDKit force-field backends (MMFF94/UFF) are closed-shell only and cannot "
-                f"model multiplicity={request.multiplicity}. Refusing to build an open-shell "
-                "system as if it were closed-shell; use a backend that carries 2S+1 explicitly "
-                "(for CREST this is --uhf = multiplicity - 1)."
-            ),
+            status, message,
             request.total_charge, out_dir, formal_charge_sum,
             diagnostics=[
                 f"{len(fragments)} component(s) were not built: the electronic state is unsupported"
             ],
+            electronic_state=state_details,
         )
 
     artifacts: list[TrajectoryArtifact] = []
@@ -820,6 +843,7 @@ def prepare_structure(request: PreparationRequest, *, candidate_sink=None) -> Pr
         component_id = f"frag{position}"
         build = _build_component(
             mol, list(indices), component_id, request, out_dir, artifacts, index_offset, candidate_sink,
+            skip_force_field=state_details["requires_spin_aware_geometry"],
         )
         identity_symbols = [a.symbol for a in build.identities]
         if identity_symbols != build.component.symbols:
@@ -860,6 +884,7 @@ def prepare_structure(request: PreparationRequest, *, candidate_sink=None) -> Pr
                 trajectory_ids=[artifact.trajectory_id for artifact in artifacts],
                 trajectory_manifest_path=trajectory_manifest,
                 total_charge=request.total_charge,
+                electronic_state=state_details,
                 formal_charge_sum=formal_charge_sum,
                 diagnostics=[f"built atoms (0-based): {numbering}"],
             ),
@@ -882,6 +907,16 @@ def prepare_structure(request: PreparationRequest, *, candidate_sink=None) -> Pr
         diagnostics.append(
             "assembly needs embedded component coordinates; the strategy disabled embedding"
         )
+    elif len(components) > 1 and state_details["requires_spin_aware_geometry"]:
+        status = "unsupported_spin"
+        has_coordinates = False
+        message = (
+            "Multicomponent force-field assembly cannot represent the electronic-state declaration "
+            "or radical-marked graph. Component coordinates are unoptimized seeds; no complex "
+            "candidate was produced. Supply an explicit MOL "
+            "graph plus XYZ complex geometry through the file conformer input."
+        )
+        diagnostics.append("MMFF94/UFF complex assembly was not run for this state declaration or graph representation")
     elif len(components) > 1:
         # 组装前闸门：任一组分坐标不可用（嵌入失败/优化未收敛/缺参数）就不进 assemble——
         # 把占位坐标或未收敛几何拼成"复合物"等于交付无意义结构。
@@ -967,6 +1002,15 @@ def prepare_structure(request: PreparationRequest, *, candidate_sink=None) -> Pr
                 "No force field covers every atom of this structure (MMFF94 and UFF both "
                 "unavailable); coordinates were embedded but NOT optimized."
             )
+        elif only.component.optimization_status == "skipped_electronic_state":
+            status = "ok"
+            has_coordinates = True
+            message = (
+                "Seed embedded by ETKDGv3; coordinates are unoptimized. "
+                "MMFF94/UFF were skipped; subsequent optimization and scientific qualification "
+                "must use the declared electronic state."
+            )
+            diagnostics.extend(only.component.diagnostics)
         elif only.component.optimization_status == "not_required":
             status = "missing_parameters"
             has_coordinates = False
@@ -992,6 +1036,7 @@ def prepare_structure(request: PreparationRequest, *, candidate_sink=None) -> Pr
         trajectory_manifest_path=trajectory_manifest,
         total_charge=request.total_charge,
         formal_charge_sum=formal_charge_sum,
+        electronic_state=state_details,
         diagnostics=diagnostics,
     )
 

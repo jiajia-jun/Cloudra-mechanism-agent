@@ -467,13 +467,14 @@ def test_schema_multiplicity_field():
 
 @pytest.mark.asyncio
 async def test_rdkit_backend_rejects_open_shell(tool, mock_session, tmp_path):
-    """C2：RDKit 力场后端无法处理开壳层，multiplicity>1 必须 fail-loud 拒收而非静默当闭壳层。"""
+    """Valid open-shell declarations still cannot enter RDKit force-field energy ranking."""
     result = await tool.safe_call(
-        ConformerSearch_input_schema(smiles="CCCC", multiplicity=2, output_dir=str(tmp_path / "rad")),
+        ConformerSearch_input_schema(smiles="[CH3]", multiplicity=2, output_dir=str(tmp_path / "rad")),
         mock_session,
     )
     assert result.is_success is False
-    assert "multiplicity" in result.message.lower()
+    assert "force-field" in result.message.lower()
+    assert "crest" in result.message.lower()
 
 
 @pytest.mark.asyncio

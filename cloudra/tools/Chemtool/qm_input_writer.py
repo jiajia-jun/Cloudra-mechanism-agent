@@ -130,6 +130,10 @@ class QmInputWriter_input_schema(input_schema):
         default=1,
         description="Spin multiplicity. Singlet=1, doublet=2, triplet=3."
     )
+    electronic_character: Literal["closed_shell", "open_shell"] | None = Field(
+        default=None, description="Optional explicit electronic character for SMILES seed generation; "
+        "open_shell singlets skip closed-shell force fields. Does not choose a QM method or initial spin.",
+    )
     mem: str = Field(
         default="4GB",
         description="TOTAL memory for the whole job, e.g. '4GB', '8GB'. Gaussian writes %mem "
@@ -311,6 +315,7 @@ class QmInputWriter(Tool):
             output_dir=artifact_dir,
             total_charge=user_input.charge,
             multiplicity=user_input.multiplicity,
+            electronic_character=user_input.electronic_character,
             strategy=BuildStrategy(name="per_component", embed=True, optimize=True),
         ))
         if prepared.status != "ok" or not prepared.has_coordinates:

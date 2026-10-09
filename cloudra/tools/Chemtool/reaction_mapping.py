@@ -598,6 +598,7 @@ def _axis_config_from_3d(mol, conf, axis_a: int, axis_b: int, ranks: list[int]) 
 
 def _read_structure(
     path: Optional[str], text: Optional[str], fmt: str, charge: int, role: str,
+    *, multiplicity: int = 1, electronic_character: str | None = None, require_declared_identity: bool = False,
 ):
     from rdkit import Chem
 
@@ -616,6 +617,8 @@ def _read_structure(
     if actual_format in {"mol", "molfile", "sdf"}:
         mol = Chem.MolFromMolBlock(payload, removeHs=False, sanitize=True)
     elif actual_format == "xyz":
+        if require_declared_identity or multiplicity > 1 or electronic_character == 'open_shell':
+            raise ValueError(f'{role}: XYZ alone does not carry the declared electronic identity; supply a paired MOL/SDF graph with charge, radical and stereochemical identity.')
         from rdkit.Chem import rdDetermineBonds
 
         mol = Chem.MolFromXYZBlock(payload)
@@ -629,20 +632,62 @@ def _read_structure(
     return mol
 
 
-def concrete_structure_digest(role: str, smiles: str, charge: int, multiplicity: int, structure) -> str:
+def concrete_structure_digest(role: str, smiles: str, charge: int, multiplicity: int, structure,
+                              *, electronic_character: str | None = None) -> str:
     """Digest the declared identity, concrete atom order, graph and coordinates."""
     from cloudra.tools.core.conformer_catalog import content_digest
 
-    return content_digest(dict(role=role, smiles=smiles, charge=charge, multiplicity=multiplicity,
+    identity = dict(role=role, smiles=smiles, charge=charge, multiplicity=multiplicity,
         atoms=[(a.GetAtomicNum(), a.GetIsotope(), a.GetFormalCharge(), a.GetAtomMapNum())
                for a in structure.GetAtoms()],
         bonds=sorted((min(b.GetBeginAtomIdx(), b.GetEndAtomIdx()),
                       max(b.GetBeginAtomIdx(), b.GetEndAtomIdx()), b.GetBondTypeAsDouble())
                      for b in structure.GetBonds()),
-        positions=structure.GetConformer().GetPositions().tolist() if structure.GetNumConformers() else None))
+        positions=structure.GetConformer().GetPositions().tolist() if structure.GetNumConformers() else None)
+    # Retain existing unspecified closed-shell digests, but pin open-shell
+    # electronic identity to concrete rows, including declared singlets.
+    if electronic_character is not None or multiplicity > 1 or any(a.GetNumRadicalElectrons() for a in structure.GetAtoms()):
+        identity['electronic_character'] = electronic_character
+        identity['electronic_atoms'] = [(a.GetNumRadicalElectrons(), str(a.GetChiralTag())) for a in structure.GetAtoms()]
+        identity['electronic_bonds'] = [(b.GetBeginAtomIdx(), b.GetEndAtomIdx(), str(b.GetStereo()), list(b.GetStereoAtoms())) for b in structure.GetBonds()]
+    return content_digest(identity)
 
 
-def _identity_and_binding(expected_smiles: str, structure, explicit_indices: list[int] | None = None) -> tuple[str, list[int], str]:
+def _complete_binding_preserves_identity(expected, structure, structure_heavy, match) -> bool:
+    """Prove one complete graph binding including explicit hydrogen isotopes."""
+    from rdkit import Chem
+
+    if len(match) != expected.GetNumAtoms() or sorted(match) != list(range(structure_heavy.GetNumAtoms())):
+        return False
+    expected_full = Chem.AddHs(expected)
+    if Counter(_atom_key(a) for a in expected_full.GetAtoms()) != Counter(_atom_key(a) for a in structure.GetAtoms()):
+        return False
+
+    def atom_state(atom):
+        return (_atom_key(atom), atom.GetFormalCharge(), atom.GetNumRadicalElectrons(),
+                atom.GetIsAromatic(), atom.GetTotalNumHs(includeNeighbors=True))
+
+    def hydrogen_states(atom):
+        return Counter((_atom_key(a), a.GetFormalCharge(), a.GetNumRadicalElectrons())
+                       for a in atom.GetNeighbors() if a.GetAtomicNum() == 1)
+
+    for index, target in enumerate(match):
+        query = expected.GetAtomWithIdx(index)
+        concrete = structure_heavy.GetAtomWithIdx(target)
+        if atom_state(query) != atom_state(concrete):
+            return False
+        if query.GetAtomicNum() != 1 and hydrogen_states(expected_full.GetAtomWithIdx(index)) != hydrogen_states(
+                structure.GetAtomWithIdx(concrete.GetIntProp('_full_idx'))):
+            return False
+    expected_bonds = {tuple(sorted((match[b.GetBeginAtomIdx()], match[b.GetEndAtomIdx()]))):
+                      (b.GetBondTypeAsDouble(), b.GetIsAromatic()) for b in expected.GetBonds()}
+    concrete_bonds = {tuple(sorted((b.GetBeginAtomIdx(), b.GetEndAtomIdx()))):
+                      (b.GetBondTypeAsDouble(), b.GetIsAromatic()) for b in structure_heavy.GetBonds()}
+    return expected_bonds == concrete_bonds and _stereo_mismatch(structure_heavy, expected, list(match)) == 0
+
+
+def _identity_and_binding(expected_smiles: str, structure, explicit_indices: list[int] | None = None,
+                          *, allow_symmetric_representative: bool = False) -> tuple[str, list[int], str]:
     """返回图身份、expected heavy -> concrete full-atom index，以及绑定诊断。"""
     from rdkit import Chem
 
@@ -683,7 +728,10 @@ def _identity_and_binding(expected_smiles: str, structure, explicit_indices: lis
     parameters = Chem.SubstructMatchParameters()
     parameters.uniquify = False
     parameters.useChirality = True
-    parameters.maxMatches = 256 if selected is None else 1
+    unlabelled = not any(a.GetAtomMapNum() for a in expected.GetAtoms()) and not any(a.GetAtomMapNum() for a in structure.GetAtoms())
+    prove_symmetry = allow_symmetric_representative and unlabelled and selected is None
+    # A 257th result is an overflow sentinel, never an "all candidates" proof.
+    parameters.maxMatches = (257 if prove_symmetry else 256) if selected is None else 1
     if selected is not None:
         # Pin the declared correspondence before graph matching, rather than
         # requiring it to appear among a truncated enumeration of automorphisms.
@@ -747,6 +795,18 @@ def _identity_and_binding(expected_smiles: str, structure, explicit_indices: lis
         return "mismatch", [], axis_diag
     distinct = sorted(allowed)
     if len(distinct) != 1:
+        if prove_symmetry:
+            if len(matches) == parameters.maxMatches:
+                return 'match', [], 'Symmetric binding enumeration is incomplete; supply an explicit heavy_atom_binding or complete concrete atom-map labels.'
+            if not all(_complete_binding_preserves_identity(expected_clean, structure_copy, structure_heavy, match)
+                       for match in matches):
+                return 'match', [], 'Candidate bindings do not all preserve complete electronic, isotope, hydrogen, bond and stereo identity; supply an explicit heavy_atom_binding.'
+            axis_diag = _axis_config_consistency(expected, structure, full_matches, require_all=True)
+            if axis_diag:
+                return 'match', [], axis_diag + ' Supply an explicit heavy_atom_binding.'
+            return 'match', list(distinct[0]), f'All {len(matches)} exhaustively enumerated bindings preserve complete molecular identity; selected a deterministic symmetric representative.'
+        if allow_symmetric_representative and not unlabelled:
+            return 'match', [], 'Concrete atom labels are provenance and cannot be replaced by a symmetric representative; supply an explicit heavy_atom_binding or complete compatible labels.'
         count = f'at least {len(distinct)}' if len(matches) == 256 else str(len(distinct))
         return (
             "match",
@@ -756,7 +816,7 @@ def _identity_and_binding(expected_smiles: str, structure, explicit_indices: lis
     return "match", list(distinct[0]), ""
 
 
-def _axis_config_consistency(expected, structure, matches) -> Optional[str]:
+def _axis_config_consistency(expected, structure, matches, *, require_all=False) -> Optional[str]:
     """校验具体结构 3D 坐标体现的轴构型与 SMILES 声明一致；不一致返回诊断串。"""
     from rdkit import Chem
 
@@ -764,15 +824,19 @@ def _axis_config_consistency(expected, structure, matches) -> Optional[str]:
         ax for ax in find_potential_chiral_axes(expected)
         if ax["configuration"] in {"atrop_cw", "atrop_ccw"}
     ]
-    if not declared or structure.GetNumConformers() == 0:
+    if not declared:
         return None
+    if structure.GetNumConformers() == 0:
+        return 'Declared axial stereochemistry has no concrete geometry proof.' if require_all else None
     conf = structure.GetConformer()
     s_ranks = list(Chem.CanonicalRankAtoms(structure, breakTies=False))
-    for match in matches[:1]:
+    for match in matches if require_all else matches[:1]:
         for ax in declared:
             a = match[ax["bond"][0] - 1]
             b = match[ax["bond"][1] - 1]
             cfg = _axis_config_from_3d(structure, conf, a, b, s_ranks)
+            if cfg is None and require_all:
+                return f'Concrete axial stereochemistry at bond {ax["bond"]} cannot be proved for every candidate binding.'
             if cfg is not None and cfg != ax["configuration"]:
                 return (
                     f"Concrete structure's axial configuration at bond {ax['bond']} "
@@ -836,22 +900,52 @@ def _expand_full_atom_map(
 
 
 def check_concrete_binding(user_input, mapping_result: dict, *, known_digests: dict[str, str] | None = None) -> dict:
+    from rdkit import Chem
+
+    from cloudra.tools.core.electronic_state import electronic_state_details, electronic_state_issue
+
+    states = {}
+    for role in ('reactant', 'product'):
+        declared = Chem.MolFromSmiles(getattr(user_input, role + '_smiles'))
+        if declared is None:
+            raise ValueError(f'{role}: declared SMILES cannot be parsed')
+        arguments = dict(charge=getattr(user_input, role + '_charge'),
+            multiplicity=getattr(user_input, role + '_multiplicity'),
+            electronic_character=getattr(user_input, role + '_electronic_character'))
+        issue = electronic_state_issue(declared, **arguments)
+        if issue:
+            raise ValueError(f'{role}: {issue[1]}')
+        states[role] = electronic_state_details(declared, **arguments)
     reactant = _read_structure(
         user_input.reactant_path, user_input.reactant_text,
         user_input.reactant_format, user_input.reactant_charge, "Reactant",
+        multiplicity=user_input.reactant_multiplicity,
+        electronic_character=user_input.reactant_electronic_character,
+        require_declared_identity=states['reactant']['requires_spin_aware_geometry'],
     )
     product = _read_structure(
         user_input.product_path, user_input.product_text,
         user_input.product_format, user_input.product_charge, "Product",
+        multiplicity=user_input.product_multiplicity,
+        electronic_character=user_input.product_electronic_character,
+        require_declared_identity=states['product']['requires_spin_aware_geometry'],
     )
     def bind(role, structure):
+        if structure is not None:
+            issue = electronic_state_issue(structure, charge=getattr(user_input, role + '_charge'),
+                multiplicity=getattr(user_input, role + '_multiplicity'),
+                electronic_character=getattr(user_input, role + '_electronic_character'))
+            if issue:
+                raise ValueError(f'{role}: {issue[1]}')
         declaration = getattr(user_input, role + '_binding', None)
         if declaration is None or structure is None:
-            identity, binding, diagnostic = _identity_and_binding(getattr(user_input, role + '_smiles'), structure)
+            identity, binding, diagnostic = _identity_and_binding(getattr(user_input, role + '_smiles'), structure,
+                allow_symmetric_representative=states[role]['is_open_shell'])
             return identity, binding, f'{role}: {diagnostic}' if diagnostic else ''
         digest = ((known_digests or {}).get(role) or concrete_structure_digest(role,
             getattr(user_input, role + '_smiles'), getattr(user_input, role + '_charge'),
-            getattr(user_input, role + '_multiplicity'), structure))
+            getattr(user_input, role + '_multiplicity'), structure,
+            electronic_character=getattr(user_input, role + '_electronic_character')))
         if declaration.structure_digest != digest:
             return 'match', [], f'{role} heavy-atom binding structure_digest is stale or mismatched; actual digest is {digest}.'
         identity, binding, diagnostic = _identity_and_binding(getattr(user_input, role + '_smiles'), structure,
@@ -861,7 +955,8 @@ def check_concrete_binding(user_input, mapping_result: dict, *, known_digests: d
     p_identity, p_binding, p_diagnostic = bind('product', product)
     digests = dict(structure_digests={role: (known_digests or {}).get(role) or
         concrete_structure_digest(role, getattr(user_input, role + '_smiles'),
-            getattr(user_input, role + '_charge'), getattr(user_input, role + '_multiplicity'), structure)
+            getattr(user_input, role + '_charge'), getattr(user_input, role + '_multiplicity'), structure,
+            electronic_character=getattr(user_input, role + '_electronic_character'))
         for role, structure in (('reactant', reactant), ('product', product)) if structure is not None})
     if reactant is None and product is None:
         from rdkit import Chem
@@ -979,6 +1074,8 @@ class ReactionMapping_input_schema(input_schema):
     product_charge: int = Field(default=0, description="Product total charge, used when inferring XYZ bond orders.")
     reactant_multiplicity: int = 1
     product_multiplicity: int = 1
+    reactant_electronic_character: Literal['closed_shell', 'open_shell'] | None = None
+    product_electronic_character: Literal['closed_shell', 'open_shell'] | None = None
     reactant_binding: HeavyAtomBinding | None = None
     product_binding: HeavyAtomBinding | None = None
 

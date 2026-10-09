@@ -277,7 +277,7 @@ def test_single_component_is_deliverable_with_candidates(tmp_path):
     assert on_disk["artifact_path"] == prepared.artifact_path
 
 
-def test_open_shell_is_refused_rather_than_built_as_closed_shell(tmp_path):
+def test_declared_doublet_with_even_electron_count_is_refused(tmp_path):
     prepared = _prepare(tmp_path, "CCCC", multiplicity=2)
     assert prepared.status == "unsupported_spin"
     assert prepared.components == []

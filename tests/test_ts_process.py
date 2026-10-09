@@ -323,7 +323,10 @@ def test_charge_mismatch_is_invalid_input_not_a_block(tmp_path):
     """形式电荷与声明不符是**输入不成立**（终态），不是可以靠改组装绕过的阻塞。"""
     record = _start(tmp_path, charge=0)
     assert record.terminal == "invalid_input"
-    assert "charge" in record.stage_record("build").detail.lower()
+    assert "charge" in record.stage_record("declare").detail.lower()
+    assert all(stage.stage != "build" for stage in record.stage_records)
+    assert record.blocked is None
+    assert not record.job_steps and not record.waiting_for
 
 
 def test_built_endpoints_are_delivered_through_the_shared_builder(tmp_path):

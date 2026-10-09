@@ -126,6 +126,7 @@ class XtbPathRequest(BaseModel):
     output_dir: str = Field(description="持久运行目录的父目录；每次运行在其 xtb_path_runs/ 下新建")
     charge: int = Field(default=0, description="总电荷（--chrg）")
     multiplicity: int = Field(default=1, description="自旋多重度 2S+1，透传为 --uhf = multiplicity-1")
+    electronic_character: Literal['closed_shell', 'open_shell'] | None = None
     timeout: int | None = Field(default=900, description="子进程耗时上限（秒）；超时只终止本次运行自己的进程组")
     refinement_runs: int | None = Field(
         default=DEFAULT_REFINEMENT_RUNS, ge=1,
@@ -216,6 +217,8 @@ def build_xtb_path_command(request: XtbPathRequest) -> list[str]:
     """构造命令行。电荷与自旋显式透传，绝不依赖引擎默认推断。"""
     if request.multiplicity < 1:
         raise ValueError(f"multiplicity must be >= 1 (2S+1), got {request.multiplicity}")
+    if request.electronic_character == 'open_shell' and request.multiplicity == 1:
+        raise ValueError('The xTB GFN path interface cannot represent a declared open-shell singlet via --uhf 0; supply a capable QM method and initial spin settings.')
     return [
         "xtb", "reactant.xyz", "--path", "product.xyz", "--input", PATH_INPUT_NAME,
         "--chrg", str(request.charge), "--uhf", str(request.multiplicity - 1),
@@ -395,6 +398,7 @@ def run_xtb_path(request: XtbPathRequest) -> XtbPathResult:
 
     同步函数（子进程 + 文件 IO）；异步调用方必须经 ``asyncio.to_thread`` 卸载。
     """
+    command = build_xtb_path_command(request)
     try:
         reactant_symbols, _ = _symbols_and_positions(request.reactant_xyz, label="reactant")
         product_symbols, _ = _symbols_and_positions(request.product_xyz, label="product")
@@ -409,7 +413,6 @@ def run_xtb_path(request: XtbPathRequest) -> XtbPathResult:
             diagnostics=[str(exc)],
         )
 
-    command = build_xtb_path_command(request)
     run_dir = next_run_dir(request.output_dir, RUNS_DIR_NAME, request.run_label)
     reactant_path = os.path.join(run_dir, "reactant.xyz")
     product_path = os.path.join(run_dir, "product.xyz")

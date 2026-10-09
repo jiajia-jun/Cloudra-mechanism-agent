@@ -321,6 +321,10 @@ def _script_compute(monkeypatch, first_scan='peak'):
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("rdkit_chemistry")
 async def test_ts_failed_scan_repair_same_run(tmp_path,monkeypatch):
+    import hashlib
+
+    from cloudra.tools.core.ts_inputs import ScanRepairReceipt
+
     assert TS_SCENARIOS[1]=='ts_failed_scan_repair_same_run'
     from cloudra.persistence.database import ComputeDB
     from cloudra.tools.core import ts_process as process
@@ -336,7 +340,26 @@ async def test_ts_failed_scan_repair_same_run(tmp_path,monkeypatch):
             record=process.TsProcessRecord.model_validate(handle_process_job_terminal(ComputeDB(),record.scan_step.job_id)['record'])
         provider.records.append(record)
         if record.failed_attempt and record.declaration_revision==1:
-            provider._scripts['small_mol'][0].tools=[('ts_resume',{'run_id':record.run_id,'reason':'retry failed scan without prerequisite repair calculation','expected_revision':record.revision})]
+            failed = record.scan_step
+            attempt_id = f'{failed.source_input_revision}:scan:{failed.job_id}'
+            input_hash = hashlib.sha256(Path(failed.input_path).read_bytes()).hexdigest()
+            repair = tmp_path / 'scan-repair-receipt.json'
+            repair.write_text(ScanRepairReceipt(
+                failed_attempt_id=attempt_id, failure_input_sha256=input_hash,
+                repair='Fixture execution environment repaired after the first scan failed to produce output',
+            ).model_dump_json())
+            provider._scripts['small_mol'][0].tools=[('ts_resume',{
+                'run_id':record.run_id,
+                'reason':'Retry the failed scan with an independently bound environment repair receipt',
+                'expected_revision':record.revision,
+                'scan_recovery': {
+                    'failed_attempt_id': attempt_id,
+                    'failure_input_sha256': input_hash,
+                    'failure_log_sha256': None,
+                    'evidence_refs': [{'path': str(repair),
+                                       'sha256': hashlib.sha256(repair.read_bytes()).hexdigest()}],
+                },
+            })]
     provider=StateProvider(tmp_path,[Step(tools=[('ts_prepare',{'input':payload})]),Step(),Step(stop=True)],complete)
     harness=await ScenarioHarness.start(tmp_path,workspace_dir=tmp_path,provider=provider)
     provider.harness=harness
@@ -347,7 +370,13 @@ async def test_ts_failed_scan_repair_same_run(tmp_path,monkeypatch):
         assert [(e['tool_name'],e['is_success']) for e in harness.tool_events(agent)]==[('ts_prepare',True),('ts_resume',True)],harness.describe(agent)
         current=provider.records[-1]
         assert current.run_id=='ts_0001' and current.intervention_count==1
-        assert current.attempt_history[-1].failed_attempt['failure_class']=='scan_job_failed'
+        assert current.attempt_history[-1].failed_attempt['failure_class']=='unclassified_failure'
+        assert current.attempt_history[-1].blocked.failure_class == 'scan_job_failed'
+        recovery = current.attempt_history[-1].recovery_evidence
+        assert recovery['failed_attempt']['attempt_id'] == f'1:scan:{submissions[0]["id"]}'
+        assert recovery['input_diff'] == []
+        assert recovery['evidence_refs'][0]['kind'] == 'repair_receipt'
+        assert recovery['scientific_recovery_verified'] is False
         assert [s['purpose'] for s in submissions]==['scan','scan','ts_opt']
     finally:
         await harness.aclose()

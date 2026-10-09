@@ -259,6 +259,8 @@ class TsGuess_input_schema(input_schema):
     method: Optional[str] = Field(default=None, description="scan_prepare requires an explicit method/basis. For exploratory PES scans, choose a MethodPolicy-permitted and available semiempirical method (Gaussian PM7 if allowed, or ORCA GFN2-xTB if available and allowed). Use DFT for a narrow follow-up scan or unconstrained TS refinement. For MLIP/external pass 'ExtOpt' (ORCA; pair with orca_blocks %method ProgExt) or 'external' (Gaussian; pair with extra_route='external=\"<prog>\"').")
     charge: int = Field(default=0, description="Total charge.")
     spin: int = Field(default=1, description="Spin multiplicity (2S+1).")
+    electronic_character: Literal['closed_shell', 'open_shell'] | None = Field(default=None,
+        description="Declared electronic character for native scan/path preparation, including open-shell singlets. This does not select a wavefunction or initialize spin. Native xTB cannot represent an open-shell singlet through --uhf 0.")
     extra_route: str = Field(default="", description="Extra route keywords (e.g. 'scrf=(solvent=water)' for Gaussian, or the external-program keyword for method='external').")
     nprocs: int = Field(default=4, description="Parallel cores (Gaussian %nprocshared / ORCA %pal).")
     output_path: Optional[str] = Field(default=None, description="scan_prepare: path to write the Gaussian/ORCA input or xTB typed manifest (required). Absolute as-is, or relative to the Agent working directory.")
@@ -1373,7 +1375,6 @@ class TsGuess(Tool):
         p_pos = np.asarray(p_atoms.get_positions(), dtype=float)
 
         out_dir = user_input.output_dir or resolve_tool_path(self, "./ts_path")
-        os.makedirs(out_dir, exist_ok=True)
 
         run = run_xtb_path(XtbPathRequest(
             reactant_xyz=_atoms_to_xyz_block(r_syms, r_pos, "ts_guess reactant"),
@@ -1381,6 +1382,7 @@ class TsGuess(Tool):
             output_dir=out_dir,
             charge=user_input.charge,
             multiplicity=user_input.spin,
+            electronic_character=user_input.electronic_character,
             timeout=user_input.timeout,
             refinement_runs=user_input.refinement_runs,
             run_label="guess",
@@ -1745,7 +1747,8 @@ class TsGuess(Tool):
             *[f'{symbol} ' + ' '.join(f'{float(value):.14f}' for value in point)
               for symbol, point in zip(symbols, positions)]]) + '\n'
         task = ChemTask(task='xtb_scan', reactant_xyz=xyz, cpus=user_input.nprocs,
-                        charge=user_input.charge, multiplicity=user_input.spin, scan=scan)
+                        charge=user_input.charge, multiplicity=user_input.spin,
+                        electronic_character=user_input.electronic_character, scan=scan)
         output = Path(user_input.output_path)
         if output.exists():
             raise ValueError(f'xTB scan manifest already exists: {output}')

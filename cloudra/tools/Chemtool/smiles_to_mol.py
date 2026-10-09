@@ -1,6 +1,6 @@
 import asyncio
 import os
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import Field
 
@@ -30,9 +30,11 @@ description = (
     "xyz_path for the XYZ file produced by the same build; reuse it instead of rebuilding "
     "the same SMILES to obtain XYZ coordinates. "
     "3D structures are built by the shared structure builder: SMILES is split into its connected "
-    "components, each component is embedded and force-field optimized with a recorded trajectory, "
-    "and a multi-component input is NOT returned as a complex (assembly is a separate, not yet "
-    "approved step) — such input fails loud so no overlapping fragment geometry reaches a QM engine. "
+    "components. Compatible closed-shell components are embedded and force-field optimized with a "
+    "recorded trajectory, and complexes use the approved assembly. Electronic-state declarations or "
+    "radical graph markers requiring explicit electronic treatment skip MMFF/UFF and produce only "
+    "unoptimized seeds; their force-field complex assembly is refused. Declared charge, multiplicity "
+    "and electronic character are preserved without selecting a ground state or QM method. "
     "Use for: generating an initial 3D structure from SMILES as input to qm_input_writer or format_converter. "
     "Do not use for: converting an existing structure file (use format_converter) or drawing SMILES as an image (use molecule_drawer)."
 )
@@ -47,8 +49,9 @@ class SmilesToMol_input_schema(input_schema):
     generate_3d: bool = Field(
         default=False,
         description="Whether to generate 3D coordinates. Default False (2D). When True, the shared "
-                    "structure builder embeds and force-field-optimizes the structure and records a "
-                    "full optimization trajectory (slower)."
+                    "structure builder embeds coordinates and optimizes compatible closed-shell inputs "
+                    "with a full trajectory. States or radical-marked graphs requiring explicit electronic "
+                    "treatment return unoptimized seeds."
     )
     kekulize: bool = Field(
         default=True,
@@ -61,8 +64,12 @@ class SmilesToMol_input_schema(input_schema):
     )
     multiplicity: int = Field(
         default=1,
-        description="Spin multiplicity (2S+1) for the 3D builder. The RDKit force fields are "
-                    "closed-shell only, so a value > 1 is refused rather than built as closed-shell."
+        description="Declared spin multiplicity (2S+1) for the 3D builder. Open-shell states use "
+                    "unoptimized ETKDG seeds and skip MMFF/UFF; electron parity and range are checked."
+    )
+    electronic_character: Literal["closed_shell", "open_shell"] | None = Field(
+        default=None, description="Optional explicit electronic character; open_shell permits "
+        "an open-shell singlet without localized radical labels. Applies to the 3D builder.",
     )
     artifact_dir: Optional[str] = Field(
         default=None,
@@ -113,6 +120,7 @@ class SmilesToMol(Tool):
             output_dir=self._resolve_artifact_dir(user_input),
             total_charge=user_input.charge,
             multiplicity=user_input.multiplicity,
+            electronic_character=user_input.electronic_character,
             strategy=BuildStrategy(name="per_component", embed=True, optimize=True),
         ))
         if prepared.status != "ok" or not prepared.has_coordinates:

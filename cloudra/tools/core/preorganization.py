@@ -710,6 +710,7 @@ def _crest_guided(
     run = run_crest(CrestRunRequest(
         xyz_text=seed_xyz, output_dir=os.path.join(output_dir, "crest"),
         charge=charge, multiplicity=multiplicity, timeout=timeout,
+        electronic_character=prepared.electronic_state.get('electronic_character'),
         runtype="nci" if mode == "nci" else "default",
         noreftopo=len(prepared.components) > 1,
         constraint_text=constraint_text, run_label="guided",
@@ -783,6 +784,7 @@ def search_guided(
     distance_filters: Sequence[Mapping[str, object]],
     charge: int = 0,
     multiplicity: int = 1,
+    electronic_character: Literal["closed_shell", "open_shell"] | None = None,
     backend: Literal["rdkit", "crest"] = "rdkit",
     mode: Literal["conformers", "nci"] = "conformers",
     num_confs: int = 50,
@@ -802,6 +804,7 @@ def search_guided(
         output_dir=os.path.join(output_dir, "resolved_graph"),
         total_charge=charge,
         multiplicity=multiplicity,
+        electronic_character=electronic_character,
         random_seed=random_seed,
         strategy=BuildStrategy(embed=False, optimize=False),
     ))
@@ -809,6 +812,16 @@ def search_guided(
         return GuidedSearchResult(
             status="build_failed", message=f"structure resolution failed: {prepared.message}",
             prepared_path=prepared.artifact_path, diagnostics=list(prepared.diagnostics),
+        )
+    if prepared.electronic_state["requires_spin_aware_geometry"]:
+        return GuidedSearchResult(
+            status="build_failed",
+            message="Guided seed generation cannot represent this electronic-state declaration or "
+            "radical-marked graph because its pre-relaxation uses MMFF94. Supply an explicit MOL "
+            "graph plus XYZ geometry with an electronic-state-aware QM optimization calculation. "
+            "The current CREST interface cannot represent open-shell singlets; other declared states "
+            "of single components can use unguided CREST.",
+            prepared_path=prepared.artifact_path,
         )
     plan = resolve_guidance(prepared, ring_order, distance_filters, index_base=index_base)
     if len(prepared.components) != 1:

@@ -397,11 +397,42 @@ def _calculation_field(purpose: str) -> str:
     side, task = purpose.split('_', 1)
     return f'verification.{side}_endpoint.{"optimization" if task == "opt" else task}'
 
+def _open_shell_singlet(record) -> bool:
+    """Read the declared/graph state without choosing its wavefunction settings."""
+    if record.input.reaction.multiplicity != 1:
+        return False
+    from rdkit import Chem
+
+    from cloudra.tools.core.electronic_state import electronic_state_details
+
+    reaction = record.input.reaction
+    for smiles in (reaction.reactant_smiles, reaction.product_smiles):
+        graph = Chem.MolFromSmiles(smiles)
+        if graph is not None and electronic_state_details(
+            graph, charge=reaction.charge, multiplicity=reaction.multiplicity,
+            electronic_character=reaction.electronic_character,
+        )['is_open_shell']:
+            return True
+    return False
+
+
+def _xtb_state_checkpoint(record, stage, field) -> bool:
+    if not _open_shell_singlet(record):
+        return False
+    _block(record, stage, 'electronic_state_backend_unsupported',
+           'The current GFN-xTB interface cannot represent an open-shell singlet through --uhf 0. '
+           'Supply an externally prepared guess or an explicitly declared capable QM calculation '
+           'with its initial-spin settings; the workflow will not choose them automatically.', needs=[field])
+    return True
+
+
 def _require_calculation(record, purpose, stage) -> bool:
     calculation = stage_calculation(record, purpose)
     if calculation is None:
         field = _calculation_field(purpose)
         _block(record, stage, 'missing_input', f'Explicit calculation required: {field}', needs=[field])
+        return True
+    if calculation.engine == 'xtb' and _xtb_state_checkpoint(record, stage, _calculation_field(purpose)):
         return True
     if calculation.engine not in (('orca', 'gaussian', 'xtb') if purpose == 'scan' else ('orca', 'gaussian')):
         _block(record, stage, 'unsupported_calculation', f'{purpose} does not support {calculation.engine}', needs=[_calculation_field(purpose)])
@@ -434,6 +465,13 @@ def _declare(record: TsProcessRecord) -> TsProcessRecord:
     product_graph = Chem.MolFromSmiles(declaration.product_smiles)
     if reactant_graph is None or product_graph is None:
         problems.append('Reaction species must have parseable SMILES')
+    else:
+        from cloudra.tools.core.electronic_state import electronic_state_issue
+        for role, graph in (('reactant', reactant_graph), ('product', product_graph)):
+            issue = electronic_state_issue(graph, charge=declaration.charge,
+                multiplicity=declaration.multiplicity, electronic_character=declaration.electronic_character)
+            if issue:
+                problems.append(f'{role}: {issue[1]}')
     if _rotated_product(record) is not None:
         from rdkit import Chem
 
@@ -557,6 +595,7 @@ def _build(record: TsProcessRecord) -> TsProcessRecord:
             output_dir=target_dir,
             total_charge=declaration.charge,
             multiplicity=declaration.multiplicity,
+            electronic_character=declaration.electronic_character,
             random_seed=source.seed,
             strategy=BuildStrategy(
                 name="per_component", embed=False, optimize=False,
@@ -713,6 +752,8 @@ def _optimize_conformer_source(record, role):
 
     purpose = 'candidate_opt' if role == 'reactant' else 'product_seed_opt'
     calculation = stage_calculation(record, purpose)
+    if calculation.engine == 'xtb' and _xtb_state_checkpoint(record, 'build', f'conformers.{role}.optimization'):
+        return record
     built = _read_built_xyz(record, role)
     if built is None:
         return _block(record, 'build', 'conformer_source_invalid', 'No conformer geometry to optimize', needs=[f'conformers.{role}'])
@@ -747,7 +788,8 @@ def _optimize_conformer_source(record, role):
                 return _block(record, 'build', 'unsupported_calculation', 'Native seed optimization supports explicitly declared GFN2-xTB with empty keywords; use a prepared external seed for other native settings.', needs=[f'conformers.{role}.optimization'])
             manifest = directory / 'seed-opt.json'
             task = ChemTask(task='xtb_opt', reactant_xyz=Path(built[2]).read_text(),
-                charge=record.input.reaction.charge, multiplicity=record.input.reaction.multiplicity, cpus=record.compute_cpus)
+                charge=record.input.reaction.charge, multiplicity=record.input.reaction.multiplicity,
+                electronic_character=record.input.reaction.electronic_character, cpus=record.compute_cpus)
             _write_immutable_input(str(manifest), task.model_dump_json())
             job_type = 'chem_task'
         else:
@@ -956,9 +998,17 @@ def _store_structure_table(record: TsProcessRecord, role: str) -> None:
     digest = ''
     components = None
     graph_error = ''
+    electronic = None
     try:
+        from cloudra.tools.core.electronic_state import electronic_state_details, electronic_state_issue
+        arguments = dict(charge=record.input.reaction.charge, multiplicity=record.input.reaction.multiplicity,
+                         electronic_character=record.input.reaction.electronic_character)
+        declared_state = electronic_state_details(declared, **arguments) if declared is not None else None
         mol = _read_structure(mol_path or xyz_path, None, 'mol' if mol_path else 'xyz',
-                              record.input.reaction.charge, role)
+                              record.input.reaction.charge, role,
+                              multiplicity=record.input.reaction.multiplicity,
+                              electronic_character=record.input.reaction.electronic_character,
+                              require_declared_identity=bool(declared_state and declared_state['requires_spin_aware_geometry']))
         if [atom.GetSymbol() for atom in mol.GetAtoms()] != symbols:
             raise ValueError('MOL and XYZ atom order differ')
         conf = Chem.Conformer(len(symbols))
@@ -967,10 +1017,15 @@ def _store_structure_table(record: TsProcessRecord, role: str) -> None:
         mol.RemoveAllConformers()
         mol.AddConformer(conf)
         components = len(Chem.GetMolFrags(mol))
+        issue = electronic_state_issue(mol, **arguments)
+        if issue:
+            raise ValueError(issue[1])
+        electronic = electronic_state_details(mol, **arguments)
         for index, atom in enumerate(mol.GetAtoms()):
             rows[index]['isotope'] = atom.GetIsotope()
         digest = concrete_structure_digest(role, smiles, record.input.reaction.charge,
-                                           record.input.reaction.multiplicity, mol)
+                                           record.input.reaction.multiplicity, mol,
+                                           electronic_character=record.input.reaction.electronic_character)
     except (ValueError, OSError) as exc:
         graph_error = str(exc)
     table = dict(role=role, source_kind=source.kind if source else None,
@@ -981,6 +1036,10 @@ def _store_structure_table(record: TsProcessRecord, role: str) -> None:
                  structure_digest=digest, atom_count=len(rows), components=components,
                  index_base=1, atoms=rows, smiles_heavy_atoms=smiles_heavy_atoms,
                  binding_status='unverified', graph_error=graph_error)
+    if electronic and electronic['requires_spin_aware_geometry']:
+        table['electronic_state'] = dict(**electronic, status='declared_seed_state')
+        table['connectivity_validation'] = dict(bond_pairs='rdDetermineConnectivity',
+                                              bond_orders='declared_molecular_identity')
     normalization = record.structures.get(role, {}).get('normalization')
     if normalization:
         table['normalization'] = normalization
@@ -1006,7 +1065,24 @@ def _bound_input_structure(record, role, *, require_identity=True, persist_artif
     symbols, positions, xyz_path, mol_path = built
     hashes = {role + '_xyz': hashlib.sha256(Path(xyz_path).read_bytes()).hexdigest()}
     expected_smiles = getattr(record.input.reaction, role + '_smiles')
-    mol = _read_structure(mol_path or xyz_path, None, 'mol' if mol_path else 'xyz', record.input.reaction.charge, role)
+    from cloudra.tools.core.electronic_state import electronic_state_details, electronic_state_issue
+    arguments = dict(charge=record.input.reaction.charge, multiplicity=record.input.reaction.multiplicity,
+                     electronic_character=record.input.reaction.electronic_character)
+    declared = Chem.MolFromSmiles(expected_smiles)
+    if declared is None:
+        raise ValueError(f'{role}: declared SMILES cannot be parsed')
+    issue = electronic_state_issue(declared, **arguments)
+    if issue:
+        raise ValueError(f'{role}: {issue[1]}')
+    declared_state = electronic_state_details(declared, **arguments)
+    mol = _read_structure(mol_path or xyz_path, None, 'mol' if mol_path else 'xyz', record.input.reaction.charge, role,
+        multiplicity=record.input.reaction.multiplicity,
+        electronic_character=record.input.reaction.electronic_character,
+        require_declared_identity=declared_state['requires_spin_aware_geometry'])
+    issue = electronic_state_issue(mol, **arguments)
+    if issue:
+        raise ValueError(f'{role}: {issue[1]}')
+    electronic = electronic_state_details(mol, **arguments)
     if [a.GetSymbol() for a in mol.GetAtoms()] != symbols:
         raise ValueError(f'{role} MOL and XYZ atom orders differ')
     conf = Chem.Conformer(len(symbols))
@@ -1014,7 +1090,8 @@ def _bound_input_structure(record, role, *, require_identity=True, persist_artif
         conf.SetAtomPosition(i, point)
     mol.RemoveAllConformers()
     mol.AddConformer(conf)
-    connectivity = _geometry_connectivity_error(mol, (symbols, positions), record.input.reaction.charge, role)
+    connectivity = _geometry_connectivity_error(mol, (symbols, positions), record.input.reaction.charge, role,
+        multiplicity=record.input.reaction.multiplicity, electronic_character=record.input.reaction.electronic_character)
     if connectivity:
         raise EndpointGeometryError(role, connectivity)
     source = getattr(record.input.conformers, role)
@@ -1037,11 +1114,17 @@ def _bound_input_structure(record, role, *, require_identity=True, persist_artif
         from cloudra.tools.Chemtool.reaction_mapping import concrete_structure_digest
 
         actual_digest = concrete_structure_digest(role, expected_smiles,
-            record.input.reaction.charge, record.input.reaction.multiplicity, mol)
+            record.input.reaction.charge, record.input.reaction.multiplicity, mol,
+            electronic_character=record.input.reaction.electronic_character)
         if source.heavy_atom_binding.structure_digest != actual_digest:
             raise ValueError(f'{role}: heavy_atom_binding structure digest is stale')
         explicit_indices = [index - 1 for index in source.heavy_atom_binding.indices]
-    identity, binding, diagnostic = _identity_and_binding(expected_smiles, mol, explicit_indices)
+    annotated_source = any(token.startswith('in:') for row in Path(xyz_path).read_text().splitlines()[2:]
+                           for token in row.split()[4:])
+    identity, binding, diagnostic = _identity_and_binding(expected_smiles, mol, explicit_indices,
+        allow_symmetric_representative=electronic['is_open_shell'] and not annotated_source)
+    if electronic['is_open_shell'] and annotated_source and identity == 'match' and not binding:
+        raise ValueError(f'{role}: source atom identity annotations cannot be replaced by a symmetric representative; supply an explicit heavy_atom_binding.')
     if require_identity and (identity != 'match' or (any(a.GetAtomicNum() != 1 for a in mol.GetAtoms()) and not binding)):
         raise ValueError(f'{role}: {diagnostic or identity}')
     from cloudra.tools.core.preorganization import geometry_stereochemistry_errors
@@ -1070,7 +1153,9 @@ def _check_input_binding(record: TsProcessRecord) -> dict:
     )
     request = dict(reactant_charge=record.input.reaction.charge, product_charge=record.input.reaction.charge,
                    reactant_multiplicity=record.input.reaction.multiplicity,
-                   product_multiplicity=record.input.reaction.multiplicity)
+                   product_multiplicity=record.input.reaction.multiplicity,
+                   reactant_electronic_character=record.input.reaction.electronic_character,
+                   product_electronic_character=record.input.reaction.electronic_character)
     hashes = {}
     digests = {}
     for role in ('reactant', 'product'):
@@ -1079,11 +1164,15 @@ def _check_input_binding(record: TsProcessRecord) -> dict:
         request.update({role + '_smiles': expected, role + '_text': Chem.MolToMolBlock(mol), role + '_format': 'mol',
                         role + '_binding': source.heavy_atom_binding if source and source.kind == 'file' else None})
         digests[role] = concrete_structure_digest(role, expected, record.input.reaction.charge,
-                                                   record.input.reaction.multiplicity, mol)
+                                                   record.input.reaction.multiplicity, mol,
+                                                   electronic_character=record.input.reaction.electronic_character)
         hashes.update(artifacts)
     result = check_concrete_binding(ReactionMapping_input_schema(**request),
         dict(atom_map=list(range(1, mol.GetNumAtoms() + 1)) if _rotated_product(record) else [i + 1 for i in record.input.reaction.atom_map], watch_pairs=[]),
         known_digests=digests)
+    if any(table.get('electronic_state', {}).get('requires_spin_aware_geometry') for table in record.structures.values()):
+        result['connectivity_validation'] = dict(bond_pairs='rdDetermineConnectivity',
+                                                bond_orders='declared_molecular_identity')
     return dict(input_revision=record.declaration_revision, hashes=hashes, **result)
 
 def _validate_input_binding(record: TsProcessRecord) -> TsProcessRecord:
@@ -1348,7 +1437,7 @@ def _guess_scan(record: TsProcessRecord) -> TsProcessRecord:
             input_path = str(folder / 'scan-task.json')
             task = ChemTask(task='xtb_scan', reactant_xyz=Path(built[2]).read_text(),
                 charge=declaration.charge, multiplicity=declaration.multiplicity,
-                cpus=record.compute_cpus, scan=plan)
+                electronic_character=declaration.electronic_character, cpus=record.compute_cpus, scan=plan)
             _write_immutable_input(input_path, task.model_dump_json())
             job_type = 'chem_task'
         else:
@@ -1461,6 +1550,7 @@ def _queued_path(record: TsProcessRecord, reactant_xyz: str, product_xyz: str):
         path = os.path.join(directory, 'path-task.json')
         task = ChemTask(task='xtb_path',reactant_xyz=reactant_xyz,product_xyz=product_xyz,
             charge=record.input.reaction.charge,multiplicity=record.input.reaction.multiplicity,cpus=record.compute_cpus,
+            electronic_character=record.input.reaction.electronic_character,
             solvation=record.input.guess.solvation.model_dump() if record.input.guess.solvation else None,
             refinement_runs=record.input.guess.refinement_runs)
         _write_immutable_input(path,task.model_dump_json())
@@ -1496,6 +1586,8 @@ def _guess(record: TsProcessRecord) -> TsProcessRecord:
     guess = record.input.guess
     if guess is None:
         return _block(record, 'guess', 'missing_input', 'Explicit guess source required', needs=['guess'])
+    if guess.kind == 'xtb_path' and _xtb_state_checkpoint(record, 'guess', 'guess'):
+        return record
     if guess.kind == 'provided':
         try:
             import math
@@ -1612,6 +1704,7 @@ def _guess(record: TsProcessRecord) -> TsProcessRecord:
         output_dir=out_dir,
         charge=record.input.reaction.charge,
         multiplicity=record.input.reaction.multiplicity,
+        electronic_character=record.input.reaction.electronic_character,
         run_label="guess",
         extra_args=(
             [f"--{guess.solvation.model}", guess.solvation.solvent]
@@ -2011,8 +2104,10 @@ def _check_calculation_submission(record, purpose, input_path, job_type):
         allowed_tasks = {'xtb_gradient', 'xtb_hessian'} if purpose == 'candidate_evaluation' else {expected_task.get(purpose)}
         if calculation.engine != 'xtb' or calculation.method != 'GFN2-xTB' or calculation.keywords or calculation.orca_blocks or calculation.end_setting:
             raise ValueError('Native chemistry task contract supports explicit GFN2-xTB with no native ORCA/Gaussian directives')
-        if task.task not in allowed_tasks or (task.charge, task.multiplicity, task.cpus) != (record.input.reaction.charge, record.input.reaction.multiplicity, record.compute_cpus):
-            raise ValueError('Native chemistry task/charge/multiplicity/resources differ from accepted input')
+        if _open_shell_singlet(record):
+            raise ValueError('The native GFN task cannot represent the accepted open-shell singlet electronic state')
+        if task.task not in allowed_tasks or (task.charge, task.multiplicity, task.electronic_character, task.cpus) != (record.input.reaction.charge, record.input.reaction.multiplicity, record.input.reaction.electronic_character, record.compute_cpus):
+            raise ValueError('Native chemistry task/charge/multiplicity/electronic character/resources differ from accepted input')
         solvation = task.solvation.model_dump() if task.solvation else None
         expected_solvation = record.input.guess.solvation.model_dump() if purpose == 'path' and record.input.guess.solvation else None
         if solvation != expected_solvation:
@@ -2810,15 +2905,40 @@ def _endpoint_identity_error(
     )
     if stereo_errors:
         return f"{role} " + "; ".join(stereo_errors)
-    return _geometry_connectivity_error(mol, optimized, record.input.reaction.charge, role, remap)
+    from cloudra.tools.core.electronic_state import electronic_state_issue
+    issue = electronic_state_issue(mol, charge=record.input.reaction.charge,
+        multiplicity=record.input.reaction.multiplicity, electronic_character=record.input.reaction.electronic_character)
+    if issue:
+        return f'{role}: {issue[1]}'
+    return _geometry_connectivity_error(mol, optimized, record.input.reaction.charge, role, remap,
+        multiplicity=record.input.reaction.multiplicity, electronic_character=record.input.reaction.electronic_character)
 
-def _geometry_connectivity_error(mol, optimized, charge, role, remap=None):
-    """Use the existing endpoint bond-perception contract for concrete seeds too."""
+def _geometry_bond_pairs(symbols, positions):
+    """Perceive geometric pairs without inferring an electronic state or bond order."""
+    from rdkit import Chem
+    from rdkit.Chem import rdDetermineBonds
+
+    from cloudra.tools.core.irc_path import xyz_block
+    try:
+        probe = Chem.MolFromXYZBlock(xyz_block(symbols, positions))
+        if probe is None:
+            return None
+        rdDetermineBonds.DetermineConnectivity(probe)
+    except (RuntimeError, ValueError):
+        return None
+    return {tuple(sorted((bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()))) for bond in probe.GetBonds()}
+
+
+def _geometry_connectivity_error(mol, optimized, charge, role, remap=None, *, multiplicity=1, electronic_character=None):
+    """Spin-aware geometry proves bond pairs; bond orders remain declared identity."""
     import math
 
     from rdkit import Chem
 
+    from cloudra.tools.core.electronic_state import electronic_state_details
     from cloudra.tools.core.irc_path import COVALENT_RADII, DISTANCE_CONNECTIVITY_FACTOR, perceive_bonds
+    spin_aware_geometry = electronic_state_details(mol, charge=charge, multiplicity=multiplicity,
+                                                  electronic_character=electronic_character)['requires_spin_aware_geometry']
     n = mol.GetNumAtoms()
     remap = list(range(n)) if remap is None else remap
     expected_bonds = {
@@ -2828,11 +2948,15 @@ def _geometry_connectivity_error(mol, optimized, charge, role, remap=None):
     }
     fragments = Chem.GetMolFrags(mol)
     if len(fragments) == 1:
-        actual_bonds, source = perceive_bonds(
-            optimized[0], optimized[1], charge,
-        )
-        if source != "rdDetermineBonds":
-            return f"{role} optimized connectivity could not be determined by RDKit"
+        if spin_aware_geometry:
+            pairs = _geometry_bond_pairs(optimized[0], optimized[1])
+            if pairs is None:
+                return f'{role} geometric bond pairs for the declared electronic identity could not be determined by RDKit'
+            actual_bonds = dict.fromkeys(pairs)
+        else:
+            actual_bonds, source = perceive_bonds(optimized[0], optimized[1], charge)
+            if source != "rdDetermineBonds":
+                return f"{role} optimized connectivity could not be determined by RDKit"
     else:
         # A charged entrance complex often defeats whole-molecule bond perception:
         # infer each declared fragment with its own formal charge, then screen
@@ -2853,13 +2977,17 @@ def _geometry_connectivity_error(mol, optimized, charge, role, remap=None):
                 in {"Li", "Na", "K", "Rb", "Cs", "Mg", "Ca", "Sr", "Ba"}
             ):
                 ionic_metal_fragments.add(fragment_number)
-            fragment_bonds, source = perceive_bonds(
-                [optimized[0][index] for index in indices],
-                [optimized[1][index] for index in indices],
-                fragment_charge,
-            )
-            if source != "rdDetermineBonds":
-                return f"{role} optimized fragment connectivity could not be determined by RDKit"
+            fragment_symbols = [optimized[0][index] for index in indices]
+            fragment_positions = [optimized[1][index] for index in indices]
+            if spin_aware_geometry:
+                pairs = _geometry_bond_pairs(fragment_symbols, fragment_positions)
+                if pairs is None:
+                    return f'{role} fragment bond pairs for the declared electronic identity could not be determined by RDKit'
+                fragment_bonds = dict.fromkeys(pairs)
+            else:
+                fragment_bonds, source = perceive_bonds(fragment_symbols, fragment_positions, fragment_charge)
+                if source != "rdDetermineBonds":
+                    return f"{role} optimized fragment connectivity could not be determined by RDKit"
             actual_bonds.update({
                 tuple(sorted((indices[left], indices[right]))): order
                 for (left, right), order in fragment_bonds.items()
@@ -2904,12 +3032,13 @@ def _geometry_connectivity_error(mol, optimized, charge, role, remap=None):
             f"{role} optimized connectivity differs from the declared species: "
             f"missing bonds={sorted(missing)}, extra bonds={sorted(extra)}"
         )
-    different_orders = [
-        pair for pair in expected_bonds.keys() & actual_bonds.keys()
-        if abs(expected_bonds[pair] - actual_bonds[pair]) > 0.1
-    ]
-    if different_orders:
-        return f"{role} optimized bond order differs from the declared species at {different_orders}"
+    if not spin_aware_geometry:
+        different_orders = [
+            pair for pair in expected_bonds.keys() & actual_bonds.keys()
+            if abs(expected_bonds[pair] - actual_bonds[pair]) > 0.1
+        ]
+        if different_orders:
+            return f"{role} optimized bond order differs from the declared species at {different_orders}"
     return ""
 
 def _irc_interval_proof(

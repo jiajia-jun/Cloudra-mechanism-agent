@@ -144,6 +144,10 @@ description = (
     "with dots) the ensemble IS the approved complex assembly (rigid placement sampling + collision "
     "rejection + force-field relaxation): candidates are assembled complexes, never overlapping or "
     "translated-apart fragment coordinates. "
+    "Declared electronic states are checked by total-electron parity and spin range; localized radicals "
+    "remain diagnostics. States or radical-marked graphs requiring explicit electronic treatment skip "
+    "force-field ensembles and guided relaxation. Unguided CREST can consume unoptimized seeds except "
+    "declared open-shell singlets, which need a user-specified QM method and initial-spin settings. "
     "The 'mode' parameter selects the CREST run type (CREST backend only): "
     "'conformers' (default) is the ordinary conformer search for a single molecule; "
     "'nci' samples NON-COVALENT complexes/aggregates under an ellipsoid wall potential — use it for "
@@ -188,7 +192,15 @@ class ConformerSearch_input_schema(input_schema):
     multiplicity: int = Field(
         default=1,
         description="Spin multiplicity (2S+1). CREST backend: passed to xtb as --uhf = multiplicity - 1. "
-                    "The RDKit backend (MMFF/UFF force fields) is closed-shell only and rejects multiplicity > 1."
+                    "Electron-count parity and spin range are checked without selecting a ground state. "
+                    "Non-singlet open-shell inputs may use an unoptimized ETKDG seed with unguided "
+                    "CREST. The current CREST interface cannot represent open-shell singlets; "
+                    "RDKit force-field ensembles and guided force-field searches refuse open-shell states."
+    )
+    electronic_character: Literal["closed_shell", "open_shell"] | None = Field(
+        default=None,
+        description="Optional explicit electronic character. Use open_shell for an open-shell singlet "
+        "even when the molecular graph carries no localized radical labels; no spin coupling is inferred.",
     )
     backend: Literal["rdkit", "crest"] = Field(
         default="rdkit",
@@ -335,6 +347,7 @@ class ConformerSearch(Tool):
             output_dir=self._build_dir(out_dir),
             total_charge=user_input.charge,
             multiplicity=user_input.multiplicity,
+            electronic_character=user_input.electronic_character,
             random_seed=user_input.random_seed,
             strategy=BuildStrategy(name="per_component", embed=embed, optimize=optimize),
         ),candidate_sink=candidate_sink)
@@ -754,6 +767,21 @@ class ConformerSearch(Tool):
             # 结构解析（含拆分自检、形式电荷自检、自旋自检）统一走共享构建器；
             # 系综嵌入由本后端的 ETKDGv3 批量采样承担，故 embed=False。
             prepared = self._prepare(user_input, out_dir, embed=False, optimize=False)
+            if prepared.status not in ("ok", "assembly_failed"):
+                return self._build_failure(prepared)
+            if prepared.electronic_state["requires_spin_aware_geometry"]:
+                alternative = (
+                    "The current CREST interface also cannot represent an open-shell singlet. "
+                    "Use an explicitly chosen QM method and initial-spin settings with a MOL/XYZ seed."
+                    if prepared.electronic_state["is_open_shell"] and user_input.multiplicity == 1 else
+                    "Use backend='crest' for an unguided single-component search with the declared "
+                    "charge and multiplicity."
+                )
+                return ConformerSearch_output_schema(
+                    is_success=False,
+                    message="RDKit force-field energy ensembles cannot represent this electronic-state "
+                    f"declaration or radical-marked graph. {alternative}",
+                )
             if len(prepared.components) > 1:
                 # 多组分输入的"构象系综"就是**组装**：ETKDG 对整体系综重新嵌入会把碎片相对取向
                 # 随机化，得到的是无意义的叠加。因此这里改走已批准的组装方案（complex_assembly），
@@ -987,6 +1015,14 @@ class ConformerSearch(Tool):
             prepared = self._prepare(user_input, out_dir, embed=True, optimize=True,candidate_sink=candidate_sink)
             if prepared.status != "ok" or not prepared.has_coordinates:
                 return self._build_failure(prepared)
+            if prepared.electronic_state["is_open_shell"] and user_input.multiplicity == 1:
+                return ConformerSearch_output_schema(
+                    is_success=False,
+                    message="The current CREST interface cannot represent a declared open-shell singlet "
+                    "through --uhf 0; it has no broken-symmetry or initial-spin declaration. The "
+                    "unoptimized MOL/XYZ seed is available for an explicitly chosen QM method and "
+                    f"spin-initialization settings. Build artifacts: {prepared.artifact_path}",
+                )
 
             runtype = "default" if user_input.mode == "conformers" else user_input.mode
             multi_fragment = len(prepared.components) > 1
@@ -1015,6 +1051,7 @@ class ConformerSearch(Tool):
                 output_dir=out_dir,
                 charge=user_input.charge,
                 multiplicity=user_input.multiplicity,
+                electronic_character=user_input.electronic_character,
                 timeout=user_input.timeout,
                 run_label="crest" if runtype == "default" else f"crest_{runtype}",
                 noreftopo=multi_fragment,
@@ -1137,6 +1174,8 @@ class ConformerSearch(Tool):
                 "no further RMSD clustering was applied. "
                 f"CREST run directory (persistent): {run.run_dir}"
             )
+            if prepared.electronic_state["requires_spin_aware_geometry"]:
+                extra += " The input was an unoptimized ETKDG seed; MMFF94/UFF were skipped for this declared state or graph representation."
             if runtype == "nci":
                 extra = (
                     "Backend: CREST --nci (GFN2-xTB, ellipsoid wall potential): the ensemble samples "
@@ -1247,6 +1286,7 @@ class ConformerSearch(Tool):
                     ring_order=user_input.ring_order,
                     distance_filters=[row.model_dump() for row in user_input.distance_filters],
                     charge=user_input.charge, multiplicity=user_input.multiplicity,
+                    electronic_character=user_input.electronic_character,
                     backend=user_input.backend, mode=user_input.mode,
                     num_confs=user_input.num_confs, random_seed=user_input.random_seed,
                     rmsd_threshold=user_input.rmsd_threshold, timeout=user_input.timeout,

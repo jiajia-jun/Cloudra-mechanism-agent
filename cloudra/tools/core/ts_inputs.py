@@ -46,6 +46,8 @@ class TsReaction(InputModel):
     product_smiles: str = Field(min_length=1)
     charge: StrictInt
     multiplicity: StrictInt = Field(ge=1)
+    electronic_character: Literal['closed_shell', 'open_shell'] | None = Field(default=None,
+        description="Optional declared electronic character, including open-shell singlets. This describes the requested seed state; it does not choose a ground state, wavefunction method or spin initialization.")
     atom_map: list[StrictInt] = Field(default_factory=list, description="Full concrete atom mapping in product-coordinate order; each value is a 1-based reactant-coordinate atom index, including explicit hydrogens. Use reaction_mapping.atom_map bound to these structures, not heavy_atom_map or SMILES positions.")
     reaction_center: list[tuple[StrictInt, StrictInt]] = Field(default_factory=list, description="Forming/breaking atom pairs in the bound reactant's full coordinate order, 1-based and including explicit hydrogens. Use reaction_mapping.concrete_watch_pairs for the same concrete structure.")
 

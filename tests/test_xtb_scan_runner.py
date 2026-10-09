@@ -27,6 +27,37 @@ H -0.08161812386697 -2.11204925365809 -0.08140067223057
 """
 
 
+@pytest.mark.parametrize('electronic_character,multiplicity', [('closed_shell', 1), ('open_shell', 3)])
+def test_standalone_native_scan_manifest_preserves_declared_electronic_character(
+    tmp_path, electronic_character, multiplicity,
+):
+    from cloudra.runtime.chem_task import ChemTask
+    from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_input_schema
+
+    manifest = tmp_path / 'declared-state-scan.json'
+    result = TsGuess()._xtb_scan_prepare(TsGuess_input_schema(mode='scan_prepare', engine='xtb',
+        method='GFN2-xTB', input_text=AMMONIA, output_path=str(manifest), nprocs=1,
+        charge=0, spin=multiplicity, electronic_character=electronic_character,
+        force_constant=.5, scans=[{'atoms': [1, 2], 'scan_start': 1., 'scan_end': 1.1, 'scan_steps': 2}]))
+    assert result.is_success
+    task = ChemTask.model_validate_json(manifest.read_text())
+    assert task.electronic_character == electronic_character
+    assert task.multiplicity == multiplicity
+
+
+def test_standalone_native_scan_refuses_explicit_open_shell_singlet_before_manifest(tmp_path):
+    from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_input_schema
+
+    manifest = tmp_path / 'unsupported-singlet.json'
+    with pytest.raises(ValueError) as error:
+        TsGuess()._xtb_scan_prepare(TsGuess_input_schema(mode='scan_prepare', engine='xtb',
+            method='GFN2-xTB', input_text=AMMONIA, output_path=str(manifest), nprocs=1,
+            charge=0, spin=1, electronic_character='open_shell', force_constant=.5,
+            scans=[{'atoms': [1, 2], 'scan_start': 1., 'scan_end': 1.1, 'scan_steps': 2}]))
+    assert 'open-shell singlet' in str(error.value)
+    assert not manifest.exists()
+
+
 @pytest.mark.skipif(shutil.which('xtb') is None, reason='native xTB is unavailable')
 @pytest.mark.asyncio
 async def test_standalone_scan_prepares_typed_manifest_submits_only_scan_and_parses_native_result(tmp_path):

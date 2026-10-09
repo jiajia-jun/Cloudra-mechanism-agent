@@ -14,7 +14,7 @@
 
 | 组 | 明确含义 |
 | --- | --- |
-| reaction | 两端 SMILES、电荷、自旋、全原子 atom_map、reaction_center |
+| reaction | 两端 SMILES、电荷、总多重度、可选 electronic_character、全原子 atom_map、reaction_center |
 | conformers | 两端 generate（显式 ETKDGv3 和 seed）、file、精确 catalog/partition/candidate 或已支持的 product 绕键旋转；可单独声明 optimization；guidance 为成环顺序/距离窗口 |
 | guess | 判别式 kind：xtb_path（显式 GFN2-xTB、可选溶剂/迭代数）、scan（独立 calculation/scans/freeze）、provided（XYZ 和证据引用） |
 | ts_optimization | 正式鞍点优化的独立 calculation |
@@ -28,6 +28,18 @@
 xTB 柔性扫描复用 `guess.kind=scan`：`calculation={engine:"xtb",method:"GFN2-xTB"}`，每条 scans 明确起点、终点、点数，并显式给正的 `force_constant`。单坐标不需 `mode`；双坐标明确选择 `concerted` 或 `sequential`。不要求 Agent 填优化等级或原生命令；实际命令、xTB 版本、逐点收敛、电子能与约束势分开留证。完成扫描只可能提供未经验证的 TS 初猜；正式方法需在独立 `ts_optimization` 中声明。
 
 部分修订：省略保留；可选 null 清除；列表、方法、判别式来源及 guess 整体替换。未知字段 fail loud，不解释为旧接口。
+
+## 声明式电子态与自旋耦合
+
+2026-10-09：`reaction.charge` 与 `reaction.multiplicity` 指定体系总电荷和总多重度；可显式设置 `electronic_character="open_shell"` 或 `"closed_shell"`。系统按总电子数检查 α/β 电子数是否非负、整数且符合范围。RDKit 局域自由基数只作结构记录，不要求等于多重度减一，因此可准备低自旋耦合、开壳层单重态及具有可解析声明图的金属/离域体系。显式电子态优先于图自由基启发；例如声明闭壳层的单重态卡宾不会因图自由基标记而被拒绝。
+
+建议先明确总电子态，再提供保留电荷、自由基、同位素与立体化学身份的 MOL/SDF 和同序 XYZ。这类体系不能只凭 XYZ 推断键级或电子态。独立几何检查只验证键对连通性，返回记录会注明键级来自声明图；准备成功不代表计算电子态或 TS 已确证。显式原子绑定和来源编号仍优先；无来源标签的开壳层对称结构只有穷尽枚举并证明全部候选保留完整身份后，才选确定的代表元。枚举不完整仍要求显式绑定。
+
+未优化 ETKDG 种子可用于后续用户指定的量化方法；开壳层或图含局域自由基时不做 MMFF/UFF 打分，不生成虚构能量。公共构象工具的力场复合物装配不支持这类输入。闭壳层卡宾虽然可按声明进入量化路径，几何准备仍保守跳过力场。
+
+当前原生 GFN-xTB/CREST 接口的 `--uhf` 只传递总 α/β 电子数之差，不能用 `--uhf 0` 表达开壳层单重态。该输入会在种子优化、路径或扫描提交前进入 `electronic_state_backend_unsupported` 检查点；公共 CREST 入口也在启动前拒绝。可改用有来源的外部初猜或显式支持该电子态的 ORCA/Gaussian 方法，并由输入提供破缺对称、多参考方法或初始自旋设置。系统不自动选择基态、方法、初始自旋分布或新的自旋污染阈值。[xTB 电子态说明](https://xtb-docs.readthedocs.io/en/latest/spgfn.html)、[CREST 电子结构说明](https://crest-lab.github.io/crest-docs/page/examples/standard_sp.html)。
+
+修订 `electronic_character` 会废弃依赖的旧计算证据并重新执行声明；实际计算清单保留该字段，并在准入时与当前输入逐项比较。频率、IRC、端点身份和热力学证据要求保持原有语义；本次回归覆盖工程契约，未进行真实开壳层 TS/IRC 科学验收。
 
 ## 持续推进、失败与修订
 
@@ -43,7 +55,7 @@ verified / candidate_only / search_failed / invalid_input 是一次尝试的结�
 
 ## 科学证据与权限
 
-实际结构图与坐标先绑定输入版本和摘要；同元素排列不等于同物种。未标记对称绑定保持 inconclusive；由既有 atom_identity 表生成的结构或明确旋转可使用构造绑定。每次搜索和正式提交前重查实际结构。外部 XYZ 的图由既有键感知器确定并保留 MOL；歧义须补充实际结构来源，不猜映射。最终端点身份、立体化学与方向证明仍独立验证。
+实际结构图与坐标先绑定输入版本和摘要；同元素排列不等于同物种。未标记对称绑定通常保持 inconclusive，开壳层例外须满足上述穷尽身份证明；由既有 atom_identity 表生成的结构或明确旋转可使用构造绑定。每次搜索和正式提交前重查实际结构。普通闭壳层外部 XYZ 的图由既有键感知器确定并保留 MOL；需要保留声明电子身份时须提供 MOL/SDF。歧义须补充实际结构来源，不猜映射。最终端点身份、立体化学与方向证明仍独立验证。
 
 每个计算入 READY 前读取实际原生方法、全部关键词/溶剂设置/电荷/自旋，与本阶段声明和当前受信 Project MethodPolicy 比较。可选 calculation_contracts 给各 purpose 完整受信原生契约；方法来源不明停止。扫描方法可与正式方法不同，但都须明确且被允许。基组等价拼写规范化，不接受未知额外方法。资源字段不充当科学契约。
 

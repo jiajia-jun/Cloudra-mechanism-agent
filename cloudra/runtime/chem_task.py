@@ -37,6 +37,7 @@ class ChemTask(CatalogModel):
     cpus: int = Field(ge=1)
     charge: int = 0
     multiplicity: int = Field(default=1,ge=1)
+    electronic_character: Literal['closed_shell', 'open_shell'] | None = None
     solvation: Solvation | None = None
     mol_block: str | None = None
     sampling: SamplingRequest | None = None
@@ -45,6 +46,8 @@ class ChemTask(CatalogModel):
 
     @model_validator(mode='after')
     def task_endpoints(self):
+        if self.task.startswith('xtb_') and self.electronic_character == 'open_shell' and self.multiplicity == 1:
+            raise ValueError('The native xTB GFN task interface cannot represent an open-shell singlet via --uhf 0; supply a capable QM method and initial spin settings.')
         if self.task == 'xtb_scan':
             if self.scan is None or self.scan.calculation.engine != 'xtb' or self.product_xyz is not None or self.refinement_runs is not None or self.solvation is not None or self.mol_block is not None or self.sampling is not None:
                 raise ValueError('native scan requires its own typed declaration and one input XYZ')
@@ -79,7 +82,7 @@ def run_task(manifest_path: str) -> int:
         code=result_data['returncode']
     elif task.task=='xtb_path':
         result=run_xtb_path(XtbPathRequest(reactant_xyz=task.reactant_xyz,product_xyz=task.product_xyz,
-            charge=task.charge,multiplicity=task.multiplicity,timeout=None,
+            charge=task.charge,multiplicity=task.multiplicity,electronic_character=task.electronic_character,timeout=None,
             **({'refinement_runs': task.refinement_runs} if task.refinement_runs is not None else {}),
             output_dir=str(path.parent),run_label='queued_path',extra_args=['--gfn','2','--parallel',str(task.cpus),
             *([f'--{task.solvation.model}',task.solvation.solvent] if task.solvation else [])]))
