@@ -52,6 +52,11 @@ def runtime_db_path(data_dir: Optional[PathLike] = None) -> Path:
     return _root(data_dir) / "runtime-v2.db"
 
 
+def mechanism_graph_path(workspace_root: PathLike) -> Path:
+    """The declared mechanism delivery file in a project workspace."""
+    return Path(workspace_root) / "mechanism_graph.json"
+
+
 def runtime_api_lock_path(store_path: PathLike) -> Path:
     """One API state owner per canonical runtime database, independent of port."""
     database = Path(store_path).resolve()

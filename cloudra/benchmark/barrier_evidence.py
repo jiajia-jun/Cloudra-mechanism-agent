@@ -36,7 +36,7 @@ _SCORING_ENGINES = ("gaussian", "orca")
 # 声明能量用于"指认交付日志"（同节点绑定多份合法日志时选哪一份）的容差：
 # 声明值与日志解析值来自同一份日志，正常应严格一致；留 1e-4 Ha（≈0.06 kcal）
 # 吸收交付侧的舍入。
-_DECLARED_ENERGY_TOL_HARTREE = 1e-4
+DECLARED_ENERGY_TOL_HARTREE = 1e-4
 
 
 @dataclass(frozen=True)
@@ -216,7 +216,7 @@ def _identify_by_declared_energy(
         if energy is None:
             continue
         delta = abs(energy - declared)
-        if delta <= _DECLARED_ENERGY_TOL_HARTREE and (best is None or delta < best[0]):
+        if delta <= DECLARED_ENERGY_TOL_HARTREE and (best is None or delta < best[0]):
             best = (delta, path)
     return best[1] if best else None
 
@@ -358,7 +358,7 @@ def collect_barrier_evidence(sandbox: Path | str) -> BarrierEvidence:
         matched_base = None
         if declared_base_energy is not None:
             target_kcal = declared_base_energy * HARTREE_TO_KCAL_MOL
-            tol_kcal = _DECLARED_ENERGY_TOL_HARTREE * HARTREE_TO_KCAL_MOL
+            tol_kcal = DECLARED_ENERGY_TOL_HARTREE * HARTREE_TO_KCAL_MOL
             matches = sorted(
                 (abs(energy - target_kcal), path)
                 for energy, path in below

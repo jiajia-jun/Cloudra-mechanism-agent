@@ -9,7 +9,7 @@
 
 import type { CompletionSummary } from './types.ts';
 
-export type VerificationLabel = 'verified' | 'supervisor_reviewed' | 'partial' | 'unverified';
+export type VerificationLabel = 'verified' | 'supervisor_reviewed' | 'partial' | 'scope_completed' | 'unverified';
 
 export interface CompletionChip {
   label: string;
@@ -26,6 +26,13 @@ export function completionChipFor(
     return null;
   }
   const label = completion?.verification_label;
+  if (label === 'scope_completed') {
+    return {
+      label: 'scope completed',
+      tone: 'warn',
+      detail: 'The declared scope was resolved with stage dispositions or waivers; this is not scientific verification.',
+    };
+  }
   if (label === 'verified') {
     return {
       label: 'verified complete',

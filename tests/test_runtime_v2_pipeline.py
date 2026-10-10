@@ -456,14 +456,14 @@ async def test_stop_turn_final_message_is_model_text_not_tool_json():
     assert outcome.decision == "stop"
     assert outcome.content == "机理是协同的周环反应。"
 
-    # 模型没写正文 → 回退 stop 的 message（保留 [ANSWER]/reason 语义）
+    # No narration: carry the declared candidate, never the stop receipt.
     pipeline2 = TurnPipeline(
         event_log=core.event_log,
         stages=default_stages(),
         llm=FakeLLM(
             LLMResponse(
                 content="",
-                tool_calls=[ToolCall(id="tc2", name="stop", arguments={"reason": "done"})],
+                tool_calls=[ToolCall(id="tc2", name="stop", arguments={"reason": "done", "final_answer": "245.8"})],
             )
         ),
         tools=StopWithData(),
@@ -475,7 +475,7 @@ async def test_stop_turn_final_message_is_model_text_not_tool_json():
         capabilities=AgentCapabilities(permissions=PermissionSet(), tools=["*"]),
         inbox_messages=[],
     )
-    assert outcome2.content == "Task stopped. Reason: done"
+    assert outcome2.content == "245.8"
 
 
 @pytest.mark.asyncio
@@ -506,12 +506,17 @@ async def test_loop_detected_after_threshold_identical_calls():
             inbox_messages=[] if turn else [{"content": "go"}],
         )
         assert outcome.decision == "continue"  # 软护栏：不阻断调用
+        # This standalone pipeline has no ContextBroker to commit notice
+        # consumption; acknowledge the batch supplied to this model request.
+        _, through = notices.pending_batch(agent.id)
+        if through is not None:
+            notices.apply_consumed(agent.id, through)
     events = core.event_log.query_session(agent.id, types={"loop.detected"})
     assert len(events) == 1
     assert events[0].data == {"tool_name": "echo", "repeat": 3}
     warnings = notices.collect_batch(agent.id, fresh=False)
     assert len(warnings) == 1
-    assert "Loop detected" in warnings[0]["content"]
+    assert any("Loop detected" in warning["content"] for warning in warnings)
 
 
 @pytest.mark.asyncio

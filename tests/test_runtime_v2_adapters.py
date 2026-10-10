@@ -613,7 +613,7 @@ async def test_legacy_tool_executor_runs_stop_tool():
 
     output = await executor.execute(agent, ToolCall(id="tc1", name="stop", arguments={"reason": "done"}))
     assert output.is_success is True
-    assert output.data["stopped"] is True
+    assert output.data["request_received"] is True
 
 
 @pytest.mark.asyncio

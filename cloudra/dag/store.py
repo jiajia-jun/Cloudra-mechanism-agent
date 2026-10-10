@@ -217,15 +217,38 @@ class DagStore:
             return CoverageContract.mechanism_default()
         return CoverageContract.model_validate_json(row[0])
 
+    @staticmethod
+    def _delivery_state_fingerprint(con) -> str:
+        """Read audit inputs on one SQLite transaction, preserving latest-row order."""
+        state = {}
+        for table in ('dag_graphs', 'dag_nodes', 'dag_edges', 'dag_coverage'):
+            state[table] = [tuple(row) for row in con.execute(
+                f'SELECT rowid, * FROM {table} WHERE graph_id = ? ORDER BY rowid',
+                ('dag_delivery',)).fetchall()]
+        for table in ('dag_evidence_bindings', 'dag_evidence', 'dag_evidence_facts',
+                      'dag_drafts', 'dag_review_requests', 'dag_review_decisions', 'dag_call_reviews'):
+            state[table] = [tuple(row) for row in con.execute(
+                f'SELECT rowid, * FROM {table} ORDER BY rowid').fetchall()]
+        state['call_verdicts'] = [tuple(row) for row in con.execute(
+            "SELECT rowid, decision_id, payload FROM dag_review_notifications "
+            "WHERE kind = 'call_verdict' ORDER BY rowid").fetchall()]
+        return hashlib.sha256(_canonical_json(state).encode()).hexdigest()
+
+    def delivery_state_fingerprint(self) -> str:
+        with self.db.connect() as con:
+            con.execute('BEGIN')
+            return self._delivery_state_fingerprint(con)
+
     def record_delivery_disposition(
         self,
         session_id: str,
         disposition: str,
         report: Any,
+        *,
+        expected_state: str | None = None,
     ) -> str:
         if disposition not in {"complete", "partial", "user_terminated"}:
             raise ValueError("invalid delivery disposition")
-        bundle = self.load_bundle()
         encoded = _canonical_json(
             report.model_dump(mode="json") if hasattr(report, "model_dump") else report
         )
@@ -233,6 +256,11 @@ class DagStore:
 
         def operation() -> None:
             with self.db.connect() as con:
+                con.execute('BEGIN IMMEDIATE')
+                if expected_state is not None and self._delivery_state_fingerprint(con) != expected_state:
+                    raise RuntimeError('DAG evidence or review state changed after audit; re-audit the delivery.')
+                revision = con.execute(
+                    "SELECT revision FROM dag_graphs WHERE graph_kind = 'delivery'").fetchone()[0]
                 con.execute(
                     """
                     INSERT INTO dag_delivery_dispositions(
@@ -244,7 +272,7 @@ class DagStore:
                         disposition_id,
                         session_id,
                         disposition,
-                        bundle.revisions["delivery"],
+                        revision,
                         encoded,
                     ),
                 )
@@ -712,6 +740,11 @@ class DagStore:
             ),
             "exceptions": self.collect_review_exceptions(sorted(target_ids)) if target_ids else [],
         }
+        if request.kind == 'exit':
+            artifact = request.proposal.get('delivery_artifact')
+            if isinstance(artifact, dict) and isinstance(artifact.get('path'), str):
+                from cloudra.dag.delivery_artifact import current_artifact_digest
+                payload['current_delivery_artifact_sha256'] = current_artifact_digest(artifact['path'])
         encoded = _canonical_json(payload)
         return "sha256:" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 

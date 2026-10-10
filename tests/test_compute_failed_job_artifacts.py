@@ -169,22 +169,22 @@ def test_missing_frequency_data_is_unverified_not_valid():
     from cloudra.dag.evidence_ingest import validate_species_minimum, validate_ts_mode
 
     species = validate_species_minimum(None, imaginary_freqs=None)
-    assert species.is_valid is False, "无频率数据被判成有效极小值 = 频率验证被伪标完成"
-    assert species.verified is False
+    assert species.frequency_count_valid is False, "无频率数据被判成有效极小值 = 频率验证被伪标完成"
+    assert species.frequency_data_present is False
     assert "UNVERIFIED" in species.message
 
     ts = validate_ts_mode(None, imaginary_freqs=None)
-    assert ts.is_valid is False
-    assert ts.verified is False
+    assert ts.frequency_count_valid is False
+    assert ts.frequency_data_present is False
     assert "UNVERIFIED" in ts.message
 
     # 有数据的两条路径仍然给出"已验证"的判定
     ok_min = validate_species_minimum([100.0, 500.0])
-    assert (ok_min.is_valid, ok_min.verified) == (True, True)
+    assert (ok_min.frequency_count_valid, ok_min.frequency_data_present) == (True, True)
     bad_min = validate_species_minimum([-50.0, 100.0])
-    assert (bad_min.is_valid, bad_min.verified) == (False, True)
+    assert (bad_min.frequency_count_valid, bad_min.frequency_data_present) == (False, True)
     ok_ts = validate_ts_mode([-521.0, 100.0, 500.0])
-    assert (ok_ts.is_valid, ok_ts.verified) == (True, True)
+    assert (ok_ts.frequency_count_valid, ok_ts.frequency_data_present) == (True, True)
 
 
 def test_crashed_job_log_yields_unverified_stationary_point(tmp_path):
@@ -205,8 +205,8 @@ def test_crashed_job_log_yields_unverified_stationary_point(tmp_path):
     verdict = validate_species_minimum(
         snapshot.frequencies, imaginary_freqs=snapshot.imaginary_frequencies,
     )
-    assert verdict.is_valid is False
-    assert verdict.verified is False
+    assert verdict.frequency_count_valid is False
+    assert verdict.frequency_data_present is False
 
 
 @pytest.mark.asyncio
@@ -226,5 +226,5 @@ async def test_dag_species_evidence_rejects_opt_only_evidence(isolated_db, tmp_p
 
     # 这正是 dag_submit_species_evidence 的判定点：旧语义下 is_valid=True 会让该物种
     # 被登记为"已验证的驻点极小值"，而作业其实是中途崩溃的 opt-only 计算。
-    assert val.is_valid is False, "opt-only 证据被接受 = 图里出现伪已完成的物种"
-    assert val.verified is False
+    assert val.frequency_count_valid is False, "opt-only 证据被接受 = 图里出现伪已完成的物种"
+    assert val.frequency_data_present is False

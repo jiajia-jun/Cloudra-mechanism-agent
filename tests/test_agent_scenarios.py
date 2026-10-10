@@ -21,7 +21,61 @@ from tests.agent_scenarios import (
     ScriptedProvider,
     Step,
     malformed_shell_steps,
+    pending_stop_answer_step,
 )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("protocol", ["traditional", "javascript"])
+async def test_stop_answer_is_emitted_only_after_final_gate_authorizes_it(tmp_path, protocol):
+    from cloudra.dag.review_requests import ReviewDecision
+    from cloudra.dag.store import DagStore
+    from cloudra.persistence.database import ConversationDB
+    from cloudra.runtime_v2.supervision import flush_review_notifications
+
+    candidate = "candidate-answer-marker"
+    approved = "approved-answer-marker"
+    release = asyncio.Event()
+    final = Step(wait_for=release)
+    provider = ScriptedProvider(by_role={
+        "coordinator": [pending_stop_answer_step(candidate) for _ in range(4)],
+        "supervisor": [Step(stop=True)],
+    })
+    harness = await ScenarioHarness.start(tmp_path, provider=provider)
+    try:
+        coordinator = await harness.spawn("coordinator", protocol=protocol, orchestration_mode="dag_guided")
+        await harness.wait_for(lambda: coordinator.state.value == "waiting_approval", "pending exit review")
+        messages = [e for e in harness.events(coordinator) if e.type == "agent.message_emitted"]
+        assert not any(candidate in e.data.get("content", "") for e in messages)
+        await harness.wait_for(lambda: all(a.state.value == "succeeded" for a in harness.core.agents.values()
+            if a.role_id == "supervisor"), "Supervisor idle while exit decision is pending")
+        provider.script("coordinator", *[final for _ in range(4)])
+
+        def approve():
+            store = DagStore(ConversationDB(harness.project.id))
+            request = next(r for r in store.list_review_requests(state="queued") if r.kind == "exit")
+            decision = ReviewDecision(request_id=request.request_id, basis_fingerprint=request.basis_fingerprint,
+                verdict="accept", reason="approved partial with all gaps retained")
+            assert store.resolve_review(decision, expected_basis=request.basis_fingerprint)["accepted"]
+            return store.get_review_decision_for_request(request.request_id).decision_id
+
+        decision_id = await asyncio.to_thread(approve)
+        final.tools = [("stop", {"delivery_disposition": "partial", "approval_id": decision_id, "final_answer": approved})]
+        await flush_review_notifications(harness.core, harness.project.id)
+        release.set()
+        await harness.wait_for(
+            lambda: coordinator.state.value == "succeeded" and any(
+                e.type == "agent.message_emitted" and e.data.get("content") == approved
+                for e in harness.events(coordinator)), "authorized final stop and durable answer")
+        events = harness.events(coordinator)
+        gate = next(e for e in events if e.type == "agent.completion_gate" and e.data["action"] == "allow_final")
+        emitted = next(e for e in events if e.type == "agent.message_emitted" and e.data.get("content") == approved)
+        assert gate.seq < emitted.seq
+        assert not any(candidate in e.data.get("content", "") for e in events
+            if e.type == "agent.message_emitted" and e.seq < gate.seq)
+    finally:
+        release.set()
+        await harness.aclose()
 
 
 def _todo_store_file(project_id: str, session_id: str) -> Path:
@@ -362,7 +416,7 @@ def _seed_synthetic_step_science(project_id: str) -> None:
         path = workspace / f"{name}.out"
         path.write_text(
             "* O   R   C   A *\n# Synthetic scenario contract data\n"
-            "FINAL SINGLE POINT ENERGY -100.0\n"
+            "THE OPTIMIZATION HAS CONVERGED\nFINAL SINGLE POINT ENERGY -100.0\n"
             "CARTESIAN COORDINATES (ANGSTROEM)\n-----------------------------\n"
             f"C 0 0 0\nN 0 0 2\nH 0 0 {z}\n\n"
             f"VIBRATIONAL FREQUENCIES\n0: {frequency} cm**-1\n1: 200.0 cm**-1\n"
@@ -402,7 +456,7 @@ async def test_guided_file_verdict_wakes_coordinator_and_enforces_scientific_com
     finish_supervisor = asyncio.Event()
     attempt_complete = asyncio.Event()
     hold_after_gate = asyncio.Event()
-    ts = Path(__file__).parent / "fixtures" / "xtb" / "ts_hess_xtb.out"
+    ts = Path(__file__).parent / "fixtures" / "benchmark_synthetic" / "ts_freq.out"
     files = {"ts_file": "ts.out", "irc_file": "irc.out"} if complete_evidence else {"ts_file": ts.name}
     provider = ScriptedProvider(by_role={
         "coordinator": [
@@ -574,8 +628,8 @@ async def test_guided_file_verdict_wakes_coordinator_and_enforces_scientific_com
         if complete_evidence:
             await harness.wait_terminal(coordinator)
             completion = completion_summary(harness.events(coordinator))
-            assert completion["completion_basis"] == "supervisor_supported"
-            assert completion["verification_label"] == "supervisor_reviewed"
+            assert completion["completion_basis"] == "scope_completed"
+            assert completion["verification_label"] == "scope_completed"
         else:
             await harness.wait_for(
                 lambda: any(e.type == "agent.completion_gate" and e.data.get("explicit_stop")
@@ -839,7 +893,7 @@ async def test_guided_real_file_review_finishes_with_supervisor_basis(tmp_path):
     """真实 runtime、逐文件工具和事件：接受只给 Supervisor 依据，不改机器阶段。"""
     review = asyncio.Event()
     finish = asyncio.Event()
-    ts = Path(__file__).parent / "fixtures" / "xtb" / "ts_hess_xtb.out"
+    ts = Path(__file__).parent / "fixtures" / "benchmark_synthetic" / "ts_freq.out"
     provider = ScriptedProvider(by_role={
         "coordinator": [
             Step(tools=[("dag_submit_step_evidence", {
@@ -913,8 +967,8 @@ async def test_guided_real_file_review_finishes_with_supervisor_basis(tmp_path):
         from cloudra.runtime_v2.completion import completion_summary
 
         completion = completion_summary(harness.events(agent))
-        assert completion["completion_basis"] == "supervisor_supported"
-        assert completion["verification_label"] == "supervisor_reviewed"
+        assert completion["completion_basis"] == "scope_completed"
+        assert completion["verification_label"] == "scope_completed"
     finally:
         review.set()
         finish.set()

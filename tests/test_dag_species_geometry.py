@@ -18,6 +18,28 @@ Chem = pytest.importorskip("rdkit.Chem")
 AllChem = pytest.importorskip("rdkit.Chem.AllChem")
 
 
+@pytest.mark.parametrize("declared,want", [("C1CO[PH3]1", True), ("[PH3+]CC[O-]", False)])
+def test_phosphorus_ring_identity_handles_explicit_hydrogens_without_accepting_open_chain(monkeypatch, declared, want):
+    from cloudra.tools.core.irc_path import parse_xyz
+
+    geometry = parse_xyz((Path(__file__).parent / "fixtures/dag_nu3/oxa_minimum.xyz").read_text())
+    monkeypatch.setattr("cloudra.dag.file_science._final_geometry", lambda _path: geometry)
+
+    assert _geometry_species("unused.log", declared) is want
+
+
+def test_identity_rejection_reports_the_perceived_graph(monkeypatch):
+    from cloudra.tools.core.irc_path import parse_xyz
+
+    geometry = parse_xyz((Path(__file__).parent / "fixtures/dag_nu3/oxa_minimum.xyz").read_text())
+    monkeypatch.setattr("cloudra.dag.file_science._final_geometry", lambda _path: geometry)
+    diagnostics = []
+
+    assert not _geometry_species("unused.log", "[PH3+]CC[O-]", diagnostics=diagnostics)
+    assert "[PH3+]CC[O-]" in diagnostics[0]
+    assert "perceived" in diagnostics[0]
+
+
 def _chiral_geometry(smiles="C[C@H](O)C(=O)O"):
     molecule = Chem.AddHs(Chem.MolFromSmiles(smiles))
     assert AllChem.EmbedMolecule(molecule, randomSeed=7) == 0

@@ -37,15 +37,14 @@ class TSValidationResult(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    is_valid: bool
-    verified: bool = Field(
-        description="Whether the verdict is backed by actual frequency data. False means "
-                    "'unverified': there was nothing to judge, so this result must never be used "
-                    "to mark a step complete.",
+    frequency_count_valid: bool
+    frequency_data_present: bool = Field(
+        description="Whether actual frequency data was available. This checks only imaginary-frequency count, "
+                    "not optimization convergence, molecular identity or the reaction direction.",
     )
     n_imag: int
     imaginary_frequencies: list[float] = Field(default_factory=list)
-    mode_matched: bool = True
+    mode_matched: bool = False
     message: str = ""
 
 
@@ -54,11 +53,10 @@ class SpeciesValidationResult(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    is_valid: bool
-    verified: bool = Field(
-        description="Whether the verdict is backed by actual frequency data. False means "
-                    "'unverified': no frequency analysis was provided, so the species is NOT a "
-                    "verified stationary minimum and must never be marked complete.",
+    frequency_count_valid: bool
+    frequency_data_present: bool = Field(
+        description="Whether actual frequency data was available. Zero imaginary frequencies alone "
+                    "do not verify the declared molecular identity or a complete species delivery.",
     )
     n_imag: int
     imaginary_frequencies: list[float] = Field(default_factory=list)
@@ -205,7 +203,13 @@ def snapshot_evidence_file(
     snapshot_filename = f"{sha256_hex[:16]}_{resolved.name}"
     snapshot_path = evidence_dir / snapshot_filename
     if not snapshot_path.exists():
-        shutil.copy2(resolved, snapshot_path)
+        snapshot_path.write_bytes(data)
+    if hashlib.sha256(snapshot_path.read_bytes()).hexdigest() != sha256_hex:
+        raise ValueError('Evidence snapshot contents differ from their recorded hash.')
+    if hashlib.sha256(resolved.read_bytes()).hexdigest() != sha256_hex:
+        raise ValueError('Evidence file changed during snapshot; submit the settled file again.')
+    # Parse the archived bytes rather than mutable source contents.
+    is_qm, engine, freqs, imag_freqs, energy, normal_modes = _extract_qm_log(snapshot_path)
 
     return FileEvidenceSnapshot(
         original_path=str(resolved),
@@ -228,14 +232,14 @@ def validate_ts_mode(
     description: str = "",
     imaginary_freqs: list[float] | None = None,
 ) -> TSValidationResult:
-    """校验过渡态是否具有恰好 1 个虚频，并匹配反应坐标描述。"""
+    """只检查恰好一个虚频；不验证优化、反应坐标或端点身份。"""
     has_freq_data = (freqs is not None and len(freqs) > 0) or (
         imaginary_freqs is not None and len(imaginary_freqs) > 0
     )
     if not has_freq_data:
         return TSValidationResult(
-            is_valid=False,
-            verified=False,
+            frequency_count_valid=False,
+            frequency_data_present=False,
             n_imag=0,
             imaginary_frequencies=[],
             message=(
@@ -251,12 +255,12 @@ def validate_ts_mode(
     n_imag = len(imag)
 
     if n_imag == 1:
-        msg = f"Valid transition state saddle point with exactly 1 imaginary frequency ({imag[0]:.1f} cm⁻¹)."
+        msg = f"Imaginary-frequency count criterion met: exactly 1 imaginary frequency ({imag[0]:.1f} cm⁻¹)."
         if description:
-            msg += f" Mode description: {description}."
+            msg += f" Submitted mode description (not verified): {description}."
         return TSValidationResult(
-            is_valid=True,
-            verified=True,
+            frequency_count_valid=True,
+            frequency_data_present=True,
             n_imag=1,
             imaginary_frequencies=imag,
             mode_matched=False,
@@ -264,8 +268,8 @@ def validate_ts_mode(
         )
     elif n_imag == 0:
         return TSValidationResult(
-            is_valid=False,
-            verified=True,
+            frequency_count_valid=False,
+            frequency_data_present=True,
             n_imag=0,
             imaginary_frequencies=[],
             mode_matched=False,
@@ -273,8 +277,8 @@ def validate_ts_mode(
         )
     else:
         return TSValidationResult(
-            is_valid=False,
-            verified=True,
+            frequency_count_valid=False,
+            frequency_data_present=True,
             n_imag=n_imag,
             imaginary_frequencies=imag,
             mode_matched=False,
@@ -295,8 +299,8 @@ def validate_species_minimum(
     )
     if not has_freq_data:
         return SpeciesValidationResult(
-            is_valid=False,
-            verified=False,
+            frequency_count_valid=False,
+            frequency_data_present=False,
             n_imag=0,
             imaginary_frequencies=[],
             message=(
@@ -314,16 +318,16 @@ def validate_species_minimum(
 
     if n_imag == 0:
         return SpeciesValidationResult(
-            is_valid=True,
-            verified=True,
+            frequency_count_valid=True,
+            frequency_data_present=True,
             n_imag=0,
             imaginary_frequencies=[],
-            message="Valid stationary local minimum (0 imaginary frequencies).",
+            message="Imaginary-frequency count criterion met: 0 imaginary frequencies; molecular identity is checked separately.",
         )
     else:
         return SpeciesValidationResult(
-            is_valid=False,
-            verified=True,
+            frequency_count_valid=False,
+            frequency_data_present=True,
             n_imag=n_imag,
             imaginary_frequencies=imag,
             message=f"Invalid local minimum: found {n_imag} imaginary frequencies ({imag}).",

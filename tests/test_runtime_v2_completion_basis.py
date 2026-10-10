@@ -68,6 +68,7 @@ _BASIS_LABELS = {
     "supervisor_supported": "supervisor_reviewed",
     "supervisor_approved": "partial",
     "partial_recorded": "partial",
+    "scope_completed": "scope_completed",
     "declared": "unverified",
     "background_wait": "unverified",
     "user_terminated": "unverified",

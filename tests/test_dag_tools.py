@@ -1,3 +1,4 @@
+import asyncio
 import gzip
 from pathlib import Path
 
@@ -850,6 +851,7 @@ async def test_set_coverage_contract_is_supervisor_only(tmp_path):
 # ---------------------------------------------------------------------------
 
 _TS_FREQ_RESULT = {
+    "opt_converged": True,
     "is_success": True,
     "normal_termination": True,
     "imaginary_frequencies": [-518.3],
@@ -1498,12 +1500,22 @@ async def test_ts_opt_bind_requires_normal_termination(tmp_path):
     assert not rejected.accepted
     assert rejected.rejection_code == "ts_opt_check_failed"
 
+    for converged in (False, None):
+        ref = await asyncio.to_thread(store.register_evidence, 's1', 'log_parser', {
+            'tool_call_id': f'tc-opt-unconverged-{converged}',
+            'result': {'is_success': True, 'normal_termination': True, 'opt_converged': converged},
+        })
+        rejected = await controller.apply_stage_bind(element_id='step1', stage_kind='ts_opt',
+            ref=ref, verdict='agree', tool_succeeded=True)
+        assert not rejected.accepted
+        assert rejected.rejection_code == 'ts_opt_check_failed'
+
     ok_ref = store.register_evidence(
         "s1",
         "log_parser",
         {
             "tool_call_id": "tc-opt-ok",
-            "result": {"is_success": True, "normal_termination": True},
+            "result": {"is_success": True, "normal_termination": True, "opt_converged": True},
         },
     )
     accepted = await controller.apply_stage_bind(
@@ -1567,7 +1579,7 @@ async def test_short_irc_bind_requires_path_evidence(tmp_path, monkeypatch):
     # 先按序绑齐同边的材料阶段（short_irc 的 TS/端点几何来源）
     ts_ref = _register(
         "ts-opt", "ts_opt.log",
-        {"is_success": True, "normal_termination": True},
+        {"is_success": True, "normal_termination": True, "opt_converged": True},
     )
     assert (await _bind("ts_opt", ts_ref)).accepted is True
     freq_ref = _register(
@@ -1810,7 +1822,7 @@ async def test_stage_bind_recomputes_stages_after_stale_revision(tmp_path):
         "log_parser",
         {
             "tool_call_id": "tc-opt-conc",
-            "result": {"is_success": True, "normal_termination": True},
+            "result": {"is_success": True, "normal_termination": True, "opt_converged": True},
         },
     )
     original = controller._apply_with_revisions
@@ -1905,7 +1917,7 @@ async def test_batch_bind_recomputes_stages_after_stale_revision(tmp_path):
         "tc-opt-batch",
         "log_parser",
         {"log_path": "opt.log"},
-        {"is_success": True, "normal_termination": True},
+        {"is_success": True, "normal_termination": True, "opt_converged": True},
     )
     original = controller._apply_with_revisions
     calls: list[list[dict]] = []
@@ -2189,3 +2201,38 @@ async def test_dag_view_lists_queued_structured_requests(tmp_path):
     assert queued[0]["kind"] == "exception"
     assert "not_applicable" in queued[0]["question"]
     assert queued[0]["request_id"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('batch', [False, True])
+async def test_separate_frequency_binding_requires_optimized_geometry(tmp_path, batch):
+    from cloudra.dag.controller import DagController
+    from cloudra.dag.store import DagStore
+
+    _agent_, _, db = await _seed_staged_step(tmp_path, 'bind-frequency-geometry', _TS_FREQ_RESULT)
+    store = DagStore(db)
+    c = DagController(db, 's1', 'dag_record', working_directory=tmp_path)
+    await c.initialize()
+    def register_logs():
+        template = ('* O   R   C   A *\nTHE OPTIMIZATION HAS CONVERGED\n'
+                    'FINAL SINGLE POINT ENERGY -100.0\nCARTESIAN COORDINATES (ANGSTROEM)\n'
+                    '-----------------------------\nC 0 0 0\nN 0 0 2\nH 0 0 {z}\n\n'
+                    'VIBRATIONAL FREQUENCIES\n0: -300.0 cm**-1\n1: 200.0 cm**-1\nORCA TERMINATED NORMALLY\n')
+        refs = []
+        for name, z in [('opt', 1.0), ('freq', 1.2)]:
+            path = tmp_path / f'{name}.out'
+            path.write_text(template.format(z=z))
+            refs.append(store.register_evidence('s1', 'log_parser', {'tool_call_id': name,
+                'arguments': {'log_path': str(path)}, 'result': _TS_FREQ_RESULT}))
+        return refs
+    opt_ref, freq_ref = await asyncio.to_thread(register_logs)
+    assert (await c.apply_stage_bind(element_id='step1', stage_kind='ts_opt', ref=opt_ref,
+        verdict='agree', tool_succeeded=True)).accepted
+    if batch:
+        result = await c.bind_stage_attachments([{'tool_call_id': 'freq', 'bind_target': 'step1', 'stage_kind': 'frequency'}])
+        accepted, code = result['accepted'], result['rejection_code']
+    else:
+        result = await c.apply_stage_bind(element_id='step1', stage_kind='frequency', ref=freq_ref,
+            verdict='agree', tool_succeeded=True)
+        accepted, code = result.accepted, result.rejection_code
+    assert not accepted and code == 'frequency_geometry_mismatch'

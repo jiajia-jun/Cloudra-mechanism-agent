@@ -417,10 +417,7 @@ class AgentRunner:
                         stop_arguments=stop_arguments,
                     )
                     if gate.action == "continue_work":
-                        # 被拦的最终回复可作中间说明展示，但状态与交付处置一致
-                        # （计划 §6 第 8 条）：不 finish、不登记交付处置。
-                        if outcome.content:
-                            self._emit_run_message(agent, run_id, outcome.content)
+                        # Keep the candidate private until the completion gate permits delivery.
                         strike, exhausted = self._track_exit_strike(agent, run_id, gate)
                         if exhausted:
                             notice = (
@@ -455,8 +452,6 @@ class AgentRunner:
                     if gate.action == "wait_review":
                         # 退出审批请求已在门禁内持久化（同 basis 去重复用）且
                         # Supervisor 已按状态表通知；挂起等裁决，不落终态。
-                        if outcome.content:
-                            self._emit_run_message(agent, run_id, outcome.content)
                         await core.agent_host.transition(
                             agent,
                             AgentState.WAITING_APPROVAL,
@@ -474,7 +469,7 @@ class AgentRunner:
                             )
                             continue
                         # 诚实回执（在收件箱复查之后投递，避免自己的反馈触发
-                        # 立刻唤醒空转）：工具的 "Task stopped." 只是回执，
+                        # 立刻唤醒空转）：stop 工具只确认收到请求，
                         # stop 实际在等 Supervisor 退出裁决——必须把审批回路
                         # 讲清楚，否则 agent 无法区分 接受/待审/被拒 三种结局。
                         await core.dispatcher.commit_and_deliver(
@@ -490,12 +485,6 @@ class AgentRunner:
                     # allow_final（审计通过/有效批准/agent 声明）才走到收尾。
                     # Task 5 起 schedule stop 不再无条件 compact——压缩触发只有
                     # 手动 compact / 达到上下文预算 / 真实 overflow 三种。
-                    if outcome.content:
-                        self._emit_run_message(agent, run_id, outcome.content)
-                    for stage in getattr(self.pipeline, "stages", ()):
-                        hook = getattr(stage, "on_run_end", None)
-                        if hook is not None:
-                            await hook(agent, explicit_stop=explicit_stop)
                     # The compute broker marks a terminal job notified only after
                     # its message is delivered. A notice arriving during the gate
                     # must be read before this run becomes a child's first final
@@ -506,6 +495,14 @@ class AgentRunner:
                     async with core.dispatcher.target_lock(agent.id):
                         if agent.parent_session_id and self._inbox_has_pending(agent):
                             continue
+                        for stage in getattr(self.pipeline, "stages", ()):
+                            hook = getattr(stage, "on_run_end", None)
+                            if hook is not None:
+                                await hook(agent, explicit_stop=explicit_stop)
+                        if gate.action == "allow_final" and outcome.content:
+                            self._emit_run_message(agent, run_id, outcome.content)
+                        elif gate.action == "wait_background":
+                            self._emit_run_message(agent, run_id, gate.reason or "Run paused awaiting background work.")
                         await core.agent_host.finish_run(agent, outcome="succeeded")
                         # CommandBus may enqueue outside MessageDispatcher; keep
                         # the existing post-finish wake handshake for that path.
@@ -804,8 +801,8 @@ class AgentRunner:
         return (
             "[Completion gate] Stop is pending Supervisor review, not accepted: "
             f"an exit review for your partial delivery was submitted (request_id={gate.request_id}) "
-            "and this run is now suspended awaiting the decision — the stop tool's "
-            "'Task stopped.' was only the call receipt. What happens next:\n"
+            "and this run is now suspended awaiting the decision; "
+            "the stop tool only acknowledged the request. What happens next:\n"
             "- The Supervisor's decision arrives as a [Supervisor review decision] "
             "notice and wakes you.\n"
             "- On accept: call stop again with delivery_disposition='partial' and "

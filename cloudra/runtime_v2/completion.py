@@ -17,7 +17,7 @@ from typing import Any, Iterable, Literal, Optional
 from cloudra.runtime_v2.schemas import EventEnvelope
 
 RunOutcome = Literal["succeeded", "failed", "cancelled"]
-VerificationLabel = Literal["verified", "supervisor_reviewed", "partial", "unverified"]
+VerificationLabel = Literal["verified", "supervisor_reviewed", "partial", "scope_completed", "unverified"]
 
 # 完成依据投影只读这三类事件（API 查询的 types 过滤也用同一集合）。
 COMPLETION_EVENT_TYPES = frozenset({"agent.completion_gate", "run.finished", "agent.cancelled"})
@@ -33,6 +33,7 @@ _BASIS_LABELS: dict[str, VerificationLabel] = {
     "supervisor_supported": "supervisor_reviewed",
     "supervisor_approved": "partial",
     "partial_recorded": "partial",
+    "scope_completed": "scope_completed",
 }
 
 

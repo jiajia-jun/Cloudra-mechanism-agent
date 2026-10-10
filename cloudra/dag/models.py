@@ -963,6 +963,7 @@ class DeliveryReport(BaseModel):
     unresolved: list[CoverageGateResult] = Field(default_factory=list)
     inconclusive: list[CoverageGateResult] = Field(default_factory=list)
     waived: list[CoverageGateResult] = Field(default_factory=list)
+    output_artifact: dict[str, Any] | None = None
 
 
 # 投影头部的模式横幅与行为纪律：让 agent 明确自己处在哪种编排模式、

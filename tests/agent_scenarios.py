@@ -23,6 +23,7 @@
 | 重试预算与 fail-fast 分类 | provider 暂态重试 / 永久 4xx |
 | 压缩阈值与摘要 | context overflow |
 | 结题门禁 + 编排模式 | dag_guided 证据门与督导裁决、仅修订论证后清除旧拒绝 |
+| 停止请求 + 最终答复门禁 | 未放行的候选答复不进入用户消息，放行事件先于最终答复 |
 | 消息投递/恢复语义 | 异步子 Agent 回传、重启 |
 | 督导反馈通知 + 后台等待 | 只读督导反馈唤醒协调员，消费消息后仍保护运行中的计算 |
 | 计算完成通知 + 后台等待 | 高通量仍在运行时消费单个结果，再回到等待状态 |
@@ -201,6 +202,11 @@ def malformed_shell_steps() -> list[Step]:
         Step(tools=[("todo_write", {"todos": [{"content": "Recovered after invalid input", "status": "done"}]})]),
         Step(stop=True),
     ]
+
+
+def pending_stop_answer_step(answer: str) -> Step:
+    """带候选答复的部分退出请求；是否展示由真实完成门禁决定。"""
+    return Step(tools=[("stop", {"delivery_disposition": "partial", "final_answer": answer})])
 
 
 def compute_result_recovery_steps() -> list[Step]:

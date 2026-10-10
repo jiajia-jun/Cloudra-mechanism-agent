@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { completionChipFor, stateBadgeText } from './completion.ts';
 
+assert.equal(
+  completionChipFor({ run_id: 'r1', run_outcome: 'succeeded', completion_basis: 'scope_completed', verification_label: 'scope_completed' })?.tone,
+  'warn',
+);
+
 // 只有证据门禁确认过的结题才显示为已验证完成。
 assert.equal(
   completionChipFor({ run_id: 'r1', run_outcome: 'succeeded', completion_basis: 'dag_verified', verification_label: 'verified' })

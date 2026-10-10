@@ -678,20 +678,20 @@ def test_empty_frequencies_is_unverified_minimum():
     from cloudra.dag.evidence_ingest import validate_species_minimum
 
     res1 = validate_species_minimum(None, imaginary_freqs=[])
-    assert not res1.verified
-    assert not res1.is_valid
+    assert not res1.frequency_data_present
+    assert not res1.frequency_count_valid
 
     res2 = validate_species_minimum([], imaginary_freqs=[])
-    assert not res2.verified
-    assert not res2.is_valid
+    assert not res2.frequency_data_present
+    assert not res2.frequency_count_valid
 
     res3 = validate_species_minimum([], imaginary_freqs=None)
-    assert not res3.verified
-    assert not res3.is_valid
+    assert not res3.frequency_data_present
+    assert not res3.frequency_count_valid
 
     res4 = validate_species_minimum([100.0, 200.0], imaginary_freqs=[])
-    assert res4.verified
-    assert res4.is_valid
+    assert res4.frequency_data_present
+    assert res4.frequency_count_valid
 
 
 def test_element_without_stages_status_supported_cannot_bypass_evidence():

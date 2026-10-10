@@ -2790,7 +2790,7 @@ def _validated_endpoint_minimum(
     minimum = validate_species_minimum(
         snapshot.frequencies, snapshot.imaginary_frequencies,
     )
-    if not (minimum.verified and minimum.is_valid):
+    if not (minimum.frequency_data_present and minimum.frequency_count_valid):
         return None, f"{role} endpoint minimum is unverified: {minimum.message}"
     xyz_path = os.path.join(os.path.dirname(freq_step.input_path), "optimized.xyz")
     if not os.path.isfile(xyz_path):

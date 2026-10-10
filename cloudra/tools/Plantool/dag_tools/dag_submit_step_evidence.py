@@ -36,6 +36,8 @@ class DagSubmitStepEvidenceInput(input_schema):
     ts_file: str = Field(
         description="Path to the transition state frequency/optimization output file."
     )
+    opt_file: Optional[str] = Field(default=None,
+        description="Separate converged TS optimization output, when ts_file is frequency-only. Both files must contain the same geometry.")
     irc_file: Optional[str] = Field(
         default=None,
         description="Optional original combined IRC output path. Keep native ORCA endpoint/trajectory files in the job directory; this tool archives them together. Do not submit a renamed standalone copy.",
@@ -71,6 +73,7 @@ class DagSubmitStepEvidence(DagToolBase):
         "Default steps also require short_irc direction proof for final delivery: "
         "supply irc_file or both directional IRC files when available. "
         "Submitting only the TS log leaves the IRC stage pending."
+        " Supply opt_file when optimization and frequency outputs are separate; frequency alone does not prove optimization."
     )
     input_schema: Any = DagSubmitStepEvidenceInput
     output_schema: Any = DagToolOutput
@@ -115,14 +118,24 @@ class DagSubmitStepEvidence(DagToolBase):
         except Exception as exc:
             return fail("dag_submit_step_evidence", f"Failed to ingest TS file: {exc}", accepted=False)
 
+        opt_snap = None
+        if user_input.opt_file:
+            try:
+                opt_snap = await asyncio.to_thread(snapshot_evidence_file, user_input.opt_file,
+                    workspace_root=workspace_root, conversation_id=ctx.conversation_id)
+                from cloudra.dag.file_science import validate_frequency_geometry
+                await asyncio.to_thread(validate_frequency_geometry, opt_snap, ts_snap)
+            except Exception as exc:
+                return fail('dag_submit_step_evidence', f'Optimization/frequency evidence mismatch: {exc}', accepted=False)
+
         ts_val = validate_ts_mode(
             ts_snap.frequencies,
             ts_snap.normal_modes,
             description=user_input.reaction_coordinate_description,
             imaginary_freqs=ts_snap.imaginary_frequencies,
         )
-        if ctx.mode is OrchestrationMode.DAG_RECORD and not ts_val.is_valid:
-            kind = "was not verified" if not ts_val.verified else "failed validation"
+        if ctx.mode is OrchestrationMode.DAG_RECORD and not ts_val.frequency_count_valid:
+            kind = "was not verified" if not ts_val.frequency_data_present else "failed validation"
             return fail(
                 "dag_submit_step_evidence",
                 f"TS {kind}: {ts_val.message}",
@@ -166,6 +179,10 @@ class DagSubmitStepEvidence(DagToolBase):
             ts_snap.model_dump(mode="json"),
             source_type="file",
         )
+        opt_refs = []
+        if opt_snap is not None:
+            opt_refs.append(await asyncio.to_thread(ctx.store.register_evidence, session.id,
+                Path(opt_snap.original_path).name, opt_snap.model_dump(mode='json'), source_type='file'))
 
         operations: list[GraphOperation] = [
             AttachRef(
@@ -175,7 +192,7 @@ class DagSubmitStepEvidence(DagToolBase):
                 target_id=step.edge_id,
                 ref=evidence_ref,
             )
-            for evidence_ref in [ref, *irc_refs]
+            for evidence_ref in [ref, *opt_refs, *irc_refs]
         ]
 
         # 5. Adjudicate according to orchestration mode
@@ -232,7 +249,7 @@ class DagSubmitStepEvidence(DagToolBase):
 
         from cloudra.dag.file_science import file_scientific_checks
         graph = await asyncio.to_thread(ctx.store.load_snapshot)
-        scientific_checks = await asyncio.to_thread(file_scientific_checks, ctx.store, graph.delivery, step.edge_id, irc_files=irc_snaps, workspace_root=workspace_root, evidence_refs=[ref, *irc_refs])
+        scientific_checks = await asyncio.to_thread(file_scientific_checks, ctx.store, graph.delivery, step.edge_id, irc_files=irc_snaps, workspace_root=workspace_root, evidence_refs=[ref, *opt_refs, *irc_refs])
 
         review = ActiveReview(
             review_id=f"rev_{uuid.uuid4().hex}",
@@ -246,11 +263,12 @@ class DagSubmitStepEvidence(DagToolBase):
                 "step_name": user_input.step_name,
                 "target_identity": review_target_identity(snapshot.delivery, "step", step.edge_id),
                 "ts_file": user_input.ts_file,
+                "opt_file": user_input.opt_file,
                 "ts_validation": ts_val.model_dump(),
                 "irc_files": irc_snaps,
                 "reaction_coordinate_description": user_input.reaction_coordinate_description,
             },
-            supporting_refs=[ref, *irc_refs],
+            supporting_refs=[ref, *opt_refs, *irc_refs],
             basis_fingerprint=ts_snap.sha256,
         )
         enqueued = await asyncio.to_thread(

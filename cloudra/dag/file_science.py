@@ -122,7 +122,7 @@ def validate_frequency_geometry(opt_snap, freq_snap):
                          'submit the frequency calculation for the delivered optimized structure.')
 
 
-def _geometry_species(path: str, smiles: str) -> bool:
+def _geometry_species(path: str, smiles: str, *, diagnostics: list[str] | None = None) -> bool:
     """Match the actual final structure using the existing RDKit bond perception.
 
     A SMILES annotation alone is not molecular evidence. Failure to perceive
@@ -146,24 +146,35 @@ def _geometry_species(path: str, smiles: str) -> bool:
         raise ValueError(f"Invalid species SMILES: {smiles}")
     for atom in expected.GetAtoms():
         atom.SetAtomMapNum(0)
+    expected = Chem.AddHs(expected)
     geometry = _final_geometry(path)
     if geometry is None:
         raise ValueError(f"No final geometry in {path}")
     symbols, positions = geometry
-    counts = Counter(atom.GetSymbol() for atom in Chem.AddHs(expected).GetAtoms())
+    counts = Counter(atom.GetSymbol() for atom in expected.GetAtoms())
     if Counter(symbols) != counts:
+        if diagnostics is not None:
+            diagnostics.append(f'Geometry composition mismatch for declared {smiles}: '
+                               f'expected {dict(counts)}, observed {dict(Counter(symbols))}.')
         return False
     actual = Chem.MolFromXYZBlock(xyz_block(symbols, positions))
     if actual is None:
         raise ValueError(f"Cannot read final geometry in {path}")
     rdDetermineBonds.DetermineBonds(actual, charge=Chem.GetFormalCharge(expected))
-    actual = Chem.RemoveHs(actual)
-    expected = Chem.RemoveHs(expected)
+    # Compare both full explicit-H graphs. RemoveHs preserves neighbours of
+    # non-tetrahedral stereocentres, so comparing it with an implicit-H query
+    # incorrectly rejects e.g. a correctly perceived five-coordinate P ring.
     # Unspecified stereochemistry permits either configuration. Explicit
     # stereochemistry remains part of the query and must match.
-    return (actual.GetNumAtoms() == expected.GetNumAtoms()
-            and actual.GetNumBonds() == expected.GetNumBonds()
-            and actual.HasSubstructMatch(expected, useChirality=True))
+    matches = (actual.GetNumAtoms() == expected.GetNumAtoms()
+               and actual.GetNumBonds() == expected.GetNumBonds()
+               and actual.HasSubstructMatch(expected, useChirality=True))
+    if not matches and diagnostics is not None:
+        diagnostics.append(f'Geometry identity mismatch: declared {smiles}; '
+                           f'perceived {Chem.MolToSmiles(actual)}. '
+                           'Check the optimized connectivity, charge and bond orders; '
+                           'a mismatch is not proof of a perception failure.')
+    return matches
 
 
 def _species_minimum_check(smiles, logs, problems):
@@ -176,7 +187,7 @@ def _species_minimum_check(smiles, logs, problems):
     for path in minimum_logs:
         for identity in dict.fromkeys([smiles, *components]):
             try:
-                matches = _geometry_species(path, identity)
+                matches = _geometry_species(path, identity, diagnostics=problems)
             except (ValueError, RuntimeError) as exc:
                 problems.append(str(exc))
                 continue
@@ -194,6 +205,50 @@ def _species_minimum_check(smiles, logs, problems):
         detail='Missing matching minimum evidence for: ' + ', '.join(missing) + '. ' + ' '.join(dict.fromkeys(problems)),
         next_action='Submit matching normally terminated frequency logs for the whole species or all components together. '
                     'Keep IRC and complex-energy requirements separate; unsuccessful searches do not establish nonexistence.')
+
+
+def _optimization_converged(path: str, engine: str | None) -> bool | None:
+    text = Path(path).read_text(errors='replace')
+    if engine == 'orca':
+        return orca_frames.opt_converged(text)
+    if engine == 'xtb':
+        return xtb_frames.opt_converged(text)
+    if engine == 'gaussian':
+        if 'Optimization stopped.' in text:
+            return False
+        if 'Optimization completed.' in text or 'Stationary point found.' in text:
+            return True
+    return None
+
+
+def _ts_optimization_check(logs: list[str]) -> ScientificCheck:
+    frequency_logs = [p for p in logs if len(_extract_qm_log(Path(p))[3] or []) == 1]
+    problems = []
+    failed = False
+    for path in logs:
+        engine = _extract_qm_log(Path(path))[1]
+        converged = _optimization_converged(path, engine)
+        if converged is False:
+            failed = True
+            problems.append(f'Optimization did not converge in {path}.')
+            continue
+        if converged is not True:
+            continue
+        for frequency in frequency_logs:
+            def snapshot(p):
+                return FileEvidenceSnapshot(original_path=p, snapshot_path=p,
+                    sha256=hashlib.sha256(Path(p).read_bytes()).hexdigest(), file_size=Path(p).stat().st_size)
+            try:
+                validate_frequency_geometry(snapshot(path), snapshot(frequency))
+            except ValueError as exc:
+                failed = True
+                problems.append(str(exc))
+                continue
+            return ScientificCheck(status='passed',
+                detail='Native optimization convergence and one-imaginary-frequency evidence for the same geometry passed; reaction direction is checked separately.')
+    return ScientificCheck(status='failed' if failed else 'incomplete',
+        detail='Native converged optimization with matching first-order-saddle frequency evidence required. ' + ' '.join(dict.fromkeys(problems)),
+        next_action='Submit the normally terminated converged optimization and its matching frequency log; a frequency-only calculation is not optimization evidence.')
 
 
 def file_scientific_checks(store, graph, target_id: str, *, irc_files=None, workspace_root=None, evidence_refs=None) -> dict[str, dict]:
@@ -215,7 +270,7 @@ def file_scientific_checks(store, graph, target_id: str, *, irc_files=None, work
         next_action='' if passed else f'Submit a normally terminated frequency log showing {expected} imaginary frequencies; repair the calculation or supply missing evidence.')
     checks = {'frequency' if is_edge else 'geometry': frequency_check}
     if is_edge:
-        checks['ts_opt'] = frequency_check
+        checks['ts_opt'] = _ts_optimization_check(logs)
         source = next((n for n in graph.nodes if n.node_id == element.source_node_id), None)
         target = next((n for n in graph.nodes if n.node_id == element.target_node_id), None)
         source_logs, _ = _logs(store, source, workspace_root) if source else ([], [])

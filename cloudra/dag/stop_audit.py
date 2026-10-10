@@ -34,6 +34,7 @@ CompletionBasis = Literal[
     "supervisor_supported",  # 完整交付由 Supervisor 对提交证据作出支持判定
     "supervisor_approved",  # dag_guided 下 partial 经 Supervisor 接受（或复用其裁决）
     "partial_recorded",  # dag_record 下 partial 直接记录，无督导裁决
+    "scope_completed",  # 声明范围已处置，包含跳过/豁免，不代表科学验证
     "user_terminated",  # 真实用户终止（带用户取消事件 id）
 ]
 
@@ -186,13 +187,14 @@ class StopAuditMixin:
     ) -> StopGate:
         """Audit a stop/final reply and return a :class:`StopGate`.
 
-        The delivery disposition is recorded only when ``action == allow_final``.
-        判定副作用（记录处置 / 创建退出请求 / 通知 Supervisor）只在本方法
-        发生；调用方（统一结束边界）负责按 action 落运行状态。
+        The audit queues a disposition only for allow_final. The runner commits it
+        after all completion policies and its final inbox check permit delivery.
         """
         if not self.enabled:
             return StopGate(action="allow_final", report=None, basis="declared")
         await self.initialize()
+        self._pending_stop = None
+        self._delivery_artifact = None
 
         # A real user termination is allowed regardless of graph coverage, but
         # the model must not be able to invent that source.
@@ -216,12 +218,8 @@ class StopAuditMixin:
                         "a model cannot self-declare user termination"
                     ),
                 )
-            await asyncio.to_thread(
-                self.store.record_delivery_disposition,
-                self.session_id,
-                disposition,
-                None,
-            )
+            state = await asyncio.to_thread(self.store.delivery_state_fingerprint)
+            self._pending_stop = (disposition, None, None, state)
             return StopGate(action="allow_final", report=None, basis="user_terminated")
 
         if await self._has_pending_background():
@@ -232,20 +230,35 @@ class StopAuditMixin:
                 basis="background_wait",
             )
 
+        state = await asyncio.to_thread(self.store.delivery_state_fingerprint)
         report = await asyncio.to_thread(self.delivery_report)
+        from cloudra.dag.delivery_artifact import prepare_delivery_artifact
+        graph = (await asyncio.to_thread(self.engine.snapshot)).delivery
+        required = bool(self._core is not None and
+                        self._core.require_project(self.conversation_id).settings.benchmark_task_id)
+        try:
+            self._delivery_artifact = await asyncio.to_thread(prepare_delivery_artifact,
+                self.store, graph, report, self.working_directory, required=required)
+        except (ValueError, OSError) as exc:
+            return StopGate(action='continue_work', report=report,
+                reason=f'Delivery artifact is inconsistent with the DAG: {exc}')
+        if await asyncio.to_thread(self.store.delivery_state_fingerprint) != state:
+            return StopGate(action='continue_work', report=report,
+                reason='DAG evidence or review state changed during audit; re-audit the delivery.')
+        self._audit_state = state
         if disposition == "complete" and report.complete:
-            await asyncio.to_thread(
-                self.store.record_delivery_disposition,
-                self.session_id,
-                disposition,
-                report,
-            )
+            claim = await asyncio.to_thread(self.store.accepted_claim_spec)
+            scope_only = bool(report.waived) or any(
+                gate.code in {"branch_disposed", "stage_not_applicable"}
+                for gate in report.satisfied
+            ) or (claim is not None and not claim.required_checks)
+            self._pending_stop = (disposition, report, None, state)
             return StopGate(
                 action="allow_final",
                 report=report,
                 reason="coverage audit passed",
                 basis=(
-                    "supervisor_supported"
+                    "scope_completed" if scope_only else "supervisor_supported"
                     if any(
                         gate.code == "supervisor_evidence_accepted"
                         for gate in report.satisfied
@@ -275,12 +288,7 @@ class StopAuditMixin:
                 if approval_id is not None and await self._valid_exit_approval(
                     approval_id, disposition, report
                 ):
-                    await asyncio.to_thread(
-                        self.store.record_delivery_disposition,
-                        self.session_id,
-                        disposition,
-                        report,
-                    )
+                    self._pending_stop = (disposition, report, approval_id, state)
                     return StopGate(
                         action="allow_final",
                         report=report,
@@ -307,12 +315,7 @@ class StopAuditMixin:
                     request_id=request_id,
                     reason=reason,
                 )
-            await asyncio.to_thread(
-                self.store.record_delivery_disposition,
-                self.session_id,
-                disposition,
-                report,
-            )
+            self._pending_stop = (disposition, report, None, state)
             return StopGate(
                 action="allow_final",
                 report=report,
@@ -346,6 +349,7 @@ class StopAuditMixin:
                 "scope": target_ids,
                 "remaining_gaps": [g.model_dump(mode="json") for g in [*(report.unresolved), *(report.inconclusive)]],
                 "method_limits": [],
+                "delivery_artifact": self._delivery_artifact.model_dump(mode='json') if self._delivery_artifact else None,
             },
             basis_fingerprint="sha256:pending",
         )
@@ -363,7 +367,7 @@ class StopAuditMixin:
         request = await asyncio.to_thread(self.store.get_review_request, request_id)
         if request is None or request.state != "resolved" or request.kind != "exit":
             return None
-        if request.proposal.get("disposition") != disposition:
+        if request.proposal.get("disposition") != disposition or not self._exit_artifact_matches(request):
             return None
         decision = await asyncio.to_thread(
             self.store.get_review_decision_for_request, request.request_id
@@ -380,12 +384,7 @@ class StopAuditMixin:
                 request_id=request.request_id,
                 reason=f"{decision.reason}{next_action}",
             )
-        await asyncio.to_thread(
-            self.store.record_delivery_disposition,
-            self.session_id,
-            disposition,
-            report,
-        )
+        self._pending_stop = (disposition, report, decision.decision_id, self._audit_state)
         return StopGate(
             action="allow_final",
             report=report,
@@ -394,6 +393,10 @@ class StopAuditMixin:
             basis="supervisor_approved",
         )
 
+    def _exit_artifact_matches(self, request) -> bool:
+        artifact = getattr(self, '_delivery_artifact', None)
+        return request.proposal.get('delivery_artifact') == (artifact.model_dump(mode='json') if artifact else None)
+
     async def _valid_exit_approval(self, decision_id: str, disposition: str, report: Any) -> bool:
         decision = await asyncio.to_thread(self.store.get_review_decision, decision_id)
         if decision is None or decision.verdict != "accept":
@@ -401,7 +404,7 @@ class StopAuditMixin:
         request = await asyncio.to_thread(self.store.get_review_request, decision.request_id)
         if request is None or request.kind != "exit" or request.state != "resolved":
             return False
-        if request.proposal.get("disposition") != disposition:
+        if request.proposal.get("disposition") != disposition or not self._exit_artifact_matches(request):
             return False
         if request.requester not in {self.agent_id, self.session_id}:
             return False
@@ -416,3 +419,39 @@ class StopAuditMixin:
         if not current_targets:
             current_targets = {snapshot.delivery.graph_id}
         return set(request.target_ids) == current_targets
+
+    async def commit_stop(self) -> None:
+        """Commit delivery only after the runner's combined gate allows final."""
+        pending = getattr(self, '_pending_stop', None)
+        if pending is None:
+            return
+        disposition, report, approval_id, state = pending
+        if await asyncio.to_thread(self.store.delivery_state_fingerprint) != state:
+            raise RuntimeError('DAG evidence or review state changed after audit; re-audit the delivery.')
+        if approval_id and not await self._valid_exit_approval(approval_id, disposition, report):
+            raise RuntimeError('Exit approval changed after audit; re-audit the delivery.')
+        artifact = getattr(self, '_delivery_artifact', None)
+        if disposition != 'user_terminated':
+            from cloudra.dag.delivery_artifact import prepare_delivery_artifact
+            graph = (await asyncio.to_thread(self.engine.snapshot)).delivery
+            current_report = await asyncio.to_thread(self.delivery_report)
+            required = bool(self._core is not None and
+                            self._core.require_project(self.conversation_id).settings.benchmark_task_id)
+            current_artifact = await asyncio.to_thread(prepare_delivery_artifact,
+                self.store, graph, current_report, self.working_directory, required=required)
+            if current_report != report or current_artifact != artifact:
+                raise RuntimeError('Delivery artifact or scientific evidence changed after audit; re-audit the delivery.')
+        if artifact is not None:
+            from cloudra.dag.delivery_artifact import current_artifact_digest
+            from cloudra.dag.evidence_ingest import snapshot_evidence_file
+            snapshot = await asyncio.to_thread(snapshot_evidence_file, artifact.path,
+                workspace_root=self.working_directory, conversation_id=self.conversation_id)
+            if snapshot.sha256 != artifact.sha256 or await asyncio.to_thread(
+                    current_artifact_digest, snapshot.snapshot_path) != artifact.sha256 or await asyncio.to_thread(
+                    current_artifact_digest, artifact.path) != artifact.sha256:
+                raise RuntimeError('Delivery artifact changed after audit; re-audit the delivery.')
+            artifact = artifact.model_copy(update={'snapshot_path': snapshot.snapshot_path})
+            report = report.model_copy(update={'output_artifact': artifact.model_dump(mode='json')})
+        await asyncio.to_thread(self.store.record_delivery_disposition, self.session_id, disposition, report,
+            expected_state=state)
+        self._pending_stop = None

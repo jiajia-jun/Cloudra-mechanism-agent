@@ -21,6 +21,7 @@ import logging
 import os
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -436,10 +437,10 @@ class EvidenceInboxMixin:
             return False
         freqs, imag = self._frequency_fields(payload)
         res = validate_species_minimum(freqs, imaginary_freqs=imag)
-        return res.verified and res.is_valid
+        return res.frequency_data_present and res.frequency_count_valid
 
     def _passes_ts_opt_check(self, ref: GraphRef | None) -> bool:
-        """ts_opt 必须来自正常结束的引擎日志；若带频率则须是一阶鞍点。"""
+        """ts_opt requires native optimization convergence; frequency is separate."""
         if ref is None:
             return False
         try:
@@ -449,6 +450,8 @@ class EvidenceInboxMixin:
         if source_name == "submit_compute_job" or not isinstance(payload, dict):
             return False
         if not self._normal_termination(payload):
+            return False
+        if (payload.get('result') or {}).get('opt_converged') is not True:
             return False
         freqs, imag = self._frequency_fields(payload)
         if freqs is None and imag is None:
@@ -469,6 +472,33 @@ class EvidenceInboxMixin:
             )
         )
         return resolve_existing_tool_path(context, raw)
+
+    def _validate_optimization_frequency_pair(self, stages) -> None:
+        """A separately bound frequency must describe the optimized geometry."""
+        from cloudra.dag.evidence_ingest import FileEvidenceSnapshot
+        from cloudra.dag.file_science import validate_frequency_geometry
+
+        refs = [next((s.ref for s in stages if s.kind is kind and s.status.value == 'supported'), None)
+                for kind in (StageKind.TS_OPT, StageKind.FREQUENCY)]
+        if any(ref is None for ref in refs) or refs[0] == refs[1]:
+            return
+        snapshots = []
+        for ref in refs:
+            payload = self.store.resolve_evidence(ref)
+            if 'snapshot_path' in payload:
+                snapshot = FileEvidenceSnapshot.model_validate(payload)
+                if hashlib.sha256(Path(snapshot.snapshot_path).read_bytes()).hexdigest() != snapshot.sha256:
+                    raise ValueError('Bound optimization/frequency snapshot was changed.')
+            else:
+                raw = (payload.get('arguments') or {}).get('log_path')
+                if not isinstance(raw, str) or not raw:
+                    raise ValueError('Separate optimization/frequency evidence requires both native log paths.')
+                path = Path(self._resolve_evidence_path(raw))
+                content = path.read_bytes()
+                snapshot = FileEvidenceSnapshot(original_path=str(path), snapshot_path=str(path),
+                    sha256=hashlib.sha256(content).hexdigest(), file_size=len(content))
+            snapshots.append(snapshot)
+        validate_frequency_geometry(*snapshots)
 
     def _bound_stage_logs(
         self, stages, kinds: set[StageKind]
@@ -700,9 +730,14 @@ class EvidenceInboxMixin:
             ):
                 raise _Rejected(
                     "ts_opt_check_failed",
-                    "ts_opt evidence must be a normally terminated engine log "
+                    "ts_opt evidence must show native optimization convergence in a normally terminated engine log "
                     "(and a first-order saddle if frequencies are present)",
                 )
+            if verdict == 'agree' and target_type == 'edge' and kind in {StageKind.TS_OPT, StageKind.FREQUENCY}:
+                try:
+                    self._validate_optimization_frequency_pair(new_stages)
+                except (ValueError, OSError) as exc:
+                    raise _Rejected('frequency_geometry_mismatch', str(exc)) from exc
             if (
                 verdict == "agree"
                 and (
@@ -1032,7 +1067,7 @@ class EvidenceInboxMixin:
                 ):
                     raise _Rejected(
                         "ts_opt_check_failed",
-                        "ts_opt evidence must be a normally terminated engine log "
+                        "ts_opt evidence must show native optimization convergence in a normally terminated engine log "
                         "(and a first-order saddle if frequencies are present)",
                     )
                 if (
@@ -1076,6 +1111,11 @@ class EvidenceInboxMixin:
                     tool_succeeded=True,
                     allow_out_of_order=allow_out_of_order,
                 )
+                if target_type == 'edge' and kind in {StageKind.TS_OPT, StageKind.FREQUENCY}:
+                    try:
+                        self._validate_optimization_frequency_pair(updated_stages)
+                    except (ValueError, OSError) as exc:
+                        raise _Rejected('frequency_geometry_mismatch', str(exc)) from exc
                 final_stages[target_id] = updated_stages
                 seen = queued_refs.setdefault(target_id, set())
                 if ref.ref_id not in seen:

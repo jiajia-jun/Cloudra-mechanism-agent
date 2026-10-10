@@ -1,5 +1,7 @@
 """Task 8: stop audit gate matrix (StopGate)."""
 
+import asyncio
+
 import pytest
 
 from cloudra.dag.controller import DagController
@@ -9,7 +11,7 @@ from cloudra.persistence.database import ConversationDB
 
 
 async def _controller(tmp_path, conversation_id, mode):
-    db = ConversationDB(conversation_id, data_dir=tmp_path).init()
+    db = await asyncio.to_thread(lambda: ConversationDB(conversation_id, data_dir=tmp_path).init())
     controller = DagController(db, "s1", mode, conversation_id=conversation_id)
     await controller.initialize()
     return controller
@@ -43,6 +45,40 @@ async def test_complete_empty_graph_continue_work(tmp_path):
     c = await _controller(tmp_path, "exit-empty", "dag_record")
     gate = await c.audit_stop("complete")
     assert gate.action == "continue_work"
+
+
+@pytest.mark.asyncio
+async def test_reasoned_stage_dispositions_complete_scope_without_claiming_scientific_verification(tmp_path):
+    from cloudra.dag.engine import DagEngine
+    from cloudra.dag.models import (
+        AddEdge,
+        AddNode,
+        ElementaryStepEdge,
+        GraphActor,
+        MutationBatch,
+        SpeciesNode,
+        StageState,
+    )
+
+    c = await _controller(tmp_path, "disposed-scope", "dag_record")
+    result = await asyncio.to_thread(DagEngine(c.store).apply_batch, MutationBatch(
+        session_id="s1", actor=GraphActor.HARNESS, actor_id="harness",
+        base_revisions=(await asyncio.to_thread(c.store.load_bundle)).revisions, rationale="record approved scope dispositions",
+        operations=[
+            AddNode(op="add_node", graph="delivery", node=SpeciesNode(node_id=name, name=name, smiles="O",
+                stages=[StageState(kind="geometry", status="skipped", reason="outside the declared scope")]))
+            for name in ("r", "p")
+        ] + [AddEdge(op="add_edge", graph="delivery", edge=ElementaryStepEdge(edge_id="e", name="e",
+            source_node_id="r", target_node_id="p", stages=[
+                StageState(kind=kind, status="skipped", reason="outside the declared scope")
+                for kind in ("ts_opt", "frequency", "short_irc")]))],
+    ))
+    assert result.accepted
+
+    gate = await c.audit_stop("complete")
+
+    assert gate.action == "allow_final" and gate.report.complete
+    assert gate.basis == "scope_completed"
 
 
 @pytest.mark.asyncio

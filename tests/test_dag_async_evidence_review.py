@@ -366,7 +366,7 @@ async def test_step_submission_binds_real_irc_file_for_review_credit(tmp_path):
     out = await call_dag_tool(
         DagSubmitStepEvidence, agent, session,
         step_name="step1",
-        ts_file=str(FIXTURES_DIR / "xtb" / "ts_hess_xtb.out"),
+        ts_file=str(FIXTURES_DIR / "benchmark_synthetic" / "ts_freq.out"),
         irc_file=str(FIXTURES_DIR / "gaussian" / "hcn_ts_irc_g16.log"),
         reaction_coordinate_description="TS and IRC for the declared step",
     )
@@ -734,7 +734,7 @@ async def test_real_species_and_step_files_are_reviewed_once_for_final_delivery(
     store = DagStore(db)
     supervisor = make_supervisor(db.conversation_id, workspace_dir=str(tmp_path))
     water = FIXTURES_DIR / "gaussian" / "water_opt_freq_g16.out"
-    ts = FIXTURES_DIR / "xtb" / "ts_hess_xtb.out"
+    ts = FIXTURES_DIR / "benchmark_synthetic" / "ts_freq.out"
     if machine_unverified:
         from cloudra.dag.evidence_ingest import TSValidationResult
         from cloudra.tools.Plantool.dag_tools import dag_submit_step_evidence
@@ -743,8 +743,8 @@ async def test_real_species_and_step_files_are_reviewed_once_for_final_delivery(
             dag_submit_step_evidence,
             "validate_ts_mode",
             lambda *args, **kwargs: TSValidationResult(
-                is_valid=False,
-                verified=False,
+                frequency_count_valid=False,
+                frequency_data_present=False,
                 n_imag=0,
                 message="fixture parser is inconclusive about the TS mode",
             ),
@@ -793,7 +793,7 @@ async def test_real_species_and_step_files_are_reviewed_once_for_final_delivery(
     if machine_unverified:
         review = store.get_review_request(step.result["review_id"])
         assert review is not None
-        assert review.proposal["ts_validation"]["verified"] is False
+        assert review.proposal["ts_validation"]["frequency_data_present"] is False
     reviewed_step = await call_dag_tool(
         DagReviewStep,
         supervisor,
@@ -833,7 +833,7 @@ async def test_accepted_step_review_does_not_credit_replaced_edge_same_id(tmp_pa
     session, db, store = _seed_review_graph(tmp_path, "async-replaced-edge-credit")
     agent = _coordinator(db.conversation_id)
     supervisor = make_supervisor(db.conversation_id, workspace_dir=str(tmp_path))
-    ts = FIXTURES_DIR / "xtb" / "ts_hess_xtb.out"
+    ts = FIXTURES_DIR / "benchmark_synthetic" / "ts_freq.out"
 
     submitted = await call_dag_tool(
         DagSubmitStepEvidence,
@@ -984,7 +984,7 @@ async def test_endpoint_identity_change_invalidates_old_step_review_credit(tmp_p
         agent,
         session,
         step_name="step1",
-        ts_file=str(FIXTURES_DIR / "xtb" / "ts_hess_xtb.out"),
+        ts_file=str(FIXTURES_DIR / "benchmark_synthetic" / "ts_freq.out"),
         reaction_coordinate_description="identity-bound transition mode",
     )
     assert submitted.is_success

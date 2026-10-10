@@ -629,12 +629,9 @@ class TurnPipeline:
                 continue
             exchanges.append((outcome.call, result))
             if outcome.call.name == self.stop_tool:
-                # 用户可见的最终消息是模型自己的陈述；stop 工具的 summary 是
-                # 输出 schema 的 JSON dump，直接当正文会把最终回答吞成工具噪音。
-                # 模型没写正文时回退 stop 输出的 message（含 reason/[ANSWER]）。
-                final_text = response.content.strip()
-                if not final_text:
-                    final_text = str((result.data or {}).get("message") or result.summary)
+                # Carry a candidate answer to the runner. A tool receipt is
+                # never a final answer or authorization to stop.
+                final_text = str(outcome.call.arguments.get("final_answer") or response.content).strip()
                 return TurnOutcome(
                     decision="stop",
                     content=final_text,

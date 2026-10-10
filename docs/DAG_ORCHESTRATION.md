@@ -72,12 +72,13 @@ Coordinator 提交声明式机理提案 dag_propose_mechanism（species 体系�
 证据送审直接以落盘计算日志文件为载体，由系统内核完成固化与合法性检验：
 
 - **显式送审工具**：
-  - `dag_submit_step_evidence`：针对基元步提交过渡态日志（`ts_log`）、说明（`summary`）及可选 IRC 补充文件（`irc_log`）；
-  - `dag_submit_species_evidence`：针对络合物体系提交结构优化与频率日志（`log_path`）及说明（`summary`）。
+  - `dag_submit_step_evidence`：针对基元步提交 `ts_file`；优化与频率分开时补 `opt_file`，IRC 使用 `irc_file` 或双方向文件；
+  - `dag_submit_species_evidence`：针对络合物体系提交 `opt_file` 及可选的独立 `freq_file`。
 - **不可变固化**：内核校验文件路径严格受限于项目工作区沙箱，计算文件的 SHA-256 哈希值，并将文件快照复制到 `.cloudra/evidence/` 目录。原文件的后续修改或覆盖绝不影响已送审的证据快照。
 - **严格物理自检**：
-  - 过渡态虚频校验：TS 计算必须经 log_parser / frames 严格验证且正好包含一个虚频（`n_imag == 1`）；
-  - 基态极小点校验：络合物优化必须验证无虚频（`n_imag == 0`）；
+  - `ts_opt` 必须有原生优化收敛标记，频率日志必须描述同一几何；逐文件提交与直接阶段绑定使用相同的几何配对规则。
+  - 频率计数只表示 `frequency_count_valid` / `frequency_data_present`，不能单独表示分子身份、反应方向或科学完成。TS 必须正好一个虚频（`n_imag == 1`）；
+  - 基态极小点必须无虚频（`n_imag == 0`），真实几何还须匹配声明物种。氢的显式/隐式表示保持一致；组成或成键不匹配时返回实际感知结果。
   - 只有完工并成功解析的产物才被接受；作业提交记录 `submit_compute_job` 绝对不是完成证据。
 
 ## 定向审查上下文与裁决机制
@@ -103,6 +104,16 @@ Coordinator 提交声明式机理提案 dag_propose_mechanism（species 体系�
 - **统一运行结束门禁（_evaluate_completion_gate）**：
   - 无论是模型调用 `stop` 工具显式结束，还是无工具调用的纯文本回复隐式收尾，系统均在收敛边界调用完成度门禁；
   - 存在未决缺口时拦截退出，要求 Agent 继续推进或请求用户介入处理，禁止虚假汇报完成。
+
+### 最终文件与审批绑定
+
+DAG 模式下，项目工作区存在 `mechanism_graph.json` 时，退出审计会将它对应到权威 DAG；Benchmark 必须先提交该文件。物种使用 DAG ID 或名称，步骤通过明确名称或唯一端点对应，映射记录在最终 receipt 中。同一文件不得重复表示同一 DAG 元素，节点与边 ID 也不得冲突。
+
+文件须覆盖声明的交付目标。需要 TS 的步骤不能通过删掉 `via` 移除要求。`properties.energy_hartree` 与 `properties.evidence_log` 必须指向本次绑定的不可变证据，日志内容、分子几何和原生能量均须对应；能垒从明确的起点和 TS 日志能量核对。这里复用既有声明能量的舍入允许量，不改变 Gold 准确度容差。
+
+部分交付审批绑定文件 SHA。改动、增加或删除交付文件均需重新审查。`stop` 只返回 `request_received`；候选答复在统一门禁放行和最终登记成功后才发布。最终登记在事务内检查图、契约、证据和审查状态仍与审计一致，并保存文件的不可变快照；变化时要求重新审计。
+
+带跳过、豁免或空检查契约的范围完成显示为 `scope_completed`，不显示科学验证通过。Supervisor 批准的部分交付仍显示为 partial。运行结束、范围完成、科学检查和 Benchmark 评分分别记录。
 
 ## 持久化存储与无兼容层原则
 

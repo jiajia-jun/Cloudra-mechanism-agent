@@ -37,7 +37,7 @@ export interface CompletionSummary {
   run_id: string | null;
   run_outcome: 'succeeded' | 'failed' | 'cancelled' | null;
   completion_basis: string | null;
-  verification_label: 'verified' | 'supervisor_reviewed' | 'partial' | 'unverified';
+  verification_label: 'verified' | 'supervisor_reviewed' | 'partial' | 'scope_completed' | 'unverified';
 }
 
 export interface Agent {

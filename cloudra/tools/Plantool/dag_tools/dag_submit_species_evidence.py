@@ -117,7 +117,7 @@ class DagSubmitSpeciesEvidence(DagToolBase):
             frequency = freq_snap if freq_snap is not None else opt_snap
             val = validate_species_minimum(frequency.frequencies,
                 imaginary_freqs=frequency.imaginary_frequencies)
-            if not val.is_valid and (ctx.mode is OrchestrationMode.DAG_RECORD or val.verified):
+            if not val.frequency_count_valid and (ctx.mode is OrchestrationMode.DAG_RECORD or val.frequency_data_present):
                 return fail("dag_submit_species_evidence", f"Stationary point failed validation: {val.message}", accepted=False)
             validations.append(val.model_dump())
             for snap in [opt_snap, *([freq_snap] if freq_snap is not None else [])]:

@@ -141,7 +141,7 @@ async def test_scientific_repair_still_requires_new_supervisor_acceptance(tmp_pa
     controller = DagController(db,'s1','dag_guided',conversation_id=db.conversation_id)
     async def submit():
         return await call_dag_tool(DagSubmitStepEvidence, agent, session, step_name='step1',
-            ts_file=str(FIXTURES_DIR/'xtb/ts_hess_xtb.out'),
+            ts_file=str(FIXTURES_DIR/'benchmark_synthetic/ts_freq.out'),
             irc_file=str(FIXTURES_DIR/'gaussian/hcn_ts_irc_g16.log'))
     first = await submit()
     assert first.result['scientific_checks']['short_irc']['status'] == 'incomplete'
@@ -171,6 +171,53 @@ def test_mixed_file_and_parser_stage_material_is_usable(tmp_path):
     edge = edge.model_copy(update={'stages': [StageState(kind='frequency', status='supported', ref=GraphRef.model_validate(ref.model_dump()))]})
     graph = store.load_snapshot().delivery.model_copy(update={'edges': [edge]})
     assert file_scientific_checks(store, graph, 'step1')['frequency']['status'] == 'passed'
+
+
+@pytest.mark.parametrize("optimization_marker,want", [
+    ("", "incomplete"),
+    ("The optimization did not converge", "failed"),
+    ("THE OPTIMIZATION HAS CONVERGED", "passed"),
+])
+def test_frequency_count_does_not_substitute_for_optimization_convergence(tmp_path, optimization_marker, want):
+    from types import SimpleNamespace
+
+    from cloudra.dag.evidence_ingest import snapshot_evidence_file
+    from cloudra.dag.file_science import file_scientific_checks
+    from cloudra.dag.models import ElementaryStepEdge, GraphData, GraphRef, SpeciesNode
+
+    log = tmp_path / "ts.out"
+    text = (FIXTURES_DIR / 'benchmark_synthetic/ts_freq.out').read_text().replace('THE OPTIMIZATION HAS CONVERGED', '')
+    log.write_text(text + '\n' + optimization_marker + '\n')
+    snap = snapshot_evidence_file(log, tmp_path)
+    ref = GraphRef(ref_type='file', ref_id='ts')
+    store = SimpleNamespace(resolve_evidence=lambda _ref: snap.model_dump(mode='json'))
+    graph = GraphData(graph_id='delivery', graph_kind='delivery', revision=0,
+        nodes=[SpeciesNode(node_id='r', smiles='O'), SpeciesNode(node_id='p', smiles='O')],
+        edges=[ElementaryStepEdge(edge_id='e', source_node_id='r', target_node_id='p', refs=[ref])])
+
+    checks = file_scientific_checks(store, graph, 'e')
+
+    assert checks['frequency']['status'] == 'passed'
+    assert checks['ts_opt']['status'] == want
+
+
+@pytest.mark.asyncio
+async def test_step_submission_binds_separate_optimization_and_frequency_logs(tmp_path):
+    session, db, store = await asyncio.to_thread(_seed_review_graph, tmp_path, 'separate-ts-opt-freq')
+    opt = tmp_path / 'optimization.out'
+    freq = tmp_path / 'frequency.out'
+    text = await asyncio.to_thread((FIXTURES_DIR / 'benchmark_synthetic/ts_freq.out').read_text)
+    await asyncio.to_thread(opt.write_text, text)
+    await asyncio.to_thread(freq.write_text, text.replace('THE OPTIMIZATION HAS CONVERGED', ''))
+
+    from tests.dag_identity import make_coordinator
+    submitted = await call_dag_tool(DagSubmitStepEvidence, make_coordinator(db.conversation_id, workspace_dir=str(tmp_path)), session,
+        step_name='step1', ts_file=str(freq), opt_file=str(opt))
+
+    assert submitted.is_success, submitted
+    assert submitted.result['scientific_checks']['ts_opt']['status'] == 'passed'
+    request = await asyncio.to_thread(store.get_review_request, submitted.result['review_id'])
+    assert len(request.supporting_refs) == 2
 
 
 def test_snapshot_checks_reject_modified_direction_manifest(tmp_path):
@@ -263,7 +310,7 @@ async def test_partial_stage_credit_reports_only_remaining_stages(tmp_path):
     report = await asyncio.to_thread(controller.delivery_report)
     gap = next(g for g in report.unresolved if g.code=='missing_stage_evidence' and g.target_id=='step1')
     assert 'short_irc' in gap.detail
-    assert 'ts_opt' not in gap.detail
+    assert 'ts_opt' in gap.detail  # A Hessian-only log cannot prove optimization.
     assert 'frequency' not in gap.detail
 
 
