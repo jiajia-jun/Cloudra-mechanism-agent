@@ -11,6 +11,7 @@
 import { useEffect, useState } from 'react';
 import { api } from './api';
 import CodexAuthPanel from './CodexAuthPanel';
+import ToolDocumentLoadingSection from './ToolDocumentLoadingSection';
 import { isTrustedAuthMessageOrigin } from './runtimeUrl';
 import type { ProviderPreset, RuntimeConfig } from './types';
 
@@ -482,6 +483,8 @@ export default function GlobalConfig({
               onSave={(s, clearKey) => void save(s, clearKey)}
               onConnectOpenRouter={connectOpenRouter}
             />
+            <ToolDocumentLoadingSection config={cfg.tool_document_loading}
+              onSaved={setCfg} onToast={onToast} />
           </>
         )}
       </div>

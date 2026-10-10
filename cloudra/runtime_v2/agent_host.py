@@ -373,6 +373,11 @@ class AgentHost:
             tools = supervisor_tool_names()
         else:
             tools = list(role.tool_policy.allow)
+        if role.permissions.read:
+            if 'get_tool_docs' in role.tool_policy.deny:
+                raise CommandRejected('invalid', 'get_tool_docs is required for on-demand tool documentation')
+            if '*' not in tools and 'get_tool_docs' not in tools:
+                tools.append('get_tool_docs')
         agent = AgentSession(
             id=new_id("as"),
             project_id=project.id,

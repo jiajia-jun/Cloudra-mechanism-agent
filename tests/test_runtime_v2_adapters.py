@@ -109,7 +109,7 @@ async def test_js_instructions_installed_once_via_context_prefix(tmp_path):
         ),
     )
     prefix = LegacyPromptProvider().begin_context(
-        agent=agent, workspace_dir=str(tmp_path), tool_names=["echo", "stop"]
+        agent=agent, workspace_dir=str(tmp_path), tool_names=["read", "stop"]
     )
     installed = await prefix.install()
     js_messages = [
@@ -979,3 +979,31 @@ async def test_provider_closes_client_when_model_accounting_fails(monkeypatch, f
     with pytest.raises(RuntimeError, match='accounting failed'):
         await provider.complete(_js_agent(InvocationProtocol.JAVASCRIPT), [{'role': 'user', 'content': 'hi'}], [])
     client.aclose.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_brief_and_availability_updates_refresh_and_persist_across_restore(tmp_path, monkeypatch):
+    from cloudra.runtime_v2.schemas import AgentSession
+    from cloudra.tools import get_tools_lst
+
+    agent = AgentSession(id='directory-agent', project_id='directory-project',
+        role_id='coordinator', display_name='Directory test')
+    agent.settings.clean_context = True
+    core = RuntimeCore(strict_events=True)
+    prompt = LegacyPromptProvider()
+    prefix = prompt.begin_context(agent=agent, workspace_dir=str(tmp_path), tool_names=['read', 'get_tool_docs'])
+    await prefix.install()
+    await core.contexts.commit_input(agent=agent, run_id='install', context_prefix=prefix, notices=None, user_messages=[])
+    entry = next(entry for entry in get_tools_lst() if entry.tool_name == 'read')
+    monkeypatch.setattr(entry, 'summary', 'NEW_BRIEF_DIRECTORY_DESCRIPTION')
+    changes = await prefix.refresh()
+    assert 'NEW_BRIEF_DIRECTORY_DESCRIPTION' in str(changes)
+    await core.contexts.commit_input(agent=agent, run_id='refresh', context_prefix=prefix, notices=None, user_messages=[])
+    restored = prompt.begin_context(agent=agent, workspace_dir=str(tmp_path), tool_names=['read', 'get_tool_docs'],
+        restored=core.contexts.prefix_state(agent.id))
+    assert await restored.refresh() == []
+    monkeypatch.setattr('cloudra.runtime_v2.tool_catalog.config_disabled_tools', lambda: frozenset({'read'}))
+    removed = await restored.refresh()
+    assert removed
+    assert '- read:' not in str(removed)
+    assert 'supersedes' in str(removed)

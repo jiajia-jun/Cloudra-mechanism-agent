@@ -772,3 +772,89 @@ async def test_host_exits_when_parent_is_sigkilled():
                 os.kill(host_pid, signal.SIGKILL)
             except (ProcessLookupError, PermissionError):
                 pass
+
+
+@pytest.mark.asyncio
+async def test_document_provenance_compacts_only_contract_in_mixed_js_output():
+    core = RuntimeCore(strict_events=True)
+    agent = _agent()
+    ctx = _ctx(agent, tools=["get_tool_docs", "echo"])
+    doc = {"name": "read", "revision": "v1", "content": "ACTUAL_CONTRACT", "references": []}
+
+    class Documents:
+        async def execute(self, agent, call):
+            if call.name == "get_tool_docs":
+                return ToolResult(True, "loaded", {"documents": [doc]})
+            return ToolResult(True, "energy", {"energy": -42.5})
+
+    result = await _runtime(core, tools=Documents()).execute(
+        ctx,
+        ToolCall("w", "js_exec", {"code":
+            'const docs = await tools.get_tool_docs({names: ["read"]}); '
+            'const energy = await tools.echo({}); '
+            'text(docs.data.documents); text(energy.data); text("USER_NOTE");'}),
+    )
+    assert result.is_success
+    assert "ACTUAL_CONTRACT" in result.summary
+    compact = result.data["tool_document_compact_content"]
+    assert "ACTUAL_CONTRACT" not in compact
+    assert "read" in compact and "v1" in compact and "get_tool_docs" in compact
+    assert '-42.5' in compact and "USER_NOTE" in compact
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('initial_status', ['empty', 'failed'])
+async def test_on_demand_contract_versions_survive_output_compaction_and_refresh(tmp_path, monkeypatch, initial_status):
+    from types import SimpleNamespace
+
+    from cloudra.runtime_v2.adapters import LegacyToolExecutor
+    from cloudra.runtime_v2.agent_runner import AgentRunner
+    from cloudra.runtime_v2.tool_selection import ToolSelectionRecord
+    from cloudra.runtime_v2.turn_pipeline import TurnPipeline
+    from cloudra.tools import get_tools_lst
+    from tests.agent_scenarios import ScriptedProvider
+
+    core = RuntimeCore(strict_events=True)
+    agent = _agent()
+    agent.capabilities = AgentCapabilities(permissions=PermissionSet(read=True), tools=['read', 'get_tool_docs'])
+    await core.contexts.record_tool_selection(agent=agent, run_id='initial', messages=[],
+        record=ToolSelectionRecord(status=initial_status, source='llm', selection_id='s', catalog_revision='c'))
+    executor = LegacyToolExecutor(SimpleNamespace(require_project=lambda _: SimpleNamespace(workspace_dir=str(tmp_path))))
+    ctx = _ctx(agent, tools=agent.capabilities.tools)
+    call = ToolCall('read-docs', 'js_exec', {'code':
+        'const r = await tools.get_tool_docs({names:["read"]}); text(r.data.documents);'})
+    result = await _runtime(core, tools=executor).execute(ctx, call)
+    assert result.is_success
+    pipeline = TurnPipeline(event_log=core.event_log, stages=[], llm=ScriptedProvider(), tools=executor)
+    runner = AgentRunner(core, pipeline)
+    await runner._commit_turn_output(agent, 'read-docs', SimpleNamespace(content='', reasoning='',
+        tool_exchanges=[(call, result)], blocked_call=None))
+    state = core.contexts.prefix_state(agent.id)
+    old_version = state['meta']['tool_document_revisions']['read']
+    assert await core.contexts.install_compacted(agent=agent, run_id='compact',
+        messages=[{'role': 'assistant', 'content': 'Summary'}], prefix_meta=state['meta'],
+        expected_version=len(state['messages']), trigger='test')
+    entry = next(entry for entry in get_tools_lst() if entry.tool_name == 'read')
+    monkeypatch.setattr(entry, 'tool_description', entry.tool_description + ' UPDATED_READ_CONTRACT')
+    await pipeline._initial_tool_documents(agent, 'next', [], core.contexts, None)
+    state = core.contexts.prefix_state(agent.id)
+    assert state['meta']['tool_document_revisions']['read'] != old_version
+    assert 'superseded' in str(state['messages'])
+
+
+@pytest.mark.asyncio
+async def test_transformed_document_output_preserves_attached_non_document_data():
+    core = RuntimeCore(strict_events=True)
+    agent = _agent()
+    doc = {'name': 'read', 'revision': 'v1', 'content': 'CONTRACT_BODY', 'references': []}
+
+    class Documents:
+        async def execute(self, agent, call):
+            return ToolResult(True, 'loaded', {'documents': [doc]})
+
+    result = await _runtime(core, tools=Documents()).execute(_ctx(agent, tools=['get_tool_docs']),
+        ToolCall('mixed-doc', 'js_exec', {'code':
+            'const r = await tools.get_tool_docs({names:["read"]}); '
+            'text(r.data.documents[0].content + " ENERGY_MARKER -42.5");'}))
+    assert result.is_success
+    assert 'ENERGY_MARKER -42.5' in result.data['tool_document_compact_content']

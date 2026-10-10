@@ -267,6 +267,11 @@ export const api = {
       body: JSON.stringify({ code, code_verifier, slot }),
     }),
   runtimeConfig: () => request<RuntimeConfig>('/api/v2/runtime/config'),
+  patchToolDocumentLoading: (changes: Record<string, unknown>) =>
+    request<RuntimeConfig>('/api/v2/runtime/config/tool-document-loading', {
+      method: 'PATCH',
+      body: JSON.stringify(changes),
+    }),
   patchRuntimeConfig: (slot: 'coordinator' | 'follower', changes: Record<string, unknown>) =>
     request<RuntimeConfig>('/api/v2/runtime/config', {
       method: 'PATCH',

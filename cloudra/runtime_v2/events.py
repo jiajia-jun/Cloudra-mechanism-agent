@@ -95,6 +95,8 @@ EVENT_TYPES: dict[str, str] = {
     "context.prefix_installed": "session context prefix installed (static protocol + initial dynamic snapshots)",
     "context.appended": "messages appended to the session LLM context (input before send, output after response)",
     "context.compacted": "session context atomically replaced by a compacted candidate",
+    'tool_documents.selection_started': 'initial tool document selection started durably',
+    'tool_documents.selection_finished': 'initial selection outcome and document messages recorded',
     "project.synced": "sse replay backlog boundary (hub-only control marker)",
 }
 

@@ -929,6 +929,13 @@ class AgentRunner:
                     "role": "tool",
                     "tool_call_id": call.id,
                     "content": await asyncio.to_thread(self._tool_result_content, agent, result),
+                    **({'tool_document_compact_content':result.data['tool_document_compact_content']}
+                       if isinstance(result.data, dict) and result.data.get('tool_document_compact_content') else {}),
+                    **({'tool_documents':[{'name':doc['name'],'revision':doc['revision']} for doc in result.data.get('documents',[])]}
+                       if call.name=='get_tool_docs' and result.is_success else {}),
+                    **({'tool_documents': result.data['tool_documents']}
+                       if call.name == 'js_exec' and isinstance(result.data, dict)
+                       and result.data.get('tool_documents') else {}),
                 }
             )
         if outcome.blocked_call is not None:
@@ -1027,6 +1034,7 @@ class AgentRunner:
         head_meta = None
         if context_prefix is not None:
             head, head_meta = await context_prefix.current_prefix()
+            head_meta = {**((ctx.prefix_meta if ctx else None) or {}), **head_meta}
         notices_render = (
             core.notices.render_current(agent.id) if core.notices is not None else []
         )

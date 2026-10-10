@@ -127,6 +127,21 @@ export interface RuntimeConfig {
   config_file: string;
   coordinator: RuntimeConfigSlot;
   follower: RuntimeConfigSlot;
+  tool_document_loading: ToolDocumentLoadingConfig;
+}
+
+export interface SemanticConnection {
+  endpoint: string;
+  model: string;
+  key_set: boolean;
+  max_tools: number | null;
+}
+
+export interface ToolDocumentLoadingConfig {
+  strategy: 'llm' | 'semantic';
+  semantic_backend: 'jev' | 'reranker';
+  jev: SemanticConnection & { min_probability: number | null };
+  reranker: SemanticConnection & { min_score: number | null };
 }
 
 export interface CodexAuthStatus {

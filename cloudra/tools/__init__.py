@@ -28,6 +28,8 @@ class ToolEntry:
     # It is declared on the tool class alongside the schemas, so do not make
     # JS callers reconstruct it from an input model docstring.
     tool_description: str = ""
+    summary: str = ""
+    skill_references: tuple[tuple[str, str], ...] = ()
 
     def instantiate(self, **kwargs):
         return self.cls(**kwargs)
@@ -112,6 +114,8 @@ def get_tools_lst() -> list[ToolEntry]:
                 f"显式工具注册类不存在: {registration.module}:{registration.class_name}"
             ) from e
         entry = _make_entry(tool_cls)
+        entry.summary = registration.summary
+        entry.skill_references = registration.skill_references
         if registration.tool_name and registration.tool_name != entry.tool_name:
             raise RuntimeError(
                 f"显式工具名称不一致: {registration.module}:{registration.class_name} "

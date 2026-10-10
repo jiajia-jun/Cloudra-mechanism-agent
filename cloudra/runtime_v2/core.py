@@ -116,6 +116,12 @@ class ContextBroker:
         appended = [*appends, *user_messages, *notice_messages]
         if appended or notices_through is not None:
             data = {"messages": appended}
+            if context_prefix is not None:
+                data['prefix_meta'] = context_prefix.snapshot_meta()
+            meta = (self.prefix_state(agent.id) or {}).get('meta') or {}
+            first_ids = [str(message['message_id']) for message in user_messages if message.get('message_id')]
+            if first_ids and not meta.get('tool_document_task_message_ids'):
+                data['prefix_meta'] = {**data.get('prefix_meta', {}), 'tool_document_task_message_ids': first_ids}
             if notices_through is not None:
                 data["notices_through"] = notices_through
             events.append(("context.appended", data))
@@ -135,6 +141,17 @@ class ContextBroker:
             run_id=run_id,
             events=[("context.appended", {"messages": list(messages)})],
         )
+
+    async def record_tool_selection(self, *, agent, run_id, record, messages):
+        from cloudra.runtime_v2.tool_selection import ToolSelectionRecord
+        record = ToolSelectionRecord.model_validate(record.model_dump(mode='json'))
+        event_type = 'tool_documents.selection_started' if record.status == 'started' else 'tool_documents.selection_finished'
+        events = [(event_type, {'record':record.model_dump(mode='json'), 'messages':list(messages)})]
+        previous = ((self.prefix_state(agent.id) or {}).get('meta') or {}).get('tool_selection') or {}
+        if record.status != 'started' and previous.get('status') == 'started' and record.source == 'llm' and record.usage:
+            events.append(('llm.completed', {'kind':'tool_selection','model':record.model,
+                'usage':record.usage,'duration_ms':record.duration_ms}))
+        await self._persist_then_apply(agent=agent,run_id=run_id,events=events)
 
     async def install_compacted(
         self, *, agent: AgentSession, run_id: str, messages: list[dict],

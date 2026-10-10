@@ -126,6 +126,14 @@ class GlobalConfigPatch(BaseModel):
     changes: GlobalConfigFieldPatch
 
 
+class ToolDocumentLoadingPatch(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    strategy: Literal['llm', 'semantic'] | None = None
+    semantic_backend: Literal['jev', 'reranker'] | None = None
+    jev: dict[str, Any] | None = None
+    reranker: dict[str, Any] | None = None
+
+
 class OpenRouterExchangeRequest(BaseModel):
     code: str
     code_verifier: str

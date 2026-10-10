@@ -215,12 +215,12 @@ def javascript_instructions(
     the serial backend, the fixed limits and the direct-only controls; the
     generated declarations are documentation, not executable guest input.
     """
-    declarations = tool_declarations(
-        tool_names,
-        visual_mode=visual_mode,
-        orchestration_mode=orchestration_mode,
-        role_id=role_id,
-    )
+    names = guest_tool_names(tool_names, visual_mode=visual_mode,
+        orchestration_mode=orchestration_mode, role_id=role_id)
+    declarations = tool_declarations(['get_tool_docs'] if 'get_tool_docs' in names else [],
+        visual_mode=visual_mode, orchestration_mode=orchestration_mode, role_id=role_id)
+    manifest = tool_capability_manifest(names, visual_mode=visual_mode,
+        orchestration_mode=orchestration_mode, role_id=role_id)
     return (
         "This run uses the JavaScript invocation protocol. To use tools, call "
         "js_exec({code}) with an ECMAScript program that uses top-level await.\n"
@@ -254,9 +254,41 @@ def javascript_instructions(
         "program in a later js_exec call.\n"
         "- Program output is not scientific evidence; completed child call "
         "results are recorded as tool.result_recorded events.\n"
-        "Available tool functions and their argument/data types:\n"
-        f"{declarations}"
+        "Bootstrap reader contract:\n"
+        f"{declarations}\n\n"
+        "Current capability directory (names and purposes, not argument contracts):\n"
+        f"{manifest}\n"
+        "For a business tool whose detailed contract is absent, first call tools.get_tool_docs({names: [name]}), "
+        "then text(r.data.documents). Only documentation is loaded; all calls retain their existing permission checks."
     )
+
+
+def tool_capability_manifest(tool_names, *, visual_mode=True,
+        orchestration_mode=OrchestrationMode.STANDARD, role_id=None) -> str:
+    from cloudra.tools import get_tools_lst
+    from cloudra.tools.documentation import tool_capability_summaries
+
+    names = guest_tool_names(tool_names, visual_mode=visual_mode,
+        orchestration_mode=orchestration_mode, role_id=role_id)
+    summaries = tool_capability_summaries(names, entries=get_tools_lst())
+    return "\n".join(f"- {item.name}: {item.summary}" for item in summaries)
+
+
+def _function_declaration(name, entry, args_type, data_type):
+    description = str(getattr(entry, "tool_description", "") or "").strip()
+    if not description:
+        description = _schema_description(_input_schema_of(entry))
+    description = description.replace("*/", "* /")
+    comment = f"  /** {description} */\n" if description else ""
+    return f"{comment}  {_js_ident(name)}(args: {args_type}): Promise<ToolResponse<{data_type}>>;"
+
+
+def render_tool_declaration(entry) -> str:
+    """Render one actual contract without a second availability projection."""
+    decls, args_type, data_type = _render_tool_types(entry.tool_name, entry)
+    function = _function_declaration(entry.tool_name, entry, args_type, data_type)
+    return "\n\n".join([_DECLARATION_HEADER, *decls,
+        "declare const tools: {\n" + function + "\n};", _DECLARATION_FOOTER])
 
 
 def tool_declarations(
@@ -285,19 +317,7 @@ def tool_declarations(
         entry = by_name.get(name)
         decls, args_type, data_type = _render_tool_types(name, entry)
         sections.extend(decls)
-        # Tool descriptions carry workflow, permission and failure guidance
-        # that input-schema docstrings often omit. Preserve that contract in
-        # the JS declaration; the schema remains the source for argument types.
-        description = str(getattr(entry, "tool_description", "") or "").strip()
-        if not description:
-            description = _schema_description(_input_schema_of(entry))
-        # Keep generated comments valid even if a tool description contains a
-        # comment terminator.
-        description = description.replace("*/", "* /")
-        comment = f"  /** {description} */\n" if description else ""
-        functions.append(
-            f"{comment}  {_js_ident(name)}(args: {args_type}): Promise<ToolResponse<{data_type}>>;"
-        )
+        functions.append(_function_declaration(name, entry, args_type, data_type))
     sections.append("declare const tools: {\n" + "\n".join(functions) + "\n};" if functions
                     else "declare const tools: Record<string, never>;")
     sections.append(_DECLARATION_FOOTER)

@@ -938,3 +938,19 @@ async def collect_cache_baseline() -> dict:
         "notes": "message_chars 含临时工作区绝对路径，逐环境变化；messages/tools 计数与 first_divergence 是稳定部分。",
         "scenarios": scenarios,
     }
+@pytest.fixture(autouse=True)
+def registered_cache_tool(monkeypatch):
+    """The cache fixture's echo tool has an explicit model-facing contract."""
+    from cloudra.base.tools_class import Tool
+    from cloudra.tools import ToolEntry, get_tools_lst
+
+    class CacheEcho(Tool):
+        tool_id: str = 'fixture-cache-echo'
+        tool_name: str = 'echo'
+
+    entry = ToolEntry(cls=CacheEcho, tool_name='echo', tool_id='fixture-cache-echo',
+        input_schema=CacheEcho.model_fields['input_schema'].default,
+        output_schema=CacheEcho.model_fields['output_schema'].default,
+        summary='Echo a cache-test payload.')
+    original = get_tools_lst
+    monkeypatch.setattr('cloudra.tools.get_tools_lst', lambda: [*original(), entry])

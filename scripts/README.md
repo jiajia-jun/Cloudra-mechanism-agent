@@ -15,6 +15,7 @@ Run supported commands from the repository root unless the script documents anot
 - `analyze_cache_probe.py`, `replay_cache_probe.py`: cache probe analysis and replay
 - `eval_real_model.py`: real-provider evaluation; requires the user's provider setup
 - `smoke_compaction.py`: compaction smoke test
+- `benchmarks/tool_document_selection.py`: eight-task document selection report, with estimated document tokens and separate live-service coverage; no science tools execute. `--output PATH` alone makes no network calls; repeat `--run llm|jev|reranker` to evaluate configured services.
 
 ## Knowledge and benchmark data
 

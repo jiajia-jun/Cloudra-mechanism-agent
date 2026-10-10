@@ -119,6 +119,11 @@ class ScriptedProvider:
             return len(self.calls)
         return sum(1 for role, _ in self.calls if role == role_id)
 
+    async def select_tool_names(self, agent, messages, *, resolved_settings):
+        self.selection_calls = getattr(self, 'selection_calls', [])
+        self.selection_calls.append((agent.id, messages))
+        return LLMResponse(content='[]')
+
     async def complete(
         self,
         agent: AgentSession,

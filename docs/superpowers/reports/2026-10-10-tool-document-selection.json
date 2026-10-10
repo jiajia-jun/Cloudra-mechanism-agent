@@ -1,0 +1,328 @@
+{
+  "baseline": {
+    "tool_count": 57,
+    "catalog_tokens_estimate": 1154,
+    "loader_tokens_estimate": 419,
+    "all_contract_tokens_estimate": 48176,
+    "tokenizer": "cl100k_base; estimates exclude identity, task and dynamic snapshots"
+  },
+  "live_connections": {
+    "llm": "verified",
+    "jev": "unverified",
+    "reranker": "unverified"
+  },
+  "measured_prompt_tokens": null,
+  "execution_validation": "not_run",
+  "scientific_evidence_validation": "not_run",
+  "cases": [
+    {
+      "id": "ts",
+      "task": "Inspect the existing TS workflow state and its evidence before resuming the existing run.",
+      "sources": {
+        "llm": {
+          "status": "selected",
+          "names": [
+            "ts_inspect",
+            "ts_resume",
+            "query_compute_job",
+            "read",
+            "log_parser"
+          ],
+          "source": "llm",
+          "catalog_revision": "sha256:9f22c26f27d8d60a81f22fe884697b4d30f32aeefe6bd6d00af1605e877e942c",
+          "error_code": null,
+          "usage": {
+            "prompt_tokens": 931,
+            "completion_tokens": 200,
+            "total_tokens": 1131,
+            "prompt_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 177
+            }
+          },
+          "duration_ms": 9067,
+          "quality": {
+            "acceptable": false,
+            "missing_groups": [],
+            "irrelevant": [
+              "log_parser"
+            ]
+          },
+          "preload_tokens_estimate": 10124,
+          "initial_document_tokens_estimate": 11697,
+          "measured_selection_prompt_tokens": 931
+        }
+      }
+    },
+    {
+      "id": "qm",
+      "task": "Prepare a quantum calculation input using the method I supplied, then submit it to my selected node.",
+      "sources": {
+        "llm": {
+          "status": "selected",
+          "names": [
+            "qm_input_writer",
+            "submit_compute_job"
+          ],
+          "source": "llm",
+          "catalog_revision": "sha256:9f22c26f27d8d60a81f22fe884697b4d30f32aeefe6bd6d00af1605e877e942c",
+          "error_code": null,
+          "usage": {
+            "prompt_tokens": 934,
+            "completion_tokens": 96,
+            "total_tokens": 1030,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 81
+            }
+          },
+          "duration_ms": 6532,
+          "quality": {
+            "acceptable": true,
+            "missing_groups": [],
+            "irrelevant": []
+          },
+          "preload_tokens_estimate": 3703,
+          "initial_document_tokens_estimate": 5276,
+          "measured_selection_prompt_tokens": 934
+        }
+      }
+    },
+    {
+      "id": "logs",
+      "task": "Read calculation.out, parse its energies and convergence status, and explain what evidence is missing.",
+      "sources": {
+        "llm": {
+          "status": "selected",
+          "names": [
+            "read",
+            "log_parser"
+          ],
+          "source": "llm",
+          "catalog_revision": "sha256:9f22c26f27d8d60a81f22fe884697b4d30f32aeefe6bd6d00af1605e877e942c",
+          "error_code": null,
+          "usage": {
+            "prompt_tokens": 933,
+            "completion_tokens": 10,
+            "total_tokens": 943,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            }
+          },
+          "duration_ms": 2856,
+          "quality": {
+            "acceptable": true,
+            "missing_groups": [],
+            "irrelevant": []
+          },
+          "preload_tokens_estimate": 2640,
+          "initial_document_tokens_estimate": 4213,
+          "measured_selection_prompt_tokens": 933
+        }
+      }
+    },
+    {
+      "id": "literature",
+      "task": "Find original literature on this reaction mechanism and retain source links.",
+      "sources": {
+        "llm": {
+          "status": "selected",
+          "names": [
+            "search",
+            "browser",
+            "dag_view",
+            "read",
+            "write"
+          ],
+          "source": "llm",
+          "catalog_revision": "sha256:9f22c26f27d8d60a81f22fe884697b4d30f32aeefe6bd6d00af1605e877e942c",
+          "error_code": null,
+          "usage": {
+            "prompt_tokens": 927,
+            "completion_tokens": 143,
+            "total_tokens": 1070,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 125
+            }
+          },
+          "duration_ms": 6102,
+          "quality": {
+            "acceptable": false,
+            "missing_groups": [],
+            "irrelevant": [
+              "dag_view",
+              "write"
+            ]
+          },
+          "preload_tokens_estimate": 3250,
+          "initial_document_tokens_estimate": 4823,
+          "measured_selection_prompt_tokens": 927
+        }
+      }
+    },
+    {
+      "id": "dag",
+      "task": "Inspect the current mechanism graph and bind the provided calculation evidence to its existing step.",
+      "sources": {
+        "llm": {
+          "status": "selected",
+          "names": [
+            "dag_view",
+            "dag_view_evidence",
+            "dag_bind_evidence",
+            "dag_submit_step_evidence"
+          ],
+          "source": "llm",
+          "catalog_revision": "sha256:9f22c26f27d8d60a81f22fe884697b4d30f32aeefe6bd6d00af1605e877e942c",
+          "error_code": null,
+          "usage": {
+            "prompt_tokens": 931,
+            "completion_tokens": 146,
+            "total_tokens": 1077,
+            "prompt_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 120
+            }
+          },
+          "duration_ms": 4857,
+          "quality": {
+            "acceptable": true,
+            "missing_groups": [],
+            "irrelevant": []
+          },
+          "preload_tokens_estimate": 2882,
+          "initial_document_tokens_estimate": 4455,
+          "measured_selection_prompt_tokens": 931
+        }
+      }
+    },
+    {
+      "id": "image",
+      "task": "Convert the supplied image of a chemical structure to SMILES and inspect the drawing.",
+      "sources": {
+        "llm": {
+          "status": "selected",
+          "names": [
+            "image_to_smiles",
+            "molecule_drawer",
+            "read"
+          ],
+          "source": "llm",
+          "catalog_revision": "sha256:9f22c26f27d8d60a81f22fe884697b4d30f32aeefe6bd6d00af1605e877e942c",
+          "error_code": null,
+          "usage": {
+            "prompt_tokens": 931,
+            "completion_tokens": 101,
+            "total_tokens": 1032,
+            "prompt_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 80
+            }
+          },
+          "duration_ms": 7086,
+          "quality": {
+            "acceptable": true,
+            "missing_groups": [],
+            "irrelevant": []
+          },
+          "preload_tokens_estimate": 1860,
+          "initial_document_tokens_estimate": 3433,
+          "measured_selection_prompt_tokens": 931
+        }
+      }
+    },
+    {
+      "id": "multi",
+      "task": "Find the SMILES for this chemical name, draw it, and parse the supplied calculation log.",
+      "sources": {
+        "llm": {
+          "status": "selected",
+          "names": [
+            "name_to_structure",
+            "molecule_drawer",
+            "log_parser",
+            "read"
+          ],
+          "source": "llm",
+          "catalog_revision": "sha256:9f22c26f27d8d60a81f22fe884697b4d30f32aeefe6bd6d00af1605e877e942c",
+          "error_code": null,
+          "usage": {
+            "prompt_tokens": 934,
+            "completion_tokens": 85,
+            "total_tokens": 1019,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 64
+            }
+          },
+          "duration_ms": 5961,
+          "quality": {
+            "acceptable": true,
+            "missing_groups": [],
+            "irrelevant": []
+          },
+          "preload_tokens_estimate": 4232,
+          "initial_document_tokens_estimate": 5805,
+          "measured_selection_prompt_tokens": 934
+        }
+      }
+    },
+    {
+      "id": "explanation",
+      "task": "Explain conceptually what an imaginary frequency means. No files or calculations are needed.",
+      "sources": {
+        "llm": {
+          "status": "empty",
+          "names": [],
+          "source": "llm",
+          "catalog_revision": "sha256:9f22c26f27d8d60a81f22fe884697b4d30f32aeefe6bd6d00af1605e877e942c",
+          "error_code": null,
+          "usage": {
+            "prompt_tokens": 931,
+            "completion_tokens": 32,
+            "total_tokens": 963,
+            "prompt_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 25
+            }
+          },
+          "duration_ms": 5692,
+          "quality": {
+            "acceptable": true,
+            "missing_groups": [],
+            "irrelevant": []
+          },
+          "preload_tokens_estimate": 0,
+          "initial_document_tokens_estimate": 1573,
+          "measured_selection_prompt_tokens": 931
+        }
+      }
+    }
+  ]
+}

@@ -24,7 +24,10 @@ async function mockCodex(page: import('@playwright/test').Page) {
       }, { id: 'custom', name: 'Custom', models: [] }];
     } else if (path.endsWith('/config')) {
       if (request.method() === 'PATCH') saved.push(request.postDataJSON());
-      result = { config_file: '/tmp/config.yaml', coordinator: slot, follower: slot };
+      result = { config_file: '/tmp/config.yaml', coordinator: slot, follower: slot,
+        tool_document_loading: { strategy: 'llm', semantic_backend: 'jev',
+          jev: { endpoint: '', model: '', key_set: false, min_probability: null, max_tools: null },
+          reranker: { endpoint: '', model: '', key_set: false, min_score: null, max_tools: null } } };
     } else if (path.endsWith('/codex/status')) {
       result = { authenticated, account_id: authenticated ? 'account-test' : null, expires_at: null };
     } else if (path.endsWith('/codex/device-login')) {

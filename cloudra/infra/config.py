@@ -24,10 +24,19 @@ import logging
 import os
 from collections.abc import Callable
 from pathlib import Path
-from typing import Optional
+from typing import Any, Literal, Optional
 
 import yaml
-from pydantic import Field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    FiniteFloat,
+    StrictInt,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from cloudra.persistence.fs_utils import atomic_write_text
@@ -145,6 +154,64 @@ class MethodPolicyConfig(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
 
 
+class JevSelectionConfig(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    endpoint: str = ''
+    model: str = ''
+    key: str = Field(default='', repr=False)
+    min_probability: FiniteFloat | None = Field(default=None, ge=0, le=1)
+    max_tools: StrictInt | None = Field(default=None, ge=1)
+
+
+class RerankerSelectionConfig(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    endpoint: str = ''
+    model: str = ''
+    key: str = Field(default='', repr=False)
+    min_score: FiniteFloat | None = None
+    max_tools: StrictInt | None = Field(default=None, ge=1)
+
+
+class ToolDocumentLoadingConfig(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    strategy: Literal['llm', 'semantic'] = 'llm'
+    semantic_backend: Literal['jev', 'reranker'] = 'jev'
+    jev: JevSelectionConfig = Field(default_factory=JevSelectionConfig)
+    reranker: RerankerSelectionConfig = Field(default_factory=RerankerSelectionConfig)
+
+    @model_validator(mode='after')
+    def configured_backend(self):
+        from urllib.parse import urlsplit
+        for backend in (self.jev, self.reranker):
+            if backend.endpoint:
+                url = urlsplit(backend.endpoint)
+                if url.scheme not in ('http', 'https') or not url.netloc:
+                    raise ValueError('Selection endpoint must be a complete HTTP(S) URL')
+        if self.strategy == 'semantic':
+            backend = getattr(self, self.semantic_backend)
+            boundary = backend.min_probability if self.semantic_backend == 'jev' else backend.min_score
+            if not backend.endpoint or not backend.model or boundary is None:
+                raise ValueError('Semantic selection requires endpoint, model and its own selection boundary')
+            if self.semantic_backend == 'jev' and not backend.key:
+                raise ValueError('Jev selection requires its API key')
+        return self
+
+    def to_display_dict(self) -> dict[str, Any]:
+        data = self.model_dump(mode='json')
+        for name in ('jev', 'reranker'):
+            data[name]['key_set'] = bool(data[name].pop('key'))
+        return data
+
+    def with_patch(self, changes: dict[str, Any]):
+        data = self.model_dump(mode='json')
+        for name, value in changes.items():
+            if name in ('jev', 'reranker') and isinstance(value, dict):
+                data[name] = {**data[name], **value}
+            else:
+                data[name] = value
+        return type(self).model_validate(data)
+
+
 class CloudraConfig(BaseSettings):
     """Global Cloudra configuration."""
 
@@ -163,6 +230,7 @@ class CloudraConfig(BaseSettings):
     # LLM configs
     coordinator: LLMConfig = Field(default_factory=LLMConfig)
     follower: LLMConfig = Field(default_factory=LLMConfig)
+    tool_document_loading: ToolDocumentLoadingConfig = Field(default_factory=ToolDocumentLoadingConfig)
 
     # Email config
     email: EmailConfig = Field(default_factory=EmailConfig)
@@ -245,11 +313,13 @@ class CloudraConfig(BaseSettings):
         清空语义要能往返）；只有 None（手写 YAML 的"留空"）才跳过。
         """
         cfg_path = self.config_file
+        selection_data = None
         if not cfg_path.exists():
             return
         try:
             with open(cfg_path, "r", encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
+            selection_data = data.get('tool_document_loading')
             if "llm" in data:
                 for role in ("coordinator", "follower"):
                     if role in data["llm"]:
@@ -299,6 +369,11 @@ class CloudraConfig(BaseSettings):
                 self.knowledge_vec_python = str(data["knowledge_vec_python"])
         except Exception as e:
             logger.warning("Failed to load %s: %s", cfg_path, e)
+        if selection_data is not None:
+            try:
+                self.tool_document_loading = ToolDocumentLoadingConfig.model_validate(selection_data)
+            except ValidationError:
+                raise ValueError('Invalid tool_document_loading configuration; check strategy and backend fields') from None
 
     def _ensure_dirs(self):
         """Create data directories if they don't exist."""
@@ -337,6 +412,7 @@ class CloudraConfig(BaseSettings):
             },
             "openalex_api_key": "***" if self.openalex_api_key else "(not set)",
             "openalex_mailto": self.openalex_mailto or "(not set)",
+            "tool_document_loading": self.tool_document_loading.to_display_dict(),
         }
 
 

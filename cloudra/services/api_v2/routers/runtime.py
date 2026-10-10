@@ -13,7 +13,7 @@ from fastapi.responses import HTMLResponse
 from cloudra import __version__
 
 from ..context import ApiContext
-from ..models import CodexDevicePollRequest, GlobalConfigPatch, OpenRouterExchangeRequest
+from ..models import CodexDevicePollRequest, GlobalConfigPatch, OpenRouterExchangeRequest, ToolDocumentLoadingPatch
 
 
 def build_router(ctx: ApiContext) -> APIRouter:
@@ -213,6 +213,7 @@ def build_router(ctx: ApiContext) -> APIRouter:
             "config_file": str(cfg.config_file),
             "coordinator": slot(cfg.coordinator),
             "follower": slot(cfg.follower),
+            "tool_document_loading": cfg.tool_document_loading.to_display_dict(),
         }
 
     @router.patch("/api/v2/runtime/config", dependencies=ctx.protected)
@@ -244,6 +245,25 @@ def build_router(ctx: ApiContext) -> APIRouter:
                     target.provider = detected.id
 
         await asyncio.to_thread(mutate_config, _apply)
+        return await runtime_config()
+
+    @router.patch('/api/v2/runtime/config/tool-document-loading', dependencies=ctx.protected)
+    async def patch_tool_document_loading(body: ToolDocumentLoadingPatch):
+        from pydantic import ValidationError
+
+        from cloudra.infra.config import mutate_config
+
+        changes = body.model_dump(exclude_unset=True)
+        def update(work):
+            work.tool_document_loading = work.tool_document_loading.with_patch(changes)
+        try:
+            await asyncio.to_thread(mutate_config, update)
+        except ValidationError as exc:
+            errors = exc.errors(include_input=False, include_context=False)
+            raise HTTPException(status_code=422,
+                detail={'code': 'invalid_tool_document_loading',
+                    'message': '; '.join(error['msg'] for error in errors),
+                    'errors': errors}) from None
         return await runtime_config()
 
     return router

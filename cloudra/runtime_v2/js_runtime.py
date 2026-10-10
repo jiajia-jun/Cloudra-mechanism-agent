@@ -361,6 +361,7 @@ class JavaScriptRuntime:
         self, ctx, proc, *, execution_id, code, base, outputs, receipts,
         child_images, finish, stderr_tail,
     ) -> ToolResult:
+        document_sources = []
         limits = self.limits
         guest_names = set(
             guest_tool_names(
@@ -492,6 +493,8 @@ class JavaScriptRuntime:
                 outstanding.pop(request_id, None)
                 if outcome.result is not None:
                     child_images.extend(image_paths_from_tool_result(outcome.result))
+                    if name == 'get_tool_docs' and outcome.result.is_success:
+                        document_sources.extend((outcome.result.data or {}).get('documents', []))
                 _apply_outcome(receipt, outcome)
 
                 if outcome.decision == "wait_approval":
@@ -570,6 +573,7 @@ class JavaScriptRuntime:
             + (f" ({failed_children} not completed)" if failed_children else "")
             + (f"; error: {program_error['message']}" if program_error else "")
         )
+        summary_prefix = summary
         summary = _summary_with_program_outputs(summary, outputs)
         data: dict[str, Any] = {
             "execution_id": execution_id,
@@ -578,6 +582,16 @@ class JavaScriptRuntime:
             "calls": receipts,
             "error": program_error,
         }
+        if document_sources:
+            data['tool_documents'] = [
+                {'name': doc['name'], 'revision': doc['revision']} for doc in document_sources
+            ]
+            from cloudra.tools.documentation import compact_document_outputs
+            compact_outputs = compact_document_outputs(outputs, document_sources)
+            # Even transformed documents may share output with evidence. An
+            # unchanged alternative preserves that output instead of allowing
+            # the document tag to collapse the complete mixed tool message.
+            data['tool_document_compact_content'] = _summary_with_program_outputs(summary_prefix, compact_outputs)
         if child_images:
             data["image_paths"] = child_images
         if control_decision is not None:

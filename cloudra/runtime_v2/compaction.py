@@ -676,7 +676,17 @@ async def compact_context(
         "trigger": trigger,
     }
     budget_tokens = usable_prompt_tokens(context_window, max_output)
-    trajectory = messages[old_head_len:]
+    original_trajectory = messages[old_head_len:]
+    trajectory = []
+    for message in original_trajectory:
+        compact_content = message.get('tool_document_compact_content')
+        if message.get('role') in ('system', 'tool') and isinstance(compact_content, str):
+            trajectory.append({**message,'content':compact_content})
+        elif message.get('role') in ('system', 'tool') and message.get('tool_documents'):
+            trajectory.append({**message,'content':'Previously read tool contracts: '+
+                json.dumps(message['tool_documents'],ensure_ascii=False)+'. Read current contracts with get_tool_docs.'})
+        else:
+            trajectory.append(message)
     if not trajectory:
         return messages, {**base_stats, "compacted": False, "reason": "nothing_to_compact"}
 
@@ -767,7 +777,7 @@ async def compact_context(
     # 缩短判据按整段替换的真实口径：新上下文里的历史只剩这条 handoff，
     # 旧前缀由调用方重新装配的 head 取代——只有 handoff 比整段轨迹短，
     # 压缩才真的缩小了上下文。
-    trajectory_tokens = await asyncio.to_thread(estimate_messages_tokens, trajectory)
+    trajectory_tokens = await asyncio.to_thread(estimate_messages_tokens, original_trajectory)
     handoff_tokens = await asyncio.to_thread(estimate_messages_tokens, [handoff])
     if handoff_tokens >= trajectory_tokens:
         return messages, {

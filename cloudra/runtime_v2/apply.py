@@ -226,7 +226,10 @@ def _apply_context_appended(core: RuntimeCore, envelope: EventEnvelope) -> None:
         return
     ctx = _context_of(core, envelope.session_id)
     data = envelope.data or {}
+    if data.get('prefix_meta') is not None:
+        ctx.prefix_meta = {**(ctx.prefix_meta or {}), **data['prefix_meta']}
     ctx.messages.extend(dict(message) for message in data.get("messages") or [])
+    _track_tool_document_versions(ctx, data.get('messages') or [])
     if data.get("notices_through") is not None:
         core.notices.apply_consumed(envelope.session_id, int(data["notices_through"]))
 
@@ -246,6 +249,35 @@ def _apply_context_reset(core: RuntimeCore, envelope: EventEnvelope) -> None:
     """显式 restart 的上下文重置：会话上下文投影随之清空（新边界）。"""
     if envelope.session_id:
         core.session_contexts.pop(envelope.session_id, None)
+
+
+def _apply_tool_document_selection(core: RuntimeCore, envelope: EventEnvelope) -> None:
+    from cloudra.runtime_v2.tool_selection import ToolSelectionRecord
+    if not envelope.session_id:
+        return
+    data = envelope.data or {}
+    record = ToolSelectionRecord.model_validate(data['record'])
+    ctx = _context_of(core, envelope.session_id)
+    ctx.prefix_meta = {**(ctx.prefix_meta or {}), 'tool_selection':record.model_dump(mode='json')}
+    ctx.messages.extend(dict(message) for message in data.get('messages', []))
+    _track_tool_document_versions(ctx, data.get('messages') or [])
+
+
+def _track_tool_document_versions(ctx: SessionContext, messages: list[dict]) -> None:
+    """Track only host-tagged contracts in durable context messages."""
+    versions = dict((ctx.prefix_meta or {}).get('tool_document_revisions') or {})
+    changed = False
+    for message in messages:
+        if message.get('role') not in ('system', 'tool'):
+            continue
+        if 'tool_document_revisions' in message:
+            versions = dict(message['tool_document_revisions'])
+            changed = True
+        for doc in message.get('tool_documents') or []:
+            versions[doc['name']] = doc['revision']
+            changed = True
+    if changed:
+        ctx.prefix_meta = {**(ctx.prefix_meta or {}), 'tool_document_revisions': versions}
 
 
 _APPLIERS: dict[str, Callable[[RuntimeCore, EventEnvelope], None]] = {
@@ -270,6 +302,8 @@ _APPLIERS: dict[str, Callable[[RuntimeCore, EventEnvelope], None]] = {
     "context.prefix_installed": _apply_context_prefix_installed,
     "context.appended": _apply_context_appended,
     "context.compacted": _apply_context_compacted,
+    'tool_documents.selection_started': _apply_tool_document_selection,
+    'tool_documents.selection_finished': _apply_tool_document_selection,
 }
 
 
