@@ -96,8 +96,18 @@ class ToolDocumentSelector:
             elif source == 'llm':
                 directory = '\n'.join(f'- {item.name}: {item.summary}' for item in candidates)
                 response = await asyncio.wait_for(self.llm.select_tool_names(agent, [
-                    {'role':'system','content': 'Select tool documentation useful for the initial task. '
-                        'Return only a JSON array of exact tool names, or []. Do not execute tools, '
+                    {'role':'system','content': 'Strictly select the smallest set of complete tool contracts '
+                        'essential to START the task with its first concrete actions. This is an initial '
+                        'documentation preload, not a tool plan for the entire workflow. '
+                        'All permitted tool names and brief purposes remain available. The agent can '
+                        'read any additional contract later with get_tool_docs; omitted tools remain callable. '
+                        'Include a tool only when its full contract is clearly needed immediately. '
+                        'Exclude later-stage tools, speculative contingencies, optional analyses and '
+                        'alternative tools for the same purpose. If uncertain, omit it and load its '
+                        'documentation when needed. Prefer too few initial documents over too many. '
+                        'get_tool_docs already has its complete bootstrap contract: never preload it. '
+                        'Return [] if no tool contract is immediately needed. '
+                        'Return only a JSON array of exact tool names. Do not execute tools, '
                         'choose scientific methods or generate documentation.\nAvailable tools:\n'+directory},
                     {'role':'user','content':task}], resolved_settings=resolved_settings), timeout=resolved_settings.timeout or 300)
                 usage = response.usage
@@ -124,7 +134,12 @@ class ToolDocumentSelector:
         headers = {'Authorization': f'Bearer {backend.key}'} if backend.key else {}
         if source == 'jev':
             payload = {'model':backend.model, 'state':{'task':task}, 'questions':{
-                item.name: {'type':'noul', 'instructions': 'Would this tool documentation help complete the current task? '
+                item.name: {'type':'noul', 'instructions': 'Is this complete tool contract clearly essential '
+                    'for the first concrete actions needed to START the task? Apply a strict standard: '
+                    'later-stage, optional, speculative or alternative tools do not qualify. '
+                    'All tool briefs remain available, and additional contracts can be read later '
+                    'with get_tool_docs; when uncertain, prefer exclusion. The get_tool_docs '
+                    'bootstrap contract is already provided and does not qualify for preloading. '
                     f'Tool {item.name}: {item.summary}'} for item in candidates}}
         else:
             payload = {'model':backend.model,'query':task,
