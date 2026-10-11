@@ -287,10 +287,27 @@ async def test_direct_controls_are_not_exposed_to_the_guest():
     agent = _agent()
     ctx = _ctx(agent, tools=["echo", "stop", "ask_user", "schedule"])
     runtime = _runtime(core)
-    code = "text([typeof tools.echo, typeof tools.stop, typeof tools.ask_user, typeof tools.schedule]);"
+    code = "text(Object.keys(tools));"
     result = await runtime.execute(ctx, ToolCall("w", "js_exec", {"code": code}))
     assert result.is_success
-    assert result.data["outputs"] == [["function", "undefined", "undefined", "undefined"]]
+    assert result.data["outputs"] == [["echo"]]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("name", ["stop", "ask_user", "schedule"])
+async def test_guest_direct_control_call_has_actionable_denial_without_execution(name):
+    core = RuntimeCore(strict_events=True)
+    agent = _agent()
+    ctx = _ctx(agent, tools=["echo", name])
+    executor = EchoExecutor()
+    runtime = _runtime(core, tools=executor)
+    code = (f"try {{ await tools.{name}({{}}); }} catch (e) {{"
+            "text([e.code, e.tool_name, e.effect_state]); }")
+    result = await runtime.execute(ctx, ToolCall("w", "js_exec", {"code": code}))
+    assert result.is_success
+    assert result.data["outputs"] == [["direct_only_in_guest", name, "not_started"]]
+    assert executor.calls == []
+    assert not any(e.type == "tool.started" for e in core.event_log)
 
 
 @pytest.mark.asyncio

@@ -259,7 +259,10 @@ def javascript_instructions(
         "Current capability directory (names and purposes, not argument contracts):\n"
         f"{manifest}\n"
         "For a business tool whose detailed contract is absent, first call tools.get_tool_docs({names: [name]}), "
-        "then text(r.data.documents). Only documentation is loaded; all calls retain their existing permission checks."
+        "then text(r.summary). Loaded contracts are supplied automatically in the next model request. "
+        "Do not print full document batches: they can exceed the 64 KiB program output limit. "
+        "Load a small set for the next action; request additional contracts when needed. "
+        "Only documentation is loaded; all calls retain their existing permission checks."
     )
 
 

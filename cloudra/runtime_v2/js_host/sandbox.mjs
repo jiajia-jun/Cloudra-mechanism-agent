@@ -52,8 +52,18 @@ export const GUEST_PRELUDE = `(() => {
     );
   }
   Object.freeze(tools);
+  const guestTools = new Proxy(tools, {
+    get(target, name) {
+      if (['stop', 'ask_user', 'schedule', 'js_exec'].includes(name)) {
+        throw new ToolCallError({code: 'direct_only_in_guest', tool_name: name,
+          effect_state: 'not_started',
+          message: name + ' requires a top-level tool call after this program returns.'});
+      }
+      return target[name];
+    },
+  });
   Object.defineProperty(globalThis, 'tools', {
-    value: tools, writable: false, enumerable: false, configurable: false,
+    value: guestTools, writable: false, enumerable: false, configurable: false,
   });
   Object.defineProperty(globalThis, 'text', {
     value: (value) => textNative(JSON.stringify(value === undefined ? null : value)),
