@@ -174,6 +174,7 @@ class DagReviewEvidence(DagToolBase):
                 target_ids = [*[node.node_id for node in snapshot.delivery.nodes],
                               *[edge.edge_id for edge in snapshot.delivery.edges]]
             remaining = await asyncio.to_thread(store.collect_review_exceptions, target_ids)
+            remaining = [item for item in remaining if item.get("category") != "untargeted_key_fact"]
             resolved.update(
                 scientific_status="unresolved" if remaining else "not_evaluated",
                 remaining_gaps=remaining,
