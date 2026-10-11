@@ -60,6 +60,7 @@ class StopGate(BaseModel):
     # 只在 allow_final / wait_background 这些「本次 run 将收尾」的判定上显式
     # 声明；被拦的判定（continue_work / wait_review）没有依据可言，保持 None。
     basis: CompletionBasis | None = None
+    final_answer: str | None = None
 
 
 async def pending_compute_jobs_exist(*, data_dir, project_id: str) -> bool:
@@ -182,8 +183,9 @@ class StopAuditMixin:
         self,
         disposition: str,
         *,
-        approval_id: str | None = None,
         user_stop_event_id: str | None = None,
+        reason: str | None = None,
+        final_answer: str | None = None,
     ) -> StopGate:
         """Audit a stop/final reply and return a :class:`StopGate`.
 
@@ -285,17 +287,8 @@ class StopAuditMixin:
         # decision; in dag_record partial is the ordinary recorded stop.
         if disposition == "partial":
             if self.mode is OrchestrationMode.DAG_GUIDED:
-                if approval_id is not None and await self._valid_exit_approval(
-                    approval_id, disposition, report
-                ):
-                    self._pending_stop = (disposition, report, approval_id, state)
-                    return StopGate(
-                        action="allow_final",
-                        report=report,
-                        reason=f"approved by {approval_id}",
-                        basis="supervisor_approved",
-                    )
-                request_id, created = await self._enqueue_exit_review(disposition, report)
+                request_id, created = await self._enqueue_exit_review(disposition, report,
+                    reason=reason, final_answer=final_answer)
                 reused = await self._reused_exit_review(request_id, disposition, report)
                 if reused is not None:
                     return reused
@@ -304,11 +297,7 @@ class StopAuditMixin:
                     # （§6 wait_review 契约）；请求是持久化待办，恢复路径由
                     # reconcile_supervision 补通知。
                     await self._notify_supervisor("exit review requested")
-                reason = (
-                    "approval is missing, stale, out of scope, or not an accepted Supervisor decision"
-                    if approval_id is not None
-                    else "partial delivery requires Supervisor approval in dag_guided"
-                )
+                reason = "partial delivery requires Supervisor approval in dag_guided"
                 return StopGate(
                     action="wait_review",
                     report=report,
@@ -329,7 +318,8 @@ class StopAuditMixin:
             reason=f"unsupported delivery disposition {disposition!r}",
         )
 
-    async def _enqueue_exit_review(self, disposition: str, report: Any) -> tuple[str, bool]:
+    async def _enqueue_exit_review(self, disposition: str, report: Any, *,
+                                   reason: str | None = None, final_answer: str | None = None) -> tuple[str, bool]:
         """持久化退出审查请求；同 kind+scope+basis 去重。返回 (request_id,
         是否新建）——只有新建才值得通知 Supervisor。"""
         snapshot = await asyncio.to_thread(self.engine.snapshot)
@@ -339,6 +329,20 @@ class StopAuditMixin:
         ]
         if not target_ids:
             target_ids = [snapshot.delivery.graph_id]
+        if reason is None and final_answer is None:
+            previous = await asyncio.to_thread(self.store.list_review_requests, None)
+            for saved in reversed(previous):
+                if (saved.kind != "exit" or saved.requester != self.session_id
+                        or set(saved.target_ids) != set(target_ids)
+                        or saved.proposal.get("disposition") != disposition):
+                    continue
+                # A confirmation refers to the latest submission. New queued or
+                # rejected material must never recover an earlier acceptance.
+                current_basis = await asyncio.to_thread(self.store.review_basis, saved)
+                if (saved.state in {"queued", "resolved"} and self._exit_artifact_matches(saved)
+                        and saved.basis_fingerprint == current_basis):
+                    return saved.request_id, False
+                break
         request = ReviewRequest(
             kind="exit",
             requester=self.session_id,
@@ -349,6 +353,8 @@ class StopAuditMixin:
                 "scope": target_ids,
                 "remaining_gaps": [g.model_dump(mode="json") for g in [*(report.unresolved), *(report.inconclusive)]],
                 "method_limits": [],
+                "reason": reason or "",
+                "final_answer": final_answer or "",
                 "delivery_artifact": self._delivery_artifact.model_dump(mode='json') if self._delivery_artifact else None,
             },
             basis_fingerprint="sha256:pending",
@@ -391,6 +397,7 @@ class StopAuditMixin:
             request_id=request.request_id,
             reason=f"approved by {decision.decision_id}",
             basis="supervisor_approved",
+            final_answer=request.proposal.get("final_answer") or None,
         )
 
     def _exit_artifact_matches(self, request) -> bool:

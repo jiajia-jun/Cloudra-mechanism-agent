@@ -324,7 +324,7 @@ async def test_plain_text_and_explicit_stop_face_the_same_gate(tmp_path, script)
 async def test_wait_review_parks_with_exit_review_feedback(tmp_path):
     """guided partial stop 进入 wait_review 时必须给 agent 一条讲清退出审批回路
     的反馈（诚实回执）：退出审查已提交 Supervisor（带 request_id）、run 挂起
-    等裁决、批准后需带 approval_id=<decision_id> 重新调用 stop。批准到达后
+    等裁决、批准后重新调用 partial stop，无需复制内部审批 ID。批准到达后
     同一交付版本复用裁决放行，partial 处置落库一次。"""
     llm = _RoutingLLM([_stop_call(delivery_disposition="partial", reason="partial")])
     core, bus, project = await _new_core(llm, workspace_dir=tmp_path)
@@ -343,7 +343,6 @@ async def test_wait_review_parks_with_exit_review_feedback(tmp_path):
         content = str(injected[-1].data["content"])
         assert requests[0].request_id in content
         assert "suspended" in content
-        assert "approval_id" in content
         # 批准到达：挂起期间没有空转，裁决唤醒后复用同一请求放行。
         await _resolve_exit_request(
             project.id, requests[0].request_id, verdict="accept", reason="scoped partial is acceptable"
@@ -479,7 +478,6 @@ async def test_bogus_approval_id_does_not_bypass_review(tmp_path):
         await _wait_parked(coordinator, llm)
         gates = _gate_events(core, coordinator.id)
         assert gates[0].data["action"] == "wait_review"
-        assert "stale, out of scope" in gates[0].data["reason"]
         assert len(await _review_requests(project.id)) == 1
         assert await _dispositions(project.id) == []
     finally:

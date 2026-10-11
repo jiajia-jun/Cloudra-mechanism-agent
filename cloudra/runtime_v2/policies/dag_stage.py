@@ -113,10 +113,20 @@ class DagPolicyStage:
             # 原始调用参数，pydantic 默认值不会生效，缺省必须在这里补齐——
             # 缺省即声明 complete 并进入完成审计；要 partial 必须显式声明。
             disposition = str(args.get("delivery_disposition") or "complete")
+            user_stop_event_id = None
+            if disposition == "user_terminated" and self._core is not None and ctx.agent.current_run is not None:
+                events = await asyncio.to_thread(self._core.event_log.query_session, ctx.agent.id,
+                    types={"agent.cancel_requested"})
+                event = next((item for item in reversed(events)
+                    if item.data.get("actor") == "user" and item.project_id == ctx.agent.project_id
+                    and item.run_id in {None, ctx.agent.current_run.run_id}
+                    and item.created_at >= ctx.agent.current_run.started_at), None)
+                user_stop_event_id = event.event_id if event is not None else None
             return await controller.audit_stop(
                 disposition,
-                approval_id=args.get("approval_id"),
-                user_stop_event_id=args.get("user_stop_event_id"),
+                user_stop_event_id=user_stop_event_id,
+                reason=args.get("reason"),
+                final_answer=args.get("final_answer"),
             )
         report = await asyncio.to_thread(controller.delivery_report)
         disposition = "complete" if report.complete else "partial"

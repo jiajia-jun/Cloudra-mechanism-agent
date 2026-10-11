@@ -20,6 +20,7 @@ from tests.agent_scenarios import (
     ScenarioHarness,
     ScriptedProvider,
     Step,
+    confirm_partial_stop_step,
     malformed_shell_steps,
     pending_stop_answer_step,
 )
@@ -34,9 +35,8 @@ async def test_stop_answer_is_emitted_only_after_final_gate_authorizes_it(tmp_pa
     from cloudra.runtime_v2.supervision import flush_review_notifications
 
     candidate = "candidate-answer-marker"
-    approved = "approved-answer-marker"
     release = asyncio.Event()
-    final = Step(wait_for=release)
+    final = confirm_partial_stop_step(release)
     provider = ScriptedProvider(by_role={
         "coordinator": [pending_stop_answer_step(candidate) for _ in range(4)],
         "supervisor": [Step(stop=True)],
@@ -57,19 +57,17 @@ async def test_stop_answer_is_emitted_only_after_final_gate_authorizes_it(tmp_pa
             decision = ReviewDecision(request_id=request.request_id, basis_fingerprint=request.basis_fingerprint,
                 verdict="accept", reason="approved partial with all gaps retained")
             assert store.resolve_review(decision, expected_basis=request.basis_fingerprint)["accepted"]
-            return store.get_review_decision_for_request(request.request_id).decision_id
 
-        decision_id = await asyncio.to_thread(approve)
-        final.tools = [("stop", {"delivery_disposition": "partial", "approval_id": decision_id, "final_answer": approved})]
+        await asyncio.to_thread(approve)
         await flush_review_notifications(harness.core, harness.project.id)
         release.set()
         await harness.wait_for(
             lambda: coordinator.state.value == "succeeded" and any(
-                e.type == "agent.message_emitted" and e.data.get("content") == approved
+                e.type == "agent.message_emitted" and e.data.get("content") == candidate
                 for e in harness.events(coordinator)), "authorized final stop and durable answer")
         events = harness.events(coordinator)
         gate = next(e for e in events if e.type == "agent.completion_gate" and e.data["action"] == "allow_final")
-        emitted = next(e for e in events if e.type == "agent.message_emitted" and e.data.get("content") == approved)
+        emitted = next(e for e in events if e.type == "agent.message_emitted" and e.data.get("content") == candidate)
         assert gate.seq < emitted.seq
         assert not any(candidate in e.data.get("content", "") for e in events
             if e.type == "agent.message_emitted" and e.seq < gate.seq)

@@ -209,6 +209,11 @@ def pending_stop_answer_step(answer: str) -> Step:
     return Step(tools=[("stop", {"delivery_disposition": "partial", "final_answer": answer})])
 
 
+def confirm_partial_stop_step(release: asyncio.Event) -> Step:
+    """督导裁决后确认已提交材料；程序绑定批准与答复，无需模型复制标识。"""
+    return Step(wait_for=release, tools=[("stop", {"delivery_disposition": "partial"})])
+
+
 def compute_result_recovery_steps() -> list[Step]:
     """已完成计算唤醒后处理结果，其他作业继续运行时再次挂起。"""
     return [

@@ -49,16 +49,40 @@ async def test_editing_final_file_invalidates_its_exit_approval(tmp_path):
     await asyncio.to_thread(path.write_text, json.dumps(document))
     first = await c.audit_stop('partial')
     assert first.action == 'wait_review'
-    decision_id = await approve(c, first.request_id)
-    unchanged = await c.audit_stop('partial', approval_id=decision_id)
+    await approve(c, first.request_id)
+    unchanged = await c.audit_stop('partial')
     assert unchanged.action == 'allow_final', unchanged
     document['nodes'][0]['label'] = 'changed delivery statement'
     await asyncio.to_thread(path.write_text, json.dumps(document))
 
-    changed = await c.audit_stop('partial', approval_id=decision_id)
+    changed = await c.audit_stop('partial')
 
     assert changed.action == 'wait_review'
     assert changed.request_id != first.request_id
+
+
+@pytest.mark.asyncio
+async def test_restoring_old_artifact_state_cannot_recover_superseded_approval(tmp_path):
+    db = await asyncio.to_thread(lambda: ConversationDB('restore-artifact', data_dir=tmp_path / 'runtime').init())
+    c = DagController(db, 's1', 'dag_guided', working_directory=tmp_path)
+    await c.initialize()
+    first = await c.audit_stop('partial')
+    await approve(c, first.request_id)
+    path = tmp_path / 'mechanism_graph.json'
+    await asyncio.to_thread(path.write_text, json.dumps({'nodes': [], 'edges': []}))
+    second = await c.audit_stop('partial')
+    current = await asyncio.to_thread(c.store.get_review_request, second.request_id)
+    rejected = ReviewDecision(request_id=current.request_id, basis_fingerprint=current.basis_fingerprint,
+        verdict='needs_evidence', reason='The current file still lacks scientific evidence')
+    assert (await asyncio.to_thread(c.store.resolve_review, rejected, expected_basis=current.basis_fingerprint))['accepted']
+    await asyncio.to_thread(path.unlink)
+
+    restored = await c.audit_stop('partial')
+
+    assert restored.action == 'wait_review'
+    assert restored.request_id not in {first.request_id, second.request_id}
+    assert (await asyncio.to_thread(c.store.get_review_request, first.request_id)).state == 'superseded'
+    assert await asyncio.to_thread(c.store.get_review_decision_for_request, first.request_id) is not None
 
 
 @pytest.mark.asyncio
@@ -88,8 +112,8 @@ async def test_changed_review_state_blocks_deferred_commit_without_graph_revisio
     c = await controller(tmp_path)
     await asyncio.to_thread((tmp_path / 'mechanism_graph.json').write_text, json.dumps(graph()))
     first = await c.audit_stop('partial')
-    decision = await approve(c, first.request_id)
-    assert (await c.audit_stop('partial', approval_id=decision)).action == 'allow_final'
+    await approve(c, first.request_id)
+    assert (await c.audit_stop('partial')).action == 'allow_final'
     await asyncio.to_thread(c.store.enqueue_review, ReviewRequest(kind='evidence', requester='s1',
         target_ids=['r'], question='New evidence requires review', basis_fingerprint='sha256:new'))
     with pytest.raises(RuntimeError, match='changed|re-audit'):
@@ -147,8 +171,8 @@ async def test_deferred_commit_keeps_immutable_artifact_receipt(tmp_path):
     path = tmp_path / 'mechanism_graph.json'
     await asyncio.to_thread(path.write_text, json.dumps(graph()))
     request = await c.audit_stop('partial')
-    decision = await approve(c, request.request_id)
-    assert (await c.audit_stop('partial', approval_id=decision)).action == 'allow_final'
+    await approve(c, request.request_id)
+    assert (await c.audit_stop('partial')).action == 'allow_final'
     await c.commit_stop()
     def receipt():
         with c.store.db.connect() as con:
@@ -194,8 +218,8 @@ async def test_commit_transaction_checks_state_after_final_validation(tmp_path, 
     c = await controller(tmp_path)
     await asyncio.to_thread((tmp_path / 'mechanism_graph.json').write_text, json.dumps(graph()))
     request = await c.audit_stop('partial')
-    decision = await approve(c, request.request_id)
-    assert (await c.audit_stop('partial', approval_id=decision)).action == 'allow_final'
+    await approve(c, request.request_id)
+    assert (await c.audit_stop('partial')).action == 'allow_final'
     actual_record = c.store.record_delivery_disposition
     def raced_record(*args, **kwargs):
         c.store.register_evidence('s1', 'late input', {'new': True})
@@ -231,9 +255,9 @@ async def test_malformed_artifact_claims_fail_before_review(tmp_path, fault):
 async def test_adding_file_requires_approval_of_that_file(tmp_path):
     c = await controller(tmp_path)
     request = await c.audit_stop('partial')
-    decision = await approve(c, request.request_id)
+    await approve(c, request.request_id)
     await asyncio.to_thread((tmp_path / 'mechanism_graph.json').write_text, json.dumps(graph()))
-    result = await c.audit_stop('partial', approval_id=decision)
+    result = await c.audit_stop('partial')
     assert result.action == 'wait_review'
     assert result.request_id != request.request_id
 

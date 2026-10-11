@@ -499,8 +499,8 @@ class AgentRunner:
                             hook = getattr(stage, "on_run_end", None)
                             if hook is not None:
                                 await hook(agent, explicit_stop=explicit_stop)
-                        if gate.action == "allow_final" and outcome.content:
-                            self._emit_run_message(agent, run_id, outcome.content)
+                        if gate.action == "allow_final" and (gate.final_answer or outcome.content):
+                            self._emit_run_message(agent, run_id, gate.final_answer or outcome.content)
                         elif gate.action == "wait_background":
                             self._emit_run_message(agent, run_id, gate.reason or "Run paused awaiting background work.")
                         await core.agent_host.finish_run(agent, outcome="succeeded")
@@ -805,8 +805,8 @@ class AgentRunner:
             "the stop tool only acknowledged the request. What happens next:\n"
             "- The Supervisor's decision arrives as a [Supervisor review decision] "
             "notice and wakes you.\n"
-            "- On accept: call stop again with delivery_disposition='partial' and "
-            "approval_id=<decision_id> from that notice to finish.\n"
+            "- On accept: call stop again with delivery_disposition='partial'; "
+            "the runtime resolves the current durable approval.\n"
             "- On reject: the reason and next action arrive as feedback; resolve "
             "them (or close the gaps) and stop again."
         )

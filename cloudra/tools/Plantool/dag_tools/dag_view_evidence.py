@@ -26,7 +26,7 @@ class DagViewEvidenceInput(input_schema):
     review_id: str = Field(
         default="",
         description=(
-            "The call or file review id (from the review inbox) to read evidence for. "
+            "The call or structured review id (from the review inbox) to read submitted material for. "
             "Provide either this or evidence_id."
         ),
     )
@@ -46,7 +46,7 @@ class DagViewEvidence(DagToolBase):
     tool_id: str = "t-dag-view-evidence"
     tool_name: str = "dag_view_evidence"
     tool_description: str = (
-        "Read file-review scientific checks and repair actions, or the full source arguments + parsed result behind one CallReview "
+        "Read submitted review material, including exit reasons and candidate final answers, file-review scientific checks and repair actions, or the full source arguments + parsed result behind one CallReview "
         "(or evidence id). Use for: checking the source log path, compute job, "
         "and the raw parser output when the inbox summary is too terse; "
         "distinguishing a broken parser from a genuinely missing source file. "
@@ -69,12 +69,12 @@ class DagViewEvidence(DagToolBase):
             )
             if review is None:
                 request = await asyncio.to_thread(store.get_review_request, user_input.review_id.strip())
-                if request is None or request.kind != "evidence":
-                    return fail("dag_view_evidence", f"evidence review {user_input.review_id!r} does not exist")
-                result = {"review_id": request.request_id, "state": request.state,
+                if request is None:
+                    return fail("dag_view_evidence", f"review {user_input.review_id!r} does not exist")
+                result = {"review_id": request.request_id, "kind": request.kind, "state": request.state,
                           "proposal": request.proposal,
                           "supporting_refs": [ref.model_dump(mode="json") for ref in request.supporting_refs]}
-                if request.proposal.get("element_type") in ("step", "species") and len(request.target_ids) == 1:
+                if request.kind == "evidence" and request.proposal.get("element_type") in ("step", "species") and len(request.target_ids) == 1:
                     from cloudra.dag.file_science import file_scientific_checks
                     snapshot = await asyncio.to_thread(store.load_snapshot)
                     result["scientific_checks"] = await asyncio.to_thread(
