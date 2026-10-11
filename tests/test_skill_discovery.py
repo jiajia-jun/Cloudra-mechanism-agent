@@ -1,5 +1,6 @@
 """Tests for skill discovery, role-tailored skill recommendations, and AgentHub skill integration."""
 
+import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -191,3 +192,28 @@ def test_prompt_assembler_tailored_role_skills(tmp_path, monkeypatch):
     assert "## Current skill manifest" in content_cust
     assert "- reaction-mechanisms:" in content_cust
     assert "- dft-calculation:" in content_cust
+
+
+def test_bundled_skill_metadata_is_parseable_before_discovery():
+    from pathlib import Path
+
+    import frontmatter
+
+    from cloudra.base.skill_class import skill_loader
+
+    for path in sorted(Path(skill_loader.base_path).glob('*/SKILL.md')):
+        metadata = frontmatter.load(path).metadata
+        assert isinstance(metadata.get('name'), str) and metadata['name'].strip(), path
+        assert isinstance(metadata.get('description'), str) and metadata['description'].strip(), path
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('name', ['ts-initial-guess', 'dag-operations', 'peer-review-standards'])
+async def test_new_ts_skill_and_existing_review_skills_remain_loadable(name):
+    from cloudra.base.skill_class import skill_loader
+
+    catalog = await asyncio.to_thread(lambda: skill_loader().list_skills())
+    assert name in {item['name'] for item in catalog}
+    result = await GetSkill().tool_call(GetSkill_input_schema(skill_name=name), None)
+    assert result.is_success
+    assert result.content.strip()
