@@ -159,6 +159,7 @@ class DagView(DagToolBase):
                 "open_drafts": open_drafts,
                 "pending_reviews": pending_reviews,
                 "queued_requests": queued_requests,
+                "unassigned_evidence": await asyncio.to_thread(ctx.store.collect_review_exceptions, []),
                 "revisions": dict(snapshot.bundle.revisions),
             }
             return DagToolOutput(is_success=True, action="dag_view", result=result)

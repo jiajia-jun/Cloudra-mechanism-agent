@@ -738,7 +738,8 @@ class DagStore:
             "accepted_claim_spec": (
                 accepted_claim.model_dump(mode="json") if accepted_claim is not None else None
             ),
-            "exceptions": self.collect_review_exceptions(sorted(target_ids)) if target_ids else [],
+            "exceptions": [item for item in self.collect_review_exceptions(sorted(target_ids))
+                           if item.get('target_id') in target_ids] if target_ids else [],
         }
         if request.kind == 'exit':
             artifact = request.proposal.get('delivery_artifact')
@@ -1038,7 +1039,7 @@ class DagStore:
                     continue
                 fact_targets = {ref.ref_id for ref in fact.source_refs} & bound_ids
                 hint = fact.subject.target_hint
-                if target_id in fact_targets or hint == target_id:
+                if fact_targets or hint == target_id:
                     key = f"{target_id}:contradiction:{fact.check}:{fact.fact_id}"
                     if not any(item.get("exception_key") == key for item in exceptions):
                         exceptions.append({
@@ -1078,6 +1079,8 @@ class DagStore:
                     "target_id": None,
                     "fact_id": fact.fact_id,
                     "check": fact.check,
+                    "outcome": fact.outcome,
+                    "source_refs": [ref.model_dump(mode='json') for ref in fact.source_refs],
                     "detail": "key evidence has no target binding or target hint",
                 })
         return exceptions

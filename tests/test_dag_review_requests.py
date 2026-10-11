@@ -135,6 +135,21 @@ def test_resolve_review_stale_basis_rejected(tmp_path):
     assert store.get_review_request(request_id).state == "queued"
 
 
+def test_unassigned_fact_does_not_invalidate_scoped_review(tmp_path):
+    from cloudra.dag.evidence_facts import EvidenceFact, FactSubject
+
+    store = _store(tmp_path)
+    request = _req()
+    basis = store.review_basis(request)
+    store.record_facts([EvidenceFact(fact_id="unrelated", check="energy", outcome="supports",
+        subject=FactSubject(), source_refs=[_ref()], details={"energy": -3.0})])
+    assert store.review_basis(request) == basis
+    assert any(item["fact_id"] == "unrelated" for item in store.collect_review_exceptions([]))
+    store.record_facts([EvidenceFact(fact_id="related", check="identity", outcome="refutes",
+        subject=FactSubject(target_hint="step1"), source_refs=[_ref()], details={})])
+    assert store.review_basis(request) != basis
+
+
 def test_resolve_review_duplicate_decision_rejected(tmp_path):
     store = _store(tmp_path)
     request_id = store.enqueue_review(_req())
