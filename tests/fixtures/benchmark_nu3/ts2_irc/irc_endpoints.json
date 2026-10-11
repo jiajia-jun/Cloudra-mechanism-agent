@@ -1,0 +1,17 @@
+{
+  "log_sha256": "ebc4b6d1ee15fd394e2da3a3172387f7be289ab3960a9f225393570d96dc6ab8",
+  "endpoints": {
+    "forward": {
+      "filename": "irc_IRC_F.xyz",
+      "sha256": "c064d1d0f53ac313113c4c8eb43d6754709b0385bd4b22f5a94194ea98646e16",
+      "origin": "final_endpoint_file",
+      "converged": false
+    },
+    "backward": {
+      "filename": "irc_IRC_B.xyz",
+      "sha256": "47c1bcbcc22924acf22ac488d9477c320d87e4f5b5372716e08cc17147b88e30",
+      "origin": "final_endpoint_file",
+      "converged": true
+    }
+  }
+}

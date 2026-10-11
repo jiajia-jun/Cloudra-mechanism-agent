@@ -1,0 +1,352 @@
+[calculator] orca resolved: /Users/cloudrayyy/opt/orca_6_1_1/orca
+
+                                 *****************
+                                 * O   R   C   A *
+                                 *****************
+
+                                            #,                                       
+                                            ###                                      
+                                            ####                                     
+                                            #####                                    
+                                            ######                                   
+                                           ########,                                 
+                                     ,,################,,,,,                         
+                               ,,#################################,,                 
+                          ,,##########################################,,             
+                       ,#########################################, ''#####,          
+                    ,#############################################,,   '####,        
+                  ,##################################################,,,,####,       
+                ,###########''''           ''''###############################       
+              ,#####''   ,,,,##########,,,,          '''####'''          '####       
+            ,##' ,,,,###########################,,,                        '##       
+           ' ,,###''''                  '''############,,,                           
+         ,,##''                                '''############,,,,        ,,,,,,###''
+      ,#''                                            '''#######################'''  
+     '                                                          ''''####''''         
+             ,#######,   #######,   ,#######,      ##                                
+            ,#'     '#,  ##    ##  ,#'     '#,    #''#        ,####,    ,#,          
+            ##       ##  ##   ,#'  ##            #'  '#       #'       ,# #          
+            ##       ##  #######   ##           ,######,      #####,      #          
+            '#,     ,#'  ##    ##  '#,     ,#' ,#      #,     #,   #      #          
+             '#######'   ##     ##  '#######'  #'      '#     '####' #    #          
+
+
+
+                #########################################################
+                #                        -***-                          #
+                #          Department of theory and spectroscopy        #
+                #                                                       #
+                #                      Frank Neese                      #
+                #                                                       #
+                #     Directorship, Architecture, Infrastructure        #
+                #                    SHARK, DRIVERS                     #
+                #        Core code/Algorithms in most modules           #
+                #                                                       #
+                #        Max Planck Institute fuer Kohlenforschung      #
+                #                Kaiser Wilhelm Platz 1                 #
+                #                 D-45470 Muelheim/Ruhr                 #
+                #                      Germany                          #
+                #                                                       #
+                #                  All rights reserved                  #
+                #                        -***-                          #
+                #########################################################
+
+
+                         Program Version 6.1.1  -  RELEASE   -
+                                (GIT: $487d211cc3$)
+
+                                       INPUT FILE
+================================================================================
+NAME = irc.inp
+|  1> # IRC both directions from the refined saddle: C=[PH3].C=O | smiles: C=[PH3].C=O
+|  2> ! IRC B3LYP def2-SVP D3BJ RIJCOSX def2/J TightSCF
+|  3> %pal nprocs 8 end
+|  4> %maxcore 2048
+|  5> %irc
+|  6>   Direction both
+|  7>   InitHess read
+|  8>   Hess_Filename "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/skill-fix-normal-NU3-20261011-6ce6d115/sandboxes/NU3/batch_45b1b2f55dba4983/ts/ts_0013/jobs/declaration_0001/frequency/frequency.hess"
+|  9> end
+| 10> * xyz 0 1
+| 11> C        0.23413300    -1.06076500    -0.16490700
+| 12> P        0.29884400     0.34709200    -1.16378500
+| 13> H        1.16121600    -1.64297900    -0.12475800
+| 14> H       -0.66200400    -1.66945800    -0.32977200
+| 15> H        1.62520100     0.77952800    -1.36816900
+| 16> H       -0.24459800     0.38164200    -2.47675000
+| 17> H       -0.39167800     1.36328300    -0.39598900
+| 18> C       -0.31170300    -0.00202700     1.63958500
+| 19> O       -0.85162800     1.08194900     1.32912400
+| 20> H       -0.92433600    -0.87186400     1.97176000
+| 21> H        0.72434000    -0.03688200     2.05741700
+| 22> *
+| 23> 
+| 24>                          ****END OF INPUT****
+================================================================================
+
+CARTESIAN COORDINATES (ANGSTROEM)
+---------------------------------
+  C      0.234133   -1.060765   -0.164907
+  P      0.298844    0.347092   -1.163785
+  H      1.161216   -1.642979   -0.124758
+  H     -0.662004   -1.669458   -0.329772
+  H      1.625201    0.779528   -1.368169
+  H     -0.244598    0.381642   -2.476750
+  H     -0.391678    1.363283   -0.395989
+  C     -0.311703   -0.002027    1.639585
+  O     -0.851628    1.081949    1.329124
+  H     -0.924336   -0.871864    1.971760
+  H      0.724340   -0.036882    2.057417
+
+
+ Total Charge           Charge          ....    0
+ Multiplicity           Mult            ....    1
+
+-------------------------   --------------------
+FINAL SINGLE POINT ENERGY      -496.538382627706
+-------------------------   --------------------
+
+
+--------------------------------------------------------------------------------
+                   Intrinsic Reaction Coordinate Calculation
+--------------------------------------------------------------------------------
+
+System:
+Nr. of atoms                        .... 11
+Algorithm: SD (steepest descent step) plus correction
+Settings:
+Max. no of cycles        MaxIter    .... 20
+Direction                           .... Forward and backward
+Initial displacement Hessian type   .... Read
+Hessian Filename                    .... /Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/skill-fix-normal-NU3-20261011-6ce6d115/sandboxes/NU3/batch_45b1b2f55dba4983/ts/ts_0013/jobs/declaration_0001/frequency/frequency.hess
+Following Hessian mode              .... 0
+Initial displacement type           .... Energy
+  Initial displacement energy change.... 2.000 mEh
+Coordinate system following type    .... Cartesian
+Length of steepest descent step     .... 0.150 bohr
+Do parabolic fit 
+  if SD step is uphill              .... YES
+Do Correction to SD step            .... YES
+Scaling for length of correction
+  compared to SD step               .... 0.333
+Do parabolic fit to SD correction   .... YES
+Only interpolate for parabolic fit  .... YES
+Do update to length of
+  SD step and correction            .... YES
+Convergence Tolerances:
+  Max. Gradient            TolMAXG  ....  2.0000e-03 Eh/bohr
+  RMS Gradient             TolRMSG  ....  5.0000e-04 Eh/bohr
+Storing full IRC trajectory in      .... irc_IRC_Full_trj.xyz
+Storing forward trajectory in       .... irc_IRC_F_trj.xyz
+Storing backward trajectory in      .... irc_IRC_B_trj.xyz
+
+
+ ...good, the file /Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/skill-fix-normal-NU3-20261011-6ce6d115/sandboxes/NU3/batch_45b1b2f55dba4983/ts/ts_0013/jobs/declaration_0001/frequency/frequency.hess exists
+Reading the hessian file           ...... done
+Determining length of initial displacement:
+  Requested energy change (quadratic behavior): 2.000 mEh
+  Resulting scaling factor for initial displacement along normalized TS mode: 0.6005
+
+         *************************************************************
+         *                          FORWARD IRC                      *
+         *************************************************************
+
+Iteration    E(Eh)      dE(kcal/mol)  max(|G|)   RMS(G) 
+Convergence thresholds                0.002000  0.000500            
+    0      -496.542280   -2.445452    0.016184  0.004950
+--------------------------------------------------------------------------
+A system call failed during shared memory initialization that should
+not have.  It is likely that your MPI job will now either abort or
+experience performance degradation.
+
+  Local host:  Cloudrayyys-MacBook-Pro.local
+  System call: unlink(2) /var/folders/3t/w01r3vh504v43nhprv23cg300000gn/T//ompi.Cloudrayyys-MacBook-Pro.501/pid.79478/1/vader_segment.Cloudrayyys-MacBook-Pro.501.42d10001.0
+  Error:       No such file or directory (errno 2)
+--------------------------------------------------------------------------
+    1      -496.546532   -5.114016    0.019784  0.006366
+    2      -496.553863   -9.713857    0.031784  0.010401
+    3      -496.562202   -14.946762    0.041150  0.010953
+    4      -496.573190   -21.842093    0.048899  0.013824
+    5      -496.583462   -28.287461    0.050856  0.012064
+    6      -496.592661   -34.060006    0.035687  0.009231
+    7      -496.599219   -38.175602    0.018766  0.007255
+    8      -496.604457   -41.462201    0.019229  0.006027
+--------------------------------------------------------------------------
+A system call failed during shared memory initialization that should
+not have.  It is likely that your MPI job will now either abort or
+experience performance degradation.
+
+  Local host:  Cloudrayyys-MacBook-Pro.local
+  System call: unlink(2) /var/folders/3t/w01r3vh504v43nhprv23cg300000gn/T//ompi.Cloudrayyys-MacBook-Pro.501/pid.81386/1/vader_segment.Cloudrayyys-MacBook-Pro.501.494d0001.6
+  Error:       No such file or directory (errno 2)
+--------------------------------------------------------------------------
+    9      -496.609011   -44.319679    0.012217  0.005174
+   10      -496.613011   -46.829871    0.013169  0.004540
+   11      -496.616473   -49.002072    0.009183  0.003892
+   12      -496.619505   -50.905075    0.010023  0.003404
+   13      -496.622061   -52.508692    0.006554  0.002842
+   14      -496.624262   -53.889732    0.007138  0.002466
+--------------------------------------------------------------------------
+A system call failed during shared memory initialization that should
+not have.  It is likely that your MPI job will now either abort or
+experience performance degradation.
+
+  Local host:  Cloudrayyys-MacBook-Pro.local
+  System call: unlink(2) /var/folders/3t/w01r3vh504v43nhprv23cg300000gn/T//ompi.Cloudrayyys-MacBook-Pro.501/pid.82790/1/vader_segment.Cloudrayyys-MacBook-Pro.501.37c10001.7
+  Error:       No such file or directory (errno 2)
+--------------------------------------------------------------------------
+   15      -496.626042   -55.006721    0.005976  0.002119
+   16      -496.627443   -55.885920    0.007413  0.002195
+   17      -496.627682   -56.035811    0.006836  0.001833
+--------------------------------------------------------------------------
+A system call failed during shared memory initialization that should
+not have.  It is likely that your MPI job will now either abort or
+experience performance degradation.
+
+  Local host:  Cloudrayyys-MacBook-Pro.local
+  System call: unlink(2) /var/folders/3t/w01r3vh504v43nhprv23cg300000gn/T//ompi.Cloudrayyys-MacBook-Pro.501/pid.83348/1/vader_segment.Cloudrayyys-MacBook-Pro.501.31330001.5
+  Error:       No such file or directory (errno 2)
+--------------------------------------------------------------------------
+   18      -496.628339   -56.448298    0.004001  0.001511
+--------------------------------------------------------------------------
+A system call failed during shared memory initialization that should
+not have.  It is likely that your MPI job will now either abort or
+experience performance degradation.
+
+  Local host:  Cloudrayyys-MacBook-Pro.local
+  System call: unlink(2) /var/folders/3t/w01r3vh504v43nhprv23cg300000gn/T//ompi.Cloudrayyys-MacBook-Pro.501/pid.83536/1/vader_segment.Cloudrayyys-MacBook-Pro.501.32f70001.7
+  Error:       No such file or directory (errno 2)
+--------------------------------------------------------------------------
+   19      -496.628923   -56.814578    0.004327  0.001386
+
+         *************************************************************
+         *  MAXIMUM NUMBER OF ITERATIONS REACHED - STOPPING IRC RUN  *
+         *************************************************************
+
+
+         *************************************************************
+         *                          BACKWARD IRC                     *
+         *************************************************************
+
+Iteration    E(Eh)      dE(kcal/mol)  max(|G|)   RMS(G) 
+Convergence thresholds                0.002000  0.000500            
+    0      -496.538788   -0.254593    0.009394  0.003482
+    1      -496.538969   -0.367875    0.006257  0.002177
+    2      -496.539099   -0.449692    0.003504  0.001520
+    3      -496.539308   -0.580432    0.002754  0.001048
+    4      -496.539491   -0.695401    0.001967  0.000845
+--------------------------------------------------------------------------
+A system call failed during shared memory initialization that should
+not have.  It is likely that your MPI job will now either abort or
+experience performance degradation.
+
+  Local host:  Cloudrayyys-MacBook-Pro.local
+  System call: unlink(2) /var/folders/3t/w01r3vh504v43nhprv23cg300000gn/T//ompi.Cloudrayyys-MacBook-Pro.501/pid.84557/1/vader_segment.Cloudrayyys-MacBook-Pro.501.3eea0001.4
+  Error:       No such file or directory (errno 2)
+--------------------------------------------------------------------------
+    5      -496.539622   -0.777858    0.001695  0.000683
+    6      -496.539742   -0.852959    0.001717  0.000745
+--------------------------------------------------------------------------
+A system call failed during shared memory initialization that should
+not have.  It is likely that your MPI job will now either abort or
+experience performance degradation.
+
+  Local host:  Cloudrayyys-MacBook-Pro.local
+  System call: unlink(2) /var/folders/3t/w01r3vh504v43nhprv23cg300000gn/T//ompi.Cloudrayyys-MacBook-Pro.501/pid.84825/1/vader_segment.Cloudrayyys-MacBook-Pro.501.3ffe0001.3
+  Error:       No such file or directory (errno 2)
+--------------------------------------------------------------------------
+    7      -496.539744   -0.854310    0.001717  0.000745
+    8      -496.539790   -0.883006    0.001408  0.000607
+    9      -496.539841   -0.915177    0.001391  0.000583
+--------------------------------------------------------------------------
+A system call failed during shared memory initialization that should
+not have.  It is likely that your MPI job will now either abort or
+experience performance degradation.
+
+  Local host:  Cloudrayyys-MacBook-Pro.local
+  System call: unlink(2) /var/folders/3t/w01r3vh504v43nhprv23cg300000gn/T//ompi.Cloudrayyys-MacBook-Pro.501/pid.85295/1/vader_segment.Cloudrayyys-MacBook-Pro.501.39880001.0
+  Error:       No such file or directory (errno 2)
+--------------------------------------------------------------------------
+   10      -496.539890   -0.946099    0.001283  0.000567
+   11      -496.539931   -0.971615    0.002755  0.001065
+--------------------------------------------------------------------------
+A system call failed during shared memory initialization that should
+not have.  It is likely that your MPI job will now either abort or
+experience performance degradation.
+
+  Local host:  Cloudrayyys-MacBook-Pro.local
+  System call: unlink(2) /var/folders/3t/w01r3vh504v43nhprv23cg300000gn/T//ompi.Cloudrayyys-MacBook-Pro.501/pid.85603/1/vader_segment.Cloudrayyys-MacBook-Pro.501.3ac40001.5
+  Error:       No such file or directory (errno 2)
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+A system call failed during shared memory initialization that should
+not have.  It is likely that your MPI job will now either abort or
+experience performance degradation.
+
+  Local host:  Cloudrayyys-MacBook-Pro.local
+  System call: unlink(2) /var/folders/3t/w01r3vh504v43nhprv23cg300000gn/T//ompi.Cloudrayyys-MacBook-Pro.501/pid.85707/1/vader_segment.Cloudrayyys-MacBook-Pro.501.3a6c0001.7
+  Error:       No such file or directory (errno 2)
+--------------------------------------------------------------------------
+   12      -496.539939   -0.976603    0.001659  0.000675
+--------------------------------------------------------------------------
+A system call failed during shared memory initialization that should
+not have.  It is likely that your MPI job will now either abort or
+experience performance degradation.
+
+  Local host:  Cloudrayyys-MacBook-Pro.local
+  System call: unlink(2) /var/folders/3t/w01r3vh504v43nhprv23cg300000gn/T//ompi.Cloudrayyys-MacBook-Pro.501/pid.85862/1/vader_segment.Cloudrayyys-MacBook-Pro.501.3bc10001.7
+  Error:       No such file or directory (errno 2)
+--------------------------------------------------------------------------
+   13      -496.539958   -0.988382    0.001286  0.000492
+
+                      ***********************HURRAY********************
+                      ***            THE IRC HAS CONVERGED          ***
+                      *************************************************
+
+
+---------------------------------------------------------------
+                       IRC PATH SUMMARY              
+---------------------------------------------------------------
+All gradients are in Eh/Bohr.
+
+Step        E(Eh)      dE(kcal/mol)  max(|G|)   RMS(G) 
+   1      -496.539958   -0.988382    0.001286  0.000492
+   2      -496.539939   -0.976603    0.001659  0.000675
+   3      -496.539931   -0.971615    0.002755  0.001065
+   4      -496.539890   -0.946099    0.001283  0.000567
+   5      -496.539841   -0.915177    0.001391  0.000583
+   6      -496.539790   -0.883006    0.001408  0.000607
+   7      -496.539744   -0.854310    0.001717  0.000745
+   8      -496.539742   -0.852959    0.001717  0.000745
+   9      -496.539622   -0.777858    0.001695  0.000683
+  10      -496.539491   -0.695401    0.001967  0.000845
+  11      -496.539308   -0.580432    0.002754  0.001048
+  12      -496.539099   -0.449692    0.003504  0.001520
+  13      -496.538969   -0.367875    0.006257  0.002177
+  14      -496.538788   -0.254593    0.009394  0.003482
+  15      -496.538383    0.000000    0.000053  0.000022 <= TS
+  16      -496.542280   -2.445452    0.016184  0.004950
+  17      -496.546532   -5.114016    0.019784  0.006366
+  18      -496.553863   -9.713857    0.031784  0.010401
+  19      -496.562202   -14.946762    0.041150  0.010953
+  20      -496.573190   -21.842093    0.048899  0.013824
+  21      -496.583462   -28.287461    0.050856  0.012064
+  22      -496.592661   -34.060006    0.035687  0.009231
+  23      -496.599219   -38.175602    0.018766  0.007255
+  24      -496.604457   -41.462201    0.019229  0.006027
+  25      -496.609011   -44.319679    0.012217  0.005174
+  26      -496.613011   -46.829871    0.013169  0.004540
+  27      -496.616473   -49.002072    0.009183  0.003892
+  28      -496.619505   -50.905075    0.010023  0.003404
+  29      -496.622061   -52.508692    0.006554  0.002842
+  30      -496.624262   -53.889732    0.007138  0.002466
+  31      -496.626042   -55.006721    0.005976  0.002119
+  32      -496.627443   -55.885920    0.007413  0.002195
+  33      -496.627682   -56.035811    0.006836  0.001833
+  34      -496.628339   -56.448298    0.004001  0.001511
+  35      -496.628923   -56.814578    0.004327  0.001386
+
+
+                             ****ORCA TERMINATED NORMALLY****
+TOTAL RUN TIME: 0 days 0 hours 7 minutes 24 seconds 781 msec
+
