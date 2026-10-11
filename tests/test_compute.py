@@ -1529,6 +1529,38 @@ def test_log_tail_reason_falls_back_to_last_lines(tmp_path):
     assert _log_tail_reason(tmp_path / "missing.log") == ""
 
 
+def test_log_tail_reason_prioritizes_native_fatal_over_mpi_noise(tmp_path):
+    from cloudra.runtime.monitor import _log_tail_reason
+
+    log = tmp_path / "calc.log"
+    log.write_text("\n".join([
+        "[node] Error: vader shared memory warning " * 8,
+        "[node] Error: vader shared memory warning " * 8,
+        "mpirun noticed that process rank 1 exited on signal 9 (Killed).",
+        "ORCA finished by error termination in GUESS",
+        "Calling Command: mpirun -np 4 orca_guess input.gbw",
+        "[file orca_tools/qcmsg.cpp, line 458]: aborting the run",
+    ]))
+    reason = _log_tail_reason(log)
+    assert "ORCA finished by error termination in GUESS" in reason
+    assert "signal 9 (Killed)" in reason
+    assert "Calling Command:" in reason
+    assert "vader" not in reason
+
+
+def test_native_fatal_survives_more_than_tail_window_of_transport_noise(tmp_path):
+    from cloudra.runtime.monitor import _log_tail_reason
+    log = tmp_path/'calc.log'
+    log.write_text('ORCA finished by error termination in GUESS\n'
+                   'Calling Command: mpirun -np 4 orca_guess input.gbw\n' +
+                   ('Error: vader shared memory transport warning\n' * 400) +
+                   'mpirun noticed that process rank 1 exited on signal 9 (Killed).\n')
+    reason = _log_tail_reason(log)
+    assert 'ORCA finished by error termination in GUESS' in reason
+    assert 'Calling Command:' in reason and 'signal 9' in reason
+    assert 'vader' not in reason
+
+
 @pytest.mark.asyncio
 async def test_mark_failed_writes_last_error(isolated_db):
     """guard 标记失败时 last_error 落库，query_compute_job 直接可读。"""

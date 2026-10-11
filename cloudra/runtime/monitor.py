@@ -60,10 +60,35 @@ def _log_tail_reason(log_path: Path) -> str:
         return ""
     if not text.strip():
         return ""
-    lines = [line.strip() for line in text[-_LOG_TAIL_CHARS:].splitlines() if line.strip()]
+    positions = [text.rfind(marker) for marker in ('ORCA finished by error termination', 'Error termination')]
+    last_fatal = max(positions)
+    region = text[-_LOG_TAIL_CHARS:]
+    if last_fatal >= 0:
+        start = text.rfind('\n', 0, last_fatal)
+        for _ in range(2):
+            start = text.rfind('\n', 0, max(0, start))
+        region = text[max(0, start):last_fatal + 2000]
+    lines = [line.strip() for line in region.splitlines() if line.strip()]
     picked: list[str] = []
+    # Native termination blocks and process signals carry the failure. Transport
+    # warnings can also contain Error: and otherwise consume the whole receipt.
+    fatal = [i for i, line in enumerate(lines) if
+             'ORCA finished by error termination' in line or 'Error termination' in line]
+    if fatal:
+        picked.extend(lines[i] for i in reversed(fatal))
+        for marker in ('exited on signal ', 'Segmentation fault'):
+            index = text.rfind(marker)
+            if index >= 0:
+                begin = text.rfind('\n', 0, index) + 1
+                end = text.find('\n', index)
+                picked.append(text[begin:end if end >= 0 else len(text)].strip())
+        for i in reversed(fatal):
+            picked.extend(line for line in lines[i + 1:i + 4] if
+                          'Calling Command:' in line or '[file ' in line or 'aborting' in line.lower())
+            if 'Error termination' in lines[i]:
+                picked.extend(lines[max(0, i - 2):i])
     for i, line in enumerate(lines):
-        if any(marker in line for marker in _FAILURE_MARKERS):
+        if not fatal and any(marker in line for marker in _FAILURE_MARKERS):
             picked.extend(lines[max(0, i - 2): i + 2])
     if not picked:
         picked = lines[-3:]
