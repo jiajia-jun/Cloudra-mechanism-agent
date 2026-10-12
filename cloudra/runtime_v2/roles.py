@@ -97,10 +97,11 @@ BUILTIN_ROLES: tuple[RoleProfile, ...] = (
             "Scientific supervisor in dag_guided mode: a real runtime_v2 agent "
             "driven by the normal LLM pipeline. Each turn it reads the persisted "
             "supervision mailbox (pending call reviews / open drafts / queued "
-            "requests) and adjudicates around the submitted claims; an empty "
-            "mailbox ends the turn. Its tool surface is the registry "
+            "requests) and adjudicates around the submitted claims, then "
+            "asynchronously maintains PROCESS.md research notes. Its tool surface is the registry "
             "supervisor_access projection (read-only on the delivery graph)."
         ),
+        # PROCESS.md uses a scoped executor capability, not general write or delegation authority.
         permissions=PermissionSet(read=True),
         can_spawn=False,
         # 裁决工具（dag_review_call/dag_accept_mechanism）的模式门要求

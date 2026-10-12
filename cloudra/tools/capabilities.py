@@ -166,7 +166,7 @@ def fact_adapter_for(tool_name: str) -> Callable | None:
 
 
 SUPERVISOR_ACCESS_LEVELS = frozenset(
-    {"none", "evidence_read", "skill_read", "hub", "review_decision"}
+    {"none", "evidence_read", "skill_read", "hub", "review_decision", "process_write"}
 )
 
 

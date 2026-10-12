@@ -184,9 +184,9 @@ async def test_supervisor_capabilities_and_wire_projection(tmp_path):
     try:
         expected = set(capabilities.supervisor_allowed_tools()) | {"stop"}
         assert set(supervisor.capabilities.tools) == expected
-        for name in ("dag_review_step", "dag_accept_mechanism", "log_parser", "read", "stop"):
+        for name in ("dag_review_step", "dag_accept_mechanism", "log_parser", "read", "write", "edit", "stop"):
             assert name in supervisor.capabilities.tools
-        for name in ("bash", "submit_compute_job", "write", "edit", "qm_input_writer"):
+        for name in ("bash", "submit_compute_job", "qm_input_writer"):
             assert name not in supervisor.capabilities.tools
         # 裁决工具需要 guided 模式上下文（dag_review_step 在 record/standard 拒绝）。
         assert supervisor.settings.orchestration_mode.value == "dag_guided"
@@ -210,7 +210,7 @@ async def test_supervisor_capabilities_and_wire_projection(tmp_path):
         assert "log_parser(args:" in declarations
         assert "bash(args:" not in declarations  # 工具描述文本里可出现 "bash" 字样
 
-        # traditional：投影即收窄后的全集（含 stop），无 bash/write/compute。
+        # traditional：投影即收窄后的全集（含 stop），文档写限定 PROCESS.md。
         supervisor.settings.invocation_protocol = InvocationProtocol.TRADITIONAL
         traditional_names = {
             (schema.get("function") or {}).get("name")
