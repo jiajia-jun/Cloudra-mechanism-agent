@@ -292,9 +292,9 @@ async def test_cancelled_supervisor_is_not_resurrected_by_release_or_new_reviews
             e for e in core.event_log.query_session(supervisor.id) if e.type == "run.started"
         ]
         assert len(runs) == 1
-        # parked：通知照常投递信箱驻留（显式恢复后首轮即可见）。
+        # 取消收尾扫描和随后新增待办各驻留一条通知，不复活 Supervisor。
         inbox = core.mailbox.inbox(supervisor.id)
-        assert inbox is not None and inbox.qsize() == 1
+        assert inbox is not None and inbox.qsize() == 2
     finally:
         llm.release.set()
         await _teardown(core, supervisor)
@@ -358,14 +358,61 @@ async def test_failed_supervisor_is_not_resurrected_by_notification():
             e for e in core.event_log.query_session(supervisor.id) if e.type == "run.started"
         ]
         assert len(runs) == 1
-        # parked：通知照常投递信箱驻留（不唤醒、不开新 run）。
+        # parked：失败时的 reconcile 与后续通知各驻留一条，不唤醒、不新开 run。
         inbox = core.mailbox.inbox(supervisor.id)
-        assert inbox is not None and inbox.qsize() == 1
+        assert inbox is not None and inbox.qsize() == 2
         # 待办保留：两条送审 review 都还在信箱里等显式恢复。
         assert len(await _pending_review_ids(project.id)) == 2
     finally:
         llm.release.set()
         await _teardown(core, supervisor)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("scientific_pending", [True, False])
+async def test_supervisor_failure_alerts_only_for_pending_scientific_work(tmp_path, scientific_pending):
+    """A single notification must surface a failed scientific review, without notebook noise."""
+    from tests.agent_scenarios import ProviderFault, ScenarioHarness, ScriptedProvider, Step
+
+    coordinator_wait = asyncio.Event()
+    provider = ScriptedProvider(by_role={
+        "supervisor": [Step(error=ProviderFault("scripted provider failure", status_code=400))],
+        "coordinator": [Step(wait_for=coordinator_wait)],
+    })
+    harness = await ScenarioHarness.start(tmp_path, workspace_dir=tmp_path, provider=provider)
+    supervisor = None
+    try:
+        coordinator = await harness.spawn("coordinator", query="", orchestration_mode="dag_guided")
+        if scientific_pending:
+            review_id = await _seed_pending_review(harness.project.id)
+        else:
+            await asyncio.to_thread((tmp_path / "PROCESS.md").write_text, "Provisional hypothesis\n")
+
+        await notify_supervisor(harness.core, harness.project.id, reason="single project update")
+        supervisor = find_project_supervisor(harness.core, harness.project.id)
+        assert supervisor is not None
+        await harness.wait_for(lambda: supervisor.state is AgentState.FAILED, "Supervisor LLM failure")
+        if scientific_pending:
+            await harness.wait_for(
+                lambda: len(_injections(harness.core, coordinator.id, "[Supervision] ALERT")) == 1,
+                "failure itself delivers the scientific backlog alert", timeout=2,
+            )
+            assert len(_pin_events(harness.core, coordinator.id, TERMINAL_SUPERVISOR_PIN_KEY)) == 1
+            assert await _pending_review_ids(harness.project.id) == [review_id]
+            assert coordinator.state is AgentState.RUNNING
+        else:
+            await harness.settle()
+            assert _injections(harness.core, coordinator.id, "[Supervision] ALERT") == []
+            assert _pin_events(harness.core, coordinator.id, TERMINAL_SUPERVISOR_PIN_KEY) == []
+            assert coordinator.state is AgentState.QUEUED
+
+        await harness.settle()
+        assert supervisor.state is AgentState.FAILED
+        assert provider.call_count("supervisor") == 1
+        assert harness.types(supervisor).count("run.started") == 1
+        assert _injections(harness.core, coordinator.id, "[Sub-agent finished]") == []
+    finally:
+        await harness.aclose()
 
 
 @pytest.mark.asyncio
@@ -1287,11 +1334,9 @@ async def test_flush_does_not_mark_sent_when_recipient_is_empty(tmp_path):
 # --------------------------------------------------------------------- Task 4
 # 反馈矩阵、结束竞态（lost wakeup）与模式切换。
 #
-# 反馈唯一投递口契约（计划 §3）：裁决通知 = flush_review_notifications 的
-# pin（按 decision_id key 去重）+ mailbox + 条件 wake；运行报告 =
-# 普通子 agent 完成回传（deliver_child_completion_to_parent，
-# parent=Coordinator）。两条通道内容不同（结构化裁决 vs 运行收尾），各自
-# 只投递一次。
+# 反馈唯一投递口契约：裁决通知 = flush_review_notifications 的 pin（按
+# decision_id key 去重）+ mailbox + 条件 wake。Supervisor 不额外投递
+# 普通子 agent 完成回报；其科学待办失败由既有 D2 告警通道报告。
 
 
 async def _seed_review_request(project_id: str, requester: str, *, question: str) -> str:
@@ -1498,7 +1543,7 @@ def _supervisor_tool_calls(core, supervisor_id: str, tool_name: str):
 @pytest.mark.asyncio
 async def test_feedback_delivered_once_to_running_coordinator_without_restart(tmp_path):
     """反馈矩阵·running：裁决落在正在运行的 Coordinator 身上——不重启
-    （run 不换），裁决通知与完成报告各投递一次，两者都进入下一轮上下文。"""
+    （run 不换），裁决通知唯一投递并进入下一轮上下文，不附加普通完成回报。"""
     llm = _MailboxAdjudicatorLLM("", coord_latch=True)
     core, bus, _stages = _full_wiring(llm)
     project = await _guided_project(bus, tmp_path, "feedback-running")
@@ -1533,7 +1578,7 @@ async def test_feedback_delivered_once_to_running_coordinator_without_restart(tm
 
         decision = await asyncio.to_thread(_decision_for, project.id, request_id)
         assert decision is not None and decision.verdict == "accept"
-        # 各投递一次：裁决通知消息、裁决 pin、完成报告。
+        # 唯一反馈：裁决通知消息与裁决 pin，不重复发普通完成回报。
         assert len(_injections(core, coordinator.id, decision.decision_id)) == 1
         assert len(_pin_events(core, coordinator.id, f"review-{decision.decision_id}")) == 1
         reports = [
@@ -1541,12 +1586,12 @@ async def test_feedback_delivered_once_to_running_coordinator_without_restart(tm
             for e in _injections(core, coordinator.id, "[Sub-agent finished]")
             if supervisor.id in str(e.data.get("content", ""))
         ]
-        assert len(reports) == 1
+        assert reports == []
         # 最新裁决进入下一轮上下文（第二轮 call 的消息快照）。
         followup = llm.seen[coordinator.id][1]
         flat = "\n".join(str(m.get("content", "")) for m in followup)
         assert decision.decision_id in flat and "verdict=accept" in flat
-        assert "[Sub-agent finished]" in flat
+        assert "[Sub-agent finished]" not in flat
     finally:
         llm.release.set()
         llm.coord_release.set()
@@ -1556,7 +1601,7 @@ async def test_feedback_delivered_once_to_running_coordinator_without_restart(tm
 @pytest.mark.asyncio
 async def test_feedback_wakes_succeeded_coordinator_into_new_run(tmp_path):
     """反馈矩阵·succeeded：休眠的 Coordinator 被裁决通知正常 wake 开新
-    run，裁决内容进入新 run 的上下文；通知与报告仍各只投递一次。"""
+    run，裁决内容进入新 run 的上下文；不额外投递普通完成回报。"""
     llm = _MailboxAdjudicatorLLM("")
     core, bus, _stages = _full_wiring(llm)
     project = await _guided_project(bus, tmp_path, "feedback-succeeded")
@@ -1588,14 +1633,14 @@ async def test_feedback_wakes_succeeded_coordinator_into_new_run(tmp_path):
             for e in _injections(core, coordinator.id, "[Sub-agent finished]")
             if supervisor.id in str(e.data.get("content", ""))
         ]
-        assert len(reports) == 1
-        # run 2 起的某一轮上下文带裁决与报告。
+        assert reports == []
+        # run 2 起的某一轮上下文只带裁决反馈。
         later = llm.seen[coordinator.id][1:]
         flat = "\n".join(
             str(m.get("content", "")) for call in later for m in call
         )
         assert decision.decision_id in flat
-        assert "[Sub-agent finished]" in flat
+        assert "[Sub-agent finished]" not in flat
     finally:
         llm.release.set()
         await _teardown(core, coordinator, supervisor)
@@ -1603,9 +1648,8 @@ async def test_feedback_wakes_succeeded_coordinator_into_new_run(tmp_path):
 
 @pytest.mark.asyncio
 async def test_feedback_marks_sent_without_resurrecting_cancelled_coordinator(tmp_path):
-    """反馈矩阵·cancelled：用户取消的 Coordinator 不复活——裁决通知与完成
-    报告都照常投递信箱驻留（parked：显式恢复后可见），通知行闭环标记
-    sent，全程零新 run。"""
+    """反馈矩阵·cancelled：裁决通知驻留信箱、不复活 Coordinator；没有普通
+    完成回报，通知行闭环标记 sent，全程零新 run。"""
     llm = _MailboxAdjudicatorLLM("")
     core, bus, _stages = _full_wiring(llm)
     project = await _guided_project(bus, tmp_path, "feedback-cancelled")
@@ -1629,10 +1673,10 @@ async def test_feedback_marks_sent_without_resurrecting_cancelled_coordinator(tm
         decision = await asyncio.to_thread(_decision_for, project.id, request_id)
         assert decision is not None  # 裁决本身落库
         assert coordinator.state.value == "cancelled"
-        # parked：裁决消息、pin、完成报告照常投递驻留，但不唤醒不开新 run。
+        # parked：裁决消息与 pin 驻留，但不唤醒、不附加普通完成回报。
         assert len(_injections(core, coordinator.id, decision.decision_id)) == 1
         assert len(_pin_events(core, coordinator.id, f"review-{decision.decision_id}")) == 1
-        assert len(_injections(core, coordinator.id, "[Sub-agent finished]")) == 1
+        assert _injections(core, coordinator.id, "[Sub-agent finished]") == []
         runs = [
             e for e in core.event_log.query_session(coordinator.id) if e.type == "run.started"
         ]
@@ -1649,9 +1693,8 @@ async def test_feedback_marks_sent_without_resurrecting_cancelled_coordinator(tm
 
 @pytest.mark.asyncio
 async def test_supervisor_parent_is_coordinator_not_submitting_researcher(tmp_path):
-    """计划 Task 4 身份契约：Supervisor 的 parent 必须是 Coordinator（反馈
-    走普通子 agent 完成回传到 Coordinator），不是首次提交证据的研究子
-    agent；裁决通知仍按 requester 投递给提交者本人。"""
+    """Supervisor 的 parent 保持 Coordinator 身份；裁决反馈按 requester
+    投递给提交者，不因父子关系重复发普通完成回报。"""
     llm = _MailboxAdjudicatorLLM("")
     core, bus, _stages = _full_wiring(llm)
     project = await _guided_project(bus, tmp_path, "parent-identity")
@@ -1689,7 +1732,7 @@ async def test_supervisor_parent_is_coordinator_not_submitting_researcher(tmp_pa
         await _wait_state(researcher, "succeeded")  # 裁决通知 wake 开的 run
         decision = await asyncio.to_thread(_decision_for, project.id, request_id)
         assert decision is not None
-        # 裁决通知按 requester 投递给提交者；完成报告只给 Coordinator。
+        # 裁决通知按 requester 投递给提交者；Supervisor 无普通完成回报。
         assert len(_injections(core, researcher.id, decision.decision_id)) == 1
         assert _injections(core, coordinator.id, decision.decision_id) == []
         reports = [
@@ -1697,7 +1740,7 @@ async def test_supervisor_parent_is_coordinator_not_submitting_researcher(tmp_pa
             for e in _injections(core, coordinator.id, "[Sub-agent finished]")
             if supervisor.id in str(e.data.get("content", ""))
         ]
-        assert len(reports) == 1
+        assert reports == []
     finally:
         llm.release.set()
         await _teardown(core, coordinator, supervisor, researcher)
@@ -2215,8 +2258,8 @@ async def test_interrupted_supervisor_explicit_recovery_reads_full_backlog(tmp_p
     supervisor1 = find_project_supervisor(core1, project.id)
     assert supervisor1 is not None and supervisor1.state.value == "running"
 
-    # 进程重启：restore 把 running 尸体落 failed，并把子（supervisor）的
-    # 终态回传给父（coordinator 是 queued：投递驻留信箱，恢复路径不 wake）。
+    # 进程重启：restore 把 running 尸体落 failed，不发普通子 agent 回报。
+    # 科学待办告警留给后面的 reconcile，装载路径不 wake Coordinator。
     core2 = RuntimeCore(strict_events=True)
     core2.store = store
     restore_core(core2, store)
@@ -2225,10 +2268,10 @@ async def test_interrupted_supervisor_explicit_recovery_reads_full_backlog(tmp_p
     reports = [
         e
         for e in core2.event_log.query_session(coordinator.id, types={"agent.message_injected"})
-        if supervisor1.id in str(e.data.get("content", ""))
+        if "[Sub-agent finished]" in str(e.data.get("content", ""))
+        and supervisor1.id in str(e.data.get("content", ""))
     ]
-    assert reports, "restore must deliver the zombie supervisor's failure to its parent"
-    assert "interrupted by process restart" in reports[-1].data["content"]
+    assert reports == []
 
     # reconcile 不自动复活 failed：park-don't-wake——新事件只有一条补投；
     # restore 已按未消费 message_injected 重建原通知，信箱里是重建 + 补投。

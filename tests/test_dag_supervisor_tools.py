@@ -76,8 +76,46 @@ async def test_supervisor_can_create_and_edit_process_without_user_approval(tmp_
     assert not [event for event in core.event_log.query_project(project.id) if event.type == 'approval.requested']
 
 
+@pytest.mark.asyncio
+async def test_notebook_supervisor_does_not_hold_coordinator_completion(tmp_path):
+    import asyncio
+
+    from cloudra.dag.stop_audit import has_running_siblings
+
+    core = RuntimeCore(strict_events=True)
+    bus = CommandBus(core)
+    project = (await bus.execute(Command(type='project.create', payload={'name': 'notes'}))).data
+    coordinator = (await bus.execute(Command(type='agent.spawn', target={'project_id': project.id},
+        payload={'role_id': 'coordinator'}))).data
+    await bus.execute(Command(type='agent.spawn', target={'project_id': project.id},
+        payload={'role_id': 'supervisor', 'parent_session_id': coordinator.id}))
+    assert not await asyncio.to_thread(has_running_siblings, core, project_id=project.id, session_id=coordinator.id)
+    await bus.execute(Command(type='agent.spawn', target={'project_id': project.id},
+        payload={'role_id': 'small_mol', 'parent_session_id': coordinator.id}))
+    assert await asyncio.to_thread(has_running_siblings, core, project_id=project.id, session_id=coordinator.id)
 
 
+@pytest.mark.asyncio
+async def test_supervisor_note_completion_does_not_reopen_finished_coordinator():
+    from cloudra.runtime_v2.schemas import AgentState
+    from cloudra.runtime_v2.subagent_bridge import deliver_child_completion_to_parent
+
+    core = RuntimeCore(strict_events=True)
+    bus = CommandBus(core)
+    project = (await bus.execute(Command(type='project.create', payload={'name': 'notes-finished'}))).data
+    parent = (await bus.execute(Command(type='agent.spawn', target={'project_id': project.id},
+        payload={'role_id': 'coordinator'}))).data
+    supervisor = (await bus.execute(Command(type='agent.spawn', target={'project_id': project.id},
+        payload={'role_id': 'supervisor', 'parent_session_id': parent.id}))).data
+    await core.agent_host.start_run(parent)
+    await core.agent_host.finish_run(parent, outcome='succeeded')
+    await core.agent_host.start_run(supervisor)
+    await core.agent_host.finish_run(supervisor, outcome='succeeded')
+    await deliver_child_completion_to_parent(core, supervisor)
+    assert parent.state is AgentState.SUCCEEDED
+    inbox = core.mailbox.inbox(parent.id)
+    assert inbox is None or inbox.empty()
+    assert not [event for event in core.event_log.query_session(parent.id) if event.type == 'agent.message_injected']
 
 
 def test_dag_message_supervisor_is_not_on_the_supervisor_wire():

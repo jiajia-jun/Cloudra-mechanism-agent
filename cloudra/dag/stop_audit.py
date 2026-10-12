@@ -114,9 +114,26 @@ def has_running_siblings(core, *, project_id: str, session_id: str) -> bool:
     # Coordinator audits the whole project (including legacy unowned agents).
     # A child must only wait on work it owns, never its active parent/siblings.
     project_wide = current is not None and current.role_id == "coordinator"
+    scientific_supervision_pending = False
+    if any(
+        agent.role_id == "supervisor"
+        and agent.id != session_id
+        and agent.project_id == project_id
+        and agent.state.value not in terminal
+        for agent in agents.values()
+    ):
+        from cloudra.runtime_v2.supervision import pending_supervision_counts
+
+        pending = pending_supervision_counts(project_id)
+        scientific_supervision_pending = any(
+            pending[kind] for kind in ("call_reviews", "open_drafts", "review_requests")
+        )
     if any(
         agent.id != session_id
         and agent.project_id == project_id
+        # Scientific review still counts as background work. Notebook tidying
+        # alone must not hold delivery open.
+        and (agent.role_id != "supervisor" or scientific_supervision_pending)
         and (
             (agent.state.value not in terminal and (project_wide or is_descendant(agent)))
             or (is_descendant(agent) and is_background_parked(core, agent))

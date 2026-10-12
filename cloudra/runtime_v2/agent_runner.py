@@ -575,6 +575,12 @@ class AgentRunner:
         from cloudra.runtime_v2.peer_completion import deliver_peer_completion
         from cloudra.runtime_v2.subagent_bridge import deliver_child_completion_to_parent
 
+        if agent.role_id == 'supervisor' and agent.state.value in {'failed', 'cancelled'}:
+            from cloudra.runtime_v2.supervision import reconcile_supervision
+
+            # Preserve the existing scientific-backlog failure alert, without
+            # reporting notebook maintenance as a completed research subtask.
+            await reconcile_supervision(self.core, agent.project_id)
         await deliver_child_completion_to_parent(self.core, agent)
         await deliver_peer_completion(self.core, agent)
         await self.maybe_wake_parked_delivery(agent.project_id)
