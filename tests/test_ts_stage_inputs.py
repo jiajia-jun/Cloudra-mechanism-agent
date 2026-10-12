@@ -16,6 +16,26 @@ def record_fixture(tmp_path, **updates):
     return TsProcessRecord(**data)
 
 
+def test_reused_irc_source_job_is_recorded_for_derived_endpoint(tmp_path, monkeypatch):
+    from cloudra.tools.core import ts_process
+    from tests.ts_fixtures import calculation_input
+    seed = tmp_path / 'outer.xyz'
+    seed.write_text('3\nouter\nO 0 0 0\nH .96 0 0\nH -.24 .93 0\n')
+    log = tmp_path / 'irc.log'
+    log.write_text('native IRC fixture')
+    record = record_fixture(tmp_path, input=calculation_input(reactant_smiles='O', product_smiles='O', method='HF/STO-3G', engine='orca'))
+    record.job_steps.append(ts_process.TsJobStep(purpose='irc', state='done', input_path=str(tmp_path/'existing.inp'),
+        actual_calculation=record.input.verification.irc, external_source={'source_job_id': 77, 'log_path': str(log)}))
+    monkeypatch.setattr('cloudra.tools.Chemtool.ts_guess.TsGuess._extract_irc_endpoints',
+        lambda *_, **__: {'path_a': str(seed), 'path_b': str(seed)})
+    directory = tmp_path / 'endpoint'
+    directory.mkdir()
+    error, path = ts_process._write_endpoint_input(record, str(directory), 'reactant', 'opt')
+    assert error == '' and Path(path).is_file()
+    source = ts_process.EndpointSource.model_validate_json((directory/'endpoint_source.json').read_text())
+    assert source.irc_job_id == 77
+
+
 def test_stage_requires_its_own_calculation_without_fallback(tmp_path):
     from cloudra.tools.core.ts_process import _refine, stage_calculation
 
@@ -245,6 +265,11 @@ def test_one_prepare_advances_complete_declared_chain_without_agent_resume(tmp_p
         path = Path(directory) / (purpose+'.inp')
         path.write_text('! HF STO-3G '+task_token+'\n* xyz 0 1\nO 0 0 0\nH 0.96 0 0\nH -0.24 0.93 0\n*\n')
         (Path(directory) / 'optimized.xyz').write_text(seed.read_text())
+        if role is not None:
+            import hashlib
+            source = ts_process.EndpointSource(kind='species_reference', label=role,
+                source_path=str(seed), sha256=hashlib.sha256(seed.read_bytes()).hexdigest())
+            (Path(directory) / 'endpoint_source.json').write_text(source.model_dump_json())
         return '',str(path)
     monkeypatch.setattr(ts_process,'_write_frequency_input',writer)
     monkeypatch.setattr(ts_process,'_write_endpoint_input',writer)

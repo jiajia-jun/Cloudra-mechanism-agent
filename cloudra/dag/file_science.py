@@ -13,6 +13,7 @@ from cloudra.tools.core import gaussian_frames, orca_frames, xtb_frames
 from cloudra.tools.core.irc_evidence import (
     frames_for,
     last_geometry,
+    normal_log,
     verify_short_irc_direction,
     verify_short_irc_pair,
 )
@@ -72,8 +73,8 @@ def _logs(store, element, workspace_root=None):
             continue
         engine = snap.engine
         parser = {'orca': orca_frames, 'gaussian': gaussian_frames, 'xtb': xtb_frames}.get(engine)
-        if parser is None or not parser.normal_termination(path.read_text(errors='replace')):
-            problems.append(f'No native normal termination in {path}')
+        if parser is None or not (parser.normal_termination(path.read_text(errors='replace')) if engine == 'xtb' else normal_log(path)):
+            problems.append(f'No usable normally terminated calculation segment in {path}; frequency and final geometry must describe the same calculation structure.')
             continue
         logs.append(str(path))
     return logs, problems
@@ -82,6 +83,9 @@ def _logs(store, element, workspace_root=None):
 def _final_geometry(path):
     from cloudra.tools.core.irc_path import parse_xyz
     from cloudra.tools.core.qm_engine import detect_qm_engine
+
+    if Path(path).suffix.lower() == '.xyz':
+        return parse_xyz(Path(path).read_text(errors='replace'))
 
     if detect_qm_engine(str(path)) == 'xtb':
         return parse_xyz(xtb_frames.final_xyz_from_text(Path(path).read_text(errors='replace')))
@@ -95,29 +99,14 @@ def validate_frequency_geometry(opt_snap, freq_snap):
     using the existing XYZ output precision; it is not a conformer/RMSD cutoff.
     Reflections and changes of molecular geometry are not rigid rotations.
     """
-    import numpy as np
-
-    from cloudra.tools.core.irc_path import align_atom_order
+    from cloudra.tools.core.irc_path import same_geometry
 
     if opt_snap.sha256 == freq_snap.sha256:
         return
     geometries = [_final_geometry(s.snapshot_path) for s in (opt_snap, freq_snap)]
     if any(geo is None for geo in geometries):
         raise ValueError('Optimization/frequency identity requires final geometry in both files.')
-    reference, mobile = geometries
-    alignment = align_atom_order(*reference, *mobile)
-    matches = False
-    if alignment is not None:
-        ref = np.asarray(reference[1], dtype=float)
-        mob = np.asarray(mobile[1], dtype=float)[alignment[0]]
-        ref = ref - ref.mean(axis=0)
-        mob = mob - mob.mean(axis=0)
-        u, _, vt = np.linalg.svd(mob.T @ ref)
-        if np.linalg.det(u @ vt) < 0:
-            u[:, -1] *= -1
-        residual = np.linalg.norm(mob @ (u @ vt) - ref, axis=1)
-        matches = bool(np.max(residual) <= np.sqrt(3) * 10 ** -6)
-    if not matches:
+    if not same_geometry(*geometries):
         raise ValueError('Optimization and frequency files contain different geometries; '
                          'submit the frequency calculation for the delivered optimized structure.')
 
@@ -251,7 +240,7 @@ def _ts_optimization_check(logs: list[str]) -> ScientificCheck:
         next_action='Submit the normally terminated converged optimization and its matching frequency log; a frequency-only calculation is not optimization evidence.')
 
 
-def file_scientific_checks(store, graph, target_id: str, *, irc_files=None, workspace_root=None, evidence_refs=None) -> dict[str, dict]:
+def file_scientific_checks(store, graph, target_id: str, *, irc_files=None, workspace_root=None, evidence_refs=None, endpoint_refs=None) -> dict[str, dict]:
     element = next((n for n in graph.nodes if n.node_id == target_id), None)
     is_edge = element is None
     if is_edge:
@@ -259,6 +248,12 @@ def file_scientific_checks(store, graph, target_id: str, *, irc_files=None, work
     if evidence_refs is not None:
         element = element.model_copy(update={'refs': list(evidence_refs), 'stages': []})
     logs, problems = _logs(store, element, workspace_root)
+    if is_edge and endpoint_refs:
+        from cloudra.dag.models import GraphRef
+        refs = [GraphRef.model_validate(ref) for ref in endpoint_refs.values()]
+        endpoint_logs, endpoint_problems = _logs(store, element.model_copy(update={'refs': refs, 'stages': []}), workspace_root)
+        logs = [path for path in logs if path not in endpoint_logs]
+        problems.extend(endpoint_problems)
     if not is_edge:
         return {'geometry': _species_minimum_check(element.smiles, logs, problems).model_dump()}
     frequencies = [_extract_qm_log(Path(p))[3] for p in logs]
@@ -275,7 +270,25 @@ def file_scientific_checks(store, graph, target_id: str, *, irc_files=None, work
         target = next((n for n in graph.nodes if n.node_id == element.target_node_id), None)
         source_logs, _ = _logs(store, source, workspace_root) if source else ([], [])
         target_logs, _ = _logs(store, target, workspace_root) if target else ([], [])
-        details = []
+        def endpoint_candidates(key, node, candidates):
+            if endpoint_refs and key in endpoint_refs:
+                from cloudra.dag.models import GraphRef
+                ref = GraphRef.model_validate(endpoint_refs[key])
+                if ref not in element.refs:
+                    return []
+                candidates, errors = _logs(store, element.model_copy(update={'refs': [ref], 'stages': []}), workspace_root)
+                problems.extend(errors)
+            verified = []
+            for path in candidates:
+                try:
+                    if node and node.smiles and _extract_qm_log(Path(path))[3] == [] and _geometry_species(path, node.smiles, diagnostics=problems):
+                        verified.append(path)
+                except (ValueError, RuntimeError) as exc:
+                    problems.append(str(exc))
+            return verified
+        source_logs = endpoint_candidates('endpoint_b', source, source_logs)
+        target_logs = endpoint_candidates('endpoint_a', target, target_logs)
+        details = list(problems)
         irc_passed = False
         for path in logs:
             try:

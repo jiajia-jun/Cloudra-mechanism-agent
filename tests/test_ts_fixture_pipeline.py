@@ -5,6 +5,7 @@ handling and reloads remain real. benchmark_synthetic fixtures are CONTRACT DATA
 not actual transition states. No engine or scheduler is started by these tests.
 """
 
+import hashlib
 import shutil
 from pathlib import Path
 
@@ -37,11 +38,11 @@ def admission(monkeypatch):
 
 
 def waiting_fixture_stage(tmp_path, *, purpose="frequency", engine="orca", seed=CO2_XYZ,
-                          project_id="project", owner_id="owner"):
+                          project_id="project", owner_id="owner", smiles="O=C=O"):
     """Prepare one real immutable binding as a calculator's queued input boundary."""
     db = ComputeDB().init()
     declaration = calculation_input(
-        reactant_smiles="O=C=O", product_smiles="O=C=O", engine=engine,
+        reactant_smiles=smiles, product_smiles=smiles, engine=engine,
         method="b3lyp/def2svp", atom_map=[0, 1, 2],
     )
     if purpose == "scan":
@@ -89,6 +90,19 @@ def waiting_fixture_stage(tmp_path, *, purpose="frequency", engine="orca", seed=
         error, job = process._submit_step(record, purpose, str(source), engine)
     assert error == ""
     step = process.TsJobStep(purpose=purpose, job_id=job, input_path=str(source), state="ready", actual_calculation=process.stage_calculation(record,purpose),source_input_revision=record.declaration_revision)
+    if purpose in {"reactant_opt", "product_opt"}:
+        # This replay starts at the queued Opt boundary. Preserve its real seed
+        # exactly as the endpoint writer does, without claiming an IRC origin.
+        role = purpose.partition("_")[0]
+        endpoint_source = folder / f"{role}_source.xyz"
+        process._write_immutable_input(str(endpoint_source), geometry.read_text())
+        origin = process.EndpointSource(
+            kind="species_reference", label=role, source_path=str(endpoint_source),
+            sha256=hashlib.sha256(endpoint_source.read_bytes()).hexdigest(),
+        )
+        provenance = folder / "endpoint_source.json"
+        process._write_immutable_input(str(provenance), origin.model_dump_json())
+        step.endpoint_source = process.EndpointSource.model_validate_json(provenance.read_text())
     if purpose == "scan":
         record.scan_step = step
     else:
@@ -284,15 +298,17 @@ def test_partial_gaussian_irc_submits_outer_frame_opt_but_never_claims_verified(
     assert job_count(db) == 2
 
 
-@pytest.mark.parametrize("engine,fixture,xyz", [
-    ("orca", "orca/co2_freq_orca42.out", CO2_XYZ),
-    ("gaussian", "gaussian/water_opt_freq_g16.out", WATER_XYZ),
+@pytest.mark.parametrize("engine,fixture,xyz,smiles", [
+    ("orca", "orca/co2_freq_orca42.out", CO2_XYZ, "O=C=O"),
+    ("gaussian", "gaussian/water_opt_freq_g16.out", WATER_XYZ, "O"),
 ])
 @pytest.mark.parametrize("defect", ["none", "missing_log", "missing_geometry", "saved_mismatch", "log_mismatch", "no_frequencies", "synthetic_wrong_mode"])
 def test_native_endpoint_opt_freq_chain_requires_same_geometry_and_real_frequency(
-    tmp_path, admission, engine, fixture, xyz, defect,
+    tmp_path, admission, engine, fixture, xyz, smiles, defect,
 ):
-    db, record, step = waiting_fixture_stage(tmp_path, purpose="reactant_opt", engine=engine, seed=xyz)
+    db, record, step = waiting_fixture_stage(
+        tmp_path, purpose="reactant_opt", engine=engine, seed=xyz, smiles=smiles,
+    )
     install_log(record, step, fixture)
     opt_result = finish(db, step.job_id)
     saved = process.load_record(str(tmp_path), record.run_id)
@@ -300,6 +316,11 @@ def test_native_endpoint_opt_freq_chain_requires_same_geometry_and_real_frequenc
     assert saved.terminal is None
     assert handle_process_job_terminal(db, step.job_id) == opt_result
     frequency = saved.job_steps[-1]
+    assert frequency.endpoint_source == step.endpoint_source
+    origin = frequency.endpoint_source
+    assert origin.kind == "species_reference" and origin.label == "reactant"
+    assert Path(origin.source_path).read_text() == xyz
+    assert origin.sha256 == hashlib.sha256(Path(origin.source_path).read_bytes()).hexdigest()
     frequency_log = install_log(saved, frequency, fixture)
     geometry = Path(frequency.input_path).with_name("optimized.xyz")
     if defect == "missing_log":
@@ -333,6 +354,31 @@ def test_native_endpoint_opt_freq_chain_requires_same_geometry_and_real_frequenc
         assert saved.terminal == "candidate_only"
     assert job_count(db) == 2
     assert handle_process_job_terminal(db, frequency.job_id) == result
+
+
+@pytest.mark.parametrize("engine,fixture,xyz,smiles", [
+    ("orca", "orca/co2_freq_orca42.out", CO2_XYZ, "O=C=O"),
+    ("gaussian", "gaussian/water_opt_freq_g16.out", WATER_XYZ, "O"),
+])
+def test_endpoint_opt_without_source_provenance_never_submits_frequency(
+    tmp_path, admission, engine, fixture, xyz, smiles,
+):
+    db, record, step = waiting_fixture_stage(
+        tmp_path, purpose="reactant_opt", engine=engine, seed=xyz, smiles=smiles,
+    )
+    step.endpoint_source = None
+    with use_pipeline_database(db):
+        process.save_record(record)
+    install_log(record, step, fixture)
+
+    result = finish(db, step.job_id)
+    saved = process.load_record(str(tmp_path), record.run_id)
+    assert saved.terminal == "candidate_only"
+    assert "accepted optimization has no endpoint source provenance" in saved.stage_record("verdict").detail
+    assert saved.waiting_for == ""
+    assert [job.purpose for job in saved.job_steps] == ["reactant_opt"]
+    assert job_count(db) == 1
+    assert handle_process_job_terminal(db, step.job_id) == result
 
 
 @pytest.mark.parametrize("purpose", ["scan", "frequency", "irc"])

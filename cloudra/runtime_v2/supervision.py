@@ -535,7 +535,12 @@ async def flush_review_notifications(
         subject_id = item["decision_id"]
         kind = item.get("kind") or "review_decision"
         try:
-            if kind == "call_verdict":
+            if kind == 'review_superseded':
+                payload = json.loads(item.get('payload') or '{}')
+                content = (f"[Review superseded] request_id={subject_id} "
+                           f"reason={payload['reason']} next_action={payload['next_action']}")
+                pin_key = f'review-superseded-{subject_id}'
+            elif kind == "call_verdict":
                 content = _call_verdict_text(
                     subject_id, json.loads(item.get("payload") or "{}")
                 )

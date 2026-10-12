@@ -85,7 +85,8 @@ def test_scan_to_ts_followups_keep_declared_method_basis_and_keywords(tmp_path, 
         error, path = process._write_endpoint_input(record, str(endpoint_dir), role, 'opt')
         assert error == ''
         paths.append(path)
-        record.job_steps.append(process.TsJobStep(purpose=role+'_opt', job_id=45, input_path=path, state='done'))
+        record.job_steps.append(process.TsJobStep(purpose=role+'_opt', job_id=45, input_path=path, state='done',
+            endpoint_source=process.EndpointSource.model_validate_json((endpoint_dir/'endpoint_source.json').read_text())))
         monkeypatch.setattr(process, '_endpoint_opt_frame', lambda *_: (xyz.read_text(), ''))
         endpoint_freq_dir = tmp_path / (role+'_freq')
         endpoint_freq_dir.mkdir()

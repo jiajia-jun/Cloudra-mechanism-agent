@@ -14,7 +14,7 @@ from cloudra.dag.models import (
     GraphActor,
     OrchestrationMode,
 )
-from cloudra.dag.review_context import ReviewContextManager, review_target_identity
+from cloudra.dag.review_context import ReviewContextManager
 from cloudra.dag.review_requests import ReviewDecision
 from cloudra.tools.Plantool.dag_tools._common import (
     DagToolBase,
@@ -91,12 +91,6 @@ class DagReviewSpecies(DagToolBase):
                 return fail("dag_review_species", "the active review request is no longer queued", accepted=False)
             if request.target_ids != [species.node_id]:
                 return fail("dag_review_species", "the review request target does not match this species", accepted=False)
-            if (
-                "target_identity" in request.proposal
-                and request.proposal["target_identity"]
-                != review_target_identity(snapshot.delivery, "species", species.node_id)
-            ):
-                return fail("dag_review_species", "the reviewed species changed after submission", accepted=False)
             from cloudra.dag.file_science import file_scientific_checks
             scientific_checks = await asyncio.to_thread(
                 file_scientific_checks, ctx.store, snapshot.delivery, species.node_id, evidence_refs=request.supporting_refs)
@@ -121,7 +115,8 @@ class DagReviewSpecies(DagToolBase):
         except Exception as exc:
             return fail("dag_review_species", str(exc), accepted=False)
         if not reviewed["accepted"]:
-            return fail("dag_review_species", reviewed.get("rejection_reason") or "review was rejected", accepted=False)
+            return DagToolOutput(is_success=False, action='dag_review_species', accepted=False,
+                rejection_code=reviewed['rejection_code'], error=reviewed['rejection_reason'], result=reviewed)
         await asyncio.to_thread(
             ReviewContextManager.clear_active_review,
             ctx.conversation_id, ctx.db, active_review.review_id,

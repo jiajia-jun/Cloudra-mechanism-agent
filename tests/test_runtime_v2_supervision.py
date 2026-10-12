@@ -1762,8 +1762,8 @@ async def test_new_review_arriving_mid_turn_is_consumed_in_same_run(tmp_path):
 
 
 class _StopWindowTrap:
-    """PolicyStage 钩子：在 supervisor 的 on_run_end（stop 裁决之后、
-    finish_run 之前）注入一条新送审——确定性命中"信箱判空与正常结束之间"
+    """PolicyStage 钩子：在 supervisor 的结束审计（LLM stop 决策之后、
+    最终收件锁之前）注入一条新送审——确定性命中"信箱判空与正常结束之间"
     的竞态窗口（计划 §4）。before/after 钩子全是 no-op。"""
 
     name = "stop_window_trap"
@@ -1786,8 +1786,10 @@ class _StopWindowTrap:
     async def before_llm(self, ctx, messages, **_kwargs) -> None:
         return None
 
-    async def on_run_end(self, agent, *, explicit_stop: bool, **_kwargs) -> None:
-        if not self._armed or agent.role_id != SUPERVISOR_ROLE_ID:
+    async def audit_run_end(self, ctx, *, explicit_stop: bool, **_kwargs) -> None:
+        # on_run_end runs under the recipient lock. A test trap cannot post to
+        # that same recipient there; use the real pre-lock audit boundary.
+        if not self._armed or ctx.agent.role_id != SUPERVISOR_ROLE_ID:
             return
         self._armed = False
         await _seed_review_request(

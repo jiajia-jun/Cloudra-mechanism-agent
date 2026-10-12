@@ -18,6 +18,7 @@ from cloudra.dag.models import (
     AttachRef,
     GraphActor,
     GraphOperation,
+    GraphRef,
     OrchestrationMode,
 )
 from cloudra.dag.review_context import ActiveReview, ReviewContextManager, review_target_identity
@@ -54,6 +55,10 @@ class DagSubmitStepEvidenceInput(input_schema):
         default="",
         description="Description of the reaction coordinate (e.g. bonds formed/cleaved along the mode).",
     )
+    endpoint_a_ref: GraphRef | None = Field(default=None,
+        description='Existing immutable file reference attached to this step for the TARGET minimum. Final geometry must match the complete target species and have zero imaginary frequencies.')
+    endpoint_b_ref: GraphRef | None = Field(default=None,
+        description='Existing immutable file reference attached to this step for the SOURCE minimum. Final geometry must match the complete source species and have zero imaginary frequencies.')
 
 
 class DagSubmitStepEvidence(DagToolBase):
@@ -105,6 +110,11 @@ class DagSubmitStepEvidence(DagToolBase):
                 accepted=False,
             )
         step = matching_edges[0]
+        endpoint_refs = {key: ref for key, ref in [('endpoint_a', user_input.endpoint_a_ref),
+                                                 ('endpoint_b', user_input.endpoint_b_ref)] if ref is not None}
+        if any(ref not in step.refs or ref.ref_type != 'file' or not ref.content_hash
+               for ref in endpoint_refs.values()):
+            return fail('dag_submit_step_evidence', 'Endpoint references must be immutable files already attached to this step.', accepted=False)
 
         # 2. Snapshot TS file and validate vibration mode
         # snapshot_evidence_file 全量读文件 + cclib 解析（同步重活），卸载出事件循环。
@@ -192,7 +202,7 @@ class DagSubmitStepEvidence(DagToolBase):
                 target_id=step.edge_id,
                 ref=evidence_ref,
             )
-            for evidence_ref in [ref, *opt_refs, *irc_refs]
+            for evidence_ref in [ref, *opt_refs, *irc_refs, *endpoint_refs.values()]
         ]
 
         # 5. Adjudicate according to orchestration mode
@@ -249,7 +259,8 @@ class DagSubmitStepEvidence(DagToolBase):
 
         from cloudra.dag.file_science import file_scientific_checks
         graph = await asyncio.to_thread(ctx.store.load_snapshot)
-        scientific_checks = await asyncio.to_thread(file_scientific_checks, ctx.store, graph.delivery, step.edge_id, irc_files=irc_snaps, workspace_root=workspace_root, evidence_refs=[ref, *opt_refs, *irc_refs])
+        scientific_checks = await asyncio.to_thread(file_scientific_checks, ctx.store, graph.delivery, step.edge_id, irc_files=irc_snaps, workspace_root=workspace_root,
+            evidence_refs=[ref, *opt_refs, *irc_refs, *endpoint_refs.values()], endpoint_refs=endpoint_refs)
 
         review = ActiveReview(
             review_id=f"rev_{uuid.uuid4().hex}",
@@ -266,9 +277,10 @@ class DagSubmitStepEvidence(DagToolBase):
                 "opt_file": user_input.opt_file,
                 "ts_validation": ts_val.model_dump(),
                 "irc_files": irc_snaps,
+                "endpoint_refs": {key: ref.model_dump(mode='json') for key, ref in endpoint_refs.items()},
                 "reaction_coordinate_description": user_input.reaction_coordinate_description,
             },
-            supporting_refs=[ref, *opt_refs, *irc_refs],
+            supporting_refs=[ref, *opt_refs, *irc_refs, *endpoint_refs.values()],
             basis_fingerprint=ts_snap.sha256,
         )
         enqueued = await asyncio.to_thread(

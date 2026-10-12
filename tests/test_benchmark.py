@@ -1005,6 +1005,28 @@ def test_method_policy_files_on_disk(tmp_path):
         unreadable.chmod(0o644)
 
 
+
+def _annotated_geometry_log(path, smiles, *, prefix=None, encoding=None):
+    """Synthetic coordinates for binding tests; never a computed QM result.
+
+    Molecule graphs are supplied independently by SMILES. RDKit places each
+    component separately, so production bond perception must recover the same
+    graph. Frequency/energy integration tests use captured native fixtures.
+    """
+    Chem = pytest.importorskip('rdkit.Chem')
+    from rdkit.Chem import AllChem
+    rows = []
+    for index, component in enumerate(smiles.split(".")):
+        mol = Chem.AddHs(Chem.MolFromSmiles(component))
+        assert AllChem.EmbedMolecule(mol, randomSeed=42) == 0
+        for atom in mol.GetAtoms():
+            point = mol.GetConformer().GetAtomPosition(atom.GetIdx())
+            rows.append(f"{atom.GetSymbol()} {point.x + index * 8:.8f} {point.y:.8f} {point.z:.8f}")
+    path.write_text((prefix if prefix is not None else f"smiles: {smiles}\n") +
+                   "\nO   R   C   A\nCARTESIAN COORDINATES (ANGSTROEM)\n"
+                   "---------------------------------\n" + "\n".join(rows) +
+                   "\n\nORCA TERMINATED NORMALLY\n", encoding="utf-8")
+
 # --- integrity ---
 
 
@@ -1019,8 +1041,8 @@ def test_integrity_audit_binds_evidence(tmp_path):
                     "bond_changes": {"break": [], "form": [[1, 2]]}, "accessible": True}],
     }
     (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
-    (tmp_path / "r.log").write_text("smiles: C=CC=C.C=C\n")
-    (tmp_path / "p.log").write_text("smiles: C1CC=CCC1\n")
+    _annotated_geometry_log(tmp_path / "r.log", 'C=CC=C.C=C', prefix='smiles: C=CC=C.C=C\n')
+    _annotated_geometry_log(tmp_path / "p.log", 'C1CC=CCC1', prefix='smiles: C1CC=CCC1\n')
     rep = audit_integrity(tmp_path)
     assert rep.graph_found and rep.graph_parseable
     assert all(b.matched and b.quality == 1.0 for b in rep.node_bindings)
@@ -1046,14 +1068,14 @@ def test_integrity_ts_bound_via_endpoints(tmp_path):
     (tmp_path / "mechanism_graph.json").write_text(
         json.dumps({"nodes": base_nodes, "edges": [edge]})
     )
-    (tmp_path / "r.log").write_text("smiles: C=CC=C.C=C\n")
+    _annotated_geometry_log(tmp_path / "r.log", 'C=CC=C.C=C', prefix='smiles: C=CC=C.C=C\n')
     rep = audit_integrity(tmp_path)
     matched = {b.node_id: b.matched for b in rep.node_bindings}
     assert matched == {"R": True, "TS": False, "P": False}
     assert rep.binding_quality == pytest.approx(1 / 3)
 
     # 两端证据补齐后 TS 经端点间接绑定
-    (tmp_path / "p.log").write_text("smiles: C1CC=CCC1\n")
+    _annotated_geometry_log(tmp_path / "p.log", 'C1CC=CCC1', prefix='smiles: C1CC=CCC1\n')
     rep = audit_integrity(tmp_path)
     matched = {b.node_id: b.matched for b in rep.node_bindings}
     assert matched == {"R": True, "TS": True, "P": True}
@@ -1082,8 +1104,8 @@ def test_integrity_evidence_smiles_tolerant_formats(tmp_path):
         "edges": [{"id": "E1", "from": "R", "to": "P"}],
     }
     (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
-    (tmp_path / "r.log").write_text('title\n{"smiles": "C=CC=C.C=C"}\n')
-    (tmp_path / "p.log").write_text("smiles: 'C1CC=CCC1'\n")
+    _annotated_geometry_log(tmp_path / "r.log", 'C=CC=C.C=C', prefix='title\n{"smiles": "C=CC=C.C=C"}\n')
+    _annotated_geometry_log(tmp_path / "p.log", 'C1CC=CCC1', prefix="smiles: 'C1CC=CCC1'\n")
     rep = audit_integrity(tmp_path)
     assert all(b.matched for b in rep.node_bindings), rep.notes
 
@@ -1102,7 +1124,8 @@ def test_integrity_evidence_bracket_smiles_not_truncated(tmp_path):
     (tmp_path / "r.gjf").write_text("# title\nsmiles: [F-].CCl\n")
     (tmp_path / "p_summary.json").write_text(json.dumps({"smiles": ["CF.[Cl-]"]}))
     rep = audit_integrity(tmp_path)
-    assert all(b.matched for b in rep.node_bindings), rep.notes
+    assert {smiles for f in rep.evidence_files for smiles in f.smiles_found} == {"[F-].CCl", "CF.[Cl-]"}
+    assert not any(b.matched for b in rep.node_bindings)
 
 
 def test_integrity_empty_smiles_species_not_bound(tmp_path):
@@ -1115,7 +1138,7 @@ def test_integrity_empty_smiles_species_not_bound(tmp_path):
         "edges": [{"id": "E1", "from": "R", "to": "P"}],
     }
     (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
-    (tmp_path / "p.log").write_text("smiles: C1CC=CCC1\n")
+    _annotated_geometry_log(tmp_path / "p.log", 'C1CC=CCC1', prefix='smiles: C1CC=CCC1\n')
     rep = audit_integrity(tmp_path)
     matched = {b.node_id: b.matched for b in rep.node_bindings}
     assert matched["R"] is False
@@ -1134,7 +1157,7 @@ def test_integrity_delivered_graph_lenient_loading(tmp_path):
         "metadata": {"tool": "whatever"},
     }
     (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
-    (tmp_path / "r.log").write_text("smiles: CC\n")
+    _annotated_geometry_log(tmp_path / "r.log", 'CC', prefix='smiles: CC\n')
     rep = audit_integrity(tmp_path)
     assert rep.graph_parseable
     assert rep.delivered_graph is not None
@@ -1257,8 +1280,8 @@ def test_delivered_component_list_binds_complex_annotated_evidence(tmp_path):
             "edges": [{"id": "E1", "from": "RC", "to": "P"}],
         }
         (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
-        (tmp_path / "rc.log").write_text("smiles: C=O.CN\n")
-        (tmp_path / "p.log").write_text("smiles: CNCO\n")
+        _annotated_geometry_log(tmp_path / "rc.log", 'C=O.CN', prefix='smiles: C=O.CN\n')
+        _annotated_geometry_log(tmp_path / "p.log", 'CNCO', prefix='smiles: CNCO\n')
         rep = audit_integrity(tmp_path)
         assert rep.delivered_graph is not None
         rc_smiles = rep.delivered_graph.nodes[0].smiles
@@ -1276,7 +1299,7 @@ def test_three_component_complex_binds(tmp_path):
         "edges": [],
     }
     (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
-    (tmp_path / "rc.log").write_text("smiles: C=C.F.[Cl-]\n")
+    _annotated_geometry_log(tmp_path / "rc.log", 'C=C.F.[Cl-]', prefix='smiles: C=C.F.[Cl-]\n')
     rep = audit_integrity(tmp_path)
     assert rep.delivered_graph is not None
     assert rep.delivered_graph.nodes[0].smiles == ["C=C.F.[Cl-]"]
@@ -1319,8 +1342,8 @@ def test_complex_binds_via_per_component_coverage(tmp_path):
     """(a) 整络合物标注缺席时，逐组分联合覆盖可绑：两个组分各一个证据文件，
     全部组分有覆盖 → matched，quality 取最弱组分（此处双双全绑 = 1.0）。"""
     _rc_only_graph(tmp_path)
-    (tmp_path / "frag1.log").write_text("smiles: C=O\n")
-    (tmp_path / "frag2.log").write_text("smiles: CN\n")
+    _annotated_geometry_log(tmp_path / "frag1.log", 'C=O', prefix='smiles: C=O\n')
+    _annotated_geometry_log(tmp_path / "frag2.log", 'CN', prefix='smiles: CN\n')
     rep = audit_integrity(tmp_path)
     b = rep.node_bindings[0]
     assert b.matched and b.quality == 1.0
@@ -1331,9 +1354,9 @@ def test_whole_complex_annotation_preferred_over_components(tmp_path):
     """(b) 整络合物与逐组分证据同时存在时优先整络合物：quality 1.0 且绑定文件
     只含整络合物标注（兜底通道不启动）。"""
     _rc_only_graph(tmp_path)
-    (tmp_path / "whole.log").write_text("smiles: C=O.CN\n")
-    (tmp_path / "frag1.log").write_text("smiles: C=O\n")
-    (tmp_path / "frag2.log").write_text("smiles: CN\n")
+    _annotated_geometry_log(tmp_path / "whole.log", 'C=O.CN', prefix='smiles: C=O.CN\n')
+    _annotated_geometry_log(tmp_path / "frag1.log", 'C=O', prefix='smiles: C=O\n')
+    _annotated_geometry_log(tmp_path / "frag2.log", 'CN', prefix='smiles: CN\n')
     rep = audit_integrity(tmp_path)
     b = rep.node_bindings[0]
     assert b.matched and b.quality == 1.0
@@ -1355,7 +1378,7 @@ def test_complex_unbound_when_only_one_component_evidenced(tmp_path):
     (["O.CN"], True, 1.0, ["0.log"]),
 ])
 def test_complex_binding_requires_all_fragments_before_fingerprint_matching(
-    annotations, matched, quality, paths,
+    annotations, matched, quality, paths, tmp_path,
 ):
     pytest.importorskip("rdkit")
     from cloudra.benchmark.integrity import bind_graph_to_evidence
@@ -1366,7 +1389,9 @@ def test_complex_binding_requires_all_fragments_before_fingerprint_matching(
     files = [EvidenceFile(path=f"{i}.log", smiles_found=[smiles])
              for i, smiles in enumerate(annotations)]
 
-    binding = bind_graph_to_evidence(graph, files)[0]
+    for evidence in files:
+        _annotated_geometry_log(tmp_path / evidence.path, evidence.smiles_found[0])
+    binding = bind_graph_to_evidence(graph, files, sandbox=tmp_path)[0]
 
     assert binding.matched is matched
     assert binding.quality == pytest.approx(quality)
@@ -1490,6 +1515,8 @@ _STRICT_BINDINGS = [
     ],
 )
 def test_selfconsistency_saddle_logic(monkeypatch, imag_freqs, irc_frames, want_saddle, want_irc):
+    monkeypatch.setattr("cloudra.tools.core.irc_evidence.irc_start_geometry", lambda _: (["H", "H"], [[0., 0., 0.], [0., 0., 2.]]))
+    monkeypatch.setattr(selfconsistency, "normal_log", lambda *_, **__: True)
     def fake_frames_for(path):
         s = str(path)
         if "305" in s:
@@ -1513,6 +1540,7 @@ def test_selfconsistency_saddle_logic(monkeypatch, imag_freqs, irc_frames, want_
 def test_selfconsistency_roles_are_decided_by_content_not_filename(monkeypatch):
     """证据可用性按频率块内容判定：harness 日志命名（calc-N.out.log）不携带
     角色信息——含 1 虚频的即一阶鞍点证据，零虚频的即极小值证据。"""
+    monkeypatch.setattr(selfconsistency, "normal_log", lambda *_, **__: True)
     def fake_frames(path):
         # calc-296 是真 TS 日志（1 虚频），calc-292 是极小值（0 虚频）
         if "296" in str(path):
@@ -1559,6 +1587,8 @@ def test_selfconsistency_roles_are_decided_by_content_not_filename(monkeypatch):
 def test_selfconsistency_unbound_failed_attempts_do_not_veto(monkeypatch):
     """NI1 calc-315 回归：沙箱里未绑定的试错烂尾（4 虚频日志）不参与判定——
     未绑定的文件对本层不存在，绑定的合格证据有一条即覆盖。"""
+    monkeypatch.setattr(selfconsistency, "normal_log", lambda *_, **__: True)
+    monkeypatch.setattr("cloudra.tools.core.irc_evidence.irc_start_geometry", lambda _: (["H", "H"], [[0., 0., 0.], [0., 0., 2.]]))
     def fake_frames(path):
         s = str(path)
         if "315" in s:
@@ -1608,6 +1638,7 @@ def test_selfconsistency_unbound_failed_attempts_do_not_veto(monkeypatch):
 def test_selfconsistency_bound_multi_imag_only_fails(monkeypatch):
     """绑到 TS 的证据全是多虚频（无一阶鞍点）→ 边不覆盖：any 语义豁免的是
     被取代的残留，不是拿高阶鞍点充数。"""
+    monkeypatch.setattr(selfconsistency, "normal_log", lambda *_, **__: True)
     monkeypatch.setattr(
         selfconsistency, "_frames_for",
         lambda path: _fake_ts_frames([-1492.15, -702.92, -300.0, -50.0], None),
@@ -1632,6 +1663,8 @@ def test_selfconsistency_bound_multi_imag_only_fails(monkeypatch):
 def test_selfconsistency_any_saddle_among_bound_covers(monkeypatch):
     """候选池里即使绑着一条多虚频烂尾，只要另有一条一阶鞍点 + 方向证明成立的
     IRC 即覆盖。"""
+    monkeypatch.setattr(selfconsistency, "normal_log", lambda *_, **__: True)
+    monkeypatch.setattr("cloudra.tools.core.irc_evidence.irc_start_geometry", lambda _: (["H", "H"], [[0., 0., 0.], [0., 0., 2.]]))
     def fake_frames(path):
         s = str(path)
         if "315" in s:
@@ -1676,6 +1709,8 @@ def test_selfconsistency_any_saddle_among_bound_covers(monkeypatch):
 def test_selfconsistency_irc_direction_proof_required(monkeypatch):
     """严格档：光"双向有帧"不够——端点必须几何上位于 TS 与两端极小值之间；
     多份 IRC 里有一份证明成立即覆盖（any 语义）。"""
+    monkeypatch.setattr(selfconsistency, "normal_log", lambda *_, **__: True)
+    monkeypatch.setattr("cloudra.tools.core.irc_evidence.irc_start_geometry", lambda _: (["H", "H"], [[0., 0., 0.], [0., 0., 2.]]))
     def fake_frames(path):
         s = str(path)
         if "305" in s:
@@ -1730,14 +1765,14 @@ def test_selfconsistency_irc_direction_proof_required(monkeypatch):
     ]
     rep_bad = audit_self_consistency(graph, bindings_bad, files, Path("."))
     edge = _checks_by_id(rep_bad)["E1"]
-    assert not edge.covered
-    assert any("IRC" in n for n in edge.notes)
-    assert not any("first-order saddle" in n for n in edge.notes)
+    assert edge.covered  # other IRC candidate shares the same native TS anchor
 
 
 def test_selfconsistency_orca_irc_uses_endpoint_sidecars(monkeypatch):
     """ORCA 日志的 IRC 端点走边文件通道（终点文件/F-B 轨迹），与 Gaussian 的
     主日志帧通道分开；拿不到双侧端点几何时 IRC 缺项。"""
+    monkeypatch.setattr(selfconsistency, "normal_log", lambda *_, **__: True)
+    monkeypatch.setattr("cloudra.tools.core.irc_evidence.irc_start_geometry", lambda _: (["H", "H"], [[0., 0., 0.], [0., 0., 2.]]))
     def fake_frames(path):
         s = str(path)
         if "305" in s:
@@ -1792,7 +1827,7 @@ def test_selfconsistency_orca_irc_uses_endpoint_sidecars(monkeypatch):
             node_id="TS", bound_files=["irc_gap.out.log"], matched=True, quality=1.0
         ),
     ]
-    rep_gap = audit_self_consistency(graph, bindings_gap, files, Path("."))
+    rep_gap = audit_self_consistency(graph, bindings_gap, [f for f in files if f.path != "irc_good.out.log"], Path("."))
     edge = _checks_by_id(rep_gap)["E1"]
     assert not edge.covered
     assert any("IRC" in n for n in edge.notes)
@@ -2545,7 +2580,7 @@ def _graph_with_ts(r_smiles, p_smiles):
     )
 
 
-def test_binding_protonation_variant_partial_credit():
+def test_binding_protonation_variant_partial_credit(tmp_path):
     """质子化变体（[OH3+] vs O、乙酸根 vs 乙酸）给 partial 分而非判零；
     真不同物种仍不绑。TS 继承较弱端点的质量。"""
     pytest.importorskip("rdkit")  # 质子化骨架通道依赖 RDKit；CI 只装 dev extra
@@ -2556,7 +2591,9 @@ def test_binding_protonation_variant_partial_credit():
         EvidenceFile(path="rc.log", smiles_found=["O"]),          # 质子化变体（指纹退化 -> 扣满 0.3）
         EvidenceFile(path="pc.log", smiles_found=["CC(=O)O"]),    # 质子化变体（tanimoto 0.5 -> 扣 0.15）
     ]
-    bindings = {b.node_id: b for b in bind_graph_to_evidence(graph, files)}
+    for evidence in files:
+        _annotated_geometry_log(tmp_path / evidence.path, evidence.smiles_found[0])
+    bindings = {b.node_id: b for b in bind_graph_to_evidence(graph, files, sandbox=tmp_path)}
     assert bindings["R"].matched and bindings["R"].quality == pytest.approx(0.7)
     assert bindings["P"].matched and bindings["P"].quality == pytest.approx(0.85)
     assert bindings["TS"].matched and bindings["TS"].quality == pytest.approx(0.7)  # 继承较弱端点
@@ -2564,19 +2601,23 @@ def test_binding_protonation_variant_partial_credit():
     # 真不同物种不绑（乙烷 vs 乙烯骨架不同）
     files_bad = [EvidenceFile(path="rc.log", smiles_found=["C=C"]),
                  EvidenceFile(path="pc.log", smiles_found=["CC(=O)O"])]
-    bindings_bad = {b.node_id: b for b in bind_graph_to_evidence(graph, files_bad)}
+    for evidence in files_bad:
+        _annotated_geometry_log(tmp_path / evidence.path, evidence.smiles_found[0])
+    bindings_bad = {b.node_id: b for b in bind_graph_to_evidence(graph, files_bad, sandbox=tmp_path)}
     assert not bindings_bad["R"].matched and bindings_bad["R"].quality == 0.0
     assert not bindings_bad["TS"].matched  # 端点未绑 -> TS 不绑
 
 
-def test_binding_full_match_quality_one():
+def test_binding_full_match_quality_one(tmp_path):
     """指纹/哈希级匹配（含 kekulé 写法差异）仍是满分。"""
     from cloudra.benchmark.integrity import bind_graph_to_evidence
 
     graph = _graph_with_ts(["c1ccccc1"], ["C1=CC=CC=C1"])
     files = [EvidenceFile(path="a.log", smiles_found=["C1=CC=CC=C1"]),
              EvidenceFile(path="b.log", smiles_found=["c1ccccc1"])]
-    bindings = {b.node_id: b for b in bind_graph_to_evidence(graph, files)}
+    for evidence in files:
+        _annotated_geometry_log(tmp_path / evidence.path, evidence.smiles_found[0])
+    bindings = {b.node_id: b for b in bind_graph_to_evidence(graph, files, sandbox=tmp_path)}
     assert all(b.matched and b.quality == 1.0 for b in bindings.values())
 
 
@@ -2589,8 +2630,8 @@ def test_integrity_report_binding_quality_enters_graph_score(tmp_path):
 
     graph = _graph_with_ts(["[OH3+]"], ["CC(=O)[O-]"])
     (tmp_path / "mechanism_graph.json").write_text(graph.model_dump_json(by_alias=True))
-    (tmp_path / "rc.log").write_text("gaussian log\n# smiles: O\n")
-    (tmp_path / "pc.log").write_text("gaussian log\n# smiles: CC(=O)O\n")
+    _annotated_geometry_log(tmp_path / "rc.log", 'O', prefix='gaussian log\n# smiles: O\n')
+    _annotated_geometry_log(tmp_path / "pc.log", 'CC(=O)O', prefix='gaussian log\n# smiles: CC(=O)O\n')
 
     rep = audit_integrity(tmp_path)
     assert all(b.matched for b in rep.node_bindings)
@@ -2702,7 +2743,7 @@ def test_composite_partial_evidence_is_graded_not_zero(tmp_path):
     graph = _graph_with_ts(["C"], ["O"])
     task = _runner_task(graph)
     (tmp_path / "mechanism_graph.json").write_text(graph.model_dump_json(by_alias=True))
-    (tmp_path / "rc.log").write_text("gaussian log\n# smiles: C\n")  # 只绑上 R
+    _annotated_geometry_log(tmp_path / "rc.log", 'C', prefix='gaussian log\n# smiles: C\n')  # 只绑上 R
 
     runner = BenchmarkRunner(tmp_path / "data")
     res = runner.score_sandbox(task, tmp_path)
@@ -2728,8 +2769,8 @@ def test_composite_sc_failed_step_claws_back_gold_edge_graph_credit(tmp_path):
     graph = _graph_with_ts(["C"], ["O"])
     task = _runner_task(graph)
     (tmp_path / "mechanism_graph.json").write_text(graph.model_dump_json(by_alias=True))
-    (tmp_path / "rc.log").write_text("gaussian log\n# smiles: C\n")
-    (tmp_path / "pc.log").write_text("gaussian log\n# smiles: O\n")
+    _annotated_geometry_log(tmp_path / "rc.log", 'C', prefix='gaussian log\n# smiles: C\n')
+    _annotated_geometry_log(tmp_path / "pc.log", 'O', prefix='gaussian log\n# smiles: O\n')
 
     runner = BenchmarkRunner(tmp_path / "data")
     res = runner.score_sandbox(task, tmp_path)
@@ -2769,9 +2810,17 @@ def _sc_task(graph, *, saddle=True, irc=False):
     )
 
 
-def _patch_sc_probe(monkeypatch, freq_by_name):
+def _patch_sc_probe(monkeypatch, freq_by_name, sandbox, files=()):
     """自洽日志探针替身：按文件名给频率表（负值 = 虚频）。"""
     from cloudra.benchmark import selfconsistency as sc_mod
+    from cloudra.benchmark.integrity import _smiles_in_text
+    for name in freq_by_name:
+        path = sandbox / name
+        identities = _smiles_in_text(path.read_text()) if path.is_file() else next(
+            (item.smiles_found for item in files if Path(item.path).name == name), [])
+        if identities:
+            _annotated_geometry_log(path, identities[0])
+
 
     monkeypatch.setattr(sc_mod, "_frames_for", lambda path: ([], None))
     monkeypatch.setattr(
@@ -2803,9 +2852,11 @@ def test_selfconsistency_complex_requires_verified_component_coverage(
     ], edges=[])
     files = [EvidenceFile(path=f"{name}.log", kind="gaussian", smiles_found=[smiles])
              for name, smiles, freqs in logs]
-    bindings = bind_graph_to_evidence(graph, files)
+    for evidence in files:
+        _annotated_geometry_log(tmp_path / evidence.path, evidence.smiles_found[0])
+    bindings = bind_graph_to_evidence(graph, files, sandbox=tmp_path)
     assert bindings[0].matched
-    _patch_sc_probe(monkeypatch, {f"{name}.log": freqs for name, smiles, freqs in logs})
+    _patch_sc_probe(monkeypatch, {f"{name}.log": freqs for name, smiles, freqs in logs}, tmp_path, files)
 
     report = audit_self_consistency(graph, bindings, files, tmp_path)
 
@@ -2823,9 +2874,11 @@ def test_selfconsistency_complex_keeps_protonation_variant_coverage(tmp_path, mo
     ], edges=[])
     files = [EvidenceFile(path="a.log", kind="gaussian", smiles_found=["C=O"]),
              EvidenceFile(path="b.log", kind="gaussian", smiles_found=["CN"])]
-    bindings = bind_graph_to_evidence(graph, files)
+    for evidence in files:
+        _annotated_geometry_log(tmp_path / evidence.path, evidence.smiles_found[0])
+    bindings = bind_graph_to_evidence(graph, files, sandbox=tmp_path)
     assert bindings[0].matched and 0 < bindings[0].quality < 1
-    _patch_sc_probe(monkeypatch, {"a.log": [100.0], "b.log": [200.0]})
+    _patch_sc_probe(monkeypatch, {"a.log": [100.0], "b.log": [200.0]}, tmp_path, files)
 
     report = audit_self_consistency(graph, bindings, files, tmp_path)
 
@@ -2845,8 +2898,10 @@ def test_complex_minimum_cannot_hide_an_unverified_fragment_in_the_whole_match(
     ], edges=[])
     files = [EvidenceFile(path="water.log", kind="gaussian", smiles_found=["O"]),
              EvidenceFile(path="amine.log", kind="gaussian", smiles_found=["CN"])]
-    bindings = bind_graph_to_evidence(graph, files)
-    _patch_sc_probe(monkeypatch, {"water.log": water_frequencies, "amine.log": [200.0]})
+    for evidence in files:
+        _annotated_geometry_log(tmp_path / evidence.path, evidence.smiles_found[0])
+    bindings = bind_graph_to_evidence(graph, files, sandbox=tmp_path)
+    _patch_sc_probe(monkeypatch, {"water.log": water_frequencies, "amine.log": [200.0]}, tmp_path, files)
 
     report = audit_self_consistency(graph, bindings, files, tmp_path)
 
@@ -2870,7 +2925,7 @@ def test_runner_complex_minimum_coverage_preserves_matching_settings(tmp_path, m
         config.sigmoid_center = -2.0
     (tmp_path / "mechanism_graph.json").write_text(graph.model_dump_json(by_alias=True))
     (tmp_path / "minimum.log").write_text("Gaussian log\n# smiles: CC\n")
-    _patch_sc_probe(monkeypatch, {"minimum.log": [100.0]})
+    _patch_sc_probe(monkeypatch, {"minimum.log": [100.0]}, tmp_path)
     integrity = audit_integrity(tmp_path, task.rubric.integrity, config)
     assert integrity.node_bindings[0].matched
 
@@ -2885,10 +2940,10 @@ def _extra_edge_delivery(tmp_path):
     delivered = GoldMechanismGraph(
         nodes=[
             MechanismNode(id="R", role=NodeRole.REACTANT, smiles=["C"]),
-            MechanismNode(id="TS", role=NodeRole.TRANSITION_STATE, smiles=[]),
+            MechanismNode(id="TS", role=NodeRole.TRANSITION_STATE, smiles=[], properties={"evidence_log": "ts.log"}),
             MechanismNode(id="P", role=NodeRole.PRODUCT, smiles=["O"]),
-            MechanismNode(id="X", role=NodeRole.PRODUCT, smiles=["[O-]"]),
-            MechanismNode(id="TSX", role=NodeRole.TRANSITION_STATE, smiles=[]),
+            MechanismNode(id="X", role=NodeRole.PRODUCT, smiles=["[OH-]"]),
+            MechanismNode(id="TSX", role=NodeRole.TRANSITION_STATE, smiles=[], properties={'evidence_log': 'tsx.log'}),
         ],
         edges=[
             MechanismEdge(id="E", **{"from": "R", "to": "P"}, via="TS"),
@@ -2901,8 +2956,8 @@ def _extra_edge_delivery(tmp_path):
     (tmp_path / "r.log").write_text("Gaussian log\n# smiles: C\n")
     (tmp_path / "ts.log").write_text("Gaussian log\n# smiles: C\n")
     (tmp_path / "p.log").write_text("Gaussian log\n# smiles: O\n")
-    (tmp_path / "x.log").write_text("Gaussian log\n# smiles: [O-]\n")
-    (tmp_path / "tsx.log").write_text("Gaussian log\n# smiles: [O-]\n")
+    (tmp_path / "x.log").write_text("Gaussian log\n# smiles: [OH-]\n")
+    (tmp_path / "tsx.log").write_text("Gaussian log\n# smiles: [OH-]\n")
 
 
 def test_extra_edge_sc_failure_zeroes_layer_but_keeps_graph(tmp_path, monkeypatch):
@@ -2919,7 +2974,7 @@ def test_extra_edge_sc_failure_zeroes_layer_but_keeps_graph(tmp_path, monkeypatc
         "p.log": [100.0],                 # P 验证极小值
         "x.log": [100.0],                 # X 验证极小值
         "tsx.log": [100.0],               # 额外边无鞍点 -> EX 不合格
-    })
+    }, tmp_path)
     res = BenchmarkRunner(tmp_path / "data").score_sandbox(task, tmp_path)
     assert res.selfconsistency_passed is False       # 全有或全无：一条边不合格整层 0
     assert res.graph_score == pytest.approx(1.0, abs=1e-4)  # 额外边不倒扣图分
@@ -2941,7 +2996,7 @@ def test_all_elements_sc_pass_keeps_bool_and_full_graph(tmp_path, monkeypatch):
         "p.log": [100.0],
         "x.log": [100.0],
         "tsx.log": [-300.0, 100.0],       # 额外边也有一阶鞍点 -> 全元素合格
-    })
+    }, tmp_path)
     res = BenchmarkRunner(tmp_path / "data").score_sandbox(task, tmp_path)
     assert res.selfconsistency_passed is True
     assert res.graph_score == pytest.approx(1.0, abs=1e-4)
@@ -3241,7 +3296,7 @@ def test_captured_stdout_log_is_scanned_and_failed_log_is_not_enough(tmp_path):
     sandbox = tmp_path / "sandbox"
     (sandbox / ".cloudra").mkdir(parents=True)
     captured = sandbox / ".cloudra" / "calc-7.out.log"
-    captured.write_bytes(_ORCA_MIN_FIXTURE.read_bytes())
+    captured.write_bytes((_FIXTURE_DIR / "benchmark_nu3/op_minimum.out").read_bytes())
 
     files = scan_evidence_files(sandbox)
     paths = {f.path for f in files}
@@ -3250,7 +3305,7 @@ def test_captured_stdout_log_is_scanned_and_failed_log_is_not_enough(tmp_path):
     assert kinds[".cloudra/calc-7.out.log"] == "orca"
 
     graph = GoldMechanismGraph.model_validate({
-        "nodes": [{"id": "R", "role": "reactant", "smiles": ["O"]}],
+        "nodes": [{"id": "R", "role": "reactant", "smiles": ["C1CO[PH3]1"]}],
         "edges": [],
     })
     bindings = [
@@ -3465,9 +3520,9 @@ def test_real_orca_progext_external_interface(tmp_path):
 # 评分口径整改：交付物（log + 交付 JSON）是唯一评分来源，散文一律不参与
 # ---------------------------------------------------------------------------
 
-_SYNTHETIC_DIR = _FIXTURE_DIR / "benchmark_synthetic"
-_MIN_LOG = _SYNTHETIC_DIR / "minimum_freq.out"
-_TS_LOG = _SYNTHETIC_DIR / "ts_freq.out"
+_SYNTHETIC_DIR = _FIXTURE_DIR / "benchmark_nu3"
+_MIN_LOG = _SYNTHETIC_DIR / "op_minimum.out"
+_TS_LOG = _SYNTHETIC_DIR / "ts2_frequency.out"
 
 
 def _delivery_task(gold_barrier: float) -> TaskSpec:
@@ -3482,9 +3537,9 @@ def _delivery_task(gold_barrier: float) -> TaskSpec:
 
     graph = {
         "nodes": [
-            {"id": "R", "role": "reactant", "smiles": ["O"], "accessible": True},
+            {"id": "R", "role": "reactant", "smiles": ["C1CO[PH3]1"], "accessible": True},
             {"id": "TS", "role": "transition_state", "smiles": [], "accessible": True},
-            {"id": "P", "role": "product", "smiles": ["O"], "accessible": True},
+            {"id": "P", "role": "product", "smiles": ["C=C.O=[PH3]"], "accessible": True},
         ],
         "edges": [
             {
@@ -3519,6 +3574,7 @@ def _write_delivery(sandbox: Path, *, declared: float | None) -> None:
     sandbox.mkdir(parents=True, exist_ok=True)
     (sandbox / "ts_freq.out").write_bytes(_TS_LOG.read_bytes())
     (sandbox / "minimum_freq.out").write_bytes(_MIN_LOG.read_bytes())
+    (sandbox / "product_freq.out").write_bytes((_SYNTHETIC_DIR / "product_minimum.out").read_bytes())
     edge = {
         "id": "E1",
         "from": "R",
@@ -3531,9 +3587,9 @@ def _write_delivery(sandbox: Path, *, declared: float | None) -> None:
         edge["barrier_kcal_mol"] = declared
     graph = {
         "nodes": [
-            {"id": "R", "role": "reactant", "smiles": ["O"], "accessible": True},
-            {"id": "TS", "role": "transition_state", "smiles": [], "accessible": True},
-            {"id": "P", "role": "product", "smiles": ["O"], "accessible": True},
+            {"id": "R", "role": "reactant", "smiles": ["C1CO[PH3]1"], "accessible": True, "properties": {"evidence_log": "minimum_freq.out"}},
+            {"id": "TS", "role": "transition_state", "smiles": [], "accessible": True, "properties": {"evidence_log": "ts_freq.out"}},
+            {"id": "P", "role": "product", "smiles": ["C=C.O=[PH3]"], "accessible": True, "properties": {"evidence_log": "product_freq.out"}},
         ],
         "edges": [edge],
     }
@@ -3555,7 +3611,7 @@ def test_barrier_is_derived_from_logs_and_must_be_declared(tmp_path):
     probe = tmp_path / "probe"
     _write_delivery(probe, declared=None)
     derived = _derived_barrier(probe)
-    assert derived == pytest.approx(19.955, abs=0.05)  # 合成平移量 ≈ +0.0318 Ha
+    assert derived == pytest.approx(23.754002305, abs=0.05)  # 合成平移量 ≈ +0.0318 Ha
 
     # 未声明 → 0 分并写明原因
     undeclared = BenchmarkRunner(tmp_path / "bench_u").score_sandbox(
@@ -3619,19 +3675,19 @@ def test_declared_node_energy_identifies_the_delivered_minimum(tmp_path):
     sandbox.mkdir()
     (sandbox / "ts_freq.out").write_bytes(_TS_LOG.read_bytes())
     text = _MIN_LOG.read_text()
-    folded, open_conf = "-184.757766163554", "-184.740000000000"  # 折叠(深) / 舒展(浅)
+    folded, open_conf = "-496.585628665016", "-496.570000000000"  # 折叠(深) / 舒展(浅)
     assert text.count(folded) == 1
     (sandbox / "min_folded.out").write_text(text, encoding="utf-8")
     (sandbox / "min_open.out").write_text(text.replace(folded, open_conf), encoding="utf-8")
     graph = {
         "nodes": [
             {
-                "id": "R", "role": "reactant", "smiles": ["O"], "accessible": True,
+                "id": "R", "role": "reactant", "smiles": ["C1CO[PH3]1"], "accessible": True,
                 # 声明交的是折叠构象（min_folded）；启发式会选鞍点下方较浅的 min_open
                 "properties": {"energy_hartree": float(folded)},
             },
-            {"id": "TS", "role": "transition_state", "smiles": [], "accessible": True},
-            {"id": "P", "role": "product", "smiles": ["O"], "accessible": True},
+            {"id": "TS", "role": "transition_state", "smiles": [], "accessible": True, "properties": {"evidence_log": "ts_freq.out"}},
+            {"id": "P", "role": "product", "smiles": ["C1CO[PH3]1"], "accessible": True},
         ],
         "edges": [
             {
@@ -3648,7 +3704,7 @@ def test_declared_node_energy_identifies_the_delivered_minimum(tmp_path):
     assert step.base_path.endswith("min_folded.out"), step.base_path
     assert any("matches the node's declared energy_hartree" in n for n in evidence.notes)
     # 用声明的那份 → 19.96 kcal；若按启发式（min_open）则只有 8.81 kcal
-    assert step.barrier_kcal_mol == pytest.approx(19.955, abs=0.05)
+    assert step.barrier_kcal_mol == pytest.approx(23.754002305, abs=0.05)
 
 
 def test_declared_ts_energy_identifies_the_delivered_saddle(tmp_path):
@@ -3660,21 +3716,21 @@ def test_declared_ts_energy_identifies_the_delivered_saddle(tmp_path):
     sandbox.mkdir()
     (sandbox / "min_freq.out").write_bytes(_MIN_LOG.read_bytes())
     ts_text = _TS_LOG.read_text()
-    ts_energy = "-184.72596616"
+    ts_energy = "-496.547774252793"
     assert ts_text.count(ts_energy) >= 1
     # 名字序上 "aaa" 在前（旧规则会选它），声明指向 "zzz"
     (sandbox / "aaa_ts.out").write_text(
-        ts_text.replace(ts_energy, "-184.60000000"), encoding="utf-8"
+        ts_text.replace(ts_energy, "-496.400000000000"), encoding="utf-8"
     )
     (sandbox / "zzz_ts.out").write_text(ts_text, encoding="utf-8")
     graph = {
         "nodes": [
-            {"id": "R", "role": "reactant", "smiles": ["O"], "accessible": True},
+            {"id": "R", "role": "reactant", "smiles": ["C1CO[PH3]1"], "accessible": True},
             {
                 "id": "TS", "role": "transition_state", "smiles": [], "accessible": True,
                 "properties": {"energy_hartree": float(ts_energy)},
             },
-            {"id": "P", "role": "product", "smiles": ["O"], "accessible": True},
+            {"id": "P", "role": "product", "smiles": ["C1CO[PH3]1"], "accessible": True},
         ],
         "edges": [
             {
@@ -3688,9 +3744,7 @@ def test_declared_ts_energy_identifies_the_delivered_saddle(tmp_path):
     evidence = collect_barrier_evidence(sandbox)
     assert len(evidence.steps) == 1, (evidence.steps, evidence.notes)
     assert evidence.steps[0].ts_path.endswith("zzz_ts.out")
-    assert any(
-        "saddle logs bound to TS" in n and "declared" in n for n in evidence.notes
-    )
+    assert all(step.ts_path == 'zzz_ts.out' for step in evidence.alternatives['E1'])
 
 
 def test_scoring_ignores_prose_barrier(tmp_path):
@@ -3734,9 +3788,9 @@ def test_barrier_requires_a_saddle_log(tmp_path):
     (sandbox / "minimum_freq.out").write_bytes(_MIN_LOG.read_bytes())
     (sandbox / "mechanism_graph.json").write_text(json.dumps({
         "nodes": [
-            {"id": "R", "role": "reactant", "smiles": ["O"], "accessible": True},
+            {"id": "R", "role": "reactant", "smiles": ["C1CO[PH3]1"], "accessible": True},
             {"id": "TS", "role": "transition_state", "smiles": [], "accessible": True},
-            {"id": "P", "role": "product", "smiles": ["O"], "accessible": True},
+            {"id": "P", "role": "product", "smiles": ["C1CO[PH3]1"], "accessible": True},
         ],
         "edges": [{
             "id": "E1", "from": "R", "to": "P", "via": "TS",

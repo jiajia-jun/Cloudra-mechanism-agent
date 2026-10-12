@@ -82,7 +82,7 @@ async def test_step_file_review_checks_related_identity_without_global_invalidat
     assert result.is_success is accepted, result
     if not accepted:
         assert result.rejection_code == "stale_basis"
-        assert (await asyncio.to_thread(store.get_review_request, request_id)).state == "queued"
+        assert (await asyncio.to_thread(store.get_review_request, request_id)).state == "superseded"
         assert await asyncio.to_thread(store.get_review_decision_for_request, request_id) is None
 
 

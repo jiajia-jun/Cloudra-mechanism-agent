@@ -757,7 +757,7 @@ class DagStore:
         if state is not None:
             query += " WHERE state = ?"
             params = (state,)
-        query += " ORDER BY created_at, rowid"
+        query += " ORDER BY rowid"
         with self.db.connect() as con:
             rows = con.execute(query, params).fetchall()
         return [self._review_request_from_row(row) for row in rows]
@@ -799,6 +799,7 @@ class DagStore:
         subject_id: str,
         recipient_session_id: str,
         payload: dict[str, Any],
+        request_id: str = '',
     ) -> None:
         """在同一事务内落一条 pending 裁决通知（调用方持有连接/事务）。
 
@@ -810,11 +811,12 @@ class DagStore:
             "INSERT INTO dag_review_notifications("
             "notification_id, kind, decision_id, request_id, "
             "recipient_session_id, payload, state, created_at"
-            ") VALUES (?, ?, ?, '', ?, ?, 'pending', datetime('now'))",
+            ") VALUES (?, ?, ?, ?, ?, ?, 'pending', datetime('now'))",
             (
                 "notif_" + uuid.uuid4().hex,
                 kind,
                 subject_id,
+                request_id,
                 recipient_session_id,
                 _canonical_json(payload),
             ),
@@ -858,6 +860,10 @@ class DagStore:
 
         def operation() -> dict[str, Any]:
             with self.db.connect() as con:
+                # Re-check the scoped basis under the writer lock before applying
+                # a verdict. Other DAG writers cannot change it between the read
+                # and the state/notification writes in this transaction.
+                con.execute('BEGIN IMMEDIATE')
                 row = con.execute(
                     f"SELECT {self._REVIEW_REQUEST_COLUMNS} FROM dag_review_requests "
                     "WHERE request_id = ?",
@@ -871,6 +877,10 @@ class DagStore:
                         "request_id": decision.request_id,
                     }
                 request = self._review_request_from_row(row)
+                if request.state == 'superseded':
+                    return {'accepted': False, 'rejection_code': 'stale_basis',
+                            'rejection_reason': 'This request was superseded; submit current material for a new review.',
+                            'request_id': request.request_id, 'request_state': request.state}
                 if request.basis_fingerprint != expected_basis:
                     return {
                         "accepted": False,
@@ -881,11 +891,20 @@ class DagStore:
                         ),
                         "request_id": decision.request_id,
                     }
-                if current_basis is not None and request.basis_fingerprint != current_basis:
+                if request.state == 'queued' and current_basis is not None and request.basis_fingerprint != self.review_basis(request):
+                    next_action = 'Read the current target and diagnostics; resubmit actual evidence through the original submission tool for a new review.'
+                    con.execute("UPDATE dag_review_requests SET state='superseded', updated_at=datetime('now') WHERE request_id=?",
+                                (request.request_id,))
+                    self._insert_notification(con, kind='review_superseded',
+                        subject_id=request.request_id, request_id=request.request_id, recipient_session_id=request.requester,
+                        payload={'request_id': request.request_id, 'reason': 'The scoped graph, contract, or evidence changed.',
+                                 'next_action': next_action})
                     return {
                         "accepted": False,
                         "rejection_code": "stale_basis",
                         "rejection_reason": "the scoped graph, contract, or evidence changed",
+                        "request_state": "superseded",
+                        "next_action": next_action,
                         "request_id": decision.request_id,
                     }
                 if decision.basis_fingerprint != request.basis_fingerprint:

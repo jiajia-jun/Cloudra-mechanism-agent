@@ -28,7 +28,7 @@ import os
 from pathlib import Path
 from typing import Callable, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from cloudra.persistence.fs_utils import atomic_write_text
 from cloudra.tools.core.conformer_cards import AttemptEvidence
@@ -1971,6 +1971,24 @@ def _submit(record: TsProcessRecord) -> TsProcessRecord:
     )
     return record
 
+class EndpointSource(BaseModel):
+    model_config = ConfigDict(extra='forbid', frozen=True)
+    kind: Literal['species_reference', 'irc_outer_frame']
+    label: Literal['reactant', 'product', 'A', 'B']
+    source_path: str
+    sha256: str
+    irc_job_id: int | None = None
+    irc_log_sha256: str | None = None
+
+    @model_validator(mode='after')
+    def source_contract(self):
+        if self.kind == 'species_reference' and self.label not in {'reactant', 'product'}:
+            raise ValueError('Species reference requires its declared species role.')
+        if self.kind == 'irc_outer_frame' and (self.label not in {'A', 'B'} or
+            self.irc_job_id is None or not self.irc_log_sha256):
+            raise ValueError('IRC outer-frame source requires side, accepted job and log digest.')
+        return self
+
 class TsJobStep(BaseModel):
     """精修作业序列里的一步（TS、IRC 与两端极小值验证）。"""
 
@@ -1986,6 +2004,7 @@ class TsJobStep(BaseModel):
     method_contract: dict | None = None
     stage_key: str | None = None
     external_source: dict | None = None
+    endpoint_source: EndpointSource | None = None
 
 def _read_job_state(record: TsProcessRecord, job_id: Optional[int]) -> str:
     """读作业当前状态；读不到返回 ``"missing"``（不猜成成功）。"""
@@ -2439,10 +2458,10 @@ def _endpoint_opt_frame(record: TsProcessRecord, step: TsJobStep) -> tuple[str, 
 def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
                           role: Literal["reactant", "product"],
                           task: Literal["opt", "frequency"]) -> tuple[str, str]:
-    """Write an unconstrained IRC-side Opt or a Freq at its converged Opt frame.
+    """Write endpoint Opt from a declared species seed or native IRC outer frame.
 
-    The historic reactant/product step names are side A/B slots. Species identity is
-    assigned only after both sides have optimized and passed frequency checks.
+    Record the actual source when writing; a Freq inherits its accepted Opt
+    provenance and uses that converged geometry. Roles and IRC A/B are distinct.
     """
     from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
     from cloudra.tools.core.calculation_intent import (
@@ -2455,6 +2474,7 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
     if calculation is None:
         return f'Explicit {_calculation_field(f"{role}_{task}")} required', ''
     endpoint = getattr(record.input.verification, role + '_endpoint')
+    provenance = None
     if task == 'opt' and endpoint.seed is not None:
         path = _workspace_input_path(record, endpoint.seed.xyz_path)
         source = str(path)
@@ -2469,6 +2489,7 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
         error = _endpoint_identity_error(record, role, ([s for s, _ in atoms], [point for _, point in atoms]))
         if error:
             return error, ''
+        provenance = dict(kind='species_reference', label=role)
     elif task == "opt":
         irc_step = next(
             (step for step in reversed(record.job_steps) if step.purpose == "irc"), None,
@@ -2493,6 +2514,10 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
         source = info["path_a" if role == "reactant" else "path_b"]
         if not source or not os.path.isfile(source):
             return f"IRC side {'A' if role == 'reactant' else 'B'} outer frame is missing", ""
+        import hashlib
+        provenance = dict(kind='irc_outer_frame', label='A' if role == 'reactant' else 'B',
+            irc_job_id=irc_step.external_source['source_job_id'] if irc_step.external_source else irc_step.job_id,
+            irc_log_sha256=hashlib.sha256(Path(irc_log).read_bytes()).hexdigest())
     else:
         opt_step = next(
             (step for step in reversed(record.job_steps) if step.purpose == f"{role}_opt"),
@@ -2503,12 +2528,20 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
         xyz, error = _endpoint_opt_frame(record, opt_step)
         if error:
             return f"{role} {error}", ""
+        if opt_step.endpoint_source is None:
+            return f'{role} accepted optimization has no endpoint source provenance', ''
+        provenance = opt_step.endpoint_source.model_dump()
         source = os.path.join(job_dir, "optimized.xyz")
         atomic_write_text(source, xyz.rstrip() + "\n")
 
     source_copy=os.path.join(job_dir,f'{role}_source.xyz')
     _write_immutable_input(source_copy,Path(source).read_text())
     source=source_copy
+    import hashlib
+    if task == 'opt':
+        provenance.update(source_path=source_copy, sha256=hashlib.sha256(Path(source_copy).read_bytes()).hexdigest())
+    _write_immutable_input(os.path.join(job_dir, 'endpoint_source.json'),
+        EndpointSource.model_validate(provenance).model_dump_json())
     declaration = record.input.reaction
     task_type = [{"opt": None}] if task == "opt" else [{"freq": None}]
     name = f"{role}_{task}.{'inp' if calculation.engine == 'orca' else 'gjf'}"
@@ -2520,7 +2553,7 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
         source_type="xyz_file", source_value=source,
         task_type=task_type,
         charge=declaration.charge, multiplicity=declaration.multiplicity,
-        title=f"IRC side {'A' if role == 'reactant' else 'B'} endpoint {task} | smiles: {getattr(declaration, role + '_smiles')}",
+        title=f"Endpoint {role} {task} | declared_species: {getattr(declaration, role + '_smiles')}",
         output_path=input_path,
     )
     conflicts = validate_writer_request(request.model_dump())
@@ -2743,11 +2776,12 @@ def _refine(record: TsProcessRecord) -> TsProcessRecord:
         record.job_steps.append(TsJobStep(
             purpose=purpose, job_id=job_id, input_path=input_path, state="ready",
             actual_calculation=stage_calculation(record, purpose), source_input_revision=record.declaration_revision,
+            endpoint_source=EndpointSource.model_validate_json(Path(job_dir, 'endpoint_source.json').read_text()),
         ))
         record.waiting_for = f"job:{job_id}"
         _record_stage(
             record, "refine", "waiting",
-            f"IRC side {'A' if role == 'reactant' else 'B'} endpoint {task} job {job_id} "
+            f"Endpoint {role} {task} job {job_id} "
             "submitted; awaiting its compute notification",
             [input_path],
         )
@@ -3009,7 +3043,7 @@ def _irc_interval_proof(
     record: TsProcessRecord, irc_log: str, freq_step: "TsJobStep",
     reactant: tuple[list[str], list[list[float]]],
     product: tuple[list[str], list[list[float]]],
-    expected_assignment: Literal["direct", "swapped"],
+    expected_origins: dict[str, str],
 ) -> tuple[bool, str]:
     """verified 的区间证明：每个 IRC 双侧端点几何上位于 TS 与对应声明极小值之间。
 
@@ -3051,6 +3085,14 @@ def _irc_interval_proof(
     end_b = parse_xyz(info["end_b"].xyz)
     if end_a is None or end_b is None:
         return False, "the extracted IRC endpoint geometries could not be parsed"
+    from cloudra.tools.core.irc_path import same_geometry
+    for role in ('reactant', 'product'):
+        opt = next(s for s in reversed(record.job_steps) if s.purpose == role + '_opt')
+        origin = opt.endpoint_source
+        if origin.kind == 'irc_outer_frame':
+            saved = parse_xyz(Path(origin.source_path).read_text())
+            if not same_geometry(saved, end_a if origin.label == 'A' else end_b):
+                return False, f'{role} source provenance is not the accepted IRC {origin.label} outer-frame geometry'
 
     aligned: list[list] = []
     for label, symbols, positions in (
@@ -3085,10 +3127,11 @@ def _irc_interval_proof(
             "at least one IRC endpoint does not lie between the TS and any declared minimum; "
             "the path does not demonstrably connect the declared minima"
         )
-    if proof["assignment"] != expected_assignment:
+    actual = {'A': 'reactant', 'B': 'product'} if proof['assignment'] == 'direct' else {'A': 'product', 'B': 'reactant'}
+    if any(actual[side] != species for side, species in expected_origins.items()):
         return False, (
             "the interval pairing contradicts the provenance of the optimized IRC outer "
-            f"frames (proof={proof['assignment']}, source={expected_assignment})"
+            f"frames (proof={proof['assignment']}, source={expected_origins})"
         )
     return True, (
         "each IRC endpoint lies between the TS and the corresponding declared minimum "
@@ -3166,9 +3209,36 @@ def _verdict(record: TsProcessRecord) -> TsProcessRecord:
         return _terminal(record, "verdict", "candidate_only", f"IRC side B minimum is unverified: {reason}")
 
     failures: list[str] = []
+    import hashlib
+    sources = {}
+    for slot in ('reactant', 'product'):
+        opt = next((s for s in reversed(record.job_steps) if s.purpose == slot + '_opt'), None)
+        freq = next((s for s in reversed(record.job_steps) if s.purpose == slot + '_frequency'), None)
+        origin = opt.endpoint_source if opt else None
+        if origin is None or freq is None or freq.endpoint_source != origin:
+            return _terminal(record, 'verdict', 'candidate_only', f'{slot} endpoint source provenance is missing or differs between Opt and Freq')
+        if not Path(origin.source_path).is_file() or hashlib.sha256(Path(origin.source_path).read_bytes()).hexdigest() != origin.sha256:
+            return _terminal(record, 'verdict', 'candidate_only', f'{slot} endpoint source provenance changed')
+        if origin.kind == 'irc_outer_frame' and (origin.label not in {'A', 'B'} or
+            origin.irc_job_id != (irc_step.external_source['source_job_id'] if irc_step.external_source else irc_step.job_id) or
+            origin.irc_log_sha256 != hashlib.sha256(Path(irc_log).read_bytes()).hexdigest()):
+            return _terminal(record, 'verdict', 'candidate_only', f'{slot} endpoint IRC source provenance does not match the accepted IRC')
+        if origin.kind == 'species_reference' and origin.label != slot:
+            return _terminal(record, 'verdict', 'candidate_only', f'{slot} explicit seed declared a different species role')
+        sources[slot] = origin
+    sides = [origin.label for origin in sources.values() if origin.kind == 'irc_outer_frame']
+    if len(sides) != len(set(sides)):
+        return _terminal(record, 'verdict', 'candidate_only', 'Endpoint source provenance repeats an IRC side; both origins must be checked independently.')
     for assignment, reactant, product in (
         ("direct", side_a, side_b), ("swapped", side_b, side_a),
     ):
+        slot_species = {'reactant': 'reactant', 'product': 'product'} if assignment == 'direct' else {'reactant': 'product', 'product': 'reactant'}
+        if any(origin.kind == 'species_reference' and origin.label != slot_species[slot]
+               for slot, origin in sources.items()):
+            failures.append(f'{assignment} identity contradicts the explicit species reference')
+            continue
+        expected_origins = {origin.label: slot_species[slot] for slot, origin in sources.items()
+                            if origin.kind == 'irc_outer_frame'}
         identity_errors = [
             _endpoint_identity_error(record, "reactant", reactant),
             _endpoint_identity_error(record, "product", product),
@@ -3177,7 +3247,7 @@ def _verdict(record: TsProcessRecord) -> TsProcessRecord:
             failures.append(f"{assignment} identity: {'; '.join(error for error in identity_errors if error)}")
             continue
         passed, detail = _irc_interval_proof(
-            record, irc_log, freq_step, reactant, product, assignment,
+            record, irc_log, freq_step, reactant, product, expected_origins,
         )
         if passed:
             return _terminal(

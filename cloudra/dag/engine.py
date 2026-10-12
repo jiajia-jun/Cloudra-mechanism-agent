@@ -632,9 +632,9 @@ class DagEngine:
                     },
                 )
             request_rows = con.execute(
-                "SELECT request_id, target_ids FROM dag_review_requests WHERE state = 'queued'"
+                "SELECT request_id, target_ids, requester FROM dag_review_requests WHERE state = 'queued'"
             ).fetchall()
-            for request_id, target_ids_json in request_rows:
+            for request_id, target_ids_json, requester in request_rows:
                 try:
                     target_ids = json.loads(target_ids_json)
                 except ValueError:
@@ -645,6 +645,10 @@ class DagEngine:
                         "updated_at = datetime('now') WHERE request_id = ?",
                         (request_id,),
                     )
+                    self.store._insert_notification(con, kind='review_superseded',
+                        subject_id=request_id, request_id=request_id, recipient_session_id=requester,
+                        payload={'reason': f'Review target {target_id} was removed. {(rationale or "").strip()}',
+                                 'next_action': 'Read the current graph. Submit current targets and actual material for a new review if the question still applies.'})
 
     def _apply_operation(
         self,

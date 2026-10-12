@@ -44,6 +44,10 @@ def _upstream_step(record, tmp_path, purpose, engine):
     path = directory / ("input.inp" if engine == "orca" else "input.gjf")
     path.write_text("upstream input fixture")
     step = ts_process.TsJobStep(purpose=purpose, job_id=1, input_path=str(path), state="done")
+    if purpose in {'reactant_opt', 'product_opt'}:
+        import hashlib
+        step.endpoint_source = ts_process.EndpointSource(kind='species_reference', label=purpose.partition('_')[0],
+            source_path=record.current_ts_guess_path, sha256=hashlib.sha256(Path(record.current_ts_guess_path).read_bytes()).hexdigest())
     record.job_steps.append(step)
     log = Path(ts_process._refinement_log_path(record, step))
     log.parent.mkdir(parents=True, exist_ok=True)
@@ -101,7 +105,7 @@ def test_native_ts_input_and_echo_bind_declared_step_reactant(tmp_path, monkeypa
 @pytest.mark.parametrize("engine", ["orca", "gaussian"])
 @pytest.mark.parametrize("role, expected_smiles", [("reactant", _REACTANT), ("product", _PRODUCT)])
 @pytest.mark.parametrize("task", ["opt", "frequency"])
-def test_native_endpoint_input_and_echo_bind_its_declared_role(
+def test_native_endpoint_input_records_declaration_without_observed_identity(
     tmp_path, monkeypatch, engine, role, expected_smiles, task
 ):
     record = _record(tmp_path, engine)
@@ -119,4 +123,13 @@ def test_native_endpoint_input_and_echo_bind_its_declared_role(
     error, path = ts_process._write_endpoint_input(record, str(directory), role, task)
     assert error == ""
     expected_task = "minimum_opt" if task == "opt" else "frequency"
-    _assert_annotated_input(tmp_path, path, engine, expected_smiles, expected_task)
+    content = Path(path).read_text()
+    assert inspect_input(content, engine=engine).tasks == {expected_task}
+    assert native_input_geometry(content, engine=engine) == _ATOMS
+    assert f'declared_species: {expected_smiles}' in content
+    echo = '\n'.join(f'| {index}> {line}' for index, line in enumerate(content.splitlines(), 1))
+    echo_path = Path(path).with_suffix('.echo.log')
+    echo_path.write_text(echo)
+    files = {row.path: row for row in scan_evidence_files(tmp_path)}
+    assert files[str(Path(path).relative_to(tmp_path))].smiles_found == []
+    assert files[str(echo_path.relative_to(tmp_path))].smiles_found == []

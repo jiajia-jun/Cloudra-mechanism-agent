@@ -118,7 +118,7 @@ class DagReviewEvidence(DagToolBase):
                 snapshot = await asyncio.to_thread(store.load_snapshot)
                 scientific_checks = await asyncio.to_thread(
                     file_scientific_checks, store, snapshot.delivery, request.target_ids[0],
-                    irc_files=request.proposal.get("irc_files"),
+                    irc_files=request.proposal.get("irc_files"), endpoint_refs=request.proposal.get("endpoint_refs"),
                     evidence_refs=request.supporting_refs,
                     workspace_root=getattr(self.subagent, "working_directory", None),
                 )

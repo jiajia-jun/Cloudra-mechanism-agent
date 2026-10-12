@@ -20,8 +20,7 @@ Pure filesystem + parsing; no LLM, no DB.
 from __future__ import annotations
 
 import json
-import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Optional
 
@@ -39,6 +38,7 @@ from cloudra.benchmark.schema import (
     MechanismNode,
     NodeRole,
 )
+from cloudra.tools.core.irc_evidence import normal_log
 
 # 交付侧识别的常规图论 type 别名 → 系统 NodeRole。未知 type 不做猜测映射：
 # 留原样让校验 fail-loud（无法识别的声明不该被静默吞成另一个角色）。
@@ -116,11 +116,6 @@ MAX_SCAN_BYTES = 20 * 1024 * 1024
 # `smiles:` 注释行是交付协议的一部分（query 明确要求证据文件携带）。
 # 容忍 JSON/YAML 引号与注释前缀："smiles": "X"、smiles: 'X'、# smiles: X。
 # 注意不能把 [ ] 排除在捕获集外——离子/ bracket SMILES（[F-]、[OH3+]）依赖它们。
-_SMILES_LINE_RE = re.compile(
-    r"[\"']?\bsmiles\b[\"']?\s*[:=]\s*[\"']?([^\s,;\"'}]+)", re.IGNORECASE
-)
-
-
 @dataclass
 class EvidenceFile:
     path: str
@@ -221,21 +216,38 @@ def _smiles_in_json(obj) -> list[str]:
 
 
 def _smiles_in_text(text: str) -> list[str]:
-    out = [m.group(1) for m in _SMILES_LINE_RE.finditer(text)]
-    # JSON 摘要文件：正则抓到的是引号内首个值，数组形式走结构化兜底
+    # Structured files are read as JSON; annotation parsing is for raw text.
     try:
         data = json.loads(text)
     except Exception:
         data = None
     if isinstance(data, (dict, list)):
-        out.extend(_smiles_in_json(data))
-    return out
+        return _smiles_in_json(data)
+    found = []
+    for line in text.splitlines():
+        offset = 0
+        while (index := line.lower().find('smiles', offset)) >= 0:
+            offset = index + len('smiles')
+            if index and (line[index - 1].isalnum() or line[index - 1] == '_'):
+                continue
+            suffix = line[offset:].lstrip("'\" \t")
+            if not suffix or suffix[0] not in ':=':
+                continue
+            value = suffix[1:].lstrip().lstrip("'\"")
+            end = next((i for i, char in enumerate(value) if char.isspace() or char in ",;\"'}"), len(value))
+            if end:
+                found.append(value[:end])
+    return found
 
 
 def scan_evidence_files(sandbox: Path, exclude: Optional[Path] = None) -> list[EvidenceFile]:
     files: list[EvidenceFile] = []
     for p in sorted(sandbox.rglob("*")):
         if not p.is_file():
+            continue
+        try:
+            p.resolve().relative_to(sandbox.resolve())
+        except ValueError:
             continue
         if p.suffix.lower() not in _EVIDENCE_SUFFIXES:
             continue
@@ -376,6 +388,8 @@ def bind_graph_to_evidence(
     cfg: Optional[GedConfig] = None,
     match_threshold: float = 0.2,
     partial_quality: float = 0.7,
+    *,
+    sandbox: Path,
 ) -> list[NodeBinding]:
     """Bind each accessible non-TS node to evidence files whose parsed SMILES
     match the node's claimed SMILES. A node's SMILES list holds whole species:
@@ -403,6 +417,21 @@ def bind_graph_to_evidence(
     绑定、不产出 NodeBinding；via 边任一端点不可达时该 TS 随之绑不上
     （端点不在绑定集合里）。"""
     cfg = cfg or GedConfig()
+    sandbox = Path(sandbox)
+    available = files
+    from cloudra.dag.file_science import _geometry_species
+    verified = []
+    for evidence in files:
+        identities = []
+        if evidence.size <= MAX_SCAN_BYTES and (evidence.kind == 'xyz' or normal_log(sandbox / evidence.path, max_scan_bytes=MAX_SCAN_BYTES)):
+            for identity in evidence.smiles_found:
+                try:
+                    if _geometry_species(str(sandbox / evidence.path), identity):
+                        identities.append(identity)
+                except (ValueError, RuntimeError):
+                    continue
+        verified.append(replace(evidence, smiles_found=identities))
+    files = verified
     bindings: list[NodeBinding] = []
     by_id: dict[str, NodeBinding] = {}
     ts_ids = {n.id for n in graph.nodes if n.role == NodeRole.TRANSITION_STATE}
@@ -416,6 +445,25 @@ def bind_graph_to_evidence(
         bindings.append(nb)
         if node.id in ts_ids:
             continue
+        if 'evidence_log' in node.properties:
+            raw = node.properties['evidence_log']
+            try:
+                path = (sandbox / raw).resolve() if isinstance(raw, str) else None
+                relative = str(path.relative_to(sandbox.resolve())) if path is not None else None
+                evidence = next((item for item in available if item.path == relative
+                                 and item.kind in {'gaussian', 'orca'} and item.size <= MAX_SCAN_BYTES), None)
+                if evidence and node.smiles and normal_log(path, max_scan_bytes=MAX_SCAN_BYTES):
+                    identities = next(item.smiles_found for item in files if item.path == relative)
+                    identities = list(identities)
+                    identities.extend(identity for identity in node.smiles if _geometry_species(str(path), identity))
+                    candidate = replace(evidence, smiles_found=list(dict.fromkeys(identities)))
+                    qualities = [_species_file_qualities(identity, [candidate], cfg, match_threshold, partial_quality)[0]
+                                 for identity in node.smiles]
+                    if all(quality > 0 for quality in qualities):
+                        nb.bound_files, nb.matched, nb.quality = [relative], True, min(qualities)
+            except (ValueError, RuntimeError, OSError):
+                pass
+            continue  # A bad explicit reference must never select other history.
         if not node.smiles:
             # 物种节点不带 SMILES = 只有声明没有可取证内容，不予绑定；
             # 否则 agent 把 SMILES 全留空即可零证据通过本层。
@@ -446,6 +494,19 @@ def bind_graph_to_evidence(
         nb = by_id.get(ts_id)
         if nb is None:
             continue
+        node = next(n for n in graph.nodes if n.id == ts_id)
+        if 'evidence_log' in node.properties:
+            raw = node.properties['evidence_log']
+            try:
+                path = (sandbox / raw).resolve() if isinstance(raw, str) else None
+                relative = str(path.relative_to(sandbox.resolve())) if path is not None else None
+                if any(f.path == relative and f.kind in {'gaussian', 'orca'} and f.size <= MAX_SCAN_BYTES for f in available) and normal_log(path, max_scan_bytes=MAX_SCAN_BYTES):
+                    endpoint_quality = max((min(by_id[e.from_node].quality, by_id[e.to_node].quality)
+                                            for e in graph.edges if e.via == ts_id and e.from_node in by_id and e.to_node in by_id), default=0.0)
+                    nb.bound_files, nb.matched, nb.quality = [relative], True, endpoint_quality
+            except (ValueError, OSError):
+                pass
+            continue
         for e in graph.edges:
             if e.via != ts_id:
                 continue
@@ -453,7 +514,15 @@ def bind_graph_to_evidence(
             if a is not None and b is not None and a.matched and b.matched:
                 nb.matched = True
                 nb.quality = min(a.quality, b.quality)
-                nb.bound_files = sorted(set(a.bound_files) | set(b.bound_files))
+                from cloudra.benchmark.barrier_evidence import (
+                    _declared_node_energy_hartree,
+                    _identify_by_declared_energy,
+                )
+                declared = _declared_node_energy_hartree(node)
+                candidates = [f.path for f in available if f.kind in {'gaussian', 'orca'}
+                              and f.size <= MAX_SCAN_BYTES]
+                selected = _identify_by_declared_energy(sandbox, candidates, declared) if declared is not None else None
+                nb.bound_files = [selected] if selected else []
                 break
     return bindings
 
@@ -495,6 +564,7 @@ def audit_integrity(
         cfg,
         match_threshold=rubric.match_threshold,
         partial_quality=rubric.protonation_partial_quality,
+        sandbox=sandbox,
     )
 
     report.binding_quality = (

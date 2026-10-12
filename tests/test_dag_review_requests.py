@@ -96,6 +96,9 @@ def test_deleting_request_target_supersedes_queued_request(tmp_path):
     # 待办退出；历史行保留为 superseded
     assert store.list_review_requests("queued") == []
     assert store.get_review_request(request_id).state == "superseded"
+    notices = store.pending_review_notifications()
+    assert [(item['kind'], item['request_id'], item['recipient_session_id']) for item in notices] == [
+        ('review_superseded', request_id, 'small_mol')]
 
 
 def test_resolve_review_valid_basis_marks_request_resolved(tmp_path):
@@ -148,6 +151,65 @@ def test_unassigned_fact_does_not_invalidate_scoped_review(tmp_path):
     store.record_facts([EvidenceFact(fact_id="related", check="identity", outcome="refutes",
         subject=FactSubject(target_hint="step1"), source_refs=[_ref()], details={})])
     assert store.review_basis(request) != basis
+
+
+def test_actual_stale_request_retires_and_notifies_without_scientific_decision(tmp_path):
+    from cloudra.dag.evidence_facts import EvidenceFact, FactSubject
+    store = _store(tmp_path)
+    request = _req()
+    basis = store.review_basis(request)
+    request_id = store.enqueue_review(request.model_copy(update={'basis_fingerprint': basis}))
+    store.record_facts([EvidenceFact(fact_id='new-target-fact', check='path', outcome='refutes',
+        subject=FactSubject(target_hint='step1'), source_refs=[_ref()], details={})])
+    decision = ReviewDecision(request_id=request_id, basis_fingerprint=basis,
+                              verdict="accept", reason="old material")
+    out = store.resolve_review(decision, expected_basis=basis, current_basis=basis)
+    assert not out["accepted"] and out["rejection_code"] == "stale_basis"
+    assert store.get_review_request(request_id).state == "superseded"
+    assert store.list_review_requests("queued") == []
+    assert store.get_review_decision_for_request(request_id) is None
+    notices = store.pending_review_notifications()
+    assert len(notices) == 1
+    assert notices[0]["recipient_session_id"] == "small_mol"
+    assert notices[0]["kind"] == "review_superseded"
+    retry = store.resolve_review(decision, expected_basis=basis)
+    assert not retry["accepted"]
+    assert store.get_review_request(request_id).state == "superseded"
+    assert len(store.pending_review_notifications()) == 1
+
+
+def test_review_history_orders_insertions_across_timestamp_formats(tmp_path):
+    store = _store(tmp_path)
+    first = store.enqueue_review(_req(request_id='file-review'))
+    with store.db.connect() as con:
+        con.execute("UPDATE dag_review_requests SET created_at='2026-10-11T00:00:00+00:00' WHERE request_id=?", (first,))
+    second = store.enqueue_review(_req(request_id='generic-review', basis_fingerprint='new-basis'))
+    with store.db.connect() as con:
+        con.execute("UPDATE dag_review_requests SET created_at='2026-10-11 00:01:00' WHERE request_id=?", (second,))
+    assert [r.request_id for r in store.list_review_requests(state=None)] == [first, second]
+
+
+@pytest.mark.parametrize('asynchronous', [False, True])
+@pytest.mark.asyncio
+async def test_notification_schema_upgrade_preserves_appended_column_layout(tmp_path, asynchronous):
+    import asyncio
+    import json
+    def old_db():
+        store = _store(tmp_path)
+        with store.db.connect() as con:
+            con.execute('DROP TABLE dag_review_notifications')
+            con.execute("CREATE TABLE dag_review_notifications (notification_id TEXT PRIMARY KEY, decision_id TEXT, request_id TEXT, recipient_session_id TEXT, state TEXT, created_at TEXT, kind TEXT, payload TEXT)")
+            con.execute("INSERT INTO dag_review_notifications VALUES('n1','d1','r1','owner','pending','2026-10-11','call_verdict',?)", (json.dumps({'reason': 'preserve'}),))
+        return store.db
+    db = await asyncio.to_thread(old_db)
+    if asynchronous:
+        await db.ainit()
+    else:
+        await asyncio.to_thread(db.init)
+    def read():
+        with db.connect() as con:
+            return con.execute('SELECT notification_id,kind,decision_id,request_id,recipient_session_id,payload,state FROM dag_review_notifications').fetchone()
+    assert await asyncio.to_thread(read) == ('n1','call_verdict','d1','r1','owner',json.dumps({'reason': 'preserve'}),'pending')
 
 
 def test_resolve_review_duplicate_decision_rejected(tmp_path):

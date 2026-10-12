@@ -177,7 +177,6 @@ class DagPolicyStage:
                     "dag_review_step",
                     "dag_accept_mechanism",
                 }
-                and result.is_success
                 and self._core is not None
             ):
                 from cloudra.runtime_v2.supervision import flush_review_notifications
@@ -195,6 +194,9 @@ class DagPolicyStage:
             payload,
         )
         self._apply_delivery_delta(ctx, result, finished)
+        if self._core is not None and call.name in {'dag_remove_node', 'dag_remove_edge'}:
+            from cloudra.runtime_v2.supervision import flush_review_notifications
+            await flush_review_notifications(self._core, ctx.agent.project_id)
 
     async def before_llm(self, ctx: PipelineContext, messages: list[dict[str, Any]]) -> None:
         controller = await self._controller(ctx)

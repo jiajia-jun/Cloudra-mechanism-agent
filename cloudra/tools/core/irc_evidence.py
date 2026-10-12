@@ -22,7 +22,28 @@ from pathlib import Path
 from typing import Optional, Sequence
 
 from cloudra.tools.core import gaussian_frames, orca_frames, qm_engine
-from cloudra.tools.core.irc_path import parse_xyz, prove_irc_endpoint_direction
+from cloudra.tools.core.irc_path import parse_xyz, prove_irc_endpoint_direction, same_geometry
+
+
+def irc_start_geometry(path):
+    """Native IRC starting saddle, never a predictor or a terminal path frame."""
+    engine = qm_engine.detect_qm_engine(str(path))
+    try:
+        if engine == 'gaussian':
+            frames, _ = gaussian_frames.extract_irc(str(path))
+            return next((parse_xyz(frame.xyz) for frame in frames
+                         if frame.reaction_coordinate == 0.0 and frame.xyz.strip()), None)
+        if engine == 'orca':
+            text = Path(path).read_text(errors='replace')
+            orca_frames.extract_irc_from_text(text)
+            start = text.find('Intrinsic Reaction Coordinate Calculation')
+            if start < 0:
+                return None
+            index = text.rfind('CARTESIAN COORDINATES (ANGSTROEM)', 0, start)
+            return parse_xyz(orca_frames._xyz_block_at(text, index)) if index >= 0 else None
+    except (ValueError, OSError):
+        return None
+    return None
 
 
 def frames_for(path):
@@ -157,6 +178,43 @@ def _within_scan_limit(path: Path, max_scan_bytes: Optional[int]) -> bool:
         return False
 
 
+def normal_log(path, *, max_scan_bytes=None) -> bool:
+    """Native normally terminated QM evidence within the caller's read limit."""
+    path = Path(path)
+    if not path.is_file() or not _within_scan_limit(path, max_scan_bytes):
+        return False
+    engine = qm_engine.detect_qm_engine(str(path))
+    parser = {'orca': orca_frames, 'gaussian': gaussian_frames}.get(engine)
+    text = path.read_text(errors='replace')
+    if parser is None or not parser.normal_termination(text):
+        return False
+    if engine == 'orca' and 'ORCA finished by error termination' in text:
+        return False
+    marker = 'ORCA TERMINATED NORMALLY' if engine == 'orca' else 'Normal termination of Gaussian'
+    if text.count(marker) <= 1:
+        return True
+    # Link1/compound outputs may contain multiple native calculations. The
+    # last frequency block must describe the final geometry, not an earlier
+    # saddle whose frequencies survived a later optimization in the same file.
+    parts = text.split(marker)
+    segments = [part + marker for part in parts[:-1]]
+    segments[-1] += parts[-1]
+    def geometry(segment):
+        if engine == 'orca':
+            return parse_xyz(orca_frames.final_xyz_from_text(segment))
+        blocks = gaussian_frames.std_orientation_frames(segment)
+        coords = blocks[-1] if blocks else gaussian_frames._parse_last_input_orientation(segment)
+        return parse_xyz(gaussian_frames._coords_to_xyz(
+            [row[0] for row in coords], [row[1:] for row in coords])) if coords else None
+    final_geometry = geometry(segments[-1])
+    for segment in reversed(segments):
+        frequencies = (orca_frames.vibfreqs_from_text(segment) if engine == 'orca' else
+                       any(line.strip().startswith('Frequencies --') for line in segment.splitlines()))
+        if frequencies:
+            return same_geometry(final_geometry, geometry(segment))
+    return True
+
+
 def probe_log(path, *, max_scan_bytes: Optional[int] = None) -> tuple[Optional[int], Optional[tuple]]:
     """(虚频数, 末帧几何)。虚频数 None = 无频率块/文件不可解析。
 
@@ -165,7 +223,7 @@ def probe_log(path, *, max_scan_bytes: Optional[int] = None) -> tuple[Optional[i
     p = Path(path)
     if not _within_scan_limit(p, max_scan_bytes):
         return None, None
-    if qm_engine.detect_qm_engine(str(p)) not in ("gaussian", "orca"):
+    if not normal_log(p, max_scan_bytes=max_scan_bytes):
         return None, None
     frames, _irc_meta = frames_for(p)
     freqs = freqs_for(p, frames)
@@ -276,6 +334,10 @@ def verify_short_irc_direction(
     ts_geometries = _usable_ts_geometries(
         ts_logs, max_scan_bytes=max_scan_bytes, details=details
     )
+    anchor = irc_start_geometry(irc_log)
+    ts_geometries = [geo for geo in ts_geometries if same_geometry(geo, anchor)]
+    if not ts_geometries:
+        details.append('IRC starting saddle is missing or differs from the submitted TS geometry; submit evidence from the same TS calculation geometry.')
     from_geometries = _usable_minimum_geometries(
         endpoint_b_logs, side="endpoint_b (SOURCE/reactant side)",
         max_scan_bytes=max_scan_bytes, details=details,
@@ -352,6 +414,8 @@ def verify_short_irc_pair(forward_log, reverse_log, ts_logs, endpoint_a_logs, en
     if forward is None or reverse is None:
         return False, ['Both submitted directional logs must supply an outer endpoint geometry.']
     ts = _usable_ts_geometries(ts_logs, max_scan_bytes=None, details=details)
+    starts = [irc_start_geometry(path) for path in (forward_log, reverse_log)]
+    ts = [geo for geo in ts if all(same_geometry(geo, start) for start in starts)]
     source = _usable_minimum_geometries(endpoint_b_logs, side='SOURCE', max_scan_bytes=None, details=details)
     target = _usable_minimum_geometries(endpoint_a_logs, side='TARGET', max_scan_bytes=None, details=details)
     if not (ts and source and target):

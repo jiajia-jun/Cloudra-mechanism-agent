@@ -21,11 +21,13 @@ from pathlib import Path
 from typing import Optional
 
 from cloudra.benchmark.integrity import (
+    MAX_SCAN_BYTES,
     find_graph_json,
     load_delivered_graph,
     scan_evidence_files,
 )
 from cloudra.benchmark.schema import GoldMechanismGraph
+from cloudra.tools.core.irc_evidence import normal_log
 
 # CODATA Hartree → kcal/mol
 HARTREE_TO_KCAL_MOL = 627.5094740631
@@ -135,6 +137,8 @@ def _engine_energy_kcal(sandbox: Path, rel_path: str) -> tuple[Optional[float], 
         )
     if not path.is_file():
         return None, f"{rel_path}: evidence file missing"
+    if not normal_log(path, max_scan_bytes=MAX_SCAN_BYTES):
+        return None, f'{rel_path}: normally terminated evidence within the scan limit required'
     engine = detect_qm_engine(str(path))
     if engine not in _SCORING_ENGINES:
         return None, (
@@ -159,6 +163,9 @@ def _engine_energy_kcal(sandbox: Path, rel_path: str) -> tuple[Optional[float], 
 
 def _imaginary_frequency_count(sandbox: Path, rel_path: str) -> Optional[int]:
     """证据文件里的虚频个数（判定它物理上是不是一阶鞍点）；不可判定返回 None。"""
+    path = _resolve_in_sandbox(sandbox, rel_path)
+    if path is None or not normal_log(path, max_scan_bytes=MAX_SCAN_BYTES):
+        return None
     engine, frames = _frames_for(sandbox, rel_path)
     if engine not in _SCORING_ENGINES:
         return None
@@ -177,12 +184,19 @@ def _imaginary_frequency_count(sandbox: Path, rel_path: str) -> Optional[int]:
     return sum(1 for f in freqs if f < 0)
 
 
-def _is_step_ts(sandbox: Path, rel_path: str) -> Optional[bool]:
-    """该证据文件是否是一阶鞍点（TS）：True/False/None(不可判定)。"""
-    imag = _imaginary_frequency_count(sandbox, rel_path)
-    if imag is None:
-        return None
-    return imag == 1
+def _frequency_supported(sandbox, path, candidates, expected):
+    """A separate Freq can support an energy log only at the same geometry."""
+    from cloudra.tools.core.irc_evidence import frames_for, last_geometry
+    from cloudra.tools.core.irc_path import same_geometry
+    resolved = _resolve_in_sandbox(sandbox, path)
+    if resolved is None or not normal_log(resolved, max_scan_bytes=MAX_SCAN_BYTES):
+        return False
+    if _imaginary_frequency_count(sandbox, path) == expected:
+        return True
+    source = last_geometry(resolved, frames_for(resolved)[0])
+    return any(_imaginary_frequency_count(sandbox, other) == expected and
+               same_geometry(source, last_geometry(sandbox / other, frames_for(sandbox / other)[0]))
+               for other in candidates)
 
 
 def _declared_node_energy_hartree(node) -> Optional[float]:
@@ -210,15 +224,25 @@ def _identify_by_declared_energy(
     """候选日志里最终能量与声明值最接近（容差内）的那份；无声明/无命中 None。"""
     if declared is None:
         return None
-    best: Optional[tuple[float, str]] = None
+    from cloudra.tools.core.irc_evidence import frames_for, last_geometry
+    from cloudra.tools.core.irc_path import same_geometry
+
+    matches = []
     for path in candidates:
         energy = _log_energy_hartree(sandbox, path)
         if energy is None:
             continue
         delta = abs(energy - declared)
-        if delta <= DECLARED_ENERGY_TOL_HARTREE and (best is None or delta < best[0]):
-            best = (delta, path)
-    return best[1] if best else None
+        if delta <= DECLARED_ENERGY_TOL_HARTREE:
+            matches.append((delta, path))
+    if not matches:
+        return None
+    matches.sort()
+    anchor = last_geometry(sandbox / matches[0][1], frames_for(sandbox / matches[0][1])[0])
+    if any(not same_geometry(anchor, last_geometry(sandbox / path, frames_for(sandbox / path)[0]))
+           for _, path in matches[1:]):
+        return None  # An energy alone cannot select between different structures.
+    return matches[0][1]
 
 
 def collect_barrier_evidence(sandbox: Path | str) -> BarrierEvidence:
@@ -238,7 +262,8 @@ def collect_barrier_evidence(sandbox: Path | str) -> BarrierEvidence:
     files = scan_evidence_files(sandbox, exclude=graph_path)
     from cloudra.benchmark.integrity import bind_graph_to_evidence
 
-    bindings = {b.node_id: b for b in bind_graph_to_evidence(graph, files)}
+    bindings = {b.node_id: b for b in bind_graph_to_evidence(graph, files, sandbox=sandbox)}
+    log_paths = [f.path for f in files if f.kind in _SCORING_ENGINES and f.size <= MAX_SCAN_BYTES]
     by_id = {node.id: node for node in graph.nodes}
 
     for edge in graph.edges:
@@ -264,7 +289,7 @@ def collect_barrier_evidence(sandbox: Path | str) -> BarrierEvidence:
         ts_binding = bindings.get(edge.via)
         ts_candidates = list(ts_binding.bound_files) if ts_binding else []
         saddles = [
-            p for p in sorted(set(ts_candidates)) if _is_step_ts(sandbox, p) is True
+            p for p in sorted(set(ts_candidates)) if _frequency_supported(sandbox, p, log_paths, 1)
         ]
         if not saddles:
             report.notes.append(
@@ -285,12 +310,13 @@ def collect_barrier_evidence(sandbox: Path | str) -> BarrierEvidence:
                     "energy_hartree)"
                 )
             saddles = [matched_ts]
-        elif declared_ts_energy is not None and len(saddles) > 1:
+        elif declared_ts_energy is not None:
             report.notes.append(
                 f"edge {edge.id}: TS {edge.via} declares energy_hartree "
                 f"{declared_ts_energy:.6f} but no bound saddle log matches it; "
-                "falling back to name/deterministic selection"
+                "barrier not derivable from the declared evidence"
             )
+            continue
         if len(saddles) > 1:
             tokens = [t.lower() for t in (edge.id, edge.via, ts_node_name) if t]
             preferred = [
@@ -323,7 +349,7 @@ def collect_barrier_evidence(sandbox: Path | str) -> BarrierEvidence:
         # 退回启发式——鞍点连通的是它正下方**最浅**的那个阱（拿更深的远端极小值
         # 当起点会把别的阱的稳定化能错算进能垒）。
         minima = [
-            p for p in base_candidates if _imaginary_frequency_count(sandbox, p) == 0
+            p for p in base_candidates if _frequency_supported(sandbox, p, log_paths, 0)
         ]
         minima_energies: dict[str, float] = {}
         for candidate in minima:
@@ -357,15 +383,7 @@ def collect_barrier_evidence(sandbox: Path | str) -> BarrierEvidence:
         declared_base_energy = _declared_node_energy_hartree(base_node)
         matched_base = None
         if declared_base_energy is not None:
-            target_kcal = declared_base_energy * HARTREE_TO_KCAL_MOL
-            tol_kcal = DECLARED_ENERGY_TOL_HARTREE * HARTREE_TO_KCAL_MOL
-            matches = sorted(
-                (abs(energy - target_kcal), path)
-                for energy, path in below
-                if abs(energy - target_kcal) <= tol_kcal
-            )
-            if matches:
-                matched_base = matches[0][1]
+            matched_base = _identify_by_declared_energy(sandbox, [path for _, path in below], declared_base_energy)
         if matched_base is not None:
             base_energy, base_path = next(
                 (energy, path) for energy, path in below if path == matched_base
@@ -377,12 +395,13 @@ def collect_barrier_evidence(sandbox: Path | str) -> BarrierEvidence:
                     "energy_hartree)"
                 )
         else:
-            if declared_base_energy is not None and len(below) > 1:
+            if declared_base_energy is not None:
                 report.notes.append(
                     f"edge {edge.id}: {edge.from_node} declares energy_hartree "
                     f"{declared_base_energy:.6f} but no bound minimum matches it; "
-                    "falling back to the highest minimum below the saddle"
+                    "barrier not derivable from the declared evidence"
                 )
+                continue
             below.sort(key=lambda item: (-item[0], item[1]))
             base_energy, base_path = below[0]
             if len(below) > 1:

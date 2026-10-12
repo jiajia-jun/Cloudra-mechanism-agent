@@ -1029,7 +1029,7 @@ def _sn2_minima(record, symbols):
 
 def _install_endpoint_minimum_jobs(record, monkeypatch, symbols, reactant, product,
                                    *, reactant_opt_converged=True,
-                                   reactant_freqs=None):
+                                   reactant_freqs=None, origins=None):
     """Only external QM parsing is replaced; verdict and interval proof stay real."""
     from types import SimpleNamespace
 
@@ -1051,12 +1051,32 @@ def _install_endpoint_minimum_jobs(record, monkeypatch, symbols, reactant, produ
         (freq_dir / "optimized.xyz").write_text(
             _xyz_text(symbols, positions, f"optimized {role}"), encoding="utf-8"
         )
+        import hashlib
+        source_path = opt_dir / f'{role}_source.xyz'
+        origin = (origins or {}).get(role, 'A' if role == 'reactant' else 'B')
+        irc = next(s for s in record.job_steps if s.purpose == 'irc')
+        source_xyz = _xyz_text(symbols, positions, 'accepted explicit species source')
+        if origin in {'A', 'B'}:
+            from cloudra.tools.Chemtool.ts_guess import TsGuess
+            try:
+                info = TsGuess._extract_irc_endpoints(_refinement_log_path(record, irc), [],
+                    output_dir=str(opt_dir / 'native_outer_frames'), engine='orca', require_two_sides=True)
+                if info is not None:
+                    source_xyz = info['end_a' if origin == 'A' else 'end_b'].xyz
+            except ValueError:
+                pass  # Deliberately missing IRC fixtures remain unverified.
+        source_path.write_text(source_xyz)
+        source = dict(kind='species_reference' if origin in {'reactant', 'product'} else 'irc_outer_frame',
+            label=origin, source_path=str(source_path), sha256=hashlib.sha256(source_path.read_bytes()).hexdigest(),
+            irc_job_id=irc.job_id, irc_log_sha256=hashlib.sha256(Path(_refinement_log_path(record, irc)).read_bytes()).hexdigest())
         opt_step = TsJobStep(
             purpose=f"{role}_opt", job_id=opt_id, input_path=str(opt_input), state="done",
+            endpoint_source=source,
         )
         freq_step = TsJobStep(
             purpose=f"{role}_frequency", job_id=freq_id,
             input_path=str(freq_input), state="done",
+            endpoint_source=source,
         )
         record.job_steps.extend((opt_step, freq_step))
         coordinate_rows = "\n".join(
@@ -1180,6 +1200,54 @@ def test_verdict_accepts_reversed_irc_side_identity_with_matching_provenance(
     result = _verdict(record)
     assert result.terminal == "verified", result.stage_record("verdict").detail
     assert "swapped" in result.stage_record("verdict").detail
+
+
+@pytest.mark.parametrize('origins', [
+    {'reactant': 'reactant', 'product': 'product'},
+])
+def test_explicit_species_seed_can_match_swapped_irc_directions(tmp_path, monkeypatch, origins):
+    from cloudra.tools.core.ts_process import _verdict
+
+    record, symbols, job_dir = _record_with_freq_and_converged_irc(tmp_path, monkeypatch)
+    a, b = _sn2_minima(record, symbols)
+    (job_dir / 'optimized.xyz').write_text(_xyz_text(symbols, 0.5 * (a + b), 'TS'))
+    _install_fake_irc_endpoints(monkeypatch, symbols, 0.25 * a + 0.75 * b, 0.75 * a + 0.25 * b)
+    _install_endpoint_minimum_jobs(record, monkeypatch, symbols, a, b, origins=origins)
+    result = _verdict(record)
+    assert result.terminal == 'verified', result.stage_record('verdict').detail
+
+
+def test_endpoint_cannot_label_an_optimized_minimum_as_native_outer_frame(tmp_path, monkeypatch):
+    import hashlib
+
+    from cloudra.tools.core.ts_process import _verdict
+    record, symbols, job_dir = _record_with_freq_and_converged_irc(tmp_path, monkeypatch)
+    a, b = _sn2_minima(record, symbols)
+    (job_dir/'optimized.xyz').write_text(_xyz_text(symbols, 0.5*(a+b), 'TS'))
+    _install_fake_irc_endpoints(monkeypatch, symbols, 0.75*a+0.25*b, 0.25*a+0.75*b)
+    _install_endpoint_minimum_jobs(record, monkeypatch, symbols, a, b)
+    opt = next(s for s in record.job_steps if s.purpose == 'reactant_opt')
+    source_path = Path(opt.endpoint_source.source_path)
+    source_path.write_text(_xyz_text(symbols, a, 'minimum falsely labeled A'))
+    forged = opt.endpoint_source.model_copy(update={'sha256': hashlib.sha256(source_path.read_bytes()).hexdigest()})
+    for step in record.job_steps:
+        if step.purpose in {'reactant_opt', 'reactant_frequency'}:
+            step.endpoint_source = forged
+    assert _verdict(record).terminal == 'candidate_only'
+
+
+@pytest.mark.parametrize('explicit_role', ['reactant', 'product'])
+@pytest.mark.parametrize('swapped', [False, True])
+def test_actual_mixed_seed_branches_keep_native_side_constraints(tmp_path, monkeypatch, explicit_role, swapped):
+    from cloudra.tools.core.ts_process import _verdict
+    record, symbols, job_dir = _record_with_freq_and_converged_irc(tmp_path, monkeypatch)
+    a, b = _sn2_minima(record, symbols)
+    (job_dir/'optimized.xyz').write_text(_xyz_text(symbols, 0.5*(a+b), 'TS'))
+    ends = (0.25*a+0.75*b, 0.75*a+0.25*b) if swapped else (0.75*a+0.25*b, 0.25*a+0.75*b)
+    _install_fake_irc_endpoints(monkeypatch, symbols, *ends)
+    _install_endpoint_minimum_jobs(record, monkeypatch, symbols, a, b, origins={explicit_role: explicit_role})
+    result = _verdict(record)
+    assert result.terminal == ('candidate_only' if swapped else 'verified'), result.stage_record('verdict').detail
 
 
 def test_verdict_rejects_two_irc_sides_optimized_to_same_species(tmp_path, monkeypatch):

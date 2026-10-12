@@ -482,3 +482,14 @@ def scope_review_completion_steps() -> list[Step]:
     """Read authoritative delivery, then request completion after scoped re-review."""
     return [Step(tools=[("dag_delivery_report", {})]),
             Step(tools=[("stop", {"delivery_disposition": "complete"})])]
+
+def stale_review_resubmit_steps(ts_file, resubmit, finish, park) -> list[Step]:
+    """Real file resubmission after an administrative stale-review notification."""
+    return [
+        Step(tools=[("dag_submit_step_evidence", {"step_name": "step1", "ts_file": ts_file})]),
+        Step(wait_for=park, tools=[('dag_view', {})]),
+        Step(tools=[("stop", {"delivery_disposition": "partial"})]),
+        Step(wait_for=resubmit, tools=[("dag_submit_step_evidence", {"step_name": "step1", "ts_file": ts_file})]),
+        Step(tools=[("dag_delivery_report", {})]),
+        Step(wait_for=finish, text="gather missing scientific evidence"),
+    ]

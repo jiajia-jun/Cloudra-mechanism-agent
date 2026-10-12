@@ -32,6 +32,82 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
+
+def same_geometry(reference, mobile) -> bool:
+    """Same coordinates up to atom order and proper rigid rotation.
+
+    Reuse the existing six-decimal XYZ rounding bound; this is identity of a
+    calculation geometry, not a conformer or chemical similarity criterion.
+    """
+    import numpy as np
+
+    if reference is None or mobile is None:
+        return False
+    ref_symbols, mob_symbols = reference[0], mobile[0]
+    if len(ref_symbols) == 0 or sorted(ref_symbols) != sorted(mob_symbols):
+        return False
+    ref = np.asarray(reference[1], dtype=float)
+    mob = np.asarray(mobile[1], dtype=float)
+    ref = ref - ref.mean(axis=0)
+    mob = mob - mob.mean(axis=0)
+    tolerance = np.sqrt(3) * 10 ** -6
+
+    def proper_rotation(left, right):
+        u, _, vt = np.linalg.svd(left.T @ right)
+        if np.linalg.det(u @ vt) < 0:
+            u[:, -1] *= -1
+        return u @ vt
+
+    def matches(perm):
+        ordered = mob[perm]
+        residual = np.linalg.norm(ordered @ proper_rotation(ordered, ref) - ref, axis=1)
+        return bool(np.max(residual) <= tolerance)
+
+    alignment = align_atom_order(*reference, *mobile)
+    if alignment is not None and matches(alignment[0]):
+        return True
+
+    # Distance-fingerprint ties can choose an improper symmetry, or mix several
+    # symmetries. Keep the lineage-aware interval alignment above unchanged, but
+    # search alternative strict-identity correspondences here. Two independent
+    # centered vectors determine a proper rotation: at most n * (n - 1) anchor
+    # pairs, rather than factorial permutations of equivalent atoms.
+    d_ref, d_mob = dist_matrix(ref), dist_matrix(mob)
+    fp_ref, fp_mob = np.sort(d_ref, axis=1), np.sort(d_mob, axis=1)
+    compatible = np.array(mob_symbols)[:, None] == np.array(ref_symbols)[None, :]
+    for i in range(len(ref_symbols)):
+        # If each atom moves by at most tolerance, a pair distance changes by
+        # at most twice that bound. This only prunes correspondence candidates;
+        # the original proper-rotation residual remains the acceptance test.
+        compatible[:, i] &= np.max(np.abs(fp_mob - fp_ref[i]), axis=1) <= 2 * tolerance
+    if not np.all(np.any(compatible, axis=0)):
+        return False
+
+    first = int(np.argmax(np.linalg.norm(ref, axis=1)))
+    cross = np.linalg.norm(np.cross(ref[first], ref), axis=1)
+    second = int(np.argmax(cross))
+    for mob_first in np.flatnonzero(compatible[:, first]):
+        # Collinear geometries need only one axis; rotation about it is free.
+        seconds = np.flatnonzero(compatible[:, second]) if cross[second] > 0 else [None]
+        for mob_second in seconds:
+            ref_anchors, mob_anchors = [first], [mob_first]
+            if mob_second is not None:
+                if mob_first == mob_second or abs(
+                    d_ref[first, second] - d_mob[mob_first, mob_second]
+                ) > 2 * tolerance:
+                    continue
+                ref_anchors.append(second)
+                mob_anchors.append(mob_second)
+            rotated = mob @ proper_rotation(mob[mob_anchors], ref[ref_anchors])
+            cost = np.linalg.norm(rotated[:, None, :] - ref[None, :, :], axis=2)
+            cost[~compatible] = 1e9
+            perm = np.argmin(cost, axis=0).tolist()
+            if len(set(perm)) != len(perm):
+                perm = _hungarian(cost)
+            if perm is not None and matches(perm):
+                return True
+    return False
+
 _STRICT_PAIR_DELTA_MIN_ANG = 0.15
 _STRICT_INTERVAL_TOL_ANG = 0.10
 _STRICT_MAX_AUTO_PAIRS = 5

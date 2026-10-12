@@ -20,7 +20,8 @@ Required evidence per element:
 
 - species node (reactant/product/intermediate): one bound QM log whose
   frequency block shows zero imaginary frequencies (a verified minimum),
-  or verified minimum logs jointly covering every component of a complex;
+  or a separate normally terminated frequency log at that same geometry;
+  verified minimum logs must jointly cover every component of a complex;
 - edge via a TS node (candidate pool = bound files of the TS node and both
   endpoints): one bound log with exactly one imaginary frequency
   (``ts_first_order_saddle``) and one bound IRC log passing the strict
@@ -69,6 +70,7 @@ from cloudra.tools.core.irc_evidence import (
 from cloudra.tools.core.irc_evidence import (
     gaussian_irc_endpoints_from_frames,
     iter_direction_verdicts,
+    normal_log,
 )
 from cloudra.tools.core.irc_evidence import (
     imag_freqs as _imag_freqs,
@@ -134,6 +136,7 @@ class _LogProbe:
                 f is not None
                 and f.kind in ("gaussian", "orca")
                 and f.size <= MAX_SCAN_BYTES
+                and normal_log(self._sandbox / rel_path, max_scan_bytes=MAX_SCAN_BYTES)
             ):
                 path = self._sandbox / rel_path
                 frames, _irc_meta = _frames_for(path)
@@ -156,7 +159,7 @@ class _LogProbe:
         if rel_path not in self._irc_cache:
             result = None
             f = self._files.get(rel_path)
-            if f is not None and f.size <= MAX_SCAN_BYTES:
+            if f is not None and f.size <= MAX_SCAN_BYTES and normal_log(self._sandbox / rel_path, max_scan_bytes=MAX_SCAN_BYTES):
                 path = self._sandbox / rel_path
                 if f.kind == "gaussian":
                     result = _gaussian_irc_endpoint_geometries(path)
@@ -165,6 +168,23 @@ class _LogProbe:
             self._irc_cache[rel_path] = result
         return self._irc_cache[rel_path]
 
+    def ts_witness(self, anchor, pool):
+        from cloudra.tools.core.irc_path import same_geometry
+        if self.n_imag(anchor) == 1:
+            return anchor
+        geometry = self.last_geometry(anchor)
+        return next((p for p in sorted(pool) if self.n_imag(p) == 1 and
+                     same_geometry(geometry, self.last_geometry(p))), None)
+
+    def minimum_witness(self, anchor, pool):
+        """Verify the bound geometry, never substitute a historical minimum."""
+        from cloudra.tools.core.irc_path import same_geometry
+        if self.n_imag(anchor) == 0:
+            return anchor
+        geometry = self.last_geometry(anchor)
+        return next((p for p in sorted(pool) if self.n_imag(p) == 0 and
+                     same_geometry(geometry, self.last_geometry(p))), None)
+
 
 def _strict_irc_proof(
     probe: _LogProbe,
@@ -172,7 +192,8 @@ def _strict_irc_proof(
     from_files: list[str],
     to_files: list[str],
     charge: int = 0,
-) -> Optional[str]:
+    *, ts_files: list[str] | None = None,
+) -> Optional[tuple[str, ...]]:
     """在绑定证据里完成 ts_guess strict 同口径的路径方向证明：找一组
     (TS 几何, 双侧 IRC 端点, 两端物种的验证极小值几何)，使两个 IRC 端点
     各自位于 TS 与对应极小值之间（direct/swapped 配对）。任一组合成立即
@@ -181,21 +202,22 @@ def _strict_irc_proof(
     原子序无关：每组几何经 align_atom_order 重排进 TS 坐标序（距离指纹 +
     Hungarian，元素多重集不符的组合才跳过）——agent 用不同原子序重优化的
     端点极小值不再被误拒。"""
-    ts_geos = []
-    for p in sorted(pool):
-        if probe.n_imag(p) == 1:
-            geo = probe.last_geometry(p)
-            if geo is not None:
-                ts_geos.append(geo)
+    from cloudra.tools.core.irc_evidence import irc_start_geometry
+    from cloudra.tools.core.irc_path import same_geometry
+
+    ts_geos = [(p, witness, probe.last_geometry(p)) for p in sorted(ts_files if ts_files is not None else pool)
+               for witness in (probe.ts_witness(p, pool),) if witness is not None]
     from_geos = [
-        geo for p in sorted(from_files)
-        if probe.n_imag(p) == 0
+        (p, witness, geo) for p in sorted(from_files)
+        for witness in (probe.minimum_witness(p, pool),)
+        if witness is not None
         for geo in (probe.last_geometry(p),)
         if geo is not None
     ]
     to_geos = [
-        geo for p in sorted(to_files)
-        if probe.n_imag(p) == 0
+        (p, witness, geo) for p in sorted(to_files)
+        for witness in (probe.minimum_witness(p, pool),)
+        if witness is not None
         for geo in (probe.last_geometry(p),)
         if geo is not None
     ]
@@ -205,13 +227,15 @@ def _strict_irc_proof(
         ends = probe.irc_endpoint_geometries(p)
         if ends is None:
             continue
-        if any(
-            verdict["is_decidable"] and verdict["is_match"]
-            for verdict in iter_direction_verdicts(
-                ends, ts_geos, from_geos, to_geos, charge=charge
-            )
-        ):
-            return p
+        anchor = irc_start_geometry(probe._sandbox / p)
+        for ts_path, frequency_path, ts in ts_geos:
+            if not same_geometry(ts, anchor):
+                continue
+            for from_path, from_frequency, source in from_geos:
+                for to_path, to_frequency, target in to_geos:
+                    if any(v['is_decidable'] and v['is_match'] for v in
+                           iter_direction_verdicts(ends, [ts], [source], [target], charge=charge)):
+                        return ts_path, frequency_path, p, from_path, from_frequency, to_path, to_frequency
     return None
 
 
@@ -239,6 +263,8 @@ def audit_self_consistency(
 
     files_by_path = {f.path: f for f in evidence_files}
     probe = _LogProbe(sandbox, files_by_path)
+    qm_paths = [f.path for f in evidence_files if f.kind in {'gaussian', 'orca'}
+                and f.size <= MAX_SCAN_BYTES]
     bmap = {b.node_id: b for b in bindings}
     species_covered: dict[str, bool] = {}
     edge_checks: dict[str, ElementCheck] = {}
@@ -259,25 +285,34 @@ def audit_self_consistency(
             if not chk.bound:
                 chk.notes.append("no evidence bound to this node")
             else:
+                minimum_witnesses = {
+                    p: witness for p in b.bound_files
+                    for witness in (probe.minimum_witness(p, qm_paths),)
+                    if witness is not None
+                }
                 if any("." in species for species in node.smiles):
-                    minimum_files = [files_by_path[p] for p in b.bound_files if probe.n_imag(p) == 0]
+                    # Recheck component coverage using verified bound anchors;
+                    # replacing anchors with Freq paths loses explicit references.
+                    minimum_files = [files_by_path[p] for p in minimum_witnesses]
                     minimum_binding = bind_graph_to_evidence(
                         GoldMechanismGraph(nodes=[node], edges=[]), minimum_files,
                         ged_config,
                         match_threshold=integrity_rubric.match_threshold,
                         partial_quality=integrity_rubric.protonation_partial_quality,
+                        sandbox=sandbox,
                     )[0]
                     chk.covered = minimum_binding.matched
                     if chk.covered:
-                        chk.evidence_used.extend(minimum_binding.bound_files)
+                        chk.evidence_used.extend(dict.fromkeys(
+                            path for anchor in minimum_binding.bound_files
+                            for path in (anchor, minimum_witnesses[anchor])
+                        ))
                     else:
                         chk.notes.append("verified minima do not cover the whole complex or every component")
                 else:
-                    for p in b.bound_files:
-                        if probe.n_imag(p) != 0:
-                            continue
+                    for p, witness in minimum_witnesses.items():
                         chk.covered = True
-                        chk.evidence_used.append(p)
+                        chk.evidence_used.extend(dict.fromkeys([p, witness]))
                         break
                 if not chk.covered and not chk.notes:
                     chk.notes.append(
@@ -319,18 +354,24 @@ def audit_self_consistency(
             b = bmap.get(nid)
             if b and b.matched:
                 pool.update(b.bound_files)
-        chk.bound = bool(pool)
-        if not pool:
+        ts_binding = bmap.get(edge.via)
+        ts_files = list(ts_binding.bound_files) if ts_binding and ts_binding.matched else []
+        # IRC logs are candidates only; the native starting geometry must match
+        # the selected TS. Endpoint annotations do not establish that lineage.
+        pool.update(qm_paths)
+        chk.bound = bool(ts_files)
+        if not ts_files:
             chk.notes.append(
-                f"no evidence bound to TS {edge.via} or the edge endpoints"
+                f"no evidence explicitly associated with TS {edge.via}; declare its evidence_log or energy_hartree"
             )
             continue
         saddle_ok = not rubric.ts_first_order_saddle
         irc_ok = not rubric.irc_connects_endpoints
-        for p in sorted(pool):
-            if not saddle_ok and probe.n_imag(p) == 1:
+        for p in sorted(ts_files):
+            witness = probe.ts_witness(p, pool)
+            if not saddle_ok and witness is not None:
                 saddle_ok = True
-                chk.evidence_used.append(p)
+                chk.evidence_used.extend(dict.fromkeys([p, witness]))
                 break
         if not irc_ok:
             from_binding = bmap.get(edge.from_node)
@@ -343,11 +384,12 @@ def audit_self_consistency(
                 list(to_binding.bound_files)
                 if to_binding and to_binding.matched else []
             )
-            proof = _strict_irc_proof(probe, sorted(pool), from_files, to_files, charge)
+            proof = _strict_irc_proof(probe, sorted(pool), from_files, to_files, charge,
+                                      ts_files=ts_files)
             if proof is not None:
                 irc_ok = True
-                if proof not in chk.evidence_used:
-                    chk.evidence_used.append(proof)
+                saddle_ok = True
+                chk.evidence_used = list(dict.fromkeys(proof))
         chk.covered = saddle_ok and irc_ok
         if not saddle_ok:
             chk.notes.append(

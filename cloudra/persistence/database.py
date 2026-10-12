@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_BUSY_TIMEOUT = 60.0
 DEFAULT_LOCK_RETRIES = 4
-SCHEMA_VERSION = 17
+SCHEMA_VERSION = 18
 _T = TypeVar("_T")
 
 _warned_sync_sites: set[str] = set()
@@ -170,6 +170,7 @@ class ConversationDB:
                 con.execute("PRAGMA journal_mode=WAL;")
             con.commit()
         with self.connect() as con:
+            con.execute('BEGIN IMMEDIATE')
             cur = con.cursor()
             cur.execute(_CREATE_SESSION)
             cur.execute(_CREATE_SESSION_EVENTS)
@@ -278,6 +279,7 @@ class ConversationDB:
             if not row or str(row[0]).lower() != "wal":
                 await con.execute("PRAGMA journal_mode=WAL;")
             cur = await con.cursor()
+            await cur.execute('BEGIN IMMEDIATE')
             await cur.execute(_CREATE_SESSION)
             await cur.execute(_CREATE_SESSION_EVENTS)
             await cur.execute(_CREATE_ARTIFACTS)
@@ -353,6 +355,7 @@ class ConversationDB:
                     ConversationDB._add_column(cur, table, name, definition)
         ConversationDB._migrate_dag_evidence_bindings(cur)
         ConversationDB._migrate_dag_evidence_source_keys(cur)
+        ConversationDB._migrate_review_notifications(cur)
         # 反查索引依赖迁移列，必须建在列迁移之后。
         cur.execute(_CREATE_DAG_EVIDENCE_CALL_INDEX)
         cur.execute(_CREATE_DAG_EVIDENCE_JOB_INDEX)
@@ -367,6 +370,7 @@ class ConversationDB:
                     await ConversationDB._aadd_column(cur, table, name, definition)
         await ConversationDB._amigrate_dag_evidence_bindings(cur)
         await ConversationDB._amigrate_dag_evidence_source_keys(cur)
+        await ConversationDB._amigrate_review_notifications(cur)
         await cur.execute(_CREATE_DAG_EVIDENCE_CALL_INDEX)
         await cur.execute(_CREATE_DAG_EVIDENCE_JOB_INDEX)
 
@@ -386,6 +390,29 @@ class ConversationDB:
             str(tool_call_id) if tool_call_id else "",
             str(compute_job_id) if compute_job_id else "",
         )
+
+    @staticmethod
+    def _migrate_review_notifications(cur) -> None:
+        sql = cur.execute("SELECT sql FROM sqlite_master WHERE name='dag_review_notifications'").fetchone()[0]
+        if 'review_superseded' in sql:
+            return
+        cur.execute('ALTER TABLE dag_review_notifications RENAME TO dag_review_notifications_v17')
+        cur.execute(_CREATE_DAG_REVIEW_NOTIFICATIONS)
+        cur.execute('INSERT INTO dag_review_notifications (notification_id,kind,decision_id,request_id,recipient_session_id,payload,state,created_at) '
+                    'SELECT notification_id,kind,decision_id,request_id,recipient_session_id,payload,state,created_at FROM dag_review_notifications_v17')
+        cur.execute('DROP TABLE dag_review_notifications_v17')
+
+    @staticmethod
+    async def _amigrate_review_notifications(cur) -> None:
+        await cur.execute("SELECT sql FROM sqlite_master WHERE name='dag_review_notifications'")
+        sql = (await cur.fetchone())[0]
+        if 'review_superseded' in sql:
+            return
+        await cur.execute('ALTER TABLE dag_review_notifications RENAME TO dag_review_notifications_v17')
+        await cur.execute(_CREATE_DAG_REVIEW_NOTIFICATIONS)
+        await cur.execute('INSERT INTO dag_review_notifications (notification_id,kind,decision_id,request_id,recipient_session_id,payload,state,created_at) '
+                          'SELECT notification_id,kind,decision_id,request_id,recipient_session_id,payload,state,created_at FROM dag_review_notifications_v17')
+        await cur.execute('DROP TABLE dag_review_notifications_v17')
 
     @staticmethod
     def _migrate_dag_evidence_source_keys(cur) -> None:
@@ -1140,7 +1167,7 @@ _CREATE_DAG_REVIEW_NOTIFICATIONS = """
     CREATE TABLE IF NOT EXISTS dag_review_notifications(
         notification_id TEXT PRIMARY KEY,
         kind TEXT NOT NULL DEFAULT 'review_decision'
-            CHECK(kind IN ('review_decision', 'call_verdict', 'draft_verdict')),
+            CHECK(kind IN ('review_decision', 'call_verdict', 'draft_verdict', 'review_superseded')),
         decision_id TEXT NOT NULL,
         request_id TEXT NOT NULL DEFAULT '',
         recipient_session_id TEXT NOT NULL DEFAULT '',

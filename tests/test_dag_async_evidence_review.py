@@ -623,6 +623,25 @@ def _request(store, request_id, targets, question, basis):
     )
 
 
+def test_superseded_replacement_keeps_review_debt_until_new_verdict(tmp_path):
+    _session_obj, db, store = _seed_simple_complete_graph(tmp_path, 'stale-review-debt')
+    _save_claim(store, ['step1'])
+    question = 'Does the selected saddle support this step?'
+    first_id = _request(store, 'first-accepted', ['step1'], question, 'first')
+    assert store.resolve_review(ReviewDecision(request_id=first_id, basis_fingerprint='first',
+        verdict='accept', reason='old evidence'), expected_basis='first')['accepted']
+    second_id = _request(store, 'new-stale', ['step1'], question, 'second')
+    assert not store.resolve_review(ReviewDecision(request_id=second_id, basis_fingerprint='second',
+        verdict='accept', reason='outdated material'), expected_basis='second', current_basis='third')['accepted']
+    controller = DagController(db, 's1', 'dag_guided', conversation_id=db.conversation_id)
+    assert not controller.delivery_report().complete
+    assert any(g.code == 'stale_evidence_review' for g in controller.delivery_report().unresolved)
+    third_id = _request(store, 'replacement', ['step1'], question, 'third')
+    assert store.resolve_review(ReviewDecision(request_id=third_id, basis_fingerprint='third',
+        verdict='accept', reason='new material checked'), expected_basis='third')['accepted']
+    assert not any(g.code == 'stale_evidence_review' for g in controller.delivery_report().unresolved)
+
+
 @pytest.mark.asyncio
 async def test_needs_evidence_replaced_by_new_submission_then_accept_clears_gap(tmp_path):
     _session_obj, db, store = _seed_simple_complete_graph(tmp_path, "async-review-retry")
