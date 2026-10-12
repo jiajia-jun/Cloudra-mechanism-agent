@@ -17,6 +17,7 @@
 - 科学待办的唯一事实来源是 DAG store（pending call reviews / open drafts / queued
   review requests）；本模块只做身份确保与通知/调度，不持有旧待办快照，不引入
   第二份内存队列。
+- PROCESS.md 的文档维护以当前文件为准，复用通知，不创建科学审查待办。
 - Supervisor 是项目内唯一的普通 runtime_v2 agent（``role_id="supervisor"``），
   由 AgentRunner / TurnPipeline / InvocationService 驱动，每轮自读持久信箱裁决，
   空信箱则 stop。身份由 core.agents 的项目+角色投影确定。
@@ -170,11 +171,13 @@ _SPAWN_LOCKS: dict[str, asyncio.Lock] = {}
 
 def _notification_text(reason: str) -> str:
     text = (
-        "[Supervision] Your persistent supervision mailbox changed"
+        "[Supervision] Project research notes or supervision work changed"
         + (f" ({reason})." if reason else ".")
         + " Read the DAG store for the current pending reviews, open drafts "
         "and queued review requests — the store is the source of truth and "
-        "this notification may be stale by the time you read it."
+        "this notification may be stale by the time you read it. "
+        "When PROCESS.md exists, organize useful hypothesis updates there after scientific review. "
+        "Read the current file; notebook maintenance is not a scientific review request."
     )
     return text
 
@@ -227,9 +230,9 @@ async def notify_supervisor(
 ) -> None:
     """确保项目唯一 Supervisor agent 身份并按状态表通知；不等待裁决。
 
-    调用方必须先完成待办持久化（显式送审 review / open 草稿 / 结构化督导
-    请求），本函数只负责身份与调度，不携带待办快照——Supervisor 苏醒后自读
-    持久信箱取得最新状态。模式门禁在调用方（只有 dag_guided 的生产路径会
+    调用方先完成科学待办持久化或 PROCESS.md 写入，本函数只负责身份与调度，
+    不携带待办快照——Supervisor 苏醒后读取科学信箱和当前文档。
+    模式门禁在调用方（只有 dag_guided 的生产路径会
     走到这里）；本函数自身不读模式，以便恢复/诊断路径直接复用。
 
     状态表（计划 §2，系统新增待办时的行为）：
