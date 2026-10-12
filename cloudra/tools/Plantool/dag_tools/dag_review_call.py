@@ -105,7 +105,8 @@ class DagReviewCall(DagToolBase):
                 "deterministically by the harness after review",
             )
         controller = DagController(
-            ctx.db, session.id, ctx.mode, conversation_id=ctx.conversation_id
+            ctx.db, session.id, ctx.mode, conversation_id=ctx.conversation_id,
+            working_directory=getattr(self.subagent, "working_directory", None),
         )
         try:
             reviewed = await controller.review_call(

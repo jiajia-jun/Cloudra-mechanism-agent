@@ -94,7 +94,8 @@ class DagBindEvidence(DagToolBase):
             return self._standard_disabled()
         ctx = await self._prepare(session)
         controller = DagController(
-            ctx.db, session.id, ctx.mode, conversation_id=ctx.conversation_id
+            ctx.db, session.id, ctx.mode, conversation_id=ctx.conversation_id,
+            working_directory=getattr(self.subagent, "working_directory", None),
         )
         attachments = [item.model_dump(mode="json") for item in user_input.attachments]
         if mode is OrchestrationMode.DAG_GUIDED:

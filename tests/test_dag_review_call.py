@@ -15,6 +15,7 @@ from tests.dag_identity import call_dag_tool, make_coordinator, make_supervisor
 _TS_FREQ_RESULT = {
     "is_success": True,
     "normal_termination": True,
+    "opt_converged": True,  # Combined Opt+Freq evidence used for both stages below.
     "imaginary_frequencies": [-518.3],
 }
 
@@ -671,7 +672,7 @@ async def test_verdict_binds_the_submitted_snapshot_not_the_live_file(tmp_path):
                 "log_parser",
                 {"log_path": "/x/ts.log"},
                     {"is_success": True, "scf_energy": -100.0,
-                     "normal_termination": True,
+                     "normal_termination": True, "opt_converged": True,
                      "imaginary_frequencies": [-951.72]},
             ),
         ],
@@ -688,7 +689,8 @@ async def test_verdict_binds_the_submitted_snapshot_not_the_live_file(tmp_path):
         "log_parser",
         {"log_path": "/x/ts.log"},
             {"is_success": True, "scf_energy": -200.0,
-             "normal_termination": True, "imaginary_frequencies": [-300.0]},
+             "normal_termination": True, "opt_converged": True,
+             "imaginary_frequencies": [-300.0]},
     )
     review = _inbox(db)[0]
 
