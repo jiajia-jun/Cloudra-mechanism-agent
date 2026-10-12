@@ -1,0 +1,297 @@
+"""Native IRC evidence retains its concrete atom correspondence."""
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+from cloudra.tools.core import irc_evidence
+from cloudra.tools.core.irc_path import prove_irc_endpoint_direction
+
+FIXTURE = Path(__file__).parent / "fixtures" / "nu3_atom_binding"
+MAP = [1, 4, 5, 6, 10, 11, 3, 2, 7, 8, 9]
+
+
+def binding():
+    return {
+        "process_id": "concrete-path", "declaration_revision": 8,
+        "atom_map": MAP, "charge": 0,
+        "reactant_mol": (FIXTURE / "reactant.mol").read_text(),
+        "product_mol": (FIXTURE / "product.mol").read_text(),
+    }
+
+
+def materials():
+    return (
+        irc_evidence.irc_endpoint_geometries(FIXTURE / "irc.out"),
+        irc_evidence.probe_log(FIXTURE / "ts.out")[1],
+        irc_evidence.probe_log(FIXTURE / "reactant.out")[1],
+        irc_evidence.probe_log(FIXTURE / "product.out")[1],
+    )
+
+
+def test_native_irc_uses_complete_map_for_independently_bound_minima(rdkit_chemistry):
+    ends, ts, source, target = materials()
+    assert not next(irc_evidence.iter_direction_verdicts(ends, [ts], [source], [target]))["is_decidable"]
+    actual = next(irc_evidence.iter_direction_verdicts(
+        ends, [ts], [source], [target], atom_binding=binding()
+    ))
+    assert actual["is_decidable"] and actual["is_match"]
+
+
+def test_map_is_not_applied_to_same_elements_with_wrong_hydrogen_parents(rdkit_chemistry):
+    _, ts, source, target = materials()
+    changed = np.array(target[1], dtype=float)
+    changed[[2, 8]] = changed[[8, 2]]
+    orders = irc_evidence.bound_atom_orders(ts, source, (target[0], changed), binding())
+    assert orders is None
+
+
+def test_explicit_map_keeps_existing_geometry_distance_limit(rdkit_chemistry):
+    ends, ts, source, target = materials()
+    inverse = [MAP.index(index + 1) for index in range(len(MAP))]
+    bad = np.array(target[1], dtype=float) * 10
+    result = prove_irc_endpoint_direction(
+        *ts, ends[0], ends[1], source, (target[0], bad), [],
+        atom_orders=[list(range(11)), list(range(11)), list(range(11)), inverse],
+    )
+    assert not result["is_decidable"] and not result["is_match"]
+
+
+@pytest.mark.parametrize("paired", [False, True])
+def test_log_based_direction_uses_same_binding_for_combined_and_split_irc(rdkit_chemistry, paired):
+    paths = [FIXTURE / "ts.out", FIXTURE / "reactant.out", FIXTURE / "product.out"]
+    associations = {str(FIXTURE / "irc.out"): binding(), str(paths[0]): binding()}
+    if paired:
+        passed, _ = irc_evidence.verify_short_irc_pair(
+            FIXTURE / "irc.out", FIXTURE / "irc.out", [paths[0]], [paths[2]], [paths[1]],
+            atom_bindings=associations,
+        )
+    else:
+        passed, _ = irc_evidence.verify_short_irc_direction(
+            FIXTURE / "irc.out", [paths[0]], [paths[2]], [paths[1]], atom_bindings=associations,
+        )
+    assert passed
+
+
+def test_old_stage_snapshot_does_not_read_current_process_mapping(tmp_path):
+    import hashlib
+    import json
+
+    from cloudra.dag.evidence_ingest import snapshot_evidence_file
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.services.ts_pipeline_context import use_pipeline_database
+    from cloudra.services.ts_pipeline_store import bind_stage_job, commit_stage_result, create_process, get_process
+    from tests.test_ts_pipeline_store import payload
+
+    db = ComputeDB(data_dir=tmp_path / "ledger").init()
+    process = create_process(db, request_key="binding", payload=payload(workspace_dir=str(tmp_path)))
+    native = tmp_path / "frequency.inp"
+    native.write_text("! Freq B3LYP def2-SVP\n")
+    job = bind_stage_job(db, process_id=process["process_id"], declaration_revision=1,
+        stage_key="frequency", attempt=1, job_payload=dict(conversation_id="project", session_id="owner",
+            path=str(native), state="ready", jobtype="orca", node_id="fixture"))
+    log_dir = tmp_path / ".cloudra"
+    log_dir.mkdir()
+    log = log_dir / f"calc-{job}.out.log"
+    log.write_bytes((FIXTURE / "ts.out").read_bytes())
+    frozen = dict(binding(), process_id=process["process_id"], declaration_revision=1)
+    stage = dict(status="done", artifacts=[str(log)], input_hash=hashlib.sha256(native.read_bytes()).hexdigest(),
+        atom_binding=frozen, log_sha256=hashlib.sha256(log.read_bytes()).hexdigest())
+    assert commit_stage_result(db, process_id=process["process_id"], expected_revision=get_process(db, process["process_id"])["revision"],
+        stage_key="frequency", attempt=1, evidence=stage)
+    with db.connect() as con:
+        con.execute("UPDATE compute_jobs SET state='done' WHERE id=?", (job,))
+        con.execute("UPDATE ts_pipeline_processes SET record=?, declaration_revision=2 WHERE process_id=?",
+            (json.dumps({"input_binding": {"atom_map": list(reversed(MAP))}}), process["process_id"]))
+    with use_pipeline_database(db):
+        snap = snapshot_evidence_file(log, tmp_path)
+    assert snap.metadata["atom_binding"] == frozen
+    # A copied/renamed unrelated log must not borrow another job's map.
+    unrelated = tmp_path / "copied.out"
+    unrelated.write_bytes(log.read_bytes())
+    with use_pipeline_database(db):
+        assert "atom_binding" not in snapshot_evidence_file(unrelated, tmp_path).metadata
+
+
+def test_dag_file_science_consumes_the_archived_concrete_map(tmp_path, rdkit_chemistry):
+    from types import SimpleNamespace
+
+    from cloudra.dag.evidence_ingest import snapshot_evidence_file
+    from cloudra.dag.file_science import file_scientific_checks
+
+    snapshots = {}
+    for name in ("ts.out", "irc.out", "reactant.out", "product.out", "irc_IRC_F.xyz", "irc_IRC_B.xyz"):
+        (tmp_path / name).write_bytes((FIXTURE / name).read_bytes())
+    for name in ("ts.out", "irc.out", "reactant.out", "product.out"):
+        snap = snapshot_evidence_file(tmp_path / name, tmp_path)
+        if name in ("ts.out", "irc.out"):
+            snap.metadata["atom_binding"] = binding()
+        snapshots[name] = snap.model_dump(mode="json")
+    store = SimpleNamespace(resolve_evidence=lambda ref: snapshots[ref])
+    source = SimpleNamespace(node_id="source", refs=["reactant.out"], stages=[], smiles="[H][P@TB14]1([H])([H])CCO1")
+    target = SimpleNamespace(node_id="target", refs=["product.out"], stages=[], smiles="C=C.O=[PH3]")
+    step = SimpleNamespace(edge_id="step", refs=["ts.out", "irc.out"], stages=[], source_node_id="source", target_node_id="target")
+    graph = SimpleNamespace(nodes=[source,target], edges=[step])
+    assert file_scientific_checks(store, graph, "step")["short_irc"]["status"] == "passed"
+
+
+def test_xyz_only_producer_freezes_the_generated_bound_mol(tmp_path):
+    import hashlib
+    from types import SimpleNamespace
+
+    from cloudra.tools.core.irc_path import xyz_block
+    from cloudra.tools.core.ts_process import _direction_atom_binding
+
+    _, _, reactant, product = materials()
+    paths = {}
+    hashes = {}
+    for role, geometry in (("reactant", reactant), ("product", product)):
+        xyz = tmp_path / (role + ".xyz")
+        xyz.write_text(xyz_block(*geometry))
+        mol = xyz.with_suffix(".bound.mol")
+        mol.write_bytes((FIXTURE / (role + ".mol")).read_bytes())
+        paths[role] = (str(xyz), str(mol))
+        hashes[role + "_mol"] = hashlib.sha256(mol.read_bytes()).hexdigest()
+    record = SimpleNamespace(pipeline_id="producer", declaration_revision=1, job_steps=[],
+        input_binding=dict(binding_status="complete", hashes=hashes, atom_map=MAP),
+        structures={"reactant": {"mol_path": None}, "product": {"mol_path": None}},
+        current_seed_xyz_path=paths["reactant"][0], current_seed_mol_path=paths["reactant"][1],
+        product_seed_xyz_path=paths["product"][0], product_seed_mol_path=paths["product"][1],
+        input=SimpleNamespace(reaction=SimpleNamespace(charge=0)))
+    assert _direction_atom_binding(record)["product_mol"] == (FIXTURE / "product.mol").read_text()
+
+
+def test_managed_irc_keeps_unmanaged_ts_material_on_existing_geometry_path(monkeypatch):
+    symbols = ["C", "N", "H"]
+    def geometry(z):
+        return symbols, [[0.,0.,0.], [0.,0.,2.], [0.,0.,z]]
+    monkeypatch.setattr(irc_evidence, "irc_endpoint_geometries", lambda *_, **__: (geometry(.7), geometry(1.3)))
+    monkeypatch.setattr(irc_evidence, "probe_log", lambda path, **_: (1 if path == "ts" else 0, geometry({"ts":1., "source":.1, "target":1.9}[path])))
+    monkeypatch.setattr(irc_evidence, "irc_start_geometry", lambda _: geometry(1.))
+    passed, _ = irc_evidence.verify_short_irc_direction("irc", ["ts"], ["target"], ["source"],
+        atom_bindings={"irc": binding()})
+    assert passed
+
+
+def test_actual_driver_freezes_binding_when_frequency_job_completes(tmp_path, monkeypatch):
+    import hashlib
+    import json
+
+    from cloudra.dag.evidence_ingest import snapshot_evidence_file
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.services.ts_pipeline_context import use_pipeline_database
+    from cloudra.services.ts_pipeline_store import bind_stage_job, create_process, save_process_record
+    from cloudra.tools.core import ts_process
+    from cloudra.tools.core.irc_path import xyz_block
+    from cloudra.tools.core.ts_pipeline_driver import advance_process
+    from tests.test_ts_pipeline_store import payload
+
+    request = payload(workspace_dir=str(tmp_path))
+    request["input"]["reaction"].update(reactant_smiles="[H][P@TB14]1([H])([H])CCO1",
+        product_smiles="C=C.O=[PH3]", atom_map=MAP)
+    db = ComputeDB().init()
+    process = create_process(db, request_key="driver-binding", payload=request)
+    native = tmp_path / "frequency.inp"
+    native.write_text("! Freq B3LYP def2-SVP\n")
+    job = bind_stage_job(db, process_id=process["process_id"], declaration_revision=1, stage_key="frequency", attempt=1,
+        job_payload=dict(conversation_id="project",session_id="owner",path=str(native),state="ready",jobtype="orca",node_id="fixture"))
+    (tmp_path / ".cloudra").mkdir()
+    log = tmp_path / ".cloudra" / f"calc-{job}.out.log"
+    log.write_bytes((FIXTURE / "ts.out").read_bytes())
+    paths, hashes = {}, {}
+    _, _, reactant, product = materials()
+    for role, geometry in (("reactant", reactant), ("product", product)):
+        xyz = tmp_path / (role + ".xyz")
+        xyz.write_text(xyz_block(*geometry))
+        mol = xyz.with_suffix(".bound.mol")
+        mol.write_bytes((FIXTURE / (role + ".mol")).read_bytes())
+        paths[role] = (str(xyz), str(mol))
+        hashes[role + "_mol"] = hashlib.sha256(mol.read_bytes()).hexdigest()
+    record = ts_process.TsProcessRecord(run_id="bound", pipeline_id=process["process_id"],
+        run_dir=str(tmp_path / "ts" / "bound"),workspace_dir=str(tmp_path),owner_conversation_id="project",owner_session_id="owner",
+        input=ts_process.TsInput.model_validate(request["input"]),stage="refine",waiting_for=f"job:{job}",
+        job_steps=[ts_process.TsJobStep(purpose="frequency",job_id=job,input_path=str(native))],
+        input_binding=dict(binding_status="complete", hashes=hashes,atom_map=MAP),
+        current_seed_xyz_path=paths["reactant"][0],current_seed_mol_path=paths["reactant"][1],
+        product_seed_xyz_path=paths["product"][0],product_seed_mol_path=paths["product"][1])
+    save_process_record(db,process_id=process["process_id"],record=record.model_dump(mode="json"))
+    with db.connect() as con:
+        con.execute("UPDATE compute_jobs SET state='done' WHERE id=?",(job,))
+    # The next compute stage is out of scope; the actual completion/freezing path runs.
+    monkeypatch.setattr(ts_process,"advance",lambda record: record)
+    advance_process(db,process["process_id"])
+    with db.connect() as con:
+        frozen=json.loads(con.execute("SELECT evidence FROM ts_pipeline_stages WHERE job_id=?",(job,)).fetchone()[0])
+    assert frozen["atom_binding"]["atom_map"] == MAP
+    assert frozen["atom_binding"]["product_mol"] == (FIXTURE / "product.mol").read_text()
+    with use_pipeline_database(db):
+        assert snapshot_evidence_file(log,tmp_path).metadata["atom_binding"] == frozen["atom_binding"]
+
+
+def test_split_irc_with_one_known_binding_keeps_existing_geometry_path(monkeypatch):
+    from cloudra.tools.core.gaussian_frames import FrameRecord
+
+    symbols = ["C", "N", "H"]
+    def geometry(z):
+        return symbols, [[0.,0.,0.], [0.,0.,2.], [0.,0.,z]]
+    def frames(path):
+        z = .7 if path == "forward" else 1.3
+        coordinate = 1 if path == "forward" else -1
+        from cloudra.tools.core.irc_path import xyz_block
+        return [FrameRecord(frame=1, xyz=xyz_block(*geometry(z)), reaction_coordinate=coordinate)]
+    monkeypatch.setattr(irc_evidence.qm_engine,"detect_qm_engine",lambda _: "gaussian")
+    monkeypatch.setattr(irc_evidence,"irc_frames_for",frames)
+    monkeypatch.setattr(irc_evidence,"probe_log",lambda path,**_: (1 if path == "ts" else 0,geometry({"ts":1.,"source":.1,"target":1.9}[path])))
+    monkeypatch.setattr(irc_evidence,"irc_start_geometry",lambda _: geometry(1.))
+    passed,_ = irc_evidence.verify_short_irc_pair("forward","reverse",["ts"],["target"],["source"],
+        atom_bindings={"forward":binding()})
+    assert passed
+
+
+def _archived_scorer_materials(tmp_path, monkeypatch):
+    import hashlib
+
+    from cloudra.benchmark.integrity import EvidenceFile
+    from cloudra.benchmark.selfconsistency import _LogProbe
+    from cloudra.dag.evidence_ingest import snapshot_evidence_file
+
+    for name in ("ts.out", "irc.out", "reactant.out", "product.out", "irc_IRC_F.xyz", "irc_IRC_B.xyz"):
+        (tmp_path / name).write_bytes((FIXTURE / name).read_bytes())
+    frozen = dict(binding(), ts_log_sha256=hashlib.sha256((tmp_path / "ts.out").read_bytes()).hexdigest())
+    monkeypatch.setattr("cloudra.services.ts_pipeline_store.atom_binding_for_log", lambda *args: frozen if Path(args[1]).name in {"ts.out","irc.out"} else None)
+    archived = {name: snapshot_evidence_file(tmp_path / name,tmp_path) for name in ("ts.out","irc.out","reactant.out","product.out")}
+    paths = {name: str(Path(snapshot.snapshot_path).relative_to(tmp_path)) for name,snapshot in archived.items()}
+    files = {path: EvidenceFile(path=path,kind="orca",size=(tmp_path / path).stat().st_size) for path in paths.values()}
+    return _LogProbe(tmp_path,files), paths, archived
+
+
+
+
+
+
+def test_irc_bundle_digest_covers_archived_binding(tmp_path, monkeypatch):
+    import hashlib
+    import json
+
+    from cloudra.dag.evidence_ingest import snapshot_evidence_file
+    for name in ("irc.out","irc_IRC_F.xyz","irc_IRC_B.xyz"):
+        (tmp_path / name).write_bytes((FIXTURE / name).read_bytes())
+    state = {"value": dict(binding(),ts_log_sha256=hashlib.sha256((FIXTURE / "ts.out").read_bytes()).hexdigest())}
+    monkeypatch.setattr("cloudra.services.ts_pipeline_store.atom_binding_for_log", lambda *_: state["value"])
+    first = snapshot_evidence_file(tmp_path / "irc.out",tmp_path)
+    state["value"] = dict(state["value"],declaration_revision=9)
+    second = snapshot_evidence_file(tmp_path / "irc.out",tmp_path)
+    assert first.snapshot_path != second.snapshot_path
+    manifest = Path(first.metadata["irc_manifest"]["snapshot_path"])
+    content = manifest.read_bytes()
+    assert hashlib.sha256(content).hexdigest() == first.metadata["irc_manifest"]["sha256"]
+    assert json.loads(content)["atom_binding"]["declaration_revision"] == 8
+
+
+def test_rearchiving_verified_irc_preserves_the_bound_mapping(tmp_path, monkeypatch, rdkit_chemistry):
+    from cloudra.dag.evidence_ingest import snapshot_evidence_file
+
+    _,_,archived = _archived_scorer_materials(tmp_path,monkeypatch)
+    original = archived["irc.out"]
+    copied = snapshot_evidence_file(original.snapshot_path,tmp_path)
+    assert copied.metadata["atom_binding"] == original.metadata["atom_binding"]

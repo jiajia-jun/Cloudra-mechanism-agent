@@ -891,6 +891,7 @@ class _ArchivedIrcEvidence(BaseModel):
     model_config = ConfigDict(extra="forbid")
     log_sha256: str
     endpoints: dict[str, _ArchivedIrcEndpoint]
+    atom_binding: dict | None = None
 
 
 def extract_irc_endpoints(log_path: str) -> dict:
@@ -925,7 +926,7 @@ def extract_irc_endpoints(log_path: str) -> dict:
                 geometry = str(path)
             result[direction] = {"geometry_ref": geometry, "origin": endpoint.origin,
                                  "availability": "available" if geometry else "unavailable",
-                                 "converged": endpoint.converged}
+                                 "converged": endpoint.converged, "atom_binding": manifest.atom_binding}
         return result
     text = _read_text(log_path)
     roots = _orca_sidecar_roots(log_path, text)

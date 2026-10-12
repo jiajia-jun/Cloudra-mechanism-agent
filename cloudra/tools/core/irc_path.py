@@ -318,7 +318,7 @@ def _hungarian(cost) -> Optional[list[int]]:
     return perm
 
 
-def align_atom_order(ref_symbols, ref_pos, mob_symbols, mob_pos):
+def align_atom_order(ref_symbols, ref_pos, mob_symbols, mob_pos, *, atom_order=None):
     """把 mobile 几何重排到 reference 的原子序（任意原子序输入的对应件）。
 
     原子数/元素多重集不等 → None（进不了这一层，调用方按 undecidable 处理）。
@@ -334,6 +334,13 @@ def align_atom_order(ref_symbols, ref_pos, mob_symbols, mob_pos):
         return None
     d_ref = dist_matrix(ref_pos)
     d_mob = dist_matrix(mob_pos)
+    if atom_order is not None:
+        if (len(atom_order) != n or any(type(index) is not int for index in atom_order)
+                or sorted(atom_order) != list(range(n))
+                or any(ref_symbols[i] != mob_symbols[index] for i, index in enumerate(atom_order))):
+            return None
+        rmsd = float(np.sqrt(((d_ref - d_mob[np.ix_(atom_order, atom_order)]) ** 2).mean()))
+        return (list(atom_order), rmsd) if rmsd <= _ALIGN_MAX_RMSD_ANG else None
     fp_ref = np.sort(d_ref, axis=1)
     fp_mob = np.sort(d_mob, axis=1)
     cost = np.full((n, n), 1e9)
@@ -610,7 +617,7 @@ def prove_irc_endpoint_direction(
     intermediate_b: tuple[Sequence[str], object],
     watch_pairs: Sequence[Sequence[int]],
     charge: int = 0,
-    *, index_base: int = 1,
+    *, index_base: int = 1, atom_orders=None,
 ) -> dict:
     """Align four geometries to the TS and apply the shared IRC direction test.
 
@@ -619,13 +626,14 @@ def prove_irc_endpoint_direction(
     direction; optimization convergence and file provenance remain separate facts.
     """
     aligned = []
-    for label, (symbols, positions) in (
+    for slot, (label, (symbols, positions)) in enumerate((
         ("IRC endpoint A", endpoint_a),
         ("IRC endpoint B", endpoint_b),
         ("intermediate A", intermediate_a),
         ("intermediate B", intermediate_b),
-    ):
-        result = align_atom_order(ts_symbols, ts_pos, symbols, positions)
+    )):
+        result = align_atom_order(ts_symbols, ts_pos, symbols, positions,
+                                  atom_order=atom_orders[slot] if atom_orders else None)
         if result is None:
             return {
                 "is_decidable": False,

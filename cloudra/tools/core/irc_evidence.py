@@ -246,13 +246,66 @@ def irc_endpoint_geometries(path, *, max_scan_bytes: Optional[int] = None) -> Op
     return None
 
 
+def _ordered_graph_matches(geometry, mol_block: str, charge: int) -> bool:
+    """Associate an independent minimum by its full graph, including H parents."""
+    from rdkit import Chem
+    from rdkit.Chem import rdDetermineBonds
+
+    from cloudra.tools.core.irc_path import xyz_block
+
+    expected = Chem.MolFromMolBlock(mol_block, removeHs=False)
+    if expected is None or any(atom.GetIsotope() for atom in expected.GetAtoms()):
+        return False  # XYZ/log element rows cannot prove isotope lineage.
+    actual = Chem.MolFromXYZBlock(xyz_block(*geometry))
+    if actual is None or actual.GetNumAtoms() != expected.GetNumAtoms():
+        return False
+    try:
+        rdDetermineBonds.DetermineBonds(actual, charge=charge)
+    except ValueError:
+        return False
+    if actual.GetNumBonds() != expected.GetNumBonds():
+        return False
+    property_name = '_cloudra_evidence_atom_order'
+    for molecule in (expected, actual):
+        for atom in molecule.GetAtoms():
+            atom.SetAtomMapNum(0)
+            atom.SetIntProp(property_name, atom.GetIdx())
+    parameters = Chem.SubstructMatchParameters()
+    parameters.useChirality = True
+    parameters.atomProperties = [property_name]
+    return actual.HasSubstructMatch(expected, parameters)
+
+
+def bound_atom_orders(ts, source, target, binding):
+    """Return TS→mobile permutations only for the bound complete endpoint graphs."""
+    if not binding:
+        return None
+    from rdkit import Chem
+
+    mapping = binding.get('atom_map', [])
+    count = len(ts[0])
+    if (len(mapping) != count or any(type(index) is not int for index in mapping)
+            or sorted(mapping) != list(range(1, count + 1))):
+        return None
+    reactant = Chem.MolFromMolBlock(binding['reactant_mol'], removeHs=False)
+    if reactant is None or [atom.GetSymbol() for atom in reactant.GetAtoms()] != list(ts[0]):
+        return None
+    charge = binding['charge']
+    if (not _ordered_graph_matches(source, binding['reactant_mol'], charge)
+            or not _ordered_graph_matches(target, binding['product_mol'], charge)):
+        return None
+    identity = list(range(count))
+    inverse = [mapping.index(index + 1) for index in range(count)]
+    return [identity, identity, identity, inverse]
+
+
 def iter_direction_verdicts(
     irc_ends: tuple,
     ts_geometries: Sequence[tuple],
     from_geometries: Sequence[tuple],
     to_geometries: Sequence[tuple],
     *,
-    charge: int = 0,
+    charge: int = 0, atom_binding=None,
 ):
     """按确定性顺序（TS → from → to）对全部材料组合逐一做方向区间证明，
     逐个产出 verdict（生成器，调用方 any()/遍历即短回路）。
@@ -268,6 +321,7 @@ def iter_direction_verdicts(
                     ts_syms, ts_pos,
                     (syms_a, pos_a), (syms_b, pos_b),
                     from_geo, to_geo, [], charge,
+                    atom_orders=bound_atom_orders((ts_syms, ts_pos), from_geo, to_geo, atom_binding),
                 )
 
 
@@ -309,6 +363,7 @@ def verify_short_irc_direction(
     *,
     charge: int = 0,
     max_scan_bytes: Optional[int] = None,
+    atom_bindings=None,
 ) -> tuple[bool, list[str]]:
     """给定 short_irc 日志与材料日志候选，完成几何方向区间证明。
 
@@ -331,11 +386,12 @@ def verify_short_irc_direction(
             "an unconverged direction's last frame is a legitimate partial "
             "endpoint); bind the parser output of a finished IRC job log"
         ]
-    ts_geometries = _usable_ts_geometries(
-        ts_logs, max_scan_bytes=max_scan_bytes, details=details
-    )
+    atom_binding = (atom_bindings or {}).get(str(irc_log))
+    ts_geometries = [(geometry, (atom_bindings or {}).get(str(path)))
+        for path in ts_logs
+        for geometry in _usable_ts_geometries([path], max_scan_bytes=max_scan_bytes, details=details)]
     anchor = irc_start_geometry(irc_log)
-    ts_geometries = [geo for geo in ts_geometries if same_geometry(geo, anchor)]
+    ts_geometries = [item for item in ts_geometries if same_geometry(item[0], anchor)]
     if not ts_geometries:
         details.append('IRC starting saddle is missing or differs from the submitted TS geometry; submit evidence from the same TS calculation geometry.')
     from_geometries = _usable_minimum_geometries(
@@ -366,12 +422,14 @@ def verify_short_irc_direction(
     if not (ts_geometries and from_geometries and to_geometries):
         return False, details
     last_verdict: Optional[dict] = None
-    for verdict in iter_direction_verdicts(
-        ends, ts_geometries, from_geometries, to_geometries, charge=charge
-    ):
-        if verdict["is_decidable"] and verdict["is_match"]:
-            return True, list(verdict.get("details") or [])
-        last_verdict = verdict
+    for ts_geometry, ts_binding in ts_geometries:
+        for verdict in iter_direction_verdicts(
+            ends, [ts_geometry], from_geometries, to_geometries, charge=charge,
+            atom_binding=atom_binding if ts_binding == atom_binding else None,
+        ):
+            if verdict["is_decidable"] and verdict["is_match"]:
+                return True, list(verdict.get("details") or [])
+            last_verdict = verdict
     if last_verdict is not None and not last_verdict.get("is_decidable"):
         header = (
             "the direction proof is undecidable for the bound materials "
@@ -386,7 +444,7 @@ def verify_short_irc_direction(
     return False, [header, *list((last_verdict or {}).get("details") or [])]
 
 
-def verify_short_irc_pair(forward_log, reverse_log, ts_logs, endpoint_a_logs, endpoint_b_logs):
+def verify_short_irc_pair(forward_log, reverse_log, ts_logs, endpoint_a_logs, endpoint_b_logs, *, atom_bindings=None):
     """Combine explicitly submitted directional logs using the same interval proof."""
     def outer_geometry(path, direction):
         engine = qm_engine.detect_qm_engine(str(path))
@@ -413,15 +471,21 @@ def verify_short_irc_pair(forward_log, reverse_log, ts_logs, endpoint_a_logs, en
         return False, [f'Directional IRC evidence could not be read: {exc}']
     if forward is None or reverse is None:
         return False, ['Both submitted directional logs must supply an outer endpoint geometry.']
-    ts = _usable_ts_geometries(ts_logs, max_scan_bytes=None, details=details)
+    atom_binding = (atom_bindings or {}).get(str(forward_log))
+    if atom_binding != (atom_bindings or {}).get(str(reverse_log)):
+        atom_binding = None
+    ts = [(geometry, (atom_bindings or {}).get(str(path))) for path in ts_logs
+          for geometry in _usable_ts_geometries([path], max_scan_bytes=None, details=details)]
     starts = [irc_start_geometry(path) for path in (forward_log, reverse_log)]
-    ts = [geo for geo in ts if all(same_geometry(geo, start) for start in starts)]
+    ts = [item for item in ts if all(same_geometry(item[0], start) for start in starts)]
     source = _usable_minimum_geometries(endpoint_b_logs, side='SOURCE', max_scan_bytes=None, details=details)
     target = _usable_minimum_geometries(endpoint_a_logs, side='TARGET', max_scan_bytes=None, details=details)
     if not (ts and source and target):
         return False, [*details, 'Bind the TS and frequency-verified source/target minimum logs.']
-    for verdict in iter_direction_verdicts((forward, reverse), ts, source, target):
-        if verdict['is_decidable'] and verdict['is_match']:
-            return True, list(verdict.get('details') or [])
-        details.extend(verdict.get('details') or [])
+    for geometry, ts_binding in ts:
+        for verdict in iter_direction_verdicts((forward, reverse), [geometry], source, target,
+            atom_binding=atom_binding if ts_binding == atom_binding else None):
+            if verdict['is_decidable'] and verdict['is_match']:
+                return True, list(verdict.get('details') or [])
+            details.extend(verdict.get('details') or [])
     return False, ['The paired IRC endpoint interval proof failed or is undecidable.', *details]

@@ -26,7 +26,7 @@ class ScientificCheck(BaseModel):
     next_action: str = ''
 
 
-def _logs(store, element, workspace_root=None):
+def _logs(store, element, workspace_root=None, *, atom_bindings=None):
     """Use bound immutable file snapshots; never substitute a workflow verdict."""
     logs, problems = [], []
     refs = list(element.refs) + [s.ref for s in element.stages if s.ref is not None and s.status.value == 'supported']
@@ -52,10 +52,14 @@ def _logs(store, element, workspace_root=None):
                 problems.append(f'Bound stage log is missing: {path}')
                 continue
             is_qm, engine, freqs, imag, energy, modes = _extract_qm_log(path)
+            from cloudra.services.ts_pipeline_context import pipeline_database
+            from cloudra.services.ts_pipeline_store import atom_binding_for_log
+            binding = atom_binding_for_log(pipeline_database(), path, workspace_root or path.parent)
             snap = FileEvidenceSnapshot(original_path=str(path), snapshot_path=str(path),
                 sha256=hashlib.sha256(path.read_bytes()).hexdigest(), file_size=path.stat().st_size,
                 is_qm_log=is_qm, engine=engine, frequencies=freqs,
-                imaginary_frequencies=imag, final_energy_hartree=energy, normal_modes=modes)
+                imaginary_frequencies=imag, final_energy_hartree=energy, normal_modes=modes,
+                metadata={'atom_binding': binding} if binding else {})
         else:
             snap = FileEvidenceSnapshot.model_validate(payload)
         path = Path(snap.snapshot_path)
@@ -77,6 +81,8 @@ def _logs(store, element, workspace_root=None):
             problems.append(f'No usable normally terminated calculation segment in {path}; frequency and final geometry must describe the same calculation structure.')
             continue
         logs.append(str(path))
+        if atom_bindings is not None and snap.metadata.get('atom_binding'):
+            atom_bindings[str(path)] = snap.metadata['atom_binding']
     return logs, problems
 
 
@@ -247,7 +253,8 @@ def file_scientific_checks(store, graph, target_id: str, *, irc_files=None, work
         element = next(e for e in graph.edges if e.edge_id == target_id)
     if evidence_refs is not None:
         element = element.model_copy(update={'refs': list(evidence_refs), 'stages': []})
-    logs, problems = _logs(store, element, workspace_root)
+    atom_bindings = {}
+    logs, problems = _logs(store, element, workspace_root, atom_bindings=atom_bindings)
     if is_edge and endpoint_refs:
         from cloudra.dag.models import GraphRef
         refs = [GraphRef.model_validate(ref) for ref in endpoint_refs.values()]
@@ -302,7 +309,7 @@ def file_scientific_checks(store, graph, target_id: str, *, irc_files=None, work
             except ValueError:
                 continue
             try:
-                irc_passed, reason = verify_short_irc_direction(path, logs, target_logs, source_logs)
+                irc_passed, reason = verify_short_irc_direction(path, logs, target_logs, source_logs, atom_bindings=atom_bindings)
                 details.extend(reason)
             except Exception as exc:
                 details.append(f'IRC direction proof could not be evaluated: {exc}')
@@ -312,7 +319,7 @@ def file_scientific_checks(store, graph, target_id: str, *, irc_files=None, work
             forward = FileEvidenceSnapshot.model_validate(irc_files['irc_forward_file']).snapshot_path
             reverse = FileEvidenceSnapshot.model_validate(irc_files['irc_reverse_file']).snapshot_path
             if forward in logs and reverse in logs:
-                irc_passed, reason = verify_short_irc_pair(forward, reverse, logs, target_logs, source_logs)
+                irc_passed, reason = verify_short_irc_pair(forward, reverse, logs, target_logs, source_logs, atom_bindings=atom_bindings)
                 details.extend(reason)
         checks['short_irc'] = ScientificCheck(status='passed' if irc_passed else 'incomplete',
             detail='Geometric IRC direction interval proof passed.' if irc_passed else ' '.join(details) or 'No usable bound bidirectional IRC evidence.',

@@ -176,17 +176,17 @@ def snapshot_evidence_file(
                     sidecar.relative_to(root)
                     sidecars.append((sidecar, hashlib.sha256(sidecar.read_bytes()).hexdigest()))
     metadata = {}
+    from cloudra.services.ts_pipeline_context import pipeline_database
+    from cloudra.services.ts_pipeline_store import atom_binding_for_log
+    atom_binding = irc_endpoints['forward'].get('atom_binding') if irc_endpoints else None
+    if atom_binding is None:
+        atom_binding = atom_binding_for_log(pipeline_database(), resolved, root)
+    if atom_binding is not None:
+        metadata['atom_binding'] = atom_binding
     if irc_endpoints is not None:
-        bundle_hash = hashlib.sha256(json.dumps([sha256_hex, [(p.name, h) for p, h in sidecars]]).encode()).hexdigest()
-        evidence_dir = evidence_dir / bundle_hash
-        evidence_dir.mkdir(parents=True, exist_ok=True)
-        metadata["irc_sidecars"] = []
-        for original, digest in sidecars:
-            archived = evidence_dir / original.name
-            if not archived.exists():
-                shutil.copy2(original, archived)
-            metadata["irc_sidecars"].append({"snapshot_path": str(archived), "sha256": digest})
         manifest = {"log_sha256": sha256_hex, "endpoints": {}}
+        if atom_binding is not None:
+            manifest["atom_binding"] = atom_binding
         for direction, endpoint in irc_endpoints.items():
             original = endpoint.get("geometry_ref")
             match = next(((p, h) for p, h in sidecars if str(p) == original), None)
@@ -195,6 +195,15 @@ def snapshot_evidence_file(
                 "sha256": match[1] if match else None,
                 "origin": endpoint.get("origin"), "converged": endpoint.get("converged"),
             }
+        bundle_hash = hashlib.sha256(json.dumps(manifest).encode()).hexdigest()
+        evidence_dir = evidence_dir / bundle_hash
+        evidence_dir.mkdir(parents=True, exist_ok=True)
+        metadata["irc_sidecars"] = []
+        for original, digest in sidecars:
+            archived = evidence_dir / original.name
+            if not archived.exists():
+                shutil.copy2(original, archived)
+            metadata["irc_sidecars"].append({"snapshot_path": str(archived), "sha256": digest})
         manifest_path = evidence_dir / "irc_endpoints.json"
         if not manifest_path.exists():
             manifest_path.write_text(json.dumps(manifest))

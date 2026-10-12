@@ -184,7 +184,7 @@ async def test_scientific_repair_still_requires_new_supervisor_acceptance(tmp_pa
         assert out.is_success
     state = {'passed': False}
     monkeypatch.setattr('cloudra.dag.file_science.verify_short_irc_direction',
-        lambda *_: (state['passed'], ['test direction gap'] if not state['passed'] else []))
+        lambda *_, **__: (state['passed'], ['test direction gap'] if not state['passed'] else []))
     supervisor = make_supervisor(db.conversation_id, workspace_dir=str(tmp_path))
     controller = DagController(db,'s1','dag_guided',conversation_id=db.conversation_id)
     async def submit():

@@ -372,6 +372,8 @@ class StageEvidence(CatalogModel):
     artifacts: list[str]
     input_hash: str
     detail: str = ''
+    atom_binding: dict | None = None
+    log_sha256: str | None = None
 
 
 def create_process(db: ComputeDB, *, request_key: str, payload: dict) -> dict:
@@ -580,3 +582,32 @@ def verify_stage_input(db: ComputeDB, job_id: int) -> str | None:
     if digest != row[1]:
         raise ValueError('stage input bytes changed after binding')
     return digest
+
+
+def atom_binding_for_log(db: ComputeDB, log_path: str | Path, workspace_dir: str | Path) -> dict | None:
+    """Use only a completed job's frozen binding, never a current process record."""
+    if not Path(db.path).is_file():
+        return None
+    from cloudra.infra.compute_utils import resolve_log_path
+
+    path = Path(log_path).resolve()
+    workspace = str(Path(workspace_dir).resolve())
+    with db.connect() as con:
+        rows = con.execute("SELECT j.id,j.path,j.jobtype,s.process_id,s.declaration_revision,s.evidence "
+            "FROM ts_pipeline_stages s JOIN compute_jobs j ON j.id=s.job_id "
+            "JOIN ts_pipeline_processes p ON p.process_id=s.process_id "
+            "WHERE j.state='done' AND s.evidence IS NOT NULL AND json_extract(p.payload,'$.workspace_dir')=?",
+            (workspace,)).fetchall()
+    for job_id, input_path, engine, process_id, revision, raw in rows:
+        if Path(resolve_log_path(input_path, engine, job_id)).resolve() != path:
+            continue
+        evidence = StageEvidence.model_validate_json(raw)
+        binding = evidence.atom_binding
+        if binding is None:
+            return None
+        if binding.get('process_id') != process_id or binding.get('declaration_revision') != revision:
+            raise ValueError('Stage atom binding belongs to a different TS declaration.')
+        if evidence.log_sha256 != hashlib.sha256(path.read_bytes()).hexdigest():
+            raise ValueError('Native log changed after its concrete atom binding was recorded.')
+        return binding
+    return None

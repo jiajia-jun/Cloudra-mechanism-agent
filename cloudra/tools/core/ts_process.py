@@ -1169,6 +1169,30 @@ def _check_input_binding(record: TsProcessRecord) -> dict:
                                                 bond_orders='declared_molecular_identity')
     return dict(input_revision=record.declaration_revision, hashes=hashes, **result)
 
+def _direction_atom_binding(record: TsProcessRecord) -> dict | None:
+    """Freeze concrete endpoint graphs with the declaration that produced a job."""
+    import hashlib
+
+    if record.input_binding.get('binding_status') != 'complete':
+        return None
+    molecules = {}
+    for role in ('reactant', 'product'):
+        built = _read_built_xyz(record, role)
+        if built is None or not built[3]:
+            raise ValueError('Bound endpoint MOL is unavailable for recording atom correspondence.')
+        path = Path(built[3])
+        content = path.read_bytes()
+        if hashlib.sha256(content).hexdigest() != record.input_binding['hashes'][role + '_mol']:
+            raise ValueError('Concrete endpoint changed before recording its atom binding.')
+        molecules[role + '_mol'] = content.decode('utf-8')
+    frequency = next((step for step in reversed(record.job_steps) if step.purpose == 'frequency'), None)
+    log = Path(_refinement_log_path(record, frequency)) if frequency else None
+    ts_digest = hashlib.sha256(log.read_bytes()).hexdigest() if log and log.is_file() else None
+    return dict(process_id=record.pipeline_id, declaration_revision=record.declaration_revision,
+                atom_map=record.input_binding['atom_map'], charge=record.input.reaction.charge,
+                ts_log_sha256=ts_digest, **molecules)
+
+
 def _validate_input_binding(record: TsProcessRecord) -> TsProcessRecord:
     try:
         record.input_binding = _check_input_binding(record)

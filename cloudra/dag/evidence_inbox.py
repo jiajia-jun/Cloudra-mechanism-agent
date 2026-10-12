@@ -601,8 +601,13 @@ class EvidenceInboxMixin:
         if not endpoint_b_logs:
             endpoint_b_logs = self._species_geometry_logs(graph, edge.source_node_id)
         try:
+            from cloudra.services.ts_pipeline_context import pipeline_database
+            from cloudra.services.ts_pipeline_store import atom_binding_for_log
+            workspace = self.working_directory or Path.cwd()
+            atom_bindings = {str(path): binding for path in [irc_log, *ts_logs]
+                if (binding := atom_binding_for_log(pipeline_database(), path, workspace)) is not None}
             passed, details = verify_short_irc_direction(
-                irc_log, ts_logs, endpoint_a_logs, endpoint_b_logs
+                irc_log, ts_logs, endpoint_a_logs, endpoint_b_logs, atom_bindings=atom_bindings
             )
         except Exception as exc:  # 解析依赖缺失等：拒绑并写明，绝不静默通过
             logger.warning("short_irc direction proof evaluation failed", exc_info=True)

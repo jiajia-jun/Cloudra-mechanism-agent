@@ -48,16 +48,23 @@ def advance_process(db: ComputeDB, process_id: str) -> dict:
                 return get_process(db,process_id)
             with db.connect() as con:
                 binding=con.execute('SELECT declaration_revision,stage_key,attempt,evidence FROM ts_pipeline_stages WHERE job_id=?',(int(token[2]),)).fetchone()
-                path=con.execute('SELECT path FROM compute_jobs WHERE id=?',(int(token[2]),)).fetchone()[0]
+                path, engine=con.execute('SELECT path,jobtype FROM compute_jobs WHERE id=?',(int(token[2]),)).fetchone()
             if binding and binding[0]==record.declaration_revision and binding[3] is None:
                 artifacts=[path]
                 helper_result=str(Path(path).with_suffix('.chem-result.json'))
                 if Path(helper_result).is_file():
                     artifacts.append(helper_result)
                 state=get_process(db,process_id)
+                import hashlib
+
+                from cloudra.infra.compute_utils import resolve_log_path
+                from cloudra.tools.core.ts_process import _direction_atom_binding
+                log_path = Path(resolve_log_path(path, engine, int(token[2])))
+                frozen_binding = _direction_atom_binding(record) if binding[1] in {'ts_opt', 'frequency', 'irc'} else None
                 committed=commit_stage_result(db,process_id=process_id,expected_revision=state['revision'],
                     stage_key=binding[1],attempt=binding[2],evidence=dict(status='done' if job[0]=='done' else 'failed',
-                        artifacts=artifacts,input_hash=digest or '',detail='Authoritative execution state: '+job[0]+'. Scientific qualification is a separate stage.'))
+                        artifacts=artifacts,input_hash=digest or '',detail='Authoritative execution state: '+job[0]+'. Scientific qualification is a separate stage.',
+                        atom_binding=frozen_binding, log_sha256=hashlib.sha256(log_path.read_bytes()).hexdigest() if frozen_binding and log_path.is_file() else None))
                 if not committed:
                     raise ValueError('stage result checkpoint changed concurrently')
             record.waiting_for = ''
