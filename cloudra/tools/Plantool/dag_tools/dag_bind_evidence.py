@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import Field
 
@@ -54,15 +54,6 @@ class DagBindEvidenceInput(input_schema):
         description=(
             "Evidence attachments, each with tool_call_id/bind_target/stage_kind and its own claim/rationale. "
             "Use a one-element list for a single bind."
-        ),
-    )
-    expected_revision: Optional[int] = Field(
-        default=None,
-        ge=0,
-        description=(
-            "Optional delivery revision expected by the caller. If provided and "
-            "the delivery graph has moved, the batch is rejected with "
-            "revision_conflict instead of being retried on a newer revision."
         ),
     )
 
@@ -135,13 +126,11 @@ class DagBindEvidence(DagToolBase):
                     attachments[0]["tool_call_id"],
                     attachments[0]["bind_target"],
                     attachments[0]["stage_kind"],
-                    expected_revision=user_input.expected_revision,
                 )
                 results = [bound]
             else:
                 bound = await controller.bind_stage_attachments(
                     attachments,
-                    expected_revision=user_input.expected_revision,
                 )
                 results = [bound]
         except Exception as exc:

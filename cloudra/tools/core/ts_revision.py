@@ -145,6 +145,10 @@ def _validated_scan_recovery(record, request, failed, updated, differences):
             if (repair.failed_attempt_id != attempt_id
                     or repair.failure_input_sha256 != failure['input_sha256']):
                 raise ValueError('scan recovery repair receipt binding differs from the failed attempt/input')
+            if repair.repair_source_path is not None:
+                original = _workspace_input_path(record, repair.repair_source_path)
+                if _artifact_sha256(original) != repair.repair_source_sha256:
+                    raise ValueError('scan recovery original repair artifact changed')
             artifact.update(kind='repair_receipt', receipt=repair.model_dump(mode='json'))
         artifacts.append(artifact)
 

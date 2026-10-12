@@ -77,8 +77,7 @@ async def test_resume_revises_same_path_and_returns_durable_receipt(tmp_path, mo
         lambda **_: AdmissionOutcome(ok=True,node_id='fixture',scheduler='local'))
     first = await invoke(owned_tool(TsPrepare, workspace=tmp_path), TsPrepare_input_schema(input=inputs(mapped=False)))
     request = TsResume_input_schema(run_id=first.run_id,
-        changes={'reaction':{'atom_map':[1,2,3]}}, reason='Bind the complete atom order',
-        expected_revision=first.revision)
+        changes={'reaction':{'atom_map':[1,2,3]}}, reason='Bind the complete atom order')
     tool = owned_tool(TsResume, workspace=tmp_path)
     revised = await invoke(tool, request)
     replay = await invoke(tool, request)
@@ -91,19 +90,21 @@ async def test_resume_revises_same_path_and_returns_durable_receipt(tmp_path, mo
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures('rdkit_chemistry')
-async def test_new_tool_call_cannot_overwrite_revision_agent_did_not_observe(tmp_path, monkeypatch):
+async def test_new_tool_call_cannot_change_an_active_calculation(tmp_path, monkeypatch):
     from cloudra.services.compute_admission import AdmissionOutcome
 
     monkeypatch.setattr('cloudra.services.compute_admission.admit_job',
         lambda **_: AdmissionOutcome(ok=True,node_id='fixture',scheduler='local'))
     first = await invoke(owned_tool(TsPrepare, workspace=tmp_path), TsPrepare_input_schema(input=inputs(mapped=False)))
     request = TsResume_input_schema(run_id=first.run_id, reason='Bind atom map',
-        changes={'reaction':{'atom_map':[1,2,3]}}, expected_revision=first.revision)
+        changes={'reaction':{'atom_map':[1,2,3]}})
     tool = owned_tool(TsResume, workspace=tmp_path)
     accepted = await invoke(tool, request, call_id='repair-1')
     assert accepted.is_success
-    stale = await invoke(tool, request, call_id='repair-2')
-    assert not stale.is_success and 'stale process revision' in stale.message
+    update = TsResume_input_schema(run_id=first.run_id, reason='Change the centre',
+        changes={'reaction': {'reaction_center': [[1, 3]]}})
+    result = await invoke(tool, update, call_id='repair-2')
+    assert not result.is_success and 'active' in result.message.lower()
 
 
 @pytest.mark.asyncio
@@ -112,7 +113,7 @@ async def test_new_tool_call_cannot_overwrite_revision_agent_did_not_observe(tmp
 async def test_resume_rejects_other_project_or_owner(tmp_path,project,owner):
     first = await invoke(owned_tool(TsPrepare, workspace=tmp_path), TsPrepare_input_schema(input=inputs(mapped=False)))
     request = TsResume_input_schema(run_id=first.run_id,
-        reason='Change method', expected_revision=first.revision,
+        reason='Change method',
         changes={'ts_optimization':{'engine':'orca','method':'HF/STO-3G','keywords':'D3BJ'}})
     session = SimpleNamespace(id=owner) if owner else None
     result = await invoke(owned_tool(TsResume, project, tmp_path), request, session)
@@ -123,7 +124,7 @@ async def test_resume_rejects_other_project_or_owner(tmp_path,project,owner):
 @pytest.mark.asyncio
 async def test_resume_unknown_run_reports_error(tmp_path):
     result = await invoke(owned_tool(TsResume, workspace=tmp_path), TsResume_input_schema(run_id='ts_9999',
-        reason='Change method',expected_revision=0))
+        reason='Change method'))
     assert not result.is_success
 
 
@@ -138,7 +139,7 @@ async def test_resume_uses_authoritative_record_when_export_is_missing(tmp_path,
     first = await invoke(owned_tool(TsPrepare, workspace=tmp_path), TsPrepare_input_schema(input=inputs(mapped=False)))
     Path(first.run_dir, 'process.json').unlink()
     result = await invoke(owned_tool(TsResume, workspace=tmp_path), TsResume_input_schema(run_id=first.run_id,
-        changes={'reaction':{'atom_map':[1,2,3]}},reason='Bind atoms',expected_revision=first.revision))
+        changes={'reaction':{'atom_map':[1,2,3]}},reason='Bind atoms'))
     assert result.is_success, result.message
     assert result.run_id == first.run_id
 
@@ -157,7 +158,7 @@ async def test_replacing_conformer_accepts_invalidation_of_stale_atom_binding(tm
     replacement = tmp_path / 'replacement.xyz'
     replacement.write_text('3\nWater replacement\nO 0 0 0\nH 0.96 0 0\nH -0.24 0.93 0\n')
     revised = await invoke(owned_tool(TsResume, workspace=tmp_path), TsResume_input_schema(
-        run_id=first.run_id, expected_revision=first.revision, reason='Replace the missing endpoint',
+        run_id=first.run_id,  reason='Replace the missing endpoint',
         changes={'conformers': {'reactant': {'kind': 'file', 'xyz_path': str(replacement)}}},
     ), call_id='replace-source')
     assert revised.is_success, revised.message

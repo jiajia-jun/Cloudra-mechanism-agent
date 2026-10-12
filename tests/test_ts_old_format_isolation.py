@@ -1,4 +1,5 @@
 """Old TS state stays readable without recovering its unsupported source rewrites."""
+import asyncio
 import json
 from copy import deepcopy
 
@@ -110,3 +111,27 @@ def test_old_checkpoint_does_not_parse_an_opaque_legacy_rewrite_intent(tmp_path)
         assert con.execute('SELECT payload FROM ts_pipeline_source_rewrites WHERE process_id=?', (pid,)).fetchone()[0] == payload
 
 
+@pytest.mark.asyncio
+async def test_format_five_public_resume_cannot_mutate_its_archived_run(tmp_path):
+    from cloudra.services.ts_pipeline_context import use_pipeline_database
+    from cloudra.tools.Chemtool.ts_search_process import TsResume, TsResume_input_schema
+    from tests.test_ts_search_process_tools import invoke, owned_tool
+
+    db, pid, workspace, _, jid, source, original_qm = await asyncio.to_thread(_old_pending_rewrite, tmp_path, 5)
+
+    def archive_snapshot():
+        with db.connect() as con:
+            return (con.execute('SELECT * FROM ts_pipeline_processes WHERE process_id=?', (pid,)).fetchone(),
+                    con.execute('SELECT * FROM ts_pipeline_source_rewrites WHERE process_id=?', (pid,)).fetchone(),
+                    con.execute('SELECT * FROM compute_jobs WHERE id=?', (jid,)).fetchone(),
+                    source.read_bytes(), original_qm.read_bytes())
+
+    before = await asyncio.to_thread(archive_snapshot)
+    with use_pipeline_database(db):
+        result = await invoke(owned_tool(TsResume, workspace=workspace), TsResume_input_schema(
+            run_id='old', reason='Attempt to revise an archived source',
+            changes={'reaction': {'reaction_center': [[1, 2]]}},
+        ), call_id='attempt-format-five-resume')
+        assert not result.is_success
+        assert 'Unsupported TS input format' in result.message
+    assert await asyncio.to_thread(archive_snapshot) == before

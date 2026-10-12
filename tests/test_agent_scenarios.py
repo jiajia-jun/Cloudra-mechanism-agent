@@ -1451,7 +1451,7 @@ async def test_failed_ts_scan_unchanged_resume_keeps_failure_without_budget_exha
         await asyncio.to_thread(finish,db,step.job_id,'failed')
         before=await asyncio.to_thread(load_record,str(tmp_path),record.run_id)
         for index,item in enumerate(steps):
-            item.tools=[('ts_resume',{'run_id':record.run_id,'changes':{'guess':before.input.guess.model_dump()},'reason':'retain accepted scan','expected_revision':before.revision})]
+            item.tools=[('ts_resume',{'run_id':record.run_id,'changes':{'guess':before.input.guess.model_dump()},'reason':'retain accepted scan'})]
         ready.set()
         await harness.wait_terminal(agent)
         calls=harness.tool_events(agent)

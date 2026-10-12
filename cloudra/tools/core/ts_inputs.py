@@ -364,6 +364,8 @@ class ScanRepairReceipt(InputModel):
     failed_attempt_id: str = Field(min_length=1)
     failure_input_sha256: str | None
     repair: str = Field(min_length=1)
+    repair_source_path: str | None = None
+    repair_source_sha256: str | None = None
 
     @field_validator('repair')
     @classmethod
