@@ -61,7 +61,7 @@ async def test_readonly_role_cannot_submit_compute_or_mutate_ts(tmp_path):
     core, _, reviewer, _ = await readonly_and_producer()
     executor = LegacyToolExecutor(core)
     calls = [('ts_prepare', {'input':inputs().model_dump()}),
-             ('ts_resume', {'run_id':'ts_0001','reason':'Authorized','expected_revision':0,'changes':{'reaction':{'charge':1}}}),
+             ('ts_resume', {'run_id':'ts_0001','reason':'Authorized','changes':{'reaction':{'charge':1}}}),
              ('submit_compute_job', {'input_file':str(tmp_path/'job.inp'),'job_type':'orca'}),
              ('bash', {'command':'python -c "print(1)"','task_description':'Run a script'}),
              ('subagent_launcher', {'role_id':'small_mol','query':'Compute a TS'})]

@@ -6,7 +6,7 @@
 
 - `ts_prepare(input)`：创建路径一次，接受显式输入并保存 checkpoint；运行时用稳定工具调用身份去重重放。
 - `ts_inspect(run_id)`：读取同项目权威状态、实际结构原子表、作业、方法、证据、费用和下一步；只读审查员可检查别人的 run。不会推进、重新解析或提交计算。
-- `ts_resume(run_id, changes, reason, expected_revision, scan_recovery)`：原 owner 修订同一个 run；`expected_revision` 使用已观察版本，防止并发覆盖。正常成功链自动推进，无需调用 resume。失败扫描必须提供绑定失败尝试及真实修复产物的 `scan_recovery`；其他失败阶段按既有恢复契约处理。运行时负责工作目录和稳定重放键。
+- `ts_resume(run_id, changes, reason, scan_recovery)`：原 owner 修订同一个 run；并发版本和稳定重放键由运行时管理，不要求模型填写。正常成功链自动推进，无需调用 resume。失败扫描必须提供绑定失败尝试及真实修复产物的 `scan_recovery`；其他失败阶段按既有恢复契约处理。运行时负责工作目录和稳定重放键。
 
 普通 Opt/Freq/单点/探索扫描仍用已有计算入口；手动 TS/IRC 提交暂时关闭，含 TS/QST2/QST3/OptTS/ScanTS/NEB-TS/IRC。不得通过其他 Agent 或 bash 绕过。关闭限制前须保留真实 TS 优化频率、双向 IRC 和两端 Opt/Freq 及身份验证产物；单测不构成真实引擎验收。
 
@@ -63,11 +63,11 @@ xTB 柔性扫描复用 `guess.kind=scan`：`calculation={engine:"xtb",method:"GF
 
 declare → build → map → assemble → guess → validate → submit → refine → verdict。方法、结构、方向和证据缺失均点名暂停；waiting 是等待系统作业而非 Agent 决策。计算终态通知和重启 reconcile 自动接续，重复事件不重复建作业。后续变化继续用同一 run，不用重新 prepare。
 
-verified / candidate_only / search_failed / invalid_input 是一次尝试的结果，不封死路径。修订将原输入、失败、作业和证据归档，生成新 input_revision 和结构化 receipt。expected_revision 来自 inspect；运行时稳定调用键先去重再检查过期，键冲突报错。回执先持久化，随后提交副作用。原生输入文件和旧证据不可覆盖。换结构来源或覆盖外部 XYZ/MOL 时，旧原子编号声明自动清空；重建后 inspect 新原子表，再明确填写新编号。
+verified / candidate_only / search_failed / invalid_input 是一次尝试的结果，不封死路径。修订将原输入、失败、作业和证据归档，生成新 input_revision 和结构化 receipt。并发版本由工具读取权威快照；运行时稳定调用键先去重再检查过期，键冲突报错。回执先持久化，随后提交副作用。原生输入文件和旧证据不可覆盖。换结构来源或覆盖外部 XYZ/MOL 时，旧原子编号声明自动清空；重建后 inspect 新原子表，再明确填写新编号。
 
 在途 READY/running/cancel_requested 作业禁止修订，不终止计算。固定依赖失效：构象变更重建下游；映射/初猜变更重跑探索及正式链；TS 方法重跑正式链；TS Freq 变更保留 TS Opt；IRC 变更保留 TS/Freq；单侧端点变更只重算该侧 Opt/Freq，另一侧及 TS/IRC 保留。
 
-失败扫描的修订或重试须提供 `scan_recovery`：引用失败 attempt ID、原输入/日志 SHA256，以及独立绑定的真实修复产物。`reason`、扫描 7 点改 8 点或 `changes={}` 都不足以通过这一闸门；修复产物的科学充分性仍由原授权范围约束。其他失败阶段按既有契约修订或重试。旧失败、日志和费用保留，接受执行修复不等于失败原因已科学解决。计算正常退出但虚频不合格仍记录失败。
+失败扫描的修订或重试须提供 `scan_recovery`：只填写真实修复产物的路径列表；当前失败身份、原输入/日志指纹和修复文件摘要由程序内部绑定。`reason`、扫描 7 点改 8 点或 `changes={}` 都不足以通过这一闸门；修复产物的科学充分性仍由原授权范围约束。其他失败阶段按既有契约修订或重试。旧失败、日志和费用保留，接受执行修复不等于失败原因已科学解决。计算正常退出但虚频不合格仍记录失败。
 
 既有 IRC 来源须来自同项目 authoritative done 作业，输入摘要、原生正常结束、自己的方法契约、TS 频率参考几何和双向外帧全部可核验；几何按写入器已有 8 位坐标精度比较。复制为不可变证据并保留来源；不重新提交 IRC，不从无来源路径直接接受 verdict。
 
