@@ -44,6 +44,7 @@ read them either).
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -185,6 +186,17 @@ class _LogProbe:
         return next((p for p in sorted(pool) if self.n_imag(p) == 0 and
                      same_geometry(geometry, self.last_geometry(p))), None)
 
+    def irc_atom_binding(self, rel_path: str):
+        evidence = self._files.get(rel_path)
+        if evidence is None or evidence.kind != 'orca' or evidence.size > MAX_SCAN_BYTES:
+            return None
+        path = self._sandbox / rel_path
+        if not (path.parent / 'irc_endpoints.json').is_file():
+            return None
+        from cloudra.tools.core.orca_frames import extract_irc_endpoints
+
+        return extract_irc_endpoints(str(path))['forward'].get('atom_binding')
+
 
 def _strict_irc_proof(
     probe: _LogProbe,
@@ -228,13 +240,16 @@ def _strict_irc_proof(
         if ends is None:
             continue
         anchor = irc_start_geometry(probe._sandbox / p)
+        binding = probe.irc_atom_binding(p)
         for ts_path, frequency_path, ts in ts_geos:
             if not same_geometry(ts, anchor):
                 continue
+            matched_binding = binding if binding and hashlib.sha256(
+                (probe._sandbox / frequency_path).read_bytes()).hexdigest() == binding.get('ts_log_sha256') else None
             for from_path, from_frequency, source in from_geos:
                 for to_path, to_frequency, target in to_geos:
                     if any(v['is_decidable'] and v['is_match'] for v in
-                           iter_direction_verdicts(ends, [ts], [source], [target], charge=charge)):
+                           iter_direction_verdicts(ends, [ts], [source], [target], charge=charge, atom_binding=matched_binding)):
                         return ts_path, frequency_path, p, from_path, from_frequency, to_path, to_frequency
     return None
 

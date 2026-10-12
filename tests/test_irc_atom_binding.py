@@ -265,8 +265,21 @@ def _archived_scorer_materials(tmp_path, monkeypatch):
     return _LogProbe(tmp_path,files), paths, archived
 
 
+def test_independent_file_scorer_consumes_the_same_archived_mapping(tmp_path, monkeypatch, rdkit_chemistry):
+    from cloudra.benchmark.selfconsistency import _strict_irc_proof
+
+    probe,paths,_ = _archived_scorer_materials(tmp_path,monkeypatch)
+    proof = _strict_irc_proof(probe,[paths["ts.out"],paths["irc.out"]],[paths["reactant.out"]],[paths["product.out"]])
+    assert proof is not None and proof[2] == paths["irc.out"]
 
 
+def test_independent_scorer_does_not_use_mapping_for_a_different_ts_log(tmp_path, monkeypatch, rdkit_chemistry):
+    from cloudra.benchmark.selfconsistency import _strict_irc_proof
+
+    probe,paths,_ = _archived_scorer_materials(tmp_path,monkeypatch)
+    ts = tmp_path / paths["ts.out"]
+    ts.write_text(ts.read_text()+"\nDifferent native job bytes.\n")
+    assert _strict_irc_proof(probe,[paths["ts.out"],paths["irc.out"]],[paths["reactant.out"]],[paths["product.out"]]) is None
 
 
 def test_irc_bundle_digest_covers_archived_binding(tmp_path, monkeypatch):
@@ -295,3 +308,18 @@ def test_rearchiving_verified_irc_preserves_the_bound_mapping(tmp_path, monkeypa
     original = archived["irc.out"]
     copied = snapshot_evidence_file(original.snapshot_path,tmp_path)
     assert copied.metadata["atom_binding"] == original.metadata["atom_binding"]
+
+
+def test_independent_scorer_matches_binding_to_frequency_witness(tmp_path, monkeypatch, rdkit_chemistry):
+    from cloudra.benchmark.integrity import EvidenceFile
+    from cloudra.benchmark.selfconsistency import _strict_irc_proof
+
+    probe, paths, _ = _archived_scorer_materials(tmp_path, monkeypatch)
+    frequency = (tmp_path / paths["ts.out"]).read_text()
+    optimization = tmp_path / "opt.out"
+    optimization.write_text(frequency.split("VIBRATIONAL FREQUENCIES", 1)[0] + "\nORCA TERMINATED NORMALLY\n")
+    probe._files["opt.out"] = EvidenceFile(path="opt.out", kind="orca", size=optimization.stat().st_size)
+    proof = _strict_irc_proof(probe, ["opt.out", paths["ts.out"], paths["irc.out"]],
+        [paths["reactant.out"]], [paths["product.out"]], ts_files=["opt.out"])
+    assert proof is not None
+    assert proof[:3] == ("opt.out", paths["ts.out"], paths["irc.out"])
