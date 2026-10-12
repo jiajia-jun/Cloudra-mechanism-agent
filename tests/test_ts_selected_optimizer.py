@@ -23,7 +23,25 @@ def catalog_seed(tmp_path, qualification=None):
     put_candidate(db,candidate)
     snapshot=partition_candidates([candidate],RegionConfig(descriptor_specs=[DescriptorSpec(kind='distance',stable_atom_ids=['O1','H1'])]))
     put_region_snapshot(db,snapshot,project_id='project',owner_id='owner')
-    return dict(kind='catalog',catalog_id='cat',partition_revision=snapshot.revision,candidate_id=candidate.candidate_id), xyz
+    (tmp_path / 'partition.json').write_text(snapshot.model_dump_json())
+    return dict(kind='catalog',catalog_id='cat',candidate_id=candidate.candidate_id), xyz
+
+
+def test_catalog_source_resolves_archive_partition_without_model_version(tmp_path):
+    from cloudra.tools.core.ts_candidate_pipeline import use_catalog_source
+    from cloudra.tools.core.ts_inputs import CatalogConformer
+    from tests.test_ts_stage_inputs import record_fixture
+
+    values, _ = catalog_seed(tmp_path)
+    expected = json.loads((tmp_path / 'partition.json').read_text())['revision']
+    source = CatalogConformer(**values, optimization={
+        'engine': 'xtb', 'method': 'GFN2-xTB', 'basis_set': '', 'keywords': ''})
+    record = record_fixture(tmp_path)
+    record.owner_conversation_id, record.owner_session_id = 'project', 'owner'
+    use_catalog_source(record, source, 'reactant')
+    assert record.blocked is None
+    assert record.partition_revision == expected
+    assert record.selected_candidate_id == source.candidate_id
 
 
 @pytest.mark.usefixtures("rdkit_chemistry")

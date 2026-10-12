@@ -244,7 +244,15 @@ async def test_ts_prepare_once_auto_complete(tmp_path,monkeypatch):
     monkeypatch.setattr('cloudra.services.compute_admission.admit_job',lambda **_: AdmissionOutcome(ok=True,node_id='fixture',scheduler='local'))
     payload=water_input(tmp_path)
     seed=tmp_path/'water.xyz'
+    for role in ('reactant', 'product'):
+        payload['verification'][role + '_endpoint']['seed'] = {
+            'kind': 'file', 'xyz_path': str(seed), 'evidence_refs': [str(seed)]}
+    real_endpoint_writer = process._write_endpoint_input
     def writer(record,directory,role=None,task=None):
+        if role is not None:
+            result = real_endpoint_writer(record, directory, role, task)
+            (Path(directory)/'optimized.xyz').write_text(seed.read_text())
+            return result
         purpose='frequency' if role is None else role+'_'+task
         path=Path(directory)/(purpose+'.inp')
         path.write_text('! HF STO-3G '+('Freq' if purpose.endswith('frequency') else 'Opt')+'\n* xyz 0 1\nO 0 0 0\nH 0.96 0 0\nH -0.24 0.93 0\n*\n')
@@ -252,6 +260,7 @@ async def test_ts_prepare_once_auto_complete(tmp_path,monkeypatch):
         return '',str(path)
     monkeypatch.setattr(process,'_write_frequency_input',writer)
     monkeypatch.setattr(process,'_write_endpoint_input',writer)
+    monkeypatch.setattr(process,'_endpoint_opt_frame',lambda *_: (seed.read_text(), ''))
     monkeypatch.setattr(process,'_validated_endpoint_minimum',lambda *_: ((['O','H','H'],[[0,0,0],[.96,0,0],[-.24,.93,0]]),''))
     monkeypatch.setattr('cloudra.dag.evidence_ingest.snapshot_evidence_file',lambda *_,**__: SimpleNamespace(frequencies=[-100.,200.],imaginary_frequencies=[-100.]))
     def complete(provider):
@@ -488,8 +497,7 @@ async def test_ts_d1_atom_binding_native_scan_recovery(tmp_path, monkeypatch):
         changes = {'reaction':{'atom_map':list(range(1,17))},'conformers':{}}
         for role in ('reactant','product'):
             changes['conformers'][role] = {'kind':'file','xyz_path':str(xyz),'mol_path':str(graph),
-                'heavy_atom_binding':{'structure_digest':record.structures[role]['structure_digest'],
-                                      'indices':[1,2,3,4,11,12]}}
+                'heavy_atom_binding':{'indices':[1,2,3,4,11,12]}}
         provider._scripts['small_mol'][0].tools = [('ts_resume', {
             'run_id':record.run_id,'expected_revision':record.revision,
             'reason':'Bind both concrete endpoint atom orders and the complete all-atom map',

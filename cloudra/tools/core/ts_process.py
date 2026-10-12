@@ -120,7 +120,7 @@ class TsProcessRecord(BaseModel):
     """持久运行记录（``ts/<run_id>/process.json``）。"""
 
     model_config = ConfigDict(extra='forbid')
-    format_version: Literal[5] = 5
+    format_version: Literal[6] = 6
     run_id: str
     pipeline_id: str = ""
     declaration_revision: int = 1
@@ -286,7 +286,7 @@ def save_record(record: TsProcessRecord) -> str:
 def load_record(workspace_dir: str, run_id: str) -> TsProcessRecord:
     path = os.path.join(workspace_dir, TS_ROOT_NAME, run_id, PROCESS_JSON_NAME)
     data = json.loads(Path(path).read_text(encoding="utf-8"))
-    if data.get("format_version") != 5:
+    if data.get("format_version") != 6:
         raise ValueError("Unsupported TS input format; existing compute jobs remain intact.")
     return TsProcessRecord.model_validate(data)
 
@@ -1112,13 +1112,6 @@ def _bound_input_structure(record, role, *, require_identity=True, persist_artif
         hashes[role + '_construction'] = hashlib.sha256(Path(metadata_path).read_bytes()).hexdigest()
     explicit_indices = None
     if source and source.kind == 'file' and source.heavy_atom_binding:
-        from cloudra.tools.Chemtool.reaction_mapping import concrete_structure_digest
-
-        actual_digest = concrete_structure_digest(role, expected_smiles,
-            record.input.reaction.charge, record.input.reaction.multiplicity, mol,
-            electronic_character=record.input.reaction.electronic_character)
-        if source.heavy_atom_binding.structure_digest != actual_digest:
-            raise ValueError(f'{role}: heavy_atom_binding structure digest is stale')
         explicit_indices = [index - 1 for index in source.heavy_atom_binding.indices]
     annotated_source = any(token.startswith('in:') for row in Path(xyz_path).read_text().splitlines()[2:]
                            for token in row.split()[4:])
@@ -1192,15 +1185,27 @@ def _validate_input_binding(record: TsProcessRecord) -> TsProcessRecord:
     if record.input_binding["binding_status"] != "complete":
         diagnostics = record.input_binding.get('binding_diagnostics', [])
         issues = []
+        needs = []
         for role in ('reactant', 'product'):
-            if any(role in detail.lower() for detail in diagnostics):
+            identity = record.input_binding.get(role + '_identity')
+            if identity == 'match' and record.input_binding.get('heavy_atom_bindings', {}).get(role):
+                continue
+            details = [item for item in diagnostics if item.lower().startswith((role + ':', role + ' '))]
+            if identity is not None or details:
                 source = getattr(record.input.conformers, role)
-                issues.append(dict(code='endpoint_binding_invalid' if source and source.kind == 'file' and source.heavy_atom_binding else 'endpoint_binding_ambiguous',
-                    field=f'conformers.{role}.heavy_atom_binding', role=role,
+                mismatch = identity == 'mismatch'
+                field = f'conformers.{role}' if mismatch else f'conformers.{role}.heavy_atom_binding'
+                needs.append(field)
+                if mismatch:
+                    needs.append(f'reaction.{role}_smiles')
+                issues.append(dict(code='endpoint_identity_mismatch' if mismatch else
+                    ('endpoint_binding_invalid' if source and source.kind == 'file' and source.heavy_atom_binding else 'endpoint_binding_ambiguous'),
+                    field=field, role=role,
                     structure_digest=record.structures.get(role, {}).get('structure_digest'),
-                    details=diagnostics))
+                    details=details,
+                    next_action='Inspect the concrete molecular identity and declaration; binding indices cannot repair a molecular graph mismatch.' if mismatch else 'Declare the intended heavy-atom indices against this concrete structure.'))
         return _block(record, "map", "input_identity_unconfirmed", "; ".join(diagnostics) or "Concrete endpoint identity or atom binding is inconclusive.",
-            needs=[issue['field'] for issue in issues] or ["reaction", "conformers"], issues=issues)
+            needs=needs or ['reaction.atom_map'], issues=issues)
     for role, indices in record.input_binding.get('heavy_atom_bindings', {}).items():
         if role in record.structures:
             record.structures[role]['binding_status'] = 'complete'

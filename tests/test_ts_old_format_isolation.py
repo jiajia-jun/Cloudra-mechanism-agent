@@ -19,7 +19,7 @@ from tests.test_ts_inputs import input_payload
 from tests.test_ts_pipeline_store import job_payload
 
 
-def _old_pending_rewrite(tmp_path):
+def _old_pending_rewrite(tmp_path, format_version=4):
     db = ComputeDB(data_dir=tmp_path / 'data').init()
     workspace = tmp_path / 'workspace'
     run_dir = workspace / 'ts' / 'old'
@@ -38,7 +38,7 @@ def _old_pending_rewrite(tmp_path):
         owner_conversation_id='project', owner_session_id='owner', pipeline_id=process['process_id'],
         input=inputs, revision=revision, stage='refine', waiting_for=f'job:{jid}').model_dump(mode='json')
     legacy = dict(engine='orca', method='b3lyp/def2svp', keywords='D3BJ')
-    state.update(format_version=4, job_steps=[dict(purpose='ts_opt', job_id=jid, state='ready',
+    state.update(format_version=format_version, job_steps=[dict(purpose='ts_opt', job_id=jid, state='ready',
         input_path=str(original_qm), actual_calculation=legacy, source_input_revision=1)])
     state['input']['ts_optimization'] = legacy
     source = workspace / 'reactant.xyz'
@@ -61,8 +61,9 @@ def _old_pending_rewrite(tmp_path):
 
 
 @pytest.mark.parametrize('reader', ['get', 'snapshot', 'advance', 'inspect'])
-def test_old_format_pending_rewrite_does_not_change_sources_jobs_or_locks(tmp_path, reader):
-    db, pid, workspace, state, jid, source, original_qm = _old_pending_rewrite(tmp_path)
+@pytest.mark.parametrize('format_version', [4, 5])
+def test_old_format_pending_rewrite_does_not_change_sources_jobs_or_locks(tmp_path, reader, format_version):
+    db, pid, workspace, state, jid, source, original_qm = _old_pending_rewrite(tmp_path, format_version)
     with db.connect() as con:
         before_process = con.execute('SELECT * FROM ts_pipeline_processes WHERE process_id=?', (pid,)).fetchone()
         before_intent = con.execute('SELECT * FROM ts_pipeline_source_rewrites WHERE process_id=?', (pid,)).fetchone()
@@ -107,3 +108,5 @@ def test_old_checkpoint_does_not_parse_an_opaque_legacy_rewrite_intent(tmp_path)
     assert source.read_bytes() == before
     with db.connect() as con:
         assert con.execute('SELECT payload FROM ts_pipeline_source_rewrites WHERE process_id=?', (pid,)).fetchone()[0] == payload
+
+

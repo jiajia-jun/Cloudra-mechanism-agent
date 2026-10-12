@@ -37,6 +37,34 @@ def test_unambiguous_valid_binding_accepts_full_atom_map():
     assert binding['reactant_identity'] == binding['product_identity'] == 'match'
 
 
+def test_identity_mismatch_does_not_request_binding_repair_for_a_valid_endpoint(tmp_path):
+    from cloudra.tools.core.ts_inputs import FileConformer
+    from cloudra.tools.core.ts_process import _build, _map
+    from tests.test_ts_stage_inputs import record_fixture
+
+    record = record_fixture(tmp_path)
+    record.input.reaction.reactant_smiles = record.input.reaction.product_smiles = 'CCO'
+    record.input.reaction.atom_map = list(range(9))
+    record.input.conformers.guidance.ring_order = []
+    for role, smiles in (('reactant', 'CCO'), ('product', 'COC')):
+        mol = Chem.MolFromMolBlock(concrete(smiles), removeHs=False)
+        if role == 'product':
+            mol = Chem.RenumberAtoms(mol, [0, 2, 1, *range(3, 9)])
+        xyz, graph = tmp_path / (role + '.xyz'), tmp_path / (role + '.mol')
+        xyz.write_text(Chem.MolToXYZBlock(mol))
+        graph.write_text(Chem.MolToMolBlock(mol))
+        setattr(record.input.conformers, role, FileConformer(kind='file', xyz_path=str(xyz),
+            mol_path=str(graph), heavy_atom_binding={'indices': [1, 2, 3]}))
+    _build(record)
+    _map(record)
+    assert record.blocked is not None
+    assert record.blocked.failure_class == 'input_identity_unconfirmed'
+    assert [issue['role'] for issue in record.blocked.issues] == ['product']
+    assert record.blocked.issues[0]['code'] == 'endpoint_identity_mismatch'
+    assert 'conformers.product.heavy_atom_binding' not in record.blocked.needs
+    assert record.input_binding['heavy_atom_bindings']['reactant'] == [1, 2, 3]
+
+
 @pytest.mark.parametrize('labels', [(1, 0, 0), (1, 1, 1)])
 def test_partial_or_duplicate_concrete_labels_cannot_be_ignored_on_unique_graph(labels):
     mol = Chem.MolFromMolBlock(concrete('CCO'), removeHs=False)
@@ -145,7 +173,7 @@ def test_symmetric_file_endpoints_accept_explicit_binding_from_recorded_atom_tab
     _map(record)
     assert record.blocked.failure_class == 'input_identity_unconfirmed'
     for role in ('reactant', 'product'):
-        binding = {'structure_digest': record.structures[role]['structure_digest'], 'indices': [1, 2]}
+        binding = {'indices': [1, 2]}
         setattr(record.input.conformers, role, FileConformer(kind='file', xyz_path=str(xyz), mol_path=str(graph),
             heavy_atom_binding=binding))
     record.blocked = None
@@ -156,7 +184,7 @@ def test_symmetric_file_endpoints_accept_explicit_binding_from_recorded_atom_tab
     assert _bound_input_structure(record, 'reactant')[1].GetNumAtoms() == mol.GetNumAtoms()
 
 
-def test_explicit_binding_rejects_wrong_graph_and_stale_digest(tmp_path):
+def test_explicit_binding_rejects_wrong_graph_without_model_digest(tmp_path):
     from cloudra.tools.core.ts_inputs import FileConformer
     from cloudra.tools.core.ts_process import _build, _map
     from tests.test_ts_stage_inputs import record_fixture
@@ -171,18 +199,16 @@ def test_explicit_binding_rejects_wrong_graph_and_stale_digest(tmp_path):
     source = FileConformer(kind='file', xyz_path=str(xyz), mol_path=str(graph))
     record.input.conformers.reactant = record.input.conformers.product = source
     _build(record)
-    digest = record.structures['reactant']['structure_digest']
     record.input.conformers.reactant = FileConformer(kind='file', xyz_path=str(xyz), mol_path=str(graph),
-        heavy_atom_binding={'structure_digest': digest, 'indices': [2, 1, 3]})
+        heavy_atom_binding={'indices': [2, 1, 3]})
     _map(record)
     assert record.blocked.failure_class == 'input_identity_unconfirmed'
     assert 'graph' in record.blocked.message.lower() or 'bond' in record.blocked.message.lower()
     record.blocked = None
     record.input.conformers.reactant = FileConformer(kind='file', xyz_path=str(xyz), mol_path=str(graph),
-        heavy_atom_binding={'structure_digest': 'stale', 'indices': [1, 2, 3]})
+        heavy_atom_binding={'indices': [1, 2, 3]})
     _map(record)
-    assert record.blocked.failure_class == 'input_identity_unconfirmed'
-    assert 'digest' in record.blocked.message.lower()
+    assert record.blocked is None
 
 
 def test_d1_smiles_heavy_number_assumption_points_to_actual_hydrogen_before_compute(tmp_path, monkeypatch):

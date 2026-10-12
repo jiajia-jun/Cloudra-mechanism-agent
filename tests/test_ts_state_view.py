@@ -19,7 +19,7 @@ def test_verdict_output_rejects_unknown_outcome():
 ])
 def test_ended_workflow_preserves_recorded_scientific_verdict(tmp_path, terminal, verified):
     state = {
-        "format_version": 5, "run_id": "ts_fixture", "revision": 1,
+        "format_version": 6, "run_id": "ts_fixture", "revision": 1,
         "run_dir": str(tmp_path), "stage": "verdict", "terminal": terminal,
         "stage_records": [{"stage": "verdict", "status": "done", "detail": "Recorded reason"}],
         "evidence_candidates": ["frequency.out", "irc.out"],
@@ -40,7 +40,7 @@ def test_scan_actual_configuration_contract_and_artifact_survive_separate_scan_s
     actual = dict(engine='orca', method='HF', basis_set='STO-3G', keywords='TightSCF',
                   frequency_mode='auto', orca_blocks=None, end_setting='')
     contract = dict(verification='native_input_matches_resolved_configuration', declared=actual)
-    state = dict(format_version=5, run_id='ts_scan', revision=2, declaration_revision=3,
+    state = dict(format_version=6, run_id='ts_scan', revision=2, declaration_revision=3,
         run_dir=str(tmp_path), stage='guess', input=dict(calculations={'scan_level': planned},
         guess=dict(kind='scan', calculation={'ref': 'scan_level'})), job_steps=[], stage_records=[],
         scan_step=dict(purpose='scan', job_id=17, input_path='scan.inp', actual_calculation=actual,
@@ -83,7 +83,7 @@ def test_legacy_format_keeps_raw_method_snapshots_isolated_without_resolving(tmp
 
 def test_undefined_planned_reference_is_reported_without_hiding_actual_snapshot(tmp_path):
     actual = dict(engine='orca', method='HF', basis_set='STO-3G', keywords='TightSCF')
-    state = dict(format_version=5, run_id='ts_bad_ref', revision=1, run_dir=str(tmp_path), stage='submit',
+    state = dict(format_version=6, run_id='ts_bad_ref', revision=1, run_dir=str(tmp_path), stage='submit',
         input=dict(ts_optimization={'ref': 'missing'}),
         job_steps=[dict(purpose='ts_opt', job_id=None, input_path='existing.inp', actual_calculation=actual)],
         stage_records=[])

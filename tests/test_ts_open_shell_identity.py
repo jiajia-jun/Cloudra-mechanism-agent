@@ -9,7 +9,6 @@ from rdkit.Chem import AllChem
 from cloudra.tools.Chemtool.reaction_mapping import (
     ReactionMapping_input_schema,
     check_concrete_binding,
-    concrete_structure_digest,
 )
 from cloudra.tools.core.ts_inputs import FileConformer
 from cloudra.tools.core.ts_process import (
@@ -123,8 +122,7 @@ def test_doublet_nondefault_explicit_binding_keeps_exact_source_indices(tmp_path
     for role in ('reactant', 'product'):
         source = getattr(record.input.conformers, role)
         data = source.model_dump()
-        data['heavy_atom_binding'] = {'structure_digest': record.structures[role]['structure_digest'],
-                                     'indices': [4, 2, 3, 1]}
+        data['heavy_atom_binding'] = {'indices': [4, 2, 3, 1]}
         setattr(record.input.conformers, role, FileConformer.model_validate(data))
     _map(record)
     assert record.blocked is None
@@ -155,8 +153,7 @@ def _binding(smiles, mol, *, multiplicity=2, explicit_indices=None, electronic_c
     if explicit_indices is not None:
         for role in ('reactant', 'product'):
             payload[role + '_binding'] = dict(
-                structure_digest=concrete_structure_digest(role, smiles, 0, multiplicity, mol,
-                    electronic_character=electronic_character),
+
                 indices=explicit_indices)
     return check_concrete_binding(ReactionMapping_input_schema(**payload), {
         'atom_map': list(range(1, mol.GetNumAtoms() + 1)), 'watch_pairs': []})
@@ -285,18 +282,18 @@ def test_character_revision_refreshes_pinned_digest_without_changing_binding(tmp
     _build(record)
     for role in ('reactant', 'product'):
         data = getattr(record.input.conformers, role).model_dump()
-        data['heavy_atom_binding'] = dict(structure_digest=record.structures[role]['structure_digest'], indices=[1, 2])
+        data['heavy_atom_binding'] = dict( indices=[1, 2])
         setattr(record.input.conformers, role, FileConformer.model_validate(data))
     _map(record)
-    original_digest = record.input.conformers.reactant.heavy_atom_binding.structure_digest
+    original_digest = record.structures['reactant']['structure_digest']
     change = request(record, {'reaction': {'electronic_character': 'open_shell'}})
     revised = revise_record(record, change, plan_input_revision(record, change))
     assert revised.input.conformers.reactant.heavy_atom_binding.indices == [1, 2]
-    assert revised.input.conformers.reactant.heavy_atom_binding.structure_digest != original_digest
     for stage in (_declare, _build, _map):
         stage(revised)
         assert revised.blocked is None
         assert revised.terminal is None
+    assert revised.structures['reactant']['structure_digest'] != original_digest
 
 
 def test_generated_open_shell_fragments_are_unoptimized_seeds(tmp_path, monkeypatch):

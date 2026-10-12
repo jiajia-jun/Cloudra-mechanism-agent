@@ -701,8 +701,12 @@ def _identity_and_binding(expected_smiles: str, structure, explicit_indices: lis
     for atom in structure_copy.GetAtoms():
         atom.SetIntProp("_full_idx", atom.GetIdx())
     structure_heavy = Chem.RemoveHs(structure_copy)
-    if _canonical_heavy_smiles(expected) != _canonical_heavy_smiles(structure_heavy):
-        return "mismatch", [], "The concrete structure's molecular graph differs from the declared SMILES."
+    declared_identity = _canonical_heavy_smiles(expected)
+    concrete_identity = _canonical_heavy_smiles(structure_heavy)
+    if declared_identity != concrete_identity:
+        return "mismatch", [], ("The concrete structure's molecular graph or stereochemistry differs from the declared SMILES. "
+            f"Declared identity: {declared_identity}; concrete identity: {concrete_identity}. "
+            "Changing binding indices cannot repair this identity mismatch.")
 
     for labels in (expected_labels, concrete_labels):
         if any(labels) and (any(label <= 0 for label in labels) or len(set(labels)) != len(labels)):
@@ -942,18 +946,14 @@ def check_concrete_binding(user_input, mapping_result: dict, *, known_digests: d
             identity, binding, diagnostic = _identity_and_binding(getattr(user_input, role + '_smiles'), structure,
                 allow_symmetric_representative=states[role]['is_open_shell'])
             return identity, binding, f'{role}: {diagnostic}' if diagnostic else ''
-        digest = ((known_digests or {}).get(role) or concrete_structure_digest(role,
-            getattr(user_input, role + '_smiles'), getattr(user_input, role + '_charge'),
-            getattr(user_input, role + '_multiplicity'), structure,
-            electronic_character=getattr(user_input, role + '_electronic_character')))
-        if declaration.structure_digest != digest:
-            return 'match', [], f'{role} heavy-atom binding structure_digest is stale or mismatched; actual digest is {digest}.'
         identity, binding, diagnostic = _identity_and_binding(getattr(user_input, role + '_smiles'), structure,
             [index - 1 for index in declaration.indices])
         return identity, binding, f'{role}: {diagnostic}' if diagnostic else ''
     r_identity, r_binding, r_diagnostic = bind('reactant', reactant)
     p_identity, p_binding, p_diagnostic = bind('product', product)
-    digests = dict(structure_digests={role: (known_digests or {}).get(role) or
+    digests = dict(heavy_atom_bindings={role: [index + 1 for index in binding]
+        for role, identity, binding in (('reactant', r_identity, r_binding), ('product', p_identity, p_binding))
+        if identity == 'match' and binding}, structure_digests={role: (known_digests or {}).get(role) or
         concrete_structure_digest(role, getattr(user_input, role + '_smiles'),
             getattr(user_input, role + '_charge'), getattr(user_input, role + '_multiplicity'), structure,
             electronic_character=getattr(user_input, role + '_electronic_character'))
@@ -1052,8 +1052,7 @@ def check_concrete_binding(user_input, mapping_result: dict, *, known_digests: d
         "product_identity": p_identity,
         "atom_map": atom_map,
         "concrete_watch_pairs": sorted(concrete_pairs) if atom_map else [],
-        "heavy_atom_bindings": {"reactant": [index + 1 for index in r_binding],
-                                "product": [index + 1 for index in p_binding]} if atom_map else {},
+        "heavy_atom_bindings": digests["heavy_atom_bindings"],
         "binding_diagnostics": [
             item for item in (r_diagnostic, p_diagnostic, diagnostic) if item
         ],

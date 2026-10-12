@@ -24,7 +24,7 @@
 
 完整 `calculation` 明确 `engine`、单一原生 `method` token 和 `basis_set`；无基组的方法也必须显式填 `basis_set=""`。`method` 不接受方法/基组拼接或整段 route。`keywords`、`frequency_mode` 和对应原生 `orca_blocks`/`end_setting` 分开填写。阶段可直接给完整配置，也可给 `{ref: "名称"}` 指向本输入的 `calculations`。同一配置复用必须明确引用；探索与正式阶段仍各自选择。当前 native 构象优化、路径与扫描能力只支持显式 GFN2-xTB；其他明确方法使用已有 ORCA/Gaussian 写入器，能力不足点名阻塞。缺失方法不填默认。构象生成不暗中做力场优化；带指导的构象使用已声明约束优化方法。
 
-结构字段 1-based；ORCA 原生 scan/freeze 字段 0-based，Gaussian/xTB 1-based。atom_map 含全部氢，产物第 k 个原子映射到反应物 atom_map[k-1]。`structures` 返回实际 XYZ 的完整 1-based 原子表和结构摘要；对称外部结构可在 `conformers.<role>.heavy_atom_binding` 填该摘要及 SMILES 重原子顺序对应的完整结构编号。只填跨端点 atom_map 不会消除本侧身份歧义。
+结构字段 1-based；ORCA 原生 scan/freeze 字段 0-based，Gaussian/xTB 1-based。atom_map 含全部氢，产物第 k 个原子映射到反应物 atom_map[k-1]。`structures` 返回实际 XYZ 的完整 1-based 原子表和结构摘要；对称外部结构可在 `conformers.<role>.heavy_atom_binding` 只填写 SMILES 重原子顺序对应的完整结构编号；摘要由程序维护。只填跨端点 atom_map 不会消除本侧身份歧义。
 
 xTB 柔性扫描复用 `guess.kind=scan`：`calculation={engine:"xtb",method:"GFN2-xTB",basis_set:""}`，每条 scans 明确起点、终点、点数，并显式给正的 `force_constant`。单坐标不需 `mode`；双坐标明确选择 `concerted` 或 `sequential`。不要求 Agent 填优化等级或原生命令；实际命令、xTB 版本、逐点收敛、电子能与约束势分开留证。完成扫描只可能提供未经验证的 TS 初猜；正式方法需在独立 `ts_optimization` 中声明。
 

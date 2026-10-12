@@ -83,7 +83,6 @@ class GeneratedConformer(InputModel):
 
 
 class HeavyAtomBinding(InputModel):
-    structure_digest: str = Field(min_length=1, description="Matching reaction_mapping.structure_digests value for this concrete endpoint. Binds its atom order, graph and coordinates; a stale or mismatched digest is rejected.")
     indices: list[StrictInt] = Field(min_length=1, description="1-based indices in this file's full coordinate atom order, listed in declared SMILES heavy-atom order. Explicit hydrogen rows count toward indices; the selected atoms must be heavy atoms.")
 
 
@@ -100,7 +99,6 @@ class CatalogConformer(InputModel):
     kind: Literal["catalog"]
     catalog_id: str = Field(min_length=1)
     candidate_id: str = Field(min_length=1)
-    partition_revision: str = Field(min_length=1)
     optimization: CalculationValue | None = None
 
 
@@ -188,7 +186,7 @@ class ScanGuess(InputModel):
 
 class ProvidedGuess(InputModel):
     kind: Literal["provided"]
-    xyz_path: str = Field(min_length=1)
+    xyz_path: str = Field(min_length=1, description="Candidate XYZ in the current bound reactant's full atom order. Coordinates and element labels must refer to the same source atoms; do not combine product-order coordinates with reactant-order labels.")
     evidence_refs: list[str] = Field(min_length=1)
 
 

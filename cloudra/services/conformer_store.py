@@ -75,3 +75,25 @@ def get_region_snapshot(db: ComputeDB, catalog_id: str, revision: str, *, projec
     if row is None:
         raise ValueError('snapshot not found')
     return RegionSnapshot.model_validate_json(row[0])
+
+
+def get_candidate_snapshot(db: ComputeDB, catalog_id: str, candidate_id: str, *,
+                           project_id: str, owner_id: str, pinned_revision: str | None = None):
+    """Resolve an already bound or unique archive; never select a partition."""
+    from cloudra.tools.core.conformer_regions import RegionSnapshot
+
+    candidates = list_candidates(db, catalog_id, project_id=project_id, owner_id=owner_id)
+    if not any(item.candidate_id == candidate_id for item in candidates):
+        raise ValueError('selected candidate is absent from the owned catalog')
+    if pinned_revision:
+        snapshot = get_region_snapshot(db, catalog_id, pinned_revision, project_id=project_id, owner_id=owner_id)
+        if candidate_id not in snapshot.descriptors:
+            raise ValueError('selected candidate is absent from its pinned archive')
+        return snapshot
+    with db.connect() as con:
+        rows = con.execute('SELECT payload FROM conformer_regions WHERE catalog_id=?', (catalog_id,)).fetchall()
+    matches = [snapshot for row in rows if candidate_id in
+               (snapshot := RegionSnapshot.model_validate_json(row[0])).descriptors]
+    if len(matches) != 1:
+        raise ValueError('Selected candidate has no unique bound archive; use its explicit geometry file. No partition was selected.')
+    return matches[0]

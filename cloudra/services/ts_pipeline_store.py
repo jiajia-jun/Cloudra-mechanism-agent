@@ -154,10 +154,10 @@ def _recover_source_rewrite(db, process_id):
         return
     # Unsupported checkpoints and their pending intents are historical data.
     # Isolate before any file writes, revision commits or export validation.
-    if checkpoint and checkpoint[0] and json.loads(checkpoint[0]).get('format_version') != 5:
+    if checkpoint and checkpoint[0] and json.loads(checkpoint[0]).get('format_version') != 6:
         return
     intent = json.loads(row[0])
-    if intent['record'].get('format_version') != 5:
+    if intent['record'].get('format_version') != 6:
         return
     receipt = TsRevisionReceipt.model_validate(intent['receipt'])
     roles = [role for role, table in intent['record'].get('structures', {}).items()

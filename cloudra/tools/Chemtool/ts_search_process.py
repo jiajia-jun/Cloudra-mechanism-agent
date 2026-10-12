@@ -69,7 +69,7 @@ def _to_output(record, *, can_write=True):
 def _read_resume_record(db, workspace, run_id, project):
     from cloudra.services.ts_pipeline_store import read_process_snapshot
     state, jobs = read_process_snapshot(db, project_id=project, run_id=run_id, workspace_dir=workspace)
-    if state.get('format_version') != 5:
+    if state.get('format_version') != 6:
         raise ValueError('Unsupported TS input format; existing compute jobs remain intact.')
     record = TsProcessRecord.model_validate(state)
     states = {job['job_id']: job['state'] for job in jobs}

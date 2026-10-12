@@ -358,7 +358,6 @@ def test_new_provided_guess_requires_proven_raw_association_but_inherited_guess_
 def test_explicit_raw_heavy_binding_uses_one_based_indices_and_canonical_geometry_digest(tmp_path):
     from rdkit import Chem
 
-    from cloudra.tools.Chemtool.reaction_mapping import concrete_structure_digest
     from cloudra.tools.core.ts_process import TsProcessRecord, _bound_input_structure, _build
 
     record, mol = _identity_fixture(tmp_path, smiles='F[C@](Cl)(Br)I', labels=False)
@@ -372,8 +371,7 @@ def test_explicit_raw_heavy_binding_uses_one_based_indices_and_canonical_geometr
         conf.SetAtomPosition(index, position)
     graph.RemoveAllConformers()
     graph.AddConformer(conf)
-    replacement['heavy_atom_binding'] = dict(indices=[5, 4, 3, 2, 1], structure_digest=concrete_structure_digest(
-        'reactant', record.input.reaction.reactant_smiles, 0, 1, graph))
+    replacement['heavy_atom_binding'] = dict(indices=[5, 4, 3, 2, 1])
     change = request(record, dict(conformers=dict(reactant=replacement)))
     receipt = plan_input_revision(record, change)
     revised = revise_record(record, change, receipt)

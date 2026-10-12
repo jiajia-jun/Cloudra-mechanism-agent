@@ -164,7 +164,7 @@ def _validated_scan_recovery(record, request, failed, updated, differences):
 def _source_identity(record, source):
     if source is None:
         return None
-    fields = {'file': ('xyz_path', 'mol_path'), 'catalog': ('catalog_id', 'candidate_id', 'partition_revision'),
+    fields = {'file': ('xyz_path', 'mol_path'), 'catalog': ('catalog_id', 'candidate_id'),
               'generate': ('generation', 'seed'), 'rotate_about_bond': ()}[source.kind]
     values = [getattr(source, field) for field in fields]
     if source.kind == 'file':
@@ -376,7 +376,6 @@ def _refresh_canonical_bindings(record, updated, changes, projections):
     from cloudra.tools.Chemtool.reaction_mapping import (
         _identity_and_binding,
         _read_structure,
-        concrete_structure_digest,
     )
     from cloudra.tools.core.structure_artifacts import read_xyz_atoms
 
@@ -414,12 +413,7 @@ def _refresh_canonical_bindings(record, updated, changes, projections):
             conf.SetAtomPosition(index, point)
         graph.RemoveAllConformers()
         graph.AddConformer(conf)
-        actual = concrete_structure_digest(role, getattr(value.reaction, role + '_smiles'),
-            value.reaction.charge, value.reaction.multiplicity, graph,
-            electronic_character=value.reaction.electronic_character)
         qualifier = 'explicit' if explicit else 'inherited'
-        if binding.structure_digest != actual:
-            raise ValueError(f'{role}: {qualifier} heavy-atom binding structure digest is stale')
         if any(index < 1 or index > graph.GetNumAtoms() for index in binding.indices):
             raise ValueError(f'{role}: {qualifier} heavy-atom binding indices are outside the full atom table')
         identity, matched, diagnostic = _identity_and_binding(getattr(value.reaction, role + '_smiles'),
@@ -428,10 +422,6 @@ def _refresh_canonical_bindings(record, updated, changes, projections):
             raise ValueError(f'{role}: {qualifier} heavy-atom binding is invalid: {diagnostic}')
         after.heavy_atom_binding.indices = ([projection['inverse'][index - 1] + 1 for index in binding.indices]
                                             if explicit else list(binding.indices))
-        after.heavy_atom_binding.structure_digest = (projection['table']['structure_digest'] if projection else
-            concrete_structure_digest(role, getattr(updated.reaction, role + '_smiles'),
-                updated.reaction.charge, updated.reaction.multiplicity, graph,
-                electronic_character=updated.reaction.electronic_character))
 
 
 def _stale_atom_references(record, updated, changes, correspondences):

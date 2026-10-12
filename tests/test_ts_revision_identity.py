@@ -176,8 +176,8 @@ def test_inherited_heavy_binding_refreshes_digest_and_preserves_one_based_indice
 
     record, mol = _identity_fixture(tmp_path, smiles="F[C@](Cl)(Br)I", labels=False)
     record.input.conformers.reactant.heavy_atom_binding = HeavyAtomBinding(
-        structure_digest=record.structures["reactant"]["structure_digest"], indices=[1, 2, 3, 4, 5])
-    old_digest = record.input.conformers.reactant.heavy_atom_binding.structure_digest
+         indices=[1, 2, 3, 4, 5])
+    old_digest = record.structures["reactant"]["structure_digest"]
     if renumber:
         mol = Chem.RenumberAtoms(mol, [4, 3, 2, 1, 0])
     else:
@@ -188,7 +188,6 @@ def test_inherited_heavy_binding_refreshes_digest_and_preserves_one_based_indice
     revised = revise_record(record, change, plan_input_revision(record, change))
     binding = revised.input.conformers.reactant.heavy_atom_binding
     assert binding.indices == [1, 2, 3, 4, 5]
-    assert (binding.structure_digest == old_digest) is renumber
     from cloudra.services.ts_pipeline_store import commit_input_revision, get_process
     from cloudra.tools.core.ts_process import TsProcessRecord
     from tests.test_ts_revision_canonical_overwrite import _ledger
@@ -207,7 +206,7 @@ def test_inherited_heavy_binding_refreshes_digest_and_preserves_one_based_indice
     _build(revised)
     revised.input.conformers.guidance = guidance
     assert revised.blocked is None
-    assert revised.structures["reactant"]["structure_digest"] == binding.structure_digest
+    assert (revised.structures["reactant"]["structure_digest"] == old_digest) is renumber
     _bound_input_structure(revised, "reactant", require_identity=False, persist_artifact=False)
 
 
@@ -218,7 +217,7 @@ def test_recorded_constructed_geometry_can_be_replaced_by_identical_file(tmp_pat
     record, mol = _identity_fixture(tmp_path)
     before = record.input.model_copy(deep=True)
     record.input.conformers.reactant = (GeneratedConformer(kind="generate", generation="ETKDGv3", seed=42)
-        if kind == "generate" else CatalogConformer(kind="catalog", catalog_id="catalog", candidate_id="candidate", partition_revision="partition"))
+        if kind == "generate" else CatalogConformer(kind="catalog", catalog_id="catalog", candidate_id="candidate"))
     record.structures["reactant"]["source_kind"] = kind
     replacement = _write_source(tmp_path / "copy", "reactant", mol)
     change = request(record, dict(conformers=dict(reactant=replacement)))
@@ -293,19 +292,19 @@ def test_conflicting_stable_xyz_identity_tags_cannot_be_ignored_as_comments(tmp_
         plan_input_revision(record, change)
 
 
-def test_stale_explicit_and_inherited_heavy_binding_digests_fail_loud(tmp_path):
+def test_invalid_explicit_and_inherited_heavy_binding_indices_fail_loud(tmp_path):
     from cloudra.tools.core.ts_inputs import HeavyAtomBinding
 
     record, mol = _identity_fixture(tmp_path, smiles="F[C@](Cl)(Br)I", labels=False)
-    record.input.conformers.reactant.heavy_atom_binding = HeavyAtomBinding(structure_digest="stale", indices=[1, 2, 3, 4, 5])
+    record.input.conformers.reactant.heavy_atom_binding = HeavyAtomBinding(indices=[5, 4, 3, 2, 1])
     point = mol.GetConformer().GetAtomPosition(0)
     mol.GetConformer().SetAtomPosition(0, (point.x + .01, point.y, point.z))
     replacement = _write_source(tmp_path, "reactant", mol)
-    with pytest.raises(ValueError, match="structure digest is stale"):
+    with pytest.raises(ValueError, match="inherited heavy-atom binding is invalid"):
         plan_input_revision(record, request(record, {}))
-    replacement["heavy_atom_binding"] = dict(structure_digest="explicit-new-digest", indices=[1, 2, 3, 4, 5])
+    replacement["heavy_atom_binding"] = dict(indices=[5, 4, 3, 2, 1])
     change = request(record, dict(conformers=dict(reactant=replacement)))
-    with pytest.raises(ValueError, match="explicit heavy-atom binding structure digest is stale"):
+    with pytest.raises(ValueError, match="explicit heavy-atom binding is invalid"):
         plan_input_revision(record, change)
 
 
@@ -314,7 +313,7 @@ def test_inherited_heavy_binding_never_reinterprets_zero_as_last_atom(tmp_path):
 
     record, mol = _identity_fixture(tmp_path)
     record.input.conformers.reactant.heavy_atom_binding = HeavyAtomBinding(
-        structure_digest=record.structures["reactant"]["structure_digest"], indices=[0])
+         indices=[0])
     point = mol.GetConformer().GetAtomPosition(1)
     mol.GetConformer().SetAtomPosition(1, (point.x + .01, point.y, point.z))
     _write_source(tmp_path, "reactant", mol)
@@ -343,7 +342,7 @@ def test_species_edit_cannot_launder_an_invalid_old_heavy_binding(tmp_path):
 
     record, _ = _identity_fixture(tmp_path, smiles="CCO", labels=False)
     record.input.conformers.reactant.heavy_atom_binding = HeavyAtomBinding(
-        structure_digest=record.structures["reactant"]["structure_digest"], indices=[3, 2, 1])
+         indices=[3, 2, 1])
     # This backwards binding is invalid against CCO but becomes valid against
     # OCC. Updating its digest without checking the old meaning would bless it.
     change = request(record, dict(reaction=dict(reactant_smiles="OCC")))

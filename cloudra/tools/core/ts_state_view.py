@@ -88,7 +88,7 @@ def build_process_view(state: dict, jobs: list[dict], *, can_write: bool) -> TsP
     current_stage = next((row for row in reversed(state.get("stage_records", []))
                           if row.get("stage") == state.get("stage")), {})
     detail = (blocked or {}).get("message") or current_stage.get("detail", "")
-    supported = state.get("format_version") == 5
+    supported = state.get("format_version") == 6
     status = "isolated" if not supported else "waiting" if active or waiting else "ended" if terminal else "blocked" if blocked else "running"
     next_action = dict(action="inspect", required_inputs=[], editable_groups=[])
     if supported and can_write:

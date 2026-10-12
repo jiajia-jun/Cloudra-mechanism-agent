@@ -19,7 +19,7 @@ def process_fixture(tmp_path, *, status="blocked"):
     inputs = input_payload()
     pid = create_process(db, request_key="inspect", payload=dict(project_id='project', owner_id='owner',
         workspace_dir=str(workspace), input=inputs))["process_id"]
-    record = dict(format_version=5, pipeline_id=pid, run_id="ts_0001", revision=7, declaration_revision=1,
+    record = dict(format_version=6, pipeline_id=pid, run_id="ts_0001", revision=7, declaration_revision=1,
                   run_dir=str(run_dir), workspace_dir=str(workspace), owner_conversation_id="project", owner_session_id="owner",
                   stage="guess", input=inputs, intervention_count=2, evidence_candidates=["scan.log"],
                   job_steps=[], stage_records=[], blocked={"failure_class": "scan_failed", "message": "native first point failed",
