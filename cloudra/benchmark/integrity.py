@@ -428,7 +428,10 @@ def bind_graph_to_evidence(
                 try:
                     if _geometry_species(str(sandbox / evidence.path), identity):
                         identities.append(identity)
-                except (ValueError, RuntimeError):
+                except (ValueError, RuntimeError) as exc:
+                    # Dependency failures must not become missing molecular evidence.
+                    if isinstance(exc, RuntimeError) and isinstance(exc.__cause__, ImportError):
+                        raise
                     continue
         verified.append(replace(evidence, smiles_found=identities))
     files = verified
@@ -461,7 +464,9 @@ def bind_graph_to_evidence(
                                  for identity in node.smiles]
                     if all(quality > 0 for quality in qualities):
                         nb.bound_files, nb.matched, nb.quality = [relative], True, min(qualities)
-            except (ValueError, RuntimeError, OSError):
+            except (ValueError, RuntimeError, OSError) as exc:
+                if isinstance(exc, RuntimeError) and isinstance(exc.__cause__, ImportError):
+                    raise
                 pass
             continue  # A bad explicit reference must never select other history.
         if not node.smiles:
