@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import os
@@ -42,7 +43,7 @@ _TS_NOTICE = (
     "ts_resume). QST2/QST3 are banned; the ceiling is mapped interpolation/NEB, "
     "with explicit grouped inputs: reaction, calculations, conformers, guess, ts_optimization, verification, execution. Scan uses guess.kind=scan with guess.calculation/scans/freeze; scan and formal methods are independently selected. Complete calculations use engine, one-token method, explicit basis_set (empty when unused), keywords and native settings. Stages may explicitly select {ref: name} from input.calculations. "
     "Use that process for TS/IRC submission rather than manually chaining the jobs. "
-    "Call ts_prepare once per path. Successful jobs automatically advance without an agent call. Use ts_inspect to read state, actual atom tables, methods, evidence and next required inputs. Revise the same run with ts_resume(run_id, changes, reason). Calculation patches retain omitted settings; engine/method/basis changes use {replace: complete_configuration}, and changing a profile reference uses {replace: {ref: name}}. A failed scan requires scan_recovery containing paths to actual repair artifacts. A reason, point-count change or changes={} alone does not retry a failed scan. Other failed attempts may retry unchanged input where their existing stage contract permits it. "
+    "Call ts_prepare once per path. Successful jobs automatically advance without an agent call. Use ts_inspect to read state, actual atom tables, methods, evidence and next required inputs. Revise the same run with ts_resume(run_id, changes, reason). Calculation patches retain omitted settings; engine/method/basis changes use {replace: complete_configuration}, and changing a profile reference uses {replace: {ref: name}}. Use changes={} to retry a failed attempt, or revise the scan, structures or guess to test another hypothesis; previous attempts are retained automatically. "
     "Standalone exploratory scans remain valid for unknown endpoints, but they do not "
     "authorize manual TS/IRC submission. If the process blocks, correct the named "
     "declaration or report the tool limitation; do not bypass it through bash or direct engine execution. "
@@ -91,19 +92,22 @@ _REFLECTION_CAUSES = {
     "path": "The xTB path refinement exhausted its cycle ceiling.",
 }
 _REFLECTION_ADVICE = (
-    "Read the original structures and logs, using relevant skills or cited scientific sources. "
-    "Distinguish missing evidence or provenance, numerical search difficulty, and a different "
-    "observed reaction connection. If the connection differs, consider a new intermediate or "
-    "a different division into elementary steps; the Coordinator's initial proposal is a hypothesis. "
-    "An unexpected endpoint alone does not establish a side product, an impossible reaction, "
-    "or an invalid method. Choose a distinguishing next test within the authorized model and budget, "
-    "update PROCESS.md with observations and source paths, and share any proposed step changes "
-    "with the Coordinator."
+    "Check the source and relevant skills, then choose a distinguishing test of pose, reaction centres, "
+    "a tool-generated guess or the step hypothesis; an observation is not a proven cause. "
+    "Update PROCESS.md with evidence paths and share changed step hypotheses with the Coordinator."
 )
 
 
+def _pin_reflection(notices: NoticeManager, agent_id: str, key: str, content: str) -> None:
+    """Keep only the latest scientific reflection; other guidance and tasks are untouched."""
+    for previous in list(notices._pins.get(agent_id, {})):
+        if previous.startswith(_PIN_REFLECTION) and previous != key:
+            notices.unpin(agent_id, previous)
+    notices.pin(agent_id, key=key, content=content)
+
+
 def guide_ts_process(notices: NoticeManager | None, agent_id: str, data: dict) -> None:
-    """Tool views and automatic completion notices share one current hint per TS run."""
+    """One current hint per agent; only the matching run can retract it."""
     run_id = data.get("run_id")
     if notices is None or not isinstance(run_id, str) or not run_id:
         return
@@ -117,23 +121,12 @@ def guide_ts_process(notices: NoticeManager | None, agent_id: str, data: dict) -
         if data.get("status") in ("running", "waiting", "ended", "blocked", "isolated"):
             notices.unpin(agent_id, key)
         return
-    reason = verdict.get("reason", "") if candidate else blocked.get("message", "")
-    paths = list(verdict.get("evidence_refs", []))
-    if wrong_mode:
-        attempt = data.get("failed_attempt") or {}
-        paths.extend(attempt.get("evidence_refs", []))
-        if attempt.get("log_path"):
-            paths.append(attempt["log_path"])
-    sources = [f"Run: {run_id}"]
-    if data.get("run_dir"):
-        sources.append(f"Directory: {data['run_dir']}")
-    if paths:
-        sources.append("Evidence: " + ", ".join(dict.fromkeys(paths)))
-    notices.pin(
-        agent_id, key=key,
-        content=f"[Guidance] This attempt has not established the target TS step. "
-                f"Recorded reason: {reason}. {'; '.join(sources)}. {_REFLECTION_ADVICE}",
-    )
+    attempt = (data.get('failed_attempt') or {}) if wrong_mode else {}
+    paths = verdict.get('evidence_refs') or attempt.get('evidence_refs') or []
+    source = attempt.get('log_path') or data.get('details_path') or next(iter(paths), None) or data.get('run_dir')
+    source = f"Source: {source}" if source else f"Inspect TS run {run_id}"
+    _pin_reflection(notices, agent_id, key,
+        f"[Guidance] The target TS step remains unverified; {source}. {_REFLECTION_ADVICE}")
 
 # TS/IRC 路由嗅探：括号形式走子串（大小写不敏感），裸词走 token 精确比对。
 _TS_ROUTE_SUBSTRINGS = ("optts", "scants", "qst2", "qst3", "opt=(ts", "opt = (ts")
@@ -199,39 +192,54 @@ class GuidanceStage:
         if call.name != "ts_guess":
             return None
         mode = call.arguments.get("mode")
+        confirmed = False
         if mode == "scan_parse" or (mode == "scan" and call.arguments.get("log_path")):
-            if (result.is_success and data.get("scan_has_internal_peak") is False
-                    and data.get("candidate_unavailable") is False):
-                failure = "scan"
-            else:
+            failure = "scan"
+            confirmed = result.is_success and data.get('scan_has_internal_peak') is True and data.get('candidate_unavailable') is False
+            if not confirmed and not (result.is_success and data.get("scan_has_internal_peak") is False
+                                       and data.get("candidate_unavailable") is False):
                 return None
         elif mode == "verify":
-            if result.is_success and data.get("verification_status") == "fail":
-                failure = "verify"
-            else:
+            failure = "verify"
+            confirmed = result.is_success and data.get('verification_status') == 'pass'
+            if not confirmed and not (result.is_success and data.get("verification_status") == "fail"):
                 return None
         elif mode == "xtb_path":
-            if (not result.is_success
-                    and data.get("refinement_termination") == "cycles_exhausted"
-                    and data.get("path_termination_reason") == "path_not_converged"):
-                failure = "path"
-            else:
+            failure = "path"
+            confirmed = result.is_success and data.get('refinement_termination') == 'converged'
+            if not confirmed and not (not result.is_success and data.get("refinement_termination") == "cycles_exhausted"
+                                       and data.get("path_termination_reason") == "path_not_converged"):
                 return None
         else:
             return None
         key, source = self._reflection_key(ctx, call, data, failure)
-        evidence = self._reflection_evidence(data, failure)
+        if confirmed:
+            ctx.notices.unpin(ctx.agent.id, key)
+            return None
         content = (
-            f"[Guidance] {_REFLECTION_CAUSES[failure]} Source: {source}. "
-            f"{_REFLECTION_ADVICE} "
-            f"Evidence revision: {evidence}."
+            f"[Guidance] {_REFLECTION_CAUSES[failure].removesuffix('.')} (source: {source}). "
+            f"{_REFLECTION_ADVICE}"
         )
-        ctx.notices.pin(ctx.agent.id, key=key, content=content)
+        _pin_reflection(ctx.notices, ctx.agent.id, key, content)
         return None
 
     async def before_llm(self, ctx: PipelineContext, messages: list[dict]) -> None:
         if ctx.notices is None:
             return None
+        keys = [key for key in ctx.notices._pins.get(ctx.agent.id, {}) if key.startswith(_PIN_REFLECTION)]
+        if len(keys) > 1:
+            # Older resident pins may have been updated after their insertion.
+            # Prefer the actual latest pin event, not OrderedDict insertion order.
+            updated = [change['key'] for change in ctx.notices._changes.get(ctx.agent.id, [])
+                       if change['kind'] == 'pin_set' and change['key'] in keys]
+            if not updated and ctx.notices._event_log is not None:
+                events = await asyncio.to_thread(ctx.notices._event_log.query_session,
+                    ctx.agent.id, types={'context.pin_set'}, limit=None)
+                updated = [event.data['key'] for event in events if event.data.get('key') in keys]
+            latest = updated[-1] if updated else keys[-1]
+            for key in keys:
+                if key != latest:
+                    ctx.notices.unpin(ctx.agent.id, key)
         for key, content in ((_PIN_TS_SOP, _TS_NOTICE),
                              (_PIN_PHYSICAL_THINKING, _PHYSICAL_THINKING_NOTICE)):
             if ctx.notices.pin_content(ctx.agent.id, key) is not None:
@@ -264,20 +272,6 @@ class GuidanceStage:
         if not label:
             label = f"run_id={ctx.run_id}, call_id={call.id}"
         return _PIN_REFLECTION + digest, label
-
-    @staticmethod
-    def _reflection_evidence(data: dict, failure: str) -> str:
-        if failure == "scan":
-            names = ("scan_has_internal_peak", "candidate_unavailable", "profile_table", "distance_table", "barrier_kcal")
-        elif failure == "verify":
-            names = ("verification_status", "n_imag", "imag_freqs", "imag_mode_aligned")
-        else:
-            names = (
-                "refinement_termination", "path_termination_reason", "path_kind",
-                "distance_table", "ts_candidate_index",
-            )
-        evidence = {name: data.get(name) for name in names}
-        return hashlib.sha256(json.dumps(evidence, sort_keys=True, default=str).encode()).hexdigest()[:12]
 
     @staticmethod
     def _needs_physical_thinking(call: ToolCall) -> bool:

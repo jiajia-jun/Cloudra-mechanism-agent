@@ -267,7 +267,8 @@ def test_process_candidate_pins_evidence_guidance_without_altering_result(tmp_pa
     pins = _reflection_pins(notices)
     assert len(pins) == 1
     content = next(iter(pins.values()))
-    assert data["result"]["reason"] in content
+    assert data["result"]["reason"] not in content
+    assert "PROCESS.md" in content
     assert data["result"]["evidence_refs"][0] in content
     assert data["run_dir"] in content
     assert result.is_success and result.data == data
@@ -333,7 +334,7 @@ def test_process_wrong_mode_pins_recorded_failure_and_log(tmp_path):
            ToolCall(id="inspect", name="ts_inspect", arguments={}),
            ToolResult(is_success=True, data=data))
     content = next(iter(_reflection_pins(notices).values()))
-    assert data["blocked"]["message"] in content
+    assert "target TS step" in content
     assert data["failed_attempt"]["log_path"] in content
 
 
@@ -448,10 +449,11 @@ def test_reflection_deduplicates_reparse_across_sources_and_call_ids(tmp_path):
     _after(stage, ctx, a, result)
     _after(stage, ctx, b, result)
     before = notices._local_seqs["as_g"]
-    _after(stage, ctx, ToolCall(id="a2", name="ts_guess", arguments={
-        "mode": "scan_parse", "log_path": str(tmp_path / "a.log"),
+    _after(stage, ctx, ToolCall(id="b2", name="ts_guess", arguments={
+        "mode": "scan_parse", "log_path": str(tmp_path / "b.log"),
     }), result)
-    assert len(_reflection_pins(notices)) == 2
+    assert len(_reflection_pins(notices)) == 1
+    assert str(tmp_path / "b.log") in next(iter(_reflection_pins(notices).values()))
     assert notices._local_seqs["as_g"] == before
 
 
@@ -470,13 +472,11 @@ def test_xtb_reflection_uses_actual_run_directory_for_attempt_identity(tmp_path)
         })
         _after(stage, ctx, call, result)
     pins = _reflection_pins(notices)
-    assert len(pins) == 2
-    assert any(str(tmp_path / "path-search/run-1") in content for content in pins.values())
-    assert any(str(tmp_path / "path-search/run-2") in content for content in pins.values())
-    assert notices._local_seqs["as_g"] == 2
+    assert len(pins) == 1
+    assert str(tmp_path / "path-search/run-1") in next(iter(pins.values()))
 
 
-def test_changed_profile_updates_same_source_reflection(tmp_path):
+def test_changed_profile_does_not_repeat_same_observation_or_print_evidence_hash(tmp_path):
     notices = NoticeManager()
     ctx = _ctx("small_mol", notices, str(tmp_path))
     call = ToolCall(id="a", name="ts_guess", arguments={
@@ -489,7 +489,8 @@ def test_changed_profile_updates_same_source_reflection(tmp_path):
     _after(stage, ctx, call, ToolResult(is_success=True, data={**data, "profile_table": "0 0\n1 3"}))
     second = _reflection_pins(notices)
     assert len(first) == len(second) == 1
-    assert first != second
+    assert first == second
+    assert "Evidence revision" not in next(iter(second.values()))
 
 
 def test_reflection_is_agent_scoped_and_missing_sink_is_noop(tmp_path):
@@ -558,12 +559,13 @@ def test_ts_notice_uses_inspection_and_grouped_explicit_inputs(tmp_path):
     assert 'ts_resume(run_id) without adjustments' not in pin
 
 
-def test_ts_notice_requires_bound_scan_recovery_and_explicit_calculation_replacement():
+def test_ts_notice_allows_retry_and_preserves_explicit_calculation_replacement():
     notices = NoticeManager()
     _run(GuidanceStage(), _ctx('small_mol', notices),
          ToolCall(id='prepare-contract', name='ts_guess', arguments={'mode': 'scan_prepare'}))
     pin = notices.pin_content('as_g', 'guidance-ts-sop')
-    assert 'scan_recovery' in pin
+    assert 'scan_recovery' not in pin
+    assert 'changes={}' in pin
     assert 'basis_set' in pin
     assert 'replace' in pin
     assert 'without recovery evidence' not in pin
@@ -627,3 +629,102 @@ def test_before_llm_static_guidance_refresh_without_notice_sink_is_noop():
     messages = [{'role': 'user', 'content': 'Continue the current task'}]
     assert asyncio.run(GuidanceStage().before_llm(_ctx('small_mol', None), messages)) is None
     assert messages == [{'role': 'user', 'content': 'Continue the current task'}]
+
+
+def test_scientific_reflection_is_one_slot_across_tools_and_process_runs(tmp_path):
+    notices = NoticeManager()
+    notices.pin('as_g', 'guidance-delegate-compute', 'Keep delegation')
+    stage, ctx = GuidanceStage(), _ctx('small_mol', notices, str(tmp_path))
+    for number in range(12):
+        _after(stage, ctx, ToolCall(id=str(number), name='ts_guess', arguments={
+            'mode': 'scan_parse', 'log_path': f'scan-{number}.out'}),
+            ToolResult(is_success=True, data={'scan_has_internal_peak': False, 'candidate_unavailable': False}))
+        data = {**_process_view(tmp_path), 'run_id': f'ts_{number}'}
+        _after(stage, ctx, ToolCall(id=str(number), name='ts_inspect', arguments={}),
+               ToolResult(is_success=True, data=data))
+        pins = _reflection_pins(notices)
+        assert list(pins) == [f'guidance-scientific-reflection:ts-process:ts_{number}']
+    assert notices.pin_content('as_g', 'guidance-delegate-compute') == 'Keep delegation'
+
+
+@pytest.mark.parametrize('status,result', [
+    ('running', None), ('waiting', None),
+    ('ended', {'outcome': 'verified', 'verified': True, 'evidence_refs': []}),
+])
+def test_old_process_progress_cannot_clear_current_other_process_reflection(tmp_path, status, result):
+    notices = NoticeManager()
+    stage, ctx = GuidanceStage(), _ctx('small_mol', notices)
+    data = _process_view(tmp_path)
+    for run in ('ts_old', 'ts_current'):
+        _after(stage, ctx, ToolCall(id=run, name='ts_inspect', arguments={}),
+               ToolResult(is_success=True, data={**data, 'run_id': run}))
+    _after(stage, ctx, ToolCall(id='old-event', name='ts_inspect', arguments={}),
+           ToolResult(is_success=True, data={**data, 'run_id': 'ts_old', 'status': status, 'result': result}))
+    assert list(_reflection_pins(notices)) == ['guidance-scientific-reflection:ts-process:ts_current']
+
+
+@pytest.mark.parametrize('mode,source,failure,confirmed', [
+    ('scan_parse', {'log_path': 'scan.out'}, {'scan_has_internal_peak': False, 'candidate_unavailable': False},
+        {'scan_has_internal_peak': True, 'candidate_unavailable': False}),
+    ('verify', {'freq_log': 'frequency.out'}, {'verification_status': 'fail'}, {'verification_status': 'pass'}),
+    ('xtb_path', {'output_dir': 'path', 'images_dir': 'path/run'},
+        {'refinement_termination': 'cycles_exhausted', 'path_termination_reason': 'path_not_converged', 'images_dir': 'path/run'},
+        {'refinement_termination': 'converged', 'images_dir': 'path/run'}),
+])
+def test_confirmed_tool_evidence_clears_only_its_current_source(tmp_path, mode, source, failure, confirmed):
+    notices = NoticeManager()
+    stage, ctx = GuidanceStage(), _ctx('small_mol', notices, str(tmp_path))
+    call = ToolCall(id='source', name='ts_guess', arguments={'mode': mode, **source})
+    _after(stage, ctx, call, ToolResult(is_success=mode != 'xtb_path', data=failure))
+    _after(stage, ctx, call, ToolResult(is_success=True, data=confirmed))
+    assert _reflection_pins(notices) == {}
+    _after(stage, ctx, call, ToolResult(is_success=mode != 'xtb_path', data=failure))
+    _after(stage, ctx, ToolCall(id='other', name='ts_inspect', arguments={}),
+           ToolResult(is_success=True, data=_process_view(tmp_path)))
+    _after(stage, ctx, call, ToolResult(is_success=True, data=confirmed))
+    assert list(_reflection_pins(notices)) == ['guidance-scientific-reflection:ts-process:ts_observed']
+
+
+@pytest.mark.parametrize('already_consumed', [False, True])
+def test_before_llm_collapses_restored_reflections_by_last_update_and_is_agent_scoped(tmp_path, already_consumed):
+    log = EventLog(strict=True)
+    old = NoticeManager()
+    old.attach(log, lambda _agent: 'project')
+    prefix = 'guidance-scientific-reflection:'
+    old.pin('as_g', prefix + 'first', 'First old observation')
+    old.pin('as_g', prefix + 'second', 'Second old observation')
+    old.pin('as_g', prefix + 'first', 'Latest updated observation')
+    old.pin('as_g', 'task-goal', 'Keep task goal')
+    old.pin('as_other', prefix + 'other', 'Other agent observation')
+    restored = NoticeManager()
+    restored.restore_from(log)
+    restored.attach(log, lambda _agent: 'project')
+    if already_consumed:
+        restored.collect_batch('as_g', fresh=True)
+        restored.confirm_consumed('as_g')
+    stage, ctx = GuidanceStage(), _ctx('small_mol', restored)
+    asyncio.run(stage.before_llm(ctx, []))
+    assert _reflection_pins(restored) == {prefix + 'first': 'Latest updated observation'}
+    assert restored.pin_content('as_g', 'task-goal') == 'Keep task goal'
+    assert _reflection_pins(restored, 'as_other') == {prefix + 'other': 'Other agent observation'}
+    assert not any('Second old observation' in row['content'] for row in restored.collect_batch('as_g', fresh=True))
+    restored.confirm_consumed('as_g')
+    before = len(log)
+    asyncio.run(stage.before_llm(ctx, []))
+    assert len(log) == before
+    assert restored.collect_batch('as_g', fresh=False) == []
+
+
+def test_process_hint_does_not_expand_with_reason_or_evidence_history(tmp_path):
+    stage = GuidanceStage()
+    data = _process_view(tmp_path)
+    one = NoticeManager()
+    _after(stage, _ctx('small_mol', one), ToolCall(id='one', name='ts_inspect', arguments={}),
+           ToolResult(is_success=True, data=data))
+    data['result']['reason'] = 'large-log-sentinel' * 1000
+    data['result']['evidence_refs'].extend(str(tmp_path / f'old-{n}.out') for n in range(2000))
+    many = NoticeManager()
+    _after(stage, _ctx('small_mol', many), ToolCall(id='many', name='ts_inspect', arguments={}),
+           ToolResult(is_success=True, data=data))
+    assert next(iter(_reflection_pins(one).values())) == next(iter(_reflection_pins(many).values()))
+    assert 'large-log-sentinel' not in next(iter(_reflection_pins(many).values()))
