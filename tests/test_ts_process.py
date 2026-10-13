@@ -927,6 +927,163 @@ def _xyz_text(symbols, positions, comment=""):
     return "\n".join(lines) + "\n"
 
 
+@pytest.mark.parametrize('with_mol', [False, True])
+def test_product_endpoint_seed_uses_declared_mapping_before_writing_input(tmp_path, with_mol):
+    """A native product-order seed must reach QM in the TS working order."""
+    from cloudra.tools.core.structure_artifacts import read_xyz_atoms
+    from cloudra.tools.core.ts_inputs import EndpointSeed
+    from cloudra.tools.core.ts_process import _read_built_xyz, _write_endpoint_input
+
+    record = _start(tmp_path)
+    built = _read_built_xyz(record, "product")
+    original_xyz = Path(built[2]).read_bytes()
+    original_mol = Path(built[3]).read_bytes()
+    record.input.verification.product_endpoint.seed = EndpointSeed(
+        kind="file", xyz_path=built[2], mol_path=built[3] if with_mol else None, evidence_refs=[built[2]],
+    )
+    job_dir = Path(record.run_dir) / "jobs" / "product_seed_regression"
+    job_dir.mkdir(parents=True)
+
+    error, input_path = _write_endpoint_input(record, str(job_dir), "product", "opt")
+
+    assert error == "", error
+    assert Path(input_path).is_file()
+    atoms = read_xyz_atoms(job_dir / "product_source.xyz")
+    assert [symbol for symbol, _ in atoms] == ["F", "C", "Cl", "H", "H", "H"]
+    # Product atom 0 is the carbon, mapped to TS atom 1; coordinates travel with it.
+    assert atoms[1][1] == pytest.approx(built[1][0], abs=1e-6)
+    assert Path(built[2]).read_bytes() == original_xyz
+    assert Path(built[3]).read_bytes() == original_mol
+
+
+@pytest.mark.parametrize('with_mol', [False, True])
+@pytest.mark.parametrize('trajectory', [False, True])
+@pytest.mark.parametrize('role', ['reactant', 'product'])
+def test_native_irc_seed_is_not_reordered_a_second_time(tmp_path, with_mol, trajectory, role):
+    from cloudra.tools.core.structure_artifacts import read_xyz_atoms
+    from cloudra.tools.core.ts_inputs import EndpointSeed
+    from cloudra.tools.core.ts_process import TsJobStep, _read_built_xyz, _refinement_log_path, _write_endpoint_input
+
+    record = _start(tmp_path)
+    built = _read_built_xyz(record, role)
+    # Native IRC is already in F,C,Cl,H,H,H order, unlike the species seed.
+    positions = [built[1][i] for i in [1, 0, 5, 2, 3, 4]] if role == 'product' else built[1]
+    irc_dir = Path(record.run_dir) / 'jobs' / 'irc_seed_regression'
+    (irc_dir / '.cloudra').mkdir(parents=True)
+    irc_input = irc_dir / 'irc.inp'
+    irc_input.write_text('! IRC\n')
+    step = TsJobStep(purpose='irc', job_id=9100, input_path=str(irc_input), state='done',
+                     actual_calculation=record.input.verification.irc)
+    record.job_steps.append(step)
+    Path(_refinement_log_path(record, step)).write_text('ORCA TERMINATED NORMALLY\n')
+    seed_path = irc_dir / ('irc_IRC_F_trj.xyz' if trajectory else 'irc_IRC_F.xyz')
+    xyz = _xyz_text(['F', 'C', 'Cl', 'H', 'H', 'H'], positions)
+    if trajectory:
+        first = [[x, y + 5.0, z] for x, y, z in positions]
+        xyz = _xyz_text(['F', 'C', 'Cl', 'H', 'H', 'H'], first) + xyz
+    seed_path.write_text(xyz)
+    getattr(record.input.verification, role + '_endpoint').seed = EndpointSeed(
+        kind='file', xyz_path=str(seed_path), mol_path=built[3] if with_mol else None,
+        evidence_refs=[str(seed_path)],
+    )
+    job_dir = Path(record.run_dir) / 'jobs' / 'irc_endpoint_regression'
+    job_dir.mkdir()
+
+    error, _ = _write_endpoint_input(record, str(job_dir), role, 'opt')
+
+    assert error == '', error
+    atoms = read_xyz_atoms(job_dir / f'{role}_source.xyz')
+    assert [symbol for symbol, _ in atoms] == ['F', 'C', 'Cl', 'H', 'H', 'H']
+    assert atoms[0][1] == pytest.approx(positions[0], abs=1e-6)
+
+
+def test_gaussian_outer_frame_preserves_native_working_atom_order(tmp_path):
+    from cloudra.tools.core import gaussian_frames
+    from cloudra.tools.core.irc_path import parse_xyz
+    from cloudra.tools.core.ts_inputs import EndpointSeed
+    from cloudra.tools.core.ts_process import TsJobStep, _endpoint_seed_atoms, _refinement_log_path
+
+    record = _start(tmp_path, reactant_smiles='C#N', product_smiles='[NH+]#[C-]',
+                    charge=0, atom_map=[2, 1, 3], reaction_center=[(0, 1)])
+    job_dir = Path(record.run_dir) / 'jobs' / 'gaussian_irc_seed'
+    (job_dir / '.cloudra').mkdir(parents=True)
+    step = TsJobStep(purpose='irc', job_id=9200, input_path=str(job_dir / 'irc.gjf'), state='done',
+                     actual_calculation=record.input.verification.irc.model_copy(update={'engine': 'gaussian'}))
+    record.job_steps.append(step)
+    fixture = Path(__file__).parent / 'fixtures' / 'gaussian' / 'hcn_ts_irc_g16.log'
+    log = Path(_refinement_log_path(record, step))
+    log.write_bytes(fixture.read_bytes())
+    frames, _ = gaussian_frames.extract_irc(str(log))
+    outer = min((f for f in frames if f.xyz and f.reaction_coordinate is not None),
+                key=lambda f: f.reaction_coordinate)
+    seed_path = tmp_path / 'gaussian_endpoint.xyz'
+    seed_path.write_text(outer.xyz)
+
+    atoms = _endpoint_seed_atoms(record, 'product', EndpointSeed(
+        kind='file', xyz_path=str(seed_path), evidence_refs=[str(log)],
+    ))
+
+    assert [symbol for symbol, _ in atoms] == ['C', 'N', 'H']
+    assert atoms[0][1] == pytest.approx([0.480862, -0.459245, 0.0], abs=1e-8)
+    assert parse_xyz(seed_path.read_text())[0] == ['C', 'N', 'H']
+
+
+def test_product_seed_with_working_order_mol_keeps_coordinate_rows(tmp_path):
+    from rdkit import Chem
+
+    from cloudra.tools.core.structure_artifacts import read_xyz_atoms
+    from cloudra.tools.core.ts_inputs import EndpointSeed
+    from cloudra.tools.core.ts_process import _read_built_xyz, _write_endpoint_input
+
+    record = _start(tmp_path)
+    built = _read_built_xyz(record, 'product')
+    mol = Chem.MolFromMolFile(built[3], removeHs=False)
+    seed_mol = tmp_path / 'working_product.mol'
+    Chem.MolToMolFile(Chem.RenumberAtoms(mol, [1, 0, 5, 2, 3, 4]), str(seed_mol))
+    positions = [built[1][i] for i in [1, 0, 5, 2, 3, 4]]
+    seed_xyz = tmp_path / 'working_product.xyz'
+    seed_xyz.write_text(_xyz_text(['F', 'C', 'Cl', 'H', 'H', 'H'], positions))
+    record.input.verification.product_endpoint.seed = EndpointSeed(
+        kind='file', xyz_path=str(seed_xyz), mol_path=str(seed_mol), evidence_refs=[str(seed_xyz)],
+    )
+    job_dir = Path(record.run_dir) / 'jobs' / 'working_mol_seed'
+    job_dir.mkdir(parents=True)
+
+    error, _ = _write_endpoint_input(record, str(job_dir), 'product', 'opt')
+
+    assert error == '', error
+    assert read_xyz_atoms(job_dir / 'product_source.xyz') == read_xyz_atoms(seed_xyz)
+
+
+def test_symmetric_working_mol_keeps_bound_atom_rows(tmp_path):
+    from rdkit import Chem
+    from rdkit.Chem import AllChem
+
+    from cloudra.tools.core.structure_artifacts import read_xyz_atoms
+    from cloudra.tools.core.ts_inputs import EndpointSeed
+    from cloudra.tools.core.ts_process import TsProcessRecord, _endpoint_seed_atoms
+
+    mol = Chem.AddHs(Chem.MolFromSmiles('CC'))
+    assert AllChem.EmbedMolecule(mol, randomSeed=42) == 0
+    mapping = [1, 0, 5, 6, 7, 2, 3, 4]
+    working = Chem.RenumberAtoms(mol, mapping)
+    native_mol, working_mol = tmp_path / 'native.mol', tmp_path / 'working.mol'
+    native_xyz, working_xyz = tmp_path / 'native.xyz', tmp_path / 'working.xyz'
+    for graph, mol_path, xyz_path in [(mol, native_mol, native_xyz), (working, working_mol, working_xyz)]:
+        Chem.MolToMolFile(graph, str(mol_path))
+        xyz_path.write_text(Chem.MolToXYZBlock(graph))
+    record = TsProcessRecord(run_id='symmetric', run_dir=str(tmp_path), workspace_dir=str(tmp_path),
+        input=_declaration(reactant_smiles='CC', product_smiles='CC', charge=0,
+                           atom_map=[i + 1 for i in mapping], reaction_center=[(0, 1)]),
+        product_seed_xyz_path=str(native_xyz), product_seed_mol_path=str(native_mol))
+
+    atoms = _endpoint_seed_atoms(record, 'product', EndpointSeed(
+        kind='file', xyz_path=str(working_xyz), mol_path=str(working_mol), evidence_refs=[str(working_xyz)],
+    ))
+
+    assert atoms == read_xyz_atoms(working_xyz)
+
+
 def _install_fake_irc_endpoints(monkeypatch, symbols, end_a_pos, end_b_pos):
     """IRC 端点几何替身（引擎分发提取件不是本条测试的对象）。"""
     from types import SimpleNamespace
@@ -1266,6 +1423,28 @@ def test_verdict_rejects_two_irc_sides_optimized_to_same_species(tmp_path, monke
     result = _verdict(record)
     assert result.terminal == "candidate_only"
     assert "identity" in result.stage_record("verdict").detail
+
+
+def test_wrong_input_mol_does_not_hide_observed_endpoint_species(tmp_path, monkeypatch):
+    from rdkit import Chem
+
+    from cloudra.tools.core.ts_process import _read_built_xyz, _verdict
+
+    record, symbols, job_dir = _record_with_freq_and_converged_irc(tmp_path, monkeypatch)
+    a, b = _sn2_minima(record, symbols)
+    (job_dir / 'optimized.xyz').write_text(_xyz_text(symbols, 0.5 * (a + b), 'TS'))
+    _install_fake_irc_endpoints(monkeypatch, symbols, b, b)
+    _install_endpoint_minimum_jobs(record, monkeypatch, symbols, b, b)
+    # Deliberately wrong input MOL triggers the old early return before geometry feedback.
+    product = Chem.MolFromMolFile(_read_built_xyz(record, 'product')[3], removeHs=False)
+    Chem.MolToMolFile(Chem.RenumberAtoms(product, [1, 0, 5, 2, 3, 4]),
+                     _read_built_xyz(record, 'reactant')[3])
+
+    result = _verdict(record)
+
+    assert result.terminal == 'candidate_only'
+    assert 'built MOL' in result.stage_record('verdict').detail
+    assert 'CF.[Cl-]' in result.stage_record('verdict').detail
 
 
 def test_verdict_rejects_identity_pairing_that_contradicts_irc_side_provenance(
