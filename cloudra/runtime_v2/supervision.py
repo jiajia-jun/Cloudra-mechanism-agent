@@ -14,7 +14,7 @@
 
 设计契约要点（计划 §1/§2/§4/§5）：
 
-- 待办的唯一事实来源是 DAG store（pending call reviews / open drafts / queued
+- 科学待办的唯一事实来源是 DAG store（pending call reviews / open drafts / queued
   review requests）；本模块只做身份确保与通知/调度，不持有旧待办快照，不引入
   第二份内存队列。
 - Supervisor 是项目内唯一的普通 runtime_v2 agent（``role_id="supervisor"``），
@@ -87,40 +87,41 @@ def find_project_supervisor(
     return chosen
 
 
-async def pending_supervision_summary(project_id: str) -> dict[str, int]:
+def pending_supervision_counts(project_id: str) -> dict[str, int]:
     """读取项目的持久化督导待办计数（只读，绝不建库）。
 
     信箱三类来源：pending call reviews、open 机理草稿、queued review
     requests。§5 起 call reviews 按来源拆分：``call_reviews`` 只数可消费的
     显式送审行（source="explicit"）；``legacy_call_reviews`` 数历史自动行
     （legacy_auto/auto，保留审计但不自动消费）。会话库不存在（项目从未进入
-    dag 模式）时返回全零。供 reconcile_supervision 与诊断面共用；同步
-    SQLite 读经 ``asyncio.to_thread`` 卸载。
+    dag 模式）时返回全零。异步调用者须经 ``asyncio.to_thread`` 卸载。
     """
     from cloudra.dag.store import DagStore
     from cloudra.persistence.database import ConversationDB
 
-    def _read() -> dict[str, int]:
-        db = ConversationDB(project_id)
-        if not os.path.isfile(db.path):
-            return {
-                "call_reviews": 0,
-                "legacy_call_reviews": 0,
-                "open_drafts": 0,
-                "review_requests": 0,
-            }
-        db.migrate_if_needed()
-        store = DagStore(db)
-        draft = store.latest_draft()
-        pending = store.list_call_reviews("pending")
+    db = ConversationDB(project_id)
+    if not os.path.isfile(db.path):
         return {
-            "call_reviews": sum(1 for row in pending if row.source == "explicit"),
-            "legacy_call_reviews": sum(1 for row in pending if row.source != "explicit"),
-            "open_drafts": 1 if (draft is not None and draft.get("state") == "open") else 0,
-            "review_requests": len(store.list_review_requests("queued")),
+            "call_reviews": 0,
+            "legacy_call_reviews": 0,
+            "open_drafts": 0,
+            "review_requests": 0,
         }
+    db.migrate_if_needed()
+    store = DagStore(db)
+    draft = store.latest_draft()
+    pending = store.list_call_reviews("pending")
+    return {
+        "call_reviews": sum(1 for row in pending if row.source == "explicit"),
+        "legacy_call_reviews": sum(1 for row in pending if row.source != "explicit"),
+        "open_drafts": 1 if (draft is not None and draft.get("state") == "open") else 0,
+        "review_requests": len(store.list_review_requests("queued")),
+    }
 
-    return await asyncio.to_thread(_read)
+
+async def pending_supervision_summary(project_id: str) -> dict[str, int]:
+    """Read durable scientific supervision counts without blocking the event loop."""
+    return await asyncio.to_thread(pending_supervision_counts, project_id)
 
 
 async def reconcile_legacy_backlog_notice(core: RuntimeCore, project_id: str) -> int:
@@ -181,8 +182,8 @@ def _notification_text(reason: str) -> str:
 async def _spawn_supervisor(core: RuntimeCore, project_id: str) -> AgentSession | None:
     """经 CommandBus 正常 spawn 项目唯一 Supervisor（parent=Coordinator）。
 
-    parent 必须指向 Coordinator（反馈走普通子 agent 完成回传），不是提交
-    证据的研究子 agent；没有 Coordinator 时 parent 留空。spawn 不带 query
+    parent 必须指向 Coordinator，而不是提交证据的研究子 agent；科学反馈
+    走持久裁决通知，不发送普通子任务完成回报。没有 Coordinator 时 parent 留空。spawn 不带 query
     （queued），随后由 notify 的同一状态表 deliver + wake 开跑。
     """
     from cloudra.runtime_v2.commands import CommandBus

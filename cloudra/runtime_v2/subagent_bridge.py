@@ -215,6 +215,10 @@ def child_completion_message(
     经 ``persistence`` 先落库再入队——两处共用同一份载荷构造，避免第二套报文。
     None = 没有父或父已不在内存。
     """
+    if child.role_id == 'supervisor':
+        # Scientific verdicts have their durable review notification channel.
+        # Finishing notebook maintenance must not reopen a delivered research task.
+        return None
     parent_id = child.parent_session_id
     if not parent_id:
         return None
