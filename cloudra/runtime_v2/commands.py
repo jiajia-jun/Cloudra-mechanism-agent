@@ -956,6 +956,10 @@ class CommandBus:
                     decision = _decide_cancel_agent(core, command, parked_sessions=parked)
                 else:
                     decision = decider(core, command)
+                if await self._recover_interrupted_invocations(decision):
+                    # Publication may submit a nested message. Re-decide so
+                    # that an already reopened session does not get two runs.
+                    decision = decider(core, command)
                 # 拍 2-4：落日志/发布/持久化 → apply → effects
                 result = await self._apply_decision(command, decision)
             else:
@@ -969,6 +973,46 @@ class CommandBus:
         return result
 
     # -------------------------------------------------------------- internals
+
+    async def _recover_interrupted_invocations(self, decision: Decision) -> bool:
+        # restore clears current_run after marking its agent FAILED. Both a
+        # new message and explicit restart accept that state, so waiting for
+        # state_conflict would never recover it. Only reopening a failed
+        # session needs the local lookup; live/parked/invalid paths do not.
+        session_id = next((
+            draft.session_id for draft in decision.events
+            if draft.type == "agent.state_changed"
+            and draft.data.get("from") == AgentState.FAILED.value
+            and draft.data.get("to") == AgentState.QUEUED.value
+        ), None)
+        if session_id is None:
+            return False
+        from cloudra.runtime_v2.failures import RunFailureKind
+        from cloudra.runtime_v2.persistence import plan_interrupted_invocations
+
+        def plan_recovery() -> list[EventDraft]:
+            log = self.core.event_log
+            latest = log.query_session(session_id, types={"run.started", "run.finished", "agent.cancelled"}, limit=1)
+            if not latest or latest[0].type != "run.finished" or latest[0].run_id is None:
+                return []
+            if latest[0].data.get("failure_kind") != RunFailureKind.RUNTIME_INTERRUPTED.value:
+                return []
+            return plan_interrupted_invocations(log.query_session(
+                session_id, run_id=latest[0].run_id, limit=None,
+                types={"tool.requested", "tool.started", "tool.result_recorded", "tool.finished", "program.submitted", "program.finished"},
+            ))
+
+        drafts = await asyncio.to_thread(plan_recovery)
+        if not drafts:
+            return False
+        # Publish only after the complete compensation batch is durable. A
+        # reentrant hub subscriber must see every old call already closed.
+        before_append = len(self.core.event_log)
+        envelopes = [self._append_draft(draft) for draft in drafts]
+        await self._persist_appended(keep=before_append)
+        for envelope in envelopes:
+            apply_event(self.core, envelope)
+        return True
 
     def _append_draft(self, draft: EventDraft) -> EventEnvelope:
         return self.core.event_log.append(

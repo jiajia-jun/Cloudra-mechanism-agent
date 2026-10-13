@@ -294,8 +294,10 @@ def plan_finish_run(
         return None, []
     data = _run_finished_data(outcome, error=error, failure_kind=failure_kind)
     target = AgentState.SUCCEEDED if outcome == "succeeded" else AgentState.FAILED
-    return run_id, [
-        plan_transition(agent, target, reason=outcome, run_id=run_id),
+    # The state transition may already be durable when a previous finish
+    # stopped before writing run.finished. Close the remaining run directly.
+    transition = [] if agent.state is target else [plan_transition(agent, target, reason=outcome, run_id=run_id)]
+    return run_id, [*transition,
         EventDraft(
             "run.finished",
             stream="agent",

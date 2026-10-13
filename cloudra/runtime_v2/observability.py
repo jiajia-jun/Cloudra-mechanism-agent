@@ -107,6 +107,7 @@ def tool_receipts(
                 if row["status"] in ACTIVE_CALL_STATES:
                     row.update(
                         status="interrupted",
+                        effect_state="unknown",
                         finished_at=event.created_at.isoformat(),
                         updated_at=event.created_at.isoformat(),
                         waits=[],

@@ -56,7 +56,8 @@
 工具状态、副作用状态、计算状态与科学验证结论必须分别展示。例如提交工具
 `completed` 时，计算可能仍为 `ready`；后处理失败时，工具可以是 `failed`，
 而 `effect_state=completed` 且原始结果仍可读取。run 已结束但工具未写结束记录时
-投影为 `interrupted`，不会据此修改计算账本。
+在内存中投影为 `status=interrupted`、`effect_state=unknown`，原始结果仍可读取。
+查询不追加工具结束事件，也不会据此修改计算账本；后续新 run 的调用保持原有状态。
 
 原始结果只关联到自己的调用尝试，不追随跨会话或其他尝试的任意事件 ID。
 原始事件接口 `GET /api/v2/agents/{session_id}/events/{event_id}` 继续可用。

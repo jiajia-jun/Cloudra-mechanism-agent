@@ -25,6 +25,7 @@
 | 结题门禁 + 编排模式 | dag_guided 证据门与督导裁决、仅修订论证后清除旧拒绝 |
 | 停止请求 + 最终答复门禁 | 未放行的候选答复不进入用户消息，放行事件先于最终答复 |
 | 消息投递/恢复语义 | 异步子 Agent 回传、重启 |
+| 重启后的按需收口 | 用户重新发消息时先关闭旧工具/程序，再进入新回复 |
 | 督导反馈通知 + 后台等待 | 只读督导反馈唤醒协调员，消费消息后仍保护运行中的计算 |
 | 计算完成通知 + 后台等待 | 高通量仍在运行时消费单个结果，再回到等待状态 |
 | 工具进度持久化 | 阶段记录落盘失败立即终止 Agent，不重试工具副作用 |
@@ -48,6 +49,7 @@ from cloudra.runtime_v2.adapters import LegacyToolExecutor
 from cloudra.runtime_v2.agent_runner import AgentRunner
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.core import RuntimeCore
+from cloudra.runtime_v2.effects import EventDraft
 from cloudra.runtime_v2.invocation import InvocationService
 from cloudra.runtime_v2.persistence import RuntimeStore
 from cloudra.runtime_v2.policies import default_stages
@@ -220,6 +222,19 @@ def compute_result_recovery_steps() -> list[Step]:
 def supervisor_feedback_recovery_steps() -> list[Step]:
     """协调员收到督导反馈后重新进入一轮，未完成计算仍受结题门禁保护。"""
     return [Step(tools=[("agent_hub", {"action": "browse"})]), Step(stop=True)]
+
+
+def interrupted_program_fixture(agent: AgentSession) -> list[EventDraft]:
+    """崩溃现场：一个已有真实 run 留下尚未结束的程序和已启动的工具。"""
+    assert agent.current_run is not None
+    program = {"execution_id": "interrupted-program", "outer_tool_call_id": "interrupted-js"}
+    tool = {"execution_id": program["execution_id"], "tool_call_id": "interrupted-tool",
+            "tool_name": "todo_read"}
+    return [EventDraft(kind, "agent", agent.project_id, agent.id, agent.current_run.run_id, data)
+            for kind, data in (
+                ("program.submitted", program), ("program.started", program),
+                ("tool.requested", tool), ("tool.started", tool),
+            )]
 
 
 class ScenarioHarness:

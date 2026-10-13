@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS meta (
 );
 CREATE INDEX IF NOT EXISTS events_project_seq ON events(project_id, seq);
 CREATE INDEX IF NOT EXISTS events_session_seq ON events(session_id, session_seq);
+CREATE INDEX IF NOT EXISTS events_session_run_seq ON events(session_id, run_id, session_seq);
 CREATE INDEX IF NOT EXISTS events_type ON events(type);
 """
 
@@ -75,7 +76,7 @@ CREATE INDEX IF NOT EXISTS events_type ON events(type);
 # Tool/program lifecycle state is derivable from the event history alone:
 # restore never re-runs an executor, a JS process or a scheduler job — it
 # only appends terminal interruption facts for what the dead process left
-# open.  This pure planner maps one full restored history to those drafts.
+# open. This pure planner consumes one interrupted run when it is reopened.
 
 _INTERRUPTED_MESSAGE = "interrupted by process restart"
 
@@ -91,7 +92,7 @@ def plan_interrupted_invocations(events: Iterable[EventEnvelope]) -> list[EventD
       child of that execution is closed (children close first).
 
     Idempotent by construction: the appended terminals make the next scan
-    empty, so a repeated restore adds nothing.
+    empty, so repeated recovery adds nothing.
     """
 
     by_request: dict[str, dict[str, EventEnvelope]] = {}
@@ -308,6 +309,7 @@ class RuntimeStore:
 
     def iter_events(
         self, *, project_id: str | None = None, session_id: str | None = None,
+        run_id: str | None = None,
         after_seq: int = 0, before_seq: int | None = None,
         after_session_seq: int = -1, before_session_seq: int | None = None,
         types: Iterable[str] | None = None, stop_index: int | None = None,
@@ -323,7 +325,7 @@ class RuntimeStore:
         if stop_index is not None and stop_index <= 0:
             return
         conditions, params = [], []
-        for column, value in (("project_id", project_id), ("session_id", session_id)):
+        for column, value in (("project_id", project_id), ("session_id", session_id), ("run_id", run_id)):
             if value is not None:
                 conditions.append(f"{column} = ?")
                 params.append(value)
@@ -601,24 +603,9 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
     core.prune_orphaned_state()
     _rebuild_inboxes_from_events(core)
 
-    # Unfinished tool/program lifecycles left by the dead process close as
-    # interrupted (children before programs) — facts only, never a replay of
-    # executors, JS processes or scheduler jobs.
+    # Tool/program lifecycles are closed lazily when an interrupted session
+    # is reopened. Startup never scans their global history.
     new_events = []
-    for draft in plan_interrupted_invocations(store.iter_events(types={
-        "tool.requested", "tool.started", "tool.result_recorded", "tool.finished",
-        "program.submitted", "program.finished",
-    })):
-        envelope = core.event_log.append(
-            draft.type,
-            stream=draft.stream,
-            project_id=draft.project_id,
-            session_id=draft.session_id,
-            run_id=draft.run_id,
-            data=draft.data,
-        )
-        apply_event(core, envelope)
-        new_events.append(envelope)
 
     # Runs live in memory only: an agent restored as RUNNING/WAITING died with
     # the previous process and has no runner anymore.  Mark the run failed so
@@ -637,7 +624,7 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
             AgentState.RUNNING,
             AgentState.WAITING_INPUT,
             AgentState.WAITING_APPROVAL,
-        }:
+        } and not (agent.state is AgentState.FAILED and agent.current_run is not None):
             continue
         if agent.current_run is not None:
             _, drafts = plan_finish_run(

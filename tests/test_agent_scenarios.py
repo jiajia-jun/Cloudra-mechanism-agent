@@ -1264,6 +1264,81 @@ async def test_unattended_never_enters_waiting_input(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_restart_closes_old_local_lifecycles_when_user_message_resumes_agent(tmp_path):
+    """恢复只终结旧 run；用户发消息后才收口旧工具/程序，且新回复正常完成。
+
+    杠杆：持久化恢复、CommandBus 消息唤醒、旧工具/程序收口、真实 runner。
+    """
+    from cloudra.runtime_v2.schemas import AgentState, Command
+    from tests.agent_scenarios import interrupted_program_fixture
+
+    release_original_reply = asyncio.Event()
+    harness = await ScenarioHarness.start(
+        tmp_path, provider=ScriptedProvider(default=[Step(wait_for=release_original_reply, stop=True)]),
+    )
+    crash_store_name = "restart-crash.db"
+    try:
+        agent = await harness.spawn("coordinator")
+        await harness.wait_for(lambda: harness.provider.call_count() == 1, "original run enters provider")
+        old_run_id = agent.current_run.run_id
+        for draft in interrupted_program_fixture(agent):
+            await harness.core.event_writer.commit(draft)
+        before_crash = await asyncio.to_thread(harness.events, agent)
+        old_tool = next(e for e in before_crash if e.type == "tool.started")
+        old_program = next(e for e in before_crash if e.type == "program.started")
+        assert not any(e.type in {"tool.finished", "program.finished"} for e in before_crash)
+        # Each event has finished its store write. Copy before graceful local
+        # teardown, whose cancellation terminals must not repair the crash fixture.
+        await harness.core.event_writer.flush()
+        await asyncio.to_thread(shutil.copyfile, harness.store.path, tmp_path / crash_store_name)
+    finally:
+        await harness.aclose()
+
+    reply_started = asyncio.Event()
+    provider = ScriptedProvider(default=[Step(wait_for=reply_started, stop=True)])
+    restored = await ScenarioHarness.restore(tmp_path, store_name=crash_store_name, provider=provider)
+    try:
+        agent = restored.core.agents[agent.id]
+        assert agent.state == AgentState.FAILED
+        assert await asyncio.to_thread(restored.run_rows, agent) == [{
+            "run_id": old_run_id, "outcome": "failed", "basis": None,
+            "failure_kind": "runtime_interrupted",
+        }]
+        assert not any(e.type in {"tool.finished", "program.finished"} for e in await asyncio.to_thread(restored.events, agent))
+        assert provider.call_count() == 0
+
+        await restored.bus.execute(Command(
+            type="agent.message", target={"session_id": agent.id},
+            payload={"content": "Continue with a reply."},
+        ))
+        await restored.wait_for(lambda: provider.call_count() == 1, "provider enters resumed reply")
+        assert agent.state == AgentState.RUNNING
+        events = await asyncio.to_thread(restored.events, agent)
+        new_run = next(e for e in events if e.type == "run.started" and e.run_id != old_run_id)
+        tool_finished = next(e for e in events if e.type == "tool.finished")
+        program_finished = next(e for e in events if e.type == "program.finished")
+        assert tool_finished.run_id == program_finished.run_id == old_run_id
+        assert tool_finished.data["tool_call_id"] == old_tool.data["tool_call_id"]
+        assert program_finished.data["execution_id"] == old_program.data["execution_id"]
+        assert tool_finished.data["status"] == program_finished.data["status"] == "interrupted"
+        assert tool_finished.data["effect_state"] == "unknown"
+        assert tool_finished.seq < program_finished.seq < new_run.seq
+
+        reply_started.set()
+        await restored.wait_terminal(agent)
+        assert agent.state == AgentState.SUCCEEDED
+        rows = await asyncio.to_thread(restored.run_rows, agent)
+        assert [row["outcome"] for row in rows] == ["failed", "succeeded"]
+        types = await asyncio.to_thread(restored.types, agent)
+        assert types.count("tool.finished") == 1
+        assert types.count("program.finished") == 1
+        assert provider.call_count() == 1
+    finally:
+        reply_started.set()
+        await restored.aclose()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("delay_child_delivery", [False, True], ids=["normal", "late-child-wake"])
 async def test_restart_repeats_no_side_effect_and_keeps_unconsumed_message(
     tmp_path, monkeypatch, delay_child_delivery

@@ -356,13 +356,14 @@ class EventLog:
         self,
         session_id: str,
         *,
+        run_id: str | None = None,
         after_session_seq: int = 0,
         before_session_seq: int | None = None,
         types: Iterable[str] | None = None,
-        limit: int = 500,
+        limit: int | None = 500,
         tail: bool = True,
     ) -> list[EventEnvelope]:
-        return self._query(session_id=session_id, after_session_seq=after_session_seq,
+        return self._query(session_id=session_id, run_id=run_id, after_session_seq=after_session_seq,
                            before_session_seq=before_session_seq, types=types, limit=limit, tail=tail)
 
     def _query(self, *, limit, tail, **filters) -> list[EventEnvelope]:
@@ -370,12 +371,24 @@ class EventLog:
         filters["types"] = frozenset(wanted) if wanted is not None else None
         with self._lock:
             store, count = self._store, self._durable_count
+            session_id = filters.get("session_id")
+            session_boundary = self._durable_sessions.get(session_id, 0)
             pending = (
                 iter(list(self._events[max(0, count - self._base_index):]))
                 if store else islice(iter(self._events), self._count)
             )
         extra = [event for event in pending if self._matches(event, filters)]
-        durable = store.read_events(stop_index=count, limit=limit, tail=tail, **filters) if store else []
+        durable = []
+        if store:
+            durable_filters = dict(filters)
+            if session_id is not None:
+                # The session watermark pins the same durable prefix without
+                # walking a global row OFFSET just to query one session/run.
+                before = durable_filters.get("before_session_seq")
+                durable_filters["before_session_seq"] = min(before, session_boundary) if before is not None else session_boundary
+            else:
+                durable_filters["stop_index"] = count
+            durable = store.read_events(limit=limit, tail=tail, **durable_filters)
         matched = durable + extra
         if limit is None:
             return matched
@@ -386,6 +399,7 @@ class EventLog:
         return (
             (filters.get("project_id") is None or event.project_id == filters["project_id"])
             and (filters.get("session_id") is None or event.session_id == filters["session_id"])
+            and (filters.get("run_id") is None or event.run_id == filters["run_id"])
             and event.seq > filters.get("after_seq", 0)
             and (filters.get("before_seq") is None or event.seq <= filters["before_seq"])
             and (event.session_seq or 0) > filters.get("after_session_seq", -1)

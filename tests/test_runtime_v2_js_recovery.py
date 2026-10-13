@@ -1,6 +1,10 @@
-"""Restore-time closure of interrupted tool/program lifecycles (pure scan)."""
+"""Lazy closure of interrupted tool/program lifecycles and pure planning."""
 
 from __future__ import annotations
+
+import asyncio
+import contextlib
+import threading
 
 import pytest
 
@@ -11,7 +15,7 @@ from cloudra.runtime_v2.persistence import (
     plan_interrupted_invocations,
     restore_core,
 )
-from cloudra.runtime_v2.schemas import Command
+from cloudra.runtime_v2.schemas import AgentState, Command
 
 
 def test_recovery_keeps_reused_call_ids_in_distinct_attempts():
@@ -52,8 +56,9 @@ def _append(core: RuntimeCore, type_: str, agent, run_id: str, data: dict):
 
 async def _seed(tmp_path):
     """A core+store with one agent and a hand-built interrupted history."""
-    store = RuntimeStore(tmp_path / "runtime.db")
+    store = await asyncio.to_thread(RuntimeStore, tmp_path / "runtime.db")
     core = RuntimeCore(strict_events=True)
+    core.store = store
     bus = CommandBus(core)
     await bus.execute(Command(type="project.create", payload={"name": "p"}))
     project = next(iter(core.projects.values()))
@@ -64,7 +69,7 @@ async def _seed(tmp_path):
         )
     )
     agent = next(iter(core.agents.values()))
-    run_id = "run_1"
+    run_id = await core.agent_host.start_run(agent)
     exec_id = "exec_1"
     # Child A: requested only -> not_started.
     # Child B: requested+started -> unknown.
@@ -103,18 +108,57 @@ async def _seed(tmp_path):
     _append(core, "program.started", agent, run_id, {
         "execution_id": exec_id, "outer_tool_call_id": "wire_1",
     })
-    for envelope in core.event_log:
-        store.append_event(envelope)
+    await core.event_writer.flush()
+    await bus.flush_snapshot()
     return store, core, agent
 
 
 @pytest.mark.asyncio
-async def test_restore_closes_interrupted_lifecycles(tmp_path):
-    store, _, agent = await _seed(tmp_path)
+@pytest.mark.parametrize("command_type", ["agent.message", "agent.restart"])
+async def test_reopening_closes_only_interrupted_run(tmp_path, command_type):
+    store, source, agent = await _seed(tmp_path)
+    old_run = agent.current_run.run_id
+    # Unfinished records from another run/session must remain untouched.
+    unrelated = _append(source, "tool.requested", agent, "older_run", {
+        "tool_call_id": "older", "tool_name": "echo",
+    })
+    other = agent.model_copy(update={"id": "other_session"})
+    _append(source, "tool.requested", other, "other_run", {
+        "tool_call_id": "other", "tool_name": "echo",
+    })
+    # Evict the actual requests from the resident cache and the 500-row tail.
+    for i in range(520):
+        _append(source, "tool.progress", agent, old_run, {"tool_call_id": "tc_b", "phase": str(i)})
+    await source.event_writer.flush()
     core2 = RuntimeCore(strict_events=True)
-    restore_core(core2, store)
+    core2.store = store
+    await asyncio.to_thread(restore_core, core2, store)
+    assert core2.agents[agent.id].state is AgentState.FAILED
+    before = await asyncio.to_thread(core2.event_log.query_session, agent.id, limit=None)
+    assert len([e for e in before if e.type == "tool.finished"]) == 1
+    assert not [e for e in before if e.type == "program.finished"]
 
-    finished = [e for e in core2.event_log if e.type == "tool.finished"]
+    queries = []
+    read_events = store.read_events
+    def tracked_read(**filters):
+        queries.append((filters, threading.get_ident()))
+        return read_events(**filters)
+    store.read_events = tracked_read
+    result = await CommandBus(core2).execute(Command(
+        type=command_type, target={"session_id": agent.id},
+        payload={"content": "continue"} if command_type == "agent.message" else {},
+    ))
+    assert result.accepted
+    assert queries and all(thread_id != threading.get_ident() for _, thread_id in queries)
+    lifecycle = [filters for filters, _ in queries if "tool.requested" in (filters.get("types") or ())]
+    assert len(lifecycle) == 1
+    assert lifecycle[0]["session_id"] == agent.id
+    assert lifecycle[0]["run_id"] == old_run
+    assert lifecycle[0]["limit"] is None
+    assert "stop_index" not in lifecycle[0]  # no global OFFSET walk to find a session boundary
+
+    events = await asyncio.to_thread(core2.event_log.query_session, agent.id, limit=None)
+    finished = [e for e in events if e.type == "tool.finished"]
     by_call = {e.data["tool_call_id"]: e.data for e in finished}
     assert by_call["tc_a"]["status"] == "interrupted"
     assert by_call["tc_a"]["effect_state"] == "not_started"
@@ -128,7 +172,7 @@ async def test_restore_closes_interrupted_lifecycles(tmp_path):
         assert by_call[call_id]["is_success"] is False
         assert by_call[call_id]["error"]["code"] == "interrupted"
 
-    programs = [e for e in core2.event_log if e.type == "program.finished"]
+    programs = [e for e in events if e.type == "program.finished"]
     assert len(programs) == 1
     program = programs[0].data
     assert program["status"] == "interrupted"
@@ -142,28 +186,45 @@ async def test_restore_closes_interrupted_lifecycles(tmp_path):
 
     # Recovery is facts-only: no new started/submitted rows, i.e. no executor,
     # no JS process and no scheduler job was invoked.
-    types = [e.type for e in core2.event_log]
+    types = [e.type for e in events]
     assert types.count("tool.started") == 2
     assert types.count("program.submitted") == 1
     assert types.count("program.started") == 1
 
+    recovery = [e for e in events if e.type in {"tool.finished", "program.finished"} and e.data.get("status") == "interrupted"]
+    assert all(e.run_id == old_run for e in recovery)
+    assert recovery[-1].type == "program.finished"
+    reopened = next(e for e in events if e.type == "agent.state_changed" and e.data.get("to") == "queued")
+    assert recovery[-1].session_seq < reopened.session_seq
+    assert not any(e.type == "tool.finished" and e.data.get("request_event_id") == unrelated.event_id for e in events)
+
     # The recovered terminals are durable too.
-    persisted_types = [e["type"] for e in store.query_project_events(agent.project_id)]
+    persisted = await asyncio.to_thread(store.read_events, project_id=agent.project_id, limit=None)
+    persisted_types = [e.type for e in persisted]
     assert persisted_types.count("tool.finished") == 4
     assert persisted_types.count("program.finished") == 1
 
 
 @pytest.mark.asyncio
-async def test_repeated_restore_adds_no_duplicate_terminals(tmp_path):
+async def test_repeated_restore_and_reopening_add_no_duplicate_terminals(tmp_path):
     store, _, agent = await _seed(tmp_path)
     core2 = RuntimeCore(strict_events=True)
-    restore_core(core2, store)
-    count_after_first = len(list(core2.event_log))
+    core2.store = store
+    await asyncio.to_thread(restore_core, core2, store)
+    bus = CommandBus(core2)
+    result = await bus.execute(Command(type="agent.message", target={"session_id": agent.id}, payload={"content": "continue"}))
+    assert result.accepted
+    count_after_first = len(core2.event_log)
 
     core3 = RuntimeCore(strict_events=True)
-    restore_core(core3, store)
-    assert len(list(core3.event_log)) == count_after_first
-    persisted_types = [e["type"] for e in store.query_project_events(agent.project_id)]
+    core3.store = store
+    await asyncio.to_thread(restore_core, core3, store)
+    # The reopened run itself becomes interrupted, with no unfinished tools.
+    assert len(core3.event_log) == count_after_first + 2
+    result = await CommandBus(core3).execute(Command(type="agent.message", target={"session_id": agent.id}, payload={"content": "continue again"}))
+    assert result.accepted
+    persisted = await asyncio.to_thread(store.read_events, project_id=agent.project_id, limit=None)
+    persisted_types = [e.type for e in persisted]
     assert persisted_types.count("tool.finished") == 4
     assert persisted_types.count("program.finished") == 1
 
@@ -181,3 +242,157 @@ def test_planner_ignores_complete_history():
         "duration_ms": 1, "error": None, "calls": [],
     })
     assert plan_interrupted_invocations(list(core.event_log)) == []
+
+
+@pytest.mark.asyncio
+async def test_cold_restore_does_not_scan_global_lifecycles(tmp_path, monkeypatch):
+    store, _, agent = await _seed(tmp_path)
+    statements = []
+    connect = store._connect
+    @contextlib.contextmanager
+    def traced_connect():
+        with connect() as con:
+            con.set_trace_callback(statements.append)
+            yield con
+    monkeypatch.setattr(store, "_connect", traced_connect)
+    # Model a million durable records without creating irrelevant payloads.
+    metadata = store.event_metadata
+    def million_record_metadata():
+        _, projects, sessions = metadata()
+        return 1_000_000, projects, sessions
+    monkeypatch.setattr(store, "event_metadata", million_record_metadata)
+    restored = RuntimeCore(strict_events=True)
+    await asyncio.to_thread(restore_core, restored, store)
+    assert restored.agents[agent.id].state is AgentState.FAILED
+    lifecycle_queries = [sql for sql in statements if "FROM events WHERE" in sql and "type IN" in sql and "'tool.requested'" in sql]
+    assert lifecycle_queries == []
+    rows = await asyncio.to_thread(store.query_project_events, agent.project_id)
+    assert len([row for row in rows if row["type"] == "tool.finished"]) == 1
+    assert not [row for row in rows if row["type"] == "program.finished"]
+
+
+@pytest.mark.asyncio
+async def test_live_and_parked_message_paths_do_not_query_recovery(tmp_path, monkeypatch):
+    store, core, agent = await _seed(tmp_path)
+    def unexpected_query(**filters):
+        raise AssertionError(f"unexpected history query: {filters}")
+    monkeypatch.setattr(store, "read_events", unexpected_query)
+    bus = CommandBus(core)
+    result = await bus.execute(Command(type="agent.message", target={"session_id": agent.id}, payload={"content": "still running"}))
+    assert result.accepted
+    # Invalid restart retains state_conflict and cannot close live invocations.
+    rejected = await bus.execute(Command(type="agent.restart", target={"session_id": agent.id}))
+    assert not rejected.accepted
+    assert rejected.data["error"]["code"] == "state_conflict"
+    agent.state = AgentState.FAILED
+    parked = await bus.execute(Command(type="agent.message", actor="system", target={"session_id": agent.id}, payload={"content": "notice"}))
+    assert parked.accepted and agent.state is AgentState.FAILED
+    invalid = await bus.execute(Command(type="agent.message", target={"session_id": agent.id}, payload={"content": ""}))
+    assert not invalid.accepted
+
+
+@pytest.mark.asyncio
+async def test_recovery_persistence_failure_does_not_reopen_agent(tmp_path, monkeypatch):
+    from cloudra.runtime_v2.event_writer import EventPersistenceError
+    store, _, agent = await _seed(tmp_path)
+    core = RuntimeCore(strict_events=True)
+    core.store = store
+    await asyncio.to_thread(restore_core, core, store)
+    append = store.append_event
+    def fail_recovery(event):
+        if event.type == "tool.finished" and event.data.get("status") == "interrupted":
+            raise OSError("disk unavailable")
+        append(event)
+    monkeypatch.setattr(store, "append_event", fail_recovery)
+    command = Command(type="agent.message", target={"session_id": agent.id}, payload={"content": "continue"})
+    bus = CommandBus(core)
+    with pytest.raises(EventPersistenceError):
+        await bus.execute(command)
+    assert core.agents[agent.id].state is AgentState.FAILED
+    assert core.agents[agent.id].current_run is None
+    events = await asyncio.to_thread(core.event_log.query_session, agent.id, limit=None)
+    assert not [e for e in events if e.type == "tool.finished" and e.data.get("status") == "interrupted"]
+    monkeypatch.setattr(store, "append_event", append)
+    assert (await bus.execute(command)).accepted
+
+
+@pytest.mark.asyncio
+async def test_concurrent_messages_recover_each_call_once(tmp_path):
+    store, _, agent = await _seed(tmp_path)
+    core = RuntimeCore(strict_events=True)
+    core.store = store
+    await asyncio.to_thread(restore_core, core, store)
+    # A second process restart before reopening must retain the recovery scope.
+    again = RuntimeCore(strict_events=True)
+    again.store = store
+    await asyncio.to_thread(restore_core, again, store)
+    bus = CommandBus(again)
+    results = await asyncio.gather(*(
+        bus.execute(Command(type="agent.message", target={"session_id": agent.id}, payload={"content": message}))
+        for message in ("continue", "more context")
+    ))
+    assert all(result.accepted for result in results)
+    events = await asyncio.to_thread(again.event_log.query_session, agent.id, limit=None)
+    interrupted = [e for e in events if e.type == "tool.finished" and e.data.get("status") == "interrupted"]
+    assert len(interrupted) == 3
+    assert len({e.data["request_event_id"] for e in interrupted}) == 3
+    assert len([e for e in events if e.type == "program.finished"]) == 1
+    assert len([e for e in events if e.type == "run.started"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_reentrant_message_during_recovery_does_not_duplicate_calls_or_runs(tmp_path):
+    store, _, agent = await _seed(tmp_path)
+    core = RuntimeCore(strict_events=True)
+    core.store = store
+    await asyncio.to_thread(restore_core, core, store)
+    bus = CommandBus(core)
+    nested = []
+
+    async def subscriber(event):
+        if event.type == "tool.finished" and event.data.get("status") == "interrupted" and not nested:
+            nested.append(None)
+            nested[0] = await bus.execute(Command(
+                type="agent.message", target={"session_id": agent.id},
+                payload={"content": "extra context from subscriber"},
+            ))
+
+    core.event_hub.subscribe(subscriber)
+    result = await bus.execute(Command(
+        type="agent.message", target={"session_id": agent.id}, payload={"content": "continue"},
+    ))
+    assert result.accepted and nested[0].accepted
+    events = await asyncio.to_thread(core.event_log.query_session, agent.id, limit=None)
+    interrupted = [e for e in events if e.type == "tool.finished" and e.data.get("status") == "interrupted"]
+    assert len(interrupted) == 3
+    assert len({e.data["request_event_id"] for e in interrupted}) == 3
+    assert len([e for e in events if e.type == "program.finished"]) == 1
+    assert len([e for e in events if e.type == "run.started"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_restore_finishes_run_when_previous_restore_failed_midway(tmp_path, monkeypatch):
+    store, _, agent = await _seed(tmp_path)
+    append = store.append_event
+
+    def fail_run_terminal(event):
+        if event.type == "run.finished":
+            raise OSError("interrupted recovery write")
+        append(event)
+
+    monkeypatch.setattr(store, "append_event", fail_run_terminal)
+    with pytest.raises(OSError):
+        await asyncio.to_thread(restore_core, RuntimeCore(strict_events=True), store)
+    monkeypatch.setattr(store, "append_event", append)
+    core = RuntimeCore(strict_events=True)
+    core.store = store
+    await asyncio.to_thread(restore_core, core, store)
+    assert core.agents[agent.id].state is AgentState.FAILED
+    assert core.agents[agent.id].current_run is None
+    result = await CommandBus(core).execute(Command(
+        type="agent.message", target={"session_id": agent.id}, payload={"content": "continue"},
+    ))
+    assert result.accepted
+    events = await asyncio.to_thread(core.event_log.query_session, agent.id, limit=None)
+    assert len([e for e in events if e.type == "tool.finished" and e.data.get("status") == "interrupted"]) == 3
+    assert len([e for e in events if e.type == "program.finished"]) == 1

@@ -141,6 +141,53 @@ async def test_ended_run_closes_unfinished_call_without_claiming_effect_failed()
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("stage", ["queued", "waiting", "postprocessing"])
+async def test_interrupted_run_projection_is_read_only_and_scoped_to_its_run(tmp_path, stage):
+    import asyncio
+
+    from cloudra.runtime_v2.persistence import RuntimeStore
+
+    core = setup_core()
+    core.store = await asyncio.to_thread(RuntimeStore, tmp_path / "runtime.db")
+    req = request(core)
+    if stage == "waiting":
+        emit(core, "tool.approval_requested", {"tool_call_id": "same", "message": "approval"})
+    elif stage == "postprocessing":
+        emit(core, "tool.started", {"tool_call_id": "same"})
+        emit(core, "tool.result_recorded", {"tool_call_id": "same", "result": {"data": 42}})
+    terminal = emit(core, "run.finished", {"outcome": "failed", "failure_kind": "runtime_interrupted"})
+    emit(core, "run.started", {}, run="new")
+    active = request(core, run="new")
+    emit(core, "tool.started", {"tool_call_id": "same"}, run="new")
+    core.agents["a"].current_run = CurrentRun(run_id="new", started_at=utc_now())
+    await core.event_writer.flush()
+    persisted = await asyncio.to_thread(lambda: list(core.store.iter_events()))
+
+    async with client_for(core) as client:
+        row = (await client.get(f"/api/v2/agents/a/tool-calls/{req.event_id}")).json()
+        assert row["status"] == "interrupted"
+        assert row["effect_state"] == "unknown"
+        assert row["finished_at"] == terminal.created_at.isoformat()
+        assert row["waits"] == []
+        if stage == "postprocessing":
+            assert row["result"] == {"data": 42}
+            assert row["result_availability"] == "available"
+        else:
+            assert row["result_availability"] == "unavailable"
+        rows = (await client.get("/api/v2/agents/a/tool-calls")).json()["items"]
+        assert [(r["request_event_id"], r["status"]) for r in rows] == [
+            (active.event_id, "running"), (req.event_id, "interrupted"),
+        ]
+        activity = (await client.get("/api/v2/projects/p/activity")).json()["agents"][0]
+        assert activity["activity"] == "running_tool"
+        assert [r["request_event_id"] for r in activity["active_calls"]] == [active.event_id]
+
+    await core.event_writer.flush()
+    assert await asyncio.to_thread(lambda: list(core.event_log)) == persisted
+    assert await asyncio.to_thread(lambda: list(core.store.iter_events())) == persisted
+
+
+@pytest.mark.asyncio
 async def test_job_links_use_structured_results_and_never_leak_other_projects():
     core = setup_core()
     db = await ComputeDB().ainit()
