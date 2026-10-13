@@ -539,6 +539,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         class_name='Edit',
         tool_name='edit',
         runtime_profiles=frozenset({'desktop', 'android'}),
+        supervisor_access='process_write',
         summary='Apply a precise edit to an existing workspace file.',
     ),
     ToolRegistration(
@@ -546,6 +547,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         class_name='Write',
         tool_name='write',
         runtime_profiles=frozenset({'desktop', 'android'}),
+        supervisor_access='process_write',
         summary='Write a workspace artifact with explicit overwrite handling.',
     ),
     ToolRegistration(

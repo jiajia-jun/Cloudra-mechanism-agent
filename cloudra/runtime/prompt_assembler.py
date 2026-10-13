@@ -70,16 +70,21 @@ _AGENT_HUB_GUIDANCE = (
     "the user's goal, method limits and your role permissions."
 )
 
-# 执行型角色（coordinator / 计算专家）注入完整版：强调落盘 handoff
+# 执行型角色（coordinator / 计算专家）注入完整版：研究笔记用于恢复上下文
 _CONTEXT_HANDOFF_GUIDANCE = (
     "## Context and handoff notes (important)\n"
     "On long tasks the whole earlier conversation is compacted automatically into one structured summary — "
     "**user instructions, your own replies, tool calls and tool results are all replaced, and nothing stays verbatim**. "
     "Recoverable state must live in workspace files — do not rely on it remaining in context:\n"
-    "- After each meaningful stage, write/update a handoff note (prefer `HANDOFF.md` or `progress.md` in the task directory): "
-    "goal, completed steps, key absolute paths, job IDs, numeric conclusions, next steps and blockers;\n"
+    "- For research work, prefer a concise `PROCESS.md` at the project workspace root, in the user's language. "
+    "Write around working hypotheses: their basis (relevant skills, literature or user-specified methods), "
+    "a test that can distinguish alternatives, actual observations, and why you revise, set aside or discard a hypothesis. "
+    "These are useful prompts, not required fields or a fixed format; writing the note is not a prerequisite for computation.\n"
+    "- Keep only the paths, job references, next actions and blockers needed to resume. "
+    "An existing `HANDOFF.md` or `progress.md` can serve the same purpose; do not maintain duplicate notes. "
+    "Every hypothesis is provisional: failed attempts remain useful records, not commitments to a path.\n"
     "- Treat files and the latest tool returns as source of truth for numbers and paths; do not paraphrase from memory;\n"
-    "- After compact or a shift change, read the handoff note before acting; do not start from scratch."
+    "- After compact or a shift change, read `PROCESS.md` or the existing progress note before acting; do not start from scratch."
 )
 
 # 纯输出型角色（researcher / writer / explorer / experiment）注入精简版：
@@ -90,8 +95,8 @@ _CONTEXT_HANDOFF_GUIDANCE_LIGHT = (
     "Do not paraphrase from memory or fabricate data — read the actual file if uncertain."
 )
 
-# 纯输出型角色名集合（不写 HANDOFF.md，不管理多阶段任务状态）
-_OUTPUT_ONLY_ROLES = frozenset({"researcher", "writer", "explorer", "experiment"})
+# 这些角色只需简短上下文指引；Supervisor 的笔记职责由自身 prompt 说明。
+_OUTPUT_ONLY_ROLES = frozenset({"researcher", "writer", "explorer", "experiment", "supervisor"})
 
 # 针对不同领域角色的专属核心技能推荐（不在 System Prompt 中全局广播所有技能，按需在 Hub 检索）
 _ROLE_RECOMMENDED_SKILLS: dict[str, tuple[str, ...]] = {
