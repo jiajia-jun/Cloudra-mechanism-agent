@@ -194,6 +194,16 @@ class DagPolicyStage:
             payload,
         )
         self._apply_delivery_delta(ctx, result, finished)
+        if (self._core is not None and ctx.settings.orchestration_mode.value == 'dag_guided'
+                and call.name in {'write', 'edit'} and result.is_success
+                and result.data.get('is_written') and result.data.get('filepath') == 'PROCESS.md'):
+            from cloudra.runtime_v2.supervision import notify_supervisor
+
+            try:
+                await notify_supervisor(self._core, ctx.agent.project_id, reason='PROCESS.md notes updated')
+            except Exception:
+                # Notebook maintenance must not turn a completed research action into a failure.
+                logger.warning('Could not notify Supervisor about PROCESS.md', exc_info=True)
         if self._core is not None and call.name in {'dag_remove_node', 'dag_remove_edge'}:
             from cloudra.runtime_v2.supervision import flush_review_notifications
             await flush_review_notifications(self._core, ctx.agent.project_id)
