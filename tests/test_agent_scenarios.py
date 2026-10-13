@@ -432,7 +432,7 @@ async def test_guided_complete_waits_for_selected_step_review_and_evidence(tmp_p
             _propose_selected_ab(),
             # Drain the Supervisor's earlier draft notification in a normal turn
             # before the explicit stop is audited.
-            Step(wait_for=attempt_complete, text="review status received"),
+            Step(wait_for=attempt_complete, tools=[('dag_delivery_report', {})]),
             Step(tools=[("stop", {
                 "delivery_disposition": "complete",
             })]),
@@ -924,12 +924,13 @@ async def test_guided_expanded_scope_is_a_real_completion_debt(tmp_path):
 
         supervisor_finish.set()
         await harness.wait_for(
-            lambda: bool(harness.child_reports(agent)) and any(
+            lambda: any(
                 a.role_id == "supervisor" and a.state.value == "succeeded"
                 for a in harness.core.agents.values()
             ),
-            "Supervisor idle and its child report delivered before complete attempt",
+            "Supervisor idle before complete attempt",
         )
+        assert not harness.child_reports(agent)
         finish.set()
         await harness.wait_for(
             lambda: any(e.type == "agent.completion_gate" and e.data.get("explicit_stop")

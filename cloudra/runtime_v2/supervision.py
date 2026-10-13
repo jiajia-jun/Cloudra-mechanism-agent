@@ -176,8 +176,10 @@ def _notification_text(reason: str) -> str:
         + " Read the DAG store for the current pending reviews, open drafts "
         "and queued review requests — the store is the source of truth and "
         "this notification may be stale by the time you read it. "
-        "When PROCESS.md exists, organize useful hypothesis updates there after scientific review. "
-        "Read the current file; notebook maintenance is not a scientific review request."
+        "Read the named changed research note and the current project-root PROCESS.md. "
+        "Promptly merge evidence, counterevidence and changed hypotheses into the shared current account, "
+        "with concrete source links. Document maintenance does not require a scientific review request "
+        "or wait for one; finish pending scientific decisions first when there are any."
     )
     return text
 

@@ -70,25 +70,37 @@ _AGENT_HUB_GUIDANCE = (
     "the user's goal, method limits and your role permissions."
 )
 
-# 执行型角色（coordinator / 计算专家）注入完整版：研究笔记用于恢复上下文
+# 所有角色共用研究笔记指引；只读角色通过协作反馈，不扩张写权限。
+_PROCESS_NOTES_GUIDANCE = (
+    "## Shared research record\n"
+    "For research work, treat the project-root `PROCESS.md` as a shared asset for all project Agents. "
+    "Read the relevant parts before planning or reusing another Agent's results. Contribute within your role's "
+    "permissions; if your role cannot edit `PROCESS.md`, send corrections and source paths to the author or Supervisor.\n"
+    "Write concise, readable notes in the user's language around provisional hypotheses, their basis "
+    "(relevant skills, literature or user requirements), distinguishing tests, observations and next actions. "
+    "Separate hypotheses, direct observations and confirmed conclusions. Cite concrete project-relative Markdown "
+    "links to the input, structure, original log or analysis supporting a key claim; explain what each source shows. "
+    "Use actual paths, not invented paths or job IDs alone; do not copy full logs or append annotations "
+    "to completed native evidence files.\n"
+    "When a result, counterexample or change of direction affects your next research decision, promptly update "
+    "the shared PROCESS.md before handing off that decision; do not wait for final delivery or Supervisor approval. "
+    "Revise the current hypothesis and briefly explain why, with source links. "
+    "Keep useful failed attempts without leaving contradictory conclusions presented as current. "
+    "Reuse useful handoff material without duplicating notes. These are soft writing guidelines, not required "
+    "fields or a fixed template; note maintenance must not block computation."
+)
+
+# 执行型角色（coordinator / 计算专家）注入完整版：上下文压缩后的恢复说明。
 _CONTEXT_HANDOFF_GUIDANCE = (
     "## Context and handoff notes (important)\n"
     "On long tasks the whole earlier conversation is compacted automatically into one structured summary — "
     "**user instructions, your own replies, tool calls and tool results are all replaced, and nothing stays verbatim**. "
     "Recoverable state must live in workspace files — do not rely on it remaining in context:\n"
-    "- For research work, prefer a concise `PROCESS.md` at the project workspace root, in the user's language. "
-    "Write around working hypotheses: their basis (relevant skills, literature or user-specified methods), "
-    "a test that can distinguish alternatives, actual observations, and why you revise, set aside or discard a hypothesis. "
-    "These are useful prompts, not required fields or a fixed format; writing the note is not a prerequisite for computation.\n"
-    "- Keep only the paths, job references, next actions and blockers needed to resume. "
-    "An existing `HANDOFF.md` or `progress.md` can serve the same purpose; do not maintain duplicate notes. "
-    "Every hypothesis is provisional: failed attempts remain useful records, not commitments to a path.\n"
     "- Treat files and the latest tool returns as source of truth for numbers and paths; do not paraphrase from memory;\n"
     "- After compact or a shift change, read `PROCESS.md` or the existing progress note before acting; do not start from scratch."
 )
 
-# 纯输出型角色（researcher / writer / explorer / experiment）注入精简版：
-# 它们不跨会话持久化中间状态，只需要知道不要凭记忆捏造数据
+# 纯输出型角色使用精简恢复说明，仍共享同一份研究笔记指引。
 _CONTEXT_HANDOFF_GUIDANCE_LIGHT = (
     "## Context notes (important)\n"
     "Treat files and the latest tool returns as the source of truth for numbers and paths. "
@@ -679,6 +691,7 @@ class PromptAssembler:
             if self.prompt_name in _OUTPUT_ONLY_ROLES
             else _CONTEXT_HANDOFF_GUIDANCE
         )
+        _handoff = _handoff + "\n\n" + _PROCESS_NOTES_GUIDANCE
         identity_sections.append(_handoff)
         sources.append(
             PromptSource(

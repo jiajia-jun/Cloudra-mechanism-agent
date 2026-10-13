@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from pathlib import Path
 from typing import Any
 
 from cloudra.base.role_identity import legacy_agent_id_for_role
@@ -194,16 +195,18 @@ class DagPolicyStage:
             payload,
         )
         self._apply_delivery_delta(ctx, result, finished)
+        changed = Path(result.data.get('filepath') or '')
         if (self._core is not None and ctx.settings.orchestration_mode.value == 'dag_guided'
                 and call.name in {'write', 'edit'} and result.is_success
-                and result.data.get('is_written') and result.data.get('filepath') == 'PROCESS.md'):
+                and result.data.get('is_written') and changed.parent == Path('.')
+                and changed.suffix.lower() == '.md'):
             from cloudra.runtime_v2.supervision import notify_supervisor
 
             try:
-                await notify_supervisor(self._core, ctx.agent.project_id, reason='PROCESS.md notes updated')
+                await notify_supervisor(self._core, ctx.agent.project_id, reason=f'Research notes updated: {changed.name}')
             except Exception:
                 # Notebook maintenance must not turn a completed research action into a failure.
-                logger.warning('Could not notify Supervisor about PROCESS.md', exc_info=True)
+                logger.warning('Could not notify Supervisor about %s', changed.name, exc_info=True)
         if self._core is not None and call.name in {'dag_remove_node', 'dag_remove_edge'}:
             from cloudra.runtime_v2.supervision import flush_review_notifications
             await flush_review_notifications(self._core, ctx.agent.project_id)
