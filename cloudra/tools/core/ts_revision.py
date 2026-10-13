@@ -75,96 +75,6 @@ def _input_revision_differences(record, updated):
     return sorted(set(differences))
 
 
-def _validated_scan_recovery(record, request, failed, updated, differences):
-    """Bind declared recovery artifacts, without choosing a scientific correction."""
-    from cloudra.tools.core.ts_inputs import ScanRepairReceipt
-    from cloudra.tools.core.ts_process import _artifact_sha256, _refinement_log_path, _workspace_input_path
-
-    if failed is None or failed.purpose != 'scan':
-        if request.scan_recovery is not None:
-            raise ValueError('scan recovery does not refer to a current failed scan')
-        return None
-    recovery = request.scan_recovery
-    if recovery is None:
-        raise ValueError('failed scan requires independently bound recovery evidence; reason or point-count changes alone cannot retry it')
-    attempt_id = f'{failed.source_input_revision}:scan:{failed.job_id}'
-    if recovery.failed_attempt_id != attempt_id:
-        raise ValueError('scan recovery failed_attempt_id does not match the current failure')
-    failure = dict(record.failed_attempt or dict(attempt_id=attempt_id, purpose='scan',
-        job_id=failed.job_id, input_revision=failed.source_input_revision,
-        failure_class=record.blocked.failure_class if record.blocked else 'unclassified_failure',
-        diagnostics=record.blocked.atom_details if record.blocked else []))
-    paths = dict(input=Path(failed.input_path).resolve(), log=Path(_refinement_log_path(record, failed)).resolve())
-    failure_hashes = {}
-    for name, path in paths.items():
-        actual = _artifact_sha256(path)
-        if name + '_sha256' in failure and failure[name + '_sha256'] != actual:
-            raise ValueError(f'scan recovery cannot replace the original failed {name} artifact')
-        declared = getattr(recovery, 'failure_' + name + '_sha256')
-        if declared != actual:
-            raise ValueError(f'scan recovery failed {name} fingerprint is stale or mismatched')
-        failure_hashes[str(path)] = actual
-        failure[name + '_sha256'] = actual
-        failure[name + '_path'] = str(path)
-    artifacts = []
-    for ref in recovery.evidence_refs:
-        path = _workspace_input_path(record, ref.path)
-        if path in paths.values() or ref.sha256 in failure_hashes.values():
-            raise ValueError('scan recovery must cite repair evidence rather than repeating failed input/log artifacts')
-        if _artifact_sha256(path) != ref.sha256:
-            raise ValueError('scan recovery artifact is missing or its fingerprint changed')
-        if any(item['path'] == str(path) for item in artifacts):
-            raise ValueError('scan recovery contains duplicate artifact references')
-        source_role = None
-        for role in ('reactant', 'product'):
-            source = getattr(updated.conformers, role)
-            previous = getattr(record.input.conformers, role)
-            if not source or source.kind != 'file':
-                continue
-            for name in ('xyz', 'mol'):
-                source_path = getattr(source, name + '_path')
-                if source_path is None or _workspace_input_path(record, source_path) != path:
-                    continue
-                if role in record.structures:
-                    before = Path(record.run_dir) / 'build' / f"input_{record.structures[role]['input_revision']:04d}" / role / f'seed.{name}'
-                elif previous and previous.kind == 'file' and getattr(previous, name + '_path'):
-                    before = _workspace_input_path(record, getattr(previous, name + '_path'))
-                else:
-                    before = Path(record.current_seed_xyz_path if role == 'reactant' else record.product_seed_xyz_path) if name == 'xyz' else Path(record.current_seed_mol_path if role == 'reactant' else record.product_seed_mol_path)
-                before_digest = _artifact_sha256(before)
-                if before_digest is not None and before_digest != ref.sha256:
-                    source_role = role
-        artifact = dict(path=str(path), sha256=ref.sha256)
-        if source_role:
-            artifact.update(kind='changed_conformer_file', role=source_role)
-        else:
-            try:
-                repair = ScanRepairReceipt.model_validate_json(path.read_bytes())
-            except ValueError as exc:
-                raise ValueError('scan recovery artifact has no changed input or scoped repair receipt binding') from exc
-            if (repair.failed_attempt_id != attempt_id
-                    or repair.failure_input_sha256 != failure['input_sha256']):
-                raise ValueError('scan recovery repair receipt binding differs from the failed attempt/input')
-            if repair.repair_source_path is not None:
-                original = _workspace_input_path(record, repair.repair_source_path)
-                if _artifact_sha256(original) != repair.repair_source_sha256:
-                    raise ValueError('scan recovery original repair artifact changed')
-            artifact.update(kind='repair_receipt', receipt=repair.model_dump(mode='json'))
-        artifacts.append(artifact)
-
-    def at(value, field):
-        for part in field.split('.'):
-            value = value.get(part) if isinstance(value, dict) else None
-        return value
-
-    before, after = record.input.model_dump(mode='json'), updated.model_dump(mode='json')
-    return dict(failed_attempt=failure, reason=request.reason,
-        input_diff=[dict(field=field, before=at(before, field), after=at(after, field)) for field in differences],
-        evidence_refs=artifacts, source_hashes=_revision_source_hashes(record, updated),
-        verification='artifact_integrity_and_failure_binding',
-        scientific_recovery_verified=False)
-
-
 def _source_identity(record, source):
     if source is None:
         return None
@@ -374,14 +284,11 @@ def _atom_correspondences(record, updated):
 
 
 def _refresh_canonical_bindings(record, updated, changes, projections):
-    """Validate bindings in their declared order, then bind canonical geometry."""
-    from rdkit import Chem
-
+    """Validate graph bindings in their declared order, then translate indices."""
     from cloudra.tools.Chemtool.reaction_mapping import (
         _identity_and_binding,
         _read_structure,
     )
-    from cloudra.tools.core.structure_artifacts import read_xyz_atoms
 
     for role in ('reactant', 'product'):
         projection = projections.get(role)
@@ -398,8 +305,6 @@ def _refresh_canonical_bindings(record, updated, changes, projections):
             raw = projection['before']
             graph = _read_structure(None, raw.get('mol', raw['xyz']).decode('utf-8'),
                 'mol' if 'mol' in raw else 'xyz', updated.reaction.charge, role)
-            positions = [[float(v) for v in row.split()[1:4]]
-                         for row in raw['xyz'].decode('utf-8').splitlines()[2:2 + graph.GetNumAtoms()]]
             value, binding = updated, after.heavy_atom_binding
         else:
             if before.kind != 'file' or before.heavy_atom_binding is None:
@@ -410,13 +315,8 @@ def _refresh_canonical_bindings(record, updated, changes, projections):
             mol = snapshot / 'seed.mol' if before.mol_path else None
             graph = _read_structure(str(mol or xyz), None, 'mol' if mol else 'xyz',
                                     record.input.reaction.charge, role)
-            positions = [position for _, position in read_xyz_atoms(str(xyz))]
             value, binding = record.input, before.heavy_atom_binding
-        conf = Chem.Conformer(len(positions))
-        for index, point in enumerate(positions):
-            conf.SetAtomPosition(index, point)
         graph.RemoveAllConformers()
-        graph.AddConformer(conf)
         qualifier = 'explicit' if explicit else 'inherited'
         if any(index < 1 or index > graph.GetNumAtoms() for index in binding.indices):
             raise ValueError(f'{role}: {qualifier} heavy-atom binding indices are outside the full atom table')
@@ -443,6 +343,12 @@ def _stale_atom_references(record, updated, changes, correspondences):
     guidance = conformers.guidance if conformers is not None else None
     guidance_fields = guidance.model_fields_set if guidance is not None else set()
     stale = []
+    for role in unknown:
+        source = getattr(updated.conformers, role)
+        declared = getattr(conformers, role) if conformers else None
+        if (source and source.kind == 'file' and source.heavy_atom_binding
+                and not (declared and 'heavy_atom_binding' in declared.model_fields_set)):
+            stale.append(f'conformers.{role}.heavy_atom_binding')
     if unknown and record.input.reaction.atom_map and 'atom_map' not in reaction_fields:
         stale.append('reaction.atom_map')
     if 'reactant' in unknown and record.input.reaction.reaction_center and 'reaction_center' not in reaction_fields:
@@ -458,7 +364,7 @@ def _stale_atom_references(record, updated, changes, correspondences):
         stale.append('conformers.product')
     guess = record.input.guess
     refreshed_guess = 'guess' in changes.model_fields_set and changes.guess is not None
-    if guess and guess.kind == 'scan' and refreshed_guess:
+    if guess and guess.kind == 'scan' and updated.guess and updated.guess.kind == 'scan' and refreshed_guess:
         refreshed_guess = 'scans' in changes.guess.model_fields_set
     if guess is not None and not refreshed_guess:
         if species_changed or (guess.kind == 'scan' and 'reactant' in unknown):
@@ -477,7 +383,6 @@ def plan_input_revision(record, request: TsResumeRequest) -> TsRevisionReceipt:
     updated = _apply_revision_input(record, request.changes)
     differences = _input_revision_differences(record, updated)
     failed = _failed_step(record)
-    recovery = _validated_scan_recovery(record, request, failed, updated, differences)
     if not differences and failed is None:
         raise ValueError('no input change or failed attempt to retry; use ts_inspect')
     before_limits, after_limits = record.input.execution.limits, updated.execution.limits
@@ -526,7 +431,7 @@ def plan_input_revision(record, request: TsResumeRequest) -> TsRevisionReceipt:
         previous_input_revision=record.declaration_revision, input_revision=record.declaration_revision + 1,
         changes=differences, retained=retained, invalidated=invalid,
         source_hashes=_revision_source_hashes(record, apply_input_changes(record.input, request.changes)),
-        recovery_evidence=recovery, released_action_keys=released)
+        released_action_keys=released)
 
 
 def revise_record(record, request, receipt):
@@ -536,7 +441,7 @@ def revise_record(record, request, receipt):
     revised.attempt_history.append(TsAttemptHistory(declaration_revision=record.declaration_revision,
         selected_candidate_id=record.selected_candidate_id, job_steps=[*record.job_steps, *([record.scan_step] if record.scan_step else [])], stage_records=record.stage_records,
         input=record.input, terminal=record.terminal, blocked=record.blocked, failed_attempt=record.failed_attempt,
-        recovery_evidence=receipt.recovery_evidence, reason=request.reason))
+        reason=request.reason))
     source_hashes = _revision_source_hashes(record, apply_input_changes(record.input, request.changes))
     if plan_input_revision(record, request) != receipt:
         raise ValueError('revision plan changed since input inspection; use ts_inspect and retry')
@@ -642,10 +547,6 @@ def _project_revision_input(record, changes):
     updated = apply_input_changes(record.input, changes)
     hashes = _revision_source_hashes(record, updated)
     correspondences = _atom_correspondences(record, updated)
-    for role, permutation in correspondences.items():
-        source = getattr(updated.conformers, role)
-        if permutation is None and source and source.kind == 'file' and role in record.structures:
-            raise ValueError(f'{role}: full atom correspondence is unproved; current source cannot be normalized to the prior atom numbering')
     stale = _stale_atom_references(record, updated, changes, correspondences)
     for field in stale:
         if field == 'reaction.atom_map':
@@ -658,6 +559,8 @@ def _project_revision_input(record, changes):
             updated.conformers.guidance.distance_filters = []
         elif field == 'conformers.product':
             updated.conformers.product = None
+        elif field.endswith('.heavy_atom_binding'):
+            getattr(updated.conformers, field.split('.')[1]).heavy_atom_binding = None
         elif field == 'guess':
             # A provided guess already belongs to the old canonical order;
             # replacing endpoint row order alone does not change its meaning.
@@ -826,7 +729,7 @@ def resume_revised_process(record, request, *, event_sink=None):
             step.state = _step_state(current, step)
         if current.waiting_for and all(s.state not in ('ready', 'running', 'cancel_requested') for s in [*current.job_steps, *([current.scan_step] if current.scan_step else [])]):
             current.waiting_for = ''
-        if (request.scan_recovery is None and request.changes.model_fields_set and apply_input_changes(current.input,request.changes) == current.input
+        if (_failed_step(current) is None and request.changes.model_fields_set and apply_input_changes(current.input,request.changes) == current.input
                 and not any(_file_source_drift(current, role) or _missing_source_arrived(current, role)
                             for role in ('reactant', 'product'))):
             return current

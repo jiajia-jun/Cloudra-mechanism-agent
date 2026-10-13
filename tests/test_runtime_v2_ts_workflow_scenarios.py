@@ -1,6 +1,5 @@
 """Zero-key Agent scenarios exercise the real grouped TS tool/driver boundary."""
 import asyncio
-import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -330,9 +329,9 @@ def _script_compute(monkeypatch, first_scan='peak'):
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("rdkit_chemistry")
-async def test_ts_failed_scan_repair_same_run(tmp_path,monkeypatch):
+async def test_ts_failed_scan_retry_same_run(tmp_path,monkeypatch):
 
-    assert TS_SCENARIOS[1]=='ts_failed_scan_repair_same_run'
+    assert TS_SCENARIOS[1]=='ts_failed_scan_retry_same_run'
     from cloudra.persistence.database import ComputeDB
     from cloudra.tools.core import ts_process as process
     from cloudra.tools.core.ts_pipeline_driver import handle_process_job_terminal
@@ -347,14 +346,10 @@ async def test_ts_failed_scan_repair_same_run(tmp_path,monkeypatch):
             record=process.TsProcessRecord.model_validate(handle_process_job_terminal(ComputeDB(),record.scan_step.job_id)['record'])
         provider.records.append(record)
         if record.failed_attempt and record.declaration_revision==1:
-            repair = tmp_path / 'scan-repair-receipt.json'
-            repair.write_text(json.dumps({'repair':
-                'Fixture execution environment repaired after the first scan failed to produce output'}))
             provider._scripts['small_mol'][0].tools=[('ts_resume',{
                 'run_id':record.run_id,
-                'reason':'Retry the failed scan with an independently bound environment repair receipt',
-
-                'scan_recovery': [str(repair)],
+                'reason':'Retry the native scan after the execution environment was repaired',
+                'changes': {},
             })]
     provider=StateProvider(tmp_path,[Step(tools=[('ts_prepare',{'input':payload})]),Step(),Step(stop=True)],complete)
     harness=await ScenarioHarness.start(tmp_path,workspace_dir=tmp_path,provider=provider)
@@ -368,11 +363,11 @@ async def test_ts_failed_scan_repair_same_run(tmp_path,monkeypatch):
         assert current.run_id=='ts_0001' and current.intervention_count==1
         assert current.attempt_history[-1].failed_attempt['failure_class']=='unclassified_failure'
         assert current.attempt_history[-1].blocked.failure_class == 'scan_job_failed'
-        recovery = current.attempt_history[-1].recovery_evidence
-        assert recovery['failed_attempt']['attempt_id'] == f'1:scan:{submissions[0]["id"]}'
-        assert recovery['input_diff'] == []
-        assert recovery['evidence_refs'][0]['kind'] == 'repair_receipt'
-        assert recovery['scientific_recovery_verified'] is False
+        history = current.attempt_history[-1]
+        assert history.failed_attempt['attempt_id'] == f'1:scan:{submissions[0]["id"]}'
+        assert history.input == current.input
+        assert history.job_steps[-1].job_id != current.scan_step.job_id
+        assert Path(submissions[0]['path']).read_text() == submissions[0]['input']
         assert [s['purpose'] for s in submissions]==['scan','scan','ts_opt']
     finally:
         await harness.aclose()

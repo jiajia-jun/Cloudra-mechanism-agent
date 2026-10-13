@@ -70,11 +70,6 @@ PathKind = Literal["", "xtb_path", "xtb_path_failed", "not_attempted", "scan", "
 _NOT_IMPLEMENTED_STAGES: dict[str, str] = {}
 
 
-class EndpointGeometryError(ValueError):
-    def __init__(self, role: str, details: str):
-        self.role = role
-        super().__init__(details)
-
 #: 精修输入的文件名（放在 jobs/<job_dir>/ 下，与作业现场同处）
 REFINEMENT_INPUT_NAMES = {"orca": "refine.inp", "gaussian": "refine.gjf"}
 #: 精修作业的申请资源。保守默认，且**必须**与写进输入文件的 %pal/%nprocshared 一致——
@@ -113,7 +108,6 @@ class TsAttemptHistory(BaseModel):
     terminal: TsTerminal | None = None
     blocked: TsBlocked | None = None
     failed_attempt: dict | None = None
-    recovery_evidence: dict | None = None
 
 
 class TsProcessRecord(BaseModel):
@@ -1054,7 +1048,7 @@ def _store_structure_table(record: TsProcessRecord, role: str) -> None:
     record.structures[role] = table
 
 def _bound_input_structure(record, role, *, require_identity=True, persist_artifact=True):
-    """Check one concrete source before spending compute, retaining its graph."""
+    """Bind the declared graph and atom rows; optimization judges the geometry."""
     import hashlib
 
     from rdkit import Chem
@@ -1091,10 +1085,6 @@ def _bound_input_structure(record, role, *, require_identity=True, persist_artif
         conf.SetAtomPosition(i, point)
     mol.RemoveAllConformers()
     mol.AddConformer(conf)
-    connectivity = _geometry_connectivity_error(mol, (symbols, positions), record.input.reaction.charge, role,
-        multiplicity=record.input.reaction.multiplicity, electronic_character=record.input.reaction.electronic_character)
-    if connectivity:
-        raise EndpointGeometryError(role, connectivity)
     source = getattr(record.input.conformers, role)
     constructed_role = 'reactant' if source and source.kind == 'rotate_about_bond' else role
     original_source = getattr(record.input.conformers, constructed_role)
@@ -1115,16 +1105,14 @@ def _bound_input_structure(record, role, *, require_identity=True, persist_artif
         explicit_indices = [index - 1 for index in source.heavy_atom_binding.indices]
     annotated_source = any(token.startswith('in:') for row in Path(xyz_path).read_text().splitlines()[2:]
                            for token in row.split()[4:])
-    identity, binding, diagnostic = _identity_and_binding(expected_smiles, mol, explicit_indices,
+    binding_graph = Chem.Mol(mol)
+    binding_graph.RemoveAllConformers()
+    identity, binding, diagnostic = _identity_and_binding(expected_smiles, binding_graph, explicit_indices,
         allow_symmetric_representative=electronic['is_open_shell'] and not annotated_source)
     if electronic['is_open_shell'] and annotated_source and identity == 'match' and not binding:
         raise ValueError(f'{role}: source atom identity annotations cannot be replaced by a symmetric representative; supply an explicit heavy_atom_binding.')
     if require_identity and (identity != 'match' or (any(a.GetAtomicNum() != 1 for a in mol.GetAtoms()) and not binding)):
         raise ValueError(f'{role}: {diagnostic or identity}')
-    from cloudra.tools.core.preorganization import geometry_stereochemistry_errors
-    stereo = geometry_stereochemistry_errors(mol, positions)
-    if require_identity and stereo:
-        raise EndpointGeometryError(role, f'{role}: {stereo}')
     if not mol_path and not persist_artifact:
         return expected_smiles, mol, hashes
     if not mol_path:
@@ -1138,8 +1126,6 @@ def _bound_input_structure(record, role, *, require_identity=True, persist_artif
     return expected_smiles, mol, hashes
 
 def _check_input_binding(record: TsProcessRecord) -> dict:
-    from rdkit import Chem
-
     from cloudra.tools.Chemtool.reaction_mapping import (
         ReactionMapping_input_schema,
         check_concrete_binding,
@@ -1152,10 +1138,12 @@ def _check_input_binding(record: TsProcessRecord) -> dict:
                    product_electronic_character=record.input.reaction.electronic_character)
     hashes = {}
     digests = {}
+    molecules = {}
     for role in ('reactant', 'product'):
         expected, mol, artifacts = _bound_input_structure(record, role, require_identity=False)
         source = getattr(record.input.conformers, role)
-        request.update({role + '_smiles': expected, role + '_text': Chem.MolToMolBlock(mol), role + '_format': 'mol',
+        molecules[role] = mol
+        request.update({role + '_smiles': expected,
                         role + '_binding': source.heavy_atom_binding if source and source.kind == 'file' else None})
         digests[role] = concrete_structure_digest(role, expected, record.input.reaction.charge,
                                                    record.input.reaction.multiplicity, mol,
@@ -1163,7 +1151,7 @@ def _check_input_binding(record: TsProcessRecord) -> dict:
         hashes.update(artifacts)
     result = check_concrete_binding(ReactionMapping_input_schema(**request),
         dict(atom_map=list(range(1, mol.GetNumAtoms() + 1)) if _rotated_product(record) else [i + 1 for i in record.input.reaction.atom_map], watch_pairs=[]),
-        known_digests=digests)
+        known_digests=digests, bound_molecules=molecules)
     if any(table.get('electronic_state', {}).get('requires_spin_aware_geometry') for table in record.structures.values()):
         result['connectivity_validation'] = dict(bond_pairs='rdDetermineConnectivity',
                                                 bond_orders='declared_molecular_identity')
@@ -1196,14 +1184,6 @@ def _direction_atom_binding(record: TsProcessRecord) -> dict | None:
 def _validate_input_binding(record: TsProcessRecord) -> TsProcessRecord:
     try:
         record.input_binding = _check_input_binding(record)
-    except EndpointGeometryError as exc:
-        record.input_binding = dict(input_revision=record.declaration_revision, binding_status='inconclusive',
-                                    binding_diagnostics=[str(exc)])
-        return _block(record, 'map', 'input_identity_unconfirmed', str(exc),
-            needs=[f'conformers.{exc.role}'], issues=[dict(code='endpoint_geometry_invalid',
-                field=f'conformers.{exc.role}', role=exc.role,
-                structure_digest=record.structures.get(exc.role, {}).get('structure_digest'),
-                details=str(exc))])
     except (ValueError, OSError) as exc:
         record.input_binding = dict(input_revision=record.declaration_revision, binding_status="inconclusive", binding_diagnostics=[str(exc)])
     if record.input_binding["binding_status"] != "complete":
@@ -1508,10 +1488,8 @@ def _guess_scan(record: TsProcessRecord) -> TsProcessRecord:
         _record_candidate_failure(record, failure, step, log_path, details)
         return _block(
             record, "guess", "scan_job_failed",
-            f"Scan job {step.job_id}: {step.state}. Inspect the native log and execution artifacts "
-            "to identify the cause before proposing a correction. An unchanged adjustment does "
-            "not retry the job; a point-count change alone does not resolve an unexplained engine "
-            "failure. A retry requires scan_recovery bound to this failure and actual repair artifacts.",
+            f"Scan job {step.job_id}: {step.state}. Inspect the native log, then revise "
+            "the scan inputs or retry with ts_resume; the previous attempt remains recorded.",
             atom_details=details, needs=["compute_artifacts"],
         )
     target = str(Path(step.input_path).parent / "scan_peak.xyz")
@@ -2681,9 +2659,6 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
             atoms = _endpoint_seed_atoms(record, role, endpoint.seed)
         except (OSError, ValueError) as exc:
             return str(exc), ''
-        error = _endpoint_identity_error(record, role, ([s for s, _ in atoms], [point for _, point in atoms]))
-        if error:
-            return error, ''
         normalized_source = '\n'.join([str(len(atoms)), 'Endpoint seed in TS working atom order',
             *[symbol + ' ' + ' '.join(repr(float(value)) for value in point) for symbol, point in atoms]]) + '\n'
         provenance = dict(kind='species_reference', label=role)
@@ -3111,6 +3086,18 @@ def _endpoint_identity_error(
     )
     if stereo_errors:
         return f"{role} " + "; ".join(stereo_errors)
+    from cloudra.tools.Chemtool.reaction_mapping import _axis_config_consistency
+    observed = Chem.Mol(mol)
+    observed.RemoveAllConformers()
+    conformer = Chem.Conformer(n)
+    for index in range(n):
+        conformer.SetAtomPosition(index, optimized[1][remap[index]])
+    observed.AddConformer(conformer)
+    binding = record.input_binding.get('heavy_atom_bindings', {}).get(source_role)
+    matches = [tuple(index - 1 for index in binding)] if binding else observed.GetSubstructMatches(declared, useChirality=True)
+    axis_error = _axis_config_consistency(declared, observed, matches)
+    if axis_error:
+        return f'{role} {axis_error}'
     from cloudra.tools.core.electronic_state import electronic_state_issue
     issue = electronic_state_issue(mol, charge=record.input.reaction.charge,
         multiplicity=record.input.reaction.multiplicity, electronic_character=record.input.reaction.electronic_character)

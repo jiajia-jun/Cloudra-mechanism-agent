@@ -34,7 +34,6 @@ class TsRevisionReceipt(CatalogModel):
     invalidated: list[TsEvidenceReference]
     released_action_keys: list[str] = Field(default_factory=list)
     source_hashes: dict[str, dict[str, str]] = Field(default_factory=dict)
-    recovery_evidence: dict | None = None
     status: Literal['accepted'] = 'accepted'
 
 
@@ -226,13 +225,10 @@ def commit_input_revision(db: ComputeDB, *, process_id: str, request: TsResumeRe
             value = TsInput.model_validate(record['input'])
             from cloudra.tools.core.ts_process import TsProcessRecord
             from cloudra.tools.core.ts_revision import (
-                _failed_step,
-                _input_revision_differences,
                 _project_revision_input,
                 _revision_protected_paths,
                 _revision_rewrite_files,
                 _revision_source_hashes,
-                _validated_scan_recovery,
             )
             prior_input = con.execute('SELECT payload FROM ts_pipeline_declarations WHERE process_id=? AND declaration_revision=?',
                                       (process_id, scope[3])).fetchone()
@@ -245,9 +241,6 @@ def commit_input_revision(db: ComputeDB, *, process_id: str, request: TsResumeRe
             if receipt.source_hashes != _revision_source_hashes(prior_record, raw_input):
                 raise ValueError('revision source changed since the accepted plan')
             expected_input, projections = _project_revision_input(prior_record, request.changes)
-            differences = _input_revision_differences(prior_record, expected_input)
-            if receipt.recovery_evidence != _validated_scan_recovery(prior_record, request, _failed_step(prior_record), expected_input, differences):
-                raise ValueError('scan recovery evidence changed since the accepted plan')
             if value != expected_input:
                 raise ValueError('revision input differs from the accepted request')
             validated_record = TsProcessRecord.model_validate(record)

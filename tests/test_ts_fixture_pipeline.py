@@ -38,13 +38,16 @@ def admission(monkeypatch):
 
 
 def waiting_fixture_stage(tmp_path, *, purpose="frequency", engine="orca", seed=CO2_XYZ,
-                          project_id="project", owner_id="owner", smiles="O=C=O"):
+                          project_id="project", owner_id="owner", smiles="O=C=O", limits=None):
     """Prepare one real immutable binding as a calculator's queued input boundary."""
     db = ComputeDB().init()
     declaration = calculation_input(
         reactant_smiles=smiles, product_smiles=smiles, engine=engine,
         method="b3lyp/def2svp", atom_map=[0, 1, 2],
     )
+    if limits is not None:
+        from cloudra.tools.core.ts_inputs import TsExecutionLimits
+        declaration.execution.limits = TsExecutionLimits.model_validate(limits)
     if purpose == "scan":
         from cloudra.tools.core.ts_inputs import ScanGuess
         declaration.guess = ScanGuess(kind="scan",calculation={"engine":engine,"method":"b3lyp","basis_set":"def2svp","keywords":""},
@@ -55,6 +58,13 @@ def waiting_fixture_stage(tmp_path, *, purpose="frequency", engine="orca", seed=
         project_id=project_id, owner_id=owner_id, workspace_dir=str(tmp_path),
         input=declaration.model_dump(mode="json"),
     ))
+    if limits is not None:
+        from cloudra.services.exploration_budget_store import ExplorationBudget, configure_budget
+        configure_budget(db, process_id=state['process_id'], project_id=project_id,
+            owner_id=owner_id, budget=ExplorationBudget(
+                source=declaration.execution.limits.source,
+                max_compute_actions=declaration.execution.limits.max_compute_actions,
+                max_model_calls=declaration.execution.limits.max_model_calls))
     record = process.TsProcessRecord(
         run_id="ts_0001", pipeline_id=state["process_id"], workspace_dir=str(tmp_path),
         run_dir=str(tmp_path / "ts" / "ts_0001"), input=declaration,
@@ -252,7 +262,7 @@ def test_fixture_scan_terminal_event_preserves_peak_gate_and_no_duplicate_jobs(
 
 
 @pytest.mark.parametrize("state", ["failed", "cancelled"])
-def test_failed_scan_keeps_fixture_artifacts_and_unchanged_resume_budget(tmp_path, admission, state):
+def test_failed_scan_retry_keeps_fixture_artifacts_and_charges_the_new_attempt(tmp_path, admission, state):
     db, record, step = waiting_fixture_stage(tmp_path, purpose="scan")
     log = install_log(record, step, "orca/segfault_mid_opt/dvb_opt_truncated_no_termination.out")
     before = log.read_bytes()
@@ -263,10 +273,12 @@ def test_failed_scan_keeps_fixture_artifacts_and_unchanged_resume_budget(tmp_pat
     saved = process.load_record(str(tmp_path), record.run_id)
     from cloudra.tools.core.ts_inputs import TsResumeRequest
     resumed = process.resume(saved, TsResumeRequest(changes={'guess':saved.input.guess.model_dump()},reason='keep unchanged scan',request_key='unchanged',expected_revision=saved.revision))
-    assert resumed.intervention_count == 0
-    assert resumed.declaration_revision == 1
-    assert resumed.blocked.model_dump() == result["blocked"]
-    assert log.read_bytes() == before and job_count(db) == 1
+    assert resumed.intervention_count == 1
+    assert resumed.declaration_revision == 2
+    assert resumed.attempt_history[-1].blocked.model_dump() == result["blocked"]
+    assert resumed.scan_step.job_id != step.job_id
+    assert resumed.waiting_for == f'job:{resumed.scan_step.job_id}'
+    assert log.read_bytes() == before and job_count(db) == 2
 
 
 @pytest.mark.parametrize("fixture", ["orca/hcn_irc_orca60.out", "orca/cope_irc_extopt_mace_orca611.out"])

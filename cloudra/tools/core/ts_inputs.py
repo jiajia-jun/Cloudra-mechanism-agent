@@ -350,46 +350,11 @@ def apply_input_changes(current: TsInput, changes: TsInputChanges) -> TsInput:
     return TsInput.model_validate(merge(current.model_dump(mode="json"), changes))
 
 
-class ScanRecoveryArtifact(InputModel):
-    path: str = Field(min_length=1, description="Changed declared conformer file, or a JSON repair receipt with failed_attempt_id, failure_input_sha256 and a nonblank repair description. The failed input/log itself is not repair evidence.")
-    sha256: str = Field(min_length=64, max_length=64)
-
-    @field_validator('sha256')
-    @classmethod
-    def hexadecimal_digest(cls, value):
-        if any(character not in '0123456789abcdefABCDEF' for character in value):
-            raise ValueError('SHA256 must be a hexadecimal artifact digest')
-        return value.lower()
-
-
-class ScanRepairReceipt(InputModel):
-    failed_attempt_id: str = Field(min_length=1)
-    failure_input_sha256: str | None
-    repair: str = Field(min_length=1)
-    repair_source_path: str | None = None
-    repair_source_sha256: str | None = None
-
-    @field_validator('repair')
-    @classmethod
-    def nonblank_repair(cls, value):
-        if not value.strip():
-            raise ValueError('scan repair receipt requires a nonblank repair description')
-        return value
-
-
-class ScanRecoveryEvidence(InputModel):
-    failed_attempt_id: str = Field(min_length=1)
-    failure_input_sha256: str | None = None
-    failure_log_sha256: str | None = None
-    evidence_refs: list[ScanRecoveryArtifact] = Field(min_length=1, description="Independently bound repair artifacts; their scientific adequacy remains the declarer's responsibility within existing task authority.")
-
-
 class TsResumeRequest(InputModel):
     changes: TsInputChanges = Field(default_factory=TsInputChanges)
     reason: str = Field(min_length=1)
     request_key: str = Field(min_length=1)
     expected_revision: StrictInt = Field(ge=0)
-    scan_recovery: ScanRecoveryEvidence | None = Field(default=None, description="Required to restart a failed scan. Binds repair evidence to its failed attempt and native input/log fingerprints; reason alone cannot authorize a retry.")
 
     @field_validator("reason", "request_key")
     @classmethod

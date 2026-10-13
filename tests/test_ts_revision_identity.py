@@ -1,4 +1,4 @@
-"""Input revisions retain atom declarations only with concrete identity evidence."""
+"""Proved input mappings retain references; fresh atom orders discard stale ones."""
 
 from pathlib import Path
 
@@ -131,24 +131,63 @@ def test_unique_full_graph_renumbering_without_labels_preserves_canonical_atom_r
     assert revised.input.guess.scans[0].atoms == [0, 1]
 
 
-def test_unlabelled_symmetric_update_blocks_unproved_canonical_order(tmp_path):
+@pytest.mark.parametrize("guess_kind", ["scan", "provided", "xtb_path"])
+@pytest.mark.parametrize("role", ["reactant", "product"])
+def test_unlabelled_symmetric_update_discards_old_atom_references_and_keeps_history(tmp_path, guess_kind, role):
     from rdkit import Chem
 
-    from cloudra.tools.core.ts_inputs import XtbPathGuess
+    from cloudra.tools.core.ts_inputs import HeavyAtomBinding, ProvidedGuess, XtbPathGuess
+    from cloudra.tools.core.ts_process import TsJobStep
 
     record, mol = _identity_fixture(tmp_path, labels=False)
-    record.input.guess = XtbPathGuess(kind="xtb_path", method="GFN2-xTB")
-    _write_source(tmp_path, "reactant", Chem.RenumberAtoms(mol, [0, 2, 1]))
+    for side in ("reactant", "product"):
+        getattr(record.input.conformers, side).heavy_atom_binding = HeavyAtomBinding(indices=[1])
+    if guess_kind == "provided":
+        guess = tmp_path / "old_guess.xyz"
+        guess.write_text(Chem.MolToXYZBlock(mol))
+        record.input.guess = ProvidedGuess(kind="provided", xyz_path=str(guess), evidence_refs=["old-scan.log"])
+    elif guess_kind == "xtb_path":
+        record.input.guess = XtbPathGuess(kind="xtb_path", method="GFN2-xTB")
+    record.job_steps = [TsJobStep(purpose="ts_opt", job_id=7, state="done")]
+    record.optimization_checkpoints = {"reactant": {"energy": -1.}}
+    record.current_ts_guess_path = "old-ts.xyz"
+    before = record.input.model_copy(deep=True)
+    snapshot_path = record.current_seed_xyz_path if role == "reactant" else record.product_seed_xyz_path
+    snapshot = Path(snapshot_path).read_bytes()
+    replacement = _write_source(tmp_path, role, Chem.RenumberAtoms(mol, [2, 0, 1]))
+    incoming = {kind: Path(replacement[kind + "_path"]).read_bytes() for kind in ("xyz", "mol")}
     change = request(record, {})
-    with pytest.raises(ValueError, match="atom correspondence is unproved"):
-        plan_input_revision(record, change)
-    assert record.input.reaction.atom_map == [0, 1, 2]
-    assert record.input.guess.kind == "xtb_path"
+    receipt = plan_input_revision(record, change)
+    revised = revise_record(record, change, receipt)
+
+    assert revised.input.reaction.atom_map == []
+    if role == "reactant":
+        assert revised.input.reaction.reaction_center == []
+        assert revised.input.conformers.guidance.ring_order == []
+        assert revised.input.conformers.guidance.distance_filters == []
+    else:
+        assert revised.input.reaction.reaction_center == before.reaction.reaction_center
+        assert revised.input.conformers.guidance == before.conformers.guidance
+    assert getattr(revised.input.conformers, role).heavy_atom_binding is None
+    other = "product" if role == "reactant" else "reactant"
+    assert getattr(revised.input.conformers, other).heavy_atom_binding.indices == [1]
+    assert revised.input.guess == (None if role == "reactant" and guess_kind != "xtb_path" else before.guess)
+    assert revised.stage == "build" and revised.terminal is None
+    assert revised.current_ts_guess_path == "" and revised.optimization_checkpoints == {}
+    assert not revised.job_steps and [ref.job_id for ref in receipt.invalidated] == [7]
+    assert revised.attempt_history[-1].input == before
+    assert revised.attempt_history[-1].job_steps == record.job_steps
+    assert role not in revised.structures
+    assert record.input == before
+    assert Path(snapshot_path).read_bytes() == snapshot
+    assert {kind: Path(replacement[kind + "_path"]).read_bytes() for kind in ("xyz", "mol")} == incoming
 
 
 @pytest.mark.parametrize("mutation", ["isotope", "label", "stereo", "species"])
 def test_changed_atom_identity_or_chemical_graph_cannot_inherit_references(tmp_path, mutation):
     record, mol = _identity_fixture(tmp_path, smiles="F[C@](Cl)(Br)I")
+    before = record.input.model_copy(deep=True)
+    snapshot = Path(record.current_seed_xyz_path).read_bytes()
     if mutation == "isotope":
         mol.GetAtomWithIdx(0).SetIsotope(19)
     elif mutation == "label":
@@ -160,11 +199,23 @@ def test_changed_atom_identity_or_chemical_graph_cannot_inherit_references(tmp_p
             mol.GetConformer().SetAtomPosition(index, (-point.x, point.y, point.z))
     else:
         mol.GetAtomWithIdx(0).SetAtomicNum(7)
-    _write_source(tmp_path, "reactant", mol)
+    replacement = _write_source(tmp_path, "reactant", mol)
+    incoming = Path(replacement["mol_path"]).read_bytes()
     change = request(record, {})
-    with pytest.raises(ValueError, match="atom correspondence is unproved"):
-        plan_input_revision(record, change)
-    assert record.input.reaction.atom_map == [0, 1, 2, 3, 4]
+    revised = revise_record(record, change, plan_input_revision(record, change))
+
+    assert revised.input.reaction.atom_map == []
+    assert revised.input.reaction.reaction_center == []
+    assert revised.input.conformers.guidance.ring_order == []
+    assert revised.input.conformers.guidance.distance_filters == []
+    assert revised.input.guess is None
+    assert revised.input.conformers.reactant.mol_path == replacement["mol_path"]
+    assert revised.stage == "build" and revised.terminal is None
+    assert "reactant" not in revised.structures
+    assert revised.attempt_history[-1].input == before
+    assert record.input == before
+    assert Path(record.current_seed_xyz_path).read_bytes() == snapshot
+    assert Path(replacement["mol_path"]).read_bytes() == incoming
 
 
 @pytest.mark.parametrize("renumber", [False, True])
@@ -276,7 +327,7 @@ def test_revision_transaction_commits_canonical_declarations_and_replay_once(tmp
     assert get_process(db, record.pipeline_id) == accepted
 
 
-def test_conflicting_stable_xyz_identity_tags_cannot_be_ignored_as_comments(tmp_path):
+def test_conflicting_stable_xyz_identity_tags_clear_old_references_without_rewriting_tags(tmp_path):
     record, _ = _identity_fixture(tmp_path, labels=False)
     source = Path(record.input.conformers.reactant.xyz_path)
     snapshot = Path(record.current_seed_xyz_path)
@@ -287,9 +338,18 @@ def test_conflicting_stable_xyz_identity_tags_cannot_be_ignored_as_comments(tmp_
     new_rows[3] = new_rows[3].replace("in:1", "in:2")
     new_rows[4] = new_rows[4].replace("in:2", "in:1")
     source.write_text("\n".join(new_rows) + "\n")
+    incoming, historical = source.read_bytes(), snapshot.read_bytes()
     change = request(record, {})
-    with pytest.raises(ValueError, match="atom correspondence is unproved"):
-        plan_input_revision(record, change)
+    revised = revise_record(record, change, plan_input_revision(record, change))
+
+    assert revised.input.reaction.atom_map == []
+    assert revised.input.reaction.reaction_center == []
+    assert revised.input.conformers.guidance.ring_order == []
+    assert revised.input.conformers.guidance.distance_filters == []
+    assert revised.input.guess is None
+    assert "reactant" not in revised.structures
+    assert source.read_bytes() == incoming
+    assert snapshot.read_bytes() == historical
 
 
 def test_invalid_explicit_and_inherited_heavy_binding_indices_fail_loud(tmp_path):
@@ -322,32 +382,56 @@ def test_inherited_heavy_binding_never_reinterprets_zero_as_last_atom(tmp_path):
 
 
 @pytest.mark.parametrize("explicit", [False, True])
-def test_ambiguous_reactant_requires_redeclaration_of_inherited_rotation_axis(tmp_path, explicit):
+def test_ambiguous_reactant_drops_old_rotation_axis_or_keeps_explicit_incoming_axis(tmp_path, explicit):
     from rdkit import Chem
 
     from cloudra.tools.core.ts_inputs import RotatedConformer
 
     record, mol = _identity_fixture(tmp_path, labels=False)
     record.input.conformers.product = RotatedConformer(kind="rotate_about_bond", atoms=(0, 1), degrees=60.)
-    _write_source(tmp_path, "reactant", Chem.RenumberAtoms(mol, [0, 2, 1]))
-    changes = dict(conformers=dict(product=dict(kind="rotate_about_bond", atoms=[0, 2], degrees=60.))) if explicit else {}
+    historical = Path(record.current_seed_xyz_path).read_bytes()
+    replacement = _write_source(tmp_path, "reactant", Chem.RenumberAtoms(mol, [2, 0, 1]))
+    incoming = Path(replacement["xyz_path"]).read_bytes()
+    changes = dict(conformers=dict(product=dict(kind="rotate_about_bond", atoms=[1, 2], degrees=60.))) if explicit else {}
     change = request(record, changes)
-    with pytest.raises(ValueError, match="atom correspondence is unproved"):
-        plan_input_revision(record, change)
+    revised = revise_record(record, change, plan_input_revision(record, change))
+
+    if explicit:
+        assert revised.input.conformers.product.atoms == (1, 2)
+        assert revised.input.conformers.product.degrees == 60.
+    else:
+        assert revised.input.conformers.product is None
+    assert revised.input.reaction.atom_map == []
+    assert revised.input.reaction.reaction_center == []
+    assert revised.input.guess is None
+    assert "reactant" not in revised.structures
     assert record.input.conformers.product.atoms == (0, 1)
+    assert Path(record.current_seed_xyz_path).read_bytes() == historical
+    assert Path(replacement["xyz_path"]).read_bytes() == incoming
 
 
-def test_species_edit_cannot_launder_an_invalid_old_heavy_binding(tmp_path):
+def test_species_edit_discards_invalid_old_heavy_binding_instead_of_reinterpreting_it(tmp_path):
     from cloudra.tools.core.ts_inputs import HeavyAtomBinding
 
     record, _ = _identity_fixture(tmp_path, smiles="CCO", labels=False)
     record.input.conformers.reactant.heavy_atom_binding = HeavyAtomBinding(
          indices=[3, 2, 1])
+    before = record.input.model_copy(deep=True)
+    historical = Path(record.current_seed_xyz_path).read_bytes()
     # This backwards binding is invalid against CCO but becomes valid against
     # OCC. Updating its digest without checking the old meaning would bless it.
     change = request(record, dict(reaction=dict(reactant_smiles="OCC")))
-    with pytest.raises(ValueError, match="inherited heavy-atom binding"):
-        plan_input_revision(record, change)
+    revised = revise_record(record, change, plan_input_revision(record, change))
+
+    assert revised.input.reaction.reactant_smiles == "OCC"
+    assert revised.input.conformers.reactant.heavy_atom_binding is None
+    assert revised.input.reaction.atom_map == []
+    assert revised.input.reaction.reaction_center == []
+    assert revised.input.guess is None
+    assert revised.stage == "declare" and revised.terminal is None
+    assert revised.attempt_history[-1].input == before
+    assert record.input == before
+    assert Path(record.current_seed_xyz_path).read_bytes() == historical
 
 
 def test_proved_renumbering_translates_stable_xyz_identity_assertions_with_atoms(tmp_path):

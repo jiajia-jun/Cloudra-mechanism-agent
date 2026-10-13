@@ -384,11 +384,14 @@ def test_explicit_closed_character_does_not_enable_symmetric_representative():
     assert _binding(smiles, mol, multiplicity=1, electronic_character='closed_shell', explicit_indices=[2, 1])['binding_status'] == 'complete'
 
 
-def test_open_shell_xyz_stereochemistry_must_match_declared_mol_before_compute(tmp_path):
+def test_open_shell_coarse_seed_can_bind_but_wrong_stereochemistry_cannot_verify(tmp_path):
     record, mol = _file_record(tmp_path, '[CH2]C[C@](F)(Cl)Br', multiplicity=2)
     for index, point in enumerate(mol.GetConformer().GetPositions()):
         mol.GetConformer().SetAtomPosition(index, [-point[0], point[1], point[2]])
     (tmp_path / 'seed.xyz').write_text(Chem.MolToXYZBlock(mol))
     _build(record)
     _map(record)
-    assert record.blocked is not None
+    assert record.blocked is None
+    assert record.input_binding['binding_status'] == 'complete'
+    assert _endpoint_identity_error(record, 'reactant', (
+        [atom.GetSymbol() for atom in mol.GetAtoms()], mol.GetConformer().GetPositions().tolist()))

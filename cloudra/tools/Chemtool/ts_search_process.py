@@ -8,7 +8,6 @@ from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.runtime_v2.invocation_context import current_invocation_scope
 from cloudra.services.ts_pipeline_store import TsRevisionReceipt
 from cloudra.tools.core.ts_inputs import (
-    ScanRecoveryEvidence,
     TsInput,
     TsInputChanges,
     TsResumeRequest,
@@ -28,7 +27,6 @@ class TsResume_input_schema(input_schema):
     run_id: str = Field(min_length=1)
     changes: TsInputChanges = Field(default_factory=TsInputChanges, description='Within the same calculation, omitted fields retain existing keywords, frequency_mode, orca_blocks and end_setting; explicit empty values clear them. Changing engine, method or basis_set requires {replace: complete_configuration}; changing a named reference uses {replace: {ref: name}}. calculations profile-map omissions remain unchanged, and null removes an unused profile. A scan-coordinate-only patch need not copy calculation. Use the current atom identities/order reported in structures with each field\'s documented index base: structure/reaction references are 1-based; ORCA scan/freeze references are 0-based; Gaussian/xTB scan references are 1-based. For a newly supplied file order, explicit declarations refer to that incoming order and are converted once when the current XYZ/MOL is overwritten into proven canonical order. If a provided TS guess cannot be associated with a simultaneous source reorder, first normalize the endpoint files, then submit the guess in the reported current order.')
     reason: str = Field(min_length=1)
-    scan_recovery: list[str] | None = Field(default=None, min_length=1, description='Paths of actual repair evidence for the current failed scan: changed declared conformer files, or a JSON file containing a nonblank repair description. The runtime binds failure identity and file fingerprints internally. A reason or point-count change alone is insufficient.')
 
 
 class TsInspect_input_schema(input_schema):
@@ -89,69 +87,6 @@ def _resume_normalization_input(db, record, accepted):
     return TsInput.model_validate_json(row[0])
 
 
-def _scan_recovery_input(record, paths, accepted):
-    """Generate private recovery protocol from owned failure and concrete files."""
-    import hashlib
-    import json
-    from pathlib import Path
-
-    from cloudra.tools.core.conformer_catalog import content_digest
-    from cloudra.tools.core.ts_inputs import ScanRepairReceipt
-    from cloudra.tools.core.ts_process import (
-        _artifact_sha256,
-        _refinement_log_path,
-        _workspace_input_path,
-        _write_immutable_input,
-    )
-    from cloudra.tools.core.ts_revision import _failed_step
-
-    if paths is None:
-        return None
-    if accepted and accepted.recovery_evidence:
-        proof = accepted.recovery_evidence
-        original = [(ref.get('receipt') or {}).get('repair_source_path') or ref['path']
-                    for ref in proof['evidence_refs']]
-        if [str(_workspace_input_path(record, path)) for path in paths] != original:
-            raise ValueError('revision request key conflict: repair evidence paths changed')
-        failure = proof['failed_attempt']
-        refs = [dict(path=ref['path'], sha256=ref['sha256']) for ref in proof['evidence_refs']]
-    else:
-        failed = _failed_step(record)
-        if failed is None or failed.purpose != 'scan':
-            raise ValueError('scan recovery does not refer to a current failed scan')
-        failure = dict(attempt_id=f'{failed.source_input_revision}:scan:{failed.job_id}',
-            input_sha256=_artifact_sha256(Path(failed.input_path)),
-            log_sha256=_artifact_sha256(Path(_refinement_log_path(record, failed))))
-        refs = []
-        for value in paths:
-            path = _workspace_input_path(record, value)
-            if path.suffix == '.json':
-                try:
-                    content = path.read_bytes()
-                except OSError as exc:
-                    raise ValueError('scan recovery artifact is missing') from exc
-                digest = hashlib.sha256(content).hexdigest()
-                value = json.loads(content)
-                if isinstance(value, dict) and set(value) == {'repair'}:
-                    receipt = ScanRepairReceipt(failed_attempt_id=failure['attempt_id'],
-                        failure_input_sha256=failure['input_sha256'], repair=value['repair'],
-                        repair_source_path=str(path), repair_source_sha256=digest)
-                    text = receipt.model_dump_json()
-                    directory = Path(record.run_dir) / 'recovery'
-                    directory.mkdir(parents=True, exist_ok=True)
-                    path = directory / (content_digest(receipt.model_dump()) + '.json')
-                    _write_immutable_input(str(path), text)
-                    digest = _artifact_sha256(path)
-            else:
-                digest = _artifact_sha256(path)
-                if digest is None:
-                    raise ValueError('scan recovery artifact is missing')
-            refs.append(dict(path=str(path), sha256=digest))
-    return ScanRecoveryEvidence(failed_attempt_id=failure['attempt_id'],
-        failure_input_sha256=failure['input_sha256'], failure_log_sha256=failure['log_sha256'],
-        evidence_refs=refs)
-
-
 class TsPrepare(Tool):
     tool_id: str = 't-59'
     tool_name: str = 'ts_prepare'
@@ -182,7 +117,7 @@ class TsPrepare(Tool):
 class TsResume(Tool):
     tool_id: str = 't-60'
     tool_name: str = 'ts_resume'
-    tool_description: str = 'Revise input groups on the existing TS path. Omitted calculation fields retain settings; explicit empty values clear them. Engine, method or basis changes use {replace: complete_configuration}; profile-reference changes use {replace: {ref: name}}. Proven atom reorderings overwrite current mutable XYZ/MOL sources in canonical order; new incoming atom declarations convert once. Future calls use the returned current atom order with each field\'s documented index base. Historical QM artifacts retain their original order. Declare the intended change and its reason; the runtime manages concurrency and replay identity. Failed scans require scan_recovery naming actual repair artifacts; the runtime binds the current failure and file fingerprints; a reason, point-count change or changes={} alone cannot retry a failed scan. Other failed attempts may retry unchanged input where their existing stage contract permits it. Active jobs prevent revisions. Use ts_inspect for reads.'
+    tool_description: str = 'Revise input groups on the existing TS path. Omitted calculation fields retain settings; explicit empty values clear them. Engine, method or basis changes use {replace: complete_configuration}; profile-reference changes use {replace: {ref: name}}. Proven atom reorderings overwrite current mutable XYZ/MOL sources in canonical order; new incoming atom declarations convert once. Future calls use the returned current atom order with each field\'s documented index base. Historical QM artifacts retain their original order. Declare the intended change and its reason; the runtime manages concurrency and replay identity. Revise a failed or no-peak search with new scientific inputs, or retry with changes={}; previous attempts remain recorded automatically. Active jobs prevent revisions. Use ts_inspect for reads.'
     input_schema: Any = TsResume_input_schema
     output_schema: Any = TsProcess_output_schema
 
@@ -207,10 +142,7 @@ class TsResume(Tool):
                 process_id=record.pipeline_id, request_key=request_key)
             normalization_input = await asyncio.to_thread(_resume_normalization_input,
                 pipeline_database(), record, accepted)
-            recovery = await asyncio.to_thread(_scan_recovery_input, record, user_input.scan_recovery, accepted)
-            payload = user_input.model_dump(exclude={'run_id', 'scan_recovery'}, exclude_unset=True)
-            if recovery is not None:
-                payload['scan_recovery'] = recovery
+            payload = user_input.model_dump(exclude={'run_id'}, exclude_unset=True)
             request = TsResumeRequest.model_validate({**payload,
                 'request_key': request_key,
                 'expected_revision': accepted.previous_revision if accepted else record.revision})

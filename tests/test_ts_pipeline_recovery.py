@@ -254,23 +254,43 @@ def test_reaction_center_change_without_ring_invalidates_geometry_dependencies(t
 
 
 @pytest.mark.parametrize("note", ["", "retain the existing scan"])
-def test_repeated_unchanged_scan_adjustment_preserves_failure_and_budget(tmp_path, note):
-    db, pid, record = checkpoint(tmp_path)
-    from cloudra.tools.core.ts_inputs import ScanGuess, TsExecutionLimits, TsResumeRequest
-    record.input.guess = ScanGuess(kind="scan",calculation={"engine":"orca","method":"b3lyp","basis_set":"def2svp","keywords":"D3BJ RIJCOSX def2/J TightSCF"},
-        scans=[{"atoms": [0, 1], "scan_start": 1, "scan_end": 2, "scan_steps": 7}],
-    )
-    record.input.execution.limits = TsExecutionLimits(source="explicit_user",max_interventions=1)
-    record.scan_step = record.job_steps.pop().model_copy(update={"purpose": "scan", "state": "failed"})
-    record.blocked = ts_process.TsBlocked(stage="guess", failure_class="scan_job_failed", message="SHARK failure")
-    save_process_record(db, process_id=pid, record=record.model_dump(mode="json"))
-    before = get_process(db, pid)
-    for index in range(3):
-        record = ts_process.resume(record, TsResumeRequest(changes={'guess':record.input.guess.model_dump()},reason=note or 'retain existing scan',request_key=f'unchanged-{index}',expected_revision=before['revision']))
-        assert record.model_dump(mode="json") == before["record"]
-        assert get_process(db, pid) == before
+def test_same_input_retry_is_replayed_once_and_keeps_authorized_budget(tmp_path, monkeypatch, note):
+    from cloudra.services.compute_admission import AdmissionOutcome
+    from cloudra.services.ts_pipeline_store import get_revision_receipt
+    from cloudra.tools.core.ts_inputs import TsResumeRequest
+    from cloudra.tools.core.ts_pipeline_driver import handle_process_job_terminal
+    from tests.test_ts_fixture_pipeline import waiting_fixture_stage
+
+    monkeypatch.setattr("cloudra.services.compute_admission.admit_job", lambda **_:
+        AdmissionOutcome(ok=True, node_id="fixture", scheduler="local"))
+    db, initial, old_step = waiting_fixture_stage(tmp_path, purpose="scan",
+        limits={"source": "explicit_user", "max_interventions": 1})
     with db.connect() as con:
-        assert con.execute("SELECT COUNT(*) FROM compute_jobs").fetchone()[0] == 1
+        con.execute("UPDATE compute_jobs SET state='failed' WHERE id=?", (old_step.job_id,))
+    state = handle_process_job_terminal(db, old_step.job_id)
+    record = ts_process.TsProcessRecord.model_validate(state['record'])
+    old_input = Path(old_step.input_path).read_bytes()
+    request = TsResumeRequest(changes={}, reason=note or 'Retry the native scan',
+        request_key='retry-once', expected_revision=record.revision)
+    retried = ts_process.resume(record, request)
+    receipt = get_revision_receipt(db, process_id=initial.pipeline_id, request_key=request.request_key)
+    replay = ts_process.resume(record, request)
+    assert retried.input == replay.input == record.input
+    assert replay.intervention_count == retried.intervention_count == 1
+    assert replay.scan_step.job_id == retried.scan_step.job_id != old_step.job_id
+    assert get_revision_receipt(db, process_id=initial.pipeline_id, request_key=request.request_key) == receipt
+    assert retried.attempt_history[-1].failed_attempt == record.failed_attempt
+    with db.connect() as con:
+        assert con.execute("SELECT COUNT(*) FROM compute_jobs").fetchone()[0] == 2
+        con.execute("UPDATE compute_jobs SET state='failed' WHERE id=?", (retried.scan_step.job_id,))
+    state = handle_process_job_terminal(db, retried.scan_step.job_id)
+    failed_again = ts_process.TsProcessRecord.model_validate(state['record'])
+    with pytest.raises(ValueError, match='intervention limit exhausted'):
+        ts_process.resume(failed_again, TsResumeRequest(changes={}, reason='Another retry',
+            request_key='over-budget', expected_revision=failed_again.revision))
+    assert Path(old_step.input_path).read_bytes() == old_input
+    with db.connect() as con:
+        assert con.execute("SELECT COUNT(*) FROM compute_jobs").fetchone()[0] == 2
 
 
 pytestmark = pytest.mark.usefixtures("ts_producer_authority")

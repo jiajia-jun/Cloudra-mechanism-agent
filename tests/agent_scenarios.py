@@ -460,7 +460,7 @@ class ScenarioHarness:
 
 
 # Names shared by the zero-key TS state-machine regressions.
-TS_SCENARIOS = ('ts_prepare_once_auto_complete', 'ts_failed_scan_repair_same_run', 'ts_readonly_inspection',
+TS_SCENARIOS = ('ts_prepare_once_auto_complete', 'ts_failed_scan_retry_same_run', 'ts_readonly_inspection',
                 'ts_resume_scan_without_freeze', 'ts_d1_atom_binding_native_scan_recovery',
                 'ts_conformer_source_revision_same_run', 'ts_same_structure_source_keeps_declarations',
                 'ts_canonical_source_overwrite')

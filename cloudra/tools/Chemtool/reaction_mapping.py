@@ -903,7 +903,8 @@ def _expand_full_atom_map(
     return [idx + 1 for idx in full_map], "Full-atom mapping bound to the concrete structure order."
 
 
-def check_concrete_binding(user_input, mapping_result: dict, *, known_digests: dict[str, str] | None = None) -> dict:
+def check_concrete_binding(user_input, mapping_result: dict, *, known_digests: dict[str, str] | None = None,
+                           bound_molecules: dict | None = None) -> dict:
     from rdkit import Chem
 
     from cloudra.tools.core.electronic_state import electronic_state_details, electronic_state_issue
@@ -920,20 +921,27 @@ def check_concrete_binding(user_input, mapping_result: dict, *, known_digests: d
         if issue:
             raise ValueError(f'{role}: {issue[1]}')
         states[role] = electronic_state_details(declared, **arguments)
-    reactant = _read_structure(
-        user_input.reactant_path, user_input.reactant_text,
-        user_input.reactant_format, user_input.reactant_charge, "Reactant",
-        multiplicity=user_input.reactant_multiplicity,
-        electronic_character=user_input.reactant_electronic_character,
-        require_declared_identity=states['reactant']['requires_spin_aware_geometry'],
-    )
-    product = _read_structure(
-        user_input.product_path, user_input.product_text,
-        user_input.product_format, user_input.product_charge, "Product",
-        multiplicity=user_input.product_multiplicity,
-        electronic_character=user_input.product_electronic_character,
-        require_declared_identity=states['product']['requires_spin_aware_geometry'],
-    )
+    if bound_molecules is not None:
+        # TS already read and bound these graphs. Serializing coarse coordinates
+        # through a MOL block would reassign stereo from an unoptimized seed.
+        reactant, product = (Chem.Mol(bound_molecules[role]) for role in ('reactant', 'product'))
+        for graph in (reactant, product):
+            graph.RemoveAllConformers()
+    else:
+        reactant = _read_structure(
+            user_input.reactant_path, user_input.reactant_text,
+            user_input.reactant_format, user_input.reactant_charge, "Reactant",
+            multiplicity=user_input.reactant_multiplicity,
+            electronic_character=user_input.reactant_electronic_character,
+            require_declared_identity=states['reactant']['requires_spin_aware_geometry'],
+        )
+        product = _read_structure(
+            user_input.product_path, user_input.product_text,
+            user_input.product_format, user_input.product_charge, "Product",
+            multiplicity=user_input.product_multiplicity,
+            electronic_character=user_input.product_electronic_character,
+            require_declared_identity=states['product']['requires_spin_aware_geometry'],
+        )
     def bind(role, structure):
         if structure is not None:
             issue = electronic_state_issue(structure, charge=getattr(user_input, role + '_charge'),

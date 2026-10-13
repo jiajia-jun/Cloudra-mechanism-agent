@@ -107,7 +107,7 @@ def test_identity_is_rechecked_after_geometry_source_changes(tmp_path, monkeypat
     _guess(record)
     assert record.blocked.failure_class=='input_identity_unconfirmed'
     assert record.input_binding['binding_status']=='inconclusive'
-    assert 'connectivity' in record.input_binding['binding_diagnostics'][0]
+    assert record.input_binding['reactant_identity'] == 'mismatch'
     assert record.input_binding.get('hashes')!=original
 
 

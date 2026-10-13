@@ -32,11 +32,11 @@ def test_irc_hessian_requires_complete_scientific_settings(tmp_path, field):
 
 
 @pytest.mark.usefixtures("rdkit_chemistry")
-def test_mol_cannot_mask_dissociated_xyz_before_conformer_optimization(tmp_path, monkeypatch):
+def test_coarse_xyz_can_optimize_but_cannot_count_as_a_minimum(tmp_path, monkeypatch):
     from rdkit import Chem
 
     from cloudra.tools.core.ts_inputs import FileConformer, QmCalculation
-    from cloudra.tools.core.ts_process import _build
+    from cloudra.tools.core.ts_process import _build, _endpoint_identity_error
     from tests.test_ts_input_evidence import concrete
     record=record_fixture(tmp_path)
     record.input.reaction.reactant_smiles=record.input.reaction.product_smiles='O'
@@ -46,10 +46,18 @@ def test_mol_cannot_mask_dissociated_xyz_before_conformer_optimization(tmp_path,
     xyz=tmp_path/'water.xyz'
     xyz.write_text('3\ndissociated\nO 0 0 0\nH 30 0 0\nH 0 30 0\n')
     record.input.conformers.reactant=FileConformer(kind='file',xyz_path=str(xyz),mol_path=str(graph),optimization=QmCalculation(basis_set='', engine='xtb',method='GFN2-xTB',keywords=''))
-    monkeypatch.setattr('cloudra.tools.core.ts_process._submit_step',lambda *_:pytest.fail('Invalid actual geometry cannot spend compute'))
+    submissions = []
+    def submit(_record, purpose, manifest, job_type):
+        submissions.append((purpose, manifest, job_type))
+        return '', 7
+    monkeypatch.setattr('cloudra.tools.core.ts_process._submit_step', submit)
+    monkeypatch.setattr('cloudra.tools.core.ts_process._step_state', lambda *_: 'ready')
     _build(record)
-    assert record.blocked.failure_class=='input_identity_unconfirmed'
-    assert record.job_steps==[]
+    assert record.blocked is None
+    assert submissions[0][0] == 'candidate_opt'
+    assert record.job_steps[0].state == 'ready'
+    assert _endpoint_identity_error(record, 'reactant',
+        (['O', 'H', 'H'], [[0, 0, 0], [30, 0, 0], [0, 30, 0]]))
     assert Chem.MolFromMolFile(str(graph)) is not None
 
 
@@ -160,19 +168,9 @@ def recovery_fixture(tmp_path, purpose='frequency', failure='wrong_mode'):
     _record_candidate_failure(record,failure,step,str(old.with_suffix('.out')))
     record.input.verification.frequency=step.actual_calculation
     def request(changes,refs):
-        import hashlib
-        import json
-
         _record_candidate_failure(record, failure, step, str(old.with_suffix('.out')))
-        repair = tmp_path / 'repair-receipt.json'
-        repair.write_text(json.dumps(dict(failed_attempt_id=record.failed_attempt['attempt_id'],
-            failure_input_sha256=record.failed_attempt['input_sha256'],
-            repair='Explicitly revised route/coordinate input supported by the supplied native diagnostic and seed artifacts')))
-        return TsResumeRequest(reason='bound repair',request_key='repair',expected_revision=0,changes=changes,
-            scan_recovery=dict(failed_attempt_id=record.failed_attempt['attempt_id'],
-                failure_input_sha256=record.failed_attempt['input_sha256'],
-                failure_log_sha256=record.failed_attempt['log_sha256'],
-                evidence_refs=[dict(path=str(repair), sha256=hashlib.sha256(repair.read_bytes()).hexdigest())]))
+        return TsResumeRequest(reason='Test the revised route against native observations',
+            request_key='retry', expected_revision=0, changes=changes)
     return db,record,old,request
 
 

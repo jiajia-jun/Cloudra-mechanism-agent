@@ -44,7 +44,7 @@ def test_endpoint_revision_retains_independent_completed_branch(tmp_path):
     assert [ref.stage_key for ref in receipt.invalidated] == ['reactant_opt', 'reactant_frequency']
 
 
-def test_failed_scan_point_count_change_preserves_failure_without_recovery_evidence(tmp_path):
+def test_failed_scan_point_count_change_preserves_failure_history(tmp_path):
     from cloudra.tools.core.ts_process import TsBlocked, TsJobStep
     from cloudra.tools.core.ts_revision import plan_input_revision, revise_record
     record = record_fixture(tmp_path, stage='guess', blocked=TsBlocked(stage='guess', failure_class='scan_job_failed', message='native failure'))
@@ -52,8 +52,12 @@ def test_failed_scan_point_count_change_preserves_failure_without_recovery_evide
     guess = record.input.guess.model_dump(mode='json')
     guess['scans'][0]['scan_steps'] = 8
     change = request(record, {'guess': guess})
-    with pytest.raises(ValueError, match='recovery evidence'):
-        revise_record(record, change, plan_input_revision(record, change))
+    receipt = plan_input_revision(record, change)
+    revised = revise_record(record, change, receipt)
+    assert revised.input.guess.scans[0].scan_steps == 8
+    assert revised.stage == 'guess' and revised.scan_step is None
+    assert revised.attempt_history[-1].blocked == record.blocked
+    assert revised.attempt_history[-1].job_steps[0].job_id == 7
     assert record.blocked.failure_class == 'scan_job_failed'
     assert record.attempt_history == []
     assert record.scan_step.state == 'failed'
@@ -100,9 +104,9 @@ def test_source_revision_clears_old_geometry_and_numeric_checkpoints(tmp_path):
     assert record.current_seed_xyz_path == 'old.xyz'
 
 
-def test_overwritten_ambiguous_external_xyz_blocks_unproved_atom_numbers(tmp_path):
+def test_overwritten_ambiguous_external_xyz_rebuilds_without_stale_atom_numbers(tmp_path):
     from cloudra.tools.core.ts_inputs import FileConformer
-    from cloudra.tools.core.ts_revision import plan_input_revision
+    from cloudra.tools.core.ts_revision import plan_input_revision, revise_record
 
     source = tmp_path / 'reactant.xyz'
     source.write_text('2\nold\nH 0 0 0\nH 0 0 .74\n')
@@ -114,8 +118,14 @@ def test_overwritten_ambiguous_external_xyz_blocks_unproved_atom_numbers(tmp_pat
     record.structures['reactant'] = {'xyz_sha256': 'old', 'input_revision': 1}
     source.write_text('2\nchanged\nH 0 0 .74\nH 0 0 0\n')
     change = request(record, {})
-    with pytest.raises(ValueError, match='atom correspondence is unproved'):
-        plan_input_revision(record, change)
+    revised = revise_record(record, change, plan_input_revision(record, change))
+    assert revised.stage == 'build' and revised.terminal is None
+    assert revised.input.reaction.atom_map == []
+    assert revised.input.reaction.reaction_center == []
+    assert revised.input.conformers.guidance.ring_order == []
+    assert revised.input.guess is None
+    assert revised.structures == {}
+    assert revised.attempt_history[-1].input.reaction.atom_map == record.input.reaction.atom_map
     assert snapshot.read_text().startswith('2\nold')
 
 
@@ -150,8 +160,12 @@ def test_repeated_method_revisions_retain_unchanged_source_binding(tmp_path, mon
         assert receipt.changes == ['ts_optimization.basis_set', 'ts_optimization.method']
     source.write_text('2\nchanged\nH 0 0 .74\nH 0 0 0\n')
     change = request(record, {})
-    with pytest.raises(ValueError, match='atom correspondence is unproved'):
-        plan_input_revision(record, change)
+    revised = revise_record(record, change, plan_input_revision(record, change))
+    assert revised.stage == 'build'
+    assert revised.input.reaction.atom_map == [] and revised.input.guess is None
+    assert revised.input.reaction.reaction_center == []
+    assert revised.input.conformers.guidance.ring_order == []
+    assert snapshot.read_text().startswith('2\nunchanged')
     assert record.input.reaction.atom_map == original_input.reaction.atom_map
 
 
@@ -190,7 +204,7 @@ def test_custom_derivative_binding_is_preserved_in_revision_receipt(tmp_path):
     assert receipt.invalidated[0].stage_key == 'candidate_constraints:point'
 
 
-def test_failed_scan_same_input_retry_requires_recovery_evidence(tmp_path):
+def test_failed_scan_same_input_retry_keeps_native_input_job_and_history(tmp_path):
     from cloudra.persistence.database import ComputeDB
     from cloudra.services.compute_store import insert_compute_job
     from cloudra.services.ts_pipeline_context import use_pipeline_database
@@ -204,8 +218,12 @@ def test_failed_scan_same_input_retry_requires_recovery_evidence(tmp_path):
         scan_step=TsJobStep(purpose='scan', job_id=failed, input_path=str(old),state='failed'))
     change = request(record, {})
     with use_pipeline_database(db):
-        with pytest.raises(ValueError, match='recovery evidence'):
-            revise_record(record,change,plan_input_revision(record,change))
+        revised = revise_record(record, change, plan_input_revision(record, change))
+    assert revised.stage == 'guess' and revised.scan_step is None
+    assert revised.attempt_history[-1].job_steps[0].job_id == failed
+    assert revised.attempt_history[-1].blocked == record.blocked
+    assert revised.terminal is None
+    assert old.read_text() == 'accepted native input'
     assert record.scan_step.job_id == failed
     assert record.blocked.failure_class == 'scan_job_failed'
     assert record.attempt_history == []

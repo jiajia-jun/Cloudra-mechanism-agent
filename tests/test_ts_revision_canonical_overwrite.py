@@ -1,4 +1,4 @@
-"""Current input files expose only the accepted canonical atom numbering."""
+"""Only proved mappings rewrite current numbering; fresh input and history stay intact."""
 
 from pathlib import Path
 
@@ -86,16 +86,70 @@ def test_explicit_raw_references_convert_once_including_product_map_slots(tmp_pa
     assert revised.input.guess.freeze[0].atoms == [0, 2]
 
 
-def test_unproved_current_file_permutation_blocks_without_claiming_normalization(tmp_path):
+@pytest.mark.parametrize("redeclare", [False, True])
+def test_unproved_current_file_order_commits_fresh_references_without_normalizing_or_rewriting_history(tmp_path, redeclare):
     from rdkit import Chem
 
+    from cloudra.tools.core.ts_inputs import HeavyAtomBinding
+    from cloudra.tools.core.ts_process import TsProcessRecord, _build
+
     record, mol = _identity_fixture(tmp_path, labels=False)
-    replacement = _write_source(tmp_path, "reactant", Chem.RenumberAtoms(mol, [0, 2, 1]))
-    before = Path(replacement["xyz_path"]).read_bytes()
-    with pytest.raises(ValueError, match="atom correspondence.*unproved|unproved.*atom correspondence"):
-        plan_input_revision(record, request(record, {}))
-    assert Path(replacement["xyz_path"]).read_bytes() == before
+    record.input.conformers.reactant.heavy_atom_binding = HeavyAtomBinding(indices=[1])
+    db = _ledger(tmp_path, record)
+    old_input = record.input.model_copy(deep=True)
+    historical = {kind: Path(getattr(record, "current_seed_" + kind + "_path")).read_bytes()
+                  for kind in ("xyz", "mol")}
+    replacement = _write_source(tmp_path, "reactant", Chem.RenumberAtoms(mol, [2, 0, 1]))
+    incoming = {kind: Path(replacement[kind + "_path"]).read_bytes() for kind in ("xyz", "mol")}
+    changes = {}
+    if redeclare:
+        guess = tmp_path / "incoming_guess.xyz"
+        guess.write_bytes(incoming["xyz"])
+        changes = dict(reaction=dict(atom_map=[1, 2, 0], reaction_center=[[1, 2]]),
+            conformers=dict(reactant=dict(**replacement, heavy_atom_binding=dict(indices=[2])),
+                guidance=dict(ring_order=[1, 2, 0], distance_filters=[dict(atoms=[1, 2], min_ang=.5, max_ang=2.)])),
+            guess=dict(kind="provided", xyz_path=str(guess), evidence_refs=[replacement["xyz_path"]]))
+    change = request(record, changes)
+    receipt = plan_input_revision(record, change)
+    revised = revise_record(record, change, receipt)
+
+    assert revised.input.reaction.atom_map == ([1, 2, 0] if redeclare else [])
+    assert revised.input.reaction.reaction_center == ([(1, 2)] if redeclare else [])
+    assert revised.input.conformers.guidance.ring_order == ([1, 2, 0] if redeclare else [])
+    if redeclare:
+        assert revised.input.conformers.reactant.heavy_atom_binding.indices == [2]
+        assert revised.input.conformers.guidance.distance_filters[0].atoms == [1, 2]
+        assert revised.input.guess.xyz_path == str(guess)
+        assert guess.read_bytes() == incoming["xyz"]
+    else:
+        assert revised.input.conformers.reactant.heavy_atom_binding is None
+        assert revised.input.conformers.guidance.distance_filters == []
+        assert revised.input.guess is None
+    assert revised.stage == "build" and revised.terminal is None
+    assert revised.attempt_history[-1].input == old_input
+    assert "reactant" not in revised.structures
+    commit_input_revision(db, process_id=record.pipeline_id, request=change,
+                          record=revised.model_dump(mode="json"), receipt=receipt)
+    accepted = get_process(db, record.pipeline_id)
+    assert "reactant" not in accepted["record"]["structures"]
+    with db.connect() as con:
+        assert con.execute("SELECT COUNT(*) FROM ts_pipeline_source_rewrites").fetchone()[0] == 0
+    assert {kind: Path(replacement[kind + "_path"]).read_bytes() for kind in ("xyz", "mol")} == incoming
+    assert {kind: Path(getattr(record, "current_seed_" + kind + "_path")).read_bytes()
+            for kind in ("xyz", "mol")} == historical
     assert "normalization" not in record.structures["reactant"]
+
+    # The rebuild copies the incoming order; it cannot invent an old canonical
+    # permutation merely because the element sequence or molecule is similar.
+    rebuilt = TsProcessRecord.model_validate(accepted["record"])
+    rebuilt.input.conformers.guidance = type(rebuilt.input.conformers.guidance)()
+    _build(rebuilt)
+    assert rebuilt.blocked is None
+    assert read_xyz_atoms(rebuilt.current_seed_xyz_path) == read_xyz_atoms(replacement["xyz_path"])
+    assert [symbol for symbol, _ in read_xyz_atoms(rebuilt.current_seed_xyz_path)] == ["H", "O", "H"]
+    assert "normalization" not in rebuilt.structures["reactant"]
+    assert {kind: Path(getattr(record, "current_seed_" + kind + "_path")).read_bytes()
+            for kind in ("xyz", "mol")} == historical
 
 
 def test_changed_coordinate_source_cannot_reuse_an_equal_dependency_receipt(tmp_path):
