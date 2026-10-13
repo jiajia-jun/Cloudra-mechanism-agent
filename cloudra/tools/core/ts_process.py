@@ -2460,6 +2460,81 @@ def _endpoint_opt_frame(record: TsProcessRecord, step: TsJobStep) -> tuple[str, 
         )
     return xyz, ""
 
+
+def _endpoint_seed_atoms(record: TsProcessRecord, role: str, seed):
+    """Normalize a species-order seed; native IRC files already use TS order."""
+    from rdkit import Chem
+
+    from cloudra.tools.core import gaussian_frames, orca_frames
+    from cloudra.tools.core.structure_artifacts import read_xyz_atoms
+
+    path = _workspace_input_path(record, seed.xyz_path)
+    atoms = read_xyz_atoms(path)
+
+    for step in reversed(record.job_steps):
+        if step.purpose != 'irc' or step.state != 'done':
+            continue
+        log = _refinement_log_path(record, step)
+        if _step_calculation(record, step).engine == 'orca':
+            endpoints = orca_frames.extract_irc_endpoints(log)
+            for item in endpoints.values():
+                if item.get('geometry_ref') and Path(item['geometry_ref']).resolve() == path:
+                    from cloudra.tools.core.irc_path import parse_xyz
+                    geometry = parse_xyz(orca_frames.read_endpoint_geometry(item) or '')
+                    if geometry is None:
+                        raise ValueError('native IRC endpoint geometry is unreadable')
+                    return list(zip(*geometry))
+        else:
+            from cloudra.tools.core.irc_path import parse_xyz
+            frames, _ = gaussian_frames.extract_irc(log)
+            valid = [frame for frame in frames if frame.xyz and frame.reaction_coordinate is not None]
+            for side in ([f for f in valid if f.reaction_coordinate < 0],
+                         [f for f in valid if f.reaction_coordinate > 0]):
+                if not side:
+                    continue
+                outer = max(side, key=lambda frame: abs(frame.reaction_coordinate))
+                symbols, positions = parse_xyz(outer.xyz)
+                if atoms == list(zip(symbols, positions)):
+                    return atoms
+
+    if role != 'product' or _rotated_product(record) is not None:
+        return atoms
+    mapping = record.input.reaction.atom_map
+    if len(atoms) != len(mapping) or sorted(mapping) != list(range(len(atoms))):
+        raise ValueError('product endpoint seed and bound atom map differ in atom count')
+
+    if seed.mol_path:
+        supplied = Chem.MolFromMolFile(str(_workspace_input_path(record, seed.mol_path)), removeHs=False)
+        built = _read_built_xyz(record, 'product')
+        reference = Chem.MolFromMolFile(built[3], removeHs=False) if built else None
+        if supplied is None or reference is None:
+            raise ValueError('product endpoint seed MOL is missing or unreadable')
+
+        def indexed_graph(mol):
+            return ([(a.GetSymbol(), a.GetFormalCharge(), a.GetIsotope()) for a in mol.GetAtoms()],
+                sorted((min(b.GetBeginAtomIdx(), b.GetEndAtomIdx()), max(b.GetBeginAtomIdx(), b.GetEndAtomIdx()),
+                        b.GetBondTypeAsDouble()) for b in mol.GetBonds()))
+
+        if [a.GetSymbol() for a in supplied.GetAtoms()] != [s for s, _ in atoms]:
+            raise ValueError('product endpoint seed XYZ and MOL atom orders differ')
+        inverse = [mapping.index(i) for i in range(len(mapping))]
+        working = Chem.RenumberAtoms(reference, inverse)
+        native_order = indexed_graph(supplied) == indexed_graph(reference)
+        working_order = indexed_graph(supplied) == indexed_graph(working)
+        if native_order and working_order and inverse != list(range(len(mapping))):
+            # A symmetric graph cannot identify rows. Retain the bound MOL's concrete row identities.
+            supplied_positions = supplied.GetConformer().GetPositions().tolist()
+            native_order = supplied_positions == reference.GetConformer().GetPositions().tolist()
+            working_order = supplied_positions == working.GetConformer().GetPositions().tolist()
+        if working_order and not native_order:
+            return atoms
+        if not native_order:
+            raise ValueError(f'product endpoint MOL does not establish the bound atom order; reuse {built[3]} or an accepted native IRC endpoint')
+    reordered = [None] * len(atoms)
+    for source, target in enumerate(mapping):
+        reordered[target] = atoms[source]
+    return reordered
+
 def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
                           role: Literal["reactant", "product"],
                           task: Literal["opt", "frequency"]) -> tuple[str, str]:
@@ -2480,6 +2555,7 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
         return f'Explicit {_calculation_field(f"{role}_{task}")} required', ''
     endpoint = getattr(record.input.verification, role + '_endpoint')
     provenance = None
+    normalized_source = None
     if task == 'opt' and endpoint.seed is not None:
         path = _workspace_input_path(record, endpoint.seed.xyz_path)
         source = str(path)
@@ -2489,11 +2565,15 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
                 return 'Endpoint replacement source/evidence missing', ''
         if not path.is_file():
             return 'Endpoint replacement source/evidence missing', ''
-        from cloudra.tools.core.structure_artifacts import read_xyz_atoms
-        atoms = read_xyz_atoms(path)
+        try:
+            atoms = _endpoint_seed_atoms(record, role, endpoint.seed)
+        except (OSError, ValueError) as exc:
+            return str(exc), ''
         error = _endpoint_identity_error(record, role, ([s for s, _ in atoms], [point for _, point in atoms]))
         if error:
             return error, ''
+        normalized_source = '\n'.join([str(len(atoms)), 'Endpoint seed in TS working atom order',
+            *[symbol + ' ' + ' '.join(repr(float(value)) for value in point) for symbol, point in atoms]]) + '\n'
         provenance = dict(kind='species_reference', label=role)
     elif task == "opt":
         irc_step = next(
@@ -2540,7 +2620,7 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
         atomic_write_text(source, xyz.rstrip() + "\n")
 
     source_copy=os.path.join(job_dir,f'{role}_source.xyz')
-    _write_immutable_input(source_copy,Path(source).read_text())
+    _write_immutable_input(source_copy, normalized_source if normalized_source is not None else Path(source).read_text())
     source=source_copy
     import hashlib
     if task == 'opt':
@@ -2932,6 +3012,23 @@ def _geometry_bond_pairs(symbols, positions):
     return {tuple(sorted((bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()))) for bond in probe.GetBonds()}
 
 
+def _endpoint_geometry_note(record, label, geometry):
+    """Describe observed geometry without changing any acceptance criterion."""
+    from rdkit import Chem
+    from rdkit.Chem import rdDetermineBonds
+
+    from cloudra.tools.core.irc_path import xyz_block
+
+    try:
+        mol = Chem.MolFromXYZBlock(xyz_block(*geometry))
+        if mol is None:
+            raise ValueError('unreadable geometry')
+        rdDetermineBonds.DetermineBonds(mol, charge=record.input.reaction.charge)
+        return f'Optimized endpoint in {label} slot, geometry-perceived SMILES: {Chem.MolToSmiles(Chem.RemoveHs(mol))}'
+    except (RuntimeError, ValueError) as exc:
+        return f'Optimized endpoint in {label} slot, molecular identity could not be perceived: {exc}'
+
+
 def _geometry_connectivity_error(mol, optimized, charge, role, remap=None, *, multiplicity=1, electronic_character=None):
     """Spin-aware geometry proves bond pairs; bond orders remain declared identity."""
     import math
@@ -3266,7 +3363,9 @@ def _verdict(record: TsProcessRecord) -> TsProcessRecord:
         record, "verdict", "candidate_only",
         "The optimized IRC outer frames did not establish one consistent species identity, "
         "source provenance, and endpoint interval proof: " + "; ".join(failures)
-        + ". The candidate stays UNVERIFIED",
+        + ". " + _endpoint_geometry_note(record, 'reactant', side_a)
+        + "; " + _endpoint_geometry_note(record, 'product', side_b)
+        + ". These observations do not override the failed checks. The candidate stays UNVERIFIED",
     )
 
 def _stop_at_unimplemented(record: TsProcessRecord, stage: TsStage) -> TsProcessRecord:

@@ -195,8 +195,8 @@ TsGuess = Annotated[XtbPathGuess | ScanGuess | ProvidedGuess, Field(discriminato
 
 class EndpointSeed(InputModel):
     kind: Literal['file']
-    xyz_path: str = Field(min_length=1)
-    mol_path: str | None = None
+    xyz_path: str = Field(min_length=1, description='XYZ in the bound endpoint species atom order. The program applies the existing reaction atom map; accepted native IRC endpoint files already use TS working order.')
+    mol_path: str | None = Field(default=None, description='MOL defining the XYZ atom order. Use the existing bound species MOL; a MOL already in TS working order is also recognized.')
     evidence_refs: list[str] = Field(min_length=1)
 
 
