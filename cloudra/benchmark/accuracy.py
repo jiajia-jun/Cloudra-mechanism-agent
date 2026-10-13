@@ -14,10 +14,11 @@
   （无 accuracy 分；此结构记账按面值计，不被 ``max_penalty_fraction``
   封顶救回——封顶只作用于带参考值边的高斯偏离/定义差异罚分）。
 
-带参考值的边缺日志推算、缺声明、或声明在**任何合法组合**下都得不到支撑且
-证据也对不上参考 → 该边 0 分并置 fail-loud 结构化标记
-（``AccuracyReport.fail_loud``），由 runner 据此短路 composite（final 只保留
-图分；绝不用最终消息里的数字兜底）。声明支撑得住（或虽支撑不住、但交付证据
+带参考值的边缺日志推算或缺声明 → 该边 0 分，仍占总权重，不清掉其他边贡献，
+缺失罚分不受数值扣分封顶保护。声明在**任何合法组合**下都得不到支撑且证据
+也对不上参考 → 置 fail-loud 结构化标记（``AccuracyReport.fail_loud``），由
+runner 据此短路 composite（final 只保留图分；绝不用最终消息里的数字兜底）。
+声明支撑得住（或虽支撑不住、但交付证据
 里另有与参考一致的组合——即 agent 选了另一个构象/参考系定义、而正确的计算
 已在它的日志里）→ 走正常数值路径或按「答案定义差异」固定小扣分
 （`_DEFINITION_MISMATCH_EDGE_SCORE`），**不触发 fail-loud**（用户口径：这是
@@ -80,9 +81,9 @@ class AccuracyReport:
     sigma_kcal: float = 3.0
     gaussian_score: float = 0.0          # in [0, 1], 1 = exact match
     capped_penalty: float = 0.0          # penalty actually applied after cap
-    final_score: float = 0.0             # 1 - capped_penalty（缺证据/不一致直接边 0）
-    # fail-loud：任一参考边的声明/推算缺失或不一致时置 True（本层 accuracy
-    # 记 0），runner 据此短路 composite（final 只保留图分）
+    final_score: float = 0.0             # 1 - capped_penalty（缺证据/声明的边计 0）
+    # fail-loud：声明与日志冲突、且证据也对不上参考时置 True；缺失不触发。
+    # 本层 accuracy 记 0，runner 据此短路 composite（final 只保留图分）。
     fail_loud: bool = False
     # 逐边能垒得分：edge_id -> 高斯分（空 = 非能垒模式或本层未评分）
     edge_scores: dict[str, float] = field(default_factory=dict)
@@ -306,7 +307,7 @@ def score_accuracy(
         rep.notes.append("gold mechanism graph carries no edges; accuracy not scored")
         return rep
 
-    # --- 交付物双来源门禁：逐边核对（任一参考边缺失/不一致 -> fail-loud 标记） ---
+    # 逐边核对：缺失计该边零分，声明/日志冲突才触发 fail-loud。
     from cloudra.benchmark.graph_similarity import GedConfig
 
     cfg = cfg or GedConfig()
@@ -326,9 +327,9 @@ def score_accuracy(
 
     failures: list[str] = []
     weighted_sum = 0.0
-    graded_weight = 0.0        # 带参考值边的权重和（高斯/定义差异罚分只从这里出）
+    graded_weight = 0.0        # 已交付双来源参考边的权重和（高斯/定义差异罚分）
     graded_score_sum = 0.0     # Σ w·g（带参考值边）
-    structural_penalty = 0.0   # Σ w·(1-s)（无参考边的结构记账：可算未给参考 s=1.0，标答不可达 s=0.0）
+    uncapped_penalty = 0.0     # 缺证据、缺声明或标答不可达边的零分记账
     for edge, signature in zip(scored_edges, edge_signatures):
         if edge.barrier_kcal_mol is None:
             if gold.mechanism_graph.edge_effectively_accessible(edge):
@@ -340,7 +341,7 @@ def score_accuracy(
                 )
             else:
                 rep.edge_scores[edge.id] = 0.0
-                structural_penalty += weights[edge.id]
+                uncapped_penalty += weights[edge.id]
                 rep.notes.append(
                     f"edge {edge.id}: effectively inaccessible in the gold "
                     "reference (the edge itself or its via transition state is "
@@ -353,12 +354,12 @@ def score_accuracy(
         )
         if step is None:
             rep.edge_scores[edge.id] = 0.0
-            failures.append(
+            uncapped_penalty += weights[edge.id]
+            rep.notes.append(
                 f"gold edge {edge.id} carries a reference barrier but no delivered "
-                "step matches its endpoint species"
+                "step matches its endpoint species; scored 0"
             )
             continue
-        graded_weight += weights[edge.id]
         if step.edge_id != edge.id:
             rep.notes.append(
                 f"gold edge {edge.id} matched delivered step {step.edge_id} "
@@ -366,11 +367,13 @@ def score_accuracy(
             )
         if step.declared_kcal_mol is None:
             rep.edge_scores[edge.id] = 0.0
-            failures.append(
+            uncapped_penalty += weights[edge.id]
+            rep.notes.append(
                 "delivered mechanism_graph.json declares no barrier_kcal_mol on "
-                f"step edge {edge.id}"
+                f"step edge {edge.id}; scored 0"
             )
             continue
+        graded_weight += weights[edge.id]
         declared = step.declared_kcal_mol
         # 该边全部合法组合（TS 日志 × 起点极小值日志；含策略选中的那组）。
         # 声明支撑得住哪一组、哪一组能对上参考，决定这条边怎么算分：
@@ -453,7 +456,7 @@ def score_accuracy(
         )
 
     if failures:
-        # fail-loud：任一参考边的声明/推算缺失或不一致 -> 置结构化标记、本层
+        # fail-loud：参考边的声明/日志冲突且证据对不上参考 -> 置结构化标记、本层
         # accuracy 记 0（不给部分分，也不套 max_penalty_fraction 封顶），
         # composite 的短路由 runner 按 fail_loud 执行。
         rep.notes.extend(f"{note}; scored 0" for note in failures)
@@ -465,16 +468,14 @@ def score_accuracy(
 
     rep.gaussian_score = weighted_sum / weight_total
     # max_penalty_fraction 只封顶带参考值边的罚分（高斯偏离/定义差异——兜合法的
-    # 方法学差异）；无参考边的结构记账（可算未给参考=1.0、标答不可达=0.0）是题面
-    # 口径的直接后果，按面值计、不参与封顶——否则 impossible 题的不可达边会被
-    # 封顶救回（0.7），设计上限（I 题满分 = 图 + 自洽）失守。
-    raw_penalty = 1.0 - rep.gaussian_score
+    # 方法学差异）；缺失和标答不可达边按零分直接记账、不参与封顶，避免未完成
+    # 或不可达边被数值容差保底抬分。
     graded_penalty = (graded_weight - graded_score_sum) / weight_total
     capped_graded = min(graded_penalty, rubric.max_penalty_fraction)
-    rep.capped_penalty = capped_graded + structural_penalty / weight_total
+    rep.capped_penalty = capped_graded + uncapped_penalty / weight_total
     rep.final_score = 1.0 - rep.capped_penalty
     if graded_penalty > rubric.max_penalty_fraction:
         rep.notes.append(
-            f"raw penalty {raw_penalty:.3f} capped at {rubric.max_penalty_fraction}"
+            f"numeric penalty {graded_penalty:.3f} capped at {rubric.max_penalty_fraction}"
         )
     return rep

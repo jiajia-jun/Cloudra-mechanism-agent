@@ -589,7 +589,7 @@ def test_accuracy_per_edge_requires_both_sources_and_agreement():
 
     from cloudra.benchmark.barrier_evidence import BarrierEvidence
 
-    # gold 参考边找不到对应交付步 -> 该边 0 分（fail-loud）
+    # gold 参考边找不到对应交付步 -> 该边 0 分
     assert (
         score_accuracy(
             evidence=BarrierEvidence(), gold=gold, rubric=r, delivered_graph=delivered
@@ -601,6 +601,7 @@ def test_accuracy_per_edge_requires_both_sources_and_agreement():
         delivered_graph=delivered,
     )
     assert undeclared.final_score == 0.0
+    assert not undeclared.fail_loud
     assert any("declares no barrier_kcal_mol" in n for n in undeclared.notes), undeclared.notes
     # 声明值与日志推算值冲突、但证据里含有与参考一致的组合 → 答案定义差异，
     # 按固定小扣分记（不归零；见 _DEFINITION_MISMATCH_EDGE_SCORE）
@@ -616,7 +617,7 @@ def test_accuracy_per_edge_requires_both_sources_and_agreement():
 
 def test_accuracy_matches_gold_edge_by_endpoint_species_not_edge_id():
     """gold 边与交付步 edge id 不同（题库内部 id agent 不可知）时，按端点物种
-    对应匹配评分；端点物种不符则该边 fail-loud 记 0。"""
+    对应匹配评分；端点物种不符则该边记 0。"""
     gold = GoldSpec(
         mechanism_graph=GoldMechanismGraph(
             nodes=[
@@ -683,7 +684,8 @@ def test_accuracy_parallel_same_endpoint_edges_require_distinct_channels():
     )
     assert missing.edge_scores["G1"] == pytest.approx(1.0)
     assert missing.edge_scores["G2"] == 0.0
-    assert missing.final_score == 0.0
+    assert missing.final_score == pytest.approx(0.5)
+    assert not missing.fail_loud
 
     both = GoldMechanismGraph(nodes=nodes, edges=[
         *syn_only.edges,
@@ -738,17 +740,58 @@ def test_accuracy_weighted_average_uses_edge_weights():
     assert rep.gaussian_score == pytest.approx((1.0 * g1 + 0.5 * g2) / 1.5)
 
 
-def test_accuracy_missing_reference_edge_fails_loud():
-    """gold 参考边在交付 evidence 里找不到对应步 -> 整题 accuracy 记 0（fail-loud）。"""
+def test_accuracy_missing_reference_edge_preserves_weighted_partial_score():
+    """未完成边仍占分母且不享受数值扣分封顶，完成边保留贡献。"""
     gold = _gold_edges([("E1", 10.0, 1.0), ("E2", 20.0, 0.5)])
-    r = AccuracyRubric(sigma_kcal_mol=3.0, max_penalty_fraction=1.0)
+    r = AccuracyRubric(sigma_kcal_mol=3.0, max_penalty_fraction=0.3)
     rep = score_accuracy(
         evidence=_evidence([("E1", 10.0, 10.0)]), gold=gold, rubric=r,
         delivered_graph=_delivered_for_gold(gold, ["E1"]),
     )
     assert rep.edge_scores["E2"] == 0.0
-    assert rep.final_score == 0.0
+    assert rep.final_score == pytest.approx(2 / 3)
+    assert not rep.fail_loud
     assert any("no delivered step matches its endpoint species" in n for n in rep.notes)
+
+
+@pytest.mark.parametrize("steps, expected", [
+    ([], 0.0),
+    ([("E3", 40.0, 40.0)], 1 / 3),
+    ([("E1", 20.0, 20.0), ("E2", 30.0, None)], 1 / 3),
+    ([("E1", 20.0, None), ("E2", 30.0, None), ("E3", 40.0, None)], 0.0),
+], ids=["no-evidence", "one-of-three", "undeclared-not-double-counted", "all-undeclared"])
+def test_accuracy_incomplete_edges_are_zero_without_global_short_circuit(steps, expected):
+    gold = _gold_edges([("E1", 20.0, 1.0), ("E2", 30.0, 1.0), ("E3", 40.0, 1.0)])
+    rep = score_accuracy(
+        evidence=_evidence(steps), gold=gold, rubric=AccuracyRubric(),
+        delivered_graph=_delivered_for_gold(gold, [step[0] for step in steps]),
+    )
+    assert rep.gaussian_score == pytest.approx(expected)
+    assert rep.final_score == pytest.approx(expected)
+    assert not rep.fail_loud
+
+
+def test_accuracy_missing_edges_do_not_share_numeric_penalty_cap():
+    gold = _gold_edges([("E1", 20.0, 1.0), ("E2", 30.0, 1.0), ("E3", 40.0, 1.0)])
+    rep = score_accuracy(
+        evidence=_evidence([("E1", 100.0, 100.0)]), gold=gold,
+        rubric=AccuracyRubric(max_penalty_fraction=0.3),
+        delivered_graph=_delivered_for_gold(gold, ["E1"]),
+    )
+    # 两条缺失边扣 2/3；已算边的数值偏离仍沿用 0.3 封顶。
+    assert rep.final_score == pytest.approx(1 / 30)
+    assert not rep.fail_loud
+
+
+def test_accuracy_missing_edge_does_not_hide_declared_log_conflict():
+    gold = _gold_edges([("E1", 20.0, 1.0), ("E2", 30.0, 1.0)])
+    rep = score_accuracy(
+        evidence=_evidence([("E1", 100.0, 50.0)]), gold=gold,
+        delivered_graph=_delivered_for_gold(gold, ["E1"]),
+    )
+    assert rep.fail_loud
+    assert rep.final_score == 0.0
+    assert any("disagreement" in note for note in rep.notes)
 
 
 def test_accuracy_no_reference_edge_not_scored():
@@ -3271,12 +3314,12 @@ def test_evidence_loop_engine_output_to_score(tmp_path):
     result = runner.score_sandbox(task, sandbox)
     # Layer 2：真实 opt+freq 日志被物理自检读成极小值（rubric 未要求鞍点）
     assert result.selfconsistency_passed, result.notes
-    # Layer 3：本条交付没有 via/TS 日志 → 能垒不可评分（fail-loud 0 分）
+    # Layer 3：本条交付没有 via/TS 日志 → 能垒不可评分，准确度为 0
     assert result.accuracy_score == 0.0, result.notes
     assert any("no step barrier" in n for n in result.notes), result.notes
-    # fail-loud 短路：final 只保留图分（自洽/accuracy 分量清零）
-    assert any("final keeps the graph component only" in n for n in result.notes), result.notes
-    assert result.final_score == pytest.approx(0.1 * result.graph_score, abs=1e-4)
+    # 缺能垒不清掉已有物理自检贡献。
+    assert not any("accuracy fail-loud" in n for n in result.notes), result.notes
+    assert result.final_score == pytest.approx(0.1 * result.graph_score + 0.3, abs=1e-4)
     # 图相似度的化学指纹依赖 RDKit（可选依赖）：缺失时该层退化，CI（只装
     # dev extra）就属于这种情况，因此只在 RDKit 可用时断言图分
     if _RDKIT_AVAILABLE:
@@ -3613,12 +3656,15 @@ def test_barrier_is_derived_from_logs_and_must_be_declared(tmp_path):
     derived = _derived_barrier(probe)
     assert derived == pytest.approx(23.754002305, abs=0.05)  # 合成平移量 ≈ +0.0318 Ha
 
-    # 未声明 → 0 分并写明原因
+    # 未声明 → 准确度 0 分并写明原因，保留图与自洽分
     undeclared = BenchmarkRunner(tmp_path / "bench_u").score_sandbox(
         _delivery_task(derived), probe
     )
     assert undeclared.accuracy_score == 0.0
     assert any("declares no barrier_kcal_mol" in n for n in undeclared.notes)
+    assert undeclared.selfconsistency_passed, undeclared.notes
+    assert undeclared.final_score == pytest.approx(0.4), undeclared.notes
+    assert not any("accuracy fail-loud" in note for note in undeclared.notes)
 
     # 逐条声明且与日志一致 → 与 gold（同值）满分
     ok_dir = tmp_path / "ok"
@@ -3632,6 +3678,29 @@ def test_barrier_is_derived_from_logs_and_must_be_declared(tmp_path):
     assert ok.graph_score == pytest.approx(1.0), ok.notes
     assert ok.selfconsistency_passed, ok.notes
     assert ok.final_score == pytest.approx(1.0), ok.notes
+
+
+def test_partial_delivery_preserves_log_backed_barrier_in_composite(tmp_path):
+    """真实日志完成一条目标边，Gold 另一条缺失不清掉其准确度贡献。"""
+    from cloudra.benchmark.runner import BenchmarkRunner
+
+    sandbox = tmp_path / "partial"
+    _write_delivery(sandbox, declared=None)
+    derived = _derived_barrier(sandbox)
+    _write_delivery(sandbox, declared=derived)
+    task = _delivery_task(derived)
+    graph = task.gold.mechanism_graph
+    task = task.model_copy(update={"gold": GoldSpec(mechanism_graph=GoldMechanismGraph(
+        nodes=[*graph.nodes, MechanismNode(id="X", role=NodeRole.INTERMEDIATE, smiles=["C"])],
+        edges=[*graph.edges, MechanismEdge(
+            id="E2", **{"from": "P", "to": "X"}, barrier_kcal_mol=30.0,
+        )],
+    ))})
+    result = BenchmarkRunner(tmp_path / "bench").score_sandbox(task, sandbox)
+    assert result.selfconsistency_passed, result.notes
+    assert result.accuracy_score == pytest.approx(0.5), result.notes
+    assert result.final_score == pytest.approx(0.1 * result.graph_score + 0.6, abs=1e-4)
+    assert not any("accuracy fail-loud" in note for note in result.notes)
 
 
 def test_declared_barrier_must_match_logs(tmp_path):

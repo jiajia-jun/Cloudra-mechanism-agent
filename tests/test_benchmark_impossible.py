@@ -131,7 +131,7 @@ def test_accuracy_edge_without_via_ignores_endpoint_flags():
 
 
 def test_accuracy_reference_edge_without_evidence_scored_zero():
-    """gold 参考边找不到对应交付步 -> 该边 fail-loud 0 分。"""
+    """gold 参考边找不到对应交付步 -> 该边 0 分，不处罚其他成果。"""
     gold = GoldSpec(
         mechanism_graph=GoldMechanismGraph(
             nodes=[MechanismNode(id="R", role=NodeRole.REACTANT, smiles=["N#N"])],
@@ -144,7 +144,7 @@ def test_accuracy_reference_edge_without_evidence_scored_zero():
     )
     rep = score_accuracy(evidence=BarrierEvidence(), gold=gold, rubric=AccuracyRubric())
     assert rep.final_score == 0.0
-    assert rep.fail_loud
+    assert not rep.fail_loud
     assert any("no delivered step matches its endpoint species" in n for n in rep.notes)
 
 
