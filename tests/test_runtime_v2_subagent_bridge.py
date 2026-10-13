@@ -920,3 +920,66 @@ async def test_native_dispatch_obeys_updated_registry_spawn_roles(tool_name, tas
     assert not result.is_success
     assert _children(core, parent.id) == []
     assert not any(e.type.startswith("launch_group.") for e in core.event_log)
+
+
+@pytest.mark.asyncio
+async def test_new_assignment_reports_latest_child_result_once_after_restore(tmp_path):
+    from cloudra.runtime_v2.effects import EventDraft
+    from cloudra.runtime_v2.persistence import RuntimeStore, restore_core
+    from cloudra.runtime_v2.subagent_bridge import deliver_child_completion_to_parent
+
+    core = RuntimeCore(strict_events=True)
+    core.store = RuntimeStore(tmp_path / "reassigned.db")
+    bus = CommandBus(core)
+    project = (await bus.execute(Command(type="project.create", payload={"name": "reassigned"}))).data
+    parent = (await bus.execute(Command(
+        type="agent.spawn", target={"project_id": project.id}, payload={"role_id": "coordinator"},
+    ))).data
+    child = (await bus.execute(Command(
+        type="agent.spawn", target={"project_id": project.id},
+        payload={"role_id": "explorer", "parent_session_id": parent.id},
+    ))).data
+
+    async def finish(summary, action):
+        run_id = await core.agent_host.start_run(child)
+        await core.event_writer.commit(EventDraft(
+            "agent.message_emitted", stream="agent", project_id=project.id,
+            session_id=child.id, run_id=run_id, data={"content": summary, "sender": child.role_id},
+        ))
+        await core.event_writer.commit(EventDraft(
+            "agent.completion_gate", stream="agent", project_id=project.id,
+            session_id=child.id, run_id=run_id, data={"action": action},
+        ))
+        await core.agent_host.finish_run(child, outcome="succeeded")
+        await deliver_child_completion_to_parent(core, child, wake=False)
+        return run_id
+
+    def reports(kernel):
+        return [e for e in kernel.event_log.query_session(parent.id, types={"agent.message_injected"})
+                if (e.data.get("manifest") or {}).get("kind") == "child_completion"]
+
+    first_run = await finish("first result", "allow_final")
+    await core.dispatcher.commit_and_deliver(
+        to_session_id=child.id, project_id=project.id, sender=parent.role_id,
+        content="second task", wake=WakePolicy.NEVER,
+        manifest={"kind": "task_assignment", "session_id": child.id, "parent_session_id": parent.id},
+    )
+    await finish("waiting for calculation", "wait_background")
+    assert len(reports(core)) == 1
+    await core.dispatcher.commit_and_deliver(
+        to_session_id=child.id, project_id=project.id, sender="system",
+        content="calculation finished", wake=WakePolicy.NEVER,
+    )
+    second_run = await finish("second result", "allow_final")
+    assert len(reports(core)) == 2
+    assert [e.data["manifest"]["last_run"]["run_id"] for e in reports(core)] == [first_run, second_run]
+    assert reports(core)[-1].data["manifest"]["final_summary"] == "second result"
+    await deliver_child_completion_to_parent(core, child, wake=False)
+    await finish("unrelated reminder", "allow_final")
+    assert len(reports(core)) == 2
+
+    restored = RuntimeCore(strict_events=True)
+    restored.store = core.store
+    await asyncio.to_thread(restore_core, restored, core.store)
+    await deliver_child_completion_to_parent(restored, restored.agents[child.id], wake=False)
+    assert len(reports(restored)) == 2

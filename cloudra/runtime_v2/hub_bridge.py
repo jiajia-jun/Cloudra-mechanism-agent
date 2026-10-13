@@ -128,6 +128,12 @@ async def _notify(
         content=content,
         sender=sender,
         post_id=post_id,
+        manifest=(
+            {"kind": "task_assignment", "session_id": target.id, "parent_session_id": author.id}
+            if post_id is None and author is not None
+            and author.project_id == project_id == target.project_id
+            and target.parent_session_id == author.id else None
+        ),
         wake=wake,
     )
     return {

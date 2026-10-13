@@ -1159,3 +1159,26 @@ async def test_supervisor_feedback_does_not_authorize_calls_or_other_recipients(
     assert core.event_log.query_session(other.id, types={"agent.message_injected"}) == []
     await core.runner.cancel_all()
     await other_core.runner.cancel_all()
+
+
+@pytest.mark.asyncio
+async def test_call_persists_bound_assignment_before_child_run():
+    core, project, coordinator = await _setup()
+    try:
+        await _wait_state(coordinator, "succeeded")
+        child = (await CommandBus(core).execute(Command(
+            type="agent.spawn", target={"project_id": project.id},
+            payload={"role_id": "small_mol", "parent_session_id": coordinator.id},
+        ))).data
+        result = await handle_hub_tool(core, coordinator, _hub({
+            "action": "call", "to": child.id, "message": "new task",
+        }))
+        injected = core.event_log.get(result.data["notifications"][0]["message_event_id"])
+        assert injected.data.get("manifest") == {
+            "kind": "task_assignment", "session_id": child.id, "parent_session_id": coordinator.id,
+        }
+        await _wait_state(child, "succeeded")
+        started = core.event_log.query_session(child.id, types={"run.started"})[0]
+        assert injected.seq < started.seq
+    finally:
+        await core.runner.cancel_all()

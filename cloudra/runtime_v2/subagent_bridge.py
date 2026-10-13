@@ -32,26 +32,23 @@ _CHILD_REPORT_KIND = "child_completion"
 
 @dataclass(slots=True)
 class ChildCompletionIndex:
-    """First final transition and durable delivery markers, built in one log pass."""
+    """Current task's final transition and durable report markers."""
 
     terminal_by_session: dict[str, EventEnvelope]
     events_by_session: dict[str, list[EventEnvelope]]
-    reported: set[tuple[str, str]]
+    reported: set[str]
 
 
 def build_child_completion_index(core) -> ChildCompletionIndex:
-    """A background wait is a parked run, even though its state is SUCCEEDED.
+    """Only a bound parent assignment starts a new completion obligation.
 
-    The parent's first durable ``agent.message_injected`` manifest is the
-    one-shot marker.  A later unrelated run cannot generate another report.
+    Compute notices, reminders and parked runs continue the same task. The
+    terminal event already carried by each report is its durable dedup key.
     """
-    child_ids = {
-        agent.id for agent in core.agents.values() if agent.parent_session_id
-    }
+    child_ids = {agent.id for agent in core.agents.values() if agent.parent_session_id}
     terminal_by_session: dict[str, EventEnvelope] = {}
     events_by_session: dict[str, list[EventEnvelope]] = {}
-    reported: set[tuple[str, str]] = set()
-    legacy_reports: set[tuple[str, str, str]] = set()
+    reported: set[str] = set()
     latest_gate_by_run: dict[tuple[str, str], str] = {}
     relevant = {
         "run.started", "run.finished", "agent.message_emitted",
@@ -66,18 +63,18 @@ def build_child_completion_index(core) -> ChildCompletionIndex:
             if isinstance(manifest, dict):
                 child_id = manifest.get("session_id")
                 child = core.agents.get(child_id) if isinstance(child_id, str) else None
-                if child is not None and child.parent_session_id == session_id:
-                    if manifest.get("kind") == _CHILD_REPORT_KIND:
-                        reported.add((session_id, child_id))
-                    elif manifest.get("parent_session_id") == session_id:
-                        # Reports written before the marker was added still
-                        # count if they describe the first genuine final run.
-                        # An old false report for a parked run must not erase
-                        # the obligation for a later final run.
-                        run = manifest.get("last_run")
-                        run_id = run.get("run_id") if isinstance(run, dict) else None
-                        if isinstance(run_id, str) and run_id:
-                            legacy_reports.add((session_id, child_id, run_id))
+                if child is not None and child.id == session_id and (
+                    manifest.get("kind") == "task_assignment"
+                    and child.parent_session_id == manifest.get("parent_session_id")
+                    and child.project_id == event.project_id
+                ):
+                    terminal_by_session.pop(child.id, None)
+                elif child is not None and child.parent_session_id == session_id and (
+                    manifest.get("kind") == _CHILD_REPORT_KIND
+                ):
+                    terminal_id = manifest.get("terminal_event_id")
+                    if isinstance(terminal_id, str):
+                        reported.add(terminal_id)
         if session_id not in child_ids or event.type not in relevant:
             continue
         events_by_session.setdefault(session_id, []).append(event)
@@ -91,17 +88,13 @@ def build_child_completion_index(core) -> ChildCompletionIndex:
             if state == AgentState.SUCCEEDED.value and latest_gate_by_run.get(run_key) == "wait_background":
                 continue
             terminal_by_session[session_id] = event
-    for child_id, terminal in terminal_by_session.items():
-        parent_id = core.agents[child_id].parent_session_id
-        if parent_id and (parent_id, child_id, terminal.run_id or "") in legacy_reports:
-            reported.add((parent_id, child_id))
     return ChildCompletionIndex(terminal_by_session, events_by_session, reported)
 
 
 def child_final_event(
     core, child: AgentSession, *, index: ChildCompletionIndex | None = None
 ) -> EventEnvelope | None:
-    """The child's first genuine result, irrespective of later wakeups."""
+    """The current task's first genuine result; background wakeups do not reset it."""
     if not child.parent_session_id:
         return None
     index = index or build_child_completion_index(core)
@@ -226,7 +219,7 @@ def child_completion_message(
         return None
     index = index or build_child_completion_index(core)
     terminal = child_final_event(core, child, index=index)
-    if terminal is None or (parent_id, child.id) in index.reported:
+    if terminal is None or terminal.event_id in index.reported:
         return None
     manifest = build_child_manifest(
         core, child, terminal_event=terminal,

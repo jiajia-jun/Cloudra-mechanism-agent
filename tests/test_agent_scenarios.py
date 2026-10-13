@@ -1678,3 +1678,49 @@ async def test_supervisor_feedback_resumes_background_waiting_coordinator(tmp_pa
     finally:
         release.set()
         await harness.aclose()
+
+
+@pytest.mark.asyncio
+async def test_reused_child_completes_new_task_after_compute_notice_and_wakes_parent(tmp_path):
+    from cloudra.runtime_v2.hub_bridge import handle_hub_tool
+    from cloudra.runtime_v2.policies.base import ToolCall
+
+    calculation_done = asyncio.Event()
+    provider = ScriptedProvider(by_role={
+        "coordinator": [Step(stop=True)],
+        "explorer": [Step(stop=True), Step(stop=True, wait_for=calculation_done)],
+    })
+    harness = await ScenarioHarness.start(tmp_path, provider=provider)
+    try:
+        parent = await harness.spawn("coordinator", protocol="traditional")
+        await harness.wait_terminal(parent)
+        child = await harness.spawn("explorer", query="task A", parent=parent, protocol="traditional")
+        await harness.wait_for(lambda: len(harness.child_reports(parent)) == 1, "task A report")
+        await harness.wait_terminal(parent)
+        first_terminal = harness.child_reports(parent)[0]["manifest"]["terminal_event_id"]
+        parent_runs = len(harness.run_rows(parent))
+        called = await handle_hub_tool(harness.core, parent, ToolCall(
+            id="assign-B", name="agent_hub", arguments={"action": "call", "to": child.id, "message": "task B"},
+        ))
+        assert called.is_success
+        await harness.wait_for(lambda: provider.call_count("explorer") >= 2, "task B waiting for calculation")
+        assert len(harness.child_reports(parent)) == 1
+        await harness.core.dispatcher.commit_and_deliver(
+            to_session_id=child.id, project_id=harness.project.id, sender="system", content="[Compute job] done",
+        )
+        calculation_done.set()
+        await harness.wait_for(lambda: len(harness.child_reports(parent)) == 2, "task B report")
+        await harness.wait_for(lambda: len(harness.run_rows(parent)) > parent_runs, "parent resumed for task B")
+        await harness.wait_terminal(parent)
+        reports = harness.child_reports(parent)
+        assert reports[1]["manifest"]["terminal_event_id"] != first_terminal
+        assert reports[1]["manifest"]["session_id"] == child.id
+        assert reports[1]["manifest"]["last_run"]["run_id"] == harness.run_rows(child)[-1]["run_id"]
+    finally:
+        calculation_done.set()
+        await harness.aclose()
+    restored = await ScenarioHarness.restore(tmp_path)
+    try:
+        assert len(restored.child_reports(restored.core.agents[parent.id])) == 2
+    finally:
+        await restored.aclose()
