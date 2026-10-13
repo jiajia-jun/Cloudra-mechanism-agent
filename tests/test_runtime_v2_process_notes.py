@@ -37,20 +37,27 @@ def _completed_calls(harness, agent):
 
 
 @pytest.mark.asyncio
-async def test_process_notes_maintained_without_blocking_research(tmp_path, approve_file_changes):
+@pytest.mark.parametrize('note_path', ['PROCESS.md', 'STEP1_IRC_NOTES.md'])
+async def test_process_notes_maintained_without_blocking_research(tmp_path, approve_file_changes, note_path):
     """Missing notify, blocking Supervisor work, or a write capability leak breaks this scenario."""
     review = asyncio.Event()
     research_wait = asyncio.Event()
     original = "# Research process\n\nHypothesis: concerted reaction.\nTest: follow the imaginary mode.\n"
     revised = "# Research process\n\nHypothesis: concerted reaction.\nTest: follow the imaginary mode.\nObservation: the tested guess moved along a different coordinate; keep the hypothesis open.\n"
+    if note_path != 'PROCESS.md':
+        await asyncio.to_thread((tmp_path / 'PROCESS.md').write_text, original)
+    source_reads = [('read', {'path': note_path})]
+    if note_path != 'PROCESS.md':
+        source_reads.append(('read', {'path': 'PROCESS.md'}))
     provider = ScriptedProvider(by_role={
+        'coordinator': [Step(stop=True)],
         "small_mol": [
-            Step(tools=[("write", {"path": "PROCESS.md", "content": original})]),
+            Step(tools=[("write", {"path": note_path, "content": original})]),
             Step(tools=[("write", {"path": "next_calculation.txt", "content": "research continues\n"})]),
             Step(wait_for=research_wait),
         ],
         "supervisor": [
-            Step(wait_for=review, tools=[("read", {"path": "PROCESS.md"})]),
+            Step(wait_for=review, tools=source_reads),
             Step(tools=[("edit", {
                 "path": "PROCESS.md", "expected_sha256": hashlib.sha256(original.encode()).hexdigest(),
                 "edits": [{"old_text": "Test: follow the imaginary mode.\n",
@@ -69,6 +76,8 @@ async def test_process_notes_maintained_without_blocking_research(tmp_path, appr
             }},
         ))
         assert updated.accepted
+        coordinator = await harness.spawn('coordinator', protocol='traditional', orchestration_mode='standard')
+        await harness.wait_terminal(coordinator)
         researcher = await harness.spawn(
             "small_mol", protocol="traditional", orchestration_mode="dag_guided",
         )
@@ -93,10 +102,10 @@ async def test_process_notes_maintained_without_blocking_research(tmp_path, appr
         review.set()
         await harness.wait_terminal(supervisor)
         calls = _completed_calls(harness, supervisor)
-        assert [row["tool_name"] for row in calls] == ["read", "edit", "write"]
-        assert calls[0]["is_success"] and calls[1]["is_success"], harness.describe(supervisor)
-        assert calls[1]["started"] and calls[1]["result_data"]["status"] == "applied"
-        assert not calls[2]["is_success"]
+        assert [row["tool_name"] for row in calls] == ['read'] * len(source_reads) + ["edit", "write"]
+        assert all(row['is_success'] for row in calls[:-1]), harness.describe(supervisor)
+        assert calls[-2]["started"] and calls[-2]["result_data"]["status"] == "applied"
+        assert not calls[-1]["is_success"]
         assert await asyncio.to_thread((tmp_path / "PROCESS.md").read_text) == revised
         assert not await asyncio.to_thread((tmp_path / "scientific_result.txt").exists)
         await _assert_no_scientific_reviews(harness)
@@ -104,6 +113,8 @@ async def test_process_notes_maintained_without_blocking_research(tmp_path, appr
         assert harness.types(supervisor).count("run.started") == 1
         assert len(harness.messages(supervisor)) == 1
         assert len([agent for agent in harness.core.agents.values() if agent.role_id == "supervisor"]) == 1
+        assert coordinator.state.value == 'succeeded'
+        assert harness.types(coordinator).count('run.started') == 1
     finally:
         review.set()
         await harness.aclose()
