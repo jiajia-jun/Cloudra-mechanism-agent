@@ -16,7 +16,7 @@ from cloudra.tools.Plantool.dag_tools._common import DagToolBase, DagToolOutput,
 
 
 class DagReviewEvidenceInput(input_schema):
-    request_id: str = Field(description="The ReviewRequest id to resolve.")
+    request_id: str = Field(description="The ReviewRequest id to resolve, or an unresolved consultation decision to reconsider with current evidence.")
     verdict: Literal["accept", "reject", "needs_evidence"] = Field(
         description="Decision verdict for the structured request."
     )
@@ -44,8 +44,10 @@ class DagReviewEvidence(DagToolBase):
     tool_description: str = (
         "Resolve one structured ReviewRequest (Supervisor only in dag_guided). "
         "Use for: answering evidence/exception/draft/exit requests with a full "
-        "basis-matched decision. "
+        "basis-matched decision, or reconsidering a resolved consultation that "
+        "was rejected or needed evidence, using its request_id and current evidence_refs. "
         "Do not use for: editing delivery graph structures directly or "
+        "replacing a resolved species/step file submission (resubmit the files), or "
         "resolving old CallReview rows (use dag_review_call for those)."
     )
     input_schema: Any = DagReviewEvidenceInput
@@ -78,7 +80,15 @@ class DagReviewEvidence(DagToolBase):
                 "dag_review_evidence",
                 f"review request {user_input.request_id!r} does not exist",
             )
-        if request.state != "queued":
+        reconsider = False
+        if (
+            request.state == "resolved"
+            and request.kind in {"evidence", "exception"}
+            and request.proposal.get("element_type") not in {"species", "step"}
+        ):
+            previous = await asyncio.to_thread(store.get_review_decision_for_request, request.request_id)
+            reconsider = previous is not None and previous.verdict in {"reject", "needs_evidence"}
+        if request.state != "queued" and not reconsider:
             return fail(
                 "dag_review_evidence",
                 f"review request {user_input.request_id!r} is {request.state}",
@@ -106,6 +116,22 @@ class DagReviewEvidence(DagToolBase):
                 GraphRef(**item) if isinstance(item, dict) else item
                 for item in user_input.evidence_refs
             ]
+            if reconsider:
+                # Keep the original question and decision intact. The new
+                # material gets an ordinary request; enqueue_review deduplicates
+                # retries of this old request + current material and basis.
+                supporting_refs = [*request.supporting_refs, *[
+                    ref for ref in evidence_refs if ref not in request.supporting_refs
+                ]]
+                request = request.model_copy(update={
+                    "request_id": "", "state": "queued", "created_at": "", "updated_at": "",
+                    "supporting_refs": supporting_refs,
+                    "proposal": {**request.proposal, "reconsiders_request_id": request.request_id},
+                })
+                basis = await asyncio.to_thread(store.review_basis, request)
+                request_id = await asyncio.to_thread(store.enqueue_review,
+                    request.model_copy(update={"basis_fingerprint": basis}))
+                request = await asyncio.to_thread(store.get_review_request, request_id)
             next_action = user_input.next_action
             scientific_checks = None
             if (

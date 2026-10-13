@@ -429,7 +429,8 @@ class DagController(SupervisionMixin, StopAuditMixin, EvidenceInboxMixin, Drafts
         for request, decision in latest.values():
             if decision.verdict in {"reject", "needs_evidence"}:
                 for target in sorted(set(request.target_ids) & selected):
-                    gap(target, "supervisor_review_gap", f"{decision.verdict}: {decision.reason}")
+                    gap(target, "supervisor_review_gap",
+                        f"Review {request.request_id} ({request.question}): {decision.verdict}: {decision.reason}")
 
         # Low-level call bindings retain stage-specific decisions. The normal
         # per-file interface above does not split a file into stage submissions.

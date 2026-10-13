@@ -68,6 +68,7 @@ def prepare_delivery_artifact(store, graph, report, workspace_root, *, required=
     def current_evidence(element):
         target_id = getattr(element, 'node_id', None) or element.edge_id
         request = next((r for r in reversed(reviews) if r.kind == 'evidence'
+                        and r.proposal.get('element_type') in {'species', 'step'}
                         and r.target_ids == [target_id] and r.supporting_refs
                         and all(ref in element.refs for ref in r.supporting_refs)), None)
         return element.model_copy(update={'refs': request.supporting_refs, 'stages': []}) if request else element
@@ -75,11 +76,13 @@ def prepare_delivery_artifact(store, graph, report, workspace_root, *, required=
     def scientific_checks(element):
         target_id = getattr(element, 'node_id', None) or element.edge_id
         request = next((r for r in reversed(reviews) if r.kind == 'evidence'
+                        and r.proposal.get('element_type') in {'species', 'step'}
                         and r.target_ids == [target_id] and r.supporting_refs
                         and all(ref in element.refs for ref in r.supporting_refs)), None)
         return file_scientific_checks(store, graph, target_id, workspace_root=root,
             evidence_refs=request.supporting_refs if request else None,
-            irc_files=request.proposal.get('irc_files') if request else None)
+            irc_files=request.proposal.get('irc_files') if request else None,
+            endpoint_refs=request.proposal.get('endpoint_refs') if request else None)
 
     def match_species(node):
         matches = [n for n in graph.nodes if node.id in {n.node_id, n.name}]

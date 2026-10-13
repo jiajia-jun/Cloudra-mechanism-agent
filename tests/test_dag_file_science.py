@@ -27,34 +27,54 @@ async def test_composite_native_log_cannot_mix_ts_optimization_and_frequency(tmp
 @pytest.mark.asyncio
 @pytest.mark.parametrize('swap', [False, True])
 async def test_file_submission_routes_explicit_verified_endpoint_refs(tmp_path, swap):
+    import json
+    import shutil
+
+    from cloudra.dag.delivery_artifact import prepare_delivery_artifact
     from cloudra.dag.evidence_ingest import snapshot_evidence_file
     from cloudra.dag.models import AttachRef, UpdateNode
     from cloudra.tools.Plantool.dag_tools.dag_view_evidence import DagViewEvidence
+    from tests.dag_identity import make_coordinator
     from tests.test_dag_file_review_contract import _mutate
 
     session, db, store = await asyncio.to_thread(_seed_review_graph, tmp_path, f'endpoint-route-{swap}')
     await asyncio.to_thread(_mutate, store, UpdateNode(op='update_node', graph='delivery', node_id='r', changes={'smiles': 'C1CO[PH3]1'}))
     await asyncio.to_thread(_mutate, store, UpdateNode(op='update_node', graph='delivery', node_id='p', changes={'smiles': 'C=C.O=[PH3]'}))
-    native = FIXTURES_DIR / 'benchmark_nu3'
+    native = tmp_path / 'native'
+    await asyncio.to_thread(shutil.copytree, FIXTURES_DIR / 'benchmark_nu3', native)
     refs = []
     for name in ('product_minimum.out', 'op_minimum.out'):
-        snap = await asyncio.to_thread(snapshot_evidence_file, str(native / name), workspace_root=str(FIXTURES_DIR.parent.parent), conversation_id=db.conversation_id)
+        snap = await asyncio.to_thread(snapshot_evidence_file, str(native / name), workspace_root=str(tmp_path), conversation_id=db.conversation_id)
         ref = await asyncio.to_thread(store.register_evidence, 's1', name, snap.model_dump(mode='json'), source_type='file')
         await asyncio.to_thread(_mutate, store, AttachRef(op='attach_ref', graph='delivery', target_type='edge', target_id='step1', ref=ref))
         refs.append(ref)
     if swap:
         refs.reverse()
-    submitted = await call_dag_tool(DagSubmitStepEvidence, _coordinator(db.conversation_id), session,
+    agent = make_coordinator(db.conversation_id, orchestration_mode='dag_guided', workspace_dir=str(tmp_path))
+    submitted = await call_dag_tool(DagSubmitStepEvidence, agent, session,
         step_name='step1', ts_file=str(native/'ts2_frequency.out'), irc_file=str(native/'ts2_irc/irc.out'),
         endpoint_a_ref=refs[0].model_dump(), endpoint_b_ref=refs[1].model_dump())
     assert submitted.is_success, submitted
     expected = 'incomplete' if swap else 'passed'
     assert submitted.result['scientific_checks']['short_irc']['status'] == expected
-    supervisor = make_supervisor(db.conversation_id, workspace_dir=str(FIXTURES_DIR.parent.parent))
+    supervisor = make_supervisor(db.conversation_id, workspace_dir=str(tmp_path))
     viewed = await call_dag_tool(DagViewEvidence, supervisor, session, review_id=submitted.result['review_id'])
     assert viewed.result['scientific_checks']['short_irc']['status'] == expected
     reviewed = await call_dag_tool(DagReviewStep, supervisor, session, step_name='step1', verdict='supported', rationale='inspect immutable native chain')
     assert reviewed.result['scientific_checks']['short_irc']['status'] == expected
+    # Delivery must check exactly the same endpoint references as the review,
+    # including when the graph nodes themselves have no minimum logs attached.
+    document = {'nodes': [
+        {'id': 'r', 'role': 'reactant', 'smiles': ['C1CO[PH3]1']},
+        {'id': 'p', 'role': 'product', 'smiles': ['C=C.O=[PH3]']},
+        {'id': 'TS', 'role': 'transition_state', 'smiles': []}],
+        'edges': [{'id': 'step1', 'from': 'r', 'to': 'p', 'via': 'TS'}]}
+    await asyncio.to_thread((tmp_path / 'mechanism_graph.json').write_text, json.dumps(document))
+    controller = DagController(db, 's1', 'dag_guided', working_directory=tmp_path)
+    report = await asyncio.to_thread(controller.delivery_report)
+    graph = (await asyncio.to_thread(store.load_snapshot)).delivery
+    artifact = await asyncio.to_thread(prepare_delivery_artifact, store, graph, report, tmp_path)
+    assert artifact.scientific_checks['step1']['short_irc']['status'] == expected
 
 
 @pytest.mark.asyncio
@@ -365,20 +385,27 @@ async def test_partial_stage_credit_reports_only_remaining_stages(tmp_path):
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("rdkit_chemistry")
 async def test_component_files_submit_as_one_review_without_borrowing_history(tmp_path):
+    import shutil
+
     from cloudra.dag.engine import DagEngine
     from cloudra.dag.models import GraphActor, MutationBatch, UpdateNode
     from cloudra.tools.Plantool.dag_tools.dag_submit_species_evidence import DagSubmitSpeciesEvidence
-    session, db, store = _seed_review_graph(tmp_path, 'component-set-review')
-    assert DagEngine(store).apply_batch(MutationBatch(session_id='s1',actor=GraphActor.HARNESS,
+    from tests.dag_identity import make_coordinator
+
+    session, db, store = await asyncio.to_thread(_seed_review_graph, tmp_path, 'component-set-review')
+    mutation = MutationBatch(session_id='s1',actor=GraphActor.HARNESS,
         actor_id='test',base_revisions=store.load_bundle().revisions,rationale='declare complex',
-        operations=[UpdateNode(op='update_node',graph='delivery',node_id='r',changes={'smiles':'O.O=C=O'})])).accepted
-    agent = _coordinator(db.conversation_id)
-    water = str(FIXTURES_DIR/'gaussian/water_opt_freq_g16.out')
-    co2 = str(FIXTURES_DIR/'orca/co2_freq_orca42.out')
+        operations=[UpdateNode(op='update_node',graph='delivery',node_id='r',changes={'smiles':'O.O=C=O'})])
+    assert (await asyncio.to_thread(DagEngine(store).apply_batch, mutation)).accepted
+    agent = make_coordinator(db.conversation_id, orchestration_mode='dag_guided', workspace_dir=str(tmp_path))
+    water = str(tmp_path/'water.out')
+    co2 = str(tmp_path/'co2.out')
+    await asyncio.to_thread(shutil.copyfile, FIXTURES_DIR/'gaussian/water_opt_freq_g16.out', water)
+    await asyncio.to_thread(shutil.copyfile, FIXTURES_DIR/'orca/co2_freq_orca42.out', co2)
     whole = await call_dag_tool(DagSubmitSpeciesEvidence,agent,session,species_name='R',opt_file=[water,co2])
     assert whole.is_success
     assert whole.result['scientific_checks']['geometry']['status']=='passed'
-    request = store.get_review_request(whole.result['review_id'])
+    request = await asyncio.to_thread(store.get_review_request, whole.result['review_id'])
     assert len(request.supporting_refs)==2
     # A later incomplete submission must not borrow the old CO2 evidence.
     later = await call_dag_tool(DagSubmitSpeciesEvidence,agent,session,species_name='R',opt_file=water)

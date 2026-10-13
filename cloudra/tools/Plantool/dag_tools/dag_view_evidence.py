@@ -69,11 +69,15 @@ class DagViewEvidence(DagToolBase):
             )
             if review is None:
                 request = await asyncio.to_thread(store.get_review_request, user_input.review_id.strip())
-                if request is None or request.kind != "evidence":
+                if request is None or request.kind not in {"evidence", "exception"}:
                     return fail("dag_view_evidence", f"evidence review {user_input.review_id!r} does not exist")
+                decision = await asyncio.to_thread(store.get_review_decision_for_request, request.request_id)
                 result = {"review_id": request.request_id, "state": request.state,
+                          "kind": request.kind, "question": request.question, "target_ids": request.target_ids,
                           "proposal": request.proposal,
-                          "supporting_refs": [ref.model_dump(mode="json") for ref in request.supporting_refs]}
+                          "supporting_refs": [ref.model_dump(mode="json") for ref in request.supporting_refs],
+                          "counterevidence_refs": [ref.model_dump(mode="json") for ref in request.counterevidence_refs],
+                          "decision": decision.model_dump(mode="json") if decision is not None else None}
                 if request.proposal.get("element_type") in ("step", "species") and len(request.target_ids) == 1:
                     from cloudra.dag.file_science import file_scientific_checks
                     snapshot = await asyncio.to_thread(store.load_snapshot)

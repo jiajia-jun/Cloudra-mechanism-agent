@@ -129,6 +129,46 @@ async def test_declared_energy_and_log_must_match_the_bound_immutable_file(tmp_p
 
 
 @pytest.mark.asyncio
+async def test_consultation_refs_cannot_replace_the_formal_file_submission(tmp_path):
+    from cloudra.dag.delivery_artifact import prepare_delivery_artifact
+    from cloudra.dag.evidence_ingest import snapshot_evidence_file
+    from cloudra.dag.models import AttachRef
+    from cloudra.dag.review_requests import ReviewRequest
+
+    c = await controller(tmp_path)
+
+    def bind_and_review():
+        log, snap = bind_water(c, tmp_path)
+        ref = next(node for node in c.store.load_snapshot().delivery.nodes if node.node_id == 'r').refs[0]
+        c.store.enqueue_review(ReviewRequest(kind='evidence', requester='s1', target_ids=['r'],
+            question='Review species R', supporting_refs=[ref], proposal={'element_type': 'species'},
+            basis_fingerprint='file-basis'))
+        other_log = tmp_path / 'water-for-consultation.out'
+        other_log.write_bytes(log.read_bytes())
+        other_snapshot = snapshot_evidence_file(other_log, tmp_path)
+        other_ref = c.store.register_evidence('s1', 'consultation source', other_snapshot.model_dump(mode='json'), source_type='file')
+        assert DagEngine(c.store).apply_batch(MutationBatch(session_id='s1', actor=GraphActor.HARNESS,
+            actor_id='harness', base_revisions=c.store.load_bundle().revisions, rationale='retain consultation source',
+            operations=[AttachRef(op='attach_ref', graph='delivery', target_type='node', target_id='r', ref=other_ref)])).accepted
+        c.store.enqueue_review(ReviewRequest(kind='evidence', requester='s1', target_ids=['r'],
+            question='Does this separate inspection resolve the old question?', supporting_refs=[other_ref],
+            proposal={}, basis_fingerprint='consultation-basis'))
+        return log, snap
+
+    log, snap = await asyncio.to_thread(bind_and_review)
+    document = graph()
+    document['nodes'][0]['properties'] = {'energy_hartree': snap.final_energy_hartree,
+        'evidence_log': str(log)}
+    await asyncio.to_thread((tmp_path / 'mechanism_graph.json').write_text, json.dumps(document))
+    snapshot = await asyncio.to_thread(c.store.load_snapshot)
+    report = await asyncio.to_thread(c.delivery_report)
+
+    artifact = await asyncio.to_thread(prepare_delivery_artifact, c.store, snapshot.delivery, report, tmp_path)
+
+    assert artifact.scientific_checks['R']['geometry']['status'] == 'passed'
+
+
+@pytest.mark.asyncio
 async def test_audit_rejects_report_graph_race(tmp_path, monkeypatch):
     from cloudra.dag.models import DeliveryReport
     c = await controller(tmp_path)
