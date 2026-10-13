@@ -1352,7 +1352,8 @@ def test_verdict_accepts_reversed_irc_side_identity_with_matching_provenance(
     _install_fake_irc_endpoints(
         monkeypatch, symbols, 0.25 * a + 0.75 * b, 0.75 * a + 0.25 * b,
     )
-    _install_endpoint_minimum_jobs(record, monkeypatch, symbols, b, a)
+    _install_endpoint_minimum_jobs(record, monkeypatch, symbols, a, b,
+        origins={'reactant': 'B', 'product': 'A'})
 
     result = _verdict(record)
     assert result.terminal == "verified", result.stage_record("verdict").detail
@@ -1402,9 +1403,11 @@ def test_actual_mixed_seed_branches_keep_native_side_constraints(tmp_path, monke
     (job_dir/'optimized.xyz').write_text(_xyz_text(symbols, 0.5*(a+b), 'TS'))
     ends = (0.25*a+0.75*b, 0.75*a+0.25*b) if swapped else (0.75*a+0.25*b, 0.25*a+0.75*b)
     _install_fake_irc_endpoints(monkeypatch, symbols, *ends)
-    _install_endpoint_minimum_jobs(record, monkeypatch, symbols, a, b, origins={explicit_role: explicit_role})
+    origins = {'reactant': 'B', 'product': 'A'} if swapped else {'reactant': 'A', 'product': 'B'}
+    origins[explicit_role] = explicit_role
+    _install_endpoint_minimum_jobs(record, monkeypatch, symbols, a, b, origins=origins)
     result = _verdict(record)
-    assert result.terminal == ('candidate_only' if swapped else 'verified'), result.stage_record('verdict').detail
+    assert result.terminal == 'verified', result.stage_record('verdict').detail
 
 
 def test_verdict_rejects_two_irc_sides_optimized_to_same_species(tmp_path, monkeypatch):
@@ -1458,11 +1461,12 @@ def test_verdict_rejects_identity_pairing_that_contradicts_irc_side_provenance(
         _xyz_text(symbols, 0.5 * (a + b), "TS geometry"), encoding="utf-8",
     )
     # The IRC goes A→reactant/B→product, but the recorded optimization origins
-    # end up A→product/B→reactant. The two facts cannot be combined into proof.
+    # claim A→product/B→reactant. The two facts cannot be combined into proof.
     _install_fake_irc_endpoints(
         monkeypatch, symbols, 0.75 * a + 0.25 * b, 0.25 * a + 0.75 * b,
     )
-    _install_endpoint_minimum_jobs(record, monkeypatch, symbols, b, a)
+    _install_endpoint_minimum_jobs(record, monkeypatch, symbols, a, b,
+        origins={'reactant': 'B', 'product': 'A'})
 
     result = _verdict(record)
     assert result.terminal == "candidate_only"

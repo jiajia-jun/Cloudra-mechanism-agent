@@ -2534,6 +2534,19 @@ def _endpoint_seed_atoms(record: TsProcessRecord, role: str, seed):
         if supplied is None or reference is None:
             raise ValueError('product endpoint seed MOL is missing or unreadable')
 
+        supplied_smiles = Chem.MolToSmiles(Chem.RemoveHs(supplied))
+        if supplied_smiles != Chem.MolToSmiles(Chem.RemoveHs(reference)):
+            reactant = Chem.MolFromSmiles(record.input.reaction.reactant_smiles)
+            repair = (
+                ' Use verification.reactant_endpoint.seed for the declared reactant.'
+                if reactant is not None and supplied_smiles == Chem.MolToSmiles(reactant)
+                else ''
+            )
+            raise ValueError(
+                f'Endpoint seed MOL represents {supplied_smiles}, not the declared product '
+                f'{record.input.reaction.product_smiles}.{repair}'
+            )
+
         def indexed_graph(mol):
             return ([(a.GetSymbol(), a.GetFormalCharge(), a.GetIsotope()) for a in mol.GetAtoms()],
                 sorted((min(b.GetBeginAtomIdx(), b.GetEndAtomIdx()), max(b.GetBeginAtomIdx(), b.GetEndAtomIdx()),
@@ -2558,6 +2571,81 @@ def _endpoint_seed_atoms(record: TsProcessRecord, role: str, seed):
     for source, target in enumerate(mapping):
         reordered[target] = atoms[source]
     return reordered
+
+
+def _irc_side_for_role(record: TsProcessRecord, info: dict, role: str) -> str:
+    """Choose an optimization source, never certify a species or IRC direction.
+
+    A/B are native direction labels. Compare both pairings with the declared
+    geometries in the frozen TS atom order; rough or undecidable frames still
+    proceed to Opt/Freq and the independent final identity/interval checks.
+    """
+    from cloudra.tools.core.irc_path import evaluate_endpoint_between, parse_xyz
+    from cloudra.tools.core.structure_artifacts import read_xyz_atoms
+
+    other = 'product' if role == 'reactant' else 'reactant'
+    retained = next((step for step in reversed(record.job_steps)
+                     if step.purpose == other + '_opt'), None)
+    if retained and retained.endpoint_source and retained.endpoint_source.kind == 'irc_outer_frame':
+        return 'B' if retained.endpoint_source.label == 'A' else 'A'
+
+    fallback = 'A' if role == 'reactant' else 'B'
+    frequency = next((step for step in reversed(record.job_steps)
+                      if step.purpose == 'frequency'), None)
+    if frequency is None:
+        return fallback
+    ts_path = Path(frequency.input_path).parent / 'optimized.xyz'
+    if not ts_path.is_file():
+        return fallback
+    ts_atoms = read_xyz_atoms(ts_path)
+    symbols = [symbol for symbol, _ in ts_atoms]
+    ts_positions = [point for _, point in ts_atoms]
+    ends = [read_xyz_atoms(info['path_' + side]) for side in ('a', 'b')]
+    if any([symbol for symbol, _ in atoms] != symbols for atoms in ends):
+        return fallback
+    watch_pairs = [[left + 1, right + 1] for left, right in _active_reaction_center(record)]
+    # An explicit opposite species that has already optimized is the useful
+    # anchor. Do not discard it in favor of an older, rough search geometry.
+    if retained and retained.state == 'done' and retained.endpoint_source:
+        xyz, error = _endpoint_opt_frame(record, retained)
+        anchor = parse_xyz(xyz) if not error else None
+        if anchor and anchor[0] == symbols:
+            preferred = 'A' if other == 'reactant' else 'B'
+            choices = []
+            for side, atoms in zip(('A', 'B'), ends, strict=True):
+                result = evaluate_endpoint_between(symbols, ts_positions,
+                    [point for _, point in atoms], anchor[1], watch_pairs, record.input.reaction.charge)
+                choices.append((not result['is_between'], result['score'], side != preferred, side))
+            return 'B' if min(choices)[3] == 'A' else 'A'
+    reactant = _read_built_xyz(record, 'reactant')
+    product = _read_built_xyz(record, 'product')
+    if reactant is None or reactant[0] != symbols:
+        return fallback
+    if _rotated_product(record) is not None:
+        error, positions = _derive_product_geometry(record, reactant)
+        if error:
+            return fallback
+        product_positions = positions
+    elif product is not None:
+        mapping = record.input.reaction.atom_map
+        if sorted(mapping) != list(range(len(product[0]))):
+            return fallback
+        product_positions = [product[1][mapping.index(index)] for index in range(len(mapping))]
+        if [product[0][mapping.index(index)] for index in range(len(mapping))] != reactant[0]:
+            return fallback
+    else:
+        return fallback
+    choices = []
+    for swapped, targets in ((False, (reactant[1], product_positions)),
+                             (True, (product_positions, reactant[1]))):
+        results = [evaluate_endpoint_between(reactant[0], ts_positions,
+            [point for _, point in endpoint], target, watch_pairs, record.input.reaction.charge)
+            for endpoint, target in zip(ends, targets, strict=True)]
+        choices.append((not all(item['is_between'] for item in results),
+                        sum(item['score'] for item in results), swapped))
+    swapped = min(choices)[2]
+    return ('B' if fallback == 'A' else 'A') if swapped else fallback
+
 
 def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
                           role: Literal["reactant", "product"],
@@ -2620,11 +2708,14 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
             return f"IRC outer-frame extraction failed: {exc}", ""
         if info is None:
             return "IRC has no usable outer geometry on both sides: " + "; ".join(checks), ""
-        source = info["path_a" if role == "reactant" else "path_b"]
-        if not source or not os.path.isfile(source):
-            return f"IRC side {'A' if role == 'reactant' else 'B'} outer frame is missing", ""
+        for side in ('A', 'B'):
+            source = info['path_' + side.lower()]
+            if not source or not os.path.isfile(source):
+                return f"IRC side {side} outer frame is missing", ""
+        side = _irc_side_for_role(record, info, role)
+        source = info['path_' + side.lower()]
         import hashlib
-        provenance = dict(kind='irc_outer_frame', label='A' if role == 'reactant' else 'B',
+        provenance = dict(kind='irc_outer_frame', label=side,
             irc_job_id=irc_step.external_source['source_job_id'] if irc_step.external_source else irc_step.job_id,
             irc_log_sha256=hashlib.sha256(Path(irc_log).read_bytes()).hexdigest())
     else:
@@ -2652,6 +2743,10 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
     _write_immutable_input(os.path.join(job_dir, 'endpoint_source.json'),
         EndpointSource.model_validate(provenance).model_dump_json())
     declaration = record.input.reaction
+    origin_label = (
+        'IRC side ' + provenance['label']
+        if provenance['kind'] == 'irc_outer_frame' else 'explicit species seed'
+    )
     task_type = [{"opt": None}] if task == "opt" else [{"freq": None}]
     name = f"{role}_{task}.{'inp' if calculation.engine == 'orca' else 'gjf'}"
     input_path = os.path.join(job_dir, name)
@@ -2662,7 +2757,7 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
         source_type="xyz_file", source_value=source,
         task_type=task_type,
         charge=declaration.charge, multiplicity=declaration.multiplicity,
-        title=f"Endpoint {role} {task} | declared_species: {getattr(declaration, role + '_smiles')}",
+        title=f"Endpoint {role} {task} from {origin_label}; identity unverified | declared_species: {getattr(declaration, role + '_smiles')}",
         output_path=input_path,
     )
     conflicts = validate_writer_request(request.model_dump())
@@ -2828,10 +2923,14 @@ def _refine(record: TsProcessRecord) -> TsProcessRecord:
         _minimum, reason = _validated_endpoint_minimum(record, role)
         if _minimum is None:
             _record_candidate_failure(record, 'endpoint_unconfirmed', current, _refinement_log_path(record, current))
+            origin = current.endpoint_source
+            source = f'IRC side {origin.label}' if origin and origin.kind == 'irc_outer_frame' else 'explicit species seed'
             return _terminal(
                 record, "verdict", "candidate_only",
-                f"IRC side {'A' if role == 'reactant' else 'B'} did not qualify as an "
-                f"optimized minimum: {reason}",
+                f"The {role} endpoint candidate from {source} did not qualify as an "
+                f"optimized minimum: {reason}. Repair verification.{role}_endpoint.seed "
+                f"for the declared {role} {getattr(record.input.reaction, role + '_smiles')}; "
+                "IRC A/B labels do not declare species identity.",
             )
 
     endpoint_next = {
@@ -3327,12 +3426,12 @@ def _verdict(record: TsProcessRecord) -> TsProcessRecord:
             record, "verdict", "candidate_only",
             f"the declared IRC log does not exist at {irc_log}; the candidate stays unverified",
         )
-    side_a, reason = _validated_endpoint_minimum(record, "reactant")
-    if side_a is None:
-        return _terminal(record, "verdict", "candidate_only", f"IRC side A minimum is unverified: {reason}")
-    side_b, reason = _validated_endpoint_minimum(record, "product")
-    if side_b is None:
-        return _terminal(record, "verdict", "candidate_only", f"IRC side B minimum is unverified: {reason}")
+    reactant, reason = _validated_endpoint_minimum(record, "reactant")
+    if reactant is None:
+        return _terminal(record, "verdict", "candidate_only", f"Declared reactant minimum is unverified: {reason}")
+    product, reason = _validated_endpoint_minimum(record, "product")
+    if product is None:
+        return _terminal(record, "verdict", "candidate_only", f"Declared product minimum is unverified: {reason}")
 
     failures: list[str] = []
     import hashlib
@@ -3355,23 +3454,15 @@ def _verdict(record: TsProcessRecord) -> TsProcessRecord:
     sides = [origin.label for origin in sources.values() if origin.kind == 'irc_outer_frame']
     if len(sides) != len(set(sides)):
         return _terminal(record, 'verdict', 'candidate_only', 'Endpoint source provenance repeats an IRC side; both origins must be checked independently.')
-    for assignment, reactant, product in (
-        ("direct", side_a, side_b), ("swapped", side_b, side_a),
-    ):
-        slot_species = {'reactant': 'reactant', 'product': 'product'} if assignment == 'direct' else {'reactant': 'product', 'product': 'reactant'}
-        if any(origin.kind == 'species_reference' and origin.label != slot_species[slot]
-               for slot, origin in sources.items()):
-            failures.append(f'{assignment} identity contradicts the explicit species reference')
-            continue
-        expected_origins = {origin.label: slot_species[slot] for slot, origin in sources.items()
-                            if origin.kind == 'irc_outer_frame'}
-        identity_errors = [
-            _endpoint_identity_error(record, "reactant", reactant),
-            _endpoint_identity_error(record, "product", product),
-        ]
-        if any(identity_errors):
-            failures.append(f"{assignment} identity: {'; '.join(error for error in identity_errors if error)}")
-            continue
+    expected_origins = {origin.label: role for role, origin in sources.items()
+                        if origin.kind == 'irc_outer_frame'}
+    identity_errors = [
+        _endpoint_identity_error(record, "reactant", reactant),
+        _endpoint_identity_error(record, "product", product),
+    ]
+    if any(identity_errors):
+        failures.append(f"Declared species identity: {'; '.join(error for error in identity_errors if error)}")
+    else:
         passed, detail = _irc_interval_proof(
             record, irc_log, freq_step, reactant, product, expected_origins,
         )
@@ -3380,15 +3471,15 @@ def _verdict(record: TsProcessRecord) -> TsProcessRecord:
                 record, "verdict", "verified",
                 f"verified transition state: exactly one imaginary mode ({imag[0]:.1f} cm^-1), "
                 f"usable IRC geometries from both directions, and {detail}; "
-                f"optimized side-to-species assignment is {assignment}",
+                "optimized endpoint identities match the declared reactant and product",
             )
-        failures.append(f"{assignment} interval proof: {detail}")
+        failures.append(f"IRC interval proof: {detail}")
     return _terminal(
         record, "verdict", "candidate_only",
         "The optimized IRC outer frames did not establish one consistent species identity, "
         "source provenance, and endpoint interval proof: " + "; ".join(failures)
-        + ". " + _endpoint_geometry_note(record, 'reactant', side_a)
-        + "; " + _endpoint_geometry_note(record, 'product', side_b)
+        + ". " + _endpoint_geometry_note(record, 'reactant', reactant)
+        + "; " + _endpoint_geometry_note(record, 'product', product)
         + ". These observations do not override the failed checks. The candidate stays UNVERIFIED",
     )
 

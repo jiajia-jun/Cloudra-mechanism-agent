@@ -210,8 +210,10 @@ class TsVerification(InputModel):
     frequency: CalculationValue | None = None
     irc: CalculationValue | None = None
     irc_log: str | None = None
-    reactant_endpoint: EndpointVerification = Field(default_factory=EndpointVerification)
-    product_endpoint: EndpointVerification = Field(default_factory=EndpointVerification)
+    reactant_endpoint: EndpointVerification = Field(default_factory=EndpointVerification,
+        description='The declared reaction.reactant_smiles species, never a fixed IRC A/B direction. An explicit seed uses this species atom order; default IRC sources are provisional until optimization, frequency and direction checks pass.')
+    product_endpoint: EndpointVerification = Field(default_factory=EndpointVerification,
+        description='The declared reaction.product_smiles species, never a fixed IRC A/B direction. An explicit seed uses this species atom order (or an accepted native IRC working order); the runtime applies the bound atom map.')
 
 
 class TsExecutionLimits(InputModel):

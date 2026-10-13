@@ -132,6 +132,7 @@ def test_file_sources_are_copied_immutably_and_missing_source_blocks(tmp_path):
 def test_relative_file_conformers_use_workspace_when_service_cwd_differs(tmp_path, monkeypatch):
     from rdkit import Chem
 
+    from cloudra.tools.core.structure_artifacts import read_xyz_atoms
     from cloudra.tools.core.ts_inputs import EndpointVerification
     from cloudra.tools.core.ts_process import _build, _write_endpoint_input
 
@@ -142,6 +143,7 @@ def test_relative_file_conformers_use_workspace_when_service_cwd_differs(tmp_pat
     monkeypatch.chdir(cwd)
     seed = workspace / 'seed.xyz'
     seed.write_text('2\nsource\nH 0 0 0\nH 0 0 .74\n')
+    original_seed = seed.read_bytes()
     Chem.MolToMolFile(Chem.AddHs(Chem.MolFromSmiles('[H][H]')), str(workspace / 'seed.mol'))
     value = input_payload()
     value['reaction'].update(reactant_smiles='[H][H]', product_smiles='[H][H]', atom_map=[0, 1])
@@ -160,7 +162,8 @@ def test_relative_file_conformers_use_workspace_when_service_cwd_differs(tmp_pat
     job_dir.mkdir()
     error, input_path = _write_endpoint_input(record, str(job_dir), 'reactant', 'opt')
     assert error == '' and Path(input_path).is_file()
-    assert (job_dir / 'reactant_source.xyz').read_bytes() == seed.read_bytes()
+    assert read_xyz_atoms(job_dir / 'reactant_source.xyz') == read_xyz_atoms(seed)
+    assert seed.read_bytes() == original_seed
 
 
 @pytest.mark.parametrize('source_kind', ['parent', 'symlink', 'absolute'])
