@@ -25,12 +25,12 @@ GRAPH_JSON_EXAMPLE = (
     '"barrier_kcal_mol": 21.3}]}. '
     "A species made of several molecules (a pre-reaction or ion-dipole complex) "
     "is ONE node whose `smiles` holds a single dot-joined complex SMILES (like "
-    "the RC node above), never a list of separate component SMILES; evidence "
-    "files for such a species must carry that same dot-joined complex SMILES in "
-    "their `smiles:` annotation. If such a complex is not a clean minimum at "
+    "the RC node above), never a list of separate component SMILES. Bind the "
+    "unchanged native evidence logs through DAG and explicit `properties.evidence_log` paths; "
+    "never rewrite a computed log to add SMILES. If such a complex is not a clean minimum at "
     "the allowed level of theory, still keep the single complex node in the "
     "graph, but you may then annotate its evidence files per component species "
-    "instead (each component with its own `smiles:` annotation). "
+    "instead (each component with its own `smiles:` annotation placed in the input before computation). "
 )
 
 # 能垒交付契约（easy/normal/hard 共用；impossible 的机理类交付句同样引用其中的
@@ -50,9 +50,10 @@ BARRIER_DECLARATION_CLAUSE = (
 )
 
 TS_EVIDENCE_CLAUSE = (
-    "A transition-state evidence file must carry `smiles: <the SMILES of that "
-    "step's reactant>` so the scorer can attach the saddle to the step it "
-    "belongs to. "
+    "Bind each transition-state node to its original native evidence file with "
+    "`properties.evidence_log` and attach that evidence to the declared DAG step. "
+    "Do not append annotations to a completed or frozen log; any input annotation "
+    "must be written before computation and expresses intent rather than proven identity. "
 )
 
 # 节点能量声明（能垒评分题必填）：评分器用声明值指认"交付的是哪一份日志"
