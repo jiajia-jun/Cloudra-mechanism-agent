@@ -125,11 +125,14 @@ async def test_submit_invalid_ts_rejected(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_guided_species_submission_rejects_known_imaginary_frequency(tmp_path):
-    agent, session, _db = _setup(tmp_path, "guided-imag-species", "dag_guided")
+async def test_guided_species_negative_evidence_can_be_reviewed_but_not_verified(tmp_path):
+    from cloudra.dag.controller import DagController
+    from cloudra.dag.store import DagStore
+
+    agent, session, db = _setup(tmp_path, "guided-imag-species", "dag_guided")
     proposed = await call_dag_tool(
         DagProposeMechanism, agent, session,
-        species=[{"name": "R"}, {"name": "P"}],
+        species=[{"name": "R", "smiles": "O"}, {"name": "P"}],
         steps=[{"name": "step1", "source": "R", "target": "P"}],
         rationale="Hypothesis",
     )
@@ -143,8 +146,25 @@ async def test_guided_species_submission_rejects_known_imaginary_frequency(tmp_p
         description="Endpoint optimization with one imaginary frequency",
     )
 
-    assert not submitted.is_success
-    assert "failed validation" in submitted.error
+    assert submitted.is_success, submitted
+    assert submitted.result["validation"]["frequency_count_valid"] is False
+    assert submitted.result["validation"]["n_imag"] == 1
+    assert submitted.result["scientific_checks"]["geometry"]["status"] != "passed"
+    store = DagStore(db)
+    request = store.get_review_request(submitted.result["review_id"])
+    assert request.state == "queued" and request.supporting_refs
+    before = store.load_snapshot().delivery
+    reviewed = await call_dag_tool(
+        DagReviewSpecies, make_supervisor(db.conversation_id, workspace_dir=str(tmp_path)), session,
+        species_name="R", verdict="supported", rationale="Record the unsuccessful minimum search",
+    )
+    assert reviewed.is_success, reviewed
+    assert reviewed.result["scientific_checks"]["geometry"]["status"] != "passed"
+    assert store.load_snapshot().delivery == before
+    report = DagController(db, "s1", "dag_guided").delivery_report()
+    assert not report.complete
+    assert not any(g.code == "supervisor_evidence_accepted" and g.target_id == request.target_ids[0]
+                   for g in report.satisfied)
 
 
 @pytest.mark.asyncio

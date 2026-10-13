@@ -59,7 +59,8 @@ class DagSubmitSpeciesEvidence(DagToolBase):
         "Submit calculation output files as evidence for a species in the delivery graph. "
         "Automatically validates that the stationary point has 0 imaginary frequencies. "
         "In dag_record mode, attach validated evidence snapshots. "
-        "In dag_guided mode, submits the evidence to the Supervisor for review."
+        "In dag_guided mode, submits successful or unsuccessful calculations for Supervisor review; "
+        "recording failed minimum evidence does not verify the species."
     )
     input_schema: Any = DagSubmitSpeciesEvidenceInput
     output_schema: Any = DagToolOutput
@@ -117,7 +118,7 @@ class DagSubmitSpeciesEvidence(DagToolBase):
             frequency = freq_snap if freq_snap is not None else opt_snap
             val = validate_species_minimum(frequency.frequencies,
                 imaginary_freqs=frequency.imaginary_frequencies)
-            if not val.frequency_count_valid and (ctx.mode is OrchestrationMode.DAG_RECORD or val.frequency_data_present):
+            if not val.frequency_count_valid and ctx.mode is OrchestrationMode.DAG_RECORD:
                 return fail("dag_submit_species_evidence", f"Stationary point failed validation: {val.message}", accepted=False)
             validations.append(val.model_dump())
             for snap in [opt_snap, *([freq_snap] if freq_snap is not None else [])]:

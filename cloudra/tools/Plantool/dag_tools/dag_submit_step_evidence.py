@@ -56,9 +56,9 @@ class DagSubmitStepEvidenceInput(input_schema):
         description="Description of the reaction coordinate (e.g. bonds formed/cleaved along the mode).",
     )
     endpoint_a_ref: GraphRef | None = Field(default=None,
-        description='Existing immutable file reference attached to this step for the TARGET minimum. Final geometry must match the complete target species and have zero imaginary frequencies.')
+        description='Existing immutable file reference in this project for the TARGET minimum; this submission attaches it to the step. Final geometry must match the complete target species and have zero imaginary frequencies.')
     endpoint_b_ref: GraphRef | None = Field(default=None,
-        description='Existing immutable file reference attached to this step for the SOURCE minimum. Final geometry must match the complete source species and have zero imaginary frequencies.')
+        description='Existing immutable file reference in this project for the SOURCE minimum; this submission attaches it to the step. Final geometry must match the complete source species and have zero imaginary frequencies.')
 
 
 class DagSubmitStepEvidence(DagToolBase):
@@ -112,9 +112,9 @@ class DagSubmitStepEvidence(DagToolBase):
         step = matching_edges[0]
         endpoint_refs = {key: ref for key, ref in [('endpoint_a', user_input.endpoint_a_ref),
                                                  ('endpoint_b', user_input.endpoint_b_ref)] if ref is not None}
-        if any(ref not in step.refs or ref.ref_type != 'file' or not ref.content_hash
+        if any(ref.ref_type != 'file' or not ref.content_hash
                for ref in endpoint_refs.values()):
-            return fail('dag_submit_step_evidence', 'Endpoint references must be immutable files already attached to this step.', accepted=False)
+            return fail('dag_submit_step_evidence', 'Endpoint references must be immutable file evidence from this project.', accepted=False)
 
         # 2. Snapshot TS file and validate vibration mode
         # snapshot_evidence_file 全量读文件 + cclib 解析（同步重活），卸载出事件循环。

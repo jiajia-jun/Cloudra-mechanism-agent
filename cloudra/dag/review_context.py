@@ -65,7 +65,7 @@ class ActiveReview(BaseModel):
 
 
 class ReviewContextManager:
-    """管理 Supervisor 的当前活动审查上下文（单活跃上下文）。"""
+    """按明确目标读取待审文件，未指定目标时读取最新待审上下文。"""
 
     _active_reviews: dict[str, ActiveReview] = {}
 
@@ -144,9 +144,15 @@ class ReviewContextManager:
         cls,
         conversation_id: str,
         db: ConversationDB | None = None,
+        *,
+        kind: Literal["step", "species", "mechanism"] | None = None,
+        target_id: str | None = None,
     ) -> ActiveReview | None:
         if db is None:
-            return cls._active_reviews.get(conversation_id)
+            review = cls._active_reviews.get(conversation_id)
+            if review and (kind is None or review.kind == kind) and (target_id is None or review.target_id == target_id):
+                return review
+            return None
         if db is not None:
             try:
                 with db.connect() as con:
@@ -156,9 +162,13 @@ class ReviewContextManager:
                                supporting_refs, basis_fingerprint, created_at
                         FROM dag_review_requests
                         WHERE state = 'queued'
-                          AND json_extract(proposal, '$.element_type') IN ('species', 'step', 'mechanism')
+                          AND ((kind = 'evidence' AND json_extract(proposal, '$.element_type') IN ('species', 'step'))
+                            OR (kind = 'draft' AND json_extract(proposal, '$.element_type') = 'mechanism'))
+                          AND (? IS NULL OR json_extract(proposal, '$.element_type') = ?)
+                          AND (? IS NULL OR (json_array_length(target_ids) = 1 AND json_extract(target_ids, '$[0]') = ?))
                         ORDER BY rowid DESC LIMIT 1
-                        """
+                        """,
+                        (kind, kind, target_id, target_id),
                     ).fetchone()
                     if row:
                         req_id, kind, requester, target_ids_json, proposal_json, refs_json, fp, created_at = row

@@ -46,7 +46,8 @@ async def test_file_submission_routes_explicit_verified_endpoint_refs(tmp_path, 
     for name in ('product_minimum.out', 'op_minimum.out'):
         snap = await asyncio.to_thread(snapshot_evidence_file, str(native / name), workspace_root=str(tmp_path), conversation_id=db.conversation_id)
         ref = await asyncio.to_thread(store.register_evidence, 's1', name, snap.model_dump(mode='json'), source_type='file')
-        await asyncio.to_thread(_mutate, store, AttachRef(op='attach_ref', graph='delivery', target_type='edge', target_id='step1', ref=ref))
+        await asyncio.to_thread(_mutate, store, AttachRef(op='attach_ref', graph='delivery', target_type='node',
+            target_id='p' if name == 'product_minimum.out' else 'r', ref=ref))
         refs.append(ref)
     if swap:
         refs.reverse()
@@ -55,6 +56,8 @@ async def test_file_submission_routes_explicit_verified_endpoint_refs(tmp_path, 
         step_name='step1', ts_file=str(native/'ts2_frequency.out'), irc_file=str(native/'ts2_irc/irc.out'),
         endpoint_a_ref=refs[0].model_dump(), endpoint_b_ref=refs[1].model_dump())
     assert submitted.is_success, submitted
+    step = (await asyncio.to_thread(store.load_snapshot)).delivery.edges[0]
+    assert all(ref in step.refs for ref in refs)
     expected = 'incomplete' if swap else 'passed'
     assert submitted.result['scientific_checks']['short_irc']['status'] == expected
     supervisor = make_supervisor(db.conversation_id, workspace_dir=str(tmp_path))

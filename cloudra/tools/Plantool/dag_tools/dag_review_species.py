@@ -75,7 +75,8 @@ class DagReviewSpecies(DagToolBase):
             )
         species = matching[0]
         active_review = await asyncio.to_thread(
-            ReviewContextManager.get_active_review, ctx.conversation_id, ctx.db
+            ReviewContextManager.get_active_review, ctx.conversation_id, ctx.db,
+            kind="species", target_id=species.node_id,
         )
         if active_review is None:
             return fail("dag_review_species", "no active evidence review is available", accepted=False)

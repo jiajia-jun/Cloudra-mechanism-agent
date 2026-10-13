@@ -77,7 +77,8 @@ class DagReviewStep(DagToolBase):
             )
         step = matching[0]
         active_review = await asyncio.to_thread(
-            ReviewContextManager.get_active_review, ctx.conversation_id, ctx.db
+            ReviewContextManager.get_active_review, ctx.conversation_id, ctx.db,
+            kind="step", target_id=step.edge_id,
         )
         if active_review is None:
             return fail("dag_review_step", "no active evidence review is available", accepted=False)
