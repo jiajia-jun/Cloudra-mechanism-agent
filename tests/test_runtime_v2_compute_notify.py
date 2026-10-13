@@ -954,11 +954,15 @@ async def test_pipeline_intermediate_job_advances_without_agent_message(tmp_path
 @pytest.mark.asyncio
 @pytest.mark.parametrize("outcome,verified", [("verified", True), ("candidate_only", False), ("blocked", None)])
 async def test_ts_outcome_wakes_owner_while_high_throughput_jobs_run(tmp_path, outcome, verified):
+    from cloudra.runtime_v2.persistence import RuntimeStore
     from cloudra.services.ts_pipeline_store import bind_stage_job, create_process, save_process_record
     from cloudra.tools.core.ts_process import TsJobStep, _block, _terminal
     from tests.test_ts_stage_inputs import record_fixture
 
     core, project, coordinator = await _setup_core()
+    store = await asyncio.to_thread(RuntimeStore, tmp_path / "ts-notice.db")
+    core.store = store
+    await core.event_writer.flush()
     child = (await CommandBus(core).execute(Command(
         type="agent.spawn", target={"project_id": project.id},
         payload={"role_id": "small_mol", "parent_session_id": coordinator.id},
@@ -1007,3 +1011,18 @@ async def test_ts_outcome_wakes_owner_while_high_throughput_jobs_run(tmp_path, o
         assert view["result"]["reason"] == "Recorded endpoint direction judgement"
     assert view["message"] == "Recorded endpoint direction judgement"
     assert await asyncio.to_thread(_notified_at, job) is not None
+    reflections = [event for event in core.event_log.query_session(child.id, types={"context.pin_set"})
+                   if event.data["key"].startswith("guidance-scientific-reflection:")]
+    assert len(reflections) == int(outcome != "verified")
+    if reflections:
+        assert view["run_dir"] in reflections[0].data["content"]
+        assert view["message"] in reflections[0].data["content"]
+        persisted = await asyncio.to_thread(store.events_after, {})
+        pin_index = next(index for index, row in enumerate(persisted)
+                         if row["type"] == "context.pin_set" and row["session_id"] == child.id)
+        message_index = next(index for index, row in enumerate(persisted)
+                             if row["type"] == "agent.message_injected" and row["session_id"] == child.id)
+        assert pin_index < message_index
+        await broker._poll_project(project.id)
+        assert len(core.event_log.query_session(child.id, types={"context.pin_set"})) == 1
+    assert not core.event_log.query_session(coordinator.id, types={"context.pin_set"})

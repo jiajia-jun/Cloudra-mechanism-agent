@@ -2,9 +2,62 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from tests.agent_scenarios import ScenarioHarness, ScriptedProvider, Step
+
+
+@pytest.mark.asyncio
+async def test_repeated_process_inspection_delivers_one_evidence_hint_to_next_turn(tmp_path):
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.services.ts_pipeline_store import create_process, save_process_record
+    from cloudra.tools.core.ts_process import _terminal
+    from tests.test_ts_stage_inputs import record_fixture
+
+    release = asyncio.Event()
+    args = {}
+    provider = ScriptedProvider(by_role={"small_mol": [
+        Step(tools=[("ts_inspect", args)], wait_for=release),
+        Step(tools=[("ts_inspect", args)]),
+        Step(text="Recorded the unresolved evidence", stop=True),
+    ]})
+    harness = await ScenarioHarness.start(tmp_path, workspace_dir=tmp_path, provider=provider)
+    try:
+        agent = await harness.spawn("small_mol", protocol="traditional")
+
+        def recorded_candidate():
+            db = ComputeDB().init()
+            record = record_fixture(tmp_path, owner_conversation_id=harness.project.id,
+                                    owner_session_id=agent.id)
+            record.evidence_candidates = [str(tmp_path / "observed_irc.out")]
+            process = create_process(db, request_key="hint-observed-endpoint", payload={
+                "project_id": harness.project.id, "owner_id": agent.id,
+                "workspace_dir": str(tmp_path), "input": record.input.model_dump(mode="json"),
+            })
+            record.pipeline_id = process["process_id"]
+            _terminal(record, "verdict", "candidate_only", "Recorded endpoint connection differs")
+            save_process_record(db, process_id=process["process_id"], record=record.model_dump(mode="json"))
+            return record.run_id
+
+        args["run_id"] = await asyncio.to_thread(recorded_candidate)
+        release.set()
+        await harness.wait_terminal(agent)
+        calls = [row for row in harness.tool_events(agent) if row["tool_name"] == "ts_inspect"]
+        assert len(calls) == 2, harness.describe(agent)
+        assert all(row["is_success"] for row in calls), calls
+        assert all(row["result_data"]["result"]["verified"] is False for row in calls)
+        pins = [event for event in harness.events(agent) if event.type == "context.pin_set"
+                and event.data["key"].startswith("guidance-scientific-reflection:")]
+        assert len(pins) == 1
+        content = pins[0].data["content"]
+        assert str(tmp_path / "observed_irc.out") in content
+        assert any(message.get("role") == "system" and content in message.get("content", "")
+                   for _, messages in provider.calls[1:] for message in messages)
+    finally:
+        release.set()
+        await harness.aclose()
 
 
 @pytest.mark.asyncio

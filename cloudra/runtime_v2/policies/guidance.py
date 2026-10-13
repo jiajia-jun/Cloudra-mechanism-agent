@@ -22,6 +22,7 @@ import hashlib
 import json
 import os
 
+from cloudra.runtime_v2.notices import NoticeManager
 from cloudra.runtime_v2.policies.base import PipelineContext, PolicyResult, ToolCall, ToolResult
 from cloudra.tools.core.bash_habit_guard import bash_file_write_warning
 from cloudra.tools.core.coord_guard import handwritten_coord_warning
@@ -90,13 +91,49 @@ _REFLECTION_CAUSES = {
     "path": "The xTB path refinement exhausted its cycle ceiling.",
 }
 _REFLECTION_ADVICE = (
-    "Inspect the observed structures and distinguish a search or numerical limitation "
-    "from a mismatch between the physical conditions, molecular model, and proposed "
-    "mechanism. Revisit the stated conditions and what the model omits, then choose "
-    "a different hypothesis or a discriminating observation for the next attempt. "
-    "This failure alone proves neither that the reaction is impossible nor that the "
-    "method is invalid. Do not automatically retry or change the model."
+    "Read the original structures and logs, using relevant skills or cited scientific sources. "
+    "Distinguish missing evidence or provenance, numerical search difficulty, and a different "
+    "observed reaction connection. If the connection differs, consider a new intermediate or "
+    "a different division into elementary steps; the Coordinator's initial proposal is a hypothesis. "
+    "An unexpected endpoint alone does not establish a side product, an impossible reaction, "
+    "or an invalid method. Choose a distinguishing next test within the authorized model and budget, "
+    "update PROCESS.md with observations and source paths, and share any proposed step changes "
+    "with the Coordinator."
 )
+
+
+def guide_ts_process(notices: NoticeManager | None, agent_id: str, data: dict) -> None:
+    """Tool views and automatic completion notices share one current hint per TS run."""
+    run_id = data.get("run_id")
+    if notices is None or not isinstance(run_id, str) or not run_id:
+        return
+    key = _PIN_REFLECTION + "ts-process:" + run_id
+    verdict = data.get("result") or {}
+    blocked = data.get("blocked") or {}
+    candidate = (data.get("status") == "ended" and verdict.get("verified") is False
+                 and verdict.get("outcome") in ("candidate_only", "search_failed"))
+    wrong_mode = data.get("status") == "blocked" and blocked.get("failure_class") == "wrong_mode"
+    if not candidate and not wrong_mode:
+        if data.get("status") in ("running", "waiting", "ended", "blocked", "isolated"):
+            notices.unpin(agent_id, key)
+        return
+    reason = verdict.get("reason", "") if candidate else blocked.get("message", "")
+    paths = list(verdict.get("evidence_refs", []))
+    if wrong_mode:
+        attempt = data.get("failed_attempt") or {}
+        paths.extend(attempt.get("evidence_refs", []))
+        if attempt.get("log_path"):
+            paths.append(attempt["log_path"])
+    sources = [f"Run: {run_id}"]
+    if data.get("run_dir"):
+        sources.append(f"Directory: {data['run_dir']}")
+    if paths:
+        sources.append("Evidence: " + ", ".join(dict.fromkeys(paths)))
+    notices.pin(
+        agent_id, key=key,
+        content=f"[Guidance] This attempt has not established the target TS step. "
+                f"Recorded reason: {reason}. {'; '.join(sources)}. {_REFLECTION_ADVICE}",
+    )
 
 # TS/IRC 路由嗅探：括号形式走子串（大小写不敏感），裸词走 token 精确比对。
 _TS_ROUTE_SUBSTRINGS = ("optts", "scants", "qst2", "qst3", "opt=(ts", "opt = (ts")
@@ -150,10 +187,16 @@ class GuidanceStage:
         return PolicyResult.allow()
 
     async def after_tool(self, ctx: PipelineContext, call: ToolCall, result: ToolResult) -> None:
-        if call.name != "ts_guess" or ctx.notices is None or result.error is not None:
+        if ctx.notices is None or result.error is not None:
             return None
         data = result.data
         if not isinstance(data, dict):
+            return None
+        if call.name in ("ts_prepare", "ts_resume", "ts_inspect"):
+            if result.is_success:
+                guide_ts_process(ctx.notices, ctx.agent.id, data)
+            return None
+        if call.name != "ts_guess":
             return None
         mode = call.arguments.get("mode")
         if mode == "scan_parse" or (mode == "scan" and call.arguments.get("log_path")):

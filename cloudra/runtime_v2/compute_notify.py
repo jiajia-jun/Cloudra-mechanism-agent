@@ -222,6 +222,7 @@ class ComputeNotifyBroker:
         target_id = self._delivered_jobs.get(job_key)
         if target_id is None:
             content = await self._content_for(task_id, state)
+            view = None
             if pipeline is not None:
                 record = pipeline['record']
                 import json
@@ -246,6 +247,10 @@ class ComputeNotifyBroker:
                 target_id = coordinator.id if coordinator is not None else None
             if target_id is None:
                 return
+            if view is not None:
+                from cloudra.runtime_v2.policies.guidance import guide_ts_process
+
+                guide_ts_process(self.core.notices, target_id, view)
             # Persist and enqueue first, but do not wake the child until the
             # DB ack succeeds. A failed final ack must not start an LLM run.
             try:

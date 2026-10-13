@@ -243,6 +243,116 @@ def _reflection_pins(notices, agent_id="as_g"):
     }
 
 
+def _process_view(tmp_path):
+    return {
+        "run_id": "ts_observed", "run_dir": str(tmp_path / "attempt"),
+        "status": "ended", "stage": "verdict",
+        "result": {
+            "outcome": "candidate_only", "verified": False,
+            "reason": "Recorded endpoint connection was not established",
+            "evidence_refs": [str(tmp_path / "attempt/irc.out")],
+        },
+    }
+
+
+@pytest.mark.parametrize("tool", ["ts_prepare", "ts_resume", "ts_inspect"])
+@pytest.mark.parametrize("outcome", ["candidate_only", "search_failed"])
+def test_process_candidate_pins_evidence_guidance_without_altering_result(tmp_path, tool, outcome):
+    notices = NoticeManager()
+    data = _process_view(tmp_path)
+    data["result"]["outcome"] = outcome
+    result = ToolResult(is_success=True, data=data)
+    _after(GuidanceStage(), _ctx("small_mol", notices),
+           ToolCall(id="current", name=tool, arguments={"run_id": data["run_id"]}), result)
+    pins = _reflection_pins(notices)
+    assert len(pins) == 1
+    content = next(iter(pins.values()))
+    assert data["result"]["reason"] in content
+    assert data["result"]["evidence_refs"][0] in content
+    assert data["run_dir"] in content
+    assert result.is_success and result.data == data
+
+
+def test_process_reflection_updates_one_run_and_ignores_inspection_metadata(tmp_path):
+    notices = NoticeManager()
+    ctx = _ctx("small_mol", notices)
+    stage = GuidanceStage()
+    data = _process_view(tmp_path)
+    _after(stage, ctx, ToolCall(id="first", name="ts_inspect", arguments={}),
+           ToolResult(is_success=True, data=data))
+    before = notices._local_seqs["as_g"]
+    _after(stage, ctx, ToolCall(id="again", name="ts_inspect", arguments={}),
+           ToolResult(is_success=True, data={**data, "revision": 42, "usage": {"wall_time_seconds": 99}}))
+    assert notices._local_seqs["as_g"] == before
+    _after(stage, ctx, ToolCall(id="new-evidence", name="ts_inspect", arguments={}),
+           ToolResult(is_success=True, data={**data, "result": {
+               **data["result"], "reason": "New recorded frequency evidence",
+               "evidence_refs": [str(tmp_path / "attempt/frequency.out")],
+           }}))
+    assert len(_reflection_pins(notices)) == 1
+    assert notices._local_seqs["as_g"] == before + 1
+    assert str(tmp_path / "attempt/frequency.out") in next(iter(_reflection_pins(notices).values()))
+
+
+@pytest.mark.parametrize("status,result", [
+    ("waiting", None),
+    ("running", None),
+    ("ended", {"outcome": "verified", "verified": True, "reason": "Verified", "evidence_refs": []}),
+])
+def test_process_reflection_is_cleared_when_attempt_resumes_or_is_verified(tmp_path, status, result):
+    notices = NoticeManager()
+    stage = GuidanceStage()
+    ctx = _ctx("small_mol", notices)
+    data = _process_view(tmp_path)
+    call = ToolCall(id="inspect", name="ts_inspect", arguments={})
+    _after(stage, ctx, call, ToolResult(is_success=True, data=data))
+    _after(stage, ctx, call, ToolResult(is_success=True, data={**data, "status": status, "result": result}))
+    assert _reflection_pins(notices) == {}
+    assert notices._local_seqs["as_g"] == 2
+
+
+@pytest.mark.parametrize("failure_class", [
+    "frequency_evidence_missing", "canonical_structure_unavailable", "compute_admission_rejected",
+])
+def test_process_engineering_block_does_not_pin_scientific_reflection(tmp_path, failure_class):
+    data = {**_process_view(tmp_path), "status": "blocked", "result": None,
+            "blocked": {"failure_class": failure_class, "message": "Repair the named input"}}
+    notices = NoticeManager()
+    _after(GuidanceStage(), _ctx("small_mol", notices),
+           ToolCall(id="inspect", name="ts_inspect", arguments={}),
+           ToolResult(is_success=True, data=data))
+    assert _reflection_pins(notices) == {}
+
+
+def test_process_wrong_mode_pins_recorded_failure_and_log(tmp_path):
+    data = {**_process_view(tmp_path), "status": "blocked", "result": None,
+            "blocked": {"failure_class": "wrong_mode", "message": "No first-order saddle found"},
+            "failed_attempt": {"log_path": str(tmp_path / "attempt/frequency.out")}}
+    notices = NoticeManager()
+    _after(GuidanceStage(), _ctx("small_mol", notices),
+           ToolCall(id="inspect", name="ts_inspect", arguments={}),
+           ToolResult(is_success=True, data=data))
+    content = next(iter(_reflection_pins(notices).values()))
+    assert data["blocked"]["message"] in content
+    assert data["failed_attempt"]["log_path"] in content
+
+
+def test_process_reflection_is_not_reinjected_after_notice_restore(tmp_path):
+    log = EventLog(strict=True)
+    notices = NoticeManager()
+    notices.attach(log, lambda _agent_id: "project")
+    data = _process_view(tmp_path)
+    stage = GuidanceStage()
+    call = ToolCall(id="first", name="ts_inspect", arguments={})
+    _after(stage, _ctx("small_mol", notices), call, ToolResult(is_success=True, data=data))
+    restored = NoticeManager()
+    restored.attach(log, lambda _agent_id: "project")
+    restored.restore_from(log)
+    _after(stage, _ctx("small_mol", restored), call, ToolResult(is_success=True, data=data))
+    assert len(_reflection_pins(restored)) == 1
+    assert sum(event.type == "context.pin_set" for event in log) == 1
+
+
 @pytest.mark.parametrize(
     ("mode", "arguments", "success", "data"),
     [
