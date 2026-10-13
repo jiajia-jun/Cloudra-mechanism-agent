@@ -120,10 +120,10 @@ async def test_poll_delivers_agent_message_and_marks_notified():
         coordinator.id, types={"agent.message_injected"}
     )
     assert len(events) == 1
-    assert f"task_id={job_id}" in events[0].data["content"]
+    assert f"Job {job_id}," in events[0].data["content"]
     assert "agent_hub" not in events[0].data["content"]
     texts = _inbox_texts(core, coordinator.id)
-    assert any(f"task_id={job_id}" in t for t in texts)
+    assert any(f"Job {job_id}," in t for t in texts)
     assert _notified_at(job_id) is not None
 
     # notified_at 去重：再扫一轮不再投递
@@ -134,7 +134,7 @@ async def test_poll_delivers_agent_message_and_marks_notified():
 
 
 @pytest.mark.asyncio
-async def test_failed_job_notice_directs_blocker_to_agent_hub():
+async def test_failed_job_notice_keeps_failure_and_next_without_repeating_workflow_instructions():
     core, project, coordinator = await _setup_core()
     job_id = _insert_terminal_job(
         project.id, session_id=coordinator.id, state="failed",
@@ -149,11 +149,10 @@ async def test_failed_job_notice_directs_blocker_to_agent_hub():
     )
     assert len(notices) == 1
     content = notices[0].data["content"]
-    assert f"task_id={job_id}" in content
+    assert f"Job {job_id}," in content
     assert "SCF did not converge" in content
-    assert "agent_hub" in content
-    assert "search" in content
-    assert "to_agent" in content
+    assert "NEXT:" in content and "query_compute_job" in content
+    assert "agent_hub" not in content
     assert "email the user" not in content
 
 
@@ -172,7 +171,7 @@ async def test_cancelled_job_notice_requires_new_user_request_before_resubmissio
     )
     assert len(notices) == 1
     content = notices[0].data["content"]
-    assert f"task_id={job_id}" in content
+    assert f"Job {job_id}," in content
     assert "state=cancelled" in content
     assert "Do not resubmit" in content
     assert "new explicit user request" in content
@@ -192,7 +191,7 @@ async def test_poll_falls_back_to_coordinator_for_unknown_session():
         coordinator.id, types={"agent.message_injected"}
     )
     assert len(events) == 1
-    assert f"task_id={job_id}" in events[0].data["content"]
+    assert f"Job {job_id}," in events[0].data["content"]
 
 
 @pytest.mark.asyncio
@@ -251,8 +250,8 @@ def _delivered_content(core, session_id: str) -> str:
 
 
 @pytest.mark.asyncio
-async def test_failed_job_delivers_knowledge_suggestions():
-    """失败终态自动检索知识库，命中建议拼进 agent.message。"""
+async def test_failed_job_does_not_expand_notice_with_automatic_knowledge_suggestions():
+    """失败原因和下一步足够；知识检索保留为按需工具。"""
     register_knowledge_provider(_KBProvider())
     core, project, coordinator = await _setup_core()
     _insert_terminal_job(
@@ -263,13 +262,14 @@ async def test_failed_job_delivers_knowledge_suggestions():
     await broker._poll_project(project.id)
 
     content = _delivered_content(core, coordinator.id)
-    assert "SCF convergence fix" in content
-    assert "Knowledge base suggestions" in content
+    assert "SCF did not converge" in content and "NEXT:" in content
+    assert "SCF convergence fix" not in content
+    assert "Knowledge base suggestions" not in content
 
 
 @pytest.mark.asyncio
-async def test_done_job_delivers_knowledge_suggestions():
-    """成功终态同样自动检索（engine + input stem 作为 query）。"""
+async def test_done_job_does_not_expand_notice_with_automatic_knowledge_suggestions():
+    """成功通知保留证据入口，避免无关知识卡塞进收件箱。"""
     register_knowledge_provider(_KBProvider())
     core, project, coordinator = await _setup_core()
     _insert_terminal_job(project.id, session_id=coordinator.id, state="done")
@@ -278,8 +278,9 @@ async def test_done_job_delivers_knowledge_suggestions():
     await broker._poll_project(project.id)
 
     content = _delivered_content(core, coordinator.id)
-    assert "SCF convergence fix" in content
-    assert "Knowledge base suggestions" in content
+    assert "log_parser" in content and "NEXT:" in content
+    assert "SCF convergence fix" not in content
+    assert "Knowledge base suggestions" not in content
 
 
 @pytest.mark.asyncio
@@ -330,7 +331,7 @@ async def test_notification_log_path_prefers_guard_state_json(tmp_path):
 
 @pytest.mark.asyncio
 async def test_terminal_job_snapshots_core_evidence_before_notify(tmp_path):
-    """终态通知前登记核心文件的 Artifact 快照；通知文本带快照引用。"""
+    """内部照常登记快照；通知只给证据入口，不展示内部artifact/hash。"""
     core, project, coordinator = await _setup_core()
 
     workdir = tmp_path / "calc_snap"
@@ -343,10 +344,10 @@ async def test_terminal_job_snapshots_core_evidence_before_notify(tmp_path):
     await broker._poll_project(project.id)
 
     content = _delivered_content(core, coordinator.id)
-    assert "[Evidence snapshot]" in content
-    assert "opt.gjf" in content and "registered" in content
+    assert "opt.gjf" in content
+    assert "[Evidence snapshot]" not in content and "sha256" not in content
     # 惯例预测的日志未落盘：标注但不误报 unavailable、不进重试
-    assert "log_not_collected" in content
+    assert "Native output is not available yet" in content
     assert job_id not in broker._snapshot_retries
 
     from cloudra.persistence.artifacts import ArtifactService
@@ -378,7 +379,7 @@ async def test_unavailable_evidence_retried_without_resending(tmp_path):
     await broker._poll_project(project.id)
 
     content = _delivered_content(core, coordinator.id)
-    assert "evidence_unavailable" in content
+    assert "Evidence could not be recorded: late.inp" in content
     assert _notified_at(job_id) is not None  # 消息不丢
     assert job_id in broker._snapshot_retries
 
@@ -415,7 +416,7 @@ async def test_subagent_compute_job_does_not_notify_or_wake_coordinator():
     # 子 Agent 收到通知
     sub_events = core.event_log.query_session(subagent.id, types={"agent.message_injected"})
     assert len(sub_events) == 1
-    assert f"task_id={job_id}" in sub_events[0].data["content"]
+    assert f"Job {job_id}," in sub_events[0].data["content"]
 
     # Coordinator 绝不收到该通知
     coord_events = core.event_log.query_session(coordinator.id, types={"agent.message_injected"})
@@ -768,8 +769,8 @@ async def test_coordinator_compute_job_delivered_silently_without_wake():
     # 存入信箱和事件日志
     events = core.event_log.query_session(coordinator.id, types={"agent.message_injected"})
     assert len(events) == 1
-    assert f"task_id={job_id}" in events[0].data["content"]
-    assert any(f"task_id={job_id}" in t for t in _inbox_texts(core, coordinator.id))
+    assert f"Job {job_id}," in events[0].data["content"]
+    assert any(f"Job {job_id}," in t for t in _inbox_texts(core, coordinator.id))
 
     # 绝不唤醒 Coordinator
     assert coordinator.id not in scheduled_sessions
@@ -802,9 +803,9 @@ async def test_coordinator_notify_is_durable_before_notified_at(tmp_path):
     restored_events = restored.event_log.query_session(
         coordinator.id, types={"agent.message_injected"}
     )
-    assert any(f"task_id={job_id}" in e.data["content"] for e in restored_events)
+    assert any(f"Job {job_id}," in e.data["content"] for e in restored_events)
     assert any(
-        f"task_id={job_id}" in t for t in _inbox_texts(restored, coordinator.id)
+        f"Job {job_id}," in t for t in _inbox_texts(restored, coordinator.id)
     )
 
 
@@ -844,7 +845,7 @@ async def test_unacked_terminal_notice_is_not_duplicated_after_restore(tmp_path,
     assert events[0].data["manifest"] == {
         "kind": "compute_completion", "task_id": job_id,
     }
-    assert sum(f"task_id={job_id}" in text for text in _inbox_texts(
+    assert sum(f"Job {job_id}," in text for text in _inbox_texts(
         restored, coordinator.id
     )) == 1
 
@@ -885,7 +886,7 @@ async def test_system_compute_notify_does_not_wake_cancelled_subagent():
     assert subagent.state is AgentState.CANCELLED
     assert subagent.id not in scheduled_sessions
     events = core.event_log.query_session(subagent.id, types={"agent.message_injected"})
-    assert any(f"task_id={job_id}" in e.data["content"] for e in events)
+    assert any(f"Job {job_id}," in e.data["content"] for e in events)
 
 
 @pytest.mark.asyncio
@@ -998,25 +999,23 @@ async def test_ts_outcome_wakes_owner_while_high_throughput_jobs_run(tmp_path, o
     assert child.state.value == "running"
     assert _inbox_texts(core, coordinator.id) == []
     assert len(messages) == 1
-    _, separator, content = messages[0].partition("\nTS state: ")
-    assert separator
-    view, _ = json.JSONDecoder().raw_decode(content)
-    if outcome == "blocked":
-        assert view["status"] == "blocked"
-        assert view["blocked"]["failure_class"] == "wrong_mode"
+    content = messages[0]
+    assert "TS state:" not in content
+    if outcome != "blocked":
+        assert f"outcome={outcome}" in content
     else:
-        assert view["status"] == "ended"
-        assert view["result"]["outcome"] == outcome
-        assert view["result"]["verified"] is verified
-        assert view["result"]["reason"] == "Recorded endpoint direction judgement"
-    assert view["message"] == "Recorded endpoint direction judgement"
+        assert "state=done" in content and "outcome=blocked" not in content
+    assert f"verified={str(verified is True).lower()}" in content
+    assert content.count("Recorded endpoint direction judgement") == 1
+    assert "NEXT:" in content
+    if outcome != "verified":
+        assert "ts_inspect" in content
     assert await asyncio.to_thread(_notified_at, job) is not None
     reflections = [event for event in core.event_log.query_session(child.id, types={"context.pin_set"})
                    if event.data["key"].startswith("guidance-scientific-reflection:")]
     assert len(reflections) == int(outcome != "verified")
     if reflections:
-        assert view["run_dir"] in reflections[0].data["content"]
-        assert view["message"] in reflections[0].data["content"]
+        assert str(tmp_path) in reflections[0].data["content"]
         persisted = await asyncio.to_thread(store.events_after, {})
         pin_index = next(index for index, row in enumerate(persisted)
                          if row["type"] == "context.pin_set" and row["session_id"] == child.id)

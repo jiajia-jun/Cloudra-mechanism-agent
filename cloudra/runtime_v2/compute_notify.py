@@ -20,10 +20,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from cloudra.persistence.database import ComputeDB
-from cloudra.runtime.compute_notify import build_compute_finish_content, resolve_submission_info
+from cloudra.runtime.compute_notify import resolve_submission_info
 from cloudra.runtime_v2.dispatcher import WakePolicy, should_wake
 from cloudra.services.compute_store import (
     mark_notified,
@@ -221,15 +222,14 @@ class ComputeNotifyBroker:
         job_key = (project_id, task_id)
         target_id = self._delivered_jobs.get(job_key)
         if target_id is None:
-            content = await self._content_for(task_id, state)
             view = None
+            record = None
             if pipeline is not None:
                 record = pipeline['record']
-                import json
 
                 from cloudra.tools.core.ts_state_view import recorded_notification_view
                 view = await asyncio.to_thread(recorded_notification_view, ComputeDB(), record)
-                content += '\nTS state: ' + json.dumps(view, ensure_ascii=False)
+            content = await self._content_for(task_id, state, view=view, record=record)
             snapshot_note, complete = await self._snapshot_core_evidence(
                 project_id, task_id, session_id
             )
@@ -294,8 +294,10 @@ class ComputeNotifyBroker:
             ):
                 await self.core.agent_host.wake(agent, runner=self.core.runner)
 
-    async def _content_for(self, task_id: int, state: str) -> str:
-        """通知文本一律由 DB 重建（唯一路径）：提交者信息 + 终态错误 + 日志路径。"""
+    async def _content_for(
+        self, task_id: int, state: str, *, view: dict | None = None, record: dict | None = None,
+    ) -> str:
+        """Small recorded facts; complete TS diagnostics remain available through inspect."""
         from cloudra.infra.compute_utils import resolve_log_path
         from cloudra.services.compute_store import aget_compute_job
 
@@ -312,41 +314,105 @@ class ComputeNotifyBroker:
         except Exception:
             pass
         input_path = str(info.get("path") or "")
-        library_hits = await self._library_hits(state, job_type, fail_reason, input_path)
-        return build_compute_finish_content(
-            task_id=task_id,
-            state=state,
-            input_path=input_path,
-            # log_path 与 query_compute_job 统一走 resolve_log_path（GH #20）：
-            # 优先 guard state json 记录的真实日志，回退引擎惯例预测
-            log_path=resolve_log_path(input_path, job_type=job_type, task_id=task_id) if input_path else "",
-            fail_reason=fail_reason,
-            library_hits=library_hits,
-        )
+        log_path = await asyncio.to_thread(resolve_log_path, input_path,
+            job_type=job_type, task_id=task_id) if input_path else ""
+        lines = [f"Compute Event: Job {task_id}, state={state}."]
+        evidence = []
+        if log_path:
+            evidence.append(f"Log: {log_path}")
+        if input_path:
+            evidence.append(f"Input: {Path(input_path).name}" if log_path else f"Input: {input_path}")
+        if view is not None:
+            verdict = view.get('result') or {}
+            blocked = view.get('blocked') or {}
+            verified = verdict.get('verified') is True
+            attempt = view.get('failed_attempt') or {}
+            purpose = attempt.get('purpose', '') if attempt.get('job_id') == task_id else ''
+            if not purpose and record:
+                steps = [*record.get('job_steps', []), record.get('scan_step') or {}]
+                purpose = next((step.get('purpose', '') for step in steps if step.get('job_id') == task_id), '')
+            stage = ' / '.join(str(part) for part in [view.get('stage'), purpose] if part)
+            lines[0] += f" TS {view['run_id']}: {stage}."
+            window = self._reaction_window(record, view, purpose, job_type)
+            if window:
+                lines.append('Reaction Window: ' + window)
+            reason = fail_reason or verdict.get('reason') or blocked.get('message') or view.get('message')
+            observation = f"outcome={verdict['outcome']}; " if verdict.get('outcome') else ''
+            observation += f"verified={str(verified).lower()}."
+            if reason:
+                observation += f" {reason}"
+            lines.append('Physical Reality: ' + observation)
+            inspect = f"ts_inspect(run_id={view['run_id']!r})"
+            if verified:
+                next_action = ('Submit the verified native logs through the DAG evidence tools.'
+                    if view.get('details_path') else f'Use {inspect} for the verified evidence, then submit its native logs through the DAG evidence tools.')
+            elif blocked.get('failure_class') == 'scan_no_candidate':
+                next_action = (f"Use {inspect} to compare the native structures and logs. "
+                    'Test alternative approach orientation or asynchronous bond changes with sequential scans; '
+                    'consider tool-generated GSM/NEB guesses. These are hypotheses, not established causes; '
+                    'record the observation and evidence paths in PROCESS.md before choosing the next test.')
+            elif blocked.get('failure_class') == 'wrong_mode' or verdict.get('outcome') == 'candidate_only':
+                next_action = (f"Use {inspect} to check the native mode/IRC endpoints and intended bond changes. "
+                    'Distinguish numerical failure from a different reaction connection, then choose the next test.')
+            elif view.get('status') == 'blocked':
+                next_action = f"Use {inspect} for diagnostics, then revise the research input with ts_resume as needed."
+            else:
+                next_action = f"Inspect the observed chemistry and choose the next distinguishing test; use {inspect} for details."
+            if view.get('details_path'):
+                evidence.append(f"Details: {view['details_path']}")
+        elif state == 'done':
+            lines.append('Physical Reality: Calculation finished; scientific verification is not implied.')
+            next_action = 'Use log_parser on the native log to inspect energy, convergence and frequencies.'
+        else:
+            if state != 'cancelled' and fail_reason:
+                lines.append(f"Physical Reality: {fail_reason}")
+            next_action = f'Use query_compute_job(task_id={task_id}) and the native log to diagnose the failure before retrying.'
+        if state == 'cancelled':
+            next_action = 'Do not resubmit or restart without a new explicit user request.'
+        lines.append(f"NEXT: {next_action}")
+        if evidence:
+            lines.append('Evidence: ' + '; '.join(evidence))
+        return '\n'.join(lines)
 
-    async def _library_hits(
-        self,
-        state: str,
-        job_type: str,
-        fail_reason: str,
-        input_path: str,
-    ) -> list[dict]:
-        """Auto-retrieve the chem-kb library for a terminal state.
-
-        Retrieval is best-effort: a broken provider / uninstalled plugin
-        yields no hits and the notification is delivered unchanged.
-        """
-        from cloudra.runtime.compute_notify import build_compute_knowledge_query
-        from cloudra.runtime_v2.knowledge import search_library
-
-        query = build_compute_knowledge_query(
-            state=state, job_type=job_type, fail_reason=fail_reason, input_path=input_path
-        )
-        try:
-            return await search_library(query, limit=3)
-        except Exception:
-            logger.exception("compute notify knowledge retrieval failed for %s", state)
-            return []
+    @staticmethod
+    def _reaction_window(record: dict | None, view: dict, purpose: str, engine: str) -> str:
+        """Display existing current declarations, never infer connectivity from coordinates."""
+        parts = []
+        value = (record or {}).get('input', {}) if (record or {}).get('format_version') == 6 else {}
+        reaction = value.get('reaction') or {}
+        for role in ('reactant', 'product'):
+            facts = []
+            if reaction.get(f'{role}_smiles'):
+                facts.append(reaction[f'{role}_smiles'])
+            structure = view.get('structures', {}).get(role) or {}
+            for field, label in (('atom_count', 'atoms'), ('components', 'components')):
+                if isinstance(structure.get(field), int):
+                    facts.append(f"{structure[field]} {label}")
+            if facts:
+                parts.append(f"{role}: " + ', '.join(facts))
+        for field in ('charge', 'multiplicity'):
+            if reaction.get(field) is not None:
+                parts.append(f"{field}={reaction[field]}")
+        centres = (record or {}).get('effective_reaction_center') or reaction.get('reaction_center')
+        if centres and value:
+            parts.append('centres (1-based): ' + ', '.join(f'{a + 1}-{b + 1}' for a, b in centres))
+        guess = value.get('guess') or {}
+        if purpose == 'scan' and guess.get('kind') == 'scan':
+            calculation = guess.get('calculation') or {}
+            if calculation.get('ref'):
+                calculation = value.get('calculations', {}).get(calculation['ref']) or {}
+            scan_engine = calculation.get('engine') or engine
+            if scan_engine in ('orca', 'gaussian', 'xtb'):
+                base = 0 if scan_engine == 'orca' else 1
+                coordinates = []
+                for scan in guess.get('scans', []):
+                    atoms = ','.join(str(atom + base) for atom in scan['atoms'])
+                    extent = (f"{scan['scan_start']}→" if scan.get('scan_start') is not None else 'end=') + str(scan['scan_end'])
+                    units = 'Å' if scan['coord_type'] == 'bond' else 'degrees'
+                    coordinates.append(f"{scan['coord_type']}({atoms}) {extent} {units}, scan_steps={scan['scan_steps']}")
+                if coordinates:
+                    parts.append(f"scan declaration ({scan_engine}, {base}-based): " + '; '.join(coordinates))
+        return '; '.join(parts)
 
     @staticmethod
     def _mark_notified(task_id: int) -> None:
@@ -416,7 +482,7 @@ class ComputeNotifyBroker:
             coordinator = self._coordinator_for(project_id)
             owner_session = coordinator.id if coordinator is not None else None
         if not owner_session:
-            return "[Evidence snapshot] evidence_unavailable: no live session to own artifacts", False
+            return "Evidence could not be recorded: no live session is available.", False
         # ArtifactService 要求 legacy session 行存在；runtime_v2 agent 不一定有，
         # 与 turn_pipeline 同一助手 get-or-create。
         await asyncio.to_thread(
@@ -430,11 +496,11 @@ class ComputeNotifyBroker:
         lines: list[str] = []
         complete = True
         if missing_log:
-            lines.append(f"log_not_collected: {missing_log}")
+            lines.append("Native output is not available yet.")
         for path_str in files:
             path = Path(path_str)
             try:
-                artifact, created = await asyncio.to_thread(
+                await asyncio.to_thread(
                     service.snapshot_file,
                     conversation_id=project_id,
                     session_id=owner_session,
@@ -447,15 +513,9 @@ class ComputeNotifyBroker:
                     "compute evidence snapshot failed for job %s file %s: %s",
                     task_id, path_str, exc,
                 )
-                lines.append(f"evidence_unavailable: {path_str} ({type(exc).__name__})")
+                lines.append(f"Evidence could not be recorded: {path.name} ({type(exc).__name__}).")
                 continue
-            tag = "registered" if created else "reused"
-            lines.append(
-                f"{artifact.artifact_id} {artifact.name} "
-                f"(sha256:{artifact.sha256[:12]}…, {tag})"
-            )
-        header = "[Evidence snapshot]"
-        return f"{header} " + "; ".join(lines), complete
+        return "; ".join(lines), complete
 
     async def _retry_snapshots(self) -> None:
         """静默重试暂不可读的快照收集；收齐后一次性补发可复查通知。"""
