@@ -144,10 +144,9 @@ async def test_stop_answer_is_emitted_only_after_final_gate_authorizes_it(tmp_pa
             decision = ReviewDecision(request_id=request.request_id, basis_fingerprint=request.basis_fingerprint,
                 verdict="accept", reason="approved partial with all gaps retained")
             assert store.resolve_review(decision, expected_basis=request.basis_fingerprint)["accepted"]
-            return store.get_review_decision_for_request(request.request_id).decision_id
 
-        decision_id = await asyncio.to_thread(approve)
-        final.tools = [("stop", {"delivery_disposition": "partial", "approval_id": decision_id, "final_answer": approved})]
+        await asyncio.to_thread(approve)
+        final.tools = [("stop", {"delivery_disposition": "partial", "final_answer": approved})]
         await flush_review_notifications(harness.core, harness.project.id)
         release.set()
         await harness.wait_for(

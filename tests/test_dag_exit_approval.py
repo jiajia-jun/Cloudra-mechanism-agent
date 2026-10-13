@@ -32,12 +32,10 @@ async def test_partial_in_dag_guided_without_approval_waits_review(tmp_path):
     assert gate.action == "wait_review"
 
 
-@pytest.mark.asyncio
-async def test_partial_in_dag_guided_with_approval_allow_final(tmp_path):
-    c = await _controller(tmp_path, "exit-guided-approved", "dag_guided")
-    gate = await c.audit_stop("partial", approval_id="approval-123")
-    assert gate.action == "wait_review"
-    assert gate.request_id
+def test_stop_contract_keeps_supervisor_decision_identifiers_internal():
+    from cloudra.tools.Stoptool.stop_tool import StopTool_input_schema
+
+    assert 'approval_id' not in StopTool_input_schema.model_json_schema()['properties']
 
 
 @pytest.mark.asyncio

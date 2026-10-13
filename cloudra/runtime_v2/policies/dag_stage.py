@@ -115,7 +115,6 @@ class DagPolicyStage:
             disposition = str(args.get("delivery_disposition") or "complete")
             return await controller.audit_stop(
                 disposition,
-                approval_id=args.get("approval_id"),
                 user_stop_event_id=args.get("user_stop_event_id"),
             )
         report = await asyncio.to_thread(controller.delivery_report)

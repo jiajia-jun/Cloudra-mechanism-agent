@@ -24,14 +24,6 @@ class StopTool_input_schema(input_schema):
             "If background jobs/reminders are still pending, stop only suspends — no audit and no disposition is recorded."
         ),
     )
-    approval_id: str | None = Field(
-        default=None,
-        description=(
-            "Durable Supervisor exit decision id approving a partial result. "
-            "Exit-review loop (dag_guided): a partial stop without approval submits an exit review and suspends the run; "
-            "when the [Supervisor review decision] notice arrives with verdict=accept, call stop again with this id set to that decision_id."
-        ),
-    )
     user_stop_event_id: str | None = Field(
         default=None,
         description="Event id of the user's explicit stop/cancel command.",

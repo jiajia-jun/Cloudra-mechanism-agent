@@ -805,8 +805,8 @@ class AgentRunner:
             "the stop tool only acknowledged the request. What happens next:\n"
             "- The Supervisor's decision arrives as a [Supervisor review decision] "
             "notice and wakes you.\n"
-            "- On accept: call stop again with delivery_disposition='partial' and "
-            "approval_id=<decision_id> from that notice to finish.\n"
+            "- On accept: call stop again with delivery_disposition='partial'; "
+            "the runtime binds the current Supervisor approval automatically.\n"
             "- On reject: the reason and next action arrive as feedback; resolve "
             "them (or close the gaps) and stop again."
         )
