@@ -3,7 +3,7 @@ import os
 import re
 from typing import Any, Optional
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
@@ -21,6 +21,8 @@ description = (
     "(top displaced atom pairs, heavy-atom displacement fraction, and — when watch_pairs are supplied — each "
     "watch pair's share of the total pair-projected displacement). "
     "Use for: a full analysis after a Gaussian/ORCA/xtb job, or checking whether the job converged normally. "
+    "Recognized Gaussian/ORCA scans also report their internal energy maximum and any existing peak XYZ, "
+    "even when only convergence was requested; use that seed with ts_prepare rather than comparing energies by hand. "
     "Do not use for: submitting a job (use submit_compute_job) or processing experimental spectra (use ir_processor / nmr_processor)."
 )
 
@@ -169,6 +171,17 @@ class LogParser_input_schema(input_schema):
     )
 
 
+class ScanPeak(BaseModel):
+    point_number: int = Field(description="Peak scan point, 1-based; not an atom index.")
+    energy_hartree: float = Field(description="Native electronic energy at this scan point (Hartree).")
+    relative_to_first_point_kcal: float = Field(
+        description="Peak minus the first scan point (kcal/mol), not a verified reaction barrier."
+    )
+    geometry_ref: str | None = Field(
+        default=None, description="Existing peak XYZ from this scan, when available; no file is written."
+    )
+
+
 class LogParser_output_schema(output_schema):
     is_success: bool = Field(description="Whether parsing succeeded")
     scf_energy_hartree: Optional[float] = Field(default=None, description="Final SCF energy (Hartree)")
@@ -231,6 +244,12 @@ class LogParser_output_schema(output_schema):
     job_types: Optional[list[str]] = Field(default=None, description="Detected job types (subset of opt/ts/freq/scan/irc/sp, sorted)")
     scan_parameter: Optional[list[float]] = Field(default=None, description="Scan parameter series (relaxed PES scan)")
     scan_energies_ev: Optional[list[float]] = Field(default=None, description="Energy at each scan point (eV)")
+    scan_has_internal_peak: bool | None = Field(
+        default=None, description="Automatically reported for recognized scans: an internal maximum exists; null if not established."
+    )
+    scan_peak: ScanPeak | None = Field(
+        default=None, description="Internal scan maximum and existing geometry: a seed for refinement, not an accepted TS."
+    )
     irc_num_points_forward: Optional[int] = Field(default=None, description="IRC forward-path point count (excluding TS)")
     irc_num_points_backward: Optional[int] = Field(default=None, description="IRC reverse-path point count (excluding TS)")
     irc_rx_coord_range: Optional[list[float]] = Field(default=None, description="IRC reaction-coordinate range [min, max]")
@@ -557,6 +576,16 @@ class LogParser(Tool):
                 if scanenergies is not None and len(scanenergies) > 0:
                     result["scan_energies_ev"] = [float(v) for v in np.asarray(list(scanenergies), dtype=float)]
 
+            if "scan" in detected_jobs and engine in {"orca", "gaussian"}:
+                from cloudra.tools.Chemtool.ts_guess import _ScanStepsUngroupable, _SidecarIncomplete
+
+                try:
+                    scan = self._scan_summary(log_path, engine, log_text)
+                    result["message"] += " " + scan.pop("message")
+                    result.update(scan)
+                except (ValueError, _ScanStepsUngroupable, _SidecarIncomplete) as exc:
+                    result["message"] += f" Scan peak could not be established: {exc}"
+
             if any(f.startswith("irc_") for f in requested):
                 if engine == "orca":
                     if "irc" in detected_jobs:
@@ -611,6 +640,64 @@ class LogParser(Tool):
                         f"Check that {log_path} is a valid, complete log file; "
                         "if the job crashed, inspect the log tail for the cause."
             )
+
+    @staticmethod
+    def _scan_summary(log_path: str, engine: str, text: str) -> dict[str, Any]:
+        """Reuse the scan tool's native parsing and peak math without writing a guess."""
+        from cloudra.tools.Chemtool.ts_guess import (
+            KCAL_PER_HARTREE,
+            _parse_gaussian_scan_summary,
+            _parse_orca_relaxed_scan_sidecar,
+            _parse_orca_scan,
+            _SidecarIncomplete,
+            analyze_scan_profile,
+        )
+        from cloudra.tools.core import orca_frames
+
+        geometry_available = True
+        notes = []
+        if engine == "orca":
+            try:
+                sidecar = _parse_orca_relaxed_scan_sidecar(log_path)
+                energies = sidecar["energies"] if sidecar else [
+                    step["energy_hartree"] for step in _parse_orca_scan(text)
+                ]
+            except _SidecarIncomplete as exc:
+                if not exc.energies:
+                    raise
+                energies = exc.energies
+                geometry_available = False
+                notes.append(str(exc))
+        else:
+            energies = _parse_gaussian_scan_summary(text)
+        profile = analyze_scan_profile([(e - energies[0]) * KCAL_PER_HARTREE for e in energies])
+        index = profile["ts_index"]
+        internal = 0 < index < len(energies) - 1
+        peak = None
+        if internal:
+            geometry_ref = None
+            if engine == "orca" and geometry_available:
+                for directory, stem in orca_frames._orca_sidecar_roots(log_path, text):
+                    path = os.path.join(directory, f"{stem}.{index + 1:03d}.xyz")
+                    if os.path.isfile(path):
+                        geometry_ref = path
+                        break
+            peak = ScanPeak(
+                point_number=index + 1, energy_hartree=energies[index],
+                relative_to_first_point_kcal=profile["barrier_kcal"], geometry_ref=geometry_ref,
+            )
+            message = (
+                f"Scan has {len(energies)} points; internal maximum at point {index + 1} (1-based), "
+                f"{energies[index]:.12f} Hartree, {profile['barrier_kcal']:.4f} kcal/mol above its first point. "
+                f"Existing peak XYZ: {geometry_ref or 'unavailable; extract it with ts_guess mode=scan_parse'}. "
+                "Use the peak as a ts_prepare seed; it is not a verified TS or reaction barrier."
+            )
+        else:
+            message = "No internal scan maximum; an endpoint maximum is not a TS seed."
+        return {
+            "scan_has_internal_peak": internal, "scan_peak": peak,
+            "message": " ".join([message, *profile["verdicts"], *notes]),
+        }
 
 
 

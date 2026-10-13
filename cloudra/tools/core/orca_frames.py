@@ -76,6 +76,7 @@ def detect_job_types_from_text(text: str) -> set[str]:
         re.search(r"\bscan\b", keywords)
         or "Parameter Scan Calculation" in text
         or "Relaxed Surface Scan" in text
+        or "RELAXED SURFACE SCAN STEP" in text
     ):
         jobs.add("scan")
     if re.search(r"\bneb(-ts)?\b", keywords):
