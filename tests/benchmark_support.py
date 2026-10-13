@@ -40,8 +40,8 @@ class Step:
     """一个轮次的脚本回复：js 程序 / traditional 工具调用 / 纯文本三选一。
 
     ``js`` 与 ``calls`` 的 args 都可以是 (core, agent) 工厂——用于裁决 id 等
-    运行时才知道的参数（Supervisor 的 review_id/request_id、exit 审批
-    approval_id），脚本内容由测试侧只读 DAG store 生成，裁决仍走生产工具。
+    运行时才知道的参数（Supervisor 的 review_id/request_id），脚本内容由
+    测试侧只读 DAG store 生成，裁决仍走生产工具；退出审批由程序自动关联。
 
     ``run`` 显式钉住第几个 run（1-based）：通知驱动的多 run agent（督导/父
     agent）用它避免"通知在 run 中途到达 → 多出一轮"把后续脚本错位。

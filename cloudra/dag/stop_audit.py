@@ -199,7 +199,6 @@ class StopAuditMixin:
         self,
         disposition: str,
         *,
-        approval_id: str | None = None,
         user_stop_event_id: str | None = None,
     ) -> StopGate:
         """Audit a stop/final reply and return a :class:`StopGate`.
@@ -302,16 +301,16 @@ class StopAuditMixin:
         # decision; in dag_record partial is the ordinary recorded stop.
         if disposition == "partial":
             if self.mode is OrchestrationMode.DAG_GUIDED:
-                if approval_id is not None and await self._valid_exit_approval(
-                    approval_id, disposition, report
-                ):
-                    self._pending_stop = (disposition, report, approval_id, state)
-                    return StopGate(
-                        action="allow_final",
-                        report=report,
-                        reason=f"approved by {approval_id}",
-                        basis="supervisor_approved",
-                    )
+                # Resolve the decision from durable state, never from a model-supplied id.
+                resolved = await asyncio.to_thread(self.store.list_review_requests, state='resolved')
+                for request in reversed(resolved):
+                    if request.kind != 'exit':
+                        continue
+                    decision = await asyncio.to_thread(self.store.get_review_decision_for_request, request.request_id)
+                    if decision and await self._valid_exit_approval(decision.decision_id, disposition, report):
+                        reused = await self._reused_exit_review(request.request_id, disposition, report)
+                        if reused is not None:
+                            return reused
                 request_id, created = await self._enqueue_exit_review(disposition, report)
                 reused = await self._reused_exit_review(request_id, disposition, report)
                 if reused is not None:
@@ -321,16 +320,11 @@ class StopAuditMixin:
                     # （§6 wait_review 契约）；请求是持久化待办，恢复路径由
                     # reconcile_supervision 补通知。
                     await self._notify_supervisor("exit review requested")
-                reason = (
-                    "approval is missing, stale, out of scope, or not an accepted Supervisor decision"
-                    if approval_id is not None
-                    else "partial delivery requires Supervisor approval in dag_guided"
-                )
                 return StopGate(
                     action="wait_review",
                     report=report,
                     request_id=request_id,
-                    reason=reason,
+                    reason="partial delivery requires Supervisor approval in dag_guided",
                 )
             self._pending_stop = (disposition, report, None, state)
             return StopGate(

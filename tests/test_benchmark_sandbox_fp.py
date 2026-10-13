@@ -731,6 +731,7 @@ def test_cli_full_chain_traditional_equivalent(tmp_path, monkeypatch):
     llm.script("small_mol", [
         calls(1, [("qm_input_writer", {
             "source_type": "smiles", "source_value": "O",
+            "engine": "gaussian",
             "method": "b3lyp", "basis_set": "6-31g(d)",
             "task_type": [{"sp": None}], "nproc": _TEST_CPUS,
             "mem": f"{_TEST_MEMORY_MB}MB",
@@ -1071,27 +1072,6 @@ def _supervisor_catchup_program(core, agent) -> str:
     return 'text("SUPERVISOR: no pending supervision item");'
 
 
-def _exit_stop_arguments(core, agent) -> dict:
-    """退出收尾参数：已有 accept 裁决时带 approval_id，否则幂等重声明 partial。
-
-    督导的子完成回传可能先于退出裁决到达父 agent（多跑一轮），此时重复声明
-    partial 只会复用同 basis 的退出请求（不重复入队）；裁决到达后同一步骤
-    自动带上 approval_id 放行。
-    """
-    store = _dag_store(agent.project_id)
-    requests = [
-        r for r in store.list_review_requests("resolved") if r.kind == "exit"
-    ]
-    if requests:
-        decision = store.get_review_decision_for_request(requests[-1].request_id)
-        if decision is not None and decision.verdict == "accept":
-            return {
-                "delivery_disposition": "partial",
-                "approval_id": decision.decision_id,
-            }
-    return {"delivery_disposition": "partial"}
-
-
 @_REQUIRES_HOST_AND_RDKIT
 @pytest.mark.parametrize("draft_order", ["before_suspend", "after_suspend"])
 def test_cli_guided_supervisor_loop(tmp_path, monkeypatch, draft_order):
@@ -1145,7 +1125,7 @@ def test_cli_guided_supervisor_loop(tmp_path, monkeypatch, draft_order):
                     else:
                         step = text(turn, "suspended until the Supervisor decides on the draft")
                 else:
-                    step = calls(turn, [("stop", _exit_stop_arguments)], content=_BARRIER)
+                    step = calls(turn, [("stop", {"delivery_disposition": "partial"})], content=_BARRIER)
                 self.script("coordinator", [step])
             return await super().complete(agent, messages, tools, **kwargs)
 
@@ -1239,7 +1219,7 @@ def test_cli_guided_supervisor_loop(tmp_path, monkeypatch, draft_order):
     assert review.state != "pending", review.state          # 督导已裁决
     assert review.tool_call_id in _tool_call_ids(core, child.id, "log_parser")
 
-    # 父按真实门禁结束：partial 等裁决（wait_review）→ 带 approval_id 收尾
+    # 父按真实门禁结束：partial 等裁决（wait_review）→ 程序关联批准后收尾
     parent_states = [
         (e.data.get("to"), e.data.get("reason"))
         for e in core.event_log.query_session(parent.id)
