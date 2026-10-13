@@ -1,4 +1,5 @@
 import asyncio
+import json
 import math
 import os
 from pathlib import Path
@@ -28,6 +29,7 @@ from cloudra.tools.core.qm_calculation import QmCalculation
 from cloudra.tools.core.qm_keywords import orca_basis_keyword
 from cloudra.tools.core.structure_artifacts import read_xyz_atoms
 from cloudra.tools.core.structure_builder import (
+    PREPARED_JSON_NAME,
     BuildStrategy,
     PreparationRequest,
     StructureInput,
@@ -299,8 +301,8 @@ class QmInputWriter(Tool):
     def _smiles_coordinates(user_input: QmInputWriter_input_schema, artifact_dir: str) -> str:
         """SMILES 源：坐标由共享结构构建器产生（本工具不再自带 Embed/MMFF 快捷路径）。
 
-        构建器拒绝时抛 ``StructureBuildRefused``：既不是"路径不存在"，也不是"参数非法"，
-        而是结构层面的事实（多组分待组装、电荷不符、力场缺参数、未收敛……），必须原样报出。
+        单组分量化优化可接收成功嵌入的粗种子，力场资格仍如实保留为失败态。
+        其他任务与多组分继续要求共享构建器的候选资格。
         """
         prepared = prepare_structure(PreparationRequest(
             structure=StructureInput(kind="smiles", value=user_input.source_value),
@@ -310,14 +312,27 @@ class QmInputWriter(Tool):
             electronic_character=user_input.electronic_character,
             strategy=BuildStrategy(name="per_component", embed=True, optimize=True),
         ))
-        if prepared.status != "ok" or not prepared.has_coordinates:
+        if prepared.status == "ok" and prepared.has_coordinates:
+            source = prepared.candidate_path(".xyz")
+        elif (
+            prepared.status in {"missing_parameters", "optimization_failed"}
+            and len(prepared.components) == 1
+            and prepared.components[0].embed_status == "embedded"
+            and prepared.components[0].optimization_status in {"missing_parameters", "not_converged", "failed"}
+            and intent_from_writer(user_input.model_dump()).tasks & {"minimum_opt", "ts_opt"}
+        ):
+            source = prepared.components[0].xyz_path
+        else:
             raise StructureBuildRefused(
                 prepared.status, prepared.message, list(prepared.diagnostics),
                 prepared.artifact_path,
             )
-        return QmInputWriter._gaussian_style_lines(
-            read_xyz_atoms(prepared.candidate_path(".xyz"))
-        )
+        atoms = read_xyz_atoms(source)
+        if [symbol for symbol, _ in atoms] != prepared.symbols:
+            raise ValueError("Embedded coordinates differ from the built full-atom element order")
+        if len(atoms) > 1 and all(value == 0 for _, point in atoms for value in point):
+            raise ValueError("Embedded coordinates are all-zero placeholders")
+        return QmInputWriter._gaussian_style_lines(atoms)
 
     @staticmethod
     def _get_coordinates(user_input: QmInputWriter_input_schema, artifact_dir: str) -> str:
@@ -704,6 +719,16 @@ class QmInputWriter(Tool):
             coords = await asyncio.to_thread(
                 self._get_coordinates, user_input, user_input.artifact_dir
             )
+            seed_note = ""
+            if user_input.source_type == "smiles":
+                build = json.loads(await asyncio.to_thread(
+                    (Path(user_input.artifact_dir) / PREPARED_JSON_NAME).read_text,
+                ))
+                if build["status"] != "ok":
+                    seed_note = (
+                        f" Unoptimized seed (build status: {build['status']}): {build['message']} "
+                        f"Build artifacts: {build['artifact_path']}"
+                    )
             if user_input.engine == "orca":
                 content = self._build_orca_input(user_input, coords)
                 engine_label = "ORCA"
@@ -732,9 +757,9 @@ class QmInputWriter(Tool):
                     unapplied_options=sorted(requested.tasks - inspected.tasks),
                 )
 
-            limitation = ""
+            limitation = seed_note
             if "ts_opt" in inspected.tasks and inspected.constraints:
-                limitation = (
+                limitation += (
                     " NOTE: this input keeps constraints during a TS optimization; "
                     "the result may only be claimed as a CONSTRAINED saddle point, "
                     "not a full-space transition state."

@@ -764,6 +764,109 @@ async def test_smiles_source_single_molecule_uses_shared_builder(tmp_path):
     assert (tmp_path / "structure_build" / "acetic" / "trajectories.json").is_file()
 
 
+@pytest.fixture
+def unfinished_force_field(monkeypatch):
+    """Keep the real embedding/builder/writer; replace only force-field work."""
+    from cloudra.tools.Chemtool import qm_input_writer as writer_mod
+    from cloudra.tools.core import structure_builder as builder_mod
+    from tests.test_structure_builder import _stuck_force_field
+
+    def install(failure):
+        if failure == "missing_parameters":
+            monkeypatch.setattr(builder_mod, "_select_engine", lambda _mol: None)
+        else:
+            monkeypatch.setattr(builder_mod, "_make_force_field", _stuck_force_field)
+            strategy_type = writer_mod.BuildStrategy
+            monkeypatch.setattr(writer_mod, "BuildStrategy", lambda **kwargs:
+                strategy_type(**kwargs, max_optimization_steps=2))
+    return install
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["missing_parameters", "not_converged"])
+@pytest.mark.parametrize("optimization", [None, "ts"])
+@pytest.mark.parametrize("engine", ["orca", "gaussian"])
+async def test_qm_optimization_accepts_embedded_seed_after_force_field_failure(
+    tmp_path, unfinished_force_field, failure, optimization, engine,
+):
+    """A QM optimization starts from coordinates, not an accepted FF minimum."""
+    import json
+
+    unfinished_force_field(failure)
+    target = tmp_path / "seed.inp"
+    result = await QmInputWriter().tool_call(QmInputWriter_input_schema(
+        engine=engine, method="B3LYP", basis_set="def2-SVP",
+        source_type="smiles", source_value="CCO", task_type=[{"opt": optimization}],
+        output_path=str(target)), session=None)
+
+    assert result.is_success, result.message
+    assert target.is_file()
+    assert result.interpreted_intent["tasks"] == ["ts_opt" if optimization == "ts" else "minimum_opt"]
+    prepared = json.loads((tmp_path / "structure_build/seed/prepared_structure.json").read_text())
+    assert prepared["status"] in {"missing_parameters", "optimization_failed"}
+    assert prepared["components"][0]["embed_status"] == "embedded"
+    assert prepared["components"][0]["optimization_status"] == failure
+    assert prepared["components"][0]["diagnostics"]
+    assert prepared["status"] in result.message
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["missing_parameters", "not_converged"])
+async def test_force_field_failure_does_not_loosen_single_point_seed_qualification(
+    tmp_path, unfinished_force_field, failure,
+):
+    unfinished_force_field(failure)
+    target = tmp_path / "single_point.inp"
+    result = await QmInputWriter().tool_call(QmInputWriter_input_schema(
+        engine="orca", method="B3LYP", basis_set="def2-SVP",
+        source_type="smiles", source_value="CCO", task_type=[{"sp": None}],
+        output_path=str(target)), session=None)
+    assert not result.is_success
+    assert not target.exists()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad_seed", ["embedding_failed", "zero", "nonfinite"])
+async def test_qm_optimization_still_refuses_invalid_embedded_coordinates(
+    tmp_path, monkeypatch, unfinished_force_field, bad_seed,
+):
+    from cloudra.tools.core import structure_builder as builder_mod
+
+    unfinished_force_field("missing_parameters")
+    if bad_seed == "embedding_failed":
+        monkeypatch.setattr(builder_mod.AllChem, "EmbedMolecule", lambda *_args, **_kwargs: -1)
+    else:
+        render = builder_mod._render_xyz
+        def bad_xyz(mol, conf_id, title, identities=None):
+            rows = render(mol, conf_id, title, identities).splitlines()
+            number = "nan" if bad_seed == "nonfinite" else "0"
+            return "\n".join([*rows[:2], *[
+                f"{row.split()[0]} {number} 0 0" for row in rows[2:]
+            ]]) + "\n"
+        monkeypatch.setattr(builder_mod, "_render_xyz", bad_xyz)
+    target = tmp_path / "bad_seed.inp"
+    result = await QmInputWriter().tool_call(QmInputWriter_input_schema(
+        engine="orca", method="B3LYP", basis_set="def2-SVP",
+        source_type="smiles", source_value="CCO", task_type=[{"opt": None}],
+        output_path=str(target)), session=None)
+    assert not result.is_success
+    assert not target.exists()
+
+
+@pytest.mark.asyncio
+async def test_qm_optimization_does_not_bypass_multicomponent_assembly_failure(
+    tmp_path, unfinished_force_field,
+):
+    unfinished_force_field("missing_parameters")
+    target = tmp_path / "complex_seed.inp"
+    result = await QmInputWriter().tool_call(QmInputWriter_input_schema(
+        engine="orca", method="B3LYP", basis_set="def2-SVP",
+        source_type="smiles", source_value="CCO.O", task_type=[{"opt": None}],
+        output_path=str(target)), session=None)
+    assert not result.is_success
+    assert not target.exists()
+
+
 @pytest.mark.asyncio
 async def test_smiles_source_charge_mismatch_is_refused(tmp_path):
     """SMILES 形式电荷与 charge 不符时必须拒绝，不得按错误电子态写文件。"""

@@ -991,9 +991,9 @@ def prepare_structure(request: PreparationRequest, *, candidate_sink=None) -> Pr
             has_coordinates = False
             message = (
                 f"Component {only.component.component_id} did not converge under "
-                f"{only.component.engine or 'any force field'} (or the optimization raised); its "
-                "coordinates must not be used as a starting geometry. See the recorded trajectory "
-                "for the last state."
+                f"{only.component.engine or 'any force field'} (or the optimization raised); "
+                "its embedded coordinates remain an unqualified seed for a separate quantum-chemistry "
+                "optimization, not a force-field minimum. See the recorded trajectory for the last state."
             )
         elif only.component.optimization_status == "missing_parameters":
             status = "missing_parameters"
