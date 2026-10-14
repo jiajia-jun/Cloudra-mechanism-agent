@@ -1182,3 +1182,71 @@ async def test_call_persists_bound_assignment_before_child_run():
         assert injected.seq < started.seq
     finally:
         await core.runner.cancel_all()
+
+
+@pytest.mark.asyncio
+async def test_low_permission_expected_child_reply_wakes_parent_without_granting_tools():
+    from cloudra.runtime_v2.schemas import PermissionSet
+
+    core, project, coordinator = await _setup()
+    release = asyncio.Event()
+    entered = asyncio.Event()
+
+    class WaitingChildLLM(StopLLM):
+        async def complete(self, agent, messages, tools, **kwargs):
+            if agent.role_id == "small_mol":
+                entered.set()
+                await release.wait()
+            return await super().complete(agent, messages, tools, **kwargs)
+
+    try:
+        await _wait_state(coordinator, "succeeded")
+        core.runner.pipeline.llm = WaitingChildLLM()
+        child = (await CommandBus(core).execute(Command(
+            type="agent.spawn", target={"project_id": project.id},
+            payload={"role_id": "small_mol", "parent_session_id": coordinator.id},
+        ))).data
+        await handle_hub_tool(core, coordinator, _hub({
+            "action": "call", "to": child.id, "message": "report this task",
+        }))
+        await asyncio.wait_for(entered.wait(), 5)
+        child.capabilities.permissions = PermissionSet(read=True)
+        permissions = child.capabilities.model_dump()
+        before = len(core.event_log.query_session(coordinator.id, types={"run.started"}))
+        result = await handle_hub_tool(core, child, _hub({
+            "action": "post", "kind": "answer", "topic": "task result", "content": "result",
+            "to_agent": coordinator.id,
+        }))
+        assert result.data["notifications"][0]["wake_policy"] == "park_terminal"
+        await _wait_state(coordinator, "succeeded")
+        assert len(core.event_log.query_session(coordinator.id, types={"run.started"})) == before + 1
+        assert child.capabilities.model_dump() == permissions
+        denied = await handle_hub_tool(core, child, _hub({
+            "action": "call", "to": coordinator.id, "message": "perform privileged work",
+        }))
+        assert denied.is_success is False
+    finally:
+        release.set()
+        await core.runner.cancel_all()
+
+
+@pytest.mark.asyncio
+async def test_completed_child_post_does_not_reopen_parent_without_new_assignment():
+    from cloudra.runtime_v2.schemas import PermissionSet
+
+    core, _, coordinator = await _setup()
+    try:
+        await _wait_state(coordinator, "succeeded")
+        child = await _spawn(core, coordinator, "small_mol")
+        await _wait_state(child, "succeeded")
+        await _wait_state(coordinator, "succeeded")
+        child.capabilities.permissions = PermissionSet(read=True)
+        before = len(core.event_log.query_session(coordinator.id, types={"run.started"}))
+        result = await handle_hub_tool(core, child, _hub({
+            "action": "post", "kind": "answer", "topic": "old task", "content": "late post",
+            "to_agent": coordinator.id,
+        }))
+        assert result.data["notifications"][0]["wake_policy"] == "never"
+        assert len(core.event_log.query_session(coordinator.id, types={"run.started"})) == before
+    finally:
+        await core.runner.cancel_all()

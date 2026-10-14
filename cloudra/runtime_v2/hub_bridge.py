@@ -116,7 +116,20 @@ async def _notify(
                 and author.requested_by_session_id is None
                 and target.role_id == "coordinator"
             )
-            if not supervisor_feedback:
+            # A bound child's outstanding task reply is information, not a
+            # delegation of the recipient's tool permissions. Background-only
+            # wakeups after its task finished must not reopen the parent.
+            expected_task_reply = False
+            if (
+                post_id is not None
+                and author.project_id == project_id == target.project_id
+                and author.role_id != "supervisor"
+                and author.parent_session_id == target.id
+            ):
+                from cloudra.runtime_v2.subagent_bridge import child_final_event
+
+                expected_task_reply = await asyncio.to_thread(child_final_event, core, author) is None
+            if not (supervisor_feedback or expected_task_reply):
                 wake = WakePolicy.NEVER
     # This snapshot describes wake intent. Persisting the message may yield,
     # so requested is not evidence that the recipient actually started a run.
