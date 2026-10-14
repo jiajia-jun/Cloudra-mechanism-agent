@@ -540,7 +540,7 @@ async def test_qm_input_writer_orca_plain_opt_maps_keywords(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_qm_input_writer_orca_relaxed_scan_writes_native_geom_scan(tmp_path):
+async def test_qm_input_writer_orca_scan_routes_to_structured_prepare(tmp_path):
     xyz = tmp_path / "water.xyz"
     xyz.write_text(_WATER_XYZ, encoding="utf-8")
     output = tmp_path / "water_scan.inp"
@@ -557,9 +557,9 @@ async def test_qm_input_writer_orca_relaxed_scan_writes_native_geom_scan(tmp_pat
         session=None,
     )
 
-    assert result.is_success, result.message
-    assert result.interpreted_intent["tasks"] == ["relaxed_scan"]
-    assert "! Opt " in output.read_text(encoding="utf-8")
+    assert not result.is_success
+    assert "scan_prepare" in result.message
+    assert not output.exists()
 
 
 @pytest.mark.asyncio
@@ -1133,7 +1133,7 @@ async def test_gaussian_bare_scan_refused_with_semantics_recorded(tmp_path):
 @pytest.mark.asyncio
 async def test_gaussian_scan_relaxed_declaration_refused_with_guidance(tmp_path):
     """{'scan': 'relaxed'}：Gaussian 松弛扫描不是裸 scan 路由能表达的——
-    拒绝并指路 opt=modredundant / ORCA %geom Scan。"""
+    拒绝并指路 opt=modredundant / 结构化scan_prepare。"""
     xyz = _water_xyz_file(tmp_path)
     result = await QmInputWriter().tool_call(
         QmInputWriter_input_schema(engine='gaussian', method='b3lyp', basis_set='6-31g(d)',

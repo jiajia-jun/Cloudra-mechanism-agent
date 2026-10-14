@@ -143,7 +143,7 @@ class ScanGuess(InputModel):
     scans: list[ScanCoordinateInput] = Field(min_length=1, max_length=2, description="Coordinates in the concrete scan-input atom order. ORCA references are 0-based; Gaussian/xTB references are 1-based. Convert concrete coordinate indices, not SMILES positions.")
     freeze: list[FrozenCoordinateInput] = Field(default_factory=list, description="Frozen coordinates in the same concrete input atom order and engine-specific numbering as scans.")
     force_constant: float | None = Field(default=None, gt=0, description="xTB restraint force constant in atomic units; explicitly declared")
-    mode: Literal["concerted", "sequential"] | None = None
+    mode: Literal["concerted", "sequential", "grid"] | None = Field(default=None, description="Two ORCA coordinates require grid (independent surface) or concerted (simultaneous path, equal steps). xTB supports concerted/sequential. Omit for one coordinate or Gaussian grids.")
     solvation: PathSolvation | None = None
 
     @model_validator(mode="after")
@@ -159,15 +159,17 @@ class ScanGuess(InputModel):
                 raise ValueError("force_constant and solvation are native xTB scan fields")
             if engine == "orca":
                 if len(self.scans) == 2:
-                    if self.mode != "concerted":
-                        raise ValueError("Two-coordinate ORCA scans require explicit mode='concerted'; independent grids are not a path")
-                    if self.scans[0].scan_steps != self.scans[1].scan_steps:
+                    if self.mode not in {"concerted", "grid"}:
+                        raise ValueError("Two-coordinate ORCA scans require explicit mode='concerted' (path) or 'grid' (independent surface)")
+                    if self.mode == "concerted" and self.scans[0].scan_steps != self.scans[1].scan_steps:
                         raise ValueError("concerted ORCA scans require equal scan_steps")
                 elif self.mode is not None:
-                    raise ValueError("ORCA scan mode applies only to two concerted coordinates")
+                    raise ValueError("ORCA scan mode applies only to two scanned coordinates")
             elif self.mode is not None:
-                raise ValueError("mode is supported only for native xTB or concerted ORCA scans")
+                raise ValueError("mode is supported only for native xTB or two-coordinate ORCA scans")
             return self
+        if self.mode == "grid":
+            raise ValueError("native xTB scans support concerted or sequential, not grid")
         if calculation.method != "GFN2-xTB":
             raise ValueError("native xTB scan currently supports explicitly declared GFN2-xTB")
         if calculation.keywords or calculation.orca_blocks or calculation.end_setting:

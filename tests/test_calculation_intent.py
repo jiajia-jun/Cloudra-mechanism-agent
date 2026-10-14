@@ -110,7 +110,7 @@ def test_frequency_mode_without_frequency_task_rejected():
 
 def test_bare_orca_scan_without_geom_block_rejected():
     entries = validate_writer_request({"engine": "orca", "task_type": [{"scan": None}]})
-    assert "scan_requires_orca_blocks" in _codes(entries)
+    assert "scan_requires_ts_guess" in _codes(entries)
 
 
 # --- single_point / sp 拼写统一（规范词汇是 TASK_VOCABULARY 的 single_point） ---

@@ -1460,10 +1460,10 @@ def _guess_scan(record: TsProcessRecord) -> TsProcessRecord:
                 scans=public_rows(plan.scans), freeze=public_rows(plan.freeze), scan_mode=plan.mode,
                 output_path=str(folder / ("scan.inp" if calculation.engine == "orca" else "scan.gjf")),
                 nprocs=record.compute_cpus,
+                memory_mb=record.compute_memory_mb if calculation.engine == 'orca' else None,
             )
             try:
-                prepared = TsGuess()._scan_prepare(request,
-                    memory_mb=record.compute_memory_mb if calculation.engine == 'orca' else None)
+                prepared = TsGuess()._scan_prepare(request)
             except ValueError as exc:
                 return _block(record, "guess", "invalid_scan", str(exc), needs=["guess"])
             if not prepared.is_success:

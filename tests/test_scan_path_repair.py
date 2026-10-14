@@ -27,9 +27,10 @@ def _inputs(engine="xtb", reference=False, **scan_fields):
 
 def _orca_files(tmp_path, energies, concerted=False, grid=False):
     job = tmp_path / "scan"
-    scan_lines = ["Scan B 0 1 = 1, 3, 3 end"]
+    scan_lines = ["Scan", "  B 0 1 = 1, 3, 3"]
     if concerted or grid:
-        scan_lines.append("Scan B 0 2 = 1, 3, 3 end")
+        scan_lines.append("  B 0 2 = 1, 3, 3")
+    scan_lines.append("end")
     if concerted:
         scan_lines.append("Simul_Scan true")
     native = "! OPT B3LYP def2-SVP D3BJ\n%geom\n" + "\n".join(scan_lines) + "\nend\n"
@@ -56,8 +57,8 @@ def test_orca_concerted_schema_renderer_and_native_admission(tmp_path):
         scans=ROWS, scan_mode="concerted", **ORCA))
     assert result.is_success
     text = output.read_text()
-    assert "Scan B 0 1 = 1.000000, 2.000000, 3 end" in text
-    assert "Scan B 0 2 = 1.000000, 2.000000, 3 end" in text
+    assert "Scan\n        B 0 1 = 1.000000, 2.000000, 3\n" in text
+    assert "B 0 2 = 1.000000, 2.000000, 3\n    end" in text
     assert "Simul_Scan true" in text
     assert compare_calculation_input(text, ORCA, charge=0, multiplicity=1) == []
 

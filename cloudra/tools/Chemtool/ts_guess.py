@@ -21,7 +21,7 @@ from collections import Counter
 from io import StringIO
 from typing import Any, Literal, Optional, Sequence
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, StrictInt, model_validator
 
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
@@ -117,7 +117,7 @@ _MODE_FIELDS = {
                  'n_images', 'interp_method', 'watch_pairs', 'output_dir', 'timeout',
                  'refinement_runs', 'charge', 'spin', 'electronic_character'},
     'scan_prepare': {*QmCalculation.model_fields, 'input_path', 'input_text', 'scans', 'freeze',
-                     'charge', 'spin', 'electronic_character', 'nprocs', 'output_path',
+                     'charge', 'spin', 'electronic_character', 'nprocs', 'memory_mb', 'output_path',
                      'job_name', 'force_constant', 'scan_mode', 'solvation'},
     'scan_parse': {'engine', 'log_path', 'ts_candidate_path', 'watch_pairs'},
     'verify': {'engine', 'freq_log', 'irc_log', 'reactant_path', 'reactant_text',
@@ -271,8 +271,9 @@ class TsGuess_input_schema(input_schema):
             "Atoms refer to the exact input_path/input_text XYZ order, including explicit H. "
             "Gaussian and xTB use 1-based indices; ORCA uses 0-based indices. internal_coordinates on that same structure is 1-based: subtract 1 only for ORCA. "
             "\"scan_start\": optional start value (default the current geometry value), \"scan_end\": end value, "
-            "\"scan_steps\": step count}. A single entry drives a 1D scan. Two coordinates request an ORCA simultaneous path "
-            "with scan_mode='concerted', an independent Gaussian grid, or the declared xTB scan_mode; grids are not paths. "
+            "\"scan_steps\": step count}. A single entry drives a 1D scan. Two ORCA coordinates require scan_mode='concerted' "
+            "for a simultaneous path or 'grid' for an independent potential-energy surface. Gaussian uses an independent grid; "
+            "xTB requires concerted or sequential. scan_parse does not derive a TS candidate from a grid. "
             "Scanning only one geometric coordinate is often not enough: TS search frequently needs a second, "
             "coupled coordinate (e.g. both the forming and the breaking bond) to see a barrier."
         )
@@ -291,16 +292,17 @@ class TsGuess_input_schema(input_schema):
     electronic_character: Literal['closed_shell', 'open_shell'] | None = Field(default=None,
         description="Declared electronic character for native scan/path preparation, including open-shell singlets. This does not select a wavefunction or initialize spin. Native xTB cannot represent an open-shell singlet through --uhf 0.")
     nprocs: int = Field(default=4, description="Parallel cores (Gaussian %nprocshared / ORCA %pal).")
+    memory_mb: StrictInt | None = Field(default=None, ge=1, description="scan_prepare, ORCA only: total job memory in MB. Omit to use qm_input_writer's existing 4GB default. The program divides the total across nprocs and writes %maxcore.")
     output_path: Optional[str] = Field(default=None, description="scan_prepare: path to write the Gaussian/ORCA input or xTB typed manifest (required). Absolute as-is, or relative to the Agent working directory.")
     job_name: str = Field(default="scan", description="Job name (used for chk file and title).")
     orca_blocks: Optional[str] = Field(
         default=None,
-        description="scan_prepare, ORCA only: raw % blocks appended after %pal/%geom, e.g. the external-potential block '%method\\n  ProgExt \"/abs/path/to/mace\"\\n  Ext_Params \"--model /abs/model --device cpu --dtype float64\"\\nend' when method='ExtOpt'. Rejected for engine='gaussian'.",
+        description="scan_prepare, ORCA only: raw % blocks appended after generated resources/geometry. %geom/%pal/%maxcore use scans/freeze/nprocs/memory_mb instead. For example, the external-potential block '%method\\n  ProgExt \"/abs/path/to/mace\"\\n  Ext_Params \"--model /abs/model --device cpu --dtype float64\"\\nend' when method='ExtOpt'. Rejected for engine='gaussian'.",
     )
 
     end_setting: str = Field(default='', description='scan_prepare: explicit Gaussian trailing native settings, after ModRedundant coordinates. ORCA uses orca_blocks.')
     force_constant: float | None = Field(default=None, gt=0, allow_inf_nan=False, description='Native xTB scan restraint force constant in atomic units; required for engine=xtb.')
-    scan_mode: Literal['concerted', 'sequential'] | None = Field(default=None, description='Two-coordinate scan intent: ORCA supports explicit concerted only; xTB supports concerted or sequential.')
+    scan_mode: Literal['concerted', 'sequential', 'grid'] | None = Field(default=None, description='Two-coordinate scan intent: ORCA requires concerted (simultaneous path, equal steps) or grid (independent surface, no automatic TS candidate); xTB supports concerted or sequential. Omit for one coordinate or Gaussian grids.')
     solvation: PathSolvation | None = Field(default=None, description='Native xTB solvation declaration, when used.')
 
     # ---------- scan_parse ----------
@@ -344,6 +346,8 @@ class TsGuess_input_schema(input_schema):
             QmCalculation.model_validate({field: getattr(self, field) for field in QmCalculation.model_fields})
             if self.frequency_mode != 'auto':
                 raise ValueError('scan_prepare writes a scan, not a frequency job; frequency_mode must be auto')
+            if self.memory_mb is not None and self.engine != 'orca':
+                raise ValueError('scan_prepare memory_mb is supported only for ORCA')
             if not self.scans:
                 raise ValueError("scan_prepare requires scans: at least one scanned coordinate")
             if not self.output_path:
@@ -1570,8 +1574,8 @@ class TsGuess(Tool):
 
     # ---------- mode=scan_prepare ----------
 
-    def _scan_prepare(self, user_input: TsGuess_input_schema, *, memory_mb: int | None = None) -> TsGuess_output_schema:
-        """TS execution supplies its budget internally; standalone scans keep the engine default."""
+    def _scan_prepare(self, user_input: TsGuess_input_schema) -> TsGuess_output_schema:
+        """Render the declared scan; ORCA uses the existing writer resource rule."""
         import numpy as np
 
         if user_input.engine == 'xtb':
@@ -1677,8 +1681,11 @@ class TsGuess(Tool):
             seen.add(key)
             frozen.append((entry.coord_type, idx))
         if user_input.engine == "orca" and user_input.orca_blocks:
-            if any(token.casefold() == "%geom" for token in user_input.orca_blocks.split()):
-                raise ValueError("orca_blocks cannot contain %geom; use scans and freeze")
+            from cloudra.tools.core.calculation_intent import orca_directives
+            blocks = orca_directives(user_input.orca_blocks)[1]
+            if blocks.keys() & {"geom", "pal", "maxcore"}:
+                raise ValueError("orca_blocks cannot contain %geom, %pal or %maxcore; "
+                                 "use scans/freeze and nprocs/memory_mb")
 
         if start_mismatches and user_input.engine == "gaussian":
             return TsGuess_output_schema(
@@ -1736,12 +1743,12 @@ class TsGuess(Tool):
                 user_input.end_setting,
                 "",
             ])
-            dim = "2D grid" if len(specs) > 1 else "1D"
             run_hint = (
                 f"Submit {user_input.output_path} with submit_compute_job (job_type='gaussian'); "
-                f"afterwards parse the log with ts_guess mode='scan_parse' and extract a TS guess. "
-                f"This is a {dim} scan over {len(specs)} coordinate(s) — cost grows with every additional "
-                "scanned coordinate."
+                + ("this is a 2D independent potential-energy grid; scan_parse does not derive a TS candidate. "
+                   "Inspect its native points and use a selected XYZ with guess.kind='provided' for formal refinement."
+                   if len(specs) > 1 else
+                   "afterwards parse the log with ts_guess mode='scan_parse' for internal-peak candidates.")
             )
         else:
             orca_method = method + (f' {orca_basis_keyword(calculation.basis_set)}' if calculation.basis_set else '')
@@ -1752,17 +1759,17 @@ class TsGuess(Tool):
                 f"{s:<3} {p[0]:>14.8f} {p[1]:>14.8f} {p[2]:>14.8f}" for s, p in zip(syms, pos)
             )
             blocks = [header]
-            if memory_mb is None:
-                blocks.append(f"%pal nprocs {user_input.nprocs} end")
-            else:
-                from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter
-                blocks.extend(QmInputWriter._orca_resource_lines(f"{memory_mb}MB", user_input.nprocs))
-            blocks.append("%geom")
+            from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
+            memory = (f"{user_input.memory_mb}MB" if user_input.memory_mb is not None
+                      else QmInputWriter_input_schema.model_fields['mem'].default)
+            blocks.extend(QmInputWriter._orca_resource_lines(memory, user_input.nprocs))
+            blocks.extend(["%geom", "    Scan"])
             for spec in specs:
                 blocks.append(
-                    f"    Scan {coord_letter[spec['coord_type']]} {' '.join(str(a) for a in spec['idx'])} "
-                    f"= {spec['start']:.6f}, {spec['end']:.6f}, {spec['steps']} end"
+                    f"        {coord_letter[spec['coord_type']]} {' '.join(str(a) for a in spec['idx'])} "
+                    f"= {spec['start']:.6f}, {spec['end']:.6f}, {spec['steps']}"
                 )
+            blocks.append("    end")
             if user_input.scan_mode == 'concerted':
                 blocks.append("    Simul_Scan true")
             if frozen:
@@ -1777,7 +1784,10 @@ class TsGuess(Tool):
             content = "\n".join(blocks)
             run_hint = (
                 f"Submit {user_input.output_path} with submit_compute_job (job_type='orca'); "
-                "afterwards parse the log with ts_guess mode='scan_parse' engine='orca' and extract a TS guess."
+                + ("this is a 2D independent potential-energy grid; scan_parse does not derive a TS candidate. "
+                   "Inspect its native points and use a selected XYZ with guess.kind='provided' for formal refinement."
+                   if user_input.scan_mode == 'grid' else
+                   "afterwards parse the log with ts_guess mode='scan_parse' engine='orca' for internal-peak candidates.")
             )
 
         out_dir = os.path.dirname(os.path.abspath(user_input.output_path))
@@ -1796,9 +1806,7 @@ class TsGuess(Tool):
                 + ("; frozen at current values: " + "; ".join(
                     f"{kind} {[i + atom_index_base(user_input.engine) for i in idx]}={_coord_current(kind, idx):.6f}"
                     for kind, idx in frozen) if frozen else "")
-                + ". If you hand-edit the input: for Gaussian keep one blank line between the coordinate "
-                "block and the ModRedundant B/A/D lines; each scanned coordinate takes exactly one S line "
-                "(two S lines in the same job = a 2D grid scan, N×M points, not a 1D diagonal scan)."
+                + "."
             ),
         )
 

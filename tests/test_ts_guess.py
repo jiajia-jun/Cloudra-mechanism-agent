@@ -606,7 +606,7 @@ async def test_scan_prepare_gaussian_two_grid_coordinates(tmp_path, mock_session
     assert len(lines) == 2, content
     assert lines[0].startswith("B 1 2 S 10")
     assert lines[1].startswith("B 1 3 S 8")
-    assert "2D grid" in result.run_hint
+    assert "2D" in result.run_hint and "grid" in result.run_hint
 
 
 @pytest.mark.asyncio
@@ -637,7 +637,7 @@ async def test_scan_prepare_orca(tmp_path, mock_session):
     assert "%pal nprocs 8 end" in content
     assert "%geom" in content
     # 原子序号 0-based：输入 [2,1,3] → 输出 1 0 2
-    assert "Scan A 1 0 2 = 90.000000, 120.000000, 6 end" in content
+    assert "Scan\n        A 1 0 2 = 90.000000, 120.000000, 6\n    end" in content
     # 组合条目拼写 b3lyp/def2svp 必须落成 ORCA 原生基组拼写 def2-SVP
     assert content.startswith("! OPT b3lyp def2-SVP")
     assert "* xyz 0 1" in content
@@ -667,7 +667,7 @@ async def test_scan_prepare_orca_extopt_mlip_blocks(tmp_path, mock_session):
     assert result.is_success, result.message
     content = out.read_text()
     assert content.startswith("! OPT ExtOpt")
-    assert "Scan B 0 1 = " in content
+    assert "Scan\n        B 0 1 = " in content
     assert "ProgExt" in content and "--model" in content
     # %method 块位于坐标块之前
     assert content.index("%method") < content.index("* xyz")
@@ -675,7 +675,7 @@ async def test_scan_prepare_orca_extopt_mlip_blocks(tmp_path, mock_session):
 
 @pytest.mark.asyncio
 async def test_scan_prepare_rejects_independent_multi_coord_on_orca(tmp_path, mock_session):
-    """ORCA双坐标需要显式同步意图，独立网格不能作为一维路径。"""
+    """ORCA双坐标需要显式grid或concerted意图；省略不得偷偷转换。"""
     tool = _make_tool()
     result = await tool.safe_call(TsGuess_input_schema(**{'basis_set': 'def2svp',
         "mode": "scan_prepare",

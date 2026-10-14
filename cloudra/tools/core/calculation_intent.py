@@ -206,6 +206,13 @@ def validate_writer_request(arguments: dict[str, Any]) -> list[dict]:
         ))
 
     if engine == "orca":
+        geom = orca_directives(str(arguments.get("orca_blocks") or ""))[1].get("geom", [])
+        if "scan" in seen or "scan" in geom:
+            entries.append(_entry(
+                "scan_requires_ts_guess", "task_type" if "scan" in seen else "orca_blocks",
+                "Prepare ORCA scans with ts_guess mode='scan_prepare', scans and scan_mode; "
+                "qm_input_writer does not generate scans from task_type or raw %geom Scan.",
+            ))
         for key, value in seen.items():
             params = {p.strip() for p in str(value).lower().split(",") if p.strip()} if value is not None else set()
             if key == "opt":
@@ -224,15 +231,6 @@ def validate_writer_request(arguments: dict[str, Any]) -> list[dict]:
                         "unknown_freq_suboption", "task_type",
                         f"Unknown ORCA freq sub-options {unknown_freq}; use "
                         "frequency_mode='numeric' for NumFreq or native orca_blocks.",
-                    ))
-            if key == "scan":
-                blocks = str(arguments.get("orca_blocks") or "")
-                if "scan" not in blocks.lower():
-                    entries.append(_entry(
-                        "scan_requires_orca_blocks", "task_type",
-                        "An ORCA relaxed scan needs a native %geom Scan definition in "
-                        "orca_blocks (e.g. '%geom Scan B 0 1 = 2.0, 3.0, 10 end end'); "
-                        "a bare {'scan': ...} task cannot be translated.",
                     ))
         if str(arguments.get("end_setting") or "").strip():
             entries.append(_entry(

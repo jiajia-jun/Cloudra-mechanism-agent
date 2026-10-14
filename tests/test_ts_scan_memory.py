@@ -48,7 +48,7 @@ def test_ts_scan_execution_budget_matches_native_qm_resources(tmp_path, monkeypa
     expected_resources = [line for line in writer.splitlines() if line.startswith(("%pal", "%maxcore"))]
     assert [line for line in native.splitlines() if line.startswith(("%pal", "%maxcore"))] == expected_resources
     assert native.splitlines()[0] == "! OPT B3LYP def2-SVP D3BJ TightSCF"
-    assert "Scan B 0 1 = 1.000000, 2.000000, 3 end" in native
+    assert "Scan\n        B 0 1 = 1.000000, 2.000000, 3\n" in native
     assert ("Simul_Scan true" in native) is concerted
     coordinates = [line.split() for line in native[native.index("* xyz"):].splitlines()[1:4]]
     assert [row[0] for row in coordinates] == ["O", "H", "H"]
@@ -56,12 +56,12 @@ def test_ts_scan_execution_budget_matches_native_qm_resources(tmp_path, monkeypa
 
 
 
-def test_standalone_scan_keeps_native_resource_default_without_public_memory_field(tmp_path):
-    assert not {"mem", "memory_mb", "resources"} & TsGuess_input_schema.model_fields.keys()
+def test_standalone_scan_uses_writer_default_without_extra_resource_fields(tmp_path):
+    assert not {"mem", "resources"} & TsGuess_input_schema.model_fields.keys()
     output = tmp_path / "scan.inp"
     result = TsGuess()._scan_prepare(TsGuess_input_schema(
         mode="scan_prepare", input_text=WATER, output_path=str(output), nprocs=8,
         scans=SCANS[:1], **CALCULATION))
     assert result.is_success
     assert "%pal nprocs 8 end" in output.read_text()
-    assert "%maxcore" not in output.read_text()
+    assert "%maxcore 512" in output.read_text()

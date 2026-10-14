@@ -97,10 +97,10 @@ class QmInputWriter_input_schema(QmCalculation, input_schema):
     task_type: list[dict] = Field(
         default=[{"opt": None}],
         description='''List of dicts whose keys are job types and values are their parameters.
-                    Keys: opt/freq/irc/scan/single_point ('sp' accepted as the same single-point task).
+                    Keys: opt/freq/irc/single_point ('sp' accepted as the same single-point task); scan is Gaussian-only.
                     Gaussian example: [{"opt":"TS,calcfc,noeigen"},{"freq":None}];
                     the same dict works for ORCA (mapped to `! OptTS Freq` etc.).
-                    scan: ORCA emits a RELAXED scan (Opt + %geom Scan declared in orca_blocks);
+                    ORCA scans use ts_guess mode='scan_prepare' with structured coordinates.
                     Gaussian only accepts the explicit {"scan":"rigid"} declaration (bare `scan`
                     route = RIGID scan, coordinate via end_setting) — a bare {"scan":None} is refused.'''
     )
@@ -137,10 +137,9 @@ class QmInputWriter_input_schema(QmCalculation, input_schema):
     orca_blocks: Optional[str] = Field(
         default=None,
         description="ORCA-only: raw % block lines inserted between the `!` line and the coordinate "
-                    "block, e.g. '%geom MaxIter 200 end'. For raw %geom Scan, ORCA atom indices "
-                    "are 0-based: convert each 1-based atom-map/internal_coordinates index i to i-1 "
-                    "(bond 1-6 -> 'Scan B 0 5') and verify the coordinate against the XYZ order "
-                    "including explicit H before submission. For a SMILES source, use the generated build's "
+                    "block, e.g. '%geom MaxIter 200 end'. Scans use ts_guess mode='scan_prepare'. "
+                    "Native atom indices are 0-based and refer to the exact XYZ order including explicit H. "
+                    "For a SMILES source, use the generated build's "
                     "prepared_structure.json atom_identities, not SMILES heavy-atom positions. "
                     "Rejected for engine='gaussian'."
     )
@@ -417,12 +416,10 @@ class QmInputWriter(Tool):
                 return {
                     "message": (
                         "a Gaussian 'scan' task writes the bare `scan` route, which is a RIGID "
-                        "potential-surface scan, while the same task_type on the ORCA engine is a "
-                        "RELAXED scan (Opt + %geom Scan) — the bare key cannot keep the two engines' "
-                        "semantics apart and inspect_input cannot tell which was meant. Declare the "
+                        "potential-surface scan. RELAXED scans use structured scan_prepare coordinates. Declare the "
                         "intent explicitly: use {'scan': 'rigid'} for a Gaussian rigid scan (scan "
                         "coordinate via end_setting, e.g. 'B 1 2 S 10 0.02'); for a relaxed scan use "
-                        "engine='orca' with a %geom Scan block in orca_blocks, or a Gaussian "
+                        "ts_guess mode='scan_prepare' with structured coordinates, or a Gaussian "
                         "opt=modredundant route via {'opt': 'modredundant'} + end_setting."
                     ),
                     "unapplied_options": [
@@ -524,9 +521,6 @@ class QmInputWriter(Tool):
                     keyword = "NumFreq" if numeric else "Freq"
                 elif key_l == "irc":
                     keyword = "IRC"
-                elif key_l == "scan":
-                    # 松弛扫描由 orca_blocks 的 %geom Scan 定义驱动，仍需 Opt 关键字
-                    keyword = "Opt"
                 elif key_l in ("sp", "single_point"):
                     continue  # 单点：! 行只留方法/基组
                 else:
