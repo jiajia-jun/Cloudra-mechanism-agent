@@ -155,10 +155,18 @@ class ScanGuess(InputModel):
     def validate_calculation(self, calculation: QmCalculation):
         engine = calculation.engine
         if engine != "xtb":
-            if any(value is not None for value in (self.force_constant, self.mode, self.solvation)):
-                raise ValueError("force_constant, mode and solvation are native xTB scan fields")
-            if engine == "orca" and len(self.scans) != 1:
-                raise ValueError("ORCA relaxed scan accepts exactly one coordinate")
+            if self.force_constant is not None or self.solvation is not None:
+                raise ValueError("force_constant and solvation are native xTB scan fields")
+            if engine == "orca":
+                if len(self.scans) == 2:
+                    if self.mode != "concerted":
+                        raise ValueError("Two-coordinate ORCA scans require explicit mode='concerted'; independent grids are not a path")
+                    if self.scans[0].scan_steps != self.scans[1].scan_steps:
+                        raise ValueError("concerted ORCA scans require equal scan_steps")
+                elif self.mode is not None:
+                    raise ValueError("ORCA scan mode applies only to two concerted coordinates")
+            elif self.mode is not None:
+                raise ValueError("mode is supported only for native xTB or concerted ORCA scans")
             return self
         if calculation.method != "GFN2-xTB":
             raise ValueError("native xTB scan currently supports explicitly declared GFN2-xTB")
@@ -347,7 +355,15 @@ def apply_input_changes(current: TsInput, changes: TsInputChanges) -> TsInput:
             else:
                 result[name] = value.model_dump(mode="json") if isinstance(value, BaseModel) else value
         return result
-    return TsInput.model_validate(merge(current.model_dump(mode="json"), changes))
+    merged = merge(current.model_dump(mode="json"), changes)
+    guess = merged.get('guess')
+    if isinstance(current.guess, ScanGuess) and guess and guess.get('kind') == 'scan':
+        before = resolve_calculation(current.guess.calculation, current.calculations)
+        after = resolve_calculation(guess['calculation'], merged.get('calculations') or {})
+        explicit = changes.guess.model_fields_set if changes.guess is not None else set()
+        if before.engine == 'xtb' and after.engine != 'xtb' and 'force_constant' not in explicit:
+            guess['force_constant'] = None
+    return TsInput.model_validate(merged)
 
 
 class TsResumeRequest(InputModel):

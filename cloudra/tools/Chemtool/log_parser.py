@@ -21,7 +21,7 @@ description = (
     "(top displaced atom pairs, heavy-atom displacement fraction, and — when watch_pairs are supplied — each "
     "watch pair's share of the total pair-projected displacement). "
     "Use for: a full analysis after a Gaussian/ORCA/xtb job, or checking whether the job converged normally. "
-    "Recognized Gaussian/ORCA scans also report their internal energy maximum and any existing peak XYZ, "
+    "Recognized Gaussian/ORCA scan paths report internal local-peak candidates and their exact existing XYZ references, "
     "even when only convergence was requested; use that seed with ts_prepare rather than comparing energies by hand. "
     "Do not use for: submitting a job (use submit_compute_job) or processing experimental spectra (use ir_processor / nmr_processor)."
 )
@@ -646,6 +646,8 @@ class LogParser(Tool):
         """Reuse the scan tool's native parsing and peak math without writing a guess."""
         from cloudra.tools.Chemtool.ts_guess import (
             KCAL_PER_HARTREE,
+            _gaussian_scan_is_grid,
+            _orca_scan_is_grid,
             _parse_gaussian_scan_summary,
             _parse_orca_relaxed_scan_sidecar,
             _parse_orca_scan,
@@ -657,6 +659,9 @@ class LogParser(Tool):
         geometry_available = True
         notes = []
         if engine == "orca":
+            if _orca_scan_is_grid(log_path, text):
+                return {'scan_has_internal_peak': None, 'scan_peak': None,
+                        'message': 'Independent multidimensional scan grid is not a one-dimensional path; no candidate was derived.'}
             try:
                 sidecar = _parse_orca_relaxed_scan_sidecar(log_path)
                 energies = sidecar["energies"] if sidecar else [
@@ -664,17 +669,26 @@ class LogParser(Tool):
                 ]
             except _SidecarIncomplete as exc:
                 if not exc.energies:
-                    raise
+                    return {'scan_has_internal_peak': None, 'scan_peak': None, 'message': str(exc)}
                 energies = exc.energies
                 geometry_available = False
                 notes.append(str(exc))
         else:
+            import cclib
+            try:
+                data = cclib.io.ccread(log_path)
+            except Exception:
+                data = None
+            if _gaussian_scan_is_grid(text, data):
+                return {'scan_has_internal_peak': None, 'scan_peak': None,
+                        'message': 'Independent Gaussian multidimensional grid is not a one-dimensional path; no candidate was derived.'}
             energies = _parse_gaussian_scan_summary(text)
         profile = analyze_scan_profile([(e - energies[0]) * KCAL_PER_HARTREE for e in energies])
-        index = profile["ts_index"]
-        internal = 0 < index < len(energies) - 1
+        indices = profile['peak_indices']
+        internal = bool(indices)
         peak = None
-        if internal:
+        if len(indices) == 1:
+            index = indices[0]
             geometry_ref = None
             if engine == "orca" and geometry_available:
                 for directory, stem in orca_frames._orca_sidecar_roots(log_path, text):
@@ -684,16 +698,28 @@ class LogParser(Tool):
                         break
             peak = ScanPeak(
                 point_number=index + 1, energy_hartree=energies[index],
-                relative_to_first_point_kcal=profile["barrier_kcal"], geometry_ref=geometry_ref,
+                relative_to_first_point_kcal=(energies[index] - energies[0]) * KCAL_PER_HARTREE, geometry_ref=geometry_ref,
             )
             message = (
                 f"Scan has {len(energies)} points; internal maximum at point {index + 1} (1-based), "
-                f"{energies[index]:.12f} Hartree, {profile['barrier_kcal']:.4f} kcal/mol above its first point. "
+                f"{energies[index]:.12f} Hartree, {peak.relative_to_first_point_kcal:.4f} kcal/mol relative to its first point. "
                 f"Existing peak XYZ: {geometry_ref or 'unavailable; extract it with ts_guess mode=scan_parse'}. "
                 "Use the peak as a ts_prepare seed; it is not a verified TS or reaction barrier."
             )
+        elif indices:
+            candidates = []
+            for index in indices:
+                geometry_ref = None
+                if engine == 'orca' and geometry_available:
+                    for directory, stem in orca_frames._orca_sidecar_roots(log_path, text):
+                        path = os.path.join(directory, f'{stem}.{index + 1:03d}.xyz')
+                        if os.path.isfile(path):
+                            geometry_ref = path
+                            break
+                candidates.append(f'Candidate point {index + 1}: energy={energies[index]:.12f} Hartree; XYZ={geometry_ref or "unavailable"}')
+            message = '; '.join(candidates) + '. Inspect these local peaks and choose one with guess.kind=provided; none is a verified TS.'
         else:
-            message = "No internal scan maximum; an endpoint maximum is not a TS seed."
+            message = "No internal local scan maximum; an endpoint maximum is not a TS seed."
         return {
             "scan_has_internal_peak": internal, "scan_peak": peak,
             "message": " ".join([message, *profile["verdicts"], *notes]),

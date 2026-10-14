@@ -1457,7 +1457,7 @@ def _guess_scan(record: TsProcessRecord) -> TsProcessRecord:
             request = TsGuess_input_schema(
                 mode="scan_prepare", input_path=built[2], **calculation.model_dump(mode='json'),
                 charge=declaration.charge, spin=declaration.multiplicity,
-                scans=public_rows(plan.scans), freeze=public_rows(plan.freeze),
+                scans=public_rows(plan.scans), freeze=public_rows(plan.freeze), scan_mode=plan.mode,
                 output_path=str(folder / ("scan.inp" if calculation.engine == "orca" else "scan.gjf")),
                 nprocs=record.compute_cpus,
             )
@@ -1504,6 +1504,13 @@ def _guess_scan(record: TsProcessRecord) -> TsProcessRecord:
             return _block(record, 'guess', 'scan_artifacts_incomplete',
                 'Native xTB scan has incomplete point convergence or artifacts.',
                 atom_details=result.get('issues', []), needs=['compute_artifacts'])
+        if len(result.get('candidates', [])) > 1:
+            points = {point['index']: point for point in result['points']}
+            details = [f"Candidate point {candidate['point_index']}: energy={points[candidate['point_index']]['energy_hartree']:.12f} Hartree; XYZ={candidate['frame_path']}"
+                       for candidate in result['candidates']]
+            return _block(record, 'guess', 'scan_choice_required',
+                f"Multiple internal local-peak candidates. Choose one with guess.kind=provided; formal validation remains required. Native log: {result['log_file']}",
+                atom_details=details, needs=['guess'])
         if not result['usable_as_guess'] or not result.get('candidate_path'):
             _record_candidate_failure(record, 'scan_no_candidate', step, result['log_file'])
             return _block(record, 'guess', 'scan_no_candidate',
@@ -1519,6 +1526,11 @@ def _guess_scan(record: TsProcessRecord) -> TsProcessRecord:
         except (ValueError, OSError) as exc:
             _record_candidate_failure(record, "scan_parse_failed", step, _refinement_log_path(record, step))
             return _block(record, "guess", "scan_parse_failed", str(exc), needs=["guess"])
+        if (parsed.scan_has_internal_peak is True and not parsed.candidate_unavailable
+                and not parsed.ts_candidate_path):
+            return _block(record, 'guess', 'scan_choice_required',
+                parsed.message + f" Native log: {_refinement_log_path(record, step)}",
+                atom_details=parsed.verdicts, needs=['guess'])
         if (not parsed.is_success or parsed.scan_has_internal_peak is not True
                 or parsed.candidate_unavailable or not parsed.ts_candidate_path
                 or not Path(parsed.ts_candidate_path).is_file()):
@@ -2251,7 +2263,11 @@ def _refinement_log_path(record: TsProcessRecord, step: TsJobStep) -> str:
         try:
             return read_task_result(step.input_path)[0]['result']['log_file']
         except (KeyError, OSError, ValueError):
-            return step.input_path
+            resolved = resolve_log_path(step.input_path, job_type='xtb', task_id=step.job_id)
+            if Path(resolved).is_file() and Path(resolved).resolve() != Path(step.input_path).resolve():
+                return resolved
+            captured = Path(step.input_path).parent / '.cloudra' / f'calc-{step.job_id}.out.log'
+            return str(captured) if captured.is_file() else ''
     job_type = _step_calculation(record, step).engine
     return resolve_log_path(step.input_path, job_type=job_type, task_id=step.job_id)
 

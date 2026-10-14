@@ -201,8 +201,7 @@ def parse_xtb_scan(task, directory: Path, returncode: int) -> dict:
             relative = [(point['energy_hartree'] - section[0]['energy_hartree']) * _HARTREE_TO_KCAL
                         for point in section]
             profile = analyze_scan_profile(relative)
-            peak = profile['ts_index']
-            if 0 < peak < len(section) - 1:
+            for peak in profile['peak_indices']:
                 candidate = section[peak]
                 candidates.append(dict(segment=segment, point_index=candidate['index'], frame_path=candidate['frame_path'],
                                        energy_kind='electronic', verdicts=profile['verdicts']))

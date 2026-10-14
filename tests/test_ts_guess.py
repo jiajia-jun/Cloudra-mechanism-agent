@@ -584,7 +584,7 @@ async def test_scan_prepare_gaussian(tmp_path, mock_session):
 
 
 @pytest.mark.asyncio
-async def test_scan_prepare_gaussian_two_coupled_coordinates(tmp_path, mock_session):
+async def test_scan_prepare_gaussian_two_grid_coordinates(tmp_path, mock_session):
     """Gaussian 双坐标耦合扫描：两个 S 行（2D 网格），各自步长独立。"""
     tool = _make_tool()
     out = tmp_path / "scan2d.gjf"
@@ -606,7 +606,7 @@ async def test_scan_prepare_gaussian_two_coupled_coordinates(tmp_path, mock_sess
     assert len(lines) == 2, content
     assert lines[0].startswith("B 1 2 S 10")
     assert lines[1].startswith("B 1 3 S 8")
-    assert "2D coupled" in result.run_hint
+    assert "2D grid" in result.run_hint
 
 
 @pytest.mark.asyncio
@@ -674,8 +674,8 @@ async def test_scan_prepare_orca_extopt_mlip_blocks(tmp_path, mock_session):
 
 
 @pytest.mark.asyncio
-async def test_scan_prepare_rejects_multi_coord_on_orca(tmp_path, mock_session):
-    """ORCA relaxed scan 是 1D：两个扫描坐标报错并提示用 Gaussian。"""
+async def test_scan_prepare_rejects_independent_multi_coord_on_orca(tmp_path, mock_session):
+    """ORCA双坐标需要显式同步意图，独立网格不能作为一维路径。"""
     tool = _make_tool()
     result = await tool.safe_call(TsGuess_input_schema(**{'basis_set': 'def2svp',
         "mode": "scan_prepare",
@@ -684,12 +684,12 @@ async def test_scan_prepare_rejects_multi_coord_on_orca(tmp_path, mock_session):
         "engine": "orca",
         "scans": [
             {"coord_type": "bond", "atoms": [0, 1], "scan_end": 2.0, "scan_steps": 10},
-            {"coord_type": "bond", "atoms": [1, 3], "scan_end": 1.2, "scan_steps": 8},
+            {"coord_type": "bond", "atoms": [0, 2], "scan_end": 1.2, "scan_steps": 10},
         ],
         "output_path": str(tmp_path / "x.inp"),
     }), mock_session)
     assert not result.is_success
-    assert "1D" in result.message
+    assert "concerted" in result.message
 
 
 @pytest.mark.asyncio
@@ -790,7 +790,7 @@ async def test_scan_parse_h2_fixture(tmp_path, mock_session):
     assert result.ts_candidate_index is None
     assert result.ts_candidate_path == ""
     assert not ts_path.exists()
-    assert any("no internal energy peak" in v for v in result.verdicts)
+    assert result.scan_has_internal_peak is False
     assert "NOT a TS candidate" in result.message
     # profile 表不标 TS guess
     assert "TS guess" not in result.profile_table
@@ -1345,7 +1345,7 @@ async def test_scan_parse_orca_sidecar_monotonic_profile_max_at_last_frame(tmp_p
     # 单调剖面（无论升/降）无内部峰：不产出 TS-guess，端点帧不得当候选
     assert result.ts_candidate_index is None
     assert result.ts_candidate_path == ""
-    assert any("no internal energy peak" in v for v in result.verdicts)
+    assert result.scan_has_internal_peak is False
     assert "NOT a TS candidate" in result.message
     assert "TS guess" not in result.profile_table
     # G4：无内部峰时 barrier_kcal 置 None，且不得声称 "TS-guess geometry is ..."
@@ -1842,7 +1842,7 @@ async def test_scan_parse_orca_real_log_no_sidecar_refuses_endpoint_max(tmp_path
     assert result.ts_candidate_path == ""
     assert result.candidate is None
     assert result.barrier_kcal is None  # G4：无内部峰不填 barrier
-    assert any("no internal energy peak" in v for v in result.verdicts)
+    assert result.scan_has_internal_peak is False
     # G4：拒发候选时不得再声称 "TS-guess geometry is ..."
     assert not any("TS-guess geometry" in v for v in result.verdicts)
     assert not list(tmp_path.glob("*_ts_guess.xyz"))
@@ -1909,7 +1909,7 @@ async def test_scan_parse_orca_text_groups_by_step_with_variable_cycles(tmp_path
     assert rows[0] == pytest.approx([2.1, 0.0, 0.0], abs=1e-6)
     assert rows[1] == pytest.approx([3.1, 0.0, 0.0], abs=1e-6)
     assert rows[2] == pytest.approx([0.0, 1.5, 0.0], abs=1e-6)
-    assert any("TS-guess geometry is the energy-maximum frame 1" in v for v in result.verdicts)
+    assert result.candidate["source"] == "orca_log_text"
 
 
 @pytest.mark.skipif(not _HAS_TOOLFIX_LOGS, reason="toolfix_verify 真实 ORCA 日志缺失")

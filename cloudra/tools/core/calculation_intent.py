@@ -558,7 +558,7 @@ def _generated_gaussian_coordinates(tokens):
 def _writer_orca_controls(name, tokens):
     if name in ('pal', 'maxcore'):
         return True  # Shared admission independently validates resources.
-    allowed = {'geom': {'calc_hess','true','inhess','read','inhessname','scan','constraints','b','a','d','c','{','}','=','end'},
+    allowed = {'geom': {'calc_hess','true','inhess','read','inhessname','scan','simul_scan','constraints','b','a','d','c','{','}','=','end'},
         'irc': {'direction','both','inithess','read','calc_numfreq','hess_filename','end'}}.get(name)
     if allowed is None:
         return not tokens

@@ -94,9 +94,9 @@ description = (
     "(bond/angle/dihedral; xTB requires an explicit method and force_constant); for MLIP/external potentials pass "
     "method='ExtOpt' (ORCA, plus orca_blocks with the %method ProgExt block) or method='external' "
     "(Gaussian, plus keywords='external=\"mace\"'); "
-    "scan_parse: parse a scan log into a relative-energy profile table, constrained-scan diagnostic barrier, and monotonicity/discontinuity/boundary-extremum/multipeak verdicts, "
-    "and extract the highest-energy geometry as a TS-guess xyz — for ORCA relaxed scans it reads "
-    "relaxscanact.dat + ts_scan.NNN.xyz frame files so the TS guess is the energy-maximum frame, not the last frame; "
+    "scan_parse: inspect a one-dimensional or explicitly concerted native scan path and report internal local-peak candidates. "
+    "A unique peak yields a TS-guess xyz; multiple peaks list point numbers, energies and exact XYZ paths in verdicts for a provided-guess choice. "
+    "ORCA uses relaxscanact.dat plus matching ts_scan.NNN.xyz frames; independent multidimensional grids are not flattened into paths. "
     "without the sidecar the log text is grouped per 'RELAXED SURFACE SCAN STEP' and each point's converged "
     "(last) energy/geometry is used, so per-cycle energies are never misread as scan points; "
     "verify: by default, frequency plus rough IRC-endpoint connectivity yields candidate/unlikely/inconclusive; "
@@ -271,8 +271,8 @@ class TsGuess_input_schema(input_schema):
             "Atoms refer to the exact input_path/input_text XYZ order, including explicit H. "
             "Gaussian and xTB use 1-based indices; ORCA uses 0-based indices. internal_coordinates on that same structure is 1-based: subtract 1 only for ORCA. "
             "\"scan_start\": optional start value (default the current geometry value), \"scan_end\": end value, "
-            "\"scan_steps\": step count}. A single entry drives a 1D scan; a second entry makes a 2D coupled scan "
-            "(Gaussian or xTB — ORCA relaxed scans are 1D, so pass exactly one entry). "
+            "\"scan_steps\": step count}. A single entry drives a 1D scan. Two coordinates request an ORCA simultaneous path "
+            "with scan_mode='concerted', an independent Gaussian grid, or the declared xTB scan_mode; grids are not paths. "
             "Scanning only one geometric coordinate is often not enough: TS search frequently needs a second, "
             "coupled coordinate (e.g. both the forming and the breaking bond) to see a barrier."
         )
@@ -300,7 +300,7 @@ class TsGuess_input_schema(input_schema):
 
     end_setting: str = Field(default='', description='scan_prepare: explicit Gaussian trailing native settings, after ModRedundant coordinates. ORCA uses orca_blocks.')
     force_constant: float | None = Field(default=None, gt=0, allow_inf_nan=False, description='Native xTB scan restraint force constant in atomic units; required for engine=xtb.')
-    scan_mode: Literal['concerted', 'sequential'] | None = Field(default=None, description='Native xTB scan mode; required only for two coordinates.')
+    scan_mode: Literal['concerted', 'sequential'] | None = Field(default=None, description='Two-coordinate scan intent: ORCA supports explicit concerted only; xTB supports concerted or sequential.')
     solvation: PathSolvation | None = Field(default=None, description='Native xTB solvation declaration, when used.')
 
     # ---------- scan_parse ----------
@@ -406,9 +406,9 @@ class TsGuess_output_schema(output_schema):
     barrier_kcal: Optional[float] = Field(default=None, description="scan_parse: constrained-scan diagnostic only (highest point − first point, kcal/mol) — NOT a verified ΔE‡/ΔG‡; unconstrained OptTS + freq + IRC still required before any barrier claim")
     candidate: Optional[dict] = Field(
         default=None,
-        description="scan_parse: constrained-scan peak candidate as {scan_index, energy, geometry_ref, source} — "
-                    "a seed for a fresh unconstrained OptTS, NOT a validated TS; "
-                    "null when no internal peak exists or its geometry is unavailable.",
+        description="scan_parse: unique constrained-scan local-peak candidate as {scan_index, energy, geometry_ref, source}; "
+                    "not a validated TS. Multiple candidates are listed in verdicts with point/energy/XYZ for an existing provided-guess choice; "
+                    "null when no unique candidate was selected or its geometry is unavailable.",
     )
     candidate_unavailable: bool = Field(
         default=False,
@@ -706,14 +706,14 @@ def analyze_scan_profile(rel_energies_kcal: Sequence[float]) -> dict:
 
     if ts_index == 0 or ts_index == n - 1:
         verdicts.append(
-            f"Energy extremum lies on the scan boundary (frame {ts_index}): extend the scan range to include the true barrier top."
+            f"Global energy maximum lies on the scan boundary (frame {ts_index}); internal local peaks, if present, remain unverified candidates."
         )
 
     peaks = [i for i in range(1, n - 1) if e[i] > e[i - 1] and e[i] > e[i + 1]]
     if len(peaks) > 1:
         verdicts.append(f"Multiple energy peaks detected (frames {', '.join(str(i) for i in peaks)}); inspect each one.")
 
-    return {"barrier_kcal": barrier, "ts_index": ts_index, "verdicts": verdicts}
+    return {"barrier_kcal": barrier, "ts_index": ts_index, "peak_indices": peaks, "verdicts": verdicts}
 
 
 # ---------------------------------------------------------------------------
@@ -844,6 +844,55 @@ def _find_orca_sidecar_dat(log_path: str, workdir: str) -> Optional[str]:
     return None
 
 
+def _gaussian_scan_is_grid(text: str, data=None) -> bool:
+    parameters = getattr(data, 'scanparm', None) if data is not None else None
+    if parameters is not None and len(parameters) > 1:
+        return True
+    coordinates = set()
+    for line in text.splitlines():
+        tokens = line.upper().split()
+        count = {'B': 2, 'A': 3, 'D': 4}.get(tokens[0]) if tokens else None
+        if count and len(tokens) > count + 1 and tokens[count + 1] == 'S':
+            atoms = tuple(tokens[1:count + 1])
+            if all(atom.isdigit() for atom in atoms):
+                coordinates.add((tokens[0], min(atoms, tuple(reversed(atoms)))))
+    return len(coordinates) > 1
+
+
+def _orca_scan_controls(log_path: str, text: str = "") -> list[str]:
+    """Read native scan controls so independent grids keep their topology."""
+    from pathlib import Path
+
+    from cloudra.tools.core.calculation_intent import orca_directives
+    for directory, stem in orca_frames._orca_sidecar_roots(log_path, text):
+        path = Path(directory) / (stem + '.inp')
+        if path.is_file():
+            return orca_directives(path.read_text())[1].get('geom', [])
+    echoed = []
+    for line in text.splitlines():
+        tokens = line.split()
+        if len(tokens) > 2 and tokens[0] == '|' and tokens[1].endswith('>'):
+            line = ' '.join(tokens[2:])
+        echoed.append(line)
+    return orca_directives('\n'.join(echoed))[1].get('geom', [])
+
+
+def _orca_scan_is_grid(log_path: str, text: str = "") -> bool:
+    controls = _orca_scan_controls(log_path, text)
+    simultaneous = any(token == 'simul_scan' and controls[i + 1:i + 2] == ['true']
+                       for i, token in enumerate(controls))
+    scanning = False
+    coordinates = 0
+    for token in controls:
+        if token == 'scan':
+            scanning = True
+        elif token == 'end':
+            scanning = False
+        elif scanning and token in {'b', 'a', 'd'}:
+            coordinates += 1
+    return coordinates > 1 and not simultaneous
+
+
 def _parse_orca_relaxed_scan_sidecar(log_path: str) -> Optional[dict]:
     """解析 ORCA relaxed scan 的 sidecar 产物（优先于 .out 文本）。
 
@@ -860,6 +909,7 @@ def _parse_orca_relaxed_scan_sidecar(log_path: str) -> Optional[dict]:
     ``_find_orca_sidecar_dat`` 从日志 NAME 记录/唯一 glob 推导（GH #23）。
     """
     import glob
+    from pathlib import Path
 
     import numpy as np
 
@@ -872,6 +922,12 @@ def _parse_orca_relaxed_scan_sidecar(log_path: str) -> Optional[dict]:
             return None
         workdir = os.path.dirname(dat_path)
         stem = os.path.basename(dat_path)[: -len(".relaxscanact.dat")]
+    log_text = Path(log_path).read_text(errors='replace') if Path(log_path).is_file() else ''
+    controls = _orca_scan_controls(log_path, log_text)
+    simultaneous = any(token == 'simul_scan' and controls[i + 1:i + 2] == ['true']
+                       for i, token in enumerate(controls))
+    if _orca_scan_is_grid(log_path, log_text):
+        raise _SidecarIncomplete('Independent multidimensional scan grid is not a one-dimensional path; no candidate was derived.')
     try:
         with open(dat_path, encoding="utf-8", errors="replace") as f:
             energies = []
@@ -880,9 +936,12 @@ def _parse_orca_relaxed_scan_sidecar(log_path: str) -> Optional[dict]:
                 if len(parts) < 2:
                     continue
                 try:
-                    energies.append(float(parts[1]))
+                    values = [float(value) for value in parts]
                 except ValueError:
                     continue
+                if len(values) > 2 and (len(values) != 3 or not simultaneous):
+                    raise _SidecarIncomplete('Multidimensional scan grid or unproven simultaneous path; no candidate was derived.')
+                energies.append(values[-1])
     except OSError as exc:
         raise _SidecarIncomplete(f"{dat_path} exists but cannot be read: {exc}") from exc
     if not energies:
@@ -916,7 +975,7 @@ def _parse_orca_relaxed_scan_sidecar(log_path: str) -> Optional[dict]:
             + (f"Unreadable: {'; '.join(unreadable)}." if unreadable else ""),
             energies=energies, frames=frames,
         )
-    return {"energies": energies, "frames": frames}
+    return {"energies": energies, "frames": frames, "frame_paths": frame_paths}
 
 
 # ---------------------------------------------------------------------------
@@ -1516,8 +1575,6 @@ class TsGuess(Tool):
 
         if user_input.engine == 'xtb':
             return self._xtb_scan_prepare(user_input)
-        if any(value is not None for value in (user_input.force_constant, user_input.scan_mode, user_input.solvation)):
-            raise ValueError('force_constant, scan_mode and solvation are native xTB scan fields')
         if not user_input.method or not user_input.method.strip():
             raise ValueError(
                 "scan_prepare requires an explicit method consistent with the current task's "
@@ -1525,6 +1582,10 @@ class TsGuess(Tool):
                 "current Benchmark task; ordinary projects have no method/basis whitelist."
             )
         calculation = QmCalculation.model_validate({field: getattr(user_input, field) for field in QmCalculation.model_fields})
+        from cloudra.tools.core.ts_inputs import ScanGuess
+        ScanGuess(kind='scan', calculation=calculation, scans=user_input.scans or [],
+                  freeze=user_input.freeze, mode=user_input.scan_mode,
+                  force_constant=user_input.force_constant, solvation=user_input.solvation)
         if user_input.engine == 'orca' and user_input.end_setting:
             raise ValueError('ORCA scan does not support end_setting; use orca_blocks')
         if user_input.engine == 'gaussian' and user_input.orca_blocks:
@@ -1532,11 +1593,6 @@ class TsGuess(Tool):
         need = {"bond": 2, "angle": 3, "dihedral": 4}
         if not user_input.scans:
             raise ValueError("scan_prepare requires scans: at least one scanned coordinate")
-        if user_input.engine == "orca" and len(user_input.scans) > 1:
-            raise ValueError(
-                "ORCA relaxed scans are 1D: pass exactly one scan entry. "
-                "For a coupled two-coordinate scan use engine='gaussian'."
-            )
         if not user_input.output_path:
             raise ValueError("scan_prepare requires output_path (the path to write the input file)")
 
@@ -1679,7 +1735,7 @@ class TsGuess(Tool):
                 user_input.end_setting,
                 "",
             ])
-            dim = "2D coupled" if len(specs) > 1 else "1D"
+            dim = "2D grid" if len(specs) > 1 else "1D"
             run_hint = (
                 f"Submit {user_input.output_path} with submit_compute_job (job_type='gaussian'); "
                 f"afterwards parse the log with ts_guess mode='scan_parse' and extract a TS guess. "
@@ -1691,16 +1747,17 @@ class TsGuess(Tool):
             header = f"! OPT {orca_method}"
             if extra:
                 header += f" {extra}"
-            spec = specs[0]
-            idx0 = [a for a in spec["idx"]]  # ORCA 原子序号 0-based
             xyz_lines = "\n".join(
                 f"{s:<3} {p[0]:>14.8f} {p[1]:>14.8f} {p[2]:>14.8f}" for s, p in zip(syms, pos)
             )
             blocks = [header, f"%pal nprocs {user_input.nprocs} end", "%geom"]
-            blocks.append(
-                f"    Scan {coord_letter[spec['coord_type']]} {' '.join(str(a) for a in idx0)} "
-                f"= {spec['start']:.6f}, {spec['end']:.6f}, {spec['steps']} end"
-            )
+            for spec in specs:
+                blocks.append(
+                    f"    Scan {coord_letter[spec['coord_type']]} {' '.join(str(a) for a in spec['idx'])} "
+                    f"= {spec['start']:.6f}, {spec['end']:.6f}, {spec['steps']} end"
+                )
+            if user_input.scan_mode == 'concerted':
+                blocks.append("    Simul_Scan true")
             if frozen:
                 blocks.append("    Constraints")
                 blocks.extend(f"        {{ {coord_letter[kind]} {' '.join(str(a) for a in idx)} C }}"
@@ -1821,13 +1878,20 @@ class TsGuess(Tool):
         complete = result.get('scan_status') == 'complete'
         verdicts = list(result.get('issues', []))
         if len(candidates) > 1:
-            verdicts.append('Multiple segment peaks: choose a specific candidate frame from the recorded scan result')
+            indexed = {point['index']: point for point in points}
+            for item in candidates:
+                point = indexed[item['point_index']]
+                verdicts.append(f"Candidate point {point['index']}: energy={point['energy_hartree']:.12f} Hartree; XYZ={point['frame_path']}")
+            verdicts.append('Multiple internal local peaks; choose one with guess.kind=provided. These candidates are not verified TSs.')
         elif complete and not candidates:
             verdicts.append('No interior electronic-energy peak; no automatic TS guess')
         barrier = None
-        if complete and points and len(segment_starts) == 1 and all(point.get('energy_hartree') is not None for point in points):
-            barrier = (max(point['energy_hartree'] for point in points) - points[0]['energy_hartree']) * KCAL_PER_HARTREE
-        return TsGuess_output_schema(is_success=complete, message='Native xTB scan complete' if complete else 'Native xTB scan incomplete; inspect recorded issues',
+        if complete and len(candidates) == 1 and points and len(segment_starts) == 1 and all(point.get('energy_hartree') is not None for point in points):
+            maximum = max(point['energy_hartree'] for point in points)
+            selected = next(point for point in points if point['index'] == candidate['point_index'])
+            if selected['energy_hartree'] == maximum:
+                barrier = (maximum - points[0]['energy_hartree']) * KCAL_PER_HARTREE
+        return TsGuess_output_schema(is_success=complete, message=(f"Native xTB scan complete; {'choose a local-peak frame with guess.kind=provided' if len(candidates) > 1 else 'candidate still requires formal validation'}. Native log: {result['log_file']}" if complete else f"Native xTB scan incomplete; inspect recorded issues. Native log: {result['log_file']}"),
             profile_table=profile, verdicts=verdicts, scan_has_internal_peak=bool(candidates) if complete else None,
             barrier_kcal=barrier, candidate=candidate, candidate_unavailable=False,
             ts_candidate_index=candidate['point_index'] - 1 if candidate else None,
@@ -1859,9 +1923,15 @@ class TsGuess(Tool):
         notes: list[str] = []
         candidate_source = ""
 
+        if user_input.engine == "orca" and _orca_scan_is_grid(user_input.log_path, text or ''):
+            return TsGuess_output_schema(is_success=True, candidate_unavailable=True,
+                message='Independent multidimensional scan grid is not a one-dimensional path; no candidate was derived.')
         if user_input.engine == "gaussian":
             if text is None:
                 raise ValueError(f"Gaussian scan parsing requires the scan log file: {user_input.log_path}")
+            if _gaussian_scan_is_grid(text):
+                return TsGuess_output_schema(is_success=True, candidate_unavailable=True,
+                    message='Independent Gaussian multidimensional grid is not a one-dimensional path; no candidate was derived.')
             energies_eh = _parse_gaussian_scan_summary(text)
             n_pts = len(energies_eh)
             e0 = energies_eh[0]
@@ -1876,6 +1946,9 @@ class TsGuess(Tool):
                 data = cclib.io.ccread(user_input.log_path)
                 scancoords = getattr(data, "scancoords", None) if data is not None else None
                 atomnos = getattr(data, "atomnos", None) if data is not None else None
+                if _gaussian_scan_is_grid(text, data):
+                    return TsGuess_output_schema(is_success=True, candidate_unavailable=True,
+                        message='Independent Gaussian multidimensional grid is not a one-dimensional path; no candidate was derived.')
                 if scancoords is not None and atomnos is not None and len(scancoords) == n_pts:
                     from cclib.parser.utils import PeriodicTable
 
@@ -1903,7 +1976,7 @@ class TsGuess(Tool):
                     ]
                     ts_coords = np.asarray([[x, y, z] for _, x, y, z in rows], dtype=float)
                     candidate_source = "gaussian_log:std_orientation"
-                elif 0 < ts_index < n_pts - 1:
+                elif profile['peak_indices']:
                     # 块数与扫描点无法一一对应：严禁按块均分猜峰值帧、也严禁拿
                     # 末块顶替（与 ORCA _ScanStepsUngroupable 同口径，GH #G1）。
                     lines = [f"{'frame':>4}  {'rel. energy (kcal/mol)':>18}"]
@@ -1949,7 +2022,7 @@ class TsGuess(Tool):
                     e0 = energies_eh[0]
                     rel_kcal = [(e - e0) * KCAL_PER_HARTREE for e in energies_eh]
                     profile = analyze_scan_profile(rel_kcal)
-                    peak = profile["ts_index"]
+                    known_peaks = ', '.join(str(index + 1) for index in profile['peak_indices']) or 'none'
                     distance_table, geometry_verdicts, _ = _scan_geometry_report(
                         energies_eh, exc.frames, user_input.watch_pairs, index_base=atom_index_base(user_input.engine),
                     )
@@ -1959,13 +2032,13 @@ class TsGuess(Tool):
                     return TsGuess_output_schema(
                         is_success=True,
                         profile_table="\n".join(lines),
-                        scan_has_internal_peak=0 < peak < len(rel_kcal) - 1,
+                        scan_has_internal_peak=bool(profile['peak_indices']),
                         distance_table=distance_table,
                         verdicts=[
                             *geometry_verdicts,
                             f"Scan sidecar is incomplete: {exc}",
-                            f"The energy-maximum frame is {peak} (1-based {peak + 1}), but the "
-                            "sidecar frame sequence is incomplete; the candidate was withheld and "
+                            f"Known internal candidate points (1-based): {known_peaks}; the "
+                            "sidecar frame sequence is incomplete, so candidate extraction was withheld and "
                             "the last frame was NOT substituted. Re-run or recover the missing "
                             "per-frame xyz before extracting a TS guess.",
                         ],
@@ -2046,17 +2119,45 @@ class TsGuess(Tool):
         # 单调（升或降）或极值落在扫描边界的剖面没有鞍点证据——端点"最高"
         # 只是扫描范围/坐标选择的假象，升/降在这里语义完全同构：都不产出
         # TS-guess，防止把解离/无垒扫描的端点帧误当 TS 初猜去提交 OptTS。
-        has_internal_peak = 0 < ts_index < len(rel_kcal) - 1
+        peaks = profile['peak_indices']
+        has_internal_peak = bool(peaks)
+        if len(peaks) == 1:
+            ts_index = peaks[0]
+            if scan_frames is not None:
+                symbols, ts_coords = scan_frames[ts_index]
 
         # 剖面文本表
         lines = [f"{'frame':>4}  {'rel. energy (kcal/mol)':>18}"]
         for k, e in enumerate(rel_kcal):
-            marker = "  <- internal peak (TS guess)" if has_internal_peak and k == ts_index else ""
+            marker = "  <- internal local-peak candidate" if k in peaks else ""
             lines.append(f"{k:>4}  {e:>18.4f}{marker}")
         profile_table = "\n".join(lines)
         distance_table, geometry_verdicts, reference_symbols = _scan_geometry_report(
             energies_eh, scan_frames, user_input.watch_pairs, index_base=atom_index_base(user_input.engine),
         )
+        if len(peaks) > 1:
+            verdicts = list(profile['verdicts']) + notes + geometry_verdicts
+            for peak in peaks:
+                if scan_frames is None or scan_frames[peak] is None:
+                    continue
+                peak_symbols, peak_coords = scan_frames[peak]
+                if (peak_symbols != reference_symbols
+                        or np.asarray(peak_coords).shape != (len(peak_symbols), 3)
+                        or not np.isfinite(peak_coords).all()):
+                    return TsGuess_output_schema(is_success=True, scan_has_internal_peak=True,
+                        profile_table=profile_table, distance_table=distance_table,
+                        verdicts=verdicts, candidate_unavailable=True,
+                        message='An internal local peak has no trustworthy aligned geometry; recover the native frame before selecting a candidate.')
+                if candidate_source == 'orca_relaxed_scan_sidecar':
+                    path = sidecar['frame_paths'][peak]
+                else:
+                    path = os.path.splitext(user_input.log_path)[0] + f'_peak_{peak + 1:04d}.xyz'
+                    atomic_write_text(path, _atoms_to_xyz_block(peak_symbols, peak_coords,
+                        comment=f'scan point {peak + 1} candidate; not a verified TS'))
+                verdicts.append(f"Candidate point {peak + 1}: energy={energies_eh[peak]:.12f} Hartree; XYZ={path}")
+            return TsGuess_output_schema(is_success=True, scan_has_internal_peak=True,
+                profile_table=profile_table, distance_table=distance_table, verdicts=verdicts,
+                message=f'{len(peaks)} internal local-peak candidates; inspect the recorded geometries and choose one with guess.kind=provided. These are not verified transition states.')
         if has_internal_peak:
             candidate_coords = np.asarray(ts_coords, dtype=float) if ts_coords is not None else None
             if (symbols is None or reference_symbols is None or symbols != reference_symbols
@@ -2082,23 +2183,22 @@ class TsGuess(Tool):
             if candidate_source == "orca_relaxed_scan_sidecar":
                 notes.append(
                     "ORCA relaxed-scan sidecar used (relaxscanact.dat + per-frame xyz): "
-                    f"TS-guess geometry is the energy-maximum frame {ts_index} (1-based {ts_index + 1}), not the last frame."
+                    f"TS-guess geometry is the selected internal local-peak frame {ts_index} (1-based {ts_index + 1}), not the last frame."
                 )
             elif candidate_source == "orca_log_text":
                 notes.append(
                     f"ORCA scan text fallback grouped {len(rel_kcal)} relaxed-scan steps by their "
                     "'RELAXED SURFACE SCAN STEP' markers and used each step's converged (last) "
-                    "single-point energy, so the TS-guess geometry is the energy-maximum frame "
+                    "single-point energy, so the TS-guess geometry is the selected internal local-peak frame "
                     f"{ts_index} (1-based {ts_index + 1}), not the last frame."
                 )
 
         verdicts = list(profile["verdicts"]) + notes + geometry_verdicts
         if not has_internal_peak:
             verdicts.append(
-                "The scan has no internal energy peak (the maximum sits on a scan endpoint or the "
-                "profile is monotonic): an endpoint maximum is NOT a TS candidate — do not submit a TS "
-                "optimization from it. Re-choose the reaction coordinate, extend/refine the scan, or use a "
-                "two-coordinate coupled scan (scan_prepare with two scan entries, Gaussian) to locate a barrier."
+                "The scan has no internal local energy maximum: an endpoint maximum is NOT a TS candidate — do not submit a TS "
+                "optimization from it. Inspect the actual geometries before choosing another coordinate or an explicitly concerted path. "
+                "This finite scan does not establish that the target reaction is barrierless or impossible."
             )
 
         ts_path = ""
@@ -2118,15 +2218,14 @@ class TsGuess(Tool):
 
         if has_internal_peak:
             message = (
-                f"Scan parsing complete: {len(rel_kcal)} points, barrier (highest point − first point) {profile['barrier_kcal']:.2f} kcal/mol, "
-                f"internal energy maximum at frame {ts_index}; TS-guess geometry written to {ts_path}. "
-                "Recommended next step: submit a TS optimization with opt=(ts,calcfc,noeigentest) plus a frequency calculation from this geometry, "
-                "then verify with ts_guess mode='verify'."
+                f"Scan parsing complete: {len(rel_kcal)} points; internal local-peak candidate at frame {ts_index} "
+                f"(point {ts_index + 1}); XYZ={ts_path}. This constrained geometry is not a verified TS or reaction barrier. "
+                "Continue with an unconstrained TS optimization, frequency analysis and IRC."
             )
         else:
             message = (
-                f"Scan parsing complete: {len(rel_kcal)} points; NO internal energy peak found — the "
-                "highest point sits on a scan endpoint (an endpoint maximum is NOT a TS candidate; do "
+                f"Scan parsing complete: {len(rel_kcal)} points; no internal local energy maximum was found. "
+                "An endpoint maximum is NOT a TS candidate; do "
                 "not submit a TS optimization from it), so no TS-guess geometry was written. Choose a "
                 "different/extra scan coordinate before hunting a TS."
             )
@@ -2146,7 +2245,7 @@ class TsGuess(Tool):
             verdicts=verdicts,
             # G4：只有存在内部峰（确实发出 TS 候选）时才填 barrier；端点极大/单调
             # 剖面（无内部峰）的 "最高点−首点" 不是能垒，置 None。
-            barrier_kcal=(None if not has_internal_peak else round(profile["barrier_kcal"], 4)),
+            barrier_kcal=(round(profile["barrier_kcal"], 4) if has_internal_peak and profile['ts_index'] == ts_index else None),
             ts_candidate_index=ts_candidate_index,
             ts_candidate_path=ts_path,
             candidate=candidate,

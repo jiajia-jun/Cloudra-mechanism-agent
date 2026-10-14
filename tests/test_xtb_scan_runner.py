@@ -109,7 +109,7 @@ def test_native_xtb_scan_records_converged_points_and_unbiased_energy(tmp_path):
 
     task = ChemTask(task="xtb_scan", reactant_xyz=AMMONIA, cpus=1,
                     charge=0, multiplicity=1, scan={
-        "kind": "scan", "calculation": {"engine": "xtb", "method": "GFN2-xTB"},
+        "kind": "scan", "calculation": {"engine": "xtb", "method": "GFN2-xTB", "basis_set": ""},
         "scans": [{"coord_type": "bond", "atoms": [0, 1],
                    "scan_start": 1.0, "scan_end": 1.1, "scan_steps": 2}],
         "force_constant": 0.5,
@@ -142,7 +142,7 @@ def test_native_scan_never_promotes_missing_frame_or_point_convergence(tmp_path)
     from cloudra.tools.core.xtb_scan_runner import parse_xtb_scan
 
     task = ChemTask(task='xtb_scan', reactant_xyz=AMMONIA, cpus=1,
-        scan={'kind': 'scan', 'calculation': {'engine': 'xtb', 'method': 'GFN2-xTB'},
+        scan={'kind': 'scan', 'calculation': {'engine': 'xtb', 'method': 'GFN2-xTB', 'basis_set': ''},
               'scans': [{'atoms': [0, 1], 'scan_start': 1., 'scan_end': 1.1, 'scan_steps': 2}],
               'force_constant': .5})
     manifest = tmp_path / 'scan-task.json'
@@ -173,7 +173,7 @@ def test_native_two_coordinate_modes_keep_segment_targets(tmp_path, mode, expect
 
     task = ChemTask(task="xtb_scan", reactant_xyz=AMMONIA, cpus=1,
                     charge=0, multiplicity=1, scan={
-        "kind": "scan", "calculation": {"engine": "xtb", "method": "GFN2-xTB"},
+        "kind": "scan", "calculation": {"engine": "xtb", "method": "GFN2-xTB", "basis_set": ""},
         "scans": [
             {"coord_type": "bond", "atoms": [0, 1], "scan_start": 1.0,
              "scan_end": 1.1, "scan_steps": 2},
@@ -202,7 +202,7 @@ def test_native_dihedral_scan_can_hand_off_only_an_internal_peak(tmp_path):
     from cloudra.runtime.chem_task import ChemTask, read_task_result, run_task
 
     task = ChemTask(task='xtb_scan', reactant_xyz=ETHANE, cpus=1, charge=0, multiplicity=1,
-        scan={'kind': 'scan', 'calculation': {'engine': 'xtb', 'method': 'GFN2-xTB'},
+        scan={'kind': 'scan', 'calculation': {'engine': 'xtb', 'method': 'GFN2-xTB', 'basis_set': ''},
               'scans': [{'coord_type': 'dihedral', 'atoms': [7, 4, 0, 3],
                          'scan_start': 60.0, 'scan_end': 180.0, 'scan_steps': 3}],
               'force_constant': 0.05})
