@@ -37,7 +37,7 @@ def current_artifact_digest(path: str) -> str | None:
     return hashlib.sha256(candidate.read_bytes()).hexdigest() if candidate.is_file() else None
 
 
-def prepare_delivery_artifact(store, graph, report, workspace_root, *, required=False):
+def prepare_delivery_artifact(store, graph, report, workspace_root, *, required=False, disposition="complete"):
     if workspace_root is None:
         if required:
             raise ValueError('Benchmark delivery requires a project workspace and mechanism_graph.json.')
@@ -58,6 +58,7 @@ def prepare_delivery_artifact(store, graph, report, workspace_root, *, required=
         raise ValueError('Delivery artifact contains duplicate node or edge IDs.')
     if {n.id for n in document.nodes} & {e.id for e in document.edges}:
         raise ValueError('Delivery artifact node and edge IDs must occupy distinct names.')
+    partial = disposition == "partial"
     species = {}
     checks = {}
     target_ids = {}
@@ -86,12 +87,14 @@ def prepare_delivery_artifact(store, graph, report, workspace_root, *, required=
 
     def match_species(node):
         matches = [n for n in graph.nodes if node.id in {n.node_id, n.name}]
+        if not matches and partial:
+            return None
         if len(matches) != 1:
             raise ValueError(f'Species {node.id!r} must identify exactly one DAG species by its ID or name.')
         expected = matches[0]
         if node.smiles != ([expected.smiles] if expected.smiles else []):
             raise ValueError(f'Species {node.id!r} SMILES differs from its DAG declaration {expected.smiles!r}.')
-        if expected.node_id in {n.node_id for n in species.values()}:
+        if expected.node_id in {n.node_id for n in species.values() if n is not None}:
             raise ValueError('Multiple artifact species identify the same DAG occurrence.')
         return expected
 
@@ -171,6 +174,10 @@ def prepare_delivery_artifact(store, graph, report, workspace_root, *, required=
             continue
         element = match_species(node)
         species[node.id] = element
+        if element is None:
+            checks[node.id] = {'geometry': {'status': 'unreviewed',
+                'reason': 'Exploratory output is not submitted for DAG review.'}}
+            continue
         target_ids[node.id] = element.node_id
         checks[node.id] = scientific_checks(element)
         if 'energy_hartree' in node.properties or 'evidence_log' in node.properties:
@@ -185,12 +192,24 @@ def prepare_delivery_artifact(store, graph, report, workspace_root, *, required=
     for edge in document.edges:
         if edge.barrier_kcal_mol is not None and not math.isfinite(edge.barrier_kcal_mol):
             raise ValueError('barrier_kcal_mol must be finite.')
-        source, target = species.get(edge.from_node), species.get(edge.to_node)
-        if source is None or target is None:
-            raise ValueError('A step must connect declared DAG species, not transition-state nodes.')
-        candidates = [e for e in graph.edges if e.source_node_id == source.node_id and e.target_node_id == target.node_id]
-        exact = [e for e in candidates if edge.id in {e.edge_id, e.name}]
-        matches = exact or candidates
+        if edge.from_node not in species or edge.to_node not in species:
+            raise ValueError('A step must connect species, not transition-state nodes.')
+        source, target = species[edge.from_node], species[edge.to_node]
+        named = [e for e in graph.edges if edge.id in {e.edge_id, e.name}]
+        if named and (source is None or target is None or any(
+                e.source_node_id != source.node_id or e.target_node_id != target.node_id for e in named)):
+            raise ValueError(f'Step {edge.id!r} changes the endpoints of its DAG declaration.')
+        candidates = [e for e in graph.edges if source is not None and target is not None
+                      and e.source_node_id == source.node_id and e.target_node_id == target.node_id]
+        matches = named or candidates
+        if not matches and partial:
+            checks[edge.id] = {'connectivity': {'status': 'unreviewed',
+                'reason': 'Exploratory output does not earn DAG completion credit.'}}
+            if edge.via is not None:
+                used_ts.add(edge.via)
+                checks[edge.via] = {'saddle': {'status': 'unreviewed',
+                    'reason': 'Exploratory candidate is not submitted for DAG review.'}}
+            continue
         if len(matches) != 1 or matches[0].edge_id in used_edges:
             raise ValueError(f'Step {edge.id!r} does not uniquely match one DAG step with the same endpoints.')
         element = matches[0]
@@ -202,7 +221,7 @@ def prepare_delivery_artifact(store, graph, report, workspace_root, *, required=
         if edge.barrier_kcal_mol is not None and not verified:
             raise ValueError(f'Step {edge.id!r} cannot declare a barrier before its DAG scientific checks and review pass.')
         requires_ts = not element.stages or any(s.required and s.kind.value in {'ts_opt', 'frequency'} and s.status.value != 'not_applicable' for s in element.stages)
-        if requires_ts and edge.via is None:
+        if requires_ts and edge.via is None and not (partial and not verified):
             raise ValueError(f'Step {edge.id!r} requires a TS reference; missing evidence does not remove that requirement.')
         if edge.via is not None:
             used_ts.add(edge.via)
@@ -220,9 +239,9 @@ def prepare_delivery_artifact(store, graph, report, workspace_root, *, required=
             # operands. This checks the authored arithmetic, not Gold accuracy.
             if abs(edge.barrier_kcal_mol - derived) > 2 * DECLARED_ENERGY_TOL_HARTREE * HARTREE_TO_KCAL_MOL:
                 raise ValueError(f'Declared barrier of {edge.id!r} differs from its bound log energies.')
-    if used_ts != set(declared_ts):
+    if not partial and used_ts != set(declared_ts):
         raise ValueError('Artifact contains TS nodes not associated with a declared DAG step.')
-    represented = {n.node_id for n in species.values()} | used_edges
+    represented = {n.node_id for n in species.values() if n is not None} | used_edges
     required_targets = {g.target_id for g in [*report.satisfied, *report.unresolved, *report.inconclusive] if g.target_type in {'node', 'edge'}}
     if required_targets - represented:
         raise ValueError(f'Artifact omits declared delivery targets: {sorted(required_targets - represented)}.')

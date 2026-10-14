@@ -254,7 +254,7 @@ class StopAuditMixin:
                         self._core.require_project(self.conversation_id).settings.benchmark_task_id)
         try:
             self._delivery_artifact = await asyncio.to_thread(prepare_delivery_artifact,
-                self.store, graph, report, self.working_directory, required=required)
+                self.store, graph, report, self.working_directory, required=required, disposition=disposition)
         except (ValueError, OSError) as exc:
             return StopGate(action='continue_work', report=report,
                 reason=f'Delivery artifact is inconsistent with the DAG: {exc}')
@@ -449,7 +449,7 @@ class StopAuditMixin:
             required = bool(self._core is not None and
                             self._core.require_project(self.conversation_id).settings.benchmark_task_id)
             current_artifact = await asyncio.to_thread(prepare_delivery_artifact,
-                self.store, graph, current_report, self.working_directory, required=required)
+                self.store, graph, current_report, self.working_directory, required=required, disposition=disposition)
             if current_report != report or current_artifact != artifact:
                 raise RuntimeError('Delivery artifact or scientific evidence changed after audit; re-audit the delivery.')
         if artifact is not None:

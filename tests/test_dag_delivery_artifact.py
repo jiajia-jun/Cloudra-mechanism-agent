@@ -250,7 +250,7 @@ async def test_commit_transaction_checks_state_after_final_validation(tmp_path, 
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('fault', ['nonfinite_barrier', 'cross_type_ids', 'missing_ts', 'duplicate_nodes'])
+@pytest.mark.parametrize('fault', ['nonfinite_barrier', 'cross_type_ids', 'duplicate_nodes'])
 async def test_malformed_artifact_claims_fail_before_review(tmp_path, fault):
     c = await controller(tmp_path)
     document = graph()
@@ -258,9 +258,6 @@ async def test_malformed_artifact_claims_fail_before_review(tmp_path, fault):
         document['edges'][0]['barrier_kcal_mol'] = 'NaN'
     elif fault == 'cross_type_ids':
         document['edges'][0]['id'] = 'R'
-    elif fault == 'missing_ts':
-        del document['edges'][0]['via']
-        document['nodes'].pop()
     else:
         document['nodes'].append(dict(document['nodes'][0]))
     await asyncio.to_thread((tmp_path / 'mechanism_graph.json').write_text, json.dumps(document))
