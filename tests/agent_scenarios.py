@@ -27,7 +27,7 @@
 | 消息投递/恢复语义 | 异步子 Agent 回传、重启 |
 | 重启后的按需收口 | 用户重新发消息时先关闭旧工具/程序，再进入新回复 |
 | 督导反馈通知 + 后台等待 | 只读督导反馈唤醒协调员，消费消息后仍保护运行中的计算 |
-| 计算完成通知 + 后台等待 | 高通量仍在运行时消费单个结果，再回到等待状态 |
+| 计算完成通知 + 后台等待 | 高通量仍在运行时消费单个结果，再回到等待状态；配置预算的 TS 终态通知能唤醒并落盘 |
 | 工具进度持久化 | 阶段记录落盘失败立即终止 Agent，不重试工具副作用 |
 | YOLO 审批结构校验 | 非布尔结论不得写入文件 |
 | TS 故障检查点 + 干预预算 | 重复相同 scan 续接保留原故障、不耗尽预算 |
@@ -217,6 +217,11 @@ def compute_result_recovery_steps() -> list[Step]:
         Step(tools=[("todo_write", {"todos": [{"content": "Review completed calculation", "status": "done"}]})]),
         Step(stop=True),
     ]
+
+
+def budgeted_ts_result_recovery_steps(run_id: str) -> list[Step]:
+    """配置预算的 TS 终态通知唤醒后，读取真实回执再结束当前运行。"""
+    return [Step(tools=[("ts_inspect", {"run_id": run_id})]), Step(stop=True)]
 
 
 def supervisor_feedback_recovery_steps() -> list[Step]:

@@ -357,3 +357,43 @@ def test_retained_prior_revision_artifacts_are_identified_as_historical(tmp_path
         (["old_guess.xyz"], "historical"), (["current_seed.xyz"], "current"),
         (["original_irc.out"], "historical"), (["original_ts.out"], "historical"),
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("model_calls", [0, 2])
+async def test_inspect_tool_renders_real_configured_budget_usage(tmp_path, model_calls):
+    import asyncio
+
+    from cloudra.services.exploration_budget_store import (
+        CostEstimate,
+        ExplorationBudget,
+        configure_budget,
+        reserve_actions,
+    )
+    from cloudra.services.ts_pipeline_context import use_pipeline_database
+    from cloudra.tools.Chemtool.ts_search_process import TsInspect, TsInspect_input_schema
+    from tests.test_ts_search_process_tools import owned_tool
+
+    def configured_process():
+        db, pid, workspace, record = process_fixture(tmp_path)
+        configure_budget(db, process_id=pid, project_id="project", owner_id="owner",
+                         budget=ExplorationBudget(source="explicit_user", max_compute_actions=4, max_model_calls=4))
+        reserve_actions(db, process_id=pid, decision_id="fixture-usage", estimates=[
+            CostEstimate(action_key="frequency", action_kind="frequency", source="fixture"),
+            *[CostEstimate(action_key=f"model:{i}", action_kind="model", source="fixture")
+              for i in range(model_calls)],
+        ])
+        return db, workspace, record
+
+    db, workspace, record = await asyncio.to_thread(configured_process)
+    with use_pipeline_database(db):
+        output = await owned_tool(TsInspect, workspace=workspace).tool_call(
+            TsInspect_input_schema(run_id=record["run_id"]), None,
+        )
+    receipt = output.model_dump(mode="json")
+    assert receipt["is_success"] is True
+    assert receipt["usage"]["model_calls"] == model_calls
+    assert receipt["usage"]["reserved_compute_actions"] == 1
+    assert receipt["usage"]["compute_actions"] == 0
+    assert receipt["usage"]["jobs"] == []
+    assert receipt["usage"]["interventions"] == 2

@@ -1734,3 +1734,56 @@ async def test_reused_child_completes_new_task_after_compute_notice_and_wakes_pa
         assert len(restored.child_reports(restored.core.agents[parent.id])) == 2
     finally:
         await restored.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("ts_producer_authority")
+async def test_budgeted_ts_terminal_notice_resumes_background_wait_and_persists(tmp_path, monkeypatch):
+    """Real budget + native frequency gate + notification + runner; no engine or API."""
+    from cloudra.runtime_v2.compute_notify import ComputeNotifyBroker
+    from cloudra.services.compute_admission import AdmissionOutcome
+    from tests.agent_scenarios import budgeted_ts_result_recovery_steps
+    from tests.test_ts_fixture_pipeline import install_log, waiting_fixture_stage
+
+    monkeypatch.setattr("cloudra.services.compute_admission.admit_job",
+        lambda **_: AdmissionOutcome(ok=True, node_id="fixture", scheduler="local"))
+    release = asyncio.Event()
+    provider = ScriptedProvider(default=[Step(wait_for=release, stop=True)])
+    harness = await ScenarioHarness.start(tmp_path, workspace_dir=tmp_path, provider=provider)
+    try:
+        agent = await harness.spawn("small_mol", protocol="traditional")
+        db, record, step = await asyncio.to_thread(waiting_fixture_stage, tmp_path,
+            project_id=harness.project.id, owner_id=agent.id,
+            limits={"source": "explicit_user", "max_compute_actions": 4, "max_model_calls": 4})
+        await asyncio.to_thread(install_log, record, step, "orca/co2_freq_orca42.out")
+        release.set()
+        await harness.wait_terminal(agent)
+        gates = [event for event in harness.events(agent) if event.type == "agent.completion_gate"]
+        assert gates[-1].data["action"] == "wait_background"
+        provider.script_default(*budgeted_ts_result_recovery_steps(record.run_id))
+        async with db.aconnect() as con:
+            await con.execute("UPDATE compute_jobs SET state='done' WHERE id=?", (step.job_id,))
+            await con.commit()
+        broker = ComputeNotifyBroker(harness.core)
+        await broker._poll_project(harness.project.id)
+        assert await asyncio.to_thread(broker._pending_terminal_jobs, harness.project.id) == []
+        await harness.wait_for(lambda: len(harness.run_rows(agent)) == 2, "TS result processing run")
+        await harness.wait_terminal(agent)
+        calls = [call for call in harness.tool_events(agent) if call["tool_name"] == "ts_inspect"]
+        assert len(calls) == 1 and calls[0]["is_success"], harness.describe(agent)
+        usage = calls[0]["result_data"]["usage"]
+        assert usage["model_calls"] == 0 and usage["reserved_compute_actions"] == 1
+        assert calls[0]["result_data"]["blocked"]["failure_class"] == "wrong_mode"
+        notices = [event for event in harness.events(agent) if event.type == "agent.message_injected"
+            and (event.data.get("manifest") or {}).get("kind") == "compute_completion"]
+        assert [event.data["manifest"]["task_id"] for event in notices] == [step.job_id]
+        saved = await asyncio.to_thread(harness.store.events_after, {})
+        assert any(row["event_id"] == notices[0].event_id for row in saved)
+        resumed = [event for event in harness.events(agent) if event.type == "run.started"][-1]
+        assert notices[0].seq < resumed.seq
+        async with db.aconnect() as con:
+            row = await (await con.execute("SELECT notified_at FROM compute_jobs WHERE id=?", (step.job_id,))).fetchone()
+        assert row[0] is not None
+    finally:
+        release.set()
+        await harness.aclose()

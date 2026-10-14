@@ -954,7 +954,8 @@ async def test_pipeline_intermediate_job_advances_without_agent_message(tmp_path
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("outcome,verified", [("verified", True), ("candidate_only", False), ("blocked", None)])
-async def test_ts_outcome_wakes_owner_while_high_throughput_jobs_run(tmp_path, outcome, verified):
+@pytest.mark.parametrize("model_calls", [0, 2])
+async def test_ts_outcome_wakes_owner_while_high_throughput_jobs_run(tmp_path, outcome, verified, model_calls):
     from cloudra.runtime_v2.persistence import RuntimeStore
     from cloudra.services.ts_pipeline_store import bind_stage_job, create_process, save_process_record
     from cloudra.tools.core.ts_process import TsJobStep, _block, _terminal
@@ -973,10 +974,23 @@ async def test_ts_outcome_wakes_owner_while_high_throughput_jobs_run(tmp_path, o
     await asyncio.to_thread(_insert_terminal_job, project.id, session_id=child.id, state="running", path="")
 
     def completed_pipeline():
+        from cloudra.services.exploration_budget_store import (
+            CostEstimate,
+            ExplorationBudget,
+            configure_budget,
+            reserve_actions,
+        )
+
         db = ComputeDB().init()
         record = record_fixture(tmp_path, owner_conversation_id=project.id, owner_session_id=child.id)
         process = create_process(db, request_key="verdict-notice", payload=dict(project_id=project.id,
             owner_id=child.id, workspace_dir=str(tmp_path), input=record.input.model_dump(mode="json")))
+        configure_budget(db, process_id=process["process_id"], project_id=project.id,
+            owner_id=child.id, budget=ExplorationBudget(source="explicit_user", max_compute_actions=2, max_model_calls=4))
+        if model_calls:
+            reserve_actions(db, process_id=process["process_id"], decision_id="fixture-model-usage", estimates=[
+                CostEstimate(action_key=f"model:{i}", action_kind="model", source="fixture")
+                for i in range(model_calls)])
         source = tmp_path / "frequency.inp"
         source.write_text("Recorded native input")
         job = bind_stage_job(db, process_id=process["process_id"], declaration_revision=1,
@@ -1011,6 +1025,13 @@ async def test_ts_outcome_wakes_owner_while_high_throughput_jobs_run(tmp_path, o
     if outcome != "verified":
         assert "ts_inspect" in content
     assert await asyncio.to_thread(_notified_at, job) is not None
+    assert await asyncio.to_thread(broker._pending_terminal_jobs, project.id) == []
+    notices = core.event_log.query_session(child.id, types={"agent.message_injected"})
+    assert [event.data["manifest"]["task_id"] for event in notices] == [job]
+    persisted = await asyncio.to_thread(store.events_after, {})
+    assert any(row["event_id"] == notices[0].event_id for row in persisted)
+    await broker._poll_project(project.id)
+    assert len(core.event_log.query_session(child.id, types={"agent.message_injected"})) == 1
     reflections = [event for event in core.event_log.query_session(child.id, types={"context.pin_set"})
                    if event.data["key"].startswith("guidance-scientific-reflection:")]
     assert len(reflections) == int(outcome != "verified")

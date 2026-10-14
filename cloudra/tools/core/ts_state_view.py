@@ -173,7 +173,9 @@ def build_process_view(state: dict, jobs: list[dict], *, can_write: bool) -> TsP
                                            evidence_refs=state.get("evidence_candidates", [])) if supported and terminal else None,
         waiting_for=active or deepcopy(jobs) if waiting else active, failed_attempt=state.get("failed_attempt"),
         available_results=available, structures=structures, blocked=blocked, next=next_action, methods=method_entries,
-        usage=dict(interventions=state.get("intervention_count", 0), compute_actions=len(jobs), model_calls=None, limits=value.get("execution", {}).get("limits"), **state.get("accounted_usage", {}), jobs=usage_jobs),
+        usage={"interventions": state.get("intervention_count", 0), "compute_actions": len(jobs),
+               "model_calls": None, "limits": value.get("execution", {}).get("limits"),
+               **state.get("accounted_usage", {}), "jobs": usage_jobs},
         details_path=str(Path(state["run_dir"]) / "process.json") if export_revision == state['revision']
                      and not structure_issues and not state.get('source_rewrite_recovery_blocked') else '',
         export_revision=export_revision, message=message,

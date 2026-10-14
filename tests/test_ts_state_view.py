@@ -92,3 +92,22 @@ def test_undefined_planned_reference_is_reported_without_hiding_actual_snapshot(
     assert entry['planned'] == {'ref': 'missing'}
     assert 'missing' in entry['planned_error']
     assert entry['actual'] == actual
+
+
+@pytest.mark.parametrize("accounted,model_calls,compute_actions", [
+    ({}, None, 1),
+    ({"model_calls": 0, "compute_actions": 0}, 0, 0),
+    ({"model_calls": 3, "compute_actions": 5}, 3, 5),
+])
+def test_usage_ledger_overrides_fallback_and_preserves_actual_jobs(tmp_path, accounted, model_calls, compute_actions):
+    state = dict(format_version=6, run_id="ts_usage", revision=1, run_dir=str(tmp_path),
+                 stage="refine", intervention_count=2, accounted_usage=accounted,
+                 input={"execution": {"limits": {"max_compute_actions": 8}}})
+    jobs = [dict(job_id=17, state="ready", req_cpus=4)]
+    view = build_process_view(state, jobs, can_write=False)
+    assert view.usage["model_calls"] == model_calls
+    assert view.usage["compute_actions"] == compute_actions
+    assert view.usage["interventions"] == 2
+    assert view.usage["limits"] == {"max_compute_actions": 8}
+    assert view.usage["jobs"] == [dict(job_id=17, runtime_seconds=None, cpus=4,
+        memory_mb=None, measured_cpu_hours=None, allocated_cpu_hours=None)]
