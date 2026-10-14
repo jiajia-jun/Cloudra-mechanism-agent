@@ -43,7 +43,7 @@ _TS_NOTICE = (
     "ts_resume). QST2/QST3 are banned; the ceiling is mapped interpolation/NEB, "
     "with explicit grouped inputs: reaction, calculations, conformers, guess, ts_optimization, verification, execution. Scan uses guess.kind=scan with guess.calculation/scans/freeze; scan and formal methods are independently selected. Complete calculations use engine, one-token method, explicit basis_set (empty when unused), keywords and native settings. Stages may explicitly select {ref: name} from input.calculations. "
     "Use that process for TS/IRC submission rather than manually chaining the jobs. "
-    "Call ts_prepare once per path. Successful jobs automatically advance without an agent call. Use ts_inspect to read state, actual atom tables, methods, evidence and next required inputs. Revise the same run with ts_resume(run_id, changes, reason). Calculation patches retain omitted settings; engine/method/basis changes use {replace: complete_configuration}, and changing a profile reference uses {replace: {ref: name}}. Use changes={} to retry a failed attempt, or revise the scan, structures or guess to test another hypothesis; previous attempts are retained automatically. "
+    "Call ts_prepare once per path. Successful jobs automatically advance without an agent call. Use ts_inspect to read state, actual atom tables, methods, evidence and next required inputs. Revise the same run with ts_resume(run_id, changes, reason). Calculation patches retain omitted settings; engine/method/basis changes use {replace: complete_configuration}, and changing a profile reference uses {replace: {ref: name}}. changes={} restarts the same declared inputs; change the guess or scan to test another hypothesis, or explicitly provide a last geometry for continuation. Previous attempts are retained automatically. "
     "Standalone exploratory scans remain valid for unknown endpoints, but they do not "
     "authorize manual TS/IRC submission. If the process blocks, correct the named "
     "declaration or report the tool limitation; do not bypass it through bash or direct engine execution. "
@@ -117,16 +117,26 @@ def guide_ts_process(notices: NoticeManager | None, agent_id: str, data: dict) -
     candidate = (data.get("status") == "ended" and verdict.get("verified") is False
                  and verdict.get("outcome") in ("candidate_only", "search_failed"))
     wrong_mode = data.get("status") == "blocked" and blocked.get("failure_class") == "wrong_mode"
-    if not candidate and not wrong_mode:
+    failed_attempt = data.get("failed_attempt") or {}
+    nonconverged = (data.get("status") == "blocked" and failed_attempt.get("purpose") == "ts_opt"
+                    and failed_attempt.get("failure_class") == "nonconvergence")
+    if not candidate and not wrong_mode and not nonconverged:
         if data.get("status") in ("running", "waiting", "ended", "blocked", "isolated"):
             notices.unpin(agent_id, key)
         return
-    attempt = (data.get('failed_attempt') or {}) if wrong_mode else {}
+    attempt = failed_attempt if wrong_mode or nonconverged else {}
     paths = verdict.get('evidence_refs') or attempt.get('evidence_refs') or []
     source = attempt.get('log_path') or data.get('details_path') or next(iter(paths), None) or data.get('run_dir')
     source = f"Source: {source}" if source else f"Inspect TS run {run_id}"
-    _pin_reflection(notices, agent_id, key,
-        f"[Guidance] The target TS step remains unverified; {source}. {_REFLECTION_ADVICE}")
+    if nonconverged:
+        content = (
+            "[Guidance] This TS optimization did not converge; failure of this guess does not prove "
+            f"that the reaction has no TS ({source}). Inspect actual geometry and relevant skills, "
+            "then use structure/path tools to change the guess or search before drawing a mechanism conclusion."
+        )
+    else:
+        content = f"[Guidance] The target TS step remains unverified; {source}. {_REFLECTION_ADVICE}"
+    _pin_reflection(notices, agent_id, key, content)
 
 # TS/IRC 路由嗅探：括号形式走子串（大小写不敏感），裸词走 token 精确比对。
 _TS_ROUTE_SUBSTRINGS = ("optts", "scants", "qst2", "qst3", "opt=(ts", "opt = (ts")

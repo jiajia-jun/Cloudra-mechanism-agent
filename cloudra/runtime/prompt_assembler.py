@@ -84,6 +84,8 @@ _PROCESS_NOTES_GUIDANCE = (
     "to completed native evidence files.\n"
     "When a result, counterexample or change of direction affects your next research decision, promptly update "
     "the shared PROCESS.md before handing off that decision; do not wait for final delivery or Supervisor approval. "
+    "Edit affected sections against the latest file instead of replacing colleagues' newer notes with an old summary. "
+    "Distinguish computed evidence from submission and review progress. "
     "Revise the current hypothesis and briefly explain why, with source links. "
     "Keep useful failed attempts without leaving contradictory conclusions presented as current. "
     "Reuse useful handoff material without duplicating notes. These are soft writing guidelines, not required "

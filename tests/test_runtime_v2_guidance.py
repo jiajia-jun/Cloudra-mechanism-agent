@@ -728,3 +728,28 @@ def test_process_hint_does_not_expand_with_reason_or_evidence_history(tmp_path):
            ToolResult(is_success=True, data=data))
     assert next(iter(_reflection_pins(one).values())) == next(iter(_reflection_pins(many).values()))
     assert 'large-log-sentinel' not in next(iter(_reflection_pins(many).values()))
+
+
+def test_ts_nonconvergence_gets_one_short_current_hint_without_history(tmp_path):
+    notices = NoticeManager()
+    ctx = _ctx('small_mol', notices, str(tmp_path))
+    data = {'run_id': 'ts_attempt', 'status': 'blocked', 'stage': 'refine',
+        'blocked': {'failure_class': 'job_failed'},
+        'failed_attempt': {'purpose': 'ts_opt', 'failure_class': 'nonconvergence',
+            'log_path': str(tmp_path / 'native.out'),
+            'diagnostics': ['Never inject this diagnostic history'] * 1000}}
+    call = ToolCall(id='failed', name='ts_inspect', arguments={'run_id': 'ts_attempt'})
+
+    _after(GuidanceStage(), ctx, call, ToolResult(is_success=True, data=data))
+
+    pins = _reflection_pins(notices)
+    assert len(pins) == 1
+    content = next(iter(pins.values()))
+    assert str(tmp_path / 'native.out') in content
+    assert 'does not prove' in content
+    assert 'geometry' in content
+    assert 'Never inject' not in content
+    assert len(content) < 600
+    _after(GuidanceStage(), ctx, call, ToolResult(is_success=True,
+        data={'run_id': 'ts_attempt', 'status': 'waiting', 'result': None}))
+    assert _reflection_pins(notices) == {}

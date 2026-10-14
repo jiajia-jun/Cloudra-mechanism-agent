@@ -270,3 +270,40 @@ async def test_pipeline_retry_without_confirm_replays_same_batch():
     # 模拟失败：不 confirm，直接以同一（空）history 重试
     await _run_turn(pipeline, agent, notices)
     assert llm.seen[1] == llm.seen[0]
+
+
+def test_scientific_replacements_deliver_only_latest_hint_and_other_notices():
+    notices = NoticeManager()
+    prefix = 'guidance-scientific-reflection:'
+    notices.pin('s1', prefix + 'first', 'Initial observation')
+    notices.collect_batch('s1', fresh=True)
+    commit_notices(notices, 's1')
+    notices.pin('s1', prefix + 'first', 'Superseded observation')
+    notices.unpin('s1', prefix + 'first')
+    notices.pin('s1', prefix + 'second', 'Another obsolete observation')
+    notices.unpin('s1', prefix + 'second')
+    notices.pin('s1', prefix + 'last', 'Current scientific observation')
+    notices.push('s1', 'Keep the assigned task')
+
+    batch = notices.collect_batch('s1', fresh=False)
+
+    text = '\n'.join(row['content'] for row in batch)
+    assert 'Superseded observation' not in text
+    assert 'Another obsolete observation' not in text
+    assert text.count('Current scientific observation') == 1
+    assert 'Keep the assigned task' in text
+    assert len(batch) == 2
+    assert notices.pin_content('s1', prefix + 'first') is None
+    assert notices.pin_content('s1', prefix + 'last') == 'Current scientific observation'
+    assert notices.collect_batch('s1', fresh=False) == batch
+    commit_notices(notices, 's1')
+    assert notices.collect_batch('s1', fresh=False) == []
+
+
+def test_scientific_hint_added_and_cleared_before_delivery_is_not_injected():
+    notices = NoticeManager()
+    notices.pin('s1', 'guidance-scientific-reflection:scan', 'Obsolete unconsumed hint')
+    notices.unpin('s1', 'guidance-scientific-reflection:scan')
+    assert notices.collect_batch('s1', fresh=False) == []
+    commit_notices(notices, 's1')
+    assert notices.collect_batch('s1', fresh=False) == []
