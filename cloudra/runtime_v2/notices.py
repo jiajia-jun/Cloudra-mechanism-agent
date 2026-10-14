@@ -34,6 +34,8 @@ from typing import Callable
 
 from cloudra.runtime_v2.events import EventLog
 
+RESEARCH_OBSERVATION_PIN_KEY = "supervisor-research-observation"
+
 
 class NoticeManager:
     def __init__(self) -> None:
@@ -184,6 +186,14 @@ class NoticeManager:
         """
         return self._pins.get(session_id, {}).get(key)
 
+    def pin_is_consumed(self, session_id: str, key: str) -> bool:
+        """Whether the current pin has entered context, using the existing consumption cursor."""
+        cursor = self._consumed.get(session_id, 0)
+        return self.pin_content(session_id, key) is not None and not any(
+            change["key"] == key and change["seq"] > cursor
+            for change in self._changes.get(session_id, [])
+        )
+
     def unpin(self, session_id: str, key: str) -> None:
         pins = self._pins.get(session_id)
         if pins is None or key not in pins:
@@ -272,31 +282,47 @@ class NoticeManager:
         else:
             pending_changes = [change for change in changes if change["seq"] > cursor]
             reflection_prefix = "guidance-scientific-reflection:"
-            reflections = [change for change in pending_changes
-                           if change["key"].startswith(reflection_prefix)]
-            first_by_key = {}
-            for change in reflections:
-                first_by_key.setdefault(change["key"], change)
-            was_delivered = any(change["kind"] == "pin_cleared" or change.get("is_update")
-                                for change in first_by_key.values())
+            groups = (
+                [change for change in pending_changes if change["key"].startswith(reflection_prefix)],
+                [change for change in pending_changes if change["key"] == RESEARCH_OBSERVATION_PIN_KEY],
+            )
             pins = self._pins.get(session_id, {})
-            current = next((change for change in reversed(reflections)
-                            if change["kind"] == "pin_set" and change["key"] in pins
-                            and change["content"] == pins[change["key"]]), None)
-            messages = []
-            for change in pending_changes:
-                if change["key"].startswith(reflection_prefix):
-                    if change is not reflections[-1]:
-                        continue
-                    if current is not None:
+            latest_messages = {}
+            for updates in groups:
+                if not updates:
+                    continue
+                first_by_key = {}
+                for change in updates:
+                    first_by_key.setdefault(change["key"], change)
+                was_delivered = any(change["kind"] == "pin_cleared" or change.get("is_update")
+                                    for change in first_by_key.values())
+                current = next((change for change in reversed(updates)
+                                if change["kind"] == "pin_set" and change["key"] in pins
+                                and change["content"] == pins[change["key"]]), None)
+                is_reflection = updates[-1]["key"].startswith(reflection_prefix)
+                if current is not None:
+                    if is_reflection:
                         content = current["content"]
                         if was_delivered:
                             content = "This replaces the earlier scientific reflection:\n\n" + content
-                    elif was_delivered:
-                        content = "[Scientific reflection retracted] The earlier scientific guidance is no longer current."
+                        message = {"role": "system", "content": content}
                     else:
+                        message = self._render_change({**current, "is_update": was_delivered})
+                elif was_delivered:
+                    if is_reflection:
+                        message = {"role": "system", "content": "[Scientific reflection retracted] The earlier scientific guidance is no longer current."}
+                    else:
+                        message = self._render_change(updates[-1])
+                else:
+                    continue
+                latest_messages[updates[-1]["seq"]] = message
+            messages = []
+            for change in pending_changes:
+                if (change["key"].startswith(reflection_prefix)
+                        or change["key"] == RESEARCH_OBSERVATION_PIN_KEY):
+                    message = latest_messages.get(change["seq"])
+                    if message is None:
                         continue
-                    message = {"role": "system", "content": content}
                 else:
                     message = self._render_change(change)
                 if message["content"]:

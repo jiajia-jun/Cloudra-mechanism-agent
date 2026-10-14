@@ -250,7 +250,9 @@ def file_scientific_checks(store, graph, target_id: str, *, irc_files=None, work
     element = next((n for n in graph.nodes if n.node_id == target_id), None)
     is_edge = element is None
     if is_edge:
-        element = next(e for e in graph.edges if e.edge_id == target_id)
+        element = next((e for e in graph.edges if e.edge_id == target_id), None)
+    if element is None:
+        raise InvalidGraphReference(f"Delivery target {target_id!r} no longer exists in the current graph.")
     if evidence_refs is not None:
         element = element.model_copy(update={'refs': list(evidence_refs), 'stages': []})
     atom_bindings = {}

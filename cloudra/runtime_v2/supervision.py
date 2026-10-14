@@ -36,6 +36,7 @@ import os
 from typing import TYPE_CHECKING
 
 from cloudra.runtime_v2.dispatcher import WakePolicy
+from cloudra.runtime_v2.notices import RESEARCH_OBSERVATION_PIN_KEY
 
 if TYPE_CHECKING:
     from cloudra.runtime_v2.core import RuntimeCore
@@ -176,7 +177,8 @@ def _notification_text(reason: str) -> str:
         + " Read the DAG store for the current pending reviews, open drafts "
         "and queued review requests — the store is the source of truth and "
         "this notification may be stale by the time you read it. "
-        "Read the named changed research note and the current project-root PROCESS.md. "
+        "Read the named changed research note, the current pinned TS observation when present, "
+        "and the current project-root PROCESS.md. "
         "Promptly merge evidence, counterevidence and changed hypotheses into the shared current account, "
         "with concrete source links. Document maintenance does not require a scientific review request "
         "or wait for one; finish pending scientific decisions first when there are any."
@@ -228,12 +230,14 @@ async def _spawn_supervisor(core: RuntimeCore, project_id: str) -> AgentSession 
 
 
 async def notify_supervisor(
-    core: RuntimeCore, project_id: str, *, reason: str = "", auto_wake: bool = True
+    core: RuntimeCore, project_id: str, *, reason: str = "", auto_wake: bool = True,
+    observation: str | None = None,
 ) -> None:
     """确保项目唯一 Supervisor agent 身份并按状态表通知；不等待裁决。
 
-    调用方先完成科学待办持久化或 PROCESS.md 写入，本函数只负责身份与调度，
-    不携带待办快照——Supervisor 苏醒后读取科学信箱和当前文档。
+    调用方先完成科学待办持久化、PROCESS.md 写入或记录终态 TS 观察。
+    科学待办不在通知中复制；文档维护仅保留一条当前有界观察 pin，
+    Supervisor 苏醒后读取科学信箱、当前观察和文档。
     模式门禁在调用方（只有 dag_guided 的生产路径会
     走到这里）；本函数自身不读模式，以便恢复/诊断路径直接复用。
 
@@ -284,6 +288,16 @@ async def notify_supervisor(
     from cloudra.runtime_v2.schemas import AgentState
 
     state = agent.state
+    if observation is not None:
+        previous = core.notices.pin_content(agent.id, RESEARCH_OBSERVATION_PIN_KEY)
+        if previous == observation:
+            return
+        was_consumed = core.notices.pin_is_consumed(agent.id, RESEARCH_OBSERVATION_PIN_KEY)
+        core.notices.pin(agent.id, RESEARCH_OBSERVATION_PIN_KEY, observation)
+        if previous is not None and not was_consumed and state not in {AgentState.QUEUED, AgentState.SUCCEEDED}:
+            # Unread updates share one mailbox notice; a consumed observation needs a new next turn.
+            await core.event_writer.flush()
+            return
     # 统一不复活纪律（park-don't-wake）：所有状态都投递（通知是 durable 的
     # agent.message_injected + 内存队列）；failed/cancelled 只驻留不唤醒——
     # 用户显式复活后首轮 drain 即可读到。

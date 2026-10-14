@@ -163,6 +163,14 @@ class DagPolicyStage:
         return PolicyResult.allow()
 
     async def after_tool(self, ctx: PipelineContext, call: ToolCall, result: ToolResult) -> None:
+        if (ctx.agent.role_id == 'supervisor' and self._core is not None
+                and call.name in {'write', 'edit'}
+                and result.is_success and result.data.get('is_written')
+                and Path(result.data.get('filepath') or '') == Path('PROCESS.md')):
+            from cloudra.runtime_v2.notices import RESEARCH_OBSERVATION_PIN_KEY
+
+            if self._core.notices.pin_is_consumed(ctx.agent.id, RESEARCH_OBSERVATION_PIN_KEY):
+                self._core.notices.unpin(ctx.agent.id, RESEARCH_OBSERVATION_PIN_KEY)
         if ctx.agent.role_id == "supervisor":
             # 督导裁决落库后非轮询投递裁决通知（durable 行 + pin + mailbox +
             # 条件 wake，cancelled 不复活）：结构化裁决 dag_review_evidence、

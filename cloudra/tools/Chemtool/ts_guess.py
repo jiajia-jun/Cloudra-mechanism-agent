@@ -1570,7 +1570,8 @@ class TsGuess(Tool):
 
     # ---------- mode=scan_prepare ----------
 
-    def _scan_prepare(self, user_input: TsGuess_input_schema) -> TsGuess_output_schema:
+    def _scan_prepare(self, user_input: TsGuess_input_schema, *, memory_mb: int | None = None) -> TsGuess_output_schema:
+        """TS execution supplies its budget internally; standalone scans keep the engine default."""
         import numpy as np
 
         if user_input.engine == 'xtb':
@@ -1750,7 +1751,13 @@ class TsGuess(Tool):
             xyz_lines = "\n".join(
                 f"{s:<3} {p[0]:>14.8f} {p[1]:>14.8f} {p[2]:>14.8f}" for s, p in zip(syms, pos)
             )
-            blocks = [header, f"%pal nprocs {user_input.nprocs} end", "%geom"]
+            blocks = [header]
+            if memory_mb is None:
+                blocks.append(f"%pal nprocs {user_input.nprocs} end")
+            else:
+                from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter
+                blocks.extend(QmInputWriter._orca_resource_lines(f"{memory_mb}MB", user_input.nprocs))
+            blocks.append("%geom")
             for spec in specs:
                 blocks.append(
                     f"    Scan {coord_letter[spec['coord_type']]} {' '.join(str(a) for a in spec['idx'])} "

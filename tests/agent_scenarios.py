@@ -508,3 +508,8 @@ def stale_review_resubmit_steps(ts_file, resubmit, finish, park) -> list[Step]:
         Step(tools=[("dag_delivery_report", {})]),
         Step(wait_for=finish, text="gather missing scientific evidence"),
     ]
+
+
+def supervisor_stale_file_review_steps(review_id: str) -> list[Step]:
+    """Read a removed target's review through the real Supervisor tool, then finish."""
+    return [Step(tools=[('dag_view_evidence', {'review_id': review_id})]), Step(stop=True)]

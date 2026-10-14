@@ -26,13 +26,12 @@ async def test_composite_native_log_cannot_mix_ts_optimization_and_frequency(tmp
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('swap', [False, True])
-async def test_file_submission_routes_explicit_verified_endpoint_refs(tmp_path, swap):
+async def test_file_submission_snapshots_explicit_minimum_paths(tmp_path, swap):
     import json
     import shutil
 
     from cloudra.dag.delivery_artifact import prepare_delivery_artifact
-    from cloudra.dag.evidence_ingest import snapshot_evidence_file
-    from cloudra.dag.models import AttachRef, UpdateNode
+    from cloudra.dag.models import GraphRef, UpdateNode
     from cloudra.tools.Plantool.dag_tools.dag_view_evidence import DagViewEvidence
     from tests.dag_identity import make_coordinator
     from tests.test_dag_file_review_contract import _mutate
@@ -42,24 +41,29 @@ async def test_file_submission_routes_explicit_verified_endpoint_refs(tmp_path, 
     await asyncio.to_thread(_mutate, store, UpdateNode(op='update_node', graph='delivery', node_id='p', changes={'smiles': 'C=C.O=[PH3]'}))
     native = tmp_path / 'native'
     await asyncio.to_thread(shutil.copytree, FIXTURES_DIR / 'benchmark_nu3', native)
-    refs = []
-    for name in ('product_minimum.out', 'op_minimum.out'):
-        snap = await asyncio.to_thread(snapshot_evidence_file, str(native / name), workspace_root=str(tmp_path), conversation_id=db.conversation_id)
-        ref = await asyncio.to_thread(store.register_evidence, 's1', name, snap.model_dump(mode='json'), source_type='file')
-        await asyncio.to_thread(_mutate, store, AttachRef(op='attach_ref', graph='delivery', target_type='node',
-            target_id='p' if name == 'product_minimum.out' else 'r', ref=ref))
-        refs.append(ref)
+    target_file, source_file = native/'product_minimum.out', native/'op_minimum.out'
     if swap:
-        refs.reverse()
+        target_file, source_file = source_file, target_file
     agent = make_coordinator(db.conversation_id, orchestration_mode='dag_guided', workspace_dir=str(tmp_path))
     submitted = await call_dag_tool(DagSubmitStepEvidence, agent, session,
         step_name='step1', ts_file=str(native/'ts2_frequency.out'), irc_file=str(native/'ts2_irc/irc.out'),
-        endpoint_a_ref=refs[0].model_dump(), endpoint_b_ref=refs[1].model_dump())
+        target_minimum_file=str(target_file), source_minimum_file=str(source_file))
     assert submitted.is_success, submitted
-    step = (await asyncio.to_thread(store.load_snapshot)).delivery.edges[0]
-    assert all(ref in step.refs for ref in refs)
+    request = await asyncio.to_thread(store.get_review_request, submitted.result['review_id'])
+    refs = {key: GraphRef.model_validate(ref) for key, ref in request.proposal['endpoint_refs'].items()}
+    graph = (await asyncio.to_thread(store.load_snapshot)).delivery
+    assert all(ref in graph.edges[0].refs for ref in refs.values())
+    assert all(node.refs == [] for node in graph.nodes)
+    for key, path in [('endpoint_a', target_file), ('endpoint_b', source_file)]:
+        ref = refs[key]
+        assert ref.ref_type == 'file' and ref.content_hash.startswith('sha256:')
+        payload = await asyncio.to_thread(store.resolve_evidence, ref)
+        assert payload['original_path'] == str(path)
+        assert payload['imaginary_frequencies'] == []
     expected = 'incomplete' if swap else 'passed'
     assert submitted.result['scientific_checks']['short_irc']['status'] == expected
+    # Review must use the archived minima, not mutable later source contents.
+    await asyncio.to_thread(source_file.write_text, 'later overwritten source file')
     supervisor = make_supervisor(db.conversation_id, workspace_dir=str(tmp_path))
     viewed = await call_dag_tool(DagViewEvidence, supervisor, session, review_id=submitted.result['review_id'])
     assert viewed.result['scientific_checks']['short_irc']['status'] == expected

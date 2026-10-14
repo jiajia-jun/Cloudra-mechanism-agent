@@ -81,9 +81,15 @@ class DagViewEvidence(DagToolBase):
                 if request.proposal.get("element_type") in ("step", "species") and len(request.target_ids) == 1:
                     from cloudra.dag.file_science import file_scientific_checks
                     snapshot = await asyncio.to_thread(store.load_snapshot)
-                    result["scientific_checks"] = await asyncio.to_thread(
-                        file_scientific_checks, store, snapshot.delivery, request.target_ids[0], irc_files=request.proposal.get("irc_files"), endpoint_refs=request.proposal.get("endpoint_refs"), evidence_refs=request.supporting_refs,
-                        workspace_root=getattr(self.subagent, "working_directory", None))
+                    try:
+                        result["scientific_checks"] = await asyncio.to_thread(
+                            file_scientific_checks, store, snapshot.delivery, request.target_ids[0], irc_files=request.proposal.get("irc_files"), endpoint_refs=request.proposal.get("endpoint_refs"), evidence_refs=request.supporting_refs,
+                            workspace_root=getattr(self.subagent, "working_directory", None))
+                    except InvalidGraphReference as exc:
+                        result["message"] = (
+                            f"{exc} Showing the original review and decision as history; "
+                            "they do not validate or grant evidence credit to a replacement target."
+                        )
                 return DagToolOutput(is_success=True, action="dag_view_evidence", result=result)
             ref = await asyncio.to_thread(
                 store.resolve_evidence_for_call, review.tool_call_id

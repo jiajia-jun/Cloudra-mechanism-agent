@@ -261,11 +261,45 @@ class ComputeNotifyBroker:
                 self._delivered_index_built = False
                 raise
             self._delivered_jobs[job_key] = target_id
+            owner = self.core.agents.get(target_id)
+            from cloudra.runtime_v2.schemas import OrchestrationMode
+
+            if (view is not None and owner is not None
+                    and owner.settings.orchestration_mode is OrchestrationMode.DAG_GUIDED
+                    and view.get('status') in {'ended', 'blocked'}):
+                from cloudra.runtime_v2.supervision import notify_supervisor
+
+                try:
+                    await notify_supervisor(self.core, project_id,
+                        reason="Terminal TS observation recorded",
+                        observation=self._research_observation(view, content))
+                except Exception:
+                    # Document upkeep must not prevent the owner consuming a finished calculation.
+                    logger.warning("Could not notify Supervisor about TS job %s", task_id, exc_info=True)
 
         await asyncio.to_thread(self._mark_notified, task_id)
         if wake:
             await self._wake_notified_child(target_id)
         return target_id
+
+    @staticmethod
+    def _research_observation(view: dict, content: str) -> str:
+        """One bounded recorded outcome, not a scientific review or a causal diagnosis."""
+        verdict = view.get('result') or {}
+        blocked = view.get('blocked') or {}
+        lines = ["[Current TS observation — document maintenance]",
+            f"TS {view['run_id']}: status={view.get('status')}; stage={view.get('stage')}; "
+            f"outcome={verdict.get('outcome') or 'unverified'}; "
+            f"workflow_verified={str(verdict.get('verified') is True).lower()}."]
+        if blocked.get('failure_class'):
+            lines.append(f"Recorded failure classification: {blocked['failure_class']}.")
+        reason = verdict.get('reason') or blocked.get('message')
+        if reason:
+            lines.append('Recorded check: ' + str(reason)[:240])
+        lines.extend(line for line in content.splitlines() if line.startswith('Evidence:'))
+        lines.append('Merge this observation and its source paths into PROCESS.md. '
+            'It is not a DAG review verdict or proof of a chemical cause.')
+        return '\n'.join(lines)[:1800]
 
     def _load_durable_deliveries(self) -> None:
         if self._delivered_index_built:

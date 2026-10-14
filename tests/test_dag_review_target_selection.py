@@ -67,33 +67,28 @@ async def test_directed_file_reviews_can_review_first_target_before_last(tmp_pat
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("fault", ["foreign_project", "changed_hash"])
-async def test_step_endpoint_reference_must_resolve_in_its_own_project(tmp_path, fault):
-    from cloudra.dag.evidence_ingest import snapshot_evidence_file
-
-    session, db, store = await asyncio.to_thread(_seed_review_graph, tmp_path, f"endpoint-ref-{fault}")
-    native = tmp_path / "water_opt_freq_g16.out"
-    await asyncio.to_thread(shutil.copyfile, FIXTURES_DIR / "gaussian/water_opt_freq_g16.out", native)
-    snapshot = await asyncio.to_thread(snapshot_evidence_file,
-        native, tmp_path, db.conversation_id)
-    ref = await asyncio.to_thread(store.register_evidence, "s1", "minimum.out",
-        snapshot.model_dump(mode="json"), source_type="file")
-    if fault == "foreign_project":
-        from cloudra.dag.store import DagStore
-        from cloudra.persistence.database import ConversationDB
-
-        def register_foreign():
-            other = DagStore(ConversationDB("foreign", data_dir=tmp_path).init())
-            return other.register_evidence("other", "foreign_minimum.out", snapshot.model_dump(mode="json"), source_type="file")
-
-        ref = await asyncio.to_thread(register_foreign)
-    else:
-        ref = ref.model_copy(update={"content_hash": "sha256:" + "0" * 64})
-    ts_file = tmp_path / "ts_hess_xtb.out"
+@pytest.mark.parametrize("fault", ["outside_workspace", "missing_file"])
+async def test_step_minimum_file_cannot_escape_the_evidence_workspace(tmp_path, fault):
+    session, db, store = await asyncio.to_thread(_seed_review_graph, tmp_path, f"endpoint-file-{fault}")
+    workspace = tmp_path / "workspace"
+    await asyncio.to_thread(workspace.mkdir)
+    native = (tmp_path if fault == "outside_workspace" else workspace) / "minimum.out"
+    if fault == "outside_workspace":
+        await asyncio.to_thread(shutil.copyfile, FIXTURES_DIR / "gaussian/water_opt_freq_g16.out", native)
+    ts_file = workspace / "ts_hess_xtb.out"
     await asyncio.to_thread(shutil.copyfile, FIXTURES_DIR / "xtb/ts_hess_xtb.out", ts_file)
-    agent = make_coordinator(db.conversation_id, orchestration_mode="dag_guided", workspace_dir=str(tmp_path))
+    agent = make_coordinator(db.conversation_id, orchestration_mode="dag_guided", workspace_dir=str(workspace))
     submitted = await call_dag_tool(DagSubmitStepEvidence, agent, session,
-        step_name="step1", ts_file=str(ts_file), endpoint_a_ref=ref.model_dump())
+        step_name="step1", ts_file=str(ts_file), target_minimum_file=str(native))
     assert not submitted.is_success
+    assert "target_minimum_file" in submitted.error
     assert (await asyncio.to_thread(store.load_snapshot)).delivery.edges[0].refs == []
     assert await asyncio.to_thread(store.list_review_requests, state="queued") == []
+
+
+def test_step_submission_schema_exposes_minimum_paths_without_internal_reference_fields():
+    schema = DagSubmitStepEvidence.model_fields['input_schema'].default.to_parameters_schema()
+    properties = schema['properties']
+    assert 'source_minimum_file' in properties and 'target_minimum_file' in properties
+    assert 'endpoint_a_ref' not in properties and 'endpoint_b_ref' not in properties
+    assert 'content_hash' not in str(schema) and 'revision' not in str(schema)

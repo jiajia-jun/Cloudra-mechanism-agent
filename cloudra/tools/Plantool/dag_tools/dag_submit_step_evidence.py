@@ -18,7 +18,6 @@ from cloudra.dag.models import (
     AttachRef,
     GraphActor,
     GraphOperation,
-    GraphRef,
     OrchestrationMode,
 )
 from cloudra.dag.review_context import ActiveReview, ReviewContextManager, review_target_identity
@@ -55,10 +54,10 @@ class DagSubmitStepEvidenceInput(input_schema):
         default="",
         description="Description of the reaction coordinate (e.g. bonds formed/cleaved along the mode).",
     )
-    endpoint_a_ref: GraphRef | None = Field(default=None,
-        description='Existing immutable file reference in this project for the TARGET minimum; this submission attaches it to the step. Final geometry must match the complete target species and have zero imaginary frequencies.')
-    endpoint_b_ref: GraphRef | None = Field(default=None,
-        description='Existing immutable file reference in this project for the SOURCE minimum; this submission attaches it to the step. Final geometry must match the complete source species and have zero imaginary frequencies.')
+    source_minimum_file: str | None = Field(default=None,
+        description='Path to the minimum calculation output for the SOURCE species of this step. Final geometry must match the complete source species and have zero imaginary frequencies. The tool archives and binds the file automatically.')
+    target_minimum_file: str | None = Field(default=None,
+        description='Path to the minimum calculation output for the TARGET species of this step. Final geometry must match the complete target species and have zero imaginary frequencies. These are chemical step roles, independent of IRC forward/reverse direction. The tool archives and binds the file automatically.')
 
 
 class DagSubmitStepEvidence(DagToolBase):
@@ -79,6 +78,7 @@ class DagSubmitStepEvidence(DagToolBase):
         "supply irc_file or both directional IRC files when available. "
         "Submitting only the TS log leaves the IRC stage pending."
         " Supply opt_file when optimization and frequency outputs are separate; frequency alone does not prove optimization."
+        " Supply source_minimum_file and target_minimum_file for explicit endpoint minima; use the chemical step roles, not IRC forward/reverse labels."
     )
     input_schema: Any = DagSubmitStepEvidenceInput
     output_schema: Any = DagToolOutput
@@ -110,11 +110,20 @@ class DagSubmitStepEvidence(DagToolBase):
                 accepted=False,
             )
         step = matching_edges[0]
-        endpoint_refs = {key: ref for key, ref in [('endpoint_a', user_input.endpoint_a_ref),
-                                                 ('endpoint_b', user_input.endpoint_b_ref)] if ref is not None}
-        if any(ref.ref_type != 'file' or not ref.content_hash
-               for ref in endpoint_refs.values()):
-            return fail('dag_submit_step_evidence', 'Endpoint references must be immutable file evidence from this project.', accepted=False)
+        endpoint_refs = {}
+        for key, field_name, path in [
+            ('endpoint_b', 'source_minimum_file', user_input.source_minimum_file),
+            ('endpoint_a', 'target_minimum_file', user_input.target_minimum_file),
+        ]:
+            if path:
+                try:
+                    minimum = await asyncio.to_thread(snapshot_evidence_file, path,
+                        workspace_root=workspace_root, conversation_id=ctx.conversation_id)
+                    endpoint_refs[key] = await asyncio.to_thread(ctx.store.register_evidence,
+                        session.id, Path(path).name, minimum.model_dump(mode='json'), source_type='file')
+                except Exception as exc:
+                    return fail('dag_submit_step_evidence',
+                        f"Failed to ingest {field_name} '{path}': {exc}", accepted=False)
 
         # 2. Snapshot TS file and validate vibration mode
         # snapshot_evidence_file 全量读文件 + cclib 解析（同步重活），卸载出事件循环。

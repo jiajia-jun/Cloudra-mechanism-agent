@@ -1462,7 +1462,8 @@ def _guess_scan(record: TsProcessRecord) -> TsProcessRecord:
                 nprocs=record.compute_cpus,
             )
             try:
-                prepared = TsGuess()._scan_prepare(request)
+                prepared = TsGuess()._scan_prepare(request,
+                    memory_mb=record.compute_memory_mb if calculation.engine == 'orca' else None)
             except ValueError as exc:
                 return _block(record, "guess", "invalid_scan", str(exc), needs=["guess"])
             if not prepared.is_success:

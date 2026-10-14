@@ -500,6 +500,13 @@ class QmInputWriter(Tool):
         )
 
     @staticmethod
+    def _orca_resource_lines(mem: str, nproc: int) -> list[str]:
+        """ORCA uses MB per process; keep the existing total-budget division."""
+        mb = QmInputWriter._orca_memory_mb(mem)
+        per_core = max(256, int(mb / nproc))
+        return [f"%pal nprocs {nproc} end", f"%maxcore {per_core}"]
+
+    @staticmethod
     def _orca_task_keywords(task_type: list[dict], frequency_mode: str = "auto") -> list[str]:
         """严格任务归一化：只翻译已支持的键；无法实现的选项在
         validate_writer_request 阶段已经报错，这里不会静默丢弃。"""
@@ -577,12 +584,7 @@ class QmInputWriter(Tool):
                 "(user-declared expectation; NOT an evidence-verified identity)"
             )
         lines.append("! " + " ".join(simple))
-        lines.append(f"%pal nprocs {user_input.nproc} end")
-
-        # %maxcore 按核均分（ORCA 语义是每核 MB）。
-        mb = QmInputWriter._orca_memory_mb(user_input.mem)
-        per_core = max(256, int(mb / user_input.nproc))
-        lines.append(f"%maxcore {per_core}")
+        lines.extend(QmInputWriter._orca_resource_lines(user_input.mem, user_input.nproc))
         if method_block:
             lines.append(method_block)
         if user_input.orca_blocks:
