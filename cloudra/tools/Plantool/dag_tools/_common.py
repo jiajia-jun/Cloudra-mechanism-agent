@@ -12,7 +12,6 @@ from pydantic import Field
 from cloudra.base.role_identity import legacy_agent_id_for_role
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, output_schema
-from cloudra.dag.completion import build_projection
 from cloudra.dag.engine import DagEngine
 from cloudra.dag.models import (
     CoverageContract,
@@ -165,22 +164,6 @@ def resolve_delivery_target(
     if matches:
         return matches[0], None
     return None, "not_found"
-
-
-def render_projection_view(
-    snapshot: Any,
-    *,
-    mode: OrchestrationMode,
-    contract: CoverageContract,
-    history: list[Any],
-) -> dict[str, Any]:
-    projection = build_projection(
-        snapshot,
-        mode=mode,
-        contract=contract,
-        history=history,
-    )
-    return projection.model_dump(mode="json")
 
 
 class DagToolOutput(output_schema):

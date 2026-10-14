@@ -7,6 +7,7 @@ tests/test_runtime_v2_supervision.py 的生命周期用例与反馈矩阵承接�
 """
 
 import asyncio
+import json
 
 import pytest
 
@@ -70,8 +71,8 @@ async def test_prompt_projection_includes_rejected_draft_reason(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_prompt_projection_omits_reject_reason_after_new_open_draft(tmp_path):
-    """有新的 open 草稿在审时，旧驳回不再投影（最新草稿优先，驳回已被响应）。"""
+async def test_prompt_projection_latest_draft_banner_does_not_hide_remaining_review_debt(tmp_path):
+    """Latest draft banner and formal coverage must not contradict each other."""
     db = _db(tmp_path, "supervisor-feedback-superseded")
     controller = DagController(db, "s1", "dag_guided")
     await controller.initialize()
@@ -98,7 +99,11 @@ async def test_prompt_projection_omits_reject_reason_after_new_open_draft(tmp_pa
 
     text = await controller.prompt_projection()
 
-    assert "stale rejection reason" not in text
+    payload = json.loads(text.split("Graph projection (bounded, stable refs only, no compute body):\n", 1)[1])
+    assert payload["rejected_draft"] is None
+    report = await asyncio.to_thread(controller.delivery_report)
+    assert payload["delivery_gaps"] == [gate.model_dump(mode="json", exclude={"waiver"})
+                                       for gate in [*report.unresolved, *report.inconclusive][:12]]
 
 
 @pytest.mark.asyncio

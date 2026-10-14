@@ -147,10 +147,11 @@ class DagController(SupervisionMixin, StopAuditMixin, EvidenceInboxMixin, Drafts
                 "rationale": draft["rationale"],
                 "reject_reason": draft["reject_reason"],
             }
+        report = await asyncio.to_thread(self.delivery_report)
         projection = build_projection(
             snapshot,
             mode=self.mode,
-            contract=self.contract,
+            report=report,
             history=history,
             pending_reviews=pending,
             rejected_draft=rejected_draft,

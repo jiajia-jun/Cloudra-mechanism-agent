@@ -442,7 +442,7 @@ def build_projection(
     snapshot: GraphSnapshot,
     *,
     mode: str | OrchestrationMode,
-    contract: CoverageContract,
+    report: DeliveryReport,
     history: list[dict[str, Any]] | None = None,
     pending_reviews: list[dict[str, Any]] | None = None,
     rejected_draft: dict[str, Any] | None = None,
@@ -453,7 +453,6 @@ def build_projection(
     投影只讲交付面：每个元素欠哪些阶段、哪些调用在等复核、最近被驳回的
     机理草稿附驳回理由。
     """
-    report = evaluate_delivery(snapshot.delivery, contract)
     gaps = [*report.unresolved, *report.inconclusive]
     delivery_gaps = [
         gate.model_dump(mode="json", exclude={"waiver"}) for gate in gaps[:12]

@@ -10,7 +10,7 @@ from pydantic import Field
 from cloudra.base.session_class import Session
 from cloudra.base.tool_actor import ToolActorContext
 from cloudra.base.tools_class import input_schema
-from cloudra.dag.completion import evaluate_delivery
+from cloudra.dag.controller import DagController
 from cloudra.dag.models import GraphKind, OrchestrationMode
 from cloudra.tools.Plantool.dag_tools._common import (
     DagToolBase,
@@ -68,6 +68,13 @@ class DagView(DagToolBase):
         snapshot = await asyncio.to_thread(ctx.engine.snapshot)
         if user_input.graph_kind == "both":
             delivery = snapshot.delivery
+            controller = DagController(ctx.db, session.id, ctx.mode,
+                conversation_id=ctx.conversation_id,
+                working_directory=getattr(self.subagent, "working_directory", None))
+            report = await asyncio.to_thread(controller.delivery_report)
+            unresolved_ids = {gate.target_id for gate in [*report.unresolved, *report.inconclusive]}
+            reviewed_ids = {gate.target_id for gate in report.satisfied
+                            if gate.code == "supervisor_evidence_accepted"} - unresolved_ids
             node_map: dict[str, str] = {}
             species_list: list[dict[str, Any]] = []
             for node in delivery.nodes:
@@ -75,7 +82,7 @@ class DagView(DagToolBase):
                 node_map[node.node_id] = name
                 item: dict[str, Any] = {
                     "name": name,
-                    "status": getattr(node, "status", "pending") or "pending",
+                    "status": "supported" if node.node_id in reviewed_ids else getattr(node, "status", "pending") or "pending",
                 }
                 if getattr(node, "reason", ""):
                     item["reason"] = node.reason
@@ -90,13 +97,12 @@ class DagView(DagToolBase):
                     "name": name,
                     "from": node_map.get(edge.source_node_id, edge.source_node_id),
                     "to": node_map.get(edge.target_node_id, edge.target_node_id),
-                    "status": getattr(edge, "status", "pending") or "pending",
+                    "status": "supported" if edge.edge_id in reviewed_ids else getattr(edge, "status", "pending") or "pending",
                 }
                 if getattr(edge, "reason", ""):
                     item["reason"] = edge.reason
                 step_list.append(item)
 
-            report = evaluate_delivery(delivery, ctx.contract)
             unresolved_gaps = [
                 {
                     "target": name_map.get(gate.target_id, gate.target_id),

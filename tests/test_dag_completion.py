@@ -251,7 +251,7 @@ def test_projection_is_bounded_deterministic_and_contains_no_evidence_bodies():
     projection = api["build_projection"](
         snapshot,
         mode="dag_guided",
-        contract=api["CoverageContract"].mechanism_default(),
+        report=api["evaluate_delivery"](snapshot.delivery, api["CoverageContract"].mechanism_default()),
         history=history,
         pending_reviews=reviews,
     )
@@ -282,7 +282,7 @@ def test_projection_prompt_text_carries_mode_banner_and_discipline():
     )
 
     guided = api["build_projection"](
-        snapshot, mode="dag_guided", contract=api["CoverageContract"].mechanism_default()
+        snapshot, mode="dag_guided", report=api["evaluate_delivery"](snapshot.delivery, api["CoverageContract"].mechanism_default())
     ).to_prompt_text()
     assert "Current orchestration mode: dag_guided" in guided
     assert "dag_propose_mechanism" in guided
@@ -291,13 +291,13 @@ def test_projection_prompt_text_carries_mode_banner_and_discipline():
     assert "delivery_report" in guided
 
     follower = api["build_projection"](
-        snapshot, mode="dag_guided", contract=api["CoverageContract"].mechanism_default()
+        snapshot, mode="dag_guided", report=api["evaluate_delivery"](snapshot.delivery, api["CoverageContract"].mechanism_default())
     ).to_prompt_text(actor_id="a-4")
     assert "sub-agent" in follower
     assert "do not maintain the graph" in follower
 
     record = api["build_projection"](
-        snapshot, mode="dag_record", contract=api["CoverageContract"].mechanism_default()
+        snapshot, mode="dag_record", report=api["evaluate_delivery"](snapshot.delivery, api["CoverageContract"].mechanism_default())
     ).to_prompt_text()
     assert "Current orchestration mode: dag_record" in record
     assert "Supervisor is offline" in record
