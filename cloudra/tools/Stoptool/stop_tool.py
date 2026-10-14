@@ -18,7 +18,7 @@ class StopTool_input_schema(input_schema):
     delivery_disposition: Literal["complete", "partial", "user_terminated"] = Field(
         default="complete",
         description=(
-            "DAG-mode delivery declaration (defaults to complete when omitted): complete must pass evidence-derived coverage; "
+            "DAG-mode delivery declaration (defaults to complete when omitted): complete must pass evidence-derived coverage and final Supervisor review in dag_guided; "
             "partial finishes with remaining gaps (this is a final delivery statement, not a pause); "
             "user_terminated means the user asked to stop. "
             "If background jobs/reminders are still pending, stop only suspends — no audit and no disposition is recorded."
@@ -56,9 +56,9 @@ class StopTool(Tool):
         "Do not use for: questions that still need the user (use ask_user), or stopping early while later steps remain and no wake-up is scheduled. "
         "Note: for quiz/eval tasks, put the final concise answer in final_answer. "
         "In DAG mode the stop is audited after this call: the run may be kept working (gap feedback), suspended pending a "
-        "Supervisor exit review (dag_guided partial), or accepted — the completion-gate feedback message tells you which."
+        "final Supervisor review (dag_guided complete or partial), or accepted — the completion-gate feedback message tells you which."
         " DAG-mode Benchmark delivery requires mechanism_graph.json matching the declared species and steps. "
-        "Energy/barrier declarations must cite the unchanged bound native logs; partial approval covers the exact file bytes."
+        "Energy/barrier declarations must cite the unchanged bound native logs; final approval covers the exact file bytes."
     )
     input_schema: Any = StopTool_input_schema
     output_schema: Any = StopTool_output_schema

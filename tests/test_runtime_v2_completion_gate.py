@@ -356,28 +356,29 @@ async def test_wait_review_parks_with_exit_review_feedback(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_complete_delivery_plain_text_finishes(tmp_path):
-    """完整 DAG delivery 的纯文本最终回复正常结束：隐式 disposition 由覆盖率
-    推导为 complete，审计通过后明确记录，不需要督导退出裁决。"""
+async def test_complete_delivery_plain_text_requires_final_supervisor_review(tmp_path):
+    """完整覆盖只允许提交最终审查，接受后同一 complete 声明才落库。"""
     llm = _RoutingLLM([LLMResponse(content="mechanism fully supported")])
     core, bus, project = await _new_core(llm, workspace_dir=tmp_path)
     await _seed_complete_delivery(project.id)
     coordinator = await _spawn_coordinator(bus, project, mode="dag_guided")
     try:
+        await _wait_parked(coordinator, llm)
+        requests = await _review_requests(project.id)
+        assert len(requests) == 1 and requests[0].proposal["disposition"] == "complete"
+        assert await _dispositions(project.id) == []
+        injected = [e for e in core.event_log.query_session(coordinator.id)
+                    if e.type == "agent.message_injected" and e.data.get("sender") == "completion_gate"]
+        assert injected and requests[0].request_id in injected[-1].data["content"]
+        await _resolve_exit_request(project.id, requests[0].request_id,
+                                   verdict="accept", reason="the proposed full delivery is supported")
+        await flush_review_notifications(core, project.id)
         await _wait_state(coordinator, "succeeded")
         assert await _dispositions(project.id) == ["complete"]
         gates = _gate_events(core, coordinator.id)
-        assert len(gates) == 1 and gates[0].data["action"] == "allow_final"
-        # 交付覆盖审计通过 = 唯一够格标「已验证完成」的收尾依据。
-        assert gates[0].data["basis"] == "dag_verified"
-        # 完整交付不触发退出审查：不创建 Supervisor、无退出请求。
-        assert llm.supervisor_calls == 0
-        assert not [
-            a
-            for a in core.agents.values()
-            if a.project_id == project.id and a.role_id == "supervisor"
-        ]
-        assert await _review_requests(project.id, state=None) == []
+        assert [gate.data["action"] for gate in gates] == ["wait_review", "allow_final"]
+        assert gates[-1].data["basis"] == "supervisor_supported"
+        assert len(await _review_requests(project.id, state=None)) == 1
     finally:
         await _teardown(core)
 

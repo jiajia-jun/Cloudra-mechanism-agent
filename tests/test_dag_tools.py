@@ -2236,3 +2236,37 @@ async def test_separate_frequency_binding_requires_optimized_geometry(tmp_path, 
             verdict='agree', tool_succeeded=True)
         accepted, code = result.accepted, result.rejection_code
     assert not accepted and code == 'frequency_geometry_mismatch'
+
+
+@pytest.mark.asyncio
+async def test_exit_review_material_is_readable_by_supervisor(tmp_path):
+    from cloudra.dag.review_requests import ReviewDecision, ReviewRequest
+    from cloudra.dag.store import DagStore
+    from cloudra.tools.Plantool.dag_tools.dag_view_evidence import DagViewEvidence
+
+    get_config().data_dir = tmp_path
+    db = await asyncio.to_thread(lambda: ConversationDB("exit-material-readable").init())
+    store = DagStore(db)
+    await asyncio.to_thread(store.ensure_bundle, "s1")
+    proposal = {"disposition": "complete", "scope": ["r", "p", "step1"], "remaining_gaps": [],
+        "method_limits": [], "delivery_artifact": {"path": str(tmp_path / "mechanism_graph.json"), "sha256": "abc"}}
+    request = ReviewRequest(kind="exit", requester="s1", target_ids=proposal["scope"],
+        question="Review the whole proposed final delivery", proposal=proposal, basis_fingerprint="basis1")
+    request_id = await asyncio.to_thread(store.enqueue_review, request)
+    supervisor = make_supervisor(db.conversation_id, workspace_dir=str(tmp_path))
+    session = Session("s1", str(tmp_path / "session.json"))
+    queued = await _call(DagViewEvidence, supervisor, session, review_id=request_id)
+    assert queued.is_success
+    assert queued.result["kind"] == "exit"
+    assert queued.result["proposal"] == proposal
+    assert queued.result["decision"] is None
+    assert (await asyncio.to_thread(store.resolve_review, ReviewDecision(
+        request_id=request_id, basis_fingerprint="basis1", verdict="reject",
+        reason="direction evidence does not support the submitted step", next_action="Inspect the original IRC"),
+        expected_basis="basis1"))["accepted"]
+    resolved = await _call(DagViewEvidence, supervisor, session, review_id=request_id)
+    assert resolved.is_success
+    assert resolved.result["state"] == "resolved"
+    assert resolved.result["proposal"] == proposal
+    assert resolved.result["decision"]["verdict"] == "reject"
+    assert resolved.result["decision"]["next_action"] == "Inspect the original IRC"

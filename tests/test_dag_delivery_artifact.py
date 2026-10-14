@@ -42,20 +42,33 @@ async def approve(c, request_id):
 
 
 @pytest.mark.asyncio
-async def test_editing_final_file_invalidates_its_exit_approval(tmp_path):
+@pytest.mark.parametrize("disposition", ["complete", "partial"])
+async def test_editing_final_file_invalidates_its_exit_approval(tmp_path, disposition):
+    from cloudra.dag.models import UpdateEdge, UpdateNode
+
     c = await controller(tmp_path)
+    if disposition == "complete":
+        assert (await asyncio.to_thread(c.engine.apply_batch, MutationBatch(
+            session_id="s1", actor=GraphActor.HARNESS, actor_id="harness",
+            base_revisions=(await asyncio.to_thread(c.store.load_bundle)).revisions,
+            rationale="seed already supported complete delivery", operations=[
+                UpdateNode(op="update_node", graph="delivery", node_id=name,
+                           changes={"evidence_level": "structure_supported"}) for name in ("r", "p")
+            ] + [UpdateEdge(op="update_edge", graph="delivery", edge_id="e",
+                            changes={"evidence_level": "endpoint_supported"})]
+        ))).accepted
     path = tmp_path / 'mechanism_graph.json'
     document = graph()
     await asyncio.to_thread(path.write_text, json.dumps(document))
-    first = await c.audit_stop('partial')
+    first = await c.audit_stop(disposition)
     assert first.action == 'wait_review'
     await approve(c, first.request_id)
-    unchanged = await c.audit_stop('partial')
+    unchanged = await c.audit_stop(disposition)
     assert unchanged.action == 'allow_final', unchanged
     document['nodes'][0]['label'] = 'changed delivery statement'
     await asyncio.to_thread(path.write_text, json.dumps(document))
 
-    changed = await c.audit_stop('partial')
+    changed = await c.audit_stop(disposition)
 
     assert changed.action == 'wait_review'
     assert changed.request_id != first.request_id

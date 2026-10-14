@@ -211,6 +211,16 @@ def pending_stop_answer_step(answer: str) -> Step:
     return Step(tools=[("stop", {"delivery_disposition": "partial", "final_answer": answer})])
 
 
+
+def final_delivery_review_steps(review: Step, resume: asyncio.Event, park: asyncio.Event) -> dict[str, list[Step]]:
+    """完整交付经最终督导审查，唤醒后重复同一声明；拒绝仍留在研究回合。"""
+    return {
+        "coordinator": [Step(tools=[("stop", {"delivery_disposition": "complete"})]),
+                        Step(wait_for=resume, tools=[("stop", {"delivery_disposition": "complete"})]),
+                        Step(wait_for=park)],
+        "supervisor": [review, Step(stop=True)],
+    }
+
 def compute_result_recovery_steps() -> list[Step]:
     """已完成计算唤醒后处理结果，其他作业继续运行时再次挂起。"""
     return [

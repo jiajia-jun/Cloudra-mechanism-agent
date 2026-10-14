@@ -806,14 +806,14 @@ class AgentRunner:
         """wait_review 挂起前的退出审批回路说明（模型可读的诚实回执）。"""
         return (
             "[Completion gate] Stop is pending Supervisor review, not accepted: "
-            f"an exit review for your partial delivery was submitted (request_id={gate.request_id}) "
+            f"a final review for your proposed delivery was submitted (request_id={gate.request_id}) "
             "and this run is now suspended awaiting the decision; "
             "the stop tool only acknowledged the request. What happens next:\n"
             "- The Supervisor's decision arrives as a [Supervisor review decision] "
             "notice and wakes you.\n"
-            "- On accept: call stop again with delivery_disposition='partial'; "
+            "- On accept: call stop again with the same declared delivery_disposition; "
             "the runtime binds the current Supervisor approval automatically.\n"
-            "- On reject: the reason and next action arrive as feedback; resolve "
+            "- On reject or needs_evidence: the reason and next action arrive as feedback; resolve "
             "them (or close the gaps) and stop again."
         )
 

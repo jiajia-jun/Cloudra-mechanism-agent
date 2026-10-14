@@ -527,6 +527,8 @@ async def test_guided_file_verdict_wakes_coordinator_and_enforces_scientific_com
     finish_supervisor = asyncio.Event()
     attempt_complete = asyncio.Event()
     hold_after_gate = asyncio.Event()
+    review_final = asyncio.Event()
+    final_verdict = Step(wait_for=review_final)
     ts = Path(__file__).parent / "fixtures" / "benchmark_synthetic" / "ts_freq.out"
     files = {"ts_file": "ts.out", "opt_file": "ts_opt.out", "irc_file": "irc.out"} if complete_evidence else {"ts_file": ts.name}
     provider = ScriptedProvider(by_role={
@@ -541,8 +543,10 @@ async def test_guided_file_verdict_wakes_coordinator_and_enforces_scientific_com
             })]),
             Step(wait_for=attempt_complete, tools=[("dag_delivery_report", {})]),
             Step(tools=[("stop", {"delivery_disposition": "complete"})]),
-            Step(tools=[("dag_delivery_report", {})]),
-            Step(wait_for=hold_after_gate, text="collect missing IRC direction evidence"),
+            *([Step(tools=[("stop", {"delivery_disposition": "complete"})])] if complete_evidence else [
+                Step(tools=[("dag_delivery_report", {})]),
+                Step(wait_for=hold_after_gate, text="collect missing IRC direction evidence"),
+            ]),
         ],
         "supervisor": [
             Step(tools=[("dag_accept_mechanism", {"verdict": "accept"})]),
@@ -553,6 +557,7 @@ async def test_guided_file_verdict_wakes_coordinator_and_enforces_scientific_com
                 "rationale": "the submitted file supports the selected transition",
             })]),
             Step(wait_for=finish_supervisor, text="file reviewed", stop=True),
+            *([final_verdict, Step(stop=True)] if complete_evidence else []),
         ],
     })
     harness = await ScenarioHarness.start(tmp_path, provider=provider)
@@ -697,6 +702,13 @@ async def test_guided_file_verdict_wakes_coordinator_and_enforces_scientific_com
         from cloudra.runtime_v2.completion import completion_summary
 
         if complete_evidence:
+            await harness.wait_for(lambda: coordinator.state.value == "waiting_approval",
+                                   "whole complete delivery awaits final review")
+            final_request = next(r for r in await asyncio.to_thread(store.list_review_requests, "queued")
+                                 if r.kind == "exit" and r.proposal["disposition"] == "complete")
+            final_verdict.tools = [("dag_review_evidence", {"request_id": final_request.request_id,
+                "verdict": "accept", "reason": "the whole proposed complete delivery is supported"})]
+            review_final.set()
             await harness.wait_terminal(coordinator)
             completion = completion_summary(harness.events(coordinator))
             assert completion["completion_basis"] == "scope_completed"
@@ -735,6 +747,7 @@ async def test_guided_file_verdict_wakes_coordinator_and_enforces_scientific_com
         finish_supervisor.set()
         attempt_complete.set()
         hold_after_gate.set()
+        review_final.set()
         await harness.aclose()
 
 
@@ -965,6 +978,8 @@ async def test_guided_real_file_review_finishes_with_supervisor_basis(tmp_path):
     """真实 runtime、逐文件工具和事件：接受只给 Supervisor 依据，不改机器阶段。"""
     review = asyncio.Event()
     finish = asyncio.Event()
+    review_final = asyncio.Event()
+    final_verdict = Step(wait_for=review_final)
     ts = Path(__file__).parent / "fixtures" / "benchmark_synthetic" / "ts_freq.out"
     provider = ScriptedProvider(by_role={
         "coordinator": [
@@ -981,6 +996,7 @@ async def test_guided_real_file_review_finishes_with_supervisor_basis(tmp_path):
                 "rationale": "the submitted TS file supports the selected step",
             })]),
             Step(text="review complete", stop=True),
+            final_verdict, Step(stop=True),
         ],
     })
     harness = await ScenarioHarness.start(tmp_path, provider=provider)
@@ -1035,6 +1051,12 @@ async def test_guided_real_file_review_finishes_with_supervisor_basis(tmp_path):
             ("ts_opt", "pending"), ("frequency", "pending"),
         ]
         finish.set()
+        await harness.wait_for(lambda: agent.state.value == "waiting_approval",
+                               "whole final delivery awaits review")
+        final_request = next(r for r in await asyncio.to_thread(store.list_review_requests, "queued") if r.kind == "exit")
+        final_verdict.tools = [("dag_review_evidence", {"request_id": final_request.request_id,
+            "verdict": "accept", "reason": "the whole proposed scoped delivery is supported"})]
+        review_final.set()
         await harness.wait_terminal(agent)
         from cloudra.runtime_v2.completion import completion_summary
 
@@ -1044,6 +1066,7 @@ async def test_guided_real_file_review_finishes_with_supervisor_basis(tmp_path):
     finally:
         review.set()
         finish.set()
+        review_final.set()
         await harness.aclose()
 
 
@@ -1629,6 +1652,19 @@ async def test_scope_only_reapproval_clears_stale_completion_debt(tmp_path):
     try:
         await asyncio.to_thread(seed)
         agent = await harness.spawn("coordinator", protocol="traditional", orchestration_mode="dag_guided")
+        await harness.wait_for(lambda: agent.state.value == "waiting_approval", "scope final review")
+        # This regression isolates cleared scope debt; final review is covered by the full tool scenario.
+        from cloudra.dag.review_requests import ReviewDecision
+        from cloudra.dag.store import DagStore
+        from cloudra.persistence.database import ConversationDB
+        from cloudra.runtime_v2.supervision import flush_review_notifications
+        store = DagStore(ConversationDB(harness.project.id))
+        request = next(r for r in await asyncio.to_thread(store.list_review_requests, "queued") if r.kind == "exit")
+        assert (await asyncio.to_thread(store.resolve_review, ReviewDecision(
+            request_id=request.request_id, basis_fingerprint=request.basis_fingerprint,
+            verdict="accept", reason="the revised scope final delivery is acceptable"),
+            expected_basis=request.basis_fingerprint))["accepted"]
+        await flush_review_notifications(harness.core, harness.project.id)
         await harness.wait_terminal(agent)
         reports = [call for call in harness.tool_events(agent) if call["tool_name"] == "dag_delivery_report"]
         assert reports and reports[0]["result_data"]["result"]["complete"] is True
@@ -1786,4 +1822,76 @@ async def test_budgeted_ts_terminal_notice_resumes_background_wait_and_persists(
         assert row[0] is not None
     finally:
         release.set()
+        await harness.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("verdict", ["accept", "reject", "needs_evidence"])
+async def test_complete_final_supervisor_review_controls_delivery(tmp_path, verdict):
+    """真实工具/默认策略/持久化：完整覆盖仍须审稿，非接受裁决阻止交付。"""
+    from cloudra.dag.store import DagStore
+    from cloudra.persistence.database import ConversationDB
+    from tests.agent_scenarios import final_delivery_review_steps
+    from tests.test_runtime_v2_completion_gate import _seed_complete_delivery
+
+    review_ready, resume, park = [asyncio.Event() for _ in range(3)]
+    review = Step(wait_for=review_ready)
+    provider = ScriptedProvider(by_role=final_delivery_review_steps(review, resume, park))
+    harness = await ScenarioHarness.start(tmp_path, provider=provider, workspace_dir=tmp_path)
+    try:
+        await _set_supervisor_traditional(harness)
+        await _seed_complete_delivery(harness.project.id)
+        agent = await harness.spawn("coordinator", protocol="traditional", orchestration_mode="dag_guided")
+        await harness.wait_for(lambda: agent.state.value in {"waiting_approval", "succeeded"},
+                               "first final-delivery attempt")
+        assert agent.state.value == "waiting_approval"
+        db = await asyncio.to_thread(lambda: ConversationDB(harness.project.id).init())
+        store = DagStore(db)
+        requests = await asyncio.to_thread(store.list_review_requests, None)
+        assert len(requests) == 1
+        request = requests[0]
+        assert request.kind == "exit" and request.proposal["disposition"] == "complete"
+        args = {"request_id": request.request_id, "verdict": verdict,
+                "reason": "independent review of the original submitted evidence"}
+        if verdict != "accept":
+            args["next_action"] = "Inspect the original IRC endpoint geometry"
+        review.tools = [("dag_view_evidence", {"review_id": request.request_id}),
+                        ("dag_review_evidence", args)]
+        review_ready.set()
+        await harness.wait_for(lambda: any(t["tool_name"] == "dag_review_evidence" and t["status"] == "completed"
+            for a in harness.core.agents.values() if a.role_id == "supervisor"
+            for t in harness.tool_events(a)), "real Supervisor final verdict")
+        supervisor = next(a for a in harness.core.agents.values() if a.role_id == "supervisor")
+        await harness.wait_terminal(supervisor)
+        tools = harness.tool_events(supervisor)
+        viewed = next(t for t in tools if t["tool_name"] == "dag_view_evidence")
+        assert viewed["is_success"] and viewed["result_data"]["result"]["proposal"] == request.proposal
+        decision = await asyncio.to_thread(store.get_review_decision_for_request, request.request_id)
+        assert decision.verdict == verdict
+        resume.set()
+        await harness.wait_for(lambda: len([e for e in harness.events(agent)
+            if e.type == "agent.completion_gate" and e.data.get("explicit_stop")]) == 2,
+            "same complete declaration after the final verdict")
+        gates = [e for e in harness.events(agent) if e.type == "agent.completion_gate" and e.data.get("explicit_stop")]
+        assert gates[0].data["action"] == "wait_review"
+        assert gates[1].data["action"] == ("allow_final" if verdict == "accept" else "continue_work")
+        assert len(await asyncio.to_thread(store.list_review_requests, None)) == 1
+        assert await asyncio.to_thread(store.list_review_requests, "queued") == []
+        def dispositions():
+            with db.connect() as con:
+                return con.execute("SELECT disposition FROM dag_delivery_dispositions").fetchall()
+        if verdict == "accept":
+            await harness.wait_terminal(agent)
+            assert agent.state.value == "succeeded"
+            assert gates[1].data["basis"] == "supervisor_supported"
+            assert await asyncio.to_thread(dispositions) == [("complete",)]
+        else:
+            assert agent.state.value == "running"
+            assert await asyncio.to_thread(dispositions) == []
+            assert not any(e.type == "agent.message_emitted" for e in harness.events(agent))
+        assert not any(t["tool_name"] == "submit_compute_job" for a in harness.core.agents.values()
+                       for t in harness.tool_events(a))
+    finally:
+        for event in (review_ready, resume, park):
+            event.set()
         await harness.aclose()

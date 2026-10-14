@@ -969,9 +969,13 @@ async def test_real_species_and_step_files_are_reviewed_once_for_final_delivery(
     assert after_stages == before_stages
     report = DagController(db, "s1", "dag_guided", conversation_id=db.conversation_id).delivery_report()
     assert report.complete
-    gate = await DagController(
-        db, "s1", "dag_guided", conversation_id=db.conversation_id
-    ).audit_stop("complete")
+    controller = DagController(db, "s1", "dag_guided", conversation_id=db.conversation_id)
+    gate = await controller.audit_stop("complete")
+    assert gate.action == "wait_review"
+    reviewed_final = await call_dag_tool(DagReviewEvidence, supervisor, session,
+        request_id=gate.request_id, verdict="accept", reason="the whole submitted delivery is supported")
+    assert reviewed_final.is_success
+    gate = await controller.audit_stop("complete")
     assert gate.action == "allow_final"
     assert gate.basis == "supervisor_supported"
 

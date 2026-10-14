@@ -262,7 +262,8 @@ class StopAuditMixin:
             return StopGate(action='continue_work', report=report,
                 reason='DAG evidence or review state changed during audit; re-audit the delivery.')
         self._audit_state = state
-        if disposition == "complete" and report.complete:
+        if (disposition == "complete" and report.complete
+                and self.mode is not OrchestrationMode.DAG_GUIDED):
             claim = await asyncio.to_thread(self.store.accepted_claim_spec)
             scope_only = bool(report.waived) or any(
                 gate.code in {"branch_disposed", "stage_not_applicable"}
@@ -283,49 +284,15 @@ class StopAuditMixin:
                 ),
             )
 
-        if disposition == "complete":
-            # Complete with gaps is blocked deterministically.  The audit
-            # report names the missing evidence; the agent may submit it for
-            # review (dag_bind_evidence) — there is no automatic pre-delivery
-            # LLM review round anymore (§1: the stop gate never triggers the
-            # Supervisor itself).  Accepted file evidence is accounted for separately from machine
-            # verification in the report; an exit approval may authorize partial/
-            # method-limited scope only.
+        if disposition == "complete" and not report.complete:
+            # A final verdict never fills missing scientific coverage.
             return StopGate(
                 action="continue_work",
                 report=report,
                 reason="complete was declared but required coverage is missing",
             )
 
-        # partial without approval in dag_guided must wait for a Supervisor
-        # decision; in dag_record partial is the ordinary recorded stop.
-        if disposition == "partial":
-            if self.mode is OrchestrationMode.DAG_GUIDED:
-                # Resolve the decision from durable state, never from a model-supplied id.
-                resolved = await asyncio.to_thread(self.store.list_review_requests, state='resolved')
-                for request in reversed(resolved):
-                    if request.kind != 'exit':
-                        continue
-                    decision = await asyncio.to_thread(self.store.get_review_decision_for_request, request.request_id)
-                    if decision and await self._valid_exit_approval(decision.decision_id, disposition, report):
-                        reused = await self._reused_exit_review(request.request_id, disposition, report)
-                        if reused is not None:
-                            return reused
-                request_id, created = await self._enqueue_exit_review(disposition, report)
-                reused = await self._reused_exit_review(request_id, disposition, report)
-                if reused is not None:
-                    return reused
-                if created:
-                    # 同一交付版本/退出声明复用既有请求时不再重复叫醒督导
-                    # （§6 wait_review 契约）；请求是持久化待办，恢复路径由
-                    # reconcile_supervision 补通知。
-                    await self._notify_supervisor("exit review requested")
-                return StopGate(
-                    action="wait_review",
-                    report=report,
-                    request_id=request_id,
-                    reason="partial delivery requires Supervisor approval in dag_guided",
-                )
+        if disposition == "partial" and self.mode is not OrchestrationMode.DAG_GUIDED:
             self._pending_stop = (disposition, report, None, state)
             return StopGate(
                 action="allow_final",
@@ -334,10 +301,36 @@ class StopAuditMixin:
                 basis="partial_recorded",
             )
 
+        if disposition not in {"complete", "partial"}:
+            return StopGate(
+                action="continue_work",
+                report=report,
+                reason=f"unsupported delivery disposition {disposition!r}",
+            )
+
+        # Guided delivery needs one whole-delivery verdict. Durable same-basis
+        # decisions are reused, including actionable rejections.
+        resolved = await asyncio.to_thread(self.store.list_review_requests, state="resolved")
+        for request in reversed(resolved):
+            if request.kind != "exit":
+                continue
+            decision = await asyncio.to_thread(self.store.get_review_decision_for_request, request.request_id)
+            if decision and await self._valid_exit_approval(decision.decision_id, disposition, report):
+                reused = await self._reused_exit_review(request.request_id, disposition, report)
+                if reused is not None:
+                    return reused
+        request_id, created = await self._enqueue_exit_review(disposition, report)
+        reused = await self._reused_exit_review(request_id, disposition, report)
+        if reused is not None:
+            return reused
+        if created:
+            # Reusing unchanged material does not wake the Supervisor again.
+            await self._notify_supervisor("exit review requested")
         return StopGate(
-            action="continue_work",
+            action="wait_review",
             report=report,
-            reason=f"unsupported delivery disposition {disposition!r}",
+            request_id=request_id,
+            reason=f"{disposition} delivery requires final Supervisor review in dag_guided",
         )
 
     async def _enqueue_exit_review(self, disposition: str, report: Any) -> tuple[str, bool]:
@@ -354,7 +347,11 @@ class StopAuditMixin:
             kind="exit",
             requester=self.session_id,
             target_ids=target_ids,
-            question="May this delivery finish as a partial result under the declared scope?",
+            question=(
+                "Does the whole proposed final delivery meet strict scientific review under the declared scope?"
+                if disposition == "complete" else
+                "May this delivery finish as a partial result under the declared scope?"
+            ),
             proposal={
                 "disposition": disposition,
                 "scope": target_ids,
@@ -395,13 +392,21 @@ class StopAuditMixin:
                 request_id=request.request_id,
                 reason=f"{decision.reason}{next_action}",
             )
+        basis = "supervisor_approved"
+        if disposition == "complete":
+            claim = await asyncio.to_thread(self.store.accepted_claim_spec)
+            scope_only = bool(report.waived) or any(
+                gate.code in {"branch_disposed", "stage_not_applicable"}
+                for gate in report.satisfied
+            ) or (claim is not None and not claim.required_checks)
+            basis = "scope_completed" if scope_only else "supervisor_supported"
         self._pending_stop = (disposition, report, decision.decision_id, self._audit_state)
         return StopGate(
             action="allow_final",
             report=report,
             request_id=request.request_id,
             reason=f"approved by {decision.decision_id}",
-            basis="supervisor_approved",
+            basis=basis,
         )
 
     def _exit_artifact_matches(self, request) -> bool:

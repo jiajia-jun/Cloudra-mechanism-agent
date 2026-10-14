@@ -476,14 +476,30 @@ class _ParseTools:
         return ToolResult(is_success=True, summary=f"ok:{call.name}", data={})
 
 
+async def _approve_final_delivery(project_id: str, session_id: str) -> None:
+    """督导生命周期测试已通过最终审查的交付种子；不启动运行时督导。"""
+    from cloudra.dag.controller import DagController
+    from cloudra.dag.review_requests import ReviewDecision
+
+    db = await asyncio.to_thread(lambda: ConversationDB(project_id).init())
+    controller = DagController(db, session_id, "dag_guided", conversation_id=project_id)
+    gate = await controller.audit_stop("complete")
+    assert gate.action == "wait_review"
+    request = await asyncio.to_thread(controller.store.get_review_request, gate.request_id)
+    assert (await asyncio.to_thread(controller.store.resolve_review, ReviewDecision(
+        request_id=request.request_id, basis_fingerprint=request.basis_fingerprint,
+        verdict="accept", reason="fixture final-delivery review accepted"),
+        expected_basis=request.basis_fingerprint))["accepted"]
+
+
 @pytest.mark.asyncio
 async def test_research_tool_completions_create_no_reviews_and_no_supervisor():
     """§5 核心语义：24 次研究侧工具完成不创建任何 review、不启动 Supervisor。
 
     覆盖 registry 原自动入箱的四类工具（log_parser/reaction_mapping/
     thermo_analysis/ts_guess，各 6 次）：完成后只登记证据与事实（dag_evidence
-    行在），CallReview 信箱保持为空，项目里绝不出现 supervisor agent
-    （notify 不发生——它只在显式送审路径被调用）。
+    行在），CallReview 信箱保持为空，项目里不出现 supervisor agent
+    （最终交付已在种子中获得一次督导接受，研究工具完成不触发额外审查）。
     """
     tools_of_interest = ("log_parser", "reaction_mapping", "thermo_analysis", "ts_guess")
     responses = [
@@ -539,10 +555,9 @@ async def test_research_tool_completions_create_no_reviews_and_no_supervisor():
     from cloudra.runtime_v2.schemas import OrchestrationMode
 
     research.settings.orchestration_mode = OrchestrationMode.DAG_GUIDED
-    # Task 4A：guided 协调者的 run 收尾要过统一结束门禁的交付覆盖审计；
-    # 本用例的焦点是"工具完成不产生 review/督导"，种子一个覆盖通过的
-    # 交付图让门禁透明放行（否则纯文本收尾会进入 wait_review 并通知督导）。
+    # 本用例只守研究工具完成的通知边界，最终交付审查先作为种子接受。
     await _seed_complete_delivery(project.id)
+    await _approve_final_delivery(project.id, research.id)
     try:
         await bus.execute(
             Command(
@@ -829,10 +844,9 @@ async def test_explicit_submission_latches_supervisor_then_24_parses_and_peer_me
     from cloudra.runtime_v2.schemas import OrchestrationMode
 
     research.settings.orchestration_mode = OrchestrationMode.DAG_GUIDED
-    # Task 4A：统一结束门禁下 guided 收尾要过交付覆盖审计；阶段契约保留
-    # （显式送审绑定 step1.ts_opt 需要它），但全部 supported 使覆盖通过，
-    # run1/run2/run3 的纯文本收尾被门禁透明放行。
+    # 最终交付已审查；显式送审阶段契约仍保留，普通解析不另起审查。
     await _seed_complete_delivery(project.id, supported_step_contract=True)
+    await _approve_final_delivery(project.id, research.id)
 
     supervisor = None
     child = None
@@ -2363,11 +2377,10 @@ async def test_duplicate_notification_after_decision_does_not_rerun_review(tmp_p
     core, bus, _stages = _full_wiring(llm)
     project = await _guided_project(bus, tmp_path, "recover-idempotent")
     llm.project_id = project.id
-    # Task 4A：覆盖通过的交付图让统一结束门禁透明——否则 supervisor 完成
-    # 回传唤醒 coordinator 后，其纯文本收尾会创建退出审批请求并再次通知
-    # supervisor（多一次 run），干扰本用例的幂等断言。
+    # 最终交付预先通过审查，本用例只守这一份咨询裁决的重复通知。
     await _seed_complete_delivery(project.id)
     coordinator = await _spawn_guided_coordinator(bus, project)
+    await _approve_final_delivery(project.id, coordinator.id)
     supervisor = None
     try:
         request_id = await _seed_review_request(

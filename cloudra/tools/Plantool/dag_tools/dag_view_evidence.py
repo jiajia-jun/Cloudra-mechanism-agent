@@ -26,7 +26,7 @@ class DagViewEvidenceInput(input_schema):
     review_id: str = Field(
         default="",
         description=(
-            "The call or file review id (from the review inbox) to read evidence for. "
+            "The call, file or final-delivery review id (from the review inbox) to read. "
             "Provide either this or evidence_id."
         ),
     )
@@ -46,7 +46,7 @@ class DagViewEvidence(DagToolBase):
     tool_id: str = "t-dag-view-evidence"
     tool_name: str = "dag_view_evidence"
     tool_description: str = (
-        "Read file-review scientific checks and repair actions, or the full source arguments + parsed result behind one CallReview "
+        "Read a final-delivery proposal and verdict, file-review scientific checks and repair actions, or the full source arguments + parsed result behind one CallReview "
         "(or evidence id). Use for: checking the source log path, compute job, "
         "and the raw parser output when the inbox summary is too terse; "
         "distinguishing a broken parser from a genuinely missing source file. "
@@ -69,7 +69,7 @@ class DagViewEvidence(DagToolBase):
             )
             if review is None:
                 request = await asyncio.to_thread(store.get_review_request, user_input.review_id.strip())
-                if request is None or request.kind not in {"evidence", "exception"}:
+                if request is None or request.kind not in {"evidence", "exception", "exit"}:
                     return fail("dag_view_evidence", f"evidence review {user_input.review_id!r} does not exist")
                 decision = await asyncio.to_thread(store.get_review_decision_for_request, request.request_id)
                 result = {"review_id": request.request_id, "state": request.state,
