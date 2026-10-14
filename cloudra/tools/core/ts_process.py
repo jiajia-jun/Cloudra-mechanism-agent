@@ -3254,9 +3254,11 @@ def _geometry_connectivity_error(mol, optimized, charge, role, remap=None, *, mu
         )
     }
     if missing or extra:
+        missing_1based = sorted((left + 1, right + 1) for left, right in missing)
+        extra_1based = sorted((left + 1, right + 1) for left, right in extra)
         return (
-            f"{role} optimized connectivity differs from the declared species: "
-            f"missing bonds={sorted(missing)}, extra bonds={sorted(extra)}"
+            f"{role} optimized connectivity differs from the declared species (atom pairs 1-based): "
+            f"missing bonds={missing_1based}, extra bonds={extra_1based}"
         )
     if not spin_aware_geometry:
         different_orders = [
@@ -3264,7 +3266,8 @@ def _geometry_connectivity_error(mol, optimized, charge, role, remap=None, *, mu
             if abs(expected_bonds[pair] - actual_bonds[pair]) > 0.1
         ]
         if different_orders:
-            return f"{role} optimized bond order differs from the declared species at {different_orders}"
+            pairs_1based = sorted((left + 1, right + 1) for left, right in different_orders)
+            return f"{role} optimized bond order differs from the declared species (atom pairs 1-based) at {pairs_1based}"
     return ""
 
 def _irc_interval_proof(
