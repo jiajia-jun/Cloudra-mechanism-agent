@@ -201,7 +201,10 @@ def prepare_delivery_artifact(store, graph, report, workspace_root, *, required=
             raise ValueError(f'Step {edge.id!r} changes the endpoints of its DAG declaration.')
         candidates = [e for e in graph.edges if source is not None and target is not None
                       and e.source_node_id == source.node_id and e.target_node_id == target.node_id]
-        matches = named or candidates
+        # A partial artifact may retain another attempt for the same reaction.
+        # Only explicit DAG IDs/names claim completion credit; endpoints alone
+        # must not turn an exploratory candidate into the declared step.
+        matches = named if partial else (named or candidates)
         if not matches and partial:
             checks[edge.id] = {'connectivity': {'status': 'unreviewed',
                 'reason': 'Exploratory output does not earn DAG completion credit.'}}

@@ -62,6 +62,45 @@ async def test_partial_preserves_unreviewed_competing_branch_without_dag_credit(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('exploratory_first', [False, True])
+async def test_partial_keeps_another_ts_attempt_for_the_same_endpoints(tmp_path, exploratory_first):
+    c = await controller(tmp_path)
+    document = graph()
+    document['nodes'].append({'id': 'candidate-2', 'role': 'transition_state', 'smiles': []})
+    document['edges'].append({'id': 'competing', 'from': 'R', 'to': 'P', 'via': 'candidate-2'})
+    if exploratory_first:
+        document['edges'].reverse()
+    path = tmp_path / 'mechanism_graph.json'
+    await asyncio.to_thread(path.write_text, json.dumps(document))
+
+    result = await c.audit_stop('partial')
+
+    assert result.action == 'wait_review', result
+    artifact = c._delivery_artifact
+    assert artifact.target_ids['step'] == 'e'
+    assert 'competing' not in artifact.target_ids
+    assert artifact.scientific_checks['competing']['connectivity']['status'] == 'unreviewed'
+    assert artifact.scientific_checks['candidate-2']['saddle']['status'] == 'unreviewed'
+    assert not result.report.complete
+    await approve(c, result.request_id)
+    assert (await c.audit_stop('partial')).action == 'allow_final'
+    assert json.loads(path.read_text()) == document
+
+
+@pytest.mark.asyncio
+async def test_partial_exploration_does_not_replace_a_declared_step(tmp_path):
+    c = await controller(tmp_path)
+    document = graph()
+    document['edges'][0]['id'] = 'unsubmitted-attempt'
+    await asyncio.to_thread((tmp_path / 'mechanism_graph.json').write_text, json.dumps(document))
+
+    result = await c.audit_stop('partial')
+
+    assert result.action == 'continue_work'
+    assert not await asyncio.to_thread(c.store.list_review_requests, 'queued')
+
+
+@pytest.mark.asyncio
 async def test_reviewed_stage_credit_is_shared_by_report_prompt_and_view(tmp_path):
     session, db, store = await asyncio.to_thread(_seed_review_graph, tmp_path, 'reviewed-view')
     agent = _coordinator(db.conversation_id)
