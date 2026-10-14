@@ -1509,7 +1509,7 @@ async def test_context_budget_compacts_once_then_short_turns_continue(tmp_path, 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures('ts_producer_authority')
 async def test_failed_ts_scan_unchanged_resume_keeps_failure_without_budget_exhaustion(tmp_path, monkeypatch):
-    """Real grouped resume preserves a fixture-driven failed scan and its budget."""
+    """Failed scans retry once; active retries retain that job and failed evidence."""
     from cloudra.services.compute_admission import AdmissionOutcome
     from cloudra.tools.core.ts_process import load_record
     from tests.test_ts_fixture_pipeline import finish, install_log, job_count, waiting_fixture_stage
@@ -1522,23 +1522,33 @@ async def test_failed_ts_scan_unchanged_resume_keeps_failure_without_budget_exha
     try:
         agent=await harness.spawn('small_mol',protocol='traditional')
         db,record,step=await asyncio.to_thread(waiting_fixture_stage,tmp_path,purpose='scan',project_id=harness.project.id,owner_id=agent.id)
-        await asyncio.to_thread(install_log,record,step,'orca/segfault_mid_opt/dvb_opt_truncated_no_termination.out')
+        log=await asyncio.to_thread(install_log,record,step,'orca/segfault_mid_opt/dvb_opt_truncated_no_termination.out')
+        evidence=await asyncio.to_thread(log.read_bytes)
         await asyncio.to_thread(finish,db,step.job_id,'failed')
         before=await asyncio.to_thread(load_record,str(tmp_path),record.run_id)
-        for index,item in enumerate(steps):
-            item.tools=[('ts_resume',{'run_id':record.run_id,'changes':{'guess':before.input.guess.model_dump()},'reason':'retain accepted scan'})]
+        changes={'guess':before.input.guess.model_dump()}
+        for item in steps:
+            item.tools=[('ts_resume',{'run_id':record.run_id,'changes':changes,'reason':'retry accepted scan'})]
         ready.set()
         await harness.wait_terminal(agent)
         calls=harness.tool_events(agent)
         assert [call['tool_name'] for call in calls]==['ts_resume']*3
         assert all(call['is_success'] for call in calls),harness.describe(agent)
+        new_job=calls[0]['result_data']['waiting_for'][0]['job_id']
+        assert new_job!=step.job_id
         for call in calls:
             result=call['result_data']
-            assert result['blocked']['failure_class']=='scan_job_failed'
-            assert result['usage']['interventions']==0 and result['result'] is None
+            assert result['status']=='waiting' and result['blocked'] is None
+            assert result['waiting_for'][0]['job_id']==new_job
+            assert result['usage']['interventions']==before.intervention_count+1 and result['result'] is None
         after=await asyncio.to_thread(load_record,str(tmp_path),record.run_id)
-        assert after.model_dump()==before.model_dump()
-        assert await asyncio.to_thread(job_count,db)==1
+        assert after.input.model_dump()==before.input.model_dump()
+        assert after.declaration_revision==before.declaration_revision+1
+        assert after.intervention_count==before.intervention_count+1
+        assert len(after.attempt_history)==len(before.attempt_history)+1
+        assert after.attempt_history[-1].blocked.model_dump()==before.blocked.model_dump()
+        assert await asyncio.to_thread(log.read_bytes)==evidence
+        assert await asyncio.to_thread(job_count,db)==2
     finally:
         ready.set()
         await harness.aclose()
