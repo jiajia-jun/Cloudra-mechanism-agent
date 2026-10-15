@@ -18,7 +18,15 @@ import urllib.request
 import webbrowser
 from pathlib import Path
 
+from cloudra.infra.flocks import is_lock_held
+from cloudra.persistence.paths import runtime_api_lock_path
 from cloudra.services.daemon_supervisor import ensure_daemons
+from cloudra.services.runtime_ownership import (
+    api_is_healthy,
+    api_serves_spa,
+    describe_store_conflict,
+    find_store_owner,
+)
 
 # 常驻 SSE 不会自己结束（SPA 一打开就挂着 EventSource，见 frontend/src/api.ts），
 # 而 uvicorn 默认（None）会**无限等待活跃连接**：`cloudra stop` 因此报「API: 已停止」
@@ -148,22 +156,11 @@ def _port_is_bindable(bind_host: str, preferred: int) -> bool:
 
 
 def _runtime_is_healthy(probe_host: str, port: int) -> bool:
-    try:
-        with urllib.request.urlopen(
-            f"http://{probe_host}:{port}/api/v2/runtime/health", timeout=1.0
-        ) as resp:
-            return 200 <= resp.status < 300
-    except Exception:
-        return False
+    return api_is_healthy(probe_host, port)
 
 
 def _runtime_serves_spa(probe_host: str, port: int) -> bool:
-    try:
-        with urllib.request.urlopen(f"http://{probe_host}:{port}/", timeout=1.0) as resp:
-            body = resp.read(4096).decode("utf-8", "ignore")
-            return 200 <= resp.status < 300 and '<div id="root"></div>' in body
-    except Exception:
-        return False
+    return api_serves_spa(probe_host, port)
 
 
 def _runtime_present(probe_host: str, port: int) -> bool:
@@ -200,6 +197,28 @@ def _find_api_port(preferred: int, env_name: str, bind_host: str) -> tuple[int, 
         if _port_is_bindable(bind_host, port):
             return port, False
     raise RuntimeError(f"no free port near {preferred}; set {env_name} explicitly")
+
+
+def _refuse_owned_store(store_path: str, *, bind_host: str, probe_host: str) -> None:
+    """主库已有属主时拒绝另起实例——端口是否空闲无关。
+
+    app 启动阶段用排他 flock 保证「一个 store 一个属主」，所以另起实例必然在
+    启动时撞锁退出；必须在拉起 uvicorn 之前指出占用者，否则用户只看到一句
+    "database is already in use"（launchd 自启实例占着主库、它的前端目录又已
+    失效时正是这种局面：既不可复用，也不能另起）。归属判定仍以 flock 为准，
+    lsof 只用来把 PID/端口查出来。
+    """
+    lock_path = runtime_api_lock_path(store_path)
+    # 持锁者必然创建过锁文件；文件不在（含 data_dir 尚未建立）就是没人持锁，
+    # 不能顺手把 data_dir 建出来。
+    if not lock_path.is_file() or not is_lock_held(str(lock_path)):
+        return
+    owner = find_store_owner(store_path, probe_host=probe_host)
+    raise RuntimeError(
+        describe_store_conflict(
+            store_path, owner, reuse_allowed=_may_reuse_runtime(bind_host)
+        )
+    )
 
 
 def _wait_healthy(url: str, timeout: float = 30.0) -> None:
@@ -317,18 +336,22 @@ def launch_browser(
             "reachable from the network and the bearer token is the only access control",
             flush=True,
         )
-    _ensure_frontend(frontend, rebuild=rebuild, skip_build=skip_build)
-    # 显式启动清除 `cloudra stop` 的持久关停 marker，否则 ensure 拒绝拉起。
-    from cloudra.services.daemon_supervisor import clear_daemons_shutdown
-
-    clear_daemons_shutdown()
-    ensure_daemons()
     from cloudra.persistence import paths
 
     store_path = os.environ.get(
         "CLOUDRA_RUNTIME_STORE",
         str(paths.runtime_db_path()),
     )
+    if not reused_runtime:
+        # 主库被别家持有时，换端口也起不来（app 的排他 flock）：在拉起子进程、
+        # 清除关停 marker 之前就 fail loud，既不留下 doomed 进程也不误启守护。
+        _refuse_owned_store(store_path, bind_host=bind_host, probe_host=probe_host)
+    _ensure_frontend(frontend, rebuild=rebuild, skip_build=skip_build)
+    # 显式启动清除 `cloudra stop` 的持久关停 marker，否则 ensure 拒绝拉起。
+    from cloudra.services.daemon_supervisor import clear_daemons_shutdown
+
+    clear_daemons_shutdown()
+    ensure_daemons()
     env = os.environ.copy()
     existing_pythonpath = env.get("PYTHONPATH", "")
     repo_root = str(Path(__file__).resolve().parents[1])

@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import pytest
+from click.testing import CliRunner
 
 import cloudra.web_launcher as web_launcher
+from cloudra.cli import cli
+from cloudra.persistence.paths import runtime_api_lock_path
+from cloudra.services import runtime_ownership
 
 
 class _FakeProc:
@@ -177,3 +181,124 @@ def test_wildcard_rebind_does_not_reuse_loopback_only_runtime(monkeypatch):
     assert web_launcher._find_api_port(8000, "CLOUDRA_API_PORT", "0.0.0.0") == (8001, False)
     # 具体网卡地址的探测地址就是绑定地址本身，复用判定照旧可信
     assert web_launcher._find_api_port(8000, "CLOUDRA_API_PORT", "192.168.1.5") == (8000, True)
+
+
+def test_launch_refuses_when_store_owned_by_non_reusable_api(tmp_path, monkeypatch):
+    """主库已被别家占着时必须点名占用者，而不是让 uvicorn 子进程撞锁。
+
+    实测（2026-10-15）：launchd 自启的 API 占着主库（8000），但它的
+    CLOUDRA_FRONTEND_SERVE_DIR 指向已失效的旧仓库（GET / 404），于是
+    `_runtime_present` 判它「不可复用」→ CLI 悄悄换到空闲的 8001 起子进程 →
+    子进程在 create_default_v2_app 的排他 flock 上退出，用户只看到一句
+    "database is already in use"，既不知道是谁占的，也不知道 `cloudra stop`
+    之后会被 KeepAlive 立刻拉起。端口空闲并不代表能另起实例。
+    """
+    frontend = tmp_path / "frontend"
+    frontend.mkdir()
+    # 占用者必然创建过锁文件；这里把它摆出来，模拟「主库已被别家持有」。
+    store_path = tmp_path / "runtime-v2.db"
+    monkeypatch.setenv("CLOUDRA_RUNTIME_STORE", str(store_path))
+    runtime_api_lock_path(store_path).write_text("")
+    captured: dict = {}
+    _patch_launch(monkeypatch, captured)
+    phases: list[str] = []
+    monkeypatch.setattr(web_launcher, "_ensure_frontend", lambda *a, **k: phases.append("build"))
+    monkeypatch.delenv("CLOUDRA_API_PORT", raising=False)
+    monkeypatch.setattr(web_launcher, "_port_is_bindable", lambda bind_host, port: port != 8000)
+    monkeypatch.setattr(web_launcher, "_runtime_present", lambda host, port: False)
+    monkeypatch.setattr(web_launcher, "is_lock_held", lambda path: True)
+    monkeypatch.setattr(
+        web_launcher,
+        "find_store_owner",
+        lambda store_path, *, probe_host="127.0.0.1": runtime_ownership.StoreOwner(
+            11956, 8000, False
+        ),
+    )
+
+    with pytest.raises(RuntimeError) as excinfo:
+        web_launcher.launch_browser(frontend, rebuild=False, skip_build=True)
+
+    message = str(excinfo.value)
+    assert "11956" in message and "8000" in message
+    assert "cloudra stop" in message and "自启" in message
+    # 子进程与前端构建都不该发生：必须在拉起之前就 fail loud
+    assert "cmd" not in captured
+    assert phases == []
+
+
+def test_launch_starts_when_store_is_free(tmp_path, monkeypatch):
+    """无人持锁时照旧拉起子进程——拒绝逻辑不能误伤正常启动。"""
+    frontend = tmp_path / "frontend"
+    frontend.mkdir()
+    captured: dict = {}
+    _patch_launch(monkeypatch, captured)
+    monkeypatch.setattr(web_launcher, "is_lock_held", lambda path: False)
+
+    assert web_launcher.launch_browser(frontend, rebuild=False, skip_build=True, port=18999) == 0
+    assert captured["cmd"][captured["cmd"].index("--port") + 1] == "18999"
+
+
+def test_cli_reports_store_conflict_without_traceback(tmp_path, monkeypatch):
+    """`cloudra web` 撞上主库占用要以红字提示 + 退出码 1 收场，不甩 traceback。"""
+
+    def _raise(*args, **kwargs):
+        raise RuntimeError("Cloudra 主库已被其他实例占用：/tmp/runtime-v2.db")
+
+    monkeypatch.setattr("cloudra.cli._frontend_or_exit", lambda: tmp_path / "frontend")
+    monkeypatch.setattr("cloudra.cli.launch_browser", _raise)
+
+    result = CliRunner().invoke(cli, ["web", "--skip-build"])
+
+    assert result.exit_code == 1
+    assert "Cloudra 主库已被其他实例占用" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_find_store_owner_reads_pid_and_listen_port(monkeypatch, tmp_path):
+    """占用者定位靠 lsof 字段行：`-t` 给 PID，`-F n` 给监听端口。"""
+
+    def _fake_lsof(args):
+        if args[0] == "-t":
+            return "11956\n"
+        return "p11956\nn127.0.0.1:8000\nn[::1]:8000\n"
+
+    monkeypatch.setattr(runtime_ownership, "_lsof", _fake_lsof)
+    monkeypatch.setattr(runtime_ownership, "api_is_healthy", lambda host, port: port == 8000)
+    monkeypatch.setattr(runtime_ownership, "api_serves_spa", lambda host, port: False)
+
+    owner = runtime_ownership.find_store_owner(tmp_path / "runtime-v2.db")
+
+    assert owner == runtime_ownership.StoreOwner(11956, 8000, False)
+
+
+def test_find_store_owner_keeps_pid_when_api_unresponsive(monkeypatch, tmp_path):
+    """持锁进程不健康应答时仍要报出 PID，不能谎称「查不到占用者」。"""
+    monkeypatch.setattr(
+        runtime_ownership, "_lsof", lambda args: "11956\n" if args[0] == "-t" else "p11956\n"
+    )
+    monkeypatch.setattr(runtime_ownership, "api_is_healthy", lambda host, port: False)
+
+    owner = runtime_ownership.find_store_owner(tmp_path / "runtime-v2.db")
+
+    assert owner == runtime_ownership.StoreOwner(11956, None, False)
+    assert "11956" in runtime_ownership.describe_store_conflict("runtime-v2.db", owner)
+
+
+def test_find_store_owner_returns_none_without_holder(monkeypatch, tmp_path):
+    monkeypatch.setattr(runtime_ownership, "_lsof", lambda args: "")
+
+    assert runtime_ownership.find_store_owner(tmp_path / "runtime-v2.db") is None
+
+    message = runtime_ownership.describe_store_conflict(tmp_path / "runtime-v2.db", None)
+    assert "lsof" in message and "cloudra stop" in message
+
+
+def test_describe_store_conflict_explains_wildcard_refusal():
+    """提供 SPA 但被通配绑定策略挡下时，文案要说清原因，不能笼统说「不可复用」。"""
+    owner = runtime_ownership.StoreOwner(11956, 8000, True)
+
+    message = runtime_ownership.describe_store_conflict(
+        "runtime-v2.db", owner, reuse_allowed=False
+    )
+
+    assert "8000" in message and "通配绑定" in message
