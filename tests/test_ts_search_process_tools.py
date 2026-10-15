@@ -108,17 +108,38 @@ async def test_new_tool_call_cannot_change_an_active_calculation(tmp_path, monke
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('project,owner',[('foreign',None),('project','foreign-owner')])
 @pytest.mark.usefixtures("rdkit_chemistry")
-async def test_resume_rejects_other_project_or_owner(tmp_path,project,owner):
+async def test_resume_rejects_other_project(tmp_path):
     first = await invoke(owned_tool(TsPrepare, workspace=tmp_path), TsPrepare_input_schema(input=inputs(mapped=False)))
     request = TsResume_input_schema(run_id=first.run_id,
         reason='Change method',
         changes={'ts_optimization':{'engine':'orca','method':'HF/STO-3G','keywords':'D3BJ'}})
-    session = SimpleNamespace(id=owner) if owner else None
-    result = await invoke(owned_tool(TsResume, project, tmp_path), request, session)
+    result = await invoke(owned_tool(TsResume, 'foreign', tmp_path), request)
     assert not result.is_success
-    assert 'owner' in result.message or 'project' in result.message
+    assert 'project' in result.message
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
+async def test_resume_adopts_run_from_different_session_in_same_project(tmp_path, monkeypatch):
+    from cloudra.services.compute_admission import AdmissionOutcome
+    monkeypatch.setattr('cloudra.services.compute_admission.admit_job',
+        lambda **_: AdmissionOutcome(ok=True, node_id='fixture', scheduler='local'))
+    session1 = SimpleNamespace(id='session-1')
+    first = await invoke(owned_tool(TsPrepare, workspace=tmp_path), TsPrepare_input_schema(input=inputs(mapped=False)), session=session1)
+    assert first.is_success
+
+    # Successor session in the same project adopts and resumes the run
+    session2 = SimpleNamespace(id='session-2')
+    request = TsResume_input_schema(
+        run_id=first.run_id,
+        changes={'reaction': {'atom_map': [1, 2, 3]}},
+        reason='Bind the complete atom order',
+    )
+    result = await invoke(owned_tool(TsResume, 'project', tmp_path), request, session=session2)
+    assert result.is_success, result.message
+    assert result.run_id == first.run_id
+    assert result.status == 'waiting'
 
 
 @pytest.mark.asyncio

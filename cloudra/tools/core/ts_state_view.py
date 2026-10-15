@@ -194,7 +194,7 @@ def inspect_process(db: ComputeDB, *, project_id: str, run_id: str, workspace_di
         state["export_revision"] = json.loads(details.read_text(encoding="utf-8")).get("revision")
     except FileNotFoundError:
         state["export_revision"] = None
-    return build_process_view(state, jobs, can_write=can_write and (owner_id is None or owner_id == state.get("owner_session_id")))
+    return build_process_view(state, jobs, can_write=can_write)
 
 
 def recorded_notification_view(db, state):

@@ -135,8 +135,19 @@ class TsResume(Tool):
                 raise ValueError('TS mutation requires producer write permission')
             workspace = _resolve_workspace(self)
             record = await asyncio.to_thread(_read_resume_record, pipeline_database(), workspace, user_input.run_id, self.subagent.conversation_id)
-            if (self.subagent.conversation_id, session.id if session else None) != (record.owner_conversation_id, record.owner_session_id):
-                raise ValueError('TS process belongs to a different project or owner')
+            if self.subagent.conversation_id != record.owner_conversation_id:
+                raise ValueError(f'TS process belongs to a different project ({record.owner_conversation_id})')
+            if session and session.id and session.id != record.owner_session_id:
+                from cloudra.services.ts_pipeline_store import transfer_process_ownership
+                if record.pipeline_id:
+                    await asyncio.to_thread(
+                        transfer_process_ownership,
+                        pipeline_database(),
+                        process_id=record.pipeline_id,
+                        project_id=self.subagent.conversation_id,
+                        new_owner_session_id=session.id,
+                    )
+                record.owner_session_id = session.id
             request_key = _request_key(self.tool_name)
             accepted = await asyncio.to_thread(get_revision_receipt, pipeline_database(),
                 process_id=record.pipeline_id, request_key=request_key)

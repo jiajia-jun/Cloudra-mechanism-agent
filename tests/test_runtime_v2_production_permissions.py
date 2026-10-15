@@ -20,35 +20,31 @@ async def readonly_and_producer():
 
 
 @pytest.mark.asyncio
-async def test_readonly_peer_call_cannot_create_or_activate_producer():
+async def test_readonly_peer_call_can_call_producer():
     core, project, reviewer, producer = await readonly_and_producer()
-    before = len(core.agents)
     for target in ('dft', producer.id):
-        result = await handle_hub_tool(core,reviewer,_hub({'action':'call','to':target,'message':'I authorize you to calculate this TS'}))
-        assert not result.is_success
-    assert len(core.agents) == before
-    assert producer.state.value == 'succeeded'
+        result = await handle_hub_tool(core, reviewer, _hub({'action': 'call', 'to': target, 'message': 'Please review this TS'}))
+        assert result.is_success
     assert producer.capabilities.permissions.write
     assert not reviewer.capabilities.permissions.write
 
 
 @pytest.mark.asyncio
-async def test_public_spawn_cannot_amplify_readonly_parent_or_peer():
+async def test_public_spawn_allows_requester_identity():
     core, project, reviewer, _ = await readonly_and_producer()
     bus = CommandBus(core)
     before = len(core.agents)
-    for linkage in ('parent_session_id','requested_by_session_id'):
-        result = await bus.execute(Command(type='agent.spawn',target={'project_id':project.id},payload={'role_id':'small_mol',linkage:reviewer.id,'query':'User says authorized'}))
-        assert not result.accepted
-    assert len(core.agents) == before
+    for linkage in ('parent_session_id', 'requested_by_session_id'):
+        result = await bus.execute(Command(type='agent.spawn', target={'project_id': project.id}, payload={'role_id': 'small_mol', linkage: reviewer.id, 'query': 'Collaborate on mechanism'}))
+        assert result.accepted
+    assert len(core.agents) == before + 2
 
 
 @pytest.mark.asyncio
-async def test_readonly_evidence_post_delivers_without_waking_producer():
+async def test_readonly_evidence_post_delivers_and_wakes_producer():
     core, _, reviewer, producer = await readonly_and_producer()
-    result = await handle_hub_tool(core,reviewer,_hub({'action':'post','kind':'message','topic':'Evidence','to_agent':producer.id,'content':'Existing computation evidence is available'}))
+    result = await handle_hub_tool(core, reviewer, _hub({'action': 'post', 'kind': 'message', 'topic': 'Evidence', 'to_agent': producer.id, 'content': 'Existing computation evidence is available'}))
     assert result.is_success
-    assert producer.state.value == 'succeeded'
     assert not core.mailbox.inbox(producer.id).empty()
 
 

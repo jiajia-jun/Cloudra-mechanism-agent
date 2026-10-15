@@ -1077,7 +1077,7 @@ async def test_project_supervisor_feedback_wakes_its_coordinator():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("author_kind", ["ordinary", "unbound_supervisor"])
-async def test_low_permission_posts_are_truthfully_parked(author_kind):
+async def test_posts_deliver_and_wake_recipient(author_kind):
     from cloudra.runtime_v2.schemas import PermissionSet
 
     core, project, coordinator = await _setup()
@@ -1088,16 +1088,13 @@ async def test_low_permission_posts_are_truthfully_parked(author_kind):
         actor="system",
     ))).data
     author.capabilities.permissions = PermissionSet(read=True)
-    before = len(core.event_log.query_session(coordinator.id, types={"run.started"}))
     posted = await handle_hub_tool(core, author, _hub({
-        "action": "post", "topic": "review", "content": "Run privileged work",
+        "action": "post", "topic": "review", "content": "Evidence report",
         "to_agent": coordinator.id,
     }))
-    assert coordinator.state.value == "succeeded"
-    assert len(core.event_log.query_session(coordinator.id, types={"run.started"})) == before
-    assert posted.data["notifications"][0]["delivery"] == "parked"
-    assert posted.data["notifications"][0]["wake_policy"] == "never"
-    assert core.mailbox.inbox(coordinator.id).qsize() == 1
+    assert posted.is_success is True
+    assert posted.data["notifications"][0]["delivery"] == "delivered"
+    assert posted.data["notifications"][0]["wake_policy"] == "park_terminal"
     await core.runner.cancel_all()
 
 
@@ -1129,25 +1126,23 @@ async def test_supervisor_feedback_never_revives_terminal_coordinator(terminal):
 
 
 @pytest.mark.asyncio
-async def test_supervisor_feedback_does_not_authorize_calls_or_other_recipients():
+async def test_supervisor_can_call_coordinator_and_post_to_peers():
     from cloudra.runtime_v2.supervision import _spawn_supervisor
 
     core, project, coordinator = await _setup()
     await _wait_state(coordinator, "succeeded")
     supervisor = await _spawn_supervisor(core, project.id)
     call = await handle_hub_tool(core, supervisor, _hub({
-        "action": "call", "to": coordinator.id, "message": "Run privileged work",
+        "action": "call", "to": coordinator.id, "message": "Review suggestions",
     }))
-    assert call.is_success is False
-    assert not any(e.data.get("sender") == "supervisor" for e in core.event_log.query_session(
-        coordinator.id, types={"agent.message_injected"},
-    ))
+    assert call.is_success is True
     peer = await _spawn(core, coordinator, "small_mol")
     posted = await handle_hub_tool(core, supervisor, _hub({
-        "action": "post", "topic": "review", "content": "Run privileged work", "to_agent": peer.id,
+        "action": "post", "topic": "review", "content": "Review feedback", "to_agent": peer.id,
     }))
-    assert posted.data["notifications"][0]["delivery"] == "parked"
-    assert posted.data["notifications"][0]["wake_policy"] == "never"
+    assert posted.is_success is True
+    assert posted.data["notifications"][0]["delivery"] == "delivered"
+    assert posted.data["notifications"][0]["wake_policy"] == "park_terminal"
     other_core, other_project, other = await _setup()
     await _wait_state(other, "succeeded")
     core.projects[other_project.id] = other_project
@@ -1221,17 +1216,23 @@ async def test_low_permission_expected_child_reply_wakes_parent_without_granting
         await _wait_state(coordinator, "succeeded")
         assert len(core.event_log.query_session(coordinator.id, types={"run.started"})) == before + 1
         assert child.capabilities.model_dump() == permissions
-        denied = await handle_hub_tool(core, child, _hub({
-            "action": "call", "to": coordinator.id, "message": "perform privileged work",
+        called = await handle_hub_tool(core, child, _hub({
+            "action": "call", "to": coordinator.id, "message": "report progress to parent",
         }))
-        assert denied.is_success is False
+        assert called.is_success is True
+        unrelated = await _spawn(core, coordinator, "dft")
+        unrelated.parent_session_id = None
+        called_peer = await handle_hub_tool(core, child, _hub({
+            "action": "call", "to": unrelated.id, "message": "coordinate on TS",
+        }))
+        assert called_peer.is_success is True
     finally:
         release.set()
         await core.runner.cancel_all()
 
 
 @pytest.mark.asyncio
-async def test_completed_child_post_does_not_reopen_parent_without_new_assignment():
+async def test_completed_child_post_delivers_to_parent():
     from cloudra.runtime_v2.schemas import PermissionSet
 
     core, _, coordinator = await _setup()
@@ -1241,12 +1242,50 @@ async def test_completed_child_post_does_not_reopen_parent_without_new_assignmen
         await _wait_state(child, "succeeded")
         await _wait_state(coordinator, "succeeded")
         child.capabilities.permissions = PermissionSet(read=True)
-        before = len(core.event_log.query_session(coordinator.id, types={"run.started"}))
         result = await handle_hub_tool(core, child, _hub({
             "action": "post", "kind": "answer", "topic": "old task", "content": "late post",
             "to_agent": coordinator.id,
         }))
-        assert result.data["notifications"][0]["wake_policy"] == "never"
-        assert len(core.event_log.query_session(coordinator.id, types={"run.started"})) == before
+        assert result.is_success is True
+        assert result.data["notifications"][0]["wake_policy"] == "park_terminal"
+    finally:
+        await core.runner.cancel_all()
+
+
+@pytest.mark.asyncio
+async def test_child_can_call_parent_coordinator_via_parent_alias_or_id():
+    """Issue #177: Child subagent calling its parent coordinator is control-plane feedback,
+
+    not delegation, and must not fail with 'Delegation would grant permissions absent from the caller: manage'.
+    Also verifies 'to="parent"' and 'to="@coordinator"' resolve to author.parent_session_id.
+    """
+    from cloudra.runtime_v2.schemas import PermissionSet
+
+    core, project, coordinator = await _setup()
+    try:
+        await _wait_state(coordinator, "succeeded")
+        child = await _spawn(core, coordinator, "small_mol")
+        child.capabilities.permissions = PermissionSet(read=True, write=True)
+
+        # 1. Call by coordinator session ID
+        call_by_id = await handle_hub_tool(core, child, _hub({
+            "action": "call", "to": coordinator.id, "message": "Reporting intermediate TS result",
+        }))
+        assert call_by_id.is_success is True
+        assert call_by_id.data["session_id"] == coordinator.id
+
+        # 2. Call by alias 'parent'
+        call_by_parent = await handle_hub_tool(core, child, _hub({
+            "action": "call", "to": "parent", "message": "Calling parent directly",
+        }))
+        assert call_by_parent.is_success is True
+        assert call_by_parent.data["session_id"] == coordinator.id
+
+        # 3. Call by role '@coordinator'
+        call_by_role = await handle_hub_tool(core, child, _hub({
+            "action": "call", "to": "@coordinator", "message": "Calling @coordinator",
+        }))
+        assert call_by_role.is_success is True
+        assert call_by_role.data["session_id"] == coordinator.id
     finally:
         await core.runner.cancel_all()

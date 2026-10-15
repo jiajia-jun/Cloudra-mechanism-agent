@@ -536,6 +536,47 @@ def list_unfinished_processes(db: ComputeDB, project_id: str) -> list[str]:
                                              (project_id,)).fetchall()]
 
 
+def transfer_process_ownership(db: ComputeDB, *, process_id: str, project_id: str, new_owner_session_id: str) -> None:
+    """Transfer ownership of a process and its child tables to a successor session within the same project."""
+    if not process_id:
+        return
+    with _rewrite_lock(db):
+        _recover_source_rewrite(db, process_id)
+
+        def operation():
+            with db.connect() as con:
+                con.execute('BEGIN IMMEDIATE')
+                row = con.execute('SELECT project_id,owner_id,record,payload FROM ts_pipeline_processes WHERE process_id=?',
+                                  (process_id,)).fetchone()
+                if row is None:
+                    raise ValueError('process not found')
+                if row[0] != project_id:
+                    raise ValueError(f'TS process belongs to a different project ({row[0]})')
+                if row[1] == new_owner_session_id:
+                    return
+                record_data = json.loads(row[2]) if row[2] else {}
+                if record_data:
+                    record_data['owner_session_id'] = new_owner_session_id
+                    catalog_id = record_data.get('catalog_id')
+                    if catalog_id:
+                        con.execute('UPDATE conformer_catalogs SET owner_id=? WHERE catalog_id=? AND project_id=?',
+                                    (new_owner_session_id, catalog_id, project_id))
+                new_payload = row[3]
+                if row[3]:
+                    try:
+                        p_data = json.loads(row[3])
+                        p_data['owner_id'] = new_owner_session_id
+                        new_payload = json.dumps(p_data)
+                    except (ValueError, TypeError):
+                        pass
+                con.execute('UPDATE ts_pipeline_processes SET owner_id=?, record=?, payload=? WHERE process_id=?',
+                            (new_owner_session_id, json.dumps(record_data) if record_data else None, new_payload, process_id))
+                con.execute('UPDATE exploration_budgets SET owner_id=? WHERE process_id=? AND project_id=?',
+                            (new_owner_session_id, process_id, project_id))
+
+        return retry_on_locked(operation)
+
+
 def save_process_record(db: ComputeDB, *, process_id: str, record: dict,
                         expected_revision: int | None = None) -> bool:
     from cloudra.tools.core.ts_process import TsProcessRecord

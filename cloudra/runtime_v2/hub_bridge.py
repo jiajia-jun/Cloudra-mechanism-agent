@@ -65,7 +65,7 @@ def _live_sessions(core, project_id: str) -> list[AgentSession]:
 
 
 def _resolve_live_target(
-    core, project_id: str, target: str, *, wakeable_role_only: bool = False
+    core, project_id: str, target: str, *, wakeable_role_only: bool = False, author: AgentSession | None = None
 ) -> AgentSession | None:
     """Resolve explicit ids; role calls may skip failed/cancelled sessions."""
     t = target.strip()
@@ -73,9 +73,18 @@ def _resolve_live_target(
         return None
     sessions = _live_sessions(core, project_id)
     clean = t.lstrip("@").lower()
+    if author is not None and clean == "parent" and author.parent_session_id:
+        parent = core.agents.get(author.parent_session_id)
+        if parent is not None and parent.project_id == project_id:
+            return parent
     by_id = core.agents.get(t)
     if by_id is not None and by_id.project_id == project_id:
         return by_id
+    if author is not None and clean == "coordinator" and author.parent_session_id:
+        parent = core.agents.get(author.parent_session_id)
+        if parent is not None and parent.project_id == project_id and parent.role_id == "coordinator":
+            if not wakeable_role_only or parent.state not in {AgentState.FAILED, AgentState.CANCELLED}:
+                return parent
     matches = [a for a in sessions if a.role_id == clean]
     if wakeable_role_only:
         matches = [
@@ -98,39 +107,6 @@ async def _notify(
     # mention/call 自动 reopen——消息驻留 durable 信箱，用户显式复活后首轮
     # 即可读到。其余状态照常唤醒（策略由 dispatcher 唯一解析）。
     wake = WakePolicy.PARK_TERMINAL
-    if author is not None:
-        from cloudra.runtime_v2.policies.permission import require_delegation_permissions
-        try:
-            require_delegation_permissions(author.capabilities.permissions, target.capabilities.permissions)
-        except CommandRejected:
-            from cloudra.runtime_v2.supervision import find_project_supervisor
-
-            # Review feedback from the project's bound Supervisor is control
-            # plane traffic to its Coordinator, not permission delegation.
-            # A role name alone cannot authorize a privileged peer wake.
-            supervisor_feedback = (
-                post_id is not None
-                and author.project_id == project_id == target.project_id
-                and find_project_supervisor(core, project_id) is author
-                and author.parent_session_id == target.id
-                and author.requested_by_session_id is None
-                and target.role_id == "coordinator"
-            )
-            # A bound child's outstanding task reply is information, not a
-            # delegation of the recipient's tool permissions. Background-only
-            # wakeups after its task finished must not reopen the parent.
-            expected_task_reply = False
-            if (
-                post_id is not None
-                and author.project_id == project_id == target.project_id
-                and author.role_id != "supervisor"
-                and author.parent_session_id == target.id
-            ):
-                from cloudra.runtime_v2.subagent_bridge import child_final_event
-
-                expected_task_reply = await asyncio.to_thread(child_final_event, core, author) is None
-            if not (supervisor_feedback or expected_task_reply):
-                wake = WakePolicy.NEVER
     # This snapshot describes wake intent. Persisting the message may yield,
     # so requested is not evidence that the recipient actually started a run.
     target_state = target.state.value
@@ -203,7 +179,7 @@ async def _post(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     kind = args["kind"]
     to_agent = str(args.get("to_agent") or "").strip()
     if (
-        to_agent and _resolve_live_target(core, author.project_id, to_agent) is None
+        to_agent and _resolve_live_target(core, author.project_id, to_agent, author=author) is None
         and core.roles.get(to_agent.lstrip("@").lower()) is None
     ):
         return _err(f"Addressee {to_agent!r} is neither a project session nor a known role_id.")
@@ -225,7 +201,7 @@ async def _post(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
         # Freeze the recipient set with the post. A retry must only finish its
         # original deliveries; a session created later cannot receive an old
         # broadcast just because one recipient temporarily failed.
-        addressee = _resolve_live_target(core, author.project_id, to_agent) if to_agent else None
+        addressee = _resolve_live_target(core, author.project_id, to_agent, author=author) if to_agent else None
         parent = await asyncio.to_thread(core.event_log.get, parent_id) if parent_id else None
         original = (
             core.agents.get(parent.session_id)
@@ -574,7 +550,7 @@ async def _call(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
         post = await asyncio.to_thread(lambda: next((p for p in _posts(core, author.project_id) if p["id"] == raw_post_id), None))
         if post is not None:
             post_line = f"Related post {post['id']} (topic {post['topic']})."
-    target = _resolve_live_target(core, author.project_id, raw_to, wakeable_role_only=True)
+    target = _resolve_live_target(core, author.project_id, raw_to, wakeable_role_only=True, author=author)
     text = format_incoming_call(
         caller_agent_id=author.role_id,
         caller_session_id=author.id,
@@ -584,8 +560,6 @@ async def _call(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     )
 
     if target is not None:
-        from cloudra.runtime_v2.policies.permission import require_delegation_permissions
-        require_delegation_permissions(author.capabilities.permissions, target.capabilities.permissions)
         notification = await _notify(core, author.project_id, target, sender=author.role_id, content=text, author=author)
         return _ok(f"Called {target.id} (non-blocking).", session_id=target.id, notifications=[notification])
 

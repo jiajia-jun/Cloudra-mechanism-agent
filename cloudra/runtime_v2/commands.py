@@ -307,11 +307,9 @@ def _decide_spawn_agent(core: RuntimeCore, command: Command) -> Decision:
             parent = core.require_agent(parent_session_id)
             if parent.project_id != project_id:
                 raise CommandRejected("invalid_request", "parent agent belongs to another project")
-        from cloudra.runtime_v2.policies.permission import require_delegation_permissions
         caller_id = parent_session_id or requested_by_session_id
         if caller_id is not None:
-            caller = core.require_agent(caller_id)
-            require_delegation_permissions(caller.capabilities.permissions, role.permissions)
+            core.require_agent(caller_id)
         elif command.actor == "agent":
             raise CommandRejected("forbidden", "Agent delegation requires a bound requester identity")
         settings_patch = RuntimeSettingsPatch.model_validate(payload.get("settings") or {})

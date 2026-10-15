@@ -790,9 +790,16 @@ def _optimize_conformer_source(record, role):
             _write_immutable_input(str(manifest), task.model_dump_json())
             job_type = 'chem_task'
         else:
+            if calculation.engine == 'gaussian':
+                opt_subopts, rem_keywords, warn = _extract_gaussian_opt_keywords(calculation.keywords, is_ts=False)
+                task_type = [{'opt': opt_subopts}]
+                calc_copy = calculation.model_copy(update={'keywords': rem_keywords or None})
+            else:
+                task_type = [{'opt': None}]
+                calc_copy = calculation
             manifest = directory / ('seed-opt.inp' if calculation.engine == 'orca' else 'seed-opt.gjf')
-            request = QmInputWriter_input_schema(**calculation.model_dump(mode='json'),
-                source_type='xyz_file', source_value=built[2], task_type=[{'opt': None}],
+            request = QmInputWriter_input_schema(**calc_copy.model_dump(mode='json'),
+                source_type='xyz_file', source_value=built[2], task_type=task_type,
                 nproc=record.compute_cpus, mem=f'{record.compute_memory_mb}MB', output_path=str(manifest),
                 charge=record.input.reaction.charge, multiplicity=record.input.reaction.multiplicity)
             from cloudra.tools.core.calculation_intent import validate_writer_request
@@ -1889,11 +1896,16 @@ def _write_refinement_input(record: TsProcessRecord, job_dir: str) -> tuple[str,
     if calculation.engine == "orca":
         task_type: list[dict] = [{"opt": "ts"}]
         orca_blocks: Optional[str] = "%geom\n  Calc_Hess true\nend"
+        calc_copy = calculation.model_copy(update={'orca_blocks': '\n'.join(filter(None, [orca_blocks, calculation.orca_blocks])) or None})
     else:
-        task_type = [{"opt": "TS,calcfc,noeigen"}]
-        orca_blocks = None
+        import warnings
+        opt_subopts, rem_keywords, warn = _extract_gaussian_opt_keywords(calculation.keywords, is_ts=True)
+        if warn:
+            warnings.warn(warn, UserWarning, stacklevel=2)
+        task_type = [{"opt": opt_subopts}]
+        calc_copy = calculation.model_copy(update={'keywords': rem_keywords or None})
     request = QmInputWriter_input_schema(
-        **calculation.model_copy(update={'orca_blocks': '\n'.join(filter(None, [orca_blocks, calculation.orca_blocks])) or None}).model_dump(mode='json'),
+        **calc_copy.model_dump(mode='json'),
         nproc=record.compute_cpus,
         mem=f"{record.compute_memory_mb}MB",
         source_type="xyz_file",
@@ -2316,13 +2328,23 @@ def _write_frequency_input(record: TsProcessRecord, job_dir: str) -> tuple[str, 
     if calculation is None:
         return 'Explicit verification.frequency required', ''
     input_path = os.path.join(job_dir, f"frequency.{'inp' if calculation.engine == 'orca' else 'gjf'}")
+    if calculation.engine == "gaussian":
+        import warnings
+        freq_subopts, rem_keywords, warn = _extract_gaussian_freq_keywords(calculation.keywords)
+        if warn:
+            warnings.warn(warn, UserWarning, stacklevel=2)
+        task_type = [{"freq": freq_subopts}]
+        calc_copy = calculation.model_copy(update={'keywords': rem_keywords or None})
+    else:
+        task_type = [{"freq": None}]
+        calc_copy = calculation
     request = QmInputWriter_input_schema(
-        **calculation.model_dump(mode='json'),
+        **calc_copy.model_dump(mode='json'),
         nproc=record.compute_cpus,
         mem=f"{record.compute_memory_mb}MB",
         source_type="xyz_file",
         source_value=optimized_xyz,
-        task_type=[{"freq": None}],
+        task_type=task_type,
         charge=declaration.charge,
         multiplicity=declaration.multiplicity,
         title=f"frequency at the refined stationary point: {declaration.reactant_smiles} | smiles: {declaration.reactant_smiles}",
@@ -2349,6 +2371,204 @@ def _write_frequency_input(record: TsProcessRecord, job_dir: str) -> tuple[str, 
     _write_immutable_input(input_path, content)
     return "", input_path
 
+
+def _extract_gaussian_opt_keywords(keywords: str | None, *, is_ts: bool = True) -> tuple[str | None, str, str | None]:
+    """从关键字中解析 Gaussian 的 opt 子参数，剥离 opt 后的其余关键字，并校验/补充必要参数。
+
+    - is_ts=True: 用于过渡态优化阶段。默认确保包含 ts, calcfc, noeigen；若用户指定了 opt 但遗漏关键选项，则补充并返回警告。
+    - is_ts=False: 用于极小值（端点/种子）优化阶段。若用户指定了 opt 则提取其子参数（无子参数返回 None 表示裸 opt），未指定 opt 返回 None。
+
+    返回: (opt_suboptions, remaining_keywords, warning_message)
+    严格遵守 AGENTS.md 规范：不使用正则表达式 (re)，采用显式 token 与字符串拆分。
+    """
+    if not keywords or not keywords.strip():
+        if is_ts:
+            return "TS,calcfc,noeigen", "", None
+        return None, "", None
+
+    from cloudra.tools.core.calculation_intent import native_tokens
+
+    try:
+        tokens = native_tokens(keywords)
+    except ValueError:
+        tokens = keywords.split()
+
+    opt_subopts: list[str] = []
+    other_tokens: list[str] = []
+    found_opt = False
+
+    for raw_token in tokens:
+        token = raw_token.strip().rstrip(",")
+        if not token:
+            continue
+        token_lower = token.lower()
+        if token_lower == "opt" or token_lower.startswith("opt=") or token_lower.startswith("opt("):
+            found_opt = True
+            if token_lower.startswith("opt="):
+                val = token[4:].strip()
+            elif token_lower.startswith("opt("):
+                val = token[3:].strip()
+            else:
+                val = ""
+            if val.startswith("(") and val.endswith(")"):
+                val = val[1:-1].strip()
+            if val:
+                for sub in val.split(","):
+                    s = sub.strip()
+                    if s:
+                        opt_subopts.append(s)
+        else:
+            other_tokens.append(token)
+
+    warning = None
+    if is_ts:
+        if found_opt:
+            has_ts = any(s.lower() in ("ts", "qst2", "qst3") for s in opt_subopts)
+            has_fc = any(s.lower() in ("calcfc", "rcfc", "readfc", "calcall") for s in opt_subopts)
+            if not has_ts:
+                opt_subopts.insert(0, "ts")
+                warning = (
+                    "Gaussian TS optimization requires 'ts'. "
+                    "Automatically prepended 'ts' to opt suboptions; "
+                    "please declare 'ts' explicitly in 'keywords' (e.g., opt=(ts,...))."
+                )
+            if not has_fc:
+                idx = 1 if opt_subopts and opt_subopts[0].lower() in ("ts", "qst2", "qst3") else 0
+                opt_subopts.insert(idx, "calcfc")
+                if warning:
+                    warning += " Also added 'calcfc' because Gaussian Berny TS optimization requires initial force constants."
+                else:
+                    warning = (
+                        "Gaussian TS optimization requires force constants ('calcfc'). "
+                        "Automatically added 'calcfc' to opt suboptions; "
+                        "please declare 'calcfc' explicitly in 'keywords' (e.g., opt=(ts,calcfc,...))."
+                    )
+            if not any(s.lower() == "noeigen" for s in opt_subopts):
+                opt_subopts.append("noeigen")
+        else:
+            opt_subopts = ["TS", "calcfc", "noeigen"]
+        return ",".join(opt_subopts), " ".join(other_tokens), warning
+    else:
+        if found_opt:
+            sub = ",".join(opt_subopts) if opt_subopts else None
+            return sub, " ".join(other_tokens), None
+        return None, " ".join(other_tokens), None
+
+
+def _extract_gaussian_freq_keywords(keywords: str | None) -> tuple[str | None, str, str | None]:
+    """从关键字中解析 Gaussian 的 freq 子参数，并返回剥离了 freq 后的其余关键字。
+
+    返回: (freq_suboptions, remaining_keywords, warning_message)
+    严格遵守 AGENTS.md 规范：不使用正则表达式 (re)，采用显式 token 与字符串拆分。
+    """
+    if not keywords or not keywords.strip():
+        return None, "", None
+
+    from cloudra.tools.core.calculation_intent import native_tokens
+
+    try:
+        tokens = native_tokens(keywords)
+    except ValueError:
+        tokens = keywords.split()
+
+    freq_subopts: list[str] = []
+    other_tokens: list[str] = []
+    found_freq = False
+
+    for raw_token in tokens:
+        token = raw_token.strip().rstrip(",")
+        if not token:
+            continue
+        token_lower = token.lower()
+        if token_lower == "freq" or token_lower.startswith("freq=") or token_lower.startswith("freq("):
+            found_freq = True
+            if token_lower.startswith("freq="):
+                val = token[5:].strip()
+            elif token_lower.startswith("freq("):
+                val = token[4:].strip()
+            else:
+                val = ""
+            if val.startswith("(") and val.endswith(")"):
+                val = val[1:-1].strip()
+            if val:
+                for sub in val.split(","):
+                    s = sub.strip()
+                    if s:
+                        freq_subopts.append(s)
+        else:
+            other_tokens.append(token)
+
+    if found_freq:
+        sub = ",".join(freq_subopts) if freq_subopts else None
+        return sub, " ".join(other_tokens), None
+    return None, " ".join(other_tokens), None
+
+
+def _extract_gaussian_irc_keywords(keywords: str | None) -> tuple[str, str, str | None]:
+    """从关键字中解析 Gaussian 的 IRC 子参数，确保包含 calcfc，并返回剥离了 irc 后的其余关键字。
+
+    返回: (irc_suboptions, remaining_keywords, warning_message)
+    严格遵守 AGENTS.md 规范：不使用正则表达式 (re)，采用显式 token 与字符串拆分。
+    """
+    if not keywords or not keywords.strip():
+        return "calcfc", "", None
+
+    from cloudra.tools.core.calculation_intent import native_tokens
+
+    try:
+        tokens = native_tokens(keywords)
+    except ValueError:
+        tokens = keywords.split()
+
+    irc_subopts: list[str] = []
+    other_tokens: list[str] = []
+    found_irc = False
+
+    for raw_token in tokens:
+        token = raw_token.strip().rstrip(",")
+        if not token:
+            continue
+        token_lower = token.lower()
+        if token_lower == "irc" or token_lower.startswith("irc=") or token_lower.startswith("irc("):
+            found_irc = True
+            if token_lower.startswith("irc="):
+                val = token[4:].strip()
+            elif token_lower.startswith("irc("):
+                val = token[3:].strip()
+            else:
+                val = ""
+            if val.startswith("(") and val.endswith(")"):
+                val = val[1:-1].strip()
+            if val:
+                for sub in val.split(","):
+                    s = sub.strip()
+                    if s:
+                        irc_subopts.append(s)
+        elif any(token_lower.startswith(prefix) for prefix in ("maxpoints=", "stepsize=", "recalc=")):
+            found_irc = True
+            for sub in token.split(","):
+                s = sub.strip()
+                if s:
+                    irc_subopts.append(s)
+        else:
+            other_tokens.append(token)
+
+    warning = None
+    if found_irc:
+        has_calcfc = any(s.lower() == "calcfc" for s in irc_subopts)
+        if not has_calcfc:
+            irc_subopts.insert(0, "calcfc")
+            warning = (
+                "Gaussian IRC requires initial force constants ('calcfc'). "
+                "Automatically prepended 'calcfc' to IRC suboptions; "
+                "please declare 'calcfc' explicitly in 'keywords' (e.g., irc=(calcfc,...))."
+            )
+    else:
+        irc_subopts = ["calcfc"]
+
+    return ",".join(irc_subopts), " ".join(other_tokens), warning
+
+
 def _write_irc_input(record: TsProcessRecord, job_dir: str) -> tuple[str, str]:
     """写 IRC 作业输入；返回 ``(错误, 输入路径)``。
 
@@ -2356,11 +2576,13 @@ def _write_irc_input(record: TsProcessRecord, job_dir: str) -> tuple[str, str]:
     Hessian for both IRC directions"。两个引擎的原生写法照
     ``references/{orca,gaussian}-inputs.md``：
 
-    - Gaussian：``task_type=[{"irc":"calcfc"}]``（默认双向，不加自定义步数上限）。
+    - Gaussian：``task_type=[{"irc": irc_subopts}]``（根据用户输入解析或默认 calcfc）。
     - ORCA：``task_type=[{"irc": None}]`` + 原生 ``%irc`` 块。Hessian 走哪个分支由**证据**决定，
       不是偏好：频率作业真的落下了同名 ``.hess`` 就用 ``InitHess read`` + ``Hess_Filename``；
       没有就按 skill 说的 ``InitHess calc_numfreq``（数值评估），绝不默认请求解析外部 Hessian。
     """
+    import warnings
+
     from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
     from cloudra.tools.core.calculation_intent import (
         inspect_input,
@@ -2401,12 +2623,19 @@ def _write_irc_input(record: TsProcessRecord, job_dir: str) -> tuple[str, str]:
         else:
             irca = "%irc\n  Direction both\n  InitHess calc_numfreq\nend"
         orca_blocks: Optional[str] = irca
+        clean_keywords = calculation.keywords
     else:
-        task_type = [{"irc": "calcfc"}]
+        irc_subopts, clean_keywords, warning = _extract_gaussian_irc_keywords(calculation.keywords)
+        if warning:
+            warnings.warn(warning, UserWarning)
+        task_type = [{"irc": irc_subopts}]
         orca_blocks = None
 
     request = QmInputWriter_input_schema(
-        **calculation.model_copy(update={'orca_blocks': '\n'.join(filter(None, [orca_blocks, calculation.orca_blocks])) or None}).model_dump(mode='json'),
+        **calculation.model_copy(update={
+            'orca_blocks': '\n'.join(filter(None, [orca_blocks, calculation.orca_blocks])) or None,
+            'keywords': clean_keywords,
+        }).model_dump(mode='json'),
         nproc=record.compute_cpus,
         mem=f"{record.compute_memory_mb}MB",
         source_type="xyz_file",
@@ -2739,11 +2968,24 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
         'IRC side ' + provenance['label']
         if provenance['kind'] == 'irc_outer_frame' else 'explicit species seed'
     )
-    task_type = [{"opt": None}] if task == "opt" else [{"freq": None}]
+    if calculation.engine == "gaussian":
+        import warnings
+        if task == "opt":
+            opt_subopts, rem_keywords, warn = _extract_gaussian_opt_keywords(calculation.keywords, is_ts=False)
+            task_type = [{"opt": opt_subopts}]
+        else:
+            freq_subopts, rem_keywords, warn = _extract_gaussian_freq_keywords(calculation.keywords)
+            task_type = [{"freq": freq_subopts}]
+        if warn:
+            warnings.warn(warn, UserWarning, stacklevel=2)
+        calc_copy = calculation.model_copy(update={'keywords': rem_keywords or None})
+    else:
+        task_type = [{"opt": None}] if task == "opt" else [{"freq": None}]
+        calc_copy = calculation
     name = f"{role}_{task}.{'inp' if calculation.engine == 'orca' else 'gjf'}"
     input_path = os.path.join(job_dir, name)
     request = QmInputWriter_input_schema(
-        **calculation.model_dump(mode='json'),
+        **calc_copy.model_dump(mode='json'),
         nproc=record.compute_cpus,
         mem=f"{record.compute_memory_mb}MB",
         source_type="xyz_file", source_value=source,

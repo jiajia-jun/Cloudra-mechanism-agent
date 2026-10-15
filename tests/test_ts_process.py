@@ -765,6 +765,225 @@ def test_gaussian_irc_uses_the_skill_recipe(tmp_path):
     assert "%irc" not in content
 
 
+def test_extract_gaussian_irc_keywords():
+    """解析 Gaussian IRC 关键词，保证必须包含 calcfc，无正则。"""
+    from cloudra.tools.core.ts_process import _extract_gaussian_irc_keywords
+
+    # 1. 空或无参数 -> 默认 calcfc
+    assert _extract_gaussian_irc_keywords("") == ("calcfc", "", None)
+    assert _extract_gaussian_irc_keywords(None) == ("calcfc", "", None)
+
+    # 2. 完整带 calcfc 与其他参数 -> 无 warning，保留其余关键词
+    subopts, rem, warn = _extract_gaussian_irc_keywords("irc=(calcfc,maxpoints=40,stepsize=10) empiricaldispersion=gd3bj")
+    assert subopts == "calcfc,maxpoints=40,stepsize=10"
+    assert rem == "empiricaldispersion=gd3bj"
+    assert warn is None
+
+    # 3. 遗漏 calcfc -> 自动补齐并给出明确警告
+    subopts, rem, warn = _extract_gaussian_irc_keywords("irc=(maxpoints=40,stepsize=10)")
+    assert subopts == "calcfc,maxpoints=40,stepsize=10"
+    assert rem == ""
+    assert warn is not None
+    assert "Gaussian IRC requires initial force constants ('calcfc')" in warn
+
+    # 4. 裸 irc 声明 -> 补齐 calcfc 并报警
+    subopts, rem, warn = _extract_gaussian_irc_keywords("irc")
+    assert subopts == "calcfc"
+    assert rem == ""
+    assert warn is not None
+    assert "Gaussian IRC requires initial force constants ('calcfc')" in warn
+
+    # 5. 直接传入 IRC 子参数格式（如 maxpoints=50,stepsize=5） -> 自动打包进 irc 并补上 calcfc 与警告
+    subopts, rem, warn = _extract_gaussian_irc_keywords("maxpoints=50,stepsize=5")
+    assert subopts == "calcfc,maxpoints=50,stepsize=5"
+    assert rem == ""
+    assert warn is not None
+    assert "Gaussian IRC requires initial force constants ('calcfc')" in warn
+
+
+def test_gaussian_irc_custom_options_missing_calcfc_warns_and_fixes(tmp_path):
+    """模型漏写 calcfc 时（Issue #184），自动补齐 calcfc、发出警告，且避免路线重复 irc 报错。"""
+    import pytest
+
+    from cloudra.tools.core.ts_process import TsJobStep, _write_irc_input
+
+    record = _start(tmp_path, engine="gaussian", keywords="irc=(maxpoints=40,stepsize=10)")
+    job2 = Path(record.run_dir) / "jobs" / "job_0002"
+    job2.mkdir(parents=True, exist_ok=True)
+    (job2 / "optimized.xyz").write_text(
+        "3\noptimised\nO 0.0 0.0 0.0\nH 0.96 0.0 0.0\nH -0.24 0.93 0.0\n", encoding="utf-8"
+    )
+    freq_input = job2 / "frequency.gjf"
+    freq_input.write_text("#p freq\n", encoding="utf-8")
+    record.job_steps.append(TsJobStep(
+        purpose="frequency", job_id=9002, input_path=str(freq_input), state="done",
+    ))
+    job3 = Path(record.run_dir) / "jobs" / "job_0003"
+    job3.mkdir(parents=True, exist_ok=True)
+
+    with pytest.warns(UserWarning, match=r"Gaussian IRC requires initial force constants"):
+        error, path = _write_irc_input(record, str(job3))
+
+    assert error == ""
+    content = Path(path).read_text(encoding="utf-8")
+    route_lines = [line for line in content.splitlines() if line.startswith("#")]
+    assert len(route_lines) == 1
+    route = route_lines[0].lower()
+    assert "irc=(calcfc,maxpoints=40,stepsize=10)" in route
+    assert route.count("irc") == 1  # 绝不出现两个 irc 关键词导致 Gaussian 语法崩溃
+
+
+def test_gaussian_irc_custom_options_with_calcfc_clean_route(tmp_path, recwarn):
+    """模型正确写出 calcfc 时，保留选项且不发伪警告，路线合并整洁。"""
+    from cloudra.tools.core.ts_process import TsJobStep, _write_irc_input
+
+    record = _start(tmp_path, engine="gaussian", keywords="irc=(calcfc,maxpoints=40,stepsize=10) empiricaldispersion=gd3bj")
+    job2 = Path(record.run_dir) / "jobs" / "job_0002"
+    job2.mkdir(parents=True, exist_ok=True)
+    (job2 / "optimized.xyz").write_text(
+        "3\noptimised\nO 0.0 0.0 0.0\nH 0.96 0.0 0.0\nH -0.24 0.93 0.0\n", encoding="utf-8"
+    )
+    freq_input = job2 / "frequency.gjf"
+    freq_input.write_text("#p freq\n", encoding="utf-8")
+    record.job_steps.append(TsJobStep(
+        purpose="frequency", job_id=9002, input_path=str(freq_input), state="done",
+    ))
+    job3 = Path(record.run_dir) / "jobs" / "job_0003"
+    job3.mkdir(parents=True, exist_ok=True)
+
+    error, path = _write_irc_input(record, str(job3))
+    assert error == ""
+    # 确认没有弹出 UserWarning
+    user_warnings = [w for w in recwarn if issubclass(w.category, UserWarning) and "irc" in str(w.message)]
+    assert not user_warnings
+
+    content = Path(path).read_text(encoding="utf-8")
+    route_lines = [line for line in content.splitlines() if line.startswith("#")]
+    assert len(route_lines) == 1
+    route = route_lines[0].lower()
+    assert "irc=(calcfc,maxpoints=40,stepsize=10)" in route
+    assert "empiricaldispersion=gd3bj" in route
+    assert route.count("irc") == 1
+
+
+def test_extract_gaussian_opt_keywords():
+    """解析 Gaussian opt 关键词：TS 阶段确保 ts/calcfc/noeigen，极小值阶段按需提取。"""
+    from cloudra.tools.core.ts_process import _extract_gaussian_opt_keywords
+
+    # 1. 空或无参数 -> TS 默认 TS,calcfc,noeigen；极小值返回 None
+    assert _extract_gaussian_opt_keywords("", is_ts=True) == ("TS,calcfc,noeigen", "", None)
+    assert _extract_gaussian_opt_keywords(None, is_ts=True) == ("TS,calcfc,noeigen", "", None)
+    assert _extract_gaussian_opt_keywords("", is_ts=False) == (None, "", None)
+
+    # 2. TS opt 完整指定 -> 无警告，剥离其余关键字
+    subopts, rem, warn = _extract_gaussian_opt_keywords("opt=(ts,calcfc,noeigen,maxstep=10) nosymm", is_ts=True)
+    assert subopts == "ts,calcfc,noeigen,maxstep=10"
+    assert rem == "nosymm"
+    assert warn is None
+
+    # 3. TS opt 漏写 ts -> 自动补齐 ts/calcfc/noeigen 并发出警告
+    subopts, rem, warn = _extract_gaussian_opt_keywords("opt=(maxstep=10)", is_ts=True)
+    assert "ts" in subopts.lower()
+    assert "calcfc" in subopts.lower()
+    assert "noeigen" in subopts.lower()
+    assert rem == ""
+    assert warn is not None
+    assert "Gaussian TS optimization requires 'ts'" in warn
+
+    # 4. 极小值优化提取自定义 opt 选项，无多余补齐与警告
+    subopts, rem, warn = _extract_gaussian_opt_keywords("opt=(tight,calcfc) nosymm", is_ts=False)
+    assert subopts == "tight,calcfc"
+    assert rem == "nosymm"
+    assert warn is None
+
+    # 5. 极小值优化传裸 opt
+    subopts, rem, warn = _extract_gaussian_opt_keywords("opt nosymm", is_ts=False)
+    assert subopts is None
+    assert rem == "nosymm"
+    assert warn is None
+
+
+def test_extract_gaussian_freq_keywords():
+    """解析 Gaussian freq 关键词，提取子选项并保留其余关键字。"""
+    from cloudra.tools.core.ts_process import _extract_gaussian_freq_keywords
+
+    assert _extract_gaussian_freq_keywords("") == (None, "", None)
+    assert _extract_gaussian_freq_keywords(None) == (None, "", None)
+
+    subopts, rem, warn = _extract_gaussian_freq_keywords("freq=noraman nosymm")
+    assert subopts == "noraman"
+    assert rem == "nosymm"
+    assert warn is None
+
+    subopts, rem, warn = _extract_gaussian_freq_keywords("freq=(noraman) nosymm")
+    assert subopts == "noraman"
+    assert rem == "nosymm"
+    assert warn is None
+
+    subopts, rem, warn = _extract_gaussian_freq_keywords("freq nosymm")
+    assert subopts is None
+    assert rem == "nosymm"
+    assert warn is None
+
+
+def test_gaussian_refinement_input_merges_keywords_without_duplicate_opt(tmp_path):
+    """Gaussian TS 精修输入正确合并用户声明的 opt 关键词，避免重复 opt。"""
+    from cloudra.tools.core.ts_process import _write_refinement_input
+
+    source = tmp_path / "guess.xyz"
+    source.write_text("3\nguess\nO 0.0 0.0 0.0\nH 0.96 0.0 0.0\nH -0.24 0.93 0.0\n", encoding="utf-8")
+    record = _start(tmp_path, engine="gaussian", keywords="opt=(ts,calcfc,noeigen,maxstep=10) nosymm")
+    record.current_ts_guess_path = str(source)
+    record.path_kind = "provided"
+    job1 = Path(record.run_dir) / "jobs" / "job_0001"
+    job1.mkdir(parents=True, exist_ok=True)
+    error, path = _write_refinement_input(record, str(job1))
+    assert error == ""
+    content = Path(path).read_text(encoding="utf-8")
+    route_lines = [line for line in content.splitlines() if line.startswith("#")]
+    assert len(route_lines) == 1
+    route = route_lines[0].lower()
+    assert "opt=(ts,calcfc,noeigen,maxstep=10)" in route
+    assert "nosymm" in route
+    assert route.count("opt") == 1
+
+
+def test_gaussian_frequency_input_merges_keywords_without_duplicate_freq(tmp_path, monkeypatch):
+    """Gaussian 频率作业正确合并用户声明的 freq 关键词，避免重复 freq。"""
+    from cloudra.tools.core import gaussian_frames
+    from cloudra.tools.core.gaussian_frames import FrameRecord
+    from cloudra.tools.core.ts_process import TsJobStep, _write_frequency_input
+
+    record = _start(tmp_path, engine="gaussian", keywords="freq=noraman nosymm")
+    job1 = Path(record.run_dir) / "jobs" / "job_0001"
+    job1.mkdir(parents=True, exist_ok=True)
+    xyz_content = "3\noptimised\nO 0.0 0.0 0.0\nH 0.96 0.0 0.0\nH -0.24 0.93 0.0\n"
+    (job1 / "optimized.xyz").write_text(xyz_content, encoding="utf-8")
+    (job1 / "refinement.log").write_text("Normal termination of Gaussian\n", encoding="utf-8")
+    opt_input = job1 / "refinement.gjf"
+    opt_input.write_text("#p opt=ts\n", encoding="utf-8")
+    record.job_steps.append(TsJobStep(
+        purpose="ts_opt", job_id=9001, input_path=str(opt_input), state="done",
+    ))
+    monkeypatch.setattr(
+        gaussian_frames,
+        "extract_frames",
+        lambda _path: [FrameRecord(frame=0, xyz=xyz_content)],
+    )
+    job2 = Path(record.run_dir) / "jobs" / "job_0002"
+    job2.mkdir(parents=True, exist_ok=True)
+
+    error, path = _write_frequency_input(record, str(job2))
+    assert error == ""
+    content = Path(path).read_text(encoding="utf-8")
+    route_lines = [line for line in content.splitlines() if line.startswith("#")]
+    assert len(route_lines) == 1
+    route = route_lines[0].lower()
+    assert "freq=noraman" in route
+    assert "nosymm" in route
+    assert route.count("freq") == 1
+
+
 # ---------------------------------------------------------------------------
 # 第二端几何来源：两端 SMILES 相同的题型（阻转异构 / 外消旋）
 # ---------------------------------------------------------------------------
