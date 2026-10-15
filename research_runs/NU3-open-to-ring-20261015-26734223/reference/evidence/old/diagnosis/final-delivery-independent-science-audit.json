@@ -1,0 +1,318 @@
+{
+  "observation_utc": "2026-10-14T18:52:14.387395+00:00",
+  "scope": "Read-only final delivery scientific interpretation; no new native calculations, scoring, event-effect audit, or scientific criteria changes.",
+  "batch_id": "batch_8758d928b8794e87",
+  "project_id": "prj_0ebba0aa1a8140ce",
+  "source_commit_reported": "f2769986a5f3c0271015b7a72f238030afc3bf87",
+  "final_artifact": {
+    "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/mechanism_graph.json",
+    "sha256": "f535fe88354dacd8df16dea582ae70cce447fae7c4a488ff7027ccc0359d09d9",
+    "recorded_sha256": "f535fe88354dacd8df16dea582ae70cce447fae7c4a488ff7027ccc0359d09d9",
+    "snapshot_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/f535fe88354dacd8_mechanism_graph.json",
+    "snapshot_byte_identical": true,
+    "node_count": 6,
+    "edge_count": 3
+  },
+  "delivery_disposition": {
+    "disposition": "partial",
+    "graph_revision": 11,
+    "created_at": "2026-10-14 18:45:43"
+  },
+  "delivery_coverage": {
+    "complete": false,
+    "unresolved": [
+      {
+        "code": "missing_stage_evidence",
+        "detail": "required stages pending: ts_opt, frequency, short_irc",
+        "target_id": "step_ca443b82",
+        "target_type": "edge",
+        "waiver": null
+      }
+    ],
+    "waived": [],
+    "satisfied": [
+      {
+        "code": "supervisor_evidence_accepted",
+        "detail": "Supervisor accepted immutable per-file evidence for stages: geometry",
+        "target_id": "sp_0fd955e9",
+        "target_type": "node",
+        "waiver": null
+      },
+      {
+        "code": "supervisor_evidence_accepted",
+        "detail": "Supervisor accepted immutable per-file evidence for stages: geometry",
+        "target_id": "sp_7b858c70",
+        "target_type": "node",
+        "waiver": null
+      },
+      {
+        "code": "supervisor_evidence_accepted",
+        "detail": "Supervisor accepted immutable per-file evidence for stages: geometry",
+        "target_id": "sp_fbfe786b",
+        "target_type": "node",
+        "waiver": null
+      },
+      {
+        "code": "supervisor_evidence_accepted",
+        "detail": "Supervisor accepted immutable per-file evidence for stages: frequency, short_irc, ts_opt",
+        "target_id": "step_2406e262",
+        "target_type": "edge",
+        "waiver": null
+      }
+    ],
+    "scientific_checks": {
+      "OPEN": {
+        "geometry": {
+          "reason": "Exploratory output is not submitted for DAG review.",
+          "status": "unreviewed"
+        }
+      },
+      "TS_PT": {
+        "saddle": {
+          "reason": "Exploratory candidate is not submitted for DAG review.",
+          "status": "unreviewed"
+        }
+      },
+      "e3_pt_channel": {
+        "connectivity": {
+          "reason": "Exploratory output does not earn DAG completion credit.",
+          "status": "unreviewed"
+        }
+      },
+      "sp_0fd955e9": {
+        "geometry": {
+          "detail": "Normally terminated zero-imaginary-frequency geometry matches the complete species.",
+          "next_action": "",
+          "status": "passed"
+        }
+      },
+      "sp_7b858c70": {
+        "geometry": {
+          "detail": "Normally terminated zero-imaginary-frequency geometry matches the complete species.",
+          "next_action": "",
+          "status": "passed"
+        }
+      },
+      "sp_fbfe786b": {
+        "geometry": {
+          "detail": "Normally terminated zero-imaginary-frequency geometry matches the complete species.",
+          "next_action": "",
+          "status": "passed"
+        }
+      },
+      "step_2406e262": {
+        "frequency": {
+          "detail": "Native normal termination and exactly 1 imaginary frequencies required. ",
+          "next_action": "",
+          "status": "passed"
+        },
+        "short_irc": {
+          "detail": "Geometric IRC direction interval proof passed.",
+          "next_action": "",
+          "status": "passed"
+        },
+        "ts_opt": {
+          "detail": "Native optimization convergence and one-imaginary-frequency evidence for the same geometry passed; reaction direction is checked separately.",
+          "next_action": "",
+          "status": "passed"
+        }
+      },
+      "step_ca443b82": {
+        "frequency": {
+          "detail": "Native normal termination and exactly 1 imaginary frequencies required. ",
+          "next_action": "Submit a normally terminated frequency log showing 1 imaginary frequencies; repair the calculation or supply missing evidence.",
+          "status": "incomplete"
+        },
+        "short_irc": {
+          "detail": "No usable bound bidirectional IRC evidence.",
+          "next_action": "Submit the IRC log with both endpoint geometries and frequency-verified source/target minima. Re-submit this step after adding evidence; full IRC convergence is not required.",
+          "status": "incomplete"
+        },
+        "ts_opt": {
+          "detail": "Native converged optimization with matching first-order-saddle frequency evidence required. ",
+          "next_action": "Submit the normally terminated converged optimization and its matching frequency log; a frequency-only calculation is not optimization evidence.",
+          "status": "incomplete"
+        }
+      }
+    }
+  },
+  "actual_final_graph": {
+    "direct_RC_to_ring": {
+      "id": "step_ca443b82",
+      "from": "sp_0fd955e9",
+      "to": "sp_7b858c70",
+      "via": null,
+      "bond_changes": {
+        "form": [
+          [
+            1,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ],
+        "break": [
+          [
+            3,
+            4
+          ]
+        ]
+      },
+      "channel": "concerted_cycloaddition_UNPROVEN_no_TS_three_OptTS_attempts_failed_and_relaxed_scans_gave_no_defensible_saddle_barrierless_not_claimed",
+      "favored": false
+    },
+    "ring_to_product": {
+      "id": "step_2406e262",
+      "from": "sp_7b858c70",
+      "to": "sp_fbfe786b",
+      "via": "TS2",
+      "bond_changes": {
+        "form": [
+          [
+            1,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ],
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 23.75,
+      "channel": "retro_2+2_cycloreversion_verified",
+      "favored": true
+    },
+    "competing_channel": {
+      "id": "e3_pt_channel",
+      "from": "sp_0fd955e9",
+      "to": "OPEN",
+      "via": "TS_PT",
+      "bond_changes": {
+        "form": [
+          [
+            1,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "break": [
+          [
+            2,
+            5
+          ],
+          [
+            3,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 1.69,
+      "channel": "EXPLORATORY_UNREVIEWED_competing_P_H_to_O_proton_transfer_gasphase_model_dependent",
+      "favored": false
+    },
+    "exploratory_nodes": [
+      {
+        "id": "TS_PT",
+        "role": "transition_state",
+        "smiles": [],
+        "properties": {
+          "energy_hartree": -496.538396,
+          "evidence_log": "ts/ts_0001/jobs/declaration_0007/frequency/.cloudra/calc-48.out.log",
+          "reviewed": false,
+          "exploratory": true,
+          "note": "EXPLORATORY / UNREVIEWED competing channel: P-H -> O-H proton-transfer saddle (one imaginary mode -279.8 cm^-1), NOT the cycloaddition TS. A facile gas-phase P-H to O proton transfer / zwitterion is strongly method-dependent (no implicit solvent authorized)."
+        }
+      },
+      {
+        "id": "OPEN",
+        "role": "intermediate",
+        "smiles": [
+          "OCCP"
+        ],
+        "properties": {
+          "energy_hartree": -496.635832,
+          "evidence_log": "ts/ts_0001/jobs/declaration_0007/product_frequency/.cloudra/calc-53.out.log",
+          "reviewed": false,
+          "exploratory": true,
+          "label": "HOCH2CH2PH2 (open-chain proton-transfer product)",
+          "note": "EXPLORATORY / UNREVIEWED off-path product of the competing proton-transfer channel, 24.3 kcal/mol below the Reactant Complex; strongly method-dependent."
+        }
+      }
+    ]
+  },
+  "independent_native_context": {
+    "backstep": "Previous scoped native audit supports PH3 oxaphosphetane to ethylene plus PH3O, with a single-imaginary TS and genuine bidirectional IRC; source/target minima are zero-imaginary. Formal coverage marks the same edge ts_opt, frequency, short_irc passed.",
+    "backstep_evidence_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/diagnosis/ts2-decl9-native-endpoint-observation.json",
+    "frontstep_competitor": "Native IRC49 connects RC to H2P-CH2-CH2-OH; jobs50/52 converge and51/53 have zero imaginary frequencies. Final target has O9-H7 0.9685 A, P2-H7 2.7120 A, P2-O9 3.2074 A: genuine hydrogen relocation and open-chain connectivity, not PH3 ring.",
+    "frontstep_evidence_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/diagnosis/ts1-decl7-endpoints50-53-native-observation.json",
+    "frontstep_irc_evidence_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/diagnosis/ts1-decl7-irc49-terminal-supplement.json",
+    "barrier_language": "The delivery records23.75 kcal/mol for the backstep and1.69 kcal/mol for the competitor as electronic-energy differences; this audit does not promote them to Gibbs activation free energies."
+  },
+  "failure_vs_inaccessibility": {
+    "final_delivery_claims": "The direct RC-to-ring edge is UNPROVEN, has no TS and no claimed barrier; its channel explicitly says barrierless_not_claimed. Finite search failures do not establish physical inaccessibility.",
+    "job54": "Native SCF-gradient MPI segmentation fault after9 converged constrained scan points; point10 aborted. The public PROCESS explicitly calls this scan-execution failure and says it neither proves nor disproves the cycloaddition barrier.",
+    "job54_native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0008/scan/.cloudra/calc-54.out.log",
+    "job54_existing_audit": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/diagnosis/scan54-concerted-freeze-native-observation.json",
+    "process_lines": {
+      "job54_failure_is_not_chemical_conclusion": "168-171",
+      "partial_final_conclusion": "182-185"
+    }
+  },
+  "accessible_semantics": {
+    "explicit_false_nodes": [],
+    "explicit_false_edges": [],
+    "accessible_field_present_nodes": [],
+    "accessible_field_present_edges": [],
+    "current_artifact": "No node or edge declares accessible. Existing schema defaults each to true. This delivery therefore does not encode missing evidence as accessible=false.",
+    "existing_schema_meaning": "accessible=false is an explicit declaration of inaccessibility at the allowed method level; it is not the missing-evidence or unproven state. Such declarations waive evidence requirements in the existing scoring logic.",
+    "code_locations": [
+      "/Users/cloudrayyy/.codex/worktrees/nu3-final-review/Cloudra-mechanism-agent-master/cloudra/benchmark/schema.py:62",
+      "/Users/cloudrayyy/.codex/worktrees/nu3-final-review/Cloudra-mechanism-agent-master/cloudra/benchmark/schema.py:76",
+      "/Users/cloudrayyy/.codex/worktrees/nu3-final-review/Cloudra-mechanism-agent-master/cloudra/benchmark/schema.py:141",
+      "/Users/cloudrayyy/.codex/worktrees/nu3-final-review/Cloudra-mechanism-agent-master/cloudra/benchmark/selfconsistency.py:344"
+    ],
+    "self_score_limit": "The parent reports self-consistency1. Under existing code, an edge with via=None is covered when both endpoint species are covered (selfconsistency.py355-369). This score does not verify the missing RC-to-ring TS or restore full-path evidence.",
+    "self_score_code_location": "/Users/cloudrayyy/.codex/worktrees/nu3-final-review/Cloudra-mechanism-agent-master/cloudra/benchmark/selfconsistency.py:355"
+  },
+  "supervisor_terminal_reasons_only": [
+    {
+      "request_id": "req_4f9ef0bbff8f4ecd85b4ffd731ee4519",
+      "state": "resolved",
+      "verdict": "needs_evidence",
+      "reason": "A partial finish is acceptable in principle — the coverage report honestly shows complete=false with step1 unresolved — but the FINAL ARTIFACT mechanism_graph.json currently overclaims and must be corrected before I can let the delivery close, even as partial. (1) Edge step_ca443b82 (Reactant Complex -> Oxaphosphetane, 'concerted_cycloaddition') is annotated 'favored: true' with 'via: null' while NO transition state has ever been bound or verified for it (three OptTS attempts failed; the scans have not yielded a defensible concerted saddle). Labelling the unproven edge as 'favored' is a mechanistic conclusion that the submitted evidence does not support. (2) The only saddle actually located in the RC region is TS_PT (-496.538396 Ha, -279.8 cm-1, P-H -> O-H), and its product OPEN (HOCH2CH2PH2, -496.635832 Ha) is 24.3 kcal/mol BELOW the Reactant Complex with a barrier of only 1.69 kcal/mol — i.e. the computed data, taken at face value, favour the proton-transfer channel over the (unlocated) cycloaddition, yet the artifact marks TS_PT/OPEN/e3_pt_channel as 'unreviewed' while marking the cycloaddition 'favored'. That internal inconsistency in the deliverable is not acceptable at final delivery. (3) These exploratory nodes/edges and the gas-phase model caveat (a gas-phase zwitterion/P-H transfer is strongly model-dependent) must be labelled explicitly as exploratory and unreviewed rather than presented alongside accepted evidence. Nothing here waives the step1 gap: step1 genuinely remains unproven (ts_opt + frequency + short_irc absent), so the delivery can only be PARTIAL."
+    },
+    {
+      "request_id": "req_e67ac6d41d3246b884e6d777efb7a84e",
+      "state": "resolved",
+      "verdict": "accept",
+      "reason": "The correction I required has been made and the partial delivery is now honest. mechanism_graph.json (sha f535fe88…) no longer overclaims: step_ca443b82 is `favored: false` with a channel explicitly naming it UNPROVEN (no TS; three OptTS attempts failed; relaxed scans gave no defensible saddle; barrierless not claimed); TS_PT and OPEN are marked reviewed:false/exploratory:true with the gas-phase model caveat; e3_pt_channel is labelled EXPLORATORY_UNREVIEWED. The accepted evidence is unchanged and still valid (Reactant Complex, Oxaphosphetane, Product Complex geometries; step_2406e262 retro-[2+2] cycloreversion, TS2 -496.547766 Ha, -624.9 cm-1, IRC direction/interval proof passed). The delivery report correctly shows complete=false with only step1 (step_ca443b82) ts_opt+frequency+short_irc outstanding. A partial finish is therefore acceptable: the gap is real, named and not disguised, and the mechanism conclusions that are claimed (oxaphosphetane route, cycloreversion to C2H4 + H3P=O) rest on verified evidence, while the unresolved cycloaddition edge and the competing proton-transfer channel are retained as provisional/exploratory."
+    }
+  ],
+  "narrative_precision": {
+    "process_historical_wording": "PROCESS line156 says P2-H9 is lost; native atom9 is O, not H. The independently measured transfer is H7 from P2 to O9. The final OPEN label HOCH2CH2PH2 is chemically consistent with the native structure.",
+    "no_exhaustive_claim": "Only located or no saddle found describes these finite searches; it cannot establish that no other RC-to-ring saddle/path exists."
+  },
+  "conclusion": "Scientifically honest partial delivery after artifact correction: supported backstep; genuine but formally exploratory RC-to-PH2OH competing channel; direct RC-to-PH3-ring connection still unproven. No complete NU3 route and no basis to adopt a new complete reference from this run.",
+  "actions": {
+    "source_edits": false,
+    "runtime_or_scientific_material_edits": false,
+    "new_computation_or_scoring": false,
+    "live_agent_messages": false,
+    "wait_for_new_calculations": false
+  }
+}

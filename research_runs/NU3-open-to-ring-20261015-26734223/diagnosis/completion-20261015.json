@@ -1,0 +1,16 @@
+{
+  "completed_at": "2026-10-14T21:20:04.803276+00:00",
+  "goal": "Independently verify open OCCP to PH3 ring; save separate full-route reference and diagnostic comparison under prior authorization.",
+  "scientific_species_route": "RC -> OCCP -> PH3 ring -> ethylene + PH3O",
+  "final_result": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/final-result.json",
+  "reference": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/reference/NU3.revised.json",
+  "original_formal_score_preserved": 0.5777,
+  "readonly_revised_reference_old_delivery_score": 0.5777,
+  "standalone_formal_score": null,
+  "independent_review": "final_no_blocker",
+  "monitoring_status": "PAUSED",
+  "chat_archived": false,
+  "production_source_or_science_rule_changes": false,
+  "new_computation_or_research_backend_for_scoring": false,
+  "services_stopped": false
+}

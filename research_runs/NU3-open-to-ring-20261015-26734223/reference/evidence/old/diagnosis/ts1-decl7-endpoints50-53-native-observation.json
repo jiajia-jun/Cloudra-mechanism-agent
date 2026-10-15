@@ -1,0 +1,996 @@
+{
+  "observed_at_utc": "2026-10-14T18:43:10.449757+00:00",
+  "source_cwd": "/Users/cloudrayyy/.codex/worktrees/nu3-final-review/Cloudra-mechanism-agent-master",
+  "frozen_revision": "f2769986a5f3c0271015b7a72f238030afc3bf87",
+  "batch_id": "batch_8758d928b8794e87",
+  "scope": "仅只读50-53原生日志/XYZ和52来源；49方向/50初始来源引用已核记录，不重审完整49，不等待/核54，不改source/DB/科学输入或规则、不运行QM/API/observer或发liveAgent纠正，不接触Gold/thinking。",
+  "declaration7": {
+    "reaction": {
+      "reactant_smiles": "[CH2-][PH3+].C=O",
+      "product_smiles": "C1[PH3]OC1",
+      "charge": 0,
+      "multiplicity": 1,
+      "electronic_character": null,
+      "atom_map": [
+        0,
+        1,
+        8,
+        7,
+        2,
+        3,
+        4,
+        5,
+        6,
+        9,
+        10
+      ],
+      "reaction_center": [
+        [
+          0,
+          7
+        ],
+        [
+          1,
+          8
+        ],
+        [
+          7,
+          8
+        ]
+      ]
+    },
+    "verification": {
+      "frequency": {
+        "ref": "dft"
+      },
+      "irc": {
+        "ref": "dft"
+      },
+      "irc_log": null,
+      "reactant_endpoint": {
+        "seed": null,
+        "optimization": {
+          "ref": "dft"
+        },
+        "frequency": {
+          "ref": "dft"
+        }
+      },
+      "product_endpoint": {
+        "seed": null,
+        "optimization": {
+          "ref": "dft"
+        },
+        "frequency": {
+          "ref": "dft"
+        }
+      }
+    }
+  },
+  "native_observations": [
+    {
+      "job_id": 50,
+      "state": "done",
+      "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/reactant_opt/reactant_opt.inp",
+      "input_header": "# Endpoint reactant opt from IRC side B; identity unverified | declared_species: [CH2-][PH3+].C=O\n! Opt B3LYP def2-SVP D3BJ TightSCF\n%pal nprocs 8 end\n%maxcore 1000",
+      "native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/reactant_opt/.cloudra/calc-50.out.log",
+      "native_log_sha256": "50a32c88998ca59be953ce41a0ea17d07abeeb00698a068236b979f40a47830c",
+      "native_markers": [
+        {
+          "line": 10210,
+          "text": "***        THE OPTIMIZATION HAS CONVERGED     ***"
+        },
+        {
+          "line": 11326,
+          "text": "****ORCA TERMINATED NORMALLY****"
+        }
+      ],
+      "frequency_rows": 0,
+      "imaginary_frequency_count": null,
+      "negative_frequencies": [],
+      "final_xyz": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/reactant_opt/reactant_opt.xyz",
+      "xyz_sha256": "d33afc96c64802c3016cd85c2f014f9b1fbdd8bdb3762d3d6dedc9f53e7a31ba",
+      "geometry": {
+        "atom_order": [
+          "C",
+          "P",
+          "H",
+          "H",
+          "H",
+          "H",
+          "H",
+          "C",
+          "O",
+          "H",
+          "H"
+        ],
+        "heavy_distances": [
+          {
+            "atoms_1based": [
+              1,
+              2
+            ],
+            "elements": [
+              "C",
+              "P"
+            ],
+            "angstrom": 1.6951546737624783
+          },
+          {
+            "atoms_1based": [
+              1,
+              8
+            ],
+            "elements": [
+              "C",
+              "C"
+            ],
+            "angstrom": 2.696293298055355
+          },
+          {
+            "atoms_1based": [
+              1,
+              9
+            ],
+            "elements": [
+              "C",
+              "O"
+            ],
+            "angstrom": 3.2287140638809206
+          },
+          {
+            "atoms_1based": [
+              2,
+              8
+            ],
+            "elements": [
+              "P",
+              "C"
+            ],
+            "angstrom": 3.2092067290166497
+          },
+          {
+            "atoms_1based": [
+              2,
+              9
+            ],
+            "elements": [
+              "P",
+              "O"
+            ],
+            "angstrom": 3.193422453635258
+          },
+          {
+            "atoms_1based": [
+              8,
+              9
+            ],
+            "elements": [
+              "C",
+              "O"
+            ],
+            "angstrom": 1.2140139507669785
+          }
+        ],
+        "all_P2_H": [
+          {
+            "H_1based": 3,
+            "angstrom": 2.381951444371359
+          },
+          {
+            "H_1based": 4,
+            "angstrom": 2.3847373780479892
+          },
+          {
+            "H_1based": 5,
+            "angstrom": 1.4128572347807673
+          },
+          {
+            "H_1based": 6,
+            "angstrom": 1.44566022228829
+          },
+          {
+            "H_1based": 7,
+            "angstrom": 1.4204170601812287
+          },
+          {
+            "H_1based": 10,
+            "angstrom": 3.766812677943996
+          },
+          {
+            "H_1based": 11,
+            "angstrom": 3.338415709695314
+          }
+        ],
+        "all_O9_H": [
+          {
+            "H_1based": 3,
+            "angstrom": 4.159581857676494
+          },
+          {
+            "H_1based": 4,
+            "angstrom": 3.3412776692222974
+          },
+          {
+            "H_1based": 5,
+            "angstrom": 3.862757504549561
+          },
+          {
+            "H_1based": 6,
+            "angstrom": 4.33063793351312
+          },
+          {
+            "H_1based": 7,
+            "angstrom": 2.257204761908401
+          },
+          {
+            "H_1based": 10,
+            "angstrom": 2.0458513849520576
+          },
+          {
+            "H_1based": 11,
+            "angstrom": 2.047962643743832
+          }
+        ],
+        "nearest_heavy_each_H": [
+          {
+            "H_1based": 3,
+            "heavy_1based": 1,
+            "angstrom": 1.0942219193388776
+          },
+          {
+            "H_1based": 4,
+            "heavy_1based": 1,
+            "angstrom": 1.0942442789403664
+          },
+          {
+            "H_1based": 5,
+            "heavy_1based": 2,
+            "angstrom": 1.4128572347807673
+          },
+          {
+            "H_1based": 6,
+            "heavy_1based": 2,
+            "angstrom": 1.44566022228829
+          },
+          {
+            "H_1based": 7,
+            "heavy_1based": 2,
+            "angstrom": 1.4204170601812287
+          },
+          {
+            "H_1based": 10,
+            "heavy_1based": 8,
+            "angstrom": 1.1156640300671166
+          },
+          {
+            "H_1based": 11,
+            "heavy_1based": 8,
+            "angstrom": 1.1169648969349026
+          }
+        ]
+      },
+      "native_cartesian_header_line": 10290,
+      "native_geometry_vs_xyz": {
+        "same_atom_order": true,
+        "max_coordinate_difference_A": 4.958079200534371e-07
+      }
+    },
+    {
+      "job_id": 51,
+      "state": "done",
+      "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/reactant_frequency/reactant_frequency.inp",
+      "input_header": "# Endpoint reactant frequency from IRC side B; identity unverified | declared_species: [CH2-][PH3+].C=O\n! Freq B3LYP def2-SVP D3BJ TightSCF\n%pal nprocs 8 end\n%maxcore 1000",
+      "native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/reactant_frequency/.cloudra/calc-51.out.log",
+      "native_log_sha256": "2dd8533599025eb7c3a0170ba5e583a77dff818c3b9616c888e6be6ef9f601a2",
+      "native_markers": [
+        {
+          "line": 1324,
+          "text": "VIBRATIONAL FREQUENCIES"
+        },
+        {
+          "line": 1900,
+          "text": "****ORCA TERMINATED NORMALLY****"
+        }
+      ],
+      "frequency_rows": 33,
+      "imaginary_frequency_count": 0,
+      "negative_frequencies": [],
+      "final_xyz": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/reactant_frequency/optimized.xyz",
+      "xyz_sha256": "c295cfada4c3150464c8bcb97872948ee574dc88054cc851812fe98843bd55ae",
+      "geometry": {
+        "atom_order": [
+          "C",
+          "P",
+          "H",
+          "H",
+          "H",
+          "H",
+          "H",
+          "C",
+          "O",
+          "H",
+          "H"
+        ],
+        "heavy_distances": [
+          {
+            "atoms_1based": [
+              1,
+              2
+            ],
+            "elements": [
+              "C",
+              "P"
+            ],
+            "angstrom": 1.6951549528565226
+          },
+          {
+            "atoms_1based": [
+              1,
+              8
+            ],
+            "elements": [
+              "C",
+              "C"
+            ],
+            "angstrom": 2.696293250302163
+          },
+          {
+            "atoms_1based": [
+              1,
+              9
+            ],
+            "elements": [
+              "C",
+              "O"
+            ],
+            "angstrom": 3.2287138384175518
+          },
+          {
+            "atoms_1based": [
+              2,
+              8
+            ],
+            "elements": [
+              "P",
+              "C"
+            ],
+            "angstrom": 3.2092070339703858
+          },
+          {
+            "atoms_1based": [
+              2,
+              9
+            ],
+            "elements": [
+              "P",
+              "O"
+            ],
+            "angstrom": 3.193422659856506
+          },
+          {
+            "atoms_1based": [
+              8,
+              9
+            ],
+            "elements": [
+              "C",
+              "O"
+            ],
+            "angstrom": 1.2140138427077345
+          }
+        ],
+        "all_P2_H": [
+          {
+            "H_1based": 3,
+            "angstrom": 2.3819510654127636
+          },
+          {
+            "H_1based": 4,
+            "angstrom": 2.3847374530234977
+          },
+          {
+            "H_1based": 5,
+            "angstrom": 1.4128574895243327
+          },
+          {
+            "H_1based": 6,
+            "angstrom": 1.4456596503205725
+          },
+          {
+            "H_1based": 7,
+            "angstrom": 1.4204168692450818
+          },
+          {
+            "H_1based": 10,
+            "angstrom": 3.7668131013730957
+          },
+          {
+            "H_1based": 11,
+            "angstrom": 3.3384159806164058
+          }
+        ],
+        "all_O9_H": [
+          {
+            "H_1based": 3,
+            "angstrom": 4.159581594028178
+          },
+          {
+            "H_1based": 4,
+            "angstrom": 3.3412769165697718
+          },
+          {
+            "H_1based": 5,
+            "angstrom": 3.862757537165904
+          },
+          {
+            "H_1based": 6,
+            "angstrom": 4.330637577444689
+          },
+          {
+            "H_1based": 7,
+            "angstrom": 2.257204518368019
+          },
+          {
+            "H_1based": 10,
+            "angstrom": 2.0458514101647265
+          },
+          {
+            "H_1based": 11,
+            "angstrom": 2.047962586929263
+          }
+        ],
+        "nearest_heavy_each_H": [
+          {
+            "H_1based": 3,
+            "heavy_1based": 1,
+            "angstrom": 1.0942218547419897
+          },
+          {
+            "H_1based": 4,
+            "heavy_1based": 1,
+            "angstrom": 1.094243875200131
+          },
+          {
+            "H_1based": 5,
+            "heavy_1based": 2,
+            "angstrom": 1.4128574895243327
+          },
+          {
+            "H_1based": 6,
+            "heavy_1based": 2,
+            "angstrom": 1.4456596503205725
+          },
+          {
+            "H_1based": 7,
+            "heavy_1based": 2,
+            "angstrom": 1.4204168692450818
+          },
+          {
+            "H_1based": 10,
+            "heavy_1based": 8,
+            "angstrom": 1.1156645649356263
+          },
+          {
+            "H_1based": 11,
+            "heavy_1based": 8,
+            "angstrom": 1.1169646227477397
+          }
+        ]
+      },
+      "native_cartesian_header_line": 232,
+      "native_geometry_vs_xyz": {
+        "same_atom_order": true,
+        "max_coordinate_difference_A": 0.0
+      }
+    },
+    {
+      "job_id": 52,
+      "state": "done",
+      "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/product_opt/product_opt.inp",
+      "input_header": "# Endpoint product opt from IRC side A; identity unverified | declared_species: C1[PH3]OC1\n! Opt B3LYP def2-SVP D3BJ TightSCF\n%pal nprocs 8 end\n%maxcore 1000",
+      "native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/product_opt/.cloudra/calc-52.out.log",
+      "native_log_sha256": "84c3a31e5f68a703da2afc27d6eef4f8e6ae6e7f9514714008f7aa505273279c",
+      "native_markers": [
+        {
+          "line": 7352,
+          "text": "***        THE OPTIMIZATION HAS CONVERGED     ***"
+        },
+        {
+          "line": 8449,
+          "text": "****ORCA TERMINATED NORMALLY****"
+        }
+      ],
+      "frequency_rows": 0,
+      "imaginary_frequency_count": null,
+      "negative_frequencies": [],
+      "final_xyz": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/product_opt/product_opt.xyz",
+      "xyz_sha256": "dd4805bbbd4df9cb817bf7cfbbd9078bbac2bf11ad85f2eca21527ec6930030b",
+      "geometry": {
+        "atom_order": [
+          "C",
+          "P",
+          "H",
+          "H",
+          "H",
+          "H",
+          "H",
+          "C",
+          "O",
+          "H",
+          "H"
+        ],
+        "heavy_distances": [
+          {
+            "atoms_1based": [
+              1,
+              2
+            ],
+            "elements": [
+              "C",
+              "P"
+            ],
+            "angstrom": 1.883377261510463
+          },
+          {
+            "atoms_1based": [
+              1,
+              8
+            ],
+            "elements": [
+              "C",
+              "C"
+            ],
+            "angstrom": 1.5320615323763478
+          },
+          {
+            "atoms_1based": [
+              1,
+              9
+            ],
+            "elements": [
+              "C",
+              "O"
+            ],
+            "angstrom": 2.451558687670659
+          },
+          {
+            "atoms_1based": [
+              2,
+              8
+            ],
+            "elements": [
+              "P",
+              "C"
+            ],
+            "angstrom": 2.8227677855870645
+          },
+          {
+            "atoms_1based": [
+              2,
+              9
+            ],
+            "elements": [
+              "P",
+              "O"
+            ],
+            "angstrom": 3.2073608016769413
+          },
+          {
+            "atoms_1based": [
+              8,
+              9
+            ],
+            "elements": [
+              "C",
+              "O"
+            ],
+            "angstrom": 1.4078607777296117
+          }
+        ],
+        "all_P2_H": [
+          {
+            "H_1based": 3,
+            "angstrom": 2.506150661716622
+          },
+          {
+            "H_1based": 4,
+            "angstrom": 2.4415485531482735
+          },
+          {
+            "H_1based": 5,
+            "angstrom": 1.4298484559279772
+          },
+          {
+            "H_1based": 6,
+            "angstrom": 1.426995198910136
+          },
+          {
+            "H_1based": 7,
+            "angstrom": 2.712039633663314
+          },
+          {
+            "H_1based": 10,
+            "angstrom": 3.801288052758746
+          },
+          {
+            "H_1based": 11,
+            "angstrom": 3.0261570378208287
+          }
+        ],
+        "all_O9_H": [
+          {
+            "H_1based": 3,
+            "angstrom": 3.3906259453260406
+          },
+          {
+            "H_1based": 4,
+            "angstrom": 2.667538745054219
+          },
+          {
+            "H_1based": 5,
+            "angstrom": 3.9914119968521984
+          },
+          {
+            "H_1based": 6,
+            "angstrom": 4.377608250596311
+          },
+          {
+            "H_1based": 7,
+            "angstrom": 0.9685313040203724
+          },
+          {
+            "H_1based": 10,
+            "angstrom": 2.018961976399422
+          },
+          {
+            "H_1based": 11,
+            "angstrom": 2.0938832063252173
+          }
+        ],
+        "nearest_heavy_each_H": [
+          {
+            "H_1based": 3,
+            "heavy_1based": 1,
+            "angstrom": 1.1014588811094466
+          },
+          {
+            "H_1based": 4,
+            "heavy_1based": 1,
+            "angstrom": 1.1026989653166315
+          },
+          {
+            "H_1based": 5,
+            "heavy_1based": 2,
+            "angstrom": 1.4298484559279772
+          },
+          {
+            "H_1based": 6,
+            "heavy_1based": 2,
+            "angstrom": 1.426995198910136
+          },
+          {
+            "H_1based": 7,
+            "heavy_1based": 9,
+            "angstrom": 0.9685313040203724
+          },
+          {
+            "H_1based": 10,
+            "heavy_1based": 8,
+            "angstrom": 1.1026687429795072
+          },
+          {
+            "H_1based": 11,
+            "heavy_1based": 8,
+            "angstrom": 1.1118061533625456
+          }
+        ]
+      },
+      "native_cartesian_header_line": 7424,
+      "native_geometry_vs_xyz": {
+        "same_atom_order": true,
+        "max_coordinate_difference_A": 4.930663701774307e-07
+      }
+    },
+    {
+      "job_id": 53,
+      "state": "done",
+      "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/product_frequency/product_frequency.inp",
+      "input_header": "# Endpoint product frequency from IRC side A; identity unverified | declared_species: C1[PH3]OC1\n! Freq B3LYP def2-SVP D3BJ TightSCF\n%pal nprocs 8 end\n%maxcore 1000",
+      "native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/product_frequency/.cloudra/calc-53.out.log",
+      "native_log_sha256": "32b8d6edef1910233df3088759bd6032c586a3b32b34c18cd1f21ee607f05102",
+      "native_markers": [
+        {
+          "line": 1327,
+          "text": "VIBRATIONAL FREQUENCIES"
+        },
+        {
+          "line": 1903,
+          "text": "****ORCA TERMINATED NORMALLY****"
+        }
+      ],
+      "frequency_rows": 33,
+      "imaginary_frequency_count": 0,
+      "negative_frequencies": [],
+      "final_xyz": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/product_frequency/optimized.xyz",
+      "xyz_sha256": "a12bc25659c68ff6feda5f4297acec01587b97312e619c33c9561bef4288a019",
+      "geometry": {
+        "atom_order": [
+          "C",
+          "P",
+          "H",
+          "H",
+          "H",
+          "H",
+          "H",
+          "C",
+          "O",
+          "H",
+          "H"
+        ],
+        "heavy_distances": [
+          {
+            "atoms_1based": [
+              1,
+              2
+            ],
+            "elements": [
+              "C",
+              "P"
+            ],
+            "angstrom": 1.8833773643070049
+          },
+          {
+            "atoms_1based": [
+              1,
+              8
+            ],
+            "elements": [
+              "C",
+              "C"
+            ],
+            "angstrom": 1.5320610782178365
+          },
+          {
+            "atoms_1based": [
+              1,
+              9
+            ],
+            "elements": [
+              "C",
+              "O"
+            ],
+            "angstrom": 2.451558656837931
+          },
+          {
+            "atoms_1based": [
+              2,
+              8
+            ],
+            "elements": [
+              "P",
+              "C"
+            ],
+            "angstrom": 2.8227675070224967
+          },
+          {
+            "atoms_1based": [
+              2,
+              9
+            ],
+            "elements": [
+              "P",
+              "O"
+            ],
+            "angstrom": 3.207360575343689
+          },
+          {
+            "atoms_1based": [
+              8,
+              9
+            ],
+            "elements": [
+              "C",
+              "O"
+            ],
+            "angstrom": 1.4078612963083401
+          }
+        ],
+        "all_P2_H": [
+          {
+            "H_1based": 3,
+            "angstrom": 2.506150746807941
+          },
+          {
+            "H_1based": 4,
+            "angstrom": 2.441547739097067
+          },
+          {
+            "H_1based": 5,
+            "angstrom": 1.429848496058586
+          },
+          {
+            "H_1based": 6,
+            "angstrom": 1.426995798307409
+          },
+          {
+            "H_1based": 7,
+            "angstrom": 2.7120389744481916
+          },
+          {
+            "H_1based": 10,
+            "angstrom": 3.8012878613581744
+          },
+          {
+            "H_1based": 11,
+            "angstrom": 3.026157110354484
+          }
+        ],
+        "all_O9_H": [
+          {
+            "H_1based": 3,
+            "angstrom": 3.390626610587931
+          },
+          {
+            "H_1based": 4,
+            "angstrom": 2.6675386552612506
+          },
+          {
+            "H_1based": 5,
+            "angstrom": 3.9914122702800325
+          },
+          {
+            "H_1based": 6,
+            "angstrom": 4.377608379890782
+          },
+          {
+            "H_1based": 7,
+            "angstrom": 0.9685316054528115
+          },
+          {
+            "H_1based": 10,
+            "angstrom": 2.0189626814753163
+          },
+          {
+            "H_1based": 11,
+            "angstrom": 2.093883665703995
+          }
+        ],
+        "nearest_heavy_each_H": [
+          {
+            "H_1based": 3,
+            "heavy_1based": 1,
+            "angstrom": 1.101459472379261
+          },
+          {
+            "H_1based": 4,
+            "heavy_1based": 1,
+            "angstrom": 1.1026983377306778
+          },
+          {
+            "H_1based": 5,
+            "heavy_1based": 2,
+            "angstrom": 1.429848496058586
+          },
+          {
+            "H_1based": 6,
+            "heavy_1based": 2,
+            "angstrom": 1.426995798307409
+          },
+          {
+            "H_1based": 7,
+            "heavy_1based": 9,
+            "angstrom": 0.9685316054528115
+          },
+          {
+            "H_1based": 10,
+            "heavy_1based": 8,
+            "angstrom": 1.1026686830707582
+          },
+          {
+            "H_1based": 11,
+            "heavy_1based": 8,
+            "angstrom": 1.1118066803293638
+          }
+        ]
+      },
+      "native_cartesian_header_line": 232,
+      "native_geometry_vs_xyz": {
+        "same_atom_order": true,
+        "max_coordinate_difference_A": 0.0
+      }
+    }
+  ],
+  "opt_to_frequency_geometry": {
+    "50_51": {
+      "same_atom_order": true,
+      "max_coordinate_difference_A": 4.958079200534371e-07
+    },
+    "52_53": {
+      "same_atom_order": true,
+      "max_coordinate_difference_A": 4.930663701774307e-07
+    }
+  },
+  "retained_endpoint_provenance": [
+    {
+      "purpose": "reactant_opt",
+      "job_id": 50,
+      "state": "done",
+      "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/reactant_opt/reactant_opt.inp",
+      "endpoint_source": {
+        "kind": "irc_outer_frame",
+        "label": "B",
+        "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/reactant_opt/reactant_source.xyz",
+        "sha256": "21696727286351a326c2af2d15443a2768085684df1b4dd7cbf76e2b21debc30",
+        "irc_job_id": 49,
+        "irc_log_sha256": "74838b7292fbac3d376760711436774c2d7bfa33460fe53856af6dfb338590a5"
+      }
+    },
+    {
+      "purpose": "reactant_frequency",
+      "job_id": 51,
+      "state": "done",
+      "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/reactant_frequency/reactant_frequency.inp",
+      "endpoint_source": {
+        "kind": "irc_outer_frame",
+        "label": "B",
+        "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/reactant_opt/reactant_source.xyz",
+        "sha256": "21696727286351a326c2af2d15443a2768085684df1b4dd7cbf76e2b21debc30",
+        "irc_job_id": 49,
+        "irc_log_sha256": "74838b7292fbac3d376760711436774c2d7bfa33460fe53856af6dfb338590a5"
+      }
+    },
+    {
+      "purpose": "product_opt",
+      "job_id": 52,
+      "state": "done",
+      "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/product_opt/product_opt.inp",
+      "endpoint_source": {
+        "kind": "irc_outer_frame",
+        "label": "A",
+        "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/product_opt/product_source.xyz",
+        "sha256": "360b6116a4a03a7de7da32be31bc2131dd4a1e9262e2762ef565fa02121646b7",
+        "irc_job_id": 49,
+        "irc_log_sha256": "74838b7292fbac3d376760711436774c2d7bfa33460fe53856af6dfb338590a5"
+      }
+    },
+    {
+      "purpose": "product_frequency",
+      "job_id": 53,
+      "state": "done",
+      "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/product_frequency/product_frequency.inp",
+      "endpoint_source": {
+        "kind": "irc_outer_frame",
+        "label": "A",
+        "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/product_opt/product_source.xyz",
+        "sha256": "360b6116a4a03a7de7da32be31bc2131dd4a1e9262e2762ef565fa02121646b7",
+        "irc_job_id": 49,
+        "irc_log_sha256": "74838b7292fbac3d376760711436774c2d7bfa33460fe53856af6dfb338590a5"
+      }
+    }
+  ],
+  "target52_native_F_source_check": {
+    "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/product_opt/product_source.xyz",
+    "native_F_final_xyz": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/irc/irc_IRC_F.xyz",
+    "source_vs_native_F_final": {
+      "same_atom_order": true,
+      "max_coordinate_difference_A": 0.0
+    },
+    "source_input_header": "# Endpoint product opt from IRC side A; identity unverified | declared_species: C1[PH3]OC1\n! Opt B3LYP def2-SVP D3BJ TightSCF\n%pal nprocs 8 end\n%maxcore 1000"
+  },
+  "prior_native_IRC49_reference": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/diagnosis/ts1-decl7-irc49-terminal-supplement.json",
+  "current_process_snapshot": {
+    "declaration_revision": 8,
+    "stage": "guess",
+    "terminal": null,
+    "job_id": null,
+    "waiting_for": ""
+  },
+  "confirmed_conclusion": {
+    "native_completion": "Jobs 50 and 52 geometrical optimizations converged and terminated normally; frequency jobs 51 and 53 each contain 33 frequency rows and zero imaginary frequencies.",
+    "actual_endpoint_identity": "Source 50/51 is the RC complex with three P-bound hydrogens and no O-H bond. Target 52/53 is H2P-CH2-CH2-OH (open-chain OCCP), with H7 transferred from P2 to O9; it is not the declared PH3 four-membered ring.",
+    "target_seed_provenance": "Job 52 uses the actual outer frame from native IRC 49 forward direction (workflow side A), not an explicit species_reference seed. product_source.xyz and irc_IRC_F.xyz have identical atom order and coordinates.",
+    "opt_frequency_coordinate_consistency": "Optimized XYZ and subsequent frequency XYZ retain identical atom order, with maximum Cartesian coordinate differences below 5e-7 Angstrom for both endpoints.",
+    "scope_limit": "This provides native minimum evidence for RC to PH2/OH competitive-path endpoints. It does not establish RC to the PH3 four-membered ring, classify the TS as a pseudo-saddle, imply that the requested path is inaccessible, or establish a complete NU3 mechanism."
+  }
+}

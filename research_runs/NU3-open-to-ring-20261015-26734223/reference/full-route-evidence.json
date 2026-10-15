@@ -1,0 +1,935 @@
+{
+  "created_utc": "2026-10-14T21:15:01.397047+00:00",
+  "audience": "Observer-private scientific reference evidence only; outside workspace and not delivered to research Agents.",
+  "purpose": "Factual native evidence and exact electronic-energy arithmetic for conditionally authorized full-route reference preparation. This file does not modify original Gold, TaskSpec, methods, scientific criteria or scoring.",
+  "method": {
+    "engine": "ORCA",
+    "theory": "B3LYP-D3BJ/def2-SVP",
+    "phase": "gas",
+    "charge": 0,
+    "multiplicity": 1,
+    "energy_quantity": "electronic",
+    "hartree_to_kcal_mol": 627.509474
+  },
+  "atomic_correspondence": {
+    "formula": "C2H7OP",
+    "atom_count": 11,
+    "explicit_H_count": 7,
+    "common_full_element_order": [
+      "C",
+      "P",
+      "H",
+      "H",
+      "H",
+      "H",
+      "H",
+      "C",
+      "O",
+      "H",
+      "H"
+    ],
+    "old_ring_backstep_full_element_order": [
+      "C",
+      "P",
+      "O",
+      "C",
+      "H",
+      "H",
+      "H",
+      "H",
+      "H",
+      "H",
+      "H"
+    ],
+    "old_ring_backstep_local_to_common_indices_1based": [
+      1,
+      2,
+      9,
+      8,
+      3,
+      4,
+      5,
+      6,
+      7,
+      10,
+      11
+    ],
+    "front_and_middle_local_to_common_indices_1based": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+    ],
+    "hydrogen_changes_in_common_order": [
+      "E1: H7 leaves P2 for O9; H5/H6 stay P-bound.",
+      "E2: H7 returns from O9 to P2 as P2-O9 closes.",
+      "E3: PH3 retained while C-P and C-O ring bonds break, ethylene C=C and P=O develop."
+    ],
+    "all_source_TS_target_element_maps_match": true
+  },
+  "steps": [
+    {
+      "gold_edge_id": "NU3_E1",
+      "reaction": "RC -> PH2OH open-chain OCCP",
+      "source_minimum": {
+        "chemical_identity": "Neutral RC C=[PH3].C=O, PH3-bearing phosphorane/formaldehyde complex",
+        "optimization_job": 50,
+        "frequency_job": 51,
+        "native_energy_line": 1128,
+        "energy_hartree": -496.541094492673,
+        "native_energy_text": "FINAL SINGLE POINT ENERGY      -496.541094492673",
+        "native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/reactant_frequency/.cloudra/calc-51.out.log",
+        "energy_quantity": "Electronic FINAL SINGLE POINT ENERGY, Hartree; not Gibbs free energy.",
+        "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/reactant_frequency/reactant_frequency.inp",
+        "native_method_line": "! Freq B3LYP def2-SVP D3BJ TightSCF",
+        "native_charge_multiplicity_line": "* xyz 0 1",
+        "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/reactant_frequency/optimized.xyz",
+        "atom_count": 11,
+        "full_atom_order": [
+          "C",
+          "P",
+          "H",
+          "H",
+          "H",
+          "H",
+          "H",
+          "C",
+          "O",
+          "H",
+          "H"
+        ],
+        "local_atom_order_to_common_indices_1based": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "element_counts": {
+          "C": 2,
+          "P": 1,
+          "H": 7,
+          "O": 1
+        },
+        "common_element_order_matches": true,
+        "n_imaginary": 0,
+        "native_optimization_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/reactant_opt/.cloudra/calc-50.out.log",
+        "native_optimization_converged": true,
+        "native_normal_termination": true,
+        "native_evidence_previously_independently_checked": true,
+        "endpoint_origin": {
+          "kind": "IRC49 native B outer frame -> opt50 -> frequency51",
+          "explicit_species_seed": false
+        },
+        "native_optimization_markers": [
+          {
+            "line": 10210,
+            "text": "***        THE OPTIMIZATION HAS CONVERGED     ***"
+          },
+          {
+            "line": 11326,
+            "text": "****ORCA TERMINATED NORMALLY****"
+          }
+        ],
+        "native_frequency_markers": [
+          {
+            "line": 1324,
+            "text": "VIBRATIONAL FREQUENCIES"
+          },
+          {
+            "line": 1900,
+            "text": "****ORCA TERMINATED NORMALLY****"
+          }
+        ]
+      },
+      "transition_state": {
+        "optimization_job": 47,
+        "frequency_job": 48,
+        "native_energy_line": 1127,
+        "energy_hartree": -496.538395813268,
+        "native_energy_text": "FINAL SINGLE POINT ENERGY      -496.538395813268",
+        "native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/frequency/.cloudra/calc-48.out.log",
+        "energy_quantity": "Electronic FINAL SINGLE POINT ENERGY, Hartree; not Gibbs free energy.",
+        "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/frequency/frequency.inp",
+        "native_method_line": "! Freq B3LYP def2-SVP D3BJ TightSCF",
+        "native_charge_multiplicity_line": "* xyz 0 1",
+        "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/frequency/optimized.xyz",
+        "atom_count": 11,
+        "full_atom_order": [
+          "C",
+          "P",
+          "H",
+          "H",
+          "H",
+          "H",
+          "H",
+          "C",
+          "O",
+          "H",
+          "H"
+        ],
+        "local_atom_order_to_common_indices_1based": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "element_counts": {
+          "C": 2,
+          "P": 1,
+          "H": 7,
+          "O": 1
+        },
+        "common_element_order_matches": true,
+        "native_optimization_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/ts_opt/.cloudra/calc-47.out.log",
+        "native_optimization_converged": true,
+        "native_normal_termination": true,
+        "n_imaginary": 1,
+        "negative_frequencies_as_previously_checked": [
+          {
+            "mode": 6,
+            "cm_1": -279.79,
+            "line": 1334
+          }
+        ],
+        "native_optimization_markers": [
+          {
+            "line": 235,
+            "text": "* Geometry Optimization Run *"
+          },
+          {
+            "line": 242,
+            "text": "Max. no of cycles        MaxIter  .... 50"
+          },
+          {
+            "line": 4206,
+            "text": "***        THE OPTIMIZATION HAS CONVERGED     ***"
+          },
+          {
+            "line": 5314,
+            "text": "****ORCA TERMINATED NORMALLY****"
+          }
+        ],
+        "native_frequency_markers": [
+          {
+            "line": 1323,
+            "text": "VIBRATIONAL FREQUENCIES"
+          },
+          {
+            "line": 1897,
+            "text": "****ORCA TERMINATED NORMALLY****"
+          }
+        ],
+        "previous_independent_report": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/diagnosis/ts1-decl7-native-observation.json"
+      },
+      "target_minimum": {
+        "chemical_identity": "PH2-CH2-CH2-OH / OCCP",
+        "optimization_job": 52,
+        "frequency_job": 53,
+        "native_energy_line": 1123,
+        "energy_hartree": -496.63583237594,
+        "native_energy_text": "FINAL SINGLE POINT ENERGY      -496.635832375940",
+        "native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/product_frequency/.cloudra/calc-53.out.log",
+        "energy_quantity": "Electronic FINAL SINGLE POINT ENERGY, Hartree; not Gibbs free energy.",
+        "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/product_frequency/product_frequency.inp",
+        "native_method_line": "! Freq B3LYP def2-SVP D3BJ TightSCF",
+        "native_charge_multiplicity_line": "* xyz 0 1",
+        "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/product_frequency/optimized.xyz",
+        "atom_count": 11,
+        "full_atom_order": [
+          "C",
+          "P",
+          "H",
+          "H",
+          "H",
+          "H",
+          "H",
+          "C",
+          "O",
+          "H",
+          "H"
+        ],
+        "local_atom_order_to_common_indices_1based": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "element_counts": {
+          "C": 2,
+          "P": 1,
+          "H": 7,
+          "O": 1
+        },
+        "common_element_order_matches": true,
+        "n_imaginary": 0,
+        "native_optimization_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/product_opt/.cloudra/calc-52.out.log",
+        "native_optimization_converged": true,
+        "native_normal_termination": true,
+        "native_evidence_previously_independently_checked": true,
+        "endpoint_origin": {
+          "kind": "IRC49 native F/A outer frame -> opt52 -> frequency53",
+          "explicit_species_seed": false
+        },
+        "native_optimization_markers": [
+          {
+            "line": 7352,
+            "text": "***        THE OPTIMIZATION HAS CONVERGED     ***"
+          },
+          {
+            "line": 8449,
+            "text": "****ORCA TERMINATED NORMALLY****"
+          }
+        ],
+        "native_frequency_markers": [
+          {
+            "line": 1327,
+            "text": "VIBRATIONAL FREQUENCIES"
+          },
+          {
+            "line": 1903,
+            "text": "****ORCA TERMINATED NORMALLY****"
+          }
+        ]
+      },
+      "native_irc": {
+        "job_id": 49,
+        "native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/irc/.cloudra/calc-49.out.log",
+        "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/irc/irc.inp",
+        "source_native_direction": "B",
+        "target_native_direction": "F",
+        "source_native_trajectory": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/irc/irc_IRC_B_trj.xyz",
+        "target_native_trajectory": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/irc/irc_IRC_F_trj.xyz",
+        "source_native_final_XYZ": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/irc/irc_IRC_B.xyz",
+        "target_native_final_XYZ": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/irc/irc_IRC_F.xyz",
+        "source_direction_frame_count": 15,
+        "target_direction_frame_count": 20,
+        "source_direction_termination": "Native IRC converged at iteration14",
+        "target_direction_termination": "Native20-cycle limit; short direction proof, not fully converged",
+        "actual_chemical_directions_previously_independently_checked": true,
+        "previous_independent_report": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/diagnosis/ts1-decl7-irc49-terminal-supplement.json"
+      },
+      "barrier_hartree": 0.002698679405000348,
+      "barrier_kcal_mol": 1.6934468939264014,
+      "barrier_quantity": "Electronic activation energy from this segment actual source minimum frequency log; not DeltaG.",
+      "arithmetic": {
+        "formula": "(E_TS_frequency - E_source_frequency) * hartree_to_kcal_mol",
+        "E_TS_frequency_hartree": -496.538395813268,
+        "E_source_frequency_hartree": -496.541094492673,
+        "hartree_to_kcal_mol": 627.509474
+      },
+      "reaction_electronic_energy_kcal_mol": -59.448919296776054
+    },
+    {
+      "gold_edge_id": "NU3_E2",
+      "reaction": "OCCP -> PH3 ring",
+      "source_minimum": {
+        "chemical_identity": "PH2-CH2-CH2-OH / OCCP, actual native-B endpoint conformer",
+        "optimization_job": 21,
+        "frequency_job": 22,
+        "native_energy_line": 1123,
+        "energy_hartree": -496.634713483234,
+        "native_energy_text": "FINAL SINGLE POINT ENERGY      -496.634713483234",
+        "native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/reactant_frequency/.cloudra/calc-22.out.log",
+        "energy_quantity": "Electronic FINAL SINGLE POINT ENERGY, Hartree; not Gibbs free energy.",
+        "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/reactant_frequency/reactant_frequency.inp",
+        "native_method_line": "! Freq B3LYP def2-SVP D3BJ TightSCF",
+        "native_charge_multiplicity_line": "* xyz 0 1",
+        "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/reactant_frequency/optimized.xyz",
+        "atom_count": 11,
+        "full_atom_order": [
+          "C",
+          "P",
+          "H",
+          "H",
+          "H",
+          "H",
+          "H",
+          "C",
+          "O",
+          "H",
+          "H"
+        ],
+        "local_atom_order_to_common_indices_1based": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "element_counts": {
+          "C": 2,
+          "P": 1,
+          "H": 7,
+          "O": 1
+        },
+        "common_element_order_matches": true,
+        "n_imaginary": 0,
+        "native_optimization_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/reactant_opt/.cloudra/calc-21.out.log",
+        "native_optimization_converged": true,
+        "native_normal_termination": true,
+        "native_evidence_previously_independently_checked": true,
+        "endpoint_origin": {
+          "kind": "IRC20 native B outer frame -> opt21 -> frequency22",
+          "explicit_species_seed": false,
+          "is_given_A25_reference": false
+        },
+        "native_optimization_markers": [
+          {
+            "line": 8454,
+            "text": "***        THE OPTIMIZATION HAS CONVERGED     ***"
+          },
+          {
+            "line": 9550,
+            "text": "****ORCA TERMINATED NORMALLY****"
+          }
+        ],
+        "native_frequency_markers": [
+          {
+            "line": 1894,
+            "text": "****ORCA TERMINATED NORMALLY****"
+          }
+        ]
+      },
+      "transition_state": {
+        "optimization_job": 18,
+        "frequency_job": 19,
+        "native_energy_line": 1126,
+        "energy_hartree": -496.546895012568,
+        "native_energy_text": "FINAL SINGLE POINT ENERGY      -496.546895012568",
+        "native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/frequency/.cloudra/calc-19.out.log",
+        "energy_quantity": "Electronic FINAL SINGLE POINT ENERGY, Hartree; not Gibbs free energy.",
+        "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/frequency/frequency.inp",
+        "native_method_line": "! Freq B3LYP def2-SVP D3BJ TightSCF",
+        "native_charge_multiplicity_line": "* xyz 0 1",
+        "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/frequency/optimized.xyz",
+        "atom_count": 11,
+        "full_atom_order": [
+          "C",
+          "P",
+          "H",
+          "H",
+          "H",
+          "H",
+          "H",
+          "C",
+          "O",
+          "H",
+          "H"
+        ],
+        "local_atom_order_to_common_indices_1based": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "element_counts": {
+          "C": 2,
+          "P": 1,
+          "H": 7,
+          "O": 1
+        },
+        "common_element_order_matches": true,
+        "native_optimization_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/ts_opt/.cloudra/calc-18.out.log",
+        "native_optimization_converged": true,
+        "native_normal_termination": true,
+        "n_imaginary": 1,
+        "negative_frequencies_as_previously_checked": [
+          {
+            "mode": 6,
+            "value_cm_minus1": -1022.18,
+            "line": 1342
+          }
+        ],
+        "native_optimization_markers": [
+          {
+            "line": 16031,
+            "text": "***        THE OPTIMIZATION HAS CONVERGED     ***"
+          },
+          {
+            "line": 17158,
+            "text": "****ORCA TERMINATED NORMALLY****"
+          }
+        ],
+        "native_frequency_markers": [
+          {
+            "line": 1331,
+            "text": "VIBRATIONAL FREQUENCIES"
+          },
+          {
+            "line": 1914,
+            "text": "****ORCA TERMINATED NORMALLY****"
+          }
+        ],
+        "previous_independent_report": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/diagnosis/scan13-native-followup.json"
+      },
+      "target_minimum": {
+        "chemical_identity": "PH3 four-membered C-P-O-C ring / oxaphosphetane",
+        "optimization_job": 23,
+        "frequency_job": 24,
+        "native_energy_line": 1127,
+        "energy_hartree": -496.585632245103,
+        "native_energy_text": "FINAL SINGLE POINT ENERGY      -496.585632245103",
+        "native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/product_frequency/.cloudra/calc-24.out.log",
+        "energy_quantity": "Electronic FINAL SINGLE POINT ENERGY, Hartree; not Gibbs free energy.",
+        "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/product_frequency/product_frequency.inp",
+        "native_method_line": "! Freq B3LYP def2-SVP D3BJ TightSCF",
+        "native_charge_multiplicity_line": "* xyz 0 1",
+        "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/product_frequency/optimized.xyz",
+        "atom_count": 11,
+        "full_atom_order": [
+          "C",
+          "P",
+          "H",
+          "H",
+          "H",
+          "H",
+          "H",
+          "C",
+          "O",
+          "H",
+          "H"
+        ],
+        "local_atom_order_to_common_indices_1based": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "element_counts": {
+          "C": 2,
+          "P": 1,
+          "H": 7,
+          "O": 1
+        },
+        "common_element_order_matches": true,
+        "n_imaginary": 0,
+        "native_optimization_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/product_opt/.cloudra/calc-23.out.log",
+        "native_optimization_converged": true,
+        "native_normal_termination": true,
+        "native_evidence_previously_independently_checked": true,
+        "endpoint_origin": {
+          "kind": "IRC20 native F/A outer frame -> opt23 -> frequency24",
+          "explicit_species_seed": false
+        },
+        "native_optimization_markers": [
+          {
+            "line": 11285,
+            "text": "***        THE OPTIMIZATION HAS CONVERGED     ***"
+          },
+          {
+            "line": 12415,
+            "text": "****ORCA TERMINATED NORMALLY****"
+          }
+        ],
+        "native_frequency_markers": [
+          {
+            "line": 1898,
+            "text": "****ORCA TERMINATED NORMALLY****"
+          }
+        ]
+      },
+      "native_irc": {
+        "job_id": 20,
+        "native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/irc/.cloudra/calc-20.out.log",
+        "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/irc/irc.inp",
+        "source_native_direction": "B",
+        "target_native_direction": "F",
+        "source_native_trajectory": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/irc/irc_IRC_B_trj.xyz",
+        "target_native_trajectory": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/irc/irc_IRC_F_trj.xyz",
+        "source_native_final_XYZ": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/irc/irc_IRC_B.xyz",
+        "target_native_final_XYZ": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/irc/irc_IRC_F.xyz",
+        "source_direction_frame_count": 20,
+        "target_direction_frame_count": 20,
+        "source_direction_termination": "Native20-cycle limit",
+        "target_direction_termination": "Native20-cycle limit",
+        "actual_chemical_directions_previously_independently_checked": true,
+        "previous_independent_report": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/diagnosis/irc20-native-connection-observation.json"
+      },
+      "barrier_hartree": 0.08781847066603632,
+      "barrier_kcal_mol": 55.10692233512888,
+      "barrier_quantity": "Electronic activation energy from this segment actual source minimum frequency log; not DeltaG.",
+      "arithmetic": {
+        "formula": "(E_TS_frequency - E_source_frequency) * hartree_to_kcal_mol",
+        "E_TS_frequency_hartree": -496.546895012568,
+        "E_source_frequency_hartree": -496.634713483234,
+        "hartree_to_kcal_mol": 627.509474
+      },
+      "reaction_electronic_energy_kcal_mol": 30.79894192285838
+    },
+    {
+      "gold_edge_id": "NU3_E3",
+      "reaction": "PH3 ring -> ethylene + PH3O",
+      "source_minimum": {
+        "chemical_identity": "PH3 four-membered C-P-O-C ring / oxaphosphetane",
+        "optimization_job": 40,
+        "frequency_job": 42,
+        "native_energy_line": 1126,
+        "energy_hartree": -496.585625382758,
+        "native_energy_text": "FINAL SINGLE POINT ENERGY      -496.585625382758",
+        "native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0009/reactant_frequency/.cloudra/calc-42.out.log",
+        "energy_quantity": "Electronic FINAL SINGLE POINT ENERGY, Hartree; not Gibbs free energy.",
+        "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0009/reactant_frequency/reactant_frequency.inp",
+        "native_method_line": "! Freq B3LYP def2-SVP D3BJ TightSCF",
+        "native_charge_multiplicity_line": "* xyz 0 1",
+        "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0009/reactant_frequency/optimized.xyz",
+        "atom_count": 11,
+        "full_atom_order": [
+          "C",
+          "P",
+          "O",
+          "C",
+          "H",
+          "H",
+          "H",
+          "H",
+          "H",
+          "H",
+          "H"
+        ],
+        "local_atom_order_to_common_indices_1based": [
+          1,
+          2,
+          9,
+          8,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11
+        ],
+        "element_counts": {
+          "C": 2,
+          "P": 1,
+          "O": 1,
+          "H": 7
+        },
+        "common_element_order_matches": true,
+        "n_imaginary": 0,
+        "native_optimization_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0009/reactant_opt/.cloudra/calc-40.out.log",
+        "native_optimization_converged": true,
+        "native_normal_termination": true,
+        "native_evidence_previously_independently_checked": true,
+        "endpoint_origin": {
+          "kind": "Explicit clean ring species_reference seed -> opt40 -> frequency42",
+          "explicit_species_seed": true,
+          "seed_XYZ": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/oxa4_last.xyz",
+          "seed_MOL": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/build/input_0004/reactant/seed.mol",
+          "seed_native_minimum_job": 7,
+          "not_direct_optimization_of_IRC32_B": true,
+          "native_IRC32_B_ring_direction_was_independently_verified_separately": true
+        },
+        "native_optimization_markers": [
+          {
+            "line": 1316,
+            "text": "***        THE OPTIMIZATION HAS CONVERGED     ***"
+          },
+          {
+            "line": 2444,
+            "text": "****ORCA TERMINATED NORMALLY****"
+          }
+        ],
+        "native_frequency_markers": [
+          {
+            "line": 1321,
+            "text": "VIBRATIONAL FREQUENCIES"
+          },
+          {
+            "line": 1897,
+            "text": "****ORCA TERMINATED NORMALLY****"
+          }
+        ]
+      },
+      "transition_state": {
+        "optimization_job": 30,
+        "frequency_job": 31,
+        "native_energy_line": 1126,
+        "energy_hartree": -496.547765703362,
+        "native_energy_text": "FINAL SINGLE POINT ENERGY      -496.547765703362",
+        "native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/frequency/.cloudra/calc-31.out.log",
+        "energy_quantity": "Electronic FINAL SINGLE POINT ENERGY, Hartree; not Gibbs free energy.",
+        "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/frequency/frequency.inp",
+        "native_method_line": "! Freq B3LYP def2-SVP D3BJ TightSCF",
+        "native_charge_multiplicity_line": "* xyz 0 1",
+        "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/frequency/optimized.xyz",
+        "atom_count": 11,
+        "full_atom_order": [
+          "C",
+          "P",
+          "O",
+          "C",
+          "H",
+          "H",
+          "H",
+          "H",
+          "H",
+          "H",
+          "H"
+        ],
+        "local_atom_order_to_common_indices_1based": [
+          1,
+          2,
+          9,
+          8,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11
+        ],
+        "element_counts": {
+          "C": 2,
+          "P": 1,
+          "O": 1,
+          "H": 7
+        },
+        "common_element_order_matches": true,
+        "native_optimization_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/ts_opt/.cloudra/calc-30.out.log",
+        "native_optimization_converged": true,
+        "native_normal_termination": true,
+        "n_imaginary": 1,
+        "negative_frequencies_as_previously_checked": [
+          {
+            "mode": 6,
+            "cm_1": -624.86,
+            "line": 1333
+          }
+        ],
+        "native_optimization_markers": [
+          {
+            "line": 242,
+            "text": "Max. no of cycles        MaxIter  .... 50"
+          },
+          {
+            "line": 35612,
+            "text": "***        THE OPTIMIZATION HAS CONVERGED     ***"
+          },
+          {
+            "line": 36759,
+            "text": "****ORCA TERMINATED NORMALLY****"
+          }
+        ],
+        "native_frequency_markers": [
+          {
+            "line": 1322,
+            "text": "VIBRATIONAL FREQUENCIES"
+          },
+          {
+            "line": 1896,
+            "text": "****ORCA TERMINATED NORMALLY****"
+          }
+        ],
+        "previous_independent_report": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/diagnosis/ts1-irc28-and-ts2-irc32-native-observation.json"
+      },
+      "target_minimum": {
+        "chemical_identity": "Ethylene + PH3O / C=C.O=[PH3]",
+        "optimization_job": 43,
+        "frequency_job": 45,
+        "native_energy_line": 1127,
+        "energy_hartree": -496.599952160666,
+        "native_energy_text": "FINAL SINGLE POINT ENERGY      -496.599952160666",
+        "native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0009/product_frequency/.cloudra/calc-45.out.log",
+        "energy_quantity": "Electronic FINAL SINGLE POINT ENERGY, Hartree; not Gibbs free energy.",
+        "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0009/product_frequency/product_frequency.inp",
+        "native_method_line": "! Freq B3LYP def2-SVP D3BJ TightSCF",
+        "native_charge_multiplicity_line": "* xyz 0 1",
+        "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0009/product_frequency/optimized.xyz",
+        "atom_count": 11,
+        "full_atom_order": [
+          "C",
+          "P",
+          "O",
+          "C",
+          "H",
+          "H",
+          "H",
+          "H",
+          "H",
+          "H",
+          "H"
+        ],
+        "local_atom_order_to_common_indices_1based": [
+          1,
+          2,
+          9,
+          8,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11
+        ],
+        "element_counts": {
+          "C": 2,
+          "P": 1,
+          "O": 1,
+          "H": 7
+        },
+        "common_element_order_matches": true,
+        "n_imaginary": 0,
+        "native_optimization_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0009/product_opt/.cloudra/calc-43.out.log",
+        "native_optimization_converged": true,
+        "native_normal_termination": true,
+        "native_evidence_previously_independently_checked": true,
+        "endpoint_origin": {
+          "kind": "IRC32 native F/A outer frame -> opt43 -> frequency45",
+          "explicit_species_seed": false,
+          "not_the_independent_product_job3_geometry": true
+        },
+        "native_optimization_markers": [
+          {
+            "line": 18783,
+            "text": "***        THE OPTIMIZATION HAS CONVERGED     ***"
+          },
+          {
+            "line": 19969,
+            "text": "****ORCA TERMINATED NORMALLY****"
+          }
+        ],
+        "native_frequency_markers": [
+          {
+            "line": 1322,
+            "text": "VIBRATIONAL FREQUENCIES"
+          },
+          {
+            "line": 1898,
+            "text": "****ORCA TERMINATED NORMALLY****"
+          }
+        ]
+      },
+      "native_irc": {
+        "job_id": 32,
+        "native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/irc/.cloudra/calc-32.out.log",
+        "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/irc/irc.inp",
+        "source_native_direction": "B",
+        "target_native_direction": "F",
+        "source_native_trajectory": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/irc/irc_IRC_B_trj.xyz",
+        "target_native_trajectory": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/irc/irc_IRC_F_trj.xyz",
+        "source_native_final_XYZ": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/irc/irc_IRC_B.xyz",
+        "target_native_final_XYZ": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/irc/irc_IRC_F.xyz",
+        "source_direction_frame_count": 12,
+        "target_direction_frame_count": 20,
+        "source_direction_termination": "Native IRC converged at iteration11",
+        "target_direction_termination": "Native20-cycle limit; short direction proof, not fully converged",
+        "actual_chemical_directions_previously_independently_checked": true,
+        "previous_independent_report": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/diagnosis/ts1-irc28-and-ts2-irc32-native-observation.json"
+      },
+      "barrier_hartree": 0.037859679395978674,
+      "barrier_kcal_mol": 23.757307503579213,
+      "barrier_quantity": "Electronic activation energy from this segment actual source minimum frequency log; not DeltaG.",
+      "arithmetic": {
+        "formula": "(E_TS_frequency - E_source_frequency) * hartree_to_kcal_mol",
+        "E_TS_frequency_hartree": -496.547765703362,
+        "E_source_frequency_hartree": -496.585625382758,
+        "hartree_to_kcal_mol": 627.509474
+      },
+      "reaction_electronic_energy_kcal_mol": -8.990188869179415
+    }
+  ],
+  "given_A25_reference_separate_from_actual_IRC_B_A22": {
+    "job_id": 25,
+    "native_energy_line": 2275,
+    "energy_hartree": -496.635839540864,
+    "native_energy_text": "FINAL SINGLE POINT ENERGY      -496.635839540864",
+    "native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/verify_A/.cloudra/calc-25.out.log",
+    "energy_quantity": "Electronic FINAL SINGLE POINT ENERGY, Hartree; not Gibbs free energy.",
+    "n_imaginary": 0,
+    "native_optimization_converged": true,
+    "XYZ_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/verify_A/open_reopt.xyz",
+    "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/verify_A/open_reopt.inp",
+    "source": "Given inputs/open.xyz reoptimized, not nativeIRC20 B endpoint21/22.",
+    "private_observation": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/diagnosis/given-A25-native-minimum-observation.json",
+    "excluded_from_canonical_middle_source": true,
+    "same_TS19_relative_given_A25_barrier_kcal_mol_for_explicit_comparison_only": 55.813534166234774,
+    "increase_relative_actual_source22_barrier_kcal_mol": 0.706611831105896
+  },
+  "cross_run_joins": {
+    "open53_to_source22": {
+      "same_species": true,
+      "exact_same_coordinates_or_energy": false,
+      "source22_minus_target53_energy_kcal_mol": 0.7021157734154809,
+      "qualification": "Same OCCP species, distinct OH minimum conformers. No conformer-interconversion trajectory was computed and no new conformer/RMSD gate is imposed."
+    },
+    "ring24_to_source42": {
+      "same_species": true,
+      "exact_same_coordinates_or_energy": false,
+      "source42_minus_target24_energy_kcal_mol": 0.004306186503462191,
+      "qualification": "Same PH3 ring with existing complete atom map, closely reproduced internal geometry; backstep source42 is the explicitly seeded clean ring minimum."
+    },
+    "continuity_report": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/diagnosis/cross-run-native-route-continuity.json",
+    "interpretation": "Three native segments are chemically continuous at species and atom-conservation level, not a single exactly concatenated microscopic-conformation trajectory. Finite evidence does not prove a unique/dominant path."
+  },
+  "independent_reports": [
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/diagnosis/ts1-decl7-endpoints50-53-native-observation.json",
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/diagnosis/ts2-decl9-native-endpoint-observation.json",
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/diagnosis/irc20-native-connection-observation.json",
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/diagnosis/given-A25-native-minimum-observation.json",
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/diagnosis/cross-run-native-route-continuity.json"
+  ],
+  "scientific_vs_formal": {
+    "native_evidence": "Converged TS optimizations, matching one-imaginary frequencies, genuine bidirectional short IRC directions and zero-imaginary source/target minima were independently checked in referenced reports.",
+    "formal_combined_delivery": "Not asserted by this artifact; parent handles combined delivery, TaskSpec copy and read-only score comparison.",
+    "scoring_scope": "No scoring is executed here. Any later narrow research-graph diagnostic comparison is separate from the preserved full NU3 formal benchmark score."
+  },
+  "actions": {
+    "raw_QM_reads_this_step": "Only FINAL SINGLE POINT ENERGY lines extracted from10 frequency logs; prior complete scientific audits cited, not repeated.",
+    "new_QM_backend_API_model_or_observer": false,
+    "Gold_or_private_reasoning_read_or_copied": false,
+    "source_or_old_scientific_material_mutated": false,
+    "original_reference_or_threshold_changed": false,
+    "reference_copied_to_workspace_or_sent_to_Agent": false
+  }
+}

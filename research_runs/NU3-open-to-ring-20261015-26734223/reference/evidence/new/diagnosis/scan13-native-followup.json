@@ -1,0 +1,1073 @@
+{
+  "observed_utc": "2026-10-14T20:29:19.162219+00:00",
+  "run_dir": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223",
+  "scope": "Read-only native scan13, actual DFT18 source/convergence and frequency19 if already terminal; no IRC, endpoint validation or connection credit.",
+  "scan13_job": {
+    "id": 13,
+    "state": "done",
+    "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/scan-task.json",
+    "jobtype": "chem_task"
+  },
+  "scan13_files": {
+    "configuration_manifest_not_native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/scan-task.json",
+    "native_input": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/native_scan_runs/native_scan_0001/scan.inp",
+    "native_engine_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/native_scan_runs/native_scan_0001/engine.out",
+    "native_multiframe_XYZ_profile": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/native_scan_runs/native_scan_0001/xtbscan.log",
+    "tool_result_receipt": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/scan-task.chem-result.json",
+    "empty_wrapper_log_not_native_evidence": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/.cloudra/calc-13.out.log"
+  },
+  "scan13_native_semantics": {
+    "native_input_text": "$constrain\n force constant=0.5\n distance: 2,9,3.15\n distance: 2,7,2.71\n$scan\n mode=concerted\n 1: 3.15,1.8,13\n 2: 2.71,1.42,13\n$opt\n$end\n",
+    "engine": "GFN2-xTB",
+    "scan_mode": "concerted",
+    "dimensions": 2,
+    "single_synchronized_sequence_points": 13,
+    "not_independent_grid": true,
+    "native_atom_pairs_1based": [
+      [
+        "P2",
+        "O9"
+      ],
+      [
+        "P2",
+        "H7"
+      ]
+    ],
+    "force_constant_as_native_input": 0.5,
+    "freeze_list": [],
+    "native_method_and_termination_markers": [
+      {
+        "line": 207,
+        "text": ":  Hamiltonian                  GFN2-xTB          :"
+      },
+      {
+        "line": 628,
+        "text": ":  Hamiltonian                  GFN2-xTB          :"
+      },
+      {
+        "line": 841,
+        "text": ":  Hamiltonian                  GFN2-xTB          :"
+      },
+      {
+        "line": 6414,
+        "text": "normal termination of xtb"
+      }
+    ],
+    "all11_atom_order": [
+      "C",
+      "P",
+      "H",
+      "H",
+      "H",
+      "H",
+      "H",
+      "C",
+      "O",
+      "H",
+      "H"
+    ]
+  },
+  "native_vs_tool_profile": [
+    {
+      "point_index": 1,
+      "native_scan_frame_number": 1,
+      "native_frame_comment_line": 2,
+      "native_electronic_energy_hartree": -14.411264741245,
+      "tool_electronic_energy_hartree": -14.411264741245,
+      "energy_difference": 0.0,
+      "targets_angstrom": [
+        3.15,
+        2.71
+      ],
+      "native_P2_O9_and_P2_H7_angstrom": [
+        3.151416886530943,
+        2.709137481169332
+      ],
+      "tool_actual_coordinates": [
+        3.151416886530943,
+        2.7091374811693325
+      ],
+      "coordinate_differences": [
+        0.0,
+        -4.440892098500626e-16
+      ],
+      "native_O9_H7_angstrom": 0.9655966806172384,
+      "exported_XYZ_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/native_scan_runs/native_scan_0001/point_0001.xyz",
+      "same_element_order": true,
+      "native_frame_vs_export_max_coordinate_difference": 0.0,
+      "geometry_converged_tool": true,
+      "scc_converged_tool": true
+    },
+    {
+      "point_index": 2,
+      "native_scan_frame_number": 2,
+      "native_frame_comment_line": 15,
+      "native_electronic_energy_hartree": -14.41089877027,
+      "tool_electronic_energy_hartree": -14.41089877027,
+      "energy_difference": 0.0,
+      "targets_angstrom": [
+        3.0375,
+        2.6025
+      ],
+      "native_P2_O9_and_P2_H7_angstrom": [
+        3.0396869593444786,
+        2.60147393496014
+      ],
+      "tool_actual_coordinates": [
+        3.039686959344479,
+        2.60147393496014
+      ],
+      "coordinate_differences": [
+        -4.440892098500626e-16,
+        0.0
+      ],
+      "native_O9_H7_angstrom": 0.965812686087159,
+      "exported_XYZ_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/native_scan_runs/native_scan_0001/point_0002.xyz",
+      "same_element_order": true,
+      "native_frame_vs_export_max_coordinate_difference": 0.0,
+      "geometry_converged_tool": true,
+      "scc_converged_tool": true
+    },
+    {
+      "point_index": 3,
+      "native_scan_frame_number": 3,
+      "native_frame_comment_line": 28,
+      "native_electronic_energy_hartree": -14.410124988338,
+      "tool_electronic_energy_hartree": -14.410124988338,
+      "energy_difference": 0.0,
+      "targets_angstrom": [
+        2.925,
+        2.495
+      ],
+      "native_P2_O9_and_P2_H7_angstrom": [
+        2.9279015740811873,
+        2.4944452100849874
+      ],
+      "tool_actual_coordinates": [
+        2.9279015740811873,
+        2.494445210084987
+      ],
+      "coordinate_differences": [
+        0.0,
+        4.440892098500626e-16
+      ],
+      "native_O9_H7_angstrom": 0.9662346768361955,
+      "exported_XYZ_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/native_scan_runs/native_scan_0001/point_0003.xyz",
+      "same_element_order": true,
+      "native_frame_vs_export_max_coordinate_difference": 0.0,
+      "geometry_converged_tool": true,
+      "scc_converged_tool": true
+    },
+    {
+      "point_index": 4,
+      "native_scan_frame_number": 4,
+      "native_frame_comment_line": 41,
+      "native_electronic_energy_hartree": -14.408864235962,
+      "tool_electronic_energy_hartree": -14.408864235962,
+      "energy_difference": 0.0,
+      "targets_angstrom": [
+        2.8125,
+        2.3875
+      ],
+      "native_P2_O9_and_P2_H7_angstrom": [
+        2.816025428912297,
+        2.387801753286068
+      ],
+      "tool_actual_coordinates": [
+        2.816025428912297,
+        2.387801753286068
+      ],
+      "coordinate_differences": [
+        0.0,
+        0.0
+      ],
+      "native_O9_H7_angstrom": 0.9667970251254067,
+      "exported_XYZ_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/native_scan_runs/native_scan_0001/point_0004.xyz",
+      "same_element_order": true,
+      "native_frame_vs_export_max_coordinate_difference": 0.0,
+      "geometry_converged_tool": true,
+      "scc_converged_tool": true
+    },
+    {
+      "point_index": 5,
+      "native_scan_frame_number": 5,
+      "native_frame_comment_line": 54,
+      "native_electronic_energy_hartree": -14.40692255828,
+      "tool_electronic_energy_hartree": -14.40692255828,
+      "energy_difference": 0.0,
+      "targets_angstrom": [
+        2.7,
+        2.28
+      ],
+      "native_P2_O9_and_P2_H7_angstrom": [
+        2.7044349697082724,
+        2.2815939117321404
+      ],
+      "tool_actual_coordinates": [
+        2.7044349697082724,
+        2.2815939117321404
+      ],
+      "coordinate_differences": [
+        0.0,
+        0.0
+      ],
+      "native_O9_H7_angstrom": 0.9674023445829871,
+      "exported_XYZ_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/native_scan_runs/native_scan_0001/point_0005.xyz",
+      "same_element_order": true,
+      "native_frame_vs_export_max_coordinate_difference": 0.0,
+      "geometry_converged_tool": true,
+      "scc_converged_tool": true
+    },
+    {
+      "point_index": 6,
+      "native_scan_frame_number": 6,
+      "native_frame_comment_line": 67,
+      "native_electronic_energy_hartree": -14.403951403013,
+      "tool_electronic_energy_hartree": -14.403951403013,
+      "energy_difference": 0.0,
+      "targets_angstrom": [
+        2.5875,
+        2.1725
+      ],
+      "native_P2_O9_and_P2_H7_angstrom": [
+        2.593420646576375,
+        2.175708916086354
+      ],
+      "tool_actual_coordinates": [
+        2.593420646576375,
+        2.175708916086354
+      ],
+      "coordinate_differences": [
+        0.0,
+        0.0
+      ],
+      "native_O9_H7_angstrom": 0.9681631293306753,
+      "exported_XYZ_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/native_scan_runs/native_scan_0001/point_0006.xyz",
+      "same_element_order": true,
+      "native_frame_vs_export_max_coordinate_difference": 0.0,
+      "geometry_converged_tool": true,
+      "scc_converged_tool": true
+    },
+    {
+      "point_index": 7,
+      "native_scan_frame_number": 7,
+      "native_frame_comment_line": 80,
+      "native_electronic_energy_hartree": -14.39969812014,
+      "tool_electronic_energy_hartree": -14.39969812014,
+      "energy_difference": 0.0,
+      "targets_angstrom": [
+        2.475,
+        2.065
+      ],
+      "native_P2_O9_and_P2_H7_angstrom": [
+        2.482790566185403,
+        2.0707178292885766
+      ],
+      "tool_actual_coordinates": [
+        2.482790566185403,
+        2.0707178292885766
+      ],
+      "coordinate_differences": [
+        0.0,
+        0.0
+      ],
+      "native_O9_H7_angstrom": 0.9686907755151981,
+      "exported_XYZ_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/native_scan_runs/native_scan_0001/point_0007.xyz",
+      "same_element_order": true,
+      "native_frame_vs_export_max_coordinate_difference": 0.0,
+      "geometry_converged_tool": true,
+      "scc_converged_tool": true
+    },
+    {
+      "point_index": 8,
+      "native_scan_frame_number": 8,
+      "native_frame_comment_line": 93,
+      "native_electronic_energy_hartree": -14.393661411236,
+      "tool_electronic_energy_hartree": -14.393661411236,
+      "energy_difference": 0.0,
+      "targets_angstrom": [
+        2.3625,
+        1.9575
+      ],
+      "native_P2_O9_and_P2_H7_angstrom": [
+        2.373199695623987,
+        1.9653879733784834
+      ],
+      "tool_actual_coordinates": [
+        2.373199695623987,
+        1.9653879733784834
+      ],
+      "coordinate_differences": [
+        0.0,
+        0.0
+      ],
+      "native_O9_H7_angstrom": 0.9690280377868569,
+      "exported_XYZ_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/native_scan_runs/native_scan_0001/point_0008.xyz",
+      "same_element_order": true,
+      "native_frame_vs_export_max_coordinate_difference": 0.0,
+      "geometry_converged_tool": true,
+      "scc_converged_tool": true
+    },
+    {
+      "point_index": 9,
+      "native_scan_frame_number": 9,
+      "native_frame_comment_line": 106,
+      "native_electronic_energy_hartree": -14.385419740488,
+      "tool_electronic_energy_hartree": -14.385419740488,
+      "energy_difference": 0.0,
+      "targets_angstrom": [
+        2.25,
+        1.85
+      ],
+      "native_P2_O9_and_P2_H7_angstrom": [
+        2.265273181374051,
+        1.8604414163478966
+      ],
+      "tool_actual_coordinates": [
+        2.265273181374051,
+        1.8604414163478966
+      ],
+      "coordinate_differences": [
+        0.0,
+        0.0
+      ],
+      "native_O9_H7_angstrom": 0.9704594928027336,
+      "exported_XYZ_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/native_scan_runs/native_scan_0001/point_0009.xyz",
+      "same_element_order": true,
+      "native_frame_vs_export_max_coordinate_difference": 0.0,
+      "geometry_converged_tool": true,
+      "scc_converged_tool": true
+    },
+    {
+      "point_index": 10,
+      "native_scan_frame_number": 10,
+      "native_frame_comment_line": 119,
+      "native_electronic_energy_hartree": -14.374037303849,
+      "tool_electronic_energy_hartree": -14.374037303849,
+      "energy_difference": 0.0,
+      "targets_angstrom": [
+        2.1375,
+        1.7425000000000002
+      ],
+      "native_P2_O9_and_P2_H7_angstrom": [
+        2.1598225631085692,
+        1.7555117778596188
+      ],
+      "tool_actual_coordinates": [
+        2.1598225631085692,
+        1.7555117778596188
+      ],
+      "coordinate_differences": [
+        0.0,
+        0.0
+      ],
+      "native_O9_H7_angstrom": 0.9719818214630442,
+      "exported_XYZ_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/native_scan_runs/native_scan_0001/point_0010.xyz",
+      "same_element_order": true,
+      "native_frame_vs_export_max_coordinate_difference": 0.0,
+      "geometry_converged_tool": true,
+      "scc_converged_tool": true
+    },
+    {
+      "point_index": 11,
+      "native_scan_frame_number": 11,
+      "native_frame_comment_line": 132,
+      "native_electronic_energy_hartree": -14.358700545427,
+      "tool_electronic_energy_hartree": -14.358700545427,
+      "energy_difference": 0.0,
+      "targets_angstrom": [
+        2.0250000000000004,
+        1.635
+      ],
+      "native_P2_O9_and_P2_H7_angstrom": [
+        2.055948731590136,
+        1.6514514940320804
+      ],
+      "tool_actual_coordinates": [
+        2.0559487315901355,
+        1.6514514940320804
+      ],
+      "coordinate_differences": [
+        4.440892098500626e-16,
+        0.0
+      ],
+      "native_O9_H7_angstrom": 0.9756573158222532,
+      "exported_XYZ_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/native_scan_runs/native_scan_0001/point_0011.xyz",
+      "same_element_order": true,
+      "native_frame_vs_export_max_coordinate_difference": 0.0,
+      "geometry_converged_tool": true,
+      "scc_converged_tool": true
+    },
+    {
+      "point_index": 12,
+      "native_scan_frame_number": 12,
+      "native_frame_comment_line": 145,
+      "native_electronic_energy_hartree": -14.338739540388,
+      "tool_electronic_energy_hartree": -14.338739540388,
+      "energy_difference": 0.0,
+      "targets_angstrom": [
+        1.9125,
+        1.5274999999999999
+      ],
+      "native_P2_O9_and_P2_H7_angstrom": [
+        1.9531859222379049,
+        1.5494832202062443
+      ],
+      "tool_actual_coordinates": [
+        1.9531859222379049,
+        1.5494832202062443
+      ],
+      "coordinate_differences": [
+        0.0,
+        0.0
+      ],
+      "native_O9_H7_angstrom": 0.9824272996882196,
+      "exported_XYZ_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/native_scan_runs/native_scan_0001/point_0012.xyz",
+      "same_element_order": true,
+      "native_frame_vs_export_max_coordinate_difference": 0.0,
+      "geometry_converged_tool": true,
+      "scc_converged_tool": true
+    },
+    {
+      "point_index": 13,
+      "native_scan_frame_number": 13,
+      "native_frame_comment_line": 158,
+      "native_electronic_energy_hartree": -14.31303450903,
+      "tool_electronic_energy_hartree": -14.31303450903,
+      "energy_difference": 0.0,
+      "targets_angstrom": [
+        1.8,
+        1.42
+      ],
+      "native_P2_O9_and_P2_H7_angstrom": [
+        1.850920903539027,
+        1.449297151219767
+      ],
+      "tool_actual_coordinates": [
+        1.850920903539027,
+        1.449297151219767
+      ],
+      "coordinate_differences": [
+        0.0,
+        0.0
+      ],
+      "native_O9_H7_angstrom": 0.9949173560221961,
+      "exported_XYZ_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/native_scan_runs/native_scan_0001/point_0013.xyz",
+      "same_element_order": true,
+      "native_frame_vs_export_max_coordinate_difference": 0.0,
+      "geometry_converged_tool": true,
+      "scc_converged_tool": true
+    }
+  ],
+  "independent_peak_check": {
+    "native_frame_count": 13,
+    "strictly_increasing": true,
+    "internal_local_peak_point_indices": [],
+    "largest_energy_point": 13,
+    "largest_energy_hartree": -14.31303450903,
+    "tool_usable_as_guess": false,
+    "tool_candidates": [],
+    "tool_candidate_path": null,
+    "interpretation": "Native13-point profile is monotonically uphill to the boundary. No internal local maximum is exported; this is correct and does not imply a barrierless or inaccessible reaction."
+  },
+  "DFT18_actual_start": {
+    "job": {
+      "id": 18,
+      "state": "done",
+      "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/ts_opt/refine.inp",
+      "jobtype": "orca"
+    },
+    "public_current_declaration_revision": 8,
+    "public_guess": {
+      "kind": "provided",
+      "xyz_path": "runs/ts_interp_ts0001/img_06.xyz",
+      "evidence_refs": [
+        "runs/ts_interp_ts0001/img_06.xyz"
+      ]
+    },
+    "public_provided_copy_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/path/input_0007/provided.xyz",
+    "actual_original_source_xyz": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/ts_interp_ts0001/img_06.xyz",
+    "source_vs_provided_copy_same_elements": true,
+    "source_vs_provided_copy_max_coordinate_difference": 0.0,
+    "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/ts_opt/refine.inp",
+    "native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/ts_opt/.cloudra/calc-18.out.log",
+    "native_log_exists": true,
+    "native_log_size": 824110,
+    "native_task_markers": [
+      {
+        "line": 55,
+        "text": "Program Version 6.1.1  -  RELEASE   -"
+      },
+      {
+        "line": 211,
+        "text": "|  2> ! OptTS B3LYP def2-SVP D3BJ TightSCF"
+      },
+      {
+        "line": 235,
+        "text": "* Geometry Optimization Run *"
+      },
+      {
+        "line": 345,
+        "text": "*                GEOMETRY OPTIMIZATION CYCLE   1            *"
+      },
+      {
+        "line": 1883,
+        "text": "*                GEOMETRY OPTIMIZATION CYCLE   2            *"
+      },
+      {
+        "line": 2542,
+        "text": "*                GEOMETRY OPTIMIZATION CYCLE   3            *"
+      },
+      {
+        "line": 3197,
+        "text": "*                GEOMETRY OPTIMIZATION CYCLE   4            *"
+      },
+      {
+        "line": 3858,
+        "text": "*                GEOMETRY OPTIMIZATION CYCLE   5            *"
+      },
+      {
+        "line": 4520,
+        "text": "*                GEOMETRY OPTIMIZATION CYCLE   6            *"
+      },
+      {
+        "line": 5173,
+        "text": "*                GEOMETRY OPTIMIZATION CYCLE   7            *"
+      },
+      {
+        "line": 5825,
+        "text": "*                GEOMETRY OPTIMIZATION CYCLE   8            *"
+      },
+      {
+        "line": 6483,
+        "text": "*                GEOMETRY OPTIMIZATION CYCLE   9            *"
+      }
+    ],
+    "input_method_line": "! OptTS B3LYP def2-SVP D3BJ TightSCF",
+    "input_geom_block": "%geom\n  Calc_Hess true\nend",
+    "input11_atom_order": [
+      "C",
+      "P",
+      "H",
+      "H",
+      "H",
+      "H",
+      "H",
+      "C",
+      "O",
+      "H",
+      "H"
+    ],
+    "input_vs_IDPP_source_same_elements": true,
+    "input_vs_IDPP_source_max_coordinate_difference": 0.0,
+    "exact_scan13_frames_matching_IDPP_source": [],
+    "adoption_conclusion": "Job18 uses the independently generated IDPP img_06 copied through the provided-guess path. It does not adopt scan13, which has no candidate, or the exploratory S2 gfn2 candidate. The actual input requests free OptTS B3LYP/def2-SVP D3BJ TightSCF with Calc_Hess; it contains no scan or geometry constraint/freeze block.",
+    "scientific_scope": "Source/method and native OptTS convergence checked; frequency19 is separately recorded if terminal. No IRC or target connection credit.",
+    "native_convergence_observation": {
+      "native_markers": [
+        {
+          "line": 16031,
+          "text": "***        THE OPTIMIZATION HAS CONVERGED     ***"
+        },
+        {
+          "line": 17158,
+          "text": "****ORCA TERMINATED NORMALLY****"
+        }
+      ],
+      "opt_converged": true,
+      "normal_termination": true,
+      "scope": "Native optimization convergence is checked independently from ledger done; a target connection still requires frequency and IRC evidence."
+    }
+  },
+  "recent_successful_public_tool_state_receipts": [
+    {
+      "seq": 3465,
+      "at": "2026-10-14T20:26:04.285435+00:00",
+      "session_id": "as_63de2ab4d28941b5",
+      "tool_name": "ts_resume",
+      "is_success": true,
+      "scientific_state": {
+        "run_id": "ts_0001",
+        "revision": 43,
+        "status": "waiting",
+        "stage": "refine",
+        "blocked": null,
+        "waiting_for": [
+          {
+            "job_id": 18,
+            "purpose": "ts_opt",
+            "state": "ready",
+            "req_cpus": 8,
+            "req_memory_mb": 8192,
+            "start_timestamp": -1,
+            "end_timestamp": -1,
+            "source_input_revision": 8,
+            "attempt": 1,
+            "evidence": null,
+            "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/ts_opt/refine.inp",
+            "job_type": "orca"
+          }
+        ],
+        "message": "waiting for job 18 (ts_opt) to reach a terminal state; the existing compute notification path advances the system driver, so this stage never polls and emits no event"
+      }
+    },
+    {
+      "seq": 3426,
+      "at": "2026-10-14T20:25:53.800159+00:00",
+      "session_id": "as_63de2ab4d28941b5",
+      "tool_name": "ts_resume",
+      "is_success": true,
+      "scientific_state": {
+        "run_id": "ts_0001",
+        "revision": 38,
+        "status": "blocked",
+        "stage": "submit",
+        "blocked": {
+          "failure_class": "refinement_input_failed",
+          "stage": "submit",
+          "message": "refinement input refused: [frequency_mode_without_frequency] frequency_mode was set but no frequency task was requested; add {'freq': None} or drop frequency_mode.",
+          "atom_details": [],
+          "needs": [
+            "method",
+            "engine"
+          ],
+          "issues": []
+        },
+        "waiting_for": [],
+        "message": "refinement input refused: [frequency_mode_without_frequency] frequency_mode was set but no frequency task was requested; add {'freq': None} or drop frequency_mode."
+      }
+    },
+    {
+      "seq": 3405,
+      "at": "2026-10-14T20:25:51.198758+00:00",
+      "session_id": "as_63de2ab4d28941b5",
+      "tool_name": "ts_inspect",
+      "is_success": true,
+      "scientific_state": {
+        "run_id": "ts_0001",
+        "revision": 33,
+        "status": "blocked",
+        "stage": "guess",
+        "blocked": {
+          "failure_class": "provided_guess_invalid",
+          "stage": "guess",
+          "message": "Provided candidate provenance artifact missing: runs/ts_interp_ts0001",
+          "atom_details": [],
+          "needs": [
+            "guess"
+          ],
+          "issues": []
+        },
+        "waiting_for": [],
+        "message": "Provided candidate provenance artifact missing: runs/ts_interp_ts0001"
+      }
+    },
+    {
+      "seq": 3395,
+      "at": "2026-10-14T20:25:51.180385+00:00",
+      "session_id": "as_63de2ab4d28941b5",
+      "tool_name": "ts_resume",
+      "is_success": true,
+      "scientific_state": {
+        "run_id": "ts_0001",
+        "revision": 33,
+        "status": "blocked",
+        "stage": "guess",
+        "blocked": {
+          "failure_class": "provided_guess_invalid",
+          "stage": "guess",
+          "message": "Provided candidate provenance artifact missing: runs/ts_interp_ts0001",
+          "atom_details": [],
+          "needs": [
+            "guess"
+          ],
+          "issues": []
+        },
+        "waiting_for": [],
+        "message": "Provided candidate provenance artifact missing: runs/ts_interp_ts0001"
+      }
+    },
+    {
+      "seq": 3299,
+      "at": "2026-10-14T20:25:37.927398+00:00",
+      "session_id": "as_63de2ab4d28941b5",
+      "tool_name": "ts_guess",
+      "is_success": true,
+      "scientific_state": {
+        "message": "Generated 11 images (idpp) in /Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/ts_interp_ts0001. TS candidate frame: img_06.xyz (watched pair H7-O9 crosses the endpoint midpoint). These images can serve directly as a NEB initial path, or be optimized frame by frame with constraints to find a TS guess; you can also use scan_prepare to generate a constrained-scan input to further locate the barrier top."
+      }
+    },
+    {
+      "seq": 3044,
+      "at": "2026-10-14T20:25:13.828887+00:00",
+      "session_id": "as_63de2ab4d28941b5",
+      "tool_name": "ts_inspect",
+      "is_success": true,
+      "scientific_state": {
+        "run_id": "ts_0001",
+        "revision": 27,
+        "status": "waiting",
+        "stage": "guess",
+        "blocked": null,
+        "waiting_for": [
+          {
+            "job_id": 13,
+            "purpose": "scan",
+            "state": "ready",
+            "req_cpus": 8,
+            "req_memory_mb": 8192,
+            "start_timestamp": -1,
+            "end_timestamp": -1,
+            "source_input_revision": 5,
+            "attempt": 1,
+            "evidence": null,
+            "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/scan-task.json",
+            "job_type": "chem_task"
+          }
+        ],
+        "message": "Scan job 13 submitted; compute completion advances the system driver."
+      }
+    },
+    {
+      "seq": 3035,
+      "at": "2026-10-14T20:25:13.811508+00:00",
+      "session_id": "as_63de2ab4d28941b5",
+      "tool_name": "ts_resume",
+      "is_success": true,
+      "scientific_state": {
+        "run_id": "ts_0001",
+        "revision": 27,
+        "status": "waiting",
+        "stage": "guess",
+        "blocked": null,
+        "waiting_for": [
+          {
+            "job_id": 13,
+            "purpose": "scan",
+            "state": "ready",
+            "req_cpus": 8,
+            "req_memory_mb": 8192,
+            "start_timestamp": -1,
+            "end_timestamp": -1,
+            "source_input_revision": 5,
+            "attempt": 1,
+            "evidence": null,
+            "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/scan-task.json",
+            "job_type": "chem_task"
+          }
+        ],
+        "message": "Scan job 13 submitted; compute completion advances the system driver."
+      }
+    },
+    {
+      "seq": 2983,
+      "at": "2026-10-14T20:25:04.141351+00:00",
+      "session_id": "as_63de2ab4d28941b5",
+      "tool_name": "ts_resume",
+      "is_success": false,
+      "scientific_state": {}
+    },
+    {
+      "seq": 2948,
+      "at": "2026-10-14T20:24:58.676846+00:00",
+      "session_id": "as_63de2ab4d28941b5",
+      "tool_name": "ts_resume",
+      "is_success": false,
+      "scientific_state": {}
+    },
+    {
+      "seq": 2749,
+      "at": "2026-10-14T20:19:17.347913+00:00",
+      "session_id": "as_7473bc09bc2a47e2",
+      "tool_name": "ts_guess",
+      "is_success": true,
+      "scientific_state": {
+        "message": "Generated 15 images (idpp) in /Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/ts_interp. TS candidate frame: img_08.xyz (watched pair H7-O9 crosses the endpoint midpoint). These images can serve directly as a NEB initial path, or be optimized frame by frame with constraints to find a TS guess; you can also use scan_prepare to generate a constrained-scan input to further locate the barrier top."
+      }
+    },
+    {
+      "seq": 2726,
+      "at": "2026-10-14T20:19:15.397560+00:00",
+      "session_id": "as_9725c841901b4ca0",
+      "tool_name": "ts_inspect",
+      "is_success": true,
+      "scientific_state": {
+        "run_id": "ts_0001",
+        "revision": 23,
+        "status": "blocked",
+        "stage": "guess",
+        "blocked": {
+          "failure_class": "path_not_converged",
+          "stage": "guess",
+          "message": "the xTB path refinement hit its 100-run cap before the engine declared convergence, so no usable TS guess was produced. Inspect endpoint identities, geometry and the retained path before choosing the next attempt. Raise `refinement_runs` only when the evidence supports further refinement; more iterations do not guarantee convergence. Run directory (truncated path kept for inspection): /Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0004/path/xtb_path_runs/queued_path_0001",
+          "atom_details": [
+            "the engine stopped its path refinement at the 100-run cap ('terminated because max. # cycles reached'); that is a truncated path, not a converged one. The frames and TS candidate are kept for inspection only. Inspect endpoint identities, geometry and the retained path before choosing the next attempt. Raise `refinement_runs` only when the evidence supports further refinement; more iterations do not guarantee convergence."
+          ],
+          "needs": [
+            "guess"
+          ],
+          "issues": []
+        },
+        "waiting_for": [],
+        "message": "the xTB path refinement hit its 100-run cap before the engine declared convergence, so no usable TS guess was produced. Inspect endpoint identities, geometry and the retained path before choosing the next attempt. Raise `refinement_runs` only when the evidence supports further refinement; more iterations do not guarantee convergence. Run directory (truncated path kept for inspection): /Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0004/path/xtb_path_runs/queued_path_0001"
+      }
+    },
+    {
+      "seq": 2538,
+      "at": "2026-10-14T20:18:55.430907+00:00",
+      "session_id": "as_63de2ab4d28941b5",
+      "tool_name": "ts_inspect",
+      "is_success": true,
+      "scientific_state": {
+        "run_id": "ts_0001",
+        "revision": 23,
+        "status": "blocked",
+        "stage": "guess",
+        "blocked": {
+          "failure_class": "path_not_converged",
+          "stage": "guess",
+          "message": "the xTB path refinement hit its 100-run cap before the engine declared convergence, so no usable TS guess was produced. Inspect endpoint identities, geometry and the retained path before choosing the next attempt. Raise `refinement_runs` only when the evidence supports further refinement; more iterations do not guarantee convergence. Run directory (truncated path kept for inspection): /Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0004/path/xtb_path_runs/queued_path_0001",
+          "atom_details": [
+            "the engine stopped its path refinement at the 100-run cap ('terminated because max. # cycles reached'); that is a truncated path, not a converged one. The frames and TS candidate are kept for inspection only. Inspect endpoint identities, geometry and the retained path before choosing the next attempt. Raise `refinement_runs` only when the evidence supports further refinement; more iterations do not guarantee convergence."
+          ],
+          "needs": [
+            "guess"
+          ],
+          "issues": []
+        },
+        "waiting_for": [],
+        "message": "the xTB path refinement hit its 100-run cap before the engine declared convergence, so no usable TS guess was produced. Inspect endpoint identities, geometry and the retained path before choosing the next attempt. Raise `refinement_runs` only when the evidence supports further refinement; more iterations do not guarantee convergence. Run directory (truncated path kept for inspection): /Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0004/path/xtb_path_runs/queued_path_0001"
+      }
+    },
+    {
+      "seq": 2350,
+      "at": "2026-10-14T20:18:52.031081+00:00",
+      "session_id": "as_5758d6a35fab40cf",
+      "tool_name": "ts_inspect",
+      "is_success": true,
+      "scientific_state": {
+        "run_id": "ts_0001",
+        "revision": 23,
+        "status": "blocked",
+        "stage": "guess",
+        "blocked": {
+          "failure_class": "path_not_converged",
+          "stage": "guess",
+          "message": "the xTB path refinement hit its 100-run cap before the engine declared convergence, so no usable TS guess was produced. Inspect endpoint identities, geometry and the retained path before choosing the next attempt. Raise `refinement_runs` only when the evidence supports further refinement; more iterations do not guarantee convergence. Run directory (truncated path kept for inspection): /Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0004/path/xtb_path_runs/queued_path_0001",
+          "atom_details": [
+            "the engine stopped its path refinement at the 100-run cap ('terminated because max. # cycles reached'); that is a truncated path, not a converged one. The frames and TS candidate are kept for inspection only. Inspect endpoint identities, geometry and the retained path before choosing the next attempt. Raise `refinement_runs` only when the evidence supports further refinement; more iterations do not guarantee convergence."
+          ],
+          "needs": [
+            "guess"
+          ],
+          "issues": []
+        },
+        "waiting_for": [],
+        "message": "the xTB path refinement hit its 100-run cap before the engine declared convergence, so no usable TS guess was produced. Inspect endpoint identities, geometry and the retained path before choosing the next attempt. Raise `refinement_runs` only when the evidence supports further refinement; more iterations do not guarantee convergence. Run directory (truncated path kept for inspection): /Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0004/path/xtb_path_runs/queued_path_0001"
+      }
+    },
+    {
+      "seq": 2277,
+      "at": "2026-10-14T20:18:44.675510+00:00",
+      "session_id": "as_7473bc09bc2a47e2",
+      "tool_name": "ts_guess",
+      "is_success": true,
+      "scientific_state": {
+        "message": "Typed xTB scan manifest written; this has not run a calculation or validated a TS."
+      }
+    },
+    {
+      "seq": 2271,
+      "at": "2026-10-14T20:18:44.650370+00:00",
+      "session_id": "as_7473bc09bc2a47e2",
+      "tool_name": "ts_guess",
+      "is_success": true,
+      "scientific_state": {
+        "message": "Typed xTB scan manifest written; this has not run a calculation or validated a TS."
+      }
+    },
+    {
+      "seq": 2201,
+      "at": "2026-10-14T20:18:31.669876+00:00",
+      "session_id": "as_5758d6a35fab40cf",
+      "tool_name": "ts_inspect",
+      "is_success": true,
+      "scientific_state": {
+        "run_id": "ts_0001",
+        "revision": 20,
+        "status": "waiting",
+        "stage": "guess",
+        "blocked": null,
+        "waiting_for": [
+          {
+            "job_id": 7,
+            "purpose": "path",
+            "state": "running",
+            "req_cpus": 8,
+            "req_memory_mb": 8192,
+            "start_timestamp": 1792009077.219591,
+            "end_timestamp": -1,
+            "source_input_revision": 4,
+            "attempt": 1,
+            "evidence": null,
+            "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0004/path/path-task.json",
+            "job_type": "chem_task"
+          }
+        ],
+        "message": ""
+      }
+    },
+    {
+      "seq": 1724,
+      "at": "2026-10-14T20:17:56.831048+00:00",
+      "session_id": "as_63de2ab4d28941b5",
+      "tool_name": "ts_inspect",
+      "is_success": true,
+      "scientific_state": {
+        "run_id": "ts_0001",
+        "revision": 20,
+        "status": "waiting",
+        "stage": "guess",
+        "blocked": null,
+        "waiting_for": [
+          {
+            "job_id": 7,
+            "purpose": "path",
+            "state": "ready",
+            "req_cpus": 8,
+            "req_memory_mb": 8192,
+            "start_timestamp": -1,
+            "end_timestamp": -1,
+            "source_input_revision": 4,
+            "attempt": 1,
+            "evidence": null,
+            "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0004/path/path-task.json",
+            "job_type": "chem_task"
+          }
+        ],
+        "message": ""
+      }
+    },
+    {
+      "seq": 1717,
+      "at": "2026-10-14T20:17:56.814839+00:00",
+      "session_id": "as_63de2ab4d28941b5",
+      "tool_name": "ts_resume",
+      "is_success": true,
+      "scientific_state": {
+        "run_id": "ts_0001",
+        "revision": 20,
+        "status": "waiting",
+        "stage": "guess",
+        "blocked": null,
+        "waiting_for": [
+          {
+            "job_id": 7,
+            "purpose": "path",
+            "state": "ready",
+            "req_cpus": 8,
+            "req_memory_mb": 8192,
+            "start_timestamp": -1,
+            "end_timestamp": -1,
+            "source_input_revision": 4,
+            "attempt": 1,
+            "evidence": null,
+            "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0004/path/path-task.json",
+            "job_type": "chem_task"
+          }
+        ],
+        "message": ""
+      }
+    },
+    {
+      "seq": 1663,
+      "at": "2026-10-14T20:17:52.277641+00:00",
+      "session_id": "as_63de2ab4d28941b5",
+      "tool_name": "ts_inspect",
+      "is_success": true,
+      "scientific_state": {
+        "run_id": "ts_0001",
+        "revision": 16,
+        "status": "blocked",
+        "stage": "guess",
+        "blocked": {
+          "failure_class": "missing_input",
+          "stage": "guess",
+          "message": "Explicit guess source required",
+          "atom_details": [],
+          "needs": [
+            "guess"
+          ],
+          "issues": []
+        },
+        "waiting_for": [],
+        "message": "Explicit guess source required"
+      }
+    },
+    {
+      "seq": 1656,
+      "at": "2026-10-14T20:17:52.263434+00:00",
+      "session_id": "as_63de2ab4d28941b5",
+      "tool_name": "ts_resume",
+      "is_success": true,
+      "scientific_state": {
+        "run_id": "ts_0001",
+        "revision": 16,
+        "status": "blocked",
+        "stage": "guess",
+        "blocked": {
+          "failure_class": "missing_input",
+          "stage": "guess",
+          "message": "Explicit guess source required",
+          "atom_details": [],
+          "needs": [
+            "guess"
+          ],
+          "issues": []
+        },
+        "waiting_for": [],
+        "message": "Explicit guess source required"
+      }
+    }
+  ],
+  "conclusion": "Scan13 is a real13-point synchronized constrained GFΝ2-xTB P-O/P-H scan with no internal maximum; all exported XYZ and electronic energies exactly align with native frames. DFT OptTS18 uses the independently generated IDPP img_06 rather than this scan or an exploratory S2 candidate. Native OptTS convergence and any already-terminal frequency19 are recorded separately; the target connection remains unverified without actual IRC and endpoint evidence.",
+  "actions": {
+    "new_QM_or_observer": false,
+    "source_config_or_runtime_mutations": false,
+    "live_agent_correction": false,
+    "Gold_or_model_reasoning_read": false
+  },
+  "frequency19_bounded_observation": {
+    "job_present": true,
+    "job": {
+      "id": 19,
+      "state": "done",
+      "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/frequency/frequency.inp",
+      "jobtype": "orca"
+    },
+    "native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/frequency/.cloudra/calc-19.out.log",
+    "native_log_exists": true,
+    "markers": [
+      {
+        "line": 1331,
+        "text": "VIBRATIONAL FREQUENCIES"
+      },
+      {
+        "line": 1914,
+        "text": "****ORCA TERMINATED NORMALLY****"
+      }
+    ],
+    "frequency_rows": 33,
+    "n_imaginary": 1,
+    "negative_frequencies": [
+      {
+        "mode": 6,
+        "value_cm_minus1": -1022.18,
+        "line": 1342
+      }
+    ],
+    "normal_termination": true,
+    "scope": "Matching pipeline frequency candidate only; IRC connection is not inspected or credited."
+  },
+  "terminal_opt_addendum_utc": "2026-10-14T20:30:01.453237+00:00"
+}

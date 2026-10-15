@@ -1,0 +1,138 @@
+{
+  "observed_at": "2026-10-14T21:10:41.590525+00:00",
+  "status": "terminal_complete_with_final_supervisor_accept",
+  "scope": "New terminal only; no native scientific re-review or intervention.",
+  "review": {
+    "request_id": "req_c838ce9a7542453a83ca02177191fb80",
+    "decision_id": "dec_0f1ffb1ad89045148727adafa047bfc1",
+    "verdict": "accept",
+    "request_created_at": "2026-10-14 21:02:43",
+    "decided_at": "2026-10-14 21:03:10",
+    "exit_request_count": 1,
+    "basis_fingerprint_request": "sha256:d4e131bb91c4f85e0adecc13f12401c9541abb86e13de9a5a26d7c3c2e5a6956",
+    "basis_fingerprint_decision": "sha256:d4e131bb91c4f85e0adecc13f12401c9541abb86e13de9a5a26d7c3c2e5a6956",
+    "disposition_id": "disp_9b89e528ad004bf2ac666cebef2abb91",
+    "disposition": "complete",
+    "complete": true,
+    "unresolved": [],
+    "waived": [],
+    "notifications": [
+      {
+        "notification_id": "notif_b90c71f383654b3f92e74480703240b3",
+        "kind": "review_decision",
+        "decision_id": "dec_0f1ffb1ad89045148727adafa047bfc1",
+        "request_id": "req_c838ce9a7542453a83ca02177191fb80",
+        "recipient_session_id": "as_9725c841901b4ca0",
+        "payload": "{}",
+        "state": "sent",
+        "created_at": "2026-10-14 21:03:10"
+      }
+    ]
+  },
+  "sequence": [
+    "21:02:43 complete stop became wait_review req_c838ce9a7542453a83ca02177191fb80; it was not yet delivered.",
+    "21:03:10 Supervisor successfully accepted exact request; notice delivered to Coordinator.",
+    "21:03:16 Coordinator stopped again with complete; gate allow_final approved dec_0f1ffb1ad89045148727adafa047bfc1 and committed immutable artifact/disposition.",
+    "21:03:20 Supervisor maintenance run ended. No duplicate exit request or artifact rewrite between request and final commit."
+  ],
+  "artifact": {
+    "live_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/mechanism_graph.json",
+    "immutable_snapshot": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/.cloudra/evidence/ec9d56a6de47b8ff_mechanism_graph.json",
+    "sha256": "ec9d56a6de47b8ff2b45625b1356cd36b71a50e3984641b2127da7a4dd0b3593",
+    "request_snapshot_path": null,
+    "all_hashes_match": true,
+    "note": "Exit proposal binds exact bytes by hash; immutable copy is materialized at final delivery commit.",
+    "node_count": 3,
+    "edge_count": 1,
+    "structured_barrier_kcal_mol": null,
+    "step_type": "concerted_P-O_bond_formation_with_O-H_to_P-H_migration; electronic_barrier_kcal_mol: open-chain(reactant)->TS 55.8, ring(product)->TS 24.3, relative to each side's own minimum (B3LYP-D3(BJ)/def2-SVP gas phase, electronic energies)"
+  },
+  "supervisor_material_reads": {
+    "terminal_read_receipts": [
+      {
+        "event_id": "evt_e76198f7945243a1",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/mechanism_graph.json",
+        "is_success": true,
+        "sha256": "ec9d56a6de47b8ff2b45625b1356cd36b71a50e3984641b2127da7a4dd0b3593",
+        "content_sha256": "ec9d56a6de47b8ff2b45625b1356cd36b71a50e3984641b2127da7a4dd0b3593",
+        "truncated": false,
+        "total_lines": 54
+      },
+      {
+        "event_id": "evt_6183fd4c093d4c4b",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/mechanism_graph.json",
+        "is_success": true,
+        "sha256": "ec9d56a6de47b8ff2b45625b1356cd36b71a50e3984641b2127da7a4dd0b3593",
+        "content_sha256": "ec9d56a6de47b8ff2b45625b1356cd36b71a50e3984641b2127da7a4dd0b3593",
+        "truncated": false,
+        "total_lines": 54
+      },
+      {
+        "event_id": "evt_016f4bfa1bc54439",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/PROCESS.md",
+        "is_success": true,
+        "sha256": "133246f60eb0c662d60eae4e71f3e1bb0c1ffa446641f320ebc16b2e9c648b39",
+        "content_sha256": "d92222ab538ed39c232ee60d68729605b62c86b430b0832e9edb60bd88bc7129",
+        "truncated": true,
+        "total_lines": 146
+      },
+      {
+        "event_id": "evt_9cdcb0435faa4c37",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/mechanism_graph.json",
+        "is_success": true,
+        "sha256": "ec9d56a6de47b8ff2b45625b1356cd36b71a50e3984641b2127da7a4dd0b3593",
+        "content_sha256": "ec9d56a6de47b8ff2b45625b1356cd36b71a50e3984641b2127da7a4dd0b3593",
+        "truncated": false,
+        "total_lines": 54
+      },
+      {
+        "event_id": "evt_ca51af6ad98f42c7",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/PROCESS.md",
+        "is_success": true,
+        "sha256": "dfe56619f583b935bddad9e708d91343e9f6731a64fe3cb7b337c57caa0fcfe8",
+        "content_sha256": "65ebc546a1eba778c6a16eef2e2d773ceb5fbb7c9a99608ce7f7e18776fe8c10",
+        "truncated": true,
+        "total_lines": 148
+      }
+    ],
+    "native_evidence": "Earlier successful native opt/frequency/IRC and immutable F/B XYZ reads are recorded in middle-connection-final-review-state.json; terminal review itself re-read current graph and PROCESS rather than invoking fresh native parsers.",
+    "final_artifact_read_matches_hash": true,
+    "claim_limit": "Final verdict says independent re-checks; distinguish accumulated earlier native evidence from newly repeated native reading. No new native science audit performed by this observer."
+  },
+  "review_effect_and_limits": {
+    "effect": "Final review truly gated complete: wait_review -> accept -> same-material reuse -> allow_final, one resolved exit, one complete disposition. Earlier needs_evidence caused given-A revalidation and re-binding.",
+    "energy_representation": "55.8 forward /24.3 reverse are in edge step_type prose, PROCESS, final answer and Supervisor reason; structured barrier field and node numeric energy properties are absent. Thus structured energy-binding validation no longer checks these textual claims. Supervisor explicitly recomputed them from cited logs in final decision; this is a real human-like model review but not equivalent to a deterministic structured numeric certificate.",
+    "classification": "Observed basis is scope_completed, not supervisor_supported. Frozen stop_audit.py398-402 treats accepted claim with empty required_checks as scope-only. Scope draft claim required_checks=[]; report waived=[] and science evidence accepted still remain facts. Do not silently upgrade the runtime verification label.",
+    "accessible": "Graph accessible=true retained. Supervisor caveat reinterprets it as in-mechanism rather than thermal accessibility; record that as reviewer interpretation, not a changed system semantic or scientific threshold.",
+    "alternate_path": "Final narrative says betaine route falsified/excluded; existence of one IRC and unsuccessful betaine search does not by itself exhaust all alternative paths. This audit only records final deliverable wording, not an independent proof of universal exclusion."
+  },
+  "terminal_observer": {
+    "checked_at": "2026-10-14T21:03:33.325247+00:00",
+    "runtime_finished": true,
+    "agent_states": {
+      "as_9725c841901b4ca0": {
+        "role_id": "coordinator",
+        "state": "succeeded"
+      },
+      "as_63de2ab4d28941b5": {
+        "role_id": "small_mol",
+        "state": "succeeded"
+      },
+      "as_7473bc09bc2a47e2": {
+        "role_id": "small_mol",
+        "state": "succeeded"
+      },
+      "as_5758d6a35fab40cf": {
+        "role_id": "supervisor",
+        "state": "succeeded"
+      }
+    },
+    "jobs": 25,
+    "all_jobs_terminal": true,
+    "all_locks_free": true,
+    "pending_compute_notifications": [],
+    "pending_review_notifications": 0
+  },
+  "archive": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/diagnosis/final-artifacts",
+  "interventions": []
+}

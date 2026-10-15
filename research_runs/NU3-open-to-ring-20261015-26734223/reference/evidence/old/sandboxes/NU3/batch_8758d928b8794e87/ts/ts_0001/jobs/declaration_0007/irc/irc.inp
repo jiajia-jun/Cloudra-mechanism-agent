@@ -1,0 +1,22 @@
+# IRC both directions from the refined saddle: [CH2-][PH3+].C=O | smiles: [CH2-][PH3+].C=O
+! IRC B3LYP def2-SVP D3BJ TightSCF
+%pal nprocs 8 end
+%maxcore 1000
+%irc
+  Direction both
+  InitHess read
+  Hess_Filename "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/frequency/frequency.hess"
+end
+* xyz 0 1
+C        0.38286300    -0.45432000     0.70853100
+P        0.37561100     0.66537200    -0.60692800
+H        1.31776400    -1.01016300     0.83858700
+H       -0.51361000    -1.08322500     0.74864100
+H        1.68371600     1.03541300    -0.98116600
+H       -0.23462700     0.37633400    -1.85778900
+H       -0.28877300     1.83799400    -0.07479300
+C       -0.07738900     1.01611300     2.22547600
+O       -0.64937600     1.98995200     1.68939700
+H       -0.65801800     0.25455800     2.79581300
+H        0.98047800     1.08560700     2.57939800
+*

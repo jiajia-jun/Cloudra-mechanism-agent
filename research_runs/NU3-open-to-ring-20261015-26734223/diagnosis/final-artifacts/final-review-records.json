@@ -1,0 +1,58 @@
+{
+  "exit_requests": [
+    {
+      "request_id": "req_c838ce9a7542453a83ca02177191fb80",
+      "kind": "exit",
+      "requester": "as_9725c841901b4ca0",
+      "target_ids": "[\"sp_7c1adfc3\",\"sp_9f594fc9\",\"step_72d34edc\"]",
+      "question": "Does the whole proposed final delivery meet strict scientific review under the declared scope?",
+      "supporting_refs": "[]",
+      "counterevidence_refs": "[]",
+      "proposal": "{\"delivery_artifact\":{\"graph_revision\":10,\"path\":\"/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/mechanism_graph.json\",\"scientific_checks\":{\"1,2-oxaphosphetane ring\":{\"geometry\":{\"detail\":\"Normally terminated zero-imaginary-frequency geometry matches the complete species.\",\"next_action\":\"\",\"status\":\"passed\"}},\"chain-to-ring direct\":{\"frequency\":{\"detail\":\"Native normal termination and exactly 1 imaginary frequencies required. \",\"next_action\":\"\",\"status\":\"passed\"},\"short_irc\":{\"detail\":\"Geometric IRC direction interval proof passed.\",\"next_action\":\"\",\"status\":\"passed\"},\"ts_opt\":{\"detail\":\"Native optimization convergence and one-imaginary-frequency evidence for the same geometry passed; reaction direction is checked separately.\",\"next_action\":\"\",\"status\":\"passed\"}},\"open-chain phosphine\":{\"geometry\":{\"detail\":\"Normally terminated zero-imaginary-frequency geometry matches the complete species.\",\"next_action\":\"\",\"status\":\"passed\"}}},\"sha256\":\"ec9d56a6de47b8ff2b45625b1356cd36b71a50e3984641b2127da7a4dd0b3593\",\"snapshot_path\":null,\"target_ids\":{\"1,2-oxaphosphetane ring\":\"sp_7c1adfc3\",\"chain-to-ring direct\":\"step_72d34edc\",\"open-chain phosphine\":\"sp_9f594fc9\"}},\"disposition\":\"complete\",\"method_limits\":[],\"remaining_gaps\":[],\"scope\":[\"sp_7c1adfc3\",\"sp_9f594fc9\",\"step_72d34edc\"]}",
+      "basis_fingerprint": "sha256:d4e131bb91c4f85e0adecc13f12401c9541abb86e13de9a5a26d7c3c2e5a6956",
+      "state": "resolved",
+      "created_at": "2026-10-14 21:02:43",
+      "updated_at": "2026-10-14 21:03:10",
+      "owner": null,
+      "claim_token": 0,
+      "lease_expires_at": null
+    }
+  ],
+  "decision": {
+    "decision_id": "dec_0f1ffb1ad89045148727adafa047bfc1",
+    "request_id": "req_c838ce9a7542453a83ca02177191fb80",
+    "basis_fingerprint": "sha256:d4e131bb91c4f85e0adecc13f12401c9541abb86e13de9a5a26d7c3c2e5a6956",
+    "verdict": "accept",
+    "reason": "Final strict review of the whole delivery under the declared scope: ACCEPTED. Independent re-checks all pass. (1) Species 'open-chain phosphine' = the task's GIVEN minimum A: runs/verify_A/.cloudra/calc-25.out.log (combined Opt+Freq of inputs/open.xyz) normally terminated, converged, E=-496.635840 Ha, 33 printed modes = 6 zero + 27 real, 0 imaginary, frequencies reproducing inputs/open-freq.out.log and geometry reproducing inputs/open.xyz. (2) Species '1,2-oxaphosphetane ring' = the task's GIVEN minimum B: product_opt calc-23 converged (E=-496.585622) and product_frequency calc-24 (33 modes = 6 zero + 27 real, 0 imaginary), matching inputs/ring-freq.out.log (-496.585625). (3) Step 'chain-to-ring direct': ts_opt calc-18 converged; frequency calc-19 with EXACTLY ONE imaginary mode -1022.18 cm^-1 dominated by the migrating hydroxyl H (watch-pair projections O-H 0.969, P-H 0.187, P-O 0.075; heavy-atom fraction 0.004); IRC calc-20 normal termination, 20 forward + 20 backward frames. The two bound endpoint files (irc_IRC_F.xyz E=-496.583882, P-O 1.804, H on P; irc_IRC_B.xyz E=-496.629813, P-O 2.801, O-H 0.971, H on O) both lie geometrically and energetically between the TS (E=-496.546895/-496.546904, P-O 2.28) and the corresponding minima, so the geometric IRC direction proof holds: forward -> ring, backward -> the GIVEN open-chain minimum (endpoint hydroxyl torsion 56.4 deg matches A's 56.6 deg, not the discarded rotamer's 76.7 deg). No betaine intermediate on either IRC side; the phosphonium-alkoxide channel is correctly excluded. mechanism_graph.json (sha ec9d56a6...) matches the declared species/steps and its declarations are traceable to the unchanged bound native logs: barrier 55.8 kcal/mol = -496.546904 (calc-18) - (-496.635840, calc-25) = 0.088936 Ha; reverse 24.3 = -496.546904 - (-496.585622, calc-23/24) = 0.038717 Ha; bond_changes break [9,7] / form [2,9],[2,7] in the given open.xyz order. Limitations are documented and honest: single electronic level B3LYP-D3(BJ)/def2-SVP, electronic energies only (no ZPE/Gibbs), salt-free gas phase, single conformer per species, strong semiempirical method sensitivity, short IRC relying on the interval proof.",
+    "evidence_refs": "[{\"content_hash\":null,\"ref_id\":\"ev_21e21caa35b7bb3bd2332a32a70b8221eb2dce6a03d71039ff4546b302b6f868\",\"ref_type\":\"file\",\"revision\":null},{\"content_hash\":null,\"ref_id\":\"ev_aac34a2089ca422827ff73db980412ed0eaef0cb342bf9cfce9cb5b775ccd5ed\",\"ref_type\":\"file\",\"revision\":null},{\"content_hash\":null,\"ref_id\":\"ev_1739e6614187aa6b82441892ba33c0a326bedd0b214813bccbfc7bd027cc2e1a\",\"ref_type\":\"file\",\"revision\":null}]",
+    "findings": "[{\"check\":\"geometry\",\"outcome\":\"supports\",\"reason\":\"Given minimum A, 0 imaginary frequencies, energy/frequencies reproduce inputs/open-freq.out.log.\",\"target_id\":\"open-chain phosphine\"},{\"check\":\"geometry\",\"outcome\":\"supports\",\"reason\":\"Given minimum B, 0 imaginary frequencies, matches inputs/ring-freq.out.log.\",\"target_id\":\"1,2-oxaphosphetane ring\"},{\"check\":\"ts_opt\",\"outcome\":\"supports\",\"reason\":\"Converged OptTS (calc-18) with exactly one imaginary mode on the same geometry.\",\"target_id\":\"chain-to-ring direct\"},{\"check\":\"frequency\",\"outcome\":\"supports\",\"reason\":\"Exactly 1 imaginary frequency -1022.18 cm^-1 dominated by the migrating H.\",\"target_id\":\"chain-to-ring direct\"},{\"check\":\"short_irc\",\"outcome\":\"supports\",\"reason\":\"IRC both directions normally terminated; both endpoint geometries/energies lie between the TS and the corresponding minima (forward ring, backward given open-chain A).\",\"target_id\":\"chain-to-ring direct\"},{\"check\":\"energy_reference\",\"outcome\":\"supports\",\"reason\":\"Declared barriers 55.8/24.3 kcal/mol recomputed from the cited unchanged bound logs; bond changes match the declared atom map. Caveat: 'accessible: true' must be read as 'part of the mechanism / not excluded' - the 55.8 kcal/mol electronic forward barrier means the ring is a high-energy, kinetically slow species, not a room-temperature-accessible product.\",\"target_id\":\"chain-to-ring direct\"}]",
+    "next_action": null,
+    "claim_token": 0,
+    "created_at": "2026-10-14 21:03:10"
+  },
+  "disposition": {
+    "disposition_id": "disp_9b89e528ad004bf2ac666cebef2abb91",
+    "session_id": "as_9725c841901b4ca0",
+    "disposition": "complete",
+    "graph_revision": 10,
+    "report": "{\"complete\":true,\"inconclusive\":[],\"output_artifact\":{\"graph_revision\":10,\"path\":\"/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/mechanism_graph.json\",\"scientific_checks\":{\"1,2-oxaphosphetane ring\":{\"geometry\":{\"detail\":\"Normally terminated zero-imaginary-frequency geometry matches the complete species.\",\"next_action\":\"\",\"status\":\"passed\"}},\"chain-to-ring direct\":{\"frequency\":{\"detail\":\"Native normal termination and exactly 1 imaginary frequencies required. \",\"next_action\":\"\",\"status\":\"passed\"},\"short_irc\":{\"detail\":\"Geometric IRC direction interval proof passed.\",\"next_action\":\"\",\"status\":\"passed\"},\"ts_opt\":{\"detail\":\"Native optimization convergence and one-imaginary-frequency evidence for the same geometry passed; reaction direction is checked separately.\",\"next_action\":\"\",\"status\":\"passed\"}},\"open-chain phosphine\":{\"geometry\":{\"detail\":\"Normally terminated zero-imaginary-frequency geometry matches the complete species.\",\"next_action\":\"\",\"status\":\"passed\"}}},\"sha256\":\"ec9d56a6de47b8ff2b45625b1356cd36b71a50e3984641b2127da7a4dd0b3593\",\"snapshot_path\":\"/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/.cloudra/evidence/ec9d56a6de47b8ff_mechanism_graph.json\",\"target_ids\":{\"1,2-oxaphosphetane ring\":\"sp_7c1adfc3\",\"chain-to-ring direct\":\"step_72d34edc\",\"open-chain phosphine\":\"sp_9f594fc9\"}},\"satisfied\":[{\"code\":\"supervisor_evidence_accepted\",\"detail\":\"Supervisor accepted immutable per-file evidence for stages: geometry\",\"target_id\":\"sp_7c1adfc3\",\"target_type\":\"node\",\"waiver\":null},{\"code\":\"supervisor_evidence_accepted\",\"detail\":\"Supervisor accepted immutable per-file evidence for stages: geometry\",\"target_id\":\"sp_9f594fc9\",\"target_type\":\"node\",\"waiver\":null},{\"code\":\"supervisor_evidence_accepted\",\"detail\":\"Supervisor accepted immutable per-file evidence for stages: frequency, short_irc, ts_opt\",\"target_id\":\"step_72d34edc\",\"target_type\":\"edge\",\"waiver\":null}],\"unresolved\":[],\"waived\":[]}",
+    "created_at": "2026-10-14 21:03:16"
+  },
+  "notifications": [
+    {
+      "notification_id": "notif_b90c71f383654b3f92e74480703240b3",
+      "kind": "review_decision",
+      "decision_id": "dec_0f1ffb1ad89045148727adafa047bfc1",
+      "request_id": "req_c838ce9a7542453a83ca02177191fb80",
+      "recipient_session_id": "as_9725c841901b4ca0",
+      "payload": "{}",
+      "state": "sent",
+      "created_at": "2026-10-14 21:03:10"
+    }
+  ],
+  "claim": {
+    "draft_id": "draft_77cf4e57199d4b7eb6812cee4fa55958",
+    "state": "accepted",
+    "claim_spec": "{\"kind\":\"mechanism\",\"optional_checks\":[],\"quantity\":\"\",\"reference\":{},\"required_checks\":[],\"scope\":{\"targets\":[\"step_72d34edc\"]},\"unit\":null}"
+  }
+}

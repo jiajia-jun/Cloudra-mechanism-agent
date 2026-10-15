@@ -1,0 +1,375 @@
+{
+  "observed_utc": "2026-10-14T20:54:31.784355+00:00",
+  "scope": "Read-only cross-run endpoint continuity from previously verified native evidence and actual XYZ/input files; no old TS/IRC full-log reanalysis or new calculation.",
+  "old_run": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5",
+  "new_run": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223",
+  "source_evidence": [
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/diagnosis/ts1-decl7-endpoints50-53-native-observation.json",
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/diagnosis/ts2-decl9-native-endpoint-observation.json",
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/diagnosis/followup-starting-endpoints-manifest.json",
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/diagnosis/starting-endpoints-manifest.json",
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/diagnosis/irc20-native-connection-observation.json"
+  ],
+  "starting_manifest_matches_old_manifest": true,
+  "existing_full_atom_correspondence": {
+    "common_order": [
+      "C",
+      "P",
+      "H",
+      "H",
+      "H",
+      "H",
+      "H",
+      "C",
+      "O",
+      "H",
+      "H"
+    ],
+    "old_ring_order_to_common_order_1based": [
+      1,
+      2,
+      9,
+      8,
+      3,
+      4,
+      5,
+      6,
+      7,
+      10,
+      11
+    ],
+    "same_map_used_in_old_TS1_declaration": true,
+    "no_new_mapping_protocol_created": true
+  },
+  "endpoint_comparisons": [
+    {
+      "species": "OCCP",
+      "chemical_identity": "H2P-CH2-CH2-OH / OCCP",
+      "old_opt_freq_jobs": [
+        52,
+        53
+      ],
+      "new_opt_freq_jobs": [
+        21,
+        22
+      ],
+      "old_opt_XYZ": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/product_opt/product_opt.xyz",
+      "old_frequency_XYZ": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/product_frequency/optimized.xyz",
+      "new_opt_XYZ": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/reactant_opt/reactant_opt.xyz",
+      "new_frequency_XYZ": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/reactant_frequency/optimized.xyz",
+      "old_native_frequency_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/product_frequency/.cloudra/calc-53.out.log",
+      "new_native_frequency_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/reactant_frequency/.cloudra/calc-22.out.log",
+      "old_n_imaginary": 0,
+      "new_n_imaginary": 0,
+      "old_raw11_atom_order": [
+        "C",
+        "P",
+        "H",
+        "H",
+        "H",
+        "H",
+        "H",
+        "C",
+        "O",
+        "H",
+        "H"
+      ],
+      "new_raw11_atom_order": [
+        "C",
+        "P",
+        "H",
+        "H",
+        "H",
+        "H",
+        "H",
+        "C",
+        "O",
+        "H",
+        "H"
+      ],
+      "common_matched11_atom_order": [
+        "C",
+        "P",
+        "H",
+        "H",
+        "H",
+        "H",
+        "H",
+        "C",
+        "O",
+        "H",
+        "H"
+      ],
+      "elements_match_after_existing_map": true,
+      "element_counts": {
+        "C": 2,
+        "P": 1,
+        "H": 7,
+        "O": 1
+      },
+      "old_method": {
+        "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/product_opt/product_opt.inp",
+        "method_line": "! Opt B3LYP def2-SVP D3BJ TightSCF",
+        "charge_multiplicity_line": "* xyz 0 1"
+      },
+      "new_method": {
+        "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/reactant_opt/reactant_opt.inp",
+        "method_line": "! Opt B3LYP def2-SVP D3BJ TightSCF",
+        "charge_multiplicity_line": "* xyz 0 1"
+      },
+      "same_method_keyword_line": true,
+      "same_charge_multiplicity": true,
+      "old_frequency_electronic_energy_hartree": -496.63583237594,
+      "new_frequency_electronic_energy_hartree": -496.634713483234,
+      "new_minus_old_frequency_energy_hartree": 0.0011188927060175047,
+      "new_minus_old_frequency_energy_kcal_mol": 0.7021157734154809,
+      "old_optimization_energy_hartree": -496.635833394199,
+      "new_optimization_energy_hartree": -496.634710757925,
+      "old_geometry_in_common_atom_order": {
+        "C1_P2": 1.883377261510463,
+        "C1_C8": 1.5320615323763478,
+        "P2_O9": 3.2073608016769417,
+        "C8_O9": 1.4078607777296117,
+        "P2_H5": 1.4298484559279772,
+        "P2_H6": 1.426995198910136,
+        "P2_H7": 2.712039633663314,
+        "O9_H7": 0.9685313040203724,
+        "P2_C1_C8_O9_dihedral_degrees": 62.758398299136346,
+        "H7_O9_C8_C1_dihedral_degrees": -56.62347219269546
+      },
+      "new_geometry_in_common_atom_order": {
+        "C1_P2": 1.8829797756093356,
+        "C1_C8": 1.5306235055129194,
+        "P2_O9": 3.2270966952459275,
+        "C8_O9": 1.4128863059966397,
+        "P2_H5": 1.4302851303482462,
+        "P2_H6": 1.4281255700285131,
+        "P2_H7": 2.9218019136246567,
+        "O9_H7": 0.9661241782211416,
+        "P2_C1_C8_O9_dihedral_degrees": 62.29883588208304,
+        "H7_O9_C8_C1_dihedral_degrees": -76.73312293580672
+      },
+      "new_minus_old_geometry": {
+        "C1_P2": -0.00039748590112731463,
+        "C1_C8": -0.001438026863428421,
+        "P2_O9": 0.019735893568985752,
+        "C8_O9": 0.005025528267027957,
+        "P2_H5": 0.00043667442026906755,
+        "P2_H6": 0.0011303711183772158,
+        "P2_H7": 0.20976227996134256,
+        "O9_H7": -0.002407125799230747,
+        "P2_C1_C8_O9_dihedral_degrees": -0.4595624170532915,
+        "H7_O9_C8_C1_dihedral_degrees": -20.109650743111274
+      },
+      "coordinates_identical_after_atom_reorder": false,
+      "direct_cartesian_max_difference_angstrom": 1.91389205486181,
+      "Cartesian_difference_note": "Raw Cartesian coordinates include rotation/translation; chemical identity is assessed from established native connectivity, H ownership and matched atom order, not a numerical RMSD cutoff.",
+      "continuity_reading": "Same chemical species, with distinct minimum conformational geometry and higher electronic energy in the new endpoint; not an identical stationary-point coordinate/energy."
+    },
+    {
+      "species": "PH3_ring",
+      "chemical_identity": "PH3 four-membered C-P-O-C ring",
+      "old_opt_freq_jobs": [
+        40,
+        42
+      ],
+      "new_opt_freq_jobs": [
+        23,
+        24
+      ],
+      "old_opt_XYZ": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0009/reactant_opt/reactant_opt.xyz",
+      "old_frequency_XYZ": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0009/reactant_frequency/optimized.xyz",
+      "new_opt_XYZ": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/product_opt/product_opt.xyz",
+      "new_frequency_XYZ": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/product_frequency/optimized.xyz",
+      "old_native_frequency_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0009/reactant_frequency/.cloudra/calc-42.out.log",
+      "new_native_frequency_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/product_frequency/.cloudra/calc-24.out.log",
+      "old_n_imaginary": 0,
+      "new_n_imaginary": 0,
+      "old_raw11_atom_order": [
+        "C",
+        "P",
+        "O",
+        "C",
+        "H",
+        "H",
+        "H",
+        "H",
+        "H",
+        "H",
+        "H"
+      ],
+      "new_raw11_atom_order": [
+        "C",
+        "P",
+        "H",
+        "H",
+        "H",
+        "H",
+        "H",
+        "C",
+        "O",
+        "H",
+        "H"
+      ],
+      "common_matched11_atom_order": [
+        "C",
+        "P",
+        "H",
+        "H",
+        "H",
+        "H",
+        "H",
+        "C",
+        "O",
+        "H",
+        "H"
+      ],
+      "elements_match_after_existing_map": true,
+      "element_counts": {
+        "C": 2,
+        "P": 1,
+        "H": 7,
+        "O": 1
+      },
+      "old_method": {
+        "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0009/reactant_opt/reactant_opt.inp",
+        "method_line": "! Opt B3LYP def2-SVP D3BJ TightSCF",
+        "charge_multiplicity_line": "* xyz 0 1"
+      },
+      "new_method": {
+        "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/product_opt/product_opt.inp",
+        "method_line": "! Opt B3LYP def2-SVP D3BJ TightSCF",
+        "charge_multiplicity_line": "* xyz 0 1"
+      },
+      "same_method_keyword_line": true,
+      "same_charge_multiplicity": true,
+      "old_frequency_electronic_energy_hartree": -496.585625382758,
+      "new_frequency_electronic_energy_hartree": -496.585632245103,
+      "new_minus_old_frequency_energy_hartree": -6.8623450033555855e-06,
+      "new_minus_old_frequency_energy_kcal_mol": -0.004306186503462191,
+      "old_optimization_energy_hartree": -496.585624474851,
+      "new_optimization_energy_hartree": -496.585621662731,
+      "old_geometry_in_common_atom_order": {
+        "C1_P2": 1.8709943604028905,
+        "C1_C8": 1.5351562075751348,
+        "P2_O9": 1.7861240288131335,
+        "C8_O9": 1.4138591510410417,
+        "P2_H5": 1.4238882191964322,
+        "P2_H6": 1.4651972781211426,
+        "P2_H7": 1.4166784933955872,
+        "O9_H7": 2.4154793859689248,
+        "P2_C1_C8_O9_dihedral_degrees": 9.999112426498481,
+        "H7_O9_C8_C1_dihedral_degrees": -45.8135183483603
+      },
+      "new_geometry_in_common_atom_order": {
+        "C1_P2": 1.8712232318170483,
+        "C1_C8": 1.5350254917392607,
+        "P2_O9": 1.7863278915444885,
+        "C8_O9": 1.4136256482188407,
+        "P2_H5": 1.42391127942193,
+        "P2_H6": 1.4650988227411912,
+        "P2_H7": 1.4166547470281654,
+        "O9_H7": 2.414817171832282,
+        "P2_C1_C8_O9_dihedral_degrees": 9.674063447595934,
+        "H7_O9_C8_C1_dihedral_degrees": -45.42982838484042
+      },
+      "new_minus_old_geometry": {
+        "C1_P2": 0.00022887141415783852,
+        "C1_C8": -0.00013071583587409563,
+        "P2_O9": 0.00020386273135497568,
+        "C8_O9": -0.000233502822200915,
+        "P2_H5": 2.3060225497806286e-05,
+        "P2_H6": -9.845537995145648e-05,
+        "P2_H7": -2.3746367421750847e-05,
+        "O9_H7": -0.0006622141366428025,
+        "P2_C1_C8_O9_dihedral_degrees": -0.3250489789025437,
+        "H7_O9_C8_C1_dihedral_degrees": 0.3836899635198847
+      },
+      "coordinates_identical_after_atom_reorder": false,
+      "direct_cartesian_max_difference_angstrom": 3.06467084521941,
+      "Cartesian_difference_note": "Raw Cartesian coordinates include rotation/translation; chemical identity is assessed from established native connectivity, H ownership and matched atom order, not a numerical RMSD cutoff.",
+      "continuity_reading": "Same PH3-ring species; matched internal geometries and energies are closely reproduced, but coordinates/energies are not mathematically identical."
+    }
+  ],
+  "three_segment_native_route": [
+    {
+      "segment": "RC -> PH2OH open-chain OCCP",
+      "run": "old final-review",
+      "TS_opt_frequency": [
+        47,
+        48
+      ],
+      "bidirectional_IRC": 49,
+      "native_source_minimum_opt_frequency": [
+        50,
+        51
+      ],
+      "native_target_minimum_opt_frequency": [
+        52,
+        53
+      ],
+      "actual_connection": "RC to open-chain OH species; not direct RC to ring",
+      "existing_native_audits": [
+        "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/diagnosis/ts1-decl7-native-observation.json",
+        "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/diagnosis/ts1-decl7-irc49-terminal-supplement.json",
+        "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/diagnosis/ts1-decl7-endpoints50-53-native-observation.json"
+      ],
+      "formal_old_disposition": "Retained exploratory/unreviewed competing channel in old partial artifact."
+    },
+    {
+      "segment": "OCCP -> PH3 ring",
+      "run": "new follow-up",
+      "TS_opt_frequency": [
+        18,
+        19
+      ],
+      "bidirectional_IRC": 20,
+      "native_source_minimum_opt_frequency": [
+        21,
+        22
+      ],
+      "native_target_minimum_opt_frequency": [
+        23,
+        24
+      ],
+      "actual_connection": "B source PH2OH to F PH3 ring; both endpoint minima direct native IRC outer-frame optimization and zero-imaginary frequencies.",
+      "existing_native_audit": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/diagnosis/irc20-native-connection-observation.json"
+    },
+    {
+      "segment": "PH3 ring -> ethylene + PH3O",
+      "run": "old final-review",
+      "TS_opt_frequency": [
+        30,
+        31
+      ],
+      "bidirectional_IRC": 32,
+      "verified_source_minimum_opt_frequency": [
+        40,
+        42
+      ],
+      "native_target_minimum_opt_frequency": [
+        43,
+        45
+      ],
+      "actual_connection": "Ring to ethylene+PH3O with PH3 retained, no OH transfer.",
+      "source_minimum_provenance": "Old40/42 use the clean explicit ring species seed from old7 rather than pretending it is a direct optimization of IRC32 B. Previously independent native32 showed B ring direction; formal native interval proof passed.",
+      "existing_native_audits": [
+        "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/diagnosis/ts1-irc28-and-ts2-irc32-native-observation.json",
+        "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/diagnosis/ts2-decl9-native-endpoint-observation.json"
+      ]
+    }
+  ],
+  "continuity_verdict": {
+    "chemical_species_and_atom_conservation_level": "Continuous: RC -> PH2OH OCCP -> PH3 ring -> ethylene+PH3O, all11 atoms/C2H7OP retained and the same neutral-singlet B3LYP-D3BJ/def2-SVP method used for scientific stationary points.",
+    "coordinate_level": "The cross-run joins are not identical coordinates. In particular, old OPEN and new source OCCP are different minimum conformations/energies of the same species; this audit does not assert a separately computed conformer-interconversion trajectory.",
+    "barrier_reference_requirement": "Keep each TS barrier relative to its actual bound source minimum. Do not replace new22 energy with the lower old53 energy while calling it the same calculation/source, and do not combine electronic energies with Gibbs quantities.",
+    "no_new_hard_gate": "No RMSD, conformer or H threshold is introduced; the nonidentity is a factual qualification, not a new acceptance rule.",
+    "limits": "Finite native evidence supports this three-segment chemical mechanism but does not establish a unique or dominant pathway. Cross-run continuity is separate from formal combined-delivery review and does not itself adopt a new reference."
+  },
+  "new_reference_adopted_by_this_audit": false,
+  "actions": {
+    "source_or_scientific_material_changed": false,
+    "new_QM_observer_API_or_live_Agent_message": false,
+    "Gold_or_private_reasoning_used": false
+  }
+}

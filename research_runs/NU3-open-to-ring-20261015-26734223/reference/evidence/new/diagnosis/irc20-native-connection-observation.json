@@ -1,0 +1,1123 @@
+{
+  "observation_utc": "2026-10-14T20:43:15.178913+00:00",
+  "scope": "Independent native IRC20 and naturally available endpoints21-24; no waiting or new calculation.",
+  "run_dir": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223",
+  "project_id": "prj_7f9c142b67af4f3b",
+  "ts_id": "ts_0001",
+  "declaration_revision": 8,
+  "IRC_job": {
+    "id": 20,
+    "state": "done",
+    "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/irc/irc.inp",
+    "jobtype": "orca"
+  },
+  "native_IRC_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/irc/.cloudra/calc-20.out.log",
+  "native_markers": [
+    {
+      "line": 1262,
+      "text": "Max. no of cycles        MaxIter    .... 20"
+    },
+    {
+      "line": 1263,
+      "text": "Direction                           .... Forward and backward"
+    },
+    {
+      "line": 1289,
+      "text": "Reading the hessian file           ...... done"
+    },
+    {
+      "line": 1295,
+      "text": "*                          FORWARD IRC                      *"
+    },
+    {
+      "line": 1441,
+      "text": "*  MAXIMUM NUMBER OF ITERATIONS REACHED - STOPPING IRC RUN  *"
+    },
+    {
+      "line": 1446,
+      "text": "*                          BACKWARD IRC                     *"
+    },
+    {
+      "line": 1621,
+      "text": "*  MAXIMUM NUMBER OF ITERATIONS REACHED - STOPPING IRC RUN  *"
+    },
+    {
+      "line": 1626,
+      "text": "IRC PATH SUMMARY"
+    },
+    {
+      "line": 1784,
+      "text": "****ORCA TERMINATED NORMALLY****"
+    }
+  ],
+  "same_TS19_and_Hessian": {
+    "IRC_input": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/irc/irc.inp",
+    "actual_Hessian_read_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/frequency/frequency.hess",
+    "Hessian_exists": true,
+    "Hessian_atom_count": 11,
+    "Hessian_order": [
+      "C",
+      "P",
+      "H",
+      "H",
+      "H",
+      "H",
+      "H",
+      "C",
+      "O",
+      "H",
+      "H"
+    ],
+    "Hessian_order_matches_IRC": true,
+    "native_Hessian_read_confirmed": true,
+    "IRC_vs_frequency19_input_maxdiff": 0.0,
+    "IRC_vs_frequency19_derived_XYZ_maxdiff": 0.0,
+    "previous_TS19_evidence": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/diagnosis/scan13-native-followup.json"
+  },
+  "directions": {
+    "F": {
+      "native_trajectory": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/irc/irc_IRC_F_trj.xyz",
+      "native_final_xyz": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/irc/irc_IRC_F.xyz",
+      "frame_count": 20,
+      "native_iterations": [
+        0,
+        19
+      ],
+      "termination": "Native20-cycle maximum reached; not fully IRC-converged",
+      "all11_atom_order": [
+        "C",
+        "P",
+        "H",
+        "H",
+        "H",
+        "H",
+        "H",
+        "C",
+        "O",
+        "H",
+        "H"
+      ],
+      "all_frames_preserve11_atom_order": true,
+      "first_geometry": {
+        "C1_P2": 1.8259793173910814,
+        "C1_C8": 1.5802203099580767,
+        "P2_O9": 2.265220773775925,
+        "C8_O9": 1.366110743177873,
+        "all_PH_OH": [
+          {
+            "H_index": 3,
+            "P2_H": 2.416020500371013,
+            "O9_H": 2.9664838246750986
+          },
+          {
+            "H_index": 4,
+            "P2_H": 2.4546303828586904,
+            "O9_H": 3.262435586450865
+          },
+          {
+            "H_index": 5,
+            "P2_H": 1.4057308475134918,
+            "O9_H": 2.7138777670169674
+          },
+          {
+            "H_index": 6,
+            "P2_H": 1.4359984072755791,
+            "O9_H": 3.681034045648858
+          },
+          {
+            "H_index": 7,
+            "P2_H": 1.4083211982108341,
+            "O9_H": 1.8587755421077607
+          },
+          {
+            "H_index": 10,
+            "P2_H": 3.433948858060789,
+            "O9_H": 2.089069752651404
+          },
+          {
+            "H_index": 11,
+            "P2_H": 3.204718485608057,
+            "O9_H": 2.1055946326845536
+          }
+        ]
+      },
+      "last_geometry": {
+        "C1_P2": 1.8641052659125774,
+        "C1_C8": 1.5342152445944475,
+        "P2_O9": 1.8036701489432596,
+        "C8_O9": 1.4106129383697004,
+        "all_PH_OH": [
+          {
+            "H_index": 3,
+            "P2_H": 2.422070139813874,
+            "O9_H": 2.7846415465554992
+          },
+          {
+            "H_index": 4,
+            "P2_H": 2.5618157357516953,
+            "O9_H": 3.172494901443027
+          },
+          {
+            "H_index": 5,
+            "P2_H": 1.4165415819007927,
+            "O9_H": 2.3510129032008735
+          },
+          {
+            "H_index": 6,
+            "P2_H": 1.4653811498763727,
+            "O9_H": 3.2621305163398966
+          },
+          {
+            "H_index": 7,
+            "P2_H": 1.4209012868514126,
+            "O9_H": 2.3313195049613
+          },
+          {
+            "H_index": 10,
+            "P2_H": 3.301047468537676,
+            "O9_H": 2.0962041462410097
+          },
+          {
+            "H_index": 11,
+            "P2_H": 2.9956956456210637,
+            "O9_H": 2.1115178270017045
+          }
+        ]
+      },
+      "standalone_vs_trajectory_final_maxdiff": 4.911698999743308e-07,
+      "actual_identity": "PH3 four-membered C1-P2-O9-C8 ring direction",
+      "per_frame": [
+        {
+          "frame_1based": 1,
+          "native_iteration": 0,
+          "XYZ_start_line": 1,
+          "energy_hartree": -496.548605040777,
+          "C1_C8": 1.5802203099580767,
+          "P2_O9": 2.265220773775925,
+          "P2_H7": 1.4083211982108341,
+          "O9_H7": 1.8587755421077607
+        },
+        {
+          "frame_1based": 2,
+          "native_iteration": 1,
+          "XYZ_start_line": 14,
+          "energy_hartree": -496.551483374162,
+          "C1_C8": 1.571849690495882,
+          "P2_O9": 2.194770511685903,
+          "P2_H7": 1.3982420964174982,
+          "O9_H7": 1.8931481933050038
+        },
+        {
+          "frame_1based": 3,
+          "native_iteration": 2,
+          "XYZ_start_line": 27,
+          "energy_hartree": -496.555581845915,
+          "C1_C8": 1.565576160466491,
+          "P2_O9": 2.13589041265417,
+          "P2_H7": 1.3897579252898686,
+          "O9_H7": 1.9410822951461901
+        },
+        {
+          "frame_1based": 4,
+          "native_iteration": 3,
+          "XYZ_start_line": 40,
+          "energy_hartree": -496.56053840211,
+          "C1_C8": 1.5588803066396726,
+          "P2_O9": 2.074840180103277,
+          "P2_H7": 1.3871034914587304,
+          "O9_H7": 1.9900267115167074
+        },
+        {
+          "frame_1based": 5,
+          "native_iteration": 4,
+          "XYZ_start_line": 53,
+          "energy_hartree": -496.56577635471,
+          "C1_C8": 1.5520359592812276,
+          "P2_O9": 2.015602434389034,
+          "P2_H7": 1.3879233702449139,
+          "O9_H7": 2.037383468552496
+        },
+        {
+          "frame_1based": 6,
+          "native_iteration": 5,
+          "XYZ_start_line": 66,
+          "energy_hartree": -496.570902734079,
+          "C1_C8": 1.5453896423290794,
+          "P2_O9": 1.9569958065961714,
+          "P2_H7": 1.3933975477576384,
+          "O9_H7": 2.0848549982159432
+        },
+        {
+          "frame_1based": 7,
+          "native_iteration": 6,
+          "XYZ_start_line": 79,
+          "energy_hartree": -496.57534743889,
+          "C1_C8": 1.5413663946035023,
+          "P2_O9": 1.904930016378817,
+          "P2_H7": 1.3982058086494278,
+          "O9_H7": 2.1311164759660604
+        },
+        {
+          "frame_1based": 8,
+          "native_iteration": 7,
+          "XYZ_start_line": 92,
+          "energy_hartree": -496.578754380536,
+          "C1_C8": 1.5362860260182674,
+          "P2_O9": 1.8627134258022622,
+          "P2_H7": 1.4067494199270174,
+          "O9_H7": 2.1785764889525914
+        },
+        {
+          "frame_1based": 9,
+          "native_iteration": 8,
+          "XYZ_start_line": 105,
+          "energy_hartree": -496.58114990006,
+          "C1_C8": 1.5352703687956724,
+          "P2_O9": 1.830360686702487,
+          "P2_H7": 1.4133967485207402,
+          "O9_H7": 2.2287246153746767
+        },
+        {
+          "frame_1based": 10,
+          "native_iteration": 9,
+          "XYZ_start_line": 118,
+          "energy_hartree": -496.582545694707,
+          "C1_C8": 1.5338552789820168,
+          "P2_O9": 1.8120834941108537,
+          "P2_H7": 1.4202519567868936,
+          "O9_H7": 2.279876453656206
+        },
+        {
+          "frame_1based": 11,
+          "native_iteration": 10,
+          "XYZ_start_line": 131,
+          "energy_hartree": -496.583296001501,
+          "C1_C8": 1.5317484847222798,
+          "P2_O9": 1.8042629747320649,
+          "P2_H7": 1.4211820691389265,
+          "O9_H7": 2.3184879450730387
+        },
+        {
+          "frame_1based": 12,
+          "native_iteration": 11,
+          "XYZ_start_line": 144,
+          "energy_hartree": -496.583368540999,
+          "C1_C8": 1.533029720032198,
+          "P2_O9": 1.8049505672214405,
+          "P2_H7": 1.4215356884243182,
+          "O9_H7": 2.31974293876563
+        },
+        {
+          "frame_1based": 13,
+          "native_iteration": 12,
+          "XYZ_start_line": 157,
+          "energy_hartree": -496.583457235513,
+          "C1_C8": 1.5335407305572293,
+          "P2_O9": 1.8050149377370814,
+          "P2_H7": 1.4215773204458488,
+          "O9_H7": 2.321344015238155
+        },
+        {
+          "frame_1based": 14,
+          "native_iteration": 13,
+          "XYZ_start_line": 170,
+          "energy_hartree": -496.583514774827,
+          "C1_C8": 1.534262487936468,
+          "P2_O9": 1.8048694652015695,
+          "P2_H7": 1.4214766506432668,
+          "O9_H7": 2.3224407137976635
+        },
+        {
+          "frame_1based": 15,
+          "native_iteration": 14,
+          "XYZ_start_line": 183,
+          "energy_hartree": -496.583584106588,
+          "C1_C8": 1.5339399796693478,
+          "P2_O9": 1.8046358512880099,
+          "P2_H7": 1.4213454904881502,
+          "O9_H7": 2.323998940422521
+        },
+        {
+          "frame_1based": 16,
+          "native_iteration": 15,
+          "XYZ_start_line": 196,
+          "energy_hartree": -496.583651198511,
+          "C1_C8": 1.5339390753305688,
+          "P2_O9": 1.8044415314808624,
+          "P2_H7": 1.4212400454835206,
+          "O9_H7": 2.32545654952334
+        },
+        {
+          "frame_1based": 17,
+          "native_iteration": 16,
+          "XYZ_start_line": 209,
+          "energy_hartree": -496.583713328016,
+          "C1_C8": 1.533992576731061,
+          "P2_O9": 1.8042511590161165,
+          "P2_H7": 1.421147476944951,
+          "O9_H7": 2.3269193520360774
+        },
+        {
+          "frame_1based": 18,
+          "native_iteration": 17,
+          "XYZ_start_line": 222,
+          "energy_hartree": -496.583774157862,
+          "C1_C8": 1.5339879267562702,
+          "P2_O9": 1.8040500141010503,
+          "P2_H7": 1.4210564969328279,
+          "O9_H7": 2.3284105625488385
+        },
+        {
+          "frame_1based": 19,
+          "native_iteration": 18,
+          "XYZ_start_line": 235,
+          "energy_hartree": -496.5838271515,
+          "C1_C8": 1.5340338975527887,
+          "P2_O9": 1.803852051943008,
+          "P2_H7": 1.420973887780138,
+          "O9_H7": 2.329873412974619
+        },
+        {
+          "frame_1based": 20,
+          "native_iteration": 19,
+          "XYZ_start_line": 248,
+          "energy_hartree": -496.58388159165,
+          "C1_C8": 1.5342152445944475,
+          "P2_O9": 1.8036701489432596,
+          "P2_H7": 1.4209012868514126,
+          "O9_H7": 2.3313195049613
+        }
+      ]
+    },
+    "B": {
+      "native_trajectory": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/irc/irc_IRC_B_trj.xyz",
+      "native_final_xyz": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/irc/irc_IRC_B.xyz",
+      "frame_count": 20,
+      "native_iterations": [
+        0,
+        19
+      ],
+      "termination": "Native20-cycle maximum reached; not fully IRC-converged",
+      "all11_atom_order": [
+        "C",
+        "P",
+        "H",
+        "H",
+        "H",
+        "H",
+        "H",
+        "C",
+        "O",
+        "H",
+        "H"
+      ],
+      "all_frames_preserve11_atom_order": true,
+      "first_geometry": {
+        "C1_P2": 1.8290806090339486,
+        "C1_C8": 1.5787829121611368,
+        "P2_O9": 2.2891651828144686,
+        "C8_O9": 1.3745539335893664,
+        "all_PH_OH": [
+          {
+            "H_index": 3,
+            "P2_H": 2.4320904389740527,
+            "O9_H": 2.9832506512934844
+          },
+          {
+            "H_index": 4,
+            "P2_H": 2.4502370943631147,
+            "O9_H": 3.2639233499328686
+          },
+          {
+            "H_index": 5,
+            "P2_H": 1.4063764670083896,
+            "O9_H": 2.721356983344339
+          },
+          {
+            "H_index": 6,
+            "P2_H": 1.4333904293199393,
+            "O9_H": 3.7036284245882443
+          },
+          {
+            "H_index": 7,
+            "P2_H": 1.4679935721841564,
+            "O9_H": 1.5475094986157596
+          },
+          {
+            "H_index": 10,
+            "P2_H": 3.436510096960141,
+            "O9_H": 2.075014157768327
+          },
+          {
+            "H_index": 11,
+            "P2_H": 3.2155214648317934,
+            "O9_H": 2.1026760851928668
+          }
+        ]
+      },
+      "last_geometry": {
+        "C1_P2": 1.8885201338299256,
+        "C1_C8": 1.553654233774362,
+        "P2_O9": 2.8013987078381044,
+        "C8_O9": 1.4128202385799122,
+        "all_PH_OH": [
+          {
+            "H_index": 3,
+            "P2_H": 2.508010995472109,
+            "O9_H": 3.1064529790534414
+          },
+          {
+            "H_index": 4,
+            "P2_H": 2.461050374311952,
+            "O9_H": 3.315745514299009
+          },
+          {
+            "H_index": 5,
+            "P2_H": 1.4254059287588925,
+            "O9_H": 3.0682840858538505
+          },
+          {
+            "H_index": 6,
+            "P2_H": 1.4245066716340784,
+            "O9_H": 4.166070883800346
+          },
+          {
+            "H_index": 7,
+            "P2_H": 2.352975112433406,
+            "O9_H": 0.9710386155400824
+          },
+          {
+            "H_index": 10,
+            "P2_H": 3.666985815691956,
+            "O9_H": 2.0136608656645736
+          },
+          {
+            "H_index": 11,
+            "P2_H": 3.4057381132004263,
+            "O9_H": 2.088672119945349
+          }
+        ]
+      },
+      "standalone_vs_trajectory_final_maxdiff": 4.91838189953242e-07,
+      "actual_identity": "PH2-CH2-CH2-OH open-chain OCCP direction",
+      "per_frame": [
+        {
+          "frame_1based": 1,
+          "native_iteration": 0,
+          "XYZ_start_line": 1,
+          "energy_hartree": -496.549165677122,
+          "C1_C8": 1.5787829121611368,
+          "P2_O9": 2.2891651828144686,
+          "P2_H7": 1.4679935721841564,
+          "O9_H7": 1.5475094986157596
+        },
+        {
+          "frame_1based": 2,
+          "native_iteration": 1,
+          "XYZ_start_line": 14,
+          "energy_hartree": -496.553101292175,
+          "C1_C8": 1.5785183389698076,
+          "P2_O9": 2.3294733952586797,
+          "P2_H7": 1.499961124396229,
+          "O9_H7": 1.4797143074762777
+        },
+        {
+          "frame_1based": 3,
+          "native_iteration": 2,
+          "XYZ_start_line": 27,
+          "energy_hartree": -496.559598284677,
+          "C1_C8": 1.574819524460184,
+          "P2_O9": 2.3539811170510694,
+          "P2_H7": 1.5415140878405882,
+          "O9_H7": 1.3883397249715215
+        },
+        {
+          "frame_1based": 4,
+          "native_iteration": 3,
+          "XYZ_start_line": 40,
+          "energy_hartree": -496.567956664718,
+          "C1_C8": 1.5725917881732694,
+          "P2_O9": 2.3733966794849106,
+          "P2_H7": 1.587029939106695,
+          "O9_H7": 1.3020169035696119
+        },
+        {
+          "frame_1based": 5,
+          "native_iteration": 4,
+          "XYZ_start_line": 53,
+          "energy_hartree": -496.57836826458,
+          "C1_C8": 1.5688743920311148,
+          "P2_O9": 2.3873661761191975,
+          "P2_H7": 1.639029529253515,
+          "O9_H7": 1.2105385339166201
+        },
+        {
+          "frame_1based": 6,
+          "native_iteration": 5,
+          "XYZ_start_line": 66,
+          "energy_hartree": -496.588821203985,
+          "C1_C8": 1.5692506956560508,
+          "P2_O9": 2.402918622207169,
+          "P2_H7": 1.6913169188845123,
+          "O9_H7": 1.1295438895948222
+        },
+        {
+          "frame_1based": 7,
+          "native_iteration": 6,
+          "XYZ_start_line": 79,
+          "energy_hartree": -496.598186005401,
+          "C1_C8": 1.5658674987654608,
+          "P2_O9": 2.421231414640699,
+          "P2_H7": 1.7505774554120708,
+          "O9_H7": 1.0499662989648764
+        },
+        {
+          "frame_1based": 8,
+          "native_iteration": 7,
+          "XYZ_start_line": 92,
+          "energy_hartree": -496.605274857857,
+          "C1_C8": 1.5630885154564984,
+          "P2_O9": 2.46130899456915,
+          "P2_H7": 1.8156813276329633,
+          "O9_H7": 1.0031767773867175
+        },
+        {
+          "frame_1based": 9,
+          "native_iteration": 8,
+          "XYZ_start_line": 105,
+          "energy_hartree": -496.610837877945,
+          "C1_C8": 1.5637324700047,
+          "P2_O9": 2.5195984270526126,
+          "P2_H7": 1.871012009811268,
+          "O9_H7": 1.010103249831422
+        },
+        {
+          "frame_1based": 10,
+          "native_iteration": 9,
+          "XYZ_start_line": 118,
+          "energy_hartree": -496.615089061838,
+          "C1_C8": 1.5639555423850766,
+          "P2_O9": 2.5569063711315283,
+          "P2_H7": 1.9296886477574564,
+          "O9_H7": 0.9888614582038275
+        },
+        {
+          "frame_1based": 11,
+          "native_iteration": 10,
+          "XYZ_start_line": 131,
+          "energy_hartree": -496.61877612007,
+          "C1_C8": 1.5637461804209147,
+          "P2_O9": 2.6050911756241852,
+          "P2_H7": 1.9912734413796613,
+          "O9_H7": 0.9889140652953622
+        },
+        {
+          "frame_1based": 12,
+          "native_iteration": 11,
+          "XYZ_start_line": 144,
+          "energy_hartree": -496.621615253067,
+          "C1_C8": 1.5620344040093996,
+          "P2_O9": 2.6398956799945714,
+          "P2_H7": 2.0493482236420926,
+          "O9_H7": 0.9812619236844972
+        },
+        {
+          "frame_1based": 13,
+          "native_iteration": 12,
+          "XYZ_start_line": 157,
+          "energy_hartree": -496.624103442418,
+          "C1_C8": 1.5615705680570442,
+          "P2_O9": 2.6770112867787836,
+          "P2_H7": 2.110660775336956,
+          "O9_H7": 0.97765257741439
+        },
+        {
+          "frame_1based": 14,
+          "native_iteration": 13,
+          "XYZ_start_line": 170,
+          "energy_hartree": -496.626102928871,
+          "C1_C8": 1.5585862176039542,
+          "P2_O9": 2.7112410142519603,
+          "P2_H7": 2.17269668597851,
+          "O9_H7": 0.9746902762221443
+        },
+        {
+          "frame_1based": 15,
+          "native_iteration": 14,
+          "XYZ_start_line": 183,
+          "energy_hartree": -496.627685213033,
+          "C1_C8": 1.5571497266078815,
+          "P2_O9": 2.745269425734021,
+          "P2_H7": 2.2343970454308253,
+          "O9_H7": 0.9733256907078945
+        },
+        {
+          "frame_1based": 16,
+          "native_iteration": 15,
+          "XYZ_start_line": 196,
+          "energy_hartree": -496.628931377512,
+          "C1_C8": 1.5564326411476983,
+          "P2_O9": 2.7747138465580554,
+          "P2_H7": 2.2979696752946936,
+          "O9_H7": 0.9696086358325198
+        },
+        {
+          "frame_1based": 17,
+          "native_iteration": 16,
+          "XYZ_start_line": 209,
+          "energy_hartree": -496.629169293257,
+          "C1_C8": 1.5548486994624269,
+          "P2_O9": 2.7815448052702654,
+          "P2_H7": 2.311381970726604,
+          "O9_H7": 0.9686967214035568
+        },
+        {
+          "frame_1based": 18,
+          "native_iteration": 17,
+          "XYZ_start_line": 222,
+          "energy_hartree": -496.629331625702,
+          "C1_C8": 1.55468625419729,
+          "P2_O9": 2.786528845143721,
+          "P2_H7": 2.320654870317644,
+          "O9_H7": 0.9702242422558818
+        },
+        {
+          "frame_1based": 19,
+          "native_iteration": 18,
+          "XYZ_start_line": 235,
+          "energy_hartree": -496.62957240662,
+          "C1_C8": 1.554217241036143,
+          "P2_O9": 2.794132843257099,
+          "P2_H7": 2.335974980084119,
+          "O9_H7": 0.9717999721233789
+        },
+        {
+          "frame_1based": 20,
+          "native_iteration": 19,
+          "XYZ_start_line": 248,
+          "energy_hartree": -496.62981324936,
+          "C1_C8": 1.553654233774362,
+          "P2_O9": 2.8013987078381044,
+          "P2_H7": 2.352975112433406,
+          "O9_H7": 0.9710386155400824
+        }
+      ]
+    }
+  },
+  "combined_native_path": {
+    "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/irc/irc_IRC_Full_trj.xyz",
+    "frame_count": 41,
+    "TS_frame_1based": 21,
+    "order": "B outer -> B nearestTS -> TS -> F nearestTS -> F outer",
+    "native_summary_lines": [
+      1631,
+      1671
+    ],
+    "F_frame1_to20_summary_steps": [
+      22,
+      41
+    ],
+    "B_frame1_to20_summary_steps": [
+      20,
+      1
+    ]
+  },
+  "chemical_change": "F approaches the PH3 four-membered ring; B approaches PH2-CH2-CH2-OH. H7 is O-bound on B and P-bound on F, coupled to opening/closing P2-O9. C1-P2,C1-C8,C8-O9 remain bonded and other P-bound hydrogens stay on P. Neither end is RC or ethylene+PH3O.",
+  "endpoints": [
+    {
+      "job": {
+        "id": 21,
+        "state": "done",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/reactant_opt/reactant_opt.inp",
+        "jobtype": "orca"
+      },
+      "actual_chemical_role": "reactant/source OCCP",
+      "native_IRC_side": "B",
+      "source_record": {
+        "kind": "irc_outer_frame",
+        "label": "B",
+        "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/reactant_opt/reactant_source.xyz",
+        "sha256": "681c5cde259e25021dfb1829142f22ae878d71fe1a9bb138fd603a8ec0a85780",
+        "irc_job_id": 20,
+        "irc_log_sha256": "a08fba082d8872d292c075926bedee552902ab203e1a1a2453dd6a77ecca24f4"
+      },
+      "explicit_species_seed_used": false,
+      "input_order_matches_native_last_frame": true,
+      "input_vs_native_last_frame_maxdiff": 4.900000000196414e-07,
+      "source_copy_vs_native_last_frame_maxdiff": 4.91838189953242e-07,
+      "native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/reactant_opt/.cloudra/calc-21.out.log",
+      "markers": [
+        {
+          "line": 8454,
+          "text": "***        THE OPTIMIZATION HAS CONVERGED     ***"
+        },
+        {
+          "line": 9550,
+          "text": "****ORCA TERMINATED NORMALLY****"
+        }
+      ],
+      "opt_converged": true,
+      "normal_termination": true,
+      "frequency_rows": 0,
+      "n_imaginary": null,
+      "negative_frequencies": [],
+      "final_energy": {
+        "line": 9333,
+        "energy_hartree": -496.634710757925
+      },
+      "actual_final_XYZ": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/reactant_opt/reactant_opt.xyz",
+      "actual_geometry": {
+        "C1_P2": 1.8829797756093356,
+        "C1_C8": 1.5306235055129196,
+        "P2_O9": 3.2270966952459275,
+        "C8_O9": 1.4128863059966397,
+        "all_PH_OH": [
+          {
+            "H_index": 3,
+            "P2_H": 2.49942219908613,
+            "O9_H": 2.748568813229794
+          },
+          {
+            "H_index": 4,
+            "P2_H": 2.442683226630385,
+            "O9_H": 3.388432841773168
+          },
+          {
+            "H_index": 5,
+            "P2_H": 1.4302851303482462,
+            "O9_H": 3.03574860066813
+          },
+          {
+            "H_index": 6,
+            "P2_H": 1.4281255700285131,
+            "O9_H": 4.374855091090791
+          },
+          {
+            "H_index": 7,
+            "P2_H": 2.9218019136246567,
+            "O9_H": 0.9661241782211417
+          },
+          {
+            "H_index": 10,
+            "P2_H": 3.808627563907035,
+            "O9_H": 2.022062071548416
+          },
+          {
+            "H_index": 11,
+            "P2_H": 3.042586996743395,
+            "O9_H": 2.0914299742294697
+          }
+        ]
+      },
+      "same11_atom_order": true
+    },
+    {
+      "job": {
+        "id": 22,
+        "state": "done",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/reactant_frequency/reactant_frequency.inp",
+        "jobtype": "orca"
+      },
+      "actual_chemical_role": "reactant/source OCCP",
+      "native_IRC_side": "B",
+      "source_record": {
+        "kind": "irc_outer_frame",
+        "label": "B",
+        "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/reactant_opt/reactant_source.xyz",
+        "sha256": "681c5cde259e25021dfb1829142f22ae878d71fe1a9bb138fd603a8ec0a85780",
+        "irc_job_id": 20,
+        "irc_log_sha256": "a08fba082d8872d292c075926bedee552902ab203e1a1a2453dd6a77ecca24f4"
+      },
+      "explicit_species_seed_used": false,
+      "native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/reactant_frequency/.cloudra/calc-22.out.log",
+      "markers": [
+        {
+          "line": 1894,
+          "text": "****ORCA TERMINATED NORMALLY****"
+        }
+      ],
+      "opt_converged": null,
+      "normal_termination": true,
+      "frequency_rows": 33,
+      "n_imaginary": 0,
+      "negative_frequencies": [],
+      "final_energy": {
+        "line": 1123,
+        "energy_hartree": -496.634713483234
+      },
+      "actual_final_XYZ": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/reactant_frequency/optimized.xyz",
+      "actual_geometry": {
+        "C1_P2": 1.8829801231547827,
+        "C1_C8": 1.5306238049073324,
+        "P2_O9": 3.2270971064654996,
+        "C8_O9": 1.412885509417872,
+        "all_PH_OH": [
+          {
+            "H_index": 3,
+            "P2_H": 2.4994216799533846,
+            "O9_H": 2.748568523725214
+          },
+          {
+            "H_index": 4,
+            "P2_H": 2.44268310847969,
+            "O9_H": 3.3884324370324985
+          },
+          {
+            "H_index": 5,
+            "P2_H": 1.4302846432210619,
+            "O9_H": 3.035748456849151
+          },
+          {
+            "H_index": 6,
+            "P2_H": 1.4281250376423629,
+            "O9_H": 4.3748551083514755
+          },
+          {
+            "H_index": 7,
+            "P2_H": 2.921802255071174,
+            "O9_H": 0.9661242408080857
+          },
+          {
+            "H_index": 10,
+            "P2_H": 3.808627971761747,
+            "O9_H": 2.0220618791970733
+          },
+          {
+            "H_index": 11,
+            "P2_H": 3.042587242817369,
+            "O9_H": 2.0914294833307197
+          }
+        ]
+      },
+      "same11_atom_order": true,
+      "opt_to_frequency_same_order": true,
+      "opt_to_frequency_maxdiff": 4.5805933002185384e-07
+    },
+    {
+      "job": {
+        "id": 23,
+        "state": "done",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/product_opt/product_opt.inp",
+        "jobtype": "orca"
+      },
+      "actual_chemical_role": "product/target PH3 ring",
+      "native_IRC_side": "F",
+      "source_record": {
+        "kind": "irc_outer_frame",
+        "label": "A",
+        "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/product_opt/product_source.xyz",
+        "sha256": "9ce58c4d0e653e5d5dc64069f81740c4728ed912abedb849da0f77bfba6f4356",
+        "irc_job_id": 20,
+        "irc_log_sha256": "a08fba082d8872d292c075926bedee552902ab203e1a1a2453dd6a77ecca24f4"
+      },
+      "explicit_species_seed_used": false,
+      "input_order_matches_native_last_frame": true,
+      "input_vs_native_last_frame_maxdiff": 4.900000000196414e-07,
+      "source_copy_vs_native_last_frame_maxdiff": 4.911698999743308e-07,
+      "native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/product_opt/.cloudra/calc-23.out.log",
+      "markers": [
+        {
+          "line": 11285,
+          "text": "***        THE OPTIMIZATION HAS CONVERGED     ***"
+        },
+        {
+          "line": 12415,
+          "text": "****ORCA TERMINATED NORMALLY****"
+        }
+      ],
+      "opt_converged": true,
+      "normal_termination": true,
+      "frequency_rows": 0,
+      "n_imaginary": null,
+      "negative_frequencies": [],
+      "final_energy": {
+        "line": 12198,
+        "energy_hartree": -496.585621662731
+      },
+      "actual_final_XYZ": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/product_opt/product_opt.xyz",
+      "actual_geometry": {
+        "C1_P2": 1.8712232318170483,
+        "C1_C8": 1.5350254917392607,
+        "P2_O9": 1.7863278915444885,
+        "C8_O9": 1.413625648218841,
+        "all_PH_OH": [
+          {
+            "H_index": 3,
+            "P2_H": 2.4802293109476223,
+            "O9_H": 2.9019046263619463
+          },
+          {
+            "H_index": 4,
+            "P2_H": 2.5257421612552613,
+            "O9_H": 3.112700347318552
+          },
+          {
+            "H_index": 5,
+            "P2_H": 1.42391127942193,
+            "O9_H": 2.2740328157245053
+          },
+          {
+            "H_index": 6,
+            "P2_H": 1.4650988227411912,
+            "O9_H": 3.2383544639229407
+          },
+          {
+            "H_index": 7,
+            "P2_H": 1.4166547470281652,
+            "O9_H": 2.4148171718322815
+          },
+          {
+            "H_index": 10,
+            "P2_H": 3.2567845830194018,
+            "O9_H": 2.092477691460361
+          },
+          {
+            "H_index": 11,
+            "P2_H": 3.0757126782963295,
+            "O9_H": 2.1097651165424067
+          }
+        ]
+      },
+      "same11_atom_order": true
+    },
+    {
+      "job": {
+        "id": 24,
+        "state": "done",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/product_frequency/product_frequency.inp",
+        "jobtype": "orca"
+      },
+      "actual_chemical_role": "product/target PH3 ring",
+      "native_IRC_side": "F",
+      "source_record": {
+        "kind": "irc_outer_frame",
+        "label": "A",
+        "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/product_opt/product_source.xyz",
+        "sha256": "9ce58c4d0e653e5d5dc64069f81740c4728ed912abedb849da0f77bfba6f4356",
+        "irc_job_id": 20,
+        "irc_log_sha256": "a08fba082d8872d292c075926bedee552902ab203e1a1a2453dd6a77ecca24f4"
+      },
+      "explicit_species_seed_used": false,
+      "native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/product_frequency/.cloudra/calc-24.out.log",
+      "markers": [
+        {
+          "line": 1898,
+          "text": "****ORCA TERMINATED NORMALLY****"
+        }
+      ],
+      "opt_converged": null,
+      "normal_termination": true,
+      "frequency_rows": 33,
+      "n_imaginary": 0,
+      "negative_frequencies": [],
+      "final_energy": {
+        "line": 1127,
+        "energy_hartree": -496.585632245103
+      },
+      "actual_final_XYZ": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/product_frequency/optimized.xyz",
+      "actual_geometry": {
+        "C1_P2": 1.8712231041276184,
+        "C1_C8": 1.5350255855190167,
+        "P2_O9": 1.786328135093046,
+        "C8_O9": 1.4136261634781664,
+        "all_PH_OH": [
+          {
+            "H_index": 3,
+            "P2_H": 2.480229629903852,
+            "O9_H": 2.901905305354742
+          },
+          {
+            "H_index": 4,
+            "P2_H": 2.5257425211816424,
+            "O9_H": 3.1127013067022666
+          },
+          {
+            "H_index": 5,
+            "P2_H": 1.4239107450289854,
+            "O9_H": 2.274032431196618
+          },
+          {
+            "H_index": 6,
+            "P2_H": 1.465098879265833,
+            "O9_H": 3.238354802132867
+          },
+          {
+            "H_index": 7,
+            "P2_H": 1.4166545699008632,
+            "O9_H": 2.414817266093234
+          },
+          {
+            "H_index": 10,
+            "P2_H": 3.256784541800394,
+            "O9_H": 2.092477770790648
+          },
+          {
+            "H_index": 11,
+            "P2_H": 3.0757125498846603,
+            "O9_H": 2.1097653371185623
+          }
+        ]
+      },
+      "same11_atom_order": true,
+      "opt_to_frequency_same_order": true,
+      "opt_to_frequency_maxdiff": 4.951275799358612e-07
+    }
+  ],
+  "conclusion": "Native evidence supports this OCCP-to-PH3-ring step: prior confirmed OptTS18 convergence/one-imaginary frequency19, genuine bidirectional IRC20 from that Hessian, and21/23 converged endpoint optimizations with22/24 zero-imaginary frequencies. B is actual source OCCP and F actual target PH3 ring; both endpoint inputs come directly from native20 outer frames, not substitute species seeds. Both IRC directions reach20-cycle limit rather than full IRC convergence. Formal DAG acceptance and complete-route/full-delivery conclusions remain separate and are not asserted here.",
+  "actions": {
+    "source_or_live_scientific_file_mutation": false,
+    "new_QM_API_observer_or_wait": false,
+    "live_Agent_correction": false,
+    "Gold_or_private_reasoning_read": false
+  },
+  "prior_confirmed_TS_evidence": {
+    "native_opt18": {
+      "native_markers": [
+        {
+          "line": 16031,
+          "text": "***        THE OPTIMIZATION HAS CONVERGED     ***"
+        },
+        {
+          "line": 17158,
+          "text": "****ORCA TERMINATED NORMALLY****"
+        }
+      ],
+      "opt_converged": true,
+      "normal_termination": true,
+      "scope": "Native optimization convergence is checked independently from ledger done; a target connection still requires frequency and IRC evidence."
+    },
+    "native_frequency19": {
+      "job_present": true,
+      "job": {
+        "id": 19,
+        "state": "done",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/frequency/frequency.inp",
+        "jobtype": "orca"
+      },
+      "native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/frequency/.cloudra/calc-19.out.log",
+      "native_log_exists": true,
+      "markers": [
+        {
+          "line": 1331,
+          "text": "VIBRATIONAL FREQUENCIES"
+        },
+        {
+          "line": 1914,
+          "text": "****ORCA TERMINATED NORMALLY****"
+        }
+      ],
+      "frequency_rows": 33,
+      "n_imaginary": 1,
+      "negative_frequencies": [
+        {
+          "mode": 6,
+          "value_cm_minus1": -1022.18,
+          "line": 1342
+        }
+      ],
+      "normal_termination": true,
+      "scope": "Matching pipeline frequency candidate only; IRC connection is not inspected or credited."
+    },
+    "not_reaudited": "Previously confirmed native18/19 facts referenced; no second native18/19 analysis in this audit."
+  }
+}

@@ -1,0 +1,34 @@
+[
+  {
+    "file": "mechanism_graph.json",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/mechanism_graph.json",
+    "sha256": "ec9d56a6de47b8ff2b45625b1356cd36b71a50e3984641b2127da7a4dd0b3593"
+  },
+  {
+    "file": "immutable_mechanism_graph.json",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/.cloudra/evidence/ec9d56a6de47b8ff_mechanism_graph.json",
+    "sha256": "ec9d56a6de47b8ff2b45625b1356cd36b71a50e3984641b2127da7a4dd0b3593"
+  },
+  {
+    "file": "PROCESS.md",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/PROCESS.md",
+    "sha256": "f995708ff1890977a65d8bdcbaeed660fc40a551b4ad1f127b6ff1879613bbca"
+  },
+  {
+    "file": "terminal-status.json",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/latest-status.json",
+    "sha256": "b5b669809c8183b1ca5bc173a8aeb40e712febfc9e299782956792411b491818"
+  },
+  {
+    "file": "coordinator-final-answer.md",
+    "sha256": "de8dd1761de7dde0395a56dae04fd7e73e360ef17ffcc59d50a832bde1f94914"
+  },
+  {
+    "file": "public-terminal-events.json",
+    "sha256": "ad2438adba7da306795fb51d22070e7c887194da37b78b2f59cea9296d5b5ba1"
+  },
+  {
+    "file": "final-review-records.json",
+    "sha256": "0980cb33d8a45827b458c7b07481200d2a3006157fc4fe977773bfa451e1922e"
+  }
+]

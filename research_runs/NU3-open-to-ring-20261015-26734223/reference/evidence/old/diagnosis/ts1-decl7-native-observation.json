@@ -1,0 +1,723 @@
+{
+  "observed_at_utc": "2026-10-14T18:29:28.720558+00:00",
+  "source_cwd": "/Users/cloudrayyy/.codex/worktrees/nu3-final-review/Cloudra-mechanism-agent-master",
+  "frozen_revision": "f2769986a5f3c0271015b7a72f238030afc3bf87",
+  "batch_id": "batch_8758d928b8794e87",
+  "scope": "仅一次只读47/48/49账本及原生日志/当前完整XYZ帧；不重查46初猜、不等待/轮询新QM，不以H-heavy判伪鞍点、不改source/科学规则/DB/科研输入，不运行QM/API/observer或发liveAgent纠正，不接触Gold/thinking。",
+  "observations": [
+    {
+      "job_id": 47,
+      "ledger_state": "done",
+      "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/ts_opt/refine.inp",
+      "input_header": "# TS refinement: [CH2-][PH3+].C=O -> C1[PH3]OC1 | smiles: [CH2-][PH3+].C=O\n! OptTS B3LYP def2-SVP D3BJ TightSCF\n%pal nprocs 8 end\n%maxcore 1000\n%geom\n  Calc_Hess true\nend",
+      "native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/ts_opt/.cloudra/calc-47.out.log",
+      "native_markers": [
+        {
+          "line": 235,
+          "text": "* Geometry Optimization Run *"
+        },
+        {
+          "line": 242,
+          "text": "Max. no of cycles        MaxIter  .... 50"
+        },
+        {
+          "line": 4206,
+          "text": "***        THE OPTIMIZATION HAS CONVERGED     ***"
+        },
+        {
+          "line": 5314,
+          "text": "****ORCA TERMINATED NORMALLY****"
+        }
+      ],
+      "frequency_rows": 0,
+      "imaginary_frequency_count": null,
+      "negative_frequencies": [],
+      "IRC_direction_slices": []
+    },
+    {
+      "job_id": 48,
+      "ledger_state": "done",
+      "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/frequency/frequency.inp",
+      "input_header": "# frequency at the refined stationary point: [CH2-][PH3+].C=O | smiles: [CH2-][PH3+].C=O\n! Freq B3LYP def2-SVP D3BJ TightSCF\n%pal nprocs 8 end\n%maxcore 1000",
+      "native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/frequency/.cloudra/calc-48.out.log",
+      "native_markers": [
+        {
+          "line": 1323,
+          "text": "VIBRATIONAL FREQUENCIES"
+        },
+        {
+          "line": 1897,
+          "text": "****ORCA TERMINATED NORMALLY****"
+        }
+      ],
+      "frequency_rows": 33,
+      "imaginary_frequency_count": 1,
+      "negative_frequencies": [
+        {
+          "mode": 6,
+          "cm_1": -279.79,
+          "line": 1334
+        }
+      ],
+      "IRC_direction_slices": []
+    },
+    {
+      "job_id": 49,
+      "ledger_state": "running",
+      "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/irc/irc.inp",
+      "input_header": "# IRC both directions from the refined saddle: [CH2-][PH3+].C=O | smiles: [CH2-][PH3+].C=O\n! IRC B3LYP def2-SVP D3BJ TightSCF\n%pal nprocs 8 end\n%maxcore 1000\n%irc\n  Direction both\n  InitHess read\n  Hess_Filename \"/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/frequency/frequency.hess\"\nend",
+      "native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/irc/.cloudra/calc-49.out.log",
+      "native_markers": [
+        {
+          "line": 1272,
+          "text": "Max. no of cycles        MaxIter    .... 20"
+        },
+        {
+          "line": 1273,
+          "text": "Direction                           .... Forward and backward"
+        },
+        {
+          "line": 1276,
+          "text": "Following Hessian mode              .... 0"
+        },
+        {
+          "line": 1299,
+          "text": "Reading the hessian file           ...... done"
+        },
+        {
+          "line": 1305,
+          "text": "*                          FORWARD IRC                      *"
+        },
+        {
+          "line": 1431,
+          "text": "*  MAXIMUM NUMBER OF ITERATIONS REACHED - STOPPING IRC RUN  *"
+        },
+        {
+          "line": 1436,
+          "text": "*                          BACKWARD IRC                     *"
+        }
+      ],
+      "frequency_rows": 0,
+      "imaginary_frequency_count": null,
+      "negative_frequencies": [],
+      "IRC_direction_slices": [
+        {
+          "side": "F",
+          "native_iteration_rows_seen": 20,
+          "first_native_iteration": {
+            "line": 1310,
+            "text": "0      -496.542266   -2.428346    0.016978  0.004943"
+          },
+          "latest_native_iteration": {
+            "line": 1428,
+            "text": "19      -496.628438   -56.502002    0.003266  0.001451"
+          },
+          "native_stop_flags": {
+            "hit_limit": true
+          },
+          "trajectory_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/irc/irc_IRC_F_trj.xyz",
+          "complete_frames_at_read": 20,
+          "first_geometry": {
+            "atom_order": [
+              "C",
+              "P",
+              "H",
+              "H",
+              "H",
+              "H",
+              "H",
+              "C",
+              "O",
+              "H",
+              "H"
+            ],
+            "heavy_distances": [
+              {
+                "atoms_1based": [
+                  1,
+                  2
+                ],
+                "elements": [
+                  "C",
+                  "P"
+                ],
+                "angstrom": 1.7545205080326078
+              },
+              {
+                "atoms_1based": [
+                  1,
+                  8
+                ],
+                "elements": [
+                  "C",
+                  "C"
+                ],
+                "angstrom": 1.9770417878370707
+              },
+              {
+                "atoms_1based": [
+                  1,
+                  9
+                ],
+                "elements": [
+                  "C",
+                  "O"
+                ],
+                "angstrom": 2.7102047119024055
+              },
+              {
+                "atoms_1based": [
+                  2,
+                  8
+                ],
+                "elements": [
+                  "P",
+                  "C"
+                ],
+                "angstrom": 2.7943449639693743
+              },
+              {
+                "atoms_1based": [
+                  2,
+                  9
+                ],
+                "elements": [
+                  "P",
+                  "O"
+                ],
+                "angstrom": 2.753359000861493
+              },
+              {
+                "atoms_1based": [
+                  8,
+                  9
+                ],
+                "elements": [
+                  "C",
+                  "O"
+                ],
+                "angstrom": 1.2801742853814868
+              }
+            ],
+            "all_P_H": [
+              {
+                "H_1based": 3,
+                "angstrom": 2.433121442636598
+              },
+              {
+                "H_1based": 4,
+                "angstrom": 2.3856674876759336
+              },
+              {
+                "H_1based": 5,
+                "angstrom": 1.4126701770441676
+              },
+              {
+                "H_1based": 6,
+                "angstrom": 1.4157897270813204
+              },
+              {
+                "H_1based": 7,
+                "angstrom": 1.5051503374879203
+              },
+              {
+                "H_1based": 10,
+                "angstrom": 3.566685458009719
+              },
+              {
+                "H_1based": 11,
+                "angstrom": 3.2541014950191705
+              }
+            ],
+            "all_O_H": [
+              {
+                "H_1based": 3,
+                "angstrom": 3.5644763309334797
+              },
+              {
+                "H_1based": 4,
+                "angstrom": 3.1783076808016877
+              },
+              {
+                "H_1based": 5,
+                "angstrom": 3.6547605668712415
+              },
+              {
+                "H_1based": 6,
+                "angstrom": 3.8018060328622765
+              },
+              {
+                "H_1based": 7,
+                "angstrom": 1.5502565964036406
+              },
+              {
+                "H_1based": 10,
+                "angstrom": 2.0648389805021115
+              },
+              {
+                "H_1based": 11,
+                "angstrom": 2.076423735741094
+              }
+            ]
+          },
+          "latest_complete_geometry": {
+            "atom_order": [
+              "C",
+              "P",
+              "H",
+              "H",
+              "H",
+              "H",
+              "H",
+              "C",
+              "O",
+              "H",
+              "H"
+            ],
+            "heavy_distances": [
+              {
+                "atoms_1based": [
+                  1,
+                  2
+                ],
+                "elements": [
+                  "C",
+                  "P"
+                ],
+                "angstrom": 1.894962481875037
+              },
+              {
+                "atoms_1based": [
+                  1,
+                  8
+                ],
+                "elements": [
+                  "C",
+                  "C"
+                ],
+                "angstrom": 1.55137631780977
+              },
+              {
+                "atoms_1based": [
+                  1,
+                  9
+                ],
+                "elements": [
+                  "C",
+                  "O"
+                ],
+                "angstrom": 2.4748488019386152
+              },
+              {
+                "atoms_1based": [
+                  2,
+                  8
+                ],
+                "elements": [
+                  "P",
+                  "C"
+                ],
+                "angstrom": 2.820614775606729
+              },
+              {
+                "atoms_1based": [
+                  2,
+                  9
+                ],
+                "elements": [
+                  "P",
+                  "O"
+                ],
+                "angstrom": 2.907410310148363
+              },
+              {
+                "atoms_1based": [
+                  8,
+                  9
+                ],
+                "elements": [
+                  "C",
+                  "O"
+                ],
+                "angstrom": 1.404613673706048
+              }
+            ],
+            "all_P_H": [
+              {
+                "H_1based": 3,
+                "angstrom": 2.5192917236286867
+              },
+              {
+                "H_1based": 4,
+                "angstrom": 2.4649873794405117
+              },
+              {
+                "H_1based": 5,
+                "angstrom": 1.4225025680866097
+              },
+              {
+                "H_1based": 6,
+                "angstrom": 1.4225260897814844
+              },
+              {
+                "H_1based": 7,
+                "angstrom": 2.2259710202601473
+              },
+              {
+                "H_1based": 10,
+                "angstrom": 3.7409087745446294
+              },
+              {
+                "H_1based": 11,
+                "angstrom": 3.3209872588224427
+              }
+            ],
+            "all_O_H": [
+              {
+                "H_1based": 3,
+                "angstrom": 3.3723403231852207
+              },
+              {
+                "H_1based": 4,
+                "angstrom": 2.975372279664177
+              },
+              {
+                "H_1based": 5,
+                "angstrom": 3.957120648669434
+              },
+              {
+                "H_1based": 6,
+                "angstrom": 3.985249849575557
+              },
+              {
+                "H_1based": 7,
+                "angstrom": 0.9743683570329036
+              },
+              {
+                "H_1based": 10,
+                "angstrom": 2.0176427526532046
+              },
+              {
+                "H_1based": 11,
+                "angstrom": 2.090249430802458
+              }
+            ]
+          },
+          "latest_comment": "Coordinates from ORCA-job irc_IRC_F E -496.628437680464",
+          "terminal_frame_claim": false
+        },
+        {
+          "side": "B",
+          "native_iteration_rows_seen": 2,
+          "first_native_iteration": {
+            "line": 1441,
+            "text": "0      -496.538804   -0.256368    0.009708  0.003468"
+          },
+          "latest_native_iteration": {
+            "line": 1451,
+            "text": "1      -496.538983   -0.368766    0.006401  0.002169"
+          },
+          "native_stop_flags": {},
+          "trajectory_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/irc/irc_IRC_B_trj.xyz",
+          "complete_frames_at_read": 2,
+          "first_geometry": {
+            "atom_order": [
+              "C",
+              "P",
+              "H",
+              "H",
+              "H",
+              "H",
+              "H",
+              "C",
+              "O",
+              "H",
+              "H"
+            ],
+            "heavy_distances": [
+              {
+                "atoms_1based": [
+                  1,
+                  2
+                ],
+                "elements": [
+                  "C",
+                  "P"
+                ],
+                "angstrom": 1.7023255752490472
+              },
+              {
+                "atoms_1based": [
+                  1,
+                  8
+                ],
+                "elements": [
+                  "C",
+                  "C"
+                ],
+                "angstrom": 2.347446570822433
+              },
+              {
+                "atoms_1based": [
+                  1,
+                  9
+                ],
+                "elements": [
+                  "C",
+                  "O"
+                ],
+                "angstrom": 2.9503448476044287
+              },
+              {
+                "atoms_1based": [
+                  2,
+                  8
+                ],
+                "elements": [
+                  "P",
+                  "C"
+                ],
+                "angstrom": 2.987478756082627
+              },
+              {
+                "atoms_1based": [
+                  2,
+                  9
+                ],
+                "elements": [
+                  "P",
+                  "O"
+                ],
+                "angstrom": 2.9310978625028885
+              },
+              {
+                "atoms_1based": [
+                  8,
+                  9
+                ],
+                "elements": [
+                  "C",
+                  "O"
+                ],
+                "angstrom": 1.2212035389352585
+              }
+            ],
+            "all_P_H": [
+              {
+                "H_1based": 3,
+                "angstrom": 2.3810793126340837
+              },
+              {
+                "H_1based": 4,
+                "angstrom": 2.3838169824107722
+              },
+              {
+                "H_1based": 5,
+                "angstrom": 1.413241323673349
+              },
+              {
+                "H_1based": 6,
+                "angstrom": 1.43653802526804
+              },
+              {
+                "H_1based": 7,
+                "angstrom": 1.4170656027679172
+              },
+              {
+                "H_1based": 10,
+                "angstrom": 3.593276797491393
+              },
+              {
+                "H_1based": 11,
+                "angstrom": 3.287516469759201
+              }
+            ],
+            "all_O_H": [
+              {
+                "H_1based": 3,
+                "angstrom": 3.814903353654585
+              },
+              {
+                "H_1based": 4,
+                "angstrom": 3.255986249249066
+              },
+              {
+                "H_1based": 5,
+                "angstrom": 3.6902250053080774
+              },
+              {
+                "H_1based": 6,
+                "angstrom": 4.039440344290282
+              },
+              {
+                "H_1based": 7,
+                "angstrom": 2.065391665371244
+              },
+              {
+                "H_1based": 10,
+                "angstrom": 2.05360281924451
+              },
+              {
+                "H_1based": 11,
+                "angstrom": 2.0567704194258045
+              }
+            ]
+          },
+          "latest_complete_geometry": {
+            "atom_order": [
+              "C",
+              "P",
+              "H",
+              "H",
+              "H",
+              "H",
+              "H",
+              "C",
+              "O",
+              "H",
+              "H"
+            ],
+            "heavy_distances": [
+              {
+                "atoms_1based": [
+                  1,
+                  2
+                ],
+                "elements": [
+                  "C",
+                  "P"
+                ],
+                "angstrom": 1.7049793690467343
+              },
+              {
+                "atoms_1based": [
+                  1,
+                  8
+                ],
+                "elements": [
+                  "C",
+                  "C"
+                ],
+                "angstrom": 2.3492922852676292
+              },
+              {
+                "atoms_1based": [
+                  1,
+                  9
+                ],
+                "elements": [
+                  "C",
+                  "O"
+                ],
+                "angstrom": 2.9539888742942146
+              },
+              {
+                "atoms_1based": [
+                  2,
+                  8
+                ],
+                "elements": [
+                  "P",
+                  "C"
+                ],
+                "angstrom": 2.992870533072388
+              },
+              {
+                "atoms_1based": [
+                  2,
+                  9
+                ],
+                "elements": [
+                  "P",
+                  "O"
+                ],
+                "angstrom": 2.936872943545396
+              },
+              {
+                "atoms_1based": [
+                  8,
+                  9
+                ],
+                "elements": [
+                  "C",
+                  "O"
+                ],
+                "angstrom": 1.2245419309937902
+              }
+            ],
+            "all_P_H": [
+              {
+                "H_1based": 3,
+                "angstrom": 2.3824500826724573
+              },
+              {
+                "H_1based": 4,
+                "angstrom": 2.385843522688988
+              },
+              {
+                "H_1based": 5,
+                "angstrom": 1.411134323830655
+              },
+              {
+                "H_1based": 6,
+                "angstrom": 1.4331704503854383
+              },
+              {
+                "H_1based": 7,
+                "angstrom": 1.4201349068539229
+              },
+              {
+                "H_1based": 10,
+                "angstrom": 3.597170012888048
+              },
+              {
+                "H_1based": 11,
+                "angstrom": 3.291281008190428
+              }
+            ],
+            "all_O_H": [
+              {
+                "H_1based": 3,
+                "angstrom": 3.8173325356548387
+              },
+              {
+                "H_1based": 4,
+                "angstrom": 3.2580400187511516
+              },
+              {
+                "H_1based": 5,
+                "angstrom": 3.6921245326375436
+              },
+              {
+                "H_1based": 6,
+                "angstrom": 4.041577885602231
+              },
+              {
+                "H_1based": 7,
+                "angstrom": 2.064197757881255
+              },
+              {
+                "H_1based": 10,
+                "angstrom": 2.054083961543442
+              },
+              {
+                "H_1based": 11,
+                "angstrom": 2.05776687401513
+              }
+            ]
+          },
+          "latest_comment": "Coordinates from ORCA-job irc_IRC_B E -496.538983479910",
+          "terminal_frame_claim": false
+        }
+      ]
+    }
+  ],
+  "interpretation": {
+    "47_48": "47原生鞍点优化收敛并正常结束；48完成频率，只有一个虚频−279.79 cm−1。没有以H-heavy权重判伪鞍点。",
+    "49_real_task": "49确为真实双向IRC：读频率Hessian，已实际执行FORWARD/BACKWARD，不是普通Opt冒充。采样时账本仍running，没有整体正常终止/最终路径结论。",
+    "current_F": "F已20完整帧/迭代0–19到MaxIter20。最新结构C1-C8=1.5514Å、P2-O9=2.9074Å，P2-H7=2.2260Å而O9-H7=0.97437Å；P上H5/H6约1.4225Å。直接支持H7从P转O的OH开链竞争片段，不能当PH3四元环。",
+    "current_B": "B仅2完整帧/迭代0–1，C1-C8≈2.3493Å、P2-O9≈2.9369Å、C8-O9≈1.2245Å，PH3保留，当前RC样片段。方向仍在执行，不称最终IRC收敛或完整端点。",
+    "limits": "未有完整双向终态与端点opt/freq证据，不授前半目标连接信用；不等完成/轮询，不判断目标路径不存在。"
+  },
+  "conclusion": "47/48给出收敛且单虚频的候选；49真IRC正在跑，F已显示P→O的H7转移与OH开链，B仍仅早期RC样片段。当前不是已证明RC→PH3环，不作完整终态验收。"
+}

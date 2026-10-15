@@ -1,0 +1,2043 @@
+{
+  "recorded_at_utc": "2026-10-14T21:15:53.579755+00:00",
+  "authorization": "User conditionally authorized a verified complete ring pathway as the subsequent reference; condition satisfied at species/native-evidence level.",
+  "reference_status": "adopted_as_separate_subsequent_reference; this comparison is offline only, never substituted into a completed or live batch",
+  "original_task": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/task-set/NU3.json",
+  "original_task_sha256": "080aff465e4a9a906769c175799a3dd376cad4d42287d1f305f4aebcb90cc0c3",
+  "original_reference_copy": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/reference/NU3.original.json",
+  "revised_task": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/reference/NU3.revised.json",
+  "revised_task_sha256": "7079d519e4d068ef1fa7fe1829e6896b4b967302fa6586869b38ef8ae757dc04",
+  "reference_changes": [
+    {
+      "edge": "NU3_E1",
+      "original_barrier_kcal_mol": 1.7,
+      "revised_barrier_kcal_mol": 1.6934468939264014
+    },
+    {
+      "edge": "NU3_E2",
+      "original_barrier_kcal_mol": 55.81,
+      "revised_barrier_kcal_mol": 55.10692233512888
+    },
+    {
+      "edge": "NU3_E3",
+      "original_barrier_kcal_mol": 23.76,
+      "revised_barrier_kcal_mol": 23.757307503579213
+    }
+  ],
+  "all_other_task_fields_unchanged": true,
+  "unchanged_sections": [
+    "prompt",
+    "system",
+    "method_policy",
+    "rubric"
+  ],
+  "scorer_commit": "f2769986a5f3c0271015b7a72f238030afc3bf87",
+  "scorer_source": "/Users/cloudrayyy/.codex/worktrees/nu3-final-review/Cloudra-mechanism-agent-master/cloudra/benchmark/runner.py",
+  "cwd": "/Users/cloudrayyy/.codex/worktrees/nu3-final-review/Cloudra-mechanism-agent-master",
+  "pythonpath": "/Users/cloudrayyy/.codex/worktrees/nu3-final-review/Cloudra-mechanism-agent-master",
+  "native_full_route_evidence": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/reference/full-route-evidence.json",
+  "middle_source_baseline": "Actual IRC20 B ->21/22 minimum, not the lower given-A25 conformer. Separate given-A25 arithmetic remains in the evidence report.",
+  "route_scope": "Chemical-species-level route; distinct OCCP conformers preserved. Not a proof of exact conformer interconversion, uniqueness or thermal accessibility.",
+  "original_formal_score": {
+    "task_id": "NU3",
+    "graph_score": 0.7768319284448859,
+    "selfconsistency_passed": true,
+    "accuracy_score": 0.3333322613346562,
+    "final_score": 0.5777,
+    "notes": [
+      "edge step_ca443b82: no transition-state node (`via`)",
+      "gold edge NU3_E1 carries a reference barrier but no delivered step matches its endpoint species; scored 0",
+      "gold edge NU3_E2 carries a reference barrier but no delivered step matches its endpoint species; scored 0",
+      "gold edge NU3_E3 matched delivered step step_2406e262 by endpoint species",
+      "edge NU3_E3: log-derived 23.755 vs gold 23.760 (sigma 2.0) -> 1.0000 (weight 1.0)"
+    ]
+  },
+  "original_batch_id": "batch_8758d928b8794e87",
+  "original_formal_score_preserved": true,
+  "standalone_formal_score": null,
+  "readonly_revised_reference_scores": [
+    {
+      "label": "old_formal_delivery_under_revised_reference",
+      "diagnostic_only": true,
+      "formal_benchmark_run": false,
+      "sandbox": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87",
+      "score": {
+        "task_id": "NU3",
+        "sandbox": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87",
+        "graph_score": 0.7768319284448859,
+        "selfconsistency_passed": true,
+        "accuracy_score": 0.33333309735996064,
+        "final_score": 0.5777,
+        "notes": [
+          "edge step_ca443b82: no transition-state node (`via`)",
+          "gold edge NU3_E1 carries a reference barrier but no delivered step matches its endpoint species; scored 0",
+          "gold edge NU3_E2 carries a reference barrier but no delivered step matches its endpoint species; scored 0",
+          "gold edge NU3_E3 matched delivered step step_2406e262 by endpoint species",
+          "edge NU3_E3: log-derived 23.755 vs gold 23.757 (sigma 2.0) -> 1.0000 (weight 1.0)"
+        ],
+        "batch_id": "",
+        "orchestration_mode": "dag_guided"
+      }
+    },
+    {
+      "label": "standalone_middle_step_under_full_revised_NU3_reference",
+      "diagnostic_only": true,
+      "formal_benchmark_run": false,
+      "sandbox": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace",
+      "score": {
+        "task_id": "NU3",
+        "sandbox": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace",
+        "graph_score": 0.0,
+        "selfconsistency_passed": false,
+        "accuracy_score": 0.0,
+        "final_score": -1.0,
+        "notes": [
+          "unbound nodes (no matching evidence file): ['open-chain phosphine', '1,2-oxaphosphetane ring', 'TS1']",
+          "species open-chain phosphine: no evidence bound to this node",
+          "species 1,2-oxaphosphetane ring: no evidence bound to this node",
+          "edge chain-to-ring direct: no evidence explicitly associated with TS TS1; declare its evidence_log or energy_hartree",
+          "transition_state TS1: no accessible edge through this TS is covered",
+          "edge chain-to-ring direct: base node open-chain phosphine has no bound evidence",
+          "no step barrier could be derived from the delivered logs",
+          "gold edge NU3_E1 carries a reference barrier but no delivered step matches its endpoint species; scored 0",
+          "gold edge NU3_E2 carries a reference barrier but no delivered step matches its endpoint species; scored 0",
+          "gold edge NU3_E3 carries a reference barrier but no delivered step matches its endpoint species; scored 0",
+          "no evidence bound to any accessible species node -> unsupported claims; penalty applied"
+        ],
+        "batch_id": "",
+        "orchestration_mode": "dag_guided"
+      }
+    }
+  ],
+  "standalone_score_scope": "The ordinary follow-up delivered only the middle leg, not a full NU3 Benchmark answer. This diagnostic also retains missing structured energy/barrier declarations; it is not a new formal score or a replacement for independent science.",
+  "original_materials_unchanged": true,
+  "before": {
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/benchmark.db": {
+      "bytes": 16384,
+      "sha256": "1b3c92deb173f2cf06035f09205bcd1e4101fd72fcd06398130d81bf1449ac80"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/0b7cd7d71224100d_calc-45.out.log": {
+      "bytes": 94781,
+      "sha256": "0b7cd7d71224100d139efbac16eb80dd531ca8c6e653d414d9a7cc154a26fe97"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/12f0c4aa7e7ef30c_calc-48.out.log": {
+      "bytes": 94704,
+      "sha256": "12f0c4aa7e7ef30c5d83d148b8312172fcad1131295d786d719be63ac78682b1"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/2dd8533599025eb7_calc-51.out.log": {
+      "bytes": 94985,
+      "sha256": "2dd8533599025eb7c3a0170ba5e583a77dff818c3b9616c888e6be6ef9f601a2"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/32b8d6edef191023_calc-53.out.log": {
+      "bytes": 95088,
+      "sha256": "32b8d6edef1910233df3088759bd6032c586a3b32b34c18cd1f21ee607f05102"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/32db8292081a68c3_calc-42.out.log": {
+      "bytes": 94793,
+      "sha256": "32db8292081a68c35dbde84f5e52f1314f0ac58e01e5fd901152d57864629838"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/4bec8cf1483d701d_calc-34.out.log": {
+      "bytes": 94799,
+      "sha256": "4bec8cf1483d701d4addfe24f759df8ca3c3a3c2f1cb309c76ffdcd308b697fb"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/554a2286493aea65_calc-7.out.log": {
+      "bytes": 1759538,
+      "sha256": "554a2286493aea65dbf2d9aae3080321dea2c06dd32613dc1930e4d515a7e39a"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/55f6761407193ced_calc-27.out.log": {
+      "bytes": 95303,
+      "sha256": "55f6761407193ced527d984ed2d9c40927f150fc13a4466c19365e11422a1581"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/5de82c0225f5498a_calc-31.out.log": {
+      "bytes": 94643,
+      "sha256": "5de82c0225f5498aa3d7b23d12585be0b99f4d137c1638215a6570c3df05ff61"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/62490c9bc3abc40f_calc-39.out.log": {
+      "bytes": 95448,
+      "sha256": "62490c9bc3abc40f27ff27c884fb8c20112c6a44925596ea49bf6a7a55c975d4"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/a3217726838fbd50_calc-3.out.log": {
+      "bytes": 787252,
+      "sha256": "a3217726838fbd50d69379def6f9466d8f23cbaec447dc745f9c2a574fa93c2e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/a6b24d683046f72e_calc-36.out.log": {
+      "bytes": 94753,
+      "sha256": "a6b24d683046f72e68a4092bc442bbce9fdbde41414a7a3125f6a63523cbe0b2"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/bfd77c5afcdba9de_calc-13.out.log": {
+      "bytes": 271857,
+      "sha256": "bfd77c5afcdba9deae3cc89bfd4dc744866b4bbc609ad1c045866ad0e862106f"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/d8249b978074fc74_calc-30.out.log": {
+      "bytes": 1791640,
+      "sha256": "d8249b978074fc7496cdebc3b64bae091e78f7154203a526e866e26e905f80c0"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/ef20ae0d42106ed6ae9d8e9c8048d97adf25c01a5c48b2b01e074bc265081741/83d0927ad5eeb1d0_calc-32.out.log": {
+      "bytes": 83729,
+      "sha256": "83d0927ad5eeb1d0cde0c808bec2c18ee5f7a552578d55621fc51d00445ec5a2"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/tool_output/read-20261015-020759-cd76258f.log": {
+      "bytes": 31655,
+      "sha256": "2a32ca225cc554f0f5f08bea3a782ab633a5cf591ea6c547c00340cb00408e59"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/tool_output/read-20261015-021856-2af745ec.log": {
+      "bytes": 33138,
+      "sha256": "a9b0a6c38c47716da3e1da27b9324fc5b19db690544da8e5bd818c18f41808c3"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/tool_output/read-20261015-023501-bcedb809.log": {
+      "bytes": 33138,
+      "sha256": "a9b0a6c38c47716da3e1da27b9324fc5b19db690544da8e5bd818c18f41808c3"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/tool_output/read-20261015-023504-fa9b8d65.log": {
+      "bytes": 33138,
+      "sha256": "a9b0a6c38c47716da3e1da27b9324fc5b19db690544da8e5bd818c18f41808c3"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/tool_output/read-20261015-023516-3e62f5a2.log": {
+      "bytes": 35564,
+      "sha256": "8356c36cb6f7b62ca29b1af9eced3434c9669c23fd459aca08d1f2cb315eb222"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/betaine/.cloudra/calc-16.out.log": {
+      "bytes": 936278,
+      "sha256": "ba3609a7b851759b374e90c67d19ee3c39d64f24bd9fe796456027fff9abc73c"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/betaine/.cloudra/calc-22.out.log": {
+      "bytes": 263,
+      "sha256": "938f94a2c7b5664923fdd87dc64f9d3279df459649a6489865246117ae8c0794"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/betaine/.cloudra/guard-16.log": {
+      "bytes": 3592,
+      "sha256": "e4078d4bb2a58ec9ca151404ede4a822f16893d071b22885771dca3ab7247f13"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/betaine/.cloudra/guard-22.log": {
+      "bytes": 158,
+      "sha256": "490384502cf33c191aab22f920711a84b6565dd54085276dc254165cb77383a7"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/betaine/betaine_start.out": {
+      "bytes": 76643,
+      "sha256": "6fe4bc4050e9648b310bd4a22e45d4588d4d9f430806992ca08489db9c33e801"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/betaine/g98.out": {
+      "bytes": 15293,
+      "sha256": "ab13c43c15370c3fee480e6afb8b27871867ffefc99c0ac861c9fd0047f45daa"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/betaine/xtbopt.log": {
+      "bytes": 28830,
+      "sha256": "c55780924f8d4aa22cf81db497f085ea54452243a85749a1235840146b3d45f1"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/mechanism_graph.json": {
+      "bytes": 4262,
+      "sha256": "f535fe88354dacd8df16dea582ae70cce447fae7c4a488ff7027ccc0359d09d9"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/calc-1.out.log": {
+      "bytes": 999704,
+      "sha256": "219c4dff3f1d3ff8dd6f8e37add474f58a752f985837719362730ba0420cf9c9"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/calc-13.out.log": {
+      "bytes": 271857,
+      "sha256": "bfd77c5afcdba9deae3cc89bfd4dc744866b4bbc609ad1c045866ad0e862106f"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/calc-14.out.log": {
+      "bytes": 803755,
+      "sha256": "8cb39985bfae544f84487569591c1a713f936a0e3dccf53d3e23cbdce310b2a6"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/calc-2.out.log": {
+      "bytes": 443921,
+      "sha256": "70fbe1ce577b000682bae5bb594fc5df65dd5d0eb4a19ddf2bd38a6a6d3012e5"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/calc-3.out.log": {
+      "bytes": 787252,
+      "sha256": "a3217726838fbd50d69379def6f9466d8f23cbaec447dc745f9c2a574fa93c2e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/calc-4.out.log": {
+      "bytes": 152115,
+      "sha256": "d89d99cc868b8399dd7fbe93eb9f7977b13b5d7991a9fe979af24168565dda43"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/calc-5.out.log": {
+      "bytes": 152147,
+      "sha256": "46dc822f24d2cc7cfb82a2414f29c54dc782ece85a526c06af571990b061776d"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/calc-6.out.log": {
+      "bytes": 159955,
+      "sha256": "fd3dc27e36845915b271abdcaf4438794c53328c3e9e534ac3d23b1c7a8bbafc"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/calc-7.out.log": {
+      "bytes": 1759538,
+      "sha256": "554a2286493aea65dbf2d9aae3080321dea2c06dd32613dc1930e4d515a7e39a"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/calc-8.out.log": {
+      "bytes": 1873211,
+      "sha256": "b3dd7cff07c69f18894abd8c86f280bec16438d3a288b2634362f9394c4a19d5"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/guard-1.log": {
+      "bytes": 3563,
+      "sha256": "f40bc7feb923c44f62055c4b45c0198755db924a281b1b7f5e2e5ef960d186f1"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/guard-13.log": {
+      "bytes": 3576,
+      "sha256": "5fc2418adc4dd417f8a8a8b0e15c9b9c8fb7596f37b844e17352e7483b855719"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/guard-14.log": {
+      "bytes": 3576,
+      "sha256": "24d2395ef269e8bfd4a916d0aa09fbb880c94b181f600d1913721e3ef230be84"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/guard-2.log": {
+      "bytes": 3564,
+      "sha256": "0a779d4b4cb1bb5d254d006aaeb292e92f0a80626f8787d444a66b0c629c5e3a"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/guard-3.log": {
+      "bytes": 3563,
+      "sha256": "27152ba711c8fb79d64098f72b93b8fec17ac4992f811f57bc1c82eca19219f1"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/guard-4.log": {
+      "bytes": 3565,
+      "sha256": "dc1433142842cf1fbba1f3127801e7fe615388167295d484555716d1fed5b484"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/guard-5.log": {
+      "bytes": 3565,
+      "sha256": "9864b7148f3a55030578fa1a6564f3990eebe1f3cc59639715f1fec36974065d"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/guard-6.log": {
+      "bytes": 3564,
+      "sha256": "5354d29d0b58a26bd5321a6aa4943009bce534e94504e31e8eacfe651b76590b"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/guard-7.log": {
+      "bytes": 3565,
+      "sha256": "c5632a5420b43c5ac76f24632d991e2f0d356ea366d27382bc18de3fdd7bc10b"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/guard-8.log": {
+      "bytes": 4058,
+      "sha256": "031672901aefba370ed4354c9ca398ee6fe0172519313a94819f97efdb958c16"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/scans/.cloudra/calc-44.out.log": {
+      "bytes": 4869356,
+      "sha256": "4b060694b05abfa7542f6f8c4c30c22200208cf50f042b86268c5d690768cf5e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/scans/.cloudra/calc-46.out.log": {
+      "bytes": 5866005,
+      "sha256": "24ada5e2e54e33fe9f996b3bf6b8f3f23dd7c1e1ef4b54e1da9f882e7205b6d7"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/scans/.cloudra/guard-44.log": {
+      "bytes": 3567,
+      "sha256": "efab40b5bf4a20ed8cac2a8105476610c6a58513ecadb765389da21e321b06cc"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/scans/.cloudra/guard-46.log": {
+      "bytes": 3567,
+      "sha256": "b6d2cdf200ae949e43db8b426edde8dc5129898f756dd004e08224414e16b240"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0002/candidate_opt/.cloudra/calc-9.out.log": {
+      "bytes": 1495899,
+      "sha256": "54de827182f02b5735d0d78d29c62a2303340b371ac18d12c726251e0c69b981"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0002/candidate_opt/.cloudra/guard-9.log": {
+      "bytes": 4612,
+      "sha256": "ac0e08396772ed15f7fdaba05a84e689c1eaa2e2b1658e8e9e334a911372e65e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0003/candidate_opt/.cloudra/calc-12.out.log": {
+      "bytes": 124672,
+      "sha256": "8d208cfcf47a0255fc493c0fb3f9f85fbabcfb096a958dc00375c86d4bbeeb21"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0003/candidate_opt/.cloudra/guard-12.log": {
+      "bytes": 4053,
+      "sha256": "6cff3eb9500b136c11eb805787e05d22fa8da835f693856d901c038c18373e4e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0003/product_seed_opt/.cloudra/calc-15.out.log": {
+      "bytes": 1320931,
+      "sha256": "701c93cc3f12b8db658ce0f6c6d3ad88a1ba4f0dde835a77421bfd8a59fd7ad3"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0003/product_seed_opt/.cloudra/guard-15.log": {
+      "bytes": 4089,
+      "sha256": "449ee7df05a1fe572bb22c35516e8cf5c6517edeecb81d768b74a4a352ab24f0"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/candidate_opt/.cloudra/calc-19.out.log": {
+      "bytes": 125566,
+      "sha256": "a7a44d27e5b182c2408c15b5ac50ce9b4c4a6bb63f364ad2c8ad1d052fbc4e1e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/candidate_opt/.cloudra/guard-19.log": {
+      "bytes": 4053,
+      "sha256": "3ebbfdff8d37eeaae68a21a2939f701c6345ae5e35bb813f49fc5ada71597372"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/frequency/.cloudra/calc-27.out.log": {
+      "bytes": 95303,
+      "sha256": "55f6761407193ced527d984ed2d9c40927f150fc13a4466c19365e11422a1581"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/frequency/.cloudra/guard-27.log": {
+      "bytes": 4006,
+      "sha256": "f69e426e4f1a00f7e22f3fd7097708d972ab1f0e0719d9dcd77f7781ee028c53"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/irc/.cloudra/calc-28.out.log": {
+      "bytes": 86695,
+      "sha256": "2e3c281f4895ec25cee41fe1017b3cdd74fec2b7f52863a686c99018e2183605"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/irc/.cloudra/guard-28.log": {
+      "bytes": 3928,
+      "sha256": "ea7a267c181691d7a29cc418bc3ce53e65ed5c1e125ca6b50aff89ab3caee693"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/path/.cloudra/calc-23.out.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/path/.cloudra/guard-23.log": {
+      "bytes": 158,
+      "sha256": "5ef57c5832ab8743db9c1bfe463112b1a27f9d3aae6d5a4fde6ba692f98691c5"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/path/xtb_path_runs/queued_path_0001/stderr.log": {
+      "bytes": 126,
+      "sha256": "f5ac4344fb2bd0147631c71be7f4aadf25338fddd726bd5081499121fb8b1f1e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/path/xtb_path_runs/queued_path_0001/stdout.log": {
+      "bytes": 307765,
+      "sha256": "32ddb3126a4ba9393c40c413c0d78a6f74410ba09989470fb9389aeb5142885c"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/path/xtb_path_runs/queued_path_0001/xtbopt.log": {
+      "bytes": 1668420,
+      "sha256": "0c66b8e3c42fdf67af6aa7bf3921bf1920aca799744202cdd7725c18add6d3d8"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/product_frequency/.cloudra/calc-36.out.log": {
+      "bytes": 94753,
+      "sha256": "a6b24d683046f72e68a4092bc442bbce9fdbde41414a7a3125f6a63523cbe0b2"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/product_frequency/.cloudra/guard-36.log": {
+      "bytes": 4110,
+      "sha256": "dcb6f6eda196da6467a31528a96dc37e25a3f650371989d6b764c446134a6940"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/product_opt/.cloudra/calc-35.out.log": {
+      "bytes": 1195610,
+      "sha256": "ba4858b60534fd72a3e510e5eebf5d4a496457ad55df76060f723718d7098140"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/product_opt/.cloudra/guard-35.log": {
+      "bytes": 4032,
+      "sha256": "572d76ed8ce49b66b2558480335a87a7b0749442e1426362e4dac4def4edc962"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/product_seed_opt/.cloudra/calc-20.out.log": {
+      "bytes": 1319981,
+      "sha256": "f993b3b8bb92361f5a3d908e6d69a1d458dd51d156a5efd40d56a401eeaafc4f"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/product_seed_opt/.cloudra/guard-20.log": {
+      "bytes": 4089,
+      "sha256": "da00bae9543ff345705242e474f4c3e158e6c1d964fdad941254371922c5baf0"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/reactant_frequency/.cloudra/calc-34.out.log": {
+      "bytes": 94799,
+      "sha256": "4bec8cf1483d701d4addfe24f759df8ca3c3a3c2f1cb309c76ffdcd308b697fb"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/reactant_frequency/.cloudra/guard-34.log": {
+      "bytes": 4123,
+      "sha256": "dae37e29804a45b8106f5b8f823d37cbc767bb782699be3f233efbd6d7dc3bf6"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/reactant_opt/.cloudra/calc-33.out.log": {
+      "bytes": 845658,
+      "sha256": "3f89b0f60aca9750c8a040bcc2629dfd08e10a1fca1303152c31514909b861ec"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/reactant_opt/.cloudra/guard-33.log": {
+      "bytes": 4045,
+      "sha256": "13761d9ccc493f5d36a6c5b87a6bf9fc8dcbfaca93ba826d240ae38ddf5a7a49"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/ts_opt/.cloudra/calc-24.out.log": {
+      "bytes": 696521,
+      "sha256": "2db09df74e5590b1530a61ecdb4d1f61b114e4239ff12ec8f40fe433c45b2166"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/ts_opt/.cloudra/guard-24.log": {
+      "bytes": 3967,
+      "sha256": "d421ddb4519c257f7f1b2eba38ad8a3033f8096efdea05edc5a39c2f60796a6a"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0005/ts_opt/.cloudra/calc-38.out.log": {
+      "bytes": 244470,
+      "sha256": "007cd6453a2dd98eaef10a7a633a8f7f8ca3cfd6f9f2b8bc8fb4c3a265f61651"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0005/ts_opt/.cloudra/guard-38.log": {
+      "bytes": 4523,
+      "sha256": "6708f3328267fc4264532ad7a1541724dabf29c80b0cd8ccb1cfbb7c78ec8076"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0006/ts_opt/.cloudra/calc-41.out.log": {
+      "bytes": 1821662,
+      "sha256": "435f66214e3e509bef98c8eeab86ac081abe99fa64fd79ce1d256ff6d4d5e5a3"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0006/ts_opt/.cloudra/guard-41.log": {
+      "bytes": 4523,
+      "sha256": "b23fca96f00d9d1831eab966e9ed919b00bc814764213acf942d9d96a653d75f"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/frequency/.cloudra/calc-48.out.log": {
+      "bytes": 94704,
+      "sha256": "12f0c4aa7e7ef30c5d83d148b8312172fcad1131295d786d719be63ac78682b1"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/frequency/.cloudra/guard-48.log": {
+      "bytes": 4005,
+      "sha256": "3253f3ca5b4dc97d887a3f61223ca7de9ff1790a53c3287b080dcae508440340"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/irc/.cloudra/calc-49.out.log": {
+      "bytes": 85036,
+      "sha256": "74838b7292fbac3d376760711436774c2d7bfa33460fe53856af6dfb338590a5"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/irc/.cloudra/guard-49.log": {
+      "bytes": 3927,
+      "sha256": "946d1dacdf853b7922185497a4e8680979daa520cf4e56dbfed47cc101f53286"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/product_frequency/.cloudra/calc-53.out.log": {
+      "bytes": 95088,
+      "sha256": "32b8d6edef1910233df3088759bd6032c586a3b32b34c18cd1f21ee607f05102"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/product_frequency/.cloudra/guard-53.log": {
+      "bytes": 4110,
+      "sha256": "dace2b5b6f3f31f4807498d5946e306af6394d3d63b93ee49e46844f6694b742"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/product_opt/.cloudra/calc-52.out.log": {
+      "bytes": 424868,
+      "sha256": "84c3a31e5f68a703da2afc27d6eef4f8e6ae6e7f9514714008f7aa505273279c"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/product_opt/.cloudra/guard-52.log": {
+      "bytes": 4032,
+      "sha256": "fb598a318ff7a491419e4b1e64f771266a13aa9709bbf94894732caa48b1a70b"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/reactant_frequency/.cloudra/calc-51.out.log": {
+      "bytes": 94985,
+      "sha256": "2dd8533599025eb7c3a0170ba5e583a77dff818c3b9616c888e6be6ef9f601a2"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/reactant_frequency/.cloudra/guard-51.log": {
+      "bytes": 4123,
+      "sha256": "27eb8fb19c389a456180a4b84d5dbed3c07e46fda112a9624ee42132bafe6727"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/reactant_opt/.cloudra/calc-50.out.log": {
+      "bytes": 576284,
+      "sha256": "50a32c88998ca59be953ce41a0ea17d07abeeb00698a068236b979f40a47830c"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/reactant_opt/.cloudra/guard-50.log": {
+      "bytes": 4045,
+      "sha256": "6274d0c1c1937906ce12b18ce86c7cdd9ed648b1d852ce40894ff71cbad952ca"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/ts_opt/.cloudra/calc-47.out.log": {
+      "bytes": 253446,
+      "sha256": "f974053a7780a78db6a18b8479e0d744cc8fe8b335092deae7a7d9ec464348cb"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/ts_opt/.cloudra/guard-47.log": {
+      "bytes": 3966,
+      "sha256": "af4af854d5a7c85b9b5c6a48170f79315728ef382eb9c9ba57c79a49d7bc55e0"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0008/scan/.cloudra/calc-54.out.log": {
+      "bytes": 3119203,
+      "sha256": "abce42e02d4db9204f3eabcaf05eea48c5ae84baceb72a5234ea639376731cdd"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0008/scan/.cloudra/guard-54.log": {
+      "bytes": 4492,
+      "sha256": "c8fc3fe676e9b70e5c5a64cb00a131ee0e829c469ba5fd15f9b3943e6a182f89"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/path/input_0007/provenance_0000.log": {
+      "bytes": 4869356,
+      "sha256": "4b060694b05abfa7542f6f8c4c30c22200208cf50f042b86268c5d690768cf5e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/path/input_0007/provenance_0001.log": {
+      "bytes": 5866005,
+      "sha256": "24ada5e2e54e33fe9f996b3bf6b8f3f23dd7c1e1ef4b54e1da9f882e7205b6d7"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0003/candidate_opt/.cloudra/calc-10.out.log": {
+      "bytes": 117611,
+      "sha256": "b3f556a48b3b4605038780f3c9b1cb531f0d56253707133e3ddc2d045b930300"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0003/candidate_opt/.cloudra/guard-10.log": {
+      "bytes": 4053,
+      "sha256": "a5da2c4e13d243d2e02b546e26930b65fd394156f0de708ebbb1ab786efcd9b1"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0003/product_seed_opt/.cloudra/calc-11.out.log": {
+      "bytes": 1323669,
+      "sha256": "fd7abe8ef132a19ff341bec83c6fce7b7f4ecd24313f08a4030d7e4657de22ab"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0003/product_seed_opt/.cloudra/guard-11.log": {
+      "bytes": 4089,
+      "sha256": "e964d54acc4924bc172d746cd2dc5c013b8d49c94a1d0a89bb65a42b4d228cef"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0004/candidate_opt/.cloudra/calc-17.out.log": {
+      "bytes": 117439,
+      "sha256": "3634ee4884be8da1aeb6b23009d0a1d947596371aa92d9afdf5043a54632be86"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0004/candidate_opt/.cloudra/guard-17.log": {
+      "bytes": 4053,
+      "sha256": "79d671e1b75d5d4b9bb2246f5b7ca6bb9334ec31a3b7e97e88f63403d992c358"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0004/product_seed_opt/.cloudra/calc-18.out.log": {
+      "bytes": 1317683,
+      "sha256": "119799b2933381bd44bfca8a708bfa948935a386d4cd014963cd769de3170663"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0004/product_seed_opt/.cloudra/guard-18.log": {
+      "bytes": 4089,
+      "sha256": "91a8c98258541a98386efd9d3609d2e688190408d925186f78e9a4de1a76e13f"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0005/path/.cloudra/calc-21.out.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0005/path/.cloudra/guard-21.log": {
+      "bytes": 158,
+      "sha256": "c55851d9b411f5159c20c8568c76a6162f740f3b3f7f1b03bd7285bb92aa4a77"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0005/path/xtb_path_runs/queued_path_0001/stderr.log": {
+      "bytes": 126,
+      "sha256": "f5ac4344fb2bd0147631c71be7f4aadf25338fddd726bd5081499121fb8b1f1e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0005/path/xtb_path_runs/queued_path_0001/stdout.log": {
+      "bytes": 1558627,
+      "sha256": "bb1b4033c5443d17af9a686b90a052e23c913f25c378825c69fa3e5bc63cf81a"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0005/path/xtb_path_runs/queued_path_0001/xtbopt.log": {
+      "bytes": 8928000,
+      "sha256": "1108142cf5f0766901f70abc20fe84e070c4a5d924458c4ad3b87724c92eb742"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0006/scan/.cloudra/calc-25.out.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0006/scan/.cloudra/guard-25.log": {
+      "bytes": 158,
+      "sha256": "563dbb0ba6e5031f502c99c191d2caa66c686fe685bed0a1979362e7a048e4b9"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0006/scan/native_scan_runs/native_scan_0001/engine.out": {
+      "bytes": 410644,
+      "sha256": "cc279474e9731f9d7955f7db935558e117dfc510aafe78f8e4186f562f3538c1"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0006/scan/native_scan_runs/native_scan_0001/xtbopt.log": {
+      "bytes": 5580,
+      "sha256": "604804e3497847703e1b574f8be2464faa0bd1cf8b5cb5ee16ba6608f3e9394e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0006/scan/native_scan_runs/native_scan_0001/xtbscan.log": {
+      "bytes": 14528,
+      "sha256": "18c6982cb7c5c66371b18a918c0089eac1eb7c5adfb72fe713e96ed4adfca33e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0006/ts_opt/.cloudra/calc-26.out.log": {
+      "bytes": 1620100,
+      "sha256": "843e079116a2209d30b941db8ab789a017dd07f23f9307eb46266e58eeefe2ab"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0006/ts_opt/.cloudra/guard-26.log": {
+      "bytes": 4523,
+      "sha256": "fc87682367d3186fff241186a7dbe5d105b59ee9e871f7d29a50e60df0f942b4"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0007/scan/.cloudra/calc-29.out.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0007/scan/.cloudra/guard-29.log": {
+      "bytes": 158,
+      "sha256": "729be7d649d560a0cc89d1d384ddc0d425f09512951a63a9b80dd80f1d228ce9"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0007/scan/native_scan_runs/native_scan_0001/engine.out": {
+      "bytes": 386210,
+      "sha256": "c35f57fc0f7e70a46a5bf964ea321405012ddbd7040dbcae3796d3806143ed8b"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0007/scan/native_scan_runs/native_scan_0001/xtbopt.log": {
+      "bytes": 9300,
+      "sha256": "598f8f605db276d463ff673bf13f69c1e59f8f750e81e72168120fa56e6c5eee"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0007/scan/native_scan_runs/native_scan_0001/xtbscan.log": {
+      "bytes": 13620,
+      "sha256": "e73a8e4ed4d4d4b6125cf556a4d2ef9145191b149a587fa508ada6aec045d48c"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/frequency/.cloudra/calc-31.out.log": {
+      "bytes": 94643,
+      "sha256": "5de82c0225f5498aa3d7b23d12585be0b99f4d137c1638215a6570c3df05ff61"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/frequency/.cloudra/guard-31.log": {
+      "bytes": 4006,
+      "sha256": "1eaa83b9a41f64f7d9d10d0d9a2b452799f7139fae90aaadcd06d41c271387e5"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/irc/.cloudra/calc-32.out.log": {
+      "bytes": 83729,
+      "sha256": "83d0927ad5eeb1d0cde0c808bec2c18ee5f7a552578d55621fc51d00445ec5a2"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/irc/.cloudra/guard-32.log": {
+      "bytes": 3928,
+      "sha256": "206758099e5e0debf15d23dbbcdf2fb665db8267bfcc2faf5237b6beb3f3eabe"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/reactant_frequency/.cloudra/calc-39.out.log": {
+      "bytes": 95448,
+      "sha256": "62490c9bc3abc40f27ff27c884fb8c20112c6a44925596ea49bf6a7a55c975d4"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/reactant_frequency/.cloudra/guard-39.log": {
+      "bytes": 4123,
+      "sha256": "ff007d7fd9eb3a76e303a1ea56e15feb68ed2a5857f98f16a4d41ea4360c2dd3"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/reactant_opt/.cloudra/calc-37.out.log": {
+      "bytes": 239489,
+      "sha256": "6f5b5429a5a1ed77dea36fcea244433cb2ce863f163f13c6c545dc528a062ef2"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/reactant_opt/.cloudra/guard-37.log": {
+      "bytes": 4045,
+      "sha256": "c95dfe64dc7389c590136ecddc2f2fa77c9251fadfc12031f9220d8527b2f515"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/ts_opt/.cloudra/calc-30.out.log": {
+      "bytes": 1791640,
+      "sha256": "d8249b978074fc7496cdebc3b64bae091e78f7154203a526e866e26e905f80c0"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/ts_opt/.cloudra/guard-30.log": {
+      "bytes": 3967,
+      "sha256": "e1292a78618f2d3eda2a43e472475ea04ead235122a1669542442d7ec47bb534"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0009/product_frequency/.cloudra/calc-45.out.log": {
+      "bytes": 94781,
+      "sha256": "0b7cd7d71224100d139efbac16eb80dd531ca8c6e653d414d9a7cc154a26fe97"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0009/product_frequency/.cloudra/guard-45.log": {
+      "bytes": 4110,
+      "sha256": "e41e4c49adceac974853434a3fa78a86681262a2fc3b09f6a6659280676f362d"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0009/product_opt/.cloudra/calc-43.out.log": {
+      "bytes": 1081426,
+      "sha256": "c82a3952504af1b6c91e3ef7792852b5f0de4a34392560e571bc5c6dcc48d827"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0009/product_opt/.cloudra/guard-43.log": {
+      "bytes": 4032,
+      "sha256": "d38b337293069bfe9514684d5bf380fdddaaa8763624398f826b8b40e699f482"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0009/reactant_frequency/.cloudra/calc-42.out.log": {
+      "bytes": 94793,
+      "sha256": "32db8292081a68c35dbde84f5e52f1314f0ac58e01e5fd901152d57864629838"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0009/reactant_frequency/.cloudra/guard-42.log": {
+      "bytes": 4123,
+      "sha256": "b07d4fdb212b4f3c49deda515836b6ca1fbb2140bf88a015eeafa20fabb978ee"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0009/reactant_opt/.cloudra/calc-40.out.log": {
+      "bytes": 116930,
+      "sha256": "dd09e3ba7dc40f84c68d6c7183502f0b3468d0a34e9a6c3c8d2e3b547c554ff1"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0009/reactant_opt/.cloudra/guard-40.log": {
+      "bytes": 4045,
+      "sha256": "9c246f878ac6d1af773b25e121709a4918d011182eb79de8168521dab0c2dfd8"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/task-set/NU3.json": {
+      "bytes": 10535,
+      "sha256": "080aff465e4a9a906769c175799a3dd376cad4d42287d1f305f4aebcb90cc0c3"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/.cloudra/evidence/074b91bac14ed1fb_calc-24.out.log": {
+      "bytes": 94810,
+      "sha256": "074b91bac14ed1fb5621e38aad2ecb32479b220d468716827ebbf9a5e261e184"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/.cloudra/evidence/463b3aaca2a6044b_calc-18.out.log": {
+      "bytes": 824110,
+      "sha256": "463b3aaca2a6044b0e63241c6e371b82f52b0bfb0cf1be985bb20d695c1f1dc9"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/.cloudra/evidence/5e3c69ca57ba63f9_calc-22.out.log": {
+      "bytes": 94462,
+      "sha256": "5e3c69ca57ba63f9c9976ac6dca398b1a40747fd225b1b667fbf5e373e24b961"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/.cloudra/evidence/8247be52d1feeebb_calc-21.out.log": {
+      "bytes": 481772,
+      "sha256": "8247be52d1feeebb73226b5e3e74e43c65e8f0aa24801a09cfd9ecb787754fea"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/.cloudra/evidence/8c437de1a729728d_calc-19.out.log": {
+      "bytes": 95686,
+      "sha256": "8c437de1a729728d45ca977309d7ef79b372a26ac032f080298076faa4e91daa"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/.cloudra/evidence/8dafe0cd64bdc7764a0fdb07a05e49bb00de6ecea0cffcc3031df84c34656330/a08fba082d8872d2_calc-20.out.log": {
+      "bytes": 91124,
+      "sha256": "a08fba082d8872d292c075926bedee552902ab203e1a1a2453dd6a77ecca24f4"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/.cloudra/evidence/a95696484e65e08a_calc-23.out.log": {
+      "bytes": 644406,
+      "sha256": "a95696484e65e08ad1b6b1776cb8a8d6393a102bfce1360d422f6486bae0784b"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/.cloudra/evidence/f48236db1d896e64_calc-25.out.log": {
+      "bytes": 147547,
+      "sha256": "f48236db1d896e64541688af9397ad1825daa97f28a1f1f80f6580d0e10e4145"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/.cloudra/tool_output/read-20261015-041856-2481e0bd.log": {
+      "bytes": 44576,
+      "sha256": "81ea1d63305a4066f961e1ced2f09d41538dc07b3ad7029af71bf125d761b3a9"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/.cloudra/tool_output/read-20261015-045316-c5f7b81c.log": {
+      "bytes": 30054,
+      "sha256": "27944e5dde619a9927921f34a17432d81ab57c8c61c62a4ed1d6b9a6494a883a"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/.cloudra/tool_output/read-20261015-050232-d0f84cb3.log": {
+      "bytes": 31733,
+      "sha256": "db10f826e3c834523e22fd354b550d751b793eb4efcad35f4f347ec18027f6bd"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/inputs/open-freq.out.log": {
+      "bytes": 95088,
+      "sha256": "32b8d6edef1910233df3088759bd6032c586a3b32b34c18cd1f21ee607f05102"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/inputs/open-opt.out.log": {
+      "bytes": 424868,
+      "sha256": "84c3a31e5f68a703da2afc27d6eef4f8e6ae6e7f9514714008f7aa505273279c"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/inputs/ring-freq.out.log": {
+      "bytes": 94793,
+      "sha256": "32db8292081a68c35dbde84f5e52f1314f0ac58e01e5fd901152d57864629838"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/inputs/ring-opt.out.log": {
+      "bytes": 116930,
+      "sha256": "dd09e3ba7dc40f84c68d6c7183502f0b3468d0a34e9a6c3c8d2e3b547c554ff1"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/mechanism_graph.json": {
+      "bytes": 2147,
+      "sha256": "ec9d56a6de47b8ff2b45625b1356cd36b71a50e3984641b2127da7a4dd0b3593"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-1.out.log": {
+      "bytes": 220,
+      "sha256": "29f16a09c631305d3920eb7aa73116932eb0eb60087194b8826111911a54dfad"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-10.out.log": {
+      "bytes": 13034,
+      "sha256": "55c53bcd6676a99532ff626da399c9685d992deab73785df9f0df7218ea54434"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-11.out.log": {
+      "bytes": 13034,
+      "sha256": "34c933fa2721a49e083ee0abb668b07203539549b596441bc49add6fdd4758c2"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-12.out.log": {
+      "bytes": 13034,
+      "sha256": "3e21587bea504a74f76a77ca3681c853089f4ca1592d8e986977a346172f7a86"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-14.out.log": {
+      "bytes": 13039,
+      "sha256": "e70060b3fb2b407755fe1980e1f86e512eb7b7bb83d4935d6c98dbcdff915367"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-15.out.log": {
+      "bytes": 32218,
+      "sha256": "10f8901f8696609e44cbb7f5c7147f99ed6a2db9cfb3ad672c0ffa3bb675b943"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-16.out.log": {
+      "bytes": 32253,
+      "sha256": "8707ad8f335134d142e7fa34a095daa2a3a81c52421c5561ad5befc8d05d6218"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-17.out.log": {
+      "bytes": 32261,
+      "sha256": "45a73b96f4ff790eee62c46bdd04ddfc2dfa7a5cbb9ef6b265d955b84b086fa3"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-2.out.log": {
+      "bytes": 227,
+      "sha256": "0b8b0ce0297c1667523a4e2fc4d05a279ad72c93df4a1726dd2a697b614208ad"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-3.out.log": {
+      "bytes": 227,
+      "sha256": "2072e745cdd982711d14297361f41954a3e59b5ea675ca683534421dc52e726e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-4.out.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-5.out.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-6.out.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-8.out.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-9.out.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-1.log": {
+      "bytes": 157,
+      "sha256": "8f0b0d8212ffff702fa6fbccdb0cba530b80978069adba46e263448a0e7b9893"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-10.log": {
+      "bytes": 1233,
+      "sha256": "52c5252e239e3d8c756d534505b23fc7c7c082cb4679a1c3f5ec4e148818ed34"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-11.log": {
+      "bytes": 1233,
+      "sha256": "57fa4f226dfa4e9a08a88926a17c6a20163982bf666cdae7c777ba20f92fdad8"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-12.log": {
+      "bytes": 1235,
+      "sha256": "9cb96988394361759374149e9605fe23a283e77ad601466272722ec42d51e320"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-14.log": {
+      "bytes": 1245,
+      "sha256": "6af54b2d262f58cd27b9b49bb91546fc31705ce6bed8f8fb294075fe0430ef30"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-15.log": {
+      "bytes": 2959,
+      "sha256": "fc2f61c2319fdd74282378ef803201cdf475a1a2acc635f74cecd15ed7480bcd"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-16.log": {
+      "bytes": 2953,
+      "sha256": "5a8683d34dafa9157feec78df1eb0130b7323097e51627f6ab4367bdb31eb909"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-17.log": {
+      "bytes": 2954,
+      "sha256": "9c788ad8ddb36cd59fd9aa142c6ff0889bc951dde6d47af978a56b45fceec940"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-2.log": {
+      "bytes": 157,
+      "sha256": "08133193e6681cc94094f9938f954e387182eeb5a6481b3414b0630e939eb5cd"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-3.log": {
+      "bytes": 157,
+      "sha256": "56d8d34cfdef2123aa412140b7bcc2030dedd88415d580a29ad5d82881a88ed7"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-4.log": {
+      "bytes": 157,
+      "sha256": "5d225303be8e20c8ff4b1a0ca49e2c9b3f48bccbe759e259fe3a1f70501e19c1"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-5.log": {
+      "bytes": 157,
+      "sha256": "32f990d521de3d21b63f022439bc9065a62f5c0002bf371c855dbdaaaa03d700"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-6.log": {
+      "bytes": 157,
+      "sha256": "9214e35165f717d4b41b1b8c08c8315ffeb6983f308f1c97744a966d5589576d"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-8.log": {
+      "bytes": 157,
+      "sha256": "80d63ca317bd4343032868ba44745416a68151a0cf7cab35a6d0f7a0e0badb95"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-9.log": {
+      "bytes": 157,
+      "sha256": "bd61b3720b5fc76dd14eca15735d893aeb68c0cb20bdcf60d6791ec3fbdd7662"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/A_open.out": {
+      "bytes": 45668,
+      "sha256": "9f5d89c8e740b6f96c940a34cee669ecb0e456f7334f783febb7e14614eb6250"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/B_ring_Aorder.out": {
+      "bytes": 69032,
+      "sha256": "ee36d812303220f8b82e36d5c3c193e4a850ef6a7857d2a342ef655f69d5435a"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/betaine_guess.out": {
+      "bytes": 76137,
+      "sha256": "0ecd1cb2b6f167b8fbe9fea58e43c4f7386866c9ab30e825371c38d01af38429"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/g98.out": {
+      "bytes": 15293,
+      "sha256": "174ba6cc346e4693611dbde3b492025e323b1fe33e8411975f6e8a3709628718"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0001/engine.out": {
+      "bytes": 412095,
+      "sha256": "13e8593b50e7d1f4ac4968870f3a05d140cedddf7428aa749c91b79d9e050d0e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0001/xtbopt.log": {
+      "bytes": 11160,
+      "sha256": "0fad91625b78b9ad0cede03c1ce6e9a416d2a424136161efe4078051fe5765ef"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0001/xtbscan.log": {
+      "bytes": 10896,
+      "sha256": "60da1ffa1a72aafb0416160ff42c8839aec809a985c3cbe1fb69c596aa1871f1"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0002/engine.out": {
+      "bytes": 418511,
+      "sha256": "b41e8a4c6faf690194cd2957d446d6944e7264b3f6d334d70044a03c127d9ac3"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0002/xtbopt.log": {
+      "bytes": 8370,
+      "sha256": "2eb12b09fb64126623618e580b8cccd5730c7ca73d30ec457840c71e58162e6d"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0002/xtbscan.log": {
+      "bytes": 13620,
+      "sha256": "95069953c17f86475c7682b4f39b0d97275970374ea67106af1a0278f1ad9e6a"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0003/engine.out": {
+      "bytes": 506161,
+      "sha256": "63925440506ba546302e9cb8c5b23cd4fd72fbe3cc086623c78640a2998d2124"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0003/xtbopt.log": {
+      "bytes": 8370,
+      "sha256": "4fa4491925244800810f2f9986dd7d9790f81aeb4cc7ef05f015ab40c498a38f"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0003/xtbscan.log": {
+      "bytes": 14528,
+      "sha256": "04217fd1359e6d6db00900a187f3a21f3068acd00148ed0353a795a4ff80d66c"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0004/engine.out": {
+      "bytes": 430955,
+      "sha256": "a25615b8726a93930ec380bd901055667d7c16a32b06bddc90addf593ab0eb89"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0004/xtbopt.log": {
+      "bytes": 36270,
+      "sha256": "73aa5681065a84ee724430e98d1c10d6e31b69e012e84cc072736c7b140b884c"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0004/xtbscan.log": {
+      "bytes": 13620,
+      "sha256": "374a4f60dd5c2ea484a60129ff0f0a83d94ac3b33b64ceb8d5a7a1bf22995473"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0005/engine.out": {
+      "bytes": 400248,
+      "sha256": "53bc6db91e883658e0352d7c4a46824089ffe0a938ae92174a6ae6d97184b5e1"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0005/xtbopt.log": {
+      "bytes": 3720,
+      "sha256": "7d8ff34283ccb1b4395be911810544c4fd54eb288ba4869337884c07b0b7c73e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0005/xtbscan.log": {
+      "bytes": 11804,
+      "sha256": "06ea3e4b64f8476f9a44f17cf822a21ee83d5304fb118e54afdb3de1a6d0926b"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/xtbopt.log": {
+      "bytes": 27900,
+      "sha256": "067a2aeff3c07a2b55aab5513aa151ae0ee4686cb7e9009b7bf111187b0bebf5"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/verify_A/.cloudra/calc-25.out.log": {
+      "bytes": 147547,
+      "sha256": "f48236db1d896e64541688af9397ad1825daa97f28a1f1f80f6580d0e10e4145"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/verify_A/.cloudra/guard-25.log": {
+      "bytes": 3167,
+      "sha256": "90bb471e04221e4bb5b13c65fe8ae8c613b9896251a2e6faa2bcb3c8ec7da690"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0004/path/.cloudra/calc-7.out.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0004/path/.cloudra/guard-7.log": {
+      "bytes": 157,
+      "sha256": "2dc94e5aa21b623eeccd0d16397aadda34488fb09309343a2eb6cd6a4992f53e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0004/path/xtb_path_runs/queued_path_0001/stderr.log": {
+      "bytes": 126,
+      "sha256": "f5ac4344fb2bd0147631c71be7f4aadf25338fddd726bd5081499121fb8b1f1e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0004/path/xtb_path_runs/queued_path_0001/stdout.log": {
+      "bytes": 2266336,
+      "sha256": "0407ce209bb06fea942cd2397b8f56593b2c6f949b42a28f4413909eef88aeb3"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0004/path/xtb_path_runs/queued_path_0001/xtbopt.log": {
+      "bytes": 13113000,
+      "sha256": "f2ee3a8454552716eb08bda894cffa34f637c67ab2b9720707e924bb0342c205"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/.cloudra/calc-13.out.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/.cloudra/guard-13.log": {
+      "bytes": 158,
+      "sha256": "a7fb9c5403a9978e51f3e04030273becc1b79ed4ddc92af2e2b7c1e73a4cc367"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/native_scan_runs/native_scan_0001/engine.out": {
+      "bytes": 388934,
+      "sha256": "564c94b90aeeb69e82da5b889122568610f529d597781875996c08f474907b89"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/native_scan_runs/native_scan_0001/xtbopt.log": {
+      "bytes": 8370,
+      "sha256": "d87129e340a6402acc557712a7127d7a33b019c7cacec3597918d9cc32a11c83"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/native_scan_runs/native_scan_0001/xtbscan.log": {
+      "bytes": 11804,
+      "sha256": "c71956174e8f2f10df6fae1525cd1fca2171d01e996c5ed9ac2ba61a2d1d0067"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/frequency/.cloudra/calc-19.out.log": {
+      "bytes": 95686,
+      "sha256": "8c437de1a729728d45ca977309d7ef79b372a26ac032f080298076faa4e91daa"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/frequency/.cloudra/guard-19.log": {
+      "bytes": 3514,
+      "sha256": "4d312b75c37e092e28fac4225af0b42873774f23974893a30b9fe0a43382a7a2"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/irc/.cloudra/calc-20.out.log": {
+      "bytes": 91124,
+      "sha256": "a08fba082d8872d292c075926bedee552902ab203e1a1a2453dd6a77ecca24f4"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/irc/.cloudra/guard-20.log": {
+      "bytes": 3436,
+      "sha256": "2a5cd0927c25d98ea42ce74a12a409ae2d9e2f573bfe3eda897a141b12b78828"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/product_frequency/.cloudra/calc-24.out.log": {
+      "bytes": 94810,
+      "sha256": "074b91bac14ed1fb5621e38aad2ecb32479b220d468716827ebbf9a5e261e184"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/product_frequency/.cloudra/guard-24.log": {
+      "bytes": 3618,
+      "sha256": "84c85bd6635bd14d635e19bd97d8808a924f2256efe0f3af8c1f99e8f006be72"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/product_opt/.cloudra/calc-23.out.log": {
+      "bytes": 644406,
+      "sha256": "a95696484e65e08ad1b6b1776cb8a8d6393a102bfce1360d422f6486bae0784b"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/product_opt/.cloudra/guard-23.log": {
+      "bytes": 3540,
+      "sha256": "b453cc966674da35b8b6523c78e07f339e89d6fc9c9bf5d2601b016af0cdcac7"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/reactant_frequency/.cloudra/calc-22.out.log": {
+      "bytes": 94462,
+      "sha256": "5e3c69ca57ba63f9c9976ac6dca398b1a40747fd225b1b667fbf5e373e24b961"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/reactant_frequency/.cloudra/guard-22.log": {
+      "bytes": 3631,
+      "sha256": "d1ecdf7774d3d0b6168638a41befb12e4ce95f4fbd8233e0ed9e055bbe8a5f73"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/reactant_opt/.cloudra/calc-21.out.log": {
+      "bytes": 481772,
+      "sha256": "8247be52d1feeebb73226b5e3e74e43c65e8f0aa24801a09cfd9ecb787754fea"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/reactant_opt/.cloudra/guard-21.log": {
+      "bytes": 3553,
+      "sha256": "e4e3c1db43192ade79d1915444c42d3928b11d2cb69455a13d2385802e8f594d"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/ts_opt/.cloudra/calc-18.out.log": {
+      "bytes": 824110,
+      "sha256": "463b3aaca2a6044b0e63241c6e371b82f52b0bfb0cf1be985bb20d695c1f1dc9"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/ts_opt/.cloudra/guard-18.log": {
+      "bytes": 3475,
+      "sha256": "e6c5932de2caf8adbd8cdbe08847bdcdbba138311b2b6ddd7ff3ecbf46f3cf16"
+    }
+  },
+  "after": {
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/benchmark.db": {
+      "bytes": 16384,
+      "sha256": "1b3c92deb173f2cf06035f09205bcd1e4101fd72fcd06398130d81bf1449ac80"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/0b7cd7d71224100d_calc-45.out.log": {
+      "bytes": 94781,
+      "sha256": "0b7cd7d71224100d139efbac16eb80dd531ca8c6e653d414d9a7cc154a26fe97"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/12f0c4aa7e7ef30c_calc-48.out.log": {
+      "bytes": 94704,
+      "sha256": "12f0c4aa7e7ef30c5d83d148b8312172fcad1131295d786d719be63ac78682b1"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/2dd8533599025eb7_calc-51.out.log": {
+      "bytes": 94985,
+      "sha256": "2dd8533599025eb7c3a0170ba5e583a77dff818c3b9616c888e6be6ef9f601a2"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/32b8d6edef191023_calc-53.out.log": {
+      "bytes": 95088,
+      "sha256": "32b8d6edef1910233df3088759bd6032c586a3b32b34c18cd1f21ee607f05102"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/32db8292081a68c3_calc-42.out.log": {
+      "bytes": 94793,
+      "sha256": "32db8292081a68c35dbde84f5e52f1314f0ac58e01e5fd901152d57864629838"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/4bec8cf1483d701d_calc-34.out.log": {
+      "bytes": 94799,
+      "sha256": "4bec8cf1483d701d4addfe24f759df8ca3c3a3c2f1cb309c76ffdcd308b697fb"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/554a2286493aea65_calc-7.out.log": {
+      "bytes": 1759538,
+      "sha256": "554a2286493aea65dbf2d9aae3080321dea2c06dd32613dc1930e4d515a7e39a"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/55f6761407193ced_calc-27.out.log": {
+      "bytes": 95303,
+      "sha256": "55f6761407193ced527d984ed2d9c40927f150fc13a4466c19365e11422a1581"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/5de82c0225f5498a_calc-31.out.log": {
+      "bytes": 94643,
+      "sha256": "5de82c0225f5498aa3d7b23d12585be0b99f4d137c1638215a6570c3df05ff61"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/62490c9bc3abc40f_calc-39.out.log": {
+      "bytes": 95448,
+      "sha256": "62490c9bc3abc40f27ff27c884fb8c20112c6a44925596ea49bf6a7a55c975d4"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/a3217726838fbd50_calc-3.out.log": {
+      "bytes": 787252,
+      "sha256": "a3217726838fbd50d69379def6f9466d8f23cbaec447dc745f9c2a574fa93c2e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/a6b24d683046f72e_calc-36.out.log": {
+      "bytes": 94753,
+      "sha256": "a6b24d683046f72e68a4092bc442bbce9fdbde41414a7a3125f6a63523cbe0b2"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/bfd77c5afcdba9de_calc-13.out.log": {
+      "bytes": 271857,
+      "sha256": "bfd77c5afcdba9deae3cc89bfd4dc744866b4bbc609ad1c045866ad0e862106f"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/d8249b978074fc74_calc-30.out.log": {
+      "bytes": 1791640,
+      "sha256": "d8249b978074fc7496cdebc3b64bae091e78f7154203a526e866e26e905f80c0"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/evidence/ef20ae0d42106ed6ae9d8e9c8048d97adf25c01a5c48b2b01e074bc265081741/83d0927ad5eeb1d0_calc-32.out.log": {
+      "bytes": 83729,
+      "sha256": "83d0927ad5eeb1d0cde0c808bec2c18ee5f7a552578d55621fc51d00445ec5a2"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/tool_output/read-20261015-020759-cd76258f.log": {
+      "bytes": 31655,
+      "sha256": "2a32ca225cc554f0f5f08bea3a782ab633a5cf591ea6c547c00340cb00408e59"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/tool_output/read-20261015-021856-2af745ec.log": {
+      "bytes": 33138,
+      "sha256": "a9b0a6c38c47716da3e1da27b9324fc5b19db690544da8e5bd818c18f41808c3"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/tool_output/read-20261015-023501-bcedb809.log": {
+      "bytes": 33138,
+      "sha256": "a9b0a6c38c47716da3e1da27b9324fc5b19db690544da8e5bd818c18f41808c3"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/tool_output/read-20261015-023504-fa9b8d65.log": {
+      "bytes": 33138,
+      "sha256": "a9b0a6c38c47716da3e1da27b9324fc5b19db690544da8e5bd818c18f41808c3"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/.cloudra/tool_output/read-20261015-023516-3e62f5a2.log": {
+      "bytes": 35564,
+      "sha256": "8356c36cb6f7b62ca29b1af9eced3434c9669c23fd459aca08d1f2cb315eb222"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/betaine/.cloudra/calc-16.out.log": {
+      "bytes": 936278,
+      "sha256": "ba3609a7b851759b374e90c67d19ee3c39d64f24bd9fe796456027fff9abc73c"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/betaine/.cloudra/calc-22.out.log": {
+      "bytes": 263,
+      "sha256": "938f94a2c7b5664923fdd87dc64f9d3279df459649a6489865246117ae8c0794"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/betaine/.cloudra/guard-16.log": {
+      "bytes": 3592,
+      "sha256": "e4078d4bb2a58ec9ca151404ede4a822f16893d071b22885771dca3ab7247f13"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/betaine/.cloudra/guard-22.log": {
+      "bytes": 158,
+      "sha256": "490384502cf33c191aab22f920711a84b6565dd54085276dc254165cb77383a7"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/betaine/betaine_start.out": {
+      "bytes": 76643,
+      "sha256": "6fe4bc4050e9648b310bd4a22e45d4588d4d9f430806992ca08489db9c33e801"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/betaine/g98.out": {
+      "bytes": 15293,
+      "sha256": "ab13c43c15370c3fee480e6afb8b27871867ffefc99c0ac861c9fd0047f45daa"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/betaine/xtbopt.log": {
+      "bytes": 28830,
+      "sha256": "c55780924f8d4aa22cf81db497f085ea54452243a85749a1235840146b3d45f1"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/mechanism_graph.json": {
+      "bytes": 4262,
+      "sha256": "f535fe88354dacd8df16dea582ae70cce447fae7c4a488ff7027ccc0359d09d9"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/calc-1.out.log": {
+      "bytes": 999704,
+      "sha256": "219c4dff3f1d3ff8dd6f8e37add474f58a752f985837719362730ba0420cf9c9"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/calc-13.out.log": {
+      "bytes": 271857,
+      "sha256": "bfd77c5afcdba9deae3cc89bfd4dc744866b4bbc609ad1c045866ad0e862106f"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/calc-14.out.log": {
+      "bytes": 803755,
+      "sha256": "8cb39985bfae544f84487569591c1a713f936a0e3dccf53d3e23cbdce310b2a6"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/calc-2.out.log": {
+      "bytes": 443921,
+      "sha256": "70fbe1ce577b000682bae5bb594fc5df65dd5d0eb4a19ddf2bd38a6a6d3012e5"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/calc-3.out.log": {
+      "bytes": 787252,
+      "sha256": "a3217726838fbd50d69379def6f9466d8f23cbaec447dc745f9c2a574fa93c2e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/calc-4.out.log": {
+      "bytes": 152115,
+      "sha256": "d89d99cc868b8399dd7fbe93eb9f7977b13b5d7991a9fe979af24168565dda43"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/calc-5.out.log": {
+      "bytes": 152147,
+      "sha256": "46dc822f24d2cc7cfb82a2414f29c54dc782ece85a526c06af571990b061776d"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/calc-6.out.log": {
+      "bytes": 159955,
+      "sha256": "fd3dc27e36845915b271abdcaf4438794c53328c3e9e534ac3d23b1c7a8bbafc"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/calc-7.out.log": {
+      "bytes": 1759538,
+      "sha256": "554a2286493aea65dbf2d9aae3080321dea2c06dd32613dc1930e4d515a7e39a"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/calc-8.out.log": {
+      "bytes": 1873211,
+      "sha256": "b3dd7cff07c69f18894abd8c86f280bec16438d3a288b2634362f9394c4a19d5"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/guard-1.log": {
+      "bytes": 3563,
+      "sha256": "f40bc7feb923c44f62055c4b45c0198755db924a281b1b7f5e2e5ef960d186f1"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/guard-13.log": {
+      "bytes": 3576,
+      "sha256": "5fc2418adc4dd417f8a8a8b0e15c9b9c8fb7596f37b844e17352e7483b855719"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/guard-14.log": {
+      "bytes": 3576,
+      "sha256": "24d2395ef269e8bfd4a916d0aa09fbb880c94b181f600d1913721e3ef230be84"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/guard-2.log": {
+      "bytes": 3564,
+      "sha256": "0a779d4b4cb1bb5d254d006aaeb292e92f0a80626f8787d444a66b0c629c5e3a"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/guard-3.log": {
+      "bytes": 3563,
+      "sha256": "27152ba711c8fb79d64098f72b93b8fec17ac4992f811f57bc1c82eca19219f1"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/guard-4.log": {
+      "bytes": 3565,
+      "sha256": "dc1433142842cf1fbba1f3127801e7fe615388167295d484555716d1fed5b484"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/guard-5.log": {
+      "bytes": 3565,
+      "sha256": "9864b7148f3a55030578fa1a6564f3990eebe1f3cc59639715f1fec36974065d"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/guard-6.log": {
+      "bytes": 3564,
+      "sha256": "5354d29d0b58a26bd5321a6aa4943009bce534e94504e31e8eacfe651b76590b"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/guard-7.log": {
+      "bytes": 3565,
+      "sha256": "c5632a5420b43c5ac76f24632d991e2f0d356ea366d27382bc18de3fdd7bc10b"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/minima/.cloudra/guard-8.log": {
+      "bytes": 4058,
+      "sha256": "031672901aefba370ed4354c9ca398ee6fe0172519313a94819f97efdb958c16"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/scans/.cloudra/calc-44.out.log": {
+      "bytes": 4869356,
+      "sha256": "4b060694b05abfa7542f6f8c4c30c22200208cf50f042b86268c5d690768cf5e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/scans/.cloudra/calc-46.out.log": {
+      "bytes": 5866005,
+      "sha256": "24ada5e2e54e33fe9f996b3bf6b8f3f23dd7c1e1ef4b54e1da9f882e7205b6d7"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/scans/.cloudra/guard-44.log": {
+      "bytes": 3567,
+      "sha256": "efab40b5bf4a20ed8cac2a8105476610c6a58513ecadb765389da21e321b06cc"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/scans/.cloudra/guard-46.log": {
+      "bytes": 3567,
+      "sha256": "b6d2cdf200ae949e43db8b426edde8dc5129898f756dd004e08224414e16b240"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0002/candidate_opt/.cloudra/calc-9.out.log": {
+      "bytes": 1495899,
+      "sha256": "54de827182f02b5735d0d78d29c62a2303340b371ac18d12c726251e0c69b981"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0002/candidate_opt/.cloudra/guard-9.log": {
+      "bytes": 4612,
+      "sha256": "ac0e08396772ed15f7fdaba05a84e689c1eaa2e2b1658e8e9e334a911372e65e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0003/candidate_opt/.cloudra/calc-12.out.log": {
+      "bytes": 124672,
+      "sha256": "8d208cfcf47a0255fc493c0fb3f9f85fbabcfb096a958dc00375c86d4bbeeb21"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0003/candidate_opt/.cloudra/guard-12.log": {
+      "bytes": 4053,
+      "sha256": "6cff3eb9500b136c11eb805787e05d22fa8da835f693856d901c038c18373e4e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0003/product_seed_opt/.cloudra/calc-15.out.log": {
+      "bytes": 1320931,
+      "sha256": "701c93cc3f12b8db658ce0f6c6d3ad88a1ba4f0dde835a77421bfd8a59fd7ad3"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0003/product_seed_opt/.cloudra/guard-15.log": {
+      "bytes": 4089,
+      "sha256": "449ee7df05a1fe572bb22c35516e8cf5c6517edeecb81d768b74a4a352ab24f0"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/candidate_opt/.cloudra/calc-19.out.log": {
+      "bytes": 125566,
+      "sha256": "a7a44d27e5b182c2408c15b5ac50ce9b4c4a6bb63f364ad2c8ad1d052fbc4e1e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/candidate_opt/.cloudra/guard-19.log": {
+      "bytes": 4053,
+      "sha256": "3ebbfdff8d37eeaae68a21a2939f701c6345ae5e35bb813f49fc5ada71597372"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/frequency/.cloudra/calc-27.out.log": {
+      "bytes": 95303,
+      "sha256": "55f6761407193ced527d984ed2d9c40927f150fc13a4466c19365e11422a1581"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/frequency/.cloudra/guard-27.log": {
+      "bytes": 4006,
+      "sha256": "f69e426e4f1a00f7e22f3fd7097708d972ab1f0e0719d9dcd77f7781ee028c53"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/irc/.cloudra/calc-28.out.log": {
+      "bytes": 86695,
+      "sha256": "2e3c281f4895ec25cee41fe1017b3cdd74fec2b7f52863a686c99018e2183605"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/irc/.cloudra/guard-28.log": {
+      "bytes": 3928,
+      "sha256": "ea7a267c181691d7a29cc418bc3ce53e65ed5c1e125ca6b50aff89ab3caee693"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/path/.cloudra/calc-23.out.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/path/.cloudra/guard-23.log": {
+      "bytes": 158,
+      "sha256": "5ef57c5832ab8743db9c1bfe463112b1a27f9d3aae6d5a4fde6ba692f98691c5"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/path/xtb_path_runs/queued_path_0001/stderr.log": {
+      "bytes": 126,
+      "sha256": "f5ac4344fb2bd0147631c71be7f4aadf25338fddd726bd5081499121fb8b1f1e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/path/xtb_path_runs/queued_path_0001/stdout.log": {
+      "bytes": 307765,
+      "sha256": "32ddb3126a4ba9393c40c413c0d78a6f74410ba09989470fb9389aeb5142885c"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/path/xtb_path_runs/queued_path_0001/xtbopt.log": {
+      "bytes": 1668420,
+      "sha256": "0c66b8e3c42fdf67af6aa7bf3921bf1920aca799744202cdd7725c18add6d3d8"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/product_frequency/.cloudra/calc-36.out.log": {
+      "bytes": 94753,
+      "sha256": "a6b24d683046f72e68a4092bc442bbce9fdbde41414a7a3125f6a63523cbe0b2"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/product_frequency/.cloudra/guard-36.log": {
+      "bytes": 4110,
+      "sha256": "dcb6f6eda196da6467a31528a96dc37e25a3f650371989d6b764c446134a6940"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/product_opt/.cloudra/calc-35.out.log": {
+      "bytes": 1195610,
+      "sha256": "ba4858b60534fd72a3e510e5eebf5d4a496457ad55df76060f723718d7098140"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/product_opt/.cloudra/guard-35.log": {
+      "bytes": 4032,
+      "sha256": "572d76ed8ce49b66b2558480335a87a7b0749442e1426362e4dac4def4edc962"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/product_seed_opt/.cloudra/calc-20.out.log": {
+      "bytes": 1319981,
+      "sha256": "f993b3b8bb92361f5a3d908e6d69a1d458dd51d156a5efd40d56a401eeaafc4f"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/product_seed_opt/.cloudra/guard-20.log": {
+      "bytes": 4089,
+      "sha256": "da00bae9543ff345705242e474f4c3e158e6c1d964fdad941254371922c5baf0"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/reactant_frequency/.cloudra/calc-34.out.log": {
+      "bytes": 94799,
+      "sha256": "4bec8cf1483d701d4addfe24f759df8ca3c3a3c2f1cb309c76ffdcd308b697fb"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/reactant_frequency/.cloudra/guard-34.log": {
+      "bytes": 4123,
+      "sha256": "dae37e29804a45b8106f5b8f823d37cbc767bb782699be3f233efbd6d7dc3bf6"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/reactant_opt/.cloudra/calc-33.out.log": {
+      "bytes": 845658,
+      "sha256": "3f89b0f60aca9750c8a040bcc2629dfd08e10a1fca1303152c31514909b861ec"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/reactant_opt/.cloudra/guard-33.log": {
+      "bytes": 4045,
+      "sha256": "13761d9ccc493f5d36a6c5b87a6bf9fc8dcbfaca93ba826d240ae38ddf5a7a49"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/ts_opt/.cloudra/calc-24.out.log": {
+      "bytes": 696521,
+      "sha256": "2db09df74e5590b1530a61ecdb4d1f61b114e4239ff12ec8f40fe433c45b2166"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0004/ts_opt/.cloudra/guard-24.log": {
+      "bytes": 3967,
+      "sha256": "d421ddb4519c257f7f1b2eba38ad8a3033f8096efdea05edc5a39c2f60796a6a"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0005/ts_opt/.cloudra/calc-38.out.log": {
+      "bytes": 244470,
+      "sha256": "007cd6453a2dd98eaef10a7a633a8f7f8ca3cfd6f9f2b8bc8fb4c3a265f61651"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0005/ts_opt/.cloudra/guard-38.log": {
+      "bytes": 4523,
+      "sha256": "6708f3328267fc4264532ad7a1541724dabf29c80b0cd8ccb1cfbb7c78ec8076"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0006/ts_opt/.cloudra/calc-41.out.log": {
+      "bytes": 1821662,
+      "sha256": "435f66214e3e509bef98c8eeab86ac081abe99fa64fd79ce1d256ff6d4d5e5a3"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0006/ts_opt/.cloudra/guard-41.log": {
+      "bytes": 4523,
+      "sha256": "b23fca96f00d9d1831eab966e9ed919b00bc814764213acf942d9d96a653d75f"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/frequency/.cloudra/calc-48.out.log": {
+      "bytes": 94704,
+      "sha256": "12f0c4aa7e7ef30c5d83d148b8312172fcad1131295d786d719be63ac78682b1"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/frequency/.cloudra/guard-48.log": {
+      "bytes": 4005,
+      "sha256": "3253f3ca5b4dc97d887a3f61223ca7de9ff1790a53c3287b080dcae508440340"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/irc/.cloudra/calc-49.out.log": {
+      "bytes": 85036,
+      "sha256": "74838b7292fbac3d376760711436774c2d7bfa33460fe53856af6dfb338590a5"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/irc/.cloudra/guard-49.log": {
+      "bytes": 3927,
+      "sha256": "946d1dacdf853b7922185497a4e8680979daa520cf4e56dbfed47cc101f53286"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/product_frequency/.cloudra/calc-53.out.log": {
+      "bytes": 95088,
+      "sha256": "32b8d6edef1910233df3088759bd6032c586a3b32b34c18cd1f21ee607f05102"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/product_frequency/.cloudra/guard-53.log": {
+      "bytes": 4110,
+      "sha256": "dace2b5b6f3f31f4807498d5946e306af6394d3d63b93ee49e46844f6694b742"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/product_opt/.cloudra/calc-52.out.log": {
+      "bytes": 424868,
+      "sha256": "84c3a31e5f68a703da2afc27d6eef4f8e6ae6e7f9514714008f7aa505273279c"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/product_opt/.cloudra/guard-52.log": {
+      "bytes": 4032,
+      "sha256": "fb598a318ff7a491419e4b1e64f771266a13aa9709bbf94894732caa48b1a70b"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/reactant_frequency/.cloudra/calc-51.out.log": {
+      "bytes": 94985,
+      "sha256": "2dd8533599025eb7c3a0170ba5e583a77dff818c3b9616c888e6be6ef9f601a2"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/reactant_frequency/.cloudra/guard-51.log": {
+      "bytes": 4123,
+      "sha256": "27eb8fb19c389a456180a4b84d5dbed3c07e46fda112a9624ee42132bafe6727"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/reactant_opt/.cloudra/calc-50.out.log": {
+      "bytes": 576284,
+      "sha256": "50a32c88998ca59be953ce41a0ea17d07abeeb00698a068236b979f40a47830c"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/reactant_opt/.cloudra/guard-50.log": {
+      "bytes": 4045,
+      "sha256": "6274d0c1c1937906ce12b18ce86c7cdd9ed648b1d852ce40894ff71cbad952ca"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/ts_opt/.cloudra/calc-47.out.log": {
+      "bytes": 253446,
+      "sha256": "f974053a7780a78db6a18b8479e0d744cc8fe8b335092deae7a7d9ec464348cb"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/ts_opt/.cloudra/guard-47.log": {
+      "bytes": 3966,
+      "sha256": "af4af854d5a7c85b9b5c6a48170f79315728ef382eb9c9ba57c79a49d7bc55e0"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0008/scan/.cloudra/calc-54.out.log": {
+      "bytes": 3119203,
+      "sha256": "abce42e02d4db9204f3eabcaf05eea48c5ae84baceb72a5234ea639376731cdd"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0008/scan/.cloudra/guard-54.log": {
+      "bytes": 4492,
+      "sha256": "c8fc3fe676e9b70e5c5a64cb00a131ee0e829c469ba5fd15f9b3943e6a182f89"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/path/input_0007/provenance_0000.log": {
+      "bytes": 4869356,
+      "sha256": "4b060694b05abfa7542f6f8c4c30c22200208cf50f042b86268c5d690768cf5e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/path/input_0007/provenance_0001.log": {
+      "bytes": 5866005,
+      "sha256": "24ada5e2e54e33fe9f996b3bf6b8f3f23dd7c1e1ef4b54e1da9f882e7205b6d7"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0003/candidate_opt/.cloudra/calc-10.out.log": {
+      "bytes": 117611,
+      "sha256": "b3f556a48b3b4605038780f3c9b1cb531f0d56253707133e3ddc2d045b930300"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0003/candidate_opt/.cloudra/guard-10.log": {
+      "bytes": 4053,
+      "sha256": "a5da2c4e13d243d2e02b546e26930b65fd394156f0de708ebbb1ab786efcd9b1"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0003/product_seed_opt/.cloudra/calc-11.out.log": {
+      "bytes": 1323669,
+      "sha256": "fd7abe8ef132a19ff341bec83c6fce7b7f4ecd24313f08a4030d7e4657de22ab"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0003/product_seed_opt/.cloudra/guard-11.log": {
+      "bytes": 4089,
+      "sha256": "e964d54acc4924bc172d746cd2dc5c013b8d49c94a1d0a89bb65a42b4d228cef"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0004/candidate_opt/.cloudra/calc-17.out.log": {
+      "bytes": 117439,
+      "sha256": "3634ee4884be8da1aeb6b23009d0a1d947596371aa92d9afdf5043a54632be86"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0004/candidate_opt/.cloudra/guard-17.log": {
+      "bytes": 4053,
+      "sha256": "79d671e1b75d5d4b9bb2246f5b7ca6bb9334ec31a3b7e97e88f63403d992c358"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0004/product_seed_opt/.cloudra/calc-18.out.log": {
+      "bytes": 1317683,
+      "sha256": "119799b2933381bd44bfca8a708bfa948935a386d4cd014963cd769de3170663"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0004/product_seed_opt/.cloudra/guard-18.log": {
+      "bytes": 4089,
+      "sha256": "91a8c98258541a98386efd9d3609d2e688190408d925186f78e9a4de1a76e13f"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0005/path/.cloudra/calc-21.out.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0005/path/.cloudra/guard-21.log": {
+      "bytes": 158,
+      "sha256": "c55851d9b411f5159c20c8568c76a6162f740f3b3f7f1b03bd7285bb92aa4a77"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0005/path/xtb_path_runs/queued_path_0001/stderr.log": {
+      "bytes": 126,
+      "sha256": "f5ac4344fb2bd0147631c71be7f4aadf25338fddd726bd5081499121fb8b1f1e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0005/path/xtb_path_runs/queued_path_0001/stdout.log": {
+      "bytes": 1558627,
+      "sha256": "bb1b4033c5443d17af9a686b90a052e23c913f25c378825c69fa3e5bc63cf81a"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0005/path/xtb_path_runs/queued_path_0001/xtbopt.log": {
+      "bytes": 8928000,
+      "sha256": "1108142cf5f0766901f70abc20fe84e070c4a5d924458c4ad3b87724c92eb742"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0006/scan/.cloudra/calc-25.out.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0006/scan/.cloudra/guard-25.log": {
+      "bytes": 158,
+      "sha256": "563dbb0ba6e5031f502c99c191d2caa66c686fe685bed0a1979362e7a048e4b9"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0006/scan/native_scan_runs/native_scan_0001/engine.out": {
+      "bytes": 410644,
+      "sha256": "cc279474e9731f9d7955f7db935558e117dfc510aafe78f8e4186f562f3538c1"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0006/scan/native_scan_runs/native_scan_0001/xtbopt.log": {
+      "bytes": 5580,
+      "sha256": "604804e3497847703e1b574f8be2464faa0bd1cf8b5cb5ee16ba6608f3e9394e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0006/scan/native_scan_runs/native_scan_0001/xtbscan.log": {
+      "bytes": 14528,
+      "sha256": "18c6982cb7c5c66371b18a918c0089eac1eb7c5adfb72fe713e96ed4adfca33e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0006/ts_opt/.cloudra/calc-26.out.log": {
+      "bytes": 1620100,
+      "sha256": "843e079116a2209d30b941db8ab789a017dd07f23f9307eb46266e58eeefe2ab"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0006/ts_opt/.cloudra/guard-26.log": {
+      "bytes": 4523,
+      "sha256": "fc87682367d3186fff241186a7dbe5d105b59ee9e871f7d29a50e60df0f942b4"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0007/scan/.cloudra/calc-29.out.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0007/scan/.cloudra/guard-29.log": {
+      "bytes": 158,
+      "sha256": "729be7d649d560a0cc89d1d384ddc0d425f09512951a63a9b80dd80f1d228ce9"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0007/scan/native_scan_runs/native_scan_0001/engine.out": {
+      "bytes": 386210,
+      "sha256": "c35f57fc0f7e70a46a5bf964ea321405012ddbd7040dbcae3796d3806143ed8b"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0007/scan/native_scan_runs/native_scan_0001/xtbopt.log": {
+      "bytes": 9300,
+      "sha256": "598f8f605db276d463ff673bf13f69c1e59f8f750e81e72168120fa56e6c5eee"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0007/scan/native_scan_runs/native_scan_0001/xtbscan.log": {
+      "bytes": 13620,
+      "sha256": "e73a8e4ed4d4d4b6125cf556a4d2ef9145191b149a587fa508ada6aec045d48c"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/frequency/.cloudra/calc-31.out.log": {
+      "bytes": 94643,
+      "sha256": "5de82c0225f5498aa3d7b23d12585be0b99f4d137c1638215a6570c3df05ff61"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/frequency/.cloudra/guard-31.log": {
+      "bytes": 4006,
+      "sha256": "1eaa83b9a41f64f7d9d10d0d9a2b452799f7139fae90aaadcd06d41c271387e5"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/irc/.cloudra/calc-32.out.log": {
+      "bytes": 83729,
+      "sha256": "83d0927ad5eeb1d0cde0c808bec2c18ee5f7a552578d55621fc51d00445ec5a2"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/irc/.cloudra/guard-32.log": {
+      "bytes": 3928,
+      "sha256": "206758099e5e0debf15d23dbbcdf2fb665db8267bfcc2faf5237b6beb3f3eabe"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/reactant_frequency/.cloudra/calc-39.out.log": {
+      "bytes": 95448,
+      "sha256": "62490c9bc3abc40f27ff27c884fb8c20112c6a44925596ea49bf6a7a55c975d4"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/reactant_frequency/.cloudra/guard-39.log": {
+      "bytes": 4123,
+      "sha256": "ff007d7fd9eb3a76e303a1ea56e15feb68ed2a5857f98f16a4d41ea4360c2dd3"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/reactant_opt/.cloudra/calc-37.out.log": {
+      "bytes": 239489,
+      "sha256": "6f5b5429a5a1ed77dea36fcea244433cb2ce863f163f13c6c545dc528a062ef2"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/reactant_opt/.cloudra/guard-37.log": {
+      "bytes": 4045,
+      "sha256": "c95dfe64dc7389c590136ecddc2f2fa77c9251fadfc12031f9220d8527b2f515"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/ts_opt/.cloudra/calc-30.out.log": {
+      "bytes": 1791640,
+      "sha256": "d8249b978074fc7496cdebc3b64bae091e78f7154203a526e866e26e905f80c0"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0008/ts_opt/.cloudra/guard-30.log": {
+      "bytes": 3967,
+      "sha256": "e1292a78618f2d3eda2a43e472475ea04ead235122a1669542442d7ec47bb534"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0009/product_frequency/.cloudra/calc-45.out.log": {
+      "bytes": 94781,
+      "sha256": "0b7cd7d71224100d139efbac16eb80dd531ca8c6e653d414d9a7cc154a26fe97"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0009/product_frequency/.cloudra/guard-45.log": {
+      "bytes": 4110,
+      "sha256": "e41e4c49adceac974853434a3fa78a86681262a2fc3b09f6a6659280676f362d"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0009/product_opt/.cloudra/calc-43.out.log": {
+      "bytes": 1081426,
+      "sha256": "c82a3952504af1b6c91e3ef7792852b5f0de4a34392560e571bc5c6dcc48d827"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0009/product_opt/.cloudra/guard-43.log": {
+      "bytes": 4032,
+      "sha256": "d38b337293069bfe9514684d5bf380fdddaaa8763624398f826b8b40e699f482"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0009/reactant_frequency/.cloudra/calc-42.out.log": {
+      "bytes": 94793,
+      "sha256": "32db8292081a68c35dbde84f5e52f1314f0ac58e01e5fd901152d57864629838"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0009/reactant_frequency/.cloudra/guard-42.log": {
+      "bytes": 4123,
+      "sha256": "b07d4fdb212b4f3c49deda515836b6ca1fbb2140bf88a015eeafa20fabb978ee"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0009/reactant_opt/.cloudra/calc-40.out.log": {
+      "bytes": 116930,
+      "sha256": "dd09e3ba7dc40f84c68d6c7183502f0b3468d0a34e9a6c3c8d2e3b547c554ff1"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0002/jobs/declaration_0009/reactant_opt/.cloudra/guard-40.log": {
+      "bytes": 4045,
+      "sha256": "9c246f878ac6d1af773b25e121709a4918d011182eb79de8168521dab0c2dfd8"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/task-set/NU3.json": {
+      "bytes": 10535,
+      "sha256": "080aff465e4a9a906769c175799a3dd376cad4d42287d1f305f4aebcb90cc0c3"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/.cloudra/evidence/074b91bac14ed1fb_calc-24.out.log": {
+      "bytes": 94810,
+      "sha256": "074b91bac14ed1fb5621e38aad2ecb32479b220d468716827ebbf9a5e261e184"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/.cloudra/evidence/463b3aaca2a6044b_calc-18.out.log": {
+      "bytes": 824110,
+      "sha256": "463b3aaca2a6044b0e63241c6e371b82f52b0bfb0cf1be985bb20d695c1f1dc9"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/.cloudra/evidence/5e3c69ca57ba63f9_calc-22.out.log": {
+      "bytes": 94462,
+      "sha256": "5e3c69ca57ba63f9c9976ac6dca398b1a40747fd225b1b667fbf5e373e24b961"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/.cloudra/evidence/8247be52d1feeebb_calc-21.out.log": {
+      "bytes": 481772,
+      "sha256": "8247be52d1feeebb73226b5e3e74e43c65e8f0aa24801a09cfd9ecb787754fea"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/.cloudra/evidence/8c437de1a729728d_calc-19.out.log": {
+      "bytes": 95686,
+      "sha256": "8c437de1a729728d45ca977309d7ef79b372a26ac032f080298076faa4e91daa"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/.cloudra/evidence/8dafe0cd64bdc7764a0fdb07a05e49bb00de6ecea0cffcc3031df84c34656330/a08fba082d8872d2_calc-20.out.log": {
+      "bytes": 91124,
+      "sha256": "a08fba082d8872d292c075926bedee552902ab203e1a1a2453dd6a77ecca24f4"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/.cloudra/evidence/a95696484e65e08a_calc-23.out.log": {
+      "bytes": 644406,
+      "sha256": "a95696484e65e08ad1b6b1776cb8a8d6393a102bfce1360d422f6486bae0784b"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/.cloudra/evidence/f48236db1d896e64_calc-25.out.log": {
+      "bytes": 147547,
+      "sha256": "f48236db1d896e64541688af9397ad1825daa97f28a1f1f80f6580d0e10e4145"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/.cloudra/tool_output/read-20261015-041856-2481e0bd.log": {
+      "bytes": 44576,
+      "sha256": "81ea1d63305a4066f961e1ced2f09d41538dc07b3ad7029af71bf125d761b3a9"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/.cloudra/tool_output/read-20261015-045316-c5f7b81c.log": {
+      "bytes": 30054,
+      "sha256": "27944e5dde619a9927921f34a17432d81ab57c8c61c62a4ed1d6b9a6494a883a"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/.cloudra/tool_output/read-20261015-050232-d0f84cb3.log": {
+      "bytes": 31733,
+      "sha256": "db10f826e3c834523e22fd354b550d751b793eb4efcad35f4f347ec18027f6bd"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/inputs/open-freq.out.log": {
+      "bytes": 95088,
+      "sha256": "32b8d6edef1910233df3088759bd6032c586a3b32b34c18cd1f21ee607f05102"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/inputs/open-opt.out.log": {
+      "bytes": 424868,
+      "sha256": "84c3a31e5f68a703da2afc27d6eef4f8e6ae6e7f9514714008f7aa505273279c"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/inputs/ring-freq.out.log": {
+      "bytes": 94793,
+      "sha256": "32db8292081a68c35dbde84f5e52f1314f0ac58e01e5fd901152d57864629838"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/inputs/ring-opt.out.log": {
+      "bytes": 116930,
+      "sha256": "dd09e3ba7dc40f84c68d6c7183502f0b3468d0a34e9a6c3c8d2e3b547c554ff1"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/mechanism_graph.json": {
+      "bytes": 2147,
+      "sha256": "ec9d56a6de47b8ff2b45625b1356cd36b71a50e3984641b2127da7a4dd0b3593"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-1.out.log": {
+      "bytes": 220,
+      "sha256": "29f16a09c631305d3920eb7aa73116932eb0eb60087194b8826111911a54dfad"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-10.out.log": {
+      "bytes": 13034,
+      "sha256": "55c53bcd6676a99532ff626da399c9685d992deab73785df9f0df7218ea54434"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-11.out.log": {
+      "bytes": 13034,
+      "sha256": "34c933fa2721a49e083ee0abb668b07203539549b596441bc49add6fdd4758c2"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-12.out.log": {
+      "bytes": 13034,
+      "sha256": "3e21587bea504a74f76a77ca3681c853089f4ca1592d8e986977a346172f7a86"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-14.out.log": {
+      "bytes": 13039,
+      "sha256": "e70060b3fb2b407755fe1980e1f86e512eb7b7bb83d4935d6c98dbcdff915367"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-15.out.log": {
+      "bytes": 32218,
+      "sha256": "10f8901f8696609e44cbb7f5c7147f99ed6a2db9cfb3ad672c0ffa3bb675b943"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-16.out.log": {
+      "bytes": 32253,
+      "sha256": "8707ad8f335134d142e7fa34a095daa2a3a81c52421c5561ad5befc8d05d6218"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-17.out.log": {
+      "bytes": 32261,
+      "sha256": "45a73b96f4ff790eee62c46bdd04ddfc2dfa7a5cbb9ef6b265d955b84b086fa3"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-2.out.log": {
+      "bytes": 227,
+      "sha256": "0b8b0ce0297c1667523a4e2fc4d05a279ad72c93df4a1726dd2a697b614208ad"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-3.out.log": {
+      "bytes": 227,
+      "sha256": "2072e745cdd982711d14297361f41954a3e59b5ea675ca683534421dc52e726e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-4.out.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-5.out.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-6.out.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-8.out.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/calc-9.out.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-1.log": {
+      "bytes": 157,
+      "sha256": "8f0b0d8212ffff702fa6fbccdb0cba530b80978069adba46e263448a0e7b9893"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-10.log": {
+      "bytes": 1233,
+      "sha256": "52c5252e239e3d8c756d534505b23fc7c7c082cb4679a1c3f5ec4e148818ed34"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-11.log": {
+      "bytes": 1233,
+      "sha256": "57fa4f226dfa4e9a08a88926a17c6a20163982bf666cdae7c777ba20f92fdad8"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-12.log": {
+      "bytes": 1235,
+      "sha256": "9cb96988394361759374149e9605fe23a283e77ad601466272722ec42d51e320"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-14.log": {
+      "bytes": 1245,
+      "sha256": "6af54b2d262f58cd27b9b49bb91546fc31705ce6bed8f8fb294075fe0430ef30"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-15.log": {
+      "bytes": 2959,
+      "sha256": "fc2f61c2319fdd74282378ef803201cdf475a1a2acc635f74cecd15ed7480bcd"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-16.log": {
+      "bytes": 2953,
+      "sha256": "5a8683d34dafa9157feec78df1eb0130b7323097e51627f6ab4367bdb31eb909"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-17.log": {
+      "bytes": 2954,
+      "sha256": "9c788ad8ddb36cd59fd9aa142c6ff0889bc951dde6d47af978a56b45fceec940"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-2.log": {
+      "bytes": 157,
+      "sha256": "08133193e6681cc94094f9938f954e387182eeb5a6481b3414b0630e939eb5cd"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-3.log": {
+      "bytes": 157,
+      "sha256": "56d8d34cfdef2123aa412140b7bcc2030dedd88415d580a29ad5d82881a88ed7"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-4.log": {
+      "bytes": 157,
+      "sha256": "5d225303be8e20c8ff4b1a0ca49e2c9b3f48bccbe759e259fe3a1f70501e19c1"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-5.log": {
+      "bytes": 157,
+      "sha256": "32f990d521de3d21b63f022439bc9065a62f5c0002bf371c855dbdaaaa03d700"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-6.log": {
+      "bytes": 157,
+      "sha256": "9214e35165f717d4b41b1b8c08c8315ffeb6983f308f1c97744a966d5589576d"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-8.log": {
+      "bytes": 157,
+      "sha256": "80d63ca317bd4343032868ba44745416a68151a0cf7cab35a6d0f7a0e0badb95"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/.cloudra/guard-9.log": {
+      "bytes": 157,
+      "sha256": "bd61b3720b5fc76dd14eca15735d893aeb68c0cb20bdcf60d6791ec3fbdd7662"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/A_open.out": {
+      "bytes": 45668,
+      "sha256": "9f5d89c8e740b6f96c940a34cee669ecb0e456f7334f783febb7e14614eb6250"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/B_ring_Aorder.out": {
+      "bytes": 69032,
+      "sha256": "ee36d812303220f8b82e36d5c3c193e4a850ef6a7857d2a342ef655f69d5435a"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/betaine_guess.out": {
+      "bytes": 76137,
+      "sha256": "0ecd1cb2b6f167b8fbe9fea58e43c4f7386866c9ab30e825371c38d01af38429"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/g98.out": {
+      "bytes": 15293,
+      "sha256": "174ba6cc346e4693611dbde3b492025e323b1fe33e8411975f6e8a3709628718"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0001/engine.out": {
+      "bytes": 412095,
+      "sha256": "13e8593b50e7d1f4ac4968870f3a05d140cedddf7428aa749c91b79d9e050d0e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0001/xtbopt.log": {
+      "bytes": 11160,
+      "sha256": "0fad91625b78b9ad0cede03c1ce6e9a416d2a424136161efe4078051fe5765ef"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0001/xtbscan.log": {
+      "bytes": 10896,
+      "sha256": "60da1ffa1a72aafb0416160ff42c8839aec809a985c3cbe1fb69c596aa1871f1"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0002/engine.out": {
+      "bytes": 418511,
+      "sha256": "b41e8a4c6faf690194cd2957d446d6944e7264b3f6d334d70044a03c127d9ac3"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0002/xtbopt.log": {
+      "bytes": 8370,
+      "sha256": "2eb12b09fb64126623618e580b8cccd5730c7ca73d30ec457840c71e58162e6d"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0002/xtbscan.log": {
+      "bytes": 13620,
+      "sha256": "95069953c17f86475c7682b4f39b0d97275970374ea67106af1a0278f1ad9e6a"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0003/engine.out": {
+      "bytes": 506161,
+      "sha256": "63925440506ba546302e9cb8c5b23cd4fd72fbe3cc086623c78640a2998d2124"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0003/xtbopt.log": {
+      "bytes": 8370,
+      "sha256": "4fa4491925244800810f2f9986dd7d9790f81aeb4cc7ef05f015ab40c498a38f"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0003/xtbscan.log": {
+      "bytes": 14528,
+      "sha256": "04217fd1359e6d6db00900a187f3a21f3068acd00148ed0353a795a4ff80d66c"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0004/engine.out": {
+      "bytes": 430955,
+      "sha256": "a25615b8726a93930ec380bd901055667d7c16a32b06bddc90addf593ab0eb89"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0004/xtbopt.log": {
+      "bytes": 36270,
+      "sha256": "73aa5681065a84ee724430e98d1c10d6e31b69e012e84cc072736c7b140b884c"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0004/xtbscan.log": {
+      "bytes": 13620,
+      "sha256": "374a4f60dd5c2ea484a60129ff0f0a83d94ac3b33b64ceb8d5a7a1bf22995473"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0005/engine.out": {
+      "bytes": 400248,
+      "sha256": "53bc6db91e883658e0352d7c4a46824089ffe0a938ae92174a6ae6d97184b5e1"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0005/xtbopt.log": {
+      "bytes": 3720,
+      "sha256": "7d8ff34283ccb1b4395be911810544c4fd54eb288ba4869337884c07b0b7c73e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/native_scan_runs/native_scan_0005/xtbscan.log": {
+      "bytes": 11804,
+      "sha256": "06ea3e4b64f8476f9a44f17cf822a21ee83d5304fb118e54afdb3de1a6d0926b"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/xtbopt.log": {
+      "bytes": 27900,
+      "sha256": "067a2aeff3c07a2b55aab5513aa151ae0ee4686cb7e9009b7bf111187b0bebf5"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/verify_A/.cloudra/calc-25.out.log": {
+      "bytes": 147547,
+      "sha256": "f48236db1d896e64541688af9397ad1825daa97f28a1f1f80f6580d0e10e4145"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/verify_A/.cloudra/guard-25.log": {
+      "bytes": 3167,
+      "sha256": "90bb471e04221e4bb5b13c65fe8ae8c613b9896251a2e6faa2bcb3c8ec7da690"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0004/path/.cloudra/calc-7.out.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0004/path/.cloudra/guard-7.log": {
+      "bytes": 157,
+      "sha256": "2dc94e5aa21b623eeccd0d16397aadda34488fb09309343a2eb6cd6a4992f53e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0004/path/xtb_path_runs/queued_path_0001/stderr.log": {
+      "bytes": 126,
+      "sha256": "f5ac4344fb2bd0147631c71be7f4aadf25338fddd726bd5081499121fb8b1f1e"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0004/path/xtb_path_runs/queued_path_0001/stdout.log": {
+      "bytes": 2266336,
+      "sha256": "0407ce209bb06fea942cd2397b8f56593b2c6f949b42a28f4413909eef88aeb3"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0004/path/xtb_path_runs/queued_path_0001/xtbopt.log": {
+      "bytes": 13113000,
+      "sha256": "f2ee3a8454552716eb08bda894cffa34f637c67ab2b9720707e924bb0342c205"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/.cloudra/calc-13.out.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/.cloudra/guard-13.log": {
+      "bytes": 158,
+      "sha256": "a7fb9c5403a9978e51f3e04030273becc1b79ed4ddc92af2e2b7c1e73a4cc367"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/native_scan_runs/native_scan_0001/engine.out": {
+      "bytes": 388934,
+      "sha256": "564c94b90aeeb69e82da5b889122568610f529d597781875996c08f474907b89"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/native_scan_runs/native_scan_0001/xtbopt.log": {
+      "bytes": 8370,
+      "sha256": "d87129e340a6402acc557712a7127d7a33b019c7cacec3597918d9cc32a11c83"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/native_scan_runs/native_scan_0001/xtbscan.log": {
+      "bytes": 11804,
+      "sha256": "c71956174e8f2f10df6fae1525cd1fca2171d01e996c5ed9ac2ba61a2d1d0067"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/frequency/.cloudra/calc-19.out.log": {
+      "bytes": 95686,
+      "sha256": "8c437de1a729728d45ca977309d7ef79b372a26ac032f080298076faa4e91daa"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/frequency/.cloudra/guard-19.log": {
+      "bytes": 3514,
+      "sha256": "4d312b75c37e092e28fac4225af0b42873774f23974893a30b9fe0a43382a7a2"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/irc/.cloudra/calc-20.out.log": {
+      "bytes": 91124,
+      "sha256": "a08fba082d8872d292c075926bedee552902ab203e1a1a2453dd6a77ecca24f4"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/irc/.cloudra/guard-20.log": {
+      "bytes": 3436,
+      "sha256": "2a5cd0927c25d98ea42ce74a12a409ae2d9e2f573bfe3eda897a141b12b78828"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/product_frequency/.cloudra/calc-24.out.log": {
+      "bytes": 94810,
+      "sha256": "074b91bac14ed1fb5621e38aad2ecb32479b220d468716827ebbf9a5e261e184"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/product_frequency/.cloudra/guard-24.log": {
+      "bytes": 3618,
+      "sha256": "84c85bd6635bd14d635e19bd97d8808a924f2256efe0f3af8c1f99e8f006be72"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/product_opt/.cloudra/calc-23.out.log": {
+      "bytes": 644406,
+      "sha256": "a95696484e65e08ad1b6b1776cb8a8d6393a102bfce1360d422f6486bae0784b"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/product_opt/.cloudra/guard-23.log": {
+      "bytes": 3540,
+      "sha256": "b453cc966674da35b8b6523c78e07f339e89d6fc9c9bf5d2601b016af0cdcac7"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/reactant_frequency/.cloudra/calc-22.out.log": {
+      "bytes": 94462,
+      "sha256": "5e3c69ca57ba63f9c9976ac6dca398b1a40747fd225b1b667fbf5e373e24b961"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/reactant_frequency/.cloudra/guard-22.log": {
+      "bytes": 3631,
+      "sha256": "d1ecdf7774d3d0b6168638a41befb12e4ce95f4fbd8233e0ed9e055bbe8a5f73"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/reactant_opt/.cloudra/calc-21.out.log": {
+      "bytes": 481772,
+      "sha256": "8247be52d1feeebb73226b5e3e74e43c65e8f0aa24801a09cfd9ecb787754fea"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/reactant_opt/.cloudra/guard-21.log": {
+      "bytes": 3553,
+      "sha256": "e4e3c1db43192ade79d1915444c42d3928b11d2cb69455a13d2385802e8f594d"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/ts_opt/.cloudra/calc-18.out.log": {
+      "bytes": 824110,
+      "sha256": "463b3aaca2a6044b0e63241c6e371b82f52b0bfb0cf1be985bb20d695c1f1dc9"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/ts_opt/.cloudra/guard-18.log": {
+      "bytes": 3475,
+      "sha256": "e6c5932de2caf8adbd8cdbe08847bdcdbba138311b2b6ddd7ff3ecbf46f3cf16"
+    }
+  },
+  "research_backend_invoked": false,
+  "qm_api_or_model_invoked": false,
+  "scratch_formal_run_count": 0,
+  "scratch_removed": true,
+  "scientific_rules_methods_rubric_weights_models_changed": false
+}
