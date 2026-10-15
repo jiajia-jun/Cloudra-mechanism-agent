@@ -53,8 +53,8 @@ def cli(ctx, version, host, port, coordinator_model, coordinator_url, coordinato
             coordinator_model, coordinator_url, coordinator_key,
             follower_model, follower_url, follower_key,
         )
-        sys.exit(launch_browser(_frontend_or_exit(), rebuild=False, skip_build=False,
-                                host=host, port=port))
+        sys.exit(_launch_or_exit(_frontend_or_exit(), rebuild=False, skip_build=False,
+                                 host=host, port=port))
 
     _apply_config_overrides(
         coordinator_model, coordinator_url, coordinator_key,
@@ -89,6 +89,17 @@ def _frontend_or_exit():
         sys.exit(1)
 
 
+def _launch_or_exit(frontend, **kwargs):
+    """启动 Web（API+SPA）；启动前的可预期冲突（主库被别家占着、关 token 绑公网）
+    以红色提示 + 退出码 1 收场——这些是环境状态，不该甩 traceback 给用户。"""
+    try:
+        code = launch_browser(frontend, **kwargs)
+    except RuntimeError as exc:
+        console.print(f"[red]{exc}[/red]")
+        sys.exit(1)
+    sys.exit(code)
+
+
 @cli.command(name="web")
 @click.option("--host", default=None, help="Web 服务绑定地址（默认 127.0.0.1；绑到非回环地址后可从网络访问）")
 @click.option("--port", type=int, default=None, help="Web 服务绑定端口（默认 8000，被占用时自动向后找空闲端口）")
@@ -96,8 +107,8 @@ def _frontend_or_exit():
 @click.option("--skip-build", is_flag=True, help="复用已有 frontend/dist 构建")
 def web(host, port, rebuild, skip_build):
     """启动 Web 前端（API + SPA 单端口服务）。"""
-    sys.exit(launch_browser(_frontend_or_exit(), rebuild=rebuild, skip_build=skip_build,
-                            host=host, port=port))
+    sys.exit(_launch_or_exit(_frontend_or_exit(), rebuild=rebuild, skip_build=skip_build,
+                             host=host, port=port))
 
 
 def _login_codex_account() -> None:
