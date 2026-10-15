@@ -2007,7 +2007,9 @@ def test_passerini_first_edge_couples_proton_transfer_and_isocyanide_attack():
     assert [5, 6] in edges[0].bond_changes.break_
     assert [2, 6] in edges[0].bond_changes.form
     assert [1, 9] in edges[0].bond_changes.form
-    assert edges[1].barrier_kcal_mol is None
+    assert edges[1].barrier_kcal_mol == 1.5440
+    assert edges[1].from_node == "NU5_I1"
+    assert edges[1].to_node == "NU5_I2"
 
 
 def test_pinacol_dehydration_and_migration_are_separate_edges():
@@ -2039,6 +2041,29 @@ def test_hard_tasks_regenerate_identically():
         # hard 档一律 stereo 计代价
         assert t.rubric.graph_similarity.stereo_tier_rule == "hard_stereo_costly"
         assert t.method_policy.allowed_methods == ["xtb", "pm7", "b3lyp/def2svp"]
+
+
+def test_hi1_proline_catalyst_keeps_s_configuration_across_mapped_species():
+    Chem = pytest.importorskip("rdkit.Chem")
+    from cloudra.benchmark.hard_registry import REGISTRY
+
+    entry = REGISTRY["I1"]
+    species = {
+        "reactant": entry["mapped_reactants"],
+        "enamine": entry["steps"][0]["out"],
+        "major_iminium": entry["steps"][1]["out"],
+        "product": entry["steps"][2]["out"],
+        "minor_iminium": entry["competing"][0]["out"],
+    }
+    for label, smiles in species.items():
+        molecule = Chem.MolFromSmiles(smiles)
+        assert molecule is not None, label
+        catalyst_center = next(atom for atom in molecule.GetAtoms() if atom.GetAtomMapNum() == 16)
+        # 映射号只用来锁定同一原子，不应参与真实 CIP 优先次序。
+        for atom in molecule.GetAtoms():
+            atom.SetAtomMapNum(0)
+        Chem.AssignStereochemistry(molecule, cleanIt=True, force=True)
+        assert catalyst_center.GetProp("_CIPCode") == "S", label
 
 
 def test_hard_replacement_and_hl1_reframed_graph():

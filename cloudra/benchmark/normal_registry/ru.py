@@ -66,6 +66,8 @@ TASKS = {
                 # 甲酸根 O 捕获 nitrilium C：成 O5-C9，断一根 C≡N π → 亚氨酸酯
                 "out": "[CH2:1]([O:2][H:6])[C:9](=[N:8][CH3:7])[O:5][CH:3]=[O:4]",
                 "type": "formate oxygen capture of the nitrilium carbon -> imidate (acyloxyimine) intermediate",
+                # 2026-10-05 Mac 同法 TS/IRC/两端 Opt-Freq：相对本步腈鎓/甲酸根接触离子对。
+                "barrier": 1.5440,
             },
             {
                 # Mumm 重排：断 C3-O5，成 O2-C3，断 N=C π，成 C9=O5 π，O2-H 迁到 N8

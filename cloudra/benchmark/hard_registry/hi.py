@@ -54,6 +54,7 @@ TASKS = {
     # CC(C)=O.O=Cc1ccccc1.O=C(O)[C@@H]1CCCN1>>CC(=O)C[C@H](O)c1ccccc1.O=C(O)[C@@H]1CCCN1  (0/1)
     # 脯氨酸催化直接 Aldol；脯氨酸 N-H（H21）与丙酮 alpha-H（H22）参与键变化、全程显式，
     # 两质子先在步①随羰基 O4 成副产水，步③水裂解时分别归还 N20 与醇盐 O5
+    # 同一 map16 催化剂中心全程为 S；从 N20 反向遍历环时须用 [C@H:16] 保持绝对构型。
     "I1": {
         "name_en": "(S)-proline-catalyzed direct aldol reaction of acetone with benzaldehyde: determine the stereochemical outcome",
         "conditions_en": "20-30 mol% (S)-proline, DMSO, room temperature",
@@ -64,7 +65,7 @@ TASKS = {
             {
                 # 直接缩合（羟胺/亚铵不单独成节点）：成 C2-N20，断 C2=O4、断 N20-H21、断 C3-H22，
                 # 成 C2=C3 pi，两质子经羧基接力转到离去的 O4 成水 → 烯胺 + H2O（苯甲醛旁观）
-                "out": "[CH3:1][C:2](=[CH2:3])[N:20]2[CH2:19][CH2:18][CH2:17][C@@H:16]2[C:14](=[O:13])[OH:15].[O:4]([H:21])([H:22]).[O:5]=[CH:6][c:7]1[cH:8][cH:9][cH:10][cH:11][cH:12]1",
+                "out": "[CH3:1][C:2](=[CH2:3])[N:20]2[CH2:19][CH2:18][CH2:17][C@H:16]2[C:14](=[O:13])[OH:15].[O:4]([H:21])([H:22]).[O:5]=[CH:6][c:7]1[cH:8][cH:9][cH:10][cH:11][cH:12]1",
                 "type": "enamine condensation (merged edge): proline N attacks the acetone carbonyl, C-O cleaves and the N-H/alpha-C-H protons are relayed onto the departing oxygen by the carboxyl shuttle -> enamine + water (carbinolamine/iminium not separate nodes)",
                 "barrier": None,
                 "weight": 0.5,
@@ -72,7 +73,7 @@ TASKS = {
             {
                 # 立体决定步：烯胺 beta-C（C3）经 Houk-List 椅式 TS 从主面进攻苯甲醛 C6，
                 # 成 C3-C6，断 C2=C3 pi、断 C6=O5 pi，成 C2=N20 pi → (S)-构型亚铵-醇盐
-                "out": "[CH3:1][C:2](=[N+:20]2[CH2:19][CH2:18][CH2:17][C@@H:16]2[C:14](=[O:13])[OH:15])[CH2:3][C@H:6]([O-:5])[c:7]1[cH:8][cH:9][cH:10][cH:11][cH:12]1.[O:4]([H:21])([H:22])",
+                "out": "[CH3:1][C:2](=[N+:20]2[CH2:19][CH2:18][CH2:17][C@H:16]2[C:14](=[O:13])[OH:15])[CH2:3][C@H:6]([O-:5])[c:7]1[cH:8][cH:9][cH:10][cH:11][cH:12]1.[O:4]([H:21])([H:22])",
                 "type": "stereo-determining C-C addition: enamine beta-carbon attacks benzaldehyde through the major-face Houk-List chair TS (carboxyl H-bond network positions the aldehyde) -> (S)-configured iminium-aldolate",
                 "barrier": 13.36,
                 "weight": 0.5,
@@ -91,7 +92,7 @@ TASKS = {
             {
                 # 副面进攻：同一烯胺装配体（from_step=1）经另一条 Houk-List 椅式 TS →
                 # (R)-构型亚铵-醇盐副中间体（is_product=false，仅 C6 构型相反）
-                "out": "[CH3:1][C:2](=[N+:20]2[CH2:19][CH2:18][CH2:17][C@@H:16]2[C:14](=[O:13])[OH:15])[CH2:3][C@@H:6]([O-:5])[c:7]1[cH:8][cH:9][cH:10][cH:11][cH:12]1.[O:4]([H:21])([H:22])",
+                "out": "[CH3:1][C:2](=[N+:20]2[CH2:19][CH2:18][CH2:17][C@H:16]2[C:14](=[O:13])[OH:15])[CH2:3][C@@H:6]([O-:5])[c:7]1[cH:8][cH:9][cH:10][cH:11][cH:12]1.[O:4]([H:21])([H:22])",
                 "type": "opposite-face enamine attack via the minor Houk-List chair TS -> (R)-configured iminium-aldolate (minor intermediate, hydrolysis not traced in the reference graph)",
                 "barrier": 15.52,
                 "weight": 0.5,
