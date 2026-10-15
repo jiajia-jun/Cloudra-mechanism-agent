@@ -101,6 +101,7 @@ cloudra = [
     "prompts/*.md",
     "skills/**/*",
     "calculator.sh",
+    "infra/token_data/*",
     "runtime_v2/js_host/*.mjs",
     "runtime_v2/js_host/package.json",
     "runtime_v2/js_host/package-lock.json",

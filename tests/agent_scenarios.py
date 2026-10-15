@@ -74,6 +74,7 @@ class Step:
     error: BaseException | None = None
     stop: bool = False
     reasoning: str = ""
+    usage: dict[str, int] = field(default_factory=dict)
     wait_for: asyncio.Event | None = None
 
 
@@ -156,6 +157,7 @@ class ScriptedProvider:
             tool_calls=tool_calls,
             stop_requested=step.stop,
             reasoning=step.reasoning,
+            usage=step.usage,
         )
 
     async def summarize(self, messages: list[dict[str, Any]]) -> str:

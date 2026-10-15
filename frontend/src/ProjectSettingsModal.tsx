@@ -22,6 +22,7 @@ interface AgentEditDraft {
   invocation_protocol: string;
   temperature: string;
   reasoning_effort: string;
+  context_window: string;
   max_tokens: string;
   timeout: string;
   yolo: boolean;
@@ -38,6 +39,7 @@ function initAgentDraft(agent: Agent): AgentEditDraft {
     invocation_protocol: s.invocation_protocol || 'javascript',
     temperature: s.temperature != null ? String(s.temperature) : '',
     reasoning_effort: s.reasoning_effort || '',
+    context_window: s.context_window > 0 ? String(s.context_window) : '',
     max_tokens: s.max_tokens != null ? String(s.max_tokens) : '',
     timeout: s.timeout != null ? String(s.timeout) : '',
     yolo: Boolean(s.yolo),
@@ -84,6 +86,11 @@ function AgentStrip({
         unattended: draft.unattended,
         clean_context: draft.clean_context,
       };
+      const contextWindow = draft.context_window.trim() === '' ? 0 : Number(draft.context_window);
+      if (!Number.isInteger(contextWindow) || contextWindow < 0) {
+        throw new Error('上下文窗口须为非负整数，0 或留空可恢复全局继承');
+      }
+      patch.context_window = contextWindow;
 
       if (draft.temperature !== '') {
         const t = parseFloat(draft.temperature);
@@ -231,8 +238,27 @@ function AgentStrip({
 
             <div className="setting-row">
               <div className="setting-info">
+                <span className="setting-title">上下文窗口（Token）</span>
+                <span className="setting-desc">输入与输出共享的容量；0 或留空继承全局配置，下一轮生效</span>
+              </div>
+              <div className="setting-control">
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  className="input"
+                  value={draft.context_window}
+                  onChange={(e) => handleFieldChange('context_window', e.target.value)}
+                  placeholder="继承全局窗口"
+                  aria-label="智能体上下文窗口"
+                />
+              </div>
+            </div>
+
+            <div className="setting-row">
+              <div className="setting-info">
                 <span className="setting-title">最大输出 Token 与超时</span>
-                <span className="setting-desc">单次回复最大生成长度与网络请求超时时限</span>
+                <span className="setting-desc">单次回复上限与请求时限；历史压缩按上下文窗口扣除输出上限后计算</span>
               </div>
               <div className="setting-control-pair">
                 <input
@@ -357,6 +383,9 @@ export default function ProjectSettingsModal({
   const [defaultReasoningEffort, setDefaultReasoningEffort] = useState<string>(
     project.settings.defaults?.reasoning_effort ?? '',
   );
+  const [defaultContextWindow, setDefaultContextWindow] = useState<string>(
+    project.settings.defaults?.context_window ? String(project.settings.defaults.context_window) : '',
+  );
   const [savingProject, setSavingProject] = useState(false);
   const [projectSavedOk, setProjectSavedOk] = useState(false);
 
@@ -389,6 +418,11 @@ export default function ProjectSettingsModal({
       const defaultsPatch: Record<string, unknown> = {
         invocation_protocol: protocol,
       };
+      const contextWindow = defaultContextWindow.trim() === '' ? 0 : Number(defaultContextWindow);
+      if (!Number.isInteger(contextWindow) || contextWindow < 0) {
+        throw new Error('上下文窗口须为非负整数，0 或留空可继承全局配置');
+      }
+      defaultsPatch.context_window = contextWindow;
       if (defaultModel.trim()) {
         defaultsPatch.model = defaultModel.trim();
       }
@@ -443,7 +477,7 @@ export default function ProjectSettingsModal({
             <div className="section-intro">
               <h3 className="section-title">全局方案基准</h3>
               <p className="section-desc">
-                定义当前项目的默认探索机制与底层协议。未单独指定的智能体将自动继承此处设定。
+                默认参数用于新建智能体；已有成员请在下方单独调整。DAG 编排模式会同步已有成员。
               </p>
             </div>
 
@@ -540,6 +574,25 @@ export default function ProjectSettingsModal({
                     <option value="medium">medium (中等)</option>
                     <option value="high">high (深度思考)</option>
                   </select>
+                </div>
+              </div>
+
+              <div className="setting-row">
+                <div className="setting-info">
+                  <span className="setting-title">默认上下文窗口（Token）</span>
+                  <span className="setting-desc">新建智能体的输入与输出总容量；0 或留空继承全局配置</span>
+                </div>
+                <div className="setting-control">
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    className="input"
+                    value={defaultContextWindow}
+                    onChange={(e) => setDefaultContextWindow(e.target.value)}
+                    placeholder="继承全局窗口"
+                    aria-label="项目默认上下文窗口"
+                  />
                 </div>
               </div>
             </div>

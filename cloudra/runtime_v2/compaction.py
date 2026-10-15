@@ -417,6 +417,7 @@ def parse_compact_summary(raw: str, *, trajectory_len: int) -> CompactSummary:
 # 结构化 JSON 是硬要求：形状/来源不符时把校验错误回喂给模型重问一次，
 # 仍不符即拒替换——绝不降级解析（缺字段或形状错会静默丢上下文信息）。
 _SUMMARY_ATTEMPTS = 2
+_RETRY_ERROR_TOKENS = 128
 
 _RETRY_NOTE = (
     "Your previous reply was rejected: {error}\n"
@@ -424,6 +425,18 @@ _RETRY_NOTE = (
     "markdown fence, no prose before or after it, the same nine keys, and "
     "every list field as a JSON array."
 )
+
+
+def _summary_payload_budget(instruction: str, budget_tokens: int) -> int:
+    """正文容量扣除系统指令、消息封装，以及一次有界错误提示。"""
+    overhead = estimate_messages_tokens(
+        [
+            {"role": "system", "content": instruction},
+            {"role": "user", "content": ""},
+            {"role": "user", "content": _RETRY_NOTE.format(error="")},
+        ]
+    )
+    return budget_tokens - overhead - _RETRY_ERROR_TOKENS
 
 
 async def _summarize_validated(
@@ -447,11 +460,14 @@ async def _summarize_validated(
             attempt += 1
             if attempt >= _SUMMARY_ATTEMPTS:
                 raise
+            error = await asyncio.to_thread(
+                TokenEstimator.truncate_to_tokens, str(exc), _RETRY_ERROR_TOKENS
+            )
+            # 原轨迹仍逐字保留；坏回复不是证据，不再复制一遍挤占请求容量。
             messages = [
                 {"role": "system", "content": instruction},
                 {"role": "user", "content": payload},
-                {"role": "assistant", "content": raw},
-                {"role": "user", "content": _RETRY_NOTE.format(error=exc)},
+                {"role": "user", "content": _RETRY_NOTE.format(error=error)},
             ]
 
 
@@ -506,21 +522,24 @@ def segment_trajectory(
     返回 [{"text", "message_indexes", "tokens"}]：text 是编号行
     （``[i] role: 全文``），message_indexes 是该段覆盖的轨迹消息序号。
     消息从不截断；单条超预算的消息文本切成连续块，每块独立成段并带续接
-    标记——块长按最坏情况（1 字符 ≈ 1 token）取，任何语种都不超预算。
+    标记，块长按实际 token 数缩小，不假定字符与 token 一一对应。
     """
     segments: list[dict[str, Any]] = []
     current: list[str] = []
     current_tokens = 0
     covered: list[int] = []
+    # 分隔符另留两个 token，保守覆盖拼接处的分词变化。
+    separator_tokens = estimate_tokens("\n\n") + 2
 
     def flush() -> None:
         nonlocal current, current_tokens, covered
         if current:
+            text = "\n\n".join(current)
             segments.append(
                 {
-                    "text": "\n\n".join(current),
+                    "text": text,
                     "message_indexes": list(covered),
-                    "tokens": current_tokens,
+                    "tokens": estimate_tokens(text),
                 }
             )
             current = []
@@ -533,24 +552,36 @@ def segment_trajectory(
         )
         tokens = estimate_tokens(text)
         if tokens <= budget_tokens:
-            if current and current_tokens + tokens > budget_tokens:
+            combined_tokens = current_tokens + tokens
+            if current:
+                combined_tokens += separator_tokens
+            if current and combined_tokens > budget_tokens:
                 flush()
+                combined_tokens = tokens
             current.append(text)
-            current_tokens += tokens
+            current_tokens = combined_tokens
             covered.append(index)
             continue
         flush()
         # 单条超预算消息：切块（每块 ≤ 预算），跨段完整覆盖。
-        chunk = max(budget_tokens - 128, 512)
-        parts = [text[i : i + chunk] for i in range(0, len(text), chunk)]
-        for part_index, part in enumerate(parts):
-            if part_index == 0:
-                body = part
-            else:
-                body = (
-                    f"[{index}] (continued, part {part_index + 1}/{len(parts)} "
-                    f"of one long message)\n{part}"
-                )
+        offset = 0
+        part_index = 0
+        while offset < len(text):
+            prefix = (
+                f"[{index}] (continued, part {part_index + 1} of one long message)\n"
+                if part_index else ""
+            )
+            # 常见文本从约 4 字符/token 起步；二分时只移动字符边界，保证无损。
+            low, high = 0, min(len(text) - offset, budget_tokens * 4)
+            while low < high:
+                size = (low + high + 1) // 2
+                if estimate_tokens(prefix + text[offset : offset + size]) <= budget_tokens:
+                    low = size
+                else:
+                    high = size - 1
+            if low == 0:
+                raise ValueError("summary payload budget cannot fit a message fragment")
+            body = prefix + text[offset : offset + low]
             segments.append(
                 {
                     "text": body,
@@ -558,6 +589,8 @@ def segment_trajectory(
                     "tokens": estimate_tokens(body),
                 }
             )
+            offset += low
+            part_index += 1
     flush()
     return segments
 
@@ -578,15 +611,13 @@ def _batches_by_tokens(payloads: list[dict], budget_tokens: int) -> list[list[in
     """把待合并的片段载荷按 token 容量切成连续批次（单条自成一档即单元素批）。"""
     batches: list[list[int]] = []
     current: list[int] = []
-    current_tokens = 0
     for index, payload in enumerate(payloads):
-        tokens = estimate_tokens(json.dumps(payload, ensure_ascii=False))
-        if current and current_tokens + tokens > budget_tokens:
+        candidate = [payloads[item] for item in current] + [payload]
+        tokens = estimate_tokens(json.dumps(candidate, ensure_ascii=False))
+        if current and tokens > budget_tokens:
             batches.append(current)
             current = []
-            current_tokens = 0
         current.append(index)
-        current_tokens += tokens
     if current:
         batches.append(current)
     return batches
@@ -608,9 +639,12 @@ async def _merge_partials(
     """
     pending = list(partials)
     clamped_total = 0
+    payload_budget = await asyncio.to_thread(
+        _summary_payload_budget, _MERGE_INSTRUCTION, budget_tokens
+    )
     while len(pending) > 1:
         payloads = [partial.model_dump() for partial in pending]
-        batches = await asyncio.to_thread(_batches_by_tokens, payloads, budget_tokens)
+        batches = await asyncio.to_thread(_batches_by_tokens, payloads, payload_budget)
         merged: list[CompactSummary] = []
         for batch in batches:
             if len(batch) == 1:
@@ -619,7 +653,6 @@ async def _merge_partials(
             payload = json.dumps(
                 [payloads[index] for index in batch],
                 ensure_ascii=False,
-                indent=2,
             )
             merged_summary = await _bounded(
                 _summarize_validated(
@@ -660,6 +693,7 @@ async def compact_context(
     trigger: str = "manual",
     old_head_len: int = 0,
     summary_timeout: float | None = None,
+    token_ratio: float = 1.0,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """统一压缩：折叠全部轮次，返回 (候选上下文, stats)。
 
@@ -675,25 +709,35 @@ async def compact_context(
         "before_messages": len(messages),
         "trigger": trigger,
     }
-    budget_tokens = usable_prompt_tokens(context_window, max_output)
+    # 普通请求与摘要请求共享供应商真实用量的修正，不能只修正触发时机。
+    budget_tokens = int(usable_prompt_tokens(context_window, max_output) / token_ratio)
     original_trajectory = messages[old_head_len:]
     trajectory = []
     for message in original_trajectory:
         compact_content = message.get('tool_document_compact_content')
         if message.get('role') in ('system', 'tool') and isinstance(compact_content, str):
-            trajectory.append({**message,'content':compact_content})
+            trajectory.append({**message, 'content': compact_content})
         elif message.get('role') in ('system', 'tool') and message.get('tool_documents'):
-            trajectory.append({**message,'content':'Previously read tool contracts: '+
-                json.dumps(message['tool_documents'],ensure_ascii=False)+'. Read current contracts with get_tool_docs.'})
+            trajectory.append({**message, 'content': 'Previously read tool contracts: ' +
+                json.dumps(message['tool_documents'], ensure_ascii=False) + '. Read current contracts with get_tool_docs.'})
         else:
             trajectory.append(message)
     if not trajectory:
         return messages, {**base_stats, "compacted": False, "reason": "nothing_to_compact"}
 
-    # 分段要逐条消息计数（tiktoken）：卸载出事件循环。
-    segments = await asyncio.to_thread(
-        segment_trajectory, trajectory, budget_tokens
+    payload_budget = await asyncio.to_thread(
+        _summary_payload_budget, _COMPACT_INSTRUCTION, budget_tokens
     )
+    if payload_budget <= 0:
+        return messages, {**base_stats, "compacted": False, "reason": "summary_capacity"}
+    # 分段要逐条消息计数（tiktoken）：卸载出事件循环。
+    try:
+        segments = await asyncio.to_thread(segment_trajectory, trajectory, payload_budget)
+    except ValueError as exc:
+        return messages, {
+            **base_stats, "compacted": False, "reason": "summary_capacity",
+            "error": str(exc),
+        }
     partials: list[CompactSummary] = []
     coverage: list[dict[str, Any]] = []
     clamped_sources = 0
@@ -831,6 +875,7 @@ async def summarize_with_agent_settings(
         kwargs: dict = {
             "model": settings.model,
             "messages": messages,
+            "max_tokens": settings.max_tokens,
             # temperature=1: a growing set of models rejects anything else.
             "temperature": 1.0,
             "stream": False,

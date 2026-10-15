@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import os
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
@@ -276,12 +277,6 @@ class AgentRunner:
                     restored=contexts.prefix_state(agent.id),
                 )
             turns = 0
-            from cloudra.runtime_v2.compaction import (
-                context_over_budget,
-                estimate_messages_tokens,
-                usable_prompt_tokens,
-            )
-
             while agent.state is AgentState.RUNNING:
                 inbox_messages = self._drain_inbox(agent)
                 if turns == 0 and not inbox_messages:
@@ -297,38 +292,17 @@ class AgentRunner:
                         await self._consume_pending_compaction(
                             agent, run_id, context_prefix=context_prefix
                         )
-                # 预算触发：达到上下文预算即压缩——估算用现有 context_window
-                # 与输出预算并留余量。压缩被拒时保留原上下文，且要等投影再
-                # 长出 COMPACT_RETRY_GROWTH 才重试（同样的输入只会同样失败）。
-                # 容量判定用生效设置：spawn 快照里 context_window=0 表示未
-                # 设置，真实窗口由 provider 桥接从 config 槽位补全。
-                current = contexts.current_messages(agent.id)
-                if current:
-                    effective = self._effective_settings(agent)
-                    # tiktoken 计数是 CPU 工作，卸载出事件循环（同
-                    # llm_client.count_message_tokens）。
-                    if await asyncio.to_thread(
-                        context_over_budget,
-                        current,
-                        context_window=effective.context_window,
-                        max_output=effective.max_tokens,
-                    ):
-                        budget_tokens = usable_prompt_tokens(
-                            effective.context_window, effective.max_tokens
-                        )
-                        if self._compaction_retry_due(
-                            agent.id,
-                            await asyncio.to_thread(
-                                estimate_messages_tokens, current
-                            ),
-                            budget_tokens,
-                        ):
-                            await self._apply_compaction(
-                                agent,
-                                run_id,
-                                trigger="budget",
-                                context_prefix=context_prefix,
-                            )
+                # 在 pipeline 装好本轮输入、动态前缀和通知后再检查容量。
+                # inbox 已落入投影；压缩时仍保留当前指令原文。
+                preserve_ids = {
+                    str(item["message_id"]) for item in inbox_messages if item.get("message_id")
+                }
+
+                async def prepare_context(messages, estimated_tokens):
+                    return await self._prepare_context(
+                        agent, run_id, messages, estimated_tokens,
+                        context_prefix=context_prefix, preserve_message_ids=preserve_ids,
+                    )
                 attempt = 0
                 overflow_compacted = False
                 while True:
@@ -345,6 +319,7 @@ class AgentRunner:
                             context_prefix=context_prefix,
                             context_broker=contexts,
                             vision_enabled=self._vision_enabled(agent),
+                            prepare_context=prepare_context,
                         )
                         break
                     except asyncio.CancelledError:
@@ -359,6 +334,7 @@ class AgentRunner:
                                 run_id,
                                 trigger="context_overflow",
                                 context_prefix=context_prefix,
+                                preserve_message_ids=preserve_ids,
                             )
                             overflow_compacted = True
                             if stats.get("compacted"):
@@ -951,6 +927,65 @@ class AgentRunner:
             )
         await self.core.contexts.append_output(agent=agent, run_id=run_id, messages=entries)
 
+    async def _prompt_token_ratio(self, agent: AgentSession, model: str) -> float:
+        # Local tokenizers differ from the provider's. Reuse the last real
+        # request's ratio, including after a restart; summary calls are excluded.
+        before = None
+        while True:
+            completed = await asyncio.to_thread(
+                self.core.event_log.query_session, agent.id, types=("llm.completed",),
+                before_session_seq=before, limit=1,
+            )
+            if not completed:
+                return 1.0
+            sample = completed[-1].data
+            before = completed[-1].session_seq - 1
+            if sample.get("kind") == "summary":
+                continue
+            if sample.get("model") != model:
+                return 1.0
+            usage = sample.get("usage") or {}
+            actual = usage.get("prompt_tokens") or usage.get("input_tokens") or 0
+            previous = sample.get("estimated_prompt_tokens") or 0
+            if previous > 0 and actual > 0:
+                return max(1.0, actual / previous)
+
+    async def _prepare_context(
+        self, agent: AgentSession, run_id: str, messages: list[dict], estimated_tokens: int,
+        *, context_prefix=None, preserve_message_ids: set[str],
+    ) -> list[dict]:
+        """Apply the budget to the complete request, corrected by observed usage."""
+        from cloudra.runtime_v2.compaction import usable_prompt_tokens
+        from cloudra.runtime_v2.turn_pipeline import ContextBudgetError, resolve_media_references
+
+        settings = self._effective_settings(agent)
+        window = settings.context_window or 128_000
+        budget = usable_prompt_tokens(window, settings.max_tokens)
+        ratio = await self._prompt_token_ratio(agent, settings.model)
+        tokens = math.ceil(estimated_tokens * ratio)
+        if tokens > budget and self._compaction_retry_due(agent.id, tokens, budget):
+            stats = await self._apply_compaction(
+                agent, run_id, trigger="budget", context_prefix=context_prefix,
+                preserve_message_ids=preserve_message_ids,
+            )
+            if stats.get("compacted"):
+                messages = await resolve_media_references(
+                    self.core.contexts.current_messages(agent.id),
+                    vision_enabled=self._vision_enabled(agent),
+                )
+                estimated_tokens = await self.pipeline.estimate_prompt_tokens(agent, messages)
+                tokens = math.ceil(estimated_tokens * ratio)
+            else:
+                self._compact_refusals[agent.id] = tokens
+        if tokens + settings.max_tokens > window:
+            raise ContextBudgetError(
+                f"Configured token budget exceeded: input={tokens}, "
+                f"output reserve={settings.max_tokens}, window={window}. "
+                "Compaction could not make the request fit. Shorten the input "
+                "or adjust context_window / max_tokens."
+            )
+        return messages
+
     def _effective_settings(self, agent: AgentSession):
         """容量判定用的生效设置：spawn 快照里 context_window=0 表示未设置，
         真实窗口由 provider 桥接从 config 槽位补全（与遥测解析生效 model
@@ -996,6 +1031,7 @@ class AgentRunner:
         trigger: str = "manual",
         *,
         context_prefix=None,
+        preserve_message_ids: set[str] | None = None,
     ) -> dict:
         from cloudra.runtime_v2.compaction import (
             SUMMARY_EVENT_CAP,
@@ -1009,6 +1045,15 @@ class AgentRunner:
         # 记录投影版本，install_compacted 只在版本未变时原子安装——压缩
         # 期间到达的新消息绝不丢（版本不符即放弃候选，不覆盖新增纠正）。
         history = core.contexts.current_messages(agent.id)
+        preserve_message_ids = preserve_message_ids or set()
+        preserved = [
+            message for message in history
+            if str(message.get("message_id") or "") in preserve_message_ids
+        ]
+        compactable = [
+            message for message in history
+            if str(message.get("message_id") or "") not in preserve_message_ids
+        ] if preserved else history
         expected_version = len(history)
         ctx = core.session_contexts.get(agent.id)
         old_head_len = int((((ctx.prefix_meta if ctx else None) or {})).get("prefix_len") or 0)
@@ -1045,12 +1090,13 @@ class AgentRunner:
 
         try:
             new_context, stats = await compact_context(
-                history,
+                compactable,
                 head=head,
                 notices=notices_render,
                 summarize=summarizer,
                 context_window=settings.context_window,
                 max_output=settings.max_tokens,
+                token_ratio=await self._prompt_token_ratio(agent, settings.model),
                 trigger=trigger,
                 old_head_len=old_head_len,
                 # 摘要调用有界等待：provider 对超大摘要停滞时按 segment_failed
@@ -1069,6 +1115,8 @@ class AgentRunner:
             stats = {"compacted": False, "error": str(exc) or type(exc).__name__}
         else:
             if stats.get("compacted"):
+                new_context.extend(preserved)
+                stats["after_messages"] = len(new_context)
                 # 压缩摘要同时落工作区审计文件，供人与后续会话回读。
                 # Best-effort: a write failure only skips the file and the
                 # pointer note.

@@ -1160,18 +1160,23 @@ async def test_async_subagent_reports_once_and_wakes_parent(tmp_path):
 
     杠杆：消息投递/唤醒语义（dispatcher 的 WakePolicy）+ 子 Agent 回报 manifest。
     """
+    release_child = asyncio.Event()
     provider = ScriptedProvider(
         by_role={
             "coordinator": [
                 Step(tools=[("subagent_launcher", {"role_id": "explorer", "query": "look around", "is_wait": False})]),
                 Step(text="continuing on the main line", stop=True),
             ],
-            "explorer": [Step(text="explored the workspace", stop=True)],
+            "explorer": [Step(text="explored the workspace", stop=True, wait_for=release_child)],
         }
     )
     harness = await ScenarioHarness.start(tmp_path, provider=provider)
     try:
         parent = await harness.spawn("coordinator", protocol="traditional")
+        # 本场景验证停下后的唤醒；若 child 提前回报，parent 可在同一 run
+        # 正常消费，不能依赖两次模型调用的相对速度来强求第二个 run。
+        await harness.wait_terminal(parent)
+        release_child.set()
         await harness.wait_for(
             lambda: len(harness.child_reports(parent)) == 1,
             "exactly one child completion report",
@@ -1482,7 +1487,7 @@ async def test_context_budget_compacts_once_then_short_turns_continue(tmp_path, 
     provider = ScriptedProvider(
         default=[
             Step(
-                text="first turn with a long observation " + ("padding " * 300),
+                text="first turn with a long observation " + ("padding " * 4000),
                 tools=[("todo_write", {"todos": [{"content": "keep going", "status": "in_progress"}]})],
             ),
             Step(
@@ -1508,7 +1513,7 @@ async def test_context_budget_compacts_once_then_short_turns_continue(tmp_path, 
         agent = await harness.spawn(
             "coordinator",
             protocol="traditional",
-            context_window=300,
+            context_window=4000,
             max_tokens=32,
         )
         await harness.wait_terminal(agent)

@@ -739,15 +739,13 @@ class LegacyLLMProvider:
                 fingerprint["model"],
             )
 
-    async def _complete_with_client(
+    def _request_kwargs(
         self,
         agent: AgentSession,
-        client: LLMClient,
         settings: RuntimeSettings,
         messages: list[dict[str, Any]],
         tools: list[str],
-        on_delta: DeltaSink | None,
-    ) -> LLMResponse:
+    ) -> dict[str, Any]:
         native_adapter = _native_search_adapter_for(settings)
         rename_search = native_adapter is not None and native_adapter.name == "deepseek"
         from cloudra.runtime_v2.tool_catalog import wire_tool_schemas
@@ -795,6 +793,31 @@ class LegacyLLMProvider:
         js_protocol = effective_invocation_protocol(agent) is InvocationProtocol.JAVASCRIPT
         if js_protocol:
             kwargs["parallel_tool_calls"] = False
+        return kwargs
+
+    def estimate_prompt_tokens(self, agent: AgentSession, messages: list[dict], tools: list[str]) -> int:
+        """Use the same request projection for budgeting and sending."""
+        from cloudra.infra.token_estimator import TokenEstimator
+
+        kwargs = self._request_kwargs(agent, legacy_default_settings(agent), messages, tools)
+        tokens = TokenEstimator.count_messages(kwargs["messages"])
+        if kwargs.get("tools"):
+            tokens += TokenEstimator.count_text(json.dumps(kwargs["tools"], ensure_ascii=False))
+        return tokens
+
+    async def _complete_with_client(
+        self,
+        agent: AgentSession,
+        client: LLMClient,
+        settings: RuntimeSettings,
+        messages: list[dict[str, Any]],
+        tools: list[str],
+        on_delta: DeltaSink | None,
+    ) -> LLMResponse:
+        native_adapter = _native_search_adapter_for(settings)
+        rename_search = native_adapter is not None and native_adapter.name == "deepseek"
+        kwargs = await asyncio.to_thread(self._request_kwargs, agent, settings, messages, tools)
+        js_protocol = effective_invocation_protocol(agent) is InvocationProtocol.JAVASCRIPT
         self._log_request_fingerprint(agent, kwargs, kind="agent")
         try:
             if native_adapter is not None and native_adapter.transport == "responses":

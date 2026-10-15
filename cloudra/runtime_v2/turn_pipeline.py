@@ -48,6 +48,12 @@ logger = logging.getLogger(__name__)
 DeltaSink = Callable[[str, str], Awaitable[None]]
 
 
+class ContextBudgetError(ValueError):
+    """The configured window cannot hold the prepared input and output reserve."""
+
+    status_code = 400
+
+
 class ContextPrefix(Protocol):
     """Per-context owner of the installed prompt prefix and dynamic snapshots.
 
@@ -313,6 +319,15 @@ class TurnPipeline:
         if owner is not None:
             owner.set_tool_selection(record.model_dump(mode='json'))
 
+    async def estimate_prompt_tokens(self, agent: AgentSession, messages: list[dict]) -> int:
+        """Count the prepared messages and, when available, the provider's wire tools."""
+        from cloudra.runtime_v2.compaction import estimate_messages_tokens
+
+        estimator = getattr(self.llm, "estimate_prompt_tokens", None)
+        if estimator is not None:
+            return await asyncio.to_thread(estimator, agent, messages, agent.capabilities.tools)
+        return await asyncio.to_thread(estimate_messages_tokens, messages)
+
     async def run_turn(
         self,
         *,
@@ -327,6 +342,7 @@ class TurnPipeline:
         context_prefix: ContextPrefix | None = None,
         context_broker=None,
         vision_enabled: bool = True,
+        prepare_context: Callable[[list[dict], int], Awaitable[list[dict]]] | None = None,
     ) -> TurnOutcome:
         emit = self._emitter(agent, run_id)
         notice_sink = notices if notices is not None else self.notices
@@ -444,6 +460,12 @@ class TurnPipeline:
         # 投影里的媒体是稳定引用（image_ref：路径 + fallback 文本）；
         # 发送前解析为 data URL 或文本降级，投影不重嵌 base64。
         messages = await resolve_media_references(messages, vision_enabled=vision_enabled)
+        estimated_prompt_tokens = await self.estimate_prompt_tokens(agent, messages)
+        if prepare_context is not None:
+            prepared = await prepare_context(messages, estimated_prompt_tokens)
+            if prepared is not messages:
+                messages = await resolve_media_references(prepared, vision_enabled=vision_enabled)
+                estimated_prompt_tokens = await self.estimate_prompt_tokens(agent, messages)
 
         # settings 是 spawn 快照：model 未显式覆盖时为空串，真实生效值由
         # provider 侧桥接填充（LegacyLLMProvider 从 config 槽位补全）。遥测
@@ -503,6 +525,7 @@ class TurnPipeline:
             data={
                 "model": model,
                 "usage": response.usage,
+                "estimated_prompt_tokens": estimated_prompt_tokens,
                 "finish_reason": response.finish_reason,
                 "latency_ms": int((time.monotonic() - started) * 1000),
             },

@@ -94,7 +94,11 @@ def build_router(ctx: ApiContext) -> APIRouter:
         if context is None:
             return None
         store, engine = context
-        mode = ctx.core.require_project(project_id).settings.orchestration_mode
+        controller = await asyncio.to_thread(_dag_controller, ctx, project_id)
+        if controller is None:
+            return None
+        await controller.initialize()
+        report = await asyncio.to_thread(controller.delivery_report)
         reviews = await asyncio.to_thread(store.list_call_reviews)
         pending = [
             {
@@ -111,8 +115,8 @@ def build_router(ctx: ApiContext) -> APIRouter:
         projection = await asyncio.to_thread(
             build_projection,
             engine.snapshot(),
-            mode=mode,
-            contract=store.load_coverage_contract(),
+            mode=controller.mode,
+            report=report,
             history=engine.history(limit=8),
             pending_reviews=pending,
         )

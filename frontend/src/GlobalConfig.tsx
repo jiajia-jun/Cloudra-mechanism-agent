@@ -213,7 +213,7 @@ function SlotSection({
 
       <div className="field-row">
         <label className="field" style={{ flex: 1, marginBottom: 0 }}>
-          context_window
+          上下文窗口（Token）
           <input
             className="input"
             type="number"
@@ -221,6 +221,9 @@ function SlotSection({
             value={draft.context_window}
             onChange={(e) => onChange({ context_window: e.target.value })}
           />
+          <span className="field-hint">
+            输入与输出共享此容量。扣除最大输出上限后预留余量，提前压缩历史；未单独设置窗口的智能体从下一轮继承。
+          </span>
         </label>
         <label className="field" style={{ flex: 1, marginBottom: 0 }}>
           timeout (s)

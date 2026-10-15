@@ -1,19 +1,18 @@
 """Token 计数器：压缩触发与截断的统一入口。
 
-优先使用 ``tiktoken`` 做本地精确计数（不依赖 provider tokenize 端点）；
-tiktoken 不可用时回退到字符启发式（偏保守，略高估，避免迟迟不压缩）。
+使用随包提供的 OpenAI o200k_base 词表离线计数，不依赖临时缓存或下载。
+它是跨供应商的本地估计；实际请求用量仍应以供应商返回值为准。
 
-压缩决策应调用 ``count_text`` / ``count_messages``，不要直接依赖启发式。
+压缩决策统一调用 ``count_text`` / ``count_messages``。
 """
 
 from __future__ import annotations
 
+import base64
+import gzip
 import hashlib
-import os
-import re
-import tempfile
 from functools import lru_cache
-from pathlib import Path
+from importlib.resources import files
 from typing import Any, Optional
 
 # OpenAI chat 消息格式开销（cl100k / o200k 通用近似）
@@ -21,46 +20,43 @@ _TOKENS_PER_MESSAGE = 4
 _TOKENS_PER_NAME = 1
 _REPLY_PRIMING_TOKENS = 2
 
-_ENCODING_ASSETS = {
-    "o200k_base": (
-        "fb374d419588a4632f3f557e76b4b70aebbca790",
-        "446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d",
-    ),
-    "cl100k_base": (
-        "9b5ad71b2ce5302211f9c61530b329a4922fc6a4",
-        "223921b76ee99bde995b7ff738513eef100fb51d18c93597a113bcffe865b2a7",
-    ),
-}
-
-
-def _encoding_cache_dir() -> Path:
-    configured = os.getenv("TIKTOKEN_CACHE_DIR")
-    if configured is None:
-        configured = os.getenv("DATA_GYM_CACHE_DIR")
-    if configured is None:
-        configured = os.path.join(tempfile.gettempdir(), "data-gym-cache")
-    return Path(configured) if configured else Path("/__tiktoken_cache_disabled__")
-
-
-def _require_cached_encoding_asset(name: str) -> None:
-    """Keep token counting offline; tiktoken's downloader has no timeout."""
-    asset = _ENCODING_ASSETS.get(name)
-    if asset is None:
-        raise FileNotFoundError(f"tiktoken encoding {name!r} is not cached")
-    cache_key, expected_hash = asset
-    path = _encoding_cache_dir() / cache_key
-    if not path.is_file():
-        raise FileNotFoundError(f"tiktoken encoding {name!r} is not cached at {path}")
-    if hashlib.sha256(path.read_bytes()).hexdigest() != expected_hash:
-        raise FileNotFoundError(f"tiktoken encoding {name!r} cache is invalid at {path}")
+_O200K_SHA256 = "446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d"
+# The tokenizer pattern and special tokens match openai/tiktoken's
+# tiktoken_ext/openai_public.py. This pattern tokenizes text; it does not
+# validate Agent responses or tool inputs.
+_O200K_PATTERN = "|".join(
+    [
+        r"[^\r\n\p{L}\p{N}]?[\p{Lu}\p{Lt}\p{Lm}\p{Lo}\p{M}]*[\p{Ll}\p{Lm}\p{Lo}\p{M}]+(?i:'s|'t|'re|'ve|'m|'ll|'d)?",
+        r"[^\r\n\p{L}\p{N}]?[\p{Lu}\p{Lt}\p{Lm}\p{Lo}\p{M}]+[\p{Ll}\p{Lm}\p{Lo}\p{M}]*(?i:'s|'t|'re|'ve|'m|'ll|'d)?",
+        r"\p{N}{1,3}",
+        r" ?[^\s\p{L}\p{N}]+[\r\n/]*",
+        r"\s*[\r\n]+",
+        r"\s+(?!\S)",
+        r"\s+",
+    ]
+)
 
 
 @lru_cache(maxsize=8)
 def _encoding_for(name: str):
-    _require_cached_encoding_asset(name)
+    if name != "o200k_base":
+        raise KeyError(name)
     import tiktoken
 
-    return tiktoken.get_encoding(name)
+    resource = files("cloudra.infra").joinpath("token_data", "o200k_base.tiktoken.gz")
+    contents = gzip.decompress(resource.read_bytes())
+    if hashlib.sha256(contents).hexdigest() != _O200K_SHA256:
+        raise ValueError("bundled o200k_base tokenizer has an invalid SHA-256")
+    ranks = {
+        base64.b64decode(token): int(rank)
+        for token, rank in (line.split() for line in contents.splitlines() if line)
+    }
+    return tiktoken.Encoding(
+        name=name,
+        pat_str=_O200K_PATTERN,
+        mergeable_ranks=ranks,
+        special_tokens={"<|endoftext|>": 199999, "<|endofprompt|>": 200018},
+    )
 
 
 @lru_cache(maxsize=32)
@@ -71,17 +67,10 @@ def _encoding_for_model(model: str):
 
 
 class TokenEstimator:
-    """精确优先的 token 计数器（tiktoken），附带启发式回退。"""
+    """使用随包词表的离线 token 计数器。"""
 
     _model: Optional[str] = None
     _encoding_name: str = "o200k_base"
-
-    # ---- 启发式回退（仅 tiktoken 不可用时）----
-    _CJK_RE = re.compile(r"[\u4e00-\u9fff]")
-    _CJK_EXT_RE = re.compile(
-        r"[\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af\u3100-\u312f]"
-    )
-    _ASCII_RE = re.compile(r"[a-zA-Z0-9]")
 
     @classmethod
     def configure(
@@ -102,12 +91,9 @@ class TokenEstimator:
         if cls._model:
             try:
                 return _encoding_for_model(cls._model)
-            except Exception:
+            except KeyError:
                 pass
-        try:
-            return _encoding_for(cls._encoding_name)
-        except Exception:
-            return _encoding_for("cl100k_base")
+        return _encoding_for(cls._encoding_name)
 
     # ------------------------------------------------------------------
     # 精确计数 API
@@ -115,31 +101,25 @@ class TokenEstimator:
 
     @classmethod
     def count_text(cls, text: Any) -> int:
-        """精确计数单段文本 token（tiktoken）；失败则启发式。"""
+        """按随包词表计数；词表缺失或损坏时明确报错。"""
         if text is None:
             return 0
         if not isinstance(text, str):
             text = str(text)
         if not text:
             return 0
-        try:
-            return len(cls._get_encoding().encode(text, disallowed_special=()))
-        except Exception:
-            return cls._estimate_text_heuristic(text)
+        return len(cls._get_encoding().encode(text, disallowed_special=()))
 
     @classmethod
     def truncate_to_tokens(cls, text: str, max_tokens: int) -> str:
-        """把文本截到不超过 ``max_tokens``（优先按 tiktoken token 边界）。"""
+        """把文本按词表边界截到不超过 ``max_tokens``。"""
         if max_tokens <= 0 or not text:
             return ""
-        try:
-            enc = cls._get_encoding()
-            tokens = enc.encode(text, disallowed_special=())
-            if len(tokens) <= max_tokens:
-                return text
-            return enc.decode(tokens[:max_tokens])
-        except Exception:
-            return cls._truncate_heuristic(text, max_tokens)
+        enc = cls._get_encoding()
+        tokens = enc.encode(text, disallowed_special=())
+        if len(tokens) <= max_tokens:
+            return text
+        return enc.decode(tokens[:max_tokens])
 
     @classmethod
     def count_content_part(cls, part: dict) -> int:
@@ -229,37 +209,6 @@ class TokenEstimator:
     @classmethod
     def estimate_messages(cls, messages: list[dict]) -> int:
         return cls.count_messages(messages)
-
-    # ------------------------------------------------------------------
-    # 启发式回退
-    # ------------------------------------------------------------------
-
-    @classmethod
-    def _estimate_text_heuristic(cls, text: str) -> int:
-        cjk_count = len(cls._CJK_RE.findall(text))
-        cjk_ext_count = len(cls._CJK_EXT_RE.findall(text))
-        ascii_count = len(cls._ASCII_RE.findall(text))
-        other_count = max(0, len(text) - cjk_count - cjk_ext_count - ascii_count)
-        total = (
-            cjk_count / 1.0
-            + cjk_ext_count / 1.5
-            + ascii_count / 4.0
-            + other_count / 4.0
-        )
-        return max(1, int(total))
-
-    @classmethod
-    def _truncate_heuristic(cls, text: str, max_tokens: int) -> str:
-        if cls._estimate_text_heuristic(text) <= max_tokens:
-            return text
-        lo, hi = 0, len(text)
-        while lo < hi:
-            mid = (lo + hi + 1) // 2
-            if cls._estimate_text_heuristic(text[:mid]) <= max_tokens:
-                lo = mid
-            else:
-                hi = mid - 1
-        return text[:lo]
 
 
 def _stable_json(obj: Any) -> str:

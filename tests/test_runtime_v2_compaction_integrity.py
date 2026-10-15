@@ -349,7 +349,7 @@ async def test_summary_timeout_reports_segment_failure():
 @pytest.mark.asyncio
 async def test_single_object_where_array_is_required_retried_then_recovered():
     """模型把列表字段写成单个 entry 对象（真实故障：seq 47043/46632/2819）
-    → 不降级解析，带校验错误与上一次回复重问一次；模型改对后正常压缩。"""
+    → 带同一段轨迹与校验错误重问一次；模型改对后正常压缩。"""
     messages = _trajectory_context()
     bare_object = json.dumps(
         _summary_payload(
@@ -371,10 +371,10 @@ async def test_single_object_where_array_is_required_retried_then_recovered():
     retry = summarizer.calls[1]
     assert retry[0] == summarizer.calls[0][0]  # 同一份系统指令
     assert retry[1] == summarizer.calls[0][1]  # 同一段轨迹
-    assert retry[2] == {"role": "assistant", "content": bare_object}
-    assert retry[3]["role"] == "user"
-    assert "active_requests" in retry[3]["content"]
-    assert "JSON array" in retry[3]["content"]
+    assert len(retry) == 3  # 不重复发送坏回复，避免重问把请求挤出窗口
+    assert retry[2]["role"] == "user"
+    assert "active_requests" in retry[2]["content"]
+    assert "JSON array" in retry[2]["content"]
     assert "deliver the barrier" in new_context[-1]["content"]
 
 
@@ -462,7 +462,7 @@ async def test_message_over_budget_is_segmented_not_refused():
         head=[],
         notices=[],
         summarize=summarizer,
-        context_window=1_000,
+        context_window=2_000,
         max_output=0,
     )
     assert stats["compacted"] is True
@@ -484,7 +484,8 @@ async def test_message_over_budget_is_segmented_not_refused():
 async def test_merge_payloads_are_batched_when_they_exceed_the_budget():
     """片段摘要的合并载荷超预算时分批多轮合并：一次装不下的输入不再直接
     失败（单次合并实现会在长会话上 merge_failed，进而再也压不动）。"""
-    window, output = _context_window_for(600)
+    # 除合并正文外，还要容纳系统指令与一次结构校验重问。
+    window, output = _context_window_for(1_200)
     messages = [{"role": "assistant", "content": "z" * 1_200} for _ in range(18)]
     fat = _summary_json(objective={"text": "o" * 1_000, "sources": []})
     seen: list[list[dict]] = []
@@ -1043,8 +1044,7 @@ async def test_budget_trigger_compacts_when_over_estimate(monkeypatch):
 @pytest.mark.asyncio
 async def test_budget_compact_refusal_keeps_context_and_records_reason(monkeypatch):
     """摘要模型失控（每段都回 10 万字符）→ 拒绝替换：原上下文不动，
-    compaction.finished 记录原因，run 正常继续。合并阶段先被容量挡住
-    （merge_capacity），装得下时则由"摘要不比轨迹短"挡住。"""
+    记录拒因并明确停止，不能继续发送超过已配置窗口的请求。"""
     from cloudra.runtime_v2.schemas import Command
 
     big_summary = _summary_json(objective={"text": "o" + "x" * 100_000, "sources": []})
@@ -1068,7 +1068,7 @@ async def test_budget_compact_refusal_keeps_context_and_records_reason(monkeypat
             payload={"content": "solve it"},
         )
     )
-    await _wait_state(agent, "succeeded")
+    await _wait_state(agent, "failed")
     finished = [
         e
         for e in core.event_log.query_session(agent.id)
@@ -1077,13 +1077,14 @@ async def test_budget_compact_refusal_keeps_context_and_records_reason(monkeypat
     assert finished
     assert all(not e.data.get("compacted") for e in finished)
     assert all(
-        e.data.get("reason") in {"summary_not_shorter", "merge_capacity"}
+        e.data.get("reason") in {"summary_not_shorter", "merge_capacity", "summary_capacity"}
         for e in finished
     )
-    # 原上下文未替换：两条 tool 消息仍在投影里
+    # 已完成的两轮工具结果仍在；未向模型发送第三个超限请求。
     assert sum(
         1 for m in core.session_contexts[agent.id].messages if m.get("role") == "tool"
     ) == 2
+    assert len(llm.calls) == 2
 
 
 class _ResolvingLLM(_TwoToolsLLM):
