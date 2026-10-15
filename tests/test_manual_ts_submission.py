@@ -1,4 +1,4 @@
-"""Manual TS/IRC jobs must never reach the queue; the durable process still can."""
+"""Manual TS/IRC jobs and durable process jobs share the compute queue."""
 
 import asyncio
 from types import SimpleNamespace
@@ -50,10 +50,9 @@ def queue_admission(monkeypatch, tmp_path):
 
 
 @pytest.mark.parametrize("engine,content", TS_INPUTS)
-@pytest.mark.parametrize("is_async", [True, False])
 @pytest.mark.asyncio
-async def test_manual_ts_irc_rejected_without_creating_job(
-    tmp_path, queue_admission, engine, content, is_async,
+async def test_manual_ts_irc_jobs_queue(
+    tmp_path, queue_admission, engine, content,
 ):
     path = tmp_path / "ordinary_input.txt"
     path.write_text(content, encoding="utf-8")
@@ -61,14 +60,17 @@ async def test_manual_ts_irc_rejected_without_creating_job(
     tool = SubmitComputeJob(subagent=SimpleNamespace(conversation_id="project"))
     result = await tool.tool_call(
         SubmitComputeJob_input_schema(
-            input_file=str(path), job_type=engine, is_async=is_async,
+            input_file=str(path), job_type=engine, is_async=True,
         ), session=None,
     )
-    assert not result.is_success
-    assert result.job_id == -1
-    assert "ts_prepare" in result.message
-    assert "ts_resume" in result.message
-    assert await asyncio.to_thread(list_compute_jobs, db) == []
+    assert result.is_success
+    assert result.state == "ready"
+    jobs = await asyncio.to_thread(list_compute_jobs, db)
+    assert len(jobs) == 1
+    assert jobs[0]["id"] == result.job_id
+    assert jobs[0]["path"] == str(path)
+    assert jobs[0]["jobtype"] == engine
+    assert jobs[0]["conversation_id"] == "project"
 
 
 @pytest.mark.parametrize("engine,content", [

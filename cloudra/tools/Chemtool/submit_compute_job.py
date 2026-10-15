@@ -16,7 +16,6 @@ from cloudra.persistence.database import ComputeDB
 from cloudra.persistence.workspace import resolve_tool_path
 from cloudra.services.compute_admission import admit_job, declared_cpus, declared_memory_mb
 from cloudra.services.compute_store import afinalize_compute_job, ainsert_compute_job
-from cloudra.tools.core.calculation_intent import inspect_input
 
 description = (
     "Submit a compute job: take a prepared input-file path, insert a record in compute_jobs, "
@@ -177,32 +176,6 @@ class SubmitComputeJob(Tool):
                     "refusing to attribute the job to 'default'."
                 ),
             )
-
-        # Temporary manual-entry restriction, deliberately outside shared
-        # admission: ts_process must still submit its own TS and IRC steps.
-        if user_input.job_type in {"gaussian", "orca"}:
-            try:
-                content = await asyncio.to_thread(
-                    Path(f_path).read_text, encoding="utf-8", errors="replace",
-                )
-            except OSError as exc:
-                return SubmitComputeJob_output_schema(
-                    is_success=False, message=f"Cannot inspect compute input: {exc}",
-                )
-            intent = inspect_input(content, engine=user_input.job_type)
-            if intent.tasks & {"ts_opt", "irc"}:
-                return SubmitComputeJob_output_schema(
-                    is_success=False,
-                    message=(
-                        "Manual TS/IRC submission is temporarily disabled while the durable "
-                        "workflow is being validated. No job was created. Use ts_prepare "
-                        "to start a TS workflow; for an existing run, use ts_resume with "
-                        "the required declaration adjustments (or without adjustments after "
-                        "a compute notification). If the workflow blocks, correct the "
-                        "named declaration or report the tool limitation; do not bypass "
-                        "it with a manual input or direct engine execution."
-                    ),
-                )
 
         scan_task = None
         if user_input.job_type == 'chem_task':
