@@ -17,5 +17,5 @@ def commit_notices(notices, session_id):
             "context.appended", stream="agent", project_id="prj",
             session_id=session_id, data=data,
         )
-    apply_event(SimpleNamespace(notices=notices, session_contexts={}), event)
+    apply_event(SimpleNamespace(notices=notices, session_contexts={}, apply_runtime_projection=notices.apply), event)
     return messages

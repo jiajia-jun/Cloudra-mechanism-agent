@@ -12,7 +12,7 @@ marker used by live and restore paths.
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from cloudra.runtime_v2.dispatcher import WakePolicy
@@ -24,78 +24,106 @@ _REPORT_KIND = "peer_call_completion"
 
 @dataclass(slots=True)
 class PeerCompletionIndex:
-    """One pass over the event log for every peer pending a first result."""
+    """First-result obligation and current run facts, bounded by peer count."""
 
-    terminal_by_session: dict[str, EventEnvelope]
-    final_message_by_session: dict[str, EventEnvelope]
-    finished_by_run: dict[tuple[str, str], EventEnvelope]
-    reported: set[tuple[str, str]]
+    terminal_by_session: dict[str, EventEnvelope] = field(default_factory=dict)
+    final_message_by_session: dict[str, EventEnvelope] = field(default_factory=dict)
+    finished_by_run: dict[tuple[str, str], EventEnvelope] = field(default_factory=dict)
+    reported: set[tuple[str, str]] = field(default_factory=set)
+    latest_gate_by_session: dict[str, tuple[str | None, str]] = field(default_factory=dict)
+    latest_message_by_session: dict[str, EventEnvelope] = field(default_factory=dict)
+    watermarks: dict[str, int] = field(default_factory=dict)
 
-
-def build_peer_completion_index(core) -> PeerCompletionIndex:
-    """Index restore/live facts in one log pass, with storage bounded by peer runs."""
-    peer_ids = {
-        agent.id
-        for agent in core.agents.values()
-        if agent.requested_by_session_id and agent.parent_session_id is None
-    }
-    terminal_by_session: dict[str, EventEnvelope] = {}
-    final_message_by_session: dict[str, EventEnvelope] = {}
-    finished_by_run: dict[tuple[str, str], EventEnvelope] = {}
-    reported: set[tuple[str, str]] = set()
-    latest_gate_by_run: dict[tuple[str, str], str] = {}
-    latest_message_by_run: dict[tuple[str, str], EventEnvelope] = {}
-    if not peer_ids:
-        return PeerCompletionIndex(
-            terminal_by_session=terminal_by_session,
-            final_message_by_session=final_message_by_session,
-            finished_by_run=finished_by_run,
-            reported=reported,
-        )
-
-    for event in core.event_log.iter_events(types={
-        "agent.message_injected", "run.finished", "agent.completion_gate",
-        "agent.message_emitted", "agent.state_changed",
-    }):
+    def apply(self, event: EventEnvelope, core) -> None:
+        if event.seq <= self.watermarks.get(event.project_id, 0):
+            return
+        self.watermarks[event.project_id] = event.seq
         session_id = event.session_id
         if event.type == "agent.message_injected" and session_id:
             manifest = event.data.get("manifest")
             if isinstance(manifest, dict) and manifest.get("kind") == _REPORT_KIND:
                 peer_id = manifest.get("session_id")
-                if isinstance(peer_id, str) and peer_id in peer_ids:
-                    reported.add((session_id, peer_id))
-        if session_id not in peer_ids:
-            continue
-        run_key = (session_id, event.run_id or "")
+                peer = core.agents.get(peer_id) if isinstance(peer_id, str) else None
+                if peer is not None and peer.requested_by_session_id and peer.parent_session_id is None:
+                    self.reported.add((session_id, peer_id))
+        peer = core.agents.get(session_id)
+        if peer is None or not peer.requested_by_session_id or peer.parent_session_id is not None:
+            return
+        terminal = self.terminal_by_session.get(peer.id)
         if event.type == "run.finished":
-            terminal = terminal_by_session.get(session_id)
             if terminal is not None and event.run_id == terminal.run_id:
-                finished_by_run[run_key] = event
-        elif event.type == "agent.completion_gate" and event.run_id:
-            if session_id not in terminal_by_session:
-                latest_gate_by_run[run_key] = str(event.data.get("action") or "")
-        elif event.type == "agent.message_emitted" and event.run_id:
-            if session_id not in terminal_by_session and str(event.data.get("content") or "").strip():
-                latest_message_by_run[run_key] = event
-        elif event.type == "agent.state_changed" and session_id not in terminal_by_session:
-            state = event.data.get("to")
-            if state not in _TERMINAL_STATES:
-                continue
-            # wait_background parks a run as SUCCEEDED; the peer owes its
-            # requester the result of a later final run.
-            if state == "succeeded" and latest_gate_by_run.get(run_key) == "wait_background":
-                continue
-            terminal_by_session[session_id] = event
-            final = latest_message_by_run.get(run_key)
-            if final is not None:
-                final_message_by_session[session_id] = final
+                self.finished_by_run[(peer.id, event.run_id or "")] = event
+        elif terminal is None:
+            if event.type == "run.started":
+                self.latest_gate_by_session.pop(peer.id, None)
+                self.latest_message_by_session.pop(peer.id, None)
+            elif event.type == "agent.completion_gate" and event.run_id:
+                self.latest_gate_by_session[peer.id] = (event.run_id, str(event.data.get("action") or ""))
+            elif (
+                event.type == "agent.message_emitted" and event.run_id and str(event.data.get("content") or "").strip()
+            ):
+                self.latest_message_by_session[peer.id] = event
+            elif event.type == "agent.state_changed":
+                state = event.data.get("to")
+                if state not in _TERMINAL_STATES:
+                    return
+                if state == "succeeded" and self.latest_gate_by_session.get(peer.id) == (
+                    event.run_id,
+                    "wait_background",
+                ):
+                    return
+                self.terminal_by_session[peer.id] = event
+                final = self.latest_message_by_session.pop(peer.id, None)
+                if final is not None and final.run_id == event.run_id:
+                    self.final_message_by_session[peer.id] = final
+                self.latest_gate_by_session.pop(peer.id, None)
 
-    return PeerCompletionIndex(
-        terminal_by_session=terminal_by_session,
-        final_message_by_session=final_message_by_session,
-        finished_by_run=finished_by_run,
-        reported=reported,
-    )
+    def snapshot(self) -> dict[str, Any]:
+        return {
+            "terminal_by_session": {
+                sid: event.model_dump(mode="json") for sid, event in self.terminal_by_session.items()
+            },
+            "final_message_by_session": {
+                sid: event.model_dump(mode="json") for sid, event in self.final_message_by_session.items()
+            },
+            "finished_by_run": [event.model_dump(mode="json") for event in self.finished_by_run.values()],
+            "reported": [list(pair) for pair in sorted(self.reported)],
+            "latest_gate_by_session": {sid: list(gate) for sid, gate in self.latest_gate_by_session.items()},
+            "latest_message_by_session": {
+                sid: event.model_dump(mode="json") for sid, event in self.latest_message_by_session.items()
+            },
+            "watermarks": dict(self.watermarks),
+        }
+
+    def restore(self, payload: dict[str, Any]) -> None:
+        for name in ("terminal_by_session", "final_message_by_session", "latest_message_by_session"):
+            setattr(
+                self, name, {sid: EventEnvelope.model_validate(event) for sid, event in payload.get(name, {}).items()}
+            )
+        finished = [EventEnvelope.model_validate(event) for event in payload.get("finished_by_run", [])]
+        self.finished_by_run = {(event.session_id, event.run_id or ""): event for event in finished}
+        self.reported = {tuple(pair) for pair in payload.get("reported", [])}
+        self.latest_gate_by_session = {
+            sid: tuple(gate) for sid, gate in payload.get("latest_gate_by_session", {}).items()
+        }
+        self.watermarks = dict(payload.get("watermarks", {}))
+
+    def prune(self, session_ids: set[str]) -> None:
+        for mapping in (
+            self.terminal_by_session,
+            self.final_message_by_session,
+            self.latest_gate_by_session,
+            self.latest_message_by_session,
+        ):
+            for session_id in mapping.keys() - session_ids:
+                mapping.pop(session_id)
+        self.finished_by_run = {key: event for key, event in self.finished_by_run.items() if key[0] in session_ids}
+        self.reported = {pair for pair in self.reported if pair[0] in session_ids and pair[1] in session_ids}
+
+
+def build_peer_completion_index(core) -> PeerCompletionIndex:
+    """Reuse the index fed by the common persist/replay path."""
+    return core.peer_completions
 
 
 def _manifest(peer: AgentSession, terminal: EventEnvelope, index: PeerCompletionIndex) -> dict[str, Any]:

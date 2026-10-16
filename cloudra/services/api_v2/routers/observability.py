@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-from collections import defaultdict
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -39,72 +38,105 @@ def _jobs_for_receipt(row: dict) -> dict:
 def build_router(ctx: ApiContext) -> APIRouter:
     router = APIRouter()
 
-    def event_snapshot(project_id, types):
-        marks = (
-            ctx.core.event_writer.persisted_watermarks()
-            if ctx.core.store is not None
-            else ctx.core.event_log.high_watermarks
-        )
-        watermark = marks.get(project_id, 0)
-        events = ctx.core.event_log.iter_project(project_id, types=types, before_seq=watermark)
-        return events, watermark
+    def metadata():
+        log = ctx.core.event_log
+        return log.durable_metadata() if ctx.core.store is not None else {
+            "projects": log.high_watermarks, "sessions": log.high_session_watermarks,
+        }
 
-    async def calls_for(session_id, *, details=False, request_event_id=None):
-        agent = ctx.core.require_agent(session_id)
-
-        def collect():
-            events, _ = event_snapshot(agent.project_id, CALL_EVENT_TYPES)
-            return tool_receipts(
-                (e for e in events if e.session_id == session_id),
-                details=details, request_event_id=request_event_id,
+    def calls_for(session_id, requests, boundary, *, details=False):
+        """Only selected attempts, scoped to their session/run and durable tail."""
+        log = ctx.core.event_log
+        grouped = {}
+        for request in requests:
+            grouped.setdefault(request.run_id, []).append(request)
+        receipts = []
+        for run_id, group in grouped.items():
+            first = min(request.session_seq for request in group)
+            # Cancellation is session-wide and may intentionally have no run ID.
+            cancelled = log.query_session(
+                session_id, after_session_seq=first - 1, before_session_seq=boundary,
+                types={"agent.cancelled"}, limit=1, tail=False,
             )
 
-        return await asyncio.to_thread(collect)
+            def events():
+                cursor = first - 1
+                terminal = cancelled[0] if cancelled else None
+                while True:
+                    page = log.query_session(
+                        session_id, run_id=run_id, after_session_seq=cursor,
+                        before_session_seq=boundary, types=CALL_EVENT_TYPES,
+                        limit=500, tail=False,
+                    )
+                    if not page:
+                        if terminal is not None:
+                            yield terminal
+                        return
+                    for event in page:
+                        if terminal is not None and terminal.session_seq <= event.session_seq:
+                            yield terminal
+                            duplicate = event.event_id == terminal.event_id
+                            terminal = None
+                            if duplicate:
+                                continue
+                        yield event
+                    cursor = page[-1].session_seq
+
+            receipts.extend(tool_receipts(
+                events(), details=details, request_event_ids={request.event_id for request in group},
+            ))
+        return sorted(receipts, key=lambda row: row["request_seq"], reverse=True)
 
     @router.get("/api/v2/agents/{session_id}/tool-calls", dependencies=ctx.protected)
     async def tool_calls(
         session_id: str, before: int | None = Query(default=None, ge=1), limit: int = Query(default=50, ge=1, le=200)
     ) -> dict:
-        rows = [r for r in reversed(await calls_for(session_id)) if before is None or r["request_seq"] < before]
-        page = rows[:limit]
-        return {
-            "items": [call_summary(r) for r in page],
-            "next_before": page[-1]["request_seq"] if len(rows) > limit else None,
-        }
+        ctx.core.require_agent(session_id)
+        boundary = metadata()["sessions"].get(session_id, 0)
+
+        def collect():
+            requests = ctx.core.event_log.query_session(
+                session_id, types={"tool.requested"}, limit=limit + 1,
+                before_session_seq=min(boundary, before - 1) if before is not None else boundary,
+            )
+            page = requests[-limit:]
+            rows = calls_for(session_id, page, boundary)
+            return {
+                "items": [call_summary(row) for row in rows],
+                "next_before": page[0].session_seq if len(requests) > limit else None,
+            }
+
+        return await asyncio.to_thread(collect)
 
     @router.get("/api/v2/agents/{session_id}/tool-calls/{request_event_id}", dependencies=ctx.protected)
     async def tool_call(session_id: str, request_event_id: str) -> dict:
-        rows = await calls_for(session_id, details=True, request_event_id=request_event_id)
-        row = next((r for r in rows if r["request_event_id"] == request_event_id), None)
-        if row is None:
-            raise HTTPException(404, "tool call not found")
-        return await asyncio.to_thread(_jobs_for_receipt, row)
+        agent = ctx.core.require_agent(session_id)
+        boundary = metadata()["sessions"].get(session_id, 0)
+
+        def collect():
+            request = ctx.core.event_log.get(request_event_id)
+            if (request is None or request.type != "tool.requested"
+                    or request.session_id != session_id or request.project_id != agent.project_id
+                    or (request.session_seq or 0) > boundary):
+                raise HTTPException(404, "tool call not found")
+            rows = calls_for(session_id, [request], boundary, details=True)
+            if not rows:
+                raise HTTPException(404, "tool call not found")
+            return _jobs_for_receipt(rows[0])
+
+        return await asyncio.to_thread(collect)
 
     @router.get("/api/v2/projects/{project_id}/activity", dependencies=ctx.protected)
     async def project_activity(project_id: str) -> dict:
-        ctx.core.require_project(project_id)
-        events, watermark = await asyncio.to_thread(event_snapshot, project_id, ACTIVITY_EVENT_TYPES)
-        agents = [a.model_copy(deep=True) for a in ctx.core.agents.values() if a.project_id == project_id]
-        reminders = await asyncio.to_thread(
-            ctx.core.reminders.pending_in_project, project_id, through_seq=watermark
-        )
+        async with ctx.core.command_lock:
+            async with ctx.core.event_writer._lock:
+                ctx.core.require_project(project_id)
+                marks = metadata()
+                watermark = marks["projects"].get(project_id, 0)
+                agents = [a.model_copy(deep=True) for a in ctx.core.agents.values() if a.project_id == project_id]
+                reminders = ctx.core.reminders.pending_in_project(project_id)
 
         def collect():
-            calls_by_agent, events_by_agent = defaultdict(list), defaultdict(list)
-
-            def inspect_events():
-                for event in events:
-                    # Activity needs lifecycle data and event metadata; raw tool
-                    # payloads are consumed once by receipt projection below.
-                    state_event = (
-                        event if event.type in {"agent.spawned", "agent.state_changed", "agent.completion_gate"}
-                        else event.model_copy(update={"data": {}})
-                    )
-                    events_by_agent[event.session_id].append(state_event)
-                    yield event
-
-            for row in tool_receipts(inspect_events(), details=False):
-                calls_by_agent[row["session_id"]].append(row)
             db = ComputeDB()
             jobs = (
                 list_compute_jobs(db, conversation_id=project_id, states=("ready", "running", "cancel_requested"))
@@ -112,8 +144,27 @@ def build_router(ctx: ApiContext) -> APIRouter:
                 else []
             )
             rows = []
+            log = ctx.core.event_log
             for agent in agents:
-                row = agent_activity(agent, events_by_agent[agent.id], calls_by_agent[agent.id])
+                boundary = marks["sessions"].get(agent.id, 0)
+                run_id = agent.current_run.run_id if agent.current_run else None
+                calls = tool_receipts(log.query_session(
+                    agent.id, run_id=run_id, before_session_seq=boundary,
+                    types=CALL_EVENT_TYPES, limit=None,
+                ), details=False) if run_id is not None else []
+                # Only fixed tails are needed outside the current run. All old
+                # attempts stay behind the existing lazy tool-call pagination.
+                tails = [
+                    log.query_session(agent.id, types=types, before_session_seq=boundary, limit=1)
+                    for types in (ACTIVITY_EVENT_TYPES, {"agent.completion_gate"}, {"run.finished", "agent.cancelled"})
+                ]
+                if run_id is not None:
+                    tails.append(log.query_session(
+                        agent.id, run_id=run_id, before_session_seq=boundary,
+                        types={"llm.request_started", "llm.completed", "llm.failed"}, limit=1,
+                    ))
+                events = sorted({e.event_id: e for tail in tails for e in tail}.values(), key=lambda e: e.session_seq)
+                row = agent_activity(agent, events, calls)
                 row["goal"] = read_goal(agent)
                 row["compute_jobs"] = [j for j in jobs if j["session_id"] == agent.id]
                 row["reminders"] = [r for r in reminders if r["session_id"] == agent.id]
@@ -127,12 +178,8 @@ def build_router(ctx: ApiContext) -> APIRouter:
                         for r in row["reminders"]
                     ]
                 rows.append(row)
-            return {
-                "project_id": project_id,
-                "as_of_seq": watermark,
-                "observed_at": utc_now().isoformat(),
-                "agents": rows,
-            }
+            return {"project_id": project_id, "as_of_seq": watermark,
+                    "observed_at": utc_now().isoformat(), "agents": rows}
 
         return await asyncio.to_thread(collect)
 

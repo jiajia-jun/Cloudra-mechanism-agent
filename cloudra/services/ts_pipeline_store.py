@@ -198,7 +198,9 @@ def commit_input_revision(db: ComputeDB, *, process_id: str, request: TsResumeRe
     def operation():
         _recover_source_rewrite(db, process_id)
         with db.connect() as con:
-            con.execute('BEGIN IMMEDIATE')
+            # Prepare against one read snapshot; acquire the writer only for the intent.
+            # A concurrent ledger commit makes the upgrade retry the entire preparation.
+            con.execute('BEGIN')
             old = con.execute('SELECT payload FROM ts_pipeline_revision_receipts WHERE process_id=? AND request_key=?',
                               (process_id, request.request_key)).fetchone()
             if old:
@@ -243,7 +245,7 @@ def commit_input_revision(db: ComputeDB, *, process_id: str, request: TsResumeRe
             expected_input, projections = _project_revision_input(prior_record, request.changes)
             if value != expected_input:
                 raise ValueError('revision input differs from the accepted request')
-            validated_record = TsProcessRecord.model_validate(record)
+            validated_record = TsProcessRecord.model_validate(record).model_copy(deep=True)
             validated_record.revision = receipt.revision
             for role, projection in projections.items():
                 if role not in ('reactant', 'product'):
@@ -269,20 +271,22 @@ def commit_input_revision(db: ComputeDB, *, process_id: str, request: TsResumeRe
                 if binding is None or binding[0] != ref.job_id:
                     raise ValueError('revision evidence binding mismatch')
             _check_revision_budget(con, process_id, value)
-            from cloudra.infra.compute_utils import resolve_log_path
-            jobs = con.execute('SELECT path,jobtype,id FROM compute_jobs').fetchall()
-            protected = [path for path, _, _ in jobs]
-            protected.extend(resolve_log_path(path, kind, job_id) for path, kind, job_id in jobs)
-            for path, _, _ in jobs:
-                directory = Path(path).parent
-                for suffix in ('xyz', 'mol', 'log', 'out', 'hess', 'chk', 'fchk', 'gbw'):
-                    protected.extend(directory.glob(f'*.{suffix}'))
-            runs = []
-            for row in con.execute('SELECT record FROM ts_pipeline_processes WHERE record IS NOT NULL'):
-                checkpoint = json.loads(row[0])
-                protected.extend(_revision_protected_paths(checkpoint))
-                if checkpoint.get('run_dir'):
-                    runs.append(checkpoint['run_dir'])
+            protected, runs = [], []
+            if any(projection['before'][name] != after
+                   for projection in projections.values() for name, after in projection['after'].items()):
+                from cloudra.infra.compute_utils import resolve_log_path
+                jobs = con.execute('SELECT path,jobtype,id FROM compute_jobs').fetchall()
+                protected.extend(path for path, _, _ in jobs)
+                protected.extend(resolve_log_path(path, kind, job_id) for path, kind, job_id in jobs)
+                suffixes = {'.xyz', '.mol', '.log', '.out', '.hess', '.chk', '.fchk', '.gbw'}
+                for directory in {Path(path).parent.resolve() for path, _, _ in jobs}:
+                    if directory.is_dir():
+                        protected.extend(path for path in directory.iterdir() if path.suffix in suffixes)
+                for row in con.execute('SELECT record FROM ts_pipeline_processes WHERE record IS NOT NULL'):
+                    checkpoint = json.loads(row[0])
+                    protected.extend(_revision_protected_paths(checkpoint))
+                    if checkpoint.get('run_dir'):
+                        runs.append(checkpoint['run_dir'])
             files = _revision_rewrite_files(prior_record, projections,
                                            protected_paths=protected, protected_runs=runs)
             intent = dict(files=files, record=accepted_record, receipt=receipt.model_dump(mode='json'))

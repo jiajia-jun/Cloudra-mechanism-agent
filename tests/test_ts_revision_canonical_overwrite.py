@@ -576,3 +576,93 @@ def test_unrelated_unsupported_checkpoint_does_not_block_current_source_normaliz
     commit_input_revision(db, process_id=record.pipeline_id, request=change,
                           record=revised.model_dump(mode='json'), receipt=receipt)
     assert get_process(db, record.pipeline_id)['declaration_revision'] == 2
+
+
+def test_revision_directory_preparation_does_not_own_compute_writer_and_enumerates_once(tmp_path, monkeypatch):
+    import sqlite3
+
+    from rdkit import Chem
+
+    record, mol = _identity_fixture(tmp_path)
+    db = _ledger(tmp_path, record)
+    directory = tmp_path / "old-jobs"
+    directory.mkdir()
+    for index in range(3):
+        path = directory / f"job-{index}.inp"
+        path.write_text("previous job")
+        with db.connect() as con:
+            con.execute("INSERT INTO compute_jobs(conversation_id,path,state,jobtype) VALUES (?,?,?,?)",
+                        ("project", str(path), "done", "orca"))
+    _write_source(tmp_path, "reactant", Chem.RenumberAtoms(mol, [2, 0, 1]))
+    change = request(record, {})
+    receipt = plan_input_revision(record, change)
+    revised = revise_record(record, change, receipt)
+    original_glob, original_iterdir = Path.glob, Path.iterdir
+    writable = []
+
+    def probe(path):
+        if path == directory:
+            with sqlite3.connect(db.path, timeout=0) as writer:
+                try:
+                    writer.execute("BEGIN IMMEDIATE")
+                except sqlite3.OperationalError:
+                    writable.append(False)
+                else:
+                    writable.append(True)
+                    writer.rollback()
+
+    def glob(path, pattern):
+        probe(path)
+        return original_glob(path, pattern)
+
+    def iterdir(path):
+        probe(path)
+        return original_iterdir(path)
+
+    monkeypatch.setattr(Path, "glob", glob)
+    monkeypatch.setattr(Path, "iterdir", iterdir)
+    commit_input_revision(db, process_id=record.pipeline_id, request=change,
+                          record=revised.model_dump(mode="json"), receipt=receipt)
+    assert writable and all(writable), "filesystem preparation must not hold the compute write lock"
+    assert len(writable) == 1, "jobs sharing one directory must share one enumeration"
+
+
+def test_revision_preparation_retries_a_concurrent_job_binding_before_overwrite(tmp_path, monkeypatch):
+    import sqlite3
+
+    from rdkit import Chem
+
+    record, mol = _identity_fixture(tmp_path)
+    db = _ledger(tmp_path, record)
+    directory = tmp_path / "old-jobs"
+    directory.mkdir()
+    previous = directory / "existing.inp"
+    previous.write_text("previous job")
+    with db.connect() as con:
+        con.execute("INSERT INTO compute_jobs(conversation_id,path,state,jobtype) VALUES (?,?,?,?)",
+                    ("project", str(previous), "done", "orca"))
+    replacement = _write_source(tmp_path, "reactant", Chem.RenumberAtoms(mol, [2, 0, 1]))
+    path = replacement["xyz_path"]
+    before = Path(path).read_bytes()
+    change = request(record, {})
+    receipt = plan_input_revision(record, change)
+    revised = revise_record(record, change, receipt)
+    original_iterdir = Path.iterdir
+    inserted = False
+
+    def iterdir(candidate):
+        nonlocal inserted
+        if candidate == directory and not inserted:
+            inserted = True
+            with sqlite3.connect(db.path, timeout=0) as writer:
+                writer.execute("INSERT INTO compute_jobs(conversation_id,path,state,jobtype) VALUES (?,?,?,?)",
+                               ("project", path, "done", "xtb"))
+        return original_iterdir(candidate)
+
+    monkeypatch.setattr(Path, "iterdir", iterdir)
+    with pytest.raises(ValueError, match="immutable calculation input or evidence"):
+        commit_input_revision(db, process_id=record.pipeline_id, request=change,
+                              record=revised.model_dump(mode="json"), receipt=receipt)
+    assert inserted
+    assert Path(path).read_bytes() == before
+    assert get_process(db, record.pipeline_id)["declaration_revision"] == 1

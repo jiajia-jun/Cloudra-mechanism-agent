@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
@@ -19,7 +18,7 @@ def build_router(ctx: ApiContext) -> APIRouter:
     @router.get("/api/v2/projects/{project_id}/approvals", dependencies=ctx.protected)
     async def list_approvals(project_id: str) -> list[dict[str, Any]]:
         ctx.core.require_project(project_id)
-        return await asyncio.to_thread(ctx.core.pending.list_pending_approvals, project_id)
+        return ctx.core.pending.list_pending_approvals(project_id)
 
     @router.post("/api/v2/projects/{project_id}/approvals/{approval_id}/decision", dependencies=ctx.protected)
     async def decide_approval(
@@ -47,7 +46,7 @@ def build_router(ctx: ApiContext) -> APIRouter:
         project_id: str, session_id: str | None = None
     ) -> list[dict[str, Any]]:
         ctx.core.require_project(project_id)
-        rows = await asyncio.to_thread(ctx.core.pending.list_pending_interactions, project_id)
+        rows = ctx.core.pending.list_pending_interactions(project_id)
         if session_id is not None:
             rows = [row for row in rows if row["session_id"] == session_id]
         return rows

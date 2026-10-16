@@ -115,7 +115,6 @@ class LaunchGroupManager:
         self._spawner = spawner
         self._track = track
         self._groups: dict[str, LaunchGroup] = {}
-        self._child_final_cache: dict[str, tuple[object, bool]] = {}
         self._run_semaphores: dict[str, asyncio.Semaphore] = {}
         self._child_groups: dict[str, str] = {}
 
@@ -152,8 +151,6 @@ class LaunchGroupManager:
         for child_id, group_id in list(self._child_groups.items()):
             if child_id not in session_ids or group_id not in self._groups:
                 self._child_groups.pop(child_id)
-        for child_id in self._child_final_cache.keys() - session_ids:
-            self._child_final_cache.pop(child_id)
 
     def snapshot(self) -> list[dict[str, Any]]:
         """组清单的快照载荷（纯数据）。
@@ -441,13 +438,13 @@ class LaunchGroupManager:
             await hook(project_id)
 
     async def _wait_terminal(self, child: AgentSession) -> AgentSession:
-        if await asyncio.to_thread(self._child_is_final, child):
+        if self._child_is_final(child):
             return child
         # AgentHost 状态变化会经 core 事件总线发布，但 spawner 在单测里可能返回
         # 普通对象——轮询是可移植的回退。后台等待不会完成 item，
         # 但 run permit 已在首轮结束时释放。
         while True:
-            if await asyncio.to_thread(self._child_is_final, child):
+            if self._child_is_final(child):
                 return child
             await asyncio.sleep(0.1)
 
@@ -456,15 +453,7 @@ class LaunchGroupManager:
             return child.state in _TERMINAL
         from cloudra.runtime_v2.subagent_bridge import child_final_event
 
-        # The waiter polls at 100 ms. Scan the event log only when the child's
-        # projected state changes; a parked run otherwise generates no work.
-        signature = (child.state, child.updated_at)
-        cached = self._child_final_cache.get(child.id)
-        if cached is not None and cached[0] == signature:
-            return cached[1]
-        final = child_final_event(self._core, child) is not None
-        self._child_final_cache[child.id] = (signature, final)
-        return final
+        return child_final_event(self._core, child) is not None
 
     # ------------------------------------------------------------------ 取消
 
@@ -585,10 +574,10 @@ class LaunchGroupManager:
                 )()
             )
             return
-        envelope = await core.event_writer.commit(
-            EventDraft(type_, stream="agent", project_id=project_id, session_id=session_id, data=data)
+        await core.event_writer.commit_and_apply(
+            [EventDraft(type_, stream="agent", project_id=project_id, session_id=session_id, data=data)],
+            lambda envelope: apply_event(core, envelope),
         )
-        apply_event(core, envelope)
 
     async def _commit_cancelled_best_effort(self, group: LaunchGroup) -> None:
         if group.state in _TERMINAL_GROUP_STATES:

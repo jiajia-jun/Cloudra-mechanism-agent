@@ -221,14 +221,10 @@ class TurnPipeline:
 
         return emit
 
-    async def _publish(self, envelope: EventEnvelope) -> None:
-        # Chunks already go to the hub live; log events normally wait for the
-        # runner's end-of-turn flush.  Narration (thinking / intermediate
-        # message_emitted) must not wait — the UI would otherwise drop the
-        # streaming bubble when the delayed llm.request_started + tools land.
-        if self.event_hub is None:
-            return
-        await self.event_hub.publish(envelope)
+    async def _publish(self, _envelope: EventEnvelope) -> None:
+        # Narration must reach the UI immediately, through the same durable
+        # writer as tool events. Streaming chunks remain transient hub events.
+        await self.event_writer.flush()
 
     async def _initial_tool_documents(self, agent, run_id, inputs, broker, owner):
         from uuid import uuid4

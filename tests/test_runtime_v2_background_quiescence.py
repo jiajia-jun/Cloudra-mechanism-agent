@@ -352,3 +352,34 @@ async def test_durable_quiescence_marker_recovers_wake_without_second_message(tm
     assert parent.state.value == "running"
     assert len(_notices(core, parent, "background_quiescence")) == 1
     assert core.mailbox.inbox(parent.id).get_nowait()["message_id"] == "msg_quiescence"
+
+
+@pytest.mark.asyncio
+async def test_quiescence_marker_lookup_starts_after_current_gate(tmp_path, monkeypatch):
+    core, runner, _bus, project, parent = await _setup(tmp_path)
+    for number in range(600):
+        core.event_log.append(
+            "agent.message_injected", stream="project", project_id=project.id, session_id=parent.id,
+            data={"message_id": f"old-{number}", "sender": "background_quiescence", "content": "old",
+                  "manifest": {"kind": "background_quiescence", "parked_run_id": f"old-run-{number}"}},
+        )
+    await core.event_writer.flush()
+    parked_run = await _finish(core, parent, "wait_background")
+    marker = await core.event_writer.commit(EventDraft(
+        "agent.message_injected", stream="project", project_id=project.id, session_id=parent.id,
+        data={"message_id": "current-marker", "sender": "background_quiescence", "content": "settled",
+              "manifest": {"kind": "background_quiescence", "parked_run_id": parked_run}},
+    ))
+    assert core.event_log.resident_start_index > 0, "old markers must have left the recent cache"
+    original_read = core.store.iter_events
+
+    def reject_old_markers(**filters):
+        assert not (filters.get("session_id") == parent.id and filters.get("types") == {"agent.message_injected"}), (
+            "Current parked-run marker is in the recent cache; older history is unrelated"
+        )
+        return original_read(**filters)
+
+    monkeypatch.setattr(core.store, "iter_events", reject_old_markers)
+    await runner.maybe_wake_parked_delivery(project.id)
+    assert parent.state.value == "running"
+    assert core.mailbox.inbox(parent.id).get_nowait()["message_id"] == marker.data["message_id"]

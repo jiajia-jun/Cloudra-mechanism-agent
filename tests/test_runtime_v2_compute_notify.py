@@ -1046,3 +1046,84 @@ async def test_ts_outcome_wakes_owner_while_high_throughput_jobs_run(tmp_path, o
         await broker._poll_project(project.id)
         assert len(core.event_log.query_session(child.id, types={"context.pin_set"})) == 1
     assert not core.event_log.query_session(coordinator.id, types={"context.pin_set"})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("restore", [False, True])
+async def test_consumed_unacked_notice_reuses_indexed_receipt_without_history_scan(tmp_path, monkeypatch, restore):
+    from cloudra.runtime_v2.effects import EventDraft
+    from cloudra.runtime_v2.persistence import RuntimeStore, restore_core
+
+    core, project, coordinator = await _setup_core()
+    core.store = RuntimeStore(tmp_path / "indexed-notice.db")
+    await core.event_writer.flush()
+    job_id = await asyncio.to_thread(_insert_terminal_job, project.id, session_id=coordinator.id, path="")
+    broker = ComputeNotifyBroker(core)
+
+    def failed_ack(_job_id):
+        raise OSError("ack interrupted after delivery")
+
+    with monkeypatch.context() as patcher:
+        patcher.setattr(broker, "_mark_notified", failed_ack)
+        await broker._poll_project(project.id)
+    notice = core.event_log.query_session(coordinator.id, types={"agent.message_injected"})[-1]
+    await core.event_writer.commit(EventDraft(
+        "context.appended", stream="agent", project_id=project.id, session_id=coordinator.id,
+        data={"messages": [{"role": "user", "message_id": notice.data["message_id"], "content": notice.data["content"]}]},
+    ))
+    assert core.mailbox.unread() == []
+    if restore:
+        restored = RuntimeCore(strict_events=True)
+        restore_core(restored, core.store)
+        core = restored
+
+    def reject_scan(*args, **kwargs):
+        raise AssertionError("compute receipt lookup must not replay event history")
+
+    monkeypatch.setattr(core.event_log, "iter_events", reject_scan)
+    await ComputeNotifyBroker(core)._poll_project(project.id)
+    assert await asyncio.to_thread(_notified_at, job_id) is not None
+    notices = core.event_log.query_session(coordinator.id, types={"agent.message_injected"})
+    assert len(notices) == 1
+
+
+def test_compute_delivery_lookup_is_scoped_to_project_and_manifest(tmp_path):
+    from cloudra.runtime_v2.events import EventLog
+    from cloudra.runtime_v2.persistence import RuntimeStore
+
+    log = EventLog(strict=True)
+    store = RuntimeStore(tmp_path / "receipt-scope.db")
+    assert store.compute_delivery_target("p", 7) is None
+    for project, target, kind, task in [
+        ("p", "first", "compute_completion", 7),
+        ("p", "second", "compute_completion", 7),
+        ("other", "foreign", "compute_completion", 7),
+        ("p", "other-job", "compute_completion", 8),
+        ("p", "other-kind", "child_completion", 7),
+        ("p", "string-id", "compute_completion", "7"),
+        ("p", None, "compute_completion", 7),
+    ]:
+        store.append_event(log.append(
+            "agent.message_injected", stream="project", project_id=project, session_id=target,
+            data={"manifest": {"kind": kind, "task_id": task}},
+        ))
+    assert store.compute_delivery_target("p", 7) == "second"
+    assert store.compute_delivery_target("other", 7) == "foreign"
+
+
+@pytest.mark.asyncio
+async def test_deleted_project_ack_uses_existing_tombstone_projection(monkeypatch):
+    from cloudra.runtime_v2.apply import apply_event
+
+    core, project, coordinator = await _setup_core()
+    job = await asyncio.to_thread(_insert_terminal_job, project.id, session_id=coordinator.id, path="")
+    deleted = core.event_log.append("project.deleted", stream="project", project_id=project.id)
+    apply_event(core, deleted)
+    assert project.id in core.deleted_project_ids
+
+    def reject_scan(*args, **kwargs):
+        raise AssertionError("deleted projects are already projected; no history replay is needed")
+
+    monkeypatch.setattr(core.event_log, "iter_events", reject_scan)
+    await ComputeNotifyBroker(core)._poll_all()
+    assert await asyncio.to_thread(_notified_at, job) is not None

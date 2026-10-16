@@ -22,12 +22,75 @@ import asyncio
 from typing import Any
 
 from cloudra.runtime_v2.events import EventLog
+from cloudra.runtime_v2.schemas import EventEnvelope
 
 
 class Mailbox:
     def __init__(self, event_log: EventLog) -> None:
         self._event_log = event_log
         self._inboxes: dict[str, asyncio.Queue[dict[str, Any]]] = {}
+        self._unread: dict[str, dict[str, EventEnvelope]] = {}
+        self._through: dict[str, int] = {}
+        self._hub_pending: dict[str, tuple[EventEnvelope, set[str]]] = {}
+
+    def apply(self, event: EventEnvelope) -> None:
+        if event.type not in {"agent.message_injected", "context.appended", "hub.posted"}:
+            return
+        if event.seq <= self._through.get(event.project_id, 0):
+            return
+        self._through[event.project_id] = event.seq
+        if event.type == "hub.posted":
+            targets = {value for value in event.data.get("notification_target_ids", []) if isinstance(value, str) and value}
+            if targets:
+                self._hub_pending[event.event_id] = (event, targets)
+            return
+        if not event.session_id:
+            return
+        unread = self._unread.setdefault(event.session_id, {})
+        if event.type == "agent.message_injected":
+            message_id = event.data.get("message_id")
+            if message_id:
+                unread[str(message_id)] = event
+            post_id = event.data.get("post_id")
+            post = self._hub_pending.get(post_id) if isinstance(post_id, str) else None
+            if post is not None and post[0].project_id == event.project_id:
+                post[1].discard(event.session_id)
+                if not post[1]:
+                    self._hub_pending.pop(post_id)
+        else:
+            for message in event.data.get("messages", []):
+                if message.get("role") == "user" and message.get("message_id"):
+                    unread.pop(str(message["message_id"]), None)
+
+    def snapshot(self) -> dict[str, Any]:
+        return {"unread": [event.model_dump(mode="json") for event in self.unread()],
+                "through": dict(self._through),
+                "hub_pending": [{"event": event.model_dump(mode="json"), "targets": sorted(targets)}
+                                for event, targets in self._hub_pending.values()]}
+
+    def restore(self, payload: dict[str, Any]) -> None:
+        self._inboxes.clear()
+        self._unread.clear()
+        for data in payload.get("unread", []):
+            event = EventEnvelope.model_validate(data)
+            self._unread.setdefault(event.session_id, {})[str(event.data["message_id"])] = event
+        self._through = dict(payload.get("through", {}))
+        self._hub_pending = {item["event"]["event_id"]: (EventEnvelope.model_validate(item["event"]), set(item["targets"]))
+                             for item in payload.get("hub_pending", [])}
+
+    def unread(self) -> list[EventEnvelope]:
+        return [event for rows in self._unread.values() for event in rows.values()]
+
+    def discard_unread(self, session_id: str, message_id: str) -> None:
+        """Release a message that recovery has already classified as consumed or dropped."""
+        unread = self._unread.get(session_id)
+        if unread is not None:
+            unread.pop(message_id, None)
+            if not unread:
+                self._unread.pop(session_id)
+
+    def pending_posts(self) -> list[tuple[EventEnvelope, set[str]]]:
+        return [(event, set(targets)) for event, targets in self._hub_pending.values()]
 
     def ensure_inbox(self, session_id: str) -> asyncio.Queue[dict[str, Any]]:
         return self._inboxes.setdefault(session_id, asyncio.Queue())
@@ -38,10 +101,15 @@ class Mailbox:
     def drop_inbox(self, session_id: str) -> None:
         """丢弃指定 inbox（项目硬删除时清理；幂等，无此 inbox 也安全）。"""
         self._inboxes.pop(session_id, None)
+        self._unread.pop(session_id, None)
 
     def prune_sessions(self, session_ids: set[str]) -> None:
-        for session_id in self._inboxes.keys() - session_ids:
+        for session_id in (self._inboxes.keys() | self._unread.keys()) - session_ids:
             self.drop_inbox(session_id)
+        for post_id, (event, targets) in list(self._hub_pending.items()):
+            targets.intersection_update(session_ids)
+            if not targets:
+                self._hub_pending.pop(post_id)
 
     # ------------------------------------------------------- payload builders
 

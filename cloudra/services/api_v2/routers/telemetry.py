@@ -8,12 +8,12 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import tempfile
 from pathlib import Path
 from typing import Optional
 
+from anyio import CancelScope
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse, Response
 from starlette.background import BackgroundTask
@@ -26,6 +26,7 @@ from ..context import ApiContext
 
 def build_router(ctx: ApiContext) -> APIRouter:
     router = APIRouter()
+    export_lock = asyncio.Lock()
 
     def _db_path() -> Path:
         store = getattr(ctx.core, "store", None)
@@ -70,45 +71,40 @@ def build_router(ctx: ApiContext) -> APIRouter:
         except telemetry.TelemetryError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    @router.get("/api/v2/telemetry/export/session/{session_id}", dependencies=ctx.protected)
-    async def telemetry_export_session(session_id: str) -> Response:
-        def build() -> bytes:
-            records = telemetry.build_session_export(_db_path(), session_id)
-            return "".join(
-                json.dumps(record, ensure_ascii=False) + "\n" for record in records
-            ).encode("utf-8")
+    async def export_file(ident, suffix, media_type, writer):
+        def build():
+            fd, path = tempfile.mkstemp(prefix="cloudra-telemetry-", suffix=suffix)
+            os.close(fd)
+            try:
+                writer(_db_path(), ident, path)
+            except BaseException:
+                Path(path).unlink(missing_ok=True)
+                raise
+            return path
 
         try:
-            payload = await asyncio.to_thread(build)
+            # Both full-history exports share one bounded preparation slot.
+            # Keep the slot until a cancelled request's worker has finished.
+            async with export_lock:
+                task = asyncio.create_task(asyncio.to_thread(build))
+                try:
+                    path = await asyncio.shield(task)
+                except asyncio.CancelledError:
+                    with CancelScope(shield=True):
+                        path = await task
+                        await asyncio.to_thread(Path(path).unlink, missing_ok=True)
+                    raise
         except telemetry.TelemetryError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
-        return Response(
-            content=payload,
-            media_type="application/x-ndjson",
-            headers={
-                "Content-Disposition": f'attachment; filename="{session_id}.jsonl"'
-            },
-        )
+        return FileResponse(path, media_type=media_type, filename=f"{ident}{suffix}",
+                            background=BackgroundTask(Path(path).unlink, missing_ok=True))
+
+    @router.get("/api/v2/telemetry/export/session/{session_id}", dependencies=ctx.protected)
+    async def telemetry_export_session(session_id: str) -> Response:
+        return await export_file(session_id, ".jsonl", "application/x-ndjson", telemetry.write_session_jsonl)
 
     @router.get("/api/v2/telemetry/export/project/{project_id}", dependencies=ctx.protected)
     async def telemetry_export_project(project_id: str) -> Response:
-        fd, path = tempfile.mkstemp(prefix="cloudra-telemetry-", suffix=".zip")
-        os.close(fd)
-        try:
-            await asyncio.to_thread(
-                telemetry.write_project_zip, _db_path(), project_id, path
-            )
-        except telemetry.TelemetryError as exc:
-            try:
-                os.unlink(path)
-            except FileNotFoundError:
-                pass
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        return FileResponse(
-            path,
-            media_type="application/zip",
-            filename=f"{project_id}.zip",
-            background=BackgroundTask(os.unlink, path),
-        )
+        return await export_file(project_id, ".zip", "application/zip", telemetry.write_project_zip)
 
     return router

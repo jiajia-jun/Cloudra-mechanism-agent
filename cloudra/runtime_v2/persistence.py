@@ -68,6 +68,11 @@ CREATE INDEX IF NOT EXISTS events_project_seq ON events(project_id, seq);
 CREATE INDEX IF NOT EXISTS events_session_seq ON events(session_id, session_seq);
 CREATE INDEX IF NOT EXISTS events_session_run_seq ON events(session_id, run_id, session_seq);
 CREATE INDEX IF NOT EXISTS events_type ON events(type);
+CREATE INDEX IF NOT EXISTS events_compute_delivery ON events(
+    project_id, json_extract(data, '$.manifest.task_id'), seq DESC
+) WHERE type = 'agent.message_injected'
+    AND json_extract(data, '$.manifest.kind') = 'compute_completion'
+    AND session_id IS NOT NULL;
 """
 
 
@@ -298,13 +303,42 @@ class RuntimeStore:
             ).fetchone()
         return self._envelope(row) if row is not None else None
 
-    def event_metadata(self) -> tuple[int, dict[str, int], dict[str, int]]:
+    def compute_delivery_target(self, project_id: str, task_id: int) -> str | None:
+        """Find one durable compute receipt without replaying message history."""
         with self._connect() as con:
-            count = con.execute("SELECT COUNT(*) FROM events").fetchone()[0]
-            projects = dict(con.execute("SELECT project_id, MAX(seq) FROM events GROUP BY project_id"))
-            sessions = dict(con.execute(
-                "SELECT session_id, MAX(session_seq) FROM events WHERE session_id IS NOT NULL GROUP BY session_id"
-            ))
+            row = con.execute(
+                "SELECT session_id FROM events WHERE project_id = ? "
+                "AND json_extract(data, '$.manifest.task_id') = ? "
+                "AND type = 'agent.message_injected' "
+                "AND json_extract(data, '$.manifest.kind') = 'compute_completion' "
+                "AND session_id IS NOT NULL ORDER BY seq DESC LIMIT 1",
+                (project_id, task_id),
+            ).fetchone()
+        return row[0] if row is not None else None
+
+    def event_metadata(self) -> tuple[int, dict[str, int], dict[str, int]]:
+        snapshot, _ = self.load_snapshot()
+        metadata = (snapshot or {}).get("event_metadata")
+        with self._connect() as con:
+            if metadata is None:
+                # A cache miss is rebuilt once; subsequent snapshots carry the
+                # log's existing durable counters instead of rescanning history.
+                count = con.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+                projects = dict(con.execute("SELECT project_id, MAX(seq) FROM events GROUP BY project_id"))
+                sessions = dict(con.execute(
+                    "SELECT session_id, MAX(session_seq) FROM events WHERE session_id IS NOT NULL GROUP BY session_id"
+                ))
+            else:
+                count = metadata["count"]
+                projects, sessions = dict(metadata["projects"]), dict(metadata["sessions"])
+                for project_id, session_id, seq, session_seq in con.execute(
+                    "SELECT project_id, session_id, seq, session_seq FROM events WHERE rowid > ? ORDER BY rowid",
+                    (metadata["rowid"],),
+                ):
+                    count += 1
+                    projects[project_id] = max(projects.get(project_id, 0), seq)
+                    if session_id is not None:
+                        sessions[session_id] = max(sessions.get(session_id, 0), session_seq or 0)
         return count, projects, {k: int(v or 0) for k, v in sessions.items()}
 
     def iter_events(
@@ -315,6 +349,7 @@ class RuntimeStore:
         types: Iterable[str] | None = None, stop_index: int | None = None,
         start_index: int = 0,
         last_seqs: dict[str, int] | None = None,
+        before_seqs: dict[str, int] | None = None,
         limit: int | None = None, tail: bool = False,
     ) -> Iterator[EventEnvelope]:
         """Stream a fixed history prefix; callers consume in a worker thread.
@@ -334,11 +369,11 @@ class RuntimeStore:
         if before_seq is not None:
             conditions.append("seq <= ?")
             params.append(before_seq)
-        if session_id is not None:
-            conditions.append("COALESCE(session_seq, 0) > ?")
+        if session_id is not None and after_session_seq >= 0:
+            conditions.append("session_seq > ?")
             params.append(after_session_seq)
         if before_session_seq is not None:
-            conditions.append("COALESCE(session_seq, 0) <= ?")
+            conditions.append("session_seq <= ?")
             params.append(before_session_seq)
         if types is not None:
             wanted = tuple(types)
@@ -355,7 +390,20 @@ class RuntimeStore:
             for key, seq in last_seqs.items():
                 params.extend((key, seq))
             params.extend(last_seqs)
+        if before_seqs is not None:
+            boundaries = [(key, seq) for key, seq in before_seqs.items() if seq > 0]
+            if not boundaries:
+                return
+            conditions.append("(" + " OR ".join(
+                "(project_id = ? AND seq <= ?)" for _ in boundaries
+            ) + ")")
+            for key, seq in boundaries:
+                params.extend((key, seq))
         order = "DESC" if tail else "ASC"
+        # Match pagination to the existing ordered scope indexes. Global
+        # replay alone uses rowid to preserve causality across projects.
+        column = "session_seq" if session_id is not None else "seq" if project_id is not None else "rowid"
+        column_index = {"session_seq": 6, "seq": 5, "rowid": 10}[column]
         with self._connect() as con:
             upper_rowid = con.execute("SELECT COALESCE(MAX(rowid), 0) FROM events").fetchone()[0]
             if stop_index is not None:
@@ -372,21 +420,23 @@ class RuntimeStore:
         params.append(upper_rowid)
         conditions.append("rowid > ?")
         params.append(lower_rowid)
-        position = upper_rowid + 1 if tail else lower_rowid
+        position = None
         remaining = limit
         while remaining is None or remaining > 0:
-            page_limit = min(64, remaining) if remaining is not None else 64
+            page_limit = min(500, remaining) if remaining is not None else 500
+            cursor_condition = "" if position is None else f" AND {column} {'<' if tail else '>'} ?"
             sql = (
                 "SELECT event_id, stream, project_id, session_id, run_id, seq, session_seq, type, data, created_at, rowid "
                 "FROM events WHERE " + " AND ".join(conditions)
-                + (" AND rowid < ?" if tail else " AND rowid > ?")
-                + f" ORDER BY rowid {order} LIMIT ?"
+                + cursor_condition
+                + f" ORDER BY {column} {order} LIMIT ?"
             )
             # Close before yielding: successive pages may be consumed by
             # different asyncio worker threads. Cap bytes as well as row count.
             rows, page_bytes = [], 0
             with self._connect() as con:
-                cursor = con.execute(sql, [*params, position, page_limit])
+                page_params = [*params, *([position] if position is not None else []), page_limit]
+                cursor = con.execute(sql, page_params)
                 while len(rows) < page_limit:
                     row = cursor.fetchone()
                     if row is None:
@@ -397,7 +447,7 @@ class RuntimeStore:
                         break
             if not rows:
                 break
-            position = rows[-1][-1]
+            position = rows[-1][column_index]
             for row in rows:
                 yield self._envelope(row)
             if remaining is not None:
@@ -418,6 +468,7 @@ class RuntimeStore:
         pending_compactions: set[str] | None = None,
         launch_groups: list[dict[str, Any]] | None = None,
         last_seqs: dict[str, int],
+        projections: dict[str, Any] | None = None,
     ) -> None:
         payload = {
             "projects": {k: v.model_dump(mode="json") for k, v in projects.items()},
@@ -437,6 +488,7 @@ class RuntimeStore:
             # 看不到它们，不随快照落地就会在下一次恢复中凭空丢组。
             "launch_groups": launch_groups or [],
         }
+        payload.update(projections or {})
         self.write_snapshot_payload(payload, last_seqs)
 
     def write_snapshot_payload(
@@ -449,6 +501,20 @@ class RuntimeStore:
         """
         frozen = _strip_computed_fields(payload)
         with self._connect() as con:
+            metadata = frozen.get("event_metadata")
+            if metadata is not None:
+                # Locate the frozen prefix using its existing project/seq
+                # index. Never equate event counts with SQLite rowids, or use
+                # the current DB end: newer events may have arrived meanwhile.
+                rowids = [0]
+                for project_id, seq in last_seqs.items():
+                    row = con.execute(
+                        "SELECT rowid FROM events WHERE project_id = ? AND seq = ?",
+                        (project_id, seq),
+                    ).fetchone()
+                    if row is not None:
+                        rowids.append(row[0])
+                metadata["rowid"] = max(rowids)
             con.execute(
                 "INSERT OR REPLACE INTO objects(kind, obj_id, data) VALUES ('snapshot', 'state', ?)",
                 (json.dumps(frozen, ensure_ascii=False),),
@@ -545,6 +611,7 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
     approval.expired / interaction.expired terminal events (3c).
     """
 
+    core.store = store
     snapshot, last_seqs = store.load_snapshot()
     if snapshot:
         core.projects = {
@@ -594,12 +661,33 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
     # process: keep the shared writer from re-persisting/re-publishing it.
     # Recovery events appended below this point stay live for the writer.
     core.event_writer.mark_restored()
-    for envelope in store.iter_events(last_seqs=last_seqs, types=_APPLIERS):
-        apply_event(core, envelope)
-    # Notice pins are event-sourced too: rebuild them from the full
-    # projection (未消费的 push 变更同样恢复；已消费的由游标挡回——见
-    # notices.restore_from 的批次/游标语义）。
-    core.notices.restore_from(core.event_log)
+    projection_names = ("notices", "pending", "reminders", "mailbox", "child_completions", "peer_completions")
+    projection_types = {
+        "approval.requested", "approval.decided", "approval.expired",
+        "interaction.requested", "interaction.responded", "interaction.expired",
+        "reminder.scheduled", "reminder.cancelled", "reminder.fired",
+        "context.pin_set", "context.pin_cleared", "context.injected", "context.appended",
+        "agent.message_injected", "agent.message_emitted", "agent.completion_gate",
+        "agent.state_changed", "agent.cancelled", "run.started", "run.finished", "hub.posted",
+        "project.deleted",
+    }
+    cached = snapshot is not None and all(name in snapshot for name in projection_names)
+    if cached:
+        for name in projection_names:
+            getattr(core, name).restore(snapshot[name])
+        core.deleted_project_ids = set(snapshot.get("deleted_project_ids", []))
+        for envelope in store.iter_events(last_seqs=last_seqs, types=set(_APPLIERS) | projection_types):
+            apply_event(core, envelope)
+    else:
+        # A missing derived cache is rebuilt once from the authoritative log.
+        # Existing core snapshots still prevent old main-state events replaying.
+        for envelope in store.iter_events(types=set(_APPLIERS) | projection_types):
+            if envelope.seq > last_seqs.get(envelope.project_id, 0):
+                apply_event(core, envelope)
+            else:
+                core.apply_runtime_projection(envelope)
+                if envelope.type == "project.deleted":
+                    core.deleted_project_ids.add(envelope.project_id)
     core.prune_orphaned_state()
     _rebuild_inboxes_from_events(core)
 
@@ -693,6 +781,7 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
                 ),
             )
         )
+        core.apply_runtime_projection(new_events[-1])
         pending_inbox.append(
             (
                 recipient_id,
@@ -734,34 +823,10 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
     # process died after the post was durable but before every notification
     # was, repair only the missing (post_id, recipient) pairs.  Do not resolve
     # roles/broadcast membership again: new sessions must not receive old posts.
-    posts = []
-    posts_by_id = {}
-    delivered_posts: set[tuple[str, str]] = set()
-    for event in core.event_log.iter_events(types={"hub.posted", "agent.message_injected"}):
-        if event.type == "hub.posted":
-            posts.append(event)
-            posts_by_id[event.event_id] = event
-        elif event.type == "agent.message_injected" and event.session_id:
-            post_id = event.data.get("post_id")
-            if isinstance(post_id, str) and post_id:
-                post = posts_by_id.get(post_id)
-                if (
-                    post is not None and post.project_id == event.project_id
-                    and event.session_id in (post.data.get("notification_target_ids") or ())
-                ):
-                    delivered_posts.add((post_id, event.session_id))
-    for post in posts:
+    for post, target_ids in core.mailbox.pending_posts():
         if post.project_id not in core.projects:
             continue
-        target_ids = post.data.get("notification_target_ids")
-        if not isinstance(target_ids, list):
-            continue
-        for target_id in dict.fromkeys(
-            target for target in target_ids if isinstance(target, str) and target
-        ):
-            key = (post.event_id, target_id)
-            if key in delivered_posts:
-                continue
+        for target_id in sorted(target_ids):
             target = core.agents.get(target_id)
             if target is None or target.project_id != post.project_id:
                 continue
@@ -771,7 +836,6 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
                 content=post_notification_text(core, post, target_id),
                 post_id=post.event_id,
             )
-            delivered_posts.add(key)
     # Orphaned pending entries (a requested approval/interaction whose waiter
     # died with the previous process) get an explicit terminal
     # approval.expired / interaction.expired event, so a woken agent sees a
@@ -833,21 +897,14 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
     for envelope in new_events:
         store.append_event(envelope)
         core.event_log.mark_persisted(core.event_log._durable_count + 1, envelope)
+        core.apply_runtime_projection(envelope)
     core.event_writer.mark_recovery_persisted()
     # 落库成功之后才把恢复期组装的完成回传放进父信箱（持久化先于可见）。
     for session_id, payload in pending_inbox:
         core.mailbox.ensure_inbox(session_id).put_nowait(payload)
-    if new_events:
-        store.save_snapshot(
-            projects=core.projects,
-            agents=core.agents,
-            roles=core.roles._roles,
-            runtime_defaults=core.runtime_defaults,
-            session_contexts=core.session_contexts,
-            pending_compactions=core.pending_compactions,
-            launch_groups=core.launch_groups.snapshot(),
-            last_seqs=core.event_log.high_watermarks,
-        )
+    # Save the recovered compact views even when no repair was necessary.
+    # Subsequent cold starts restore this cache and read only its event tail.
+    store.save_snapshot(**core.snapshot())
     return core.event_log.high_watermarks
 
 
@@ -869,7 +926,7 @@ def _rebuild_inboxes_from_events(core: RuntimeCore) -> None:
         }
 
     seen_enqueued: dict[str, set[str]] = {}
-    for envelope in core.event_log.iter_events(types={"agent.message_injected"}):
+    for envelope in core.mailbox.unread():
         if envelope.type != "agent.message_injected":
             continue
         session_id = envelope.session_id
@@ -886,13 +943,15 @@ def _rebuild_inboxes_from_events(core: RuntimeCore) -> None:
             and post.project_id == envelope.project_id
             and session_id in (post.data.get("notification_target_ids") or ())
         )
-        if agent.state is AgentState.CANCELLED and not (is_peer_completion or is_hub_notice):
-            continue
         msg_id = str(data.get("message_id") or "")
         if not msg_id:
             continue
+        if agent.state is AgentState.CANCELLED and not (is_peer_completion or is_hub_notice):
+            core.mailbox.discard_unread(session_id, msg_id)
+            continue
         known = known_by_session.get(session_id, set())
         if msg_id in known:
+            core.mailbox.discard_unread(session_id, msg_id)
             continue
         enqueued = seen_enqueued.setdefault(session_id, set())
         if msg_id in enqueued:

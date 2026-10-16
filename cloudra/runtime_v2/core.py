@@ -40,6 +40,7 @@ from cloudra.runtime_v2.schemas import (
     Command,
     CommandRejected,
     CommandResult,
+    EventEnvelope,
     Project,
     RuntimeSettings,
     SessionContext,
@@ -49,8 +50,8 @@ from cloudra.runtime_v2.schemas import (
 class ContextBroker:
     """会话级 LLM 上下文投影的唯一写口（Task 4：一个 session 一份上下文）。
 
-    写路径拍序与 CommandBus 一致：event_log.append → flush → apply_event
-    （持久化失败丢未持久化尾巴，不投影）。恢复路径经 restore_core（快照
+    与 CommandBus 共用 commit_and_apply：持久化与状态更新在同一把锁内，
+    完成后再发布；失败仅应用已持久化前缀。恢复路径经 restore_core（快照
     + 增量重放）走同一批 applier 重建投影，绝不执行工具/JS/计算。
     """
 
@@ -192,29 +193,15 @@ class ContextBroker:
         events: list[tuple[str, dict]],
     ) -> None:
         from cloudra.runtime_v2.apply import apply_event
-        from cloudra.runtime_v2.event_writer import EventPersistenceError
+        from cloudra.runtime_v2.effects import EventDraft
 
-        core = self.core
-        keep = len(core.event_log)
-        envelopes = []
-        for event_type, data in events:
-            envelopes.append(
-                core.event_log.append(
-                    event_type,
-                    stream="agent",
-                    project_id=agent.project_id,
-                    session_id=agent.id,
-                    run_id=run_id,
-                    data=data,
-                )
-            )
-        try:
-            await core.event_writer.flush()
-        except EventPersistenceError:
-            core.event_writer.discard_unpersisted(keep=keep)
-            raise
-        for envelope in envelopes:
-            apply_event(core, envelope)
+        await self.core.event_writer.commit_and_apply(
+            [EventDraft(
+                event_type, stream="agent", project_id=agent.project_id,
+                session_id=agent.id, run_id=run_id, data=data,
+            ) for event_type, data in events],
+            lambda envelope: apply_event(self.core, envelope),
+        )
 
 
 class _TaskReentrantLock:
@@ -266,9 +253,15 @@ class RuntimeCore:
         from cloudra.runtime_v2.event_writer import EventWriter
 
         self.event_writer = EventWriter(
-            self.event_log, self.event_hub, store_provider=lambda: self.store
+            self.event_log, self.event_hub, store_provider=lambda: self.store,
+            on_persisted=self.apply_runtime_projection,
         )
         self.mailbox = Mailbox(self.event_log)
+        from cloudra.runtime_v2.peer_completion import PeerCompletionIndex
+        from cloudra.runtime_v2.subagent_bridge import ChildCompletionIndex
+
+        self.child_completions = ChildCompletionIndex()
+        self.peer_completions = PeerCompletionIndex()
         # 组生命周期是事件投影（launch_group.* 事件）：apply_event 的唯一写入点，
         # 恢复重放据此重建组清单（worker 任务不重放）。
         self.launch_groups = LaunchGroupManager(core=self)
@@ -278,6 +271,7 @@ class RuntimeCore:
         self.roles = RoleRegistry(roles if roles is not None else BUILTIN_ROLES)
         self.runtime_defaults = RuntimeSettings()
         self.projects: dict[str, Project] = {}
+        self.deleted_project_ids: set[str] = set()
         self.agents: dict[str, AgentSession] = {}
         # Pending manual compactions (session ids): an event projection of
         # compaction.requested — the single writer is apply_event.  The
@@ -317,6 +311,35 @@ class RuntimeCore:
         # Concurrent tasks (API vs reminder vs compute notify) still serialize.
         self.command_lock = _TaskReentrantLock()
 
+    def apply_runtime_projection(self, event: EventEnvelope) -> None:
+        """Share compact durable views between live writes and event replay."""
+        self.pending.apply(event)
+        self.reminders.apply(event)
+        self.mailbox.apply(event)
+        self.notices.apply(event)
+        self.child_completions.apply(event, self)
+        self.peer_completions.apply(event, self)
+
+    def snapshot(self) -> dict:
+        """Freeze the existing snapshot arguments; serialization runs off-loop."""
+        return {
+            "projects": {key: value.model_copy(deep=True) for key, value in self.projects.items()},
+            "agents": {key: value.model_copy(deep=True) for key, value in self.agents.items()},
+            "roles": {key: value.model_copy(deep=True) for key, value in self.roles._roles.items()},
+            "runtime_defaults": self.runtime_defaults.model_copy(deep=True),
+            "session_contexts": {key: value.model_copy(deep=True) for key, value in self.session_contexts.items()},
+            "pending_compactions": set(self.pending_compactions),
+            "launch_groups": self.launch_groups.snapshot(),
+            "last_seqs": self.event_writer.persisted_watermarks(),
+            "projections": {
+                **{name: getattr(self, name).snapshot() for name in (
+                    "notices", "pending", "reminders", "mailbox", "child_completions", "peer_completions",
+                )},
+                "event_metadata": self.event_log.durable_metadata(),
+                "deleted_project_ids": sorted(self.deleted_project_ids),
+            },
+        }
+
     # ------------------------------------------------------------- shutdown
 
     def prune_orphaned_state(self) -> None:
@@ -331,6 +354,9 @@ class RuntimeCore:
             self.session_contexts.pop(session_id)
         self.pending_compactions.intersection_update(sessions)
         self.mailbox.prune_sessions(sessions)
+        self.pending.prune_projects(projects)
+        self.child_completions.prune(sessions)
+        self.peer_completions.prune(sessions)
         self.notices.prune_sessions(sessions)
         self.launch_groups.prune_projects(projects, sessions)
         self.reminders.prune_projects(projects)

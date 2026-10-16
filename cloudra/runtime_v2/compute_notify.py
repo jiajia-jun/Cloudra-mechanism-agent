@@ -53,11 +53,6 @@ class ComputeNotifyBroker:
         # single scan/delivery owner prevents both from selecting an unacked
         # row and committing the same notice twice.
         self._poll_lock = asyncio.Lock()
-        # Rebuild once from durable message manifests after RuntimeCore restore.
-        # A crash between message commit and compute.db ack then retries only
-        # the ack, without appending the same job result to the inbox again.
-        self._delivered_jobs: dict[tuple[str, int], str] = {}
-        self._delivered_index_built = False
         # 证据快照待收集：核心文件暂不可读时入此表，后续 tick 静默重试
         # （不重复投递通知）；收齐后一次性补发"证据已可复查"。
         # task_id -> (project_id, session_id, recovered)
@@ -106,15 +101,6 @@ class ComputeNotifyBroker:
         project.deleted tombstone）记 warning 并落 notified_at 终结。
         """
         loaded = list(self.core.projects)
-        deleted_ids: set[str] | None = None
-
-        def _deleted_project_ids() -> set[str]:
-            nonlocal deleted_ids
-            if deleted_ids is None:
-                deleted_ids = {
-                    e.project_id for e in self.core.event_log.iter_events(types={"project.deleted"})
-                }
-            return deleted_ids
 
         if loaded:
             rows = await asyncio.to_thread(
@@ -126,7 +112,7 @@ class ComputeNotifyBroker:
         for conversation_id, task_id, _state, _session_id in parked:
             if conversation_id in loaded:
                 continue
-            if conversation_id in await asyncio.to_thread(_deleted_project_ids):
+            if conversation_id in self.core.deleted_project_ids:
                 logger.warning(
                     "compute job %s belongs to deleted project %s; marking notified "
                     "without delivery",
@@ -218,9 +204,7 @@ class ComputeNotifyBroker:
         if pipeline is not None and pipeline['status'] in ('waiting', 'running'):
             await asyncio.to_thread(self._mark_notified, task_id)
             return
-        await asyncio.to_thread(self._load_durable_deliveries)
-        job_key = (project_id, task_id)
-        target_id = self._delivered_jobs.get(job_key)
+        target_id = await asyncio.to_thread(self._delivery_target, project_id, task_id)
         if target_id is None:
             view = None
             record = None
@@ -253,14 +237,7 @@ class ComputeNotifyBroker:
                 guide_ts_process(self.core.notices, target_id, view)
             # Persist and enqueue first, but do not wake the child until the
             # DB ack succeeds. A failed final ack must not start an LLM run.
-            try:
-                await self._send_message(target_id, content, wake=False, job_id=task_id)
-            except Exception:
-                # A message may have committed before the enqueue failed.
-                # Reload the durable event on the next poll before retrying.
-                self._delivered_index_built = False
-                raise
-            self._delivered_jobs[job_key] = target_id
+            await self._send_message(target_id, content, wake=False, job_id=task_id)
             owner = self.core.agents.get(target_id)
             from cloudra.runtime_v2.schemas import OrchestrationMode
 
@@ -301,19 +278,19 @@ class ComputeNotifyBroker:
             'It is not a DAG review verdict or proof of a chemical cause.')
         return '\n'.join(lines)[:1800]
 
-    def _load_durable_deliveries(self) -> None:
-        if self._delivered_index_built:
-            return
-        for event in self.core.event_log.iter_events(types={"agent.message_injected"}):
-            if event.type != "agent.message_injected" or not event.session_id:
-                continue
+    def _delivery_target(self, project_id: str, task_id: int) -> str | None:
+        if self.core.store is not None:
+            return self.core.store.compute_delivery_target(project_id, task_id)
+        # Memory-only embedders have no database; the resident event log is
+        # their complete authority and does not need a second retained index.
+        target = None
+        for event in self.core.event_log.iter_project(project_id, types={"agent.message_injected"}):
             manifest = event.data.get("manifest")
-            if not isinstance(manifest, dict) or manifest.get("kind") != "compute_completion":
-                continue
-            task_id = manifest.get("task_id")
-            if isinstance(task_id, int) and task_id > 0:
-                self._delivered_jobs[(event.project_id, task_id)] = event.session_id
-        self._delivered_index_built = True
+            if (event.session_id and isinstance(manifest, dict)
+                    and manifest.get("kind") == "compute_completion"
+                    and manifest.get("task_id") == task_id):
+                target = event.session_id
+        return target
 
     async def _wake_notified_child(self, session_id: str) -> None:
         async with self.core.dispatcher.target_lock(session_id):

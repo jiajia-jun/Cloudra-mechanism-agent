@@ -709,20 +709,21 @@ DECIDERS: dict[str, Decider] = {
 
 async def _compact_agent(core: RuntimeCore, command: Command) -> CommandResult:
     agent = core.require_agent(command.target.get("session_id", ""))
-    envelope = core.record(
-        "compaction.requested",
-        stream="agent",
-        project_id=agent.project_id,
-        session_id=agent.id,
-        run_id=agent.current_run.run_id if agent.current_run else None,
-        data={"actor": command.actor},
+    events: list[EventEnvelope] = []
+
+    def project(envelope: EventEnvelope) -> None:
+        apply_event(core, envelope)
+        events.append(envelope)
+
+    await core.event_writer.commit_and_apply(
+        [EventDraft(
+            "compaction.requested", stream="agent", project_id=agent.project_id,
+            session_id=agent.id, run_id=agent.current_run.run_id if agent.current_run else None,
+            data={"actor": command.actor},
+        )],
+        project,
     )
-    # The runner picks this up at the next turn boundary; the session context
-    # 跨 run 连续（Task 4），压缩请求跨 run 存活、应用到会话上下文投影。
-    # pending_compactions 是 compaction.requested 的事件投影：唯一写入点是
-    # apply_event（这里），消费在 runner 的轮次边界。
-    apply_event(core, envelope)
-    return CommandResult(command_id=command.command_id, event_id=await asyncio.to_thread(_last_event_id, core), data=agent)
+    return CommandResult(command_id=command.command_id, event_id=events[-1].event_id, data=agent)
 
 
 async def _decide_approval(core: RuntimeCore, command: Command) -> CommandResult:
@@ -1005,11 +1006,9 @@ class CommandBus:
             return False
         # Publish only after the complete compensation batch is durable. A
         # reentrant hub subscriber must see every old call already closed.
-        before_append = len(self.core.event_log)
-        envelopes = [self._append_draft(draft) for draft in drafts]
-        await self._persist_appended(keep=before_append)
-        for envelope in envelopes:
-            apply_event(self.core, envelope)
+        await self.core.event_writer.commit_and_apply(
+            drafts, lambda envelope: apply_event(self.core, envelope),
+        )
         return True
 
     def _append_draft(self, draft: EventDraft) -> EventEnvelope:
@@ -1023,12 +1022,7 @@ class CommandBus:
         )
 
     async def _flush(self) -> None:
-        """拍 2：经共享 EventWriter 持久化（store 存在时）并发布未发布事件。
-
-        bus 直接持久化自己的事件，不再依赖 API 层的 hub 持久化订阅搭车；
-        订阅仍在（运行期 turn 内事件靠它），append_event 幂等（INSERT OR
-        IGNORE），重叠写无害。writer 的游标保证不重发/不重写。
-        """
+        """Persist and publish through the runtime's single shared writer."""
         await self.core.event_writer.flush()
 
     async def _persist_appended(self, keep: int | None = None) -> None:
@@ -1042,13 +1036,13 @@ class CommandBus:
     async def _apply_decision(self, command: Command, decision: Decision) -> CommandResult:
         core = self.core
         envelopes: list[EventEnvelope] = []
+
+        def project(envelope: EventEnvelope) -> None:
+            apply_event(core, envelope)
+            envelopes.append(envelope)
+
         try:
-            for draft in decision.events:
-                before_append = len(core.event_log)
-                envelope = self._append_draft(draft)
-                await self._persist_appended(keep=before_append)
-                apply_event(core, envelope)
-                envelopes.append(envelope)
+            await core.event_writer.commit_and_apply(decision.events, project)
             # 拍 4：副作用（runner/mailbox/文件系统/内存秘密覆盖）
             for effect in decision.effects:
                 await _execute_effect(core, effect)
@@ -1154,18 +1148,18 @@ class CommandBus:
         # 先冲刷事件 writer：快照水位必须是已落盘前缀，不能用 live
         # high_watermarks——并发 append 会把水位抬过尚未 persist 的事件。
         await core.event_writer.flush()
-        last_seqs = core.event_writer.persisted_watermarks()
-        payload = {
-            "projects": {k: v.model_dump(mode="json") for k, v in core.projects.items()},
-            "agents": {k: v.model_dump(mode="json") for k, v in core.agents.items()},
-            "roles": {k: v.model_dump(mode="json") for k, v in core.roles._roles.items()},
-            "runtime_defaults": core.runtime_defaults.model_dump(mode="json"),
-            "session_contexts": {
-                k: v.model_dump(mode="json") for k, v in core.session_contexts.items()
-            },
-            "pending_compactions": sorted(core.pending_compactions),
-            "launch_groups": core.launch_groups.snapshot(),
-        }
-        await asyncio.to_thread(core.store.write_snapshot_payload, payload, last_seqs)
+        unpublished = []
+        async with core.command_lock, core.event_writer._lock:
+            # Synchronous notices can append while a store write is off-loop,
+            # including from the first flush's subscribers. Drain before
+            # freezing their state and the durable cursor together.
+            while core.event_writer._persisted < len(core.event_log):
+                unpublished.extend(await core.event_writer._flush_locked())
+            snapshot = core.snapshot()
+        try:
+            await asyncio.to_thread(core.store.save_snapshot, **snapshot)
+        finally:
+            # Snapshot caching cannot suppress already durable live events.
+            await core.event_writer._publish(unpublished)
         self._snapshot_event_mark = len(core.event_log)
         self._snapshot_at = time.monotonic()

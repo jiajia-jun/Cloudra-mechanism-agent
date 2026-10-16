@@ -125,6 +125,7 @@ def _apply_project_deleted(core: RuntimeCore, envelope: EventEnvelope) -> None:
     """
     project_id = envelope.project_id
     core.projects.pop(project_id, None)
+    core.deleted_project_ids.add(project_id)
     for session_id in [sid for sid, a in core.agents.items() if a.project_id == project_id]:
         core.agents.pop(session_id, None)
     core.prune_orphaned_state()
@@ -312,3 +313,4 @@ def apply_event(core: RuntimeCore, envelope: EventEnvelope) -> None:
     applier = _APPLIERS.get(envelope.type)
     if applier is not None:
         applier(core, envelope)
+    core.apply_runtime_projection(envelope)

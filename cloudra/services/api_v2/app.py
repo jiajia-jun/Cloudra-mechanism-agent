@@ -278,14 +278,6 @@ def create_v2_app(
 
         core.store = RuntimeStore(store_path)
 
-        async def persist_event(envelope) -> None:
-            # llm.chunk deltas are transient hub-only events: no replay value,
-            # and persisting them would flood the event table.
-            if envelope.type == "llm.chunk":
-                return
-            await asyncio.to_thread(core.store.append_event, envelope)
-
-        core.event_hub.subscribe(persist_event)
     bus = CommandBus(core)
     from cloudra.runtime_v2.compute_notify import ComputeNotifyBroker
 

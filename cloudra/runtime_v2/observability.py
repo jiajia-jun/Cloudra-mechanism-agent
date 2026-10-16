@@ -41,7 +41,7 @@ ACTIVITY_EVENT_TYPES = CALL_EVENT_TYPES | {
 
 
 def tool_receipts(
-    events: Iterable[EventEnvelope], *, details: bool = True, request_event_id: str | None = None
+    events: Iterable[EventEnvelope], *, details: bool = True, request_event_ids: set[str] | None = None
 ) -> list[dict[str, Any]]:
     """Each request is an attempt, even if the wire call ID is reused.
 
@@ -53,13 +53,18 @@ def tool_receipts(
     by_request: dict[str, dict] = {}
     by_run: dict[tuple, list[dict]] = defaultdict(list)
     pending: dict[str, dict] = {}
+
+    def selected_finished():
+        return (request_event_ids is not None and request_event_ids <= by_request.keys()
+                and all(row["finished_at"] is not None for row in by_request.values()))
+
     for event in events:
         data = event.data
         kind = event.type
         run_key = (event.session_id, event.run_id)
         key = (*run_key, data.get("tool_call_id"))
         if kind == "tool.requested":
-            if request_event_id is not None and event.event_id != request_event_id:
+            if request_event_ids is not None and event.event_id not in request_event_ids:
                 current.pop(key, None)
                 continue
             row = {
@@ -116,6 +121,8 @@ def tool_receipts(
                         row["result_availability"] = "unavailable"
                     if details:
                         row["events"].append(event.model_dump(mode="json"))
+            if selected_finished():
+                break
             continue
         else:
             request_id = data.get("request_event_id")
@@ -204,6 +211,8 @@ def tool_receipts(
             if isinstance(text, str) and len(text) > 500:
                 row["result_summary"] = text[:500]
                 row["summary_truncated"] = True
+        if selected_finished():
+            break
     for row in receipts:
         row["compute_job_ids"] = list(dict.fromkeys(row["compute_job_ids"]))
     return receipts
@@ -235,18 +244,8 @@ def call_summary(row: dict) -> dict:
 def agent_activity(agent, events: list[EventEnvelope], calls: list[dict]) -> dict:
     run_id = agent.current_run.run_id if agent.current_run else None
     state = agent.state.value
-    # Prefer the event snapshot for lifecycle fields: live agent state can
-    # already have changed while its next event is still being persisted.
-    for event in events:
-        if event.type == "agent.spawned":
-            state = event.data.get("state", state)
-            run_id = (event.data.get("current_run") or {}).get("run_id")
-        elif event.type == "agent.state_changed":
-            state = event.data["to"]
-        elif event.type == "run.started":
-            run_id = event.run_id
-        elif event.type in {"run.finished", "agent.cancelled"}:
-            run_id = None
+    # The caller freezes the existing agent projection with the durable
+    # boundary. Historical terminal events must not clear a later live run.
     active = [r for r in calls if r["run_id"] == run_id and r["status"] in ACTIVE_CALL_STATES]
     current_events = [e for e in events if e.run_id == run_id] if run_id else []
     latest = events[-1] if events else None

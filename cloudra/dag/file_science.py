@@ -2,6 +2,10 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import threading
+from collections import OrderedDict
+from copy import deepcopy
 from pathlib import Path
 from typing import Literal
 
@@ -26,7 +30,77 @@ class ScientificCheck(BaseModel):
     next_action: str = ''
 
 
-def _logs(store, element, workspace_root=None, *, atom_bindings=None):
+_SCIENCE_CACHE_LOCK = threading.Lock()
+_SCIENCE_CACHE: OrderedDict[str, tuple[dict, int]] = OrderedDict()
+_SCIENCE_CACHE_BYTES = 4 * 1024 * 1024
+
+
+def _science_cache_key(store, graph, target_id, *, irc_files, workspace_root, evidence_refs, endpoint_refs):
+    """Version only bound immutable dependencies; mutable workflow logs stay fresh."""
+    from cloudra.dag.models import GraphRef
+
+    element = next((n for n in graph.nodes if n.node_id == target_id), None)
+    if element is None:
+        element = next((e for e in graph.edges if e.edge_id == target_id), None)
+    if element is None:
+        return None
+    elements = [element]
+    if hasattr(element, 'source_node_id'):
+        elements.extend(node for node in graph.nodes
+                        if node.node_id in (element.source_node_id, element.target_node_id))
+    refs = []
+    for item in elements:
+        if item is element and evidence_refs is not None:
+            refs.extend(evidence_refs)
+        else:
+            refs.extend([*item.refs, *[stage.ref for stage in item.stages
+                                     if stage.ref is not None and stage.status.value == 'supported']])
+    refs.extend(GraphRef.model_validate(ref) for ref in (endpoint_refs or {}).values())
+    payloads = []
+    for ref in dict.fromkeys(refs):
+        try:
+            payload = store.resolve_evidence(ref)
+        except InvalidGraphReference:
+            return None
+        if not isinstance(payload, dict):
+            continue
+        if 'snapshot_path' not in payload:
+            if (payload.get('arguments') or {}).get('log_path'):
+                return None
+            continue
+        payloads.append(payload)
+    payloads.extend((irc_files or {}).values())
+    versions = {}
+    for payload in payloads:
+        snap = FileEvidenceSnapshot.model_validate(payload)
+        paths = [snap.snapshot_path, *[item['snapshot_path'] for item in snap.metadata.get('irc_sidecars', [])]]
+        if snap.metadata.get('irc_manifest'):
+            paths.append(snap.metadata['irc_manifest']['snapshot_path'])
+        for raw in paths:
+            path = Path(raw)
+            try:
+                stat = path.stat()
+            except OSError:
+                versions[str(path)] = None
+            else:
+                versions[str(path)] = (stat.st_dev, stat.st_ino, stat.st_mode, stat.st_size,
+                                       stat.st_mtime_ns, stat.st_ctime_ns)
+    payload = [graph.model_dump(mode='json'), target_id, str(workspace_root), payloads,
+               [ref.model_dump(mode='json') for ref in evidence_refs] if evidence_refs is not None else None,
+               irc_files, endpoint_refs, versions]
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+
+
+def _qm_data(path, parsed=None):
+    if parsed is None:
+        return _extract_qm_log(Path(path))
+    key = str(path)
+    if key not in parsed:
+        parsed[key] = _extract_qm_log(Path(path))
+    return parsed[key]
+
+
+def _logs(store, element, workspace_root=None, *, atom_bindings=None, parsed=None):
     """Use bound immutable file snapshots; never substitute a workflow verdict."""
     logs, problems = [], []
     refs = list(element.refs) + [s.ref for s in element.stages if s.ref is not None and s.status.value == 'supported']
@@ -51,7 +125,7 @@ def _logs(store, element, workspace_root=None, *, atom_bindings=None):
             if not path.is_file():
                 problems.append(f'Bound stage log is missing: {path}')
                 continue
-            is_qm, engine, freqs, imag, energy, modes = _extract_qm_log(path)
+            is_qm, engine, freqs, imag, energy, modes = _qm_data(path, parsed)
             from cloudra.services.ts_pipeline_context import pipeline_database
             from cloudra.services.ts_pipeline_store import atom_binding_for_log
             binding = atom_binding_for_log(pipeline_database(), path, workspace_root or path.parent)
@@ -172,11 +246,11 @@ def _geometry_species(path: str, smiles: str, *, diagnostics: list[str] | None =
     return matches
 
 
-def _species_minimum_check(smiles, logs, problems):
+def _species_minimum_check(smiles, logs, problems, *, parsed=None):
     if not smiles:
         return ScientificCheck(status='incomplete', detail='Species identity is not declared.',
             next_action='Declare the species SMILES before submitting minimum evidence.')
-    minimum_logs = [p for p in logs if _extract_qm_log(Path(p))[3] == []]
+    minimum_logs = [p for p in logs if _qm_data(p, parsed)[3] == []]
     components = smiles.split('.')
     covered = set()
     for path in minimum_logs:
@@ -216,12 +290,12 @@ def _optimization_converged(path: str, engine: str | None) -> bool | None:
     return None
 
 
-def _ts_optimization_check(logs: list[str]) -> ScientificCheck:
-    frequency_logs = [p for p in logs if len(_extract_qm_log(Path(p))[3] or []) == 1]
+def _ts_optimization_check(logs: list[str], *, parsed=None) -> ScientificCheck:
+    frequency_logs = [p for p in logs if len(_qm_data(p, parsed)[3] or []) == 1]
     problems = []
     failed = False
     for path in logs:
-        engine = _extract_qm_log(Path(path))[1]
+        engine = _qm_data(path, parsed)[1]
         converged = _optimization_converged(path, engine)
         if converged is False:
             failed = True
@@ -246,7 +320,30 @@ def _ts_optimization_check(logs: list[str]) -> ScientificCheck:
         next_action='Submit the normally terminated converged optimization and its matching frequency log; a frequency-only calculation is not optimization evidence.')
 
 
-def file_scientific_checks(store, graph, target_id: str, *, irc_files=None, workspace_root=None, evidence_refs=None, endpoint_refs=None) -> dict[str, dict]:
+def file_scientific_checks(store, graph, target_id: str, *, irc_files=None, workspace_root=None, evidence_refs=None, endpoint_refs=None, use_cache=False) -> dict[str, dict]:
+    """Reuse derived prompt checks only; submit/review/delivery always verify afresh."""
+    options = dict(irc_files=irc_files, workspace_root=workspace_root,
+                   evidence_refs=evidence_refs, endpoint_refs=endpoint_refs)
+    key = _science_cache_key(store, graph, target_id, **options) if use_cache else None
+    if key is not None:
+        with _SCIENCE_CACHE_LOCK:
+            cached = _SCIENCE_CACHE.get(key)
+            if cached is not None:
+                _SCIENCE_CACHE.move_to_end(key)
+                return deepcopy(cached[0])
+    checks = _file_scientific_checks(store, graph, target_id, **options)
+    if key is not None and _science_cache_key(store, graph, target_id, **options) == key:
+        size = len(json.dumps(checks).encode())
+        if size <= _SCIENCE_CACHE_BYTES:
+            with _SCIENCE_CACHE_LOCK:
+                _SCIENCE_CACHE[key] = deepcopy(checks), size
+                _SCIENCE_CACHE.move_to_end(key)
+                while len(_SCIENCE_CACHE) > 64 or sum(item[1] for item in _SCIENCE_CACHE.values()) > _SCIENCE_CACHE_BYTES:
+                    _SCIENCE_CACHE.popitem(last=False)
+    return checks
+
+
+def _file_scientific_checks(store, graph, target_id: str, *, irc_files=None, workspace_root=None, evidence_refs=None, endpoint_refs=None) -> dict[str, dict]:
     element = next((n for n in graph.nodes if n.node_id == target_id), None)
     is_edge = element is None
     if is_edge:
@@ -256,16 +353,17 @@ def file_scientific_checks(store, graph, target_id: str, *, irc_files=None, work
     if evidence_refs is not None:
         element = element.model_copy(update={'refs': list(evidence_refs), 'stages': []})
     atom_bindings = {}
-    logs, problems = _logs(store, element, workspace_root, atom_bindings=atom_bindings)
+    parsed = {}
+    logs, problems = _logs(store, element, workspace_root, atom_bindings=atom_bindings, parsed=parsed)
     if is_edge and endpoint_refs:
         from cloudra.dag.models import GraphRef
         refs = [GraphRef.model_validate(ref) for ref in endpoint_refs.values()]
-        endpoint_logs, endpoint_problems = _logs(store, element.model_copy(update={'refs': refs, 'stages': []}), workspace_root)
+        endpoint_logs, endpoint_problems = _logs(store, element.model_copy(update={'refs': refs, 'stages': []}), workspace_root, parsed=parsed)
         logs = [path for path in logs if path not in endpoint_logs]
         problems.extend(endpoint_problems)
     if not is_edge:
-        return {'geometry': _species_minimum_check(element.smiles, logs, problems).model_dump()}
-    frequencies = [_extract_qm_log(Path(p))[3] for p in logs]
+        return {'geometry': _species_minimum_check(element.smiles, logs, problems, parsed=parsed).model_dump()}
+    frequencies = [_qm_data(p, parsed)[3] for p in logs]
     expected = 1 if is_edge else 0
     passed = any(f is not None and len(f) == expected for f in frequencies)
     status = 'passed' if passed else 'failed' if any(f is not None for f in frequencies) else 'incomplete'
@@ -274,23 +372,23 @@ def file_scientific_checks(store, graph, target_id: str, *, irc_files=None, work
         next_action='' if passed else f'Submit a normally terminated frequency log showing {expected} imaginary frequencies; repair the calculation or supply missing evidence.')
     checks = {'frequency' if is_edge else 'geometry': frequency_check}
     if is_edge:
-        checks['ts_opt'] = _ts_optimization_check(logs)
+        checks['ts_opt'] = _ts_optimization_check(logs, parsed=parsed)
         source = next((n for n in graph.nodes if n.node_id == element.source_node_id), None)
         target = next((n for n in graph.nodes if n.node_id == element.target_node_id), None)
-        source_logs, _ = _logs(store, source, workspace_root) if source else ([], [])
-        target_logs, _ = _logs(store, target, workspace_root) if target else ([], [])
+        source_logs, _ = _logs(store, source, workspace_root, parsed=parsed) if source else ([], [])
+        target_logs, _ = _logs(store, target, workspace_root, parsed=parsed) if target else ([], [])
         def endpoint_candidates(key, node, candidates):
             if endpoint_refs and key in endpoint_refs:
                 from cloudra.dag.models import GraphRef
                 ref = GraphRef.model_validate(endpoint_refs[key])
                 if ref not in element.refs:
                     return []
-                candidates, errors = _logs(store, element.model_copy(update={'refs': [ref], 'stages': []}), workspace_root)
+                candidates, errors = _logs(store, element.model_copy(update={'refs': [ref], 'stages': []}), workspace_root, parsed=parsed)
                 problems.extend(errors)
             verified = []
             for path in candidates:
                 try:
-                    if node and node.smiles and _extract_qm_log(Path(path))[3] == [] and _geometry_species(path, node.smiles, diagnostics=problems):
+                    if node and node.smiles and _qm_data(path, parsed)[3] == [] and _geometry_species(path, node.smiles, diagnostics=problems):
                         verified.append(path)
                 except (ValueError, RuntimeError) as exc:
                     problems.append(str(exc))
@@ -301,7 +399,7 @@ def file_scientific_checks(store, graph, target_id: str, *, irc_files=None, work
         irc_passed = False
         for path in logs:
             try:
-                engine = _extract_qm_log(Path(path))[1]
+                engine = _qm_data(path, parsed)[1]
                 if engine == 'orca':
                     orca_frames.extract_irc(path)
                 elif engine == 'gaussian':

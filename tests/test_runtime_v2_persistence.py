@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import sqlite3
+import threading
 
 import pytest
 
@@ -76,9 +77,8 @@ async def test_snapshot_and_event_durability_roundtrip(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_snapshot_watermarks_exclude_unpersisted_tail(tmp_path):
-    """快照水位必须是已落盘前缀。并发 append 抬高 live high_watermarks
-    之后，若快照仍按 live 水位切开，重启会跳过后来才落库的事件。"""
+async def test_snapshot_watermarks_exclude_unpersisted_tail(tmp_path, monkeypatch):
+    """Appending during snapshot serialization must not advance its frozen cursor."""
     store = RuntimeStore(tmp_path / "runtime.db")
     core = RuntimeCore(strict_events=True)
     core.store = store
@@ -87,30 +87,33 @@ async def test_snapshot_watermarks_exclude_unpersisted_tail(tmp_path):
     project = next(iter(core.projects.values()))
     await bus.flush_snapshot()
     persisted = dict(core.event_writer.persisted_watermarks())
+    frozen = asyncio.Event()
+    release = threading.Event()
+    loop = asyncio.get_running_loop()
+    save = store.save_snapshot
 
+    def serialize_frozen(**kwargs):
+        loop.call_soon_threadsafe(frozen.set)
+        assert release.wait(5)
+        save(**kwargs)
+
+    monkeypatch.setattr(store, "save_snapshot", serialize_frozen)
+    saving = asyncio.create_task(bus.flush_snapshot())
+    await asyncio.wait_for(frozen.wait(), 5)
     tail = core.event_log.append(
-        "agent.warning",
-        stream="agent",
-        project_id=project.id,
+        "agent.warning", stream="agent", project_id=project.id,
         data={"message": "unpersisted tail"},
     )
     assert core.event_log.high_watermarks[project.id] == tail.seq
     assert core.event_writer.persisted_watermarks() == persisted
-
-    original_flush = core.event_writer.flush
-
-    async def _flush_without_tail() -> None:
-        return None
-
-    core.event_writer.flush = _flush_without_tail  # type: ignore[method-assign]
-    await bus.flush_snapshot()
-    core.event_writer.flush = original_flush
+    release.set()
+    await saving
+    monkeypatch.setattr(store, "save_snapshot", save)
 
     _, last_seqs = store.load_snapshot()
     assert last_seqs == persisted
     assert last_seqs[project.id] < tail.seq
-
-    await original_flush()
+    await core.event_writer.flush()
     core2 = RuntimeCore(strict_events=True)
     restore_core(core2, store)
     assert any(envelope.type == "agent.warning" for envelope in core2.event_log)
@@ -639,6 +642,8 @@ async def test_snapshot_is_throttled_cache_not_per_command(tmp_path, monkeypatch
     core2 = RuntimeCore(strict_events=True)
     restore_core(core2, store)
     assert core2.projects[project.id].name == "throttle"
+    # Restore seeds the derived cache once; command throttling starts here.
+    saves = 0
 
     # 事件阈值触发：把阈值压到 2，下一条命令（1 条事件 + 之前 1 条）越阈
     monkeypatch.setattr(commands_mod, "_SNAPSHOT_EVENT_INTERVAL", 2)

@@ -181,6 +181,12 @@ class EventLog:
                 self._durable_sessions[envelope.session_id] = envelope.session_seq
             self._prune()
 
+    def durable_metadata(self) -> dict[str, Any]:
+        """Freeze the existing durable counters alongside the state snapshot."""
+        with self._lock:
+            return {"count": self._durable_count, "projects": dict(self._durable_projects),
+                    "sessions": dict(self._durable_sessions)}
+
     def restore_from_store(self, store) -> None:
         """Restore counters plus a finite payload cache, keeping history on disk."""
         self.attach_store(store)
@@ -409,7 +415,10 @@ class EventLog:
                     return store, None, resident
                 older["before_seq"] = boundary
             else:
-                older["stop_index"] = self._base_index
+                boundaries = dict(self._durable_projects)
+                for event in cached_durable:
+                    boundaries[event.project_id] = min(boundaries[event.project_id], event.seq - 1)
+                older["before_seqs"] = boundaries
         return store, older, resident
 
     def _query(self, *, limit, tail, **filters) -> list[EventEnvelope]:
@@ -448,11 +457,11 @@ class EventLog:
                                 before_seq=before_seq, types=types)
 
     def iter_events(self, *, types=None, project_id=None, session_id=None,
-                    after_seq=0, before_seq=None, before_session_seq=None):
+                    after_seq=0, before_seq=None, after_session_seq=-1, before_session_seq=None):
         """Stream filtered evidence without decoding unrelated raw results."""
         filters = {"project_id": project_id, "session_id": session_id,
                    "after_seq": after_seq, "before_seq": before_seq,
-                   "before_session_seq": before_session_seq,
+                   "after_session_seq": after_session_seq, "before_session_seq": before_session_seq,
                    "types": frozenset(types) if types is not None else None}
         store, older, resident = self._read_snapshot(filters)
         if older is not None:

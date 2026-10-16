@@ -24,6 +24,7 @@ import re
 from typing import TYPE_CHECKING
 
 from cloudra.infra.config import get_config
+from cloudra.runtime_v2.effects import EventDraft
 from cloudra.tools.Interactool.email_reader import EmailReader, EmailReader_input_schema
 
 if TYPE_CHECKING:
@@ -135,7 +136,7 @@ class EmailListenerBroker:
             return False
         agent = self.core.agents.get(coordinator.id)
         run_id = agent.current_run.run_id if agent is not None and agent.current_run else None
-        envelope = self.core.event_log.append(
+        await self.core.event_writer.commit(EventDraft(
             "email.received",
             stream="agent",
             project_id=coordinator.project_id,
@@ -147,8 +148,7 @@ class EmailListenerBroker:
                 "date": date,
                 "body_preview": (body or "")[:_BODY_PREVIEW_LIMIT],
             },
-        )
-        await self.core.event_hub.publish(envelope)
+        ))
         from cloudra.runtime_v2.commands import CommandBus
         from cloudra.runtime_v2.schemas import Command
 

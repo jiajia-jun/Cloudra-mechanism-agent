@@ -135,3 +135,20 @@ def test_simultaneous_response_loss_replay_commits_only_once(tmp_path):
         results = list(pool.map(accept, range(2)))
     assert results[0] == results[1]
     assert get_process(db, pid)["revision"] == 2
+
+
+def test_revision_without_source_overwrite_does_not_inventory_job_artifacts(tmp_path, monkeypatch):
+    from cloudra.services.ts_pipeline_store import commit_input_revision
+
+    db, pid, request, state = revision_fixture(tmp_path)
+    job = tmp_path / "other-job.inp"
+    job.write_text("unrelated calculation")
+    with db.connect() as con:
+        con.execute("INSERT INTO compute_jobs(conversation_id,path,state,jobtype) VALUES (?,?,?,?)",
+                    ("project", str(job), "done", "orca"))
+
+    def unexpected_inventory(*_):
+        pytest.fail("a revision without source writes must not inventory unrelated calculation files")
+
+    monkeypatch.setattr("cloudra.infra.compute_utils.resolve_log_path", unexpected_inventory)
+    commit_input_revision(db, process_id=pid, request=request, record=state, receipt=receipt(request))

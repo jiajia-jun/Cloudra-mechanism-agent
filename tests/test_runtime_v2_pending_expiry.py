@@ -62,14 +62,14 @@ async def _crash_with_orphan(core, store, project, agent, kind: str, request_id:
         }
     else:
         data = {"interaction_id": request_id, "agent_id": agent.role_id, "prompt": "which solvent?"}
-    envelope = core.event_log.append(
+    core.event_log.append(
         f"{kind}.requested",
         stream="agent",
         project_id=project.id,
         session_id=agent.id,
         data=data,
     )
-    await _persist_event(store, envelope)
+    await core.event_writer.flush()
 
 
 def _events(core, project_id: str, type_: str):
@@ -159,14 +159,14 @@ async def test_decided_entries_are_not_expired(tmp_path):
     core, store, bus = _wire(tmp_path, "decided.db")
     project, agent = await _project_and_agent(core, bus)
     await _crash_with_orphan(core, store, project, agent, "approval", "apv_done")
-    envelope = core.event_log.append(
+    core.event_log.append(
         "approval.decided",
         stream="agent",
         project_id=project.id,
         session_id=agent.id,
         data={"approval_id": "apv_done", "decision": "approved", "reason": ""},
     )
-    await _persist_event(store, envelope)
+    await core.event_writer.flush()
 
     restored = RuntimeCore(strict_events=True)
     restore_core(restored, store)

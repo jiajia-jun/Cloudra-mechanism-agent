@@ -15,12 +15,13 @@
 from __future__ import annotations
 
 import contextlib
+import io
 import json
 import sqlite3
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Iterable, Optional
+from typing import Any, Callable, Iterable, Iterator, Optional, TextIO
 
 UNKNOWN_MODEL = "unknown"
 
@@ -687,13 +688,18 @@ def _connect_readonly(db_path: Path | str) -> sqlite3.Connection:
     return con
 
 
-def load_events(
+def iter_events(
     db_path: Path | str,
     *,
     session_id: Optional[str] = None,
     project_id: Optional[str] = None,
-) -> list[dict[str, Any]]:
-    """按 rowid（全局追加序）读出事件流；data 反序列化为 dict。"""
+    types: Iterable[str] | None = None,
+    since: Optional[str] = None,
+    until: Optional[str] = None,
+    metadata: bool = False,
+    before_rowid: int | None = None,
+) -> Iterator[dict[str, Any]]:
+    """Yield requested events one at a time through one read-only cursor."""
     clauses: list[str] = []
     params: list[Any] = []
     if session_id is not None:
@@ -702,21 +708,52 @@ def load_events(
     if project_id is not None:
         clauses.append("project_id = ?")
         params.append(project_id)
+    if types is not None:
+        wanted = tuple(types)
+        if not wanted:
+            return
+        clauses.append("type IN (" + ",".join("?" for _ in wanted) + ")")
+        params.extend(wanted)
+    if since is not None or until is not None:
+        clauses.append("julianday(created_at) IS NOT NULL")
+    for bound, comparison in ((since, ">="), (until, "<=")):
+        parsed = _parse_iso(bound)
+        if parsed is not None:
+            clauses.append(f"julianday(created_at) {comparison} julianday(?)")
+            params.append(parsed.isoformat())
+    if before_rowid is not None:
+        clauses.append("rowid <= ?")
+        params.append(before_rowid)
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    columns = list(_EVENT_COLUMNS)
+    if metadata:
+        # Agent summaries still need every event's identity/timestamp: those
+        # define first/last activity and run membership. Only these named data
+        # fields affect metrics; raw context/tool payloads never leave SQLite.
+        fields = ("outcome", "failure_kind", "status", "action", "basis", "compacted",
+                  "reason", "trigger", "summary_tokens", "clamped_sources", "parent_session_id",
+                  "to", "model", "kind", "usage", "latency_ms", "finish_reason")
+        metric_types = ("run.finished", "tool.finished", "agent.completion_gate", "compaction.finished",
+                        "agent.spawned", "agent.state_changed", "llm.completed")
+        values = ", ".join(f"'{key}', json_extract(data, '$.{key}')" for key in fields)
+        kinds = ", ".join(f"'{kind}'" for kind in metric_types)
+        columns[8] = f"CASE WHEN type IN ({kinds}) AND json_valid(data) THEN json_object({values}) ELSE '{{}}' END"
     with contextlib.closing(_connect_readonly(db_path)) as con:
         rows = con.execute(
-            f"SELECT {', '.join(_EVENT_COLUMNS)} FROM events {where} ORDER BY rowid",
-            params,
-        ).fetchall()
-    events = []
-    for row in rows:
-        record = dict(zip(_EVENT_COLUMNS, row))
-        try:
-            record["data"] = json.loads(record["data"])
-        except (json.JSONDecodeError, TypeError):
-            record["data"] = {}
-        events.append(record)
-    return events
+            f"SELECT {', '.join(columns)} FROM events {where} ORDER BY rowid", params,
+        )
+        for row in rows:
+            record = dict(zip(_EVENT_COLUMNS, row))
+            try:
+                record["data"] = json.loads(record["data"])
+            except (json.JSONDecodeError, TypeError):
+                record["data"] = {}
+            yield record
+
+
+def load_events(db_path: Path | str, **filters) -> list[dict[str, Any]]:
+    """Materialize events only for callers whose aggregate needs a list."""
+    return list(iter_events(db_path, **filters))
 
 
 def list_session_ids(db_path: Path | str, *, project_id: Optional[str] = None) -> list[str]:
@@ -757,7 +794,8 @@ def _project_exists(db_path: Path | str, project_id: str) -> bool:
 def token_summary(
     db_path: Path | str, *, since: Optional[str] = None, until: Optional[str] = None
 ) -> dict[str, Any]:
-    return aggregate_tokens(load_events(db_path), since=since, until=until)
+    return aggregate_tokens(load_events(db_path, types={"llm.completed"}, since=since, until=until, metadata=True),
+                            since=since, until=until)
 
 
 def cache_summary(
@@ -767,14 +805,15 @@ def cache_summary(
     until: Optional[str] = None,
     top_n: int = 20,
 ) -> dict[str, Any]:
-    return analyze_cache(load_events(db_path), since=since, until=until, top_n=top_n)
+    return analyze_cache(load_events(db_path, types={"llm.completed"}, since=since, until=until, metadata=True),
+                         since=since, until=until, top_n=top_n)
 
 
 def agent_summary(
     db_path: Path | str, *, since: Optional[str] = None, until: Optional[str] = None
 ) -> dict[str, Any]:
     """Agent 行为聚合（只读 runtime-v2.db）；CLI 与只读 API 共用这一处。"""
-    return aggregate_agents(load_events(db_path), since=since, until=until)
+    return aggregate_agents(load_events(db_path, since=since, until=until, metadata=True), since=since, until=until)
 
 
 # ---------------------------------------------------------------------------
@@ -802,91 +841,78 @@ def rebuild_context(events: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     return messages
 
 
-def build_session_export(db_path: Path | str, session_id: str) -> list[dict[str, Any]]:
-    """一个 session 的完整分析包记录（meta → events → context → usage）。"""
-    events = load_events(db_path, session_id=session_id)
-    if not events:
+def build_session_export(db_path: Path | str, session_id: str) -> Iterator[dict[str, Any]]:
+    """Session package in meta → events → final context → usage order.
+
+    Keep only the final context required by the output. Raw audit events and
+    usage records are read and serialized individually from the same prefix.
+    """
+    with contextlib.closing(_connect_readonly(db_path)) as con:
+        project_id, upper, event_count, llm_calls = con.execute(
+            "SELECT project_id, MAX(rowid), COUNT(*), SUM(type = 'llm.completed') "
+            "FROM events WHERE session_id = ?", (session_id,),
+        ).fetchone()
+    if not event_count:
         raise TelemetryError(f"unknown session: {session_id}")
-    project_id = events[0].get("project_id")
-
+    filters = dict(session_id=session_id, before_rowid=upper)
     agent_meta: dict[str, Any] = {}
-    for event in events:
-        if event["type"] == "agent.spawned" and isinstance(event.get("data"), dict):
-            data = event["data"]
-            agent_meta = {
-                "role_id": data.get("role_id"),
-                "display_name": data.get("display_name"),
-                "parent_session_id": data.get("parent_session_id"),
-                "created_at": data.get("created_at"),
-            }
-            break
+    with contextlib.closing(iter_events(db_path, types={"agent.spawned"}, **filters)) as spawned:
+        event = next(spawned, None)
+    if event is not None and isinstance(event["data"], dict):
+        agent_meta = {key: event["data"].get(key) for key in (
+            "role_id", "display_name", "parent_session_id", "created_at",
+        )}
+    context = rebuild_context(iter_events(db_path, types={
+        "context.prefix_installed", "context.appended", "context.compacted", "agent.context_reset",
+    }, **filters))
+    meta = {"type": "meta", "kind": "session", "session_id": session_id,
+            "project_id": project_id, "agent": agent_meta, "event_count": event_count,
+            "llm_calls": llm_calls, "context_messages": len(context),
+            "exported_at": datetime.now(timezone.utc).isoformat()}
 
-    context = rebuild_context(events)
-    usage_records = extract_llm_calls(events)
+    def records():
+        yield meta
+        for event in iter_events(db_path, **filters):
+            yield {"type": "event", "event_type": event["type"],
+                   **{key: value for key, value in event.items() if key != "type"}}
+        yield {"type": "context", "session_id": session_id,
+               "message_count": len(context), "messages": context}
+        for event in iter_events(db_path, types={"llm.completed"}, metadata=True, **filters):
+            yield {"type": "usage", **llm_call_from_event(event)}
 
-    records: list[dict[str, Any]] = [
-        {
-            "type": "meta",
-            "kind": "session",
-            "session_id": session_id,
-            "project_id": project_id,
-            "agent": agent_meta,
-            "event_count": len(events),
-            "llm_calls": len(usage_records),
-            "context_messages": len(context),
-            "exported_at": datetime.now(timezone.utc).isoformat(),
-        }
-    ]
-    records.extend(
-        {
-            "type": "event",
-            "event_type": event["type"],
-            **{k: v for k, v in event.items() if k != "type"},
-        }
-        for event in events
-    )
-    records.append(
-        {"type": "context", "session_id": session_id, "message_count": len(context), "messages": context}
-    )
-    records.extend({"type": "usage", **call} for call in usage_records)
-    return records
+    return records()
+
+
+def _write_jsonl(records: Iterable[dict[str, Any]], stream: TextIO) -> int:
+    count = 0
+    for record in records:
+        stream.write(json.dumps(record, ensure_ascii=False) + "\n")
+        count += 1
+    return count
 
 
 def write_session_jsonl(db_path: Path | str, session_id: str, out_path: Path | str) -> int:
-    """导出单个 session 为 JSONL；返回记录条数。"""
+    """Write one session incrementally; return its record count."""
     records = build_session_export(db_path, session_id)
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
-    with out.open("w", encoding="utf-8") as f:
-        for record in records:
-            f.write(json.dumps(record, ensure_ascii=False) + "\n")
-    return len(records)
-
-
-def build_project_zip_bytes(db_path: Path | str, project_id: str) -> bytes:
-    """一个 project 下所有 session 的分析包（每 session 一个 JSONL，打成 zip）。"""
-    import io
-
-    if not _project_exists(db_path, project_id):
-        raise TelemetryError(f"unknown project: {project_id}")
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        for sid in list_session_ids(db_path, project_id=project_id):
-            records = build_session_export(db_path, sid)
-            payload = "".join(
-                json.dumps(record, ensure_ascii=False) + "\n" for record in records
-            )
-            zf.writestr(f"{sid}.jsonl", payload)
-    return buffer.getvalue()
+    with out.open("w", encoding="utf-8") as stream:
+        return _write_jsonl(records, stream)
 
 
 def write_project_zip(db_path: Path | str, project_id: str, out_path: Path | str) -> dict[str, int]:
-    """导出一个 project 下所有 session 的包（每 session 一个 JSONL，打成 zip）。"""
-    payload = build_project_zip_bytes(db_path, project_id)
+    """Write each session directly into its ZIP entry without building ZIP bytes."""
+    if not _project_exists(db_path, project_id):
+        raise TelemetryError(f"unknown project: {project_id}")
+    sessions = list_session_ids(db_path, project_id=project_id)
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_bytes(payload)
-    return {"sessions": len(list_session_ids(db_path, project_id=project_id))}
+    with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for session_id in sessions:
+            with archive.open(f"{session_id}.jsonl", "w", force_zip64=True) as entry:
+                with io.TextIOWrapper(entry, encoding="utf-8") as stream:
+                    _write_jsonl(build_session_export(db_path, session_id), stream)
+    return {"sessions": len(sessions)}
 
 
 def resolve_export_target(db_path: Path | str, ident: str) -> str:

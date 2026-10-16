@@ -413,6 +413,7 @@ async def test_background_wait_exposes_reminder_and_active_job_sources():
     emit(core, "run.finished", {"outcome": "succeeded"})
     core.agents["a"].current_run = None
     core.agents["a"].state = AgentState.SUCCEEDED
+    await core.event_writer.flush()
     async with client_for(core) as client:
         a = (await client.get("/api/v2/projects/p/activity")).json()["agents"][0]
         assert {(w["kind"], w["target_id"]) for w in a["waits"]} == {

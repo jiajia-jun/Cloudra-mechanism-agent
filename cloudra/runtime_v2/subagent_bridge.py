@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from pydantic import ValidationError
@@ -32,63 +32,88 @@ _CHILD_REPORT_KIND = "child_completion"
 
 @dataclass(slots=True)
 class ChildCompletionIndex:
-    """Current task's final transition and durable report markers."""
+    """Current assignment's first final state, without retaining its history."""
 
-    terminal_by_session: dict[str, EventEnvelope]
-    events_by_session: dict[str, list[EventEnvelope]]
-    reported: set[str]
+    terminal_by_session: dict[str, EventEnvelope] = field(default_factory=dict)
+    reported_by_session: dict[str, str] = field(default_factory=dict)
+    latest_gate_by_session: dict[str, tuple[str | None, str]] = field(default_factory=dict)
+    watermarks: dict[str, int] = field(default_factory=dict)
 
-
-def build_child_completion_index(core) -> ChildCompletionIndex:
-    """Only a bound parent assignment starts a new completion obligation.
-
-    Compute notices, reminders and parked runs continue the same task. The
-    terminal event already carried by each report is its durable dedup key.
-    """
-    child_ids = {agent.id for agent in core.agents.values() if agent.parent_session_id}
-    terminal_by_session: dict[str, EventEnvelope] = {}
-    events_by_session: dict[str, list[EventEnvelope]] = {}
-    reported: set[str] = set()
-    latest_gate_by_run: dict[tuple[str, str], str] = {}
-    relevant = {
-        "run.started", "run.finished", "agent.message_emitted",
-        "agent.completion_gate", "agent.state_changed", "agent.cancelled",
-    }
-    if not child_ids:
-        return ChildCompletionIndex(terminal_by_session, events_by_session, reported)
-    for event in core.event_log.iter_events(types=relevant | {"agent.message_injected"}):
+    def apply(self, event: EventEnvelope, core) -> None:
+        if event.seq <= self.watermarks.get(event.project_id, 0):
+            return
+        self.watermarks[event.project_id] = event.seq
         session_id = event.session_id
         if event.type == "agent.message_injected" and session_id:
             manifest = event.data.get("manifest")
             if isinstance(manifest, dict):
                 child_id = manifest.get("session_id")
                 child = core.agents.get(child_id) if isinstance(child_id, str) else None
-                if child is not None and child.id == session_id and (
-                    manifest.get("kind") == "task_assignment"
-                    and child.parent_session_id == manifest.get("parent_session_id")
-                    and child.project_id == event.project_id
+                if (
+                    child is not None
+                    and child.id == session_id
+                    and (
+                        manifest.get("kind") == "task_assignment"
+                        and child.parent_session_id == manifest.get("parent_session_id")
+                        and child.project_id == event.project_id
+                    )
                 ):
-                    terminal_by_session.pop(child.id, None)
-                elif child is not None and child.parent_session_id == session_id and (
-                    manifest.get("kind") == _CHILD_REPORT_KIND
+                    self.terminal_by_session.pop(child.id, None)
+                    self.reported_by_session.pop(child.id, None)
+                    self.latest_gate_by_session.pop(child.id, None)
+                elif (
+                    child is not None
+                    and child.parent_session_id == session_id
+                    and (manifest.get("kind") == _CHILD_REPORT_KIND)
                 ):
-                    terminal_id = manifest.get("terminal_event_id")
-                    if isinstance(terminal_id, str):
-                        reported.add(terminal_id)
-        if session_id not in child_ids or event.type not in relevant:
-            continue
-        events_by_session.setdefault(session_id, []).append(event)
-        run_key = (session_id, event.run_id or "")
-        if event.type == "agent.completion_gate":
-            latest_gate_by_run[run_key] = str(event.data.get("action") or "")
-        elif event.type == "agent.state_changed" and session_id not in terminal_by_session:
+                    terminal = self.terminal_by_session.get(child.id)
+                    if terminal is not None and manifest.get("terminal_event_id") == terminal.event_id:
+                        self.reported_by_session[child.id] = terminal.event_id
+        child = core.agents.get(session_id)
+        if child is None or not child.parent_session_id:
+            return
+        if event.type == "run.started":
+            self.latest_gate_by_session.pop(child.id, None)
+        elif event.type == "agent.completion_gate":
+            self.latest_gate_by_session[child.id] = (event.run_id, str(event.data.get("action") or ""))
+        elif event.type == "agent.state_changed" and child.id not in self.terminal_by_session:
             state = event.data.get("to")
             if state not in {s.value for s in _TERMINAL_STATES}:
-                continue
-            if state == AgentState.SUCCEEDED.value and latest_gate_by_run.get(run_key) == "wait_background":
-                continue
-            terminal_by_session[session_id] = event
-    return ChildCompletionIndex(terminal_by_session, events_by_session, reported)
+                return
+            if state == "succeeded" and self.latest_gate_by_session.get(child.id) == (event.run_id, "wait_background"):
+                return
+            self.terminal_by_session[child.id] = event
+            self.latest_gate_by_session.pop(child.id, None)
+
+    def snapshot(self) -> dict[str, Any]:
+        return {
+            "terminal_by_session": {
+                sid: event.model_dump(mode="json") for sid, event in self.terminal_by_session.items()
+            },
+            "reported_by_session": dict(self.reported_by_session),
+            "latest_gate_by_session": {sid: list(gate) for sid, gate in self.latest_gate_by_session.items()},
+            "watermarks": dict(self.watermarks),
+        }
+
+    def restore(self, payload: dict[str, Any]) -> None:
+        self.terminal_by_session = {
+            sid: EventEnvelope.model_validate(event) for sid, event in payload.get("terminal_by_session", {}).items()
+        }
+        self.reported_by_session = dict(payload.get("reported_by_session", {}))
+        self.latest_gate_by_session = {
+            sid: tuple(gate) for sid, gate in payload.get("latest_gate_by_session", {}).items()
+        }
+        self.watermarks = dict(payload.get("watermarks", {}))
+
+    def prune(self, session_ids: set[str]) -> None:
+        for mapping in (self.terminal_by_session, self.reported_by_session, self.latest_gate_by_session):
+            for session_id in mapping.keys() - session_ids:
+                mapping.pop(session_id)
+
+
+def build_child_completion_index(core) -> ChildCompletionIndex:
+    """Reuse the index fed by the common persist/replay path."""
+    return core.child_completions
 
 
 def child_final_event(
@@ -170,7 +195,7 @@ async def _spawn_child(
 
 async def _await_terminal(core, session_id: str) -> AgentSession:
     agent = core.require_agent(session_id)
-    if await asyncio.to_thread(child_final_event, core, agent) is not None:
+    if child_final_event(core, agent) is not None:
         return agent
     done = asyncio.Event()
 
@@ -179,14 +204,14 @@ async def _await_terminal(core, session_id: str) -> AgentSession:
             envelope.type == "agent.state_changed"
             and envelope.session_id == session_id
             and envelope.data.get("to") in {s.value for s in _TERMINAL_STATES}
-            and await asyncio.to_thread(child_final_event, core, core.require_agent(session_id)) is not None
+            and child_final_event(core, core.require_agent(session_id)) is not None
         ):
             done.set()
 
     core.event_hub.subscribe(on_event)
     try:
         # The transition may have landed between the first check and subscribe.
-        if await asyncio.to_thread(child_final_event, core, core.require_agent(session_id)) is not None:
+        if child_final_event(core, core.require_agent(session_id)) is not None:
             return core.require_agent(session_id)
         await done.wait()
     finally:
@@ -219,11 +244,10 @@ def child_completion_message(
         return None
     index = index or build_child_completion_index(core)
     terminal = child_final_event(core, child, index=index)
-    if terminal is None or terminal.event_id in index.reported:
+    if terminal is None or index.reported_by_session.get(child.id) == terminal.event_id:
         return None
     manifest = build_child_manifest(
         core, child, terminal_event=terminal,
-        session_events=index.events_by_session.get(child.id, []),
     )
     manifest["kind"] = _CHILD_REPORT_KIND
     manifest["terminal_event_id"] = terminal.event_id
@@ -463,7 +487,7 @@ async def _handle_report(core, args: dict[str, Any]) -> ToolResult:
             is_success=False,
             summary=f"Unknown v2 session {session_id!r}. Sessions dispatched before this migration live in the legacy store and are not queryable here.",
         )
-    terminal = await asyncio.to_thread(child_final_event, core, agent)
+    terminal = child_final_event(core, agent)
     if terminal is None:
         return ToolResult(
             is_success=True,

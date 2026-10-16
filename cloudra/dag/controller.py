@@ -147,7 +147,7 @@ class DagController(SupervisionMixin, StopAuditMixin, EvidenceInboxMixin, Drafts
                 "rationale": draft["rationale"],
                 "reject_reason": draft["reject_reason"],
             }
-        report = await asyncio.to_thread(self.delivery_report)
+        report = await asyncio.to_thread(self.delivery_report, reuse_science=True)
         projection = build_projection(
             snapshot,
             mode=self.mode,
@@ -158,7 +158,7 @@ class DagController(SupervisionMixin, StopAuditMixin, EvidenceInboxMixin, Drafts
         )
         return projection.to_prompt_text(actor_id=self.agent_id)
 
-    def delivery_report(self):
+    def delivery_report(self, *, reuse_science=False):
         """Evaluate the selected delivery, keeping machine facts and reviews separate."""
         if not self.enabled:
             return None
@@ -220,7 +220,7 @@ class DagController(SupervisionMixin, StopAuditMixin, EvidenceInboxMixin, Drafts
             claim_spec=effective_claim, evidence_facts=facts,
         )
         if self.mode is OrchestrationMode.DAG_GUIDED:
-            report = self._apply_review_stage_credits(report, delivery, selected)
+            report = self._apply_review_stage_credits(report, delivery, selected, reuse_science=reuse_science)
         unresolved = list(report.unresolved)
         for missing in sorted(selected - elements.keys()):
             unresolved.append(CoverageGateResult(
@@ -276,7 +276,7 @@ class DagController(SupervisionMixin, StopAuditMixin, EvidenceInboxMixin, Drafts
             ))
         return gaps
 
-    def _apply_review_stage_credits(self, report, delivery, selected):
+    def _apply_review_stage_credits(self, report, delivery, selected, *, reuse_science=False):
         """Require scientific checks AND explicit Supervisor acceptance for file stages.
 
         A per-file review records Supervisor judgment, but it is deliberately
@@ -339,7 +339,7 @@ class DagController(SupervisionMixin, StopAuditMixin, EvidenceInboxMixin, Drafts
                 continue
             checks = file_scientific_checks(self.store, delivery, target,
                                             irc_files=proposal.get("irc_files"), endpoint_refs=proposal.get("endpoint_refs"), workspace_root=self.working_directory,
-                                            evidence_refs=refs)
+                                            evidence_refs=refs, use_cache=reuse_science)
             for stage in expected:
                 check = checks[stage]
                 if check["status"] == "passed":

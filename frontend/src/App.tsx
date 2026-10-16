@@ -237,8 +237,6 @@ export default function App() {
   const [sending, setSending] = useState(false);
   const [connState, setConnState] = useState<'connecting' | 'live' | 'offline'>('connecting');
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const [approvals, setApprovals] = useState<Array<Record<string, unknown>>>([]);
-  const [interactions, setInteractions] = useState<Array<Record<string, unknown>>>([]);
   const [interactionCollapsed, setInteractionCollapsed] = useState(false);
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(new Set());
   const [globalOpen, setGlobalOpen] = useState(() => {
@@ -271,6 +269,8 @@ export default function App() {
   // message_injected echo (which carries paths only) can still render them.
   const uploadedArtifactsRef = useRef<Map<string, string>>(new Map());
 
+  const approvals = attention.get(activeProjectId ?? '')?.approvals ?? [];
+  const interactions = attention.get(activeProjectId ?? '')?.interactions ?? [];
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null;
   const activeAgent = agents.find((a) => a.id === activeAgentId) ?? null;
   // Visual mode gates the composer attach button; defaults to on.
@@ -393,6 +393,73 @@ export default function App() {
   const activeAgentIdRef = useRef(activeAgentId);
   const agentSelectionVersionRef = useRef(0);
   const maxSeqRef = useRef(0);
+
+  const projectsRef = useRef(projects);
+  projectsRef.current = projects;
+  const pendingLoadsRef = useRef(new Map<string, Promise<ProjectPending | undefined>>());
+  const pendingDirtyRef = useRef(new Set<string>());
+
+  const refreshProjectPending = useCallback((projectId: string, changed = false): Promise<ProjectPending | undefined> => {
+    if (!projectsRef.current.some((project) => project.id === projectId && !project.archived)) return Promise.resolve(undefined);
+    const existing = pendingLoadsRef.current.get(projectId);
+    if (existing) {
+      if (changed) pendingDirtyRef.current.add(projectId);
+      return existing;
+    }
+    const promise: Promise<ProjectPending | undefined> = Promise.resolve().then(async () => {
+      let latest: ProjectPending | undefined;
+      do {
+        pendingDirtyRef.current.delete(projectId);
+        try {
+          const [approvals, interactions] = await Promise.all([
+            api.approvals(projectId), api.interactions(projectId),
+          ]);
+          const project = projectsRef.current.find((item) => item.id === projectId && !item.archived);
+          if (!project || pendingLoadsRef.current.get(projectId) !== promise) return;
+          // A committed change arrived while HTTP was running. Do not publish
+          // its older snapshot; callers share the follow-up request as well.
+          if (pendingDirtyRef.current.has(projectId)) continue;
+          const pending = { name: project.name, approvals, interactions };
+          latest = pending;
+          setAttention((prev) => new Map(prev).set(projectId, pending));
+        } catch {
+          // Keep the last visible pending state; the next fallback retries.
+        }
+      } while (pendingDirtyRef.current.has(projectId) && projectsRef.current.some((item) => item.id === projectId && !item.archived));
+      return latest;
+    }).finally(() => {
+      if (pendingLoadsRef.current.get(projectId) === promise) {
+        pendingLoadsRef.current.delete(projectId);
+        pendingDirtyRef.current.delete(projectId);
+      }
+    });
+    pendingLoadsRef.current.set(projectId, promise);
+    return promise;
+  }, []);
+
+  const removePendingItem = useCallback((projectId: string, kind: 'approvals' | 'interactions', id: string | number) => {
+    if (pendingLoadsRef.current.has(projectId)) pendingDirtyRef.current.add(projectId);
+    setAttention((prev) => {
+      const pending = prev.get(projectId);
+      if (!pending) return prev;
+      const rows = pending[kind].filter((item) => String(item.interaction_id ?? item.approval_id ?? item.id) !== String(id));
+      return new Map(prev).set(projectId, { ...pending, [kind]: rows });
+    });
+  }, []);
+
+  useEffect(() => {
+    const ids = new Set(projects.filter((project) => !project.archived).map((project) => project.id));
+    setAttention((prev) => {
+      if ([...prev.keys()].every((id) => ids.has(id))) return prev;
+      return new Map([...prev].filter(([id]) => ids.has(id)));
+    });
+    for (const id of pendingLoadsRef.current.keys()) {
+      if (!ids.has(id)) {
+        pendingLoadsRef.current.delete(id);
+        pendingDirtyRef.current.delete(id);
+      }
+    }
+  }, [projects]);
 
   // Shortcut Cmd+B / Ctrl+B toggles project sidebar
   useEffect(() => {
@@ -555,8 +622,6 @@ export default function App() {
     maxSeqRef.current = 0;
     setPendingMessages([]);
     setPendingImages([]);
-    setApprovals([]);
-    setInteractions([]);
     setSidebarJobs(null);
     if (!activeProjectId) return;
     api
@@ -599,15 +664,6 @@ export default function App() {
     let source: ReturnType<typeof streamProject> | null = null;
     let closed = false;
     let reconnectTimer: number | null = null;
-
-    const refreshPending = (kind: 'approvals' | 'interactions') => {
-      const revision = pendingRevisionRef.current;
-      void api[kind](activeProjectId).then((items) => {
-        if (closed || pendingRevisionRef.current !== revision) return;
-        if (kind === 'approvals') setApprovals(items);
-        else setInteractions(items);
-      }).catch(() => undefined);
-    };
 
     const connect = () => {
       if (closed) return;
@@ -726,10 +782,10 @@ export default function App() {
           if (!replaying) {
             pushToast('info', `Approval requested: ${short(event.data.tool_name ?? event.data.message ?? '', 60)}`);
           }
-          if (activeProjectId) refreshPending('approvals');
+          if (activeProjectId) void refreshProjectPending(activeProjectId, true);
         }
         if (event.type === 'approval.decided' && activeProjectId) {
-          refreshPending('approvals');
+          void refreshProjectPending(activeProjectId, true);
         }
         // Compact feedback: the button only queues the request — the actual
         // run happens at the next turn boundary and can take minutes on
@@ -757,7 +813,7 @@ export default function App() {
             event.type === 'interaction.expired') &&
           activeProjectId
         ) {
-          refreshPending('interactions');
+          void refreshProjectPending(activeProjectId, true);
         }
         // Timeline events for the visible agent.
         if (sessionId && sessionId === activeAgentIdRef.current) {
@@ -790,34 +846,7 @@ export default function App() {
     }
     source?.close();
   };
-}, [activeProjectId, projectStream, pushToast]);
-
-  /* -------------------------------------------------- approvals polling */
-
-  useEffect(() => {
-    if (!activeProjectId) return;
-    let cancelled = false;
-    const poll = async () => {
-      const revision = pendingRevisionRef.current;
-      try {
-        const [a, i] = await Promise.all([
-          api.approvals(activeProjectId),
-          api.interactions(activeProjectId),
-        ]);
-        if (cancelled || pendingRevisionRef.current !== revision) return;
-        setApprovals(a);
-        setInteractions(i);
-      } catch {
-        /* polling errors are transient */
-      }
-    };
-    void poll();
-    const timer = window.setInterval(poll, 4000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [activeProjectId]);
+}, [activeProjectId, projectStream, pushToast, refreshProjectPending]);
 
   /* ------------------------------------- cross-project attention polling */
 
@@ -852,45 +881,40 @@ export default function App() {
     };
   }, []);
 
-  // Poll approvals/ask_user for EVERY non-archived project: the SSE stream
-  // and the Inspector only cover the active one, and a request that parks
-  // an agent in another project must still reach the user.
+  // One fallback supplies both the active Inspector and cross-project attention.
+  // Three project workers bound fan-out; slow rounds never overlap themselves.
   useEffect(() => {
     const targets = projects.filter((p) => !p.archived);
-    if (targets.length === 0) {
-      setAttention(new Map());
-      return;
-    }
+    if (targets.length === 0) return;
     let cancelled = false;
+    let running = false;
     const poll = async () => {
-      const results = await Promise.all(
-        targets.map(async (p) => {
-          try {
-            const [approvals, interactions] = await Promise.all([
-              api.approvals(p.id),
-              api.interactions(p.id),
-            ]);
-            return [p.id, { name: p.name, approvals, interactions } satisfies ProjectPending] as const;
-          } catch {
-            return null; // one unreachable project must not sink the rest
+      if (running) return;
+      running = true;
+      try {
+        const next = new Map<string, ProjectPending>();
+        let index = 0;
+        const worker = async () => {
+          while (!cancelled && index < targets.length) {
+            const project = targets[index++];
+            const pending = await refreshProjectPending(project.id);
+            if (pending) next.set(project.id, pending);
           }
-        }),
-      );
-      if (cancelled) return;
-      const next = new Map<string, ProjectPending>();
-      for (const r of results) if (r) next.set(r[0], r[1]);
-      setAttention(next);
-      // First poll only seeds the baseline — re-opening the app must not
-      // re-alert for long-pending requests.
-      const items = collectPending(next);
-      if (!attentionBaselineRef.current) {
-        attentionBaselineRef.current = true;
-        attentionSeenRef.current = new Set(items.map((i) => i.key));
-        return;
+        };
+        await Promise.all(Array.from({ length: Math.min(3, targets.length) }, worker));
+        if (cancelled) return;
+        const items = collectPending(next);
+        if (!attentionBaselineRef.current) {
+          attentionBaselineRef.current = true;
+          attentionSeenRef.current = new Set(items.map((item) => item.key));
+          return;
+        }
+        const fresh = diffNewItems(items, attentionSeenRef.current);
+        attentionSeenRef.current = new Set(items.map((item) => item.key));
+        for (const item of fresh) notifyAttention(item);
+      } finally {
+        running = false;
       }
-      const fresh = diffNewItems(items, attentionSeenRef.current);
-      attentionSeenRef.current = new Set(items.map((i) => i.key));
-      for (const item of fresh) notifyAttention(item);
     };
     void poll();
     const timer = window.setInterval(poll, 5000);
@@ -898,50 +922,36 @@ export default function App() {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [projects, notifyAttention]);
-
-  const refreshProjectPending = useCallback(async (projectId: string) => {
-    try {
-      const [approvals, interactions] = await Promise.all([
-        api.approvals(projectId),
-        api.interactions(projectId),
-      ]);
-      setAttention((prev) => {
-        const next = new Map(prev);
-        next.set(projectId, { name: prev.get(projectId)?.name ?? '', approvals, interactions });
-        return next;
-      });
-    } catch {
-      /* the next poll reconciles */
-    }
-  }, []);
+  }, [projects, notifyAttention, refreshProjectPending]);
 
   const handleAttentionDecide = useCallback(
     async (item: PendingAttention, decision: 'approve' | 'deny') => {
       try {
         await api.decideApproval(item.projectId, item.id, decision, decision === 'deny' ? 'denied by user' : '');
+        removePendingItem(item.projectId, 'approvals', item.id);
         pushToast('ok', `${decision === 'approve' ? 'Approved' : 'Denied'} · ${item.projectName}`);
       } catch (e) {
         reportError(e);
       } finally {
-        await refreshProjectPending(item.projectId);
+        await refreshProjectPending(item.projectId, true);
       }
     },
-    [pushToast, reportError, refreshProjectPending],
+    [pushToast, reportError, refreshProjectPending, removePendingItem],
   );
 
   const handleAttentionRespond = useCallback(
     async (item: PendingAttention, response: string) => {
       try {
         await api.respondInteraction(item.projectId, item.id, response);
+        removePendingItem(item.projectId, 'interactions', item.id);
         pushToast('ok', `Response sent · ${item.projectName}`);
       } catch (e) {
         reportError(e);
       } finally {
-        await refreshProjectPending(item.projectId);
+        await refreshProjectPending(item.projectId, true);
       }
     },
-    [pushToast, reportError, refreshProjectPending],
+    [pushToast, reportError, refreshProjectPending, removePendingItem],
   );
 
   /* ------------------------------------------------------------- actions */
@@ -1033,17 +1043,16 @@ export default function App() {
     }
     const revision = ++pendingRevisionRef.current;
     pushToast('ok', t.interactionSentToast || 'Response sent to agent');
-    if (activeProjectIdRef.current === projectId) {
-      setInteractions((items) => items.filter((item) => String(item.interaction_id ?? item.id) !== String(interactionId)));
-    }
+    removePendingItem(projectId, 'interactions', interactionId);
+    void refreshProjectPending(projectId, true);
+    const selection = agentSelectionVersionRef.current;
+    const through = maxSeqRef.current;
     // The mutation succeeded. A failed refresh must not suggest resubmission.
-    void Promise.all([api.interactions(projectId), api.listAgents(projectId)])
-      .then(([updated, sessions]) => {
-        if (activeProjectIdRef.current !== projectId || pendingRevisionRef.current !== revision) return;
-        setInteractions(updated);
-        setAgents(dedupeAgents(sessions));
-      })
-      .catch(() => undefined);
+    void api.listAgents(projectId).then((sessions) => {
+      if (activeProjectIdRef.current !== projectId || pendingRevisionRef.current !== revision
+          || agentSelectionVersionRef.current !== selection || maxSeqRef.current !== through) return;
+      setAgents(dedupeAgents(sessions));
+    }).catch(() => undefined);
     return true;
   };
 
@@ -1067,16 +1076,15 @@ export default function App() {
     }
     const revision = ++pendingRevisionRef.current;
     pushToast('ok', decision === 'approve' ? t.approvalApprovedToast : t.approvalDeniedToast);
-    if (activeProjectIdRef.current === projectId) {
-      setApprovals((items) => items.filter((item) => String(item.id) !== String(approvalId)));
-    }
-    void Promise.all([api.approvals(projectId), api.listAgents(projectId)])
-      .then(([updated, sessions]) => {
-        if (activeProjectIdRef.current !== projectId || pendingRevisionRef.current !== revision) return;
-        setApprovals(updated);
-        setAgents(dedupeAgents(sessions));
-      })
-      .catch(() => undefined);
+    removePendingItem(projectId, 'approvals', approvalId);
+    void refreshProjectPending(projectId, true);
+    const selection = agentSelectionVersionRef.current;
+    const through = maxSeqRef.current;
+    void api.listAgents(projectId).then((sessions) => {
+      if (activeProjectIdRef.current !== projectId || pendingRevisionRef.current !== revision
+          || agentSelectionVersionRef.current !== selection || maxSeqRef.current !== through) return;
+      setAgents(dedupeAgents(sessions));
+    }).catch(() => undefined);
     return true;
   };
 

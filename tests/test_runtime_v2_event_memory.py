@@ -256,7 +256,7 @@ def test_cache_boundary_reads_only_missing_older_prefix(cached_history, scope):
     assert [event.data["index"] for event in result] == (list(range(8)) if scope == "iter_all" else [2, 4, 6])
     assert len(reads) == 1
     if scope == "iter_all":
-        assert reads[0]["stop_index"] == 4
+        assert reads[0]["before_seqs"] == {"p0": 2, "p1": 2}
     else:
         assert reads[0]["limit"] == 1, "only one older result is missing from the cached tail"
         boundary = "before_seq" if scope == "project" else "before_session_seq"

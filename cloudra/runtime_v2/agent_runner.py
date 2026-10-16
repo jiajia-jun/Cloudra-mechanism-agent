@@ -103,6 +103,16 @@ class AgentRunner:
     ) -> None:
         self.core = core
         self.pipeline = pipeline
+        from cloudra.runtime_v2.turn_pipeline import TurnPipeline
+
+        if isinstance(pipeline, TurnPipeline):
+            # An injected standalone pipeline joins this core's one durable
+            # event path, including when its store attaches after the runner.
+            pipeline.event_log = core.event_log
+            pipeline.event_hub = core.event_hub
+            pipeline.event_writer = core.event_writer
+            pipeline.invocations.event_writer = core.event_writer
+            pipeline.js_runtime.event_writer = core.event_writer
         self.max_turn_retries = max_turn_retries
         self.retry_backoff = retry_backoff
         self.max_exit_strikes = max_exit_strikes
@@ -630,6 +640,7 @@ class AgentRunner:
                 marker = await asyncio.to_thread(lambda: next((
                     event for event in core.event_log.iter_events(
                         session_id=coordinator.id, types={"agent.message_injected"},
+                        after_session_seq=gate[0].session_seq or 0,
                     )
                     if event.type == "agent.message_injected"
                     and event.session_id == coordinator.id

@@ -53,12 +53,14 @@ class EventWriter:
         event_log: EventLog,
         event_hub: EventHub | None = None,
         store_provider: Callable[[], "RuntimeStore | None"] | None = None,
+        on_persisted: Callable[[EventEnvelope], None] | None = None,
     ) -> None:
         self._log = event_log
         self._hub = event_hub
         # Resolved lazily on every flush: the API attaches core.store after
         # core construction, so a fixed reference would miss the attachment.
         self._store_provider = store_provider
+        self._on_persisted = on_persisted
         self._lock = asyncio.Lock()
         self._persisted = 0
         self._published = 0
@@ -106,8 +108,13 @@ class EventWriter:
                         ) from exc
                 self._persisted = index + 1
                 self._log.mark_persisted(index + 1, envelope)
+                if self._on_persisted is not None:
+                    self._on_persisted(envelope)
                 index += 1
         unpublished = events[max(0, self._published - start):]
+        if store is None and self._on_persisted is not None:
+            for envelope in unpublished:
+                self._on_persisted(envelope)
         # Mark before publishing: hub callbacks may re-enter flush, and
         # the hub dedupes by event_id, so this cannot double-deliver.
         self._published = end

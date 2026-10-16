@@ -9,9 +9,8 @@ state is kernel-native instead:
 - the user decision arrives as the ``approval.decide`` /
   ``interaction.respond`` commands, which append the decided/responded event
   and resolve the future;
-- listing is a pure projection over the event log, so a restart still shows
-  (stale) pending entries; deciding a dead entry is accepted and simply has
-  no waiter left to wake;
+- listing reads the current durable projection, restored with the runtime
+  snapshot; deciding a dead entry has no waiter left to wake;
 - on restore (``persistence.restore_core``) every orphaned entry — a
   ``*.requested`` with no terminal event, i.e. a waiter that died with the
   previous process — is closed explicitly with ``approval.expired`` /
@@ -37,6 +36,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from copy import deepcopy
 from typing import TYPE_CHECKING, Any
 
 from cloudra.runtime_v2.apply import apply_event
@@ -55,6 +55,57 @@ class PendingBroker:
     def __init__(self, core: "RuntimeCore") -> None:
         self.core = core
         self._waiters: dict[str, asyncio.Future] = {}
+        self._approvals: dict[str, dict[str, dict[str, Any]]] = {}
+        self._interactions: dict[str, dict[str, dict[str, Any]]] = {}
+        self._through: dict[str, int] = {}
+
+    def apply(self, event: EventEnvelope) -> None:
+        if event.type not in _APPROVAL_TYPES | _INTERACTION_TYPES:
+            return
+        if event.seq <= self._through.get(event.project_id, 0):
+            return
+        self._through[event.project_id] = event.seq
+        data = event.data
+        if event.type in _APPROVAL_TYPES:
+            rows = self._approvals.setdefault(event.project_id, {})
+            key = str(data.get("approval_id") or "")
+            if event.type == "approval.requested":
+                rows[key] = {
+                    "id": key, "session_id": event.session_id,
+                    "agent_name": data.get("agent_name", ""),
+                    "tool_name": data.get("tool_name", ""), "details": data.get("details", ""),
+                    "risk_summary": data.get("risk_summary", ""),
+                    "candidate_diff": data.get("candidate_diff", ""),
+                    "tool_call_id": data.get("tool_call_id"), "execution_id": data.get("execution_id"),
+                    "state": "waiting_for_approval", "created_at": event.created_at.isoformat(),
+                }
+            else:
+                rows.pop(key, None)
+        else:
+            rows = self._interactions.setdefault(event.project_id, {})
+            key = str(data.get("interaction_id") or "")
+            if event.type == "interaction.requested":
+                rows[key] = {
+                    "interaction_id": key, "session_id": event.session_id,
+                    "agent_id": data.get("agent_id", ""), "prompt": data.get("prompt", ""),
+                    "tool_call_id": data.get("tool_call_id"), "execution_id": data.get("execution_id"),
+                    "state": "pending", "created_at": event.created_at.isoformat(),
+                }
+            else:
+                rows.pop(key, None)
+
+    def snapshot(self) -> dict[str, Any]:
+        return deepcopy({"approvals": self._approvals, "interactions": self._interactions, "through": self._through})
+
+    def restore(self, payload: dict[str, Any]) -> None:
+        self._approvals = deepcopy(payload.get("approvals", {}))
+        self._interactions = deepcopy(payload.get("interactions", {}))
+        self._through = dict(payload.get("through", {}))
+
+    def prune_projects(self, project_ids: set[str]) -> None:
+        for mapping in (self._approvals, self._interactions, self._through):
+            for project_id in mapping.keys() - project_ids:
+                mapping.pop(project_id)
 
     # ------------------------------------------------------------------ events
 
@@ -155,10 +206,10 @@ class PendingBroker:
                 )
 
     async def decide_approval(self, project_id: str, approval_id: str, decision: str, reason: str) -> None:
-        pending = {p["id"] for p in await asyncio.to_thread(self.list_pending_approvals, project_id)}
-        if approval_id not in pending:
+        pending = self._approvals.get(project_id, {}).get(approval_id)
+        if pending is None:
             raise CommandRejected("not_found", f"no pending approval {approval_id!r}")
-        session_id = await asyncio.to_thread(self._request_session, project_id, approval_id, "approval.requested", "approval_id")
+        session_id = pending["session_id"] or ""
         await self._emit(
             "approval.decided",
             project_id=project_id,
@@ -173,27 +224,7 @@ class PendingBroker:
             future.set_result((decision, reason))
 
     def list_pending_approvals(self, project_id: str) -> list[dict[str, Any]]:
-        requested: dict[str, dict[str, Any]] = {}
-        decided: set[str] = set()
-        for env in self.core.event_log.query_project(project_id, types=_APPROVAL_TYPES, limit=None):
-            if env.type == "approval.requested":
-                aid = str(env.data.get("approval_id") or "")
-                requested[aid] = {
-                    "id": aid,
-                    "session_id": env.session_id,
-                    "agent_name": env.data.get("agent_name", ""),
-                    "tool_name": env.data.get("tool_name", ""),
-                    "details": env.data.get("details", ""),
-                    "risk_summary": env.data.get("risk_summary", ""),
-                    "candidate_diff": env.data.get("candidate_diff", ""),
-                    "tool_call_id": env.data.get("tool_call_id"),
-                    "execution_id": env.data.get("execution_id"),
-                    "state": "waiting_for_approval",
-                    "created_at": env.created_at.isoformat(),
-                }
-            else:
-                decided.add(str(env.data.get("approval_id") or ""))
-        return [row for aid, row in requested.items() if aid not in decided]
+        return deepcopy(list(self._approvals.get(project_id, {}).values()))
 
     # ------------------------------------------------------------------ interactions
 
@@ -240,10 +271,10 @@ class PendingBroker:
                 )
 
     async def respond_interaction(self, project_id: str, interaction_id: str, response: str) -> dict[str, Any]:
-        pending = {p["interaction_id"] for p in await asyncio.to_thread(self.list_pending_interactions, project_id)}
-        if interaction_id not in pending:
+        pending = self._interactions.get(project_id, {}).get(interaction_id)
+        if pending is None:
             raise CommandRejected("not_found", f"no pending interaction {interaction_id!r}")
-        session_id = await asyncio.to_thread(self._request_session, project_id, interaction_id, "interaction.requested", "interaction_id")
+        session_id = pending["session_id"] or ""
         envelope = await self._emit(
             "interaction.responded",
             project_id=project_id,
@@ -265,24 +296,7 @@ class PendingBroker:
         }
 
     def list_pending_interactions(self, project_id: str) -> list[dict[str, Any]]:
-        requested: dict[str, dict[str, Any]] = {}
-        responded: set[str] = set()
-        for env in self.core.event_log.query_project(project_id, types=_INTERACTION_TYPES, limit=None):
-            if env.type == "interaction.requested":
-                iid = str(env.data.get("interaction_id") or "")
-                requested[iid] = {
-                    "interaction_id": iid,
-                    "session_id": env.session_id,
-                    "agent_id": env.data.get("agent_id", ""),
-                    "prompt": env.data.get("prompt", ""),
-                    "tool_call_id": env.data.get("tool_call_id"),
-                    "execution_id": env.data.get("execution_id"),
-                    "state": "pending",
-                    "created_at": env.created_at.isoformat(),
-                }
-            else:
-                responded.add(str(env.data.get("interaction_id") or ""))
-        return [row for iid, row in requested.items() if iid not in responded]
+        return deepcopy(list(self._interactions.get(project_id, {}).values()))
 
     # ------------------------------------------------------------------ restore
 
@@ -328,11 +342,3 @@ class PendingBroker:
             apply_event(self.core, envelope)
             emitted.append(envelope)
         return emitted
-
-    # ------------------------------------------------------------------ helpers
-
-    def _request_session(self, project_id: str, request_id: str, type_: str, key: str) -> str:
-        for env in self.core.event_log.query_project(project_id, types={type_}, limit=None):
-            if str(env.data.get(key) or "") == request_id:
-                return env.session_id or ""
-        return ""

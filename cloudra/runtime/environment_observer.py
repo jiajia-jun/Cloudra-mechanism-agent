@@ -12,7 +12,10 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import threading
+from collections import OrderedDict
 from dataclasses import dataclass
+from itertools import islice
 from pathlib import Path
 
 _IGNORED_NAMES = frozenset(
@@ -28,7 +31,18 @@ _IGNORED_NAMES = frozenset(
         "node_modules",
     }
 )
-_SNAPSHOT_CACHE: dict[tuple[str, str], dict[str, str]] = {}
+_CACHE_LOCK = threading.RLock()
+_SNAPSHOT_CACHE: OrderedDict[tuple[str, str], dict[str, str]] = OrderedDict()
+_WORKSPACE_CACHE: OrderedDict[tuple[str, int, int], tuple] = OrderedDict()
+
+
+def _signature(path: Path):
+    try:
+        stat = path.lstat()
+    except OSError:
+        return None
+    return (stat.st_dev, stat.st_ino, stat.st_mode, stat.st_size,
+            stat.st_mtime_ns, stat.st_ctime_ns)
 
 
 def is_application_checkout(root: Path) -> bool:
@@ -68,52 +82,66 @@ def _snapshot(
     max_entries: int = 2_000,
     max_depth: int = 5,
 ) -> tuple[dict[str, str], tuple[str, ...], bool]:
-    entries: dict[str, str] = {}
-    top_level: list[str] = []
-    truncated = False
-    stack: list[tuple[Path, int]] = [(root, 0)]
+    with _CACHE_LOCK:
+        cache_key = (str(root), max_entries, max_depth)
+        cached = _WORKSPACE_CACHE.get(cache_key)
+        if cached is not None:
+            entries, top_level, truncated, signatures = cached
+            if all(_signature(root / path) == version for path, version in signatures.items()):
+                _WORKSPACE_CACHE.move_to_end(cache_key)
+                return entries, top_level, truncated
+        entries: dict[str, str] = {}
+        signatures = {"": _signature(root)}
+        top_level: list[str] = []
+        truncated = False
+        stack: list[tuple[Path, int]] = [(root, 0)]
+        enumerated = 0
 
-    while stack and len(entries) < max_entries:
-        directory, depth = stack.pop()
-        try:
-            children = sorted(
-                os.scandir(directory),
-                key=lambda item: item.name,
-                reverse=True,
-            )
-        except OSError:
-            continue
-        for child in children:
-            if len(entries) >= max_entries:
-                truncated = True
-                break
-            if child.name in _IGNORED_NAMES:
-                continue
+        while stack and enumerated < max_entries:
+            directory, depth = stack.pop()
+            remaining = max_entries - enumerated
             try:
-                relative = Path(child.path).relative_to(root).as_posix()
-                stat = child.stat(follow_symlinks=False)
-                if child.is_symlink():
-                    kind = "symlink"
-                elif child.is_dir(follow_symlinks=False):
-                    kind = "directory"
-                elif child.is_file(follow_symlinks=False):
-                    kind = "file"
-                else:
-                    kind = "other"
-                entries[relative] = (
-                    f"{kind}:{stat.st_size}:{stat.st_mtime_ns}"
-                )
-                if depth == 0:
-                    top_level.append(
-                        f"{child.name}/" if kind == "directory" else child.name
-                    )
-                if kind == "directory" and depth < max_depth:
-                    stack.append((Path(child.path), depth + 1))
-            except (OSError, ValueError):
+                with os.scandir(directory) as iterator:
+                    children = list(islice(iterator, remaining + 1))
+            except OSError:
                 continue
-    if stack:
-        truncated = True
-    return entries, tuple(sorted(top_level)), truncated
+            if len(children) > remaining:
+                truncated = True
+                children = children[:remaining]
+            enumerated += len(children)
+            children.sort(key=lambda item: item.name, reverse=True)
+            for child in children:
+                if child.name in _IGNORED_NAMES:
+                    continue
+                try:
+                    relative = Path(child.path).relative_to(root).as_posix()
+                    stat = child.stat(follow_symlinks=False)
+                    if child.is_symlink():
+                        kind = "symlink"
+                    elif child.is_dir(follow_symlinks=False):
+                        kind = "directory"
+                    elif child.is_file(follow_symlinks=False):
+                        kind = "file"
+                    else:
+                        kind = "other"
+                    signatures[relative] = (
+                        stat.st_dev, stat.st_ino, stat.st_mode, stat.st_size,
+                        stat.st_mtime_ns, stat.st_ctime_ns,
+                    )
+                    entries[relative] = f"{kind}:{stat.st_size}:{stat.st_mtime_ns}:{stat.st_ctime_ns}:{stat.st_ino}"
+                    if depth == 0:
+                        top_level.append(f"{child.name}/" if kind == "directory" else child.name)
+                    if kind == "directory" and depth < max_depth:
+                        stack.append((Path(child.path), depth + 1))
+                except (OSError, ValueError):
+                    continue
+        truncated = truncated or bool(stack)
+        result = entries, tuple(sorted(top_level)), truncated
+        _WORKSPACE_CACHE[cache_key] = (*result, signatures)
+        _WORKSPACE_CACHE.move_to_end(cache_key)
+        while len(_WORKSPACE_CACHE) > 32:
+            _WORKSPACE_CACHE.popitem(last=False)
+        return result
 
 
 def observe_workspace(
@@ -126,7 +154,12 @@ def observe_workspace(
     resolved = root.expanduser().resolve()
     entries, top_level, truncated = _snapshot(resolved)
     cache_key = (str(resolved), observer_id)
-    previous = _SNAPSHOT_CACHE.get(cache_key)
+    with _CACHE_LOCK:
+        previous = _SNAPSHOT_CACHE.get(cache_key)
+        _SNAPSHOT_CACHE[cache_key] = entries
+        _SNAPSHOT_CACHE.move_to_end(cache_key)
+        while len(_SNAPSHOT_CACHE) > 128:
+            _SNAPSHOT_CACHE.popitem(last=False)
     changes: list[dict[str, str]] = []
     if previous is not None:
         for path in sorted(set(previous) | set(entries)):
@@ -141,7 +174,6 @@ def observe_workspace(
             changes.append({"path": path, "change": change})
             if len(changes) >= 100:
                 break
-    _SNAPSHOT_CACHE[cache_key] = entries
     return WorkspaceObservation(
         revision=_digest(entries),
         top_level_entries=top_level,
