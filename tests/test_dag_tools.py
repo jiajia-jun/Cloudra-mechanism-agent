@@ -35,6 +35,41 @@ async def _call(cls, agent, session, **kwargs):
     return await call_dag_tool(cls, agent, session, **kwargs)
 
 
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('kind', ['exit', 'exception'])
+async def test_supervisor_can_follow_inbox_link_to_submitted_diagnostic_material(tmp_path, kind):
+    from cloudra.dag.controller import DagController
+    from cloudra.tools.Plantool.dag_tools.dag_view_evidence import DagViewEvidence
+
+    conversation_id = 'review-material-' + kind
+    session = make_session(conversation_id, 'coordinator')
+    reason = 'The concrete product representation differs; see ts/ts_0033/process.json'
+    answer = 'The current search has no accepted transition state'
+    if kind == 'exit':
+        db = await asyncio.to_thread(lambda: ConversationDB(conversation_id).init())
+        controller = DagController(db, session.id, 'dag_guided', working_directory=tmp_path)
+        gate = await controller.audit_stop('partial', reason=reason, final_answer=answer)
+        request_id = gate.request_id
+    else:
+        submitted = await _call(DagMessageSupervisor, _agent(conversation_id, 'dag_guided'), session,
+            kind='exception', question='Review this input blocker', proposal={'reason': reason, 'final_answer': answer})
+        assert submitted.is_success
+        request_id = submitted.result['request_id']
+    supervisor = make_supervisor(conversation_id, workspace_dir=str(tmp_path))
+    supervisor_session = make_session(conversation_id, 'supervisor')
+    inbox = await _call(DagView, supervisor, supervisor_session)
+    item = next(item for item in inbox.result['queued_requests'] if item['request_id'] == request_id)
+    assert item['evidence_view'] == f'dag_view_evidence(review_id={request_id!r})'
+
+    viewed = await _call(DagViewEvidence, supervisor, supervisor_session, review_id=request_id)
+
+    assert viewed.is_success, viewed.error
+    assert viewed.result['proposal']['reason'] == reason
+    assert viewed.result['proposal']['final_answer'] == answer
+
+
 _DAG_TOOL_NAMES = {
     "dag_view",
     "dag_delivery_report",

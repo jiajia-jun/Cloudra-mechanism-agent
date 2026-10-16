@@ -391,6 +391,7 @@ class AgentRunner:
                         run_id,
                         explicit_stop=explicit_stop,
                         stop_arguments=stop_arguments,
+                        candidate_answer=outcome.content,
                     )
                     if gate.action == "continue_work":
                         # Keep the candidate private until the completion gate permits delivery.
@@ -475,8 +476,9 @@ class AgentRunner:
                             hook = getattr(stage, "on_run_end", None)
                             if hook is not None:
                                 await hook(agent, explicit_stop=explicit_stop)
-                        if gate.action == "allow_final" and outcome.content:
-                            self._emit_run_message(agent, run_id, outcome.content)
+                        final_answer = gate.final_answer if gate.final_answer is not None else outcome.content
+                        if gate.action == "allow_final" and final_answer:
+                            self._emit_run_message(agent, run_id, final_answer)
                         elif gate.action == "wait_background":
                             self._emit_run_message(agent, run_id, gate.reason or "Run paused awaiting background work.")
                         await core.agent_host.finish_run(agent, outcome="succeeded")
@@ -684,7 +686,7 @@ class AgentRunner:
             data={"sender": agent.role_id, "content": content},
         )
 
-    async def _evaluate_completion_gate(self, agent: AgentSession, run_id: str, *, explicit_stop: bool, stop_arguments: dict | None):
+    async def _evaluate_completion_gate(self, agent: AgentSession, run_id: str, *, explicit_stop: bool, stop_arguments: dict | None, candidate_answer: str = ""):
         """唯一的运行结束判定边界（Task 4A，计划 §6）。
 
         显式 stop 与无 tool_calls 的纯文本最终回复都流经这里：各 PolicyStage
@@ -719,7 +721,7 @@ class AgentRunner:
             if hook is None:
                 continue
             verdict = await hook(
-                ctx, explicit_stop=explicit_stop, stop_arguments=stop_arguments
+                ctx, explicit_stop=explicit_stop, stop_arguments=stop_arguments, candidate_answer=candidate_answer
             )
             if verdict is not None:
                 verdicts.append((verdict, getattr(stage, "name", "unknown")))

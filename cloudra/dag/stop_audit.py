@@ -60,6 +60,7 @@ class StopGate(BaseModel):
     # 只在 allow_final / wait_background 这些「本次 run 将收尾」的判定上显式
     # 声明；被拦的判定（continue_work / wait_review）没有依据可言，保持 None。
     basis: CompletionBasis | None = None
+    final_answer: str | None = None
 
 
 async def pending_compute_jobs_exist(*, data_dir, project_id: str) -> bool:
@@ -200,6 +201,9 @@ class StopAuditMixin:
         disposition: str,
         *,
         user_stop_event_id: str | None = None,
+        reason: str | None = None,
+        final_answer: str | None = None,
+        candidate_answer: str = "",
     ) -> StopGate:
         """Audit a stop/final reply and return a :class:`StopGate`.
 
@@ -310,16 +314,18 @@ class StopAuditMixin:
 
         # Guided delivery needs one whole-delivery verdict. Durable same-basis
         # decisions are reused, including actionable rejections.
-        resolved = await asyncio.to_thread(self.store.list_review_requests, state="resolved")
-        for request in reversed(resolved):
-            if request.kind != "exit":
-                continue
-            decision = await asyncio.to_thread(self.store.get_review_decision_for_request, request.request_id)
-            if decision and await self._valid_exit_approval(decision.decision_id, disposition, report):
-                reused = await self._reused_exit_review(request.request_id, disposition, report)
-                if reused is not None:
-                    return reused
-        request_id, created = await self._enqueue_exit_review(disposition, report)
+        if not reason and not final_answer:
+            resolved = await asyncio.to_thread(self.store.list_review_requests, state="resolved")
+            for request in reversed(resolved):
+                if request.kind != "exit":
+                    continue
+                decision = await asyncio.to_thread(self.store.get_review_decision_for_request, request.request_id)
+                if decision and await self._valid_exit_approval(decision.decision_id, disposition, report):
+                    reused = await self._reused_exit_review(request.request_id, disposition, report)
+                    if reused is not None:
+                        return reused
+        request_id, created = await self._enqueue_exit_review(disposition, report,
+            reason=reason, final_answer=final_answer, candidate_answer=candidate_answer)
         reused = await self._reused_exit_review(request_id, disposition, report)
         if reused is not None:
             return reused
@@ -333,7 +339,9 @@ class StopAuditMixin:
             reason=f"{disposition} delivery requires final Supervisor review in dag_guided",
         )
 
-    async def _enqueue_exit_review(self, disposition: str, report: Any) -> tuple[str, bool]:
+    async def _enqueue_exit_review(self, disposition: str, report: Any, *,
+                                   reason: str | None = None, final_answer: str | None = None,
+                                   candidate_answer: str = "") -> tuple[str, bool]:
         """持久化退出审查请求；同 kind+scope+basis 去重。返回 (request_id,
         是否新建）——只有新建才值得通知 Supervisor。"""
         snapshot = await asyncio.to_thread(self.engine.snapshot)
@@ -343,6 +351,20 @@ class StopAuditMixin:
         ]
         if not target_ids:
             target_ids = [snapshot.delivery.graph_id]
+        if not reason and not final_answer:
+            previous = await asyncio.to_thread(self.store.list_review_requests, None)
+            for saved in reversed(previous):
+                if (saved.kind != "exit" or saved.requester != self.session_id
+                        or set(saved.target_ids) != set(target_ids)
+                        or saved.proposal.get("disposition") != disposition):
+                    continue
+                # A confirmation refers to the latest submission. New queued or
+                # rejected material must never recover an earlier acceptance.
+                current_basis = await asyncio.to_thread(self.store.review_basis, saved)
+                if (saved.state in {"queued", "resolved"} and self._exit_artifact_matches(saved)
+                        and saved.basis_fingerprint == current_basis):
+                    return saved.request_id, False
+                break
         request = ReviewRequest(
             kind="exit",
             requester=self.session_id,
@@ -357,6 +379,8 @@ class StopAuditMixin:
                 "scope": target_ids,
                 "remaining_gaps": [g.model_dump(mode="json") for g in [*(report.unresolved), *(report.inconclusive)]],
                 "method_limits": [],
+                "reason": reason or "",
+                "final_answer": final_answer or candidate_answer,
                 "delivery_artifact": self._delivery_artifact.model_dump(mode='json') if self._delivery_artifact else None,
             },
             basis_fingerprint="sha256:pending",
@@ -407,6 +431,7 @@ class StopAuditMixin:
             request_id=request.request_id,
             reason=f"approved by {decision.decision_id}",
             basis=basis,
+            final_answer=request.proposal.get("final_answer"),
         )
 
     def _exit_artifact_matches(self, request) -> bool:
