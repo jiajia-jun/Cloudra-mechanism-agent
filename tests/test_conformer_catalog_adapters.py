@@ -81,6 +81,37 @@ def test_guided_rejected_candidates_keep_reason(tmp_path):
     assert all(c.qualification.status != 'unknown' for c in capture.records if c.parent_id)
 
 
+def test_guided_warning_stays_qualified_and_survives_archive(tmp_path, monkeypatch):
+    from cloudra.tools.core import preorganization
+    from cloudra.tools.core.conformer_capture import CandidateCapture
+    from cloudra.tools.core.conformer_catalog import CandidateRecord
+    from cloudra.tools.core.structure_builder import StructureInput
+
+    real_qualify = preorganization.qualify_geometry
+    warning = 'Warning: test inferred contact; molecular graph unchanged'
+
+    def qualify_with_warning(*args, **kwargs):
+        passed, reasons, distances, warnings = real_qualify(*args, **kwargs)
+        return passed, reasons, distances, [*warnings, warning]
+
+    monkeypatch.setattr(preorganization, 'qualify_geometry', qualify_with_warning)
+    capture = CandidateCapture(catalog_id='c', project_id='p', owner_id='o', output_dir=str(tmp_path),
+        sink=lambda record: (tmp_path / f'{record.candidate_id}.json').write_text(record.model_dump_json()))
+    result = preorganization.search_guided(
+        structure=StructureInput(kind='smiles', value='CCCC'), output_dir=str(tmp_path / 'guided'),
+        ring_order=[], distance_filters=[{'atoms': [1, 4], 'min_ang': 3, 'max_ang': 4}],
+        num_confs=3, candidate_sink=capture)
+
+    assert result.status == 'ok', result.message
+    qualified = [record for record in capture.records if record.qualification.status == 'qualified']
+    assert qualified
+    for record in qualified:
+        restored = CandidateRecord.model_validate_json((tmp_path / f'{record.candidate_id}.json').read_text())
+        assert restored.state == 'optimized'
+        assert restored.qualification.status == 'qualified'
+        assert warning in restored.qualification.reasons
+
+
 def test_rdkit_archive_keeps_all_raw_and_optimized_before_screening(tmp_path):
     from cloudra.tools.Chemtool.conformer_search import ConformerSearch, ConformerSearch_input_schema
     from cloudra.tools.core.conformer_capture import CandidateCapture

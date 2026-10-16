@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+from pathlib import Path
 
 import pytest
 
@@ -209,6 +210,29 @@ async def test_guided_ring_search_returns_only_qualified_ts_seeds(tool, mock_ses
     assert "Boltzmann" not in result.table
     assert result.constraint_manifest_path
     assert {row["source"] for row in result.effective_windows} == {"explicit"}
+
+
+@pytest.mark.asyncio
+async def test_sodium_contact_warning_reaches_tool_output(tool, mock_session, tmp_path):
+    result = await tool.safe_call(ConformerSearch_input_schema(
+        smiles="[Na+].[O-][H]",
+        distance_filters=[{"atoms": [1, 2], "min_ang": 2.4, "max_ang": 2.9}],
+        output_dir=str(tmp_path / "sodium"),
+    ), mock_session)
+
+    assert result.is_success, result.message
+    assert result.conformers
+    assert "Warning:" in result.message and "distance-inferred" in result.message
+    manifest = json.loads(Path(result.constraint_manifest_path).read_text())
+    assert any("Warning:" in item for item in manifest["diagnostics"])
+    from rdkit import Chem
+
+    for candidate in result.conformers:
+        mol = Chem.MolFromMolFile(candidate["mol_path"], removeHs=False)
+        assert mol.GetNumBonds() == 1
+        assert mol.GetBondBetweenAtoms(0, 1) is None
+        assert mol.GetAtomWithIdx(0).GetFormalCharge() == 1
+        assert mol.GetAtomWithIdx(1).GetFormalCharge() == -1
 
 
 @pytest.mark.asyncio

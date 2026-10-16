@@ -238,15 +238,15 @@ def qualify_geometry(
     graph: Chem.Mol,
     symbols: Sequence[str],
     positions: Sequence[Sequence[float]],
-) -> tuple[bool, list[str], dict[str, float]]:
+) -> tuple[bool, list[str], dict[str, float], list[str]]:
     """Check a delivered frame, independently of restraints used to create it."""
     expected_symbols = [atom.GetSymbol() for atom in graph.GetAtoms()]
     actual_symbols = [symbol[:1].upper() + symbol[1:].lower() for symbol in symbols]
     if actual_symbols != expected_symbols or len(positions) != len(expected_symbols):
-        return False, ["atom identity/order changed"], {}
+        return False, ["atom identity/order changed"], {}, []
     if any(len(position) != 3 or not all(math.isfinite(float(v)) for v in position)
            for position in positions):
-        return False, ["nonfinite or incomplete coordinates"], {}
+        return False, ["nonfinite or incomplete coordinates"], {}, []
 
     distances = measure_windows(plan, positions)
     reasons = geometry_stereochemistry_errors(graph, positions)
@@ -266,10 +266,19 @@ def qualify_geometry(
     perceived = set(default_connectivity()(expected_symbols, positions))
     unexpected = perceived - expected_bonds - set(plan.forming_pairs)
     missing = expected_bonds - perceived
+    warnings = []
     if unexpected:
-        reasons.append(f"unexpected covalent contacts: {sorted(unexpected)}")
+        pairs = sorted((left + plan.index_base, right + plan.index_base) for left, right in unexpected)
+        warnings.append(
+            f"Warning: distance-inferred additional contacts ({plan.index_base}-based): {pairs}; "
+            "molecular graph unchanged."
+        )
     if missing:
-        reasons.append(f"input covalent bonds lost: {sorted(missing)}")
+        pairs = sorted((left + plan.index_base, right + plan.index_base) for left, right in missing)
+        warnings.append(
+            f"Warning: distance-inferred missing contacts ({plan.index_base}-based): {pairs}; "
+            "molecular graph unchanged."
+        )
 
     clash_limit = AssemblyParameters().min_interfragment_distance
     from cloudra.tools.core.complex_assembly import interfragment_clusters
@@ -284,7 +293,7 @@ def qualify_geometry(
                 continue
             if math.dist(positions[left], positions[right]) < clash_limit:
                 reasons.append(f"atomic clash {left + plan.index_base}-{right + plan.index_base}")
-    return not reasons, reasons, distances
+    return not reasons, reasons, distances, warnings
 
 
 class GuidedCandidate(BaseModel):
@@ -343,7 +352,7 @@ def _fallback_note(plan: GuidancePlan) -> str:
 
 
 def _validated_bounds(prepared: PreparedStructure, plan: GuidancePlan):
-    """Reject incompatible windows before either RDKit embedding or placement sampling."""
+    """Build distance bounds for RDKit embedding and reject incompatible windows."""
     bad = partial(_bad, prepared, index_base=plan.index_base)
     graph = load_resolved_graph(prepared, index_base=plan.index_base)
     graph_distances = Chem.GetDistanceMatrix(graph)
@@ -355,16 +364,6 @@ def _validated_bounds(prepared: PreparedStructure, plan: GuidancePlan):
     for window in plan.windows:
         left, right = window.atoms
         name = f"{left + plan.index_base}-{right + plan.index_base} ({window.source})"
-        if graph.GetBondBetweenAtoms(left, right) is not None:
-            symbols = [graph.GetAtomWithIdx(i).GetSymbol() for i in (left, right)]
-            # Qualification already requires every input bond to survive. Check
-            # that same connectivity rule at the shortest allowed distance.
-            if not default_connectivity()(symbols, [(0., 0., 0.), (window.min_ang, 0., 0.)]):
-                raise bad(
-                    f"guided window {name} cannot preserve the input covalent bond "
-                    f"({symbols[0]}-{symbols[1]}) under the existing qualification rule; "
-                    "indices refer to the full structure including H, not SMILES heavy atoms; no search was run",
-                )
         if (graph_distances[left, right] > 2
                 and window.max_ang < AssemblyParameters().min_interfragment_distance):
             raise bad(
@@ -451,6 +450,7 @@ def _single_component_rdkit(
     accepted: list[tuple[int, float, dict[str, float]]] = []
     closest: tuple[float, list[list[float]], dict[str, float]] | None = None
     rejected: Counter[str] = Counter()
+    contact_warnings: Counter[str] = Counter()
 
     def note_closest(conf_id: int) -> None:
         nonlocal closest
@@ -482,18 +482,19 @@ def _single_component_rdkit(
         note_closest(conf_id)
         if candidate_sink:
             from cloudra.tools.core.conformer_catalog import Qualification
-            candidate_passed, candidate_reasons, _ = qualify_geometry(plan, mol, symbols, mol.GetConformer(conf_id).GetPositions())
+            candidate_passed, candidate_reasons, _, candidate_warnings = qualify_geometry(plan, mol, symbols, mol.GetConformer(conf_id).GetPositions())
             qualified = converged and candidate_passed
             candidate_sink.capture(mol, conf_id, generator="guided_MMFF94", parent_id=parents[conf_id].candidate_id,
                 state="optimized" if qualified else "failed", qualification=Qualification(status="qualified" if qualified else "rejected",
-                reasons=candidate_reasons + ([] if converged else ["optimization_not_converged"])))
+                reasons=candidate_reasons + candidate_warnings + ([] if converged else ["optimization_not_converged"])))
         if not converged:
             rejected["optimization_not_converged"] += 1
             continue
         result.counts["optimized"] += 1
         positions = mol.GetConformer(conf_id).GetPositions()
         distances = measure_windows(plan, positions)
-        passed, reasons, distances = qualify_geometry(plan, mol, symbols, positions)
+        passed, reasons, distances, warnings = qualify_geometry(plan, mol, symbols, positions)
+        contact_warnings.update(warnings)
         if not passed:
             for reason in reasons:
                 rejected[reason.split(":", 1)[0]] += 1
@@ -509,6 +510,7 @@ def _single_component_rdkit(
 
     result.counts["rejected"] = len(conf_ids) - len(accepted)
     result.diagnostics.extend(f"{reason}: {count}" for reason, count in sorted(rejected.items()))
+    result.diagnostics.extend(f"{warning} ({count} candidate(s))" for warning, count in sorted(contact_warnings.items()))
     if closest is not None:
         _, closest_positions, closest_distances = closest
         result.closest_path = os.path.join(output_dir, "closest_attempt.xyz")
@@ -564,7 +566,6 @@ def _multi_component_rdkit(
     rmsd_threshold: float, candidate_sink=None,
 ) -> GuidedSearchResult:
     graph = load_resolved_graph(prepared, index_base=plan.index_base)
-    _validated_bounds(prepared, plan)
     built = prepare_structure(PreparationRequest(
         structure=StructureInput(kind="molecule", value=prepared.mol),
         output_dir=os.path.join(output_dir, "guided_assembly"),
@@ -620,13 +621,15 @@ def _multi_component_rdkit(
     closest: tuple[float, str, list[tuple[str, list[float]]], dict[str, float]] | None = None
     rejected: Counter[str] = Counter()
     qualified: list[tuple[AssemblyCandidate, list[list[float]], dict[str, float]]] = []
+    contact_warnings: Counter[str] = Counter()
     assembly_candidates = built.assembly.candidates if built.assembly else []
     for candidate in assembly_candidates:
         path = candidate.xyz_path
         symbols = [atom.GetSymbol() for atom in candidate.mol.GetAtoms()]
         positions = candidate.mol.GetConformer().GetPositions().tolist()
         atoms = list(zip(symbols, positions))
-        passed, reasons, distances = qualify_geometry(plan, graph, symbols, positions)
+        passed, reasons, distances, warnings = qualify_geometry(plan, graph, symbols, positions)
+        contact_warnings.update(warnings)
         if distances:
             deviation = _max_window_deviation(plan, distances)
             if closest is None or deviation < closest[0]:
@@ -653,6 +656,7 @@ def _multi_component_rdkit(
     result.counts["qualified"] = len(qualified)
     result.counts["clustered_duplicates"] = len(qualified) - len(result.candidates)
     result.diagnostics.extend(f"{reason}: {count}" for reason, count in sorted(rejected.items()))
+    result.diagnostics.extend(f"{warning} ({count} candidate(s))" for warning, count in sorted(contact_warnings.items()))
     if closest is not None:
         _, _path, atoms, distances = closest
         result.closest_path = os.path.join(output_dir, "closest_attempt.xyz")
@@ -707,7 +711,7 @@ def _crest_guided(
     ))
     result = GuidedSearchResult(
         status="no_candidate", message="", prepared_path=seed_result.prepared_path,
-        diagnostics=list(run.diagnostics),
+        diagnostics=[*seed_result.diagnostics, *run.diagnostics],
         counts={"generated": len(run.conformers), "optimized": len(run.conformers),
                 "rejected": 0, "retained": 0},
         constraint_targets=targets, crest_run_dir=run.run_dir,
@@ -721,10 +725,12 @@ def _crest_guided(
         return _save_guided_result(result, plan, output_dir)
     closest: tuple[float, object, dict[str, float]] | None = None
     rejected: Counter[str] = Counter()
+    contact_warnings: Counter[str] = Counter()
     for frame in run.conformers:
-        passed, reasons, distances = qualify_geometry(
+        passed, reasons, distances, warnings = qualify_geometry(
             plan, graph, frame.symbols, frame.positions,
         )
+        contact_warnings.update(warnings)
         if distances:
             deviation = _max_window_deviation(plan, distances)
             if closest is None or deviation < closest[0]:
@@ -751,6 +757,7 @@ def _crest_guided(
     result.counts["retained"] = len(result.candidates)
     result.counts["rejected"] = len(run.conformers) - len(result.candidates)
     result.diagnostics.extend(f"{reason}: {count}" for reason, count in sorted(rejected.items()))
+    result.diagnostics.extend(f"{warning} ({count} candidate(s))" for warning, count in sorted(contact_warnings.items()))
     if closest is not None:
         _, frame, distances = closest
         result.closest_path = os.path.join(output_dir, "closest_crest_attempt.xyz")

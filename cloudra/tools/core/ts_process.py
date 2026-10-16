@@ -652,20 +652,23 @@ def _build(record: TsProcessRecord) -> TsProcessRecord:
             if record.blocked or record.waiting_for:
                 return record
             _store_structure_table(record, role)
+    guidance_warnings = []
     if guidance.ring_order or guidance.distance_filters:
         try:
             from cloudra.tools.core.preorganization import qualify_geometry
             plan, graph = _seed_guidance_plan(record)
             built = _read_built_xyz(record, 'reactant')
-            passed, reasons, _ = qualify_geometry(plan, graph, built[0], built[1])
+            passed, reasons, _, guidance_warnings = qualify_geometry(plan, graph, built[0], built[1])
             if not passed:
-                raise ValueError('; '.join(reasons))
+                raise ValueError('; '.join([*reasons, *guidance_warnings]))
             record.effective_reaction_center = list(dict.fromkeys([*record.input.reaction.reaction_center, *plan.forming_pairs]))
         except (ValueError, OSError) as exc:
             return _block(record, 'build', 'seed_guidance_failed', str(exc), needs=['conformers.reactant', 'conformers.guidance'])
     detail = "both endpoints built" if len(endpoints) == 2 else (
         "first endpoint built; the second endpoint is derived from it by the declared rotation"
     )
+    if guidance_warnings:
+        detail += '\n' + '\n'.join(guidance_warnings)
     _record_stage(record, "build", "done", detail, record.evidence_candidates)
     return record
 

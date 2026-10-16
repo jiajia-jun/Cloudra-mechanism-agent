@@ -136,7 +136,7 @@ def test_guided_rdkit_persists_qualified_intramolecular_seeds(tmp_path):
         {"atoms": [1, 6], "min_ang": 3.5, "max_ang": 4.0},
         {"atoms": [2, 5], "min_ang": 3.2, "max_ang": 4.0},
     ])
-    passed, reasons, _distances = qualify_geometry(
+    passed, reasons, _distances, _warnings = qualify_geometry(
         plan, load_resolved_graph(prepared), [symbol for symbol, _ in atoms], positions,
     )
     assert passed, reasons
@@ -155,8 +155,8 @@ def test_guided_search_with_zero_qualified_seeds_fails_with_nearest_geometry(
     import cloudra.tools.core.preorganization as preorganization
 
     def reject_all(plan, graph, symbols, positions):
-        _passed, _reasons, distances = qualify_geometry(plan, graph, symbols, positions)
-        return False, ["first rejection", "second rejection"], distances
+        _passed, _reasons, distances, warnings = qualify_geometry(plan, graph, symbols, positions)
+        return False, ["first rejection", "second rejection"], distances, warnings
 
     monkeypatch.setattr(preorganization, "qualify_geometry", reject_all)
     result = search_guided(
@@ -193,29 +193,134 @@ def test_impossible_guided_bounds_fail_before_embedding(tmp_path, monkeypatch):
         )
 
 
-@pytest.mark.parametrize("filter_row, pair", [
-    ({"atoms": [3, 10], "min_ang": 0.1, "max_ang": 0.2}, "3-10"),
-    ({"atoms": [1, 2], "min_ang": 5.0, "max_ang": 6.0}, "1-2"),
+def test_short_sodium_oxygen_window_runs_search_and_keeps_qualification(tmp_path):
+    result = search_guided(
+        structure=StructureInput(kind="smiles", value="[Na+].[O-][H]"),
+        output_dir=str(tmp_path / "sodium_hydroxide"), ring_order=[],
+        distance_filters=[{"atoms": [1, 2], "min_ang": 2.15, "max_ang": 2.35}],
+        random_seed=42,
+    )
+
+    assert result.counts["optimized"] > 0
+    assert result.status == "no_candidate"
+    assert result.candidates == []
+    assert Path(result.closest_path).is_file()
+    assert any("Warning:" in reason and "distance-inferred" in reason for reason in result.diagnostics)
+    assert any("distance window 1-2" in reason for reason in result.diagnostics)
+    assert result.effective_windows == [
+        {"atoms": [1, 2], "min_ang": 2.15, "max_ang": 2.35, "source": "explicit"},
+    ]
+    manifest = json.loads(Path(result.manifest_path).read_text())
+    assert any("Warning:" in reason for reason in manifest["diagnostics"])
+
+
+@pytest.mark.parametrize("positions, window, error", [
+    ([[0, 0, 0], [2.25, 0, 0], [3.24, 0, 0]], (2.15, 2.35), None),
+    ([[0, 0, 0], [2.25, 0, 0], [6, 0, 0]], (2.15, 2.35), None),
+    ([[0, 0, 0], [.8, 0, 0], [1.79, 0, 0]], (.5, 1.), "atomic clash"),
+    ([[0, 0, 0], [2.5, 0, 0], [3.49, 0, 0]], (2.15, 2.35), "distance window"),
 ])
-def test_multicomponent_impossible_windows_fail_before_assembly(tmp_path, monkeypatch, filter_row, pair):
+def test_inferred_contact_warning_does_not_override_geometry_errors(tmp_path, positions, window, error):
+    prepared = _graph_only("[Na+].[O-][H]", tmp_path)
+    graph = load_resolved_graph(prepared)
+    plan = resolve_guidance(prepared, [], [
+        {"atoms": [1, 2], "min_ang": window[0], "max_ang": window[1]},
+    ])
+
+    passed, reasons, distances, warnings = qualify_geometry(plan, graph, ["Na", "O", "H"], positions)
+
+    assert passed is (error is None)
+    assert any("Warning:" in warning and "distance-inferred" in warning for warning in warnings)
+    assert distances["1-2"] == pytest.approx(positions[1][0])
+    if error:
+        assert any(error in reason for reason in reasons)
+    else:
+        assert reasons == []
+    assert graph.GetNumBonds() == 1
+    assert graph.GetBondBetweenAtoms(0, 1) is None
+    assert graph.GetAtomWithIdx(0).GetFormalCharge() == 1
+    assert graph.GetAtomWithIdx(1).GetFormalCharge() == -1
+
+
+def test_distance_inferred_missing_bond_only_warns_and_keeps_declared_graph():
+    from rdkit import Chem
+
+    from cloudra.tools.core.preorganization import GuidancePlan
+
+    graph = Chem.AddHs(Chem.MolFromSmiles("[H][H]"))
+    plan = GuidancePlan(ring_order=(), windows=(), forming_pairs=(), bonded_pairs=())
+
+    passed, reasons, distances, warnings = qualify_geometry(
+        plan, graph, ["H", "H"], [[0, 0, 0], [2., 0, 0]],
+    )
+
+    assert passed
+    assert reasons == []
+    assert distances == {}
+    assert len(warnings) == 1
+    assert "Warning:" in warnings[0] and "missing" in warnings[0]
+    assert "(1-based): [(1, 2)]" in warnings[0]
+    assert graph.GetNumBonds() == 1
+    assert graph.GetBondBetweenAtoms(0, 1) is not None
+
+
+def test_embedding_window_is_not_rejected_by_distance_based_bond_guess(tmp_path):
+    from cloudra.tools.core.preorganization import _validated_bounds
+
+    prepared = _graph_only("[H][H]", tmp_path)
+    plan = resolve_guidance(prepared, [], [
+        {"atoms": [1, 2], "min_ang": 2., "max_ang": 2.5},
+    ])
+
+    bounds = _validated_bounds(prepared, plan)
+
+    assert bounds[1, 0] == pytest.approx(2.)
+    assert bounds[0, 1] == pytest.approx(2.5)
+    assert prepared.mol.GetBondBetweenAtoms(0, 1) is not None
+
+
+def test_crest_keeps_contact_warnings_in_output_and_manifest(tmp_path, monkeypatch):
     import cloudra.tools.core.preorganization as preorganization
+    from cloudra.tools.core.crest_runner import CrestConformer, CrestRunResult
 
-    original = preorganization.prepare_structure
-    embedded = []
-
-    def capture(request):
-        if request.strategy.embed:
-            embedded.append(request)
-        return original(request)
-
-    monkeypatch.setattr(preorganization, "prepare_structure", capture)
-    with pytest.raises(ValueError, match=pair):
-        search_guided(
-            structure=StructureInput(kind="smiles", value="CCO.O"),
-            output_dir=str(tmp_path / pair), ring_order=[1, 2, 3, 10],
-            distance_filters=[filter_row],
+    def echo_seed(request):
+        rows = [line.split() for line in request.xyz_text.splitlines()[2:]]
+        return CrestRunResult(
+            run_dir=str(tmp_path / "crest"), scientific_success=True,
+            termination_reason="completed",
+            conformers=[CrestConformer(frame_index=0, energy_eh=-1.,
+                symbols=[row[0] for row in rows],
+                positions=[[float(value) for value in row[1:]] for row in rows])],
         )
-    assert embedded == []
+
+    monkeypatch.setattr(preorganization, "run_crest", echo_seed)
+    result = search_guided(
+        structure=StructureInput(kind="smiles", value="[Na+].[O-][H]"),
+        output_dir=str(tmp_path / "guided"), ring_order=[], backend="crest",
+        distance_filters=[{"atoms": [1, 2], "min_ang": 2.4, "max_ang": 2.9}],
+    )
+
+    assert result.status == "ok" and result.candidates
+    assert any("Warning:" in item for item in result.diagnostics)
+    assert any("sampled placements" in item for item in result.diagnostics)
+    manifest = json.loads(Path(result.manifest_path).read_text())
+    assert any("Warning:" in item for item in manifest["diagnostics"])
+
+
+@pytest.mark.parametrize("filter_row", [
+    {"atoms": [3, 10], "min_ang": 0.1, "max_ang": 0.2},
+    {"atoms": [1, 2], "min_ang": 5.0, "max_ang": 6.0},
+])
+def test_multicomponent_impossible_windows_reject_actual_candidates(tmp_path, filter_row):
+    result = search_guided(
+        structure=StructureInput(kind="smiles", value="CCO.O"),
+        output_dir=str(tmp_path / "impossible_windows"), ring_order=[1, 2, 3, 10],
+        distance_filters=[filter_row],
+    )
+
+    assert result.status == "no_candidate"
+    assert result.candidates == []
+    assert Path(result.closest_path).is_file()
 
 
 def test_guided_multicomponent_search_qualifies_all_ring_and_extra_distances(tmp_path):
@@ -252,7 +357,7 @@ def test_guided_complex_qualifies_before_heavy_atom_clustering(tmp_path, monkeyp
         nonlocal calls
         calls += 1
         distances = preorganization.measure_windows(plan, positions)
-        return calls == 4, ([] if calls == 4 else ["simulated topology rejection"]), distances
+        return calls == 4, ([] if calls == 4 else ["simulated topology rejection"]), distances, []
 
     monkeypatch.setattr(preorganization, "qualify_geometry", only_fourth)
     result = search_guided(
@@ -289,7 +394,7 @@ def test_failed_multicomponent_search_keeps_closest_attempt_and_distances(tmp_pa
     import cloudra.tools.core.preorganization as preorganization
 
     def reject_all(plan, _graph, _symbols, positions):
-        return False, ["simulated topology rejection"], preorganization.measure_windows(plan, positions)
+        return False, ["simulated topology rejection"], preorganization.measure_windows(plan, positions), []
 
     monkeypatch.setattr(preorganization, "qualify_geometry", reject_all)
     result = search_guided(
@@ -429,7 +534,7 @@ def test_guided_filter_does_not_hide_disconnected_spectator(tmp_path):
     prepared = _graph_only('[He].[He].[He]', tmp_path)
     graph = load_resolved_graph(prepared)
     plan = resolve_guidance(prepared, [], [{'atoms':[1,2], 'min_ang':3, 'max_ang':4}])
-    ok, reasons, _ = qualify_geometry(plan, graph, ['He']*3, [[0,0,0],[3.5,0,0],[100,0,0]])
+    ok, reasons, _, _warnings = qualify_geometry(plan, graph, ['He']*3, [[0,0,0],[3.5,0,0],[100,0,0]])
     assert not ok
     assert any('disconnected' in reason for reason in reasons)
 
@@ -445,23 +550,23 @@ def test_qualification_rejects_mirrored_declared_stereocenter():
     positions=mol.GetConformer().GetPositions()
     mirrored=positions.copy()
     mirrored[:,0]*=-1
-    eligible,reasons,_=qualify_geometry(plan,mol,[a.GetSymbol() for a in mol.GetAtoms()],mirrored)
+    eligible,reasons,_,_warnings=qualify_geometry(plan,mol,[a.GetSymbol() for a in mol.GetAtoms()],mirrored)
     assert not eligible and any('stereo' in r for r in reasons)
 
 
-def test_heavy_atom_numbers_mistaken_for_full_atoms_fail_before_sampling(tmp_path, monkeypatch):
-    from cloudra.tools.core import preorganization
-    prepared = _graph_only("C=CC=C.C=C", tmp_path)
-    plan = resolve_guidance(prepared, [], [
-        {"atoms": [1, 5], "min_ang": 3., "max_ang": 4.2},
-        {"atoms": [4, 6], "min_ang": 3., "max_ang": 4.2},
-    ])
-    def no_sampling(*args, **kwargs):
-        pytest.fail("incompatible covalent window reached structure sampling")
-    monkeypatch.setattr(preorganization, "prepare_structure", no_sampling)
-    with pytest.raises(ValueError, match="input covalent bond") as error:
-        preorganization._multi_component_rdkit(prepared, plan, str(tmp_path / "search"), 0, 1, 42, .5)
-    assert "5=H" in str(error.value) and "11=C" in str(error.value)
+def test_heavy_atom_numbers_mistaken_for_full_atoms_do_not_deliver_candidates(tmp_path):
+    result = search_guided(
+        structure=StructureInput(kind="smiles", value="C=CC=C.C=C"),
+        output_dir=str(tmp_path / "search"), ring_order=[],
+        distance_filters=[
+            {"atoms": [1, 5], "min_ang": 3., "max_ang": 4.2},
+            {"atoms": [4, 6], "min_ang": 3., "max_ang": 4.2},
+        ],
+    )
+
+    assert result.status == "no_candidate"
+    assert result.candidates == []
+    assert Path(result.closest_path).is_file()
 
 
 def test_explicit_hydrogen_window_with_intact_bond_is_allowed(tmp_path):

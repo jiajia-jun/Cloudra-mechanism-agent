@@ -149,6 +149,43 @@ def test_xyz_binding_preserves_concrete_graph_for_final_endpoint_proof(tmp_path)
     assert _endpoint_identity_error(record, 'reactant', ([a.GetSymbol() for a in mol.GetAtoms()], mol.GetConformer().GetPositions().tolist())) == ''
 
 
+@pytest.mark.parametrize('passed', [True, False])
+def test_guidance_contact_warning_is_persisted_without_deciding_acceptance(tmp_path, monkeypatch, passed):
+    from cloudra.tools.core.ts_inputs import ConformerGuidance, FileConformer
+    from cloudra.tools.core.ts_process import TsProcessRecord, _build
+    from tests.test_ts_stage_inputs import record_fixture
+
+    mol = Chem.MolFromMolBlock(concrete('O'), removeHs=False)
+    xyz, graph = tmp_path / 'water.xyz', tmp_path / 'water.mol'
+    xyz.write_text(Chem.MolToXYZBlock(mol))
+    graph.write_text(Chem.MolToMolBlock(mol))
+    record = record_fixture(tmp_path)
+    record.input.reaction.reactant_smiles = record.input.reaction.product_smiles = 'O'
+    record.input.reaction.atom_map = [0, 1, 2]
+    record.input.conformers.reactant = record.input.conformers.product = FileConformer(
+        kind='file', xyz_path=str(xyz), mol_path=str(graph))
+    record.input.conformers.guidance = ConformerGuidance(
+        distance_filters=[dict(atoms=[0, 1], min_ang=.5, max_ang=1.5)])
+    warning = 'Warning: unexpected covalent contacts: [(0, 1)]'
+    reasons = [] if passed else ['distance window 0-1 outside [0.5, 1.5]']
+    monkeypatch.setattr('cloudra.tools.core.preorganization.qualify_geometry',
+        lambda *_: (passed, reasons, {'0-1': .97}, [warning]))
+
+    _build(record)
+
+    restored = TsProcessRecord.model_validate_json(record.model_dump_json())
+    stage = restored.stage_record('build')
+    assert warning in stage.detail
+    if passed:
+        assert restored.blocked is None
+        assert stage.status == 'done'
+    else:
+        assert restored.blocked.failure_class == 'seed_guidance_failed'
+        assert reasons[0] in restored.blocked.message
+        assert warning in restored.blocked.message
+        assert stage.status == 'blocked'
+
+
 def test_symmetric_file_endpoints_accept_explicit_binding_from_recorded_atom_table(tmp_path):
     from cloudra.tools.core.ts_inputs import FileConformer
     from cloudra.tools.core.ts_process import _build, _map
