@@ -797,7 +797,7 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
         atomic_write_text(mol_path, Chem.MolToMolBlock(mol, confId=conf_id))
         candidate.xyz_path = xyz_path
         candidate.mol_path = mol_path
-        paths.append(xyz_path)
+        paths.extend((xyz_path, mol_path))
 
     selection_detail = (
         "guided relaxation; strict qualification and clustering follow"

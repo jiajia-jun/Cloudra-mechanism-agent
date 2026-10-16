@@ -141,7 +141,7 @@ async def test_3d_charge_mismatch_is_refused_with_the_actual_sum(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# issue #33：多碎片 SMILES 的 3D 构建必须走共享构建器，不得把互穿几何当成功
+# 多碎片 SMILES 的 3D 构建必须交付共享构建器组装出的配套 MOL/XYZ
 # 复现材料见 tests/fixtures/chemtool_issue33/（实测 F–C 0.1392 Å）
 # ---------------------------------------------------------------------------
 
@@ -165,25 +165,39 @@ def _min_interfragment_distance(mol_block: str, frag_groups: list[list[int]]) ->
 
 
 @pytest.mark.asyncio
-async def test_multifragment_3d_refuses_to_return_overlapping_geometry(tmp_path):
-    """issue #33 复现输入：多碎片 SMILES 的 3D 构建不得返回成功。
+@pytest.mark.parametrize("smiles,charge,fragments,charged_atoms", [
+    ("[F-].CCl", -1, 2, [-1]),
+    ("[Na+:7].[O-:1][H:6].[CH3:2][O:3][CH:4]=[O:5]", 0, 3, [-1, 1]),
+])
+async def test_multifragment_3d_returns_paired_mol_and_xyz(
+    tmp_path, smiles, charge, fragments, charged_atoms,
+):
+    """已成功组装的复合物应可取回，保留键表、电荷和同一候选的坐标。"""
+    from rdkit import Chem
 
-    旧实现直接把 ETKDG 逐碎片独立嵌入的坐标当成品返回，实测 F⁻ 与 C 相距 0.1392 Å；
-    该几何喂给 CREST/xTB 后底层报 ``|grad| > 500``。组装方案未获批前，
-    正确行为是 fail-loud 并说明缺少组装步骤，而不是交付互穿结构。
-    """
+    from cloudra.tools.core.structure_artifacts import read_xyz_atoms
+
+    output = tmp_path / "complex.mol"
     result = await SmilesToMol().tool_call(
         SmilesToMol_input_schema(
-            smiles="[F-].CCl", generate_3d=True, charge=-1,
-            artifact_dir=str(tmp_path / "build"),
+            smiles=smiles, generate_3d=True, charge=charge,
+            artifact_dir=str(tmp_path / "build"), output_path=str(output),
         ),
         session=None,
     )
-    assert result.is_success is False, (
-        "多碎片 3D 构建返回了成功；这正是 issue #33 里把互穿几何交给 CREST 的路径"
-    )
-    assert result.mol_content == ""
-    assert "assembl" in result.message.lower()
+    assert result.is_success is True, result.message
+    assert result.file_path == str(output)
+    assert output.read_text(encoding="utf-8") == result.mol_content
+
+    mol = Chem.MolFromMolBlock(result.mol_content, removeHs=False)
+    assert mol is not None
+    assert len(Chem.GetMolFrags(mol)) == fragments
+    assert sorted(atom.GetFormalCharge() for atom in mol.GetAtoms()
+                  if atom.GetFormalCharge()) == charged_atoms
+    xyz = read_xyz_atoms(result.xyz_path)
+    assert [symbol for symbol, _ in xyz] == [atom.GetSymbol() for atom in mol.GetAtoms()]
+    assert np.allclose(mol.GetConformer().GetPositions(),
+                       [position for _, position in xyz], atol=1e-4)
 
 
 @pytest.mark.asyncio

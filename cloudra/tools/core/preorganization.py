@@ -627,7 +627,8 @@ def _multi_component_rdkit(
     closest: tuple[float, str, list[tuple[str, list[float]]], dict[str, float]] | None = None
     rejected: Counter[str] = Counter()
     qualified: list[tuple[str, list[list[float]], dict[str, float]]] = []
-    for path in (built.assembly.candidate_paths if built.assembly else []):
+    xyz_paths = [path for path in built.assembly.candidate_paths if path.endswith(".xyz")] if built.assembly else []
+    for path in xyz_paths:
         atoms = read_xyz_atoms(path)
         symbols = [symbol for symbol, _position in atoms]
         positions = [position for _symbol, position in atoms]
@@ -654,7 +655,7 @@ def _multi_component_rdkit(
         selected.append(heavy_positions)
         result.candidates.append(GuidedCandidate(path, mol_path, distances, 0.0))
 
-    result.counts["optimized"] = len(built.assembly.candidate_paths) if built.assembly else 0
+    result.counts["optimized"] = len(xyz_paths)
     result.counts["retained"] = len(result.candidates)
     result.counts["rejected"] = result.counts["optimized"] - len(result.candidates)
     result.counts["qualified"] = len(qualified)

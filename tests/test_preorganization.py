@@ -217,6 +217,10 @@ def test_guided_multicomponent_search_qualifies_all_ring_and_extra_distances(tmp
         random_seed=42,
     )
     assert result.status == "ok" and result.candidates
+    prepared = json.loads(Path(result.prepared_path).read_text())
+    assembly = prepared["assembly"]
+    assert {Path(path).suffix for path in assembly["candidate_paths"]} == {".xyz", ".mol"}
+    assert result.counts["optimized"] == len(assembly["candidates"])
     atoms = read_xyz_atoms(result.candidates[0].xyz_path)
     positions = [position for _symbol, position in atoms]
     assert 2.5 <= math.dist(positions[2], positions[9]) <= 3.8
