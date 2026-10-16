@@ -173,14 +173,20 @@ def test_managed_irc_keeps_unmanaged_ts_material_on_existing_geometry_path(monke
     assert passed
 
 
-def test_actual_driver_freezes_binding_when_frequency_job_completes(tmp_path, monkeypatch):
+@pytest.mark.parametrize('log_available', [True, False], ids=['available-log', 'missing-log'])
+def test_actual_driver_freezes_binding_only_with_native_log(tmp_path, monkeypatch, log_available):
     import hashlib
     import json
 
     from cloudra.dag.evidence_ingest import snapshot_evidence_file
     from cloudra.persistence.database import ComputeDB
     from cloudra.services.ts_pipeline_context import use_pipeline_database
-    from cloudra.services.ts_pipeline_store import bind_stage_job, create_process, save_process_record
+    from cloudra.services.ts_pipeline_store import (
+        atom_binding_for_log,
+        bind_stage_job,
+        create_process,
+        save_process_record,
+    )
     from cloudra.tools.core import ts_process
     from cloudra.tools.core.irc_path import xyz_block
     from cloudra.tools.core.ts_pipeline_driver import advance_process
@@ -197,7 +203,8 @@ def test_actual_driver_freezes_binding_when_frequency_job_completes(tmp_path, mo
         job_payload=dict(conversation_id="project",session_id="owner",path=str(native),state="ready",jobtype="orca",node_id="fixture"))
     (tmp_path / ".cloudra").mkdir()
     log = tmp_path / ".cloudra" / f"calc-{job}.out.log"
-    log.write_bytes((FIXTURE / "ts.out").read_bytes())
+    if log_available:
+        log.write_bytes((FIXTURE / "ts.out").read_bytes())
     paths, hashes = {}, {}
     _, _, reactant, product = materials()
     for role, geometry in (("reactant", reactant), ("product", product)):
@@ -222,10 +229,21 @@ def test_actual_driver_freezes_binding_when_frequency_job_completes(tmp_path, mo
     advance_process(db,process["process_id"])
     with db.connect() as con:
         frozen=json.loads(con.execute("SELECT evidence FROM ts_pipeline_stages WHERE job_id=?",(job,)).fetchone()[0])
-    assert frozen["atom_binding"]["atom_map"] == MAP
-    assert frozen["atom_binding"]["product_mol"] == (FIXTURE / "product.mol").read_text()
+    if log_available:
+        assert frozen["atom_binding"]["atom_map"] == MAP
+        assert frozen["atom_binding"]["product_mol"] == (FIXTURE / "product.mol").read_text()
+        assert frozen["log_sha256"] == hashlib.sha256(log.read_bytes()).hexdigest()
+    else:
+        assert frozen["atom_binding"] is None
+        assert frozen["log_sha256"] is None
+        log.write_bytes((FIXTURE / "ts.out").read_bytes())
     with use_pipeline_database(db):
-        assert snapshot_evidence_file(log,tmp_path).metadata["atom_binding"] == frozen["atom_binding"]
+        snap = snapshot_evidence_file(log,tmp_path)
+    assert snap.metadata.get("atom_binding") == frozen["atom_binding"]
+    if log_available:
+        log.write_text(log.read_text() + '\nChanged native log bytes.\n')
+        with pytest.raises(ValueError, match='Native log changed'):
+            atom_binding_for_log(db, log, tmp_path)
 
 
 def test_split_irc_with_one_known_binding_keeps_existing_geometry_path(monkeypatch):

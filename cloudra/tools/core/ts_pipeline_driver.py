@@ -60,11 +60,13 @@ def advance_process(db: ComputeDB, process_id: str) -> dict:
                 from cloudra.infra.compute_utils import resolve_log_path
                 from cloudra.tools.core.ts_process import _direction_atom_binding
                 log_path = Path(resolve_log_path(path, engine, int(token[2])))
-                frozen_binding = _direction_atom_binding(record) if binding[1] in {'ts_opt', 'frequency', 'irc'} else None
+                frozen_binding = None
+                if binding[1] in {'ts_opt', 'frequency', 'irc'} and log_path.is_file():
+                    frozen_binding = _direction_atom_binding(record)
                 committed=commit_stage_result(db,process_id=process_id,expected_revision=state['revision'],
                     stage_key=binding[1],attempt=binding[2],evidence=dict(status='done' if job[0]=='done' else 'failed',
                         artifacts=artifacts,input_hash=digest or '',detail='Authoritative execution state: '+job[0]+'. Scientific qualification is a separate stage.',
-                        atom_binding=frozen_binding, log_sha256=hashlib.sha256(log_path.read_bytes()).hexdigest() if frozen_binding and log_path.is_file() else None))
+                        atom_binding=frozen_binding, log_sha256=hashlib.sha256(log_path.read_bytes()).hexdigest() if frozen_binding else None))
                 if not committed:
                     raise ValueError('stage result checkpoint changed concurrently')
             record.waiting_for = ''
