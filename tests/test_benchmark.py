@@ -1992,8 +1992,42 @@ def test_aqueous_imine_barrier_stays_separate_from_gas_phase_task():
     assert [e.to_node for e in aqueous_edges[:2]] == ["NI5_I1", "NI5_I2"]
     assert [1, 3] in aqueous_edges[0].bond_changes.form
     assert [3, 5] in aqueous_edges[1].bond_changes.break_
-    assert [2, 5] in aqueous_edges[1].bond_changes.form
+    assert [2, 8] in aqueous_edges[1].bond_changes.form
     assert tasks["NI5"].rubric.accuracy.enabled
+
+
+def test_aqueous_imine_gold_includes_relay_water_and_proton_transfers():
+    pytest.importorskip("rdkit")
+    from cloudra.benchmark import gen_normal_tasks
+
+    (task,) = gen_normal_tasks.parse_normal_md(gen_normal_tasks.DEFAULT_SRC, only={"I5"})
+    graph = task.gold.mechanism_graph
+    assert {node.id: node.smiles for node in graph.nodes if node.smiles} == {
+        "NI5_R": ["C=O.CN.O"],
+        "NI5_I1": ["C[NH2+]C[O-].O"],
+        "NI5_I2": ["CNCO.O"],
+        "NI5_P": ["C=NC.O.O"],
+    }
+    assert [edge.bond_changes.model_dump(by_alias=True) for edge in graph.edges] == [
+        {"break": [[1, 2]], "form": [[1, 3]]},
+        {"break": [[3, 5], [7, 8]], "form": [[2, 8], [5, 7]]},
+        {"break": [[1, 2], [3, 6], [7, 9]], "form": [[1, 3], [2, 9], [6, 7]]},
+    ]
+
+
+@pytest.mark.parametrize(("schematic", "reactants", "valid"), [
+    (True, ["C=O", "CN"], True),
+    (True, ["C=O", "CN", "O", "O"], False),
+    (False, ["C=O", "CN"], False),
+])
+def test_normal_registry_complete_model_covers_schematic_net_equation(schematic, reactants, valid):
+    pytest.importorskip("rdkit")
+    from cloudra.benchmark import gen_normal_tasks
+    from cloudra.benchmark.normal_registry import REGISTRY
+
+    entry = dict(REGISTRY["I5"], smiles_schematic=schematic)
+    errors = gen_normal_tasks._validate_task("I5", entry, reactants, ["C=NC", "O"])
+    assert (not errors) is valid
 
 
 def test_passerini_first_edge_couples_proton_transfer_and_isocyanide_attack():
