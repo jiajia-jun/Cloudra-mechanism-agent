@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import io
+import json
 import os
 import signal
 import subprocess
@@ -462,10 +463,32 @@ async def _finalize(
     guard 不再发进程间事件。``xtb_task`` 是行声明的 xtb 运行级别（opt 收敛
     判据只对 opt/ohess 生效）。
     """
-    data_dic, is_success = await _parse_log(
-        log_path, parse_timeout, job_type=job_type,
-        fallback_log_path=fallback_log_path, xtb_task=xtb_task,
-    )
+    if job_type == "shell":
+        if returncode is None:
+            lock_path = await asyncio.to_thread(calc_lock_path, workdir, taskid)
+            try:
+                record = json.loads(await asyncio.to_thread(
+                    Path(lock_path).with_suffix(".exit.json").read_text, encoding="utf-8",
+                ))
+                returncode = record["exit_code"]
+                if type(returncode) is not int:
+                    raise ValueError("exit_code must be an integer")
+            except (OSError, ValueError, KeyError, TypeError) as exc:
+                await _mark_failed(db, taskid, f"Shell exit code unavailable: {exc}")
+                return
+        is_success = returncode == 0
+        data_dic = {
+            "is_success": is_success,
+            "exit_code": returncode,
+            "log_file": str(fallback_log_path or log_path),
+        }
+        if not is_success:
+            data_dic["error"] = f"Shell script exited with code {returncode}"
+    else:
+        data_dic, is_success = await _parse_log(
+            log_path, parse_timeout, job_type=job_type,
+            fallback_log_path=fallback_log_path, xtb_task=xtb_task,
+        )
     if data_dic is None:
         # reason 从"实际应解析的日志"取：推导路径缺失时它可能在落盘回退文件里
         target, _ = await asyncio.to_thread(_resolve_log_target, log_path, fallback_log_path)

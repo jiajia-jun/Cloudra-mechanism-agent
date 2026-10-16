@@ -169,10 +169,9 @@ def build_batch_script(
     lines.append("set -euo pipefail")
     lines.extend(scheduler_setup_lines(scheduler))
     lines.append(f"cd {shlex.quote(workdir or str(input_file.parent))}")
-    if job_type.strip().lower() == "orca":
-        # ORCA writes its authoritative output to stdout rather than creating
-        # <input>.out.  Preserve that stream where resolve_log_path expects it
-        # so a Slurm COMPLETED row cannot hide an ORCA error termination.
+    if job_type.strip().lower() in {"orca", "shell"}:
+        # Preserve the job output at the same path used by local/SSH execution
+        # and result queries. ORCA also needs this stream for termination checks.
         capture = f".cloudra/calc-{task_id}.out.log"
         lines.append("mkdir -p .cloudra")
         lines.append(f"{shlex.join(calculator_cmd)} > {shlex.quote(capture)} 2>&1")
@@ -438,15 +437,21 @@ async def run_slurm_compute(
             last_error = None if state in SLURM_TERMINAL_SUCCESS else f"Slurm {state} ({exit_code})"
             final = "done" if state in SLURM_TERMINAL_SUCCESS else "failed"
             if state in SLURM_TERMINAL_SUCCESS:
-                engine_ok = await asyncio.to_thread(
-                    _engine_success_from_log,
-                    current["jobtype"] if current else row["jobtype"],
-                    current["path"] if current else row["path"],
-                    task_id,
-                )
-                if engine_ok is False:
-                    final = "failed"
-                    last_error = "engine error termination (Slurm COMPLETED)"
+                job_type = current["jobtype"] if current else row["jobtype"]
+                if job_type == "shell":
+                    if exit_code != "0:0":
+                        final = "failed"
+                        last_error = f"shell exit code {exit_code or 'unknown'} (Slurm {state})"
+                else:
+                    engine_ok = await asyncio.to_thread(
+                        _engine_success_from_log,
+                        job_type,
+                        current["path"] if current else row["path"],
+                        task_id,
+                    )
+                    if engine_ok is False:
+                        final = "failed"
+                        last_error = "engine error termination (Slurm COMPLETED)"
             wrote = await afinalize_compute_job(
                 db,
                 task_id,

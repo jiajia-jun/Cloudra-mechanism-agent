@@ -23,6 +23,7 @@ _REQUIRED_BINS = {
     "cp2k": ["cp2k.popt", "cp2k.ssmp", "cp2k.psmp", "cp2k"],
     "xtb": ["xtb"],
     "chem_task": ["python3"],
+    "shell": ["bash"],
 }
 
 # guard 轮询间隔（秒）

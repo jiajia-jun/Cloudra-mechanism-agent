@@ -2,7 +2,7 @@
 
 用法：``python -m cloudra.runtime.calc_lock_wrapper <lock_path> -- <cmd> [args...]``
 
-calculator 继承 calc 锁，wrapper 关闭自身原锁句柄。即使 calculator 提前
+calculator 继承 calc 锁，wrapper 写完退出码才关闭自身原锁句柄。即使 calculator 提前
 退出，wrapper 仍等继承锁的引擎子进程全部退出，保持组长身份，防止取消时
 进程组 ID 被复用。计算是否存活仍只认 flock，不探测或信任存盘 PID。
 
@@ -16,6 +16,9 @@ import os
 import signal
 import subprocess
 import sys
+from pathlib import Path
+
+from cloudra.persistence.fs_utils import atomic_write_json
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -55,18 +58,22 @@ def main(argv: list[str] | None = None) -> int:
         except OSError:
             print(f"calc lock held by another process: {lock_path}", file=sys.stderr)
             return 3
+        exit_path = Path(lock_path).with_suffix(".exit.json")
+        exit_path.unlink(missing_ok=True)
         if cancel_requested:
             return 128 + signal.SIGTERM
         os.set_inheritable(fd, True)
         calculator = subprocess.Popen(cmd, pass_fds=(fd,))
-        os.close(fd)
-        fd = None
         if cancel_requested:
             # A TERM during Popen may have arrived before the engine existed.
             # Popen has now completed exec; cover that window from our own group.
             # The handler only records the flag, so this does not recurse.
             os.killpg(os.getpid(), signal.SIGTERM)
         returncode = calculator.wait()
+        # Persist before releasing the calc lock, so an adopt guard can recover
+        # the result even when the original guard no longer owns waitpid.
+        atomic_write_json(str(exit_path), {"exit_code": returncode})
+        os.close(fd)
         fd = os.open(lock_path, os.O_RDWR)
         fcntl.flock(fd, fcntl.LOCK_EX)
         return returncode

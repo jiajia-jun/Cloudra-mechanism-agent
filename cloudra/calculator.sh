@@ -6,7 +6,7 @@
 # 用法：
 #   calculator.sh <input_file> <job_type> [xtb 任务参数]
 #
-# 其中 job_type 支持：gaussian, vasp, orca, cp2k, xtb
+# 其中 job_type 支持：gaussian, vasp, orca, cp2k, xtb, chem_task, shell
 # job_type=xtb 时透传显式任务参数：
 #   --chrg N --uhf M --task sp|opt|hess|ohess --parallel N [--alpb NAME]
 #
@@ -282,6 +282,9 @@ case "$JOB_TYPE" in
         ;;
     xtb)
         run_xtb "$@"
+        ;;
+    shell)
+        exec bash -- "$INPUT_FILE"
         ;;
     *)
         echo "不支持的 job_type: $JOB_TYPE" >&2

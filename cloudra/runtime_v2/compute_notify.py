@@ -333,6 +333,8 @@ class ComputeNotifyBroker:
             evidence.append(f"Log: {log_path}")
         if input_path:
             evidence.append(f"Input: {Path(input_path).name}" if log_path else f"Input: {input_path}")
+            if job_type == 'shell':
+                evidence.append(f"Working directory: {Path(input_path).parent}")
         if view is not None:
             verdict = view.get('result') or {}
             blocked = view.get('blocked') or {}
@@ -371,6 +373,14 @@ class ComputeNotifyBroker:
                 next_action = f"Inspect the observed chemistry and choose the next distinguishing test; use {inspect} for details."
             if view.get('details_path'):
                 evidence.append(f"Details: {view['details_path']}")
+        elif job_type == 'shell':
+            if state == 'done':
+                lines.append('Process: Shell script exited successfully.')
+                next_action = 'Inspect the captured log and output files in the working directory.'
+            else:
+                if state != 'cancelled' and fail_reason:
+                    lines.append(f"Process: {fail_reason}")
+                next_action = f'Use query_compute_job(task_id={task_id}) and the captured log to diagnose the failure before retrying.'
         elif state == 'done':
             lines.append('Physical Reality: Calculation finished; scientific verification is not implied.')
             next_action = 'Use log_parser on the native log to inspect energy, convergence and frequencies.'

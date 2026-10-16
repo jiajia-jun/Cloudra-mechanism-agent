@@ -19,35 +19,39 @@ from cloudra.services.compute_store import afinalize_compute_job, ainsert_comput
 
 description = (
     "Submit a compute job: take a prepared input-file path, insert a record in compute_jobs, "
-    "and let the framework Compute Scheduler pick it up; returns job_id immediately without waiting for the job to finish. "
+    "and let the framework Compute Scheduler pick it up. Async, Slurm and SSH jobs return job_id immediately; "
+    "local jobs with is_async=false wait for completion. "
     "Terminal states are pushed to the submitting session: non-coordinator sessions can be woken as individual "
     "jobs finish without waiting for their other jobs; coordinator notices stay in its inbox until another wake event. "
     "Do not poll query_compute_job or re-parse the log to wait. If you need an interim checkpoint, call `schedule` "
     "with a read-only check_command instead of polling in a loop. "
-    "Use for: formally running long Gaussian, CP2K, VASP, ORCA, or xtb jobs; prepare the input first with qm_input_writer or similar (CP2K uses .inp; ordinary xtb takes .xyz; native xTB scans use the typed manifest prepared by ts_guess and job_type='chem_task'). "
+    "Use for: formally running long Gaussian, CP2K, VASP, ORCA, xtb or shell jobs; prepare the input first with qm_input_writer or similar (CP2K uses .inp; ordinary xtb takes .xyz; native xTB scans use the typed manifest prepared by ts_guess and job_type='chem_task'). "
+    "For job_type='shell', input_file is a Bash script executed in its own directory. "
+    "The script manages its environment and commands; inspect its captured log and output files after completion. "
     "For xtb jobs you must also declare charge, multiplicity, task (sp/opt/hess/ohess) and optionally solvent — "
     "xtb is CLI-flag driven and ignores any charge/multiplicity written inside the .xyz file. "
     "Do not use for: generating the input (use qm_input_writer), failure diagnosis (use query_compute_job), "
-    "or inspecting results (parse the log with log_parser after the job finishes). "
+    "or inspecting chemistry results (parse the native log with log_parser after the job finishes). "
     "Resource contract: omit cpus and memory_mb to reserve the values declared in a Gaussian/ORCA "
     "input; when declaring them explicitly, they must cover the input request. "
     "For ORCA, memory_mb is total memory (nprocs * maxcore); for xtb, cpus is passed to "
-    "the engine as --parallel. "
+    "the engine as --parallel. Shell resources are declared with cpus and memory_mb, never inferred from script text; "
+    "omitting them keeps the ordinary one-CPU and default memory reservation. "
     "Under-declaring oversubscribes the node; over-declaring wastes queue time. "
     "Use query_compute_queue to check node capacity and queue length before choosing how much to request. "
-    "Manual TS/IRC submission is temporarily disabled, including QST2/QST3, OptTS, ScanTS and NEB-TS. "
-    "Use ts_prepare to start the durable workflow and ts_resume to continue or correct it."
+    "Manual TS/IRC inputs are accepted. Use ts_prepare/ts_resume when you want the durable TS workflow."
 )
 
 
 class SubmitComputeJob_input_schema(input_schema):
     input_file: str = Field(
-        description="Path of the input file (e.g. a .gjf file): absolute as-is, "
+        description="Path of the input file (e.g. a .gjf file or Bash script for shell): absolute as-is, "
                     "or relative to the Agent working directory."
     )
-    job_type: Literal["gaussian", "vasp", "orca", "cp2k", "xtb", "chem_task"] = Field(
+    job_type: Literal["gaussian", "vasp", "orca", "cp2k", "xtb", "chem_task", "shell"] = Field(
         default="gaussian",
-        description="Job type. For 'xtb' the input is a plain XYZ; 'chem_task' accepts only a typed xtb_scan manifest prepared by ts_guess."
+        description="Job type. For 'xtb' the input is a plain XYZ; 'chem_task' accepts only a typed xtb_scan manifest prepared by ts_guess. "
+                    "For 'shell', input_file is a Bash script; it runs in the script's directory and manages its own environment."
     )
     is_async: bool = Field(
         default=False,
@@ -77,7 +81,8 @@ class SubmitComputeJob_input_schema(input_schema):
         description=(
             "CPU cores to reserve on the node. Omit to infer Gaussian %nprocshared "
             "or ORCA %pal nprocs from the input; when absent there too, defaults to 1. "
-            "An explicit value must be at least the input's request."
+            "An explicit value must be at least the input's request. Shell scripts are not parsed for resources; "
+            "declare the cores their commands need, or omit for 1 CPU."
         ),
     )
     memory_mb: int | None = Field(
@@ -86,7 +91,8 @@ class SubmitComputeJob_input_schema(input_schema):
         description=(
             "Memory to reserve in MB (for ORCA: nprocs * maxcore). "
             "Omit to infer the input's %mem or %maxcore declaration; when the "
-            "input has none, node admission applies its default reservation."
+            "input has none, node admission applies its default reservation. For shell scripts, declare "
+            "the required memory here; script text is not parsed."
         ),
     )
     priority: int = Field(
@@ -141,11 +147,13 @@ class SubmitComputeJob(Tool):
     tool_id: str = 't-21'
     tool_name: str = 'submit_compute_job'
     tool_description: str = (
-        "Submit a quantum chemistry job. With is_async=true, a Slurm backend, or an "
+        "Submit a chemistry job or a Bash script (job_type='shell'). With is_async=true, a Slurm backend, or an "
         "SSH remote node (node_id), return the queued job id immediately; local jobs "
         "with is_async=false wait for completion. Provide the prepared input path; "
-        "CPU and memory reservations are inferred from its declarations when omitted. "
-        "Manual TS/IRC jobs are temporarily disabled; use ts_prepare/ts_resume."
+        "CPU and memory reservations are inferred from chemistry input declarations when omitted. "
+        "Shell scripts run in their own directory, manage their own environment, and use declared resources "
+        "(default 1 CPU and the node's ordinary memory reservation). Manual TS/IRC inputs are accepted; "
+        "ts_prepare/ts_resume provides the durable TS workflow."
     )
     input_schema: Any = SubmitComputeJob_input_schema
     output_schema: Any = SubmitComputeJob_output_schema
