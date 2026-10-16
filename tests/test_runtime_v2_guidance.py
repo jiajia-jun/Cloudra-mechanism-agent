@@ -313,7 +313,49 @@ def test_process_reflection_is_cleared_when_attempt_resumes_or_is_verified(tmp_p
 
 
 @pytest.mark.parametrize("failure_class", [
+    "canonical_structure_unavailable", "canonical_source_recovery_blocked",
+])
+def test_engineering_overlay_keeps_the_recorded_scientific_reflection(tmp_path, failure_class):
+    from cloudra.tools.core.ts_state_view import build_process_view
+
+    state = {
+        "run_id": "ts_observed", "run_dir": str(tmp_path / "attempt"), "revision": 1,
+        "format_version": 6, "stage": "verdict", "terminal": "candidate_only",
+        "stage_records": [{"stage": "verdict", "status": "done", "detail": "Recorded TS outcome"}],
+        "evidence_candidates": [str(tmp_path / "attempt/irc.out")],
+    }
+    notices = NoticeManager()
+    stage, ctx = GuidanceStage(), _ctx("small_mol", notices)
+    call = ToolCall(id="inspect", name="ts_inspect", arguments={})
+    view = build_process_view(state, [], can_write=True)
+    _after(stage, ctx, call, ToolResult(is_success=True, data=view.model_dump()))
+    recorded = _reflection_pins(notices)
+    sequence = notices._local_seqs["as_g"]
+    assert recorded
+
+    if failure_class == "canonical_structure_unavailable":
+        state["structures"] = {"reactant": {"normalization": {
+            "status": "applied", "paths": {"xyz": str(tmp_path / "missing.xyz")},
+            "canonical_hashes": {"xyz": "recorded-source-hash"},
+        }}}
+    else:
+        state.update(
+            terminal=None, source_rewrite_recovery_blocked=True,
+            blocked={"failure_class": failure_class, "stage": "verdict", "message": "Repair current source"},
+        )
+    overlay = build_process_view(state, [], can_write=True)
+    assert overlay.status == "blocked" and overlay.result is None
+    assert overlay.blocked["failure_class"] == failure_class
+
+    _after(stage, ctx, call, ToolResult(is_success=True, data=overlay.model_dump()))
+
+    assert _reflection_pins(notices) == recorded
+    assert notices._local_seqs["as_g"] == sequence
+
+
+@pytest.mark.parametrize("failure_class", [
     "frequency_evidence_missing", "canonical_structure_unavailable", "compute_admission_rejected",
+    "canonical_source_recovery_blocked",
 ])
 def test_process_engineering_block_does_not_pin_scientific_reflection(tmp_path, failure_class):
     data = {**_process_view(tmp_path), "status": "blocked", "result": None,

@@ -121,7 +121,7 @@ def guide_ts_process(notices: NoticeManager | None, agent_id: str, data: dict) -
     nonconverged = (data.get("status") == "blocked" and failed_attempt.get("purpose") == "ts_opt"
                     and failed_attempt.get("failure_class") == "nonconvergence")
     if not candidate and not wrong_mode and not nonconverged:
-        if data.get("status") in ("running", "waiting", "ended", "blocked", "isolated"):
+        if data.get("status") in ("running", "waiting") or verdict.get("verified") is True:
             notices.unpin(agent_id, key)
         return
     attempt = failed_attempt if wrong_mode or nonconverged else {}
