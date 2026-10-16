@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "dagre": "^0.8.5",
-    "katex": "^0.18.9",
+    "katex": "^0.19.0",
     "react": "^19.0.0",
     "react-dom": "^19.3.0",
     "react-markdown": "^10.1.0",
