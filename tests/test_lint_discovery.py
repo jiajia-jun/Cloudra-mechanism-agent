@@ -13,7 +13,7 @@ def test_ruff_skips_only_the_frozen_hard_archive(tmp_path):
         "cloudra/probe.py",
         "tests/test_probe.py",
         "scripts/probe.py",
-        ".deck-work/probe.py",
+        ".maintained-helper/probe.py",
         "gold_compute/library_audit_20261002/probe.py",
         "gold_compute/organized_data/future_archive/probe.py",
     }

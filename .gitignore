@@ -159,3 +159,12 @@ gold_compute/verified_evidence/
 !gold_compute/verified_evidence/**/README.md
 !gold_compute/verified_evidence/**/*.json
 vector_store/vectors.f16.npy
+
+# 本地申报材料、答辩成品和制作工作区不再入库；源码与科研证据另行保留。
+/申请材料/
+/软著申请材料/
+/.deck-work/
+/.codex-ppt-build/
+/output/Cloudra_十分钟答辩*.pptx
+/output/Cloudra_省自科*.pptx
+/output/Cloudra_研发新范式版*.pptx

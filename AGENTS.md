@@ -156,7 +156,7 @@ cloudra/
 - `paper/`：保存研究论文正文；`paper/literature/` 收拢文献原件与下载缓存；阶段性综述在 `paper/archive/`。
 - `scripts/`：脚本目录（详见 `scripts/README.md` 索引）；申报文档编辑脚本在 `scripts/application_docs/`。
 - `docs/`：项目文档与技术设计 Spec；阶段性交付文档按 `docs/README.md` 归档到 `docs/archive/`；原图资源位于 `docs/assets/`。
-- `build/`、`.worktrees/`、`cloudra.egg-info/`：构建与分发副产物，严禁手改。软著清单由 `scripts/gen_copyright_source.py` 自动生成。
+- `build/`、`.worktrees/`、`cloudra.egg-info/`：构建与分发副产物，严禁手改。软著清单由 `scripts/gen_copyright_source.py` 在本地自动生成，`软著申请材料/` 不入库。
 
 ---
 
