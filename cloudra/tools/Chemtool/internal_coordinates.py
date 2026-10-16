@@ -5,7 +5,7 @@ import functools
 import math
 import os
 from collections import deque
-from io import StringIO
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Optional
 
 from pydantic import Field
@@ -25,13 +25,7 @@ from cloudra.tools.core.irc_path import (
 from cloudra.tools.core.irc_path import (
     DISTANCE_CONNECTIVITY_FACTOR as DISTANCE_CONNECTIVITY_FACTOR,
 )
-
-try:
-    from rdkit import Chem
-    _RDKIT_AVAILABLE = True
-except Exception:
-    Chem = None
-    _RDKIT_AVAILABLE = False
+from cloudra.tools.core.molecule import read_molecule, to_ase, to_xyz, with_positions
 
 try:
     import chemcoord as cc
@@ -119,13 +113,15 @@ _BOND_ORDER_FALLBACK_FACTOR = {1.0: 1.00, 1.5: 0.93, 2.0: 0.87, 3.0: 0.78}
 _MAGIC_REFS = ('origin', 'e_x', 'e_y', 'e_z')
 
 description = (
-    "Molecular-structure perception: from Cartesian coordinates (xyz/mol/pdb/sdf/cif), infer bond orders, stereochemistry, rings, and rotatable dihedrals; "
+    "Molecular-structure analysis: retain bonds and formal charges from MOL/SDF; infer bonds once for coordinate-only inputs (xyz/pdb/cif). "
+    "Analyze stereochemistry, rings, and rotatable dihedrals; "
     "detect anomalous bond lengths (compressed/elongated/breaking_suspect/forming/atomic overlap) and anomalous angles; "
     "and write a Z-matrix internal-coordinate file along a spanning tree of the molecular graph. Can also convert a Z-matrix back to Cartesian. "
     "mode=transform applies rigid internal-coordinate edits to the Cartesian coordinates — rotate a group about an axis/bond, "
     "stretch or compress a bond by translating one fragment, invert a chiral center by swapping two branches — "
     "or edits the covalent topology by replacing a substituent with a new group given as SMILES, "
     "then re-validates the edited geometry (bond/angle anomaly detection) and returns the transformed xyz. "
+    "Set output_path to .mol/.sdf to save the edited molecule with its bonds and formal charges. "
     "Gives the model accurate structural facts without looking at a picture. "
     "REQUIRED before ts_guess scan_prepare/interpolate or any TS/scan work: scan/watch atom indices and reaction coordinates must come from this "
     "analyze report (forming/breaking bonds, dihedrals, clashes) — never from guessing XYZ indices or reading a picture. "
@@ -145,19 +141,20 @@ class InternalCoordinates_input_schema(input_schema):
     )
     input_path: Optional[str] = Field(
         default=None,
-        description="Input file path (xyz/mol/pdb/sdf/cif, etc., ASE-readable). Used when mode=analyze or transform."
+        description="Input file path (xyz/mol/pdb/sdf/cif). MOL/SDF retain their bonds and formal charges. Used when mode=analyze or transform."
     )
     input_text: Optional[str] = Field(
         default=None,
-        description="Coordinate text. If input_path is set, the file is read instead."
+        description="Structure text in input_format. If input_path is set, the file is read instead."
     )
     input_format: Literal["auto", "xyz", "mol", "pdb", "sdf", "cif"] = Field(
         default="auto",
-        description="Cartesian input format. auto lets ASE infer from the file extension (input_text defaults to xyz)."
+        description="Input format. auto uses the file extension, or recognizes MOL/SDF text; "
+                    "other coordinate text is read as XYZ."
     )
     charge: int = Field(
         default=0,
-        description="Total charge, used for RDKit bond-order perception (rdDetermineBonds.DetermineBonds). Default 0."
+        description="Total charge for bond perception of coordinate-only inputs. MOL/SDF use their stored formal charges. Default 0."
     )
     reactive_atoms: Optional[list[int]] = Field(
         default=None,
@@ -190,13 +187,13 @@ class InternalCoordinates_input_schema(input_schema):
     )
     output_path: Optional[str] = Field(
         default=None,
-        description="xyz output path when mode=zmatrix_to_cartesian or transform."
+        description="Output path: transform writes MOL/SDF for .mol/.sdf, preserving the molecular graph; otherwise XYZ. zmatrix_to_cartesian writes XYZ."
     )
     operations: Optional[list[dict]] = Field(
         default=None,
         description="Transform operations, required when mode=transform (rejected in other modes). Applied in order "
                     "on a copy of the coordinates; all atom indices are 1-based, matching the analyze report; "
-                    "fragment selection uses the connectivity perceived from the input structure. "
+                    "fragment selection uses the input MOL/SDF bonds, or connectivity perceived once for coordinate-only input. "
                     "Four operation types: "
                     "(1) rotate — 'axis_atoms': [i, j] defines the rotation axis, 'degrees': angle in degrees, plus "
                     "exactly one group selector: 'atoms': [...] (explicit 1-based atom list) or 'side_of_bond': [a, b] "
@@ -252,7 +249,7 @@ class InternalCoordinates_output_schema(output_schema):
                     "export never hides the completed distance/angle measurements.",
     )
     xyz_text: str = Field(default="", description="xyz text returned when mode=zmatrix_to_cartesian or transform")
-    output_path: str = Field(default="", description="xyz file path written when mode=zmatrix_to_cartesian or transform")
+    output_path: str = Field(default="", description="File path written when mode=zmatrix_to_cartesian or transform")
     message: str = Field(default="", description="Status or error message")
 
 
@@ -367,51 +364,51 @@ class InternalCoordinates(Tool):
 
     # ---------- 输入读取 ----------
 
-    @staticmethod
-    def _load_atoms_from_path_or_text(input_path: Optional[str],
-                                      input_text: Optional[str],
-                                      input_format: str):
-        import ase.io
-
-        if input_path and os.path.isfile(input_path):
-            fmt = None if input_format == "auto" else input_format
-            return ase.io.read(input_path, format=fmt)
-
-        if input_text:
-            fmt = "xyz" if input_format == "auto" else input_format
-            return ase.io.read(StringIO(input_text), format=fmt)
-
-        raise ValueError("Must provide input_path or input_text")
-
-    @staticmethod
-    def _atoms_to_xyz_block(atoms) -> str:
-        pos = atoms.get_positions()
-        syms = atoms.get_chemical_symbols()
-        lines = [str(len(syms)), ""]
-        for s, p in zip(syms, pos):
-            lines.append(f"{s:<4} {p[0]:>14.8f} {p[1]:>14.8f} {p[2]:>14.8f}")
-        return "\n".join(lines) + "\n"
-
-    # ---------- 连接表 / 键级 ----------
-
     @classmethod
-    def _perceive_bonds_rdkit(cls, xyz_block: str, charge: int):
-        """RDKit 键级感知。成功返回 (mol, bond_orders)；失败抛异常由调用方回退。"""
+    def _load_molecule(cls, input_path, input_text, input_format, charge):
+        """保留分子文件的图；只有纯坐标输入在入口感知一次连接关系。"""
         from rdkit import Chem
         from rdkit.Chem import rdDetermineBonds
 
-        mol = Chem.MolFromXYZBlock(xyz_block)
-        if mol is None:
-            raise ValueError("RDKit could not parse the XYZ block")
-        rdDetermineBonds.DetermineConnectivity(mol)
-        rdDetermineBonds.DetermineBonds(mol, charge=charge)
+        mol = read_molecule(input_path=input_path, input_text=input_text, input_format=input_format)
+        if not mol.HasProp("cloudra_graph_status") or mol.GetProp("cloudra_graph_status") != "unresolved":
+            if not mol.GetNumConformers():
+                raise ValueError("Input molecule has no coordinates")
+            return mol, "input", []
+
+        atoms = to_ase(mol)
+        mol.SetIntProp("cloudra_total_charge", charge)
+        if mol.GetNumAtoms() == 1:
+            mol.GetAtomWithIdx(0).SetFormalCharge(charge)
+        perceived = Chem.Mol(mol)
+        try:
+            rdDetermineBonds.DetermineConnectivity(perceived)
+            rdDetermineBonds.DetermineBonds(perceived, charge=charge)
+            return perceived, "RDKit (perceived)", []
+        except Exception as e:
+            # 感知失败时丢弃被部分改写的副本，保留原有的距离回退规则。
+            rw = Chem.RWMol(mol)
+            for i, j in cls._distance_connectivity(atoms.get_chemical_symbols(), atoms.get_positions()):
+                rw.AddBond(i, j, Chem.BondType.SINGLE)
+            mol = rw.GetMol()
+            mol.UpdatePropertyCache(strict=False)
+            Chem.FastFindRings(mol)
+            return mol, "distance-inferred (all single)", [
+                f"RDKit bond perception failed ({e}); bond orders were not perceived — "
+                "bond info below is distance-inferred (all treated as single bonds)."
+            ]
+
+    # ---------- 连接表 / 键级 ----------
+
+    @staticmethod
+    def _bond_orders(mol):
         bond_orders: dict[tuple[int, int], float] = {}
         for bond in mol.GetBonds():
             i = min(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
             j = max(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
             order = 1.5 if bond.GetIsAromatic() else float(bond.GetBondTypeAsDouble())
             bond_orders[(i, j)] = order
-        return mol, bond_orders
+        return bond_orders
 
     @classmethod
     def _distance_connectivity(cls, symbols, positions) -> dict[tuple[int, int], float]:
@@ -438,6 +435,7 @@ class InternalCoordinates(Tool):
         chiral_lines: list[str] = []
         ez_lines: list[str] = []
         try:
+            mol = Chem.Mol(mol)
             Chem.AssignStereochemistryFrom3D(mol)
             centers = Chem.FindMolChiralCenters(mol, includeUnassigned=True, useLegacyImplementation=False)
             for idx, label in centers:
@@ -1054,32 +1052,19 @@ class InternalCoordinates(Tool):
 
     def _analyze(self, user_input: InternalCoordinates_input_schema) -> InternalCoordinates_output_schema:
         import numpy as np
+        from rdkit import Chem
 
         try:
-            atoms = self._load_atoms_from_path_or_text(
-                user_input.input_path, user_input.input_text, user_input.input_format,
+            mol, bond_source, notes = self._load_molecule(
+                user_input.input_path, user_input.input_text, user_input.input_format, user_input.charge,
             )
         except Exception as e:
             return InternalCoordinates_output_schema(is_success=False, message=f"Failed to read input structure: {e}")
 
-        symbols = atoms.get_chemical_symbols()
-        positions = np.asarray(atoms.get_positions(), dtype=float)
+        symbols = [atom.GetSymbol() for atom in mol.GetAtoms()]
+        positions = np.asarray(mol.GetConformer().GetPositions(), dtype=float)
         n = len(symbols)
-        notes: list[str] = []
-
-        # 1. 键级感知（RDKit 优先，距离判据回退）
-        mol = None
-        if _RDKIT_AVAILABLE:
-            try:
-                mol, bond_orders = self._perceive_bonds_rdkit(
-                    self._atoms_to_xyz_block(atoms), user_input.charge,
-                )
-            except Exception as e:
-                bond_orders = self._distance_connectivity(symbols, positions)
-                notes.append(f"RDKit bond perception failed ({e}); bond orders were not perceived — bond info below is distance-inferred (all treated as single bonds).")
-        else:
-            bond_orders = self._distance_connectivity(symbols, positions)
-            notes.append("RDKit is not installed; bond orders were not perceived — bond info below is distance-inferred (all treated as single bonds).")
+        bond_orders = self._bond_orders(mol)
 
         adj = self._build_adjacency(n, bond_orders)
         n_frag = 0
@@ -1099,13 +1084,14 @@ class InternalCoordinates(Tool):
         # 2. 各分析块
         chiral_lines: list[str] = []
         ez_lines: list[str] = []
-        if mol is not None:
+        if bond_source != "distance-inferred (all single)":
             chiral_lines, ez_lines = self._stereochemistry_report(mol)
-        elif _RDKIT_AVAILABLE:
+        else:
             notes.append("Bond orders were not perceived; stereochemistry analysis skipped.")
 
-        ring_lines, ring_sets = self._rings_report(mol, adj, symbols, positions, bond_orders)
-        rot_lines = self._rotatable_dihedrals(mol, adj, symbols, positions, bond_orders, ring_sets)
+        perceived_mol = mol if bond_source != "distance-inferred (all single)" else None
+        ring_lines, ring_sets = self._rings_report(perceived_mol, adj, symbols, positions, bond_orders)
+        rot_lines = self._rotatable_dihedrals(perceived_mol, adj, symbols, positions, bond_orders, ring_sets)
         bond_anomalies, bond_lines = self._abnormal_bonds(
             symbols, positions, adj, bond_orders, user_input.bond_tolerance,
         )
@@ -1119,7 +1105,7 @@ class InternalCoordinates(Tool):
                 user_input.reactive_atoms, user_input.watch_pairs,
             )
         equiv_lines: list[str] = []
-        if mol is not None:
+        if bond_source != "distance-inferred (all single)":
             equiv_lines = self._equivalent_atoms_report(mol, symbols)
 
         # 3. 组装报告（约 80 行以内）
@@ -1133,9 +1119,10 @@ class InternalCoordinates(Tool):
         formula = "".join(f"{k}{hill[k] if hill[k] > 1 else ''}" for k in formula_keys if k in hill)
 
         report: list[str] = ["== Summary =="]
+        total_charge = Chem.GetFormalCharge(mol) if bond_source == "input" else user_input.charge
         report.append(f"  Formula: {formula}  Atoms: {n}  Bonds: {len(bond_orders)}  "
-                      f"Fragments: {n_frag}  Total charge: {user_input.charge}")
-        report.append(f"  Bond orders: {'RDKit (perceived)' if mol is not None else 'distance-inferred (all single)'}")
+                      f"Fragments: {n_frag}  Total charge: {total_charge}")
+        report.append(f"  Bond orders: {bond_source}")
         report.append(f"  Bond anomalies: {len(bond_anomalies)}  Angle anomalies: {len(angle_anomalies)}")
 
         report.append("== Stereochemistry ==")
@@ -1195,7 +1182,7 @@ class InternalCoordinates(Tool):
         zmat_error = ""
         zmat_lines = 0
         try:
-            cart = self._ase_to_chemcoord_cart(atoms)
+            cart = self._ase_to_chemcoord_cart(to_ase(mol))
             order = self._build_construction_table(adj)
             import pandas as pd
 
@@ -1415,9 +1402,9 @@ class InternalCoordinates(Tool):
     def _embed_substituent_3d(smiles: str):
         """取代基 SMILES（恰好一个 ``[*]`` 假原子标记连接点）→ 力场优化过的 3D 片段。
 
-        返回 ``(symbols, coords, attach_idx, bond_order, out_dir)``：
-        ``symbols``/``coords`` 不含假原子和"连接氢"；``attach_idx`` 是连接原子在返回数组中的
-        局部索引；``out_dir`` 是连接原子指向被删连接氢的单位向量——即片段朝"核心一侧"的方向，
+        返回 ``(frag, attach_idx, bond_type, bond_order, out_dir)``：
+        ``frag`` 不含假原子；``attach_idx`` 是连接原子在返回 Mol 中的
+        局部索引；``out_dir`` 是连接原子指向临时封端碳的单位向量——即片段朝"核心一侧"的方向，
         对接时对齐到旧键方向的反向。所有失败一律 fail-loud。
         """
         import numpy as np
@@ -1436,29 +1423,22 @@ class InternalCoordinates(Tool):
         dummy_neighbors = mol.GetAtomWithIdx(dummies[0]).GetNeighbors()
         if len(dummy_neighbors) != 1:
             raise ValueError("replace_group: the [*] dummy atom must have exactly one bond (the attachment)")
-        attach_heavy = dummy_neighbors[0].GetIdx()
-        bond_order = float(mol.GetBondBetweenAtoms(dummies[0], attach_heavy).GetBondTypeAsDouble())
+        attach_local = dummy_neighbors[0].GetIdx()
+        marker = dummies[0]
+        attachment_bond = mol.GetBondBetweenAtoms(marker, attach_local)
+        bond_type = attachment_bond.GetBondType()
+        bond_order = float(attachment_bond.GetBondTypeAsDouble())
 
         rw = Chem.RWMol(mol)
-        rw.RemoveAtom(dummies[0])
+        # 用临时碳封端嵌入，保留 SMILES 声明的键级、电荷和显式氢；
+        # 对接前删掉封端碳及其氢，不从真实取代基里猜一个氢来删。
+        cap = rw.GetAtomWithIdx(marker)
+        cap.SetAtomicNum(6)
+        cap.SetNoImplicit(False)
+        cap.SetNumExplicitHs(0)
         frag = rw.GetMol()
-        attach_local = attach_heavy - 1 if attach_heavy > dummies[0] else attach_heavy
-        # RemoveAtom 后必须重算隐式氢（去掉假原子空出的价态才会被 AddHs 补成氢），
-        # 并重建 RingInfo（UpdatePropertyCache 不负责，后续嵌入/力场会用到）。
-        frag.UpdatePropertyCache(strict=False)
-        Chem.FastFindRings(frag)
+        Chem.SanitizeMol(frag)
         frag = Chem.AddHs(frag)
-        # 连接原子因去掉假原子空出的价态由 AddHs 补氢；这些氢彼此等价，任取其一标记
-        # "朝核心一侧"的方向即可（替掉哪个氢化学上是同一个分子）。连接原子无氢可替说明
-        # 价态本已饱和，无从对接，fail-loud。
-        h_neighbors = [nb.GetIdx() for nb in frag.GetAtomWithIdx(attach_local).GetNeighbors()
-                       if nb.GetAtomicNum() == 1]
-        if not h_neighbors:
-            raise ValueError(
-                "replace_group: the attachment atom has no hydrogen to vacate after removing [*] "
-                "(its valence is saturated by other substituents)"
-            )
-        marker_h = h_neighbors[0]
 
         params = AllChem.ETKDGv3()
         params.randomSeed = 20260914
@@ -1472,25 +1452,31 @@ class InternalCoordinates(Tool):
             raise ValueError(f"replace_group: no MMFF/UFF force-field parameters for substituent {smiles!r}")
 
         coords = np.asarray(frag.GetConformer().GetPositions(), dtype=float)
-        out_vec = coords[marker_h] - coords[attach_local]
+        out_vec = coords[marker] - coords[attach_local]
         norm = float(np.linalg.norm(out_vec))
         if norm < 1e-9:
-            raise ValueError("replace_group: degenerate substituent geometry (attachment hydrogen coincides with the attachment atom)")
+            raise ValueError("replace_group: degenerate substituent geometry (cap coincides with the attachment atom)")
         out_dir = out_vec / norm
 
-        keep = [i for i in range(frag.GetNumAtoms()) if i != marker_h]
-        symbols = [frag.GetAtomWithIdx(i).GetSymbol() for i in keep]
-        attach_idx = keep.index(attach_local)
-        return symbols, coords[keep], attach_idx, bond_order, out_dir
+        rw = Chem.RWMol(frag)
+        removed = {marker} | {nb.GetIdx() for nb in frag.GetAtomWithIdx(marker).GetNeighbors()
+                              if nb.GetAtomicNum() == 1}
+        for idx in sorted(removed, reverse=True):
+            rw.RemoveAtom(idx)
+        attach_idx = attach_local - sum(idx < attach_local for idx in removed)
+        return rw.GetMol(), attach_idx, bond_type, bond_order, out_dir
 
     @classmethod
-    def _op_replace_group(cls, op: dict, symbols: list[str], positions, adj: dict[int, set[int]], n: int):
+    def _op_replace_group(cls, mol, op: dict, adj: dict[int, set[int]]):
         """拓扑编辑 op：切断 bond a-b、移除 b 侧片段、把 SMILES 新基团对接到 a 上。
 
-        与刚性 op 不同，它不改坐标数组而是返回 ``(summary, new_symbols, new_positions)``；
-        新结构的原子顺序 = 存活者原序 + 新基团追加，调用方负责重建邻接表。
+        返回 ``(new_mol, summary)``，输入 Mol 不变；存活原子保序，新基团追加。
         """
         import numpy as np
+        from rdkit import Chem
+
+        n = mol.GetNumAtoms()
+        positions = np.asarray(mol.GetConformer().GetPositions(), dtype=float)
 
         bond_raw = op.get("bond")
         if not (isinstance(bond_raw, list) and len(bond_raw) == 2):
@@ -1517,7 +1503,8 @@ class InternalCoordinates(Tool):
                 "replace_group requires 'smiles': the new substituent with exactly one [*] dummy "
                 "atom marking the attachment point (e.g. '[*]C(=O)O')"
             )
-        frag_symbols, frag_coords, attach_idx, bond_order, out_dir = cls._embed_substituent_3d(smiles.strip())
+        frag, attach_idx, bond_type, bond_order, out_dir = cls._embed_substituent_3d(smiles.strip())
+        frag_coords = np.asarray(frag.GetConformer().GetPositions(), dtype=float)
 
         vec = positions[b] - positions[a]
         old_len = float(np.linalg.norm(vec))
@@ -1526,7 +1513,9 @@ class InternalCoordinates(Tool):
                 f"replace_group: atoms {a + 1} and {b + 1} coincide; the attachment direction is undefined"
             )
         v_hat = vec / old_len
-        new_len = cls._reference_bond_length(symbols[a], frag_symbols[attach_idx], bond_order)
+        new_len = cls._reference_bond_length(
+            mol.GetAtomWithIdx(a).GetSymbol(), frag.GetAtomWithIdx(attach_idx).GetSymbol(), bond_order,
+        )
 
         # out_dir 在片段内是 b′→核心方向；目标构型中它必须指向 a，即 -v_hat。
         rot = rotation_matrix_between(out_dir, -v_hat)
@@ -1534,40 +1523,72 @@ class InternalCoordinates(Tool):
         frag_placed = frag_placed - frag_placed[attach_idx] + positions[a] + new_len * v_hat
 
         survivors = [i for i in range(n) if i not in removed]
-        new_symbols = [symbols[i] for i in survivors] + list(frag_symbols)
-        new_positions = np.vstack([positions[survivors], frag_placed])
-        n_after = len(new_symbols)
-        first_new = n_after - len(frag_symbols)  # 0-based
+        core = Chem.RWMol(mol)
+        for idx in sorted(removed, reverse=True):
+            core.RemoveAtom(idx)
+        # 保留存活原子和键的完整属性；只新增明确指定的连接键。
+        first_new = len(survivors)
+        attachment = survivors.index(a)
+        combined = Chem.RWMol(Chem.CombineMols(core.GetMol(), frag))
+        combined.AddBond(attachment, first_new + attach_idx, bond_type)
+        new_mol = with_positions(combined.GetMol(), np.vstack([positions[survivors], frag_placed]))
+        # 新邻居被追加到末尾；校正邻接顺序的奇偶性，才能保留原来声明的手性，
+        # 包括只有二维坐标、不能靠三维坐标重判手性的 MOL。
+        anchor = new_mol.GetAtomWithIdx(attachment)
+        if anchor.GetChiralTag() in {Chem.ChiralType.CHI_TETRAHEDRAL_CW, Chem.ChiralType.CHI_TETRAHEDRAL_CCW}:
+            old_neighbors = [nb.GetIdx() for nb in mol.GetAtomWithIdx(a).GetNeighbors()]
+            new_neighbors = [b if nb.GetIdx() == first_new + attach_idx else survivors[nb.GetIdx()]
+                             for nb in anchor.GetNeighbors()]
+            permutation = [old_neighbors.index(idx) for idx in new_neighbors]
+            swaps = sum(left > right for i, left in enumerate(permutation) for right in permutation[i + 1:])
+            if swaps % 2:
+                anchor.InvertChirality()
+        Chem.SanitizeMol(new_mol)
+        Chem.AssignStereochemistryFrom3D(new_mol, replaceExistingTags=True)
+        n_after = new_mol.GetNumAtoms()
         summary = {
             "type": "replace_group",
             "bond": [a + 1, b + 1],
             "smiles": smiles.strip(),
             "bond_order": bond_order,
-            "attachment_atoms": [a + 1, first_new + attach_idx + 1],
+            "attachment_atoms": [attachment + 1, first_new + attach_idx + 1],
             "removed_atoms": sorted(x + 1 for x in removed),
             "n_removed": len(removed),
-            "n_added": len(frag_symbols),
+            "n_added": frag.GetNumAtoms(),
             "n_atoms_before": n,
             "n_atoms_after": n_after,
         }
-        return summary, new_symbols, new_positions
+        return new_mol, summary
 
     @classmethod
-    def _apply_transform_op(cls, op, positions, adj: dict[int, set[int]], n: int) -> dict:
-        """在 positions（调用方持有的 numpy 副本）上原地应用一个 op，返回该 op 的摘要。"""
+    def _transform_molecule(cls, mol, op):
+        """从 Mol 派生数值视图，返回变换后的新 Mol 和操作摘要。"""
+        import numpy as np
+        from rdkit import Chem
+
         if not isinstance(op, dict):
             raise ValueError(f"each transform operation must be an object, got {type(op).__name__}")
+        n = mol.GetNumAtoms()
+        adj = {atom.GetIdx(): {nb.GetIdx() for nb in atom.GetNeighbors()} for atom in mol.GetAtoms()}
         op_type = op.get("type")
+        if op_type == "replace_group":
+            return cls._op_replace_group(mol, op, adj)
+        positions = np.array(mol.GetConformer().GetPositions(), dtype=float, copy=True)
         if op_type == "rotate":
-            return cls._op_rotate(op, positions, adj, n)
-        if op_type == "stretch":
-            return cls._op_stretch(op, positions, adj, n)
+            summary = cls._op_rotate(op, positions, adj, n)
+        elif op_type == "stretch":
+            summary = cls._op_stretch(op, positions, adj, n)
+        elif op_type == "invert_chirality":
+            summary = cls._op_invert_chirality(op, positions, adj, n)
+        else:
+            raise ValueError(
+                f"unknown transform operation type {op_type!r}; supported types: "
+                "'rotate', 'stretch', 'invert_chirality', 'replace_group'"
+            )
+        result = with_positions(mol, positions)
         if op_type == "invert_chirality":
-            return cls._op_invert_chirality(op, positions, adj, n)
-        raise ValueError(
-            f"unknown transform operation type {op_type!r}; supported types: "
-            "'rotate', 'stretch', 'invert_chirality', 'replace_group'"
-        )
+            Chem.AssignStereochemistryFrom3D(result, replaceExistingTags=True)
+        return result, summary
 
     @staticmethod
     def _transform_summary_line(k: int, s: dict) -> str:
@@ -1588,6 +1609,7 @@ class InternalCoordinates(Tool):
 
     def _transform(self, user_input: InternalCoordinates_input_schema) -> InternalCoordinates_output_schema:
         import numpy as np
+        from rdkit import Chem
 
         if not user_input.operations:
             return InternalCoordinates_output_schema(
@@ -1598,28 +1620,16 @@ class InternalCoordinates(Tool):
                 ),
             )
         try:
-            atoms = self._load_atoms_from_path_or_text(
-                user_input.input_path, user_input.input_text, user_input.input_format,
+            mol, _, notes = self._load_molecule(
+                user_input.input_path, user_input.input_text, user_input.input_format, user_input.charge,
             )
         except Exception as e:
             return InternalCoordinates_output_schema(is_success=False, message=f"Failed to read input structure: {e}")
 
-        symbols = atoms.get_chemical_symbols()
-        positions = np.asarray(atoms.get_positions(), dtype=float)
+        symbols = [atom.GetSymbol() for atom in mol.GetAtoms()]
+        positions = np.asarray(mol.GetConformer().GetPositions(), dtype=float)
         n = len(symbols)
-        notes: list[str] = []
-
-        if _RDKIT_AVAILABLE:
-            try:
-                _, bond_orders = self._perceive_bonds_rdkit(
-                    self._atoms_to_xyz_block(atoms), user_input.charge,
-                )
-            except Exception as e:
-                bond_orders = self._distance_connectivity(symbols, positions)
-                notes.append(f"RDKit bond perception failed ({e}); bond orders were not perceived — bonds are distance-inferred (all treated as single bonds).")
-        else:
-            bond_orders = self._distance_connectivity(symbols, positions)
-            notes.append("RDKit is not installed; bond orders were not perceived — bonds are distance-inferred (all treated as single bonds).")
+        bond_orders = self._bond_orders(mol)
 
         adj = self._build_adjacency(n, bond_orders)
         before_bonds, _ = self._abnormal_bonds(
@@ -1630,44 +1640,19 @@ class InternalCoordinates(Tool):
         )
         anomalies_before = before_bonds + before_angles
 
-        # 图划分与校验都用初始键感知拓扑：刚性 transform op（rotate/stretch/invert_chirality）
-        # 共价拓扑不变；对新坐标重新感知会把被拉断的键/新接触静默改写成分子身份的一部分，校验失去意义。
-        # replace_group 是有意的拓扑编辑：它之后的 op 与最终校验改用替换后重新感知的拓扑。
-        from ase import Atoms
-
-        work = positions.copy()
-        cur_symbols = list(symbols)
-        cur_n = n
-        cur_bond_orders = bond_orders
-        cur_adj = adj
-        adj_sets = {i: set(adj[i]) for i in range(n)}
+        # 每步只接收、返回 Mol；坐标变换不改图，替换基团直接编辑图，不重新猜键。
         summaries: list[dict] = []
         try:
             for op in user_input.operations:
-                if isinstance(op, dict) and op.get("type") == "replace_group":
-                    summary, cur_symbols, work = self._op_replace_group(
-                        op, cur_symbols, work, adj_sets, cur_n,
-                    )
-                    cur_n = len(cur_symbols)
-                    if _RDKIT_AVAILABLE:
-                        try:
-                            _, cur_bond_orders = self._perceive_bonds_rdkit(
-                                self._atoms_to_xyz_block(Atoms(symbols=cur_symbols, positions=work)),
-                                user_input.charge,
-                            )
-                        except Exception as e:
-                            cur_bond_orders = self._distance_connectivity(cur_symbols, work)
-                            notes.append(f"RDKit bond perception failed on the substituted structure ({e}); bonds after the replacement are distance-inferred (all treated as single bonds).")
-                    else:
-                        cur_bond_orders = self._distance_connectivity(cur_symbols, work)
-                    cur_adj = self._build_adjacency(cur_n, cur_bond_orders)
-                    adj_sets = {i: set(cur_adj[i]) for i in range(cur_n)}
-                    summaries.append(summary)
-                else:
-                    summaries.append(self._apply_transform_op(op, work, adj_sets, cur_n))
+                mol, summary = self._transform_molecule(mol, op)
+                summaries.append(summary)
         except ValueError as e:
             return InternalCoordinates_output_schema(is_success=False, message=f"Invalid transform operation: {e}")
 
+        cur_symbols = [atom.GetSymbol() for atom in mol.GetAtoms()]
+        work = np.asarray(mol.GetConformer().GetPositions(), dtype=float)
+        cur_bond_orders = self._bond_orders(mol)
+        cur_adj = self._build_adjacency(mol.GetNumAtoms(), cur_bond_orders)
         after_bonds, after_bond_lines = self._abnormal_bonds(
             cur_symbols, work, cur_adj, cur_bond_orders, user_input.bond_tolerance,
         )
@@ -1707,11 +1692,18 @@ class InternalCoordinates(Tool):
             report.append("== Notes ==")
             report.extend(f"  - {t}" for t in notes)
 
-        xyz_text = self._atoms_to_xyz_block(Atoms(symbols=cur_symbols, positions=work))
+        xyz_text = to_xyz(mol)
         output_path = ""
         if user_input.output_path:
             os.makedirs(os.path.dirname(user_input.output_path) or ".", exist_ok=True)
-            atomic_write_text(user_input.output_path, xyz_text)
+            suffix = Path(user_input.output_path).suffix.lower()
+            if suffix == ".mol":
+                output_text = Chem.MolToMolBlock(mol)
+            elif suffix == ".sdf":
+                output_text = Chem.SDWriter.GetText(mol)
+            else:
+                output_text = xyz_text
+            atomic_write_text(user_input.output_path, output_text)
             output_path = user_input.output_path
 
         message = (

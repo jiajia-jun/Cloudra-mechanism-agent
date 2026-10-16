@@ -437,13 +437,15 @@ def classify_watch_pairs(symbols, d_ts, d_int, ts_bonds, int_bonds) -> dict:
 
 def evaluate_endpoint_between(symbols: Sequence[str], ts_pos, end_pos,
                               intermediate_pos, watch_pairs: Sequence[Sequence[int]],
-                              charge: int = 0, *, index_base: int = 1) -> dict:
+                              charge: int = 0, *, index_base: int = 1, intermediate_molecule=None) -> dict:
     """判断一个部分 IRC 端点是否位于 TS 与某个端点参考几何之间。
 
     判定对来源（硬闸门）：显式 watch_pairs > 键图 diff（A 层，两侧感知均为
     rdDetermineBonds 时）> distance_top5 回退。B 层提名对只进 details。"""
     import numpy as np
 
+    if intermediate_molecule is not None:
+        intermediate_pos = intermediate_molecule.GetConformer().GetPositions()
     n = len(symbols)
     arrays = [np.asarray(pos, dtype=float) for pos in (ts_pos, end_pos, intermediate_pos)]
     if any(pos.shape != (n, 3) for pos in arrays):
@@ -482,11 +484,20 @@ def evaluate_endpoint_between(symbols: Sequence[str], ts_pos, end_pos,
         pairs = [pair for pair in pairs if abs(d_int[pair] - d_ts[pair]) > _STRICT_PAIR_EPS_ANG]
     else:
         ts_bonds, src_ts = perceive_bonds(symbols, ts_pos, charge)
-        int_bonds, src_int = perceive_bonds(symbols, intermediate_pos, charge)
+        known_graph = intermediate_molecule is not None and not (
+            intermediate_molecule.HasProp("cloudra_graph_status")
+            and intermediate_molecule.GetProp("cloudra_graph_status") == "unresolved"
+        )
+        if known_graph:
+            int_bonds = {tuple(sorted((bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()))): float(bond.GetBondTypeAsDouble())
+                         for bond in intermediate_molecule.GetBonds()}
+            src_int = "declared_molecule"
+        else:
+            int_bonds, src_int = perceive_bonds(symbols, intermediate_pos, charge)
         perception = f"ts={src_ts},intermediate={src_int}"
         cls = classify_watch_pairs(symbols, d_ts, d_int, ts_bonds, int_bonds)
         b_pairs = cls["b"]
-        authoritative = src_ts == src_int == "rdDetermineBonds"
+        authoritative = src_ts == "rdDetermineBonds" and src_int in {"rdDetermineBonds", "declared_molecule"}
         if authoritative and cls["bond_diff"]:
             pairs, layer = cls["bond_diff"], "bond_diff"
         else:
@@ -567,18 +578,21 @@ def evaluate_endpoint_between(symbols: Sequence[str], ts_pos, end_pos,
 def assign_irc_endpoints(symbols: Sequence[str], ts_pos, end_a_pos, end_b_pos,
                          intermediate_a_pos, intermediate_b_pos,
                          watch_pairs: Sequence[Sequence[int]],
-                         charge: int = 0, *, index_base: int = 1) -> dict:
+                         charge: int = 0, *, index_base: int = 1, reference_molecules=None) -> dict:
     """尝试 IRC 两端与两个端点参考几何的 direct/swapped 无序配对。"""
     assignments = []
-    for name, target_a, target_b in (
-        ("direct", intermediate_a_pos, intermediate_b_pos),
-        ("swapped", intermediate_b_pos, intermediate_a_pos),
+    mol_a, mol_b = reference_molecules or (None, None)
+    for name, target_a, target_b, reference_a, reference_b in (
+        ("direct", intermediate_a_pos, intermediate_b_pos, mol_a, mol_b),
+        ("swapped", intermediate_b_pos, intermediate_a_pos, mol_b, mol_a),
     ):
         result_a = evaluate_endpoint_between(
-            symbols, ts_pos, end_a_pos, target_a, watch_pairs, charge, index_base=index_base
+            symbols, ts_pos, end_a_pos, target_a, watch_pairs, charge, index_base=index_base,
+            intermediate_molecule=reference_a,
         )
         result_b = evaluate_endpoint_between(
-            symbols, ts_pos, end_b_pos, target_b, watch_pairs, charge, index_base=index_base
+            symbols, ts_pos, end_b_pos, target_b, watch_pairs, charge, index_base=index_base,
+            intermediate_molecule=reference_b,
         )
         assignments.append({
             "name": name,
@@ -617,7 +631,7 @@ def prove_irc_endpoint_direction(
     intermediate_b: tuple[Sequence[str], object],
     watch_pairs: Sequence[Sequence[int]],
     charge: int = 0,
-    *, index_base: int = 1, atom_orders=None,
+    *, index_base: int = 1, atom_orders=None, reference_molecules=None,
 ) -> dict:
     """Align four geometries to the TS and apply the shared IRC direction test.
 
@@ -626,6 +640,7 @@ def prove_irc_endpoint_direction(
     direction; optimization convergence and file provenance remain separate facts.
     """
     aligned = []
+    aligned_molecules = []
     for slot, (label, (symbols, positions)) in enumerate((
         ("IRC endpoint A", endpoint_a),
         ("IRC endpoint B", endpoint_b),
@@ -645,13 +660,18 @@ def prove_irc_endpoint_direction(
             }
         perm, rmsd = result
         aligned.append([positions[k] for k in perm])
+        if reference_molecules is not None and slot >= 2:
+            from cloudra.tools.core.molecule import renumber_atoms
+
+            reference = reference_molecules[slot - 2]
+            aligned_molecules.append(renumber_atoms(reference, list(perm)) if reference is not None else None)
 
     result = assign_irc_endpoints(
         ts_symbols,
         ts_pos,
         aligned[0], aligned[1], aligned[2], aligned[3],
         watch_pairs,
-        charge, index_base=index_base,
+        charge, index_base=index_base, reference_molecules=aligned_molecules or None,
     )
     result["aligned_positions"] = aligned
     return result

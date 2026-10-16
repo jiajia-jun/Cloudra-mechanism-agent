@@ -1069,8 +1069,8 @@ async def test_transform_output_roundtrip(mock_session, tmp_path):
     assert result.output_path == str(out_file)
     assert out_file.read_text(encoding="utf-8") == result.xyz_text
 
-    atoms = InternalCoordinates._load_atoms_from_path_or_text(None, result.xyz_text, "auto")
-    assert len(atoms) == 8
+    mol, _, _ = InternalCoordinates._load_molecule(None, result.xyz_text, "auto", 0)
+    assert mol.GetNumAtoms() == 8
 
     analyze = await tool.safe_call(
         InternalCoordinates_input_schema(
@@ -1084,6 +1084,208 @@ async def test_transform_output_roundtrip(mock_session, tmp_path):
 
 
 # ---------- replace_group（拓扑编辑） ----------
+
+
+def _methoxide_with_close_sodium():
+    """Na 同时靠近 C/O，但 MOL 明确声明它不成键。"""
+    from rdkit import Chem
+
+    mol = Chem.AddHs(Chem.MolFromSmiles("[Na+].[O-][13CH3:7]"))
+    conf = Chem.Conformer(mol.GetNumAtoms())
+    for i, xyz in enumerate([
+        (0.7, 1.0, 0.0), (0.0, 0.0, 0.0), (1.43, 0.0, 0.0),
+        (1.8, 1.0, 0.0), (1.8, -0.5, 0.87), (1.8, -0.5, -0.87),
+    ]):
+        conf.SetAtomPosition(i, xyz)
+    mol.AddConformer(conf)
+    mol.GetAtomWithIdx(2).SetProp("origin", "input-carbon")
+    mol.GetBondBetweenAtoms(1, 2).SetProp("origin", "input-bond")
+    return mol
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("fmt,from_file", [("mol", False), ("sdf", False), ("mol", True), ("sdf", True)])
+async def test_analyze_uses_declared_mol_graph(mock_session, tmp_path, fmt, from_file):
+    from rdkit import Chem
+
+    mol = _methoxide_with_close_sodium()
+    text = Chem.MolToMolBlock(mol) + ("\n$$$$\n" if fmt == "sdf" else "")
+    kwargs = {"input_text": text, "input_format": fmt}
+    if from_file:
+        path = tmp_path / f"input.{fmt}"
+        path.write_text(text)
+        kwargs = {"input_path": str(path)}
+    result = await InternalCoordinates().safe_call(
+        InternalCoordinates_input_schema(**kwargs, zmat_path=str(tmp_path / "input.zmat")),
+        mock_session,
+    )
+    assert result.is_success, result.message
+    assert "Bonds: 4" in result.report
+    assert "Fragments: 2" in result.report
+    assert "Total charge: 0" in result.report
+    assert "Bond orders: input" in result.report
+    assert "No rings" in result.report
+
+
+@pytest.mark.asyncio
+async def test_analyze_uses_mol_formal_charge(mock_session, tmp_path):
+    from rdkit import Chem
+
+    mol = Chem.MolFromSmiles("[Cl-]")
+    mol.AddConformer(Chem.Conformer(1))
+    result = await InternalCoordinates().safe_call(
+        InternalCoordinates_input_schema(
+            input_text=Chem.MolToMolBlock(mol), input_format="mol",
+            zmat_path=str(tmp_path / "chloride.zmat"),
+        ), mock_session,
+    )
+    assert result.is_success, result.message
+    assert "Total charge: -1" in result.report
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("suffix", ["mol", "sdf"])
+async def test_transform_keeps_input_graph_when_sodium_is_close(mock_session, tmp_path, suffix):
+    import numpy as np
+    from rdkit import Chem
+
+    mol = _methoxide_with_close_sodium()
+    path = tmp_path / f"stretched.{suffix}"
+    result = await InternalCoordinates().safe_call(
+        InternalCoordinates_input_schema(
+            mode="transform", input_text=Chem.MolToMolBlock(mol), input_format="mol",
+            operations=[{"type": "stretch", "atoms": [2, 3], "new_length": 2.0}],
+            output_path=str(path),
+        ), mock_session,
+    )
+    assert result.is_success, result.message
+    edited = Chem.MolFromMolFile(str(path), removeHs=False)
+    assert edited is not None
+    assert edited.GetNumBonds() == 4
+    assert len(Chem.GetMolFrags(edited)) == 2
+    assert [a.GetFormalCharge() for a in edited.GetAtoms()] == [1, -1, 0, 0, 0, 0]
+    assert edited.GetAtomWithIdx(2).GetIsotope() == 13
+    assert edited.GetAtomWithIdx(2).GetAtomMapNum() == 7
+    p = edited.GetConformer().GetPositions()
+    assert np.linalg.norm(p[2] - p[1]) == pytest.approx(2.0, abs=1e-4)
+    assert np.allclose(p[0], mol.GetConformer().GetPositions()[0])
+
+
+def test_mol_transforms_are_functional_and_preserve_properties():
+    import numpy as np
+    from rdkit import Chem
+
+    mol = _methoxide_with_close_sodium()
+    before = mol.ToBinary(Chem.PropertyPickleOptions.AllProps)
+    edited, summary = InternalCoordinates._transform_molecule(
+        mol, {"type": "stretch", "atoms": [2, 3], "new_length": 2.0},
+    )
+    assert mol.ToBinary(Chem.PropertyPickleOptions.AllProps) == before
+    assert edited is not mol
+    assert edited.GetAtomWithIdx(2).GetProp("origin") == "input-carbon"
+    assert edited.GetBondBetweenAtoms(1, 2).GetProp("origin") == "input-bond"
+    assert edited.GetAtomWithIdx(2).GetIsotope() == 13
+    assert edited.GetAtomWithIdx(2).GetAtomMapNum() == 7
+    assert summary["new_length"] == 2.0
+    assert not np.allclose(edited.GetConformer().GetPositions(), mol.GetConformer().GetPositions())
+
+
+def test_replace_group_keeps_surviving_mol_state():
+    from rdkit import Chem
+    from rdkit.Chem import AllChem
+
+    mol = Chem.AddHs(Chem.MolFromSmiles("[13CH3:7]CO"))
+    assert AllChem.EmbedMolecule(mol, randomSeed=42) == 0
+    mol.GetAtomWithIdx(0).SetProp("origin", "input-carbon")
+    mol.GetBondBetweenAtoms(0, 1).SetProp("origin", "input-bond")
+    before = mol.ToBinary(Chem.PropertyPickleOptions.AllProps)
+    edited, summary = InternalCoordinates._transform_molecule(
+        mol, {"type": "replace_group", "bond": [2, 3], "smiles": "[*]C(=O)[O-]"},
+    )
+    assert mol.ToBinary(Chem.PropertyPickleOptions.AllProps) == before
+    assert edited.GetAtomWithIdx(0).GetProp("origin") == "input-carbon"
+    assert edited.GetAtomWithIdx(0).GetIsotope() == 13
+    assert edited.GetAtomWithIdx(0).GetAtomMapNum() == 7
+    assert edited.GetBondBetweenAtoms(0, 1).GetProp("origin") == "input-bond"
+    assert Chem.GetFormalCharge(edited) == -1
+    assert summary["attachment_atoms"][0] == 2
+
+
+@pytest.mark.asyncio
+async def test_invert_chirality_updates_exported_mol_stereo(mock_session, tmp_path):
+    from rdkit import Chem
+
+    mol = Chem.MolFromXYZBlock(_embed_xyz("FC(Cl)Br"))
+    from rdkit.Chem import rdDetermineBonds
+
+    rdDetermineBonds.DetermineBonds(mol, charge=0)
+    Chem.AssignStereochemistryFrom3D(mol)
+    before = Chem.FindMolChiralCenters(mol)
+    out_path = tmp_path / "inverted.mol"
+    result = await InternalCoordinates().safe_call(
+        InternalCoordinates_input_schema(
+            mode="transform", input_text=Chem.MolToMolBlock(mol), input_format="mol",
+            operations=[{"type": "invert_chirality", "center": 2, "swap": [1, 5]}],
+            output_path=str(out_path),
+        ), mock_session,
+    )
+    assert result.is_success, result.message
+    edited = Chem.MolFromMolFile(str(out_path), removeHs=False)
+    after = Chem.FindMolChiralCenters(edited)
+    assert before[0][1] in {"R", "S"}
+    assert after[0][1] in {"R", "S"}
+    assert after[0][1] != before[0][1]
+
+
+@pytest.mark.parametrize("three_dimensional", [True, False])
+def test_replace_same_group_preserves_physical_stereochemistry(three_dimensional):
+    from rdkit import Chem
+    from rdkit.Chem import AllChem, rdDepictor
+
+    mol = Chem.MolFromSmiles("Cl[C@](F)(Br)I")
+    if three_dimensional:
+        assert AllChem.EmbedMolecule(mol, randomSeed=42) == 0
+    else:
+        rdDepictor.Compute2DCoords(mol)
+    before = Chem.FindMolChiralCenters(mol)
+    edited, _ = InternalCoordinates._transform_molecule(
+        mol, {"type": "replace_group", "bond": [2, 1], "smiles": "[*]Cl"},
+    )
+    assert Chem.FindMolChiralCenters(edited) == [(0, before[0][1])]
+    reloaded = Chem.MolFromMolBlock(Chem.MolToMolBlock(edited), removeHs=False)
+    assert Chem.FindMolChiralCenters(reloaded) == [(0, before[0][1])]
+
+
+@pytest.mark.parametrize("smiles,bond,group", [
+    ("CC(=O)C", [2, 3], "[*]=O"),
+    ("CC#N", [2, 3], "[*]#N"),
+    ("C[O-]", [1, 2], "[*][O-]"),
+])
+def test_replace_group_retains_declared_attachment_chemistry(smiles, bond, group):
+    from rdkit import Chem
+    from rdkit.Chem import AllChem
+
+    mol = Chem.AddHs(Chem.MolFromSmiles(smiles))
+    assert AllChem.EmbedMolecule(mol, randomSeed=42) == 0
+    edited, _ = InternalCoordinates._transform_molecule(
+        mol, {"type": "replace_group", "bond": bond, "smiles": group},
+    )
+    assert Chem.MolToSmiles(Chem.RemoveHs(edited)) == Chem.MolToSmiles(Chem.MolFromSmiles(smiles))
+
+
+@pytest.mark.asyncio
+async def test_coordinate_only_single_ion_keeps_declared_charge(mock_session, tmp_path):
+    from rdkit import Chem
+
+    result = await InternalCoordinates().safe_call(
+        InternalCoordinates_input_schema(
+            input_text="1\n\nNa 0 0 0\n", charge=1, zmat_path=str(tmp_path / "ion.zmat"),
+        ), mock_session,
+    )
+    assert result.is_success, result.message
+    assert "Total charge: 1" in result.report
+    mol, _, _ = InternalCoordinates._load_molecule(None, "1\n\nNa 0 0 0\n", "xyz", 1)
+    assert Chem.GetFormalCharge(mol) == 1
 
 
 @pytest.mark.asyncio

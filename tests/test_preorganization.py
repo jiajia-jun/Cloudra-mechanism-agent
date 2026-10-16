@@ -33,6 +33,20 @@ def _graph_only(smiles, tmp_path):
     ))
 
 
+def test_resolved_graph_keeps_molecule_state_without_export_files(tmp_path):
+    prepared = _graph_only("[13CH3:7]O |atomProp:0.origin.original-carbon|", tmp_path)
+    for component in prepared.components:
+        Path(component.mol_path).unlink()
+
+    graph = load_resolved_graph(prepared)
+
+    assert graph.GetAtomWithIdx(0).GetProp("origin") == "original-carbon"
+    assert graph.GetAtomWithIdx(0).GetIsotope() == 13
+    assert graph.GetAtomWithIdx(0).GetAtomMapNum() == 7
+    graph.GetAtomWithIdx(0).SetProp("origin", "changed")
+    assert prepared.mol.GetAtomWithIdx(0).GetProp("origin") == "original-carbon"
+
+
 def test_missing_ring_edge_uses_visible_single_source_fallback(tmp_path):
     prepared = _graph_only("CCO.O", tmp_path)
     assert prepared.status == "assembly_failed"  # graph-only, not a failed parse
@@ -446,8 +460,7 @@ def test_heavy_atom_numbers_mistaken_for_full_atoms_fail_before_sampling(tmp_pat
         pytest.fail("incompatible covalent window reached structure sampling")
     monkeypatch.setattr(preorganization, "prepare_structure", no_sampling)
     with pytest.raises(ValueError, match="input covalent bond") as error:
-        preorganization._multi_component_rdkit(StructureInput(kind="smiles", value="C=CC=C.C=C"),
-            prepared, plan, str(tmp_path / "search"), 0, 1, 42, .5)
+        preorganization._multi_component_rdkit(prepared, plan, str(tmp_path / "search"), 0, 1, 42, .5)
     assert "5=H" in str(error.value) and "11=C" in str(error.value)
 
 

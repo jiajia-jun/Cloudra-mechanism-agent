@@ -41,10 +41,11 @@ def test_ts_scan_execution_budget_matches_native_qm_resources(tmp_path, monkeypa
     assert record.waiting_for == "job:42"
     requested_cpus, requested_memory, native = submitted[0]
     assert (requested_cpus, requested_memory) == (cpus, memory_mb)
+    from cloudra.tools.core.molecule import read_molecule
     writer = QmInputWriter._build_orca_input(QmInputWriter_input_schema(
         source_type="xyz_file", source_value=str(source), output_path=str(tmp_path / "reference.inp"),
         task_type=[{"opt": None}],
-        nproc=cpus, mem=f"{memory_mb}MB", **CALCULATION), "O 0 0 0\nH 0 0 1\nH 1 0 0")
+        nproc=cpus, mem=f"{memory_mb}MB", **CALCULATION), read_molecule(str(source)))
     expected_resources = [line for line in writer.splitlines() if line.startswith(("%pal", "%maxcore"))]
     assert [line for line in native.splitlines() if line.startswith(("%pal", "%maxcore"))] == expected_resources
     assert native.splitlines()[0] == "! OPT B3LYP def2-SVP D3BJ TightSCF"

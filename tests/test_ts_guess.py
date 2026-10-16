@@ -98,11 +98,13 @@ def test_scan_preparation_reports_written_method_without_reselection_hint(tmp_pa
 
 def test_scan_and_writer_preserve_native_method_slash_and_auxiliary_basis(tmp_path):
     from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
+    from cloudra.tools.core.molecule import read_molecule
 
     settings = dict(engine='orca', method='B3LYP/G', basis_set='def2-SVP',
                     keywords='D3BJ RIJCOSX def2/J TightSCF CPCM(DCM)')
     written = QmInputWriter._build_orca_input(QmInputWriter_input_schema(**settings,
-        source_type='xyz_file', source_value='unused.xyz', output_path='unused.inp'), 'H 0 0 0\nH 0 0 .74')
+        source_type='xyz_file', source_value='unused.xyz', output_path='unused.inp'),
+        read_molecule(input_text='2\n\nH 0 0 0\nH 0 0 .74\n'))
     target = tmp_path / 'scan.inp'
     result = TsGuess()._scan_prepare(TsGuess_input_schema(**settings, mode='scan_prepare',
         input_text='2\nH2\nH 0 0 0\nH 0 0 .74\n', output_path=str(target),
@@ -517,8 +519,8 @@ H  0.000000  -0.757200  -0.469200
 
 
 @pytest.mark.asyncio
-async def test_scan_prepare_rejects_mol_path_with_xyz_guidance(tmp_path, mock_session):
-    """A MOL input passed as scan geometry should fail with a format instruction."""
+async def test_scan_prepare_accepts_declared_mol_geometry(tmp_path, mock_session):
+    """The input boundary reads MOL directly instead of requesting a lossy XYZ conversion."""
     pytest.importorskip("rdkit", reason="requires RDKit (chem extra)")
     from rdkit import Chem
     from rdkit.Chem import AllChem
@@ -538,11 +540,9 @@ async def test_scan_prepare_rejects_mol_path_with_xyz_guidance(tmp_path, mock_se
         output_path=str(output),
     ), mock_session)
 
-    assert not result.is_success
-    assert "XYZ" in result.message
-    assert "MOL" in result.message
-    assert "invalid literal" not in result.message
-    assert not output.exists()
+    assert result.is_success, result.message
+    assert output.is_file()
+    assert "* xyz 0 1" in output.read_text()
 
 
 @pytest.mark.asyncio
@@ -963,6 +963,64 @@ async def test_verify_minimum_negative(tmp_path, mock_session):
     assert result.verdict.startswith("unlikely")
     assert result.verification_status == "fail"
     assert any("minimum" in c for c in result.checks)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("strict", [False, True])
+@pytest.mark.parametrize("frequency_text,status,n_imag", [
+    (_TS_FREQ_SNIPPET.replace("-915.3388", "915.3388"), "fail", 0),
+    (_TS_FREQ_SNIPPET, "inconclusive", 1),
+    (_TS_FREQ_SNIPPET.replace("Normal termination of Gaussian 16", "Error termination of Gaussian 16"),
+     "inconclusive", 1),
+], ids=["minimum", "first_order_saddle", "unfinished_frequency"])
+async def test_verify_bad_reference_preserves_structured_frequency_result(
+    tmp_path, mock_session, strict, frequency_text, status, n_imag,
+):
+    freq_log = tmp_path / "frequency.log"
+    freq_log.write_text(frequency_text)
+    result = await _make_tool().safe_call(TsGuess_input_schema(
+        mode="verify", strict=strict, freq_log=str(freq_log), irc_log=str(IRC_LOG),
+        reactant_text="not xyz", product_text=_HNC_XYZ,
+    ), mock_session)
+
+    assert result.is_success, result.message
+    assert result.verification_status == status
+    assert result.n_imag == n_imag
+    if n_imag == 0 or "Error termination" in frequency_text:
+        assert not any("not xyz" in check for check in result.checks)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("strict", [False, True])
+async def test_verify_without_irc_uses_declared_molecule_charge(
+    tmp_path, mock_session, monkeypatch, strict,
+):
+    from rdkit import Chem
+
+    import cloudra.tools.Chemtool.ts_guess as ts_module
+
+    mol = Chem.MolFromSmiles("[O-]C")
+    conf = Chem.Conformer(2)
+    conf.SetAtomPosition(0, (0, 0, 0))
+    conf.SetAtomPosition(1, (1.43, 0, 0))
+    mol.AddConformer(conf)
+    freq_log = tmp_path / "frequency.log"
+    freq_log.write_text(_TS_FREQ_WITH_GEOMETRY)
+    assessed_charges = []
+    assess = ts_module._assess_imag_mode_alignment
+
+    def record_assessment(*args, **kwargs):
+        assessed_charges.append(kwargs["charge"])
+        return assess(*args, **kwargs)
+
+    monkeypatch.setattr(ts_module, "_assess_imag_mode_alignment", record_assessment)
+    result = await _make_tool().safe_call(TsGuess_input_schema(
+        mode="verify", strict=strict, freq_log=str(freq_log), reactant_text=Chem.MolToMolBlock(mol),
+    ), mock_session)
+
+    assert result.is_success, result.message
+    assert result.n_imag == 1
+    assert assessed_charges == [-1]
 
 
 @pytest.mark.asyncio
@@ -2428,10 +2486,65 @@ def _frame(xyz):
     return SimpleNamespace(xyz=xyz)
 
 
+def _connectivity_verdict(request, end_a, end_b, checks):
+    from cloudra.tools.Chemtool.ts_guess import _reference_molecules
+
+    return TsGuess._check_irc_connectivity(request, end_a, end_b, checks, _reference_molecules(request))
+
+
+def test_reference_mol_graph_is_not_reperceived(monkeypatch):
+    from rdkit import Chem
+
+    import cloudra.tools.Chemtool.ts_guess as ts_module
+
+    mol = Chem.MolFromSmiles("[Na+].[O-][13CH3:7]")
+    conf = Chem.Conformer(3)
+    for i, position in enumerate([(0.7, 1, 0), (0, 0, 0), (1.43, 0, 0)]):
+        conf.SetAtomPosition(i, position)
+    mol.AddConformer(conf)
+    block = Chem.MolToMolBlock(mol)
+    request = TsGuess_input_schema(mode="verify", freq_log="unused.log", reactant_text=block, product_text=block)
+    calls = []
+
+    def perceive(*args):
+        calls.append(args)
+        return {(1, 2): 1.0}, "rdDetermineBonds"
+
+    monkeypatch.setattr(ts_module, "_perceive_bonds", perceive)
+    references = ts_module._reference_molecules(request)
+    frame = _frame("3\nendpoint\nNa .7 1 0\nO 0 0 0\nC 1.43 0 0\n")
+    checks = []
+    assert TsGuess._check_irc_connectivity(request, frame, frame, checks, references) is True
+    assert len(calls) == 2
+    assert references["reactant"].GetAtomWithIdx(2).GetIsotope() == 13
+    assert references["reactant"].GetAtomWithIdx(2).GetAtomMapNum() == 7
+
+
+@pytest.mark.parametrize("engine,base", [("gaussian", 1), ("orca", 0)])
+def test_scan_reads_mol_and_uses_molecule_charge(tmp_path, engine, base):
+    from rdkit import Chem
+
+    mol = Chem.MolFromSmiles("[O-]C")
+    conf = Chem.Conformer(2)
+    conf.SetAtomPosition(0, (0, 0, 0))
+    conf.SetAtomPosition(1, (1.43, 0, 0))
+    mol.AddConformer(conf)
+    path = tmp_path / "source.mol"
+    path.write_text(Chem.MolToMolBlock(mol))
+    output = tmp_path / ("scan.inp" if engine == "orca" else "scan.gjf")
+    result = TsGuess()._scan_prepare(TsGuess_input_schema(
+        mode="scan_prepare", engine=engine, method="B3LYP", basis_set="def2-SVP",
+        input_path=str(path), output_path=str(output),
+        scans=[{"atoms": [base, base + 1], "scan_end": 2.0, "scan_steps": 5}],
+    ))
+    assert result.is_success, result.message
+    assert ("* xyz -1 1" if engine == "orca" else "\n-1 1\n") in output.read_text()
+
+
 def test_check_irc_connectivity_weak_contact_is_warning_not_failure():
     """键集差异在预期结构侧是弱接触（>1.25×共价半径和）时只记 warning、不判负。"""
     checks: list[str] = []
-    verdict = TsGuess._check_irc_connectivity(
+    verdict = _connectivity_verdict(
         _connectivity_input(_WATER_A, _WATER_P_WEAK),
         _frame(_WATER_A), _frame(_WATER_B_STRETCHED), checks,
     )
@@ -2443,7 +2556,7 @@ def test_check_irc_connectivity_weak_contact_is_warning_not_failure():
 def test_check_irc_connectivity_covalent_difference_still_fails():
     """预期结构侧仍是共价键的键集差异：照旧判负（不降级）。"""
     checks: list[str] = []
-    verdict = TsGuess._check_irc_connectivity(
+    verdict = _connectivity_verdict(
         _connectivity_input(_WATER_A, _WATER_P_COVALENT),
         _frame(_WATER_A), _frame(_WATER_B_DISSOCIATED), checks,
     )
@@ -2454,7 +2567,7 @@ def test_check_irc_connectivity_covalent_difference_still_fails():
 def test_check_irc_connectivity_endpoint_order_mismatch_is_inconclusive():
     """两端点帧的原子序/元素不一致：连通性不可判（不拿 A 的元素配 B 的坐标硬算键）。"""
     checks: list[str] = []
-    verdict = TsGuess._check_irc_connectivity(
+    verdict = _connectivity_verdict(
         _connectivity_input(_WATER_A, _WATER_A),
         _frame(_WATER_A),
         _frame("3\nendpoint B\nH  0.96  0.00  0.00\nO  0.00  0.00  0.00\nH -0.24  0.93  0.00\n"),
@@ -2475,7 +2588,7 @@ def test_check_irc_connectivity_uses_perceive_bonds_channel(monkeypatch):
 
     monkeypatch.setattr(irc_path, "_rdkit_bonds", lambda *a: {(0, 1): 1.0, (0, 2): 1.0})
     checks: list[str] = []
-    verdict = TsGuess._check_irc_connectivity(
+    verdict = _connectivity_verdict(
         _connectivity_input(_WATER_A, _WATER_A),
         _frame(_WATER_B_DISSOCIATED), _frame(_WATER_B_DISSOCIATED), checks,
     )
@@ -2483,7 +2596,7 @@ def test_check_irc_connectivity_uses_perceive_bonds_channel(monkeypatch):
 
     monkeypatch.setattr(irc_path, "_rdkit_bonds", lambda *a: None)
     checks = []
-    verdict = TsGuess._check_irc_connectivity(
+    verdict = _connectivity_verdict(
         _connectivity_input(_WATER_A, _WATER_A),
         _frame(_WATER_B_DISSOCIATED), _frame(_WATER_B_DISSOCIATED), checks,
     )

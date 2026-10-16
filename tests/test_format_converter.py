@@ -92,6 +92,20 @@ H  -0.239000   0.927000   0.000000
 
 
 @pytest.mark.asyncio
+async def test_xyz_to_mol_keeps_coordinates_without_inventing_chemistry(tmp_path):
+    result, mol_path = await _convert(tmp_path, "xyz", "mol", _WATER_XYZ)
+    assert result.is_success, result.message
+
+    mol = Chem.MolFromMolFile(str(mol_path), removeHs=False)
+    assert mol.GetNumAtoms() == 3
+    assert mol.GetNumBonds() == 0
+    assert Chem.GetFormalCharge(mol) == 0
+    assert mol.GetConformer().GetAtomPosition(1).x == pytest.approx(0.957)
+    assert mol.GetConformer().GetAtomPosition(2).y == pytest.approx(0.927)
+    assert "atoms+coordinates only" in result.message
+
+
+@pytest.mark.asyncio
 async def test_xyz_to_sdf_to_xyz_preserves_coordinates(tmp_path):
     """F1 回归：纯坐标格式链 xyz→sdf→xyz 坐标保持不变（sdf 侧为原子+坐标）。"""
     result1, sdf_path = await _convert(tmp_path, "xyz", "sdf", _WATER_XYZ)

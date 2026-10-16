@@ -93,9 +93,10 @@ def waiting_fixture_stage(tmp_path, *, purpose="frequency", engine="orca", seed=
             engine=engine, method="b3lyp", basis_set="def2svp", task_type=[task],
             source_type="xyz_file", source_value=str(geometry), output_path=str(source),
         )
-        coords = process._xyz_coords(str(geometry))
-        source.write_text(QmInputWriter._build_orca_input(request, coords) if engine == "orca"
-                          else QmInputWriter._build_gjf(request, coords))
+        from cloudra.tools.core.molecule import read_molecule
+        mol = read_molecule(str(geometry))
+        source.write_text(QmInputWriter._build_orca_input(request, mol) if engine == "orca"
+                          else QmInputWriter._build_gjf(request, mol))
     with use_pipeline_database(db):
         error, job = process._submit_step(record, purpose, str(source), engine)
     assert error == ""

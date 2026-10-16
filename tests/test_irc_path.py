@@ -23,6 +23,32 @@ from cloudra.tools.core.irc_path import (
 
 _RDKIT = importlib.util.find_spec("rdkit") is not None
 
+
+def test_direction_uses_declared_reference_molecule_without_guessing_its_graph(monkeypatch):
+    Chem = pytest.importorskip("rdkit.Chem")
+    np = pytest.importorskip("numpy")
+    mol = Chem.MolFromSmiles("CC")
+    conf = Chem.Conformer(2)
+    conf.SetAtomPosition(0, (0, 0, 0))
+    conf.SetAtomPosition(1, (1.54, 0, 0))
+    mol.AddConformer(conf)
+    reference = mol.GetConformer().GetPositions()
+    calls = []
+
+    def perceive(symbols, positions, charge=0):
+        assert not np.allclose(positions, reference), "declared reference graph was discarded"
+        calls.append(positions)
+        return {}, "rdDetermineBonds"
+
+    monkeypatch.setattr(irc_path, "perceive_bonds", perceive)
+    result = irc_path.evaluate_endpoint_between(
+        ["C", "C"], [[0, 0, 0], [2.0, 0, 0]], [[0, 0, 0], [1.8, 0, 0]],
+        reference, [], intermediate_molecule=mol,
+    )
+    assert result["is_between"] is True
+    assert result["pair_layer"] == "bond_diff"
+    assert len(calls) == 1
+
 _WATER_S = ["O", "H", "H"]
 _WATER_P = [[0.0, 0.0, 0.1173], [0.0, 0.7572, -0.4692], [0.0, -0.7572, -0.4692]]
 

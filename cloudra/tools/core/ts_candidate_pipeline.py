@@ -9,6 +9,7 @@ def use_catalog_source(record, source, role):
     """Bind the explicitly selected immutable archived member, never auto-select."""
     from cloudra.services.conformer_store import get_candidate_snapshot, list_candidates
     from cloudra.services.ts_pipeline_context import pipeline_database
+    from cloudra.tools.core.molecule import copy_conformer, to_xyz
     from cloudra.tools.core.ts_process import _block, _write_immutable_input
 
     db = pipeline_database()
@@ -45,7 +46,9 @@ def use_catalog_source(record, source, role):
         return _block(record, 'build', 'missing_input', 'Unqualified catalog seed requires an explicit optimization calculation or qualified replacement.', needs=[f'conformers.{role}.optimization'])
     directory.mkdir(parents=True, exist_ok=True)
     path = str(directory / 'seed.xyz')
-    _write_immutable_input(path, Path(selected.geometry_ref).read_text())
+    molecule = copy_conformer(selected.mol)
+    _write_immutable_input(path, to_xyz(molecule))
+    record.seed_molecules[role] = molecule
     metadata = dict(candidate_id=selected.candidate_id, catalog_id=selected.catalog_id,
         partition_revision=snapshot.revision, geometry_hash=selected.geometry_hash,
         artifact_hash=selected.artifact_hash,

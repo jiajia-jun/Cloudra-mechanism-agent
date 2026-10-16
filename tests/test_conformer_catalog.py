@@ -7,13 +7,27 @@ from cloudra.persistence.database import ComputeDB
 
 
 def make_candidate(tmp_path, **overrides):
+    from rdkit import Chem
+
     from cloudra.tools.core.conformer_catalog import CandidateRecord
 
     geometry = tmp_path / 'seed.xyz'
     geometry.write_text('2\nsynthetic geometry\nC 0 0 0\nO 1.4 0 0\n')
+    symbols = overrides.pop('symbols', ['C', 'O'])
+    atom_ids = overrides.pop('atom_ids', ['C1', 'O1'])
+    fragment_ids = overrides.pop('fragment_ids', ['f1', 'f1'])
+    rw = Chem.RWMol()
+    for symbol in symbols:
+        rw.AddAtom(Chem.Atom(symbol))
+    mol = rw.GetMol()
+    conf = Chem.Conformer(len(symbols))
+    for index, point in enumerate(overrides.pop('positions', [[0, 0, 0], [1.4, 0, 0]])):
+        conf.SetAtomPosition(index, point)
+        mol.GetAtomWithIdx(index).SetProp('cloudra_atom_id', atom_ids[index])
+        mol.GetAtomWithIdx(index).SetProp('cloudra_fragment_id', fragment_ids[index])
+    mol.AddConformer(conf)
     fields = dict(catalog_id='cat', project_id='project', owner_id='owner', species_key='CO:neutral:singlet',
-                  atom_ids=['C1', 'O1'], fragment_ids=['f1', 'f1'], symbols=['C', 'O'],
-                  positions=[[0, 0, 0], [1.4, 0, 0]], geometry_ref=str(geometry), generator='fixture', seed=42)
+                  mol=mol, geometry_ref=str(geometry), generator='fixture', seed=42)
     fields.update(overrides)
     return CandidateRecord(**fields)
 

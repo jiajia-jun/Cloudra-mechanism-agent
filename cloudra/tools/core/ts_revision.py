@@ -4,6 +4,7 @@ from copy import deepcopy
 from pathlib import Path
 
 from cloudra.services.ts_pipeline_store import TsEvidenceReference, TsRevisionReceipt, revision_request_digest
+from cloudra.tools.core.molecule import renumber_atoms
 from cloudra.tools.core.ts_inputs import TsResumeRequest, apply_input_changes
 
 _FORMAL = ('ts_opt', 'frequency', 'irc', 'reactant_opt', 'reactant_frequency', 'product_opt', 'product_frequency')
@@ -154,7 +155,7 @@ def _canonical_file_projection(record, updated, role, permutation):
     after = {'xyz': ''.join([*rows[:2], *canonical_rows, *rows[count + 2:]]).encode('utf-8')}
     graph = _read_structure(None, before.get('mol', before['xyz']).decode('utf-8'),
                             'mol' if 'mol' in before else 'xyz', updated.reaction.charge, role)
-    graph = Chem.RenumberAtoms(graph, permutation)
+    graph = renumber_atoms(graph, permutation)
     positions = [[float(token) for token in row.split()[1:4]] for row in canonical_rows]
     conf = Chem.Conformer(count)
     for index, point in enumerate(positions):
@@ -520,6 +521,7 @@ def revise_record(record, request, receipt):
                                   if role in ('reactant', 'product')})
         revised.current_seed_xyz_path, revised.current_seed_mol_path = '', ''
         revised.product_seed_xyz_path, revised.product_seed_mol_path = '', ''
+        revised.seed_molecules = {}
         revised.current_reactant_prepared_path = ''
         revised.active_attempt_dir, revised.guidance_manifest_path = '', ''
         revised.effective_reaction_center = []

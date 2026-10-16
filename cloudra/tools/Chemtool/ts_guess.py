@@ -65,6 +65,7 @@ from cloudra.tools.core.irc_path import (
 from cloudra.tools.core.irc_path import (
     prove_irc_endpoint_direction as _prove_irc_endpoint_direction,
 )
+from cloudra.tools.core.molecule import read_molecule, renumber_atoms, to_ase, to_xyz, total_charge, with_positions
 from cloudra.tools.core.qm_calculation import QmCalculation
 from cloudra.tools.core.qm_engine import detect_qm_engine
 from cloudra.tools.core.qm_keywords import orca_basis_keyword
@@ -202,21 +203,21 @@ class TsGuess_input_schema(input_schema):
     # ---------- interpolate ----------
     reactant_path: Optional[str] = Field(
         default=None,
-        description="Reactant xyz file path; in strict verify, the reference geometry for one endpoint. "
+        description="Reactant XYZ/MOL/SDF file path; declared molecular graphs are retained. In strict verify, the reference geometry for one endpoint. "
                     "Absolute as-is, or relative to the Agent working directory.",
     )
     reactant_text: Optional[str] = Field(
         default=None,
-        description="Reactant xyz text; in strict verify, the reference geometry for one endpoint. Path takes precedence.",
+        description="Reactant XYZ/MOL/SDF text; in strict verify, the reference geometry for one endpoint. Path takes precedence.",
     )
     product_path: Optional[str] = Field(
         default=None,
-        description="Product xyz file path; in strict verify, the reference geometry for the other endpoint. "
+        description="Product XYZ/MOL/SDF file path; declared molecular graphs are retained. In strict verify, the reference geometry for the other endpoint. "
                     "Absolute as-is, or relative to the Agent working directory.",
     )
     product_text: Optional[str] = Field(
         default=None,
-        description="Product xyz text; in strict verify, the reference geometry for the other endpoint. Path takes precedence.",
+        description="Product XYZ/MOL/SDF text; in strict verify, the reference geometry for the other endpoint. Path takes precedence.",
     )
     n_images: int = Field(default=10, description="interpolate: total image count (including endpoints), ≥2.")
     interp_method: Literal["idpp", "linear"] = Field(
@@ -260,8 +261,8 @@ class TsGuess_input_schema(input_schema):
     )
 
     # ---------- scan_prepare ----------
-    input_path: Optional[str] = Field(default=None, description="scan_prepare: input structure file path (xyz). Absolute as-is, or relative to the Agent working directory.")
-    input_text: Optional[str] = Field(default=None, description="scan_prepare: input structure xyz text.")
+    input_path: Optional[str] = Field(default=None, description="scan_prepare: input structure file path (XYZ/MOL/SDF). Absolute as-is, or relative to the Agent working directory.")
+    input_text: Optional[str] = Field(default=None, description="scan_prepare: input structure XYZ/MOL/SDF text.")
     engine: Literal["gaussian", "orca", "xtb"] | None = Field(default=None, description="Required explicit engine for scan_prepare. For scan_parse/verify, omit to detect Gaussian/ORCA from the native log; an explicit engine must match the log. For geometry modes this selects atom numbering, not a calculation method.")
     scans: Optional[list[ScanCoordinateInput]] = Field(
         default=None,
@@ -287,7 +288,7 @@ class TsGuess_input_schema(input_schema):
     basis_set: str | None = Field(default=None, description="scan_prepare requires an explicit basis token, or an explicit empty string for a method with no basis. A method/basis route string is not accepted in method.")
     keywords: str = Field(default='', description="scan_prepare: explicitly requested native electronic keywords, e.g. D3BJ RIJCOSX def2/J TightSCF CPCM(DCM) for ORCA, or scrf=(solvent=water) for Gaussian.")
     frequency_mode: Literal['auto', 'analytic', 'numeric'] = Field(default='auto', description="scan_prepare accepts only auto: this operation writes a scan, not a frequency calculation.")
-    charge: int = Field(default=0, description="Total charge.")
+    charge: Optional[int] = Field(default=None, description="Total charge for coordinate-only input (default 0). MOL/SDF own their charge; an explicit declaration must agree with the molecular graph.")
     spin: int = Field(default=1, description="Spin multiplicity (2S+1).")
     electronic_character: Literal['closed_shell', 'open_shell'] | None = Field(default=None,
         description="Declared electronic character for native scan/path preparation, including open-shell singlets. This does not select a wavefunction or initialize spin. Native xTB cannot represent an open-shell singlet through --uhf 0.")
@@ -450,29 +451,18 @@ class TsGuess_output_schema(output_schema):
 # 通用 xyz 读取 / 几何
 # ---------------------------------------------------------------------------
 
-def _load_xyz(input_path: Optional[str], input_text: Optional[str]):
-    """从路径或文本读取 xyz，返回 ASE Atoms。惰性导入 ASE。"""
-    import ase.io
+def _source_molecule(user_input, role: str):
+    """工具入口转换一次；内部继续传递完整分子，不丢弃声明图。"""
+    declared = user_input.charge if "charge" in getattr(user_input, "model_fields_set", {"charge"}) else None
+    return read_molecule(
+        input_path=getattr(user_input, role + "_path"),
+        input_text=getattr(user_input, role + "_text"), charge=declared,
+    )
 
-    if input_path:
-        if not os.path.isfile(input_path):
-            raise ValueError(f"Input file does not exist: {input_path}")
-        source = input_path
-        reader = input_path
-    elif input_text:
-        source = "input_text"
-        reader = StringIO(input_text)
-    else:
-        raise ValueError("Must provide one of path or text")
 
-    try:
-        return ase.io.read(reader, format="xyz")
-    except Exception as exc:
-        raise ValueError(
-            f"Expected XYZ geometry in {source}: first line must be the atom count, "
-            "followed by a comment and atom coordinates. Convert a MOL file to XYZ "
-            "with format_converter before calling ts_guess."
-        ) from exc
+def _reference_molecules(user_input):
+    return {role: _source_molecule(user_input, role) for role in ("reactant", "product")
+            if getattr(user_input, role + "_path") or getattr(user_input, role + "_text")}
 
 
 def _atoms_to_xyz_block(symbols, positions, comment: str = "") -> str:
@@ -1328,17 +1318,19 @@ class TsGuess(Tool):
     # ---------- mode=interpolate ----------
 
     def _interpolate(self, user_input: TsGuess_input_schema) -> TsGuess_output_schema:
+        references = _reference_molecules(user_input)
+        return self._interpolate_molecules(user_input, references["reactant"], references["product"])
+
+    def _interpolate_molecules(self, user_input, reactant, product):
         import numpy as np
 
         if user_input.n_images < 2:
             raise ValueError("n_images must be ≥ 2")
 
-        r_atoms = _load_xyz(user_input.reactant_path, user_input.reactant_text)
-        p_atoms = _load_xyz(user_input.product_path, user_input.product_text)
-        r_syms = r_atoms.get_chemical_symbols()
-        p_syms = p_atoms.get_chemical_symbols()
-        r_pos = np.asarray(r_atoms.get_positions(), dtype=float)
-        p_pos = np.asarray(p_atoms.get_positions(), dtype=float)
+        r_syms = [atom.GetSymbol() for atom in reactant.GetAtoms()]
+        p_syms = [atom.GetSymbol() for atom in product.GetAtoms()]
+        r_pos = np.asarray(reactant.GetConformer().GetPositions(), dtype=float)
+        p_pos = np.asarray(product.GetConformer().GetPositions(), dtype=float)
         n = len(r_syms)
 
         if len(p_syms) != n:
@@ -1352,18 +1344,14 @@ class TsGuess(Tool):
             am = atom_indices(user_input.atom_map, base=base, count=n)
             if sorted(am) != list(range(n)):
                 raise ValueError(f"atom_map must be a permutation of {base}..{n - 1 + base}")
-            new_pos = np.zeros_like(p_pos)
-            new_syms: list[str] = [""] * n
             for k, target in enumerate(am):
                 if p_syms[k] != r_syms[target]:
                     raise ValueError(
                         f"atom_map element mismatch: product atom {k + base} ({p_syms[k]}) maps to "
                         f"reactant atom {target + base} ({r_syms[target]})"
                     )
-                new_pos[target] = p_pos[k]
-                new_syms[target] = p_syms[k]
-            p_pos = new_pos
-            p_syms = new_syms
+            product = renumber_atoms(product, [am.index(target) for target in range(n)])
+            p_pos = product.GetConformer().GetPositions()
         elif r_syms != p_syms:
             raise ValueError(
                 "Reactant and product atom orders differ and no atom_map was provided; cannot pair atoms one-to-one. "
@@ -1392,7 +1380,7 @@ class TsGuess(Tool):
         for k in range(n_img):
             atomic_write_text(
                 os.path.join(out_dir, f"img_{k:02d}.xyz"),
-                _atoms_to_xyz_block(r_syms, images[k], comment=f"ts_guess {user_input.interp_method} image {k}"),
+                to_xyz(with_positions(reactant, images[k]), comment=f"ts_guess {user_input.interp_method} image {k}"),
             )
 
         # 监测原子对
@@ -1453,25 +1441,23 @@ class TsGuess(Tool):
 
         from cloudra.tools.core.xtb_path_runner import XtbPathRequest, run_xtb_path
 
-        r_atoms = _load_xyz(user_input.reactant_path, user_input.reactant_text)
-        p_atoms = _load_xyz(user_input.product_path, user_input.product_text)
-        r_syms = r_atoms.get_chemical_symbols()
-        p_syms = p_atoms.get_chemical_symbols()
+        references = _reference_molecules(user_input)
+        reactant, product = references["reactant"], references["product"]
+        r_syms = [atom.GetSymbol() for atom in reactant.GetAtoms()]
+        p_syms = [atom.GetSymbol() for atom in product.GetAtoms()]
         if sorted(r_syms) != sorted(p_syms):
             raise ValueError(
                 "xtb_path needs one consistent atom set: the reactant and product element "
                 f"multisets differ ({sorted(r_syms)} vs {sorted(p_syms)})"
             )
-        r_pos = np.asarray(r_atoms.get_positions(), dtype=float)
-        p_pos = np.asarray(p_atoms.get_positions(), dtype=float)
 
         out_dir = user_input.output_dir or resolve_tool_path(self, "./ts_path")
 
         run = run_xtb_path(XtbPathRequest(
-            reactant_xyz=_atoms_to_xyz_block(r_syms, r_pos, "ts_guess reactant"),
-            product_xyz=_atoms_to_xyz_block(p_syms, p_pos, "ts_guess product"),
+            reactant_xyz=to_xyz(reactant, "ts_guess reactant"),
+            product_xyz=to_xyz(product, "ts_guess product"),
             output_dir=out_dir,
-            charge=user_input.charge,
+            charge=total_charge(reactant),
             multiplicity=user_input.spin,
             electronic_character=user_input.electronic_character,
             timeout=user_input.timeout,
@@ -1480,7 +1466,7 @@ class TsGuess(Tool):
         ))
 
         if run.termination_reason == "executable_missing":
-            fallback = self._interpolate(user_input)
+            fallback = self._interpolate_molecules(user_input, reactant, product)
             fallback.path_kind = "idpp_fallback"
             fallback.path_termination_reason = run.termination_reason
             fallback.message += (
@@ -1542,8 +1528,8 @@ class TsGuess(Tool):
         )
 
         # 距离表：与 interpolate 同一套监测对选择
-        d_r = _dist_matrix(r_pos)
-        d_p = _dist_matrix(p_pos)
+        d_r = _dist_matrix(reactant.GetConformer().GetPositions())
+        d_p = _dist_matrix(product.GetConformer().GetPositions())
         pairs = _select_watch_pairs(r_syms, d_r, d_p, user_input.watch_pairs, index_base=atom_index_base(user_input.engine))
         lines = [f"{'frame':>4}" + "".join(f"  {_pair_label(r_syms, pr, atom_index_base(user_input.engine)):>12}" for pr in pairs)]
         for frame in run.frames:
@@ -1601,9 +1587,9 @@ class TsGuess(Tool):
         if not user_input.output_path:
             raise ValueError("scan_prepare requires output_path (the path to write the input file)")
 
-        atoms = _load_xyz(user_input.input_path, user_input.input_text)
-        syms = atoms.get_chemical_symbols()
-        pos = np.asarray(atoms.get_positions(), dtype=float)
+        mol = _source_molecule(user_input, "input")
+        syms = [atom.GetSymbol() for atom in mol.GetAtoms()]
+        pos = np.asarray(mol.GetConformer().GetPositions(), dtype=float)
         n = len(syms)
 
         def _coord_current(coord_type: str, idx: list[int]) -> float:
@@ -1735,7 +1721,7 @@ class TsGuess(Tool):
                 "",
                 f"{user_input.job_name} scan generated by ts_guess",
                 "",
-                f"{user_input.charge} {user_input.spin}",
+                f"{total_charge(mol)} {user_input.spin}",
                 coord_lines,
                 "",
                 scan_block,
@@ -1780,7 +1766,7 @@ class TsGuess(Tool):
             blocks.append("end")
             if user_input.orca_blocks:
                 blocks.append(user_input.orca_blocks.strip())
-            blocks.extend(["", f"* xyz {user_input.charge} {user_input.spin}", xyz_lines, "*", ""])
+            blocks.extend(["", f"* xyz {total_charge(mol)} {user_input.spin}", xyz_lines, "*", ""])
             content = "\n".join(blocks)
             run_hint = (
                 f"Submit {user_input.output_path} with submit_compute_job (job_type='orca'); "
@@ -1817,8 +1803,6 @@ class TsGuess(Tool):
 
         if not user_input.method or not user_input.method.strip():
             raise ValueError('xTB scan requires an explicitly declared method')
-        if not {'charge', 'spin'} <= user_input.model_fields_set:
-            raise ValueError('xTB scan requires explicit charge and spin multiplicity for the bound XYZ')
         if not user_input.output_path or not user_input.scans:
             raise ValueError('xTB scan requires output_path and scans')
         workspace = getattr(getattr(self, 'subagent', None), 'working_directory', None)
@@ -1829,9 +1813,14 @@ class TsGuess(Tool):
                 Path(user_input.input_path).resolve().relative_to(root)
         if user_input.freeze or user_input.keywords or user_input.orca_blocks or user_input.end_setting:
             raise ValueError('xTB scan rejects Gaussian/ORCA directives and frozen coordinates')
-        atoms = _load_xyz(user_input.input_path, user_input.input_text)
-        symbols = atoms.get_chemical_symbols()
-        positions = atoms.get_positions()
+        mol = _source_molecule(user_input, "input")
+        if 'spin' not in user_input.model_fields_set or (
+            user_input.charge is None and mol.HasProp('cloudra_graph_status')
+            and mol.GetProp('cloudra_graph_status') == 'unresolved'
+        ):
+            raise ValueError('xTB scan requires explicit charge and spin multiplicity for the bound XYZ')
+        symbols = [atom.GetSymbol() for atom in mol.GetAtoms()]
+        positions = mol.GetConformer().GetPositions()
         coordinates = []
         for row in user_input.scans:
             coordinates.append(row.model_copy(update={
@@ -1845,7 +1834,7 @@ class TsGuess(Tool):
             *[f'{symbol} ' + ' '.join(f'{float(value):.14f}' for value in point)
               for symbol, point in zip(symbols, positions)]]) + '\n'
         task = ChemTask(task='xtb_scan', reactant_xyz=xyz, cpus=user_input.nprocs,
-                        charge=user_input.charge, multiplicity=user_input.spin,
+                        charge=total_charge(mol), multiplicity=user_input.spin,
                         electronic_character=user_input.electronic_character, scan=scan)
         output = Path(user_input.output_path)
         if output.exists():
@@ -2289,6 +2278,13 @@ class TsGuess(Tool):
         imag = [f for f in vibfreqs if f < 0]
         n_imag = len(imag)
         checks: list[str] = []
+        references = {}
+        reference_error = None
+        if freq["converged"] and n_imag == 1:
+            try:
+                references = _reference_molecules(user_input)
+            except Exception as exc:
+                reference_error = str(exc)
 
         irc_end_a_path = ""
         irc_end_b_path = ""
@@ -2304,7 +2300,7 @@ class TsGuess(Tool):
                 symbols=freq.get("symbols"),
                 positions=freq.get("positions"),
                 index_base=atom_index_base(user_input.engine),
-                charge=user_input.charge,
+                charge=total_charge(references["reactant"]) if "reactant" in references else user_input.charge or 0,
             )
             imag_mode_aligned = assessment["aligned"]
             imag_mode_alignment = assessment["message"]
@@ -2312,7 +2308,11 @@ class TsGuess(Tool):
             checks.extend(assessment.get("details") or [])
             return assessment
 
-        if user_input.strict:
+        if reference_error is not None:
+            checks.append(f"Endpoint reference structures could not be parsed: {reference_error}")
+            verdict = "inconclusive: the endpoint reference structures could not be parsed."
+            status = "inconclusive"
+        elif user_input.strict:
             if not freq["converged"]:
                 checks.append("The frequency job did not converge normally; the first-order saddle-point premise cannot be established.")
                 verdict = "inconclusive: the frequency job did not converge normally; the available material is insufficient for a strict judgement."
@@ -2345,7 +2345,7 @@ class TsGuess(Tool):
                     verdict = "fail: the imaginary mode is inconsistent with the declared reaction coordinate."
                     status = "fail"
                 else:
-                    status, verdict, info = self._strict_path_verdict(user_input, freq, checks)
+                    status, verdict, info = self._strict_path_verdict(user_input, freq, checks, references)
                     if info is not None:
                         irc_end_a_path = info["path_a"]
                         irc_end_b_path = info["path_b"]
@@ -2380,7 +2380,7 @@ class TsGuess(Tool):
                     irc_end_a_path = info["path_a"]
                     irc_end_b_path = info["path_b"]
                     irc_ok = self._check_irc_connectivity(
-                        user_input, info["end_a"], info["end_b"], checks,
+                        user_input, info["end_a"], info["end_b"], checks, references,
                     )
 
                 if user_input.irc_log and info is None:
@@ -2546,7 +2546,7 @@ class TsGuess(Tool):
         }
 
     def _strict_path_verdict(self, user_input: TsGuess_input_schema, freq: dict,
-                             checks: list[str]) -> tuple[str, str, Optional[dict]]:
+                             checks: list[str], references) -> tuple[str, str, Optional[dict]]:
         """证明两个部分 IRC 端点分别位于 TS 与两个端点参考几何之间。"""
         import ase.io
         import numpy as np
@@ -2573,8 +2573,8 @@ class TsGuess(Tool):
         try:
             end_a_atoms = ase.io.read(StringIO(info["end_a"].xyz), format="xyz")
             end_b_atoms = ase.io.read(StringIO(info["end_b"].xyz), format="xyz")
-            intermediate_a = _load_xyz(user_input.reactant_path, user_input.reactant_text)
-            intermediate_b = _load_xyz(user_input.product_path, user_input.product_text)
+            intermediate_a = to_ase(references["reactant"])
+            intermediate_b = to_ase(references["product"])
         except Exception as e:
             checks.append(f"Endpoint or optimized-intermediate structures could not be parsed: {e}")
             return "inconclusive", "inconclusive: the structure material could not be parsed.", info
@@ -2608,7 +2608,8 @@ class TsGuess(Tool):
             list(ts_symbols), np.asarray(ts_positions, dtype=float),
             endpoint_geometries[0], endpoint_geometries[1],
             endpoint_geometries[2], endpoint_geometries[3],
-            user_input.watch_pairs, user_input.charge, index_base=atom_index_base(user_input.engine),
+            user_input.watch_pairs, total_charge(references["reactant"]), index_base=atom_index_base(user_input.engine),
+            reference_molecules=(references["reactant"], references["product"]),
         )
         for label, aligned in zip(
             ("IRC endpoint A", "IRC endpoint B", "intermediate A", "intermediate B"),
@@ -2647,7 +2648,7 @@ class TsGuess(Tool):
 
     @staticmethod
     def _check_irc_connectivity(user_input: TsGuess_input_schema, end_a, end_b,
-                                checks: list[str]) -> "bool | str | None":
+                                checks: list[str], references) -> "bool | str | None":
         """比较 IRC 两端点与预期反应物/产物的成键集合（rdDetermineBonds 主通道）。
 
         返回 True / False / "inconclusive" / None：
@@ -2663,11 +2664,13 @@ class TsGuess(Tool):
         def frame_atoms(frame):
             return ase.io.read(StringIO(frame.xyz), format="xyz")
 
+        charge = total_charge(references["reactant"]) if "reactant" in references else user_input.charge or 0
+
         def perceive(atoms) -> set[tuple[int, int]]:
             return set(_perceive_bonds(
                 atoms.get_chemical_symbols(),
                 [list(p) for p in atoms.get_positions()],
-                user_input.charge,
+                charge,
             )[0])
 
         atoms_a = frame_atoms(end_a)
@@ -2695,16 +2698,21 @@ class TsGuess(Tool):
             )
             return None
 
-        r_atoms = _load_xyz(user_input.reactant_path, user_input.reactant_text)
-        p_atoms = _load_xyz(user_input.product_path, user_input.product_text)
+        reactant, product = references["reactant"], references["product"]
+        r_atoms, p_atoms = to_ase(reactant), to_ase(product)
         if r_atoms.get_chemical_symbols() != syms or p_atoms.get_chemical_symbols() != syms:
             checks.append(
                 "The expected reactant/product atom order or elements differ from the IRC job; "
                 "the connectivity check is undecidable."
             )
             return "inconclusive"
-        bonds_r = perceive(r_atoms)
-        bonds_p = perceive(p_atoms)
+        def reference_bonds(mol):
+            if mol.HasProp("cloudra_graph_status") and mol.GetProp("cloudra_graph_status") == "unresolved":
+                return perceive(to_ase(mol))
+            return {tuple(sorted((bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()))) for bond in mol.GetBonds()}
+
+        bonds_r = reference_bonds(reactant)
+        bonds_p = reference_bonds(product)
         exp_pos = {"reactant": r_atoms.get_positions(), "product": p_atoms.get_positions()}
 
         def split_diff(end_bonds, exp_name, exp_bonds):

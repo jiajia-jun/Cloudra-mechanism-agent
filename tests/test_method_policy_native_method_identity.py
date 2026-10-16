@@ -3,6 +3,7 @@ import pytest
 from cloudra.runtime_v2.method_policy import check_input_content, check_method
 from cloudra.runtime_v2.schemas import MethodPolicy
 from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
+from cloudra.tools.core.molecule import read_molecule
 
 
 @pytest.mark.parametrize('entry,method,allowed', [
@@ -18,7 +19,7 @@ def test_structured_and_native_whitelist_keep_native_method_slash_identity(entry
     request = QmInputWriter_input_schema(engine='orca', method=method, basis_set='def2-SVP',
         keywords='D3BJ RIJCOSX def2/J TightSCF CPCM(DCM)',
         source_type='xyz_file', source_value='unused.xyz', output_path='unused.inp')
-    native = QmInputWriter._build_orca_input(request, 'O 0 0 0')
+    native = QmInputWriter._build_orca_input(request, read_molecule(input_text='1\n\nO 0 0 0\n'))
     structured = check_method(request.method, policy, basis=request.basis_set)
     inspected = check_input_content(native, policy, filename='job.inp', strict=True)
     assert structured.allowed is allowed
@@ -66,7 +67,8 @@ def test_normalized_basis_does_not_turn_into_part_of_the_method_name(basis_set, 
     policy = MethodPolicy(allowed_methods=[entry])
     request = QmInputWriter_input_schema(engine=engine, method='B3LYP', basis_set=basis_set,
         source_type='xyz_file', source_value='unused.xyz', output_path='unused.inp')
-    native = QmInputWriter._build_orca_input(request, 'O 0 0 0') if engine == 'orca' else QmInputWriter._build_gjf(request, 'O 0 0 0')
+    mol = read_molecule(input_text='1\n\nO 0 0 0\n')
+    native = QmInputWriter._build_orca_input(request, mol) if engine == 'orca' else QmInputWriter._build_gjf(request, mol)
     assert check_method(request.method, policy, basis=request.basis_set).allowed
     assert check_input_content(native, policy, filename='job.inp' if engine == 'orca' else 'job.gjf', strict=True).allowed
 

@@ -34,6 +34,14 @@ from cloudra.persistence.fs_utils import atomic_write_text
 from cloudra.tools.core.conformer_cards import AttemptEvidence
 from cloudra.tools.core.geometry_inputs import atom_index_base
 from cloudra.tools.core.geometry_optimization import OptimizationCheckpoint
+from cloudra.tools.core.molecule import (
+    Molecule,
+    read_molecule,
+    renumber_atoms,
+    serialize_molecule,
+    to_xyz,
+    with_positions,
+)
 from cloudra.tools.core.qm_calculation import QmCalculation
 from cloudra.tools.core.structure_builder import (
     BuildStrategy,
@@ -141,6 +149,7 @@ class TsProcessRecord(BaseModel):
     input: TsInput
     input_binding: dict = Field(default_factory=dict)
     structures: dict[str, dict] = Field(default_factory=dict)
+    seed_molecules: dict[str, Molecule] = Field(default_factory=dict)
     failed_attempt: dict | None = None
     method_checks: dict[str, dict] = Field(default_factory=dict)
     stage: TsStage = "declare"
@@ -620,7 +629,7 @@ def _build(record: TsProcessRecord) -> TsProcessRecord:
             )
         if prepared.components and prepared.status in ('ok', 'assembly_failed'):
             try:
-                seed_path, mol_path = _bind_generated_seed(prepared, target_dir, source.seed)
+                seed_path, mol_path, seed_mol = _bind_generated_seed(prepared, target_dir, source.seed)
             except (ValueError, OSError) as exc:
                 return _block(record, 'build', 'conformer_generation_failed', str(exc), needs=[f'conformers.{role}'])
         else:
@@ -630,6 +639,7 @@ def _build(record: TsProcessRecord) -> TsProcessRecord:
                 atom_details=list(prepared.diagnostics),
                 needs=[f"reaction.{role}_smiles"],
             )
+        record.seed_molecules[role] = seed_mol
         if role == "reactant":
             record.current_reactant_prepared_path = prepared.artifact_path
             record.current_seed_xyz_path, record.current_seed_mol_path = seed_path, mol_path
@@ -669,7 +679,7 @@ def _bind_generated_seed(prepared, directory, seed):
         combine_components,
         sample_independent_placements,
     )
-    components = [Chem.MolFromMolFile(component.mol_path, removeHs=False) for component in prepared.components]
+    components = [Chem.Mol(component.mol) for component in prepared.components]
     if any(mol is None for mol in components):
         raise ValueError('Prepared component graph missing')
     for mol in components:
@@ -688,29 +698,24 @@ def _bind_generated_seed(prepared, directory, seed):
             groups.append(list(range(offset, offset + mol.GetNumAtoms())))
             offset += mol.GetNumAtoms()
         placement = sample_independent_placements(graph, groups, seed=seed, count=1, parameters=AssemblyParameters())[0]
-        for index, point in enumerate(placement.positions):
-            graph.GetConformer().SetAtomPosition(index, point)
+        graph = with_positions(graph, placement.positions)
     symbols = [atom.GetSymbol() for atom in graph.GetAtoms()]
     if symbols != prepared.symbols:
         raise ValueError('Generated seed changed the prepared atom identity order')
-    xyz = '\n'.join([str(len(symbols)), 'ETKDGv3 seed; unoptimized',
-        *[symbol + ' ' + ' '.join(repr(float(v)) for v in graph.GetConformer().GetAtomPosition(index))
-          for index, symbol in enumerate(symbols)]]) + '\n'
+    xyz = to_xyz(graph)
     xyz_path, mol_path = str(Path(directory) / 'generated_seed.xyz'), str(Path(directory) / 'generated_seed.mol')
     _write_immutable_input(xyz_path, xyz)
     _write_immutable_input(mol_path, Chem.MolToMolBlock(graph))
-    return xyz_path, mol_path
+    return xyz_path, mol_path, graph
 
 def _seed_guidance_plan(record):
     """Use existing qualification and ring fallback on the actual bound graph."""
-    from rdkit import Chem
-
     from cloudra.tools.core.complex_assembly import AssemblyParameters
     from cloudra.tools.core.preorganization import DistanceWindow, GuidancePlan
     built = _read_built_xyz(record, 'reactant')
-    if built is None or not built[3]:
+    if built is None:
         raise ValueError('Guidance requires the bound reactant MOL graph; supply conformers.reactant.mol_path')
-    graph = Chem.MolFromMolFile(built[3], removeHs=False)
+    graph = _bound_input_structure(record, 'reactant', require_identity=False)[1]
     if graph is None or [atom.GetSymbol() for atom in graph.GetAtoms()] != built[0]:
         raise ValueError('Guidance MOL graph does not match the bound XYZ atom order')
     guidance = record.input.conformers.guidance
@@ -778,6 +783,7 @@ def _optimize_conformer_source(record, role):
         target = str(directory / 'optimized_seed.xyz')
         _write_immutable_input(target, xyz)
         record.current_seed_xyz_path = target
+        record.seed_molecules[role] = with_positions(record.seed_molecules[role], result['positions'])
         return record
     if step is None:
         if calculation.engine == 'xtb':
@@ -793,7 +799,7 @@ def _optimize_conformer_source(record, role):
             if calculation.engine == 'gaussian':
                 opt_subopts, rem_keywords, warn = _extract_gaussian_opt_keywords(calculation.keywords, is_ts=False)
                 task_type = [{'opt': opt_subopts}]
-                calc_copy = calculation.model_copy(update={'keywords': rem_keywords or None})
+                calc_copy = calculation.model_copy(update={'keywords': rem_keywords or ''})
             else:
                 task_type = [{'opt': None}]
                 calc_copy = calculation
@@ -806,7 +812,8 @@ def _optimize_conformer_source(record, role):
             conflicts = validate_writer_request(request.model_dump())
             if conflicts:
                 return _block(record, 'build', 'conformer_input_invalid', str(conflicts), needs=[f'conformers.{role}.optimization'])
-            content = QmInputWriter._build_orca_input(request, _xyz_coords(built[2])) if calculation.engine == 'orca' else QmInputWriter._build_gjf(request, _xyz_coords(built[2]))
+            molecule = record.seed_molecules[role]
+            content = QmInputWriter._build_orca_input(request, molecule) if calculation.engine == 'orca' else QmInputWriter._build_gjf(request, molecule)
             _write_immutable_input(str(manifest), content)
             job_type = calculation.engine
         error, job = _submit_step(record, purpose, str(manifest), job_type)
@@ -837,8 +844,10 @@ def _optimize_conformer_source(record, role):
     target = str(directory / 'optimized_seed.xyz')
     _write_immutable_input(target, xyz)
     from cloudra.tools.core.structure_artifacts import read_xyz_atoms
-    if [s for s, _ in read_xyz_atoms(target)] != built[0]:
+    optimized_atoms = read_xyz_atoms(target)
+    if [s for s, _ in optimized_atoms] != built[0]:
         return _block(record, 'build', 'conformer_identity_mismatch', 'Optimized seed changed the atom order.', needs=[f'conformers.{role}'])
+    record.seed_molecules[role] = with_positions(record.seed_molecules[role], [point for _, point in optimized_atoms])
     if role == 'reactant':
         record.current_seed_xyz_path = target
     else:
@@ -857,6 +866,13 @@ def _read_built_xyz(record: TsProcessRecord, role: str):
     """
     from cloudra.tools.core.structure_artifacts import read_xyz_atoms
 
+    if role in record.seed_molecules:
+        mol = record.seed_molecules[role]
+        path = record.current_seed_xyz_path if role == 'reactant' else record.product_seed_xyz_path
+        mol_path = record.current_seed_mol_path if role == 'reactant' else record.product_seed_mol_path
+        if not path or not Path(path).is_file():
+            return None
+        return ([atom.GetSymbol() for atom in mol.GetAtoms()], mol.GetConformer().GetPositions().tolist(), path, mol_path)
     if role=='product' and record.product_seed_xyz_path:
         if not Path(record.product_seed_xyz_path).is_file():
             return None
@@ -909,13 +925,15 @@ def _derive_product_geometry(record: TsProcessRecord, built):
     if geometry is None:
         return "", []
     symbols, positions, _xyz_path, mol_path = built
-    if not mol_path:
+    mol = record.seed_molecules.get('reactant')
+    if mol is None and not mol_path:
         return (
             "the built endpoint's MOL file is missing, so the bond to rotate about cannot be "
             "identified from the real bond graph",
             [],
         )
-    mol = Chem.MolFromMolBlock(Path(mol_path).read_text(encoding="utf-8"), removeHs=False)
+    if mol is None:
+        mol = read_molecule(mol_path, input_format='mol')
     if mol is None:
         return f"the built endpoint's MOL file could not be parsed: {mol_path}", []
     left, right = int(geometry.atoms[0]), int(geometry.atoms[1])
@@ -1006,18 +1024,17 @@ def _store_structure_table(record: TsProcessRecord, role: str) -> None:
         arguments = dict(charge=record.input.reaction.charge, multiplicity=record.input.reaction.multiplicity,
                          electronic_character=record.input.reaction.electronic_character)
         declared_state = electronic_state_details(declared, **arguments) if declared is not None else None
-        mol = _read_structure(mol_path or xyz_path, None, 'mol' if mol_path else 'xyz',
+        mol = record.seed_molecules.get(role)
+        if mol is None:
+            mol = _read_structure(mol_path or xyz_path, None, 'mol' if mol_path else 'xyz',
                               record.input.reaction.charge, role,
                               multiplicity=record.input.reaction.multiplicity,
                               electronic_character=record.input.reaction.electronic_character,
                               require_declared_identity=bool(declared_state and declared_state['requires_spin_aware_geometry']))
         if [atom.GetSymbol() for atom in mol.GetAtoms()] != symbols:
             raise ValueError('MOL and XYZ atom order differ')
-        conf = Chem.Conformer(len(symbols))
-        for index, point in enumerate(positions):
-            conf.SetAtomPosition(index, point)
-        mol.RemoveAllConformers()
-        mol.AddConformer(conf)
+        mol = with_positions(mol, positions)
+        record.seed_molecules[role] = mol
         components = len(Chem.GetMolFrags(mol))
         issue = electronic_state_issue(mol, **arguments)
         if issue:
@@ -1077,7 +1094,14 @@ def _bound_input_structure(record, role, *, require_identity=True, persist_artif
     if issue:
         raise ValueError(f'{role}: {issue[1]}')
     declared_state = electronic_state_details(declared, **arguments)
-    mol = _read_structure(mol_path or xyz_path, None, 'mol' if mol_path else 'xyz', record.input.reaction.charge, role,
+    mol = record.seed_molecules.get(role)
+    known_molecule = mol is not None
+    archived_hash = record.structures.get(role, {}).get('mol_sha256')
+    if known_molecule and mol_path and archived_hash and (
+            hashlib.sha256(Path(mol_path).read_bytes()).hexdigest() != archived_hash):
+        raise ValueError(f'{role}: bound molecular artifact changed')
+    if mol is None:
+        mol = _read_structure(mol_path or xyz_path, None, 'mol' if mol_path else 'xyz', record.input.reaction.charge, role,
         multiplicity=record.input.reaction.multiplicity,
         electronic_character=record.input.reaction.electronic_character,
         require_declared_identity=declared_state['requires_spin_aware_geometry'])
@@ -1087,11 +1111,11 @@ def _bound_input_structure(record, role, *, require_identity=True, persist_artif
     electronic = electronic_state_details(mol, **arguments)
     if [a.GetSymbol() for a in mol.GetAtoms()] != symbols:
         raise ValueError(f'{role} MOL and XYZ atom orders differ')
-    conf = Chem.Conformer(len(symbols))
-    for i, point in enumerate(positions):
-        conf.SetAtomPosition(i, point)
-    mol.RemoveAllConformers()
-    mol.AddConformer(conf)
+    mol = with_positions(mol, positions)
+    record.seed_molecules[role] = mol
+    hashes[role + '_molecule'] = hashlib.sha256(serialize_molecule(mol).encode()).hexdigest()
+    # Construction labels belong to the binding query, never the canonical molecule.
+    mol = Chem.Mol(mol)
     source = getattr(record.input.conformers, role)
     constructed_role = 'reactant' if source and source.kind == 'rotate_about_bond' else role
     original_source = getattr(record.input.conformers, constructed_role)
@@ -1120,7 +1144,7 @@ def _bound_input_structure(record, role, *, require_identity=True, persist_artif
         raise ValueError(f'{role}: source atom identity annotations cannot be replaced by a symmetric representative; supply an explicit heavy_atom_binding.')
     if require_identity and (identity != 'match' or (any(a.GetAtomicNum() != 1 for a in mol.GetAtoms()) and not binding)):
         raise ValueError(f'{role}: {diagnostic or identity}')
-    if not mol_path and not persist_artifact:
+    if not mol_path and (known_molecule or not persist_artifact):
         return expected_smiles, mol, hashes
     if not mol_path:
         mol_path = str(Path(xyz_path).with_suffix('.bound.mol'))
@@ -1173,13 +1197,26 @@ def _direction_atom_binding(record: TsProcessRecord) -> dict | None:
     molecules = {}
     for role in ('reactant', 'product'):
         built = _read_built_xyz(record, role)
-        if built is None or not built[3]:
+        if built is None:
             raise ValueError('Bound endpoint MOL is unavailable for recording atom correspondence.')
-        path = Path(built[3])
-        content = path.read_bytes()
-        if hashlib.sha256(content).hexdigest() != record.input_binding['hashes'][role + '_mol']:
-            raise ValueError('Concrete endpoint changed before recording its atom binding.')
-        molecules[role + '_mol'] = content.decode('utf-8')
+        if built[3] and role + '_mol' in record.input_binding['hashes']:
+            exported = Path(built[3]).read_bytes()
+            if hashlib.sha256(exported).hexdigest() != record.input_binding['hashes'][role + '_mol']:
+                raise ValueError('Concrete endpoint changed before recording its atom binding.')
+        mol = record.seed_molecules.get(role)
+        if mol is not None:
+            content = serialize_molecule(mol).encode()
+            expected = record.input_binding['hashes'].get(role + '_molecule')
+            if expected and hashlib.sha256(content).hexdigest() != expected:
+                raise ValueError('Concrete endpoint changed before recording its atom binding.')
+            from rdkit import Chem
+            molecules[role + '_mol'] = Chem.MolToMolBlock(mol)
+        else:
+            path = Path(built[3])
+            content = path.read_bytes()
+            if hashlib.sha256(content).hexdigest() != record.input_binding['hashes'][role + '_mol']:
+                raise ValueError('Concrete endpoint changed before recording its atom binding.')
+            molecules[role + '_mol'] = content.decode('utf-8')
     frequency = next((step for step in reversed(record.job_steps) if step.purpose == 'frequency'), None)
     log = Path(_refinement_log_path(record, frequency)) if frequency else None
     ts_digest = hashlib.sha256(log.read_bytes()).hexdigest() if log and log.is_file() else None
@@ -1262,6 +1299,8 @@ def _map(record: TsProcessRecord) -> TsProcessRecord:
         record.product_seed_xyz_path = str(directory / "rotated_seed.xyz")
         _write_immutable_input(record.product_seed_xyz_path, xyz)
         record.product_seed_mol_path = built[3]
+        molecule = _bound_input_structure(record, 'reactant', require_identity=False)[1]
+        record.seed_molecules['product'] = with_positions(molecule, positions)
         _validate_input_binding(record)
         if record.blocked:
             return record
@@ -1854,8 +1893,6 @@ def _write_refinement_input(record: TsProcessRecord, job_dir: str) -> tuple[str,
         intent_from_writer,
         validate_writer_request,
     )
-    from cloudra.tools.core.structure_artifacts import read_xyz_atoms
-
     declaration = record.input.reaction
     calculation = stage_calculation(record, 'ts_opt')
     if calculation is None:
@@ -1881,12 +1918,6 @@ def _write_refinement_input(record: TsProcessRecord, job_dir: str) -> tuple[str,
             "",
         )
 
-    atoms = read_xyz_atoms(source)
-    coords = "\n".join(
-        f"{symbol:<4} {position[0]:>14.8f} {position[1]:>14.8f} {position[2]:>14.8f}"
-        for symbol, position in atoms
-    )
-
     input_name = REFINEMENT_INPUT_NAMES[calculation.engine]
     input_path = os.path.join(job_dir, input_name)
     # 引擎各自的原生 TS 写法由项目的 skill 规定（references/orca-inputs.md /
@@ -1903,7 +1934,7 @@ def _write_refinement_input(record: TsProcessRecord, job_dir: str) -> tuple[str,
         if warn:
             warnings.warn(warn, UserWarning, stacklevel=2)
         task_type = [{"opt": opt_subopts}]
-        calc_copy = calculation.model_copy(update={'keywords': rem_keywords or None})
+        calc_copy = calculation.model_copy(update={'keywords': rem_keywords or ''})
     request = QmInputWriter_input_schema(
         **calc_copy.model_dump(mode='json'),
         nproc=record.compute_cpus,
@@ -1924,9 +1955,9 @@ def _write_refinement_input(record: TsProcessRecord, job_dir: str) -> tuple[str,
         ), ""
 
     content = (
-        QmInputWriter._build_orca_input(request, coords)
+        QmInputWriter._build_orca_input(request, read_molecule(source, charge=declaration.charge))
         if calculation.engine == "orca"
-        else QmInputWriter._build_gjf(request, coords)
+        else QmInputWriter._build_gjf(request, read_molecule(source, charge=declaration.charge))
     )
     # 不信 writer 自述：从生成文本重新 inspect，任务集合不一致即失败（同一份纪律）
     inspected = inspect_input(content, engine=calculation.engine)
@@ -2297,8 +2328,6 @@ def _write_frequency_input(record: TsProcessRecord, job_dir: str) -> tuple[str, 
         intent_from_writer,
         validate_writer_request,
     )
-    from cloudra.tools.core.structure_artifacts import read_xyz_atoms
-
     if not record.job_steps:
         return "no TS-optimisation job was submitted, so there is no optimised geometry", ""
     step = next(step for step in reversed(record.job_steps) if step.purpose == 'ts_opt')
@@ -2317,12 +2346,6 @@ def _write_frequency_input(record: TsProcessRecord, job_dir: str) -> tuple[str, 
     # 优化末帧落在作业目录里（不是临时文件）：频率作业用的几何要能复查
     optimized_xyz = os.path.join(job_dir, "optimized.xyz")
     atomic_write_text(optimized_xyz, frames[-1].xyz)
-    atoms = read_xyz_atoms(optimized_xyz)
-    coords = "\n".join(
-        f"{symbol:<4} {position[0]:>14.8f} {position[1]:>14.8f} {position[2]:>14.8f}"
-        for symbol, position in atoms
-    )
-
     declaration = record.input.reaction
     calculation = stage_calculation(record, 'frequency')
     if calculation is None:
@@ -2334,7 +2357,7 @@ def _write_frequency_input(record: TsProcessRecord, job_dir: str) -> tuple[str, 
         if warn:
             warnings.warn(warn, UserWarning, stacklevel=2)
         task_type = [{"freq": freq_subopts}]
-        calc_copy = calculation.model_copy(update={'keywords': rem_keywords or None})
+        calc_copy = calculation.model_copy(update={'keywords': rem_keywords or ''})
     else:
         task_type = [{"freq": None}]
         calc_copy = calculation
@@ -2356,9 +2379,9 @@ def _write_frequency_input(record: TsProcessRecord, job_dir: str) -> tuple[str, 
             f"[{c['code']}] {c['message']}" for c in conflicts
         ), ""
     content = (
-        QmInputWriter._build_orca_input(request, coords)
+        QmInputWriter._build_orca_input(request, read_molecule(optimized_xyz, charge=declaration.charge))
         if calculation.engine == "orca"
-        else QmInputWriter._build_gjf(request, coords)
+        else QmInputWriter._build_gjf(request, read_molecule(optimized_xyz, charge=declaration.charge))
     )
     inspected = inspect_input(content, engine=calculation.engine)
     requested = intent_from_writer(request.model_dump())
@@ -2652,9 +2675,9 @@ def _write_irc_input(record: TsProcessRecord, job_dir: str) -> tuple[str, str]:
             f"[{c['code']}] {c['message']}" for c in conflicts
         ), ""
     content = (
-        QmInputWriter._build_orca_input(request, _xyz_coords(geometry))
+        QmInputWriter._build_orca_input(request, read_molecule(geometry, charge=declaration.charge))
         if calculation.engine == "orca"
-        else QmInputWriter._build_gjf(request, _xyz_coords(geometry))
+        else QmInputWriter._build_gjf(request, read_molecule(geometry, charge=declaration.charge))
     )
     inspected = inspect_input(content, engine=calculation.engine)
     requested = intent_from_writer(request.model_dump())
@@ -2666,15 +2689,6 @@ def _write_irc_input(record: TsProcessRecord, job_dir: str) -> tuple[str, str]:
         )
     _write_immutable_input(input_path, content)
     return "", input_path
-
-def _xyz_coords(path: str) -> str:
-    """把单帧 xyz 渲染成引擎坐标块（与精修/频率输入同一格式）。"""
-    from cloudra.tools.core.structure_artifacts import read_xyz_atoms
-
-    return "\n".join(
-        f"{symbol:<4} {position[0]:>14.8f} {position[1]:>14.8f} {position[2]:>14.8f}"
-        for symbol, position in read_xyz_atoms(path)
-    )
 
 def _product_reordered_path(record: TsProcessRecord) -> str:
     return os.path.join(
@@ -2754,7 +2768,9 @@ def _endpoint_seed_atoms(record: TsProcessRecord, role: str, seed):
     if seed.mol_path:
         supplied = Chem.MolFromMolFile(str(_workspace_input_path(record, seed.mol_path)), removeHs=False)
         built = _read_built_xyz(record, 'product')
-        reference = Chem.MolFromMolFile(built[3], removeHs=False) if built else None
+        reference = record.seed_molecules.get('product')
+        if reference is None and built and built[3]:
+            reference = read_molecule(built[3], input_format='mol')
         if supplied is None or reference is None:
             raise ValueError('product endpoint seed MOL is missing or unreadable')
 
@@ -2779,7 +2795,7 @@ def _endpoint_seed_atoms(record: TsProcessRecord, role: str, seed):
         if [a.GetSymbol() for a in supplied.GetAtoms()] != [s for s, _ in atoms]:
             raise ValueError('product endpoint seed XYZ and MOL atom orders differ')
         inverse = [mapping.index(i) for i in range(len(mapping))]
-        working = Chem.RenumberAtoms(reference, inverse)
+        working = renumber_atoms(reference, inverse)
         native_order = indexed_graph(supplied) == indexed_graph(reference)
         working_order = indexed_graph(supplied) == indexed_graph(working)
         if native_order and working_order and inverse != list(range(len(mapping))):
@@ -2859,12 +2875,20 @@ def _irc_side_for_role(record: TsProcessRecord, info: dict, role: str) -> str:
             return fallback
     else:
         return fallback
+    references = [record.seed_molecules.get('reactant'), record.seed_molecules.get('product')]
+    if _rotated_product(record) is not None:
+        references[1] = references[0]
+    elif references[1] is not None:
+        references[1] = renumber_atoms(references[1], [mapping.index(index) for index in range(len(mapping))])
+    references = [with_positions(mol, positions) if mol is not None else None
+                  for mol, positions in zip(references, (reactant[1], product_positions), strict=True)]
     choices = []
     for swapped, targets in ((False, (reactant[1], product_positions)),
                              (True, (product_positions, reactant[1]))):
         results = [evaluate_endpoint_between(reactant[0], ts_positions,
-            [point for _, point in endpoint], target, watch_pairs, record.input.reaction.charge)
-            for endpoint, target in zip(ends, targets, strict=True)]
+            [point for _, point in endpoint], target, watch_pairs, record.input.reaction.charge,
+            intermediate_molecule=molecule)
+            for endpoint, target, molecule in zip(ends, targets, reversed(references) if swapped else references, strict=True)]
         choices.append((not all(item['is_between'] for item in results),
                         sum(item['score'] for item in results), swapped))
     swapped = min(choices)[2]
@@ -2978,7 +3002,7 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
             task_type = [{"freq": freq_subopts}]
         if warn:
             warnings.warn(warn, UserWarning, stacklevel=2)
-        calc_copy = calculation.model_copy(update={'keywords': rem_keywords or None})
+        calc_copy = calculation.model_copy(update={'keywords': rem_keywords or ''})
     else:
         task_type = [{"opt": None}] if task == "opt" else [{"freq": None}]
         calc_copy = calculation
@@ -3000,9 +3024,9 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
             f"[{item['code']}] {item['message']}" for item in conflicts
         ), ""
     content = (
-        QmInputWriter._build_orca_input(request, _xyz_coords(source))
+        QmInputWriter._build_orca_input(request, read_molecule(source, charge=declaration.charge))
         if calculation.engine == "orca"
-        else QmInputWriter._build_gjf(request, _xyz_coords(source))
+        else QmInputWriter._build_gjf(request, read_molecule(source, charge=declaration.charge))
     )
     if inspect_input(content, engine=calculation.engine).tasks != intent_from_writer(
         request.model_dump()
@@ -3308,6 +3332,8 @@ def _endpoint_identity_error(
     optimized: tuple[list[str], list[list[float]]],
 ) -> str:
     """Require the optimized full-atom bond graph to remain the declared species."""
+    import hashlib
+
     from rdkit import Chem
 
     source_role = (
@@ -3315,9 +3341,16 @@ def _endpoint_identity_error(
         else role
     )
     built = _read_built_xyz(record, source_role)
-    if built is None or not built[3] or not os.path.isfile(built[3]):
+    if built is None:
         return f"{role} declared endpoint MOL is missing; connectivity is unverified"
-    mol = Chem.MolFromMolBlock(Path(built[3]).read_text(encoding="utf-8"), removeHs=False)
+    archived_hash = record.structures.get(source_role, {}).get('mol_sha256')
+    if built[3] and archived_hash and hashlib.sha256(Path(built[3]).read_bytes()).hexdigest() != archived_hash:
+        return f"{role} built MOL artifact changed; connectivity is unverified"
+    mol = record.seed_molecules.get(source_role)
+    if mol is None:
+        if not built[3] or not os.path.isfile(built[3]):
+            return f"{role} declared endpoint MOL is missing; connectivity is unverified"
+        mol = read_molecule(built[3], input_format='mol')
     if mol is None:
         return f"{role} declared endpoint MOL cannot be parsed; connectivity is unverified"
     expected_smiles = (
@@ -3568,13 +3601,22 @@ def _irc_interval_proof(
             if not same_geometry(saved, end_a if origin.label == 'A' else end_b):
                 return False, f'{role} source provenance is not the accepted IRC {origin.label} outer-frame geometry'
 
+    references = [record.seed_molecules.get('reactant'), record.seed_molecules.get('product')]
+    if _rotated_product(record) is not None:
+        references[1] = references[0]
+    elif references[1] is not None:
+        mapping = record.input.reaction.atom_map
+        if sorted(mapping) == list(range(references[1].GetNumAtoms())):
+            references[1] = renumber_atoms(references[1], [mapping.index(index) for index in range(len(mapping))])
+        else:
+            references[1] = None
     aligned: list[list] = []
-    for label, symbols, positions in (
+    for slot, (label, symbols, positions) in enumerate((
         ("IRC endpoint A", end_a[0], end_a[1]),
         ("IRC endpoint B", end_b[0], end_b[1]),
         ("reactant minimum", reactant[0], reactant[1]),
         ("product minimum", product[0], product[1]),
-    ):
+    )):
         result = align_atom_order(ts_symbols, ts_pos, list(symbols), positions)
         if result is None:
             return False, (
@@ -3583,6 +3625,12 @@ def _irc_interval_proof(
                 "this combination is undecidable"
             )
         aligned.append([list(positions[k]) for k in result[0]])
+        if slot >= 2 and references[slot - 2] is not None:
+            reference = references[slot - 2]
+            if [atom.GetSymbol() for atom in reference.GetAtoms()] != list(symbols):
+                references[slot - 2] = None
+            else:
+                references[slot - 2] = with_positions(renumber_atoms(reference, result[0]), aligned[-1])
 
     watch_pairs = [
         [int(left) + 1, int(right) + 1] for left, right in _active_reaction_center(record)
@@ -3590,6 +3638,7 @@ def _irc_interval_proof(
     proof = assign_irc_endpoints(
         ts_symbols, ts_pos, aligned[0], aligned[1], aligned[2], aligned[3],
         watch_pairs, record.input.reaction.charge,
+        reference_molecules=tuple(references),
     )
     if not proof["is_decidable"]:
         return False, (

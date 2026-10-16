@@ -29,6 +29,26 @@ def tool():
     return ConformerSearch()
 
 
+def test_rdkit_search_uses_molecule_without_component_exports(tool, tmp_path, monkeypatch):
+    from pathlib import Path
+
+    prepare = conformer_mod.prepare_structure
+
+    def prepare_without_exports(*args, **kwargs):
+        prepared = prepare(*args, **kwargs)
+        for component in prepared.components:
+            Path(component.mol_path).unlink()
+        return prepared
+
+    monkeypatch.setattr(conformer_mod, "prepare_structure", prepare_without_exports)
+    result = tool._run_rdkit(ConformerSearch_input_schema(
+        smiles="[13CH3:7]O |atomProp:0.origin.original-carbon|", num_confs=2,
+    ), str(tmp_path))
+
+    assert result.is_success, result.message
+    assert Path(result.ensemble_path).is_file()
+
+
 def test_energy_window_keeps_lowest_energy_reactive_candidate():
     """全局最低能 reactive conformer 即使落在普通能窗外，也不能被预筛选抹掉。"""
     selected = conformer_mod._select_energy_window_candidates(

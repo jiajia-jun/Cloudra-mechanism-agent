@@ -253,11 +253,11 @@ def test_public_smiles_seed_entrypoints_forward_explicit_open_shell_singlet(
         assert result.is_success is True, result.message
         assert result.xyz_path
     else:
-        coordinates = QmInputWriter._smiles_coordinates(QmInputWriter_input_schema(basis_set='6-31g(d)', engine='gaussian', method='b3lyp',
+        mol, _seed_note = QmInputWriter._smiles_molecule(QmInputWriter_input_schema(basis_set='6-31g(d)', engine='gaussian', method='b3lyp',
             source_type="smiles", source_value="CC", multiplicity=1,
             electronic_character="open_shell", output_path=str(tmp_path / "seed.inp"),
         ), str(tmp_path))
-        assert [line.split()[0] for line in coordinates.splitlines()] == ["C", "C", "H", "H", "H", "H", "H", "H"]
+        assert [atom.GetSymbol() for atom in mol.GetAtoms()] == ["C", "C", "H", "H", "H", "H", "H", "H"]
     prepared = json.loads((tmp_path / "prepared_structure.json").read_text())
     assert prepared["electronic_state"]["electronic_character"] == "open_shell"
     assert prepared["components"][0]["optimization_status"] == "skipped_electronic_state"

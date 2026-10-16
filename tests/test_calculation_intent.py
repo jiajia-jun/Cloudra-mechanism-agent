@@ -164,7 +164,7 @@ async def test_writer_rejects_invalid_options_before_building_coordinates(tmp_pa
     def unexpected_build(*_args, **_kwargs):
         raise AssertionError("invalid request must not start coordinate generation")
 
-    monkeypatch.setattr(QmInputWriter, "_get_coordinates", staticmethod(unexpected_build))
+    monkeypatch.setattr(QmInputWriter, "_get_molecule", staticmethod(unexpected_build))
     result = await _writer(tmp_path, task_type=[{"opt": "ts,calcfc,noeigen"}])
 
     assert result.is_success is False

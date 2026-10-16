@@ -414,6 +414,77 @@ async def test_qm_input_writer_reads_valid_mol_source(tmp_path):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("engine", ["orca", "gaussian"])
+@pytest.mark.parametrize("explicit_charge", [False, True])
+async def test_charged_mol_is_the_charge_source_without_mutating_input(tmp_path, engine, explicit_charge):
+    from rdkit import Chem
+    from rdkit.Chem import AllChem
+
+    mol = Chem.AddHs(Chem.MolFromSmiles("[13CH3:7]C(=O)[O-]"))
+    assert AllChem.EmbedMolecule(mol, randomSeed=1) == 0
+    source = tmp_path / "acetate.mol"
+    source_text = Chem.MolToMolBlock(mol)
+    source.write_text(source_text)
+    output = tmp_path / ("acetate.inp" if engine == "orca" else "acetate.gjf")
+    request = QmInputWriter_input_schema(
+        engine=engine, method="B3LYP", basis_set="def2-SVP",
+        source_type="mol_file", source_value=str(source), output_path=str(output),
+        **({"charge": -1} if explicit_charge else {}),
+    )
+
+    result = await QmInputWriter().tool_call(request, session=None)
+
+    assert result.is_success, result.message
+    content = output.read_text()
+    assert ("* xyz -1 1\n" if engine == "orca" else "\n-1 1\n") in content
+    assert result.interpreted_intent["charge"] == -1
+    assert result.interpreted_intent["multiplicity"] == 1
+    assert request.charge == (-1 if explicit_charge else None)
+    assert source.read_text() == source_text
+    assert Chem.GetFormalCharge(mol) == -1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("engine", ["orca", "gaussian"])
+async def test_explicit_charge_cannot_silently_replace_a_mol_charge(tmp_path, engine):
+    from rdkit import Chem
+
+    source = tmp_path / "acetate.mol"
+    source.write_text(Chem.MolToMolBlock(Chem.MolFromSmiles("CC(=O)[O-]")))
+    output = tmp_path / "mismatched.inp"
+    request = QmInputWriter_input_schema(
+        engine=engine, method="B3LYP", basis_set="def2-SVP",
+        source_type="mol_file", source_value=str(source), charge=0, output_path=str(output),
+    )
+
+    result = await QmInputWriter().tool_call(request, session=None)
+
+    assert not result.is_success
+    assert not output.exists()
+    assert "charge" in result.message.lower()
+    assert "-1" in result.message and "0" in result.message
+    assert "graph" in result.message.lower()
+
+
+@pytest.mark.asyncio
+async def test_xyz_without_a_declared_charge_defaults_to_zero_without_mutating_request(tmp_path):
+    source = tmp_path / "water.xyz"
+    source.write_text(_WATER_XYZ)
+    output = tmp_path / "water.inp"
+    request = QmInputWriter_input_schema(
+        engine="orca", method="B3LYP", basis_set="def2-SVP", source_type="xyz_file",
+        source_value=str(source), output_path=str(output),
+    )
+
+    result = await QmInputWriter().tool_call(request, session=None)
+
+    assert result.is_success, result.message
+    assert "* xyz 0 1\n" in output.read_text()
+    assert result.interpreted_intent["charge"] == 0
+    assert request.charge is None
+
+
+@pytest.mark.asyncio
 async def test_qm_input_writer_invalid_smiles_fails(tmp_path):
     result = await QmInputWriter().tool_call(
         QmInputWriter_input_schema(engine='gaussian', method='b3lyp', basis_set='6-31g(d)',
@@ -830,20 +901,22 @@ async def test_force_field_failure_does_not_loosen_single_point_seed_qualificati
 async def test_qm_optimization_still_refuses_invalid_embedded_coordinates(
     tmp_path, monkeypatch, unfinished_force_field, bad_seed,
 ):
+    from cloudra.tools.Chemtool import qm_input_writer as writer_mod
     from cloudra.tools.core import structure_builder as builder_mod
 
     unfinished_force_field("missing_parameters")
     if bad_seed == "embedding_failed":
         monkeypatch.setattr(builder_mod.AllChem, "EmbedMolecule", lambda *_args, **_kwargs: -1)
     else:
-        render = builder_mod._render_xyz
-        def bad_xyz(mol, conf_id, title, identities=None):
-            rows = render(mol, conf_id, title, identities).splitlines()
-            number = "nan" if bad_seed == "nonfinite" else "0"
-            return "\n".join([*rows[:2], *[
-                f"{row.split()[0]} {number} 0 0" for row in rows[2:]
-            ]]) + "\n"
-        monkeypatch.setattr(builder_mod, "_render_xyz", bad_xyz)
+        prepare = writer_mod.prepare_structure
+        def bad_molecule(*args, **kwargs):
+            prepared = prepare(*args, **kwargs)
+            conf = prepared.components[0].mol.GetConformer()
+            number = float("nan") if bad_seed == "nonfinite" else 0.0
+            for index in range(conf.GetNumAtoms()):
+                conf.SetAtomPosition(index, (number, 0.0, 0.0))
+            return prepared
+        monkeypatch.setattr(writer_mod, "prepare_structure", bad_molecule)
     target = tmp_path / "bad_seed.inp"
     result = await QmInputWriter().tool_call(QmInputWriter_input_schema(
         engine="orca", method="B3LYP", basis_set="def2-SVP",

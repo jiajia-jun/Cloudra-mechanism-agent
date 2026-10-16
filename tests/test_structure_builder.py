@@ -94,6 +94,10 @@ def test_formal_charge_sum_matches_and_is_enforced(tmp_path):
     assert bad.status == "charge_mismatch"
     assert "sum to -1" in bad.message
     assert bad.components == []
+    for prepared in (ok, bad):
+        assert "total_charge" not in prepared.model_dump()
+        with open(prepared.artifact_path, encoding="utf-8") as handle:
+            assert "total_charge" not in json.load(handle)
 
 
 def test_stereochemistry_is_preserved_per_component(tmp_path):
@@ -117,6 +121,74 @@ def test_stereo_survives_the_component_mol_round_trip(tmp_path):
     # 读回后去掉显式氢再比规范异构 SMILES：E/Z 与手性都必须原样保留
     assert Chem.MolToSmiles(Chem.RemoveHs(reread)) == component.isomeric_smiles
     assert "/" in component.isomeric_smiles or "\\" in component.isomeric_smiles
+
+
+def test_submol_preserves_atom_properties_and_conformers_without_mutating_source():
+    source = Chem.MolFromSmiles("[13CH3:7][C@H:8]([F:9])[Cl:10].[Na+:11]")
+    source.SetProp("origin", "declared-input")
+    source.SetProp("_private_source", "native-state")
+    source.SetIntProp("revision", 4)
+    source.SetDoubleProp("confidence", 0.75)
+    source.SetBoolProp("verified", False)
+    for atom in source.GetAtoms():
+        atom.SetProp("origin", f"input-{atom.GetIdx()}")
+    source.GetBondWithIdx(0).SetProp("evidence", "declared-bond")
+    for conformer_id in (3, 17):
+        conf = Chem.Conformer(source.GetNumAtoms())
+        conf.SetId(conformer_id)
+        for index in range(source.GetNumAtoms()):
+            conf.SetAtomPosition(index, (index, conformer_id, 0.25))
+        source.AddConformer(conf, assignId=False)
+    before = source.ToBinary(Chem.PropertyPickleOptions.AllProps)
+
+    selected, mapping = builder_mod._submol_by_input_indices(source, [3, 1, 0, 2])
+
+    assert mapping == {3: 0, 1: 1, 0: 2, 2: 3}
+    assert selected.GetPropsAsDict(includePrivate=True, includeComputed=False) == {
+        "origin": "declared-input", "_private_source": "native-state",
+        "revision": 4, "confidence": 0.75, "verified": False,
+    }
+    assert [atom.GetAtomMapNum() for atom in selected.GetAtoms()] == [10, 8, 7, 9]
+    assert [atom.GetIsotope() for atom in selected.GetAtoms()] == [0, 0, 13, 0]
+    assert [atom.GetProp("origin") for atom in selected.GetAtoms()] == [
+        "input-3", "input-1", "input-0", "input-2",
+    ]
+    assert selected.GetBondBetweenAtoms(2, 1).GetProp("evidence") == "declared-bond"
+    assert [conf.GetId() for conf in selected.GetConformers()] == [3, 17]
+    assert selected.GetConformer(17).GetPositions().tolist() == [
+        [3.0, 17.0, 0.25], [1.0, 17.0, 0.25], [0.0, 17.0, 0.25], [2.0, 17.0, 0.25],
+    ]
+    assert Chem.MolToSmiles(selected) == "[13CH3:7][C@H:8]([F:9])[Cl:10]"
+    selected.GetAtomWithIdx(0).SetProp("origin", "changed")
+    selected.SetProp("origin", "changed")
+    selected.GetConformer(17).SetAtomPosition(0, (9.0, 9.0, 9.0))
+    assert source.ToBinary(Chem.PropertyPickleOptions.AllProps) == before
+
+
+def test_prepared_molecule_keeps_state_and_accepts_native_input(tmp_path):
+    source = Chem.MolFromSmiles("[13CH3:7][OH:8]")
+    source.GetAtomWithIdx(0).SetProp("origin", "original-carbon")
+    source.GetBondWithIdx(0).SetProp("evidence", "declared-bond")
+    before = source.ToBinary(Chem.PropertyPickleOptions.AllProps)
+    structure = StructureInput(kind="molecule", value=source)
+    structure = StructureInput.model_validate_json(structure.model_dump_json())
+    prepared = prepare_structure(PreparationRequest(
+        structure=structure,
+        output_dir=str(tmp_path / "native"),
+        strategy=BuildStrategy(embed=False, optimize=False),
+    ))
+
+    assert prepared.status == "ok"
+    assert prepared.mol.GetAtomWithIdx(0).GetIsotope() == 13
+    assert prepared.mol.GetAtomWithIdx(0).GetAtomMapNum() == 7
+    assert prepared.mol.GetAtomWithIdx(0).GetProp("origin") == "original-carbon"
+    assert prepared.components[0].mol.GetBondWithIdx(0).GetProp("evidence") == "declared-bond"
+    restored = builder_mod.PreparedStructure.model_validate_json(prepared.model_dump_json())
+    assert restored.mol.GetAtomWithIdx(0).GetProp("origin") == "original-carbon"
+    restored.mol.GetAtomWithIdx(0).SetFormalCharge(1)
+    assert restored.formal_charge_sum == 1
+    assert prepared.formal_charge_sum == 0
+    assert source.ToBinary(Chem.PropertyPickleOptions.AllProps) == before
 
 
 def test_repeated_identical_components_are_not_merged(tmp_path):

@@ -108,19 +108,20 @@ def test_regions_preserve_raw_multicomponent_diversity_and_placement_lineage(tmp
     import numpy as np
 
     from cloudra.tools.Chemtool.conformer_search import ConformerSearch, ConformerSearch_input_schema
+    from cloudra.tools.core.conformer_catalog import CandidateRecord
     result = ConformerSearch()._run_regions(ConformerSearch_input_schema(smiles='CCCC.O', num_confs=6, random_seed=42, catalog_mode='regions'), str(tmp_path))
     assert result.is_success, result.message
-    records = json.loads(Path(result.catalog_path).read_text())['candidates']
-    raw = {c['candidate_id']: c for c in records if c['generator'] == 'ETKDGv3'}
-    placed = [c for c in records if c['generator'] == 'independent_rigid_fragments']
+    records = [CandidateRecord.model_validate(row) for row in json.loads(Path(result.catalog_path).read_text())['candidates']]
+    raw = {c.candidate_id: c for c in records if c.generator == 'ETKDGv3'}
+    placed = [c for c in records if c.generator == 'independent_rigid_fragments']
     assert len(raw) == len(placed) == 6
     for child in placed:
-        parent = raw[child['parent_id']]
-        a, b = np.asarray(parent['positions']), np.asarray(child['positions'])
-        for fragment in set(parent['fragment_ids']):
-            indices = [i for i, fid in enumerate(parent['fragment_ids']) if fid == fragment]
+        parent = raw[child.parent_id]
+        a, b = np.asarray(parent.positions), np.asarray(child.positions)
+        for fragment in set(parent.fragment_ids):
+            indices = [i for i, fid in enumerate(parent.fragment_ids) if fid == fragment]
             assert np.allclose(np.linalg.norm(a[indices,None]-a[None,indices],axis=-1), np.linalg.norm(b[indices,None]-b[None,indices],axis=-1))
-        assert child['parameters']['fragment_transforms']
+        assert child.parameters['fragment_transforms']
 
 
 def test_capture_symmetry_equivalent_renumbering_preserves_descriptors(tmp_path):

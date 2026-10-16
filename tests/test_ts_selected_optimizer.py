@@ -11,14 +11,22 @@ pytestmark = pytest.mark.usefixtures('ts_producer_authority')
 
 
 def catalog_seed(tmp_path, qualification=None):
+    from rdkit import Chem
+
     from cloudra.services.conformer_store import put_candidate, put_region_snapshot
     from cloudra.tools.core.conformer_catalog import CandidateRecord
     from cloudra.tools.core.conformer_regions import DescriptorSpec, RegionConfig, partition_candidates
     xyz = tmp_path/'water.xyz'
     xyz.write_text('3\nWater\nO 0 0 0\nH 0.96 0 0\nH -0.24 0.93 0\n')
+    mol = Chem.AddHs(Chem.MolFromSmiles('O'))
+    conf = Chem.Conformer(3)
+    for index, point in enumerate([[0, 0, 0], [.96, 0, 0], [-.24, .93, 0]]):
+        conf.SetAtomPosition(index, point)
+        mol.GetAtomWithIdx(index).SetProp('cloudra_atom_id', ['O1', 'H1', 'H2'][index])
+        mol.GetAtomWithIdx(index).SetProp('cloudra_fragment_id', 'f')
+    mol.AddConformer(conf)
     candidate = CandidateRecord(catalog_id='cat',project_id='project',owner_id='owner',species_key='water',
-        atom_ids=['O1','H1','H2'],fragment_ids=['f','f','f'],symbols=['O','H','H'],
-        positions=[[0,0,0],[0.96,0,0],[-0.24,0.93,0]],geometry_ref=str(xyz),generator='fixture',seed=42, **({'qualification':qualification} if qualification else {}))
+        mol=mol,geometry_ref=str(xyz),generator='fixture',seed=42, **({'qualification':qualification} if qualification else {}))
     db=ComputeDB().init()
     put_candidate(db,candidate)
     snapshot=partition_candidates([candidate],RegionConfig(descriptor_specs=[DescriptorSpec(kind='distance',stable_atom_ids=['O1','H1'])]))

@@ -9,6 +9,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from cloudra.tools.core.molecule import Molecule
+
 
 def content_digest(value: object) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':'),
@@ -59,15 +61,13 @@ def relative_energies(observations: dict[str, EnergyObservation]) -> dict[str, f
 
 
 class CandidateRecord(CatalogModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     catalog_id: str = Field(min_length=1)
     project_id: str = Field(min_length=1)
     owner_id: str = Field(min_length=1)
     species_key: str = Field(min_length=1)
-    atom_ids: list[str]
-    fragment_ids: list[str]
-    symbols: list[str]
-    positions: list[list[float]]
+    mol: Molecule
+    molecule_hash: str = ''
     geometry_ref: str = ''
     geometry_hash: str = ''
     artifact_hash: str = ''
@@ -81,8 +81,32 @@ class CandidateRecord(CatalogModel):
     energies: list[EnergyObservation] = Field(default_factory=list)
     job_ids: list[int] = Field(default_factory=list)
 
+    @property
+    def atom_ids(self) -> list[str]:
+        return [atom.GetProp('cloudra_atom_id') for atom in self.mol.GetAtoms()]
+
+    @property
+    def fragment_ids(self) -> list[str]:
+        return [atom.GetProp('cloudra_fragment_id') for atom in self.mol.GetAtoms()]
+
+    @property
+    def symbols(self) -> list[str]:
+        return [atom.GetSymbol() for atom in self.mol.GetAtoms()]
+
+    @property
+    def positions(self) -> list[list[float]]:
+        return self.mol.GetConformer().GetPositions().tolist()
+
     @model_validator(mode='after')
     def validate_identity(self):
+        from rdkit import Chem
+
+        object.__setattr__(self, 'mol', Chem.Mol(self.mol))
+        if self.mol.GetNumConformers() != 1:
+            raise ValueError('a candidate requires one molecular conformer')
+        if any(not atom.HasProp('cloudra_atom_id') or not atom.HasProp('cloudra_fragment_id')
+               for atom in self.mol.GetAtoms()):
+            raise ValueError('candidate molecule requires atom and fragment identities')
         n = len(self.atom_ids)
         if not n or len(set(self.atom_ids)) != n or any(not x for x in self.atom_ids):
             raise ValueError('atom identities must be unique and nonempty')
@@ -92,13 +116,17 @@ class CandidateRecord(CatalogModel):
             raise ValueError('geometry requires finite 3D coordinates')
         if any(e.species_key != self.species_key for e in self.energies):
             raise ValueError('energy species differs from candidate identity')
+        molecule_hash = content_digest(self.model_dump(mode='json', include={'mol'})['mol'])
+        if self.molecule_hash and self.molecule_hash != molecule_hash:
+            raise ValueError('molecular state hash mismatch')
+        object.__setattr__(self, 'molecule_hash', molecule_hash)
         atoms = sorted(zip(self.atom_ids, self.fragment_ids, self.symbols, self.positions))
         geometry_hash = content_digest(atoms)
         if self.geometry_hash and self.geometry_hash != geometry_hash:
             raise ValueError('geometry hash mismatch')
         object.__setattr__(self, 'geometry_hash', geometry_hash)
         ident = content_digest([self.catalog_id, self.project_id, self.owner_id, self.species_key,
-                                geometry_hash, self.generator, self.parameters, self.seed, self.parent_id])
+                                molecule_hash, geometry_hash, self.generator, self.parameters, self.seed, self.parent_id])
         if self.candidate_id and self.candidate_id != ident:
             raise ValueError('candidate identity mismatch')
         object.__setattr__(self, 'candidate_id', ident)
@@ -112,4 +140,4 @@ class CandidateRecord(CatalogModel):
 
     def immutable_payload(self) -> dict:
         # A moved identical artifact is allowed; other provenance and outcomes are immutable.
-        return self.model_dump(exclude={'geometry_ref'})
+        return self.model_dump(mode='json', exclude={'geometry_ref'})

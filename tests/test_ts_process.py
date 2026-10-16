@@ -2161,3 +2161,39 @@ def test_truncated_path_requests_current_guess_revision_not_obsolete_budget(tmp_
     record = _start(tmp_path)
     assert record.blocked.failure_class == "path_not_converged"
     assert record.blocked.needs == ["guess"]
+
+
+def test_ts_interval_reference_reordering_retains_unresolved_molecular_properties(tmp_path, monkeypatch):
+    from rdkit import Chem
+
+    from cloudra.tools.core import irc_path
+    from cloudra.tools.core.molecule import read_molecule, serialize_molecule, total_charge
+    from cloudra.tools.core.ts_process import _irc_interval_proof
+
+    record, symbols, job_dir = _record_with_freq_and_converged_irc(tmp_path, monkeypatch)
+    reactant, product = _sn2_minima(record, symbols)
+    (job_dir / 'optimized.xyz').write_text(_xyz_text(symbols, 0.5 * (reactant + product)))
+    _install_fake_irc_endpoints(monkeypatch, symbols, 0.75 * reactant + 0.25 * product,
+                                0.25 * reactant + 0.75 * product)
+    _install_endpoint_minimum_jobs(record, monkeypatch, symbols, reactant, product)
+    native = record.seed_molecules['product']
+    reference = read_molecule(input_text=Chem.MolToXYZBlock(native), input_format='xyz', charge=-1)
+    reference.SetIntProp('reference_revision', 7)
+    reference.SetProp('_source_note', 'original coordinate reference')
+    record.seed_molecules['product'] = reference
+    before = serialize_molecule(reference)
+
+    def inspect_references(*_args, reference_molecules, **_kwargs):
+        reordered = reference_molecules[1]
+        assert reordered.GetProp('cloudra_graph_status') == 'unresolved'
+        assert total_charge(reordered) == -1
+        assert reordered.GetIntProp('reference_revision') == 7
+        assert reordered.GetProp('_source_note') == 'original coordinate reference'
+        return dict(is_decidable=True, is_match=True, assignment='direct')
+
+    monkeypatch.setattr(irc_path, 'assign_irc_endpoints', inspect_references)
+    frequency = next(step for step in record.job_steps if step.purpose == 'frequency')
+    accepted, detail = _irc_interval_proof(record, 'unused.log', frequency,
+        (symbols, reactant), (symbols, product), {})
+    assert accepted, detail
+    assert serialize_molecule(reference) == before

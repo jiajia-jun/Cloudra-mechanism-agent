@@ -7,6 +7,7 @@ from typing import Callable
 
 from cloudra.persistence.fs_utils import atomic_write_text
 from cloudra.tools.core.conformer_catalog import CandidateRecord, EnergyObservation, Qualification, content_digest
+from cloudra.tools.core.molecule import copy_conformer, from_ase, to_xyz
 
 
 @dataclass
@@ -35,18 +36,19 @@ class CandidateCapture:
                 parameters: dict | None = None, job_ids: list[int] | None = None) -> CandidateRecord:
         from rdkit import Chem
 
-        positions = mol.GetConformer(cid).GetPositions().tolist()
+        captured = copy_conformer(mol, cid)
         fragments = {index: f'f{number}' for number, group in enumerate(Chem.GetMolFrags(mol)) for index in group}
-        ids = self.atom_ids or [str(i) for i in range(mol.GetNumAtoms())]
+        supplied_ids = all(atom.HasProp('cloudra_atom_id') for atom in mol.GetAtoms())
+        ids = self.atom_ids or ([atom.GetProp('cloudra_atom_id') for atom in mol.GetAtoms()]
+                               if supplied_ids else [str(i) for i in range(mol.GetNumAtoms())])
         if len(ids) != mol.GetNumAtoms():
             raise ValueError('capture atom identity length mismatch')
-        species = content_digest([Chem.MolToSmiles(mol, isomericSmiles=True), Chem.GetFormalCharge(mol), self.multiplicity])
-        if not self.atom_ids:
+        species = content_digest([Chem.MolToSmiles(Chem.Mol(mol), isomericSmiles=True), Chem.GetFormalCharge(mol), self.multiplicity])
+        if not self.atom_ids and not supplied_ids:
             reference = self._references.get(species)
             if reference is None:
-                reference = Chem.Mol(mol)
-                reference.RemoveAllConformers()
-                reference.AddConformer(Chem.Conformer(mol.GetConformer(cid)), assignId=True)
+                reference = copy_conformer(mol, cid)
+                reference.GetConformer().SetId(0)
                 self._references[species] = reference
             else:
                 from rdkit.Chem import rdMolAlign
@@ -60,31 +62,38 @@ class CandidateCapture:
                 ids = [str(identities[i]) for i in range(mol.GetNumAtoms())]
                 reference_fragments = {i: f'f{n}' for n, group in enumerate(Chem.GetMolFrags(reference)) for i in group}
                 fragments = {i: reference_fragments[identities[i]] for i in range(mol.GetNumAtoms())}
+        for index, atom in enumerate(captured.GetAtoms()):
+            atom.SetProp('cloudra_atom_id', ids[index])
+            if not atom.HasProp('cloudra_fragment_id'):
+                atom.SetProp('cloudra_fragment_id', fragments[index])
         record = CandidateRecord(catalog_id=self.catalog_id, project_id=self.project_id, owner_id=self.owner_id,
-                                 species_key=species, atom_ids=ids, symbols=[a.GetSymbol() for a in mol.GetAtoms()],
-                                 fragment_ids=[fragments[i] for i in range(mol.GetNumAtoms())], positions=positions,
+                                 species_key=species, mol=captured,
                                  generator=generator, parameters=parameters or {}, seed=seed, parent_id=parent_id, state=state,
                                  energies=energies or [], job_ids=job_ids or [], qualification=qualification or Qualification())
         return self._publish(record)
 
     def capture_unresolved_frame(self, symbols, positions, *, generator, parameters, energy_hartree=None):
         """Archive returned atoms without inventing graph or inter-frame identity."""
+        from ase import Atoms
+
+        mol = from_ase(Atoms(symbols=symbols, positions=positions))
+        mol.SetProp('cloudra_graph_status', 'unresolved')
+        for index, atom in enumerate(mol.GetAtoms()):
+            atom.SetProp('cloudra_atom_id', f'unresolved:{index}')
+            atom.SetProp('cloudra_fragment_id', 'unresolved')
         species=content_digest(['unresolved_graph',symbols,positions,parameters])
         record=CandidateRecord(catalog_id=self.catalog_id,project_id=self.project_id,owner_id=self.owner_id,
-            species_key=species,atom_ids=[f'unresolved:{i}' for i in range(len(symbols))],symbols=symbols,
-            fragment_ids=['unresolved']*len(symbols),positions=positions,generator=generator,parameters=parameters,
+            species_key=species,mol=mol,generator=generator,parameters=parameters,
             energies=[EnergyObservation(value=energy_hartree,unit='Ha',method_fingerprint='CREST/unresolved_method',
                 species_key=species,convergence='unknown',artifact_ref=parameters['source_artifact'])] if energy_hartree is not None else [],
             qualification=Qualification(reasons=['chemical graph and stable atom correspondence unresolved']))
         return self._publish(record)
 
     def _publish(self, record):
-        ids=record.atom_ids
-        positions=record.positions
         path = Path(self.output_dir) / 'catalog_geometries' / f'{record.candidate_id}.xyz'
-        text = f'{len(ids)}\n{record.candidate_id}; generated geometry, not verified TS\n'
-        text += ''.join(f'{symbol} {p[0]:.12g} {p[1]:.12g} {p[2]:.12g}\n'
-                        for symbol, p in zip(record.symbols, positions))
+        rows = to_xyz(record.mol).splitlines()
+        rows[1] = f'{record.candidate_id}; generated geometry, not verified TS'
+        text = '\n'.join(rows) + '\n'
         if path.exists() and path.read_text() != text:
             raise ValueError('immutable geometry path conflict')
         if not path.exists():

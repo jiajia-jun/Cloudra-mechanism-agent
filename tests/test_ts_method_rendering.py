@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
+from cloudra.tools.core.molecule import read_molecule
 from tests.ts_fixtures import calculation_input
 
 pytestmark = pytest.mark.usefixtures("ts_producer_authority")
@@ -19,7 +20,7 @@ def test_orca_writer_renders_basis_alias_and_preserves_declared_keywords(basis, 
         output_path='unused.inp', method='b3lyp', basis_set=basis, task_type=[{'opt': 'ts'}],
         keywords='D3BJ RIJCOSX def2/J TightSCF CPCM(DCM)',
     )
-    header = QmInputWriter._build_orca_input(request, 'H 0 0 0').splitlines()[0].split()
+    header = QmInputWriter._build_orca_input(request, read_molecule(input_text='1\n\nH 0 0 0\n')).splitlines()[0].split()
     assert header == ['!', 'OptTS', 'b3lyp', *([expected] if expected else []),
                       'D3BJ', 'RIJCOSX', 'def2/J', 'TightSCF', 'CPCM(DCM)']
     assert request.basis_set == basis.strip()

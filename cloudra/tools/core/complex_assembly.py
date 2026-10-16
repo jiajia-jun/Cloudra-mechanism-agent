@@ -48,6 +48,7 @@ from cloudra.tools.core.geometry import (
     rotate_about_centroid,
     rotation_matrix_between,
 )
+from cloudra.tools.core.molecule import Molecule, copy_conformer
 from cloudra.tools.core.structure_artifacts import (
     TrajectoryArtifact,
     TrajectoryWriter,
@@ -114,6 +115,7 @@ class AssemblyCandidate(BaseModel):
     """一个通过筛选的复合物候选。"""
 
     candidate_id: int
+    mol: Molecule
     placement_index: int = Field(description="来自第几个取向采样的刚性放置")
     energy_kcal: float = Field(description=f"{MMFF_ENGINE} 能量（kcal/mol）")
     rel_energy_kcal: float
@@ -164,50 +166,11 @@ def combine_components(components) -> "Chem.Mol":
     ``components`` 为 ``(mol, conf_id)`` 序列。原子顺序即各组分依次拼接，和
     ``PreparedStructure.symbols`` 的顺序一致，因此输入原子序号映射（identity 表）继续成立。
     """
-    combined = Chem.RWMol()
-    offsets: list[int] = []
-    offset = 0
-    for mol, _conf_id in components:
-        offsets.append(offset)
-        for atom in mol.GetAtoms():
-            new_atom = Chem.Atom(atom.GetAtomicNum())
-            new_atom.SetFormalCharge(atom.GetFormalCharge())
-            new_atom.SetChiralTag(atom.GetChiralTag())
-            new_atom.SetNumExplicitHs(atom.GetNumExplicitHs())
-            new_atom.SetNoImplicit(atom.GetNoImplicit())
-            combined.AddAtom(new_atom)
-        offset += mol.GetNumAtoms()
-    stereo_to_set: list[tuple[int, int, object, int, int]] = []
-    for (mol, _conf_id), base in zip(components, offsets):
-        for bond in mol.GetBonds():
-            begin = base + bond.GetBeginAtomIdx()
-            end = base + bond.GetEndAtomIdx()
-            combined.AddBond(begin, end, bond.GetBondType())
-            new_bond = combined.GetBondBetweenAtoms(begin, end)
-            new_bond.SetBondDir(bond.GetBondDir())
-            if bond.GetStereo() == Chem.BondStereo.STEREONONE:
-                continue
-            stereo = list(bond.GetStereoAtoms())
-            if len(stereo) != 2:
-                raise ValueError(
-                    f"bond {bond.GetBeginAtomIdx()}-{bond.GetEndAtomIdx()} carries stereo "
-                    f"{bond.GetStereo()} but {len(stereo)} stereo atoms; refusing to guess the "
-                    "reference atoms"
-                )
-            stereo_to_set.append(
-                (begin, end, bond.GetStereo(), base + stereo[0], base + stereo[1])
-            )
-
-    # 两趟：先建齐全部键，再设立体化学。``SetStereoAtoms`` 会校验两个参考原子分别与本键的
-    # begin/end 相连，而 sp2 立体的参考原子是远端取代基——若在通向它的那根单键还没加进来时
-    # 就设，RDKit 直接抛 "endIdx not connected to end atom of bond"（多组分 + 立体标记的输入
-    # 曾因此整条组装路径崩溃，见 GH #37；structure_builder 的同款重建早已按两趟写）。
-    for begin, end, stereo, stereo_begin, stereo_end in stereo_to_set:
-        new_bond = combined.GetBondBetweenAtoms(begin, end)
-        new_bond.SetStereo(stereo)
-        new_bond.SetStereoAtoms(stereo_begin, stereo_end)
-
-    mol = combined.GetMol()
+    mol = Chem.Mol()
+    for component_mol, _conf_id in components:
+        graph = Chem.Mol(component_mol)
+        graph.RemoveAllConformers()
+        mol = Chem.CombineMols(mol, graph)
     Chem.SanitizeMol(mol)
 
     positions: list[list[float]] = []
@@ -574,7 +537,6 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
 
     artifacts: list[TrajectoryArtifact] = []
     candidates: list[AssemblyCandidate] = []
-    candidate_positions: list[list[list[float]]] = []
     collapsed = 0
     dissociated = 0
     optimized = 0
@@ -698,6 +660,7 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
         archive_outcome(energy=energy_kcal)
         candidates.append(AssemblyCandidate(
             candidate_id=len(candidates),
+            mol=copy_conformer(mol, conf_id),
             placement_index=placement_index,
             energy_kcal=energy_kcal,
             rel_energy_kcal=0.0,
@@ -713,7 +676,6 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
             mol_path="",
             trajectory_id=record.trajectory_id,
         ))
-        candidate_positions.append(_positions(mol, conf_id))
 
     if not candidates:
         result = AssemblyResult(
@@ -743,8 +705,8 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
         candidate.rel_energy_kcal = candidate.energy_kcal - best
 
     kept = [
-        (candidate, positions)
-        for candidate, positions in zip(candidates, candidate_positions)
+        (candidate, candidate.mol.GetConformer().GetPositions())
+        for candidate in candidates
         if guided_windows is not None or candidate.rel_energy_kcal <= params.energy_window_kcal
     ]
     dropped = len(candidates) - len(kept)
@@ -790,11 +752,10 @@ def assemble(*, components, output_dir: str, parameters: Optional[AssemblyParame
     paths: list[str] = []
     for index, candidate in enumerate(representatives):
         candidate.candidate_id = index
-        _set_positions(mol, conf_id, kept[cluster_representatives[index]][1])
         xyz_path = os.path.join(output_dir, COMPLEX_XYZ_NAME.format(index=index))
         mol_path = os.path.join(output_dir, COMPLEX_MOL_NAME.format(index=index))
-        atomic_write_text(xyz_path, _render_xyz(mol, conf_id, candidate))
-        atomic_write_text(mol_path, Chem.MolToMolBlock(mol, confId=conf_id))
+        atomic_write_text(xyz_path, _render_xyz(candidate.mol, candidate.mol.GetConformer().GetId(), candidate))
+        atomic_write_text(mol_path, Chem.MolToMolBlock(candidate.mol))
         candidate.xyz_path = xyz_path
         candidate.mol_path = mol_path
         paths.extend((xyz_path, mol_path))

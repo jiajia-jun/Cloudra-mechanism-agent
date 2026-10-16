@@ -7,6 +7,7 @@ from pydantic import Field
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.workspace import resolve_tool_path
+from cloudra.tools.core.molecule import from_ase, to_ase
 
 description = (
     "Convert among common computational-chemistry file formats (mol, xyz, gjf, inp (ORCA), pdb, SDF, cif, etc.) via ASE; "
@@ -58,39 +59,6 @@ def _read_rdkit_first(path: str, fmt: str):
     if not mols:
         return None, 0, "0 molecules"
     return mols[0], len(mols), f"{len(mols)} molecules"
-
-
-def _rdkit_to_ase(mol):
-    """RDKit mol -> ASE Atoms（坐标面；键/电荷不跨到 ASE 语义中）。"""
-    import ase
-
-    conf = mol.GetConformer()
-    symbols = [a.GetSymbol() for a in mol.GetAtoms()]
-    positions = [
-        (float(conf.GetAtomPosition(i).x),
-         float(conf.GetAtomPosition(i).y),
-         float(conf.GetAtomPosition(i).z))
-        for i in range(mol.GetNumAtoms())
-    ]
-    return ase.Atoms(symbols=symbols, positions=positions)
-
-
-def _ase_to_rdkit_atoms_only(atoms):
-    """ASE Atoms -> RDKit mol（仅原子与坐标，无键）。
-
-    输入本身是坐标面格式（xyz/gjf/pdb/cif），无键/电荷信息可保留——
-    mol/sdf 输出如实反映"只有坐标"。
-    """
-    Chem = _rdkit()
-    mol = Chem.RWMol()
-    conf = Chem.Conformer(atoms.get_global_number_of_atoms())
-    positions = atoms.get_positions()
-    for i, symbol in enumerate(atoms.get_chemical_symbols()):
-        mol.AddAtom(Chem.Atom(symbol))
-        conf.SetAtomPosition(i, tuple(map(float, positions[i])))
-    out = mol.GetMol()
-    out.AddConformer(conf)
-    return out
 
 
 def _mol_total_formal_charge(mol) -> int:
@@ -373,7 +341,7 @@ class FormatConverter(Tool):
                 else:
                     # 坐标面输入（xyz/pdb/cif/gjf...）本身无键/电荷/立体；
                     # 转出 mol/sdf 只有坐标，如实写入并在 message 披露。
-                    out_mol = _ase_to_rdkit_atoms_only(atoms)
+                    out_mol = from_ase(atoms)
                     charge_note = (
                         f"Input {user_input.input_format} carries only coordinates (no bond/charge/"
                         "stereochemistry), so the MOL/SDF output contains atoms+coordinates only."
@@ -383,7 +351,7 @@ class FormatConverter(Tool):
             else:
                 # 输出为坐标面格式：几何从 RDKit mol（若输入是化学格式）或 ASE 直出
                 if chem_input:
-                    atoms = _rdkit_to_ase(mol)
+                    atoms = to_ase(mol)
                     charge = _mol_total_formal_charge(mol)
                     if user_input.output_format in ("gjf", "inp") and charge != 0:
                         charge_note = (

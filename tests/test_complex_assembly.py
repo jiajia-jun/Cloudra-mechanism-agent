@@ -294,6 +294,68 @@ def test_combine_components_keeps_sp2_stereo(smiles):
     )
 
 
+def test_combine_components_preserves_atom_properties_without_mutating_sources():
+    first = Chem.MolFromSmiles("[13CH3:7]/[CH:8]=[CH:9]/[F:10]")
+    second = Chem.MolFromSmiles("[Na+:11]")
+    for mol, selected_id in ((first, 7), (second, 13)):
+        for atom in mol.GetAtoms():
+            atom.SetProp("origin", f"input-{atom.GetAtomMapNum()}")
+        for conformer_id in (0, selected_id):
+            conf = Chem.Conformer(mol.GetNumAtoms())
+            conf.SetId(conformer_id)
+            for index in range(mol.GetNumAtoms()):
+                conf.SetAtomPosition(index, (index, conformer_id, 0.25))
+            mol.AddConformer(conf, assignId=False)
+    first.GetBondWithIdx(1).SetProp("evidence", "declared-double-bond")
+    before = [mol.ToBinary(Chem.PropertyPickleOptions.AllProps) for mol in (first, second)]
+
+    combined = combine_components([(first, 7), (second, 13)])
+
+    assert [atom.GetIsotope() for atom in combined.GetAtoms()] == [13, 0, 0, 0, 0]
+    assert [atom.GetAtomMapNum() for atom in combined.GetAtoms()] == [7, 8, 9, 10, 11]
+    assert [atom.GetFormalCharge() for atom in combined.GetAtoms()] == [0, 0, 0, 0, 1]
+    assert [atom.GetProp("origin") for atom in combined.GetAtoms()] == [
+        "input-7", "input-8", "input-9", "input-10", "input-11",
+    ]
+    assert combined.GetBondBetweenAtoms(1, 2).GetProp("evidence") == "declared-double-bond"
+    assert combined.GetNumConformers() == 1
+    assert combined.GetConformer().GetPositions().tolist() == [
+        [0.0, 7.0, 0.25], [1.0, 7.0, 0.25], [2.0, 7.0, 0.25], [3.0, 7.0, 0.25],
+        [0.0, 13.0, 0.25],
+    ]
+    combined.GetAtomWithIdx(0).SetProp("origin", "changed")
+    combined.GetConformer().SetAtomPosition(0, (9.0, 9.0, 9.0))
+    assert [mol.ToBinary(Chem.PropertyPickleOptions.AllProps) for mol in (first, second)] == before
+
+
+def test_assembly_candidates_keep_independent_molecule_state(tmp_path, monkeypatch):
+    def keep(mol, conf_id, writer, parameters, **kwargs):
+        writer.append(0, mol.GetConformer(conf_id).GetPositions().tolist(), 0.0, None)
+        return True, False, ""
+
+    monkeypatch.setattr(assembly_mod, "_relax_with_trajectory", keep)
+    carbon = _embedded_mol("C")
+    carbon.GetAtomWithIdx(0).SetIsotope(13)
+    carbon.GetAtomWithIdx(0).SetAtomMapNum(7)
+    carbon.GetAtomWithIdx(0).SetProp("origin", "original-carbon")
+    water = _embedded_mol("O")
+    before = carbon.ToBinary(Chem.PropertyPickleOptions.AllProps)
+
+    result = assemble(components=[(carbon, 0), (water, 0)], output_dir=str(tmp_path))
+
+    assert result.status == "ok"
+    for candidate in result.candidates:
+        atom = candidate.mol.GetAtomWithIdx(0)
+        assert atom.GetIsotope() == 13 and atom.GetAtomMapNum() == 7
+        assert atom.GetProp("origin") == "original-carbon"
+        assert np.allclose(candidate.mol.GetConformer().GetPositions(),
+                           [position for _, position in read_xyz_atoms(candidate.xyz_path)])
+    result.candidates[0].mol.GetAtomWithIdx(0).SetProp("origin", "changed")
+    assert all(candidate.mol.GetAtomWithIdx(0).GetProp("origin") == "original-carbon"
+               for candidate in result.candidates[1:])
+    assert carbon.ToBinary(Chem.PropertyPickleOptions.AllProps) == before
+
+
 # ---------------------------------------------------------------------------
 # 收敛门禁：力场优化未收敛的放置绝不交付为复合物候选
 # ---------------------------------------------------------------------------

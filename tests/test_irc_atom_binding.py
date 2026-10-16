@@ -154,7 +154,7 @@ def test_xyz_only_producer_freezes_the_generated_bound_mol(tmp_path):
         hashes[role + "_mol"] = hashlib.sha256(mol.read_bytes()).hexdigest()
     record = SimpleNamespace(pipeline_id="producer", declaration_revision=1, job_steps=[],
         input_binding=dict(binding_status="complete", hashes=hashes, atom_map=MAP),
-        structures={"reactant": {"mol_path": None}, "product": {"mol_path": None}},
+        structures={"reactant": {"mol_path": None}, "product": {"mol_path": None}}, seed_molecules={},
         current_seed_xyz_path=paths["reactant"][0], current_seed_mol_path=paths["reactant"][1],
         product_seed_xyz_path=paths["product"][0], product_seed_mol_path=paths["product"][1],
         input=SimpleNamespace(reaction=SimpleNamespace(charge=0)))

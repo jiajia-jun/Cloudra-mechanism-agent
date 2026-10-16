@@ -107,7 +107,8 @@ def test_identity_is_rechecked_after_geometry_source_changes(tmp_path, monkeypat
     _guess(record)
     assert record.blocked.failure_class=='input_identity_unconfirmed'
     assert record.input_binding['binding_status']=='inconclusive'
-    assert record.input_binding['reactant_identity'] == 'mismatch'
+    assert any('bound molecular artifact changed' in message for message in record.input_binding['binding_diagnostics'])
+    assert Chem.MolToSmiles(Chem.RemoveHs(record.seed_molecules['reactant'])) == 'CCO'
     assert record.input_binding.get('hashes')!=original
 
 
@@ -144,7 +145,7 @@ def test_xyz_binding_preserves_concrete_graph_for_final_endpoint_proof(tmp_path)
     _build(record)
     _map(record)
     assert record.blocked is None
-    assert record.current_seed_mol_path and record.product_seed_mol_path
+    assert set(record.seed_molecules) == {'reactant', 'product'}
     assert _endpoint_identity_error(record, 'reactant', ([a.GetSymbol() for a in mol.GetAtoms()], mol.GetConformer().GetPositions().tolist())) == ''
 
 

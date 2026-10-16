@@ -13,6 +13,7 @@ from cloudra.tools.core.conformer_statistical_regions import StatisticalPartitio
 from cloudra.tools.core.crest_runner import CrestRunRequest, run_crest
 from cloudra.tools.core.geometry import kabsch_rmsd as _kabsch_rmsd
 from cloudra.tools.core.geometry_inputs import DistanceWindowInput
+from cloudra.tools.core.molecule import to_xyz
 from cloudra.tools.core.ring_conformation import describe_structure_rings, ring_summaries
 from cloudra.tools.core.structure_builder import (
     BUILD_DIR_NAME,
@@ -393,18 +394,6 @@ class ConformerSearch(Tool):
             constraint_manifest_path=result.manifest_path,
         )
 
-    @staticmethod
-    def _load_built_mol(prepared: PreparedStructure):
-        """从构建器的组分 MOL 文件读回单组分结构（连接表/立体化学/电荷的交换格式）。"""
-        component = prepared.components[0]
-        with open(component.mol_path, encoding="utf-8") as handle:
-            mol = Chem.MolFromMolBlock(handle.read(), removeHs=False)
-        if mol is None:
-            raise ValueError(
-                f"the builder's component file could not be re-read as a mol: {component.mol_path}"
-            )
-        return mol, component
-
     # ---------- 通用输出 ----------
 
     @staticmethod
@@ -544,8 +533,6 @@ class ConformerSearch(Tool):
         组装自身的能窗与 RMSD 聚类已按批准参数执行；这里只额外应用调用方显式给出的
         ``distance_filters``（作为反应中心/预组织窗口的可选筛选），并如实报告每个候选。
         """
-        from cloudra.tools.core.structure_artifacts import read_xyz_atoms
-
         prepared = self._prepare(user_input, out_dir, embed=True, optimize=True,candidate_sink=candidate_sink)
         if prepared.status != "ok" or not prepared.has_coordinates or prepared.assembly is None:
             return self._build_failure(prepared)
@@ -564,12 +551,11 @@ class ConformerSearch(Tool):
 
         frames = []
         for candidate in assembly.candidates:
-            atoms = read_xyz_atoms(candidate.xyz_path)
             frames.append({
                 "conf_id": candidate.candidate_id,
                 "rel_energy_kcal": candidate.rel_energy_kcal,
                 "abs_energy": candidate.energy_kcal,
-                "positions": np.asarray([position for _symbol, position in atoms], dtype=float),
+                "positions": np.asarray(candidate.mol.GetConformer().GetPositions(), dtype=float),
                 "cluster_id": candidate.cluster_id,
                 "min_interfragment_distance": candidate.min_interfragment_distance,
                 "trajectory_id": candidate.trajectory_id,
@@ -748,7 +734,7 @@ class ConformerSearch(Tool):
             put_region_snapshot(db,snapshot,project_id=project,owner_id=owner)
         catalog_path = os.path.join(out_dir, "conformer_catalog.json")
         region_path = os.path.join(out_dir, "conformer_regions.json")
-        atomic_write_text(catalog_path, json.dumps({"catalog_id": catalog_id, "candidates": [c.model_dump() for c in capture.records]}, ensure_ascii=False))
+        atomic_write_text(catalog_path, json.dumps({"catalog_id": catalog_id, "candidates": [c.model_dump(mode="json") for c in capture.records]}, ensure_ascii=False))
         atomic_write_text(region_path, snapshot.model_dump_json())
         from cloudra.tools.core.conformer_cards import build_region_cards
         cards_path = os.path.join(out_dir, "conformer_cards.json")
@@ -790,7 +776,8 @@ class ConformerSearch(Tool):
             if prepared.status != "ok":
                 return self._build_failure(prepared)
 
-            mol, component = self._load_built_mol(prepared)
+            mol = Chem.Mol(prepared.mol)
+            component = prepared.components[0]
             natoms = mol.GetNumAtoms()
             self._check_filters(user_input, natoms)
 
@@ -1004,9 +991,7 @@ class ConformerSearch(Tool):
                 "the QCG solvent must be a single neutral molecule (one connected component); "
                 f"solvent_smiles={user_input.solvent_smiles!r} has {len(solvent.components)} components"
             )
-        solvent_path = solvent.candidate_path(".xyz")
-        with open(solvent_path, encoding="utf-8") as handle:
-            return handle.read()
+        return to_xyz(solvent.mol)
 
     def _run_crest(self, user_input: ConformerSearch_input_schema, out_dir: str, *, candidate_sink=None) -> ConformerSearch_output_schema:
         try:
@@ -1036,9 +1021,7 @@ class ConformerSearch(Tool):
                     ),
                 )
 
-            seed_path = prepared.candidate_path(".xyz")
-            with open(seed_path, encoding="utf-8") as handle:
-                seed_xyz = handle.read()
+            seed_xyz = to_xyz(prepared.mol)
 
             solvent_xyz = ""
             if runtype == "qcg":

@@ -1,5 +1,4 @@
 import asyncio
-import json
 import math
 import os
 from pathlib import Path
@@ -9,11 +8,9 @@ from pydantic import Field, model_validator
 
 try:
     from rdkit import Chem
-    from rdkit.Chem import AllChem
     _RDKIT_AVAILABLE = True
 except Exception:
     Chem = None
-    AllChem = None
     _RDKIT_AVAILABLE = False
 
 from cloudra.base.session_class import Session
@@ -25,11 +22,10 @@ from cloudra.tools.core.calculation_intent import (
     intent_from_writer,
     validate_writer_request,
 )
+from cloudra.tools.core.molecule import read_molecule, to_xyz, total_charge
 from cloudra.tools.core.qm_calculation import QmCalculation
 from cloudra.tools.core.qm_keywords import orca_basis_keyword
-from cloudra.tools.core.structure_artifacts import read_xyz_atoms
 from cloudra.tools.core.structure_builder import (
-    PREPARED_JSON_NAME,
     BuildStrategy,
     PreparationRequest,
     StructureInput,
@@ -111,9 +107,11 @@ class QmInputWriter_input_schema(QmCalculation, input_schema):
                     "Rejected when no frequency task is requested.",
     )
 
-    charge: int = Field(
-        default=0,
-        description="Molecular charge."
+    charge: int | None = Field(
+        default=None,
+        description="Total molecular charge. Omit for MOL/SMILES to use the structure's formal charge; "
+                    "an explicit value must match that structure. XYZ contains no formal charges: "
+                    "declare its total charge here, or omit for neutral."
     )
     multiplicity: int = Field(
         default=1,
@@ -286,33 +284,32 @@ class QmInputWriter(Tool):
         return None
 
     @staticmethod
-    def _gaussian_style_lines(atoms) -> str:
-        """把 ``(元素, [x, y, z])`` 列表渲染成 Gaussian/ORCA 坐标块。"""
-        lines = []
-        for symbol, position in atoms:
-            x, y, z = position
-            if not all(math.isfinite(value) for value in (x, y, z)):
-                raise ValueError(f"Coordinates for {symbol} must be finite numbers")
-            lines.append(f"{symbol:<4} {x:>14.8f} {y:>14.8f} {z:>14.8f}")
-        return "\n".join(lines)
+    def _coordinate_lines(mol) -> str:
+        """Render coordinates only at the native input-writing boundary."""
+        if not all(math.isfinite(value) for position in mol.GetConformer().GetPositions() for value in position):
+            raise ValueError("Source coordinates must be finite numbers")
+        return "\n".join(to_xyz(mol).splitlines()[2:])
 
     @staticmethod
-    def _smiles_coordinates(user_input: QmInputWriter_input_schema, artifact_dir: str) -> str:
-        """SMILES 源：坐标由共享结构构建器产生（本工具不再自带 Embed/MMFF 快捷路径）。
+    def _smiles_molecule(user_input: QmInputWriter_input_schema, artifact_dir: str):
+        """SMILES 源：保留共享构建器返回的分子，不从导出文件重建。
 
         单组分量化优化可接收成功嵌入的粗种子，力场资格仍如实保留为失败态。
         其他任务与多组分继续要求共享构建器的候选资格。
         """
+        source_mol = Chem.MolFromSmiles(user_input.source_value)
+        if source_mol is None:
+            raise ValueError(f"Invalid SMILES string: {user_input.source_value}")
         prepared = prepare_structure(PreparationRequest(
-            structure=StructureInput(kind="smiles", value=user_input.source_value),
+            structure=StructureInput(kind="molecule", value=source_mol),
             output_dir=artifact_dir,
-            total_charge=user_input.charge,
+            total_charge=total_charge(source_mol) if user_input.charge is None else user_input.charge,
             multiplicity=user_input.multiplicity,
             electronic_character=user_input.electronic_character,
             strategy=BuildStrategy(name="per_component", embed=True, optimize=True),
         ))
         if prepared.status == "ok" and prepared.has_coordinates:
-            source = prepared.candidate_path(".xyz")
+            mol = prepared.mol
         elif (
             prepared.status in {"missing_parameters", "optimization_failed"}
             and len(prepared.components) == 1
@@ -320,68 +317,41 @@ class QmInputWriter(Tool):
             and prepared.components[0].optimization_status in {"missing_parameters", "not_converged", "failed"}
             and intent_from_writer(user_input.model_dump()).tasks & {"minimum_opt", "ts_opt"}
         ):
-            source = prepared.components[0].xyz_path
+            mol = prepared.components[0].mol
         else:
             raise StructureBuildRefused(
                 prepared.status, prepared.message, list(prepared.diagnostics),
                 prepared.artifact_path,
             )
-        atoms = read_xyz_atoms(source)
-        if [symbol for symbol, _ in atoms] != prepared.symbols:
-            raise ValueError("Embedded coordinates differ from the built full-atom element order")
-        if len(atoms) > 1 and all(value == 0 for _, point in atoms for value in point):
+        positions = mol.GetConformer().GetPositions()
+        if mol.GetNumAtoms() > 1 and not positions.any():
             raise ValueError("Embedded coordinates are all-zero placeholders")
-        return QmInputWriter._gaussian_style_lines(atoms)
+        seed_note = ""
+        if prepared.status != "ok":
+            seed_note = (
+                f" Unoptimized seed (build status: {prepared.status}): {prepared.message} "
+                f"Build artifacts: {prepared.artifact_path}"
+            )
+        return mol, seed_note
 
     @staticmethod
-    def _get_coordinates(user_input: QmInputWriter_input_schema, artifact_dir: str) -> str:
-        """根据来源类型返回 Gaussian 格式的坐标文本。"""
+    def _get_molecule(user_input: QmInputWriter_input_schema, artifact_dir: str):
+        """Read or build a molecule; coordinate files remain an output boundary."""
         if user_input.source_type == "smiles":
-            return QmInputWriter._smiles_coordinates(user_input, artifact_dir)
+            return QmInputWriter._smiles_molecule(user_input, artifact_dir)
 
-        if user_input.source_type == "xyz_file":
-            import ase.io
-
-            try:
-                with open(user_input.source_value, encoding="utf-8") as source:
-                    first_line = source.readline().strip()
-                try:
-                    atom_count = int(first_line)
-                except ValueError as exc:
-                    raise ValueError("the first line must be a positive atom count") from exc
-                if atom_count <= 0:
-                    raise ValueError("the first line must be a positive atom count")
-                # ASE preserves extended XYZ property order and reads the final
-                # frame, as this tool did before. Pin the declared format so a
-                # misleading extension cannot select a different parser.
-                atoms = ase.io.read(user_input.source_value, format="extxyz")
-            except FileNotFoundError:
-                raise
-            except Exception as exc:
-                raise ValueError(
-                    f"XYZ source is malformed: {exc}. If it contains an MDL MOL block, "
-                    "use source_type='mol_file'."
-                ) from exc
-            return QmInputWriter._gaussian_style_lines(
-                zip(atoms.symbols, (list(p) for p in atoms.positions))
-            )
-
-        # MOL needs ASE's format reader; pin the format to the declared source
-        # type so a misleading extension never silently changes the parser.
-        import ase.io
-
+        fmt = "xyz" if user_input.source_type == "xyz_file" else "mol"
         try:
-            atoms = ase.io.read(user_input.source_value, format="mol")
+            mol = read_molecule(input_path=user_input.source_value, input_format=fmt, charge=user_input.charge)
         except FileNotFoundError:
             raise
         except Exception as exc:
+            hint = ("If it contains an MDL MOL block, use source_type='mol_file'." if fmt == "xyz" else
+                    "Provide an MDL MOL file or use source_type='xyz_file' for XYZ coordinates.")
             raise ValueError(
-                f"MOL source is malformed: {user_input.source_value}: {exc}. "
-                "Provide an MDL MOL file or use source_type='xyz_file' for XYZ coordinates."
+                f"{fmt.upper()} source could not be read: {exc}. {hint}"
             ) from exc
-        return QmInputWriter._gaussian_style_lines(
-            zip(atoms.symbols, (list(p) for p in atoms.positions))
-        )
+        return mol, ""
 
     @staticmethod
     def _build_link0(user_input: QmInputWriter_input_schema) -> str:
@@ -551,7 +521,7 @@ class QmInputWriter(Tool):
         return QmCalculation.model_validate(values)
 
     @staticmethod
-    def _build_orca_input(user_input: QmInputWriter_input_schema, coords: str) -> str:
+    def _build_orca_input(user_input: QmInputWriter_input_schema, mol) -> str:
         """拼装 ORCA .inp：! 行 + %pal/%maxcore（+%method 外部势块）+ 坐标块。"""
         simple = QmInputWriter._orca_task_keywords(user_input.task_type, user_input.frequency_mode)
         method_block = ""
@@ -584,14 +554,14 @@ class QmInputWriter(Tool):
         if user_input.orca_blocks:
             lines.append(user_input.orca_blocks.strip())
 
-        lines.append(f"* xyz {user_input.charge} {user_input.multiplicity}")
-        lines.append(coords)
+        lines.append(f"* xyz {total_charge(mol)} {user_input.multiplicity}")
+        lines.append(QmInputWriter._coordinate_lines(mol))
         lines.append("*")
         lines.append("")
         return "\n".join(lines)
 
     @staticmethod
-    def _build_gjf(user_input: QmInputWriter_input_schema, coords: str) -> str:
+    def _build_gjf(user_input: QmInputWriter_input_schema, mol) -> str:
         """拼装完整的 .gjf 文本。
 
         Gaussian 要求坐标块后有一个空行作为输入结束标记，
@@ -614,8 +584,8 @@ class QmInputWriter(Tool):
             "",                    # Route 后空行
             title,
             "",                    # Title 后空行
-            f"{user_input.charge} {user_input.multiplicity}",
-            coords,
+            f"{total_charge(mol)} {user_input.multiplicity}",
+            QmInputWriter._coordinate_lines(mol),
             "",                    # 坐标后空行（Gaussian 输入结束标记）
         ]
 
@@ -712,25 +682,15 @@ class QmInputWriter(Tool):
             user_input.artifact_dir = build_artifact_dir(base or ".", stem)
         try:
             # 结构构建是重活（Embed/优化），离开事件循环线程
-            coords = await asyncio.to_thread(
-                self._get_coordinates, user_input, user_input.artifact_dir
+            mol, seed_note = await asyncio.to_thread(
+                self._get_molecule, user_input, user_input.artifact_dir
             )
-            seed_note = ""
-            if user_input.source_type == "smiles":
-                build = json.loads(await asyncio.to_thread(
-                    (Path(user_input.artifact_dir) / PREPARED_JSON_NAME).read_text,
-                ))
-                if build["status"] != "ok":
-                    seed_note = (
-                        f" Unoptimized seed (build status: {build['status']}): {build['message']} "
-                        f"Build artifacts: {build['artifact_path']}"
-                    )
             if user_input.engine == "orca":
-                content = self._build_orca_input(user_input, coords)
+                content = self._build_orca_input(user_input, mol)
                 engine_label = "ORCA"
                 generation_path = "orca:simple+orca_blocks"
             else:
-                content = self._build_gjf(user_input, coords)
+                content = self._build_gjf(user_input, mol)
                 engine_label = "Gaussian"
                 generation_path = "gaussian:route"
 

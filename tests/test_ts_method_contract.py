@@ -1,6 +1,7 @@
 import pytest
 
 from cloudra.tools.core import calculation_intent as intent
+from cloudra.tools.core.molecule import read_molecule
 
 
 @pytest.mark.parametrize('solvent', ['DCM', 'Water', 'DMSO'])
@@ -30,7 +31,7 @@ def test_cpcm_ts_submission_keeps_native_settings_and_bound_job(tmp_path, monkey
     request = QmInputWriter_input_schema(engine='orca', source_type='xyz_file', source_value='unused.xyz',
         method='B3LYP', basis_set='def2svp', task_type=[{'opt': 'ts'}], keywords=keywords,
         nproc=record.compute_cpus, mem=f'{record.compute_memory_mb}MB', output_path=str(source))
-    native = QmInputWriter._build_orca_input(request, 'O 0 0 0')
+    native = QmInputWriter._build_orca_input(request, read_molecule(input_text='1\n\nO 0 0 0\n'))
     source.write_text(native)
     policy = MethodPolicy(allowed_methods=['b3lyp/def2svp'],
         calculation_contracts={'ts_opt': calculation.model_dump(mode='json')})
