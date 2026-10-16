@@ -28,7 +28,6 @@ below. The repository's root `LICENSE` remains the project license.
 - [humanizer skill and license](humanizer-skill.md): vendored MIT-licensed skill by Siqi Chen
 - [ASE skill references and license](ase-skill-references.md): MIT-licensed references adapted from jkitchin/skillz
 - [K-Dense scientific-agent-skills and license](k-dense-scientific-agent-skills.md): MIT-licensed `molecular-dynamics` skill adapted into `molecular-dynamics-simulation`
-- [Software registration materials](../../软著申请材料/材料准备清单.md): existing application deliverables
 
 Keep third-party permission notices here with the code that requires them. A notice is
 required whenever a file is copied from or adapted from an upstream project: the upstream

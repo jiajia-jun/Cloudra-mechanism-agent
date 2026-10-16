@@ -144,6 +144,7 @@ def main() -> None:
     write_legacy_txt(src_dir / "源代码_后30页.txt", last, last_start)
 
     pkg_dir = MATERIALS / "05_完整申请文件包"
+    pkg_dir.mkdir(parents=True, exist_ok=True)
     write_legacy_txt(pkg_dir / "02_源程序_前30页_排版.txt", first, 1)
     write_legacy_txt(pkg_dir / "03_源程序_后30页_排版.txt", last, last_start)
 

@@ -160,31 +160,11 @@ gold_compute/verified_evidence/
 !gold_compute/verified_evidence/**/*.json
 vector_store/vectors.f16.npy
 
-# PPT 制作缓存：只忽略可再生预览/检查输出，不忽略脚本、PPTX 和原始素材。
-/.deck-work/after-*.png
-/.deck-work/final-*.png
-/.deck-work/final-montage.jpg
-/.deck-work/roundtrip3.png
-/.deck-work/*.pptx.inspect.ndjson
-/.deck-work/final-validation*.json
-/.deck-work/focus.ndjson
-
-/.codex-ppt-build/final-*.png
-/.codex-ppt-build/final-montage.jpg
-/.codex-ppt-build/large-draft-*.png
-/.codex-ppt-build/large-verified-*.png
-/.codex-ppt-build/layout-*-verified-*.png
-/.codex-ppt-build/restrained-verified-*.png
-/.codex-ppt-build/value-verified-*.png
-/.codex-ppt-build/verified-*.png
-/.codex-ppt-build/visual-balance-final-*.png
-/.codex-ppt-build/visual-balance-verified-*.png
-/.codex-ppt-build/*.pptx.inspect.ndjson
-/.codex-ppt-build/*.layout.json
-/.codex-ppt-build/final-inspect.ndjson
-/.codex-ppt-build/*validation*.json
-
-/申请材料/省自科答辩/.build/contact_v*.png
-/申请材料/省自科答辩/.build/render_v*/
-/申请材料/省自科答辩/.build/*.pptx.inspect.ndjson
-/申请材料/省自科答辩/.build/validation*.json
+# 本地申报材料、答辩成品和制作工作区不再入库；源码与科研证据另行保留。
+/申请材料/
+/软著申请材料/
+/.deck-work/
+/.codex-ppt-build/
+/output/Cloudra_十分钟答辩*.pptx
+/output/Cloudra_省自科*.pptx
+/output/Cloudra_研发新范式版*.pptx

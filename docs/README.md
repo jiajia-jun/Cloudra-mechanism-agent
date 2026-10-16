@@ -43,4 +43,5 @@
   `supplementary_information.md`）；
 - [`paper/literature/`](../paper/literature/README.md)：文献原件与下载残留索引；
 - `assets/`：标志原图；前端使用的静态资源仍在 `frontend/public/`；
-- `知识卡片/`、`申请材料/`、`软著申请材料/`：外部交付物，保持原路径。
+- `知识卡片/`：知识卡片源档案，保持原路径。
+- 申报材料、软著交付副本、答辩 PPT 及制作工作区已移出当前版本；需要旧材料时从 Git 历史恢复。

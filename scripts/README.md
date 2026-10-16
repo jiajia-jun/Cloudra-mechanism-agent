@@ -27,7 +27,7 @@ These helpers retain their current paths and working-directory assumptions. Benc
 
 ## Documents and external deliverables
 
-- `gen_copyright_source.py`: maintained source-listing generator; reads `cloudra/` and writes the existing `软著申请材料/` output tree
+- `gen_copyright_source.py`: maintained source-listing generator; reads `cloudra/` and writes the ignored local `软著申请材料/` output tree
 - [`application_docs/`](application_docs/): one-off DOCX/figure editing scripts retained together for historical reproducibility
 
 The application scripts contain job-specific filenames, Desktop paths and optional document/image dependencies. They are not general-purpose CLIs and may overwrite the referenced document. Inspect and adapt their targets before running them. Keep sibling helpers together: `revise_application_conservative.py` imports `revise_application_ai4s.py`. Their supported invocation style remains a direct script path, for example `python scripts/application_docs/revise_application_conservative.py SOURCE OUTPUT ASSET_DIR CJC_EMF_PNG REPORT_RENDER_DIR` after checking its inputs.
