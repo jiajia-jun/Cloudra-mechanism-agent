@@ -24,7 +24,9 @@ if TYPE_CHECKING:
     from cloudra.runtime_v2.schemas import AgentSession
 
 
-def agent_dict(core: "RuntimeCore", agent: "AgentSession") -> dict[str, Any]:
+def agent_dict(
+    core: "RuntimeCore", agent: "AgentSession", *, before_session_seq: int | None = None,
+) -> dict[str, Any]:
     """单个 agent 的线缆字典（GET /api/v2/agents/{id}、命令响应用）。"""
     data = agent.model_dump(mode="json")
     if agent.current_run is not None:
@@ -33,7 +35,8 @@ def agent_dict(core: "RuntimeCore", agent: "AgentSession") -> dict[str, Any]:
         return data
     data["completion"] = completion_summary(
         core.event_log.query_session(
-            agent.id, types=COMPLETION_EVENT_TYPES, limit=COMPLETION_TAIL
+            agent.id, types=COMPLETION_EVENT_TYPES, limit=COMPLETION_TAIL,
+            before_session_seq=before_session_seq,
         )
     )
     return data

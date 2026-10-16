@@ -189,3 +189,158 @@ async def test_disk_history_iteration_can_resume_on_another_worker_thread(tmp_pa
         page1 = await loop.run_in_executor(first, lambda: list(islice(history, 50)))
         page2 = await loop.run_in_executor(second, lambda: list(islice(history, 80)))
     assert [e.seq for e in page1 + page2] == list(range(1, 131))
+
+
+@pytest.fixture
+def cached_history(tmp_path, monkeypatch):
+    from cloudra.runtime_v2.events import EventLog
+
+    store = RuntimeStore(tmp_path / "cached-runtime.db")
+    log = EventLog(strict=True)
+    log.attach_store(store)
+    log._max_cached_events = 4
+    events = []
+    for index in range(8):
+        event = log.append(
+            "agent.thinking" if index % 3 == 0 else "agent.warning",
+            stream="agent", project_id=f"p{index % 2}",
+            session_id=f"a{index % 2}", run_id="old" if index < 4 else "new",
+            data={"index": index},
+        )
+        store.append_event(event)
+        log.mark_persisted(index + 1, event)
+        events.append(event)
+    reads = []
+    original = store.iter_events
+
+    def read(**filters):
+        reads.append(filters)
+        yield from original(**filters)
+
+    monkeypatch.setattr(store, "iter_events", read)
+    return log, store, events, reads
+
+
+@pytest.mark.parametrize("reader", ["project", "session", "iter_project", "iter_all"])
+def test_recent_filtered_history_uses_cache_without_storage(cached_history, reader):
+    log, _, _, reads = cached_history
+    if reader == "project":
+        result = log.query_project("p0", after_seq=2, limit=None)
+    elif reader == "session":
+        result = log.query_session("a0", after_session_seq=2, run_id="new", limit=None)
+    elif reader == "iter_project":
+        result = list(log.iter_project("p0", after_seq=2))
+    else:
+        result = list(log.iter_events(after_seq=2))
+    assert [event.data["index"] for event in result] == ([4, 5, 6, 7] if reader == "iter_all" else [4, 6])
+    assert reads == [], "resident durable payloads must not be read again from storage"
+
+
+@pytest.mark.parametrize("scope", ["project", "session"])
+def test_tail_limit_satisfied_by_cache_never_reads_storage(cached_history, scope):
+    log, _, _, reads = cached_history
+    result = log.query_project("p0", limit=2) if scope == "project" else log.query_session("a0", limit=2)
+    assert [event.data["index"] for event in result] == [4, 6]
+    assert reads == []
+
+
+@pytest.mark.parametrize("scope", ["project", "session", "iter_all"])
+def test_cache_boundary_reads_only_missing_older_prefix(cached_history, scope):
+    log, _, _, reads = cached_history
+    if scope == "project":
+        result = log.query_project("p0", limit=3)
+    elif scope == "session":
+        result = log.query_session("a0", limit=3)
+    else:
+        result = list(log.iter_events())
+    assert [event.data["index"] for event in result] == (list(range(8)) if scope == "iter_all" else [2, 4, 6])
+    assert len(reads) == 1
+    if scope == "iter_all":
+        assert reads[0]["stop_index"] == 4
+    else:
+        assert reads[0]["limit"] == 1, "only one older result is missing from the cached tail"
+        boundary = "before_seq" if scope == "project" else "before_session_seq"
+        assert reads[0][boundary] == 2
+
+
+def test_cache_merge_keeps_head_order_and_all_filters(cached_history):
+    log, _, _, _ = cached_history
+    head = log.query_project("p0", limit=3, tail=False)
+    assert [event.data["index"] for event in head] == [0, 2, 4]
+    filtered = log.query_session("a0", run_id="new", types=["agent.warning"], before_session_seq=3)
+    assert [event.data["index"] for event in filtered] == [4]
+    assert [event.data["index"] for event in log.iter_project("p1", before_seq=3, types=["agent.warning"])] == [1, 5]
+
+
+def test_restored_cache_and_rollback_keep_interleaved_boundaries(cached_history):
+    from cloudra.runtime_v2.events import EventLog
+
+    _, store, _, reads = cached_history
+    restored = EventLog(strict=True)
+    restored._max_cached_events = 4
+    restored.restore_from_store(store)
+    reads.clear()
+    dropped = restored.append("agent.warning", stream="agent", project_id="p0", session_id="a0")
+    restored.discard_tail(8)
+    kept = restored.append("agent.warning", stream="agent", project_id="p1", session_id="a1")
+    result = restored.query_project("p1", after_seq=2, limit=None)
+    assert [event.seq for event in result] == [3, 4, 5]
+    assert result[-1].event_id == kept.event_id
+    assert dropped.event_id not in {event.event_id for event in restored.iter_events(after_seq=2)}
+    assert reads == []
+
+
+def test_iteration_snapshot_survives_persist_eviction_without_holding_lock(cached_history, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+
+    log, store, events, _ = cached_history
+    pending = log.append("agent.warning", stream="agent", project_id="p0", session_id="a0")
+    original = store.iter_events
+
+    def persist_during_read(**filters):
+        store.append_event(pending)
+        log.mark_persisted(9, pending)
+        log.append("agent.warning", stream="agent", project_id="p1", session_id="a1")
+        yield from original(**filters)
+
+    monkeypatch.setattr(store, "iter_events", persist_during_read)
+    history = log.iter_events()
+    first = next(history)
+    with ThreadPoolExecutor(max_workers=1) as worker:
+        # If iteration retained the log lock across yield, the worker would block.
+        assert worker.submit(log.get, events[-1].event_id).result(timeout=2) is not None
+    result = [first, *history]
+    assert [event.event_id for event in result] == [event.event_id for event in events] + [pending.event_id]
+
+
+@pytest.mark.parametrize("session_id,after_seq,expected", [("fresh", 0, [8]), ("a0", 2, [4, 6])])
+def test_recent_session_iterator_skips_absent_older_prefix(cached_history, session_id, after_seq, expected):
+    log, _, _, reads = cached_history
+    log.append("agent.warning", stream="agent", project_id="p2", session_id="fresh", data={"index": 8})
+    result = list(log.iter_events(session_id=session_id, after_seq=after_seq))
+    assert [event.data["index"] for event in result] == expected
+    assert reads == []
+
+
+def test_cached_iterator_does_not_prefetch_a_long_unpersisted_tail(cached_history):
+    class CountingList(list):
+        visits = 0
+
+        def __iter__(self):
+            for event in super().__iter__():
+                self.visits += 1
+                yield event
+
+    log, _, _, reads = cached_history
+    for index in range(1201):
+        log.append("agent.warning", stream="agent", project_id="p0", data={"index": index + 8})
+    counted = CountingList(log._events)
+    log._events = counted
+    history = log.iter_events(after_seq=2)
+    first = next(history)
+    assert first.data["index"] == 4
+    assert counted.visits <= 500, "the first page must not walk the pending backlog"
+    result = [first, *history]
+    assert [event.data["index"] for event in result] == list(range(4, 1209))
+    assert counted.visits == 1205, "the fixed resident suffix must be scanned only once"
+    assert reads == []

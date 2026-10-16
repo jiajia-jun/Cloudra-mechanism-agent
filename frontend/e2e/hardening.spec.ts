@@ -75,22 +75,22 @@ test('late agent details cannot replace the newer selected agent transcript', as
   await expect(page.getByText('CURRENT TRANSCRIPT', { exact: true })).toBeVisible();
 });
 
-test('late project agent list cannot replace the selected project', async ({ page }) => {
+test('late project view cannot replace the selected project', async ({ page }) => {
   const other = { ...PROJECT_ACTIVE, id: 'proj_other', name: 'Other project' };
   const otherAgent = { ...AGENT, id: 'agent_other', project_id: other.id, display_name: 'Other coordinator' };
   await installApiMocks(page, { projects: [PROJECT_ACTIVE, other], jobs: [] });
   let release!: () => void;
   const held = new Promise<void>(resolve => { release = resolve; });
   let started = false;
-  await page.route(`**/projects/${PROJECT_ACTIVE.id}/agents`, async route => { started = true; await held; await route.fulfill({ json: [AGENT] }); });
-  await page.route(`**/projects/${other.id}/agents`, route => route.fulfill({ json: [otherAgent] }));
+  await page.route(`**/projects/${PROJECT_ACTIVE.id}/view`, async route => { started = true; await held; await route.fulfill({ json: { agents: [AGENT], cursor: 0 } }); });
+  await page.route(`**/projects/${other.id}/view`, route => route.fulfill({ json: { agents: [otherAgent], cursor: 0 } }));
   await page.route(`**/agents/${otherAgent.id}`, route => route.fulfill({ json: otherAgent }));
   await openSpa(page);
   await page.getByTitle(`选择项目: ${PROJECT_ACTIVE.name}`, { exact: true }).click();
   await expect.poll(() => started).toBe(true);
   await page.getByTitle(`选择项目: ${other.name}`, { exact: true }).click();
   await expect(page.locator('.breadcrumb-agent-name')).toHaveText(otherAgent.display_name);
-  const response = page.waitForResponse(r => r.url().endsWith(`/projects/${PROJECT_ACTIVE.id}/agents`));
+  const response = page.waitForResponse(r => r.url().endsWith(`/projects/${PROJECT_ACTIVE.id}/view`));
   release();
   await response;
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));

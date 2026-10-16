@@ -207,8 +207,10 @@ class TaskDescriber:
                 run_id=agent.current_run.run_id if agent.current_run else None,
                 data={"current_task": desc, "instruction": instruction[:200]},
             )
-            envelope = await self.core.event_writer.commit(draft)
-            apply_event(self.core, envelope)
+            await self.core.event_writer.commit_and_apply(
+                [draft], lambda envelope: apply_event(self.core, envelope),
+            )
+
         except asyncio.CancelledError:
             pass
         except Exception as exc:

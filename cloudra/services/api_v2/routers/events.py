@@ -20,14 +20,20 @@ def build_router(ctx: ApiContext) -> APIRouter:
     router = APIRouter()
 
     @router.get("/api/v2/projects/{project_id}/stream", dependencies=ctx.protected)
-    async def project_stream(project_id: str, request: Request, cursor: int = 0) -> StreamingResponse:
+    async def project_stream(project_id: str, request: Request, cursor: int) -> StreamingResponse:
         project = ctx.core.require_project(project_id)
 
         async def generate():
             queue: asyncio.Queue = asyncio.Queue(maxsize=_STREAM_QUEUE_SIZE)
             queued_bytes = 0
             overflowed = False
-            replay_through = ctx.core.event_log.high_watermarks.get(project.id, 0)
+            # A pending append may still fail and reuse its seq on rollback.
+            # Only durable events may advance a stored runtime's reconnect cursor.
+            watermarks = (
+                ctx.core.event_writer.persisted_watermarks()
+                if ctx.core.store is not None else ctx.core.event_log.high_watermarks
+            )
+            replay_through = watermarks.get(project.id, 0)
             delivered_through = max(cursor, replay_through)
 
             async def forward(event) -> None:

@@ -168,7 +168,8 @@ class EventLog:
             self._cached_bytes -= self._sizes.popleft()
             remove += 1
         if remove:
-            del self._events[:remove]
+            # Readers retain the old list with a fixed length across yields.
+            self._events = self._events[remove:]
             self._base_index += remove
 
     def mark_persisted(self, count: int, envelope: EventEnvelope) -> None:
@@ -366,29 +367,62 @@ class EventLog:
         return self._query(session_id=session_id, run_id=run_id, after_session_seq=after_session_seq,
                            before_session_seq=before_session_seq, types=types, limit=limit, tail=tail)
 
+    def _read_snapshot(self, filters):
+        """Pin a lazy resident suffix and bound only the older, uncached prefix."""
+        with self._lock:
+            store = self._store
+            resident = islice(iter(self._events), len(self._events))
+            if store is None or self._base_index == 0:
+                return store, None, resident
+            cached_durable = self._events[:self._durable_count - self._base_index]
+            older = dict(filters)
+            session_id = filters.get("session_id")
+            project_id = filters.get("project_id")
+            if project_id is None and filters.get("after_seq", 0):
+                boundaries = dict(self._durable_projects)
+                for event in cached_durable:
+                    if event.project_id in boundaries:
+                        boundaries[event.project_id] = min(boundaries[event.project_id], event.seq - 1)
+                if max(boundaries.values(), default=0) <= filters["after_seq"]:
+                    return store, None, resident
+            if session_id is not None:
+                boundary = self._durable_sessions.get(session_id, 0)
+                for event in cached_durable:
+                    if event.session_id == session_id and event.session_seq is not None:
+                        boundary = min(boundary, event.session_seq - 1)
+                        break
+                before = filters.get("before_session_seq")
+                boundary = min(boundary, before) if before is not None else boundary
+                if boundary <= max(0, filters.get("after_session_seq", 0)):
+                    return store, None, resident
+                # Session sequences pin the prefix without a global row OFFSET.
+                older["before_session_seq"] = boundary
+            elif project_id is not None:
+                boundary = self._durable_projects.get(project_id, 0)
+                for event in cached_durable:
+                    if event.project_id == project_id:
+                        boundary = min(boundary, event.seq - 1)
+                        break
+                before = filters.get("before_seq")
+                boundary = min(boundary, before) if before is not None else boundary
+                if boundary <= filters.get("after_seq", 0):
+                    return store, None, resident
+                older["before_seq"] = boundary
+            else:
+                older["stop_index"] = self._base_index
+        return store, older, resident
+
     def _query(self, *, limit, tail, **filters) -> list[EventEnvelope]:
         wanted = filters.get("types")
         filters["types"] = frozenset(wanted) if wanted is not None else None
-        with self._lock:
-            store, count = self._store, self._durable_count
-            session_id = filters.get("session_id")
-            session_boundary = self._durable_sessions.get(session_id, 0)
-            pending = (
-                iter(list(self._events[max(0, count - self._base_index):]))
-                if store else islice(iter(self._events), self._count)
-            )
-        extra = [event for event in pending if self._matches(event, filters)]
+        store, older, resident = self._read_snapshot(filters)
+        extra = [event for event in resident if self._matches(event, filters)]
+        if tail and limit is not None and len(extra) >= limit:
+            return extra[-limit:]
         durable = []
-        if store:
-            durable_filters = dict(filters)
-            if session_id is not None:
-                # The session watermark pins the same durable prefix without
-                # walking a global row OFFSET just to query one session/run.
-                before = durable_filters.get("before_session_seq")
-                durable_filters["before_session_seq"] = min(before, session_boundary) if before is not None else session_boundary
-            else:
-                durable_filters["stop_index"] = count
-            durable = store.read_events(limit=limit, tail=tail, **durable_filters)
+        if older is not None:
+            missing = limit - len(extra) if tail and limit is not None else limit
+            durable = store.read_events(limit=missing, tail=tail, **older)
         matched = durable + extra
         if limit is None:
             return matched
@@ -420,15 +454,10 @@ class EventLog:
                    "after_seq": after_seq, "before_seq": before_seq,
                    "before_session_seq": before_session_seq,
                    "types": frozenset(types) if types is not None else None}
-        with self._lock:
-            store, count = self._store, self._durable_count
-            pending = (
-                iter(list(self._events[max(0, count - self._base_index):]))
-                if store else islice(iter(self._events), self._count)
-            )
-        if store is not None:
-            yield from store.iter_events(stop_index=count, **filters)
-        yield from (event for event in pending if self._matches(event, filters))
+        store, older, resident = self._read_snapshot(filters)
+        if older is not None:
+            yield from store.iter_events(**older)
+        yield from (event for event in resident if self._matches(event, filters))
 
 
 class EventHub:

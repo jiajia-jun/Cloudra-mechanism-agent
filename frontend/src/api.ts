@@ -151,6 +151,8 @@ export const api = {
       { method: 'POST' },
     ),
   listAgents: (projectId: string) => request<Agent[]>(`/api/v2/projects/${projectId}/agents`),
+  projectView: (projectId: string) =>
+    request<{ agents: Agent[]; cursor: number }>(`/api/v2/projects/${projectId}/view`),
   // Read-only ops queries: project compute queue (active states by default)
   // and pending reminders. Rows carry session_id = owning agent.
   listComputeJobs: (projectId: string, activeOnly = true) =>
@@ -529,7 +531,7 @@ const KNOWN_EVENT_TYPES = [
   'approval.requested', 'approval.decided', 'approval.expired',
   'interaction.requested', 'interaction.responded', 'interaction.expired',
   'command.rejected',
-  'agent.state_changed', 'run.started', 'run.retry', 'run.finished',
+  'agent.state_changed', 'agent.task_updated', 'run.started', 'run.retry', 'run.finished',
   'agent.completion_gate',
   'llm.request_started', 'llm.chunk', 'llm.completed', 'llm.failed',
   'agent.thinking',

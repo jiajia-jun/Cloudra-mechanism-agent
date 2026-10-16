@@ -203,6 +203,7 @@ export default function App() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null);
+  const [projectStream, setProjectStream] = useState<{ projectId: string; cursor: number } | null>(null);
   const [events, setEvents] = useState<EventEnvelope[]>([]);
   // One historical page, isolated from the live tail while browsing.
   const [olderEvents, setOlderEvents] = useState<EventEnvelope[]>([]);
@@ -226,6 +227,7 @@ export default function App() {
   }, [sidebarOpen]);
 
   const [pendingMessages, setPendingMessages] = useState<MessageItem[]>([]);
+  const pendingMessageSeqRef = useRef(0);
   const [roles, setRoles] = useState<Array<{ role_id: string; display_name: string }>>([]);
   const [draft, setDraft] = useState('');
   const [slashSelected, setSlashSelected] = useState(0);
@@ -497,6 +499,7 @@ export default function App() {
       const version = ++agentSelectionVersionRef.current;
       activeAgentIdRef.current = agentId;
       setActiveAgentId(agentId);
+      setEvents([]);
       setPendingMessages([]);
       setStreamView({ streamText: '', frozen: [] });
       setOlderEvents([]);
@@ -511,22 +514,24 @@ export default function App() {
         flushRafRef.current = null;
       }
       try {
+        const detailsThrough = maxSeqRef.current;
         const [agent, eventList] = await Promise.all([api.getAgent(agentId), api.events(agentId)]);
         if (version !== agentSelectionVersionRef.current) return;
-        setAgents((prev) =>
-          dedupeAgents(
-            prev.some((a) => a.id === agentId)
-              ? prev.map((a) => (a.id === agentId ? agent : a))
-              : [...prev, agent],
-          ),
-        );
+        const completionCurrent = maxSeqRef.current === detailsThrough;
+        setAgents((prev) => prev.some((current) => current.id === agentId) ? prev.map((current) => current.id === agentId ? {
+          ...agent,
+          state: current.state,
+          current_run: current.current_run,
+          current_task: current.current_task,
+          completion: current.current_run ? null : completionCurrent ? agent.completion : current.completion,
+        } : current) : [...prev, agent]);
         const page = boundEventPage(eventList, EVENTS_WINDOW);
-        setEvents(page);
+        setEvents((prev) => mergeAndTrimLiveEvents(prev, page, EVENTS_WINDOW).live);
         setHasOlder(eventList.length >= EVENTS_WINDOW || page.length < eventList.length);
         // Anchors for future thinking segments must account for the fetched
         // history — otherwise the first chunks land at seq 0.5, above the
         // triggering user message, and no SSE echo ever re-bases them.
-        maxSeqRef.current = eventList.reduce((m, e) => Math.max(m, e.session_seq ?? 0), 0);
+        maxSeqRef.current = eventList.reduce((m, e) => Math.max(m, e.session_seq ?? 0), maxSeqRef.current);
       } catch (e) {
         if (version === agentSelectionVersionRef.current) reportError(e);
       }
@@ -539,6 +544,7 @@ export default function App() {
     ++agentSelectionVersionRef.current;
     ++pendingRevisionRef.current;
     setAgents([]);
+    setProjectStream(null);
     activeAgentIdRef.current = null;
     setActiveAgentId(null);
     setEvents([]);
@@ -554,11 +560,12 @@ export default function App() {
     setSidebarJobs(null);
     if (!activeProjectId) return;
     api
-      .listAgents(activeProjectId)
-      .then((list) => {
+      .projectView(activeProjectId)
+      .then((view) => {
         if (cancelled) return;
-        const agents = dedupeAgents(list);
+        const agents = dedupeAgents(view.agents);
         setAgents(agents);
+        setProjectStream({ projectId: activeProjectId, cursor: view.cursor });
         // A jump from the attention dock / a desktop notification overrides
         // the default "select the first agent".
         const jump = jumpTargetRef.current;
@@ -584,10 +591,11 @@ export default function App() {
   /* ------------------------------------------------------------ SSE stream */
 
   useEffect(() => {
-    if (!activeProjectId) return;
+    if (!activeProjectId || projectStream?.projectId !== activeProjectId) return;
     setConnState('connecting');
-    let cursor = 0;
+    let cursor = projectStream.cursor;
     let replaying = true;
+    let synced = false;
     let source: ReturnType<typeof streamProject> | null = null;
     let closed = false;
     let reconnectTimer: number | null = null;
@@ -624,13 +632,18 @@ export default function App() {
         onEvent: (event) => {
           if (closed) return;
           if (event.type === 'project.synced') {
+            cursor = Math.max(cursor, Number(event.data.replayed_through ?? 0));
             replaying = false;
-            if (activeProjectId) {
-              api
-                .listAgents(activeProjectId)
-                .then((list) => { if (!closed) setAgents(dedupeAgents(list)); })
-                .catch(() => undefined);
+            if (synced) {
+              const agentId = activeAgentIdRef.current;
+              const version = agentSelectionVersionRef.current;
+              if (agentId) void api.events(agentId).then((page) => {
+                if (closed || version !== agentSelectionVersionRef.current) return;
+                setEvents((prev) => mergeAndTrimLiveEvents(prev, page, EVENTS_WINDOW).live);
+                maxSeqRef.current = page.reduce((max, item) => Math.max(max, item.session_seq ?? 0), maxSeqRef.current);
+              }).catch(() => undefined);
             }
+            synced = true;
             return;
           }
           if (event.type === 'project.deleted') {
@@ -648,29 +661,27 @@ export default function App() {
         const sessionId = event.session_id;
         // Agent list / chip state updates, regardless of selection.
         if (event.type === 'agent.spawned' && activeProjectId) {
-          api
-            .listAgents(activeProjectId)
-            .then((list) => { if (!closed) setAgents(dedupeAgents(list)); })
-            .catch(() => undefined);
+          const spawned = { ...event.data, completion: null } as unknown as Agent;
+          setAgents((prev) => prev.some((agent) => agent.id === spawned.id) ? prev : [...prev, spawned]);
           // Surface the new sub-agent: auto-expand its parent's chip.
           const parentId = event.data?.parent_session_id;
           if (typeof parentId === 'string' && parentId) {
             setExpandedAgents((prev) => new Set(prev).add(parentId));
           }
         }
-        if (event.type === 'agent.state_changed' && sessionId && !replaying) {
+        if (event.type === 'agent.state_changed' && sessionId) {
           const to = String(event.data.to ?? '');
           setAgents((prev) =>
             dedupeAgents(prev.map((a) => (a.id === sessionId ? { ...a, state: to } : a))),
           );
         }
-        if (event.type === 'agent.task_updated' && sessionId && !replaying) {
+        if (event.type === 'agent.task_updated' && sessionId) {
           const task = event.data?.current_task != null ? String(event.data.current_task) : null;
           setAgents((prev) =>
             dedupeAgents(prev.map((a) => (a.id === sessionId ? { ...a, current_task: task } : a))),
           );
         }
-        if (event.type === 'run.started' && sessionId && !replaying) {
+        if (event.type === 'run.started' && sessionId) {
           const runId = String(event.data.run_id ?? event.run_id ?? '');
           const protocol = event.data.invocation_protocol;
           setAgents((prev) =>
@@ -679,6 +690,7 @@ export default function App() {
                 a.id === sessionId
                   ? {
                       ...a,
+                      completion: null,
                       current_run: {
                         run_id: runId,
                         started_at: String(event.data.started_at ?? event.created_at ?? ''),
@@ -693,22 +705,21 @@ export default function App() {
             ),
           );
         }
-        if ((event.type === 'run.finished' || event.type === 'agent.cancelled') && sessionId && !replaying) {
+        if ((event.type === 'run.finished' || event.type === 'agent.cancelled') && sessionId) {
           setAgents((prev) =>
             dedupeAgents(prev.map((a) => (a.id === sessionId ? { ...a, current_run: null } : a))),
           );
           // 完成依据（已验证完成 / 部分交付 / 未独立验证）由服务端从收尾事件
           // 投影，本地无从重建：收尾后拉一次当前 agent 把它补齐（只补正在看的
-          // 那个，swarm 里其它 agent 等切换时再取）。
+          // 那个，其他 agent 在切换时补齐；不能覆盖 SSE 已推进的状态）。
           if (sessionId === activeAgentIdRef.current) {
-            void api
-              .getAgent(sessionId)
-              .then((fresh) =>
-                setAgents((prev) =>
-                  dedupeAgents(prev.map((a) => (a.id === sessionId ? { ...a, ...fresh } : a))),
-                ),
-              )
-              .catch(() => undefined);
+            const version = agentSelectionVersionRef.current;
+            const through = event.session_seq ?? maxSeqRef.current;
+            void api.getAgent(sessionId).then((fresh) => {
+              if (closed || version !== agentSelectionVersionRef.current || maxSeqRef.current !== through) return;
+              setAgents((prev) => prev.map((agent) => agent.id === sessionId
+                ? { ...agent, completion: agent.current_run ? null : fresh.completion } : agent));
+            }).catch(() => undefined);
           }
         }
         if (event.type === 'approval.requested' || event.type === 'tool.approval_requested') {
@@ -763,13 +774,6 @@ export default function App() {
             applyStreamEvent(prev, event, maxSeqRef.current), Boolean(prev.omitted),
           ));
           bufferEvent(event);
-          if (event.type === 'agent.message_injected') {
-            const content = String(event.data.content ?? '');
-            setPendingMessages((prev) => {
-              const idx = prev.findIndex((m) => m.content === content);
-              return idx === -1 ? prev : prev.filter((_, i) => i !== idx);
-            });
-          }
           if (event.type === 'llm.failed' && !replaying) {
             pushToast('error', `LLM failed: ${short(event.data.error ?? event.data.message ?? '', 100)}`);
           }
@@ -786,7 +790,7 @@ export default function App() {
     }
     source?.close();
   };
-}, [activeProjectId, pushToast]);
+}, [activeProjectId, projectStream, pushToast]);
 
   /* -------------------------------------------------- approvals polling */
 
@@ -1124,6 +1128,7 @@ export default function App() {
     });
     if (target.kind === 'noop' || !activeProject) return;
     const content = draft.trim();
+    const pendingId = `pending-${++pendingMessageSeqRef.current}`;
     const images = pendingImages.map((p) => p.path);
     const imageArtifactIds = pendingImages.map((p) => p.artifactId);
     setSending(true);
@@ -1241,12 +1246,12 @@ export default function App() {
         }
         await selectAgent(resp.data.id);
       } else {
-        // Optimistic echo; reconciled when the SSE echo arrives.
+        // The command receipt confirms this exact local send; SSE may arrive independently.
         setPendingMessages((prev) => [
           ...prev,
           {
             kind: 'message',
-            id: `pending-${Date.now()}`,
+            id: pendingId,
             seq: Number.MAX_SAFE_INTEGER,
             sender: 'user',
             senderLabel: 'user',
@@ -1257,10 +1262,18 @@ export default function App() {
           },
         ]);
         setDraft('');
-        await api.sendMessage(activeAgent!.id, content, images, imageArtifactIds, lang);
+        const agentId = activeAgent!.id;
+        const version = agentSelectionVersionRef.current;
+        const receipt = await api.sendMessage(agentId, content, images, imageArtifactIds, lang);
+        setPendingMessages((prev) => prev.filter((message) => message.id !== pendingId));
+        void api.eventDetail(agentId, receipt.event_id).then((message) => {
+          if (version !== agentSelectionVersionRef.current) return;
+          setEvents((prev) => mergeAndTrimLiveEvents(prev, [message], EVENTS_WINDOW).live);
+          maxSeqRef.current = Math.max(maxSeqRef.current, message.session_seq ?? 0);
+        }).catch(reportError);
       }
     } catch (e) {
-      setPendingMessages((prev) => prev.filter((m) => m.content !== content));
+      setPendingMessages((prev) => prev.filter((message) => message.id !== pendingId));
       setPendingImages((prev) => (prev.length === 0 ? pendingImages : prev));
       reportError(e);
     } finally {

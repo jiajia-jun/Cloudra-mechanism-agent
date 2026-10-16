@@ -82,6 +82,9 @@ export async function installApiMocks(page: Page, opts: MockOpts = {}) {
       const rows = includeArchived ? projects : projects.filter((p) => !(p as { archived?: boolean }).archived);
       return json(route, rows);
     }
+    if (method === 'GET' && path.endsWith('/view')) {
+      return json(route, { agents, cursor: 0 });
+    }
     if (method === 'GET' && path === '/api/v2/roles') {
       return json(route, [{ role_id: 'coordinator', display_name: 'Coordinator' }]);
     }
@@ -89,7 +92,7 @@ export async function installApiMocks(page: Page, opts: MockOpts = {}) {
       return json(route, agents);
     }
     if (method === 'GET' && path.match(/^\/api\/v2\/agents\/[^/]+$/)) {
-      return json(route, agents[0] ?? AGENT);
+      return json(route, agents.find((agent) => (agent as { id?: string }).id === path.split('/').pop()) ?? AGENT);
     }
     // Must be before the /context catch-all: Inspector calls this on agent select
     // and crashes on undefined tokens if we return a goal-shaped stub.
@@ -142,7 +145,7 @@ export async function installApiMocks(page: Page, opts: MockOpts = {}) {
       return route.fulfill({
         status: 200,
         contentType: 'text/event-stream',
-        body: 'event: project.synced\ndata: {}\n\n',
+        body: 'event: project.synced\ndata: {"type":"project.synced","seq":0,"data":{"replayed_through":0}}\n\n',
       });
     }
     if (method === 'POST' && path === '/api/v2/compute/cancel-all') {

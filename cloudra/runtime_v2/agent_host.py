@@ -26,7 +26,6 @@ the turn pipeline; the state machine itself is handle-agnostic.
 
 from __future__ import annotations
 
-import asyncio
 from typing import TYPE_CHECKING, Any
 
 from cloudra.runtime_v2.apply import apply_event
@@ -407,40 +406,9 @@ class AgentHost:
         落库失败时仍应用本次已持久化的前缀，丢掉未持久化的尾巴。本批全部
         落盘后其他写入失败不影响本批成功；本批不完整则抛出，绝不执行后续效果。
         """
-        from cloudra.runtime_v2.event_writer import EventPersistenceError
-
-        keep = len(self.event_log)
-        envelopes = []
-        for draft in drafts:
-            envelopes.append(
-                self.event_log.append(
-                    draft.type,
-                    stream=draft.stream,
-                    project_id=draft.project_id,
-                    session_id=draft.session_id,
-                    run_id=draft.run_id,
-                    data=draft.data,
-                )
-            )
-        try:
-            await self.core.event_writer.flush()
-        except EventPersistenceError:
-            self.core.event_writer.discard_unpersisted(keep=keep)
-            # Only our durable envelopes can survive the tail discard. Keep
-            # the live projection aligned with that prefix, even when the
-            # failure was inside our batch rather than in a concurrent tail.
-            durable = await asyncio.to_thread(lambda: [
-                envelope for envelope in envelopes
-                if self.event_log.get(envelope.event_id) is not None
-            ])
-            for envelope in durable:
-                apply_event(self.core, envelope)
-            await self.core.event_writer.publish_persisted()
-            if len(durable) != len(envelopes):
-                raise
-            return
-        for envelope in envelopes:
-            apply_event(self.core, envelope)
+        await self.core.event_writer.commit_and_apply(
+            drafts, lambda envelope: apply_event(self.core, envelope),
+        )
 
     async def transition(
         self,

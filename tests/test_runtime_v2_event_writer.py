@@ -410,7 +410,7 @@ class RecordingRunner:
 
 
 @pytest.mark.asyncio
-async def test_wake_applies_and_schedules_committed_batch_when_later_write_fails(tmp_path):
+async def test_wake_applies_and_schedules_committed_batch_when_later_write_fails(tmp_path, monkeypatch):
     """An unrelated failed tail cannot turn a durable wake into a lost effect."""
     from cloudra.runtime_v2.schemas import AgentState
 
@@ -445,18 +445,27 @@ async def test_wake_applies_and_schedules_committed_batch_when_later_write_fails
 
     core.event_hub.subscribe(subscriber)
     before = len(core.event_log)
-    async with core.event_writer._lock:
-        waking = asyncio.create_task(core.agent_host.wake(agent, runner=runner))
-        await asyncio.sleep(0)
-        wake_events = list(core.event_log)[before:]
-        assert [envelope.type for envelope in wake_events] == [
-            "agent.state_changed", "run.started",
-        ]
-        failed_tail = core.record(
-            "agent.warning", stream="project", project_id=project.id, data={"message": "later"}
-        )
+    original_flush = core.event_writer._flush_locked
+    failed_tail = None
+    wake_events = []
 
-    await asyncio.wait_for(waking, timeout=5.0)
+    async def append_later_tail():
+        nonlocal failed_tail, wake_events
+        if failed_tail is None:
+            # The agent batch now appends only after acquiring the writer
+            # lock. Inject a later concurrent tail before persistence captures
+            # the prefix, preserving the original failure being reproduced.
+            wake_events = list(core.event_log)[before:]
+            assert [envelope.type for envelope in wake_events] == [
+                "agent.state_changed", "run.started",
+            ]
+            failed_tail = core.record(
+                "agent.warning", stream="project", project_id=project.id, data={"message": "later"},
+            )
+        return await original_flush()
+
+    monkeypatch.setattr(core.event_writer, "_flush_locked", append_later_tail)
+    await asyncio.wait_for(core.agent_host.wake(agent, runner=runner), timeout=5.0)
 
     assert agent.state is AgentState.RUNNING
     assert agent.current_run is not None

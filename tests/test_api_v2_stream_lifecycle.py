@@ -4,6 +4,7 @@ import asyncio
 import json
 
 import pytest
+from httpx import ASGITransport, AsyncClient
 from starlette.requests import ClientDisconnect, Request
 
 from cloudra.runtime_v2.commands import CommandBus
@@ -11,6 +12,7 @@ from cloudra.runtime_v2.core import RuntimeCore
 from cloudra.runtime_v2.effects import EventDraft
 from cloudra.runtime_v2.persistence import RuntimeStore
 from cloudra.runtime_v2.schemas import Command, EventEnvelope
+from cloudra.services.api_v2 import create_v2_app
 from cloudra.services.api_v2.context import ApiContext
 from cloudra.services.api_v2.routers.events import build_router
 
@@ -181,4 +183,48 @@ async def test_reentrant_publication_keeps_reconnect_cursor_gap_free(tmp_path):
     finally:
         await response.body_iterator.aclose()
         core.event_hub.unsubscribe(handler)
+        await core.aclose()
+
+
+@pytest.mark.asyncio
+async def test_project_stream_requires_explicit_incremental_cursor():
+    core = RuntimeCore()
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=create_v2_app(core)), base_url="http://testserver",
+        ) as client:
+            response = await client.get("/api/v2/projects/missing/stream")
+            assert response.status_code == 422
+            assert response.json()["detail"][0]["loc"] == ["query", "cursor"]
+    finally:
+        await core.aclose()
+
+
+@pytest.mark.asyncio
+async def test_stream_does_not_advance_past_a_pending_event_that_can_be_rolled_back(tmp_path):
+    core = RuntimeCore(strict_events=True)
+    core.store = RuntimeStore(tmp_path / "runtime.db")
+    project = (await CommandBus(core).execute(Command(
+        type="project.create", payload={"name": "pending-tail"},
+    ))).data
+    cursor = core.event_log.high_watermarks[project.id]
+    pending = core.event_log.append(
+        "agent.warning", stream="project", project_id=project.id,
+        data={"content": "not persisted"},
+    )
+    response = await _stream(core, project.id, cursor)
+    try:
+        first = _decode(await anext(response.body_iterator))
+        assert first["type"] == "project.synced"
+        assert first["data"]["replayed_through"] == cursor
+        core.event_writer.discard_unpersisted()
+        actual = await core.event_writer.commit(EventDraft(
+            "agent.warning", stream="project", project_id=project.id,
+            data={"content": "actual durable event"},
+        ))
+        assert actual.seq == pending.seq
+        delivered = _decode(await asyncio.wait_for(anext(response.body_iterator), 1))
+        assert delivered["event_id"] == actual.event_id
+    finally:
+        await response.body_iterator.aclose()
         await core.aclose()

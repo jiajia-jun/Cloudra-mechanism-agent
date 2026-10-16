@@ -1077,9 +1077,12 @@ class CommandBus:
                     data=self._resolve_result(decision.result),
                 )
             raise
+        receipt = envelopes[-1] if envelopes else None
+        if command.type == "agent.message":
+            receipt = next(event for event in envelopes if event.type == "agent.message_injected")
         return CommandResult(
             command_id=command.command_id,
-            event_id=envelopes[-1].event_id if envelopes else "",
+            event_id=receipt.event_id if receipt else "",
             data=self._resolve_result(decision.result),
         )
 

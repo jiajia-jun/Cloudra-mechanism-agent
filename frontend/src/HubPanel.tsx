@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, streamProject } from './api';
+import { planSseReconnect } from './sseReconnect';
 import type { Agent, HubPost, Project } from './types';
 import { useI18n } from './i18n';
 
@@ -157,7 +158,8 @@ export default function HubPanel({
   const [content, setContent] = useState('');
   const [sending, setSending] = useState(false);
   const [pendingPosts, setPendingPosts] = useState(0);
-  const maxSeqRef = useRef(0);
+  const cursorRef = useRef(0);
+  const latestPostSeqRef = useRef(0);
   const loadVersionRef = useRef(0);
 
   // Sync if initialProjectId changes
@@ -172,13 +174,16 @@ export default function HubPanel({
       const version = ++loadVersionRef.current;
       setLoading(true);
       try {
-        const [res, agentRows] = await Promise.all([api.hubPosts(pid), api.listAgents(pid)]);
+        const view = await api.projectView(pid);
+        if (version !== loadVersionRef.current) return;
+        const res = await api.hubPosts(pid);
         if (version !== loadVersionRef.current) return;
         setPosts(res.posts);
         const fetchedThrough = res.posts.reduce((max, post) => Math.max(max, post.seq), 0);
-        setPendingPosts(maxSeqRef.current > fetchedThrough ? 1 : 0);
-        maxSeqRef.current = Math.max(maxSeqRef.current, fetchedThrough);
-        setAgents(agentRows);
+        setPendingPosts(latestPostSeqRef.current > fetchedThrough ? 1 : 0);
+        latestPostSeqRef.current = Math.max(latestPostSeqRef.current, fetchedThrough);
+        cursorRef.current = Math.max(cursorRef.current, view.cursor, fetchedThrough);
+        setAgents(view.agents);
         setLoadedPid(pid);
       } catch (e) {
         onToast('error', e instanceof Error ? e.message : String(e));
@@ -196,7 +201,8 @@ export default function HubPanel({
     setLoadedPid(null);
     setSelectedTopic(null);
     setReplyTo(null);
-    maxSeqRef.current = 0;
+    cursorRef.current = 0;
+    latestPostSeqRef.current = 0;
     setPendingPosts(0);
     if (projectId) void load(projectId);
     return () => { ++loadVersionRef.current; };
@@ -206,15 +212,42 @@ export default function HubPanel({
   // rather than an ever-growing second event history.
   useEffect(() => {
     if (!projectId || loadedPid !== projectId) return;
-    const source = streamProject(projectId, maxSeqRef.current, {
-      onEvent: (e) => {
-        if (e.type !== 'hub.posted') return;
-        if (e.seq <= maxSeqRef.current) return;
-        maxSeqRef.current = e.seq;
-        setPendingPosts((count) => Math.min(count + 1, 10000));
-      },
-    });
-    return () => source.close();
+    let source: ReturnType<typeof streamProject> | null = null;
+    let closed = false;
+    let reconnectTimer: number | null = null;
+    const connect = () => {
+      if (closed) return;
+      source = streamProject(projectId, cursorRef.current, {
+        onEvent: (event) => {
+          if (closed) return;
+          if (event.type === 'project.synced') {
+            cursorRef.current = Math.max(cursorRef.current, Number(event.data.replayed_through ?? 0));
+            return;
+          }
+          if (event.seq <= cursorRef.current) return;
+          cursorRef.current = event.seq;
+          if (event.type !== 'hub.posted' || event.seq <= latestPostSeqRef.current) return;
+          latestPostSeqRef.current = event.seq;
+          setPendingPosts((count) => Math.min(count + 1, 10000));
+        },
+        onError: () => {
+          const plan = planSseReconnect({ cursor: cursorRef.current, stillWanted: !closed });
+          if (plan.action === 'ignore') return;
+          source?.close();
+          source = null;
+          if (reconnectTimer === null) reconnectTimer = window.setTimeout(() => {
+            reconnectTimer = null;
+            connect();
+          }, plan.delayMs);
+        },
+      });
+    };
+    connect();
+    return () => {
+      closed = true;
+      if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
+      source?.close();
+    };
   }, [projectId, loadedPid]);
 
   const topics = useMemo(() => {

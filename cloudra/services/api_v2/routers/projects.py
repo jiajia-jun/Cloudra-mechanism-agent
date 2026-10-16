@@ -16,7 +16,7 @@ from cloudra.services.compute_store import (
 
 from ..context import ApiContext
 from ..models import AgentSpawn, CommandResponse, ProjectCreate, ProjectPatch, _command_payload
-from ..views import agent_dicts
+from ..views import agent_dict, agent_dicts
 
 
 def build_router(ctx: ApiContext) -> APIRouter:
@@ -101,6 +101,33 @@ def build_router(ctx: ApiContext) -> APIRouter:
                 "Content-Disposition": f'attachment; filename="cloudra-transcript-{safe}.md"'
             },
         )
+
+    @router.get("/api/v2/projects/{project_id}/view", dependencies=ctx.protected)
+    async def project_view(project_id: str) -> dict[str, Any]:
+        # Commands and background agent-state writes use these existing locks.
+        # Completion history is read later, off-loop, through the same prefix.
+        async with ctx.core.command_lock, ctx.core.event_writer._lock:
+            agents = [
+                agent.model_copy(deep=True)
+                for agent in ctx.core.list_project_agents(project_id)
+            ]
+            watermarks = (
+                ctx.core.event_writer.persisted_watermarks()
+                if ctx.core.store is not None else ctx.core.event_log.high_watermarks
+            )
+            cursor = watermarks.get(project_id, 0)
+            session_boundaries = ctx.core.event_log.high_session_watermarks
+
+        def serialize_agents():
+            return [
+                agent_dict(
+                    ctx.core, agent,
+                    before_session_seq=session_boundaries.get(agent.id, 0),
+                )
+                for agent in agents
+            ]
+
+        return {"agents": await asyncio.to_thread(serialize_agents), "cursor": cursor}
 
     @router.get("/api/v2/projects/{project_id}/agents", dependencies=ctx.protected)
     async def list_agents(project_id: str) -> list[dict[str, Any]]:
