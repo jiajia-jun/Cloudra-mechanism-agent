@@ -32,7 +32,7 @@ class DagViewInput(input_schema):
     offset: int = Field(
         default=0,
         ge=0,
-        description="For the delivery subgraph: skip this many nodes.",
+        description="Delivery view: skip this many nodes. Compact view: skip this many unassigned evidence summaries.",
     )
     node_ids: list[str] | None = Field(
         default=None,
@@ -158,6 +158,16 @@ class DagView(DagToolBase):
                 ]
             )
 
+            unassigned = await asyncio.to_thread(ctx.store.collect_review_exceptions, [])
+            start = user_input.offset
+            evidence_page = []
+            for item in unassigned[start:start + 20]:
+                summary = {key: item.get(key) for key in
+                           ("category", "target_id", "fact_id", "check", "outcome")}
+                summary["source_refs"] = [{"ref_type": ref.get("ref_type"), "ref_id": ref.get("ref_id")}
+                                          for ref in item.get("source_refs", [])]
+                evidence_page.append(summary)
+
             result: dict[str, Any] = {
                 "species": species_list,
                 "steps": step_list,
@@ -165,7 +175,9 @@ class DagView(DagToolBase):
                 "open_drafts": open_drafts,
                 "pending_reviews": pending_reviews,
                 "queued_requests": queued_requests,
-                "unassigned_evidence": await asyncio.to_thread(ctx.store.collect_review_exceptions, []),
+                "unassigned_evidence": evidence_page,
+                "unassigned_evidence_count": len(unassigned),
+                "unassigned_evidence_next_offset": start + 20 if start + 20 < len(unassigned) else None,
                 "revisions": dict(snapshot.bundle.revisions),
             }
             return DagToolOutput(is_success=True, action="dag_view", result=result)
