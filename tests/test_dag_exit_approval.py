@@ -184,7 +184,7 @@ async def test_user_terminated_requires_real_event(tmp_path):
 async def test_rejected_exit_review_is_reused_as_continue_work(tmp_path):
     c = await _controller(tmp_path, "exit-guided-rejected", "dag_guided")
     first = await c.audit_stop("partial")
-    request = c.store.get_review_request(first.request_id)
+    request = await asyncio.to_thread(c.store.get_review_request, first.request_id)
     decision = ReviewDecision(
         request_id=request.request_id,
         basis_fingerprint=request.basis_fingerprint,
@@ -359,3 +359,110 @@ async def test_complete_final_review_waits_until_background_drains(tmp_path, mon
     assert await asyncio.to_thread(c.store.list_review_requests, None) == []
     pending = False
     assert (await c.audit_stop("complete")).action == "wait_review"
+
+
+@pytest.mark.asyncio
+async def test_partial_exit_forwards_new_diagnostic_material_to_supervisor(tmp_path):
+    c = await _controller(tmp_path, "exit-new-diagnostic", "dag_guided")
+    first = await c.audit_stop("partial", reason="Initial checkpoint", final_answer="Initial findings")
+    request = c.store.get_review_request(first.request_id)
+    assert request.proposal["reason"] == "Initial checkpoint"
+    assert request.proposal["final_answer"] == "Initial findings"
+    decision = ReviewDecision(request_id=request.request_id,
+        basis_fingerprint=request.basis_fingerprint, verdict="needs_evidence",
+        reason="Inspect the second candidate")
+    assert (await asyncio.to_thread(c.store.resolve_review, decision, expected_basis=request.basis_fingerprint))["accepted"]
+    changed = await c.audit_stop("partial", reason="Second candidate failed; see ts_0033/process.json",
+                                final_answer="The bound product representation differs")
+    assert changed.action == "wait_review"
+    assert changed.request_id != first.request_id
+    queued = await asyncio.to_thread(c.store.get_review_request, changed.request_id)
+    assert "ts_0033/process.json" in queued.proposal["reason"]
+    assert queued.proposal["final_answer"] == "The bound product representation differs"
+    assert changed.action != "allow_final"
+
+
+
+@pytest.mark.asyncio
+async def test_approved_partial_confirmation_reuses_saved_material_without_copying_ids(tmp_path):
+    c = await _controller(tmp_path, "exit-confirm-saved-material", "dag_guided")
+    first = await c.audit_stop("partial", reason="Search exhausted within the present scope",
+                               final_answer="Evidence is incomplete; this is a partial result")
+    request = await asyncio.to_thread(c.store.get_review_request, first.request_id)
+    decision = ReviewDecision(request_id=request.request_id,
+        basis_fingerprint=request.basis_fingerprint, verdict="accept", reason="Partial evidence is accurately described")
+    assert (await asyncio.to_thread(c.store.resolve_review, decision, expected_basis=request.basis_fingerprint))["accepted"]
+    confirmation = await c.audit_stop("partial")
+    assert confirmation.action == "allow_final"
+    assert confirmation.final_answer == "Evidence is incomplete; this is a partial result"
+    assert len(await asyncio.to_thread(c.store.list_review_requests, None)) == 1
+
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("verdict", [None, "needs_evidence", "reject"])
+async def test_partial_confirmation_never_recovers_old_approval_after_new_submission(tmp_path, verdict):
+    c = await _controller(tmp_path, "exit-latest-decision", "dag_guided")
+    first = await c.audit_stop("partial", reason="Initial scope", final_answer="Initial candidate")
+    request = await asyncio.to_thread(c.store.get_review_request, first.request_id)
+    approved = ReviewDecision(request_id=request.request_id, basis_fingerprint=request.basis_fingerprint,
+        verdict="accept", reason="Accept initial candidate")
+    assert (await asyncio.to_thread(c.store.resolve_review, approved, expected_basis=request.basis_fingerprint))["accepted"]
+    second = await c.audit_stop("partial", reason="New diagnostics", final_answer="Updated candidate")
+    current = await asyncio.to_thread(c.store.get_review_request, second.request_id)
+    if verdict is not None:
+        rejected = ReviewDecision(request_id=current.request_id, basis_fingerprint=current.basis_fingerprint,
+            verdict=verdict, reason="Updated evidence remains incomplete")
+        assert (await asyncio.to_thread(c.store.resolve_review, rejected, expected_basis=current.basis_fingerprint))["accepted"]
+    confirmation = await c.audit_stop("partial")
+    assert confirmation.action == ("wait_review" if verdict is None else "continue_work")
+    assert confirmation.request_id == second.request_id
+
+
+
+@pytest.mark.asyncio
+async def test_replaced_exit_request_cannot_receive_a_late_approval(tmp_path):
+    c = await _controller(tmp_path, 'exit-late-verdict', 'dag_guided')
+    first = await c.audit_stop('partial', reason='Initial material')
+    old = await asyncio.to_thread(c.store.get_review_request, first.request_id)
+    second = await c.audit_stop('partial', reason='New diagnostic material')
+    late = ReviewDecision(request_id=old.request_id, basis_fingerprint=old.basis_fingerprint,
+        verdict='accept', reason='Late approval of the replaced material')
+
+    result = await asyncio.to_thread(c.store.resolve_review, late, expected_basis=old.basis_fingerprint)
+
+    assert not result['accepted']
+    assert result['rejection_code'] == 'stale_basis'
+    assert (await asyncio.to_thread(c.store.get_review_request, old.request_id)).state == 'superseded'
+    assert (await c.audit_stop('partial')).request_id == second.request_id
+
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("disposition", ["partial", "complete"])
+@pytest.mark.parametrize("verdict", [None, "accept", "reject"])
+@pytest.mark.parametrize("confirmation", [{}, {"reason": "", "final_answer": ""}], ids=["omitted", "empty_strings"])
+async def test_empty_confirmation_keeps_current_review_material(tmp_path, disposition, verdict, confirmation):
+    c = await _controller(tmp_path, "empty-confirmation", "dag_guided")
+    if disposition == "complete":
+        await _seed_complete_delivery(c)
+    first = await c.audit_stop(disposition, reason="Recorded stopping reason", final_answer="Reviewed answer")
+    assert first.action == "wait_review"
+    request = await asyncio.to_thread(c.store.get_review_request, first.request_id)
+    if verdict is not None:
+        decision = ReviewDecision(request_id=request.request_id, basis_fingerprint=request.basis_fingerprint,
+            verdict=verdict, reason="Supervisor decision")
+        assert (await asyncio.to_thread(c.store.resolve_review, decision,
+            expected_basis=request.basis_fingerprint))["accepted"]
+
+    reused = await c.audit_stop(disposition, **confirmation)
+
+    assert reused.request_id == first.request_id
+    assert reused.action == ("wait_review" if verdict is None else "allow_final" if verdict == "accept" else "continue_work")
+    saved = await asyncio.to_thread(c.store.get_review_request, first.request_id)
+    assert saved.proposal["reason"] == "Recorded stopping reason"
+    assert saved.proposal["final_answer"] == "Reviewed answer"
+    assert saved.state == ("queued" if verdict is None else "resolved")
+    assert len(await asyncio.to_thread(c.store.list_review_requests, None)) == 1
+    if verdict == "accept":
+        assert reused.final_answer == "Reviewed answer"

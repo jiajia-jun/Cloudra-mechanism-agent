@@ -582,6 +582,7 @@ class DagStore:
         request_json.pop("updated_at", None)
         def operation() -> tuple[str, bool]:
             with self.db.connect() as con:
+                con.execute('BEGIN IMMEDIATE')
                 # All evidence refs are project-local: they must resolve in this
                 # conversation's evidence store. Cross-project ids are rejected.
                 for ref in [*request.supporting_refs, *request.counterevidence_refs]:
@@ -599,16 +600,29 @@ class DagStore:
                             f"evidence reference {ref.ref_id!r} does not resolve "
                             "in this conversation's evidence store"
                         )
-                row = con.execute(
-                    """
-                    SELECT request_id FROM dag_review_requests
-                    WHERE kind = ? AND target_ids = ? AND basis_fingerprint = ?
-                      AND state != 'superseded' ORDER BY rowid LIMIT 1
-                    """,
-                    (kind, _canonical_json(list(targets)), request.basis_fingerprint),
-                ).fetchone()
-                if row is not None:
-                    return row[0], False
+                if kind == 'exit':
+                    rows = con.execute('''SELECT request_id, basis_fingerprint, state, target_ids, proposal
+                        FROM dag_review_requests WHERE kind='exit' AND requester=? ORDER BY rowid DESC''',
+                        (request.requester,)).fetchall()
+                    previous = [row for row in rows if tuple(sorted(json.loads(row[3]))) == targets
+                        and json.loads(row[4]).get('disposition') == request.proposal.get('disposition')]
+                    if previous and previous[0][2] != 'superseded' and previous[0][1] == request.basis_fingerprint:
+                        return previous[0][0], False
+                    # New exit material replaces earlier submissions. Keep their
+                    # verdicts for audit, but never revive a superseded approval.
+                    con.executemany("UPDATE dag_review_requests SET state='superseded', updated_at=datetime('now') WHERE request_id=?",
+                        [(row[0],) for row in previous if row[2] != 'superseded'])
+                else:
+                    row = con.execute(
+                        """
+                        SELECT request_id FROM dag_review_requests
+                        WHERE kind = ? AND target_ids = ? AND basis_fingerprint = ?
+                          AND state != 'superseded' ORDER BY rowid LIMIT 1
+                        """,
+                        (kind, _canonical_json(list(targets)), request.basis_fingerprint),
+                    ).fetchone()
+                    if row is not None:
+                        return row[0], False
                 con.execute(
                     """
                     INSERT INTO dag_review_requests(

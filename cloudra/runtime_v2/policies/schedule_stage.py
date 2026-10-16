@@ -129,6 +129,7 @@ class ScheduleStage:
         *,
         explicit_stop: bool,
         stop_arguments: dict[str, Any] | None = None,
+        candidate_answer: str = "",
     ):
         """统一结束门禁的 schedule 判定（runner 收尾前；纯文本最终回复与显式
         stop 同边界，计划 §6）。

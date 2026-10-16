@@ -90,6 +90,7 @@ class DagPolicyStage:
         *,
         explicit_stop: bool,
         stop_arguments: dict[str, Any] | None = None,
+        candidate_answer: str = "",
     ):
         """统一结束门禁的 DAG 判定（runner 收尾前调用一次）。
 
@@ -114,13 +115,25 @@ class DagPolicyStage:
             # 原始调用参数，pydantic 默认值不会生效，缺省必须在这里补齐——
             # 缺省即声明 complete 并进入完成审计；要 partial 必须显式声明。
             disposition = str(args.get("delivery_disposition") or "complete")
+            user_stop_event_id = None
+            if disposition == "user_terminated" and self._core is not None and ctx.agent.current_run is not None:
+                events = await asyncio.to_thread(self._core.event_log.query_session, ctx.agent.id,
+                    types={"agent.cancel_requested"})
+                event = next((item for item in reversed(events)
+                    if item.data.get("actor") == "user" and item.project_id == ctx.agent.project_id
+                    and item.run_id in {None, ctx.agent.current_run.run_id}
+                    and item.created_at >= ctx.agent.current_run.started_at), None)
+                user_stop_event_id = event.event_id if event is not None else None
             return await controller.audit_stop(
                 disposition,
-                user_stop_event_id=args.get("user_stop_event_id"),
+                user_stop_event_id=user_stop_event_id,
+                reason=args.get("reason"),
+                final_answer=args.get("final_answer"),
+                candidate_answer=candidate_answer,
             )
         report = await asyncio.to_thread(controller.delivery_report)
         disposition = "complete" if report.complete else "partial"
-        return await controller.audit_stop(disposition)
+        return await controller.audit_stop(disposition, candidate_answer=candidate_answer)
 
     async def on_run_end(self, agent, *, explicit_stop: bool) -> None:
         controller = self._controllers.get(agent.id)

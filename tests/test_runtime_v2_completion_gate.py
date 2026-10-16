@@ -959,3 +959,47 @@ async def test_cancel_during_gate_evaluation_wins_and_late_approval_does_not_rev
     finally:
         release.set()
         await _teardown(core)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("source,candidate", [
+    ("plain_text", "initial-reviewed-candidate-marker"),
+    ("stop_omitted", "initial-reviewed-candidate-marker"),
+    ("stop_empty", "initial-reviewed-candidate-marker"),
+    ("stop_empty", ""),
+])
+async def test_review_binds_actual_candidate_when_stop_final_answer_is_omitted(tmp_path, source, candidate):
+    arguments = {"delivery_disposition": "partial", "reason": "Scope exhausted"}
+    if source == "stop_empty":
+        arguments["final_answer"] = ""
+    request = LLMResponse(content=candidate, tool_calls=[ToolCall(
+        id="first-stop", name="stop", arguments=arguments
+    )] if source != "plain_text" else [])
+    llm = _RoutingLLM([request])
+    core, bus, project = await _new_core(llm, workspace_dir=tmp_path)
+    coordinator = await _spawn_coordinator(bus, project, mode="dag_guided")
+    try:
+        await _wait_parked(coordinator, llm)
+        requests = await _review_requests(project.id)
+        assert len(requests) == 1
+        assert requests[0].proposal["final_answer"] == candidate
+        assert not any(event.type == "agent.message_emitted" and event.data.get("content") == candidate
+            for event in core.event_log.query_session(coordinator.id))
+        confirmation = LLMResponse(content="unreviewed-confirmation-marker", tool_calls=[ToolCall(
+            id="confirm-stop", name="stop", arguments={"delivery_disposition": "partial", "reason": "", "final_answer": ""}
+        )])
+        llm._script = [confirmation]
+        llm._fallback = confirmation
+        await _resolve_exit_request(project.id, requests[0].request_id,
+            verdict="accept", reason="Approved the stored candidate")
+        await flush_review_notifications(core, project.id)
+        await _wait_state(coordinator, "succeeded")
+        emitted = [event.data.get("content") for event in core.event_log.query_session(coordinator.id)
+            if event.type == "agent.message_emitted"]
+        if candidate:
+            assert candidate in emitted
+        assert "unreviewed-confirmation-marker" not in emitted
+        saved = await asyncio.to_thread(lambda: DagStore(ConversationDB(project.id)).list_review_requests(None))
+        assert [item.request_id for item in saved] == [requests[0].request_id]
+    finally:
+        await _teardown(core)

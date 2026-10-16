@@ -75,6 +75,30 @@ async def test_editing_final_file_invalidates_its_exit_approval(tmp_path, dispos
 
 
 @pytest.mark.asyncio
+async def test_restoring_old_artifact_state_cannot_recover_superseded_approval(tmp_path):
+    db = await asyncio.to_thread(lambda: ConversationDB('restore-artifact', data_dir=tmp_path / 'runtime').init())
+    c = DagController(db, 's1', 'dag_guided', working_directory=tmp_path)
+    await c.initialize()
+    first = await c.audit_stop('partial')
+    await approve(c, first.request_id)
+    path = tmp_path / 'mechanism_graph.json'
+    await asyncio.to_thread(path.write_text, json.dumps({'nodes': [], 'edges': []}))
+    second = await c.audit_stop('partial')
+    current = await asyncio.to_thread(c.store.get_review_request, second.request_id)
+    rejected = ReviewDecision(request_id=current.request_id, basis_fingerprint=current.basis_fingerprint,
+        verdict='needs_evidence', reason='The current file still lacks scientific evidence')
+    assert (await asyncio.to_thread(c.store.resolve_review, rejected, expected_basis=current.basis_fingerprint))['accepted']
+    await asyncio.to_thread(path.unlink)
+
+    restored = await c.audit_stop('partial')
+
+    assert restored.action == 'wait_review'
+    assert restored.request_id not in {first.request_id, second.request_id}
+    assert (await asyncio.to_thread(c.store.get_review_request, first.request_id)).state == 'superseded'
+    assert await asyncio.to_thread(c.store.get_review_decision_for_request, first.request_id) is not None
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('fault', ['wrong_species', 'foreign_edge', 'unsupported_barrier', 'unsupported_ts_log'])
 async def test_invalid_file_claims_cannot_be_approved_as_partial(tmp_path, fault):
     c = await controller(tmp_path)
