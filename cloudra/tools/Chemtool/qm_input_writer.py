@@ -24,7 +24,7 @@ from cloudra.tools.core.calculation_intent import (
 )
 from cloudra.tools.core.molecule import read_molecule, to_xyz, total_charge
 from cloudra.tools.core.qm_calculation import QmCalculation
-from cloudra.tools.core.qm_keywords import orca_basis_keyword
+from cloudra.tools.core.qm_keywords import gaussian_basis_keyword, orca_basis_keyword
 from cloudra.tools.core.structure_builder import (
     BuildStrategy,
     PreparationRequest,
@@ -60,7 +60,8 @@ class QmInputWriter_input_schema(QmCalculation, input_schema):
     engine: Literal["gaussian", "orca"] = Field(
         description="Target QM program. 'gaussian': write a .gjf (submit with job_type='gaussian'); "
                     "'orca': write a .inp (submit with job_type='orca'). "
-                    "method/basis/task_type map onto each program's input syntax automatically.",
+                    "task_type and known basis aliases map onto each program's input syntax; "
+                    "method and additional keywords must use that program's native spelling.",
     )
     source_type: Literal["smiles", "xyz_file", "mol_file"] = Field(
         description="Molecular-structure source type. "
@@ -428,7 +429,7 @@ class QmInputWriter(Tool):
             # Gaussian 外部 MLIP 路由：external="engine"，无 method/basis
             keywords.append(f'external="{user_input.external_program}"')
         elif user_input.basis_set:
-            keywords.append(f"{user_input.method}/{user_input.basis_set}")
+            keywords.append(f"{user_input.method}/{gaussian_basis_keyword(user_input.basis_set)}")
         else:
             # 半经验方法（pm6/am1/pm7 等）无基组：空 basis 不能再拼出 "pm6/" 尾斜杠。
             keywords.append(user_input.method)

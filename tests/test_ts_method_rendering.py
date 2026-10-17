@@ -10,6 +10,75 @@ pytestmark = pytest.mark.usefixtures("ts_producer_authority")
 
 
 @pytest.mark.parametrize('basis, expected', [
+    ('def2-SVP', 'def2SVP'), ('DEF2-svp', 'def2SVP'),
+    ('def2-TZVP', 'def2TZVP'), ('def2-TZVPP', 'def2TZVPP'),
+    ('def2-QZVP', 'def2QZVP'), ('def2-QZVPP', 'def2QZVPP'),
+    (' def2-SVP ', 'def2SVP'), ('def2SVP', 'def2SVP'),
+    ('6-31+G(d,p)', '6-31+G(d,p)'), ('aug-cc-pVDZ', 'aug-cc-pVDZ'),
+    ('GenECP', 'GenECP'), ('def2-TZVPD', 'def2-TZVPD'),
+    ('ma-def2-SVP', 'ma-def2-SVP'), ('', ''),
+])
+def test_gaussian_writer_renders_known_basis_aliases_only(basis, expected):
+    request = QmInputWriter_input_schema(
+        engine='gaussian', source_type='xyz_file', source_value='unused.xyz',
+        output_path='unused.gjf', method='B3LYP', basis_set=basis,
+        task_type=[{'opt': None}, {'freq': None}],
+        keywords='EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight',
+    )
+    method = 'B3LYP' + (f'/{expected}' if expected else '')
+    assert QmInputWriter._build_route(request) == (
+        f'#p opt freq {method} EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight'
+    )
+    assert request.basis_set == basis.strip()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures('rdkit_chemistry')
+async def test_gaussian_writer_saves_native_basis_without_changing_declaration(tmp_path):
+    from cloudra.tools.core.calculation_intent import compare_calculation_input
+
+    source = tmp_path / 'water.xyz'
+    source.write_text('3\nwater\nO 0 0 0\nH 1 0 0\nH 0 1 0\n')
+    target = tmp_path / 'optfreq.gjf'
+    request = QmInputWriter_input_schema(
+        engine='gaussian', source_type='xyz_file', source_value=str(source),
+        output_path=str(target), method='B3LYP', basis_set='def2-SVP',
+        task_type=[{'opt': None}, {'freq': None}], mem='10GB', nproc=8,
+        keywords='EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight',
+    )
+    result = await QmInputWriter().tool_call(request, None)
+    assert result.is_success, result.message
+    content = target.read_text()
+    assert '#p opt freq B3LYP/def2SVP EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight\n' in content
+    assert '%mem=10GB\n' in content and '%nproc=8\n' in content
+    assert result.calculation.basis_set == 'def2-SVP'
+    assert result.calculation.method == 'B3LYP'
+    assert result.calculation.keywords == request.keywords
+    assert compare_calculation_input(content, result.calculation.model_dump(), charge=0, multiplicity=1) == []
+
+
+@pytest.mark.usefixtures('rdkit_chemistry')
+def test_gaussian_scan_renders_native_basis_and_preserves_keywords(tmp_path):
+    from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_input_schema
+
+    target = tmp_path / 'scan.gjf'
+    request = TsGuess_input_schema(
+        mode='scan_prepare', engine='gaussian',
+        input_text='3\nwater\nO 0 0 0\nH 1 0 0\nH 0 1 0\n',
+        output_path=str(target), method='B3LYP', basis_set='def2-SVP',
+        keywords='EmpiricalDispersion=GD3BJ SCF=Tight SCRF=(CPCM,Solvent=Water)',
+        scans=[{'atoms': [1, 2], 'scan_end': 2, 'scan_steps': 4}],
+    )
+    result = TsGuess()._scan_prepare(request)
+    assert result.is_success, result.message
+    content = target.read_text()
+    assert ('# opt=(modredundant,maxstep=10) B3LYP/def2SVP '
+            'EmpiricalDispersion=GD3BJ SCF=Tight SCRF=(CPCM,Solvent=Water)\n') in content
+    assert 'B 1 2 S 4 0.250000\n' in content
+    assert request.basis_set == 'def2-SVP'
+
+
+@pytest.mark.parametrize('basis, expected', [
     ('def2svp', 'def2-SVP'), ('DEF2TZVPP', 'def2-TZVPP'),
     (' def2svp ', 'def2-SVP'), ('\tDEF2TZVPP\n', 'def2-TZVPP'),
     ('def2-SVP', 'def2-SVP'), ('cc-pVDZ', 'cc-pVDZ'), ('', ''),
