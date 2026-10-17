@@ -1,4 +1,5 @@
-N_FORMAMIDE · 普通档多步 · 拟替NR1
+NR1 · 普通档多步 · 已替换正式任务
+正式题面：ideapool/tasks/normal/NR1.json；本文件补充题源与计算注意。
 
 请计算孤立甲酰胺的闭壳层气相脱水路线：NH2CHO → HCN + H2O。
 起点连接式NC=O；净电荷0、重数1，6原子。沿用B3LYP-D3(BJ)/def2-SVP，ORCA或Gaussian；无需额外水、酸或催化剂。
@@ -10,7 +11,7 @@ Formamide → INT-1a → INT-1b → INT-1c → HCN+H2O。
 
 分别取得起点、中间体与产物的结构/频率、相关TS和方向证据，逐步报告相对自身起点的纯电子能垒。构象边可有空bond_changes，不能捏造成断键。报告高垒与路径身份，不拿“能垒高”代替“不可计算”。
 只研究本候选的闭壳层脱水，不用含卡宾的脱CO路线顶替。若本级别没有复现文献中间体，保留输入/日志，说明真实缺口，不硬拼四步。
-维护mechanism_graph.json并保留逐点原始证据；科学结果写入results/N_FORMAMIDE/REPORT.txt。
+维护mechanism_graph.json并保留逐点原始证据；科学结果写入results/NR1/REPORT.txt。
 
 原论文：https://doi.org/10.1021/jp109143j
 资料：https://acs.figshare.com/collections/Theoretical_Study_of_Formamide_Decomposition_Pathways/2593732

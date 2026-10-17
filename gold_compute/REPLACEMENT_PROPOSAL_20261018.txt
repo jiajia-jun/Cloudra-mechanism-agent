@@ -1,13 +1,14 @@
-四道替换题计算交接（已授权交远端试算，尚未入正式题库）
+四道替换题计算交接（正式题面已替换，新 Gold 待计算）
 日期：2026-10-18
 
 用户已确认：普通档保留多步机理，困难档保留立体化学。替换对象为 NR1、NY3、HI1、HL1。
 NI5 保留，新增 E1=0.93 已同步题源、生成题面与回归断言；元素/规模限制未丢失。
 
-用户已要求推送给远端计算；可执行研究任务见 gold_compute/queue_20261018/README.txt 和四份独立任务书。四题都还没有本项目统一方法下的新 Gold，不能称为已经替换完成。正式入库要由同批原生日志证明其可算性与机理；旧题和失败证据保留归档。
+正式入口 ideapool/tasks/normal/NR1.json、NY3.json 和 ideapool/tasks/hard/HI1.json、HL1.json 已换成下述四个反应，题号保持不变。题源与登记表同步，重新生成不会恢复旧题。完整远端入口见 gold_compute/queue_20261018/README.txt。
+四题新 Gold 仍待统一方法原生日志构建；当前没有参考步骤、参考能垒或优势通道，不能把现有分数视为科学验收。旧题定义可从 Git 历史追回，旧证据继续保留。
 本次不继续实施 HI1 五步改图，也不将 NR1/HL1 的无垒约定写入题库。
 
-候选一：甲酰胺气相热脱水（拟替 NR1，普通档）
+候选一：甲酰胺气相热脱水（已替换 NR1，普通档）
 
 总反应：NH2CHO → HCN + H2O。
 试算模型：孤立中性分子，q=0，multiplicity=1，共6原子、3重原子，气相。
@@ -24,7 +25,7 @@ https://doi.org/10.1021/jp109143j
 https://acs.figshare.com/collections/Theoretical_Study_of_Formamide_Decomposition_Pathways/2593732
 https://pstorage-acs-6854636.s3.amazonaws.com/4368619/jp109143j_si_001.pdf
 
-候选二：异氰酸单水中性水解（拟替 NY3，普通档）
+候选二：异氰酸单水中性水解（已替换 NY3，普通档）
 
 总反应：HNCO + H2O → NH3 + CO2。
 拟试算路线：HNCO·H2O → NH2COOH（氨基甲酸）→ NH3·CO2。
@@ -39,7 +40,7 @@ https://doi.org/10.1021/jp809290j
 另有RSC公开SI Fig.S1（PDF第2页）给出HNCO和单水的气相反应图，本次未完成该图的全部驻点核对：
 https://www.rsc.org/suppdata/ob/c1/c1ob06352a/c1ob06352a.pdf
 
-候选三：threo/erythro 胺氧化物的 Cope 消除（拟替 HI1，困难档）
+候选三：threo/erythro 胺氧化物的 Cope 消除（已替换 HI1，困难档）
 
 底物：threo/erythro-N,N-dimethyl-3-phenyl-2-butylamine oxide。
 目标通道：生成2-苯基-2-丁烯与二甲基羟胺。
@@ -52,7 +53,7 @@ https://doi.org/10.1021/ja057523x
 近年同类机制研究（不是同一底物的现成坐标，不混用）：
 https://doi.org/10.1021/acs.joc.4c02197
 
-候选四：HCNO 与降冰片烯两面[3+2]环加成（拟替 HL1，困难档）
+候选四：HCNO 与降冰片烯两面[3+2]环加成（已替换 HL1，困难档）
 
 反应物：formonitrile oxide（HCNO）与norbornene（降冰片烯）。
 连接式：C#[N+][O-].C1=CC2CCC1C2。

@@ -239,13 +239,14 @@ def _validate_task(pid: str, entry: dict, pool_reactants: list[str], pool_produc
             if not float(weight) > 0:
                 errors.append(f"第 {k} 步 weight 必须为正: {weight}")
             prev = out
-        mapped_p = sorted(_unmap_canonical(steps[-1]["out"]))
-        products_match = Counter(pool_p) <= Counter(mapped_p) if schematic else mapped_p == pool_p
-        if not products_match:
-            errors.append(
-                f"末步产物去映射后与池内产物不一致: "
-                f"{mapped_p} != {pool_p}"
-            )
+        if steps:
+            mapped_p = sorted(_unmap_canonical(steps[-1]["out"]))
+            products_match = Counter(pool_p) <= Counter(mapped_p) if schematic else mapped_p == pool_p
+            if not products_match:
+                errors.append(
+                    f"末步产物去映射后与池内产物不一致: "
+                    f"{mapped_p} != {pool_p}"
+                )
     except ValueError as e:
         errors.append(str(e))
     return errors

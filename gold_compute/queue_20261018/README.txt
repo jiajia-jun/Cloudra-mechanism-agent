@@ -1,15 +1,20 @@
 远端 Gold 计算交接 · 2026-10-18
 
 用户指令：把题库推到远端，由远端计算；impossible 也需要实际计算。
-范围：四道替换候选 + 十二道现行 impossible。完整索引见 QUEUE.csv，先读本文件。
-本地只准备任务和核对题源，没有启动计算，也没有替远端选择计算节点。
+范围：四道已替换的正式任务 + 十二道现行 impossible。完整索引见 QUEUE.csv。
+实际读题入口是 ideapool/tasks/<tier>/<ID>.json；题号保持不变，反应内容已替换：
+NR1  甲酰胺气相脱水，ideapool/tasks/normal/NR1.json，补充任务书 N_FORMAMIDE.txt。
+NY3  异氰酸单水中性水解，ideapool/tasks/normal/NY3.json，补充任务书 N_HNCO_HYDROLYSIS.txt。
+HI1  胺氧化物 Cope 消除立体映射，ideapool/tasks/hard/HI1.json，补充任务书 H_COPE_ELIMINATION.txt。
+HL1  HCNO + 降冰片烯两面环加成，ideapool/tasks/hard/HL1.json，补充任务书 H_HCNO_NORBORNENE.txt。
+四题的旧反应已退出当前题库；旧定义与计算证据可从替换前 Git 历史/既有报告追回，不再作为当前任务。
+四题新 Gold 尚待远端构建：当前只登记反应物，机理参考边为空，不继承旧能垒或优势通道。
+当前 TaskSpec 可用于读取题面和开展计算，Gold 补齐前所得综合分数不能用作科学验收。
 
-四道候选的任务书就在本目录：
-N_FORMAMIDE.txt          普通档多步，拟替 NR1。
-N_HNCO_HYDROLYSIS.txt    普通档多步，拟替 NY3。
-H_COPE_ELIMINATION.txt   困难档立体化学，拟替 HI1。
-H_HCNO_NORBORNENE.txt    困难档立体化学，拟替 HL1。
-这些是远端研究任务，尚不是经过验收的 TaskSpec/Gold。不要直接用正式 Benchmark 评分器把空标答算成通过。现行52题仍留作历史基线；新题有证据后再更新题源、生成正式题面和归档对应旧题。
+远端拉取本次 master 后，先查看上述四个 JSON 的 name/system，再创建新计算任务。
+已经创建或恢复中的旧任务保留当时题面，不会随文件更新自动换题；不要复用旧任务的提示词或结果目录。
+本地未启动计算；运行中的计算如何处理由远端操作者决定，不因换题擅自杀作业。
+
 NI5_E1=0.93 已同步当前题库，C/H/N/O 和4重原子限制保留；其余两步沿用既有值，不声称本轮重验。
 
 impossible 的实际研究问题以 ideapool/tasks/impossible/<ID>.json 中 prompt/system 为准，逐题补算说明见 IMPOSSIBLE.txt。
@@ -18,7 +23,7 @@ impossible 的实际研究问题以 ideapool/tasks/impossible/<ID>.json 中 prom
 
 方法和记录
 
-沿用当前 B3LYP-D3(BJ)/def2-SVP，ORCA/Gaussian 原生计算；xTB/PM7只作准备或辅助。四道新候选先固定气相、净电荷0、单重态模型；具体底物与水数见各任务书。
+沿用当前 B3LYP-D3(BJ)/def2-SVP，ORCA/Gaussian 原生计算；xTB/PM7只作准备或辅助。四道新题固定气相、净电荷0、单重态模型；具体底物与水数见各任务书。
 impossible 不能把一个全局multiplicity套在所有端点：原子碎片和不同自旋态分别准备输入。保留每个输入的电荷、重数、受限/非受限形式、轨道/自旋信息及计算程序版本。
 现有白名单不包含多参考方法。若要取得可信多参考定量Gold，需要另行给出方法/活动空间等科学方案供用户决定；先完成允许方法下的实际计算和适用性诊断，不暗改白名单，也不假装该层结果已是可信参考答案。
 没有运行耦合簇计算就不能填写T1/D1。波函数稳定性、<S^2>、自旋密度等应来自真实日志，不从文献诊断数值搬来冒充自算。
@@ -32,6 +37,6 @@ impossible 不能把一个全局multiplicity套在所有端点：原子碎片和
 历史依据
 
 gold_compute/PR199_ASSESSMENT_20261018.txt：上一轮五题的实际证据与版本差异。
-gold_compute/REPLACEMENT_PROPOSAL_20261018.txt：四道新候选的来源与风险。
+gold_compute/REPLACEMENT_PROPOSAL_20261018.txt：四道替换题的来源与风险。
 原始 gold-finish 日志归档在 PR #199 / 分支 gold-finish-artifacts，提交04216db74149691ea79d831377812b3fcf19338c；本次不把约383MB归档重复复制进来。
 若当前checkout没有 gold_finish_20261015/ 与 ts/，先从该PR的独立副本取对应证据，不据缺目录推断计算从未发生。
