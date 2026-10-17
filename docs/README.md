@@ -36,6 +36,12 @@
 - `ideapool/archive/`：GraphRAG 指南、benchmark 文献遴选、novelty 计划旧版
   （v0.7，由 `docs/novelty.md` 取代）。
 
+### 本轮根目录归档（2026-10-16）
+
+- [化学工具接口进度记录](archive/chem-interface-2026-09-27-progress.md)：原 `.superpowers/chem-interface/progress.md`，保留原文，仅作历史记录。
+- [NA1 空环境说明](archive/NA1_clean_env/README.md)：原 `archive/NA1_clean_env/README.md`，保留旧工作区布局说明；此处是文档档案，不是新的运行工作区。
+- [F1 旧机理图来源说明](../gold_compute/archive/F1_root_snapshot/README.md)：原根目录 `mechanism_graph.json`；原图保留，不作为当前金标准或完整验收证据。
+
 ## 写作区（非本中心管辖）
 
 - `paper/`：论文正文（`draft.md`、`main.tex`、`sections/`、

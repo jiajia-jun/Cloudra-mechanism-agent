@@ -12,6 +12,7 @@ Saved sources previously scattered across the repository root. This directory is
 | [benchchem_stereo.pdf](benchchem_stereo.pdf) | `benchchem_stereo.pdf` | PDF |
 | [khaledy2003.pdf](khaledy2003.pdf) | `khaledy2003.pdf` | PDF |
 | [snyder_claisen.pdf](snyder_claisen.pdf) | `snyder_claisen.pdf` | PDF |
+| [komjati2018_ketene_imine_cycloadditions.pdf](komjati2018_ketene_imine_cycloadditions.pdf) | `tmp_ppch.pdf` | PDF; Komjáti et al. (2018), *DFT Study of Stereoselective Ketene-imine Cycloadditions, Evaluation of Possible Solvent Effects with IEF-PCM*, DOI: [10.3311/PPch.12527](https://doi.org/10.3311/PPch.12527) |
 | [jpca2023.xml](jpca2023.xml) | `.lit_jpca2023.xml` | XML |
 
 ## Download artifacts

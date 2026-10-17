@@ -255,7 +255,6 @@ ideapool/                        Versioned task sources, generated tasks and his
 gold_compute/                    Gold methodology, scientific records and archived handoffs
 kg_data/, vector_store/          Knowledge graph inputs and vector metadata
 知识卡片/                       Knowledge-card source archive
-archive/                         Local experiment remnants (ignored; tracked README exception)
 ```
 
 See the [documentation hub](docs/README.md), [script index](scripts/README.md) and [literature index](paper/literature/README.md) for details. Root configuration, license/citation files, `install.sh` and `web.sh` remain in place; temporary runtime and build outputs are ignored. Application deliverables and presentation workspaces are no longer tracked; earlier copies remain in Git history.

@@ -244,7 +244,6 @@ ideapool/                        版本化题源、生成题集与历史调研
 gold_compute/                    gold 方法口径、科学记录与交接归档
 kg_data/, vector_store/          知识图谱输入与向量元数据
 知识卡片/                       知识卡片源档案
-archive/                         本地实验残留（默认忽略，已跟踪 README 除外）
 ```
 
 详细入口见[文档中心](docs/README.md)、[脚本索引](scripts/README.md)和[文献索引](paper/literature/README.md)。根目录保留配置、许可证/引用文件与 `install.sh`、`web.sh`；临时运行目录和构建产物不入库。申报交付物、答辩 PPT 和制作工作区已移出当前版本，旧材料可从 Git 历史恢复。

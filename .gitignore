@@ -168,3 +168,11 @@ vector_store/vectors.f16.npy
 /output/Cloudra_十分钟答辩*.pptx
 /output/Cloudra_省自科*.pptx
 /output/Cloudra_研发新范式版*.pptx
+
+# 已确认的根目录失败下载残留；不忽略真实文献 PDF。
+/ojs.bin
+/prox.bin
+/tmp_ark2002.pdf
+/tmp_c5ra03438h.pdf
+/tmp_chemcat.pdf
+/tmp_review2024.pdf
