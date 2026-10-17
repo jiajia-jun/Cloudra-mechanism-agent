@@ -484,7 +484,7 @@ async def test_ts_stop_prevents_automatic_progression(tmp_path, monkeypatch, job
     """The Agent stops a durable TS chain; later job events cannot submit its next stage."""
     from cloudra.persistence.database import ComputeDB
     from cloudra.services.ts_pipeline_store import get_process
-    from cloudra.tools.core.ts_pipeline_driver import handle_process_job_terminal, reconcile_processes
+    from cloudra.tools.core.ts_pipeline_driver import advance_process, handle_process_job_terminal
     from cloudra.tools.core.ts_process import load_record
 
     assert 'ts_stop_prevents_automatic_progression' in TS_SCENARIOS
@@ -541,7 +541,7 @@ async def test_ts_stop_prevents_automatic_progression(tmp_path, monkeypatch, job
                     con.execute("UPDATE compute_jobs SET state='cancelled' WHERE id=?", (job['id'],))
             for _ in range(2):
                 handle_process_job_terminal(db, job['id'])
-                reconcile_processes(db, harness.project.id)
+                advance_process(db, stopped.pipeline_id)
             current = get_process(db, stopped.pipeline_id)
             assert current['status'] == 'stopped'
             assert current['record']['stop_reason'] == reason

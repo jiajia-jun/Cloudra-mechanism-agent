@@ -1,12 +1,17 @@
 """System-owned TS progression; no LLM calls and no second computation queue."""
 from __future__ import annotations
 
+import json
+import logging
 import os
+from pathlib import Path
 
 from cloudra.infra.flocks import locked
 from cloudra.persistence.database import ComputeDB
 from cloudra.services.ts_pipeline_context import use_pipeline_database
-from cloudra.services.ts_pipeline_store import get_process, list_unfinished_processes, process_for_job
+from cloudra.services.ts_pipeline_store import get_process, process_for_job
+
+logger = logging.getLogger(__name__)
 
 
 def advance_process(db: ComputeDB, process_id: str) -> dict:
@@ -92,6 +97,33 @@ def handle_process_job_terminal(db: ComputeDB, job_id: int) -> dict | None:
     return advance_process(db, process) if process else None
 
 
-def reconcile_processes(db: ComputeDB, project_id: str) -> list[dict]:
-    return [advance_process(db, pid) for pid in list_unfinished_processes(db, project_id)
-            if get_process(db,pid)['record'] is not None]
+def recover_project_jobs(db: ComputeDB, project_id: str, workspace_dir: str) -> None:
+    """Recover file references once on project load; never enumerate pipeline rows."""
+    from cloudra.tools.core.ts_process import PROCESS_JSON_NAME, TS_ROOT_NAME
+
+    for path in (Path(workspace_dir) / TS_ROOT_NAME).glob(f'*/{PROCESS_JSON_NAME}'):
+        try:
+            reference = json.loads(path.read_text(encoding='utf-8'))
+            if not isinstance(reference, dict):
+                raise ValueError('TS recovery reference must be a JSON object')
+            process_id = reference.get('pipeline_id')
+        except (OSError, ValueError):
+            logger.warning('Could not read TS recovery reference %s', path, exc_info=True)
+            continue
+        if not isinstance(process_id, str) or not process_id:
+            continue
+        # 导出文件只提供稳定编号；当前进度和等待对象始终按主键读权威账本。
+        state = get_process(db, process_id)
+        if state is None or state['payload']['project_id'] != project_id:
+            continue
+        record = state['record'] or {}
+        if record.get('format_version') != 7 or record.get('terminal') or record.get('blocked'):
+            continue
+        token = record.get('waiting_for', '').partition(':')
+        if token[0] != 'job' or not token[2].isdigit():
+            continue
+        with db.connect() as con:
+            # 定点重挂既有通知队列；推进或通知失败、乃至重启，都沿原有机制重试。
+            con.execute("UPDATE compute_jobs SET notified_at=NULL WHERE id=? AND conversation_id=? "
+                        "AND state IN ('done','failed','cancelled') AND notified_at IS NOT NULL",
+                        (int(token[2]), project_id))

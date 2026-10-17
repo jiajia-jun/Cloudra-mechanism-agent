@@ -49,7 +49,7 @@ def test_pending_terminal_jobs_skip_running_keep_old():
 
 
 def test_pending_terminal_jobs_filter_by_conversation():
-    """ensure_project 的项目级立即扫：按 conversation_id 过滤。"""
+    """项目级通知查询：按 conversation_id 过滤。"""
     db = ComputeDB().init()
     mine = _insert_terminal(db)  # conversation_id='notify-conv'
     with db.connect() as con:

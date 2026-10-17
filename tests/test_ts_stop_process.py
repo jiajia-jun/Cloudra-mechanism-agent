@@ -43,7 +43,7 @@ def test_stop_cancels_only_its_pipeline_and_preserves_inputs(tmp_path, initial, 
 
 
 def test_stopped_pipeline_records_cancelled_job_without_advancing(tmp_path):
-    from cloudra.tools.core.ts_pipeline_driver import handle_process_job_terminal, reconcile_processes
+    from cloudra.tools.core.ts_pipeline_driver import advance_process, handle_process_job_terminal
     from cloudra.tools.core.ts_process import advance, stop
 
     db, pid, job = waiting_process(tmp_path)
@@ -55,7 +55,7 @@ def test_stopped_pipeline_records_cancelled_job_without_advancing(tmp_path):
         con.execute("UPDATE compute_jobs SET state='cancelled' WHERE id=?", (job,))
     for _ in range(2):
         result = handle_process_job_terminal(db, job)
-        reconcile_processes(db, 'project')
+        advance_process(db, pid)
         assert result['status'] == 'stopped'
         assert result['record']['terminal'] is None
         assert result['record']['blocked'] is None

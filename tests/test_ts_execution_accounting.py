@@ -53,10 +53,10 @@ def test_actual_usage_is_recorded_and_unknown_is_not_zero(tmp_path):
     assert view.usage['jobs'][1]['allocated_cpu_hours'] is None
 
 
-def test_reconcile_isolates_old_record_and_keeps_active_job_alive(tmp_path, monkeypatch):
+def test_targeted_recovery_isolates_old_record_and_keeps_active_job_alive(tmp_path, monkeypatch):
     from cloudra.infra.flocks import locked
     from cloudra.services.ts_pipeline_store import create_process, get_process
-    from cloudra.tools.core.ts_pipeline_driver import reconcile_processes
+    from cloudra.tools.core.ts_pipeline_driver import advance_process
     from tests.test_ts_pipeline_driver import waiting_process
     from tests.test_ts_pipeline_store import payload
     db,new_id,job=waiting_process(tmp_path)
@@ -65,7 +65,7 @@ def test_reconcile_isolates_old_record_and_keeps_active_job_alive(tmp_path, monk
     with db.connect() as con:
         con.execute("UPDATE ts_pipeline_processes SET record=?,status='waiting' WHERE process_id=?",(json.dumps(data),old))
     with locked(str(tmp_path/'qm.lock')):
-        results=reconcile_processes(db,'project')
+        results=[advance_process(db, process_id) for process_id in (new_id, old)]
     assert {r['status'] for r in results}=={'isolated','waiting'}
     with db.connect() as con:
         assert con.execute('SELECT state FROM compute_jobs WHERE id=?',(job,)).fetchone()[0]=='ready'

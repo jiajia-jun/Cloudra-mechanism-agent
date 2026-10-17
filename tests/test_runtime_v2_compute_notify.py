@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from pathlib import Path
 
 import pytest
 
@@ -228,13 +229,13 @@ async def test_poll_all_skips_unloaded_projects():
 
 
 @pytest.mark.asyncio
-async def test_ensure_project_scans_immediately():
-    """项目打开时 ensure_project 立即扫该项目，不等下个 tick。"""
+async def test_poll_project_delivers_immediately():
+    """项目级投递不必等待下一次后台 tick。"""
     core, project, coordinator = await _setup_core()
     job_id = _insert_terminal_job(project.id, session_id=coordinator.id)
     broker = ComputeNotifyBroker(core, poll_interval=999.0)
 
-    await broker.ensure_project(project.id)
+    await broker._poll_project(project.id)
 
     assert _notified_at(job_id) is not None
     assert (
@@ -894,9 +895,10 @@ async def test_system_compute_notify_does_not_wake_cancelled_subagent():
 @pytest.mark.parametrize("ordinary_result", [False, True])
 async def test_pipeline_intermediate_job_advances_without_agent_message(tmp_path, monkeypatch, recover_acknowledged, ordinary_result):
     from cloudra.services.compute_admission import AdmissionOutcome
-    from cloudra.services.ts_pipeline_store import bind_stage_job, create_process, save_process_record
-    from cloudra.tools.core.ts_process import TsJobStep, TsProcessRecord
+    from cloudra.services.ts_pipeline_store import bind_stage_job, create_process
+    from cloudra.tools.core.ts_process import TsJobStep, TsProcessRecord, save_record
     core, project, coordinator = await _setup_core()
+    project.workspace_dir = str(tmp_path)
     child = (await CommandBus(core).execute(Command(
         type="agent.spawn", target={"project_id": project.id},
         payload={"role_id": "small_mol", "parent_session_id": coordinator.id},
@@ -921,7 +923,8 @@ async def test_pipeline_intermediate_job_advances_without_agent_message(tmp_path
     record = TsProcessRecord(run_id='notify',run_dir=str(tmp_path/'ts'/'notify'),workspace_dir=str(tmp_path),
         owner_conversation_id=project.id,owner_session_id=child.id,pipeline_id=process['process_id'],
         input=declaration,stage='refine',waiting_for=f'job:{job}',job_steps=[TsJobStep(purpose='ts_opt',job_id=job)])
-    await asyncio.to_thread(save_process_record,db,process_id=process['process_id'],record=record.model_dump(mode='json'))
+    await asyncio.to_thread(Path(record.run_dir).mkdir, parents=True)
+    await asyncio.to_thread(save_record, record)
     def complete():
         with db.connect() as con:
             con.execute("UPDATE compute_jobs SET state='done' WHERE id=?",(job,))
@@ -936,7 +939,7 @@ async def test_pipeline_intermediate_job_advances_without_agent_message(tmp_path
     broker=ComputeNotifyBroker(core)
     if recover_acknowledged:
         await asyncio.to_thread(broker._mark_notified,job)
-        await broker.ensure_project(project.id)
+        await broker._poll_all()
     else:
         await broker._poll_project(project.id)
     messages = _inbox_texts(core, child.id)

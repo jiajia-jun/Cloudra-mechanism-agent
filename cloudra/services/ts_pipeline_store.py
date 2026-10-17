@@ -427,13 +427,6 @@ def process_for_job(db: ComputeDB, job_id: int) -> str | None:
     return row[0] if row else None
 
 
-def list_unfinished_processes(db: ComputeDB, project_id: str) -> list[str]:
-    with db.connect() as con:
-        return [row[0] for row in con.execute("SELECT process_id FROM ts_pipeline_processes WHERE project_id=? "
-                                             "AND status NOT IN ('completed','failed','cancelled') ORDER BY process_id",
-                                             (project_id,)).fetchall()]
-
-
 def transfer_process_ownership(db: ComputeDB, *, process_id: str, project_id: str, new_owner_session_id: str) -> None:
     """Transfer ownership of a process and its child tables to a successor session within the same project."""
     if not process_id:
