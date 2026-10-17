@@ -3,9 +3,10 @@ PR #199 落盘与题目评估
 
 远端：https://github.com/yyywaa/Cloudra-mechanism-agent/pull/199
 提交：04216db74149691ea79d831377812b3fcf19338c
+原始归档：PR #199 / gold-finish-artifacts，提交见上；按仓库根目录解析下列证据路径
 本地分支：codex/pr-199-gold-finish
 本地完整副本：/Users/cloudrayyy/.codex/worktrees/pr-199-gold-finish/Cloudra-mechanism-agent-master
-下文证据路径均相对这个副本。原工作区已有修改保留；本次未合并 PR、未改科学规则、未提交计算。
+下文证据路径均相对仓库根目录，本地完整副本同样适用。原工作区已有修改保留；本次未合并 PR、未改科学规则、未提交计算。
 
 结论
 
