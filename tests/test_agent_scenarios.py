@@ -1582,6 +1582,72 @@ async def test_failed_ts_scan_unchanged_resume_keeps_failure_without_budget_exha
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("ts_producer_authority")
+async def test_ts_resume_native_cclib_assertion_keeps_completed_ts(tmp_path, monkeypatch):
+    """IA8 native ORCA log: real Agent/resume/parser/writer/ledger, no QM process."""
+    from cloudra.services.compute_admission import AdmissionOutcome
+    from cloudra.tools.core.ts_pipeline_driver import handle_process_job_terminal
+    from cloudra.tools.core.ts_process import load_record
+    from tests.agent_scenarios import queued_native_ts_optimization, ts_completed_optimization_frequency_resume_steps
+    from tests.test_ts_fixture_pipeline import install_log, job_count
+
+    monkeypatch.setattr("cloudra.services.compute_admission.admit_job",
+        lambda **_: AdmissionOutcome(ok=True, node_id="fixture", scheduler="local"))
+    ready = asyncio.Event()
+    provider = ScriptedProvider(by_role={"small_mol": ts_completed_optimization_frequency_resume_steps("ts_0001", ready)})
+    harness = await ScenarioHarness.start(tmp_path, workspace_dir=tmp_path, provider=provider)
+    seed = (
+        "5\nCandidate differs from the native optimized geometry\n"
+        "C -0.500000 -0.004703 0.002036\n"
+        "O 0.591597 -0.682213 -0.372134\n"
+        "O 1.476819 0.188463 0.229121\n"
+        "H -1.261767 -0.509001 0.485509\n"
+        "H -0.434262 1.076129 -0.083405\n"
+    )
+    try:
+        agent = await harness.spawn("small_mol", protocol="traditional")
+        db, record, step = await asyncio.to_thread(queued_native_ts_optimization, tmp_path,
+            seed, harness.project.id, agent.id)
+        log = await asyncio.to_thread(install_log, record, step, "orca/ch2oo_optts_gfn2_orca611.out")
+        native_log = await asyncio.to_thread(log.read_bytes)
+        async with db.aconnect() as con:
+            await con.execute("UPDATE compute_jobs SET state='done' WHERE id=?", (step.job_id,))
+            await con.commit()
+        ready.set()
+        await harness.wait_terminal(agent)
+        calls = harness.tool_events(agent)
+        assert [call["tool_name"] for call in calls] == ["ts_resume"]
+        assert calls[0]["is_success"], harness.describe(agent)
+        result = calls[0]["result_data"]
+        assert result["receipt"] is not None
+        assert result["status"] == "waiting" and result["stage"] == "refine"
+        assert result["blocked"] is None and result["result"] is None
+        saved = await asyncio.to_thread(load_record, str(tmp_path), record.run_id)
+        assert [job.purpose for job in saved.job_steps] == ["ts_opt", "frequency"]
+        assert saved.job_steps[0].job_id == step.job_id and saved.job_steps[0].state == "done"
+        assert saved.terminal is None
+        frequency = saved.job_steps[-1]
+        frequency_input = await asyncio.to_thread(Path(frequency.input_path).read_text)
+        assert "NumFreq" in frequency_input and "TightSCF" in frequency_input
+        optimized_xyz = await asyncio.to_thread(Path(frequency.input_path).with_name("optimized.xyz").read_text)
+        assert optimized_xyz.splitlines()[2:] == [
+            "C -0.423530 -0.004703 0.002036",
+            "O 0.591597 -0.682213 -0.372134",
+            "O 1.476819 0.188463 0.229121",
+            "H -1.261767 -0.509001 0.485509",
+            "H -0.434262 1.076129 -0.083405",
+        ]
+        assert await asyncio.to_thread(job_count, db) == 2
+        for _ in range(2):
+            await asyncio.to_thread(handle_process_job_terminal, db, step.job_id)
+        assert await asyncio.to_thread(job_count, db) == 2
+        assert await asyncio.to_thread(log.read_bytes) == native_log
+    finally:
+        ready.set()
+        await harness.aclose()
+
+
+@pytest.mark.asyncio
 async def test_yolo_invalid_boolean_never_applies_agent_file_write(tmp_path, monkeypatch):
     """An invalid approval is rejected within the real Agent/tool/file mutation path."""
     from unittest.mock import AsyncMock

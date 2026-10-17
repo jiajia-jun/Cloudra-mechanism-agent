@@ -7,6 +7,7 @@
 | `co2_freq_orca42.out` | opt+freq（ORCA 4.2，CO2，含 THERMOCHEMISTRY 块，4 个频率含 0 虚频） | cclib-data `ORCA/ORCA4.0/CO2_freqs.out`（<https://github.com/cclib/cclib-data>） | BSD-3-Clause |
 | `dvb_opt_orca42.out` | 几何优化（ORCA 4.2，divinylbenzene，4 个优化步，收敛） | cclib-data `ORCA/ORCA4.0/dvb_gopt.out` | BSD-3-Clause |
 | `dvb_scan_unrelaxed_orca42.out` | 非松弛面扫描（ORCA 4.2，D7 二面角 0°→360° 共 12 点） | cclib-data `ORCA/ORCA4.2/dvb_scan_unrelaxed.out` | BSD-3-Clause |
+| `ch2oo_optts_gfn2_orca611.out` | GFN2-xTB OptTS（ORCA 6.1.1，CH2O2，优化收敛、正常终止，未做频率/IRC）；简版偶极矩块会触发 cclib 1.8.1 断言 | IA8 job739 原始输出，2026-10-17；仅作解析及恢复流程回归，不作为已验证 TS 证据 | — |
 | `cope_irc_extopt_mace_orca611.out` | 外部 MLIP IRC（ORCA 6.1.1 `! ExtOpt IRC` + MACE-OMol25，能量行只有 `(From external program)` 变体，正常终止） | 按 P1 Cope job22 实测日志结构缩写合成（原始日志随工作区清理删除） | — |
 | `cope_relaxed_scan/` | 松弛扫描逐帧结构 + `relaxscanact.dat`（供 `ts_guess scan_parse` 测试） | P1 Cope 任务实测产物 | — |
 | `extopt_relaxed_scan/scan_extopt_snippet.out` | 外部 MLIP 松弛扫描文本片段（`! ExtOpt`，能量行带 `(From external program)` 后缀，5 帧 × 2 坐标块，内部峰在帧 3） | 按 MACE-OMol25 relaxed scan 实测日志结构缩写合成（GH #23，原日志已随工作区清理删除） | — |

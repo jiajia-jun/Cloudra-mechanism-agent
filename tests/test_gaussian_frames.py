@@ -414,3 +414,20 @@ def test_ccread_translates_cclib_internal_index_error(tmp_path, monkeypatch):
     log.write_text("garbage\n", encoding="utf-8")
     with pytest.raises(ValueError, match="截断"):
         _ccread(str(log))
+
+
+def test_ccread_translates_cclib_assertion_with_source_and_cause(monkeypatch):
+    """A third-party format assertion must enter the existing parse-error path."""
+    import cclib
+
+    from cloudra.tools.core.gaussian_frames import _ccread_from_text
+
+    failure = AssertionError()
+
+    def parse(_source):
+        raise failure
+
+    monkeypatch.setattr(cclib.io, "ccread", parse)
+    with pytest.raises(ValueError, match="orca-xtb.log") as error:
+        _ccread_from_text("native ORCA output", source_desc="orca-xtb.log")
+    assert error.value.__cause__ is failure

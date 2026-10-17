@@ -32,6 +32,7 @@
 | YOLO 审批结构校验 | 非布尔结论不得写入文件 |
 | TS 故障检查点 + 干预预算 | 重复相同 scan 续接保留原故障、不耗尽预算 |
 | TS fixture 频率门禁 + 终态事件 | 真实零虚频日志阻止 IRC，重复 resume 保留故障与预算 |
+| TS 完成后的频率恢复 | 原生日志解析器断言不阻断频率提交，保留既有 TS 作业和科学待验证状态 |
 | TS 构象文件修订 | 相对路径绑定工作区；更换结构清除旧绑定并保留同一流程 |
 | TS 同结构文件替换 | 复制同一结构后保留映射和初猜声明，无需 Agent 重复填写 |
 | TS 结构编号转换 | 内部分子与Agent视图使用同一编号，源文件保持原样，显式新编号只转换一次 |
@@ -240,6 +241,55 @@ def compute_result_recovery_steps() -> list[Step]:
 def budgeted_ts_result_recovery_steps(run_id: str) -> list[Step]:
     """配置预算的 TS 终态通知唤醒后，读取真实回执再结束当前运行。"""
     return [Step(tools=[("ts_inspect", {"run_id": run_id})]), Step(stop=True)]
+
+
+def ts_completed_optimization_frequency_resume_steps(run_id: str, ready: asyncio.Event) -> list[Step]:
+    """完成 TS 优化后修订频率设置，沿真实恢复入口提交独立频率作业。"""
+    return [Step(wait_for=ready, tools=[("ts_resume", {
+        "run_id": run_id,
+        "changes": {"verification": {"frequency": {"frequency_mode": "numeric", "keywords": "TightSCF"}}},
+        "reason": "Use numerical frequencies on the completed TS optimization geometry",
+    })]), Step(stop=True)]
+
+
+def queued_native_ts_optimization(workspace: Path, seed: str, project_id: str, owner_id: str):
+    """Bind one real TS input/job before replaying its native completed log."""
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.services.ts_pipeline_context import use_pipeline_database
+    from cloudra.services.ts_pipeline_store import create_process
+    from cloudra.tools.core import ts_process
+    from cloudra.tools.core.molecule import read_molecule
+    from cloudra.tools.core.reaction_state import ReactionStructures
+    from tests.ts_fixtures import calculation_input
+
+    db = ComputeDB().init()
+    declaration = calculation_input(reactant_smiles="C=[O+][O-]", product_smiles="C1OO1", method="GFN2-xTB")
+    state = create_process(db, request_key="native-log-fixture", payload={
+        "project_id": project_id, "owner_id": owner_id, "workspace_dir": str(workspace),
+        "input": declaration.model_dump(mode="json"),
+    })
+    folder = workspace / "ts" / "ts_0001" / "jobs" / "initial"
+    folder.mkdir(parents=True)
+    geometry = folder / "candidate.xyz"
+    geometry.write_text(seed)
+    molecule = read_molecule(str(geometry))
+    record = ts_process.TsProcessRecord(run_id="ts_0001", pipeline_id=state["process_id"],
+        workspace_dir=str(workspace), run_dir=str(folder.parent.parent), input=declaration,
+        owner_conversation_id=project_id, owner_session_id=owner_id, stage="refine",
+        structures=ReactionStructures(reactant=molecule, product=molecule, candidate=molecule,
+            product_to_reactant=tuple(range(molecule.GetNumAtoms()))))
+    error, input_path = ts_process._write_refinement_input(record, str(folder))
+    assert error == ""
+    with use_pipeline_database(db):
+        error, job_id = ts_process._submit_step(record, "ts_opt", input_path, "orca")
+        assert error == ""
+        step = ts_process.TsJobStep(purpose="ts_opt", job_id=job_id, input_path=input_path,
+            state="ready", actual_calculation=declaration.ts_optimization,
+            source_input_revision=record.declaration_revision)
+        record.job_steps = [step]
+        record.waiting_for = f"job:{job_id}"
+        ts_process.save_record(record)
+    return db, record, step
 
 
 def supervisor_feedback_recovery_steps() -> list[Step]:
@@ -491,6 +541,7 @@ TS_SCENARIOS = ('ts_prepare_once_auto_complete', 'ts_failed_scan_retry_same_run'
                 'ts_file_seed_preoptimization_can_be_removed_after_failure',
                 'ts_acknowledged_completion_recovers_without_resume',
                 'ts_run_scan_revision_inherits_shared_input_settings',
+                'ts_resume_native_cclib_assertion_keeps_completed_ts',
                 'ts_mode_advisory_wakes_owner_while_irc_continues')
 
 
