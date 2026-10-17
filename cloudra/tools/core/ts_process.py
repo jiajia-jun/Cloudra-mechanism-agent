@@ -35,14 +35,20 @@ from cloudra.tools.core.conformer_cards import AttemptEvidence
 from cloudra.tools.core.geometry_inputs import atom_index_base
 from cloudra.tools.core.geometry_optimization import OptimizationCheckpoint
 from cloudra.tools.core.molecule import (
-    Molecule,
     read_molecule,
     renumber_atoms,
-    serialize_molecule,
     to_xyz,
     with_positions,
 )
 from cloudra.tools.core.qm_calculation import QmCalculation
+from cloudra.tools.core.reaction_state import (
+    ReactionStructures,
+    export_structure,
+    heavy_binding,
+    import_file_structure,
+    path_endpoints,
+    set_heavy_binding,
+)
 from cloudra.tools.core.structure_builder import (
     BuildStrategy,
     PreparationRequest,
@@ -113,6 +119,7 @@ class TsAttemptHistory(BaseModel):
     stage_records: list[TsStageRecord]
     reason: str
     input: TsInput | None = None
+    structures: ReactionStructures | None = None
     terminal: TsTerminal | None = None
     blocked: TsBlocked | None = None
     failed_attempt: dict | None = None
@@ -123,7 +130,7 @@ class TsProcessRecord(BaseModel):
     """持久运行记录（``ts/<run_id>/process.json``）。"""
 
     model_config = ConfigDict(extra='forbid')
-    format_version: Literal[6] = 6
+    format_version: Literal[7] = 7
     run_id: str
     pipeline_id: str = ""
     declaration_revision: int = 1
@@ -136,8 +143,6 @@ class TsProcessRecord(BaseModel):
     candidate_attempts: list[AttemptEvidence] = Field(default_factory=list)
     cards_path: str = ""
     product_seed_candidate_id: str | None = None
-    product_seed_xyz_path: str = ""
-    product_seed_mol_path: str = ""
     selected_candidate_id: str | None = None
     run_dir: str
     workspace_dir: str = Field(default="", description="工作区根（证据快照的沙箱边界）")
@@ -148,9 +153,7 @@ class TsProcessRecord(BaseModel):
         default=None, description="发起 agent 的 session_id（作业终态推送收件人）"
     )
     input: TsInput
-    input_binding: dict = Field(default_factory=dict)
-    structures: dict[str, dict] = Field(default_factory=dict)
-    seed_molecules: dict[str, Molecule] = Field(default_factory=dict)
+    structures: ReactionStructures = Field(default_factory=ReactionStructures)
     failed_attempt: dict | None = None
     method_checks: dict[str, dict] = Field(default_factory=dict)
     stage: TsStage = "declare"
@@ -162,12 +165,7 @@ class TsProcessRecord(BaseModel):
     path_kind: PathKind = "not_attempted"
     guidance_attempt: int = 0
     active_attempt_dir: str = ""
-    current_seed_xyz_path: str = ""
-    current_seed_mol_path: str = ""
-    current_reactant_prepared_path: str = ""
-    current_ts_guess_path: str = ""
     guidance_manifest_path: str = ""
-    effective_reaction_center: list[tuple[int, int]] = Field(default_factory=list)
     job_id: Optional[int] = Field(
         default=None, description="提交后的 compute_jobs 作业号（精修作业）"
     )
@@ -291,7 +289,7 @@ def save_record(record: TsProcessRecord) -> str:
 def load_record(workspace_dir: str, run_id: str) -> TsProcessRecord:
     path = os.path.join(workspace_dir, TS_ROOT_NAME, run_id, PROCESS_JSON_NAME)
     data = json.loads(Path(path).read_text(encoding="utf-8"))
-    if data.get("format_version") != 6:
+    if data.get("format_version") != 7:
         raise ValueError("Unsupported TS input format; existing compute jobs remain intact.")
     return TsProcessRecord.model_validate(data)
 
@@ -520,80 +518,41 @@ def _build(record: TsProcessRecord) -> TsProcessRecord:
         source = getattr(record.input.conformers, role)
         if source is None:
             return _block(record, 'build', 'missing_input', f'Explicit conformer source required for {role}', needs=[f'conformers.{role}'])
+        # 已导入的分子是当前事实；推进、改设置和读取状态不重读源文件。
         if source.kind == 'file':
-            try:
-                import hashlib
-
-                from cloudra.services.ts_pipeline_context import pipeline_database
-                from cloudra.services.ts_pipeline_store import _rewrite_lock
-                from cloudra.tools.core.structure_artifacts import read_xyz_atoms
-
-                # Paired reads serialize with current-source canonical overwrites.
-                with _rewrite_lock(pipeline_database()):
-                    path = _workspace_input_path(record, source.xyz_path)
-                    if not path.is_file():
-                        return _block(record, 'build', 'conformer_source_invalid',
-                            f'{role} XYZ source is missing: {path}', needs=[f'conformers.{role}.xyz_path'],
-                            issues=[dict(code='source_missing', role=role, field=f'conformers.{role}.xyz_path', path=str(path))])
-                    # Capture once: the hash must cover the exact bytes copied,
-                    # rather than an earlier read of this mutable workspace source.
-                    source_bytes = {'xyz': path.read_bytes()}
-                    if source.mol_path:
-                        mol = _workspace_input_path(record, source.mol_path)
-                        if not mol.is_file():
-                            return _block(record, 'build', 'conformer_source_invalid',
-                                f'{role} MOL source is missing: {mol}', needs=[f'conformers.{role}.mol_path'],
-                                issues=[dict(code='source_missing', role=role, field=f'conformers.{role}.mol_path', path=str(mol))])
-                        source_bytes['mol'] = mol.read_bytes()
-                    pins = record.input_binding.get('revision_source_hashes', {})
-                    if role in pins and pins[role] != {name: hashlib.sha256(data).hexdigest() for name, data in source_bytes.items()}:
-                        raise ValueError(f'{role} source changed since atom identity was proved; redeclare conformers.{role}')
-                target = Path(record.run_dir) / BUILD_STAGE_DIR / f'input_{record.declaration_revision:04d}' / role
-                target.mkdir(parents=True, exist_ok=True)
-                _write_immutable_input(str(target / 'seed.xyz'), source_bytes['xyz'].decode('utf-8'))
-                atoms = read_xyz_atoms(str(target / 'seed.xyz'))
-                mol_path = ''
-                if source.mol_path:
-                    mol_path = str(target / 'seed.mol')
-                    _write_immutable_input(mol_path, source_bytes['mol'].decode('utf-8'))
-                pins.pop(role, None)
-                if not pins:
-                    record.input_binding.pop('revision_source_hashes', None)
-                if role == 'reactant':
-                    record.current_seed_xyz_path = str(target / 'seed.xyz')
-                    record.current_seed_mol_path = mol_path
-                    metadata = dict(atom_identities=[dict(index=i, symbol=s) for i, (s, _) in enumerate(atoms)], components=[])
-                    record.current_reactant_prepared_path = str(target / 'atom_table.json')
-                    _write_immutable_input(record.current_reactant_prepared_path, json.dumps(metadata))
-                else:
-                    record.product_seed_xyz_path = str(target / 'seed.xyz')
-                    record.product_seed_mol_path = mol_path
-                record.evidence_candidates.append(str(target / 'seed.xyz'))
-                _store_structure_table(record, role)
-            except (ValueError, OSError) as exc:
-                return _block(record, 'build', 'conformer_source_invalid', str(exc), needs=[f'conformers.{role}'])
+            if getattr(record.structures, role) is None:
+                try:
+                    setattr(record.structures, role, import_file_structure(record, role, source))
+                except (ValueError, OSError) as exc:
+                    return _block(record, 'build', 'conformer_source_invalid', str(exc), needs=[f'conformers.{role}'],
+                        issues=[dict(code='source_missing' if isinstance(exc, FileNotFoundError) else 'source_invalid',
+                            field=f'conformers.{role}', role=role, path=getattr(exc, 'filename', None))])
             if source.optimization is not None:
                 record = _optimize_conformer_source(record, role)
                 if record.blocked or record.waiting_for:
                     return record
-                _store_structure_table(record, role)
             continue
         if source.kind == 'catalog':
             from cloudra.tools.core.ts_candidate_pipeline import use_catalog_source
-            record = use_catalog_source(record, source, role)
+            if getattr(record.structures, role) is None:
+                record = use_catalog_source(record, source, role)
             if record.blocked:
                 return record
-            _store_structure_table(record, role)
             if source.optimization is not None:
                 record = _optimize_conformer_source(record, role)
                 if record.blocked or record.waiting_for:
                     return record
-                _store_structure_table(record, role)
             continue
         if source.kind != 'generate':
             return _block(record, 'build', 'conformer_source_invalid', f'Unsupported {role} source {source.kind}', needs=[f'conformers.{role}'])
         if role == 'reactant' and (guidance.ring_order or guidance.distance_filters) and source.optimization is None:
             return _block(record, 'build', 'missing_input', 'Guided generation requires an explicitly declared conformer optimization calculation.', needs=['conformers.reactant.optimization'])
+        if getattr(record.structures, role) is not None:
+            if source.optimization is not None:
+                record = _optimize_conformer_source(record, role)
+                if record.blocked or record.waiting_for:
+                    return record
+            continue
         target_dir = (
             os.path.join(record.active_attempt_dir, role)
             if record.active_attempt_dir else os.path.join(out_dir, f'input_{record.declaration_revision:04d}', role)
@@ -641,19 +600,23 @@ def _build(record: TsProcessRecord) -> TsProcessRecord:
                 atom_details=list(prepared.diagnostics),
                 needs=[f"reaction.{role}_smiles"],
             )
-        record.seed_molecules[role] = seed_mol
-        if role == "reactant":
-            record.current_reactant_prepared_path = prepared.artifact_path
-            record.current_seed_xyz_path, record.current_seed_mol_path = seed_path, mol_path
-        else:
-            record.product_seed_xyz_path, record.product_seed_mol_path = seed_path, mol_path
+        # 将构建身份直接带入分子；绑定时不再回读 prepared_structure.json。
+        from rdkit import Chem
+        heavy = [a.GetIdx() for a in Chem.MolFromSmiles(smiles).GetAtoms() if a.GetAtomicNum() != 1]
+        for identity in prepared.atom_identities:
+            value = identity.model_dump() if hasattr(identity, 'model_dump') else identity
+            atom = seed_mol.GetAtomWithIdx(value['index'])
+            identity = (f"in:{value['input_atom_index']}" if value['origin'] == 'input_atom' else f"in:{value['parent_input_atom_index']}#H{value['hydrogen_ordinal']}")
+            atom.SetProp('cloudra_atom_id', identity)
+            atom.SetProp('cloudra_component_id', value['component_id'])
+            if value.get('origin') == 'input_atom' and value.get('symbol') != 'H':
+                atom.SetIntProp('cloudra_smiles_heavy_index', heavy.index(value['input_atom_index']))
+        setattr(record.structures, role, seed_mol)
         record.evidence_candidates.extend([seed_path, mol_path, prepared.artifact_path])
-        _store_structure_table(record, role)
         if source.optimization is not None:
             record = _optimize_conformer_source(record, role)
             if record.blocked or record.waiting_for:
                 return record
-            _store_structure_table(record, role)
     guidance_warnings = []
     if guidance.ring_order or guidance.distance_filters:
         try:
@@ -663,7 +626,6 @@ def _build(record: TsProcessRecord) -> TsProcessRecord:
             passed, reasons, _, guidance_warnings = qualify_geometry(plan, graph, built[0], built[1])
             if not passed:
                 raise ValueError('; '.join([*reasons, *guidance_warnings]))
-            record.effective_reaction_center = list(dict.fromkeys([*record.input.reaction.reaction_center, *plan.forming_pairs]))
         except (ValueError, OSError) as exc:
             return _block(record, 'build', 'seed_guidance_failed', str(exc), needs=['conformers.reactant', 'conformers.guidance'])
     detail = "both endpoints built" if len(endpoints) == 2 else (
@@ -787,8 +749,7 @@ def _optimize_conformer_source(record, role):
             *[symbol + ' ' + ' '.join(repr(v) for v in point) for symbol, point in zip(result['symbols'], result['positions'])]]) + '\n'
         target = str(directory / 'optimized_seed.xyz')
         _write_immutable_input(target, xyz)
-        record.current_seed_xyz_path = target
-        record.seed_molecules[role] = with_positions(record.seed_molecules[role], result['positions'])
+        setattr(record.structures, role, with_positions(getattr(record.structures, role), result['positions']))
         return record
     if step is None:
         if calculation.engine == 'xtb':
@@ -817,14 +778,14 @@ def _optimize_conformer_source(record, role):
             conflicts = validate_writer_request(request.model_dump())
             if conflicts:
                 return _block(record, 'build', 'conformer_input_invalid', str(conflicts), needs=[f'conformers.{role}.optimization'])
-            molecule = record.seed_molecules[role]
+            molecule = getattr(record.structures, role)
             content = QmInputWriter._build_orca_input(request, molecule) if calculation.engine == 'orca' else QmInputWriter._build_gjf(request, molecule)
             _write_immutable_input(str(manifest), content)
             job_type = calculation.engine
         error, job = _submit_step(record, purpose, str(manifest), job_type)
         if error:
             return _block(record, 'build', 'conformer_admission_failed', error, needs=[f'conformers.{role}.optimization'])
-        step = TsJobStep(purpose=purpose, job_id=job, input_path=str(manifest), state='ready', actual_calculation=calculation, source_input_revision=record.declaration_revision)
+        step = TsJobStep(purpose=purpose, job_id=job, input_path=str(manifest), state='ready', actual_calculation=calculation, source_input_revision=record.declaration_revision, atom_binding=_direction_atom_binding(record))
         record.job_steps.append(step)
     step.state = _step_state(record, step)
     if step.state not in TERMINAL_STATES:
@@ -833,10 +794,9 @@ def _optimize_conformer_source(record, role):
     record.waiting_for = ''
     recovery = (
         f'Use ts_resume to revise changes.conformers.{role}, or retry the same requested optimization with changes={{}}. '
-        f'To use an existing external seed without build pre-optimization, resubmit changes.conformers.{role} '
-        'as a complete file source (kind="file", xyz_path, and existing mol_path, evidence_refs and heavy_atom_binding) '
-        'with "optimization": null or omit optimization from that complete source. '
-        'This accepts a search seed; later TS/IRC and endpoint verification remain required.'
+        f'To keep the imported seed without build pre-optimization, submit changes.conformers.{role} '
+        'with {"optimization": null}; the existing source and proven identity are retained. '
+        'Later TS/IRC and endpoint verification remain required.'
     )
     if step.state != 'done':
         _record_candidate_failure(record, 'conformer_optimization_failed', step, _refinement_log_path(record, step))
@@ -859,68 +819,26 @@ def _optimize_conformer_source(record, role):
     optimized_atoms = read_xyz_atoms(target)
     if [s for s, _ in optimized_atoms] != built[0]:
         return _block(record, 'build', 'conformer_identity_mismatch', 'Optimized seed changed the atom order.', needs=[f'conformers.{role}'])
-    record.seed_molecules[role] = with_positions(record.seed_molecules[role], [point for _, point in optimized_atoms])
-    if role == 'reactant':
-        record.current_seed_xyz_path = target
-    else:
-        record.product_seed_xyz_path = target
+    setattr(record.structures, role, with_positions(getattr(record.structures, role), [point for _, point in optimized_atoms]))
     return record
 
 def _active_reaction_center(record: TsProcessRecord) -> list[tuple[int, int]]:
-    return (record.effective_reaction_center if (record.input.conformers.guidance.ring_order or record.input.conformers.guidance.distance_filters)
-            else record.input.reaction.reaction_center)
+    center = list(record.input.reaction.reaction_center)
+    guidance = record.input.conformers.guidance
+    if guidance.ring_order or guidance.distance_filters:
+        plan, _ = _seed_guidance_plan(record)
+        center = list(dict.fromkeys([*center, *plan.forming_pairs]))
+    return center
+
 
 def _read_built_xyz(record: TsProcessRecord, role: str):
-    """读回某端已构建的几何，返回 ``(symbols, positions, xyz_path, mol_path)``；
-    找不到返回 ``None``。
-
-    多组分输入建出来的是**组装候选**（已按能量排序，取第一个）；单组分是 ``prepared.xyz``。
-    """
-    from cloudra.tools.core.structure_artifacts import read_xyz_atoms
-
-    if role in record.seed_molecules:
-        mol = record.seed_molecules[role]
-        path = record.current_seed_xyz_path if role == 'reactant' else record.product_seed_xyz_path
-        mol_path = record.current_seed_mol_path if role == 'reactant' else record.product_seed_mol_path
-        if not path or not Path(path).is_file():
-            return None
-        return ([atom.GetSymbol() for atom in mol.GetAtoms()], mol.GetConformer().GetPositions().tolist(), path, mol_path)
-    if role=='product' and record.product_seed_xyz_path:
-        if not Path(record.product_seed_xyz_path).is_file():
-            return None
-        atoms=read_xyz_atoms(record.product_seed_xyz_path)
-        return ([s for s,_ in atoms],[p for _,p in atoms],record.product_seed_xyz_path,record.product_seed_mol_path)
-    if role == "reactant" and record.current_seed_xyz_path:
-        path = record.current_seed_xyz_path
-        if not os.path.isfile(path):
-            return None
-        atoms = read_xyz_atoms(path)
-        return ([symbol for symbol, _ in atoms], [position for _, position in atoms],
-                path, record.current_seed_mol_path)
-    base = (
-        os.path.join(record.active_attempt_dir, role)
-        if record.active_attempt_dir else
-        os.path.join(record.run_dir, BUILD_STAGE_DIR, role)
-    )
-    candidates = [os.path.join(base, "prepared.xyz")]
-    assembly_dir = os.path.join(base, "assembly")
-    if os.path.isdir(assembly_dir):
-        candidates.extend(sorted(
-            os.path.join(assembly_dir, name)
-            for name in os.listdir(assembly_dir)
-            if name.startswith("complex_candidate_") and name.endswith(".xyz")
-        ))
-    for path in candidates:
-        if os.path.isfile(path):
-            atoms = read_xyz_atoms(path)
-            mol_path = os.path.splitext(path)[0] + ".mol"
-            return (
-                [symbol for symbol, _ in atoms],
-                [position for _, position in atoms],
-                path,
-                mol_path if os.path.isfile(mol_path) else "",
-            )
-    return None
+    """执行边界的文件视图；没有目录猜测、原始文件回读或平行结构缓存。"""
+    mol = getattr(record.structures, role)
+    if mol is None:
+        return None
+    xyz, graph = export_structure(record, role)
+    return ([atom.GetSymbol() for atom in mol.GetAtoms()],
+            mol.GetConformer().GetPositions().tolist(), xyz, graph)
 
 def _derive_product_geometry(record: TsProcessRecord, built):
     """按声明的旋转从第一端几何生成第二端几何；返回 ``(错误, positions)``。
@@ -937,7 +855,7 @@ def _derive_product_geometry(record: TsProcessRecord, built):
     if geometry is None:
         return "", []
     symbols, positions, _xyz_path, mol_path = built
-    mol = record.seed_molecules.get('reactant')
+    mol = record.structures.reactant
     if mol is None and not mol_path:
         return (
             "the built endpoint's MOL file is missing, so the bond to rotate about cannot be "
@@ -997,435 +915,138 @@ def _endpoint_numbering(record: TsProcessRecord) -> list[str]:
     return lines
 
 
-def _store_structure_table(record: TsProcessRecord, role: str) -> None:
-    """Record the actual, full XYZ order before mapping can block progress."""
-    import hashlib
-
-    from rdkit import Chem
-
-    from cloudra.tools.Chemtool.reaction_mapping import _read_structure, concrete_structure_digest
-
-    built = _read_built_xyz(record, role)
-    if built is None:
-        return
-    symbols, positions, xyz_path, mol_path = built
-    source = getattr(record.input.conformers, role)
-    smiles = getattr(record.input.reaction, role + '_smiles')
-    identity_rows = []
-    metadata_path = (record.current_reactant_prepared_path if role == 'reactant'
-                     else str(Path(mol_path).parent / 'prepared_structure.json') if mol_path else '')
-    if metadata_path and Path(metadata_path).is_file():
-        identity_rows = json.loads(Path(metadata_path).read_text()).get('atom_identities', [])
-    rows = []
-    for index, symbol in enumerate(symbols):
-        origin = identity_rows[index] if index < len(identity_rows) and identity_rows[index].get('symbol') == symbol else {}
-        rows.append(dict(number=index + 1, symbol=symbol, isotope=origin.get('isotope'),
-                         component=origin.get('component_index'), origin=origin.get('origin'),
-                         input_atom_number=(origin.get('input_atom_index') + 1 if origin.get('input_atom_index') is not None else None)))
-    declared = Chem.MolFromSmiles(smiles)
-    declared_heavy = [atom for atom in declared.GetAtoms() if atom.GetAtomicNum() != 1] if declared else []
-    smiles_heavy_atoms = [dict(position=index + 1, symbol=atom.GetSymbol(), isotope=atom.GetIsotope(),
-                               atom_map_label=atom.GetAtomMapNum())
-                          for index, atom in enumerate(declared_heavy)]
-    digest = ''
-    components = None
-    graph_error = ''
-    electronic = None
-    try:
-        from cloudra.tools.core.electronic_state import electronic_state_details, electronic_state_issue
-        arguments = dict(charge=record.input.reaction.charge, multiplicity=record.input.reaction.multiplicity,
-                         electronic_character=record.input.reaction.electronic_character)
-        declared_state = electronic_state_details(declared, **arguments) if declared is not None else None
-        mol = record.seed_molecules.get(role)
-        if mol is None:
-            mol = _read_structure(mol_path or xyz_path, None, 'mol' if mol_path else 'xyz',
-                              record.input.reaction.charge, role,
-                              multiplicity=record.input.reaction.multiplicity,
-                              electronic_character=record.input.reaction.electronic_character,
-                              require_declared_identity=bool(declared_state and declared_state['requires_spin_aware_geometry']))
-        if [atom.GetSymbol() for atom in mol.GetAtoms()] != symbols:
-            raise ValueError('MOL and XYZ atom order differ')
-        mol = with_positions(mol, positions)
-        record.seed_molecules[role] = mol
-        components = len(Chem.GetMolFrags(mol))
-        issue = electronic_state_issue(mol, **arguments)
-        if issue:
-            raise ValueError(issue[1])
-        electronic = electronic_state_details(mol, **arguments)
-        for index, atom in enumerate(mol.GetAtoms()):
-            rows[index]['isotope'] = atom.GetIsotope()
-        digest = concrete_structure_digest(role, smiles, record.input.reaction.charge,
-                                           record.input.reaction.multiplicity, mol,
-                                           electronic_character=record.input.reaction.electronic_character)
-    except (ValueError, OSError) as exc:
-        graph_error = str(exc)
-    table = dict(role=role, source_kind=source.kind if source else None,
-                 input_revision=record.declaration_revision, xyz_path=xyz_path,
-                 xyz_sha256=hashlib.sha256(Path(xyz_path).read_bytes()).hexdigest(),
-                 mol_path=mol_path or None,
-                 mol_sha256=hashlib.sha256(Path(mol_path).read_bytes()).hexdigest() if mol_path else None,
-                 structure_digest=digest, atom_count=len(rows), components=components,
-                 index_base=1, atoms=rows, smiles_heavy_atoms=smiles_heavy_atoms,
-                 binding_status='unverified', graph_error=graph_error)
-    if electronic and electronic['requires_spin_aware_geometry']:
-        table['electronic_state'] = dict(**electronic, status='declared_seed_state')
-        table['connectivity_validation'] = dict(bond_pairs='rdDetermineConnectivity',
-                                              bond_orders='declared_molecular_identity')
-    normalization = record.structures.get(role, {}).get('normalization')
-    if normalization:
-        table['normalization'] = normalization
-    artifact = {key: value for key, value in table.items() if key != 'binding_status'}
-    artifact_text = json.dumps(artifact, ensure_ascii=False, sort_keys=True)
-    artifact_digest = hashlib.sha256(artifact_text.encode('utf-8')).hexdigest()
-    path = Path(record.run_dir) / BUILD_STAGE_DIR / 'atom_tables' / f'{role}_{record.declaration_revision}_{artifact_digest[:12]}.json'
-    path.parent.mkdir(parents=True, exist_ok=True)
-    _write_immutable_input(str(path), artifact_text)
-    table['table_path'] = str(path)
-    record.structures[role] = table
-
-def _bound_input_structure(record, role, *, require_identity=True, persist_artifact=True):
-    """Bind the declared graph and atom rows; optimization judges the geometry."""
-    import hashlib
-
-    from rdkit import Chem
-
-    from cloudra.tools.Chemtool.reaction_mapping import _identity_and_binding, _read_structure
-    built = _read_built_xyz(record, role)
-    if built is None:
-        raise ValueError(f'{role} concrete geometry is missing')
-    symbols, positions, xyz_path, mol_path = built
-    hashes = {role + '_xyz': hashlib.sha256(Path(xyz_path).read_bytes()).hexdigest()}
-    expected_smiles = getattr(record.input.reaction, role + '_smiles')
-    from cloudra.tools.core.electronic_state import electronic_state_details, electronic_state_issue
-    arguments = dict(charge=record.input.reaction.charge, multiplicity=record.input.reaction.multiplicity,
-                     electronic_character=record.input.reaction.electronic_character)
-    declared = Chem.MolFromSmiles(expected_smiles)
-    if declared is None:
-        raise ValueError(f'{role}: declared SMILES cannot be parsed')
-    issue = electronic_state_issue(declared, **arguments)
-    if issue:
-        raise ValueError(f'{role}: {issue[1]}')
-    declared_state = electronic_state_details(declared, **arguments)
-    mol = record.seed_molecules.get(role)
-    known_molecule = mol is not None
-    archived_hash = record.structures.get(role, {}).get('mol_sha256')
-    if known_molecule and mol_path and archived_hash and (
-            hashlib.sha256(Path(mol_path).read_bytes()).hexdigest() != archived_hash):
-        raise ValueError(f'{role}: bound molecular artifact changed')
+def _bound_input_structure(record, role, *, require_identity=True):
+    """读取当前分子，必要时确认声明身份；不再从导出文件重建状态。"""
+    from cloudra.tools.Chemtool.reaction_mapping import _identity_and_binding
+    mol = getattr(record.structures, role)
     if mol is None:
-        mol = _read_structure(mol_path or xyz_path, None, 'mol' if mol_path else 'xyz', record.input.reaction.charge, role,
-        multiplicity=record.input.reaction.multiplicity,
-        electronic_character=record.input.reaction.electronic_character,
-        require_declared_identity=declared_state['requires_spin_aware_geometry'])
-    issue = electronic_state_issue(mol, **arguments)
-    if issue:
-        raise ValueError(f'{role}: {issue[1]}')
-    electronic = electronic_state_details(mol, **arguments)
-    if [a.GetSymbol() for a in mol.GetAtoms()] != symbols:
-        raise ValueError(f'{role} MOL and XYZ atom orders differ')
-    mol = with_positions(mol, positions)
-    record.seed_molecules[role] = mol
-    hashes[role + '_molecule'] = hashlib.sha256(serialize_molecule(mol).encode()).hexdigest()
-    # Construction labels belong to the binding query, never the canonical molecule.
-    mol = Chem.Mol(mol)
-    source = getattr(record.input.conformers, role)
-    constructed_role = 'reactant' if source and source.kind == 'rotate_about_bond' else role
-    original_source = getattr(record.input.conformers, constructed_role)
-    if original_source and original_source.kind == 'generate':
-        metadata_path = record.current_reactant_prepared_path if constructed_role == 'reactant' else str(Path(mol_path).parent / 'prepared_structure.json')
-        identities = json.loads(Path(metadata_path).read_text())['atom_identities']
-        expected = Chem.MolFromSmiles(expected_smiles)
-        for atom in expected.GetAtoms():
-            if atom.GetAtomicNum() != 1:
-                atom.SetAtomMapNum(atom.GetIdx() + 1)
-        for identity in identities:
-            if identity['symbol'] != 'H' and identity['origin'] == 'input_atom':
-                mol.GetAtomWithIdx(identity['index']).SetAtomMapNum(identity['input_atom_index'] + 1)
-        expected_smiles = Chem.MolToSmiles(expected, canonical=False)
-        hashes[role + '_construction'] = hashlib.sha256(Path(metadata_path).read_bytes()).hexdigest()
-    explicit_indices = None
-    if source and source.kind == 'file' and source.heavy_atom_binding:
-        explicit_indices = [index - 1 for index in source.heavy_atom_binding.indices]
-    annotated_source = any(token.startswith('in:') for row in Path(xyz_path).read_text().splitlines()[2:]
-                           for token in row.split()[4:])
-    binding_graph = Chem.Mol(mol)
-    binding_graph.RemoveAllConformers()
-    identity, binding, diagnostic = _identity_and_binding(expected_smiles, binding_graph, explicit_indices,
-        allow_symmetric_representative=electronic['is_open_shell'] and not annotated_source)
-    if electronic['is_open_shell'] and annotated_source and identity == 'match' and not binding:
-        raise ValueError(f'{role}: source atom identity annotations cannot be replaced by a symmetric representative; supply an explicit heavy_atom_binding.')
-    if require_identity and (identity != 'match' or (any(a.GetAtomicNum() != 1 for a in mol.GetAtoms()) and not binding)):
-        raise ValueError(f'{role}: {diagnostic or identity}')
-    if not mol_path and (known_molecule or not persist_artifact):
-        return expected_smiles, mol, hashes
-    if not mol_path:
-        mol_path = str(Path(xyz_path).with_suffix('.bound.mol'))
-        _write_immutable_input(mol_path, Chem.MolToMolBlock(mol))
-        if role == 'reactant':
-            record.current_seed_mol_path = mol_path
-        else:
-            record.product_seed_mol_path = mol_path
-    hashes[role + '_mol'] = hashlib.sha256(Path(mol_path).read_bytes()).hexdigest()
-    return expected_smiles, mol, hashes
+        raise ValueError(f'{role} concrete geometry is missing')
+    smiles = getattr(record.input.reaction, role + '_smiles')
+    from rdkit import Chem
 
-def _check_input_binding(record: TsProcessRecord) -> dict:
-    from cloudra.tools.Chemtool.reaction_mapping import (
-        ReactionMapping_input_schema,
-        check_concrete_binding,
-        concrete_structure_digest,
-    )
-    request = dict(reactant_charge=record.input.reaction.charge, product_charge=record.input.reaction.charge,
-                   reactant_multiplicity=record.input.reaction.multiplicity,
-                   product_multiplicity=record.input.reaction.multiplicity,
-                   reactant_electronic_character=record.input.reaction.electronic_character,
-                   product_electronic_character=record.input.reaction.electronic_character)
-    hashes = {}
-    digests = {}
-    molecules = {}
-    for role in ('reactant', 'product'):
-        expected, mol, artifacts = _bound_input_structure(record, role, require_identity=False)
-        source = getattr(record.input.conformers, role)
-        molecules[role] = mol
-        request.update({role + '_smiles': expected,
-                        role + '_binding': source.heavy_atom_binding if source and source.kind == 'file' else None})
-        digests[role] = concrete_structure_digest(role, expected, record.input.reaction.charge,
-                                                   record.input.reaction.multiplicity, mol,
-                                                   electronic_character=record.input.reaction.electronic_character)
-        hashes.update(artifacts)
-    result = check_concrete_binding(ReactionMapping_input_schema(**request),
-        dict(atom_map=list(range(1, mol.GetNumAtoms() + 1)) if _rotated_product(record) else [i + 1 for i in record.input.reaction.atom_map], watch_pairs=[]),
-        known_digests=digests, bound_molecules=molecules)
-    if any(table.get('electronic_state', {}).get('requires_spin_aware_geometry') for table in record.structures.values()):
-        result['connectivity_validation'] = dict(bond_pairs='rdDetermineConnectivity',
-                                                bond_orders='declared_molecular_identity')
-    return dict(input_revision=record.declaration_revision, hashes=hashes, **result)
+    from cloudra.tools.core.electronic_state import electronic_state_issue
+    reaction = record.input.reaction
+    for graph in (Chem.MolFromSmiles(smiles), mol):
+        if graph is None:
+            raise ValueError(f'{role}: declared SMILES cannot be parsed')
+        issue = electronic_state_issue(graph, charge=reaction.charge, multiplicity=reaction.multiplicity,
+            electronic_character=reaction.electronic_character)
+        if issue:
+            raise ValueError(f'{role}: {issue[1]}')
+    if require_identity:
+        identity, binding, diagnostic = _identity_and_binding(smiles, mol,
+            [i - 1 for i in heavy_binding(mol)] or None)
+        if identity != 'match':
+            raise ValueError(f'{role}: {diagnostic or identity}')
+    return smiles, mol, {}
+
 
 def _direction_atom_binding(record: TsProcessRecord) -> dict | None:
-    """Freeze concrete endpoint graphs with the declaration that produced a job."""
+    """把当前结构和对应冻结到作业证据；历史不依赖以后修改的状态。"""
     import hashlib
 
-    if record.input_binding.get('binding_status') != 'complete':
+    from rdkit import Chem
+    if record.structures.product_to_reactant is None:
         return None
-    molecules = {}
-    for role in ('reactant', 'product'):
-        built = _read_built_xyz(record, role)
-        if built is None:
-            raise ValueError('Bound endpoint MOL is unavailable for recording atom correspondence.')
-        if built[3] and role + '_mol' in record.input_binding['hashes']:
-            exported = Path(built[3]).read_bytes()
-            if hashlib.sha256(exported).hexdigest() != record.input_binding['hashes'][role + '_mol']:
-                raise ValueError('Concrete endpoint changed before recording its atom binding.')
-        mol = record.seed_molecules.get(role)
-        if mol is not None:
-            content = serialize_molecule(mol).encode()
-            expected = record.input_binding['hashes'].get(role + '_molecule')
-            if expected and hashlib.sha256(content).hexdigest() != expected:
-                raise ValueError('Concrete endpoint changed before recording its atom binding.')
-            from rdkit import Chem
-            molecules[role + '_mol'] = Chem.MolToMolBlock(mol)
-        else:
-            path = Path(built[3])
-            content = path.read_bytes()
-            if hashlib.sha256(content).hexdigest() != record.input_binding['hashes'][role + '_mol']:
-                raise ValueError('Concrete endpoint changed before recording its atom binding.')
-            molecules[role + '_mol'] = content.decode('utf-8')
+    record.structures.complete_correspondence()
     frequency = next((step for step in reversed(record.job_steps) if step.purpose == 'frequency'), None)
     log = Path(_refinement_log_path(record, frequency)) if frequency else None
-    ts_digest = hashlib.sha256(log.read_bytes()).hexdigest() if log and log.is_file() else None
     return dict(process_id=record.pipeline_id, declaration_revision=record.declaration_revision,
-                atom_map=record.input_binding['atom_map'], charge=record.input.reaction.charge,
-                ts_log_sha256=ts_digest, **molecules)
+        atom_map=[i + 1 for i in record.structures.product_to_reactant], charge=record.input.reaction.charge,
+        ts_log_sha256=hashlib.sha256(log.read_bytes()).hexdigest() if log and log.is_file() else None,
+        reactant_mol=Chem.MolToMolBlock(record.structures.reactant),
+        product_mol=Chem.MolToMolBlock(record.structures.product))
 
 
-def _validate_input_binding(record: TsProcessRecord) -> TsProcessRecord:
+def _bind_structures(record: TsProcessRecord) -> TsProcessRecord:
+    from cloudra.tools.Chemtool.reaction_mapping import bind_reaction_structures
     try:
-        record.input_binding = _check_input_binding(record)
+        if record.structures.product_to_reactant is not None:
+            record.structures.complete_correspondence()
+            return record
+        result = bind_reaction_structures(record.input, record.structures.reactant, record.structures.product)
+        if result.get('binding_status') != 'complete':
+            diagnostics = result.get('binding_diagnostics', [])
+            candidates = result.get('candidates', [])
+            issues, needs = [], []
+            if candidates:
+                needs = ['reaction.selected_candidate']
+                issues.append(dict(code='concrete_mapping_ambiguous', field=needs[0], candidates=candidates))
+            else:
+                for role in ('reactant', 'product'):
+                    identity = result.get(role + '_identity')
+                    details = [item for item in diagnostics if item.startswith(role + ':')]
+                    if identity == 'match' and not details:
+                        continue
+                    if identity == 'match' and result.get('heavy_atom_bindings', {}).get(role):
+                        continue
+                    # 结构错误应要求替换该端来源；不能让模型拿映射数组修补错误物种。
+                    field = f'conformers.{role}'
+                    needs.append(field)
+                    if identity == 'mismatch':
+                        needs.append(f'reaction.{role}_smiles')
+                    issues.append(dict(code='endpoint_identity_mismatch' if identity == 'mismatch' else 'endpoint_binding_unconfirmed',
+                        field=field, role=role, details=details))
+            return _block(record, 'map', 'input_identity_unconfirmed',
+                '; '.join(diagnostics) or 'Concrete endpoint correspondence requires a candidate selection.',
+                atom_details=_endpoint_numbering(record), needs=needs or ['conformers'], issues=issues)
+        for role, indices in result.get('heavy_atom_bindings', {}).items():
+            molecule = getattr(record.structures, role)
+            derived = not heavy_binding(molecule) or (molecule.HasProp('cloudra_mapping_binding_derived') and molecule.GetBoolProp('cloudra_mapping_binding_derived'))
+            bound = set_heavy_binding(molecule, indices)
+            # 记录来源，不把上一次选择反过来当作分子固有身份，缩窄下次候选。
+            if derived:
+                bound.SetBoolProp('cloudra_mapping_binding_derived', True)
+            setattr(record.structures, role, bound)
+        record.structures.product_to_reactant = tuple(index - 1 for index in result['atom_map'])
+        record.structures.complete_correspondence()
     except (ValueError, OSError) as exc:
-        record.input_binding = dict(input_revision=record.declaration_revision, binding_status="inconclusive", binding_diagnostics=[str(exc)])
-    if record.input_binding["binding_status"] != "complete":
-        diagnostics = record.input_binding.get('binding_diagnostics', [])
-        issues = []
-        needs = []
-        for role in ('reactant', 'product'):
-            identity = record.input_binding.get(role + '_identity')
-            if identity == 'match' and record.input_binding.get('heavy_atom_bindings', {}).get(role):
-                continue
-            details = [item for item in diagnostics if item.lower().startswith((role + ':', role + ' '))]
-            if identity is not None or details:
-                source = getattr(record.input.conformers, role)
-                mismatch = identity == 'mismatch'
-                field = f'conformers.{role}' if mismatch else f'conformers.{role}.heavy_atom_binding'
-                needs.append(field)
-                if mismatch:
-                    needs.append(f'reaction.{role}_smiles')
-                issues.append(dict(code='endpoint_identity_mismatch' if mismatch else
-                    ('endpoint_binding_invalid' if source and source.kind == 'file' and source.heavy_atom_binding else 'endpoint_binding_ambiguous'),
-                    field=field, role=role,
-                    structure_digest=record.structures.get(role, {}).get('structure_digest'),
-                    details=details,
-                    next_action='Inspect the concrete molecular identity and declaration; binding indices cannot repair a molecular graph mismatch.' if mismatch else 'Declare the intended heavy-atom indices against this concrete structure.'))
-        return _block(record, "map", "input_identity_unconfirmed", "; ".join(diagnostics) or "Concrete endpoint identity or atom binding is inconclusive.",
-            needs=needs or ['reaction.atom_map'], issues=issues)
-    for role, indices in record.input_binding.get('heavy_atom_bindings', {}).items():
-        if role in record.structures:
-            record.structures[role]['binding_status'] = 'complete'
-            record.structures[role]['heavy_atom_indices'] = indices
+        return _block(record, 'map', 'input_identity_unconfirmed', str(exc), needs=['conformers', 'reaction.selected_candidate'])
     return record
 
-def _map(record: TsProcessRecord) -> TsProcessRecord:
-    """原子映射：校验声明的映射能把产物重排到**与反应物同一原子序列**。
 
-    这一步是必需的，不是形式：构建器按连通分量拼装两端，两端的原子顺序**本来就不一样**
-    （实测 ``[F-].CCl`` → ``[F,C,Cl,H,H,H]``，``CF.[Cl-]`` → ``[C,F,H,H,H,Cl]``），而
-    路径搜索要求两端是同一套、同序的原子。歧义与错映射必须**点名到原子**地报出来。
-    """
-    declaration = record.input.reaction
-    base = 1
-    geometry = _rotated_product(record)
-    if geometry is not None:
-        # 第二端几何由第一端绕键旋转而来 -> 原子对应关系是**恒等**（构造保证），不需要 atom_map
-        built = _read_built_xyz(record, "reactant")
+def _map(record: TsProcessRecord) -> TsProcessRecord:
+    """程序维护具体原子对应；只有真实歧义才要求研究选择。"""
+    if _rotated_product(record) is not None:
+        built = _read_built_xyz(record, 'reactant')
         if built is None:
-            return _block(
-                record, "map", "missing_built_geometry",
-                "the first endpoint has no built geometry, so the declared rotation cannot be "
-                "applied",
-                needs=["reaction.reactant_smiles"],
-            )
+            return _block(record, 'map', 'missing_built_geometry', 'The first endpoint is missing.', needs=['conformers.reactant'])
         error, positions = _derive_product_geometry(record, built)
         if error:
-            return _block(
-                record, "map", "product_geometry_failed", error, needs=["conformers.product"],
-            )
-        if len(positions) != len(built[0]):
-            return _block(
-                record, "map", "product_geometry_failed",
-                f"the derived second endpoint has {len(positions)} atoms but the first endpoint has "
-                f"{len(built[0])}",
-                needs=["conformers.product"],
-            )
-        directory = Path(record.run_dir) / BUILD_STAGE_DIR / f"input_{record.declaration_revision:04d}" / "product"
-        directory.mkdir(parents=True, exist_ok=True)
-        xyz = "\n".join([str(len(built[0])), "Declared bond rotation",
-            *[symbol + " " + " ".join(repr(float(v)) for v in point) for symbol, point in zip(built[0], positions)]]) + "\n"
-        record.product_seed_xyz_path = str(directory / "rotated_seed.xyz")
-        _write_immutable_input(record.product_seed_xyz_path, xyz)
-        record.product_seed_mol_path = built[3]
-        molecule = _bound_input_structure(record, 'reactant', require_identity=False)[1]
-        record.seed_molecules['product'] = with_positions(molecule, positions)
-        _validate_input_binding(record)
-        if record.blocked:
-            return record
-        _record_stage(
-            record, "map", "done",
-            "the second endpoint is the first endpoint rotated about the declared bond "
-            f"({geometry.atoms}, {geometry.degrees} deg), so "
-            "the atom correspondence is the identity by construction; no atom_map is needed",
-        )
-        return record
-    if not declaration.atom_map:
-        return _block(
-            record, "map", "atom_map_missing",
-            "no atom_map was declared: the reactant→product atom correspondence is ambiguous, and "
-            "an ambiguous mapping must be declared rather than guessed (a wrong mapping produces a "
-            "non-physical path no matter how good the path search is). To fix: declare the FULL "
-            "1-based structure map, in product atom order for every engine, "
-            "covering EVERY atom including hydrogens (a heavy-atom-only map is rejected). Atom "
-            "numbers refer to the built endpoint XYZs listed in atom_details (component-wise "
-            "assembly order, NOT raw SMILES order): read them, or call reaction_mapping on the "
-            "built structures for a draft and verify it element-wise before ts_resume.",
-            atom_details=_endpoint_numbering(record),
-            needs=["reaction.atom_map"],
-            issues=[dict(code='atom_map_missing', field='reaction.atom_map', index_base=1,
-                         structure_digests={role: table.get('structure_digest') for role, table in record.structures.items()})],
-        )
-
-    reactant = _read_built_xyz(record, "reactant")
-    product = _read_built_xyz(record, "product")
-    if reactant is None or product is None:
-        return _block(
-            record, "map", "missing_built_geometry",
-            "the built endpoint geometries are missing from the run directory, so the atom map "
-            "could not be checked",
-            needs=["reaction.reactant_smiles", "reaction.product_smiles"],
-        )
-    r_symbols = reactant[0]
-    p_symbols = product[0]
-    n = len(r_symbols)
-    if len(p_symbols) != n:
-        return _block(
-            record, "map", "atom_count_mismatch",
-            f"the reactant has {n} atoms but the product has {len(p_symbols)}; a path search needs "
-            "one consistent atom set",
-            atom_details=[f"reactant: {r_symbols}", f"product: {p_symbols}"],
-            needs=["reaction.reactant_smiles", "reaction.product_smiles"],
-        )
-    if sorted(declaration.atom_map) != list(range(n)):
-        got = declaration.atom_map
-        diagnosis = ""
-        if got and min(got) < 0:
-            diagnosis = (" The map contains negative internal indices.")
-        elif 0 < len(got) < n and sorted(got) == list(range(len(got))):
-            heavy = sum(1 for s in p_symbols if s != "H")
-            if len(got) == heavy:
-                diagnosis = (f" The map has {len(got)} entries, exactly the heavy-atom count — "
-                             "this is a heavy-atom map (e.g. reaction_mapping's heavy_atom_map); "
-                             "atom_map must cover EVERY atom including hydrogens.")
-        return _block(
-            record, "map", "atom_map_not_a_permutation",
-            f"atom_map must cover every atom once ({base}..{n-1+base}); got "
-            f"{[i+base for i in got]}.{diagnosis} Atom numbering refers to the built endpoint XYZs listed in "
-            "atom_details.",
-            atom_details=_endpoint_numbering(record),
-            needs=["reaction.atom_map"],
-            issues=[dict(code='atom_reference_invalid', field='reaction.atom_map', index_base=1,
-                         valid_range=[1, n], supplied=[i + 1 for i in got],
-                         structure_digests={role: table.get('structure_digest') for role, table in record.structures.items()})],
-        )
-
-    mismatches: list[str] = []
-    for product_index, target in enumerate(declaration.atom_map):
-        if p_symbols[product_index] != r_symbols[target]:
-            mismatches.append(
-                f"product atom {product_index + base} is {p_symbols[product_index]} but the map points it "
-                f"at reactant atom {target + base} which is {r_symbols[target]}"
-            )
-    if mismatches:
-        return _block(
-            record, "map", "atom_map_element_mismatch",
-            "the declared atom_map does not line up the two endpoints element-wise; reordering the "
-            "product by it would put the wrong element on the wrong atom. The full software-native element "
-            "sequences of both built endpoints are in atom_details — rebuild the whole map against "
-            "them (do not patch single entries by trial and error).",
-            atom_details=mismatches[:10] + _endpoint_numbering(record),
-            needs=["reaction.atom_map"],
-            issues=[dict(code='atom_reference_invalid', field='reaction.atom_map', index_base=1,
-                         details=mismatches[:10], structure_digests={role: table.get('structure_digest') for role, table in record.structures.items()})],
-        )
-    _validate_input_binding(record)
-    if record.blocked:
-        return record
-    _record_stage(record, "map", "done", f"{n} atoms mapped; concrete endpoint identities bound to input revision {record.declaration_revision}")
+            return _block(record, 'map', 'product_geometry_failed', error, needs=['conformers.product'])
+        record.structures.product = with_positions(record.structures.reactant, positions)
+        try:
+            # 构造保证同序，仍须证明实际分子确实是声明的物种和电子态。
+            for role in ('reactant', 'product'):
+                _bound_input_structure(record, role)
+        except (ValueError, OSError) as exc:
+            record.structures.product_to_reactant = None
+            return _block(record, 'map', 'input_identity_unconfirmed', str(exc),
+                needs=['conformers.reactant', 'reaction.reactant_smiles', 'reaction.product_smiles'])
+        # 同一个分子经过显式旋转，原子身份由构造保证。
+        record.structures.product_to_reactant = tuple(range(record.structures.reactant.GetNumAtoms()))
+    left, right = record.structures.reactant, record.structures.product
+    if left is not None and right is not None and left.GetNumAtoms() != right.GetNumAtoms():
+        return _block(record, 'map', 'atom_count_mismatch', 'Endpoint atom counts differ; a path requires the same atom set.',
+            atom_details=[f"reactant: {[a.GetSymbol() for a in left.GetAtoms()]}",
+                          f"product: {[a.GetSymbol() for a in right.GetAtoms()]}"],
+            needs=['reaction.reactant_smiles', 'reaction.product_smiles'])
+    record = _bind_structures(record)
+    if not record.blocked:
+        _record_stage(record, 'map', 'done', 'Concrete endpoint correspondence confirmed and owned by this reaction.')
     return record
 
 def _assemble(record: TsProcessRecord) -> TsProcessRecord:
     """反应中心引导的组装。组装本身在 build 阶段由 structure_builder 完成，这里只核对声明。"""
     # 组装只对**多组分**体系有意义：单组分（分子内重排、阻转异构、环翻转）没有片间取向可采样，
     # 因此不要求 reaction_center——这是"反应中心"这个概念本身不适用，不是调用方漏填
-    import json as _json
-
-    prepared_path = (record.current_reactant_prepared_path or
-                     os.path.join(record.run_dir, BUILD_STAGE_DIR, "reactant", "prepared_structure.json"))
-    components = record.structures.get("reactant", {}).get("components")
-    prepared_data: dict = {}
-    if os.path.isfile(prepared_path):
-        with open(prepared_path, encoding="utf-8") as handle:
-            prepared_data = _json.load(handle)
-    if not isinstance(components, int) or components < 1:
-        return _block(record, "assemble", "missing_component_identity",
-                      "Reactant component count is unavailable; repair the concrete structure binding.",
-                      needs=["conformers.reactant"])
-    identities = prepared_data.get("atom_identities", [])
+    from rdkit import Chem
+    mol = record.structures.reactant
+    if mol is None:
+        return _block(record, 'assemble', 'missing_component_identity',
+            'Reactant molecular identity is unavailable.', needs=['conformers.reactant'])
+    components = len(Chem.GetMolFrags(mol))
+    identities = [dict(index=atom.GetIdx(), symbol=atom.GetSymbol()) for atom in mol.GetAtoms()]
     active_center = _active_reaction_center(record)
     if active_center and not identities:
         return _block(
@@ -1480,6 +1101,15 @@ def _assemble(record: TsProcessRecord) -> TsProcessRecord:
     )
     return record
 
+def _accept_candidate(record, path):
+    from cloudra.tools.core.structure_artifacts import read_xyz_atoms
+    atoms = read_xyz_atoms(path)
+    reference = record.structures.reactant
+    if reference is None or [a.GetSymbol() for a in reference.GetAtoms()] != [symbol for symbol, _ in atoms]:
+        raise ValueError('Candidate atom identity/order differs from the owned reactant')
+    record.structures.candidate = with_positions(reference, [point for _, point in atoms])
+
+
 def _guess_scan(record: TsProcessRecord) -> TsProcessRecord:
     """Advance a declared scan via the same job ledger and parser as manual scans."""
     import math
@@ -1531,7 +1161,7 @@ def _guess_scan(record: TsProcessRecord) -> TsProcessRecord:
         error, job_id = _submit_step(record, "scan", input_path, job_type)
         if error:
             return _block(record, "guess", "compute_admission_rejected", error, needs=["guess"])
-        record.scan_step = TsJobStep(purpose="scan", job_id=job_id, input_path=input_path, state="ready", actual_calculation=calculation, source_input_revision=record.declaration_revision)
+        record.scan_step = TsJobStep(purpose="scan", job_id=job_id, input_path=input_path, state="ready", actual_calculation=calculation, source_input_revision=record.declaration_revision, atom_binding=_direction_atom_binding(record))
         record.waiting_for = f"job:{job_id}"
         _record_stage(record, "guess", "waiting", f"Scan job {job_id} submitted; compute completion advances the system driver.", [input_path])
         return record
@@ -1610,7 +1240,7 @@ def _guess_scan(record: TsProcessRecord) -> TsProcessRecord:
     except (ValueError, OSError) as exc:
         _record_candidate_failure(record, "scan_invalid_geometry", step, _refinement_log_path(record, step))
         return _block(record, "guess", "scan_invalid_geometry", str(exc), needs=["guess"])
-    record.current_ts_guess_path = target
+    _accept_candidate(record, target)
     record.path_kind = "scan"
     record.evidence_candidates.extend([_refinement_log_path(record, step), target])
     _record_stage(record, "guess", "done", "Scan internal peak extracted; unconstrained refinement still required.", [target])
@@ -1634,7 +1264,7 @@ def _queued_path(record: TsProcessRecord, reactant_xyz: str, product_xyz: str):
         error,job = _submit_step(record, 'path', path, 'chem_task')
         if error:
             return None,_block(record,'guess','path_admission_failed',error,needs=['execution.compute_node','execution.limits'])
-        step = TsJobStep(purpose='path',job_id=job,input_path=path,state='ready', actual_calculation=stage_calculation(record, 'path'), source_input_revision=record.declaration_revision)
+        step = TsJobStep(purpose='path',job_id=job,input_path=path,state='ready', actual_calculation=stage_calculation(record, 'path'), source_input_revision=record.declaration_revision, atom_binding=_direction_atom_binding(record))
         record.job_steps.append(step)
         record.waiting_for=f'job:{job}'
         return None,record
@@ -1656,8 +1286,8 @@ def _guess(record: TsProcessRecord) -> TsProcessRecord:
     Scientific search choices are explicit; failure never switches methods.
     """
     record.stage = "guess"
-    if record.input_binding:
-        _validate_input_binding(record)
+    if record.structures.product_to_reactant is None:
+        _bind_structures(record)
         if record.blocked:
             return record
     guess = record.input.guess
@@ -1695,7 +1325,7 @@ def _guess(record: TsProcessRecord) -> TsProcessRecord:
                 bound_refs.append(str(artifact))
         except (OSError, ValueError) as exc:
             return _block(record, 'guess', 'provided_guess_invalid', str(exc), needs=['guess'])
-        record.current_ts_guess_path = str(bound_candidate)
+        _accept_candidate(record, str(bound_candidate))
         record.path_kind = 'provided'
         _record_stage(record, 'guess', 'done', 'Provided candidate bound; formal optimization and verification remain required.', [str(bound_candidate), *bound_refs])
         return record
@@ -1715,52 +1345,16 @@ def _guess(record: TsProcessRecord) -> TsProcessRecord:
                             f"guided_attempt_{record.guidance_attempt:04d}")
                if record.active_attempt_dir else
                os.path.join(record.run_dir, PATH_STAGE_DIR))
-    record.current_ts_guess_path = ""
+    record.structures.candidate = None
     os.makedirs(out_dir, exist_ok=True)
 
-    reactant = _read_built_xyz(record, "reactant")
-    if reactant is None:
-        return _block(
-            record, "guess", "missing_built_geometry",
-            "the built first endpoint geometry is missing from the run directory, so no path guess "
-            "could be constructed",
-            needs=["reaction.reactant_smiles"],
-        )
-    r_symbols, r_pos = reactant[0], reactant[1]
-    if _rotated_product(record) is not None:
-        # 第二端 = 第一端绕声明的键旋转（阻转异构等"两端同一分子"的题型走这条）
-        error, reordered = _derive_product_geometry(record, reactant)
-        if error:
-            return _block(
-                record, "guess", "product_geometry_failed", error, needs=["conformers.product"],
-            )
-    else:
-        product = _read_built_xyz(record, "product")
-        if product is None:
-            return _block(
-                record, "guess", "missing_built_geometry",
-                "the built second endpoint geometry is missing from the run directory, so no path "
-                "guess could be constructed",
-                needs=["reaction.product_smiles"],
-            )
-        p_pos = product[1]
-        atom_map = record.input.reaction.atom_map
-        if len(atom_map) != len(r_symbols):
-            return _block(
-                record, "guess", "atom_map_length_mismatch",
-                f"atom_map has {len(atom_map)} entries for {len(r_symbols)} atoms",
-                needs=["reaction.atom_map"],
-            )
-        # 产物第 k 个原子 → 反应物第 atom_map[k]-1 个位置
-        reordered = [None] * len(r_symbols)
-        for product_index, target in enumerate(atom_map):
-            reordered[target] = list(p_pos[product_index])
-        if any(position is None for position in reordered):
-            return _block(
-                record, "guess", "atom_map_not_a_permutation",
-                "the atom_map does not cover every reordered position; reordering would leave holes",
-                needs=["reaction.atom_map"],
-            )
+    try:
+        reactant_mol, product_mol = path_endpoints(record.structures)
+    except ValueError as exc:
+        return _block(record, 'guess', 'input_identity_unconfirmed', str(exc), needs=['reaction.selected_candidate'])
+    r_symbols = [a.GetSymbol() for a in reactant_mol.GetAtoms()]
+    r_pos = reactant_mol.GetConformer().GetPositions().tolist()
+    reordered = product_mol.GetConformer().GetPositions().tolist()
 
     def xyz_block(symbols, positions, comment: str) -> str:
         lines = [str(len(symbols)), comment]
@@ -1828,17 +1422,17 @@ def _guess(record: TsProcessRecord) -> TsProcessRecord:
             record, "guess", run.termination_reason,
             f"the xTB path search did not produce a usable guess ({run.termination_reason}, "
             f"returncode={run.returncode}).{partial} Persistent run directory: {run.run_dir}. "
-            f"Next step: ts_resume with adjustment.scan (method, scans, optional freeze) when one "
+            f"Next step: ts_resume with changes.guess (kind=scan, calculation, scans, optional freeze) when one "
             f"forming/breaking bond or angle is clear (take the atom indices from "
             f"internal_coordinates first); (b) ts_guess mode='interpolate' (IDPP) — only when both "
-            f"endpoint geometries and the all-atom map are already trustworthy. Either way the "
+            f"endpoint geometries and their internally confirmed correspondence are available. Either way the "
             f"result is a path/guess, not a saddle: an unconstrained OptTS with frequency and IRC "
             f"is still required.",
             atom_details=list(run.diagnostics),
-            needs=["guess", "reaction.reaction_center", "reaction.atom_map", "reaction.reactant_smiles", "reaction.product_smiles"],
+            needs=["guess", "reaction.reaction_center", "reaction.selected_candidate", "reaction.reactant_smiles", "reaction.product_smiles"],
         )
     record.path_kind = "xtb_path"
-    record.current_ts_guess_path = run.ts_xyz_path
+    _accept_candidate(record, run.ts_xyz_path)
     record.evidence_candidates.extend([reordered_path, run.path_xyz_path, run.ts_xyz_path])
     _record_stage(
         record, "guess", "done",
@@ -1852,44 +1446,32 @@ def _validate(record: TsProcessRecord) -> TsProcessRecord:
     import numpy as np
 
     params = _active_reaction_center(record)
-    guess_dir = os.path.join(record.run_dir, PATH_STAGE_DIR)
-    run_dirs = sorted(
-        Path(guess_dir).glob("xtb_path_runs/*")
-    ) if os.path.isdir(guess_dir) else []
-    if record.path_kind in ("xtb_path", "scan", "provided") and (record.current_ts_guess_path or run_dirs):
-        ts_path = (record.current_ts_guess_path if (record.active_attempt_dir or record.current_ts_guess_path or record.path_kind == "scan") else
-                   os.path.join(str(run_dirs[-1]), "xtbpath_ts.xyz"))
-        if os.path.isfile(ts_path):
-            lines = Path(ts_path).read_text(encoding="utf-8").splitlines()
-            count = int(lines[0].strip())
-            positions = np.asarray(
-                [[float(v) for v in line.split()[1:4]] for line in lines[2: 2 + count]],
-                dtype=float,
-            )
-            # 反应中心距离：超出合理区间就是可执行的、点名到原子的反馈
-            detail: list[str] = []
-            base = 1
-            for left, right in params:
-                distance = float(np.linalg.norm(positions[left] - positions[right]))
-                if distance < 0.5:
-                    detail.append(
-                        f"reaction-centre pair ({left + base}, {right + base}) is {distance:.3f} A apart in the "
-                        "TS candidate — below 0.5 A, which is not a chemically meaningful saddle "
-                        "region"
-                    )
-                elif distance > 4.0:
-                    detail.append(
-                        f"reaction-centre pair ({left + base}, {right + base}) is {distance:.3f} A apart in the "
-                        "TS candidate — the path never brought them together"
-                    )
-            if detail:
-                return _block(
-                    record, "validate", "reaction_center_distance_out_of_range",
-                    "the TS candidate does not place the declared reaction centre in a plausible "
-                    "range; adjust the declaration and resume",
-                    atom_details=detail,
-                    needs=["reaction.reaction_center", "reaction.atom_map"],
+    if record.structures.candidate is not None:
+        positions = np.asarray(record.structures.candidate.GetConformer().GetPositions())
+        # 反应中心距离：超出合理区间就是可执行的、点名到原子的反馈
+        detail: list[str] = []
+        base = 1
+        for left, right in params:
+            distance = float(np.linalg.norm(positions[left] - positions[right]))
+            if distance < 0.5:
+                detail.append(
+                    f"reaction-centre pair ({left + base}, {right + base}) is {distance:.3f} A apart in the "
+                    "TS candidate — below 0.5 A, which is not a chemically meaningful saddle "
+                    "region"
                 )
+            elif distance > 4.0:
+                detail.append(
+                    f"reaction-centre pair ({left + base}, {right + base}) is {distance:.3f} A apart in the "
+                    "TS candidate — the path never brought them together"
+                )
+        if detail:
+            return _block(
+                record, "validate", "reaction_center_distance_out_of_range",
+                "the TS candidate does not place the declared reaction centre in a plausible "
+                "range; adjust the declaration and resume",
+                atom_details=detail,
+                needs=["reaction.reaction_center", "reaction.selected_candidate"],
+            )
     _record_stage(record, "validate", "done", "internal validation passed")
     return record
 
@@ -1909,26 +1491,9 @@ def _write_refinement_input(record: TsProcessRecord, job_dir: str) -> tuple[str,
     calculation = stage_calculation(record, 'ts_opt')
     if calculation is None:
         return 'Explicit ts_optimization calculation required', ''
-    guess_dir = os.path.join(record.run_dir, PATH_STAGE_DIR)
-    source = ""
-    if record.active_attempt_dir or record.current_ts_guess_path or record.path_kind == "scan":
-        source = record.current_ts_guess_path
-        if source and not os.path.isfile(source):
-            source = ""
-    else:
-        run_dirs = sorted(Path(guess_dir).glob("xtb_path_runs/*")) if os.path.isdir(guess_dir) else []
-        for run_dir in reversed(run_dirs):
-            candidate = os.path.join(str(run_dir), "xtbpath_ts.xyz")
-            if os.path.isfile(candidate):
-                source = candidate
-                break
-    if not source:
-        # 降级路线（IDPP）下没有 MTD 的 TS 候选：如实报出，不去拿别的帧冒充
-        return (
-            "no TS candidate was produced by the guess stage, so there is nothing to refine "
-            f"(looked for xtbpath_ts.xyz under {guess_dir})",
-            "",
-        )
+    if record.structures.candidate is None:
+        return 'no TS candidate was produced by the guess stage', ''
+    source, _ = export_structure(record, 'candidate')
 
     input_name = REFINEMENT_INPUT_NAMES[calculation.engine]
     input_path = os.path.join(job_dir, input_name)
@@ -1967,9 +1532,9 @@ def _write_refinement_input(record: TsProcessRecord, job_dir: str) -> tuple[str,
         ), ""
 
     content = (
-        QmInputWriter._build_orca_input(request, read_molecule(source, charge=declaration.charge))
+        QmInputWriter._build_orca_input(request, record.structures.candidate)
         if calculation.engine == "orca"
-        else QmInputWriter._build_gjf(request, read_molecule(source, charge=declaration.charge))
+        else QmInputWriter._build_gjf(request, record.structures.candidate)
     )
     # 不信 writer 自述：从生成文本重新 inspect，任务集合不一致即失败（同一份纪律）
     inspected = inspect_input(content, engine=calculation.engine)
@@ -1996,8 +1561,8 @@ def _submit(record: TsProcessRecord) -> TsProcessRecord:
     ``submit_compute_job`` 共用 ``services/compute_admission.admit_job``——**没有第二套**，
     否则同一份作业会在两条入口下得出不同的准入结论。
     """
-    if record.input_binding:
-        _validate_input_binding(record)
+    if record.structures.product_to_reactant is None:
+        _bind_structures(record)
         if record.blocked:
             return record
     if _require_calculation(record, 'ts_opt', 'submit'):
@@ -2036,7 +1601,7 @@ def _submit(record: TsProcessRecord) -> TsProcessRecord:
     record.job_steps.append(TsJobStep(
         purpose="ts_opt", job_id=job_id, input_path=input_path, state="ready",
         actual_calculation=calculation, source_input_revision=record.declaration_revision,
-    ))
+    atom_binding=_direction_atom_binding(record)))
     _record_stage(
         record, "submit", "done",
         f"refinement job {job_id} submitted as 'ready' ({job_type}, {calculation.method}); the "
@@ -2080,6 +1645,7 @@ class TsJobStep(BaseModel):
     stage_key: str | None = None
     external_source: dict | None = None
     endpoint_source: EndpointSource | None = None
+    atom_binding: dict | None = None
 
 def _read_job_state(record: TsProcessRecord, job_id: Optional[int]) -> str:
     """读作业当前状态；读不到返回 ``"missing"``（不猜成成功）。"""
@@ -2155,11 +1721,11 @@ def _reuse_existing_irc(record):
     _write_immutable_input(native_path, text)
     _write_immutable_input(log_path, source_log.read_text())
     facts = dict(source_job_id=job, source_input=str(source_input), source_log=str(source_log),
-        log_path=log_path, frequency_input=frequency.input_path, input_binding=record.input_binding,
+        log_path=log_path, frequency_input=frequency.input_path, atom_binding=_direction_atom_binding(record),
         artifact_hashes={p:hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in (native_path, log_path)})
     record.method_checks[native_path] = record.method_checks[str(source_input)]
     return TsJobStep(purpose='irc', state='done', input_path=native_path, actual_calculation=stage_calculation(record, 'irc'),
-        source_input_revision=record.declaration_revision, stage_key='external:irc', external_source=facts)
+        source_input_revision=record.declaration_revision, stage_key='external:irc', external_source=facts, atom_binding=_direction_atom_binding(record))
 
 def _check_calculation_submission(record, purpose, input_path, job_type):
     from cloudra.runtime_v2.method_policy import check_input_content, check_method
@@ -2773,14 +2339,14 @@ def _endpoint_seed_atoms(record: TsProcessRecord, role: str, seed):
 
     if role != 'product' or _rotated_product(record) is not None:
         return atoms
-    mapping = record.input.reaction.atom_map
+    mapping = record.structures.product_to_reactant
     if len(atoms) != len(mapping) or sorted(mapping) != list(range(len(atoms))):
         raise ValueError('product endpoint seed and bound atom map differ in atom count')
 
     if seed.mol_path:
         supplied = Chem.MolFromMolFile(str(_workspace_input_path(record, seed.mol_path)), removeHs=False)
         built = _read_built_xyz(record, 'product')
-        reference = record.seed_molecules.get('product')
+        reference = record.structures.product
         if reference is None and built and built[3]:
             reference = read_molecule(built[3], input_format='mol')
         if supplied is None or reference is None:
@@ -2813,8 +2379,11 @@ def _endpoint_seed_atoms(record: TsProcessRecord, role: str, seed):
         if native_order and working_order and inverse != list(range(len(mapping))):
             # A symmetric graph cannot identify rows. Retain the bound MOL's concrete row identities.
             supplied_positions = supplied.GetConformer().GetPositions().tolist()
-            native_order = supplied_positions == reference.GetConformer().GetPositions().tolist()
-            working_order = supplied_positions == working.GetConformer().GetPositions().tolist()
+            # MOL 序列化仅保留四位小数；比较同一文件表示，不给分子坐标降精度。
+            def file_rows(points):
+                return [tuple(format(float(value), '.4f') for value in row) for row in points]
+            native_order = file_rows(supplied_positions) == file_rows(reference.GetConformer().GetPositions())
+            working_order = file_rows(supplied_positions) == file_rows(working.GetConformer().GetPositions())
         if working_order and not native_order:
             return atoms
         if not native_order:
@@ -2870,28 +2439,13 @@ def _irc_side_for_role(record: TsProcessRecord, info: dict, role: str) -> str:
                 choices.append((not result['is_between'], result['score'], side != preferred, side))
             return 'B' if min(choices)[3] == 'A' else 'A'
     reactant = _read_built_xyz(record, 'reactant')
-    product = _read_built_xyz(record, 'product')
     if reactant is None or reactant[0] != symbols:
         return fallback
-    if _rotated_product(record) is not None:
-        error, positions = _derive_product_geometry(record, reactant)
-        if error:
-            return fallback
-        product_positions = positions
-    elif product is not None:
-        mapping = record.input.reaction.atom_map
-        if sorted(mapping) != list(range(len(product[0]))):
-            return fallback
-        product_positions = [product[1][mapping.index(index)] for index in range(len(mapping))]
-        if [product[0][mapping.index(index)] for index in range(len(mapping))] != reactant[0]:
-            return fallback
-    else:
+    try:
+        references = list(path_endpoints(record.structures))
+    except ValueError:
         return fallback
-    references = [record.seed_molecules.get('reactant'), record.seed_molecules.get('product')]
-    if _rotated_product(record) is not None:
-        references[1] = references[0]
-    elif references[1] is not None:
-        references[1] = renumber_atoms(references[1], [mapping.index(index) for index in range(len(mapping))])
+    product_positions = references[1].GetConformer().GetPositions().tolist()
     references = [with_positions(mol, positions) if mol is not None else None
                   for mol, positions in zip(references, (reactant[1], product_positions), strict=True)]
     choices = []
@@ -3035,10 +2589,15 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
         return f"{role} {task} input refused: " + " | ".join(
             f"[{item['code']}] {item['message']}" for item in conflicts
         ), ""
+    frame = read_molecule(source, charge=declaration.charge)
+    reference = path_endpoints(record.structures)[0 if role == 'reactant' else 1]
+    if [a.GetSymbol() for a in reference.GetAtoms()] != [a.GetSymbol() for a in frame.GetAtoms()]:
+        return f'{role} endpoint frame differs from the owned atom identities', ''
+    molecule = with_positions(reference, frame.GetConformer().GetPositions())
     content = (
-        QmInputWriter._build_orca_input(request, read_molecule(source, charge=declaration.charge))
+        QmInputWriter._build_orca_input(request, molecule)
         if calculation.engine == "orca"
-        else QmInputWriter._build_gjf(request, read_molecule(source, charge=declaration.charge))
+        else QmInputWriter._build_gjf(request, molecule)
     )
     if inspect_input(content, engine=calculation.engine).tasks != intent_from_writer(
         request.model_dump()
@@ -3127,7 +2686,7 @@ def _refine(record: TsProcessRecord) -> TsProcessRecord:
         record.job_steps.append(TsJobStep(
             purpose="frequency", job_id=job_id, input_path=input_path, state="ready",
             actual_calculation=stage_calculation(record, 'frequency'), source_input_revision=record.declaration_revision,
-        ))
+        atom_binding=_direction_atom_binding(record)))
         record.waiting_for = f"job:{job_id}"
         _record_stage(
             record, "refine", "waiting",
@@ -3177,7 +2736,7 @@ def _refine(record: TsProcessRecord) -> TsProcessRecord:
         record.job_steps.append(TsJobStep(
             purpose="irc", job_id=job_id, input_path=input_path, state="ready",
             actual_calculation=stage_calculation(record, 'irc'), source_input_revision=record.declaration_revision,
-        ))
+        atom_binding=_direction_atom_binding(record)))
         record.waiting_for = f"job:{job_id}"
         _record_stage(
             record, "refine", "waiting",
@@ -3255,7 +2814,7 @@ def _refine(record: TsProcessRecord) -> TsProcessRecord:
             purpose=purpose, job_id=job_id, input_path=input_path, state="ready",
             actual_calculation=stage_calculation(record, purpose), source_input_revision=record.declaration_revision,
             endpoint_source=EndpointSource.model_validate_json(Path(job_dir, 'endpoint_source.json').read_text()),
-        ))
+        atom_binding=_direction_atom_binding(record)))
         record.waiting_for = f"job:{job_id}"
         _record_stage(
             record, "refine", "waiting",
@@ -3344,27 +2903,15 @@ def _endpoint_identity_error(
     optimized: tuple[list[str], list[list[float]]],
 ) -> str:
     """Require the optimized full-atom bond graph to remain the declared species."""
-    import hashlib
-
     from rdkit import Chem
 
     source_role = (
         "reactant" if role == "product" and _rotated_product(record) is not None
         else role
     )
-    built = _read_built_xyz(record, source_role)
-    if built is None:
-        return f"{role} declared endpoint MOL is missing; connectivity is unverified"
-    archived_hash = record.structures.get(source_role, {}).get('mol_sha256')
-    if built[3] and archived_hash and hashlib.sha256(Path(built[3]).read_bytes()).hexdigest() != archived_hash:
-        return f"{role} built MOL artifact changed; connectivity is unverified"
-    mol = record.seed_molecules.get(source_role)
+    mol = getattr(record.structures, source_role)
     if mol is None:
-        if not built[3] or not os.path.isfile(built[3]):
-            return f"{role} declared endpoint MOL is missing; connectivity is unverified"
-        mol = read_molecule(built[3], input_format='mol')
-    if mol is None:
-        return f"{role} declared endpoint MOL cannot be parsed; connectivity is unverified"
+        return f"{role} declared molecular identity is missing; connectivity is unverified"
     expected_smiles = (
         record.input.reaction.reactant_smiles if source_role == "reactant"
         else record.input.reaction.product_smiles
@@ -3374,7 +2921,7 @@ def _endpoint_identity_error(
         return f"{role} built MOL does not match its declared SMILES; connectivity is unverified"
     n = mol.GetNumAtoms()
     if role == "product" and _rotated_product(record) is None:
-        remap = list(record.input.reaction.atom_map)
+        remap = list(record.structures.product_to_reactant)
     else:
         remap = list(range(n))
     if sorted(remap) != list(range(n)) or len(optimized[0]) != n:
@@ -3397,7 +2944,7 @@ def _endpoint_identity_error(
     for index in range(n):
         conformer.SetAtomPosition(index, optimized[1][remap[index]])
     observed.AddConformer(conformer)
-    binding = record.input_binding.get('heavy_atom_bindings', {}).get(source_role)
+    binding = heavy_binding(mol)
     matches = [tuple(index - 1 for index in binding)] if binding else observed.GetSubstructMatches(declared, useChirality=True)
     axis_error = _axis_config_consistency(declared, observed, matches)
     if axis_error:
@@ -3613,15 +3160,10 @@ def _irc_interval_proof(
             if not same_geometry(saved, end_a if origin.label == 'A' else end_b):
                 return False, f'{role} source provenance is not the accepted IRC {origin.label} outer-frame geometry'
 
-    references = [record.seed_molecules.get('reactant'), record.seed_molecules.get('product')]
-    if _rotated_product(record) is not None:
-        references[1] = references[0]
-    elif references[1] is not None:
-        mapping = record.input.reaction.atom_map
-        if sorted(mapping) == list(range(references[1].GetNumAtoms())):
-            references[1] = renumber_atoms(references[1], [mapping.index(index) for index in range(len(mapping))])
-        else:
-            references[1] = None
+    try:
+        references = list(path_endpoints(record.structures))
+    except ValueError:
+        references = [None, None]
     aligned: list[list] = []
     for slot, (label, symbols, positions) in enumerate((
         ("IRC endpoint A", end_a[0], end_a[1]),

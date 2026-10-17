@@ -43,7 +43,7 @@ def waiting_fixture_stage(tmp_path, *, purpose="frequency", engine="orca", seed=
     db = ComputeDB().init()
     declaration = calculation_input(
         reactant_smiles=smiles, product_smiles=smiles, engine=engine,
-        method="b3lyp/def2svp", atom_map=[0, 1, 2],
+        method="b3lyp/def2svp",
     )
     if limits is not None:
         from cloudra.tools.core.ts_inputs import TsExecutionLimits
@@ -75,7 +75,12 @@ def waiting_fixture_stage(tmp_path, *, purpose="frequency", engine="orca", seed=
     folder.mkdir(parents=True)
     geometry = folder / "optimized.xyz"
     geometry.write_text(seed)
-    record.current_seed_xyz_path = str(geometry)
+    from cloudra.tools.core.molecule import read_molecule
+    from cloudra.tools.core.reaction_state import ReactionStructures
+    molecule = read_molecule(input_path=str(geometry), input_format='xyz')
+    record.structures = ReactionStructures(reactant=molecule, product=molecule,
+        candidate=None if purpose == 'scan' else molecule,
+        product_to_reactant=tuple(range(molecule.GetNumAtoms())))
     source = folder / (purpose + (".inp" if engine == "orca" else ".gjf"))
     from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
     from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_input_schema
@@ -170,7 +175,8 @@ def test_contract_single_mode_admits_one_irc_and_preserves_same_geometry(
     install_log(record, step, "benchmark_synthetic/ts_freq.out")
     stale_guess = Path(record.run_dir) / "stale_guess.xyz"
     stale_guess.write_text("3\nstale preoptimization guess\nO 0 0 -5\nC 0 0 0\nO 0 0 5\n")
-    record.current_ts_guess_path = str(stale_guess)
+    from cloudra.tools.core.molecule import read_molecule
+    record.structures.candidate = read_molecule(input_path=str(stale_guess), input_format='xyz')
     process.save_record(record)
     hess = Path(step.input_path).with_suffix(".hess")
     if hessian:
@@ -250,14 +256,15 @@ def test_fixture_scan_terminal_event_preserves_peak_gate_and_no_duplicate_jobs(
         assert saved.job_steps[-1].purpose == "ts_opt"
         text = Path(saved.job_steps[-1].input_path).read_text()
         assert "OptTS" in text and "Constraints" not in text
-        from cloudra.tools.core.structure_artifacts import read_xyz_atoms
-        atoms = read_xyz_atoms(saved.current_ts_guess_path)
+        candidate = saved.structures.candidate
+        atoms = list(zip([atom.GetSymbol() for atom in candidate.GetAtoms()],
+            candidate.GetConformer().GetPositions().tolist(), strict=True))
         assert [s for s, _ in atoms] == ["C", "H", "N"]
         assert atoms[0][1] == pytest.approx([2.1, 0.0, 0.0])
         assert job_count(db) == 2
     else:
         assert saved.blocked.failure_class == "scan_no_candidate"
-        assert saved.current_ts_guess_path == "" and saved.terminal is None
+        assert saved.structures.candidate is None and saved.terminal is None
         assert job_count(db) == 1
     assert handle_process_job_terminal(db, step.job_id) == result
 
@@ -270,7 +277,7 @@ def test_failed_scan_retry_keeps_fixture_artifacts_and_charges_the_new_attempt(t
     result = finish(db, step.job_id, state)["record"]
     assert result["blocked"]["failure_class"] == "scan_job_failed"
     assert result["blocked"]["needs"] == ["compute_artifacts"]
-    assert result["current_ts_guess_path"] == ""
+    assert result["structures"]["candidate"] is None
     saved = process.load_record(str(tmp_path), record.run_id)
     from cloudra.tools.core.ts_inputs import TsResumeRequest
     resumed = process.resume(saved, TsResumeRequest(changes={'guess':saved.input.guess.model_dump()},reason='keep unchanged scan',request_key='unchanged',expected_revision=saved.revision))
@@ -293,7 +300,21 @@ def test_normal_irc_without_geometry_sidecars_cannot_admit_endpoint_opt(tmp_path
 
 
 def test_partial_gaussian_irc_submits_outer_frame_opt_but_never_claims_verified(tmp_path, admission):
-    db, record, step = waiting_fixture_stage(tmp_path, purpose="irc", engine="gaussian")
+    from rdkit import Chem
+
+    from cloudra.tools.core import gaussian_frames
+    from cloudra.tools.core.irc_path import xyz_block
+
+    # Use the job's first native Input orientation; extracted IRC frames are
+    # sorted by reaction coordinate and do not carry a starting TS XYZ here.
+    native = (FIXTURES / 'gaussian/hcn_ts_irc_g16.log').read_text()
+    rows = gaussian_frames._parse_last_input_orientation(native.split('Distance matrix', 1)[0])
+    assert rows is not None
+    symbols = [Chem.GetPeriodicTable().GetElementSymbol(number) for number, *_ in rows]
+    positions = [point for _, *point in rows]
+    assert symbols == ['C', 'N', 'H']
+    db, record, step = waiting_fixture_stage(tmp_path, purpose="irc", engine="gaussian",
+        seed=xyz_block(symbols, positions), smiles='C#N')
     install_log(record, step, "gaussian/hcn_ts_irc_g16.log")
     result = finish(db, step.job_id)
     saved = process.load_record(str(tmp_path), record.run_id)

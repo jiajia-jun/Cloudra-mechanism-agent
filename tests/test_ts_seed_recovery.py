@@ -8,12 +8,13 @@ def test_file_seed_recovery_description_reaches_both_tool_contracts(tool_name):
     from cloudra.tools import get_tools_lst
     from cloudra.tools.documentation import build_tool_documents
 
-    schema = legacy_tool_schemas([tool_name])[0]['function']['parameters']['$defs']['FileConformer']
+    source_name = 'FileConformer' if tool_name == 'ts_prepare' else 'ConformerSourceChanges'
+    schema = legacy_tool_schemas([tool_name])[0]['function']['parameters']['$defs'][source_name]
     field = schema['properties']['optimization']
-    assert field['default'] is None and 'optimization' not in schema['required']
+    assert field['default'] is None and 'optimization' not in schema.get('required', [])
     description = field.get('description', '')
     assert 'as-is' in description
-    assert 'complete file source' in description
+    assert 'optimization' in description
     assert 'endpoint verification' in description
     document, = build_tool_documents([tool_name], allowed_names=[tool_name], entries=get_tools_lst())
     assert description in document.content
@@ -56,7 +57,7 @@ def test_seed_failure_view_explains_how_to_remove_optional_preoptimization(tmp_p
     assert view.next['required_inputs'] == ['conformers.product']
     assert 'changes.conformers.product' in view.message
     assert '"optimization": null' in view.message
-    assert 'complete file source' in view.message
+    assert 'complete file source' not in view.message
     assert 'endpoint verification' in view.message
     assert record.failed_attempt['job_id'] == 41
     assert view.result is None

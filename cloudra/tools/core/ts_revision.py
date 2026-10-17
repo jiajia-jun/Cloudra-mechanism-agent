@@ -1,6 +1,4 @@
-"""TS revisions retain a proved canonical atom order in current source files."""
-import hashlib
-from copy import deepcopy
+"""Revise one owned molecular state while preserving immutable source evidence."""
 from pathlib import Path
 
 from cloudra.services.ts_pipeline_store import TsEvidenceReference, TsRevisionReceipt, revision_request_digest
@@ -68,176 +66,26 @@ def _failed_step(record):
     return next((step for step in reversed(steps) if step.state in ('failed', 'cancelled', 'missing')), None)
 
 
-def _input_revision_differences(record, updated):
+def _source_redeclared(record, changes, role):
+    """A locator patch means import, including explicitly reusing the same path."""
+    if changes.conformers is None or role not in changes.conformers.model_fields_set:
+        return False
+    source = getattr(changes.conformers, role)
+    before = getattr(record.input.conformers, role)
+    if source is None:
+        return before is not None
+    fields = source.model_fields_set
+    if 'kind' in fields and (before is None or source.kind != before.kind):
+        return True
+    return bool(fields & {'xyz_path', 'mol_path', 'catalog_id', 'candidate_id', 'generation', 'seed', 'atoms', 'degrees'})
+
+
+def _input_revision_differences(record, updated, changes):
     differences = _differences(record.input.model_dump(mode='json'), updated.model_dump(mode='json'))
     for role in ('reactant', 'product'):
-        if _file_source_drift(record, role) or _missing_source_arrived(record, role):
-            differences.append(f'conformers.{role}.xyz_path')
+        if _source_redeclared(record, changes, role):
+            differences.append(f'conformers.{role}')
     return sorted(set(differences))
-
-
-def _source_identity(record, source):
-    if source is None:
-        return None
-    fields = {'file': ('xyz_path', 'mol_path'), 'catalog': ('catalog_id', 'candidate_id'),
-              'generate': ('generation', 'seed'), 'rotate_about_bond': ()}[source.kind]
-    values = [getattr(source, field) for field in fields]
-    if source.kind == 'file':
-        from cloudra.tools.core.ts_process import _workspace_input_path
-        values = [str(_workspace_input_path(record, value)) if value else None for value in values]
-    return (source.kind, *values)
-
-
-def _file_source_drift(record, role):
-    from cloudra.tools.core.ts_process import _workspace_input_path
-
-    source = getattr(record.input.conformers, role)
-    if source is None or source.kind != 'file' or role not in record.structures:
-        return False
-    source_revision = record.structures[role]['input_revision']
-    snapshot = Path(record.run_dir) / 'build' / f'input_{source_revision:04d}' / role
-    for name, source_path in (('seed.xyz', source.xyz_path), ('seed.mol', source.mol_path)):
-        if source_path is None:
-            continue
-        old = snapshot / name
-        current = _workspace_input_path(record, source_path)
-        if not old.is_file() or not current.is_file():
-            return True
-        if hashlib.sha256(old.read_bytes()).digest() != hashlib.sha256(current.read_bytes()).digest():
-            return True
-    return False
-
-
-def _missing_source_arrived(record, role):
-    if role in record.structures or record.blocked is None:
-        return False
-    return any(issue.get('code') == 'source_missing' and issue.get('role') == role
-               and Path(issue.get('path', '')).is_file() for issue in record.blocked.issues)
-
-
-def _revision_source_hashes(record, value):
-    from cloudra.tools.core.ts_process import _workspace_input_path
-
-    hashes = {}
-    for role in ('reactant', 'product'):
-        source = getattr(value.conformers, role)
-        if source is None or source.kind != 'file':
-            continue
-        role_hashes = {}
-        for name, source_path in (('xyz', source.xyz_path), ('mol', source.mol_path)):
-            if source_path is not None:
-                path = _workspace_input_path(record, source_path)
-                if path.is_file():
-                    role_hashes[name] = hashlib.sha256(path.read_bytes()).hexdigest()
-        if role_hashes:
-            hashes[role] = role_hashes
-    return hashes
-
-
-def _canonical_file_projection(record, updated, role, permutation):
-    """Capture a current mutable FILE and project its bytes into old atom order."""
-    from rdkit import Chem
-
-    from cloudra.tools.Chemtool.reaction_mapping import _read_structure, concrete_structure_digest
-    from cloudra.tools.core.ts_process import _workspace_input_path
-
-    source = getattr(updated.conformers, role)
-    if source is None or source.kind != 'file' or not permutation:
-        return None
-    paths = {name: str(_workspace_input_path(record, path))
-             for name, path in (('xyz', source.xyz_path), ('mol', source.mol_path)) if path}
-    before = {name: Path(path).read_bytes() for name, path in paths.items()}
-    rows = before['xyz'].decode('utf-8').splitlines(keepends=True)
-    count = int(rows[0].strip())
-    if count != len(permutation) or len(rows) < count + 2:
-        raise ValueError(f'{role}: canonical atom permutation does not cover the XYZ rows')
-    canonical_rows = [rows[index + 2] for index in permutation]
-    after = {'xyz': ''.join([*rows[:2], *canonical_rows, *rows[count + 2:]]).encode('utf-8')}
-    graph = _read_structure(None, before.get('mol', before['xyz']).decode('utf-8'),
-                            'mol' if 'mol' in before else 'xyz', updated.reaction.charge, role)
-    graph = renumber_atoms(graph, permutation)
-    positions = [[float(token) for token in row.split()[1:4]] for row in canonical_rows]
-    conf = Chem.Conformer(count)
-    for index, point in enumerate(positions):
-        conf.SetAtomPosition(index, point)
-    graph.RemoveAllConformers()
-    graph.AddConformer(conf)
-    if 'mol' in before:
-        after['mol'] = Chem.MolToMolBlock(graph).encode('utf-8')
-        roundtrip = _read_structure(None, after['mol'].decode('utf-8'), 'mol', updated.reaction.charge, role)
-        if _graph_atom_permutation(graph, roundtrip, same_rows=True) != list(range(count)):
-            raise ValueError(f'{role}: canonical MOL roundtrip changes molecular identity or stereo; XYZ and MOL must agree')
-    inverse = [0] * count
-    for old_index, raw_index in enumerate(permutation):
-        inverse[raw_index] = old_index
-    hashes = {name: hashlib.sha256(data).hexdigest() for name, data in after.items()}
-    digest = concrete_structure_digest(role, getattr(updated.reaction, role + '_smiles'),
-        updated.reaction.charge, updated.reaction.multiplicity, graph,
-        electronic_character=updated.reaction.electronic_character)
-    normalization = dict(status='pending', input_revision=record.declaration_revision + 1, paths=paths,
-        source_to_canonical=[index + 1 for index in inverse],
-        canonical_to_source=[index + 1 for index in permutation], canonical_hashes=hashes)
-    table = deepcopy(record.structures[role])
-    for key in ('table_path', 'heavy_atom_indices'):
-        table.pop(key, None)
-    table.update(source_kind='file', input_revision=record.declaration_revision + 1,
-        xyz_path=paths['xyz'], mol_path=paths.get('mol'), xyz_sha256=hashes['xyz'],
-        mol_sha256=hashes.get('mol'), structure_digest=digest, binding_status='unverified',
-        normalization=normalization)
-    return dict(paths=paths, before=before, after=after, graph=graph, inverse=inverse, table=table)
-
-
-def _source_atom_permutation(record, updated, role):
-    """Old -> new full-atom indices; [] means unchanged, None means unproved."""
-    from cloudra.tools.core.structure_artifacts import read_xyz_atoms
-    from cloudra.tools.core.ts_process import _workspace_input_path
-
-    before, after = getattr(record.input.conformers, role), getattr(updated.conformers, role)
-    if (_source_identity(record, before) == _source_identity(record, after)
-            and not _file_source_drift(record, role) and not _missing_source_arrived(record, role)):
-        return []
-    if before is None or after is None or after.kind != 'file' or role not in record.structures:
-        return None
-    table = record.structures[role]
-    snapshot = Path(record.run_dir) / 'build' / f"input_{table['input_revision']:04d}" / role
-    old_xyz = snapshot / 'seed.xyz' if before.kind == 'file' else Path(table['xyz_path'])
-    old_mol = (snapshot / 'seed.mol' if before.mol_path else None) if before.kind == 'file' else (
-        Path(table['mol_path']) if table.get('mol_path') else None)
-    new_xyz = _workspace_input_path(record, after.xyz_path)
-    try:
-        if before.kind != 'file':
-            if table.get('source_kind') != before.kind:
-                return None
-            for path, digest in ((old_xyz, table.get('xyz_sha256')), (old_mol, table.get('mol_sha256'))):
-                if path is not None and (not digest or hashlib.sha256(path.read_bytes()).hexdigest() != digest):
-                    return None
-        old_atoms, new_atoms = read_xyz_atoms(str(old_xyz)), read_xyz_atoms(str(new_xyz))
-        # Builder origin tags are atom identity assertions, not free comments.
-        # A changed/removed assertion must not be hidden by coordinate equality.
-        annotations = [
-            [tuple(token for token in row.split()[4:] if token.startswith('in:'))
-             for row in path.read_text().splitlines()[2:2 + len(atoms)]]
-            for path, atoms in ((old_xyz, old_atoms), (new_xyz, new_atoms))
-        ]
-        # Exact coordinates certify the same concrete rows, even for symmetric
-        # atoms. Element sequence alone never establishes this correspondence.
-        same_rows = old_atoms == new_atoms
-        new_mol = _workspace_input_path(record, after.mol_path) if after.mol_path else None
-        if old_mol is None and new_mol is None and same_rows:
-            return list(range(len(old_atoms))) if annotations[0] == annotations[1] else None
-        from cloudra.tools.Chemtool.reaction_mapping import _read_structure
-        old = _read_structure(str(old_mol or old_xyz), None, 'mol' if old_mol else 'xyz', record.input.reaction.charge, role)
-        new = _read_structure(str(new_mol or new_xyz), None, 'mol' if new_mol else 'xyz', updated.reaction.charge, role)
-        if ([atom.GetSymbol() for atom in old.GetAtoms()] != [symbol for symbol, _ in old_atoms]
-                or [atom.GetSymbol() for atom in new.GetAtoms()] != [symbol for symbol, _ in new_atoms]):
-            return None
-        permutation = _graph_atom_permutation(old, new, same_rows=same_rows)
-        if permutation is not None and any(annotations[0][old_index] != annotations[1][new_index]
-                                           for old_index, new_index in enumerate(permutation)):
-            return None
-        return permutation
-    except (ValueError, OSError):
-        return None
 
 
 def _graph_atom_permutation(old, new, *, same_rows):
@@ -251,13 +99,18 @@ def _graph_atom_permutation(old, new, *, same_rows):
     if not same_rows:
         # If supplied, labels are authoritative and must cover all atoms,
         # including hydrogens. Conflicting/partial labels cannot be guessed.
-        _mapped_label_permutation(old, new)
+        try:
+            _mapped_label_permutation(old, new)
+        except ValueError:
+            return None
+    old, new = Chem.Mol(old), Chem.Mol(new)
     atom_property, bond_property = '_cloudra_revision_atom', '_cloudra_revision_bond'
     for mol in (old, new):
         for atom in mol.GetAtoms():
             atom.SetProp(atom_property, repr((atom.GetAtomicNum(), atom.GetIsotope(),
                 atom.GetFormalCharge(), atom.GetNumRadicalElectrons(), atom.GetIsAromatic(),
-                atom.GetAtomMapNum(), atom.GetIdx() if same_rows else None)))
+                atom.GetAtomMapNum(), atom.GetProp('cloudra_atom_id') if atom.HasProp('cloudra_atom_id') else None,
+                atom.GetIdx() if same_rows else None)))
         for bond in mol.GetBonds():
             bond.SetProp(bond_property, repr((str(bond.GetBondType()), bond.GetIsAromatic(), bond.GetIsConjugated())))
     parameters = Chem.SubstructMatchParameters()
@@ -276,104 +129,154 @@ def _graph_atom_permutation(old, new, *, same_rows):
     return old_to_new
 
 
-def _atom_correspondences(record, updated):
-    result = {role: _source_atom_permutation(record, updated, role) for role in ('reactant', 'product')}
-    if (record.input.conformers.product and updated.conformers.product
-            and record.input.conformers.product.kind == updated.conformers.product.kind == 'rotate_about_bond'):
-        result['product'] = result['reactant']
-    return result
+def _revise_structures(record, revised, changes):
+    from cloudra.tools.core.reaction_state import heavy_binding, import_file_structure, set_heavy_binding
 
-
-def _refresh_canonical_bindings(record, updated, changes, projections):
-    """Validate graph bindings in their declared order, then translate indices."""
-    from cloudra.tools.Chemtool.reaction_mapping import (
-        _identity_and_binding,
-        _read_structure,
-    )
-
+    species_changed = {role for role in ('reactant', 'product') if
+        getattr(record.input.reaction, role + '_smiles') != getattr(revised.input.reaction, role + '_smiles')}
+    electronic_changed = any(getattr(record.input.reaction, field) != getattr(revised.input.reaction, field)
+        for field in ('charge', 'multiplicity', 'electronic_character'))
+    correspondences = {role: [] for role in ('reactant', 'product')}
+    incoming_reactant = None
+    for role in correspondences:
+        if not _source_redeclared(record, changes, role):
+            continue
+        source = getattr(revised.input.conformers, role)
+        old = getattr(record.structures, role)
+        try:
+            new = import_file_structure(revised, role, source) if source and source.kind == 'file' else None
+        except FileNotFoundError:
+            new = None
+        if role == 'reactant':
+            incoming_reactant = new
+        permutation = None
+        if old is not None and new is not None and role not in species_changed and not electronic_changed:
+            same_rows = ([atom.GetSymbol() for atom in old.GetAtoms()] == [atom.GetSymbol() for atom in new.GetAtoms()]
+                and old.GetNumConformers() and new.GetNumConformers()
+                and old.GetConformer().GetPositions().tolist() == new.GetConformer().GetPositions().tolist())
+            permutation = _graph_atom_permutation(old, new, same_rows=same_rows)
+            if permutation is not None:
+                new = renumber_atoms(new, permutation)
+                new = set_heavy_binding(new, heavy_binding(old))
+        correspondences[role] = permutation
+        setattr(revised.structures, role, new)
+    unknown = {role for role, permutation in correspondences.items() if permutation is None} | species_changed
+    if unknown or electronic_changed or record.input.reaction.selected_candidate != revised.input.reaction.selected_candidate:
+        revised.structures.product_to_reactant = None
     for role in ('reactant', 'product'):
-        projection = projections.get(role)
-        before, after = getattr(record.input.conformers, role), getattr(updated.conformers, role)
-        if before is None or after is None or after.kind != 'file' or after.heavy_atom_binding is None:
-            continue
-        if projection is None and (before.kind != 'file' or role not in record.structures):
-            continue
-        explicit_source = getattr(changes.conformers, role) if changes.conformers else None
-        explicit = explicit_source and 'heavy_atom_binding' in explicit_source.model_fields_set
-        if explicit:
-            if projection is None:
-                continue
-            raw = projection['before']
-            graph = _read_structure(None, raw.get('mol', raw['xyz']).decode('utf-8'),
-                'mol' if 'mol' in raw else 'xyz', updated.reaction.charge, role)
-            value, binding = updated, after.heavy_atom_binding
-        else:
-            if before.kind != 'file' or before.heavy_atom_binding is None:
-                continue
-            table = record.structures[role]
-            snapshot = Path(record.run_dir) / 'build' / f"input_{table['input_revision']:04d}" / role
-            xyz = snapshot / 'seed.xyz'
-            mol = snapshot / 'seed.mol' if before.mol_path else None
-            graph = _read_structure(str(mol or xyz), None, 'mol' if mol else 'xyz',
-                                    record.input.reaction.charge, role)
-            value, binding = record.input, before.heavy_atom_binding
-        graph.RemoveAllConformers()
-        qualifier = 'explicit' if explicit else 'inherited'
-        if any(index < 1 or index > graph.GetNumAtoms() for index in binding.indices):
-            raise ValueError(f'{role}: {qualifier} heavy-atom binding indices are outside the full atom table')
-        identity, matched, diagnostic = _identity_and_binding(getattr(value.reaction, role + '_smiles'),
-            graph, [index - 1 for index in binding.indices])
-        if identity != 'match' or not matched:
-            raise ValueError(f'{role}: {qualifier} heavy-atom binding is invalid: {diagnostic}')
-        after.heavy_atom_binding.indices = ([projection['inverse'][index - 1] + 1 for index in binding.indices]
-                                            if explicit else list(binding.indices))
+        source = getattr(revised.input.conformers, role)
+        if (role in species_changed or electronic_changed) and source and source.kind == 'generate':
+            setattr(revised.structures, role, None)
+        elif role in species_changed:
+            mol = getattr(revised.structures, role)
+            if mol is not None:
+                setattr(revised.structures, role, set_heavy_binding(mol, []))
+    reaction_fields = changes.reaction.model_fields_set if changes.reaction else set()
+    if (unknown or electronic_changed) and 'selected_candidate' not in reaction_fields:
+        revised.input.reaction.selected_candidate = None
+    guidance = changes.conformers.guidance if changes.conformers else None
+    guidance_fields = guidance.model_fields_set if guidance else set()
+    explicit_guess = changes.guess is not None and 'guess' in changes.model_fields_set
+    if revised.input.guess and revised.input.guess.kind == 'scan':
+        explicit_guess = explicit_guess and 'scans' in changes.guess.model_fields_set
+    if 'reactant' in unknown:
+        if 'reaction_center' not in reaction_fields:
+            revised.input.reaction.reaction_center = []
+        for name in ('ring_order', 'distance_filters'):
+            if name not in guidance_fields:
+                setattr(revised.input.conformers.guidance, name, [])
+        product = revised.input.conformers.product
+        if product and product.kind == 'rotate_about_bond':
+            revised.structures.product = None
+            revised.structures.product_to_reactant = None
+            declared = changes.conformers.product if changes.conformers else None
+            if declared is None or 'atoms' not in declared.model_fields_set:
+                revised.input.conformers.product = None
+        guess = revised.input.guess
+        if guess is not None and (guess.kind in ('provided', 'scan') or species_changed) and not explicit_guess:
+            revised.input.guess = None
+    elif species_changed and not explicit_guess:
+        revised.input.guess = None
+    product = revised.input.conformers.product
+    if correspondences['reactant'] and product and product.kind == 'rotate_about_bond':
+        revised.structures.product = None
+        revised.structures.product_to_reactant = None
+    _translate_explicit_atoms(revised.input, changes, correspondences)
+    if (changes.guess is not None and 'xyz_path' in changes.guess.model_fields_set
+            and revised.input.guess is not None and revised.input.guess.kind == 'provided'):
+        _import_reordered_candidate(record, revised, correspondences['reactant'], incoming_reactant)
 
 
-def _stale_atom_references(record, updated, changes, correspondences):
-    species_changed = any(
-        getattr(record.input.reaction, field) != getattr(updated.reaction, field)
-        for field in ('reactant_smiles', 'product_smiles')
-    )
-    unknown = {role for role, permutation in correspondences.items() if permutation is None}
-    if species_changed:
-        unknown = {'reactant', 'product'}
-    if not unknown and not any(correspondences.values()):
-        return []
-    reaction_fields = changes.reaction.model_fields_set if changes.reaction is not None else set()
-    conformers = changes.conformers
-    guidance = conformers.guidance if conformers is not None else None
-    guidance_fields = guidance.model_fields_set if guidance is not None else set()
-    stale = []
-    for role in unknown:
-        source = getattr(updated.conformers, role)
-        declared = getattr(conformers, role) if conformers else None
-        if (source and source.kind == 'file' and source.heavy_atom_binding
-                and not (declared and 'heavy_atom_binding' in declared.model_fields_set)):
-            stale.append(f'conformers.{role}.heavy_atom_binding')
-    if unknown and record.input.reaction.atom_map and 'atom_map' not in reaction_fields:
-        stale.append('reaction.atom_map')
-    if 'reactant' in unknown and record.input.reaction.reaction_center and 'reaction_center' not in reaction_fields:
-        stale.append('reaction.reaction_center')
-    existing_guidance = record.input.conformers.guidance
-    if 'reactant' in unknown and existing_guidance.ring_order and 'ring_order' not in guidance_fields:
-        stale.append('conformers.guidance.ring_order')
-    if 'reactant' in unknown and existing_guidance.distance_filters and 'distance_filters' not in guidance_fields:
-        stale.append('conformers.guidance.distance_filters')
-    product = record.input.conformers.product
-    if ('reactant' in unknown and product and product.kind == 'rotate_about_bond'
-            and not (conformers and 'product' in conformers.model_fields_set)):
-        stale.append('conformers.product')
-    guess = record.input.guess
-    refreshed_guess = 'guess' in changes.model_fields_set and changes.guess is not None
-    if guess and guess.kind == 'scan' and updated.guess and updated.guess.kind == 'scan' and refreshed_guess:
-        refreshed_guess = 'scans' in changes.guess.model_fields_set
-    if guess is not None and not refreshed_guess:
-        if species_changed or (guess.kind == 'scan' and 'reactant' in unknown):
-            stale.append('guess')
-        elif guess.kind == 'provided' and ('reactant' in unknown or any(
-                old != new for old, new in enumerate(correspondences['reactant']))):
-            stale.append('guess')
-    return stale
+def _import_reordered_candidate(record, revised, permutation, incoming):
+    """Bind a simultaneously supplied XYZ without changing its source file."""
+    if not permutation or permutation == list(range(len(permutation))):
+        return
+    from cloudra.tools.core.molecule import read_molecule, to_xyz, with_positions
+    from cloudra.tools.core.ts_process import _workspace_input_path, _write_immutable_input
+
+    path = _workspace_input_path(revised, revised.input.guess.xyz_path)
+    data = path.read_text()
+    geometry = read_molecule(input_text=data, input_format='xyz', charge=revised.input.reaction.charge)
+
+    def same_rows(reference):
+        if reference is None or reference.GetNumAtoms() != geometry.GetNumAtoms():
+            return False
+        if [atom.GetSymbol() for atom in reference.GetAtoms()] != [atom.GetSymbol() for atom in geometry.GetAtoms()]:
+            return False
+        return reference.GetConformer().GetPositions().tolist() == geometry.GetConformer().GetPositions().tolist()
+
+    if same_rows(record.structures.reactant):
+        canonical = geometry
+    elif same_rows(incoming):
+        canonical = renumber_atoms(geometry, permutation)
+    else:
+        raise ValueError('provided guess atom-order association is unproved; import the endpoint source first, '
+                         'then supply the guess in the current canonical atom order')
+    candidate = with_positions(revised.structures.reactant, canonical.GetConformer().GetPositions())
+    target = Path(revised.run_dir) / 'path' / f'input_{revised.declaration_revision:04d}' / 'provided_canonical.xyz'
+    target.parent.mkdir(parents=True, exist_ok=True)
+    _write_immutable_input(str(target), to_xyz(candidate))
+    if str(path) not in revised.input.guess.evidence_refs:
+        revised.input.guess.evidence_refs.append(str(path))
+    revised.input.guess.xyz_path = str(target)
+
+
+def _translate_explicit_atoms(updated, changes, correspondences):
+    """Current state stays canonical; only newly declared raw indices convert."""
+    inverses = {}
+    for role, permutation in correspondences.items():
+        if permutation:
+            inverse = [0] * len(permutation)
+            for canonical, raw in enumerate(permutation):
+                inverse[raw] = canonical
+            inverses[role] = inverse
+
+    def translate(index, role='reactant'):
+        if role not in inverses:
+            return index
+        inverse = inverses[role]
+        if index < 0 or index >= len(inverse):
+            raise ValueError(f'{role}: explicit atom reference is outside its source atom table')
+        return inverse[index]
+
+    if changes.reaction and 'reaction_center' in changes.reaction.model_fields_set:
+        updated.reaction.reaction_center = [tuple(translate(index) for index in pair)
+            for pair in updated.reaction.reaction_center]
+    guidance = changes.conformers.guidance if changes.conformers else None
+    if guidance and 'ring_order' in guidance.model_fields_set:
+        updated.conformers.guidance.ring_order = [translate(index) for index in updated.conformers.guidance.ring_order]
+    if guidance and 'distance_filters' in guidance.model_fields_set:
+        for window in updated.conformers.guidance.distance_filters:
+            window.atoms = [translate(index) for index in window.atoms]
+    if updated.guess and updated.guess.kind == 'scan' and changes.guess is not None:
+        for name in ('scans', 'freeze'):
+            if name in changes.guess.model_fields_set:
+                for coordinate in getattr(updated.guess, name):
+                    coordinate.atoms = [translate(index) for index in coordinate.atoms]
+    source = updated.conformers.product
+    declared = changes.conformers.product if changes.conformers else None
+    if source and source.kind == 'rotate_about_bond' and declared and 'atoms' in declared.model_fields_set:
+        source.atoms = tuple(translate(index) for index in source.atoms)
 
 
 def plan_input_revision(record, request: TsResumeRequest) -> TsRevisionReceipt:
@@ -381,8 +284,8 @@ def plan_input_revision(record, request: TsResumeRequest) -> TsRevisionReceipt:
     steps = list(record.job_steps) + ([record.scan_step] if record.scan_step else [])
     if any(step.state in ('running', 'cancel_requested') for step in steps):
         raise ValueError('active compute jobs prevent input revisions; use ts_inspect')
-    updated = _apply_revision_input(record, request.changes)
-    differences = _input_revision_differences(record, updated)
+    updated = apply_input_changes(record.input, request.changes)
+    differences = _input_revision_differences(record, updated, request.changes)
     failed = _failed_step(record)
     if not differences and failed is None and record.stop_reason is None:
         raise ValueError('no input change or failed attempt to retry; use ts_inspect')
@@ -404,7 +307,7 @@ def plan_input_revision(record, request: TsResumeRequest) -> TsRevisionReceipt:
             continue
         if path.startswith(('reaction.reactant_smiles', 'reaction.product_smiles', 'reaction.charge', 'reaction.multiplicity', 'reaction.electronic_character', 'reaction.reaction_center', 'conformers.')):
             invalidated.update(_DEPENDENTS['build'])
-        elif path.startswith(('reaction.atom_map', 'guess')):
+        elif path.startswith(('reaction.selected_candidate', 'guess')):
             invalidated.update(_DEPENDENTS['guess'])
         elif path.startswith('ts_optimization'):
             invalidated.update(_DEPENDENTS['ts_opt'])
@@ -431,27 +334,22 @@ def plan_input_revision(record, request: TsResumeRequest) -> TsRevisionReceipt:
         previous_revision=request.expected_revision, revision=request.expected_revision + 1,
         previous_input_revision=record.declaration_revision, input_revision=record.declaration_revision + 1,
         changes=differences, retained=retained, invalidated=invalid,
-        source_hashes=_revision_source_hashes(record, apply_input_changes(record.input, request.changes)),
         released_action_keys=released)
 
 
 def revise_record(record, request, receipt):
-    """Construct a new checkpoint on a deep copy; no writes or submissions."""
+    """Import explicitly changed sources once; never rewrite caller files."""
     from cloudra.tools.core.ts_process import STAGE_ORDER, TsAttemptHistory
     revised = record.model_copy(deep=True)
     revised.attempt_history.append(TsAttemptHistory(declaration_revision=record.declaration_revision,
         selected_candidate_id=record.selected_candidate_id, job_steps=[*record.job_steps, *([record.scan_step] if record.scan_step else [])], stage_records=record.stage_records,
         input=record.input, terminal=record.terminal, blocked=record.blocked, failed_attempt=record.failed_attempt,
-        stop_reason=record.stop_reason,
+        stop_reason=record.stop_reason, structures=record.structures.model_copy(deep=True),
         reason=request.reason))
-    source_hashes = _revision_source_hashes(record, apply_input_changes(record.input, request.changes))
-    if plan_input_revision(record, request) != receipt:
-        raise ValueError('revision plan changed since input inspection; use ts_inspect and retry')
-    revised.input, projections = _project_revision_input(record, request.changes)
-    if source_hashes != _revision_source_hashes(record, revised.input):
-        raise ValueError('source changed during input revision; use ts_inspect and redeclare the source')
+    revised.input = apply_input_changes(record.input, request.changes)
     revised.declaration_revision = receipt.input_revision
     revised.revision = receipt.revision
+    _revise_structures(record, revised, request.changes)
     invalid_refs = {(ref.stage_key, ref.job_id) for ref in receipt.invalidated}
     invalid = {step.purpose for step in [*record.job_steps, *([record.scan_step] if record.scan_step else [])]
         if (step.stage_key or step.purpose, step.job_id) in invalid_refs}
@@ -467,7 +365,7 @@ def revise_record(record, request, receipt):
             restart.append('declare')
         elif path.startswith('conformers.'):
             restart.append('build')
-        elif path.startswith('reaction.atom_map'):
+        elif path.startswith('reaction.selected_candidate'):
             restart.append('map')
         elif path.startswith('reaction.reaction_center'):
             restart.append('build')
@@ -502,35 +400,18 @@ def revise_record(record, request, receipt):
             revised.budget_action_keys.pop(stage_key, None)
             revised.budget_reservations.pop(stage_key, None)
     if STAGE_ORDER.index(revised.stage) <= STAGE_ORDER.index('guess'):
-        revised.current_ts_guess_path = ''
+        revised.structures.candidate = None
         revised.path_kind = 'not_attempted'
         revised.job_id, revised.job_input_path = None, ''
     elif 'ts_opt' in invalid or any(path.startswith('ts_optimization') for path in receipt.changes):
         revised.job_id, revised.job_input_path = None, ''
-    if STAGE_ORDER.index(revised.stage) <= STAGE_ORDER.index('map'):
-        revised.input_binding = {}
-        for table in revised.structures.values():
-            table['binding_status'] = 'unverified'
-            table.pop('heavy_atom_indices', None)
     if STAGE_ORDER.index(revised.stage) <= STAGE_ORDER.index('build'):
-        if source_hashes:
-            revised.input_binding['revision_source_hashes'] = {
-                role: (projections[role]['table']['normalization']['canonical_hashes']
-                       if role in projections else hashes) for role, hashes in source_hashes.items()}
-        revised.structures = {}
-        revised.structures.update({role: projection['table'] for role, projection in projections.items()
-                                  if role in ('reactant', 'product')})
-        revised.current_seed_xyz_path, revised.current_seed_mol_path = '', ''
-        revised.product_seed_xyz_path, revised.product_seed_mol_path = '', ''
-        revised.seed_molecules = {}
-        revised.current_reactant_prepared_path = ''
         revised.active_attempt_dir, revised.guidance_manifest_path = '', ''
-        revised.effective_reaction_center = []
-        if (record.input.conformers.reactant != revised.input.conformers.reactant
+        if (_source_redeclared(record, request.changes, 'reactant')
                 or changed_calculations & {'candidate_opt', 'candidate_evaluation'}):
             revised.catalog_id = revised.partition_revision = revised.selected_candidate_id = None
             revised.cards_path = ''
-        if record.input.conformers.product != revised.input.conformers.product or 'product_seed_opt' in changed_calculations:
+        if _source_redeclared(record, request.changes, 'product') or 'product_seed_opt' in changed_calculations:
             revised.product_seed_candidate_id = None
         if (any(path.startswith(('reaction.', 'conformers.reactant', 'conformers.guidance')) for path in receipt.changes)
                 or changed_calculations & {'candidate_opt', 'candidate_evaluation'}):
@@ -546,163 +427,6 @@ def revise_record(record, request, receipt):
     revised.failed_attempt = None
     revised.intervention_count += 1
     return revised
-
-
-def _project_revision_input(record, changes):
-    """Project canonical input and file rewrites without mutating source files."""
-    changes = changes.model_copy(deep=True)
-    updated = apply_input_changes(record.input, changes)
-    hashes = _revision_source_hashes(record, updated)
-    correspondences = _atom_correspondences(record, updated)
-    stale = _stale_atom_references(record, updated, changes, correspondences)
-    for field in stale:
-        if field == 'reaction.atom_map':
-            updated.reaction.atom_map = []
-        elif field == 'reaction.reaction_center':
-            updated.reaction.reaction_center = []
-        elif field == 'conformers.guidance.ring_order':
-            updated.conformers.guidance.ring_order = []
-        elif field == 'conformers.guidance.distance_filters':
-            updated.conformers.guidance.distance_filters = []
-        elif field == 'conformers.product':
-            updated.conformers.product = None
-        elif field.endswith('.heavy_atom_binding'):
-            getattr(updated.conformers, field.split('.')[1]).heavy_atom_binding = None
-        elif field == 'guess':
-            # A provided guess already belongs to the old canonical order;
-            # replacing endpoint row order alone does not change its meaning.
-            if not (record.input.guess and record.input.guess.kind == 'provided'
-                    and correspondences['reactant'] is not None
-                    and record.input.reaction.reactant_smiles == updated.reaction.reactant_smiles
-                    and record.input.reaction.product_smiles == updated.reaction.product_smiles):
-                updated.guess = None
-    projections = {}
-    for role, permutation in correspondences.items():
-        projection = _canonical_file_projection(record, updated, role, permutation)
-        if projection is not None:
-            projections[role] = projection
-    reaction_fields = changes.reaction.model_fields_set if changes.reaction else set()
-    guidance = changes.conformers.guidance if changes.conformers else None
-    guidance_fields = guidance.model_fields_set if guidance else set()
-
-    def translate(index, role):
-        projection = projections.get(role)
-        if projection is None:
-            return index
-        if index < 0 or index >= len(projection['inverse']):
-            raise ValueError(f'{role}: explicit atom reference is outside its raw source atom table')
-        return projection['inverse'][index]
-
-    if updated.reaction.atom_map and 'atom_map' in reaction_fields:
-        raw_map = updated.reaction.atom_map
-        product = projections.get('product')
-        if product and len(product['inverse']) != len(raw_map):
-            raise ValueError('explicit atom_map does not cover its raw product atom table')
-        canonical_map = [0] * len(raw_map)
-        for raw_product, raw_reactant in enumerate(raw_map):
-            canonical_map[translate(raw_product, 'product')] = translate(raw_reactant, 'reactant')
-        updated.reaction.atom_map = canonical_map
-    if 'reaction_center' in reaction_fields:
-        updated.reaction.reaction_center = [tuple(translate(index, 'reactant') for index in pair)
-                                             for pair in updated.reaction.reaction_center]
-    if 'ring_order' in guidance_fields:
-        updated.conformers.guidance.ring_order = [translate(index, 'reactant') for index in updated.conformers.guidance.ring_order]
-    if 'distance_filters' in guidance_fields:
-        for window in updated.conformers.guidance.distance_filters:
-            window.atoms = [translate(index, 'reactant') for index in window.atoms]
-    if updated.guess and updated.guess.kind == 'scan' and 'guess' in changes.model_fields_set:
-        for field in ('scans', 'freeze'):
-            if field in changes.guess.model_fields_set:
-                for coordinate in getattr(updated.guess, field):
-                    coordinate.atoms = [translate(index, 'reactant') for index in coordinate.atoms]
-    source = updated.conformers.product
-    if source and source.kind == 'rotate_about_bond' and changes.conformers and 'product' in changes.conformers.model_fields_set:
-        source.atoms = tuple(translate(index, 'reactant') for index in source.atoms)
-    if updated.guess and updated.guess.kind == 'provided' and 'guess' in changes.model_fields_set:
-        _project_provided_guess(record, updated, projections)
-    _refresh_canonical_bindings(record, updated, changes, projections)
-    if hashes != _revision_source_hashes(record, apply_input_changes(record.input, changes)):
-        raise ValueError('source changed during input revision; use ts_inspect and redeclare the source')
-    return updated, projections
-
-
-def _project_provided_guess(record, updated, projections):
-    """A new XYZ guess needs concrete proof of which endpoint order it uses."""
-    from cloudra.tools.core.structure_artifacts import read_xyz_atoms
-    from cloudra.tools.core.ts_process import _workspace_input_path
-
-    projection = projections.get('reactant')
-    if projection is None or projection['inverse'] == list(range(len(projection['inverse']))):
-        return
-    path = _workspace_input_path(record, updated.guess.xyz_path)
-    before = path.read_bytes()
-    rows = before.decode('utf-8').splitlines(keepends=True)
-    atoms = read_xyz_atoms(str(path))
-    raw_rows = projection['before']['xyz'].decode('utf-8').splitlines()
-    raw_atoms = [(row.split()[0], [float(v) for v in row.split()[1:4]])
-                 for row in raw_rows[2:2 + len(projection['inverse'])]]
-    table = record.structures['reactant']
-    old = Path(record.run_dir) / 'build' / f"input_{table['input_revision']:04d}" / 'reactant' / 'seed.xyz'
-
-    def identity_tags(source_rows):
-        return [tuple(token for token in row.split()[4:] if token.startswith('in:'))
-                for row in source_rows[2:2 + len(atoms)]]
-
-    tags = identity_tags(rows)
-    if atoms == read_xyz_atoms(str(old)) and tags == identity_tags(old.read_text().splitlines()):
-        return
-    if atoms != raw_atoms or tags != identity_tags(raw_rows):
-        raise ValueError('new provided guess atom-order association is unproved; first resume the source normalization, then submit the guess using the current canonical atom table')
-    order = projection['table']['normalization']['canonical_to_source']
-    after = ''.join([*rows[:2], *[rows[index + 1] for index in order], *rows[len(order) + 2:]]).encode('utf-8')
-    projections['guess'] = dict(paths={'xyz': str(path)}, before={'xyz': before}, after={'xyz': after})
-
-
-def _apply_revision_input(record, changes):
-    return _project_revision_input(record, changes)[0]
-
-
-def _revision_protected_paths(record):
-    """Collect immutable artifact paths without reinterpreting historical input."""
-    data = record.model_dump(mode='json') if hasattr(record, 'model_dump') else record
-    protected = set()
-    root = Path(data.get('workspace_dir') or '.')
-
-    def retain(paths):
-        protected.update((root / path).resolve() for path in paths if isinstance(path, str) and path)
-
-    for checkpoint in [data, *data.get('attempt_history', [])]:
-        for step in [*checkpoint.get('job_steps', []), *([checkpoint['scan_step']] if checkpoint.get('scan_step') else [])]:
-            retain([step.get('input_path')])
-            source = step.get('external_source') or {}
-            retain(source.get('artifact_hashes', {}))
-        for stage in checkpoint.get('stage_records', []):
-            retain(stage.get('artifacts', []))
-    retain([data.get(field) for field in ('current_seed_xyz_path', 'current_seed_mol_path',
-        'product_seed_xyz_path', 'product_seed_mol_path', 'current_ts_guess_path')])
-    retain(data.get('evidence_candidates', []))
-    return protected
-
-
-def _revision_rewrite_files(record, projections, *, protected_paths=(), protected_runs=()):
-    """Only current mutable sources may be overwritten; history is immutable."""
-    protected = {Path(path).resolve() for path in protected_paths if path}
-    protected.update(_revision_protected_paths(record))
-    runs = [Path(record.run_dir).resolve(), *[Path(path).resolve() for path in protected_runs]]
-    files = {}
-    for projection in projections.values():
-        for name, path in projection['paths'].items():
-            before, after = projection['before'][name], projection['after'][name]
-            resolved = Path(path).resolve()
-            if resolved in protected or any(resolved.is_relative_to(run / directory)
-                for run in runs for directory in ('jobs', 'path', 'verdict', 'build')):
-                if before != after:
-                    raise ValueError(f'cannot normalize immutable calculation input or evidence: {path}; supply a mutable current source')
-            item = dict(path=path, before=before.decode('utf-8'), after=after.decode('utf-8'))
-            if path in files and files[path] != item:
-                raise ValueError('same source path has conflicting canonical atom orders across roles')
-            files[path] = item
-    return list(files.values())
 
 
 def resume_revised_process(record, request, *, event_sink=None):
@@ -737,12 +461,9 @@ def resume_revised_process(record, request, *, event_sink=None):
         if current.waiting_for and all(s.state not in ('ready', 'running', 'cancel_requested') for s in [*current.job_steps, *([current.scan_step] if current.scan_step else [])]):
             current.waiting_for = ''
         if (current.stop_reason is None and _failed_step(current) is None and request.changes.model_fields_set and apply_input_changes(current.input,request.changes) == current.input
-                and not any(_file_source_drift(current, role) or _missing_source_arrived(current, role)
-                            for role in ('reactant', 'product'))):
+                and not any(_source_redeclared(current, request.changes, role) for role in ('reactant', 'product'))):
             return current
-        receipt = plan_input_revision(current, request)
-        revised = revise_record(current, request, receipt)
-        commit_input_revision(db, process_id=record.pipeline_id, request=request, record=revised.model_dump(mode='json'), receipt=receipt)
+        commit_input_revision(db, process_id=record.pipeline_id, request=request)
     # Accepted checkpoint is durable before the driver can submit anything.
     state = advance_process(db, record.pipeline_id)
     current = TsProcessRecord.model_validate(state['record'])

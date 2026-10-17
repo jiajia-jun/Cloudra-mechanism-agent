@@ -65,7 +65,7 @@ from cloudra.tools.core.irc_path import (
 from cloudra.tools.core.irc_path import (
     prove_irc_endpoint_direction as _prove_irc_endpoint_direction,
 )
-from cloudra.tools.core.molecule import read_molecule, renumber_atoms, to_ase, to_xyz, total_charge, with_positions
+from cloudra.tools.core.molecule import read_molecule, to_ase, to_xyz, total_charge, with_positions
 from cloudra.tools.core.qm_calculation import QmCalculation
 from cloudra.tools.core.qm_engine import detect_qm_engine
 from cloudra.tools.core.qm_keywords import orca_basis_keyword
@@ -88,9 +88,12 @@ _IRC_TRUNCATION_REMEDY = (
 
 description = (
     "Transition-state (TS) guess workflow: choose an explicit mode. "
-    "xtb_path: execute an xTB metadynamics path search between two already mapped all-atom endpoints; "
+    "Use run_id to revise the guess intent of an existing TS run through its durable queue. "
+    "The run owns endpoint structures, atom correspondence, charge, spin and compute resources. "
+    "Independent geometry analysis accepts complete endpoint MOL/SDF graphs and proves their mapping internally; "
+    "xtb_path: execute an independent xTB metadynamics path search between confirmed all-atom endpoints; "
     "interpolate: linear or IDPP interpolation from reactant/product xyz to generate NEB candidate-path images "
-    "(auto-align, optional atom_map reordering, distance-monitor table, and TS-candidate frame verdict); "
+    "(confirmed automatic atom correspondence, alignment, distance monitoring and a candidate frame); "
     "scan_prepare: write a Gaussian/ORCA constrained-scan input or a typed native xTB scan manifest "
     "(bond/angle/dihedral; xTB requires an explicit method and force_constant); for MLIP/external potentials pass "
     "method='ExtOpt' (ORCA, plus orca_blocks with the %method ProgExt block) or method='external' "
@@ -105,7 +108,8 @@ description = (
     "and checks that each partial IRC endpoint lies between the TS and the matching endpoint reference geometry, yielding a path-direction-consistency pass/fail/inconclusive. "
     "For an exploratory scan: scan_prepare (after internal_coordinates) → submit → scan_parse. "
     "For formal TS refinement and validation, provide the candidate to ts_prepare rather than submitting manual TS/IRC jobs; "
-    "xtb_path/interpolate are fallbacks and never a saddle. Only xtb_path executes a calculation directly; "
+    "xtb_path/interpolate are fallbacks and never a saddle. Independent xtb_path executes a calculation directly; "
+    "run-based operations always use the existing TS revision and queue; "
     "scan_prepare writes an input to submit with submit_compute_job, while interpolate/scan_parse/verify generate or inspect artifacts. "
     "Coordinates never enter context; only numeric tables, verdicts, and file paths are returned."
 )
@@ -113,16 +117,25 @@ description = (
 
 _MODE_FIELDS = {
     'interpolate': {'engine', 'reactant_path', 'reactant_text', 'product_path', 'product_text',
-                    'n_images', 'interp_method', 'atom_map', 'watch_pairs', 'output_dir'},
+                    'n_images', 'interp_method', 'watch_pairs', 'output_dir', 'selected_candidate',
+                    'charge', 'spin', 'electronic_character'},
     'xtb_path': {'engine', 'reactant_path', 'reactant_text', 'product_path', 'product_text',
                  'n_images', 'interp_method', 'watch_pairs', 'output_dir', 'timeout',
-                 'refinement_runs', 'charge', 'spin', 'electronic_character'},
+                 'refinement_runs', 'charge', 'spin', 'electronic_character', 'selected_candidate'},
     'scan_prepare': {*QmCalculation.model_fields, 'input_path', 'input_text', 'scans', 'freeze',
                      'charge', 'spin', 'electronic_character', 'nprocs', 'memory_mb', 'output_path',
                      'job_name', 'force_constant', 'scan_mode', 'solvation'},
     'scan_parse': {'engine', 'log_path', 'ts_candidate_path', 'watch_pairs'},
     'verify': {'engine', 'freq_log', 'irc_log', 'reactant_path', 'reactant_text',
                'product_path', 'product_text', 'watch_pairs', 'charge', 'strict', 'output_dir'},
+}
+
+_RUN_MODE_FIELDS = {
+    'xtb_path': {'method', 'refinement_runs', 'solvation'},
+    'interpolate': {'n_images', 'interp_method', 'watch_pairs'},
+    'scan_prepare': {*QmCalculation.model_fields, 'scans', 'freeze', 'force_constant', 'scan_mode', 'solvation'},
+    'scan': {*QmCalculation.model_fields, 'scans', 'freeze', 'force_constant', 'scan_mode', 'solvation'},
+    'provided': {'ts_candidate_path', 'evidence_refs'},
 }
 
 
@@ -170,6 +183,13 @@ def _mode_json_schema(schema: dict[str, Any]) -> None:
         if mode == 'scan' and selected == 'scan_prepare':
             allowed.add('log_path')
         branch['properties'].update({field: {'not': {}} for field in schema['properties'] if field not in allowed})
+    for mode, fields in _RUN_MODE_FIELDS.items():
+        allowed = fields | {'mode', 'run_id'}
+        branches.append({
+            'properties': {'mode': {'const': mode}, 'run_id': {'type': 'string', 'minLength': 1},
+                **{field: {'not': {}} for field in schema['properties'] if field not in allowed}},
+            'required': ['mode', 'run_id'],
+        })
     schema["oneOf"] = branches
 
 
@@ -183,7 +203,7 @@ class TsGuess_input_schema(input_schema):
         return parameters
 
     mode: Literal[
-        "xtb_path", "interpolate", "scan_prepare", "scan_parse", "verify", "scan",
+        "xtb_path", "interpolate", "scan_prepare", "scan_parse", "verify", "scan", "provided",
     ] = Field(
         description="Required sub-function; no calculation path is selected when mode is omitted. "
                     "DEFAULT SEED PATH when one forming/breaking bond/angle is known: "
@@ -200,10 +220,17 @@ class TsGuess_input_schema(input_schema):
                     "unconstrained OptTS + frequency + IRC are still required. The former 'xtb_neb' alias is gone: xTB has no NEB."
     )
 
+    run_id: str | None = Field(default=None, min_length=1,
+        description='Existing TS run in the current project and workspace. Mutually exclusive with endpoint files/text, charge/spin and output/resource overrides. Guess changes use the existing revision transaction and automatic queue.')
+    selected_candidate: StrictInt | None = Field(default=None, ge=0,
+        description='Independent endpoint analysis: choose a reported complete concrete atom-correspondence candidate (0-based). Omit when mapping is unique; genuine ambiguity requires an explicit choice.')
+    evidence_refs: list[str] = Field(default_factory=list,
+        description='provided with run_id: source evidence for the supplied TS candidate.')
+
     # ---------- interpolate ----------
     reactant_path: Optional[str] = Field(
         default=None,
-        description="Reactant XYZ/MOL/SDF file path; declared molecular graphs are retained. In strict verify, the reference geometry for one endpoint. "
+        description="Independent path/interpolation: complete reactant MOL/SDF graph; verify also accepts XYZ reference geometry. Declared graphs are retained. "
                     "Absolute as-is, or relative to the Agent working directory.",
     )
     reactant_text: Optional[str] = Field(
@@ -212,7 +239,7 @@ class TsGuess_input_schema(input_schema):
     )
     product_path: Optional[str] = Field(
         default=None,
-        description="Product XYZ/MOL/SDF file path; declared molecular graphs are retained. In strict verify, the reference geometry for the other endpoint. "
+        description="Independent path/interpolation: complete product MOL/SDF graph; verify also accepts XYZ reference geometry. Declared graphs are retained. "
                     "Absolute as-is, or relative to the Agent working directory.",
     )
     product_text: Optional[str] = Field(
@@ -222,13 +249,6 @@ class TsGuess_input_schema(input_schema):
     n_images: int = Field(default=10, description="interpolate: total image count (including endpoints), ≥2.")
     interp_method: Literal["idpp", "linear"] = Field(
         default="idpp", description="interpolate: interpolation method. idpp relaxes inter-image pair distances per Smidtstrup 2014; linear is linear interpolation."
-    )
-    atom_map: list[int] = Field(
-        default_factory=list,
-        description="interpolate only: for each atom in the concrete product XYZ order, the corresponding atom "
-                    "in the concrete reactant XYZ order, including explicit H. Gaussian/xTB values start at 1; ORCA at 0. "
-                    "Use reaction_mapping's complete concrete binding, not its heavy_atom_map; convert its 1-based map only for ORCA. "
-                    "Default is identity order; must cover every concrete atom exactly once with matching elements.",
     )
     watch_pairs: list[list[int]] = Field(
         default_factory=list,
@@ -327,6 +347,15 @@ class TsGuess_input_schema(input_schema):
 
     @model_validator(mode="after")
     def require_mode_inputs(self):
+        if self.run_id is not None:
+            if self.mode not in _RUN_MODE_FIELDS:
+                raise ValueError(f'{self.mode} is independent evidence analysis; omit run_id')
+            unused = self.model_fields_set - (_RUN_MODE_FIELDS[self.mode] | {'mode', 'run_id'})
+            if unused:
+                raise ValueError(f'run {self.mode} does not use fields: {", ".join(sorted(unused))}; endpoint and resource state belongs to the run')
+            return self
+        if self.mode == 'provided':
+            raise ValueError('provided requires run_id')
         mode = "scan_parse" if self.mode == "scan" and self.log_path else (
             "scan_prepare" if self.mode == "scan" else self.mode
         )
@@ -369,6 +398,12 @@ class TsGuess_input_schema(input_schema):
 class TsGuess_output_schema(output_schema):
     is_success: bool = Field(description="Whether the operation succeeded")
     message: str = Field(default="", description="Status or error message")
+    process: dict | None = Field(default=None,
+        description='For run_id operations: authoritative TS process view after the accepted guess revision. A successful call is not scientific verification.')
+    diagnostics: list[str] = Field(default_factory=list,
+        description='Original independent path-runner diagnostics; retained on failure and explicit interpolation fallback.')
+    mapping_candidates: list[dict] = Field(default_factory=list,
+        description='Independent geometry analysis: complete concrete endpoint correspondences when mapping is ambiguous. Choose one with selected_candidate; these are mapping alternatives, not verified TS results.')
     calculation: QmCalculation | None = Field(default=None,
         description="scan_prepare: complete settings of the written input/manifest. Preparation is not a calculation result or TS validation.")
 
@@ -463,6 +498,43 @@ def _source_molecule(user_input, role: str):
 def _reference_molecules(user_input):
     return {role: _source_molecule(user_input, role) for role in ("reactant", "product")
             if getattr(user_input, role + "_path") or getattr(user_input, role + "_text")}
+
+
+class _UnconfirmedEndpointMapping(ValueError):
+    def __init__(self, message, candidates):
+        super().__init__(message)
+        self.candidates = candidates
+
+
+def _independent_path_endpoints(user_input):
+    """Import once, then use the same confirmed endpoint state as TS runs."""
+    from rdkit import Chem
+
+    from cloudra.tools.Chemtool.reaction_mapping import bind_reaction_structures
+    from cloudra.tools.core.reaction_state import ReactionStructures, path_endpoints
+    from cloudra.tools.core.ts_inputs import TsInput
+
+    molecules = _reference_molecules(user_input)
+    for role, mol in molecules.items():
+        if mol.HasProp('cloudra_graph_status') and mol.GetProp('cloudra_graph_status') == 'unresolved':
+            raise ValueError(f'{role} XYZ has unresolved molecular identity; supply a complete MOL/SDF graph before endpoint mapping')
+    reaction = dict(
+        reactant_smiles=Chem.MolToSmiles(Chem.RemoveHs(molecules['reactant']), canonical=False),
+        product_smiles=Chem.MolToSmiles(Chem.RemoveHs(molecules['product']), canonical=False),
+        charge=total_charge(molecules['reactant']), multiplicity=user_input.spin,
+        electronic_character=user_input.electronic_character,
+    )
+    if user_input.selected_candidate is not None:
+        reaction['selected_candidate'] = user_input.selected_candidate
+    binding = bind_reaction_structures(TsInput(reaction=reaction), molecules['reactant'], molecules['product'])
+    if binding.get('binding_status') != 'complete':
+        diagnostics = ' '.join(binding.get('binding_diagnostics', []))
+        raise _UnconfirmedEndpointMapping('Concrete endpoint correspondence is unconfirmed. ' + diagnostics +
+            ' Choose a reported complete mapping candidate with selected_candidate when correspondence is genuinely ambiguous.',
+            binding.get('candidates', []))
+    state = ReactionStructures(**molecules,
+        product_to_reactant=tuple(index - 1 for index in binding['atom_map']))
+    return path_endpoints(state)
 
 
 def _atoms_to_xyz_block(symbols, positions, comment: str = "") -> str:
@@ -1270,6 +1342,11 @@ class TsGuess(Tool):
         return True
 
     async def tool_call(self, user_input: TsGuess_input_schema, session: Session) -> TsGuess_output_schema:
+        if user_input.run_id is not None:
+            try:
+                return await self._run_guess(user_input, session)
+            except (ValueError, OSError) as exc:
+                return TsGuess_output_schema(is_success=False, message=f'ts_guess: {exc}')
         # 路径语义收口：所有文件路径字段的相对路径统一解析到 agent 工作
         # 目录（沙箱）；绝对路径保持既有权限语义。
         user_input = user_input.model_copy(
@@ -1312,14 +1389,105 @@ class TsGuess(Tool):
             # handler 是同步重活（xtb_path 会 proc.communicate 等 xTB 子进程、
             # scan_parse 逐帧啃大日志）：卸载出事件循环，避免冻结整个 API。
             return await asyncio.to_thread(handlers[mode], user_input)
+        except _UnconfirmedEndpointMapping as exc:
+            return TsGuess_output_schema(is_success=False, message=str(exc), mapping_candidates=exc.candidates)
         except Exception as e:
             return TsGuess_output_schema(is_success=False, message=f"{user_input.mode} failed: {e}")
+
+    async def _run_guess(self, user_input, session):
+        from cloudra.runtime_v2.invocation_context import current_invocation_scope
+        from cloudra.services.ts_pipeline_context import pipeline_database
+        from cloudra.services.ts_pipeline_store import get_revision_receipt
+        from cloudra.tools.Chemtool.ts_search_process import (
+            _read_resume_record,
+            _request_key,
+            _resolve_workspace,
+            revise_run,
+        )
+        from cloudra.tools.core.permission_model import Permission
+
+        if not self.subagent or not self.subagent.permission_all() & Permission.WRITE:
+            raise ValueError('TS mutation requires producer write permission')
+        record = await asyncio.to_thread(_read_resume_record, pipeline_database(),
+            _resolve_workspace(self), user_input.run_id, self.subagent.conversation_id)
+        # Replays assemble the identical intent from the declaration that the
+        # original call read, rather than copying its already accepted result.
+        inputs, structures = record.input, record.structures
+        scope = current_invocation_scope()
+        if scope is not None and scope.tool_name == self.tool_name:
+            accepted = await asyncio.to_thread(get_revision_receipt, pipeline_database(),
+                process_id=record.pipeline_id, request_key=_request_key(self.tool_name))
+            if accepted:
+                previous = next((attempt for attempt in record.attempt_history
+                    if attempt.declaration_revision == accepted.previous_input_revision), None)
+                if previous is None or previous.input is None or previous.structures is None:
+                    raise ValueError('Accepted TS guess has no original declaration and structure snapshot')
+                inputs, structures = previous.input, previous.structures
+        current = inputs.guess
+        supplied = user_input.model_fields_set
+        mode = user_input.mode
+        if mode == 'xtb_path':
+            guess = current.model_dump(mode='json') if current and current.kind == 'xtb_path' else {'kind': 'xtb_path'}
+            for field in ('method', 'refinement_runs', 'solvation'):
+                if field in supplied:
+                    value = getattr(user_input, field)
+                    guess[field] = value.model_dump(mode='json') if hasattr(value, 'model_dump') else value
+            if not guess.get('method'):
+                raise ValueError('xtb_path requires an explicit method or an existing xtb_path method in this run')
+        elif mode in {'scan', 'scan_prepare'}:
+            guess = {'kind': 'scan'}
+            for field in ('scans', 'freeze', 'force_constant', 'solvation'):
+                if field in supplied:
+                    value = getattr(user_input, field)
+                    guess[field] = ([item.model_dump(mode='json') for item in value] if isinstance(value, list)
+                                    else value.model_dump(mode='json') if hasattr(value, 'model_dump') else value)
+            if 'scan_mode' in supplied:
+                guess['mode'] = user_input.scan_mode
+            fields = supplied & set(QmCalculation.model_fields)
+            if fields or not current or current.kind != 'scan':
+                from cloudra.tools.core.ts_inputs import resolve_calculation
+                calculation = (resolve_calculation(current.calculation, inputs.calculations).model_dump(mode='json')
+                    if current and current.kind == 'scan' else {})
+                calculation.update({field: getattr(user_input, field) for field in fields})
+                complete = QmCalculation.model_validate(calculation)
+                guess['calculation'] = {'replace': complete.model_dump(mode='json')}
+            if 'scans' not in guess and (not current or current.kind != 'scan'):
+                raise ValueError('scan requires explicit scanned coordinates or an existing scan intent in this run')
+        elif mode == 'provided':
+            guess = current.model_dump(mode='json') if current and current.kind == 'provided' else {'kind': 'provided'}
+            if 'ts_candidate_path' in supplied:
+                guess['xyz_path'] = resolve_tool_path(self, user_input.ts_candidate_path)
+            if 'evidence_refs' in supplied:
+                guess['evidence_refs'] = [resolve_tool_path(self, value) for value in user_input.evidence_refs]
+            if not guess.get('xyz_path') or not guess.get('evidence_refs'):
+                raise ValueError('provided requires ts_candidate_path and source evidence_refs')
+        else:
+            import hashlib
+            from pathlib import Path
+
+            from cloudra.tools.core.reaction_state import export_structure, path_endpoints
+            reactant, product = path_endpoints(structures)
+            identity = hashlib.sha256(_request_key(self.tool_name).encode()).hexdigest()[:20]
+            request = user_input.model_copy(update={
+                'output_dir': str(Path(record.run_dir) / 'interpolation' / identity),
+            })
+            result = await asyncio.to_thread(self._interpolate_molecules, request, reactant, product)
+            references = [result.ts_candidate_path]
+            source_record = record.model_copy(update={'structures': structures})
+            for role in ('reactant', 'product'):
+                paths = await asyncio.to_thread(export_structure, source_record, role)
+                references.extend(paths)
+            guess = dict(kind='provided', xyz_path=result.ts_candidate_path, evidence_refs=references)
+        output = await revise_run(self, user_input.run_id, {'guess': guess},
+            f'Use the explicitly requested {mode} TS guess', session, expected_revision=record.revision)
+        return TsGuess_output_schema(is_success=output.is_success, message=output.message,
+                                     process=output.model_dump(mode='json'))
 
     # ---------- mode=interpolate ----------
 
     def _interpolate(self, user_input: TsGuess_input_schema) -> TsGuess_output_schema:
-        references = _reference_molecules(user_input)
-        return self._interpolate_molecules(user_input, references["reactant"], references["product"])
+        reactant, product = _independent_path_endpoints(user_input)
+        return self._interpolate_molecules(user_input, reactant, product)
 
     def _interpolate_molecules(self, user_input, reactant, product):
         import numpy as np
@@ -1328,36 +1496,9 @@ class TsGuess(Tool):
             raise ValueError("n_images must be ≥ 2")
 
         r_syms = [atom.GetSymbol() for atom in reactant.GetAtoms()]
-        p_syms = [atom.GetSymbol() for atom in product.GetAtoms()]
         r_pos = np.asarray(reactant.GetConformer().GetPositions(), dtype=float)
         p_pos = np.asarray(product.GetConformer().GetPositions(), dtype=float)
         n = len(r_syms)
-
-        if len(p_syms) != n:
-            raise ValueError(f"Reactant ({n} atoms) and product ({len(p_syms)} atoms) have different atom counts")
-        if sorted(r_syms) != sorted(p_syms):
-            raise ValueError(f"Reactant and product element multisets differ: {sorted(r_syms)} vs {sorted(p_syms)}")
-
-        # atom_map 重排产物：产物第 k 个原子（0-based k-1）对应反应物第 atom_map[k-1] 个原子
-        if user_input.atom_map:
-            base = atom_index_base(user_input.engine)
-            am = atom_indices(user_input.atom_map, base=base, count=n)
-            if sorted(am) != list(range(n)):
-                raise ValueError(f"atom_map must be a permutation of {base}..{n - 1 + base}")
-            for k, target in enumerate(am):
-                if p_syms[k] != r_syms[target]:
-                    raise ValueError(
-                        f"atom_map element mismatch: product atom {k + base} ({p_syms[k]}) maps to "
-                        f"reactant atom {target + base} ({r_syms[target]})"
-                    )
-            product = renumber_atoms(product, [am.index(target) for target in range(n)])
-            p_pos = product.GetConformer().GetPositions()
-        elif r_syms != p_syms:
-            raise ValueError(
-                "Reactant and product atom orders differ and no atom_map was provided; cannot pair atoms one-to-one. "
-                "Run reaction_mapping on the reactant/product SMILES first and pass its atom_map — "
-                "degenerate/rearrangement systems (reactant = product with permuted atom numbering) always need one."
-            )
 
         # Kabsch 对齐（各自去质心后旋转产物到反应物取向）
         r_centered = r_pos - r_pos.mean(axis=0)
@@ -1441,15 +1582,8 @@ class TsGuess(Tool):
 
         from cloudra.tools.core.xtb_path_runner import XtbPathRequest, run_xtb_path
 
-        references = _reference_molecules(user_input)
-        reactant, product = references["reactant"], references["product"]
+        reactant, product = _independent_path_endpoints(user_input)
         r_syms = [atom.GetSymbol() for atom in reactant.GetAtoms()]
-        p_syms = [atom.GetSymbol() for atom in product.GetAtoms()]
-        if sorted(r_syms) != sorted(p_syms):
-            raise ValueError(
-                "xtb_path needs one consistent atom set: the reactant and product element "
-                f"multisets differ ({sorted(r_syms)} vs {sorted(p_syms)})"
-            )
 
         out_dir = user_input.output_dir or resolve_tool_path(self, "./ts_path")
 
@@ -1469,9 +1603,10 @@ class TsGuess(Tool):
             fallback = self._interpolate_molecules(user_input, reactant, product)
             fallback.path_kind = "idpp_fallback"
             fallback.path_termination_reason = run.termination_reason
+            fallback.diagnostics = list(run.diagnostics)
             fallback.message += (
                 "\nNOTE: the `xtb` executable was not found on PATH, so this path guess fell back "
-                f"to {user_input.interp_method.upper()} interpolation (path_kind='idpp_fallback'). "
+                f"to {user_input.interp_method.upper()} interpolation (path_kind='idpp_fallback'). {run.message} "
                 "That is a degraded route: an interpolation between the two endpoints, NOT a "
                 "metadynamics path search. Install xtb to get path_kind='xtb_path'."
             )
@@ -1485,13 +1620,14 @@ class TsGuess(Tool):
                     refinement_termination=run.refinement_termination,
                     path_termination_reason=run.termination_reason,
                     images_dir=run.run_dir,
+                    diagnostics=list(run.diagnostics),
                     message=(
                         f"the xTB path refinement hit its {run.refinement_runs}-cycle ceiling "
                         "before the engine declared convergence, so no usable TS guess was "
                         "produced. A truncated path's highest frame is not a transition-state "
                         "guess (measured: it sits in the reactant's own basin and an OptTS started "
                         "from it never converges). Call again with a larger `refinement_runs` and "
-                        f"rerun. Persistent run directory (truncated path kept): {run.run_dir}"
+                        f"rerun. {run.message} Persistent run directory (truncated path kept): {run.run_dir}"
                     ),
                 )
             return TsGuess_output_schema(
@@ -1500,11 +1636,12 @@ class TsGuess(Tool):
                 refinement_termination=run.refinement_termination,
                 path_termination_reason=run.termination_reason,
                 images_dir=run.run_dir,
+                diagnostics=list(run.diagnostics),
                 message=(
                     f"the xTB path search did not produce a usable guess (termination="
                     f"{run.termination_reason}, returncode={run.returncode}). No fallback was "
                     "substituted: a failed xTB run is reported, not silently replaced by an "
-                    f"interpolation. Persistent run directory: {run.run_dir}"
+                    f"interpolation. {run.message} Persistent run directory: {run.run_dir}"
                 ),
             )
 
@@ -1544,6 +1681,7 @@ class TsGuess(Tool):
             path_kind="xtb_path",
             refinement_termination=run.refinement_termination,
             path_termination_reason=run.termination_reason,
+            diagnostics=list(run.diagnostics),
             images_dir=out_dir,
             distance_table=distance_table,
             ts_candidate_index=None,
@@ -1554,7 +1692,7 @@ class TsGuess(Tool):
                 "The candidate is the highest point sampled along the MTD path — it is a GUESS, "
                 "not a saddle point and NOT verified; run mode='verify' with a frequency job to "
                 "judge it. Metadynamics is stochastic: a rerun gives a different path, so the "
-                f"whole run is kept for inspection at {run.run_dir}."
+                f"whole run is kept for inspection at {run.run_dir}. {run.message}"
             ),
         )
 

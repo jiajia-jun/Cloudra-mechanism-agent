@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from tests.test_ts_stage_inputs import record_fixture
+from tests.test_ts_stage_inputs import owned_fixture_structure, record_fixture
 
 pytestmark = pytest.mark.usefixtures('ts_producer_authority')
 
@@ -37,12 +37,12 @@ def test_coarse_xyz_can_optimize_but_cannot_count_as_a_minimum(tmp_path, monkeyp
 
     from cloudra.tools.core.ts_inputs import FileConformer, QmCalculation
     from cloudra.tools.core.ts_process import _build, _endpoint_identity_error
-    from tests.test_ts_input_evidence import concrete
+    from tests.test_ts_input_evidence import molecule
     record=record_fixture(tmp_path)
     record.input.reaction.reactant_smiles=record.input.reaction.product_smiles='O'
     record.input.conformers.guidance.ring_order=[]
     graph=tmp_path/'water.mol'
-    graph.write_text(concrete('O'))
+    graph.write_text(Chem.MolToMolBlock(molecule('O')))
     xyz=tmp_path/'water.xyz'
     xyz.write_text('3\ndissociated\nO 0 0 0\nH 30 0 0\nH 0 30 0\n')
     record.input.conformers.reactant=FileConformer(kind='file',xyz_path=str(xyz),mol_path=str(graph),optimization=QmCalculation(basis_set='', engine='xtb',method='GFN2-xTB',keywords=''))
@@ -190,8 +190,7 @@ def test_failed_scan_can_change_route_with_bound_new_route_artifacts(tmp_path,ro
     seed=tmp_path/'seed.xyz'
     seed.write_text('3\nwater\nO 0 0 0\nH .96 0 0\nH -.24 .93 0\n')
     record.input.reaction.reactant_smiles=record.input.reaction.product_smiles='O'
-    record.current_seed_xyz_path=record.product_seed_xyz_path=str(seed)
-    record.input.reaction.atom_map=[0,1,2]
+    owned_fixture_structure(record, seed, 'O')
     old.with_suffix('.out').write_text('bound old attempt evidence')
     change={'kind':'provided','xyz_path':str(seed),'evidence_refs':[str(old.with_suffix('.out'))]} if route=='provided' else {'kind':'xtb_path','method':'GFN2-xTB'}
     req=request({'guess':change},[old.with_suffix('.out'),seed])
@@ -208,8 +207,6 @@ def test_failed_scan_can_change_route_with_bound_new_route_artifacts(tmp_path,ro
 
 
 def test_catalog_source_binds_stable_atom_table(tmp_path):
-    import json
-
     from cloudra.persistence.database import ComputeDB
     from cloudra.services.conformer_store import list_candidates
     from cloudra.tools.core.conformer_catalog import Qualification
@@ -222,11 +219,12 @@ def test_catalog_source_binds_stable_atom_table(tmp_path):
     record=record_fixture(tmp_path)
     use_catalog_source(record,CatalogConformer(**source),'reactant')
     assert record.blocked is None
-    table=json.loads(Path(record.current_reactant_prepared_path).read_text())
-    assert [a['stable_atom_id'] for a in table['atom_identities']]==selected.atom_ids
-    assert [a['symbol'] for a in table['atom_identities']]==selected.symbols
-    assert [a['fragment_id'] for a in table['atom_identities']]==selected.fragment_ids
-    assert table['candidate_id']==selected.candidate_id
+    atoms = record.structures.reactant.GetAtoms()
+    assert [atom.GetProp('cloudra_atom_id') for atom in atoms] == selected.atom_ids
+    assert [atom.GetSymbol() for atom in atoms] == selected.symbols
+    assert [atom.GetProp('cloudra_fragment_id') for atom in atoms] == selected.fragment_ids
+    assert record.selected_candidate_id == selected.candidate_id
+
 
 
 @pytest.mark.usefixtures('rdkit_chemistry')
@@ -249,22 +247,24 @@ def test_catalog_build_binds_concrete_components_before_assemble(tmp_path, react
 
     assert record.blocked is None
     for role in ('reactant', 'product'):
-        table = record.structures[role]
+        from cloudra.tools.core.reaction_state import structure_tables
+        table = structure_tables(record)[role]
         assert table['source_kind'] == 'catalog'
         assert table['components'] == 1
         assert table['structure_digest']
-        assert Path(table['table_path']).is_file()
+        assert getattr(record.structures, role).GetNumConformers() == 1
     _assemble(record)
     assert record.blocked is None
 
 
-def test_missing_atom_map_prompt_uses_the_grouped_structure_numbering(tmp_path):
-    from cloudra.tools.core.ts_process import _map
-    record=record_fixture(tmp_path)
-    record.input.reaction.atom_map=[]
+def test_real_concrete_ambiguity_requests_one_candidate_choice(tmp_path):
+    from cloudra.tools.core.ts_process import _build, _map
+    from tests.test_ts_input_evidence import file_record
+    record = file_record(tmp_path, 'CC')
+    _build(record)
     _map(record)
-    assert '1-based' in record.blocked.message
-    assert 'ORCA 0-based' not in record.blocked.message
+    assert record.blocked.needs == ['reaction.selected_candidate']
+    assert all(candidate['atom_map'] for candidate in record.blocked.issues[0]['candidates'])
 
 
 
@@ -311,7 +311,13 @@ def test_rotated_product_failure_names_public_grouped_input(tmp_path,monkeypatch
     record=record_fixture(tmp_path)
     from cloudra.tools.core.ts_inputs import XtbPathGuess
     record.input.guess=XtbPathGuess(kind='xtb_path',method='GFN2-xTB')
-    monkeypatch.setattr('cloudra.tools.core.ts_process._rotated_product',lambda *_:object())
+    seed = tmp_path / 'h2.xyz'
+    seed.write_text('2\nseed\nH 0 0 0\nH 0 0 .74\n')
+    owned_fixture_structure(record, seed, '[H][H]')
+    from cloudra.tools.core.ts_inputs import RotatedConformer
+    record.input.conformers.product = RotatedConformer(kind='rotate_about_bond', atoms=(0, 1), degrees=90)
+    record.structures.product_to_reactant = None
+    record.structures.product = None
     monkeypatch.setattr('cloudra.tools.core.ts_process._read_built_xyz',lambda *_:(['H','H'],[[0,0,0],[0,0,.74]],'seed.xyz',''))
     monkeypatch.setattr('cloudra.tools.core.ts_process._derive_product_geometry',lambda *_:('rotation failed',None))
     assert _guess(record).blocked.needs==['conformers.product']
@@ -340,9 +346,7 @@ def test_failed_scan_accepts_bound_coordinate_change_on_same_run(tmp_path, field
     record.failed_attempt['evidence_refs'] = [str(diagnostic)]
     seed = tmp_path / 'seed.xyz'
     seed.write_text('3\nwater\nO 0 0 0\nH .96 0 0\nH -.24 .93 0\n')
-    record.current_seed_xyz_path = record.product_seed_xyz_path = str(seed)
-    record.input.reaction.reactant_smiles = record.input.reaction.product_smiles = 'O'
-    record.input.reaction.atom_map = [0, 1, 2]
+    owned_fixture_structure(record, seed, 'O')
     guess = record.input.guess.model_dump()
     if field == 'coord_type':
         guess['scans'][0]['atoms'] = [0, 1, 2]

@@ -118,10 +118,10 @@ def test_stop_does_not_revalidate_a_modified_current_structure(tmp_path):
     record = TsProcessRecord.model_validate(get_process(db, pid)['record'])
     source = tmp_path / 'current.xyz'
     source.write_text('2\naccepted\nH 0 0 0\nH 0 0 .74\n')
-    record.structures['reactant'] = {'normalization': {
-        'input_revision': record.declaration_revision, 'paths': {'xyz': str(source)},
-        'canonical_hashes': {'xyz': hashlib.sha256(source.read_bytes()).hexdigest()},
-    }}
+    from cloudra.tools.core.molecule import read_molecule
+    record.structures.reactant = read_molecule(str(source), input_format='xyz')
+    record.structures.reactant.SetProp('cloudra_import_source', json.dumps(dict(paths={'xyz':str(source)},
+        hashes={'xyz':hashlib.sha256(source.read_bytes()).hexdigest()})))
     save_process_record(db, process_id=pid, record=record.model_dump(mode='json'))
     source.write_text('2\nreplacement\nH 0 0 0\nH 0 0 .80\n')
     replacement = source.read_bytes()

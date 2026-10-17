@@ -1,210 +1,151 @@
-from copy import deepcopy
+"""The ledger accepts one internally constructed molecular revision."""
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 import pytest
 
-from cloudra.persistence.database import ComputeDB
-from tests.test_ts_pipeline_store import job_payload, payload
+from cloudra.services.ts_pipeline_store import (
+    bind_stage_job,
+    commit_input_revision,
+    commit_stage_result,
+    get_process,
+    get_revision_receipt,
+    save_process_record,
+)
+from cloudra.tools.core.ts_process import TsJobStep, TsProcessRecord
+from tests.test_ts_revision_state import revision_request, state_fixture
 
 
-def revision_fixture(tmp_path):
-    from cloudra.services.ts_pipeline_store import create_process, save_process_record
-    from cloudra.tools.core.ts_inputs import TsInput, TsInputChanges, TsResumeRequest, apply_input_changes
-
-    db = ComputeDB(data_dir=tmp_path).init()
-    process = create_process(db, request_key="prepare", payload=payload())
-    value = TsInput.model_validate(payload()['input'])
-    request = TsResumeRequest(
-        changes=TsInputChanges.model_validate({"verification": {"irc": {"replace": {"engine": "orca", "method": "b97-3c", "basis_set": "", "keywords": ""}}}}),
-        reason="supply IRC method", request_key="resume-1", expected_revision=1,
-    )
-    state = dict(run_id='revision', run_dir=str(tmp_path / 'run'), workspace_dir=payload()['workspace_dir'],
-                 pipeline_id=process["process_id"], owner_conversation_id="project", owner_session_id="owner",
-                 format_version=6, declaration_revision=2, input=apply_input_changes(value, request.changes).model_dump(mode="json"),
-                 stage="refine", blocked=None, waiting_for='', terminal=None)
-    save_process_record(db, process_id=process['process_id'], record=dict(
-        state, declaration_revision=1, input=value.model_dump(mode='json')))
-    return db, process["process_id"], request, state
+def bind(record, db, tmp_path, purpose):
+    path = tmp_path / (purpose + '.inp')
+    path.write_text('! HF STO-3G Opt\n* xyz 0 1\nO 0 0 0\n*\n')
+    job = bind_stage_job(db, process_id=record.pipeline_id, declaration_revision=1,
+        stage_key=purpose, attempt=1, job_payload={
+            'conversation_id': 'project', 'session_id': 'owner', 'path': str(path),
+            'jobtype': 'orca', 'node_id': 'fixture',
+        })
+    record.job_steps.append(TsJobStep(purpose=purpose, stage_key=purpose, job_id=job,
+        state='ready', input_path=str(path), source_input_revision=1))
+    return job
 
 
-def receipt(request, **overrides):
-    from cloudra.services.ts_pipeline_store import TsRevisionReceipt, revision_request_digest
-
-    data = dict(request_key=request.request_key, request_digest=revision_request_digest(request), reason=request.reason,
-                previous_revision=request.expected_revision, revision=request.expected_revision + 1,
-                previous_input_revision=1, input_revision=2,
-                changes=["verification.irc"], retained=[], invalidated=[], released_action_keys=[])
-    data.update(overrides)
-    return TsRevisionReceipt.model_validate(data)
-
-
-def test_replay_after_response_loss_reuses_revision_and_jobs(tmp_path):
-    from cloudra.services.ts_pipeline_store import commit_input_revision, get_process, get_revision_receipt
-
-    db, pid, request, state = revision_fixture(tmp_path)
-    accepted = commit_input_revision(db, process_id=pid, request=request, record=state, receipt=receipt(request))
-    assert get_revision_receipt(db, process_id=pid, request_key=request.request_key) == accepted
-    before = get_process(db, pid)
-    assert commit_input_revision(db, process_id=pid, request=request, record=state, receipt=receipt(request)) == accepted
-    assert get_process(db, pid) == before
-    with db.connect() as con:
-        assert con.execute("SELECT COUNT(*) FROM ts_pipeline_revision_receipts").fetchone()[0] == 1
-        assert con.execute("SELECT COUNT(*) FROM compute_jobs").fetchone()[0] == 0
-
-
-def test_receipt_cannot_accept_an_undeclared_input_change(tmp_path):
-    from cloudra.services.ts_pipeline_store import commit_input_revision, get_process
-    db, pid, request, state = revision_fixture(tmp_path)
-    state['input']['reaction']['charge'] += 1
-    before = get_process(db, pid)
-    with pytest.raises(ValueError,match='accepted request'):
-        commit_input_revision(db,process_id=pid,request=request,record=state,receipt=receipt(request))
-    assert get_process(db,pid) == before
+def checkpoint(record, db):
+    save_process_record(db, process_id=record.pipeline_id, record=record.model_dump(mode='json'))
+    record.revision = get_process(db, record.pipeline_id)['revision']
 
 
 def test_conflicting_key_and_stale_revision_do_not_mutate(tmp_path):
-    from cloudra.services.ts_pipeline_store import commit_input_revision, get_process
+    db, record = state_fixture(tmp_path)
+    request = revision_request(record, {'ts_optimization': {'keywords': 'TightSCF'}})
+    accepted = commit_input_revision(db, process_id=record.pipeline_id, request=request)
+    before = get_process(db, record.pipeline_id)
+    with pytest.raises(ValueError, match='conflict'):
+        commit_input_revision(db, process_id=record.pipeline_id,
+            request=request.model_copy(update={'reason': 'different content'}))
+    with pytest.raises(ValueError, match='stale'):
+        commit_input_revision(db, process_id=record.pipeline_id,
+            request=request.model_copy(update={'request_key': 'new stale request'}))
+    assert get_process(db, record.pipeline_id) == before
+    assert get_revision_receipt(db, process_id=record.pipeline_id, request_key=request.request_key) == accepted
 
-    db, pid, request, state = revision_fixture(tmp_path)
-    commit_input_revision(db, process_id=pid, request=request, record=state, receipt=receipt(request))
-    before = deepcopy(get_process(db, pid))
-    conflicting = request.model_copy(update={"reason": "different content"})
-    with pytest.raises(ValueError, match="conflict"):
-        commit_input_revision(db, process_id=pid, request=conflicting, record=state, receipt=receipt(conflicting))
-    stale = request.model_copy(update={"request_key": "unseen-stale"})
-    with pytest.raises(ValueError, match="stale"):
-        commit_input_revision(db, process_id=pid, request=stale, record=state, receipt=receipt(stale))
-    assert get_process(db, pid) == before
 
-
-def test_revision_keeps_historical_inputs_and_reused_evidence(tmp_path):
-    from cloudra.services.ts_pipeline_store import bind_stage_job, commit_input_revision, get_process
-
-    db, pid, request, state = revision_fixture(tmp_path)
-    job = bind_stage_job(db, process_id=pid, declaration_revision=1, stage_key="ts_opt", attempt=1,
-                         job_payload=job_payload())
+def test_revision_withdraws_only_affected_ready_and_keeps_old_declaration_completion(tmp_path):
+    db, record = state_fixture(tmp_path)
+    affected = bind(record, db, tmp_path, 'reactant_opt')
+    retained = bind(record, db, tmp_path, 'product_opt')
+    record.waiting_for = f'job:{retained}'
+    checkpoint(record, db)
     with db.connect() as con:
-        con.execute("UPDATE compute_jobs SET state='done' WHERE id=?", (job,))
-        before = con.execute("SELECT * FROM ts_pipeline_stages").fetchall()
-        original = con.execute("SELECT payload FROM ts_pipeline_declarations").fetchone()[0]
-    request = request.model_copy(update={"expected_revision": get_process(db, pid)["revision"]})
-    ref = dict(declaration_revision=1, stage_key="ts_opt", attempt=1, job_id=job)
-    commit_input_revision(db, process_id=pid, request=request, record=state,
-                          receipt=receipt(request, retained=[ref]))
+        stages_before = con.execute('SELECT * FROM ts_pipeline_stages ORDER BY job_id').fetchall()
+        declaration_before = con.execute('SELECT payload FROM ts_pipeline_declarations WHERE declaration_revision=1').fetchone()[0]
+    request = revision_request(record, {'verification': {'reactant_endpoint': {'optimization': {
+        'replace': {'engine': 'orca', 'method': 'HF', 'basis_set': 'STO-3G'},
+    }}}})
+    accepted = commit_input_revision(db, process_id=record.pipeline_id, request=request)
+    state = get_process(db, record.pipeline_id)
+    assert [ref.job_id for ref in accepted.invalidated] == [affected]
+    assert [ref.job_id for ref in accepted.retained] == [retained]
+    assert [step['job_id'] for step in state['record']['job_steps']] == [retained]
+    assert state['record']['waiting_for'] == f'job:{retained}'
     with db.connect() as con:
-        assert con.execute("SELECT * FROM ts_pipeline_stages").fetchall() == before
-        assert con.execute("SELECT payload FROM ts_pipeline_declarations WHERE declaration_revision=1").fetchone()[0] == original
-        assert con.execute("SELECT COUNT(*) FROM ts_pipeline_declarations").fetchone()[0] == 2
-
-
-def test_input_revision_withdraws_only_invalidated_queued_jobs(tmp_path):
-    from cloudra.services.ts_pipeline_store import (
-        bind_stage_job,
-        commit_input_revision,
-        get_process,
-        get_revision_receipt,
-    )
-    from cloudra.tools.core.ts_inputs import TsInput, TsInputChanges, apply_input_changes
-
-    db, pid, request, state = revision_fixture(tmp_path)
-    request = request.model_copy(update={'changes': TsInputChanges.model_validate({
-        'verification': {'reactant_endpoint': {'optimization': {'replace': {
-            'engine': 'orca', 'method': 'b97-3c', 'basis_set': '', 'keywords': '',
-        }}}},
-    })})
-    old_input = TsInput.model_validate(get_process(db, pid)['record']['input'])
-    state['input'] = apply_input_changes(old_input, request.changes).model_dump(mode='json')
-    affected = bind_stage_job(db, process_id=pid, declaration_revision=1, stage_key='reactant_opt', attempt=1,
-                              job_payload=job_payload(path='/fixture/reactant.inp'))
-    retained = bind_stage_job(db, process_id=pid, declaration_revision=1, stage_key='product_opt', attempt=1,
-                              job_payload=job_payload(path='/fixture/product.inp'))
-    state['job_steps'] = [dict(purpose='product_opt', job_id=retained, state='ready', source_input_revision=1)]
-    request = request.model_copy(update={"expected_revision": get_process(db, pid)["revision"]})
-    refs = receipt(request,
-        changes=['verification.reactant_endpoint.optimization.method', 'verification.reactant_endpoint.optimization.basis_set'],
-        invalidated=[dict(declaration_revision=1, stage_key='reactant_opt', attempt=1, job_id=affected)],
-        retained=[dict(declaration_revision=1, stage_key='product_opt', attempt=1, job_id=retained)])
+        assert dict(con.execute('SELECT id,state FROM compute_jobs')) == {affected: 'cancelled', retained: 'ready'}
+        assert con.execute('SELECT * FROM ts_pipeline_stages ORDER BY job_id').fetchall() == stages_before
+        assert con.execute('SELECT payload FROM ts_pipeline_declarations WHERE declaration_revision=1').fetchone()[0] == declaration_before
+        con.execute("UPDATE compute_jobs SET state='done' WHERE id=?", (retained,))
+    assert commit_stage_result(db, process_id=record.pipeline_id, expected_revision=state['revision'],
+        declaration_revision=1, stage_key='product_opt', attempt=1,
+        evidence={'status': 'done', 'artifacts': [], 'input_hash': 'fixture'})
     with db.connect() as con:
-        old_bindings = con.execute('SELECT * FROM ts_pipeline_stages ORDER BY job_id').fetchall()
-        old_declaration = con.execute('SELECT payload FROM ts_pipeline_declarations WHERE declaration_revision=1').fetchone()[0]
+        assert con.execute('SELECT evidence FROM ts_pipeline_stages WHERE job_id=?', (retained,)).fetchone()[0] is not None
+    assert Path(record.job_steps[0].input_path).read_text().startswith('! HF STO-3G')
 
-    accepted = commit_input_revision(db, process_id=pid, request=request, record=state, receipt=refs)
 
-    assert get_revision_receipt(db, process_id=pid, request_key=request.request_key) == accepted
-    assert get_process(db, pid)['declaration_revision'] == 2
-    assert [step['job_id'] for step in get_process(db, pid)['record']['job_steps']] == [retained]
+def test_queued_claim_between_preparation_and_commit_rejects_atomically(tmp_path, monkeypatch):
+    from cloudra.tools.core import ts_revision
+    db, record = state_fixture(tmp_path)
+    job = bind(record, db, tmp_path, 'ts_opt')
+    checkpoint(record, db)
+    before = get_process(db, record.pipeline_id)
+    original = ts_revision.revise_record
+
+    def claimed(*args):
+        prepared = original(*args)
+        with db.connect() as con:
+            con.execute("UPDATE compute_jobs SET state='running' WHERE id=?", (job,))
+        return prepared
+
+    monkeypatch.setattr(ts_revision, 'revise_record', claimed)
+    with pytest.raises(ValueError, match='active'):
+        commit_input_revision(db, process_id=record.pipeline_id,
+            request=revision_request(record, {'ts_optimization': {'keywords': 'TightSCF'}}))
+    assert get_process(db, record.pipeline_id) == before
+    assert get_revision_receipt(db, process_id=record.pipeline_id, request_key='revision') is None
     with db.connect() as con:
-        jobs = con.execute('SELECT id,state,end_timestamp FROM compute_jobs ORDER BY id').fetchall()
-        assert [(job[0], job[1]) for job in jobs] == [(affected, 'cancelled'), (retained, 'ready')]
-        assert jobs[0][2] > 0
-        assert con.execute('SELECT * FROM ts_pipeline_stages ORDER BY job_id').fetchall() == old_bindings
-        assert con.execute('SELECT payload FROM ts_pipeline_declarations WHERE declaration_revision=1').fetchone()[0] == old_declaration
+        assert con.execute('SELECT state FROM compute_jobs WHERE id=?', (job,)).fetchone()[0] == 'running'
 
 
-@pytest.mark.parametrize('job_state', ['running', 'cancel_requested'])
-def test_started_compute_prevents_transactional_revision_without_mutation(tmp_path, job_state):
-    from cloudra.services.ts_pipeline_store import (
-        bind_stage_job,
-        commit_input_revision,
-        get_process,
-        get_revision_receipt,
-    )
-
-    db, pid, request, state = revision_fixture(tmp_path)
-    job = bind_stage_job(db, process_id=pid, declaration_revision=1, stage_key="ts_opt", attempt=1, job_payload=job_payload())
-    with db.connect() as con:
-        con.execute('UPDATE compute_jobs SET state=? WHERE id=?', (job_state, job))
-        jobs_before = con.execute('SELECT * FROM compute_jobs').fetchall()
-    request = request.model_copy(update={"expected_revision": get_process(db, pid)["revision"]})
-    before = get_process(db, pid)
-    with pytest.raises(ValueError, match="active"):
-        commit_input_revision(db, process_id=pid, request=request, record=state, receipt=receipt(request))
-    assert get_process(db, pid) == before
-    assert get_revision_receipt(db, process_id=pid, request_key=request.request_key) is None
-    with db.connect() as con:
-        assert con.execute('SELECT * FROM compute_jobs').fetchall() == jobs_before
-
-
-def test_invalid_evidence_rolls_back_input_and_receipt(tmp_path):
-    from cloudra.services.ts_pipeline_store import commit_input_revision, get_process, get_revision_receipt
-
-    db, pid, request, state = revision_fixture(tmp_path)
-    before = get_process(db, pid)
-    ref = dict(declaration_revision=1, stage_key="ts_opt", attempt=1, job_id=999)
-    with pytest.raises(ValueError, match="evidence binding"):
-        commit_input_revision(db, process_id=pid, request=request, record=state, receipt=receipt(request, retained=[ref]))
-    assert get_process(db, pid) == before
-    assert get_revision_receipt(db, process_id=pid, request_key=request.request_key) is None
-
-
-def test_simultaneous_response_loss_replay_commits_only_once(tmp_path):
-    from concurrent.futures import ThreadPoolExecutor
-
-    from cloudra.services.ts_pipeline_store import commit_input_revision, get_process
-
-    db, pid, request, state = revision_fixture(tmp_path)
-
+def test_simultaneous_replay_commits_once(tmp_path):
+    from cloudra.persistence.database import ComputeDB
+    db, record = state_fixture(tmp_path)
+    request = revision_request(record, {'ts_optimization': {'keywords': 'TightSCF'}})
     def accept(_):
-        return commit_input_revision(ComputeDB.from_path(db.path), process_id=pid, request=request,
-                                     record=state, receipt=receipt(request))
-
+        return commit_input_revision(ComputeDB.from_path(db.path), process_id=record.pipeline_id, request=request)
     with ThreadPoolExecutor(max_workers=2) as pool:
         results = list(pool.map(accept, range(2)))
     assert results[0] == results[1]
-    assert get_process(db, pid)["revision"] == 2
-
-
-def test_revision_without_source_overwrite_does_not_inventory_job_artifacts(tmp_path, monkeypatch):
-    from cloudra.services.ts_pipeline_store import commit_input_revision
-
-    db, pid, request, state = revision_fixture(tmp_path)
-    job = tmp_path / "other-job.inp"
-    job.write_text("unrelated calculation")
+    assert get_process(db, record.pipeline_id)['revision'] == record.revision + 1
     with db.connect() as con:
-        con.execute("INSERT INTO compute_jobs(conversation_id,path,state,jobtype) VALUES (?,?,?,?)",
-                    ("project", str(job), "done", "orca"))
+        assert con.execute('SELECT COUNT(*) FROM ts_pipeline_revision_receipts').fetchone()[0] == 1
+        assert con.execute('SELECT COUNT(*) FROM compute_jobs').fetchone()[0] == 0
 
-    def unexpected_inventory(*_):
-        pytest.fail("a revision without source writes must not inventory unrelated calculation files")
 
-    monkeypatch.setattr("cloudra.infra.compute_utils.resolve_log_path", unexpected_inventory)
-    commit_input_revision(db, process_id=pid, request=request, record=state, receipt=receipt(request))
+def test_file_import_happens_once_and_response_loss_replay_does_not_read_changed_source(tmp_path, monkeypatch):
+    from cloudra.tools.core import reaction_state
+    from cloudra.tools.core.molecule import serialize_molecule
+    from tests.test_ts_revision_identity import molecular_fixture, write_source
+
+    db, record = state_fixture(tmp_path)
+    molecular, mol = molecular_fixture(tmp_path / 'molecules')
+    record.input = molecular.input
+    record.structures = molecular.structures
+    # Initial imported declaration and checkpoint are accepted together for this fixture.
+    with db.connect() as con:
+        con.execute('UPDATE ts_pipeline_declarations SET payload=? WHERE process_id=? AND declaration_revision=1',
+            (record.input.model_dump_json(), record.pipeline_id))
+    checkpoint(record, db)
+    source = write_source(tmp_path / 'incoming', 'reactant', mol)
+    imports = []
+    original = reaction_state.import_file_structure
+    def import_once(*args):
+        imports.append(args[1])
+        return original(*args)
+    monkeypatch.setattr(reaction_state, 'import_file_structure', import_once)
+    request = revision_request(record, {'conformers': {'reactant': source}})
+    accepted = commit_input_revision(db, process_id=record.pipeline_id, request=request)
+    first = TsProcessRecord.model_validate(get_process(db, record.pipeline_id)['record'])
+    Path(source['xyz_path']).write_text('later unrelated caller bytes')
+    assert commit_input_revision(db, process_id=record.pipeline_id, request=request) == accepted
+    second = TsProcessRecord.model_validate(get_process(db, record.pipeline_id)['record'])
+    assert imports == ['reactant']
+    assert serialize_molecule(second.structures.reactant) == serialize_molecule(first.structures.reactant)
+    assert accepted.source_hashes['reactant']['xyz']

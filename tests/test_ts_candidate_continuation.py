@@ -62,7 +62,9 @@ def test_formal_endpoint_rejects_mirrored_declared_stereochemistry(tmp_path, mon
     mol_path.write_text(Chem.MolToMolBlock(graph))
     monkeypatch.setattr(ts_process, "_read_built_xyz", lambda *args: (symbols, positions, "", str(mol_path)))
     remap = list(reversed(range(len(symbols)))) if role == "product" else list(range(len(symbols)))
-    record.input.reaction.atom_map = remap
+    from cloudra.tools.core.molecule import renumber_atoms
+    from cloudra.tools.core.reaction_state import ReactionStructures
+    record.structures = ReactionStructures(reactant=renumber_atoms(graph, [remap.index(i) for i in range(len(remap))]), product=graph, product_to_reactant=tuple(remap))
 
     def ordered(points):
         return (

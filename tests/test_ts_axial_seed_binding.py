@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from cloudra.tools.Chemtool.reaction_mapping import ReactionMapping_input_schema, check_concrete_binding
+from cloudra.tools.Chemtool.reaction_mapping import ReactionMapping, ReactionMapping_input_schema
 from cloudra.tools.core import ts_process
 from cloudra.tools.core.ts_inputs import EndpointSeed, FileConformer
 from tests.test_ts_stage_inputs import record_fixture
@@ -34,23 +34,22 @@ def test_axial_seed_can_enter_ts_optimization_without_relaxing_final_identity(tm
     reference = reflected(coarse)
     assert _axis_config_consistency(declared, coarse, [indices])
     assert _axis_config_consistency(declared, reference, [indices]) is None
-    binding = {"indices": [index + 1 for index in indices]}
     record = record_fixture(tmp_path, stage="map")
     record.input.reaction.reactant_smiles = record.input.reaction.product_smiles = smiles
-    record.input.reaction.atom_map = list(range(coarse.GetNumAtoms()))
+    record.input.reaction.selected_candidate = 0
     record.input.conformers.guidance.ring_order = []
     for role in ("reactant", "product"):
         xyz, mol = tmp_path / (role + ".xyz"), tmp_path / (role + ".mol")
         xyz.write_text(Chem.MolToXYZBlock(coarse))
         mol.write_text(Chem.MolToMolBlock(reference))
         setattr(record.input.conformers, role, FileConformer(kind="file",
-            xyz_path=str(xyz), mol_path=str(mol), heavy_atom_binding=binding))
+            xyz_path=str(xyz), mol_path=str(mol)))
     ts_process._build(record)
 
     ts_process._map(record)
 
     assert record.blocked is None, record.blocked
-    assert record.input_binding["binding_status"] == "complete"
+    assert record.structures.product_to_reactant is not None
     assert record.terminal is None
     source = record.input.conformers.reactant
     endpoint = record.input.verification.reactant_endpoint
@@ -73,8 +72,7 @@ def test_axial_seed_can_enter_ts_optimization_without_relaxing_final_identity(tm
     # Public standalone binding continues to inspect the supplied coordinates.
     public = ReactionMapping_input_schema(reactant_smiles=smiles, product_smiles=smiles,
         reactant_text=Chem.MolToMolBlock(coarse), product_text=Chem.MolToMolBlock(coarse),
-        reactant_format="mol", product_format="mol", reactant_binding=binding, product_binding=binding)
-    checked = check_concrete_binding(public,
-        {"atom_map": list(range(1, coarse.GetNumAtoms() + 1)), "watch_pairs": []})
+        reactant_format="mol", product_format="mol")
+    checked = ReactionMapping._analyze_sources(public)
     assert checked["binding_status"] == "inconclusive"
     assert any("axial configuration" in diagnostic for diagnostic in checked["binding_diagnostics"])

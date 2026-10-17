@@ -350,6 +350,20 @@ H  1.8  0.0  0.0
 """
 
 
+
+def _path_mol(xyz_text: str) -> str:
+    """Explicit mapped graph for the geometric path fixtures."""
+    Chem = pytest.importorskip("rdkit.Chem")
+    mol = Chem.MolFromSmiles("[H:1][O:2][F:3]", sanitize=False)
+    Chem.SanitizeMol(mol)
+    atoms = ase.io.read(__import__("io").StringIO(xyz_text), format="xyz")
+    conf = Chem.Conformer(3)
+    for index, position in enumerate(atoms.get_positions()):
+        conf.SetAtomPosition(index, position)
+    mol.AddConformer(conf)
+    return Chem.MolToMolBlock(mol)
+
+
 def _rotated_translated(xyz_text: str) -> str:
     """对 xyz 施加 90° 绕 z 旋转 + 平移（刚体变换，不改变内部几何）。"""
     atoms = ase.io.read(__import__("io").StringIO(xyz_text), format="xyz")
@@ -379,8 +393,8 @@ async def test_interpolate_frames_and_endpoints(tmp_path, mock_session, method):
     out_dir = tmp_path / "imgs"
     result = await tool.safe_call(TsGuess_input_schema(**{
         "mode": "interpolate",
-        "reactant_text": _R_XYZ,
-        "product_text": _P_XYZ,
+        "reactant_text": _path_mol(_R_XYZ),
+        "product_text": _path_mol(_P_XYZ),
         "n_images": 6,
         "interp_method": method,
         "watch_pairs": [[1, 2]],
@@ -418,16 +432,16 @@ async def test_interpolate_rotation_translation_invariant(tmp_path, mock_session
     tool = _make_tool()
     base = await tool.safe_call(TsGuess_input_schema(**{
         "mode": "interpolate",
-        "reactant_text": _R_XYZ,
-        "product_text": _P_XYZ,
+        "reactant_text": _path_mol(_R_XYZ),
+        "product_text": _path_mol(_P_XYZ),
         "n_images": 6,
         "interp_method": "linear",
         "output_dir": str(tmp_path / "a"),
     }), mock_session)
     moved = await tool.safe_call(TsGuess_input_schema(**{
         "mode": "interpolate",
-        "reactant_text": _R_XYZ,
-        "product_text": _rotated_translated(_P_XYZ),
+        "reactant_text": _path_mol(_R_XYZ),
+        "product_text": _path_mol(_rotated_translated(_P_XYZ)),
         "n_images": 6,
         "interp_method": "linear",
         "output_dir": str(tmp_path / "b"),
@@ -436,74 +450,6 @@ async def test_interpolate_rotation_translation_invariant(tmp_path, mock_session
     assert base.is_success and moved.is_success
     assert base.distance_table == moved.distance_table
     assert base.ts_candidate_index == moved.ts_candidate_index
-
-
-@pytest.mark.asyncio
-async def test_interpolate_atom_map_equivalence(tmp_path, mock_session):
-    """产物原子序打乱 + atom_map：结果与恒等映射等价；非法映射报错。"""
-    r_xyz = """3
-reactant
-C  0.0  0.0  0.0
-H  1.1  0.0  0.0
-H  3.0  0.0  0.0
-"""
-    p_ordered = """3
-product
-C  0.0  0.0  0.0
-H  1.1  0.0  0.0
-H  2.0  0.0  0.0
-"""
-    # 打乱：产物第 1 个原子（H@2.0）对应反应物第 3 个原子，第 2（C）→1，第 3（H@1.1）→2
-    p_shuffled = """3
-product shuffled
-H  2.0  0.0  0.0
-C  0.0  0.0  0.0
-H  1.1  0.0  0.0
-"""
-    tool = _make_tool()
-    ref = await tool.safe_call(TsGuess_input_schema(**{
-        "mode": "interpolate",
-        "reactant_text": r_xyz,
-        "product_text": p_ordered,
-        "n_images": 5,
-        "interp_method": "linear",
-        "output_dir": str(tmp_path / "ref"),
-    }), mock_session)
-    mapped = await tool.safe_call(TsGuess_input_schema(**{
-        "mode": "interpolate",
-        "reactant_text": r_xyz,
-        "product_text": p_shuffled,
-        "atom_map": [3, 1, 2],
-        "n_images": 5,
-        "interp_method": "linear",
-        "output_dir": str(tmp_path / "mapped"),
-    }), mock_session)
-
-    assert ref.is_success and mapped.is_success
-    assert ref.distance_table == mapped.distance_table
-    assert ref.ts_candidate_index == mapped.ts_candidate_index
-
-    # 非法排列
-    bad_perm = await tool.safe_call(TsGuess_input_schema(**{
-        "mode": "interpolate",
-        "reactant_text": r_xyz,
-        "product_text": p_shuffled,
-        "atom_map": [1, 1, 2],
-        "output_dir": str(tmp_path / "bad1"),
-    }), mock_session)
-    assert not bad_perm.is_success
-    assert "permutation" in bad_perm.message
-
-    # 元素不匹配（C 映射到 H）
-    bad_elem = await tool.safe_call(TsGuess_input_schema(**{
-        "mode": "interpolate",
-        "reactant_text": r_xyz,
-        "product_text": p_shuffled,
-        "atom_map": [1, 2, 3],
-        "output_dir": str(tmp_path / "bad2"),
-    }), mock_session)
-    assert not bad_elem.is_success
-    assert "element mismatch" in bad_elem.message
 
 
 # ---------------------------------------------------------------------------
@@ -2138,8 +2084,8 @@ async def test_explicit_xtb_path_reports_path_kind(fake_xtb_for_ts, tmp_path, mo
     out_dir = tmp_path / "guess_default"
     res = await _make_tool().safe_call(TsGuess_input_schema(**{
         "mode": "xtb_path",
-        "reactant_text": _R_XYZ,
-        "product_text": _P_XYZ,
+        "reactant_text": _path_mol(_R_XYZ),
+        "product_text": _path_mol(_P_XYZ),
         "output_dir": str(out_dir),
     }), mock_session)
     assert res.is_success, res.message
@@ -2164,8 +2110,8 @@ async def test_xtb_missing_falls_back_to_idpp_and_says_so(tmp_path, monkeypatch,
     out_dir = tmp_path / "guess_fallback"
     res = await _make_tool().safe_call(TsGuess_input_schema(**{
         "mode": "xtb_path",
-        "reactant_text": _R_XYZ,
-        "product_text": _P_XYZ,
+        "reactant_text": _path_mol(_R_XYZ),
+        "product_text": _path_mol(_P_XYZ),
         "n_images": 4,
         "output_dir": str(out_dir),
     }), mock_session)
@@ -2189,8 +2135,8 @@ async def test_truncated_path_refinement_is_reported_with_the_remedy(
     out_dir = tmp_path / "guess_truncated"
     res = await _make_tool().safe_call(TsGuess_input_schema(**{
         "mode": "xtb_path",
-        "reactant_text": _R_XYZ,
-        "product_text": _P_XYZ,
+        "reactant_text": _path_mol(_R_XYZ),
+        "product_text": _path_mol(_P_XYZ),
         "output_dir": str(out_dir),
     }), mock_session)
     assert not res.is_success
@@ -2210,8 +2156,8 @@ async def test_xtb_failure_is_reported_not_silently_replaced(fake_xtb_for_ts, tm
     fake_xtb_for_ts("fail")
     res = await _make_tool().safe_call(TsGuess_input_schema(**{
         "mode": "xtb_path",
-        "reactant_text": _R_XYZ,
-        "product_text": _P_XYZ,
+        "reactant_text": _path_mol(_R_XYZ),
+        "product_text": _path_mol(_P_XYZ),
         "output_dir": str(tmp_path / "guess_fail"),
     }), mock_session)
     assert res.is_success is False
@@ -2226,7 +2172,7 @@ async def test_xtb_cycles_marker_with_failed_process_is_not_path_nonconvergence(
 ):
     fake_xtb_for_ts("fail_with_cycles")
     res = await _make_tool().safe_call(TsGuess_input_schema(**{
-        "mode": "xtb_path", "reactant_text": _R_XYZ, "product_text": _P_XYZ,
+        "mode": "xtb_path", "reactant_text": _path_mol(_R_XYZ), "product_text": _path_mol(_P_XYZ),
         "output_dir": str(tmp_path / "guess_failed_with_marker"),
     }), mock_session)
     assert not res.is_success
@@ -2242,8 +2188,8 @@ def test_legacy_xtb_neb_alias_is_gone():
     with _pytest.raises(Exception):
         TsGuess_input_schema(**{
             "mode": "xtb_neb",
-            "reactant_text": _R_XYZ,
-            "product_text": _P_XYZ,
+            "reactant_text": _path_mol(_R_XYZ),
+            "product_text": _path_mol(_P_XYZ),
         })
 
 

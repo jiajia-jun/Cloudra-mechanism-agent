@@ -22,9 +22,11 @@ def _record(tmp_path, *, calculation=None):
         ts_optimization=reference, verification=dict(frequency=reference, irc=reference,
             reactant_endpoint=dict(optimization=reference, frequency=reference),
             product_endpoint=dict(optimization=reference, frequency=reference))))
+    from cloudra.tools.Chemtool.reaction_mapping import _read_structure
+    molecule = _read_structure(str(source), None, 'xyz', 0, 'reactant')
     return TsProcessRecord(run_id='shared', run_dir=str(tmp_path), workspace_dir=str(tmp_path),
         owner_conversation_id='fixture', owner_session_id='owner', input=inputs,
-        current_ts_guess_path=str(source), path_kind='provided'), source
+        structures={'reactant': molecule, 'product': molecule, 'candidate': molecule, 'product_to_reactant': (0, 1)}, path_kind='provided'), source
 
 
 def test_formal_stages_explicitly_reuse_one_complete_definition(tmp_path):

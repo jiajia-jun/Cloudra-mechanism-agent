@@ -17,11 +17,10 @@ def water_input(tmp_path, *, scan=False):
     seed.write_text('3\nWater seed\nO 0 0 0\nH 0.96 0 0\nH -0.24 0.93 0\n')
     evidence=tmp_path/'candidate.log'
     evidence.write_text('Explicit candidate provenance')
-    inputs=calculation_input(reactant_smiles='O',product_smiles='O',method='HF/STO-3G',atom_map=[0,1,2])
+    inputs=calculation_input(reactant_smiles='O',product_smiles='O',method='HF/STO-3G')
     inputs.conformers.reactant=inputs.conformers.product=FileConformer(kind='file',xyz_path=str(seed))
     inputs.guess=ScanGuess(kind='scan',calculation={'engine':'orca','method':'HF','basis_set':'STO-3G','keywords':''},scans=[{'atoms':[0,1],'scan_start':1.,'scan_end':2.,'scan_steps':3}]) if scan else ProvidedGuess(kind='provided',xyz_path=str(seed),evidence_refs=[str(evidence)])
     data=inputs.model_dump(mode='json')
-    data['reaction']['atom_map']=[1,2,3]
     return data
 
 
@@ -76,9 +75,9 @@ async def test_ts_conformer_source_revision_same_run(tmp_path, monkeypatch):
         first, revised = provider.records[0], provider.records[-1]
         assert first.blocked.issues[0]['path'] == str(tmp_path / 'missing.xyz')
         assert revised.run_id == first.run_id and revised.declaration_revision == 2
-        assert revised.blocked.failure_class == 'atom_map_missing'
-        assert revised.input.reaction.atom_map == [] and revised.input.guess is None
-        assert revised.attempt_history[0].input.reaction.atom_map == [0, 1, 2]
+        assert revised.blocked.failure_class == 'missing_input'
+        assert revised.structures.product_to_reactant == (0, 1, 2) and revised.input.guess is None
+        assert revised.attempt_history[0].structures.product_to_reactant is None
         with ComputeDB().connect() as con:
             assert con.execute('SELECT COUNT(*) FROM ts_pipeline_processes').fetchone()[0] == 1
             assert con.execute('SELECT COUNT(*) FROM compute_jobs').fetchone()[0] == 0
@@ -129,10 +128,10 @@ async def test_ts_same_structure_source_keeps_declarations(tmp_path, monkeypatch
         first, revised = provider.records[0], provider.records[-1]
         assert first.blocked.stage == 'guess'
         assert revised.run_id == first.run_id and revised.declaration_revision == 2
-        assert revised.input.reaction.atom_map == first.input.reaction.atom_map == [0, 1, 2]
+        assert revised.structures.product_to_reactant == first.structures.product_to_reactant == (0, 1, 2)
         assert revised.input.reaction.reaction_center == first.input.reaction.reaction_center
         assert revised.input.guess == first.input.guess
-        assert revised.input_binding['binding_status'] == 'complete'
+        assert revised.structures.product_to_reactant is not None
         assert revised.blocked.stage == 'guess'
         with ComputeDB().connect() as con:
             assert con.execute('SELECT COUNT(*) FROM ts_pipeline_processes').fetchone()[0] == 1
@@ -144,14 +143,14 @@ async def test_ts_same_structure_source_keeps_declarations(tmp_path, monkeypatch
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("rdkit_chemistry")
 @pytest.mark.parametrize('explicit_references', [False, True])
-async def test_ts_canonical_source_overwrite_matches_agent_numbering(tmp_path, explicit_references):
+async def test_ts_source_reorder_keeps_imported_state_and_agent_numbering(tmp_path, explicit_references):
     from rdkit import Chem
 
     from cloudra.persistence.database import ComputeDB
     from cloudra.tools.core.structure_artifacts import read_xyz_atoms
     from cloudra.tools.core.ts_process import load_record
 
-    assert 'ts_canonical_source_overwrite' in TS_SCENARIOS
+    assert 'ts_source_reorder_keeps_imported_state' in TS_SCENARIOS
     payload = water_input(tmp_path)
     payload['guess']['xyz_path'] = 'missing-guess.xyz'
     payload['reaction']['reaction_center'] = [[1, 2]]
@@ -183,7 +182,8 @@ async def test_ts_canonical_source_overwrite_matches_agent_numbering(tmp_path, e
             mol_path.write_text(Chem.MolToMolBlock(raw))
             raw_payloads.append(xyz_path.read_bytes())
             raw_atoms.append(read_xyz_atoms(str(xyz_path)))
-            changes = {'reaction': {'atom_map': [1, 2, 3], 'reaction_center': [[2, 3]]}} if explicit_references else {}
+            changes = {'reaction': {'reaction_center': [[2, 3]]}} if explicit_references else {}
+            changes['conformers'] = {role: {'xyz_path': str(xyz_path)} for role in ('reactant', 'product')}
             # Both endpoints share the overwritten source, so an explicit raw
             # product->reactant map is identity; both slots and values normalize.
             provider._scripts['small_mol'][0].tools = [('ts_resume', {
@@ -204,16 +204,17 @@ async def test_ts_canonical_source_overwrite_matches_agent_numbering(tmp_path, e
             ('ts_prepare', True), ('ts_resume', True), ('ts_inspect', True),
         ], harness.describe(agent)
         first, current = provider.records[0], provider.records[-1]
-        assert current.input.reaction.atom_map == first.input.reaction.atom_map == [0, 1, 2]
+        assert current.structures.product_to_reactant == first.structures.product_to_reactant == (0, 1, 2)
         assert current.input.reaction.reaction_center == [(0, 1)]
         assert current.input.guess == first.input.guess
-        assert read_xyz_atoms(str(xyz_path)) == [raw_atoms[0][index] for index in [1, 2, 0]]
-        assert xyz_path.read_bytes() != raw_payloads[0]
+        assert read_xyz_atoms(str(xyz_path)) == raw_atoms[0]
+        assert xyz_path.read_bytes() == raw_payloads[0]
         actual_mol = Chem.MolFromMolFile(str(mol_path), removeHs=False)
-        assert [atom.GetSymbol() for atom in actual_mol.GetAtoms()] == ['O', 'H', 'H']
+        assert [atom.GetSymbol() for atom in actual_mol.GetAtoms()] == ['H', 'O', 'H']
         for role in ('reactant', 'product'):
-            assert read_xyz_atoms(current.structures[role]['xyz_path']) == read_xyz_atoms(str(xyz_path))
-            assert [row['symbol'] for row in current.structures[role]['atoms']] == ['O', 'H', 'H']
+            owned = getattr(current.structures, role)
+            assert [atom.GetSymbol() for atom in owned.GetAtoms()] == ['O', 'H', 'H']
+            assert owned.GetConformer().GetPositions().tolist() == [point for _, point in [raw_atoms[0][index] for index in [1, 2, 0]]]
         outputs = [event.data['result']['data'] for event in harness.core.event_log.query_session(agent.id)
                    if event.type == 'tool.result_recorded' and event.data.get('tool_name') in ('ts_resume', 'ts_inspect')]
         assert len(outputs) == 2
@@ -223,9 +224,8 @@ async def test_ts_canonical_source_overwrite_matches_agent_numbering(tmp_path, e
                 table = output['structures'][role]
                 assert [row['symbol'] for row in table['atoms']] == ['O', 'H', 'H']
                 assert [row['number'] for row in table['atoms']] == [1, 2, 3]
-                assert table['normalization']['status'] == 'applied'
-                assert table['normalization']['paths']['xyz'] == str(xyz_path)
-                assert 'raw_source_paths' not in table['normalization']
+                assert 'normalization' not in table
+                assert table['source']['paths']['xyz'] == str(xyz_path)
         with ComputeDB().connect() as con:
             assert con.execute('SELECT COUNT(*) FROM ts_pipeline_processes').fetchone()[0] == 1
             assert con.execute('SELECT COUNT(*) FROM compute_jobs').fetchone()[0] == 0
@@ -344,7 +344,8 @@ async def test_ts_file_seed_preoptimization_can_be_removed_after_failure(tmp_pat
     payload['conformers'][role]['optimization'] = {
         'engine': 'orca', 'method': 'HF', 'basis_set': 'STO-3G', 'keywords': '',
     }
-    source = {**payload['conformers'][role], 'optimization': None}
+    source = payload['conformers'][role]
+    patch = {'optimization': None}
     native_failure = 'GEOMETRY OPTIMIZATION DID NOT CONVERGE\nORCA finished by error termination\n'
 
     def reuse_file_seed(provider):
@@ -361,7 +362,7 @@ async def test_ts_file_seed_preoptimization_can_be_removed_after_failure(tmp_pat
             provider._scripts['small_mol'][0].tools = [('ts_resume', {
                 'run_id': record.run_id,
                 'reason': 'Reuse the supplied file geometry without repeating seed optimization',
-                'changes': {'conformers': {role: source}},
+                'changes': {'conformers': {role: patch}},
             })]
         provider.records.append(record)
 
@@ -756,7 +757,6 @@ async def test_ts_d1_atom_binding_native_scan_recovery(tmp_path, monkeypatch):
     xyz, graph = d1_component_order_files(tmp_path)
     base = calculation_input(reactant_smiles='C=CC=C.C=C', product_smiles='C=CC=C.C=C',
                              method='HF/STO-3G').model_dump(mode='json')
-    base['reaction']['atom_map'] = []
     base['conformers'] = {'reactant': {'kind':'file','xyz_path':str(xyz),'mol_path':str(graph)},
                           'product': {'kind':'file','xyz_path':str(xyz),'mol_path':str(graph)}}
     base['guess'] = {'kind':'scan','calculation':{'engine':'xtb','method':'GFN2-xTB','basis_set':''},
@@ -772,13 +772,14 @@ async def test_ts_d1_atom_binding_native_scan_recovery(tmp_path, monkeypatch):
         if provider.call_count('small_mol') != 3:
             return
         record = load_record(str(tmp_path), 'ts_0001')
-        assert record.blocked.failure_class == 'atom_map_missing'
-        assert [row['symbol'] for row in record.structures['reactant']['atoms'][4:6]] == ['H','H']
-        assert [record.structures['reactant']['atoms'][i-1]['symbol'] for i in (1,2,3,4,11,12)] == ['C']*6
-        changes = {'reaction':{'atom_map':list(range(1,17))},'conformers':{}}
-        for role in ('reactant','product'):
-            changes['conformers'][role] = {'kind':'file','xyz_path':str(xyz),'mol_path':str(graph),
-                'heavy_atom_binding':{'indices':[1,2,3,4,11,12]}}
+        assert record.blocked.failure_class == 'input_identity_unconfirmed'
+        from cloudra.tools.core.reaction_state import structure_tables
+        tables = structure_tables(record)
+        assert [row['symbol'] for row in tables['reactant']['atoms'][4:6]] == ['H','H']
+        candidates = record.blocked.issues[0]['candidates']
+        assert all(len(candidate['atom_map']) == 16 for candidate in candidates)
+        selected = next(i for i, candidate in enumerate(candidates) if candidate['atom_map'] == list(range(1,17)))
+        changes = {'reaction': {'selected_candidate': selected}}
         provider._scripts['small_mol'][0].tools = [('ts_resume', {
             'run_id':record.run_id,
             'reason':'Bind both concrete endpoint atom orders and the complete all-atom map',
@@ -796,7 +797,7 @@ async def test_ts_d1_atom_binding_native_scan_recovery(tmp_path, monkeypatch):
         assert [(item['tool_name'],item['is_success']) for item in calls] == [
             ('ts_prepare',False),('ts_prepare',True),('ts_inspect',True),('ts_resume',True)], harness.describe(agent)
         record = await asyncio.to_thread(load_record,str(tmp_path),'ts_0001')
-        assert record.input_binding['binding_status'] == 'complete', record.input_binding
+        assert record.structures.product_to_reactant is not None
         assert record.blocked is None, record.blocked
         assert record.waiting_for and record.scan_step and record.scan_step.purpose == 'scan'
         with ComputeDB().connect() as con:

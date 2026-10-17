@@ -234,10 +234,12 @@ def test_scan_pipeline_unique_continues_multiple_uses_existing_provided(tmp_path
     monkeypatch.setattr("cloudra.tools.core.ts_process._step_state", lambda *_: "done")
     monkeypatch.setattr("cloudra.tools.core.ts_process._read_built_xyz",
                         lambda *_: (["O", "H", "H"], [[0., 0., 0.], [0., 0., 1.], [1., 0., 0.]], str(job) + ".001.xyz", ""))
+    from tests.test_ts_workflow_scan import own_water
+    own_water(record)
     _guess_scan(record)
     if not multiple:
         assert record.blocked is None
-        assert float(Path(record.current_ts_guess_path).read_text().splitlines()[3].split()[1]) == 3.
+        assert record.structures.candidate.GetConformer().GetAtomPosition(1).x == 3.
     else:
         assert record.blocked is not None
         assert record.blocked.failure_class == "scan_choice_required"
@@ -249,7 +251,8 @@ def test_scan_pipeline_unique_continues_multiple_uses_existing_provided(tmp_path
         record.blocked = None
         _guess(record)
         assert record.blocked is None and record.path_kind == "provided"
-        assert Path(record.current_ts_guess_path).read_text() == Path(selected).read_text()
+        from cloudra.tools.core.structure_artifacts import read_xyz_atoms
+        assert record.structures.candidate.GetConformer().GetPositions().tolist() == [point for _, point in read_xyz_atoms(selected)]
 
 
 @pytest.mark.parametrize("energies,peak", [([-10., -12., -11., -13.], 3),

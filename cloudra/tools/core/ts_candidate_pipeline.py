@@ -48,7 +48,7 @@ def use_catalog_source(record, source, role):
     path = str(directory / 'seed.xyz')
     molecule = copy_conformer(selected.mol)
     _write_immutable_input(path, to_xyz(molecule))
-    record.seed_molecules[role] = molecule
+    setattr(record.structures, role, molecule)
     metadata = dict(candidate_id=selected.candidate_id, catalog_id=selected.catalog_id,
         partition_revision=snapshot.revision, geometry_hash=selected.geometry_hash,
         artifact_hash=selected.artifact_hash,
@@ -57,13 +57,10 @@ def use_catalog_source(record, source, role):
         components=list(dict.fromkeys(selected.fragment_ids)))
     _write_immutable_input(table, json.dumps(metadata))
     if role == 'reactant':
-        record.current_reactant_prepared_path = table
         record.catalog_id, record.partition_revision = source.catalog_id, snapshot.revision
         record.selected_candidate_id = selected.candidate_id
-        record.current_seed_xyz_path = path
     else:
         record.product_seed_candidate_id = selected.candidate_id
-        record.product_seed_xyz_path = path
     return record
 
 

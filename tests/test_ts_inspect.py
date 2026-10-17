@@ -1,4 +1,3 @@
-import hashlib
 import json
 from copy import deepcopy
 
@@ -19,7 +18,7 @@ def process_fixture(tmp_path, *, status="blocked"):
     inputs = input_payload()
     pid = create_process(db, request_key="inspect", payload=dict(project_id='project', owner_id='owner',
         workspace_dir=str(workspace), input=inputs))["process_id"]
-    record = dict(format_version=6, pipeline_id=pid, run_id="ts_0001", revision=7, declaration_revision=1,
+    record = dict(format_version=7, pipeline_id=pid, run_id="ts_0001", revision=7, declaration_revision=1,
                   run_dir=str(run_dir), workspace_dir=str(workspace), owner_conversation_id="project", owner_session_id="owner",
                   stage="guess", input=inputs, intervention_count=2, evidence_candidates=["scan.log"],
                   job_steps=[], stage_records=[], blocked={"failure_class": "scan_failed", "message": "native first point failed",
@@ -32,21 +31,16 @@ def process_fixture(tmp_path, *, status="blocked"):
     return db, pid, workspace, record
 
 
-def test_rewrite_recovery_blocker_never_exposes_export_as_current(tmp_path):
+def test_stale_export_never_replaces_the_current_ledger_block_reason(tmp_path):
     from cloudra.tools.core.ts_state_view import build_process_view
-
     _db, _pid, _workspace, record = process_fixture(tmp_path)
-    record['export_revision'] = record['revision']
-    record['source_rewrite_recovery_blocked'] = True
-    record['blocked'] = dict(failure_class='canonical_source_recovery_blocked',
-                             stage='build', message='Current sources cannot be recovered safely',
-                             needs=['conformers.reactant'])
+    record['export_revision'] = 3
     view = build_process_view(record, [], can_write=True)
     assert view.run_id == record['run_id'] and view.revision == record['revision']
     assert view.status == 'blocked' and view.result is None
     assert view.details_path == ''
-    assert view.next['required_inputs'] == ['conformers.reactant']
-    assert view.next['action'] == 'resolve_source_conflict'
+    assert view.next['required_inputs'] == ['guess']
+    assert view.next['action'] == 'resume'
 
 
 @pytest.mark.parametrize("status", ["blocked", "waiting", "ended"])
@@ -214,39 +208,34 @@ def test_inspect_resolves_native_stdout_from_completed_ledger_job(tmp_path):
     assert not view.result["verified"]
 
 
-def canonical_table_fixture(workspace):
-    xyz = workspace / "reactant.xyz"
-    xyz.write_text("3\ncanonical current source\nO 0 0 0\nH .96 0 0\nH -.24 .93 0\n")
-    digest = hashlib.sha256(xyz.read_bytes()).hexdigest()
-    return dict(role="reactant", input_revision=2, xyz_path=str(xyz),
-                xyz_sha256=digest, index_base=1,
-                atoms=[dict(number=1, symbol="O"), dict(number=2, symbol="H"), dict(number=3, symbol="H")],
-                normalization=dict(status="applied", input_revision=2, paths={"xyz": str(xyz)},
-                                   canonical_hashes={"xyz": digest},
-                                   source_to_canonical=[3, 1, 2], canonical_to_source=[2, 3, 1]))
+def imported_structures(workspace):
+    from cloudra.tools.core.molecule import read_molecule
+    from cloudra.tools.core.reaction_state import ReactionStructures
+    source = workspace / 'reactant.xyz'
+    source.write_text('3\nimported source\nO 0 0 0\nH .96 0 0\nH -.24 .93 0\n')
+    molecule = read_molecule(input_path=str(source), input_format='xyz')
+    return ReactionStructures(reactant=molecule).model_dump(mode='json')
 
 
-def test_inspect_current_canonical_atoms_come_from_ledger_even_when_export_has_raw_order(tmp_path):
+def test_inspect_current_atoms_come_from_owned_molecule_even_when_export_has_old_order(tmp_path):
+    from cloudra.tools.core.molecule import renumber_atoms
+    from cloudra.tools.core.reaction_state import ReactionStructures
     from cloudra.tools.core.ts_state_view import inspect_process
-
     db, pid, workspace, state = process_fixture(tmp_path)
-    state["declaration_revision"] = 2
-    state["structures"] = {"reactant": canonical_table_fixture(workspace)}
+    state['structures'] = imported_structures(workspace)
     raw_export = deepcopy(state)
-    raw_export["revision"] = 3
-    raw_export["structures"]["reactant"]["atoms"] = [dict(number=1, symbol="H"), dict(number=2, symbol="O"), dict(number=3, symbol="H")]
-    (workspace / "ts" / state["run_id"] / "process.json").write_text(json.dumps(raw_export))
+    raw_export['revision'] = 3
+    raw = ReactionStructures.model_validate(state['structures'])
+    raw.reactant = renumber_atoms(raw.reactant, [1, 0, 2])
+    raw_export['structures'] = raw.model_dump(mode='json')
+    (workspace / 'ts' / state['run_id'] / 'process.json').write_text(json.dumps(raw_export))
     with db.connect() as con:
-        con.execute("UPDATE ts_pipeline_processes SET record=? WHERE process_id=?", (json.dumps(state), pid))
-    view = inspect_process(db, project_id="project", run_id=state["run_id"], workspace_dir=str(workspace), can_write=False)
-    table = view.structures["reactant"]
-    actual_symbols = [row.split()[0] for row in (workspace / "reactant.xyz").read_text().splitlines()[2:]]
-    assert [(row["number"], row["symbol"]) for row in table["atoms"]] == [(1, "O"), (2, "H"), (3, "H")]
-    assert [row["symbol"] for row in table["atoms"]] == actual_symbols
-    assert table["normalization"]["paths"] == {"xyz": str(workspace / "reactant.xyz")}
-    assert table["normalization"]["status"] == "applied"
+        con.execute('UPDATE ts_pipeline_processes SET record=? WHERE process_id=?', (json.dumps(state), pid))
+    view = inspect_process(db, project_id='project', run_id=state['run_id'], workspace_dir=str(workspace), can_write=False)
+    assert [(row['number'], row['symbol']) for row in view.structures['reactant']['atoms']] == [
+        (1, 'O'), (2, 'H'), (3, 'H')]
     assert view.revision == 9 and view.export_revision == 3
-    assert view.details_path == ""
+    assert view.details_path == ''
 
 
 @pytest.mark.parametrize("export_revision", [3, None, 9])
@@ -264,81 +253,33 @@ def test_only_current_export_can_be_reported_as_current_details_path(tmp_path, e
     assert view.details_path == (str(export) if export_revision == 9 else "")
 
 
-def test_recorded_notification_reports_current_atoms_and_actual_stale_export_revision(tmp_path):
+def test_recorded_notification_uses_owned_atoms_and_actual_stale_export_revision(tmp_path):
     from cloudra.tools.core.ts_state_view import recorded_notification_view
-
     db, pid, workspace, state = process_fixture(tmp_path)
-    state["structures"] = {"reactant": canonical_table_fixture(workspace)}
+    state['structures'] = imported_structures(workspace)
     with db.connect() as con:
-        con.execute("UPDATE ts_pipeline_processes SET record=? WHERE process_id=?", (json.dumps(state), pid))
+        con.execute('UPDATE ts_pipeline_processes SET record=? WHERE process_id=?', (json.dumps(state), pid))
     view = recorded_notification_view(db, state)
-    assert view["revision"] == 9 and view["export_revision"] == 3
-    assert view["details_path"] == ""
-    assert [(row["number"], row["symbol"]) for row in view["structures"]["reactant"]["atoms"]] == [
-        (1, "O"), (2, "H"), (3, "H"),
-    ]
+    assert view['revision'] == 9 and view['export_revision'] == 3
+    assert view['details_path'] == ''
+    assert [row['symbol'] for row in view['structures']['reactant']['atoms']] == ['O', 'H', 'H']
 
 
-def test_unapplied_normalization_cannot_be_reported_as_a_current_atom_table(tmp_path):
+@pytest.mark.parametrize('change', ['coordinates', 'missing'])
+def test_later_source_file_changes_do_not_rewrite_current_atom_view(tmp_path, change):
     from cloudra.tools.core.ts_state_view import build_process_view
-
     _, _, workspace, state = process_fixture(tmp_path)
-    state["structures"] = {"reactant": canonical_table_fixture(workspace)}
-    state["structures"]["reactant"]["normalization"]["status"] = "pending"
-    view = build_process_view(state, [], can_write=True)
-    assert view.structures == {}
-    assert view.run_id == state["run_id"] and view.revision == state["revision"]
-    assert view.blocked["failure_class"] == "canonical_structure_unavailable"
-    assert view.blocked["needs"] == ["conformers.reactant"]
-    assert view.next["required_inputs"] == ["conformers.reactant"]
-    assert view.result is None
-
-
-@pytest.mark.parametrize("drift", ["current_source", "built_snapshot", "missing_current_source"])
-def test_changed_canonical_file_cannot_be_reported_as_applied_current_atoms(tmp_path, drift):
-    from cloudra.tools.core.ts_state_view import build_process_view
-
-    _, _, workspace, state = process_fixture(tmp_path)
-    state["structures"] = {"reactant": canonical_table_fixture(workspace)}
-    table = state["structures"]["reactant"]
-    source = workspace / "reactant.xyz"
-    snapshot = workspace / "seed.xyz"
-    snapshot.write_bytes(source.read_bytes())
-    table["xyz_path"] = str(snapshot)
-    if drift == "missing_current_source":
+    state['structures'] = imported_structures(workspace)
+    source = workspace / 'reactant.xyz'
+    if change == 'missing':
         source.unlink()
     else:
-        changed = source if drift == "current_source" else snapshot
-        changed.write_text("3\nraw order changed\nH .96 0 0\nO 0 0 0\nH -.24 .93 0\n")
-    product_dir = workspace / "product"
-    product_dir.mkdir()
-    state["structures"]["product"] = canonical_table_fixture(product_dir)
-    state["structures"]["product"]["role"] = "product"
+        source.write_text('3\nchanged raw file order\nH .96 0 0\nO 0 0 0\nH -.24 .93 0\n')
     before = deepcopy(state)
     view = build_process_view(state, [], can_write=True)
-    assert "reactant" not in view.structures and "product" in view.structures
-    assert view.run_id == state["run_id"] and view.revision == state["revision"]
-    assert view.status == "blocked" and view.result is None
-    assert view.blocked["failure_class"] == "canonical_structure_unavailable"
-    assert view.blocked["needs"] == ["conformers.reactant"]
-    assert view.next["required_inputs"] == ["conformers.reactant"]
+    assert [row['symbol'] for row in view.structures['reactant']['atoms']] == ['O', 'H', 'H']
+    assert view.blocked['failure_class'] == 'scan_failed'
     assert state == before
-
-
-def test_canonical_source_blocker_preserves_authoritative_revision_during_active_job(tmp_path):
-    from cloudra.tools.core.ts_state_view import inspect_process
-
-    db, pid, workspace, state = process_fixture(tmp_path, status="waiting")
-    state["structures"] = {"reactant": canonical_table_fixture(workspace)}
-    (workspace / "reactant.xyz").unlink()
-    with db.connect() as con:
-        con.execute("UPDATE ts_pipeline_processes SET record=? WHERE process_id=?", (json.dumps(state), pid))
-    view = inspect_process(db, project_id="project", run_id=state["run_id"], workspace_dir=str(workspace), can_write=True)
-    assert view.structures == {}
-    assert view.revision == 9 and view.export_revision == 3
-    assert view.status == "waiting" and view.next["action"] == "wait_for_system"
-    assert view.blocked["needs"] == ["conformers.reactant"]
-    assert view.result is None
 
 
 def test_retained_prior_revision_artifacts_are_identified_as_historical(tmp_path):

@@ -115,105 +115,91 @@ def test_optional_null_changes_do_not_reinterpret_internal_atom_numbers(tmp_path
     assert Path(record.run_dir) == tmp_path
 
 
-def test_source_revision_clears_old_geometry_and_numeric_checkpoints(tmp_path):
+def test_source_revision_clears_replaced_molecule_and_numeric_checkpoints(tmp_path):
     from cloudra.tools.core.ts_revision import plan_input_revision, revise_record
-    record = record_fixture(tmp_path, stage='map', current_seed_xyz_path='old.xyz',
-        current_seed_mol_path='old.mol', product_seed_xyz_path='old-product.xyz',
-        active_attempt_dir='old-attempt', current_ts_guess_path='old-ts.xyz', job_id=3,
-        job_input_path='old-ts.inp')
+    from tests.test_ts_revision_identity import molecular_fixture
+    record, _ = molecular_fixture(tmp_path)
+    record.active_attempt_dir, record.job_id, record.job_input_path = 'old-attempt', 3, 'old-ts.inp'
     change = request(record, {'conformers': {'reactant': {'kind': 'generate', 'generation': 'ETKDGv3', 'seed': 123}}})
     revised = revise_record(record, change, plan_input_revision(record, change))
     assert revised.stage == 'build'
-    assert revised.current_seed_xyz_path == revised.current_seed_mol_path == ''
-    assert revised.product_seed_xyz_path == revised.active_attempt_dir == ''
+    assert revised.structures.reactant is None
+    assert revised.structures.candidate is None
+    assert revised.structures.product_to_reactant is None
+    assert revised.active_attempt_dir == ''
     assert revised.job_id is None and revised.job_input_path == ''
-    assert revised.input.reaction.atom_map == []
     assert revised.input.conformers.guidance.ring_order == []
     assert revised.input.guess is None
-    assert record.current_seed_xyz_path == 'old.xyz'
+    assert record.structures.reactant is not None
 
 
-def test_overwritten_ambiguous_external_xyz_rebuilds_without_stale_atom_numbers(tmp_path):
-    from cloudra.tools.core.ts_inputs import FileConformer
+def test_mutable_external_file_changes_require_explicit_source_patch(tmp_path):
+    from cloudra.tools.core.molecule import serialize_molecule
     from cloudra.tools.core.ts_revision import plan_input_revision, revise_record
-
-    source = tmp_path / 'reactant.xyz'
-    source.write_text('2\nold\nH 0 0 0\nH 0 0 .74\n')
-    snapshot = tmp_path / 'build' / 'input_0001' / 'reactant' / 'seed.xyz'
-    snapshot.parent.mkdir(parents=True)
-    snapshot.write_bytes(source.read_bytes())
-    record = record_fixture(tmp_path, stage='verdict', terminal='candidate_only')
-    record.input.conformers.reactant = FileConformer(kind='file', xyz_path=str(source))
-    record.structures['reactant'] = {'xyz_sha256': 'old', 'input_revision': 1}
-    source.write_text('2\nchanged\nH 0 0 .74\nH 0 0 0\n')
-    change = request(record, {})
+    from tests.test_ts_revision_identity import molecular_fixture, write_source
+    record, mol = molecular_fixture(tmp_path, labels=False)
+    original = serialize_molecule(record.structures.reactant)
+    mol.GetConformer().SetAtomPosition(1, (2., 1., 0.))
+    source = write_source(tmp_path, 'reactant', mol)
+    change = request(record, {'ts_optimization': {'keywords': 'TightSCF'}})
+    untouched = revise_record(record, change, plan_input_revision(record, change))
+    assert serialize_molecule(untouched.structures.reactant) == original
+    assert untouched.structures.product_to_reactant == (0, 1, 2)
+    change = request(record, {'conformers': {'reactant': {'xyz_path': source['xyz_path']}}})
     revised = revise_record(record, change, plan_input_revision(record, change))
-    assert revised.stage == 'build' and revised.terminal is None
-    assert revised.input.reaction.atom_map == []
+    assert revised.stage == 'build'
+    assert revised.structures.product_to_reactant is None
     assert revised.input.reaction.reaction_center == []
-    assert revised.input.conformers.guidance.ring_order == []
     assert revised.input.guess is None
-    assert revised.structures == {}
-    assert revised.attempt_history[-1].input.reaction.atom_map == record.input.reaction.atom_map
-    assert snapshot.read_text().startswith('2\nold')
+    assert serialize_molecule(revised.attempt_history[-1].structures.reactant) == original
 
 
 @pytest.mark.parametrize('relative_source', [False, True])
-def test_repeated_method_revisions_retain_unchanged_source_binding(tmp_path, monkeypatch, relative_source):
-    from cloudra.tools.core.ts_inputs import FileConformer
+def test_repeated_method_revisions_retain_imported_source_binding(tmp_path, monkeypatch, relative_source):
+    from cloudra.tools.core.molecule import serialize_molecule
     from cloudra.tools.core.ts_revision import plan_input_revision, revise_record
-
-    source = tmp_path / 'reactant.xyz'
-    source.write_text('2\nunchanged\nH 0 0 0\nH 0 0 .74\n')
-    snapshot = tmp_path / 'build' / 'input_0001' / 'reactant' / 'seed.xyz'
-    snapshot.parent.mkdir(parents=True)
-    snapshot.write_bytes(source.read_bytes())
-    record = record_fixture(tmp_path, stage='verdict', terminal='candidate_only')
+    from tests.test_ts_revision_identity import molecular_fixture
+    record, _ = molecular_fixture(tmp_path)
+    source = Path(record.input.conformers.reactant.xyz_path)
     cwd = tmp_path / 'service'
     cwd.mkdir()
     monkeypatch.chdir(cwd)
-    record.input.conformers.reactant = FileConformer(kind='file', xyz_path='reactant.xyz' if relative_source else str(source))
-    record.structures['reactant'] = {'input_revision': 1, 'xyz_path': str(snapshot)}
+    if relative_source:
+        record.input.conformers.reactant.xyz_path = 'reactant.xyz'
+    original = serialize_molecule(record.structures.reactant)
     original_input = record.input.model_copy(deep=True)
     for method, basis in (('b97-3c', ''), ('b3lyp', 'def2svp')):
-        calculation = record.input.ts_optimization.model_dump()
-        calculation['method'] = method
-        calculation['basis_set'] = basis
-        change = request(record, {'ts_optimization': {'replace': calculation}})
+        change = request(record, {'ts_optimization': {'replace': {
+            'engine': 'orca', 'method': method, 'basis_set': basis}}})
         receipt = plan_input_revision(record, change)
         record = revise_record(record, change, receipt)
         assert record.stage == 'submit'
-        assert record.input.reaction.atom_map == original_input.reaction.atom_map
+        assert record.structures.product_to_reactant == (0, 1, 2)
         assert record.input.guess == original_input.guess
-        assert record.structures['reactant']['input_revision'] == 1
-        assert receipt.changes == ['ts_optimization.basis_set', 'ts_optimization.method']
-    source.write_text('2\nchanged\nH 0 0 .74\nH 0 0 0\n')
-    change = request(record, {})
+        assert serialize_molecule(record.structures.reactant) == original
+    source.unlink()
+    change = request(record, {'ts_optimization': {'keywords': 'TightSCF'}})
     revised = revise_record(record, change, plan_input_revision(record, change))
-    assert revised.stage == 'build'
-    assert revised.input.reaction.atom_map == [] and revised.input.guess is None
-    assert revised.input.reaction.reaction_center == []
-    assert revised.input.conformers.guidance.ring_order == []
-    assert snapshot.read_text().startswith('2\nunchanged')
-    assert record.input.reaction.atom_map == original_input.reaction.atom_map
+    assert serialize_molecule(revised.structures.reactant) == original
 
 
-def test_missing_external_source_can_be_supplied_at_same_path(tmp_path):
+def test_missing_external_source_can_be_explicitly_supplied_at_same_path(tmp_path):
     from cloudra.tools.core.ts_inputs import FileConformer
     from cloudra.tools.core.ts_process import TsBlocked
     from cloudra.tools.core.ts_revision import plan_input_revision, revise_record
-
     source = tmp_path / 'delayed.xyz'
     record = record_fixture(tmp_path, stage='build', blocked=TsBlocked(
         stage='build', failure_class='conformer_source_invalid', message='missing source',
-        issues=[{'code':'source_missing','role':'reactant','field':'conformers.reactant.xyz_path',
-                 'path':str(source)}]))
+        issues=[{'code': 'source_missing', 'role': 'reactant', 'field': 'conformers.reactant.xyz_path',
+                 'path': str(source)}]))
     record.input.conformers.reactant = FileConformer(kind='file', xyz_path=str(source))
     source.write_text('2\nsupplied\nH 0 0 0\nH 0 0 .74\n')
-    change = request(record, {})
+    change = request(record, {'conformers': {'reactant': {'xyz_path': str(source)}}})
     revised = revise_record(record, change, plan_input_revision(record, change))
     assert revised.stage == 'build'
-    assert revised.input.reaction.atom_map == [] and revised.input.guess is None
+    assert revised.structures.reactant is not None
+    assert revised.structures.product_to_reactant is None
+    assert revised.input.guess is None
 
 
 def test_guess_revision_cannot_skip_an_unfinished_mapping_dependency(tmp_path):

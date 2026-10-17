@@ -7,10 +7,10 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 
 from cloudra.tools.Chemtool.reaction_mapping import (
-    ReactionMapping_input_schema,
-    check_concrete_binding,
+    bind_reaction_structures,
 )
-from cloudra.tools.core.ts_inputs import FileConformer
+from cloudra.tools.core.reaction_state import heavy_binding, set_heavy_binding, structure_tables
+from cloudra.tools.core.ts_inputs import FileConformer, TsInput
 from cloudra.tools.core.ts_process import (
     _assemble,
     _bound_input_structure,
@@ -43,7 +43,7 @@ def _file_record(tmp_path, smiles='C[C](C)C', multiplicity=2, charge=0, electron
         value['reaction']['electronic_character'] = electronic_character
         from cloudra.tools.core.ts_inputs import TsInput
         record.input = TsInput.model_validate(value)
-    record.input.reaction.atom_map = list(range(mol.GetNumAtoms()))
+    record.input.reaction.selected_candidate = 0
     record.input.conformers.guidance.ring_order = []
     record.input.conformers.reactant = record.input.conformers.product = FileConformer(
         kind='file', xyz_path=str(xyz), mol_path=str(graph))
@@ -65,10 +65,10 @@ def test_doublet_file_advances_without_compute_and_records_declared_bond_orders(
         stage(record)
         assert record.blocked is None
         assert record.terminal is None
-    assert record.input_binding['binding_status'] == 'complete'
-    assert record.input_binding['connectivity_validation']['bond_orders'] == 'declared_molecular_identity'
+    assert record.structures.product_to_reactant is not None
+    assert sum(atom.GetNumRadicalElectrons() for atom in record.structures.reactant.GetAtoms()) == 1
     view = build_process_view(record.model_dump(), [], can_write=True)
-    assert view.structures['reactant']['connectivity_validation']['bond_pairs'] == 'rdDetermineConnectivity'
+    assert view.structures['reactant']['electronic_state']['is_open_shell'] is True
     assert _endpoint_identity_error(record, 'reactant', (
         [atom.GetSymbol() for atom in mol.GetAtoms()], mol.GetConformer().GetPositions().tolist())) == ''
 
@@ -95,7 +95,7 @@ def test_declared_general_spin_coupling_advances_file_identity(
         stage(record)
         assert record.blocked is None
         assert record.terminal is None
-    electronic = record.structures['reactant']['electronic_state']
+    electronic = structure_tables(record)['reactant']['electronic_state']
     assert electronic['is_open_shell'] is True
     assert electronic['n_alpha'] - electronic['n_beta'] == multiplicity - 1
     assert _endpoint_identity_error(record, 'reactant', (
@@ -120,13 +120,11 @@ def test_doublet_nondefault_explicit_binding_keeps_exact_source_indices(tmp_path
     record, _ = _file_record(tmp_path)
     _build(record)
     for role in ('reactant', 'product'):
-        source = getattr(record.input.conformers, role)
-        data = source.model_dump()
-        data['heavy_atom_binding'] = {'indices': [4, 2, 3, 1]}
-        setattr(record.input.conformers, role, FileConformer.model_validate(data))
+        setattr(record.structures, role, set_heavy_binding(getattr(record.structures, role), [4, 2, 3, 1]))
     _map(record)
     assert record.blocked is None
-    assert record.input_binding['heavy_atom_bindings'] == {'reactant': [4, 2, 3, 1], 'product': [4, 2, 3, 1]}
+    assert {role: heavy_binding(getattr(record.structures, role)) for role in ('reactant', 'product')} == {
+        'reactant': [4, 2, 3, 1], 'product': [4, 2, 3, 1]}
 
 
 def test_open_shell_geometry_rejects_missing_and_extra_pairs(tmp_path):
@@ -143,45 +141,44 @@ def test_open_shell_geometry_rejects_missing_and_extra_pairs(tmp_path):
         mol, (symbols, extra), 0, 'reactant', multiplicity=2)
 
 
-def _binding(smiles, mol, *, multiplicity=2, explicit_indices=None, electronic_character=None):
-    text = Chem.MolToMolBlock(mol)
-    payload = dict(reactant_smiles=smiles, product_smiles=smiles, reactant_text=text, product_text=text,
-                   reactant_format='mol', product_format='mol',
-                   reactant_multiplicity=multiplicity, product_multiplicity=multiplicity,
-                   reactant_electronic_character=electronic_character,
-                   product_electronic_character=electronic_character)
+def _binding(smiles, mol, *, multiplicity=2, explicit_indices=None, electronic_character=None, selected_candidate=None):
     if explicit_indices is not None:
-        for role in ('reactant', 'product'):
-            payload[role + '_binding'] = dict(
-
-                indices=explicit_indices)
-    return check_concrete_binding(ReactionMapping_input_schema(**payload), {
-        'atom_map': list(range(1, mol.GetNumAtoms() + 1)), 'watch_pairs': []})
-
-
-def test_only_open_shell_unlabelled_complete_symmetry_can_choose_representative():
-    assert _binding('C[C](C)C', _mol('C[C](C)C'))['binding_status'] == 'complete'
-    assert _binding('CC', _mol('CC'), multiplicity=1)['binding_status'] == 'inconclusive'
+        mol = set_heavy_binding(mol, explicit_indices)
+    request = TsInput(reaction=dict(reactant_smiles=smiles, product_smiles=smiles,
+        charge=0, multiplicity=multiplicity, electronic_character=electronic_character,
+        selected_candidate=selected_candidate))
+    return bind_reaction_structures(request, mol, mol)
 
 
-def test_open_shell_partial_hydrogen_labels_require_explicit_binding():
+def test_open_and_closed_shell_symmetry_both_offer_complete_candidates():
+    for smiles, multiplicity in (('C[C](C)C', 2), ('CC', 1)):
+        mol = _mol(smiles)
+        result = _binding(smiles, mol, multiplicity=multiplicity)
+        assert result['binding_status'] == 'inconclusive'
+        assert result['mapping_status'] == 'ambiguous'
+        assert result['candidates'] and result['candidates'][0]['atom_map']
+        assert _binding(smiles, mol, multiplicity=multiplicity, selected_candidate=0)['binding_status'] == 'complete'
+
+
+def test_open_shell_partial_hydrogen_labels_do_not_silently_choose_a_mapping():
     mol = _mol('C[C](C)C')
     mol.GetAtomWithIdx(4).SetAtomMapNum(1)
     result = _binding('C[C](C)C', mol)
     assert result['binding_status'] == 'inconclusive'
-    assert any('explicit' in item.lower() for item in result['binding_diagnostics'])
+    assert result['atom_map'] == []
+    assert result['candidates']
 
 
 def test_open_shell_source_identity_annotations_are_not_representative_provenance(tmp_path):
     record, _ = _file_record(tmp_path)
-    path = tmp_path / 'seed.xyz'
-    lines = path.read_text().splitlines()
-    lines[2] += ' in:1'
-    path.write_text('\n'.join(lines) + '\n')
+    path = tmp_path / 'seed.mol'
+    mol = Chem.MolFromMolFile(str(path), removeHs=False)
+    mol.GetAtomWithIdx(0).SetAtomMapNum(1)
+    path.write_text(Chem.MolToMolBlock(mol))
     _build(record)
     _map(record)
     assert record.blocked is not None
-    assert 'heavy_atom_binding' in record.blocked.message
+    assert 'complete and unique' in record.blocked.message
 
 
 @pytest.mark.parametrize('smiles,concrete_smiles', [
@@ -199,7 +196,7 @@ def test_open_shell_high_symmetry_incomplete_enumeration_requires_explicit_bindi
     smiles = '[CH2]C(C(C)(C)C)(C(C)(C)C)C(C)(C)C'
     result = _binding(smiles, _mol(smiles))
     assert result['binding_status'] == 'inconclusive'
-    assert any('enumeration' in item.lower() and 'explicit' in item.lower()
+    assert any('enumeration' in item.lower() and 'labels' in item.lower()
                for item in result['binding_diagnostics'])
 
 
@@ -230,7 +227,7 @@ def test_electronic_character_revision_restarts_declaration_and_invalidates_quan
     revised = revise_record(record, change, receipt)
     assert revised.stage == 'declare'
     assert revised.job_steps == []
-    assert revised.input.reaction.atom_map == record.input.reaction.atom_map
+    assert revised.input.reaction.selected_candidate is None
 
 
 def test_open_shell_explicit_binding_cannot_override_concrete_atom_labels():
@@ -245,8 +242,6 @@ def test_open_shell_xyz_without_electronic_graph_has_actionable_checkpoint(tmp_p
     for role in ('reactant', 'product'):
         getattr(record.input.conformers, role).mol_path = None
     _build(record)
-    assert 'MOL' in record.structures['reactant']['graph_error']
-    _map(record)
     assert record.blocked is not None
     assert 'MOL' in record.blocked.message
 
@@ -271,7 +266,7 @@ def test_single_generated_component_preserves_declared_general_state_before_comp
     graph = _bound_input_structure(record, 'reactant')[1]
     assert sum(atom.GetNumRadicalElectrons() for atom in graph.GetAtoms()) == sum(
         atom.GetNumRadicalElectrons() for atom in Chem.MolFromSmiles(smiles).GetAtoms())
-    assert record.structures['reactant']['electronic_state']['is_open_shell']
+    assert structure_tables(record)['reactant']['electronic_state']['is_open_shell']
 
 
 def test_character_revision_refreshes_pinned_digest_without_changing_binding(tmp_path):
@@ -280,25 +275,19 @@ def test_character_revision_refreshes_pinned_digest_without_changing_binding(tmp
 
     record, _ = _file_record(tmp_path, 'CO', multiplicity=1)
     _build(record)
-    for role in ('reactant', 'product'):
-        data = getattr(record.input.conformers, role).model_dump()
-        data['heavy_atom_binding'] = dict( indices=[1, 2])
-        setattr(record.input.conformers, role, FileConformer.model_validate(data))
     _map(record)
-    original_digest = record.structures['reactant']['structure_digest']
+    original_digest = structure_tables(record)['reactant']['structure_digest']
     change = request(record, {'reaction': {'electronic_character': 'open_shell'}})
     revised = revise_record(record, change, plan_input_revision(record, change))
-    assert revised.input.conformers.reactant.heavy_atom_binding.indices == [1, 2]
+    assert heavy_binding(revised.structures.reactant) == [1, 2]
     for stage in (_declare, _build, _map):
         stage(revised)
         assert revised.blocked is None
         assert revised.terminal is None
-    assert revised.structures['reactant']['structure_digest'] != original_digest
+    assert structure_tables(revised)['reactant']['structure_digest'] != original_digest
 
 
 def test_generated_open_shell_fragments_are_unoptimized_seeds(tmp_path, monkeypatch):
-    from pathlib import Path
-
     from cloudra.tools.core.ts_inputs import GeneratedConformer
 
     record, _ = _file_record(tmp_path, '[CH3].[CH3]', multiplicity=1)
@@ -310,9 +299,9 @@ def test_generated_open_shell_fragments_are_unoptimized_seeds(tmp_path, monkeypa
         stage(record)
         assert record.blocked is None
         assert record.terminal is None
-    assert record.structures['reactant']['components'] == 2
-    assert record.structures['reactant']['electronic_state']['localized_radical_electrons'] == 2
-    assert 'unoptimized' in Path(record.current_seed_xyz_path).read_text().splitlines()[1]
+    assert structure_tables(record)['reactant']['components'] == 2
+    assert structure_tables(record)['reactant']['electronic_state']['localized_radical_electrons'] == 2
+    assert record.job_steps == []
 
 
 def test_prepare_open_shell_singlet_reaches_only_mocked_quantum_submission(
@@ -342,7 +331,7 @@ def test_prepare_open_shell_singlet_reaches_only_mocked_quantum_submission(
     assert '* xyz 0 1' in submissions[0][2]
     assert result.blocked is None
     assert result.terminal is None
-    assert result.input_binding['binding_status'] == 'complete'
+    assert result.structures.product_to_reactant is not None
     assert result.stage == 'refine'
 
 
@@ -354,11 +343,10 @@ def test_open_shell_product_geometry_respects_declared_full_atom_remap(tmp_path)
     xyz.write_text(Chem.MolToXYZBlock(product))
     graph.write_text(Chem.MolToMolBlock(product))
     record.input.conformers.product = FileConformer(kind='file', xyz_path=str(xyz), mol_path=str(graph))
-    record.input.reaction.atom_map = order
     _build(record)
     _map(record)
     assert record.blocked is None
-    assert record.input.reaction.atom_map == order
+    assert record.structures.product_to_reactant == tuple(order)
     assert _endpoint_identity_error(record, 'product', (
         [atom.GetSymbol() for atom in reactant.GetAtoms()], reactant.GetConformer().GetPositions().tolist())) == ''
 
@@ -369,10 +357,10 @@ def test_explicit_closed_shell_carbene_keeps_graph_radicals_as_diagnostic(tmp_pa
         stage(record)
         assert record.blocked is None
         assert record.terminal is None
-    electronic = record.structures['reactant']['electronic_state']
+    electronic = structure_tables(record)['reactant']['electronic_state']
     assert electronic['is_open_shell'] is False
     assert electronic['localized_radical_electrons'] == 2
-    assert record.input_binding['connectivity_validation']['bond_pairs'] == 'rdDetermineConnectivity'
+    assert record.structures.reactant.GetNumAtoms() == mol.GetNumAtoms()
     assert _endpoint_identity_error(record, 'reactant', (
         [atom.GetSymbol() for atom in mol.GetAtoms()], mol.GetConformer().GetPositions().tolist())) == ''
 
@@ -392,6 +380,6 @@ def test_open_shell_coarse_seed_can_bind_but_wrong_stereochemistry_cannot_verify
     _build(record)
     _map(record)
     assert record.blocked is None
-    assert record.input_binding['binding_status'] == 'complete'
+    assert record.structures.product_to_reactant is not None
     assert _endpoint_identity_error(record, 'reactant', (
         [atom.GetSymbol() for atom in mol.GetAtoms()], mol.GetConformer().GetPositions().tolist()))

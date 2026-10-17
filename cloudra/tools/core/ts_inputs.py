@@ -71,7 +71,7 @@ class TsReaction(InputModel):
     multiplicity: StrictInt = Field(ge=1)
     electronic_character: Literal['closed_shell', 'open_shell'] | None = Field(default=None,
         description="Optional declared electronic character, including open-shell singlets. This describes the requested seed state; it does not choose a ground state, wavefunction method or spin initialization.")
-    atom_map: list[StrictInt] = Field(default_factory=list, description="Full concrete atom mapping in product-coordinate order; each value is a 1-based reactant-coordinate atom index, including explicit hydrogens. Use reaction_mapping.atom_map bound to these structures, not heavy_atom_map or SMILES positions.")
+    selected_candidate: StrictInt | None = Field(default=None, ge=0, description="Choose an inspected complete concrete mapping candidate by its 0-based index only when correspondence is ambiguous. A unique complete mapping is adopted automatically; omitted/null never silently selects candidate 0.")
     reaction_center: list[tuple[StrictInt, StrictInt]] = Field(default_factory=list, description="Forming/breaking atom pairs in the bound reactant's full coordinate order, 1-based and including explicit hydrogens. Use reaction_mapping.concrete_watch_pairs for the same concrete structure.")
 
 
@@ -82,10 +82,6 @@ class GeneratedConformer(InputModel):
     optimization: CalculationValue | None = None
 
 
-class HeavyAtomBinding(InputModel):
-    indices: list[StrictInt] = Field(min_length=1, description="1-based indices in this file's full coordinate atom order, listed in declared SMILES heavy-atom order. Explicit hydrogen rows count toward indices; the selected atoms must be heavy atoms.")
-
-
 class FileConformer(InputModel):
     kind: Literal["file"]
     xyz_path: str = Field(min_length=1)
@@ -94,10 +90,8 @@ class FileConformer(InputModel):
     optimization: CalculationValue | None = Field(default=None, description=(
         'Optional additional build-stage pre-optimization. Omit or set null to use the supplied file geometry as-is. '
         'This does not certify a minimum or replace later TS/IRC and endpoint verification. '
-        'To remove a previous optimization request with ts_resume, resubmit this complete file source, '
-        'preserving mol_path, evidence_refs and heavy_atom_binding when present, and omit optimization or set it to null.'
+        'With ts_resume, patch optimization to null to clear a previous request; omitted source fields retain their values.'
     ))
-    heavy_atom_binding: HeavyAtomBinding | None = None
 
 
 class CatalogConformer(InputModel):
@@ -277,17 +271,26 @@ class CalculationReplacement(InputModel):
     replace: CalculationValue
 
 
-# Scientific operations and sources are immutable units. All other nested
-# groups derive their patch fields from the same definition as prepare.
+# Scientific operations are immutable units; source patches use the current kind.
 _ATOMIC = {
-    GeneratedConformer, HeavyAtomBinding, FileConformer, CatalogConformer,
-    RotatedConformer, PathSolvation, XtbPathGuess, ProvidedGuess,
+    PathSolvation, XtbPathGuess, ProvidedGuess,
     DistanceWindowInput, FrozenCoordinateInput, ScanCoordinateInput,
 }
 _PARTIAL: dict[type[BaseModel], type[BaseModel]] = {}
+_SOURCE_MODELS = {model.model_fields['kind'].annotation.__args__[0]: model for model in (
+    GeneratedConformer, FileConformer, CatalogConformer, RotatedConformer)}
+
+
+def _is_source_annotation(annotation):
+    if get_origin(annotation) is Annotated:
+        annotation = get_args(annotation)[0]
+    return get_origin(annotation) in (Union, UnionType) and any(
+        part in _SOURCE_MODELS.values() for part in get_args(annotation))
 
 
 def _patch_annotation(annotation):
+    if _is_source_annotation(annotation):
+        return ConformerSourceChanges
     if annotation is QmCalculation:
         return _partial_model(QmCalculation) | CalculationReplacement
     if annotation is CalculationRef:
@@ -311,11 +314,26 @@ def _partial_model(model):
             info = deepcopy(field)
             info.default = None
             info.default_factory = None
+            if _is_source_annotation(field.annotation):
+                info.discriminator = None
             fields[name] = (_patch_annotation(field.annotation) | None, info)
         _PARTIAL[model] = create_model(f"{model.__name__}Changes", __base__=InputModel, **fields)
     return _PARTIAL[model]
 
 
+_source_fields = {}
+for _source_model in _SOURCE_MODELS.values():
+    for _name, _field in _source_model.model_fields.items():
+        if _name == 'kind':
+            continue
+        _info = deepcopy(_field)
+        _info.default = None
+        _info.default_factory = None
+        if _name in _source_fields and not _info.description:
+            _info.description = _source_fields[_name][1].description
+        _source_fields[_name] = (_patch_annotation(_field.annotation) | None, _info)
+ConformerSourceChanges = create_model('ConformerSourceChanges', __base__=InputModel,
+    kind=(Literal['generate', 'file', 'catalog', 'rotate_about_bond'] | None, None), **_source_fields)
 TsInputChanges = _partial_model(TsInput)
 
 
@@ -354,6 +372,15 @@ def apply_input_changes(current: TsInput, changes: TsInputChanges) -> TsInput:
                 result[name] = definitions
             elif isinstance(value, (CalculationReplacement, _PARTIAL[QmCalculation])):
                 result[name] = calculation_patch(result.get(name), value)
+            elif isinstance(value, ConformerSourceChanges):
+                previous = result.get(name) or {}
+                kind = value.kind if 'kind' in value.model_fields_set else previous.get('kind')
+                if kind not in _SOURCE_MODELS:
+                    raise ValueError('a new conformer source requires its kind and complete source fields')
+                if kind != previous.get('kind'):
+                    previous = {}
+                typed = _partial_model(_SOURCE_MODELS[kind]).model_validate(value.model_dump(exclude_unset=True))
+                result[name] = merge(previous, typed)
             elif isinstance(value, BaseModel) and type(value) in _PARTIAL.values():
                 previous = result.get(name) or {}
                 if isinstance(value, _PARTIAL[ScanGuess]) and 'kind' in value.model_fields_set and previous.get('kind') != value.kind:
@@ -399,8 +426,6 @@ def normalize_ts_input_atoms(value: TsInput | TsInputChanges, *, atom_tables: di
         return [atom - base for atom in values]
 
     reaction = data.get("reaction") or {}
-    if reaction.get("atom_map") is not None:
-        reaction["atom_map"] = indices(reaction["atom_map"], 1)
     if reaction.get("reaction_center") is not None:
         reaction["reaction_center"] = [indices(pair, 1) for pair in reaction["reaction_center"]]
     conformers = data.get("conformers") or {}
@@ -411,8 +436,11 @@ def normalize_ts_input_atoms(value: TsInput | TsInputChanges, *, atom_tables: di
         window["atoms"] = indices(window["atoms"], 1)
     for side in ("reactant", "product"):
         endpoint = (data.get("verification") or {}).get(f"{side}_endpoint") or {}
-        for source in (conformers.get(side), endpoint.get("seed")):
-            if source and source["kind"] == "rotate_about_bond":
+        current_endpoint = getattr(current_input.verification, f'{side}_endpoint') if current_input else None
+        current_sources = (getattr(current_input.conformers, side), current_endpoint.seed if current_endpoint else None) if current_input else (None, None)
+        for source, current_source in zip((conformers.get(side), endpoint.get("seed")), current_sources):
+            kind = source.get('kind', current_source.kind if current_source else None) if source else None
+            if source and kind == "rotate_about_bond" and source.get('atoms') is not None:
                 source["atoms"] = indices(source["atoms"], 1, side)
     guess = data.get("guess")
     if guess and (guess.get('scans') is not None or guess.get('freeze') is not None):

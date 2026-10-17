@@ -21,9 +21,9 @@ from tests.ts_fixtures import calculation_input
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("rdkit_chemistry", "ts_producer_authority")
 @pytest.mark.parametrize("later_change", ["engine_definition", "stage_reference"])
-async def test_accepted_resume_replay_uses_original_scan_engine_after_later_change(tmp_path, later_change):
+async def test_accepted_resume_replay_uses_original_scan_engine_after_later_change(tmp_path, monkeypatch, later_change):
     value = calculation_input(
-        reactant_smiles="O", product_smiles="O", method="HF/STO-3G", atom_map=[],
+        reactant_smiles="O", product_smiles="O", method="HF/STO-3G",
         scan={"method": "HF/STO-3G", "scans": [
             {"atoms": [0, 1], "scan_start": 0.8, "scan_end": 1.0, "scan_steps": 2}]},
     )
@@ -32,10 +32,13 @@ async def test_accepted_resume_replay_uses_original_scan_engine_after_later_chan
         "gaussian_profile": QmCalculation(engine="gaussian", method="HF", basis_set="STO-3G"),
     }
     value.guess.calculation = CalculationRef(ref="scan_profile")
+    from cloudra.services.compute_admission import AdmissionOutcome
+    monkeypatch.setattr('cloudra.services.compute_admission.admit_job',
+        lambda **_: AdmissionOutcome(ok=True, node_id='fixture', scheduler='local'))
     first = await invoke(owned_tool(TsPrepare, workspace=tmp_path),
                          TsPrepare_input_schema(input=value), call_id="prepare-native-scan")
     assert first.is_success, first.message
-    assert first.blocked["failure_class"] == "atom_map_missing"
+    assert first.blocked is None and first.status == "waiting"
 
     original = TsResume_input_schema(
         run_id=first.run_id, reason="Change the ORCA-native scan interval",
@@ -78,4 +81,4 @@ async def test_accepted_resume_replay_uses_original_scan_engine_after_later_chan
     assert after == before
     assert after["input"]["guess"]["scans"][0]["atoms"] == [0, 1]
     assert await asyncio.to_thread(ledger_snapshot) == before_ledger
-    assert before_ledger[2] == 0
+    assert before_ledger[2] > 0

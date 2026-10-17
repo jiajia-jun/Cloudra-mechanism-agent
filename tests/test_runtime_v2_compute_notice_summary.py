@@ -113,7 +113,7 @@ async def test_completed_scan_notice_keeps_reaction_window_and_no_peak_observati
     await asyncio.to_thread(path.write_text, "Recorded native input")
     job = await asyncio.to_thread(_insert_terminal_job, project.id,
         session_id=coordinator.id, state="done", path=str(path), jobtype=engine)
-    record = {"format_version": 6, "input": {
+    record = {"format_version": 7, "input": {
         "reaction": {"reactant_smiles": "[CH2-][PH3+].C=O", "product_smiles": "C=C.O=[PH3]",
             "charge": 0, "multiplicity": 1, "reaction_center": [[0, 2]]},
         "guess": {"kind": "scan", "calculation": {"engine": engine},
@@ -148,7 +148,7 @@ async def test_completed_scan_notice_keeps_reaction_window_and_no_peak_observati
 async def test_scan_window_omits_unknown_start_and_resolves_recorded_calculation_reference(tmp_path):
     core, project, coordinator = await _setup_core()
     job = await asyncio.to_thread(_insert_terminal_job, project.id, session_id=coordinator.id, path="")
-    record = {"format_version": 6, "input": {
+    record = {"format_version": 7, "input": {
         "reaction": {"reactant_smiles": "CC", "product_smiles": "C=C", "charge": 0, "multiplicity": 1,
                      "reaction_center": [[0, 1]]},
         "calculations": {"scan": {"engine": "orca", "method": "private-configuration-sentinel"}},

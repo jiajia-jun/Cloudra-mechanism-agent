@@ -11,12 +11,13 @@ import os
 from collections import Counter, defaultdict
 from typing import Any, Literal, Optional
 
-from pydantic import Field
+from pydantic import ConfigDict, Field, StrictInt, model_validator
 
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.workspace import resolve_existing_tool_path
-from cloudra.tools.core.ts_inputs import HeavyAtomBinding
+from cloudra.tools.core.molecule import Molecule
+from cloudra.tools.core.ts_inputs import TsInput
 
 _MAX_EXHAUSTIVE_MAPPINGS = 100_000
 _MAX_RETURNED_CANDIDATES = 16
@@ -486,8 +487,14 @@ def analyze_reaction_mapping(
     product_smiles: str,
     selected_candidate: int = 0,
 ) -> dict:
-    reactant = _parse_heavy_smiles(reactant_smiles, "Reactant")
-    product = _parse_heavy_smiles(product_smiles, "Product")
+    from rdkit import Chem
+
+    parameters = Chem.RemoveHsParameters()
+    parameters.removeIsotopes = True
+    parameters.removeOnlyHNeighbors = True
+    parameters.removeDegreeZero = True
+    reactant = Chem.RemoveHs(_parse_heavy_smiles(reactant_smiles, "Reactant"), parameters)
+    product = Chem.RemoveHs(_parse_heavy_smiles(product_smiles, "Product"), parameters)
     r_inventory = Counter(_atom_key(atom) for atom in reactant.GetAtoms())
     p_inventory = Counter(_atom_key(atom) for atom in product.GetAtoms())
     if r_inventory != p_inventory:
@@ -801,16 +808,16 @@ def _identity_and_binding(expected_smiles: str, structure, explicit_indices: lis
     if len(distinct) != 1:
         if prove_symmetry:
             if len(matches) == parameters.maxMatches:
-                return 'match', [], 'Symmetric binding enumeration is incomplete; supply an explicit heavy_atom_binding or complete concrete atom-map labels.'
+                return 'match', [], 'Symmetric binding enumeration is incomplete; supply complete concrete atom-map labels.'
             if not all(_complete_binding_preserves_identity(expected_clean, structure_copy, structure_heavy, match)
                        for match in matches):
-                return 'match', [], 'Candidate bindings do not all preserve complete electronic, isotope, hydrogen, bond and stereo identity; supply an explicit heavy_atom_binding.'
+                return 'match', [], 'Candidate bindings do not all preserve complete electronic, isotope, hydrogen, bond and stereo identity; inspect complete concrete candidates or supply complete atom-map labels.'
             axis_diag = _axis_config_consistency(expected, structure, full_matches, require_all=True)
             if axis_diag:
-                return 'match', [], axis_diag + ' Supply an explicit heavy_atom_binding.'
+                return 'match', [], axis_diag + ' Inspect complete concrete candidates or supply complete atom-map labels.'
             return 'match', list(distinct[0]), f'All {len(matches)} exhaustively enumerated bindings preserve complete molecular identity; selected a deterministic symmetric representative.'
         if allow_symmetric_representative and not unlabelled:
-            return 'match', [], 'Concrete atom labels are provenance and cannot be replaced by a symmetric representative; supply an explicit heavy_atom_binding or complete compatible labels.'
+            return 'match', [], 'Concrete atom labels are provenance and cannot be replaced by a symmetric representative; supply complete compatible atom-map labels.'
         count = f'at least {len(distinct)}' if len(matches) == 256 else str(len(distinct))
         return (
             "match",
@@ -849,228 +856,242 @@ def _axis_config_consistency(expected, structure, matches, *, require_all=False)
     return None
 
 
-def _expand_full_atom_map(
-    reactant_structure,
-    product_structure,
-    reactant_query_to_actual: list[int],
-    product_query_to_actual: list[int],
+def _expand_full_atom_maps(
+    reactant_structure, product_structure,
+    reactant_query_to_actual: list[int], product_query_to_actual: list[int],
     heavy_atom_map: list[int],
-) -> tuple[list[int], str]:
-    """把 SMILES 重原子映射绑定到 concrete product atom -> reactant atom。"""
+) -> tuple[list[list[int]], str]:
+    """Keep proven local isotope pairs and enumerate only unmatched hydrogen identities."""
     r_inventory = Counter(_atom_key(atom) for atom in reactant_structure.GetAtoms())
     p_inventory = Counter(_atom_key(atom) for atom in product_structure.GetAtoms())
     if r_inventory != p_inventory:
-        return [], "Explicit-atom element/isotope counts of the concrete structures differ; cannot generate a full-atom mapping."
-
+        return [], 'Explicit-atom element/isotope counts of the concrete structures differ; cannot generate a full-atom mapping.'
     full_map = [-1] * product_structure.GetNumAtoms()
-    for p_query_idx, r_query_one_based in enumerate(heavy_atom_map):
-        p_actual = product_query_to_actual[p_query_idx]
-        r_actual = reactant_query_to_actual[r_query_one_based - 1]
-        full_map[p_actual] = r_actual
+    for p_query, r_query in enumerate(heavy_atom_map):
+        full_map[product_query_to_actual[p_query]] = reactant_query_to_actual[r_query - 1]
 
-        p_hydrogens = sorted(
-            atom.GetIdx() for atom in product_structure.GetAtomWithIdx(p_actual).GetNeighbors()
-            if atom.GetAtomicNum() == 1
-        )
-        r_hydrogens = sorted(
-            atom.GetIdx() for atom in reactant_structure.GetAtomWithIdx(r_actual).GetNeighbors()
-            if atom.GetAtomicNum() == 1
-        )
-        if len(p_hydrogens) != len(r_hydrogens):
-            return [], (
-                f"Mapped heavy atoms P{p_query_idx + 1}→R{r_query_one_based} have different explicit hydrogen counts; "
-                "possible proton transfer or missing hydrogens."
-            )
-        # 氢按同位素分组配对：氘代示踪/KIE 场景里 D 不得配到 H 上（库存校验
-        # 只保证两端同位素总数相等，同一中心上的分布仍可能错位）。
-        p_by_isotope: dict[int, list[int]] = defaultdict(list)
-        r_by_isotope: dict[int, list[int]] = defaultdict(list)
-        for idx in p_hydrogens:
-            p_by_isotope[product_structure.GetAtomWithIdx(idx).GetIsotope()].append(idx)
-        for idx in r_hydrogens:
-            r_by_isotope[reactant_structure.GetAtomWithIdx(idx).GetIsotope()].append(idx)
-        if {k: len(v) for k, v in p_by_isotope.items()} != {k: len(v) for k, v in r_by_isotope.items()}:
-            return [], (
-                f"Mapped heavy atoms P{p_query_idx + 1}→R{r_query_one_based} have equal hydrogen counts "
-                "but different hydrogen isotope distributions; cannot pair isotope-mismatched hydrogens."
-            )
-        for isotope in sorted(p_by_isotope):
-            for p_h, r_h in zip(p_by_isotope[isotope], r_by_isotope[isotope]):
+    heavy_labels = [[atom.GetAtomMapNum() for atom in structure.GetAtoms() if atom.GetAtomicNum() != 1]
+        for structure in (reactant_structure, product_structure)]
+    if all(values and all(values) for values in heavy_labels):
+        if set(heavy_labels[0]) != set(heavy_labels[1]):
+            return [], 'Concrete heavy-atom map labels conflict between endpoints.'
+        for p_index, r_index in enumerate(full_map):
+            if r_index >= 0 and product_structure.GetAtomWithIdx(p_index).GetAtomMapNum() != reactant_structure.GetAtomWithIdx(r_index).GetAtomMapNum():
+                return [], 'Candidate correspondence conflicts with concrete heavy-atom map labels.'
+
+    # Compatible concrete H labels are identity evidence, including transferred H.
+    labelled = []
+    for structure in (reactant_structure, product_structure):
+        atoms = [atom for atom in structure.GetAtoms() if atom.GetAtomicNum() == 1 and atom.GetAtomMapNum()]
+        by_label = {atom.GetAtomMapNum(): atom.GetIdx() for atom in atoms}
+        if len(by_label) != len(atoms):
+            return [], 'Concrete hydrogen atom-map labels must be unique.'
+        labelled.append(by_label)
+    if set(labelled[0]) != set(labelled[1]):
+        return [], 'Concrete hydrogen atom-map labels conflict between endpoints.'
+    for label, p_index in labelled[1].items():
+        r_index = labelled[0][label]
+        if _atom_key(product_structure.GetAtomWithIdx(p_index)) != _atom_key(reactant_structure.GetAtomWithIdx(r_index)):
+            return [], 'Concrete hydrogen labels change isotope identity.'
+        full_map[p_index] = r_index
+
+    used = {index for index in full_map if index >= 0}
+    for p_index, r_index in enumerate(full_map):
+        if r_index < 0 or product_structure.GetAtomWithIdx(p_index).GetAtomicNum() == 1:
+            continue
+        p_groups, r_groups = defaultdict(list), defaultdict(list)
+        for atom in product_structure.GetAtomWithIdx(p_index).GetNeighbors():
+            if atom.GetAtomicNum() == 1 and full_map[atom.GetIdx()] < 0:
+                p_groups[atom.GetIsotope()].append(atom.GetIdx())
+        for atom in reactant_structure.GetAtomWithIdx(r_index).GetNeighbors():
+            if atom.GetAtomicNum() == 1 and atom.GetIdx() not in used:
+                r_groups[atom.GetIsotope()].append(atom.GetIdx())
+        for isotope in sorted(p_groups):
+            for p_h, r_h in zip(sorted(p_groups[isotope]), sorted(r_groups[isotope])):
                 full_map[p_h] = r_h
+                used.add(r_h)
+    p_groups, r_groups = defaultdict(list), defaultdict(list)
+    for atom in product_structure.GetAtoms():
+        if full_map[atom.GetIdx()] < 0:
+            if atom.GetAtomicNum() != 1:
+                return [], 'Some heavy atoms remain unmapped; cannot output a partial atom_map.'
+            p_groups[atom.GetIsotope()].append(atom.GetIdx())
+    for atom in reactant_structure.GetAtoms():
+        if atom.GetIdx() not in used:
+            r_groups[atom.GetIsotope()].append(atom.GetIdx())
+    isotopes = sorted(p_groups)
+    if {key: len(value) for key, value in p_groups.items()} != {key: len(value) for key, value in r_groups.items()}:
+        return [], 'Unmatched hydrogen isotope inventories differ.'
+    count = math.prod(math.factorial(len(r_groups[key])) for key in isotopes)
+    if count >= 257:
+        return [], 'Hydrogen correspondence enumeration is incomplete; supply compatible concrete hydrogen atom-map labels.'
+    candidates = []
+    for permutations in itertools.product(*(itertools.permutations(r_groups[key]) for key in isotopes)):
+        complete = list(full_map)
+        for isotope, permutation in zip(isotopes, permutations):
+            for p_index, r_index in zip(p_groups[isotope], permutation):
+                complete[p_index] = r_index
+        if sorted(complete) != list(range(reactant_structure.GetNumAtoms())):
+            return [], 'Some atoms remain unmapped or are mapped twice; cannot output a partial atom_map.'
+        candidates.append([index + 1 for index in complete])
+    return candidates, 'Complete concrete correspondence candidates preserve hydrogen isotope identities.'
 
-    if -1 in full_map or sorted(full_map) != list(range(reactant_structure.GetNumAtoms())):
-        return [], "Some atoms remain unmapped or are mapped twice; cannot output a partial atom_map."
-    return [idx + 1 for idx in full_map], "Full-atom mapping bound to the concrete structure order."
 
-
-def check_concrete_binding(user_input, mapping_result: dict, *, known_digests: dict[str, str] | None = None,
-                           bound_molecules: dict | None = None) -> dict:
+def _concrete_bindings(smiles: str, structure) -> tuple[str, list[list[int]], str]:
+    """Enumerate proven graph bindings, retaining concrete symmetry as a choice."""
     from rdkit import Chem
 
-    from cloudra.tools.core.electronic_state import electronic_state_details, electronic_state_issue
+    from cloudra.tools.core.reaction_state import heavy_binding
 
-    states = {}
-    for role in ('reactant', 'product'):
-        declared = Chem.MolFromSmiles(getattr(user_input, role + '_smiles'))
-        if declared is None:
-            raise ValueError(f'{role}: declared SMILES cannot be parsed')
-        arguments = dict(charge=getattr(user_input, role + '_charge'),
-            multiplicity=getattr(user_input, role + '_multiplicity'),
-            electronic_character=getattr(user_input, role + '_electronic_character'))
-        issue = electronic_state_issue(declared, **arguments)
-        if issue:
-            raise ValueError(f'{role}: {issue[1]}')
-        states[role] = electronic_state_details(declared, **arguments)
-    if bound_molecules is not None:
-        # TS already read and bound these graphs. Serializing coarse coordinates
-        # through a MOL block would reassign stereo from an unoptimized seed.
-        reactant, product = (Chem.Mol(bound_molecules[role]) for role in ('reactant', 'product'))
-        for graph in (reactant, product):
+    if structure is None:
+        return 'not_provided', [], 'A concrete endpoint structure is required.'
+    if structure.HasProp('cloudra_graph_status') and structure.GetProp('cloudra_graph_status') == 'unresolved':
+        return 'inconclusive', [], 'XYZ coordinates alone do not prove molecular identity; supply the corresponding MOL/SDF graph.'
+    # A previous mapping choice is an output, not additional source identity.
+    # Reuse build/catalog identity, but re-enumerate choices derived from mapping.
+    derived = structure.HasProp('cloudra_mapping_binding_derived') and structure.GetBoolProp('cloudra_mapping_binding_derived')
+    known = [] if derived else heavy_binding(structure)
+    identity, binding, diagnostic = _identity_and_binding(smiles, structure,
+        [index - 1 for index in known] if known else None)
+    if identity == 'match' and all(atom.GetAtomicNum() == 1 for atom in structure.GetAtoms()):
+        return identity, [[]], diagnostic
+    if identity != 'match' or binding:
+        return identity, [binding] if binding else [], diagnostic
+    # Partial/conflicting labels and incompatible stereo are errors, not symmetry.
+    labels = [[atom.GetAtomMapNum() for atom in graph.GetAtoms() if atom.GetAtomicNum() != 1]
+        for graph in (_parse_heavy_smiles(smiles, 'Endpoint'), structure)]
+    invalid_labels = any(any(values) and (not all(values) or len(set(values)) != len(values)) for values in labels)
+    conflicting_labels = all(all(values) for values in labels) and set(labels[0]) != set(labels[1])
+    if known or invalid_labels or conflicting_labels:
+        return identity, [], diagnostic
+    expected = _clear_atom_maps(_parse_heavy_smiles(smiles, 'Endpoint'))
+    concrete = _clear_atom_maps(structure)
+    for atom in concrete.GetAtoms():
+        atom.SetIntProp('_full_idx', atom.GetIdx())
+    heavy = Chem.RemoveHs(concrete)
+    parameters = Chem.SubstructMatchParameters()
+    parameters.uniquify = False
+    parameters.useChirality = True
+    parameters.maxMatches = 257  # Reuse the existing complete-enumeration sentinel.
+    matches = heavy.GetSubstructMatches(expected, parameters)
+    if len(matches) == parameters.maxMatches:
+        return identity, [], 'Concrete binding enumeration is incomplete; complete compatible atom-map labels are required.'
+    positions = [atom.GetIdx() for atom in expected.GetAtoms() if atom.GetAtomicNum() != 1]
+    bindings = []
+    for match in matches:
+        indices = [heavy.GetAtomWithIdx(match[index]).GetIntProp('_full_idx') for index in positions]
+        checked, accepted, _ = _identity_and_binding(smiles, structure, indices)
+        if checked == 'match' and accepted:
+            bindings.append(accepted)
+    return identity, [list(value) for value in sorted(set(map(tuple, bindings)))], diagnostic
+
+
+def bind_reaction_structures(input: TsInput, reactant: Molecule, product: Molecule) -> dict:
+    """Bind current concrete molecules using the TS declaration's electronic state."""
+    reaction = input.reaction
+    state = dict(charge=reaction.charge, multiplicity=reaction.multiplicity,
+        electronic_character=reaction.electronic_character)
+    return _bind_endpoint_structures(reaction, reactant, product, {'reactant': state, 'product': state}, inspect_coordinates=False)
+
+
+def _bind_endpoint_structures(reaction, reactant, product, states, *, inspect_coordinates=True) -> dict:
+    """Shared graph/binding algorithm; independent analysis retains each endpoint's declared state."""
+    from rdkit import Chem
+
+    from cloudra.tools.core.electronic_state import electronic_state_issue
+
+    result = analyze_reaction_mapping(reaction.reactant_smiles, reaction.product_smiles)
+    graph_candidates = result['candidates']
+    result.update(binding_status='inconclusive', binding_source='not_available', atom_map=[],
+        concrete_watch_pairs=[], heavy_atom_bindings={}, structure_digests={}, binding_diagnostics=[],
+        graph_watch_pairs=[], watch_pairs=[], heavy_atom_map=[], formed_bonds=[], broken_bonds=[],
+        order_changes=[], candidates=[])
+    choices = {}
+    for role, structure in (('reactant', reactant), ('product', product)):
+        smiles = getattr(reaction, role + '_smiles')
+        declared = Chem.MolFromSmiles(smiles)
+        state = states[role]
+        for graph in (declared, structure):
+            if graph is not None:
+                issue = electronic_state_issue(graph, **state)
+                if issue:
+                    raise ValueError(f'{role}: {issue[1]}')
+        graph = Chem.Mol(structure) if structure is not None else None
+        if graph is not None and not inspect_coordinates:
             graph.RemoveAllConformers()
-    else:
-        reactant = _read_structure(
-            user_input.reactant_path, user_input.reactant_text,
-            user_input.reactant_format, user_input.reactant_charge, "Reactant",
-            multiplicity=user_input.reactant_multiplicity,
-            electronic_character=user_input.reactant_electronic_character,
-            require_declared_identity=states['reactant']['requires_spin_aware_geometry'],
-        )
-        product = _read_structure(
-            user_input.product_path, user_input.product_text,
-            user_input.product_format, user_input.product_charge, "Product",
-            multiplicity=user_input.product_multiplicity,
-            electronic_character=user_input.product_electronic_character,
-            require_declared_identity=states['product']['requires_spin_aware_geometry'],
-        )
-    def bind(role, structure):
+        identity, bindings, diagnostic = _concrete_bindings(smiles, graph)
+        result[role + '_identity'] = identity
+        choices[role] = bindings
+        if len(bindings) == 1:
+            result['heavy_atom_bindings'][role] = [index + 1 for index in bindings[0]]
+        if diagnostic:
+            result['binding_diagnostics'].append(f'{role}: {diagnostic}')
         if structure is not None:
-            issue = electronic_state_issue(structure, charge=getattr(user_input, role + '_charge'),
-                multiplicity=getattr(user_input, role + '_multiplicity'),
-                electronic_character=getattr(user_input, role + '_electronic_character'))
-            if issue:
-                raise ValueError(f'{role}: {issue[1]}')
-        declaration = getattr(user_input, role + '_binding', None)
-        if declaration is None or structure is None:
-            identity, binding, diagnostic = _identity_and_binding(getattr(user_input, role + '_smiles'), structure,
-                allow_symmetric_representative=states[role]['is_open_shell'])
-            return identity, binding, f'{role}: {diagnostic}' if diagnostic else ''
-        identity, binding, diagnostic = _identity_and_binding(getattr(user_input, role + '_smiles'), structure,
-            [index - 1 for index in declaration.indices])
-        return identity, binding, f'{role}: {diagnostic}' if diagnostic else ''
-    r_identity, r_binding, r_diagnostic = bind('reactant', reactant)
-    p_identity, p_binding, p_diagnostic = bind('product', product)
-    digests = dict(heavy_atom_bindings={role: [index + 1 for index in binding]
-        for role, identity, binding in (('reactant', r_identity, r_binding), ('product', p_identity, p_binding))
-        if identity == 'match' and binding}, structure_digests={role: (known_digests or {}).get(role) or
-        concrete_structure_digest(role, getattr(user_input, role + '_smiles'),
-            getattr(user_input, role + '_charge'), getattr(user_input, role + '_multiplicity'), structure,
-            electronic_character=getattr(user_input, role + '_electronic_character'))
-        for role, structure in (('reactant', reactant), ('product', product)) if structure is not None})
-    if reactant is None and product is None:
-        from rdkit import Chem
+            result['structure_digests'][role] = concrete_structure_digest(role, smiles,
+                state['charge'], state['multiplicity'], structure,
+                electronic_character=state['electronic_character'])
+    if not all(choices.values()):
+        result['mapping_status'] = 'inconclusive'
+        return result
+    candidates = {}
+    failed = set()
+    for graph, r_binding, p_binding in itertools.product(graph_candidates, choices['reactant'], choices['product']):
+        atom_maps, diagnostic = _expand_full_atom_maps(reactant, product, r_binding, p_binding, graph['heavy_atom_map'])
+        if not atom_maps:
+            failed.add(diagnostic)
+            continue
+        concrete_pairs = sorted(sorted((r_binding[a - 1] + 1, r_binding[b - 1] + 1))
+            for a, b in graph['formed_bonds'] + graph['broken_bonds'])
+        for atom_map in atom_maps:
+            candidate = {**graph, 'atom_map': atom_map,
+                'heavy_atom_bindings': {'reactant': [a + 1 for a in r_binding], 'product': [a + 1 for a in p_binding]},
+                'graph_watch_pairs': sorted(graph['formed_bonds'] + graph['broken_bonds']),
+                'concrete_watch_pairs': concrete_pairs}
+            key = tuple(atom_map)
+            if key not in candidates or candidate['score'] < candidates[key]['score']:
+                candidates[key] = candidate
+    ordered = sorted(candidates.values(), key=lambda candidate: (candidate['score'], candidate['atom_map']))
+    result['candidates'] = ordered
+    if not ordered:
+        result['mapping_status'] = 'inconclusive'
+        result['binding_diagnostics'].extend(sorted(failed))
+        return result
+    leading = [candidate for candidate in ordered if candidate['score'] <= ordered[0]['score'] + _AMBIGUITY_SCORE_WINDOW]
+    result['mapping_status'] = 'unique' if len(leading) == 1 else 'ambiguous'
+    selection = reaction.selected_candidate
+    if selection is None and len(leading) != 1:
+        result['message'] = 'Concrete endpoint correspondence is ambiguous; inspect candidates and choose selected_candidate.'
+        return result
+    selection = 0 if selection is None else selection
+    if not 0 <= selection < len(ordered):
+        raise ValueError(f'selected_candidate={selection} out of range; {len(ordered)} complete concrete candidate(s) available')
+    selected = ordered[selection]
+    for field in ('heavy_atom_map', 'atom_map', 'heavy_atom_bindings', 'formed_bonds', 'broken_bonds',
+                  'order_changes', 'graph_watch_pairs', 'concrete_watch_pairs'):
+        result[field] = selected[field]
+    result.update(binding_status='complete', binding_source='concrete', watch_pairs=selected['concrete_watch_pairs'])
+    result['message'] = 'Complete concrete endpoint correspondence accepted.'
+    return result
 
-        internal_reactant = Chem.AddHs(Chem.MolFromSmiles(user_input.reactant_smiles))
-        internal_product = Chem.AddHs(Chem.MolFromSmiles(user_input.product_smiles))
-        r_internal_binding = [
-            atom.GetIdx() for atom in internal_reactant.GetAtoms() if atom.GetAtomicNum() != 1
-        ]
-        p_internal_binding = [
-            atom.GetIdx() for atom in internal_product.GetAtoms() if atom.GetAtomicNum() != 1
-        ]
-        atom_map, diagnostic = _expand_full_atom_map(
-            internal_reactant,
-            internal_product,
-            r_internal_binding,
-            p_internal_binding,
-            mapping_result["heavy_atom_map"],
-        )
-        concrete_pairs = [
-            sorted([r_internal_binding[i - 1] + 1, r_internal_binding[j - 1] + 1])
-            for i, j in mapping_result["watch_pairs"]
-        ]
-        return {
-            **digests,
-            "binding_status": "complete" if atom_map else "inconclusive",
-            "binding_source": "internal_generated" if atom_map else "not_available",
-            "reactant_identity": r_identity,
-            "product_identity": p_identity,
-            "atom_map": atom_map,
-            "concrete_watch_pairs": sorted(concrete_pairs),
-            "binding_diagnostics": [diagnostic],
-        }
-    if reactant is None or product is None:
-        return {
-            **digests,
-            "binding_status": "inconclusive",
-            "binding_source": "not_available",
-            "reactant_identity": r_identity,
-            "product_identity": p_identity,
-            "atom_map": [],
-            "concrete_watch_pairs": [],
-            "binding_diagnostics": ["Both reactant and product concrete structures are required to generate a full-atom mapping."],
-        }
-    if r_identity != "match" or p_identity != "match":
-        return {
-            **digests,
-            "binding_status": "inconclusive",
-            "binding_source": "not_available",
-            "reactant_identity": r_identity,
-            "product_identity": p_identity,
-            "atom_map": [],
-            "concrete_watch_pairs": [],
-            "binding_diagnostics": [
-                item for item in (r_diagnostic, p_diagnostic) if item
-            ] or ["At least one concrete endpoint's molecular graph differs from the declared SMILES."],
-        }
-    if not r_binding or not p_binding:
-        return {
-            **digests,
-            "binding_status": "inconclusive",
-            "binding_source": "not_available",
-            "reactant_identity": r_identity,
-            "product_identity": p_identity,
-            "atom_map": [],
-            "concrete_watch_pairs": [],
-            "binding_diagnostics": [
-                item for item in (r_diagnostic, p_diagnostic) if item
-            ],
-        }
-    if "atom_map" in mapping_result:
-        atom_map = list(mapping_result["atom_map"])
-        diagnostic = ""
-        if sorted(atom_map) != list(range(1, reactant.GetNumAtoms() + 1)) or len(atom_map) != product.GetNumAtoms():
-            atom_map, diagnostic = [], "The explicit map must cover every concrete atom exactly once."
-        elif any((product.GetAtomWithIdx(i).GetAtomicNum(), product.GetAtomWithIdx(i).GetIsotope()) !=
-                 (reactant.GetAtomWithIdx(target - 1).GetAtomicNum(), reactant.GetAtomWithIdx(target - 1).GetIsotope())
-                 for i, target in enumerate(atom_map)):
-            atom_map, diagnostic = [], "The explicit map changes an atom's element or isotope identity."
-    else:
-        atom_map, diagnostic = _expand_full_atom_map(
-            reactant, product, r_binding, p_binding, mapping_result["heavy_atom_map"],
-        )
-    concrete_pairs = [
-        sorted([r_binding[i - 1] + 1, r_binding[j - 1] + 1])
-        for i, j in mapping_result["watch_pairs"]
+
+def _mapping_json_schema(schema):
+    source_fields = set(schema['properties']) - {'run_id', 'selected_candidate'}
+    schema['oneOf'] = [
+        {'required': ['run_id', 'selected_candidate'],
+         'properties': {'run_id': {'type': 'string', 'minLength': 1}, 'selected_candidate': {'type': 'integer', 'minimum': 0}},
+         'not': {'anyOf': [{'required': [field]} for field in sorted(source_fields)]}},
+        {'required': ['reactant_smiles', 'product_smiles'],
+         'properties': {'reactant_smiles': {'type': 'string', 'minLength': 1}, 'product_smiles': {'type': 'string', 'minLength': 1},
+                        'run_id': {'type': 'null'}}},
     ]
-    return {
-        **digests,
-        "binding_status": "complete" if atom_map else "inconclusive",
-        "binding_source": "concrete" if atom_map else "not_available",
-        "reactant_identity": r_identity,
-        "product_identity": p_identity,
-        "atom_map": atom_map,
-        "concrete_watch_pairs": sorted(concrete_pairs) if atom_map else [],
-        "heavy_atom_bindings": digests["heavy_atom_bindings"],
-        "binding_diagnostics": [
-            item for item in (r_diagnostic, p_diagnostic, diagnostic) if item
-        ],
-    }
 
 
 class ReactionMapping_input_schema(input_schema):
-    reactant_smiles: str = Field(description="Reactant SMILES.")
-    product_smiles: str = Field(description="Product SMILES.")
-    selected_candidate: int = Field(default=0, description="Selected mapping-candidate index (0-based).")
+    model_config = ConfigDict(extra="forbid", json_schema_extra=_mapping_json_schema)
+    run_id: str | None = Field(default=None, min_length=1, description="Existing TS run. Use only with selected_candidate to commit a concrete mapping choice; inspect candidates with ts_inspect.")
+    reactant_smiles: str | None = Field(default=None, min_length=1, description="Independent analysis: reactant SMILES; mutually exclusive with run_id.")
+    product_smiles: str | None = Field(default=None, min_length=1, description="Independent analysis: product SMILES.")
+    selected_candidate: StrictInt | None = Field(default=None, ge=0, description="0-based complete concrete candidate choice. Omit/null for automatic adoption only when unique.")
     reactant_path: Optional[str] = Field(default=None, description="Path of a concrete reactant structure (mol/sdf/xyz).")
     reactant_text: Optional[str] = Field(default=None, description="Concrete reactant structure text. Path takes precedence.")
     product_path: Optional[str] = Field(default=None, description="Path of a concrete product structure (mol/sdf/xyz).")
@@ -1083,8 +1104,25 @@ class ReactionMapping_input_schema(input_schema):
     product_multiplicity: int = 1
     reactant_electronic_character: Literal['closed_shell', 'open_shell'] | None = None
     product_electronic_character: Literal['closed_shell', 'open_shell'] | None = None
-    reactant_binding: HeavyAtomBinding | None = None
-    product_binding: HeavyAtomBinding | None = None
+
+    @model_validator(mode='after')
+    def exclusive_sources(self):
+        if self.run_id is not None:
+            if not self.run_id.strip():
+                raise ValueError('run_id must not be blank')
+            if self.model_fields_set - {'run_id', 'selected_candidate'}:
+                raise ValueError('run_id cannot be combined with independent endpoint sources')
+            if self.selected_candidate is None:
+                raise ValueError('run_id requires selected_candidate; use ts_inspect to view current candidates')
+        elif not self.reactant_smiles or not self.product_smiles:
+            raise ValueError('independent analysis requires both endpoint SMILES')
+        return self
+
+    @classmethod
+    def to_parameters_schema(cls):
+        schema = super().to_parameters_schema()
+        schema['oneOf'] = cls.model_json_schema()['oneOf']
+        return schema
 
 
 class ReactionMapping_output_schema(output_schema):
@@ -1119,42 +1157,88 @@ class ReactionMapping_output_schema(output_schema):
 class ReactionMapping(Tool):
     tool_id: str = "t-49"
     tool_name: str = "reaction_mapping"
-    tool_description: str = "From reactant/product SMILES, generate inspectable atom-mapping candidates and reaction-center bond changes."
+    tool_description: str = "Choose an inspected complete concrete mapping on an existing TS run, or independently analyze endpoint sources. Unique complete mappings are adopted automatically; read existing run structures and candidates with ts_inspect."
     input_schema: Any = ReactionMapping_input_schema
     output_schema: Any = ReactionMapping_output_schema
 
-    def is_read(self) -> bool:
+    def is_write(self) -> bool:
         return True
 
     async def tool_call(
         self, user_input: ReactionMapping_input_schema, session: Session,
     ) -> ReactionMapping_output_schema:
         try:
-            for field in ("reactant_path", "product_path"):
-                value = getattr(user_input, field, None)
+            from cloudra.tools.core.permission_model import Permission
+            if self.subagent is not None and not self.subagent.permission_all() & Permission.WRITE:
+                raise ValueError('Reaction mapping requires producer write permission')
+            if user_input.run_id is not None:
+                return await self._select_run_candidate(user_input, session)
+            for field in ('reactant_path', 'product_path'):
+                value = getattr(user_input, field)
                 if value:
                     setattr(user_input, field, resolve_existing_tool_path(self, value))
-            result = await asyncio.to_thread(
-                analyze_reaction_mapping,
-                user_input.reactant_smiles,
-                user_input.product_smiles,
-                selected_candidate=user_input.selected_candidate,
-            )
-            # 具体结构绑定（3D 生成/比对）同样是同步重活，一并卸载出事件循环。
-            binding = await asyncio.to_thread(check_concrete_binding, user_input, result)
-            result["graph_watch_pairs"] = list(result["watch_pairs"])
-            result.update(binding)
-            if binding["binding_status"] == "complete":
-                result["watch_pairs"] = binding["concrete_watch_pairs"]
-            if binding["binding_diagnostics"]:
-                result["message"] += " " + " ".join(binding["binding_diagnostics"])
+            result = await asyncio.to_thread(self._analyze_sources, user_input)
             return ReactionMapping_output_schema(is_success=True, **result)
         except (OSError, RuntimeError, ValueError) as exc:
-            return ReactionMapping_output_schema(
-                is_success=False,
-                mapping_status="inconclusive",
-                message=f"Reaction mapping failed: {exc}",
-            )
+            return ReactionMapping_output_schema(is_success=False, mapping_status='inconclusive',
+                message=f'Reaction mapping failed: {exc}')
+
+    @staticmethod
+    def _analyze_sources(user_input):
+        from rdkit import Chem
+
+        molecules = []
+        for role in ('reactant', 'product'):
+            molecules.append(_read_structure(getattr(user_input, role + '_path'), getattr(user_input, role + '_text'),
+                getattr(user_input, role + '_format'), getattr(user_input, role + '_charge'), role,
+                multiplicity=getattr(user_input, role + '_multiplicity'),
+                electronic_character=getattr(user_input, role + '_electronic_character')))
+        internal = all(mol is None for mol in molecules)
+        if internal:
+            molecules = [Chem.AddHs(Chem.MolFromSmiles(getattr(user_input, role + '_smiles')))
+                for role in ('reactant', 'product')]
+            # These are generated directly in the declaration's order, not file-row guesses.
+            for mol in molecules:
+                for position, atom in enumerate(atom for atom in mol.GetAtoms() if atom.GetAtomicNum() != 1):
+                    atom.SetIntProp('cloudra_smiles_heavy_index', position)
+        declaration = TsInput(reaction=dict(reactant_smiles=user_input.reactant_smiles,
+            product_smiles=user_input.product_smiles, charge=user_input.reactant_charge,
+            multiplicity=user_input.reactant_multiplicity,
+            electronic_character=user_input.reactant_electronic_character,
+            selected_candidate=user_input.selected_candidate))
+        states = {role: {field: getattr(user_input, role + '_' + field)
+            for field in ('charge', 'multiplicity', 'electronic_character')} for role in ('reactant', 'product')}
+        result = _bind_endpoint_structures(declaration.reaction, *molecules, states)
+        if internal:
+            result['binding_source'] = 'internal_generated' if result['atom_map'] else 'not_available'
+            result['reactant_identity'] = result['product_identity'] = 'not_provided'
+        return result
+
+    async def _select_run_candidate(self, user_input, session):
+        from cloudra.services.ts_pipeline_context import pipeline_database
+        from cloudra.tools.Chemtool.ts_search_process import _read_resume_record, _resolve_workspace, revise_run
+
+        revised = await revise_run(self, user_input.run_id,
+            {'reaction': {'selected_candidate': user_input.selected_candidate}},
+            'Choose inspected complete concrete endpoint correspondence', session)
+        if not revised.is_success:
+            return ReactionMapping_output_schema(is_success=False, message=revised.message)
+        record = await asyncio.to_thread(_read_resume_record, pipeline_database(), _resolve_workspace(self),
+            user_input.run_id, self.subagent.conversation_id)
+        if record.structures.product_to_reactant is None:
+            return ReactionMapping_output_schema(is_success=False, message=revised.message)
+        from cloudra.tools.core.reaction_state import heavy_binding
+        record.structures.complete_correspondence()
+        # This is the accepted state. Re-enumerating after pinning its atom
+        # identities would assign different candidate indices and break replay.
+        return ReactionMapping_output_schema(is_success=True, mapping_status='unique',
+            binding_status='complete', binding_source='concrete',
+            reactant_identity='match', product_identity='match',
+            atom_map=[index + 1 for index in record.structures.product_to_reactant],
+            heavy_atom_bindings={role: heavy_binding(getattr(record.structures, role))
+                for role in ('reactant', 'product')},
+            message='Concrete candidate choice committed on the existing TS run; use ts_inspect for current structures and evidence.')
+
 
 
 

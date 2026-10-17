@@ -14,7 +14,7 @@ def advance_process(db: ComputeDB, process_id: str) -> dict:
     state = get_process(db, process_id)
     if state is None or state['record'] is None:
         raise ValueError('process checkpoint missing')
-    if state['record'].get('format_version') != 6:
+    if state['record'].get('format_version') != 7:
         return dict(state, status='isolated', isolation_reason='Unsupported TS input format; existing jobs remain intact')
     directory = state['record']['run_dir']
     os.makedirs(directory, exist_ok=True)
@@ -58,19 +58,24 @@ def advance_process(db: ComputeDB, process_id: str) -> dict:
                     artifacts.append(helper_result)
                 state=get_process(db,process_id)
                 import hashlib
+                from copy import deepcopy
 
                 from cloudra.infra.compute_utils import resolve_log_path
-                from cloudra.tools.core.ts_process import _direction_atom_binding
                 log_path = Path(resolve_log_path(path, engine, int(token[2])))
+                log_digest = hashlib.sha256(log_path.read_bytes()).hexdigest() if log_path.is_file() else None
                 frozen_binding = None
                 if binding[1] in {'ts_opt', 'frequency', 'irc'} and log_path.is_file():
-                    frozen_binding = _direction_atom_binding(record)
+                    bound_step = next((step for step in record.job_steps if step.job_id == int(token[2])), None)
+                    frozen_binding = deepcopy(bound_step.atom_binding) if bound_step else None
                     if frozen_binding:
                         frozen_binding['declaration_revision'] = binding[0]
+                        # 频率提交时日志尚不存在；完成后只补日志指纹，不重建已冻结的分子/映射。
+                        if binding[1] == 'frequency':
+                            frozen_binding['ts_log_sha256'] = log_digest
                 committed=commit_stage_result(db,process_id=process_id,expected_revision=state['revision'],
                     stage_key=binding[1],attempt=binding[2],declaration_revision=binding[0],evidence=dict(status=job[0],
                         artifacts=artifacts,input_hash=digest or '',detail='Authoritative execution state: '+job[0]+'. Scientific qualification is a separate stage.',
-                        atom_binding=frozen_binding, log_sha256=hashlib.sha256(log_path.read_bytes()).hexdigest() if frozen_binding else None))
+                        atom_binding=frozen_binding, log_sha256=log_digest if frozen_binding else None))
                 if not committed:
                     raise ValueError('stage result checkpoint changed concurrently')
             for step in [*record.job_steps, *([record.scan_step] if record.scan_step else [])]:

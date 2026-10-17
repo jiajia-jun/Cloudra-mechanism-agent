@@ -2,55 +2,53 @@
 
 import pytest
 
-from tests.test_ts_input_evidence import concrete
+from tests.test_ts_input_evidence import molecule
 from tests.test_ts_search_process_tools import inputs, invoke, owned_tool
 
 
 @pytest.mark.parametrize("electronic_character", [None, "closed_shell"])
-def test_explicit_concrete_binding_needs_indices_not_a_copied_digest(electronic_character):
-    from cloudra.tools.Chemtool.reaction_mapping import (
-        ReactionMapping_input_schema,
-        check_concrete_binding,
-    )
+def test_unique_concrete_binding_needs_no_model_indices_or_digest(electronic_character):
+    from cloudra.tools.Chemtool.reaction_mapping import bind_reaction_structures
+    from cloudra.tools.core.ts_inputs import TsInput
 
-    text = concrete("O")
-    request = ReactionMapping_input_schema(
-        reactant_smiles="O", product_smiles="O",
-        reactant_text=text, product_text=text,
-        reactant_format="mol", product_format="mol",
-        reactant_electronic_character=electronic_character,
-        product_electronic_character=electronic_character,
-        reactant_binding={"indices": [1]}, product_binding={"indices": [1]},
-    )
-    result = check_concrete_binding(request, {"heavy_atom_map": [1], "watch_pairs": []})
-    assert result["binding_status"] == "complete"
-    assert result["reactant_identity"] == result["product_identity"] == "match"
-    assert result["atom_map"] == [1, 2, 3]
+    mol = molecule('O')
+    request = TsInput(reaction=dict(reactant_smiles='O', product_smiles='O',
+        charge=0, multiplicity=1, electronic_character=electronic_character))
+    result = bind_reaction_structures(request, mol, mol)
+    assert result['binding_status'] == 'complete'
+    assert result['reactant_identity'] == result['product_identity'] == 'match'
+    assert result['atom_map'] == [1, 2, 3]
+    assert 'atom_map' not in request.reaction.model_dump()
+    assert 'heavy_atom_binding' not in request.conformers.model_dump()
 
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("rdkit_chemistry", "ts_producer_authority")
-async def test_resume_tracks_current_revision_without_model_copying_version(tmp_path):
+async def test_resume_tracks_current_revision_without_model_copying_version(tmp_path, monkeypatch):
+    from cloudra.services.compute_admission import AdmissionOutcome
     from cloudra.tools.Chemtool.ts_search_process import (
         TsPrepare,
         TsPrepare_input_schema,
         TsResume,
         TsResume_input_schema,
     )
-
+    monkeypatch.setattr('cloudra.services.compute_admission.admit_job',
+        lambda **_: AdmissionOutcome(ok=True, node_id='fixture', scheduler='local'))
     first = await invoke(owned_tool(TsPrepare, workspace=tmp_path),
-                         TsPrepare_input_schema(input=inputs(mapped=False)))
+                         TsPrepare_input_schema(input=inputs()))
     assert first.is_success, first.message
-    assert first.blocked["failure_class"] == "atom_map_missing"
+    assert first.blocked is None
+    assert first.structures['reactant']['binding_status'] == 'complete'
     request = TsResume_input_schema(
-        run_id=first.run_id, reason="Declare the intended centre; mapping is still unresolved",
+        run_id=first.run_id, reason="Revise the intended centre while correspondence stays owned by the program",
         changes={"reaction": {"reaction_center": [[1, 2]]}},
     )
     tool = owned_tool(TsResume, workspace=tmp_path)
     result = await invoke(tool, request, call_id="revision-owned-by-program")
     replay = await invoke(tool, request, call_id="revision-owned-by-program")
     assert result.is_success, result.message
-    assert result.blocked["failure_class"] == "atom_map_missing"
+    assert result.blocked is None
+    assert result.structures['reactant']['binding_status'] == 'complete'
     assert result.receipt == replay.receipt
     assert result.receipt.input_revision == 2
 

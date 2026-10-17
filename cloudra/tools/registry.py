@@ -76,7 +76,7 @@ class ToolRegistration:
 
 # 化学/QM 工具的默认使用者：科学计算角色 + Coordinator（benchmark 题面
 # agent 以 coordinator 角色运行，绝不能失去化学工具链）。supervisor 在列
-# 仅为保住其 evidence_read 投影面（log_parser/reaction_mapping）——它的
+# 仅为保住其 evidence_read 投影面（log_parser 等）——它的
 # 实际可见面仍由 supervisor_access 收窄，allowlist 对它是只减不增。
 _SCIENCE_ROLES = frozenset(
     {"coordinator", "small_mol", "md", "dft", "experiment", "supervisor"}
@@ -239,9 +239,8 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         evidence_deriver='cloudra.tools.Chemtool.reaction_mapping:derive_delivery_changes',
         dag_fact_adapter='cloudra.dag.fact_adapters:reaction_mapping_facts',
         dag_evidence_producer=True,
-        supervisor_access='evidence_read',
         role_allowlist=_SCIENCE_ROLES,
-        summary='Establish and inspect atom correspondence between reaction endpoints.',
+        summary='Select complete endpoint correspondence on an existing run, or analyze independent endpoint sources.',
     ),
     # TS writes and independent read-only inspection.
     ToolRegistration(

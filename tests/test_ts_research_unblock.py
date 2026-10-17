@@ -81,14 +81,12 @@ def _file_molecule(tmp_path, name, smiles, *, distorted=False):
     xyz, graph = tmp_path / (name + ".xyz"), tmp_path / (name + ".mol")
     xyz.write_text(Chem.MolToXYZBlock(mol))
     graph.write_text(Chem.MolToMolBlock(mol))
-    return FileConformer(kind="file", xyz_path=str(xyz), mol_path=str(graph),
-        heavy_atom_binding={"indices": [a.GetIdx() + 1 for a in mol.GetAtoms() if a.GetAtomicNum() != 1]}), mol
+    return FileConformer(kind="file", xyz_path=str(xyz), mol_path=str(graph)), mol
 
 
 def test_coarse_coordinates_do_not_block_atom_binding_or_seed_optimization(tmp_path):
     record = record_fixture(tmp_path)
     record.input.reaction.reactant_smiles = record.input.reaction.product_smiles = "CCO"
-    record.input.reaction.atom_map = list(range(9))
     record.input.conformers.guidance.ring_order = []
     for role in ("reactant", "product"):
         source, _ = _file_molecule(tmp_path, role, "CCO", distorted=True)
@@ -98,19 +96,19 @@ def test_coarse_coordinates_do_not_block_atom_binding_or_seed_optimization(tmp_p
     ts_process._map(record)
 
     assert record.blocked is None
-    assert record.input_binding["binding_status"] == "complete"
+    assert record.structures.product_to_reactant is not None
     assert record.terminal is None
 
 
 def test_explicit_endpoint_seed_may_be_coarse_before_its_optimization(tmp_path):
     record = record_fixture(tmp_path)
     record.input.reaction.reactant_smiles = record.input.reaction.product_smiles = "CCO"
-    record.input.reaction.atom_map = list(range(9))
     record.input.conformers.guidance.ring_order = []
     for role in ("reactant", "product"):
         source, _ = _file_molecule(tmp_path, role, "CCO", distorted=True)
         setattr(record.input.conformers, role, source)
     ts_process._build(record)
+    ts_process._map(record)
     source = record.input.conformers.reactant
     record.input.verification.reactant_endpoint.seed = EndpointSeed(kind="file",
         xyz_path=source.xyz_path, mol_path=source.mol_path, evidence_refs=[source.xyz_path])
@@ -129,7 +127,6 @@ def test_explicit_endpoint_seed_may_be_coarse_before_its_optimization(tmp_path):
 def test_new_molecular_graph_can_start_with_fresh_numbering(tmp_path, redeclare):
     record = record_fixture(tmp_path)
     record.input.reaction.reactant_smiles = record.input.reaction.product_smiles = "CCO"
-    record.input.reaction.atom_map = list(range(9))
     record.input.reaction.reaction_center = [(0, 1)]
     record.input.conformers.guidance.ring_order = []
     for role in ("reactant", "product"):
@@ -144,13 +141,13 @@ def test_new_molecular_graph_can_start_with_fresh_numbering(tmp_path, redeclare)
         inputs[role] = source.model_dump()
     reaction = {"reactant_smiles": "COC", "product_smiles": "COC"}
     if redeclare:
-        reaction.update(atom_map=list(range(9)), reaction_center=[[0, 1]])
+        reaction.update(selected_candidate=0, reaction_center=[[0, 1]])
     change = _request(record, {"reaction": reaction, "conformers": inputs})
 
     revised = revise_record(record, change, plan_input_revision(record, change))
 
     assert revised.stage == "declare"
-    assert revised.input.reaction.atom_map == (list(range(9)) if redeclare else [])
+    assert revised.input.reaction.selected_candidate == (0 if redeclare else None)
     assert revised.input.reaction.reaction_center == ([(0, 1)] if redeclare else [])
     assert revised.input.guess is None
     assert not revised.job_steps
@@ -158,6 +155,7 @@ def test_new_molecular_graph_can_start_with_fresh_numbering(tmp_path, redeclare)
     ts_process._map(revised)
     if redeclare:
         assert revised.blocked is None
-        assert revised.input_binding["binding_status"] == "complete"
+        assert revised.structures.product_to_reactant is not None
     else:
-        assert revised.blocked.failure_class == "atom_map_missing"
+        assert revised.blocked is None
+        assert revised.structures.product_to_reactant is not None

@@ -29,14 +29,13 @@ def _endpoint_record(tmp_path, monkeypatch, *, swapped):
     reactant, product = _sn2_minima(record, symbols)
     # References are supplied in their native species order. Routing must use
     # the frozen full-atom map, not align interchangeable atoms again.
-    product_mol = ts_process._read_built_xyz(record, "product")[3]
     reference = tmp_path / "product_reference.xyz"
     reference.write_text(_xyz_text(
-        [symbols[index] for index in record.input.reaction.atom_map],
-        [product[index] for index in record.input.reaction.atom_map],
+        [symbols[index] for index in record.structures.product_to_reactant],
+        [product[index] for index in record.structures.product_to_reactant],
     ))
-    record.product_seed_xyz_path = str(reference)
-    record.product_seed_mol_path = product_mol
+    from cloudra.tools.core.molecule import with_positions
+    record.structures.product = with_positions(record.structures.product, [product[index] for index in record.structures.product_to_reactant])
     (frequency_dir / "optimized.xyz").write_text(
         _xyz_text(symbols, 0.5 * (reactant + product)),
     )

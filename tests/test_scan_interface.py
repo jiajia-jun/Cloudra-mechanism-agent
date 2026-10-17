@@ -82,7 +82,7 @@ def test_grid_completion_preserves_surface_without_automatic_ts_guess(tmp_path, 
     monkeypatch.setattr("cloudra.tools.core.ts_process._refinement_log_path", lambda *_: str(log))
     _guess_scan(record)
     assert record.blocked and record.blocked.failure_class == "scan_no_candidate"
-    assert not record.current_ts_guess_path
+    assert record.structures.candidate is None
     assert not any(step.purpose == "ts_opt" for step in record.job_steps)
     assert surface.read_text() == "1 1 -10\n1 2 -9\n2 1 -11\n2 2 -12\n"
     assert all((tmp_path / f"grid.{point:03d}.xyz").exists() for point in range(1, 5))

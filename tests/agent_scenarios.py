@@ -34,7 +34,7 @@
 | TS fixture 频率门禁 + 终态事件 | 真实零虚频日志阻止 IRC，重复 resume 保留故障与预算 |
 | TS 构象文件修订 | 相对路径绑定工作区；更换结构清除旧绑定并保留同一流程 |
 | TS 同结构文件替换 | 复制同一结构后保留映射和初猜声明，无需 Agent 重复填写 |
-| TS 结构编号覆盖 | 源文件、Agent 原子表与任务声明统一到旧编号，显式新编号只转换一次 |
+| TS 结构编号转换 | 内部分子与Agent视图使用同一编号，源文件保持原样，显式新编号只转换一次 |
 """
 
 from __future__ import annotations
@@ -486,7 +486,7 @@ class ScenarioHarness:
 TS_SCENARIOS = ('ts_prepare_once_auto_complete', 'ts_failed_scan_retry_same_run', 'ts_readonly_inspection',
                 'ts_resume_scan_without_freeze', 'ts_d1_atom_binding_native_scan_recovery',
                 'ts_conformer_source_revision_same_run', 'ts_same_structure_source_keeps_declarations',
-                'ts_canonical_source_overwrite', 'ts_queued_refinement_revision_same_run',
+                'ts_source_reorder_keeps_imported_state', 'ts_queued_refinement_revision_same_run',
                 'ts_stop_prevents_automatic_progression', 'ts_stopped_attempt_resumes_same_run',
                 'ts_file_seed_preoptimization_can_be_removed_after_failure')
 

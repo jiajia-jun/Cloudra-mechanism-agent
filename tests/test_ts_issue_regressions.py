@@ -19,7 +19,6 @@ def test_mirrored_seed_can_enter_optimization_but_cannot_verify_wrong_stereochem
     record = record_fixture(tmp_path, stage="map")
     smiles = "F[C@](Cl)(Br)I"
     record.input.reaction.reactant_smiles = record.input.reaction.product_smiles = smiles
-    record.input.reaction.atom_map = list(range(5))
     record.input.reaction.reaction_center = [(0, 1)]
     record.input.conformers.guidance.ring_order = []
     graph = Chem.AddHs(Chem.MolFromSmiles(smiles))
@@ -38,7 +37,7 @@ def test_mirrored_seed_can_enter_optimization_but_cannot_verify_wrong_stereochem
     ts_process._build(record)
     ts_process._map(record)
     assert record.blocked is None
-    assert record.input_binding["binding_status"] == "complete"
+    assert record.structures.product_to_reactant is not None
     assert record.terminal is None
     from cloudra.tools.core.structure_artifacts import read_xyz_atoms
     from cloudra.tools.core.ts_inputs import EndpointSeed
@@ -169,8 +168,6 @@ def test_failed_scan_revision_receipt_is_durable_and_replay_does_not_duplicate_j
         get_revision_receipt,
         save_process_record,
     )
-    from cloudra.tools.core.ts_revision import plan_input_revision, revise_record
-
     record, schema, payload, source, _ = _failed_scan(tmp_path)
     db = ComputeDB(data_dir=tmp_path / "ledger").init()
     process = create_process(db, request_key="failed-scan", payload=dict(
@@ -196,18 +193,14 @@ def test_failed_scan_revision_receipt_is_durable_and_replay_does_not_duplicate_j
         payload["changes"] = {"guess": guess}
     original = source.read_bytes(), log.read_bytes()
     request = schema.model_validate(payload)
-    receipt = plan_input_revision(record, request)
-    revised = revise_record(record, request, receipt)
-    accepted = commit_input_revision(db, process_id=pid, request=request,
-                                    record=revised.model_dump(mode="json"), receipt=receipt)
+    accepted = commit_input_revision(db, process_id=pid, request=request)
     reopened = ComputeDB(data_dir=tmp_path / "ledger").init()
     assert get_revision_receipt(reopened, process_id=pid, request_key=request.request_key) == accepted
     committed = get_process(reopened, pid)
     assert committed["record"]["attempt_history"][-1]["failed_attempt"] == record.failed_attempt
     assert committed["record"]["attempt_history"][-1]["blocked"]["failure_class"] == "scan_job_failed"
     assert committed["record"]["scan_step"] is None
-    assert commit_input_revision(reopened, process_id=pid, request=request,
-        record=revised.model_dump(mode="json"), receipt=receipt) == accepted
+    assert commit_input_revision(reopened, process_id=pid, request=request) == accepted
     assert get_process(reopened, pid) == committed
     assert (source.read_bytes(), log.read_bytes()) == original
     with reopened.connect() as con:
@@ -215,21 +208,17 @@ def test_failed_scan_revision_receipt_is_durable_and_replay_does_not_duplicate_j
         assert con.execute("SELECT state FROM compute_jobs WHERE id=?", (job,)).fetchone()[0] == "failed"
 
 
-def test_revision_bound_source_tampering_still_blocks_build(tmp_path):
-    from cloudra.tools.core.ts_revision import plan_input_revision, revise_record
+def test_revision_imported_source_is_immune_to_later_caller_file_changes(tmp_path):
+    from cloudra.tools.core.molecule import serialize_molecule
+    from cloudra.tools.core.reaction_state import source_snapshot
+    from tests.test_ts_revision_identity import molecular_fixture, revise
 
-    source = tmp_path / "reactant.xyz"
-    source.write_text("2\nsource\nH 0 0 0\nH 0 0 .74\n")
-    record = record_fixture(tmp_path, stage="build")
-    change = dict(changes={"conformers": {"reactant": {"kind": "file", "xyz_path": str(source)}}},
-        reason="Supply the file conformer", request_key="source", expected_revision=record.revision)
-    from cloudra.tools.core.ts_inputs import TsResumeRequest
-    request = TsResumeRequest.model_validate(change)
-    revised = revise_record(record, request, plan_input_revision(record, request))
-    assert revised.input_binding["revision_source_hashes"]["reactant"]["xyz"] == hashlib.sha256(source.read_bytes()).hexdigest()
-    # The actual revision pins the source; editing it before build stays invalid.
-    source.write_text("2\nchanged before build\nH 0 0 0\nH 0 0 1.1\n")
+    record, _ = molecular_fixture(tmp_path)
+    source = Path(record.input.conformers.reactant.xyz_path)
+    revised, _ = revise(record, {'conformers': {'reactant': {'xyz_path': str(source)}}})
+    assert source_snapshot(revised.structures.reactant)['hashes']['xyz'] == hashlib.sha256(source.read_bytes()).hexdigest()
+    captured = serialize_molecule(revised.structures.reactant)
+    source.write_text('caller changed the external source after import')
     ts_process._build(revised)
-    assert revised.blocked is not None
-    assert "source changed since atom identity was proved" in revised.blocked.message
+    assert serialize_molecule(revised.structures.reactant) == captured
     assert revised.job_steps == []

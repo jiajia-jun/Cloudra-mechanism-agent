@@ -36,9 +36,9 @@ async def invoke(tool, request, session=None, *, call_id='stable-test-call'):
         reset_invocation_scope(token)
 
 
-def inputs(*, mapped=True):
+def inputs():
     return calculation_input(reactant_smiles='O', product_smiles='O',
-        method='HF/STO-3G', atom_map=[1,2,3] if mapped else [])
+        method='HF/STO-3G')
 
 
 @pytest.mark.asyncio
@@ -61,10 +61,13 @@ async def test_prepare_queues_one_path_and_response_replay_reuses_it(tmp_path, m
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("rdkit_chemistry")
-async def test_prepare_reports_missing_map_and_keeps_explicit_stage_methods(tmp_path):
-    first = await invoke(owned_tool(TsPrepare, workspace=tmp_path), TsPrepare_input_schema(input=inputs(mapped=False)))
-    assert first.is_success and first.blocked["stage"] == 'map'
-    assert first.blocked["failure_class"] == 'atom_map_missing'
+async def test_prepare_adopts_unique_mapping_without_model_copying_it(tmp_path, monkeypatch):
+    from cloudra.services.compute_admission import AdmissionOutcome
+    monkeypatch.setattr('cloudra.services.compute_admission.admit_job',
+        lambda **_: AdmissionOutcome(ok=True, node_id='fixture', scheduler='local'))
+    first = await invoke(owned_tool(TsPrepare, workspace=tmp_path), TsPrepare_input_schema(input=inputs()))
+    assert first.is_success and first.blocked is None
+    assert first.structures['reactant']['binding_status'] == 'complete'
     assert first.run_id
     assert first.next["action"] == 'resume'
 
@@ -75,9 +78,9 @@ async def test_resume_revises_same_path_and_returns_durable_receipt(tmp_path, mo
     from cloudra.services.compute_admission import AdmissionOutcome
     monkeypatch.setattr('cloudra.services.compute_admission.admit_job',
         lambda **_: AdmissionOutcome(ok=True,node_id='fixture',scheduler='local'))
-    first = await invoke(owned_tool(TsPrepare, workspace=tmp_path), TsPrepare_input_schema(input=inputs(mapped=False)))
+    first = await invoke(owned_tool(TsPrepare, workspace=tmp_path), TsPrepare_input_schema(input=inputs()))
     request = TsResume_input_schema(run_id=first.run_id,
-        changes={'reaction':{'atom_map':[1,2,3]}}, reason='Bind the complete atom order')
+        changes={'ts_optimization': {'keywords': 'TightSCF'}}, reason='Bind the complete atom order')
     tool = owned_tool(TsResume, workspace=tmp_path)
     revised = await invoke(tool, request)
     replay = await invoke(tool, request)
@@ -96,9 +99,9 @@ async def test_new_tool_call_cannot_change_an_active_calculation(tmp_path, monke
 
     monkeypatch.setattr('cloudra.services.compute_admission.admit_job',
         lambda **_: AdmissionOutcome(ok=True,node_id='fixture',scheduler='local'))
-    first = await invoke(owned_tool(TsPrepare, workspace=tmp_path), TsPrepare_input_schema(input=inputs(mapped=False)))
+    first = await invoke(owned_tool(TsPrepare, workspace=tmp_path), TsPrepare_input_schema(input=inputs()))
     request = TsResume_input_schema(run_id=first.run_id, reason='Bind atom map',
-        changes={'reaction':{'atom_map':[1,2,3]}})
+        changes={'ts_optimization': {'keywords': 'TightSCF'}})
     tool = owned_tool(TsResume, workspace=tmp_path)
     accepted = await invoke(tool, request, call_id='repair-1')
     assert accepted.is_success
@@ -113,7 +116,7 @@ async def test_new_tool_call_cannot_change_an_active_calculation(tmp_path, monke
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("rdkit_chemistry")
 async def test_resume_rejects_other_project(tmp_path):
-    first = await invoke(owned_tool(TsPrepare, workspace=tmp_path), TsPrepare_input_schema(input=inputs(mapped=False)))
+    first = await invoke(owned_tool(TsPrepare, workspace=tmp_path), TsPrepare_input_schema(input=inputs()))
     request = TsResume_input_schema(run_id=first.run_id,
         reason='Change method',
         changes={'ts_optimization':{'engine':'orca','method':'HF/STO-3G','keywords':'D3BJ'}})
@@ -129,14 +132,14 @@ async def test_resume_adopts_run_from_different_session_in_same_project(tmp_path
     monkeypatch.setattr('cloudra.services.compute_admission.admit_job',
         lambda **_: AdmissionOutcome(ok=True, node_id='fixture', scheduler='local'))
     session1 = SimpleNamespace(id='session-1')
-    first = await invoke(owned_tool(TsPrepare, workspace=tmp_path), TsPrepare_input_schema(input=inputs(mapped=False)), session=session1)
+    first = await invoke(owned_tool(TsPrepare, workspace=tmp_path), TsPrepare_input_schema(input=inputs()), session=session1)
     assert first.is_success
 
     # Successor session in the same project adopts and resumes the run
     session2 = SimpleNamespace(id='session-2')
     request = TsResume_input_schema(
         run_id=first.run_id,
-        changes={'reaction': {'atom_map': [1, 2, 3]}},
+        changes={'ts_optimization': {'keywords': 'TightSCF'}},
         reason='Bind the complete atom order',
     )
     result = await invoke(owned_tool(TsResume, 'project', tmp_path), request, session=session2)
@@ -160,10 +163,10 @@ async def test_resume_uses_authoritative_record_when_export_is_missing(tmp_path,
     from cloudra.services.compute_admission import AdmissionOutcome
     monkeypatch.setattr('cloudra.services.compute_admission.admit_job',
         lambda **_: AdmissionOutcome(ok=True,node_id='fixture',scheduler='local'))
-    first = await invoke(owned_tool(TsPrepare, workspace=tmp_path), TsPrepare_input_schema(input=inputs(mapped=False)))
+    first = await invoke(owned_tool(TsPrepare, workspace=tmp_path), TsPrepare_input_schema(input=inputs()))
     Path(first.run_dir, 'process.json').unlink()
     result = await invoke(owned_tool(TsResume, workspace=tmp_path), TsResume_input_schema(run_id=first.run_id,
-        changes={'reaction':{'atom_map':[1,2,3]}},reason='Bind atoms'))
+        changes={'ts_optimization': {'keywords': 'TightSCF'}},reason='Bind atoms'))
     assert result.is_success, result.message
     assert result.run_id == first.run_id
 
@@ -187,12 +190,14 @@ async def test_replacing_conformer_accepts_invalidation_of_stale_atom_binding(tm
     ), call_id='replace-source')
     assert revised.is_success, revised.message
     assert revised.run_id == first.run_id and revised.receipt.input_revision == 2
-    assert revised.blocked['stage'] == 'map'
+    assert revised.blocked is None
+    assert revised.structures['reactant']['binding_status'] == 'complete'
     current, _ = read_process_snapshot(ComputeDB(), project_id='project', run_id=first.run_id,
                                        workspace_dir=str(tmp_path))
-    assert current['input']['reaction']['atom_map'] == []
+    assert 'atom_map' not in current['input']['reaction']
+    assert current['structures']['product_to_reactant'] is not None
     assert current['input']['guess'] == value.guess.model_dump(mode='json')
-    assert current['attempt_history'][0]['input']['reaction']['atom_map'] == [0, 1, 2]
+    assert current['attempt_history'][0]['structures']['reactant'] is None
 
 
 @pytest.mark.asyncio

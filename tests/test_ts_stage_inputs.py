@@ -16,6 +16,22 @@ def record_fixture(tmp_path, **updates):
     return TsProcessRecord(**data)
 
 
+def owned_fixture_structure(record, xyz_path, smiles):
+    """One known fixture graph and atom order, materialized as the real owned state."""
+    from rdkit import Chem
+
+    from cloudra.tools.core.molecule import read_molecule, with_positions
+    from cloudra.tools.core.reaction_state import ReactionStructures
+    geometry = read_molecule(str(xyz_path), input_format='xyz')
+    graph = Chem.AddHs(Chem.MolFromSmiles(smiles))
+    assert [atom.GetSymbol() for atom in graph.GetAtoms()] == [atom.GetSymbol() for atom in geometry.GetAtoms()]
+    graph.AddConformer(Chem.Conformer(graph.GetNumAtoms()))
+    graph = with_positions(graph, geometry.GetConformer().GetPositions())
+    record.input.reaction.reactant_smiles = record.input.reaction.product_smiles = smiles
+    record.structures = ReactionStructures(reactant=graph, product=Chem.Mol(graph),
+        product_to_reactant=tuple(range(graph.GetNumAtoms())))
+
+
 def test_reused_irc_source_job_is_recorded_for_derived_endpoint(tmp_path, monkeypatch):
     from cloudra.tools.core import ts_process
     from tests.ts_fixtures import calculation_input
@@ -28,6 +44,7 @@ def test_reused_irc_source_job_is_recorded_for_derived_endpoint(tmp_path, monkey
         actual_calculation=record.input.verification.irc, external_source={'source_job_id': 77, 'log_path': str(log)}))
     monkeypatch.setattr('cloudra.tools.Chemtool.ts_guess.TsGuess._extract_irc_endpoints',
         lambda *_, **__: {'path_a': str(seed), 'path_b': str(seed)})
+    owned_fixture_structure(record, seed, 'O')
     directory = tmp_path / 'endpoint'
     directory.mkdir()
     error, path = ts_process._write_endpoint_input(record, str(directory), 'reactant', 'opt')
@@ -66,15 +83,15 @@ def test_provided_candidate_skips_search_and_checks_atom_order(tmp_path, monkeyp
     value["guess"] = dict(kind="provided", xyz_path=str(candidate), evidence_refs=[str(log)])
     record = record_fixture(tmp_path, input=TsInput.model_validate(value))
     monkeypatch.setattr("cloudra.tools.core.ts_process._queued_path", lambda *args: (_ for _ in ()).throw(AssertionError("no path search")))
-    monkeypatch.setattr("cloudra.tools.core.ts_process._read_built_xyz", lambda *args: (["H", "H"], [[0, 0, 0], [0, 0, 0.74]], str(candidate), ""))
+    owned_fixture_structure(record, candidate, '[H][H]')
     result = _guess(record)
     assert result.blocked is None
-    assert result.current_ts_guess_path != str(candidate)
-    accepted = Path(result.current_ts_guess_path).read_bytes()
+    from cloudra.tools.core.molecule import serialize_molecule
+    accepted = serialize_molecule(result.structures.candidate)
     assert result.path_kind == "provided"
     candidate.write_text("2\nwrong atoms\nC 0 0 0\nH 0 0 0.74\n")
     assert _guess(record).blocked.failure_class == "provided_guess_invalid"
-    assert Path(result.current_ts_guess_path).read_bytes() == accepted
+    assert serialize_molecule(result.structures.candidate) == accepted
 
 
 @pytest.mark.usefixtures("rdkit_chemistry")
@@ -93,8 +110,8 @@ def test_guided_source_uses_its_explicit_calculation_and_bound_windows(tmp_path,
     value['conformers'] = dict(reactant=dict(kind='file', xyz_path=str(seed), mol_path=str(mol_path),
         optimization=dict(engine='xtb', method='GFN2-xTB', basis_set='', keywords='')),
         guidance=dict(distance_filters=[dict(atoms=[0, 1], min_ang=.7, max_ang=1.)]))
-    record = record_fixture(tmp_path, input=TsInput.model_validate(value),
-        current_seed_xyz_path=str(seed), current_seed_mol_path=str(mol_path))
+    record = record_fixture(tmp_path, input=TsInput.model_validate(value))
+    owned_fixture_structure(record, seed, '[H][H]')
     received = []
     def optimizer(state, key, request):
         received.append(request)
@@ -103,8 +120,8 @@ def test_guided_source_uses_its_explicit_calculation_and_bound_windows(tmp_path,
     _optimize_conformer_source(record, 'reactant')
     assert received[0].method_fingerprint == 'GFN2-xTB'
     assert received[0].distance_constraints[0].atoms == [0, 1]
-    assert Path(record.current_seed_xyz_path).is_file()
-    assert record.current_seed_xyz_path != str(seed)
+    assert record.structures.reactant.GetConformer().GetAtomPosition(1).x == .8
+    assert seed.read_text().splitlines()[-1] == "H .74 0 0"
 
 
 @pytest.mark.usefixtures("rdkit_chemistry")
@@ -114,7 +131,7 @@ def test_file_sources_are_copied_immutably_and_missing_source_blocks(tmp_path):
     seed = tmp_path / "seed.xyz"
     seed.write_text("2\nsource\nH 0 0 0\nH 0 0 0.74\n")
     value = input_payload()
-    value["reaction"].update(reactant_smiles="[H][H]", product_smiles="[H][H]", atom_map=[0, 1])
+    value["reaction"].update(reactant_smiles="[H][H]", product_smiles="[H][H]")
     value["conformers"] = dict(reactant=dict(kind="file", xyz_path=str(seed)), product=dict(kind="file", xyz_path=str(seed)))
     record = record_fixture(tmp_path, input=TsInput.model_validate(value))
     _build(record)
@@ -146,14 +163,15 @@ def test_relative_file_conformers_use_workspace_when_service_cwd_differs(tmp_pat
     original_seed = seed.read_bytes()
     Chem.MolToMolFile(Chem.AddHs(Chem.MolFromSmiles('[H][H]')), str(workspace / 'seed.mol'))
     value = input_payload()
-    value['reaction'].update(reactant_smiles='[H][H]', product_smiles='[H][H]', atom_map=[0, 1])
+    value['reaction'].update(reactant_smiles='[H][H]', product_smiles='[H][H]')
     value['conformers'] = dict(reactant=dict(kind='file', xyz_path='seed.xyz', mol_path='seed.mol'),
                               product=dict(kind='file', xyz_path='seed.xyz', mol_path='seed.mol'))
     record = record_fixture(workspace, input=TsInput.model_validate(value))
     result = _build(record)
     assert result.blocked is None
-    assert Path(result.current_seed_xyz_path).read_bytes() == seed.read_bytes()
-    assert Path(result.current_seed_mol_path).read_bytes() == (workspace / 'seed.mol').read_bytes()
+    from cloudra.tools.core.reaction_state import source_snapshot
+    assert source_snapshot(result.structures.reactant)['paths'] == {'xyz': str(seed), 'mol': str(workspace / 'seed.mol')}
+    owned_fixture_structure(record, seed, '[H][H]')
     record.input.verification.reactant_endpoint = EndpointVerification(
         seed={'kind': 'file', 'xyz_path': 'seed.xyz', 'evidence_refs': ['seed.mol']},
         optimization={'engine': 'orca', 'method': 'HF', 'basis_set': 'STO-3G'},
@@ -182,7 +200,7 @@ def test_file_conformer_cannot_escape_bound_workspace(tmp_path, source_kind):
     record = record_fixture(workspace, input=TsInput.model_validate(value))
     result = _build(record)
     assert result.blocked.failure_class == 'conformer_source_invalid'
-    assert result.current_seed_xyz_path == '' and result.evidence_candidates == []
+    assert result.structures.reactant is None and result.evidence_candidates == []
 
 
 def test_relative_provided_guess_and_provenance_use_workspace(tmp_path, monkeypatch):
@@ -199,12 +217,11 @@ def test_relative_provided_guess_and_provenance_use_workspace(tmp_path, monkeypa
     value = input_payload()
     value['guess'] = dict(kind='provided', xyz_path='candidate.xyz', evidence_refs=['scan.log'])
     record = record_fixture(workspace, input=TsInput.model_validate(value))
-    monkeypatch.setattr('cloudra.tools.core.ts_process._read_built_xyz',
-                        lambda *_: (['H', 'H'], [[0, 0, 0], [0, 0, .74]], str(candidate), ''))
+    owned_fixture_structure(record, candidate, '[H][H]')
     result = _guess(record)
     assert result.blocked is None
-    assert Path(result.current_ts_guess_path).read_bytes() == candidate.read_bytes()
-    provenance = Path(result.current_ts_guess_path).parent / 'provenance_0000.log'
+    assert result.structures.candidate.GetConformer().GetPositions().tolist() == [[0., 0., 0.], [0., 0., .74]]
+    provenance = next(Path(path) for path in record.stage_record('guess').artifacts if Path(path).name == 'provenance_0000.log')
     assert provenance.read_text() == 'recorded scan provenance'
 
 
@@ -213,14 +230,15 @@ def test_no_hidden_xtb_to_interpolation_fallback(tmp_path, monkeypatch):
     from cloudra.tools.core.xtb_path_runner import XtbPathResult
 
     value = input_payload()
-    value["reaction"].update(atom_map=[0, 1])
     value["guess"] = dict(kind="xtb_path", method="GFN2-xTB")
     record = record_fixture(tmp_path, input=TsInput.model_validate(value), pipeline_id="process")
-    monkeypatch.setattr("cloudra.tools.core.ts_process._read_built_xyz", lambda *args: (["H", "H"], [[0, 0, 0], [0, 0, 0.74]], "seed.xyz", ""))
+    seed = tmp_path / 'seed.xyz'
+    seed.write_text('2\nH2\nH 0 0 0\nH 0 0 .74\n')
+    owned_fixture_structure(record, seed, '[H][H]')
     monkeypatch.setattr("cloudra.tools.core.ts_process._queued_path", lambda *args: (XtbPathResult(termination_reason="executable_missing", run_dir=str(tmp_path)), record))
     result = _guess(record)
     assert result.blocked is not None
-    assert result.current_ts_guess_path == ""
+    assert result.structures.candidate is None
 
 
 @pytest.mark.usefixtures("rdkit_chemistry")
@@ -255,7 +273,7 @@ def test_one_prepare_advances_complete_declared_chain_without_agent_resume(tmp_p
     seed.write_text('3\nWater seed\nO 0 0 0\nH 0.96 0 0\nH -0.24 0.93 0\n')
     provenance = tmp_path / 'guess.log'
     provenance.write_text('Explicit external candidate provenance')
-    inputs = calculation_input(reactant_smiles='O',product_smiles='O',method='HF/STO-3G',atom_map=[0,1,2])
+    inputs = calculation_input(reactant_smiles='O',product_smiles='O',method='HF/STO-3G')
     from cloudra.tools.core.ts_inputs import FileConformer, ProvidedGuess
     inputs.conformers.reactant = FileConformer(kind='file',xyz_path=str(seed))
     inputs.conformers.product = FileConformer(kind='file',xyz_path=str(seed))
@@ -314,7 +332,7 @@ def test_existing_irc_source_requires_authoritative_method_geometry_and_two_side
     from cloudra.tools.core.ts_process import TsJobStep, _reuse_existing_irc
     from tests.test_ts_pipeline_store import payload
     from tests.ts_fixtures import calculation_input
-    inputs=calculation_input(reactant_smiles='O',product_smiles='O',method='HF/STO-3G',atom_map=[0,1,2])
+    inputs=calculation_input(reactant_smiles='O',product_smiles='O',method='HF/STO-3G')
     record=record_fixture(tmp_path,input=inputs)
     frequency=tmp_path/'frequency'
     frequency.mkdir()

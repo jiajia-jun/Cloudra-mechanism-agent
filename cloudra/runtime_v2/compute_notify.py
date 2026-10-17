@@ -399,7 +399,7 @@ class ComputeNotifyBroker:
     def _reaction_window(record: dict | None, view: dict, purpose: str, engine: str) -> str:
         """Display existing current declarations, never infer connectivity from coordinates."""
         parts = []
-        value = (record or {}).get('input', {}) if (record or {}).get('format_version') == 6 else {}
+        value = (record or {}).get('input', {}) if (record or {}).get('format_version') == 7 else {}
         reaction = value.get('reaction') or {}
         for role in ('reactant', 'product'):
             facts = []

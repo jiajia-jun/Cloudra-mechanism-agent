@@ -36,7 +36,7 @@ def _archive_second_partition(source):
 def test_bound_product_keeps_original_archive_after_another_partition(tmp_path):
     source, record = _source_and_record(tmp_path)
     use_catalog_source(record, source, "product")
-    seed = Path(record.product_seed_xyz_path)
+    seed = (Path(record.run_dir) / "selected_candidates" / source.candidate_id / "seed.xyz")
     table = seed.with_name("atom_table.json")
     before_seed, before_table = seed.read_bytes(), table.read_bytes()
     original_revision = json.loads(before_table)["partition_revision"]
@@ -88,7 +88,7 @@ def test_foreign_candidate_is_not_bound_to_an_owned_catalog(tmp_path):
 def test_product_pin_cannot_use_a_nonexistent_archive(tmp_path):
     source, record = _source_and_record(tmp_path)
     use_catalog_source(record, source, "product")
-    table = Path(record.product_seed_xyz_path).with_name("atom_table.json")
+    table = (Path(record.run_dir) / "selected_candidates" / source.candidate_id / "seed.xyz").with_name("atom_table.json")
     metadata = json.loads(table.read_text())
     metadata["partition_revision"] = "nonexistent-archive"
     table.write_text(json.dumps(metadata))
@@ -102,7 +102,7 @@ def test_unbound_run_cannot_borrow_another_runs_private_pin(tmp_path):
     _archive_second_partition(source)
     unbound = record_fixture(tmp_path / "another-run")
     unbound.owner_conversation_id, unbound.owner_session_id = "project", "owner"
-    original = Path(bound.product_seed_xyz_path).parent
+    original = (Path(bound.run_dir) / "selected_candidates" / source.candidate_id / "seed.xyz").parent
     borrowed = Path(unbound.run_dir) / "selected_candidates" / source.candidate_id
     borrowed.mkdir(parents=True)
     for name in ("seed.xyz", "atom_table.json"):
@@ -116,7 +116,7 @@ def test_unbound_run_cannot_borrow_another_runs_private_pin(tmp_path):
 def test_product_pin_metadata_cannot_claim_a_different_source(tmp_path, field):
     source, record = _source_and_record(tmp_path)
     use_catalog_source(record, source, "product")
-    table = Path(record.product_seed_xyz_path).with_name("atom_table.json")
+    table = (Path(record.run_dir) / "selected_candidates" / source.candidate_id / "seed.xyz").with_name("atom_table.json")
     metadata = json.loads(table.read_text())
     metadata[field] = "foreign-or-forged"
     table.write_text(json.dumps(metadata))

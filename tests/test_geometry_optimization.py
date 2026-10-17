@@ -19,7 +19,7 @@ def setup_record(tmp_path, monkeypatch, budget=None):
     db = ComputeDB().init()
     from tests.test_ts_inputs import input_payload
     value = input_payload()
-    value['reaction'].update(reactant_smiles='[H][H]', product_smiles='[H][H]', charge=0, atom_map=[0, 1])
+    value['reaction'].update(reactant_smiles='[H][H]', product_smiles='[H][H]', charge=0)
     value['conformers']['reactant']['optimization'] = dict(engine='xtb', method='GFN2-xTB', basis_set='', keywords='')
     if budget:
         value['execution']['limits'] = dict(source=budget.source,max_compute_actions=budget.max_compute_actions,max_model_calls=budget.max_model_calls)
@@ -180,7 +180,6 @@ pytestmark = pytest.mark.usefixtures("ts_producer_authority")
 def test_failed_constrained_attempt_can_retry_without_repair_evidence(tmp_path, monkeypatch):
     from cloudra.tools.core.geometry_optimization import advance_optimization
     from cloudra.tools.core.ts_inputs import TsResumeRequest
-    from cloudra.tools.core.ts_revision import plan_input_revision, revise_record
     db, record, calculation = setup_record(tmp_path, monkeypatch)
     record.stage = 'build'
     assert advance_optimization(record, 'selected', calculation) is None
@@ -188,12 +187,12 @@ def test_failed_constrained_attempt_can_retry_without_repair_evidence(tmp_path, 
     finish(db, record.job_steps[-1], failed=True)
     assert advance_optimization(record, 'selected', calculation) is None
     assert record.blocked is not None
-    request = TsResumeRequest(reason='retry failed derivative', request_key='retry', expected_revision=record.revision)
-    receipt = plan_input_revision(record, request)
-    revised = revise_record(record, request, receipt)
-    from cloudra.services.ts_pipeline_store import commit_input_revision
-    commit_input_revision(db, process_id=record.pipeline_id, request=request,
-                          record=revised.model_dump(mode='json'), receipt=receipt)
+    from cloudra.services.ts_pipeline_store import commit_input_revision, get_process, save_process_record
+    save_process_record(db, process_id=record.pipeline_id, record=record.model_dump(mode='json'))
+    current = get_process(db, record.pipeline_id)
+    request = TsResumeRequest(reason='retry failed derivative', request_key='retry', expected_revision=current['revision'])
+    commit_input_revision(db, process_id=record.pipeline_id, request=request)
+    revised = TsProcessRecord.model_validate(get_process(db, record.pipeline_id)['record'])
     assert revised.optimization_checkpoints == {}
     assert revised.terminal is None
     assert advance_optimization(revised, 'selected', calculation) is None

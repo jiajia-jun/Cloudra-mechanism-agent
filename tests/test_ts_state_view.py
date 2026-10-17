@@ -6,6 +6,14 @@ from pydantic import ValidationError
 from cloudra.tools.core.ts_state_view import TsProcessView, build_process_view
 
 
+def state_input(**groups):
+    from cloudra.tools.core.ts_inputs import TsInput
+    value = TsInput(reaction=dict(reactant_smiles='O', product_smiles='O', charge=0,
+                                 multiplicity=1)).model_dump(mode='json')
+    value.update(groups)
+    return value
+
+
 def test_verdict_output_rejects_unknown_outcome():
     """An arbitrary result label must not cross the recorded-verdict boundary."""
     with pytest.raises(ValidationError):
@@ -19,10 +27,11 @@ def test_verdict_output_rejects_unknown_outcome():
 ])
 def test_ended_workflow_preserves_recorded_scientific_verdict(tmp_path, terminal, verified):
     state = {
-        "format_version": 6, "run_id": "ts_fixture", "revision": 1,
+        "format_version": 7, "run_id": "ts_fixture", "revision": 1,
         "run_dir": str(tmp_path), "stage": "verdict", "terminal": terminal,
         "stage_records": [{"stage": "verdict", "status": "done", "detail": "Recorded reason"}],
         "evidence_candidates": ["frequency.out", "irc.out"],
+        "input": state_input(),
     }
     view = build_process_view(state, [], can_write=False)
     assert view.status == "ended"
@@ -40,9 +49,10 @@ def test_scan_actual_configuration_contract_and_artifact_survive_separate_scan_s
     actual = dict(engine='orca', method='HF', basis_set='STO-3G', keywords='TightSCF',
                   frequency_mode='auto', orca_blocks=None, end_setting='')
     contract = dict(verification='native_input_matches_resolved_configuration', declared=actual)
-    state = dict(format_version=6, run_id='ts_scan', revision=2, declaration_revision=3,
-        run_dir=str(tmp_path), stage='guess', input=dict(calculations={'scan_level': planned},
-        guess=dict(kind='scan', calculation={'ref': 'scan_level'})), job_steps=[], stage_records=[],
+    state = dict(format_version=7, run_id='ts_scan', revision=2, declaration_revision=3,
+        run_dir=str(tmp_path), stage='guess', input=state_input(calculations={'scan_level': planned},
+        guess=dict(kind='scan', calculation={'ref': 'scan_level'},
+                   scans=[dict(atoms=[0, 1], scan_end=2, scan_steps=5)])), job_steps=[], stage_records=[],
         scan_step=dict(purpose='scan', job_id=17, input_path='scan.inp', actual_calculation=actual,
                        method_contract={'verification': 'older_snapshot'}, source_input_revision=3),
         method_checks={'scan.inp': contract})
@@ -83,8 +93,8 @@ def test_legacy_format_keeps_raw_method_snapshots_isolated_without_resolving(tmp
 
 def test_undefined_planned_reference_is_reported_without_hiding_actual_snapshot(tmp_path):
     actual = dict(engine='orca', method='HF', basis_set='STO-3G', keywords='TightSCF')
-    state = dict(format_version=6, run_id='ts_bad_ref', revision=1, run_dir=str(tmp_path), stage='submit',
-        input=dict(ts_optimization={'ref': 'missing'}),
+    state = dict(format_version=7, run_id='ts_bad_ref', revision=1, run_dir=str(tmp_path), stage='submit',
+        input=state_input(ts_optimization={'ref': 'missing'}),
         job_steps=[dict(purpose='ts_opt', job_id=None, input_path='existing.inp', actual_calculation=actual)],
         stage_records=[])
     view = build_process_view(state, [], can_write=False)
@@ -100,9 +110,9 @@ def test_undefined_planned_reference_is_reported_without_hiding_actual_snapshot(
     ({"model_calls": 3, "compute_actions": 5}, 3, 5),
 ])
 def test_usage_ledger_overrides_fallback_and_preserves_actual_jobs(tmp_path, accounted, model_calls, compute_actions):
-    state = dict(format_version=6, run_id="ts_usage", revision=1, run_dir=str(tmp_path),
+    state = dict(format_version=7, run_id="ts_usage", revision=1, run_dir=str(tmp_path),
                  stage="refine", intervention_count=2, accounted_usage=accounted,
-                 input={"execution": {"limits": {"max_compute_actions": 8}}})
+                 input=state_input(execution={"limits": {"max_compute_actions": 8}}))
     jobs = [dict(job_id=17, state="ready", req_cpus=4)]
     view = build_process_view(state, jobs, can_write=False)
     assert view.usage["model_calls"] == model_calls
@@ -122,9 +132,9 @@ def test_usage_ledger_overrides_fallback_and_preserves_actual_jobs(tmp_path, acc
     (["running"], False, "inspect"),
 ])
 def test_queued_jobs_allow_revising_inputs_before_compute_starts(tmp_path, job_states, can_write, action):
-    state = dict(format_version=6, run_id="ts_queued", revision=1, run_dir=str(tmp_path),
+    state = dict(format_version=7, run_id="ts_queued", revision=1, run_dir=str(tmp_path),
                  stage="refine", waiting_for=[17],
-                 input={"ts_optimization": dict(engine="orca", method="HF", basis_set="STO-3G")})
+                 input=state_input(ts_optimization=dict(engine="orca", method="HF", basis_set="STO-3G")))
     jobs = [dict(job_id=17 + index, state=job_state) for index, job_state in enumerate(job_states)]
 
     view = build_process_view(state, jobs, can_write=can_write)
@@ -132,7 +142,7 @@ def test_queued_jobs_allow_revising_inputs_before_compute_starts(tmp_path, job_s
     assert view.status == "waiting"
     assert view.waiting_for == jobs
     assert view.next == dict(action=action, required_inputs=[],
-                             editable_groups=["ts_optimization"] if action == "resume" else [])
+                             editable_groups=list(state['input']) if action == "resume" else [])
 
 
 @pytest.mark.parametrize("job_states,can_write,action", [
@@ -148,10 +158,10 @@ def test_stopped_process_reports_reason_and_waits_for_cancellation(tmp_path, job
     from copy import deepcopy
 
     reason = "Use the alternative conformer before continuing"
-    state = dict(format_version=6, run_id="ts_stopped", revision=2, run_dir=str(tmp_path),
+    state = dict(format_version=7, run_id="ts_stopped", revision=2, run_dir=str(tmp_path),
                  stage="refine", waiting_for="job:17", stop_reason=reason,
                  blocked={"message": "Earlier input is missing", "needs": ["verification.irc"]},
-                 input={"ts_optimization": dict(engine="orca", method="HF", basis_set="STO-3G")})
+                 input=state_input(ts_optimization=dict(engine="orca", method="HF", basis_set="STO-3G")))
     jobs = [dict(job_id=17 + index, state=job_state) for index, job_state in enumerate(job_states)]
     before = deepcopy(state), deepcopy(jobs)
 
@@ -162,5 +172,5 @@ def test_stopped_process_reports_reason_and_waits_for_cancellation(tmp_path, job
     assert view.result is None
     assert view.waiting_for == [job for job in jobs if job["state"] not in {"done", "failed", "cancelled"}]
     assert view.next == dict(action=action, required_inputs=["verification.irc"] if action == "resume" else [],
-                             editable_groups=["ts_optimization"] if action == "resume" else [])
+                             editable_groups=list(state['input']) if action == "resume" else [])
     assert (state, jobs) == before

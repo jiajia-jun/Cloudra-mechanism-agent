@@ -13,8 +13,11 @@ def checkpoint(tmp_path):
     record.stage = "guess"
     record.waiting_for = ""
     record.job_steps = [ts_process.TsJobStep(purpose="path", job_id=job, input_path=record.job_steps[0].input_path)]
-    record.current_seed_xyz_path = "/fixture/seed.xyz"
-    record.current_ts_guess_path = "/fixture/old-ts.xyz"
+    from cloudra.tools.core.molecule import read_molecule
+    from cloudra.tools.core.reaction_state import ReactionStructures
+    molecule = read_molecule(input_text='2\nfixture\nH 0 0 0\nH 0 0 .74\n', input_format='xyz')
+    record.structures = ReactionStructures(reactant=molecule, product=molecule,
+        candidate=molecule, product_to_reactant=(0, 1))
     record.path_kind = "xtb_path"
     from cloudra.tools.core.ts_inputs import XtbPathGuess
     record.input.guess = XtbPathGuess(kind="xtb_path",method="GFN2-xTB",refinement_runs=3)
@@ -136,7 +139,10 @@ def test_scientific_job_failure_reaches_cards_and_rejects_unchanged_candidate(tm
     record.job_steps[0].purpose = stage
     if stage == "path":
         monkeypatch.setattr(ts_process, "_read_built_xyz", lambda *args: (["H"], [[0, 0, 0]], "", ""))
-        record.input.reaction.atom_map = [0]
+        from cloudra.tools.core.molecule import read_molecule
+        from cloudra.tools.core.reaction_state import ReactionStructures
+        molecule = read_molecule(input_text='1\nfixture\nH 0 0 0\n', input_format='xyz')
+        record.structures = ReactionStructures(reactant=molecule, product=molecule, product_to_reactant=(0,))
         monkeypatch.setattr(
             ts_process,
             "_queued_path",
@@ -220,14 +226,15 @@ def test_remote_path_pullback_continues_to_budgeted_ts_submission(tmp_path, monk
     with db.connect() as con:
         con.execute("UPDATE compute_jobs SET state='done'")
     record.blocked = None
-    record.input.reaction.atom_map = [0, 1]
+    record.structures.product_to_reactant = (0, 1)
     monkeypatch.setattr(ts_process, "_read_built_xyz", lambda *args: (["H", "H"], [[0, 0, 0], [0, 0, 0.74]], "", ""))
     monkeypatch.setattr(
         "cloudra.services.compute_admission.admit_job",
         lambda **_: AdmissionOutcome(ok=True, node_id="fixture", scheduler="local"),
     )
     result = ts_process._guess(record)
-    assert Path(result.current_ts_guess_path) == local / "ts.xyz"
+    assert result.structures.candidate is not None
+    assert str(local / "ts.xyz") in result.evidence_candidates
     assert result.blocked is None
     result = ts_process._submit(result)
     assert result.blocked is None
@@ -240,15 +247,17 @@ def test_remote_path_pullback_continues_to_budgeted_ts_submission(tmp_path, monk
 def test_reaction_center_change_without_ring_invalidates_geometry_dependencies(tmp_path):
     from cloudra.tools.core.ts_inputs import TsResumeRequest
     from cloudra.tools.core.ts_revision import plan_input_revision, revise_record
-    from tests.test_ts_stage_inputs import record_fixture
-    record = record_fixture(tmp_path, stage='guess', current_seed_xyz_path='old.xyz', current_ts_guess_path='old-ts.xyz')
+    from tests.test_ts_revision_identity import molecular_fixture
+    record, _ = molecular_fixture(tmp_path)
+    record.stage = 'guess'
+    record.input.reaction.reaction_center = []
     record.input.conformers.guidance.ring_order=[]
     record.job_steps=[ts_process.TsJobStep(purpose='path',job_id=7,state='done')]
     request=TsResumeRequest(changes={'reaction':{'reaction_center':[(0,1)]}},reason='change assembly centre',request_key='assembly',expected_revision=record.revision)
     result=revise_record(record,request,plan_input_revision(record,request))
     assert result.stage=='build'
-    assert result.current_seed_xyz_path==''
-    assert result.current_ts_guess_path==''
+    assert result.structures.reactant is not None
+    assert result.structures.candidate is None
     assert not result.job_steps
     assert result.attempt_history[-1].job_steps[-1].purpose=='path'
 

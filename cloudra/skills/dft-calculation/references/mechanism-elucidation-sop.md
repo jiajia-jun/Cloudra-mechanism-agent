@@ -58,15 +58,17 @@
 - **身份**：具体 XYZ/mol/sdf 是否与声明端点相符。`mismatch` 时先核实实际连接、原子组成、电荷/立体信息；暂停把该结构当作目标物种的后续计算。错误产物可作为新候选单独保存，不能改写原目标 SMILES 来让验证变绿。若确是声明错误，记录依据后显式修订。
 - **原子对应**：用于路径插值的全原子编号是否可执行。两端 identity 都 `match` 而 `binding_status=inconclusive`，可能仅是对称映射不唯一。保留身份结论；依据原子来源/标号/机理选择映射，不能反复用相同输入重跑，也不能把重原子 map 或 `internal_generated` map 用到任意显式氢 XYZ。
 
-`ts_guess interpolate` 需要 `binding_status=complete`、`binding_source=concrete` 的 `atom_map`。传顶层、已转为坐标序号的 `watch_pairs`，不是 SMILES 序号的 `graph_watch_pairs`。映射尚未完成时，身份明确的独立极小点计算仍可继续。
+`ts_guess` 引用已有 `run_id` 时读取该 run 已确认的完整两端结构和原子对应，不再接收复制的 `atom_map` 或另一组端点文件。独立插值/路径分析导入完整 MOL/SDF 图后使用同一映射内核；真实歧义需选择具体的完整候选，不能凭 XYZ 元素序列默认同序。`watch_pairs` 仍指当前具体结构的坐标原子号，不是 SMILES 图序号。映射尚未完成时，身份明确的独立极小点计算仍可继续。
 
 ### 2.2 选一个能回答问题的初猜路线
 
-**首选 TS 状态机**：同一路径只 `ts_prepare` 一次，`input` 分为 reaction / conformers / guess / ts_optimization / verification / execution。构象来源显式指定；`kind="file"` 直接使用外部几何，`optimization` 省略或为 `null` 时不做额外的 build 预优化。探索扫描、正式 TS 与各项验证方法分别声明，缺少当前阶段必需输入时才停在点名字段的 checkpoint。要在 `ts_resume` 中清除旧预优化配置，重新声明该端的完整 file 源，保留原有 `mol_path`、`evidence_refs`、`heavy_atom_binding`，并省略 `optimization` 或设为 `null`。成功作业由系统自动续接。用 `ts_inspect` 读取状态、实际方法和证据；用带 run_id/changes/reason 的 `ts_resume` 修订同一个 run；失败后可直接修订或重试，保留失败历史并重新执行科学验证。在途作业不允许修订。`reaction.atom_map` 是含氢全原子的 1-based 产物→反应物映射；结构编号 1-based，ORCA 原生扫描编号 0-based。元素排列通过不能消除具体结构身份或对称绑定歧义；须保留实际结构图、坐标与输入版本。扫描峰仅是候选，正式 TS 无约束精修与频率/双向 IRC/两端 Opt/Freq 仍必需。QST2/QST3 禁令及既有科学验收规则不变。
+**首选 TS 状态机**：同一路径只 `ts_prepare` 一次，`input` 分为 reaction / conformers / guess / ts_optimization / verification / execution。构象来源显式指定；`kind="file"` 直接使用外部几何，`optimization` 省略或为 `null` 时不做额外的 build 预优化。探索扫描、正式 TS 与各项验证方法分别声明，缺少当前阶段必需输入时才停在点名字段的 checkpoint。清除旧预优化只需 `ts_resume` 局部提交 `changes:{conformers:{product:{optimization:null}}}`（或 reactant）；省略的源字段保留，`null` 清除可选设置。成功作业由系统自动续接。用 `ts_inspect` 读取状态、实际方法和证据；用带 run_id/changes/reason 的 `ts_resume` 修订同一个 run；失败后可直接修订或重试，保留失败历史并重新执行科学验证。在途作业不允许修订。全原子对应由程序维护，唯一完整映射自动采用；真实歧义先用 `ts_inspect` 查看，再用 `reaction.selected_candidate` 或 `reaction_mapping(run_id, selected_candidate)` 选择，不搬运映射数组。结构编号 1-based，ORCA 原生扫描编号 0-based。元素排列通过不能消除具体结构身份或对称绑定歧义；须保留实际结构图、坐标与输入版本。扫描峰仅是候选，正式 TS 无约束精修与频率/双向 IRC/两端 Opt/Freq 仍必需。QST2/QST3 禁令及既有科学验收规则不变。
+
+已有 run 的 `ts_guess(mode="xtb_path"/"scan")` 通过既有修订事务更新初猜意图，由自动队列提交计算；不另开执行通道，缺少当前研究必需的方法、坐标或约束时如实点名。`mode="interpolate"` 只生成几何图像，再作为 provided 初猜交回同一修订流程；`mode="provided"` 需候选路径及来源证据。普通探索扫描、扫描解析和频率/IRC 验证可继续独立运行。xTB 失败保留原始诊断；缺失引擎时显式回退插值，并复用已经换序的两端，不二次映射。
 
 | 已知信息 | 主路线 | 检查什么 |
 | --- | --- | --- |
-| **默认**：端点可声明（SMILES + `atom_map`，最好加 `reaction_center`） | **`ts_prepare` 自动流程**；阻塞时按点名修订声明再 `ts_resume` | 用 ts_inspect 只读检查；按所需字段和恢复证据修订同一个 run |
+| **默认**：端点可声明（SMILES + 构象源，必要时声明 `reaction_center`） | **`ts_prepare` 自动流程**；阻塞时按点名修订声明再 `ts_resume` | 用 ts_inspect 只读检查；按所需字段和恢复证据修订同一个 run |
 | 流程接不住（声明不齐、需手工耦合坐标） | **柔性（relaxed）扫描**：固定扫描坐标，各点放松其余自由度 | `internal_coordinates` 确认原子序号 → `scan_prepare` → 提交 → `scan_parse`；检查内部峰值、连续性、每帧实际结构；**导出峰帧做无约束 TS**，不要把扫描收敛当驻点 |
 | 两端结构可信且全原子对应已绑定 | IDPP 插值；需要时用支持的路径优化方法 | 插值只给几何路径，推荐帧不代表能量最高点；必须实际求能/优化 |
 | 两个键变化明显耦合，1D 扫描滑谷/单调 | 先用 `internal_coordinates` 核对坐标与预组织；换坐标/构象，或有依据的耦合扫描/路径搜索 | 写出缺失自由度与预计成本；不直接堆大网格；不要在未复核二面角的构象上重扫 |

@@ -4,7 +4,7 @@ from cloudra.tools.core.ts_inputs import TsInput
 
 def calculation_input(*, reactant_smiles, product_smiles, method, basis_set=None, charge=0,
                       multiplicity=1, engine='orca', keywords='',
-                      reaction_center=(), atom_map=(), ring_order=(),
+                      reaction_center=(), selected_candidate=None, ring_order=(),
                       distance_filters=(), product_geometry=None,
                       path_solvation=None, irc_log=None, scan=None):
     # Concise descriptors remain a test-data convenience, never a public tool grammar.
@@ -27,7 +27,7 @@ def calculation_input(*, reactant_smiles, product_smiles, method, basis_set=None
     return TsInput.model_validate(dict(
         reaction=dict(reactant_smiles=reactant_smiles, product_smiles=product_smiles,
                       charge=charge, multiplicity=multiplicity,
-                      atom_map=list(atom_map), reaction_center=list(reaction_center)),
+                      reaction_center=list(reaction_center), selected_candidate=selected_candidate),
         conformers=dict(reactant=generate, product=product_geometry or generate,
                         guidance=dict(ring_order=list(ring_order), distance_filters=list(distance_filters))),
         guess=guess, ts_optimization=calculation,

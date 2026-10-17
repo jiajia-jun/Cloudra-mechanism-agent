@@ -316,6 +316,8 @@ def test_product_seed_revision_retains_reactant_derivatives_and_checkpoint(tmp_p
     old_input = tmp_path / 'candidate_opt.json'
     old_input.write_text('Immutable original preparation input fixture')
     before = old_input.read_bytes()
+    from cloudra.tools.core.molecule import read_molecule
+    updated.structures.reactant = read_molecule(input_path=str(seed), input_format='xyz')
     monkeypatch.setattr('cloudra.tools.core.ts_process._read_built_xyz', lambda *_: (geometry.symbols, geometry.positions, str(seed), ''))
     monkeypatch.setattr('cloudra.tools.core.ts_process._bound_input_structure', lambda *_: None)
     monkeypatch.setattr('cloudra.tools.core.ts_process._step_state', lambda *_: 'done')
@@ -326,4 +328,4 @@ def test_product_seed_revision_retains_reactant_derivatives_and_checkpoint(tmp_p
     _optimize_conformer_source(updated, 'reactant')
     assert old_input.read_bytes() == before
     assert {step.job_id for step in updated.job_steps} == {9, 10}
-    assert updated.current_seed_xyz_path
+    assert updated.structures.reactant is not None

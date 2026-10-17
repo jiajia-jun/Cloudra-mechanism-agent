@@ -58,7 +58,7 @@ def test_catalog_prepare_requires_explicit_member_optimizer_and_deduplicates(tmp
     from cloudra.tools.core.ts_inputs import CatalogConformer, FileConformer
     from tests.ts_fixtures import calculation_input
     source, xyz=catalog_seed(tmp_path)
-    inputs=calculation_input(reactant_smiles='O',product_smiles='O',method='b3lyp/def2svp',atom_map=[0,1,2])
+    inputs=calculation_input(reactant_smiles='O',product_smiles='O',method='b3lyp/def2svp')
     inputs.conformers.reactant=CatalogConformer(**source)
     inputs.conformers.product=FileConformer(kind='file',xyz_path=str(xyz))
     first=ts_process.start(ts_process.TsStartRequest(input=inputs,workspace_dir=str(tmp_path),owner_conversation_id='project',owner_session_id='owner',request_key='unqualified'))
@@ -84,7 +84,7 @@ def test_native_selected_seed_writes_and_submits_declared_input_once(tmp_path, m
     from tests.ts_fixtures import calculation_input
 
     source, xyz = catalog_seed(tmp_path)
-    inputs = calculation_input(reactant_smiles='O', product_smiles='O', method='b3lyp/def2svp', atom_map=[0, 1, 2])
+    inputs = calculation_input(reactant_smiles='O', product_smiles='O', method='b3lyp/def2svp')
     inputs.conformers.reactant = CatalogConformer(**source, optimization={
         'engine': engine, 'method': 'b3lyp', 'basis_set': 'def2svp', 'keywords': '',
     })
@@ -113,7 +113,7 @@ def test_completed_explicit_seed_opt_advances_other_seed_once(tmp_path,monkeypat
     from tests.ts_fixtures import calculation_input
     source, xyz=catalog_seed(tmp_path)
     calculation={'engine':'xtb','method':'GFN2-xTB','basis_set':'','keywords':''}
-    inputs=calculation_input(reactant_smiles='O',product_smiles='O',method='b3lyp/def2svp',atom_map=[0,1,2])
+    inputs=calculation_input(reactant_smiles='O',product_smiles='O',method='b3lyp/def2svp')
     inputs.conformers.reactant=CatalogConformer(**source,optimization=calculation)
     inputs.conformers.product=FileConformer(kind='file',xyz_path=str(xyz),optimization=calculation)
     monkeypatch.setattr('cloudra.services.compute_admission.admit_job',lambda **_: AdmissionOutcome(ok=True,node_id='fixture',scheduler='local'))

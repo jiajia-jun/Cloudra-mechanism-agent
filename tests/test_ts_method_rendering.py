@@ -38,21 +38,20 @@ def test_scan_to_ts_followups_keep_declared_method_basis_and_keywords(tmp_path, 
     for i,position in enumerate(positions):
         conf.SetAtomPosition(i,position)
     mol.AddConformer(conf)
-    graph=tmp_path/'water.mol'
-    graph.write_text(Chem.MolToMolBlock(mol))
     extras = 'D3BJ RIJCOSX def2/J TightSCF CPCM(DCM)'
     declaration = calculation_input(basis_set='def2svp',
-        engine='orca', reactant_smiles='O', product_smiles='O', method='b3lyp', keywords=extras, atom_map=[0,1,2],
+        engine='orca', reactant_smiles='O', product_smiles='O', method='b3lyp', keywords=extras,
         scan={'basis_set': 'def2svp', 'method': 'b3lyp', 'keywords': extras,
               'scans': [{'atoms': [0, 1], 'scan_end': 2, 'scan_steps': 5}]},
     )
     record = process.TsProcessRecord(run_id='scan', run_dir=str(tmp_path), workspace_dir=str(tmp_path),
         input=declaration, owner_conversation_id='test', stage='guess')
-    monkeypatch.setattr(process, '_read_built_xyz', lambda *_: (['O', 'H', 'H'], positions, str(xyz), str(graph)))
+    from cloudra.tools.core.reaction_state import ReactionStructures
+    record.structures = ReactionStructures(reactant=mol, product=mol, product_to_reactant=(0, 1, 2))
     monkeypatch.setattr(process, '_submit_step', lambda *_: ('', 42))
     process._guess(record)
     paths = [record.scan_step.input_path]
-    record.current_ts_guess_path = str(xyz)
+    record.structures.candidate = Chem.Mol(mol)
     record.path_kind = 'scan'
     opt_dir = tmp_path / 'opt'
     opt_dir.mkdir()

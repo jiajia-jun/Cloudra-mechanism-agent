@@ -63,10 +63,10 @@ def test_structure_fields_keep_one_based_numbering_independent_of_engine(engine)
     from cloudra.tools.core.ts_inputs import normalize_ts_input_atoms
     from tests.ts_fixtures import calculation_input
     value = calculation_input(reactant_smiles='CC',product_smiles='CC',method='HF',engine=engine,
-        atom_map=[1,2],reaction_center=[(1,2)],ring_order=[1,2,3],
+        reaction_center=[(1,2)],ring_order=[1,2,3],
         distance_filters=[{'atoms':[1,2],'min_ang':1,'max_ang':2}])
     normalized = normalize_ts_input_atoms(value,atom_tables={})
-    assert normalized.reaction.atom_map == [0,1]
+    assert normalized.reaction.selected_candidate is None
     assert normalized.reaction.reaction_center == [(0,1)]
     assert normalized.conformers.guidance.ring_order == [0,1,2]
 
