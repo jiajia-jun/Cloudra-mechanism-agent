@@ -109,8 +109,9 @@ async def test_auxiliary_non_stream_calls_use_oauth_sse_and_preserve_usage(monke
         await client.aclose()
 
 
+@pytest.mark.parametrize("effort, wire_effort", [("high", "high"), ("max", "max"), ("ultra", "max")])
 @pytest.mark.asyncio
-async def test_wire_payload_preserves_roles_and_call_ids_and_filters_unsupported_fields(monkeypatch):
+async def test_wire_payload_preserves_roles_and_call_ids_and_filters_unsupported_fields(monkeypatch, effort, wire_effort):
     requests = []
 
     def handler(request):
@@ -128,13 +129,14 @@ async def test_wire_payload_preserves_roles_and_call_ids_and_filters_unsupported
                 {"role": "tool", "tool_call_id": "call-real", "content": "file data"},
             ],
             tools=[{"type": "function", "function": {"name": "read_file", "description": "Read", "parameters": {"type": "object", "properties": {}}, "strict": False}}],
-            reasoning_effort="high", temperature=0.1, top_p=0.9, max_tokens=2,
+            reasoning_effort=effort, temperature=0.1, top_p=0.9, max_tokens=2,
             max_output_tokens=4, extra_headers={"Authorization": "Bearer stolen"},
             extra_body={"store": True, "model": "wrong", "temperature": 0.5, "url": "https://evil.invalid"},
             stream=False,
         )
         payload = json.loads(requests[0].content)
-        assert payload["instructions"] == "base instructions"
+        assert payload["instructions"].startswith("base instructions")
+        assert ("Delegate independent work" in payload["instructions"]) is (effort == "ultra")
         assert payload["store"] is False
         assert payload["input"] == [
             {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "question"}, {"type": "input_image", "image_url": "https://example.com/image.png"}]},
@@ -144,7 +146,7 @@ async def test_wire_payload_preserves_roles_and_call_ids_and_filters_unsupported
             {"type": "function_call_output", "call_id": "call-real", "output": "file data"},
         ]
         assert payload["tools"][0]["strict"] is False
-        assert payload["reasoning"] == {"effort": "high", "summary": "auto"}
+        assert payload["reasoning"] == {"effort": wire_effort, "summary": "auto"}
         assert not set(payload) & {"temperature", "top_p", "max_tokens", "max_output_tokens", "url", "extra_headers", "extra_body"}
         assert requests[0].headers["Authorization"] == "Bearer oauth-test"
     finally:

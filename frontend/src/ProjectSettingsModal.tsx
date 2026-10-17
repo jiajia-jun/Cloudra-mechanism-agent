@@ -232,6 +232,8 @@ function AgentStrip({
                   <option value="low">low (低)</option>
                   <option value="medium">medium (中等)</option>
                   <option value="high">high (深度思考)</option>
+                  <option value="max">max</option>
+                  <option value="ultra">ultra (max + 并行智能体)</option>
                 </select>
               </div>
             </div>
@@ -573,6 +575,8 @@ export default function ProjectSettingsModal({
                     <option value="low">low (低)</option>
                     <option value="medium">medium (中等)</option>
                     <option value="high">high (深度思考)</option>
+                    <option value="max">max</option>
+                    <option value="ultra">ultra (max + 并行智能体)</option>
                   </select>
                 </div>
               </div>

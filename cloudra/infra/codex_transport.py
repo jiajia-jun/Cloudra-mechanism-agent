@@ -155,8 +155,17 @@ def _build_payload(kwargs: dict) -> dict:
         if not isinstance(kwargs["parallel_tool_calls"], bool):
             raise ValueError("Codex parallel_tool_calls flag must be a boolean")
         payload["parallel_tool_calls"] = kwargs["parallel_tool_calls"]
-    if kwargs.get("reasoning_effort"):
-        payload["reasoning"] = {"effort": kwargs["reasoning_effort"], "summary": "auto"}
+    effort = kwargs.get("reasoning_effort")
+    if effort:
+        # Codex Ultra is max reasoning plus proactive use of the host's subagents.
+        if effort == "ultra":
+            effort = "max"
+            if tools:
+                payload["instructions"] += (
+                    "\n\nDelegate independent work proactively to available subagent tools "
+                    "when parallel execution improves speed or quality, then integrate their results."
+                )
+        payload["reasoning"] = {"effort": effort, "summary": "auto"}
     # Chat sampling/token limits and arbitrary extra_body/header overrides are unsupported here.
     return payload
 

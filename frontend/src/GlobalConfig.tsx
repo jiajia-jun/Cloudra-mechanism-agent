@@ -258,6 +258,8 @@ function SlotSection({
           <option value="low">low</option>
           <option value="medium">medium</option>
           <option value="high">high</option>
+          <option value="max">max</option>
+          <option value="ultra">ultra (max + 并行智能体)</option>
         </select>
         <span className="field-hint">
           global fallback for agents without a per-agent override; empty = parameter not sent

@@ -1928,7 +1928,7 @@ def test_easy_tasks_regenerate_identically():
         assert committed.is_file(), f"missing committed task file: {committed}"
         regenerated = json.loads(json.dumps(t.model_dump(mode="json", by_alias=True)))
         assert json.loads(committed.read_text(encoding="utf-8")) == regenerated
-        # 四档共用 xtb+pm7+b3lyp/def2svp 白名单。
+        # easy/normal/hard 共用 xtb+pm7+b3lyp/def2svp 白名单。
         assert t.method_policy.allowed_methods == ["xtb", "pm7", "b3lyp/def2svp"]
 
 
@@ -2175,7 +2175,7 @@ def test_hf1_regenerated_gold_scores_barriers():
 
 
 def test_impossible_tasks_regenerate_identically():
-    """impossible 档只生成 11 道 I 题；每题至少一个不可达节点。"""
+    """impossible 档只生成 12 道 I 题；每题至少一个不可达节点。"""
     pytest.importorskip("rdkit")  # 生成器的映射校验依赖 RDKit；CI 只装 dev extra
     from cloudra.benchmark import gen_impossible_tasks
 
@@ -2189,7 +2189,7 @@ def test_impossible_tasks_regenerate_identically():
         assert committed.is_file(), f"missing committed task file: {committed}"
         regenerated = json.loads(json.dumps(t.model_dump(mode="json", by_alias=True)))
         assert json.loads(committed.read_text(encoding="utf-8")) == regenerated
-        assert t.method_policy.allowed_methods == ["xtb", "pm7", "b3lyp/def2svp"]
+        assert t.method_policy.allowed_methods == ["xtb", "pm7"]
         # accessible=false 协议句全档同款、一字不动
         assert protocol in t.prompt.query, t.task_id
         graph = t.gold.mechanism_graph
