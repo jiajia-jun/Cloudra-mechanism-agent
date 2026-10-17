@@ -1,0 +1,71 @@
+{
+  "run_id": "ts_0002",
+  "verified": false,
+  "ts_frequency": "ts/ts_0002/jobs/declaration_0009/frequency/.cloudra/calc-793.out.log",
+  "imaginary_frequency_cm": -4610.8,
+  "mode_vectors_parser": null,
+  "irc": "ts/ts_0002/jobs/declaration_0009/irc/.cloudra/calc-797.out.log",
+  "reactant_outer": "ts/ts_0002/jobs/declaration_0009/irc/irc_IRC_B.xyz",
+  "product_outer": "ts/ts_0002/jobs/declaration_0009/irc/irc_IRC_F.xyz",
+  "watch_pairs_1based": [
+    [
+      1,
+      2
+    ],
+    [
+      2,
+      3
+    ],
+    [
+      3,
+      4
+    ],
+    [
+      1,
+      4
+    ]
+  ],
+  "reactant_bonds_ang": [
+    1.327,
+    1.551,
+    1.327,
+    1.551
+  ],
+  "product_bonds_ang": [
+    1.551,
+    1.327,
+    1.551,
+    1.327
+  ],
+  "latest_R_opt_job": 817,
+  "latest_R_freq_job": 820,
+  "latest_R_zero_imag": true,
+  "strict_request_pending": {
+    "mode": "verify",
+    "strict": true,
+    "engine": "orca",
+    "freq_log": "ts/ts_0002/jobs/declaration_0009/frequency/.cloudra/calc-793.out.log",
+    "irc_log": "ts/ts_0002/jobs/declaration_0009/irc/.cloudra/calc-797.out.log",
+    "reactant_path": "ts/ts_0002/jobs/declaration_0011/reactant_opt/reactant_opt.xyz",
+    "product_path": null,
+    "watch_pairs": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        2,
+        3
+      ],
+      [
+        0,
+        3
+      ]
+    ]
+  },
+  "pending_reason": "P outer Opt/Freq not submitted; R geometry validator rejects native XYZ versus 6-decimal frequency source, despite converged Opt and zero imaginary frequency"
+}

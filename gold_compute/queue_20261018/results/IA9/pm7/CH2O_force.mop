@@ -1,0 +1,7 @@
+PM7 PRECISE CHARGE=0 SINGLET XYZ FORCE
+smiles: C=O
+IA9 PM7 full Hessian at native optimized geometry
+  C    -0.01185798 +1   0.00186180 +1   0.00017803 +1
+  O     1.17960956 +1  -0.18519068 +1  -0.01771058 +1
+  H    -0.42542167 +1   1.01216955 +1   0.00190867 +1
+  H    -0.71492361 +1  -0.83314358 +1   0.01521240 +1

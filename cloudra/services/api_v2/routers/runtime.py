@@ -13,7 +13,13 @@ from fastapi.responses import HTMLResponse
 from cloudra import __version__
 
 from ..context import ApiContext
-from ..models import CodexDevicePollRequest, GlobalConfigPatch, OpenRouterExchangeRequest, ToolDocumentLoadingPatch
+from ..models import (
+    CodexDevicePollRequest,
+    GlobalConfigPatch,
+    OpenRouterExchangeRequest,
+    SearchConfigPatch,
+    ToolDocumentLoadingPatch,
+)
 
 
 def build_router(ctx: ApiContext) -> APIRouter:
@@ -213,6 +219,8 @@ def build_router(ctx: ApiContext) -> APIRouter:
             "config_file": str(cfg.config_file),
             "coordinator": slot(cfg.coordinator),
             "follower": slot(cfg.follower),
+            "search_provider": cfg.search_provider,
+            "deepseek_api_key_set": bool(cfg.deepseek_api_key),
             "tool_document_loading": cfg.tool_document_loading.to_display_dict(),
         }
 
@@ -245,6 +253,19 @@ def build_router(ctx: ApiContext) -> APIRouter:
                     target.provider = detected.id
 
         await asyncio.to_thread(mutate_config, _apply)
+        return await runtime_config()
+
+    @router.patch("/api/v2/runtime/config/search", dependencies=ctx.protected)
+    async def patch_search_config(body: SearchConfigPatch) -> dict[str, Any]:
+        from cloudra.infra.config import mutate_config
+
+        changes = body.model_dump(exclude_unset=True)
+
+        def update(work) -> None:
+            for field, value in changes.items():
+                setattr(work, field, value)
+
+        await asyncio.to_thread(mutate_config, update)
         return await runtime_config()
 
     @router.patch('/api/v2/runtime/config/tool-document-loading', dependencies=ctx.protected)

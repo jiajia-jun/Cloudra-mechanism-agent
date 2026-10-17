@@ -1,0 +1,60 @@
+{
+  "note": "Only existing OptTS log supplied for explicit missing-frequency diagnostic; no TS frequency or IRC has been generated. This is not a claimed verification pass.",
+  "request": {
+    "mode": "verify",
+    "strict": true,
+    "freq_log": "ts/ts_0001/jobs/declaration_0003/ts_opt/.cloudra/calc-739.out.log",
+    "reactant_path": "gold_compute/queue_20261018/results/IA8/explore/opt_CH2OO.xyz",
+    "product_path": "gold_compute/queue_20261018/results/IA8/explore/opt_dioxirane.xyz",
+    "engine": "orca",
+    "watch_pairs": [
+      [
+        0,
+        1
+      ],
+      [
+        0,
+        2
+      ]
+    ],
+    "output_dir": "gold_compute/queue_20261018/results/IA8/strict_current"
+  },
+  "response": {
+    "call_id": "tc_d6051b973a124d6d",
+    "is_success": false,
+    "summary": "{\"is_success\": false, \"message\": \"verify failed: Failed to parse vibrational frequencies from the frequency log: /Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0003/ts_opt/.cloudra/calc-739.out.log\", \"process\": null, \"diagnostics\": [], \"mapping_candidates\": [], \"calculation\": null, \"images_dir\": \"\", \"distance_table\": \"\", \"ts_candidate_index\": null, \"ts_candidate_path\": \"\", \"refinement_termination\": \"\", \"path_termination_reason\": null, \"path_kind\": \"\", \"input_file_path\": \"\", \"run_hint\": \"\", \"profile_table\": \"\", \"scan_has_internal_peak\": null, \"verdicts\": [], \"barrier_kcal\": null, \"candidate\": null, \"candidate_unavailable\": false, \"verdict\": \"\", \"verification_status\": \"\", \"n_imag\": null, \"imag_freqs\": [], \"checks\": [], \"irc_end_a_path\": \"\", \"irc_end_b_path\": \"\", \"imag_mode_aligned\": null, \"imag_mode_alignment\": \"\"}",
+    "data": {
+      "is_success": false,
+      "message": "verify failed: Failed to parse vibrational frequencies from the frequency log: /Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0003/ts_opt/.cloudra/calc-739.out.log",
+      "process": null,
+      "diagnostics": [],
+      "mapping_candidates": [],
+      "calculation": null,
+      "images_dir": "",
+      "distance_table": "",
+      "ts_candidate_index": null,
+      "ts_candidate_path": "",
+      "refinement_termination": "",
+      "path_termination_reason": null,
+      "path_kind": "",
+      "input_file_path": "",
+      "run_hint": "",
+      "profile_table": "",
+      "scan_has_internal_peak": null,
+      "verdicts": [],
+      "barrier_kcal": null,
+      "candidate": null,
+      "candidate_unavailable": false,
+      "verdict": "",
+      "verification_status": "",
+      "n_imag": null,
+      "imag_freqs": [],
+      "checks": [],
+      "irc_end_a_path": "",
+      "irc_end_b_path": "",
+      "imag_mode_aligned": null,
+      "imag_mode_alignment": ""
+    },
+    "duration_ms": 6
+  }
+}

@@ -26,6 +26,17 @@ _BASH_B3LYP = "cat > ts.gjf <<'EOF'\n#p b3lyp/6-31g* opt\n\nt\n\n0 1\nC 0 0 0\nE
 _BASH_MACE = 'cat > ts.gjf <<\'EOF\'\n#p external="mace" opt freq\n\nt\n\n0 1\nC 0 0 0\nEOF\n'
 
 
+def test_impossible_policy_blocks_dft_and_keeps_semempirical_methods():
+    from cloudra.infra.config import MethodPolicyConfig
+    from cloudra.runtime_v2.method_policy import check_method
+
+    policy = MethodPolicy(allowed_methods=MethodPolicyConfig().allowed_methods_impossible)
+    assert check_method("GFN2-xTB", policy).allowed
+    assert check_method("pm7", policy).allowed
+    assert not intercept("qm_input_writer", {"method": "b3lyp", "basis_set": "def2svp"}, policy).allowed
+    assert not check_input_content("! B3LYP D3BJ def2-SVP Opt\n", policy, "dft.inp").allowed
+
+
 def test_policy_reads_native_scan_method_from_typed_manifest(tmp_path):
     from cloudra.runtime.chem_task import ChemTask
 

@@ -15,7 +15,7 @@ Agent 无需再走一次 function call 转第三方搜索。
 
 - ``name``: 适配器名，同时是 ``config.native_search`` 可强制指定的值；
 - ``hosts`` / ``model_markers``: 匹配条件，供 ``auto`` 模式按 base_url+model 查表；
-- ``requires_params``: 官方接口无原生搜索的服务商（如 DeepSeek），置 True，
+- ``requires_params``: 需要显式注入搜索参数的服务商，置 True，
   表示 auto 模式下没有注入参数就视为不可用；
 - ``enrich``: 真正把搜索参数写进请求（统一走 ``extra_body``，OpenAI SDK 与
   requests shim 都支持）。
@@ -30,8 +30,8 @@ Agent 无需再走一次 function call 转第三方搜索。
 
 配置（LLMConfig）
 ----------------
-- ``native_search``: 默认 ``auto``（按 base_url+model 自动识别并启用服务商侧搜索，
-  识别不到的服务商回退传统 web_search 工具）。可选值：``off``（保持传统工具）/
+- ``native_search``: 默认 ``auto``（按 base_url+model 自动识别服务商侧搜索，
+  DeepSeek 仍使用独立 search 工具）。可选值：``off``（保持独立工具）/
   ``auto`` / 具体服务商名（强制）/ ``custom``（verbatim 注入）；
   ``on`` / ``true`` / ``1`` 等布尔别名等价于 ``auto``。
 - ``native_search_params``: 注入参数，verbatim 写入 ``extra_body``。对注入方式
@@ -43,8 +43,9 @@ Agent 无需再走一次 function call 转第三方搜索。
 --------------
 - OpenAI：搜索模型（``gpt-*-search-api`` / ``search-preview``）总是联网。
 - OpenRouter：``plugins: [{"id": "web"}]`` 给任意模型加搜索。
-- DeepSeek：官方联网搜索只在 **Responses API**（/responses）支持，走 ``transport=
-  "responses"``（``auto`` 模式自动启用）。chat/completions 的 tools schema 只接受
+- DeepSeek：原生联网搜索通过 **Responses API**（/responses）支持，走 ``transport=
+  "responses"``，仅显式配置 ``native_search="deepseek"`` 时启用。默认使用独立
+  Search/Fetch API，保留推理模型的 Chat Completions 传输。chat/completions 的 tools schema 只接受
   ``function``，注入 ``{"type": "web_search"}`` 会被 400 拒绝，所以原生搜索
   一律走 /responses。注意：Responses 目前只支持 ``deepseek-v4-flash``。
 - Google Gemini：OpenAI 兼容端点可用原生搜索，但注入字段因端点而异，
@@ -233,6 +234,8 @@ def resolve_native_search(
         return _CUSTOM_ADAPTER
     if mode == "auto":
         for adapter in _REGISTRY:
+            if adapter.name == "deepseek":
+                continue
             if adapter.matches(base_url=base_url, model=model):
                 if adapter.requires_params and not params:
                     # 服务商官方接口无原生搜索，且没有注入参数可透传：

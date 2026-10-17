@@ -1,0 +1,2227 @@
+{
+  "format_version": 7,
+  "run_id": "ts_0001",
+  "pipeline_id": "55808725f7bb2194cb5ab74263fa0ba9850fa6ee44301131d20ddabfa18034af",
+  "declaration_revision": 6,
+  "optimization_checkpoints": {},
+  "budget_action_keys": {},
+  "budget_reservations": {},
+  "attempt_history": [
+    {
+      "declaration_revision": 1,
+      "selected_candidate_id": null,
+      "job_steps": [],
+      "stage_records": [
+        {
+          "stage": "declare",
+          "status": "done",
+          "detail": "reaction declared; each calculation requires its own method",
+          "artifacts": [],
+          "source_input_revision": 1
+        },
+        {
+          "stage": "build",
+          "status": "done",
+          "detail": "both endpoints built",
+          "artifacts": [],
+          "source_input_revision": 1
+        },
+        {
+          "stage": "map",
+          "status": "blocked",
+          "detail": "product: The concrete structure has 2 symmetric heavy-atom bindings; without concrete atom-map labels the binding is not unique.",
+          "artifacts": [],
+          "source_input_revision": 1
+        }
+      ],
+      "reason": "product O2/O3 symmetric; choose identity binding 1=C,2=O,3=O so that forming pair is C1-O3 and C1-O2 order drops 2->1",
+      "input": {
+        "reaction": {
+          "reactant_smiles": "C=[O+][O-]",
+          "product_smiles": "C1OO1",
+          "charge": 0,
+          "multiplicity": 1,
+          "electronic_character": "closed_shell",
+          "selected_candidate": null,
+          "reaction_center": [
+            [
+              0,
+              2
+            ],
+            [
+              0,
+              1
+            ]
+          ]
+        },
+        "calculations": {
+          "xtb2": {
+            "engine": "orca",
+            "method": "GFN2-xTB",
+            "basis_set": "",
+            "keywords": "",
+            "frequency_mode": "auto",
+            "orca_blocks": null,
+            "end_setting": ""
+          },
+          "xtb2freq": {
+            "engine": "orca",
+            "method": "GFN2-xTB",
+            "basis_set": "",
+            "keywords": "",
+            "frequency_mode": "numeric",
+            "orca_blocks": null,
+            "end_setting": ""
+          },
+          "xtb2irc": {
+            "engine": "orca",
+            "method": "GFN2-xTB",
+            "basis_set": "",
+            "keywords": "",
+            "frequency_mode": "numeric",
+            "orca_blocks": null,
+            "end_setting": ""
+          }
+        },
+        "conformers": {
+          "reactant": {
+            "kind": "file",
+            "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/explore/opt_CH2OO.xyz",
+            "mol_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/struct/CH2OO.mol",
+            "evidence_refs": [
+              "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/explore/.cloudra/calc-729.out.log"
+            ],
+            "optimization": null
+          },
+          "product": {
+            "kind": "file",
+            "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/explore/opt_dioxirane.xyz",
+            "mol_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/struct/dioxirane.mol",
+            "evidence_refs": [
+              "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/explore/.cloudra/calc-730.out.log"
+            ],
+            "optimization": null
+          },
+          "guidance": {
+            "ring_order": [],
+            "distance_filters": []
+          }
+        },
+        "guess": {
+          "kind": "xtb_path",
+          "method": "GFN2-xTB",
+          "solvation": null,
+          "refinement_runs": 100
+        },
+        "ts_optimization": {
+          "ref": "xtb2"
+        },
+        "verification": {
+          "frequency": {
+            "ref": "xtb2freq"
+          },
+          "irc": {
+            "ref": "xtb2irc"
+          },
+          "irc_log": null,
+          "reactant_endpoint": {
+            "seed": null,
+            "optimization": {
+              "ref": "xtb2"
+            },
+            "frequency": {
+              "ref": "xtb2freq"
+            }
+          },
+          "product_endpoint": {
+            "seed": null,
+            "optimization": {
+              "ref": "xtb2"
+            },
+            "frequency": {
+              "ref": "xtb2freq"
+            }
+          }
+        },
+        "execution": {
+          "cpus": 4,
+          "memory_mb": 4096,
+          "limits": null
+        }
+      },
+      "structures": {
+        "reactant": "776t3gAAAAAQAAAAAwAAAAAAAAAFAAAABAAAAIABBgAoAAAAAwQIACoAAAABAwMIACoAAAD/AwEBACgAAAABAQEAKAAAAAEBCwABKAIBAiAAAwAABABCAAAAAECJAAAAAQAAAAEAAAAABfNHzE2aOd6//zkXq21OmT9uGxihMy+IP2Thyd2+AeQ/Zx17fquN4r+/8s4smJObP2ZMhSQT+fs/oFhqarBUqz9D0E07Myesvw3Qlu2EkPW/3cRo6Eg6479Uwec95/+1P3sZHyoOtuG/bA/D9hqk8T+AlpcfGtexvz8CAAAAAAASxwMAAAUABQAAAF9OYW1lAAAAAAAMAAAAX01vbEZpbGVJbmZvABYAAAAgICAgIFJES2l0ICAgICAgICAgIDNEEAAAAF9Nb2xGaWxlQ29tbWVudHMAAAAAABIAAABfTW9sRmlsZUNoaXJhbEZsYWcCAAAAABUAAABjbG91ZHJhX2ltcG9ydF9zb3VyY2UAOgMAAHsicGF0aHMiOiB7Inh5eiI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvZ29sZF9jb21wdXRlL3F1ZXVlXzIwMjYxMDE4L3Jlc3VsdHMvSUE4L2V4cGxvcmUvb3B0X0NIMk9PLnh5eiIsICJtb2wiOiAiL1VzZXJzL2Nsb3VkcmF5eXkvRGVza3RvcC9EZXNrdG9wX0FyY2hpdmUvUHJvamVjdHMvQ2xvdWRyYS1tZWNoYW5pc20tYWdlbnQtbWFzdGVyL2dvbGRfY29tcHV0ZS9xdWV1ZV8yMDI2MTAxOC9yZXN1bHRzL0lBOC9zdHJ1Y3QvQ0gyT08ubW9sIn0sICJoYXNoZXMiOiB7Inh5eiI6ICJiOTFlZjdhOGNhMWI1NWY4NWNmYTkwYjdlY2ViZTFjYTE1N2Y4NDc1NDEzYmZjODUwYTI1YmNkNjNmM2RkYWI4IiwgIm1vbCI6ICJjM2Y1YTA1NDViMWU5YjU5MWE5ZDQ1MDU2MTI3NGZhMzk5ZWI1MjMzZGJiNTMyMzdmZTg2NTlkZTdhODZmYTdkIn0sICJzbmFwc2hvdHMiOiB7Inh5eiI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvdHMvdHNfMDAwMS9idWlsZC9pbnB1dF8wMDAxL3JlYWN0YW50L3NvdXJjZV9iOTFlZjdhOGNhMWI1NWY4Lnh5eiIsICJtb2wiOiAiL1VzZXJzL2Nsb3VkcmF5eXkvRGVza3RvcC9EZXNrdG9wX0FyY2hpdmUvUHJvamVjdHMvQ2xvdWRyYS1tZWNoYW5pc20tYWdlbnQtbWFzdGVyL3RzL3RzXzAwMDEvYnVpbGQvaW5wdXRfMDAwMS9yZWFjdGFudC9zb3VyY2VfYzNmNWEwNTQ1YjFlOWI1OS5tb2wifSwgImlucHV0X3JldmlzaW9uIjogMX0TOxAAAAAAAAECAAABAQAAAQEAAAEBExY=",
+        "product": "776t3gAAAAAQAAAAAwAAAAAAAAAFAAAABQAAAIABBgAgAAAABAgAIAAAAAIIACAAAAACAQAoAAAAAQEBACgAAAABAQsAAQABAgACAAAAAwAABABCAQAAAAMAAQJAiQAAAAEAAAABAAAAAAWmEag3nx/Ov4in9bB5W3s/tmkAmy72X78yaDM1WN/tP1S0YPkhzLi/1FWdSCoX5r9hiFqxUKHtP0NtExxVk6Y/CdrpuW6V5j8AgKXPaNjqv+hwSrpuruy/b/rT05cAtj8XCKBDWCDpv1BlU7QGKO4/oBfMo+Jyub8/AgAAAAAAEs0DAAAFAAUAAABfTmFtZQAAAAAADAAAAF9Nb2xGaWxlSW5mbwAWAAAAICAgICBSREtpdCAgICAgICAgICAzRBAAAABfTW9sRmlsZUNvbW1lbnRzAAAAAAASAAAAX01vbEZpbGVDaGlyYWxGbGFnAgAAAAAVAAAAY2xvdWRyYV9pbXBvcnRfc291cmNlAEADAAB7InBhdGhzIjogeyJ4eXoiOiAiL1VzZXJzL2Nsb3VkcmF5eXkvRGVza3RvcC9EZXNrdG9wX0FyY2hpdmUvUHJvamVjdHMvQ2xvdWRyYS1tZWNoYW5pc20tYWdlbnQtbWFzdGVyL2dvbGRfY29tcHV0ZS9xdWV1ZV8yMDI2MTAxOC9yZXN1bHRzL0lBOC9leHBsb3JlL29wdF9kaW94aXJhbmUueHl6IiwgIm1vbCI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvZ29sZF9jb21wdXRlL3F1ZXVlXzIwMjYxMDE4L3Jlc3VsdHMvSUE4L3N0cnVjdC9kaW94aXJhbmUubW9sIn0sICJoYXNoZXMiOiB7Inh5eiI6ICIxOWJkNWQwNjEwMjg3MzJjMDZiMGI2YWQ2YmYwMjY2Y2IyOTA0ZWI4OGVhMGEzYjY1Yzk4ZmJjZjc5NDg0ZGEwIiwgIm1vbCI6ICI4M2YwY2IyNGI3YzcyMTQ4ODE3YmY1YWY4NjliOTBmMjM5OWFlZTg3MWZiYWE1NmU1NTY2YTllY2E3MTdjMzZhIn0sICJzbmFwc2hvdHMiOiB7Inh5eiI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvdHMvdHNfMDAwMS9idWlsZC9pbnB1dF8wMDAxL3Byb2R1Y3Qvc291cmNlXzE5YmQ1ZDA2MTAyODczMmMueHl6IiwgIm1vbCI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvdHMvdHNfMDAwMS9idWlsZC9pbnB1dF8wMDAxL3Byb2R1Y3Qvc291cmNlXzgzZjBjYjI0YjdjNzIxNDgubW9sIn0sICJpbnB1dF9yZXZpc2lvbiI6IDF9EzovAAAAAQAXAAAAX05vbkV4cGxpY2l0M0RDaGlyYWxpdHkBAQAAAAAAAAAAAAAAAAAAAAATOxQAAAAAAAEBAAABAQAAAQEAAAEBAAABARMW",
+        "product_to_reactant": null,
+        "candidate": null
+      },
+      "provided_guess_binding": null,
+      "terminal": null,
+      "blocked": {
+        "failure_class": "input_identity_unconfirmed",
+        "stage": "map",
+        "message": "product: The concrete structure has 2 symmetric heavy-atom bindings; without concrete atom-map labels the binding is not unique.",
+        "atom_details": [
+          "reactant built geometry: /Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/reactant_b388cb35519b7156abf8.xyz",
+          "reactant atoms (1-based): 1=C, 2=O, 3=O, 4=H, 5=H",
+          "product built geometry: /Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/product_e76959d58210c7410258.xyz",
+          "product atoms (1-based): 1=C, 2=O, 3=O, 4=H, 5=H"
+        ],
+        "needs": [
+          "reaction.selected_candidate"
+        ],
+        "issues": [
+          {
+            "candidates": [
+              {
+                "atom_map": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5
+                ],
+                "bond_edit_count": 2,
+                "broken_bonds": [],
+                "charge_mismatch": 2,
+                "concrete_watch_pairs": [
+                  [
+                    1,
+                    3
+                  ]
+                ],
+                "formed_bonds": [
+                  [
+                    1,
+                    3
+                  ]
+                ],
+                "graph_watch_pairs": [
+                  [
+                    1,
+                    3
+                  ]
+                ],
+                "heavy_atom_bindings": {
+                  "product": [
+                    1,
+                    2,
+                    3
+                  ],
+                  "reactant": [
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                "heavy_atom_map": [
+                  1,
+                  2,
+                  3
+                ],
+                "hydrogen_mismatch": 0,
+                "order_changes": [
+                  {
+                    "atoms": [
+                      1,
+                      2
+                    ],
+                    "product_order": 1.0,
+                    "reactant_order": 2.0
+                  }
+                ],
+                "radical_mismatch": 0,
+                "score": 19.0,
+                "source": "rdkit_graph_search",
+                "stereo_mismatch": 0
+              },
+              {
+                "atom_map": [
+                  1,
+                  3,
+                  2,
+                  4,
+                  5
+                ],
+                "bond_edit_count": 2,
+                "broken_bonds": [],
+                "charge_mismatch": 2,
+                "concrete_watch_pairs": [
+                  [
+                    1,
+                    3
+                  ]
+                ],
+                "formed_bonds": [
+                  [
+                    1,
+                    3
+                  ]
+                ],
+                "graph_watch_pairs": [
+                  [
+                    1,
+                    3
+                  ]
+                ],
+                "heavy_atom_bindings": {
+                  "product": [
+                    1,
+                    3,
+                    2
+                  ],
+                  "reactant": [
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                "heavy_atom_map": [
+                  1,
+                  2,
+                  3
+                ],
+                "hydrogen_mismatch": 0,
+                "order_changes": [
+                  {
+                    "atoms": [
+                      1,
+                      2
+                    ],
+                    "product_order": 1.0,
+                    "reactant_order": 2.0
+                  }
+                ],
+                "radical_mismatch": 0,
+                "score": 19.0,
+                "source": "rdkit_graph_search",
+                "stereo_mismatch": 0
+              }
+            ],
+            "code": "concrete_mapping_ambiguous",
+            "field": "reaction.selected_candidate"
+          }
+        ]
+      },
+      "failed_attempt": null,
+      "stop_reason": null
+    },
+    {
+      "declaration_revision": 2,
+      "selected_candidate_id": null,
+      "job_steps": [
+        {
+          "purpose": "path",
+          "job_id": 733,
+          "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0002/path/path-task.json",
+          "state": "done",
+          "actual_calculation": {
+            "engine": "xtb",
+            "method": "GFN2-xTB",
+            "basis_set": "",
+            "keywords": "",
+            "frequency_mode": "auto",
+            "orca_blocks": null,
+            "end_setting": ""
+          },
+          "source_input_revision": 2,
+          "method_contract": null,
+          "stage_key": null,
+          "external_source": null,
+          "endpoint_source": null,
+          "atom_binding": {
+            "atom_map": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "charge": 0,
+            "declaration_revision": 2,
+            "process_id": "55808725f7bb2194cb5ab74263fa0ba9850fa6ee44301131d20ddabfa18034af",
+            "product_mol": "\n     RDKit          3D\n\n  5  5  0  0  0  0  0  0  0  0999 V2000\n   -0.2353    0.0067   -0.0020 C   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9335   -0.0969   -0.6903 O   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9259    0.0441    0.7057 O   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.8389   -0.8963    0.0859 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.7852    0.9424   -0.0994 H   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  1  0\n  2  3  1  0\n  3  1  1  0\n  1  4  1  0\n  1  5  1  0\nM  END\n",
+            "reactant_mol": "\n     RDKit          3D\n\n  5  4  0  0  0  0  0  0  0  0999 V2000\n   -0.4723    0.0247    0.0118 C   0  0  0  0  0  0  0  0  0  0  0  0\n    0.6252   -0.5798    0.0269 O   0  0  0  0  0  0  0  0  0  0  0  0\n    1.7483    0.0534   -0.0550 O   0  0  0  0  0  0  0  0  0  0  0  0\n   -1.3478   -0.6009    0.0859 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.5535    1.1026   -0.0697 H   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  2  0\n  2  3  1  0\n  1  4  1  0\n  1  5  1  0\nM  CHG  2   2   1   3  -1\nM  END\n",
+            "ts_log_sha256": null
+          },
+          "frequency_analysis": null
+        }
+      ],
+      "stage_records": [
+        {
+          "stage": "declare",
+          "status": "done",
+          "detail": "reaction declared; each calculation requires its own method",
+          "artifacts": [],
+          "source_input_revision": 1
+        },
+        {
+          "stage": "build",
+          "status": "done",
+          "detail": "both endpoints built",
+          "artifacts": [],
+          "source_input_revision": 1
+        },
+        {
+          "stage": "map",
+          "status": "done",
+          "detail": "Concrete endpoint correspondence confirmed and owned by this reaction.",
+          "artifacts": [],
+          "source_input_revision": 2
+        },
+        {
+          "stage": "assemble",
+          "status": "done",
+          "detail": "single component: nothing to assemble (no inter-fragment orientation). The reaction coordinate is whatever the path guess explores",
+          "artifacts": [],
+          "source_input_revision": 2
+        },
+        {
+          "stage": "guess",
+          "status": "blocked",
+          "detail": "the xTB path refinement hit its 100-run cap before the engine declared convergence, so no usable TS guess was produced. Inspect endpoint identities, geometry and the retained path before choosing the next attempt. Raise `refinement_runs` only when the evidence supports further refinement; more iterations do not guarantee convergence. Run directory (truncated path kept for inspection): /Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0002/path/xtb_path_runs/queued_path_0001",
+          "artifacts": [],
+          "source_input_revision": 2
+        }
+      ],
+      "reason": "Use the explicitly requested interpolate TS guess",
+      "input": {
+        "reaction": {
+          "reactant_smiles": "C=[O+][O-]",
+          "product_smiles": "C1OO1",
+          "charge": 0,
+          "multiplicity": 1,
+          "electronic_character": "closed_shell",
+          "selected_candidate": 0,
+          "reaction_center": [
+            [
+              0,
+              2
+            ],
+            [
+              0,
+              1
+            ]
+          ]
+        },
+        "calculations": {
+          "xtb2": {
+            "engine": "orca",
+            "method": "GFN2-xTB",
+            "basis_set": "",
+            "keywords": "",
+            "frequency_mode": "auto",
+            "orca_blocks": null,
+            "end_setting": ""
+          },
+          "xtb2freq": {
+            "engine": "orca",
+            "method": "GFN2-xTB",
+            "basis_set": "",
+            "keywords": "",
+            "frequency_mode": "numeric",
+            "orca_blocks": null,
+            "end_setting": ""
+          },
+          "xtb2irc": {
+            "engine": "orca",
+            "method": "GFN2-xTB",
+            "basis_set": "",
+            "keywords": "",
+            "frequency_mode": "numeric",
+            "orca_blocks": null,
+            "end_setting": ""
+          }
+        },
+        "conformers": {
+          "reactant": {
+            "kind": "file",
+            "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/explore/opt_CH2OO.xyz",
+            "mol_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/struct/CH2OO.mol",
+            "evidence_refs": [
+              "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/explore/.cloudra/calc-729.out.log"
+            ],
+            "optimization": null
+          },
+          "product": {
+            "kind": "file",
+            "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/explore/opt_dioxirane.xyz",
+            "mol_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/struct/dioxirane.mol",
+            "evidence_refs": [
+              "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/explore/.cloudra/calc-730.out.log"
+            ],
+            "optimization": null
+          },
+          "guidance": {
+            "ring_order": [],
+            "distance_filters": []
+          }
+        },
+        "guess": {
+          "kind": "xtb_path",
+          "method": "GFN2-xTB",
+          "solvation": null,
+          "refinement_runs": 100
+        },
+        "ts_optimization": {
+          "ref": "xtb2"
+        },
+        "verification": {
+          "frequency": {
+            "ref": "xtb2freq"
+          },
+          "irc": {
+            "ref": "xtb2irc"
+          },
+          "irc_log": null,
+          "reactant_endpoint": {
+            "seed": null,
+            "optimization": {
+              "ref": "xtb2"
+            },
+            "frequency": {
+              "ref": "xtb2freq"
+            }
+          },
+          "product_endpoint": {
+            "seed": null,
+            "optimization": {
+              "ref": "xtb2"
+            },
+            "frequency": {
+              "ref": "xtb2freq"
+            }
+          }
+        },
+        "execution": {
+          "cpus": 4,
+          "memory_mb": 4096,
+          "limits": null
+        }
+      },
+      "structures": {
+        "reactant": "776t3gAAAAAQAAAAAwAAAAAAAAAFAAAABAAAAIABBgAoAAAAAwQIACoAAAABAwMIACoAAAD/AwEBACgAAAABAQEAKAAAAAEBCwABKAIBAiAAAwAABABCAAAAAECJAAAAAQAAAAEAAAAABfNHzE2aOd6//zkXq21OmT9uGxihMy+IP2Thyd2+AeQ/Zx17fquN4r+/8s4smJObP2ZMhSQT+fs/oFhqarBUqz9D0E07Myesvw3Qlu2EkPW/3cRo6Eg6479Uwec95/+1P3sZHyoOtuG/bA/D9hqk8T+AlpcfGtexvz8CAAAAAAAS7AMAAAYABQAAAF9OYW1lAAAAAAAMAAAAX01vbEZpbGVJbmZvABYAAAAgICAgIFJES2l0ICAgICAgICAgIDNEEAAAAF9Nb2xGaWxlQ29tbWVudHMAAAAAABIAAABfTW9sRmlsZUNoaXJhbEZsYWcCAAAAABUAAABjbG91ZHJhX2ltcG9ydF9zb3VyY2UAOgMAAHsicGF0aHMiOiB7Inh5eiI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvZ29sZF9jb21wdXRlL3F1ZXVlXzIwMjYxMDE4L3Jlc3VsdHMvSUE4L2V4cGxvcmUvb3B0X0NIMk9PLnh5eiIsICJtb2wiOiAiL1VzZXJzL2Nsb3VkcmF5eXkvRGVza3RvcC9EZXNrdG9wX0FyY2hpdmUvUHJvamVjdHMvQ2xvdWRyYS1tZWNoYW5pc20tYWdlbnQtbWFzdGVyL2dvbGRfY29tcHV0ZS9xdWV1ZV8yMDI2MTAxOC9yZXN1bHRzL0lBOC9zdHJ1Y3QvQ0gyT08ubW9sIn0sICJoYXNoZXMiOiB7Inh5eiI6ICJiOTFlZjdhOGNhMWI1NWY4NWNmYTkwYjdlY2ViZTFjYTE1N2Y4NDc1NDEzYmZjODUwYTI1YmNkNjNmM2RkYWI4IiwgIm1vbCI6ICJjM2Y1YTA1NDViMWU5YjU5MWE5ZDQ1MDU2MTI3NGZhMzk5ZWI1MjMzZGJiNTMyMzdmZTg2NTlkZTdhODZmYTdkIn0sICJzbmFwc2hvdHMiOiB7Inh5eiI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvdHMvdHNfMDAwMS9idWlsZC9pbnB1dF8wMDAxL3JlYWN0YW50L3NvdXJjZV9iOTFlZjdhOGNhMWI1NWY4Lnh5eiIsICJtb2wiOiAiL1VzZXJzL2Nsb3VkcmF5eXkvRGVza3RvcC9EZXNrdG9wX0FyY2hpdmUvUHJvamVjdHMvQ2xvdWRyYS1tZWNoYW5pc20tYWdlbnQtbWFzdGVyL3RzL3RzXzAwMDEvYnVpbGQvaW5wdXRfMDAwMS9yZWFjdGFudC9zb3VyY2VfYzNmNWEwNTQ1YjFlOWI1OS5tb2wifSwgImlucHV0X3JldmlzaW9uIjogMX0fAAAAY2xvdWRyYV9tYXBwaW5nX2JpbmRpbmdfZGVyaXZlZAMBEzp4AAAAAQAaAAAAY2xvdWRyYV9zbWlsZXNfaGVhdnlfaW5kZXgBAAAAAAABABoAAABjbG91ZHJhX3NtaWxlc19oZWF2eV9pbmRleAEBAAAAAAEAGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQIAAAAAAAAAAAAAEzsQAAAAAAABAgAAAQEAAAEBAAABARMW",
+        "product": "776t3gAAAAAQAAAAAwAAAAAAAAAFAAAABQAAAIABBgAgAAAABAgAIAAAAAIIACAAAAACAQAoAAAAAQEBACgAAAABAQsAAQABAgACAAAAAwAABABCAQAAAAMAAQJAiQAAAAEAAAABAAAAAAWmEag3nx/Ov4in9bB5W3s/tmkAmy72X78yaDM1WN/tP1S0YPkhzLi/1FWdSCoX5r9hiFqxUKHtP0NtExxVk6Y/CdrpuW6V5j8AgKXPaNjqv+hwSrpuruy/b/rT05cAtj8XCKBDWCDpv1BlU7QGKO4/oBfMo+Jyub8/AgAAAAAAEvIDAAAGAAUAAABfTmFtZQAAAAAADAAAAF9Nb2xGaWxlSW5mbwAWAAAAICAgICBSREtpdCAgICAgICAgICAzRBAAAABfTW9sRmlsZUNvbW1lbnRzAAAAAAASAAAAX01vbEZpbGVDaGlyYWxGbGFnAgAAAAAVAAAAY2xvdWRyYV9pbXBvcnRfc291cmNlAEADAAB7InBhdGhzIjogeyJ4eXoiOiAiL1VzZXJzL2Nsb3VkcmF5eXkvRGVza3RvcC9EZXNrdG9wX0FyY2hpdmUvUHJvamVjdHMvQ2xvdWRyYS1tZWNoYW5pc20tYWdlbnQtbWFzdGVyL2dvbGRfY29tcHV0ZS9xdWV1ZV8yMDI2MTAxOC9yZXN1bHRzL0lBOC9leHBsb3JlL29wdF9kaW94aXJhbmUueHl6IiwgIm1vbCI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvZ29sZF9jb21wdXRlL3F1ZXVlXzIwMjYxMDE4L3Jlc3VsdHMvSUE4L3N0cnVjdC9kaW94aXJhbmUubW9sIn0sICJoYXNoZXMiOiB7Inh5eiI6ICIxOWJkNWQwNjEwMjg3MzJjMDZiMGI2YWQ2YmYwMjY2Y2IyOTA0ZWI4OGVhMGEzYjY1Yzk4ZmJjZjc5NDg0ZGEwIiwgIm1vbCI6ICI4M2YwY2IyNGI3YzcyMTQ4ODE3YmY1YWY4NjliOTBmMjM5OWFlZTg3MWZiYWE1NmU1NTY2YTllY2E3MTdjMzZhIn0sICJzbmFwc2hvdHMiOiB7Inh5eiI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvdHMvdHNfMDAwMS9idWlsZC9pbnB1dF8wMDAxL3Byb2R1Y3Qvc291cmNlXzE5YmQ1ZDA2MTAyODczMmMueHl6IiwgIm1vbCI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvdHMvdHNfMDAwMS9idWlsZC9pbnB1dF8wMDAxL3Byb2R1Y3Qvc291cmNlXzgzZjBjYjI0YjdjNzIxNDgubW9sIn0sICJpbnB1dF9yZXZpc2lvbiI6IDF9HwAAAGNsb3VkcmFfbWFwcGluZ19iaW5kaW5nX2Rlcml2ZWQDARM6mAAAAAIAFwAAAF9Ob25FeHBsaWNpdDNEQ2hpcmFsaXR5AQEAAAAaAAAAY2xvdWRyYV9zbWlsZXNfaGVhdnlfaW5kZXgBAAAAAAABABoAAABjbG91ZHJhX3NtaWxlc19oZWF2eV9pbmRleAEBAAAAAAEAGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQIAAAAAAAAAAAAAEzsUAAAAAAABAQAAAQEAAAEBAAABAQAAAQETFg==",
+        "product_to_reactant": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "candidate": null
+      },
+      "provided_guess_binding": null,
+      "terminal": null,
+      "blocked": {
+        "failure_class": "path_not_converged",
+        "stage": "guess",
+        "message": "the xTB path refinement hit its 100-run cap before the engine declared convergence, so no usable TS guess was produced. Inspect endpoint identities, geometry and the retained path before choosing the next attempt. Raise `refinement_runs` only when the evidence supports further refinement; more iterations do not guarantee convergence. Run directory (truncated path kept for inspection): /Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0002/path/xtb_path_runs/queued_path_0001",
+        "atom_details": [
+          "the engine stopped its path refinement at the 100-run cap ('terminated because max. # cycles reached'); that is a truncated path, not a converged one. The frames and TS candidate are kept for inspection only. Inspect endpoint identities, geometry and the retained path before choosing the next attempt. Raise `refinement_runs` only when the evidence supports further refinement; more iterations do not guarantee convergence."
+        ],
+        "needs": [
+          "guess"
+        ],
+        "issues": []
+      },
+      "failed_attempt": {
+        "attempt_id": "2:path:733",
+        "diagnostics": [],
+        "evidence_refs": [
+          "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0002/path/xtb_path_runs/queued_path_0001/stdout.log"
+        ],
+        "failure_class": "path_failed",
+        "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0002/path/path-task.json",
+        "input_revision": 2,
+        "input_sha256": "b7b556b49c788c754cd7240b20f402a7a1a7ef401ae511ce232bb113ebdfc6db",
+        "job_id": 733,
+        "log_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0002/path/xtb_path_runs/queued_path_0001/stdout.log",
+        "log_sha256": "c40f801b1f2a0b8683137ab9359fc46b36e7fc795918266a655f167ce83136f7",
+        "purpose": "path"
+      },
+      "stop_reason": null
+    },
+    {
+      "declaration_revision": 3,
+      "selected_candidate_id": null,
+      "job_steps": [
+        {
+          "purpose": "ts_opt",
+          "job_id": 739,
+          "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0003/ts_opt/refine.inp",
+          "state": "done",
+          "actual_calculation": {
+            "engine": "orca",
+            "method": "GFN2-xTB",
+            "basis_set": "",
+            "keywords": "",
+            "frequency_mode": "auto",
+            "orca_blocks": null,
+            "end_setting": ""
+          },
+          "source_input_revision": 3,
+          "method_contract": null,
+          "stage_key": null,
+          "external_source": null,
+          "endpoint_source": null,
+          "atom_binding": {
+            "atom_map": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "charge": 0,
+            "declaration_revision": 3,
+            "process_id": "55808725f7bb2194cb5ab74263fa0ba9850fa6ee44301131d20ddabfa18034af",
+            "product_mol": "\n     RDKit          3D\n\n  5  5  0  0  0  0  0  0  0  0999 V2000\n   -0.2353    0.0067   -0.0020 C   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9335   -0.0969   -0.6903 O   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9259    0.0441    0.7057 O   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.8389   -0.8963    0.0859 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.7852    0.9424   -0.0994 H   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  1  0\n  2  3  1  0\n  3  1  1  0\n  1  4  1  0\n  1  5  1  0\nM  END\n",
+            "reactant_mol": "\n     RDKit          3D\n\n  5  4  0  0  0  0  0  0  0  0999 V2000\n   -0.4723    0.0247    0.0118 C   0  0  0  0  0  0  0  0  0  0  0  0\n    0.6252   -0.5798    0.0269 O   0  0  0  0  0  0  0  0  0  0  0  0\n    1.7483    0.0534   -0.0550 O   0  0  0  0  0  0  0  0  0  0  0  0\n   -1.3478   -0.6009    0.0859 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.5535    1.1026   -0.0697 H   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  2  0\n  2  3  1  0\n  1  4  1  0\n  1  5  1  0\nM  CHG  2   2   1   3  -1\nM  END\n",
+            "ts_log_sha256": null
+          },
+          "frequency_analysis": null
+        }
+      ],
+      "stage_records": [
+        {
+          "stage": "declare",
+          "status": "done",
+          "detail": "reaction declared; each calculation requires its own method",
+          "artifacts": [],
+          "source_input_revision": 1
+        },
+        {
+          "stage": "build",
+          "status": "done",
+          "detail": "both endpoints built",
+          "artifacts": [],
+          "source_input_revision": 1
+        },
+        {
+          "stage": "map",
+          "status": "done",
+          "detail": "Concrete endpoint correspondence confirmed and owned by this reaction.",
+          "artifacts": [],
+          "source_input_revision": 2
+        },
+        {
+          "stage": "assemble",
+          "status": "done",
+          "detail": "single component: nothing to assemble (no inter-fragment orientation). The reaction coordinate is whatever the path guess explores",
+          "artifacts": [],
+          "source_input_revision": 2
+        },
+        {
+          "stage": "guess",
+          "status": "done",
+          "detail": "Provided candidate bound; formal optimization and verification remain required.",
+          "artifacts": [
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provided.xyz",
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0000.xyz",
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0001.xyz",
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0002.mol",
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0003.xyz",
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0004.mol"
+          ],
+          "source_input_revision": 3
+        },
+        {
+          "stage": "validate",
+          "status": "done",
+          "detail": "internal validation passed",
+          "artifacts": [],
+          "source_input_revision": 3
+        },
+        {
+          "stage": "submit",
+          "status": "done",
+          "detail": "refinement job 739 submitted as 'ready' (orca, GFN2-xTB); the scheduler daemon claims it and its terminal state arrives through the existing compute notification path",
+          "artifacts": [
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0003/ts_opt/refine.inp"
+          ],
+          "source_input_revision": 3
+        },
+        {
+          "stage": "refine",
+          "status": "waiting",
+          "detail": "waiting for job 739 (ts_opt) to reach a terminal state; the existing compute notification path advances the system driver, so this stage never polls and emits no event",
+          "artifacts": [],
+          "source_input_revision": 3
+        }
+      ],
+      "reason": "Numerical Hessian on candidate needs tighter SCC convergence; update referenced numeric-frequency calculation only and reconcile completed OptTS through durable workflow",
+      "input": {
+        "reaction": {
+          "reactant_smiles": "C=[O+][O-]",
+          "product_smiles": "C1OO1",
+          "charge": 0,
+          "multiplicity": 1,
+          "electronic_character": "closed_shell",
+          "selected_candidate": 0,
+          "reaction_center": [
+            [
+              0,
+              2
+            ],
+            [
+              0,
+              1
+            ]
+          ]
+        },
+        "calculations": {
+          "xtb2": {
+            "engine": "orca",
+            "method": "GFN2-xTB",
+            "basis_set": "",
+            "keywords": "",
+            "frequency_mode": "auto",
+            "orca_blocks": null,
+            "end_setting": ""
+          },
+          "xtb2freq": {
+            "engine": "orca",
+            "method": "GFN2-xTB",
+            "basis_set": "",
+            "keywords": "",
+            "frequency_mode": "numeric",
+            "orca_blocks": null,
+            "end_setting": ""
+          },
+          "xtb2irc": {
+            "engine": "orca",
+            "method": "GFN2-xTB",
+            "basis_set": "",
+            "keywords": "",
+            "frequency_mode": "numeric",
+            "orca_blocks": null,
+            "end_setting": ""
+          }
+        },
+        "conformers": {
+          "reactant": {
+            "kind": "file",
+            "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/explore/opt_CH2OO.xyz",
+            "mol_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/struct/CH2OO.mol",
+            "evidence_refs": [
+              "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/explore/.cloudra/calc-729.out.log"
+            ],
+            "optimization": null
+          },
+          "product": {
+            "kind": "file",
+            "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/explore/opt_dioxirane.xyz",
+            "mol_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/struct/dioxirane.mol",
+            "evidence_refs": [
+              "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/explore/.cloudra/calc-730.out.log"
+            ],
+            "optimization": null
+          },
+          "guidance": {
+            "ring_order": [],
+            "distance_filters": []
+          }
+        },
+        "guess": {
+          "kind": "provided",
+          "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/interpolation/8ff71baa9553c157d049/img_05.xyz",
+          "evidence_refs": [
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/interpolation/8ff71baa9553c157d049/img_05.xyz",
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/reactant_50f081d39e2c434c7739.xyz",
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/reactant_50f081d39e2c434c7739.mol",
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/product_6da9cbc7da671f02dc64.xyz",
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/product_6da9cbc7da671f02dc64.mol"
+          ]
+        },
+        "ts_optimization": {
+          "ref": "xtb2"
+        },
+        "verification": {
+          "frequency": {
+            "ref": "xtb2freq"
+          },
+          "irc": {
+            "ref": "xtb2irc"
+          },
+          "irc_log": null,
+          "reactant_endpoint": {
+            "seed": null,
+            "optimization": {
+              "ref": "xtb2"
+            },
+            "frequency": {
+              "ref": "xtb2freq"
+            }
+          },
+          "product_endpoint": {
+            "seed": null,
+            "optimization": {
+              "ref": "xtb2"
+            },
+            "frequency": {
+              "ref": "xtb2freq"
+            }
+          }
+        },
+        "execution": {
+          "cpus": 4,
+          "memory_mb": 4096,
+          "limits": null
+        }
+      },
+      "structures": {
+        "reactant": "776t3gAAAAAQAAAAAwAAAAAAAAAFAAAABAAAAIABBgAoAAAAAwQIACoAAAABAwMIACoAAAD/AwEBACgAAAABAQEAKAAAAAEBCwABKAIBAiAAAwAABABCAAAAAECJAAAAAQAAAAEAAAAABfNHzE2aOd6//zkXq21OmT9uGxihMy+IP2Thyd2+AeQ/Zx17fquN4r+/8s4smJObP2ZMhSQT+fs/oFhqarBUqz9D0E07Myesvw3Qlu2EkPW/3cRo6Eg6479Uwec95/+1P3sZHyoOtuG/bA/D9hqk8T+AlpcfGtexvz8CAAAAAAAS7AMAAAYABQAAAF9OYW1lAAAAAAAMAAAAX01vbEZpbGVJbmZvABYAAAAgICAgIFJES2l0ICAgICAgICAgIDNEEAAAAF9Nb2xGaWxlQ29tbWVudHMAAAAAABIAAABfTW9sRmlsZUNoaXJhbEZsYWcCAAAAABUAAABjbG91ZHJhX2ltcG9ydF9zb3VyY2UAOgMAAHsicGF0aHMiOiB7Inh5eiI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvZ29sZF9jb21wdXRlL3F1ZXVlXzIwMjYxMDE4L3Jlc3VsdHMvSUE4L2V4cGxvcmUvb3B0X0NIMk9PLnh5eiIsICJtb2wiOiAiL1VzZXJzL2Nsb3VkcmF5eXkvRGVza3RvcC9EZXNrdG9wX0FyY2hpdmUvUHJvamVjdHMvQ2xvdWRyYS1tZWNoYW5pc20tYWdlbnQtbWFzdGVyL2dvbGRfY29tcHV0ZS9xdWV1ZV8yMDI2MTAxOC9yZXN1bHRzL0lBOC9zdHJ1Y3QvQ0gyT08ubW9sIn0sICJoYXNoZXMiOiB7Inh5eiI6ICJiOTFlZjdhOGNhMWI1NWY4NWNmYTkwYjdlY2ViZTFjYTE1N2Y4NDc1NDEzYmZjODUwYTI1YmNkNjNmM2RkYWI4IiwgIm1vbCI6ICJjM2Y1YTA1NDViMWU5YjU5MWE5ZDQ1MDU2MTI3NGZhMzk5ZWI1MjMzZGJiNTMyMzdmZTg2NTlkZTdhODZmYTdkIn0sICJzbmFwc2hvdHMiOiB7Inh5eiI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvdHMvdHNfMDAwMS9idWlsZC9pbnB1dF8wMDAxL3JlYWN0YW50L3NvdXJjZV9iOTFlZjdhOGNhMWI1NWY4Lnh5eiIsICJtb2wiOiAiL1VzZXJzL2Nsb3VkcmF5eXkvRGVza3RvcC9EZXNrdG9wX0FyY2hpdmUvUHJvamVjdHMvQ2xvdWRyYS1tZWNoYW5pc20tYWdlbnQtbWFzdGVyL3RzL3RzXzAwMDEvYnVpbGQvaW5wdXRfMDAwMS9yZWFjdGFudC9zb3VyY2VfYzNmNWEwNTQ1YjFlOWI1OS5tb2wifSwgImlucHV0X3JldmlzaW9uIjogMX0fAAAAY2xvdWRyYV9tYXBwaW5nX2JpbmRpbmdfZGVyaXZlZAMBEzp4AAAAAQAaAAAAY2xvdWRyYV9zbWlsZXNfaGVhdnlfaW5kZXgBAAAAAAABABoAAABjbG91ZHJhX3NtaWxlc19oZWF2eV9pbmRleAEBAAAAAAEAGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQIAAAAAAAAAAAAAEzsQAAAAAAABAgAAAQEAAAEBAAABARMW",
+        "product": "776t3gAAAAAQAAAAAwAAAAAAAAAFAAAABQAAAIABBgAgAAAABAgAIAAAAAIIACAAAAACAQAoAAAAAQEBACgAAAABAQsAAQABAgACAAAAAwAABABCAQAAAAMAAQJAiQAAAAEAAAABAAAAAAWmEag3nx/Ov4in9bB5W3s/tmkAmy72X78yaDM1WN/tP1S0YPkhzLi/1FWdSCoX5r9hiFqxUKHtP0NtExxVk6Y/CdrpuW6V5j8AgKXPaNjqv+hwSrpuruy/b/rT05cAtj8XCKBDWCDpv1BlU7QGKO4/oBfMo+Jyub8/AgAAAAAAEvIDAAAGAAUAAABfTmFtZQAAAAAADAAAAF9Nb2xGaWxlSW5mbwAWAAAAICAgICBSREtpdCAgICAgICAgICAzRBAAAABfTW9sRmlsZUNvbW1lbnRzAAAAAAASAAAAX01vbEZpbGVDaGlyYWxGbGFnAgAAAAAVAAAAY2xvdWRyYV9pbXBvcnRfc291cmNlAEADAAB7InBhdGhzIjogeyJ4eXoiOiAiL1VzZXJzL2Nsb3VkcmF5eXkvRGVza3RvcC9EZXNrdG9wX0FyY2hpdmUvUHJvamVjdHMvQ2xvdWRyYS1tZWNoYW5pc20tYWdlbnQtbWFzdGVyL2dvbGRfY29tcHV0ZS9xdWV1ZV8yMDI2MTAxOC9yZXN1bHRzL0lBOC9leHBsb3JlL29wdF9kaW94aXJhbmUueHl6IiwgIm1vbCI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvZ29sZF9jb21wdXRlL3F1ZXVlXzIwMjYxMDE4L3Jlc3VsdHMvSUE4L3N0cnVjdC9kaW94aXJhbmUubW9sIn0sICJoYXNoZXMiOiB7Inh5eiI6ICIxOWJkNWQwNjEwMjg3MzJjMDZiMGI2YWQ2YmYwMjY2Y2IyOTA0ZWI4OGVhMGEzYjY1Yzk4ZmJjZjc5NDg0ZGEwIiwgIm1vbCI6ICI4M2YwY2IyNGI3YzcyMTQ4ODE3YmY1YWY4NjliOTBmMjM5OWFlZTg3MWZiYWE1NmU1NTY2YTllY2E3MTdjMzZhIn0sICJzbmFwc2hvdHMiOiB7Inh5eiI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvdHMvdHNfMDAwMS9idWlsZC9pbnB1dF8wMDAxL3Byb2R1Y3Qvc291cmNlXzE5YmQ1ZDA2MTAyODczMmMueHl6IiwgIm1vbCI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvdHMvdHNfMDAwMS9idWlsZC9pbnB1dF8wMDAxL3Byb2R1Y3Qvc291cmNlXzgzZjBjYjI0YjdjNzIxNDgubW9sIn0sICJpbnB1dF9yZXZpc2lvbiI6IDF9HwAAAGNsb3VkcmFfbWFwcGluZ19iaW5kaW5nX2Rlcml2ZWQDARM6mAAAAAIAFwAAAF9Ob25FeHBsaWNpdDNEQ2hpcmFsaXR5AQEAAAAaAAAAY2xvdWRyYV9zbWlsZXNfaGVhdnlfaW5kZXgBAAAAAAABABoAAABjbG91ZHJhX3NtaWxlc19oZWF2eV9pbmRleAEBAAAAAAEAGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQIAAAAAAAAAAAAAEzsUAAAAAAABAQAAAQEAAAEBAAABAQAAAQETFg==",
+        "product_to_reactant": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "candidate": "776t3gAAAAAQAAAAAwAAAAAAAAAFAAAABAAAAIABBgAoAAAAAwQIACoAAAABAwMIACoAAAD/AwEBACgAAAABAQEAKAAAAAEBCwABKAIBAiAAAwAABABCAAAAAECJAAAAAQAAAAEAAAAABTnAxAaovNW/lfODwrnpsT+i2jv+Zr22Pw0fbAyVGuM/f0XIiiuY479AVX2VGeLgv/5cuJzgFfY/ACPkk4BeoT98mtUza4bXPwcfMRdEBvK/3+nnsG9F4L9n/fvGtvDhP1Z8pgtv/uG/ou9uZYle8T9tfWhRZTnNvz8CAAAAAAAS7AMAAAYABQAAAF9OYW1lAAAAAAAMAAAAX01vbEZpbGVJbmZvABYAAAAgICAgIFJES2l0ICAgICAgICAgIDNEEAAAAF9Nb2xGaWxlQ29tbWVudHMAAAAAABIAAABfTW9sRmlsZUNoaXJhbEZsYWcCAAAAABUAAABjbG91ZHJhX2ltcG9ydF9zb3VyY2UAOgMAAHsicGF0aHMiOiB7Inh5eiI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvZ29sZF9jb21wdXRlL3F1ZXVlXzIwMjYxMDE4L3Jlc3VsdHMvSUE4L2V4cGxvcmUvb3B0X0NIMk9PLnh5eiIsICJtb2wiOiAiL1VzZXJzL2Nsb3VkcmF5eXkvRGVza3RvcC9EZXNrdG9wX0FyY2hpdmUvUHJvamVjdHMvQ2xvdWRyYS1tZWNoYW5pc20tYWdlbnQtbWFzdGVyL2dvbGRfY29tcHV0ZS9xdWV1ZV8yMDI2MTAxOC9yZXN1bHRzL0lBOC9zdHJ1Y3QvQ0gyT08ubW9sIn0sICJoYXNoZXMiOiB7Inh5eiI6ICJiOTFlZjdhOGNhMWI1NWY4NWNmYTkwYjdlY2ViZTFjYTE1N2Y4NDc1NDEzYmZjODUwYTI1YmNkNjNmM2RkYWI4IiwgIm1vbCI6ICJjM2Y1YTA1NDViMWU5YjU5MWE5ZDQ1MDU2MTI3NGZhMzk5ZWI1MjMzZGJiNTMyMzdmZTg2NTlkZTdhODZmYTdkIn0sICJzbmFwc2hvdHMiOiB7Inh5eiI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvdHMvdHNfMDAwMS9idWlsZC9pbnB1dF8wMDAxL3JlYWN0YW50L3NvdXJjZV9iOTFlZjdhOGNhMWI1NWY4Lnh5eiIsICJtb2wiOiAiL1VzZXJzL2Nsb3VkcmF5eXkvRGVza3RvcC9EZXNrdG9wX0FyY2hpdmUvUHJvamVjdHMvQ2xvdWRyYS1tZWNoYW5pc20tYWdlbnQtbWFzdGVyL3RzL3RzXzAwMDEvYnVpbGQvaW5wdXRfMDAwMS9yZWFjdGFudC9zb3VyY2VfYzNmNWEwNTQ1YjFlOWI1OS5tb2wifSwgImlucHV0X3JldmlzaW9uIjogMX0fAAAAY2xvdWRyYV9tYXBwaW5nX2JpbmRpbmdfZGVyaXZlZAMBEzp4AAAAAQAaAAAAY2xvdWRyYV9zbWlsZXNfaGVhdnlfaW5kZXgBAAAAAAABABoAAABjbG91ZHJhX3NtaWxlc19oZWF2eV9pbmRleAEBAAAAAAEAGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQIAAAAAAAAAAAAAEzsQAAAAAAABAgAAAQEAAAEBAAABARMW"
+      },
+      "provided_guess_binding": {
+        "xyz": {
+          "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/interpolation/8ff71baa9553c157d049/img_05.xyz",
+          "snapshot_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provided.xyz",
+          "sha256": "0851aa05122f3855d9e36f781c7928ddbdb309b3b1cf0e1d4f1e5b1bf8a607a3"
+        },
+        "evidence": [
+          {
+            "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/interpolation/8ff71baa9553c157d049/img_05.xyz",
+            "snapshot_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0000.xyz",
+            "sha256": "0851aa05122f3855d9e36f781c7928ddbdb309b3b1cf0e1d4f1e5b1bf8a607a3"
+          },
+          {
+            "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/reactant_50f081d39e2c434c7739.xyz",
+            "snapshot_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0001.xyz",
+            "sha256": "393106f46d6bdffeb6b9c40af7f76f843bcdcc58c59742c806773fc82efcbdc1"
+          },
+          {
+            "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/reactant_50f081d39e2c434c7739.mol",
+            "snapshot_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0002.mol",
+            "sha256": "1c10ce9e09a224946621de3ab088f06f2e2aa1f90b369221e6b6ba69f7f9d94b"
+          },
+          {
+            "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/product_6da9cbc7da671f02dc64.xyz",
+            "snapshot_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0003.xyz",
+            "sha256": "44a4fbeb63e78b4b56afff2f23eb2db745fae2ca0f9676063be547c45dcd35c5"
+          },
+          {
+            "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/product_6da9cbc7da671f02dc64.mol",
+            "snapshot_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0004.mol",
+            "sha256": "50dc25c145f50b08974f9f3684cf16513bb131115d0296fa74ab53ed98cf4275"
+          }
+        ]
+      },
+      "terminal": null,
+      "blocked": null,
+      "failed_attempt": null,
+      "stop_reason": null
+    },
+    {
+      "declaration_revision": 4,
+      "selected_candidate_id": null,
+      "job_steps": [
+        {
+          "purpose": "ts_opt",
+          "job_id": 739,
+          "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0003/ts_opt/refine.inp",
+          "state": "done",
+          "actual_calculation": {
+            "engine": "orca",
+            "method": "GFN2-xTB",
+            "basis_set": "",
+            "keywords": "",
+            "frequency_mode": "auto",
+            "orca_blocks": null,
+            "end_setting": ""
+          },
+          "source_input_revision": 3,
+          "method_contract": null,
+          "stage_key": null,
+          "external_source": null,
+          "endpoint_source": null,
+          "atom_binding": {
+            "atom_map": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "charge": 0,
+            "declaration_revision": 3,
+            "process_id": "55808725f7bb2194cb5ab74263fa0ba9850fa6ee44301131d20ddabfa18034af",
+            "product_mol": "\n     RDKit          3D\n\n  5  5  0  0  0  0  0  0  0  0999 V2000\n   -0.2353    0.0067   -0.0020 C   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9335   -0.0969   -0.6903 O   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9259    0.0441    0.7057 O   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.8389   -0.8963    0.0859 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.7852    0.9424   -0.0994 H   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  1  0\n  2  3  1  0\n  3  1  1  0\n  1  4  1  0\n  1  5  1  0\nM  END\n",
+            "reactant_mol": "\n     RDKit          3D\n\n  5  4  0  0  0  0  0  0  0  0999 V2000\n   -0.4723    0.0247    0.0118 C   0  0  0  0  0  0  0  0  0  0  0  0\n    0.6252   -0.5798    0.0269 O   0  0  0  0  0  0  0  0  0  0  0  0\n    1.7483    0.0534   -0.0550 O   0  0  0  0  0  0  0  0  0  0  0  0\n   -1.3478   -0.6009    0.0859 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.5535    1.1026   -0.0697 H   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  2  0\n  2  3  1  0\n  1  4  1  0\n  1  5  1  0\nM  CHG  2   2   1   3  -1\nM  END\n",
+            "ts_log_sha256": null
+          },
+          "frequency_analysis": null
+        }
+      ],
+      "stage_records": [
+        {
+          "stage": "declare",
+          "status": "done",
+          "detail": "reaction declared; each calculation requires its own method",
+          "artifacts": [],
+          "source_input_revision": 1
+        },
+        {
+          "stage": "build",
+          "status": "done",
+          "detail": "both endpoints built",
+          "artifacts": [],
+          "source_input_revision": 1
+        },
+        {
+          "stage": "map",
+          "status": "done",
+          "detail": "Concrete endpoint correspondence confirmed and owned by this reaction.",
+          "artifacts": [],
+          "source_input_revision": 2
+        },
+        {
+          "stage": "assemble",
+          "status": "done",
+          "detail": "single component: nothing to assemble (no inter-fragment orientation). The reaction coordinate is whatever the path guess explores",
+          "artifacts": [],
+          "source_input_revision": 2
+        },
+        {
+          "stage": "guess",
+          "status": "done",
+          "detail": "Provided candidate bound; formal optimization and verification remain required.",
+          "artifacts": [
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provided.xyz",
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0000.xyz",
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0001.xyz",
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0002.mol",
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0003.xyz",
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0004.mol"
+          ],
+          "source_input_revision": 3
+        },
+        {
+          "stage": "validate",
+          "status": "done",
+          "detail": "internal validation passed",
+          "artifacts": [],
+          "source_input_revision": 3
+        },
+        {
+          "stage": "submit",
+          "status": "done",
+          "detail": "refinement job 739 submitted as 'ready' (orca, GFN2-xTB); the scheduler daemon claims it and its terminal state arrives through the existing compute notification path",
+          "artifacts": [
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0003/ts_opt/refine.inp"
+          ],
+          "source_input_revision": 3
+        }
+      ],
+      "reason": "同级GFN2-xTB验证恢复：IRC为非频率任务，将其误设numeric改为auto以避免无Freq任务冲突，并以TightSCF保证SCC/路径梯度收敛；TS及端点NumFreq维持已有TightSCF numeric。不改方法、预算或猜测。请求同run生成缺失TS频率并继续双向IRC。",
+      "input": {
+        "reaction": {
+          "reactant_smiles": "C=[O+][O-]",
+          "product_smiles": "C1OO1",
+          "charge": 0,
+          "multiplicity": 1,
+          "electronic_character": "closed_shell",
+          "selected_candidate": 0,
+          "reaction_center": [
+            [
+              0,
+              2
+            ],
+            [
+              0,
+              1
+            ]
+          ]
+        },
+        "calculations": {
+          "xtb2": {
+            "engine": "orca",
+            "method": "GFN2-xTB",
+            "basis_set": "",
+            "keywords": "",
+            "frequency_mode": "auto",
+            "orca_blocks": null,
+            "end_setting": ""
+          },
+          "xtb2freq": {
+            "engine": "orca",
+            "method": "GFN2-xTB",
+            "basis_set": "",
+            "keywords": "TightSCF",
+            "frequency_mode": "numeric",
+            "orca_blocks": null,
+            "end_setting": ""
+          },
+          "xtb2irc": {
+            "engine": "orca",
+            "method": "GFN2-xTB",
+            "basis_set": "",
+            "keywords": "",
+            "frequency_mode": "numeric",
+            "orca_blocks": null,
+            "end_setting": ""
+          }
+        },
+        "conformers": {
+          "reactant": {
+            "kind": "file",
+            "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/explore/opt_CH2OO.xyz",
+            "mol_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/struct/CH2OO.mol",
+            "evidence_refs": [
+              "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/explore/.cloudra/calc-729.out.log"
+            ],
+            "optimization": null
+          },
+          "product": {
+            "kind": "file",
+            "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/explore/opt_dioxirane.xyz",
+            "mol_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/struct/dioxirane.mol",
+            "evidence_refs": [
+              "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/explore/.cloudra/calc-730.out.log"
+            ],
+            "optimization": null
+          },
+          "guidance": {
+            "ring_order": [],
+            "distance_filters": []
+          }
+        },
+        "guess": {
+          "kind": "provided",
+          "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/interpolation/8ff71baa9553c157d049/img_05.xyz",
+          "evidence_refs": [
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/interpolation/8ff71baa9553c157d049/img_05.xyz",
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/reactant_50f081d39e2c434c7739.xyz",
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/reactant_50f081d39e2c434c7739.mol",
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/product_6da9cbc7da671f02dc64.xyz",
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/product_6da9cbc7da671f02dc64.mol"
+          ]
+        },
+        "ts_optimization": {
+          "ref": "xtb2"
+        },
+        "verification": {
+          "frequency": {
+            "ref": "xtb2freq"
+          },
+          "irc": {
+            "ref": "xtb2irc"
+          },
+          "irc_log": null,
+          "reactant_endpoint": {
+            "seed": null,
+            "optimization": {
+              "ref": "xtb2"
+            },
+            "frequency": {
+              "ref": "xtb2freq"
+            }
+          },
+          "product_endpoint": {
+            "seed": null,
+            "optimization": {
+              "ref": "xtb2"
+            },
+            "frequency": {
+              "ref": "xtb2freq"
+            }
+          }
+        },
+        "execution": {
+          "cpus": 4,
+          "memory_mb": 4096,
+          "limits": null
+        }
+      },
+      "structures": {
+        "reactant": "776t3gAAAAAQAAAAAwAAAAAAAAAFAAAABAAAAIABBgAoAAAAAwQIACoAAAABAwMIACoAAAD/AwEBACgAAAABAQEAKAAAAAEBCwABKAIBAiAAAwAABABCAAAAAECJAAAAAQAAAAEAAAAABfNHzE2aOd6//zkXq21OmT9uGxihMy+IP2Thyd2+AeQ/Zx17fquN4r+/8s4smJObP2ZMhSQT+fs/oFhqarBUqz9D0E07Myesvw3Qlu2EkPW/3cRo6Eg6479Uwec95/+1P3sZHyoOtuG/bA/D9hqk8T+AlpcfGtexvz8CAAAAAAAS7AMAAAYABQAAAF9OYW1lAAAAAAAMAAAAX01vbEZpbGVJbmZvABYAAAAgICAgIFJES2l0ICAgICAgICAgIDNEEAAAAF9Nb2xGaWxlQ29tbWVudHMAAAAAABIAAABfTW9sRmlsZUNoaXJhbEZsYWcCAAAAABUAAABjbG91ZHJhX2ltcG9ydF9zb3VyY2UAOgMAAHsicGF0aHMiOiB7Inh5eiI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvZ29sZF9jb21wdXRlL3F1ZXVlXzIwMjYxMDE4L3Jlc3VsdHMvSUE4L2V4cGxvcmUvb3B0X0NIMk9PLnh5eiIsICJtb2wiOiAiL1VzZXJzL2Nsb3VkcmF5eXkvRGVza3RvcC9EZXNrdG9wX0FyY2hpdmUvUHJvamVjdHMvQ2xvdWRyYS1tZWNoYW5pc20tYWdlbnQtbWFzdGVyL2dvbGRfY29tcHV0ZS9xdWV1ZV8yMDI2MTAxOC9yZXN1bHRzL0lBOC9zdHJ1Y3QvQ0gyT08ubW9sIn0sICJoYXNoZXMiOiB7Inh5eiI6ICJiOTFlZjdhOGNhMWI1NWY4NWNmYTkwYjdlY2ViZTFjYTE1N2Y4NDc1NDEzYmZjODUwYTI1YmNkNjNmM2RkYWI4IiwgIm1vbCI6ICJjM2Y1YTA1NDViMWU5YjU5MWE5ZDQ1MDU2MTI3NGZhMzk5ZWI1MjMzZGJiNTMyMzdmZTg2NTlkZTdhODZmYTdkIn0sICJzbmFwc2hvdHMiOiB7Inh5eiI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvdHMvdHNfMDAwMS9idWlsZC9pbnB1dF8wMDAxL3JlYWN0YW50L3NvdXJjZV9iOTFlZjdhOGNhMWI1NWY4Lnh5eiIsICJtb2wiOiAiL1VzZXJzL2Nsb3VkcmF5eXkvRGVza3RvcC9EZXNrdG9wX0FyY2hpdmUvUHJvamVjdHMvQ2xvdWRyYS1tZWNoYW5pc20tYWdlbnQtbWFzdGVyL3RzL3RzXzAwMDEvYnVpbGQvaW5wdXRfMDAwMS9yZWFjdGFudC9zb3VyY2VfYzNmNWEwNTQ1YjFlOWI1OS5tb2wifSwgImlucHV0X3JldmlzaW9uIjogMX0fAAAAY2xvdWRyYV9tYXBwaW5nX2JpbmRpbmdfZGVyaXZlZAMBEzp4AAAAAQAaAAAAY2xvdWRyYV9zbWlsZXNfaGVhdnlfaW5kZXgBAAAAAAABABoAAABjbG91ZHJhX3NtaWxlc19oZWF2eV9pbmRleAEBAAAAAAEAGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQIAAAAAAAAAAAAAEzsQAAAAAAABAgAAAQEAAAEBAAABARMW",
+        "product": "776t3gAAAAAQAAAAAwAAAAAAAAAFAAAABQAAAIABBgAgAAAABAgAIAAAAAIIACAAAAACAQAoAAAAAQEBACgAAAABAQsAAQABAgACAAAAAwAABABCAQAAAAMAAQJAiQAAAAEAAAABAAAAAAWmEag3nx/Ov4in9bB5W3s/tmkAmy72X78yaDM1WN/tP1S0YPkhzLi/1FWdSCoX5r9hiFqxUKHtP0NtExxVk6Y/CdrpuW6V5j8AgKXPaNjqv+hwSrpuruy/b/rT05cAtj8XCKBDWCDpv1BlU7QGKO4/oBfMo+Jyub8/AgAAAAAAEvIDAAAGAAUAAABfTmFtZQAAAAAADAAAAF9Nb2xGaWxlSW5mbwAWAAAAICAgICBSREtpdCAgICAgICAgICAzRBAAAABfTW9sRmlsZUNvbW1lbnRzAAAAAAASAAAAX01vbEZpbGVDaGlyYWxGbGFnAgAAAAAVAAAAY2xvdWRyYV9pbXBvcnRfc291cmNlAEADAAB7InBhdGhzIjogeyJ4eXoiOiAiL1VzZXJzL2Nsb3VkcmF5eXkvRGVza3RvcC9EZXNrdG9wX0FyY2hpdmUvUHJvamVjdHMvQ2xvdWRyYS1tZWNoYW5pc20tYWdlbnQtbWFzdGVyL2dvbGRfY29tcHV0ZS9xdWV1ZV8yMDI2MTAxOC9yZXN1bHRzL0lBOC9leHBsb3JlL29wdF9kaW94aXJhbmUueHl6IiwgIm1vbCI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvZ29sZF9jb21wdXRlL3F1ZXVlXzIwMjYxMDE4L3Jlc3VsdHMvSUE4L3N0cnVjdC9kaW94aXJhbmUubW9sIn0sICJoYXNoZXMiOiB7Inh5eiI6ICIxOWJkNWQwNjEwMjg3MzJjMDZiMGI2YWQ2YmYwMjY2Y2IyOTA0ZWI4OGVhMGEzYjY1Yzk4ZmJjZjc5NDg0ZGEwIiwgIm1vbCI6ICI4M2YwY2IyNGI3YzcyMTQ4ODE3YmY1YWY4NjliOTBmMjM5OWFlZTg3MWZiYWE1NmU1NTY2YTllY2E3MTdjMzZhIn0sICJzbmFwc2hvdHMiOiB7Inh5eiI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvdHMvdHNfMDAwMS9idWlsZC9pbnB1dF8wMDAxL3Byb2R1Y3Qvc291cmNlXzE5YmQ1ZDA2MTAyODczMmMueHl6IiwgIm1vbCI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvdHMvdHNfMDAwMS9idWlsZC9pbnB1dF8wMDAxL3Byb2R1Y3Qvc291cmNlXzgzZjBjYjI0YjdjNzIxNDgubW9sIn0sICJpbnB1dF9yZXZpc2lvbiI6IDF9HwAAAGNsb3VkcmFfbWFwcGluZ19iaW5kaW5nX2Rlcml2ZWQDARM6mAAAAAIAFwAAAF9Ob25FeHBsaWNpdDNEQ2hpcmFsaXR5AQEAAAAaAAAAY2xvdWRyYV9zbWlsZXNfaGVhdnlfaW5kZXgBAAAAAAABABoAAABjbG91ZHJhX3NtaWxlc19oZWF2eV9pbmRleAEBAAAAAAEAGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQIAAAAAAAAAAAAAEzsUAAAAAAABAQAAAQEAAAEBAAABAQAAAQETFg==",
+        "product_to_reactant": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "candidate": "776t3gAAAAAQAAAAAwAAAAAAAAAFAAAABAAAAIABBgAoAAAAAwQIACoAAAABAwMIACoAAAD/AwEBACgAAAABAQEAKAAAAAEBCwABKAIBAiAAAwAABABCAAAAAECJAAAAAQAAAAEAAAAABTnAxAaovNW/lfODwrnpsT+i2jv+Zr22Pw0fbAyVGuM/f0XIiiuY479AVX2VGeLgv/5cuJzgFfY/ACPkk4BeoT98mtUza4bXPwcfMRdEBvK/3+nnsG9F4L9n/fvGtvDhP1Z8pgtv/uG/ou9uZYle8T9tfWhRZTnNvz8CAAAAAAAS7AMAAAYABQAAAF9OYW1lAAAAAAAMAAAAX01vbEZpbGVJbmZvABYAAAAgICAgIFJES2l0ICAgICAgICAgIDNEEAAAAF9Nb2xGaWxlQ29tbWVudHMAAAAAABIAAABfTW9sRmlsZUNoaXJhbEZsYWcCAAAAABUAAABjbG91ZHJhX2ltcG9ydF9zb3VyY2UAOgMAAHsicGF0aHMiOiB7Inh5eiI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvZ29sZF9jb21wdXRlL3F1ZXVlXzIwMjYxMDE4L3Jlc3VsdHMvSUE4L2V4cGxvcmUvb3B0X0NIMk9PLnh5eiIsICJtb2wiOiAiL1VzZXJzL2Nsb3VkcmF5eXkvRGVza3RvcC9EZXNrdG9wX0FyY2hpdmUvUHJvamVjdHMvQ2xvdWRyYS1tZWNoYW5pc20tYWdlbnQtbWFzdGVyL2dvbGRfY29tcHV0ZS9xdWV1ZV8yMDI2MTAxOC9yZXN1bHRzL0lBOC9zdHJ1Y3QvQ0gyT08ubW9sIn0sICJoYXNoZXMiOiB7Inh5eiI6ICJiOTFlZjdhOGNhMWI1NWY4NWNmYTkwYjdlY2ViZTFjYTE1N2Y4NDc1NDEzYmZjODUwYTI1YmNkNjNmM2RkYWI4IiwgIm1vbCI6ICJjM2Y1YTA1NDViMWU5YjU5MWE5ZDQ1MDU2MTI3NGZhMzk5ZWI1MjMzZGJiNTMyMzdmZTg2NTlkZTdhODZmYTdkIn0sICJzbmFwc2hvdHMiOiB7Inh5eiI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvdHMvdHNfMDAwMS9idWlsZC9pbnB1dF8wMDAxL3JlYWN0YW50L3NvdXJjZV9iOTFlZjdhOGNhMWI1NWY4Lnh5eiIsICJtb2wiOiAiL1VzZXJzL2Nsb3VkcmF5eXkvRGVza3RvcC9EZXNrdG9wX0FyY2hpdmUvUHJvamVjdHMvQ2xvdWRyYS1tZWNoYW5pc20tYWdlbnQtbWFzdGVyL3RzL3RzXzAwMDEvYnVpbGQvaW5wdXRfMDAwMS9yZWFjdGFudC9zb3VyY2VfYzNmNWEwNTQ1YjFlOWI1OS5tb2wifSwgImlucHV0X3JldmlzaW9uIjogMX0fAAAAY2xvdWRyYV9tYXBwaW5nX2JpbmRpbmdfZGVyaXZlZAMBEzp4AAAAAQAaAAAAY2xvdWRyYV9zbWlsZXNfaGVhdnlfaW5kZXgBAAAAAAABABoAAABjbG91ZHJhX3NtaWxlc19oZWF2eV9pbmRleAEBAAAAAAEAGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQIAAAAAAAAAAAAAEzsQAAAAAAABAgAAAQEAAAEBAAABARMW"
+      },
+      "provided_guess_binding": {
+        "xyz": {
+          "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/interpolation/8ff71baa9553c157d049/img_05.xyz",
+          "snapshot_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provided.xyz",
+          "sha256": "0851aa05122f3855d9e36f781c7928ddbdb309b3b1cf0e1d4f1e5b1bf8a607a3"
+        },
+        "evidence": [
+          {
+            "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/interpolation/8ff71baa9553c157d049/img_05.xyz",
+            "snapshot_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0000.xyz",
+            "sha256": "0851aa05122f3855d9e36f781c7928ddbdb309b3b1cf0e1d4f1e5b1bf8a607a3"
+          },
+          {
+            "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/reactant_50f081d39e2c434c7739.xyz",
+            "snapshot_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0001.xyz",
+            "sha256": "393106f46d6bdffeb6b9c40af7f76f843bcdcc58c59742c806773fc82efcbdc1"
+          },
+          {
+            "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/reactant_50f081d39e2c434c7739.mol",
+            "snapshot_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0002.mol",
+            "sha256": "1c10ce9e09a224946621de3ab088f06f2e2aa1f90b369221e6b6ba69f7f9d94b"
+          },
+          {
+            "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/product_6da9cbc7da671f02dc64.xyz",
+            "snapshot_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0003.xyz",
+            "sha256": "44a4fbeb63e78b4b56afff2f23eb2db745fae2ca0f9676063be547c45dcd35c5"
+          },
+          {
+            "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/product_6da9cbc7da671f02dc64.mol",
+            "snapshot_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0004.mol",
+            "sha256": "50dc25c145f50b08974f9f3684cf16513bb131115d0296fa74ab53ed98cf4275"
+          }
+        ]
+      },
+      "terminal": null,
+      "blocked": null,
+      "failed_attempt": null,
+      "stop_reason": null
+    },
+    {
+      "declaration_revision": 5,
+      "selected_candidate_id": null,
+      "job_steps": [
+        {
+          "purpose": "ts_opt",
+          "job_id": 739,
+          "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0003/ts_opt/refine.inp",
+          "state": "done",
+          "actual_calculation": {
+            "engine": "orca",
+            "method": "GFN2-xTB",
+            "basis_set": "",
+            "keywords": "",
+            "frequency_mode": "auto",
+            "orca_blocks": null,
+            "end_setting": ""
+          },
+          "source_input_revision": 3,
+          "method_contract": null,
+          "stage_key": null,
+          "external_source": null,
+          "endpoint_source": null,
+          "atom_binding": {
+            "atom_map": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "charge": 0,
+            "declaration_revision": 3,
+            "process_id": "55808725f7bb2194cb5ab74263fa0ba9850fa6ee44301131d20ddabfa18034af",
+            "product_mol": "\n     RDKit          3D\n\n  5  5  0  0  0  0  0  0  0  0999 V2000\n   -0.2353    0.0067   -0.0020 C   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9335   -0.0969   -0.6903 O   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9259    0.0441    0.7057 O   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.8389   -0.8963    0.0859 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.7852    0.9424   -0.0994 H   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  1  0\n  2  3  1  0\n  3  1  1  0\n  1  4  1  0\n  1  5  1  0\nM  END\n",
+            "reactant_mol": "\n     RDKit          3D\n\n  5  4  0  0  0  0  0  0  0  0999 V2000\n   -0.4723    0.0247    0.0118 C   0  0  0  0  0  0  0  0  0  0  0  0\n    0.6252   -0.5798    0.0269 O   0  0  0  0  0  0  0  0  0  0  0  0\n    1.7483    0.0534   -0.0550 O   0  0  0  0  0  0  0  0  0  0  0  0\n   -1.3478   -0.6009    0.0859 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.5535    1.1026   -0.0697 H   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  2  0\n  2  3  1  0\n  1  4  1  0\n  1  5  1  0\nM  CHG  2   2   1   3  -1\nM  END\n",
+            "ts_log_sha256": null
+          },
+          "frequency_analysis": null
+        },
+        {
+          "purpose": "frequency",
+          "job_id": 790,
+          "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0005/frequency/frequency.inp",
+          "state": "done",
+          "actual_calculation": {
+            "engine": "orca",
+            "method": "GFN2-xTB",
+            "basis_set": "",
+            "keywords": "TightSCF",
+            "frequency_mode": "numeric",
+            "orca_blocks": null,
+            "end_setting": ""
+          },
+          "source_input_revision": 5,
+          "method_contract": null,
+          "stage_key": null,
+          "external_source": null,
+          "endpoint_source": null,
+          "atom_binding": {
+            "atom_map": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "charge": 0,
+            "declaration_revision": 5,
+            "process_id": "55808725f7bb2194cb5ab74263fa0ba9850fa6ee44301131d20ddabfa18034af",
+            "product_mol": "\n     RDKit          3D\n\n  5  5  0  0  0  0  0  0  0  0999 V2000\n   -0.2353    0.0067   -0.0020 C   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9335   -0.0969   -0.6903 O   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9259    0.0441    0.7057 O   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.8389   -0.8963    0.0859 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.7852    0.9424   -0.0994 H   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  1  0\n  2  3  1  0\n  3  1  1  0\n  1  4  1  0\n  1  5  1  0\nM  END\n",
+            "reactant_mol": "\n     RDKit          3D\n\n  5  4  0  0  0  0  0  0  0  0999 V2000\n   -0.4723    0.0247    0.0118 C   0  0  0  0  0  0  0  0  0  0  0  0\n    0.6252   -0.5798    0.0269 O   0  0  0  0  0  0  0  0  0  0  0  0\n    1.7483    0.0534   -0.0550 O   0  0  0  0  0  0  0  0  0  0  0  0\n   -1.3478   -0.6009    0.0859 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.5535    1.1026   -0.0697 H   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  2  0\n  2  3  1  0\n  1  4  1  0\n  1  5  1  0\nM  CHG  2   2   1   3  -1\nM  END\n",
+            "ts_log_sha256": null
+          },
+          "frequency_analysis": {
+            "fraction_basis": "unweighted_squared_displacement",
+            "log_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0005/frequency/.cloudra/calc-790.out.log",
+            "log_sha256": "6abade428c9deb544d1d7f8be4cc7b697ab6d88182e86c8f9993863d27989ed6",
+            "mode_alignment": {
+              "aligned": false,
+              "details": [
+                "Atom pair (1,3) relative displacement=0.351 (threshold 0.50×1.259=0.629)",
+                "Atom pair (1,2) relative displacement=0.368 (threshold 0.50×1.259=0.629)"
+              ],
+              "message": "Imaginary mode is inconsistent with the declared reaction coordinate: watch_pairs max relative displacement 0.368 < 0.50×global max 1.259 (dominant motion on atom pair (4,5)).",
+              "status": "misaligned"
+            },
+            "modes": null,
+            "reaction_center_pairs": [
+              [
+                1,
+                3
+              ],
+              [
+                1,
+                2
+              ]
+            ]
+          }
+        },
+        {
+          "purpose": "irc",
+          "job_id": 796,
+          "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0005/irc/irc.inp",
+          "state": "done",
+          "actual_calculation": {
+            "engine": "orca",
+            "method": "GFN2-xTB",
+            "basis_set": "",
+            "keywords": "TightSCF",
+            "frequency_mode": "auto",
+            "orca_blocks": null,
+            "end_setting": ""
+          },
+          "source_input_revision": 5,
+          "method_contract": null,
+          "stage_key": null,
+          "external_source": null,
+          "endpoint_source": null,
+          "atom_binding": {
+            "atom_map": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "charge": 0,
+            "declaration_revision": 5,
+            "process_id": "55808725f7bb2194cb5ab74263fa0ba9850fa6ee44301131d20ddabfa18034af",
+            "product_mol": "\n     RDKit          3D\n\n  5  5  0  0  0  0  0  0  0  0999 V2000\n   -0.2353    0.0067   -0.0020 C   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9335   -0.0969   -0.6903 O   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9259    0.0441    0.7057 O   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.8389   -0.8963    0.0859 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.7852    0.9424   -0.0994 H   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  1  0\n  2  3  1  0\n  3  1  1  0\n  1  4  1  0\n  1  5  1  0\nM  END\n",
+            "reactant_mol": "\n     RDKit          3D\n\n  5  4  0  0  0  0  0  0  0  0999 V2000\n   -0.4723    0.0247    0.0118 C   0  0  0  0  0  0  0  0  0  0  0  0\n    0.6252   -0.5798    0.0269 O   0  0  0  0  0  0  0  0  0  0  0  0\n    1.7483    0.0534   -0.0550 O   0  0  0  0  0  0  0  0  0  0  0  0\n   -1.3478   -0.6009    0.0859 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.5535    1.1026   -0.0697 H   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  2  0\n  2  3  1  0\n  1  4  1  0\n  1  5  1  0\nM  CHG  2   2   1   3  -1\nM  END\n",
+            "ts_log_sha256": "6abade428c9deb544d1d7f8be4cc7b697ab6d88182e86c8f9993863d27989ed6"
+          },
+          "frequency_analysis": null
+        },
+        {
+          "purpose": "reactant_opt",
+          "job_id": 800,
+          "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0005/reactant_opt/reactant_opt.inp",
+          "state": "done",
+          "actual_calculation": {
+            "engine": "orca",
+            "method": "GFN2-xTB",
+            "basis_set": "",
+            "keywords": "",
+            "frequency_mode": "auto",
+            "orca_blocks": null,
+            "end_setting": ""
+          },
+          "source_input_revision": 5,
+          "method_contract": null,
+          "stage_key": null,
+          "external_source": null,
+          "endpoint_source": {
+            "kind": "irc_outer_frame",
+            "label": "B",
+            "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0005/reactant_opt/reactant_source.xyz",
+            "sha256": "3ab791fdc6359660d228c5a602ddc33d7b0c3dc7bce897846b0f934f6695e63b",
+            "irc_job_id": 796,
+            "irc_log_sha256": "e457b73d1d006ebf25f774d0035a0711f8b3cd86d8b2847c5fc76b9e2c737569"
+          },
+          "atom_binding": {
+            "atom_map": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "charge": 0,
+            "declaration_revision": 5,
+            "process_id": "55808725f7bb2194cb5ab74263fa0ba9850fa6ee44301131d20ddabfa18034af",
+            "product_mol": "\n     RDKit          3D\n\n  5  5  0  0  0  0  0  0  0  0999 V2000\n   -0.2353    0.0067   -0.0020 C   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9335   -0.0969   -0.6903 O   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9259    0.0441    0.7057 O   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.8389   -0.8963    0.0859 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.7852    0.9424   -0.0994 H   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  1  0\n  2  3  1  0\n  3  1  1  0\n  1  4  1  0\n  1  5  1  0\nM  END\n",
+            "reactant_mol": "\n     RDKit          3D\n\n  5  4  0  0  0  0  0  0  0  0999 V2000\n   -0.4723    0.0247    0.0118 C   0  0  0  0  0  0  0  0  0  0  0  0\n    0.6252   -0.5798    0.0269 O   0  0  0  0  0  0  0  0  0  0  0  0\n    1.7483    0.0534   -0.0550 O   0  0  0  0  0  0  0  0  0  0  0  0\n   -1.3478   -0.6009    0.0859 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.5535    1.1026   -0.0697 H   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  2  0\n  2  3  1  0\n  1  4  1  0\n  1  5  1  0\nM  CHG  2   2   1   3  -1\nM  END\n",
+            "ts_log_sha256": "6abade428c9deb544d1d7f8be4cc7b697ab6d88182e86c8f9993863d27989ed6"
+          },
+          "frequency_analysis": null
+        },
+        {
+          "purpose": "reactant_frequency",
+          "job_id": 804,
+          "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0005/reactant_frequency/reactant_frequency.inp",
+          "state": "done",
+          "actual_calculation": {
+            "engine": "orca",
+            "method": "GFN2-xTB",
+            "basis_set": "",
+            "keywords": "TightSCF",
+            "frequency_mode": "numeric",
+            "orca_blocks": null,
+            "end_setting": ""
+          },
+          "source_input_revision": 5,
+          "method_contract": null,
+          "stage_key": null,
+          "external_source": null,
+          "endpoint_source": {
+            "kind": "irc_outer_frame",
+            "label": "B",
+            "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0005/reactant_opt/reactant_source.xyz",
+            "sha256": "3ab791fdc6359660d228c5a602ddc33d7b0c3dc7bce897846b0f934f6695e63b",
+            "irc_job_id": 796,
+            "irc_log_sha256": "e457b73d1d006ebf25f774d0035a0711f8b3cd86d8b2847c5fc76b9e2c737569"
+          },
+          "atom_binding": {
+            "atom_map": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "charge": 0,
+            "declaration_revision": 5,
+            "process_id": "55808725f7bb2194cb5ab74263fa0ba9850fa6ee44301131d20ddabfa18034af",
+            "product_mol": "\n     RDKit          3D\n\n  5  5  0  0  0  0  0  0  0  0999 V2000\n   -0.2353    0.0067   -0.0020 C   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9335   -0.0969   -0.6903 O   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9259    0.0441    0.7057 O   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.8389   -0.8963    0.0859 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.7852    0.9424   -0.0994 H   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  1  0\n  2  3  1  0\n  3  1  1  0\n  1  4  1  0\n  1  5  1  0\nM  END\n",
+            "reactant_mol": "\n     RDKit          3D\n\n  5  4  0  0  0  0  0  0  0  0999 V2000\n   -0.4723    0.0247    0.0118 C   0  0  0  0  0  0  0  0  0  0  0  0\n    0.6252   -0.5798    0.0269 O   0  0  0  0  0  0  0  0  0  0  0  0\n    1.7483    0.0534   -0.0550 O   0  0  0  0  0  0  0  0  0  0  0  0\n   -1.3478   -0.6009    0.0859 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.5535    1.1026   -0.0697 H   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  2  0\n  2  3  1  0\n  1  4  1  0\n  1  5  1  0\nM  CHG  2   2   1   3  -1\nM  END\n",
+            "ts_log_sha256": "6abade428c9deb544d1d7f8be4cc7b697ab6d88182e86c8f9993863d27989ed6"
+          },
+          "frequency_analysis": null
+        }
+      ],
+      "stage_records": [
+        {
+          "stage": "declare",
+          "status": "done",
+          "detail": "reaction declared; each calculation requires its own method",
+          "artifacts": [],
+          "source_input_revision": 1
+        },
+        {
+          "stage": "build",
+          "status": "done",
+          "detail": "both endpoints built",
+          "artifacts": [],
+          "source_input_revision": 1
+        },
+        {
+          "stage": "map",
+          "status": "done",
+          "detail": "Concrete endpoint correspondence confirmed and owned by this reaction.",
+          "artifacts": [],
+          "source_input_revision": 2
+        },
+        {
+          "stage": "assemble",
+          "status": "done",
+          "detail": "single component: nothing to assemble (no inter-fragment orientation). The reaction coordinate is whatever the path guess explores",
+          "artifacts": [],
+          "source_input_revision": 2
+        },
+        {
+          "stage": "guess",
+          "status": "done",
+          "detail": "Provided candidate bound; formal optimization and verification remain required.",
+          "artifacts": [
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provided.xyz",
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0000.xyz",
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0001.xyz",
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0002.mol",
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0003.xyz",
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0004.mol"
+          ],
+          "source_input_revision": 3
+        },
+        {
+          "stage": "validate",
+          "status": "done",
+          "detail": "internal validation passed",
+          "artifacts": [],
+          "source_input_revision": 3
+        },
+        {
+          "stage": "submit",
+          "status": "done",
+          "detail": "refinement job 739 submitted as 'ready' (orca, GFN2-xTB); the scheduler daemon claims it and its terminal state arrives through the existing compute notification path",
+          "artifacts": [
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0003/ts_opt/refine.inp"
+          ],
+          "source_input_revision": 3
+        },
+        {
+          "stage": "refine",
+          "status": "waiting",
+          "detail": "Endpoint reactant frequency job 804 submitted; awaiting its compute notification",
+          "artifacts": [
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0005/reactant_frequency/reactant_frequency.inp"
+          ],
+          "source_input_revision": 5
+        },
+        {
+          "stage": "verdict",
+          "status": "done",
+          "detail": "The reactant endpoint candidate from IRC side B did not qualify as an optimized minimum: reactant endpoint geometry in the optimization log, saved frequency source, and frequency log does not match; it cannot serve as a proven minimum reference. Repair verification.reactant_endpoint.seed for the declared reactant C=[O+][O-]; IRC A/B labels do not declare species identity.",
+          "artifacts": [],
+          "source_input_revision": 5
+        }
+      ],
+      "reason": "IRC side B优化800正常收敛且末帧工具导出为正确无环CH2OO，804为零虚频但几何来源一致性校验失败。用800原生日志最后优化帧显式绑定同species seed，重建可审计opt/freq链；保留已算IRC/TS证据，不以独立旧端点替换IRC连接。",
+      "input": {
+        "reaction": {
+          "reactant_smiles": "C=[O+][O-]",
+          "product_smiles": "C1OO1",
+          "charge": 0,
+          "multiplicity": 1,
+          "electronic_character": "closed_shell",
+          "selected_candidate": 0,
+          "reaction_center": [
+            [
+              0,
+              2
+            ],
+            [
+              0,
+              1
+            ]
+          ]
+        },
+        "calculations": {
+          "xtb2": {
+            "engine": "orca",
+            "method": "GFN2-xTB",
+            "basis_set": "",
+            "keywords": "",
+            "frequency_mode": "auto",
+            "orca_blocks": null,
+            "end_setting": ""
+          },
+          "xtb2freq": {
+            "engine": "orca",
+            "method": "GFN2-xTB",
+            "basis_set": "",
+            "keywords": "TightSCF",
+            "frequency_mode": "numeric",
+            "orca_blocks": null,
+            "end_setting": ""
+          },
+          "xtb2irc": {
+            "engine": "orca",
+            "method": "GFN2-xTB",
+            "basis_set": "",
+            "keywords": "TightSCF",
+            "frequency_mode": "auto",
+            "orca_blocks": null,
+            "end_setting": ""
+          }
+        },
+        "conformers": {
+          "reactant": {
+            "kind": "file",
+            "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/explore/opt_CH2OO.xyz",
+            "mol_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/struct/CH2OO.mol",
+            "evidence_refs": [
+              "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/explore/.cloudra/calc-729.out.log"
+            ],
+            "optimization": null
+          },
+          "product": {
+            "kind": "file",
+            "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/explore/opt_dioxirane.xyz",
+            "mol_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/struct/dioxirane.mol",
+            "evidence_refs": [
+              "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/explore/.cloudra/calc-730.out.log"
+            ],
+            "optimization": null
+          },
+          "guidance": {
+            "ring_order": [],
+            "distance_filters": []
+          }
+        },
+        "guess": {
+          "kind": "provided",
+          "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/interpolation/8ff71baa9553c157d049/img_05.xyz",
+          "evidence_refs": [
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/interpolation/8ff71baa9553c157d049/img_05.xyz",
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/reactant_50f081d39e2c434c7739.xyz",
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/reactant_50f081d39e2c434c7739.mol",
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/product_6da9cbc7da671f02dc64.xyz",
+            "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/product_6da9cbc7da671f02dc64.mol"
+          ]
+        },
+        "ts_optimization": {
+          "ref": "xtb2"
+        },
+        "verification": {
+          "frequency": {
+            "ref": "xtb2freq"
+          },
+          "irc": {
+            "ref": "xtb2irc"
+          },
+          "irc_log": null,
+          "reactant_endpoint": {
+            "seed": null,
+            "optimization": {
+              "ref": "xtb2"
+            },
+            "frequency": {
+              "ref": "xtb2freq"
+            }
+          },
+          "product_endpoint": {
+            "seed": null,
+            "optimization": {
+              "ref": "xtb2"
+            },
+            "frequency": {
+              "ref": "xtb2freq"
+            }
+          }
+        },
+        "execution": {
+          "cpus": 4,
+          "memory_mb": 4096,
+          "limits": null
+        }
+      },
+      "structures": {
+        "reactant": "776t3gAAAAAQAAAAAwAAAAAAAAAFAAAABAAAAIABBgAoAAAAAwQIACoAAAABAwMIACoAAAD/AwEBACgAAAABAQEAKAAAAAEBCwABKAIBAiAAAwAABABCAAAAAECJAAAAAQAAAAEAAAAABfNHzE2aOd6//zkXq21OmT9uGxihMy+IP2Thyd2+AeQ/Zx17fquN4r+/8s4smJObP2ZMhSQT+fs/oFhqarBUqz9D0E07Myesvw3Qlu2EkPW/3cRo6Eg6479Uwec95/+1P3sZHyoOtuG/bA/D9hqk8T+AlpcfGtexvz8CAAAAAAAS7AMAAAYABQAAAF9OYW1lAAAAAAAMAAAAX01vbEZpbGVJbmZvABYAAAAgICAgIFJES2l0ICAgICAgICAgIDNEEAAAAF9Nb2xGaWxlQ29tbWVudHMAAAAAABIAAABfTW9sRmlsZUNoaXJhbEZsYWcCAAAAABUAAABjbG91ZHJhX2ltcG9ydF9zb3VyY2UAOgMAAHsicGF0aHMiOiB7Inh5eiI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvZ29sZF9jb21wdXRlL3F1ZXVlXzIwMjYxMDE4L3Jlc3VsdHMvSUE4L2V4cGxvcmUvb3B0X0NIMk9PLnh5eiIsICJtb2wiOiAiL1VzZXJzL2Nsb3VkcmF5eXkvRGVza3RvcC9EZXNrdG9wX0FyY2hpdmUvUHJvamVjdHMvQ2xvdWRyYS1tZWNoYW5pc20tYWdlbnQtbWFzdGVyL2dvbGRfY29tcHV0ZS9xdWV1ZV8yMDI2MTAxOC9yZXN1bHRzL0lBOC9zdHJ1Y3QvQ0gyT08ubW9sIn0sICJoYXNoZXMiOiB7Inh5eiI6ICJiOTFlZjdhOGNhMWI1NWY4NWNmYTkwYjdlY2ViZTFjYTE1N2Y4NDc1NDEzYmZjODUwYTI1YmNkNjNmM2RkYWI4IiwgIm1vbCI6ICJjM2Y1YTA1NDViMWU5YjU5MWE5ZDQ1MDU2MTI3NGZhMzk5ZWI1MjMzZGJiNTMyMzdmZTg2NTlkZTdhODZmYTdkIn0sICJzbmFwc2hvdHMiOiB7Inh5eiI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvdHMvdHNfMDAwMS9idWlsZC9pbnB1dF8wMDAxL3JlYWN0YW50L3NvdXJjZV9iOTFlZjdhOGNhMWI1NWY4Lnh5eiIsICJtb2wiOiAiL1VzZXJzL2Nsb3VkcmF5eXkvRGVza3RvcC9EZXNrdG9wX0FyY2hpdmUvUHJvamVjdHMvQ2xvdWRyYS1tZWNoYW5pc20tYWdlbnQtbWFzdGVyL3RzL3RzXzAwMDEvYnVpbGQvaW5wdXRfMDAwMS9yZWFjdGFudC9zb3VyY2VfYzNmNWEwNTQ1YjFlOWI1OS5tb2wifSwgImlucHV0X3JldmlzaW9uIjogMX0fAAAAY2xvdWRyYV9tYXBwaW5nX2JpbmRpbmdfZGVyaXZlZAMBEzp4AAAAAQAaAAAAY2xvdWRyYV9zbWlsZXNfaGVhdnlfaW5kZXgBAAAAAAABABoAAABjbG91ZHJhX3NtaWxlc19oZWF2eV9pbmRleAEBAAAAAAEAGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQIAAAAAAAAAAAAAEzsQAAAAAAABAgAAAQEAAAEBAAABARMW",
+        "product": "776t3gAAAAAQAAAAAwAAAAAAAAAFAAAABQAAAIABBgAgAAAABAgAIAAAAAIIACAAAAACAQAoAAAAAQEBACgAAAABAQsAAQABAgACAAAAAwAABABCAQAAAAMAAQJAiQAAAAEAAAABAAAAAAWmEag3nx/Ov4in9bB5W3s/tmkAmy72X78yaDM1WN/tP1S0YPkhzLi/1FWdSCoX5r9hiFqxUKHtP0NtExxVk6Y/CdrpuW6V5j8AgKXPaNjqv+hwSrpuruy/b/rT05cAtj8XCKBDWCDpv1BlU7QGKO4/oBfMo+Jyub8/AgAAAAAAEvIDAAAGAAUAAABfTmFtZQAAAAAADAAAAF9Nb2xGaWxlSW5mbwAWAAAAICAgICBSREtpdCAgICAgICAgICAzRBAAAABfTW9sRmlsZUNvbW1lbnRzAAAAAAASAAAAX01vbEZpbGVDaGlyYWxGbGFnAgAAAAAVAAAAY2xvdWRyYV9pbXBvcnRfc291cmNlAEADAAB7InBhdGhzIjogeyJ4eXoiOiAiL1VzZXJzL2Nsb3VkcmF5eXkvRGVza3RvcC9EZXNrdG9wX0FyY2hpdmUvUHJvamVjdHMvQ2xvdWRyYS1tZWNoYW5pc20tYWdlbnQtbWFzdGVyL2dvbGRfY29tcHV0ZS9xdWV1ZV8yMDI2MTAxOC9yZXN1bHRzL0lBOC9leHBsb3JlL29wdF9kaW94aXJhbmUueHl6IiwgIm1vbCI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvZ29sZF9jb21wdXRlL3F1ZXVlXzIwMjYxMDE4L3Jlc3VsdHMvSUE4L3N0cnVjdC9kaW94aXJhbmUubW9sIn0sICJoYXNoZXMiOiB7Inh5eiI6ICIxOWJkNWQwNjEwMjg3MzJjMDZiMGI2YWQ2YmYwMjY2Y2IyOTA0ZWI4OGVhMGEzYjY1Yzk4ZmJjZjc5NDg0ZGEwIiwgIm1vbCI6ICI4M2YwY2IyNGI3YzcyMTQ4ODE3YmY1YWY4NjliOTBmMjM5OWFlZTg3MWZiYWE1NmU1NTY2YTllY2E3MTdjMzZhIn0sICJzbmFwc2hvdHMiOiB7Inh5eiI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvdHMvdHNfMDAwMS9idWlsZC9pbnB1dF8wMDAxL3Byb2R1Y3Qvc291cmNlXzE5YmQ1ZDA2MTAyODczMmMueHl6IiwgIm1vbCI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvdHMvdHNfMDAwMS9idWlsZC9pbnB1dF8wMDAxL3Byb2R1Y3Qvc291cmNlXzgzZjBjYjI0YjdjNzIxNDgubW9sIn0sICJpbnB1dF9yZXZpc2lvbiI6IDF9HwAAAGNsb3VkcmFfbWFwcGluZ19iaW5kaW5nX2Rlcml2ZWQDARM6mAAAAAIAFwAAAF9Ob25FeHBsaWNpdDNEQ2hpcmFsaXR5AQEAAAAaAAAAY2xvdWRyYV9zbWlsZXNfaGVhdnlfaW5kZXgBAAAAAAABABoAAABjbG91ZHJhX3NtaWxlc19oZWF2eV9pbmRleAEBAAAAAAEAGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQIAAAAAAAAAAAAAEzsUAAAAAAABAQAAAQEAAAEBAAABAQAAAQETFg==",
+        "product_to_reactant": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "candidate": "776t3gAAAAAQAAAAAwAAAAAAAAAFAAAABAAAAIABBgAoAAAAAwQIACoAAAABAwMIACoAAAD/AwEBACgAAAABAQEAKAAAAAEBCwABKAIBAiAAAwAABABCAAAAAECJAAAAAQAAAAEAAAAABTnAxAaovNW/lfODwrnpsT+i2jv+Zr22Pw0fbAyVGuM/f0XIiiuY479AVX2VGeLgv/5cuJzgFfY/ACPkk4BeoT98mtUza4bXPwcfMRdEBvK/3+nnsG9F4L9n/fvGtvDhP1Z8pgtv/uG/ou9uZYle8T9tfWhRZTnNvz8CAAAAAAAS7AMAAAYABQAAAF9OYW1lAAAAAAAMAAAAX01vbEZpbGVJbmZvABYAAAAgICAgIFJES2l0ICAgICAgICAgIDNEEAAAAF9Nb2xGaWxlQ29tbWVudHMAAAAAABIAAABfTW9sRmlsZUNoaXJhbEZsYWcCAAAAABUAAABjbG91ZHJhX2ltcG9ydF9zb3VyY2UAOgMAAHsicGF0aHMiOiB7Inh5eiI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvZ29sZF9jb21wdXRlL3F1ZXVlXzIwMjYxMDE4L3Jlc3VsdHMvSUE4L2V4cGxvcmUvb3B0X0NIMk9PLnh5eiIsICJtb2wiOiAiL1VzZXJzL2Nsb3VkcmF5eXkvRGVza3RvcC9EZXNrdG9wX0FyY2hpdmUvUHJvamVjdHMvQ2xvdWRyYS1tZWNoYW5pc20tYWdlbnQtbWFzdGVyL2dvbGRfY29tcHV0ZS9xdWV1ZV8yMDI2MTAxOC9yZXN1bHRzL0lBOC9zdHJ1Y3QvQ0gyT08ubW9sIn0sICJoYXNoZXMiOiB7Inh5eiI6ICJiOTFlZjdhOGNhMWI1NWY4NWNmYTkwYjdlY2ViZTFjYTE1N2Y4NDc1NDEzYmZjODUwYTI1YmNkNjNmM2RkYWI4IiwgIm1vbCI6ICJjM2Y1YTA1NDViMWU5YjU5MWE5ZDQ1MDU2MTI3NGZhMzk5ZWI1MjMzZGJiNTMyMzdmZTg2NTlkZTdhODZmYTdkIn0sICJzbmFwc2hvdHMiOiB7Inh5eiI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvdHMvdHNfMDAwMS9idWlsZC9pbnB1dF8wMDAxL3JlYWN0YW50L3NvdXJjZV9iOTFlZjdhOGNhMWI1NWY4Lnh5eiIsICJtb2wiOiAiL1VzZXJzL2Nsb3VkcmF5eXkvRGVza3RvcC9EZXNrdG9wX0FyY2hpdmUvUHJvamVjdHMvQ2xvdWRyYS1tZWNoYW5pc20tYWdlbnQtbWFzdGVyL3RzL3RzXzAwMDEvYnVpbGQvaW5wdXRfMDAwMS9yZWFjdGFudC9zb3VyY2VfYzNmNWEwNTQ1YjFlOWI1OS5tb2wifSwgImlucHV0X3JldmlzaW9uIjogMX0fAAAAY2xvdWRyYV9tYXBwaW5nX2JpbmRpbmdfZGVyaXZlZAMBEzp4AAAAAQAaAAAAY2xvdWRyYV9zbWlsZXNfaGVhdnlfaW5kZXgBAAAAAAABABoAAABjbG91ZHJhX3NtaWxlc19oZWF2eV9pbmRleAEBAAAAAAEAGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQIAAAAAAAAAAAAAEzsQAAAAAAABAgAAAQEAAAEBAAABARMW"
+      },
+      "provided_guess_binding": {
+        "xyz": {
+          "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/interpolation/8ff71baa9553c157d049/img_05.xyz",
+          "snapshot_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provided.xyz",
+          "sha256": "0851aa05122f3855d9e36f781c7928ddbdb309b3b1cf0e1d4f1e5b1bf8a607a3"
+        },
+        "evidence": [
+          {
+            "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/interpolation/8ff71baa9553c157d049/img_05.xyz",
+            "snapshot_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0000.xyz",
+            "sha256": "0851aa05122f3855d9e36f781c7928ddbdb309b3b1cf0e1d4f1e5b1bf8a607a3"
+          },
+          {
+            "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/reactant_50f081d39e2c434c7739.xyz",
+            "snapshot_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0001.xyz",
+            "sha256": "393106f46d6bdffeb6b9c40af7f76f843bcdcc58c59742c806773fc82efcbdc1"
+          },
+          {
+            "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/reactant_50f081d39e2c434c7739.mol",
+            "snapshot_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0002.mol",
+            "sha256": "1c10ce9e09a224946621de3ab088f06f2e2aa1f90b369221e6b6ba69f7f9d94b"
+          },
+          {
+            "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/product_6da9cbc7da671f02dc64.xyz",
+            "snapshot_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0003.xyz",
+            "sha256": "44a4fbeb63e78b4b56afff2f23eb2db745fae2ca0f9676063be547c45dcd35c5"
+          },
+          {
+            "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/product_6da9cbc7da671f02dc64.mol",
+            "snapshot_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0004.mol",
+            "sha256": "50dc25c145f50b08974f9f3684cf16513bb131115d0296fa74ab53ed98cf4275"
+          }
+        ]
+      },
+      "terminal": "candidate_only",
+      "blocked": null,
+      "failed_attempt": {
+        "attempt_id": "5:reactant_frequency:804",
+        "diagnostics": [],
+        "evidence_refs": [
+          "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0005/reactant_frequency/.cloudra/calc-804.out.log"
+        ],
+        "failure_class": "endpoint_unconfirmed",
+        "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0005/reactant_frequency/reactant_frequency.inp",
+        "input_revision": 5,
+        "input_sha256": "6c163280273fefb0875ac25bde2efbcbce47ba67bb0c26aecdd1818aa0c93e4e",
+        "job_id": 804,
+        "log_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0005/reactant_frequency/.cloudra/calc-804.out.log",
+        "log_sha256": "c43faf981abe707fe160b062aa80a1188ba48a970b5c66b1ec42ab60e2e93de0",
+        "purpose": "reactant_frequency"
+      },
+      "stop_reason": null
+    }
+  ],
+  "catalog_id": null,
+  "partition_revision": null,
+  "candidate_attempts": [],
+  "cards_path": "",
+  "product_seed_candidate_id": null,
+  "selected_candidate_id": null,
+  "run_dir": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001",
+  "workspace_dir": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master",
+  "owner_conversation_id": "prj_0d050137288f498a",
+  "owner_session_id": "as_0d811247fc914727",
+  "input": {
+    "reaction": {
+      "reactant_smiles": "C=[O+][O-]",
+      "product_smiles": "C1OO1",
+      "charge": 0,
+      "multiplicity": 1,
+      "electronic_character": "closed_shell",
+      "selected_candidate": 0,
+      "reaction_center": [
+        [
+          0,
+          2
+        ],
+        [
+          0,
+          1
+        ]
+      ]
+    },
+    "calculations": {
+      "xtb2": {
+        "engine": "orca",
+        "method": "GFN2-xTB",
+        "basis_set": "",
+        "keywords": "",
+        "frequency_mode": "auto",
+        "orca_blocks": null,
+        "end_setting": ""
+      },
+      "xtb2freq": {
+        "engine": "orca",
+        "method": "GFN2-xTB",
+        "basis_set": "",
+        "keywords": "TightSCF",
+        "frequency_mode": "numeric",
+        "orca_blocks": null,
+        "end_setting": ""
+      },
+      "xtb2irc": {
+        "engine": "orca",
+        "method": "GFN2-xTB",
+        "basis_set": "",
+        "keywords": "TightSCF",
+        "frequency_mode": "auto",
+        "orca_blocks": null,
+        "end_setting": ""
+      }
+    },
+    "conformers": {
+      "reactant": {
+        "kind": "file",
+        "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/explore/opt_CH2OO.xyz",
+        "mol_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/struct/CH2OO.mol",
+        "evidence_refs": [
+          "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/explore/.cloudra/calc-729.out.log"
+        ],
+        "optimization": null
+      },
+      "product": {
+        "kind": "file",
+        "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/explore/opt_dioxirane.xyz",
+        "mol_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/struct/dioxirane.mol",
+        "evidence_refs": [
+          "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/explore/.cloudra/calc-730.out.log"
+        ],
+        "optimization": null
+      },
+      "guidance": {
+        "ring_order": [],
+        "distance_filters": []
+      }
+    },
+    "guess": {
+      "kind": "provided",
+      "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/interpolation/8ff71baa9553c157d049/img_05.xyz",
+      "evidence_refs": [
+        "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/interpolation/8ff71baa9553c157d049/img_05.xyz",
+        "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/reactant_50f081d39e2c434c7739.xyz",
+        "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/reactant_50f081d39e2c434c7739.mol",
+        "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/product_6da9cbc7da671f02dc64.xyz",
+        "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/product_6da9cbc7da671f02dc64.mol"
+      ]
+    },
+    "ts_optimization": {
+      "ref": "xtb2"
+    },
+    "verification": {
+      "frequency": {
+        "ref": "xtb2freq"
+      },
+      "irc": {
+        "ref": "xtb2irc"
+      },
+      "irc_log": null,
+      "reactant_endpoint": {
+        "seed": {
+          "kind": "file",
+          "xyz_path": "gold_compute/queue_20261018/results/IA8/reactant_opt_800_last.xyz",
+          "mol_path": "gold_compute/queue_20261018/results/IA8/struct/CH2OO.mol",
+          "evidence_refs": [
+            "ts/ts_0001/jobs/declaration_0005/reactant_opt/.cloudra/calc-800.out.log"
+          ]
+        },
+        "optimization": {
+          "ref": "xtb2"
+        },
+        "frequency": {
+          "ref": "xtb2freq"
+        }
+      },
+      "product_endpoint": {
+        "seed": null,
+        "optimization": {
+          "ref": "xtb2"
+        },
+        "frequency": {
+          "ref": "xtb2freq"
+        }
+      }
+    },
+    "execution": {
+      "cpus": 4,
+      "memory_mb": 4096,
+      "limits": null
+    }
+  },
+  "structures": {
+    "reactant": "776t3gAAAAAQAAAAAwAAAAAAAAAFAAAABAAAAIABBgAoAAAAAwQIACoAAAABAwMIACoAAAD/AwEBACgAAAABAQEAKAAAAAEBCwABKAIBAiAAAwAABABCAAAAAECJAAAAAQAAAAEAAAAABfNHzE2aOd6//zkXq21OmT9uGxihMy+IP2Thyd2+AeQ/Zx17fquN4r+/8s4smJObP2ZMhSQT+fs/oFhqarBUqz9D0E07Myesvw3Qlu2EkPW/3cRo6Eg6479Uwec95/+1P3sZHyoOtuG/bA/D9hqk8T+AlpcfGtexvz8CAAAAAAAS7AMAAAYABQAAAF9OYW1lAAAAAAAMAAAAX01vbEZpbGVJbmZvABYAAAAgICAgIFJES2l0ICAgICAgICAgIDNEEAAAAF9Nb2xGaWxlQ29tbWVudHMAAAAAABIAAABfTW9sRmlsZUNoaXJhbEZsYWcCAAAAABUAAABjbG91ZHJhX2ltcG9ydF9zb3VyY2UAOgMAAHsicGF0aHMiOiB7Inh5eiI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvZ29sZF9jb21wdXRlL3F1ZXVlXzIwMjYxMDE4L3Jlc3VsdHMvSUE4L2V4cGxvcmUvb3B0X0NIMk9PLnh5eiIsICJtb2wiOiAiL1VzZXJzL2Nsb3VkcmF5eXkvRGVza3RvcC9EZXNrdG9wX0FyY2hpdmUvUHJvamVjdHMvQ2xvdWRyYS1tZWNoYW5pc20tYWdlbnQtbWFzdGVyL2dvbGRfY29tcHV0ZS9xdWV1ZV8yMDI2MTAxOC9yZXN1bHRzL0lBOC9zdHJ1Y3QvQ0gyT08ubW9sIn0sICJoYXNoZXMiOiB7Inh5eiI6ICJiOTFlZjdhOGNhMWI1NWY4NWNmYTkwYjdlY2ViZTFjYTE1N2Y4NDc1NDEzYmZjODUwYTI1YmNkNjNmM2RkYWI4IiwgIm1vbCI6ICJjM2Y1YTA1NDViMWU5YjU5MWE5ZDQ1MDU2MTI3NGZhMzk5ZWI1MjMzZGJiNTMyMzdmZTg2NTlkZTdhODZmYTdkIn0sICJzbmFwc2hvdHMiOiB7Inh5eiI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvdHMvdHNfMDAwMS9idWlsZC9pbnB1dF8wMDAxL3JlYWN0YW50L3NvdXJjZV9iOTFlZjdhOGNhMWI1NWY4Lnh5eiIsICJtb2wiOiAiL1VzZXJzL2Nsb3VkcmF5eXkvRGVza3RvcC9EZXNrdG9wX0FyY2hpdmUvUHJvamVjdHMvQ2xvdWRyYS1tZWNoYW5pc20tYWdlbnQtbWFzdGVyL3RzL3RzXzAwMDEvYnVpbGQvaW5wdXRfMDAwMS9yZWFjdGFudC9zb3VyY2VfYzNmNWEwNTQ1YjFlOWI1OS5tb2wifSwgImlucHV0X3JldmlzaW9uIjogMX0fAAAAY2xvdWRyYV9tYXBwaW5nX2JpbmRpbmdfZGVyaXZlZAMBEzp4AAAAAQAaAAAAY2xvdWRyYV9zbWlsZXNfaGVhdnlfaW5kZXgBAAAAAAABABoAAABjbG91ZHJhX3NtaWxlc19oZWF2eV9pbmRleAEBAAAAAAEAGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQIAAAAAAAAAAAAAEzsQAAAAAAABAgAAAQEAAAEBAAABARMW",
+    "product": "776t3gAAAAAQAAAAAwAAAAAAAAAFAAAABQAAAIABBgAgAAAABAgAIAAAAAIIACAAAAACAQAoAAAAAQEBACgAAAABAQsAAQABAgACAAAAAwAABABCAQAAAAMAAQJAiQAAAAEAAAABAAAAAAWmEag3nx/Ov4in9bB5W3s/tmkAmy72X78yaDM1WN/tP1S0YPkhzLi/1FWdSCoX5r9hiFqxUKHtP0NtExxVk6Y/CdrpuW6V5j8AgKXPaNjqv+hwSrpuruy/b/rT05cAtj8XCKBDWCDpv1BlU7QGKO4/oBfMo+Jyub8/AgAAAAAAEvIDAAAGAAUAAABfTmFtZQAAAAAADAAAAF9Nb2xGaWxlSW5mbwAWAAAAICAgICBSREtpdCAgICAgICAgICAzRBAAAABfTW9sRmlsZUNvbW1lbnRzAAAAAAASAAAAX01vbEZpbGVDaGlyYWxGbGFnAgAAAAAVAAAAY2xvdWRyYV9pbXBvcnRfc291cmNlAEADAAB7InBhdGhzIjogeyJ4eXoiOiAiL1VzZXJzL2Nsb3VkcmF5eXkvRGVza3RvcC9EZXNrdG9wX0FyY2hpdmUvUHJvamVjdHMvQ2xvdWRyYS1tZWNoYW5pc20tYWdlbnQtbWFzdGVyL2dvbGRfY29tcHV0ZS9xdWV1ZV8yMDI2MTAxOC9yZXN1bHRzL0lBOC9leHBsb3JlL29wdF9kaW94aXJhbmUueHl6IiwgIm1vbCI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvZ29sZF9jb21wdXRlL3F1ZXVlXzIwMjYxMDE4L3Jlc3VsdHMvSUE4L3N0cnVjdC9kaW94aXJhbmUubW9sIn0sICJoYXNoZXMiOiB7Inh5eiI6ICIxOWJkNWQwNjEwMjg3MzJjMDZiMGI2YWQ2YmYwMjY2Y2IyOTA0ZWI4OGVhMGEzYjY1Yzk4ZmJjZjc5NDg0ZGEwIiwgIm1vbCI6ICI4M2YwY2IyNGI3YzcyMTQ4ODE3YmY1YWY4NjliOTBmMjM5OWFlZTg3MWZiYWE1NmU1NTY2YTllY2E3MTdjMzZhIn0sICJzbmFwc2hvdHMiOiB7Inh5eiI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvdHMvdHNfMDAwMS9idWlsZC9pbnB1dF8wMDAxL3Byb2R1Y3Qvc291cmNlXzE5YmQ1ZDA2MTAyODczMmMueHl6IiwgIm1vbCI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvdHMvdHNfMDAwMS9idWlsZC9pbnB1dF8wMDAxL3Byb2R1Y3Qvc291cmNlXzgzZjBjYjI0YjdjNzIxNDgubW9sIn0sICJpbnB1dF9yZXZpc2lvbiI6IDF9HwAAAGNsb3VkcmFfbWFwcGluZ19iaW5kaW5nX2Rlcml2ZWQDARM6mAAAAAIAFwAAAF9Ob25FeHBsaWNpdDNEQ2hpcmFsaXR5AQEAAAAaAAAAY2xvdWRyYV9zbWlsZXNfaGVhdnlfaW5kZXgBAAAAAAABABoAAABjbG91ZHJhX3NtaWxlc19oZWF2eV9pbmRleAEBAAAAAAEAGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQIAAAAAAAAAAAAAEzsUAAAAAAABAQAAAQEAAAEBAAABAQAAAQETFg==",
+    "product_to_reactant": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "candidate": "776t3gAAAAAQAAAAAwAAAAAAAAAFAAAABAAAAIABBgAoAAAAAwQIACoAAAABAwMIACoAAAD/AwEBACgAAAABAQEAKAAAAAEBCwABKAIBAiAAAwAABABCAAAAAECJAAAAAQAAAAEAAAAABTnAxAaovNW/lfODwrnpsT+i2jv+Zr22Pw0fbAyVGuM/f0XIiiuY479AVX2VGeLgv/5cuJzgFfY/ACPkk4BeoT98mtUza4bXPwcfMRdEBvK/3+nnsG9F4L9n/fvGtvDhP1Z8pgtv/uG/ou9uZYle8T9tfWhRZTnNvz8CAAAAAAAS7AMAAAYABQAAAF9OYW1lAAAAAAAMAAAAX01vbEZpbGVJbmZvABYAAAAgICAgIFJES2l0ICAgICAgICAgIDNEEAAAAF9Nb2xGaWxlQ29tbWVudHMAAAAAABIAAABfTW9sRmlsZUNoaXJhbEZsYWcCAAAAABUAAABjbG91ZHJhX2ltcG9ydF9zb3VyY2UAOgMAAHsicGF0aHMiOiB7Inh5eiI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvZ29sZF9jb21wdXRlL3F1ZXVlXzIwMjYxMDE4L3Jlc3VsdHMvSUE4L2V4cGxvcmUvb3B0X0NIMk9PLnh5eiIsICJtb2wiOiAiL1VzZXJzL2Nsb3VkcmF5eXkvRGVza3RvcC9EZXNrdG9wX0FyY2hpdmUvUHJvamVjdHMvQ2xvdWRyYS1tZWNoYW5pc20tYWdlbnQtbWFzdGVyL2dvbGRfY29tcHV0ZS9xdWV1ZV8yMDI2MTAxOC9yZXN1bHRzL0lBOC9zdHJ1Y3QvQ0gyT08ubW9sIn0sICJoYXNoZXMiOiB7Inh5eiI6ICJiOTFlZjdhOGNhMWI1NWY4NWNmYTkwYjdlY2ViZTFjYTE1N2Y4NDc1NDEzYmZjODUwYTI1YmNkNjNmM2RkYWI4IiwgIm1vbCI6ICJjM2Y1YTA1NDViMWU5YjU5MWE5ZDQ1MDU2MTI3NGZhMzk5ZWI1MjMzZGJiNTMyMzdmZTg2NTlkZTdhODZmYTdkIn0sICJzbmFwc2hvdHMiOiB7Inh5eiI6ICIvVXNlcnMvY2xvdWRyYXl5eS9EZXNrdG9wL0Rlc2t0b3BfQXJjaGl2ZS9Qcm9qZWN0cy9DbG91ZHJhLW1lY2hhbmlzbS1hZ2VudC1tYXN0ZXIvdHMvdHNfMDAwMS9idWlsZC9pbnB1dF8wMDAxL3JlYWN0YW50L3NvdXJjZV9iOTFlZjdhOGNhMWI1NWY4Lnh5eiIsICJtb2wiOiAiL1VzZXJzL2Nsb3VkcmF5eXkvRGVza3RvcC9EZXNrdG9wX0FyY2hpdmUvUHJvamVjdHMvQ2xvdWRyYS1tZWNoYW5pc20tYWdlbnQtbWFzdGVyL3RzL3RzXzAwMDEvYnVpbGQvaW5wdXRfMDAwMS9yZWFjdGFudC9zb3VyY2VfYzNmNWEwNTQ1YjFlOWI1OS5tb2wifSwgImlucHV0X3JldmlzaW9uIjogMX0fAAAAY2xvdWRyYV9tYXBwaW5nX2JpbmRpbmdfZGVyaXZlZAMBEzp4AAAAAQAaAAAAY2xvdWRyYV9zbWlsZXNfaGVhdnlfaW5kZXgBAAAAAAABABoAAABjbG91ZHJhX3NtaWxlc19oZWF2eV9pbmRleAEBAAAAAAEAGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQIAAAAAAAAAAAAAEzsQAAAAAAABAgAAAQEAAAEBAAABARMW"
+  },
+  "provided_guess_binding": {
+    "xyz": {
+      "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/interpolation/8ff71baa9553c157d049/img_05.xyz",
+      "snapshot_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provided.xyz",
+      "sha256": "0851aa05122f3855d9e36f781c7928ddbdb309b3b1cf0e1d4f1e5b1bf8a607a3"
+    },
+    "evidence": [
+      {
+        "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/interpolation/8ff71baa9553c157d049/img_05.xyz",
+        "snapshot_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0000.xyz",
+        "sha256": "0851aa05122f3855d9e36f781c7928ddbdb309b3b1cf0e1d4f1e5b1bf8a607a3"
+      },
+      {
+        "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/reactant_50f081d39e2c434c7739.xyz",
+        "snapshot_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0001.xyz",
+        "sha256": "393106f46d6bdffeb6b9c40af7f76f843bcdcc58c59742c806773fc82efcbdc1"
+      },
+      {
+        "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/reactant_50f081d39e2c434c7739.mol",
+        "snapshot_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0002.mol",
+        "sha256": "1c10ce9e09a224946621de3ab088f06f2e2aa1f90b369221e6b6ba69f7f9d94b"
+      },
+      {
+        "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/product_6da9cbc7da671f02dc64.xyz",
+        "snapshot_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0003.xyz",
+        "sha256": "44a4fbeb63e78b4b56afff2f23eb2db745fae2ca0f9676063be547c45dcd35c5"
+      },
+      {
+        "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/structures/product_6da9cbc7da671f02dc64.mol",
+        "snapshot_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0004.mol",
+        "sha256": "50dc25c145f50b08974f9f3684cf16513bb131115d0296fa74ab53ed98cf4275"
+      }
+    ]
+  },
+  "failed_attempt": {
+    "attempt_id": "6:reactant_frequency:819",
+    "failure_class": "endpoint_unconfirmed",
+    "purpose": "reactant_frequency",
+    "job_id": 819,
+    "input_revision": 6,
+    "evidence_refs": [
+      "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0006/reactant_frequency/.cloudra/calc-819.out.log"
+    ],
+    "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0006/reactant_frequency/reactant_frequency.inp",
+    "log_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0006/reactant_frequency/.cloudra/calc-819.out.log",
+    "input_sha256": "4e76a1e973583b00047b634cb47661c20dee6468e729b01238230559cdd9ac4a",
+    "log_sha256": "5084bea429ce1706240343bbf6821873afab8f8042ef46e3ecee59b380935ec8",
+    "diagnostics": []
+  },
+  "method_checks": {
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0002/path/path-task.json": {
+      "actual": {
+        "basis_set": "",
+        "end_setting": "",
+        "engine": "xtb",
+        "frequency_mode": "auto",
+        "keywords": "",
+        "method": "GFN2-xTB",
+        "orca_blocks": null
+      },
+      "differences": [],
+      "input_revision": 2,
+      "matched": true,
+      "purpose": "path",
+      "source": "stage_declaration"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0003/ts_opt/refine.inp": {
+      "actual": {
+        "basis_set": "",
+        "end_setting": "",
+        "engine": "orca",
+        "frequency_mode": "auto",
+        "keywords": "",
+        "method": "GFN2-xTB",
+        "orca_blocks": null
+      },
+      "differences": [],
+      "input_revision": 3,
+      "matched": true,
+      "purpose": "ts_opt",
+      "source": "stage_declaration"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0005/frequency/frequency.inp": {
+      "actual": {
+        "basis_set": "",
+        "end_setting": "",
+        "engine": "orca",
+        "frequency_mode": "numeric",
+        "keywords": "TightSCF",
+        "method": "GFN2-xTB",
+        "orca_blocks": null
+      },
+      "differences": [],
+      "input_revision": 5,
+      "matched": true,
+      "purpose": "frequency",
+      "source": "stage_declaration"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0005/irc/irc.inp": {
+      "actual": {
+        "basis_set": "",
+        "end_setting": "",
+        "engine": "orca",
+        "frequency_mode": "auto",
+        "keywords": "TightSCF",
+        "method": "GFN2-xTB",
+        "orca_blocks": null
+      },
+      "differences": [],
+      "input_revision": 5,
+      "matched": true,
+      "purpose": "irc",
+      "source": "stage_declaration"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0005/reactant_frequency/reactant_frequency.inp": {
+      "actual": {
+        "basis_set": "",
+        "end_setting": "",
+        "engine": "orca",
+        "frequency_mode": "numeric",
+        "keywords": "TightSCF",
+        "method": "GFN2-xTB",
+        "orca_blocks": null
+      },
+      "differences": [],
+      "input_revision": 5,
+      "matched": true,
+      "purpose": "reactant_frequency",
+      "source": "stage_declaration"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0005/reactant_opt/reactant_opt.inp": {
+      "actual": {
+        "basis_set": "",
+        "end_setting": "",
+        "engine": "orca",
+        "frequency_mode": "auto",
+        "keywords": "",
+        "method": "GFN2-xTB",
+        "orca_blocks": null
+      },
+      "differences": [],
+      "input_revision": 5,
+      "matched": true,
+      "purpose": "reactant_opt",
+      "source": "stage_declaration"
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0006/reactant_opt/reactant_opt.inp": {
+      "input_revision": 6,
+      "purpose": "reactant_opt",
+      "actual": {
+        "engine": "orca",
+        "method": "GFN2-xTB",
+        "basis_set": "",
+        "keywords": "",
+        "frequency_mode": "auto",
+        "orca_blocks": null,
+        "end_setting": ""
+      },
+      "source": "stage_declaration",
+      "differences": [],
+      "matched": true
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0006/reactant_frequency/reactant_frequency.inp": {
+      "input_revision": 6,
+      "purpose": "reactant_frequency",
+      "actual": {
+        "engine": "orca",
+        "method": "GFN2-xTB",
+        "basis_set": "",
+        "keywords": "TightSCF",
+        "frequency_mode": "numeric",
+        "orca_blocks": null,
+        "end_setting": ""
+      },
+      "source": "stage_declaration",
+      "differences": [],
+      "matched": true
+    }
+  },
+  "stage": "verdict",
+  "stage_records": [
+    {
+      "stage": "declare",
+      "status": "done",
+      "detail": "reaction declared; each calculation requires its own method",
+      "artifacts": [],
+      "source_input_revision": 1
+    },
+    {
+      "stage": "build",
+      "status": "done",
+      "detail": "both endpoints built",
+      "artifacts": [],
+      "source_input_revision": 1
+    },
+    {
+      "stage": "map",
+      "status": "done",
+      "detail": "Concrete endpoint correspondence confirmed and owned by this reaction.",
+      "artifacts": [],
+      "source_input_revision": 2
+    },
+    {
+      "stage": "assemble",
+      "status": "done",
+      "detail": "single component: nothing to assemble (no inter-fragment orientation). The reaction coordinate is whatever the path guess explores",
+      "artifacts": [],
+      "source_input_revision": 2
+    },
+    {
+      "stage": "guess",
+      "status": "done",
+      "detail": "Provided candidate bound; formal optimization and verification remain required.",
+      "artifacts": [
+        "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provided.xyz",
+        "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0000.xyz",
+        "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0001.xyz",
+        "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0002.mol",
+        "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0003.xyz",
+        "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0004.mol"
+      ],
+      "source_input_revision": 3
+    },
+    {
+      "stage": "validate",
+      "status": "done",
+      "detail": "internal validation passed",
+      "artifacts": [],
+      "source_input_revision": 3
+    },
+    {
+      "stage": "submit",
+      "status": "done",
+      "detail": "refinement job 739 submitted as 'ready' (orca, GFN2-xTB); the scheduler daemon claims it and its terminal state arrives through the existing compute notification path",
+      "artifacts": [
+        "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0003/ts_opt/refine.inp"
+      ],
+      "source_input_revision": 3
+    },
+    {
+      "stage": "refine",
+      "status": "waiting",
+      "detail": "Endpoint reactant frequency job 819 submitted; awaiting its compute notification",
+      "artifacts": [
+        "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0006/reactant_frequency/reactant_frequency.inp"
+      ],
+      "source_input_revision": 6
+    },
+    {
+      "stage": "verdict",
+      "status": "done",
+      "detail": "The reactant endpoint candidate from explicit species seed did not qualify as an optimized minimum: reactant endpoint geometry in the optimization log, saved frequency source, and frequency log does not match; it cannot serve as a proven minimum reference. Repair verification.reactant_endpoint.seed for the declared reactant C=[O+][O-]; IRC A/B labels do not declare species identity.",
+      "artifacts": [],
+      "source_input_revision": 6
+    }
+  ],
+  "terminal": "candidate_only",
+  "stop_reason": null,
+  "blocked": null,
+  "intervention_count": 5,
+  "path_kind": "provided",
+  "guidance_attempt": 0,
+  "active_attempt_dir": "",
+  "guidance_manifest_path": "",
+  "job_id": 739,
+  "job_input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0003/ts_opt/refine.inp",
+  "waiting_for": "",
+  "scan_step": null,
+  "job_steps": [
+    {
+      "purpose": "ts_opt",
+      "job_id": 739,
+      "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0003/ts_opt/refine.inp",
+      "state": "done",
+      "actual_calculation": {
+        "engine": "orca",
+        "method": "GFN2-xTB",
+        "basis_set": "",
+        "keywords": "",
+        "frequency_mode": "auto",
+        "orca_blocks": null,
+        "end_setting": ""
+      },
+      "source_input_revision": 3,
+      "method_contract": null,
+      "stage_key": null,
+      "external_source": null,
+      "endpoint_source": null,
+      "atom_binding": {
+        "atom_map": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "charge": 0,
+        "declaration_revision": 3,
+        "process_id": "55808725f7bb2194cb5ab74263fa0ba9850fa6ee44301131d20ddabfa18034af",
+        "product_mol": "\n     RDKit          3D\n\n  5  5  0  0  0  0  0  0  0  0999 V2000\n   -0.2353    0.0067   -0.0020 C   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9335   -0.0969   -0.6903 O   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9259    0.0441    0.7057 O   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.8389   -0.8963    0.0859 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.7852    0.9424   -0.0994 H   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  1  0\n  2  3  1  0\n  3  1  1  0\n  1  4  1  0\n  1  5  1  0\nM  END\n",
+        "reactant_mol": "\n     RDKit          3D\n\n  5  4  0  0  0  0  0  0  0  0999 V2000\n   -0.4723    0.0247    0.0118 C   0  0  0  0  0  0  0  0  0  0  0  0\n    0.6252   -0.5798    0.0269 O   0  0  0  0  0  0  0  0  0  0  0  0\n    1.7483    0.0534   -0.0550 O   0  0  0  0  0  0  0  0  0  0  0  0\n   -1.3478   -0.6009    0.0859 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.5535    1.1026   -0.0697 H   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  2  0\n  2  3  1  0\n  1  4  1  0\n  1  5  1  0\nM  CHG  2   2   1   3  -1\nM  END\n",
+        "ts_log_sha256": null
+      },
+      "frequency_analysis": null
+    },
+    {
+      "purpose": "frequency",
+      "job_id": 790,
+      "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0005/frequency/frequency.inp",
+      "state": "done",
+      "actual_calculation": {
+        "engine": "orca",
+        "method": "GFN2-xTB",
+        "basis_set": "",
+        "keywords": "TightSCF",
+        "frequency_mode": "numeric",
+        "orca_blocks": null,
+        "end_setting": ""
+      },
+      "source_input_revision": 5,
+      "method_contract": null,
+      "stage_key": null,
+      "external_source": null,
+      "endpoint_source": null,
+      "atom_binding": {
+        "atom_map": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "charge": 0,
+        "declaration_revision": 5,
+        "process_id": "55808725f7bb2194cb5ab74263fa0ba9850fa6ee44301131d20ddabfa18034af",
+        "product_mol": "\n     RDKit          3D\n\n  5  5  0  0  0  0  0  0  0  0999 V2000\n   -0.2353    0.0067   -0.0020 C   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9335   -0.0969   -0.6903 O   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9259    0.0441    0.7057 O   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.8389   -0.8963    0.0859 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.7852    0.9424   -0.0994 H   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  1  0\n  2  3  1  0\n  3  1  1  0\n  1  4  1  0\n  1  5  1  0\nM  END\n",
+        "reactant_mol": "\n     RDKit          3D\n\n  5  4  0  0  0  0  0  0  0  0999 V2000\n   -0.4723    0.0247    0.0118 C   0  0  0  0  0  0  0  0  0  0  0  0\n    0.6252   -0.5798    0.0269 O   0  0  0  0  0  0  0  0  0  0  0  0\n    1.7483    0.0534   -0.0550 O   0  0  0  0  0  0  0  0  0  0  0  0\n   -1.3478   -0.6009    0.0859 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.5535    1.1026   -0.0697 H   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  2  0\n  2  3  1  0\n  1  4  1  0\n  1  5  1  0\nM  CHG  2   2   1   3  -1\nM  END\n",
+        "ts_log_sha256": null
+      },
+      "frequency_analysis": {
+        "fraction_basis": "unweighted_squared_displacement",
+        "log_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0005/frequency/.cloudra/calc-790.out.log",
+        "log_sha256": "6abade428c9deb544d1d7f8be4cc7b697ab6d88182e86c8f9993863d27989ed6",
+        "mode_alignment": {
+          "aligned": false,
+          "details": [
+            "Atom pair (1,3) relative displacement=0.351 (threshold 0.50×1.259=0.629)",
+            "Atom pair (1,2) relative displacement=0.368 (threshold 0.50×1.259=0.629)"
+          ],
+          "message": "Imaginary mode is inconsistent with the declared reaction coordinate: watch_pairs max relative displacement 0.368 < 0.50×global max 1.259 (dominant motion on atom pair (4,5)).",
+          "status": "misaligned"
+        },
+        "modes": null,
+        "reaction_center_pairs": [
+          [
+            1,
+            3
+          ],
+          [
+            1,
+            2
+          ]
+        ]
+      }
+    },
+    {
+      "purpose": "irc",
+      "job_id": 796,
+      "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0005/irc/irc.inp",
+      "state": "done",
+      "actual_calculation": {
+        "engine": "orca",
+        "method": "GFN2-xTB",
+        "basis_set": "",
+        "keywords": "TightSCF",
+        "frequency_mode": "auto",
+        "orca_blocks": null,
+        "end_setting": ""
+      },
+      "source_input_revision": 5,
+      "method_contract": null,
+      "stage_key": null,
+      "external_source": null,
+      "endpoint_source": null,
+      "atom_binding": {
+        "atom_map": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "charge": 0,
+        "declaration_revision": 5,
+        "process_id": "55808725f7bb2194cb5ab74263fa0ba9850fa6ee44301131d20ddabfa18034af",
+        "product_mol": "\n     RDKit          3D\n\n  5  5  0  0  0  0  0  0  0  0999 V2000\n   -0.2353    0.0067   -0.0020 C   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9335   -0.0969   -0.6903 O   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9259    0.0441    0.7057 O   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.8389   -0.8963    0.0859 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.7852    0.9424   -0.0994 H   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  1  0\n  2  3  1  0\n  3  1  1  0\n  1  4  1  0\n  1  5  1  0\nM  END\n",
+        "reactant_mol": "\n     RDKit          3D\n\n  5  4  0  0  0  0  0  0  0  0999 V2000\n   -0.4723    0.0247    0.0118 C   0  0  0  0  0  0  0  0  0  0  0  0\n    0.6252   -0.5798    0.0269 O   0  0  0  0  0  0  0  0  0  0  0  0\n    1.7483    0.0534   -0.0550 O   0  0  0  0  0  0  0  0  0  0  0  0\n   -1.3478   -0.6009    0.0859 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.5535    1.1026   -0.0697 H   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  2  0\n  2  3  1  0\n  1  4  1  0\n  1  5  1  0\nM  CHG  2   2   1   3  -1\nM  END\n",
+        "ts_log_sha256": "6abade428c9deb544d1d7f8be4cc7b697ab6d88182e86c8f9993863d27989ed6"
+      },
+      "frequency_analysis": null
+    },
+    {
+      "purpose": "reactant_opt",
+      "job_id": 816,
+      "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0006/reactant_opt/reactant_opt.inp",
+      "state": "done",
+      "actual_calculation": {
+        "engine": "orca",
+        "method": "GFN2-xTB",
+        "basis_set": "",
+        "keywords": "",
+        "frequency_mode": "auto",
+        "orca_blocks": null,
+        "end_setting": ""
+      },
+      "source_input_revision": 6,
+      "method_contract": null,
+      "stage_key": null,
+      "external_source": null,
+      "endpoint_source": {
+        "kind": "species_reference",
+        "label": "reactant",
+        "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0006/reactant_opt/reactant_source.xyz",
+        "sha256": "031ac64534cac3efe43ce328a8db0c5fbdc7dd5066cf5571ebbb9e1ff2c02e8c",
+        "irc_job_id": null,
+        "irc_log_sha256": null
+      },
+      "atom_binding": {
+        "process_id": "55808725f7bb2194cb5ab74263fa0ba9850fa6ee44301131d20ddabfa18034af",
+        "declaration_revision": 6,
+        "atom_map": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "charge": 0,
+        "ts_log_sha256": "6abade428c9deb544d1d7f8be4cc7b697ab6d88182e86c8f9993863d27989ed6",
+        "reactant_mol": "\n     RDKit          3D\n\n  5  4  0  0  0  0  0  0  0  0999 V2000\n   -0.4723    0.0247    0.0118 C   0  0  0  0  0  0  0  0  0  0  0  0\n    0.6252   -0.5798    0.0269 O   0  0  0  0  0  0  0  0  0  0  0  0\n    1.7483    0.0534   -0.0550 O   0  0  0  0  0  0  0  0  0  0  0  0\n   -1.3478   -0.6009    0.0859 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.5535    1.1026   -0.0697 H   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  2  0\n  2  3  1  0\n  1  4  1  0\n  1  5  1  0\nM  CHG  2   2   1   3  -1\nM  END\n",
+        "product_mol": "\n     RDKit          3D\n\n  5  5  0  0  0  0  0  0  0  0999 V2000\n   -0.2353    0.0067   -0.0020 C   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9335   -0.0969   -0.6903 O   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9259    0.0441    0.7057 O   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.8389   -0.8963    0.0859 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.7852    0.9424   -0.0994 H   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  1  0\n  2  3  1  0\n  3  1  1  0\n  1  4  1  0\n  1  5  1  0\nM  END\n"
+      },
+      "frequency_analysis": null
+    },
+    {
+      "purpose": "reactant_frequency",
+      "job_id": 819,
+      "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0006/reactant_frequency/reactant_frequency.inp",
+      "state": "done",
+      "actual_calculation": {
+        "engine": "orca",
+        "method": "GFN2-xTB",
+        "basis_set": "",
+        "keywords": "TightSCF",
+        "frequency_mode": "numeric",
+        "orca_blocks": null,
+        "end_setting": ""
+      },
+      "source_input_revision": 6,
+      "method_contract": null,
+      "stage_key": null,
+      "external_source": null,
+      "endpoint_source": {
+        "kind": "species_reference",
+        "label": "reactant",
+        "source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0006/reactant_opt/reactant_source.xyz",
+        "sha256": "031ac64534cac3efe43ce328a8db0c5fbdc7dd5066cf5571ebbb9e1ff2c02e8c",
+        "irc_job_id": null,
+        "irc_log_sha256": null
+      },
+      "atom_binding": {
+        "process_id": "55808725f7bb2194cb5ab74263fa0ba9850fa6ee44301131d20ddabfa18034af",
+        "declaration_revision": 6,
+        "atom_map": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "charge": 0,
+        "ts_log_sha256": "6abade428c9deb544d1d7f8be4cc7b697ab6d88182e86c8f9993863d27989ed6",
+        "reactant_mol": "\n     RDKit          3D\n\n  5  4  0  0  0  0  0  0  0  0999 V2000\n   -0.4723    0.0247    0.0118 C   0  0  0  0  0  0  0  0  0  0  0  0\n    0.6252   -0.5798    0.0269 O   0  0  0  0  0  0  0  0  0  0  0  0\n    1.7483    0.0534   -0.0550 O   0  0  0  0  0  0  0  0  0  0  0  0\n   -1.3478   -0.6009    0.0859 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.5535    1.1026   -0.0697 H   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  2  0\n  2  3  1  0\n  1  4  1  0\n  1  5  1  0\nM  CHG  2   2   1   3  -1\nM  END\n",
+        "product_mol": "\n     RDKit          3D\n\n  5  5  0  0  0  0  0  0  0  0999 V2000\n   -0.2353    0.0067   -0.0020 C   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9335   -0.0969   -0.6903 O   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9259    0.0441    0.7057 O   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.8389   -0.8963    0.0859 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.7852    0.9424   -0.0994 H   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  1  0\n  2  3  1  0\n  3  1  1  0\n  1  4  1  0\n  1  5  1  0\nM  END\n"
+      },
+      "frequency_analysis": null
+    }
+  ],
+  "evidence_candidates": [
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provided.xyz",
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0000.xyz",
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0001.xyz",
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0002.mol",
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0003.xyz",
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/path/input_0003/provenance_0004.mol",
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0003/ts_opt/refine.inp"
+  ],
+  "revision": 53
+}

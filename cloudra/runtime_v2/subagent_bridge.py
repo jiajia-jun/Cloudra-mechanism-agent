@@ -158,7 +158,7 @@ def _require_spawn_role(core, parent: AgentSession, role_id: str) -> RoleProfile
 
 async def _spawn_child(
     bus: CommandBus, parent: AgentSession, *, role_id: str, query: str,
-    context: list[Any], defer_schedule: bool = False,
+    context: list[Any], defer_schedule: bool = False, display_name: str | None = None,
 ) -> tuple[AgentSession, dict[str, Any]]:
     role = _require_spawn_role(bus.core, parent, role_id)
     # 空任务字段绝不发送：空 query 的 spawn 只会产出永不调度的僵尸子 agent
@@ -182,6 +182,7 @@ async def _spawn_child(
             target={"project_id": parent.project_id},
             payload={
                 "role_id": role_id,
+                "display_name": display_name.strip() if display_name is not None else None,
                 "parent_session_id": parent.id,
                 "query": query,
                 "settings": plan.spawn_payload_settings(),
@@ -311,7 +312,8 @@ async def _handle_launcher(core, parent: AgentSession, args: dict[str, Any]) -> 
     bus = CommandBus(core)
     role_id = args["role_id"]
     child, settings_receipt = await _spawn_child(
-        bus, parent, role_id=role_id, query=args["query"], context=args["context"]
+        bus, parent, role_id=role_id, query=args["query"], context=args["context"],
+        display_name=args.get("display_name"),
     )
     data = {"session_id": child.id, "act_agent": child.role_id, "settings": settings_receipt}
     if not args.get("is_wait"):

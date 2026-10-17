@@ -1,0 +1,13 @@
+HL1 · 困难档立体化学 · 已替换正式任务
+正式题面：ideapool/tasks/hard/HL1.json；本文件补充题源与计算注意。
+
+请研究formonitrile oxide（HCNO）与norbornene（降冰片烯）的两面[3+2]环加成。
+反应物连接式C#[N+][O-].C1=CC2CCC1C2，总电荷0、重数1、10重原子。气相B3LYP-D3(BJ)/def2-SVP，ORCA或Gaussian。
+
+对刚性桥环的两个相对面分别准备初猜，取得相关一虚频TS、短IRC方向区间和两端极小值身份；实际核对新C-C、新C-O键及产物相对桥的立体关系。
+用可复核的3D关系命名两面，不只写syn/anti或endo/exo文字。两面比较应使用同一合格反应物参考；若存在不同预复合物，先查明参考关系，避免以不同络合物的任意能量差制造优势面。
+当前未预设B3LYP-D3(BJ)下的favored面，也没有本地已验证Cartesian。可以从原文结构准备初猜，不能拿苯甲腈氧化物/取代降冰片烯的数据冒充这道HCNO/未取代降冰片烯题。
+维护mechanism_graph.json，记录两面产物的立体SMILES、模式与路径身份；结果保存在results/HL1/。
+
+原论文（Rastelli等，Faraday Trans.1993）：
+https://doi.org/10.1039/FT9938900029

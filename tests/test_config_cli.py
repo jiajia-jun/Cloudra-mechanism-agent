@@ -11,6 +11,7 @@ from cloudra.infra.config import get_config, resolve_config_attr
         ("coordinator.key", "coordinator-secret"),
         ("follower.key", "follower-secret"),
         ("openalex_api_key", "openalex-secret"),
+        ("deepseek_api_key", "deepseek-search-secret"),
         ("email.password", "email-secret"),
     ],
 )
@@ -39,3 +40,27 @@ def test_config_get_masks_passwords():
     assert result.exit_code == 0
     assert "email-secret" not in result.output
     assert "***" in result.output
+
+
+def test_config_get_masks_deepseek_search_key():
+    get_config().deepseek_api_key = "deepseek-search-secret"
+
+    result = CliRunner().invoke(cli, ["config", "get", "deepseek_api_key"])
+
+    assert result.exit_code == 0
+    assert "deepseek-search-secret" not in result.output
+    assert "***" in result.output
+
+
+def test_config_set_search_provider():
+    result = CliRunner().invoke(cli, ["config", "set", "search_provider", "duckduckgo"])
+
+    assert result.exit_code == 0
+    assert get_config().search_provider == "duckduckgo"
+
+
+def test_config_set_rejects_unknown_search_provider():
+    result = CliRunner().invoke(cli, ["config", "set", "search_provider", "unknown"])
+
+    assert result.exit_code == 1
+    assert get_config().search_provider == "deepseek"

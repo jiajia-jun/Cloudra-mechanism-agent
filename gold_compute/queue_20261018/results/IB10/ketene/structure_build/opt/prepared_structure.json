@@ -1,0 +1,97 @@
+{
+  "status": "ok",
+  "mol": "776t3gAAAAAQAAAAAwAAAAAAAAAFAAAABAAAAIABBgAoAAAAAwQGACgAAAACBAgAKAAAAAMCAQAoAAAAAAEBACgAAAAAAQsAASgCAQIoAgADAAAEAEIAAAAAQIkAAAABAAAAAQAAAAAFNpqckngb4b9F0FiFamp2v13wup6p8J4/DM68J6VH6D9nfVarCsl/P4POG7Ba+qW/rQLABYfm/j8Jhj2Bhj2UP5R9dCEY9ru/h1t7KKEY8b/+jJIxR0Puv+tDvwu29qs/HMHUJ/xj8b96pTy9nY7tP7IH9AvAO7E/PwIAAAAAABICAAAAAAATOjUAAAAAAAAAAAAAAAABAAoAAABpc0ltcGxpY2l0AQEAAAAAAQAKAAAAaXNJbXBsaWNpdAEBAAAAABMW",
+  "message": "Single component built and optimized; coordinates are ready for downstream use.",
+  "has_coordinates": true,
+  "components": [
+    {
+      "component_id": "frag0",
+      "mol": "776t3gAAAAAQAAAAAwAAAAAAAAAFAAAABAAAAIABBgAoAAAAAwQGACgAAAACBAgAKAAAAAMCAQAoAAAAAAEBACgAAAAAAQsAASgCAQIoAgADAAAEAEIAAAAAQIkAAAABAAAAAQAAAAAFNpqckngb4b9F0FiFamp2v13wup6p8J4/DM68J6VH6D9nfVarCsl/P4POG7Ba+qW/rQLABYfm/j8Jhj2Bhj2UP5R9dCEY9ru/h1t7KKEY8b/+jJIxR0Puv+tDvwu29qs/HMHUJ/xj8b96pTy9nY7tP7IH9AvAO7E/PwIAAAAAABICAAAAAAATOjUAAAAAAAAAAAAAAAABAAoAAABpc0ltcGxpY2l0AQEAAAAAAQAKAAAAaXNJbXBsaWNpdAEBAAAAABMW",
+      "source_atom_indices": [
+        0,
+        1,
+        2
+      ],
+      "embed_status": "embedded",
+      "optimization_status": "converged",
+      "engine": "MMFF94",
+      "trajectory_id": "frag0-mmff94-attempt1",
+      "final_energy": -11.394771595144054,
+      "mol_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB10/ketene/structure_build/opt/component_frag0.mol",
+      "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB10/ketene/structure_build/opt/component_frag0.xyz",
+      "diagnostics": []
+    }
+  ],
+  "atom_identities": [
+    {
+      "index": 0,
+      "symbol": "C",
+      "component_id": "frag0",
+      "origin": "input_atom",
+      "input_atom_index": 0,
+      "parent_input_atom_index": null,
+      "hydrogen_ordinal": null
+    },
+    {
+      "index": 1,
+      "symbol": "C",
+      "component_id": "frag0",
+      "origin": "input_atom",
+      "input_atom_index": 1,
+      "parent_input_atom_index": null,
+      "hydrogen_ordinal": null
+    },
+    {
+      "index": 2,
+      "symbol": "O",
+      "component_id": "frag0",
+      "origin": "input_atom",
+      "input_atom_index": 2,
+      "parent_input_atom_index": null,
+      "hydrogen_ordinal": null
+    },
+    {
+      "index": 3,
+      "symbol": "H",
+      "component_id": "frag0",
+      "origin": "added_hydrogen",
+      "input_atom_index": null,
+      "parent_input_atom_index": 0,
+      "hydrogen_ordinal": 1
+    },
+    {
+      "index": 4,
+      "symbol": "H",
+      "component_id": "frag0",
+      "origin": "added_hydrogen",
+      "input_atom_index": null,
+      "parent_input_atom_index": 0,
+      "hydrogen_ordinal": 2
+    }
+  ],
+  "candidate_paths": [
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB10/ketene/structure_build/opt/prepared.xyz",
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB10/ketene/structure_build/opt/prepared.mol"
+  ],
+  "component_paths": [
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB10/ketene/structure_build/opt/component_frag0.mol"
+  ],
+  "assembly": null,
+  "trajectory_ids": [
+    "frag0-mmff94-attempt1"
+  ],
+  "trajectory_manifest_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB10/ketene/structure_build/opt/trajectories.json",
+  "artifact_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB10/ketene/structure_build/opt/prepared_structure.json",
+  "electronic_state": {
+    "charge": 0,
+    "multiplicity": 1,
+    "electronic_character": null,
+    "electron_count": 22,
+    "localized_radical_electrons": 0,
+    "n_alpha": 11,
+    "n_beta": 11,
+    "is_open_shell": false,
+    "requires_spin_aware_geometry": false
+  },
+  "diagnostics": []
+}

@@ -1,0 +1,16 @@
+{
+  "count": 1,
+  "trajectories": [
+    {
+      "trajectory_id": "frag0-mmff94-attempt1",
+      "component_id": "frag0",
+      "status": "converged",
+      "engine": "MMFF94",
+      "iterations": 247,
+      "frame_count": 248,
+      "json_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA5/structure_build_bd/trajectories/frag0-mmff94-attempt1/trajectory.json",
+      "frames_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA5/structure_build_bd/trajectories/frag0-mmff94-attempt1/frames.xyz",
+      "frames_jsonl_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA5/structure_build_bd/trajectories/frag0-mmff94-attempt1/frames.jsonl"
+    }
+  ]
+}

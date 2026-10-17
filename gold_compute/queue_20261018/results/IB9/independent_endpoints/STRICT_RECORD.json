@@ -1,0 +1,61 @@
+{
+  "call_id": "tc_1764b3279cb64414",
+  "parameters": {
+    "mode": "verify",
+    "engine": "orca",
+    "strict": true,
+    "freq_log": "ts/ts_0005/jobs/declaration_0006/frequency/.cloudra/calc-794.out.log",
+    "irc_log": "ts/ts_0005/jobs/declaration_0006/irc/.cloudra/calc-798.out.log",
+    "reactant_path": "gold_compute/queue_20261018/results/IB9/independent_endpoints/F/optfreq.xyz",
+    "product_path": "gold_compute/queue_20261018/results/IB9/independent_endpoints/B/optfreq.xyz",
+    "watch_pairs": [
+      [
+        0,
+        4
+      ],
+      [
+        1,
+        2
+      ]
+    ],
+    "output_dir": "gold_compute/queue_20261018/results/IB9/independent_endpoints/strict_verify"
+  },
+  "returned": {
+    "is_success": true,
+    "verification_status": "inconclusive",
+    "verdict": "inconclusive: missing TS geometry",
+    "n_imag": 1,
+    "imag_freqs": [
+      -367.39
+    ],
+    "imag_mode_aligned": true,
+    "checks": [
+      "Exactly 1 imaginary frequency (-367.4 cm−1)",
+      "Mode aligned: relative displacement 0.924/0.848 for watch pairs",
+      "ORCA forward IRC converged; backward did not; outermost backward frame used",
+      "Neither frequency log nor IRC provides usable TS geometry"
+    ],
+    "irc_end_a_path": "gold_compute/queue_20261018/results/IB9/independent_endpoints/strict_verify/irc_end_a.xyz",
+    "irc_end_b_path": "gold_compute/queue_20261018/results/IB9/independent_endpoints/strict_verify/irc_end_b.xyz"
+  },
+  "qualification": {
+    "F821": {
+      "opt_converged": true,
+      "imaginary": [],
+      "energy_Eh": -15.28200646346,
+      "identity": "C1CN=NC1"
+    },
+    "B822": {
+      "opt_converged": true,
+      "imaginary": [
+        -36.41,
+        -8.99
+      ],
+      "energy_Eh": -15.19012144179,
+      "identity": "C=[N+]=[N-].C=C"
+    },
+    "verified": false,
+    "barrier_declared": false
+  },
+  "note": "Compact transcription of tool result, not native QM evidence; unchanged native logs remain in original directories."
+}

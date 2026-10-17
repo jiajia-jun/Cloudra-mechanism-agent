@@ -1,0 +1,276 @@
+{
+  "status": "ok",
+  "mol": "776t3gAAAAAQAAAAAwAAAAAAAAALAAAACQAAAIABBgAoAAAAAwQHICoAAAABAgQHICoAAAD/AwIBACgAAAABAQEAKAAAAAEBBgAoAAAAAwQGACgAAAADBAEAKAAAAAEBAQAoAAAAAQEBACgAAAABAQEAKAAAAAEBCwABKAIBAigCAAMAAAQABQYIAgUHAAUIAAYJAAYKAEIAAAAAQBkBAAABAAAAAQAAAAALZt/7kOvm6r+OiFM1z13vP9OIZtTCp8y/VL3c0seqzD+GBUny+e7uP38MojQm7u+/DoxtpFZT8j+819MWCZzuPxqPjzGJs/q/fFrgSLNC7L+Zd3xKqyrWP4Sob+pnhOU/d0z+AJ4i+78OVdyW3v/5P0MRCZ1A7t2/NC0vS+uG2j/Af4j8fCUGwP9BWN1Wp8O/VgObTjoo9T9LJ38PyBYCwOeibFoH6+U/ULK7+bEt2L9kHXc5OFkLwOUclQ0yCso/5cdHSmbr3D9jOFLAZWAEwOKmoJ0MdfO/xc+2WXOw9D83gDMA7uADwHR6byn48fs/E+dFrpXwAECjQcuv49r5v+Di7tFqptQ/PwIAAAAAABICAAAAAAATOpMAAAAAAAAAAAAAAAABAAoAAABpc0ltcGxpY2l0AQEAAAAAAQAKAAAAaXNJbXBsaWNpdAEBAAAAAAAAAAAAAAEACgAAAGlzSW1wbGljaXQBAQAAAAABAAoAAABpc0ltcGxpY2l0AQEAAAAAAQAKAAAAaXNJbXBsaWNpdAEBAAAAAAEACgAAAGlzSW1wbGljaXQBAQAAAAATFg==",
+  "message": "2 connected components assembled (complex mode): 2 complex candidate(s). 2 complex candidate(s) from 32 sampled placements (complex mode). Candidates satisfy the 1.0 A inter-fragment collision criterion, the dissociation limit (1.7x the vdW contact distance), the 6.0 kcal/mol energy window and 0.5 A heavy-atom RMSD clustering.",
+  "has_coordinates": true,
+  "components": [
+    {
+      "component_id": "frag0",
+      "mol": "776t3gAAAAAQAAAAAwAAAAAAAAAFAAAABAAAAIABBgAoAAAAAwQHICoAAAABAgQHICoAAAD/AwIBACgAAAAAAQEAKAAAAAABCwABKAIBAigCAAMAAAQAQgAAAABAiQAAAAEAAAABAAAAAAUs2mF1cQfhvy4f+5GdDYI/dpNRKxVLkT/8N0Dx4hDpPzG/xaVHlIq/3FLWighymb9ybKDgjsH+P759Bx3HTaC/sUlrm8A6r79ezSYObqbxv+jmK7cZwO2/qWSQ/dDChz9rzWiQ2R/xvxeKS9EQ5+4/hY/JC4ZdrT8/AgAAAAAAEgIAAAAAABM6NQAAAAAAAAAAAAAAAAEACgAAAGlzSW1wbGljaXQBAQAAAAABAAoAAABpc0ltcGxpY2l0AQEAAAAAExY=",
+      "source_atom_indices": [
+        0,
+        1,
+        2
+      ],
+      "embed_status": "embedded",
+      "optimization_status": "converged",
+      "engine": "MMFF94",
+      "trajectory_id": "frag0-mmff94-attempt1",
+      "final_energy": -3.211272172401057,
+      "mol_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/build_rc/component_frag0.mol",
+      "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/build_rc/component_frag0.xyz",
+      "diagnostics": []
+    },
+    {
+      "component_id": "frag1",
+      "mol": "776t3gAAAAAQAAAAAwAAAAAAAAAGAAAABQAAAIABBgAoAAAAAwQGACgAAAADBAEAKAAAAAABAQAoAAAAAAEBACgAAAAAAQEAKAAAAAABCwABCAIAAgAAAwABBAABBQBCAAAAAEChAAAAAQAAAAEAAAAABsSfKv+U1uS/AVUByO62lj8Y+EUGuMjCPyyD+KSV1uQ/5gYREdC1lr9LlzPyscjCv85zlID3NfS/hC+dQfv1678lnSYLgFu9P01iOCeEGPK/txsBVP6R7j9MUJwd5DDbP4cXKNJ4GPI/u3pzDAKS7r91fH6M2zDbv+7MvYICNvQ/KgxYBPb16z8jrMJ3rlu9vz8CAAAAAAASAgAAAAAAEzpeAAAAAAAAAAAAAQAKAAAAaXNJbXBsaWNpdAEBAAAAAAEACgAAAGlzSW1wbGljaXQBAQAAAAABAAoAAABpc0ltcGxpY2l0AQEAAAAAAQAKAAAAaXNJbXBsaWNpdAEBAAAAABMW",
+      "source_atom_indices": [
+        3,
+        4
+      ],
+      "embed_status": "embedded",
+      "optimization_status": "converged",
+      "engine": "MMFF94",
+      "trajectory_id": "frag1-mmff94-attempt1",
+      "final_energy": 8.200095474025675,
+      "mol_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/build_rc/component_frag1.mol",
+      "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/build_rc/component_frag1.xyz",
+      "diagnostics": []
+    }
+  ],
+  "atom_identities": [
+    {
+      "index": 0,
+      "symbol": "C",
+      "component_id": "frag0",
+      "origin": "input_atom",
+      "input_atom_index": 0,
+      "parent_input_atom_index": null,
+      "hydrogen_ordinal": null
+    },
+    {
+      "index": 1,
+      "symbol": "N",
+      "component_id": "frag0",
+      "origin": "input_atom",
+      "input_atom_index": 1,
+      "parent_input_atom_index": null,
+      "hydrogen_ordinal": null
+    },
+    {
+      "index": 2,
+      "symbol": "N",
+      "component_id": "frag0",
+      "origin": "input_atom",
+      "input_atom_index": 2,
+      "parent_input_atom_index": null,
+      "hydrogen_ordinal": null
+    },
+    {
+      "index": 3,
+      "symbol": "H",
+      "component_id": "frag0",
+      "origin": "added_hydrogen",
+      "input_atom_index": null,
+      "parent_input_atom_index": 0,
+      "hydrogen_ordinal": 1
+    },
+    {
+      "index": 4,
+      "symbol": "H",
+      "component_id": "frag0",
+      "origin": "added_hydrogen",
+      "input_atom_index": null,
+      "parent_input_atom_index": 0,
+      "hydrogen_ordinal": 2
+    },
+    {
+      "index": 5,
+      "symbol": "C",
+      "component_id": "frag1",
+      "origin": "input_atom",
+      "input_atom_index": 3,
+      "parent_input_atom_index": null,
+      "hydrogen_ordinal": null
+    },
+    {
+      "index": 6,
+      "symbol": "C",
+      "component_id": "frag1",
+      "origin": "input_atom",
+      "input_atom_index": 4,
+      "parent_input_atom_index": null,
+      "hydrogen_ordinal": null
+    },
+    {
+      "index": 7,
+      "symbol": "H",
+      "component_id": "frag1",
+      "origin": "added_hydrogen",
+      "input_atom_index": null,
+      "parent_input_atom_index": 3,
+      "hydrogen_ordinal": 1
+    },
+    {
+      "index": 8,
+      "symbol": "H",
+      "component_id": "frag1",
+      "origin": "added_hydrogen",
+      "input_atom_index": null,
+      "parent_input_atom_index": 3,
+      "hydrogen_ordinal": 2
+    },
+    {
+      "index": 9,
+      "symbol": "H",
+      "component_id": "frag1",
+      "origin": "added_hydrogen",
+      "input_atom_index": null,
+      "parent_input_atom_index": 4,
+      "hydrogen_ordinal": 1
+    },
+    {
+      "index": 10,
+      "symbol": "H",
+      "component_id": "frag1",
+      "origin": "added_hydrogen",
+      "input_atom_index": null,
+      "parent_input_atom_index": 4,
+      "hydrogen_ordinal": 2
+    }
+  ],
+  "candidate_paths": [
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/build_rc/assembly/complex_candidate_000.xyz",
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/build_rc/assembly/complex_candidate_000.mol",
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/build_rc/assembly/complex_candidate_001.xyz",
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/build_rc/assembly/complex_candidate_001.mol"
+  ],
+  "component_paths": [
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/build_rc/component_frag0.mol",
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/build_rc/component_frag1.mol"
+  ],
+  "assembly": {
+    "status": "ok",
+    "message": "2 complex candidate(s) from 32 sampled placements (complex mode). Candidates satisfy the 1.0 A inter-fragment collision criterion, the dissociation limit (1.7x the vdW contact distance), the 6.0 kcal/mol energy window and 0.5 A heavy-atom RMSD clustering.",
+    "parameters": {
+      "orientations": 32,
+      "min_interfragment_distance": 1.0,
+      "max_interfragment_vdw_factor": 1.7,
+      "reaction_center_candidates": 8,
+      "reaction_center_window": [
+        1.6,
+        3.0
+      ],
+      "energy_window_kcal": 6.0,
+      "rmsd_threshold": 0.5,
+      "relaxation_steps": 2000
+    },
+    "mode": "complex",
+    "components": 2,
+    "sampled_placements": 32,
+    "collision_rejected": 0,
+    "collapsed_after_relaxation": 0,
+    "dissociated_after_relaxation": 0,
+    "unconverged_after_relaxation": 0,
+    "optimized_placements": 32,
+    "candidates": [
+      {
+        "candidate_id": 0,
+        "mol": "776t3gAAAAAQAAAAAwAAAAAAAAALAAAACQAAAIABBgAoAAAAAwQHICoAAAABAgQHICoAAAD/AwIBACgAAAABAQEAKAAAAAEBBgAoAAAAAwQGACgAAAADBAEAKAAAAAEBAQAoAAAAAQEBACgAAAABAQEAKAAAAAEBCwABKAIBAigCAAMAAAQABQYIAgUHAAUIAAYJAAYKAEIAAAAAQBkBAAABAAAAAQAAAAALZt/7kOvm6r+OiFM1z13vP9OIZtTCp8y/VL3c0seqzD+GBUny+e7uP38MojQm7u+/DoxtpFZT8j+819MWCZzuPxqPjzGJs/q/fFrgSLNC7L+Zd3xKqyrWP4Sob+pnhOU/d0z+AJ4i+78OVdyW3v/5P0MRCZ1A7t2/NC0vS+uG2j/Af4j8fCUGwP9BWN1Wp8O/VgObTjoo9T9LJ38PyBYCwOeibFoH6+U/ULK7+bEt2L9kHXc5OFkLwOUclQ0yCso/5cdHSmbr3D9jOFLAZWAEwOKmoJ0MdfO/xc+2WXOw9D83gDMA7uADwHR6byn48fs/E+dFrpXwAECjQcuv49r5v+Di7tFqptQ/PwIAAAAAABICAAAAAAATOpMAAAAAAAAAAAAAAAABAAoAAABpc0ltcGxpY2l0AQEAAAAAAQAKAAAAaXNJbXBsaWNpdAEBAAAAAAAAAAAAAAEACgAAAGlzSW1wbGljaXQBAQAAAAABAAoAAABpc0ltcGxpY2l0AQEAAAAAAQAKAAAAaXNJbXBsaWNpdAEBAAAAAAEACgAAAGlzSW1wbGljaXQBAQAAAAATFg==",
+        "placement_index": 4,
+        "energy_kcal": 3.8338526719430854,
+        "rel_energy_kcal": 0.0,
+        "min_interfragment_distance": 3.3954012816183807,
+        "reaction_center_distances": {},
+        "reaction_center_in_window": null,
+        "constraint_released": false,
+        "cluster_id": 0,
+        "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/build_rc/assembly/complex_candidate_000.xyz",
+        "mol_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/build_rc/assembly/complex_candidate_000.mol",
+        "trajectory_id": "placement004-mmff94-attempt1"
+      },
+      {
+        "candidate_id": 1,
+        "mol": "776t3gAAAAAQAAAAAwAAAAAAAAALAAAACQAAAIABBgAoAAAAAwQHICoAAAABAgQHICoAAAD/AwIBACgAAAABAQEAKAAAAAEBBgAoAAAAAwQGACgAAAADBAEAKAAAAAEBAQAoAAAAAQEBACgAAAABAQEAKAAAAAEBCwABKAIBAigCAAMAAAQABQYIAgUHAAUIAAYJAAYKAEIAAAAAQBkBAAABAAAAAQAAAAALROzluBMb+7+W5ifoKL3sP+redfYEG+g/6ZlSieeR4b/dAviyTJnrP2KX/pkZ47o/ARaV571U3D+z223Ct6vqP1iH3zG8Md2/0guEYBoKAcDFVdsyrvWYv68MxoJckvI/Mkb1p5vKAcB7OnCduZr9P0+2tJxPjOw/RzGcsSjZ7b/rzs57yT4HwFao74t+Kc2/xyAf37wE/L9XaknEhT4EwBryw6OAb/O/IbsxsmrjtT+4CGYUNUAEwN7fwUHIXca/AIT1qIws9L/BmPpVf8cMwKBnJmiGU+E/qVwypXSo9r9p5u08hH79v4aihXTDxv+/iF9LsU4jBsB2nY1hB0IHwAsIfYNlZvS/PwIAAAAAABICAAAAAAATOpMAAAAAAAAAAAAAAAABAAoAAABpc0ltcGxpY2l0AQEAAAAAAQAKAAAAaXNJbXBsaWNpdAEBAAAAAAAAAAAAAAEACgAAAGlzSW1wbGljaXQBAQAAAAABAAoAAABpc0ltcGxpY2l0AQEAAAAAAQAKAAAAaXNJbXBsaWNpdAEBAAAAAAEACgAAAGlzSW1wbGljaXQBAQAAAAATFg==",
+        "placement_index": 11,
+        "energy_kcal": 3.8338526719613837,
+        "rel_energy_kcal": 1.829825180266198e-11,
+        "min_interfragment_distance": 3.3953992461814155,
+        "reaction_center_distances": {},
+        "reaction_center_in_window": null,
+        "constraint_released": false,
+        "cluster_id": 1,
+        "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/build_rc/assembly/complex_candidate_001.xyz",
+        "mol_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/build_rc/assembly/complex_candidate_001.mol",
+        "trajectory_id": "placement011-mmff94-attempt1"
+      }
+    ],
+    "candidate_paths": [
+      "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/build_rc/assembly/complex_candidate_000.xyz",
+      "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/build_rc/assembly/complex_candidate_000.mol",
+      "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/build_rc/assembly/complex_candidate_001.xyz",
+      "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/build_rc/assembly/complex_candidate_001.mol"
+    ],
+    "trajectory_ids": [
+      "placement000-mmff94-attempt1",
+      "placement001-mmff94-attempt1",
+      "placement002-mmff94-attempt1",
+      "placement003-mmff94-attempt1",
+      "placement004-mmff94-attempt1",
+      "placement005-mmff94-attempt1",
+      "placement006-mmff94-attempt1",
+      "placement007-mmff94-attempt1",
+      "placement008-mmff94-attempt1",
+      "placement009-mmff94-attempt1",
+      "placement010-mmff94-attempt1",
+      "placement011-mmff94-attempt1",
+      "placement012-mmff94-attempt1",
+      "placement013-mmff94-attempt1",
+      "placement014-mmff94-attempt1",
+      "placement015-mmff94-attempt1",
+      "placement016-mmff94-attempt1",
+      "placement017-mmff94-attempt1",
+      "placement018-mmff94-attempt1",
+      "placement019-mmff94-attempt1",
+      "placement020-mmff94-attempt1",
+      "placement021-mmff94-attempt1",
+      "placement022-mmff94-attempt1",
+      "placement023-mmff94-attempt1",
+      "placement024-mmff94-attempt1",
+      "placement025-mmff94-attempt1",
+      "placement026-mmff94-attempt1",
+      "placement027-mmff94-attempt1",
+      "placement028-mmff94-attempt1",
+      "placement029-mmff94-attempt1",
+      "placement030-mmff94-attempt1",
+      "placement031-mmff94-attempt1"
+    ],
+    "trajectory_manifest_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/build_rc/assembly/trajectories.json",
+    "artifact_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/build_rc/assembly/assembly.json",
+    "diagnostics": [
+      "complex mode: no reaction center was provided, so NO bonding center is invented; placements are sampled by relative orientation only",
+      "32 candidate(s) after the energy window collapsed to 2 cluster representative(s) at 0.5 A heavy-atom RMSD"
+    ]
+  },
+  "trajectory_ids": [
+    "frag0-mmff94-attempt1",
+    "frag1-mmff94-attempt1"
+  ],
+  "trajectory_manifest_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/build_rc/trajectories.json",
+  "artifact_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/build_rc/prepared_structure.json",
+  "electronic_state": {
+    "charge": 0,
+    "multiplicity": 1,
+    "electronic_character": null,
+    "electron_count": 38,
+    "localized_radical_electrons": 0,
+    "n_alpha": 19,
+    "n_beta": 19,
+    "is_open_shell": false,
+    "requires_spin_aware_geometry": false
+  },
+  "diagnostics": [
+    "complex mode: no reaction center was provided, so NO bonding center is invented; placements are sampled by relative orientation only",
+    "32 candidate(s) after the energy window collapsed to 2 cluster representative(s) at 0.5 A heavy-atom RMSD"
+  ]
+}

@@ -1,0 +1,116 @@
+{
+  "trajectory_id": "frag0-mmff94-attempt1",
+  "component_id": "frag0",
+  "attempt": 1,
+  "engine": "MMFF94",
+  "symbols": [
+    "C",
+    "C",
+    "H",
+    "H",
+    "H",
+    "H"
+  ],
+  "random_seed": 42,
+  "frame_count": 96,
+  "iterations": 95,
+  "initial_frame": {
+    "step": 0,
+    "symbols": [
+      "C",
+      "C",
+      "H",
+      "H",
+      "H",
+      "H"
+    ],
+    "positions": [
+      [
+        -0.6538102296056542,
+        0.04997171963235391,
+        0.15247094334539243
+      ],
+      [
+        0.6615678967499368,
+        -0.006276874890016141,
+        -0.14607081608838207
+      ],
+      [
+        -1.166527257550783,
+        -0.9123620135690392,
+        0.08634289118300187
+      ],
+      [
+        -1.1421654664368057,
+        0.9670045789238706,
+        0.4294878734560405
+      ],
+      [
+        1.0287139406497847,
+        -0.9853283418301372,
+        -0.408009473316046
+      ],
+      [
+        1.2722211161935257,
+        0.8869909317329713,
+        -0.11422141857999997
+      ]
+    ],
+    "energy": 10.079171603630014,
+    "energy_unit": "kcal/mol",
+    "max_gradient": 29.577718545098744
+  },
+  "final_frame": {
+    "step": 95,
+    "symbols": [
+      "C",
+      "C",
+      "H",
+      "H",
+      "H",
+      "H"
+    ],
+    "positions": [
+      [
+        -0.6511940940590581,
+        0.02218220802054294,
+        0.14675045305551815
+      ],
+      [
+        0.6511944028935424,
+        -0.02217793564000816,
+        -0.14674972845312548
+      ],
+      [
+        -1.2631754896785767,
+        -0.8737770349048195,
+        0.11467743179547492
+      ],
+      [
+        -1.1309854061165823,
+        0.9553214684209398,
+        0.4248590745130556
+      ],
+      [
+        1.1309745988123454,
+        -0.9553232424912815,
+        -0.42485703201413766
+      ],
+      [
+        1.2631859881483325,
+        0.8737745365946286,
+        -0.11468019889677854
+      ]
+    ],
+    "energy": 8.200095474025675,
+    "energy_unit": "kcal/mol",
+    "max_gradient": 0.0007284031647738114
+  },
+  "convergence_code": 0,
+  "status": "converged",
+  "failure": "",
+  "notes": [],
+  "frames_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/build_frag_c2h4/trajectories/frag0-mmff94-attempt1/frames.xyz",
+  "frames_jsonl_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/build_frag_c2h4/trajectories/frag0-mmff94-attempt1/frames.jsonl",
+  "json_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/build_frag_c2h4/trajectories/frag0-mmff94-attempt1/trajectory.json"
+}

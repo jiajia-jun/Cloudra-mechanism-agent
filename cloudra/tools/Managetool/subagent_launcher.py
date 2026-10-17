@@ -23,6 +23,13 @@ class SubAgentLauncher_input_schema(input_schema):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     role_id: str = Field(description="Semantic role id from the role directory, e.g. explorer or small_mol")
+    display_name: str | None = Field(
+        default=None,
+        description=(
+            "Optional instance name shown in the frontend and AgentHub directory, usable for direct addressing. "
+            "Surrounding whitespace is trimmed; omit or leave blank to use the role's default display name."
+        ),
+    )
     query: str = Field(
         description=(
             "Task description. Write only what this task needs, not the sub-agent's identity (already injected via prompt). "

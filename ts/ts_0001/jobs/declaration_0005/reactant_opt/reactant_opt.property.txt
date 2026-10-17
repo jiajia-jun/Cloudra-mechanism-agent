@@ -1,0 +1,113 @@
+*************************************************
+******************* ORCA 6.1.1 ******************
+*************************************************
+$Calculation_Status
+   &GeometryIndex 0
+   &version [&Type "String"] "6.1.1"
+   &progName [&Type "String"] "orca"
+   &Status [&Type "String"] "NORMAL TERMINATION"
+$End
+$Geometry
+   &GeometryIndex 1
+   &NAtoms [&Type "Integer"] 5
+   &NCorelessECP [&Type "Integer"] 0
+   &NGhostAtoms [&Type "Integer"] 0
+   &CartesianCoordinates [&Type "Coordinates", &Dim(5,4), &Units "Bohr"] 
+              C     -0.925341591285    0.051786754173    0.160927811448
+              O      1.148600242918   -1.086654377741    0.042953267154
+              O      3.252081633539    0.137521739143   -0.149597580467
+              H     -2.581631273177   -1.123206896815    0.320891031089
+              H     -1.059300327391    2.094877788787    0.105522534085
+$End
+$Single_Point_Data
+   &GeometryIndex 1
+   &FinalEnergy [&Type "Double"]      -1.1128162911530000e+01  "Final single point energy"
+   &Converged [&Type "Boolean"] true
+$End
+$Geometry
+   &GeometryIndex 2
+   &NAtoms [&Type "Integer"] 5
+   &NCorelessECP [&Type "Integer"] 0
+   &NGhostAtoms [&Type "Integer"] 0
+   &CartesianCoordinates [&Type "Coordinates", &Dim(5,4), &Units "Bohr"] 
+              C     -0.925513754716    0.054412717603    0.160742470173
+              O      1.148382556280   -1.084325492422    0.043502122383
+              O      3.256976349889    0.131640138171   -0.150176155873
+              H     -2.579041665918   -1.125173719373    0.320483412208
+              H     -1.066394800932    2.097771363566    0.106145214418
+$End
+$Single_Point_Data
+   &GeometryIndex 2
+   &FinalEnergy [&Type "Double"]      -1.1128174808230000e+01  "Final single point energy"
+   &Converged [&Type "Boolean"] true
+$End
+$Geometry
+   &GeometryIndex 3
+   &NAtoms [&Type "Integer"] 5
+   &NCorelessECP [&Type "Integer"] 0
+   &NGhostAtoms [&Type "Integer"] 0
+   &CartesianCoordinates [&Type "Coordinates", &Dim(5,4), &Units "Bohr"] 
+              C     -0.924751018356    0.059322000648    0.160517729126
+              O      1.147530882953   -1.081106328146    0.044128725172
+              O      3.262930593304    0.122216194556   -0.150783270097
+              H     -2.573397365162   -1.127933991306    0.319791089093
+              H     -1.077904408134    2.101827131793    0.107042790015
+$End
+$Single_Point_Data
+   &GeometryIndex 3
+   &FinalEnergy [&Type "Double"]      -1.1128183239509999e+01  "Final single point energy"
+   &Converged [&Type "Boolean"] true
+$End
+$Geometry
+   &GeometryIndex 4
+   &NAtoms [&Type "Integer"] 5
+   &NCorelessECP [&Type "Integer"] 0
+   &NGhostAtoms [&Type "Integer"] 0
+   &CartesianCoordinates [&Type "Coordinates", &Dim(5,4), &Units "Bohr"] 
+              C     -0.924227349384    0.060075117671    0.160471269136
+              O      1.147361699705   -1.081184329401    0.044006227075
+              O      3.262953892525    0.121367614940   -0.150664757846
+              H     -2.572474910833   -1.128057870428    0.319794983741
+              H     -1.079204647409    2.102124474764    0.107089341203
+$End
+$Single_Point_Data
+   &GeometryIndex 4
+   &FinalEnergy [&Type "Double"]      -1.1128183697630000e+01  "Final single point energy"
+   &Converged [&Type "Boolean"] true
+$End
+$Geometry
+   &GeometryIndex 5
+   &NAtoms [&Type "Integer"] 5
+   &NCorelessECP [&Type "Integer"] 0
+   &NGhostAtoms [&Type "Integer"] 0
+   &CartesianCoordinates [&Type "Coordinates", &Dim(5,4), &Units "Bohr"] 
+              C     -0.923870350245    0.060305652186    0.160446747900
+              O      1.147340647257   -1.081532224142    0.043856340732
+              O      3.262697753539    0.121362147452   -0.150533295266
+              H     -2.572214757958   -1.127902264446    0.319856296839
+              H     -1.079544607989    2.102091696494    0.107070973105
+$End
+$Single_Point_Data
+   &GeometryIndex 5
+   &FinalEnergy [&Type "Double"]      -1.1128183803060001e+01  "Final single point energy"
+   &Converged [&Type "Boolean"] true
+$End
+$Calculation_Info
+   &GeometryIndex 5
+   &Mult [&Type "Integer"] 1
+   &Charge [&Type "Integer"] 0
+   &NumOfAtoms [&Type "Integer"] 5
+   &NumOfElectrons [&Type "Integer"] 0
+   &NumOfBasisFuncts [&Type "Integer"] 0
+   &NumOfAuxCBasisFuncts [&Type "Integer"] 0
+   &NumOfAuxJBasisFuncts [&Type "Integer"] 0
+   &NumOfAuxJKBasisFuncts [&Type "Integer"] 0
+   &NumOfCABSBasisFuncts [&Type "Integer"] 0
+$End
+$Calculation_Timings
+   &GeometryIndex 5
+   &GSTEP [&Type "Double"]       5.3320000000000589e-03
+   &XTB [&Type "Double"]       8.1832000000000016e-02
+   &XTBGRAD [&Type "Double"]       9.4499999999997364e-04
+   &SUM [&Type "Double"]       8.8109000000000048e-02
+$End

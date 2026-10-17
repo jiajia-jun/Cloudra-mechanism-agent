@@ -1928,7 +1928,7 @@ def test_easy_tasks_regenerate_identically():
         assert committed.is_file(), f"missing committed task file: {committed}"
         regenerated = json.loads(json.dumps(t.model_dump(mode="json", by_alias=True)))
         assert json.loads(committed.read_text(encoding="utf-8")) == regenerated
-        # 四档共用 xtb+pm7+b3lyp/def2svp 白名单。
+        # easy/normal/hard 共用 xtb+pm7+b3lyp/def2svp 白名单。
         assert t.method_policy.allowed_methods == ["xtb", "pm7", "b3lyp/def2svp"]
 
 
@@ -1988,7 +1988,10 @@ def test_aqueous_imine_barrier_stays_separate_from_gas_phase_task():
     gas_edges = tasks["NI1"].gold.mechanism_graph.edges
     aqueous_edges = tasks["NI5"].gold.mechanism_graph.edges
     assert [e.barrier_kcal_mol for e in gas_edges] == [27.9, 57.67]
-    assert [e.barrier_kcal_mol for e in aqueous_edges] == [None, 3.59, 31.2]
+    assert [e.barrier_kcal_mol for e in aqueous_edges] == [0.93, 3.59, 31.2]
+    # 长证据说明不能把 Markdown 后面的题面限制挤到错误的列。
+    assert tasks["NI5"].system.elements == ["C", "H", "N", "O"]
+    assert tasks["NI5"].system.max_heavy_atoms == 4
     assert [e.to_node for e in aqueous_edges[:2]] == ["NI5_I1", "NI5_I2"]
     assert [1, 3] in aqueous_edges[0].bond_changes.form
     assert [3, 5] in aqueous_edges[1].bond_changes.break_
@@ -2046,18 +2049,31 @@ def test_passerini_first_edge_couples_proton_transfer_and_isocyanide_attack():
     assert edges[1].to_node == "NU5_I2"
 
 
-def test_pinacol_dehydration_and_migration_are_separate_edges():
-    pytest.importorskip("rdkit")
-    from cloudra.benchmark import gen_normal_tasks
+def test_replacement_tasks_reach_the_actual_runner_loader():
+    """换题必须覆盖实际加载的 JSON，不能只多出一份交接说明。"""
+    from cloudra.benchmark.runner import load_tasks
 
-    task = gen_normal_tasks.parse_normal_md(gen_normal_tasks.DEFAULT_SRC, only={"R1"})[0]
-    edges = task.gold.mechanism_graph.edges
-    assert [e.barrier_kcal_mol for e in edges] == [None, None, 5.16, 5.74]
-    assert [4, 6] in edges[1].bond_changes.break_
-    assert [7, 8] in edges[2].bond_changes.break_
-    assert [4, 8] in edges[2].bond_changes.form
-    carbocation = next(n for n in task.gold.mechanism_graph.nodes if n.id == "NR1_I2")
-    assert "[C+]" in carbocation.smiles[0]
+    root = Path(__file__).resolve().parents[1] / "ideapool" / "tasks"
+    tasks = {t.task_id: t for tier in ("normal", "hard") for t in load_tasks(root / tier)}
+    expected = {
+        "NR1": ("formamide", ["NC=O"], 3),
+        "NY3": ("isocyanic", ["N=C=O", "O"], 4),
+        "HI1": ("Cope", ["CC([N+](C)(C)[O-])C(C)c1ccccc1"], 14),
+        "HL1": ("norbornene", ["C#[N+][O-]", "C1=CC2CCC1C2"], 10),
+    }
+    for task_id, (name, reactants, heavy) in expected.items():
+        task = tasks[task_id]
+        assert name.lower() in task.name.lower()
+        assert task.system.reactants == reactants
+        assert task.system.charge == 0 and task.system.multiplicity == 1
+        assert task.system.max_heavy_atoms == heavy
+        assert "Na" not in task.system.elements
+        assert task.method_policy.allowed_methods == ["xtb", "pm7", "b3lyp/def2svp"]
+        # 新 Gold 尚待远端构建，不能继承旧反应的步骤、能垒或优势通道。
+        assert task.gold.mechanism_graph.edges == []
+        assert [n.role for n in task.gold.mechanism_graph.nodes] == [NodeRole.REACTANT]
+        assert task.gold.selectivity is None
+        assert not task.rubric.accuracy.enabled
 
 
 def test_hard_tasks_regenerate_identically():
@@ -2077,30 +2093,8 @@ def test_hard_tasks_regenerate_identically():
         assert t.method_policy.allowed_methods == ["xtb", "pm7", "b3lyp/def2svp"]
 
 
-def test_hi1_proline_catalyst_keeps_s_configuration_across_mapped_species():
-    Chem = pytest.importorskip("rdkit.Chem")
-    from cloudra.benchmark.hard_registry import REGISTRY
 
-    entry = REGISTRY["I1"]
-    species = {
-        "reactant": entry["mapped_reactants"],
-        "enamine": entry["steps"][0]["out"],
-        "major_iminium": entry["steps"][1]["out"],
-        "product": entry["steps"][2]["out"],
-        "minor_iminium": entry["competing"][0]["out"],
-    }
-    for label, smiles in species.items():
-        molecule = Chem.MolFromSmiles(smiles)
-        assert molecule is not None, label
-        catalyst_center = next(atom for atom in molecule.GetAtoms() if atom.GetAtomMapNum() == 16)
-        # 映射号只用来锁定同一原子，不应参与真实 CIP 优先次序。
-        for atom in molecule.GetAtoms():
-            atom.SetAtomMapNum(0)
-        Chem.AssignStereochemistry(molecule, cleanIt=True, force=True)
-        assert catalyst_center.GetProp("_CIPCode") == "S", label
-
-
-def test_hard_replacement_and_hl1_reframed_graph():
+def test_existing_hard_replacements_keep_their_references():
     pytest.importorskip("rdkit")
     from cloudra.benchmark import gen_hard_tasks
 
@@ -2125,15 +2119,6 @@ def test_hard_replacement_and_hl1_reframed_graph():
         "endo": 8.46, "exo": 10.17,
     }
     assert da.gold.selectivity.favored_channel == "endo"
-
-    beckmann = tasks["HL1"].gold.mechanism_graph
-    assert [e.id for e in beckmann.edges] == ["HL1_E1", "HL1_E2", "HL1_E3", "HL1_E4"]
-    assert [e.barrier_kcal_mol for e in beckmann.edges] == [None, 23.13, 10.44, 13.46]
-    assert {e.from_node for e in beckmann.edges} == {"HL1_R", "HL1_I1", "HL1_I2", "HL1_I3"}
-    nodes = {n.id: n for n in beckmann.nodes}
-    assert nodes["HL1_I3"].smiles == ["CCN=C(C)[OH2+].O"]
-    assert beckmann.edges[2].to_node == "HL1_I3"
-    assert beckmann.edges[3].to_node == "HL1_P"
 
 
 def test_hh1_shared_endpoint_channels():
@@ -2172,7 +2157,7 @@ def test_hf1_regenerated_gold_scores_barriers():
 
 
 def test_impossible_tasks_regenerate_identically():
-    """impossible 档只生成 11 道 I 题；每题至少一个不可达节点。"""
+    """impossible 档只生成 12 道 I 题；每题至少一个不可达节点。"""
     pytest.importorskip("rdkit")  # 生成器的映射校验依赖 RDKit；CI 只装 dev extra
     from cloudra.benchmark import gen_impossible_tasks
 
@@ -2186,7 +2171,7 @@ def test_impossible_tasks_regenerate_identically():
         assert committed.is_file(), f"missing committed task file: {committed}"
         regenerated = json.loads(json.dumps(t.model_dump(mode="json", by_alias=True)))
         assert json.loads(committed.read_text(encoding="utf-8")) == regenerated
-        assert t.method_policy.allowed_methods == ["xtb", "pm7", "b3lyp/def2svp"]
+        assert t.method_policy.allowed_methods == ["xtb", "pm7"]
         # accessible=false 协议句全档同款、一字不动
         assert protocol in t.prompt.query, t.task_id
         graph = t.gold.mechanism_graph
@@ -2264,6 +2249,13 @@ def test_hard_selectivity_qualitative_contract():
 
     tasks = gen_hard_tasks.parse_hard_md(gen_hard_tasks.DEFAULT_SRC)
     for t in tasks:
+        if t.task_id in {"HI1", "HL1"}:
+            assert t.gold.selectivity is None
+            assert not t.rubric.accuracy.enabled
+            assert not t.gold.mechanism_graph.edges
+            assert "no favored-channel assignment is scored" in t.prompt.query
+            assert "`favored: true`" not in t.prompt.query
+            continue
         if t.task_id in {"HA8", "HB10"}:
             assert t.gold.selectivity is None
             assert t.rubric.accuracy.enabled

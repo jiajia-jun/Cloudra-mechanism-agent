@@ -1,0 +1,51 @@
+{
+  "status": "unapproved_candidate_no_strict_pass",
+  "method": "GFN2-xTB",
+  "engine": "ORCA 6.1.1 + xTB 6.7.1",
+  "ts_energy_source": "ts/ts_0002/jobs/declaration_0009/frequency/.cloudra/calc-793.out.log",
+  "reactant_energy_source": "gold_compute/queue_20261018/results/IA1/independent_endpoints/R_B/.cloudra/calc-823.out.log",
+  "product_energy_source": "gold_compute/queue_20261018/results/IA1/independent_endpoints/P_F/.cloudra/calc-824.out.log",
+  "energy_definition": "electronic energy difference only; no ZPE/thermal corrections; barrier withheld pending strict pass",
+  "bond_changes": {
+    "break": [
+      [
+        1,
+        2
+      ],
+      [
+        3,
+        4
+      ]
+    ],
+    "form": [
+      [
+        1,
+        4
+      ],
+      [
+        2,
+        3
+      ]
+    ]
+  },
+  "watch_pairs_orca_0based": [
+    [
+      0,
+      1
+    ],
+    [
+      1,
+      2
+    ],
+    [
+      2,
+      3
+    ],
+    [
+      0,
+      3
+    ]
+  ],
+  "strict_result": "strict_original_paths.json",
+  "strict_status": "inconclusive: missing TS geometry"
+}

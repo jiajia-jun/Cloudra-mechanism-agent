@@ -2,31 +2,30 @@
   "task_id": "HL1",
   "tier": "hard",
   "family": "L",
-  "name": "Beckmann rearrangement of (E)-butanone oxime: determine which group migrates",
+  "name": "formonitrile oxide + norbornene [3+2] cycloaddition: determine both facial pathways",
   "prompt": {
-    "query": "Determine the mechanism of the following reaction: Beckmann rearrangement of (E)-butanone oxime: determine which group migrates. Reactant SMILES: [OH3+].CC/C(=N/O)/C; product SMILES: CCNC(C)=[OH+].O; total charge 1, multiplicity 1; conditions: concentrated H2SO4 or acid catalysis, heated. Within the allowed methods, model the system so that it approximates the real conditions stated above as closely as the level of theory permits. Atom-mapped reactant SMILES: [O+:1]([H:2])([H:9])[H:10].[CH3:11][CH2:5]/[C:4](=[N:6]/[O:7][H:8])/[CH3:3]. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). The product SMILES above state connectivity only: resolving the stereochemical outcome is part of the deliverable. Investigate the competing stereochemical channels (not only the major one), and make sure the stereochemistry of every product and intermediate node is stated in its SMILES. The reaction may proceed through a multi-step network: represent each intermediate you identify as a node and each elementary step as an edge; competing pathways you investigate deserve their own edges. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. Use exactly this JSON shape (key names matter: nodes carry `id`, `role` (one of reactant/intermediate/product/transition_state) and `smiles` (a list of SMILES strings), and may optionally carry a `properties` object for declared quantities; edges carry `id`, `from`, `to`, `via`, `bond_changes` and optionally `barrier_kcal_mol`, `channel` and `favored`): {\"nodes\": [{\"id\": \"RC\", \"role\": \"reactant\", \"smiles\": [\"C=O.CN\"]}, {\"id\": \"TS1\", \"role\": \"transition_state\", \"smiles\": []}, {\"id\": \"P\", \"role\": \"product\", \"smiles\": [\"...\"]}], \"edges\": [{\"id\": \"e1\", \"from\": \"RC\", \"to\": \"P\", \"via\": \"TS1\", \"bond_changes\": {\"break\": [[1, 2]], \"form\": [[1, 5]]}, \"barrier_kcal_mol\": 21.3}]}. A species made of several molecules (a pre-reaction or ion-dipole complex) is ONE node whose `smiles` holds a single dot-joined complex SMILES (like the RC node above), never a list of separate component SMILES. Bind the unchanged native evidence logs through DAG and explicit `properties.evidence_log` paths; never rewrite a computed log to add SMILES. If such a complex is not a clean minimum at the allowed level of theory, still keep the single complex node in the graph, but you may then annotate its evidence files per component species instead (each component with its own `smiles:` annotation placed in the input before computation). The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or inversion step carries two empty lists. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. Declare every barrier you actually compute in kcal/mol on that elementary step's edge as `barrier_kcal_mol` in mechanism_graph.json. Barriers are electronic energy differences (ΔE‡) in kcal/mol, without ZPE or thermal corrections, each relative to that step's own starting minimum: for a bimolecular reaction that minimum is the reactant complex (e.g. the ion-dipole complex), and for a unimolecular process it is simply the reactant minimum. The scorer derives every declared step barrier from your log files and takes the highest as the rate-determining step; a barrier that is undeclared, has no bound ORCA/Gaussian log, or disagrees with those logs is not scorable. Every species node and transition-state node must declare `properties.energy_hartree` (the electronic energy of the geometry you delivered for that node, in Hartree, exactly as it appears in that node's evidence log) and `properties.evidence_log` (the sandbox-relative path of that log). The scorer uses the declared energy to identify which evidence file you delivered for each node; a node missing either field violates the delivery contract. Bind each transition-state node to its original native evidence file with `properties.evidence_log` and attach that evidence to the declared DAG step. Do not append annotations to a completed or frozen log; any input annotation must be written before computation and expresses intent rather than proven identity. For each competing stereochemical channel, declare on that channel's edge a `channel` field (a short label identifying the channel) and `favored: true` on exactly the one channel your computed barriers favor (`favored: false` on the other channels); the favored-channel assignment is scored qualitatively (right or wrong). Also record the barrier difference (minor-channel TS minus major-channel TS) in kcal/mol in your report; the numeric difference is recorded but not scored numerically. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to xTB, pm7, and B3LYP-D3(BJ)/def2-SVP; calls beyond the whitelist are intercepted.",
+    "query": "Determine the mechanism of the following reaction: formonitrile oxide + norbornene [3+2] cycloaddition: determine both facial pathways. Reactant SMILES: C#[N+][O-].C1=CC2CCC1C2; product SMILES: C1=NOC2C3CCC(C3)C12; total charge 0, multiplicity 1; conditions: gas phase, neutral singlet HCNO plus unsubstituted norbornene; investigate approach from both faces of the C4=C5 bond relative to the methano bridge C10 in the atom mapping; establish each product's stereochemical relationship to that bridge from actual 3D geometries and give explicit stereochemical SMILES rather than relying on an unverified endo/exo or syn/anti name; compare the two pathways using a common qualified reactant reference and establish the relationship between any distinct pre-reaction complexes; investigate C-C and C-O bond formation and the identity of both endpoints; do not substitute benzonitrile oxide or substituted norbornene; reference DOI 10.1039/FT9938900029; reference mechanism and quantitative Gold pending computation. Within the allowed methods, model the system so that it approximates the real conditions stated above as closely as the level of theory permits. Atom-mapped reactant SMILES: [CH:1]#[N+:2][O-:3].[CH:4]1=[CH:5][CH:6]2[CH2:7][CH2:8][CH:9]1[CH2:10]2. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). The product SMILES above state connectivity only: resolving the stereochemical outcome is part of the deliverable. Investigate the stereochemical pathways compatible with the stated conditions; a forbidden counterfactual pathway is not required. Make sure the stereochemistry of every product and intermediate node is stated in its SMILES. The reaction may proceed through a multi-step network: represent each intermediate you identify as a node and each elementary step as an edge; competing pathways you investigate deserve their own edges. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. Use exactly this JSON shape (key names matter: nodes carry `id`, `role` (one of reactant/intermediate/product/transition_state) and `smiles` (a list of SMILES strings), and may optionally carry a `properties` object for declared quantities; edges carry `id`, `from`, `to`, `via`, `bond_changes` and optionally `barrier_kcal_mol`, `channel` and `favored`): {\"nodes\": [{\"id\": \"RC\", \"role\": \"reactant\", \"smiles\": [\"C=O.CN\"]}, {\"id\": \"TS1\", \"role\": \"transition_state\", \"smiles\": []}, {\"id\": \"P\", \"role\": \"product\", \"smiles\": [\"...\"]}], \"edges\": [{\"id\": \"e1\", \"from\": \"RC\", \"to\": \"P\", \"via\": \"TS1\", \"bond_changes\": {\"break\": [[1, 2]], \"form\": [[1, 5]]}, \"barrier_kcal_mol\": 21.3}]}. A species made of several molecules (a pre-reaction or ion-dipole complex) is ONE node whose `smiles` holds a single dot-joined complex SMILES (like the RC node above), never a list of separate component SMILES. Bind the unchanged native evidence logs through DAG and explicit `properties.evidence_log` paths; never rewrite a computed log to add SMILES. If such a complex is not a clean minimum at the allowed level of theory, still keep the single complex node in the graph, but you may then annotate its evidence files per component species instead (each component with its own `smiles:` annotation placed in the input before computation). The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or inversion step carries two empty lists. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. Declare every barrier you actually compute in kcal/mol on that elementary step's edge as `barrier_kcal_mol` in mechanism_graph.json. Barriers are electronic energy differences (ΔE‡) in kcal/mol, without ZPE or thermal corrections, each relative to that step's own starting minimum: for a bimolecular reaction that minimum is the reactant complex (e.g. the ion-dipole complex), and for a unimolecular process it is simply the reactant minimum. The scorer derives every declared step barrier from your log files and takes the highest as the rate-determining step; a barrier that is undeclared, has no bound ORCA/Gaussian log, or disagrees with those logs is not scorable. Bind each transition-state node to its original native evidence file with `properties.evidence_log` and attach that evidence to the declared DAG step. Do not append annotations to a completed or frozen log; any input annotation must be written before computation and expresses intent rather than proven identity. For each stereochemical channel you investigate, state its identity and barrier. Report any energy difference and its uncertainty; no favored-channel assignment is scored for this task. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to xTB, pm7, and B3LYP-D3(BJ)/def2-SVP; calls beyond the whitelist are intercepted.",
     "role": "coordinator",
     "orchestration_mode": "dag_guided"
   },
   "system": {
     "reactants": [
-      "[OH3+]",
-      "CC/C(=N/O)/C"
+      "C#[N+][O-]",
+      "C1=CC2CCC1C2"
     ],
     "products": [
-      "CCNC(C)=[OH+]",
-      "O"
+      "C1=NOC2C3CCC(C3)C12"
     ],
-    "charge": 1,
+    "charge": 0,
     "multiplicity": 1,
-    "conditions": "concentrated H2SO4 or acid catalysis, heated",
+    "conditions": "gas phase, neutral singlet HCNO plus unsubstituted norbornene; investigate approach from both faces of the C4=C5 bond relative to the methano bridge C10 in the atom mapping; establish each product's stereochemical relationship to that bridge from actual 3D geometries and give explicit stereochemical SMILES rather than relying on an unverified endo/exo or syn/anti name; compare the two pathways using a common qualified reactant reference and establish the relationship between any distinct pre-reaction complexes; investigate C-C and C-O bond formation and the identity of both endpoints; do not substitute benzonitrile oxide or substituted norbornene; reference DOI 10.1039/FT9938900029; reference mechanism and quantitative Gold pending computation",
     "elements": [
       "C",
       "H",
       "N",
       "O"
     ],
-    "max_heavy_atoms": 7,
+    "max_heavy_atoms": 10,
     "closed_shell": true,
     "single_step": false
   },
@@ -50,207 +49,14 @@
           "id": "HL1_R",
           "role": "reactant",
           "smiles": [
-            "[OH3+].CC/C(=N/O)/C"
+            "C#[N+][O-].C1=CC2CCC1C2"
           ],
           "accessible": true,
           "label": "reactant",
           "properties": {}
-        },
-        {
-          "id": "HL1_TS1",
-          "role": "transition_state",
-          "smiles": [],
-          "accessible": true,
-          "label": "TS1",
-          "properties": {}
-        },
-        {
-          "id": "HL1_I1",
-          "role": "intermediate",
-          "smiles": [
-            "O.CC/C(C)=N/[OH2+]"
-          ],
-          "accessible": true,
-          "label": "intermediate 1",
-          "properties": {}
-        },
-        {
-          "id": "HL1_TS2",
-          "role": "transition_state",
-          "smiles": [],
-          "accessible": true,
-          "label": "TS2",
-          "properties": {}
-        },
-        {
-          "id": "HL1_I2",
-          "role": "intermediate",
-          "smiles": [
-            "O.O.CC#[N+]CC"
-          ],
-          "accessible": true,
-          "label": "intermediate 2",
-          "properties": {}
-        },
-        {
-          "id": "HL1_TS3",
-          "role": "transition_state",
-          "smiles": [],
-          "accessible": true,
-          "label": "TS3",
-          "properties": {}
-        },
-        {
-          "id": "HL1_I3",
-          "role": "intermediate",
-          "smiles": [
-            "CCN=C(C)[OH2+].O"
-          ],
-          "accessible": true,
-          "label": "intermediate 3",
-          "properties": {}
-        },
-        {
-          "id": "HL1_TS4",
-          "role": "transition_state",
-          "smiles": [],
-          "accessible": true,
-          "label": "TS4",
-          "properties": {}
-        },
-        {
-          "id": "HL1_P",
-          "role": "product",
-          "smiles": [
-            "CCNC(C)=[OH+].O"
-          ],
-          "accessible": true,
-          "label": "product",
-          "properties": {}
         }
       ],
-      "edges": [
-        {
-          "id": "HL1_E1",
-          "from": "HL1_R",
-          "to": "HL1_I1",
-          "via": "HL1_TS1",
-          "step_type": "proton transfer from H3O+ to the oxime OH (leaving-group activation)",
-          "bond_changes": {
-            "break": [
-              [
-                1,
-                2
-              ]
-            ],
-            "form": [
-              [
-                2,
-                7
-              ]
-            ]
-          },
-          "accessible": true,
-          "barrier_kcal_mol": null,
-          "weight": 1.0,
-          "channel": null,
-          "favored": null
-        },
-        {
-          "id": "HL1_E2",
-          "from": "HL1_I1",
-          "to": "HL1_I2",
-          "via": "HL1_TS2",
-          "step_type": "concerted Beckmann rearrangement (rate-determining): N-O cleavage with anti 1,2-ethyl migration from C to N and C-N pi bond formation -> nitrilium ion + water ((E)-oxime geometry puts the ethyl group anti to OH, so ethyl migrates)",
-          "bond_changes": {
-            "break": [
-              [
-                4,
-                5
-              ],
-              [
-                6,
-                7
-              ]
-            ],
-            "form": [
-              [
-                4,
-                6
-              ],
-              [
-                5,
-                6
-              ]
-            ]
-          },
-          "accessible": true,
-          "barrier_kcal_mol": 23.13,
-          "weight": 0.5,
-          "channel": null,
-          "favored": null
-        },
-        {
-          "id": "HL1_E3",
-          "from": "HL1_I2",
-          "to": "HL1_I3",
-          "via": "HL1_TS3",
-          "step_type": "water addition to nitrilium with C-N triple-to-double bond reduction -> stable O-protonated imidic acid plus water",
-          "bond_changes": {
-            "break": [
-              [
-                4,
-                6
-              ]
-            ],
-            "form": [
-              [
-                1,
-                4
-              ]
-            ]
-          },
-          "accessible": true,
-          "barrier_kcal_mol": 10.44,
-          "weight": 1.0,
-          "channel": null,
-          "favored": null
-        },
-        {
-          "id": "HL1_E4",
-          "from": "HL1_I3",
-          "to": "HL1_P",
-          "via": "HL1_TS4",
-          "step_type": "O-to-N proton transfer with C-O double bond formation and C-N double-to-single bond reduction -> O-protonated N-ethylacetamide plus water",
-          "bond_changes": {
-            "break": [
-              [
-                1,
-                10
-              ],
-              [
-                4,
-                6
-              ]
-            ],
-            "form": [
-              [
-                1,
-                4
-              ],
-              [
-                6,
-                10
-              ]
-            ]
-          },
-          "accessible": true,
-          "barrier_kcal_mol": 13.46,
-          "weight": 1.0,
-          "channel": null,
-          "favored": null
-        }
-      ]
+      "edges": []
     },
     "reference_properties": {},
     "selectivity": null
@@ -269,7 +75,7 @@
       "stereo_tier_rule": "hard_stereo_costly"
     },
     "accuracy": {
-      "enabled": true,
+      "enabled": false,
       "sigma_kcal_mol": 2.0,
       "max_penalty_fraction": 0.3,
       "small_barrier_threshold_kcal": 10.0,

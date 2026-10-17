@@ -188,7 +188,7 @@
 **Files:** Modify `cloudra/tools/core/ts_process.py`, `cloudra/tools/core/ts_candidate_pipeline.py`, `cloudra/tools/core/ts_sampling_pipeline.py`, `cloudra/tools/core/geometry_optimization.py`, `cloudra/services/ts_pipeline_store.py`, `cloudra/services/exploration_budget_store.py`, `cloudra/tools/core/ts_pipeline_driver.py`, `cloudra/runtime_v2/compute_notify.py`; Create `tests/test_ts_execution_accounting.py`; Modify `tests/test_ts_pipeline_recovery.py`, `tests/test_conformer_model_budget.py`。
 
 **Interfaces:**
-- `TsExecutionLimits` 位于 Task 1 的 execution 分组，仅暴露已授权的 max_compute_actions/max_model_calls/max_interventions 及必要来源；无 CPU 小时估计。
+- `TsExecutionLimits` 位于 Task 1 的 execution 分组，仅暴露已授权的 max_compute_actions/max_model_calls 及必要来源；无 CPU 小时估计。2026-10-18 用户要求移除所有 TS 任务的 max_interventions 上限，覆盖此前保留该字段的计划。
 - TS 调既有 `reserve_actions`，适配为不含 estimated_cpu_hours 限制的非时间额度，保持既有计算账本绑定；不创建 `reserve_ts_actions` 新公共设施。
 - `advance_process`、`reconcile_processes` 对不支持的输入格式返回明确隔离结果，并继续其他 process；不改 compute_jobs 生命状态。
 

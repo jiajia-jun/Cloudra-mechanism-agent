@@ -1,4 +1,4 @@
-"""R 族 + U 族登记：R1 pinacol、
+"""R 族 + U 族登记：R1 甲酰胺气相脱水、
 U3 磷叶立德+甲醛、U5 Passerini、U6 Staudinger。
 
 v3（2026-09-09）收窄为四条多步/中间体网络；R2/R3/U1/U7 剔出定稿名单留档池
@@ -9,38 +9,13 @@ v3（2026-09-09）收窄为四条多步/中间体网络；R2/R3/U1/U7 剔出定�
 """
 
 TASKS = {
-    # [OH3+].CC(C)(O)C(C)(C)O>>[OH3+].CC(=O)C(C)(C)C.O  (+1/1)  频哪醇重排
-    # 映射：1=H3O+ 的 O，2=酸性 H；3/5=离去侧甲基，4=离去侧 C，6=离去 OH；
-    # 7=羰基侧 C，8=迁移甲基，9=保留甲基，10=羰基 O，11=羰基侧 OH 的 H。
+    # 2026-10-18：NR1 槽正式换为甲酰胺脱水，旧频哪醇 Gold 不再用于此题。
+    # 文献路线含甲亚胺酸构象转换；结构/路径未自算验收前不预造 Gold 节点。
     "R1": {
-        "name_en": "pinacol rearrangement: pinacol -> pinacolone (acid-catalyzed)",
-        "conditions_en": "concentrated H2SO4, heated",
-        "mapped_reactants": "[OH2+:1]([H:2]).[CH3:3][C:4]([CH3:5])([OH:6])[C:7]([CH3:8])([CH3:9])[O:10][H:11]",
-        "steps": [
-            {
-                # PT：H3O+ 质子化 4 号碳上的 OH
-                "out": "[OH2:1].[CH3:3][C:4]([CH3:5])([OH+:6][H:2])[C:7]([CH3:8])([CH3:9])[O:10][H:11]",
-                "type": "proton transfer from H3O+ to one pinacol OH (leaving-group activation)",
-            },
-            {
-                # 脱水形成碳正离子/水离子对；未找到独立鞍点，参考垒缺测。
-                "out": "[OH2:1].[OH:6][H:2].[CH3:3][C+:4]([CH3:5])[C:7]([CH3:8])([CH3:9])[O:10][H:11]",
-                "type": "water departure from protonated pinacol -> tertiary carbocation/water ion pair",
-            },
-            {
-                # 1,2-甲基迁移：断 C7-C8，成 C4-C8 与 C7=O10 π。
-                "out": "[OH2:1].[OH:6][H:2].[CH3:3][C:4]([CH3:5])([CH3:8])[C:7](=[O+:10][H:11])[CH3:9]",
-                "type": "1,2-methyl migration from the carbocation/water ion pair with C=O pi formation -> protonated pinacolone",
-                "barrier": 5.16,
-                "weight": 0.5,
-            },
-            {
-                # PT：质子化羰基把质子还给水，再生 H3O+
-                "out": "[OH2+:1][H:11].[OH:6][H:2].[CH3:3][C:4]([CH3:5])([CH3:8])[C:7](=[O:10])[CH3:9]",
-                "type": "proton transfer from protonated pinacolone to water, regenerating H3O+",
-                "barrier": 5.74,
-            },
-        ],
+        "name_en": "formamide dehydration: formamide -> hydrogen cyanide + water",
+        "conditions_en": "gas phase, isolated neutral formamide, closed-shell thermal dehydration; no added water, acid or catalyst; investigate formimidic-acid intermediates and conformational transitions; source DOI 10.1021/jp109143j; Gold construction pending remote calculations",
+        "mapped_reactants": "[NH2:1][CH:2]=[O:3]",
+        "steps": [],
     },
     # [OH3+].CC(C)=NO>>[OH3+].CNC(C)=O  (+1/1)  Beckmann 重排
     # 映射：1=H3O+ 的 O，2/9/10=其三个 H；3=保留甲基，4=肟 C，5=anti 迁移甲基，

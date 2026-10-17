@@ -1,0 +1,888 @@
+{
+  "CH2OO": {
+    "optimizer_success": false,
+    "message": "Desired error not necessarily achieved due to precision loss.",
+    "nit": 17,
+    "max_gradient": 4.385484650545914e-05,
+    "stationary_tolerance_Eh_Bohr": 2e-05,
+    "stationary_pass": false,
+    "energy_Hf_Eh": 0.047150682549204584,
+    "calls": [
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0000",
+        "Hf_eV": 1.3783930886362066,
+        "total_eV": -735.40815,
+        "max_gradient_Eh_Bohr": 0.06016128165315279
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0001",
+        "Hf_eV": 1.3035470789448216,
+        "total_eV": -735.48302,
+        "max_gradient_Eh_Bohr": 0.0238223997381337
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0002",
+        "Hf_eV": 1.289329723839973,
+        "total_eV": -735.49725,
+        "max_gradient_Eh_Bohr": 0.007240988867231663
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0003",
+        "Hf_eV": 1.285668926188685,
+        "total_eV": -735.50092,
+        "max_gradient_Eh_Bohr": 0.004375858408855662
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0004",
+        "Hf_eV": 1.2840896055246251,
+        "total_eV": -735.50251,
+        "max_gradient_Eh_Bohr": 0.0031947240348960213
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0005",
+        "Hf_eV": 1.2832986442694785,
+        "total_eV": -735.50331,
+        "max_gradient_Eh_Bohr": 0.0010465601054382252
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0006",
+        "Hf_eV": 1.2832283944211595,
+        "total_eV": -735.50338,
+        "max_gradient_Eh_Bohr": 0.0005603088270947654
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0007",
+        "Hf_eV": 1.2831841630351808,
+        "total_eV": -735.50342,
+        "max_gradient_Eh_Bohr": 0.000521859517972969
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0008",
+        "Hf_eV": 1.2831273560590712,
+        "total_eV": -735.50348,
+        "max_gradient_Eh_Bohr": 0.0008928353925415221
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0009",
+        "Hf_eV": 1.2830818237499757,
+        "total_eV": -735.50352,
+        "max_gradient_Eh_Bohr": 0.0007126336660356371
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0010",
+        "Hf_eV": 1.2830601416980252,
+        "total_eV": -735.50354,
+        "max_gradient_Eh_Bohr": 0.0003544202567969359
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0011",
+        "Hf_eV": 1.2830527698003622,
+        "total_eV": -735.50355,
+        "max_gradient_Eh_Bohr": 0.00021343102370804468
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0012",
+        "Hf_eV": 1.2830484333899723,
+        "total_eV": -735.50355,
+        "max_gradient_Eh_Bohr": 0.00018283871798774353
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0013",
+        "Hf_eV": 1.2830449642616601,
+        "total_eV": -735.50356,
+        "max_gradient_Eh_Bohr": 0.00017011420104826055
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0014",
+        "Hf_eV": 1.283041495133348,
+        "total_eV": -735.50356,
+        "max_gradient_Eh_Bohr": 0.0001392351741562831
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0015",
+        "Hf_eV": 1.283038026005036,
+        "total_eV": -735.50356,
+        "max_gradient_Eh_Bohr": 0.00015727583893767079
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0016",
+        "Hf_eV": 1.283035857799841,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 0.00010907126359836895
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0017",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385484650545914e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0018",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 9.594196382828405e-06
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0019",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 3.3156773611676834e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0020",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.132664040932486e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0021",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.330670308901908e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0022",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.373847144166109e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0023",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.38295475785465e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0024",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.384894342251286e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0025",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.3853159910331614e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0026",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0027",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0028",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0029",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0030",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0031",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0032",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0033",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0034",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0035",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0036",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0037",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0038",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0039",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0040",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0041",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0042",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0043",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0044",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0045",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0046",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0047",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0048",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0049",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0050",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.386749596891543e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0051",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0052",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0053",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.386749596891543e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0054",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0055",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0056",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0057",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.386749596891543e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0058",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0059",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.386749596891543e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0060",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0061",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0062",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385400320789538e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0063",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 9.594196382828405e-06
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0064",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 2.672494309292564e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0065",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 3.6615136920631674e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0066",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.069585383163693e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0067",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.248364466679525e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0068",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.325947842544887e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0069",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.359595415338667e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0070",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.374268792947985e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0071",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.38059352467614e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0072",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.383376406636527e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0073",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.384557023225783e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0074",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.3850630017640354e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/CH2OO_minimum/sp_0075",
+        "Hf_eV": 1.283035424158802,
+        "total_eV": -735.50357,
+        "max_gradient_Eh_Bohr": 4.385484650545914e-05
+      }
+    ]
+  },
+  "dioxirane": {
+    "optimizer_success": false,
+    "message": "Desired error not necessarily achieved due to precision loss.",
+    "nit": 11,
+    "max_gradient": 5.0718445376852326e-05,
+    "stationary_tolerance_Eh_Bohr": 2e-05,
+    "stationary_pass": false,
+    "energy_Hf_Eh": 0.012302220637635744,
+    "calls": [
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0000",
+        "Hf_eV": 0.46026139510842834,
+        "total_eV": -736.32705,
+        "max_gradient_Eh_Bohr": 0.0598550069408657
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0001",
+        "Hf_eV": 0.3563891888301424,
+        "total_eV": -736.43092,
+        "max_gradient_Eh_Bohr": 0.032679834868329906
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0002",
+        "Hf_eV": 0.33661949386186196,
+        "total_eV": -736.45069,
+        "max_gradient_Eh_Bohr": 0.007425246855019203
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0003",
+        "Hf_eV": 0.3351763364840502,
+        "total_eV": -736.45213,
+        "max_gradient_Eh_Bohr": 0.0013575395748335053
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0004",
+        "Hf_eV": 0.3349226564762317,
+        "total_eV": -736.45238,
+        "max_gradient_Eh_Bohr": 0.0008374459219590368
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0005",
+        "Hf_eV": 0.33485240662791277,
+        "total_eV": -736.45245,
+        "max_gradient_Eh_Bohr": 0.0004174896382925282
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0006",
+        "Hf_eV": 0.33481814898583134,
+        "total_eV": -736.45249,
+        "max_gradient_Eh_Bohr": 0.00039786441738884684
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0007",
+        "Hf_eV": 0.33478736047206187,
+        "total_eV": -736.45252,
+        "max_gradient_Eh_Bohr": 0.0003652734964424489
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0008",
+        "Hf_eV": 0.3347743512408918,
+        "total_eV": -736.45253,
+        "max_gradient_Eh_Bohr": 0.0002710349936929478
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0009",
+        "Hf_eV": 0.3347656784201116,
+        "total_eV": -736.45254,
+        "max_gradient_Eh_Bohr": 0.0001741932313641383
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0010",
+        "Hf_eV": 0.3347613420097215,
+        "total_eV": -736.45254,
+        "max_gradient_Eh_Bohr": 0.00014823821894691997
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0011",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0012",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 6.376172879543429e-06
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0013",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 3.6782109838254954e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0014",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 4.741693541475571e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0015",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.000248574522524e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0016",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.056665181537662e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0017",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0686400069429674e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0018",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.07116989963423e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0019",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.071675878172482e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0020",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0021",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0022",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0023",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0024",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0025",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0026",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0027",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0028",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0029",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0030",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0031",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0032",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0033",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0034",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0035",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0036",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0037",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0038",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0039",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0040",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0041",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0042",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0043",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0044",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0045",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0046",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0047",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0048",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0049",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0050",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0051",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0052",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0053",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0054",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0055",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 6.376172879543429e-06
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0056",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 2.8545622533070367e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0057",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 4.1346879550854946e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0058",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 4.66301387877733e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0059",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 4.8944147302714064e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0060",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 4.994767140358123e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0061",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.038365624404202e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0062",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.057339819588664e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0063",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0655198059570774e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0064",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0691459854812195e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0065",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0706639210959776e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0066",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0713385591469806e-05
+      },
+      {
+        "label": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/pm7_validate/dioxirane_minimum/sp_0067",
+        "Hf_eV": 0.33476047472764353,
+        "total_eV": -736.45255,
+        "max_gradient_Eh_Bohr": 5.0718445376852326e-05
+      }
+    ]
+  }
+}

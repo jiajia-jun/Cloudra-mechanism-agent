@@ -126,6 +126,14 @@ class GlobalConfigPatch(BaseModel):
     changes: GlobalConfigFieldPatch
 
 
+class SearchConfigPatch(BaseModel):
+    """Shared Search/Fetch settings; omitted keys are preserved, empty clears."""
+
+    model_config = ConfigDict(extra="forbid")
+    search_provider: Literal["deepseek", "auto", "tavily", "brave", "bing", "duckduckgo"] = "deepseek"
+    deepseek_api_key: str = ""
+
+
 class ToolDocumentLoadingPatch(BaseModel):
     model_config = ConfigDict(extra='forbid')
     strategy: Literal['llm', 'semantic'] | None = None

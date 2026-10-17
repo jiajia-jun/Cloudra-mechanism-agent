@@ -1,0 +1,50 @@
+*************************************************
+******************* ORCA 6.1.1 ******************
+*************************************************
+$Calculation_Status
+   &GeometryIndex 0
+   &version [&Type "String"] "6.1.1"
+   &progName [&Type "String"] "orca"
+   &Status [&Type "String"] "NORMAL TERMINATION"
+$End
+$Geometry
+   &GeometryIndex 1
+   &NAtoms [&Type "Integer"] 11
+   &NCorelessECP [&Type "Integer"] 0
+   &NGhostAtoms [&Type "Integer"] 0
+   &CartesianCoordinates [&Type "Coordinates", &Dim(11,4), &Units "Bohr"] 
+              C      0.506994624470    1.558613989914   -1.373713736340
+              C      2.619757575073    0.282886333070   -0.777304830118
+              N      1.146551647508   -2.673799963051    1.935421601566
+              N     -0.909483614281   -2.053983019208    1.860707499409
+              C     -2.630859716110   -0.578133364781    1.019792597897
+              H     -0.540312385937    1.134060557763   -3.066305529697
+              H      0.012496758924    3.286936725011   -0.419594790776
+              H      3.852015861659    0.901673376170    0.718220652815
+              H      3.299312541462   -1.250773823246   -1.927977970324
+              H     -3.401968134235    0.772075957906    2.337971062614
+              H     -3.954503268806   -1.379556769547   -0.307218446770
+$End
+$Single_Point_Data
+   &GeometryIndex 1
+   &FinalEnergy [&Type "Double"]      -1.5181114290760000e+01  "Final single point energy"
+   &Converged [&Type "Boolean"] true
+$End
+$Calculation_Info
+   &GeometryIndex 1
+   &Mult [&Type "Integer"] 1
+   &Charge [&Type "Integer"] 0
+   &NumOfAtoms [&Type "Integer"] 11
+   &NumOfElectrons [&Type "Integer"] 0
+   &NumOfBasisFuncts [&Type "Integer"] 0
+   &NumOfAuxCBasisFuncts [&Type "Integer"] 0
+   &NumOfAuxJBasisFuncts [&Type "Integer"] 0
+   &NumOfAuxJKBasisFuncts [&Type "Integer"] 0
+   &NumOfCABSBasisFuncts [&Type "Integer"] 0
+$End
+$Calculation_Timings
+   &GeometryIndex 1
+   &XTB [&Type "Double"]       2.5433699999999990e+00
+   &XTBGRAD [&Type "Double"]       1.2082999999999566e-02
+   &SUM [&Type "Double"]       2.5554529999999986e+00
+$End

@@ -1583,6 +1583,89 @@ async def test_failed_ts_scan_unchanged_resume_keeps_failure_without_budget_exha
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("ts_producer_authority")
+async def test_ts_resume_repeated_irc_repairs_preserve_scientific_failure(tmp_path, monkeypatch):
+    """Real Agent revisions keep one run, immutable failed evidence and one job per new input."""
+    from cloudra.services.compute_admission import AdmissionOutcome
+    from cloudra.tools.core.ts_inputs import TsExecutionLimits
+    from cloudra.tools.core.ts_process import load_record
+    from tests.agent_scenarios import queued_native_ts_optimization, ts_repeated_irc_input_repair_steps
+    from tests.test_ts_fixture_pipeline import finish, install_log, job_count
+
+    monkeypatch.setattr("cloudra.services.compute_admission.admit_job",
+        lambda **_: AdmissionOutcome(ok=True, node_id="fixture", scheduler="local"))
+    frequency_ready, irc_ready = asyncio.Event(), asyncio.Event()
+    provider = ScriptedProvider(by_role={"small_mol": ts_repeated_irc_input_repair_steps(
+        "ts_0001", frequency_ready, irc_ready)})
+    harness = await ScenarioHarness.start(tmp_path, workspace_dir=tmp_path, provider=provider)
+    seed = (
+        "5\nNative optimization seed\n"
+        "C -0.423530 -0.004703 0.002036\n"
+        "O 0.591597 -0.682213 -0.372134\n"
+        "O 1.476819 0.188463 0.229121\n"
+        "H -1.261767 -0.509001 0.485509\n"
+        "H -0.434262 1.076129 -0.083405\n"
+    )
+    try:
+        agent = await harness.spawn("small_mol", protocol="traditional")
+        db, record, optimization = await asyncio.to_thread(queued_native_ts_optimization,
+            tmp_path, seed, harness.project.id, agent.id)
+        await asyncio.to_thread(install_log, record, optimization, "orca/ch2oo_optts_gfn2_orca611.out")
+        await asyncio.to_thread(finish, db, optimization.job_id)
+        current = await asyncio.to_thread(load_record, str(tmp_path), record.run_id)
+        failed_frequency = current.job_steps[-1]
+        failed_log = await asyncio.to_thread(install_log, current, failed_frequency, "orca/co2_freq_orca42.out")
+        failed_bytes = await asyncio.to_thread(failed_log.read_bytes)
+        await asyncio.to_thread(finish, db, failed_frequency.job_id)
+        failed = await asyncio.to_thread(load_record, str(tmp_path), record.run_id)
+        assert failed.blocked.failure_class == "wrong_mode"
+        assert failed.terminal is None
+
+        frequency_ready.set()
+        await harness.wait_for(lambda: len(harness.tool_events(agent)) == 1
+            and harness.tool_events(agent)[0]["status"] == "completed", "frequency repair accepted")
+        repaired = await asyncio.to_thread(load_record, str(tmp_path), record.run_id)
+        frequency = repaired.job_steps[-1]
+        assert frequency.purpose == "frequency" and frequency.job_id != failed_frequency.job_id
+        # This is contract data for the single-mode gate, never a claimed real saddle.
+        await asyncio.to_thread(install_log, repaired, frequency, "benchmark_synthetic/ts_freq.out")
+        await asyncio.to_thread(finish, db, frequency.job_id)
+        before = await asyncio.to_thread(load_record, str(tmp_path), record.run_id)
+        assert before.job_steps[-1].purpose == "irc"
+        first_irc_job = before.job_steps[-1].job_id
+        irc_ready.set()
+        await harness.wait_terminal(agent)
+
+        calls = harness.tool_events(agent)
+        assert [call["tool_name"] for call in calls] == ["ts_resume"] * 5
+        assert all(call["is_success"] for call in calls), harness.describe(agent)
+        repairs = [call["result_data"] for call in calls[1:]]
+        job_ids = [result["waiting_for"][0]["job_id"] for result in repairs]
+        assert len(set([first_irc_job, *job_ids[:3]])) == 4
+        assert job_ids[3] == job_ids[2]
+        assert [result["usage"]["interventions"] for result in repairs] == [2, 3, 4, 4]
+        for result in repairs:
+            assert result["run_id"] == record.run_id
+            assert result["status"] == "waiting" and result["stage"] == "refine"
+            assert result["blocked"] is None and result["result"] is None
+        saved = await asyncio.to_thread(load_record, str(tmp_path), record.run_id)
+        assert saved.pipeline_id == record.pipeline_id and saved.terminal is None
+        assert saved.declaration_revision == 5 and saved.intervention_count == 4
+        assert len(saved.attempt_history) == 4
+        assert saved.attempt_history[0].blocked.model_dump() == failed.blocked.model_dump()
+        assert saved.attempt_history[0].job_steps[-1].job_id == failed_frequency.job_id
+        assert saved.job_steps[0].job_id == optimization.job_id
+        assert saved.job_steps[1].job_id == frequency.job_id
+        assert await asyncio.to_thread(failed_log.read_bytes) == failed_bytes
+        assert await asyncio.to_thread(job_count, db) == 7
+        assert "max_interventions" not in TsExecutionLimits.model_json_schema()["properties"]
+    finally:
+        frequency_ready.set()
+        irc_ready.set()
+        await harness.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("ts_producer_authority")
 async def test_ts_resume_native_cclib_assertion_keeps_completed_ts(tmp_path, monkeypatch):
     """IA8 native ORCA log: real Agent/resume/parser/writer/ledger, no QM process."""
     from cloudra.services.compute_admission import AdmissionOutcome
@@ -1964,4 +2047,48 @@ async def test_complete_final_supervisor_review_controls_delivery(tmp_path, verd
     finally:
         for event in (review_ready, resume, park):
             event.set()
+        await harness.aclose()
+
+
+@pytest.mark.asyncio
+async def test_named_agent_communication_addresses_only_the_launched_instance(tmp_path):
+    """Launcher names survive storage and Hub addressing with another same-role peer present."""
+    from tests.agent_scenarios import named_agent_communication_steps
+
+    release_child = asyncio.Event()
+    provider = ScriptedProvider(by_role={
+        "coordinator": named_agent_communication_steps(),
+        "explorer": [Step(stop=True), Step(wait_for=release_child, stop=True)],
+    })
+    harness = await ScenarioHarness.start(tmp_path, provider=provider)
+    try:
+        other = await harness.spawn("explorer", protocol="traditional")
+        await harness.wait_terminal(other)
+        parent = await harness.spawn("coordinator", protocol="traditional")
+        await harness.wait_terminal(parent)
+        calls = harness.tool_events(parent)
+        assert [call["tool_name"] for call in calls] == ["subagent_launcher", "agent_hub"]
+        assert all(call["is_success"] for call in calls), harness.describe(parent)
+        child = harness.core.agents[calls[0]["result_data"]["session_id"]]
+        assert child.parent_session_id == parent.id
+        assert child.display_name == "lane_ts_scout"
+        assert {agent.id for agent in harness.core.agents.values() if agent.role_id == "explorer"} == {
+            other.id, child.id,
+        }
+        result = calls[1]["result_data"]
+        assert result["session_id"] == child.id
+        assert [notice["session_id"] for notice in result["notifications"]] == [child.id]
+        message_id = result["notifications"][0]["message_event_id"]
+        deliveries = await asyncio.to_thread(
+            harness.store.read_events, project_id=harness.project.id, types={"agent.message_injected"},
+        )
+        assert [event.session_id for event in deliveries if event.event_id == message_id] == [child.id]
+        assert not any(event.event_id == message_id for event in harness.events(other))
+        spawned = await asyncio.to_thread(
+            harness.store.read_events, session_id=child.id, types={"agent.spawned"},
+        )
+        assert len(spawned) == 1
+        assert spawned[0].data["display_name"] == "lane_ts_scout"
+    finally:
+        release_child.set()
         await harness.aclose()

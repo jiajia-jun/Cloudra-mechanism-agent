@@ -1,0 +1,17 @@
+task_id,tier,task_file
+NR1,normal,ideapool/tasks/normal/NR1.json
+NY3,normal,ideapool/tasks/normal/NY3.json
+HI1,hard,ideapool/tasks/hard/HI1.json
+HL1,hard,ideapool/tasks/hard/HL1.json
+IA1,impossible,ideapool/tasks/impossible/IA1.json
+IA5,impossible,ideapool/tasks/impossible/IA5.json
+IA7,impossible,ideapool/tasks/impossible/IA7.json
+IA8,impossible,ideapool/tasks/impossible/IA8.json
+IA9,impossible,ideapool/tasks/impossible/IA9.json
+IB9,impossible,ideapool/tasks/impossible/IB9.json
+IB10,impossible,ideapool/tasks/impossible/IB10.json
+IC3,impossible,ideapool/tasks/impossible/IC3.json
+ID2,impossible,ideapool/tasks/impossible/ID2.json
+IE2,impossible,ideapool/tasks/impossible/IE2.json
+IF3,impossible,ideapool/tasks/impossible/IF3.json
+IG8,impossible,ideapool/tasks/impossible/IG8.json

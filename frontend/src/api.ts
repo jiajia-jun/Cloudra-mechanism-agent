@@ -269,6 +269,11 @@ export const api = {
       body: JSON.stringify({ code, code_verifier, slot }),
     }),
   runtimeConfig: () => request<RuntimeConfig>('/api/v2/runtime/config'),
+  patchSearchConfig: (changes: { search_provider?: RuntimeConfig['search_provider']; deepseek_api_key?: string }) =>
+    request<RuntimeConfig>('/api/v2/runtime/config/search', {
+      method: 'PATCH',
+      body: JSON.stringify(changes),
+    }),
   patchToolDocumentLoading: (changes: Record<string, unknown>) =>
     request<RuntimeConfig>('/api/v2/runtime/config/tool-document-loading', {
       method: 'PATCH',

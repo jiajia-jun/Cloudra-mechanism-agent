@@ -1,0 +1,103 @@
+{
+  "trajectory_id": "frag1-mmff94-attempt1",
+  "component_id": "frag1",
+  "attempt": 1,
+  "engine": "MMFF94",
+  "symbols": [
+    "C",
+    "C",
+    "O",
+    "H",
+    "H"
+  ],
+  "random_seed": 42,
+  "frame_count": 242,
+  "iterations": 241,
+  "initial_frame": {
+    "step": 0,
+    "symbols": [
+      "C",
+      "C",
+      "O",
+      "H",
+      "H"
+    ],
+    "positions": [
+      [
+        -0.5747595171384794,
+        -0.036459334718062376,
+        0.03173814062851125
+      ],
+      [
+        0.7410642520289812,
+        0.010055779889775124,
+        -0.04707553377371649
+      ],
+      [
+        1.9969904963078362,
+        0.04597711157432971,
+        -0.10942555628668434
+      ],
+      [
+        -1.1063276545923848,
+        -0.9653420233337382,
+        0.05783967448033648
+      ],
+      [
+        -1.0569675766059539,
+        0.9457684665876962,
+        0.06692327495155616
+      ]
+    ],
+    "energy": -3.9417575057885665,
+    "energy_unit": "kcal/mol",
+    "max_gradient": 141.2662458257403
+  },
+  "final_frame": {
+    "step": 241,
+    "symbols": [
+      "C",
+      "C",
+      "O",
+      "H",
+      "H"
+    ],
+    "positions": [
+      [
+        -0.5346033919821085,
+        -0.005472580048763891,
+        0.030214929879307174
+      ],
+      [
+        0.7587457443355006,
+        0.007760087658794524,
+        -0.04292567634356905
+      ],
+      [
+        1.9312811112032862,
+        0.0197659508115802,
+        -0.10922385041020838
+      ],
+      [
+        -1.0685130673716416,
+        -0.9457126587116418,
+        0.05461663144490799
+      ],
+      [
+        -1.086910396185039,
+        0.9236592002900317,
+        0.0673179654295655
+      ]
+    ],
+    "energy": -11.394771595144054,
+    "energy_unit": "kcal/mol",
+    "max_gradient": 0.0011068277150346369
+  },
+  "convergence_code": 0,
+  "status": "converged",
+  "failure": "",
+  "notes": [],
+  "frames_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB10/P/structure_build/opt/trajectories/frag1-mmff94-attempt1/frames.xyz",
+  "frames_jsonl_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB10/P/structure_build/opt/trajectories/frag1-mmff94-attempt1/frames.jsonl",
+  "json_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB10/P/structure_build/opt/trajectories/frag1-mmff94-attempt1/trajectory.json"
+}

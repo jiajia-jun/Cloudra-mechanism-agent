@@ -6,6 +6,8 @@ requests shim 的 extra_body 平铺，以及 Agent 请求装配对 web_search �
 
 from __future__ import annotations
 
+import pytest
+
 from cloudra.infra.llm_client import serialize_openai_payload
 from cloudra.infra.web_search_native import (
     NativeSearchAdapter,
@@ -64,16 +66,17 @@ def test_resolve_openrouter_host_via_auto():
     assert adapter.name == "openrouter"
 
 
-def test_resolve_deepseek_auto_enables():
-    """DeepSeek 走 Responses 传输，auto 模式无需 params 直接启用原生搜索。"""
+@pytest.mark.parametrize("mode", ["auto", "on", "true", "yes", "1", "enabled"])
+@pytest.mark.parametrize("params", [None, {"tools": [{"type": "web_search"}]}])
+def test_resolve_deepseek_auto_requires_explicit_opt_in(mode, params):
+    """配置普通 DeepSeek 模型不能自动把整轮推理切换到 Responses。"""
     adapter = resolve_native_search(
         base_url="https://api.deepseek.com",
         model="deepseek-v4-flash",
-        mode="auto",
+        mode=mode,
+        params=params,
     )
-    assert adapter is not None
-    assert adapter.name == "deepseek"
-    assert adapter.transport == "responses"
+    assert adapter is None
 
 
 def test_deepseek_enrich_injects_web_search_tool():
@@ -82,7 +85,7 @@ def test_deepseek_enrich_injects_web_search_tool():
         {"model": "deepseek-v4-flash", "tools": [{"type": "function", "function": {"name": "x"}}]},
         base_url="https://api.deepseek.com",
         model="deepseek-v4-flash",
-        mode="auto",
+        mode="deepseek",
     )
     assert name == "deepseek"
     tools = kwargs["extra_body"]["tools"]
@@ -98,7 +101,7 @@ def test_deepseek_enrich_params_tools_override():
         {"model": "deepseek-v4-flash"},
         base_url="https://api.deepseek.com",
         model="deepseek-v4-flash",
-        mode="auto",
+        mode="deepseek",
         params={"tools": [{"type": "web_search"}, {"type": "web_search_2025_08_26"}]},
     )
     assert name == "deepseek"
@@ -117,6 +120,7 @@ def test_resolve_forced_provider_ignores_missing_params():
     )
     assert adapter is not None
     assert adapter.name == "deepseek"
+    assert adapter.transport == "responses"
 
 
 def test_resolve_custom_mode():

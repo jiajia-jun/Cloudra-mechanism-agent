@@ -1,0 +1,36 @@
+2
+trajectory_id=frag1-mmff94-attempt1 step=0 energy=48.362956 kcal/mol
+N         0.55501358       0.00000000       0.00000000
+N        -0.55501358       0.00000000       0.00000000
+2
+trajectory_id=frag1-mmff94-attempt1 step=1 energy=16.546932 kcal/mol
+N         0.91988223       0.00000000       0.00000000
+N        -0.91988223       0.00000000       0.00000000
+2
+trajectory_id=frag1-mmff94-attempt1 step=2 energy=0.113037 kcal/mol
+N         0.71835418       0.00000000       0.00000000
+N        -0.71835418       0.00000000       0.00000000
+2
+trajectory_id=frag1-mmff94-attempt1 step=3 energy=0.001700 kcal/mol
+N         0.73146603       0.00000000       0.00000000
+N        -0.73146603       0.00000000       0.00000000
+2
+trajectory_id=frag1-mmff94-attempt1 step=4 energy=0.000076 kcal/mol
+N         0.73031017       0.00000000       0.00000000
+N        -0.73031017       0.00000000       0.00000000
+2
+trajectory_id=frag1-mmff94-attempt1 step=5 energy=0.000003 kcal/mol
+N         0.73006392       0.00000000       0.00000000
+N        -0.73006392       0.00000000       0.00000000
+2
+trajectory_id=frag1-mmff94-attempt1 step=6 energy=0.000000 kcal/mol
+N         0.73001310       0.00000000       0.00000000
+N        -0.73001310       0.00000000       0.00000000
+2
+trajectory_id=frag1-mmff94-attempt1 step=7 energy=0.000000 kcal/mol
+N         0.73000268       0.00000000       0.00000000
+N        -0.73000268       0.00000000       0.00000000
+2
+trajectory_id=frag1-mmff94-attempt1 step=8 energy=0.000000 kcal/mol
+N         0.73000055       0.00000000       0.00000000
+N        -0.73000055       0.00000000       0.00000000

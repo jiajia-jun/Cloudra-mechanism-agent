@@ -1,0 +1,103 @@
+{
+  "trajectory_id": "frag0-mmff94-attempt1",
+  "component_id": "frag0",
+  "attempt": 1,
+  "engine": "MMFF94",
+  "symbols": [
+    "C",
+    "O",
+    "O",
+    "H",
+    "H"
+  ],
+  "random_seed": 42,
+  "frame_count": 59,
+  "iterations": 58,
+  "initial_frame": {
+    "step": 0,
+    "symbols": [
+      "C",
+      "O",
+      "O",
+      "H",
+      "H"
+    ],
+    "positions": [
+      [
+        -0.25256914558763277,
+        -0.007998790510630165,
+        -0.021172229510127955
+      ],
+      [
+        0.975169008764031,
+        -0.11207049770885126,
+        -0.6410645451320521
+      ],
+      [
+        0.9583218241408428,
+        0.07564064237371552,
+        0.6567363755879555
+      ],
+      [
+        -0.8816728256750835,
+        -0.9044577991640809,
+        0.07139950318062896
+      ],
+      [
+        -0.7992488616421572,
+        0.9488864450098473,
+        -0.06589910412640433
+      ]
+    ],
+    "energy": 9.843660507186657,
+    "energy_unit": "kcal/mol",
+    "max_gradient": 132.30070346549942
+  },
+  "final_frame": {
+    "step": 58,
+    "symbols": [
+      "C",
+      "O",
+      "O",
+      "H",
+      "H"
+    ],
+    "positions": [
+      [
+        -0.2596252810971349,
+        0.007368280018726541,
+        -0.002151883080364218
+      ],
+      [
+        0.9774767972710295,
+        -0.1001867937272192,
+        -0.7105891676224165
+      ],
+      [
+        0.9696810876569655,
+        0.04492576077757747,
+        0.7267296827257901
+      ],
+      [
+        -0.8702355709664628,
+        -0.8820382492163436,
+        0.08434104179040922
+      ],
+      [
+        -0.8172970328643975,
+        0.9299310021472591,
+        -0.09832967381341917
+      ]
+    ],
+    "energy": 0.8218859588669335,
+    "energy_unit": "kcal/mol",
+    "max_gradient": 0.0006748490811805472
+  },
+  "convergence_code": 0,
+  "status": "converged",
+  "failure": "",
+  "notes": [],
+  "frames_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/struct/build_dioxirane/trajectories/frag0-mmff94-attempt1/frames.xyz",
+  "frames_jsonl_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/struct/build_dioxirane/trajectories/frag0-mmff94-attempt1/frames.jsonl",
+  "json_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/struct/build_dioxirane/trajectories/frag0-mmff94-attempt1/trajectory.json"
+}

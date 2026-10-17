@@ -6,6 +6,8 @@ import os
 from html.parser import HTMLParser
 from urllib.parse import parse_qs, unquote, urlparse
 
+from cloudra.infra.config import get_config
+
 _UA = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -104,6 +106,25 @@ class _BingResultParser(HTMLParser):
         self._current[self._capture] += data.strip()
 
 
+async def _search_deepseek(client, query: str, max_results: int) -> list:
+    resp = await client.post(
+        "https://api.deepseek.com/v1/tools/search",
+        headers={"Authorization": f"Bearer {get_config().deepseek_api_key.strip()}"},
+        json={"query": query, "count": max_results, "need_content": False},
+    )
+    resp.raise_for_status()
+    return [
+        {
+            "title": item["title"],
+            "url": item["url"],
+            "snippet": item["summary"],
+            "source": "deepseek",
+            "published": item.get("date"),
+        }
+        for item in resp.json()["results"]
+    ]
+
+
 async def _search_tavily(client, query: str, max_results: int) -> list:
     resp = await client.post(
         "https://api.tavily.com/search",
@@ -182,7 +203,7 @@ async def _search_ddg(client, query: str, max_results: int) -> list:
     return results
 
 
-async def run(query: str, max_results: int = 8, backend: str = "auto") -> dict:
+async def run(query: str, max_results: int = 8, backend: str | None = None) -> dict:
     query = query.strip()
     if not query:
         return {"is_success": False, "results": [], "backend_used": "", "error": "query must not be empty."}
@@ -193,10 +214,12 @@ async def run(query: str, max_results: int = 8, backend: str = "auto") -> dict:
     except ImportError:
         return {"is_success": False, "results": [], "backend_used": "", "error": "httpx dependency is missing."}
 
-    backend = backend.strip().lower()
+    config = get_config()
+    backend = (backend if backend is not None else config.search_provider).strip().lower()
     errors = []
 
     candidates = {
+        "deepseek": (config.deepseek_api_key.strip(), _search_deepseek),
         "tavily": (os.environ.get("TAVILY_API_KEY"), _search_tavily),
         "brave": (os.environ.get("BRAVE_SEARCH_API_KEY"), _search_brave),
         "bing": (True, _search_bing),
@@ -204,7 +227,7 @@ async def run(query: str, max_results: int = 8, backend: str = "auto") -> dict:
     }
 
     if backend == "auto":
-        order = ["tavily", "brave", "bing", "duckduckgo"]
+        order = ["deepseek", "tavily", "brave", "bing", "duckduckgo"]
     elif backend in candidates:
         order = [backend]
     else:
@@ -213,7 +236,7 @@ async def run(query: str, max_results: int = 8, backend: str = "auto") -> dict:
             "results": [],
             "backend_used": "",
             "error": (
-                f"Unknown backend: {backend}; available: auto / tavily / brave / bing / duckduckgo"
+                f"Unknown backend: {backend}; available: deepseek / auto / tavily / brave / bing / duckduckgo"
             ),
         }
 
@@ -221,7 +244,8 @@ async def run(query: str, max_results: int = 8, backend: str = "auto") -> dict:
         for name in order:
             available, fn = candidates[name]
             if not available:
-                errors.append(f"{name}: API key not configured, skipped")
+                key_name = "deepseek_api_key" if name == "deepseek" else f"{name} API key"
+                errors.append(f"{name}: {key_name} not configured")
                 continue
             try:
                 results = await fn(client, query, max_results)
@@ -242,5 +266,5 @@ async def run(query: str, max_results: int = 8, backend: str = "auto") -> dict:
         "is_success": False,
         "results": [],
         "backend_used": "",
-        "error": "All backends returned no results. " + "; ".join(errors),
+        "error": "Search failed. " + "; ".join(errors),
     }

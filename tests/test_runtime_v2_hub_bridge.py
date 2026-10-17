@@ -1289,3 +1289,65 @@ async def test_child_can_call_parent_coordinator_via_parent_alias_or_id():
         assert call_by_role.data["session_id"] == coordinator.id
     finally:
         await core.runner.cancel_all()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("action", ["call", "post"])
+async def test_custom_display_name_targets_one_instance_of_the_same_role(action):
+    core, _, coordinator = await _setup()
+    try:
+        await _wait_state(coordinator, "succeeded")
+        named = await _spawn(core, coordinator, "explorer")
+        named.display_name = "过渡态_Lane_A"
+        other = await _spawn(core, coordinator, "explorer")
+        other.display_name = "过渡态_Lane_B"
+        before = core.event_log.high_watermarks[coordinator.project_id]
+        if action == "call":
+            args = {"action": "call", "to": " @过渡态_lane_a ", "message": "check this TS"}
+        else:
+            args = {
+                "action": "post", "kind": "message", "topic": "TS evidence",
+                "to_agent": " @过渡态_lane_a ", "content": "check this TS",
+            }
+        result = await handle_hub_tool(core, coordinator, _hub(args))
+
+        assert result.is_success is True
+        assert [row["session_id"] for row in result.data["notifications"]] == [named.id]
+        delivered = [
+            event for event in core.event_log.query_project(
+                coordinator.project_id, types={"agent.message_injected"},
+            )
+            if event.seq > before
+        ]
+        assert any(event.session_id == named.id for event in delivered)
+        assert not any(event.session_id == other.id for event in delivered)
+    finally:
+        await core.runner.cancel_all()
+
+
+@pytest.mark.asyncio
+async def test_call_by_cancelled_display_name_parks_message_without_creating_peer():
+    core, _, coordinator = await _setup()
+    try:
+        await _wait_state(coordinator, "succeeded")
+        named = await _spawn(core, coordinator, "explorer")
+        named.display_name = "lane_ts_scout"
+        await core.agent_host.start_run(named)
+        await CommandBus(core).execute(Command(type="agent.cancel", target={"session_id": named.id}))
+        assert named.state.value == "cancelled"
+        sessions_before = set(core.agents)
+        runs_before = len(core.event_log.query_session(named.id, types={"run.started"}))
+
+        result = await handle_hub_tool(core, coordinator, _hub({
+            "action": "call", "to": "lane_ts_scout", "message": "late evidence",
+        }))
+
+        assert result.is_success is True
+        assert result.data["session_id"] == named.id
+        assert result.data["notifications"][0]["delivery"] == "parked"
+        assert named.state.value == "cancelled"
+        assert set(core.agents) == sessions_before
+        assert len(core.event_log.query_session(named.id, types={"run.started"})) == runs_before
+        assert any("late evidence" in text for text in _inbox_texts(core, named.id))
+    finally:
+        await core.runner.cancel_all()

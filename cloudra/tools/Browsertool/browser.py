@@ -4,15 +4,17 @@ from html.parser import HTMLParser
 from typing import Any
 from urllib.parse import urlparse
 
-from pydantic import Field
+import httpx
+from pydantic import BaseModel, Field, StrictStr
 
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.infra.config import get_config
 
 description = (
-    "Visit a URL with a headless browser (Playwright Chromium) and return rendered page text, title, or a screenshot; "
-    "falls back to static HTTP fetch if the browser environment is not ready. "
+    "Fetch a known URL using the configured search provider (DeepSeek returns Markdown), or use "
+    "a headless browser for screenshots and explicit page waits. Other providers use the browser "
+    "with a static HTTP fallback when the browser environment is not ready. "
     "Use for: fetching known-URL pages or files, JS-rendered pages, SPAs, or full-page screenshots. "
     "Do not use for: keyword search (use search with source=web or source=arxiv)."
 )
@@ -44,11 +46,16 @@ class HeadlessBrowser_input_schema(input_schema):
 
 class HeadlessBrowser_output_schema(output_schema):
     is_success: bool = Field(description="Whether the operation succeeded")
-    url: str = Field(default="", description="URL actually visited (may follow redirects)")
+    url: str = Field(default="", description="Requested URL for DeepSeek fetch; visited URL for browser operations (may follow redirects)")
     title: str = Field(default="", description="Page title")
     text: str = Field(default="", description="Extracted page body in fetch mode")
     screenshot_path: str = Field(default="", description="Absolute path of the saved screenshot in screenshot mode")
     error: str = Field(default="", description="Error message on failure")
+
+
+class _DeepSeekFetchResponse(BaseModel):
+    title: StrictStr
+    content: StrictStr
 
 
 class _HTMLTextExtractor(HTMLParser):
@@ -132,6 +139,34 @@ class HeadlessBrowser(Tool):
                 is_success=False,
                 error=f"Unsupported action: {action}; only fetch / screenshot are supported."
             )
+
+        config = get_config()
+        if config.search_provider == 'deepseek' and action == 'fetch' and not wait_for:
+            api_key = config.deepseek_api_key.strip()
+            if not api_key:
+                return HeadlessBrowser_output_schema(
+                    is_success=False,
+                    error="DeepSeek fetch requires deepseek_api_key; Search and Fetch share this key."
+                )
+            try:
+                async with httpx.AsyncClient(timeout=timeout_sec) as client:
+                    response = await client.post(
+                        'https://api.deepseek.com/v1/tools/fetch',
+                        headers={'Authorization': f'Bearer {api_key}'},
+                        json={'url': url}
+                    )
+                    response.raise_for_status()
+                    page = _DeepSeekFetchResponse.model_validate(response.json())
+                text = page.content
+                if max_length > 0 and len(text) > max_length:
+                    text = text[:max_length] + '\n\n...[content truncated; increase max_length to retrieve more]'
+                return HeadlessBrowser_output_schema(
+                    is_success=True, url=url, title=page.title, text=text
+                )
+            except Exception as e:
+                return HeadlessBrowser_output_schema(
+                    is_success=False, error=f"DeepSeek fetch failed: {e}"
+                )
 
         playwright_available = importlib.util.find_spec("playwright.async_api") is not None
 
@@ -240,7 +275,6 @@ class HeadlessBrowser(Tool):
         max_length: int
     ) -> HeadlessBrowser_output_schema:
         try:
-            import httpx
             async with httpx.AsyncClient(timeout=timeout_sec, follow_redirects=True) as client:
                 resp = await client.get(url, headers={
                     'User-Agent': (

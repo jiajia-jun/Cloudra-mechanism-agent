@@ -4,6 +4,8 @@
 >
 > 生成日期：2026-08-25。2026-08-31 扩建 F–J 族 38 条并完成初批 [未核实] 出处核验。状态：**2026-09-27 接收原 normal R4 为 B10（此前 U8 为 B9），现定稿 12 道 I 题；S 对照题全部取消**。
 >
+> **当前允许方法（2026-10-18）**：仅 xTB、PM7，关闭 DFT。下文保留的 DFT 结果属于历史参考，不代表当前题目允许使用 DFT。
+>
 > **档位定义**：强多参考态（strong static correlation）与近简并双自由基体系。单参考方法在这些体系的关键区域可能给出错误能级排序、虚假对称破缺或不可信能垒。现行交付协议要求 agent 保留机理图，把无法由允许方法可信计算的节点或边标 `accessible=false`，其余元素照常交付；不能编造数值。
 >
 > **选型原则**：全部为教科书级经典体系，多参考性质由 CASSCF/CASPT2/MRCI/FCIQMC/DMC 级高被引研究确立，可复现、有实验锚点（PES/EPR/光电子谱）。
@@ -196,7 +198,7 @@
 2. **结构**：`C=[N+]=[N-].C=C → C1CN=NC1 → C1CC1.N#N`，净电荷 0，单重态整体反应。
 3. **多参考性质**：脱氮需断两根 C–N σ 键，协同与分步路径都可能进入双自由基区域；“协同”本身不保证单参考可描述。旧 normal 图强定单步螯变且以 B3LYP 扫描补垒，不能作为可信 gold。
 4. **诊断证据**：Pradhan & Lourderaj, Phys. Chem. Chem. Phys. 2017, 19, 27468–27477, DOI 10.1039/C7CP05320G，以 CASSCF/CASPT2 比较同步、异步协同和异步分步脱氮路径，并指出常规 DFT/MP2 未正确描述双自由基区域。旧 NU8 第二步只有受限 B3LYP 扫描，没有通过 TS/IRC 验证。
-5. **判分口径**：IMP 允许 xTB、PM7、B3LYP/def2-SVP；首步环加成自算 ΔE‡ = 14.74 kcal/mol（气相 ORCA 5.0.2 B3LYP-D3(BJ)/def2-SVP，相对预反应络合物；gold 工作区 NU8/REPORT.md）。脱氮 TS 标 `accessible=false`，第二步能垒保持缺测；环加成部分按常规证据要求交付。
+5. **判分口径**：IMP 仅允许 xTB、PM7；首步环加成的历史 DFT 参考 ΔE‡ = 14.74 kcal/mol（气相 ORCA 5.0.2 B3LYP-D3(BJ)/def2-SVP，相对预反应络合物；gold 工作区 NU8/REPORT.md）。脱氮 TS 标 `accessible=false`，第二步能垒保持缺测；环加成部分按常规证据要求交付。
 
 ---
 
@@ -229,7 +231,7 @@
 
 ### C3. 苯基氮烯开壳单线态（Phenylnitrene open-shell singlet）
 1. **体系**：苯基氮烯（phenylnitrene，C6H5N）单线态与三线态。
-2. **结构**：SMILES `[N-]c1ccccc1`（氮烯）；³A2 基态，开壳 ¹A2。
+2. **结构**：SMILES `[N]c1ccccc1`（中性氮烯，q=0，与 registry/TaskSpec 一致）；³A2 基态，开壳 ¹A2。
 3. **多参考性质**：单线态苯基氮烯为 σ,π 开壳层（与 O2 ¹Δ 同构的电子态问题），实验-理论联合研究的核心结论即"single-t 的 PhN 是 open-shell"；扩环为重氮环庚四烯的能垒涉及该开壳态。
 4. **诊断证据**：Borden et al., 2000, Acc. Chem. Res. 33, 765（DOI 10.1021/ar990030a，被引 333，"key to understanding singlet PhN is the recognition that this species has an open-shell electronic structure"）；PES 测 ΔE_ST ≈ 18 kcal/mol（三态基态；Wenthold 组，JACS，DOI 10.1021/ja00076a049）[数值约]。
 5. **兄弟题**：三态苯基氮烯的几何与振动频率——UKS 单参考可算。

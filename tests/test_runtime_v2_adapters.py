@@ -803,9 +803,11 @@ async def test_native_search_renames_search_schema_and_unwires_response():
                 ]
             )
 
+    agent = _deepseek_agent()
+    agent.settings.native_search = "deepseek"
     provider = LegacyLLMProvider(client_factory=lambda settings: FakeClient())
     response = await provider.complete(
-        _deepseek_agent(), [{"role": "user", "content": "hi"}], ["search", "stop"]
+        agent, [{"role": "user", "content": "hi"}], ["search", "stop"]
     )
 
     tool_names = [t["function"]["name"] for t in sent["tools"]]
@@ -827,6 +829,19 @@ async def test_native_search_renames_search_schema_and_unwires_response():
         "source": "arxiv",
         "query": "cope rearrangement",
     }
+
+
+@pytest.mark.asyncio
+async def test_deepseek_default_keeps_local_web_search_and_chat_transport():
+    sent = {}
+    provider = LegacyLLMProvider(client_factory=lambda settings: _recording_client(sent))
+    await provider.complete(
+        _deepseek_agent(), [{"role": "user", "content": "hi"}], ["search", "stop"],
+    )
+
+    search = next(tool for tool in sent["tools"] if tool["function"]["name"] == "search")
+    assert "web" in search["function"]["parameters"]["properties"]["source"]["enum"]
+    assert {"type": "web_search"} not in sent.get("extra_body", {}).get("tools", [])
 
 
 def test_apply_native_search_to_schemas_rename_search_flag():
@@ -907,6 +922,7 @@ async def test_prompt_provider_marks_web_search_available_with_native_adapter(mo
         current_run=None,
         settings=_deepseek_agent().settings,
     )
+    agent.settings.native_search = "deepseek"
     prefix = LegacyPromptProvider().begin_context(agent=agent, workspace_dir=str(tmp_path), tool_names=["stop"])
     messages = await prefix.install()
     assert captured["web_search_available"] is True

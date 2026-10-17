@@ -127,6 +127,8 @@ export interface RuntimeConfig {
   config_file: string;
   coordinator: RuntimeConfigSlot;
   follower: RuntimeConfigSlot;
+  search_provider: 'deepseek' | 'auto' | 'tavily' | 'brave' | 'bing' | 'duckduckgo';
+  deepseek_api_key_set: boolean;
   tool_document_loading: ToolDocumentLoadingConfig;
 }
 

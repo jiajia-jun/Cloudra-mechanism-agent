@@ -1,0 +1,77 @@
+{
+  "args": {
+    "mode": "verify",
+    "strict": true,
+    "engine": "orca",
+    "freq_log": "gold_compute/queue_20261018/results/IA1/strict_native_bundle/frequency.out",
+    "irc_log": "gold_compute/queue_20261018/results/IA1/strict_native_bundle/irc.out",
+    "reactant_path": "gold_compute/queue_20261018/results/IA1/independent_endpoints/R_B/optfreq.xyz",
+    "product_path": "gold_compute/queue_20261018/results/IA1/independent_endpoints/P_F/optfreq.xyz",
+    "watch_pairs": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        2,
+        3
+      ],
+      [
+        0,
+        3
+      ]
+    ],
+    "output_dir": "gold_compute/queue_20261018/results/IA1/strict_bundle_result"
+  },
+  "call_id": "tc_0790a535075c4cbf",
+  "data": {
+    "is_success": true,
+    "message": "TS verification complete: inconclusive: missing TS geometry. The IRC path may be truncated (an outer frame has not yet relaxed onto the target endpoint reference geometry). Remedy: re-optimize each IRC outer frame to a minimum (Opt, ideally with Freq to confirm zero imaginary frequencies) and resubmit the endpoint reference geometries as reactant_path / product_path, then run strict verify again.",
+    "process": null,
+    "diagnostics": [],
+    "mapping_candidates": [],
+    "calculation": null,
+    "images_dir": "",
+    "distance_table": "",
+    "ts_candidate_index": null,
+    "ts_candidate_path": "",
+    "refinement_termination": "",
+    "path_termination_reason": null,
+    "path_kind": "",
+    "input_file_path": "",
+    "run_hint": "",
+    "profile_table": "",
+    "scan_has_internal_peak": null,
+    "verdicts": [],
+    "barrier_kcal": null,
+    "candidate": null,
+    "candidate_unavailable": false,
+    "verdict": "inconclusive: missing TS geometry. The IRC path may be truncated (an outer frame has not yet relaxed onto the target endpoint reference geometry). Remedy: re-optimize each IRC outer frame to a minimum (Opt, ideally with Freq to confirm zero imaginary frequencies) and resubmit the endpoint reference geometries as reactant_path / product_path, then run strict verify again.",
+    "verification_status": "inconclusive",
+    "n_imag": 1,
+    "imag_freqs": [
+      -4610.8
+    ],
+    "checks": [
+      "Exactly 1 imaginary frequency (-4610.8 cm⁻¹): the first-order saddle-point premise holds.",
+      "Imaginary mode is consistent with the declared reaction coordinate: watch_pairs max relative displacement 0.704 ≥ 0.50×global max 0.996 (max pair=(0,2)).",
+      "Atom pair (0,1) relative displacement=0.704 (threshold 0.50×0.996=0.498)",
+      "Atom pair (1,2) relative displacement=0.704 (threshold 0.50×0.996=0.498)",
+      "Atom pair (2,3) relative displacement=0.704 (threshold 0.50×0.996=0.498)",
+      "Atom pair (0,3) relative displacement=0.704 (threshold 0.50×0.996=0.498)",
+      "The ORCA IRC forward direction converged; a short converged path needs no padding to a fixed point count.",
+      "The ORCA IRC backward direction converged; a short converged path needs no padding to a fixed point count.",
+      "ORCA IRC endpoints extracted (forward/backward are trajectory directions, NOT reactant/product assignments): irc_end_a.xyz (final_endpoint_file), irc_end_b.xyz (final_endpoint_file) -> /Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA1/strict_bundle_result",
+      "Neither the frequency log nor the IRC provides a usable TS geometry.",
+      "The IRC path may be truncated (an outer frame has not yet relaxed onto the target endpoint reference geometry). Remedy: re-optimize each IRC outer frame to a minimum (Opt, ideally with Freq to confirm zero imaginary frequencies) and resubmit the endpoint reference geometries as reactant_path / product_path, then run strict verify again."
+    ],
+    "irc_end_a_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA1/strict_bundle_result/irc_end_a.xyz",
+    "irc_end_b_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA1/strict_bundle_result/irc_end_b.xyz",
+    "imag_mode_aligned": true,
+    "imag_mode_alignment": "Imaginary mode is consistent with the declared reaction coordinate: watch_pairs max relative displacement 0.704 ≥ 0.50×global max 0.996 (max pair=(0,2))."
+  }
+}

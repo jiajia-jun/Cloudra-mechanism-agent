@@ -1,0 +1,89 @@
+{
+  "name": "mopac",
+  "version": "23.2.5",
+  "build": "h927232e_0",
+  "build_number": 0,
+  "channel": "https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/conda-forge/osx-arm64",
+  "subdir": "osx-arm64",
+  "fn": "mopac-23.2.5-h927232e_0.conda",
+  "md5": "b8925ea0a769cb00ab15d93e739cbcd8",
+  "url": "https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/conda-forge/osx-arm64/mopac-23.2.5-h927232e_0.conda",
+  "sha256": "ea6cdd471ba989f2eacd715ce6193c2fad2d687d563614c2f255634e89c6dc84",
+  "depends": [
+    "__osx >=11.0",
+    "libblas >=3.9.0,<4.0a0",
+    "libgfortran",
+    "libgfortran5 >=14.3.0",
+    "liblapack >=3.9.0,<4.0a0",
+    "llvm-openmp >=19.1.7",
+    "llvm-openmp >=22.1.4"
+  ],
+  "constrains": [],
+  "license": "Apache-2.0",
+  "timestamp": 1777837544000,
+  "size": 2126310,
+  "requested_spec": "mopac",
+  "package_tarball_full_path": "/Users/cloudrayyy/miniconda3/pkgs/mopac-23.2.5-h927232e_0.conda",
+  "extracted_package_dir": "/Users/cloudrayyy/miniconda3/pkgs/mopac-23.2.5-h927232e_0",
+  "files": [
+    "bin/mopac",
+    "bin/mopac-makpol",
+    "bin/mopac-param",
+    "include/mopac.h",
+    "lib/libmopac.2.dylib",
+    "lib/libmopac.dylib"
+  ],
+  "paths_data": {
+    "paths_version": 1,
+    "paths": [
+      {
+        "_path": "bin/mopac",
+        "path_type": "hardlink",
+        "sha256": "f919bd4d3f330726940fa2ea420556dbcaa067d9b99fc954c220af91c90ddb05",
+        "size_in_bytes": 51264,
+        "sha256_in_prefix": "f919bd4d3f330726940fa2ea420556dbcaa067d9b99fc954c220af91c90ddb05"
+      },
+      {
+        "_path": "bin/mopac-makpol",
+        "path_type": "hardlink",
+        "sha256": "4726e4c7a197fd3fef8a778ffe99dfe3bd94584308c23e4e676c5d6b2da5920c",
+        "size_in_bytes": 156880,
+        "sha256_in_prefix": "4726e4c7a197fd3fef8a778ffe99dfe3bd94584308c23e4e676c5d6b2da5920c"
+      },
+      {
+        "_path": "bin/mopac-param",
+        "path_type": "hardlink",
+        "sha256": "e85563fd622315bda01e52c5deadbe3f8d551e6f9cf072601dccfbd1891f1be2",
+        "size_in_bytes": 51264,
+        "sha256_in_prefix": "e85563fd622315bda01e52c5deadbe3f8d551e6f9cf072601dccfbd1891f1be2"
+      },
+      {
+        "_path": "include/mopac.h",
+        "path_type": "hardlink",
+        "sha256": "5497a3b9031926d559cd95c754ea6d5083c928122bc72986f18ec2300463a784",
+        "size_in_bytes": 10328,
+        "sha256_in_prefix": "5497a3b9031926d559cd95c754ea6d5083c928122bc72986f18ec2300463a784"
+      },
+      {
+        "_path": "lib/libmopac.2.dylib",
+        "path_type": "hardlink",
+        "sha256": "49a3f4e00ca3aaf8fcda7d620084f3e84f584151a071c895d95e9492657f508a",
+        "size_in_bytes": 5588544,
+        "sha256_in_prefix": "49a3f4e00ca3aaf8fcda7d620084f3e84f584151a071c895d95e9492657f508a"
+      },
+      {
+        "_path": "lib/libmopac.dylib",
+        "path_type": "softlink",
+        "sha256": "49a3f4e00ca3aaf8fcda7d620084f3e84f584151a071c895d95e9492657f508a",
+        "size_in_bytes": 5588544
+      }
+    ]
+  },
+  "link": {
+    "source": "/Users/cloudrayyy/miniconda3/pkgs/mopac-23.2.5-h927232e_0",
+    "type": 1
+  },
+  "requested_specs": [
+    "mopac"
+  ]
+}

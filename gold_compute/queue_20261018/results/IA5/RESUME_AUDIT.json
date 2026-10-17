@@ -1,0 +1,289 @@
+{
+  "call_id": "tc_3c80bf39664b4816",
+  "is_success": true,
+  "status": "waiting",
+  "stage": "refine",
+  "revision": 26,
+  "next": {
+    "action": "wait_for_system",
+    "required_inputs": [],
+    "editable_groups": []
+  },
+  "blocked": null,
+  "methods": [
+    {
+      "purpose": "scan",
+      "planned": {
+        "engine": "orca",
+        "method": "XTB",
+        "basis_set": "",
+        "keywords": "",
+        "frequency_mode": "auto",
+        "orca_blocks": null,
+        "end_setting": ""
+      },
+      "actual": {
+        "basis_set": "",
+        "end_setting": "",
+        "engine": "orca",
+        "frequency_mode": "auto",
+        "keywords": "",
+        "method": "XTB",
+        "orca_blocks": null
+      },
+      "contract": {
+        "actual": {
+          "basis_set": "",
+          "end_setting": "",
+          "engine": "orca",
+          "frequency_mode": "auto",
+          "keywords": "",
+          "method": "XTB",
+          "orca_blocks": null
+        },
+        "differences": [],
+        "input_revision": 3,
+        "matched": true,
+        "purpose": "scan",
+        "source": "stage_declaration"
+      }
+    },
+    {
+      "purpose": "ts_opt",
+      "planned": {
+        "engine": "orca",
+        "method": "XTB",
+        "basis_set": "",
+        "keywords": "",
+        "frequency_mode": "auto",
+        "orca_blocks": null,
+        "end_setting": ""
+      },
+      "actual": {
+        "basis_set": "",
+        "end_setting": "",
+        "engine": "orca",
+        "frequency_mode": "auto",
+        "keywords": "",
+        "method": "XTB",
+        "orca_blocks": null
+      },
+      "contract": {
+        "actual": {
+          "basis_set": "",
+          "end_setting": "",
+          "engine": "orca",
+          "frequency_mode": "auto",
+          "keywords": "",
+          "method": "XTB",
+          "orca_blocks": null
+        },
+        "differences": [],
+        "input_revision": 4,
+        "matched": true,
+        "purpose": "ts_opt",
+        "source": "stage_declaration"
+      }
+    },
+    {
+      "purpose": "frequency",
+      "planned": {
+        "engine": "orca",
+        "method": "XTB",
+        "basis_set": "",
+        "keywords": "TightSCF",
+        "frequency_mode": "numeric",
+        "orca_blocks": null,
+        "end_setting": ""
+      },
+      "actual": null,
+      "contract": null
+    },
+    {
+      "purpose": "irc",
+      "planned": {
+        "engine": "orca",
+        "method": "XTB",
+        "basis_set": "",
+        "keywords": "",
+        "frequency_mode": "auto",
+        "orca_blocks": null,
+        "end_setting": ""
+      },
+      "actual": null,
+      "contract": null
+    },
+    {
+      "purpose": "reactant_opt",
+      "planned": {
+        "engine": "orca",
+        "method": "XTB",
+        "basis_set": "",
+        "keywords": "",
+        "frequency_mode": "auto",
+        "orca_blocks": null,
+        "end_setting": ""
+      },
+      "actual": null,
+      "contract": null
+    },
+    {
+      "purpose": "reactant_frequency",
+      "planned": {
+        "engine": "orca",
+        "method": "XTB",
+        "basis_set": "",
+        "keywords": "",
+        "frequency_mode": "numeric",
+        "orca_blocks": null,
+        "end_setting": ""
+      },
+      "actual": null,
+      "contract": null,
+      "reference": "x"
+    },
+    {
+      "purpose": "product_opt",
+      "planned": {
+        "engine": "orca",
+        "method": "XTB",
+        "basis_set": "",
+        "keywords": "",
+        "frequency_mode": "auto",
+        "orca_blocks": null,
+        "end_setting": ""
+      },
+      "actual": null,
+      "contract": null
+    },
+    {
+      "purpose": "product_frequency",
+      "planned": {
+        "engine": "orca",
+        "method": "XTB",
+        "basis_set": "",
+        "keywords": "",
+        "frequency_mode": "numeric",
+        "orca_blocks": null,
+        "end_setting": ""
+      },
+      "actual": null,
+      "contract": null,
+      "reference": "x"
+    }
+  ],
+  "usage": {
+    "interventions": 5,
+    "compute_actions": 2,
+    "model_calls": null,
+    "limits": null,
+    "jobs": [
+      {
+        "job_id": 753,
+        "runtime_seconds": 8.191082000732422,
+        "cpus": 2,
+        "memory_mb": 4000,
+        "measured_cpu_hours": null,
+        "allocated_cpu_hours": 0.004550601111518012
+      },
+      {
+        "job_id": 756,
+        "runtime_seconds": 6.7111780643463135,
+        "cpus": 2,
+        "memory_mb": 4000,
+        "measured_cpu_hours": null,
+        "allocated_cpu_hours": 0.003728432257970174
+      }
+    ]
+  },
+  "available_results": [
+    {
+      "stage": "declare",
+      "status": "done",
+      "detail": "reaction declared; each calculation requires its own method",
+      "artifacts": [],
+      "source_input_revision": 1,
+      "input_revision_relation": "historical"
+    },
+    {
+      "stage": "build",
+      "status": "done",
+      "detail": "both endpoints built",
+      "artifacts": [],
+      "source_input_revision": 1,
+      "input_revision_relation": "historical"
+    },
+    {
+      "stage": "map",
+      "status": "done",
+      "detail": "Concrete endpoint correspondence confirmed and owned by this reaction.",
+      "artifacts": [],
+      "source_input_revision": 2,
+      "input_revision_relation": "historical"
+    },
+    {
+      "stage": "assemble",
+      "status": "done",
+      "detail": "single component: nothing to assemble (no inter-fragment orientation). The reaction coordinate is whatever the path guess explores",
+      "artifacts": [],
+      "source_input_revision": 3,
+      "input_revision_relation": "historical"
+    },
+    {
+      "stage": "guess",
+      "status": "done",
+      "detail": "Scan internal peak extracted; unconstrained refinement still required.",
+      "artifacts": [
+        "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0004/jobs/declaration_0003/scan/scan_peak.xyz"
+      ],
+      "source_input_revision": 3,
+      "input_revision_relation": "historical"
+    },
+    {
+      "stage": "validate",
+      "status": "done",
+      "detail": "internal validation passed",
+      "artifacts": [],
+      "source_input_revision": 3,
+      "input_revision_relation": "historical"
+    },
+    {
+      "stage": "submit",
+      "status": "done",
+      "detail": "refinement job 756 submitted as 'ready' (orca, XTB); the scheduler daemon claims it and its terminal state arrives through the existing compute notification path",
+      "artifacts": [
+        "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0004/jobs/declaration_0004/ts_opt/refine.inp"
+      ],
+      "source_input_revision": 4,
+      "input_revision_relation": "historical"
+    },
+    {
+      "stage": "scan",
+      "status": "done",
+      "job_id": 753,
+      "artifacts": [
+        "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0004/jobs/declaration_0003/scan/.cloudra/calc-753.out.log"
+      ],
+      "source_input_revision": 3,
+      "detail": "Original compute output for direct evidence submission; keep IRC sidecars in place. Job completion is not scientific verification.",
+      "input_revision_relation": "historical"
+    },
+    {
+      "stage": "ts_opt",
+      "status": "done",
+      "job_id": 756,
+      "artifacts": [
+        "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0004/jobs/declaration_0004/ts_opt/.cloudra/calc-756.out.log"
+      ],
+      "source_input_revision": 4,
+      "detail": "Original compute output for direct evidence submission; keep IRC sidecars in place. Job completion is not scientific verification.",
+      "input_revision_relation": "historical"
+    }
+  ],
+  "resume_attempt": {
+    "call_id": "tc_6b582c49f0ea4070",
+    "is_success": false,
+    "message": "ts_resume: no input change or failed attempt to retry; use ts_inspect"
+  },
+  "strict_requirement": "ts_guess(mode=verify,strict=true) verification_status=pass; no frequency or IRC logs currently available"
+}

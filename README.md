@@ -56,16 +56,34 @@ Type `/` directly in the chat composer to open the sleek, keyboard-navigable aut
 - `/compact`: Trigger structured context compaction, archiving past trajectory turns and emitting handover summaries.
 - `/help`: Display slash command usage and syntax.
 
-### 4. Web Search Configuration (Optional)
+### 4. Web Search Configuration
 
-Cloudra natively supports provider-side web search with external tool fallback:
+The existing `search` tool uses DeepSeek Search by default. The existing `browser`
+tool uses DeepSeek Fetch for page text and returns Markdown; screenshots and
+explicit page waits still use the browser. Search and Fetch share one API key,
+independent of the selected language model. Configure both in Global Settings or:
 
 ```bash
-export CLOUDRA_COORDINATOR__NATIVE_SEARCH=auto        # off / auto / openai / openrouter / deepseek / gemini / custom
-export CLOUDRA_COORDINATOR__NATIVE_SEARCH_PARAMS='{}' # Custom provider parameter injection
+cloudra config set search_provider deepseek
+cloudra config set deepseek_api_key YOUR_DEEPSEEK_API_KEY
 ```
 
-When native search is not enabled, the system automatically falls back to external search tools (Tavily, Brave, Bing, or DuckDuckGo).
+Environment variables `CLOUDRA_SEARCH_PROVIDER` and `CLOUDRA_DEEPSEEK_API_KEY` are
+also supported. Provider choices are `deepseek` (default), `auto`, `tavily`,
+`brave`, `bing`, and `duckduckgo`. A selected provider reports missing credentials
+or request failures directly. `auto` tries DeepSeek, Tavily, Brave, Bing, then
+DuckDuckGo; Tavily and Brave use `TAVILY_API_KEY` and `BRAVE_SEARCH_API_KEY`.
+Non-DeepSeek providers keep the existing browser path for page text.
+
+DeepSeek model-native search is opt-in; `native_search=auto` keeps the independent
+search tool for DeepSeek. To explicitly enable its model-native search:
+
+```bash
+cloudra config set coordinator.native_search deepseek
+```
+
+Other model providers retain their existing native-search behavior. Use
+`native_search=off` on a model slot to use the independent search tool instead.
 
 ### 5. ChatGPT / Codex OAuth
 

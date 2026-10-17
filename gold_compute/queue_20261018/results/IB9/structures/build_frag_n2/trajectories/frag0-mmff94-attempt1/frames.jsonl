@@ -1,0 +1,9 @@
+{"step": 0, "energy": 48.36295624204742, "energy_unit": "kcal/mol", "max_gradient": 364.8686512035273}
+{"step": 1, "energy": 16.546931843483378, "energy_unit": "kcal/mol", "max_gradient": 80.61122037166119}
+{"step": 2, "energy": 0.11303734805292207, "energy_unit": "kcal/mol", "max_gradient": 9.93373432722487}
+{"step": 3, "energy": 0.001699516159144136, "energy_unit": "kcal/mol", "max_gradient": 1.1558657393581926}
+{"step": 4, "energy": 7.642542670728593e-05, "energy_unit": "kcal/mol", "max_gradient": 0.24624735758154956}
+{"step": 5, "energy": 3.249023536875017e-06, "energy_unit": "kcal/mol", "max_gradient": 0.050822596200940144}
+{"step": 6, "energy": 1.3644792495305807e-07, "energy_unit": "kcal/mol", "max_gradient": 0.010417228093153536}
+{"step": 7, "energy": 5.715870032764109e-09, "energy_unit": "kcal/mol", "max_gradient": 0.0021322001764079563}
+{"step": 8, "energy": 2.3931634538209593e-10, "energy_unit": "kcal/mol", "max_gradient": 0.00043629143509238676}

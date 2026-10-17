@@ -1,0 +1,162 @@
+{
+  "reaction": {
+    "reactant_smiles": "C1CN=NC1",
+    "product_smiles": "C=[N+]=[N-].C=C",
+    "charge": 0,
+    "multiplicity": 1,
+    "electronic_character": "closed_shell",
+    "selected_candidate": 2,
+    "reaction_center": [
+      [
+        0,
+        4
+      ],
+      [
+        1,
+        2
+      ]
+    ]
+  },
+  "calculations": {
+    "g": {
+      "engine": "orca",
+      "method": "GFN2-XTB",
+      "basis_set": "",
+      "keywords": "",
+      "frequency_mode": "numeric",
+      "orca_blocks": null,
+      "end_setting": ""
+    }
+  },
+  "conformers": {
+    "reactant": {
+      "kind": "file",
+      "xyz_path": "gold_compute/queue_20261018/results/IB9/calc/pyr_opt/pyr_opt.xyz",
+      "mol_path": "gold_compute/queue_20261018/results/IB9/structures/pyrazoline.mol",
+      "evidence_refs": [],
+      "optimization": null
+    },
+    "product": {
+      "kind": "file",
+      "xyz_path": "gold_compute/queue_20261018/results/IB9/structures/build_rc/assembly/complex_candidate_000.xyz",
+      "mol_path": "gold_compute/queue_20261018/results/IB9/structures/rc.mol",
+      "evidence_refs": [],
+      "optimization": null
+    },
+    "guidance": {
+      "ring_order": [],
+      "distance_filters": []
+    }
+  },
+  "guess": {
+    "kind": "scan",
+    "calculation": {
+      "engine": "orca",
+      "method": "GFN2-XTB",
+      "basis_set": "",
+      "keywords": "",
+      "frequency_mode": "auto",
+      "orca_blocks": null,
+      "end_setting": ""
+    },
+    "scans": [
+      {
+        "coord_type": "bond",
+        "atoms": [
+          0,
+          4
+        ],
+        "scan_start": 1.541,
+        "scan_end": 3.5,
+        "scan_steps": 20
+      },
+      {
+        "coord_type": "bond",
+        "atoms": [
+          1,
+          2
+        ],
+        "scan_start": 1.452,
+        "scan_end": 3.5,
+        "scan_steps": 20
+      }
+    ],
+    "freeze": [],
+    "force_constant": null,
+    "mode": "concerted",
+    "solvation": null
+  },
+  "ts_optimization": {
+    "engine": "orca",
+    "method": "GFN2-XTB",
+    "basis_set": "",
+    "keywords": "",
+    "frequency_mode": "auto",
+    "orca_blocks": null,
+    "end_setting": ""
+  },
+  "verification": {
+    "frequency": {
+      "ref": "g"
+    },
+    "irc": {
+      "engine": "orca",
+      "method": "GFN2-XTB",
+      "basis_set": "",
+      "keywords": "",
+      "frequency_mode": "auto",
+      "orca_blocks": null,
+      "end_setting": ""
+    },
+    "irc_log": null,
+    "reactant_endpoint": {
+      "seed": {
+        "kind": "file",
+        "xyz_path": "ts/ts_0005/jobs/declaration_0006/irc/irc_IRC_F.xyz",
+        "mol_path": null,
+        "evidence_refs": [
+          "ts/ts_0005/jobs/declaration_0006/irc/.cloudra/calc-798.out.log"
+        ]
+      },
+      "optimization": {
+        "engine": "orca",
+        "method": "GFN2-XTB",
+        "basis_set": "",
+        "keywords": "",
+        "frequency_mode": "auto",
+        "orca_blocks": null,
+        "end_setting": ""
+      },
+      "frequency": {
+        "ref": "g"
+      }
+    },
+    "product_endpoint": {
+      "seed": {
+        "kind": "file",
+        "xyz_path": "ts/ts_0005/jobs/declaration_0006/irc/irc_IRC_B.xyz",
+        "mol_path": null,
+        "evidence_refs": [
+          "ts/ts_0005/jobs/declaration_0006/irc/.cloudra/calc-798.out.log"
+        ]
+      },
+      "optimization": {
+        "engine": "orca",
+        "method": "GFN2-XTB",
+        "basis_set": "",
+        "keywords": "",
+        "frequency_mode": "auto",
+        "orca_blocks": null,
+        "end_setting": ""
+      },
+      "frequency": {
+        "ref": "g"
+      }
+    }
+  },
+  "execution": {
+    "cpus": 4,
+    "memory_mb": 4096,
+    "limits": null
+  }
+}

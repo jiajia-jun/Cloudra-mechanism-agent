@@ -229,7 +229,6 @@ class TsExecutionLimits(InputModel):
     source: str = Field(min_length=1)
     max_compute_actions: StrictInt | None = Field(default=None, ge=0)
     max_model_calls: StrictInt | None = Field(default=None, ge=0)
-    max_interventions: StrictInt | None = Field(default=None, ge=0)
 
 
 class TsExecution(InputModel):

@@ -1,0 +1,59 @@
+{
+  "nodes": [
+    {
+      "id": "IA8_R",
+      "role": "reactant",
+      "smiles": [
+        "C=[O+][O-]"
+      ],
+      "properties": {
+        "evidence_log": "gold_compute/queue_20261018/results/IA8/explore/.cloudra/calc-729.out.log"
+      }
+    },
+    {
+      "id": "IA8_TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "accessible": false,
+      "properties": {
+        "status": "unverified stationary-point candidate; frequency and IRC missing",
+        "evidence_log": "ts/ts_0001/jobs/declaration_0003/ts_opt/.cloudra/calc-739.out.log"
+      }
+    },
+    {
+      "id": "IA8_P",
+      "role": "product",
+      "smiles": [
+        "C1OO1"
+      ],
+      "properties": {
+        "evidence_log": "gold_compute/queue_20261018/results/IA8/explore/.cloudra/calc-730.out.log",
+        "isomerization_energy_kcal_mol": -31.1871478816,
+        "status": "independent minima energy difference; IRC linkage unverified"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "IA8_E1",
+      "from": "IA8_R",
+      "to": "IA8_P",
+      "via": "IA8_TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ]
+        ],
+        "form": [
+          [
+            1,
+            3
+          ]
+        ]
+      },
+      "accessible": false
+    }
+  ]
+}

@@ -1,0 +1,142 @@
+{
+  "trajectory_id": "frag0-mmff94-attempt1",
+  "component_id": "frag0",
+  "attempt": 1,
+  "engine": "MMFF94",
+  "symbols": [
+    "C",
+    "C",
+    "O",
+    "O",
+    "H",
+    "H",
+    "H",
+    "H"
+  ],
+  "random_seed": 42,
+  "frame_count": 1359,
+  "iterations": 1358,
+  "initial_frame": {
+    "step": 0,
+    "symbols": [
+      "C",
+      "C",
+      "O",
+      "O",
+      "H",
+      "H",
+      "H",
+      "H"
+    ],
+    "positions": [
+      [
+        -0.7356687219139049,
+        -0.26679702992168264,
+        0.025228245291114216
+      ],
+      [
+        0.7483924696751932,
+        -0.06846321459013088,
+        -0.04896733495192779
+      ],
+      [
+        0.3980037765055426,
+        1.2350900386104213,
+        0.3373215209993144
+      ],
+      [
+        -0.7246439260664235,
+        1.086723718280359,
+        -0.3306766356465615
+      ],
+      [
+        -1.0627429836176374,
+        -0.41947401377649635,
+        1.0631650841650486
+      ],
+      [
+        -1.1862396223531912,
+        -0.9261611877181718,
+        -0.7320678835885469
+      ],
+      [
+        1.2044073339655024,
+        -0.09936050248955089,
+        -1.0528531764585238
+      ],
+      [
+        1.3584916738049175,
+        -0.5415578083947509,
+        0.7388501801900844
+      ]
+    ],
+    "energy": 24.661932238027532,
+    "energy_unit": "kcal/mol",
+    "max_gradient": 140.48902990945038
+  },
+  "final_frame": {
+    "step": 1358,
+    "symbols": [
+      "C",
+      "C",
+      "O",
+      "O",
+      "H",
+      "H",
+      "H",
+      "H"
+    ],
+    "positions": [
+      [
+        -0.7276364013940669,
+        -0.26746980886563343,
+        0.03408154631880116
+      ],
+      [
+        0.7732955567284281,
+        -0.055136128747784736,
+        -0.033621010374237995
+      ],
+      [
+        0.5473574553894359,
+        1.3679129882702739,
+        0.0784578106756611
+      ],
+      [
+        -0.9054313466154209,
+        1.1620673096111995,
+        -0.08206948278196954
+      ],
+      [
+        -1.1081981230058051,
+        -0.6430510905371231,
+        0.986586620755393
+      ],
+      [
+        -1.1722551443005997,
+        -0.8052459180231483,
+        -0.8054601775826379
+      ],
+      [
+        1.2435134495759101,
+        -0.3130228333438709,
+        -0.9852217779045036
+      ],
+      [
+        1.3493545536221179,
+        -0.4460545183639154,
+        0.807246470893499
+      ]
+    ],
+    "energy": 5.22263169167563,
+    "energy_unit": "kcal/mol",
+    "max_gradient": 0.0009998510983563053
+  },
+  "convergence_code": 0,
+  "status": "converged",
+  "failure": "",
+  "notes": [],
+  "frames_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA9/structures/build_diox/trajectories/frag0-mmff94-attempt1/frames.xyz",
+  "frames_jsonl_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA9/structures/build_diox/trajectories/frag0-mmff94-attempt1/frames.jsonl",
+  "json_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA9/structures/build_diox/trajectories/frag0-mmff94-attempt1/trajectory.json"
+}

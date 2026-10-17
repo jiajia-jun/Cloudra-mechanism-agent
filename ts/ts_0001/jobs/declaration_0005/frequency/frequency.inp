@@ -1,0 +1,11 @@
+# frequency at the refined stationary point: C=[O+][O-] | smiles: C=[O+][O-]
+! NumFreq GFN2-xTB TightSCF
+%pal nprocs 4 end
+%maxcore 1024
+* xyz 0 1
+C       -0.42353000    -0.00470300     0.00203600
+O        0.59159700    -0.68221300    -0.37213400
+O        1.47681900     0.18846300     0.22912100
+H       -1.26176700    -0.50900100     0.48550900
+H       -0.43426200     1.07612900    -0.08340500
+*

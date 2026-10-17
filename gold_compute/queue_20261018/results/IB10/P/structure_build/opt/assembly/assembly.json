@@ -1,0 +1,103 @@
+{
+  "status": "ok",
+  "message": "2 complex candidate(s) from 32 sampled placements (complex mode). Candidates satisfy the 1.0 A inter-fragment collision criterion, the dissociation limit (1.7x the vdW contact distance), the 6.0 kcal/mol energy window and 0.5 A heavy-atom RMSD clustering.",
+  "parameters": {
+    "orientations": 32,
+    "min_interfragment_distance": 1.0,
+    "max_interfragment_vdw_factor": 1.7,
+    "reaction_center_candidates": 8,
+    "reaction_center_window": [
+      1.6,
+      3.0
+    ],
+    "energy_window_kcal": 6.0,
+    "rmsd_threshold": 0.5,
+    "relaxation_steps": 2000
+  },
+  "mode": "complex",
+  "components": 2,
+  "sampled_placements": 32,
+  "collision_rejected": 0,
+  "collapsed_after_relaxation": 0,
+  "dissociated_after_relaxation": 0,
+  "unconverged_after_relaxation": 0,
+  "optimized_placements": 32,
+  "candidates": [
+    {
+      "candidate_id": 0,
+      "mol": "776t3gAAAAAQAAAAAwAAAAAAAAAHAAAABQAAAIABBygoAAAAAgMYAQcoKAAAAAIDGAIGKCgAAAADBBgDBigoAAAAAgQYBAgoKAAAAAMCGAUBACgAAAABAQEAKAAAAAEBCwABCAMCAygCAwQoAgIFAAIGAEIAAAAAQLkAAAABAAAAAQAAAAAHTEdC6kqm2b8HzFUFcN/7v9w4jDKiFuw/56iepMAm1r+YBiD9kpcAwMNqRLLPX+G/gUMHHNCQ+D/JziXuYuv5P2lKPVQcrOK/ZF2R1RriAkBA44acA/XkP+RQ8IeL4dS/CDInMjzbCED3gneH+UzMvy/oIg/XxLe/qo9FiKeJ/j8NKv95TOQEQOljtsoHoem/f89OU58F3j/a80ngaAX3P2QqkhvKoOK/PwIAAAAAABICAAAAAAATFg==",
+      "placement_index": 18,
+      "energy_kcal": -11.84442491734857,
+      "rel_energy_kcal": 0.0,
+      "min_interfragment_distance": 3.6063680001651597,
+      "reaction_center_distances": {},
+      "reaction_center_in_window": null,
+      "constraint_released": false,
+      "cluster_id": 0,
+      "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB10/P/structure_build/opt/assembly/complex_candidate_000.xyz",
+      "mol_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB10/P/structure_build/opt/assembly/complex_candidate_000.mol",
+      "trajectory_id": "placement018-mmff94-attempt1"
+    },
+    {
+      "candidate_id": 1,
+      "mol": "776t3gAAAAAQAAAAAwAAAAAAAAAHAAAABQAAAIABBygoAAAAAgMYAQcoKAAAAAIDGAIGKCgAAAADBBgDBigoAAAAAgQYBAgoKAAAAAMCGAUBACgAAAABAQEAKAAAAAEBCwABCAMCAygCAwQoAgIFAAIGAEIAAAAAQLkAAAABAAAAAQAAAAAHHzJDVHOfyz+84molHcL4vy21JzAQCNq/KgX96pF86b/nbqy+Rr3wv0YXOpMVT/W/d7JnTiUfzL/xbBwrzpQCQNXk+/ZyO/A/gOqDJ/Fy8b+++tV8nzX4P0tMDf2sdfg/4bWFv/YS/r/Mm1e9veToPxDSV5tw5v8/xaoyAYHCuL/dUUuDVosKQBlSsDkBtfY/5HlbG8Tg2D/tyePgbQ4AQLOlsu8CxcY/PwIAAAAAABICAAAAAAATFg==",
+      "placement_index": 19,
+      "energy_kcal": -11.844424917085565,
+      "rel_energy_kcal": 2.630056172847617e-10,
+      "min_interfragment_distance": 3.6063431210630394,
+      "reaction_center_distances": {},
+      "reaction_center_in_window": null,
+      "constraint_released": false,
+      "cluster_id": 1,
+      "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB10/P/structure_build/opt/assembly/complex_candidate_001.xyz",
+      "mol_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB10/P/structure_build/opt/assembly/complex_candidate_001.mol",
+      "trajectory_id": "placement019-mmff94-attempt1"
+    }
+  ],
+  "candidate_paths": [
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB10/P/structure_build/opt/assembly/complex_candidate_000.xyz",
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB10/P/structure_build/opt/assembly/complex_candidate_000.mol",
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB10/P/structure_build/opt/assembly/complex_candidate_001.xyz",
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB10/P/structure_build/opt/assembly/complex_candidate_001.mol"
+  ],
+  "trajectory_ids": [
+    "placement000-mmff94-attempt1",
+    "placement001-mmff94-attempt1",
+    "placement002-mmff94-attempt1",
+    "placement003-mmff94-attempt1",
+    "placement004-mmff94-attempt1",
+    "placement005-mmff94-attempt1",
+    "placement006-mmff94-attempt1",
+    "placement007-mmff94-attempt1",
+    "placement008-mmff94-attempt1",
+    "placement009-mmff94-attempt1",
+    "placement010-mmff94-attempt1",
+    "placement011-mmff94-attempt1",
+    "placement012-mmff94-attempt1",
+    "placement013-mmff94-attempt1",
+    "placement014-mmff94-attempt1",
+    "placement015-mmff94-attempt1",
+    "placement016-mmff94-attempt1",
+    "placement017-mmff94-attempt1",
+    "placement018-mmff94-attempt1",
+    "placement019-mmff94-attempt1",
+    "placement020-mmff94-attempt1",
+    "placement021-mmff94-attempt1",
+    "placement022-mmff94-attempt1",
+    "placement023-mmff94-attempt1",
+    "placement024-mmff94-attempt1",
+    "placement025-mmff94-attempt1",
+    "placement026-mmff94-attempt1",
+    "placement027-mmff94-attempt1",
+    "placement028-mmff94-attempt1",
+    "placement029-mmff94-attempt1",
+    "placement030-mmff94-attempt1",
+    "placement031-mmff94-attempt1"
+  ],
+  "trajectory_manifest_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB10/P/structure_build/opt/assembly/trajectories.json",
+  "artifact_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB10/P/structure_build/opt/assembly/assembly.json",
+  "diagnostics": [
+    "complex mode: no reaction center was provided, so NO bonding center is invented; placements are sampled by relative orientation only",
+    "32 candidate(s) after the energy window collapsed to 2 cluster representative(s) at 0.5 A heavy-atom RMSD"
+  ]
+}

@@ -33,6 +33,7 @@ from pydantic import (
     Field,
     FiniteFloat,
     StrictInt,
+    TypeAdapter,
     ValidationError,
     field_validator,
     model_validator,
@@ -69,8 +70,8 @@ class LLMConfig(BaseSettings):
     key: str = ""
     supports_vision: bool = True
     # 模型原生网页搜索：off / auto / openai / openrouter / deepseek / gemini / custom。
-    # 默认 auto：按 base_url+model 自动识别并启用服务商侧搜索；
-    # off 时保持传统 web_search 工具调用。
+    # 默认 auto：按 base_url+model 自动识别；DeepSeek 只有显式设为 deepseek
+    # 才切换到 Responses 原生搜索。off 时保持独立 search 工具调用。
     native_search: str = "auto"
     # 原生搜索注入参数（verbatim 写入 extra_body）。custom 与无原生搜索的服务商
     # （如中转站 DeepSeek）用它指定 {plugins/ web_search_options / tools} 等字段。
@@ -147,9 +148,9 @@ class MethodPolicyConfig(BaseSettings):
     改这里之后必须重跑 gen_*_tasks.py 重新生成题集；regenerate-identically 守卫
     会核对题集与本配置的默认值一致（测试环境走默认值）。
     """
-    # 四档共用（组合条目把基组钉进许可）
+    # easy/normal/hard 共用（组合条目把基组钉进许可）；impossible 仅半经验方法
     allowed_methods: list[str] = Field(default_factory=lambda: ["xtb", "pm7", "b3lyp/def2svp"])
-    allowed_methods_impossible: list[str] = Field(default_factory=lambda: ["xtb", "pm7", "b3lyp/def2svp"])
+    allowed_methods_impossible: list[str] = Field(default_factory=lambda: ["xtb", "pm7"])
 
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
 
@@ -244,6 +245,10 @@ class CloudraConfig(BaseSettings):
     # 计算执行面开关（本地 calculator.sh 通道默认关闭）
     compute: ComputeConfig = Field(default_factory=ComputeConfig)
 
+    # 独立网页检索与正文抓取共用 DeepSeek API Key；与推理模型配置分开。
+    search_provider: Literal["deepseek", "auto", "tavily", "brave", "bing", "duckduckgo"] = "deepseek"
+    deepseek_api_key: str = Field(default="", repr=False)
+
     # OpenAlex 文献检索。空则匿名调用（额度更低）；可设 CLOUDRA_OPENALEX_API_KEY / OPENALEX_API_KEY。
     openalex_api_key: str = ""
     # 礼貌池邮箱，写入 User-Agent 的 mailto；空则只用通用 UA。可设 CLOUDRA_OPENALEX_MAILTO / OPENALEX_MAILTO。
@@ -309,12 +314,14 @@ class CloudraConfig(BaseSettings):
         """
         cfg_path = self.config_file
         selection_data = None
+        search_provider_data = None
         if not cfg_path.exists():
             return
         try:
             with open(cfg_path, "r", encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
             selection_data = data.get('tool_document_loading')
+            search_provider_data = data.get("search_provider")
             if "llm" in data:
                 for role in ("coordinator", "follower"):
                     if role in data["llm"]:
@@ -358,10 +365,19 @@ class CloudraConfig(BaseSettings):
                 self.openalex_api_key = str(data["openalex_api_key"])
             if "openalex_mailto" in data and data["openalex_mailto"] is not None:
                 self.openalex_mailto = str(data["openalex_mailto"])
+            if "deepseek_api_key" in data and data["deepseek_api_key"] is not None:
+                self.deepseek_api_key = str(data["deepseek_api_key"])
             if "plugins" in data and data["plugins"] is not None:
                 self.plugins = [str(s) for s in data["plugins"]]
         except Exception as e:
             logger.warning("Failed to load %s: %s", cfg_path, e)
+        if search_provider_data is not None:
+            try:
+                self.search_provider = TypeAdapter(type(self).model_fields["search_provider"].annotation).validate_python(
+                    search_provider_data
+                )
+            except ValidationError:
+                raise ValueError("Invalid search_provider configuration") from None
         if selection_data is not None:
             try:
                 self.tool_document_loading = ToolDocumentLoadingConfig.model_validate(selection_data)
@@ -405,6 +421,8 @@ class CloudraConfig(BaseSettings):
             },
             "openalex_api_key": "***" if self.openalex_api_key else "(not set)",
             "openalex_mailto": self.openalex_mailto or "(not set)",
+            "search_provider": self.search_provider,
+            "deepseek_api_key": "***" if self.deepseek_api_key else "(not set)",
             "tool_document_loading": self.tool_document_loading.to_display_dict(),
         }
 
@@ -481,6 +499,9 @@ def set_config_value(key: str, value: str) -> None:
             target, final_key = resolve_config_attr(work, f"follower.{key}")
         if target is None:
             raise ValueError(f"配置项不存在: {key}")
+        if final_key == "search_provider" and isinstance(target, CloudraConfig):
+            target.search_provider = TypeAdapter(CloudraConfig.model_fields["search_provider"].annotation).validate_python(value)
+            return
         if final_key == "provider" and isinstance(target, LLMConfig):
             from cloudra.infra.providers import apply_provider_preset, get_provider_preset
             preset = get_provider_preset(value)

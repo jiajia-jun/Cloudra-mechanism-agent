@@ -1,0 +1,9 @@
+# smiles: N#N
+# expected_smiles: N#N (user-declared expectation; NOT an evidence-verified identity)
+! Opt NumFreq GFN2-xTB
+%pal nprocs 2 end
+%maxcore 1024
+* xyz 0 1
+N        0.73000055     0.00000000     0.00000000
+N       -0.73000055     0.00000000     0.00000000
+*

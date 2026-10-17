@@ -10,7 +10,7 @@
 - **只推两类事件**：阻塞与终态。阶段推进不推（避免污染上下文）。
 - **四态终态**：``verified`` / ``candidate_only`` / ``search_failed`` / ``invalid_input``，
   且搜索失败 ≠ 反应不可能。
-- **有界推进**：预算来自声明；干预次数耗尽即落终态，不无限续。
+- **资源预算**：计算动作和模型请求预算来自声明；流程修订不设次数上限。
 - **目录约定**：``ts/<run_id>/``，逐迭代帧只允许出现在 ``build/trajectories/``。
 - **统一账本**：系统拥有的流水线使用既有 ComputeDB 阶段/作业事务；运行目录的
   ``process.json`` 是可读检查点，干预仍可通过 ``event_sink`` 记录。
@@ -3418,8 +3418,8 @@ _STAGE_FUNCS: dict[str, Callable[[TsProcessRecord], TsProcessRecord]] = {
 def advance(record: TsProcessRecord) -> TsProcessRecord:
     """从当前阶段沿顺序推进，直到阻塞、落终态，或撞上未接线的阶段。
 
-    **有界**：``max_interventions`` 限制 agent 介入次数，耗尽即落终态（``search_failed``），
-    不无限续；路径精修的轮数上限由 ``path_refinement_runs`` 声明，未声明时用 runner 默认。
+    流程修订不设次数上限；计算动作和模型请求仍遵守已声明的资源预算。
+    路径精修的轮数上限由 ``path_refinement_runs`` 声明，未声明时用 runner 默认。
     """
     if record.is_terminal or record.stop_reason:
         return record
@@ -3427,14 +3427,6 @@ def advance(record: TsProcessRecord) -> TsProcessRecord:
         _verify_provided_guess_binding(record)
     except (OSError, ValueError) as exc:
         return _block(record, record.stage, 'provided_guess_artifact_changed', str(exc), needs=['guess'])
-    limits = record.input.execution.limits
-    if limits and limits.max_interventions is not None and record.intervention_count > limits.max_interventions:
-        return _terminal(
-            record, record.stage, "search_failed",
-            f"the intervention budget ({limits.max_interventions}) is exhausted; "
-            "stopping rather than looping. Search failure is NOT a claim that the reaction is "
-            "impossible",
-        )
     start = STAGE_ORDER.index(record.stage)
     for stage in STAGE_ORDER[start:]:
         if stage in _NOT_IMPLEMENTED_STAGES:

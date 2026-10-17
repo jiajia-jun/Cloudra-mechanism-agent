@@ -76,6 +76,43 @@ def _children(core, parent_id: str):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("name_arguments,expected_name", [
+    ({"display_name": "  lane_1  "}, "lane_1"),
+    ({}, "Explorer"),
+    ({"display_name": None}, "Explorer"),
+    ({"display_name": "  "}, "Explorer"),
+])
+async def test_launcher_display_name_reaches_api_and_survives_restore(tmp_path, name_arguments, expected_name):
+    from cloudra.runtime_v2.persistence import RuntimeStore, restore_core
+    from cloudra.services.api_v2.views import agent_dict
+
+    core = RuntimeCore(strict_events=True)
+    core.store = RuntimeStore(tmp_path / "runtime.db")
+    bus = CommandBus(core)
+    project = (await bus.execute(Command(type="project.create", payload={"name": "named-child"}))).data
+    parent = (await bus.execute(Command(
+        type="agent.spawn", target={"project_id": project.id}, payload={"role_id": "coordinator"},
+    ))).data
+
+    result = await handle_native_tool(core, parent, ToolCall(
+        id="named-child", name="subagent_launcher",
+        arguments={"role_id": "explorer", "query": "inspect files", "is_wait": False, **name_arguments},
+    ))
+
+    assert result.is_success, result.summary
+    child = core.require_agent(result.data["session_id"])
+    assert child.display_name == expected_name
+    assert child.role_id == "explorer"
+    assert (await asyncio.to_thread(agent_dict, core, child))["display_name"] == expected_name
+
+    await bus.flush_snapshot()
+    restored = RuntimeCore(strict_events=True)
+    await asyncio.to_thread(restore_core, restored, core.store)
+    restored_child = restored.require_agent(child.id)
+    assert (await asyncio.to_thread(agent_dict, restored, restored_child))["display_name"] == expected_name
+
+
+@pytest.mark.asyncio
 async def test_launcher_wait_spawns_v2_child_and_returns_result():
     llm = RoleRoutedLLM(
         [

@@ -60,16 +60,18 @@ def _fuzzy_score(query: str, text: str) -> float:
 description = (
     "AgentHub: a shared information forum for all parallel Agents. Every post is public to every Agent. You can:\n"
     "- **post**: publish a finding, question, answer, broadcast, or message; pass parent_id to reply to a post.\n"
-    "- **Addressing and notifications**: on post you may set to_agent (semantic role_id such as small_mol or coordinator, or session_id) "
+    "- **Addressing and notifications**: on post you may set to_agent (session_id, semantic role_id such as small_mol, or display_name) "
     "to say who the content is mainly for — the post itself remains a public discussion trail anyone can read; "
     "the addressed Agent receives a durable mailbox notification, and the original author receives one when their post is replied to. "
+    "Session IDs, parent aliases, and roles resolve first; otherwise the target is matched to a display_name, ignoring case and an optional @ prefix. "
+    "Use distinct display names for same-role instances, or session_id to select one precisely. "
     "Delivery and wake-up are separate: failed/cancelled sessions and recipients you cannot wake keep the message parked. "
     "notifications reports the committed message_event_id and wake_status (requested / already_running / parked), "
     "which records the pre-delivery wake intent, not proof that a new run started.\n"
     "- **browse**: list recent topics and activity.\n"
     "- **read**: read posts for a topic (including Q&A threads).\n"
     "- **search**: search all posts by keyword (fuzzy match; exact wording not required).\n"
-    "- **directory**: list project sessions with role, state, and parent_session_id (when dispatched as a sub-agent).\n"
+    "- **directory**: list project sessions with session_id, display_name, role, state, and parent_session_id (when dispatched as a sub-agent).\n"
     "- **call**: send a non-blocking message to an Agent session; an absent ordinary role creates an independent project peer (to + message, optional post_id). "
     "Check notifications for delivery/wake-up and settings for a new peer's effective configuration. "
     "The new peer sends its first task result to the caller, without a parent/child link.\n"
@@ -139,11 +141,11 @@ class AgentHub_input_schema(input_schema):
     )
     to_agent: str = Field(
         default="",
-        description="Addressee: semantic role_id (e.g. small_mol or coordinator) or session_id; non-whitespace text required for kind=message posts; the post stays public"
+        description="Addressee: session_id, semantic role_id (e.g. small_mol), or display_name fallback; non-whitespace text required for kind=message posts; the post stays public"
     )
     to: str = Field(
         default="",
-        description="Call target: session_id or semantic role_id (e.g. small_mol or coordinator); non-whitespace text required for call",
+        description="Call target: session_id, semantic role_id (e.g. small_mol), or display_name fallback; non-whitespace text required for call",
     )
     message: str = Field(default="", description="What you say to the other side on call (not a role prompt); non-whitespace text required for call")
     post_id: Optional[str] = Field(

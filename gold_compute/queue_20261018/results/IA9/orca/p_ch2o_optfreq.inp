@@ -1,0 +1,10 @@
+# smiles: C=O | IA9 isolated formaldehyde optimum+freq, ORCA6.1.1 GFN2-xTB gas phase
+! Opt NumFreq GFN2-XTB
+%pal nprocs 4 end
+%maxcore 1024
+* xyz 0 1
+C       -0.01218212     0.00191156     0.00018291
+O        1.19749823    -0.18799687    -0.01797917
+H       -0.44822797     1.01364311     0.00226106
+H       -0.73708814    -0.82755780     0.01553520
+*

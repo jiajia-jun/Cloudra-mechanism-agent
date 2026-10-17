@@ -1,0 +1,158 @@
+{
+  "reaction": {
+    "reactant_smiles": "N#N.[CH]C=O",
+    "product_smiles": "C=C=O.N#N",
+    "charge": 0,
+    "multiplicity": 1,
+    "electronic_character": "closed_shell",
+    "selected_candidate": null,
+    "reaction_center": [
+      [
+        3,
+        6
+      ],
+      [
+        2,
+        6
+      ],
+      [
+        2,
+        3
+      ]
+    ]
+  },
+  "calculations": {},
+  "conformers": {
+    "reactant": {
+      "kind": "generate",
+      "generation": "ETKDGv3",
+      "seed": 42,
+      "optimization": null
+    },
+    "product": {
+      "kind": "generate",
+      "generation": "ETKDGv3",
+      "seed": 42,
+      "optimization": null
+    },
+    "guidance": {
+      "ring_order": [],
+      "distance_filters": []
+    }
+  },
+  "guess": {
+    "kind": "scan",
+    "calculation": {
+      "engine": "orca",
+      "method": "GFN2-xTB",
+      "basis_set": "",
+      "keywords": "",
+      "frequency_mode": "auto",
+      "orca_blocks": null,
+      "end_setting": ""
+    },
+    "scans": [
+      {
+        "coord_type": "bond",
+        "atoms": [
+          3,
+          6
+        ],
+        "scan_start": 1.083,
+        "scan_end": 2.1,
+        "scan_steps": 16
+      },
+      {
+        "coord_type": "bond",
+        "atoms": [
+          2,
+          6
+        ],
+        "scan_start": 2.252,
+        "scan_end": 1.08,
+        "scan_steps": 16
+      }
+    ],
+    "freeze": [],
+    "force_constant": null,
+    "mode": "concerted",
+    "solvation": null
+  },
+  "ts_optimization": {
+    "engine": "orca",
+    "method": "GFN2-xTB",
+    "basis_set": "",
+    "keywords": "",
+    "frequency_mode": "auto",
+    "orca_blocks": null,
+    "end_setting": ""
+  },
+  "verification": {
+    "frequency": {
+      "engine": "orca",
+      "method": "GFN2-xTB",
+      "basis_set": "",
+      "keywords": "",
+      "frequency_mode": "numeric",
+      "orca_blocks": null,
+      "end_setting": ""
+    },
+    "irc": {
+      "engine": "orca",
+      "method": "GFN2-xTB",
+      "basis_set": "",
+      "keywords": "",
+      "frequency_mode": "auto",
+      "orca_blocks": null,
+      "end_setting": ""
+    },
+    "irc_log": null,
+    "reactant_endpoint": {
+      "seed": null,
+      "optimization": {
+        "engine": "orca",
+        "method": "GFN2-xTB",
+        "basis_set": "",
+        "keywords": "",
+        "frequency_mode": "auto",
+        "orca_blocks": null,
+        "end_setting": ""
+      },
+      "frequency": {
+        "engine": "orca",
+        "method": "GFN2-xTB",
+        "basis_set": "",
+        "keywords": "",
+        "frequency_mode": "numeric",
+        "orca_blocks": null,
+        "end_setting": ""
+      }
+    },
+    "product_endpoint": {
+      "seed": null,
+      "optimization": {
+        "engine": "orca",
+        "method": "GFN2-xTB",
+        "basis_set": "",
+        "keywords": "",
+        "frequency_mode": "auto",
+        "orca_blocks": null,
+        "end_setting": ""
+      },
+      "frequency": {
+        "engine": "orca",
+        "method": "GFN2-xTB",
+        "basis_set": "",
+        "keywords": "",
+        "frequency_mode": "numeric",
+        "orca_blocks": null,
+        "end_setting": ""
+      }
+    }
+  },
+  "execution": {
+    "cpus": 2,
+    "memory_mb": 2048,
+    "limits": null
+  }
+}

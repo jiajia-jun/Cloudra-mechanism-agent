@@ -1,0 +1,113 @@
+{
+  "reaction": {
+    "reactant_smiles": "C1COO1",
+    "product_smiles": "C=O.C=O",
+    "charge": 0,
+    "multiplicity": 1,
+    "electronic_character": "closed_shell",
+    "selected_candidate": 0,
+    "reaction_center": [
+      [
+        0,
+        1
+      ],
+      [
+        2,
+        3
+      ],
+      [
+        0,
+        3
+      ],
+      [
+        1,
+        2
+      ]
+    ]
+  },
+  "calculations": {
+    "gfn2": {
+      "engine": "orca",
+      "method": "GFN2-XTB",
+      "basis_set": "",
+      "keywords": "",
+      "frequency_mode": "numeric",
+      "orca_blocks": null,
+      "end_setting": ""
+    }
+  },
+  "conformers": {
+    "reactant": {
+      "kind": "file",
+      "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA9/orca/r_diox_optfreq.xyz",
+      "mol_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA9/structures/dioxetane.mol",
+      "evidence_refs": [
+        "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA9/orca/.cloudra/calc-727.out.log"
+      ],
+      "optimization": null
+    },
+    "product": {
+      "kind": "file",
+      "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA9/structures/build_2ch2o/assembly/complex_candidate_000.xyz",
+      "mol_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA9/structures/two_formaldehyde.mol",
+      "evidence_refs": [],
+      "optimization": null
+    },
+    "guidance": {
+      "ring_order": [],
+      "distance_filters": []
+    }
+  },
+  "guess": {
+    "kind": "provided",
+    "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA9/orca/scan_OO_fine_tsguess.xyz",
+    "evidence_refs": [
+      "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA9/orca/.cloudra/calc-741.out.log"
+    ]
+  },
+  "ts_optimization": {
+    "engine": "orca",
+    "method": "GFN2-XTB",
+    "basis_set": "",
+    "keywords": "",
+    "frequency_mode": "auto",
+    "orca_blocks": null,
+    "end_setting": ""
+  },
+  "verification": {
+    "frequency": {
+      "ref": "gfn2"
+    },
+    "irc": {
+      "ref": "gfn2"
+    },
+    "irc_log": null,
+    "reactant_endpoint": {
+      "seed": null,
+      "optimization": {
+        "ref": "gfn2"
+      },
+      "frequency": {
+        "ref": "gfn2"
+      }
+    },
+    "product_endpoint": {
+      "seed": null,
+      "optimization": {
+        "ref": "gfn2"
+      },
+      "frequency": {
+        "ref": "gfn2"
+      }
+    }
+  },
+  "execution": {
+    "cpus": 4,
+    "memory_mb": 4096,
+    "limits": {
+      "source": "IA9 initial bounded semiempirical TS trial",
+      "max_compute_actions": 12,
+      "max_model_calls": null
+    }
+  }
+}

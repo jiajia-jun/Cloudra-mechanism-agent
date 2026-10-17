@@ -1,0 +1,11 @@
+# Endpoint reactant opt from IRC side B; identity unverified | declared_species: C=[O+][O-]
+! Opt GFN2-xTB
+%pal nprocs 4 end
+%maxcore 1024
+* xyz 0 1
+C       -0.48966968     0.02740437     0.08515933
+O        0.60781307    -0.57503273     0.02272989
+O        1.72092748     0.07277337    -0.07916363
+H       -1.36614043    -0.59437549     0.16980822
+H       -0.56055759     1.10856158     0.05584012
+*

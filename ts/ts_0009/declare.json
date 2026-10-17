@@ -1,0 +1,110 @@
+{
+  "reaction": {
+    "reactant_smiles": "C1CN=NC1",
+    "product_smiles": "C1CC1.N#N",
+    "charge": 0,
+    "multiplicity": 1,
+    "electronic_character": null,
+    "selected_candidate": 0,
+    "reaction_center": [
+      [
+        1,
+        2
+      ],
+      [
+        3,
+        4
+      ],
+      [
+        1,
+        4
+      ]
+    ]
+  },
+  "calculations": {
+    "freq": {
+      "engine": "orca",
+      "method": "GFN2-XTB",
+      "basis_set": "",
+      "keywords": "",
+      "frequency_mode": "numeric",
+      "orca_blocks": null,
+      "end_setting": ""
+    },
+    "opt": {
+      "engine": "orca",
+      "method": "GFN2-XTB",
+      "basis_set": "",
+      "keywords": "",
+      "frequency_mode": "auto",
+      "orca_blocks": null,
+      "end_setting": ""
+    }
+  },
+  "conformers": {
+    "reactant": {
+      "kind": "file",
+      "xyz_path": "gold_compute/queue_20261018/results/IB9/calc/pyr_opt/pyr_opt.xyz",
+      "mol_path": "gold_compute/queue_20261018/results/IB9/structures/pyrazoline.mol",
+      "evidence_refs": [],
+      "optimization": null
+    },
+    "product": {
+      "kind": "file",
+      "xyz_path": "gold_compute/queue_20261018/results/IB9/structures/build_prod/assembly/complex_candidate_000.xyz",
+      "mol_path": "gold_compute/queue_20261018/results/IB9/structures/prod.mol",
+      "evidence_refs": [],
+      "optimization": null
+    },
+    "guidance": {
+      "ring_order": [],
+      "distance_filters": []
+    }
+  },
+  "guess": {
+    "kind": "provided",
+    "xyz_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0009/interpolation/5038a75837d2a72300b6/img_05.xyz",
+    "evidence_refs": [
+      "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0009/interpolation/5038a75837d2a72300b6/img_05.xyz",
+      "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0009/structures/reactant_815145fb159c6d39719b.xyz",
+      "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0009/structures/reactant_815145fb159c6d39719b.mol",
+      "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0009/structures/product_c7b39a002ecd8f7167a7.xyz",
+      "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0009/structures/product_c7b39a002ecd8f7167a7.mol"
+    ]
+  },
+  "ts_optimization": {
+    "ref": "opt"
+  },
+  "verification": {
+    "frequency": {
+      "ref": "freq"
+    },
+    "irc": {
+      "ref": "opt"
+    },
+    "irc_log": null,
+    "reactant_endpoint": {
+      "seed": null,
+      "optimization": {
+        "ref": "opt"
+      },
+      "frequency": {
+        "ref": "freq"
+      }
+    },
+    "product_endpoint": {
+      "seed": null,
+      "optimization": {
+        "ref": "opt"
+      },
+      "frequency": {
+        "ref": "freq"
+      }
+    }
+  },
+  "execution": {
+    "cpus": 4,
+    "memory_mb": 4096,
+    "limits": null
+  }
+}

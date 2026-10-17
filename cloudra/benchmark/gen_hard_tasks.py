@@ -99,7 +99,7 @@ DEFAULT_OUT = REPO_ROOT / "ideapool" / "tasks" / "hard"
 
 # hard.md "定稿圈定"段的权威名单（v3 缩减：20 → 10；池子其余条目留档不生成）。
 # 2026-10-01：A8/H6PI 替换 E3，B10/HDA_CN 替换 G2；旧源与证据留档。
-# 正选：A1/A6/A8 电环化，B1/B10 DA，D2 环氧开环，F1 环氧化，H1 联萘，I1 aldol，L1 Beckmann。
+# 正选：A1/A6/A8 电环化，B1/B10 DA，D2 环氧开环，F1 环氧化，H1 联萘，I1 Cope 消除立体映射，L1 HCNO/降冰片烯两面环加成。
 TASK_IDS = (
     "A1 A6 B1 D2 A8 F1 B10 H1 I1 L1"
 ).split()

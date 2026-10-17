@@ -11,6 +11,7 @@
 import { useEffect, useState } from 'react';
 import { api } from './api';
 import CodexAuthPanel from './CodexAuthPanel';
+import SearchConfigSection from './SearchConfigSection';
 import ToolDocumentLoadingSection from './ToolDocumentLoadingSection';
 import { isTrustedAuthMessageOrigin } from './runtimeUrl';
 import type { ProviderPreset, RuntimeConfig } from './types';
@@ -258,6 +259,8 @@ function SlotSection({
           <option value="low">low</option>
           <option value="medium">medium</option>
           <option value="high">high</option>
+          <option value="max">max</option>
+          <option value="ultra">ultra (max + 并行智能体)</option>
         </select>
         <span className="field-hint">
           global fallback for agents without a per-agent override; empty = parameter not sent
@@ -486,6 +489,7 @@ export default function GlobalConfig({
               onSave={(s, clearKey) => void save(s, clearKey)}
               onConnectOpenRouter={connectOpenRouter}
             />
+            <SearchConfigSection config={cfg} onSaved={setCfg} onToast={onToast} />
             <ToolDocumentLoadingSection config={cfg.tool_document_loading}
               onSaved={setCfg} onToast={onToast} />
           </>

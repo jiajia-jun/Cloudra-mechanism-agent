@@ -1,0 +1,4 @@
+# IA5 engine test: GFN2-xTB single point, ORCA native XTB module
+! XTB
+%pal nprocs 1 end
+* xyzfile 0 1 cb.xyz

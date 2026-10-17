@@ -1,0 +1,102 @@
+{
+  "valid": true,
+  "files": [
+    {
+      "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0002/jobs/declaration_0013/frequency/.cloudra/calc-829.out.log",
+      "destination": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA1/strict_native_bundle/frequency.out",
+      "source_sha256": "a18971e26392f3bbda9c945c3760eddd720ef3e44b7d503672ec2ee7c86e408d",
+      "destination_sha256": "a18971e26392f3bbda9c945c3760eddd720ef3e44b7d503672ec2ee7c86e408d",
+      "equal": true,
+      "total_lines": 1042
+    },
+    {
+      "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0002/jobs/declaration_0013/frequency/frequency.inp",
+      "destination": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA1/strict_native_bundle/frequency.inp",
+      "source_sha256": "814e1a2090f6a93cbc83e7ccdc3eca85688421793a908a3d61300a5ace970195",
+      "destination_sha256": "814e1a2090f6a93cbc83e7ccdc3eca85688421793a908a3d61300a5ace970195",
+      "equal": true,
+      "total_lines": 17
+    },
+    {
+      "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0002/jobs/declaration_0013/frequency/frequency.xyz",
+      "destination": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA1/strict_native_bundle/frequency.xyz",
+      "source_sha256": "756fe3487dd4a168cd923ec9d7c692bac1cc3d8e64a6b74ffa4380adf3795a69",
+      "destination_sha256": "756fe3487dd4a168cd923ec9d7c692bac1cc3d8e64a6b74ffa4380adf3795a69",
+      "equal": true,
+      "total_lines": 10
+    },
+    {
+      "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0002/jobs/declaration_0013/frequency/frequency.hess",
+      "destination": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA1/strict_native_bundle/frequency.hess",
+      "source_sha256": "37424bd7758245592057ab4ee8f4fa708c9e9cb6afddf3093775c001b89c7ae4",
+      "destination_sha256": "37424bd7758245592057ab4ee8f4fa708c9e9cb6afddf3093775c001b89c7ae4",
+      "equal": true,
+      "total_lines": 379
+    },
+    {
+      "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0002/jobs/declaration_0013/irc/.cloudra/calc-830.out.log",
+      "destination": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA1/strict_native_bundle/irc.out",
+      "source_sha256": "291417e27f581ced064b8dccd1bf2c4907ababb7eb52a45d56b640f65f5df8e3",
+      "destination_sha256": "291417e27f581ced064b8dccd1bf2c4907ababb7eb52a45d56b640f65f5df8e3",
+      "equal": true,
+      "total_lines": 1039
+    },
+    {
+      "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0002/jobs/declaration_0013/irc/irc.inp",
+      "destination": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA1/strict_native_bundle/irc.inp",
+      "source_sha256": "be1b75a3bec08d5aa42983cda5261f675233e7182eb24f28a312f90d22183acf",
+      "destination_sha256": "be1b75a3bec08d5aa42983cda5261f675233e7182eb24f28a312f90d22183acf",
+      "equal": true,
+      "total_lines": 18
+    },
+    {
+      "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0002/jobs/declaration_0013/irc/irc.hess",
+      "destination": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA1/strict_native_bundle/irc.hess",
+      "source_sha256": "e82d100dcd5757ba5bef915bf5b8abb6dbb380d881bdf2127b313a1df1740d37",
+      "destination_sha256": "e82d100dcd5757ba5bef915bf5b8abb6dbb380d881bdf2127b313a1df1740d37",
+      "equal": true,
+      "total_lines": 379
+    },
+    {
+      "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0002/jobs/declaration_0013/irc/irc_IRC_F.xyz",
+      "destination": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA1/strict_native_bundle/irc_IRC_F.xyz",
+      "source_sha256": "a5e7abcce2940e9962cda9ce7e48bead6c6ad1c7282c6beb42f8c90ba8f5614c",
+      "destination_sha256": "a5e7abcce2940e9962cda9ce7e48bead6c6ad1c7282c6beb42f8c90ba8f5614c",
+      "equal": true,
+      "total_lines": 10
+    },
+    {
+      "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0002/jobs/declaration_0013/irc/irc_IRC_B.xyz",
+      "destination": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA1/strict_native_bundle/irc_IRC_B.xyz",
+      "source_sha256": "bab4c0a3e931d79d39557b24316d904b9b0cc44b331035c87d7d60429de7d75e",
+      "destination_sha256": "bab4c0a3e931d79d39557b24316d904b9b0cc44b331035c87d7d60429de7d75e",
+      "equal": true,
+      "total_lines": 10
+    },
+    {
+      "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0002/jobs/declaration_0013/irc/irc_IRC_F_trj.xyz",
+      "destination": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA1/strict_native_bundle/irc_IRC_F_trj.xyz",
+      "source_sha256": "1305995ba8caa8f015ad80da4d039bc76b3da1ddf0ae1068be79cfa4a84c2a58",
+      "destination_sha256": "1305995ba8caa8f015ad80da4d039bc76b3da1ddf0ae1068be79cfa4a84c2a58",
+      "equal": true,
+      "total_lines": 110
+    },
+    {
+      "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0002/jobs/declaration_0013/irc/irc_IRC_B_trj.xyz",
+      "destination": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA1/strict_native_bundle/irc_IRC_B_trj.xyz",
+      "source_sha256": "dec3815d429ffbbe667f56bc858aea0e8ba9f4431b138fb38ed3fb9ec43770be",
+      "destination_sha256": "dec3815d429ffbbe667f56bc858aea0e8ba9f4431b138fb38ed3fb9ec43770be",
+      "equal": true,
+      "total_lines": 110
+    },
+    {
+      "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0002/jobs/declaration_0013/irc/irc_IRC_Full_trj.xyz",
+      "destination": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA1/strict_native_bundle/irc_IRC_Full_trj.xyz",
+      "source_sha256": "8bf2251423d1b35ed379303cc5ce318ae46c06e41c9c2f942367f189973ee1d7",
+      "destination_sha256": "8bf2251423d1b35ed379303cc5ce318ae46c06e41c9c2f942367f189973ee1d7",
+      "equal": true,
+      "total_lines": 230
+    }
+  ],
+  "reason": "Paged original-byte copy in progress; aliases explicitly stdout NAME binding, geometry original names unchanged"
+}
