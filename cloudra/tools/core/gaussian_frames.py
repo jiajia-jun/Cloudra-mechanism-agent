@@ -496,6 +496,10 @@ def _ccread_from_text(text: str, source_desc: str = "<in-memory log text>"):
         raise ValueError(
             f"日志解析器内部索引越界（疑似截断或损坏的计算日志）: {source_desc}"
         ) from exc
+    except AssertionError as exc:
+        # ORCA GFN2-xTB 的简版偶极矩块会触发 cclib 断言；归为解析失败，
+        # 让 ORCA 帧提取继续使用已有的原生日志解析，而非中断 TS 恢复。
+        raise ValueError(f"cclib 日志解析器内部断言失败: {source_desc}") from exc
     if data is None:
         raise ValueError(f"cclib 未能解析日志: {source_desc}")
     return data
