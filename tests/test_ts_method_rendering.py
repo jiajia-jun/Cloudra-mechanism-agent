@@ -20,7 +20,7 @@ pytestmark = pytest.mark.usefixtures("ts_producer_authority")
 ])
 def test_gaussian_writer_renders_known_basis_aliases_only(basis, expected):
     request = QmInputWriter_input_schema(
-        engine='gaussian', source_type='xyz_file', source_value='unused.xyz',
+        charge=0, engine='gaussian', source_type='xyz_file', source_value='unused.xyz',
         output_path='unused.gjf', method='B3LYP', basis_set=basis,
         task_type=[{'opt': None}, {'freq': None}],
         keywords='EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight',
@@ -41,7 +41,7 @@ async def test_gaussian_writer_saves_native_basis_without_changing_declaration(t
     source.write_text('3\nwater\nO 0 0 0\nH 1 0 0\nH 0 1 0\n')
     target = tmp_path / 'optfreq.gjf'
     request = QmInputWriter_input_schema(
-        engine='gaussian', source_type='xyz_file', source_value=str(source),
+        charge=0, engine='gaussian', source_type='xyz_file', source_value=str(source),
         output_path=str(target), method='B3LYP', basis_set='def2-SVP',
         task_type=[{'opt': None}, {'freq': None}], mem='10GB', nproc=8,
         keywords='EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight',
@@ -63,7 +63,7 @@ def test_gaussian_scan_renders_native_basis_and_preserves_keywords(tmp_path):
 
     target = tmp_path / 'scan.gjf'
     request = TsGuess_input_schema(
-        mode='scan_prepare', engine='gaussian',
+        charge=0,  mode='scan_prepare', engine='gaussian',
         input_text='3\nwater\nO 0 0 0\nH 1 0 0\nH 0 1 0\n',
         output_path=str(target), method='B3LYP', basis_set='def2-SVP',
         keywords='EmpiricalDispersion=GD3BJ SCF=Tight SCRF=(CPCM,Solvent=Water)',
@@ -72,7 +72,7 @@ def test_gaussian_scan_renders_native_basis_and_preserves_keywords(tmp_path):
     result = TsGuess()._scan_prepare(request)
     assert result.is_success, result.message
     content = target.read_text()
-    assert ('# opt=(modredundant,maxstep=10) B3LYP/def2SVP '
+    assert ('#p opt=(modredundant,maxstep=10) B3LYP/def2SVP '
             'EmpiricalDispersion=GD3BJ SCF=Tight SCRF=(CPCM,Solvent=Water)\n') in content
     assert 'B 1 2 S 4 0.250000\n' in content
     assert request.basis_set == 'def2-SVP'
@@ -85,7 +85,7 @@ def test_gaussian_scan_renders_native_basis_and_preserves_keywords(tmp_path):
 ])
 def test_orca_writer_renders_basis_alias_and_preserves_declared_keywords(basis, expected):
     request = QmInputWriter_input_schema(
-        engine='orca', source_type='xyz_file', source_value='unused.xyz',
+        charge=0, engine='orca', source_type='xyz_file', source_value='unused.xyz',
         output_path='unused.inp', method='b3lyp', basis_set=basis, task_type=[{'opt': 'ts'}],
         keywords='D3BJ RIJCOSX def2/J TightSCF CPCM(DCM)',
     )
@@ -171,9 +171,9 @@ def test_scan_to_ts_followups_keep_declared_method_basis_and_keywords(tmp_path, 
 
 
 @pytest.mark.parametrize('method,basis_set,keywords,expected', [
-    ('b3lyp', 'def2svp', 'RIJCOSX def2/J', '! OPT b3lyp def2-SVP RIJCOSX def2/J'),
-    ('b3lyp', 'def2svp', 'RIJK def2/JK', '! OPT b3lyp def2-SVP RIJK def2/JK'),
-    ('MP2', 'cc-pVDZ', 'cc-pVDZ/C', '! OPT MP2 cc-pVDZ cc-pVDZ/C'),
+    ('b3lyp', 'def2svp', 'RIJCOSX def2/J', '! Opt b3lyp def2-SVP RIJCOSX def2/J'),
+    ('b3lyp', 'def2svp', 'RIJK def2/JK', '! Opt b3lyp def2-SVP RIJK def2/JK'),
+    ('MP2', 'cc-pVDZ', 'cc-pVDZ/C', '! Opt MP2 cc-pVDZ cc-pVDZ/C'),
 ])
 def test_scan_keeps_auxiliary_basis_slashes(tmp_path, method, basis_set, keywords, expected):
     from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_input_schema
@@ -181,7 +181,7 @@ def test_scan_keeps_auxiliary_basis_slashes(tmp_path, method, basis_set, keyword
     xyz = tmp_path / 'water.xyz'
     xyz.write_text('3\nwater\nO 0 0 0\nH 1 0 0\nH 0 1 0\n')
     target = tmp_path / 'scan.inp'
-    result = TsGuess()._scan_prepare(TsGuess_input_schema(mode='scan_prepare', engine='orca',
+    result = TsGuess()._scan_prepare(TsGuess_input_schema(charge=0, mode='scan_prepare', engine='orca',
         input_path=str(xyz), method=method, basis_set=basis_set, keywords=keywords, output_path=str(target),
         scans=[{'atoms': [0, 1], 'scan_end': 2, 'scan_steps': 3}]))
     assert result.is_success

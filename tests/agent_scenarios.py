@@ -489,7 +489,8 @@ TS_SCENARIOS = ('ts_prepare_once_auto_complete', 'ts_failed_scan_retry_same_run'
                 'ts_source_reorder_keeps_imported_state', 'ts_queued_refinement_revision_same_run',
                 'ts_stop_prevents_automatic_progression', 'ts_stopped_attempt_resumes_same_run',
                 'ts_file_seed_preoptimization_can_be_removed_after_failure',
-                'ts_acknowledged_completion_recovers_without_resume')
+                'ts_acknowledged_completion_recovers_without_resume',
+                'ts_run_scan_revision_inherits_shared_input_settings')
 
 
 def d1_component_order_files(workspace: Path) -> tuple[Path, Path]:

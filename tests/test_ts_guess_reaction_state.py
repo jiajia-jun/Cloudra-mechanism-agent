@@ -32,7 +32,7 @@ def test_run_guess_schema_reads_run_without_endpoint_transport(mode):
 
 @pytest.mark.parametrize('override', [
     {'reactant_path': 'reactant.mol'}, {'product_text': 'MOL'},
-    {'input_path': 'replacement.xyz'}, {'charge': 0}, {'spin': 1},
+    {'input_path': 'replacement.xyz'}, {'charge': 0}, {'multiplicity': 1},
     {'output_dir': 'another-run'},
 ])
 def test_run_guess_refuses_a_second_endpoint_or_resource_source(override):

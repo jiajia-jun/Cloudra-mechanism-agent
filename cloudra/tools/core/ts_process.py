@@ -773,13 +773,14 @@ def _optimize_conformer_source(record, role):
             request = QmInputWriter_input_schema(**calc_copy.model_dump(mode='json'),
                 source_type='xyz_file', source_value=built[2], task_type=task_type,
                 nproc=record.compute_cpus, mem=f'{record.compute_memory_mb}MB', output_path=str(manifest),
-                charge=record.input.reaction.charge, multiplicity=record.input.reaction.multiplicity)
+                charge=record.input.reaction.charge, multiplicity=record.input.reaction.multiplicity,
+                electronic_character=record.input.reaction.electronic_character)
             from cloudra.tools.core.calculation_intent import validate_writer_request
             conflicts = validate_writer_request(request.model_dump())
             if conflicts:
                 return _block(record, 'build', 'conformer_input_invalid', str(conflicts), needs=[f'conformers.{role}.optimization'])
             molecule = getattr(record.structures, role)
-            content = QmInputWriter._build_orca_input(request, molecule) if calculation.engine == 'orca' else QmInputWriter._build_gjf(request, molecule)
+            content = QmInputWriter.render_input(request, molecule)
             _write_immutable_input(str(manifest), content)
             job_type = calculation.engine
         error, job = _submit_step(record, purpose, str(manifest), job_type)
@@ -1144,11 +1145,11 @@ def _guess_scan(record: TsProcessRecord) -> TsProcessRecord:
                 return [dict(row.model_dump(), atoms=[i + base for i in row.atoms]) for row in rows]
             request = TsGuess_input_schema(
                 mode="scan_prepare", input_path=built[2], **calculation.model_dump(mode='json'),
-                charge=declaration.charge, spin=declaration.multiplicity,
+                charge=declaration.charge, multiplicity=declaration.multiplicity,
+                electronic_character=declaration.electronic_character,
                 scans=public_rows(plan.scans), freeze=public_rows(plan.freeze), scan_mode=plan.mode,
                 output_path=str(folder / ("scan.inp" if calculation.engine == "orca" else "scan.gjf")),
-                nprocs=record.compute_cpus,
-                memory_mb=record.compute_memory_mb if calculation.engine == 'orca' else None,
+                nproc=record.compute_cpus, mem=f'{record.compute_memory_mb}MB',
             )
             try:
                 prepared = TsGuess()._scan_prepare(request)
@@ -1521,6 +1522,7 @@ def _write_refinement_input(record: TsProcessRecord, job_dir: str) -> tuple[str,
         task_type=task_type,
         charge=declaration.charge,
         multiplicity=declaration.multiplicity,
+        electronic_character=declaration.electronic_character,
         title=f"TS refinement: {declaration.reactant_smiles} -> {declaration.product_smiles} | smiles: {declaration.reactant_smiles}",
         output_path=input_path,
     )
@@ -1531,11 +1533,7 @@ def _write_refinement_input(record: TsProcessRecord, job_dir: str) -> tuple[str,
             f"[{c['code']}] {c['message']}" for c in conflicts
         ), ""
 
-    content = (
-        QmInputWriter._build_orca_input(request, record.structures.candidate)
-        if calculation.engine == "orca"
-        else QmInputWriter._build_gjf(request, record.structures.candidate)
-    )
+    content = QmInputWriter.render_input(request, record.structures.candidate)
     # 不信 writer 自述：从生成文本重新 inspect，任务集合不一致即失败（同一份纪律）
     inspected = inspect_input(content, engine=calculation.engine)
     requested = intent_from_writer(request.model_dump())
@@ -1948,6 +1946,7 @@ def _write_frequency_input(record: TsProcessRecord, job_dir: str) -> tuple[str, 
         task_type=task_type,
         charge=declaration.charge,
         multiplicity=declaration.multiplicity,
+        electronic_character=declaration.electronic_character,
         title=f"frequency at the refined stationary point: {declaration.reactant_smiles} | smiles: {declaration.reactant_smiles}",
         output_path=input_path,
     )
@@ -1956,11 +1955,7 @@ def _write_frequency_input(record: TsProcessRecord, job_dir: str) -> tuple[str, 
         return "frequency input refused: " + " | ".join(
             f"[{c['code']}] {c['message']}" for c in conflicts
         ), ""
-    content = (
-        QmInputWriter._build_orca_input(request, read_molecule(optimized_xyz, charge=declaration.charge))
-        if calculation.engine == "orca"
-        else QmInputWriter._build_gjf(request, read_molecule(optimized_xyz, charge=declaration.charge))
-    )
+    content = QmInputWriter.render_input(request, read_molecule(optimized_xyz, charge=declaration.charge))
     inspected = inspect_input(content, engine=calculation.engine)
     requested = intent_from_writer(request.model_dump())
     if inspected.tasks != requested.tasks:
@@ -2244,6 +2239,7 @@ def _write_irc_input(record: TsProcessRecord, job_dir: str) -> tuple[str, str]:
         task_type=task_type,
         charge=declaration.charge,
         multiplicity=declaration.multiplicity,
+        electronic_character=declaration.electronic_character,
         title=f"IRC both directions from the refined saddle: {declaration.reactant_smiles} | smiles: {declaration.reactant_smiles}",
         output_path=input_path,
     )
@@ -2252,11 +2248,7 @@ def _write_irc_input(record: TsProcessRecord, job_dir: str) -> tuple[str, str]:
         return "IRC input refused: " + " | ".join(
             f"[{c['code']}] {c['message']}" for c in conflicts
         ), ""
-    content = (
-        QmInputWriter._build_orca_input(request, read_molecule(geometry, charge=declaration.charge))
-        if calculation.engine == "orca"
-        else QmInputWriter._build_gjf(request, read_molecule(geometry, charge=declaration.charge))
-    )
+    content = QmInputWriter.render_input(request, read_molecule(geometry, charge=declaration.charge))
     inspected = inspect_input(content, engine=calculation.engine)
     requested = intent_from_writer(request.model_dump())
     if inspected.tasks != requested.tasks:
@@ -2581,6 +2573,7 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
         source_type="xyz_file", source_value=source,
         task_type=task_type,
         charge=declaration.charge, multiplicity=declaration.multiplicity,
+        electronic_character=declaration.electronic_character,
         title=f"Endpoint {role} {task} from {origin_label}; identity unverified | declared_species: {getattr(declaration, role + '_smiles')}",
         output_path=input_path,
     )
@@ -2594,11 +2587,7 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
     if [a.GetSymbol() for a in reference.GetAtoms()] != [a.GetSymbol() for a in frame.GetAtoms()]:
         return f'{role} endpoint frame differs from the owned atom identities', ''
     molecule = with_positions(reference, frame.GetConformer().GetPositions())
-    content = (
-        QmInputWriter._build_orca_input(request, molecule)
-        if calculation.engine == "orca"
-        else QmInputWriter._build_gjf(request, molecule)
-    )
+    content = QmInputWriter.render_input(request, molecule)
     if inspect_input(content, engine=calculation.engine).tasks != intent_from_writer(
         request.model_dump()
     ).tasks:

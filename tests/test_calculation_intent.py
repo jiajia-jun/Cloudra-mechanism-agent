@@ -50,6 +50,7 @@ def _writer(tmp_path, **overrides):
         "basis_set": "" if overrides.get('external_program') else "6-31g(d)",
         "source_type": "xyz_file",
         "source_value": str(xyz),
+        "charge": 0,
         "output_path": str(tmp_path / "job.inp"),
     }
     args.update(overrides)

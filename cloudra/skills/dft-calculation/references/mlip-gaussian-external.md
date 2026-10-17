@@ -24,7 +24,7 @@ Record engine/wrapper versions, executable, checkpoint identity, charge/multipli
 
 ## Charge, spin and evidence
 
-Set `charge` and `multiplicity` explicitly on every generated input, including scans (`spin` there means multiplicity). They are not inferred from XYZ or the job name. Confirm that the wrapper/model consumes them with the intended convention. MACE-OMol's charge/spin embedding is documented by the [MACE maintainers](https://github.com/ACEsuit/mace/discussions/1206); accepting these fields does not certify a particular electronic state or barrier.
+Set `charge` and `multiplicity` explicitly on every generated input, including scans. They are not inferred from XYZ. Scans share the writer's `nproc` and total-job `mem` fields; an existing TS run supplies its own electronic state and execution resources. Confirm that the wrapper/model consumes them with the intended convention. MACE-OMol's charge/spin embedding is documented by the [MACE maintainers](https://github.com/ACEsuit/mace/discussions/1206); accepting these fields does not certify a particular electronic state or barrier.
 
 An external energy/gradient calculation generally does not produce a Gaussian/ORCA wavefunction. Do not require Mulliken/NBO/IBO, SCF stability, or spin contamination from nonexistent orbitals. If the scientific question requires those observables, obtain them with a permitted appropriate method or report the limitation. Missing SCF blocks in an otherwise successful external log are expected.
 

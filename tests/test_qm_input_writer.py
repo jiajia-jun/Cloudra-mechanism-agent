@@ -41,7 +41,7 @@ async def test_writer_reports_complete_written_calculation_without_method_substi
     source.write_text(_WATER_XYZ)
     target = tmp_path / 'explicit.inp'
     keywords = 'D3BJ RIJCOSX def2/J TightSCF CPCM(DCM)'
-    request = QmInputWriter_input_schema(engine='orca', method='B3LYP', basis_set='def2SVP',
+    request = QmInputWriter_input_schema(charge=0, engine='orca', method='B3LYP', basis_set='def2SVP',
         keywords=keywords, source_type='xyz_file', source_value=str(source), output_path=str(target))
     result = await QmInputWriter().tool_call(request, None)
     assert result.is_success, result.message
@@ -177,7 +177,7 @@ async def test_qm_input_writer_refuses_nonfinite_source_coordinates(tmp_path, co
     output = tmp_path / "nonfinite.inp"
 
     result = await QmInputWriter().tool_call(
-        QmInputWriter_input_schema(method='b3lyp', basis_set='6-31g(d)',
+        QmInputWriter_input_schema(charge=0, method='b3lyp', basis_set='6-31g(d)',
             engine="orca", source_type="xyz_file",
             source_value=str(source), output_path=str(output),
         ),
@@ -219,7 +219,7 @@ async def test_qm_input_writer_preserves_orca_memory_units(tmp_path, mem, nproc,
     output = tmp_path / "memory.inp"
 
     result = await QmInputWriter().tool_call(
-        QmInputWriter_input_schema(method='b3lyp', basis_set='6-31g(d)',
+        QmInputWriter_input_schema(charge=0, method='b3lyp', basis_set='6-31g(d)',
             engine="orca", source_type="xyz_file", source_value=str(source),
             mem=mem, nproc=nproc, output_path=str(output),
         ),
@@ -250,7 +250,7 @@ async def test_qm_input_writer_offloads_atomic_output_write(tmp_path, monkeypatc
     output = tmp_path / "water.inp"
 
     result = await QmInputWriter().tool_call(
-        QmInputWriter_input_schema(method='b3lyp', basis_set='6-31g(d)',
+        QmInputWriter_input_schema(charge=0, method='b3lyp', basis_set='6-31g(d)',
             engine="orca", source_type="xyz_file", source_value=str(source),
             output_path=str(output),
         ),
@@ -289,7 +289,7 @@ async def test_orca_external_program_writes_the_validated_path(tmp_path):
     output = tmp_path / "canonical_external.inp"
 
     result = await QmInputWriter().tool_call(
-        QmInputWriter_input_schema(method='ExtOpt', basis_set='',
+        QmInputWriter_input_schema(charge=0, method='ExtOpt', basis_set='',
             engine="orca", source_type="xyz_file", source_value=str(source),
             external_program=" /bin/../bin/sh ", output_path=str(output),
         ),
@@ -309,7 +309,7 @@ async def test_gaussian_external_program_writes_the_validated_token(tmp_path):
     output = tmp_path / "external.gjf"
 
     result = await QmInputWriter().tool_call(
-        QmInputWriter_input_schema(engine='gaussian', method='external', basis_set='',
+        QmInputWriter_input_schema(charge=0, engine='gaussian', method='external', basis_set='',
             source_type="xyz_file", source_value=str(source),
             external_program=" mace ", output_path=str(output),
         ),
@@ -333,7 +333,7 @@ async def test_qm_input_writer_preserves_extxyz_property_order(tmp_path):
     output = tmp_path / "reordered.inp"
 
     result = await QmInputWriter().tool_call(
-        QmInputWriter_input_schema(method='b3lyp', basis_set='6-31g(d)',
+        QmInputWriter_input_schema(charge=0, method='b3lyp', basis_set='6-31g(d)',
             engine="orca", source_type="xyz_file",
             source_value=str(source), output_path=str(output),
         ),
@@ -353,7 +353,7 @@ async def test_qm_input_writer_uses_final_frame_of_xyz_trajectory(tmp_path):
     output = tmp_path / "last.inp"
 
     result = await QmInputWriter().tool_call(
-        QmInputWriter_input_schema(method='b3lyp', basis_set='6-31g(d)',
+        QmInputWriter_input_schema(charge=0, method='b3lyp', basis_set='6-31g(d)',
             engine="orca", source_type="xyz_file",
             source_value=str(source), output_path=str(output),
         ),
@@ -467,7 +467,7 @@ async def test_explicit_charge_cannot_silently_replace_a_mol_charge(tmp_path, en
 
 
 @pytest.mark.asyncio
-async def test_xyz_without_a_declared_charge_defaults_to_zero_without_mutating_request(tmp_path):
+async def test_xyz_without_a_declared_charge_is_refused_without_mutating_request(tmp_path):
     source = tmp_path / "water.xyz"
     source.write_text(_WATER_XYZ)
     output = tmp_path / "water.inp"
@@ -478,9 +478,9 @@ async def test_xyz_without_a_declared_charge_defaults_to_zero_without_mutating_r
 
     result = await QmInputWriter().tool_call(request, session=None)
 
-    assert result.is_success, result.message
-    assert "* xyz 0 1\n" in output.read_text()
-    assert result.interpreted_intent["charge"] == 0
+    assert not result.is_success
+    assert "explicit total charge" in result.message
+    assert not output.exists()
     assert request.charge is None
 
 
@@ -541,7 +541,7 @@ async def test_qm_input_writer_orca_single_point_key(tmp_path):
     out = tmp_path / "water_sp.inp"
 
     result = await QmInputWriter().tool_call(
-        QmInputWriter_input_schema(
+        QmInputWriter_input_schema(charge=0,
             engine="orca",
             source_type="xyz_file",
             source_value=str(xyz),
@@ -567,7 +567,7 @@ async def test_qm_input_writer_gaussian_single_point_key(tmp_path):
     out = tmp_path / "water_sp.gjf"
 
     result = await QmInputWriter().tool_call(
-        QmInputWriter_input_schema(
+        QmInputWriter_input_schema(charge=0,
             engine="gaussian",
             source_type="xyz_file",
             source_value=str(xyz),
@@ -592,7 +592,7 @@ async def test_qm_input_writer_orca_plain_opt_maps_keywords(tmp_path):
     out = tmp_path / "water_opt.inp"
 
     result = await QmInputWriter().tool_call(
-        QmInputWriter_input_schema(
+        QmInputWriter_input_schema(charge=0,
             engine="orca",
             source_type="xyz_file",
             source_value=str(xyz),
@@ -649,7 +649,7 @@ async def test_qm_input_writer_orca_extopt_external_mlip(tmp_path):
     # TS 初始 Hessian 控制走原生 orca_blocks；Gaussian 子选项 calcfc/noeigen
     # 对 ORCA 是配置错误（见 test_orca_rejects_gaussian_opt_suboptions）。
     result = await QmInputWriter().tool_call(
-        QmInputWriter_input_schema(method='ExtOpt', basis_set='',
+        QmInputWriter_input_schema(charge=0, method='ExtOpt', basis_set='',
             engine="orca",
             source_type="xyz_file",
             source_value=str(xyz),
@@ -679,7 +679,7 @@ async def test_qm_input_writer_gaussian_external_route(tmp_path):
     out = tmp_path / "water_opt.gjf"
 
     result = await QmInputWriter().tool_call(
-        QmInputWriter_input_schema(method='external', basis_set='',
+        QmInputWriter_input_schema(charge=0, method='external', basis_set='',
             engine="gaussian",
             source_type="xyz_file",
             source_value=str(xyz),
@@ -715,7 +715,7 @@ async def test_qm_input_writer_relative_paths_use_agent_workspace(tmp_path, monk
     tool.subagent = _Bridge()
 
     result = await tool.tool_call(
-        QmInputWriter_input_schema(engine='gaussian', method='b3lyp', basis_set='6-31g(d)',
+        QmInputWriter_input_schema(charge=0, engine='gaussian', method='b3lyp', basis_set='6-31g(d)',
             source_type="xyz_file",
             source_value="water.xyz",
             output_path="calc/water.gjf",
@@ -1106,11 +1106,11 @@ async def test_qm_input_writer_same_path_identical_content_reused(tmp_path):
         task_type=[{"opt": None}, {"freq": None}],
         output_path=str(out),
     )
-    first = await QmInputWriter().tool_call(QmInputWriter_input_schema(engine='gaussian', method='b3lyp', basis_set='6-31g(d)', **kwargs), session=None)
+    first = await QmInputWriter().tool_call(QmInputWriter_input_schema(charge=0, engine='gaussian', method='b3lyp', basis_set='6-31g(d)', **kwargs), session=None)
     assert first.is_success is True, first.message
     content_before = out.read_bytes()
 
-    second = await QmInputWriter().tool_call(QmInputWriter_input_schema(engine='gaussian', method='b3lyp', basis_set='6-31g(d)', **kwargs), session=None)
+    second = await QmInputWriter().tool_call(QmInputWriter_input_schema(charge=0, engine='gaussian', method='b3lyp', basis_set='6-31g(d)', **kwargs), session=None)
     assert second.is_success is True, second.message
     assert "identical" in second.message
     assert "reused" in second.message
@@ -1128,7 +1128,7 @@ async def test_qm_input_writer_refuses_overwrite_with_different_content(tmp_path
     out.write_text("# unrelated pre-existing content\n", encoding="utf-8")
 
     result = await QmInputWriter().tool_call(
-        QmInputWriter_input_schema(engine='gaussian', method='b3lyp', basis_set='6-31g(d)',
+        QmInputWriter_input_schema(charge=0, engine='gaussian', method='b3lyp', basis_set='6-31g(d)',
             source_type="xyz_file",
             source_value=str(xyz),
             task_type=[{"opt": None}],
@@ -1155,7 +1155,7 @@ async def test_qm_input_writer_output_path_blocked_by_file_fails_loud(tmp_path):
     blocker.write_text("i am a file, not a directory\n", encoding="utf-8")
 
     result = await QmInputWriter().tool_call(
-        QmInputWriter_input_schema(engine='gaussian', method='b3lyp', basis_set='6-31g(d)',
+        QmInputWriter_input_schema(charge=0, engine='gaussian', method='b3lyp', basis_set='6-31g(d)',
             source_type="xyz_file",
             source_value=str(xyz),
             task_type=[{"opt": None}],
@@ -1229,7 +1229,7 @@ async def test_gaussian_scan_rigid_declaration_writes_bare_scan_route(tmp_path):
     xyz = _water_xyz_file(tmp_path)
     out = tmp_path / "scan.gjf"
     result = await QmInputWriter().tool_call(
-        QmInputWriter_input_schema(engine='gaussian', method='b3lyp', basis_set='6-31g(d)',
+        QmInputWriter_input_schema(charge=0, engine='gaussian', method='b3lyp', basis_set='6-31g(d)',
             source_type="xyz_file",
             source_value=str(xyz),
             task_type=[{"scan": "rigid"}],

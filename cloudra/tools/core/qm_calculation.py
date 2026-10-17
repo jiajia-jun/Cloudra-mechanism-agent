@@ -6,6 +6,25 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from cloudra.tools.core.qm_keywords import is_basis_keyword
 
 
+class QmInputSettings(BaseModel):
+    """Electronic state and resources shared by native input generators."""
+
+    charge: int | None = Field(default=None,
+        description="Total molecular charge. MOL/SMILES may inherit the graph's formal charge; "
+                    "an explicit declaration must agree with that graph. XYZ calculations require "
+                    "an explicit charge, including 0 for a neutral system.")
+    multiplicity: int = Field(default=1, ge=1,
+        description="Spin multiplicity (2S+1): singlet=1, doublet=2, triplet=3.")
+    electronic_character: Literal['closed_shell', 'open_shell'] | None = Field(default=None,
+        description="Declared electronic character, including open-shell singlets. Open-shell "
+                    "SMILES skip closed-shell force fields. This does not select a QM method or initialize spin.")
+    nproc: int = Field(default=4, ge=1,
+        description="Number of CPU cores for parallel compute (Gaussian %nproc / ORCA %pal).")
+    mem: str = Field(default='4GB',
+        description="Gaussian/ORCA total job memory, e.g. '4GB' or '8192MB'. Gaussian writes %mem; ORCA writes "
+                    "%maxcore = mem/nproc. Request the same total memory_mb when submitting.")
+
+
 class QmCalculation(BaseModel):
     """Explicit method and basis; native keywords replace, never accumulate."""
 

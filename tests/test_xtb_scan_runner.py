@@ -36,8 +36,8 @@ def test_standalone_native_scan_manifest_preserves_declared_electronic_character
 
     manifest = tmp_path / 'declared-state-scan.json'
     result = TsGuess()._xtb_scan_prepare(TsGuess_input_schema(basis_set='', mode='scan_prepare', engine='xtb',
-        method='GFN2-xTB', input_text=AMMONIA, output_path=str(manifest), nprocs=1,
-        charge=0, spin=multiplicity, electronic_character=electronic_character,
+        method='GFN2-xTB', input_text=AMMONIA, output_path=str(manifest), nproc=1,
+        charge=0, multiplicity=multiplicity, electronic_character=electronic_character,
         force_constant=.5, scans=[{'atoms': [1, 2], 'scan_start': 1., 'scan_end': 1.1, 'scan_steps': 2}]))
     assert result.is_success
     task = ChemTask.model_validate_json(manifest.read_text())
@@ -51,8 +51,8 @@ def test_standalone_native_scan_refuses_explicit_open_shell_singlet_before_manif
     manifest = tmp_path / 'unsupported-singlet.json'
     with pytest.raises(ValueError) as error:
         TsGuess()._xtb_scan_prepare(TsGuess_input_schema(basis_set='', mode='scan_prepare', engine='xtb',
-            method='GFN2-xTB', input_text=AMMONIA, output_path=str(manifest), nprocs=1,
-            charge=0, spin=1, electronic_character='open_shell', force_constant=.5,
+            method='GFN2-xTB', input_text=AMMONIA, output_path=str(manifest), nproc=1,
+            charge=0, multiplicity=1, electronic_character='open_shell', force_constant=.5,
             scans=[{'atoms': [1, 2], 'scan_start': 1., 'scan_end': 1.1, 'scan_steps': 2}]))
     assert 'open-shell singlet' in str(error.value)
     assert not manifest.exists()
@@ -69,7 +69,7 @@ async def test_standalone_scan_prepares_typed_manifest_submits_only_scan_and_par
     manifest = tmp_path / 'scan-task.json'
     guess = TsGuess()
     prepared = guess._scan_prepare(TsGuess_input_schema(basis_set='', mode='scan_prepare', engine='xtb',
-        method='GFN2-xTB', input_text=AMMONIA, output_path=str(manifest), nprocs=1, charge=0, spin=1,
+        method='GFN2-xTB', input_text=AMMONIA, output_path=str(manifest), nproc=1, charge=0, multiplicity=1,
         force_constant=0.5, scans=[{'atoms': [1, 2], 'scan_start': 1.0, 'scan_end': 1.1, 'scan_steps': 2}]))
     assert prepared.is_success and prepared.input_file_path == str(manifest)
     task = ChemTask.model_validate_json(manifest.read_text())

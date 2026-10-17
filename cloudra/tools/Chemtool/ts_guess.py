@@ -66,9 +66,8 @@ from cloudra.tools.core.irc_path import (
     prove_irc_endpoint_direction as _prove_irc_endpoint_direction,
 )
 from cloudra.tools.core.molecule import read_molecule, to_ase, to_xyz, total_charge, with_positions
-from cloudra.tools.core.qm_calculation import QmCalculation
+from cloudra.tools.core.qm_calculation import QmCalculation, QmInputSettings
 from cloudra.tools.core.qm_engine import detect_qm_engine
-from cloudra.tools.core.qm_keywords import gaussian_basis_keyword, orca_basis_keyword
 from cloudra.tools.core.topology_change import default_connectivity
 from cloudra.tools.core.ts_inputs import PathSolvation, ScanGuess
 from cloudra.tools.core.xtb_path_runner import DEFAULT_REFINEMENT_RUNS, PathTermination
@@ -89,7 +88,7 @@ _IRC_TRUNCATION_REMEDY = (
 description = (
     "Transition-state (TS) guess workflow: choose an explicit mode. "
     "Use run_id to revise the guess intent of an existing TS run through its durable queue. "
-    "The run owns endpoint structures, atom correspondence, charge, spin and compute resources. "
+    "The run owns endpoint structures, atom correspondence, charge, multiplicity, electronic character and compute resources. "
     "Independent geometry analysis accepts complete endpoint MOL/SDF graphs and proves their mapping internally; "
     "xtb_path: execute an independent xTB metadynamics path search between confirmed all-atom endpoints; "
     "interpolate: linear or IDPP interpolation from reactant/product xyz to generate NEB candidate-path images "
@@ -118,13 +117,12 @@ description = (
 _MODE_FIELDS = {
     'interpolate': {'engine', 'reactant_path', 'reactant_text', 'product_path', 'product_text',
                     'n_images', 'interp_method', 'watch_pairs', 'output_dir', 'selected_candidate',
-                    'charge', 'spin', 'electronic_character'},
+                    'charge', 'multiplicity', 'electronic_character'},
     'xtb_path': {'engine', 'reactant_path', 'reactant_text', 'product_path', 'product_text',
                  'n_images', 'interp_method', 'watch_pairs', 'output_dir', 'timeout',
-                 'refinement_runs', 'charge', 'spin', 'electronic_character', 'selected_candidate'},
+                 'refinement_runs', 'charge', 'multiplicity', 'electronic_character', 'selected_candidate'},
     'scan_prepare': {*QmCalculation.model_fields, 'input_path', 'input_text', 'scans', 'freeze',
-                     'charge', 'spin', 'electronic_character', 'nprocs', 'memory_mb', 'output_path',
-                     'job_name', 'force_constant', 'scan_mode', 'solvation'},
+                     *QmInputSettings.model_fields, 'output_path', 'force_constant', 'scan_mode', 'solvation'},
     'scan_parse': {'engine', 'log_path', 'ts_candidate_path', 'watch_pairs'},
     'verify': {'engine', 'freq_log', 'irc_log', 'reactant_path', 'reactant_text',
                'product_path', 'product_text', 'watch_pairs', 'charge', 'strict', 'output_dir'},
@@ -193,7 +191,7 @@ def _mode_json_schema(schema: dict[str, Any]) -> None:
     schema["oneOf"] = branches
 
 
-class TsGuess_input_schema(input_schema):
+class TsGuess_input_schema(QmInputSettings, input_schema):
     model_config = ConfigDict(json_schema_extra=_mode_json_schema)
 
     @classmethod
@@ -221,7 +219,7 @@ class TsGuess_input_schema(input_schema):
     )
 
     run_id: str | None = Field(default=None, min_length=1,
-        description='Existing TS run in the current project and workspace. Mutually exclusive with endpoint files/text, charge/spin and output/resource overrides. Guess changes use the existing revision transaction and automatic queue.')
+        description='Existing TS run in the current project and workspace. Mutually exclusive with endpoint files/text, charge/multiplicity/electronic_character and output/resource overrides. Guess changes use the existing revision transaction and automatic queue.')
     selected_candidate: StrictInt | None = Field(default=None, ge=0,
         description='Independent endpoint analysis: choose a reported complete concrete atom-correspondence candidate (0-based). Omit when mapping is unique; genuine ambiguity requires an explicit choice.')
     evidence_refs: list[str] = Field(default_factory=list,
@@ -308,17 +306,10 @@ class TsGuess_input_schema(input_schema):
     basis_set: str | None = Field(default=None, description="scan_prepare requires an explicit basis token, or an explicit empty string for a method with no basis. A method/basis route string is not accepted in method.")
     keywords: str = Field(default='', description="scan_prepare: explicitly requested native electronic keywords, e.g. D3BJ RIJCOSX def2/J TightSCF CPCM(DCM) for ORCA, or scrf=(solvent=water) for Gaussian.")
     frequency_mode: Literal['auto', 'analytic', 'numeric'] = Field(default='auto', description="scan_prepare accepts only auto: this operation writes a scan, not a frequency calculation.")
-    charge: Optional[int] = Field(default=None, description="Total charge for coordinate-only input (default 0). MOL/SDF own their charge; an explicit declaration must agree with the molecular graph.")
-    spin: int = Field(default=1, description="Spin multiplicity (2S+1).")
-    electronic_character: Literal['closed_shell', 'open_shell'] | None = Field(default=None,
-        description="Declared electronic character for native scan/path preparation, including open-shell singlets. This does not select a wavefunction or initialize spin. Native xTB cannot represent an open-shell singlet through --uhf 0.")
-    nprocs: int = Field(default=4, description="Parallel cores (Gaussian %nprocshared / ORCA %pal).")
-    memory_mb: StrictInt | None = Field(default=None, ge=1, description="scan_prepare, ORCA only: total job memory in MB. Omit to use qm_input_writer's existing 4GB default. The program divides the total across nprocs and writes %maxcore.")
     output_path: Optional[str] = Field(default=None, description="scan_prepare: path to write the Gaussian/ORCA input or xTB typed manifest (required). Absolute as-is, or relative to the Agent working directory.")
-    job_name: str = Field(default="scan", description="Job name (used for chk file and title).")
     orca_blocks: Optional[str] = Field(
         default=None,
-        description="scan_prepare, ORCA only: raw % blocks appended after generated resources/geometry. %geom/%pal/%maxcore use scans/freeze/nprocs/memory_mb instead. For example, the external-potential block '%method\\n  ProgExt \"/abs/path/to/mace\"\\n  Ext_Params \"--model /abs/model --device cpu --dtype float64\"\\nend' when method='ExtOpt'. Rejected for engine='gaussian'.",
+        description="scan_prepare, ORCA only: raw % blocks appended after generated resources/geometry. %geom/%pal/%maxcore use scans/freeze/nproc/mem instead. For example, the external-potential block '%method\\n  ProgExt \"/abs/path/to/mace\"\\n  Ext_Params \"--model /abs/model --device cpu --dtype float64\"\\nend' when method='ExtOpt'. Rejected for engine='gaussian'.",
     )
 
     end_setting: str = Field(default='', description='scan_prepare: explicit Gaussian trailing native settings, after ModRedundant coordinates. ORCA uses orca_blocks.')
@@ -376,8 +367,8 @@ class TsGuess_input_schema(input_schema):
             QmCalculation.model_validate({field: getattr(self, field) for field in QmCalculation.model_fields})
             if self.frequency_mode != 'auto':
                 raise ValueError('scan_prepare writes a scan, not a frequency job; frequency_mode must be auto')
-            if self.memory_mb is not None and self.engine != 'orca':
-                raise ValueError('scan_prepare memory_mb is supported only for ORCA')
+            if self.engine == 'xtb' and 'mem' in self.model_fields_set:
+                raise ValueError('native xTB scan does not use mem; this field is for Gaussian/ORCA inputs')
             if not self.scans:
                 raise ValueError("scan_prepare requires scans: at least one scanned coordinate")
             if not self.output_path:
@@ -521,7 +512,7 @@ def _independent_path_endpoints(user_input):
     reaction = dict(
         reactant_smiles=Chem.MolToSmiles(Chem.RemoveHs(molecules['reactant']), canonical=False),
         product_smiles=Chem.MolToSmiles(Chem.RemoveHs(molecules['product']), canonical=False),
-        charge=total_charge(molecules['reactant']), multiplicity=user_input.spin,
+        charge=total_charge(molecules['reactant']), multiplicity=user_input.multiplicity,
         electronic_character=user_input.electronic_character,
     )
     if user_input.selected_candidate is not None:
@@ -1592,7 +1583,7 @@ class TsGuess(Tool):
             product_xyz=to_xyz(product, "ts_guess product"),
             output_dir=out_dir,
             charge=total_charge(reactant),
-            multiplicity=user_input.spin,
+            multiplicity=user_input.multiplicity,
             electronic_character=user_input.electronic_character,
             timeout=user_input.timeout,
             refinement_runs=user_input.refinement_runs,
@@ -1699,7 +1690,7 @@ class TsGuess(Tool):
     # ---------- mode=scan_prepare ----------
 
     def _scan_prepare(self, user_input: TsGuess_input_schema) -> TsGuess_output_schema:
-        """Render the declared scan; ORCA uses the existing writer resource rule."""
+        """Build scan coordinates; the shared writer owns the complete native input."""
         import numpy as np
 
         if user_input.engine == 'xtb':
@@ -1809,7 +1800,7 @@ class TsGuess(Tool):
             blocks = orca_directives(user_input.orca_blocks)[1]
             if blocks.keys() & {"geom", "pal", "maxcore"}:
                 raise ValueError("orca_blocks cannot contain %geom, %pal or %maxcore; "
-                                 "use scans/freeze and nprocs/memory_mb")
+                                 "use scans/freeze and nproc/mem")
 
         if start_mismatches and user_input.engine == "gaussian":
             return TsGuess_output_schema(
@@ -1824,8 +1815,6 @@ class TsGuess(Tool):
                 ),
             )
 
-        method = calculation.method
-        extra = calculation.keywords.strip()
         coord_letter = {"bond": "B", "angle": "A", "dihedral": "D"}
         scan_labels = [
             f"{coord_letter[spec['coord_type']]} {' '.join(str(a + atom_index_base(user_input.engine)) for a in spec['idx'])}"
@@ -1834,14 +1823,8 @@ class TsGuess(Tool):
             for spec in specs
         ]
 
+        native_settings = calculation.model_dump(mode='json')
         if user_input.engine == "gaussian":
-            native_method = method + (f'/{gaussian_basis_keyword(calculation.basis_set)}' if calculation.basis_set else '')
-            route = f"# opt=(modredundant,maxstep=10) {native_method}"
-            if extra:
-                route += f" {extra}"
-            coord_lines = "\n".join(
-                f"{s:<4} {p[0]:>14.8f} {p[1]:>14.8f} {p[2]:>14.8f}" for s, p in zip(syms, pos)
-            )
             scan_block = "\n".join(
                 f"{coord_letter[spec['coord_type']]} {' '.join(str(a + 1) for a in spec['idx'])} "
                 f"S {spec['steps']} {spec['step_size']:.6f}"
@@ -1852,21 +1835,8 @@ class TsGuess(Tool):
                     f"{coord_letter[kind]} {' '.join(str(a + 1) for a in idx)} F"
                     for kind, idx in frozen
                 )
-            content = "\n".join([
-                f"%nprocshared={user_input.nprocs}",
-                f"%chk={user_input.job_name}.chk",
-                route,
-                "",
-                f"{user_input.job_name} scan generated by ts_guess",
-                "",
-                f"{total_charge(mol)} {user_input.spin}",
-                coord_lines,
-                "",
-                scan_block,
-                "",
-                user_input.end_setting,
-                "",
-            ])
+            native_settings['end_setting'] = '\n\n'.join(filter(None, [scan_block, user_input.end_setting]))
+            task_type = [{'opt': 'modredundant,maxstep=10'}]
             run_hint = (
                 f"Submit {user_input.output_path} with submit_compute_job (job_type='gaussian'); "
                 + ("this is a 2D independent potential-energy grid; scan_parse does not derive a TS candidate. "
@@ -1875,19 +1845,7 @@ class TsGuess(Tool):
                    "afterwards parse the log with ts_guess mode='scan_parse' for internal-peak candidates.")
             )
         else:
-            orca_method = method + (f' {orca_basis_keyword(calculation.basis_set)}' if calculation.basis_set else '')
-            header = f"! OPT {orca_method}"
-            if extra:
-                header += f" {extra}"
-            xyz_lines = "\n".join(
-                f"{s:<3} {p[0]:>14.8f} {p[1]:>14.8f} {p[2]:>14.8f}" for s, p in zip(syms, pos)
-            )
-            blocks = [header]
-            from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
-            memory = (f"{user_input.memory_mb}MB" if user_input.memory_mb is not None
-                      else QmInputWriter_input_schema.model_fields['mem'].default)
-            blocks.extend(QmInputWriter._orca_resource_lines(memory, user_input.nprocs))
-            blocks.extend(["%geom", "    Scan"])
+            blocks = ["%geom", "    Scan"]
             for spec in specs:
                 blocks.append(
                     f"        {coord_letter[spec['coord_type']]} {' '.join(str(a) for a in spec['idx'])} "
@@ -1904,8 +1862,8 @@ class TsGuess(Tool):
             blocks.append("end")
             if user_input.orca_blocks:
                 blocks.append(user_input.orca_blocks.strip())
-            blocks.extend(["", f"* xyz {total_charge(mol)} {user_input.spin}", xyz_lines, "*", ""])
-            content = "\n".join(blocks)
+            native_settings['orca_blocks'] = '\n'.join(blocks)
+            task_type = [{'opt': None}]
             run_hint = (
                 f"Submit {user_input.output_path} with submit_compute_job (job_type='orca'); "
                 + ("this is a 2D independent potential-energy grid; scan_parse does not derive a TS candidate. "
@@ -1914,6 +1872,16 @@ class TsGuess(Tool):
                    "afterwards parse the log with ts_guess mode='scan_parse' engine='orca' for internal-peak candidates.")
             )
 
+        from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
+
+        # 科学状态和资源只使用共同字段，扫描不再另写电子态、资源、坐标或检查点。
+        request = QmInputWriter_input_schema(
+            **native_settings, **user_input.model_dump(include=set(QmInputSettings.model_fields)),
+            source_type='xyz_file' if mol.HasProp('cloudra_graph_status') else 'mol_file',
+            source_value=user_input.input_path or '<inline>', task_type=task_type,
+            output_path=user_input.output_path,
+        )
+        content = QmInputWriter.render_input(request, mol)
         out_dir = os.path.dirname(os.path.abspath(user_input.output_path))
         os.makedirs(out_dir, exist_ok=True)
         atomic_write_text(user_input.output_path, content)
@@ -1952,11 +1920,11 @@ class TsGuess(Tool):
         if user_input.freeze or user_input.keywords or user_input.orca_blocks or user_input.end_setting:
             raise ValueError('xTB scan rejects Gaussian/ORCA directives and frozen coordinates')
         mol = _source_molecule(user_input, "input")
-        if 'spin' not in user_input.model_fields_set or (
+        if 'multiplicity' not in user_input.model_fields_set or (
             user_input.charge is None and mol.HasProp('cloudra_graph_status')
             and mol.GetProp('cloudra_graph_status') == 'unresolved'
         ):
-            raise ValueError('xTB scan requires explicit charge and spin multiplicity for the bound XYZ')
+            raise ValueError('xTB scan requires explicit charge and multiplicity for the bound XYZ')
         symbols = [atom.GetSymbol() for atom in mol.GetAtoms()]
         positions = mol.GetConformer().GetPositions()
         coordinates = []
@@ -1971,8 +1939,8 @@ class TsGuess(Tool):
         xyz = '\n'.join([str(len(symbols)), 'bound xTB scan input',
             *[f'{symbol} ' + ' '.join(f'{float(value):.14f}' for value in point)
               for symbol, point in zip(symbols, positions)]]) + '\n'
-        task = ChemTask(task='xtb_scan', reactant_xyz=xyz, cpus=user_input.nprocs,
-                        charge=total_charge(mol), multiplicity=user_input.spin,
+        task = ChemTask(task='xtb_scan', reactant_xyz=xyz, cpus=user_input.nproc,
+                        charge=total_charge(mol), multiplicity=user_input.multiplicity,
                         electronic_character=user_input.electronic_character, scan=scan)
         output = Path(user_input.output_path)
         if output.exists():

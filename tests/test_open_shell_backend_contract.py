@@ -9,6 +9,19 @@ from cloudra.tools.core.xtb_path_runner import XtbPathRequest, build_xtb_path_co
 XYZ = '2\nO2\nO 0 0 0\nO 1.2 0 0\n'
 
 
+@pytest.fixture
+def o2_mol():
+    Chem = pytest.importorskip('rdkit.Chem')
+    mol = Chem.MolFromSmiles('O=O')
+    for index, atom in enumerate(mol.GetAtoms(), start=1):
+        atom.SetAtomMapNum(index)
+    coordinates = Chem.Conformer(2)
+    coordinates.SetAtomPosition(0, (0., 0., 0.))
+    coordinates.SetAtomPosition(1, (1.2, 0., 0.))
+    mol.AddConformer(coordinates)
+    return Chem.MolToMolBlock(mol)
+
+
 @pytest.mark.parametrize('backend', ['crest', 'xtb_path'])
 def test_open_shell_singlet_is_refused_before_backend_launch(tmp_path, backend):
     with pytest.raises(ValueError) as error:
@@ -171,7 +184,7 @@ def test_ts_native_manifests_preserve_electronic_declaration(tmp_path, monkeypat
 
 
 @pytest.mark.parametrize('multiplicity,character', [(1, 'closed_shell'), (3, 'open_shell')])
-def test_standalone_path_preserves_electronic_character(tmp_path, monkeypatch, multiplicity, character):
+def test_standalone_path_preserves_electronic_character(tmp_path, monkeypatch, multiplicity, character, o2_mol):
     pytest.importorskip('ase')
     from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_input_schema
     from cloudra.tools.core.xtb_path_runner import XtbPathResult
@@ -182,12 +195,13 @@ def test_standalone_path_preserves_electronic_character(tmp_path, monkeypatch, m
         return XtbPathResult(run_dir=str(tmp_path), termination_reason='failed')
 
     monkeypatch.setattr('cloudra.tools.core.xtb_path_runner.run_xtb_path', capture)
-    result = TsGuess()._xtb_path(TsGuess_input_schema(mode='xtb_path', reactant_text=XYZ,
-        product_text=XYZ, output_dir=str(tmp_path), spin=multiplicity, electronic_character=character))
+    result = TsGuess()._xtb_path(TsGuess_input_schema(mode='xtb_path', reactant_text=o2_mol,
+        product_text=o2_mol, output_dir=str(tmp_path),
+        multiplicity=multiplicity, electronic_character=character))
     assert result.is_success is False
 
 
-def test_standalone_path_refuses_singlet_before_probe_and_artifact(tmp_path, monkeypatch):
+def test_standalone_path_refuses_singlet_before_probe_and_artifact(tmp_path, monkeypatch, o2_mol):
     pytest.importorskip('ase')
     from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_input_schema
 
@@ -195,7 +209,8 @@ def test_standalone_path_refuses_singlet_before_probe_and_artifact(tmp_path, mon
                         lambda *_: pytest.fail('Unsupported standalone path probed xTB'))
     destination = tmp_path / 'unsupported'
     with pytest.raises(ValueError) as error:
-        TsGuess()._xtb_path(TsGuess_input_schema(mode='xtb_path', reactant_text=XYZ,
-            product_text=XYZ, output_dir=str(destination), spin=1, electronic_character='open_shell'))
+        TsGuess()._xtb_path(TsGuess_input_schema(mode='xtb_path', reactant_text=o2_mol,
+            product_text=o2_mol, output_dir=str(destination),
+            multiplicity=1, electronic_character='open_shell'))
     assert 'open-shell singlet' in str(error.value)
     assert not destination.exists()

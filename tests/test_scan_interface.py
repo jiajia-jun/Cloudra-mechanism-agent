@@ -18,7 +18,7 @@ ROWS = [dict(atoms=[0, 1], scan_start=1., scan_end=2., scan_steps=3),
 def test_explicit_orca_grid_renders_one_nested_scan_with_independent_steps(tmp_path):
     output = tmp_path / "grid.inp"
     result = TsGuess()._scan_prepare(TsGuess_input_schema(
-        mode="scan_prepare", input_text=WATER, output_path=str(output),
+        charge=0,  mode="scan_prepare", input_text=WATER, output_path=str(output),
         scans=ROWS, scan_mode="grid", **ORCA))
     assert result.is_success
     native = output.read_text()
@@ -32,9 +32,9 @@ def test_nested_scan_retains_single_coordinate_or_concerted_path(tmp_path, conce
     scans = [ROWS[0], dict(ROWS[1], scan_steps=3)] if concerted else ROWS[:1]
     output = tmp_path / "path.inp"
     result = TsGuess()._scan_prepare(TsGuess_input_schema(
-        mode="scan_prepare", input_text=WATER, output_path=str(output),
+        charge=0,  mode="scan_prepare", input_text=WATER, output_path=str(output),
         scans=scans, scan_mode="concerted" if concerted else None,
-        freeze=[dict(coord_type="bond", atoms=[1, 2])], nprocs=8, memory_mb=768, **ORCA))
+        freeze=[dict(coord_type="bond", atoms=[1, 2])], nproc=8, mem="768MB", **ORCA))
     assert result.is_success
     native = output.read_text()
     assert native.count("    Scan\n") == 1
@@ -99,7 +99,7 @@ async def test_writer_retires_orca_scan_and_raw_opt_bypass(tmp_path, tasks, bloc
     source.write_text(WATER)
     output = tmp_path / "retired.inp"
     result = await QmInputWriter().tool_call(QmInputWriter_input_schema(
-        source_type="xyz_file", source_value=str(source), output_path=str(output),
+        charge=0, source_type="xyz_file", source_value=str(source), output_path=str(output),
         task_type=tasks, orca_blocks=blocks, **ORCA), session=None)
     assert not result.is_success and not output.exists()
     assert "ts_guess" in result.message and "scan_prepare" in result.message
@@ -111,19 +111,19 @@ async def test_writer_keeps_ordinary_geom_settings_and_ignores_scan_comment(tmp_
     source.write_text(WATER)
     output = tmp_path / "minimum.inp"
     result = await QmInputWriter().tool_call(QmInputWriter_input_schema(
-        source_type="xyz_file", source_value=str(source), output_path=str(output),
+        charge=0, source_type="xyz_file", source_value=str(source), output_path=str(output),
         orca_blocks="%geom\n  MaxIter 200\n  # Scan is handled by a different operation\nend", **ORCA), session=None)
     assert result.is_success, result.message
     assert "MaxIter 200" in output.read_text()
     assert result.interpreted_intent["tasks"] == ["minimum_opt"]
 
 
-@pytest.mark.parametrize("cpus,memory_mb,maxcore", [(4, None, 1024), (8, 8192, 1024), (3, 8192, 2730)])
-def test_standalone_scan_total_budget_uses_existing_writer_allocation(tmp_path, cpus, memory_mb, maxcore):
+@pytest.mark.parametrize("cpus,mem,maxcore", [(4, "4GB", 1024), (8, "8192MB", 1024), (3, "8192MB", 2730)])
+def test_standalone_scan_total_budget_uses_existing_writer_allocation(tmp_path, cpus, mem, maxcore):
     output = tmp_path / "budget.inp"
     result = TsGuess()._scan_prepare(TsGuess_input_schema(
-        mode="scan_prepare", input_text=WATER, output_path=str(output),
-        scans=ROWS[:1], nprocs=cpus, memory_mb=memory_mb, **ORCA))
+        charge=0,  mode="scan_prepare", input_text=WATER, output_path=str(output),
+        scans=ROWS[:1], nproc=cpus, mem=mem, **ORCA))
     assert result.is_success
     assert f"%pal nprocs {cpus} end" in output.read_text()
     assert f"%maxcore {maxcore}\n" in output.read_text()
@@ -137,17 +137,17 @@ def test_scan_budget_and_grid_intent_are_exposed_only_in_prepare_mode(surface):
               else TsGuess_input_schema.model_json_schema())
     validator = Draft202012Validator(schema)
     validator.validate(dict(mode="scan_prepare", engine="orca", method="B3LYP", basis_set="def2-SVP",
-        input_text=WATER, output_path="grid.inp", scans=ROWS, scan_mode="grid", memory_mb=8192))
+        input_text=WATER, output_path="grid.inp", scans=ROWS, scan_mode="grid", mem="8192MB"))
     with pytest.raises(ValidationError):
-        validator.validate(dict(mode="scan_parse", log_path="grid.out", memory_mb=8192))
+        validator.validate(dict(mode="scan_parse", log_path="grid.out", mem="8192MB"))
 
 
 @pytest.mark.parametrize("blocks", ["%pal nprocs 16 end", "%maxcore 8192"])
 def test_scan_raw_blocks_cannot_override_declared_resources(tmp_path, blocks):
     output = tmp_path / "duplicate-budget.inp"
-    request = TsGuess_input_schema(mode="scan_prepare", input_text=WATER, output_path=str(output),
-        scans=ROWS[:1], nprocs=4, memory_mb=4096, orca_blocks=blocks, **ORCA)
-    with pytest.raises(ValueError, match="nprocs|memory_mb"):
+    request = TsGuess_input_schema(charge=0, mode="scan_prepare", input_text=WATER, output_path=str(output),
+        scans=ROWS[:1], nproc=4, mem="4096MB", orca_blocks=blocks, **ORCA)
+    with pytest.raises(ValueError, match="nproc|mem"):
         TsGuess()._scan_prepare(request)
     assert not output.exists()
 
@@ -159,8 +159,8 @@ def test_scan_raw_blocks_cannot_override_declared_resources(tmp_path, blocks):
 def test_scan_resource_words_in_comments_or_strings_are_not_directives(tmp_path, blocks):
     output = tmp_path / "unchanged-budget.inp"
     result = TsGuess()._scan_prepare(TsGuess_input_schema(
-        mode="scan_prepare", input_text=WATER, output_path=str(output), scans=ROWS[:1],
-        nprocs=4, memory_mb=4096, orca_blocks=blocks, **dict(ORCA, method="ExtOpt", basis_set="")))
+        charge=0,  mode="scan_prepare", input_text=WATER, output_path=str(output), scans=ROWS[:1],
+        nproc=4, mem="4096MB", orca_blocks=blocks, **dict(ORCA, method="ExtOpt", basis_set="")))
     assert result.is_success
     native = output.read_text()
     assert [line for line in native.splitlines() if line.startswith(("%pal", "%maxcore"))] == [

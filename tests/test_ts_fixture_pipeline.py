@@ -88,6 +88,8 @@ def waiting_fixture_stage(tmp_path, *, purpose="frequency", engine="orca", seed=
     if purpose == "scan":
         TsGuess()._scan_prepare(TsGuess_input_schema(
             mode="scan_prepare", input_path=str(geometry), output_path=str(source),
+            charge=declaration.reaction.charge, multiplicity=declaration.reaction.multiplicity,
+            electronic_character=declaration.reaction.electronic_character,
             **declaration.guess.calculation.model_dump(mode='json'),
             scans=[dict(atoms=[0, 1], scan_start=1.0, scan_end=2.0, scan_steps=5)],
             freeze=[dict(coord_type="bond", atoms=[0, 2])],

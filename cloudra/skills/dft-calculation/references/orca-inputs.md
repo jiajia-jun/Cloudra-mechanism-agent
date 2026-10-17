@@ -99,7 +99,7 @@ For free energies, read `method-selection.md` §4: `log_parser` supports ORCA th
 
 ## 4. Relaxed scan example
 
-`ts_guess mode=scan_prepare` uses the same calculation fields as `qm_input_writer`: explicit `engine`, one-token `method`, `basis_set`, `keywords`, `frequency_mode`, `orca_blocks` and `end_setting`. Resource/spin fields remain `nprocs` and `spin`; standalone external scans use raw `%method` rather than writer `external_program`. With `engine="orca"`, its public atom indices are **0-based**, in the exact input XYZ order including explicit H. The example scans the atoms labeled 1 and 9 by `internal_coordinates`, passed as `[0, 8]`; choose real indices/range from the structure.
+`ts_guess mode=scan_prepare` uses the same calculation fields as `qm_input_writer`: explicit `engine`, one-token `method`, `basis_set`, `keywords`, `frequency_mode`, `orca_blocks` and `end_setting`. Electronic-state and resource fields are `charge`, `multiplicity`, `nproc` and total-job `mem`; coordinate-only XYZ input requires an explicit total charge. Standalone external scans use raw `%method` rather than writer `external_program`. With `engine="orca"`, its public atom indices are **0-based**, in the exact input XYZ order including explicit H. The example scans the atoms labeled 1 and 9 by `internal_coordinates`, passed as `[0, 8]`; choose real indices/range from the structure.
 
 **Index check before every scan:** `internal_coordinates` and concrete `reaction_mapping.concrete_watch_pairs` use 1-based labels. Run-based `ts_guess` owns endpoint correspondence internally and does not accept an `atom_map`. Native ORCA scan/freeze coordinates use 0-based indices: convert each concrete label `i` to `i-1` in scan arguments and `%geom Scan` blocks (bond 1–6 → `Scan B 0 5`, dihedral 3–8–9–10 → `Scan D 2 7 8 9`). Gaussian/xTB scan arguments remain 1-based. Use current concrete atom tables; heavy-atom SMILES indices do not identify explicit-H coordinate rows. Check the element and position of each referenced atom, then compare the scan's starting coordinate with the intended bond, angle, or dihedral. A valid but shifted index can run to completion while scanning a different coordinate.
 
@@ -112,14 +112,15 @@ For free energies, read `method-selection.md` §4: `log_parser` supports ORCA th
   "method": "ExtOpt",
   "basis_set": "",
   "charge": -1,
-  "spin": 1,
-  "nprocs": 1,
-  "orca_blocks": "%method\n  ProgExt \"/opt/chem/bin/mace\"\n  Ext_Params \"--model /opt/models/mace.model --device cpu --dtype float64\"\nend\n%maxcore 3072",
+  "multiplicity": 1,
+  "nproc": 1,
+  "mem": "3GB",
+  "orca_blocks": "%method\n  ProgExt \"/opt/chem/bin/mace\"\n  Ext_Params \"--model /opt/models/mace.model --device cpu --dtype float64\"\nend",
   "output_path": "/work/e1/scan.inp"
 }
 ```
 
-Expect `! Opt ExtOpt` and `%geom Scan B 0 8 = <current>, 1.30, 16 ...`. The tool supplies `%geom`; do not append another scan/constraint block accidentally. The tool currently accepts only one scan coordinate for ORCA; for coupled two-coordinate scans write the multi-coordinate `%geom Scan` block explicitly via `orca_blocks`, or use another explicitly authorized path strategy (see `ts-search-playbook.md`). For DFT split the chosen level into `method="PBE0"`, `basis_set="def2-SVP"`, without the external block. `scan_prepare` has no memory field; set `%maxcore` through `orca_blocks`. Its calculation snapshot describes the prepared input; preparation does not run the scan or select a different method.
+Expect `! Opt ExtOpt`, `%pal nprocs 1 end`, `%maxcore 3072` and `%geom Scan B 0 8 = <current>, 1.30, 16 ...`. The tool supplies `%geom`, `%pal` and `%maxcore`; do not append duplicate scan, constraint or resource blocks. ORCA supports one coordinate, or two typed coordinates with explicit `scan_mode="grid"` (independent surface) or `scan_mode="concerted"` (coupled path with equal step counts). A grid retains the surface without automatically selecting a TS candidate. Use `scans` and `freeze` for these coordinates, not raw `%geom` in `orca_blocks`. For DFT split the chosen level into `method="PBE0"`, `basis_set="def2-SVP"`, without the external block. The shared writer divides total `mem` across `nproc` for `%maxcore`; match the scheduler reservation to the job total. For an existing run, supply `run_id` and scan intent; the run supplies its charge, multiplicity and execution resources. Its calculation snapshot describes the prepared input; preparation does not run the scan or select a different method.
 
 Keep `<stem>.relaxscanact.dat` and per-point `<stem>.NNN.xyz` files for `scan_parse`. Its native sidecar path pairs energies with the correct frame and reports the peak as a `candidate` with `scan_index`/`energy`/`geometry_ref`/`source`. If the peak frame file is missing, the tool returns `candidate_unavailable=true` and never substitutes the last frame; recover or re-run the missing frame before extracting a TS guess. The text-only fallback is best-effort: inspect the returned notes before using it as a peak candidate. Export the chosen seed into a fresh unconstrained TS input.
 

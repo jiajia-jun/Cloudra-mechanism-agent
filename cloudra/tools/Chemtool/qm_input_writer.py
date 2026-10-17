@@ -23,7 +23,7 @@ from cloudra.tools.core.calculation_intent import (
     validate_writer_request,
 )
 from cloudra.tools.core.molecule import read_molecule, to_xyz, total_charge
-from cloudra.tools.core.qm_calculation import QmCalculation
+from cloudra.tools.core.qm_calculation import QmCalculation, QmInputSettings
 from cloudra.tools.core.qm_keywords import gaussian_basis_keyword, orca_basis_keyword
 from cloudra.tools.core.structure_builder import (
     BuildStrategy,
@@ -56,7 +56,7 @@ description = (
 )
 
 
-class QmInputWriter_input_schema(QmCalculation, input_schema):
+class QmInputWriter_input_schema(QmCalculation, QmInputSettings, input_schema):
     engine: Literal["gaussian", "orca"] = Field(
         description="Target QM program. 'gaussian': write a .gjf (submit with job_type='gaussian'); "
                     "'orca': write a .inp (submit with job_type='orca'). "
@@ -108,31 +108,6 @@ class QmInputWriter_input_schema(QmCalculation, input_schema):
                     "Rejected when no frequency task is requested.",
     )
 
-    charge: int | None = Field(
-        default=None,
-        description="Total molecular charge. Omit for MOL/SMILES to use the structure's formal charge; "
-                    "an explicit value must match that structure. XYZ contains no formal charges: "
-                    "declare its total charge here, or omit for neutral."
-    )
-    multiplicity: int = Field(
-        default=1,
-        description="Spin multiplicity. Singlet=1, doublet=2, triplet=3."
-    )
-    electronic_character: Literal["closed_shell", "open_shell"] | None = Field(
-        default=None, description="Optional explicit electronic character for SMILES seed generation; "
-        "open_shell singlets skip closed-shell force fields. Does not choose a QM method or initial spin.",
-    )
-    mem: str = Field(
-        default="4GB",
-        description="TOTAL memory for the whole job, e.g. '4GB', '8GB'. Gaussian writes %mem "
-                    "verbatim (a total); ORCA writes %maxcore = mem/nproc because ORCA maxcore "
-                    "is a PER-CORE value. Request memory_mb equal to this total when submitting."
-    )
-    nproc: int = Field(
-        default=4,
-        ge=1,
-        description="Number of CPU cores for parallel compute (Gaussian %nprocshared / ORCA %pal)."
-    )
     orca_blocks: Optional[str] = Field(
         default=None,
         description="ORCA-only: raw % block lines inserted between the `!` line and the coordinate "
@@ -164,9 +139,9 @@ class QmInputWriter_input_schema(QmCalculation, input_schema):
     )
     chk_name: Optional[str] = Field(
         default=None,
-        description="chk filename, e.g. H2O.chk. By convention point it into the same directory "
-                    "as output_path (absolute path preferred): the per-task Gaussian scratch is "
-                    "deleted after the run, so a checkpoint outside the .gjf directory is lost."
+        description="Gaussian checkpoint path. Omit to generate an absolute '<output stem>.chk' "
+                    "next to output_path. An explicit path is preserved; prefer the input directory "
+                    "because per-task Gaussian scratch is deleted after the run."
     )
     rwf_name: Optional[str] = Field(
         default=None,
@@ -591,11 +566,24 @@ class QmInputWriter(Tool):
         ]
 
         if user_input.end_setting:
-            # 在结束空行之前插入自定义设置及其后的空行
-            sections.insert(-1, user_input.end_setting)
-            sections.insert(-1, "")
+            # 坐标块先以空行结束，再写扫描坐标或其他尾部设置。
+            sections.extend([user_input.end_setting, ""])
 
         return "\n".join(sections) + "\n"
+
+    @staticmethod
+    def render_input(user_input: QmInputWriter_input_schema, mol) -> str:
+        """Render native input from the owned molecule and declared input settings."""
+        if (user_input.charge is None and mol.HasProp('cloudra_graph_status')
+                and mol.GetProp('cloudra_graph_status') == 'unresolved'):
+            raise ValueError('XYZ calculation input requires an explicit total charge; declare charge=0 for neutral')
+        if user_input.engine == 'orca':
+            return QmInputWriter._build_orca_input(user_input, mol)
+        if user_input.chk_name is None:
+            user_input = user_input.model_copy(update={
+                'chk_name': str(Path(user_input.output_path).resolve().with_suffix('.chk')),
+            })
+        return QmInputWriter._build_gjf(user_input, mol)
 
     async def tool_call(self, user_input: QmInputWriter_input_schema, session: Session) -> QmInputWriter_output_schema:
         if not _RDKIT_AVAILABLE:
@@ -686,12 +674,11 @@ class QmInputWriter(Tool):
             mol, seed_note = await asyncio.to_thread(
                 self._get_molecule, user_input, user_input.artifact_dir
             )
+            content = await asyncio.to_thread(self.render_input, user_input, mol)
             if user_input.engine == "orca":
-                content = self._build_orca_input(user_input, mol)
                 engine_label = "ORCA"
                 generation_path = "orca:simple+orca_blocks"
             else:
-                content = self._build_gjf(user_input, mol)
                 engine_label = "Gaussian"
                 generation_path = "gaussian:route"
 
