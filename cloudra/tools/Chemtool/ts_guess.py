@@ -6,10 +6,9 @@ xtb_path 执行 xTB 路径搜索；其他模式生成输入、插值或解析证
 （gaussian_frames 的 FREQ_LINE_RE / vibdisps_from_text / std_orientation_frames），
 agent 无需啃日志格式。
 
-默认 verify 只给 agent 提供方向建议；strict verify 只证明部分 IRC 的行进方向与两侧优化
-中间体一致，不宣称一个 TS 因此“绝对正确”。strict 的监测对与原子对应实现唯一，
-住 cloudra/tools/core/irc_path（键图 diff 硬证据 + 启发提名软证据分层，
-距离指纹 + Hungarian 对齐，任意原子序输入可判）。
+默认 verify 只给 agent 提供方向建议；strict verify 要求同一 TS 的双向 IRC 外侧帧
+实际优化到身份正确且零虚频的极小点。证据核对复用 core/irc_evidence，
+几何区间检查只提供辅助提示，不决定是否通过。
 """
 
 from __future__ import annotations
@@ -62,9 +61,6 @@ from cloudra.tools.core.irc_path import (
 from cloudra.tools.core.irc_path import (
     perceive_bonds as _perceive_bonds,
 )
-from cloudra.tools.core.irc_path import (
-    prove_irc_endpoint_direction as _prove_irc_endpoint_direction,
-)
 from cloudra.tools.core.molecule import read_molecule, to_ase, to_xyz, total_charge, with_positions
 from cloudra.tools.core.qm_calculation import QmCalculation, QmInputSettings
 from cloudra.tools.core.qm_engine import detect_qm_engine
@@ -79,10 +75,9 @@ _IMAG_MODE_WATCH_RATIO = 0.5
 # 可操作补救提示（仅文本）：strict verify 因「材料不足 / 未通过」而不 pass 时追加到
 # checks 与 verdict 文案，指导 agent 去补做端点优化，而不是放宽阈值。不改变 verdict 取值。
 _IRC_TRUNCATION_REMEDY = (
-    "The IRC path may be truncated (an outer frame has not yet relaxed onto the "
-    "target endpoint reference geometry). Remedy: re-optimize each IRC outer frame to a minimum "
-    "(Opt, ideally with Freq to confirm zero imaginary frequencies) and resubmit "
-    "the endpoint reference geometries as reactant_path / product_path, then run strict verify again."
+    "Optimize each actual IRC outer frame to its endpoint minimum and confirm zero imaginary "
+    "frequencies. Submit the native Opt/Freq logs as reactant_logs / product_logs "
+    "(combined or separate logs), with reactant_path / product_path identifying the expected species."
 )
 
 description = (
@@ -103,8 +98,10 @@ description = (
     "without the sidecar the log text is grouped per 'RELAXED SURFACE SCAN STEP' and each point's converged "
     "(last) energy/geometry is used, so per-cycle energies are never misread as scan points; "
     "verify: by default, frequency plus rough IRC-endpoint connectivity yields candidate/unlikely/inconclusive; "
-    "with strict=True, requires one imaginary frequency, valid bidirectional IRC endpoints, and two endpoint reference geometries, "
-    "and checks that each partial IRC endpoint lies between the TS and the matching endpoint reference geometry, yielding a path-direction-consistency pass/fail/inconclusive. "
+    "with strict=True, requires one reaction-relevant imaginary frequency, bidirectional IRC from that same TS, "
+    "expected endpoint structures, and native reactant_logs/product_logs proving that the actual IRC outer frames "
+    "were optimized to the correct zero-imaginary minima, yielding pass/fail/inconclusive. "
+    "Opt and Freq may be in combined or separate logs; geometric interval checks are advisory only. "
     "For an exploratory scan: scan_prepare (after internal_coordinates) → submit → scan_parse. "
     "For formal TS refinement and validation, provide the candidate to ts_prepare rather than submitting manual TS/IRC jobs; "
     "xtb_path/interpolate are fallbacks and never a saddle. Independent xtb_path executes a calculation directly; "
@@ -125,7 +122,8 @@ _MODE_FIELDS = {
                      *QmInputSettings.model_fields, 'output_path', 'force_constant', 'scan_mode', 'solvation'},
     'scan_parse': {'engine', 'log_path', 'ts_candidate_path', 'watch_pairs'},
     'verify': {'engine', 'freq_log', 'irc_log', 'reactant_path', 'reactant_text',
-               'product_path', 'product_text', 'watch_pairs', 'charge', 'strict', 'output_dir'},
+               'product_path', 'product_text', 'reactant_logs', 'product_logs', 'watch_pairs',
+               'charge', 'strict', 'output_dir'},
 }
 
 _RUN_MODE_FIELDS = {
@@ -233,7 +231,7 @@ class TsGuess_input_schema(QmInputSettings, input_schema):
     )
     reactant_text: Optional[str] = Field(
         default=None,
-        description="Reactant XYZ/MOL/SDF text; in strict verify, the reference geometry for one endpoint. Path takes precedence.",
+        description="Reactant XYZ/MOL/SDF text; strict verify uses it to identify the expected reactant. Path takes precedence.",
     )
     product_path: Optional[str] = Field(
         default=None,
@@ -242,7 +240,7 @@ class TsGuess_input_schema(QmInputSettings, input_schema):
     )
     product_text: Optional[str] = Field(
         default=None,
-        description="Product XYZ/MOL/SDF text; in strict verify, the reference geometry for the other endpoint. Path takes precedence.",
+        description="Product XYZ/MOL/SDF text; strict verify uses it to identify the expected product. Path takes precedence.",
     )
     n_images: int = Field(default=10, description="interpolate: total image count (including endpoints), ≥2.")
     interp_method: Literal["idpp", "linear"] = Field(
@@ -330,10 +328,14 @@ class TsGuess_input_schema(QmInputSettings, input_schema):
         description="verify: IRC log path; optional in default mode, required in strict mode with valid frames on both rx<0 and rx>0 sides. "
                     "Absolute as-is, or relative to the Agent working directory.",
     )
+    reactant_logs: list[str] = Field(default_factory=list,
+        description="verify strict: native Opt and Freq logs proving an actual IRC outer frame was optimized to the expected reactant zero-imaginary minimum. Combined Opt/Freq or separate logs are accepted. Paths are absolute or relative to the Agent working directory.")
+    product_logs: list[str] = Field(default_factory=list,
+        description="verify strict: native Opt and Freq logs proving the opposite IRC outer frame was optimized to the expected product zero-imaginary minimum. Combined Opt/Freq or separate logs are accepted. Paths are absolute or relative to the Agent working directory.")
     strict: bool = Field(
         default=False,
-        description="verify only: enable a stateless path-direction consistency proof. IRC need not reach a minimum, but bidirectional valid endpoints, "
-                    "TS geometry and reference geometries for both endpoints are required.",
+        description="verify only: prove direction using the same TS and bidirectional IRC plus actual outer-frame Opt/Freq logs and expected endpoint structures. "
+                    "IRC itself need not reach minima; the optimized endpoints must have zero imaginary frequencies. Geometric intervals are advisory.",
     )
 
     @model_validator(mode="after")
@@ -1301,9 +1303,8 @@ def _parse_freq_log(log_path: str, engine: str) -> dict:
             symbols = [pt.element[int(z)] for z, *_ in rows]
             positions = np.asarray([[x, y, z] for _, x, y, z in rows], dtype=float)
     elif positions is None and engine == "orca":
-        # ORCA 末帧几何同样走文本权威 CARTESIAN COORDINATES (ANGSTROEM) 块：
-        # strict 的几何区间层需要 TS 几何，而 freq 日志的末帧几何就是被验证的
-        # TS（cclib 对 ORCA 6.1 崩溃时 positions 会缺失，不能因此判 inconclusive）。
+        # ORCA 末帧几何同样走文本权威坐标块；cclib 对 ORCA 6.1 崩溃时也保留 TS
+        # 几何，供模式方向和 IRC 来源核对使用。
         ts_xyz = orca_frames.final_xyz_from_text(text)
         parsed_xyz = _parse_xyz(ts_xyz) if ts_xyz.strip() else None
         if parsed_xyz is not None:
@@ -1345,19 +1346,23 @@ class TsGuess(Tool):
         # 目录（沙箱）；绝对路径保持既有权限语义。
         user_input = user_input.model_copy(
             update={
-                field: resolve_tool_path(self, value)
-                for field, value in {
-                    "reactant_path": user_input.reactant_path,
-                    "product_path": user_input.product_path,
-                    "input_path": user_input.input_path,
-                    "output_path": user_input.output_path,
-                    "log_path": user_input.log_path,
-                    "ts_candidate_path": user_input.ts_candidate_path,
-                    "freq_log": user_input.freq_log,
-                    "irc_log": user_input.irc_log,
-                    "output_dir": user_input.output_dir,
-                }.items()
-                if value
+                **{
+                    field: resolve_tool_path(self, value)
+                    for field, value in {
+                        "reactant_path": user_input.reactant_path,
+                        "product_path": user_input.product_path,
+                        "input_path": user_input.input_path,
+                        "output_path": user_input.output_path,
+                        "log_path": user_input.log_path,
+                        "ts_candidate_path": user_input.ts_candidate_path,
+                        "freq_log": user_input.freq_log,
+                        "irc_log": user_input.irc_log,
+                        "output_dir": user_input.output_dir,
+                    }.items()
+                    if value
+                },
+                **{field: [resolve_tool_path(self, path) for path in getattr(user_input, field)]
+                   for field in ("reactant_logs", "product_logs")},
             }
         )
         mode = user_input.mode
@@ -2454,7 +2459,7 @@ class TsGuess(Tool):
                     verdict = "fail: the imaginary mode is inconsistent with the declared reaction coordinate."
                     status = "fail"
                 else:
-                    status, verdict, info = self._strict_path_verdict(user_input, freq, checks, references)
+                    status, verdict, info = self._strict_path_verdict(user_input, checks, references)
                     if info is not None:
                         irc_end_a_path = info["path_a"]
                         irc_end_b_path = info["path_b"]
@@ -2581,7 +2586,7 @@ class TsGuess(Tool):
         if require_two_sides and not (
             meta.get("forward_converged", False) and meta.get("backward_converged", False)
         ):
-            checks.append("The IRC did not reach a minimum on at least one side; strict only checks partial endpoint direction, so an incomplete run is not treated as failure.")
+            checks.append("The IRC did not reach a minimum on at least one side; strict requires separate optimization and zero-imaginary frequency evidence for its actual outer frames.")
         return {
             "end_a": end_a,
             "end_b": end_b,
@@ -2598,7 +2603,7 @@ class TsGuess(Tool):
         读取（解析规则不在这里复制）。forward/backward 是轨迹方向标签，
         不自动映射 reactant/product。收敛与否只记录、绝不做闸门：与 Gaussian
         通道同口径，每侧取最外侧可用几何（未收敛方向的轨迹末帧同样是合法的
-        部分端点），方向是否成立交给 strict 的几何区间证明判定。"""
+        部分端点），strict 通过实际外侧帧的 Opt/Freq 日志核对方向。"""
         from types import SimpleNamespace
 
         from cloudra.tools.core import orca_frames
@@ -2610,8 +2615,8 @@ class TsGuess(Tool):
             if converged is False:
                 checks.append(
                     f"The ORCA IRC {label} direction terminated WITHOUT converging; "
-                    "strict only checks partial endpoint direction, so the trajectory's "
-                    "outermost frame is still used as that side's partial endpoint."
+                    "the trajectory's outermost frame is used as that side's partial endpoint; "
+                    "strict requires its actual endpoint Opt/Freq evidence."
                 )
             elif converged:
                 checks.append(
@@ -2654,22 +2659,16 @@ class TsGuess(Tool):
             "path_b": path_b,
         }
 
-    def _strict_path_verdict(self, user_input: TsGuess_input_schema, freq: dict,
+    def _strict_path_verdict(self, user_input: TsGuess_input_schema,
                              checks: list[str], references) -> tuple[str, str, Optional[dict]]:
-        """证明两个部分 IRC 端点分别位于 TS 与两个端点参考几何之间。"""
-        import ase.io
-        import numpy as np
+        """核对同一 TS 的 IRC 外侧帧实际优化到两侧身份正确的零虚频极小点。"""
+        from rdkit import Chem
 
-        def _non_pass(reason: str) -> str:
-            # 材料不足 / 未通过时追加可操作补救提示（仅文本，不改 verdict 取值）。
+        from cloudra.tools.core.irc_evidence import verify_short_irc_direction
+
+        def inconclusive(reason: str, info):
             checks.append(_IRC_TRUNCATION_REMEDY)
-            return f"{reason} {_IRC_TRUNCATION_REMEDY}"
-
-        has_intermediate_a = bool(user_input.reactant_path or user_input.reactant_text)
-        has_intermediate_b = bool(user_input.product_path or user_input.product_text)
-        if not (has_intermediate_a and has_intermediate_b):
-            checks.append("strict requires reference structures for both endpoint species.")
-            return "inconclusive", _non_pass("inconclusive: missing the two endpoint reference structures."), None
+            return "inconclusive", f"inconclusive: {reason} {_IRC_TRUNCATION_REMEDY}", info
 
         info = self._extract_irc_endpoints(
             user_input.irc_log, checks, engine=user_input.engine,
@@ -2677,83 +2676,49 @@ class TsGuess(Tool):
             require_two_sides=True,
         )
         if info is None:
-            return "inconclusive", _non_pass("inconclusive: no usable bidirectional IRC endpoints."), None
+            return inconclusive("no usable bidirectional IRC endpoints.", None)
+        if not all(role in references for role in ("reactant", "product")):
+            return inconclusive("missing the expected reactant and product structures.", info)
+        if not user_input.reactant_logs or not user_input.product_logs:
+            return inconclusive("missing actual endpoint optimization and zero-imaginary frequency logs.", info)
+
+        def species(role):
+            from rdkit.Chem import rdDetermineBonds
+
+            molecule = Chem.Mol(references[role])
+            if molecule.HasProp("cloudra_graph_status") and molecule.GetProp("cloudra_graph_status") == "unresolved":
+                rdDetermineBonds.DetermineBonds(molecule, charge=total_charge(references[role]))
+            molecule = Chem.RemoveHs(molecule)
+            for atom in molecule.GetAtoms():
+                atom.SetAtomMapNum(0)
+            return Chem.MolToSmiles(molecule)
 
         try:
-            end_a_atoms = ase.io.read(StringIO(info["end_a"].xyz), format="xyz")
-            end_b_atoms = ase.io.read(StringIO(info["end_b"].xyz), format="xyz")
-            intermediate_a = to_ase(references["reactant"])
-            intermediate_b = to_ase(references["product"])
-        except Exception as e:
-            checks.append(f"Endpoint or optimized-intermediate structures could not be parsed: {e}")
-            return "inconclusive", "inconclusive: the structure material could not be parsed.", info
+            reactant_smiles, product_smiles = species("reactant"), species("product")
+        except (ValueError, RuntimeError) as exc:
+            checks.append(f"Expected endpoint identity cannot be resolved; supply a complete MOL/SDF graph: {exc}")
+            return inconclusive("the expected endpoint molecular identity is unresolved.", info)
 
-        ts_symbols = freq.get("symbols")
-        ts_positions = freq.get("positions")
-        if ts_symbols is None or ts_positions is None:
-            zero_frames = [
-                frame for frame in info["frames"]
-                if frame.xyz.strip() and frame.reaction_coordinate == 0.0
-            ]
-            if zero_frames:
-                ts_atoms = ase.io.read(StringIO(zero_frames[-1].xyz), format="xyz")
-                ts_symbols = ts_atoms.get_chemical_symbols()
-                ts_positions = np.asarray(ts_atoms.get_positions(), dtype=float)
-                checks.append("The frequency log gave no TS geometry; using the IRC rx=0 frame instead.")
-            else:
-                checks.append("Neither the frequency log nor the IRC provides a usable TS geometry.")
-                return "inconclusive", _non_pass("inconclusive: missing TS geometry."), info
-
-        # 原子对应：元素多重集必须一致（原子数不等进不了这一层），但不要求
-        # 原子序相同——任意原子序的几何经距离指纹 + Hungarian 指派重排进
-        # TS 坐标序（重排过的输入不再是障碍，irc_path 唯一实现）。
-        endpoint_geometries = [
-            (end_a_atoms.get_chemical_symbols(), np.asarray(end_a_atoms.get_positions(), dtype=float)),
-            (end_b_atoms.get_chemical_symbols(), np.asarray(end_b_atoms.get_positions(), dtype=float)),
-            (intermediate_a.get_chemical_symbols(), np.asarray(intermediate_a.get_positions(), dtype=float)),
-            (intermediate_b.get_chemical_symbols(), np.asarray(intermediate_b.get_positions(), dtype=float)),
-        ]
-        assignment = _prove_irc_endpoint_direction(
-            list(ts_symbols), np.asarray(ts_positions, dtype=float),
-            endpoint_geometries[0], endpoint_geometries[1],
-            endpoint_geometries[2], endpoint_geometries[3],
-            user_input.watch_pairs, total_charge(references["reactant"]), index_base=atom_index_base(user_input.engine),
-            reference_molecules=(references["reactant"], references["product"]),
+        passed, details = verify_short_irc_direction(
+            user_input.irc_log, [user_input.freq_log],
+            user_input.product_logs, user_input.reactant_logs,
+            charge=total_charge(references["reactant"]),
+            reactant_smiles=reactant_smiles, product_smiles=product_smiles,
         )
-        for label, aligned in zip(
-            ("IRC endpoint A", "IRC endpoint B", "intermediate A", "intermediate B"),
-            assignment.get("aligned_positions", []),
-        ):
-            checks.append(f"{label} aligned to TS atom order (distance-matrix geometry recorded).")
-        if not assignment.get("is_decidable") and not assignment.get("details"):
-            return "inconclusive", "inconclusive: the structures could not be aligned.", info
-        checks.extend(assignment["details"])
-
-        # 唯一自动通过通道：几何区间证明——要求两条外侧帧各落在 TS 与配对
-        # 参考几何之间。仅凭 XYZ 几何接近不能证明端点优化曾经收敛，也不能证明
-        # 该结构确实由对应 IRC 外侧帧优化得到；这类证据不足时应补做优化后重试。
-        if assignment["is_decidable"] and assignment["is_match"]:
-            mapping = "direct pairing" if assignment["assignment"] == "direct" else "pairing after swapping sides"
-            checks.append(f"{mapping} holds: both IRC outer frames lie between the TS and the corresponding endpoint reference geometries.")
-            n_warnings = len(assignment.get("warnings", []))
-            warning_note = (
-                f" ({n_warnings} weak-contact warning(s): hydrogen-bond/non-covalent "
-                "pairs the IRC need not preserve)"
-                if n_warnings else ""
-            )
+        checks.extend(details)
+        if passed:
             return (
                 "pass",
-                "pass: the bidirectional path of the partial IRC is consistent with the two endpoint reference geometries"
-                + warning_note
-                + "; this conclusion only proves path direction and does not make the TS absolutely correct in every chemical sense.",
+                "pass: both actual IRC outer frames optimize to the expected zero-imaginary endpoint minima.",
                 info,
             )
-        if not assignment["is_decidable"]:
-            checks.append("The selected atom pairs are insufficient to judge the direction of the IRC endpoints relative to the TS and the intermediates.")
-            return "inconclusive", _non_pass("inconclusive: missing geometric changes large enough to judge direction."), info
-        if not assignment["is_match"]:
-            checks.append("At least one IRC outer frame does not lie between the TS and any pairable endpoint reference geometry.")
-            return "fail", _non_pass("fail: the path direction of the partial IRC is inconsistent with the endpoint reference geometries."), info
+        checks.append(_IRC_TRUNCATION_REMEDY)
+        return (
+            "fail",
+            "fail: the submitted logs do not prove that both actual IRC outer frames optimize "
+            f"to the expected zero-imaginary endpoint minima. {_IRC_TRUNCATION_REMEDY}",
+            info,
+        )
 
     @staticmethod
     def _check_irc_connectivity(user_input: TsGuess_input_schema, end_a, end_b,

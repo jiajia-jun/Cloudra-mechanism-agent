@@ -565,9 +565,9 @@ class EvidenceInboxMixin:
     def _passes_short_irc_check(
         self, ref: GraphRef | None, edge, stages, graph
     ) -> tuple[bool, str]:
-        """复用工具与 Benchmark 的两类 IRC 判据：络合物两端沿用极小值
-        区间证明；分离产物检查真实端点的完整产物图及各物种的极小值，反应物侧
-        仍须通过区间证明。两类都要求同一 TS 的真实双向 IRC，不要求全程收敛。
+        """复用工具与 Benchmark 的 IRC 判据：同一 TS 的双向 IRC 外帧经
+        原生 Opt/Freq 日志到达正确极小值，区间检查仅作诊断。分离产物沿用
+        独立产物图与各物种极小值判据。IRC 本身不要求全程收敛。
 
         材料全部来自同一条边已 supported 阶段的证据 payload
         （arguments.log_path 指向的日志文件）：TS 几何 ← ts_opt/frequency
@@ -577,8 +577,9 @@ class EvidenceInboxMixin:
         绝不静默降级为收敛/点数判据。
         """
         prefix = (
-            "short_irc requires real bidirectional IRC from the bound TS and the verified source-direction interval. "
-            "A complex target needs the existing minimum interval proof; separated products need the complete "
+            "short_irc requires real bidirectional IRC from the bound TS and native Opt/Freq logs "
+            "connecting its outer frames to the declared verified minima; geometric intervals are advisory. "
+            "Separated products need the complete "
             "declared product graph and a verified independent minimum for each species. "
         )
         if ref is None:
@@ -609,26 +610,45 @@ class EvidenceInboxMixin:
         )
         problems += ea_problems + eb_problems
         target = next((node for node in graph.nodes if node.node_id == edge.target_node_id), None)
-        if not endpoint_a_logs or (target and isinstance(target.smiles, list) and len(target.smiles) > 1):
-            endpoint_a_logs = list(dict.fromkeys([*endpoint_a_logs,
-                *self._species_geometry_logs(graph, edge.target_node_id)]))
-        if not endpoint_b_logs:
-            endpoint_b_logs = self._species_geometry_logs(graph, edge.source_node_id)
+        source = next((node for node in graph.nodes if node.node_id == edge.source_node_id), None)
+        from cloudra.dag.file_science import _final_geometry
+        from cloudra.tools.core.irc_path import same_geometry
+
+        def with_optimizations(minimum_logs, node_id, separated=False):
+            candidates = self._species_geometry_logs(graph, node_id)
+            if not minimum_logs or separated:
+                return list(dict.fromkeys([*minimum_logs, *candidates]))
+            minima = [_final_geometry(path) for path in minimum_logs]
+            return list(dict.fromkeys([*minimum_logs, *[path for path in candidates
+                if any(same_geometry(_final_geometry(path), minimum) for minimum in minima)]]))
+
+        endpoint_a_logs = with_optimizations(endpoint_a_logs, edge.target_node_id,
+            bool(target and isinstance(target.smiles, list) and len(target.smiles) > 1))
+        endpoint_b_logs = with_optimizations(endpoint_b_logs, edge.source_node_id)
         try:
             from cloudra.services.ts_pipeline_context import pipeline_database
             from cloudra.services.ts_pipeline_store import atom_binding_for_log
             workspace = self.working_directory or Path.cwd()
             atom_bindings = {str(path): binding for path in [irc_log, *ts_logs]
                 if (binding := atom_binding_for_log(pipeline_database(), path, workspace)) is not None}
+            charge = next((binding['charge'] for binding in atom_bindings.values() if 'charge' in binding), 0)
+            if source and source.smiles:
+                from rdkit import Chem
+
+                from cloudra.tools.core.species_identity import chemical_smiles
+                molecule = Chem.MolFromSmiles(chemical_smiles(source.smiles))
+                if molecule is not None:
+                    charge = Chem.GetFormalCharge(molecule)
             passed, details = verify_short_irc_direction(
-                irc_log, ts_logs, endpoint_a_logs, endpoint_b_logs, atom_bindings=atom_bindings,
+                irc_log, ts_logs, endpoint_a_logs, endpoint_b_logs, charge=charge, atom_bindings=atom_bindings,
                 product_smiles=target.smiles if target else None,
+                reactant_smiles=source.smiles if source else None,
             )
         except Exception as exc:  # 解析依赖缺失等：拒绑并写明，绝不静默通过
             logger.warning("short_irc direction proof evaluation failed", exc_info=True)
             return False, prefix + f"the direction proof could not be evaluated: {exc}"
         if passed:
-            return True, ""
+            return True, ' '.join(details)
         return False, prefix + " ".join(details + problems)
 
     def _passes_thermochemistry_check(self, ref: GraphRef | None) -> bool:
@@ -664,9 +684,9 @@ class EvidenceInboxMixin:
         （disagree/skip/not_applicable 必填）、工具成败；TS frequency
         另有 n_imag==1 检查（D7，不过 ⇒ saddle_check_failed，阶段保持
         pending）；物种 geometry 和边的 endpoint_a/b 另有 n_imag==0 检查（不过 ⇒
-        minimum_check_failed）；short_irc 与工具/Benchmark 共用判据：络合物
-        沿用两端区间证明，分离产物检查完整产物图和各物种极小值，反应物侧仍走
-        区间证明。材料取自同边 ts_opt/frequency 与 endpoint_a/b 或物种已绑
+        minimum_check_failed）；short_irc 与工具/Benchmark 共用判据：同一 TS
+        的双向外帧经原生 Opt/Freq 到正确极小值，区间只作诊断；分离产物沿用
+        独立产物图和各物种极小值判据。材料取自同边 ts_opt/frequency 与 endpoint_a/b 或物种已绑
         日志；缺材料或证明不成立 ⇒
         short_irc_check_failed，理由写明缺哪份材料）。守卫拒绝不落地；
         通过后 attach ref + 更新 stages，并由阶段重派生 evidence_level（D7）。
@@ -781,6 +801,12 @@ class EvidenceInboxMixin:
                 )
                 if not irc_ok:
                     raise _Rejected("short_irc_check_failed", irc_reason)
+                if irc_reason:
+                    prior_reason = reason or next((stage.reason for stage in element.stages
+                                                  if stage.kind is StageKind.SHORT_IRC), '')
+                    new_stages = [stage.model_copy(update={
+                        'reason': ' '.join(filter(None, (prior_reason, irc_reason)))})
+                        if stage.kind is StageKind.SHORT_IRC else stage for stage in new_stages]
             if (
                 verdict == "agree"
                 and target_type == "edge"
@@ -1040,6 +1066,7 @@ class EvidenceInboxMixin:
                 current_stages = list(
                     final_stages.get(target_id, element.stages)
                 )
+                stage_reason = next((stage.reason for stage in current_stages if stage.kind is kind), '')
                 # A repeated stage inside one batch should not silently replace
                 # an earlier successful binding with a second, unrelated one.
                 if any(stage.kind == kind for stage in current_stages):
@@ -1113,6 +1140,7 @@ class EvidenceInboxMixin:
                     )
                     if not irc_ok:
                         raise _Rejected("short_irc_check_failed", irc_reason)
+                    stage_reason = ' '.join(filter(None, (stage_reason, irc_reason)))
                 if (
                     target_type == "edge"
                     and kind is StageKind.THERMOCHEMISTRY
@@ -1131,6 +1159,9 @@ class EvidenceInboxMixin:
                     tool_succeeded=True,
                     allow_out_of_order=allow_out_of_order,
                 )
+                if kind is StageKind.SHORT_IRC and stage_reason:
+                    updated_stages = [stage.model_copy(update={'reason': stage_reason})
+                        if stage.kind is kind else stage for stage in updated_stages]
                 if target_type == 'edge' and kind in {StageKind.TS_OPT, StageKind.FREQUENCY}:
                     try:
                         self._validate_optimization_frequency_pair(updated_stages)

@@ -1,5 +1,10 @@
 # IMP 难题：PM7 与 xTB 方法内参考值探索
 
+## 十二题交付库存复核（2026-10-18；本轮成果≠正式回填）
+用户问工具修复期间还有何可算未算、成果及回填情况。本轮已尝试7道反应题的全部9边；6条得到收敛TS候选并做最终频率，其中5条有实际双向IRC，含后来认定错通道的IA5/IB10，不能将其数目当合格目标边。当前仍0 strict pass、0新增可信目标barrier；正式Gold/根交付图未生成回填。env有限足迹核根mechanism_graph.json不存在，限定git工作树无registry/TaskSpec改动，但非全历史字节审计。例外：[IA8局部非Gold草图](gold_compute/queue_20261018/results/IA8/mechanism_graph.json)已有历史独立端点isomerization_energy−31.1871478816及729/730原来源，无barrier；本轮仅修正过时status（840/841双端已做、strict未pass），不应说“任何数值都没落盘”，亦不把此草图当正式Gold。
+
+researcher有限核五非TS题IC3/ID2/IE2/IF3/IG8的TaskSpec及各指定结果目录：无本轮独立成包的完整性质交付；未做不等于不可算。重要复用：[N2 748原生结果](gold_compute/queue_20261018/results/IB9/calc/frag_n2/.cloudra/calc-748.out.log)已同GFN2优化收敛0虚频，N–N1.0982Å/2437.61cm⁻¹，协调复核；可算IE2平衡子量已做，不再重复，仍缺解离曲线、N原子四重态参考与De/D0。ID2 FOOF平衡几何/频率是可考虑但需准确性验证的未做子量，不预承诺反常F–O BDE；IC3/IF3真实S–T目标和IG8 Cr2曲线直接受普通GFN2态/关联适用性限制，不为Gold泛开新算。下一步优先复用IA8/IB9已有数据在受权工具修复后规范验收；IA9仍缺实际IRC与合法预算接入。新计算未启动，实际成果与剩余范围由[覆盖总表](gold_compute/queue_20261018/EDGE_STATUS.md)和各原生报告支撑；[十二题交付审计](gold_compute/queue_20261018/DELIVERY_AUDIT.md)已完成并经协调审阅，明确尚缺工作与正式回填为0的边界。
+
 ## 最新纠正：IA8本轮IRC自身端点已补齐，strict未给端点判定（2026-10-18）
 用户指出端点优化后一致应可直接判过。核原[旧strict参数](gold_compute/queue_20261018/results/IA8/tight_mode_review/strict_tight_request.json)确使用explore独立两端；837/838又是旧800/796谱系seed，非本轮836自身外帧，不能把旧fail描述为已做真正836-own端点一致检验。现已从836的F/B原生外帧各一次普通无约束Opt+NumFreq：P840/R841均正常、优化收敛、0虚频，最低1020.46/503.56cm⁻¹，协调已核原日志。原子序保持C/O/O/H/H，R是开链CH2OO，P是dioxirane；[同源端点对照](gold_compute/queue_20261018/results/IA8/endpoint_strict_review/endpoint_comparison.json)记录质量加权对齐RMSD R0.004635/P0.001907Å和完整键长/源SHA，不是端点错身份。
 

@@ -48,21 +48,22 @@ def test_explicit_species_log_with_correct_geometry_binds_without_matching_annot
     assert binding.matched
 
 
-def test_native_same_anchor_chain_passes(tmp_path):
+def test_native_saddle_irc_and_minima_need_endpoint_optimization_logs(tmp_path):
     _delivery(tmp_path)
     integrity = audit_integrity(tmp_path)
     result = audit_self_consistency(integrity.delivered_graph, integrity.node_bindings,
                                     integrity.evidence_files, tmp_path)
-    assert result.passed, result
+    assert not result.passed
+    assert not next(check for check in result.checks if check.kind == 'edge').covered
 
 
 def test_native_optimization_anchor_can_use_separate_same_geometry_frequency(tmp_path):
     _delivery(tmp_path, ts='ts2_optimization.out')
     integrity = audit_integrity(tmp_path)
     report = audit_self_consistency(integrity.delivered_graph, integrity.node_bindings, integrity.evidence_files, tmp_path)
-    assert report.passed, report
+    assert not report.passed  # Endpoint Opt source logs are absent from this archive.
     used = next(item.evidence_used for item in report.checks if item.kind == 'edge')
-    assert 'ts2_optimization.out' in used and 'ts2_frequency.out' in used and 'ts2_irc/irc.out' in used
+    assert 'ts2_optimization.out' in used and 'ts2_frequency.out' in used
 
 
 def _species_optimization_anchor(tmp_path, node_id, frequency_name):
@@ -99,10 +100,11 @@ def test_explicit_species_optimization_uses_same_geometry_minimum_for_species_an
         integrity.delivered_graph, integrity.node_bindings, integrity.evidence_files, tmp_path,
     )
 
-    assert report.passed, report.notes
+    assert not report.passed  # Matching final coordinates do not establish the Opt starting frame.
     checks = {item.element_id: item for item in report.checks}
     assert checks[node_id].evidence_used == [anchor_name, frequency_name]
-    assert {anchor_name, frequency_name, 'ts2_irc/irc.out'} <= set(checks['e1'].evidence_used)
+    assert checks[node_id].covered
+    assert not checks['e1'].covered
 
 
 @pytest.mark.parametrize('bad_frequency', ['different_geometry', 'imaginary', 'abnormal', 'missing'])

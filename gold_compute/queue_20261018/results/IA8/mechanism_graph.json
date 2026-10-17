@@ -16,7 +16,7 @@
       "smiles": [],
       "accessible": false,
       "properties": {
-        "status": "unverified stationary-point candidate; frequency and IRC missing",
+        "status": "Non-Gold local draft, not certified: 834 TS optimization converged; 835 has one imaginary frequency; 836 bidirectional IRC completed; same-IRC endpoints 840/841 optimized with zero imaginary frequencies. Original-watch strict verification still fail; endpoint-match result not returned. accessible=false is a historical not-certified flag, not a physical-inaccessibility conclusion. Sources: ts/ts_0001/jobs/declaration_0007/{ts_opt/.cloudra/calc-834.out.log,frequency/.cloudra/calc-835.out.log,irc/.cloudra/calc-836.out.log}; gold_compute/queue_20261018/results/IA8/endpoint_strict_review/{.cloudra/calc-840.out.log,.cloudra/calc-841.out.log,strict_own_endpoints.json}; see REPORT.md.",
         "evidence_log": "ts/ts_0001/jobs/declaration_0003/ts_opt/.cloudra/calc-739.out.log"
       }
     },
@@ -29,7 +29,7 @@
       "properties": {
         "evidence_log": "gold_compute/queue_20261018/results/IA8/explore/.cloudra/calc-730.out.log",
         "isomerization_energy_kcal_mol": -31.1871478816,
-        "status": "independent minima energy difference; IRC linkage unverified"
+        "status": "Historical independent-minima GFN2-xTB model diagnostic from original jobs 729/730; not qualified Gold. Original isomerization energy retained unchanged, not replaced by 840/841. Later 835/836 and same-IRC endpoint 840/841 evidence exists, but original-watch strict remains fail and endpoint-match result was not returned; see REPORT.md and endpoint_strict_review/strict_own_endpoints.json. All accessible=false flags in this draft mean historical not certified, not physical inaccessibility."
       }
     }
   ],

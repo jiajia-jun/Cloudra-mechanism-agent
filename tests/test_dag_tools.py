@@ -1564,9 +1564,10 @@ async def test_ts_opt_bind_requires_normal_termination(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_short_irc_bind_requires_path_evidence(tmp_path, monkeypatch):
-    """short_irc 绑定走几何方向区间证明（ts_guess verify strict / benchmark
-    自洽性同一判据），收敛与否、双向点数不再是闸门：
+@pytest.mark.parametrize('batch', [False, True])
+async def test_short_irc_bind_requires_path_evidence(tmp_path, monkeypatch, batch):
+    """short_irc 绑定要求同一 TS 的双向外帧经原生 Opt/Freq 到正确极小值。
+    区间诊断只给警告，接受后必须保留警告；IRC 收敛与否、点数不是闸门：
 
     - 证据不带 arguments.log_path → 拒（引导绑 IRC 作业的 parser 输出）；
     - 材料齐全但方向证明不成立 → 拒（理由带证明失败的细节）；
@@ -1605,10 +1606,10 @@ async def test_short_irc_bind_requires_path_evidence(tmp_path, monkeypatch):
             },
         )
 
-    async def _bind(stage_kind: str, ref):
+    async def _bind(stage_kind: str, ref, reason=''):
         return await controller.apply_stage_bind(
             element_id="step1", stage_kind=stage_kind, ref=ref,
-            verdict="agree", tool_succeeded=True,
+            verdict="agree", tool_succeeded=True, reason=reason,
         )
 
     # 先按序绑齐同边的材料阶段（short_irc 的 TS/端点几何来源）
@@ -1656,8 +1657,7 @@ async def test_short_irc_bind_requires_path_evidence(tmp_path, monkeypatch):
     def fake_verify(irc_log, ts_logs, endpoint_a_logs, endpoint_b_logs, **_kwargs):
         calls.append((irc_log, list(ts_logs), list(endpoint_a_logs), list(endpoint_b_logs)))
         return False, [
-            "the IRC endpoints do not lie between the TS and the verified "
-            "endpoint minima (the geometric direction proof failed)"
+            "the native optimization logs do not start at the actual IRC outer frames"
         ]
 
     monkeypatch.setattr(
@@ -1666,7 +1666,7 @@ async def test_short_irc_bind_requires_path_evidence(tmp_path, monkeypatch):
     rejected = await _bind("short_irc", irc_ref)
     assert not rejected.accepted
     assert rejected.rejection_code == "short_irc_check_failed"
-    assert "do not lie between" in rejected.rejection_reason
+    assert "do not start at" in rejected.rejection_reason
     assert calls == [(
         str(tmp_path / "irc.log"),
         [str(tmp_path / "ts_opt.log"), str(tmp_path / "ts_freq.log")],
@@ -1677,16 +1677,25 @@ async def test_short_irc_bind_requires_path_evidence(tmp_path, monkeypatch):
     # 方向证明成立 → 收（未收敛但方向对的情形由 verifier 的 strict 口径覆盖，
     # 闸门自身只认 (passed, details)）
     def fake_verify_ok(irc_log, ts_logs, endpoint_a_logs, endpoint_b_logs, **_kwargs):
-        return True, ["direction proof holds (direct pairing)"]
+        return True, ["Native endpoint optimization proves direction.",
+            "[warning] The geometric interval check failed; inspect suspicious geometry."]
 
     monkeypatch.setattr(
         "cloudra.dag.evidence_inbox.verify_short_irc_direction", fake_verify_ok
     )
-    accepted = await _bind("short_irc", irc_ref)
-    assert accepted.accepted is True
+    if batch:
+        accepted = await controller.bind_stage_attachments([
+            {'tool_call_id': 'tc-irc', 'bind_target': 'step1', 'stage_kind': 'short_irc'}])
+        assert accepted['accepted'] is True
+    else:
+        accepted = await _bind("short_irc", irc_ref, reason='Accept the native endpoint evidence.')
+        assert accepted.accepted is True
     edge = _delivery_edge(db)
     stage = next(s for s in edge.stages if s.kind.value == "short_irc")
     assert stage.status.value == "supported"
+    assert '[warning]' in stage.reason
+    if not batch:
+        assert 'Accept the native endpoint evidence.' in stage.reason
 
 
 @pytest.mark.asyncio

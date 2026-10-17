@@ -1,6 +1,7 @@
-"""IRC 路径判定件（ts_guess strict verify 与 benchmark 评分共用唯一实现）。
+"""IRC 几何区间诊断（工具、TS 流程与 Benchmark 共用）。
 
-严格档路径方向证明：不要求 IRC 收敛到极小值，但要求双侧带坐标端点各自
+区间诊断不替代真实端点优化证据，也不否决已建立的 IRC → Opt → Freq 方向。
+该诊断检查双侧带坐标端点各自
 **几何上位于 TS 与对应端点参考几何之间**——端点的监测对距离须落在
 [TS, 参考几何] 区间内（带容差）且比 TS 更靠近参考几何；两端允许
 direct/swapped 无序配对，任一指派成立即方向一致。
@@ -24,7 +25,7 @@ direct/swapped 无序配对，任一指派成立即方向一致。
 距离指纹（每原子到他原子的距离排序向量，旋转平移不变）+ Hungarian
 最优指派把任意原子序的几何重排到同一坐标序，原子序重排的输入不再
 构成障碍。已知边界：TS↔中间体构象差大时指派可能错配——区间证明是
-最后一道判官；对齐距离矩阵 rmsd 超过保守闸门（1.0 Å）的组合不可信，
+一种几何提示；对齐距离矩阵 rmsd 超过保守范围（1.0 Å）的组合不可判断，
 直接按 undecidable 跳过（返回 None），不带着可疑对应进区间证明。
 """
 
@@ -635,9 +636,8 @@ def prove_irc_endpoint_direction(
 ) -> dict:
     """Align four geometries to the TS and apply the shared IRC direction test.
 
-    This is the single deterministic path-direction predicate used by ``ts_guess``
-    and benchmark self-consistency.  It deliberately proves only geometric
-    direction; optimization convergence and file provenance remain separate facts.
+    This is a deterministic geometric diagnostic, not endpoint-optimization
+    evidence. Its result is advisory when native IRC → Opt → Freq lineage exists.
     """
     aligned = []
     aligned_molecules = []

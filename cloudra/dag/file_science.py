@@ -378,6 +378,7 @@ def _file_scientific_checks(store, graph, target_id: str, *, irc_files=None, wor
         source_logs, _ = _logs(store, source, workspace_root, parsed=parsed) if source else ([], [])
         target_logs, _ = _logs(store, target, workspace_root, parsed=parsed) if target else ([], [])
         def endpoint_candidates(key, node, candidates):
+            node_candidates = candidates
             if endpoint_refs and key in endpoint_refs:
                 from cloudra.dag.models import GraphRef
                 ref = GraphRef.model_validate(endpoint_refs[key])
@@ -385,10 +386,18 @@ def _file_scientific_checks(store, graph, target_id: str, *, irc_files=None, wor
                     return []
                 candidates, errors = _logs(store, element.model_copy(update={'refs': [ref], 'stages': []}), workspace_root, parsed=parsed)
                 problems.extend(errors)
+                # An explicit minimum fixes the final geometry, while a
+                # separate bound Opt log supplies its native IRC starting frame.
+                from cloudra.tools.core.irc_path import same_geometry
+                minima = [_final_geometry(path) for path in candidates if _qm_data(path, parsed)[3] == []]
+                candidates = list(dict.fromkeys([*candidates, *[path for path in node_candidates
+                    if any(same_geometry(_final_geometry(path), minimum) for minimum in minima)]]))
             verified = []
             for path in candidates:
                 try:
-                    if (node and node.smiles and _qm_data(path, parsed)[3] == []
+                    data = _qm_data(path, parsed)
+                    if (node and node.smiles
+                            and (data[3] == [] or _optimization_converged(path, data[1]) is True)
                             and any(_geometry_species(path, identity, diagnostics=problems)
                                     for identity in species_smiles(node.smiles))):
                         verified.append(path)
@@ -397,6 +406,12 @@ def _file_scientific_checks(store, graph, target_id: str, *, irc_files=None, wor
             return verified
         source_logs = endpoint_candidates('endpoint_b', source, source_logs)
         target_logs = endpoint_candidates('endpoint_a', target, target_logs)
+        charge = next((binding['charge'] for binding in atom_bindings.values() if 'charge' in binding), 0)
+        if source_logs and source and source.smiles:
+            from rdkit import Chem
+            molecule = Chem.MolFromSmiles(chemical_smiles(source.smiles))
+            if molecule is not None:
+                charge = Chem.GetFormalCharge(molecule)
         details = list(problems)
         irc_passed = False
         for path in logs:
@@ -412,7 +427,8 @@ def _file_scientific_checks(store, graph, target_id: str, *, irc_files=None, wor
                 continue
             try:
                 irc_passed, reason = verify_short_irc_direction(path, logs, target_logs, source_logs,
-                    atom_bindings=atom_bindings, product_smiles=target.smiles if target else None)
+                    charge=charge, atom_bindings=atom_bindings, product_smiles=target.smiles if target else None,
+                    reactant_smiles=source.smiles if source else None)
                 details.extend(reason)
             except Exception as exc:
                 details.append(f'IRC direction proof could not be evaluated: {exc}')
@@ -424,9 +440,10 @@ def _file_scientific_checks(store, graph, target_id: str, *, irc_files=None, wor
             reverse = FileEvidenceSnapshot.model_validate(irc_files['irc_reverse_file']).snapshot_path
             if forward in logs and reverse in logs:
                 irc_passed, reason = verify_short_irc_pair(forward, reverse, logs, target_logs, source_logs,
-                    atom_bindings=atom_bindings, product_smiles=target.smiles if target else None)
+                    charge=charge, atom_bindings=atom_bindings, product_smiles=target.smiles if target else None,
+                    reactant_smiles=source.smiles if source else None)
                 details = reason if irc_passed else [*details, *reason]
         checks['short_irc'] = ScientificCheck(status='passed' if irc_passed else 'incomplete',
-            detail=' '.join(details) or ('Geometric IRC direction interval proof passed.' if irc_passed else 'No usable bound bidirectional IRC evidence.'),
-            next_action='' if irc_passed else 'Submit both real IRC directions and frequency-verified source/target minima; separated products need each declared species minimum. Full IRC convergence is not required.')
+            detail=' '.join(details) or ('Native IRC outer-frame optimization to the declared verified minima passed.' if irc_passed else 'No usable bound bidirectional IRC evidence.'),
+            next_action='' if irc_passed else 'Submit same-TS bidirectional IRC and native Opt/Freq logs connecting each outer frame to its declared minimum; geometric interval checks are advisory. Separated products need each declared species minimum. Full IRC convergence is not required.')
     return {stage: check.model_dump() for stage, check in checks.items()}

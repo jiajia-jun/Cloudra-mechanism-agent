@@ -2481,7 +2481,7 @@ def _irc_side_for_role(record: TsProcessRecord, info: dict, role: str) -> str:
 
     A/B are native direction labels. Compare both pairings with the declared
     geometries in the frozen TS atom order; rough or undecidable frames still
-    proceed to Opt/Freq and the independent final identity/interval checks.
+    proceed to Opt/Freq and the final source/identity checks, with interval diagnostics.
     """
     from cloudra.tools.core.irc_path import evaluate_endpoint_between, parse_xyz
     from cloudra.tools.core.structure_artifacts import read_xyz_atoms
@@ -3191,20 +3191,54 @@ def _geometry_connectivity_error(mol, optimized, charge, role, remap=None, *, mu
             return f"{role} optimized bond order differs from the declared species (atom pairs 1-based) at {pairs_1based}"
     return ""
 
+def _irc_endpoint_lineage_error(record, irc_log, freq_step, sources) -> str:
+    """Bind both optimized minima to the real outer frames of the same TS IRC."""
+    from cloudra.tools.Chemtool.ts_guess import TsGuess
+    from cloudra.tools.core.irc_evidence import _optimization_geometries, irc_start_geometry, probe_log
+    from cloudra.tools.core.irc_path import parse_xyz, same_geometry
+
+    if any(origin.kind != 'irc_outer_frame' for origin in sources.values()):
+        return 'Both declared minima require actual IRC outer-frame optimization evidence; independent species seeds do not establish this lineage.'
+    ts_path = Path(freq_step.input_path).parent / 'optimized.xyz'
+    n_imag, ts = probe_log(_refinement_log_path(record, freq_step))
+    if (n_imag != 1 or ts is None or not ts_path.is_file()
+            or not same_geometry(ts, parse_xyz(ts_path.read_text()))
+            or not same_geometry(ts, irc_start_geometry(irc_log))):
+        return 'The native IRC starting geometry must match the same frequency-verified TS and saved geometry.'
+    checks = []
+    info = TsGuess._extract_irc_endpoints(
+        irc_log, checks, engine=stage_calculation(record, 'irc').engine,
+        output_dir=os.path.join(record.run_dir, VERDICT_STAGE_DIR), require_two_sides=True,
+    )
+    if info is None:
+        return 'No usable bidirectional IRC outer-frame geometries: ' + '; '.join(checks)
+    ends = {side: parse_xyz(info['end_' + side.lower()].xyz) for side in ('A', 'B')}
+    if any(end is None for end in ends.values()):
+        return 'The real bidirectional IRC outer-frame geometries could not be parsed.'
+    for role, origin in sources.items():
+        saved = parse_xyz(Path(origin.source_path).read_text())
+        if not same_geometry(saved, ends[origin.label]):
+            return f'{role} source provenance is not the accepted IRC {origin.label} outer-frame geometry'
+        opt = next(step for step in reversed(record.job_steps) if step.purpose == role + '_opt')
+        native = _optimization_geometries(_refinement_log_path(record, opt))
+        if native is None or not same_geometry(native[0], saved):
+            return f'{role} native optimization did not start from the accepted IRC {origin.label} outer-frame geometry'
+    return ''
+
+
 def _irc_interval_proof(
     record: TsProcessRecord, irc_log: str, freq_step: "TsJobStep",
     reactant: tuple[list[str], list[list[float]]],
     product: tuple[list[str], list[list[float]]],
     expected_origins: dict[str, str],
 ) -> tuple[bool, str]:
-    """verified 的区间证明：每个 IRC 双侧端点几何上位于 TS 与对应声明极小值之间。
+    """Advisory pair-distance intervals; actual outer-frame optimizations decide acceptance.
 
     材料：TS 几何（频率作业旁的 ``optimized.xyz``）、两端经 Opt 收敛且 Freq
     零虚频的极小值、IRC 双侧端点（复用 ts_guess 的引擎分发提取，
     原子对齐用 irc_path.align_atom_order）。证明本体是
     irc_path.assign_irc_endpoints（与 ts_guess strict / benchmark selfconsistency
-    同一实现）。任何材料缺失、对齐不可判或证明不成立都返回 ``(False, 原因)``——
-    调用方落 candidate_only，绝不升格 verified。
+    同一实现）。材料缺失、对齐不可判或区间不成立只返回建议，不否定已验证来源链。
     """
     from cloudra.tools.Chemtool.ts_guess import TsGuess
     from cloudra.tools.core.irc_path import (
@@ -3237,15 +3271,6 @@ def _irc_interval_proof(
     end_b = parse_xyz(info["end_b"].xyz)
     if end_a is None or end_b is None:
         return False, "the extracted IRC endpoint geometries could not be parsed"
-    from cloudra.tools.core.irc_path import same_geometry
-    for role in ('reactant', 'product'):
-        opt = next(s for s in reversed(record.job_steps) if s.purpose == role + '_opt')
-        origin = opt.endpoint_source
-        if origin.kind == 'irc_outer_frame':
-            saved = parse_xyz(Path(origin.source_path).read_text())
-            if not same_geometry(saved, end_a if origin.label == 'A' else end_b):
-                return False, f'{role} source provenance is not the accepted IRC {origin.label} outer-frame geometry'
-
     try:
         references = list(path_endpoints(record.structures))
     except ValueError:
@@ -3287,8 +3312,8 @@ def _irc_interval_proof(
         )
     if not proof["is_match"]:
         return False, (
-            "at least one IRC endpoint does not lie between the TS and any declared minimum; "
-            "the path does not demonstrably connect the declared minima"
+            "at least one IRC endpoint does not lie within the pair-distance interval "
+            "between the TS and either declared minimum"
         )
     actual = {'A': 'reactant', 'B': 'product'} if proof['assignment'] == 'direct' else {'A': 'product', 'B': 'reactant'}
     if any(actual[side] != species for side, species in expected_origins.items()):
@@ -3354,13 +3379,13 @@ def _separated_product_proof(record, irc_log, freq_step, reactant, expected_orig
 
 
 def _verdict(record: TsProcessRecord) -> TsProcessRecord:
-    """判定四态终态：TS 一虚频、真实双向 IRC 和完整物种极小值的区间证明；
+    """判定四态终态：TS 一虚频、真实双向 IRC 外帧各自优化为正确的零虚频极小值；
     或反应物区间证明、实际产物端点身份及各分离产物独立零虚频证据。
     分离产物通过不代表络合物极小值通过。
 
     判定只读**交付物**（频率作业的日志），缺失频率数据一律算"未验证"——
     "没做频率分析"绝不能被当成"已验证的鞍点"（与 `dag/evidence_ingest` 同一套三态语义）。
-    IRC 的引擎收敛标志不证明连通，也不是区间证明的前置条件；两侧几何或
+    IRC 的引擎收敛标志不证明连通；几何区间只作建议，两侧几何或
     端点证据不足时仍只能到 candidate_only。
     """
     from cloudra.dag.evidence_ingest import snapshot_evidence_file
@@ -3468,21 +3493,31 @@ def _verdict(record: TsProcessRecord) -> TsProcessRecord:
                     f'Verified TS connectivity to separated products {label}: {detail}. '
                     f'The bound complex {chemical_smiles(record.input.reaction.product_smiles)} minimum remains UNVERIFIED.')
             return _terminal(record, 'verdict', 'candidate_only', 'Separated-product IRC proof is incomplete: ' + detail)
-        passed, detail = _irc_interval_proof(
-            record, irc_log, freq_step, reactant, product, expected_origins,
-        )
-        if passed:
+        error = _irc_endpoint_lineage_error(record, irc_log, freq_step, sources)
+        if not error:
+            try:
+                interval_passed, advisory = _irc_interval_proof(
+                    record, irc_log, freq_step, reactant, product, expected_origins,
+                )
+            except Exception as exc:
+                interval_passed = False
+                advisory = f'pair-distance interval analysis unavailable: {exc}'
+            if not interval_passed:
+                advisory = ('Warning: endpoint optimization establishes the two path directions, '
+                    'but the geometric interval is unusual or could not be judged; inspect the trajectory. '
+                    + advisory)
             return _terminal(
                 record, "verdict", "verified",
                 f"verified transition state: exactly one imaginary mode ({imag[0]:.1f} cm^-1), "
-                f"usable IRC geometries from both directions, and {detail}; "
-                "optimized endpoint identities match the declared reactant and product",
+                "both actual IRC outer frames from the same TS optimized independently to zero-imaginary-frequency minima "
+                f"with the declared reactant and product identities (origins={expected_origins}). "
+                f"Geometry interval advisory: {advisory}",
             )
-        failures.append(f"IRC interval proof: {detail}")
+        failures.append(f"IRC endpoint lineage: {error}")
     return _terminal(
         record, "verdict", "candidate_only",
         "The optimized IRC outer frames did not establish one consistent species identity, "
-        "source provenance, and endpoint interval proof: " + "; ".join(failures)
+        "source provenance, and actual outer-frame optimization lineage: " + "; ".join(failures)
         + ". " + _endpoint_geometry_note(record, 'reactant', reactant)
         + "; " + _endpoint_geometry_note(record, 'product', product)
         + ". These observations do not override the failed checks. The candidate stays UNVERIFIED",

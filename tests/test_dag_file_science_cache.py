@@ -120,28 +120,33 @@ def test_one_scientific_check_parses_each_log_once(tmp_path, monkeypatch):
 
 
 def _bound_irc_graph(tmp_path):
-    import shutil
     from types import SimpleNamespace
 
     from cloudra.dag.evidence_ingest import snapshot_evidence_file
     from cloudra.dag.models import ElementaryStepEdge, GraphData, GraphRef, OccurrenceNode
+    from tests.test_irc_endpoint_optimization import write_lineage_bundle
 
-    native = tmp_path / "native"
-    shutil.copytree(FIXTURES_DIR / "benchmark_nu3", native)
+    bundle = write_lineage_bundle(tmp_path / 'native')
+    minima = {}
+    for role in ('reactant', 'product'):
+        path = tmp_path / 'native' / (role + '_combined.out')
+        frequency = Path(bundle[role + '_freq']).read_text()
+        path.write_text(Path(bundle[role + '_opt']).read_text()
+            + 'VIBRATIONAL FREQUENCIES' + frequency.partition('VIBRATIONAL FREQUENCIES')[2])
+        minima[role] = path
     snapshots = {}
     payloads = {}
     refs = {}
     for name, source in {
-        "opt": native / "ts2_optimization.out", "freq": native / "ts2_frequency.out",
-        "irc": native / "ts2_irc/irc.out", "source": native / "op_minimum.out",
-        "target": native / "product_minimum.out",
+        "opt": bundle['ts'], "freq": bundle['ts'],
+        "irc": bundle['irc'], "source": minima['reactant'], "target": minima['product'],
     }.items():
         snapshots[name] = snapshot_evidence_file(source, tmp_path)
         payloads[name] = snapshots[name].model_dump(mode="json")
         refs[name] = GraphRef(ref_type="file", ref_id=name, content_hash="sha256:" + snapshots[name].sha256)
     graph = GraphData(graph_id="delivery", graph_kind="delivery", revision=0,
-        nodes=[OccurrenceNode(node_id="r", label="R", smiles="C1CO[PH3]1", refs=[refs["source"]]),
-               OccurrenceNode(node_id="p", label="P", smiles="C=C.O=[PH3]", refs=[refs["target"]])],
+        nodes=[OccurrenceNode(node_id="r", label="R", smiles=bundle['reactant_smiles'], refs=[refs["source"]]),
+               OccurrenceNode(node_id="p", label="P", smiles=bundle['product_smiles'], refs=[refs["target"]])],
         edges=[ElementaryStepEdge(edge_id="step", name="step", source_node_id="r", target_node_id="p",
                                   refs=[refs["opt"], refs["freq"], refs["irc"]])])
     store = SimpleNamespace(resolve_evidence=lambda ref: payloads[ref.ref_id])

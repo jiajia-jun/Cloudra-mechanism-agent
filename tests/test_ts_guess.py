@@ -43,13 +43,14 @@ def _make_tool() -> TsGuess:
     return TsGuess()
 
 
-@pytest.mark.parametrize('unused', ['freq_log', 'strict', 'n_images', 'spin', 'nprocs', 'memory_mb', 'job_name'])
+@pytest.mark.parametrize('unused', ['freq_log', 'strict', 'reactant_logs', 'product_logs', 'n_images', 'spin', 'nprocs', 'memory_mb', 'job_name'])
 def test_scan_schema_refuses_other_operation_fields(unused):
     arguments = dict(mode='scan_prepare', engine='orca', method='B3LYP', basis_set='def2SVP',
         input_text='2\nH2\nH 0 0 0\nH 0 0 .74\n',
         scans=[{'atoms': [0, 1], 'scan_end': 1.2, 'scan_steps': 5}], output_path='scan.inp')
     arguments[unused] = {
         'freq_log': 'freq.log', 'strict': True, 'n_images': 1000,
+        'reactant_logs': ['reactant.log'], 'product_logs': ['product.log'],
         'spin': 1, 'nprocs': 8, 'memory_mb': 8192, 'job_name': 'old-scan',
     }[unused]
     with pytest.raises(ValidationError, match=unused):
@@ -865,6 +866,46 @@ H  0.0  0.0  -1.07
 """
 
 
+def _gaussian_orientation(xyz):
+    rows = xyz.strip().splitlines()[2:]
+    atomic_numbers = {"C": 6, "N": 7, "H": 1}
+    coordinates = []
+    for index, row in enumerate(rows, 1):
+        symbol, x, y, z = row.split()
+        coordinates.append(f"{index:7d} {atomic_numbers[symbol]:10d} 0 {float(x):15.8f} {float(y):15.8f} {float(z):15.8f}")
+    return "\n".join([
+        " Standard orientation:",
+        " ---------------------------------------------------------------------",
+        " Center     Atomic      Atomic             Coordinates (Angstroms)",
+        " Number     Number       Type             X           Y           Z",
+        " ---------------------------------------------------------------------",
+        *coordinates,
+        " ---------------------------------------------------------------------",
+    ]) + "\n"
+
+
+def _endpoint_optimization_logs(tmp_path, *, combined=True, reactant_xyz=_HCN_XYZ, product_xyz=_HNC_XYZ):
+    """Native Opt first frames are the actual HCN IRC terminal frames, in both directions."""
+    starts = {
+        "reactant": "3\nforward outer frame\nC .410015 -.464572 0\nN -.320837 .486161 0\nH -.423925 -1.223669 0\n",
+        "product": "3\nbackward outer frame\nC .480862 -.459245 0\nN -.349123 .435401 0\nH -.874843 -.581264 0\n",
+    }
+    logs = {}
+    for role, minimum in (("reactant", reactant_xyz), ("product", product_xyz)):
+        optimization = " # B3LYP/6-31G(d) Opt\n" + _gaussian_orientation(starts[role])
+        optimization += _gaussian_orientation(minimum) + " Optimization completed.\n"
+        frequency = _gaussian_orientation(minimum) + " Harmonic frequencies (cm**-1)\n Frequencies -- 300.0 1200.0 1300.0\n"
+        normal = " Normal termination of Gaussian 16.\n"
+        opt_path = tmp_path / f"{role}_opt.log"
+        opt_path.write_text(optimization + (frequency if combined else "") + normal)
+        logs[role] = [str(opt_path)]
+        if not combined:
+            freq_path = tmp_path / f"{role}_freq.log"
+            freq_path.write_text(" # B3LYP/6-31G(d) Freq\n" + frequency + normal)
+            logs[role].append(str(freq_path))
+    return logs
+
+
 @pytest.mark.asyncio
 async def test_verify_ts_positive(tmp_path, mock_session):
     """默认 verify 只提供方向建议，即使频率与端点相符也只返回 candidate。"""
@@ -1014,8 +1055,8 @@ async def test_verify_irc_endpoints_without_expected(tmp_path, mock_session):
 
 
 @pytest.mark.asyncio
-async def test_verify_strict_accepts_partial_irc_between_ts_and_intermediates(tmp_path, mock_session):
-    """IRC 两侧均因 maxsteps 未走到底，但处于 TS 与优化中间体之间时 strict 应通过。"""
+async def test_verify_strict_geometry_interval_without_optimization_logs_is_inconclusive(tmp_path, mock_session):
+    """几何区间相符不能代替真实端点优化和零虚频证据。"""
     tool = _make_tool()
     freq_log = tmp_path / "ts_freq_with_geometry.log"
     freq_log.write_text(_TS_FREQ_WITH_GEOMETRY)
@@ -1032,10 +1073,81 @@ async def test_verify_strict_accepts_partial_irc_between_ts_and_intermediates(tm
     }), mock_session)
 
     assert result.is_success, result.message
-    assert result.verdict.startswith("pass")
-    assert result.verification_status == "pass"
-    assert any("intermediate" in check for check in result.checks)
+    assert result.verdict.startswith("inconclusive")
+    assert result.verification_status == "inconclusive"
     assert result.irc_end_a_path and result.irc_end_b_path
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("combined", [True, False], ids=["optfreq", "separate_opt_freq"])
+async def test_verify_strict_accepts_irc_outer_frames_optimized_to_verified_minima(
+    tmp_path, mock_session, combined,
+):
+    from types import SimpleNamespace
+
+    freq_log = tmp_path / "ts_freq.log"
+    freq_log.write_text(_TS_FREQ_WITH_GEOMETRY)
+    logs = _endpoint_optimization_logs(tmp_path, combined=combined)
+    if not combined:
+        logs = {role: [Path(path).name for path in paths] for role, paths in logs.items()}
+    tool = TsGuess(subagent=SimpleNamespace(working_directory=str(tmp_path)))
+    result = await tool.tool_call(TsGuess_input_schema(
+        mode="verify", strict=True, freq_log=freq_log.name, irc_log=str(IRC_LOG),
+        reactant_text=_HCN_XYZ, product_text=_HNC_XYZ,
+        reactant_logs=logs["reactant"], product_logs=logs["product"],
+        watch_pairs=[[1, 3], [2, 3]], output_dir=str(tmp_path / "verified"),
+    ), mock_session)
+    assert result.is_success, result.message
+    assert result.verification_status == "pass", result.checks
+    assert result.verdict.startswith("pass")
+    assert result.irc_end_a_path and result.irc_end_b_path
+
+
+@pytest.mark.asyncio
+async def test_verify_strict_rejects_optimized_endpoint_with_wrong_identity(tmp_path, mock_session):
+    freq_log = tmp_path / "ts_freq.log"
+    freq_log.write_text(_TS_FREQ_WITH_GEOMETRY)
+    logs = _endpoint_optimization_logs(tmp_path, product_xyz=_HCN_XYZ)
+    result = await _make_tool().safe_call(TsGuess_input_schema(
+        mode="verify", strict=True, freq_log=str(freq_log), irc_log=str(IRC_LOG),
+        reactant_text=_HCN_XYZ, product_text=_HNC_XYZ,
+        reactant_logs=logs["reactant"], product_logs=logs["product"],
+        watch_pairs=[[1, 3], [2, 3]], output_dir=str(tmp_path / "wrong_identity"),
+    ), mock_session)
+    assert result.is_success, result.message
+    assert result.verification_status == "fail", result.checks
+
+
+@pytest.mark.asyncio
+async def test_verify_strict_accepts_optimized_minima_but_warns_about_failed_interval(tmp_path, mock_session):
+    freq_log = tmp_path / "ts_freq.log"
+    freq_log.write_text(_TS_FREQ_WITH_GEOMETRY)
+    logs = _endpoint_optimization_logs(tmp_path, reactant_xyz=_HCN_XYZ.replace("-1.07", "-1.36"))
+    result = await _make_tool().safe_call(TsGuess_input_schema(
+        mode="verify", strict=True, freq_log=str(freq_log), irc_log=str(IRC_LOG),
+        reactant_text=_HCN_XYZ, product_text=_HNC_XYZ,
+        reactant_logs=logs["reactant"], product_logs=logs["product"],
+        watch_pairs=[[1, 3], [2, 3]], output_dir=str(tmp_path / "interval_warning"),
+    ), mock_session)
+    assert result.is_success, result.message
+    assert result.verification_status == "pass", result.checks
+    assert any("[warning]" in check and "interval" in check for check in result.checks)
+
+
+@pytest.mark.asyncio
+async def test_verify_strict_unresolved_xyz_identity_is_inconclusive(tmp_path, mock_session):
+    freq_log = tmp_path / "ts_freq.log"
+    freq_log.write_text(_TS_FREQ_WITH_GEOMETRY)
+    logs = _endpoint_optimization_logs(tmp_path)
+    result = await _make_tool().safe_call(TsGuess_input_schema(
+        mode="verify", strict=True, freq_log=str(freq_log), irc_log=str(IRC_LOG),
+        reactant_text="3\nno resolvable graph\nC 0 0 0\nN 0 0 100\nH 0 0 200\n",
+        product_text=_HNC_XYZ, reactant_logs=logs["reactant"], product_logs=logs["product"],
+        watch_pairs=[[1, 3], [2, 3]], output_dir=str(tmp_path / "unknown_identity"),
+    ), mock_session)
+    assert result.is_success, result.message
+    assert result.verification_status == "inconclusive", result.checks
+    assert any("MOL/SDF" in check for check in result.checks)
 
 
 @pytest.mark.asyncio
@@ -1059,8 +1171,8 @@ async def test_verify_strict_without_optimized_intermediates_is_inconclusive(tmp
 
 
 @pytest.mark.asyncio
-async def test_verify_strict_rejects_wrong_intermediate_pair(tmp_path, mock_session):
-    """材料完整但两个预期结构都在同一侧时，另一侧 IRC 明确朝错方向，应 fail。"""
+async def test_verify_strict_wrong_reference_geometry_without_logs_is_inconclusive(tmp_path, mock_session):
+    """预期几何不相符仍不能代替缺失的实际端点优化证据。"""
     tool = _make_tool()
     freq_log = tmp_path / "ts_freq_with_geometry.log"
     freq_log.write_text(_TS_FREQ_WITH_GEOMETRY)
@@ -1077,8 +1189,8 @@ async def test_verify_strict_rejects_wrong_intermediate_pair(tmp_path, mock_sess
     }), mock_session)
 
     assert result.is_success, result.message
-    assert result.verdict.startswith("fail")
-    assert result.verification_status == "fail"
+    assert result.verdict.startswith("inconclusive")
+    assert result.verification_status == "inconclusive"
 
 
 @pytest.mark.asyncio
@@ -1115,6 +1227,7 @@ async def test_verify_strict_reordered_intermediate_is_aligned(tmp_path, mock_se
     tool = _make_tool()
     freq_log = tmp_path / "ts_freq_with_geometry.log"
     freq_log.write_text(_TS_FREQ_WITH_GEOMETRY)
+    logs = _endpoint_optimization_logs(tmp_path)
 
     result = await tool.safe_call(TsGuess_input_schema(**{
         "mode": "verify",
@@ -1123,12 +1236,13 @@ async def test_verify_strict_reordered_intermediate_is_aligned(tmp_path, mock_se
         "irc_log": str(IRC_LOG),
         "reactant_text": _HCN_REORDERED_XYZ,
         "product_text": _HNC_XYZ,
+        "reactant_logs": logs["reactant"],
+        "product_logs": logs["product"],
         "output_dir": str(tmp_path / "strict_order_mismatch"),
     }), mock_session)
 
     assert result.is_success, result.message
     assert result.verdict.startswith("pass"), result.verdict
-    assert any("aligned to TS atom order" in check for check in result.checks)
 
 
 @pytest.mark.asyncio
@@ -1150,7 +1264,6 @@ async def test_verify_strict_element_mismatch_is_inconclusive(tmp_path, mock_ses
 
     assert result.is_success, result.message
     assert result.verdict.startswith("inconclusive")
-    assert any("elements or atom counts" in check for check in result.checks)
 
 
 @pytest.mark.asyncio
@@ -2918,7 +3031,8 @@ async def test_verify_strict_non_pass_appends_endpoint_optimization_remedy(tmp_p
     assert any(_IRC_TRUNCATION_REMEDY in c for c in res_missing.checks)
     assert _IRC_TRUNCATION_REMEDY in res_missing.verdict
 
-    # 分支 B：几何区间证明失败（两个预期结构都在同一侧）
+    # 分支 B：实际优化结果与声明的端点身份不符。
+    logs = _endpoint_optimization_logs(tmp_path)
     res_fail = await tool.safe_call(TsGuess_input_schema(**{
         "mode": "verify",
         "strict": True,
@@ -2926,6 +3040,8 @@ async def test_verify_strict_non_pass_appends_endpoint_optimization_remedy(tmp_p
         "irc_log": str(IRC_LOG),
         "reactant_text": _HCN_XYZ,
         "product_text": _HCN_XYZ,
+        "reactant_logs": logs["reactant"],
+        "product_logs": logs["product"],
         "watch_pairs": [[1, 3], [2, 3]],
         "output_dir": str(tmp_path / "remedy_fail"),
     }), mock_session)

@@ -89,9 +89,9 @@ ORCA 的 `ts_guess scan_prepare` 支持一条扫描坐标，或两条 typed 坐�
 
 **步数上限或 IRC 自身未收敛不自动触发延长。** 若两侧最外帧经优化后已经证明正确的极小点身份与方向，就保留短程路径证据；若 partial 几何仍不能判定方向或端点身份，才有针对性地延长未决的一侧。不能把达到步数上限称为收敛，也不能把短 IRC 单独称作完整路径或动力学证明；如实标注 partial 范围。原生参数与轨迹文件见 [ORCA IRC](https://www.faccts.de/docs/orca/6.1/manual/contents/structurereactivity/irc.html)。
 
-`ts_guess mode=verify, strict=True` 检查双向外帧与两侧 optimized endpoint 的方向关系；`pass` 不是整条机理的真值判定。端点提取**支持 Gaussian IRC 日志与 ORCA 原生端点/轨迹**（`*_IRC_F.xyz` / `*_IRC_B.xyz`，缺失时回退 `*_IRC_F_trj.xyz` / `*_IRC_B_trj.xyz` 末帧；见 `orca-inputs.md`）。ORCA 仍须保留主日志与轨迹文件作原始证据。解析失败应报告工具限制或补交缺失文件，不能重跑相同计算“直到通过”，也不能伪造 strict pass。
+`ts_guess mode=verify, strict=True` 用 `reactant_logs` / `product_logs` 提供两端真实 Opt/Freq 日志（可合并或分开），核验同一 TS 的双向 IRC 外帧确实分别优化到正确的零虚频极小值；`reactant_path` / `product_path` 或对应文本声明预期结构，单独提供参考结构不能证明来源。`pass` 不是整条机理的真值判定。端点提取**支持 Gaussian IRC 日志与 ORCA 原生端点/轨迹**（`*_IRC_F.xyz` / `*_IRC_B.xyz`，缺失时回退 `*_IRC_F_trj.xyz` / `*_IRC_B_trj.xyz` 末帧；见 `orca-inputs.md`）。ORCA 仍须保留主日志与轨迹文件作原始证据。解析失败应报告工具限制或补交缺失文件，不能重跑相同计算“直到通过”，也不能伪造 strict pass。
 
-当前 `log_parser` 的 IRC 字段（点数/收敛/端点能量）只是信息字段；`short_irc` 阶段绑定的 harness 闸门是**几何方向区间证明**（与 `ts_guess verify strict` 同口径：双侧 IRC 端点几何各自位于 TS 与对应验证极小值之间），不看收敛标志或点数。材料取自同边 ts_opt/frequency 与 endpoint_a/b（或物种 geometry）阶段已绑证据的日志，缺材料会被拒并写明缺什么——先补端点优化证据再绑。不得为凑点数或 IRC 原生收敛标志重跑；方向或端点身份未决才延长。若工具/复核仍拒绝，检查其具体理由，提供原始结构与收敛记录；所需阶段未完成时保留交付缺口。
+当前 `log_parser` 的 IRC 字段（点数/收敛/端点能量）只是信息字段；`short_irc`、TS 流程与 Benchmark 统一接受**同一 TS → 双向 IRC 真实末帧 → 两端收敛优化 → 正确零虚频极小值**的计算证据。几何区间只作提示，区间异常或不可判时明确警告并建议检查轨迹，不否决真实优化链。材料取自同边 ts_opt/frequency 与 endpoint_a/b（或物种 geometry）阶段已绑证据的日志，分开的 Opt 和 Freq 日志都要保留，缺材料会被拒并写明缺什么。分离产物仍按完整产物图与各组分的独立极小值证明，不冒充已验证络合物。不得为凑点数或 IRC 原生收敛标志重跑；来源、方向或端点身份未决才补对应证据。若工具/复核仍拒绝，检查具体理由，提供原始结构与收敛记录；所需阶段未完成时保留交付缺口。
 
 ### 2.5 计算所需的能量差
 

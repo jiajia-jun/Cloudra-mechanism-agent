@@ -7,9 +7,8 @@
 - ``irc_endpoint_geometries``：IRC 双侧端点几何，ts_guess strict 同口径——
   Gaussian 取主日志逐点帧 rx<0 / rx>0 两侧最外侧的带坐标帧，ORCA 取终点
   文件/F-B 轨迹边文件；未收敛方向取轨迹末帧作部分端点，收敛与否不做闸门；
-- ``iter_direction_verdicts`` / ``verify_short_irc_direction``：组装四份
-  几何后调 irc_path.prove_irc_endpoint_direction（判定唯一实现）完成
-  几何方向区间证明。
+- ``verify_short_irc_direction``：核验同一 TS 的双向 IRC 外帧确实经
+  收敛优化到两侧正确的零虚频极小值。几何区间只作诊断提示，不否决真实优化链。
 
 缺材料 fail-loud：``verify_short_irc_direction`` 返回 ``(passed, details)``，
 ``passed=False`` 时 details 结构化写明缺哪份材料，绝不静默降级。details
@@ -32,7 +31,8 @@ def irc_start_geometry(path):
         if engine == 'gaussian':
             frames, _ = gaussian_frames.extract_irc(str(path))
             return next((parse_xyz(frame.xyz) for frame in frames
-                         if frame.reaction_coordinate == 0.0 and frame.xyz.strip()), None)
+                         if frame.reaction_coordinate == 0.0 and frame.xyz.strip()),
+                        parse_xyz(gaussian_frames.irc_start_xyz(Path(path).read_text(errors='replace'))))
         if engine == 'orca':
             text = Path(path).read_text(errors='replace')
             orca_frames.extract_irc_from_text(text)
@@ -83,8 +83,13 @@ def freqs_for(path, frames) -> list[float]:
     freqs = _last_freqs(frames)
     if freqs:
         return freqs
-    if qm_engine.detect_qm_engine(str(path)) == "orca":
+    engine = qm_engine.detect_qm_engine(str(path))
+    if engine == "orca":
         return orca_frames.frequencies_with_text_fallback(str(path))
+    if engine == 'gaussian':
+        text = Path(path).read_text(errors='replace').rsplit('Harmonic frequencies', 1)[-1]
+        return [float(value) for line in text.splitlines() if 'Frequencies --' in line
+                for value in line.partition('Frequencies --')[2].split()]
     return []
 
 
@@ -105,6 +110,12 @@ def last_geometry(path, frames) -> Optional[tuple]:
             break
     if geometry is None and qm_engine.detect_qm_engine(str(path)) == "orca":
         geometry = parse_xyz(orca_frames.final_xyz_with_text_fallback(str(path)))
+    if geometry is None and qm_engine.detect_qm_engine(str(path)) == 'gaussian':
+        text = Path(path).read_text(errors='replace')
+        blocks = gaussian_frames.std_orientation_frames(text)
+        rows = blocks[-1] if blocks else gaussian_frames._parse_last_input_orientation(text)
+        if rows:
+            geometry = parse_xyz(gaussian_frames._coords_to_xyz([row[0] for row in rows], [row[1:] for row in rows]))
     return geometry
 
 
@@ -145,8 +156,8 @@ def gaussian_irc_endpoints_from_frames(frames) -> Optional[tuple]:
 
 def orca_irc_endpoint_geometries(path) -> Optional[tuple]:
     """ts_guess strict 同口径的 ORCA IRC 端点：几何来自终点文件/F-B 轨迹边
-    文件（未收敛方向取轨迹末帧，同样是合法的部分端点）；收敛与否不做闸门，
-    方向是否成立交给几何区间证明。两侧都有可用几何才返回。
+    文件（未收敛方向取轨迹末帧，同样是合法的部分端点）；IRC 收敛与否不做闸门，
+    方向依据两侧外帧的真实优化链。两侧都有可用几何才返回。
 
     前提是文件本身确实是 IRC 计算日志：输入文件（.inp）旁边恰好有同名
     轨迹边文件时，没有 IRC 段就没有任何"端点"可言。"""
@@ -451,6 +462,112 @@ def _usable_minimum_geometries(logs, *, side: str, max_scan_bytes, details: list
     return geometries
 
 
+def _optimization_geometries(path, *, max_scan_bytes=None):
+    """Native converged Opt input/final geometries, independent of frequency parsing."""
+    if not normal_log(path, max_scan_bytes=max_scan_bytes):
+        return None
+    text = Path(path).read_text(errors='replace')
+    engine = qm_engine.detect_qm_engine(str(path))
+    if engine == 'orca':
+        if orca_frames.opt_converged(text) is not True:
+            return None
+        index = text.find('CARTESIAN COORDINATES (ANGSTROEM)')
+        first = parse_xyz(orca_frames._xyz_block_at(text, index)) if index >= 0 else None
+        last = parse_xyz(orca_frames.final_xyz_from_text(text))
+    elif engine == 'gaussian':
+        if ('Optimization stopped.' in text or not any(marker in text for marker in
+                ('Optimization completed.', 'Stationary point found.'))):
+            return None
+        lines = text.splitlines()
+        first_rows = next((gaussian_frames._parse_coord_block_after(lines, index + 1, has_type_col=True)
+            for index, line in enumerate(lines)
+            if 'Input orientation:' in line or 'Standard orientation:' in line), None)
+        blocks = gaussian_frames.std_orientation_frames(text)
+        last_rows = blocks[-1] if blocks else gaussian_frames._parse_last_input_orientation(text)
+
+        def geometry(rows):
+            return parse_xyz(gaussian_frames._coords_to_xyz(
+                [row[0] for row in rows], [row[1:] for row in rows])) if rows else None
+
+        first, last = geometry(first_rows), geometry(last_rows)
+    else:
+        return None
+    return (first, last) if first is not None and last is not None else None
+
+
+def _optimized_minima(logs, *, smiles, side, charge, max_scan_bytes, details):
+    minima = _usable_minimum_geometries(logs, side=side, max_scan_bytes=max_scan_bytes, details=details)
+    if smiles is not None:
+        from cloudra.tools.core.species_identity import chemical_smiles
+        expected = chemical_smiles(smiles)
+        minima = [geometry for geometry in minima if _geometry_matches_species(geometry, expected, charge=charge)]
+        if not minima:
+            details.append(f'{side}: no zero-imaginary minimum matches the declared species.')
+    results = []
+    for path in logs:
+        geometries = _optimization_geometries(path, max_scan_bytes=max_scan_bytes)
+        if geometries is not None and any(same_geometry(geometries[1], minimum) for minimum in minima):
+            results.append((geometries[0], geometries[1], path))
+    if not results:
+        details.append(f'{side}: supply a normally converged Opt log starting from the actual IRC outer frame '
+                       'and a zero-imaginary Freq log at that optimization final geometry; combined Opt/Freq is accepted.')
+    return results
+
+
+def _endpoint_optimization_proof(ends, ts_geometry, source_logs, target_logs, *,
+        charge=0, max_scan_bytes=None, atom_binding=None, reactant_smiles=None, product_smiles=None):
+    """Both real IRC sides must terminate in the declared verified minima via Opt."""
+    from cloudra.tools.core.irc_path import align_atom_order
+
+    details = []
+    source = _optimized_minima(source_logs, smiles=reactant_smiles, side='SOURCE/reactant',
+        charge=charge, max_scan_bytes=max_scan_bytes, details=details)
+    target = _optimized_minima(target_logs, smiles=product_smiles, side='TARGET/product',
+        charge=charge, max_scan_bytes=max_scan_bytes, details=details)
+    for name, source_end, target_end in (('direct', ends[0], ends[1]), ('swapped', ends[1], ends[0])):
+        for source_start, source_minimum, source_log in source:
+            if not same_geometry(source_start, source_end):
+                continue
+            for target_start, target_minimum, target_log in target:
+                if not same_geometry(target_start, target_end):
+                    continue
+                if atom_binding:
+                    # Native Opt rows retain the correspondence of their actual IRC input.
+                    # Reorder by the input match, never by similarity of the relaxed minimum.
+                    mapping = atom_binding.get('atom_map', [])
+                    count = len(ts_geometry[0])
+                    if (len(mapping) != count or any(type(index) is not int for index in mapping)
+                            or sorted(mapping) != list(range(1, count + 1))):
+                        continue
+                    source_order = align_atom_order(*source_end, *source_start)
+                    target_order = align_atom_order(*target_end, *target_start)
+                    if source_order is None or target_order is None:
+                        continue
+                    source_bound = (source_end[0], [source_minimum[1][index] for index in source_order[0]])
+                    target_bound = (target_end[0], [target_minimum[1][index] for index in target_order[0]])
+                    target_bound = ([target_bound[0][index - 1] for index in mapping],
+                                    [target_bound[1][index - 1] for index in mapping])
+                    if (not _ordered_graph_matches(source_bound, atom_binding['reactant_mol'], charge)
+                            or not _ordered_graph_matches(target_bound, atom_binding['product_mol'], charge)):
+                        details.append('Optimized IRC endpoints differ from the bound complete atom identities.')
+                        continue
+                result = [f'{name} pairing: both actual IRC outer frames were independently optimized '
+                    f'to the correct zero-imaginary minima ({source_log}; {target_log}).']
+                try:
+                    interval = prove_irc_endpoint_direction(*ts_geometry, *ends, source_minimum, target_minimum,
+                        [], charge, atom_orders=bound_atom_orders(ts_geometry, source_minimum, target_minimum, atom_binding))
+                    result.extend('[advisory] ' + item for item in interval.get('details', []))
+                    if not (interval['is_decidable'] and interval['is_match']):
+                        result.append('[warning] Endpoint optimization establishes direction, but the geometric interval '
+                            'check failed or is undecidable; inspect the trajectory for suspicious geometry.')
+                except Exception as exc:
+                    result.append(f'[warning] Endpoint optimization establishes direction, but the geometric interval '
+                                  f'could not be evaluated ({exc}); inspect the trajectory.')
+                return True, result
+    return False, ['The actual IRC outer frames are not connected to both declared zero-imaginary minima '
+                   'by converged optimization logs; geometric interval agreement alone is not direction proof.', *details]
+
+
 def verify_short_irc_direction(
     irc_log,
     ts_logs: Sequence,
@@ -460,15 +577,14 @@ def verify_short_irc_direction(
     charge: int = 0,
     max_scan_bytes: Optional[int] = None,
     atom_bindings=None,
+    reactant_smiles: str | list[str] | None = None,
     product_smiles: str | list[str] | None = None,
 ) -> tuple[bool, list[str]]:
-    """给定 short_irc 日志与材料日志候选，完成几何方向区间证明。
+    """同一 TS 双向 IRC 的真实外帧经 Opt/Freq 到正确极小值即方向通过。
 
-    材料：IRC 双侧端点几何（irc_log）+ TS 几何（ts_logs 中任一 n_imag==1
-    且带末帧几何的日志）+ 两侧端点验证极小值几何（endpoint_a_logs /
-    endpoint_b_logs 中任一 n_imag==0 且带末帧几何的日志；endpoint_a 是
-    TARGET/产物侧，endpoint_b 是 SOURCE/反应物侧——仅用于 details 文案，
-    判定自身对两侧做 direct/swapped 无序配对）。
+    材料：IRC 双侧端点与同一 TS 的单虚频日志；endpoint_a_logs /
+    endpoint_b_logs 分别提供产物/反应物的 Opt/Freq 原生日志。首帧须匹配
+    真实 IRC 外帧，收敛末帧须匹配零虚频几何，两侧可 direct/swapped 配对。
 
     返回 (passed, details)：passed=False 时 details 结构化写明缺哪份材料
     或证明为何不成立（缺 TS/端点材料 ⇒ 引导先补对应阶段的绑定证据）。
@@ -518,17 +634,17 @@ def verify_short_irc_direction(
         )
     if not (ts_geometries and from_geometries):
         return False, details
-    last_verdict: Optional[dict] = None
     separated = isinstance(product_smiles, list) and len(product_smiles) > 1
     if not separated:
         for ts_geometry, ts_binding in ts_geometries:
-            for verdict in iter_direction_verdicts(
-                ends, [ts_geometry], from_geometries, to_geometries, charge=charge,
+            passed, proof_details = _endpoint_optimization_proof(
+                ends, ts_geometry, endpoint_b_logs, endpoint_a_logs, charge=charge,
+                max_scan_bytes=max_scan_bytes, reactant_smiles=reactant_smiles, product_smiles=product_smiles,
                 atom_binding=atom_binding if ts_binding == atom_binding else None,
-            ):
-                if verdict["is_decidable"] and verdict["is_match"]:
-                    return True, list(verdict.get("details") or [])
-                last_verdict = verdict
+            )
+            if passed:
+                return True, proof_details
+            details.extend(proof_details)
     if separated:
         for ts_geometry, ts_binding in ts_geometries:
             verdict = verify_separated_product_direction(ends, ts_geometry, from_geometries,
@@ -537,22 +653,13 @@ def verify_short_irc_direction(
             if verdict["is_match"]:
                 return True, verdict["details"]
             details.extend(verdict["details"])
-    if last_verdict is not None and not last_verdict.get("is_decidable"):
-        header = (
-            "the direction proof is undecidable for the bound materials "
-            "(atom-pair changes between the TS and the endpoint minima are too "
-            "small to judge, or the geometries could not be aligned to the TS)"
-        )
-    else:
-        header = (
-            "the IRC endpoints do not lie between the TS and the verified "
-            "endpoint minima (the geometric direction proof failed)"
-        )
-    return False, [header, *list((last_verdict or {}).get("details") or []), *details]
+    return False, list(dict.fromkeys(details))
 
 
-def verify_short_irc_pair(forward_log, reverse_log, ts_logs, endpoint_a_logs, endpoint_b_logs, *, atom_bindings=None, product_smiles: str | list[str] | None = None):
-    """Combine explicitly submitted directional logs using the same interval proof."""
+def verify_short_irc_pair(forward_log, reverse_log, ts_logs, endpoint_a_logs, endpoint_b_logs, *,
+        atom_bindings=None, charge=0, reactant_smiles: str | list[str] | None = None,
+        product_smiles: str | list[str] | None = None):
+    """Combine native directional logs using the same endpoint-optimization proof."""
     def outer_geometry(path, direction):
         engine = qm_engine.detect_qm_engine(str(path))
         if engine == 'orca':
@@ -592,11 +699,13 @@ def verify_short_irc_pair(forward_log, reverse_log, ts_logs, endpoint_a_logs, en
     separated = isinstance(product_smiles, list) and len(product_smiles) > 1
     if not separated:
         for geometry, ts_binding in ts:
-            for verdict in iter_direction_verdicts((forward, reverse), [geometry], source, target,
-                atom_binding=atom_binding if ts_binding == atom_binding else None):
-                if verdict['is_decidable'] and verdict['is_match']:
-                    return True, list(verdict.get('details') or [])
-                details.extend(verdict.get('details') or [])
+            passed, proof_details = _endpoint_optimization_proof((forward, reverse), geometry,
+                endpoint_b_logs, endpoint_a_logs, charge=charge,
+                reactant_smiles=reactant_smiles, product_smiles=product_smiles,
+                atom_binding=atom_binding if ts_binding == atom_binding else None)
+            if passed:
+                return True, proof_details
+            details.extend(proof_details)
     if separated:
         for geometry, ts_binding in ts:
             verdict = verify_separated_product_direction((forward, reverse), geometry, source,
@@ -605,4 +714,4 @@ def verify_short_irc_pair(forward_log, reverse_log, ts_logs, endpoint_a_logs, en
             if verdict['is_match']:
                 return True, verdict['details']
             details.extend(verdict['details'])
-    return False, ['The paired IRC endpoint interval proof failed or is undecidable.', *details]
+    return False, ['The paired IRC endpoint optimization proof is incomplete.', *details]

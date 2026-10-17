@@ -297,6 +297,33 @@ def _parse_last_input_orientation(region: str):
     return _parse_coord_block_after(lines, last_idx + 1, has_type_col=True)
 
 
+def irc_start_xyz(text: str) -> str:
+    """Initial IRC geometry, including Gaussian's Cartesian checkpoint echo."""
+    prefix = text.partition('Point Number:')[0]
+    lines = prefix.splitlines()
+    for index, line in enumerate(lines):
+        if 'Input orientation:' in line or 'Standard orientation:' in line:
+            rows = _parse_coord_block_after(lines, index + 1, has_type_col=True)
+            if rows:
+                return _coords_to_xyz([row[0] for row in rows], [row[1:] for row in rows])
+    _, marker, coordinates = prefix.partition('cartesian coordinates used.')
+    if not marker:
+        return ''
+    rows = []
+    for line in coordinates.splitlines():
+        parts = line.split()
+        if not parts and not rows:
+            continue
+        if len(parts) != 4:
+            break
+        try:
+            values = [float(value) for value in parts[1:]]
+        except ValueError:
+            break
+        rows.append(f'{parts[0]} ' + ' '.join(str(value) for value in values))
+    return f'{len(rows)}\n\n' + '\n'.join(rows) + '\n' if rows else ''
+
+
 def _parse_irc_summary_table(text: str):
     """解析结尾汇总表，返回 (ts_energy_hartree, [(energy_rel, rx_coord), ...])。
 

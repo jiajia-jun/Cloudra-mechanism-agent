@@ -40,6 +40,29 @@ def materials():
     )
 
 
+def _write_endpoint_lineage_materials(directory):
+    """Add native Opt first frames while retaining the fixture's bound final atom rows."""
+    for name in ("ts.out", "irc.out", "reactant.out", "product.out", "irc_IRC_F.xyz", "irc_IRC_B.xyz"):
+        (directory / name).write_bytes((FIXTURE / name).read_bytes())
+    ends = irc_evidence.irc_endpoint_geometries(directory / "irc.out")
+    # This fixture's backward frame relaxes to the reactant, forward to product.
+    # Product Opt uses its declared MOL order, so reorder its input with MAP too.
+    initial = {
+        "reactant.out": ends[1],
+        "product.out": ([ends[0][0][index - 1] for index in MAP],
+                        [ends[0][1][index - 1] for index in MAP]),
+    }
+    for name, (symbols, positions) in initial.items():
+        path = directory / name
+        native = path.read_text()
+        first_coordinates = ('CARTESIAN COORDINATES (ANGSTROEM)\n---------------------------------\n'
+            + ''.join(f'{symbol} {x:.12f} {y:.12f} {z:.12f}\n'
+                      for symbol, (x, y, z) in zip(symbols, positions, strict=True)) + '\n')
+        index = native.index('CARTESIAN COORDINATES (ANGSTROEM)')
+        path.write_text(native[:index] + first_coordinates
+            + 'THE OPTIMIZATION HAS CONVERGED\n' + native[index:])
+
+
 def test_native_irc_uses_complete_map_for_independently_bound_minima(rdkit_chemistry):
     ends, ts, source, target = materials()
     assert not next(irc_evidence.iter_direction_verdicts(ends, [ts], [source], [target]))["is_decidable"]
@@ -69,19 +92,23 @@ def test_explicit_map_keeps_existing_geometry_distance_limit(rdkit_chemistry):
 
 
 @pytest.mark.parametrize("paired", [False, True])
-def test_log_based_direction_uses_same_binding_for_combined_and_split_irc(rdkit_chemistry, paired):
-    paths = [FIXTURE / "ts.out", FIXTURE / "reactant.out", FIXTURE / "product.out"]
-    associations = {str(FIXTURE / "irc.out"): binding(), str(paths[0]): binding()}
+@pytest.mark.parametrize("valid_map", [False, True])
+def test_log_based_direction_uses_same_binding_for_combined_and_split_irc(tmp_path, rdkit_chemistry, paired, valid_map):
+    _write_endpoint_lineage_materials(tmp_path)
+    paths = [tmp_path / "ts.out", tmp_path / "reactant.out", tmp_path / "product.out"]
+    irc = tmp_path / "irc.out"
+    archived = dict(binding(), atom_map=MAP if valid_map else list(range(1, len(MAP) + 1)))
+    associations = {str(irc): archived, str(paths[0]): archived}
     if paired:
         passed, _ = irc_evidence.verify_short_irc_pair(
-            FIXTURE / "irc.out", FIXTURE / "irc.out", [paths[0]], [paths[2]], [paths[1]],
+            irc, irc, [paths[0]], [paths[2]], [paths[1]],
             atom_bindings=associations,
         )
     else:
         passed, _ = irc_evidence.verify_short_irc_direction(
-            FIXTURE / "irc.out", [paths[0]], [paths[2]], [paths[1]], atom_bindings=associations,
+            irc, [paths[0]], [paths[2]], [paths[1]], atom_bindings=associations,
         )
-    assert passed
+    assert passed is valid_map
 
 
 def test_old_stage_snapshot_does_not_read_current_process_mapping(tmp_path):
@@ -141,8 +168,7 @@ def test_dag_file_science_consumes_the_archived_concrete_map(tmp_path, rdkit_che
     from cloudra.dag.file_science import file_scientific_checks
 
     snapshots = {}
-    for name in ("ts.out", "irc.out", "reactant.out", "product.out", "irc_IRC_F.xyz", "irc_IRC_B.xyz"):
-        (tmp_path / name).write_bytes((FIXTURE / name).read_bytes())
+    _write_endpoint_lineage_materials(tmp_path)
     for name in ("ts.out", "irc.out", "reactant.out", "product.out"):
         snap = snapshot_evidence_file(tmp_path / name, tmp_path)
         if name in ("ts.out", "irc.out"):
@@ -154,6 +180,9 @@ def test_dag_file_science_consumes_the_archived_concrete_map(tmp_path, rdkit_che
     step = SimpleNamespace(edge_id="step", refs=["ts.out", "irc.out"], stages=[], source_node_id="source", target_node_id="target")
     graph = SimpleNamespace(nodes=[source,target], edges=[step])
     assert file_scientific_checks(store, graph, "step")["short_irc"]["status"] == "passed"
+    for name in ("ts.out", "irc.out"):
+        snapshots[name]["metadata"]["atom_binding"]["atom_map"] = list(range(1, len(MAP) + 1))
+    assert file_scientific_checks(store, graph, "step")["short_irc"]["status"] == "incomplete"
 
 
 def test_owned_producer_freezes_bound_mol_without_rereading_source_files(tmp_path):
@@ -191,6 +220,10 @@ def test_managed_irc_keeps_unmanaged_ts_material_on_existing_geometry_path(monke
     monkeypatch.setattr(irc_evidence, "irc_endpoint_geometries", lambda *_, **__: (geometry(.7), geometry(1.3)))
     monkeypatch.setattr(irc_evidence, "probe_log", lambda path, **_: (1 if path == "ts" else 0, geometry({"ts":1., "source":.1, "target":1.9}[path])))
     monkeypatch.setattr(irc_evidence, "irc_start_geometry", lambda _: geometry(1.))
+    monkeypatch.setattr(irc_evidence, "_optimization_geometries", lambda path, **_: {
+        "source": (geometry(.7), geometry(.1)),
+        "target": (geometry(1.3), geometry(1.9)),
+    }[path])
     passed, _ = irc_evidence.verify_short_irc_direction("irc", ["ts"], ["target"], ["source"],
         atom_bindings={"irc": binding()})
     assert passed
@@ -283,6 +316,10 @@ def test_split_irc_with_one_known_binding_keeps_existing_geometry_path(monkeypat
     monkeypatch.setattr(irc_evidence,"irc_frames_for",frames)
     monkeypatch.setattr(irc_evidence,"probe_log",lambda path,**_: (1 if path == "ts" else 0,geometry({"ts":1.,"source":.1,"target":1.9}[path])))
     monkeypatch.setattr(irc_evidence,"irc_start_geometry",lambda _: geometry(1.))
+    monkeypatch.setattr(irc_evidence, "_optimization_geometries", lambda path, **_: {
+        "source": (geometry(.7), geometry(.1)),
+        "target": (geometry(1.3), geometry(1.9)),
+    }[path])
     passed,_ = irc_evidence.verify_short_irc_pair("forward","reverse",["ts"],["target"],["source"],
         atom_bindings={"forward":binding()})
     assert passed
@@ -295,8 +332,7 @@ def _archived_scorer_materials(tmp_path, monkeypatch):
     from cloudra.benchmark.selfconsistency import _LogProbe
     from cloudra.dag.evidence_ingest import snapshot_evidence_file
 
-    for name in ("ts.out", "irc.out", "reactant.out", "product.out", "irc_IRC_F.xyz", "irc_IRC_B.xyz"):
-        (tmp_path / name).write_bytes((FIXTURE / name).read_bytes())
+    _write_endpoint_lineage_materials(tmp_path)
     frozen = dict(binding(), ts_log_sha256=hashlib.sha256((tmp_path / "ts.out").read_bytes()).hexdigest())
     monkeypatch.setattr("cloudra.services.ts_pipeline_store.atom_binding_for_log", lambda *args: frozen if Path(args[1]).name in {"ts.out","irc.out"} else None)
     archived = {name: snapshot_evidence_file(tmp_path / name,tmp_path) for name in ("ts.out","irc.out","reactant.out","product.out")}
@@ -309,8 +345,16 @@ def test_independent_file_scorer_consumes_the_same_archived_mapping(tmp_path, mo
     from cloudra.benchmark.selfconsistency import _strict_irc_proof
 
     probe,paths,_ = _archived_scorer_materials(tmp_path,monkeypatch)
-    proof = _strict_irc_proof(probe,[paths["ts.out"],paths["irc.out"]],[paths["reactant.out"]],[paths["product.out"]])
-    assert proof is not None and proof[2] == paths["irc.out"]
+    proof = _strict_irc_proof(probe,list(paths.values()),[paths["reactant.out"]],[paths["product.out"]],
+        ts_files=[paths["ts.out"]])
+    assert proof is not None
+    evidence_paths, details = proof
+    assert evidence_paths == [paths[name] for name in ("ts.out", "irc.out", "reactant.out", "product.out")]
+    assert any('both actual IRC outer frames' in detail for detail in details)
+    invalid = dict(probe.irc_atom_binding(paths["irc.out"]), atom_map=list(range(1, len(MAP) + 1)))
+    monkeypatch.setattr(probe, "irc_atom_binding", lambda _: invalid)
+    assert _strict_irc_proof(probe,list(paths.values()),[paths["reactant.out"]],[paths["product.out"]],
+        ts_files=[paths["ts.out"]]) is None
 
 
 def test_independent_scorer_does_not_use_mapping_for_a_different_ts_log(tmp_path, monkeypatch, rdkit_chemistry):
@@ -319,7 +363,16 @@ def test_independent_scorer_does_not_use_mapping_for_a_different_ts_log(tmp_path
     probe,paths,_ = _archived_scorer_materials(tmp_path,monkeypatch)
     ts = tmp_path / paths["ts.out"]
     ts.write_text(ts.read_text()+"\nDifferent native job bytes.\n")
-    assert _strict_irc_proof(probe,[paths["ts.out"],paths["irc.out"]],[paths["reactant.out"]],[paths["product.out"]]) is None
+
+    def reject_borrowed_mapping(*_args, **_kwargs):
+        raise AssertionError('A different TS frequency witness must not use archived atom identities.')
+
+    monkeypatch.setattr(irc_evidence, '_ordered_graph_matches', reject_borrowed_mapping)
+    # Real Opt rows still establish lineage independently; only the archived
+    # correspondence is forbidden after the frequency witness bytes changed.
+    proof = _strict_irc_proof(probe,list(paths.values()),[paths["reactant.out"]],[paths["product.out"]],
+        ts_files=[paths["ts.out"]])
+    assert proof is not None
 
 
 def test_irc_bundle_digest_covers_archived_binding(tmp_path, monkeypatch):
@@ -359,7 +412,7 @@ def test_independent_scorer_matches_binding_to_frequency_witness(tmp_path, monke
     optimization = tmp_path / "opt.out"
     optimization.write_text(frequency.split("VIBRATIONAL FREQUENCIES", 1)[0] + "\nORCA TERMINATED NORMALLY\n")
     probe._files["opt.out"] = EvidenceFile(path="opt.out", kind="orca", size=optimization.stat().st_size)
-    proof = _strict_irc_proof(probe, ["opt.out", paths["ts.out"], paths["irc.out"]],
+    proof = _strict_irc_proof(probe, ["opt.out", *paths.values()],
         [paths["reactant.out"]], [paths["product.out"]], ts_files=["opt.out"])
     assert proof is not None
-    assert proof[:3] == ("opt.out", paths["ts.out"], paths["irc.out"])
+    assert proof[0] == ["opt.out", *[paths[name] for name in ("ts.out", "irc.out", "reactant.out", "product.out")]]

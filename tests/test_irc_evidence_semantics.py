@@ -13,7 +13,7 @@ def _ref() -> GraphRef:
     return GraphRef(ref_type="tool_result", ref_id="call_irc")
 
 
-def test_direction_proof_accepts_existing_reference_geometry_without_provenance():
+def test_advisory_direction_geometry_accepts_reference_structures_without_provenance():
     symbols = ["C", "N", "H"]
     ts = [[0.0, 0.0, 0.0], [0.0, 0.0, 2.0], [0.0, 0.0, 1.0]]
     endpoint_a = [[0.0, 0.0, 0.0], [0.0, 0.0, 2.0], [0.0, 0.0, 0.7]]
@@ -132,7 +132,7 @@ def test_same_geometry_rejects_reflection_even_with_identical_distances():
 
 
 def test_short_irc_accepts_symmetric_reordered_starting_saddle(monkeypatch):
-    """Mock parser boundaries only; the starting-anchor and interval gates are real."""
+    """Mock native parsers only; same-TS and actual endpoint-lineage matching stay real."""
     from cloudra.tools.core import irc_evidence
 
     symbols, ts = _symmetric_saddle()
@@ -152,6 +152,10 @@ def test_short_irc_accepts_symmetric_reordered_starting_saddle(monkeypatch):
     monkeypatch.setattr(irc_evidence, "irc_start_geometry", lambda _: (
         symbols, ts[[0, 1, 2, 3, 5, 4]],
     ))
+    monkeypatch.setattr(irc_evidence, "_optimization_geometries", lambda path, **_: {
+        "reactant": ((symbols, (ts + reactant) / 2), (symbols, reactant)),
+        "product": ((symbols, (ts + product) / 2), (symbols, product)),
+    }[path])
 
     passed, details = irc_evidence.verify_short_irc_direction(
         "irc", ["ts"], ["product"], ["reactant"],

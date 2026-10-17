@@ -60,7 +60,7 @@ async def test_file_submission_snapshots_explicit_minimum_paths(tmp_path, swap):
         payload = await asyncio.to_thread(store.resolve_evidence, ref)
         assert payload['original_path'] == str(path)
         assert payload['imaginary_frequencies'] == []
-    expected = 'incomplete' if swap else 'passed'
+    expected = 'incomplete'  # This archive has minima/Freq, but no endpoint Opt source logs.
     assert submitted.result['scientific_checks']['short_irc']['status'] == expected
     # Review must use the archived minima, not mutable later source contents.
     await asyncio.to_thread(source_file.write_text, 'later overwritten source file')
@@ -173,7 +173,7 @@ def test_archived_irc_never_reads_later_original_endpoint(tmp_path):
         orca_frames.extract_irc_endpoints(snap.snapshot_path)
 
 
-def test_separate_directional_logs_share_geometric_proof(monkeypatch):
+def test_separate_directional_logs_cannot_pass_with_interval_material_only(monkeypatch):
     from cloudra.tools.core import irc_evidence
     from cloudra.tools.core.gaussian_frames import FrameRecord
     symbols = ['C', 'N', 'H']
@@ -189,7 +189,7 @@ def test_separate_directional_logs_share_geometric_proof(monkeypatch):
     monkeypatch.setattr(irc_evidence, 'probe_log', lambda path, **_: {
         'ts': (1, geometry(1.)), 'source': (0, geometry(.1)), 'target': (0, geometry(1.9))}[path])
     passed, _ = irc_evidence.verify_short_irc_pair('forward','reverse',['ts'],['target'],['source'])
-    assert passed
+    assert not passed
     monkeypatch.setattr(irc_evidence, 'irc_frames_for', lambda _: [])
     assert not irc_evidence.verify_short_irc_pair('forward','reverse',['ts'],['target'],['source'])[0]
 
