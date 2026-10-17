@@ -843,10 +843,13 @@ async def afinalize_compute_job(
     sql = "UPDATE compute_jobs SET state=?, end_timestamp=?, last_error=? WHERE id=?"
     if only_running:
         sql += " AND state='running'"
-    async with db.aconnect() as con:
-        cur = await con.execute(sql, (state, time.time(), last_error, task_id))
-        await con.commit()
-        return cur.rowcount == 1
+    async def write() -> bool:
+        async with db.aconnect() as con:
+            cur = await con.execute(sql, (state, time.time(), last_error, task_id))
+            await con.commit()
+            return cur.rowcount == 1
+
+    return await aretry_on_locked(write)
 
 
 async def afail_compute_job(db: ComputeDB, task_id: int, message: str) -> bool:
