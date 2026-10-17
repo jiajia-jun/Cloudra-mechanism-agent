@@ -14,6 +14,21 @@ Use with the mechanism SOP; these are Gaussian routes, not ORCA syntax. Set `eng
 
 `NoEigenTest` suppresses an optimizer curvature test; it does not establish that a saddle is valid — it transfers all saddle validation to the final freq, which then becomes mandatory. Add it only when a diagnosed early curvature rejection warrants continuing from a credible guess. `MaxStep=10` or a tighter grid may address a specific step-size/numerical problem; do not stack them onto every failed job. **QST2/QST3 are banned** (synchronous-transit interpolation fails systematically and has no path correction); the ceiling is mapped interpolation/NEB, with relaxed scans as the workhorse — see `ts-search-playbook.md`.
 
+`Opt=(MaxCycles=N)` is an input declaration, not proof of the optimizer's actual step allowance. Cloudra preserves explicit optimization limits and explicit IOps; it does not impose a 100-step cap or automatically add an IOp to override the engine. Read the native log's `Step number ... out of a maximum of ...` and termination reason. A route echo or `1/6=N` alone does not establish the allowance used by the optimizer. Reaching the step limit is not convergence or evidence that the reaction is impossible.
+
+The original [Gaussian 09 IOps Reference, Second Edition (Gaussian, Inc.; July 2013, Rev. D.01)](https://tungsten.ch.uj.edu.pl/doc/g09doc/iops2.pdf) distinguishes requested `NStep` (`IOp(1/6)`, printed page 5) from allocated L103 `MaxStp` (`IOp(1/152)`, printed page 35); the latter's default depends on the number of variables and `NStep`, and a positive N provides capacity for at least N steps. This is **Gaussian 09 documentation**, not verification of the behavior of the installed Gaussian 16 release. Confirm any G16 IOp workaround against that release's documentation and native output; do not infer a platform override from a smaller reported allowance or change convergence criteria to bypass a failed optimization.
+
+For a first-hand G16 usage example, [Gureev and Popov, J. Phys. Chem. A 2026, 130, 2817–2829](https://pubs.acs.org/doi/10.1021/acs.jpca.6c00814) explicitly report combining `Opt=MaxCycles=200` with `IOp(1/152=200)`. This is the research authors' reported method, not an engine-vendor guarantee for every G16 release or a reproduction of a particular stalled optimization. If deliberately choosing that combination, supply it manually using these existing `qm_input_writer` fields alongside the complete structure, calculation and resource inputs:
+
+```json
+{
+  "task_type": [{"opt": "maxcycles=200"}],
+  "keywords": "iop(1/152=200)"
+}
+```
+
+The number 200 is an explicit example, not a default or a convergence recommendation. Cloudra passes the requested combination through; check the generated route and the installed engine's actual step allowance before interpreting the outcome.
+
 ## 2. Complete TS example
 
 An illustrative closed-shell neutral DFT candidate, with a chosen gas-phase method:
