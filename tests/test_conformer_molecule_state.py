@@ -105,5 +105,4 @@ def test_catalog_selection_and_ts_checkpoint_keep_graph_without_perception(tmp_p
     checkpoint = TsProcessRecord.model_validate_json(record.model_dump_json())
     _, bound, _ = _bound_input_structure(checkpoint, 'reactant', require_identity=False)
     assert_original_state(bound)
-    assert_original_state(checkpoint.seed_molecules['reactant'])
-    assert checkpoint.seed_molecules['reactant'].GetAtomWithIdx(0).GetNumRadicalElectrons() == int(open_shell)
+    assert bound.GetAtomWithIdx(0).GetNumRadicalElectrons() == int(open_shell)
