@@ -252,7 +252,12 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
     ToolRegistration(
         'cloudra.tools.Chemtool.ts_search_process', 'TsResume', tool_name='ts_resume',
         role_allowlist=_SCIENCE_ROLES,
-        summary='Revise an existing TS path with reason and expected revision; not a status query.',
+        summary='Revise an existing TS path with input changes and a reason; queued jobs may be replaced.',
+    ),
+    ToolRegistration(
+        'cloudra.tools.Chemtool.ts_search_process', 'TsStop', tool_name='ts_stop',
+        role_allowlist=_SCIENCE_ROLES, dag_observe=False,
+        summary='Stop TS advancement, withdraw queued jobs and request safe cancellation; retain results for inspection or resume.',
     ),
     ToolRegistration(
         'cloudra.tools.Chemtool.ts_search_process', 'TsInspect', tool_name='ts_inspect',

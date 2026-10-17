@@ -1,7 +1,7 @@
-"""Prepare one TS path, revise through resume, inspect without mutation."""
+"""Prepare, revise, stop or inspect one durable TS path."""
 from typing import Any
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, field_validator
 
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
@@ -27,6 +27,20 @@ class TsResume_input_schema(input_schema):
     run_id: str = Field(min_length=1)
     changes: TsInputChanges = Field(default_factory=TsInputChanges, description='Within the same calculation, omitted fields retain existing keywords, frequency_mode, orca_blocks and end_setting; explicit empty values clear them. Changing engine, method or basis_set requires {replace: complete_configuration}; changing a named reference uses {replace: {ref: name}}. calculations profile-map omissions remain unchanged, and null removes an unused profile. A scan-coordinate-only patch need not copy calculation. Use the current atom identities/order reported in structures with each field\'s documented index base: structure/reaction references are 1-based; ORCA scan/freeze references are 0-based; Gaussian/xTB scan references are 1-based. For a newly supplied file order, explicit declarations refer to that incoming order and are converted once when the current XYZ/MOL is overwritten into proven canonical order. If a provided TS guess cannot be associated with a simultaneous source reorder, first normalize the endpoint files, then submit the guess in the reported current order.')
     reason: str = Field(min_length=1)
+
+
+class TsStop_input_schema(input_schema):
+    model_config = ConfigDict(extra='forbid')
+    run_id: str = Field(min_length=1, description='Existing TS run to stop within the current project and workspace.')
+    reason: str = Field(min_length=1, description='Why this TS run should stop before further advancement.')
+
+    @field_validator('run_id', 'reason')
+    @classmethod
+    def nonblank(cls, value):
+        value = value.strip()
+        if not value:
+            raise ValueError('must not be blank')
+        return value
 
 
 class TsInspect_input_schema(input_schema):
@@ -117,7 +131,7 @@ class TsPrepare(Tool):
 class TsResume(Tool):
     tool_id: str = 't-60'
     tool_name: str = 'ts_resume'
-    tool_description: str = 'Revise input groups on the existing TS path. Omitted calculation fields retain settings; explicit empty values clear them. Engine, method or basis changes use {replace: complete_configuration}; profile-reference changes use {replace: {ref: name}}. Proven atom reorderings overwrite current mutable XYZ/MOL sources in canonical order; new incoming atom declarations convert once. Future calls use the returned current atom order with each field\'s documented index base. Historical QM artifacts retain their original order. Declare the intended change and its reason; the runtime manages concurrency and replay identity. Revise a failed or no-peak search with new scientific inputs, or retry with changes={}; previous attempts remain recorded automatically. Active jobs prevent revisions. Use ts_inspect for reads.'
+    tool_description: str = 'Revise input groups on the existing TS path. Omitted calculation fields retain settings; explicit empty values clear them. Engine, method or basis changes use {replace: complete_configuration}; profile-reference changes use {replace: {ref: name}}. Proven atom reorderings overwrite current mutable XYZ/MOL sources in canonical order; new incoming atom declarations convert once. Future calls use the returned current atom order with each field\'s documented index base. Historical QM artifacts retain their original order. Declare the intended change and its reason; the runtime manages concurrency and replay identity. Revise a failed or no-peak search with new scientific inputs, or retry with changes={}; previous attempts remain recorded automatically. Queued jobs allow revisions; superseded queued jobs are withdrawn. Running jobs prevent revisions. Use ts_inspect for reads.'
     input_schema: Any = TsResume_input_schema
     output_schema: Any = TsProcess_output_schema
 
@@ -164,6 +178,47 @@ class TsResume(Tool):
             return out
         except (ValueError, OSError) as exc:
             return TsProcess_output_schema(is_success=False, run_id=user_input.run_id, message=f'ts_resume: {exc}')
+
+
+class TsStop(Tool):
+    tool_id: str = 't-ts-stop'
+    tool_name: str = 'ts_stop'
+    tool_description: str = 'Stop an existing TS run from advancing. Queued jobs are withdrawn; running jobs receive cancel_requested for the execution worker to finish safely. Existing results remain available. Stopping is workflow control, not scientific failure. Use ts_resume to restart the stopped run with the intended input changes.'
+    input_schema: Any = TsStop_input_schema
+    output_schema: Any = TsProcess_output_schema
+
+    def is_write(self):
+        return True
+
+    async def tool_call(self, user_input: TsStop_input_schema, session: Session):
+        import asyncio
+
+        from cloudra.services.ts_pipeline_context import pipeline_database
+        from cloudra.tools.core.permission_model import Permission
+        try:
+            if not self.subagent.permission_all() & Permission.WRITE:
+                raise ValueError('TS mutation requires producer write permission')
+            workspace = _resolve_workspace(self)
+            record = await asyncio.to_thread(_read_resume_record, pipeline_database(), workspace,
+                                            user_input.run_id, self.subagent.conversation_id)
+            if self.subagent.conversation_id != record.owner_conversation_id:
+                raise ValueError(f'TS process belongs to a different project ({record.owner_conversation_id})')
+            if session and session.id and session.id != record.owner_session_id:
+                from cloudra.services.ts_pipeline_store import transfer_process_ownership
+                if record.pipeline_id:
+                    await asyncio.to_thread(
+                        transfer_process_ownership,
+                        pipeline_database(),
+                        process_id=record.pipeline_id,
+                        project_id=self.subagent.conversation_id,
+                        new_owner_session_id=session.id,
+                    )
+                record.owner_session_id = session.id
+            from cloudra.tools.core.ts_process import stop
+            record = await asyncio.to_thread(stop, record, user_input.reason)
+            return await asyncio.to_thread(_to_output, record)
+        except (ValueError, OSError) as exc:
+            return TsProcess_output_schema(is_success=False, run_id=user_input.run_id, message=f'ts_stop: {exc}')
 
 
 class TsInspect(Tool):

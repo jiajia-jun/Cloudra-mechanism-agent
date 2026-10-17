@@ -328,6 +328,217 @@ def _script_compute(monkeypatch, first_scan='peak'):
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures('rdkit_chemistry')
+async def test_ts_queued_refinement_revision_same_run(tmp_path, monkeypatch):
+    """An Agent replaces its queued refinement without failing the old job or starting QM."""
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.tools.core.ts_process import load_record
+
+    assert 'ts_queued_refinement_revision_same_run' in TS_SCENARIOS
+    submissions = _script_compute(monkeypatch)
+    payload = water_input(tmp_path)
+
+    def revise(provider):
+        record = load_record(str(tmp_path), 'ts_0001')
+        provider.records.append(record)
+        if len(provider.records) == 1:
+            assert record.job_steps[-1].purpose == 'ts_opt'
+            assert record.job_steps[-1].state == 'ready'
+            assert record.waiting_for == f'job:{record.job_steps[-1].job_id}'
+            provider._scripts['small_mol'][0].tools = [('ts_resume', {
+                'run_id': record.run_id,
+                'reason': 'Update the queued refinement convergence setting',
+                'changes': {'ts_optimization': {'keywords': 'TightSCF'}},
+            })]
+
+    provider = StateProvider(tmp_path, [
+        Step(tools=[('ts_prepare', {'input': payload})]), Step(), Step(stop=True),
+    ], revise)
+    harness = await ScenarioHarness.start(tmp_path, workspace_dir=tmp_path, provider=provider)
+    provider.harness = harness
+    harness.project.settings.method_policy = MethodPolicy(allowed_methods=['hf/sto3g'])
+    try:
+        agent = await harness.spawn('small_mol', protocol='traditional')
+        await harness.wait_terminal(agent)
+        assert [(event['tool_name'], event['is_success']) for event in harness.tool_events(agent)] == [
+            ('ts_prepare', True), ('ts_resume', True),
+        ], harness.describe(agent)
+        first, revised = provider.records[0], provider.records[-1]
+        assert first.run_id == revised.run_id == 'ts_0001'
+        assert first.declaration_revision == 1 and revised.declaration_revision == 2
+        assert revised.input.ts_optimization.keywords == 'TightSCF'
+        assert revised.attempt_history[-1].input == first.input
+        assert [step['purpose'] for step in submissions] == ['ts_opt', 'ts_opt']
+        old, replacement = submissions
+        assert old['id'] != replacement['id'] and old['path'] != replacement['path']
+        assert revised.waiting_for == f"job:{replacement['id']}"
+        assert [step.job_id for step in revised.job_steps] == [replacement['id']]
+        assert Path(old['path']).read_text() == old['input']
+
+        def ledger_state():
+            with ComputeDB().connect() as con:
+                jobs = con.execute('SELECT id,state FROM compute_jobs ORDER BY id').fetchall()
+                processes = con.execute('SELECT COUNT(*) FROM ts_pipeline_processes').fetchone()[0]
+            return jobs, processes
+
+        jobs, processes = await asyncio.to_thread(ledger_state)
+        assert jobs == [(old['id'], 'cancelled'), (replacement['id'], 'ready')]
+        assert processes == 1
+    finally:
+        await harness.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures('rdkit_chemistry')
+@pytest.mark.parametrize('job_state', ['ready', 'running'])
+async def test_ts_stop_prevents_automatic_progression(tmp_path, monkeypatch, job_state):
+    """The Agent stops a durable TS chain; later job events cannot submit its next stage."""
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.services.ts_pipeline_store import get_process
+    from cloudra.tools.core.ts_pipeline_driver import handle_process_job_terminal, reconcile_processes
+    from cloudra.tools.core.ts_process import load_record
+
+    assert 'ts_stop_prevents_automatic_progression' in TS_SCENARIOS
+    submissions = _script_compute(monkeypatch)
+    payload = water_input(tmp_path)
+    reason = 'Stop this TS exploration at the current calculation'
+
+    def request_stop(provider):
+        record = load_record(str(tmp_path), 'ts_0001')
+        provider.records.append(record)
+        if len(provider.records) == 1:
+            assert record.job_steps[-1].purpose == 'ts_opt'
+            assert record.waiting_for == f'job:{record.job_steps[-1].job_id}'
+            if job_state == 'running':
+                with ComputeDB().connect() as con:
+                    con.execute("UPDATE compute_jobs SET state='running' WHERE id=?",
+                                (record.job_steps[-1].job_id,))
+            provider._scripts['small_mol'][0].tools = [('ts_stop', {
+                'run_id': record.run_id, 'reason': reason,
+            })]
+
+    provider = StateProvider(tmp_path, [
+        Step(tools=[('ts_prepare', {'input': payload})]), Step(), Step(stop=True),
+    ], request_stop)
+    harness = await ScenarioHarness.start(tmp_path, workspace_dir=tmp_path, provider=provider)
+    provider.harness = harness
+    harness.project.settings.method_policy = MethodPolicy(allowed_methods=['hf/sto3g'])
+    try:
+        agent = await harness.spawn('small_mol', protocol='traditional')
+        await harness.wait_terminal(agent)
+        assert [(event['tool_name'], event['is_success']) for event in harness.tool_events(agent)] == [
+            ('ts_prepare', True), ('ts_stop', True),
+        ], harness.describe(agent)
+        first, stopped = provider.records[0], provider.records[-1]
+        assert first.run_id == stopped.run_id == 'ts_0001'
+        assert first.declaration_revision == stopped.declaration_revision == 1
+        assert stopped.stop_reason == reason and stopped.terminal is None
+        assert stopped.input == first.input
+        assert len(submissions) == 1 and submissions[0]['purpose'] == 'ts_opt'
+        job = submissions[0]
+        assert Path(job['path']).read_text() == job['input']
+        stop_output = next(event.data['result']['data']
+            for event in harness.core.event_log.query_session(agent.id)
+            if event.type == 'tool.result_recorded' and event.data.get('tool_name') == 'ts_stop')
+        assert stop_output['status'] == 'stopped' and stop_output['result'] is None
+
+        def late_notifications():
+            db = ComputeDB()
+            assert get_process(db, stopped.pipeline_id)['status'] == 'stopped'
+            with db.connect() as con:
+                state = con.execute('SELECT state FROM compute_jobs WHERE id=?', (job['id'],)).fetchone()[0]
+                assert state == ('cancel_requested' if job_state == 'running' else 'cancelled')
+                if job_state == 'running':
+                    con.execute("UPDATE compute_jobs SET state='cancelled' WHERE id=?", (job['id'],))
+            for _ in range(2):
+                handle_process_job_terminal(db, job['id'])
+                reconcile_processes(db, harness.project.id)
+            current = get_process(db, stopped.pipeline_id)
+            assert current['status'] == 'stopped'
+            assert current['record']['stop_reason'] == reason
+            assert current['record']['terminal'] is None
+            with db.connect() as con:
+                assert con.execute('SELECT id,state FROM compute_jobs').fetchall() == [(job['id'], 'cancelled')]
+
+        with use_runtime_authority(harness.core):
+            await asyncio.to_thread(late_notifications)
+        assert len(submissions) == 1
+        assert Path(job['path']).read_text() == job['input']
+    finally:
+        await harness.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures('rdkit_chemistry')
+async def test_ts_stopped_attempt_resumes_same_run(tmp_path, monkeypatch):
+    """An Agent can explicitly retry a stopped attempt through the real writer and driver."""
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.services.ts_pipeline_store import get_process
+    from cloudra.tools.core.ts_process import load_record
+
+    assert 'ts_stopped_attempt_resumes_same_run' in TS_SCENARIOS
+    submissions = _script_compute(monkeypatch)
+    payload = water_input(tmp_path)
+    stop_reason = 'Stop the queued attempt before retrying'
+
+    def stop_then_resume(provider):
+        record = load_record(str(tmp_path), 'ts_0001')
+        provider.records.append(record)
+        if len(provider.records) == 1:
+            provider._scripts['small_mol'][0].tools = [('ts_stop', {
+                'run_id': record.run_id, 'reason': stop_reason,
+            })]
+        elif len(provider.records) == 2:
+            assert record.stop_reason == stop_reason
+            with ComputeDB().connect() as con:
+                assert con.execute('SELECT state FROM compute_jobs WHERE id=?',
+                                   (submissions[0]['id'],)).fetchone()[0] == 'cancelled'
+            provider._scripts['small_mol'][0].tools = [('ts_resume', {
+                'run_id': record.run_id, 'changes': {}, 'reason': 'Retry stopped attempt',
+            })]
+
+    provider = StateProvider(tmp_path, [
+        Step(tools=[('ts_prepare', {'input': payload})]), Step(), Step(), Step(stop=True),
+    ], stop_then_resume)
+    harness = await ScenarioHarness.start(tmp_path, workspace_dir=tmp_path, provider=provider)
+    provider.harness = harness
+    harness.project.settings.method_policy = MethodPolicy(allowed_methods=['hf/sto3g'])
+    try:
+        agent = await harness.spawn('small_mol', protocol='traditional')
+        await harness.wait_terminal(agent)
+        assert [(event['tool_name'], event['is_success']) for event in harness.tool_events(agent)] == [
+            ('ts_prepare', True), ('ts_stop', True), ('ts_resume', True),
+        ], harness.describe(agent)
+        first, stopped, resumed = provider.records[0], provider.records[1], provider.records[-1]
+        assert first.run_id == stopped.run_id == resumed.run_id == 'ts_0001'
+        assert first.pipeline_id == stopped.pipeline_id == resumed.pipeline_id
+        assert first.declaration_revision == stopped.declaration_revision == 1
+        assert resumed.declaration_revision == 2 and resumed.stop_reason is None
+        assert resumed.terminal is None and resumed.blocked is None
+        assert resumed.input == first.input
+        assert resumed.attempt_history[-1].stop_reason == stop_reason
+        assert resumed.attempt_history[-1].input == first.input
+        assert [step['purpose'] for step in submissions] == ['ts_opt', 'ts_opt']
+        old, replacement = submissions
+        assert old['id'] != replacement['id'] and old['path'] != replacement['path']
+        assert resumed.waiting_for == f"job:{replacement['id']}"
+        assert [step.job_id for step in resumed.job_steps] == [replacement['id']]
+        assert Path(old['path']).read_text() == old['input']
+
+        def ledger_state():
+            db = ComputeDB()
+            with db.connect() as con:
+                jobs = con.execute('SELECT id,state FROM compute_jobs ORDER BY id').fetchall()
+            return get_process(db, resumed.pipeline_id)['status'], jobs
+
+        status, jobs = await asyncio.to_thread(ledger_state)
+        assert status == 'waiting'
+        assert jobs == [(old['id'], 'cancelled'), (replacement['id'], 'ready')]
+    finally:
+        await harness.aclose()
+
+
+@pytest.mark.asyncio
 @pytest.mark.usefixtures("rdkit_chemistry")
 async def test_ts_failed_scan_retry_same_run(tmp_path,monkeypatch):
 

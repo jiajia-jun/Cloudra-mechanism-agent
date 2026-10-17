@@ -54,7 +54,7 @@ async def test_prepare_queues_one_path_and_response_replay_reuses_it(tmp_path, m
     second = await invoke(tool, request)
     assert first.is_success and first.status == 'waiting', first.message
     assert first.run_id == second.run_id
-    assert first.next["action"] == 'wait_for_system'
+    assert first.next["action"] == 'resume'
     with ComputeDB().connect() as con:
         assert con.execute('SELECT COUNT(*) FROM compute_jobs').fetchone()[0] == 1
 
@@ -91,6 +91,7 @@ async def test_resume_revises_same_path_and_returns_durable_receipt(tmp_path, mo
 @pytest.mark.asyncio
 @pytest.mark.usefixtures('rdkit_chemistry')
 async def test_new_tool_call_cannot_change_an_active_calculation(tmp_path, monkeypatch):
+    from cloudra.persistence.database import ComputeDB
     from cloudra.services.compute_admission import AdmissionOutcome
 
     monkeypatch.setattr('cloudra.services.compute_admission.admit_job',
@@ -101,6 +102,8 @@ async def test_new_tool_call_cannot_change_an_active_calculation(tmp_path, monke
     tool = owned_tool(TsResume, workspace=tmp_path)
     accepted = await invoke(tool, request, call_id='repair-1')
     assert accepted.is_success
+    with ComputeDB().connect() as con:
+        con.execute("UPDATE compute_jobs SET state='running' WHERE id=?", (accepted.waiting_for[0]['job_id'],))
     update = TsResume_input_schema(run_id=first.run_id, reason='Change the centre',
         changes={'reaction': {'reaction_center': [[1, 3]]}})
     result = await invoke(tool, update, call_id='repair-2')
@@ -198,10 +201,10 @@ async def test_prepare_without_workspace_reports_caller_error():
     assert not result.is_success and 'working directory' in result.message
 
 
-def test_public_surface_has_two_writers_and_readonly_inspection():
+def test_public_surface_has_three_writers_and_readonly_inspection():
     from cloudra.tools import get_tools_lst
     names = {entry.tool_name for entry in get_tools_lst()}
-    assert {name for name in names if name.startswith('ts_')} - {'ts_guess'} == {'ts_prepare','ts_resume','ts_inspect'}
+    assert {name for name in names if name.startswith('ts_')} - {'ts_guess'} == {'ts_prepare','ts_resume','ts_inspect','ts_stop'}
     fields = TsPrepare_input_schema.model_json_schema()['properties']
     assert 'input' in fields and 'compute_estimates' not in fields and 'declaration' not in fields
     assert 'request_key' not in fields and 'workspace_dir' not in fields

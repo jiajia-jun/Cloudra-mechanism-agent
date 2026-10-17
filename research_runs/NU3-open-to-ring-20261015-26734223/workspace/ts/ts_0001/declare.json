@@ -1,0 +1,139 @@
+{
+  "reaction": {
+    "reactant_smiles": "OCCP",
+    "product_smiles": "[H][P@TB14]1([H])([H])CCO1",
+    "charge": 0,
+    "multiplicity": 1,
+    "electronic_character": "closed_shell",
+    "atom_map": [
+      0,
+      1,
+      8,
+      7,
+      2,
+      3,
+      4,
+      5,
+      6,
+      9,
+      10
+    ],
+    "reaction_center": [
+      [
+        1,
+        8
+      ],
+      [
+        1,
+        6
+      ],
+      [
+        8,
+        6
+      ]
+    ]
+  },
+  "calculations": {
+    "dft": {
+      "engine": "orca",
+      "method": "B3LYP",
+      "basis_set": "def2-SVP",
+      "keywords": "D3BJ TightSCF",
+      "frequency_mode": "auto",
+      "orca_blocks": null,
+      "end_setting": ""
+    },
+    "xtb": {
+      "engine": "xtb",
+      "method": "GFN2-xTB",
+      "basis_set": "",
+      "keywords": "",
+      "frequency_mode": "auto",
+      "orca_blocks": null,
+      "end_setting": ""
+    }
+  },
+  "conformers": {
+    "reactant": {
+      "kind": "file",
+      "xyz_path": "inputs/open.xyz",
+      "mol_path": null,
+      "evidence_refs": [
+        "inputs/open.xyz",
+        "inputs/open-freq.out.log"
+      ],
+      "optimization": null,
+      "heavy_atom_binding": null
+    },
+    "product": {
+      "kind": "file",
+      "xyz_path": "inputs/ring.xyz",
+      "mol_path": null,
+      "evidence_refs": [
+        "inputs/ring.xyz",
+        "inputs/ring-freq.out.log"
+      ],
+      "optimization": null,
+      "heavy_atom_binding": {
+        "indices": [
+          2,
+          1,
+          4,
+          3
+        ]
+      }
+    },
+    "guidance": {
+      "ring_order": [],
+      "distance_filters": []
+    }
+  },
+  "guess": {
+    "kind": "provided",
+    "xyz_path": "runs/ts_interp_ts0001/img_06.xyz",
+    "evidence_refs": [
+      "runs/ts_interp_ts0001/img_06.xyz"
+    ]
+  },
+  "ts_optimization": {
+    "ref": "dft"
+  },
+  "verification": {
+    "frequency": {
+      "engine": "orca",
+      "method": "B3LYP",
+      "basis_set": "def2-SVP",
+      "keywords": "D3BJ TightSCF",
+      "frequency_mode": "analytic",
+      "orca_blocks": null,
+      "end_setting": ""
+    },
+    "irc": {
+      "ref": "dft"
+    },
+    "irc_log": null,
+    "reactant_endpoint": {
+      "seed": null,
+      "optimization": {
+        "ref": "dft"
+      },
+      "frequency": {
+        "ref": "dft"
+      }
+    },
+    "product_endpoint": {
+      "seed": null,
+      "optimization": {
+        "ref": "dft"
+      },
+      "frequency": {
+        "ref": "dft"
+      }
+    }
+  },
+  "execution": {
+    "cpus": 8,
+    "memory_mb": 8192,
+    "limits": null
+  }
+}

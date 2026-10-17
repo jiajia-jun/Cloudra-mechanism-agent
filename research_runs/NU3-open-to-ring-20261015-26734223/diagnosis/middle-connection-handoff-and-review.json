@@ -1,0 +1,143 @@
+{
+  "observed_at": "2026-10-14T20:38:26.686757+00:00",
+  "scope": "Public event handoff/review observation for IRC job 20; native F/B scientific assessment delegated separately. No private thinking or LLM payloads read.",
+  "compute_observation": [
+    {
+      "id": 20,
+      "state": "done",
+      "session_id": "as_63de2ab4d28941b5",
+      "end_timestamp": 1792010151.733472,
+      "notified_at": 1792010152.2710779
+    },
+    {
+      "id": 21,
+      "state": "done",
+      "session_id": "as_63de2ab4d28941b5",
+      "end_timestamp": 1792010210.1592991,
+      "notified_at": 1792010210.575618
+    },
+    {
+      "id": 22,
+      "state": "done",
+      "session_id": "as_63de2ab4d28941b5",
+      "end_timestamp": 1792010229.132245,
+      "notified_at": 1792010230.684232
+    },
+    {
+      "id": 23,
+      "state": "done",
+      "session_id": "as_63de2ab4d28941b5",
+      "end_timestamp": 1792010300.515296,
+      "notified_at": 1792010300.917281
+    },
+    {
+      "id": 24,
+      "state": "running",
+      "session_id": "as_63de2ab4d28941b5",
+      "end_timestamp": -1,
+      "notified_at": null
+    }
+  ],
+  "handoff": {
+    "job20_notified_meaning": "notified_at acknowledges broker handling, NOT proof of model-visible delivery. In frozen compute_notify.py217-220 the system-owned TS process consumes terminal jobs and marks them notified without visible notice while workflow status remains waiting/running.",
+    "runtime_evidence": "Job21 reactant_opt was started immediately after job20; S1 and Coordinator ts_inspect success receipts show revision55 waiting/refine, job21 running, IRC stage done.",
+    "no_direct_compute_notice": "No agent.message_injected Compute notice observed for job20 in bounded post-terminal window.",
+    "s1_wake": {
+      "injected": "evt_26490662b79f46e7",
+      "message_id": "msg_076658934b2b4bd7",
+      "consumed": "evt_e5b5006f3aee4c68",
+      "at": "2026-10-14T20:36:00",
+      "origin": "scheduled reminder, not job20 terminal broadcast"
+    },
+    "coordinator_wake": {
+      "injected": "evt_6f1ff19680f64f13",
+      "at": "2026-10-14T20:36:07",
+      "origin": "condition reminder check_succeeded; subsequent ts_inspect receipt proves actual handling, not merely queued injection"
+    },
+    "supervisor": "No new post-job20-terminal Supervisor tool actions/messages observed through captured 20:36:40 public window. Earlier ongoing-IRC review is recorded below."
+  },
+  "actual_read_receipts": [
+    {
+      "request_event": "evt_342e302ece2a4743",
+      "result_event": "evt_76e757a710054bcf",
+      "session": "as_9725c841901b4ca0",
+      "at": "2026-10-14T20:33:37.825747+00:00",
+      "tool": "bash",
+      "is_success": true,
+      "exit_code": 0
+    },
+    {
+      "request_event": "evt_58a2eaf1ef6a4625",
+      "result_event": "evt_e0000234d577491c",
+      "session": "as_5758d6a35fab40cf",
+      "at": "2026-10-14T20:34:14.625539+00:00",
+      "tool": "log_parser",
+      "is_success": true,
+      "exit_code": null
+    },
+    {
+      "request_event": "evt_4c600dcc97f041c8",
+      "result_event": "evt_a6950b26cf2f461b",
+      "session": "as_63de2ab4d28941b5",
+      "at": "2026-10-14T20:36:13.752064+00:00",
+      "tool": "bash",
+      "is_success": true,
+      "exit_code": 0
+    },
+    {
+      "request_event": "evt_b3c60de8b1d64c07",
+      "result_event": "evt_801de976d4ce4d90",
+      "session": "as_63de2ab4d28941b5",
+      "at": "2026-10-14T20:36:03.216252+00:00",
+      "tool": "ts_inspect",
+      "is_success": true,
+      "exit_code": null
+    },
+    {
+      "request_event": "evt_ae2fe17a35544898",
+      "result_event": "evt_5c9e2781b26c4c1f",
+      "session": "as_9725c841901b4ca0",
+      "at": "2026-10-14T20:36:09.979206+00:00",
+      "tool": "ts_inspect",
+      "is_success": true,
+      "exit_code": null
+    },
+    {
+      "request_event": "evt_81dfe404c5234d79",
+      "result_event": "evt_00dfe37ce1ca43bc",
+      "session": "as_63de2ab4d28941b5",
+      "at": "2026-10-14T20:36:30.691593+00:00",
+      "tool": "bash",
+      "is_success": true,
+      "exit_code": 0
+    }
+  ],
+  "role_findings": {
+    "s1": "After IRC terminal, successful shell receipt evt_a6950b26cf2f461b includes both native irc_IRC_F.xyz and irc_IRC_B.xyz coordinate blocks plus IRC energy summary. Also read imaginary-mode block successfully. Public conclusion A↔TS↔B/H1 is provisional pending endpoint minima, and S1 scheduled followup then parked.",
+    "coordinator": "Before terminal, successful evt_76e757a710054bcf actually parsed forward/backward trajectory XYZ and emitted distances (F20/B9 frames at that time). Wrote CONFIRMED and absence-of-betaine language into PROCESS; later reads workflow state and waits for endpoint minima. Own reminder contains planned evidence submissions/removal of betaine, but a plan/reminder is not an executed submission.",
+    "supervisor": "Successfully parsed running calc20 log via evt_e0000234d577491c (F20/B12, irc_both_directions_converged=false); successfully edited PROCESS via evt_791ad1286d37446c to mark CONFIRMED premature, require endpoint minima/correspondence and submission/review. No direct native XYZ read receipt from Supervisor in this bounded interval.",
+    "scientific_limits": "Neither single observed IRC nor a scan establishes absence of all possible alternative betaine pathways. Supervisor caution had real written effect, but its maintenance stop is not final scientific acceptance. This audit does not change the short-IRC acceptance standard."
+  },
+  "delivery": {
+    "exit_requests": [],
+    "review_decision_rows": 0,
+    "latest_coordinator_gate": {
+      "event": "evt_de63914a6ede478c",
+      "at": "2026-10-14T20:36:21.592773+00:00",
+      "action": "wait_background",
+      "source": "dag",
+      "explicit_stop": true,
+      "reason": "background work is still pending; stop only suspends",
+      "request_id": null,
+      "basis": "background_wait"
+    },
+    "status": "pending; no final exit request/verdict at database observation",
+    "not_completion": "Coordinator/S1 succeeded states accompanying wait_background are parked runs, not final scientific delivery."
+  },
+  "process": {
+    "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/PROCESS.md",
+    "sha256": "bbb06874d9158b433343411e89bf29d5ff22386c332c3f1a22464db44eb35e36",
+    "caution_edit_after_sha256": "bbb06874d9158b433343411e89bf29d5ff22386c332c3f1a22464db44eb35e36"
+  },
+  "interventions": []
+}

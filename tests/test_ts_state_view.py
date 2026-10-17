@@ -111,3 +111,56 @@ def test_usage_ledger_overrides_fallback_and_preserves_actual_jobs(tmp_path, acc
     assert view.usage["limits"] == {"max_compute_actions": 8}
     assert view.usage["jobs"] == [dict(job_id=17, runtime_seconds=None, cpus=4,
         memory_mb=None, measured_cpu_hours=None, allocated_cpu_hours=None)]
+
+
+@pytest.mark.parametrize("job_states,can_write,action", [
+    (["ready"], True, "resume"),
+    (["running"], True, "wait_for_system"),
+    (["cancel_requested"], True, "wait_for_system"),
+    (["ready", "running"], True, "wait_for_system"),
+    (["ready"], False, "inspect"),
+    (["running"], False, "inspect"),
+])
+def test_queued_jobs_allow_revising_inputs_before_compute_starts(tmp_path, job_states, can_write, action):
+    state = dict(format_version=6, run_id="ts_queued", revision=1, run_dir=str(tmp_path),
+                 stage="refine", waiting_for=[17],
+                 input={"ts_optimization": dict(engine="orca", method="HF", basis_set="STO-3G")})
+    jobs = [dict(job_id=17 + index, state=job_state) for index, job_state in enumerate(job_states)]
+
+    view = build_process_view(state, jobs, can_write=can_write)
+
+    assert view.status == "waiting"
+    assert view.waiting_for == jobs
+    assert view.next == dict(action=action, required_inputs=[],
+                             editable_groups=["ts_optimization"] if action == "resume" else [])
+
+
+@pytest.mark.parametrize("job_states,can_write,action", [
+    (["cancel_requested"], True, "wait_for_system"),
+    (["ready"], True, "wait_for_system"),
+    (["cancelled"], True, "resume"),
+    (["done", "failed", "cancelled"], True, "resume"),
+    ([], True, "resume"),
+    (["cancel_requested"], False, "inspect"),
+    (["cancelled"], False, "inspect"),
+])
+def test_stopped_process_reports_reason_and_waits_for_cancellation(tmp_path, job_states, can_write, action):
+    from copy import deepcopy
+
+    reason = "Use the alternative conformer before continuing"
+    state = dict(format_version=6, run_id="ts_stopped", revision=2, run_dir=str(tmp_path),
+                 stage="refine", waiting_for="job:17", stop_reason=reason,
+                 blocked={"message": "Earlier input is missing", "needs": ["verification.irc"]},
+                 input={"ts_optimization": dict(engine="orca", method="HF", basis_set="STO-3G")})
+    jobs = [dict(job_id=17 + index, state=job_state) for index, job_state in enumerate(job_states)]
+    before = deepcopy(state), deepcopy(jobs)
+
+    view = build_process_view(state, jobs, can_write=can_write)
+
+    assert view.status == "stopped"
+    assert reason in view.message
+    assert view.result is None
+    assert view.waiting_for == [job for job in jobs if job["state"] not in {"done", "failed", "cancelled"}]
+    assert view.next == dict(action=action, required_inputs=["verification.irc"] if action == "resume" else [],
+                             editable_groups=["ts_optimization"] if action == "resume" else [])
+    assert (state, jobs) == before

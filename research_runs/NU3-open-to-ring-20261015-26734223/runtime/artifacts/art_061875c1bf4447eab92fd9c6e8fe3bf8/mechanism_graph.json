@@ -1,0 +1,120 @@
+{
+  "title": "NU3 open-chain phosphine <-> 1,2-oxaphosphetane: verified connection",
+  "system": {
+    "formula": "C2H7OP",
+    "atoms": 11,
+    "charge": 0,
+    "multiplicity": 1,
+    "phase": "gas phase (salt-free)",
+    "level": "B3LYP-D3(BJ)/def2-SVP (ORCA 6.1.1), TightSCF"
+  },
+  "species": [
+    {
+      "name": "open-chain phosphine",
+      "smiles": "OCCP",
+      "identity": "H2P-CH2-CH2-OH (2-hydroxyethylphosphine)",
+      "energy_hartree_workflow_minimum": -496.634711,
+      "native_log": "ts/ts_0001/jobs/declaration_0008/reactant_frequency/.cloudra/calc-22.out.log (opt: reactant_opt/.cloudra/calc-21.out.log)",
+      "imaginary_frequencies": 0,
+      "note": "user-provided reference minimum inputs/open-freq.out.log E=-496.635832 Ha; the IRC-derived endpoint re-optimizes to a slightly different OH rotamer at E=-496.634711 Ha (+0.70 kcal/mol)"
+    },
+    {
+      "name": "1,2-oxaphosphetane ring",
+      "smiles": "C1C[PH3]O1",
+      "identity": "cyclic 1,2-lambda5-oxaphosphetane, 4-membered P-C-C-O ring, pentacoordinate P with 3 H",
+      "energy_hartree_workflow_minimum": -496.585622,
+      "native_log": "ts/ts_0001/jobs/declaration_0008/product_frequency/.cloudra/calc-24.out.log (opt: product_opt/.cloudra/calc-23.out.log)",
+      "imaginary_frequencies": 0,
+      "note": "user-provided reference minimum inputs/ring-freq.out.log E=-496.585625 Ha"
+    }
+  ],
+  "steps": [
+    {
+      "name": "chain-to-ring direct",
+      "from": "open-chain phosphine",
+      "to": "1,2-oxaphosphetane ring",
+      "mechanism": "single concerted elementary step; hydroxyl-H migration O->P coupled to P-O ring closure",
+      "ts_energy_hartree": -496.546904,
+      "ts_imaginary_frequency_cm": -1022.18,
+      "ts_mode": {
+        "formula": "dominated by the migrating H (atom 7); watch-pair projections O-H 0.969, P-H 0.187, P-O 0.075; heavy-atom displacement fraction 0.004",
+        "ts_geometry": {
+          "P-O_ang": 2.28,
+          "P-Hmig_ang": 1.43,
+          "O-Hmig_ang": 1.55
+        }
+      },
+      "barrier_forward_kcal": 55.1,
+      "barrier_forward_kcal_vs_user_minimum": 55.8,
+      "barrier_reverse_kcal": 24.3,
+      "reaction_energy_open_to_ring_kcal": 30.8,
+      "reaction_energy_open_to_ring_kcal_vs_user_minima": 31.51,
+      "atom_map_product_order_to_reactant_index": [
+        1,
+        2,
+        9,
+        8,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        11
+      ],
+      "reaction_center_reactant_order": [
+        [
+          2,
+          9
+        ],
+        [
+          2,
+          7
+        ],
+        [
+          9,
+          7
+        ]
+      ],
+      "irc": {
+        "forward_trajectory": "ts/ts_0001/jobs/declaration_0008/irc/irc_IRC_F_trj.xyz",
+        "backward_trajectory": "ts/ts_0001/jobs/declaration_0008/irc/irc_IRC_B_trj.xyz",
+        "forward_endpoint": "ring minimum (P-O 1.804, H on P, O-H 2.331 A) - lies between TS and B",
+        "backward_endpoint": "open-chain minimum (P-O 2.520, O-H 1.010, P-H 1.871 A) - lies between TS and A",
+        "proof": "both IRC endpoint geometries lie between the TS and the corresponding verified endpoint minima; short IRC (forward 20 frames, backward 9 frames) not required to reach the minima"
+      },
+      "native_logs": {
+        "ts_opt": "ts/ts_0001/jobs/declaration_0008/ts_opt/.cloudra/calc-18.out.log",
+        "ts_frequency": "ts/ts_0001/jobs/declaration_0008/frequency/.cloudra/calc-19.out.log",
+        "irc": "ts/ts_0001/jobs/declaration_0008/irc/.cloudra/calc-20.out.log",
+        "source_minimum": "ts/ts_0001/jobs/declaration_0008/reactant_frequency/.cloudra/calc-22.out.log",
+        "target_minimum": "ts/ts_0001/jobs/declaration_0008/product_frequency/.cloudra/calc-24.out.log"
+      },
+      "evidence_snapshot_dir": ".cloudra/evidence/"
+    }
+  ],
+  "considered_and_rejected": [
+    {
+      "channel": "stepwise via phosphonium-alkoxide betaine [H3P+]-CH2-CH2-[O-]",
+      "verdict": "falsified",
+      "evidence": "no betaine stationary point: GFN2-xTB re-optimization of a genuine zwitterion seed collapses to the ring (runs/explore/betaine_guess.out vs B_ring_Aorder.out, E equal to ~0.001 kcal); neither B3LYP-D3(BJ)/def2-SVP IRC direction passes through a betaine basin. Betaine species and its two candidate steps were removed from the mechanism graph."
+    }
+  ],
+  "workflow": {
+    "kind": "durable ts_prepare/ts_resume",
+    "run_id": "ts_0001",
+    "result_verified": true,
+    "declaration_revision": 8
+  },
+  "history_facts": {
+    "A_lt_B_given": "inputs/open-freq.out.log E=-496.635832; inputs/ring-freq.out.log E=-496.585625; open chain lower by 31.5 kcal/mol"
+  },
+  "limitations": [
+    "Single electronic level B3LYP-D3(BJ)/def2-SVP; electronic barriers only (no ZPE/Gibbs corrections).",
+    "Strong method sensitivity for hypervalent P: GFN2/GFN1-xTB place the ring only ~2.6 kcal/mol above the open chain vs +31.5 at B3LYP-D3(BJ)/def2-SVP; semiempirical numbers must not be quoted as barriers (runs/explore/SUMMARY.md).",
+    "IRC was short; endpoint minima were obtained by separate re-optimization/frequency, not by running the IRC to completion.",
+    "The IRC-derived open-chain endpoint is a slightly different OH rotamer, +0.70 kcal/mol above the user-provided open-chain minimum; barriers are given both ways.",
+    "Gas phase, no solvent/counterion; single conformer per species; no exhaustive conformational search.",
+    "mechanism_predict (FlowER) gave a useless 1-species/1-edge network for this hypervalent-P transformation and was not used as evidence."
+  ]
+}

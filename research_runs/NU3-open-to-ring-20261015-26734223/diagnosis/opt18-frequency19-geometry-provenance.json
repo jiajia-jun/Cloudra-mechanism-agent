@@ -1,0 +1,9 @@
+{
+  "opt_final_xyz": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/ts_opt/refine.xyz",
+  "frequency_input": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/frequency/frequency.inp",
+  "opt_atom_count": 11,
+  "freq_atom_count": 11,
+  "same_element_order": true,
+  "max_coordinate_difference_angstrom": 4.5851801999674535e-07,
+  "scope": "Mechanical native Opt-final to Freq-input provenance; no additional scientific acceptance threshold or IRC conclusion."
+}

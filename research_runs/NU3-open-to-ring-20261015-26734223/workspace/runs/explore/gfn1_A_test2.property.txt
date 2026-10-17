@@ -1,0 +1,49 @@
+*************************************************
+******************* ORCA 6.1.1 ******************
+*************************************************
+$Calculation_Status
+   &GeometryIndex 0
+   &version [&Type "String"] "6.1.1"
+   &progName [&Type "String"] "orca"
+   &Status [&Type "String"] "NORMAL TERMINATION"
+$End
+$Geometry
+   &GeometryIndex 1
+   &NAtoms [&Type "Integer"] 11
+   &NCorelessECP [&Type "Integer"] 0
+   &NGhostAtoms [&Type "Integer"] 0
+   &CartesianCoordinates [&Type "Coordinates", &Dim(11,4), &Units "Bohr"] 
+              C      0.149518873374   -0.321178628509    1.296540269004
+              P      0.793852765030    1.486895670597   -1.669754396336
+              H      1.497281189690   -1.868089261017    1.505110400651
+              H     -1.752826095780   -1.112336568483    1.140042731504
+              H      3.416084634120    1.540325995178   -1.370854221652
+              H      0.900318669299   -0.641064552062   -3.215677628042
+              H     -1.470103772041    4.207674338721    1.954517699889
+              C      0.258932958281    1.427227662405    3.595337044300
+              O     -1.610918302280    3.301401066785    3.534625567131
+              H     -0.087987595213    0.347519369912    5.322732415193
+              H      2.151785303940    2.284239647968    3.733130601649
+$End
+$Single_Point_Data
+   &GeometryIndex 1
+   &FinalEnergy [&Type "Double"]      -1.5325273629390001e+01  "Final single point energy"
+   &Converged [&Type "Boolean"] true
+$End
+$Calculation_Info
+   &GeometryIndex 1
+   &Mult [&Type "Integer"] 1
+   &Charge [&Type "Integer"] 0
+   &NumOfAtoms [&Type "Integer"] 11
+   &NumOfElectrons [&Type "Integer"] 0
+   &NumOfBasisFuncts [&Type "Integer"] 0
+   &NumOfAuxCBasisFuncts [&Type "Integer"] 0
+   &NumOfAuxJBasisFuncts [&Type "Integer"] 0
+   &NumOfAuxJKBasisFuncts [&Type "Integer"] 0
+   &NumOfCABSBasisFuncts [&Type "Integer"] 0
+$End
+$Calculation_Timings
+   &GeometryIndex 1
+   &XTB [&Type "Double"]       1.7448999999999937e-02
+   &SUM [&Type "Double"]       1.7448999999999937e-02
+$End

@@ -25,7 +25,8 @@ def waiting_process(tmp_path):
         pipeline_id=pid,
         stage="refine",
         waiting_for=f"job:{job}",
-        job_steps=[TsJobStep(purpose="ts_opt", job_id=job, input_path="/fixture/input.inp")],
+        job_steps=[TsJobStep(purpose="ts_opt", job_id=job, input_path="/fixture/input.inp",
+                             actual_calculation=TsInput.model_validate(payload()['input']).ts_optimization)],
     )
     from pathlib import Path
 
@@ -77,10 +78,53 @@ def test_empty_resume_is_query_and_waiting_adjustment_is_rejected(tmp_path):
     from cloudra.services.ts_pipeline_store import get_process
     from cloudra.tools.core.ts_process import TsProcessRecord, resume
 
-    db, pid, _ = waiting_process(tmp_path)
+    db, pid, job = waiting_process(tmp_path)
+    with db.connect() as con:
+        con.execute("UPDATE compute_jobs SET state='running' WHERE id=?", (job,))
     record = TsProcessRecord.model_validate(get_process(db, pid)["record"])
     with pytest.raises(ValueError, match="active"):
         resume(record, TsResumeRequest(changes={"reaction":{"atom_map":[0,1]}}, reason="fix mapping", request_key="mapping", expected_revision=get_process(db,pid)["revision"]))
+
+
+@pytest.mark.parametrize('finishes_during_resume', [False, True])
+def test_retained_queued_job_records_result_in_its_original_declaration(tmp_path, monkeypatch, finishes_during_resume):
+    import json
+
+    from cloudra.services.ts_pipeline_store import commit_input_revision, get_process
+    from cloudra.tools.core.ts_pipeline_driver import handle_process_job_terminal
+    from cloudra.tools.core.ts_process import TsProcessRecord, resume
+
+    db, pid, job = waiting_process(tmp_path)
+    record = TsProcessRecord.model_validate(get_process(db, pid)['record'])
+    if finishes_during_resume:
+        def commit_then_finish(*args, **kwargs):
+            result = commit_input_revision(*args, **kwargs)
+            with db.connect() as con:
+                con.execute("UPDATE compute_jobs SET state='failed' WHERE id=?", (job,))
+            return result
+
+        monkeypatch.setattr('cloudra.services.ts_pipeline_store.commit_input_revision', commit_then_finish)
+    revised = resume(record, TsResumeRequest(
+        changes={'verification': {'irc': {'replace': {
+            'engine': 'orca', 'method': 'b97-3c', 'basis_set': '', 'keywords': '',
+        }}}},
+        reason='Revise the future IRC without replacing the queued TS optimization',
+        request_key='queued-irc-change', expected_revision=record.revision,
+    ))
+    assert revised.declaration_revision == 2
+    if not finishes_during_resume:
+        assert revised.waiting_for == f'job:{job}'
+    assert revised.job_steps[0].source_input_revision == 1
+    with db.connect() as con:
+        con.execute("UPDATE compute_jobs SET state='failed' WHERE id=?", (job,))
+    handle_process_job_terminal(db, job)
+    with db.connect() as con:
+        source_revision, evidence = con.execute(
+            'SELECT declaration_revision,evidence FROM ts_pipeline_stages WHERE job_id=?', (job,),
+        ).fetchone()
+    assert source_revision == 1
+    assert evidence is not None
+    assert json.loads(evidence)['status'] == 'failed'
 
 
 def test_prepare_response_retry_returns_original_checkpoint(tmp_path, monkeypatch):
@@ -164,6 +208,8 @@ def test_resume_reload_uses_authoritative_waiting_checkpoint(tmp_path):
     db, pid, job = waiting_process(tmp_path)
     stale = TsProcessRecord.model_validate(get_process(db, pid)["record"])
     stale.waiting_for = ""
+    with db.connect() as con:
+        con.execute("UPDATE compute_jobs SET state='running' WHERE id=?", (job,))
     with pytest.raises(ValueError, match="active"):
         resume(stale, TsResumeRequest(changes={"reaction":{"atom_map":[0,1]}}, reason="fix mapping", request_key="mapping", expected_revision=get_process(db,pid)["revision"]))
     assert get_process(db, pid)["record"]["waiting_for"] == f"job:{job}"

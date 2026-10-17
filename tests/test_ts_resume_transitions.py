@@ -63,17 +63,46 @@ def test_failed_scan_point_count_change_preserves_failure_history(tmp_path):
     assert record.scan_step.state == 'failed'
 
 
-def test_active_job_and_empty_resume_are_rejected_without_side_effects(tmp_path):
-    from cloudra.tools.core.ts_process import TsJobStep
+def test_empty_resume_without_failed_attempt_is_rejected(tmp_path):
     from cloudra.tools.core.ts_revision import plan_input_revision
 
     record = record_fixture(tmp_path)
     with pytest.raises(ValueError, match='ts_inspect'):
         plan_input_revision(record, request(record, {}))
+
+
+@pytest.mark.parametrize('waiting_for', ['', 'job:1'])
+def test_queued_job_allows_input_revision_with_or_without_waiting_marker(tmp_path, waiting_for):
+    from cloudra.tools.core.ts_process import TsJobStep
+    from cloudra.tools.core.ts_revision import plan_input_revision, revise_record
+
+    record = record_fixture(tmp_path, stage='refine', waiting_for=waiting_for)
     record.job_steps = [TsJobStep(purpose='ts_opt', job_id=1, state='ready')]
+    before = record.model_dump(mode='json')
+    change = request(record, {'ts_optimization': {'keywords': 'D3BJ TightSCF'}})
+
+    planned = plan_input_revision(record, change)
+    revised = revise_record(record, change, planned)
+
+    assert [ref.job_id for ref in planned.invalidated] == [1]
+    assert revised.declaration_revision == 2
+    assert revised.input.ts_optimization.keywords == 'D3BJ TightSCF'
+    assert revised.job_steps == []
+    assert revised.waiting_for == ''
+    assert record.model_dump(mode='json') == before
+
+
+@pytest.mark.parametrize('job_state', ['running', 'cancel_requested'])
+def test_started_job_still_rejects_input_revision_without_side_effects(tmp_path, job_state):
+    from cloudra.tools.core.ts_process import TsJobStep
+    from cloudra.tools.core.ts_revision import plan_input_revision
+
+    record = record_fixture(tmp_path, stage='refine', waiting_for='job:1')
+    record.job_steps = [TsJobStep(purpose='ts_opt', job_id=1, state=job_state)]
+    before = record.model_dump(mode='json')
     with pytest.raises(ValueError, match='active'):
-        plan_input_revision(record, request(record, {'reaction': {'charge': 1}}))
-    assert record.job_steps[0].state == 'ready'
+        plan_input_revision(record, request(record, {'ts_optimization': {'keywords': 'D3BJ TightSCF'}}))
+    assert record.model_dump(mode='json') == before
 
 
 

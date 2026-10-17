@@ -1,0 +1,32 @@
+[
+  {
+    "content": "确定机理假设",
+    "status": "done",
+    "id": "t1"
+  },
+  {
+    "content": "propose mechanism graph",
+    "status": "done",
+    "id": "t2"
+  },
+  {
+    "content": "TS 搜索+freq+双向短IRC+端点",
+    "status": "done",
+    "id": "t3"
+  },
+  {
+    "content": "提交证据并 Supervisor 审查",
+    "status": "done",
+    "id": "t4"
+  },
+  {
+    "content": "mechanism_graph.json 与 PROCESS.md",
+    "status": "done",
+    "id": "t5"
+  },
+  {
+    "content": "Supervisor 整体终审",
+    "status": "done",
+    "id": "t6"
+  }
+]

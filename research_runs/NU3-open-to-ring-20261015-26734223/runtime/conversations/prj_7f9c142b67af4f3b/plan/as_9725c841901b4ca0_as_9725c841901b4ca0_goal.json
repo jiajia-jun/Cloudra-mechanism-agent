@@ -1,0 +1,5 @@
+{
+  "objective": "独立验证稳定开链中间体 H2P-CH2-CH2-OH (OCCP) 与 PH3 四元环 1,2-氧杂磷杂环丁烷 (C1C[PH3]O1) 之间的真实连接，含收敛TS、唯一虚频、双向短IRC方向与两端身份。",
+  "completion_criteria": "交付 mechanism_graph.json + 原生日志；每步给出相对自身起始最低点的电子能垒；B3LYP-D3(BJ)/def2-SVP；TS恰一个虚频，IRC双向短程方向证明，两端为已验证零虚频最低点；PROCESS.md 增量记录；Supervisor 终审。证据不足则如实 partial。",
+  "current_focus": "确定实际反应路径（协同单TS vs 经甜菜碱的两步），并搭建 DAG 图与委派计算。"
+}

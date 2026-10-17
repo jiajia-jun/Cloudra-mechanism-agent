@@ -1,0 +1,5 @@
+用户已授权优先验证已得到的稳定开链中间体H2P-CH2-CH2-OH（OCCP）如何连接到PH3四元环（C1C[PH3]O1），请独立探索这段连接。
+工作目录：/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace。起始结构、优化与零虚频原生日志在inputs/，先读inputs/README.md。两端均11原子C2H7OP、总电荷0、单重态；正确保持原子和物种身份，实际连接仍是待验证假设。
+沿用盐自由气相模型及上一轮计算方法：最终量化证据用ORCA或Gaussian的B3LYP-D3(BJ)/def2-SVP，可用已有xTB/PM7生成初猜；不更换理论级别。依据真实结果调整初猜或步骤，有限失败不等于不可达。以收敛TS、恰一个虚频、双向短IRC方向与两端身份、零虚频最低点核实连接；短IRC不要求完全走到底。
+使用既有DAG流程，保持PROCESS.md增量记录观察、假设、原生证据路径与已算/待提交/已审查。交付mechanism_graph.json和原生日志，写明实际物种、每步电子能垒相对于自身起始最低点及局限。完成计算后由Supervisor严格整体终审，判断影响最终交付；证据不够则如实partial。不要把workflow标记或另选最低点当真实连接证明。
+本任务是独立科研后续验证，不是Benchmark重跑，无Gold或参考能垒提示。

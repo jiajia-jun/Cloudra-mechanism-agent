@@ -1,0 +1,46 @@
+{
+  "checked_at": "2026-10-14T20:20:29.238924+00:00",
+  "scope": "independent research observer helper only",
+  "file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/observer.py",
+  "sha256": "5f558e37b67735f841e5e097f5e6d406b6b3d680f86aa038236fe0ba7c234377",
+  "cause": "Coordinator succeeded denotes an ended run and may be parked at wait_background; the observer previously ignored other live project agents.",
+  "changes": [
+    "Require all observed project agents terminal, preserving Coordinator terminal requirement.",
+    "Read actual agent.completion_gate event and expose latest Coordinator action/basis.",
+    "Keep observing succeeded Coordinator parked at wait_background or wait_review, including the gap after children finish before wake.",
+    "Preserve all jobs terminal, both locks free, no pending compute or review notifications; no scientific-completion inference."
+  ],
+  "verification": {
+    "compileall": "passed",
+    "ruff_E9_F63_F7_F82": "passed",
+    "synthetic_cases": [
+      "terminal_coordinator_no_background",
+      "coordinator_succeeded_two_children_and_supervisor_running_zero_jobs",
+      "supervisor_alone_still_running",
+      "all_terminal_but_coordinator_wait_background_before_wake",
+      "all_terminal_but_coordinator_wait_review",
+      "all_terminal_after_final_gate",
+      "queued_child_blocks_exit",
+      "cancelled_child_is_terminal",
+      "running_job_blocks_exit",
+      "undelivered_compute_blocks_exit",
+      "held_calc_lock_blocks_exit",
+      "held_guard_lock_blocks_exit",
+      "released_locks_permit_exit",
+      "pending_review_notification_blocks_exit",
+      "all_conditions_settled_permit_runtime_exit_only"
+    ]
+  },
+  "live_evidence": {
+    "coordinator_latest_gate_observed": {
+      "action": "wait_background",
+      "source": "dag",
+      "explicit_stop": true,
+      "basis": "background_wait"
+    },
+    "observation": "Read only public event; no live agent messages."
+  },
+  "processes_started": false,
+  "production_source_modified": false,
+  "scientific_rules_modified": false
+}

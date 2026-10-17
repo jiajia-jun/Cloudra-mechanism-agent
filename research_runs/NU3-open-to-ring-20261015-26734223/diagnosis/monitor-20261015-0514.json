@@ -1,0 +1,44 @@
+{
+  "recorded_at": "2026-10-14T21:14:45.126456+00:00",
+  "project_id": "prj_7f9c142b67af4f3b",
+  "runtime_finished": true,
+  "observer_final_checked_at": "2026-10-14T21:03:33.325247+00:00",
+  "all25_jobs_terminal": true,
+  "all50_locks_free": true,
+  "notifications_clear": true,
+  "final_exit": {
+    "request_id": "req_c838ce9a7542453a83ca02177191fb80",
+    "decision_id": "dec_0f1ffb1ad89045148727adafa047bfc1",
+    "verdict": "accept",
+    "request_created_at": "2026-10-14 21:02:43",
+    "decided_at": "2026-10-14 21:03:10",
+    "exit_request_count": 1,
+    "basis_fingerprint_request": "sha256:d4e131bb91c4f85e0adecc13f12401c9541abb86e13de9a5a26d7c3c2e5a6956",
+    "basis_fingerprint_decision": "sha256:d4e131bb91c4f85e0adecc13f12401c9541abb86e13de9a5a26d7c3c2e5a6956",
+    "disposition_id": "disp_9b89e528ad004bf2ac666cebef2abb91",
+    "disposition": "complete",
+    "complete": true,
+    "unresolved": [],
+    "waived": [],
+    "notifications": [
+      {
+        "notification_id": "notif_b90c71f383654b3f92e74480703240b3",
+        "kind": "review_decision",
+        "decision_id": "dec_0f1ffb1ad89045148727adafa047bfc1",
+        "request_id": "req_c838ce9a7542453a83ca02177191fb80",
+        "recipient_session_id": "as_9725c841901b4ca0",
+        "payload": "{}",
+        "state": "sent",
+        "created_at": "2026-10-14 21:03:10"
+      }
+    ]
+  },
+  "middle_scientific_connection_verified": true,
+  "native_middle_report": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/diagnosis/irc20-native-connection-observation.json",
+  "species_route_continuity_report": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/diagnosis/cross-run-native-route-continuity.json",
+  "given_A25_conformer_report": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/diagnosis/given-A25-native-minimum-observation.json",
+  "full_route_scope": "RC -> OCCP -> PH3 ring -> ethylene + PH3O at species level. Individual actual minimum conformers are distinguished; neither IRC complete convergence nor unique/favored route is asserted.",
+  "final_delivery_materials": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/diagnosis/final-artifacts/manifest.json",
+  "ordinary_followup_formal_benchmark_score": null,
+  "reference_preparation": "Observer-only new reference/diagnostic scores preparing separately under conditional authorization; no source change or research restart."
+}

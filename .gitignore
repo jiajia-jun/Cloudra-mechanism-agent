@@ -38,6 +38,7 @@ env/
 # Secrets
 .env
 *.env
+.api_token
 
 # Runtime data (managed by platformdirs, not version control)
 # 根级运行时目录；不递归命中 ideapool/tasks/ 等版本化题库源资产。

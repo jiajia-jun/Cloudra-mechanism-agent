@@ -28,7 +28,7 @@ class TsProcessView(BaseModel):
     run_id: str = ""
     revision: int = 0
     run_dir: str = ""
-    status: Literal["running", "waiting", "blocked", "ended", "isolated"] | None = None
+    status: Literal["running", "waiting", "blocked", "ended", "stopped", "isolated"] | None = None
     stage: str = ""
     result: TsVerdict | None = Field(default=None, description="Scientific verdict: outcome, verified, recorded reason and evidence references. Tool-call success and an ended workflow do not imply scientific verification.")
     waiting_for: list[dict] = Field(default_factory=list)
@@ -79,6 +79,7 @@ def build_process_view(state: dict, jobs: list[dict], *, can_write: bool) -> TsP
     waiting = bool(state.get("waiting_for"))
     blocked = deepcopy(state.get("blocked"))
     terminal = state.get("terminal")
+    stop_reason = state.get("stop_reason")
     structures, structure_issues = _current_structure_tables(state)
     if structure_issues:
         blocked = dict(failure_class='canonical_structure_unavailable', stage=state['stage'],
@@ -89,10 +90,12 @@ def build_process_view(state: dict, jobs: list[dict], *, can_write: bool) -> TsP
                           if row.get("stage") == state.get("stage")), {})
     detail = (blocked or {}).get("message") or current_stage.get("detail", "")
     supported = state.get("format_version") == 6
-    status = "isolated" if not supported else "waiting" if active or waiting else "ended" if terminal else "blocked" if blocked else "running"
+    status = "isolated" if not supported else "stopped" if stop_reason else "waiting" if active or waiting else "ended" if terminal else "blocked" if blocked else "running"
     next_action = dict(action="inspect", required_inputs=[], editable_groups=[])
     if supported and can_write:
-        if active or waiting or status == "running":
+        queued_only = bool(active) and all(job.get("state") == "ready" for job in active)
+        must_wait = bool(active) if stop_reason else (active or waiting or status == "running") and not queued_only
+        if must_wait:
             next_action["action"] = "wait_for_system"
         else:
             next_action.update(action="resume", editable_groups=list(state.get("input", {})),
@@ -163,15 +166,15 @@ def build_process_view(state: dict, jobs: list[dict], *, can_write: bool) -> TsP
         row['input_revision_relation'] = ('unknown' if source_revision is None or state.get('declaration_revision') is None
                                           else 'current' if source_revision == state['declaration_revision'] else 'historical')
     export_revision = state.get('export_revision')
-    message = "Unsupported input format: automatic continuation isolated; existing compute jobs remain intact." if not supported else detail
+    message = "Unsupported input format: automatic continuation isolated; existing compute jobs remain intact." if not supported else f"Stopped: {stop_reason}" if stop_reason else detail
     if export_revision is not None and export_revision != state['revision']:
         export_note = f'JSON export is stale (revision {export_revision}); use this authoritative revision {state["revision"]} and its current atom tables.'
         message = f'{message}; {export_note}' if message else export_note
     return TsProcessView(
         run_id=state["run_id"], revision=state["revision"], run_dir=state["run_dir"], status=status,
         stage=state["stage"], result=dict(outcome=terminal, verified=terminal == "verified", reason=detail,
-                                           evidence_refs=state.get("evidence_candidates", [])) if supported and terminal else None,
-        waiting_for=active or deepcopy(jobs) if waiting else active, failed_attempt=state.get("failed_attempt"),
+                                           evidence_refs=state.get("evidence_candidates", [])) if supported and terminal and not stop_reason else None,
+        waiting_for=active or deepcopy(jobs) if waiting and not stop_reason else active, failed_attempt=state.get("failed_attempt"),
         available_results=available, structures=structures, blocked=blocked, next=next_action, methods=method_entries,
         usage={"interventions": state.get("intervention_count", 0), "compute_actions": len(jobs),
                "model_calls": None, "limits": value.get("execution", {}).get("limits"),

@@ -1,0 +1,56 @@
+{
+  "command_id": "cmd_58f99a1611f54423",
+  "accepted": true,
+  "event_id": "evt_60e8b6f7c26b4481",
+  "data": {
+    "id": "as_9725c841901b4ca0",
+    "project_id": "prj_7f9c142b67af4f3b",
+    "role_id": "coordinator",
+    "display_name": "Coordinator",
+    "parent_session_id": null,
+    "requested_by_session_id": null,
+    "state": "queued",
+    "settings": {
+      "model": "",
+      "base_url": "",
+      "temperature": 1.0,
+      "max_tokens": 32768,
+      "context_window": 0,
+      "top_p": null,
+      "frequency_penalty": 0.0,
+      "presence_penalty": 0.0,
+      "timeout": 0,
+      "yolo": true,
+      "unattended": true,
+      "schedule_mode": false,
+      "visual_mode": true,
+      "clean_context": true,
+      "native_search": "auto",
+      "native_search_params": {},
+      "reasoning_effort": null,
+      "orchestration_mode": "dag_guided",
+      "invocation_protocol": "javascript",
+      "api_key_set": false
+    },
+    "settings_revision": 0,
+    "capabilities": {
+      "permissions": {
+        "read": true,
+        "write": true,
+        "manage": true,
+        "script": true,
+        "destructive": true
+      },
+      "can_spawn": true,
+      "spawn_roles": null,
+      "tools": [
+        "*"
+      ]
+    },
+    "current_run": null,
+    "current_task": null,
+    "created_at": "2026-10-14T20:06:54.468183Z",
+    "updated_at": "2026-10-14T20:06:54.468185Z",
+    "completion": null
+  }
+}

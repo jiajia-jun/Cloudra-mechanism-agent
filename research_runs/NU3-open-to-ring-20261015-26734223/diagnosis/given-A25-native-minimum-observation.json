@@ -1,0 +1,229 @@
+{
+  "observed_utc": "2026-10-14T21:01:17.014152+00:00",
+  "scope": "Read-only calc25 native minimum and given-A versus actual native-B conformer distinction; no new QM, threshold or reference adoption.",
+  "run_dir": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223",
+  "job_id": 25,
+  "actual_input": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/verify_A/open_reopt.inp",
+  "actual_native_log": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/verify_A/.cloudra/calc-25.out.log",
+  "actual_final_XYZ": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/verify_A/open_reopt.xyz",
+  "native_method_line": "! Opt Freq B3LYP def2-SVP D3BJ TightSCF",
+  "native_charge_multiplicity": "* xyz 0 1",
+  "native_markers": [
+    {
+      "line": 55,
+      "text": "Program Version 6.1.1  -  RELEASE   -"
+    },
+    {
+      "line": 1331,
+      "text": "***        THE OPTIMIZATION HAS CONVERGED     ***"
+    },
+    {
+      "line": 3050,
+      "text": "****ORCA TERMINATED NORMALLY****"
+    }
+  ],
+  "opt_converged": true,
+  "normal_termination": true,
+  "frequency_rows": 33,
+  "n_imaginary": 0,
+  "negative_frequencies": [],
+  "all_single_point_energies": [
+    {
+      "line": 1196,
+      "energy_hartree": -496.635832375993
+    },
+    {
+      "line": 2275,
+      "energy_hartree": -496.635839540864
+    }
+  ],
+  "final_frequency_electronic_energy_hartree": -496.635839540864,
+  "final_XYZ_optimization_energy_comment": "Coordinates from ORCA-job open_reopt E -496.635839540864",
+  "full11_atom_order": [
+    {
+      "index": 1,
+      "element": "C"
+    },
+    {
+      "index": 2,
+      "element": "P"
+    },
+    {
+      "index": 3,
+      "element": "H"
+    },
+    {
+      "index": 4,
+      "element": "H"
+    },
+    {
+      "index": 5,
+      "element": "H"
+    },
+    {
+      "index": 6,
+      "element": "H"
+    },
+    {
+      "index": 7,
+      "element": "H"
+    },
+    {
+      "index": 8,
+      "element": "C"
+    },
+    {
+      "index": 9,
+      "element": "O"
+    },
+    {
+      "index": 10,
+      "element": "H"
+    },
+    {
+      "index": 11,
+      "element": "H"
+    }
+  ],
+  "element_counts": {
+    "C": 2,
+    "P": 1,
+    "H": 7,
+    "O": 1
+  },
+  "actual_chemical_identity": "H2P-CH2-CH2-OH / OCCP, P-bound H5/H6 and O-bound H7; not PH3 ring or betaine.",
+  "given_A_source": {
+    "actual_source_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/inputs/open.xyz",
+    "input_same11_atom_order": true,
+    "input_vs_given_XYZ_max_coordinate_difference_angstrom": 4.908740025566516e-09,
+    "origin": "Copied old52 optimized A coordinate source; input25 is the given-A geometry rounded to8 decimals. Native20 B instead supplied independent21/22 endpoints."
+  },
+  "given_A25_native_geometry": {
+    "C1_P2": 1.8833957889353332,
+    "C1_C8": 1.5320775358276297,
+    "P2_O9": 3.2082661174997567,
+    "C8_O9": 1.4078406325860935,
+    "P2_H5": 1.4298239291691428,
+    "P2_H6": 1.4269753404934475,
+    "P2_H7": 2.7132970664806275,
+    "O9_H7": 0.9685327386260348,
+    "OH_dihedral_H7_O9_C8_C1_degrees": -56.618427066825745
+  },
+  "comparisons": [
+    {
+      "comparison": "calc25_minus_old_OPEN53",
+      "other_XYZ": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/benchmark_smoke_data/final-review-normal-NU3-20261015-ea6936f5/sandboxes/NU3/batch_8758d928b8794e87/ts/ts_0001/jobs/declaration_0007/product_frequency/optimized.xyz",
+      "same11_atom_order": true,
+      "same_element_counts": true,
+      "other_frequency_energy_hartree": -496.63583237594,
+      "calc25_frequency_energy_hartree": -496.635839540864,
+      "energy_difference_hartree": -7.164923999880557e-06,
+      "energy_difference_kcal_mol": -0.004496057690415024,
+      "other_geometry": {
+        "C1_P2": 1.8833773643070049,
+        "C1_C8": 1.5320610782178365,
+        "P2_O9": 3.2073605753436887,
+        "C8_O9": 1.4078612963083401,
+        "P2_H5": 1.4298484960585862,
+        "P2_H6": 1.426995798307409,
+        "P2_H7": 2.7120389744481916,
+        "O9_H7": 0.9685316054528115,
+        "OH_dihedral_H7_O9_C8_C1_degrees": -56.62344943337958
+      },
+      "calc25_geometry": {
+        "C1_P2": 1.8833957889353332,
+        "C1_C8": 1.5320775358276297,
+        "P2_O9": 3.2082661174997567,
+        "C8_O9": 1.4078406325860935,
+        "P2_H5": 1.4298239291691428,
+        "P2_H6": 1.4269753404934475,
+        "P2_H7": 2.7132970664806275,
+        "O9_H7": 0.9685327386260348,
+        "OH_dihedral_H7_O9_C8_C1_degrees": -56.618427066825745
+      },
+      "geometry_differences": {
+        "C1_P2": 1.842462832835068e-05,
+        "C1_C8": 1.6457609793185668e-05,
+        "P2_O9": 0.0009055421560679733,
+        "C8_O9": -2.0663722246627714e-05,
+        "P2_H5": -2.4566889443411455e-05,
+        "P2_H6": -2.0457813961538562e-05,
+        "P2_H7": 0.0012580920324358758,
+        "O9_H7": 1.1331732233665903e-06,
+        "OH_dihedral_H7_O9_C8_C1_degrees": 0.005022366553816937
+      },
+      "coordinates_exactly_equal": false,
+      "interpretation": "Same PH2/OH open-chain chemical identity. Given-A reoptimization reproduces the old low-energy starting structure with small numerical/geometry differences."
+    },
+    {
+      "comparison": "calc25_minus_actual_IRC20_B_minimum22",
+      "other_XYZ": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/reactant_frequency/optimized.xyz",
+      "same11_atom_order": true,
+      "same_element_counts": true,
+      "other_frequency_energy_hartree": -496.634713483234,
+      "calc25_frequency_energy_hartree": -496.635839540864,
+      "energy_difference_hartree": -0.0011260576300173852,
+      "energy_difference_kcal_mol": -0.706611831105896,
+      "other_geometry": {
+        "C1_P2": 1.8829801231547827,
+        "C1_C8": 1.5306238049073324,
+        "P2_O9": 3.2270971064654996,
+        "C8_O9": 1.4128855094178723,
+        "P2_H5": 1.4302846432210619,
+        "P2_H6": 1.4281250376423629,
+        "P2_H7": 2.921802255071174,
+        "O9_H7": 0.9661242408080856,
+        "OH_dihedral_H7_O9_C8_C1_degrees": -76.73311571584689
+      },
+      "calc25_geometry": {
+        "C1_P2": 1.8833957889353332,
+        "C1_C8": 1.5320775358276297,
+        "P2_O9": 3.2082661174997567,
+        "C8_O9": 1.4078406325860935,
+        "P2_H5": 1.4298239291691428,
+        "P2_H6": 1.4269753404934475,
+        "P2_H7": 2.7132970664806275,
+        "O9_H7": 0.9685327386260348,
+        "OH_dihedral_H7_O9_C8_C1_degrees": -56.618427066825745
+      },
+      "geometry_differences": {
+        "C1_P2": 0.0004156657805505226,
+        "C1_C8": 0.0014537309202973248,
+        "P2_O9": -0.01883098896574298,
+        "C8_O9": -0.005044876831778788,
+        "P2_H5": -0.00046071405191905335,
+        "P2_H6": -0.0011496971489153296,
+        "P2_H7": -0.20850518859054645,
+        "O9_H7": 0.0024084978179492733,
+        "OH_dihedral_H7_O9_C8_C1_degrees": 20.11468864902116
+      },
+      "coordinates_exactly_equal": false,
+      "interpretation": "Same OCCP species, but distinct OH conformation and energy from the actual native IRC-B endpoint minimum. This calculation does not overwrite where native IRC20 B went."
+    }
+  ],
+  "baseline_separation": {
+    "given_A_reference_minimum": {
+      "job": 25,
+      "energy_hartree": -496.635839540864,
+      "origin": "Given inputs/open.xyz reoptimized with Opt Freq B3LYP def2-SVP D3BJ TightSCF; zero imaginary."
+    },
+    "actual_native_IRC_B_A_conformer": {
+      "jobs": [
+        21,
+        22
+      ],
+      "energy_hartree": -496.634713483234,
+      "origin": "True nativeIRC20 B outer frame ->21 optimization ->22 zero-imaginary frequency. This source trace remains unchanged by calc25."
+    },
+    "barrier_baseline_arithmetic": {
+      "same_TS_using_given_A25_instead_of_native_A22_raises_barrier_kcal_mol": 0.706611831105896,
+      "meaning": "Arithmetic baseline difference only. Do not silently exchange25 and22 or claim that nativeIRC20 ended directly at the exact given-A coordinates."
+    }
+  },
+  "conclusion": "Calc25 is a real converged zero-imaginary B3LYP-D3BJ/def2-SVP reoptimization of the given A coordinates. It supports the given-A reference minimum separately from the distinct nativeIRC-B A conformer21/22. Both have the same OCCP chemical identity; their conformation and energy are not identical. No new OH/RMSD acceptance rule, unique-path claim or new reference adoption is made.",
+  "actions": {
+    "source_configuration_or_scientific_material_changes": false,
+    "new_QM_observer_API_or_live_message": false,
+    "Gold_or_private_reasoning_used": false
+  }
+}

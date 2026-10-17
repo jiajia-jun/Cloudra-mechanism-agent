@@ -379,12 +379,12 @@ def _stale_atom_references(record, updated, changes, correspondences):
 def plan_input_revision(record, request: TsResumeRequest) -> TsRevisionReceipt:
     """Return affected job references; do not mutate record, files or ledger."""
     steps = list(record.job_steps) + ([record.scan_step] if record.scan_step else [])
-    if record.waiting_for or any(step.state in ('ready', 'running', 'cancel_requested') for step in steps):
+    if any(step.state in ('running', 'cancel_requested') for step in steps):
         raise ValueError('active compute jobs prevent input revisions; use ts_inspect')
     updated = _apply_revision_input(record, request.changes)
     differences = _input_revision_differences(record, updated)
     failed = _failed_step(record)
-    if not differences and failed is None:
+    if not differences and failed is None and record.stop_reason is None:
         raise ValueError('no input change or failed attempt to retry; use ts_inspect')
     before_limits, after_limits = record.input.execution.limits, updated.execution.limits
     if after_limits and after_limits.max_interventions is not None and record.intervention_count + 1 > after_limits.max_interventions:
@@ -442,6 +442,7 @@ def revise_record(record, request, receipt):
     revised.attempt_history.append(TsAttemptHistory(declaration_revision=record.declaration_revision,
         selected_candidate_id=record.selected_candidate_id, job_steps=[*record.job_steps, *([record.scan_step] if record.scan_step else [])], stage_records=record.stage_records,
         input=record.input, terminal=record.terminal, blocked=record.blocked, failed_attempt=record.failed_attempt,
+        stop_reason=record.stop_reason,
         reason=request.reason))
     source_hashes = _revision_source_hashes(record, apply_input_changes(record.input, request.changes))
     if plan_input_revision(record, request) != receipt:
@@ -537,7 +538,11 @@ def revise_record(record, request, receipt):
     if failed is not None and failed.purpose == 'candidate_evaluation':
         revised.optimization_checkpoints = {}
     revised.evidence_candidates = [artifact for row in revised.stage_records for artifact in row.artifacts]
-    revised.terminal, revised.blocked, revised.waiting_for = None, None, ''
+    revised.terminal, revised.blocked = None, None
+    revised.stop_reason = None
+    retained_steps = [*revised.job_steps, *([revised.scan_step] if revised.scan_step else [])]
+    revised.waiting_for = record.waiting_for if any(
+        record.waiting_for == f'job:{step.job_id}' for step in retained_steps) else ''
     revised.failed_attempt = None
     revised.intervention_count += 1
     return revised
@@ -731,7 +736,7 @@ def resume_revised_process(record, request, *, event_sink=None):
             step.state = _step_state(current, step)
         if current.waiting_for and all(s.state not in ('ready', 'running', 'cancel_requested') for s in [*current.job_steps, *([current.scan_step] if current.scan_step else [])]):
             current.waiting_for = ''
-        if (_failed_step(current) is None and request.changes.model_fields_set and apply_input_changes(current.input,request.changes) == current.input
+        if (current.stop_reason is None and _failed_step(current) is None and request.changes.model_fields_set and apply_input_changes(current.input,request.changes) == current.input
                 and not any(_file_source_drift(current, role) or _missing_source_arrived(current, role)
                             for role in ('reactant', 'product'))):
             return current

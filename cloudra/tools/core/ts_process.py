@@ -116,6 +116,7 @@ class TsAttemptHistory(BaseModel):
     terminal: TsTerminal | None = None
     blocked: TsBlocked | None = None
     failed_attempt: dict | None = None
+    stop_reason: str | None = None
 
 
 class TsProcessRecord(BaseModel):
@@ -155,6 +156,7 @@ class TsProcessRecord(BaseModel):
     stage: TsStage = "declare"
     stage_records: list[TsStageRecord] = Field(default_factory=list)
     terminal: Optional[TsTerminal] = None
+    stop_reason: str | None = None
     blocked: Optional[TsBlocked] = None
     intervention_count: int = 0
     path_kind: PathKind = "not_attempted"
@@ -3045,7 +3047,7 @@ def _refine(record: TsProcessRecord) -> TsProcessRecord:
 
     还没到终态时本阶段置 ``waiting`` 并**不推事件**：等计算不算"阻塞"，agent 不该被叫醒。
     作业终态由既有的 compute 通知路径交给系统 driver，
-    系统 driver 重新读账本并推进；agent 只处理受阻后的显式调整。
+    系统 driver 重新读账本并推进；agent 可在任务尚未启动时主动修订输入。
     """
     from cloudra.services.compute_store import TERMINAL_STATES
 
@@ -3815,7 +3817,7 @@ def advance(record: TsProcessRecord) -> TsProcessRecord:
     **有界**：``max_interventions`` 限制 agent 介入次数，耗尽即落终态（``search_failed``），
     不无限续；路径精修的轮数上限由 ``path_refinement_runs`` 声明，未声明时用 runner 默认。
     """
-    if record.is_terminal:
+    if record.is_terminal or record.stop_reason:
         return record
     limits = record.input.execution.limits
     if limits and limits.max_interventions is not None and record.intervention_count > limits.max_interventions:
@@ -3893,6 +3895,19 @@ def resume(record: TsProcessRecord, request: TsResumeRequest,
     """Accept a durable input revision before automatically continuing."""
     from cloudra.tools.core.ts_revision import resume_revised_process
     return resume_revised_process(record, request, event_sink=event_sink)
+
+
+def stop(record: TsProcessRecord, reason: str) -> TsProcessRecord:
+    """Stop this pipeline and request cancellation through the compute ledger."""
+    from cloudra.infra.flocks import locked
+    from cloudra.services.ts_pipeline_context import pipeline_database, require_pipeline_producer
+    from cloudra.services.ts_pipeline_store import stop_process
+
+    require_pipeline_producer(record.owner_conversation_id, record.owner_session_id)
+    with locked(str(Path(record.run_dir) / '.pipeline.lock')):
+        state = stop_process(pipeline_database(), process_id=record.pipeline_id,
+            project_id=record.owner_conversation_id, owner_id=record.owner_session_id, reason=reason)
+    return TsProcessRecord.model_validate(state)
 
 
 

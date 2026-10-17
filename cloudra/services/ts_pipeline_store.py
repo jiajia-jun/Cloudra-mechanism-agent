@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 from pathlib import Path
 from typing import Literal
 
@@ -92,10 +93,15 @@ def _persist_prepared_revision(con, process_id, record, receipt):
     if scope is None or scope[2] != receipt.previous_revision or scope[3] != receipt.previous_input_revision:
         raise ValueError('stale process revision during source normalization')
     active = con.execute('SELECT 1 FROM ts_pipeline_stages s JOIN compute_jobs j ON j.id=s.job_id '
-                         "WHERE s.process_id=? AND j.state NOT IN ('done','failed','cancelled') LIMIT 1",
+                         "WHERE s.process_id=? AND j.state IN ('running','cancel_requested') LIMIT 1",
                          (process_id,)).fetchone()
     if active:
         raise ValueError('active stage job prevents input revision')
+    for ref in receipt.invalidated:
+        if ref.job_id is not None:
+            con.execute("UPDATE compute_jobs SET state='cancelled', end_timestamp=?, "
+                        "last_error='superseded by TS input revision' WHERE id=? AND state='ready'",
+                        (time.time(), ref.job_id))
     value = TsInput.model_validate(record['input'])
     budget = _check_revision_budget(con, process_id, value)
     if budget:
@@ -220,7 +226,7 @@ def commit_input_revision(db: ComputeDB, *, process_id: str, request: TsResumeRe
                     or record['declaration_revision'] != receipt.input_revision):
                 raise ValueError('revision receipt mismatch')
             active = con.execute('SELECT 1 FROM ts_pipeline_stages s JOIN compute_jobs j ON j.id=s.job_id '
-                                 "WHERE s.process_id=? AND j.state NOT IN ('done','failed','cancelled') LIMIT 1",
+                                 "WHERE s.process_id=? AND j.state IN ('running','cancel_requested') LIMIT 1",
                                  (process_id,)).fetchone()
             if active:
                 raise ValueError('active stage job prevents input revision')
@@ -365,7 +371,7 @@ class StageBindingRequest(CatalogModel):
 
 
 class StageEvidence(CatalogModel):
-    status: Literal['done', 'failed', 'blocked']
+    status: Literal['done', 'failed', 'blocked', 'cancelled']
     artifacts: list[str]
     input_hash: str
     detail: str = ''
@@ -403,6 +409,50 @@ def get_process(db: ComputeDB, process_id: str) -> dict | None:
         return None
     return dict(process_id=row[0], payload=json.loads(row[1]), declaration_revision=row[2], revision=row[3],
                 status=row[4], record=json.loads(row[5]) if row[5] else None)
+
+
+def stop_process(db: ComputeDB, *, process_id: str, project_id: str,
+                 owner_id: str | None, reason: str) -> dict:
+    """Record a scoped stop and its job cancellations in one transaction."""
+    from cloudra.persistence.fs_utils import atomic_write_json
+    from cloudra.tools.core.ts_process import PROCESS_JSON_NAME, TsProcessRecord
+
+    reason = reason.strip()
+    if not reason:
+        raise ValueError('stop reason required')
+
+    def operation():
+        with db.connect() as con:
+            con.execute('BEGIN IMMEDIATE')
+            row = con.execute('SELECT project_id,owner_id,revision,record FROM ts_pipeline_processes '
+                              'WHERE process_id=?', (process_id,)).fetchone()
+            if row is None or row[:2] != (project_id, owner_id):
+                raise ValueError('process owner mismatch')
+            state = TsProcessRecord.model_validate_json(row[3])
+            if state.is_terminal or state.stop_reason:
+                return state.model_dump(mode='json')
+            con.execute("UPDATE compute_jobs SET state='cancelled', end_timestamp=?, "
+                        "last_error='TS pipeline stopped' WHERE state='ready' AND id IN "
+                        '(SELECT job_id FROM ts_pipeline_stages WHERE process_id=?)',
+                        (time.time(), process_id))
+            con.execute("UPDATE compute_jobs SET state='cancel_requested' WHERE state='running' AND id IN "
+                        '(SELECT job_id FROM ts_pipeline_stages WHERE process_id=?)', (process_id,))
+            jobs = dict(con.execute('SELECT j.id,j.state FROM ts_pipeline_stages s '
+                                    'JOIN compute_jobs j ON j.id=s.job_id WHERE s.process_id=?', (process_id,)))
+            for step in [*state.job_steps, *([state.scan_step] if state.scan_step else [])]:
+                if step.job_id in jobs:
+                    step.state = jobs[step.job_id]
+            state.stop_reason = reason
+            state.revision = row[2] + 1
+            con.execute("UPDATE ts_pipeline_processes SET record=?,status='stopped',revision=? WHERE process_id=?",
+                        (state.model_dump_json(), state.revision, process_id))
+            return state.model_dump(mode='json')
+
+    with _rewrite_lock(db):
+        _recover_source_rewrite(db, process_id)
+        state = retry_on_locked(operation)
+        atomic_write_json(str(Path(state['run_dir']) / PROCESS_JSON_NAME), state)
+    return state
 
 
 def read_process_snapshot(db: ComputeDB, *, project_id: str, run_id: str, workspace_dir: str) -> tuple[dict, list[dict]]:
@@ -469,12 +519,14 @@ def bind_stage_job(db: ComputeDB, *, process_id: str, declaration_revision: int,
     def operation():
         with db.connect() as con:
             con.execute('BEGIN IMMEDIATE')
-            scope = con.execute('SELECT project_id,owner_id,declaration_revision FROM ts_pipeline_processes '
+            scope = con.execute("SELECT project_id,owner_id,declaration_revision,json_extract(record,'$.stop_reason') FROM ts_pipeline_processes "
                                 'WHERE process_id=?', (process_id,)).fetchone()
             if scope is None or scope[:2] != (job.conversation_id, job.session_id):
                 raise ValueError('stage job owner mismatch')
             if scope[2] != declaration_revision:
                 raise ValueError('stale declaration revision')
+            if scope[3]:
+                raise ValueError('TS pipeline is stopped; use ts_resume before submitting work')
             key = (process_id, declaration_revision, stage_key, attempt)
             existing = con.execute('SELECT job_id,input_hash FROM ts_pipeline_stages '
                                    'WHERE process_id=? AND declaration_revision=? AND stage_key=? AND attempt=?', key).fetchone()
@@ -502,7 +554,7 @@ def bind_stage_job(db: ComputeDB, *, process_id: str, declaration_revision: int,
 
 
 def commit_stage_result(db: ComputeDB, *, process_id: str, expected_revision: int, stage_key: str,
-                        attempt: int, evidence: dict) -> bool:
+                        attempt: int, evidence: dict, declaration_revision: int | None = None) -> bool:
     result = StageEvidence.model_validate(evidence)
     def operation():
         with db.connect() as con:
@@ -511,7 +563,7 @@ def commit_stage_result(db: ComputeDB, *, process_id: str, expected_revision: in
                               (process_id,)).fetchone()
             if row is None or row[1] != expected_revision:
                 return False
-            key = (process_id, row[0], stage_key, attempt)
+            key = (process_id, declaration_revision if declaration_revision is not None else row[0], stage_key, attempt)
             old = con.execute('SELECT evidence FROM ts_pipeline_stages WHERE process_id=? '
                               'AND declaration_revision=? AND stage_key=? AND attempt=?', key).fetchone()
             if old is None:
@@ -587,7 +639,7 @@ def save_process_record(db: ComputeDB, *, process_id: str, record: dict,
     state = TsProcessRecord.model_validate(record)
     if state.pipeline_id != process_id:
         raise ValueError('record process mismatch')
-    status = 'completed' if state.terminal == 'verified' else 'failed' if state.terminal else 'blocked' if state.blocked else 'waiting' if state.waiting_for else 'running'
+    status = 'stopped' if state.stop_reason else 'completed' if state.terminal == 'verified' else 'failed' if state.terminal else 'blocked' if state.blocked else 'waiting' if state.waiting_for else 'running'
     def operation():
         with db.connect() as con:
             con.execute('BEGIN IMMEDIATE')

@@ -105,7 +105,7 @@ def test_next_is_state_and_permission_dependent(tmp_path):
     assert mutable.next["required_inputs"] == ["guess"]
     assert "recovery_required" not in mutable.next
     active = build_process_view(record, [{"job_id": 1, "state": "ready"}], can_write=True)
-    assert active.next["action"] == "wait_for_system"
+    assert active.next["action"] == "resume"
     missing = dict(record, blocked=dict(record["blocked"], failure_class="missing_input", needs=["verification.irc"]))
     assert "recovery_required" not in build_process_view(missing, [], can_write=True).next
 

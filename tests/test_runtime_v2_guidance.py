@@ -298,6 +298,7 @@ def test_process_reflection_updates_one_run_and_ignores_inspection_metadata(tmp_
 @pytest.mark.parametrize("status,result", [
     ("waiting", None),
     ("running", None),
+    ("stopped", None),
     ("ended", {"outcome": "verified", "verified": True, "reason": "Verified", "evidence_refs": []}),
 ])
 def test_process_reflection_is_cleared_when_attempt_resumes_or_is_verified(tmp_path, status, result):
@@ -310,6 +311,19 @@ def test_process_reflection_is_cleared_when_attempt_resumes_or_is_verified(tmp_p
     _after(stage, ctx, call, ToolResult(is_success=True, data={**data, "status": status, "result": result}))
     assert _reflection_pins(notices) == {}
     assert notices._local_seqs["as_g"] == 2
+
+
+def test_stop_retracts_the_previous_hint_to_repair_that_pipeline(tmp_path):
+    notices = NoticeManager()
+    stage = GuidanceStage()
+    ctx = _ctx('small_mol', notices)
+    data = _process_view(tmp_path)
+    _after(stage, ctx, ToolCall(id='old-candidate', name='ts_inspect', arguments={}),
+           ToolResult(is_success=True, data=data))
+    assert _reflection_pins(notices)
+    _after(stage, ctx, ToolCall(id='stop', name='ts_stop', arguments={}),
+           ToolResult(is_success=True, data={**data, 'status': 'stopped', 'result': None}))
+    assert not _reflection_pins(notices)
 
 
 @pytest.mark.parametrize("failure_class", [

@@ -23,7 +23,9 @@ def advance_process(db: ComputeDB, process_id: str) -> dict:
         record = TsProcessRecord.model_validate(state['record'])
         from cloudra.services.exploration_budget_store import settle_process_jobs
         settle_process_jobs(db, process_id)
-        if record.is_terminal or record.blocked:
+        if record.is_terminal or (record.blocked and not record.stop_reason):
+            return state
+        if record.stop_reason and not record.waiting_for:
             return state
         if record.waiting_for:
             from cloudra.services.compute_store import TERMINAL_STATES
@@ -49,7 +51,7 @@ def advance_process(db: ComputeDB, process_id: str) -> dict:
             with db.connect() as con:
                 binding=con.execute('SELECT declaration_revision,stage_key,attempt,evidence FROM ts_pipeline_stages WHERE job_id=?',(int(token[2]),)).fetchone()
                 path, engine=con.execute('SELECT path,jobtype FROM compute_jobs WHERE id=?',(int(token[2]),)).fetchone()
-            if binding and binding[0]==record.declaration_revision and binding[3] is None:
+            if binding and binding[3] is None:
                 artifacts=[path]
                 helper_result=str(Path(path).with_suffix('.chem-result.json'))
                 if Path(helper_result).is_file():
@@ -63,12 +65,17 @@ def advance_process(db: ComputeDB, process_id: str) -> dict:
                 frozen_binding = None
                 if binding[1] in {'ts_opt', 'frequency', 'irc'} and log_path.is_file():
                     frozen_binding = _direction_atom_binding(record)
+                    if frozen_binding:
+                        frozen_binding['declaration_revision'] = binding[0]
                 committed=commit_stage_result(db,process_id=process_id,expected_revision=state['revision'],
-                    stage_key=binding[1],attempt=binding[2],evidence=dict(status='done' if job[0]=='done' else 'failed',
+                    stage_key=binding[1],attempt=binding[2],declaration_revision=binding[0],evidence=dict(status=job[0],
                         artifacts=artifacts,input_hash=digest or '',detail='Authoritative execution state: '+job[0]+'. Scientific qualification is a separate stage.',
                         atom_binding=frozen_binding, log_sha256=hashlib.sha256(log_path.read_bytes()).hexdigest() if frozen_binding else None))
                 if not committed:
                     raise ValueError('stage result checkpoint changed concurrently')
+            for step in [*record.job_steps, *([record.scan_step] if record.scan_step else [])]:
+                if step.job_id == int(token[2]):
+                    step.state = job[0]
             record.waiting_for = ''
         record = advance(record)
         save_record(record)

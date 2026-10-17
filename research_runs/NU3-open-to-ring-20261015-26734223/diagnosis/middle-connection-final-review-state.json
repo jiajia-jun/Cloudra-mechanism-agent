@@ -1,0 +1,412 @@
+{
+  "observed_at": "2026-10-14T20:51:10.825913+00:00",
+  "public_events_through": "2026-10-14T20:47:54.911373+00:00",
+  "scope": "Read-only role handoff, evidence review, final-exit and reminder state; no QM/scientific re-evaluation.",
+  "requests": [
+    {
+      "request_id": "rev_7dc9beb13825408c890fd9c561706e67",
+      "kind": "evidence",
+      "state": "resolved",
+      "created_at": "2026-10-14T20:39:12.501546+00:00"
+    },
+    {
+      "request_id": "rev_65b404647c554285a5aceeb8d41162db",
+      "kind": "evidence",
+      "state": "resolved",
+      "created_at": "2026-10-14T20:39:12.619078+00:00"
+    },
+    {
+      "request_id": "rev_06862484c5c940a4a26651e33720e4a1",
+      "kind": "evidence",
+      "state": "resolved",
+      "created_at": "2026-10-14T20:39:12.784776+00:00"
+    },
+    {
+      "request_id": "req_7124ae71c89d41c8a71b050f0993bf80",
+      "kind": "exception",
+      "state": "superseded",
+      "created_at": "2026-10-14 20:41:07"
+    },
+    {
+      "request_id": "rev_41c3e5bebd4646b8b54a0f617d315345",
+      "kind": "evidence",
+      "state": "superseded",
+      "created_at": "2026-10-14T20:43:23.155998+00:00"
+    },
+    {
+      "request_id": "rev_583c9ad1c7444f95bcdc6683360f5fa8",
+      "kind": "evidence",
+      "state": "resolved",
+      "created_at": "2026-10-14T20:43:27.699894+00:00"
+    },
+    {
+      "request_id": "rev_b440ac0fbda346a7bcebf9bcc07526c9",
+      "kind": "evidence",
+      "state": "resolved",
+      "created_at": "2026-10-14T20:43:27.871101+00:00"
+    }
+  ],
+  "decisions": [
+    {
+      "decision_id": "dec_3828423349194173a88692cf17ab1481",
+      "request_id": "rev_65b404647c554285a5aceeb8d41162db",
+      "verdict": "accept",
+      "created_at": "2026-10-14 20:42:25"
+    },
+    {
+      "decision_id": "dec_17ff16a309e64abdab0c046e6483d74a",
+      "request_id": "rev_7dc9beb13825408c890fd9c561706e67",
+      "verdict": "needs_evidence",
+      "created_at": "2026-10-14 20:42:31"
+    },
+    {
+      "decision_id": "dec_4d9d2ff253c541a7873a625ce543815a",
+      "request_id": "rev_06862484c5c940a4a26651e33720e4a1",
+      "verdict": "accept",
+      "created_at": "2026-10-14 20:42:36"
+    },
+    {
+      "decision_id": "dec_78b4ba6ec8f74a2491a0689421e4f7c1",
+      "request_id": "rev_583c9ad1c7444f95bcdc6683360f5fa8",
+      "verdict": "accept",
+      "created_at": "2026-10-14 20:43:56"
+    },
+    {
+      "decision_id": "dec_ed97c7b36cdc48d38a5c063be067680a",
+      "request_id": "rev_b440ac0fbda346a7bcebf9bcc07526c9",
+      "verdict": "accept",
+      "created_at": "2026-10-14 20:44:00"
+    }
+  ],
+  "pending_review_notifications": 0,
+  "delivery_disposition_count": 0,
+  "exit_requests": [],
+  "latest_coordinator_gate": {
+    "id": "evt_f8a2ec2746f24b12",
+    "session": "as_9725c841901b4ca0",
+    "type": "agent.completion_gate",
+    "at": "2026-10-14T20:47:54.911373+00:00",
+    "data": {
+      "action": "wait_background",
+      "source": "dag",
+      "explicit_stop": true,
+      "reason": "background work is still pending; stop only suspends",
+      "request_id": null,
+      "basis": "background_wait"
+    }
+  },
+  "remaining_reminders_from_actual_list_minus_fires": [],
+  "reminder_evidence": {
+    "actual_list_receipt": "evt_84cce972c05848ce",
+    "schedule_4398_created": "2026-10-14T20:36:19.696997+00:00",
+    "schedule_4398_due": "2026-10-15T04:51:19.696997+08:00",
+    "meaning": "A prior endpoint check was not cancelled. Co complete stop is parked by remaining scheduled background work, despite science coverage complete. This is a concrete pending wake, not evidence of deadlock.",
+    "historical": true
+  },
+  "supervisor_actual_reads": [
+    {
+      "at": "2026-10-14T20:38:52.984972+00:00",
+      "request": "evt_02d2eceb5a1d44ee",
+      "result": "evt_916d4b6ae136426c",
+      "tool": "log_parser",
+      "path": "ts/ts_0001/jobs/declaration_0008/irc/.cloudra/calc-20.out.log",
+      "success": true
+    },
+    {
+      "at": "2026-10-14T20:38:53.011448+00:00",
+      "request": "evt_5ad0cc83ae00479d",
+      "result": "evt_33cb1fa932584035",
+      "tool": "log_parser",
+      "path": "ts/ts_0001/jobs/declaration_0008/frequency/.cloudra/calc-19.out.log",
+      "success": true
+    },
+    {
+      "at": "2026-10-14T20:38:53.035039+00:00",
+      "request": "evt_eac888627f954827",
+      "result": "evt_c11a10dce5674ff4",
+      "tool": "log_parser",
+      "path": "ts/ts_0001/jobs/declaration_0008/product_frequency/.cloudra/calc-24.out.log",
+      "success": true
+    },
+    {
+      "at": "2026-10-14T20:39:23.824044+00:00",
+      "request": "evt_6901c3bda17a4655",
+      "result": "evt_e62398fe58aa4a42",
+      "tool": "log_parser",
+      "path": "ts/ts_0001/jobs/declaration_0008/reactant_opt/.cloudra/calc-21.out.log",
+      "success": true
+    },
+    {
+      "at": "2026-10-14T20:39:23.880115+00:00",
+      "request": "evt_2f3d2728978b4d7e",
+      "result": "evt_8353ea9f05c14989",
+      "tool": "log_parser",
+      "path": "ts/ts_0001/jobs/declaration_0008/reactant_frequency/.cloudra/calc-22.out.log",
+      "success": true
+    },
+    {
+      "at": "2026-10-14T20:39:23.916059+00:00",
+      "request": "evt_c6a5095bc9564438",
+      "result": "evt_c8b3fbe68e00495e",
+      "tool": "log_parser",
+      "path": "ts/ts_0001/jobs/declaration_0008/product_opt/.cloudra/calc-23.out.log",
+      "success": true
+    },
+    {
+      "at": "2026-10-14T20:39:23.964566+00:00",
+      "request": "evt_b8ecdfc1dbfd4e3f",
+      "result": "evt_6e4c2a8dd8594b52",
+      "tool": "log_parser",
+      "path": "ts/ts_0001/jobs/declaration_0008/product_frequency/.cloudra/calc-24.out.log",
+      "success": true
+    },
+    {
+      "at": "2026-10-14T20:39:32.175491+00:00",
+      "request": "evt_084c7192f3c14410",
+      "result": "evt_e46a9e1d04584aad",
+      "tool": "read",
+      "path": "ts/ts_0001/jobs/declaration_0008/reactant_opt/optimized.xyz",
+      "success": false
+    },
+    {
+      "at": "2026-10-14T20:39:32.184011+00:00",
+      "request": "evt_5741945e008744fc",
+      "result": "evt_32ac9f5c1ac442a3",
+      "tool": "read",
+      "path": "ts/ts_0001/jobs/declaration_0008/reactant_frequency/optimized.xyz",
+      "success": true
+    },
+    {
+      "at": "2026-10-14T20:40:38.379425+00:00",
+      "request": "evt_43bc90432a624121",
+      "result": "evt_7a2552bddd8940ae",
+      "tool": "read",
+      "path": ".cloudra/evidence/8dafe0cd64bdc7764a0fdb07a05e49bb00de6ecea0cffcc3031df84c34656330/irc_endpoints.json",
+      "success": true
+    },
+    {
+      "at": "2026-10-14T20:40:38.388477+00:00",
+      "request": "evt_c5c927e8367f4f89",
+      "result": "evt_566992f5475a4014",
+      "tool": "read",
+      "path": ".cloudra/evidence/8dafe0cd64bdc7764a0fdb07a05e49bb00de6ecea0cffcc3031df84c34656330/irc_IRC_B.xyz",
+      "success": true
+    },
+    {
+      "at": "2026-10-14T20:40:38.395172+00:00",
+      "request": "evt_5b3ee08b9d0141f2",
+      "result": "evt_87f01ecad18949f1",
+      "tool": "read",
+      "path": ".cloudra/evidence/8dafe0cd64bdc7764a0fdb07a05e49bb00de6ecea0cffcc3031df84c34656330/irc_IRC_F.xyz",
+      "success": true
+    },
+    {
+      "at": "2026-10-14T20:41:18.476579+00:00",
+      "request": "evt_be8ed30a2ea94a9b",
+      "result": "evt_81bf024e26964961",
+      "tool": "read",
+      "path": "mechanism_graph.json",
+      "success": true
+    },
+    {
+      "at": "2026-10-14T20:41:56.026056+00:00",
+      "request": "evt_334f715e0a9d4a36",
+      "result": "evt_b02bdbe1155c4b6a",
+      "tool": "log_parser",
+      "path": "ts/ts_0001/jobs/declaration_0008/ts_opt/.cloudra/calc-18.out.log",
+      "success": true
+    },
+    {
+      "at": "2026-10-14T20:41:56.057695+00:00",
+      "request": "evt_a9152a9526394f3a",
+      "result": "evt_5e094a1bc8674917",
+      "tool": "log_parser",
+      "path": "ts/ts_0001/jobs/declaration_0008/frequency/.cloudra/calc-19.out.log",
+      "success": true
+    },
+    {
+      "at": "2026-10-14T20:42:52.917682+00:00",
+      "request": "evt_4dde7def63c3491f",
+      "result": "evt_ab26461939e14856",
+      "tool": "log_parser",
+      "path": "runs/verify_A/.cloudra/calc-25.out.log",
+      "success": true
+    },
+    {
+      "at": "2026-10-14T20:42:52.955222+00:00",
+      "request": "evt_af8f904849f741c5",
+      "result": "evt_dcfc3cfd616e45ae",
+      "tool": "read",
+      "path": "runs/verify_A/open_reopt.xyz",
+      "success": true
+    },
+    {
+      "at": "2026-10-14T20:43:09.728451+00:00",
+      "request": "evt_fb76ccfb52084099",
+      "result": "evt_16195f6d4bfe45f0",
+      "tool": "read",
+      "path": "ts/ts_0001/build/input_0003/reactant/seed.xyz",
+      "success": true
+    },
+    {
+      "at": "2026-10-14T20:43:09.736993+00:00",
+      "request": "evt_406e1a55501a42e2",
+      "result": "evt_132884a66b96405c",
+      "tool": "read",
+      "path": "ts/ts_0001/build/input_0002/reactant/seed.xyz",
+      "success": true
+    },
+    {
+      "at": "2026-10-14T20:43:37.832324+00:00",
+      "request": "evt_abefc8f968ec43d2",
+      "result": "evt_ec711a23b1e7497a",
+      "tool": "log_parser",
+      "path": "runs/verify_A/.cloudra/calc-25.out.log",
+      "success": true
+    },
+    {
+      "at": "2026-10-14T20:43:42.916731+00:00",
+      "request": "evt_f1d66e148194492e",
+      "result": "evt_8e4213b917e94f8c",
+      "tool": "read",
+      "path": "mechanism_graph.json",
+      "success": true
+    },
+    {
+      "at": "2026-10-14T20:43:49.864262+00:00",
+      "request": "evt_70fca685f76c4bf3",
+      "result": "evt_8c2f7394da56410e",
+      "tool": "read",
+      "path": "ts/ts_0001/jobs/declaration_0008/irc/irc_IRC_B_trj.xyz",
+      "success": true
+    },
+    {
+      "at": "2026-10-14T20:44:15.830232+00:00",
+      "request": "evt_6fc6c99df2574dd9",
+      "result": "evt_2bf6b3a6247a453c",
+      "tool": "read",
+      "path": "mechanism_graph.json",
+      "success": true
+    }
+  ],
+  "effective_review": {
+    "ring": "accept dec_3828423349194173a88692cf17ab1481",
+    "first_open_A": "needs_evidence dec_17ff16a309e64abdab0c046e6483d74a: submitted +0.70 kcal OH rotamer differs from task given A",
+    "repair": "S1 performed job25 combined Opt/Freq from given A; Co rebound node and source evidence; accepted dec_78b4ba6ec8f74a2491a0689421e4f7c1 and step dec_ed97c7b36cdc48d38a5c063be067680a.",
+    "scope": "draft_77cf4e57199d4b7eb6812cee4fa55958 accepted; only chain-to-ring direct. Latest public delivery_report complete=true and unresolved=[], no waivers.",
+    "sup_reads": "Actual successful native frequency/opt/IRC parsers, immutable F/B XYZ reads, backward trajectory read, and given-A geometry reads; initial wrong reactant_opt/optimized.xyz failed then corrected to reactant_frequency/optimized.xyz. Not merely summary trust.",
+    "overall_exception": "Co manually requested overall review as kind=exception req_7124ae71c89d41c8a71b050f0993bf80. Sup attempted needs_evidence, but actual receipt evt_8bc5e9f4db0b4bd7 failed and request became superseded after scope/evidence changes. No durable overall verdict from that attempt.",
+    "remaining_document_defect": "Sup reported mechanism_graph.json still quoted intermediate backward IRC values/9 frames, while final bound endpoint and 20 backward points differ; last Sup maintenance stop explicitly says exact bytes must be refreshed before certification. This is not a final exit acceptance.",
+    "science_limit": "Dropping betaine from current single-path scope is distinct from proving every possible alternate betaine path impossible; no new scientific rule imposed by this audit."
+  },
+  "current_artifact": {
+    "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/mechanism_graph.json",
+    "sha256": "4c5c0c9dc4608c1047fc9a2116bdc51e9c9b306eb7f8bc01eb877610cd090351",
+    "final_exit_certified": false
+  },
+  "conclusion": "Scientific evidence review has had concrete corrective effect. Final whole-delivery exit review remains separate; at this snapshot no final acceptance should be claimed. Pending reminder accounts for the observed parking.",
+  "interventions": [],
+  "updates": [
+    {
+      "observed_at": "2026-10-14T21:01:36.713968+00:00",
+      "public_events_through": "2026-10-14T20:57:24.721224+00:00",
+      "reminder_4398": "Fired naturally at 20:51:19 UTC; earlier pending-reminder explanation is historical and no longer current.",
+      "coordinator_completion_gates": [
+        {
+          "id": "evt_4d971aee60c6442b",
+          "session": "as_9725c841901b4ca0",
+          "type": "agent.completion_gate",
+          "at": "2026-10-14T20:51:25.473966+00:00",
+          "data": {
+            "action": "continue_work",
+            "source": "dag",
+            "explicit_stop": true,
+            "reason": "Delivery artifact is inconsistent with the DAG: 9 validation errors for GoldMechanismGraph\nnodes\n  Field required [type=missing, input_value={'title': 'NU3 open-chain...not used as evidence.']}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\ntitle\n  Extra inputs are not permitted [type=extra_forbidden, input_value='NU3 open-chain phosphine...ne: verified connection', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden\nsystem\n  Extra inputs are not permitted [type=extra_forbidden, input_value={'formula': 'C2H7OP', 'at..., analytic frequencies'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden\nspecies\n  Extra inputs are not permitted [type=extra_forbidden, input_value=[{'name': 'open-chain pho....log, -496.585625 Ha)\"}], input_type=list]\n    For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden\nsteps\n  Extra inputs are not permitted [type=extra_forbidden, input_value=[{'name': 'chain-to-ring ...: '.cloudra/evidence/'}], input_type=list]\n    For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden\nconsidered_and_rejected\n  Extra inputs are not permitted [type=extra_forbidden, input_value=[{'channel': 'stepwise vi... the mechanism graph.'}], input_type=list]\n    For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden\nworkflow\n  Extra inputs are not permitted [type=extra_forbidden, input_value={'kind': 'durable ts_prep...eclaration_revision': 8}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden\nreference_minima_hartree\n  Extra inputs are not permitted [type=extra_forbidden, input_value={'open_chain_user_given':...ser_given': -496.585625}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden\nlimitations\n  Extra inputs are not permitted [type=extra_forbidden, input_value=['Single electronic level... not used as evidence.'], input_type=list]\n    For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden",
+            "request_id": null,
+            "basis": null
+          }
+        },
+        {
+          "id": "evt_23b2638e7ae246eb",
+          "session": "as_9725c841901b4ca0",
+          "type": "agent.completion_gate",
+          "at": "2026-10-14T20:53:25.399031+00:00",
+          "data": {
+            "action": "continue_work",
+            "source": "dag",
+            "explicit_stop": true,
+            "reason": "Delivery artifact is inconsistent with the DAG: Species 'open-chain phosphine' cannot claim a minimum energy without matching bound geometry evidence.",
+            "request_id": null,
+            "basis": null
+          }
+        },
+        {
+          "id": "evt_f54fcf245b004d0f",
+          "session": "as_9725c841901b4ca0",
+          "type": "agent.completion_gate",
+          "at": "2026-10-14T20:56:30.015553+00:00",
+          "data": {
+            "action": "continue_work",
+            "source": "dag",
+            "explicit_stop": true,
+            "reason": "Delivery artifact is inconsistent with the DAG: A declared barrier requires explicit bound source and TS energy logs.",
+            "request_id": null,
+            "basis": null
+          }
+        }
+      ],
+      "successful_artifact_writes": [
+        {
+          "event": "evt_9a57a25e581d4f76",
+          "at": "2026-10-14T20:53:00.553576+00:00",
+          "success": true,
+          "before": "4c5c0c9dc4608c1047fc9a2116bdc51e9c9b306eb7f8bc01eb877610cd090351",
+          "after": "370e173926a96d44e6e8da2106f06ae0bc0e0482ba349bcbcfe28893e35e59bb"
+        },
+        {
+          "event": "evt_e3397e465aeb4834",
+          "at": "2026-10-14T20:56:24.188929+00:00",
+          "success": true,
+          "before": "370e173926a96d44e6e8da2106f06ae0bc0e0482ba349bcbcfe28893e35e59bb",
+          "after": "91fb019d236a1671bb2bb5d3a7f3f4c6c05a92749f68eb62773296a87e6471b1"
+        },
+        {
+          "event": "evt_758ba73d67814e06",
+          "at": "2026-10-14T20:57:24.714477+00:00",
+          "success": true,
+          "before": "91fb019d236a1671bb2bb5d3a7f3f4c6c05a92749f68eb62773296a87e6471b1",
+          "after": "ec9d56a6de47b8ff2b45625b1356cd36b71a50e3984641b2127da7a4dd0b3593"
+        }
+      ],
+      "actual_revisions": [
+        "20:53:00 rewrote custom title/system/species/steps document into nodes/edges schema; original schema failure corrected structurally.",
+        "20:53:25 feedback: open-chain species cannot claim minimum energy without matching bound geometry evidence. Co later removed node energy properties instead of adding binding in that revision.",
+        "20:56:30 feedback: declared barrier requires explicit bound source and TS energy logs.",
+        "20:57:24 successful write removed structured barrier_kcal_mol=55.8 and inserted textual 55.8/24.3 into step_type. No new bound source/TS energy evidence submission observed afterward in this snapshot."
+      ],
+      "current_artifact": {
+        "sha256": "ec9d56a6de47b8ff2b45625b1356cd36b71a50e3984641b2127da7a4dd0b3593",
+        "node_count": 3,
+        "edge_count": 1,
+        "structured_barrier_values": [
+          null
+        ],
+        "step_type": "concerted_P-O_bond_formation_with_O-H_to_P-H_migration; electronic_barrier_kcal_mol: open-chain(reactant)->TS 55.8, ring(product)->TS 24.3, relative to each side's own minimum (B3LYP-D3(BJ)/def2-SVP gas phase, electronic energies)"
+      },
+      "last_pending_public_tool": {
+        "request": "evt_3ce82829d6d94624",
+        "started": "evt_000b2e7a3b524ab8",
+        "tool_call_id": "tc_5a2c52e0ed104b8b",
+        "at": "2026-10-14T20:57:24.719462+00:00",
+        "purpose": "bash invokes external python GoldMechanismGraph schema validation from main checkout",
+        "result_observed": false
+      },
+      "exit_requests": [],
+      "delivery_dispositions": 0,
+      "conclusion": "Current continue_work is artifact schema/energy-binding feedback, not the old reminder. Co has actually rewritten the artifact, but moving an energy claim into descriptive text does not establish explicit bound energy logs. No subsequent completion-gate approval or final Supervisor exit verdict has been observed; no same-material verdict reuse can yet be assessed. Pending shell tool has no result receipt in this snapshot; cause of its duration not inferred.",
+      "interventions": []
+    }
+  ],
+  "current_conclusion": "Current continue_work is artifact schema/energy-binding feedback, not the old reminder. Co has actually rewritten the artifact, but moving an energy claim into descriptive text does not establish explicit bound energy logs. No subsequent completion-gate approval or final Supervisor exit verdict has been observed; no same-material verdict reuse can yet be assessed. Pending shell tool has no result receipt in this snapshot; cause of its duration not inferred.",
+  "latest_observed_at": "2026-10-14T21:01:36.713968+00:00"
+}

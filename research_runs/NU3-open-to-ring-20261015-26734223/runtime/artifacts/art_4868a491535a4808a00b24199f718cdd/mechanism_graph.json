@@ -1,0 +1,70 @@
+{
+  "nodes": [
+    {
+      "id": "open-chain phosphine",
+      "role": "reactant",
+      "smiles": [
+        "OCCP"
+      ],
+      "label": "H2P-CH2-CH2-OH (2-hydroxyethylphosphine), the task's GIVEN open-chain minimum A = inputs/open.xyz; independently re-optimised at B3LYP-D3(BJ)/def2-SVP (ORCA, gas phase, charge 0, mult 1): E=-496.635840 Ha, 0 imaginary frequencies; native log runs/verify_A/.cloudra/calc-25.out.log (snapshot .cloudra/evidence/f48236db1d896e64_calc-25.out.log)",
+      "properties": {
+        "energy_hartree": -496.63584,
+        "imaginary_frequencies": 0,
+        "level": "B3LYP-D3(BJ)/def2-SVP"
+      }
+    },
+    {
+      "id": "1,2-oxaphosphetane ring",
+      "role": "product",
+      "smiles": [
+        "C1C[PH3]O1"
+      ],
+      "label": "cyclic 1,2-lambda5-oxaphosphetane, 4-membered P-C-C-O ring, pentacoordinate P with three H; the task's GIVEN ring minimum B = inputs/ring.xyz; native logs ts/ts_0001/jobs/declaration_0008/product_opt/.cloudra/calc-23.out.log and product_frequency/.cloudra/calc-24.out.log",
+      "properties": {
+        "energy_hartree": -496.585622,
+        "imaginary_frequencies": 0,
+        "level": "B3LYP-D3(BJ)/def2-SVP"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "label": "concerted first-order saddle: hydroxyl-H migration O->P coupled to P-O ring closure; E=-496.546904 Ha, exactly one imaginary mode -1022.18 cm^-1 (mode dominated by the migrating H, heavy-atom displacement fraction 0.004); native logs ts/ts_0001/jobs/declaration_0008/ts_opt/.cloudra/calc-18.out.log and frequency/.cloudra/calc-19.out.log; IRC (both directions) irc/.cloudra/calc-20.out.log",
+      "properties": {
+        "energy_hartree": -496.546904,
+        "imaginary_frequency_cm-1": -1022.18,
+        "level": "B3LYP-D3(BJ)/def2-SVP"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "chain-to-ring direct",
+      "from": "open-chain phosphine",
+      "to": "1,2-oxaphosphetane ring",
+      "via": "TS1",
+      "step_type": "concerted_P-O_bond_formation_with_O-H_to_P-H_migration",
+      "bond_changes": {
+        "break": [
+          [
+            9,
+            7
+          ]
+        ],
+        "form": [
+          [
+            2,
+            9
+          ],
+          [
+            2,
+            7
+          ]
+        ]
+      },
+      "accessible": true,
+      "barrier_kcal_mol": 55.8
+    }
+  ]
+}

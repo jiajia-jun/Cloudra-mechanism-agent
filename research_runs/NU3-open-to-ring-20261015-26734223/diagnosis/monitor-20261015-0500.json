@@ -1,0 +1,497 @@
+{
+  "observed_at_utc": "2026-10-14T20:59:19.388155+00:00",
+  "runtime_state": {
+    "checked_at": "2026-10-14T20:59:02.970896+00:00",
+    "run_dir": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223",
+    "project_id": "prj_7f9c142b67af4f3b",
+    "session_id": "as_9725c841901b4ca0",
+    "pid": 23411,
+    "scientific_completion": "not_assessed",
+    "status": "watching",
+    "agents": {
+      "as_9725c841901b4ca0": {
+        "role_id": "coordinator",
+        "state": "running"
+      },
+      "as_63de2ab4d28941b5": {
+        "role_id": "small_mol",
+        "state": "succeeded"
+      },
+      "as_7473bc09bc2a47e2": {
+        "role_id": "small_mol",
+        "state": "succeeded"
+      },
+      "as_5758d6a35fab40cf": {
+        "role_id": "supervisor",
+        "state": "succeeded"
+      }
+    },
+    "event_counts": {
+      "agent.spawned": 4,
+      "agent.state_changed": 72,
+      "run.finished": 35,
+      "tool.requested": 603,
+      "tool.finished": 602,
+      "program.finished": 290,
+      "agent.completion_gate": 37
+    },
+    "recent_events": [
+      {
+        "event": "tool.requested",
+        "session_id": "as_9725c841901b4ca0",
+        "at": "2026-10-14T20:56:43.866986+00:00",
+        "tool_name": "get_tool_docs"
+      },
+      {
+        "event": "tool.finished",
+        "session_id": "as_9725c841901b4ca0",
+        "at": "2026-10-14T20:56:43.875891+00:00",
+        "tool_name": "get_tool_docs",
+        "status": "completed"
+      },
+      {
+        "event": "program.finished",
+        "session_id": "as_9725c841901b4ca0",
+        "at": "2026-10-14T20:56:43.880683+00:00",
+        "status": "completed"
+      },
+      {
+        "event": "tool.requested",
+        "session_id": "as_9725c841901b4ca0",
+        "at": "2026-10-14T20:56:51.970421+00:00",
+        "tool_name": "get_tool_docs"
+      },
+      {
+        "event": "tool.finished",
+        "session_id": "as_9725c841901b4ca0",
+        "at": "2026-10-14T20:56:51.978587+00:00",
+        "tool_name": "get_tool_docs",
+        "status": "completed"
+      },
+      {
+        "event": "program.finished",
+        "session_id": "as_9725c841901b4ca0",
+        "at": "2026-10-14T20:56:51.982658+00:00",
+        "status": "completed"
+      },
+      {
+        "event": "tool.requested",
+        "session_id": "as_9725c841901b4ca0",
+        "at": "2026-10-14T20:56:54.865929+00:00",
+        "tool_name": "dag_view_evidence"
+      },
+      {
+        "event": "tool.finished",
+        "session_id": "as_9725c841901b4ca0",
+        "at": "2026-10-14T20:56:54.987022+00:00",
+        "tool_name": "dag_view_evidence",
+        "status": "completed"
+      },
+      {
+        "event": "program.finished",
+        "session_id": "as_9725c841901b4ca0",
+        "at": "2026-10-14T20:56:54.992269+00:00",
+        "status": "completed"
+      },
+      {
+        "event": "tool.requested",
+        "session_id": "as_9725c841901b4ca0",
+        "at": "2026-10-14T20:56:58.459987+00:00",
+        "tool_name": "dag_view_evidence"
+      },
+      {
+        "event": "tool.finished",
+        "session_id": "as_9725c841901b4ca0",
+        "at": "2026-10-14T20:56:58.582166+00:00",
+        "tool_name": "dag_view_evidence",
+        "status": "completed"
+      },
+      {
+        "event": "program.finished",
+        "session_id": "as_9725c841901b4ca0",
+        "at": "2026-10-14T20:56:58.589127+00:00",
+        "status": "completed"
+      },
+      {
+        "event": "tool.requested",
+        "session_id": "as_9725c841901b4ca0",
+        "at": "2026-10-14T20:57:12.315997+00:00",
+        "tool_name": "dag_view_evidence"
+      },
+      {
+        "event": "tool.finished",
+        "session_id": "as_9725c841901b4ca0",
+        "at": "2026-10-14T20:57:12.337008+00:00",
+        "tool_name": "dag_view_evidence",
+        "status": "completed"
+      },
+      {
+        "event": "program.finished",
+        "session_id": "as_9725c841901b4ca0",
+        "at": "2026-10-14T20:57:12.342170+00:00",
+        "status": "completed"
+      },
+      {
+        "event": "tool.requested",
+        "session_id": "as_9725c841901b4ca0",
+        "at": "2026-10-14T20:57:23.609961+00:00",
+        "tool_name": "read"
+      },
+      {
+        "event": "tool.finished",
+        "session_id": "as_9725c841901b4ca0",
+        "at": "2026-10-14T20:57:23.618282+00:00",
+        "tool_name": "read",
+        "status": "completed"
+      },
+      {
+        "event": "tool.requested",
+        "session_id": "as_9725c841901b4ca0",
+        "at": "2026-10-14T20:57:23.620420+00:00",
+        "tool_name": "write"
+      },
+      {
+        "event": "tool.finished",
+        "session_id": "as_9725c841901b4ca0",
+        "at": "2026-10-14T20:57:24.716480+00:00",
+        "tool_name": "write",
+        "status": "completed"
+      },
+      {
+        "event": "tool.requested",
+        "session_id": "as_9725c841901b4ca0",
+        "at": "2026-10-14T20:57:24.719462+00:00",
+        "tool_name": "bash"
+      }
+    ],
+    "compute_jobs": [
+      {
+        "id": 1,
+        "session_id": "as_7473bc09bc2a47e2",
+        "state": "done",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/A_open.xyz",
+        "node_id": "node-local",
+        "notified_at": 1792009008.008708,
+        "locks": {
+          "calc": false,
+          "guard": false
+        }
+      },
+      {
+        "id": 2,
+        "session_id": "as_7473bc09bc2a47e2",
+        "state": "done",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/B_ring_Aorder.xyz",
+        "node_id": "node-local",
+        "notified_at": 1792009008.0289931,
+        "locks": {
+          "calc": false,
+          "guard": false
+        }
+      },
+      {
+        "id": 3,
+        "session_id": "as_7473bc09bc2a47e2",
+        "state": "done",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/betaine_guess.xyz",
+        "node_id": "node-local",
+        "notified_at": 1792009008.046869,
+        "locks": {
+          "calc": false,
+          "guard": false
+        }
+      },
+      {
+        "id": 4,
+        "session_id": "as_7473bc09bc2a47e2",
+        "state": "done",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/scan1_proton_transfer.inp",
+        "node_id": "node-local",
+        "notified_at": 1792009074.265103,
+        "locks": {
+          "calc": false,
+          "guard": false
+        }
+      },
+      {
+        "id": 5,
+        "session_id": "as_7473bc09bc2a47e2",
+        "state": "done",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/scan2_PO_fromA.inp",
+        "node_id": "node-local",
+        "notified_at": 1792009074.2804961,
+        "locks": {
+          "calc": false,
+          "guard": false
+        }
+      },
+      {
+        "id": 6,
+        "session_id": "as_7473bc09bc2a47e2",
+        "state": "done",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/scan3_PO_fromBetaine.inp",
+        "node_id": "node-local",
+        "notified_at": 1792009076.31773,
+        "locks": {
+          "calc": false,
+          "guard": false
+        }
+      },
+      {
+        "id": 7,
+        "session_id": "as_63de2ab4d28941b5",
+        "state": "done",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0004/path/path-task.json",
+        "node_id": "node-local",
+        "notified_at": 1792009124.5309188,
+        "locks": {
+          "calc": false,
+          "guard": false
+        }
+      },
+      {
+        "id": 8,
+        "session_id": "as_7473bc09bc2a47e2",
+        "state": "done",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/scan4_reverse_fromB.inp",
+        "node_id": "node-local",
+        "notified_at": 1792009126.606865,
+        "locks": {
+          "calc": false,
+          "guard": false
+        }
+      },
+      {
+        "id": 9,
+        "session_id": "as_7473bc09bc2a47e2",
+        "state": "done",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/scan5_fine_proton.inp",
+        "node_id": "node-local",
+        "notified_at": 1792009128.645976,
+        "locks": {
+          "calc": false,
+          "guard": false
+        }
+      },
+      {
+        "id": 10,
+        "session_id": "as_7473bc09bc2a47e2",
+        "state": "failed",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/pm7_A.inp",
+        "node_id": "node-local",
+        "notified_at": 1792009495.9687018,
+        "locks": {
+          "calc": false,
+          "guard": false
+        }
+      },
+      {
+        "id": 11,
+        "session_id": "as_7473bc09bc2a47e2",
+        "state": "failed",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/pm7_B.inp",
+        "node_id": "node-local",
+        "notified_at": 1792009497.995347,
+        "locks": {
+          "calc": false,
+          "guard": false
+        }
+      },
+      {
+        "id": 12,
+        "session_id": "as_7473bc09bc2a47e2",
+        "state": "failed",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/pm7_TS.inp",
+        "node_id": "node-local",
+        "notified_at": 1792009498.01403,
+        "locks": {
+          "calc": false,
+          "guard": false
+        }
+      },
+      {
+        "id": 13,
+        "session_id": "as_63de2ab4d28941b5",
+        "state": "done",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0005/scan/scan-task.json",
+        "node_id": "node-local",
+        "notified_at": 1792009516.159523,
+        "locks": {
+          "calc": false,
+          "guard": false
+        }
+      },
+      {
+        "id": 14,
+        "session_id": "as_7473bc09bc2a47e2",
+        "state": "failed",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/gfn1_A_test.inp",
+        "node_id": "node-local",
+        "notified_at": 1792009518.237813,
+        "locks": {
+          "calc": false,
+          "guard": false
+        }
+      },
+      {
+        "id": 15,
+        "session_id": "as_7473bc09bc2a47e2",
+        "state": "done",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/gfn1_A_test2.inp",
+        "node_id": "node-local",
+        "notified_at": 1792009530.360476,
+        "locks": {
+          "calc": false,
+          "guard": false
+        }
+      },
+      {
+        "id": 16,
+        "session_id": "as_7473bc09bc2a47e2",
+        "state": "done",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/gfn1_B.inp",
+        "node_id": "node-local",
+        "notified_at": 1792009540.422806,
+        "locks": {
+          "calc": false,
+          "guard": false
+        }
+      },
+      {
+        "id": 17,
+        "session_id": "as_7473bc09bc2a47e2",
+        "state": "done",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/explore/gfn1_TS.inp",
+        "node_id": "node-local",
+        "notified_at": 1792009546.4691079,
+        "locks": {
+          "calc": false,
+          "guard": false
+        }
+      },
+      {
+        "id": 18,
+        "session_id": "as_63de2ab4d28941b5",
+        "state": "done",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/ts_opt/refine.inp",
+        "node_id": "node-local",
+        "notified_at": 1792009664.817122,
+        "locks": {
+          "calc": false,
+          "guard": false
+        }
+      },
+      {
+        "id": 19,
+        "session_id": "as_63de2ab4d28941b5",
+        "state": "done",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/frequency/frequency.inp",
+        "node_id": "node-local",
+        "notified_at": 1792009684.915429,
+        "locks": {
+          "calc": false,
+          "guard": false
+        }
+      },
+      {
+        "id": 20,
+        "session_id": "as_63de2ab4d28941b5",
+        "state": "done",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/irc/irc.inp",
+        "node_id": "node-local",
+        "notified_at": 1792010152.2710779,
+        "locks": {
+          "calc": false,
+          "guard": false
+        }
+      },
+      {
+        "id": 21,
+        "session_id": "as_63de2ab4d28941b5",
+        "state": "done",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/reactant_opt/reactant_opt.inp",
+        "node_id": "node-local",
+        "notified_at": 1792010210.575618,
+        "locks": {
+          "calc": false,
+          "guard": false
+        }
+      },
+      {
+        "id": 22,
+        "session_id": "as_63de2ab4d28941b5",
+        "state": "done",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/reactant_frequency/reactant_frequency.inp",
+        "node_id": "node-local",
+        "notified_at": 1792010230.684232,
+        "locks": {
+          "calc": false,
+          "guard": false
+        }
+      },
+      {
+        "id": 23,
+        "session_id": "as_63de2ab4d28941b5",
+        "state": "done",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/product_opt/product_opt.inp",
+        "node_id": "node-local",
+        "notified_at": 1792010300.917281,
+        "locks": {
+          "calc": false,
+          "guard": false
+        }
+      },
+      {
+        "id": 24,
+        "session_id": "as_63de2ab4d28941b5",
+        "state": "done",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/ts/ts_0001/jobs/declaration_0008/product_frequency/product_frequency.inp",
+        "node_id": "node-local",
+        "notified_at": 1792010321.110709,
+        "locks": {
+          "calc": false,
+          "guard": false
+        }
+      },
+      {
+        "id": 25,
+        "session_id": "as_63de2ab4d28941b5",
+        "state": "done",
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/runs/verify_A/open_reopt.inp",
+        "node_id": "node-local",
+        "notified_at": 1792010590.507515,
+        "locks": {
+          "calc": false,
+          "guard": false
+        }
+      }
+    ],
+    "pending_compute_notifications": [],
+    "pending_review_notifications": [],
+    "process_notes": {
+      "sha256": "db10f826e3c834523e22fd354b550d751b793eb4efcad35f4f347ec18027f6bd",
+      "bytes": 31733,
+      "snapshot": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/diagnosis/process-notes/db10f826e3c834523e22fd354b550d751b793eb4efcad35f4f347ec18027f6bd.md"
+    },
+    "coordinator_completion_gate": {
+      "action": "continue_work",
+      "source": "dag",
+      "basis": null,
+      "request_id": null
+    },
+    "nonterminal_agents": [
+      "as_9725c841901b4ca0"
+    ],
+    "runtime_finished": false
+  },
+  "scientific_summary": "New OCCP-to-PH3 ring connection has native converged TS18, one imaginary frequency19, actual both shortIRC20 directions and directly derived unconstrained zero-imag minima21-24. Both IRC directions reached20-iteration limit, not full convergence.",
+  "native_audit": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/diagnosis/irc20-native-connection-observation.json",
+  "cross_run_continuity": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/diagnosis/cross-run-native-route-continuity.json",
+  "cross_run_scope": "Three legs are continuous in chemical species, atom conservation and level of theory. Actual OH conformers differ; new22 is0.702116kcal higher than old53. Do not substitute energy baselines. Ring identity and geometry are consistent.",
+  "final_review_state": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/diagnosis/middle-connection-final-review-state.json",
+  "administrative_summary": "DAG scientific scope has accepted evidence; whole-exit review and true delivery not yet complete at the recorded audit. A900s Coordinator reminder was legitimate pending background work, not a deadlock.",
+  "source_changed": false,
+  "scientific_rules_changed": false,
+  "gold_adopted": false,
+  "formal_benchmark_score": null
+}

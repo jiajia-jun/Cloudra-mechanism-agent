@@ -96,16 +96,72 @@ def test_revision_keeps_historical_inputs_and_reused_evidence(tmp_path):
         assert con.execute("SELECT COUNT(*) FROM ts_pipeline_declarations").fetchone()[0] == 2
 
 
-def test_active_compute_prevents_transactional_revision(tmp_path):
-    from cloudra.services.ts_pipeline_store import bind_stage_job, commit_input_revision, get_process
+def test_input_revision_withdraws_only_invalidated_queued_jobs(tmp_path):
+    from cloudra.services.ts_pipeline_store import (
+        bind_stage_job,
+        commit_input_revision,
+        get_process,
+        get_revision_receipt,
+    )
+    from cloudra.tools.core.ts_inputs import TsInput, TsInputChanges, apply_input_changes
 
     db, pid, request, state = revision_fixture(tmp_path)
-    bind_stage_job(db, process_id=pid, declaration_revision=1, stage_key="ts_opt", attempt=1, job_payload=job_payload())
+    request = request.model_copy(update={'changes': TsInputChanges.model_validate({
+        'verification': {'reactant_endpoint': {'optimization': {'replace': {
+            'engine': 'orca', 'method': 'b97-3c', 'basis_set': '', 'keywords': '',
+        }}}},
+    })})
+    old_input = TsInput.model_validate(get_process(db, pid)['record']['input'])
+    state['input'] = apply_input_changes(old_input, request.changes).model_dump(mode='json')
+    affected = bind_stage_job(db, process_id=pid, declaration_revision=1, stage_key='reactant_opt', attempt=1,
+                              job_payload=job_payload(path='/fixture/reactant.inp'))
+    retained = bind_stage_job(db, process_id=pid, declaration_revision=1, stage_key='product_opt', attempt=1,
+                              job_payload=job_payload(path='/fixture/product.inp'))
+    state['job_steps'] = [dict(purpose='product_opt', job_id=retained, state='ready', source_input_revision=1)]
+    request = request.model_copy(update={"expected_revision": get_process(db, pid)["revision"]})
+    refs = receipt(request,
+        changes=['verification.reactant_endpoint.optimization.method', 'verification.reactant_endpoint.optimization.basis_set'],
+        invalidated=[dict(declaration_revision=1, stage_key='reactant_opt', attempt=1, job_id=affected)],
+        retained=[dict(declaration_revision=1, stage_key='product_opt', attempt=1, job_id=retained)])
+    with db.connect() as con:
+        old_bindings = con.execute('SELECT * FROM ts_pipeline_stages ORDER BY job_id').fetchall()
+        old_declaration = con.execute('SELECT payload FROM ts_pipeline_declarations WHERE declaration_revision=1').fetchone()[0]
+
+    accepted = commit_input_revision(db, process_id=pid, request=request, record=state, receipt=refs)
+
+    assert get_revision_receipt(db, process_id=pid, request_key=request.request_key) == accepted
+    assert get_process(db, pid)['declaration_revision'] == 2
+    assert [step['job_id'] for step in get_process(db, pid)['record']['job_steps']] == [retained]
+    with db.connect() as con:
+        jobs = con.execute('SELECT id,state,end_timestamp FROM compute_jobs ORDER BY id').fetchall()
+        assert [(job[0], job[1]) for job in jobs] == [(affected, 'cancelled'), (retained, 'ready')]
+        assert jobs[0][2] > 0
+        assert con.execute('SELECT * FROM ts_pipeline_stages ORDER BY job_id').fetchall() == old_bindings
+        assert con.execute('SELECT payload FROM ts_pipeline_declarations WHERE declaration_revision=1').fetchone()[0] == old_declaration
+
+
+@pytest.mark.parametrize('job_state', ['running', 'cancel_requested'])
+def test_started_compute_prevents_transactional_revision_without_mutation(tmp_path, job_state):
+    from cloudra.services.ts_pipeline_store import (
+        bind_stage_job,
+        commit_input_revision,
+        get_process,
+        get_revision_receipt,
+    )
+
+    db, pid, request, state = revision_fixture(tmp_path)
+    job = bind_stage_job(db, process_id=pid, declaration_revision=1, stage_key="ts_opt", attempt=1, job_payload=job_payload())
+    with db.connect() as con:
+        con.execute('UPDATE compute_jobs SET state=? WHERE id=?', (job_state, job))
+        jobs_before = con.execute('SELECT * FROM compute_jobs').fetchall()
     request = request.model_copy(update={"expected_revision": get_process(db, pid)["revision"]})
     before = get_process(db, pid)
     with pytest.raises(ValueError, match="active"):
         commit_input_revision(db, process_id=pid, request=request, record=state, receipt=receipt(request))
     assert get_process(db, pid) == before
+    assert get_revision_receipt(db, process_id=pid, request_key=request.request_key) is None
+    with db.connect() as con:
+        assert con.execute('SELECT * FROM compute_jobs').fetchall() == jobs_before
 
 
 def test_invalid_evidence_rolls_back_input_and_receipt(tmp_path):

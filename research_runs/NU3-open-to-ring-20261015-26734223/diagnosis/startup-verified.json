@@ -1,0 +1,208 @@
+{
+  "observation_utc": "2026-10-14T20:15:55.224746+00:00",
+  "project_id": "prj_7f9c142b67af4f3b",
+  "session_id": "as_9725c841901b4ca0",
+  "run_dir": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223",
+  "frozen_source": {
+    "worktree": "/Users/cloudrayyy/.codex/worktrees/nu3-final-review/Cloudra-mechanism-agent-master",
+    "commit": "f2769986a5f3c0271015b7a72f238030afc3bf87"
+  },
+  "provenance_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/provenance.json",
+  "launch_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/launch.json",
+  "observer_snapshot": {
+    "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/latest-status.json",
+    "checked_at": "2026-10-14T20:15:44.562849+00:00",
+    "status": "watching",
+    "runtime_finished": false
+  },
+  "first_attempt_historical_failure": {
+    "401_llm_failed_events_before_restart": 6,
+    "QM_before_recovery": 0,
+    "cause": "The launch helper wrote Pydantic internal top-level coordinator/follower fields; the YAML loader expects llm.coordinator/follower. Thus its first requests lacked the inherited authentication configuration.",
+    "recovery": "Use the existing single YAML serializer and existing runtime configuration reload; retry the failed first Coordinator run once.",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/diagnosis/config-copy-startup-recovery.json"
+  },
+  "restored_actual_execution": {
+    "last_event_seq_at_read": 297,
+    "current_coordinator_state": {
+      "seq": 38,
+      "at": "2026-10-14T20:13:05.854483+00:00",
+      "from": "queued",
+      "to": "running",
+      "reason": "run_started"
+    },
+    "actual_llm_completed": [
+      {
+        "seq": 45,
+        "at": "2026-10-14T20:13:19.044801+00:00",
+        "model": "deepseek-v4-flash",
+        "kind": "tool_selection",
+        "finish_reason": null
+      },
+      {
+        "seq": 47,
+        "at": "2026-10-14T20:13:20.417236+00:00",
+        "model": "deepseek-v4-flash",
+        "kind": null,
+        "finish_reason": "tool_calls"
+      },
+      {
+        "seq": 61,
+        "at": "2026-10-14T20:13:22.828040+00:00",
+        "model": "deepseek-v4-flash",
+        "kind": null,
+        "finish_reason": "tool_calls"
+      },
+      {
+        "seq": 104,
+        "at": "2026-10-14T20:13:53.175867+00:00",
+        "model": "deepseek-v4-flash",
+        "kind": null,
+        "finish_reason": "tool_calls"
+      },
+      {
+        "seq": 125,
+        "at": "2026-10-14T20:14:04.196194+00:00",
+        "model": "deepseek-v4-flash",
+        "kind": null,
+        "finish_reason": "tool_calls"
+      },
+      {
+        "seq": 142,
+        "at": "2026-10-14T20:14:07.072649+00:00",
+        "model": "deepseek-v4-flash",
+        "kind": null,
+        "finish_reason": "tool_calls"
+      },
+      {
+        "seq": 161,
+        "at": "2026-10-14T20:14:36.109044+00:00",
+        "model": "deepseek-v4-flash",
+        "kind": null,
+        "finish_reason": "tool_calls"
+      },
+      {
+        "seq": 177,
+        "at": "2026-10-14T20:14:39.903584+00:00",
+        "model": "deepseek-v4-flash",
+        "kind": null,
+        "finish_reason": "tool_calls"
+      },
+      {
+        "seq": 202,
+        "at": "2026-10-14T20:15:03.116462+00:00",
+        "model": "deepseek-v4-flash",
+        "kind": null,
+        "finish_reason": "tool_calls"
+      },
+      {
+        "seq": 218,
+        "at": "2026-10-14T20:15:07.688768+00:00",
+        "model": "deepseek-v4-flash",
+        "kind": null,
+        "finish_reason": "tool_calls"
+      },
+      {
+        "seq": 231,
+        "at": "2026-10-14T20:15:11.469806+00:00",
+        "model": "deepseek-v4-flash",
+        "kind": null,
+        "finish_reason": "tool_calls"
+      },
+      {
+        "seq": 244,
+        "at": "2026-10-14T20:15:15.090905+00:00",
+        "model": "deepseek-v4-flash",
+        "kind": null,
+        "finish_reason": "tool_calls"
+      },
+      {
+        "seq": 257,
+        "at": "2026-10-14T20:15:47.474295+00:00",
+        "model": "deepseek-v4-flash",
+        "kind": null,
+        "finish_reason": "tool_calls"
+      }
+    ],
+    "real_normal_response_first_seq": 47,
+    "actual_response_models": [
+      "deepseek-v4-flash"
+    ],
+    "planned_model": "deepseek-v4-flash",
+    "useful_endpoint_tool_receipts": [
+      {
+        "seq": 68,
+        "at": "2026-10-14T20:13:22.929037+00:00",
+        "tool_name": "read",
+        "is_success": true,
+        "tool_returned_path": "inputs/open.xyz",
+        "absolute_workspace_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/inputs/open.xyz",
+        "tool_returned_atom_count": 11,
+        "tool_returned_full_element_order": [
+          "C",
+          "P",
+          "H",
+          "H",
+          "H",
+          "H",
+          "H",
+          "C",
+          "O",
+          "H",
+          "H"
+        ],
+        "workspace_file_exists": true,
+        "tool_returned_content_equals_workspace_file": true,
+        "scope": "Actual scientific endpoint file read; this is not a new chemistry calculation or new minimum verification."
+      },
+      {
+        "seq": 74,
+        "at": "2026-10-14T20:13:22.939222+00:00",
+        "tool_name": "read",
+        "is_success": true,
+        "tool_returned_path": "inputs/ring.xyz",
+        "absolute_workspace_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/research_runs/NU3-open-to-ring-20261015-26734223/workspace/inputs/ring.xyz",
+        "tool_returned_atom_count": 11,
+        "tool_returned_full_element_order": [
+          "C",
+          "P",
+          "O",
+          "C",
+          "H",
+          "H",
+          "H",
+          "H",
+          "H",
+          "H",
+          "H"
+        ],
+        "workspace_file_exists": true,
+        "tool_returned_content_equals_workspace_file": true,
+        "scope": "Actual scientific endpoint file read; this is not a new chemistry calculation or new minimum verification."
+      }
+    ]
+  },
+  "QM_snapshot": {
+    "submitted_job_count": 0,
+    "jobs": [],
+    "native_QM_start_verified": false
+  },
+  "confirmed": [
+    "Same project/session resumed after historical configuration-copy authentication failure.",
+    "Real deepseek-v4-flash llm.completed events occur after recovery, including normal model responses, not merely document-selection metadata.",
+    "Successful read tool receipts contain the actual11-atom open and ring XYZ inputs and match files in the new workspace."
+  ],
+  "pending": [
+    "No new QM job is submitted as of this read; no native engine start/method/result is yet available.",
+    "Endpoint file reading proves input access, not a newly generated structure, TS, reaction connection, scientific acceptance or complete route."
+  ],
+  "startup_verdict": "Runtime recovery and useful endpoint-input access verified; scientific calculation start pending.",
+  "read_only_actions": {
+    "extra_observer_created": false,
+    "new_QM_or_API_calls": false,
+    "source_or_config_changes": false,
+    "live_agent_messages": false,
+    "Gold_or_private_reasoning_exported": false
+  },
+  "qm_startup_pending": true
+}
