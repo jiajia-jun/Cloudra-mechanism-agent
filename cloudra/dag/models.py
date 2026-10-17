@@ -502,13 +502,13 @@ class _GraphElement(BaseModel):
 
 
 class SpeciesNode(_GraphElement):
-    """delivery 图上的物种体系状态节点（整个络合物体系的状态）。"""
+    """物种体系状态：点连接字符串是络合物，列表是分离物种。"""
 
     node_id: str
     node_type: Literal["species", "occurrence"] = "species"
     name: str = ""
     label: str = ""
-    smiles: str | None = None
+    smiles: str | list[str] | None = None
     status: str = "pending"
     evidence_level: DeliveryEvidenceLevel = "proposed"
     reason: str = ""

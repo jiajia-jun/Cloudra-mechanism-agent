@@ -1,0 +1,218 @@
+{
+  "call_id": "tc_c285121ea3804cbd",
+  "is_success": true,
+  "summary": "{\"is_success\": true, \"scf_energy_hartree\": -15.19012562414, \"scf_energy_ev\": -413.34437548355305, \"homo_ev\": null, \"lumo_ev\": null, \"homo_lumo_gap_ev\": null, \"alpha_homo_ev\": null, \"alpha_lumo_ev\": null, \"beta_homo_ev\": null, \"beta_lumo_ev\": null, \"spin_crossover\": null, \"dipole_moment_debye\": null, \"frequencies_cm\": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 38.81, 54.25, 64.16, 74.37, 377.92, 380.59, 566.65, 840.3, 870.42, 986.84, 1019.92, 1034.46, 1182.07, 1258.26, 1393.91, 1421.12, 1426.56, 1703.25, 2399.47, 3092.98, 3102.58, 3103.88, 3130.82, 3136.53, 3163.05], \"imaginary_frequencies\": [-29.75, -4.37], \"imaginary_modes\": [{\"frequency_cm\": -29.75, \"top_displaced_atoms\": [{\"atom\": 10, \"element\": \"H\", \"fraction\": 0.39024322369911957}, {\"atom\": 11, \"element\": \"H\", \"fraction\": 0.3898887859304398}, {\"atom\": 8, \"element\": \"H\", \"fraction\": 0.05564661371578471}, {\"atom\": 9, \"element\": \"H\", \"fraction\": 0.05540522242669564}, {\"atom\": 6, \"element\": \"H\", \"fraction\": 0.05348835972636852}], \"watch_atom_fraction\": 0.002165186465202233, \"top_displaced_pairs\": [[6, 10, 0.7392582752057104], [7, 11, 0.7384365382601589], [8, 11, 0.5933686424775813], [9, 10, 0.5927104405939239], [1, 10, 0.5755699765054824]], \"heavy_atom_fraction\": 0.002467456243067546, \"watch_pair_fraction\": {\"fraction\": 7.946594503724269e-05, \"pair_projections\": {\"1-5\": 0.0005842005644930453, \"2-3\": 0.00011077698675512418}}}, {\"frequency_cm\": -4.37, \"top_displaced_atoms\": [{\"atom\": 8, \"element\": \"H\", \"fraction\": 0.1827529849253245}, {\"atom\": 9, \"element\": \"H\", \"fraction\": 0.18260972015502075}, {\"atom\": 7, \"element\": \"H\", \"fraction\": 0.18094433699580734}, {\"atom\": 6, \"element\": \"H\", \"fraction\": 0.18079802295303}, {\"atom\": 11, \"element\": \"H\", \"fraction\": 0.08167946790574404}], \"watch_atom_fraction\": 0.10973370668552668, \"top_displaced_pairs\": [[7, 11, 0.3969554506220311], [6, 10, 0.39661332609619576], [1, 11, 0.20402625693918727], [1, 10, 0.20361496740308124], [3, 8, 0.1501571122003801]], \"heavy_atom_fraction\": 0.10982178568755234, \"watch_pair_fraction\": {\"fraction\": 0.0001400219244360563, \"pair_projections\": {\"1-5\": 2.3259804640014417e-05, \"2-3\": 0.0004064159666206374}}}], \"zero_point_correction_hartree\": null, \"thermal_energy_correction_hartree\": null, \"thermal_enthalpy_correction_hartree\": null, \"thermal_gibbs_correction_hartree\": null, \"total_zero_point_energy_hartree\": null, \"total_thermal_energy_hartree\": null, \"total_enthalpy_hartree\": null, \"total_gibbs_free_energy_hartree\": null, \"zero_point_energy_hartree\": null, \"thermal_energy_hartree\": null, \"enthalpy_hartree\": null, \"gibbs_free_energy_hartree\": null, \"mulliken_charges\": null, \"normal_termination\": true, \"opt_converged\": true, \"engine\": \"orca\", \"job_types\": null, \"scan_parameter\": null, \"scan_energies_ev\": null, \"scan_has_internal_peak\": null, \"scan_peak\": null, \"irc_num_points_forward\": null, \"irc_num_points_backward\": null, \"irc_rx_coord_range\": null, \"irc_endpoint_energies_hartree\": null, \"irc_both_directions_converged\": null, \"message\": \"cclib could not parse the log (external-MLIP/ExtOpt logs have no SCF blocks); fell back to text extraction for energy/termination/job-type/IRC fields.\"}",
+  "data": {
+    "is_success": true,
+    "scf_energy_hartree": -15.19012562414,
+    "scf_energy_ev": -413.34437548355305,
+    "homo_ev": null,
+    "lumo_ev": null,
+    "homo_lumo_gap_ev": null,
+    "alpha_homo_ev": null,
+    "alpha_lumo_ev": null,
+    "beta_homo_ev": null,
+    "beta_lumo_ev": null,
+    "spin_crossover": null,
+    "dipole_moment_debye": null,
+    "frequencies_cm": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      38.81,
+      54.25,
+      64.16,
+      74.37,
+      377.92,
+      380.59,
+      566.65,
+      840.3,
+      870.42,
+      986.84,
+      1019.92,
+      1034.46,
+      1182.07,
+      1258.26,
+      1393.91,
+      1421.12,
+      1426.56,
+      1703.25,
+      2399.47,
+      3092.98,
+      3102.58,
+      3103.88,
+      3130.82,
+      3136.53,
+      3163.05
+    ],
+    "imaginary_frequencies": [
+      -29.75,
+      -4.37
+    ],
+    "imaginary_modes": [
+      {
+        "frequency_cm": -29.75,
+        "top_displaced_atoms": [
+          {
+            "atom": 10,
+            "element": "H",
+            "fraction": 0.39024322369911957
+          },
+          {
+            "atom": 11,
+            "element": "H",
+            "fraction": 0.3898887859304398
+          },
+          {
+            "atom": 8,
+            "element": "H",
+            "fraction": 0.05564661371578471
+          },
+          {
+            "atom": 9,
+            "element": "H",
+            "fraction": 0.05540522242669564
+          },
+          {
+            "atom": 6,
+            "element": "H",
+            "fraction": 0.05348835972636852
+          }
+        ],
+        "watch_atom_fraction": 0.002165186465202233,
+        "top_displaced_pairs": [
+          [
+            6,
+            10,
+            0.7392582752057104
+          ],
+          [
+            7,
+            11,
+            0.7384365382601589
+          ],
+          [
+            8,
+            11,
+            0.5933686424775813
+          ],
+          [
+            9,
+            10,
+            0.5927104405939239
+          ],
+          [
+            1,
+            10,
+            0.5755699765054824
+          ]
+        ],
+        "heavy_atom_fraction": 0.002467456243067546,
+        "watch_pair_fraction": {
+          "fraction": 0.00007946594503724269,
+          "pair_projections": {
+            "1-5": 0.0005842005644930453,
+            "2-3": 0.00011077698675512418
+          }
+        }
+      },
+      {
+        "frequency_cm": -4.37,
+        "top_displaced_atoms": [
+          {
+            "atom": 8,
+            "element": "H",
+            "fraction": 0.1827529849253245
+          },
+          {
+            "atom": 9,
+            "element": "H",
+            "fraction": 0.18260972015502075
+          },
+          {
+            "atom": 7,
+            "element": "H",
+            "fraction": 0.18094433699580734
+          },
+          {
+            "atom": 6,
+            "element": "H",
+            "fraction": 0.18079802295303
+          },
+          {
+            "atom": 11,
+            "element": "H",
+            "fraction": 0.08167946790574404
+          }
+        ],
+        "watch_atom_fraction": 0.10973370668552668,
+        "top_displaced_pairs": [
+          [
+            7,
+            11,
+            0.3969554506220311
+          ],
+          [
+            6,
+            10,
+            0.39661332609619576
+          ],
+          [
+            1,
+            11,
+            0.20402625693918727
+          ],
+          [
+            1,
+            10,
+            0.20361496740308124
+          ],
+          [
+            3,
+            8,
+            0.1501571122003801
+          ]
+        ],
+        "heavy_atom_fraction": 0.10982178568755234,
+        "watch_pair_fraction": {
+          "fraction": 0.0001400219244360563,
+          "pair_projections": {
+            "1-5": 0.000023259804640014417,
+            "2-3": 0.0004064159666206374
+          }
+        }
+      }
+    ],
+    "zero_point_correction_hartree": null,
+    "thermal_energy_correction_hartree": null,
+    "thermal_enthalpy_correction_hartree": null,
+    "thermal_gibbs_correction_hartree": null,
+    "total_zero_point_energy_hartree": null,
+    "total_thermal_energy_hartree": null,
+    "total_enthalpy_hartree": null,
+    "total_gibbs_free_energy_hartree": null,
+    "zero_point_energy_hartree": null,
+    "thermal_energy_hartree": null,
+    "enthalpy_hartree": null,
+    "gibbs_free_energy_hartree": null,
+    "mulliken_charges": null,
+    "normal_termination": true,
+    "opt_converged": true,
+    "engine": "orca",
+    "job_types": null,
+    "scan_parameter": null,
+    "scan_energies_ev": null,
+    "scan_has_internal_peak": null,
+    "scan_peak": null,
+    "irc_num_points_forward": null,
+    "irc_num_points_backward": null,
+    "irc_rx_coord_range": null,
+    "irc_endpoint_energies_hartree": null,
+    "irc_both_directions_converged": null,
+    "message": "cclib could not parse the log (external-MLIP/ExtOpt logs have no SCF blocks); fell back to text extraction for energy/termination/job-type/IRC fields."
+  },
+  "duration_ms": 16
+}

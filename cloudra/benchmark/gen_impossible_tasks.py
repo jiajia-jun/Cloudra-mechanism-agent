@@ -269,7 +269,7 @@ def _build_graph(tid: str, entry: dict) -> GoldMechanismGraph:
         node = MechanismNode(
             id=f"{tid}_P" if last else f"{tid}_I{k}",
             role=NodeRole.PRODUCT if last else NodeRole.INTERMEDIATE,
-            smiles=complex_smiles(entry["products"]) if last else _unmap_canonical(step["out"]),
+            smiles=complex_smiles(entry["products"] if last else _unmap_canonical(step["out"])),
             accessible=step.get("node_accessible", True),
             label=("target state" if property_kind else "product") if last
             else (f"state {k}" if property_kind else f"intermediate {k}"),

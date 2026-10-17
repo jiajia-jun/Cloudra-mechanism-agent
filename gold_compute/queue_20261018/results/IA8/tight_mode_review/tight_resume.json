@@ -1,0 +1,28 @@
+{
+  "call_id": "tc_e985851ae46e4ca3",
+  "is_success": false,
+  "summary": "{\"run_id\": \"ts_0001\", \"revision\": 0, \"run_dir\": \"\", \"status\": null, \"stage\": \"\", \"result\": null, \"waiting_for\": [], \"available_results\": [], \"structures\": {}, \"blocked\": null, \"failed_attempt\": null, \"frequency_analysis\": null, \"next\": {}, \"methods\": [], \"usage\": {}, \"details_path\": \"\", \"export_revision\": null, \"message\": \"ts_resume: patch a referenced calculation through its calculations definition, or explicitly replace the stage calculation\", \"is_success\": false, \"receipt\": null}",
+  "data": {
+    "run_id": "ts_0001",
+    "revision": 0,
+    "run_dir": "",
+    "status": null,
+    "stage": "",
+    "result": null,
+    "waiting_for": [],
+    "available_results": [],
+    "structures": {},
+    "blocked": null,
+    "failed_attempt": null,
+    "frequency_analysis": null,
+    "next": {},
+    "methods": [],
+    "usage": {},
+    "details_path": "",
+    "export_revision": null,
+    "message": "ts_resume: patch a referenced calculation through its calculations definition, or explicitly replace the stage calculation",
+    "is_success": false,
+    "receipt": null
+  },
+  "duration_ms": 20
+}

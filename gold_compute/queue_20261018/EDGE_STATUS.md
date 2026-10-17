@@ -9,6 +9,22 @@
 
 旧done→Freq阻塞已由系统接续：IA1、IA5、IA8、IB9-E1、IB10-E1均有真实TS频率及双向IRC；IA9有791频率但尚未IRC。当前主要为端点geometry mismatch、目标模式/物种审查及IA9授权额度接入问题，不能再写无Freq/IRC。详见[端点几何审计](ENV_ENDPOINT_GEOMETRY_AUDIT.md)。
 
+## 最新小步长/每周期Hessian诊断（IB9，839实际完成）
+
+按用户新建议，从833原生最终结构仅一次同GFN2完整最低点计算：较小MaxStep/固定Trust=0.1/−0.1（内部坐标au）与Calc_Hess、NumHess、Recalc_Hess1。原生日志实证4优化周期初始+三次重算数值Hessian，末尾另NumFreq一次，并非只写标签。实际四步均远小于0.1上限，故不能将问题归因过大实际步长。末RMS/MAX梯度6.27e-8/5.385e-7 Eh/bohr；两位移指标仍NO，引擎按gradient overachieved宣布收敛，不写五项全过。
+
+负频仍−29.79/−4.49cm⁻¹（833−29.75/−4.37），身份仍CH2N2+乙烯两组分；未得到整体零虚频minimum，不证明其不存在。完整实际次数/行号/步长/全频见[RESULT](results/IB9/hessian_step_review/RESULT.md)及[839原生日志](results/IB9/hessian_step_review/.cloudra/calc-839.out.log)。无后台，唯一诊断已收口，不再关键词循环/新TSIRC；分离单体参考继续保留，strict未pass/0新增Gold不变。普通GFN2未加DFT积分格点，SCC设置未变。
+
+## 最新授权拆组分参考（IB9，已核完，无新增QM）
+
+用户允许tight后仍软虚频则拆物种。798原料外帧/833为CH2N2+乙烯两完整无跨组分键的预反应接触体候选，非已验证束缚极小值。已复核复用同GFN2单体742/745，各正常/优化收敛/零虚频，原子对应与原生SHA见[组件报告](results/IB9/component_review/COMPONENT_REFERENCE.md)和[机器表](results/IB9/component_review/COMPONENT_REFERENCE.json)；不再重算。允许以E_A+E_B作明确标注的分离参考，但不同于RC minimum能量；组件0虚频不充作整体0虚频。TS保留完整体系，原strict缺TS几何与IRC方向验收要求不由拆单体消除；未填Gold、未改图/登记，无后台。IA8单分子无此拆分选择。
+
+## 用户新增授权的一轮tight/方向复查（已完成，覆盖下表旧候选细节）
+
+- **IB9-E1**：833真实加严无约束Opt+NumFreq，原料身份不变，末表五项均YES；RMS/MAX梯度4.940e-7/1.7926e-6 Eh/bohr，但两负频仍−29.75/−4.37cm⁻¹（原−36.41/−8.99）。未得到零虚频RC，不再迭代或strict复验。[对照与原生链接](results/IB9/tight_review/COMPARISON.md)。
+- **IA8-E1**：原run唯一一次TightOpt 834→835唯一负频−950.47→836双向IRC，837/838后仍端点geometry mismatch，P未验证。新旧负模[直接重叠](results/IA8/tight_mode_review/mode_overlap.json)full/heavy abs cos均约1；重原子质量参与67.42%，[重原子与近TS第2/3帧方向](results/IA8/tight_mode_review/direction_tight_results.json)abs cos=.966–.990。支持成环伴随CH弯曲，不能说仅H在动；首帧为初始化，非独立验证。835/836原watch的[strict完整返回](results/IA8/tight_mode_review/strict_tight.json)仍fail，tc_5c084717219e41c9；不宣告误报、pass或Gold。
+- 本轮两题只证实几何加严；IA8前后外部xTB仍--acc .2/SCC2e-7Eh，不能将TightSCF标签当电子精度提高。两owner无后台，新增授权已用完并收口；其余边不变，仍0 strict pass/0新增可信目标能垒，不追加QM或呈现试验。
+
 ## 逐边覆盖（xTB均为GFN2-xTB；PM7另列，不混减）
 
 |边 / producer报告|已验证最低点|OptTS候选|一虚频及目标模式|双向IRC|外端闭合|势垒是否可报 / 具体缺口|
@@ -16,9 +32,9 @@
 |IA1 E1 矩形键交替互换；[报告](results/IA1/REPORT.md)|独立823/824两侧正常、优化收敛、零虚频，固定map键长互换|760正常收敛，仅方法内候选|真实频率793及最新829一虚频；aligned不证明精度，−4610.8大虚频/方形多参考风险独立保留|797及最新830真实双向，映射R=B/P=F|独立端点身份有据；durable仍candidate_only；原字节bundle strict仍inconclusive missing TS geometry|未批准，不报barrier。12文件SHA相等、manifest valid不等科学pass；本轮停止重复计算/呈现试验|
 |IA5 E1 反旋开环；[报告](results/IA5/REPORT.md)|独立RC/P及R侧815/818零虚频，但不证明反旋路径|756收敛的是顺旋竞争候选|792一虚频；最终ROTATION_AUDIT判共同轴两CH2同号旋转，即顺旋非目标反旋|799已真实双向，旋向审查已完成|candidate_only几何问题保留，不改变错误旋向|排除本候选目标回填；目标反旋未定位，无目标垒，不再旋向待定|
 |IA7 E1 Bergman；[报告](results/IA7/REPORT.md)|Z起点771零虚频；772环骨架零虚频，但目标开壳单重态未证|未启动|无|无|无|否。ts_0006在guess报electronic_state_backend_unsupported；--uhf0不能表达目标开壳单重态，非共同refine故障；目标reaction_energy亦不可报|
-|IA8 E1 CH2OO成环；[报告](results/IA8/REPORT.md)|独立xTB两端零虚频；816/819外端Opt/Freq正常零虚频；PM7 776两模型内极小（自编全Cartesian梯度差分投影频率，非FORCE）|739正常收敛|790恰一虚频；显式C–O watch strict fail，已有完整径向模式反例，未改阈值求pass|796已真实双向计算；B无环CH2OO/F三元环|candidate_only，R侧geometry mismatch；P未验证|不可报。strict fail、电子态/方法适用性风险及几何问题独立保留；径向反例不是pass或物理Gold|
+|IA8 E1 CH2OO成环；[报告](results/IA8/REPORT.md)|独立xTB两端零虚频；外端R已Opt/Freq；PM7 776仅两模型内极小|739及tight834均正常收敛|790−950.34→835−950.47；新旧full/heavy模式重叠约1，成环方向有据；strict仍fail|796及tight836均真实双向；F/B为成环/无环方向|837/838后仍candidate_only geometry mismatch，P未验证|不可报。tight不改变fail；方向稳健不能替代strict或物理适用性，电子精度未提高|
 |IA9 E1 二氧环丁烷→两甲醛；[报告](results/IA9/REPORT.md)|xTB727 R/728甲醛零虚频；PM7 R/甲醛FORCE全正，仅组分参考|751正常收敛|791恰一虚频；自动诊断aligned，仍需路径确认|尚未跑|无|不可报。IRC numeric需auto；用户仅+1干预2→3已授权，但后端tc_dcc2d25237554e5e拒绝input revision cannot raise authorized limits，额度未生效|
-|IB9 E1 原料→吡唑啉；[报告](results/IB9/REPORT.md)|821 F正常收敛零虚频；822 B正常收敛但−36.41/−8.99两软虚频，非已验证RC极小|780正常收敛，较常规的环加成候选但非Gold|794一虚频、模式aligned；strict缺TS中心|798真实双向；F收敛/B未收敛|独立端点已算完；B非零虚频及strict missing TS geometry独立缺口；durable未通过|不填Gold/正逆向垒。完整STRICT_FULL_RECORD保留；软模H主导不等数值噪声，各侧一次授权已用尽|
+|IB9 E1 原料→吡唑啉；[报告](results/IB9/REPORT.md)|821 F零虚频；单体742/745各零虚频可分离参考；整体tight833两负频，逐周期Hessian839仍−29.79/−4.49|780正常收敛，环加成候选非Gold|794一虚频、模式aligned；strict缺TS中心|798真实双向；F收敛/B未收敛|整体非零虚频；839实测Hessian重算未消负曲率，分离参考不冒充整体minimum或strict pass|不填Gold/正逆向垒；小步长/Hessian一次诊断完成，无后台，不再关键词循环|
 |IB9 E2 吡唑啉→环丙烷+N2；[报告](results/IB9/REPORT.md)|吡唑啉734零虚频；分离747/748各零虚频；复合物735三软虚频、不合格|782完成24点单调、CC未闭环；IDPP耦合后789终态failed，虽原生NORMAL但优化达最大步数未收敛，不列收敛候选|无已验证|无|无|不可报。最新报告已记录789 nonconvergence并blocked，旧失败结果未消化已属历史；科学搜索未成功不变，不证明不可达，全题RDS未定|
 |IB10 E1 重氮乙醛→卡宾+N2；[报告](results/IB10/REPORT.md)|773 R零虚频；808/810外端正常零虚频但为O–N五元环；775不是目标卡宾|785正常收敛，仅非目标候选|795恰一虚频，不能凭aligned认脱氮|802真实双向，实证O–N成环旁路而非目标脱氮|candidate_only geometry mismatch，且错物种连接独立成立|排除本候选目标脱氮回填。不能用精度问题抹去错连接或用独立R seed掩盖旁路|
 |IB10 E2 卡宾→乙烯酮（保留N2）；[报告](results/IB10/REPORT.md)|目标卡宾未核；乙烯酮786正常收敛零虚频；已核可复用IB9 N2 748，仅分离组件非完整P|path781/耦合scan784均未收敛，无收敛OptTS；完整P788 SCC250次不收敛fatal；N2 787输入解析失败|无已验证；787/788无可信频率|无|无|不可报。缺题设H6迁移方向、卡宾电子态及完整外端；775不是卡宾，组件复用不补成IRC闭合；本轮不再新增搜索|

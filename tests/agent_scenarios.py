@@ -622,3 +622,19 @@ def named_agent_communication_steps() -> list[Step]:
         })]),
         Step(stop=True),
     ]
+
+
+def ts_separated_product_recovery_steps(
+    run_id: str, component_logs: list[str], ready: asyncio.Event,
+) -> list[Step]:
+    """Inspect a candidate, supply component evidence, then read the durable verdict."""
+    return [
+        Step(wait_for=ready, tools=[('ts_inspect', {'run_id': run_id})]),
+        Step(tools=[('ts_resume', {
+            'run_id': run_id,
+            'changes': {'verification': {'product_endpoint': {'component_logs': component_logs}}},
+            'reason': 'Verify the separated products using their independent frequency evidence',
+        })]),
+        Step(tools=[('ts_inspect', {'run_id': run_id})]),
+        Step(stop=True),
+    ]

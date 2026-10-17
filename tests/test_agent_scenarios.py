@@ -2092,3 +2092,104 @@ async def test_named_agent_communication_addresses_only_the_launched_instance(tm
     finally:
         release_child.set()
         await harness.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures('ts_producer_authority', 'rdkit_chemistry')
+async def test_ts_separated_product_component_evidence_recovers_candidate_without_new_jobs(tmp_path):
+    """Real Agent/resume/ledger/classifier replay; native NU3 artifacts, no QM launch.
+
+    The fixture starts at the completed-output import boundary. Independent
+    component frequency logs exercise the native parser contract; the scientific
+    direction classifier and source-side interval proof are not substituted.
+    """
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.services.ts_pipeline_context import use_pipeline_database
+    from cloudra.services.ts_pipeline_store import bind_stage_job, create_process
+    from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
+    from cloudra.tools.core import ts_process
+    from cloudra.tools.core.molecule import read_molecule
+    from tests.agent_scenarios import ts_separated_product_recovery_steps
+    from tests.test_ts_separated_products import separated_record
+
+    ready = asyncio.Event()
+    component_logs = [str(tmp_path / 'native' / f'component_{index}.out') for index in range(2)]
+    provider = ScriptedProvider(by_role={'small_mol': ts_separated_product_recovery_steps(
+        'separated', component_logs, ready,
+    )})
+    harness = await ScenarioHarness.start(tmp_path, workspace_dir=tmp_path, provider=provider)
+
+    def seed_completed_outputs(owner_id):
+        db = ComputeDB().init()
+        record = separated_record(tmp_path)
+        record.input.verification.product_endpoint.component_logs = []
+        record.owner_conversation_id = harness.project.id
+        record.owner_session_id = owner_id
+        record.run_dir = str(tmp_path / 'ts' / record.run_id)
+        Path(record.run_dir).mkdir(parents=True)
+        state = create_process(db, request_key='separated-product-recovery', payload={
+            'project_id': harness.project.id, 'owner_id': owner_id,
+            'workspace_dir': str(tmp_path), 'input': record.input.model_dump(mode='json'),
+        })
+        record.pipeline_id = state['process_id']
+        for step in record.job_steps:
+            source = Path(step.input_path)
+            calculation = step.actual_calculation
+            task = 'irc' if step.purpose == 'irc' else 'opt' if step.purpose.endswith('_opt') else 'freq'
+            request = QmInputWriter_input_schema(
+                engine='orca', method=calculation.method, basis_set=calculation.basis_set,
+                keywords=calculation.keywords, task_type=[{task: None}],
+                source_type='xyz_file', source_value=str(source.with_name('optimized.xyz')),
+                output_path=str(source),
+            )
+            molecule = read_molecule(str(source.with_name('optimized.xyz')))
+            source.write_text(QmInputWriter._build_orca_input(request, molecule))
+            step.stage_key = step.purpose
+            step.job_id = bind_stage_job(db, process_id=record.pipeline_id, declaration_revision=1,
+                stage_key=step.stage_key, attempt=1, job_payload={
+                    'conversation_id': harness.project.id, 'session_id': owner_id,
+                    'path': str(source), 'jobtype': 'orca', 'node_id': 'offline-fixture',
+                })
+            step.external_source['source_job_id'] = step.job_id
+            with db.connect() as con:
+                con.execute("UPDATE compute_jobs SET state='done' WHERE id=?", (step.job_id,))
+        with use_pipeline_database(db):
+            record = ts_process._verdict(record)
+            assert record.terminal == 'candidate_only'
+            ts_process.save_record(record)
+        return db, record
+
+    def job_ids(db):
+        with db.connect() as con:
+            return [row[0] for row in con.execute('SELECT id FROM compute_jobs ORDER BY id')]
+
+    try:
+        agent = await harness.spawn('small_mol', protocol='traditional')
+        db, initial = await asyncio.to_thread(seed_completed_outputs, agent.id)
+        original_jobs = {step.purpose: step.job_id for step in initial.job_steps}
+        before = await asyncio.to_thread(job_ids, db)
+        ready.set()
+        await harness.wait_terminal(agent)
+
+        calls = harness.tool_events(agent)
+        assert [call['tool_name'] for call in calls] == ['ts_inspect', 'ts_resume', 'ts_inspect']
+        assert all(call['is_success'] for call in calls), harness.describe(agent)
+        assert calls[0]['result_data']['result']['outcome'] == 'candidate_only'
+        for call in calls[1:]:
+            assert call['result_data']['result']['outcome'] == 'verified'
+            assert call['result_data']['result']['verified'] is True
+        receipt = calls[1]['result_data']['receipt']
+        assert receipt['invalidated'] == []
+        assert {ref['job_id'] for ref in receipt['retained']} == set(before)
+        saved = await asyncio.to_thread(ts_process.load_record, str(tmp_path), initial.run_id)
+        assert saved.pipeline_id == initial.pipeline_id
+        assert saved.terminal == 'verified'
+        assert saved.input.verification.product_endpoint.component_logs == component_logs
+        assert {step.purpose: step.job_id for step in saved.job_steps} == original_jobs
+        assert not any(step.purpose.startswith('product_') for step in saved.job_steps)
+        assert saved.attempt_history[-1].terminal == 'candidate_only'
+        assert await asyncio.to_thread(job_ids, db) == before
+        assert (await asyncio.to_thread(ts_process._validated_endpoint_minimum, saved, 'product'))[0] is None
+    finally:
+        ready.set()
+        await harness.aclose()

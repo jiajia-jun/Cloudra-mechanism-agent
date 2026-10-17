@@ -1,0 +1,143 @@
+{
+  "sources": {
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0007/irc/irc_IRC_F_trj.xyz": {
+      "sha256": "79768cc953f72d69e9c03eebe7256c42155ce7a65f1a77bf268c1b629ea18a65",
+      "frames": 14
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0007/irc/irc_IRC_B_trj.xyz": {
+      "sha256": "81620ef113e29de33fbeced7ec0549b5e5abba9c557b29086cd7c77b25a61f49",
+      "frames": 11
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0007/frequency/frequency.hess": {
+      "sha256": "8de1ca25d04bff67b37c5fe06bed57f1f729976f54cfcd1fb195b247bcbbecaf"
+    }
+  },
+  "mass_participation": [
+    0.21649551820677865,
+    0.23863385813933866,
+    0.2191059532312067,
+    0.20570720505115464,
+    0.12005746537152139
+  ],
+  "mode_cartesian": [
+    [
+      0.17920979582,
+      0.08878047937,
+      0.093498144004
+    ],
+    [
+      0.014462580081,
+      -0.12623408886,
+      -0.15552587746
+    ],
+    [
+      -0.16828043941,
+      0.043157602966,
+      0.08277156407
+    ],
+    [
+      0.36785198204,
+      0.22781847425,
+      0.60383215212
+    ],
+    [
+      -0.061856869061,
+      0.032894184585,
+      -0.56316741773
+    ]
+  ],
+  "mass_weighted_projected_norm": 1.6444020621405522,
+  "mode_derivatives_raw": {
+    "(1, 2)": 0.05611327556974331,
+    "(1, 3)": -0.3491384884482371,
+    "(2, 3)": 0.09350347817947369,
+    "(4, 5)": -0.0002575607879490029
+  },
+  "comparisons": [
+    {
+      "side": "F",
+      "frame_1based": 1,
+      "cos_mass_weighted_no_rigid": 0.9999999999396162,
+      "abs_cos": 0.9999999999396162,
+      "cos_cartesian_aligned": 0.9999999999364494,
+      "cos_heavy_mass_weighted": 0.9999999999479036,
+      "bond_changes_A": {
+        "(1, 2)": 0.006801084410062996,
+        "(1, 3)": -0.03842810941178065,
+        "(2, 3)": 0.010772973151604859,
+        "(4, 5)": 0.005081044851722227
+      }
+    },
+    {
+      "side": "F",
+      "frame_1based": 2,
+      "cos_mass_weighted_no_rigid": 0.9376971362761723,
+      "abs_cos": 0.9376971362761723,
+      "cos_cartesian_aligned": 0.9340856587376194,
+      "cos_heavy_mass_weighted": 0.9684067725367412,
+      "bond_changes_A": {
+        "(1, 2)": 0.006283795973091699,
+        "(1, 3)": -0.16866544131506633,
+        "(2, 3)": 0.00755708061273741,
+        "(4, 5)": -0.0004070372802960076
+      }
+    },
+    {
+      "side": "F",
+      "frame_1based": 3,
+      "cos_mass_weighted_no_rigid": 0.9253500181858983,
+      "abs_cos": 0.9253500181858983,
+      "cos_cartesian_aligned": 0.9182442976828697,
+      "cos_heavy_mass_weighted": 0.966220529414898,
+      "bond_changes_A": {
+        "(1, 2)": 0.02449690234274038,
+        "(1, 3)": -0.24820553962983993,
+        "(2, 3)": 0.010554122329706539,
+        "(4, 5)": -0.007126027902107257
+      }
+    },
+    {
+      "side": "B",
+      "frame_1based": 1,
+      "cos_mass_weighted_no_rigid": -0.9999999999368769,
+      "abs_cos": 0.9999999999368769,
+      "cos_cartesian_aligned": -0.9999999999348221,
+      "cos_heavy_mass_weighted": -0.9999999999438957,
+      "bond_changes_A": {
+        "(1, 2)": -0.005546155222501126,
+        "(1, 3)": 0.0384346978465091,
+        "(2, 3)": -0.009805786511202008,
+        "(4, 5)": 0.0051366088778503904
+      }
+    },
+    {
+      "side": "B",
+      "frame_1based": 2,
+      "cos_mass_weighted_no_rigid": -0.9664905165522308,
+      "abs_cos": 0.9664905165522308,
+      "cos_cartesian_aligned": -0.9451637698654145,
+      "cos_heavy_mass_weighted": -0.9873275891520108,
+      "bond_changes_A": {
+        "(1, 2)": 0.0038136064514466828,
+        "(1, 3)": 0.11783643182155479,
+        "(2, 3)": -0.041414068252987324,
+        "(4, 5)": 0.01144249910358508
+      }
+    },
+    {
+      "side": "B",
+      "frame_1based": 3,
+      "cos_mass_weighted_no_rigid": -0.961734097447471,
+      "abs_cos": 0.961734097447471,
+      "cos_cartesian_aligned": -0.9469893109596464,
+      "cos_heavy_mass_weighted": -0.9898666509455877,
+      "bond_changes_A": {
+        "(1, 2)": -0.015258781794772913,
+        "(1, 3)": 0.16000528016504734,
+        "(2, 3)": -0.06008255314587441,
+        "(4, 5)": 0.01152464680201426
+      }
+    }
+  ],
+  "convention": "ORCA normal_modes Cartesian displacement; multiply sqrt(mass) for mass-weighted comparison, Kabsch mass-weighted align IRC to TS, project translations/rotations in same weighted metric; sign arbitrary. Frames are finite chords, not infinitesimal tangents."
+}

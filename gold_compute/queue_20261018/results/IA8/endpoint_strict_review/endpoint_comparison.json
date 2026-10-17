@@ -1,0 +1,62 @@
+{
+  "reactant": {
+    "irc_side": "B",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0007/irc/irc_IRC_B.xyz",
+    "final": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/endpoint_strict_review/reactant_optfreq.xyz",
+    "source_sha256": "0208615765f47e5ae501d02f829e0850cfc18e4827d9e3f0eb292d443a1f9b8c",
+    "final_sha256": "a6f97973190e05fcb92573cca2c101829953f31bed5d9c75bfddc65517f30992",
+    "symbols": [
+      "C",
+      "O",
+      "O",
+      "H",
+      "H"
+    ],
+    "mass_weighted_aligned_rmsd_A": 0.004634653442929035,
+    "max_aligned_atom_displacement_A": 0.018487375742775602,
+    "pairs": {
+      "(1, 2)": {
+        "irc_A": 1.253542814063777,
+        "opt_A": 1.2530964495092896
+      },
+      "(1, 3)": {
+        "irc_A": 2.2172041362463015,
+        "opt_A": 2.2220999889136426
+      },
+      "(2, 3)": {
+        "irc_A": 1.2919119703310826,
+        "opt_A": 1.2918614457244866
+      }
+    }
+  },
+  "product": {
+    "irc_side": "F",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0007/irc/irc_IRC_F.xyz",
+    "final": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IA8/endpoint_strict_review/product_optfreq.xyz",
+    "source_sha256": "79c9d3d02ddeb2d8300585505e4cf2a030234266735fc7a1f7819b6949be7392",
+    "final_sha256": "053a6c1b015990882fd640c296c70486231631a8876ea67363d8b84a3a44a262",
+    "symbols": [
+      "C",
+      "O",
+      "O",
+      "H",
+      "H"
+    ],
+    "mass_weighted_aligned_rmsd_A": 0.0019074598488085877,
+    "max_aligned_atom_displacement_A": 0.009244885282961458,
+    "pairs": {
+      "(1, 2)": {
+        "irc_A": 1.35951371632298,
+        "opt_A": 1.3601943709563709
+      },
+      "(1, 3)": {
+        "irc_A": 1.359603819462724,
+        "opt_A": 1.3602098826831173
+      },
+      "(2, 3)": {
+        "irc_A": 1.4033184484678496,
+        "opt_A": 1.4034107015487014
+      }
+    }
+  }
+}

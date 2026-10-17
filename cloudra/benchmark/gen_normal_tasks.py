@@ -69,6 +69,7 @@ from cloudra.benchmark.schema import (
     SystemSpec,
     TaskSpec,
     Tier,
+    complex_smiles,
 )
 from cloudra.infra.config import get_config
 
@@ -260,7 +261,7 @@ def _validate_task(pid: str, entry: dict, pool_reactants: list[str], pool_produc
 def _build_graph(pid: str, entry: dict) -> GoldMechanismGraph:
     tid = f"N{pid}"
     nodes = [MechanismNode(id=f"{tid}_R", role=NodeRole.REACTANT,
-                          smiles=_unmap_canonical(entry["mapped_reactants"]), label="reactant")]
+                          smiles=complex_smiles(_unmap_canonical(entry["mapped_reactants"])), label="reactant")]
     edges: list[MechanismEdge] = []
     prev_mapped, prev_id = entry["mapped_reactants"], nodes[0].id
     n = len(entry["steps"])
@@ -269,7 +270,7 @@ def _build_graph(pid: str, entry: dict) -> GoldMechanismGraph:
         node = MechanismNode(
             id=f"{tid}_P" if last else f"{tid}_I{k}",
             role=NodeRole.PRODUCT if last else NodeRole.INTERMEDIATE,
-            smiles=_unmap_canonical(step["out"]),
+            smiles=complex_smiles(_unmap_canonical(step["out"])),
             label="product" if last else f"intermediate {k}",
         )
         ts = MechanismNode(id=f"{tid}_TS{k}", role=NodeRole.TRANSITION_STATE, smiles=[], label=f"TS{k}")

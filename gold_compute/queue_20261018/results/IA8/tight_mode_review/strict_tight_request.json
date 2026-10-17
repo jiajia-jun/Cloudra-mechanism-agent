@@ -1,0 +1,20 @@
+{
+  "mode": "verify",
+  "strict": true,
+  "freq_log": "ts/ts_0001/jobs/declaration_0007/frequency/.cloudra/calc-835.out.log",
+  "irc_log": "ts/ts_0001/jobs/declaration_0007/irc/.cloudra/calc-836.out.log",
+  "reactant_path": "gold_compute/queue_20261018/results/IA8/explore/opt_CH2OO.xyz",
+  "product_path": "gold_compute/queue_20261018/results/IA8/explore/opt_dioxirane.xyz",
+  "engine": "orca",
+  "watch_pairs": [
+    [
+      0,
+      2
+    ],
+    [
+      0,
+      1
+    ]
+  ],
+  "output_dir": "gold_compute/queue_20261018/results/IA8/tight_mode_review/strict"
+}

@@ -8,18 +8,18 @@
 - `ts_inspect(run_id)`：读取同项目权威状态、实际结构原子表、作业、方法、证据、费用和下一步；只读审查员可检查别人的 run。不会推进、重新解析或提交计算。
 - `ts_resume(run_id, changes, reason, scan_recovery)`：原 owner 修订同一个 run；并发版本和稳定重放键由运行时管理，不要求模型填写。正常成功链自动推进，无需调用 resume。失败扫描必须提供绑定失败尝试及真实修复产物的 `scan_recovery`；其他失败阶段按既有恢复契约处理。运行时负责工作目录和稳定重放键。
 
-普通 Opt/Freq/单点/探索扫描仍用已有计算入口；手动 TS/IRC 提交暂时关闭，含 TS/QST2/QST3/OptTS/ScanTS/NEB-TS/IRC。不得通过其他 Agent 或 bash 绕过。关闭限制前须保留真实 TS 优化频率、双向 IRC 和两端 Opt/Freq 及身份验证产物；单测不构成真实引擎验收。
+普通 Opt/Freq/单点/探索扫描仍用已有计算入口；手动 TS/IRC 提交暂时关闭，含 TS/QST2/QST3/OptTS/ScanTS/NEB-TS/IRC。不得通过其他 Agent 或 bash 绕过。关闭限制前须保留真实 TS 优化频率、双向 IRC 与相应完整极小值或分离产物证据及身份验证产物；单测不构成真实引擎验收。
 
 ## 输入分组
 
 | 组 | 明确含义 |
 | --- | --- |
-| reaction | 两端 SMILES、电荷、总多重度、可选 electronic_character、全原子 atom_map、reaction_center |
+| reaction | 两端 SMILES；product_smiles 的单条 `B.C` 声明络合物，列表 `[B, C]` 声明分离产物（显示为 `B + C`）；电荷、总多重度、可选 electronic_character、全原子 atom_map、reaction_center |
 | calculations | 本次 TS 输入中的命名完整计算配置；阶段通过 `{ref: "名称"}` 显式选用，不自动继承 |
 | conformers | 两端 generate（显式 ETKDGv3 和 seed）、file、精确 catalog/partition/candidate 或已支持的 product 绕键旋转；可单独声明 optimization；guidance 为成环顺序/距离窗口 |
 | guess | 判别式 kind：xtb_path（显式 GFN2-xTB、可选溶剂/迭代数）、scan（独立 calculation/scans/freeze）、provided（XYZ 和证据引用） |
 | ts_optimization | 正式鞍点优化的独立 calculation |
-| verification | 独立 TS frequency、irc、各向 endpoint.optimization/frequency；可声明已完成的 irc_log 或端点 file seed（XYZ、可选 MOL、证据） |
+| verification | 独立 TS frequency、irc、各向 endpoint.optimization/frequency；可声明已完成的 irc_log 或端点 file seed（XYZ、可选 MOL、证据）；product_endpoint.component_logs 可提供各分离产物独立零虚频日志 |
 | execution | 计算节点/CPU/内存和可选有来源的动作、模型请求额度 |
 
 完整 `calculation` 明确 `engine`、单一原生 `method` token 和 `basis_set`；无基组的方法也必须显式填 `basis_set=""`。`method` 不接受方法/基组拼接或整段 route。`keywords`、`frequency_mode` 和对应原生 `orca_blocks`/`end_setting` 分开填写。阶段可直接给完整配置，也可给 `{ref: "名称"}` 指向本输入的 `calculations`。同一配置复用必须明确引用；探索与正式阶段仍各自选择。当前 native 构象优化、路径与扫描能力只支持显式 GFN2-xTB；其他明确方法使用已有 ORCA/Gaussian 写入器，能力不足点名阻塞。缺失方法不填默认。构象生成不暗中做力场优化；带指导的构象使用已声明约束优化方法。
@@ -83,7 +83,9 @@ verified / candidate_only / search_failed / invalid_input 是一次尝试的结�
 
 ## 保留的物理验收
 
-TS Opt 须原生正常结束并收敛；TS Freq 有且仅有 1 个虚频。双向 IRC 须有真实可用外帧，各向经无约束 Opt/Freq 确认为收敛的零虚频极小点，物种与立体化学吻合，且相对 TS 与对应极小点的方向区间吻合。IRC 本身可如实 partial，无须双向到底收敛；缺证据只到 candidate_only。路径/扫描/提供的峰帧均不直接作为已验证 TS。
+TS Opt 须原生正常结束并收敛；TS Freq 有且仅有 1 个虚频。双向 IRC 须有真实可用外帧。完整物种验收要求各向经无约束 Opt/Freq 确认为收敛的零虚频极小点，物种与立体化学吻合，且相对 TS 与对应极小点的方向区间吻合。分离产物验收要求实际 IRC 产物端点完整匹配所声明的各组分，每个组分有独立零虚频日志，反应物侧保留原有极小值与方向区间证明。IRC 本身可如实 partial，无须双向到底收敛；缺证据只到 candidate_only。路径/扫描/提供的峰帧均不直接作为已验证 TS。
+
+通过 `verification.product_endpoint.component_logs: ["B.out", "C.out"]` 补充分离产物证据；程序固定原生日志副本，后续 `ts_inspect.result.reason` 明确说明验证的是 `B + C`，`B.C` 络合物极小值仍待验证。已有络合物搜索与 TS/IRC 证据保留，补日志不会要求再算一个络合物。单独补组分证据不能把 DAG 上的 `B.C` 节点变成已验证极小值；要交付分离产物，节点 SMILES 声明为列表。能垒仍使用已验证反应物和 TS 的能量，不把组分能量拼成络合物能量。
 
 频率完成后，管线复用 `log_parser` 的模式解析，随该频率作业记录组成报告；`ts_inspect` 及其他 TS 工具的返回视图通过 `frequency_analysis` 读取同一记录。报告包含原日志路径/摘要、作业与输入修订、1-based 反应中心对、每条虚频的前五个运动原子及其占比、反应中心去重原子占比（`watch_atom_fraction`），并保留键向投影摘要。原子占比是原生日志位移的未加质量权重平方和比例，不等同于质量加权贡献；`modes=null` 表示缺少可解析位移或几何，不能当成占比为零。`mode_alignment` 复用 `ts_guess` 的既有检查；`misaligned` / `undecidable` 仅经本次频率作业通知唤醒所属 Agent，由 Agent 判断继续、`ts_stop` 或换初猜，不阻止 IRC、不自动取消计算，不添加新占比阈值。缺位移的 `missing` 不冒充方向不符。一虚频只支持一阶鞍点，组成报告不替代已有 IRC 与端点验收。
 

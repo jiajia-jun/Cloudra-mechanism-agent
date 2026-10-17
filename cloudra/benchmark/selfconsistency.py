@@ -9,8 +9,8 @@ graph element** (species node / TS-bearing edge), not the sandbox directory:
   effective accessibility applies (an edge routed via an inaccessible TS node
   counts as declared inaccessible; ``GoldMechanismGraph.edge_effectively_accessible``).
 - For each element, usable bound evidence must cover its required checks:
-  one verified minimum covers a species; a separately evidenced complex
-  needs a verified minimum for every component under Layer 1 binding rules.
+  one verified minimum covers a whole species or complex; separated species
+  need a verified minimum for each declared list member.
   One first-order saddle plus one direction-proven IRC
   covers a TS edge. Trial-and-error leftovers in the sandbox are never
   judged — unbound files do not exist for this layer — and a superseded
@@ -21,7 +21,8 @@ Required evidence per element:
 - species node (reactant/product/intermediate): one bound QM log whose
   frequency block shows zero imaginary frequencies (a verified minimum),
   or a separate normally terminated frequency log at that same geometry;
-  verified minimum logs must jointly cover every component of a complex;
+  verified minimum logs must cover each separated species; a dot-connected
+  complex requires its own whole-system minimum;
 - edge via a TS node (candidate pool = bound files of the TS node and both
   endpoints): one bound log with exactly one imaginary frequency
   (``ts_first_order_saddle``) and one bound IRC log passing the strict
@@ -72,6 +73,7 @@ from cloudra.tools.core.irc_evidence import (
     gaussian_irc_endpoints_from_frames,
     iter_direction_verdicts,
     normal_log,
+    verify_separated_product_direction,
 )
 from cloudra.tools.core.irc_evidence import (
     imag_freqs as _imag_freqs,
@@ -204,7 +206,7 @@ def _strict_irc_proof(
     from_files: list[str],
     to_files: list[str],
     charge: int = 0,
-    *, ts_files: list[str] | None = None,
+    *, ts_files: list[str] | None = None, product_smiles: list[str] | None = None,
 ) -> Optional[tuple[str, ...]]:
     """在绑定证据里完成 ts_guess strict 同口径的路径方向证明：找一组
     (TS 几何, 双侧 IRC 端点, 两端物种的验证极小值几何)，使两个 IRC 端点
@@ -246,11 +248,19 @@ def _strict_irc_proof(
                 continue
             matched_binding = binding if binding and hashlib.sha256(
                 (probe._sandbox / frequency_path).read_bytes()).hexdigest() == binding.get('ts_log_sha256') else None
-            for from_path, from_frequency, source in from_geos:
-                for to_path, to_frequency, target in to_geos:
-                    if any(v['is_decidable'] and v['is_match'] for v in
-                           iter_direction_verdicts(ends, [ts], [source], [target], charge=charge, atom_binding=matched_binding)):
-                        return ts_path, frequency_path, p, from_path, from_frequency, to_path, to_frequency
+            if not product_smiles or len(product_smiles) <= 1:
+                for from_path, from_frequency, source in from_geos:
+                    for to_path, to_frequency, target in to_geos:
+                        if any(v['is_decidable'] and v['is_match'] for v in
+                               iter_direction_verdicts(ends, [ts], [source], [target], charge=charge, atom_binding=matched_binding)):
+                            return ts_path, frequency_path, p, from_path, from_frequency, to_path, to_frequency
+            if product_smiles and len(product_smiles) > 1:
+                verdict = verify_separated_product_direction(ends, ts,
+                    [geo for _, _, geo in from_geos], product_smiles,
+                    [geo for _, _, geo in to_geos], charge=charge, atom_binding=matched_binding)
+                if verdict['is_decidable'] and verdict['is_match']:
+                    return (ts_path, frequency_path, p,
+                        *(path for anchor, witness, _ in [*from_geos, *to_geos] for path in (anchor, witness)))
     return None
 
 
@@ -305,7 +315,7 @@ def audit_self_consistency(
                     for witness in (probe.minimum_witness(p, qm_paths),)
                     if witness is not None
                 }
-                if any("." in species for species in node.smiles):
+                if len(node.smiles) > 1 or any("." in species for species in node.smiles):
                     # Recheck component coverage using verified bound anchors;
                     # replacing anchors with Freq paths loses explicit references.
                     minimum_files = [files_by_path[p] for p in minimum_witnesses]
@@ -323,7 +333,7 @@ def audit_self_consistency(
                             for path in (anchor, minimum_witnesses[anchor])
                         ))
                     else:
-                        chk.notes.append("verified minima do not cover the whole complex or every component")
+                        chk.notes.append("verified minima do not cover every declared species; a complex needs its own minimum")
                 else:
                     for p, witness in minimum_witnesses.items():
                         chk.covered = True
@@ -400,7 +410,8 @@ def audit_self_consistency(
                 if to_binding and to_binding.matched else []
             )
             proof = _strict_irc_proof(probe, sorted(pool), from_files, to_files, charge,
-                                      ts_files=ts_files)
+                ts_files=ts_files,
+                product_smiles=next(node.smiles for node in graph.nodes if node.id == edge.to_node))
             if proof is not None:
                 irc_ok = True
                 saddle_ok = True

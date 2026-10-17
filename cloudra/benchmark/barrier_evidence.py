@@ -277,6 +277,12 @@ def collect_barrier_evidence(sandbox: Path | str) -> BarrierEvidence:
         if base_node is None:
             report.notes.append(f"edge {edge.id}: unknown base node {edge.from_node}")
             continue
+        if len(base_node.smiles) > 1:
+            report.notes.append(
+                f"edge {edge.id}: separated source species have no single complex energy reference; "
+                "component energies are not substituted for it"
+            )
+            continue
         base_binding = bindings.get(edge.from_node)
         base_candidates = list(base_binding.bound_files) if base_binding else []
         if not base_candidates:

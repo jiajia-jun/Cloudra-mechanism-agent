@@ -14,7 +14,8 @@ class ProposalFields(BaseModel):
 
 class ProposalSpeciesInput(BaseModel):
     name: str = Field(min_length=1, description="Human-readable species system name.")
-    smiles: str | None = Field(default=None, description="Optional SMILES for the complex system.")
+    smiles: str | list[str] | None = Field(default=None,
+        description="SMILES string for one species or dot-connected complex (B.C); a list [B, C] declares separated species.")
     model_config = ConfigDict(extra="forbid")
 
 

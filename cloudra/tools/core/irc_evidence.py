@@ -190,29 +190,27 @@ def normal_log(path, *, max_scan_bytes=None) -> bool:
         return False
     if engine == 'orca' and 'ORCA finished by error termination' in text:
         return False
-    marker = 'ORCA TERMINATED NORMALLY' if engine == 'orca' else 'Normal termination of Gaussian'
-    if text.count(marker) <= 1:
-        return True
-    # Link1/compound outputs may contain multiple native calculations. The
-    # last frequency block must describe the final geometry, not an earlier
-    # saddle whose frequencies survived a later optimization in the same file.
-    parts = text.split(marker)
-    segments = [part + marker for part in parts[:-1]]
-    segments[-1] += parts[-1]
-    def geometry(segment):
+    return frequency_geometry_matches(path)
+
+
+def frequency_geometry_matches(path) -> bool:
+    """The last spectrum must belong to the final geometry in the native log."""
+    engine = qm_engine.detect_qm_engine(str(path))
+    text = Path(path).read_text(errors='replace')
+    frequency_marker = 'VIBRATIONAL FREQUENCIES' if engine == 'orca' else 'Frequencies --'
+    frequency_index = text.rfind(frequency_marker)
+    if frequency_index < 0:
+        return True  # No frequency claim; probe_log still returns n_imag=None.
+
+    def geometry(region):
         if engine == 'orca':
-            return parse_xyz(orca_frames.final_xyz_from_text(segment))
-        blocks = gaussian_frames.std_orientation_frames(segment)
-        coords = blocks[-1] if blocks else gaussian_frames._parse_last_input_orientation(segment)
+            return parse_xyz(orca_frames.final_xyz_from_text(region))
+        blocks = gaussian_frames.std_orientation_frames(region)
+        coords = blocks[-1] if blocks else gaussian_frames._parse_last_input_orientation(region)
         return parse_xyz(gaussian_frames._coords_to_xyz(
             [row[0] for row in coords], [row[1:] for row in coords])) if coords else None
-    final_geometry = geometry(segments[-1])
-    for segment in reversed(segments):
-        frequencies = (orca_frames.vibfreqs_from_text(segment) if engine == 'orca' else
-                       any(line.strip().startswith('Frequencies --') for line in segment.splitlines()))
-        if frequencies:
-            return same_geometry(final_geometry, geometry(segment))
-    return True
+
+    return same_geometry(geometry(text), geometry(text[:frequency_index]))
 
 
 def probe_log(path, *, max_scan_bytes: Optional[int] = None) -> tuple[Optional[int], Optional[tuple]]:
@@ -325,6 +323,104 @@ def iter_direction_verdicts(
                 )
 
 
+def _geometry_matches_species(geometry, smiles: str, *, charge: int) -> bool:
+    """Match the full bond graph and stereochemistry of a real geometry."""
+    from rdkit import Chem
+    from rdkit.Chem import rdDetermineBonds
+
+    from cloudra.tools.core.irc_path import xyz_block
+
+    expected = Chem.MolFromSmiles(smiles)
+    actual = Chem.MolFromXYZBlock(xyz_block(*geometry))
+    if expected is None or actual is None or any(atom.GetIsotope() for atom in expected.GetAtoms()):
+        return False
+    if Chem.AddHs(expected).GetNumAtoms() != actual.GetNumAtoms():
+        return False
+    try:
+        rdDetermineBonds.DetermineBonds(actual, charge=charge)
+    except ValueError:
+        return False
+    for molecule in (expected, actual):
+        for atom in molecule.GetAtoms():
+            atom.SetAtomMapNum(0)
+    return Chem.MolToSmiles(Chem.RemoveHs(actual)) == Chem.MolToSmiles(Chem.RemoveHs(expected))
+
+
+def verify_separated_product_direction(
+    irc_ends, ts_geometry, source_geometries, product_smiles, component_geometries,
+    *, charge: int = 0, atom_binding=None,
+) -> dict:
+    """Prove the separated product channel without inventing a complex minimum.
+
+    Callers supply only frequency-verified component and source minima. Product
+    identity comes from an actual IRC outer geometry; the opposite direction
+    retains the existing source-minimum interval predicate.
+    """
+    from rdkit import Chem
+
+    from cloudra.tools.core.irc_path import align_atom_order, evaluate_endpoint_between
+    from cloudra.tools.core.species_identity import chemical_smiles, species_smiles
+
+    failure = dict(is_decidable=False, is_match=False, details=[])
+    products = product_smiles.split('.') if isinstance(product_smiles, str) else species_smiles(product_smiles)
+    if len(products) < 2:
+        return {**failure, 'details': ['The declaration is one species, not separated products.']}
+    declared = [Chem.MolFromSmiles(smiles) for smiles in products]
+    if any(molecule is None for molecule in declared):
+        return {**failure, 'details': ['A declared product SMILES is invalid.']}
+    for smiles, molecule in zip(products, declared, strict=True):
+        component_charge = sum(atom.GetFormalCharge() for atom in molecule.GetAtoms())
+        if not any(_geometry_matches_species(geometry, smiles, charge=component_charge)
+                   for geometry in component_geometries):
+            return {**failure, 'details': [f'No frequency-verified independent minimum matches product {smiles}.']}
+
+    symbols, positions = ts_geometry
+    all_products = chemical_smiles(products)
+    details = []
+    for name, target, source in (('direct', irc_ends[1], irc_ends[0]),
+                                 ('swapped', irc_ends[0], irc_ends[1])):
+        if any(sorted(geometry[0]) != sorted(symbols) for geometry in (target, source)):
+            details.append('IRC endpoint atom counts or elements differ from the TS.')
+            continue
+        if not _geometry_matches_species(target, all_products, charge=charge):
+            details.append(f'{name}: the actual IRC product endpoint does not match all declared products.')
+            continue
+        if atom_binding:
+            mapping = atom_binding.get('atom_map', [])
+            if (len(mapping) != len(symbols) or any(type(index) is not int for index in mapping)
+                    or sorted(mapping) != list(range(1, len(symbols) + 1))
+                    or list(target[0]) != list(symbols)):
+                details.append('The bound product correspondence does not cover the native IRC atom order.')
+                continue
+            product_order = ([target[0][index - 1] for index in mapping],
+                             [target[1][index - 1] for index in mapping])
+            if not _ordered_graph_matches(product_order, atom_binding['product_mol'], charge):
+                details.append('The actual IRC product endpoint differs from the bound product atom identities.')
+                continue
+        for minimum in source_geometries:
+            identity = list(range(len(symbols))) if atom_binding else None
+            if atom_binding and not _ordered_graph_matches(minimum, atom_binding['reactant_mol'], charge):
+                continue
+            aligned_source = align_atom_order(symbols, positions, *source, atom_order=identity)
+            aligned_minimum = align_atom_order(symbols, positions, *minimum, atom_order=identity)
+            if aligned_source is None or aligned_minimum is None:
+                details.append('The reactant IRC endpoint or minimum cannot be aligned to the TS.')
+                continue
+            result = evaluate_endpoint_between(symbols, positions,
+                [source[1][index] for index in aligned_source[0]],
+                [minimum[1][index] for index in aligned_minimum[0]], [], charge)
+            if result['is_decidable'] and result['is_between']:
+                return dict(is_decidable=True, is_match=True, assignment=name,
+                    proof_scope='separated_products', details=[
+                        'The actual IRC endpoint matches every declared separated product, each supported '
+                        'by an independent zero-imaginary minimum; the reactant direction passes the '
+                        'existing interval proof. This does not verify a bound product complex minimum.',
+                        *result['details']])
+            failure['is_decidable'] = failure['is_decidable'] or result['is_decidable']
+            details.extend(result['details'])
+    return {**failure, 'details': details or ['No verified reactant minimum supports the IRC direction.']}
+
+
 def _usable_ts_geometries(ts_logs, *, max_scan_bytes, details: list[str]) -> list[tuple]:
     geometries = []
     for path in ts_logs:
@@ -364,6 +460,7 @@ def verify_short_irc_direction(
     charge: int = 0,
     max_scan_bytes: Optional[int] = None,
     atom_bindings=None,
+    product_smiles: str | list[str] | None = None,
 ) -> tuple[bool, list[str]]:
     """给定 short_irc 日志与材料日志候选，完成几何方向区间证明。
 
@@ -419,17 +516,27 @@ def verify_short_irc_direction(
             "evidence or the target species' geometry stage — a frequency-verified "
             "minimum (zero imaginary frequencies) whose log carries a final geometry"
         )
-    if not (ts_geometries and from_geometries and to_geometries):
+    if not (ts_geometries and from_geometries):
         return False, details
     last_verdict: Optional[dict] = None
-    for ts_geometry, ts_binding in ts_geometries:
-        for verdict in iter_direction_verdicts(
-            ends, [ts_geometry], from_geometries, to_geometries, charge=charge,
-            atom_binding=atom_binding if ts_binding == atom_binding else None,
-        ):
-            if verdict["is_decidable"] and verdict["is_match"]:
-                return True, list(verdict.get("details") or [])
-            last_verdict = verdict
+    separated = isinstance(product_smiles, list) and len(product_smiles) > 1
+    if not separated:
+        for ts_geometry, ts_binding in ts_geometries:
+            for verdict in iter_direction_verdicts(
+                ends, [ts_geometry], from_geometries, to_geometries, charge=charge,
+                atom_binding=atom_binding if ts_binding == atom_binding else None,
+            ):
+                if verdict["is_decidable"] and verdict["is_match"]:
+                    return True, list(verdict.get("details") or [])
+                last_verdict = verdict
+    if separated:
+        for ts_geometry, ts_binding in ts_geometries:
+            verdict = verify_separated_product_direction(ends, ts_geometry, from_geometries,
+                product_smiles, to_geometries, charge=charge,
+                atom_binding=atom_binding if ts_binding == atom_binding else None)
+            if verdict["is_match"]:
+                return True, verdict["details"]
+            details.extend(verdict["details"])
     if last_verdict is not None and not last_verdict.get("is_decidable"):
         header = (
             "the direction proof is undecidable for the bound materials "
@@ -441,10 +548,10 @@ def verify_short_irc_direction(
             "the IRC endpoints do not lie between the TS and the verified "
             "endpoint minima (the geometric direction proof failed)"
         )
-    return False, [header, *list((last_verdict or {}).get("details") or [])]
+    return False, [header, *list((last_verdict or {}).get("details") or []), *details]
 
 
-def verify_short_irc_pair(forward_log, reverse_log, ts_logs, endpoint_a_logs, endpoint_b_logs, *, atom_bindings=None):
+def verify_short_irc_pair(forward_log, reverse_log, ts_logs, endpoint_a_logs, endpoint_b_logs, *, atom_bindings=None, product_smiles: str | list[str] | None = None):
     """Combine explicitly submitted directional logs using the same interval proof."""
     def outer_geometry(path, direction):
         engine = qm_engine.detect_qm_engine(str(path))
@@ -480,12 +587,22 @@ def verify_short_irc_pair(forward_log, reverse_log, ts_logs, endpoint_a_logs, en
     ts = [item for item in ts if all(same_geometry(item[0], start) for start in starts)]
     source = _usable_minimum_geometries(endpoint_b_logs, side='SOURCE', max_scan_bytes=None, details=details)
     target = _usable_minimum_geometries(endpoint_a_logs, side='TARGET', max_scan_bytes=None, details=details)
-    if not (ts and source and target):
+    if not (ts and source):
         return False, [*details, 'Bind the TS and frequency-verified source/target minimum logs.']
-    for geometry, ts_binding in ts:
-        for verdict in iter_direction_verdicts((forward, reverse), [geometry], source, target,
-            atom_binding=atom_binding if ts_binding == atom_binding else None):
-            if verdict['is_decidable'] and verdict['is_match']:
-                return True, list(verdict.get('details') or [])
-            details.extend(verdict.get('details') or [])
+    separated = isinstance(product_smiles, list) and len(product_smiles) > 1
+    if not separated:
+        for geometry, ts_binding in ts:
+            for verdict in iter_direction_verdicts((forward, reverse), [geometry], source, target,
+                atom_binding=atom_binding if ts_binding == atom_binding else None):
+                if verdict['is_decidable'] and verdict['is_match']:
+                    return True, list(verdict.get('details') or [])
+                details.extend(verdict.get('details') or [])
+    if separated:
+        for geometry, ts_binding in ts:
+            verdict = verify_separated_product_direction((forward, reverse), geometry, source,
+                product_smiles, target, charge=(atom_binding or {}).get('charge', 0),
+                atom_binding=atom_binding if ts_binding == atom_binding else None)
+            if verdict['is_match']:
+                return True, verdict['details']
+            details.extend(verdict['details'])
     return False, ['The paired IRC endpoint interval proof failed or is undecidable.', *details]

@@ -18,6 +18,7 @@ import { Molecule3DViewer } from './Molecule3DViewer';
 
 type Json = Record<string, any>;
 type Sel = { kind: 'node' | 'edge'; id: string } | null;
+type SpeciesSmiles = string | string[] | null | undefined;
 
 interface DagData {
   mode: string;
@@ -39,6 +40,25 @@ function shortId(value: unknown): string {
 
 function trunc(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, Math.max(1, max - 1))}…` : text;
+}
+
+function speciesParts(smiles: SpeciesSmiles): string[] {
+  return Array.isArray(smiles) ? smiles : smiles ? [smiles] : [];
+}
+
+function speciesLabel(node: Json): string {
+  return String(node.label ?? node.name ?? (speciesParts(node.smiles).join(' + ') || node.node_id));
+}
+
+function speciesDescription(smiles: SpeciesSmiles): string {
+  const parts = speciesParts(smiles);
+  if (parts.length > 1) return parts.join(' + ');
+  return parts[0]?.includes('.') ? `络合物 · ${parts[0]}` : '';
+}
+
+function readSpeciesInput(text: string): SpeciesSmiles {
+  const parts = text.split('\n').map(part => part.trim()).filter(Boolean);
+  return parts.length > 1 ? parts : parts[0] ?? null;
 }
 
 /* ------------------------------------------------------------- stages */
@@ -107,10 +127,10 @@ function layoutGraph(graph: Json): { nodes: LNode[]; edges: LEdge[]; width: numb
   const nodes: Json[] = graph.nodes ?? [];
   const edges: Json[] = graph.edges ?? [];
   for (const n of nodes) {
-    const label = String(n.label ?? n.node_id);
-    const hasSmiles = Boolean(n.smiles && String(n.smiles).trim());
-    const h = hasSmiles ? 74 : NODE_H;
-    const w = Math.max(hasSmiles ? 110 : 96, Math.min(180, label.length * 7 + 20));
+    const label = speciesLabel(n);
+    const parts = speciesParts(n.smiles);
+    const h = speciesDescription(n.smiles) ? 88 : parts.length ? 74 : NODE_H;
+    const w = Math.max(parts.length ? Math.min(360, Math.max(110, parts.length * 100)) : 96, Math.min(180, label.length * 7 + 20));
     g.setNode(String(n.node_id), { width: w, height: h });
   }
   const ids = new Set(nodes.map((n) => String(n.node_id)));
@@ -128,8 +148,7 @@ function layoutGraph(graph: Json): { nodes: LNode[]; edges: LEdge[]; width: numb
   const ln: LNode[] = nodes.map((n) => {
     const id = String(n.node_id);
     const p = g.node(id);
-    const hasSmiles = Boolean(n.smiles && String(n.smiles).trim());
-    const defaultH = hasSmiles ? 74 : NODE_H;
+    const defaultH = speciesDescription(n.smiles) ? 88 : speciesParts(n.smiles).length ? 74 : NODE_H;
     return { id, x: p?.x ?? 0, y: p?.y ?? 0, w: p?.width ?? 110, h: p?.height ?? defaultH, data: n };
   });
   const byId = new Map(ln.map((n) => [n.id, n]));
@@ -207,8 +226,10 @@ function GraphView({ graph, sel, onSelect }: {
           const selected = isSel('node', n.id);
           const stroke = selected ? 'var(--green)' : evidenceColor(n.data.evidence_level);
           const maxChars = Math.floor((n.w - 12) / 6.5);
-          const smiles = String(n.data.smiles ?? '').trim();
-          const hasSmiles = Boolean(smiles);
+          const parts = speciesParts(n.data.smiles);
+          const description = speciesDescription(n.data.smiles);
+          const hasSmiles = parts.length > 0;
+          const partWidth = (n.w - 12 - Math.max(0, parts.length - 1) * 12) / Math.max(1, parts.length);
           return (
             <g
               key={n.id}
@@ -233,21 +254,29 @@ function GraphView({ graph, sel, onSelect }: {
                 }}
               />
               <text className="dag-node-label" x={n.w / 2} y={hasSmiles ? 14 : n.h / 2 + 4} textAnchor="middle">
-                {trunc(String(n.data.label ?? n.id), maxChars)}
+                {trunc(speciesLabel(n.data), maxChars)}
               </text>
-              {hasSmiles && (
-                <image
-                  href={api.chemRenderSmilesUrl(smiles, Math.round(n.w - 12), 40, 'dark')}
-                  x={6}
-                  y={18}
-                  width={n.w - 12}
-                  height={40}
-                  preserveAspectRatio="xMidYMid meet"
-                  style={{
-                    pointerEvents: 'none',
-                    opacity: selected ? 1 : 0.85,
-                  }}
-                />
+              {parts.map((smiles, index) => (
+                <g key={index}>
+                  {index > 0 && (
+                    <text x={6 + index * (partWidth + 12) - 6} y={43} textAnchor="middle" fill="var(--fg)" style={{ pointerEvents: 'none' }}>+</text>
+                  )}
+                  <image
+                    href={api.chemRenderSmilesUrl(smiles, Math.round(partWidth), 40, 'dark')}
+                    x={6 + index * (partWidth + 12)}
+                    y={18}
+                    width={partWidth}
+                    height={40}
+                    preserveAspectRatio="xMidYMid meet"
+                    style={{ pointerEvents: 'none', opacity: selected ? 1 : 0.85 }}
+                  />
+                </g>
+              ))}
+              {description && (
+                <text x={n.w / 2} y={76} textAnchor="middle" fill="var(--fg-faint)" fontSize={10} style={{ pointerEvents: 'none' }}>
+                  <title>{description}</title>
+                  {trunc(description, maxChars)}
+                </text>
               )}
             </g>
           );
@@ -283,7 +312,7 @@ function NodeEditForm({ node, ctx }: { node: Json; ctx: FormCtx }) {
   const [label, setLabel] = useState(String(node.label ?? ''));
   const [reason, setReason] = useState(String(node.reason ?? ''));
   const [role, setRole] = useState(String(node.role ?? ''));
-  const [smiles, setSmiles] = useState(String(node.smiles ?? ''));
+  const [smiles, setSmiles] = useState(speciesParts(node.smiles).join('\n'));
   const [rationale, setRationale] = useState('');
 
   function save() {
@@ -291,7 +320,7 @@ function NodeEditForm({ node, ctx }: { node: Json; ctx: FormCtx }) {
       label: label.trim(),
       reason: reason.trim(),
       role: role || null,
-      smiles: smiles.trim() || null,
+      smiles: readSpeciesInput(smiles),
     };
     ctx.onSave([{ op: 'update_node', graph: 'delivery', node_id: node.node_id, changes }], rationale.trim(), 'Node updated');
   }
@@ -312,7 +341,8 @@ function NodeEditForm({ node, ctx }: { node: Json; ctx: FormCtx }) {
         </select>
       </Field>
       <Field label="SMILES 结构式">
-        <input className="input sm" value={smiles} onChange={(e) => setSmiles(e.target.value)} placeholder="(none)" />
+        <textarea className="input sm" rows={2} value={smiles} onChange={(e) => setSmiles(e.target.value)} placeholder="同一络合物用 . 连接；分离物种各占一行" />
+        <span className="dag-meta">同一络合物用 . 连接；分离物种各占一行</span>
       </Field>
       <Field label="化学依据 (Reason)">
         <input className="input sm" value={reason} onChange={(e) => setReason(e.target.value)} />
@@ -391,7 +421,7 @@ function AddForms({ nodes, ctx }: { nodes: Json[]; ctx: FormCtx }) {
     if (!nLabel.trim()) return;
     const node: Json = { node_id: `sp_${Date.now()}`, node_type: 'species', name: nLabel.trim(), label: nLabel.trim() };
     if (nRole) node.role = nRole;
-    if (nSmiles.trim()) node.smiles = nSmiles.trim();
+    if (nSmiles.trim()) node.smiles = readSpeciesInput(nSmiles);
     ctx.onSave([{ op: 'add_node', graph: 'delivery', node }], 'User added node', 'Node added');
     setNLabel('');
     setNSmiles('');
@@ -418,7 +448,7 @@ function AddForms({ nodes, ctx }: { nodes: Json[]; ctx: FormCtx }) {
           <input className="input sm" value={nLabel} onChange={(e) => setNLabel(e.target.value)} placeholder="如 Int-3" />
         </Field>
         <Field label="SMILES 结构式">
-          <input className="input sm" value={nSmiles} onChange={(e) => setNSmiles(e.target.value)} placeholder="如 CC(=O)O" />
+          <textarea className="input sm" rows={2} value={nSmiles} onChange={(e) => setNSmiles(e.target.value)} placeholder="同一络合物用 . 连接；分离物种各占一行" />
         </Field>
         <Field label="角色">
           <select className="select sm" value={nRole} onChange={(e) => setNRole(e.target.value)}>
@@ -439,7 +469,7 @@ function AddForms({ nodes, ctx }: { nodes: Json[]; ctx: FormCtx }) {
           <select className="select sm" value={eSrc} onChange={(e) => setESrc(e.target.value)}>
             <option value="">(选择起点)</option>
             {nodes.map((n) => (
-              <option key={String(n.node_id)} value={String(n.node_id)}>{String(n.label ?? n.node_id)}</option>
+              <option key={String(n.node_id)} value={String(n.node_id)}>{speciesLabel(n)}</option>
             ))}
           </select>
         </Field>
@@ -447,7 +477,7 @@ function AddForms({ nodes, ctx }: { nodes: Json[]; ctx: FormCtx }) {
           <select className="select sm" value={eDst} onChange={(e) => setEDst(e.target.value)}>
             <option value="">(选择终点)</option>
             {nodes.map((n) => (
-              <option key={String(n.node_id)} value={String(n.node_id)}>{String(n.label ?? n.node_id)}</option>
+              <option key={String(n.node_id)} value={String(n.node_id)}>{speciesLabel(n)}</option>
             ))}
           </select>
         </Field>
@@ -635,15 +665,17 @@ export default function DagPanel({
 
   const selNode = sel?.kind === 'node' ? nodes.find((n) => String(n.node_id) === sel.id) : undefined;
   const selEdge = sel?.kind === 'edge' ? edges.find((e) => String(e.edge_id) === sel.id) : undefined;
-  const nodeLabels = new Map(nodes.map((n) => [String(n.node_id), String(n.label ?? n.node_id)]));
+  const nodeLabels = new Map(nodes.map((n) => [String(n.node_id), speciesLabel(n)]));
 
   // Determine current active item's details for 2D & 3D view
   const currentItem = useMemo(() => {
     if (selNode) {
+      const parts = speciesParts(selNode.smiles);
+      const description = speciesDescription(selNode.smiles);
       return {
         id: String(selNode.node_id),
-        label: String(selNode.label ?? selNode.node_id),
-        smiles: String(selNode.smiles ?? '').trim(),
+        label: `${speciesLabel(selNode)}${description ? ` · ${description}` : ''}`,
+        smiles: parts.length === 1 ? parts[0] : '',
         role: String(selNode.role ?? 'intermediate'),
         isTS: false,
         saddleEvidenceSupported: false,

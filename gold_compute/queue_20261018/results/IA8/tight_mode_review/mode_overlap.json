@@ -1,0 +1,10 @@
+{
+  "full_abs_cos": 0.9999999934248432,
+  "heavy_abs_cos_after_same_rigid_projection": 0.9999999990227516,
+  "new_to_old_mass_weighted_rmsd_A": 5.269449509415055e-05,
+  "old_mode_index": 6,
+  "new_mode_index": 6,
+  "old_frequency_cm": -950.34112361758,
+  "new_frequency_cm": -950.470193741353,
+  "note": "Cartesian modes rotated with mass-weighted Kabsch geometries; both projected at old TS onto complement of same six mass-weighted rigid vectors; compare absolute normalized dot product, no H relabeling."
+}

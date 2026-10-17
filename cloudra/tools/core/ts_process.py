@@ -17,8 +17,8 @@
 - **阶段诚实**：尚未接线的阶段标 ``not_implemented`` 并**停下**，绝不假装跑过。
 
 **本模块当前实现到哪**：declare → build → map → assemble → guess → validate →
-submit → refine → verdict 已接线；两端的路径种子须另经同方法 Opt/Freq 验证为极小值，
-才能作为 IRC 连通性判断的参考几何。
+submit → refine → verdict 已接线；完整物种须有频率确证的极小值参考。
+分离产物可用实际 IRC 端点身份及各组分独立零虚频证据验收，络合物极小值仍待验证。
 """
 
 from __future__ import annotations
@@ -50,6 +50,7 @@ from cloudra.tools.core.reaction_state import (
     path_endpoints,
     set_heavy_binding,
 )
+from cloudra.tools.core.species_identity import chemical_smiles
 from cloudra.tools.core.structure_builder import (
     BuildStrategy,
     PreparationRequest,
@@ -286,6 +287,31 @@ def _bind_provided_artifact(record, source: str, target: Path) -> TsArtifactBind
                              sha256=hashlib.sha256(data).hexdigest())
 
 
+def _product_component_logs(record: TsProcessRecord) -> list[str]:
+    """Bind component evidence once per input revision, using existing artifacts."""
+    sources = record.input.verification.product_endpoint.component_logs
+    if not sources:
+        return []
+    directory = Path(record.run_dir) / VERDICT_STAGE_DIR / f'components_{record.declaration_revision:04d}'
+    manifest = directory / 'manifest.json'
+    if manifest.is_file():
+        bindings = [TsArtifactBinding.model_validate(item) for item in json.loads(manifest.read_text())]
+    else:
+        directory.mkdir(parents=True, exist_ok=True)
+        bindings = [_bind_provided_artifact(record, source, directory / f'component_{index:04d}.log')
+                    for index, source in enumerate(sources)]
+        _write_immutable_input(str(manifest), json.dumps([item.model_dump() for item in bindings]))
+    logs = []
+    for item in bindings:
+        path = _workspace_input_path(record, item.snapshot_path)
+        if hashlib.sha256(path.read_bytes()).hexdigest() != item.sha256:
+            raise ValueError(f'Bound component evidence changed: {path}')
+        logs.append(str(path))
+        if str(path) not in record.evidence_candidates:
+            record.evidence_candidates.append(str(path))
+    return logs
+
+
 def _verify_provided_guess_binding(record) -> None:
     binding = record.provided_guess_binding
     if binding is not None:
@@ -446,7 +472,7 @@ def _open_shell_singlet(record) -> bool:
 
     reaction = record.input.reaction
     for smiles in (reaction.reactant_smiles, reaction.product_smiles):
-        graph = Chem.MolFromSmiles(smiles)
+        graph = Chem.MolFromSmiles(chemical_smiles(smiles))
         if graph is not None and electronic_state_details(
             graph, charge=reaction.charge, multiplicity=reaction.multiplicity,
             electronic_character=reaction.electronic_character,
@@ -495,13 +521,13 @@ def _declare(record: TsProcessRecord) -> TsProcessRecord:
     problems: list[str] = []
     if not declaration.reactant_smiles.strip():
         problems.append("reactant_smiles is empty")
-    if not declaration.product_smiles.strip():
+    if not chemical_smiles(declaration.product_smiles).strip():
         problems.append("product_smiles is empty")
     if declaration.multiplicity < 1:
         problems.append(f"multiplicity must be >= 1 (2S+1), got {declaration.multiplicity}")
     from rdkit import Chem
     reactant_graph = Chem.MolFromSmiles(declaration.reactant_smiles)
-    product_graph = Chem.MolFromSmiles(declaration.product_smiles)
+    product_graph = Chem.MolFromSmiles(chemical_smiles(declaration.product_smiles))
     if reactant_graph is None or product_graph is None:
         problems.append('Reaction species must have parseable SMILES')
     else:
@@ -515,7 +541,7 @@ def _declare(record: TsProcessRecord) -> TsProcessRecord:
         from rdkit import Chem
 
         reactant_graph = Chem.MolFromSmiles(declaration.reactant_smiles)
-        product_graph = Chem.MolFromSmiles(declaration.product_smiles)
+        product_graph = Chem.MolFromSmiles(chemical_smiles(declaration.product_smiles))
         if reactant_graph is None or product_graph is None:
             problems.append("product_geometry requires parseable reactant and product SMILES")
         else:
@@ -544,7 +570,7 @@ def _build(record: TsProcessRecord) -> TsProcessRecord:
         )
     endpoints = [("reactant", declaration.reactant_smiles)]
     if _rotated_product(record) is None:
-        endpoints.append(("product", declaration.product_smiles))
+        endpoints.append(("product", chemical_smiles(declaration.product_smiles)))
     # 第二端几何由声明派生（绕键旋转）时**不单独建**：那一端就是第一端的一个刚体旋转，
     # 另外建一个构象既浪费又可能被误当成"产物"（两端 SMILES 相同的题型必然踩这个坑）
     for role, smiles in endpoints:
@@ -955,12 +981,12 @@ def _bound_input_structure(record, role, *, require_identity=True):
     mol = getattr(record.structures, role)
     if mol is None:
         raise ValueError(f'{role} concrete geometry is missing')
-    smiles = getattr(record.input.reaction, role + '_smiles')
+    smiles = chemical_smiles(getattr(record.input.reaction, role + '_smiles'))
     from rdkit import Chem
 
     from cloudra.tools.core.electronic_state import electronic_state_issue
     reaction = record.input.reaction
-    for graph in (Chem.MolFromSmiles(smiles), mol):
+    for graph in (Chem.MolFromSmiles(chemical_smiles(smiles)), mol):
         if graph is None:
             raise ValueError(f'{role}: declared SMILES cannot be parsed')
         issue = electronic_state_issue(graph, charge=reaction.charge, multiplicity=reaction.multiplicity,
@@ -2662,7 +2688,7 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
 
 
 def _refine(record: TsProcessRecord) -> TsProcessRecord:
-    """推进 TS Opt/Freq → IRC → 两端 Opt/Freq 作业序列。**从不轮询**。
+    """推进 TS Opt/Freq → IRC → 端点验证；分离产物复用独立组分日志。**从不轮询**。
 
     还没到终态时本阶段置 ``waiting`` 并**不推事件**：等计算不算"阻塞"，agent 不该被叫醒。
     作业终态由既有的 compute 通知路径交给系统 driver，
@@ -2681,7 +2707,11 @@ def _refine(record: TsProcessRecord) -> TsProcessRecord:
     # the last contiguous predecessor, rather than whichever job was appended
     # last in an earlier input revision.
     current = None
-    formal_order = ('ts_opt', 'frequency', 'irc', 'reactant_opt', 'reactant_frequency', 'product_opt', 'product_frequency')
+    separated_products = bool(record.input.verification.product_endpoint.component_logs) or (
+        isinstance(record.input.reaction.product_smiles, list) and len(record.input.reaction.product_smiles) > 1)
+    formal_order = ('ts_opt', 'frequency', 'irc', 'reactant_opt', 'reactant_frequency')
+    if not separated_products:
+        formal_order += ('product_opt', 'product_frequency')
     first = next((i for i, purpose in enumerate(formal_order) if any(s.purpose == purpose for s in record.job_steps)), len(formal_order))
     for purpose in formal_order[first:]:
         step = next((s for s in reversed(record.job_steps) if s.purpose == purpose), None)
@@ -2822,6 +2852,8 @@ def _refine(record: TsProcessRecord) -> TsProcessRecord:
         "reactant_frequency": ("product", "opt"),
         "product_opt": ("product", "frequency"),
     }.get(current.purpose)
+    if separated_products and current.purpose == 'reactant_frequency':
+        endpoint_next = None
     while endpoint_next is not None:
         role, task=endpoint_next
         purpose=role+'_'+task
@@ -2970,7 +3002,7 @@ def _endpoint_identity_error(
         record.input.reaction.reactant_smiles if source_role == "reactant"
         else record.input.reaction.product_smiles
     )
-    declared = Chem.MolFromSmiles(expected_smiles)
+    declared = Chem.MolFromSmiles(chemical_smiles(expected_smiles))
     if declared is None or Chem.MolToSmiles(Chem.RemoveHs(mol)) != Chem.MolToSmiles(declared):
         return f"{role} built MOL does not match its declared SMILES; connectivity is unverified"
     n = mol.GetNumAtoms()
@@ -3269,9 +3301,62 @@ def _irc_interval_proof(
         f"({proof['assignment']} pairing; interval proof per irc_path.assign_irc_endpoints)"
     )
 
+def _separated_product_proof(record, irc_log, freq_step, reactant, expected_origins):
+    """Prove the separated product channel without asserting a complex minimum."""
+    from cloudra.tools.Chemtool.ts_guess import TsGuess
+    from cloudra.tools.core.irc_evidence import (
+        _usable_minimum_geometries,
+        irc_start_geometry,
+        probe_log,
+        verify_separated_product_direction,
+    )
+    from cloudra.tools.core.irc_path import parse_xyz, same_geometry
+
+    details = []
+    try:
+        component_logs = _product_component_logs(record)
+    except (OSError, ValueError) as exc:
+        return False, f'Component evidence could not be bound: {exc}'
+    minima = _usable_minimum_geometries(component_logs, side='separated products',
+        max_scan_bytes=None, details=details)
+    if not minima:
+        return False, ('Supply verification.product_endpoint.component_logs with normally terminated '
+                       'zero-imaginary-frequency logs for every separated product. ' + '; '.join(details))
+    ts_log = _refinement_log_path(record, freq_step)
+    n_imag, ts = probe_log(ts_log)
+    saved = Path(freq_step.input_path).parent / 'optimized.xyz'
+    if (n_imag != 1 or ts is None or not saved.is_file()
+            or not same_geometry(ts, parse_xyz(saved.read_text()))
+            or not same_geometry(ts, irc_start_geometry(irc_log))):
+        return False, 'The native IRC starting geometry must match the same frequency-verified TS and saved geometry.'
+    info = TsGuess._extract_irc_endpoints(irc_log, details,
+        engine=stage_calculation(record, 'irc').engine,
+        output_dir=os.path.join(record.run_dir, VERDICT_STAGE_DIR), require_two_sides=True)
+    if info is None:
+        return False, 'Both real IRC endpoint geometries are required. ' + '; '.join(details)
+    ends = (parse_xyz(info['end_a'].xyz), parse_xyz(info['end_b'].xyz))
+    if any(end is None for end in ends):
+        return False, 'The real IRC endpoint geometries could not be parsed.'
+    origin = next(step.endpoint_source for step in reversed(record.job_steps) if step.purpose == 'reactant_opt')
+    if origin.kind == 'irc_outer_frame' and not same_geometry(
+            parse_xyz(Path(origin.source_path).read_text()), ends[0 if origin.label == 'A' else 1]):
+        return False, 'Reactant source provenance differs from the accepted IRC outer frame.'
+    product = record.input.reaction.product_smiles
+    if isinstance(product, list) and len(product) == 1:
+        product = product[0]
+    verdict = verify_separated_product_direction(ends, ts, [reactant], product, minima,
+        charge=record.input.reaction.charge, atom_binding=_direction_atom_binding(record))
+    if verdict['is_match']:
+        actual = {'A': 'reactant', 'B': 'product'} if verdict['assignment'] == 'direct' else {'A': 'product', 'B': 'reactant'}
+        if any(actual[side] != role for side, role in expected_origins.items()):
+            return False, 'The separated-product assignment contradicts the accepted reactant source provenance.'
+    return bool(verdict['is_match']), '; '.join([*details, *verdict['details']])
+
+
 def _verdict(record: TsProcessRecord) -> TsProcessRecord:
-    """判定四态终态：TS 一虚频、IRC 双侧可用几何、两端 Opt/Freq 证实为极小值，
-    且各 IRC 端点位于 TS 与对应极小值之间，才算 ``verified``。
+    """判定四态终态：TS 一虚频、真实双向 IRC 和完整物种极小值的区间证明；
+    或反应物区间证明、实际产物端点身份及各分离产物独立零虚频证据。
+    分离产物通过不代表络合物极小值通过。
 
     判定只读**交付物**（频率作业的日志），缺失频率数据一律算"未验证"——
     "没做频率分析"绝不能被当成"已验证的鞍点"（与 `dag/evidence_ingest` 同一套三态语义）。
@@ -3337,13 +3422,16 @@ def _verdict(record: TsProcessRecord) -> TsProcessRecord:
     if reactant is None:
         return _terminal(record, "verdict", "candidate_only", f"Declared reactant minimum is unverified: {reason}")
     product, reason = _validated_endpoint_minimum(record, "product")
-    if product is None:
-        return _terminal(record, "verdict", "candidate_only", f"Declared product minimum is unverified: {reason}")
+    separated_products = (product is None and bool(record.input.verification.product_endpoint.component_logs)) or (
+        isinstance(record.input.reaction.product_smiles, list) and len(record.input.reaction.product_smiles) > 1)
+    if product is None and not separated_products:
+        return _terminal(record, "verdict", "candidate_only", f"Declared product minimum is unverified: {reason}. "
+            "For separated products, supply verification.product_endpoint.component_logs; the complex remains unverified.")
 
     failures: list[str] = []
     import hashlib
     sources = {}
-    for slot in ('reactant', 'product'):
+    for slot in (('reactant',) if separated_products else ('reactant', 'product')):
         opt = next((s for s in reversed(record.job_steps) if s.purpose == slot + '_opt'), None)
         freq = next((s for s in reversed(record.job_steps) if s.purpose == slot + '_frequency'), None)
         origin = opt.endpoint_source if opt else None
@@ -3365,11 +3453,21 @@ def _verdict(record: TsProcessRecord) -> TsProcessRecord:
                         if origin.kind == 'irc_outer_frame'}
     identity_errors = [
         _endpoint_identity_error(record, "reactant", reactant),
-        _endpoint_identity_error(record, "product", product),
     ]
+    if not separated_products:
+        identity_errors.append(_endpoint_identity_error(record, "product", product))
     if any(identity_errors):
         failures.append(f"Declared species identity: {'; '.join(error for error in identity_errors if error)}")
     else:
+        if separated_products:
+            passed, detail = _separated_product_proof(record, irc_log, freq_step, reactant, expected_origins)
+            if passed:
+                product_smiles = record.input.reaction.product_smiles
+                label = ' + '.join(product_smiles if isinstance(product_smiles, list) else product_smiles.split('.'))
+                return _terminal(record, 'verdict', 'verified',
+                    f'Verified TS connectivity to separated products {label}: {detail}. '
+                    f'The bound complex {chemical_smiles(record.input.reaction.product_smiles)} minimum remains UNVERIFIED.')
+            return _terminal(record, 'verdict', 'candidate_only', 'Separated-product IRC proof is incomplete: ' + detail)
         passed, detail = _irc_interval_proof(
             record, irc_log, freq_step, reactant, product, expected_origins,
         )

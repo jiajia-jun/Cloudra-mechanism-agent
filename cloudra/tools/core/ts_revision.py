@@ -320,11 +320,15 @@ def plan_input_revision(record, request: TsResumeRequest) -> TsRevisionReceipt:
             if field.endswith('_endpoint'):
                 side = field.removesuffix('_endpoint')
                 task = path.split('.')[2]
+                if task == 'component_logs':
+                    continue
                 purpose = side + ('_frequency' if task == 'frequency' else '_opt')
             else:
                 purpose = 'irc' if field == 'irc_log' else field
             invalidated.update(_DEPENDENTS[purpose])
-    if failed is not None:
+    separated_products = bool(updated.verification.product_endpoint.component_logs) or (
+        isinstance(updated.reaction.product_smiles, list) and len(updated.reaction.product_smiles) > 1)
+    if failed is not None and not (separated_products and failed.purpose in ('product_opt', 'product_frequency')):
         invalidated.update(_DEPENDENTS.get(failed.purpose, {failed.purpose}))
     retained, invalid = [], []
     for step in steps:

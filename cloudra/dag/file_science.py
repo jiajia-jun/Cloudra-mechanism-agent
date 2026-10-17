@@ -21,6 +21,7 @@ from cloudra.tools.core.irc_evidence import (
     verify_short_irc_direction,
     verify_short_irc_pair,
 )
+from cloudra.tools.core.species_identity import chemical_smiles, species_smiles
 
 
 class ScientificCheck(BaseModel):
@@ -191,7 +192,7 @@ def validate_frequency_geometry(opt_snap, freq_snap):
                          'submit the frequency calculation for the delivered optimized structure.')
 
 
-def _geometry_species(path: str, smiles: str, *, diagnostics: list[str] | None = None) -> bool:
+def _geometry_species(path: str, smiles: str | list[str], *, diagnostics: list[str] | None = None) -> bool:
     """Match the actual final structure using the existing RDKit bond perception.
 
     A SMILES annotation alone is not molecular evidence. Failure to perceive
@@ -210,7 +211,7 @@ def _geometry_species(path: str, smiles: str, *, diagnostics: list[str] | None =
 
     from cloudra.tools.core.irc_path import xyz_block
 
-    expected = Chem.MolFromSmiles(smiles)
+    expected = Chem.MolFromSmiles(chemical_smiles(smiles))
     if expected is None:
         raise ValueError(f"Invalid species SMILES: {smiles}")
     for atom in expected.GetAtoms():
@@ -251,28 +252,27 @@ def _species_minimum_check(smiles, logs, problems, *, parsed=None):
         return ScientificCheck(status='incomplete', detail='Species identity is not declared.',
             next_action='Declare the species SMILES before submitting minimum evidence.')
     minimum_logs = [p for p in logs if _qm_data(p, parsed)[3] == []]
-    components = smiles.split('.')
+    components = species_smiles(smiles)
     covered = set()
     for path in minimum_logs:
-        for identity in dict.fromkeys([smiles, *components]):
+        for identity in dict.fromkeys(components):
             try:
                 matches = _geometry_species(path, identity, diagnostics=problems)
             except (ValueError, RuntimeError) as exc:
                 problems.append(str(exc))
                 continue
             if matches:
-                if identity == smiles:
-                    return ScientificCheck(status='passed',
-                        detail='Normally terminated zero-imaginary-frequency geometry matches the complete species.')
                 covered.add(identity)
     missing = sorted(set(components) - covered)
-    if not missing and len(components) > 1:
+    if not missing:
         return ScientificCheck(status='passed', detail=(
-            'All component species have matching zero-imaginary-frequency evidence. '
-            'Component coverage does not verify a complex minimum, an IRC endpoint or an energy reference.'))
+            'All separated species have matching normally terminated zero-imaginary-frequency geometries; '
+            'this does not verify a complex minimum or a combined energy reference.'
+            if len(components) > 1 else
+            'Normally terminated zero-imaginary-frequency geometry matches the complete species.'))
     return ScientificCheck(status='incomplete',
         detail='Missing matching minimum evidence for: ' + ', '.join(missing) + '. ' + ' '.join(dict.fromkeys(problems)),
-        next_action='Submit matching normally terminated frequency logs for the whole species or all components together. '
+        next_action='Submit matching normally terminated frequency logs for each declared species; a dot-connected complex requires its own minimum. '
                     'Keep IRC and complex-energy requirements separate; unsuccessful searches do not establish nonexistence.')
 
 
@@ -388,7 +388,9 @@ def _file_scientific_checks(store, graph, target_id: str, *, irc_files=None, wor
             verified = []
             for path in candidates:
                 try:
-                    if node and node.smiles and _qm_data(path, parsed)[3] == [] and _geometry_species(path, node.smiles, diagnostics=problems):
+                    if (node and node.smiles and _qm_data(path, parsed)[3] == []
+                            and any(_geometry_species(path, identity, diagnostics=problems)
+                                    for identity in species_smiles(node.smiles))):
                         verified.append(path)
                 except (ValueError, RuntimeError) as exc:
                     problems.append(str(exc))
@@ -409,19 +411,22 @@ def _file_scientific_checks(store, graph, target_id: str, *, irc_files=None, wor
             except ValueError:
                 continue
             try:
-                irc_passed, reason = verify_short_irc_direction(path, logs, target_logs, source_logs, atom_bindings=atom_bindings)
+                irc_passed, reason = verify_short_irc_direction(path, logs, target_logs, source_logs,
+                    atom_bindings=atom_bindings, product_smiles=target.smiles if target else None)
                 details.extend(reason)
             except Exception as exc:
                 details.append(f'IRC direction proof could not be evaluated: {exc}')
             if irc_passed:
+                details = reason
                 break
         if not irc_passed and irc_files and irc_files.get('irc_forward_file') and irc_files.get('irc_reverse_file'):
             forward = FileEvidenceSnapshot.model_validate(irc_files['irc_forward_file']).snapshot_path
             reverse = FileEvidenceSnapshot.model_validate(irc_files['irc_reverse_file']).snapshot_path
             if forward in logs and reverse in logs:
-                irc_passed, reason = verify_short_irc_pair(forward, reverse, logs, target_logs, source_logs, atom_bindings=atom_bindings)
-                details.extend(reason)
+                irc_passed, reason = verify_short_irc_pair(forward, reverse, logs, target_logs, source_logs,
+                    atom_bindings=atom_bindings, product_smiles=target.smiles if target else None)
+                details = reason if irc_passed else [*details, *reason]
         checks['short_irc'] = ScientificCheck(status='passed' if irc_passed else 'incomplete',
-            detail='Geometric IRC direction interval proof passed.' if irc_passed else ' '.join(details) or 'No usable bound bidirectional IRC evidence.',
-            next_action='' if irc_passed else 'Submit the IRC log with both endpoint geometries and frequency-verified source/target minima. Re-submit this step after adding evidence; full IRC convergence is not required.')
+            detail=' '.join(details) or ('Geometric IRC direction interval proof passed.' if irc_passed else 'No usable bound bidirectional IRC evidence.'),
+            next_action='' if irc_passed else 'Submit both real IRC directions and frequency-verified source/target minima; separated products need each declared species minimum. Full IRC convergence is not required.')
     return {stage: check.model_dump() for stage, check in checks.items()}

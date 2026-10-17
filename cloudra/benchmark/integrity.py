@@ -337,7 +337,6 @@ def _species_file_qualities(
         q = 0.0
         for fs in f.smiles_found:
             # A similar fingerprint cannot replace missing molecular components.
-            # Separate component evidence is handled by _component_union_coverage.
             if len(fs.split(".")) != len(species_smiles.split(".")):
                 continue
             if species_substitution_cost([species_smiles], [fs], cfg) <= match_threshold:
@@ -352,36 +351,6 @@ def _species_file_qualities(
     return best, paths
 
 
-def _component_union_coverage(
-    species_smiles: str,
-    files: list[EvidenceFile],
-    cfg: GedConfig,
-    match_threshold: float,
-    partial_quality: float,
-) -> tuple[float, list[str]]:
-    """逐组分联合覆盖兜底（用户裁决：络合物优化不干净时允许拆开交付）。
-
-    仅在整络合物标注绑不上时启用：把络合物 SMILES 按 "." 拆成单组分，每个
-    组分走与整绑相同的结构比对（指纹/哈希 + protonation variant，不走字符串
-    相等）——每个组分都至少被一个证据文件标注则联合覆盖成立，返回
-    (最弱组分质量, 覆盖文件并集)；任一组分无覆盖返回 (0.0, [])。单组分物种
-    无此通道（与整绑同义）。"""
-    components = species_smiles.split(".")
-    if len(components) <= 1:
-        return 0.0, []
-    quality = 1.0
-    paths: list[str] = []
-    for comp in components:
-        q, qpaths = _species_file_qualities(
-            comp, files, cfg, match_threshold, partial_quality
-        )
-        if not qpaths:
-            return 0.0, []
-        quality = min(quality, q)
-        paths.extend(qpaths)
-    return quality, sorted(set(paths))
-
-
 def bind_graph_to_evidence(
     graph: GoldMechanismGraph,
     files: list[EvidenceFile],
@@ -391,31 +360,12 @@ def bind_graph_to_evidence(
     *,
     sandbox: Path,
 ) -> list[NodeBinding]:
-    """Bind each accessible non-TS node to evidence files whose parsed SMILES
-    match the node's claimed SMILES. A node's SMILES list holds whole species:
-    a multi-molecule complex is ONE dot-joined complex SMILES (``C=O.CN``) —
-    the schema folds component lists into that form at parse time
-    (``MechanismNode._fold_complex_components``). Binding is two-layered:
+    """Bind each declared species to matching evidence for its complete identity.
 
-    1. 整络合物优先：evidence ``smiles:`` annotations are matched against the
-       whole dot-joined complex (the delivery contract's primary form);
-    2. 逐组分联合覆盖兜底（用户裁决：络合物在允许方法下优化不干净时允许拆开
-       交付）：整络合物绑不上时拆成单组分，每个组分都至少被一个证据文件标注
-       （同一结构比对/protonation 通道）则该物种也算覆盖——图拓扑不受影响，
-       节点仍是单个络合物。
-
-    The node binds when every listed species is matched (either layer) by at
-    least one evidence file. Binding is graded: fingerprint/hash-level matches
-    give quality 1.0; protonation/charge-state-only variants give
-    `partial_quality` (the node's quality is its weakest species — 兜底通道下
-    即最弱组分). TS nodes carry no SMILES and are bound indirectly via their
-    edge's endpoints: a TS counts as evidenced only when at least one edge
-    routes through it (`via`) and both endpoint species of that edge are
-    themselves bound to evidence; its quality inherits the weaker endpoint.
-
-    `accessible=false` 的节点（含 TS）是"允许方法下不可达"的显式声明：不参与
-    绑定、不产出 NodeBinding；via 边任一端点不可达时该 TS 随之绑不上
-    （端点不在绑定集合里）。"""
+    A dot-connected entry requires whole-complex geometry. Multiple entries
+    describe separated species and each needs its own matching evidence.
+    Inaccessible nodes are exempt; TS nodes retain explicit evidence lineage.
+    """
     cfg = cfg or GedConfig()
     sandbox = Path(sandbox)
     available = files
@@ -479,11 +429,6 @@ def bind_graph_to_evidence(
             q, qpaths = _species_file_qualities(
                 species_smiles, files, cfg, match_threshold, partial_quality
             )
-            if not qpaths:
-                # 整络合物标注绑不上 → 逐组分联合覆盖兜底（两层语义见 docstring）
-                q, qpaths = _component_union_coverage(
-                    species_smiles, files, cfg, match_threshold, partial_quality
-                )
             if qpaths:
                 nb.bound_files.extend(qpaths)
             else:

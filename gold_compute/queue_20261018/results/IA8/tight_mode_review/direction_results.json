@@ -1,0 +1,130 @@
+{
+  "sources": {
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0005/irc/irc_IRC_F_trj.xyz": {
+      "sha256": "32b039819492d873ce25b3a376cbc39527afa8c69d731e0a7038b721185f7335",
+      "frames": 14
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0005/irc/irc_IRC_B_trj.xyz": {
+      "sha256": "373e466bde949c475d668ed80128c049f27388e7190c73169d6e043832005822",
+      "frames": 11
+    },
+    "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0001/jobs/declaration_0005/frequency/frequency.hess": {
+      "sha256": "d2b9baae3c81a5e1efea1497f35b7b56b2b6355b74e81c927416f04fdfb10064"
+    }
+  },
+  "mode_cartesian": [
+    [
+      0.17918489451,
+      0.088783549586,
+      0.093480006636
+    ],
+    [
+      0.014460304142,
+      -0.12624206701,
+      -0.15549674085
+    ],
+    [
+      -0.16825942237,
+      0.043155946983,
+      0.082760541796
+    ],
+    [
+      0.36782310647,
+      0.2278528882,
+      0.6038112248
+    ],
+    [
+      -0.061828736895,
+      0.032976100162,
+      -0.56321788263
+    ]
+  ],
+  "mass_weighted_projected_norm": 1.6442890444697928,
+  "mode_derivatives_raw": {
+    "(1, 2)": 0.0561097364807723,
+    "(1, 3)": -0.34909342265091053,
+    "(2, 3)": 0.0935052392687902,
+    "(4, 5)": -0.0002690687355930516
+  },
+  "comparisons": [
+    {
+      "side": "F",
+      "frame_1based": 1,
+      "cos_mass_weighted_no_rigid": 0.9999999999923986,
+      "abs_cos": 0.9999999999923986,
+      "cos_cartesian_aligned": 0.9999999999855759,
+      "bond_changes_A": {
+        "(1, 2)": 0.006802105540364423,
+        "(1, 3)": -0.038431227003375756,
+        "(2, 3)": 0.010774750251482335,
+        "(4, 5)": 0.005081985302445302
+      }
+    },
+    {
+      "side": "F",
+      "frame_1based": 2,
+      "cos_mass_weighted_no_rigid": 0.9378482691847594,
+      "abs_cos": 0.9378482691847594,
+      "cos_cartesian_aligned": 0.9341261387838958,
+      "bond_changes_A": {
+        "(1, 2)": 0.006372527552150009,
+        "(1, 3)": -0.16867172635063565,
+        "(2, 3)": 0.007724864403482634,
+        "(4, 5)": -0.0004062911860778229
+      }
+    },
+    {
+      "side": "F",
+      "frame_1based": 3,
+      "cos_mass_weighted_no_rigid": 0.9253079189869414,
+      "abs_cos": 0.9253079189869414,
+      "cos_cartesian_aligned": 0.9182563748154567,
+      "bond_changes_A": {
+        "(1, 2)": 0.02443197196226099,
+        "(1, 3)": -0.24843302995369787,
+        "(2, 3)": 0.010502674811030399,
+        "(4, 5)": -0.007123315266629016
+      }
+    },
+    {
+      "side": "B",
+      "frame_1based": 1,
+      "cos_mass_weighted_no_rigid": -0.999999999991498,
+      "abs_cos": 0.999999999991498,
+      "cos_cartesian_aligned": -0.9999999999821914,
+      "bond_changes_A": {
+        "(1, 2)": -0.005546929906800058,
+        "(1, 3)": 0.03843781922599221,
+        "(2, 3)": -0.009807433532988963,
+        "(4, 5)": 0.005139788423003999
+      }
+    },
+    {
+      "side": "B",
+      "frame_1based": 2,
+      "cos_mass_weighted_no_rigid": -0.9665381283956348,
+      "abs_cos": 0.9665381283956348,
+      "cos_cartesian_aligned": -0.9451826885599369,
+      "bond_changes_A": {
+        "(1, 2)": 0.003892530289502538,
+        "(1, 3)": 0.11796262647246669,
+        "(2, 3)": -0.04119751642976044,
+        "(4, 5)": 0.01142148649086816
+      }
+    },
+    {
+      "side": "B",
+      "frame_1based": 3,
+      "cos_mass_weighted_no_rigid": -0.961684926471773,
+      "abs_cos": 0.961684926471773,
+      "cos_cartesian_aligned": -0.9469525044245123,
+      "bond_changes_A": {
+        "(1, 2)": -0.01525476353606603,
+        "(1, 3)": 0.15992173118973207,
+        "(2, 3)": -0.06012700193498488,
+        "(4, 5)": 0.011522913906591548
+      }
+    }
+  ],
+  "convention": "ORCA normal_modes Cartesian displacement; multiply sqrt(mass) for mass-weighted comparison, Kabsch mass-weighted align IRC to TS, project translations/rotations in same weighted metric; sign arbitrary. Frames are finite chords, not infinitesimal tangents."
+}

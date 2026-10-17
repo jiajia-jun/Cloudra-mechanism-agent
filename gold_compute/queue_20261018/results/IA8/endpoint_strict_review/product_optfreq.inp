@@ -1,0 +1,11 @@
+# IA8 ordinary product minimum from native IRC836 F endpoint; expected_smiles C1OO1
+! Opt NumFreq GFN2-xTB TightSCF
+%pal nprocs 2 end
+%maxcore 1024
+* xyz 0 1
+C       -0.21784260     0.10807582     0.08744071
+O        0.62038557    -0.66039115    -0.65761606
+O        1.07660833     0.00536994     0.49039336
+H       -0.95890630    -0.41184458     0.69402486
+H       -0.53490956     1.05679181    -0.34635532
+*

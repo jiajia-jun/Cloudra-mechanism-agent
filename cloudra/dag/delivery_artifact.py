@@ -20,6 +20,7 @@ from cloudra.dag.file_science import (
 )
 from cloudra.persistence.paths import mechanism_graph_path
 from cloudra.tools.core import gaussian_frames, orca_frames, xtb_frames
+from cloudra.tools.core.species_identity import species_smiles
 
 
 class DeliveryArtifact(BaseModel):
@@ -92,13 +93,15 @@ def prepare_delivery_artifact(store, graph, report, workspace_root, *, required=
         if len(matches) != 1:
             raise ValueError(f'Species {node.id!r} must identify exactly one DAG species by its ID or name.')
         expected = matches[0]
-        if node.smiles != ([expected.smiles] if expected.smiles else []):
+        if node.smiles != (species_smiles(expected.smiles) if expected.smiles else []):
             raise ValueError(f'Species {node.id!r} SMILES differs from its DAG declaration {expected.smiles!r}.')
         if expected.node_id in {n.node_id for n in species.values() if n is not None}:
             raise ValueError('Multiple artifact species identify the same DAG occurrence.')
         return expected
 
     def bound_energy(element, node):
+        if len(node.smiles) > 1:
+            raise ValueError(f'Separated species {node.id!r} have no single complex energy reference; component energies are not substituted.')
         declared = node.properties.get('evidence_log')
         if not isinstance(declared, str):
             raise ValueError(f'{node.id!r} requires an explicit bound evidence_log for its energy claim.')

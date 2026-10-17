@@ -92,7 +92,9 @@ def import_file_structure(record, role, source):
     from rdkit import Chem
 
     from cloudra.tools.core.electronic_state import electronic_state_details
-    declared = Chem.MolFromSmiles(getattr(reaction, role + '_smiles'))
+    from cloudra.tools.core.species_identity import chemical_smiles
+
+    declared = Chem.MolFromSmiles(chemical_smiles(getattr(reaction, role + '_smiles')))
     declared_state = electronic_state_details(declared, charge=reaction.charge, multiplicity=reaction.multiplicity, electronic_character=reaction.electronic_character)
     mol = _read_structure(None, data.get("mol", data["xyz"]).decode("utf-8"),
         "mol" if "mol" in data else "xyz", reaction.charge, role,
@@ -153,7 +155,9 @@ def structure_tables(record) -> dict[str, dict]:
             continue
         smiles = getattr(reaction, role + "_smiles")
         source = getattr(record.input.conformers, role)
-        declared = Chem.MolFromSmiles(smiles)
+        from cloudra.tools.core.species_identity import chemical_smiles
+
+        declared = Chem.MolFromSmiles(chemical_smiles(smiles))
         snapshot = source_snapshot(mol)
         tables[role] = dict(role=role, source_kind=source.kind if source else None,
             input_revision=snapshot.get("input_revision", record.declaration_revision),

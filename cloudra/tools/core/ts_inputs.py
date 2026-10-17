@@ -66,7 +66,8 @@ def resolve_calculation(value: CalculationValue | dict | None,
 
 class TsReaction(InputModel):
     reactant_smiles: str = Field(min_length=1)
-    product_smiles: str = Field(min_length=1)
+    product_smiles: str | list[str] = Field(min_length=1,
+        description='A dot-joined SMILES declares a bound complex; a list declares separated products, displayed with +.')
     charge: StrictInt
     multiplicity: StrictInt = Field(ge=1)
     electronic_character: Literal['closed_shell', 'open_shell'] | None = Field(default=None,
@@ -215,13 +216,18 @@ class EndpointVerification(InputModel):
     frequency: CalculationValue | None = None
 
 
+class ProductEndpointVerification(EndpointVerification):
+    component_logs: list[str] = Field(default_factory=list,
+        description='Native frequency logs for the independently optimized separated products. The program snapshots the files and matches each real geometry to its declared component; every component must have zero imaginary frequencies. This does not verify a bound complex minimum.')
+
+
 class TsVerification(InputModel):
     frequency: CalculationValue | None = None
     irc: CalculationValue | None = None
     irc_log: str | None = None
     reactant_endpoint: EndpointVerification = Field(default_factory=EndpointVerification,
         description='The declared reaction.reactant_smiles species, never a fixed IRC A/B direction. An explicit seed uses this species atom order; default IRC sources are provisional until optimization, frequency and direction checks pass.')
-    product_endpoint: EndpointVerification = Field(default_factory=EndpointVerification,
+    product_endpoint: ProductEndpointVerification = Field(default_factory=ProductEndpointVerification,
         description='The declared reaction.product_smiles species, never a fixed IRC A/B direction. An explicit seed uses this species atom order (or an accepted native IRC working order); the runtime applies the bound atom map.')
 
 

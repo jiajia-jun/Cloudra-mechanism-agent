@@ -57,7 +57,7 @@ class DagSubmitStepEvidenceInput(input_schema):
     source_minimum_file: str | None = Field(default=None,
         description='Path to the minimum calculation output for the SOURCE species of this step. Final geometry must match the complete source species and have zero imaginary frequencies. The tool archives and binds the file automatically.')
     target_minimum_file: str | None = Field(default=None,
-        description='Path to the minimum calculation output for the TARGET species of this step. Final geometry must match the complete target species and have zero imaginary frequencies. These are chemical step roles, independent of IRC forward/reverse direction. The tool archives and binds the file automatically.')
+        description='Optional minimum output for the complete TARGET species, with zero imaginary frequencies. For separated products declared as smiles=[B, C], first attach all component logs with dag_submit_species_evidence(opt_file=[...]) and omit this field. A dot-connected smiles="B.C" remains a complex requiring its own minimum. SOURCE/TARGET roles are independent of IRC forward/reverse direction.')
 
 
 class DagSubmitStepEvidence(DagToolBase):
@@ -79,6 +79,7 @@ class DagSubmitStepEvidence(DagToolBase):
         "Submitting only the TS log leaves the IRC stage pending."
         " Supply opt_file when optimization and frequency outputs are separate; frequency alone does not prove optimization."
         " Supply source_minimum_file and target_minimum_file for explicit endpoint minima; use the chemical step roles, not IRC forward/reverse labels."
+        " For separated products [B, C], first submit each component log together using dag_submit_species_evidence(opt_file=[...]); target_minimum_file may then be omitted. B.C is a complex and requires its own minimum."
     )
     input_schema: Any = DagSubmitStepEvidenceInput
     output_schema: Any = DagToolOutput

@@ -82,7 +82,13 @@
     ]
   },
   "ts_optimization": {
-    "ref": "xtb2"
+    "engine": "orca",
+    "method": "GFN2-xTB",
+    "basis_set": "",
+    "keywords": "TightOpt TightSCF",
+    "frequency_mode": "auto",
+    "orca_blocks": null,
+    "end_setting": ""
   },
   "verification": {
     "frequency": {

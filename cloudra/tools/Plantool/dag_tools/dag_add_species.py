@@ -23,7 +23,8 @@ from cloudra.tools.Plantool.dag_tools._common import DagToolBase, DagToolOutput,
 
 class DagAddSpeciesInput(input_schema):
     name: str = Field(min_length=1, description="Human-readable species system name.")
-    smiles: str | None = Field(default=None, description="Optional SMILES for the species.")
+    smiles: str | list[str] | None = Field(default=None,
+        description="SMILES string for one species or dot-connected complex (B.C); a list [B, C] declares separated species.")
 
 
 class DagAddSpecies(DagToolBase):
@@ -31,7 +32,7 @@ class DagAddSpecies(DagToolBase):
     tool_name: str = "dag_add_species"
     tool_description: str = (
         "Add one delivery species system node by name with optional smiles (Coordinator in dag_record or dag_guided). "
-        "Input shape: {name: str, smiles: str | None}. "
+        "Input shape: {name: str, smiles: str | list[str] | None}; B.C is a complex, [B, C] are separated species. "
         "Key discipline: species names must be unique within the delivery graph."
     )
     input_schema: Any = DagAddSpeciesInput

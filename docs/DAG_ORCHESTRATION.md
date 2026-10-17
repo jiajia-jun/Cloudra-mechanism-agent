@@ -12,7 +12,7 @@
 
 Cloudra 的 DAG 编排系统将化学机理研究的物理结论（已确立的化学事实与计算证据）固化到持久化存储中：
 
-- **机理传递图（Delivery DAG）是唯一的持久化机理图**：节点（`SpeciesNode`）代表整个络合物体系的状态（而不是孤立催化剂，催化剂再生不等于体系回到原状态；保留 DAG 无环约束），边（`ElementaryStepEdge`）代表基元反应步骤；彻底去除 occurrence / role / 阶段契约数组的沉重负担，模型交互仅使用体系名称、步骤端点与自由文字。
+- **机理传递图（Delivery DAG）是唯一的持久化机理图**：节点（`SpeciesNode`）代表研究体系的状态（单物种、络合物或分离物种集合）（而不是孤立催化剂，催化剂再生不等于体系回到原状态；保留 DAG 无环约束），边（`ElementaryStepEdge`）代表基元反应步骤；彻底去除 occurrence / role / 阶段契约数组的沉重负担，模型交互仅使用体系名称、步骤端点与自由文字。
 - **文件证据摄取与物理自检**：完工的量子化学计算结果通过文件路径显式送审（`dag_submit_step_evidence` / `dag_submit_species_evidence`）。系统内核负责工作区沙箱路径检查、计算 SHA-256 哈希并将证据快照固定到 `.cloudra/evidence/`，同时复用既有能力严格校验过渡态虚频（TS 必须正好 1 个虚频，基态物种必须 0 个虚频）。
 - **定向审查上下文（Directed Review Context）**：Supervisor 每次审查由 harness 捕获并冻结单一活动事项，Supervisor 仅需输出科学裁决 `verdict`（agree / disagree / skip / not_applicable / needs_evidence）与 `reason`，无需向模型暴露内部 ID、哈希指纹或修订版本号。
 - **摒弃任务排产图（No Process DAG）**：系统不记录“下一步做什么”的工作流排产图。机理草稿被接受后，由 Coordinator 自主规划推进节奏；没有中心化的排产队列，也没有复杂的工单分配权限。
@@ -48,14 +48,14 @@ Coordinator 提交声明式机理提案 dag_propose_mechanism（species 体系�
 - **机理图设计归 Coordinator 负责**：初始机理假设由 Coordinator 提出（`dag_propose_mechanism`，草稿接受后仍可调用 `dag_add_species`、`dag_add_step`、`dag_remove_edge`、`dag_update_delivery_element` 动态增删调整）。Supervisor 对图结构仅具备只读权限，不能直接修改图拓扑。
 - **Supervisor 仅负责科学裁决**：评审接受或驳回草稿（`dag_accept_mechanism`）、逐项复核活动送审证据（`dag_review_step` / `dag_review_species`）。Supervisor 不直接调度任务，也不自行运行量子化学计算。
 - **子 Agent 专注于专业计算工具执行**：子 Agent 不直接维护图结构，运行专业计算后将输出日志汇报给 Coordinator，或经由送审工具提交复核。
-- **确定性判定内核（Harness）**：统一负责工作区沙箱边界校验、文件快照与 SHA-256 固化、以及虚频物理自检（TS 必须 `n_imag == 1`，基态络合物必须 `n_imag == 0`）。大模型的口头声明无法绕过内核检查提升证据等级。
+- **确定性判定内核（Harness）**：统一负责工作区沙箱边界校验、文件快照与 SHA-256 固化、以及虚频物理自检（TS 必须 `n_imag == 1`，每个声明的基态物种必须 `n_imag == 0`）。大模型的口头声明无法绕过内核检查提升证据等级。
 - **机理修剪与删边**：调用 `dag_remove_edge` 移除基元步时**必须附带科学理由（rationale）**，删除记录会永久留存在变更日志中。
 
 ## 声明式提案与单一元素状态
 
 机理传递图直接使用声明式结构描述有机反应转化，摒弃复杂的多层 occurrence 实例与 role 分类负担：
 
-- **物种（SpeciesNode）**：直接对应整个络合物体系的状态（包含反应物、试剂与催化剂整体），使用体系名称（`name`）与 SMILES（`smiles`）。名称在图内严格唯一。
+- **物种（SpeciesNode）**：表示体系状态，使用体系名称（`name`）与 SMILES（`smiles`）。`"B.C"` 表示络合物，`["B", "C"]` 表示分离物种（显示为 B + C）；二者的极小值证据不能互相替代。名称在图内严格唯一。
 - **基元转化步骤（ElementaryStepEdge）**：连接前驱与后继体系状态，使用步骤名称（`name`）、起点（`from`）与终点（`to`）。步骤名称在图内严格唯一。
 - **单一权威状态**：
   - `pending`：待计算与送审；
@@ -73,13 +73,15 @@ Coordinator 提交声明式机理提案 dag_propose_mechanism（species 体系�
 
 - **显式送审工具**：
   - `dag_submit_step_evidence`：针对基元步提交 `ts_file`；优化与频率分开时补 `opt_file`，IRC 使用 `irc_file` 或双方向文件；
-  - `dag_submit_species_evidence`：针对络合物体系提交 `opt_file` 及可选的独立 `freq_file`。
+  - `dag_submit_species_evidence`：针对物种体系提交 `opt_file` 及可选的独立 `freq_file`。
 - **不可变固化**：内核校验文件路径严格受限于项目工作区沙箱，计算文件的 SHA-256 哈希值，并将文件快照复制到 `.cloudra/evidence/` 目录。原文件的后续修改或覆盖绝不影响已送审的证据快照。
 - **严格物理自检**：
   - `ts_opt` 必须有原生优化收敛标记，频率日志必须描述同一几何；逐文件提交与直接阶段绑定使用相同的几何配对规则。
   - 频率计数只表示 `frequency_count_valid` / `frequency_data_present`，不能单独表示分子身份、反应方向或科学完成。TS 必须正好一个虚频（`n_imag == 1`）；
   - 基态极小点必须无虚频（`n_imag == 0`），真实几何还须匹配声明物种。氢的显式/隐式表示保持一致；组成或成键不匹配时返回实际感知结果。
   - 只有完工并成功解析的产物才被接受；作业提交记录 `submit_compute_job` 绝对不是完成证据。
+
+分离产物先声明为列表（如 `smiles=["B", "C"]`），再用 `dag_submit_species_evidence(species_name="P", opt_file=["B.out", "C.out"])` 一次提交所有组分的正常终止、零虚频且结构匹配的日志；优化与频率分开时，`freq_file` 列表须与 `opt_file` 逐项对应。随后提交步骤的 TS 与真实双向 IRC，`target_minimum_file` 保持可选并可省略，系统复用目标物种已绑定的组分证据。这样可证明分离产物通道，不会验证 `"B.C"` 络合物极小值，也不会把组分能量合并成络合物能量；该步源物种与 TS 的能垒证据仍单独绑定。
 
 ## 定向审查上下文与裁决机制
 
@@ -124,13 +126,13 @@ DAG 模式下，项目工作区存在 `mechanism_graph.json` 时，退出审计�
 
 - **声明式提议与图编辑**：
   - `dag_propose_mechanism`：提交声明式机理草稿（`species`, `steps`, `rationale`）；
-  - `dag_add_species`：向机理图添加络合物体系（`name`, `smiles`）；
+  - `dag_add_species`：向机理图添加物种体系（`name`, `smiles`）；
   - `dag_add_step`：向机理图添加基元反应步（`name`, `from`, `to`）；
   - `dag_remove_edge`：删除基元反应步（必须提供非空 `rationale`）；
   - `dag_update_delivery_element`：更新物种或步骤的处置与注解；
 - **文件证据送审**：
   - `dag_submit_step_evidence`：送审基元步骤的 TS / IRC 计算日志；
-  - `dag_submit_species_evidence`：送审络合物体系的优化与频率日志；
+  - `dag_submit_species_evidence`：送审物种体系的优化与频率日志；
 - **督导复核（Supervisor 独占）**：
   - `dag_accept_mechanism`：评审接受或驳回机理草稿；
   - `dag_review_step`：对活动待审步骤进行定向裁决；

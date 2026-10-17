@@ -250,7 +250,7 @@ def _build_graph(pid: str, reactants: list[str], products: list[str], entry: dic
         node = MechanismNode(
             id=f"{tid}_P" if last else f"{tid}_I{k}",
             role=NodeRole.PRODUCT if last else NodeRole.INTERMEDIATE,
-            smiles=complex_smiles(products) if last else _unmap_canonical(step["out"]),
+            smiles=complex_smiles(products if last else _unmap_canonical(step["out"])),
             # 缺省 label 与历史逐字节一致；条目可选 node_label 覆盖（G2 主线为次通道）
             label=step.get("node_label", "product" if last else f"intermediate {k}"),
         )
@@ -285,7 +285,7 @@ def _build_graph(pid: str, reactants: list[str], products: list[str], entry: dic
         minor = None if same_endpoint else MechanismNode(
             id=f"{tid}_M{k}",
             role=NodeRole.PRODUCT if is_product else NodeRole.INTERMEDIATE,
-            smiles=_unmap_canonical(step["out"]),
+            smiles=complex_smiles(_unmap_canonical(step["out"])),
             # 缺省 label 与历史逐字节一致；条目可选 node_label 覆盖（G2 副通道为优势）
             label=step.get("node_label", default_label),
         )

@@ -1296,49 +1296,32 @@ def test_integrity_fallback_graph_cannot_self_bind(tmp_path):
     assert rep.binding_quality == 0.0
 
 
-# --- 「节点即络合物」归一化（NI1 回归：组分列表交付 ↔ 络合物标注证据） ---
+# --- Bound complexes and separated species remain distinct. ---
 
 
-def test_mechanism_node_folds_component_list_to_complex():
-    """schema 级归一化（用户裁决）：>1 个组分的 smiles 列表折叠成点连接络合物
-    单条 SMILES；单组分与空列表（TS 节点）不动。"""
+def test_mechanism_node_preserves_component_list_as_separated_species():
     rc = MechanismNode(id="RC", role=NodeRole.REACTANT, smiles=["C=O", "CN"])
-    assert rc.smiles == ["C=O.CN"]
-    three = MechanismNode(id="RC", role=NodeRole.REACTANT, smiles=["C=C", "F", "[Cl-]"])
-    assert three.smiles == ["C=C.F.[Cl-]"]
+    assert rc.smiles == ["C=O", "CN"]
+    complex_node = MechanismNode(id="RC", role=NodeRole.REACTANT, smiles=["C=O.CN"])
+    assert complex_node.smiles == ["C=O.CN"]
     assert MechanismNode(id="P", role=NodeRole.PRODUCT, smiles=["CC"]).smiles == ["CC"]
     assert MechanismNode(id="TS", role=NodeRole.TRANSITION_STATE, smiles=[]).smiles == []
 
 
-def test_delivered_component_list_binds_complex_annotated_evidence(tmp_path):
-    """NI1 回归：交付图 RC 写组分列表（含反序）、证据日志按络合物标注
-    （# smiles: C=O.CN）——折叠后 complex-vs-complex cost=0，绑定满分。"""
-    pytest.importorskip("rdkit")  # 反序形态（CN.C=O vs C=O.CN）靠 molhash 归一判等
+def test_separated_species_do_not_bind_one_complex_geometry(tmp_path):
     for order in (["C=O", "CN"], ["CN", "C=O"]):
-        g = {
-            "nodes": [
-                {"id": "RC", "role": "reactant", "smiles": order},
-                {"id": "P", "role": "product", "smiles": ["CNCO"]},
-            ],
-            "edges": [{"id": "E1", "from": "RC", "to": "P"}],
-        }
-        (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
+        graph = GoldMechanismGraph(nodes=[MechanismNode(id="RC", role="reactant", smiles=order)])
+        (tmp_path / "mechanism_graph.json").write_text(graph.model_dump_json())
         _annotated_geometry_log(tmp_path / "rc.log", 'C=O.CN', prefix='smiles: C=O.CN\n')
-        _annotated_geometry_log(tmp_path / "p.log", 'CNCO', prefix='smiles: CNCO\n')
-        rep = audit_integrity(tmp_path)
-        assert rep.delivered_graph is not None
-        rc_smiles = rep.delivered_graph.nodes[0].smiles
-        assert len(rc_smiles) == 1 and "." in rc_smiles[0]
-        assert all(
-            b.matched and b.quality == 1.0 for b in rep.node_bindings
-        ), (order, rep.notes)
+        report = audit_integrity(tmp_path)
+        assert report.delivered_graph.nodes[0].smiles == order
+        assert not report.node_bindings[0].matched
 
 
 def test_three_component_complex_binds(tmp_path):
-    """三组分络合物同一口径：组分列表 ["C=C","F","[Cl-]"] 交付 ↔
-    络合物标注 "C=C.F.[Cl-]" 证据。"""
+    """An explicit dot-connected complex binds whole-system geometry."""
     g = {
-        "nodes": [{"id": "RC", "role": "reactant", "smiles": ["C=C", "F", "[Cl-]"]}],
+        "nodes": [{"id": "RC", "role": "reactant", "smiles": ["C=C.F.[Cl-]"]}],
         "edges": [],
     }
     (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
@@ -1363,14 +1346,14 @@ def test_complex_binding_rejects_truly_different_species(tmp_path):
     assert rep.node_bindings[0].quality == 0.0
 
 
-def test_component_list_delivery_full_graph_score_vs_complex_gold():
-    """图分同口径：交付图组分列表（折叠为络合物）对 gold 络合物节点给满分。"""
+def test_separated_species_do_not_receive_full_graph_score_vs_complex_gold():
+    """Separated products and a bound complex are different declared states."""
     gold = _graph(["C=O.CN"], ["CNCO"])
     delivered = _graph(["C=O", "CN"], ["CNCO"])
-    assert mechanism_similarity(delivered, gold, GedConfig()).score == pytest.approx(1.0)
+    assert mechanism_similarity(delivered, gold, GedConfig()).score < 1.0
 
 
-# --- 逐组分联合覆盖兜底（用户裁决：络合物优化不干净时允许拆开交付） ---
+# --- A bound complex requires whole-system evidence. ---
 
 
 def _rc_only_graph(tmp_path):
@@ -1381,16 +1364,14 @@ def _rc_only_graph(tmp_path):
     (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
 
 
-def test_complex_binds_via_per_component_coverage(tmp_path):
-    """(a) 整络合物标注缺席时，逐组分联合覆盖可绑：两个组分各一个证据文件，
-    全部组分有覆盖 → matched，quality 取最弱组分（此处双双全绑 = 1.0）。"""
+def test_complex_cannot_bind_only_component_geometries(tmp_path):
     _rc_only_graph(tmp_path)
     _annotated_geometry_log(tmp_path / "frag1.log", 'C=O', prefix='smiles: C=O\n')
     _annotated_geometry_log(tmp_path / "frag2.log", 'CN', prefix='smiles: CN\n')
-    rep = audit_integrity(tmp_path)
-    b = rep.node_bindings[0]
-    assert b.matched and b.quality == 1.0
-    assert b.bound_files == ["frag1.log", "frag2.log"]
+    report = audit_integrity(tmp_path)
+    binding = report.node_bindings[0]
+    assert not binding.matched and binding.quality == 0.0
+    assert binding.bound_files == []
 
 
 def test_whole_complex_annotation_preferred_over_components(tmp_path):
@@ -1417,7 +1398,7 @@ def test_complex_unbound_when_only_one_component_evidenced(tmp_path):
 
 @pytest.mark.parametrize("annotations,matched,quality,paths", [
     (["CN"], False, 0.0, []),
-    (["O", "CN"], True, 0.7, ["0.log", "1.log"]),
+    (["O", "CN"], False, 0.0, []),
     (["O.CN"], True, 1.0, ["0.log"]),
 ])
 def test_complex_binding_requires_all_fragments_before_fingerprint_matching(
@@ -2931,12 +2912,12 @@ def _patch_sc_probe(monkeypatch, freq_by_name, sandbox, files=()):
 @pytest.mark.parametrize("logs,want_covered,want_used", [
     ([("a", "C=O", [100.0]), ("b", "CN", [])], False, []),
     ([("a", "C=O", [100.0]), ("b", "CN", [-300.0, 100.0])], False, []),
-    ([("a", "C=O", [100.0]), ("b", "CN", [200.0])], True, ["a.log", "b.log"]),
+    ([("a", "C=O", [100.0]), ("b", "CN", [200.0])], False, []),
     ([("whole", "C=O.CN", [100.0])], True, ["whole.log"]),
     ([("a", "C=O", [100.0]), ("b_old", "CN", [-300.0]),
-      ("b", "CN", [200.0])], True, ["a.log", "b.log"]),
+      ("b", "CN", [200.0])], False, []),
 ], ids=["missing-frequency", "saddle-component", "all-components", "whole-complex", "superseded-attempt"])
-def test_selfconsistency_complex_requires_verified_component_coverage(
+def test_selfconsistency_complex_requires_whole_minimum(
     tmp_path, monkeypatch, logs, want_covered, want_used,
 ):
     from cloudra.benchmark.integrity import bind_graph_to_evidence
@@ -2949,7 +2930,7 @@ def test_selfconsistency_complex_requires_verified_component_coverage(
     for evidence in files:
         _annotated_geometry_log(tmp_path / evidence.path, evidence.smiles_found[0])
     bindings = bind_graph_to_evidence(graph, files, sandbox=tmp_path)
-    assert bindings[0].matched
+    assert bindings[0].matched is any("." in identity for _, identity, _ in logs)
     _patch_sc_probe(monkeypatch, {f"{name}.log": freqs for name, smiles, freqs in logs}, tmp_path, files)
 
     report = audit_self_consistency(graph, bindings, files, tmp_path)
@@ -2959,12 +2940,12 @@ def test_selfconsistency_complex_requires_verified_component_coverage(
     assert report.checks[0].evidence_used == want_used
 
 
-def test_selfconsistency_complex_keeps_protonation_variant_coverage(tmp_path, monkeypatch):
+def test_selfconsistency_separated_species_keeps_protonation_variant_coverage(tmp_path, monkeypatch):
     pytest.importorskip("rdkit")
     from cloudra.benchmark.integrity import bind_graph_to_evidence
 
     graph = GoldMechanismGraph(nodes=[
-        MechanismNode(id="RC", role=NodeRole.REACTANT, smiles=["C=O.C[NH3+]"]),
+        MechanismNode(id="RC", role=NodeRole.REACTANT, smiles=["C=O", "C[NH3+]"]),
     ], edges=[])
     files = [EvidenceFile(path="a.log", kind="gaussian", smiles_found=["C=O"]),
              EvidenceFile(path="b.log", kind="gaussian", smiles_found=["CN"])]
@@ -2981,14 +2962,14 @@ def test_selfconsistency_complex_keeps_protonation_variant_coverage(tmp_path, mo
 
 
 @pytest.mark.parametrize("water_frequencies,want", [([], False), ([100.0], True)])
-def test_complex_minimum_cannot_hide_an_unverified_fragment_in_the_whole_match(
+def test_separated_species_cannot_hide_an_unverified_member(
     tmp_path, monkeypatch, water_frequencies, want,
 ):
     pytest.importorskip("rdkit")
     from cloudra.benchmark.integrity import bind_graph_to_evidence
 
     graph = GoldMechanismGraph(nodes=[
-        MechanismNode(id="RC", role=NodeRole.REACTANT, smiles=["[OH3+].CN"]),
+        MechanismNode(id="RC", role=NodeRole.REACTANT, smiles=["[OH3+]", "CN"]),
     ], edges=[])
     files = [EvidenceFile(path="water.log", kind="gaussian", smiles_found=["O"]),
              EvidenceFile(path="amine.log", kind="gaussian", smiles_found=["CN"])]
@@ -3004,12 +2985,12 @@ def test_complex_minimum_cannot_hide_an_unverified_fragment_in_the_whole_match(
 
 
 @pytest.mark.parametrize("custom_setting", ["match_threshold", "ged_config"])
-def test_runner_complex_minimum_coverage_preserves_matching_settings(tmp_path, monkeypatch, custom_setting):
+def test_runner_separated_minimum_coverage_preserves_matching_settings(tmp_path, monkeypatch, custom_setting):
     pytest.importorskip("rdkit")
     from cloudra.benchmark.runner import BenchmarkRunner
 
     graph = GoldMechanismGraph(nodes=[
-        MechanismNode(id="RC", role=NodeRole.REACTANT, smiles=["C=O.CN"]),
+        MechanismNode(id="RC", role=NodeRole.REACTANT, smiles=["C=O", "CN"]),
     ], edges=[])
     task = _sc_task(graph)
     config = GedConfig()

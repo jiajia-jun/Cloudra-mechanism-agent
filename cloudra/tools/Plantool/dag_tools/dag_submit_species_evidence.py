@@ -34,7 +34,7 @@ class DagSubmitSpeciesEvidenceInput(input_schema):
         description="Name of the species/intermediate in the delivery graph (e.g. 'R' or 'Int1')."
     )
     opt_file: str | list[str] = Field(
-        description="Optimization output path, or a list containing every component when submitting component evidence."
+        description='Optimization output path. For separated species declared as smiles=[B, C], provide all component logs together as opt_file=[...]; a dot-connected smiles="B.C" is a complex and needs a whole-complex minimum.'
     )
     freq_file: str | list[str] | None = Field(
         default=None,
@@ -61,6 +61,7 @@ class DagSubmitSpeciesEvidence(DagToolBase):
         "In dag_record mode, attach validated evidence snapshots. "
         "In dag_guided mode, submits successful or unsuccessful calculations for Supervisor review; "
         "recording failed minimum evidence does not verify the species."
+        " A string smiles B.C denotes a complex; a list [B, C] denotes separated species. Submit all separated-species logs together in opt_file=[...]; a later step submission may omit target_minimum_file and use these bound logs."
     )
     input_schema: Any = DagSubmitSpeciesEvidenceInput
     output_schema: Any = DagToolOutput

@@ -542,19 +542,32 @@ class EvidenceInboxMixin:
         return logs, problems
 
     def _species_geometry_logs(self, graph, node_id: str) -> list[str]:
-        """端点阶段的回退材料：物种节点的 geometry 阶段（验证极小值）日志。"""
+        """Use the species' bound files, including every separated component."""
         node = next((n for n in graph.nodes if n.node_id == node_id), None)
         if node is None:
             return []
         logs, _problems = self._bound_stage_logs(node.stages, {StageKind.GEOMETRY})
-        return logs
+        from cloudra.dag.file_science import _geometry_species, _logs
+        from cloudra.tools.core.species_identity import species_smiles
+        bound, _problems = _logs(self.store, node, self.working_directory)
+        candidates = list(dict.fromkeys([*logs, *bound]))
+        if not node.smiles:
+            return candidates
+        verified = []
+        for path in candidates:
+            try:
+                if any(_geometry_species(path, identity) for identity in species_smiles(node.smiles)):
+                    verified.append(path)
+            except (ValueError, RuntimeError):
+                continue
+        return verified
 
     def _passes_short_irc_check(
         self, ref: GraphRef | None, edge, stages, graph
     ) -> tuple[bool, str]:
-        """short_irc 的几何方向区间证明（与 ts_guess verify strict / benchmark
-        自洽性同一判据）：双侧 IRC 端点几何须各自位于 TS 与对应端点验证极小值
-        之间；IRC 收敛与否不做闸门，点数不再构成判据。
+        """复用工具与 Benchmark 的两类 IRC 判据：络合物两端沿用极小值
+        区间证明；分离产物检查真实端点的完整产物图及各物种的极小值，反应物侧
+        仍须通过区间证明。两类都要求同一 TS 的真实双向 IRC，不要求全程收敛。
 
         材料全部来自同一条边已 supported 阶段的证据 payload
         （arguments.log_path 指向的日志文件）：TS 几何 ← ts_opt/frequency
@@ -564,10 +577,9 @@ class EvidenceInboxMixin:
         绝不静默降级为收敛/点数判据。
         """
         prefix = (
-            "short_irc requires a geometric direction proof (the ts_guess "
-            "verify strict / benchmark criterion): both IRC endpoint geometries "
-            "must lie between the TS and the corresponding verified endpoint "
-            "minima. "
+            "short_irc requires real bidirectional IRC from the bound TS and the verified source-direction interval. "
+            "A complex target needs the existing minimum interval proof; separated products need the complete "
+            "declared product graph and a verified independent minimum for each species. "
         )
         if ref is None:
             return False, prefix + "no evidence ref was bound."
@@ -596,8 +608,10 @@ class EvidenceInboxMixin:
             stages, {StageKind.ENDPOINT_B}
         )
         problems += ea_problems + eb_problems
-        if not endpoint_a_logs:
-            endpoint_a_logs = self._species_geometry_logs(graph, edge.target_node_id)
+        target = next((node for node in graph.nodes if node.node_id == edge.target_node_id), None)
+        if not endpoint_a_logs or (target and isinstance(target.smiles, list) and len(target.smiles) > 1):
+            endpoint_a_logs = list(dict.fromkeys([*endpoint_a_logs,
+                *self._species_geometry_logs(graph, edge.target_node_id)]))
         if not endpoint_b_logs:
             endpoint_b_logs = self._species_geometry_logs(graph, edge.source_node_id)
         try:
@@ -607,7 +621,8 @@ class EvidenceInboxMixin:
             atom_bindings = {str(path): binding for path in [irc_log, *ts_logs]
                 if (binding := atom_binding_for_log(pipeline_database(), path, workspace)) is not None}
             passed, details = verify_short_irc_direction(
-                irc_log, ts_logs, endpoint_a_logs, endpoint_b_logs, atom_bindings=atom_bindings
+                irc_log, ts_logs, endpoint_a_logs, endpoint_b_logs, atom_bindings=atom_bindings,
+                product_smiles=target.smiles if target else None,
             )
         except Exception as exc:  # 解析依赖缺失等：拒绑并写明，绝不静默通过
             logger.warning("short_irc direction proof evaluation failed", exc_info=True)
@@ -649,10 +664,10 @@ class EvidenceInboxMixin:
         （disagree/skip/not_applicable 必填）、工具成败；TS frequency
         另有 n_imag==1 检查（D7，不过 ⇒ saddle_check_failed，阶段保持
         pending）；物种 geometry 和边的 endpoint_a/b 另有 n_imag==0 检查（不过 ⇒
-        minimum_check_failed）；short_irc 另有几何方向区间证明（与 ts_guess
-        verify strict / benchmark 自洽性同一判据：双侧 IRC 端点几何各自位于
-        TS 与对应端点验证极小值之间，材料取自同边 ts_opt/frequency 与
-        endpoint_a/b 或物种 geometry 阶段的已绑证据；缺材料或证明不成立 ⇒
+        minimum_check_failed）；short_irc 与工具/Benchmark 共用判据：络合物
+        沿用两端区间证明，分离产物检查完整产物图和各物种极小值，反应物侧仍走
+        区间证明。材料取自同边 ts_opt/frequency 与 endpoint_a/b 或物种已绑
+        日志；缺材料或证明不成立 ⇒
         short_irc_check_failed，理由写明缺哪份材料）。守卫拒绝不落地；
         通过后 attach ref + 更新 stages，并由阶段重派生 evidence_level（D7）。
         """

@@ -48,5 +48,27 @@ PM7参数化Hf/模型势能R/P=0.047150682549204584/0.012302220637635744 Eh；Δ
 
 **819后当前结论/模式区分试验**：816优化正常收敛、819正常零虚频（最低503.65cm⁻¹），但仍相同三几何mismatch；一次显式seed不能消错，停止重复Opt。env直接文件对照证decl6原生final xyz与saved差最大4.829626e-7Å且四舍五入6位逐值相等，具体validator阈值未确认。原生[frequency.hess](ts/ts_0001/jobs/declaration_0005/frequency/frequency.hess) mode6全位移投影见[mode790_analysis.json](gold_compute/queue_20261018/results/IA8/mode790_analysis.json)：C1-O3键向−0.349093、C1-O2+0.056110、O-O+.093505；H-H相对norm1.258783但键向仅−.000269，主要横向，不能由norm主导推为H-H伸缩。碳相对O2沿CHH瞬时平面法向−.312209（不是完整面距导数）。[IRC B外帧](ts/ts_0001/jobs/declaration_0005/irc/irc_IRC_B.xyz)无环CH2OO（C-O1.254/2.217Å）；[IRC F外帧](ts/ts_0001/jobs/declaration_0005/irc/irc_IRC_F.xyz)三元环（C-O各1.360Å）。这些支持耦合成环假说，仍保留ts_guess显式watch strict fail；未删watch/改阈值，未宣称验收通过。需工具处理可复核模式反例及几何量化一致性，产品外端验证尚未生成。
 
-## 收口与剩余缺口
-本轮无后台计算，不新增搜索；待受权维护者修复同一durable run的自动推进后，先验证候选频率/模式，若不合格则依据结构改耦合坐标猜测，不追加迭代参数堆叠。正式标答仍缺TS频率、IRC两向方向和外端身份/零虚频证据。详见项目根PROCESS.md自己的IA8章节和AgentHub。
+
+### 定向tight复查过程（历史，已由下节完成结果覆盖）
+已用原生790 .hess完整带符号mode6及796近TS F/B前三帧作无新QM方向复查：[可重现脚本](gold_compute/queue_20261018/results/IA8/tight_mode_review/direction.py)、[来源SHA与数表](gold_compute/queue_20261018/results/IA8/tight_mode_review/direction_results.json)。原子序C/O/O/H/H不变；ORCA Cartesian位移转sqrt(m)质量加权，IRC先质量加权Kabsch对齐，双方同一metric投影6刚体方向并各自单位归一。首帧cos F≈+1/B≈−1，但首帧为算法初始化，非独立证明；第二/第三有限弦abs cos F=.93785/.92531、B=.96654/.96168。F首帧C1-O3缩.03843Å，B伸.03844Å，模式径向导数C-O3−.349093/C-O2+.056110/O-O+.093505；H-H径向−.000269而横向相对位移大，支持反应耦合弯曲而不是单纯H-H伸缩。保留strict fail及物理适用性风险，方向一致不替代验收。
+原默认739输入未TightOpt；本轮一次同方法/同占据TightOpt TightSCF已通过同run ts_resume完整配置替换，call tc_6f97ad51b6ca4aaa，正式OptTS834已ready（[输入](ts/ts_0001/jobs/declaration_0007/ts_opt/refine.inp)）。先前引用stage直接patch被输入诊断拒绝tc_e985851ae46e4ca3，不是科学失败；[更正后完整回执](gold_compute/queue_20261018/results/IA8/tight_mode_review/tight_resume_corrected.json)。未改watch/阈值/预算，旧790/796/fail完整保留为历史；待新频率/IRC实际结果比较，不预承诺Gold。
+
+
+### Tight定向复查结果（已完成，无新增Gold）
+原739末次内部收敛表RMS/MAX gradient=.0000527295/.0001700857，容差.0001/.0003；834 TightOpt对应.0000265566/.0000785153，容差.00003/.0001。最终外部梯度norm由.000159187584降至.000076331097 Eh/bohr。实际两者xTB调用仍--acc .2、SCC能量2e-7Eh、wf2e-5e、电子温300K、unpaired0；**几何阈值确实收紧，但TightSCF未使已观察后端精度改变**。原生来源739末表约4500行、834末表约4900行，及各自末尾xTB SETUP/SUMMARY。
+835最终.hess的vibrational_frequencies索引6为唯一负值−950.47（旧790−950.34），normal_modes同列6；atoms为相应最终TS中心、Bohr坐标，IRC同序C/O/O/H/H。新模式与新836轨迹比较见[完整带SHA数表](gold_compute/queue_20261018/results/IA8/tight_mode_review/direction_tight_results.json)及[脚本](gold_compute/queue_20261018/results/IA8/tight_mode_review/direction_tight.py)。质量参与率C/O/O/H/H=21.65/23.86/21.91/20.57/12.01%，重原子67.42%；全体系质量Kabsch对齐后截取重原子单独归一，F2/3 cos=.96841/.96622，B2/3=−.98733/−.98987（此重原子指标不再单独拟合刚体，避免三原子过拟合）。因此全方向相合不是仅H运动主导的假象；首帧是初始化，2/3为有限弦不是严格局部切线。C-O3导数−.349138、C-O2+.056113、O-O+.093503、H-H−.000258；支持C-O成环伴随CH弯曲的耦合方向，未证明物理高精度。
+Tight后仍[ts_guess strict fail完整返回](gold_compute/queue_20261018/results/IA8/tight_mode_review/strict_tight.json)，call tc_5c084717219e41c9；watch与阈值未变。836 IRC已完成，838反应物频率后仍三几何mismatch/candidate_only，产品外端未启动。tight未消除两个验证问题，不反复优化，不称strict误报已确证，不回填Gold/目标垒；本轮定向复查完成。
+
+
+## 最新836自身外帧优化配对与正式strict结果（覆盖旧端点调用结论）
+旧strict_tight使用explore独立端点，不能等同本轮endpoint-relaxed检验；837/838又为旧796→800谱系。本次已针对性配齐**836 B→841 R、836 F→840 P**，均普通无约束GFN2-xTB Opt+NumFreq、q0/m1、TightSCF，无TS/IRC重算，也未冒充durable verified。原子序C/O/O/H/H身份映射保持[1,2,3,4,5]，未交换等价O/H。
+原生输入/最终XYZ/日志： [R输入](endpoint_strict_review/reactant_optfreq.inp)、[R最终](endpoint_strict_review/reactant_optfreq.xyz)、[R841日志](endpoint_strict_review/.cloudra/calc-841.out.log)；[P输入](endpoint_strict_review/product_optfreq.inp)、[P最终](endpoint_strict_review/product_optfreq.xyz)、[P840日志](endpoint_strict_review/.cloudra/calc-840.out.log)。两端正常终止、优化收敛、9个正振动，最低R503.56/P1020.46 cm⁻¹，身份分别无环CH2OO与C-O-O三元环。
+[同源配对数值及SHA](endpoint_strict_review/endpoint_comparison.json)与[脚本](endpoint_strict_review/compare.py)：原生IRC外端至对应优化末帧，质量Kabsch RMSD R=.00463465/P=.00190746Å，最大原子位移.0184874/.0092449Å。R C1-O3 2.21720→2.22210Å，P C-O约1.3595→1.3602Å；这是独立分析量，不是工具验收阈值或pass。
+唯一规范strict调用 **tc_8b3a7df380064bda**：835频率/836 IRC原日志，reactant/product为上述两新原生final XYZ，engine=orca、strict=true、原watch[[0,2],[0,1]]；[完整args/results](endpoint_strict_review/strict_own_endpoints.json)。返回verification_status=fail，checks仅唯一负频−950.47与mode misalignment，irc_end_a/b为空，没有端点匹配数值/通过判断。本次实际工具未兑现用户所述‘端点一致优先通过’行为；不从此次返回推断永久算法机制，也不将未执行的端点比较说成fail。公开合同没有另一个endpoint-priority开关或单独endpoint-match验收入口。
+**当前**：两侧真正同轮IRC-own优化零虚频链已具备，strict仍未pass；方向科学证据较强但电子态/方法精度风险仍在。不删watch、不改阈值、不重试/追加QM，不回填Gold。无后台作业。
+
+## 上轮tight收口结论（历史，端点缺口由上节补齐）
+一次TightOpt定向复查完成，无后台作业。当前已实际有834 TS优化、835唯一负频、836双向IRC与837/838反应物外端Opt/Freq；仍因几何校验和strict模式fail未通过，产品外端链未完成，不追加QM。
+直接前后负模比较：[mode_overlap.json](tight_mode_review/mode_overlap.json)、[脚本](tight_mode_review/overlap.py)。两原生.hess各自唯一负频均为normal_modes列6；质量加权Kabsch旋转后，在同一旧TS刚体补空间投影、单位化并取±无关绝对cos：full=0.9999999934，heavy=0.9999999990；几何质量RMSD=0.0000526945Å。故本模型内模式对几何tight稳健，并非仅频率数值相似。
+原生旧[790 Hessian](../../../../ts/ts_0001/jobs/declaration_0005/frequency/frequency.hess)、新[835 Hessian](../../../../ts/ts_0001/jobs/declaration_0007/frequency/frequency.hess)；新[834优化日志](../../../../ts/ts_0001/jobs/declaration_0007/ts_opt/.cloudra/calc-834.out.log)、[835频率日志](../../../../ts/ts_0001/jobs/declaration_0007/frequency/.cloudra/calc-835.out.log)、[836 IRC日志](../../../../ts/ts_0001/jobs/declaration_0007/irc/.cloudra/calc-836.out.log)。派生[旧方向表](tight_mode_review/direction_results.json)、[新方向表](tight_mode_review/direction_tight_results.json)、[strict完整fail返回](tight_mode_review/strict_tight.json)均保留。
+判断分开：反应方向证据较强且tight前后稳健；实际后端电子精度前后相同（acc .2/SCC2e-7Eh），不是更高精度电子态验证；strict仍fail/未pass，几何来源校验仍拒绝，不能宣布误报已确证或回填Gold。CH2OO电子态/多参考与普通GFN2适用性风险未解除。

@@ -17,6 +17,7 @@ from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.workspace import resolve_existing_tool_path
 from cloudra.tools.core.molecule import Molecule
+from cloudra.tools.core.species_identity import chemical_smiles
 from cloudra.tools.core.ts_inputs import TsInput
 
 _MAX_EXHAUSTIVE_MAPPINGS = 100_000
@@ -639,7 +640,7 @@ def _read_structure(
     return mol
 
 
-def concrete_structure_digest(role: str, smiles: str, charge: int, multiplicity: int, structure,
+def concrete_structure_digest(role: str, smiles: str | list[str], charge: int, multiplicity: int, structure,
                               *, electronic_character: str | None = None) -> str:
     """Digest the declared identity, concrete atom order, graph and coordinates."""
     from cloudra.tools.core.conformer_catalog import content_digest
@@ -1000,7 +1001,8 @@ def _bind_endpoint_structures(reaction, reactant, product, states, *, inspect_co
 
     from cloudra.tools.core.electronic_state import electronic_state_issue
 
-    result = analyze_reaction_mapping(reaction.reactant_smiles, reaction.product_smiles)
+    result = analyze_reaction_mapping(
+        chemical_smiles(reaction.reactant_smiles), chemical_smiles(reaction.product_smiles))
     graph_candidates = result['candidates']
     result.update(binding_status='inconclusive', binding_source='not_available', atom_map=[],
         concrete_watch_pairs=[], heavy_atom_bindings={}, structure_digests={}, binding_diagnostics=[],
@@ -1009,7 +1011,8 @@ def _bind_endpoint_structures(reaction, reactant, product, states, *, inspect_co
     choices = {}
     for role, structure in (('reactant', reactant), ('product', product)):
         smiles = getattr(reaction, role + '_smiles')
-        declared = Chem.MolFromSmiles(smiles)
+        graph_smiles = chemical_smiles(smiles)
+        declared = Chem.MolFromSmiles(graph_smiles)
         state = states[role]
         for graph in (declared, structure):
             if graph is not None:
@@ -1019,7 +1022,7 @@ def _bind_endpoint_structures(reaction, reactant, product, states, *, inspect_co
         graph = Chem.Mol(structure) if structure is not None else None
         if graph is not None and not inspect_coordinates:
             graph.RemoveAllConformers()
-        identity, bindings, diagnostic = _concrete_bindings(smiles, graph)
+        identity, bindings, diagnostic = _concrete_bindings(graph_smiles, graph)
         result[role + '_identity'] = identity
         choices[role] = bindings
         if len(bindings) == 1:

@@ -1,0 +1,11 @@
+# IA8 ordinary reactant minimum from native IRC836 B endpoint; expected_smiles C=[O+][O-]
+! Opt NumFreq GFN2-xTB TightSCF
+%pal nprocs 2 end
+%maxcore 1024
+* xyz 0 1
+C       -0.48968622     0.02740890     0.08521981
+O        0.60783041    -0.57502864     0.02280298
+O        1.72094880     0.07273698    -0.07919542
+H       -1.36610771    -0.59435302     0.16975592
+H       -0.56060473     1.10858596     0.05578516
+*
