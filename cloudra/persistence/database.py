@@ -535,6 +535,26 @@ class ConversationDB:
 
 
 # SQL 建表语句统一放在这里，作为唯一表结构定义。
+_TS_INPUT_JSON_COLUMNS = (
+    ("ts_pipeline_processes", "payload"), ("ts_pipeline_processes", "record"),
+    ("ts_pipeline_declarations", "payload"),
+)
+
+
+def _ts_intervention_limit_paths(raw: str) -> list[str]:
+    """Locate retired metadata without reserializing scientific values or request payloads."""
+    value = json.loads(raw)
+    inputs = [("$", value), ("$.input", value.get("input", {}))]
+    inputs.extend((f"$.attempt_history[{index}].input", attempt.get("input") or {})
+        for index, attempt in enumerate(value.get("attempt_history", [])))
+    paths = []
+    for prefix, declaration in inputs:
+        limits = declaration.get("execution", {}).get("limits")
+        if limits is not None and "max_interventions" in limits:
+            paths.append(prefix + ".execution.limits.max_interventions")
+    return paths
+
+
 class ComputeDB:
     """中央计算作业库（``data_dir/compute.db``），compute_jobs 表的唯一宿主。
 
@@ -642,6 +662,15 @@ class ComputeDB:
         for name, definition in _COMPUTE_JOB_EXTRA_COLUMNS.items():
             if name not in existing:
                 ConversationDB._add_column(cur, "compute_jobs", name, definition)
+        for table, column in _TS_INPUT_JSON_COLUMNS:
+            rows = cur.execute(f'SELECT rowid,{column} FROM {table} '
+                f'WHERE instr({column},\'"max_interventions"\')>0').fetchall()
+            for rowid, raw in rows:
+                paths = _ts_intervention_limit_paths(raw)
+                if paths:
+                    placeholders = ','.join('?' for _ in paths)
+                    cur.execute(f'UPDATE {table} SET {column}=json_remove({column},{placeholders}) WHERE rowid=?',
+                        (*paths, rowid))
 
     @staticmethod
     async def _amigrate_compute_schema(cur) -> None:
@@ -652,6 +681,15 @@ class ComputeDB:
         for name, definition in _COMPUTE_JOB_EXTRA_COLUMNS.items():
             if name not in existing:
                 await ConversationDB._aadd_column(cur, "compute_jobs", name, definition)
+        for table, column in _TS_INPUT_JSON_COLUMNS:
+            await cur.execute(f'SELECT rowid,{column} FROM {table} '
+                f'WHERE instr({column},\'"max_interventions"\')>0')
+            for rowid, raw in await cur.fetchall():
+                paths = _ts_intervention_limit_paths(raw)
+                if paths:
+                    placeholders = ','.join('?' for _ in paths)
+                    await cur.execute(f'UPDATE {table} SET {column}=json_remove({column},{placeholders}) WHERE rowid=?',
+                        (*paths, rowid))
 
     @contextlib.contextmanager
     def connect(self, timeout: float = DEFAULT_BUSY_TIMEOUT):

@@ -30,9 +30,10 @@
 | 计算完成通知 + 后台等待 | 高通量仍在运行时消费单个结果，再回到等待状态；配置预算的 TS 终态通知能唤醒并落盘 |
 | 工具进度持久化 | 阶段记录落盘失败立即终止 Agent，不重试工具副作用 |
 | YOLO 审批结构校验 | 非布尔结论不得写入文件 |
-| TS 故障检查点 + 干预预算 | 重复相同 scan 续接保留原故障、不耗尽预算 |
-| TS fixture 频率门禁 + 终态事件 | 真实零虚频日志阻止 IRC，重复 resume 保留故障与预算 |
+| TS 故障检查点 + 重复恢复 | 重复相同 scan 续接保留原故障与同一重试作业 |
+| TS fixture 频率门禁 + 终态事件 | 真实零虚频日志阻止 IRC，重复 resume 保留故障与原流程 |
 | TS 完成后的频率恢复 | 原生日志解析器断言不阻断频率提交，保留既有 TS 作业和科学待验证状态 |
+| TS 连续 IRC 输入修订 | 同一流程可连续修订三次，重复输入不重复提交，原科学失败与日志保留 |
 | TS 构象文件修订 | 相对路径绑定工作区；更换结构清除旧绑定并保留同一流程 |
 | TS 同结构文件替换 | 复制同一结构后保留映射和初猜声明，无需 Agent 重复填写 |
 | TS 结构编号转换 | 内部分子与Agent视图使用同一编号，源文件保持原样，显式新编号只转换一次 |
@@ -250,6 +251,20 @@ def ts_completed_optimization_frequency_resume_steps(run_id: str, ready: asyncio
         "changes": {"verification": {"frequency": {"frequency_mode": "numeric", "keywords": "TightSCF"}}},
         "reason": "Use numerical frequencies on the completed TS optimization geometry",
     })]), Step(stop=True)]
+
+
+def ts_repeated_irc_input_repair_steps(
+    run_id: str, frequency_ready: asyncio.Event, irc_ready: asyncio.Event,
+) -> list[Step]:
+    """先修复不合格频率，再连续修订 IRC 输入；重发最后一次输入不新增作业。"""
+    steps = ts_completed_optimization_frequency_resume_steps(run_id, frequency_ready)[:-1]
+    for keywords in ("TightSCF", "VeryTightSCF", "TightSCF SlowConv", "TightSCF SlowConv"):
+        steps.append(Step(wait_for=irc_ready, tools=[("ts_resume", {
+            "run_id": run_id,
+            "changes": {"verification": {"irc": {"keywords": keywords}}},
+            "reason": "Repair the queued IRC input settings",
+        })]))
+    return [*steps, Step(stop=True)]
 
 
 def queued_native_ts_optimization(workspace: Path, seed: str, project_id: str, owner_id: str):
@@ -542,6 +557,7 @@ TS_SCENARIOS = ('ts_prepare_once_auto_complete', 'ts_failed_scan_retry_same_run'
                 'ts_acknowledged_completion_recovers_without_resume',
                 'ts_run_scan_revision_inherits_shared_input_settings',
                 'ts_resume_native_cclib_assertion_keeps_completed_ts',
+                'ts_resume_repeated_irc_repairs_preserve_scientific_failure',
                 'ts_mode_advisory_wakes_owner_while_irc_continues')
 
 

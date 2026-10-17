@@ -20,7 +20,7 @@
 | guess | 判别式 kind：xtb_path（显式 GFN2-xTB、可选溶剂/迭代数）、scan（独立 calculation/scans/freeze）、provided（XYZ 和证据引用） |
 | ts_optimization | 正式鞍点优化的独立 calculation |
 | verification | 独立 TS frequency、irc、各向 endpoint.optimization/frequency；可声明已完成的 irc_log 或端点 file seed（XYZ、可选 MOL、证据） |
-| execution | 计算节点/CPU/内存和可选有来源的动作、模型请求、介入次数额度 |
+| execution | 计算节点/CPU/内存和可选有来源的动作、模型请求额度 |
 
 完整 `calculation` 明确 `engine`、单一原生 `method` token 和 `basis_set`；无基组的方法也必须显式填 `basis_set=""`。`method` 不接受方法/基组拼接或整段 route。`keywords`、`frequency_mode` 和对应原生 `orca_blocks`/`end_setting` 分开填写。阶段可直接给完整配置，也可给 `{ref: "名称"}` 指向本输入的 `calculations`。同一配置复用必须明确引用；探索与正式阶段仍各自选择。当前 native 构象优化、路径与扫描能力只支持显式 GFN2-xTB；其他明确方法使用已有 ORCA/Gaussian 写入器，能力不足点名阻塞。缺失方法不填默认。构象生成不暗中做力场优化；带指导的构象使用已声明约束优化方法。
 
@@ -93,7 +93,7 @@ TS Opt 须原生正常结束并收敛；TS Freq 有且仅有 1 个虚频。双�
 
 prepare / resume / inspect / 终态通知共用状态投影：status、stage、result、waiting_for、available_results、structures、blocked、failed_attempt、next、methods、usage、details_path/export_revision。`methods` 展示已解析引用的 planned 配置、实际作业的不可变配置快照和输入契约；单独保存的 scan_step 也包括在内。完成扫描的原始日志通过 `available_results` 返回，完成作业不等于 TS 已验证。完整输入、历史和证据在权威账本与 process.json 快照；导出 revision 与账本分开展示。
 
-删除 estimated wall/CPU hours、time_budget_hours、预计 CPU 小时准入及缺估计阻塞。动作数、实际模型请求（含 transport 重试）、介入次数保留。runtime_seconds 是经过时间；allocated_cpu_hours 是申请核数×经过时间；measured_cpu_hours 缺测量为 null，不能冒充实测。历史和约束优化的各梯度/Hessian 作业都计入真实动作。当前统一配置接口使用格式 5；格式 4 及更早记录保留原始字段供只读查看，自动续接与修订隔离，现存计算、原始输入和排他锁不动；不迁移/默默兼容旧科学输入。
+删除 estimated wall/CPU hours、time_budget_hours、预计 CPU 小时准入及缺估计阻塞。动作数、实际模型请求（含 transport 重试）保留；按 2026-10-18 用户指令移除所有 TS 任务的介入次数上限，输入修复与后续研究修订不再因次数耗尽而被拒绝。runtime_seconds 是经过时间；allocated_cpu_hours 是申请核数×经过时间；measured_cpu_hours 缺测量为 null，不能冒充实测。历史和约束优化的各梯度/Hessian 作业都计入真实动作。当前统一配置接口使用格式 5；格式 4 及更早记录保留原始字段供只读查看，自动续接与修订隔离，现存计算、原始输入和排他锁不动；不迁移/默默兼容旧科学输入。
 
 
 失败恢复区分执行修复与新路线探索。后续作业仍需原生正常终止；已知 wrong_mode 的频率修复必须满足对应一虚频/零虚频证据。失败 scan/path 改为 provided 时须提供新候选 XYZ 及其来源证据；改为 xtb_path 时仍使用两端已绑定结构。旧路线无需先成功，新路线仍经过正常准入和最终科学校验。

@@ -263,7 +263,7 @@ def test_reaction_center_change_without_ring_invalidates_geometry_dependencies(t
 
 
 @pytest.mark.parametrize("note", ["", "retain the existing scan"])
-def test_same_input_retry_is_replayed_once_and_keeps_authorized_budget(tmp_path, monkeypatch, note):
+def test_same_input_retry_is_replayed_once_and_can_retry_again(tmp_path, monkeypatch, note):
     from cloudra.services.compute_admission import AdmissionOutcome
     from cloudra.services.ts_pipeline_store import get_revision_receipt
     from cloudra.tools.core.ts_inputs import TsResumeRequest
@@ -272,8 +272,7 @@ def test_same_input_retry_is_replayed_once_and_keeps_authorized_budget(tmp_path,
 
     monkeypatch.setattr("cloudra.services.compute_admission.admit_job", lambda **_:
         AdmissionOutcome(ok=True, node_id="fixture", scheduler="local"))
-    db, initial, old_step = waiting_fixture_stage(tmp_path, purpose="scan",
-        limits={"source": "explicit_user", "max_interventions": 1})
+    db, initial, old_step = waiting_fixture_stage(tmp_path, purpose="scan")
     with db.connect() as con:
         con.execute("UPDATE compute_jobs SET state='failed' WHERE id=?", (old_step.job_id,))
     state = handle_process_job_terminal(db, old_step.job_id)
@@ -294,12 +293,14 @@ def test_same_input_retry_is_replayed_once_and_keeps_authorized_budget(tmp_path,
         con.execute("UPDATE compute_jobs SET state='failed' WHERE id=?", (retried.scan_step.job_id,))
     state = handle_process_job_terminal(db, retried.scan_step.job_id)
     failed_again = ts_process.TsProcessRecord.model_validate(state['record'])
-    with pytest.raises(ValueError, match='intervention limit exhausted'):
-        ts_process.resume(failed_again, TsResumeRequest(changes={}, reason='Another retry',
-            request_key='over-budget', expected_revision=failed_again.revision))
+    retried_again = ts_process.resume(failed_again, TsResumeRequest(changes={}, reason='Another retry',
+        request_key='retry-again', expected_revision=failed_again.revision))
+    assert retried_again.intervention_count == 2
+    assert retried_again.scan_step.job_id not in (old_step.job_id, retried.scan_step.job_id)
+    assert retried_again.attempt_history[-1].failed_attempt == failed_again.failed_attempt
     assert Path(old_step.input_path).read_bytes() == old_input
     with db.connect() as con:
-        assert con.execute("SELECT COUNT(*) FROM compute_jobs").fetchone()[0] == 2
+        assert con.execute("SELECT COUNT(*) FROM compute_jobs").fetchone()[0] == 3
 
 
 pytestmark = pytest.mark.usefixtures("ts_producer_authority")

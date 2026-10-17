@@ -27,6 +27,16 @@ def input_payload():
     }
 
 
+def test_execution_does_not_accept_an_intervention_quota():
+    from cloudra.tools.core.ts_inputs import TsExecutionLimits, TsInputChanges
+
+    assert "max_interventions" not in TsExecutionLimits.model_json_schema()["properties"]
+    with pytest.raises(ValidationError):
+        TsInputChanges.model_validate({"execution": {"limits": {
+            "source": "agent-chosen limit", "max_interventions": 2,
+        }}})
+
+
 def test_input_changes_cover_every_input_group():
     from cloudra.tools.core.ts_inputs import TsInput, TsInputChanges, apply_input_changes
 

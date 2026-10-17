@@ -296,12 +296,10 @@ def plan_input_revision(record, request: TsResumeRequest) -> TsRevisionReceipt:
     if not differences and failed is None and record.stop_reason is None:
         raise ValueError('no input change or failed attempt to retry; use ts_inspect')
     before_limits, after_limits = record.input.execution.limits, updated.execution.limits
-    if after_limits and after_limits.max_interventions is not None and record.intervention_count + 1 > after_limits.max_interventions:
-        raise ValueError('intervention limit exhausted')
     if before_limits:
         if after_limits is None or before_limits.source != after_limits.source:
             raise ValueError('authorized limits cannot be removed or change source')
-        for field in ('max_compute_actions', 'max_model_calls', 'max_interventions'):
+        for field in ('max_compute_actions', 'max_model_calls'):
             before, after = getattr(before_limits, field), getattr(after_limits, field)
             if before is not None and (after is None or after > before):
                 raise ValueError('input revision cannot raise authorized limits')

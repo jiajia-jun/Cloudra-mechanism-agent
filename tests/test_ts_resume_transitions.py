@@ -287,14 +287,17 @@ def test_failed_scientific_check_can_retry_without_claiming_verification(tmp_pat
     assert record.failed_attempt['failure_class'] == 'wrong_mode'
 
 
-def test_intervention_limit_blocks_changes_without_erasing_history(tmp_path):
-    from cloudra.tools.core.ts_inputs import TsExecutionLimits
-    from cloudra.tools.core.ts_revision import plan_input_revision
-    record = record_fixture(tmp_path, intervention_count=1)
-    record.input.execution.limits=TsExecutionLimits(source='explicit_user',max_interventions=1)
-    with pytest.raises(ValueError,match='intervention'):
-        plan_input_revision(record,request(record,{'ts_optimization':None}))
-    assert record.intervention_count==1
+def test_repeated_input_repairs_preserve_history_without_an_intervention_cap(tmp_path):
+    from cloudra.tools.core.ts_revision import plan_input_revision, revise_record
+
+    record = record_fixture(tmp_path, intervention_count=2)
+    for keywords in ('TightSCF', 'D3BJ TightSCF', 'D3BJ'):
+        change = request(record, {'ts_optimization': {'keywords': keywords}})
+        record = revise_record(record, change, plan_input_revision(record, change))
+    assert record.intervention_count == 5
+    assert len(record.attempt_history) == 3
+    assert record.declaration_revision == 4
+    assert record.terminal is None
 
 
 @pytest.mark.parametrize('purpose,stage,restart', [('ts_opt','refine','submit'), ('frequency','verdict','refine')])
