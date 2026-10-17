@@ -4,8 +4,8 @@
 ``flower`` 里，由 ``_flower_beam_driver.py`` 驱动；Cloudra 主进程从不 import
 torch——子进程产物只有 network.json（清洁 SMILES 节点 + 带概率的基元步边）。
 
-定位纪律：**ML 输出是假设，不是证据**。本工具不在 registry 里声明任何
-dag_evidence_producer / dag_compute_entry 语义；生成的中间体/路径必须经
+定位纪律：**ML 输出是假设，不是证据**。本工具不产出计算证据，也不在
+registry 里声明 dag_compute_entry；生成的中间体/路径必须经
 xtb/DFT 证据链（submit_compute_job）验证后才能进入机理主张。
 
 开关：config ``flower.enabled`` 默认 true（工具对模型默认可见）。未安装

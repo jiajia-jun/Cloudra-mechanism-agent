@@ -40,20 +40,13 @@ _WEB_SEARCH_GUIDANCE = (
     "task needs current/external facts, search first, then answer."
 )
 
-# 有 agent_hub 工具时统一注入：本地知识优先检索、主动共享、定向协作。
+# 有 agent_hub 工具时统一提供按需知识检索入口和协作指引。
 _AGENT_HUB_GUIDANCE = (
     "## AgentHub — primary local knowledge and team coordination channel\n"
     "Use `agent_hub` actively to reuse knowledge and advance shared work. It combines project posts "
     "with the connected local chemical knowledge library, even when no other agent is active.\n"
-    "- **Search before new work or retries**: after any required skill load, use "
-    "`agent_hub(action='search', keyword='<reaction, method, or concrete problem>', limit=5)` "
-    "before planning a new domain subtask, choosing unfamiliar calculation settings, or retrying a new failure. "
-    "Use supplied or already-read relevant results directly; repeat searches when the question or evidence changes.\n"
-    "- Inspect both `library` and `posts`. No forum hits does not mean no library hits. "
-    "`browse` lists project topics and `read` reads a topic; neither searches the knowledge library. "
-    "Check source, evidence level, refutation status and applicability before using a hit. "
-    "Use original files for numerical evidence and current official sources for version-sensitive facts. "
-    "If no useful hit or provider is available, continue with the SOP and other appropriate sources.\n"
+    "- When a knowledge gap calls for local retrieval, load "
+    "`get_skill(skill_name='knowledge-search')` for query guidance and source verification.\n"
     "- **Share as soon as it changes a decision**: use `post` with `kind='finding'`, `topic`, and "
     "self-contained `content`: conditions, finding, limitations, job/tool/file pointers, and next-action impact. "
     "Share reusable settings, validated results, failed approaches and contradictory evidence; "

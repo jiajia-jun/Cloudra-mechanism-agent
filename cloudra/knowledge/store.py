@@ -41,7 +41,7 @@ _DDL = [
     """,
     "CREATE INDEX IF NOT EXISTS idx_rel_src ON kg_relations(src_id)",
     "CREATE INDEX IF NOT EXISTS idx_rel_dst ON kg_relations(dst_id)",
-    # 混合 provider 的"卡→图缝合"查询（relations_of_source）走这枚索引。
+    # 来源连接与标签反贴使用。
     "CREATE INDEX IF NOT EXISTS idx_rel_source ON kg_relations(source)",
     # 实体标签派生表（v13）：由卡片 tags 经 relations.source 反贴，唯一写路径
     # 是 rebuild_entity_tags（整表重建，幂等）；导入路径不做任何填充。
@@ -352,33 +352,71 @@ def search_graph(
         con.close()
 
 
-def relations_of_source(db_path: PathLike, source_key: str, limit: int = 5) -> list[dict[str, Any]]:
-    """按 source='kb:{id}' 取该知识卡片的行级关系（卡→图缝合用）。"""
+def _keyword_in_name(keyword: str, name: str) -> bool:
+    """Match names without treating SCF as CASSCF or TS as part of elements."""
+    name = name.casefold()
+    start = name.find(keyword)
+    while start >= 0:
+        end = start + len(keyword)
+        before = name[start - 1] if start else " "
+        after = name[end] if end < len(name) else " "
+        if not keyword.isascii() or not (
+            (before.isascii() and before.isalnum()) or (after.isascii() and after.isalnum())
+        ):
+            return True
+        start = name.find(keyword, start + 1)
+    return False
+
+
+def search_sources(db_path: PathLike, query: str) -> list[dict[str, Any]]:
+    """Use directly matched graph entities as an index to all their distinct sources.
+
+    Match each query keyword independently, including short terms such as TS.
+    Rank by distinct keyword coverage per source, then by summed keyword scores;
+    multiple entities matching one keyword never add extra coverage.
+    Only entity names/English names/SMILES qualify, not incidental property text.
+    Collect all keyword matches before ranking sources; limit documents in the caller.
+    Neighbour-only sources are not matches; the caller loads and limits documents.
+    """
+    separated = query.translate(str.maketrans({mark: " " for mark in ",，;；、"}))
+    tokens = list(dict.fromkeys(
+        token.strip(".。:：!?！？\"'“”‘’（）()[]【】").casefold()
+        for token in separated.split()
+    ))
+    tokens = [token for token in tokens if token]
+    if not tokens:
+        return []
     con = _open_ro(db_path)
     if con is None:
         return []
     try:
         con.row_factory = sqlite3.Row
-        rows = con.execute(
-            """
-            SELECT r.rel_type, r.falsified, s.label AS src_label, d.label AS dst_label
-            FROM kg_relations r
-            JOIN kg_entities s ON s.id = r.src_id
-            JOIN kg_entities d ON d.id = r.dst_id
-            WHERE r.source = ?
-            ORDER BY r.id LIMIT ?
-            """,
-            (source_key, limit),
-        ).fetchall()
-        return [
-            {
-                "rel_type": r["rel_type"],
-                "falsified": bool(r["falsified"]),
-                "src_label": r["src_label"],
-                "dst_label": r["dst_label"],
-            }
-            for r in rows
-        ]
+        sources: dict[str, dict[str, Any]] = {}
+        for token in tokens:
+            seeds, _ = _match_seeds(con, token, cap=-1)
+            token_sources: dict[str, float] = {}
+            for seed in seeds:
+                names = (seed["label"], _label_en(seed["props"]) or "", seed["smiles"] or "")
+                if not any(_keyword_in_name(token, name) for name in names):
+                    continue
+                score = _bm25_score(seed["r"], seed["n_sources"] or 1)
+                rows = con.execute(
+                    "SELECT DISTINCT source FROM kg_relations WHERE src_id = ? OR dst_id = ? ORDER BY source",
+                    (seed["id"], seed["id"]),
+                ).fetchall()
+                for row in rows:
+                    source = row["source"]
+                    if source:
+                        token_sources[source] = max(token_sources.get(source, 0.0), score)
+            for source, score in token_sources.items():
+                hit = sources.setdefault(source, {"source": source, "matches": 0, "relevance": 0.0})
+                hit["matches"] += 1
+                hit["relevance"] += score
+        return sorted(
+            ({"source": hit["source"], "score": hit["matches"] + hit["relevance"] / (1 + hit["relevance"])}
+             for hit in sources.values()),
+            key=lambda hit: (-hit["score"], hit["source"]),
+        )
     finally:
         con.close()
 

@@ -4,8 +4,8 @@ Single source for the invocation-protocol-aware tool surface:
 
 - ``wire_tool_schemas(agent, tool_names)`` — what the model *sees*:
   traditional runs get the permitted business schemas; javascript runs get
-  ``js_exec`` plus the permitted direct controls (stop / ask_user /
-  schedule).  This is not a privilege grant: js_exec runs pure guest logic
+  ``js_exec`` plus the permitted direct tools (stop / ask_user /
+  schedule / agent_hub). This is not a privilege grant: js_exec runs pure guest logic
   and every actual tool call rechecks capabilities at admission, so a
   read-only role may select the JS protocol without gaining bash.
 - ``tool_declarations(tool_names, *, visual_mode)`` — deterministic
@@ -16,7 +16,7 @@ Single source for the invocation-protocol-aware tool surface:
   silently widened to ``any`` and never invented.
 - ``validate_wire_route`` — stable protocol errors for misrouted calls
   (js_exec in traditional mode, top-level business calls in JS mode, direct
-  controls inside a guest program).  Misrouted calls are never executed.
+  tools inside a guest program). Misrouted calls are never executed.
 """
 
 from __future__ import annotations
@@ -76,7 +76,7 @@ def js_exec_schema():
         "name": "js_exec",
         "description": "Run one bounded JavaScript program to orchestrate available tools. "
                        "The program is the only tool call in this response; use await tools.NAME(args), "
-                       "then text(value). Backend calls execute serially. Direct controls stay top-level.",
+                       "then text(value). Backend calls execute serially. Direct tools, including agent_hub, stay top-level.",
         "parameters": {"type": "object", "properties": {
             "code": {"type": "string", "description": "JavaScript with top-level await."}},
             "required": ["code"], "additionalProperties": False}}}
@@ -109,7 +109,7 @@ def validate_wire_route(
         if tool_name == JS_EXEC_NAME or is_direct_only(tool_name):
             return (
                 f"protocol_error[direct_only_in_guest]: {tool_name!r} is a direct "
-                "control and cannot be called from inside a JavaScript program; "
+                "tool and cannot be called from inside a JavaScript program; "
                 "return it as a top-level tool call instead"
             )
         return None
@@ -143,7 +143,7 @@ def guest_tool_names(
     orchestration_mode: OrchestrationMode | str = OrchestrationMode.STANDARD,
     role_id: str | None = None,
 ) -> list[str]:
-    """Names callable inside a JS program: no direct controls, visual-gated,
+    """Names callable inside a JS program: no direct tools, visual-gated,
     gated by the run's orchestration mode (dag_* tools are hidden in standard
     mode; Supervisor verdict tools outside dag_guided), and filtered by the
     agent's role allowlist projection when role_id is given."""
@@ -162,7 +162,7 @@ def wire_tool_schemas(agent: AgentSession, tool_names: list[str] | None) -> list
     """Protocol- and orchestration-mode-aware wire projection for one LLM request.
 
     Traditional: the permitted business schemas (unchanged legacy surface).
-    Javascript: ``js_exec`` plus the permitted direct controls only.  Tools
+    Javascript: ``js_exec`` plus the permitted direct tools only. Tools
     that hard-fail under the agent's orchestration mode are never projected.
     """
     from cloudra.runtime_v2.adapters import legacy_tool_schemas  # lazy: import cycle
@@ -212,7 +212,7 @@ def javascript_instructions(
     """Deterministic JS-mode instructions appended to the model request.
 
     Describes the execution envelope, JSON serialization, explicit output,
-    the serial backend, the fixed limits and the direct-only controls; the
+    the serial backend, the fixed limits and the direct-only tools; the
     generated declarations are documentation, not executable guest input.
     """
     names = guest_tool_names(tool_names, visual_mode=visual_mode,
@@ -243,7 +243,7 @@ def javascript_instructions(
         "probe tools by trial calls or inspect application source to discover schemas.\n"
         "- Backend calls execute serially, one at a time, even under "
         "Promise.all.\n"
-        "- Direct controls (stop, ask_user, schedule) are NOT callable inside "
+        "- Direct tools (stop, ask_user, schedule, agent_hub) are NOT callable inside "
         "a program; return them as top-level tool calls instead, and never "
         "call js_exec recursively. Send exactly one js_exec per response and "
         "do not combine it with other tool calls.\n"

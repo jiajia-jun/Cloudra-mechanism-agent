@@ -15,13 +15,12 @@ from pathlib import Path
 import pytest
 
 from cloudra.infra.config import get_config
-from cloudra.knowledge.plugin import PLUGIN_SPEC
 from cloudra.services import daemon_supervisor
 
 
 @pytest.fixture(autouse=True)
 def _data_dir_exists():
-    """锁文件/节流时间戳的 O_CREAT 不建父目录，这里补齐（同 test_kg_vec_launcher）。"""
+    """锁文件/节流时间戳的 O_CREAT 不建父目录，这里补齐。"""
     Path(get_config().data_dir).mkdir(parents=True, exist_ok=True)
 
 
@@ -45,12 +44,20 @@ def _scheduler_last_spawn() -> Path:
 # ---------------------------------------------------------------- 崩溃循环节流
 
 
-def test_ensure_daemons_runs_both(monkeypatch):
-    ran: list[str] = []
-    monkeypatch.setattr(daemon_supervisor, "ensure_scheduler", lambda: ran.append("scheduler"))
-    monkeypatch.setattr(daemon_supervisor, "ensure_kg_vec", lambda: ran.append("kg_vec"))
+def test_ensure_daemons_starts_only_scheduler(spawn_calls, monkeypatch):
+    """Installing knowledge retrieval must not probe or spawn an embedding service."""
+    monkeypatch.setattr(get_config(), "plugins", ["cloudra.knowledge.plugin:plugin"])
+    requests = []
+
+    def unexpected_request(*args, **kwargs):
+        requests.append(args)
+        raise AssertionError("knowledge retrieval must not require a vector service")
+
+    monkeypatch.setattr("urllib.request.urlopen", unexpected_request)
     daemon_supervisor.ensure_daemons()
-    assert ran == ["scheduler", "kg_vec"]
+    assert len(spawn_calls) == 1
+    assert spawn_calls[0][0][1:] == ["-m", "cloudra.scheduler"]
+    assert requests == []
 
 
 def test_spawn_writes_timestamp_then_throttles(spawn_calls, caplog):
@@ -101,26 +108,6 @@ def test_live_instance_never_touches_throttle(spawn_calls, monkeypatch):
         assert warnings == []
     finally:
         os.close(fd)
-
-
-def test_kg_vec_spawn_throttled_too(spawn_calls, monkeypatch, tmp_path):
-    """节流对 ensure_kg_vec 同样生效（共用同一持久时间戳机制）。"""
-    fake_py = tmp_path / ".venv-trans" / "bin" / "python"
-    fake_py.parent.mkdir(parents=True)
-    fake_py.touch()
-    monkeypatch.setattr(get_config(), "plugins", [PLUGIN_SPEC])
-    monkeypatch.setattr(daemon_supervisor, "resolve_vec_python", lambda _c="": str(fake_py))
-    monkeypatch.setenv("CLOUDRA_KG_VEC_URL", "http://127.0.0.1:1")  # 死端口立即拒连
-
-    daemon_supervisor.ensure_kg_vec()
-    assert len(spawn_calls) == 1
-    last_spawn = Path(daemon_supervisor.last_spawn_path(daemon_supervisor.kg_vec_lock_path()))
-    assert last_spawn.is_file()
-    daemon_supervisor.ensure_kg_vec()
-    assert len(spawn_calls) == 1  # 节流跳过
-    last_spawn.write_text(f"{time.time() - (daemon_supervisor.MIN_RESPAWN_SECONDS + 1):.3f}")
-    daemon_supervisor.ensure_kg_vec()
-    assert len(spawn_calls) == 2
 
 
 # ------------------------------------------------------------- lifespan watchdog
@@ -253,18 +240,6 @@ def test_successful_spawn_does_not_increment_fail_count(spawn_calls):
     daemon_supervisor.ensure_scheduler()
     assert len(spawn_calls) == 1
     assert not _scheduler_fail_count().exists()
-
-
-def test_kg_vec_health_success_resets_backoff(spawn_calls, monkeypatch, tmp_path):
-    """健康探测成功 = 崩溃循环结束：残留失败计数归零，且不拉起。"""
-    monkeypatch.setattr(get_config(), "plugins", [PLUGIN_SPEC])
-    monkeypatch.setattr(daemon_supervisor, "kg_vec_is_healthy", lambda url: True)
-    fail_count = Path(daemon_supervisor.spawn_fail_count_path(daemon_supervisor.kg_vec_lock_path()))
-    fail_count.write_text("5", encoding="utf-8")
-
-    daemon_supervisor.ensure_kg_vec()
-    assert spawn_calls == []
-    assert not fail_count.exists()
 
 
 def test_live_scheduler_instance_resets_backoff(spawn_calls):

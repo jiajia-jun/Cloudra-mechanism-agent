@@ -36,17 +36,6 @@ def is_dag_observable(tool_name: str) -> bool:
     return reg.dag_observe if reg is not None else True
 
 
-def is_dag_evidence_producer(tool_name: str) -> bool:
-    """Whether a finished call yields computational evidence.
-
-    Registry-level "evidence producer" marker; its remaining consumer is the
-    knowledge stage's compute-tool trigger.  §5: it no longer routes anything
-    into the CallReview inbox — review submission is always explicit.
-    """
-    reg = _named().get(tool_name)
-    return bool(reg.dag_evidence_producer) if reg is not None else False
-
-
 def is_dag_compute_entry(tool_name: str, arguments: dict[str, Any] | None = None) -> bool:
     """Whether a call launches computation / writes compute inputs.
 

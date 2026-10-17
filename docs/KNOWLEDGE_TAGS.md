@@ -1,6 +1,6 @@
-# 知识库标签体系与分面检索（v13）
+# 知识库标签维护与显式分面检索
 
-chem-kb 知识库的多维标签系统：给 8,594 张知识卡片按 **方法 / 软件 / 问题种类 / 报错类型** 四个维度打受控标签（体系维度 `domain` 继承源目录字段），并把标签贯通到向量服务、图谱、混合 provider 与自动注入的整条检索链路。词表是**人工维护的受控配置**，打标是 **LLM 批量标注**，两者分离可独立演进。
+知识卡片按 **方法 / 软件 / 问题种类 / 报错类型** 四个维度打受控标签，`domain` 继承源目录字段。词表人工维护，打标由 LLM 批量完成。标签/类型筛选由维护者通过 CLI、图谱 HTTP API 或独立向量脚本显式使用；在线 AgentHub 用图谱关键词索引返回同源完整抽取整理稿，不做自动报错路由，工具完成或失败也不会触发检索。
 
 ## 一、词表：`vector_store/tag_vocab.yaml`
 
@@ -14,12 +14,12 @@ chem-kb 知识库的多维标签系统：给 8,594 张知识卡片按 **方法 /
 | `problem` | 19 | 新建受控词表 | SCF不收敛/虚频/过渡态/基组选择/内存并行… |
 | `error` | 18 | 报错签名挖掘（活跃语料 + **归档区仅挖词**） | L502/galloc/PGFIO/Erroneous wavefunction… |
 
-每个条目：`id`（ASCII snake_case，入库值）/ `label`（中文展示名）/ `aliases`（别名与同义词，LLM prompt 与查询侧确定性匹配共用）。`error` 条目另带 `source: active|archive|manual` 溯源。
+每个条目：`id`（ASCII snake_case，入库值）/ `label`（中文展示名）/ `aliases`（别名与同义词，供打标提示与人工维护参考）。`error` 条目另带 `source: active|archive|manual` 溯源。
 
 要点：
 
 - **归档区护栏**：`知识卡片/_ARCHIVE_NOTICE.md` 禁止归档区作为管线输入。v13 只从归档区**挖掘报错签名词表**（"错误提示：XXX" 标题等 verbatim 原文），卡片库仍只用活跃区 01–10 目录。挖掘脚本：`scripts/tag_vocab_mine.py`。
-- **词表生长闭环**：LLM 提议的词表外 tag 不落库，聚合写入 `vector_store/_tag_state/pending_tags.json`，人工审核后手工补进 YAML。词表在 provider 进程内缓存，**改完需重启 uvicorn 才生效**。
+- **词表生长闭环**：LLM 提议的词表外 tag 不落库，聚合写入 `vector_store/_tag_state/pending_tags.json`，人工审核后手工补进 YAML。修改词表后在下次打标命令中读取；已有卡片标签需要重打才会改变。
 - 列出词表：`cloudra knowledge tags [--facet error]`。
 
 ## 二、打标流水线：`cloudra knowledge tag build`
@@ -45,7 +45,7 @@ uv run cloudra knowledge tag build --refresh       # 忽略缓存全部重打
 
 ## 三、实体侧反贴：`cloudra knowledge tag apply-db`
 
-卡片 tags 通过 `kg_relations.source`（`kb:422` / `kb:dyn01` 博客级指针）反贴到关系两端的实体，存入 `chem_kg.db` 的派生表 `kg_entity_tags`：
+卡片 tags 通过 `kg_relations.source`（`kb:422` / `kb:dyn01` 来源级指针）反贴到关系两端的实体，存入 `chem_kg.db` 的派生表 `kg_entity_tags`：
 
 ```bash
 uv run cloudra knowledge import     # 1. 建库（幂等）
@@ -53,36 +53,17 @@ uv run cloudra knowledge tag build  # 2. 卡片打标
 uv run cloudra knowledge tag apply-db  # 3. 反贴到实体（整表重建，幂等）
 ```
 
-上游 `kg_data/*.csv` 是外部抽取管线的产物，**不做任何改动**——`kg_entity_tags` 是纯派生数据，可随时从 cards.jsonl 重建。实体标签自动进图谱条目返回值，`note` 因果解释（如"使用%oldchk可避免过渡态文件TS.chk被改写"）也从此拼进图谱条目 content（`‖` 分隔，≤200 码点）。
+上游 `kg_data/*.csv` 是外部抽取管线的产物，**不做任何改动**——`kg_entity_tags` 是纯派生数据，可随时从 cards.jsonl 重建。这些标签用于图谱显式分面检索。在线插件按来源返回完整抽取整理稿，不再把实体及关系 `note` 拼成短摘要。
 
-## 四、检索链路如何使用标签
+## 四、在线查询与独立向量脚本
 
-### 1. 报错优先路由（`knowledge/plugin.py`）
+chem-kb 的启停使用 `cloudra knowledge install` / `cloudra knowledge uninstall`，重启 Cloudra 服务后生效；关闭不影响 AgentHub 的其他能力。详见 [知识检索开关](PLUGINS.md#知识检索开关)。
 
-查询文本先经词表 aliases 做**确定性报错签名检测**（只认 verbatim 程序输出，宁漏勿误）。命中时语义通道带 `tags={"error":[...]}` 过滤、图谱通道带 `facets={"error":[...]}` 过滤；过滤为空则自动回退无过滤——词表缺失或打标未跑时行为与 v12 完全一致，优雅降级。配额矩阵（3 语义 + 2 图谱）与降级矩阵不变。
+Agent 遇到具体知识缺口时，加载 `get_skill(skill_name='knowledge-search')`，再调用 `agent_hub(action='search', keyword='Gaussian SCF')`。图谱直接命中的实体决定来源，再读取该来源的全部小节；每节选择查询语言版本，缺失时回退中文。`kb:` 是来源指针，不代表原文 URL；抽取整理稿不等同科学验收证据。
 
-### 2. 向量服务（`scripts/kg_vec_service.py`）
+在线插件不识别报错 aliases 来自动过滤，不分配语义/图谱配额，也不调用向量服务补位。没有图谱命中或缺库时，返回空结果。
 
-`POST /search` 新增可选字段：`domain`（str 或 list，精确匹配）、`tags`（扁平 list = 任一命中；dict = facet 间 AND、facet 内任一）。过滤是 top-k 后过滤（扫完整排序直到凑满 k），**过滤后不足 k 条不会用不相关行凑数**。响应每条 hit 携带 `tags`。
-
-### 3. 查询构造（`runtime_v2/policies/knowledge_stage.py`）
-
-自动注入的查询从"工具名+全部参数+summary 全文"（≤800 字符 blob，FTS 全 token AND 命中率≈0——图谱/模糊通道实际失效的根源）改为：**工具名 + 短参数（SMILES/方法名/短路径；>120 字符与纯数字丢弃）+ summary 报错窗口，≤200 字符**。
-
-### 4. 注入分级
-
-- `is_success=False`（工具失败）：**必注入**——排障价值最高，且失败路径的查询本身短而准。
-- 成功：仅当 top 命中分 ≥ `_SUCCESS_SCORE_THRESHOLD`（0.55，模块常量可调）才注入——压掉"每次计算都注入"的上下文噪声，对齐验证计划"被动提示仅在关键节点触发"原则。
-
-### 5. 面向 agent 的可见性
-
-命中条目携带受控 tags，渲染形如：
-
-```
-- [L0] [tags: err_l502|scf_not_converged] 〔卡片〕SCF不收敛的解决策略: … (provider: chem-kb) — source: kb:164
-```
-
-英文查询自动传 `lang=en` 给语义通道（v11 的 ASCII≥70% 启发复用）。
+`scripts/kg_vec_service.py` 保留为独立手动语义检索工具。其 `POST /search` 支持可选 `domain`（字符串或列表，精确匹配）和 `tags`（扁平列表表示任一命中；字典表示维度间 AND、维度内任一）。筛选后不足 `k` 条不会用不相关行凑数。可选 `lang=zh|en` 限制语言；未指定时双语同卡去重。此服务不参与 AgentHub 的在线 chem-kb 查询。
 
 ## 五、分面检索入口
 
@@ -102,10 +83,10 @@ curl -s 127.0.0.1:8765/search -H 'Content-Type: application/json' \
 
 | 场景 | 操作 |
 | --- | --- |
-| 词表加新值 | 编辑 `tag_vocab.yaml` → 重启 uvicorn → `tag build`（新值只影响后续打标；已打卡片不受影响） |
+| 词表加新值 | 编辑 `tag_vocab.yaml` → `tag build`（新值只影响后续打标；已有卡片要用 `--refresh` 重打） |
 | 打标效果差 | 看 `tag stats` 覆盖率与 top 标签；改 prompt（`tagging._SYSTEM_PROMPT`）或词表 aliases 后 `--refresh` 重打 |
 | 换 LLM | `tag build --model … --url … --key …` 或改 `config.coordinator` |
-| 卡片库更新 | 追加 cards.jsonl（保持行序，**只追加不中间插行**——向量按行对齐）→ `encode.py` 重编码 → `tag build`（只打新卡）→ `apply-db` |
+| 卡片库更新 | 更新 cards.jsonl → `tag build` → `apply-db`；仅使用独立向量脚本时，保持原行序并用 `encode.py` 重编码相应向量 |
 | 审核 pending | 看 `vector_store/_tag_state/pending_tags.json`（facet:value → 计数），值得保留的手工补进词表 |
 
 ## 七、测试

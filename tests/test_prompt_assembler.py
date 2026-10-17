@@ -122,6 +122,7 @@ def test_agent_hub_guidance_injected_when_tool_present(isolated_prompt_sources):
     )
 
     with_hub = assembler.assemble(["bash", "agent_hub"])
+    assert "agent_hub_guidance" in {source.kind for source in with_hub.sources}
     assert "AgentHub" in with_hub.identity_messages[0]["content"]
     assert "agent_hub" in with_hub.identity_messages[0]["content"]
     assert "handoff" in with_hub.identity_messages[0]["content"]
@@ -130,7 +131,7 @@ def test_agent_hub_guidance_injected_when_tool_present(isolated_prompt_sources):
     assert "[Incoming call]" in with_hub.identity_messages[0]["content"]
 
     without_hub = assembler.assemble(["bash"])
-    assert "AgentHub" not in without_hub.identity_messages[0]["content"]
+    assert "agent_hub_guidance" not in {source.kind for source in without_hub.sources}
     assert "handoff" in without_hub.identity_messages[0]["content"]
 
 def test_skill_manifest_collapses_multiline_description(

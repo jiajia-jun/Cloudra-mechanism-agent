@@ -33,10 +33,6 @@ class ToolRegistration:
     # 事实适配器（contract_version=2）："module:function(payload, source_ref)
     # -> list[EvidenceFact]"；从已登记证据中抽类型化事实（含反证）。
     dag_fact_adapter: str = ""
-    # 证据产生工具：完成的调用产出计算证据（知识检索触发语义）。
-    # §5 起不再有"自动入 CallReview 收件箱"的开关——送审只能显式
-    # （dag_bind_evidence with claim）。
-    dag_evidence_producer: bool = False
     # Phase 3 门槛：mechanism 未被接受前拦截的计算入口（开算/写计算输入）。
     dag_compute_entry: bool = False
     dag_compute_predicate: str = ""  # "module:function(arguments)->bool", overrides dag_compute_entry
@@ -55,7 +51,7 @@ class ToolRegistration:
     # tools/capabilities.py; do not keep separate supervisor tool name sets.
     supervisor_access: str = "none"
 
-    # Invocation routing. Direct controls stay top-level wire tools in the
+    # Invocation routing. Direct tools stay top-level wire tools in the
     # javascript protocol (exposed next to js_exec) and are rejected inside a
     # guest program; ordinary business tools are the only guest-callable ones.
     invocation_direct_only: bool = False
@@ -165,7 +161,6 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         tool_name='log_parser',
         evidence_deriver='cloudra.tools.Chemtool.log_parser:derive_delivery_changes',
         dag_fact_adapter='cloudra.dag.fact_adapters:log_parser_facts',
-        dag_evidence_producer=True,
         supervisor_access='evidence_read',
         role_allowlist=_SCIENCE_ROLES,
         summary='Extract numerical and termination evidence from actual QM logs.',
@@ -238,7 +233,6 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         tool_name='reaction_mapping',
         evidence_deriver='cloudra.tools.Chemtool.reaction_mapping:derive_delivery_changes',
         dag_fact_adapter='cloudra.dag.fact_adapters:reaction_mapping_facts',
-        dag_evidence_producer=True,
         role_allowlist=_SCIENCE_ROLES,
         summary='Select complete endpoint correspondence on an existing run, or analyze independent endpoint sources.',
     ),
@@ -283,7 +277,6 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         class_name='ThermoAnalysis',
         tool_name='thermo_analysis',
         evidence_deriver='cloudra.tools.Chemtool.thermo_analysis:derive_delivery_changes',
-        dag_evidence_producer=True,
         role_allowlist=_SCIENCE_ROLES,
         summary='Extract thermochemical quantities from declared calculation evidence.',
     ),
@@ -293,7 +286,6 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         tool_name='ts_guess',
         evidence_deriver='cloudra.tools.Chemtool.ts_guess:derive_delivery_changes',
         dag_fact_adapter='cloudra.dag.fact_adapters:ts_guess_facts',
-        dag_evidence_producer=True,
         dag_compute_predicate='cloudra.tools.Chemtool.ts_guess:is_compute_entry_call',
         role_allowlist=_SCIENCE_ROLES,
         summary='Generate or inspect TS guesses and scans; a guess is not a verified saddle point.',
@@ -325,6 +317,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         tool_name='agent_hub',
         runtime_profiles=frozenset({'desktop', 'android'}),
         supervisor_access='hub',
+        invocation_direct_only=True,
         summary='Discover peers and exchange project-scoped tasks, messages or skills.',
     ),
     ToolRegistration(

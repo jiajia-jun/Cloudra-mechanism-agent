@@ -18,8 +18,9 @@ Plugin contract (deliberately minimal):
   object with a ``search`` hook is automatically picked up as a library
   provider (in-process ``register_plugin`` or the ``plugins`` config list).
 
-To push findings at the agent beyond query results (passive injection at
-key nodes), plugins use ``on_event`` for triggers and the CommandBus they
+The core does not search or inject knowledge when a tool finishes or fails.
+Plugins that explicitly push findings beyond query results can use
+``on_event`` for triggers and the CommandBus they
 receive in ``setup(core)`` (``context.inject``) — or, out of process, the
 ``POST /api/v2/agents/{id}/context/inject`` HTTP endpoint.
 """
@@ -161,12 +162,9 @@ async def search_library(query: str, *, limit: int = 5) -> list[dict[str, Any]]:
 
 
 def render_library_hits(hits: list[dict[str, Any]]) -> str:
-    """Render merged library hits into a compact bullet list (no header).
+    """Render library hits with complete content and source pointers (no header).
 
-    Shared by the hub search result, the compute-notify broker and the
-    knowledge policy stage, so one hit renders identically in every channel.
-    Callers prepend their own header ("Library hits", "Knowledge base
-    suggestions", …).
+    The hub search result prepends its own "Library hits" header.
     """
     if not hits:
         return ""
@@ -176,9 +174,9 @@ def render_library_hits(hits: list[dict[str, Any]]) -> str:
         source = f" — source: {entry['source']}" if entry.get("source") else ""
         tags = [str(t) for t in (entry.get("tags") or [])][:4]
         tag_s = f" [tags: {'|'.join(tags)}]" if tags else ""
-        snippet = " ".join(str(entry.get("content") or "").split())[:200]
+        content = str(entry.get("content") or "").strip()
         lines.append(
             f"- [{entry.get('evidence_level', 'L0')}]{flag}{tag_s} {entry.get('title') or ''}: "
-            f"{snippet} (provider: {entry.get('provider', '?')}){source}"
+            f"(provider: {entry.get('provider', '?')}){source}\n\n{content}"
         )
     return "\n".join(lines)

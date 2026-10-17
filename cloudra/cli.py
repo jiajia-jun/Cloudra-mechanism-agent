@@ -692,37 +692,28 @@ def knowledge_export(out_dir, db_path):
 
 @knowledge_cmd.command(name="status")
 def knowledge_status():
-    """三通道健康：语义（kg_vec 微服务）/ 图谱库 / 模糊兜底卡片。"""
+    """检查图谱索引与完整来源正文。"""
     from cloudra.knowledge.health import knowledge_health
 
     health = knowledge_health()
-    sem, graph, fuzzy = health["semantic"], health["graph"], health["fuzzy"]
-    if sem["ok"]:
-        model = sem.get("model") or sem.get("library_model") or "(模型预热中)"
-        sem_detail = f"model={model}  cards={sem.get('count', '?')}"
-    else:
-        sem_detail = sem.get("error") or "不可用"
+    graph, content = health["graph"], health["content"]
     graph_detail = (f"实体 {graph.get('entities')}  关系 {graph.get('relations')}"
                     if graph["ok"] else graph.get("error") or "不可用")
-    fuzzy_detail = (f"{fuzzy.get('cards')} 卡"
-                    if fuzzy["ok"] else fuzzy.get("error") or "不可用")
+    content_detail = (f"{content.get('sources')} 篇来源"
+                      if content["ok"] else content.get("error") or "没有来源正文")
 
     def _row(name: str, ok: bool, detail: str) -> None:
         mark = "[green]✓[/green]" if ok else "[red]✗[/red]"
         console.print(f"  {mark} {name}: {detail}")
 
-    console.print("[bold]chem-kb 通道健康[/bold]")
-    _row(f"语义（{sem['url']}）", sem["ok"], sem_detail)
-    _row("图谱（chem_kg.db）", graph["ok"], graph_detail)
-    _row("模糊兜底（cards.jsonl）", fuzzy["ok"], fuzzy_detail)
-    if not sem["ok"]:
-        console.print("[yellow]语义通道不可用：cloudra web 启动时会自动拉起 kg_vec"
-                      "（CLOUDRA_KG_VEC=off 已禁用或服务异常时见 data_dir/logs/kg_vec.log）。[/yellow]")
+    console.print("[bold]chem-kb 健康状态[/bold]")
+    _row("图谱索引（chem_kg.db）", graph["ok"], graph_detail)
+    _row("来源正文（cards.jsonl）", content["ok"], content_detail)
 
 
 @knowledge_cmd.command(name="install")
 def knowledge_install():
-    """把 chem-kb 混合 provider 写进 config.yaml 的 plugins 列表（幂等）。"""
+    """把 chem-kb 图索引来源检索插件 写进 config.yaml 的 plugins 列表（幂等）。"""
     from cloudra.knowledge.installer import install_plugin_spec
 
     cfg_path, added = install_plugin_spec()
@@ -735,7 +726,7 @@ def knowledge_install():
 
 @knowledge_cmd.command(name="uninstall")
 def knowledge_uninstall():
-    """把 chem-kb 混合 provider 从 config.yaml 的 plugins 列表移除（幂等）。"""
+    """把 chem-kb 图索引来源检索插件 从 config.yaml 的 plugins 列表移除（幂等）。"""
     from cloudra.knowledge.installer import uninstall_plugin_spec
 
     cfg_path, removed = uninstall_plugin_spec()

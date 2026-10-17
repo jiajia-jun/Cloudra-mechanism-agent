@@ -58,8 +58,7 @@ def test_request_daemons_shutdown_blocks_ensure(monkeypatch):
         lambda *args, **kwargs: spawned.append(args),
     )
     daemon_supervisor.request_daemons_shutdown()
-    daemon_supervisor.ensure_scheduler()
-    daemon_supervisor.ensure_kg_vec()
+    daemon_supervisor.ensure_daemons()
     assert spawned == []
 
 

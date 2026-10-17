@@ -54,18 +54,19 @@ class MyPlugin:
 
 实现了 `search` 方法的插件会自动注册为 AgentHub 的知识源（Provider）。当 Agent 在工具中调用 `agent_hub` 的 `search` 操作时，系统会并发查询所有已注册的知识源，并将检索到的条目随同工具结果一并返回给模型。
 
-在给模型的展示摘要中，会呈现证据等级、出处和证伪标记；完整数据保存在 `data["library"]` 中。如果 `search` 是同步方法，同样会自动放入后台线程池执行以避免阻塞。
+返回给模型的文字包含完整正文、证据等级、出处和证伪标记；结构化数据同时保存在 `data["library"]` 中。如果 `search` 是同步方法，同样会自动放入后台线程池执行以避免阻塞。
 
 `search` 方法需返回 `KnowledgeEntry` 对象列表，或包含相同字段的字典列表：
 
 | 字段 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
 | `title` | str | （必填） | 知识条目的标题 |
-| `content` | str | （必填） | 知识条目的正文内容（摘要视图会做截断展示，数据中保留完整文本） |
+| `content` | str | （必填） | 知识条目的正文内容（文字展示与结构化数据均保留完整文本） |
 | `evidence_level` | str | `"L0"` | 证据等级：`L0`（文献常识与背景知识）/ `L1`（经过计算或实验验证的结论）/ `L2`（推测或模型假设） |
 | `source` | str | `""` | 来源出处指针（例如 DOI、关联的 project/run ID、artifact ID 等），确保结论可追溯 |
 | `falsified` | bool | `False` | 是否已被证伪：**证伪条目会保留在知识库中供模型参考，但排序权重会被大幅降低**，不会直接删除 |
 | `score` | float | `0.0` | 插件内部计算的相关度打分，用于同等级条目之间的相对排序 |
+| `tags` | list[str] | `[]` | 受控标签 ID，用于展示知识分类 |
 
 **知识合并与排序规则**：
 - 严格遵循证据等级优先：`L1 > L0 > L2`；
@@ -179,60 +180,66 @@ class KeyNodeTrigger:
 plugin = KeyNodeTrigger()
 ```
 
-## 实战：chem-kb 混合知识库（仓库自带）
+## 实战：chem-kb 图谱索引与来源知识稿（仓库自带）
 
-仓库自带一个完整的双通道知识库插件 `cloudra.knowledge.plugin:plugin`，作为上述协议的参考实现。它把知识卡片语义检索（向量微服务）与知识图谱（本地 SQLite）缝合成单一 provider。
+`cloudra.knowledge.plugin:plugin` 用图谱承载关键词索引，命中后返回该来源的完整知识稿。图谱实体和关系不再作为独立的短摘要占用检索名额。
 
-### 数据与约定
+### 数据与调用链
 
-- 数据源：`kg_data/`（14.2k 实体 / 10.3k 行级关系，知识卡片洁净版 + 动力学讲义增量抽取）与 `vector_store/`（8,594 卡的 bge-m3 双语向量，17,188 行）。
-- 全部条目 `evidence_level="L0"`（文献常识层——博客知识按 L0 对待）、`falsified=false`；`source` 是 `kb:{id}` 指针（不是 URL），条目内顺序按通道原始分近似排序（bm25 与余弦不同量纲，跨通道顺序只是观感；最终排序以图书馆层的 `(level, falsified, -score)` 为准）。
+- `kg_data/` 导入本地 SQLite 图谱；实体的中文 `label` 和 `props.label_en` 可供关键词检索。
+- `vector_store/cards.jsonl` 保存按段抽取整理的中英文知识卡片。目录名沿用现有布局，在线读取正文不需要向量文件、模型或微服务。
+- `ChemKBPlugin.search` → `store.search_sources`：只从直接命中的实体及其关联关系取已有 `source`，不靠两跳邻居凑来源。
+- `content.load_sources`：按 `card_id.rsplit(":", 1)[0]` 绑定来源，例如 `kb:164:2` 归入 `kb:164`；同一来源按数字段号拼接，每来源返回一条完整知识稿。英文查询优先各节的英文版本，未翻译的小节保留中文，避免漏掉正文。
+- AgentHub 将结果放入 `library`，并在文字结果中展示完整正文，不做 200/600 字截断。
 
-### 部署三步
+这些正文是**抽取整理稿**，不等同博客或论文原文。`source` 沿用 `kb:{id}` 等已有来源指针，不能当作 URL；内容本身也不构成项目的收敛、过渡态或 IRC 科学验收证据。
 
-1. **建库**：`uv run cloudra knowledge import`（从仓库 `kg_data/` 导入 `data_dir/knowledge/chem_kg.db`，幂等可重跑；二次导入计数不变）。
-2. **起向量微服务**：`<venv-trans>/bin/python scripts/kg_vec_service.py`（默认 8765 端口；用外部 `.venv-trans` 跑 bge-m3，模型已在本机 HF 缓存时先 `export HF_HUB_OFFLINE=1` 离线加载，启动后台预热约 5-10s 后 `/health` 的 model 字段就绪。服务**不随 cloudra 自启**，停了也不影响 cloudra 运行——语义通道为空时图谱通道补满配额）。
-3. **激活插件**：`uv run cloudra knowledge install`（把 spec 幂等写进 config.yaml 的 `plugins` 列表）→ **重启 uvicorn**（插件在 app 启动时加载一次）。
+### 检索策略
 
-### 配额语义（v9.1）
+查询使用简短、以空格分隔的关键词，例如 `Gaussian SCF`、`ORCA imaginary frequency`、`过渡态 初猜`。多个词分别命中图中的实体，再沿已有来源绑定汇合到稿件；不要求全部词出现在同一个实体里。`TS`、`初猜` 这类短词也参与检索，常见首尾标点和重复词不影响查询。
 
-`search(query, limit=5)` 时语义通道取 `ceil(3/5)=3` 条、图谱通道 `floor(2/5)=2` 条——**结构性保证双通道全带上**：即使语义命中分数再高也挤不掉图谱名额。降级矩阵：微服务停 → KG-only 补满；缺库 → 语义-only 补满（缺库不建库不抛）；双缺 → 空列表。`limit<2` 时两通道各保 1。语义命中会按 `blog_id` 缝合 1~2 条卡内关系（content 里形如 `‖图: A—rel→B` 的行）。
+只有实体名称、英文名称或 SMILES 中的命中参与来源检索，说明属性中的顺带提及不算关键词。英文缩写按单词边界匹配，因此 `SCF` 不会因 `CASSCF` 命中，`TS` 也不会因普通英文单词含有这两个字母而命中。来源排名前不截断匹配实体，避免宽泛词占满节点名额后漏稿。
 
-### 零部署兜底（v10：模糊匹配 fallback）
+来源按覆盖的**不同查询词数量**优先排序，再累加每个词的最佳相关度，避免仅由通用软件词决定排名。同一个词命中许多节点不会重复加分。最多返回五篇，正文完整保留；靠后的来源可能只覆盖部分关键词，需要结合问题判断适用性。
 
-微服务没起也能有基础检索：语义通道不可用或返回不足配额时，provider 用**确定性子串匹配**扫仓库内 `vector_store/cards.jsonl`（8,594 卡）补位卡片槽——**克隆仓库零操作即用**。退化矩阵：
+现有绑定粒度是整篇稿件：几个关键词可能分别出现在不同主题的小节里，因此全部命中也不代表正文在回答同一个问题。这是当前文档级索引的精度限制，搜索结果仍需核对上下文。
 
-| 微服务 | KG 库 | cards.jsonl | 行为 |
-| --- | --- | --- | --- |
-| ✓ | ✓ | — | 3 语义 + 2 图谱（满血，模糊层零参与） |
-| ✗ | ✓ | ✓ | 3 模糊 + 2 图谱（降级模式双通道叙事仍成立） |
-| ✗ | ✓ | ✗ | 5 图谱（KG 补位不变） |
-| ✓ | ✗ | — | 5 语义（补位不变） |
-| ✗ | ✗ | ✓ | 5 模糊 |
-| ✗ | ✗ | ✗ | 空结果 |
+搜索 skill 指导 Agent 先明确知识缺口，再用必要概念检索：软件名仅在问题与该软件有关时加入；结果太泛就补具体概念，没有有用结果再换中英文术语或去掉不确定的限定词。已有内容能回答问题时直接使用；来源重复或仍无帮助就停止重搜。
 
-要点：
+### 启用与主动查询
 
-- 模糊条目前缀 **〔卡片·模糊〕**（与〔卡片〕/〔图谱〕并列的诚实标记，agent 可感知降级）；补位触发时打 debug 日志。
-- 匹配是**关键词包含**级（token AND、ASCII 大小写不敏感、heading 加权），**无语义泛化**——质量预期低于向量通道，仅作兜底。
-- 优先级链固定为 语义 > 模糊 > 图谱补位；模糊层按 card_id 去重，不与语义命中共存于同一条。
-- pip 安装场景没有 `vector_store\` 目录：此层零参与，行为与 v9.1 完全一致。
+1. `uv run cloudra knowledge import`：从 `kg_data/` 建立 `data_dir/knowledge/chem_kg.db`，可重复导入。
+2. 保留可读取的 `vector_store/cards.jsonl` 正文库。
+3. `uv run cloudra knowledge install`：把插件写进配置的 `plugins`，重启 Cloudra 服务后加载。
 
-### 双语（v11：英语适配）
+Agent 遇到具体知识缺口时，先加载 `get_skill(skill_name='knowledge-search')`，再使用同一 AgentHub 接口：
 
-- 向量库 `vector_store/cards.jsonl` 每卡两行：同 `card_id` + `"lang":"zh"/"en"`（中文行是唯一事实源，英文行挂在同一把 `kb:{id}` 钥匙上）；`/search` 接受可选 `lang=zh|en`（缺省混合），同 card_id 双行去重（保留高分行，防止同一卡双占 top-k）。
-- KG 侧不重抽：实体 `props` 列装载 `{"label_en": ...}`（导入即进 FTS）→ 英文查询自动可搜图谱；混合 provider 对 ASCII 主导查询（≥70% token 为 ASCII）的图谱条目 title 优先 `label_en`（回退 label），content 保留原 label 可溯源。
-- 语义/模糊通道自动双语：bge-m3 多语单索引天然让 en 查询优先命中 en 行；模糊层对同卡双行按查询语言偏好去重。
-- 增量路径：新卡片 → 翻译（同批管线）→ cards.jsonl 追加 zh+en 两行 → `vector_store/encode.py` 全量重编码（原子覆写）。
-- 关系 quote 保持中文（回溯原文）；`《中文标题》` 交叉引用不译（标题是指针）。
+```python
+agent_hub(action='search', keyword='Gaussian SCF')
+```
 
-### 标签体系与分面检索（v13）
+`action` 为必填字符串枚举；`search` 要求 `keyword` 为非空字符串（字段默认 `""`，运行时拒绝空查询）。`limit` 为可选整数，默认 `20`，限制项目帖子数量；图书馆最多返回五条。结果包含独立的 `posts`、`library`、`skills` 和 `sources_status`。
 
-知识库新增受控标签层：8,594 卡按 **方法/软件/问题种类/报错类型** 四维 LLM 打标（词表 `vector_store/tag_vocab.yaml` 人工维护），标签贯通整条检索链——向量服务 `/search` 支持 `domain`/`tags` 过滤、图谱条目携带 `kg_entity_tags` 派生标签并上送关系 `note` 因果解释、provider 按词表 aliases 做确定性**报错签名检测**触发报错优先检索（过滤空自动回退；词表/打标/派生表缺失时自动降级为无过滤，检索语义与 v12 一致）、自动注入的查询从 800 字符 blob 重写为 ≤200 字符的"工具名+短参数+报错窗口"（修复 FTS/模糊通道对 blob 恒空的问题），注入策略改为**失败必注入、成功高分才注入**。部署在建库三步之后追加：`knowledge tag build` → `knowledge tag apply-db`。详见 **docs/KNOWLEDGE_TAGS.md**。
+没有图谱命中、缺少图谱库或缺少正文库时，chem-kb 返回空结果，不绕过图索引做向量检索或模糊卡片补位。工具完成或失败不会自动检索、注入知识。
 
-### 卸载
+### 标签与离线维护
 
-`cloudra knowledge uninstall`（内部走 `remove_plugin`，幂等从 `plugins:` 删掉对应条目），重启生效。
+受控标签用于知识分类，显式标签/类型过滤仍可通过 knowledge CLI 和图谱 HTTP API 使用，详见 [KNOWLEDGE_TAGS.md](KNOWLEDGE_TAGS.md)。在线插件不从报错文本自动识别标签或切换检索通道。
+
+`vector_store/encode.py` 和 `scripts/kg_vec_service.py` 作为独立手动工具保留；可以按需做编码或直接语义检索，Cloudra 在线知识查询不依赖它们，也不需要启动向量服务。
+
+### 知识检索开关
+
+使用现有的插件开关启停 chem-kb，无需另加配置项：
+
+```bash
+cloudra knowledge uninstall  # 关闭 chem-kb 知识检索
+cloudra knowledge install    # 开启 chem-kb 知识检索
+```
+
+两条命令只在 `config.yaml` 的 `plugins` 列表中移除或添加 `cloudra.knowledge.plugin:plugin`，不会删除知识库文件。**切换后重启 Cloudra 服务才会生效**，已运行的服务继续使用启动时加载的插件。
+
+关闭后，AgentHub 的帖子搜索、讨论与协作等其他能力照常使用；chem-kb 不再提供图书馆结果，也不会自动改用向量或模糊检索。其他单独配置的知识源按各自配置运行。
 
 ## 测试与审计支持
 

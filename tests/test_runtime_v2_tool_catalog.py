@@ -70,7 +70,7 @@ def test_js_projection_returns_js_exec_and_direct_controls_only():
     schemas = wire_tool_schemas(_agent(protocol=InvocationProtocol.JAVASCRIPT), ["*"])
     names = _names(schemas)
     assert names[0] == JS_EXEC_NAME
-    assert set(names) == {JS_EXEC_NAME, "stop", "ask_user", "schedule"}
+    assert set(names) == {JS_EXEC_NAME, "stop", "ask_user", "schedule", "agent_hub"}
 
 
 def test_unattended_agent_wire_hides_ask_user():
@@ -330,6 +330,13 @@ def test_validate_wire_route_guest_rejects_direct_controls():
     assert error is not None and "direct_only_in_guest" in error
     assert validate_wire_route("javascript", "log_parser", origin="guest") is None
     assert validate_wire_route("javascript", JS_EXEC_NAME, origin="guest") is not None
+
+
+def test_agent_hub_is_top_level_in_both_protocols_and_absent_from_guest():
+    assert validate_wire_route("traditional", "agent_hub") is None
+    assert validate_wire_route("javascript", "agent_hub") is None
+    assert "direct_only_in_guest" in validate_wire_route("javascript", "agent_hub", origin="guest")
+    assert "agent_hub" not in guest_tool_names(["agent_hub"])
 
 
 def test_direct_only_projection_marks_stop_ask_user_schedule():

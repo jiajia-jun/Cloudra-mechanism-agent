@@ -258,16 +258,11 @@ export default function KnowledgePanel({ onClose, onToast }: KnowledgePanelProps
 
         <div className="kg-health">
           <HealthPill
-            label="semantic"
-            ch={health?.semantic}
-            okText={(c) => `${c.model || 'warming'} · ${c.count ?? '?'} cards`}
-          />
-          <HealthPill
             label="graph"
             ch={health?.graph}
             okText={(c) => `${(c.entities ?? 0).toLocaleString()} entities`}
           />
-          <HealthPill label="fuzzy" ch={health?.fuzzy} okText={(c) => `${c.cards ?? '?'} cards`} />
+          <HealthPill label="content" ch={health?.content} okText={(c) => `${c.sources ?? '?'} sources`} />
         </div>
 
         <div className="kg-toolbar">

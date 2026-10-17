@@ -10,7 +10,6 @@ from cloudra.runtime_v2.policies.base import PolicyStage
 from cloudra.runtime_v2.policies.dag_stage import DagPolicyStage
 from cloudra.runtime_v2.policies.goal_stage import GoalStage
 from cloudra.runtime_v2.policies.guidance import GuidanceStage
-from cloudra.runtime_v2.policies.knowledge_stage import KnowledgeStage
 from cloudra.runtime_v2.policies.method_policy import MethodPolicyStage
 from cloudra.runtime_v2.policies.permission import PermissionStage
 from cloudra.runtime_v2.policies.schedule_stage import ScheduleStage
@@ -28,7 +27,6 @@ def default_stages(core=None) -> list[PolicyStage]:
         DagPolicyStage(core),
         GoalStage(),
         ScheduleStage(core),
-        KnowledgeStage(),
         # 行为引导（pin 常驻上下文通知）：只提示、永不阻拦，放最后。
         GuidanceStage(),
     ]

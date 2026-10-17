@@ -1,15 +1,15 @@
-"""守护进程拉起判定链的唯一事实源：compute scheduler 与 kg_vec 向量微服务。
+"""计算调度守护进程拉起判定链的唯一事实源。
 
 两个消费入口：``web_launcher.launch_browser`` 启动时 ensure 一次；api_v2
 lifespan 的 watchdog 循环周期 ensure（守护崩溃退出后自动重拉起）。存活判定
-只信 flock 探测（kg_vec 另有 /health 探测），任何路径都不 kill 进程。
+只信 flock 探测，任何路径都不 kill 进程。
 
 崩溃循环防护：每次真实 ``spawn_detached`` 尝试（含 Popen 抛异常的失败路径）
 前查 ``<lock_path>.last_spawn`` 持久时间戳（原子写、进程重启不丢），距上次拉起
 不足当前退避间隔则本轮跳过并记 warning——防止配置错误导致的 fork 轰炸。退避
 为指数：连续失败次数 n 持久化在 ``<lock_path>.spawn_fail_count``，间隔 =
-``min(MIN_RESPAWN_SECONDS * 2**n, MAX_RESPAWN_SECONDS)``；健康观测（kg_vec
-/health 200、scheduler 锁被活实例持有）把 n 归零。节流只作用于"锁空闲、要拉起"
+``min(MIN_RESPAWN_SECONDS * 2**n, MAX_RESPAWN_SECONDS)``；健康观测
+（scheduler 锁被活实例持有）把 n 归零。节流只作用于"锁空闲、要拉起"
 路径：锁被持有（活实例）时不读时间戳直接返回。
 """
 
@@ -19,9 +19,7 @@ import logging
 import os
 import sys
 import time
-import urllib.request
 from pathlib import Path
-from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -89,9 +87,8 @@ def _reset_shutdown_for_tests() -> None:
 
 
 def ensure_daemons() -> None:
-    """无活实例则拉起 scheduler 与 kg_vec；单个失败只记警告，互不影响。"""
+    """无活实例则拉起计算调度器。"""
     ensure_scheduler()
-    ensure_kg_vec()
 
 
 def last_spawn_path(lock_path: str) -> str:
@@ -145,10 +142,6 @@ def _record_spawn(lock_path: str, *, failed: bool = False) -> None:
         atomic_write_text(spawn_fail_count_path(lock_path), str(_read_spawn_fail_count(lock_path) + 1))
 
 
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]  # cloudra/services/daemon_supervisor.py -> 仓库根
-
-
 def ensure_scheduler() -> None:
     """无活调度器则 detach 拉起一个（flock 单实例；CLOUDRA_SCHEDULER=off 关闭）。
 
@@ -198,94 +191,3 @@ def kg_vec_lock_path() -> str:
     from cloudra.persistence import paths
 
     return str(paths.data_dir() / "kg_vec.lock")
-
-
-def kg_vec_is_healthy(url: str) -> bool:
-    try:
-        with urllib.request.urlopen(f"{url}/health", timeout=1.0) as resp:
-            return 200 <= resp.status < 300
-    except Exception:
-        return False
-
-
-def resolve_vec_python(configured: str = "") -> str | None:
-    """kg_vec 解释器解析：显式配置（knowledge_vec_python / CLOUDRA_KNOWLEDGE_VEC_PYTHON）
-    优先且必须真实存在（配置写错要暴露，不静默回落）；空串时按仓库根 .venv-trans
-    自动探测。找不到返回 None（调用方打警告跳过，不炸启动）。
-    """
-    configured = (configured or "").strip()
-    if configured:
-        path = Path(configured).expanduser()
-        return str(path) if path.is_file() else None
-    repo_root = _repo_root()
-    for candidate in (
-        repo_root / ".venv-trans" / "bin" / "python",
-        repo_root / ".venv-trans" / "Scripts" / "python.exe",  # Windows venv 布局
-    ):
-        if candidate.is_file():
-            return str(candidate)
-    return None
-
-
-def ensure_kg_vec() -> None:
-    """chem-kb 插件激活且无活 kg_vec 服务时，detach 拉起向量检索微服务。
-
-    判定链（任一命中即返回，不拉起）：``CLOUDRA_KG_VEC=off/0/false`` → 插件未装
-    （plugins 不含 ``cloudra.knowledge.plugin:plugin``，没有消费者）→ 服务已健康
-    （GET ``CLOUDRA_KG_VEC_URL``/health 200，手动起的也算）→ flock 已被持有
-    （另一实例在跑/在启动）→ vec 解释器探测不到（打警告跳过，不炸启动）。
-    服务进程经 ``--lock-file`` 自持 flock 至退出（scheduler.lock 同款范式）；
-    端口从 ``CLOUDRA_KG_VEC_URL`` 解析，缺省 8765。
-    """
-    if daemons_shutdown_requested():
-        return
-    if os.environ.get("CLOUDRA_KG_VEC", "").strip().lower() in {"off", "0", "false"}:
-        return
-    try:
-        from cloudra.infra.compute_utils import spawn_detached
-        from cloudra.infra.config import get_config
-        from cloudra.infra.flocks import try_acquire_lock
-        from cloudra.knowledge.plugin import PLUGIN_SPEC, VEC_URL_DEFAULT, VEC_URL_ENV
-        from cloudra.persistence import paths
-
-        cfg = get_config()
-        if PLUGIN_SPEC not in cfg.plugins:
-            return
-        url = (os.environ.get(VEC_URL_ENV) or VEC_URL_DEFAULT).rstrip("/")
-        lock_path = kg_vec_lock_path()
-        if kg_vec_is_healthy(url):
-            reset_spawn_fail_count(lock_path)  # 健康探测成功，退避归零
-            return  # 已有健康服务
-        vec_python = resolve_vec_python(cfg.knowledge_vec_python)
-        if vec_python is None:
-            logger.warning(
-                "kg_vec: vector venv python not found — semantic channel stays down; "
-                "set knowledge_vec_python in config.yaml or CLOUDRA_KNOWLEDGE_VEC_PYTHON"
-            )
-            return
-        fd = try_acquire_lock(lock_path)
-        if fd is None:
-            return  # 已有活实例持锁
-        os.close(fd)  # 只探测；服务启动后自己持锁
-        if _respawn_throttled(lock_path):
-            logger.warning(
-                "kg_vec respawn throttled (backoff %.0fs not elapsed)",
-                _respawn_interval_seconds(lock_path),
-            )
-            return
-        log_dir = paths.logs_dir()
-        log_dir.mkdir(parents=True, exist_ok=True)
-        script = _repo_root() / "scripts" / "kg_vec_service.py"
-        port = urlparse(url).port or 8765
-        try:
-            spawn_detached(
-                [vec_python, str(script), "--port", str(port), "--lock-file", lock_path],
-                str(log_dir / "kg_vec.log"),
-            )
-        except Exception:
-            _record_spawn(lock_path, failed=True)  # Popen 失败同样限速并计入退避
-            raise
-        _record_spawn(lock_path)
-        logger.info("kg_vec service started (detached, port %s)", port)
-    except Exception as exc:
-        logger.warning("could not start kg_vec service: %s", exc)

@@ -1,9 +1,7 @@
-"""Knowledge-graph subsystem (chem-kb): SQLite store + hybrid library provider.
+"""chem-kb：SQLite 图谱索引与来源知识稿读取。
 
-与 ``runtime_v2/knowledge.py``（图书馆协议：KnowledgeEntry、search_library
-合并排序）的关系：本子包是协议的**数据侧实现**——``store.py`` 拥有并维护
-chem_kg.db（实体/行级关系，源自 知识卡片 洁净版抽取的 KG CSV），
-``plugin.py`` 把图谱检索与向量微服务缝合成单一混合 provider 注册进
-``agent_hub`` 的图书馆层。核心不写本库（无自演化），维护入口只有
-``cloudra knowledge import`` CLI。
+``store.py`` 用实体关键词查找直接关联的来源，``content.py`` 按来源
+组合 ``cards.jsonl`` 中的同语言段落；``plugin.py`` 将完整抽取整理稿
+注册进 ``agent_hub`` 的图书馆层。图谱负责索引，知识稿负责正文，在线
+检索不依赖向量服务。运行时不回写本库，维护通过 knowledge CLI 完成。
 """

@@ -1,4 +1,4 @@
-"""激活/停用 chem-kb 混合 provider：经 config 插件 API 幂等改写 config.yaml。
+"""激活/停用 chem-kb 来源知识稿 provider：经 config 插件 API 幂等改写 config.yaml。
 
 装/卸都走 ``cloudra.infra.config`` 的 add_plugin/remove_plugin（内部经
 mutate_config 落盘，与所有其他配置写路径共享同一把 flock，互不丢更新）。

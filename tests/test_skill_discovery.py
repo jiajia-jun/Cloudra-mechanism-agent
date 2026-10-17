@@ -108,7 +108,11 @@ async def test_get_skill_file_reads_run_off_event_loop(
 
 
 @pytest.mark.asyncio
-async def test_hub_search_finds_skills():
+@pytest.mark.parametrize(
+    ("keyword", "skill_name"),
+    [("reaction", "reaction-mechanisms"), ("skill knowledge-search", "knowledge-search")],
+)
+async def test_hub_search_finds_skills(keyword, skill_name):
     """agent_hub(action='search', keyword=...) searches skills dynamically."""
     core = RuntimeCore(strict_events=True)
     bus = CommandBus(core)
@@ -126,13 +130,13 @@ async def test_hub_search_finds_skills():
     call = ToolCall(
         id="t1",
         name="agent_hub",
-        arguments={"action": "search", "keyword": "reaction"},
+        arguments={"action": "search", "keyword": keyword},
     )
     res = await handle_hub_tool(core, agent, call)
     assert res.is_success is True
     assert "Matched Domain Skills:" in res.summary
-    assert "reaction-mechanisms" in res.summary
-    assert any(s["name"] == "reaction-mechanisms" for s in res.data["skills"])
+    assert skill_name in res.summary
+    assert any(s["name"] == skill_name for s in res.data["skills"])
 
 
 def test_prompt_assembler_tailored_role_skills(tmp_path, monkeypatch):
@@ -160,7 +164,8 @@ def test_prompt_assembler_tailored_role_skills(tmp_path, monkeypatch):
         working_directory=str(workspace),
         include_memory=False,
     )
-    content_sm = asm_sm.assemble([]).identity_messages[0]["content"]
+    content_sm = asm_sm.assemble(["agent_hub", "get_skill"]).identity_messages[0]["content"]
+    assert "get_skill(skill_name='knowledge-search')" in content_sm
     assert "## Recommended Domain Skills" in content_sm
     assert "- dft-calculation:" in content_sm
     assert "- reaction-mechanisms:" in content_sm
@@ -175,7 +180,8 @@ def test_prompt_assembler_tailored_role_skills(tmp_path, monkeypatch):
         working_directory=str(workspace),
         include_memory=False,
     )
-    content_exp = asm_exp.assemble([]).identity_messages[0]["content"]
+    content_exp = asm_exp.assemble(["agent_hub", "get_skill"]).identity_messages[0]["content"]
+    assert "get_skill(skill_name='knowledge-search')" in content_exp
     assert "## Domain Skills On-Demand" in content_exp
     assert "agent_hub(action=\"search\", keyword=\"skill <domain>\")" in content_exp
     assert "## Recommended Domain Skills" not in content_exp
@@ -188,7 +194,8 @@ def test_prompt_assembler_tailored_role_skills(tmp_path, monkeypatch):
         working_directory=str(workspace),
         include_memory=False,
     )
-    content_cust = asm_cust.assemble([]).identity_messages[0]["content"]
+    content_cust = asm_cust.assemble(["agent_hub", "get_skill"]).identity_messages[0]["content"]
+    assert "get_skill(skill_name='knowledge-search')" in content_cust
     assert "## Current skill manifest" in content_cust
     assert "- reaction-mechanisms:" in content_cust
     assert "- dft-calculation:" in content_cust
@@ -208,7 +215,7 @@ def test_bundled_skill_metadata_is_parseable_before_discovery():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('name', ['ts-initial-guess', 'dag-operations', 'peer-review-standards'])
+@pytest.mark.parametrize('name', ['ts-initial-guess', 'dag-operations', 'peer-review-standards', 'knowledge-search'])
 async def test_new_ts_skill_and_existing_review_skills_remain_loadable(name):
     from cloudra.base.skill_class import skill_loader
 
@@ -216,4 +223,4 @@ async def test_new_ts_skill_and_existing_review_skills_remain_loadable(name):
     assert name in {item['name'] for item in catalog}
     result = await GetSkill().tool_call(GetSkill_input_schema(skill_name=name), None)
     assert result.is_success
-    assert result.content.strip()
+    assert result.content.startswith(await asyncio.to_thread(skill_loader().get_content, name))

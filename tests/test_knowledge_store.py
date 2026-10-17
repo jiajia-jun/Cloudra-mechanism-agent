@@ -168,15 +168,16 @@ def test_double_import_idempotent(tmp_path: Path, sample_db: Path):
 
 def test_missing_db_returns_empty(tmp_path: Path):
     assert store.search_graph(tmp_path / "nope.db", "x", 5) == []
-    assert store.relations_of_source(tmp_path / "nope.db", "kb:1", 5) == []
+    assert store.search_sources(tmp_path / "nope.db", "过渡态") == []
     assert store.ego_graph(tmp_path / "nope.db", "concept:x", 1) is None
     ov = store.overview(tmp_path / "nope.db")
     assert ov["db_present"] is False
 
 
-def test_relations_of_source_uses_index(sample_db: Path):
-    rows = store.relations_of_source(sample_db, "kb:2", 5)
-    assert len(rows) == 1 and rows[0]["rel_type"] == "applies_to"
+def test_keyword_index_returns_distinct_source_ids(sample_db: Path):
+    rows = store.search_sources(sample_db, "过渡态")
+    assert {row["source"] for row in rows} == {"kb:1", "kb:2", "kb:77"}
+    assert len(rows) == 3
     con = store._open_ro(sample_db)
     try:
         plan = con.execute(
@@ -185,6 +186,110 @@ def test_relations_of_source_uses_index(sample_db: Path):
         assert any("idx_rel_source" in str(r) for r in plan)
     finally:
         con.close()
+
+
+@pytest.fixture
+def source_keyword_db(tmp_path: Path) -> Path:
+    entities = [
+        {"id": "gaussian", "label": "Gaussian"},
+        {"id": "gaussian-opt", "label": "Gaussian optimization"},
+        {"id": "gaussian-freq", "label": "Gaussian frequencies"},
+        {"id": "scf", "label": "SCF"},
+        {"id": "combined", "label": "Gaussian SCF convergence"},
+        {"id": "ts", "label": "TS"},
+        {"id": "end", "label": "参考"},
+    ]
+    relations = [
+        {"src_id": entity, "dst_id": "end", "source": source}
+        for source, entity_ids in (
+            ("kb:scf", ["gaussian", "scf"]),
+            ("kb:combined", ["combined"]),
+            ("kb:ts", ["gaussian", "ts"]),
+            ("kb:generic", ["gaussian", "gaussian-opt", "gaussian-freq"]),
+        )
+        for entity in entity_ids
+    ]
+    db = tmp_path / "sources.db"
+    store.import_csv(
+        db, write_entities(tmp_path / "sources-entities.csv", entities),
+        write_relations(tmp_path / "sources-relations.csv", relations),
+    )
+    return db
+
+
+def test_source_query_combines_keywords_across_distinct_entities(source_keyword_db: Path):
+    rows = store.search_sources(source_keyword_db, "Gaussian SCF")
+    sources = [row["source"] for row in rows]
+    assert "kb:scf" in sources
+    assert sources.index("kb:scf") < sources.index("kb:generic")
+    assert sources.index("kb:combined") < sources.index("kb:generic")
+
+
+def test_source_query_keeps_short_keywords_and_counts_each_keyword_once(source_keyword_db: Path):
+    rows = store.search_sources(source_keyword_db, "Gaussian TS")
+    assert rows[0]["source"] == "kb:ts"
+    assert rows[0]["score"] > next(row["score"] for row in rows if row["source"] == "kb:generic")
+
+
+def test_source_query_ignores_punctuation_and_repeated_terms(source_keyword_db: Path):
+    expected = store.search_sources(source_keyword_db, "Gaussian SCF")
+    assert store.search_sources(source_keyword_db, "Gaussian, SCF?") == expected
+    assert store.search_sources(source_keyword_db, "Gaussian SCF scf") == expected
+    assert store.search_sources(source_keyword_db, "，？！") == []
+
+
+@pytest.mark.parametrize(("query", "label"), [("SCF", "CASSCF"), ("TS", "elements")])
+def test_source_keyword_does_not_match_inside_an_ascii_word(tmp_path: Path, query: str, label: str):
+    db = tmp_path / "word.db"
+    store.import_csv(
+        db, write_entities(tmp_path / "e.csv", [{"id": "e", "label": label}]),
+        write_relations(tmp_path / "r.csv", [{"src_id": "e", "dst_id": "e", "source": "kb:noise"}]),
+    )
+    assert store.search_sources(db, query) == []
+
+
+def test_source_keyword_uses_entity_names_instead_of_incidental_properties(tmp_path: Path):
+    db = tmp_path / "names.db"
+    store.import_csv(
+        db, write_entities(tmp_path / "e.csv", [{
+            "id": "base", "label": "碳酸钾", "props": '{"value":"常用于Suzuki/Heck偶联"}',
+        }]),
+        write_relations(tmp_path / "r.csv", [{"src_id": "base", "dst_id": "base", "source": "kb:hiyama"}]),
+    )
+    assert store.search_sources(db, "Suzuki") == []
+
+
+def test_source_ranking_considers_all_matching_entities_before_limiting(tmp_path: Path):
+    entities = [{"id": f"generic-{i}", "label": "Gaussian"} for i in range(20)]
+    entities.append({"id": "specific", "label": "Gaussian 16 SCF convergence thresholds detailed guidance"})
+    relations = [
+        {"src_id": row["id"], "dst_id": row["id"], "source": f"kb:{row['id']}"}
+        for row in entities
+    ]
+    db = tmp_path / "uncapped.db"
+    store.import_csv(
+        db, write_entities(tmp_path / "e.csv", entities), write_relations(tmp_path / "r.csv", relations),
+    )
+    rows = store.search_sources(db, "Gaussian SCF")
+    assert rows[0]["source"] == "kb:specific"
+    assert rows[0]["score"] >= 2
+
+
+def test_source_ranking_uses_each_keyword_relevance_when_coverage_ties(tmp_path: Path):
+    entities = [
+        {"id": "software", "label": "Gaussian", "n_sources": "5"},
+        {"id": "specific", "label": "SCF", "n_sources": "1"},
+        {"id": "general", "label": "SCF general background extended guide", "n_sources": "1"},
+    ]
+    relations = [
+        {"src_id": "software", "dst_id": "specific", "source": "kb:z-specific"},
+        {"src_id": "software", "dst_id": "general", "source": "kb:a-general"},
+    ]
+    db = tmp_path / "relevance.db"
+    store.import_csv(
+        db, write_entities(tmp_path / "e.csv", entities), write_relations(tmp_path / "r.csv", relations),
+    )
+    assert store.search_sources(db, "Gaussian SCF")[0]["source"] == "kb:z-specific"
 
 
 def test_ego_truncation_deterministic(tmp_path: Path):

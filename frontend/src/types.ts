@@ -213,19 +213,15 @@ export interface KgSearchResponse {
 
 export interface KgHealthChannel {
   ok: boolean;
-  url?: string;
-  model?: string | null;
-  count?: number;
   entities?: number;
   relations?: number;
-  cards?: number;
+  sources?: number;
   error?: string;
 }
 
 export interface KgHealth {
-  semantic: KgHealthChannel;
   graph: KgHealthChannel;
-  fuzzy: KgHealthChannel;
+  content: KgHealthChannel;
 }
 
 export interface ComputeJob {

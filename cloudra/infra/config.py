@@ -254,11 +254,6 @@ class CloudraConfig(BaseSettings):
     # search / on_event / setup）。应用启动时加载一次；失败只记日志不阻塞。
     plugins: list[str] = Field(default_factory=list)
 
-    # 知识向量微服务（kg_vec）的解释器：指向装 torch/sentence-transformers 的
-    # .venv-trans python；空串时 web_launcher 按仓库根 .venv-trans/bin/python
-    # 自动探测。env CLOUDRA_KNOWLEDGE_VEC_PYTHON 可覆盖。
-    knowledge_vec_python: str = ""
-
     @field_validator("data_dir", "config_file", mode="before")
     @classmethod
     def _coerce_path(cls, v):
@@ -365,8 +360,6 @@ class CloudraConfig(BaseSettings):
                 self.openalex_mailto = str(data["openalex_mailto"])
             if "plugins" in data and data["plugins"] is not None:
                 self.plugins = [str(s) for s in data["plugins"]]
-            if "knowledge_vec_python" in data and data["knowledge_vec_python"] is not None:
-                self.knowledge_vec_python = str(data["knowledge_vec_python"])
         except Exception as e:
             logger.warning("Failed to load %s: %s", cfg_path, e)
         if selection_data is not None:

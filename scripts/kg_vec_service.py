@@ -1,23 +1,21 @@
-"""kg_vec_service.py — 知识卡片语义检索微服务（HTTP，供 chem-kb 混合 provider 调用）。
+"""kg_vec_service.py — 可独立手工运行的知识卡片语义检索服务。
 
 纯标准库 HTTP 服务器（ThreadingHTTPServer）；模型与向量计算依赖留在
 外部 .venv-trans（sentence-transformers + numpy + 本机 HF 缓存的 bge-m3），
-cloudra 自身 venv 不装 torch。chem-kb 插件激活时本服务由 cloudra web
-启动器自动 detach 拉起（``CLOUDRA_KG_VEC=off`` 关闭自启）；也可手动（外部
-.venv-trans 解释器，模型已在本机 HF 缓存时置 ``HF_HUB_OFFLINE=1`` 离线加载）：
+cloudra 自身 venv 不装 torch。AgentHub 的 chem-kb 检索不依赖此服务，
+Cloudra 不再自动拉起它。需要独立语义检索时手工运行（模型已在本机 HF
+缓存时置 ``HF_HUB_OFFLINE=1`` 离线加载）：
 
     <venv-trans>/bin/python scripts/kg_vec_service.py [--port 8765] [--model NAME] [--lock-file PATH]
 
 **约束**：本脚本跑在外部 .venv-trans 解释器下，cloudra 包不可导入——logging
 只能 stdlib ``basicConfig`` 自理（main() 入口，级别取环境变量
 ``KG_VEC_LOG_LEVEL``，缺省 INFO），不能复用 cloudra.infra.logging_setup。
-detach 拉起时 stdout/stderr 已被重定向进 logs/kg_vec.log，日志写 stdout 即落盘。
+日志默认写入 stdout，后台运行时由调用者重定向。
 
 单实例：--lock-file（或环境变量 KG_VEC_LOCK_FILE）给定路径时启动即抢排他
 flock 并持有到进程退出——锁已被别的实例持有则直接退出（返回码 0，防重不
-算错误）；启动方的判定链（/health 探测 + 同一把锁的探测）见
-cloudra/services/daemon_supervisor.py 的 ensure_kg_vec。平台无 fcntl（Windows）时锁
-退化不启用，仅靠启动方的 /health 探测防重。
+算错误）。
 
 模型可用 --model 或环境变量 KG_VEC_MODEL 自选（默认 BAAI/bge-m3，离线加载）；
 换成与 vector_store/meta.json 记录不同的模型时启动即告警——跨模型余弦分数无效，
@@ -29,7 +27,7 @@ cloudra/services/daemon_supervisor.py 的 ensure_kg_vec。平台无 fcntl（Wind
     POST /search {"query": "...", "k": 5, "lang": "en",
                   "domain": "波函数与电子结构分析" | [...],
                   "tags": ["scf_not_converged"] | {"problem": ["scf_not_converged"]}}
-                         → 同上（chem-kb 混合 provider 走这条；GET 供人工/脚本调试）
+                         → 同上（供人工或独立脚本使用）
 
 过滤（v13）：domain 精确匹配行值（zh/en 任一形式）；tags 过滤——扁平列表
 = 任一 tag 命中即可，dict = facet 间 AND、facet 内任一命中。过滤是
@@ -304,7 +302,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._send_json({"error": "not found"}, code=404)
 
-    def do_POST(self) -> None:  # noqa: N802  # 混合 provider 的通道
+    def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         if parsed.path == "/search":
             try:

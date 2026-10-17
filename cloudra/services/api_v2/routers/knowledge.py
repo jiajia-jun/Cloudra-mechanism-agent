@@ -23,7 +23,7 @@ def build_router(ctx: ApiContext) -> APIRouter:
 
     @router.get("/api/v2/knowledge/health", dependencies=ctx.protected)
     async def knowledge_health() -> dict[str, Any]:
-        """三通道健康聚合：语义（kg_vec 微服务）/ 图谱 / 模糊兜底（绝不抛，失败带 error）。"""
+        """图谱索引与来源正文健康状态（读取失败带 error）。"""
         from cloudra.knowledge.health import knowledge_health as aggregate
 
         return await asyncio.to_thread(aggregate)

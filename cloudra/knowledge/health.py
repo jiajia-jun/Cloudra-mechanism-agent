@@ -1,4 +1,4 @@
-"""chem-kb 三通道健康聚合：语义（kg_vec 微服务）/ 图谱（chem_kg.db）/ 模糊兜底（cards.jsonl）。
+"""chem-kb 健康聚合：图谱索引（chem_kg.db）与完整来源正文（cards.jsonl）。
 
 ``GET /api/v2/knowledge/health`` 路由与 ``cloudra knowledge status`` CLI 共用
 本模块，避免两处各写一套探测。所有函数 sync-only；事件循环里的调用方必须
@@ -28,35 +28,21 @@ def graph_health(db_path: Optional[PathLike] = None) -> dict[str, Any]:
     return {"ok": True, "entities": info["entities"], "relations": info["relations"]}
 
 
-def fuzzy_health() -> dict[str, Any]:
-    """模糊兜底通道：cards.jsonl 存在且可解析（解析结果进程内缓存，探测即热身）。"""
-    from cloudra.knowledge import fuzzy
+def content_health() -> dict[str, Any]:
+    """完整来源正文可读取，计数按来源合并卡片与语言版本。"""
+    from cloudra.knowledge.content import load_sources
+    from cloudra.persistence.paths import knowledge_cards_path
 
-    path = fuzzy._cards_file()
+    path = knowledge_cards_path()
     if not path.is_file():
-        return {"ok": False, "error": f"cards file missing: {path}"}
+        return {"ok": False, "error": f"content file missing: {path}"}
     try:
-        cards = fuzzy._ensure_cards()
+        sources = load_sources()
     except Exception as exc:
         return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
-    return {"ok": bool(cards), "cards": len(cards)}
-
-
-def semantic_health() -> dict[str, Any]:
-    """语义通道：kg_vec 微服务 /health 实时代理 + 上次检索错误（module 级 plugin 单例）。
-
-    生产里注册进 runtime 的正是这个单例（plugins 配置 ``cloudra.knowledge.plugin:plugin``），
-    因此它带的 last_health 反映真实检索流量。
-    """
-    from cloudra.knowledge.plugin import plugin
-
-    return plugin.health()
+    return {"ok": bool(sources), "sources": len(sources)}
 
 
 def knowledge_health() -> dict[str, Any]:
-    """三通道聚合：``{"semantic", "graph", "fuzzy"}``，各通道至少含 ``ok``，失败带 ``error``。"""
-    return {
-        "semantic": semantic_health(),
-        "graph": graph_health(),
-        "fuzzy": fuzzy_health(),
-    }
+    """图谱和来源正文健康状态；读取失败时返回 error。"""
+    return {"graph": graph_health(), "content": content_health()}

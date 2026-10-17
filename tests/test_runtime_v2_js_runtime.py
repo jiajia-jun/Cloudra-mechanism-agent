@@ -285,7 +285,7 @@ async def test_policy_block_rejects_and_catching_grants_no_authority():
 async def test_direct_controls_are_not_exposed_to_the_guest():
     core = RuntimeCore(strict_events=True)
     agent = _agent()
-    ctx = _ctx(agent, tools=["echo", "stop", "ask_user", "schedule"])
+    ctx = _ctx(agent, tools=["echo", "stop", "ask_user", "schedule", "agent_hub"])
     runtime = _runtime(core)
     code = "text(Object.keys(tools));"
     result = await runtime.execute(ctx, ToolCall("w", "js_exec", {"code": code}))

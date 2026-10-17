@@ -130,6 +130,11 @@ def knowledge_graph_db_path(data_dir: Optional[PathLike] = None) -> Path:
     return knowledge_dir(data_dir) / "chem_kg.db"
 
 
+def knowledge_cards_path() -> Path:
+    """Repository knowledge text paired with the imported graph's source ids."""
+    return Path(__file__).resolve().parents[2] / "vector_store" / "cards.jsonl"
+
+
 def workspaces_dir(data_dir: Optional[PathLike] = None) -> Path:
     """per-project 默认工作区的根目录。"""
     return _root(data_dir) / "workspaces"
