@@ -27,3 +27,16 @@ def orca_basis_keyword(basis: str) -> str:
     if lowered.startswith("def2") and len(head) > 4 and not lowered.startswith("def2-"):
         head = "def2-" + head[4:].upper()
     return head + separator + suffix
+
+
+def gaussian_basis_keyword(basis: str) -> str:
+    """Render known def2 aliases using Gaussian's built-in basis keywords."""
+    basis = basis.strip()
+    aliases = {
+        'def2-svp': 'def2SVP',
+        'def2-tzvp': 'def2TZVP',
+        'def2-tzvpp': 'def2TZVPP',
+        'def2-qzvp': 'def2QZVP',
+        'def2-qzvpp': 'def2QZVPP',
+    }
+    return aliases.get(basis.lower(), basis)

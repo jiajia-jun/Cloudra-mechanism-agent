@@ -68,7 +68,7 @@ from cloudra.tools.core.irc_path import (
 from cloudra.tools.core.molecule import read_molecule, to_ase, to_xyz, total_charge, with_positions
 from cloudra.tools.core.qm_calculation import QmCalculation
 from cloudra.tools.core.qm_engine import detect_qm_engine
-from cloudra.tools.core.qm_keywords import orca_basis_keyword
+from cloudra.tools.core.qm_keywords import gaussian_basis_keyword, orca_basis_keyword
 from cloudra.tools.core.topology_change import default_connectivity
 from cloudra.tools.core.ts_inputs import PathSolvation, ScanGuess
 from cloudra.tools.core.xtb_path_runner import DEFAULT_REFINEMENT_RUNS, PathTermination
@@ -1835,7 +1835,7 @@ class TsGuess(Tool):
         ]
 
         if user_input.engine == "gaussian":
-            native_method = method + (f'/{calculation.basis_set}' if calculation.basis_set else '')
+            native_method = method + (f'/{gaussian_basis_keyword(calculation.basis_set)}' if calculation.basis_set else '')
             route = f"# opt=(modredundant,maxstep=10) {native_method}"
             if extra:
                 route += f" {extra}"
