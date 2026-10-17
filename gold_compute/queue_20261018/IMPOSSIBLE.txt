@@ -1,0 +1,69 @@
+impossible 十二题实际计算交接
+
+不是“impossible就不用算”。以下保留原题/Gold标签用于审计，不预先宣布物理不可达，也不把白名单内给出一个数等同可信参考值。
+实际TaskSpec：ideapool/tasks/impossible/<ID>.json；定义：cloudra/benchmark/impossible_registry/abc.py、defg.py。
+共同allowed_methods为xtb、pm7、b3lyp/def2svp，正式证据为ORCA/Gaussian原生日志。本轮沿用B3LYP-D3(BJ)/def2-SVP，不自动增加CASSCF等方法。需要其他电子态处理取得可信定量参考时，给出具体方法方案供用户决定。
+每题结果放results/<ID>/，保存原始输入/日志与一份REPORT.txt。诊断、方法内近似数值、可信Gold分开写。
+
+IA1 · 环丁二烯自动异构化 · q0/m1 · 反应题
+计算矩形极小值、方形驻点及频率，沿键长交替方向追踪两侧矩形端点，报告同批纯电子能差。两端SMILES相同，必须用原子映射/键长交替证明互换。
+当前Gold垒null；文献1.6–10范围与组态权重量级不是自算。方形处的组态简并是方法问题，不是反应不能发生。
+
+IA5 · 环丁烯反旋开环 · q0/m1 · 反应题
+只研究指定disrotatory反旋路径，模式/二面角方向必须与反旋一致；不能因产物同为丁二烯就拿顺旋路径顶替。补反旋驻点、频率、短IRC及端点证据。
+本地gold_compute/remote_backups/2026-09-23/L1/REPORT.md及其结构可作初猜线索；L1的35.17是顺旋垒，绝不能填本题。引用几何后同批复算，不跨程序混减。
+
+IA7 · Bergman环化 · q0/m1的题设 · 反应题
+Z-己烯二炔→p-苯炔双自由基。补Z起点、C1-C6成键驻点、相关模式/短IRC/产物身份，除barrier外还须产物reaction_energy_kcal_mol。
+当前closed_shell=true与开壳双自由基目标有张力。须说明实际波函数形式和局限，不能用闭壳收敛证明可信单线态。文献T1/方法误差数值不是本轮诊断。
+
+IA8 · CH2OO→二氧杂环甲烷 · q0/m1 · 反应题
+补CH2OO、成环TS、二氧杂环甲烷及频率/方向区间；除barrier外还须isomerization_energy_kcal_mol。不能用通向甲酸等别的路径替代题目成环。
+现行R/TS不可达、产物可达是方法标签；T1=0.043来自文献，不是本地能垒或自算诊断。
+
+IA9 · 1,2-二氧环丁烷热解 · q0/m1的题设 · 反应题
+从反应物极小值研究O-O断裂区及后续C-C断裂，取得实际驻点/方向与两甲醛产物证据。是否存在独立双自由基中间体和第二个驻点按计算报告。
+当前登记step_type写concerted，而题源讨论双自由基阶段；不能强迫实际结果符合协同措辞。先留证据，不仅凭一项失败改图/改accessible。
+
+IB9 · 重氮甲烷+乙烯→1-吡唑啉→环丙烷+N2 · q0/m1 · 反应题
+首步14.74是旧ORCA5自算值，不是完整验收证明。先追回原NU8的R/TS/IRC，重点核吡唑啉端浅环翻转虚频，取得身份一致零虚频极小值，再核首步能垒。
+第二步实际尝试脱氮/成环路径，记录双自由基区电子结构与方向；没有找到只记搜索未成功，找到一虚频和IRC也只先认方法内路径。全库审计的端点限制见gold_compute/library_audit_20261002/README.md“已回填但仍须保留的限制”。
+
+IB10 · 重氮乙醛→单重态甲酰卡宾+N2→乙烯酮+N2 · 题设q0/m1 · 反应题
+追回原NR4作业344/348/364/365并核卡宾电子态；补原料、终产物、两段候选TS/模式/方向。显式H6从C4迁到C3，别用其他氢或不同协同旁路顶替所研究分步路线。
+旧4.34是已撤出Gold的闭壳B3LYP历史值，不能因频率/IRC齐全就恢复为可信参考。需要区分闭壳卡宾与目标最低单线态的组态性质。
+
+IC3 · 中性苯基氮烯单三态 · q0；参考m3、目标m1 · 态序题
+物种[N]c1ccccc1，不是[N-]阴离子。补三线态Opt+Freq及稳定性/<S^2>/自旋密度；按原图vertical定义，在同一三线态几何计算单线态候选，明确E(S)-E(T)的符号。
+区分闭壳sigma^2与开壳sigma-pi；RKS m1收敛不等于得到目标开壳态。BS-UKS仅作方法内诊断，不能直接当自旋纯定量Gold。不找TS/IRC。
+交付键：singlet_triplet_gap_kcal_mol、state_ordering、lowest_singlet_character。
+
+ID2 · FOOF反常键 · 分子0/1，FOO自由基和F原子各0/2 · 性质题
+优化平衡结构与频率，报告两条F-O与O-O距离及具体几何。明确F-O均裂的碎片：F原子与FOO自由基，分别准备正确电荷/自旋输入，在同方法/基组下计算解离能；核碎片电子态。
+分别报告纯电子De与可得D0，不能拿O-O断裂或整体解离能替代F-O键解离。当前reference_properties为空，未找到本地自算包，不因分子accessible=false免算。不找TS/IRC。
+交付键：f_o_bond_length_angstrom、o_o_bond_length_angstrom、f_o_bond_dissociation_energy_kcal_mol。
+
+IE2 · N2基态解离曲线 · 分子0/1，每个N原子0/4 · 性质题
+取得平衡N2与从平衡到长程解离的实际能量曲线，逐点保留受限/非受限形式、稳定性与电子态跟踪，防止换解或用不收敛点拼出光滑曲线。分离N原子需单独使用其原子自旋态，不能复制分子m1。
+独立算原子参考，分别标De/D0，说明拉伸区的静态关联局限；无一阶TS，不把解离曲线最高点写成能垒。
+交付键：bond_dissociation_energy_kcal_mol；另存带距离/能量/态信息的曲线数据。
+
+IF3 · 三角烯单三态与基态 · q0；题源参考m3，另算m1 · 态序题
+分别构建三线态和目标开壳单线态的真实输入，核结构、波函数稳定性/<S^2>/自旋密度，不能只按system.multiplicity=3算一次就宣布基态。
+原图为vertical：先在同一三线态优化几何比较E(S)-E(T)，如另做各态优化，将绝热差单列，不与垂直差混用。三线态与BS单线态可给方法内比较；自旋纯最低单线态的可信能隙若现方法不足，应明确缺口，不以BS数值直接回填。无TS/IRC。
+交付键：singlet_triplet_gap_kcal_mol、state_ordering。
+
+IG8 · Cr2基态解离曲线 · 分子题设0/1，每个Cr原子0/7 · 性质题
+研究Cr-Cr平衡区及长程的真实能量曲线，检查不同SCF解/自旋耦合、<S^2>和稳定性。Cr原子碎片单独采用其原子电子态，不能套分子单重态。记录曲线换解或错误解离行为，不用任意平滑插值掩盖。
+同级别分子/原子计算De，并在有可靠振动结果时分列D0。当前两端方法不可达、reference_properties空，不能把一个收敛DFT值当六重键可信Gold。无TS/IRC。
+交付键：bond_dissociation_energy_kcal_mol；另存距离/能量/态信息曲线。
+
+共同待复核点
+闭壳标志、预设协同步型和accessible标签不是原始计算证据。先把实际算出的量、模型局限和参考资料分开，必要时提出具体科学修订，不自动沿用原判断，也不擅自改科学标准。
+性质题中的BDE键未明确De/D0，态序题也要严格分垂直/绝热差；本轮同时保留清楚定义的数据，待回填时再由用户确定对应Gold口径。
+
+性质值写入各题R节点的properties，类型沿用dict[str, float | str]；曲线数组单独保存数据文件，不塞进标量属性字典。IC3另保留最低单线态组态说明。
+N/F/Cr原子自旋来源：
+https://physics.nist.gov/PhysRefData/Handbook/Tables/nitrogentable1_a.htm
+https://physics.nist.gov/PhysRefData/Handbook/Tables/fluorinetable1_a.htm
+https://physics.nist.gov/PhysRefData/Handbook/Tables/chromiumtable5_a.htm

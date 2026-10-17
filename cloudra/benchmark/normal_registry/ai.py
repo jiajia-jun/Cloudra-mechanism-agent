@@ -119,15 +119,19 @@ TASKS = {
         "smiles_schematic": True,
         "mapped_reactants": "[CH2:1]=[O:2].[CH3:4][N:3]([H:5])([H:6]).[O:7]([H:8])[H:9]",
         # O7/H8/H9 是接力水；沿用原 map1-6，水的氢交换用自洽参考编号表达。
-        # 显式水接力使 C-N 加成与双质子转移解耦：先得两性离子，再经
-        # 六元环水接力成羟胺。E2 的 3.59 相对加成中间体·H2O 极小值；
-        # E3 的 31.2 相对羟胺·H2O 极小值。题面净反应式省略接力水，
-        # Gold 映射结构完整保留；文献两水辅助 ≈ 26.7
-        # （Hall & Smith 1998 JPCA 102, 4930, DOI 10.1021/jp9810825）。
+        # E1 = 0.93：同批 Gaussian 16，B3LYP/def2SVP + GD3BJ + CPCM(Water)，
+        # Int(UltraFine)、SCF=Tight，q0/m1；纯电子能，相对六元接力环 RC-A 极小值。
+        # E(TS)=-286.604225293、E(RC-A)=-286.605711957 Eh；不含 ZPE/热校正。
+        # 恰 1 虚频 -164.4792 cm⁻¹，属 soft-mode-dominated C-N addition saddle。
+        # 短 IRC 每向 1 点；两侧末帧另行无约束 Opt+Freq 分别回到 RC-A/加合物，均 0 虚频。
+        # 原生日志：PR #199 的 ts/ts_0006/jobs/declaration_0005/ 下 ts_opt 与 frequency。
+        # 补强与评估：gold_finish_20261015/NI5/notes/IRC_ENDPOINT_RELAX.md、STATUS.md §13。
+        # E2/E3 仍为旧 ORCA 5.0.2 的 3.59/31.2，各相对自身起点极小值，不跨程序混减。
         "steps": [
             {
                 "out": "[O-:2][CH2:1][N+:3]([H:5])([H:6])[CH3:4].[O:7]([H:8])[H:9]",
                 "type": "amine addition to the carbonyl -> zwitterionic C-N addition intermediate with one explicit relay water",
+                "barrier": 0.93,
             },
             {
                 "out": "[O:2]([H:8])[CH2:1][N:3]([H:6])[CH3:4].[O:7]([H:5])[H:9]",

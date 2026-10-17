@@ -1,0 +1,79 @@
+四道替换题计算交接（已授权交远端试算，尚未入正式题库）
+日期：2026-10-18
+
+用户已确认：普通档保留多步机理，困难档保留立体化学。替换对象为 NR1、NY3、HI1、HL1。
+NI5 保留，新增 E1=0.93 已同步题源、生成题面与回归断言；元素/规模限制未丢失。
+
+用户已要求推送给远端计算；可执行研究任务见 gold_compute/queue_20261018/README.txt 和四份独立任务书。四题都还没有本项目统一方法下的新 Gold，不能称为已经替换完成。正式入库要由同批原生日志证明其可算性与机理；旧题和失败证据保留归档。
+本次不继续实施 HI1 五步改图，也不将 NR1/HL1 的无垒约定写入题库。
+
+候选一：甲酰胺气相热脱水（拟替 NR1，普通档）
+
+总反应：NH2CHO → HCN + H2O。
+试算模型：孤立中性分子，q=0，multiplicity=1，共6原子、3重原子，气相。
+原论文的闭壳层脱水路线：
+Formamide → INT-1a → INT-1b → INT-1c → HCN + H2O。
+对应4个TS：tsH-1,3、tsR-1a1b、tsR-1b1c、INT-1c-tsH2O。
+两个步骤是中间体的构象转换，必须如实表示，不能为了缩图跳过。
+考点：寻找真正的多步脱水路径，区分成键变化与构象变化，逐步相对各自起点计算能垒。
+优点：体系很小，无额外酸、裸离子、金属对离子或柔性催化剂。原SI列有3个中间体的全正频与4个一虚频TS。
+风险：热分解整体能垒高，可能还存在竞争解离路线；本提案只试已识别的闭壳层脱水通道，不把含卡宾的脱CO路线混进来。文献级别与本项目不同，数值不能直接回填。
+来源：Nguyen et al., Theoretical Study of Formamide Decomposition Pathways, JPCA 2011, 115, 841–851。
+https://doi.org/10.1021/jp109143j
+公开资料：SI Table S1/S2（结构、频率与路径能量）。本次未确认独立笛卡尔坐标文件，不能称已取得全套XYZ。
+https://acs.figshare.com/collections/Theoretical_Study_of_Formamide_Decomposition_Pathways/2593732
+https://pstorage-acs-6854636.s3.amazonaws.com/4368619/jp109143j_si_001.pdf
+
+候选二：异氰酸单水中性水解（拟替 NY3，普通档）
+
+总反应：HNCO + H2O → NH3 + CO2。
+拟试算路线：HNCO·H2O → NH2COOH（氨基甲酸）→ NH3·CO2。
+试算模型：总计1个水的气相最小模型，q=0，multiplicity=1，共7原子、4重原子。固定该水数，不在失败后擅自增加水壳或换参考系。
+考点：水加成、真实中间体与后续分解的逐步识别。
+优点：保留多步机理，又避免 Na+ 配位换支和大催化剂构象。
+风险：本次尚未核实单水模型完整TS清单及所有几何文件。它目前是有原论文依据的试算候选，准备度低于甲酰胺；不得预设一定只有两个TS或一定能闭合。多水模型的低垒也不能移植到单水题。
+2011原论文研究 HNCO+(n+1)H2O，n=0–6；其中n=0是总计1个水，不是无水。
+https://doi.org/10.1007/s00894-010-0917-z
+2009原论文独立研究双水辅助形成氨基甲酸；此处仅作为机理背景，不直接替代单水模型。
+https://doi.org/10.1021/jp809290j
+另有RSC公开SI Fig.S1（PDF第2页）给出HNCO和单水的气相反应图，本次未完成该图的全部驻点核对：
+https://www.rsc.org/suppdata/ob/c1/c1ob06352a/c1ob06352a.pdf
+
+候选三：threo/erythro 胺氧化物的 Cope 消除（拟替 HI1，困难档）
+
+底物：threo/erythro-N,N-dimethyl-3-phenyl-2-butylamine oxide。
+目标通道：生成2-苯基-2-丁烯与二甲基羟胺。
+试算模型：中性闭壳层，14重原子；先以气相分子模型测试立体映射，不用它拟合实际溶液速率。
+考点：五元环syn消除如何将底物相对构型映射到产物烯烃几何构型；分别验证两种非对映底物的通道。
+原文写threo偏向cis、erythro偏向trans，但本项目必须根据实际3D结构重新指派E/Z，不能直接翻译命名当标答。
+风险：存在其他区域消除副产物；原论文显示显著溶剂效应。本级别下的优势路径和立体结果需重新计算，不能预先把某种通道记为必胜。原2006官方SI未声明提供Cartesian坐标，初猜还需准备。
+来源：Acevedo and Jorgensen, JACS 2006, 128, 6141–6146。
+https://doi.org/10.1021/ja057523x
+近年同类机制研究（不是同一底物的现成坐标，不混用）：
+https://doi.org/10.1021/acs.joc.4c02197
+
+候选四：HCNO 与降冰片烯两面[3+2]环加成（拟替 HL1，困难档）
+
+反应物：formonitrile oxide（HCNO）与norbornene（降冰片烯）。
+连接式：C#[N+][O-].C1=CC2CCC1C2。
+试算模型：中性闭壳层气相，10重原子，无金属、酸预活化或柔性有机催化剂。
+考点：刚性桥环两面的进攻选择；分别定位两面TS，并核验产物相对桥的立体关系。
+优点：小型刚性骨架能限制构象搜索，仍保留真正的立体化学判别。
+风险：原文方法较旧，不能预设本项目方法下的优势面；syn/anti、endo/exo必须绑定具体3D关系，不能仅靠名字对号。原始Cartesian本次尚未取得，初猜仍需准备。其他苯甲腈氧化物/取代降冰片烯的数据不能冒充本模型。
+来源：Rastelli et al., Model calculations of chemical interactions. Part 5.—Diastereofacial selectivity in 1,3-dipolar cycloaddition of formonitrile oxide to norbornene and cis-3,4-dichlorocyclobutene, Faraday Transactions 1993, 89, 29–36。
+https://doi.org/10.1039/FT9938900029
+
+后备：三水辅助HCN水合 → 甲酰亚胺酸 → 甲酰胺
+
+总体系：HCN+3H2O，共12原子；一水净消耗、两水接力。原SI有两TS及反应物/中间体/产物复合物的XYZ，资料准备度更高，但要先解决两步所用中间体水簇构象不同的问题。
+此题与候选一互为净反应逆向，不能两题同时占槽。若选择它，应替代候选一，而非作为另一道独立多样性题。
+https://doi.org/10.1021/acs.jpcb.6b01690
+https://acs.figshare.com/articles/journal_contribution/HCN_Formamidic_Acid_and_Formamide_in_Aqueous_Solution_A_Free_Energy_Map/3160204
+SI标签：1Cii→ts1b→4Civ；4C→ts4c→5C。4Civ和4C需核共同中间体。
+
+试算和入库方式
+
+远端先沿用当前 B3LYP-D3(BJ)/def2-SVP 口径做路径试算，不改科学阈值或评分权重，不直接抄文献能垒。每条能垒只取同程序、同方法、同一模型的TS与本步起点极小值之差。
+只有取得真实驻点、相关一虚频、方向区间证据及两侧零虚频身份后，才把该反应的可交付结果同步进正式题源与生成JSON。失败如实保留，不以扫描峰、正常退出或工具成功代替验收。
+新题采用新身份，旧题和原始失败资料归档，不用旧ID装不同化学反应，也不拿已在52题里的HA8/HB10等重复占槽。
+本地未启动QM计算，也未退休或改写四道旧题；计算与验收交给远端。

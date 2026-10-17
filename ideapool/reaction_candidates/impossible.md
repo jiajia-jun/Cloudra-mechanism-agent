@@ -229,7 +229,7 @@
 
 ### C3. 苯基氮烯开壳单线态（Phenylnitrene open-shell singlet）
 1. **体系**：苯基氮烯（phenylnitrene，C6H5N）单线态与三线态。
-2. **结构**：SMILES `[N-]c1ccccc1`（氮烯）；³A2 基态，开壳 ¹A2。
+2. **结构**：SMILES `[N]c1ccccc1`（中性氮烯，q=0，与 registry/TaskSpec 一致）；³A2 基态，开壳 ¹A2。
 3. **多参考性质**：单线态苯基氮烯为 σ,π 开壳层（与 O2 ¹Δ 同构的电子态问题），实验-理论联合研究的核心结论即"single-t 的 PhN 是 open-shell"；扩环为重氮环庚四烯的能垒涉及该开壳态。
 4. **诊断证据**：Borden et al., 2000, Acc. Chem. Res. 33, 765（DOI 10.1021/ar990030a，被引 333，"key to understanding singlet PhN is the recognition that this species has an open-shell electronic structure"）；PES 测 ΔE_ST ≈ 18 kcal/mol（三态基态；Wenthold 组，JACS，DOI 10.1021/ja00076a049）[数值约]。
 5. **兄弟题**：三态苯基氮烯的几何与振动频率——UKS 单参考可算。

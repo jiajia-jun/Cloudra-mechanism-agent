@@ -1988,7 +1988,10 @@ def test_aqueous_imine_barrier_stays_separate_from_gas_phase_task():
     gas_edges = tasks["NI1"].gold.mechanism_graph.edges
     aqueous_edges = tasks["NI5"].gold.mechanism_graph.edges
     assert [e.barrier_kcal_mol for e in gas_edges] == [27.9, 57.67]
-    assert [e.barrier_kcal_mol for e in aqueous_edges] == [None, 3.59, 31.2]
+    assert [e.barrier_kcal_mol for e in aqueous_edges] == [0.93, 3.59, 31.2]
+    # 长证据说明不能把 Markdown 后面的题面限制挤到错误的列。
+    assert tasks["NI5"].system.elements == ["C", "H", "N", "O"]
+    assert tasks["NI5"].system.max_heavy_atoms == 4
     assert [e.to_node for e in aqueous_edges[:2]] == ["NI5_I1", "NI5_I2"]
     assert [1, 3] in aqueous_edges[0].bond_changes.form
     assert [3, 5] in aqueous_edges[1].bond_changes.break_

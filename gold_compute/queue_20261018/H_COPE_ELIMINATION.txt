@@ -1,0 +1,13 @@
+H_COPE_ELIMINATION · 困难档立体化学 · 拟替HI1
+
+请计算threo/erythro-N,N-dimethyl-3-phenyl-2-butylamine oxide的Cope消除，重点研究通向2-苯基-2-丁烯与二甲基羟胺的通道。
+连接骨架CC([N+](C)(C)[O-])C(C)c1ccccc1，净电荷0、重数1、14重原子。该骨架尚未声明两个手性中心；先依据原论文明确构造threo/erythro两种底物并核对3D/CIP，不能把无立体字符串当作已指定底物。
+先采用气相B3LYP-D3(BJ)/def2-SVP，ORCA或Gaussian；此题验证本级别立体映射，不拟合溶液速率。
+
+两种底物分别取得极小值、相关syn消除TS、方向区间和产物身份，检查五元环质子转移与C-N断裂模式。按实际3D重新指派烯烃E/Z，不把作者cis/trans名称直接猜成E/Z。
+对每个底物单独使用它自身的合格起点计算能垒；不要跨两个非对映底物相减制造“面选择性”。有其他区域消除时，保留结果并写明该通道身份，不拿它冒充指定的2-苯基-2-丁烯。
+本地没有已验证TS坐标。原2006官方SI未声明提供Cartesian；需根据原文结构/TS信息准备并自行验收。近年不同底物的坐标不能充作本模型原始结构。
+维护mechanism_graph.json，显式记下每个底物和产物的立体身份；结果保存在results/H_COPE_ELIMINATION/。不预填优势产物或Gold。
+
+原论文（Acevedo/Jorgensen, JACS2006）：https://doi.org/10.1021/ja057523x
+补充机制背景（不同底物）：https://doi.org/10.1021/acs.joc.4c02197
