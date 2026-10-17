@@ -85,7 +85,13 @@ def _input_revision_differences(record, updated, changes):
     for role in ('reactant', 'product'):
         if _source_redeclared(record, changes, role):
             differences.append(f'conformers.{role}')
+    if _provided_guess_redeclared(changes):
+        differences.append('guess')
     return sorted(set(differences))
+
+
+def _provided_guess_redeclared(changes):
+    return changes.guess is not None and changes.guess.kind == 'provided'
 
 
 def _graph_atom_permutation(old, new, *, same_rows):
@@ -345,11 +351,15 @@ def revise_record(record, request, receipt):
         selected_candidate_id=record.selected_candidate_id, job_steps=[*record.job_steps, *([record.scan_step] if record.scan_step else [])], stage_records=record.stage_records,
         input=record.input, terminal=record.terminal, blocked=record.blocked, failed_attempt=record.failed_attempt,
         stop_reason=record.stop_reason, structures=record.structures.model_copy(deep=True),
+        provided_guess_binding=record.provided_guess_binding,
         reason=request.reason))
     revised.input = apply_input_changes(record.input, request.changes)
     revised.declaration_revision = receipt.input_revision
     revised.revision = receipt.revision
     _revise_structures(record, revised, request.changes)
+    if (_provided_guess_redeclared(request.changes)
+            or revised.input.guess is None or revised.input.guess.kind != 'provided'):
+        revised.provided_guess_binding = None
     invalid_refs = {(ref.stage_key, ref.job_id) for ref in receipt.invalidated}
     invalid = {step.purpose for step in [*record.job_steps, *([record.scan_step] if record.scan_step else [])]
         if (step.stage_key or step.purpose, step.job_id) in invalid_refs}
@@ -461,6 +471,7 @@ def resume_revised_process(record, request, *, event_sink=None):
         if current.waiting_for and all(s.state not in ('ready', 'running', 'cancel_requested') for s in [*current.job_steps, *([current.scan_step] if current.scan_step else [])]):
             current.waiting_for = ''
         if (current.stop_reason is None and _failed_step(current) is None and request.changes.model_fields_set and apply_input_changes(current.input,request.changes) == current.input
+                and not _provided_guess_redeclared(request.changes)
                 and not any(_source_redeclared(current, request.changes, role) for role in ('reactant', 'product'))):
             return current
         commit_input_revision(db, process_id=record.pipeline_id, request=request)

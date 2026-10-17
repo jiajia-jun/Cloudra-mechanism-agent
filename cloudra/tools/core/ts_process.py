@@ -23,6 +23,7 @@ submit → refine → verdict 已接线；两端的路径种子须另经同方�
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -30,7 +31,7 @@ from typing import Callable, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from cloudra.persistence.fs_utils import atomic_write_text
+from cloudra.persistence.fs_utils import atomic_write_bytes, atomic_write_text
 from cloudra.tools.core.conformer_cards import AttemptEvidence
 from cloudra.tools.core.geometry_inputs import atom_index_base
 from cloudra.tools.core.geometry_optimization import OptimizationCheckpoint
@@ -112,6 +113,18 @@ class TsStageRecord(BaseModel):
     artifacts: list[str] = Field(default_factory=list)
     source_input_revision: int = 1
 
+
+class TsArtifactBinding(BaseModel):
+    source_path: str
+    snapshot_path: str
+    sha256: str
+
+
+class TsProvidedGuessBinding(BaseModel):
+    xyz: TsArtifactBinding
+    evidence: list[TsArtifactBinding]
+
+
 class TsAttemptHistory(BaseModel):
     declaration_revision: int
     selected_candidate_id: str | None = None
@@ -120,6 +133,7 @@ class TsAttemptHistory(BaseModel):
     reason: str
     input: TsInput | None = None
     structures: ReactionStructures | None = None
+    provided_guess_binding: TsProvidedGuessBinding | None = None
     terminal: TsTerminal | None = None
     blocked: TsBlocked | None = None
     failed_attempt: dict | None = None
@@ -154,6 +168,7 @@ class TsProcessRecord(BaseModel):
     )
     input: TsInput
     structures: ReactionStructures = Field(default_factory=ReactionStructures)
+    provided_guess_binding: TsProvidedGuessBinding | None = None
     failed_attempt: dict | None = None
     method_checks: dict[str, dict] = Field(default_factory=dict)
     stage: TsStage = "declare"
@@ -252,14 +267,32 @@ def _make_stage_dirs(run_dir: str) -> None:
     for name in (BUILD_STAGE_DIR, PATH_STAGE_DIR, JOBS_STAGE_DIR, VERDICT_STAGE_DIR):
         os.makedirs(os.path.join(run_dir, name), exist_ok=True)
 
-def _write_immutable_input(path: str, content: str) -> None:
+def _write_immutable_input(path: str, content: str | bytes) -> None:
     """A bound engine input may be retried, never silently overwritten."""
+    data = content.encode('utf-8') if isinstance(content, str) else content
     existing = Path(path)
     if existing.exists():
-        if existing.read_bytes() != content.encode('utf-8'):
+        if existing.read_bytes() != data:
             raise ValueError('immutable stage input conflict')
         return
-    atomic_write_text(path, content)
+    atomic_write_bytes(path, data)
+
+
+def _bind_provided_artifact(record, source: str, target: Path) -> TsArtifactBinding:
+    path = _workspace_input_path(record, source)
+    data = path.read_bytes()
+    _write_immutable_input(str(target), data)
+    return TsArtifactBinding(source_path=str(path), snapshot_path=str(target),
+                             sha256=hashlib.sha256(data).hexdigest())
+
+
+def _verify_provided_guess_binding(record) -> None:
+    binding = record.provided_guess_binding
+    if binding is not None:
+        for artifact in (binding.xyz, *binding.evidence):
+            path = _workspace_input_path(record, artifact.snapshot_path)
+            if hashlib.sha256(path.read_bytes()).hexdigest() != artifact.sha256:
+                raise ValueError(f'Bound provided guess artifact changed: {path}')
 
 def save_record(record: TsProcessRecord) -> str:
     """落 ``process.json``；同时刷新 ``declare.json``（声明单独可读，便于人核对）。"""
@@ -1298,37 +1331,36 @@ def _guess(record: TsProcessRecord) -> TsProcessRecord:
         return record
     if guess.kind == 'provided':
         try:
+            _verify_provided_guess_binding(record)
+        except (OSError, ValueError) as exc:
+            return _block(record, 'guess', 'provided_guess_artifact_changed', str(exc), needs=['guess'])
+        try:
             import math
 
             from cloudra.tools.core.structure_artifacts import read_xyz_atoms
-            candidate = _workspace_input_path(record, guess.xyz_path)
+            binding = record.provided_guess_binding
+            if binding is None:
+                target = Path(record.run_dir) / PATH_STAGE_DIR / f'input_{record.declaration_revision:04d}'
+                target.mkdir(parents=True, exist_ok=True)
+                binding = TsProvidedGuessBinding(
+                    xyz=_bind_provided_artifact(record, guess.xyz_path, target / 'provided.xyz'),
+                    evidence=[_bind_provided_artifact(record, reference,
+                        target / f'provenance_{index:04d}{Path(reference).suffix}')
+                        for index, reference in enumerate(guess.evidence_refs)])
+            candidate = Path(binding.xyz.snapshot_path)
             atoms = read_xyz_atoms(str(candidate))
             reactant = _read_built_xyz(record, 'reactant')
             if reactant is None or [s for s, _ in atoms] != reactant[0]:
                 raise ValueError('Provided candidate atom identity/order differs from the bound reactant')
             if not all(math.isfinite(v) for _, point in atoms for v in point):
                 raise ValueError('Provided candidate contains nonfinite coordinates')
-            for reference in guess.evidence_refs:
-                artifact = _workspace_input_path(record, reference)
-                if not artifact.is_file():
-                    raise ValueError(f'Provided candidate provenance artifact missing: {reference}')
         except (OSError, ValueError) as exc:
             return _block(record, 'guess', 'provided_guess_invalid', str(exc), needs=['guess'])
-        target = Path(record.run_dir) / PATH_STAGE_DIR / f'input_{record.declaration_revision:04d}'
-        target.mkdir(parents=True, exist_ok=True)
-        bound_candidate = target / 'provided.xyz'
-        try:
-            _write_immutable_input(str(bound_candidate), candidate.read_text())
-            bound_refs = []
-            for index, reference in enumerate(guess.evidence_refs):
-                artifact = target / f'provenance_{index:04d}{Path(reference).suffix}'
-                _write_immutable_input(str(artifact), _workspace_input_path(record, reference).read_text())
-                bound_refs.append(str(artifact))
-        except (OSError, ValueError) as exc:
-            return _block(record, 'guess', 'provided_guess_invalid', str(exc), needs=['guess'])
-        _accept_candidate(record, str(bound_candidate))
+        _accept_candidate(record, str(candidate))
+        record.provided_guess_binding = binding
         record.path_kind = 'provided'
-        _record_stage(record, 'guess', 'done', 'Provided candidate bound; formal optimization and verification remain required.', [str(bound_candidate), *bound_refs])
+        _record_stage(record, 'guess', 'done', 'Provided candidate bound; formal optimization and verification remain required.',
+            [str(candidate), *[artifact.snapshot_path for artifact in binding.evidence]])
         return record
     if guess.kind == 'scan':
         return _guess_scan(record)
@@ -3357,6 +3389,10 @@ def advance(record: TsProcessRecord) -> TsProcessRecord:
     """
     if record.is_terminal or record.stop_reason:
         return record
+    try:
+        _verify_provided_guess_binding(record)
+    except (OSError, ValueError) as exc:
+        return _block(record, record.stage, 'provided_guess_artifact_changed', str(exc), needs=['guess'])
     limits = record.input.execution.limits
     if limits and limits.max_interventions is not None and record.intervention_count > limits.max_interventions:
         return _terminal(

@@ -90,8 +90,11 @@ def test_provided_candidate_skips_search_and_checks_atom_order(tmp_path, monkeyp
     accepted = serialize_molecule(result.structures.candidate)
     assert result.path_kind == "provided"
     candidate.write_text("2\nwrong atoms\nC 0 0 0\nH 0 0 0.74\n")
-    assert _guess(record).blocked.failure_class == "provided_guess_invalid"
+    assert _guess(record).blocked is None  # Bound bytes, rather than a later source edit, own this guess.
     assert serialize_molecule(result.structures.candidate) == accepted
+    record.provided_guess_binding = None
+    record.declaration_revision += 1
+    assert _guess(record).blocked.failure_class == "provided_guess_invalid"
 
 
 @pytest.mark.usefixtures("rdkit_chemistry")

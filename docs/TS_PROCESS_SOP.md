@@ -30,6 +30,8 @@ xTB 柔性扫描复用 `guess.kind=scan`：`calculation={engine:"xtb",method:"GF
 
 计算配置部分修订保留省略的字段；`keywords=""`、`orca_blocks=null`、`end_setting=""` 显式清除对应设置。改变 `engine`、`method` 或 `basis_set` 必须使用 `{replace: 完整配置}`；换引用使用 `{replace: {ref: "名称"}}`。`changes.calculations` 按名称合并，省略的配置保留，null 只能删除不再被引用的配置。扫描坐标补丁可以只填 `changes.guess.scans`，无需重复 method 或其他扫描字段。结构来源仍按其原有完整声明替换；未知字段 fail loud，不解释为旧接口。
 
+`guess.kind=provided` 的 `xyz_path` 和 `evidence_refs` 路径只供首次导入。接受时程序按原始字节保存副本，并在运行记录的内部 `provided_guess_binding` 中自动记录原路径、副本路径和 SHA-256；Agent 不填写摘要。后续原文件更正或删除、以及未重新声明 guess 的修订/重试，均继续引用已接受的副本。需要采用更正后的来源时，通过 `ts_resume.changes.guess` 明确重新声明完整 provided guess，即使路径相同也会建立新绑定并保留旧历史；副本自身缺失或摘要变化时停止后续推进，现存计算不受影响。
+
 复用示例（已由用户选定的理论级别，名称不构成默认推荐）：
 
 ```json
