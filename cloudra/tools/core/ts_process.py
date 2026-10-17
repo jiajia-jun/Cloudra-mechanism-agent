@@ -831,21 +831,28 @@ def _optimize_conformer_source(record, role):
         record.waiting_for = f'job:{step.job_id}'
         return record
     record.waiting_for = ''
+    recovery = (
+        f'Use ts_resume to revise changes.conformers.{role}, or retry the same requested optimization with changes={{}}. '
+        f'To use an existing external seed without build pre-optimization, resubmit changes.conformers.{role} '
+        'as a complete file source (kind="file", xyz_path, and existing mol_path, evidence_refs and heavy_atom_binding) '
+        'with "optimization": null or omit optimization from that complete source. '
+        'This accepts a search seed; later TS/IRC and endpoint verification remain required.'
+    )
     if step.state != 'done':
         _record_candidate_failure(record, 'conformer_optimization_failed', step, _refinement_log_path(record, step))
-        return _block(record, 'build', 'conformer_optimization_failed', f'{purpose} job {step.job_id} failed; revise or retry through ts_resume.', needs=[f'conformers.{role}'])
+        return _block(record, 'build', 'conformer_optimization_failed', f'{purpose} job {step.job_id} failed. {recovery}', needs=[f'conformers.{role}'])
     if calculation.engine == 'xtb':
         data, _ = read_task_result(step.input_path)
         result = data['result']
         if not (result.get('normal_termination') is True and result.get('optimization_converged') is True):
             _record_candidate_failure(record, 'nonconvergence', step, step.input_path)
-            return _block(record, 'build', 'conformer_optimization_failed', 'Seed optimization has no converged native evidence.', needs=[f'conformers.{role}'])
+            return _block(record, 'build', 'conformer_optimization_failed', f'Seed optimization has no converged native evidence. {recovery}', needs=[f'conformers.{role}'])
         xyz = Path(result['optimized_xyz']).read_text()
     else:
         xyz, error = _endpoint_opt_frame(record, step)
         if error:
             _record_candidate_failure(record, 'nonconvergence', step, _refinement_log_path(record, step))
-            return _block(record, 'build', 'conformer_optimization_failed', error, needs=[f'conformers.{role}'])
+            return _block(record, 'build', 'conformer_optimization_failed', f'{error} {recovery}', needs=[f'conformers.{role}'])
     target = str(directory / 'optimized_seed.xyz')
     _write_immutable_input(target, xyz)
     from cloudra.tools.core.structure_artifacts import read_xyz_atoms

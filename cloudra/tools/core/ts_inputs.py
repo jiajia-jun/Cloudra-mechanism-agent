@@ -91,7 +91,12 @@ class FileConformer(InputModel):
     xyz_path: str = Field(min_length=1)
     mol_path: str | None = None
     evidence_refs: list[str] = Field(default_factory=list)
-    optimization: CalculationValue | None = None
+    optimization: CalculationValue | None = Field(default=None, description=(
+        'Optional additional build-stage pre-optimization. Omit or set null to use the supplied file geometry as-is. '
+        'This does not certify a minimum or replace later TS/IRC and endpoint verification. '
+        'To remove a previous optimization request with ts_resume, resubmit this complete file source, '
+        'preserving mol_path, evidence_refs and heavy_atom_binding when present, and omit optimization or set it to null.'
+    ))
     heavy_atom_binding: HeavyAtomBinding | None = None
 
 

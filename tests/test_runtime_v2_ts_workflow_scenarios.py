@@ -329,6 +329,94 @@ def _script_compute(monkeypatch, first_scan='peak'):
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures('rdkit_chemistry')
+@pytest.mark.parametrize('role,purpose', [('reactant', 'candidate_opt'), ('product', 'product_seed_opt')])
+async def test_ts_file_seed_preoptimization_can_be_removed_after_failure(tmp_path, monkeypatch, role, purpose):
+    """An Agent reuses its file seed after removing a failed optional optimization."""
+    import json
+
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.tools.core import ts_process as process
+    from cloudra.tools.core.ts_pipeline_driver import handle_process_job_terminal
+
+    assert 'ts_file_seed_preoptimization_can_be_removed_after_failure' in TS_SCENARIOS
+    submissions = _script_compute(monkeypatch)
+    payload = water_input(tmp_path)
+    payload['conformers'][role]['optimization'] = {
+        'engine': 'orca', 'method': 'HF', 'basis_set': 'STO-3G', 'keywords': '',
+    }
+    source = {**payload['conformers'][role], 'optimization': None}
+    native_failure = 'GEOMETRY OPTIMIZATION DID NOT CONVERGE\nORCA finished by error termination\n'
+
+    def reuse_file_seed(provider):
+        record = process.load_record(str(tmp_path), 'ts_0001')
+        if not provider.records:
+            assert record.job_steps[-1].purpose == purpose
+            step = record.job_steps[-1]
+            assert record.waiting_for == f'job:{step.job_id}'
+            Path(process._refinement_log_path(record, step)).write_text(native_failure)
+            with ComputeDB().connect() as con:
+                con.execute("UPDATE compute_jobs SET state='failed' WHERE id=?", (step.job_id,))
+            record = process.TsProcessRecord.model_validate(
+                handle_process_job_terminal(ComputeDB(), step.job_id)['record'])
+            provider._scripts['small_mol'][0].tools = [('ts_resume', {
+                'run_id': record.run_id,
+                'reason': 'Reuse the supplied file geometry without repeating seed optimization',
+                'changes': {'conformers': {role: source}},
+            })]
+        provider.records.append(record)
+
+    provider = StateProvider(tmp_path, [
+        Step(tools=[('ts_prepare', {'input': payload})]), Step(), Step(stop=True),
+    ], reuse_file_seed)
+    harness = await ScenarioHarness.start(tmp_path, workspace_dir=tmp_path, provider=provider)
+    provider.harness = harness
+    harness.project.settings.method_policy = MethodPolicy(allowed_methods=['hf/sto3g'])
+    try:
+        agent = await harness.spawn('small_mol', protocol='traditional')
+        await harness.wait_terminal(agent)
+        assert [(event['tool_name'], event['is_success']) for event in harness.tool_events(agent)] == [
+            ('ts_prepare', True), ('ts_resume', True),
+        ], harness.describe(agent)
+        failed, current = provider.records[0], provider.records[-1]
+        assert failed.blocked.failure_class == 'conformer_optimization_failed'
+        assert failed.failed_attempt['purpose'] == purpose
+        assert failed.run_id == current.run_id == 'ts_0001'
+        assert failed.pipeline_id == current.pipeline_id
+        assert current.declaration_revision == 2 and current.intervention_count == 1
+        assert getattr(current.input.conformers, role).optimization is None
+        assert getattr(current.input.conformers, role).xyz_path == source['xyz_path']
+        assert current.blocked is None and current.terminal is None
+        assert [step['purpose'] for step in submissions] == [purpose, 'ts_opt']
+        assert [step.purpose for step in current.job_steps] == ['ts_opt']
+        assert current.waiting_for == f"job:{submissions[-1]['id']}"
+        history = current.attempt_history[-1]
+        assert history.input == failed.input
+        assert history.failed_attempt == failed.failed_attempt
+        assert history.blocked.failure_class == 'conformer_optimization_failed'
+        assert history.job_steps[-1].job_id == submissions[0]['id']
+        assert history.job_steps[-1].state == 'failed'
+        assert history.failed_attempt['evidence_refs'] == [history.failed_attempt['log_path']]
+        assert Path(history.failed_attempt['log_path']).read_text() == native_failure
+        assert Path(submissions[0]['path']).read_text() == submissions[0]['input']
+
+        def ledger_state():
+            with ComputeDB().connect() as con:
+                jobs = con.execute('SELECT id,state FROM compute_jobs ORDER BY id').fetchall()
+                evidence = con.execute('SELECT evidence FROM ts_pipeline_stages WHERE job_id=?',
+                                       (submissions[0]['id'],)).fetchone()[0]
+            return jobs, json.loads(evidence)
+
+        jobs, evidence = await asyncio.to_thread(ledger_state)
+        assert jobs == [(submissions[0]['id'], 'failed'), (submissions[1]['id'], 'ready')]
+        assert evidence['status'] == 'failed'
+        assert evidence['artifacts'] == [submissions[0]['path']]
+        assert evidence['input_hash']
+    finally:
+        await harness.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures('rdkit_chemistry')
 async def test_ts_queued_refinement_revision_same_run(tmp_path, monkeypatch):
     """An Agent replaces its queued refinement without failing the old job or starting QM."""
     from cloudra.persistence.database import ComputeDB
