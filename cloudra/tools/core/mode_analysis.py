@@ -1,6 +1,6 @@
 """虚频模式组成摘要：把简正模式位移投影到原子对方向上（纯函数，不发起计算）。
 
-供 log_parser 在回传频率数值之外给出「这条虚频主要是哪些原子对在动」的组成
+供 log_parser 与 TS 管线在频率数值之外给出「这条虚频主要是哪些原子在动」的组成
 信息；位移与几何由调用方从引擎日志文本解析（gaussian_frames / orca_frames
 的文本权威通道），本模块只做投影与占比汇总。numpy 在函数内惰性导入。
 """
@@ -35,7 +35,10 @@ def imaginary_mode_summary(
     - top_displaced_pairs：前 5 个原子对 [i, j, score]（1-based），
       score = 位移差在该对键方向上的投影 |(u_i−u_j)·r̂_ij|（r̂ 为当前几何
       i→j 单位矢量）；
-    - heavy_atom_fraction：重原子位移能量占比 Σ|u|²(heavy)/Σ|u|²(all)。
+    - top_displaced_atoms：前 5 个原子的编号、元素与 Σ|u|² 占比；
+    - heavy_atom_fraction：重原子的 Σ|u|² 占比；
+    - watch_atom_fraction：监视对包含的去重原子的 Σ|u|² 占比。
+    以上均不加质量权重，仅描述原始模式的运动组成，不自行判定反应模式合格。
     """
     import numpy as np
 
@@ -86,6 +89,14 @@ def imaginary_mode_summary(
         total_e = float(per_atom.sum())
         heavy_fraction = float(per_atom[heavy].sum()) / total_e if total_e > 0 else None
 
+        # 原子组成和键向投影分别报告，避免把不沿键方向的运动漏掉。
+        atom_ranking = sorted(range(n_atoms), key=lambda i: (-float(per_atom[i]), i))
+        top_atoms = [dict(atom=i + 1, element=str(symbols[i]),
+                          fraction=float(per_atom[i]) / total_e if total_e > 0 else None)
+                     for i in atom_ranking[:_TOP_PAIRS]]
+        watch_atoms = {atom for pair in watch for atom in pair}
+        watch_atom_fraction = (float(per_atom[list(watch_atoms)].sum()) / total_e
+                               if watch_atoms and total_e > 0 else None)
         watch_fraction = None
         if watch_pairs:
             per_pair = {f"{i + 1}-{j + 1}": pair_scores.get((i, j), 0.0) for i, j in watch}
@@ -97,8 +108,51 @@ def imaginary_mode_summary(
 
         summaries.append({
             "frequency_cm": freqs[mode_idx],
+            "top_displaced_atoms": top_atoms,
+            "watch_atom_fraction": watch_atom_fraction,
             "top_displaced_pairs": top,
             "heavy_atom_fraction": heavy_fraction,
             "watch_pair_fraction": watch_fraction,
         })
     return summaries
+
+
+def imaginary_mode_summaries_from_text(
+    engine: str,
+    log_text: str,
+    vibfreqs: list[float],
+    watch_pairs: Optional[list[list[int]]],
+) -> Optional[list[dict]]:
+    """虚频组成摘要（纯解析）：文本权威通道取简正模式位移与末帧几何。
+
+    位移或几何拿不到时返回 None（调用方保持 None 语义，不填 0/空列表冒充）。
+    """
+    if engine == "orca":
+        from cloudra.tools.core import orca_frames
+        from cloudra.tools.core.irc_path import parse_xyz
+
+        # 与 NORMAL MODES 位移块对齐必须用全模式频率轴（含平动/转动零频；
+        # cclib 会裁掉打头模式），故摘要的频率一律取文本权威块。
+        freqs = orca_frames.vibfreqs_from_text(log_text)
+        n_atoms = len(freqs) // 3 if freqs and len(freqs) % 3 == 0 else 0
+        disps = orca_frames.vibdisps_from_text(log_text, len(freqs), n_atoms) if n_atoms else None
+        xyz = orca_frames.final_xyz_from_text(log_text)
+        parsed = parse_xyz(xyz) if xyz.strip() else None
+        if parsed is None:
+            return None
+        symbols, positions = parsed
+    else:  # gaussian
+        from cloudra.tools.core import gaussian_frames
+
+        freqs = vibfreqs
+        disps = gaussian_frames.vibdisps_from_text(log_text, len(freqs))
+        blocks = gaussian_frames.std_orientation_frames(log_text)
+        if not blocks:
+            return None
+        from cclib.parser.utils import PeriodicTable
+
+        rows = blocks[-1]
+        pt = PeriodicTable()
+        symbols = [pt.element[int(z)] for z, *_ in rows]
+        positions = [[x, y, z] for _, x, y, z in rows]
+    return imaginary_mode_summary(freqs, disps, positions, symbols, watch_pairs)

@@ -36,6 +36,7 @@ class TsProcessView(BaseModel):
     structures: dict[str, dict] = Field(default_factory=dict, description="Read-only atom tables derived from the owned molecular state, with 1-based structure numbers. Source files are never overwritten. Engine-specific scan numbering is converted at the execution boundary.")
     blocked: dict | None = None
     failed_attempt: dict | None = None
+    frequency_analysis: dict | None = Field(default=None, description="Recorded TS imaginary-mode composition, source job/revision and log digest. Atoms and reaction_center_pairs are 1-based in the frequency input's atom order. Atom fractions use unweighted squared displacements, not mass weighting or a pass/fail cutoff; modes=null means mode vectors or geometry were unavailable. This report does not establish that the motion belongs to the declared reaction.")
     next: dict = Field(default_factory=dict)
     methods: list[dict] = Field(default_factory=list, description="Per-stage resolved planned configurations, immutable actual job snapshots and native input contracts, including a separately recorded scan. A reference identifies the selected local profile; planned_error reports an invalid current declaration without hiding historical actual inputs. Isolated older formats retain their raw recorded fields.")
     usage: dict = Field(default_factory=dict)
@@ -149,6 +150,13 @@ def build_process_view(state: dict, jobs: list[dict], *, can_write: bool) -> TsP
         source_revision = row.get('source_input_revision')
         row['input_revision_relation'] = ('unknown' if source_revision is None or state.get('declaration_revision') is None
                                           else 'current' if source_revision == state['declaration_revision'] else 'historical')
+    frequency_step = next((step for step in reversed(steps) if step.get('purpose') == 'frequency'), {})
+    frequency_analysis = deepcopy(frequency_step.get('frequency_analysis')) if supported else None
+    if frequency_analysis is not None:
+        source_revision = frequency_step.get('source_input_revision')
+        frequency_analysis.update(job_id=frequency_step.get('job_id'), source_input_revision=source_revision,
+            input_revision_relation='unknown' if source_revision is None or state.get('declaration_revision') is None
+            else 'current' if source_revision == state['declaration_revision'] else 'historical')
     export_revision = state.get('export_revision')
     message = "Unsupported input format: automatic continuation isolated; existing compute jobs remain intact." if not supported else f"Stopped: {stop_reason}" if stop_reason else detail
     if export_revision is not None and export_revision != state['revision']:
@@ -160,6 +168,7 @@ def build_process_view(state: dict, jobs: list[dict], *, can_write: bool) -> TsP
                                            evidence_refs=state.get("evidence_candidates", [])) if supported and terminal and not stop_reason else None,
         waiting_for=active or deepcopy(jobs) if waiting and not stop_reason else active, failed_attempt=state.get("failed_attempt"),
         available_results=available, structures=structures, blocked=blocked, next=next_action, methods=method_entries,
+        frequency_analysis=frequency_analysis,
         usage={"interventions": state.get("intervention_count", 0), "compute_actions": len(jobs),
                "model_calls": None, "limits": value.get("execution", {}).get("limits"),
                **state.get("accounted_usage", {}), "jobs": usage_jobs},

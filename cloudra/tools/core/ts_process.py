@@ -1676,6 +1676,24 @@ class TsJobStep(BaseModel):
     external_source: dict | None = None
     endpoint_source: EndpointSource | None = None
     atom_binding: dict | None = None
+    frequency_analysis: dict | None = None
+
+
+def _record_frequency_analysis(record, step, log_path, snapshot):
+    """记录虚频的运动组成，供 Agent 判断；不另设科学合格阈值。"""
+    from cloudra.tools.core.mode_analysis import imaginary_mode_summaries_from_text
+
+    if step.frequency_analysis is not None:
+        return
+    path = Path(log_path)
+    pairs = [[left + 1, right + 1] for left, right in _active_reaction_center(record)]
+    frequencies = snapshot.frequencies or snapshot.imaginary_frequencies or []
+    step.frequency_analysis = dict(
+        log_path=str(path), log_sha256=_artifact_sha256(path), reaction_center_pairs=pairs,
+        fraction_basis='unweighted_squared_displacement',
+        modes=imaginary_mode_summaries_from_text(
+            _step_calculation(record, step).engine, path.read_text(errors='replace'), frequencies, pairs),
+    )
 
 def _read_job_state(record: TsProcessRecord, job_id: Optional[int]) -> str:
     """读作业当前状态；读不到返回 ``"missing"``（不猜成成功）。"""
@@ -2719,8 +2737,6 @@ def _refine(record: TsProcessRecord) -> TsProcessRecord:
         return record
 
     if current.purpose == "frequency":
-        if _require_calculation(record, 'irc', 'refine'):
-            return record
         # 频率完成：TS 已由频率数据支持，接着跑 IRC（第二道闸），复用同一几何的 Hessian
         from cloudra.dag.evidence_ingest import snapshot_evidence_file
         log_path = _refinement_log_path(record, current)
@@ -2731,11 +2747,14 @@ def _refine(record: TsProcessRecord) -> TsProcessRecord:
         if snapshot.frequencies is None and snapshot.imaginary_frequencies is None:
             return _block(record, 'refine', 'frequency_evidence_missing',
                           'TS frequency data is unavailable; IRC cannot be admitted.', needs=['compute_artifacts'])
+        _record_frequency_analysis(record, current, log_path, snapshot)
         imaginary = snapshot.imaginary_frequencies if snapshot.imaginary_frequencies is not None else [f for f in snapshot.frequencies if f < 0]
         if len(imaginary) != 1:
             _record_candidate_failure(record, 'wrong_mode', current, log_path)
             return _block(record, 'refine', 'wrong_mode',
                           f'TS frequency evidence has {len(imaginary)} imaginary modes; exactly one is required before IRC.', needs=['conformers', 'guess', 'verification.frequency'])
+        if _require_calculation(record, 'irc', 'refine'):
+            return record
         if record.input.verification.irc_log:
             try:
                 record.job_steps.append(_reuse_existing_irc(record))
@@ -3271,6 +3290,7 @@ def _verdict(record: TsProcessRecord) -> TsProcessRecord:
             record, "verdict", "candidate_only",
             "the frequency job produced no frequency data, so the stationary point is UNVERIFIED",
         )
+    _record_frequency_analysis(record, freq_step, log_path, snapshot)
     imag = imaginary if imaginary is not None else [f for f in (freqs or []) if f < 0]
     if len(imag) != 1:
         _record_candidate_failure(record,'wrong_mode',freq_step,log_path)

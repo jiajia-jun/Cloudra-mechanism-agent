@@ -105,49 +105,6 @@ def _extract_gaussian_thermochemistry(text: str) -> dict[str, float]:
     return complete[-1] if complete else parsed_blocks[-1]
 
 
-def _imaginary_mode_summaries(
-    engine: str,
-    log_text: str,
-    vibfreqs: list[float],
-    watch_pairs: Optional[list[list[int]]],
-) -> Optional[list[dict]]:
-    """虚频组成摘要（纯解析）：文本权威通道取简正模式位移与末帧几何。
-
-    位移或几何拿不到时返回 None（调用方保持 None 语义，不填 0/空列表冒充）。
-    """
-    from cloudra.tools.core import mode_analysis
-
-    if engine == "orca":
-        from cloudra.tools.core import orca_frames
-        from cloudra.tools.core.irc_path import parse_xyz
-
-        # 与 NORMAL MODES 位移块对齐必须用全模式频率轴（含平动/转动零频；
-        # cclib 会裁掉打头模式），故摘要的频率一律取文本权威块。
-        freqs = orca_frames.vibfreqs_from_text(log_text)
-        n_atoms = len(freqs) // 3 if freqs and len(freqs) % 3 == 0 else 0
-        disps = orca_frames.vibdisps_from_text(log_text, len(freqs), n_atoms) if n_atoms else None
-        xyz = orca_frames.final_xyz_from_text(log_text)
-        parsed = parse_xyz(xyz) if xyz.strip() else None
-        if parsed is None:
-            return None
-        symbols, positions = parsed
-    else:  # gaussian
-        from cloudra.tools.core import gaussian_frames
-
-        freqs = vibfreqs
-        disps = gaussian_frames.vibdisps_from_text(log_text, len(freqs))
-        blocks = gaussian_frames.std_orientation_frames(log_text)
-        if not blocks:
-            return None
-        from cclib.parser.utils import PeriodicTable
-
-        rows = blocks[-1]
-        pt = PeriodicTable()
-        symbols = [pt.element[int(z)] for z, *_ in rows]
-        positions = [[x, y, z] for _, x, y, z in rows]
-    return mode_analysis.imaginary_mode_summary(freqs, disps, positions, symbols, watch_pairs)
-
-
 class LogParser_input_schema(input_schema):
     log_path: str = Field(
         description="Path of the output log (Gaussian .log/.out, ORCA .out, or xtb .out): "
@@ -204,8 +161,10 @@ class LogParser_output_schema(output_schema):
     imaginary_modes: Optional[list[dict]] = Field(
         default=None,
         description="Composition summary per imaginary mode (Gaussian/ORCA only): frequency_cm, "
-                    "top_displaced_pairs ([i, j, projected score], 1-based), heavy_atom_fraction, and "
-                    "watch_pair_fraction when watch_pairs were supplied. None when normal-mode "
+                    "top_displaced_atoms (atom, element, fraction), top_displaced_pairs "
+                    "([i, j, projected score], 1-based), heavy_atom_fraction, watch_atom_fraction, and "
+                    "watch_pair_fraction when watch_pairs were supplied. Atom fractions use unweighted "
+                    "squared displacements, not mass weighting or a scientific pass/fail cutoff. None when normal-mode "
                     "displacements or the final geometry could not be parsed (xtb always None).",
     )
     zero_point_correction_hartree: Optional[float] = Field(default=None, description="Zero-point correction (Hartree)")
@@ -472,7 +431,8 @@ class LogParser(Tool):
                     ):
                         # 位移与末帧几何一律走文本权威通道（ORCA 6.1 日志 cclib
                         # 整体崩溃）；拿不到位移或几何时 imaginary_modes 保持 None。
-                        modes = _imaginary_mode_summaries(engine, log_text, vibfreqs, watch_pairs)
+                        from cloudra.tools.core.mode_analysis import imaginary_mode_summaries_from_text
+                        modes = imaginary_mode_summaries_from_text(engine, log_text, vibfreqs, watch_pairs)
                         if modes:
                             result["imaginary_modes"] = modes
 
