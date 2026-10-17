@@ -1270,11 +1270,14 @@ def _parse_freq_log(log_path: str, engine: str) -> dict:
     if vibdisps is None and engine == "gaussian":
         vibdisps = gaussian_frames.vibdisps_from_text(text, len(vibfreqs))
     elif vibdisps is None and engine == "orca":
-        # ORCA 6.1 日志 cclib 整体崩溃（vibdisps 拿不到）→ 文本权威 NORMAL MODES
-        # 位移块回退（GH #G2）。ORCA 版式：模式号表头 + 3N 行笛卡尔分量。
-        n_atoms = len(vibfreqs) // 3 if len(vibfreqs) % 3 == 0 else 0
+        # cclib 也可能只解析出裁掉零频的频率。原生位移按完整 3N 轴编号，
+        # 必须连同原生频率一起取，不能拿裁剪后的轴推算原子数或匹配位移。
+        native_freqs = orca_frames.vibfreqs_from_text(text)
+        n_atoms = len(native_freqs) // 3 if native_freqs and len(native_freqs) % 3 == 0 else 0
         if n_atoms > 0:
-            vibdisps = orca_frames.vibdisps_from_text(text, len(vibfreqs), n_atoms)
+            native_disps = orca_frames.vibdisps_from_text(text, len(native_freqs), n_atoms)
+            if native_disps is not None:
+                vibfreqs, vibdisps = native_freqs, native_disps
 
     if converged is None:
         if engine == "orca":

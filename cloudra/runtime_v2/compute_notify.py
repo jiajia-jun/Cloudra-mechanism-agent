@@ -8,7 +8,8 @@
 的行（未加载项目跳过、不落 notified_at；**已硬删除的项目**——事件日志里有 project.deleted tombstone——
 永不加载，记 warning 并落 notified_at 终结）。每批逐作业持久化通知并落
 ``notified_at``；普通作业逐个通知，同轮已投递通知合并唤醒，不等待其他作业。
-TS 流水线中间作业由系统自动推进，仅受阻或终态才通知并唤醒所属 Agent。
+TS 流水线中间作业由系统自动推进；受阻、终态或 ts_guess 报告可疑虚频方向时
+通知并唤醒所属 Agent。方向建议不阻止 IRC，也不自动取消计算。
 投递失败不落 notified_at，下一 tick 自然重试。
 首次看到已加载项目时，从既有运行文件找回管线编号，按编号读取权威进度；
 已确认但未推进的终态作业按编号重新挂回既有通知队列，复用持久化失败重试，
@@ -204,10 +205,16 @@ class ComputeNotifyBroker:
         from cloudra.tools.core.ts_pipeline_driver import handle_process_job_terminal
         with use_runtime_authority(self.core):
             pipeline = await asyncio.to_thread(handle_process_job_terminal, ComputeDB(), task_id)
-        if pipeline is not None and pipeline['status'] in ('waiting', 'running'):
+        # 已持久化的通知继续走 ack/wake；重试时告警可能已随修订变成历史。
+        target_id = await asyncio.to_thread(self._delivery_target, project_id, task_id)
+        frequency = next((step.get('frequency_analysis') or {} for step in
+                          (pipeline or {}).get('record', {}).get('job_steps', [])
+                          if step.get('purpose') == 'frequency' and step.get('job_id') == task_id), {})
+        alignment = frequency.get('mode_alignment') or {}
+        if (pipeline is not None and pipeline['status'] in ('waiting', 'running')
+                and target_id is None and alignment.get('status') not in {'misaligned', 'undecidable'}):
             await asyncio.to_thread(self._mark_notified, task_id)
             return
-        target_id = await asyncio.to_thread(self._delivery_target, project_id, task_id)
         if target_id is None:
             view = None
             record = None
@@ -359,7 +366,16 @@ class ComputeNotifyBroker:
                 observation += f" {reason}"
             lines.append('Physical Reality: ' + observation)
             inspect = f"ts_inspect(run_id={view['run_id']!r})"
-            if verified:
+            frequency = view.get('frequency_analysis') or {}
+            alignment = frequency.get('mode_alignment') or {}
+            if (frequency.get('job_id') == task_id
+                    and alignment.get('status') in {'misaligned', 'undecidable'}):
+                lines.append('Advisory from ts_guess: ' + str(alignment.get('message') or alignment['status']))
+                next_action = (f'Use {inspect} to review the mode and current jobs. '
+                    'This check is advisory and may be wrong; it does not block or cancel jobs. '
+                    'Decide whether to keep the pipeline running or call ts_stop with a reason, '
+                    'then revise the guess with ts_resume when appropriate.')
+            elif verified:
                 next_action = ('Submit the verified native logs through the DAG evidence tools.'
                     if view.get('details_path') else f'Use {inspect} for the verified evidence, then submit its native logs through the DAG evidence tools.')
             elif blocked.get('failure_class') == 'scan_no_candidate':

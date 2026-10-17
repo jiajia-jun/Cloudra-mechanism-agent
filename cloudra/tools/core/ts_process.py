@@ -1681,6 +1681,7 @@ class TsJobStep(BaseModel):
 
 def _record_frequency_analysis(record, step, log_path, snapshot):
     """记录虚频的运动组成，供 Agent 判断；不另设科学合格阈值。"""
+    from cloudra.tools.Chemtool.ts_guess import _assess_imag_mode_alignment, _parse_freq_log
     from cloudra.tools.core.mode_analysis import imaginary_mode_summaries_from_text
 
     if step.frequency_analysis is not None:
@@ -1688,11 +1689,24 @@ def _record_frequency_analysis(record, step, log_path, snapshot):
     path = Path(log_path)
     pairs = [[left + 1, right + 1] for left, right in _active_reaction_center(record)]
     frequencies = snapshot.frequencies or snapshot.imaginary_frequencies or []
+    engine = _step_calculation(record, step).engine
+    try:
+        parsed = _parse_freq_log(str(path), engine)
+    except ValueError as exc:
+        alignment = dict(status='missing', aligned=None, message=str(exc), details=[])
+    else:
+        alignment = _assess_imag_mode_alignment(
+            parsed['vibfreqs'], parsed['vibdisps'], pairs,
+            symbols=parsed.get('symbols'), positions=parsed.get('positions'),
+            charge=(step.atom_binding or {}).get('charge', record.input.reaction.charge),
+            index_base=1,
+        )
     step.frequency_analysis = dict(
         log_path=str(path), log_sha256=_artifact_sha256(path), reaction_center_pairs=pairs,
         fraction_basis='unweighted_squared_displacement',
         modes=imaginary_mode_summaries_from_text(
-            _step_calculation(record, step).engine, path.read_text(errors='replace'), frequencies, pairs),
+            engine, path.read_text(errors='replace'), frequencies, pairs),
+        mode_alignment=alignment,
     )
 
 def _read_job_state(record: TsProcessRecord, job_id: Optional[int]) -> str:

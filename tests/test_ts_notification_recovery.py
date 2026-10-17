@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 from cloudra.persistence.database import ComputeDB
+from cloudra.runtime_v2.events import EventLog
 from cloudra.services.ts_pipeline_store import bind_stage_job, create_process, get_process, save_process_record
 from cloudra.tools.core.ts_inputs import TsInput
 from cloudra.tools.core.ts_process import TsJobStep, TsProcessRecord
@@ -62,7 +63,7 @@ def make_acknowledged_wait(tmp_path, monkeypatch, *, project_id='project', owner
     owner = SimpleNamespace(project_id=project_id, capabilities=SimpleNamespace(
         permissions=SimpleNamespace(write=True)))
     core = SimpleNamespace(projects={project_id: project}, agents={owner_id: owner},
-        runner=SimpleNamespace(), deleted_project_ids=set(), store=None)
+        runner=SimpleNamespace(), deleted_project_ids=set(), store=None, event_log=EventLog(strict=True))
     return db, record, job, export, core, ComputeNotifyBroker(core)
 
 
