@@ -220,9 +220,10 @@ def _validate_task(pid: str, entry: dict, pool_reactants: list[str], pool_produc
         maps = _map_numbers(entry["mapped_reactants"])
         if len(maps) != len(set(maps)):
             errors.append("mapped_reactants 映射号重复")
-        prev = entry["mapped_reactants"]
         steps = entry["steps"]
         for k, step in enumerate(steps, 1):
+            origin = step.get("from_step", k - 1)
+            prev = entry["mapped_reactants"] if origin == 0 else steps[origin - 1]["out"]
             out = step["out"]
             if sorted(_map_numbers(prev)) != sorted(_map_numbers(out)):
                 errors.append(f"第 {k} 步原子不守恒（映射号集合变化）")
@@ -239,7 +240,6 @@ def _validate_task(pid: str, entry: dict, pool_reactants: list[str], pool_produc
             weight = step.get("weight", 1.0)
             if not float(weight) > 0:
                 errors.append(f"第 {k} 步 weight 必须为正: {weight}")
-            prev = out
         if steps:
             mapped_p = sorted(_unmap_canonical(steps[-1]["out"]))
             products_match = Counter(pool_p) <= Counter(mapped_p) if schematic else mapped_p == pool_p
@@ -263,9 +263,12 @@ def _build_graph(pid: str, entry: dict) -> GoldMechanismGraph:
     nodes = [MechanismNode(id=f"{tid}_R", role=NodeRole.REACTANT,
                           smiles=complex_smiles(_unmap_canonical(entry["mapped_reactants"])), label="reactant")]
     edges: list[MechanismEdge] = []
-    prev_mapped, prev_id = entry["mapped_reactants"], nodes[0].id
-    n = len(entry["steps"])
-    for k, step in enumerate(entry["steps"], 1):
+    steps = entry["steps"]
+    n = len(steps)
+    for k, step in enumerate(steps, 1):
+        origin = step.get("from_step", k - 1)
+        prev_mapped = entry["mapped_reactants"] if origin == 0 else steps[origin - 1]["out"]
+        prev_id = nodes[0].id if origin == 0 else f"{tid}_I{origin}"
         last = k == n
         node = MechanismNode(
             id=f"{tid}_P" if last else f"{tid}_I{k}",
@@ -287,7 +290,6 @@ def _build_graph(pid: str, entry: dict) -> GoldMechanismGraph:
             )
         )
         nodes.extend([ts, node])
-        prev_mapped, prev_id = step["out"], node.id
     return GoldMechanismGraph(nodes=nodes, edges=edges)
 
 

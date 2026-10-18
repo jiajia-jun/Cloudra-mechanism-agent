@@ -6,13 +6,36 @@ v3（2026-09-09）收窄为两条酰基转移/氧转移网络；Y2/O2/O4/O5 剔�
 
 TASKS = {
     # 2026-10-18：NY3 槽正式换为 HNCO + 单水中性气相水解。
-    # 结果已交付到 gold_compute/queue_20261018/results/NY3；当前正式 Gold 参考缺测。
-    # 状态见 queue 交接，不自动安排重算；不把拟议两段路径预填为 Gold。
+    # Gaussian16 B3LYP-D3(BJ)/def2-SVP 气相纯电子能，来源：
+    # gold_compute/queue_20261018/results/NY3/{REPORT.txt,mechanism_graph.json}。
+    # 映射：1=N、2=C、3=羰基 O、4=水 O；H5 原在 N，H6/H7 原在水。
+    # E1 将 H6 迁到 N；E3 迁的是余下的 O-H7，不照抄远端图残留的 H6 编号。
+    # E2 是 syn->anti 构象支路；E3 从 syn 起步，43.13 不属于 anti->产物。
+    # E1 的 36.79 相对报告 RC(-244.935406907)，直接连接的水旋转体高 5.78；
+    # IRC/构象连接的局限保留原报告，不声称该 durable run 已 strict pass。
     "Y3": {
         "name_en": "isocyanic acid hydrolysis: HNCO + one water -> ammonia + carbon dioxide",
         "conditions_en": "gas phase, neutral closed-shell system with exactly one water molecule in total; no extra solvent, acid, counterion or catalyst; investigate carbamic-acid intermediates and connecting conformers without assuming a fixed number of elementary steps; source DOI 10.1007/s00894-010-0917-z",
-        "mapped_reactants": "[NH:1]=[C:2]=[O:3].[OH2:4]",
-        "steps": [],
+        "mapped_reactants": "[N:1]([H:5])=[C:2]=[O:3].[O:4]([H:6])[H:7]",
+        "steps": [
+            {
+                "out": "[N:1]([H:5])([H:6])[C:2](=[O:3])[O:4][H:7]",
+                "type": "concerted water addition and O-H to N proton transfer -> syn carbamic acid; barrier referenced to the reported HNCO-water RC minimum",
+                "barrier": 36.79,
+            },
+            {
+                "out": "[N:1]([H:5])([H:6])[C:2](=[O:3])[O:4][H:7]",
+                "type": "carbamic acid O-H conformational transition from syn to anti",
+                "conformational": True,
+                "barrier": 11.06,
+            },
+            {
+                "from_step": 1,
+                "out": "[N:1]([H:5])([H:6])[H:7].[O:3]=[C:2]=[O:4]",
+                "type": "syn carbamic acid decomposition by C-N cleavage and O-H7 to N proton transfer with C-O double-bond formation -> ammonia and carbon dioxide",
+                "barrier": 43.13,
+            },
+        ],
     },
     # [OH3+].CC(C)=O.O=COO>>[OH3+].CC(=O)OC.O=CO  (+1/1)  Baeyer–Villiger
     "O3": {

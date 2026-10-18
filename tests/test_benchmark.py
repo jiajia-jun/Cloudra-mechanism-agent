@@ -1814,6 +1814,12 @@ def test_replacement_tasks_reach_the_actual_runner_loader():
         "HI1": ("Cope", ["CC([N+](C)(C)[O-])C(C)c1ccccc1"], 14),
         "HL1": ("norbornene", ["C#[N+][O-]", "C1=CC2CCC1C2"], 10),
     }
+    computed_barriers = {
+        "NR1": [46.32, 22.80, 7.25, 64.93],
+        "NY3": [36.79, 11.06, 43.13],
+        "HI1": [16.62, 15.85],
+        "HL1": [16.18, 10.77],
+    }
     for task_id, (name, reactants, heavy) in expected.items():
         task = tasks[task_id]
         assert name.lower() in task.name.lower()
@@ -1822,11 +1828,13 @@ def test_replacement_tasks_reach_the_actual_runner_loader():
         assert task.system.max_heavy_atoms == heavy
         assert "Na" not in task.system.elements
         assert task.method_policy.allowed_methods == ["xtb", "pm7", "b3lyp/def2svp"]
-        # 新 Gold 尚待远端构建，不能继承旧反应的步骤、能垒或优势通道。
-        assert task.gold.mechanism_graph.edges == []
-        assert [n.role for n in task.gold.mechanism_graph.nodes] == [NodeRole.REACTANT]
+        # 已算的新反应必须进入实际加载的正式 Gold，不能仅更新报告。
+        graph = task.gold.mechanism_graph
+        assert sorted(e.barrier_kcal_mol for e in graph.edges) == sorted(computed_barriers[task_id])
+        assert any(n.role == NodeRole.REACTANT for n in graph.nodes)
+        assert any(n.role == NodeRole.TRANSITION_STATE for n in graph.nodes)
         assert task.gold.selectivity is None
-        assert not task.rubric.accuracy.enabled
+        assert task.rubric.accuracy.enabled
 
 
 def test_hard_tasks_regenerate_identically():
@@ -1910,13 +1918,22 @@ def test_hf1_regenerated_gold_scores_barriers():
 
 
 def test_impossible_tasks_regenerate_identically():
-    """impossible 档只生成 12 道 I 题；每题至少一个不可达节点。"""
+    """当前 IMP 正选 10 题；生成器与实际加载目录一致，全库保留 50 题。"""
     pytest.importorskip("rdkit")  # 生成器的映射校验依赖 RDKit；CI 只装 dev extra
     from cloudra.benchmark import gen_impossible_tasks
+    from cloudra.benchmark.impossible_registry import REGISTRY
+    from cloudra.benchmark.runner import load_tasks
+    from cloudra.benchmark.schema import Tier
 
     tasks = gen_impossible_tasks.parse_impossible_md(gen_impossible_tasks.DEFAULT_SRC)
-    assert len(tasks) == 12
-    assert sum(t.task_id.startswith("I") for t in tasks) == 12
+    assert len(tasks) == 10
+    assert sum(t.task_id.startswith("I") for t in tasks) == 10
+    active_ids = {t.task_id for t in tasks}
+    assert {t.task_id for t in load_tasks(gen_impossible_tasks.DEFAULT_OUT)} == active_ids
+    assert {"IA8", "IB10"}.isdisjoint(active_ids)
+    assert {"A8", "B10"}.issubset(REGISTRY)  # 原定义留档，不再生成正式任务。
+    tasks_root = gen_impossible_tasks.DEFAULT_OUT.parent
+    assert sum(len(load_tasks(tasks_root / tier.value)) for tier in Tier) == 50
     assert not list(gen_impossible_tasks.DEFAULT_OUT.glob("S*.json"))
     protocol = 'mark the corresponding node or edge "accessible": false'
     for t in tasks:
@@ -2004,8 +2021,9 @@ def test_hard_selectivity_qualitative_contract():
     for t in tasks:
         if t.task_id in {"HI1", "HL1"}:
             assert t.gold.selectivity is None
-            assert not t.rubric.accuracy.enabled
-            assert not t.gold.mechanism_graph.edges
+            assert t.rubric.accuracy.enabled
+            assert len(t.gold.mechanism_graph.edges) == 2
+            assert all(e.favored is None for e in t.gold.mechanism_graph.edges)
             assert "no favored-channel assignment is scored" in t.prompt.query
             assert "`favored: true`" not in t.prompt.query
             continue

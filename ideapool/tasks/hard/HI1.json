@@ -4,7 +4,7 @@
   "family": "I",
   "name": "Cope elimination of threo/erythro N,N-dimethyl-3-phenyl-2-butylamine oxide: determine the stereochemical mapping",
   "prompt": {
-    "query": "Determine the mechanism of the following reaction: Cope elimination of threo/erythro N,N-dimethyl-3-phenyl-2-butylamine oxide: determine the stereochemical mapping. Reactant SMILES: CC([N+](C)(C)[O-])C(C)c1ccccc1; product SMILES: CC=C(C)c1ccccc1.CN(C)O; total charge 0, multiplicity 1; conditions: gas phase, isolated neutral singlet amine oxide; construct and compute the threo and erythro substrate forms as two separate cases, not as a mixture or a combined reactant complex; verify each substrate's relative configuration and CIP assignment from its actual 3D geometry before naming it; investigate syn elimination to 2-phenyl-2-butene and dimethylhydroxylamine, and determine each alkene E/Z identity from the computed geometry rather than assuming a cis/trans correspondence; use each substrate's own minimum for its barrier and do not subtract energies across the two substrates; distinguish any alternative regioisomeric elimination; report each case with explicit stereochemical SMILES, separate reactant nodes and evidence; reference DOI 10.1021/ja057523x. Within the allowed methods, model the system so that it approximates the real conditions stated above as closely as the level of theory permits. Atom-mapped reactant SMILES: [CH3:1][CH:2]([N+:3]([CH3:4])([CH3:5])[O-:6])[C:7]([H:15])([CH3:8])[c:9]1[cH:10][cH:11][cH:12][cH:13][cH:14]1. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). The product SMILES above state connectivity only: resolving the stereochemical outcome is part of the deliverable. Investigate the stereochemical pathways compatible with the stated conditions; a forbidden counterfactual pathway is not required. Make sure the stereochemistry of every product and intermediate node is stated in its SMILES. The reaction may proceed through a multi-step network: represent each intermediate you identify as a node and each elementary step as an edge; competing pathways you investigate deserve their own edges. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. Use exactly this JSON shape (key names matter: nodes carry `id`, `role` (one of reactant/intermediate/product/transition_state) and `smiles` (a list of SMILES strings), and may optionally carry a `properties` object for declared quantities; edges carry `id`, `from`, `to`, `via`, `bond_changes` and optionally `barrier_kcal_mol`, `channel` and `favored`): {\"nodes\": [{\"id\": \"RC\", \"role\": \"reactant\", \"smiles\": [\"C=O.CN\"]}, {\"id\": \"TS1\", \"role\": \"transition_state\", \"smiles\": []}, {\"id\": \"P\", \"role\": \"product\", \"smiles\": [\"...\"]}], \"edges\": [{\"id\": \"e1\", \"from\": \"RC\", \"to\": \"P\", \"via\": \"TS1\", \"bond_changes\": {\"break\": [[1, 2]], \"form\": [[1, 5]]}, \"barrier_kcal_mol\": 21.3}]}. A species made of several molecules (a pre-reaction or ion-dipole complex) is ONE node whose `smiles` holds a single dot-joined complex SMILES (like the RC node above), never a list of separate component SMILES. Bind the unchanged native evidence logs through DAG and explicit `properties.evidence_log` paths; never rewrite a computed log to add SMILES. If such a complex is not a clean minimum at the allowed level of theory, still keep the single complex node in the graph, but you may then annotate its evidence files per component species instead (each component with its own `smiles:` annotation placed in the input before computation). The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or inversion step carries two empty lists. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. Declare every barrier you actually compute in kcal/mol on that elementary step's edge as `barrier_kcal_mol` in mechanism_graph.json. Barriers are electronic energy differences (ΔE‡) in kcal/mol, without ZPE or thermal corrections, each relative to that step's own starting minimum: for a bimolecular reaction that minimum is the reactant complex (e.g. the ion-dipole complex), and for a unimolecular process it is simply the reactant minimum. The scorer derives every declared step barrier from your log files and takes the highest as the rate-determining step; a barrier that is undeclared, has no bound ORCA/Gaussian log, or disagrees with those logs is not scorable. Bind each transition-state node to its original native evidence file with `properties.evidence_log` and attach that evidence to the declared DAG step. Do not append annotations to a completed or frozen log; any input annotation must be written before computation and expresses intent rather than proven identity. For each stereochemical channel you investigate, state its identity and barrier. Report any energy difference and its uncertainty; no favored-channel assignment is scored for this task. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to xTB, pm7, and B3LYP-D3(BJ)/def2-SVP; calls beyond the whitelist are intercepted.",
+    "query": "Determine the mechanism of the following reaction: Cope elimination of threo/erythro N,N-dimethyl-3-phenyl-2-butylamine oxide: determine the stereochemical mapping. Reactant SMILES: CC([N+](C)(C)[O-])C(C)c1ccccc1; product SMILES: CC=C(C)c1ccccc1.CN(C)O; total charge 0, multiplicity 1; conditions: gas phase, isolated neutral singlet amine oxide; construct and compute the threo and erythro substrate forms as two separate cases, not as a mixture or a combined reactant complex; verify each substrate's relative configuration and CIP assignment from its actual 3D geometry before naming it; investigate syn elimination to 2-phenyl-2-butene and dimethylhydroxylamine, and determine each alkene E/Z identity from the computed geometry rather than assuming a cis/trans correspondence; use each substrate's own minimum for its barrier and do not subtract energies across the two substrates; distinguish any alternative regioisomeric elimination; report each case with explicit stereochemical SMILES, separate reactant nodes and evidence; reference DOI 10.1021/ja057523x. Within the allowed methods, model the system so that it approximates the real conditions stated above as closely as the level of theory permits. Atom-mapped reactant SMILES: [CH3:1][CH:2]([N+:3]([CH3:4])([CH3:5])[O-:6])[C:7]([H:15])([CH3:8])[c:9]1[cH:10][cH:11][cH:12][cH:13][cH:14]1. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). The product SMILES above state connectivity only: resolving the stereochemical outcome is part of the deliverable. Investigate the stereochemical pathways compatible with the stated conditions; a forbidden counterfactual pathway is not required. Make sure the stereochemistry of every product and intermediate node is stated in its SMILES. The reaction may proceed through a multi-step network: represent each intermediate you identify as a node and each elementary step as an edge; competing pathways you investigate deserve their own edges. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. Use exactly this JSON shape (key names matter: nodes carry `id`, `role` (one of reactant/intermediate/product/transition_state) and `smiles` (a list of SMILES strings), and may optionally carry a `properties` object for declared quantities; edges carry `id`, `from`, `to`, `via`, `bond_changes` and optionally `barrier_kcal_mol`, `channel` and `favored`): {\"nodes\": [{\"id\": \"RC\", \"role\": \"reactant\", \"smiles\": [\"C=O.CN\"]}, {\"id\": \"TS1\", \"role\": \"transition_state\", \"smiles\": []}, {\"id\": \"P\", \"role\": \"product\", \"smiles\": [\"...\"]}], \"edges\": [{\"id\": \"e1\", \"from\": \"RC\", \"to\": \"P\", \"via\": \"TS1\", \"bond_changes\": {\"break\": [[1, 2]], \"form\": [[1, 5]]}, \"barrier_kcal_mol\": 21.3}]}. A species made of several molecules (a pre-reaction or ion-dipole complex) is ONE node whose `smiles` holds a single dot-joined complex SMILES (like the RC node above), never a list of separate component SMILES. Bind the unchanged native evidence logs through DAG and explicit `properties.evidence_log` paths; never rewrite a computed log to add SMILES. If such a complex is not a clean minimum at the allowed level of theory, still keep the single complex node in the graph, but you may then annotate its evidence files per component species instead (each component with its own `smiles:` annotation placed in the input before computation). The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or inversion step carries two empty lists. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. Declare every barrier you actually compute in kcal/mol on that elementary step's edge as `barrier_kcal_mol` in mechanism_graph.json. Barriers are electronic energy differences (ΔE‡) in kcal/mol, without ZPE or thermal corrections, each relative to that step's own starting minimum: for a bimolecular reaction that minimum is the reactant complex (e.g. the ion-dipole complex), and for a unimolecular process it is simply the reactant minimum. The scorer derives every declared step barrier from your log files and takes the highest as the rate-determining step; a barrier that is undeclared, has no bound ORCA/Gaussian log, or disagrees with those logs is not scorable. Every species node and transition-state node must declare `properties.energy_hartree` (the electronic energy of the geometry you delivered for that node, in Hartree, exactly as it appears in that node's evidence log) and `properties.evidence_log` (the sandbox-relative path of that log). The scorer uses the declared energy to identify which evidence file you delivered for each node; a node missing either field violates the delivery contract. Bind each transition-state node to its original native evidence file with `properties.evidence_log` and attach that evidence to the declared DAG step. Do not append annotations to a completed or frozen log; any input annotation must be written before computation and expresses intent rather than proven identity. For each stereochemical channel you investigate, state its identity and barrier. Report any energy difference and its uncertainty; no favored-channel assignment is scored for this task. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to xTB, pm7, and B3LYP-D3(BJ)/def2-SVP; calls beyond the whitelist are intercepted.",
     "role": "coordinator",
     "orchestration_mode": "dag_guided"
   },
@@ -46,17 +46,150 @@
     "mechanism_graph": {
       "nodes": [
         {
-          "id": "HI1_R",
+          "id": "HI1_ERYTHRO_R",
           "role": "reactant",
           "smiles": [
-            "CC([N+](C)(C)[O-])C(C)c1ccccc1"
+            "C[C@@H]([N+](C)(C)[O-])[C@H](C)c1ccccc1"
           ],
           "accessible": true,
-          "label": "reactant",
-          "properties": {}
+          "label": "",
+          "properties": {
+            "energy_hartree": -598.235079186,
+            "evidence_log": "ts/ts_0038/jobs/declaration_0002/reactant_frequency/reactant_frequency.log",
+            "reference_note": "IRC-connected minimum of this substrate; replaces the higher initial conformer in the source graph"
+          }
+        },
+        {
+          "id": "HI1_THREO_R",
+          "role": "reactant",
+          "smiles": [
+            "C[C@@H]([N+](C)(C)[O-])[C@@H](C)c1ccccc1"
+          ],
+          "accessible": true,
+          "label": "",
+          "properties": {
+            "energy_hartree": -598.233321696,
+            "evidence_log": "ts/ts_0039/jobs/declaration_0002/reactant_frequency/reactant_frequency.log",
+            "reference_note": "IRC-connected minimum of this substrate; replaces the higher initial conformer in the source graph"
+          }
+        },
+        {
+          "id": "HI1_ERYTHRO_TS_SYN",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "",
+          "properties": {
+            "energy_hartree": -598.208585697,
+            "evidence_log": "/home/ly/Cloudra-mechanism-agent/ts/ts_0038/jobs/declaration_0002/frequency/frequency.log"
+          }
+        },
+        {
+          "id": "HI1_THREO_TS_SYN",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "",
+          "properties": {
+            "energy_hartree": -598.208059052,
+            "evidence_log": "/home/ly/Cloudra-mechanism-agent/ts/ts_0039/jobs/declaration_0002/frequency/frequency.log"
+          }
+        },
+        {
+          "id": "HI1_ERYTHRO_P",
+          "role": "product",
+          "smiles": [
+            "C/C=C(/C)c1ccccc1.CN(C)O"
+          ],
+          "accessible": true,
+          "label": "isolated Z alkene + dimethylhydroxylamine; product-side IRC endpoint pending in source report",
+          "properties": {
+            "evidence_log": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/jobs/HI1_Z_2phenyl2butene_optfreq.log"
+          }
+        },
+        {
+          "id": "HI1_THREO_P",
+          "role": "product",
+          "smiles": [
+            "C/C=C(\\C)c1ccccc1.CN(C)O"
+          ],
+          "accessible": true,
+          "label": "isolated E alkene + dimethylhydroxylamine; product-side IRC endpoint pending in source report",
+          "properties": {
+            "evidence_log": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/jobs/HI1_E_2phenyl2butene_optfreq.log"
+          }
         }
       ],
-      "edges": []
+      "edges": [
+        {
+          "id": "HI1_e1_erythro_syn",
+          "from": "HI1_ERYTHRO_R",
+          "to": "HI1_ERYTHRO_P",
+          "via": "HI1_ERYTHRO_TS_SYN",
+          "step_type": "syn_Cope_elimination",
+          "bond_changes": {
+            "break": [
+              [
+                2,
+                3
+              ],
+              [
+                7,
+                15
+              ]
+            ],
+            "form": [
+              [
+                2,
+                7
+              ],
+              [
+                6,
+                15
+              ]
+            ]
+          },
+          "accessible": true,
+          "barrier_kcal_mol": 16.62,
+          "weight": 1.0,
+          "channel": "syn-Cope (erythro -> Z alkene)",
+          "favored": null
+        },
+        {
+          "id": "HI1_e2_threo_syn",
+          "from": "HI1_THREO_R",
+          "to": "HI1_THREO_P",
+          "via": "HI1_THREO_TS_SYN",
+          "step_type": "syn_Cope_elimination",
+          "bond_changes": {
+            "break": [
+              [
+                2,
+                3
+              ],
+              [
+                7,
+                15
+              ]
+            ],
+            "form": [
+              [
+                2,
+                7
+              ],
+              [
+                6,
+                15
+              ]
+            ]
+          },
+          "accessible": true,
+          "barrier_kcal_mol": 15.85,
+          "weight": 1.0,
+          "channel": "syn-Cope (threo -> E alkene)",
+          "favored": null
+        }
+      ]
     },
     "reference_properties": {},
     "selectivity": null
@@ -75,7 +208,7 @@
       "stereo_tier_rule": "hard_stereo_costly"
     },
     "accuracy": {
-      "enabled": false,
+      "enabled": true,
       "sigma_kcal_mol": 2.0,
       "max_penalty_fraction": 0.3,
       "small_barrier_threshold_kcal": 10.0,

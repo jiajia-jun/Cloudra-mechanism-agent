@@ -239,6 +239,8 @@ def _step_favored(step: dict, main: bool) -> bool | None:
 
 
 def _build_graph(pid: str, reactants: list[str], products: list[str], entry: dict) -> GoldMechanismGraph:
+    if "gold_graph" in entry:
+        return GoldMechanismGraph.model_validate(entry["gold_graph"])
     tid = f"H{pid}"
     nodes = [MechanismNode(id=f"{tid}_R", role=NodeRole.REACTANT, smiles=complex_smiles(reactants), label="reactant")]
     edges: list[MechanismEdge] = []

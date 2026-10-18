@@ -10,13 +10,39 @@ v3（2026-09-09）收窄为四条多步/中间体网络；R2/R3/U1/U7 剔出定�
 
 TASKS = {
     # 2026-10-18：NR1 槽正式换为甲酰胺脱水，旧频哪醇 Gold 不再用于此题。
-    # 结果已交付到 gold_compute/queue_20261018/results/NR1；当前正式 Gold 参考缺测。
-    # 状态见 queue 交接，不自动安排重算；不据局部结果预造 Gold 节点。
+    # Gaussian16 B3LYP-D3(BJ)/def2-SVP 气相纯电子能，逐边相对各自起点。
+    # 来源：gold_compute/queue_20261018/results/NR1/{REPORT.txt,mechanism_graph.json}。
+    # 统一映射：1=N、2=C、3=O、4=保留于 N 的 H、5=首步迁到 O 的 H、6=C 上的 H。
+    # 两个构象边连接式相同；不是断键步。E4 的工作流 candidate_only 原因和
+    # IRC/端点证据限制保留在报告，不把入库描述成工作流 strict pass。
     "R1": {
         "name_en": "formamide dehydration: formamide -> hydrogen cyanide + water",
         "conditions_en": "gas phase, isolated neutral formamide, closed-shell thermal dehydration; no added water, acid or catalyst; investigate formimidic-acid intermediates and conformational transitions; source DOI 10.1021/jp109143j",
-        "mapped_reactants": "[NH2:1][CH:2]=[O:3]",
-        "steps": [],
+        "mapped_reactants": "[N:1]([H:4])([H:5])[C:2]([H:6])=[O:3]",
+        "steps": [
+            {
+                "out": "[N:1]([H:4])=[C:2]([H:6])[O:3][H:5]",
+                "type": "formamide to formimidic acid conformer INT-1a by intramolecular N-H to O proton transfer with C=O to C=N bond-order change",
+                "barrier": 46.32,
+            },
+            {
+                "out": "[N:1]([H:4])=[C:2]([H:6])[O:3][H:5]",
+                "type": "formimidic acid conformational transition INT-1a to INT-1b",
+                "conformational": True,
+                "barrier": 22.80,
+            },
+            {
+                "out": "[N:1]([H:4])=[C:2]([H:6])[O:3][H:5]",
+                "type": "formimidic acid conformational transition INT-1b to INT-1c",
+                "conformational": True,
+                "barrier": 7.25,
+            },
+            {
+                "out": "[N:1]#[C:2][H:6].[O:3]([H:4])[H:5]",
+                "type": "formimidic acid INT-1c dehydration by N-H to O proton transfer and C-O cleavage with C-N triple-bond formation -> hydrogen cyanide and water",
+                "barrier": 64.93,
+            },
+        ],
     },
     # [OH3+].CC(C)=NO>>[OH3+].CNC(C)=O  (+1/1)  Beckmann 重排
     # 映射：1=H3O+ 的 O，2/9/10=其三个 H；3=保留甲基，4=肟 C，5=anti 迁移甲基，

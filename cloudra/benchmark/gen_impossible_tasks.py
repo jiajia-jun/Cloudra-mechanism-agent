@@ -5,7 +5,7 @@ and emits one ``I<id>.json`` TaskSpec per selected task into
 ideapool/tasks/impossible/（gold 图带 accessible=False 节点；正确交付 =
 图照交 + 不可达元素标 accessible=false）。
 
-只读 impossible.md "定稿圈定"段的正选 12 个池 id（TASK_IDS；池子其余留档）。
+只读 impossible.md "定稿圈定"段的正选 10 个池 id（TASK_IDS；池子其余留档）。
 md 是人策事实源（条目化学与判分哲学），机器契约在
 ``cloudra/benchmark/impossible_registry/``（按族分文件）；生成器做 fail-loud
 校验：登记标题与 md 头行全等、逐步原子映射号/形式电荷守恒、末步产物去映射
@@ -70,15 +70,16 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SRC = REPO_ROOT / "ideapool" / "reaction_candidates" / "impossible.md"
 DEFAULT_OUT = REPO_ROOT / "ideapool" / "tasks" / "impossible"
 
-# impossible.md "定稿圈定"段的正选名单（v3 选 10 条；2026-09-27 加 B10 至 12 条）。
+# impossible.md "定稿圈定"段的正选名单（2026-10-18 移出 A8/B10，12 → 10）。
 # v3 保留 10 对（I/S）：A1 环丁二烯 / A5 反旋开环 / A7 Bergman /
 # A8 CH2OO / A9 二氧环丁烷 / C3 苯基氮烯 / D2 FOOF / E2 N2 / F3 三角烯 / G8 Cr2。
 # 灰区 6 条（G7/H7/H8/I8/J6/J7）与 ¹O2/苯炔等边缘对全数剔除：灰色条目的
 # 多参考论断本身是机理外推，gold 不可达标注不稳，进题库只会污染信号。
 # B9 接收原 normal U8：1-吡唑啉脱氮过渡区的多参考限制有专门研究支撑。
 # B10 接收原 normal R4：甲酰卡宾中间体及相关 TS 在白名单内不可可信打标。
+# 2026-10-18：A8/B10 退出当前正式集合；原 registry 定义和计算结果保留。
 TASK_IDS = (
-    "A1 A5 A7 A8 A9 B9 B10 C3 D2 E2 F3 G8"
+    "A1 A5 A7 A9 B9 C3 D2 E2 F3 G8"
 ).split()
 
 _HEADER_RE = re.compile(r"^### ([A-J]\d+)\.\s*(.+)$")
@@ -505,9 +506,9 @@ def main() -> None:
                 f"OK {t.task_id}: {len(t.gold.mechanism_graph.nodes)} nodes, {n_edges} edges, "
                 f"inaccessible={len(inacc)}"
             )
-        print(f"check passed: {len(tasks)} impossible tasks expected=12")
+        print(f"check passed: {len(tasks)} impossible tasks expected=10")
         return
-    assert len(tasks) == 12, f"expected 12 tasks, got {len(tasks)}"
+    assert len(tasks) == 10, f"expected 10 tasks, got {len(tasks)}"
     args.out.mkdir(parents=True, exist_ok=True)
     for t in tasks:
         out = args.out / f"{t.task_id}.json"

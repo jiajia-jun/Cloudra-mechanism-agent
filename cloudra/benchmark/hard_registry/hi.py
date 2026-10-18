@@ -1,7 +1,7 @@
 """H/I 族：H1 联萘阻转消旋；I1 胺氧化物 Cope 消除的立体映射。
 
 2026-10-18：用户授权用 I1 新题替换旧脯氨酸 aldol。本轮结果已交付，
-正式 Gold 参考仍缺测；不预设立体产物、路径、能垒或优势通道。
+正式 Gold 回填两条已计算的 syn 边；缺测区域异构边不进入参考图。
 """
 
 TASKS = {
@@ -35,14 +35,114 @@ TASKS = {
         ],
     },
     # 两种非对映底物分别构建、分别计算；无立体骨架不表示二者的混合络合物。
-    # 结果已交付到 gold_compute/queue_20261018/results/HI1；当前正式 Gold 参考缺测。
-    # 状态见 queue 交接，不自动安排重算。
+    # 两条 syn 能垒各减本底物 IRC 连通极小值；原始报告/结果图保留不改。
+    # 产物侧 IRC 端点在原报告仍缺测，不把数值回填说成证据链完整验收。
     "I1": {
-        "name_en": "Cope elimination of threo/erythro N,N-dimethyl-3-phenyl-2-butylamine oxide: determine the stereochemical mapping",
-        "conditions_en": "gas phase, isolated neutral singlet amine oxide; construct and compute the threo and erythro substrate forms as two separate cases, not as a mixture or a combined reactant complex; verify each substrate's relative configuration and CIP assignment from its actual 3D geometry before naming it; investigate syn elimination to 2-phenyl-2-butene and dimethylhydroxylamine, and determine each alkene E/Z identity from the computed geometry rather than assuming a cis/trans correspondence; use each substrate's own minimum for its barrier and do not subtract energies across the two substrates; distinguish any alternative regioisomeric elimination; report each case with explicit stereochemical SMILES, separate reactant nodes and evidence; reference DOI 10.1021/ja057523x",
-        "anchor": None,
+        "name_en": "Cope elimination of threo/erythro N,N-dimethyl-3-phenyl-2-butylamine oxide: determine "
+        "the stereochemical mapping",
+        "conditions_en": "gas phase, isolated neutral singlet amine oxide; construct and compute the threo "
+        "and erythro substrate forms as two separate cases, not as a mixture or a combined "
+        "reactant complex; verify each substrate's relative configuration and CIP "
+        "assignment from its actual 3D geometry before naming it; investigate syn "
+        "elimination to 2-phenyl-2-butene and dimethylhydroxylamine, and determine each "
+        "alkene E/Z identity from the computed geometry rather than assuming a cis/trans "
+        "correspondence; use each substrate's own minimum for its barrier and do not "
+        "subtract energies across the two substrates; distinguish any alternative "
+        "regioisomeric elimination; report each case with explicit stereochemical SMILES, "
+        "separate reactant nodes and evidence; reference DOI 10.1021/ja057523x",
+        "anchor": "barrier",
         "score_selectivity": False,
         "mapped_reactants": "[CH3:1][CH:2]([N+:3]([CH3:4])([CH3:5])[O-:6])[C:7]([H:15])([CH3:8])[c:9]1[cH:10][cH:11][cH:12][cH:13][cH:14]1",
         "steps": [],
+        "gold_graph": {
+            "nodes": [
+                {
+                    "id": "HI1_ERYTHRO_R",
+                    "role": "reactant",
+                    "smiles": ["C[C@@H]([N+](C)(C)[O-])[C@H](C)c1ccccc1"],
+                    "properties": {
+                        "energy_hartree": -598.235079186,
+                        "evidence_log": "ts/ts_0038/jobs/declaration_0002/reactant_frequency/reactant_frequency.log",
+                        "reference_note": "IRC-connected minimum of this substrate; "
+                        "replaces the higher initial conformer in "
+                        "the source graph",
+                    },
+                },
+                {
+                    "id": "HI1_THREO_R",
+                    "role": "reactant",
+                    "smiles": ["C[C@@H]([N+](C)(C)[O-])[C@@H](C)c1ccccc1"],
+                    "properties": {
+                        "energy_hartree": -598.233321696,
+                        "evidence_log": "ts/ts_0039/jobs/declaration_0002/reactant_frequency/reactant_frequency.log",
+                        "reference_note": "IRC-connected minimum of this substrate; "
+                        "replaces the higher initial conformer in "
+                        "the source graph",
+                    },
+                },
+                {
+                    "id": "HI1_ERYTHRO_TS_SYN",
+                    "role": "transition_state",
+                    "smiles": [],
+                    "properties": {
+                        "energy_hartree": -598.208585697,
+                        "evidence_log": "/home/ly/Cloudra-mechanism-agent/ts/ts_0038/jobs/declaration_0002/frequency/frequency.log",
+                    },
+                },
+                {
+                    "id": "HI1_THREO_TS_SYN",
+                    "role": "transition_state",
+                    "smiles": [],
+                    "properties": {
+                        "energy_hartree": -598.208059052,
+                        "evidence_log": "/home/ly/Cloudra-mechanism-agent/ts/ts_0039/jobs/declaration_0002/frequency/frequency.log",
+                    },
+                },
+                {
+                    "id": "HI1_ERYTHRO_P",
+                    "role": "product",
+                    "smiles": ["C/C=C(/C)c1ccccc1.CN(C)O"],
+                    "properties": {
+                        "evidence_log": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/jobs/HI1_Z_2phenyl2butene_optfreq.log"
+                    },
+                    "label": "isolated Z alkene + dimethylhydroxylamine; product-side IRC "
+                    "endpoint pending in source report",
+                },
+                {
+                    "id": "HI1_THREO_P",
+                    "role": "product",
+                    "smiles": ["C/C=C(\\C)c1ccccc1.CN(C)O"],
+                    "properties": {
+                        "evidence_log": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/jobs/HI1_E_2phenyl2butene_optfreq.log"
+                    },
+                    "label": "isolated E alkene + dimethylhydroxylamine; product-side IRC "
+                    "endpoint pending in source report",
+                },
+            ],
+            "edges": [
+                {
+                    "id": "HI1_e1_erythro_syn",
+                    "from": "HI1_ERYTHRO_R",
+                    "to": "HI1_ERYTHRO_P",
+                    "via": "HI1_ERYTHRO_TS_SYN",
+                    "bond_changes": {"break": [[2, 3], [7, 15]], "form": [[2, 7], [6, 15]]},
+                    "barrier_kcal_mol": 16.62,
+                    "favored": None,
+                    "channel": "syn-Cope (erythro -> Z alkene)",
+                    "step_type": "syn_Cope_elimination",
+                },
+                {
+                    "id": "HI1_e2_threo_syn",
+                    "from": "HI1_THREO_R",
+                    "to": "HI1_THREO_P",
+                    "via": "HI1_THREO_TS_SYN",
+                    "bond_changes": {"break": [[2, 3], [7, 15]], "form": [[2, 7], [6, 15]]},
+                    "barrier_kcal_mol": 15.85,
+                    "favored": None,
+                    "channel": "syn-Cope (threo -> E alkene)",
+                    "step_type": "syn_Cope_elimination",
+                },
+            ],
+        },
     },
 }
