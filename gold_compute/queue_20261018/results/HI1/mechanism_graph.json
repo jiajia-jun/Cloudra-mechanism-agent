@@ -1,0 +1,218 @@
+{
+  "nodes": [
+    {
+      "id": "HI1_ERYTHRO_R",
+      "role": "reactant",
+      "smiles": [
+        "C[C@@H]([N+](C)(C)[O-])[C@H](C)c1ccccc1"
+      ],
+      "properties": {
+        "label": "erythro substrate (2R,7R)",
+        "cip": "C2=R, C7=R",
+        "energy_hartree": -598.229013613,
+        "n_imag": 0,
+        "job": 1224,
+        "evidence_log": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/jobs/HI1_erythro_R_optfreq.log"
+      }
+    },
+    {
+      "id": "HI1_THREO_R",
+      "role": "reactant",
+      "smiles": [
+        "C[C@@H]([N+](C)(C)[O-])[C@@H](C)c1ccccc1"
+      ],
+      "properties": {
+        "label": "threo substrate (2R,7S)",
+        "cip": "C2=R, C7=S",
+        "energy_hartree": -598.231556225,
+        "n_imag": 0,
+        "job": 1225,
+        "evidence_log": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/jobs/HI1_threo_R_optfreq.log"
+      }
+    },
+    {
+      "id": "HI1_ERYTHRO_TS_SYN",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "channel": "syn-Cope, 5-membered O6-N3-C2-C7-H25",
+        "energy_hartree": -598.208585697,
+        "n_imag": 1,
+        "imaginary_cm": -940.1938,
+        "run": "ts_0038",
+        "evidence_log": "/home/ly/Cloudra-mechanism-agent/ts/ts_0038/jobs/declaration_0002/frequency/frequency.log"
+      }
+    },
+    {
+      "id": "HI1_THREO_TS_SYN",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "channel": "syn-Cope, 5-membered O6-N3-C2-C7-H25",
+        "energy_hartree": -598.208059052,
+        "n_imag": 1,
+        "imaginary_cm": -1069.2742,
+        "run": "ts_0039",
+        "evidence_log": "/home/ly/Cloudra-mechanism-agent/ts/ts_0039/jobs/declaration_0002/frequency/frequency.log"
+      }
+    },
+    {
+      "id": "HI1_ERYTHRO_P",
+      "role": "product",
+      "smiles": [
+        "C/C=C(/C)c1ccccc1.CN(C)O"
+      ],
+      "properties": {
+        "label": "Z-2-phenyl-2-butene + N,N-dimethylhydroxylamine",
+        "ez": "Z (read from the computed TS 3D geometry: dih(C1,C2,C7,C9ipso)=-3.5 deg, C1 cis to Ph; confirmed on the optimised alkene, job 1325)",
+        "component_energies_hartree": {
+          "Z-2-phenyl-2-butene": -388.041751586,
+          "CN(C)O": -210.188833713
+        },
+        "evidence_log": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/jobs/HI1_Z_2phenyl2butene_optfreq.log"
+      }
+    },
+    {
+      "id": "HI1_THREO_P",
+      "role": "product",
+      "smiles": [
+        "C/C=C(\\C)c1ccccc1.CN(C)O"
+      ],
+      "properties": {
+        "label": "E-2-phenyl-2-butene + N,N-dimethylhydroxylamine",
+        "ez": "E (read from the computed TS 3D geometry: dih(C1,C2,C7,C8)=-5.5 deg, Ph trans to C1; confirmed on the optimised alkene, job 1326)",
+        "component_energies_hartree": {
+          "E-2-phenyl-2-butene": -388.042170053,
+          "CN(C)O": -210.188833713
+        },
+        "evidence_log": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/jobs/HI1_E_2phenyl2butene_optfreq.log"
+      }
+    },
+    {
+      "id": "HI1_ERYTHRO_TS_REGIO",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "channel": "syn-Cope with C1-methyl H abstraction -> terminal alkene",
+        "status": "not converged (ts_0040 ts_opt at step 58/169)",
+        "run": "ts_0040"
+      }
+    },
+    {
+      "id": "HI1_ERYTHRO_P_REGIO",
+      "role": "product",
+      "smiles": [
+        "C=C[C@H](C)c1ccccc1.CN(C)O"
+      ],
+      "properties": {
+        "label": "3-phenylbut-1-ene + N,N-dimethylhydroxylamine (regioisomeric)",
+        "status": "no computed energy yet"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "HI1_e1_erythro_syn",
+      "from": "HI1_ERYTHRO_R",
+      "to": "HI1_ERYTHRO_P",
+      "via": "HI1_ERYTHRO_TS_SYN",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ],
+          [
+            7,
+            15
+          ]
+        ],
+        "form": [
+          [
+            2,
+            7
+          ],
+          [
+            6,
+            15
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 16.62,
+      "barrier_reference_minimum": {
+        "energy_Ha": -598.235079186,
+        "log": "ts/ts_0038/jobs/declaration_0002/reactant_frequency/reactant_frequency.log",
+        "line": 670,
+        "sha256_prefix": "dcd084a74d443ba6",
+        "why": "lowest verified minimum of this same substrate reached by the short-IRC reactant arm (reactant_opt job 1328, E -598.235079186, 33 atoms, 93 harmonic modes, 0 imaginary; stationarity L20028 of reactant_opt.log)"
+      },
+      "barrier_conformer_specific_kcal_mol": 12.82,
+      "favored": null,
+      "channel": "syn-Cope (erythro -> Z alkene)",
+      "note": "C2-N3 and C7-Hbeta broken, C2=C7 and O6-Hbeta formed (1-based atom-map indices of the task SMILES; Hbeta = map 15 = concrete atom 25). barrier = E(TS) - E(lowest verified minimum of this substrate), pure electronic: -598.208585697 - (-598.235079186) = +0.026493489 Ha = 16.62 kcal/mol. The previously reported 12.82 kcal/mol is kept as barrier_conformer_specific_kcal_mol: it uses job 1224 (-598.229013613), the conformer the TS guess was built from, which lies 3.81 kcal/mol ABOVE the IRC-connected minimum (same stereoisomer, heavy-atom Kabsch RMSD 1.49 A, identical bond lengths and identical sign of the signed volumes at C2 and C7). favored is null on purpose: a preference between erythro and threo would require subtracting barriers of two different diastereomeric substrates, which this batch forbids."
+    },
+    {
+      "id": "HI1_e2_threo_syn",
+      "from": "HI1_THREO_R",
+      "to": "HI1_THREO_P",
+      "via": "HI1_THREO_TS_SYN",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ],
+          [
+            7,
+            15
+          ]
+        ],
+        "form": [
+          [
+            2,
+            7
+          ],
+          [
+            6,
+            15
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 15.85,
+      "barrier_reference_minimum": {
+        "energy_Ha": -598.233321696,
+        "log": "ts/ts_0039/jobs/declaration_0002/reactant_frequency/reactant_frequency.log",
+        "line": 670,
+        "sha256_prefix": "a143a1dbeb7e8c2c",
+        "why": "lowest verified minimum of this same substrate reached by the short-IRC reactant arm (reactant_opt job 1329, E -598.233321696, 33 atoms, 93 harmonic modes, 0 imaginary; stationarity L20773 of reactant_opt.log)"
+      },
+      "barrier_conformer_specific_kcal_mol": 14.74,
+      "favored": null,
+      "channel": "syn-Cope (threo -> E alkene)",
+      "note": "same bond changes, different substrate diastereomer. barrier = E(TS) - E(lowest verified minimum of this substrate), pure electronic: -598.208059052 - (-598.233321696) = +0.025262644 Ha = 15.85 kcal/mol. The previously reported 14.74 kcal/mol is kept as barrier_conformer_specific_kcal_mol: it uses job 1225 (-598.231556225), which lies 1.11 kcal/mol ABOVE the IRC-connected minimum (same (2R,7R) configuration: identical bond lengths, and the signed volumes at C2 and C7 keep their sign; heavy-atom Kabsch RMSD 2.92 A). No energy is ever subtracted across the two substrates, and favored stays null."
+    },
+    {
+      "id": "HI1_e3_erythro_regio",
+      "from": "HI1_ERYTHRO_R",
+      "to": "HI1_ERYTHRO_P_REGIO",
+      "via": "HI1_ERYTHRO_TS_REGIO",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ]
+        ],
+        "form": [
+          [
+            1,
+            2
+          ]
+        ]
+      },
+      "channel": "regioisomeric syn-Cope (terminal alkene)",
+      "barrier_kcal_mol": null,
+      "note": "C2-N3 broken and C1=C2 formed; the migrating H is one of the three unmapped hydrogens of C1 (the task map SMILES gives it no index), so only heavy-atom bond-order changes are listed. barrier_kcal_mol is null because the TS was NOT LOCATED IN THIS ROUND (ts_0040 ts_opt job 1292 still at step 98 of a maximum of 169 at 07:42, no stationary point), not because the quantity is unobtainable; no energy is quoted, and the null must not be read as a computed preference."
+    }
+  ]
+}

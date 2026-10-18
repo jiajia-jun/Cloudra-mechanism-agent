@@ -1,0 +1,309 @@
+# HI1 · N,N-dimethyl-3-phenyl-2-butylamine oxide (amine N-oxide) Cope elimination
+# threo / erythro two-substrate stereochemical mapping -- running report
+# method (fixed, user-specified): Gaussian 16, B3LYP/def2SVP + EmpiricalDispersion=GD3BJ + Int(UltraFine)
+#        + SCF=Tight, gas phase (no SCRF), charge 0 / multiplicity 1; every new job 4 cpus / 6144 MB / prio 0
+# barriers = pure electronic dE (no ZPE, no thermal correction), each TS minus ITS OWN starting minimum
+# all numbers are this project's own computation; "null" = not determined yet and listed in GAPS
+# status: PARTIAL -- both syn channels have converged TS + 1 imaginary frequency + short IRC interval;
+#         endpoint Opt+Freq verification still running; the regioisomeric channel has not converged yet.
+
+ID | species (stereochemical SMILES) | E/Ha | n(imag) | job | missing link
+----------------------------------------------------------------------------------------------------
+HI1_ERYTHRO_R | C[C@@H]([N+](C)(C)[O-])[C@H](C)c1ccccc1  (2R,7R = erythro) | -598.229013613 | 0 (93 real modes) | 1224 | -
+HI1_THREO_R   | C[C@@H]([N+](C)(C)[O-])[C@@H](C)c1ccccc1 (2R,7S = threo)  | -598.231556225 | 0 (93) | 1225 | -
+HI1_ERYTHRO_TS_SYN | syn-Cope TS of the erythro substrate (5-ring O6-N3-C2-C7-H25) | -598.208585697 | 1 (-940.1938) | ts_0038 / ts_opt 1286 + freq 1318 | IRC endpoints under verification (reactant_opt 1328)
+HI1_THREO_TS_SYN   | syn-Cope TS of the threo substrate   (5-ring O6-N3-C2-C7-H25) | -598.208059052 | 1 (-1069.2742) | ts_0039 / ts_opt 1289 + freq 1320 | same (IRC 1323 finished, endpoints pending)
+HI1_ERYTHRO_TS_REGIO | regioisomeric TS (H abstracted from the C1 methyl, C1=C2 forms) | null | null | ts_0040 / ts_opt 1292 | TS optimisation still running (step 58/169 at 07:11), no stationary point yet
+HI1_Z_2Ph2Bu | C/C=C(/C)c1ccccc1 (Z-2-phenyl-2-butene) | -388.041751586 | 0 (60) | 1325 | -
+HI1_E_2Ph2Bu | C/C=C(\\C)c1ccccc1 (E-2-phenyl-2-butene) | -388.042170053 | 0 (60) | 1326 | -
+HI1_Me2NOH   | CN(C)O (N,N-dimethylhydroxylamine) | -210.188833713 | 0 (27) | 1327 | -
+
+==================================================================================================
+0. ATOM NUMBERING used everywhere below (atoms 1-14 = the task's atom-map order;
+   atom 25 = the migrating beta-H = task map atom H15). This is the concrete order of every file
+   and the order ts_inspect reports for ts_0038 / ts_0039 / ts_0040.
+   1 C (C1, CH3 on C2)      8  C (C8, CH3 on C7)   18 H (on C2)     26-28 H (on C8)
+   2 C (C2, alpha)          9  C (ipso Ph)         19-21 H (on C4)  29-33 H (aromatic)
+   3 N (N3)                 10-14 C (Ph)           22-24 H (on C5)
+   4 C (C4, N-Me)           15-17 H (on C1)        25 H (beta H on C7, migrating)
+   5 C (C5, N-Me)           6  O (O6, N-oxide O)
+   7 C (C7, beta, Ph)
+   Element table 1..33: C C N C C O C C C C C C C C H H H H H H H H H H H H H H H H H H H
+   Nearest-neighbour distances at the erythro minimum (job 1224, Angstrom):
+     d(1,2)=1.5294 d(2,3)=1.5463 d(2,7)=1.5511 d(3,4)=1.4986 d(3,5)=1.5021 d(3,6)=1.3520
+     d(7,8)=1.5377 d(7,9)=1.5234 d(7,25)=1.1035 d(2,18)=1.0988
+     (Gaussian "Optimized Parameters" table, HI1_erythro_R_optfreq.log L8088-L8108)
+   Nearest-neighbour distances at the erythro TS (ts_0038 frequency frame):
+     d(2,7)=1.425 d(2,3)=2.140 d(7,25)=1.310 d(6,25)=1.288 d(6,3)=1.333 d(2,1)=1.499
+     d(7,8)=1.530 d(7,9)=1.510
+
+Provenance (absolute path | line | sha256 prefix):
+  E(erythro min) -598.229013613 | .../results/HI1/jobs/HI1_erythro_R_optfreq.log L9502 | 9d6040a0e22afcae
+  E(threo min)   -598.231556225 | .../results/HI1/jobs/HI1_threo_R_optfreq.log  L9616 | ceb76390b1b4f695
+  E(erythro TS)  -598.208585697 | .../ts/ts_0038/jobs/declaration_0002/ts_opt/refine.log L21733 (Stationary point L22015, Normal termination L22820) | 09afd3d0dfded607
+  E(threo TS)    -598.208059052 | .../ts/ts_0039/jobs/declaration_0002/ts_opt/refine.log L28182 (Stationary point L28463, Normal termination L29277) | ea70879ceca94ee2
+  nu_imag(erythro) -940.1938     | .../ts/ts_0038/jobs/declaration_0002/frequency/frequency.log L1223 | 9184ca5bc9096e23
+  nu_imag(threo)   -1069.2742    | .../ts/ts_0039/jobs/declaration_0002/frequency/frequency.log L1223 | fafac122346990cf
+  E(Z-alkene) -388.041751586 | .../results/HI1/jobs/HI1_Z_2phenyl2butene_optfreq.log L8450 | d8a53e3a315310e6
+  E(E-alkene) -388.042170053 | .../results/HI1/jobs/HI1_E_2phenyl2butene_optfreq.log L8257 | 676a72fab089a34f
+  E(Me2NOH)   -210.188833713 | .../results/HI1/jobs/HI1_Me2NOH_optfreq.log L2678 | 602050b84b307921
+  Every QM input carries a "smiles: <SMILES>" title line written BEFORE the run (never appended).
+
+==================================================================================================
+1. ERYTHRO SUBSTRATE (case A) -> Z-2-phenyl-2-butene
+
+1.1 Relative configuration and CIP from the actual 3D geometry (not assumed)
+   Geometries used: work/build_A/prepared.xyz (RDKit ETKDGv3 + MMFF94 build) and, independently,
+   geoms/HI1_erythro_R_min.xyz (the B3LYP-D3 minimum, frame 10 of job 1224).
+   Two stereogenic centres: C2 (atom 2) and C7 (atom 7).
+   Method: RDKit AssignStereochemistryFrom3D + CIP labels on the 3D coordinates with all atom-map
+   numbers STRIPPED (keeping map numbers changes the CIP answer; strip-map is the rule used here).
+   Result: C2 = R, C7 = R -> (2R,7R)   (identical on the build geometry and on the QM minimum)
+   Relative-configuration criterion (explicit, conformation independent):
+       inv = [ dih(N3,C2,C7,C9ipso) - dih(C1,C2,C7,C8) ] mod 360 ;  erythro ~ 0 deg, threo ~ +-120 deg
+       (Fischer projection, C1-C2-C7-C8 chain vertical, one H of each centre horizontal)
+   Validation of the criterion with the same code: L-threonine (2S,3R) threo -> +118.4 deg;
+       L-allo-threonine (2S,3S) erythro -> -1.9 deg; ephedrine-type same-side case -> (1R,2S) erythro.
+   Measured on the QM minimum: dih(C1,C2,C7,C8) = -179.24, dih(N3,C2,C7,C9) = -175.33 -> inv = +3.91 deg
+   => ERYTHRO. CIP SMILES: C[C@@H]([N+](C)(C)[O-])[C@H](C)c1ccccc1
+
+1.2 Substrate minimum (this substrate's own barrier reference)
+   job 1224: E = -598.229013613 Ha, 93 modes, log_parser imaginary_frequencies = [], opt converged
+   (L8081-8082). "Low frequencies --- -2.6852 -0.0009 -0.0006 0.0001 4.9253 6.2783" (L10043); those
+   six are the projected translations/rotations (the projectors are not perfectly clean), the lowest
+   REAL vibrational mode is 46.1873 cm-1 (L10053).
+
+1.3 syn-Cope TS (run ts_0038; ts_opt job 1286, freq job 1318)
+   guess geoms/HI1_erythro_TS_syn_guess.xyz: from the QM minimum, rigid rotation about C2-C7 to make
+     dih(H25,C7,C2,N3) = 0 (syn-periplanar H / leaving group), then MMFF94 relaxation under strong
+     reaction-coordinate constraints (C2-N3 1.95, C2=C7 1.45, C7-H25 1.30, O6...H25 1.40 A, torsion 0).
+   TS: E = -598.208585697 Ha, opt=TS converged (Stationary point found), 1 imaginary frequency.
+   nu_imag = -940.1938 cm-1 ; reduced mass 1.4551 ; force constant 0.7579 ; IR intensity 128.86
+   dE#(erythro syn) = E(TS) - E(erythro minimum) = -598.208585697 + 598.229013613
+                   = +0.020427916 Ha = +12.82 kcal/mol   (pure electronic, no ZPE/thermal)
+
+1.4 Identity of the imaginary mode (sign-free shape, plus signed bond projections)
+   Composition (unweighted squared displacement, base = sum over all 33 atoms):
+     atom 25 (H) 0.9386 ; atom 7 (C) 0.0100 ; atom 2 (C) 0.0092 ; atom 3 (N) 0.0081 ; atom 6 (O) 0.0075
+     heavy-atom fraction sum = 0.0371 ; largest single atom = atom 25 (in the reaction centre)
+     projected pair magnitudes: (6,25) 1.0528 A, (7,25) 0.9984 A, (25,33) 0.9431 A, (14,25) 0.8891 A
+   Rotor test (D58): single-atom fraction 0.9386 > 0.90 BUT the bond projections are ~1.0 A, i.e. far
+     above 0.001 A => NOT a rotor; it is a real reaction-coordinate mode.
+   Signed projection scale = |d| in Angstrom along the bond unit vector (eigenvector normalised to
+     sum d^2 = 1.0061); the eigenvector sign is fixed by requiring the C7-H25 projection to be positive.
+       C7-H25 (breaking): +0.9984  -> H moves AWAY from C7 (bond lengthens)
+       O6-H25 (forming):  -1.0528  -> H moves TOWARD O6 (bond shortens)
+       C2-N3  (breaking): +0.1210  -> N3 moves away from C2
+       C2-C7  (forming):  -0.1234  -> C7 moves toward C2
+   All four signs agree with the declared bond_changes of this step (break [2,3],[7,15]; form [2,7],[6,15]).
+
+1.5 Alkene E/Z from the computed 3D structure (not from a cis/trans analogy)
+   At the converged TS (geoms/HI1_erythro_TS_syn_opt.xyz):
+       dih(C1,C2,C7,C9ipso) = -3.5 deg  (C1 and Ph on the same side)
+       dih(H18,C2,C7,C8)    = -10.8 deg (H18 and C8 on the same side)
+   CIP priorities on the forming alkene: on C2 CH3 > H ; on C7 Ph > CH3 => the two higher-priority
+   groups (C1 and Ph) are CIS => Z.
+   Independent confirmation on the isolated, optimised product: the 3D structure of job 1325 is
+   re-perceived as C/C=C(/C)c1ccccc1 (Z), E = -388.041751586 Ha, 60 modes, 0 imaginary.
+
+==================================================================================================
+2. THREO SUBSTRATE (case B) -> E-2-phenyl-2-butene
+
+2.1 CIP from the actual 3D geometry: C2 = R, C7 = S -> (2R,7S)  (same code, same strip-map rule)
+    inv on the QM minimum: dih(C1,C2,C7,C8) = 155.40, dih(N3,C2,C7,C9) = 58.26 -> inv = -97.14 deg
+    HONEST NOTE: the ideal value for the opposite-side (threo) case is +-120 deg; the measured -97 deg
+    is 23 deg away, because about the C2-C7 axis the substituent projections of a distorted tetrahedron
+    are not exactly 3-fold (angles C2-C7-Ph 117.0, C2-C7-C8 113.3 deg in the build geometry). The
+    classification does not rest on this number: it rests on the two CIP labels (2R,7S) and on the
+    Fischer construction, which agree. Reported as measured, not rounded to 120.
+    CIP SMILES: C[C@@H]([N+](C)(C)[O-])[C@@H](C)c1ccccc1
+
+2.2 Minimum: job 1225, E = -598.231556225 Ha, 93 modes, imaginary = [], opt converged (L8183-8184);
+    lowest real mode 37.5821 cm-1 (L10165).
+
+2.3 syn TS (run ts_0039; ts_opt 1289, freq 1320)
+    guess geoms/HI1_threo_TS_syn_guess.xyz (same construction: C2-N3 1.889, C7-H25 1.274, O6-H25 1.500,
+    N3...H25 2.19, C7...O6 2.534, dih(H25,C7,C2,N3) = -14.4 deg)
+    TS: E = -598.208059052 Ha, Stationary point found, 1 imaginary frequency.
+    nu_imag = -1069.2742 cm-1 ; reduced mass 1.0? ;  see frequency.log L1223 for the full block
+    dE#(threo syn) = E(TS) - E(threo minimum) = -598.208059052 + 598.231556225
+                  = +0.023497173 Ha = +14.74 kcal/mol  (pure electronic)
+    NO cross-diastereomer subtraction is used anywhere: the two minima differ by 1.60 kcal/mol and that
+    number is bookkeeping only, never a barrier and never a face selectivity.
+
+2.4 Imaginary mode identity (threo)
+    Composition: atom 25 (H) 0.9594 ; atom 7 0.0093 ; atom 2 0.0069 ; atom 3 0.0049 ; atom 6 0.0041
+    heavy-atom fraction 0.0269 ; top pair magnitudes (6,25) 1.0317 A, (7,25) 1.0034 A
+    Signed projections (same scale and sign convention as 1.4):
+       C7-H25 +1.0034 | O6-H25 -1.0317 | C2-N3 +0.0942 | C2-C7 -0.1056
+    All agree with the declared bond_changes. (The raw eigenvector of this mode is printed with the
+    opposite overall sign; the sign is arbitrary and was fixed the same way as in 1.4.)
+
+2.5 Alkene E/Z from the computed 3D structure
+    At the converged TS (geoms/HI1_threo_TS_syn_opt.xyz):
+       dih(C1,C2,C7,C8) = -5.5 deg (C1 and C8 on the same side), dih(C1,C2,C7,C9ipso) = +138.5 deg
+    The C1-Ph value is still oblique because at the TS the double bond is only partly formed; the
+    decisive pair is C1 (CH3) cis to C8 (CH3), i.e. Ph trans to C1. CIP: C1 and Ph are the higher
+    priority groups => E.
+    Independent confirmation on the isolated optimised product: the 3D structure of job 1326 is
+    re-perceived as C/C=C(\\C)c1ccccc1 (E), E = -388.042170053 Ha, 60 modes, 0 imaginary.
+    (E-2-phenyl-2-butene is 0.26 kcal/mol below Z at this level: -388.042170053 vs -388.041751586.)
+
+==================================================================================================
+3. REGIOISOMERIC ELIMINATION CHANNEL (independent edge)
+   Alternative beta-H: the three C1 methyl hydrogens (atoms 15-17) are beta to the N-oxide; abstracting
+   one of them while C2-N3 breaks forms C1=C2 -> 3-phenylbut-1-ene (a terminal alkene) + Me2NOH.
+   Product stereochemistry: C7 remains a stereocentre; the CIP priorities at C7 swap (reactant
+   C2 > Ph > C8 ; product Ph > C2 > C8), so the (7R) centre of the erythro substrate becomes (7S) in
+   the product: C=C[C@H](C)c1ccccc1.CN(C)O (RDKit on that SMILES gives 7S).
+   guess geoms/HI1_erythro_TS_regio_guess.xyz: deterministic rigid-fragment construction
+   (dih(H16,C1,C2,N3) = 0.0, C2-N3 2.000, C1-C2 1.400, C1-H16 1.300, O6...H16 1.709, N3...H16 1.789;
+   the MMFF route was abandoned because the BFGS minimiser diverged for this highly stretched geometry).
+   run ts_0040, ts_opt job 1292: still optimising at step 58 of a maximum of 169 (07:11), no stationary
+   point yet => barrier null.
+   No claim is made about relative preference; the non-preference statement must be the computed barrier
+   difference, which does not exist yet.
+
+==================================================================================================
+4. Reaction energies of the two main channels (bookkeeping; separated products, no BSSE, no complexation)
+   equilibrium energies of the isolated product components:
+     Z-2-phenyl-2-butene + Me2NOH : -388.041751586 + (-210.188833713) = -598.230585299 Ha
+     E-2-phenyl-2-butene + Me2NOH : -388.042170053 + (-210.188833713) = -598.231003766 Ha
+   erythro channel: TS - products = +0.021999602 Ha = +13.80 kcal/mol ; products - reactant = -0.99 kcal/mol
+   threo channel : TS - products = +0.022944714 Ha = +14.40 kcal/mol ; products - reactant = +0.35 kcal/mol
+   These are NOT barriers of the reverse step in any bimolecular sense; they are quoted only to show
+   that both elimination steps are endergonic-to-thermoneutral at this level.
+
+==================================================================================================
+5. GAPS
+   G1 Endpoint verification (both channels): the platform cannot pass IRC MaxPoints/StepSize, so the IRC
+      is a short interval (10 points per direction from the same Hessian; ts_0038 irc.log shows the
+      forward path from -598.208585697 down to -598.212522 and the other direction from -598.208901
+      down to -598.219317). The endpoint Opt+Freq jobs are still running (reactant_opt 1328 for
+      ts_0038). Until they finish, the "interval + both endpoints 0 imaginary" requirement is NOT met
+      and both syn edges stay at candidate evidence level.
+   G2 Regioisomeric channel: no converged TS (ts_0040 at step 58/169), barrier null.
+   G3 No product-complex minimum (alkene + Me2NOH bound together) was optimised; only the two separated
+      components were. The mechanism_graph product nodes therefore carry the dot-joined complex SMILES
+      but their evidence is per component species, as allowed by the task text.
+   G4 Absolute barrier uncertainty is not established statistically; the only declared convention is
+      "pure electronic energy at B3LYP-D3(BJ)/def2-SVP, gas phase, no ZPE/thermal".
+
+==================================================================================================
+6. DELIVERY WORDING FOR THE NULL BARRIER (answers the reviewer question about G2)
+   e3 erythro regio (HI1_e3_erythro_regio) is delivered with barrier_kcal_mol = null, and the null
+   means exactly one thing: the TS was NOT LOCATED IN THIS ROUND. It does NOT mean the barrier is
+   unobtainable, and it is not a statement that this channel is disfavoured or preferred.
+   Basis for the null (checked at 07:42, 2026-10-18):
+     - ts_0040 / ts_opt job 1292 (run under ts_prepare, declaration_0002) is still running; its
+       refine.log has reached step 98 out of a maximum of 169 and shows no optimised stationary point
+       (no converged geometry with its own frequency job, hence no imaginary frequency count and no
+       TS energy to subtract).
+     - Therefore no TS electronic energy exists to subtract from the substrate minimum, and no number
+       is invented. The edge keeps the intended bond changes (C2-N3 broken, C1=C2 formed) and the
+       product node HI1_ERYTHRO_P_REGIO so the channel is visible in the graph.
+   What would close it next round (order fixed):
+     1) ts_resume on ts_0040 to declare reaction_center (the migrating H plus the two heavy atoms it
+        leaves and reaches) - the field is currently empty, so a future imaginary mode could not be
+        classified as a migration mode versus a rotor;
+     2) frequency on the converged TS: require exactly 1 imaginary frequency;
+     3) short IRC interval (10 points per direction) plus Opt+Freq on both outer frames: require 0
+        imaginary frequencies at both ends and an identity check by RMSD against the candidate minima;
+     4) only then barrier = E(TS) - E(substrate minimum of this same erythro substrate), in Ha with
+        k = 627.509474; never subtracted against the threo substrate.
+   Until 1)-4) are done this edge stays null in the graph; the null is therefore a declared, dated
+   status, not a missing value.
+
+------------------------------------------------------------------------------------------------
+7. STATUS SNAPSHOT 07:42, 2026-10-18 (job-ledger readings, not predictions)
+   - job 1292 (ts_0040 ts_opt, regio channel): running, step 98/169. This supersedes the step
+     58/169 printed in GAP G2 above, which was read at 07:11.
+   - job 1328 (ts_0038 reactant_opt, erythro reactant end of the short IRC): running, step 20/168.
+   - job 1329 (ts_0039 reactant_opt, threo reactant end of the short IRC): running, step 14/168.
+   - Consequently e1 (12.82) and e2 (14.74) remain at the level TS LOCATED + one imaginary frequency
+     + short-IRC direction interval, with both outer Opt+Freq still pending: they are NOT yet verified
+     in the (c) sense. Current arithmetic check of e2: TS -598.208059052 minus substrate -598.231556225
+     = +0.023497173 Ha = +14.736 kcal/mol, rounded to 14.74; the earlier 14.75 in this file and in
+     CURRENT_STATE.md was a rounding slip of the same difference and has been corrected to 14.74.
+
+==================================================================================================
+8. CORRECTION (2026-10-18 07:57): e1 BARRIER RE-REFERENCED FROM 12.82 TO 16.62 kcal/mol
+   What was found. The reactant-side arm of the short IRC of ts_0038 was relaxed by the durable flow
+   (job 1328, declaration_0002/reactant_opt, done 07:47:24) and the resulting geometry was then
+   frequency-checked (declaration_0002/reactant_frequency, job done 07:56:02, Normal termination).
+   That minimum lies 3.81 kcal/mol BELOW the minimum previously used as the denominator of e1.
+     new reactant minimum: E = -598.235079186 Ha
+       .../declaration_0002/reactant_frequency/reactant_frequency.log L670 (SCF Done), 93 harmonic
+       modes (31 'Frequencies --' lines), 0 imaginary (Low frequencies L1208 = -6.7330 -3.5826 -2.0507
+       -0.0007 -0.0004 0.0008 are the usual translational/rotational projection residuals; lowest real
+       mode 46.51), Normal termination L3797; sha256 dcd084a74d443ba6c26bd0ebd4d88c6e11743743f2d6e2d1f52ed4baed44f7f5
+       .../declaration_0002/reactant_opt/reactant_opt.log L19086/L19730 (same E), Stationary point
+       found L20028; sha256 1f33bb23eccbb80319bb572e1104196347dc76ab3a8739d7d89c22c8730e0a50
+       endpoint_source.json: IRC outer frame from job 1321, irc_log sha 5a177f250541aa43...
+     old denominator (job 1224, HI1_erythro_R_optfreq.log L7778/L9502): E = -598.229013613 Ha,
+       93 real modes, 0 imaginary.
+   Same species, different conformer (checked, not assumed).
+     - 33 atoms, same element sequence C12H19N1O1; bond lengths agree (C2-N3 1.5463 vs 1.5654 A,
+       N3-O6 1.3520 vs 1.3504 A, C1-C2 1.5294 vs 1.5226 A).
+     - Signed volumes at the two stereocentres keep the same sign (C2 -2.48 vs -2.38; C7 +2.54 vs
+       +2.38 with the same three heavy neighbours), so the (2R,7R) erythro configuration is unchanged.
+     - Heavy-atom Kabsch RMSD 1.49 A between the two minima; dih(C1,C2,N3,O6) = 166.3 vs -163.5 deg.
+     - Neither conformer is preorganised for elimination: d(O6...H of the C1 methyl) = 4.0-4.6 A in both.
+   Why the number changes. A barrier must be referenced to the lowest verified minimum of the same
+   substrate, and the IRC-connected minimum IS that minimum here. Therefore
+     e1 = -598.208585697 - (-598.235079186) = +0.026493489 Ha = +16.62 kcal/mol  (was 12.82).
+   The 12.82 value is retained in mechanism_graph.json as barrier_conformer_specific_kcal_mol, with a
+   note saying it refers to job 1224, the conformer the TS guess was built from; it is 3.81 kcal/mol
+   higher in energy. Nothing else changed: the TS energy, its single imaginary frequency (-940.1938),
+   the bond changes and the product assignment are untouched.
+   Consequences for the selectivity statement.
+     - mechanism_graph 'favored' flags are now null on BOTH syn edges (e1 and e2). The old flag
+       (e1 favored) was an implicit erythro-vs-threo subtraction, which this batch forbids: the two
+       denominators are two different diastereomeric substrates.
+     - e2 (threo, 14.74) is still referenced to job 1225 (-598.231556225). Its own reactant-side
+       IRC endpoint is still being optimised (job 1329, step 28/168 at 07:52). If that endpoint also
+       relaxes below job 1225, e2 must be re-referenced by the SAME rule; until then 14.74 stays as a
+       provisional, self-consistent number and no comparison between e1 and e2 is made.
+     - Therefore this report still makes no statement about which diastereomer reacts faster.
+
+9. WHAT IS NOW VERIFIED FOR e1 (status change)
+   (a) direction: 1 imaginary frequency -940.1938, mode projection still to be printed;
+   (b) composition: unchanged (C18-style share not applicable here; reaction-centre shares per e1 are
+       in section 2);
+   (c) endpoints: reactant end VERIFIED (0 imaginary, identity above); product end still pending
+       (product_opt / product_frequency not yet created by the durable run at 07:57).
+   So e1 moves from 'TS located, both endpoints pending' to 'TS located, reactant endpoint verified,
+   product endpoint pending'. It is still not a fully verified edge.
+
+==================================================================================================
+10. SAME CORRECTION APPLIED TO e2 (2026-10-18 08:01): 14.74 -> 15.85 kcal/mol
+   The reactant-side arm of the short IRC of ts_0039 was relaxed by the durable flow (job 1329,
+   declaration_0002/reactant_opt, done 07:52:31) and frequency-checked (declaration_0002/
+   reactant_frequency, Normal termination 08:00:37). That minimum is 1.11 kcal/mol BELOW the minimum
+   previously used as the e2 denominator:
+     new threo reactant minimum: E = -598.233321696 Ha
+       .../ts_0039/jobs/declaration_0002/reactant_frequency/reactant_frequency.log L670 (SCF Done),
+       93 harmonic modes (31 'Frequencies --' lines), 0 imaginary (Low frequencies L1212 = -0.0005
+       0.0000 0.0006 1.5848 2.9057 5.0591; lowest real mode 44.22), Normal termination L3799
+       08:00:37; sha256 a143a1dbeb7e8c2cbb3244a6ed5c8ff59e3d1698a211e65d9ada742f246c159a
+       .../ts_0039/jobs/declaration_0002/reactant_opt/reactant_opt.log L19795/L20469 (same E),
+       Stationary point found L20773; sha256 6cc2d7401ad1fa11dd171aa5006c97e7d68e70c1d9967315bd64d57151942021
+       endpoint_source.json: IRC outer frame from job 1323, irc_log sha f415694dabc777e7...
+     old denominator (job 1225, HI1_threo_R_optfreq.log L9616): E = -598.231556225 Ha.
+   Same species, different conformer (checked): 33 atoms, identical element sequence and bond
+   lengths (C2-N3 1.5486 vs 1.5546 A, N3-O6 1.3533 vs 1.3544 A); the signed volumes at C2 keep their
+   sign (-2.389 vs -2.371) and so do those at C7 (-2.186 vs -2.377), i.e. the same (2R,7R) substrate,
+   with a heavy-atom Kabsch RMSD of 2.92 A between the two minima.
+   Therefore, by the same rule as e1:
+     e2 = -598.208059052 - (-598.233321696) = +0.025262644 Ha = +15.85 kcal/mol  (was 14.74).
+   The 14.74 value stays in mechanism_graph.json as barrier_conformer_specific_kcal_mol (reference
+   job 1225, 1.11 kcal/mol above the IRC-connected minimum).
+   Standing statement on preference: none. Both syn edges now carry favored = null, and the two
+   numbers 16.62 / 15.85 are barriers relative to two DIFFERENT diastereomeric substrates. They must
+   not be subtracted, so this report still makes no statement about which diastereomer reacts faster,
+   and the change from (12.82, 14.74) to (16.62, 15.85) does not by itself reverse or establish any
+   preference: the two reference points moved by different amounts (-3.81 and -1.11 kcal/mol).
+   Status of the two syn edges after this correction: TS located, exactly 1 imaginary frequency,
+   short-IRC direction interval, reactant endpoint VERIFIED (0 imaginary + identity); product
+   endpoint still pending (product_opt running at 08:01). They are not (c)-verified yet.
+   e3 (regio channel) is unchanged: barrier null, ts_0040 at step 119/169 at 07:58, still running.
