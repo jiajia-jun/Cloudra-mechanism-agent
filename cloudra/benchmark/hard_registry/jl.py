@@ -32,7 +32,7 @@ TASKS = {
                     "smiles": ["C#[N+][O-].C1=CC2CCC1C2"],
                     "properties": {
                         "energy_hartree": -441.019350272,
-                        "evidence_log": "gold_compute/queue_20261018/evidence/ts_runs/ts_0036/jobs/declaration_0009/reactant_frequency/reactant_frequency.log",
+                        "evidence_log": "gold_compute/evidence/HL1/endo/reactant_frequency/reactant_frequency.log",
                         "reference_note": "this channel's own stable contact "
                         "minimum; not a separated-monomer "
                         "reference",
@@ -44,7 +44,7 @@ TASKS = {
                     "smiles": ["C#[N+][O-].C1=CC2CCC1C2"],
                     "properties": {
                         "energy_hartree": -441.020095712,
-                        "evidence_log": "gold_compute/queue_20261018/evidence/ts_runs/ts_0037/jobs/declaration_0001/reactant_frequency/reactant_frequency.log",
+                        "evidence_log": "gold_compute/evidence/HL1/exo/reactant_frequency/reactant_frequency.log",
                         "reference_note": "this channel's own stable contact "
                         "minimum; not a separated-monomer "
                         "reference",
@@ -56,7 +56,7 @@ TASKS = {
                     "smiles": [],
                     "properties": {
                         "energy_hartree": -441.002183678,
-                        "evidence_log": "gold_compute/queue_20261018/evidence/ts_runs/ts_0036/jobs/declaration_0006/frequency/frequency.log",
+                        "evidence_log": "gold_compute/evidence/HL1/endo/frequency/frequency.log",
                     },
                 },
                 {
@@ -65,7 +65,7 @@ TASKS = {
                     "smiles": [],
                     "properties": {
                         "energy_hartree": -440.9943166,
-                        "evidence_log": "gold_compute/queue_20261018/evidence/ts_runs/ts_0037/jobs/declaration_0001/frequency/frequency.log",
+                        "evidence_log": "gold_compute/evidence/HL1/exo/frequency/frequency.log",
                     },
                 },
                 {
@@ -74,7 +74,7 @@ TASKS = {
                     "smiles": ["C1=NO[C@H]2[C@@H]3CC[C@@H](C3)[C@@H]12"],
                     "properties": {
                         "energy_hartree": -441.09827373,
-                        "evidence_log": "gold_compute/queue_20261018/evidence/results/HL1/jobs/HL1_armend_relax_ts0036.log",
+                        "evidence_log": "gold_compute/evidence/HL1/endo/product_optfreq/product_optfreq.log",
                     },
                 },
                 {
@@ -83,7 +83,7 @@ TASKS = {
                     "smiles": ["C1=NO[C@@H]2[C@@H]3CC[C@@H](C3)[C@H]12"],
                     "properties": {
                         "energy_hartree": -441.095689377,
-                        "evidence_log": "gold_compute/queue_20261018/evidence/ts_runs/ts_0037/jobs/declaration_0001/product_frequency/product_frequency.log",
+                        "evidence_log": "gold_compute/evidence/HL1/exo/product_frequency/product_frequency.log",
                     },
                 },
             ],

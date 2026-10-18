@@ -2,7 +2,7 @@
 
 > **一句话定位**：Cloudra 是一个面向化学反应机理自主探索的多 Agent 系统。
 > 本文件是仓库的**人话版全景地图与工程交规**，旨在让新开发者和 AI 助手能瞬间看懂架构、少踩深坑。
-> 架构设计背景请参考 [README.md](file:///Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/README.md)；本文档是**地图而非实现手册**，各模块细节以代码为准。
+> 架构设计背景请参考 [README.md](README.md)；本文档是**地图而非实现手册**，各模块细节以代码为准。
 
 ---
 
@@ -109,17 +109,14 @@ cloudra/
 ### 1. `runtime_v2/`：Agent 智能内核
 - **推理循环**：基于事件驱动（Event-driven）。模型做出决策 → 通过 `CommandBus` 派发命令（四步：决定 → 先存盘后生效 → 执行副作用） → `apply_event` 更新状态。
 - **角色体系**：所有 Agent 身份在 `runtime_v2/roles.py` 的 `RoleProfile` 中单点定义，废弃了历史的继承类体系。
-- **督导机制 (`supervision.py`)**：Supervisor（导师）Agent 运行时，它唯一的任务来源是读取 DAG 图存储中的待办，不自行瞎猜。
+- **督导机制 (`supervision.py`)**：Supervisor 是普通 runtime_v2 Agent，从持久信箱接收图更新和研究请求，以只读工具检查当前 DAG；它不直接改图或解锁阶段，仍由提交的科学证据决定交付状态。
 - **沙箱隔离 (`js_runtime.py`)**：通过 QuickJS-WASM 运行轻量代码逻辑。如需终止，只杀 JS 进程，绝不触碰底层的量子化学计算！
-- **Policy 过滤链**：内置 8 个 PolicyStage（例如权限拦截、物理思维引导 `physical-thinking`、过度调用拦截、上下文无损折叠压缩等）。
+- **Policy 过滤链**：权限、无人值守、Benchmark 方法限制、DAG、研究目标、定时调度和行为引导按 `runtime_v2/policies/__init__.py` 的顺序执行；上下文压缩由运行时单独管理。方法白名单仅约束明确标识的 Benchmark 项目。
 
 ### 2. `dag/`：DAG 引导与证据交付（核心业务）
 - **核心思想**：反应机理是一个有向无环图。模型“说自己完成了”是无效的，必须把**经受住频率分析和路径检验的计算结果**绑定到图的节点和边上。
 - **数据流向**：`models.py`（图数据结构） → `store.py`（持久存储，权威事实源） → `engine.py`（事务变更引擎，删边/删点必须给合理理由） → `controller.py`（门面控制器）。
-- **驻点校验三态**：
-  1. `未计算`；
-  2. `已完成计算但未确证`；
-  3. `已验证为极小值点`（`verified=True`，必须有 0 虚频分析支撑）。**“没做频率分析”绝不等同于“验证成功”！**
+- **计算完成与科学确证分开**：原生正常终止、优化收敛、频率和路径证据分别核对。极小值需要 0 虚频；一阶鞍点需要且仅需要 1 个虚频，并证明其对应目标反应。阶段已绑定、Supervisor 已审阅，都不能替代缺失的科学证据。**“没做频率分析”绝不等同于“验证成功”！**
 
 ### 3. `tools/`：化学与系统工具箱
 - **注册单源**：所有工具统一在 `registry.py` 注册，并根据角色白名单（`role_allowlist`）控制暴露。
@@ -152,9 +149,10 @@ cloudra/
 ## 📁 顶层与辅助目录导航
 
 - `kg_data/`：知识图谱 CSV 数据（`cloudra knowledge import` 的输入）。
-- `ideapool/reaction_candidates/`：存量 benchmark 题源 Markdown；新候选见 `gold_compute/README.md`。
-- `vector_store/`：知识卡片 BGE-M3 向量数据（微服务运行在外部 `.venv-trans`）。
-- `gold_compute/`：Gold 基准真值战役目录，主线是边选反应边填自算 Gold 数据；归档交接见 `gold_compute/archive/`。
+- `ideapool/tasks/{easy,normal,hard,impossible}/`：当前正式 Benchmark 入口，共 50 题（20/10/10/10）；运行与方法配置见 [Benchmark 说明](cloudra/benchmark/README.md)。
+- `ideapool/reaction_candidates/`：存量 benchmark 题源 Markdown；与登记表一起由生成器生成正式 JSON。新候选见 `gold_compute/README.md`。
+- `知识卡片/`：知识源文本；当前 AgentHub 知识检索以图谱关键词命中来源，再读取对应完整源文，不走向量兜底。`vector_store/` 是历史离线资产，不代表当前检索入口。
+- `gold_compute/`：Gold 参考与策展目录；当前题库及科学限定见 `queue_20261018/REFERENCE_STATUS.md`。`evidence/` 在 Git 中保留索引、清单和复现说明；原始输入、日志、几何与 Hessian 放在 Google Drive，下载及恢复步骤见 [交付说明](gold_compute/evidence/DELIVERY.md)。归档交接见 `gold_compute/archive/`。
 - `paper/`：保存研究论文正文；`paper/literature/` 收拢文献原件与下载缓存；阶段性综述在 `paper/archive/`。
 - `scripts/`：脚本目录（详见 `scripts/README.md` 索引）；申报文档编辑脚本在 `scripts/application_docs/`。
 - `docs/`：项目文档与技术设计 Spec；阶段性交付文档按 `docs/README.md` 归档到 `docs/archive/`；原图资源位于 `docs/assets/`。
@@ -166,30 +164,26 @@ cloudra/
 
 在 DAG 编排模式下，Agent 需要提交一个反应机理图。对于一条反应步骤（即连接反应物和产物的过渡态边），如何才算通过审查？
 
-必须严格按阶段推进并绑定证据：
+按当前交付契约推进并绑定证据。默认机理草稿要求 `ts_opt`、独立的 `frequency` 和 `short_irc`；`ts_guess` 只作建议。热力学或其它阶段是否必需，以该任务声明的契约为准，不能把一次工具成功当成整步完成：
 
 ```mermaid
 flowchart LR
-    A["ts_guess (初猜)"] --> B["ts_opt (鞍点优化)"]
-    B --> C["short_irc (方向证明)"]
-    C --> D["thermochemistry (热力学分析)"]
-    
-    style A fill:#f9f0ff,stroke:#d3adf7
-    style B fill:#e6f7ff,stroke:#91d5ff
-    style C fill:#fff7e6,stroke:#ffd591
-    style D fill:#f6ffed,stroke:#b7eb8f
+    A["ts_guess (建议性初猜)"] -.-> B["ts_opt (鞍点优化)"]
+    B --> F["frequency (频率确证)"]
+    F --> C["short_irc (方向证明)"]
+    C -.-> D["thermochemistry (按契约补充)"]
 ```
 
 1. **`ts_guess`（过渡态初猜）**：建议性阶段，生成合理的过渡态结构猜测。
-2. **`ts_opt`（鞍点优化）**：必须正常收敛，且经频率分析确证为**一阶鞍点（有且仅有 1 个虚频）**。
+2. **`ts_opt` / `frequency`（鞍点优化与频率确证）**：优化必须正常收敛，频率分析必须确证为**一阶鞍点（有且仅有 1 个虚频）**；初猜或扫描峰不能充抵。
 3. **`short_irc`（路径方向区间证明）**：
    - 证明虚频振动的两端确实一边倒向反应物、一边倒向产物。
    - **无需整条 IRC 必须完全收敛到底**。同一个 TS 的双向 IRC 真实末帧分别经收敛优化到正确的零虚频极小值，即接受方向证明；必须保留末帧、优化、频率之间的真实计算关联。几何区间只作提示，异常或无法判断时明确警告并建议检查轨迹，不否决已成立的端点优化证据。
-4. **`thermochemistry`（热力学校正）**：提取自由能与焓变，计算活化能垒 $\Delta G^\ddagger$。
+4. **`thermochemistry`（热力学校正）**：需要自由能或焓时，按契约提取相应校正。当前 50 题的数值能垒按题目定义使用纯电子能差，参照对应物种的稳定极小值；同物种已声明构象连接可共用稳定参照，构象转换步骤仍用自身起点，不混用不同立体底物或独立通道接触体。能量分母与 IRC 实际连接分别记录。
 
 > [!NOTE]
 > **关于不可达反应（Impossible 题目）**：
-> 如果某个反应通路在物理化学上不可行，Agent 应当在机理图上如实提交该步骤，并将其标记为 `accessible=false`。在 Benchmark 中，正确证明并标记“不可达”同样能拿满分。**切勿企图用不交付或拒答来逃避计算！**
+> 如果某个反应通路在物理化学上不可行，Agent 应当在最终机理图中如实将相应步骤或目标物种标记为 `accessible=false` 并保留依据。当前 IMP 按最终交付判定：正确否定得分；错误宣称正确、可达或交付可信数值失分；尝试后正确否定不扣分。不要求为不存在的目标补造 TS 或数值，单一负物种题也不虚构过程边。
 
 ---
 
@@ -207,11 +201,11 @@ $$\text{Composite Score} = 0.1 \times \text{图结构分 (Graph)} + 0.3 \times \
 
 | 评分项 | 权重 | 判定规则 | 人话解释 |
 | :--- | :---: | :--- | :--- |
-| **图结构相似度 (Graph)** | **10%** | 子图同构与覆盖率判定。交付图中多出的无关边不扣分，但关键边缺失或 `accessible` 状态颠倒会重罚。 | “你找没找到论文里认定的关键机理主干？” |
-| **物理自洽性 (Self-consistency)** | **30%** | **全有或全无（布尔值 1 或 0）**。所有驻点必须是 0 虚频，所有过渡态必须是 1 虚频且通过短 IRC 方向区间证明。 | “你算出来的每个分子结构在物理上站得住脚吗？有没有拿局部极大值冒充基态？” |
+| **图结构相似度 (Graph)** | **10%** | 子图同构与覆盖率判定。交付图中多出的无关边不扣分，但关键边缺失或 `accessible` 状态颠倒会重罚。 | “你找没找到当前 Gold 参考中的关键机理主干？” |
+| **物理自洽性 (Self-consistency)** | **30%** | **全有或全无（布尔值 1 或 0）**。声明可达的物种需要绑定零虚频极小值证据；带 TS 的可达步骤需要一虚频鞍点及真实 IRC 端点来源证明。显式不可达目标按负例交付，未绑定的试错文件不参与该层判断。 | “你算出来的每个分子结构在物理上站得住脚吗？有没有拿局部极大值冒充基态？” |
 | **能垒准确度 (Accuracy)** | **60%** | 从 ORCA/Gaussian 真实日志中提取活化能垒，与黄金标准（Gold）比对。按高斯容差打分。 | “算出来的能垒和标准答案差多少 kcal/mol？” |
 
-### 3. 两大致命惩罚规则（防作弊天网）
+### 3. 关键扣分规则
 
 - **金标准边自洽回捞 (Gold-edge Clawback)**：
   如果 Agent 声称找到了金标准（Gold）里的某条关键反应步骤，但在自洽性检查中发现该步骤**虚频不对或 IRC 跑偏**，系统不仅在自洽性层给 0 分，还会**将该步骤从图结构分中强行剔除、倒扣图分**！*（原则：关键金标准边上胡说八道，惩罚远重于额外探索边）*

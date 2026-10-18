@@ -1,7 +1,7 @@
 # Cloudra
 
 **Autonomous Agent System for Organic Small-Molecule Mechanism Computation**  
-*Geometric & Electronic Perception · DAG Delivery Contracts · Anarchist Peer-to-Peer Agent Architecture*
+*Geometric & Electronic Tools · Evidence-Based DAG Delivery · Event-Driven Agent Collaboration*
 
 [![CI](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/ci.yml)
 [![Python ≥ 3.11](https://img.shields.io/badge/python-%E2%89%A53.11-blue)](pyproject.toml)
@@ -9,7 +9,7 @@
 
 [中文文档](README_CN.md) · [Documentation Hub](docs/README.md) · [Core Novelty](docs/novelty.md) · [DAG Orchestration Spec](docs/DAG_ORCHESTRATION.md) · [TS Process SOP](docs/TS_PROCESS_SOP.md) · [Plugin Guide](docs/PLUGINS.md)
 
-> Cloudra is an autonomous research agent system for computational organic chemistry. It does not claim to replace human insight with absolute truth, nor does it aim for superficial benchmark numbers. Its purpose is to provide a rigorous, non-hallucinatory, and deterministically auditable foundation for long-horizon mechanistic elucidation.
+> Cloudra supports computational organic chemistry research through structured chemistry tools, durable agent execution, and an evidence-backed mechanism graph. Calculation completion, scientific acceptance, and benchmark scores are recorded separately. Human review remains part of interpreting a mechanistic result.
 
 ---
 
@@ -52,7 +52,7 @@ Type `/` directly in the chat composer to open the sleek, keyboard-navigable aut
 
 - `/schedule [on|off]`: Toggle autonomous schedule mode. When active, stopping without an active self-wake reminder is intercepted, protecting long unattended computational runs.
 - `/goal <description>`: Pin the primary research objective for the active agent, preserved even across aggressive context compactions.
-- `/yolo [on|off]`: Toggle automated safety approval (YOLO mode) to bypass manual confirmations on destructive actions and compute submissions.
+- `/yolo [on|off]`: Toggle automated policy review (YOLO mode). Permission and scientific evidence requirements still apply.
 - `/compact`: Trigger structured context compaction, archiving past trajectory turns and emitting handover summaries.
 - `/help`: Display slash command usage and syntax.
 
@@ -110,64 +110,78 @@ Codex requests use the dedicated `https://chatgpt.com/backend-api/codex/response
 
 ---
 
-## Core Novelty: DAG-Driven Reaction Mechanism Elucidation
+## Current Benchmark and Reference Evidence
 
-### The Pitfall: Why Conventional LLM Agents Fail at Reaction Mechanisms
+The formal bank contains **50 tasks: 20 easy, 10 normal, 10 hard and 10 impossible (IMP)**. Its versioned definitions are in `ideapool/tasks/{easy,normal,hard,impossible}/`; generated JSON and their registry sources are maintained together.
 
-Elucidating organic reaction mechanisms requires an exacting, interdependent computational pipeline: **Atom Mapping → Conformation Sampling → TS Guess Interpolation → Saddle-Point Optimization → Frequency & Solitary Imaginary Mode Verification → Bidirectional IRC Path Integration → Endpoint Geometry Optimization → Product Isomorphism Matching → Thermochemistry & Barrier Annotation**.
+- [Run the current 50-task benchmark](cloudra/benchmark/README.md): the Web Benchmark panel or the CLI with all four task directories and `--backend runtime_v2`. The default CLI is a no-op run of the easy tier, not a real 50-task evaluation.
+- [Download the curated evidence from Google Drive](https://drive.google.com/file/d/15YDa_ycWoLUANPsDdQ1rUOiNp_-wqOs5/view?usp=drivesdk) · [Version and checksum](gold_compute/evidence/DELIVERY.md) · [Reproduction instructions](gold_compute/evidence/REPRODUCE.md).
+- The repository holds task definitions, evidence indexes and instructions. Original calculation inputs/logs, geometries and Hessians are distributed through Drive. The release contains 886 curated evidence files and the formal 50-task snapshot; trial archives and runtime caches are excluded.
+- [Current reference status and limitations](gold_compute/queue_20261018/REFERENCE_STATUS.md): missing originals and manual acceptance exceptions are explicit. A loadable/scorable task bank is not a claim that all 50 tasks have complete independent native-evidence reproduction.
 
-Generic LLM agents invariably treat chemistry as "calling tools + writing summaries", leading to two severe vulnerabilities:
+The score remains `0.1 × graph + 0.3 × self-consistency + 0.6 × accuracy`. Reaction barriers use the agreed stable reactant/intermediate energy reference; actual IRC connectivity is documented separately. For IMP targets, an attempted calculation followed by a correct final rejection is not penalized; a final false claim of accessibility or a trusted numerical result is penalized.
 
-1. **Microscopic Spatial Blindness & Coordinate Hallucination**: Language models cannot directly "see" 3D Euclidean space. Without hard physical constraints, agents make up atomic coordinates, guess collision orientations, and misremember numerical frequencies and energies across drifting conversation turns.
-2. **"Completion by Assertion" vs. "Completion by Evidence"**: Whether a mechanism is truly established is conventionally decided by the agent itself in a closing paragraph. Smooth scientific prose regularly disguises broken IRC paths, mismatched endpoints, or spurious imaginary frequencies, with no durable evidence tying claims to verifiable quantum chemistry outputs.
+---
 
-### The Cloudra Solution: Perception Layer + Delivery DAG Contracts
+## Evidence-Based Reaction Mechanism Research
+
+### From a Proposed Mechanism to Computational Evidence
+
+A mechanistic study can involve **atom mapping → conformational sampling → evidence-backed TS seed preparation → saddle-point optimization → frequency and imaginary-mode inspection → bidirectional IRC → endpoint optimization and identity checks → energy or thermochemical analysis**, as required by the study. A generated seed or a completed tool call does not establish a transition state.
+
+Two recurring failure modes motivate explicit evidence handling:
+
+1. **Unverified structures and numbers**: plausible coordinates, frequencies or energies may be reported without an identifiable computational source.
+2. **Unsupported completion claims**: a summary can omit a failed IRC, an incorrect endpoint or an unverified stationary point. Claims need durable links to the native outputs that support them.
+
+### Chemistry Tools and Delivery DAG Contracts
 
 Cloudra addresses these challenges through two interlocking pillars:
 
 ```
                     ┌─────────────────────────────────────────┐
-                    │       Coordinator / Peer Sub-Agents     │
+                    │       Coordinator / Specialist Agents   │
                     └────────────────────┬────────────────────┘
                                          │  Propose Mechanism / Bind Evidence
                                          ▼
 ┌─────────────────────────┐      ┌─────────────────────────┐      ┌─────────────────────────┐
 │  Perception Layer       │ ───► │  Delivery Evidence DAG  │ ◄─── │  Scientific Supervisor  │
-│  · No hand-written xyz  │      │  · Immutable Artifacts  │      │  · Review Call Inbox    │
-│  · Reaction Mapping     │      │  · Ordered Stage Locks  │      │  · Gate Unlocking       │
-│  · CREST / xTB Ensemble │      │  · Deterministic Audit  │      │  · Non-modifying Audit  │
+│  · Geometry provenance  │      │  · Immutable Artifacts  │      │  · Durable Review Inbox │
+│  · Reaction Mapping     │      │  · Ordered Stage Locks  │      │  · Claim Adjudication   │
+│  · CREST / xTB Ensemble │      │  · Deterministic Audit  │      │  · Read-only Graph Audit│
 │  · Mayer / IBO Analysis │      └─────────────────────────┘      └─────────────────────────┘
 └─────────────────────────┘
 ```
 
 #### 1. Geometric & Electronic Perception Layer
-Agents never hand-write Cartesian coordinates or transcribe floating-point energies from memory; they perceive molecules strictly through structured tools:
-- **Zero Hand-Written Coordinates (`coord_guard`)**: A physical safety guard intercepts hand-crafted `.gjf` or `.xyz` coordinate blocks. All geometries must originate from deterministic format conversion, SMILES 3D builders, or QM relaxation.
+Structured tools prepare and inspect geometries, while native calculation records provide energies and frequencies:
+- **Geometry provenance (`coord_guard`)**: the coordinate guard checks hand-crafted coordinate writes; format conversion, structure builders and QM relaxation provide traceable geometry sources.
 - **Reaction Atom Mapping**: Tracks atom conservation, breaking/forming bonds, and reacting center pairs across 3D conformations.
 - **Orientation & Conformer Sampling**: Employs CREST and xTB dynamic relaxation within constrained distance envelopes to determine bimolecular approach pathways rather than guessing orientations.
 - **Electronic Structure Analysis**: Provides atomic charges, Mayer bond orders (capturing partially formed transition-state bonds), IBO Lewis representations, and open-shell spin contamination checks ($\langle S^2 \rangle$).
-- **Full Reaction Pathway Tooling**: IDPP saddle-point interpolation, flexible potential energy surface scans, rigorous bidirectional IRC trajectory validation, and log parsers that extract structured energies, frequencies, and convergence metrics.
+- **Reaction Pathway Tooling**: TS preparation and refinement, relaxed potential-energy scans, IRC endpoint provenance, and native-output parsers for energies, frequencies and convergence. The appropriate seed and search route depend on the chemistry; endpoint interpolation is not a required workflow step.
 
 #### 2. Delivery-Only Evidence DAG Harness
 Mechanistic completion is determined strictly by the state of an immutable, context-independent **Delivery DAG**:
 - **Graph Elements as Evidence Debt**: Nodes represent the appearance of intermediate species along a reaction coordinate (acyclic structure is preserved by assigning entry and return states of catalysts to distinct nodes sharing canonical species metadata). Edges represent elementary reaction steps. Each element carries a stage contract.
-- **Ordered Stage Locks**: Each element only owes the stages declared on its contract; later stages cannot be bound until preceding *required* stages on that same element are verified. Default mechanism drafts require a first-order saddle (`ts_opt` + `frequency` with exactly one imaginary frequency); `ts_guess` is advisory. IRC, endpoint minima, direction, identity, and thermochemistry are optional extras when that step's chemistry needs a path proof — they are not the live completion bar.
+- **Stage Evidence Dependencies**: each element owes the stages in its active contract. Default mechanism drafts and newly added steps require `ts_opt` + `frequency` + `short_irc`; `ts_guess` is advisory and never substitutes for a verified saddle. Direction proof accepts native optimizations from both real IRC outer frames of the same TS to the correct zero-imaginary-frequency minima; the IRC itself need not converge to those minima. Geometry-interval checks are advisory when this endpoint provenance is established. Thermochemistry and other stages follow the declared contract.
 - **Deterministic Coverage Audit**: Graph elements accept only typed references to immutable calculation artifacts and job records. Study delivery is evaluated by deterministic algorithms; any unfulfilled or rejected stage remains an open gap blocking completion.
 
-#### 3. End-to-End Experimental Demonstration
-Cloudra has fully and autonomously executed an **end-to-end Diels-Alder cycloaddition mechanism study** under guided supervision: from precursor mapping to transition-state search, solitary imaginary frequency validation, bidirectional IRC integration, endpoint optimization, and thermochemical barrier derivation. The entire trajectory is fully preserved and auditable in the database.
+#### 3. Validation and Scientific Scope
+Regression tests exercise runtime recovery, evidence binding, native-output parsing and benchmark scoring. Curated native-log replay checks selected reference values. These checks are distinct from a new real Agent run or a complete scientific validation of every benchmark task; the evidence index records the remaining gaps.
 
 ---
 
-## Architecture: Anarchist Peer-to-Peer Topology & Event-Sourced Kernel
+## Architecture: Agent Collaboration and an Event-Sourced Kernel
 
-### Anarchist Design Philosophy
+### Roles and Responsibilities
 
-Traditional multi-agent frameworks tend to replicate bureaucratic corporate hierarchies, enforcing rigid master-slave command chains that create cognitive bottlenecks and information loss.
+All roles use the same `runtime_v2` execution kernel, with explicit permissions and responsibilities:
 
-Cloudra is built on an **Anarchist Peer-to-Peer Philosophy**:
-- **Equal Standing with Specialized Division of Labor**: There are no master or subordinate agents in Cloudra. The `coordinator`, `dft` specialist, reaction `explorer`, literature `researcher`, `md` modeler, `experiment` designer, and scientific `writer` share the exact same structural standing and independent lifecycles.
-- **Asynchronous Forum & Peer Collaboration (`agent_hub`)**: Agents share discoveries, post experimental notes, and notify peers via a decentralized topic forum (`agent_hub`). Any agent can autonomously claim tasks or use the `call` verb to invite specific skill profiles to collaborate without centralized bottleneck dispatchers.
+- **Coordinator** decomposes the research objective, delegates work and maintains the mechanism graph and delivery scope.
+- **Specialists** perform their permitted research, computation or writing tasks and return concrete files and tool receipts. Hierarchical launcher/swarm dispatch and AgentHub peer calls share the project agent lifecycle; their permission checks still apply.
+- **Supervisor** is a normal runtime agent in `dag_guided` mode. It reads pending reviews, drafts and queued requests from the persisted supervision mailbox and adjudicates submitted claims. It is read-only on the delivery graph; accepting a draft or claim cannot replace missing or failed scientific checks.
+- **AgentHub** provides persisted forum posts, messages, search and peer calls so agents can exchange findings asynchronously.
 
 ### Event-Driven Runtime with Declarative Notice Injection (S1 Kernel)
 
@@ -179,13 +193,14 @@ The runtime (`runtime_v2`) is engineered for deterministic execution and crash r
 
 ### Process Topology: A Crash-Isolated Execution Plane
 
-A running Cloudra deployment is three deliberately separate OS processes:
+The control plane and calculation execution run separately:
 
 - **Web process** (`api_v2` + SPA, single port): the control plane. It may crash or restart at any time — no computation dies with it.
 - **Compute scheduler daemon** (`cloudra scheduler`, auto-spawned detached): claims queued jobs under capacity accounting and launches detached `guard` processes. Failures, Agent cancellation, and service shutdown preserve computations. An explicit compute cancellation writes `cancel_requested`; a native guard signals only the process group it created, then confirms child exit and released `flock` before recording `cancelled` and releasing capacity. Terminal states are CAS-written to the central `compute.db`, and completion notifications reach the control plane through fine-grained DB polling — notifications are never lost across API downtime.
-- **Knowledge vector service** (`kg_vec_service.py`, auto-spawned when the chem-kb plugin is installed): runs under a separate interpreter so that torch/sentence-transformers stay out of the main environment.
 
-State synchronization between processes goes through SQLite (WAL) and file locks — never through in-memory channels.
+Durable state synchronization between the control plane, scheduler and guards uses SQLite (WAL) and file locks.
+
+The `chem-kb` plugin retrieves complete source knowledge texts through graph-keyword matches exposed in AgentHub. The graph indexes sources; retrieved cards supply the content. It does not start a vector service or fill missing graph matches through vector search or content scanning. Knowledge health reports graph and source-content availability.
 
 `cloudra stop` is the explicit full-stop entry: it writes the `daemons.stop` marker (auto-spawn is disabled and the daemons exit on their own self-check), asks the API to shut down gracefully (cancelling and awaiting all agent runs and finalization tasks, closing streams/clients, reaping owned JS hosts), and re-checks within a bounded wait. Per-agent cancel (`POST /api/v2/agents/{id}/cancel`) stops that agent's reasoning work without touching compute jobs; requests already sent to the LLM provider cannot be revoked remotely — locally no further reads/retries/new requests are issued.
 
@@ -270,7 +285,7 @@ tests/                           Regression tests and scientific fixtures
 docs/                            Current architecture/SOPs, evidence, licenses, assets and archive/
 paper/                           Manuscripts, literature/ sources and archive/ research snapshots
 ideapool/                        Versioned task sources, generated tasks and historical research
-gold_compute/                    Gold methodology, scientific records and archived handoffs
+gold_compute/                    Gold status, evidence indexes, Drive delivery/reproduction guides and archives
 kg_data/, vector_store/          Knowledge graph inputs and vector metadata
 知识卡片/                       Knowledge-card source archive
 ```
@@ -281,14 +296,16 @@ See the [documentation hub](docs/README.md), [script index](scripts/README.md) a
 
 ## Development & Testing
 
-Run the full automated test suite and style checks:
+Run syntax and lint checks, then the tests for the changed modules. The complete suite runs in CI; do not run it routinely for a local change.
 
 ```bash
-uv run pytest -q tests/            # Run the complete test suite (2300+ tests)
-uv run pytest -q tests/test_dag*   # Focus on DAG orchestration
-uv run pytest -q tests/test_runtime_v2* # Focus on runtime_v2 kernel and policy stages
-uv run ruff check cloudra tests    # Lint check (line-length 120)
+uv run python -m compileall -q cloudra tests
+uv run ruff check cloudra tests
+uv run pytest -q tests/test_dag_engine.py        # Example: DAG engine changes
+uv run pytest -q tests/test_runtime_v2_replay_equivalence.py  # Example: recovery changes
 ```
+
+Benchmark verification and native-evidence replay are described in the [benchmark guide](cloudra/benchmark/README.md). Native evidence must first be restored from the [Drive release](gold_compute/evidence/DELIVERY.md) for log replay; ordinary source/unit checks do not require an automatic cloud download.
 
 ---
 

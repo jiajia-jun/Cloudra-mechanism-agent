@@ -1,6 +1,6 @@
 # 机理计算 SOP
 
-**当前临时限制优先于下文手工路线：** 手动 TS/IRC 提交已关闭，必须通过 `ts_prepare` / `ts_resume` 提交与续跑。普通探索扫描仍可独立执行；扫描峰后的 TS 精修和 IRC 不能手动提交。流程不支持所需情况时报告工具缺口并修补，不改用 `bash` 直接执行引擎。下文引擎与初猜说明保留作为科学参考。
+**当前提交入口：** 可用 `ts_prepare` / `ts_resume` 管理持久化 TS 流程，也可把准备好的手动 TS/IRC 输入交给 `submit_compute_job`。提交成功不等于科学通过；两条路径均须核对原生日志、频率和真实 IRC 端点证据，并完成 DAG 绑定。普通探索扫描仍可独立执行。
 
 本流程回答四个问题：现在缺什么证据、下一次计算解决什么、什么结果才算成功、失败后是否值得继续。引擎参数分别见 `orca-inputs.md` / `gaussian-inputs.md`；方法知识见 `method-selection.md`。具体反应的坐标选择查 `reaction-class-geometry.md`，再读对应领域文件。
 

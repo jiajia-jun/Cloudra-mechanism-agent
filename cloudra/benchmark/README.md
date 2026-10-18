@@ -1,6 +1,6 @@
 # 运行当前 50 题 Benchmark
 
-正式题库位于 `ideapool/tasks/{easy,normal,hard,impossible}/`，共 20/10/10/10 题。所有 Gold 图与数值来自对应登记源；证据归档中的 `task_gold/` 是历史快照，不是运行入口。
+正式题库位于 `ideapool/tasks/{easy,normal,hard,impossible}/`，共 20/10/10/10 题。所有 Gold 图与数值来自对应登记源；旧证据快照中的 `task_gold/` 已移出当前证据包，不是运行入口。
 
 ## 启动
 
@@ -21,6 +21,12 @@
 
 按计算节点容量调整并发。`--only NR1,NY3,HI1,HL1,IB9` 可限定任务。每次启动记录独立批次，结果、沙箱和运行事件保存在指定数据目录。默认命令行只选 easy 且 backend=none，是空运行，不代表真实评测。
 
+## 参考证据与复现
+
+[Google Drive下载入口及完整包校验值](../../gold_compute/evidence/DELIVERY.md) · [复现步骤](../../gold_compute/evidence/REPRODUCE.md) · [逐题索引](../../gold_compute/evidence/README.md)。
+
+Git包含正式50题、Gold、索引及哈希，原始参考输入/日志/几何仅在Drive交付包。运行Benchmark用Agent本次交付的日志评分，不会自动下载Gold原件；审查或回读参考计算时，先按复现说明下载并还原到`gold_compute/evidence/`。这些文件和本地ZIP已被Git忽略，不要重新提交。Drive当前需文件访问权限。
+
 ## 判分口径
 
 - 综合分为图结构 0.1、自洽性 0.3、准确度 0.6。
@@ -29,7 +35,7 @@
 - IMP 最终正确否定得分，错误宣称正确、可达或交付可信数值失分；探索后正确否定不扣。
 - NB1_E2/NQ5_E2 按既定 PT 规则有意不设数值参考。IB9 首步为用户确认的 5.65；第二步为负例。
 
-原始文件、参照值和保留项见 [当前参考状态](../../gold_compute/queue_20261018/REFERENCE_STATUS.md) 与 [原始证据归档](../../gold_compute/queue_20261018/evidence/README.md)。NR1 的成功 `ts_0042` 原件仍待补归档；HL1 endo 的真实 IRC 反应物端关联未闭环。这些事实保留，不伪称所有 Gold 均已自动通过严格验收。
+原始文件、参照值和保留项见 [当前参考状态](../../gold_compute/queue_20261018/REFERENCE_STATUS.md) 与 [证据索引](../../gold_compute/evidence/README.md)。NR1 的成功 `ts_0042` 原件仍待补归档；HL1 endo 的真实 IRC 反应物端关联未闭环。这些事实保留，不伪称所有 Gold 均已自动通过严格验收。
 
 ## 检查
 

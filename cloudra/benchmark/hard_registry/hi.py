@@ -62,7 +62,7 @@ TASKS = {
                     "smiles": ["C[C@@H]([N+](C)(C)[O-])[C@H](C)c1ccccc1"],
                     "properties": {
                         "energy_hartree": -598.235079186,
-                        "evidence_log": "gold_compute/queue_20261018/evidence/ts_runs/ts_0038/jobs/declaration_0002/reactant_frequency/reactant_frequency.log",
+                        "evidence_log": "gold_compute/evidence/HI1/erythro_syn/reactant_frequency/reactant_frequency.log",
                         "reference_note": "IRC-connected minimum of this substrate; "
                         "replaces the higher initial conformer in "
                         "the source graph",
@@ -74,7 +74,7 @@ TASKS = {
                     "smiles": ["C[C@@H]([N+](C)(C)[O-])[C@@H](C)c1ccccc1"],
                     "properties": {
                         "energy_hartree": -598.233321696,
-                        "evidence_log": "gold_compute/queue_20261018/evidence/ts_runs/ts_0039/jobs/declaration_0002/reactant_frequency/reactant_frequency.log",
+                        "evidence_log": "gold_compute/evidence/HI1/threo_syn/reactant_frequency/reactant_frequency.log",
                         "reference_note": "IRC-connected minimum of this substrate; "
                         "replaces the higher initial conformer in "
                         "the source graph",
@@ -86,7 +86,7 @@ TASKS = {
                     "smiles": [],
                     "properties": {
                         "energy_hartree": -598.208585697,
-                        "evidence_log": "gold_compute/queue_20261018/evidence/ts_runs/ts_0038/jobs/declaration_0002/frequency/frequency.log",
+                        "evidence_log": "gold_compute/evidence/HI1/erythro_syn/frequency/frequency.log",
                     },
                 },
                 {
@@ -95,7 +95,7 @@ TASKS = {
                     "smiles": [],
                     "properties": {
                         "energy_hartree": -598.208059052,
-                        "evidence_log": "gold_compute/queue_20261018/evidence/ts_runs/ts_0039/jobs/declaration_0002/frequency/frequency.log",
+                        "evidence_log": "gold_compute/evidence/HI1/threo_syn/frequency/frequency.log",
                     },
                 },
                 {
@@ -104,7 +104,7 @@ TASKS = {
                     "smiles": ["C/C=C(/C)c1ccccc1.CN(C)O"],
                     "properties": {
                         "energy_hartree": -598.246098329,
-                        "evidence_log": "gold_compute/queue_20261018/evidence/ts_runs/ts_0038/jobs/declaration_0002/product_frequency/product_frequency.log",
+                        "evidence_log": "gold_compute/evidence/HI1/erythro_syn/product_frequency/product_frequency.log",
                     },
                     "label": "verified Z alkene + dimethylhydroxylamine IRC endpoint; 93 real modes",
                 },
@@ -114,7 +114,7 @@ TASKS = {
                     "smiles": ["C/C=C(\\C)c1ccccc1.CN(C)O"],
                     "properties": {
                         "energy_hartree": -598.245557178,
-                        "evidence_log": "gold_compute/queue_20261018/evidence/ts_runs/ts_0039/jobs/declaration_0002/product_frequency/product_frequency.log",
+                        "evidence_log": "gold_compute/evidence/HI1/threo_syn/product_frequency/product_frequency.log",
                     },
                     "label": "verified E alkene + dimethylhydroxylamine IRC endpoint; 93 real modes",
                 },

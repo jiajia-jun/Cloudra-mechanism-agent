@@ -1,5 +1,6 @@
 """Computed hard references preserve substrate identity and the step energy frame."""
 
+import json
 from pathlib import Path
 
 import pytest
@@ -53,8 +54,6 @@ def test_hl1_barriers_use_each_channel_stable_contact_minimum():
     assert nodes[edges["endo"].from_node].properties["energy_hartree"] == -441.019350272
     assert task.gold.selectivity is None and task.rubric.accuracy.enabled
     assert "own stable contact minimum" in task.prompt.query
-    repo = Path(__file__).resolve().parents[1]
-    assert all((repo / node.properties["evidence_log"]).is_file() for node in graph.nodes)
     for edge in edges.values():
         start = nodes[edge.from_node].properties["energy_hartree"]
         ts = nodes[edge.via].properties["energy_hartree"]
@@ -64,3 +63,16 @@ def test_hl1_barriers_use_each_channel_stable_contact_minimum():
         assert edge.bond_changes.form == [[1, 4], [3, 5]]
     assert "no favored-channel assignment is scored" in task.prompt.query
     assert "`favored: true`" not in task.prompt.query
+
+
+def test_computed_gold_log_bindings_are_indexed_in_drive_manifest():
+    repo = Path(__file__).resolve().parents[1]
+    root = "gold_compute/evidence"
+    manifest = json.loads((repo / root / "MANIFEST.json").read_text())
+    paths = {f"{root}/{entry['path']}" for entry in manifest["files"]}
+    tasks = _tasks()
+    for task_id in ("HI1", "HL1"):
+        assert all(
+            node.properties["evidence_log"] in paths
+            for node in tasks[task_id].gold.mechanism_graph.nodes
+        )

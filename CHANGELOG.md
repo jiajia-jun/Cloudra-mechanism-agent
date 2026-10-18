@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### 2026-10-18 · 题库、证据交付与现行文档
+
+- 正式 Benchmark 固定为50题：简单20、普通10、困难10、IMP10。以 `ideapool/tasks/{easy,normal,hard,impossible}/` 和对应生成源为准，过期题库快照不覆盖正式数据。
+- 原始证据改为 [Google Drive交付包](gold_compute/evidence/DELIVERY.md)，仓库保留下载入口、版本/校验清单、逐题索引和[复现说明](gold_compute/evidence/REPRODUCE.md)。本包包含886份整理证据，试错记录、缓存和重复run移出当前证据包；缺原件、端点来源限制和人工采信项继续明示。
+- 用户确认反应能垒相对对应稳定中间体；IRC实际连接与能量参照分别记录。构象转换沿用自身起点，不合并独立立体底物或通道接触体。评分权重仍为图结构0.1、自洽0.3、准确度0.6。
+- IMP按最终交付判定评分：正确否定得分；最终误报可达或可信数值失分；尝试计算后正确否定不扣。NB1_E2/NQ5_E2既定PT空参考不作为IMP负例或待算题。
+- 根README对齐当前DAG实现：默认反应步要求 `ts_opt + frequency + short_irc`，`ts_guess`仅建议；同一TS真实双向IRC末帧分别优化到正确零虚频端点可构成方向证明，几何区间仅作提示。
+- 更新角色与督导说明：Coordinator维护机理图，专门角色按权限执行工作；Supervisor是正常runtime_v2 Agent，自读持久信箱审查，对交付图只读。移除README中未经当前证据支撑的“全自主完成”概括和将插值写成必经流程的表述。
+- 知识检索说明对齐当前chem-kb：图关键词匹配定位来源并返回完整知识正文；不再把旧BGE向量服务当作运行时自动拉起的依赖。
+- 清理分子Agent提示、DFT技能和机理SOP里过期的“手动TS/IRC禁用”说明，对齐现有计算队列能力，科学证据要求不变。原始证据本地缓存不再入Git，相关绑定回归改为检查Drive清单；下载、还原与回读步骤已在无原件的干净副本上验证。
+- 更新[50题运行入口](cloudra/benchmark/README.md)与本地开发检查指引；默认CLI空运行、工程回归、原生日志回读、真实Agent运行和科学验收分别说明。历史版本条目保留当时记录，现行行为以源码和当前文档为准。
+
 ## [0.1.0rc1] - 2026-09-21
 
 首个认真发版的 release candidate。此前 GitHub 上的 `v1.*` Release / tag 已全部撤下（那批构建基本不可用）。本号起重新计版本：runtime_v2 唯一内核、中央 `compute.db`、只验 token 的 API、POSIX-only 运行时。
