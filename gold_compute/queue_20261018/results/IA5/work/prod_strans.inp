@@ -1,6 +1,0 @@
-# IA5 / GFN2-xTB: s-trans butadiene minimum (Opt + NumFreq)
-# smiles: C=CC=C
-! XTB Opt NumFreq
-%pal nprocs 2 end
-%maxcore 2000
-* xyzfile 0 1 bd_raw.xyz

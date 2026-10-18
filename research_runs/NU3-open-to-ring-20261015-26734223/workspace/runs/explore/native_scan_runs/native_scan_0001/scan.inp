@@ -1,7 +1,0 @@
-$constrain
- force constant=0.5
- distance: 9,7,0.97
-$scan
- 1: 0.97,2.6,12
-$opt
-$end

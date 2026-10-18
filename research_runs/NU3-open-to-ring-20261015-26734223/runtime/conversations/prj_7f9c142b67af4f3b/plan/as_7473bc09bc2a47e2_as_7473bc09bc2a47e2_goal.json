@@ -1,5 +1,0 @@
-{
-  "objective": "Exploratory semiempirical (GFN2-xTB/PM7) cross-check of the C2H7OP open-chain -> oxaphosphetane ring path: minima, betaine test, energy profile, candidate TS guess.",
-  "completion_criteria": "A/B/betaine re-optimized+freq; mapped path profile (one vs two maxima); betaine minimum status; relative energy table; candidate TS xyz in A atom order; logs under runs/explore/; AgentHub post.",
-  "current_focus": "environment check and recon"
-}

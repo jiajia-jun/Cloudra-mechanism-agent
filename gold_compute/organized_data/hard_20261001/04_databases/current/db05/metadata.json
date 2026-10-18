@@ -1,8 +1,0 @@
-{
-  "id": "db05",
-  "source_path": "gold_compute/remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/runtime/recovery_20261001/runtime-v2.db",
-  "sha256": "692103f38b40b2acaa1a8058c0321e999fb0fa6fdb2831779057205c2427340a",
-  "bytes": 61177856,
-  "epoch": "final",
-  "integrity": "ok"
-}

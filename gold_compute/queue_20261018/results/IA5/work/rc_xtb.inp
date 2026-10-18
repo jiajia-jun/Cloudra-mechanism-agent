@@ -1,6 +1,0 @@
-# IA5 / GFN2-xTB (ORCA 6.1.1 native XTB module): cyclobutene reactant minimum, Opt + NumFreq
-# smiles: C1=CCC1
-! XTB Opt NumFreq
-%pal nprocs 2 end
-%maxcore 2000
-* xyzfile 0 1 cb_clean.xyz

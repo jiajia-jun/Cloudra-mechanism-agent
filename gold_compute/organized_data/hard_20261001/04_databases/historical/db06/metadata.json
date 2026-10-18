@@ -1,8 +1,0 @@
-{
-  "id": "db06",
-  "source_path": "gold_compute/remote_backups/paratera_final_20261001_0830/migration_snapshot/runtime/compute.db",
-  "sha256": "a67b0cf4776244de1197f063e04cc0b69a2a67fd6ad5e3045d4e759b16071de5",
-  "bytes": 49152,
-  "epoch": "migration",
-  "integrity": "ok"
-}

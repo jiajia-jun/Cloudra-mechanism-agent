@@ -1,8 +1,0 @@
-{
-  "id": "db03",
-  "source_path": "gold_compute/remote_backups/paratera_final_20261001_0830/final_archive_20261001_1522/runtime/knowledge/chem_kg.db",
-  "sha256": "9bf6e3abb21278dbcda27bac2f4dd88dd7a412b9cbc494a68c874d1b7faf5782",
-  "bytes": 14868480,
-  "epoch": "final",
-  "integrity": "ok"
-}

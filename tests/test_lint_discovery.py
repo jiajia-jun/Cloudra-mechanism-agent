@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 
-def test_ruff_skips_only_the_frozen_hard_archive(tmp_path):
+def test_ruff_skips_frozen_evidence_without_hiding_maintained_code(tmp_path):
     config = Path(__file__).resolve().parents[1] / "pyproject.toml"
     (tmp_path / "pyproject.toml").write_bytes(config.read_bytes())
     active_paths = {
@@ -16,9 +16,13 @@ def test_ruff_skips_only_the_frozen_hard_archive(tmp_path):
         ".maintained-helper/probe.py",
         "gold_compute/library_audit_20261002/probe.py",
         "gold_compute/organized_data/future_archive/probe.py",
+        "gold_compute/queue_future/results/probe.py",
     }
-    frozen_path = "gold_compute/organized_data/hard_20261001/probe.py"
-    for relative in active_paths | {frozen_path}:
+    frozen_paths = {
+        "gold_compute/organized_data/hard_20261001/probe.py",
+        "gold_compute/queue_20261018/results/probe.py",
+    }
+    for relative in active_paths | frozen_paths:
         path = tmp_path / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("print(undefined_lint_probe)\n", encoding="utf-8")

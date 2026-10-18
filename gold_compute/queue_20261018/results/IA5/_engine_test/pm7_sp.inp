@@ -1,4 +1,0 @@
-# IA5 engine test: PM7 single point
-! PM7
-%pal nprocs 1 end
-* xyzfile 0 1 cb.xyz

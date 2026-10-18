@@ -120,9 +120,12 @@ markers = [
 [tool.ruff]
 line-length = 120
 target-version = "py311"
-# This dated evidence bundle pins its scripts and source snapshots by SHA-256.
-# Preserve those historical bytes; maintained code and other archives stay linted.
-extend-exclude = ["gold_compute/organized_data/hard_20261001"]
+# Frozen archives retain their original analysis scripts and source snapshots.
+# Maintained code and other result directories stay linted.
+extend-exclude = [
+    "gold_compute/organized_data/hard_20261001",
+    "gold_compute/queue_20261018/results",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]

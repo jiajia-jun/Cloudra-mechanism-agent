@@ -78,6 +78,7 @@ fort.*
 # 整棵 fixtures 树的通配白名单，新加 fixture 目录不再需要回来改本文件。
 !tests/fixtures/**/*.log
 !tests/fixtures/**/*.out
+!tests/fixtures/**/*.gjf
 
 # 测试泄漏的 mock 数据目录
 MagicMock/
@@ -89,6 +90,15 @@ frontend/test-results/
 frontend/playwright-report/
 frontend/blob-report/
 frontend/playwright/.cache/
+
+# 历史计算现场只发布报告、复核脚本和整理结果；后续通用规则仍排除运行时状态。
+/gold_compute/queue_20261018/results/**
+!/gold_compute/queue_20261018/results/**/
+!/gold_compute/queue_20261018/results/**/*.md
+!/gold_compute/queue_20261018/results/**/*.py
+!/gold_compute/queue_20261018/results/**/*.sh
+!/gold_compute/queue_20261018/results/**/*.json
+!/gold_compute/queue_20261018/results/**/REPORT.txt
 
 # runtime v2 local sqlite
 runtime-v2.db*
@@ -125,7 +135,7 @@ state_*.json
 docs/benchmark_survey/pdfs/
 docs/benchmark_survey/md/
 ideapool/**/*.pdf
-!ideapool/cloudra_novelty_and_validation_plan.pdf
+!ideapool/archive/cloudra_novelty_and_validation_plan.pdf
 ideapool/**/images/
 ideapool/**/img_*/
 
@@ -142,6 +152,9 @@ NA1_exam/
 AA_aldol_3HB_20260905/
 calc/
 benchmark_smoke_data/
+/ts/
+/research_runs/
+/gold_fill_20261018/
 frontend/calc/
 frontend/confs_output/
 frontend/cope_xtb/
@@ -171,6 +184,8 @@ gold_compute/verified_evidence/
 !gold_compute/verified_evidence/INDEX.md
 !gold_compute/verified_evidence/**/README.md
 !gold_compute/verified_evidence/**/*.json
+# 本地完整归档含私有上下文、数据库及指向 remote_backups 的导航链接。
+/gold_compute/organized_data/hard_20261001/
 vector_store/vectors.f16.npy
 
 # 本地申报材料、答辩成品和制作工作区不再入库；源码与科研证据另行保留。
