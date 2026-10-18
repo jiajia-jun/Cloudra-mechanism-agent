@@ -1,0 +1,852 @@
+{
+  "call_id": "tc_c5d5b71ce0e54439",
+  "is_success": true,
+  "summary": "{\"run_id\": \"ts_0005\", \"revision\": 74, \"run_dir\": \"/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005\", \"status\": \"ended\", \"stage\": \"verdict\", \"result\": {\"outcome\": \"candidate_only\", \"verified\": false, \"reason\": \"The reactant endpoint candidate from explicit species seed did not qualify as an optimized minimum: reactant endpoint geometry in the optimization log, saved frequency source, and frequency log does not match; it cannot serve as a proven minimum reference. Repair verification.reactant_endpoint.seed for the declared reactant C1CN=NC1; IRC A/B labels do not declare species identity.\", \"evidence_refs\": [\"/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/jobs/declaration_0006/scan/scan_peak.xyz\", \"/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/jobs/declaration_0006/ts_opt/refine.inp\"]}, \"waiting_for\": [], \"available_results\": [{\"stage\": \"declare\", \"status\": \"done\", \"detail\": \"reaction declared; each calculation requires its own method\", \"artifacts\": [], \"source_input_revision\": 5, \"input_revision_relation\": \"historical\"}, {\"stage\": \"build\", \"status\": \"done\", \"detail\": \"both endpoints built\", \"artifacts\": [], \"source_input_revision\": 5, \"input_revision_relation\": \"historical\"}, {\"stage\": \"map\", \"status\": \"done\", \"detail\": \"Concrete endpoint correspondence confirmed and owned by this reaction.\", \"artifacts\": [], \"source_input_revision\": 6, \"input_revision_relation\": \"historical\"}, {\"stage\": \"assemble\", \"status\": \"done\", \"detail\": \"single component: nothing to assemble (no inter-fragment orientation). The reaction coordinate is whatever the path guess explores\", \"artifacts\": [], \"source_input_revision\": 6, \"input_revision_relation\": \"historical\"}, {\"stage\": \"guess\", \"status\": \"done\", \"detail\": \"Scan internal peak extracted; unconstrained refinement still required.\", \"artifacts\": [\"/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/jobs/declaration_0006/scan/scan_peak.xyz\"], \"source_input_revision\": 6, \"input_revision_relation\": \"historical\"}, {\"stage\": \"validate\", \"status\": \"done\", \"detail\": \"internal validation passed\", \"artifacts\": [], \"source_input_revision\": 6, \"input_revision_relation\": \"historical\"}, {\"stage\": \"submit\", \"status\": \"done\", \"detail\": \"refinement job 780 submitted as 'ready' (orca, GFN2-XTB); the scheduler daemon claims it and its terminal state arrives through the existing compute notification path\", \"artifacts\": [\"/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/jobs/declaration_0006/ts_opt/refine.inp\"], \"source_input_revision\": 6, \"input_revision_relation\": \"historical\"}, {\"stage\": \"verdict\", \"status\": \"done\", \"detail\": \"The reactant endpoint candidate from explicit species seed did not qualify as an optimized minimum: reactant endpoint geometry in the optimization log, saved frequency source, and frequency log does not match; it cannot serve as a proven minimum reference. Repair verification.reactant_endpoint.seed for the declared reactant C1CN=NC1; IRC A/B labels do not declare species identity.\", \"artifacts\": [], \"source_input_revision\": 7, \"input_revision_relation\": \"current\"}, {\"stage\": \"scan\", \"status\": \"done\", \"job_id\": 778, \"artifacts\": [\"/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/jobs/declaration_0006/scan/.cloudra/calc-778.out.log\"], \"source_input_revision\": 6, \"detail\": \"Original compute output for direct evidence submission; keep IRC sidecars in place. Job completion is not scientific verification.\", \"input_revision_relation\": \"historical\"}, {\"stage\": \"ts_opt\", \"status\": \"done\", \"job_id\": 780, \"artifacts\": [\"/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/jobs/declaration_0006/ts_opt/.cloudra/calc-780.out.log\"], \"source_input_revision\": 6, \"detail\": \"Original compute output for direct evidence submission; keep IRC sidecars in place. Job completion is not scientific verification.\", \"input_revision_relation\": \"historical\"}, {\"stage\": \"frequency\", \"status\": \"done\", \"job_id\": 794, \"artifacts\": [\"/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/jobs/declaration_0006/frequency/.cloudra/calc-794.out.log\"], \"source_input_revision\": 6, \"detail\": \"Original compute output for direct evidence submission; keep IRC sidecars in place. Job completion is not scientific verification.\", \"input_revision_relation\": \"historical\"}, {\"stage\": \"irc\", \"status\": \"done\", \"job_id\": 798, \"artifacts\": [\"/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/jobs/declaration_0006/irc/.cloudra/calc-798.out.log\"], \"source_input_revision\": 6, \"detail\": \"Original compute output for direct evidence submission; keep IRC sidecars in place. Job completion is not scientific verification.\", \"input_revision_relation\": \"historical\"}, {\"stage\": \"reactant_opt\", \"status\": \"done\", \"job_id\": 813, \"artifacts\": [\"/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/jobs/declaration_0007/reactant_opt/.cloudra/calc-813.out.log\"], \"source_input_revision\": 7, \"detail\": \"Original compute output for direct evidence submission; keep IRC sidecars in place. Job completion is not scientific verification.\", \"input_revision_relation\": \"current\"}, {\"stage\": \"reactant_frequency\", \"status\": \"done\", \"job_id\": 814, \"artifacts\": [\"/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/jobs/declaration_0007/reactant_frequency/.cloudra/calc-814.out.log\"], \"source_input_revision\": 7, \"detail\": \"Original compute output for direct evidence submission; keep IRC sidecars in place. Job completion is not scientific verification.\", \"input_revision_relation\": \"current\"}], \"structures\": {\"reactant\": {\"role\": \"reactant\", \"source_kind\": \"file\", \"input_revision\": 5, \"structure_digest\": \"e9eb8d65a7bd48a4027756e17018d537642a234966683fee139f2213a39ba01c\", \"atom_count\": 11, \"components\": 1, \"index_base\": 1, \"atoms\": [{\"number\": 1, \"symbol\": \"C\", \"isotope\": 0, \"atom_id\": null}, {\"number\": 2, \"symbol\": \"C\", \"isotope\": 0, \"atom_id\": null}, {\"number\": 3, \"symbol\": \"N\", \"isotope\": 0, \"atom_id\": null}, {\"number\": 4, \"symbol\": \"N\", \"isotope\": 0, \"atom_id\": null}, {\"number\": 5, \"symbol\": \"C\", \"isotope\": 0, \"atom_id\": null}, {\"number\": 6, \"symbol\": \"H\", \"isotope\": 0, \"atom_id\": null}, {\"number\": 7, \"symbol\": \"H\", \"isotope\": 0, \"atom_id\": null}, {\"number\": 8, \"symbol\": \"H\", \"isotope\": 0, \"atom_id\": null}, {\"number\": 9, \"symbol\": \"H\", \"isotope\": 0, \"atom_id\": null}, {\"number\": 10, \"symbol\": \"H\", \"isotope\": 0, \"atom_id\": null}, {\"number\": 11, \"symbol\": \"H\", \"isotope\": 0, \"atom_id\": null}], \"smiles_heavy_atoms\": [{\"position\": 1, \"symbol\": \"C\", \"isotope\": 0, \"atom_map_label\": 0}, {\"position\": 2, \"symbol\": \"C\", \"isotope\": 0, \"atom_map_label\": 0}, {\"position\": 3, \"symbol\": \"N\", \"isotope\": 0, \"atom_map_label\": 0}, {\"position\": 4, \"symbol\": \"N\", \"isotope\": 0, \"atom_map_label\": 0}, {\"position\": 5, \"symbol\": \"C\", \"isotope\": 0, \"atom_map_label\": 0}], \"heavy_atom_indices\": [1, 5, 4, 3, 2], \"binding_status\": \"complete\", \"source\": {\"paths\": {\"xyz\": \"/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/calc/pyr_opt/pyr_opt.xyz\", \"mol\": \"/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/pyrazoline.mol\"}, \"hashes\": {\"xyz\": \"cd58b842943d1d35b64838bf0e0321a67358d66459e0f00e426bbeaab7cecfe7\", \"mol\": \"fe6ea46daa3d9fc58cfe9fee6dfc0fcedae8cb399071c6db954ff2bb37af4147\"}, \"snapshots\": {\"xyz\": \"/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/build/input_0005/reactant/source_cd58b842943d1d35.xyz\", \"mol\": \"/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/build/input_0005/reactant/source_fe6ea46daa3d9fc5.mol\"}, \"input_revision\": 5}, \"electronic_state\": {\"charge\": 0, \"multiplicity\": 1, \"electronic_character\": \"closed_shell\", \"electron_count\": 38, \"localized_radical_electrons\": 0, \"n_alpha\": 19, \"n_beta\": 19, \"is_open_shell\": false, \"requires_spin_aware_geometry\": false}}, \"product\": {\"role\": \"product\", \"source_kind\": \"file\", \"input_revision\": 5, \"structure_digest\": \"e57273f5019f9c119be58bbcd342e2221a8ad8fe6c2ce6a21558f70eef4b0e1c\", \"atom_count\": 11, \"components\": 2, \"index_base\": 1, \"atoms\": [{\"number\": 1, \"symbol\": \"C\", \"isotope\": 0, \"atom_id\": null}, {\"number\": 2, \"symbol\": \"N\", \"isotope\": 0, \"atom_id\": null}, {\"number\": 3, \"symbol\": \"N\", \"isotope\": 0, \"atom_id\": null}, {\"number\": 4, \"symbol\": \"H\", \"isotope\": 0, \"atom_id\": null}, {\"number\": 5, \"symbol\": \"H\", \"isotope\": 0, \"atom_id\": null}, {\"number\": 6, \"symbol\": \"C\", \"isotope\": 0, \"atom_id\": null}, {\"number\": 7, \"symbol\": \"C\", \"isotope\": 0, \"atom_id\": null}, {\"number\": 8, \"symbol\": \"H\", \"isotope\": 0, \"atom_id\": null}, {\"number\": 9, \"symbol\": \"H\", \"isotope\": 0, \"atom_id\": null}, {\"number\": 10, \"symbol\": \"H\", \"isotope\": 0, \"atom_id\": null}, {\"number\": 11, \"symbol\": \"H\", \"isotope\": 0, \"atom_id\": null}], \"smiles_heavy_atoms\": [{\"position\": 1, \"symbol\": \"C\", \"isotope\": 0, \"atom_map_label\": 0}, {\"position\": 2, \"symbol\": \"N\", \"isotope\": 0, \"atom_map_label\": 0}, {\"position\": 3, \"symbol\": \"N\", \"isotope\": 0, \"atom_map_label\": 0}, {\"position\": 4, \"symbol\": \"C\", \"isotope\": 0, \"atom_map_label\": 0}, {\"position\": 5, \"symbol\": \"C\", \"isotope\": 0, \"atom_map_label\": 0}], \"heavy_atom_indices\": [1, 2, 3, 6, 7], \"binding_status\": \"complete\", \"source\": {\"paths\": {\"xyz\": \"/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/build_rc/assembly/complex_candidate_000.xyz\", \"mol\": \"/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/rc.mol\"}, \"hashes\": {\"xyz\": \"6877f6377c5be186159e14b1bf7a04fab8830b37683ae010b26daf2e6c8e6f83\", \"mol\": \"d2a7d367bab3a31315ed54853af3d08955f439a8c730e1b641ae52d1adc4a193\"}, \"snapshots\": {\"xyz\": \"/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/build/input_0005/product/source_6877f6377c5be186.xyz\", \"mol\": \"/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/build/input_0005/product/source_d2a7d367bab3a313.mol\"}, \"input_revision\": 5}, \"electronic_state\": {\"charge\": 0, \"multiplicity\": 1, \"electronic_character\": \"closed_shell\", \"electron_count\": 38, \"localized_radical_electrons\": 0, \"n_alpha\": 19, \"n_beta\": 19, \"is_open_shell\": false, \"requires_spin_aware_geometry\": false}}}, \"blocked\": null, \"failed_attempt\": {\"attempt_id\": \"7:reactant_frequency:814\", \"failure_class\": \"endpoint_unconfirmed\", \"purpose\": \"reactant_frequency\", \"job_id\": 814, \"input_revision\": 7, \"evidence_refs\": [\"/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/jobs/declaration_0007/reactant_frequency/.cloudra/calc-814.out.log\"], \"input_path\": \"/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/jobs/declaration_0007/reactant_frequency/reactant_frequency.inp\", \"log_path\": \"/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/jobs/declaration_0007/reactant_frequency/.cloudra/calc-814.out.log\", \"input_sha256\": \"8693ece9db0f5e3af6746e1c438add9841f0f3dcde35da7c8a5d604c1dadc7d6\", \"log_sha256\": \"7f69507bf7263dbc4cec9ad972ef04d5ad65ce1192bbb17641a692563db1bf30\", \"diagnostics\": []}, \"frequency_analysis\": {\"fraction_basis\": \"unweighted_squared_displacement\", \"log_path\": \"/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/jobs/declaration_0006/frequency/.cloudra/calc-794.out.log\", \"log_sha256\": \"dacf14b165b8cdedff3ea964a02c541bd0b636891d738f530fa4f8d27f35c2df\", \"mode_alignment\": {\"aligned\": true, \"details\": [\"Atom pair (1,5) relative displacement=0.924 (threshold 0.50×0.924=0.462)\", \"Atom pair (2,3) relative displacement=0.848 (threshold 0.50×0.924=0.462)\"], \"message\": \"Imaginary mode is consistent with the declared reaction coordinate: watch_pairs max relative displacement 0.924 ≥ 0.50×global max 0.924 (max pair=(1,5)).\", \"status\": \"aligned\"}, \"modes\": null, \"reaction_center_pairs\": [[1, 5], [2, 3]], \"job_id\": 794, \"source_input_revision\": 6, \"input_revision_relation\": \"historical\"}, \"next\": {\"action\": \"resume\", \"required_inputs\": [], \"editable_groups\": [\"reaction\", \"calculations\", \"conformers\", \"guess\", \"ts_optimization\", \"verification\", \"execution\"]}, \"methods\": [{\"purpose\": \"scan\", \"planned\": {\"engine\": \"orca\", \"method\": \"GFN2-XTB\", \"basis_set\": \"\", \"keywords\": \"\", \"frequency_mode\": \"auto\", \"orca_blocks\": null, \"end_setting\": \"\"}, \"actual\": {\"engine\": \"orca\", \"method\": \"GFN2-XTB\", \"basis_set\": \"\", \"keywords\": \"\", \"frequency_mode\": \"auto\", \"orca_blocks\": null, \"end_setting\": \"\"}, \"contract\": {\"actual\": {\"basis_set\": \"\", \"end_setting\": \"\", \"engine\": \"orca\", \"frequency_mode\": \"auto\", \"keywords\": \"\", \"method\": \"GFN2-XTB\", \"orca_blocks\": null}, \"differences\": [], \"input_revision\": 6, \"matched\": true, \"purpose\": \"scan\", \"source\": \"stage_declaration\"}}, {\"purpose\": \"ts_opt\", \"planned\": {\"engine\": \"orca\", \"method\": \"GFN2-XTB\", \"basis_set\": \"\", \"keywords\": \"\", \"frequency_mode\": \"auto\", \"orca_blocks\": null, \"end_setting\": \"\"}, \"actual\": {\"engine\": \"orca\", \"method\": \"GFN2-XTB\", \"basis_set\": \"\", \"keywords\": \"\", \"frequency_mode\": \"auto\", \"orca_blocks\": null, \"end_setting\": \"\"}, \"contract\": {\"actual\": {\"basis_set\": \"\", \"end_setting\": \"\", \"engine\": \"orca\", \"frequency_mode\": \"auto\", \"keywords\": \"\", \"method\": \"GFN2-XTB\", \"orca_blocks\": null}, \"differences\": [], \"input_revision\": 6, \"matched\": true, \"purpose\": \"ts_opt\", \"source\": \"stage_declaration\"}}, {\"purpose\": \"frequency\", \"planned\": {\"engine\": \"orca\", \"method\": \"GFN2-XTB\", \"basis_set\": \"\", \"keywords\": \"\", \"frequency_mode\": \"numeric\", \"orca_blocks\": null, \"end_setting\": \"\"}, \"actual\": {\"engine\": \"orca\", \"method\": \"GFN2-XTB\", \"basis_set\": \"\", \"keywords\": \"\", \"frequency_mode\": \"numeric\", \"orca_blocks\": null, \"end_setting\": \"\"}, \"contract\": {\"actual\": {\"basis_set\": \"\", \"end_setting\": \"\", \"engine\": \"orca\", \"frequency_mode\": \"numeric\", \"keywords\": \"\", \"method\": \"GFN2-XTB\", \"orca_blocks\": null}, \"differences\": [], \"input_revision\": 6, \"matched\": true, \"purpose\": \"frequency\", \"source\": \"stage_declaration\"}, \"reference\": \"g\"}, {\"purpose\": \"irc\", \"planned\": {\"engine\": \"orca\", \"method\": \"GFN2-XTB\", \"basis_set\": \"\", \"keywords\": \"\", \"frequency_mode\": \"auto\", \"orca_blocks\": null, \"end_setting\": \"\"}, \"actual\": {\"engine\": \"orca\", \"method\": \"GFN2-XTB\", \"basis_set\": \"\", \"keywords\": \"\", \"frequency_mode\": \"auto\", \"orca_blocks\": null, \"end_setting\": \"\"}, \"contract\": {\"actual\": {\"basis_set\": \"\", \"end_setting\": \"\", \"engine\": \"orca\", \"frequency_mode\": \"auto\", \"keywords\": \"\", \"method\": \"GFN2-XTB\", \"orca_blocks\": null}, \"differences\": [], \"input_revision\": 6, \"matched\": true, \"purpose\": \"irc\", \"source\": \"stage_declaration\"}}, {\"purpose\": \"reactant_opt\", \"planned\": {\"engine\": \"orca\", \"method\": \"GFN2-XTB\", \"basis_set\": \"\", \"keywords\": \"\", \"frequency_mode\": \"auto\", \"orca_blocks\": null, \"end_setting\": \"\"}, \"actual\": {\"engine\": \"orca\", \"method\": \"GFN2-XTB\", \"basis_set\": \"\", \"keywords\": \"\", \"frequency_mode\": \"auto\", \"orca_blocks\": null, \"end_setting\": \"\"}, \"contract\": {\"input_revision\": 7, \"purpose\": \"reactant_opt\", \"actual\": {\"engine\": \"orca\", \"method\": \"GFN2-XTB\", \"basis_set\": \"\", \"keywords\": \"\", \"frequency_mode\": \"auto\", \"orca_blocks\": null, \"end_setting\": \"\"}, \"source\": \"stage_declaration\", \"differences\": [], \"matched\": true}}, {\"purpose\": \"reactant_frequency\", \"planned\": {\"engine\": \"orca\", \"method\": \"GFN2-XTB\", \"basis_set\": \"\", \"keywords\": \"\", \"frequency_mode\": \"numeric\", \"orca_blocks\": null, \"end_setting\": \"\"}, \"actual\": {\"engine\": \"orca\", \"method\": \"GFN2-XTB\", \"basis_set\": \"\", \"keywords\": \"\", \"frequency_mode\": \"numeric\", \"orca_blocks\": null, \"end_setting\": \"\"}, \"contract\": {\"input_revision\": 7, \"purpose\": \"reactant_frequency\", \"actual\": {\"engine\": \"orca\", \"method\": \"GFN2-XTB\", \"basis_set\": \"\", \"keywords\": \"\", \"frequency_mode\": \"numeric\", \"orca_blocks\": null, \"end_setting\": \"\"}, \"source\": \"stage_declaration\", \"differences\": [], \"matched\": true}, \"reference\": \"g\"}, {\"purpose\": \"product_opt\", \"planned\": {\"engine\": \"orca\", \"method\": \"GFN2-XTB\", \"basis_set\": \"\", \"keywords\": \"\", \"frequency_mode\": \"auto\", \"orca_blocks\": null, \"end_setting\": \"\"}, \"actual\": null, \"contract\": null}, {\"purpose\": \"product_frequency\", \"planned\": {\"engine\": \"orca\", \"method\": \"GFN2-XTB\", \"basis_set\": \"\", \"keywords\": \"\", \"frequency_mode\": \"numeric\", \"orca_blocks\": null, \"end_setting\": \"\"}, \"actual\": null, \"contract\": null, \"reference\": \"g\"}], \"usage\": {\"interventions\": 6, \"compute_actions\": 10, \"model_calls\": null, \"limits\": null, \"jobs\": [{\"job_id\": 754, \"runtime_seconds\": 2.751323938369751, \"cpus\": 4, \"memory_mb\": 4096, \"measured_cpu_hours\": null, \"allocated_cpu_hours\": 0.0030570265981886124}, {\"job_id\": 757, \"runtime_seconds\": 15.992435932159424, \"cpus\": 4, \"memory_mb\": 4096, \"measured_cpu_hours\": null, \"allocated_cpu_hours\": 0.017769373257954916}, {\"job_id\": 778, \"runtime_seconds\": 11.104011058807373, \"cpus\": 4, \"memory_mb\": 4096, \"measured_cpu_hours\": null, \"allocated_cpu_hours\": 0.012337790065341525}, {\"job_id\": 780, \"runtime_seconds\": 5.854537010192871, \"cpus\": 4, \"memory_mb\": 4096, \"measured_cpu_hours\": null, \"allocated_cpu_hours\": 0.006505041122436523}, {\"job_id\": 794, \"runtime_seconds\": 13.174797058105469, \"cpus\": 4, \"memory_mb\": 4096, \"measured_cpu_hours\": null, \"allocated_cpu_hours\": 0.014638663397894965}, {\"job_id\": 798, \"runtime_seconds\": 8.995275974273682, \"cpus\": 4, \"memory_mb\": 4096, \"measured_cpu_hours\": null, \"allocated_cpu_hours\": 0.009994751082526314}, {\"job_id\": 803, \"runtime_seconds\": 5.995116949081421, \"cpus\": 4, \"memory_mb\": 4096, \"measured_cpu_hours\": null, \"allocated_cpu_hours\": 0.006661241054534912}, {\"job_id\": 806, \"runtime_seconds\": 11.419313907623291, \"cpus\": 4, \"memory_mb\": 4096, \"measured_cpu_hours\": null, \"allocated_cpu_hours\": 0.012688126564025879}, {\"job_id\": 813, \"runtime_seconds\": 5.795867919921875, \"cpus\": 4, \"memory_mb\": 4096, \"measured_cpu_hours\": null, \"allocated_cpu_hours\": 0.006439853244357639}, {\"job_id\": 814, \"runtime_seconds\": 11.021787166595459, \"cpus\": 4, \"memory_mb\": 4096, \"measured_cpu_hours\": null, \"allocated_cpu_hours\": 0.012246430185106065}]}, \"details_path\": \"/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/process.json\", \"export_revision\": 74, \"message\": \"The reactant endpoint candidate from explicit species seed did not qualify as an optimized minimum: reactant endpoint geometry in the optimization log, saved frequency source, and frequency log does not match; it cannot serve as a proven minimum reference. Repair verification.reactant_endpoint.seed for the declared reactant C1CN=NC1; IRC A/B labels do not declare species identity.\", \"is_success\": true, \"receipt\": null}",
+  "data": {
+    "run_id": "ts_0005",
+    "revision": 74,
+    "run_dir": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005",
+    "status": "ended",
+    "stage": "verdict",
+    "result": {
+      "outcome": "candidate_only",
+      "verified": false,
+      "reason": "The reactant endpoint candidate from explicit species seed did not qualify as an optimized minimum: reactant endpoint geometry in the optimization log, saved frequency source, and frequency log does not match; it cannot serve as a proven minimum reference. Repair verification.reactant_endpoint.seed for the declared reactant C1CN=NC1; IRC A/B labels do not declare species identity.",
+      "evidence_refs": [
+        "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/jobs/declaration_0006/scan/scan_peak.xyz",
+        "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/jobs/declaration_0006/ts_opt/refine.inp"
+      ]
+    },
+    "waiting_for": [],
+    "available_results": [
+      {
+        "stage": "declare",
+        "status": "done",
+        "detail": "reaction declared; each calculation requires its own method",
+        "artifacts": [],
+        "source_input_revision": 5,
+        "input_revision_relation": "historical"
+      },
+      {
+        "stage": "build",
+        "status": "done",
+        "detail": "both endpoints built",
+        "artifacts": [],
+        "source_input_revision": 5,
+        "input_revision_relation": "historical"
+      },
+      {
+        "stage": "map",
+        "status": "done",
+        "detail": "Concrete endpoint correspondence confirmed and owned by this reaction.",
+        "artifacts": [],
+        "source_input_revision": 6,
+        "input_revision_relation": "historical"
+      },
+      {
+        "stage": "assemble",
+        "status": "done",
+        "detail": "single component: nothing to assemble (no inter-fragment orientation). The reaction coordinate is whatever the path guess explores",
+        "artifacts": [],
+        "source_input_revision": 6,
+        "input_revision_relation": "historical"
+      },
+      {
+        "stage": "guess",
+        "status": "done",
+        "detail": "Scan internal peak extracted; unconstrained refinement still required.",
+        "artifacts": [
+          "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/jobs/declaration_0006/scan/scan_peak.xyz"
+        ],
+        "source_input_revision": 6,
+        "input_revision_relation": "historical"
+      },
+      {
+        "stage": "validate",
+        "status": "done",
+        "detail": "internal validation passed",
+        "artifacts": [],
+        "source_input_revision": 6,
+        "input_revision_relation": "historical"
+      },
+      {
+        "stage": "submit",
+        "status": "done",
+        "detail": "refinement job 780 submitted as 'ready' (orca, GFN2-XTB); the scheduler daemon claims it and its terminal state arrives through the existing compute notification path",
+        "artifacts": [
+          "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/jobs/declaration_0006/ts_opt/refine.inp"
+        ],
+        "source_input_revision": 6,
+        "input_revision_relation": "historical"
+      },
+      {
+        "stage": "verdict",
+        "status": "done",
+        "detail": "The reactant endpoint candidate from explicit species seed did not qualify as an optimized minimum: reactant endpoint geometry in the optimization log, saved frequency source, and frequency log does not match; it cannot serve as a proven minimum reference. Repair verification.reactant_endpoint.seed for the declared reactant C1CN=NC1; IRC A/B labels do not declare species identity.",
+        "artifacts": [],
+        "source_input_revision": 7,
+        "input_revision_relation": "current"
+      },
+      {
+        "stage": "scan",
+        "status": "done",
+        "job_id": 778,
+        "artifacts": [
+          "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/jobs/declaration_0006/scan/.cloudra/calc-778.out.log"
+        ],
+        "source_input_revision": 6,
+        "detail": "Original compute output for direct evidence submission; keep IRC sidecars in place. Job completion is not scientific verification.",
+        "input_revision_relation": "historical"
+      },
+      {
+        "stage": "ts_opt",
+        "status": "done",
+        "job_id": 780,
+        "artifacts": [
+          "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/jobs/declaration_0006/ts_opt/.cloudra/calc-780.out.log"
+        ],
+        "source_input_revision": 6,
+        "detail": "Original compute output for direct evidence submission; keep IRC sidecars in place. Job completion is not scientific verification.",
+        "input_revision_relation": "historical"
+      },
+      {
+        "stage": "frequency",
+        "status": "done",
+        "job_id": 794,
+        "artifacts": [
+          "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/jobs/declaration_0006/frequency/.cloudra/calc-794.out.log"
+        ],
+        "source_input_revision": 6,
+        "detail": "Original compute output for direct evidence submission; keep IRC sidecars in place. Job completion is not scientific verification.",
+        "input_revision_relation": "historical"
+      },
+      {
+        "stage": "irc",
+        "status": "done",
+        "job_id": 798,
+        "artifacts": [
+          "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/jobs/declaration_0006/irc/.cloudra/calc-798.out.log"
+        ],
+        "source_input_revision": 6,
+        "detail": "Original compute output for direct evidence submission; keep IRC sidecars in place. Job completion is not scientific verification.",
+        "input_revision_relation": "historical"
+      },
+      {
+        "stage": "reactant_opt",
+        "status": "done",
+        "job_id": 813,
+        "artifacts": [
+          "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/jobs/declaration_0007/reactant_opt/.cloudra/calc-813.out.log"
+        ],
+        "source_input_revision": 7,
+        "detail": "Original compute output for direct evidence submission; keep IRC sidecars in place. Job completion is not scientific verification.",
+        "input_revision_relation": "current"
+      },
+      {
+        "stage": "reactant_frequency",
+        "status": "done",
+        "job_id": 814,
+        "artifacts": [
+          "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/jobs/declaration_0007/reactant_frequency/.cloudra/calc-814.out.log"
+        ],
+        "source_input_revision": 7,
+        "detail": "Original compute output for direct evidence submission; keep IRC sidecars in place. Job completion is not scientific verification.",
+        "input_revision_relation": "current"
+      }
+    ],
+    "structures": {
+      "reactant": {
+        "role": "reactant",
+        "source_kind": "file",
+        "input_revision": 5,
+        "structure_digest": "e9eb8d65a7bd48a4027756e17018d537642a234966683fee139f2213a39ba01c",
+        "atom_count": 11,
+        "components": 1,
+        "index_base": 1,
+        "atoms": [
+          {
+            "number": 1,
+            "symbol": "C",
+            "isotope": 0,
+            "atom_id": null
+          },
+          {
+            "number": 2,
+            "symbol": "C",
+            "isotope": 0,
+            "atom_id": null
+          },
+          {
+            "number": 3,
+            "symbol": "N",
+            "isotope": 0,
+            "atom_id": null
+          },
+          {
+            "number": 4,
+            "symbol": "N",
+            "isotope": 0,
+            "atom_id": null
+          },
+          {
+            "number": 5,
+            "symbol": "C",
+            "isotope": 0,
+            "atom_id": null
+          },
+          {
+            "number": 6,
+            "symbol": "H",
+            "isotope": 0,
+            "atom_id": null
+          },
+          {
+            "number": 7,
+            "symbol": "H",
+            "isotope": 0,
+            "atom_id": null
+          },
+          {
+            "number": 8,
+            "symbol": "H",
+            "isotope": 0,
+            "atom_id": null
+          },
+          {
+            "number": 9,
+            "symbol": "H",
+            "isotope": 0,
+            "atom_id": null
+          },
+          {
+            "number": 10,
+            "symbol": "H",
+            "isotope": 0,
+            "atom_id": null
+          },
+          {
+            "number": 11,
+            "symbol": "H",
+            "isotope": 0,
+            "atom_id": null
+          }
+        ],
+        "smiles_heavy_atoms": [
+          {
+            "position": 1,
+            "symbol": "C",
+            "isotope": 0,
+            "atom_map_label": 0
+          },
+          {
+            "position": 2,
+            "symbol": "C",
+            "isotope": 0,
+            "atom_map_label": 0
+          },
+          {
+            "position": 3,
+            "symbol": "N",
+            "isotope": 0,
+            "atom_map_label": 0
+          },
+          {
+            "position": 4,
+            "symbol": "N",
+            "isotope": 0,
+            "atom_map_label": 0
+          },
+          {
+            "position": 5,
+            "symbol": "C",
+            "isotope": 0,
+            "atom_map_label": 0
+          }
+        ],
+        "heavy_atom_indices": [
+          1,
+          5,
+          4,
+          3,
+          2
+        ],
+        "binding_status": "complete",
+        "source": {
+          "paths": {
+            "xyz": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/calc/pyr_opt/pyr_opt.xyz",
+            "mol": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/pyrazoline.mol"
+          },
+          "hashes": {
+            "xyz": "cd58b842943d1d35b64838bf0e0321a67358d66459e0f00e426bbeaab7cecfe7",
+            "mol": "fe6ea46daa3d9fc58cfe9fee6dfc0fcedae8cb399071c6db954ff2bb37af4147"
+          },
+          "snapshots": {
+            "xyz": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/build/input_0005/reactant/source_cd58b842943d1d35.xyz",
+            "mol": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/build/input_0005/reactant/source_fe6ea46daa3d9fc5.mol"
+          },
+          "input_revision": 5
+        },
+        "electronic_state": {
+          "charge": 0,
+          "multiplicity": 1,
+          "electronic_character": "closed_shell",
+          "electron_count": 38,
+          "localized_radical_electrons": 0,
+          "n_alpha": 19,
+          "n_beta": 19,
+          "is_open_shell": false,
+          "requires_spin_aware_geometry": false
+        }
+      },
+      "product": {
+        "role": "product",
+        "source_kind": "file",
+        "input_revision": 5,
+        "structure_digest": "e57273f5019f9c119be58bbcd342e2221a8ad8fe6c2ce6a21558f70eef4b0e1c",
+        "atom_count": 11,
+        "components": 2,
+        "index_base": 1,
+        "atoms": [
+          {
+            "number": 1,
+            "symbol": "C",
+            "isotope": 0,
+            "atom_id": null
+          },
+          {
+            "number": 2,
+            "symbol": "N",
+            "isotope": 0,
+            "atom_id": null
+          },
+          {
+            "number": 3,
+            "symbol": "N",
+            "isotope": 0,
+            "atom_id": null
+          },
+          {
+            "number": 4,
+            "symbol": "H",
+            "isotope": 0,
+            "atom_id": null
+          },
+          {
+            "number": 5,
+            "symbol": "H",
+            "isotope": 0,
+            "atom_id": null
+          },
+          {
+            "number": 6,
+            "symbol": "C",
+            "isotope": 0,
+            "atom_id": null
+          },
+          {
+            "number": 7,
+            "symbol": "C",
+            "isotope": 0,
+            "atom_id": null
+          },
+          {
+            "number": 8,
+            "symbol": "H",
+            "isotope": 0,
+            "atom_id": null
+          },
+          {
+            "number": 9,
+            "symbol": "H",
+            "isotope": 0,
+            "atom_id": null
+          },
+          {
+            "number": 10,
+            "symbol": "H",
+            "isotope": 0,
+            "atom_id": null
+          },
+          {
+            "number": 11,
+            "symbol": "H",
+            "isotope": 0,
+            "atom_id": null
+          }
+        ],
+        "smiles_heavy_atoms": [
+          {
+            "position": 1,
+            "symbol": "C",
+            "isotope": 0,
+            "atom_map_label": 0
+          },
+          {
+            "position": 2,
+            "symbol": "N",
+            "isotope": 0,
+            "atom_map_label": 0
+          },
+          {
+            "position": 3,
+            "symbol": "N",
+            "isotope": 0,
+            "atom_map_label": 0
+          },
+          {
+            "position": 4,
+            "symbol": "C",
+            "isotope": 0,
+            "atom_map_label": 0
+          },
+          {
+            "position": 5,
+            "symbol": "C",
+            "isotope": 0,
+            "atom_map_label": 0
+          }
+        ],
+        "heavy_atom_indices": [
+          1,
+          2,
+          3,
+          6,
+          7
+        ],
+        "binding_status": "complete",
+        "source": {
+          "paths": {
+            "xyz": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/build_rc/assembly/complex_candidate_000.xyz",
+            "mol": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/gold_compute/queue_20261018/results/IB9/structures/rc.mol"
+          },
+          "hashes": {
+            "xyz": "6877f6377c5be186159e14b1bf7a04fab8830b37683ae010b26daf2e6c8e6f83",
+            "mol": "d2a7d367bab3a31315ed54853af3d08955f439a8c730e1b641ae52d1adc4a193"
+          },
+          "snapshots": {
+            "xyz": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/build/input_0005/product/source_6877f6377c5be186.xyz",
+            "mol": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/build/input_0005/product/source_d2a7d367bab3a313.mol"
+          },
+          "input_revision": 5
+        },
+        "electronic_state": {
+          "charge": 0,
+          "multiplicity": 1,
+          "electronic_character": "closed_shell",
+          "electron_count": 38,
+          "localized_radical_electrons": 0,
+          "n_alpha": 19,
+          "n_beta": 19,
+          "is_open_shell": false,
+          "requires_spin_aware_geometry": false
+        }
+      }
+    },
+    "blocked": null,
+    "failed_attempt": {
+      "attempt_id": "7:reactant_frequency:814",
+      "failure_class": "endpoint_unconfirmed",
+      "purpose": "reactant_frequency",
+      "job_id": 814,
+      "input_revision": 7,
+      "evidence_refs": [
+        "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/jobs/declaration_0007/reactant_frequency/.cloudra/calc-814.out.log"
+      ],
+      "input_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/jobs/declaration_0007/reactant_frequency/reactant_frequency.inp",
+      "log_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/jobs/declaration_0007/reactant_frequency/.cloudra/calc-814.out.log",
+      "input_sha256": "8693ece9db0f5e3af6746e1c438add9841f0f3dcde35da7c8a5d604c1dadc7d6",
+      "log_sha256": "7f69507bf7263dbc4cec9ad972ef04d5ad65ce1192bbb17641a692563db1bf30",
+      "diagnostics": []
+    },
+    "frequency_analysis": {
+      "fraction_basis": "unweighted_squared_displacement",
+      "log_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/jobs/declaration_0006/frequency/.cloudra/calc-794.out.log",
+      "log_sha256": "dacf14b165b8cdedff3ea964a02c541bd0b636891d738f530fa4f8d27f35c2df",
+      "mode_alignment": {
+        "aligned": true,
+        "details": [
+          "Atom pair (1,5) relative displacement=0.924 (threshold 0.50×0.924=0.462)",
+          "Atom pair (2,3) relative displacement=0.848 (threshold 0.50×0.924=0.462)"
+        ],
+        "message": "Imaginary mode is consistent with the declared reaction coordinate: watch_pairs max relative displacement 0.924 ≥ 0.50×global max 0.924 (max pair=(1,5)).",
+        "status": "aligned"
+      },
+      "modes": null,
+      "reaction_center_pairs": [
+        [
+          1,
+          5
+        ],
+        [
+          2,
+          3
+        ]
+      ],
+      "job_id": 794,
+      "source_input_revision": 6,
+      "input_revision_relation": "historical"
+    },
+    "next": {
+      "action": "resume",
+      "required_inputs": [],
+      "editable_groups": [
+        "reaction",
+        "calculations",
+        "conformers",
+        "guess",
+        "ts_optimization",
+        "verification",
+        "execution"
+      ]
+    },
+    "methods": [
+      {
+        "purpose": "scan",
+        "planned": {
+          "engine": "orca",
+          "method": "GFN2-XTB",
+          "basis_set": "",
+          "keywords": "",
+          "frequency_mode": "auto",
+          "orca_blocks": null,
+          "end_setting": ""
+        },
+        "actual": {
+          "engine": "orca",
+          "method": "GFN2-XTB",
+          "basis_set": "",
+          "keywords": "",
+          "frequency_mode": "auto",
+          "orca_blocks": null,
+          "end_setting": ""
+        },
+        "contract": {
+          "actual": {
+            "basis_set": "",
+            "end_setting": "",
+            "engine": "orca",
+            "frequency_mode": "auto",
+            "keywords": "",
+            "method": "GFN2-XTB",
+            "orca_blocks": null
+          },
+          "differences": [],
+          "input_revision": 6,
+          "matched": true,
+          "purpose": "scan",
+          "source": "stage_declaration"
+        }
+      },
+      {
+        "purpose": "ts_opt",
+        "planned": {
+          "engine": "orca",
+          "method": "GFN2-XTB",
+          "basis_set": "",
+          "keywords": "",
+          "frequency_mode": "auto",
+          "orca_blocks": null,
+          "end_setting": ""
+        },
+        "actual": {
+          "engine": "orca",
+          "method": "GFN2-XTB",
+          "basis_set": "",
+          "keywords": "",
+          "frequency_mode": "auto",
+          "orca_blocks": null,
+          "end_setting": ""
+        },
+        "contract": {
+          "actual": {
+            "basis_set": "",
+            "end_setting": "",
+            "engine": "orca",
+            "frequency_mode": "auto",
+            "keywords": "",
+            "method": "GFN2-XTB",
+            "orca_blocks": null
+          },
+          "differences": [],
+          "input_revision": 6,
+          "matched": true,
+          "purpose": "ts_opt",
+          "source": "stage_declaration"
+        }
+      },
+      {
+        "purpose": "frequency",
+        "planned": {
+          "engine": "orca",
+          "method": "GFN2-XTB",
+          "basis_set": "",
+          "keywords": "",
+          "frequency_mode": "numeric",
+          "orca_blocks": null,
+          "end_setting": ""
+        },
+        "actual": {
+          "engine": "orca",
+          "method": "GFN2-XTB",
+          "basis_set": "",
+          "keywords": "",
+          "frequency_mode": "numeric",
+          "orca_blocks": null,
+          "end_setting": ""
+        },
+        "contract": {
+          "actual": {
+            "basis_set": "",
+            "end_setting": "",
+            "engine": "orca",
+            "frequency_mode": "numeric",
+            "keywords": "",
+            "method": "GFN2-XTB",
+            "orca_blocks": null
+          },
+          "differences": [],
+          "input_revision": 6,
+          "matched": true,
+          "purpose": "frequency",
+          "source": "stage_declaration"
+        },
+        "reference": "g"
+      },
+      {
+        "purpose": "irc",
+        "planned": {
+          "engine": "orca",
+          "method": "GFN2-XTB",
+          "basis_set": "",
+          "keywords": "",
+          "frequency_mode": "auto",
+          "orca_blocks": null,
+          "end_setting": ""
+        },
+        "actual": {
+          "engine": "orca",
+          "method": "GFN2-XTB",
+          "basis_set": "",
+          "keywords": "",
+          "frequency_mode": "auto",
+          "orca_blocks": null,
+          "end_setting": ""
+        },
+        "contract": {
+          "actual": {
+            "basis_set": "",
+            "end_setting": "",
+            "engine": "orca",
+            "frequency_mode": "auto",
+            "keywords": "",
+            "method": "GFN2-XTB",
+            "orca_blocks": null
+          },
+          "differences": [],
+          "input_revision": 6,
+          "matched": true,
+          "purpose": "irc",
+          "source": "stage_declaration"
+        }
+      },
+      {
+        "purpose": "reactant_opt",
+        "planned": {
+          "engine": "orca",
+          "method": "GFN2-XTB",
+          "basis_set": "",
+          "keywords": "",
+          "frequency_mode": "auto",
+          "orca_blocks": null,
+          "end_setting": ""
+        },
+        "actual": {
+          "engine": "orca",
+          "method": "GFN2-XTB",
+          "basis_set": "",
+          "keywords": "",
+          "frequency_mode": "auto",
+          "orca_blocks": null,
+          "end_setting": ""
+        },
+        "contract": {
+          "input_revision": 7,
+          "purpose": "reactant_opt",
+          "actual": {
+            "engine": "orca",
+            "method": "GFN2-XTB",
+            "basis_set": "",
+            "keywords": "",
+            "frequency_mode": "auto",
+            "orca_blocks": null,
+            "end_setting": ""
+          },
+          "source": "stage_declaration",
+          "differences": [],
+          "matched": true
+        }
+      },
+      {
+        "purpose": "reactant_frequency",
+        "planned": {
+          "engine": "orca",
+          "method": "GFN2-XTB",
+          "basis_set": "",
+          "keywords": "",
+          "frequency_mode": "numeric",
+          "orca_blocks": null,
+          "end_setting": ""
+        },
+        "actual": {
+          "engine": "orca",
+          "method": "GFN2-XTB",
+          "basis_set": "",
+          "keywords": "",
+          "frequency_mode": "numeric",
+          "orca_blocks": null,
+          "end_setting": ""
+        },
+        "contract": {
+          "input_revision": 7,
+          "purpose": "reactant_frequency",
+          "actual": {
+            "engine": "orca",
+            "method": "GFN2-XTB",
+            "basis_set": "",
+            "keywords": "",
+            "frequency_mode": "numeric",
+            "orca_blocks": null,
+            "end_setting": ""
+          },
+          "source": "stage_declaration",
+          "differences": [],
+          "matched": true
+        },
+        "reference": "g"
+      },
+      {
+        "purpose": "product_opt",
+        "planned": {
+          "engine": "orca",
+          "method": "GFN2-XTB",
+          "basis_set": "",
+          "keywords": "",
+          "frequency_mode": "auto",
+          "orca_blocks": null,
+          "end_setting": ""
+        },
+        "actual": null,
+        "contract": null
+      },
+      {
+        "purpose": "product_frequency",
+        "planned": {
+          "engine": "orca",
+          "method": "GFN2-XTB",
+          "basis_set": "",
+          "keywords": "",
+          "frequency_mode": "numeric",
+          "orca_blocks": null,
+          "end_setting": ""
+        },
+        "actual": null,
+        "contract": null,
+        "reference": "g"
+      }
+    ],
+    "usage": {
+      "interventions": 6,
+      "compute_actions": 10,
+      "model_calls": null,
+      "limits": null,
+      "jobs": [
+        {
+          "job_id": 754,
+          "runtime_seconds": 2.751323938369751,
+          "cpus": 4,
+          "memory_mb": 4096,
+          "measured_cpu_hours": null,
+          "allocated_cpu_hours": 0.0030570265981886124
+        },
+        {
+          "job_id": 757,
+          "runtime_seconds": 15.992435932159424,
+          "cpus": 4,
+          "memory_mb": 4096,
+          "measured_cpu_hours": null,
+          "allocated_cpu_hours": 0.017769373257954916
+        },
+        {
+          "job_id": 778,
+          "runtime_seconds": 11.104011058807373,
+          "cpus": 4,
+          "memory_mb": 4096,
+          "measured_cpu_hours": null,
+          "allocated_cpu_hours": 0.012337790065341525
+        },
+        {
+          "job_id": 780,
+          "runtime_seconds": 5.854537010192871,
+          "cpus": 4,
+          "memory_mb": 4096,
+          "measured_cpu_hours": null,
+          "allocated_cpu_hours": 0.006505041122436523
+        },
+        {
+          "job_id": 794,
+          "runtime_seconds": 13.174797058105469,
+          "cpus": 4,
+          "memory_mb": 4096,
+          "measured_cpu_hours": null,
+          "allocated_cpu_hours": 0.014638663397894965
+        },
+        {
+          "job_id": 798,
+          "runtime_seconds": 8.995275974273682,
+          "cpus": 4,
+          "memory_mb": 4096,
+          "measured_cpu_hours": null,
+          "allocated_cpu_hours": 0.009994751082526314
+        },
+        {
+          "job_id": 803,
+          "runtime_seconds": 5.995116949081421,
+          "cpus": 4,
+          "memory_mb": 4096,
+          "measured_cpu_hours": null,
+          "allocated_cpu_hours": 0.006661241054534912
+        },
+        {
+          "job_id": 806,
+          "runtime_seconds": 11.419313907623291,
+          "cpus": 4,
+          "memory_mb": 4096,
+          "measured_cpu_hours": null,
+          "allocated_cpu_hours": 0.012688126564025879
+        },
+        {
+          "job_id": 813,
+          "runtime_seconds": 5.795867919921875,
+          "cpus": 4,
+          "memory_mb": 4096,
+          "measured_cpu_hours": null,
+          "allocated_cpu_hours": 0.006439853244357639
+        },
+        {
+          "job_id": 814,
+          "runtime_seconds": 11.021787166595459,
+          "cpus": 4,
+          "memory_mb": 4096,
+          "measured_cpu_hours": null,
+          "allocated_cpu_hours": 0.012246430185106065
+        }
+      ]
+    },
+    "details_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ts/ts_0005/process.json",
+    "export_revision": 74,
+    "message": "The reactant endpoint candidate from explicit species seed did not qualify as an optimized minimum: reactant endpoint geometry in the optimization log, saved frequency source, and frequency log does not match; it cannot serve as a proven minimum reference. Repair verification.reactant_endpoint.seed for the declared reactant C1CN=NC1; IRC A/B labels do not declare species identity.",
+    "is_success": true,
+    "receipt": null
+  },
+  "duration_ms": 9
+}

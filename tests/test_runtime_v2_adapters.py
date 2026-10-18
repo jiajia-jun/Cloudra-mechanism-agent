@@ -682,22 +682,19 @@ async def test_file_mutation_executor_reports_actual_write_result(
     tmp_path, monkeypatch, tool_name, status, successful,
 ):
     """A rejected file change must not become successful at the runtime boundary."""
-    from hashlib import sha256
-
     from cloudra.base.tools_class import Tool
     from cloudra.runtime_v2.policies.base import ToolCall
 
     target = tmp_path / "exists.txt"
-    await asyncio.to_thread(target.write_text, "keep\n", encoding="utf-8")
-    expected_sha256 = "0" * 64 if status == "conflict" else sha256(b"keep\n").hexdigest()
+    await asyncio.to_thread(target.write_text, "before\n" if status == "conflict" else "keep\n", encoding="utf-8")
     if tool_name == "write":
         arguments = {
-            "path": "exists.txt", "expected_sha256": expected_sha256,
+            "path": "exists.txt",
             "content": "keep\n" if status == "failed" else "replace\n",
         }
     else:
         arguments = {
-            "path": "exists.txt", "expected_sha256": expected_sha256,
+            "path": "exists.txt",
             "edits": [{"old_text": "" if status == "failed" else "keep", "new_text": "replace"}],
         }
     if status in {"declined", "applied"}:
@@ -714,7 +711,14 @@ async def test_file_mutation_executor_reports_actual_write_result(
         type="agent.spawn", target={"project_id": project.id},
         payload={"role_id": "coordinator", "query": "Edit a file"},
     ))
-    output = await LegacyToolExecutor(core).execute(
+    executor = LegacyToolExecutor(core)
+    read = await executor.execute(spawned.data, ToolCall(id="read", name="read", arguments={"path": "exists.txt"}))
+    core.event_log.append("tool.result_recorded", stream="agent", project_id=project.id,
+        session_id=spawned.data.id, data={"tool_name": "read", "result": {
+            "is_success": read.is_success, "data": read.data}})
+    if status == "conflict":
+        await asyncio.to_thread(target.write_text, "keep\n", encoding="utf-8")
+    output = await executor.execute(
         spawned.data, ToolCall(id="tc_file_change", name=tool_name, arguments=arguments),
     )
 

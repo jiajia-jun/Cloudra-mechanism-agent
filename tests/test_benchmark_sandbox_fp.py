@@ -194,12 +194,12 @@ else {
 _CHILD_MALFORMED_THEN_CORRECTED_PROGRAM = r"""
 const badText = "5\ntruncated\nC 0.0 0.0 0.0\n";
 const badWrite = await tools.write({
-  path: "xyz/bad.xyz", content: badText, expected_sha256: "missing",
+  path: "xyz/bad.xyz", content: badText,
 });
 const goodText = "3\nwater\nO 0.000000 0.000000 0.117300\n" +
                  "H 0.000000 0.757200 -0.469200\nH 0.000000 -0.757200 -0.469200\n";
 const goodWrite = await tools.write({
-  path: "xyz/water.xyz", content: goodText, expected_sha256: "missing",
+  path: "xyz/water.xyz", content: goodText,
 });
 const badSource = await tools.qm_input_writer({
   source_type: "xyz_file", source_value: "xyz/bad.xyz",

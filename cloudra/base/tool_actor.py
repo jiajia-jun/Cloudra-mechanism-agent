@@ -42,6 +42,10 @@ class ToolActorContext(Protocol):
     #: 会话 id 别名；同角色并行实例（swarm）据此隔离各自的 todos/goal。
     session_id: str
 
+    def known_file_sha256(self, absolute_path: str) -> str | None:
+        """Internal file version this session last read or successfully wrote."""
+        ...
+
     def permission_all(self) -> "Permission":
         """调用者的权限位（IntFlag 投影，供 bash 等工具判定命令类别）。"""
         ...

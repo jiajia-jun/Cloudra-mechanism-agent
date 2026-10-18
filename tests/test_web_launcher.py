@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from click.testing import CliRunner
 
@@ -41,6 +43,7 @@ def test_uvicorn_subprocess_pins_cwd_to_frontend(tmp_path, monkeypatch):
     monkeypatch.setattr(web_launcher, "_ensure_frontend", lambda *a, **k: None)
     monkeypatch.setattr(web_launcher, "ensure_daemons", lambda: None)
     monkeypatch.setattr(web_launcher, "_wait_healthy", lambda url: None)
+    monkeypatch.setattr(web_launcher, "_port_is_bindable", lambda host, port: True)
     monkeypatch.setenv("CLOUDRA_API_PORT", "18999")
     monkeypatch.setenv("CLOUDRA_NO_BROWSER", "1")
 
@@ -81,6 +84,7 @@ def _patch_launch(monkeypatch, captured):
     monkeypatch.setattr(web_launcher, "_ensure_frontend", lambda *a, **k: None)
     monkeypatch.setattr(web_launcher, "ensure_daemons", lambda: None)
     monkeypatch.setattr(web_launcher, "_wait_healthy", _fake_wait_healthy)
+    monkeypatch.setattr(web_launcher, "_port_is_bindable", lambda host, port: True)
     monkeypatch.setenv("CLOUDRA_NO_BROWSER", "1")
 
 
@@ -168,19 +172,10 @@ def test_probe_host_uses_bound_address_for_specific_host():
     assert web_launcher._probe_host("192.168.1.5") == "192.168.1.5"
     assert web_launcher._probe_host("::1") == "[::1]"
 
-def test_wildcard_rebind_does_not_reuse_loopback_only_runtime(monkeypatch):
-    """已有一个只绑回环的实例占着 8000 时，`cloudra web --host 0.0.0.0` 不能
-    判定为「复用」——回环探测分辨不出对端绑的是 127.0.0.1 还是 0.0.0.0，复用
-    会让改绑静默失效（用户以为已可从网络访问，实际仍在回环上）。"""
-    monkeypatch.delenv("CLOUDRA_API_PORT", raising=False)
-    monkeypatch.setattr(web_launcher, "_runtime_is_healthy", lambda host, port: True)
-    monkeypatch.setattr(web_launcher, "_runtime_serves_spa", lambda host, port: True)
-    monkeypatch.setattr(web_launcher, "_port_is_bindable", lambda bind_host, port: port != 8000)
-
-    assert web_launcher._find_api_port(8000, "CLOUDRA_API_PORT", "127.0.0.1") == (8000, True)
-    assert web_launcher._find_api_port(8000, "CLOUDRA_API_PORT", "0.0.0.0") == (8001, False)
-    # 具体网卡地址的探测地址就是绑定地址本身，复用判定照旧可信
-    assert web_launcher._find_api_port(8000, "CLOUDRA_API_PORT", "192.168.1.5") == (8000, True)
+def test_free_port_selection_never_reuses_an_occupied_port(monkeypatch):
+    monkeypatch.setattr(web_launcher, "_port_is_bindable", lambda host, port: port != 8000)
+    assert web_launcher._find_api_port(8000, "127.0.0.1") == 8001
+    assert web_launcher._find_api_port(8000, "0.0.0.0") == 8001
 
 
 def test_launch_refuses_when_store_owned_by_non_reusable_api(tmp_path, monkeypatch):
@@ -188,7 +183,7 @@ def test_launch_refuses_when_store_owned_by_non_reusable_api(tmp_path, monkeypat
 
     实测（2026-10-15）：launchd 自启的 API 占着主库（8000），但它的
     CLOUDRA_FRONTEND_SERVE_DIR 指向已失效的旧仓库（GET / 404），于是
-    `_runtime_present` 判它「不可复用」→ CLI 悄悄换到空闲的 8001 起子进程 →
+    前端探测判它「不可复用」→ CLI 悄悄换到空闲的 8001 起子进程 →
     子进程在 create_default_v2_app 的排他 flock 上退出，用户只看到一句
     "database is already in use"，既不知道是谁占的，也不知道 `cloudra stop`
     之后会被 KeepAlive 立刻拉起。端口空闲并不代表能另起实例。
@@ -205,7 +200,6 @@ def test_launch_refuses_when_store_owned_by_non_reusable_api(tmp_path, monkeypat
     monkeypatch.setattr(web_launcher, "_ensure_frontend", lambda *a, **k: phases.append("build"))
     monkeypatch.delenv("CLOUDRA_API_PORT", raising=False)
     monkeypatch.setattr(web_launcher, "_port_is_bindable", lambda bind_host, port: port != 8000)
-    monkeypatch.setattr(web_launcher, "_runtime_present", lambda host, port: False)
     monkeypatch.setattr(web_launcher, "is_lock_held", lambda path: True)
     monkeypatch.setattr(
         web_launcher,
@@ -302,3 +296,75 @@ def test_describe_store_conflict_explains_wildcard_refusal():
     )
 
     assert "8000" in message and "通配绑定" in message
+
+
+@pytest.mark.parametrize("explicit_store", [False, True])
+def test_healthy_foreign_runtime_does_not_override_requested_store(tmp_path, monkeypatch, explicit_store):
+    from cloudra.infra.config import get_config
+
+    frontend = tmp_path / "frontend"
+    frontend.mkdir()
+    requested = tmp_path / "other-runtime.db"
+    if explicit_store:
+        monkeypatch.setenv("CLOUDRA_RUNTIME_STORE", str(requested))
+    else:
+        monkeypatch.delenv("CLOUDRA_RUNTIME_STORE", raising=False)
+        requested = Path(get_config().data_dir) / "runtime-v2.db"
+    monkeypatch.delenv("CLOUDRA_API_PORT", raising=False)
+    captured = {}
+    _patch_launch(monkeypatch, captured)
+    monkeypatch.setattr(web_launcher, "_port_is_bindable", lambda host, port: port != 8000)
+
+    assert web_launcher.launch_browser(frontend, rebuild=False, skip_build=True) == 0
+    assert captured["env"]["CLOUDRA_RUNTIME_STORE"] == str(requested.resolve())
+    assert captured["cmd"][captured["cmd"].index("--port") + 1] == "8001"
+
+
+def test_launcher_reuses_requested_store_owner_on_its_actual_port(tmp_path, monkeypatch):
+    frontend = tmp_path / "frontend"
+    frontend.mkdir()
+    requested = tmp_path / "owned.db"
+    monkeypatch.setenv("CLOUDRA_RUNTIME_STORE", str(requested))
+    monkeypatch.delenv("CLOUDRA_API_PORT", raising=False)
+    runtime_api_lock_path(requested).write_text("")
+    captured = {}
+    _patch_launch(monkeypatch, captured)
+    monkeypatch.setattr(web_launcher, "is_lock_held", lambda path: True)
+    monkeypatch.setattr(web_launcher, "find_store_owner", lambda *a, **kw: runtime_ownership.StoreOwner(42, 8005, True))
+    monkeypatch.setattr(web_launcher, "_port_is_bindable", lambda host, port: True)
+
+    assert web_launcher.launch_browser(frontend, rebuild=False, skip_build=True) == 0
+    assert "cmd" not in captured
+    assert captured["health_url"] == "http://127.0.0.1:8005/api/v2/runtime/health"
+
+
+@pytest.mark.parametrize("bind_host, port", [("0.0.0.0", None), ("127.0.0.1", 8000)])
+def test_owned_runtime_does_not_silently_ignore_bind_or_port(tmp_path, monkeypatch, bind_host, port):
+    frontend = tmp_path / "frontend"
+    frontend.mkdir()
+    requested = tmp_path / "owned.db"
+    monkeypatch.setenv("CLOUDRA_RUNTIME_STORE", str(requested))
+    monkeypatch.setenv("CLOUDRA_API_TOKEN", "test-token")
+    monkeypatch.delenv("CLOUDRA_API_PORT", raising=False)
+    runtime_api_lock_path(requested).write_text("")
+    captured = {}
+    _patch_launch(monkeypatch, captured)
+    monkeypatch.setattr(web_launcher, "is_lock_held", lambda path: True)
+    monkeypatch.setattr(web_launcher, "find_store_owner", lambda *a, **kw: runtime_ownership.StoreOwner(42, 8005, True))
+
+    with pytest.raises(RuntimeError, match="8005"):
+        web_launcher.launch_browser(frontend, rebuild=False, skip_build=True, host=bind_host, port=port)
+    assert "cmd" not in captured
+
+
+def test_foreign_runtime_on_explicit_port_is_not_opened(tmp_path, monkeypatch):
+    frontend = tmp_path / "frontend"
+    frontend.mkdir()
+    captured = {}
+    _patch_launch(monkeypatch, captured)
+    monkeypatch.setattr(web_launcher, "_port_is_bindable", lambda host, port: False)
+
+    with pytest.raises(RuntimeError, match="8000.*another service"):
+        web_launcher.launch_browser(frontend, rebuild=False, skip_build=True, port=8000)
+    assert "cmd" not in captured
+    assert "health_url" not in captured

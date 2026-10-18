@@ -26,7 +26,7 @@ import {
   type ToolItem,
 } from './timeline';
 import { boundEventPage, boundStreamView, LiveEventBuffer, mergeAndTrimLiveEvents } from './eventWindow';
-import { resolveComposerSendTarget } from './composerSend';
+import { composerInteractionFor, resolveComposerSendTarget } from './composerSend';
 import { planSseReconnect } from './sseReconnect';
 import {
   archiveProjectConfirm,
@@ -273,6 +273,7 @@ export default function App() {
   const interactions = attention.get(activeProjectId ?? '')?.interactions ?? [];
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null;
   const activeAgent = agents.find((a) => a.id === activeAgentId) ?? null;
+  const composerInteraction = composerInteractionFor(interactions, activeAgent?.id ?? null);
   // Visual mode gates the composer attach button; defaults to on.
   const visualOn = activeProject
     ? (activeAgent?.settings.visual_mode ?? activeProject.settings.defaults?.visual_mode ?? true) !== false
@@ -958,8 +959,9 @@ export default function App() {
 
   async function createProject(name: string, workspaceDir?: string) {
     const resp = await api.createProject(name, workspaceDir);
-    const list = await api.listProjects(true);
-    setProjects(list);
+    setProjects((prev) => prev.some((p) => p.id === resp.data.id)
+      ? prev.map((p) => (p.id === resp.data.id ? resp.data : p))
+      : [...prev, resp.data]);
     setActiveProjectId(resp.data.id);
     pushToast('ok', `Project "${name}" created`);
   }
@@ -998,13 +1000,12 @@ export default function App() {
 
 
 
-  async function changeWorkspace(dir: string) {
-    if (!activeProject) return;
+  async function changeWorkspace(project: Project, dir: string) {
     const value = dir.trim() || null;
-    if (value === (activeProject.workspace_dir ?? null)) return;
+    if (value === (project.workspace_dir ?? null)) return;
     try {
-      const resp = await api.patchProject(activeProject.id, { workspace_dir: value });
-      setProjects((prev) => prev.map((p) => (p.id === activeProject.id ? resp.data : p)));
+      const resp = await api.patchProject(project.id, { workspace_dir: value });
+      setProjects((prev) => prev.map((p) => (p.id === project.id ? resp.data : p)));
       pushToast('ok', value ? `Workspace → ${value}` : 'Workspace cleared');
     } catch (e) {
       reportError(e);
@@ -1131,7 +1132,7 @@ export default function App() {
       draft,
       sending,
       hasProject: Boolean(activeProject),
-      hasAgent: Boolean(activeAgent),
+      activeAgentId: activeAgent?.id ?? null,
       interactions,
     });
     if (target.kind === 'noop' || !activeProject) return;
@@ -2044,7 +2045,7 @@ export default function App() {
                                     openPathPicker({
                                       title: `${t.sidebarRename} ${p.name}`,
                                       initialPath: p.workspace_dir ?? undefined,
-                                      onSelect: (newDir) => void changeWorkspace(newDir),
+                                      onSelect: (newDir) => void changeWorkspace(p, newDir),
                                     });
                                   }}
                                 >
@@ -2579,8 +2580,8 @@ export default function App() {
               placeholder={
                 !activeProject
                   ? 'Select or create a project first…'
-                  : interactions.length > 0
-                    ? `Reply to ${activeAgent?.display_name ?? 'agent'}: ${short(cleanPromptText(interactions[0].prompt ?? interactions[0].message), 60)}…`
+                  : composerInteraction
+                    ? `Reply to ${activeAgent?.display_name ?? 'agent'}: ${short(cleanPromptText(composerInteraction.prompt ?? composerInteraction.message), 60)}…`
                     : activeAgent
                       ? activeAgent.state === 'failed' || activeAgent.state === 'cancelled'
                         ? `Message ${activeAgent.display_name} — this reopens it with a fresh run…`

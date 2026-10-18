@@ -128,13 +128,14 @@ def _normalize(raw: Any, provider_name: str) -> dict[str, Any] | None:
     entry["provider"] = provider_name
     return entry
 
-async def search_library(query: str, *, limit: int = 5) -> list[dict[str, Any]]:
+async def search_library(query: str, *, limit: int = 5) -> tuple[list[dict[str, Any]], dict[str, str]]:
     """Query every registered provider; merge, rank, and cap the hits.
 
-    A broken provider is logged and skipped — it must never break a hub
-    search.  Sync providers run in a worker thread (never block the loop).
+    Return per-source failures alongside useful hits. Sync providers run in
+    a worker thread; one broken source does not discard another's results.
     """
     hits: list[dict[str, Any]] = []
+    errors: dict[str, str] = {}
     for provider in list(_providers):
         name = str(getattr(provider, "name", type(provider).__name__))
         try:
@@ -144,8 +145,9 @@ async def search_library(query: str, *, limit: int = 5) -> list[dict[str, Any]]:
                 raw = await asyncio.to_thread(provider.search, query, limit=limit)
             if inspect.isawaitable(raw):
                 raw = await raw
-        except Exception:
+        except Exception as exc:
             logger.exception("knowledge provider %s search failed", name)
+            errors[name] = str(exc)
             continue
         for item in raw or []:
             entry = _normalize(item, name)
@@ -158,7 +160,7 @@ async def search_library(query: str, *, limit: int = 5) -> list[dict[str, Any]]:
             -e["score"],
         )
     )
-    return hits[:limit]
+    return hits[:limit], errors
 
 
 def render_library_hits(hits: list[dict[str, Any]]) -> str:

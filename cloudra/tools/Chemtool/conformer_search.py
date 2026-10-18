@@ -96,7 +96,8 @@ def _sniff_structure_text(text: str) -> Literal["mol_block", "xyz_text"]:
     Neither match is an explicit failure — the format is never guessed from loose substrings
     (an xyz comment containing "V2000", or a mol block whose molecule name starts with a digit).
     """
-    lines = text.strip().splitlines()
+    # MOL headers are positional and may start with an empty molecule name.
+    lines = text.splitlines()
     if len(lines) >= 4:
         counts_parts = lines[3].split()
         if (
@@ -136,6 +137,7 @@ def _all_float(tokens: list[str]) -> bool:
 
 description = (
     "Conformer-ensemble search: from SMILES or xyz/sdf, generate an ensemble and an energy/Boltzmann-population table. "
+    "Existing coordinates are retained as an initial seed; a supplied complex keeps its relative fragment geometry. "
     "Set ring_order to the atoms of a prospective cycle in order (1-based complete builder order); "
     "ring_order and distance_filters work independently or together as soft generation windows and strict output filters. "
     "Missing nonbonded cycle edges receive a visible 1.6–3.0 Å fallback; guided output is a constrained TS seed, not an equilibrium ensemble. "
@@ -527,17 +529,32 @@ class ConformerSearch(Tool):
         return None
 
     def _run_complex(self, user_input: ConformerSearch_input_schema, out_dir: str, *, candidate_sink=None) -> ConformerSearch_output_schema:
-        """多组分输入：以**组装结果**作为复合物构象候选（组装参数由用户批准）。
+        """保留已给几何；无几何的多组分以批准的组装结果作为候选。
 
         不再对整体做 ETKDG 系综嵌入——那会把碎片相对取向随机化，等于把"复合物"退回随机叠加。
         组装自身的能窗与 RMSD 聚类已按批准参数执行；这里只额外应用调用方显式给出的
         ``distance_filters``（作为反应中心/预组织窗口的可选筛选），并如实报告每个候选。
         """
         prepared = self._prepare(user_input, out_dir, embed=True, optimize=True,candidate_sink=candidate_sink)
-        if prepared.status != "ok" or not prepared.has_coordinates or prepared.assembly is None:
+        if prepared.status != "ok" or not prepared.has_coordinates:
             return self._build_failure(prepared)
 
         assembly = prepared.assembly
+        if assembly is None:
+            positions = prepared.mol.GetConformer().GetPositions()
+            self._check_filters(user_input, len(positions))
+            passed = self._filter_pass(positions, user_input.distance_filters)
+            xyz_path = os.path.join(out_dir, "confs.xyz")
+            atomic_write_text(xyz_path, to_xyz(prepared.mol, "retained input seed; not an optimized minimum"))
+            atomic_write_text(os.path.join(out_dir, "confs.sdf"), Chem.MolToMolBlock(prepared.mol) + "\n$$$$\n")
+            return ConformerSearch_output_schema(
+                is_success=True,
+                conformers=[{"conf_id": 0, "passes_filters": passed}],
+                counts={"generated": 0, "optimized": 0, "retained": 1, "clusters": 1, "passing_filters": int(passed)},
+                ensemble_path=xyz_path,
+                message="Input geometry retained as one seed: not reassembled or optimized. "
+                        "No energy ranking or minimum qualification is claimed; CREST can continue from this geometry.",
+            )
         if not assembly.candidates:
             return ConformerSearch_output_schema(
                 is_success=False,
@@ -784,10 +801,17 @@ class ConformerSearch(Tool):
             params = AllChem.ETKDGv3()
             params.randomSeed = user_input.random_seed
             params.pruneRmsThresh = -1.0
-            cids = list(AllChem.EmbedMultipleConfs(mol, numConfs=user_input.num_confs, params=params))
+            params.clearConfs = False
+            for cid in [conf.GetId() for conf in mol.GetConformers() if not conf.Is3D()]:
+                mol.RemoveConformer(cid)
+            input_cids = [conf.GetId() for conf in mol.GetConformers()]
+            cids = list(input_cids)
+            cids.extend(AllChem.EmbedMultipleConfs(mol, numConfs=user_input.num_confs, params=params))
             if not cids:
                 return ConformerSearch_output_schema(is_success=False, message="RDKit conformer generation failed (no conformers embedded).")
-            parents = {cid: candidate_sink.capture(mol, cid, generator="ETKDGv3", seed=user_input.random_seed) for cid in cids} if candidate_sink else {}
+            parents = {cid: candidate_sink.capture(mol, cid,
+                generator="input_geometry" if cid in input_cids else "ETKDGv3",
+                seed=None if cid in input_cids else user_input.random_seed) for cid in cids} if candidate_sink else {}
             counts = {"generated": len(cids)}
 
             # 多组分已经由上方分支交给组装；这里仅处理单组分。
@@ -995,11 +1019,15 @@ class ConformerSearch(Tool):
 
     def _run_crest(self, user_input: ConformerSearch_input_schema, out_dir: str, *, candidate_sink=None) -> ConformerSearch_output_schema:
         try:
-            # 种子结构由共享构建器产出（embed+optimize），多组分得到组装复合物，
-            # 互穿几何绝不会被喂给 CREST/xTB（issue #33 的直接病因）。
+            # Complete input geometries are retained; topology-only inputs need
+            # embedding/assembly. Force-field qualification is not CREST admission.
             prepared = self._prepare(user_input, out_dir, embed=True, optimize=True,candidate_sink=candidate_sink)
-            if prepared.status != "ok" or not prepared.has_coordinates:
+            if not prepared.has_coordinates or prepared.status not in ("ok", "missing_parameters", "optimization_failed"):
                 return self._build_failure(prepared)
+            preparation_warning = ""
+            if prepared.status != "ok":
+                preparation_warning = (f"Warning: force-field preparation was not qualified ({prepared.status}); "
+                                       "passing the retained unoptimized seed to CREST. No force-field minimum is claimed.")
             if prepared.electronic_state["is_open_shell"] and user_input.multiplicity == 1:
                 return ConformerSearch_output_schema(
                     is_success=False,
@@ -1077,6 +1105,7 @@ class ConformerSearch(Tool):
                         f"(termination={run.termination_reason}, stage={run.stage}, "
                         f"returncode={run.returncode}). {run.message}"
                         + (f" Diagnostics: {details}" if details else "")
+                        + (f" {preparation_warning}" if preparation_warning else "")
                         + " A failed or partial run never enters the conformer ranking."
                     ),
                 )
@@ -1197,6 +1226,8 @@ class ConformerSearch(Tool):
                     f"{counts['reactive_rescued']} lowest-energy reactive conformer(s) outside the energy window were "
                     "additionally kept to avoid losing reactive conformers in pre-screening; their relative energies still use the global minimum as zero."
                 )
+            if preparation_warning:
+                extra += " " + preparation_warning
             return self._finalize(user_input, kept, counts, xyz_path, extra_message=extra)
 
         except Exception as e:

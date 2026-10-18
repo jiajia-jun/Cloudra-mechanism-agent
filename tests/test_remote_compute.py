@@ -62,6 +62,10 @@ class FakeTransport:
         self.pulls += 1
         if self.pull_action is not None:
             self.pull_action(remote_dir, local_dir)
+        elif self._last_token in {"EXIT:0", "COMPLETED|0:0"}:
+            from pathlib import Path
+
+            Path(local_dir, "mol.out").write_text("normal termination of xtb\n", encoding="utf-8")
 
 
 def _connection() -> dict:
@@ -115,7 +119,7 @@ def test_runner_script_writes_pid_and_exit_files_without_set_e():
     assert "set -e" not in script
     assert "cd /scratch/u/cloudra-7" in script
     assert "echo $$ > .cloudra-runner-7.pid" in script
-    assert "echo \"$calc_pid\" > .cloudra-pid-7" in script
+    assert ".cloudra-pid-7" not in script
     assert "echo \"$rc\" > .cloudra-exit-7" in script
     assert "> .cloudra/calc-7.out.log 2>&1 &" in script
     assert "bash calculator.sh mol.xyz xtb" in script
@@ -203,10 +207,9 @@ async def test_ssh_local_engine_gate_confirms_done(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_ssh_local_cancel_requested_kills_remote_processes(tmp_path):
-    db, job_id, _ = await _insert_running(tmp_path)
-    # poll 序列 RUNNING → RUNNING；另一侧协程中途把账本置 cancel_requested
-    transport = FakeTransport(poll_tokens=["RUNNING", "RUNNING"])
+async def test_ssh_local_cancel_requested_is_delivered_to_owning_runner(tmp_path):
+    db, job_id, _ = await _insert_running(tmp_path, handle="shell:4321")
+    transport = FakeTransport(poll_tokens=["RUNNING", "RUNNING", "EXIT:143"])
 
     async def flip_after_delay():
         await asyncio.sleep(0)
@@ -226,8 +229,68 @@ async def test_ssh_local_cancel_requested_kills_remote_processes(tmp_path):
     assert rc == 1
     row = await aget_compute_job(db, job_id)
     assert row["state"] == "cancelled"
-    kill_cmds = [cmd for cmd in transport.commands if "kill -TERM" in cmd]
-    assert kill_cmds, "ssh_local 取消必须 TERM 远端 runner 与 calculator pid"
+    assert any("touch " in cmd and ".cloudra-cancel-" in cmd for cmd in transport.commands)
+    assert not any("kill -TERM" in cmd for cmd in transport.commands)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("scheduler", ["ssh_local", "ssh_slurm"])
+@pytest.mark.parametrize("jobtype", ["xtb", "shell"])
+async def test_remote_cancel_keeps_capacity_until_confirmed_exit(tmp_path, scheduler, jobtype):
+    """A failed cancellation request is retried; only execution evidence releases capacity."""
+    db, job_id, _ = await _insert_running(
+        tmp_path, scheduler=scheduler, jobtype=jobtype,
+        handle="shell:4321" if scheduler == "ssh_local" else "98765",
+    )
+    async with db.aconnect() as con:
+        await con.execute("UPDATE compute_jobs SET state='cancel_requested' WHERE id=?", (job_id,))
+        await con.commit()
+
+    class CancellingTransport(FakeTransport):
+        attempts = 0
+
+        def checked(self, command, **kwargs):
+            if "scancel" in command or "touch " in command:
+                self.commands.append(command)
+                self.attempts += 1
+                if self.attempts == 1:
+                    raise SshError("cancel request interrupted")
+                return ""
+            return super().checked(command, **kwargs)
+
+    tokens = ["RUNNING", "EXIT:143"] if scheduler == "ssh_local" else ["RUNNING|0:0", "CANCELLED|0:15"]
+    transport = CancellingTransport(poll_tokens=tokens)
+    pending = []
+
+    async def observe_pending(_seconds):
+        from cloudra.services.compute_store import compute_inflight_usage_by_node
+
+        pending.append((await aget_compute_job(db, job_id))["state"])
+        usage = await asyncio.to_thread(
+            compute_inflight_usage_by_node, db,
+            default_node_id="remote-a", fair_share_mb={"remote-a": 1024},
+        )
+        assert usage["remote-a"]["slots"] == 1
+        await asyncio.sleep(0)
+
+    assert await run_remote_compute(job_id, db.path, transport=transport, sleep=observe_pending) == 1
+    assert pending == ["cancel_requested"]
+    assert transport.attempts == 2
+    assert not any("kill -TERM" in command for command in transport.commands)
+    assert (await aget_compute_job(db, job_id))["state"] == "cancelled"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("scheduler", ["ssh_local", "ssh_slurm"])
+async def test_remote_scientific_job_needs_native_termination_log(tmp_path, scheduler):
+    db, job_id, _ = await _insert_running(tmp_path, scheduler=scheduler)
+    token = "EXIT:0" if scheduler == "ssh_local" else "COMPLETED|0:0"
+    transport = FakeTransport(poll_tokens=[token], pull_action=lambda *_args: None)
+
+    assert await run_remote_compute(job_id, db.path, transport=transport, sleep=_fast_sleep) == 1
+    row = await aget_compute_job(db, job_id)
+    assert row["state"] == "failed"
+    assert "native" in row["last_error"].lower()
 
 
 @pytest.mark.asyncio
@@ -249,17 +312,22 @@ async def test_ssh_local_pull_back_retry_then_failed(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_ssh_local_vanished_runner_fails(tmp_path):
+async def test_ssh_local_vanished_runner_does_not_prove_calculator_exit(tmp_path):
     db, job_id, _ = await _insert_running(tmp_path)
-    transport = FakeTransport(poll_tokens=["VANISHED"])
+    transport = FakeTransport(poll_tokens=["VANISHED", "EXIT:0"])
+    pending = []
+
+    async def observe_pending(_seconds):
+        pending.append((await aget_compute_job(db, job_id))["state"])
+        assert transport.pulls == 0
 
     rc = await run_remote_compute(
-        job_id, db.path, sleep=_fast_sleep, transport=transport
+        job_id, db.path, sleep=observe_pending, transport=transport
     )
-    assert rc == 1
+    assert rc == 0
+    assert pending == ["running"]
     row = await aget_compute_job(db, job_id)
-    assert row["state"] == "failed"
-    assert "vanished" in (row["last_error"] or "")
+    assert row["state"] == "done"
 
 
 @pytest.mark.asyncio

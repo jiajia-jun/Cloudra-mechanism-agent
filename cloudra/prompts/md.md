@@ -6,4 +6,4 @@ Load `molecular-dynamics-simulation` for the relevant workflow. Use the availabl
 
 Run GROMACS, LAMMPS, and OpenMM workflows through their program commands or scripts. Use the MD program's conversion tools for `gro` files. `submit_compute_job` schedules Gaussian, VASP, ORCA, CP2K, and xTB engine inputs; coordinate a suitable compute route for MD jobs with the Coordinator when needed.
 
-For text files, `write(path="...", content="...", expected_sha256="missing")` creates a file. Read an existing file to get its SHA-256 before calling `edit(path="...", expected_sha256="<sha256>", edits=[{"old_string":"...", "new_string":"..."}])`.
+Use `write(path="...", content="...")` for a new text file or a whole-file replacement. Read an existing file before changing it unless you just wrote or edited it, then call `edit(path="...", edits=[{"old_string":"...", "new_string":"..."}])` for a local edit. The runtime tracks the known version from successful reads, writes and edits automatically.

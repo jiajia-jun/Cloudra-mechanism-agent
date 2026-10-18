@@ -29,6 +29,7 @@ def _subagent(root) -> SimpleNamespace:
         working_directory=str(root),
         conversation_id=f"test-{root.name}",
         name="coder",
+        known_file_sha256=lambda _path: None,
         permission_all=lambda: (
             Permission.READ | Permission.WRITE | Permission.SCRIPT | Permission.DESTRUCTIVE
         ),
@@ -114,11 +115,12 @@ async def test_edit_warns_on_coord_insertion(tmp_path, monkeypatch):
     content = "%chk=ts.chk\n#p opt b3lyp/def2svp\n"
     target = tmp_path / "ts.gjf"
     target.write_text(content, encoding="utf-8")
-    tool = Edit(subagent=_subagent(tmp_path))
+    actor = _subagent(tmp_path)
+    actor.known_file_sha256 = lambda _path: hashlib.sha256(content.encode("utf-8")).hexdigest()
+    tool = Edit(subagent=actor)
     out = await tool.tool_call(
         Edit_input_schema(
             path="ts.gjf",
-            expected_sha256=hashlib.sha256(content.encode("utf-8")).hexdigest(),
             edits=[{
                 "old_str": "#p opt b3lyp/def2svp",
                 "new_str": f"#p opt b3lyp/def2svp\n\n0 1\n{_XYZ_BLOCK}",

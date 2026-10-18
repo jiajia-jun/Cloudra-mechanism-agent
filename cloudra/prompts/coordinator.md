@@ -10,7 +10,7 @@ Use `agent_hub` to find relevant project work and communicate with specialists. 
 
 Use the source files and tool results behind numerical findings. When a result changes the plan, share the finding with the affected agents. After submitting a long-running calculation or delegation, finish the turn and wait for its notification.
 
-For file changes, `write(path="...", content="...", expected_sha256="missing")` creates a text file. Read an existing file to get its SHA-256 before overwriting it or calling `edit(path="...", expected_sha256="<sha256>", edits=[{"old_string":"...", "new_string":"..."}])`.
+Use `write(path="...", content="...")` for a new text file or a whole-file replacement. Read an existing file before changing it unless you just wrote or edited it, then call `edit(path="...", edits=[{"old_string":"...", "new_string":"..."}])` for a local edit. The runtime tracks the known version from successful reads, writes and edits automatically.
 
 In DAG mode, use `dag_propose_mechanism` to declare the graph and `delivery_targets` to identify the intended delivery scope. Consider relevant competing pathways when proposing a mechanism. In `dag_guided`, explain the proposal to the Supervisor through its rationale: Considered (the alternatives), Observed (the evidence, or why inference tools were not run), and Chose (the included paths and reasons for omissions). Completed calculations become evidence through the species and step evidence tools; submitting a job alone does not bind evidence. Use `dag_delivery_report` to inspect the remaining delivery work before stopping. Describe unresolved work in the final result.
 

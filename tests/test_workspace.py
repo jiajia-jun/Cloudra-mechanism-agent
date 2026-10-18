@@ -38,6 +38,7 @@ def _subagent(root: Path) -> SimpleNamespace:
         working_directory=str(root),
         conversation_id=f"test-{root.name}",
         name="coder",
+        known_file_sha256=lambda _path: None,
     )
 
 
@@ -261,12 +262,13 @@ async def test_edit_tool_records_preview_apply_and_turn_diff(
 
     monkeypatch.setattr(Tool, "ensure_safety", approve)
     monkeypatch.setattr(Tool, "record_session_event", record)
-    tool = Edit(subagent=_subagent(tmp_path))
+    actor = _subagent(tmp_path)
+    actor.known_file_sha256 = lambda _path: snapshot.sha256
+    tool = Edit(subagent=actor)
 
     result = await tool.tool_call(
         Edit_input_schema(
             path="agent.txt",
-            expected_sha256=snapshot.sha256,
             edits=[{"old_text": "old", "new_text": "new"}],
         ),
         mock_session,
@@ -302,14 +304,13 @@ async def test_write_tool_returns_structured_conflict(
         Write_input_schema(
             path="exists.txt",
             content="replace\n",
-            expected_sha256="missing",
         ),
         mock_session,
     )
 
     assert result.is_written is False
     assert result.status == "conflict"
-    assert "already exists" in result.message
+    assert "Read the target file" in result.message
     assert (tmp_path / "exists.txt").read_text(encoding="utf-8") == "keep\n"
     assert events == [
         (

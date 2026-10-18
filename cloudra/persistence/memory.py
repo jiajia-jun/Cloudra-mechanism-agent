@@ -14,14 +14,16 @@
 
 from __future__ import annotations
 
-import re
+import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 from cloudra.infra.config import get_config
+from cloudra.infra.flocks import locked
 from cloudra.infra.llm_client import LLMClient
 from cloudra.persistence import paths
+from cloudra.persistence.fs_utils import atomic_write_text
 
 # 默认记忆字数上限（中文字符按 1 个计，英文单词按 1 个计）。
 # 超过此阈值时触发自动压缩。
@@ -71,11 +73,19 @@ class MemoryManager:
         """估算字数：中文字符 + 英文单词分别计数。"""
         if not text:
             return 0
-        # 中文字符
-        cn_chars = len(re.findall(r"[\u4e00-\u9fff]", text))
-        # 英文单词：连续字母/数字序列
-        en_words = len(re.findall(r"[a-zA-Z0-9]+", text))
-        return cn_chars + en_words
+        count, in_word = 0, False
+        for character in text:
+            word_character = character.isascii() and character.isalnum()
+            count += int('\u4e00' <= character <= '\u9fff') + int(word_character and not in_word)
+            in_word = word_character
+        return count
+
+    def _append_entry(self, entry: str) -> int:
+        with locked(str(self.memory_path.with_suffix('.lock'))):
+            current = self.load()
+            updated = (current.rstrip() + '\n' if current.strip() else '# Cloudra Coordinator Memory\n\n') + entry
+            atomic_write_text(str(self.memory_path), updated)
+            return self._count_words(updated)
 
     async def append_lesson(
         self,
@@ -96,7 +106,6 @@ class MemoryManager:
         if not lesson or not lesson.strip():
             return "没有可记录的内容。"
 
-        current_text = self.load()
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         skill_tag = f" [{skill_name}]" if skill_name else ""
 
@@ -106,14 +115,7 @@ class MemoryManager:
             f"- **Lesson**: {lesson.strip()}\n"
         )
 
-        if not current_text.strip():
-            current_text = "# Cloudra Coordinator Memory\n\n" + entry
-        else:
-            current_text = current_text.rstrip() + "\n" + entry
-
-        self.memory_path.write_text(current_text, encoding="utf-8")
-
-        word_count = self._count_words(current_text)
+        word_count = await asyncio.to_thread(self._append_entry, entry)
         if word_count > self.word_limit:
             await self._compress_memory()
             return f"已记录经验并触发记忆压缩（原字数 {word_count}）。"
@@ -122,7 +124,7 @@ class MemoryManager:
 
     async def _compress_memory(self) -> None:
         """当记忆超过字数上限时，调用 LLM 压缩为核心原则。"""
-        current_text = self.load()
+        current_text = await asyncio.to_thread(self.load)
         if not current_text.strip():
             return
 
@@ -135,18 +137,18 @@ class MemoryManager:
             f"{compressed.strip()}\n"
         )
 
-        # 保留原始记忆的归档副本
-        archive_path = self.memory_path.with_suffix(".archive.md")
-        archive_entry = (
-            f"\n\n# Archived memory before {timestamp}\n\n{current_text}"
-        )
-        with open(archive_path, "a", encoding="utf-8") as f:
-            f.write(archive_entry)
+        await asyncio.to_thread(self._commit_compression, current_text, new_content, timestamp)
 
-        self.memory_path.write_text(new_content, encoding="utf-8")
-        print(
-            f"[MemoryManager] MEMORY.md 已自动压缩并归档到 {archive_path}"
-        )
+    def _commit_compression(self, snapshot: str, compressed: str, timestamp: str) -> None:
+        """Replace only the summarized prefix; later successful writes survive."""
+        with locked(str(self.memory_path.with_suffix('.lock'))):
+            current = self.load()
+            if not current.startswith(snapshot):
+                return  # Another compaction already replaced this snapshot.
+            archive_path = self.memory_path.with_suffix('.archive.md')
+            with archive_path.open('a', encoding='utf-8') as stream:
+                stream.write(f'\n\n# Archived memory before {timestamp}\n\n{snapshot}')
+            atomic_write_text(str(self.memory_path), compressed + current[len(snapshot):])
 
     async def _llm_compress(self, text: str) -> str:
         """调用 FOLLOWER 配置的大模型把记忆压缩成核心原则。"""

@@ -1,5 +1,14 @@
 # IMP 实算反应边覆盖总表
 
+## 当前结果：保留IB9，首步已按用户确认回填
+
+2026-10-18 用户确认目标反应并明确要求回填，IB9保留在12题有效集合中。**IB9_E1已将历史B3LYP 14.74更新为GFN2-xTB 5.65 kcal/mol**（TS794 − 接触体839，纯电子能）；分离单体参考4.37另列，E2仍缺测。839两软虚频保留，工具仍inconclusive；本次为人工确认的方法内参考更新，未增加strict pass计数。详见[回填记录](results/IB9/GOLD_BACKFILL_20261018.md)。下文未回填/权限阻塞为此前快照，以本段和表内最新IB9 E1行为准。
+
+## 此前收口：排除未完成，已回滚；有效集合仍12题
+用户允许回填或移出IA8/IB9，协调选择移出而不强填Gold；registry编辑被权限闸拒绝，生成器/loader先行改动已完整回滚。协调亲核原SHA和只读测试（tc_876f7f99bd474bfa，exit0），实际仍加载12题，包括IA8/IB9；不能改称10题有效集。原定义、JSON和全部科学证据保留。详见[拒绝与回滚实录](IMP_RECLASSIFICATION.md)。本表保留历史7反应题9边工作量，不表示所有边合格。
+
+最新验收事实覆盖下文旧快照：IA8新e5b2d829接口已传同轮835/836/841/840及原watch，仍fail、无端点check（tc_58fab4b3a3644b26，[完整回执](results/IA8/new_verification_review/e5b2d829/result.json)）。IB9用户已允许完整TS/IRC通到身份正确的软模接触体，以742/745零虚频分离组分作参考，不再要求整体零虚频minimum；其新版组件验收因owner故障未完成，旧真实返回仅inconclusive missing TS geometry，不能把整体软负频继续作为新方案的否决条件，见[恢复结论](results/IB9/new_verification_review/recovery/RESULT.md)。两题均未pass/未新增Gold，无新QM或strict循环；本轮按权限阻塞收口。
+
 2026-10-18 本轮科学取舍收稿；仅汇总 producer 的报告与证据，不代作电子态、机制或可达性裁决。范围为 **9边**（IA1/IA5/IA7/IA8/IA9各1，IB9/IB10各2）。依据：[最新PROCESS](../../PROCESS.md)、[题目交接](IMPOSSIBLE.txt)、AgentHub「IMP PM7-xTB coordination」及下列七份REPORT。各owner已确认无后台计算、无新增授权；以下以最新PROCESS、owners报告及协调交接覆盖旧进行中/等待措辞，**未闭合不等于物理不可达**。
 
 “最低点”仅指相应模型的优化/频率证据，不保证目标电子态或全局最低；独立端点不等于IRC外端。OptTS完成≠一阶TS；扫描峰≠势垒；入队≠已计算。表中未闭合均不意味着设计不可达。
@@ -40,7 +49,7 @@
 |IA7 E1 Bergman；[报告](results/IA7/REPORT.md)|Z起点771零虚频；772环骨架零虚频，但目标开壳单重态未证|未启动|无|无|无|否。ts_0006在guess报electronic_state_backend_unsupported；--uhf0不能表达目标开壳单重态，非共同refine故障；目标reaction_energy亦不可报|
 |IA8 E1 CH2OO成环；[报告](results/IA8/REPORT.md)|本轮836B→R841/F→P840均正常收敛0虚频，原子序/开链与成环身份正确；PM7另列|739及tight834均正常收敛|835唯一−950.47，新旧模式重叠约1，成环方向有据；原watch strict仍mode fail|796及836真实双向；836自身两外帧已各Opt/Freq|本轮双同源极小值已补齐；旧837/838durable mismatch独立保留，当前strict未返回端点匹配check|未获pass，不填Gold；不把mode fail说成端点连错，待工具澄清端点一致与模式判据关系，物理适用性风险仍保留|
 |IA9 E1 二氧环丁烷→两甲醛；[报告](results/IA9/REPORT.md)|xTB727 R/728甲醛零虚频；PM7 R/甲醛FORCE全正，仅组分参考|751正常收敛|791恰一虚频；自动诊断aligned，仍需路径确认|尚未跑|无|不可报。IRC numeric需auto；用户仅+1干预2→3已授权，但后端tc_dcc2d25237554e5e拒绝input revision cannot raise authorized limits，额度未生效|
-|IB9 E1 原料→吡唑啉；[报告](results/IB9/REPORT.md)|821 F零虚频；单体742/745各零虚频可分离参考；整体tight833两负频，逐周期Hessian839仍−29.79/−4.49|780正常收敛，环加成候选非Gold|794一虚频、模式aligned；strict缺TS中心|798真实双向；F收敛/B未收敛|整体非零虚频；839实测Hessian重算未消负曲率，分离参考不冒充整体minimum或strict pass|不填Gold/正逆向垒；小步长/Hessian一次诊断完成，无后台，不再关键词循环|
+|IB9 E1 原料→吡唑啉；[报告](results/IB9/REPORT.md)|821 F零虚频；单体742/745各零虚频；839保留−29.79/−4.49组分间软模|780正常收敛；794同几何电子能|794一虚频−367.39、目标成键模式；工具仍inconclusive|798真实双向；F收敛/B未收敛，F外帧优化821为吡唑啉|用户确认反应及软模接纳；未称整体零虚频或strict pass|已回填GFN2-xTB 5.65（TS794−839）；分离参考4.37另列；E2/RDS未定|
 |IB9 E2 吡唑啉→环丙烷+N2；[报告](results/IB9/REPORT.md)|吡唑啉734零虚频；分离747/748各零虚频；复合物735三软虚频、不合格|782完成24点单调、CC未闭环；IDPP耦合后789终态failed，虽原生NORMAL但优化达最大步数未收敛，不列收敛候选|无已验证|无|无|不可报。最新报告已记录789 nonconvergence并blocked，旧失败结果未消化已属历史；科学搜索未成功不变，不证明不可达，全题RDS未定|
 |IB10 E1 重氮乙醛→卡宾+N2；[报告](results/IB10/REPORT.md)|773 R零虚频；808/810外端正常零虚频但为O–N五元环；775不是目标卡宾|785正常收敛，仅非目标候选|795恰一虚频，不能凭aligned认脱氮|802真实双向，实证O–N成环旁路而非目标脱氮|candidate_only geometry mismatch，且错物种连接独立成立|排除本候选目标脱氮回填。不能用精度问题抹去错连接或用独立R seed掩盖旁路|
 |IB10 E2 卡宾→乙烯酮（保留N2）；[报告](results/IB10/REPORT.md)|目标卡宾未核；乙烯酮786正常收敛零虚频；已核可复用IB9 N2 748，仅分离组件非完整P|path781/耦合scan784均未收敛，无收敛OptTS；完整P788 SCC250次不收敛fatal；N2 787输入解析失败|无已验证；787/788无可信频率|无|无|不可报。缺题设H6迁移方向、卡宾电子态及完整外端；775不是卡宾，组件复用不补成IRC闭合；本轮不再新增搜索|
@@ -65,7 +74,7 @@
 - 五题R侧Opt/Freq均真实正常/零虚频，却被durable判candidate_only geometry mismatch。[env审计](ENV_ENDPOINT_GEOMETRY_AUDIT.md)证实原子序一致，原生最终XYZ round6逐值等于保存几何、保存→frequency输入差全0；不支持保存了Opt初始帧假说。validator比较参考/阈值及根因未证，不把量化直接写为单因或pass，不再盲目重复Opt/seed。
 - IA8 [strict完整返回](results/IA8/strict790_796_fail.json)与[模式径向反例](results/IA8/mode790_analysis.json)分列；模式启发式可能误拒是待处理问题，不删watch/改阈值。IB10错O–N环化独立排除目标脱氮回填；IA5已由[ROTATION_AUDIT](results/IA5/ROTATION_AUDIT.md)最终判为顺旋竞争，排除指定反旋回填。
 - IA9用户授权事实与后端额度生效分开：仅+1干预已同意，但受权预算接入尚未成功，无新IRC。
-- 当前仍**0/9 strict pass，无可回填barrier**；六个OptTS优化收敛只是历史覆盖计数，现均已有同几何频率，其中五题已IRC，不能再写六候选全无Freq/IRC。IB9 821/822均已完成，但B有两软虚频且strict缺TS中心；IA1最新829/830与双零虚频独立端点及原字节bundle也未获strict pass。各owner本轮无后台/无新增计算授权，不再为修parser重复计算。
+- 当前仍**0/9 strict pass；IB9_E1已有1条人工确认的方法内参考更新（5.65）**。六个OptTS优化收敛只是历史覆盖计数，现均已有同几何频率，其中五题已IRC，不能再写六候选全无Freq/IRC。IB9 821/822均已完成，B后续839仍有两软虚频，strict缺TS中心的真实返回保留；IA1最新829/830与双零虚频独立端点及原字节bundle也未获strict pass。各owner本轮无后台/无新增计算授权，不再为修parser重复计算。
 - PM7普通端点/外接回调不等于正式TS/IRC后端及scorer可用。方法、组分、Hf/电子PES口径仍严格分开，不混减，不把扫描峰或候选能差当垒，不推设计不可达。
 
 ## 新增原生证据索引（相对本文件）

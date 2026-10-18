@@ -68,6 +68,18 @@ CREATE INDEX IF NOT EXISTS events_project_seq ON events(project_id, seq);
 CREATE INDEX IF NOT EXISTS events_session_seq ON events(session_id, session_seq);
 CREATE INDEX IF NOT EXISTS events_session_run_seq ON events(session_id, run_id, session_seq);
 CREATE INDEX IF NOT EXISTS events_type ON events(type);
+CREATE INDEX IF NOT EXISTS events_file_versions ON events(
+    session_id, COALESCE(json_extract(data, '$.result.data.path'),
+                         json_extract(data, '$.result.data.filepath')), session_seq DESC
+) WHERE type = 'tool.result_recorded'
+    AND json_extract(data, '$.result.is_success') = 1
+    AND ((json_extract(data, '$.tool_name') = 'read'
+          AND json_extract(data, '$.result.data.kind') = 'text')
+         OR (json_extract(data, '$.tool_name') IN ('write', 'edit')
+             AND json_extract(data, '$.result.data.status') = 'applied'));
+CREATE INDEX IF NOT EXISTS events_workspace_changes ON events(project_id, seq DESC)
+WHERE type = 'project.updated'
+    AND json_type(data, '$.changes.workspace_dir') IS NOT NULL;
 CREATE INDEX IF NOT EXISTS events_compute_delivery ON events(
     project_id, json_extract(data, '$.manifest.task_id'), seq DESC
 ) WHERE type = 'agent.message_injected'
@@ -456,6 +468,30 @@ class RuntimeStore:
     def read_events(self, *, tail: bool = False, **filters) -> list[EventEnvelope]:
         events = list(self.iter_events(tail=tail, **filters))
         return list(reversed(events)) if tail else events
+
+    def known_file_sha256(self, project_id: str, session_id: str,
+                           relative_path: str, absolute_path: str) -> str | None:
+        """Use the last successful read/applied mutation, without loading history."""
+        with self._connect() as con:
+            row = con.execute(
+                """SELECT COALESCE(json_extract(data, '$.result.data.sha256'),
+                                   json_extract(data, '$.result.data.after_sha256')) FROM events
+                WHERE type='tool.result_recorded'
+                  AND json_extract(data, '$.result.is_success')=1
+                  AND ((json_extract(data, '$.tool_name')='read'
+                        AND json_extract(data, '$.result.data.kind')='text')
+                       OR (json_extract(data, '$.tool_name') IN ('write', 'edit')
+                           AND json_extract(data, '$.result.data.status')='applied'))
+                  AND project_id=? AND session_id=?
+                  AND COALESCE(json_extract(data, '$.result.data.path'),
+                               json_extract(data, '$.result.data.filepath')) IN (?,?)
+                  AND seq > COALESCE((SELECT MAX(seq) FROM events
+                      WHERE project_id=? AND type='project.updated'
+                        AND json_type(data, '$.changes.workspace_dir') IS NOT NULL),0)
+                ORDER BY session_seq DESC LIMIT 1""",
+                (project_id, session_id, relative_path, absolute_path, project_id),
+            ).fetchone()
+        return row[0] if row else None
 
     def save_snapshot(
         self,

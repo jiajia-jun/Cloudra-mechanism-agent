@@ -467,9 +467,9 @@ async def _search(core, author: AgentSession, args: dict[str, Any]) -> ToolResul
     posts = [post for _, _, post in scored[:limit]]
     # The library layer: registered knowledge providers (GraphRAG plugins)
     # are queried on every hub search — same tool, no extra interface.
-    from cloudra.runtime_v2.knowledge import render_library_hits, search_library
+    from cloudra.runtime_v2.knowledge import registered_providers, render_library_hits, search_library
 
-    library = await search_library(keyword, limit=5)
+    library, library_errors = await search_library(keyword, limit=5)
 
     # The skills layer: match domain skills on demand
     matched_skills = []
@@ -501,9 +501,8 @@ async def _search(core, author: AgentSession, args: dict[str, Any]) -> ToolResul
     )
     sources_status = {
         "project_posts": "available",
-        "library": "available" if _providers_present() else (
-            "no_hits" if not library else "available"
-        ),
+        "library": ('partial' if len(library_errors) < len(registered_providers()) else 'unavailable')
+        if library_errors else ('available' if registered_providers() else 'no_hits'),
         "skills": "available" if matched_skills else "no_hits",
     }
 
@@ -519,15 +518,13 @@ async def _search(core, author: AgentSession, args: dict[str, Any]) -> ToolResul
 
     if library:
         summary_parts.append(f"Library hits ({len(library)}):\n{render_library_hits(library)}")
+    if library_errors:
+        summary_parts.append('Library source errors:\n' + '\n'.join(
+            f'- {name}: {error}' for name, error in library_errors.items()))
 
     summary = "\n\n".join(summary_parts)
-    return _ok(summary, posts=posts, library=library, skills=matched_skills, sources_status=sources_status)
-
-
-def _providers_present() -> bool:
-    from cloudra.runtime_v2.knowledge import registered_providers
-
-    return bool(registered_providers())
+    return _ok(summary, posts=posts, library=library, library_errors=library_errors,
+               skills=matched_skills, sources_status=sources_status)
 
 
 def _directory(core, author: AgentSession) -> ToolResult:

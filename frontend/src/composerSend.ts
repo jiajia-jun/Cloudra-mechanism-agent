@@ -1,9 +1,14 @@
-/** Composer send routing: pending ask_user hijacks Send away from messages. */
+/** The composer only answers questions belonging to the selected session. */
 
 export type PendingInteraction = {
   interaction_id?: string | number;
   id?: string | number;
+  session_id?: unknown;
 };
+
+export function composerInteractionFor<T extends PendingInteraction>(interactions: T[], agentId: string | null): T | undefined {
+  return agentId ? interactions.find(interaction => interaction.session_id === agentId) : undefined;
+}
 
 export type ComposerSendTarget =
   | { kind: 'slash'; command: string }
@@ -20,7 +25,7 @@ export function resolveComposerSendTarget(opts: {
   draft: string;
   sending: boolean;
   hasProject: boolean;
-  hasAgent: boolean;
+  activeAgentId: string | null;
   interactions: PendingInteraction[];
 }): ComposerSendTarget {
   const content = opts.draft.trim();
@@ -30,13 +35,13 @@ export function resolveComposerSendTarget(opts: {
   if (content.startsWith('/')) {
     return { kind: 'slash', command: content };
   }
-  if (opts.interactions.length > 0) {
-    const first = opts.interactions[0];
-    const ixnId = first.interaction_id ?? first.id;
+  const interaction = composerInteractionFor(opts.interactions, opts.activeAgentId);
+  if (interaction) {
+    const ixnId = interaction.interaction_id ?? interaction.id;
     if (ixnId !== undefined && ixnId !== null && String(ixnId) !== '') {
       return { kind: 'respond', interactionId: ixnId };
     }
   }
-  if (!opts.hasAgent) return { kind: 'spawn_coordinator' };
+  if (!opts.activeAgentId) return { kind: 'spawn_coordinator' };
   return { kind: 'message' };
 }

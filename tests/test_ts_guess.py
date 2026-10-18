@@ -1288,11 +1288,12 @@ async def test_verify_strict_no_informative_pair_is_inconclusive(tmp_path, mock_
 
 
 @pytest.mark.asyncio
-async def test_verify_strict_rejects_imag_mode_misaligned_with_watch_pairs(tmp_path, mock_session):
-    """strict：虚频模式主要不在声明的反应中心原子对上时，应 fail。"""
+async def test_verify_strict_endpoint_proof_overrides_misaligned_mode_warning(tmp_path, mock_session):
+    """模式比例可疑时仍核验真实端点，不让启发式否决已成立的方向证明。"""
     tool = _make_tool()
     freq_log = tmp_path / "ts_freq_wrong_mode.log"
     freq_log.write_text(_TS_FREQ_WRONG_MODE)
+    logs = _endpoint_optimization_logs(tmp_path)
 
     result = await tool.safe_call(TsGuess_input_schema(**{
         "mode": "verify",
@@ -1301,22 +1302,26 @@ async def test_verify_strict_rejects_imag_mode_misaligned_with_watch_pairs(tmp_p
         "irc_log": str(IRC_LOG),
         "reactant_text": _HCN_XYZ,
         "product_text": _HNC_XYZ,
+        "reactant_logs": logs["reactant"],
+        "product_logs": logs["product"],
         "watch_pairs": [[1, 3], [2, 3]],
         "output_dir": str(tmp_path / "strict_bad_mode"),
     }), mock_session)
 
     assert result.is_success, result.message
-    assert result.verdict.startswith("fail")
-    assert any("imaginary mode" in check or "reaction coordinate" in check for check in result.checks)
+    assert result.verification_status == "pass", result.checks
+    assert any("[warning]" in check and "mode" in check for check in result.checks)
     assert result.imag_mode_aligned is False
+    assert result.irc_end_a_path and result.irc_end_b_path
 
 
 @pytest.mark.asyncio
-async def test_verify_strict_missing_vibdisps_is_inconclusive(tmp_path, mock_session):
-    """strict：频率日志无简正模式位移时无法核对虚频方向，应 inconclusive。"""
+async def test_verify_strict_endpoint_proof_overrides_missing_mode_warning(tmp_path, mock_session):
+    """缺模式位移不等于缺端点证据；真实端点方向证明仍可通过。"""
     tool = _make_tool()
     freq_log = tmp_path / "ts_freq_no_disps.log"
     freq_log.write_text(_TS_FREQ_NO_DISPS)
+    logs = _endpoint_optimization_logs(tmp_path)
 
     result = await tool.safe_call(TsGuess_input_schema(**{
         "mode": "verify",
@@ -1325,15 +1330,17 @@ async def test_verify_strict_missing_vibdisps_is_inconclusive(tmp_path, mock_ses
         "irc_log": str(IRC_LOG),
         "reactant_text": _HCN_XYZ,
         "product_text": _HNC_XYZ,
+        "reactant_logs": logs["reactant"],
+        "product_logs": logs["product"],
         "watch_pairs": [[1, 3], [2, 3]],
         "output_dir": str(tmp_path / "strict_no_disps"),
     }), mock_session)
 
     assert result.is_success, result.message
-    assert result.verdict.startswith("inconclusive")
-    assert result.verification_status == "inconclusive"
-    assert any("normal-mode displacements" in check for check in result.checks)
+    assert result.verification_status == "pass", result.checks
+    assert any("[warning]" in check and "normal-mode displacements" in check for check in result.checks)
     assert result.imag_mode_aligned is None
+    assert result.irc_end_a_path and result.irc_end_b_path
 
 
 @pytest.mark.asyncio
@@ -2443,11 +2450,12 @@ def test_imag_mode_alignment_nonbonded_dominant_is_undecidable():
 
 
 @pytest.mark.asyncio
-async def test_verify_strict_nonbonded_dominant_mode_is_inconclusive(tmp_path, mock_session):
-    """strict：虚频模式由非键对（扭转/角）主导时从 fail 降级为 inconclusive。"""
+async def test_verify_strict_endpoint_proof_overrides_undecidable_mode_warning(tmp_path, mock_session):
+    """模式比例不能判断扭转/角方向时，实际端点优化证据仍决定验收。"""
     tool = _make_tool()
     freq_log = tmp_path / "ts_freq_nonbonded_mode.log"
     freq_log.write_text(_TS_FREQ_NONBONDED_MODE)
+    logs = _endpoint_optimization_logs(tmp_path)
 
     result = await tool.safe_call(TsGuess_input_schema(**{
         "mode": "verify",
@@ -2456,14 +2464,51 @@ async def test_verify_strict_nonbonded_dominant_mode_is_inconclusive(tmp_path, m
         "irc_log": str(IRC_LOG),
         "reactant_text": _HCN_XYZ,
         "product_text": _HNC_XYZ,
+        "reactant_logs": logs["reactant"],
+        "product_logs": logs["product"],
         "watch_pairs": [[1, 2]],
         "output_dir": str(tmp_path / "strict_nonbonded"),
     }), mock_session)
 
     assert result.is_success, result.message
-    assert result.verdict.startswith("inconclusive")
+    assert result.verification_status == "pass", result.checks
     assert result.imag_mode_aligned is None
-    assert any("NON-BONDED" in c for c in result.checks)
+    assert any("[warning]" in check and "NON-BONDED" in check for check in result.checks)
+    assert result.irc_end_a_path and result.irc_end_b_path
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("frequency_text,watch_pairs", [
+    (_TS_FREQ_WRONG_MODE, [[1, 3], [2, 3]]),
+    (_TS_FREQ_NO_DISPS, [[1, 3], [2, 3]]),
+    (_TS_FREQ_NONBONDED_MODE, [[1, 2]]),
+], ids=["misaligned", "missing_mode", "undecidable"])
+@pytest.mark.parametrize("endpoint_problem,expected_status", [
+    ("missing_logs", "inconclusive"),
+    ("wrong_outer_frame", "fail"),
+])
+async def test_verify_strict_mode_advisory_cannot_replace_endpoint_proof(
+    tmp_path, mock_session, frequency_text, watch_pairs, endpoint_problem, expected_status,
+):
+    freq_log = tmp_path / "ts_freq.log"
+    freq_log.write_text(frequency_text)
+    logs = _endpoint_optimization_logs(tmp_path)
+    if endpoint_problem == "missing_logs":
+        logs["reactant"] = []
+    else:
+        opt_log = Path(logs["reactant"][0])
+        opt_log.write_text(opt_log.read_text().replace("-1.22366900", "-1.52366900", 1))
+    result = await _make_tool().safe_call(TsGuess_input_schema(
+        mode="verify", strict=True, freq_log=str(freq_log), irc_log=str(IRC_LOG),
+        reactant_text=_HCN_XYZ, product_text=_HNC_XYZ,
+        reactant_logs=logs["reactant"], product_logs=logs["product"], watch_pairs=watch_pairs,
+        output_dir=str(tmp_path / "invalid_endpoint"),
+    ), mock_session)
+
+    assert result.is_success, result.message
+    assert result.verification_status == expected_status, result.checks
+    assert result.irc_end_a_path and result.irc_end_b_path
+    assert any("[warning]" in check and "mode" in check for check in result.checks)
 
 
 @pytest.mark.asyncio

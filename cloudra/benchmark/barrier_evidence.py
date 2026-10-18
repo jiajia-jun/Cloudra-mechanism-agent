@@ -22,7 +22,6 @@ from pathlib import Path
 from typing import Optional
 
 from cloudra.benchmark.integrity import (
-    MAX_SCAN_BYTES,
     find_graph_json,
     load_delivered_graph,
     scan_evidence_files,
@@ -138,8 +137,8 @@ def _engine_energy_kcal(sandbox: Path, rel_path: str) -> tuple[Optional[float], 
         )
     if not path.is_file():
         return None, f"{rel_path}: evidence file missing"
-    if not normal_log(path, max_scan_bytes=MAX_SCAN_BYTES):
-        return None, f'{rel_path}: normally terminated evidence within the scan limit required'
+    if not normal_log(path):
+        return None, f'{rel_path}: normally terminated native evidence required'
     engine = detect_qm_engine(str(path))
     if engine not in _SCORING_ENGINES:
         return None, (
@@ -165,7 +164,7 @@ def _engine_energy_kcal(sandbox: Path, rel_path: str) -> tuple[Optional[float], 
 def _imaginary_frequency_count(sandbox: Path, rel_path: str) -> Optional[int]:
     """证据文件里的虚频个数（判定它物理上是不是一阶鞍点）；不可判定返回 None。"""
     path = _resolve_in_sandbox(sandbox, rel_path)
-    if path is None or not normal_log(path, max_scan_bytes=MAX_SCAN_BYTES):
+    if path is None or not normal_log(path):
         return None
     engine, frames = _frames_for(sandbox, rel_path)
     if engine not in _SCORING_ENGINES:
@@ -190,7 +189,7 @@ def _frequency_supported(sandbox, path, candidates, expected):
     from cloudra.tools.core.irc_evidence import frames_for, last_geometry
     from cloudra.tools.core.irc_path import same_geometry
     resolved = _resolve_in_sandbox(sandbox, path)
-    if resolved is None or not normal_log(resolved, max_scan_bytes=MAX_SCAN_BYTES):
+    if resolved is None or not normal_log(resolved):
         return False
     if _imaginary_frequency_count(sandbox, path) == expected:
         return True
@@ -264,7 +263,7 @@ def collect_barrier_evidence(sandbox: Path | str) -> BarrierEvidence:
     from cloudra.benchmark.integrity import bind_graph_to_evidence
 
     bindings = {b.node_id: b for b in bind_graph_to_evidence(graph, files, sandbox=sandbox)}
-    log_paths = [f.path for f in files if f.kind in _SCORING_ENGINES and f.size <= MAX_SCAN_BYTES]
+    log_paths = [f.path for f in files if f.kind in _SCORING_ENGINES]
     by_id = {node.id: node for node in graph.nodes}
 
     for edge in graph.edges:

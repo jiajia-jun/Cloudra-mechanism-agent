@@ -1,0 +1,10 @@
+{
+  "call_id": "tc_1b3ef80b812d48fb",
+  "is_success": true,
+  "summary": "Sub-agent as_1745e03539bc43fe has no final result yet (state=failed); ask again later.",
+  "data": {
+    "session_id": "as_1745e03539bc43fe",
+    "state": "failed"
+  },
+  "duration_ms": 0
+}

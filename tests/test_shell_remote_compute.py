@@ -208,7 +208,7 @@ async def _wait_until(predicate):
         await asyncio.sleep(0.02)
 
 
-def _start_training_runner(workdir, task_id, background=False):
+def _start_training_runner(workdir, task_id, background=False, jobtype="shell"):
     workdir.mkdir(parents=True)
     training = workdir / "train.py"
     training.write_text(
@@ -232,7 +232,7 @@ def _start_training_runner(workdir, task_id, background=False):
     runner = workdir / "runner.sh"
     runner.write_text(
         build_remote_runner_script(
-            script.name, "shell", task_id, {}, workdir=str(workdir),
+            script.name, jobtype, task_id, {}, workdir=str(workdir),
             calculator_cmd=["bash", str(script)],
         ),
         encoding="utf-8",
@@ -260,7 +260,8 @@ def _cleanup_training_runner(workdir, process):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("background", [False, True], ids=["foreground", "background"])
-async def test_remote_shell_cancel_waits_for_training_group_and_leaves_other_job_running(tmp_path, background):
+@pytest.mark.parametrize("jobtype", ["shell", "xtb"])
+async def test_remote_cancel_waits_for_owned_group_and_leaves_other_job_running(tmp_path, background, jobtype):
     if shutil.which("bash") is None:
         pytest.skip("requires bash")
     db, job_id, _ = await _running_shell(tmp_path, "ssh_local")
@@ -272,11 +273,11 @@ async def test_remote_shell_cancel_waits_for_training_group_and_leaves_other_job
     options["connection"]["remote_root"] = str(remote_root)
     async with db.aconnect() as con:
         await con.execute(
-            "UPDATE compute_jobs SET scheduler_options=? WHERE id=?",
-            (json.dumps(options), job_id),
+            "UPDATE compute_jobs SET scheduler_options=?, jobtype=? WHERE id=?",
+            (json.dumps(options), jobtype, job_id),
         )
         await con.commit()
-    process = await asyncio.to_thread(_start_training_runner, workdir, job_id, background)
+    process = await asyncio.to_thread(_start_training_runner, workdir, job_id, background, jobtype)
     other = await asyncio.to_thread(_start_training_runner, other_workdir, 999)
     poller = None
     try:

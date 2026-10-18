@@ -934,8 +934,8 @@ async def test_cancelled_supervisor_not_revived_by_reconcile_after_restart(tmp_p
 @pytest.mark.asyncio
 async def test_replay_and_restore_have_no_supervision_side_effects(tmp_path):
     """恢复矩阵·重放零副作用：事件重放绝不产生任何副作用；restore 只做
-    确定性的中断收尾——僵尸落 failed 并把子终态回传父信箱（唯一新增的事
-    件族：完成通知 + 父唤醒生命周期事件），不 spawn（记录之外的）agent、
+    确定性的中断收尾——僵尸落 failed；Supervisor 不发普通子任务回报，
+    科学待办由 reconcile 的专用持久通知显式告警。不 spawn（记录之外的）agent、
     不跑 LLM/工具。reconcile 是 restore 之后的显式步骤，对僵尸收尾落
     failed 的 supervisor 只 parked 投递、不唤醒。"""
     from cloudra.runtime_v2.schemas import AgentState
@@ -978,8 +978,8 @@ async def test_replay_and_restore_have_no_supervision_side_effects(tmp_path):
         a.id for a in core1.agents.values()
     }  # 重放不新增 agent
 
-    # restore：僵尸 running → failed（中断收尾），并把子的终态回传给父
-    # （coordinator 是 queued：投递驻留、不唤醒）。restore 新落盘的事件只许
+    # restore：僵尸 running → failed（中断收尾），Supervisor 不发普通子回报。
+    # coordinator 是 queued，restore 不唤醒。新落盘的事件只许
     # 是这一族，绝无任何执行痕迹。
     persisted_before = {row["event_id"] for row in store.query_project_events(project.id)}
     core2 = RuntimeCore(strict_events=True)
@@ -1005,8 +1005,7 @@ async def test_replay_and_restore_have_no_supervision_side_effects(tmp_path):
         for e in core2.event_log.query_session(coordinator.id, types={"agent.message_injected"})
         if supervisor1.id in str(e.data.get("content", ""))
     ]
-    assert reports, "zombie supervisor's failure must reach its parent coordinator"
-    assert "interrupted by process restart" in reports[-1].data["content"]
+    assert reports == []
     assert core2.agents[coordinator.id].state is AgentState.QUEUED  # 恢复不 wake
 
     # 收尾+回传事件已回写 store：纯重放与 restored 逐字段全等。
@@ -1022,6 +1021,14 @@ async def test_replay_and_restore_have_no_supervision_side_effects(tmp_path):
     await reconcile_supervision(core2, project.id, auto_wake=False)
     assert supervisor2.state is AgentState.FAILED
     assert core2.agents[coordinator.id].state is AgentState.QUEUED
+    alerts = [
+        event for event in core2.event_log.query_session(coordinator.id, types={"agent.message_injected"})
+        if str(event.data.get("content", "")).startswith("[Supervision] ALERT")
+    ]
+    assert len(alerts) == 1
+    assert alerts[0].data["sender"] == "system"
+    assert not [event for event in core2.event_log.query_session(coordinator.id, types={"agent.message_injected"})
+                if event.data.get("manifest", {}).get("kind") == "child_completion"]
     executed = [
         e
         for e in core2.event_log

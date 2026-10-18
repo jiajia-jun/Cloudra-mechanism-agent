@@ -69,7 +69,8 @@ class BrokenProvider:
 async def test_search_merges_ranks_and_normalizes():
     register_knowledge_provider(SyncProvider())
     register_knowledge_provider(AsyncProvider())
-    hits = await search_library("anything", limit=10)
+    hits, errors = await search_library("anything", limit=10)
+    assert errors == {}
     # L1 (verified) first, then L0 literature, then L2 hypothesis; the
     # falsified L1 sinks below the clean L1 within its level.
     assert [(h["evidence_level"], h["title"]) for h in hits] == [
@@ -87,7 +88,8 @@ async def test_search_merges_ranks_and_normalizes():
 async def test_broken_provider_is_skipped():
     register_knowledge_provider(BrokenProvider())
     register_knowledge_provider(SyncProvider())
-    hits = await search_library("anything", limit=10)
+    hits, errors = await search_library("anything", limit=10)
+    assert errors == {'broken': 'graph store down'}
     assert hits and all(h["provider"] == "sync-graph" for h in hits)
 
 
@@ -95,13 +97,14 @@ async def test_broken_provider_is_skipped():
 async def test_limit_caps_merged_hits():
     register_knowledge_provider(SyncProvider())
     register_knowledge_provider(AsyncProvider())
-    hits = await search_library("anything", limit=2)
+    hits, errors = await search_library("anything", limit=2)
+    assert errors == {}
     assert len(hits) == 2
 
 
 @pytest.mark.asyncio
 async def test_empty_registry_returns_empty():
-    assert await search_library("anything") == []
+    assert await search_library("anything") == ([], {})
 
 
 def test_library_render_keeps_complete_source_and_paragraphs():
@@ -154,6 +157,27 @@ async def test_hub_search_without_providers_unchanged():
     assert result.is_success
     assert result.data["library"] == []
     assert "Library" not in result.summary
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('healthy', [False, True])
+async def test_hub_search_reports_provider_failure_without_losing_other_hits(healthy):
+    from cloudra.runtime_v2.hub_bridge import handle_hub_tool
+
+    core, agent = await _setup_core()
+    register_knowledge_provider(BrokenProvider())
+    if healthy:
+        register_knowledge_provider(SyncProvider())
+    result = await handle_hub_tool(
+        core, agent, ToolCall(id='source-failure', name='agent_hub',
+                             arguments={'action': 'search', 'keyword': 'TS'})
+    )
+    assert result.is_success
+    assert result.data['sources_status']['library'] == ('partial' if healthy else 'unavailable')
+    assert result.data['library_errors'] == {'broken': 'graph store down'}
+    assert bool(result.data['library']) is healthy
+    assert 'graph store down' in result.summary
+    await core.aclose()
 
 
 @pytest.mark.asyncio

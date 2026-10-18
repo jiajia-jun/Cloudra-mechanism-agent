@@ -10,15 +10,17 @@ from cloudra.tools.core.coord_guard import handwritten_coord_warning
 from cloudra.tools.core.workspace_mutation import (
     WorkspaceMutationOutput,
     execute_prepared_change,
+    known_version_for_tool,
     record_preparation_failure,
     workspace_for_tool,
 )
 
 description = (
     "Create or wholesale-overwrite a UTF-8 text file in the Agent working directory; "
-    "pass expected_sha256='missing' for a new file, and call read first to get the latest sha256 before overwriting. "
+    "Read existing text you have not yet inspected before changing it. "
+    "The runtime remembers versions from successful reads, writes and edits; a file you just wrote or edited needs no extra read. "
     "Use for: creating a new file, or rewriting an existing file in full. "
-    "Do not use for: local edits to an existing file (use read + edit); never write files with bash redirection instead of this tool. "
+    "Do not use for: local edits to an existing file (use edit); never write files with bash redirection instead of this tool. "
     "Note: writing hand-typed coordinate blocks into .gjf/.xyz/.com triggers a harness warning — "
     "coordinates must come from tools such as smiles_to_mol / format_converter / qm_input_writer."
 )
@@ -27,10 +29,6 @@ description = (
 class Write_input_schema(input_schema):
     path: str = Field(description="Target file path relative to the Agent working directory")
     content: str = Field(description="Text content to write")
-    expected_sha256: str = Field(
-        default="missing",
-        description="Pass missing for a new file; for overwrite, pass the sha256 returned by read",
-    )
 
 
 class Write_output_schema(WorkspaceMutationOutput):
@@ -62,7 +60,7 @@ class Write(Tool):
                 service.prepare_write,
                 user_input.path,
                 user_input.content,
-                user_input.expected_sha256,
+                await asyncio.to_thread(known_version_for_tool, self, service, user_input.path),
             )
         except WorkspaceConflictError as exc:
             await record_preparation_failure(

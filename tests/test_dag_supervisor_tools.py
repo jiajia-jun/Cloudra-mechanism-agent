@@ -40,7 +40,7 @@ def test_capability_projection_matches_registry_declarations():
     assert capabilities.supervisor_access_for("get_skill") == "skill_read"
     assert capabilities.supervisor_access_for("read") == "evidence_read"
     assert capabilities.supervisor_access_for("log_parser") == "evidence_read"
-    assert capabilities.supervisor_access_for("reaction_mapping") == "evidence_read"
+    assert capabilities.supervisor_access_for("reaction_mapping") == "none"
     assert capabilities.supervisor_access_for("agent_hub") == "hub"
     assert capabilities.supervisor_access_for("dag_review_step") == "review_decision"
     assert capabilities.supervisor_access_for("bash") == "none"
@@ -65,11 +65,13 @@ async def test_supervisor_can_create_and_edit_process_without_user_approval(tmp_
     agent = (await bus.execute(Command(type='agent.spawn', target={'project_id': project.id},
         payload={'role_id': 'supervisor'}))).data
     executor = _executor(tmp_path, core=core, project_id=project.id)
-    executor.bind_run(agent=_LegacyAgentBridge(agent, str(workspace)), session=Session(id=agent.id, path=''))
+    executor.bind_run(agent=_LegacyAgentBridge(agent, str(workspace), core.event_log), session=Session(id=agent.id, path=''))
     created = await executor.execute('write', {'path': 'PROCESS.md', 'content': 'Hypothesis: concerted\n'}, session_id=agent.id)
     assert created['is_success'], created
     read = await executor.execute('read', {'path': 'PROCESS.md'}, session_id=agent.id)
-    edited = await executor.execute('edit', {'path': 'PROCESS.md', 'expected_sha256': read['sha256'],
+    core.event_log.append('tool.result_recorded', stream='agent', project_id=project.id,
+        session_id=agent.id, data={'tool_name': 'read', 'result': {'is_success': True, 'data': read}})
+    edited = await executor.execute('edit', {'path': 'PROCESS.md',
         'edits': [{'old_text': 'concerted', 'new_text': 'unresolved'}]}, session_id=agent.id)
     assert edited['is_success'], edited
     assert (workspace / 'PROCESS.md').read_text() == 'Hypothesis: unresolved\n'
@@ -323,7 +325,7 @@ async def test_reaction_mapping_structure_path_escape_rejected(tmp_path):
     assert "permission denied" in result["message"]
 
 
-# --- AgentHub：原生 bridge、动作限权、call 不隐式 spawn ---
+# --- AgentHub：原生 bridge、动作限权、call 创建独立 peer ---
 
 
 class _FakeEventLog:
@@ -477,7 +479,7 @@ async def test_hub_without_core_reports_unavailable(tmp_path):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('target,existing', [('small_mol', False), ('writer', False), ('writer', True)])
-async def test_supervisor_hub_cannot_delegate_to_writable_peer(tmp_path, target, existing):
+async def test_supervisor_hub_can_call_independent_writable_peer(tmp_path, target, existing):
     core=RuntimeCore(strict_events=True)
     bus=CommandBus(core)
     project=(await bus.execute(Command(type='project.create',payload={'name':'readonly-hub'}))).data
@@ -488,5 +490,15 @@ async def test_supervisor_hub_cannot_delegate_to_writable_peer(tmp_path, target,
     before=set(core.agents)
     result=await _executor(tmp_path,core=core,project_id=project.id).execute(
         'agent_hub',{'action':'call','to':target,'message':'calculate'},session_id=supervisor.id)
-    assert result['is_success'] is False
-    assert set(core.agents)==before
+    assert result['is_success'] is True
+    peer = core.agents[result['session_id']]
+    assert peer.capabilities.permissions.write
+    assert not supervisor.capabilities.permissions.write
+    assert peer.parent_session_id is None
+    if existing:
+        assert peer.id == target
+        assert set(core.agents) == before
+    else:
+        assert set(core.agents) == before | {peer.id}
+        requested = core.event_log.query_project(project.id, types={'agent.spawn_requested'})
+        assert requested[-1].data['requested_by_session_id'] == supervisor.id

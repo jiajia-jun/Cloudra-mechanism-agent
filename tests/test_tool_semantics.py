@@ -145,9 +145,9 @@ def test_edit_schema_uses_path_and_old_string():
     edit = next(e for e in get_tools_lst() if e.tool_name == "edit")
     params = edit.instantiate().tool_schema_json()["function"]["parameters"]
     props = params["properties"]
-    assert {"path", "expected_sha256", "edits"} <= props.keys()
+    assert {"path", "edits"} <= props.keys()
     assert "filepath" not in props
-    assert {"path", "expected_sha256", "edits"} <= set(params["required"])
+    assert {"path", "edits"} <= set(params["required"])
     edit_item = props["edits"]["items"]
     if "$ref" in edit_item:
         prefix, ref = edit_item["$ref"].rsplit("/", 1)
@@ -164,7 +164,7 @@ def test_edit_operation_requires_both_published_text_fields(missing):
     del replacement[missing]
     with pytest.raises(ValidationError) as error:
         edit.input_schema.model_validate({
-            "path": "notes.txt", "expected_sha256": "0" * 64, "edits": [replacement],
+            "path": "notes.txt", "edits": [replacement],
         })
     assert any(
         item["loc"] == ("edits", 0, missing) and item["type"] == "missing"

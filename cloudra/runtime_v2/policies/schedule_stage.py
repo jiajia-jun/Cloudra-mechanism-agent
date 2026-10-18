@@ -183,6 +183,10 @@ class ScheduleStage:
             has_running_siblings, core, project_id=ctx.agent.project_id, session_id=ctx.agent.id
         ):
             return True
+        if ctx.agent.role_id != 'coordinator':
+            # Owned jobs were checked above; another session's calculation
+            # cannot hold this agent's completed assignment open.
+            return False
         return await pending_compute_jobs_exist(
             data_dir=ConversationDB(ctx.agent.project_id).data_dir,
             project_id=ctx.agent.project_id,

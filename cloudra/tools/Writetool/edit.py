@@ -14,6 +14,7 @@ from cloudra.tools.core.coord_guard import handwritten_coord_warning
 from cloudra.tools.core.workspace_mutation import (
     WorkspaceMutationOutput,
     execute_prepared_change,
+    known_version_for_tool,
     record_preparation_failure,
     workspace_for_tool,
 )
@@ -40,7 +41,6 @@ class EditOperation(BaseModel):
 
 class Edit_input_schema(input_schema):
     path: str = Field(description="Target file path relative to the Agent working directory")
-    expected_sha256: str = Field(description="Full-file sha256 returned by the latest read call")
     edits: list[EditOperation] = Field(description="Exact text replacements to apply in order")
 
 
@@ -53,7 +53,8 @@ class Edit(Tool):
     tool_name: str = "edit"
     tool_description: str = (
         "Structured edit of an existing text file by exact old-text match; each old_text must match once by default, and multiple matches are rejected. "
-        "Use for: local edits to existing files — this is the preferred file-edit tool; call read first to get the latest sha256. "
+        "Use for: local edits to existing files — this is the preferred file-edit tool. Read existing text you have not yet inspected before changing it. "
+        "The runtime remembers versions from successful reads, writes and edits; a file you just wrote or edited needs no extra read. "
         "Do not use for: creating a file or rewriting it wholesale (use write); never edit files with Bash, sed, redirection, or throwaway scripts. "
         "Note: writing hand-typed coordinate blocks into .gjf/.xyz/.com triggers a harness warning — coordinates must come from tools."
     )
@@ -90,7 +91,7 @@ class Edit(Tool):
             change = await asyncio.to_thread(
                 service.prepare_edit,
                 user_input.path,
-                user_input.expected_sha256,
+                await asyncio.to_thread(known_version_for_tool, self, service, user_input.path),
                 edits,
             )
         except WorkspaceConflictError as exc:

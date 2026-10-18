@@ -59,7 +59,7 @@ def test_write_schema():
     # 正确参数
     input_data = Write_input_schema(path="test.txt", content="hello")
     assert input_data.path == "test.txt"
-    assert input_data.expected_sha256 == "missing"
+    assert "expected_sha256" not in Write_input_schema.model_fields
 
     # 验证 tool 属性
     assert tool.tool_name == 'write'

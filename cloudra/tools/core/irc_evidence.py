@@ -40,7 +40,8 @@ def irc_start_geometry(path):
             if start < 0:
                 return None
             index = text.rfind('CARTESIAN COORDINATES (ANGSTROEM)', 0, start)
-            return parse_xyz(orca_frames._xyz_block_at(text, index)) if index >= 0 else None
+            xyz = orca_frames._xyz_block_at(text, index) if index >= 0 else orca_frames.input_xyz_from_text(text[:start])
+            return parse_xyz(xyz)
     except (ValueError, OSError):
         return None
     return None
@@ -180,19 +181,10 @@ def orca_irc_endpoint_geometries(path) -> Optional[tuple]:
     return geo_a, geo_b
 
 
-def _within_scan_limit(path: Path, max_scan_bytes: Optional[int]) -> bool:
-    if max_scan_bytes is None:
-        return True
-    try:
-        return path.stat().st_size <= max_scan_bytes
-    except OSError:
-        return False
-
-
-def normal_log(path, *, max_scan_bytes=None) -> bool:
-    """Native normally terminated QM evidence within the caller's read limit."""
+def normal_log(path) -> bool:
+    """Native normally terminated QM evidence with matching frequency geometry."""
     path = Path(path)
-    if not path.is_file() or not _within_scan_limit(path, max_scan_bytes):
+    if not path.is_file():
         return False
     engine = qm_engine.detect_qm_engine(str(path))
     parser = {'orca': orca_frames, 'gaussian': gaussian_frames}.get(engine)
@@ -224,15 +216,12 @@ def frequency_geometry_matches(path) -> bool:
     return same_geometry(geometry(text), geometry(text[:frequency_index]))
 
 
-def probe_log(path, *, max_scan_bytes: Optional[int] = None) -> tuple[Optional[int], Optional[tuple]]:
+def probe_log(path) -> tuple[Optional[int], Optional[tuple]]:
     """(虚频数, 末帧几何)。虚频数 None = 无频率块/文件不可解析。
 
-    只解析 gaussian/orca 日志（内容嗅探，不超过 max_scan_bytes——None 表示
-    不设上限，与 ts_guess strict 同；benchmark 侧传 MAX_SCAN_BYTES）。"""
+    只解析 gaussian/orca 原生日志；文件大小不改变科学资格。"""
     p = Path(path)
-    if not _within_scan_limit(p, max_scan_bytes):
-        return None, None
-    if not normal_log(p, max_scan_bytes=max_scan_bytes):
+    if not normal_log(p):
         return None, None
     frames, _irc_meta = frames_for(p)
     freqs = freqs_for(p, frames)
@@ -240,13 +229,11 @@ def probe_log(path, *, max_scan_bytes: Optional[int] = None) -> tuple[Optional[i
     return n_imag, last_geometry(p, frames)
 
 
-def irc_endpoint_geometries(path, *, max_scan_bytes: Optional[int] = None) -> Optional[tuple]:
+def irc_endpoint_geometries(path) -> Optional[tuple]:
     """双侧 IRC 端点几何 ((symbols, positions) × 2)，ts_guess strict 口径。
 
-    引擎非 gaussian/orca、超尺寸上限或任一侧几何不可得时返回 None。"""
+    引擎非 gaussian/orca 或任一侧几何不可得时返回 None。"""
     p = Path(path)
-    if not _within_scan_limit(p, max_scan_bytes):
-        return None
     engine = qm_engine.detect_qm_engine(str(p))
     if engine == "gaussian":
         return gaussian_irc_endpoints_from_frames(irc_frames_for(p))
@@ -432,10 +419,10 @@ def verify_separated_product_direction(
     return {**failure, 'details': details or ['No verified reactant minimum supports the IRC direction.']}
 
 
-def _usable_ts_geometries(ts_logs, *, max_scan_bytes, details: list[str]) -> list[tuple]:
+def _usable_ts_geometries(ts_logs, *, details: list[str]) -> list[tuple]:
     geometries = []
     for path in ts_logs:
-        n_imag, geometry = probe_log(path, max_scan_bytes=max_scan_bytes)
+        n_imag, geometry = probe_log(path)
         if n_imag == 1 and geometry is not None:
             geometries.append(geometry)
         else:
@@ -447,10 +434,10 @@ def _usable_ts_geometries(ts_logs, *, max_scan_bytes, details: list[str]) -> lis
     return geometries
 
 
-def _usable_minimum_geometries(logs, *, side: str, max_scan_bytes, details: list[str]) -> list[tuple]:
+def _usable_minimum_geometries(logs, *, side: str, details: list[str]) -> list[tuple]:
     geometries = []
     for path in logs:
-        n_imag, geometry = probe_log(path, max_scan_bytes=max_scan_bytes)
+        n_imag, geometry = probe_log(path)
         if n_imag == 0 and geometry is not None:
             geometries.append(geometry)
         else:
@@ -462,9 +449,9 @@ def _usable_minimum_geometries(logs, *, side: str, max_scan_bytes, details: list
     return geometries
 
 
-def _optimization_geometries(path, *, max_scan_bytes=None):
+def _optimization_geometries(path):
     """Native converged Opt input/final geometries, independent of frequency parsing."""
-    if not normal_log(path, max_scan_bytes=max_scan_bytes):
+    if not normal_log(path):
         return None
     text = Path(path).read_text(errors='replace')
     engine = qm_engine.detect_qm_engine(str(path))
@@ -472,7 +459,9 @@ def _optimization_geometries(path, *, max_scan_bytes=None):
         if orca_frames.opt_converged(text) is not True:
             return None
         index = text.find('CARTESIAN COORDINATES (ANGSTROEM)')
-        first = parse_xyz(orca_frames._xyz_block_at(text, index)) if index >= 0 else None
+        first = parse_xyz(orca_frames.input_xyz_from_text(text))
+        if first is None and index >= 0:
+            first = parse_xyz(orca_frames._xyz_block_at(text, index))
         last = parse_xyz(orca_frames.final_xyz_from_text(text))
     elif engine == 'gaussian':
         if ('Optimization stopped.' in text or not any(marker in text for marker in
@@ -495,8 +484,8 @@ def _optimization_geometries(path, *, max_scan_bytes=None):
     return (first, last) if first is not None and last is not None else None
 
 
-def _optimized_minima(logs, *, smiles, side, charge, max_scan_bytes, details):
-    minima = _usable_minimum_geometries(logs, side=side, max_scan_bytes=max_scan_bytes, details=details)
+def _optimized_minima(logs, *, smiles, side, charge, details):
+    minima = _usable_minimum_geometries(logs, side=side, details=details)
     if smiles is not None:
         from cloudra.tools.core.species_identity import chemical_smiles
         expected = chemical_smiles(smiles)
@@ -505,7 +494,7 @@ def _optimized_minima(logs, *, smiles, side, charge, max_scan_bytes, details):
             details.append(f'{side}: no zero-imaginary minimum matches the declared species.')
     results = []
     for path in logs:
-        geometries = _optimization_geometries(path, max_scan_bytes=max_scan_bytes)
+        geometries = _optimization_geometries(path)
         if geometries is not None and any(same_geometry(geometries[1], minimum) for minimum in minima):
             results.append((geometries[0], geometries[1], path))
     if not results:
@@ -515,15 +504,15 @@ def _optimized_minima(logs, *, smiles, side, charge, max_scan_bytes, details):
 
 
 def _endpoint_optimization_proof(ends, ts_geometry, source_logs, target_logs, *,
-        charge=0, max_scan_bytes=None, atom_binding=None, reactant_smiles=None, product_smiles=None):
+        charge=0, atom_binding=None, reactant_smiles=None, product_smiles=None):
     """Both real IRC sides must terminate in the declared verified minima via Opt."""
     from cloudra.tools.core.irc_path import align_atom_order
 
     details = []
     source = _optimized_minima(source_logs, smiles=reactant_smiles, side='SOURCE/reactant',
-        charge=charge, max_scan_bytes=max_scan_bytes, details=details)
+        charge=charge, details=details)
     target = _optimized_minima(target_logs, smiles=product_smiles, side='TARGET/product',
-        charge=charge, max_scan_bytes=max_scan_bytes, details=details)
+        charge=charge, details=details)
     for name, source_end, target_end in (('direct', ends[0], ends[1]), ('swapped', ends[1], ends[0])):
         for source_start, source_minimum, source_log in source:
             if not same_geometry(source_start, source_end):
@@ -575,7 +564,6 @@ def verify_short_irc_direction(
     endpoint_b_logs: Sequence,
     *,
     charge: int = 0,
-    max_scan_bytes: Optional[int] = None,
     atom_bindings=None,
     reactant_smiles: str | list[str] | None = None,
     product_smiles: str | list[str] | None = None,
@@ -590,7 +578,7 @@ def verify_short_irc_direction(
     或证明为何不成立（缺 TS/端点材料 ⇒ 引导先补对应阶段的绑定证据）。
     """
     details: list[str] = []
-    ends = irc_endpoint_geometries(irc_log, max_scan_bytes=max_scan_bytes)
+    ends = irc_endpoint_geometries(irc_log)
     if ends is None:
         return False, [
             f"the IRC log {irc_log} does not yield usable endpoint geometries on "
@@ -602,18 +590,18 @@ def verify_short_irc_direction(
     atom_binding = (atom_bindings or {}).get(str(irc_log))
     ts_geometries = [(geometry, (atom_bindings or {}).get(str(path)))
         for path in ts_logs
-        for geometry in _usable_ts_geometries([path], max_scan_bytes=max_scan_bytes, details=details)]
+        for geometry in _usable_ts_geometries([path], details=details)]
     anchor = irc_start_geometry(irc_log)
     ts_geometries = [item for item in ts_geometries if same_geometry(item[0], anchor)]
     if not ts_geometries:
         details.append('IRC starting saddle is missing or differs from the submitted TS geometry; submit evidence from the same TS calculation geometry.')
     from_geometries = _usable_minimum_geometries(
         endpoint_b_logs, side="endpoint_b (SOURCE/reactant side)",
-        max_scan_bytes=max_scan_bytes, details=details,
+        details=details,
     )
     to_geometries = _usable_minimum_geometries(
         endpoint_a_logs, side="endpoint_a (TARGET/product side)",
-        max_scan_bytes=max_scan_bytes, details=details,
+        details=details,
     )
     if not ts_geometries:
         details.append(
@@ -639,7 +627,7 @@ def verify_short_irc_direction(
         for ts_geometry, ts_binding in ts_geometries:
             passed, proof_details = _endpoint_optimization_proof(
                 ends, ts_geometry, endpoint_b_logs, endpoint_a_logs, charge=charge,
-                max_scan_bytes=max_scan_bytes, reactant_smiles=reactant_smiles, product_smiles=product_smiles,
+                reactant_smiles=reactant_smiles, product_smiles=product_smiles,
                 atom_binding=atom_binding if ts_binding == atom_binding else None,
             )
             if passed:
@@ -689,11 +677,11 @@ def verify_short_irc_pair(forward_log, reverse_log, ts_logs, endpoint_a_logs, en
     if atom_binding != (atom_bindings or {}).get(str(reverse_log)):
         atom_binding = None
     ts = [(geometry, (atom_bindings or {}).get(str(path))) for path in ts_logs
-          for geometry in _usable_ts_geometries([path], max_scan_bytes=None, details=details)]
+          for geometry in _usable_ts_geometries([path], details=details)]
     starts = [irc_start_geometry(path) for path in (forward_log, reverse_log)]
     ts = [item for item in ts if all(same_geometry(item[0], start) for start in starts)]
-    source = _usable_minimum_geometries(endpoint_b_logs, side='SOURCE', max_scan_bytes=None, details=details)
-    target = _usable_minimum_geometries(endpoint_a_logs, side='TARGET', max_scan_bytes=None, details=details)
+    source = _usable_minimum_geometries(endpoint_b_logs, side='SOURCE', details=details)
+    target = _usable_minimum_geometries(endpoint_a_logs, side='TARGET', details=details)
     if not (ts and source):
         return False, [*details, 'Bind the TS and frequency-verified source/target minimum logs.']
     separated = isinstance(product_smiles, list) and len(product_smiles) > 1

@@ -109,9 +109,8 @@ class _DeliveredEdge(MechanismEdge):
 # file extensions we treat as computational evidence worth parsing for SMILES
 _EVIDENCE_SUFFIXES = {".gjf", ".com", ".inp", ".xyz", ".log", ".out", ".sdf", ".mol", ".json"}
 
-# 超过该大小的文件只做类型分类、不整读扫 SMILES，也不进 Layer 2 的帧解析
-# （两层共享同一上限：超大文件在 Layer 1 没贡献绑定，cclib 整读只会拖住评分器）
-MAX_SCAN_BYTES = 20 * 1024 * 1024
+# Bound incidental metadata discovery, not eligibility of native scientific logs.
+MAX_METADATA_BYTES = 20 * 1024 * 1024
 
 # `smiles:` 注释行是交付协议的一部分（query 明确要求证据文件携带）。
 # 容忍 JSON/YAML 引号与注释前缀："smiles": "X"、smiles: 'X'、# smiles: X。
@@ -121,7 +120,7 @@ class EvidenceFile:
     path: str
     smiles_found: list[str] = field(default_factory=list)
     kind: str = ""  # 'gaussian'|'orca'|'xyz'|'json'|'unknown'
-    size: int = 0   # 字节数；Layer 2 据此跳过超过 MAX_SCAN_BYTES 的文件
+    size: int = 0   # 原始字节数，仅作文件信息，不是科学资格条件
 
 
 @dataclass
@@ -260,10 +259,18 @@ def scan_evidence_files(sandbox: Path, exclude: Optional[Path] = None) -> list[E
         kind = _classify(p)
         try:
             size = p.stat().st_size
-            if size > MAX_SCAN_BYTES:
-                text = ""  # 超大日志不整读；保留分类结果，SMILES 扫描跳过
+            if kind in {'gaussian', 'orca'} and p.suffix.lower() in {'.log', '.out'}:
+                # Native logs are not JSON. Discover annotations one line at a
+                # time instead of making a second full-size in-memory copy.
+                with p.open(encoding='utf-8', errors='replace') as stream:
+                    smiles = list(dict.fromkeys(identity for line in stream
+                        if 'smiles' in line.lower() for identity in _smiles_in_text(line)))
+                text = ''
+            elif size > MAX_METADATA_BYTES:
+                text, smiles = '', []
             else:
                 text = p.read_text(encoding="utf-8", errors="replace")
+                smiles = _smiles_in_text(text)
         except Exception:
             continue
         # 机理图形状的 JSON（顶层 nodes+edges）一律不是证据：交付图的多份改名
@@ -277,7 +284,7 @@ def scan_evidence_files(sandbox: Path, exclude: Optional[Path] = None) -> list[E
                 continue
         files.append(EvidenceFile(
             path=str(p.relative_to(sandbox)),
-            smiles_found=_smiles_in_text(text),
+            smiles_found=smiles,
             kind=kind,
             size=size,
         ))
@@ -373,7 +380,7 @@ def bind_graph_to_evidence(
     verified = []
     for evidence in files:
         identities = []
-        if evidence.size <= MAX_SCAN_BYTES and (evidence.kind == 'xyz' or normal_log(sandbox / evidence.path, max_scan_bytes=MAX_SCAN_BYTES)):
+        if evidence.kind == 'xyz' or normal_log(sandbox / evidence.path):
             for identity in evidence.smiles_found:
                 try:
                     if _geometry_species(str(sandbox / evidence.path), identity):
@@ -404,8 +411,8 @@ def bind_graph_to_evidence(
                 path = (sandbox / raw).resolve() if isinstance(raw, str) else None
                 relative = str(path.relative_to(sandbox.resolve())) if path is not None else None
                 evidence = next((item for item in available if item.path == relative
-                                 and item.kind in {'gaussian', 'orca'} and item.size <= MAX_SCAN_BYTES), None)
-                if evidence and node.smiles and normal_log(path, max_scan_bytes=MAX_SCAN_BYTES):
+                                 and item.kind in {'gaussian', 'orca'}), None)
+                if evidence and node.smiles and normal_log(path):
                     identities = next(item.smiles_found for item in files if item.path == relative)
                     identities = list(identities)
                     identities.extend(identity for identity in node.smiles if _geometry_species(str(path), identity))
@@ -450,7 +457,7 @@ def bind_graph_to_evidence(
             try:
                 path = (sandbox / raw).resolve() if isinstance(raw, str) else None
                 relative = str(path.relative_to(sandbox.resolve())) if path is not None else None
-                if any(f.path == relative and f.kind in {'gaussian', 'orca'} and f.size <= MAX_SCAN_BYTES for f in available) and normal_log(path, max_scan_bytes=MAX_SCAN_BYTES):
+                if any(f.path == relative and f.kind in {'gaussian', 'orca'} for f in available) and normal_log(path):
                     endpoint_quality = max((min(by_id[e.from_node].quality, by_id[e.to_node].quality)
                                             for e in graph.edges if e.via == ts_id and e.from_node in by_id and e.to_node in by_id), default=0.0)
                     nb.bound_files, nb.matched, nb.quality = [relative], True, endpoint_quality
@@ -469,8 +476,7 @@ def bind_graph_to_evidence(
                     _identify_by_declared_energy,
                 )
                 declared = _declared_node_energy_hartree(node)
-                candidates = [f.path for f in available if f.kind in {'gaussian', 'orca'}
-                              and f.size <= MAX_SCAN_BYTES]
+                candidates = [f.path for f in available if f.kind in {'gaussian', 'orca'}]
                 selected = _identify_by_declared_energy(sandbox, candidates, declared) if declared is not None else None
                 nb.bound_files = [selected] if selected else []
                 break

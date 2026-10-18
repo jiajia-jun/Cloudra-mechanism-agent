@@ -1,5 +1,20 @@
 # IMP 难题：PM7 与 xTB 方法内参考值探索
 
+## IA8/IB9排除执行：未移出、后端权限闸阻塞、已回滚
+用户已明确允许排除、协调选择移出两题，但registry edit被后端declined（change735fc4b5b5844c8a8cf3e8443b763d4a），不能把该拒绝解释为缺用户意图。先行允许的生成器/loader变更已逐项回滚、恢复原SHA；实际load_tasks与生成器仍12题，--check退出0（env tc_1161f20fdebd47b3）；协调随后独立复核三文件SHA恢复，精确12-ID集合、原IA8/IB9 JSON存在及只读--check均通过（tc_876f7f99bd474bfa，exit0）。原定义/TaskSpec/日志/计算值/accessible/tier未改，没有Gold回填。详见[实际执行与回滚审计](gold_compute/queue_20261018/IMP_RECLASSIFICATION.md)。本轮不是完成12→10；需维护者接入授权后才能实质排除，不绕闸另放配置或删题。历史12题工作量与下文科学记录均保留。
+
+## 本轮排除方案（历史计划；执行被拒，已回滚，未完成）
+用户授权「填吧……或者把这俩不够纯的imp踢掉」。协调选择后一种：仅将IA8、IB9从当前有效IMP选择集合排除，保留原题定义、历史数值/候选、全部输入日志/结构与报告，另列待重分类；不把未pass写成pass，不填未认证Gold，不将移出解释成物理不可达或两题完全可算。IA8已有同轮目标TS/IRC/双0频端点但工具验收仍fail；IB9是首步相对可行、第二步未验的混合难度题。env已查清实际registry/selector/导出入口并尝试最小可逆改动，但registry编辑被拒，两个先行获准的依赖改动已回滚。目标10题并未实现；实际仍12题，不能只写文档声称已移除。无新增QM或strict，科学证据与运行状态不改。实际拒绝、正反修改摘要、SHA及验证见[重分类记录](gold_compute/queue_20261018/IMP_RECLASSIFICATION.md)；本轮停止，等待平台接入已有授权，不绕闸。
+
+## IB9-E1有限故障恢复（无新QM，已收口）
+只读权威inspect仍revision74/ended/candidate_only/verified=false，原owner报告state=failed。发现其已落盘旧接口真实验收tc_09ffe9cd8923405d，inconclusive missing TS geometry；未见新组件导入receipt或pass。新合同组件入口已可见，但公开合同没有故障接管授权及仅导入不提交compute保证；为遵守禁止新QM，没有试探性resume或新run，也不把权限未保证写成后端已拒绝。具体工具返回、合同全文、源SHA和剩余安全恢复接口缺口见[恢复结论](gold_compute/queue_20261018/results/IB9/new_verification_review/recovery/RESULT.md)。不等待失败session，不改Gold/registry/root图。
+
+## 新验收机制实测（IA8仍fail；IB9有限恢复已结束但新版验收未完成，2026-10-18）
+IA8新e5b2d829接口已真实传入841/840的reactant_logs/product_logs及835/836、原watch：tc_58fab4b3a3644b26仍fail且无端点check，[完整新接口回执](gold_compute/queue_20261018/results/IA8/new_verification_review/e5b2d829/result.json)。IB9原owner as_1745e03539bc43fe遭进程重启runtime_interrupted，后续call未实际恢复，协调get_subagent_report仍state=failed，不能写成仍在正常验收或化学验收失败。故障恢复specialist as_8a583e54b37446fb已完成只读effect/权限核查：有旧验收inconclusive、无新组件导入receipt；没有执行新resume、没有收到实际ownership拒绝，具体为公开合同未保证无新compute的恢复入口，见本文件顶端结论。恢复审计已结束，新版IB9验收本身未完成，不再写正在运行或继续等待失败session。
+用户明确「IA8在新机制是会绿的；IB9拆了应该没问题，只要TS能连到那个有虚频的络合物就可以。能过吗？」据此只恢复现有证据的新机制验收，不新增QM、输出/解析呈现实验。IA8由原owner用835/836原日志及836自身B→R841/F→P840双0虚频原生final、原watch/strict进行一次复验；不能沿用旧模式fail推断修复后结果。IB9-E1改用完整TS/IRC通向目标接触体的方向/组分对应，加742/745独立同级0虚频单体作为分离参考；不再要求保留软虚频的整体接触体成为零虚频极小值，也不假称它是已验minimum。TS/IRC仍完整，接触体全原子对应及组分身份必须正确，不能以两个单体取代连通证据；分离E_A+E_B与RC reference能量明确区分。
+
+两原owner各只作一次公开合同支持的真实验收；新组件入口若对owner可见则依法同原run引用既有证据，否则报告可见schema/后端缺口，不猜component参数、改阈值/watch/日志或新run重算。此前0 pass/0正式回填是本次复核前快照，不预先当作新机制结论；本次完整参数/返回将存[IA8复验目录](gold_compute/queue_20261018/results/IA8/new_verification_review/)与[IB9复验目录](gold_compute/queue_20261018/results/IB9/new_verification_review/)。工具pass和模型适用性/Gold声明分列，正式回填待新返回复核。
+
 ## 十二题交付库存复核（2026-10-18；本轮成果≠正式回填）
 用户问工具修复期间还有何可算未算、成果及回填情况。本轮已尝试7道反应题的全部9边；6条得到收敛TS候选并做最终频率，其中5条有实际双向IRC，含后来认定错通道的IA5/IB10，不能将其数目当合格目标边。当前仍0 strict pass、0新增可信目标barrier；正式Gold/根交付图未生成回填。env有限足迹核根mechanism_graph.json不存在，限定git工作树无registry/TaskSpec改动，但非全历史字节审计。例外：[IA8局部非Gold草图](gold_compute/queue_20261018/results/IA8/mechanism_graph.json)已有历史独立端点isomerization_energy−31.1871478816及729/730原来源，无barrier；本轮仅修正过时status（840/841双端已做、strict未pass），不应说“任何数值都没落盘”，亦不把此草图当正式Gold。
 
@@ -188,6 +203,12 @@ Tight后仍[ts_guess strict fail完整返回](gold_compute/queue_20261018/result
 此前strict_tight_request用explore独立端点，不应称endpoint-relaxed strict。当前inspect tc_30a98d826c994eab证P opt actual=null，R三几何校验阻止自动接续。R837/838是显式800末帧seed谱系（800来自旧796 B），不是836 B直接新种子；复用其正常Opt/零虚频但明确跨tight轮来源，不重复R。公开ts_guess verify合同未暴露endpoint优先开关或单独endpoint-match接口。为补真实缺口，已从[836 F原生外帧](ts/ts_0001/jobs/declaration_0007/irc/irc_IRC_F.xyz)合法普通Opt+NumFreq提交840，GFN2-xTB/q0m1/TightSCF，非手动TS/IRC，也不替代durable验收；[输入](gold_compute/queue_20261018/results/IA8/endpoint_strict_review/product_optfreq.inp)。待P正常/零虚频后，仅一次835/836+原watch+两侧原生优化末帧strict，来源限制如实保留，不预承诺pass。
 
 **836-own端点检验最终结果**：新R841来自836 B、新P840来自836 F，均普通Opt正常收敛且0虚频，最低503.56/1020.46cm⁻¹；原子序身份映射不变。真实外端→新final质量对齐RMSD .00463465/.00190746Å，来源SHA与数值见[配对表](gold_compute/queue_20261018/results/IA8/endpoint_strict_review/endpoint_comparison.json)。仅一次835/836+新pair+原watch strict call tc_8b3a7df380064bda仍fail，checks止于负模misalignment、无端点匹配返回；[完整参数/返回](gold_compute/queue_20261018/results/IA8/endpoint_strict_review/strict_own_endpoints.json)。故此前独立端点strict不代表本检验；此次实际也未兑现端点一致优先通过行为，不能宣称端点比较已fail或永久算法规则。公开合同无其他endpoint优先开关，不猜参数。两同源极小值现已具备但未pass，不回填Gold；无后台、不再QM。
+
+
+**新机制一次实测（最新）**：沿用835/836+同轮841/840原生final+原watch[[0,2],[0,1]]、strict=true、engine=orca，仅换output_dir，一次调用tc_1d4a572782fc49d7仍verification_status=fail，checks仍为唯一负频与mode失配、无endpoint比较返回。当前实际工具未体现所述修复生效；不循环、不新QM。完整request/response/四源SHA见[新验收记录](gold_compute/queue_20261018/results/IA8/new_verification_review/result.json)。不能回填已验收边，能量仍限同级GFN2纯模型电子能（无热/ZPE混入），不是PM7 Hf或物理高精Gold。
+
+
+**CURRENT e5b2d829新合同一次验收**：重新读取ts_guess revision e5b2d829f19266162378471a6388a20d983b299ce5de48ddc696bd93fb706451，正式新增reactant_logs/product_logs已分别绑定同轮841/840原生组合OptFreq日志；835/836、两native finals、原watch/strict均保持。实际call **tc_58fab4b3a3644b26**仍verification_status=fail，checks只有唯一负频−950.47和mode misalignment，端点路径空，无端点证明覆盖warning的返回；不是沿用旧调用。完整新合同版本/request/response/六源SHA：[e5b2d829结果](gold_compute/queue_20261018/results/IA8/new_verification_review/e5b2d829/result.json)。一次结束，无QM/循环，不改Gold或图；当前仍不能声称工具验收pass。
 
 ## IA1 实算（small_mol）
 - 模型：孤立气相 C4H4、q=0/m=1；无酸碱/离子/溶剂参与者。题设低温基质具体材料与温度未知，本模型不含基质、隧穿或动力学，仅考察电子PES。预期四个环C保持身份，1–2/3–4键级降低、1–4/2–3升高，需耦合键长交替而非断环。

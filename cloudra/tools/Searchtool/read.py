@@ -15,7 +15,8 @@ description = (
     "Read a file in the Agent working directory: UTF-8 text, images (PNG/JPG/JPEG/WEBP), or PDFs. "
     "Use for: viewing code, logs, configs, papers, and local images. "
     "Do not use bash to read files. "
-    "Note: path is relative to the working directory; call this tool for the latest sha256 before editing a text file. "
+    "Read existing text you have not yet inspected before changing it. "
+    "The runtime remembers versions from successful reads, writes and edits; a file you just wrote or edited needs no extra read. "
     "Page large text with offset/limit (1-based start line and line count)."
 )
 

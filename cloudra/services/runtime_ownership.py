@@ -22,7 +22,7 @@ from cloudra.persistence.paths import runtime_api_lock_path
 
 _HEALTH_PATH = "/api/v2/runtime/health"
 # SPA 挂载点（frontend/index.html 的 #root）：同端口既供 API 又供已构建前端，
-# 才构成「可复用实例」的必要条件，与 web_launcher._runtime_present 一致。
+# 才构成「可复用实例」的必要条件；launcher 还须核对目标 store 的实际属主。
 _SPA_MARKER = '<div id="root"></div>'
 
 

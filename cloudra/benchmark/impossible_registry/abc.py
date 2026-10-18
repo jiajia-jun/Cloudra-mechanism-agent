@@ -239,7 +239,8 @@ TASKS = {
                 "out": "[CH2:1]1[N:2]=[N:3][CH2:4][CH2:5]1",
                 "type": "[3+2] cycloaddition to a 1-pyrazoline intermediate",
                 "with_ts": True,
-                "barrier": 14.74,
+                # GFN2-xTB，TS794 − 接触体839；用户确认回填，软模限制见 IB9/GOLD_BACKFILL_20261018.md。
+                "barrier": 5.65,
             },
             {
                 "out": "[N:2]#[N:3].[CH2:1]1[CH2:4][CH2:5]1",

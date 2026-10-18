@@ -373,7 +373,14 @@ class AgentHost:
 
             tools = supervisor_tool_names()
         else:
-            tools = list(role.tool_policy.allow)
+            from cloudra.tools import get_tools_lst
+
+            tools = set(role.tool_policy.allow)
+            if '*' in tools:
+                tools.remove('*')
+                tools.update(entry.tool_name for entry in get_tools_lst() if entry.tool_name)
+            tools.difference_update(role.tool_policy.deny)
+            tools = sorted(tools)
         if role.permissions.read:
             if 'get_tool_docs' in role.tool_policy.deny:
                 raise CommandRejected('invalid', 'get_tool_docs is required for on-demand tool documentation')

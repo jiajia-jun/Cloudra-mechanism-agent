@@ -2,7 +2,7 @@ impossible 十二题实际计算交接
 
 不是“impossible就不用算”。以下保留原题/Gold标签用于审计，不预先宣布物理不可达，也不把白名单内给出一个数等同可信参考值。
 实际TaskSpec：ideapool/tasks/impossible/<ID>.json；定义：cloudra/benchmark/impossible_registry/abc.py、defg.py。
-共同allowed_methods为xtb、pm7、b3lyp/def2svp，正式证据为ORCA/Gaussian原生日志。本轮沿用B3LYP-D3(BJ)/def2-SVP，不自动增加CASSCF等方法。需要其他电子态处理取得可信定量参考时，给出具体方法方案供用户决定。
+共同allowed_methods为xtb、pm7，正式证据为ORCA/Gaussian原生日志。本轮按用户指定使用GFN2-xTB；旧B3LYP结果仅留作历史，不混入当前方法参考。需要其他电子态处理取得可信定量参考时，给出具体方法方案供用户决定。
 每题结果放results/<ID>/，保存原始输入/日志与一份REPORT.txt。诊断、方法内近似数值、可信Gold分开写。
 
 IA1 · 环丁二烯自动异构化 · q0/m1 · 反应题
@@ -26,7 +26,7 @@ IA9 · 1,2-二氧环丁烷热解 · q0/m1的题设 · 反应题
 当前登记step_type写concerted，而题源讨论双自由基阶段；不能强迫实际结果符合协同措辞。先留证据，不仅凭一项失败改图/改accessible。
 
 IB9 · 重氮甲烷+乙烯→1-吡唑啉→环丙烷+N2 · q0/m1 · 反应题
-首步14.74是旧ORCA5自算值，不是完整验收证明。先追回原NU8的R/TS/IRC，重点核吡唑啉端浅环翻转虚频，取得身份一致零虚频极小值，再核首步能垒。
+首步已按用户确认回填GFN2-xTB纯电子垒5.65 kcal/mol，替换旧B3LYP 14.74：TS794减原料接触体839。794仅一个目标环加成虚频−367.39 cm⁻¹，798有真实双向IRC，吡唑啉端821零虚频；839保留−29.79/−4.49两个组分间软模，按人工确认接纳，工具仍inconclusive。分离零虚频单体742+745参照为4.37，未混作接触体能量。详见results/IB9/GOLD_BACKFILL_20261018.md。
 第二步实际尝试脱氮/成环路径，记录双自由基区电子结构与方向；没有找到只记搜索未成功，找到一虚频和IRC也只先认方法内路径。全库审计的端点限制见gold_compute/library_audit_20261002/README.md“已回填但仍须保留的限制”。
 
 IB10 · 重氮乙醛→单重态甲酰卡宾+N2→乙烯酮+N2 · 题设q0/m1 · 反应题

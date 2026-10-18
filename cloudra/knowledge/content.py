@@ -26,7 +26,7 @@ def load_sources() -> dict[str, list[dict[str, Any]]]:
             return _CACHE
         path = paths.knowledge_cards_path()
         if not path.is_file():
-            return {}
+            raise FileNotFoundError(f'Knowledge source content is missing: {path}')
         sources: dict[str, list[dict[str, Any]]] = {}
         with path.open(encoding="utf-8") as stream:
             for line in stream:

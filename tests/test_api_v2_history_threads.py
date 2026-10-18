@@ -88,3 +88,28 @@ async def test_command_agent_response_reads_completion_in_worker(monkeypatch):
     assert response.status_code == 200
     assert response.json()["data"]["id"] == "a"
     await core.aclose()
+
+
+@pytest.mark.asyncio
+async def test_transcript_keeps_all_messages_despite_recent_tool_noise(monkeypatch):
+    core = RuntimeCore(strict_events=True)
+    core.projects['p'] = Project(id='p', name='history')
+    core.agents['a'] = AgentSession(
+        id='a', project_id='p', role_id='explorer', display_name='reader', state='succeeded'
+    )
+    for index in range(600):
+        core.event_log.append(
+            'agent.message_emitted', stream='agent', project_id='p', session_id='a',
+            data={'content': f'Message {index}'},
+        )
+    for _ in range(600):
+        core.event_log.append('tool.started', stream='agent', project_id='p', session_id='a', data={})
+    guard_history_reads(core.event_log, monkeypatch)
+    async with AsyncClient(
+        transport=ASGITransport(app=create_v2_app(core)), base_url='http://testserver'
+    ) as client:
+        response = await client.get('/api/v2/agents/a/transcript')
+    assert response.status_code == 200
+    messages = response.json()['messages']
+    assert [item['content'] for item in messages] == [f'Message {index}' for index in range(600)]
+    await core.aclose()

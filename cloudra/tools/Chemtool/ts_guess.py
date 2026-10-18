@@ -98,10 +98,10 @@ description = (
     "without the sidecar the log text is grouped per 'RELAXED SURFACE SCAN STEP' and each point's converged "
     "(last) energy/geometry is used, so per-cycle energies are never misread as scan points; "
     "verify: by default, frequency plus rough IRC-endpoint connectivity yields candidate/unlikely/inconclusive; "
-    "with strict=True, requires one reaction-relevant imaginary frequency, bidirectional IRC from that same TS, "
+    "with strict=True, requires exactly one imaginary frequency, bidirectional IRC from that same TS, "
     "expected endpoint structures, and native reactant_logs/product_logs proving that the actual IRC outer frames "
     "were optimized to the correct zero-imaginary minima, yielding pass/fail/inconclusive. "
-    "Opt and Freq may be in combined or separate logs; geometric interval checks are advisory only. "
+    "Opt and Freq may be in combined or separate logs; imaginary-mode alignment and geometric interval checks are advisory only. "
     "For an exploratory scan: scan_prepare (after internal_coordinates) → submit → scan_parse. "
     "For formal TS refinement and validation, provide the candidate to ts_prepare rather than submitting manual TS/IRC jobs; "
     "xtb_path/interpolate are fallbacks and never a saddle. Independent xtb_path executes a calculation directly; "
@@ -248,12 +248,12 @@ class TsGuess_input_schema(QmInputSettings, input_schema):
     )
     watch_pairs: list[list[int]] = Field(
         default_factory=list,
-        description="xtb_path/interpolate/scan_parse: pairs for distance monitoring; verify: pairs for direction proof and imaginary-mode alignment. "
+        description="xtb_path/interpolate/scan_parse: pairs for distance monitoring; verify: pairs for advisory imaginary-mode alignment. "
                     "Indices refer to the concrete reactant XYZ for path/interpolation, each scan frame for scan_parse, "
                     "and the TS frequency geometry for verify, including explicit H. Gaussian/xTB are 1-based; ORCA is 0-based. "
                     "Use internal_coordinates on that file or reaction_mapping's concrete_watch_pairs with complete, current structure binding; "
                     "SMILES graph indices and indices from another atom order are not interchangeable. "
-                    "If omitted, distance/direction checks nominate bond-change and largest-distance-change pairs; imaginary-mode alignment is skipped.",
+                    "If omitted, distance checks nominate bond-change and largest-distance-change pairs; imaginary-mode alignment is skipped.",
     )
     output_dir: Optional[str] = Field(
         default=None,
@@ -335,7 +335,7 @@ class TsGuess_input_schema(QmInputSettings, input_schema):
     strict: bool = Field(
         default=False,
         description="verify only: prove direction using the same TS and bidirectional IRC plus actual outer-frame Opt/Freq logs and expected endpoint structures. "
-                    "IRC itself need not reach minima; the optimized endpoints must have zero imaginary frequencies. Geometric intervals are advisory.",
+                    "IRC itself need not reach minima; the optimized endpoints must have zero imaginary frequencies. Imaginary-mode alignment and geometric intervals are advisory.",
     )
 
     @model_validator(mode="after")
@@ -466,8 +466,8 @@ class TsGuess_output_schema(output_schema):
     irc_end_b_path: str = Field(default="", description="verify: IRC endpoint B xyz path")
     imag_mode_aligned: Optional[bool] = Field(
         default=None,
-        description="verify: whether the imaginary normal mode matches the watch_pairs reaction coordinate; "
-                    "None if displacements cannot be parsed.",
+        description="verify: advisory heuristic of whether the imaginary normal mode matches the watch_pairs reaction coordinate; "
+                    "None if skipped or undecidable. Does not decide strict verification.",
     )
     imag_mode_alignment: str = Field(
         default="",
@@ -1063,8 +1063,8 @@ def _assess_imag_mode_alignment(
 
     扭转/角主导的 TS（阻转、环翻转、锥形反转）：全局最大相对位移对**两端不成键**
     （用 TS 几何的 perceive_bonds 键图判）时，键对距离本就几乎不动，pair-distance
-    对齐材料不足以判方向——status=undecidable（strict 下降级为 inconclusive，
-    不误判方向不符）。主导对是键对、或 TS 几何缺失无法判成键性时，维持原规则。
+    对齐材料不足以判方向——status=undecidable。主导对是键对、或 TS 几何缺失
+    无法判成键性时，维持原规则。该启发式仅作诊断，不决定 strict 验收。
     """
     import numpy as np
 
@@ -2405,7 +2405,7 @@ class TsGuess(Tool):
         imag_mode_aligned: Optional[bool] = None
         imag_mode_alignment = ""
 
-        def _record_mode_alignment() -> dict[str, Any]:
+        def _record_mode_alignment() -> None:
             nonlocal imag_mode_aligned, imag_mode_alignment
             assessment = _assess_imag_mode_alignment(
                 vibfreqs,
@@ -2418,9 +2418,12 @@ class TsGuess(Tool):
             )
             imag_mode_aligned = assessment["aligned"]
             imag_mode_alignment = assessment["message"]
-            checks.append(assessment["message"])
+            warning = (
+                "[warning] Imaginary-mode alignment is advisory; strict verification uses actual IRC endpoint proof. "
+                if assessment["status"] in {"missing", "undecidable", "misaligned"} else ""
+            )
+            checks.append(warning + assessment["message"])
             checks.extend(assessment.get("details") or [])
-            return assessment
 
         if reference_error is not None:
             checks.append(f"Endpoint reference structures could not be parsed: {reference_error}")
@@ -2443,26 +2446,11 @@ class TsGuess(Tool):
                 status = "fail"
             else:
                 checks.append(f"Exactly 1 imaginary frequency ({imag[0]:.1f} cm⁻¹): the first-order saddle-point premise holds.")
-                mode = _record_mode_alignment()
-                if mode["status"] == "missing":
-                    verdict = (
-                        "inconclusive: the frequency log lacks normal-mode displacements; cannot check the imaginary-frequency direction."
-                    )
-                    status = "inconclusive"
-                elif mode["status"] == "undecidable":
-                    verdict = (
-                        "inconclusive: the imaginary mode is dominated by non-bonded-pair "
-                        "(torsion/angle) motion; pair-distance alignment cannot judge its direction."
-                    )
-                    status = "inconclusive"
-                elif mode["status"] == "misaligned":
-                    verdict = "fail: the imaginary mode is inconsistent with the declared reaction coordinate."
-                    status = "fail"
-                else:
-                    status, verdict, info = self._strict_path_verdict(user_input, checks, references)
-                    if info is not None:
-                        irc_end_a_path = info["path_a"]
-                        irc_end_b_path = info["path_b"]
+                _record_mode_alignment()
+                status, verdict, info = self._strict_path_verdict(user_input, checks, references)
+                if info is not None:
+                    irc_end_a_path = info["path_a"]
+                    irc_end_b_path = info["path_b"]
         else:
             if not freq["converged"]:
                 checks.append("The frequency job did not converge normally; cannot judge the TS candidate from it.")

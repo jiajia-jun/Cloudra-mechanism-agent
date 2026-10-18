@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, Query
+from starlette.responses import StreamingResponse
 
 from cloudra.runtime_v2.schemas import Command, RuntimeSettingsPatch
 
@@ -36,23 +38,30 @@ def build_router(ctx: ApiContext) -> APIRouter:
         return data
 
     @router.get("/api/v2/agents/{session_id}/transcript", dependencies=ctx.protected)
-    async def agent_transcript(session_id: str) -> dict[str, Any]:
+    async def agent_transcript(session_id: str) -> StreamingResponse:
         agent = ctx.core.require_agent(session_id)
-        messages = []
-        events = await asyncio.to_thread(ctx.core.event_log.query_session, session_id)
-        for event in events:
-            if event.type in {"agent.message_injected", "agent.message_emitted"}:
+
+        def stream():
+            header = json.dumps({'session_id': session_id, 'agent_id': agent.role_id})
+            yield header[:-1] + ', "messages": ['
+            separator = ''
+            for event in ctx.core.event_log.iter_events(
+                session_id=session_id, types={'agent.message_injected', 'agent.message_emitted'},
+            ):
                 data = event.data
-                messages.append(
-                    {
-                        "message_id": data.get("message_id"),
-                        "sender": data.get("sender"),
-                        "content": data.get("content"),
-                        "event_id": event.event_id,
-                        "created_at": event.created_at.isoformat(),
-                    }
-                )
-        return {"session_id": session_id, "agent_id": agent.role_id, "messages": messages}
+                yield separator + json.dumps({
+                    'message_id': data.get('message_id'),
+                    'sender': data.get('sender'),
+                    'content': data.get('content'),
+                    'event_id': event.event_id,
+                    'created_at': event.created_at.isoformat(),
+                }, ensure_ascii=False)
+                separator = ','
+            yield ']}'
+
+        # Starlette iterates synchronous generators in its worker pool. The
+        # existing JSON contract stays complete without building an unbounded list.
+        return StreamingResponse(stream(), media_type='application/json')
 
     @router.get("/api/v2/agents/{session_id}/events", dependencies=ctx.protected)
     async def agent_events(

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 
 import pytest
 
@@ -59,7 +58,7 @@ async def test_process_notes_maintained_without_blocking_research(tmp_path, appr
         "supervisor": [
             Step(wait_for=review, tools=source_reads),
             Step(tools=[("edit", {
-                "path": "PROCESS.md", "expected_sha256": hashlib.sha256(original.encode()).hexdigest(),
+                "path": "PROCESS.md",
                 "edits": [{"old_text": "Test: follow the imaginary mode.\n",
                            "new_text": "Test: follow the imaginary mode.\nObservation: the tested guess moved along a different coordinate; keep the hypothesis open.\n"}],
             })]),

@@ -15,7 +15,8 @@
   单原子离子（如 ``[F-]``）也作为独立组分保留。
 - **身份**：新增的氢按 ``(父重原子输入序号, 该父原子上的第 k 个氢)`` 登记稳定身份，
   **绝不**用 ``AddHs`` 之后的数组下标充当跨反应映射。
-- **构建**：逐组分独立嵌入 + 力场优化，每一步迭代落一帧轨迹；失败与不收敛的轨迹同样保留。
+- **构建**：已有完整几何原样保留；无坐标时逐组分嵌入 + 力场优化，每一步迭代落一帧轨迹；
+  失败与不收敛的轨迹同样保留。真实坐标可继续计算，不表示已成为力场极小值。
 - **开壳层**：按声明电荷和总多重度检查电子数奇偶性/范围；自由基数仅作诊断。只生成
   未优化的 ETKDG 种子，跳过 MMFF/UFF，不把种子冒充科学确证的驻点。
   显式电子态声明优先；即使声明为闭壳层，带局域自由基标记的图仍保守地跳过力场。
@@ -32,6 +33,7 @@ docstring 的参数表）产出**复合物候选**。组装需要已嵌入的组
 
 from __future__ import annotations
 
+import math
 import os
 from typing import Literal, Optional
 
@@ -41,6 +43,7 @@ from cloudra.persistence.fs_utils import atomic_write_text
 from cloudra.tools.core.complex_assembly import (
     AssemblyParameters,
     AssemblyResult,
+    _min_interfragment_gap,
     assemble,
 )
 from cloudra.tools.core.electronic_state import electronic_state_details, electronic_state_issue
@@ -112,7 +115,7 @@ OptimizationStatus = Literal[
     "skipped_electronic_state",  # 电子态声明或自由基图标记需避开力场，仅生成未优化种子
 ]
 
-# 不能被下游当成"可用起点几何"的优化状态。
+# 不满足力场极小值资格的优化状态；未收敛末帧仍可能是下一种方法的种子。
 _NON_USABLE_OPTIMIZATION = ("failed", "not_converged")
 
 
@@ -265,7 +268,7 @@ class PreparedStructure(BaseModel):
     mol: Molecule | None = None
     message: str = Field(default="", description="给定状态的说明；不承载收敛判定本身")
     has_coordinates: bool = Field(
-        default=False, description="是否产出了可用的 3D 坐标（仅 status='ok' 且请求了嵌入时为 True）"
+        default=False, description="是否保留或生成了可继续计算的真实坐标；不表示力场已收敛或驻点已验证"
     )
     components: list[BuildComponent] = Field(default_factory=list)
     atom_identities: list[AtomIdentity] = Field(
@@ -400,7 +403,7 @@ def _add_hydrogens_with_identity(submol, component_id: str):
     数组位置无关。落在原子上的数组下标会随拆分方式改变，不能充当跨反应映射。
     """
     n_before = submol.GetNumAtoms()
-    mol_h = Chem.AddHs(submol)
+    mol_h = Chem.AddHs(submol, addCoords=bool(submol.GetNumConformers() and submol.GetConformer().Is3D()))
     hydrogen_by_index: dict[int, tuple[int, int]] = {}
     per_parent: dict[int, list[int]] = {}
     for new_index in range(n_before, mol_h.GetNumAtoms()):
@@ -588,6 +591,11 @@ def _build_component(mol, indices: list[int], component_id: str, request: Prepar
             "coordinate embedding was not requested (strategy.embed=False); only the structural "
             "resolution (split / AddHs / identity table / charge self-check) was performed"
         )
+    elif mol_h.GetNumConformers() and mol_h.GetConformer().Is3D():
+        conf_id = mol_h.GetConformer().GetId()
+        diagnostics.append("Input coordinates retained; no embedding or force-field optimization was run.")
+        if component_capture:
+            component_capture.capture(mol_h, conf_id, generator="component_input_geometry")
     elif single_atom:
         # 单原子组分无需调用力场：位置即原点，没有可优化的内部自由度。
         conf = Chem.Conformer(1)
@@ -779,6 +787,12 @@ def prepare_structure(request: PreparationRequest, *, candidate_sink=None) -> Pr
             out_dir,
         )
 
+    preserve_geometry = request.strategy.embed and bool(mol.GetNumConformers() and mol.GetConformer().Is3D())
+    if preserve_geometry and not all(
+        math.isfinite(float(value)) for position in mol.GetConformer().GetPositions() for value in position
+    ):
+        return _empty("invalid_input", "Input coordinates must be finite.", out_dir, mol)
+
     fragments = _fragment_atom_tuples(mol)
     if not fragments:
         return _empty(
@@ -831,6 +845,19 @@ def prepare_structure(request: PreparationRequest, *, candidate_sink=None) -> Pr
     for component in components[1:]:
         built_mol = Chem.CombineMols(built_mol, component.mol)
 
+    if preserve_geometry:
+        # Splitting groups fragments together. Restore the input atom order,
+        # appending only newly added hydrogens after the existing input atoms.
+        order = sorted(range(len(identities)), key=lambda index: (
+            identities[index].input_atom_index is None,
+            identities[index].input_atom_index if identities[index].input_atom_index is not None
+            else identities[index].parent_input_atom_index,
+            identities[index].hydrogen_ordinal or 0,
+        ))
+        built_mol = renumber_atoms(built_mol, order)
+        identities = [identities[index].model_copy(update={"index": new_index})
+                      for new_index, index in enumerate(order)]
+
     trajectory_manifest = write_trajectory_manifest(out_dir, artifacts) if artifacts else ""
 
     atom_count = len(identities)
@@ -866,10 +893,23 @@ def prepare_structure(request: PreparationRequest, *, candidate_sink=None) -> Pr
     diagnostics: list[str] = []
     assembly: Optional[AssemblyResult] = None
     assembly_paths: list[str] = []
-    if len(components) > 1 and not request.strategy.embed:
+    if preserve_geometry:
+        status: BuildStatus = "ok"
+        has_coordinates = True
+        message = "Input geometry retained as an unverified seed; no embedding, force-field optimization or reassembly was run."
+        if len(components) > 1:
+            groups = [list(group) for group in Chem.GetMolFrags(built_mol)]
+            gap, pair = _min_interfragment_gap(built_mol.GetConformer().GetPositions(), groups)
+            if gap < request.strategy.assembly.min_interfragment_distance:
+                status = "assembly_failed"
+                has_coordinates = False
+                message = (f"Input geometry has an interfragment collision at atoms {pair}: {gap:.4f} Å "
+                           f"< {request.strategy.assembly.min_interfragment_distance} Å; coordinates were not moved.")
+        diagnostics.extend(diagnostic for component in components for diagnostic in component.diagnostics)
+    elif len(components) > 1 and not request.strategy.embed:
         # 组装的对象是**已嵌入的**组分坐标（刚性放置要冻结片内几何），因此 embed=False
         # 只做结构解析的调用方拿不到复合物候选；明确报出原因，不做隐式补算。
-        status: BuildStatus = "assembly_failed"
+        status = "assembly_failed"
         has_coordinates = False
         message = (
             f"{len(components)} connected components detected, but the build strategy requested "
@@ -961,7 +1001,7 @@ def prepare_structure(request: PreparationRequest, *, candidate_sink=None) -> Pr
             message = "Single-atom structure; its coordinate is the origin (no force field needed)."
         elif only.optimization_status in _NON_USABLE_OPTIMIZATION:
             status = "optimization_failed"
-            has_coordinates = False
+            has_coordinates = only.optimization_status == "not_converged"
             message = (
                 f"Component {only.component_id} did not converge under "
                 f"{only.engine or 'any force field'} (or the optimization raised); "
@@ -970,7 +1010,7 @@ def prepare_structure(request: PreparationRequest, *, candidate_sink=None) -> Pr
             )
         elif only.optimization_status == "missing_parameters":
             status = "missing_parameters"
-            has_coordinates = False
+            has_coordinates = True
             message = (
                 "No force field covers every atom of this structure (MMFF94 and UFF both "
                 "unavailable); coordinates were embedded but NOT optimized."
@@ -985,8 +1025,8 @@ def prepare_structure(request: PreparationRequest, *, candidate_sink=None) -> Pr
             )
             diagnostics.extend(only.diagnostics)
         elif only.optimization_status == "not_required":
-            status = "missing_parameters"
-            has_coordinates = False
+            status = "ok"
+            has_coordinates = True
             message = (
                 "Force-field optimization was disabled by the build strategy, so the structure was "
                 "embedded but not optimized."
@@ -995,6 +1035,13 @@ def prepare_structure(request: PreparationRequest, *, candidate_sink=None) -> Pr
             status = "ok"
             has_coordinates = True
             message = "Single component built and optimized; coordinates are ready for downstream use."
+
+    if has_coordinates and not all(
+        math.isfinite(float(value)) for position in built_mol.GetConformer().GetPositions() for value in position
+    ):
+        status = "invalid_input"
+        has_coordinates = False
+        message = "Built coordinates are nonfinite; no usable geometry was delivered."
 
     prepared = PreparedStructure(
         status=status,
@@ -1014,7 +1061,7 @@ def prepare_structure(request: PreparationRequest, *, candidate_sink=None) -> Pr
     prepared.assembly = assembly
     prepared.candidate_paths = assembly_paths
 
-    if status == "ok" and has_coordinates and len(components) == 1:
+    if status == "ok" and has_coordinates and (len(components) == 1 or preserve_geometry):
         xyz_path = os.path.join(out_dir, PREPARED_XYZ_NAME)
         mol_path = os.path.join(out_dir, PREPARED_MOL_NAME)
         atomic_write_text(

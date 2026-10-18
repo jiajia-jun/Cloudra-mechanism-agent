@@ -36,9 +36,8 @@ Required evidence per element:
   through it is covered, otherwise it must itself be declared inaccessible.
 
 Species identity (SMILES consistency) follows Layer 1's evidence-binding
-rules, reapplied to eligible minimum logs for complexes. Only ORCA/Gaussian
-logs at or below MAX_SCAN_BYTES are parsed (aligned with Layer 1, which never
-read them either).
+rules, reapplied to eligible minimum logs for complexes. ORCA/Gaussian logs
+are judged from their native evidence; file size is not a scientific verdict.
 """
 
 from __future__ import annotations
@@ -51,7 +50,6 @@ from typing import Optional
 
 from cloudra.benchmark.graph_similarity import GedConfig
 from cloudra.benchmark.integrity import (
-    MAX_SCAN_BYTES,
     EvidenceFile,
     NodeBinding,
     bind_graph_to_evidence,
@@ -104,7 +102,7 @@ class SelfConsistencyReport:
 class _LogProbe:
     """按路径缓存的日志探针：同一绑定文件可能被多个元素引用，只解析一次。
 
-    只解析 Layer 1 意义上可读的 QM 日志（gaussian/orca 且 ≤ MAX_SCAN_BYTES）；
+    只解析正常终止的 QM 日志（gaussian/orca）；
     其余一律返回 None——绑定了不可解析文件不等于有可用证据。"""
 
     def __init__(self, sandbox: Path, files_by_path: dict[str, EvidenceFile]):
@@ -120,8 +118,7 @@ class _LogProbe:
             if (
                 f is not None
                 and f.kind in ("gaussian", "orca")
-                and f.size <= MAX_SCAN_BYTES
-                and normal_log(self._sandbox / rel_path, max_scan_bytes=MAX_SCAN_BYTES)
+                and normal_log(self._sandbox / rel_path)
             ):
                 path = self._sandbox / rel_path
                 frames, _irc_meta = _frames_for(path)
@@ -158,7 +155,7 @@ class _LogProbe:
 
     def irc_atom_binding(self, rel_path: str):
         evidence = self._files.get(rel_path)
-        if evidence is None or evidence.kind != 'orca' or evidence.size > MAX_SCAN_BYTES:
+        if evidence is None or evidence.kind != 'orca':
             return None
         path = self._sandbox / rel_path
         if not (path.parent / 'irc_endpoints.json').is_file():
@@ -201,7 +198,7 @@ def _strict_irc_proof(
     if not (ts_candidates and source and target):
         return None
     irc_logs = [path for path in sorted(pool)
-                if normal_log(probe._sandbox / path, max_scan_bytes=MAX_SCAN_BYTES)
+                if normal_log(probe._sandbox / path)
                 and irc_start_geometry(probe._sandbox / path) is not None]
 
     def absolute(paths):
@@ -219,7 +216,7 @@ def _strict_irc_proof(
         for path in irc_logs:
             passed, details = verify_short_irc_direction(probe._sandbox / path,
                 absolute([frequency_path]), absolute(target), absolute(source),
-                charge=charge, max_scan_bytes=MAX_SCAN_BYTES, **options)
+                charge=charge, **options)
             if passed:
                 return list(dict.fromkeys([ts_path, frequency_path, path, *source, *target])), details
         for forward, reverse in combinations(irc_logs, 2):
@@ -254,8 +251,7 @@ def audit_self_consistency(
 
     files_by_path = {f.path: f for f in evidence_files}
     probe = _LogProbe(sandbox, files_by_path)
-    qm_paths = [f.path for f in evidence_files if f.kind in {'gaussian', 'orca'}
-                and f.size <= MAX_SCAN_BYTES]
+    qm_paths = [f.path for f in evidence_files if f.kind in {'gaussian', 'orca'}]
     bmap = {b.node_id: b for b in bindings}
     species_covered: dict[str, bool] = {}
     edge_checks: dict[str, ElementCheck] = {}

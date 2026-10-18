@@ -47,6 +47,14 @@ def test_resolved_graph_keeps_molecule_state_without_export_files(tmp_path):
     assert prepared.mol.GetAtomWithIdx(0).GetProp("origin") == "original-carbon"
 
 
+@pytest.mark.parametrize("status", ["missing_parameters", "optimization_failed"])
+def test_resolved_graph_does_not_require_force_field_qualification(tmp_path, status):
+    prepared = _graph_only("CCO", tmp_path)
+    prepared.status = status
+    graph = load_resolved_graph(prepared)
+    assert [atom.GetSymbol() for atom in graph.GetAtoms()] == prepared.symbols
+
+
 def test_missing_ring_edge_uses_visible_single_source_fallback(tmp_path):
     prepared = _graph_only("CCO.O", tmp_path)
     assert prepared.status == "assembly_failed"  # graph-only, not a failed parse

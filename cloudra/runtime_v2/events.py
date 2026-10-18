@@ -373,6 +373,34 @@ class EventLog:
         return self._query(session_id=session_id, run_id=run_id, after_session_seq=after_session_seq,
                            before_session_seq=before_session_seq, types=types, limit=limit, tail=tail)
 
+    def known_file_sha256(self, project_id: str, session_id: str,
+                           relative_path: str, absolute_path: str) -> str | None:
+        """A session's last known file version survives context compaction."""
+        if self._store is not None:
+            return self._store.known_file_sha256(project_id, session_id, relative_path, absolute_path)
+        with self._lock:
+            for event in reversed(self._events):
+                if event.project_id != project_id:
+                    continue
+                if event.type == 'project.updated' and 'workspace_dir' in event.data.get('changes', {}):
+                    return None
+                if event.session_id != session_id or event.type != 'tool.result_recorded':
+                    continue
+                result = event.data.get('result') or {}
+                data = result.get('data') or {}
+                if result.get('is_success') is not True:
+                    continue
+                name = event.data.get('tool_name')
+                if name == 'read' and data.get('kind') == 'text':
+                    path, digest = data.get('path'), data.get('sha256')
+                elif name in ('write', 'edit') and data.get('status') == 'applied':
+                    path, digest = data.get('filepath'), data.get('after_sha256')
+                else:
+                    continue
+                if path in (relative_path, absolute_path):
+                    return digest
+        return None
+
     def _read_snapshot(self, filters):
         """Pin a lazy resident suffix and bound only the older, uncached prefix."""
         with self._lock:

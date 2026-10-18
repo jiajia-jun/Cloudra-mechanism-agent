@@ -1930,7 +1930,7 @@ def test_impossible_tasks_regenerate_identically():
         graph = t.gold.mechanism_graph
         assert any(not n.accessible for n in graph.nodes), t.task_id
     ib9 = next(t for t in tasks if t.task_id == "IB9")
-    assert [e.barrier_kcal_mol for e in ib9.gold.mechanism_graph.edges] == [14.74, None]
+    assert [e.barrier_kcal_mol for e in ib9.gold.mechanism_graph.edges] == [5.65, None]
 
 
 def test_query_declares_electronic_barrier_type():
@@ -2543,14 +2543,12 @@ def test_edit_script_reflects_missing_ts():
     assert any("step_missing" in s or "step_removed" in s for s in res.edit_script)
 
 
-def test_selfconsistency_skips_oversized_logs(tmp_path, monkeypatch):
-    """2c：超过共享上限的 QM 日志两层都不整读——绑定了超限文件的元素按
-    未覆盖判负（用 monkeypatch 缩小上限模拟）。"""
+def test_selfconsistency_rejects_log_without_native_evidence(tmp_path):
+    """A large filename/header is not scientific evidence; inspect actual content."""
     from cloudra.benchmark import selfconsistency as sc_mod
 
     big = tmp_path / "ts_opt.log"
     big.write_text(" Entering Gaussian System\n" + "x" * 100)
-    monkeypatch.setattr(sc_mod, "MAX_SCAN_BYTES", 10)
     graph = _sc_graph(R={"accessible": False}, P={"accessible": False})
     files = [EvidenceFile(path="ts_opt.log", kind="gaussian", size=big.stat().st_size)]
     bindings = [
@@ -2558,7 +2556,7 @@ def test_selfconsistency_skips_oversized_logs(tmp_path, monkeypatch):
     ]
     rep = sc_mod.audit_self_consistency(graph, bindings, files, tmp_path)
     edge = _checks_by_id(rep)["E1"]
-    assert not edge.covered  # 超限文件不可解析，不构成可用证据
+    assert not edge.covered  # No termination, frequency or geometry evidence.
     assert rep.passed is False
 
 

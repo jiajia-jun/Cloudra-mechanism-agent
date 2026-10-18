@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 
 import pytest
 
@@ -202,10 +201,10 @@ async def test_zero_api_process_write_preserves_new_unread_observation(tmp_path,
             Step(wait_for=research_hold),
         ],
         "supervisor": [
-            Step(wait_for=write_a, tools=[("write", {"path": "PROCESS.md", "content": text_a,
-                "expected_sha256": hashlib.sha256(research_text.encode()).hexdigest()})]),
-            Step(wait_for=write_b, tools=[("write", {"path": "PROCESS.md", "content": text_b,
-                "expected_sha256": hashlib.sha256(text_a.encode()).hexdigest()})]),
+            Step(wait_for=write_a, tools=[("read", {"path": "PROCESS.md"}),
+                ("write", {"path": "PROCESS.md", "content": text_a})]),
+            Step(wait_for=write_b, tools=[("read", {"path": "PROCESS.md"}),
+                ("write", {"path": "PROCESS.md", "content": text_b})]),
             Step(stop=True),
         ],
     })

@@ -15,9 +15,9 @@
             ``infra/slurm.py:_engine_success_from_log`` 引擎文本闸门复核，
             afinalize_compute_job CAS 落账本
 
-取消只走账本 cancel_requested。ssh_local shell 由 runner 消费取消请求文件，
-终止自己启动的作业进程组，写出退出文件后账本才确认取消；其他作业沿用
-scancel / TERM。传输错误按瞬态容忍（下一轮重试）；重启恢复由 scheduler 对账器
+取消只走账本 cancel_requested。ssh_local 作业由 runner 消费取消请求文件，
+终止自己启动的作业进程组，写出退出文件后账本才确认取消；ssh_slurm 发出
+scancel 后等待调度终态。传输错误按瞬态容忍（下一轮重试）；重启恢复由 scheduler 对账器
 调本模块的 recover/probe 函数找回句柄后重挂 poller。
 """
 
@@ -128,7 +128,7 @@ def build_remote_runner_script(
     """ssh_local 直跑脚本（无 SBATCH 头）。
 
     刻意不带 ``set -e``：引擎失败也必须写出退出文件——``.cloudra-exit-<id>``
-    是 poller 的终态信号，缺它只能按 runner 消失（VANISHED）定性。calculator
+    是 poller 的终态信号，缺它即使 runner 消失也保留在途状态。calculator
     stdout/stderr 统一捕获到 ``.cloudra/calc-<id>.out.log``（拉回后即被
     ``resolve_log_path`` 命中，与本地 guard / Slurm ORCA 捕获同口径）。
     """
@@ -141,44 +141,39 @@ def build_remote_runner_script(
         "mkdir -p .cloudra",
         *scheduler_setup_lines(scheduler),
     ]
-    if job_type == "shell":
-        # Job control gives the background script its own process group. Only
-        # this live runner owns the job spec; persisted PIDs never authorize kill.
-        lines.append("set -m")
+    # Only the live runner owns this job group; persisted PIDs never authorize kill.
+    lines.append("set -m")
     lines.extend([
         f"{shlex.join(calculator_cmd or remote_calculator_argv(input_name, job_type, xtb_params))}"
         f" > {shlex.quote(capture)} 2>&1 &",
         "calc_pid=$!",
-        f"echo \"$calc_pid\" > {shlex.quote(f'.cloudra-pid-{task_id}')}",
     ])
-    if job_type == "shell":
-        cancel_file = shlex.quote(f".cloudra-cancel-{task_id}")
-        lines.extend([
-            "cancel_sent=0",
-            'while [ -n "$(jobs -pr)" ]; do',
-            f"    if [ -f {cancel_file} ]; then",
-            "        if kill -TERM %1 2>/dev/null; then cancel_sent=1; fi",
-            "        break",
-            "    fi",
-            "    sleep 0.1",
-            "done",
-        ])
+    cancel_file = shlex.quote(f".cloudra-cancel-{task_id}")
+    lines.extend([
+        "cancel_sent=0",
+        'while [ -n "$(jobs -pr)" ]; do',
+        f"    if [ -f {cancel_file} ]; then",
+        "        if kill -TERM %1 2>/dev/null; then cancel_sent=1; fi",
+        "        break",
+        "    fi",
+        "    sleep 0.1",
+        "done",
+    ])
     lines.extend([
         "wait $calc_pid",
         "rc=$?",
     ])
-    if job_type == "shell":
-        # The script's Bash may exit before its Python child handles TERM. Keep
-        # the receipt pending until every member of the owned group has exited.
-        lines.extend([
-            'while kill -0 -- "-$calc_pid" 2>/dev/null; do',
-            f'    if [ "$cancel_sent" -eq 0 ] && [ -f {cancel_file} ]; then',
-            '        kill -TERM -- "-$calc_pid" 2>/dev/null || true',
-            "        cancel_sent=1",
-            "    fi",
-            "    sleep 0.1",
-            "done",
-        ])
+    # The calculator may exit before an engine child. Keep the receipt pending
+    # until every member of the group owned by this runner has exited.
+    lines.extend([
+        'while kill -0 -- "-$calc_pid" 2>/dev/null; do',
+        f'    if [ "$cancel_sent" -eq 0 ] && [ -f {cancel_file} ]; then',
+        '        kill -TERM -- "-$calc_pid" 2>/dev/null || true',
+        "        cancel_sent=1",
+        "    fi",
+        "    sleep 0.1",
+        "done",
+    ])
     lines.extend([
         f"echo \"$rc\" > {shlex.quote(f'.cloudra-exit-{task_id}')}",
         "",
@@ -239,31 +234,16 @@ def _query_shell_state(
     raise SshError(f"远端状态探针返回了无法识别的内容: {token!r}")
 
 
-def _cancel_remote(
-    transport, kind: str, remote_dir: str, task_id: int, handle: str, job_type: str = ""
-) -> None:
-    """显式取消的远端执行侧；shell runner 自己确认整个作业组退出。
-
-    ssh_slurm 走 scancel；ssh_local shell 写请求文件，其他引擎 TERM runner
-    与 calculator（pid 文件由 runner 脚本落盘）。只在账本取消后被调用，
-    与「任何路径不主动杀未要求取消的计算进程」铁律一致。
-    """
+def _cancel_remote(transport, kind: str, remote_dir: str, task_id: int, handle: str) -> None:
+    """Request cancellation; sacct or the owning runner must still confirm exit."""
     try:
         if kind == "ssh_slurm":
-            transport.run(f"scancel {handle}", timeout=30)
-        elif job_type == "shell":
+            transport.checked(f"scancel {handle}", timeout=30)
+        else:
             # The live runner kills its owned job group and records actual exit.
             # Repeating a request after an SSH interruption is harmless.
             cancel_file = shlex.quote(f"{remote_dir}/.cloudra-cancel-{task_id}")
             transport.checked(f"touch {cancel_file}", timeout=30)
-        else:
-            pid = handle[len(_SHELL_HANDLE_PREFIX):]
-            pid_file = shlex.quote(f"{remote_dir}/.cloudra-pid-{task_id}")
-            transport.run(
-                f"kill -TERM $(cat {pid_file} 2>/dev/null) 2>/dev/null; "
-                f"kill -TERM {pid} 2>/dev/null; true",
-                timeout=30,
-            )
     except SshError:
         logger.warning("remote cancel failed for job %s (%s)", task_id, handle, exc_info=True)
 
@@ -384,33 +364,13 @@ def _stage_and_submit(
     return _submit_shell(transport, remote_dir, script_name, task_id), str(script_path)
 
 
-def _terminal_verdict(
-    kind: str, state: str, exit_code: str, engine_ok: bool | None, base_error: str | None
-) -> tuple[str, str | None]:
-    """终态判定：引擎文本闸门是权威（与本地 guard / Slurm COMPLETED 复核同口径）。
-
-    engine_ok=True → done；False → failed。None（没有可判定日志）时回落调度侧
-    信号：ssh_slurm 保持 sacct 结论（同本地 slurm 口径），ssh_local 看 runner
-    退出码（0 → done；非 0 / runner 消失 → failed）。
-    """
+def _terminal_verdict(engine_ok: bool | None, base_error: str | None) -> tuple[str, str | None]:
+    """A scientific job needs native termination evidence, not a scheduler exit code."""
     if engine_ok is True:
         return "done", None
     if engine_ok is False:
-        if base_error:
-            return "failed", base_error
-        reason = (
-            "engine error termination (Slurm COMPLETED)"
-            if kind == "ssh_slurm"
-            else "engine error termination"
-        )
-        return "failed", reason
-    if base_error:
-        return "failed", base_error
-    if kind == "ssh_slurm":
-        return "done", None
-    if exit_code == "0":
-        return "done", None
-    return "failed", f"remote runner exit code {exit_code or 'unknown'}"
+        return "failed", base_error or "engine error termination"
+    return "failed", base_error or "native termination log unavailable"
 
 
 async def run_remote_compute(
@@ -425,6 +385,8 @@ async def run_remote_compute(
     row = await aget_compute_job(db, task_id)
     if not row:
         raise SshError(f"compute job {task_id} 不存在")
+    if row["state"] not in {"running", "cancel_requested"}:
+        return 0 if row["state"] == "done" else 1
     kind = (row["scheduler"] or "").strip()
     if kind not in REMOTE_KINDS:
         raise SshError(f"compute job {task_id} 不是远端作业: {kind!r}")
@@ -437,6 +399,9 @@ async def run_remote_compute(
     handle = (row["scheduler_job_id"] or "").strip()
 
     if not handle:
+        # No handle is not proof that a previous submission never started.
+        if row["state"] == "cancel_requested":
+            return 1
         # 正常认领路径（ready → running 无句柄）与对账安全重投路径
         # （ssh_local 探明远端无 runner）共用：stage 幂等（rsync 覆盖）。
         input_file = input_file.resolve(strict=True)
@@ -460,16 +425,14 @@ async def run_remote_compute(
     last_observed = ""
     empty_after_seen = 0
     pull_failures = 0
-    shell_runner = kind == "ssh_local" and job_type == "shell"
     while True:
         current = await aget_compute_job(db, task_id)
-        if current and current["state"] in {"cancelled", "cancel_requested"}:
+        if current and current["state"] not in {"running", "cancel_requested"}:
+            return 0 if current["state"] == "done" else 1
+        if current and current["state"] == "cancel_requested":
             await asyncio.to_thread(
-                _cancel_remote, transport, kind, remote_dir, task_id, handle, job_type
+                _cancel_remote, transport, kind, remote_dir, task_id, handle
             )
-            if not shell_runner or current["state"] == "cancelled":
-                await acancel_compute_job(db, task_id)
-                return 1
         try:
             if kind == "ssh_slurm":
                 state, exit_code = await asyncio.to_thread(
@@ -483,17 +446,17 @@ async def run_remote_compute(
             await sleep(poll_seconds)
             continue
 
-        if shell_runner:
-            latest = await aget_compute_job(db, task_id)
-            if latest and latest["state"] == "cancel_requested":
-                if state == "EXIT":
-                    await acancel_compute_job(db, task_id)
-                    return 1
-                # A vanished runner is not proof that its training children
-                # exited. Retain the reservation until the receipt is present.
-                if state == "VANISHED":
-                    await sleep(poll_seconds)
-                    continue
+        latest = await aget_compute_job(db, task_id)
+        if latest and latest["state"] == "cancel_requested":
+            exited = (state in SLURM_TERMINAL_SUCCESS | SLURM_TERMINAL_FAILURE
+                      if kind == "ssh_slurm" else state == "EXIT")
+            if exited:
+                await acancel_compute_job(db, task_id)
+                return 1
+            # Request acceptance, missing accounting and a vanished runner do not
+            # establish child-process exit. Keep the request and capacity pending.
+            await sleep(poll_seconds)
+            continue
 
         base_error: str | None = None
         if kind == "ssh_slurm":
@@ -523,14 +486,11 @@ async def run_remote_compute(
             await aupdate_scheduler_state(
                 db, task_id, f"EXIT:{exit_code}" if state == "EXIT" else state
             )
-            if state == "RUNNING":
+            if state in {"RUNNING", "VANISHED"}:
+                # A missing observer is not an execution receipt: its engine
+                # children may still be alive. Retain capacity until real exit.
                 await sleep(poll_seconds)
                 continue
-            if state == "VANISHED":
-                base_error = (
-                    "remote runner vanished before writing its exit file "
-                    "(node reboot or SIGKILL)"
-                )
 
         # 终态：拉回全部产物（有界重试），shell 只认退出码，其余引擎复核日志。
         try:
@@ -558,19 +518,12 @@ async def run_remote_compute(
             engine_ok = await asyncio.to_thread(
                 _engine_success_from_log, job_type, str(input_file), task_id
             )
-            final, last_error = _terminal_verdict(
-                kind, state, exit_code, engine_ok, base_error
-            )
+            final, last_error = _terminal_verdict(engine_ok, base_error)
         wrote = await afinalize_compute_job(db, task_id, final, last_error=last_error)
         if not wrote:
             latest = await aget_compute_job(db, task_id)
             if latest and latest["state"] in {"cancelled", "cancel_requested"}:
-                await asyncio.to_thread(
-                    _cancel_remote, transport, kind, remote_dir, task_id, handle, job_type
-                )
-                if shell_runner and state != "EXIT":
-                    await sleep(poll_seconds)
-                    continue
+                # The query already confirmed actual execution exit.
                 await acancel_compute_job(db, task_id)
                 return 1
         # 终态通知由 ComputeNotifyBroker 轮询 compute_jobs 表补投，不再发 IPC

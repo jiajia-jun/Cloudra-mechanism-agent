@@ -220,6 +220,28 @@ def test_engine_success_from_log_uses_xtb_and_vasp_markers(tmp_path):
     )
     assert _engine_success_from_log("vasp", str(poscar)) is True
 
+
+@pytest.mark.asyncio
+async def test_slurm_completed_without_native_log_is_not_done(tmp_path, monkeypatch):
+    from cloudra.infra.slurm import run_slurm_compute
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.services.compute_store import aget_compute_job, ainsert_compute_job, amark_slurm_submitted
+
+    db = await ComputeDB().ainit()
+    input_file = tmp_path / "mol.inp"
+    input_file.write_text("! HF STO-3G\n")
+    job_id = await ainsert_compute_job(
+        db, conversation_id="test", session_id=None, path=str(input_file),
+        state="running", jobtype="orca", node_id="slurm-a", scheduler="slurm",
+    )
+    await amark_slurm_submitted(db, job_id, "123", "")
+    monkeypatch.setattr("cloudra.infra.slurm.query_job", lambda _job_id: ("COMPLETED", "0:0"))
+
+    assert await run_slurm_compute(job_id, db.path, scheduler={}) == 1
+    row = await aget_compute_job(db, job_id)
+    assert row["state"] == "failed"
+    assert "native" in row["last_error"].lower()
+
 @pytest.mark.parametrize("time_limit", ["02:03:04", "2:03:04", "1-02:03:04"])
 def test_time_limit_accepts_clock_with_optional_days(tmp_path, time_limit):
     script = build_batch_script(

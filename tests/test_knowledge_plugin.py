@@ -98,9 +98,11 @@ def test_no_index_hit_does_not_search_content_directly(knowledge_assets):
 def test_missing_graph_or_content_never_returns_entity_as_answer(knowledge_assets):
     db, cards = knowledge_assets
     cards.unlink()
-    assert ChemKBPlugin().search("SCF") == []
+    with pytest.raises(FileNotFoundError):
+        ChemKBPlugin().search("SCF")
     db.unlink()
-    assert ChemKBPlugin().search("SCF") == []
+    with pytest.raises(FileNotFoundError):
+        ChemKBPlugin().search("SCF")
 
 
 def test_zero_limit_is_empty(knowledge_assets):

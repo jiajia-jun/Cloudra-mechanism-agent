@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
-import { resolveComposerSendTarget } from './composerSend.ts';
+import { composerInteractionFor, resolveComposerSendTarget } from './composerSend.ts';
 
 assert.deepEqual(
   resolveComposerSendTarget({
     draft: '  ',
     sending: false,
     hasProject: true,
-    hasAgent: true,
+    activeAgentId: 'B',
     interactions: [],
   }),
   { kind: 'noop', reason: 'empty' },
@@ -17,7 +17,7 @@ assert.deepEqual(
     draft: 'hi',
     sending: false,
     hasProject: false,
-    hasAgent: false,
+    activeAgentId: null,
     interactions: [],
   }),
   { kind: 'noop', reason: 'no_project' },
@@ -28,7 +28,7 @@ assert.deepEqual(
     draft: 'hi',
     sending: true,
     hasProject: true,
-    hasAgent: true,
+    activeAgentId: 'B',
     interactions: [],
   }),
   { kind: 'noop', reason: 'busy' },
@@ -39,20 +39,48 @@ assert.deepEqual(
     draft: '/compact',
     sending: false,
     hasProject: true,
-    hasAgent: true,
+    activeAgentId: 'B',
     interactions: [{ id: 1 }],
   }),
   { kind: 'slash', command: '/compact' },
 );
 
-// Pending ask_user hijacks Send even when an agent is selected.
+// A pending question from A must not hijack a message addressed to B.
+assert.deepEqual(
+  resolveComposerSendTarget({
+    draft: 'continue B', sending: false, hasProject: true, activeAgentId: 'B',
+    interactions: [{ interaction_id: 'ask-A', session_id: 'A' }],
+  }),
+  { kind: 'message' },
+);
+// Reply to B's question even when A's question is first in the project inbox.
+const pending = [{ interaction_id: 'ask-A', session_id: 'A', prompt: 'Question A' },
+  { interaction_id: 'ask-B', session_id: 'B', prompt: 'Question B' }];
+assert.equal(composerInteractionFor(pending, 'B')?.prompt, 'Question B');
+assert.equal(composerInteractionFor(pending, null), undefined);
+assert.deepEqual(
+  resolveComposerSendTarget({
+    draft: 'answer B', sending: false, hasProject: true, activeAgentId: 'B',
+    interactions: pending,
+  }),
+  { kind: 'respond', interactionId: 'ask-B' },
+);
+assert.deepEqual(
+  resolveComposerSendTarget({
+    draft: 'new task', sending: false, hasProject: true, activeAgentId: null,
+    interactions: pending,
+  }),
+  { kind: 'spawn_coordinator' },
+);
+
+// Pending ask_user for the selected agent receives its reply.
 assert.deepEqual(
   resolveComposerSendTarget({
     draft: 'ethanol',
     sending: false,
     hasProject: true,
-    hasAgent: true,
-    interactions: [{ interaction_id: 'ixn_1', id: 99 }],
+    activeAgentId: 'B',
+    interactions: [{ interaction_id: 'ixn_1', id: 99, session_id: 'B' }],
   }),
   { kind: 'respond', interactionId: 'ixn_1' },
 );
@@ -63,8 +91,8 @@ assert.deepEqual(
     draft: 'yes',
     sending: false,
     hasProject: true,
-    hasAgent: true,
-    interactions: [{ id: 42 }],
+    activeAgentId: 'B',
+    interactions: [{ id: 42, session_id: 'B' }],
   }),
   { kind: 'respond', interactionId: 42 },
 );
@@ -74,7 +102,7 @@ assert.deepEqual(
     draft: 'start',
     sending: false,
     hasProject: true,
-    hasAgent: false,
+    activeAgentId: null,
     interactions: [],
   }),
   { kind: 'spawn_coordinator' },
@@ -85,7 +113,7 @@ assert.deepEqual(
     draft: 'continue',
     sending: false,
     hasProject: true,
-    hasAgent: true,
+    activeAgentId: 'B',
     interactions: [],
   }),
   { kind: 'message' },

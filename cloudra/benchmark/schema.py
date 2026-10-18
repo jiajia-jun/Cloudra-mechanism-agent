@@ -271,13 +271,10 @@ class SelfConsistencyRubric(BaseModel):
     """Layer 2 物理自检。物种身份（SMILES 一致性）由 Layer 1 的证据绑定承担，
     不在此重复检查。
 
-    TS 合格判定仅由 n_imag == 1（一阶鞍点）与 IRC 方向区间证明
-    （irc_connects_endpoints，ts_guess strict 同口径：不要求收敛到极小值，
-    但双侧端点几何须各自位于 TS 与端点验证极小值之间；几何判定唯一实现
-    在 tools/core/irc_path.py）构成；不设任何虚频绝对值下限。
-    min_abs_imag_freq_cm1 已按用户决策移除——虚频大小是否"合适"交由 IRC
-    方向证明/虚频方向判断，两者由验证层（ts_guess/IRC）实现，本层不再引入
-    虚频大小下限判断。"""
+    TS 合格判定仅由 n_imag == 1（一阶鞍点）与同一 TS 双向 IRC 的真实外帧
+    经实际优化到正确零虚频极小值的方向证明（irc_connects_endpoints）构成。
+    IRC 本身无需收敛到底；虚频模式对齐与几何区间仅作诊断，不决定验收。
+    不设任何虚频绝对值下限。"""
 
     model_config = ConfigDict(extra="forbid")
 

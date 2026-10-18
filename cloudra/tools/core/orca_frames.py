@@ -364,16 +364,47 @@ def _xyz_block_at(text: str, idx: int) -> str:
     return f"{len(rows)}\n\n" + "\n".join(rows) + "\n"
 
 
+def input_xyz_from_text(text: str) -> str:
+    """Read the literal inline Cartesian geometry echoed by ORCA, never infer it."""
+    rows = []
+    in_xyz = False
+    for line in text.splitlines():
+        prefix, separator, echoed = line.partition('>')
+        if not (separator and prefix.strip().startswith('|')
+                and prefix.strip()[1:].strip().isdigit()):
+            continue
+        parts = echoed.split()
+        if not in_xyz:
+            if len(parts) == 4 and parts[:2] == ['*', 'xyz']:
+                in_xyz = True
+            continue
+        if parts == ['*']:
+            return f'{len(rows)}\n\n' + '\n'.join(rows) + '\n' if rows else ''
+        if len(parts) != 4:
+            return ''
+        try:
+            coordinates = [float(value) for value in parts[1:]]
+        except ValueError:
+            return ''
+        rows.append(parts[0] + ' ' + ' '.join(str(value) for value in coordinates))
+    return ''
+
+
 def final_xyz_from_text(text: str) -> str:
     """最后一个 CARTESIAN COORDINATES (ANGSTROEM) 块 → 标准 xyz 文本。
 
     ORCA 每次几何步/作业结束都打印该块，取最后一个即末帧几何；cclib 对
     ORCA 6.1 日志整体解析失败时的文本回退（与 vibfreqs_from_text 同一
-    纪律——评分链路不能因 cclib 崩溃而不可判定）。无该块返回空串。"""
+    纪律——评分链路不能因 cclib 崩溃而不可判定）。静态计算无该块时
+    读取日志原样回显的输入坐标；优化和路径计算不能用输入冒充末帧。"""
     idx = text.rfind("CARTESIAN COORDINATES (ANGSTROEM)")
-    if idx < 0:
-        return ""
-    return _xyz_block_at(text, idx)
+    if idx >= 0:
+        return _xyz_block_at(text, idx)
+    # Static jobs evaluate precisely their echoed input geometry. An Opt/IRC/scan
+    # input is only its starting point and must never masquerade as a final frame.
+    if not detect_job_types_from_text(text) & {'opt', 'ts', 'scan', 'irc', 'neb'}:
+        return input_xyz_from_text(text)
+    return ''
 
 
 def final_xyz_with_text_fallback(log_path: str) -> str:

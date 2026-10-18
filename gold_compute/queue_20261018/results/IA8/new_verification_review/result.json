@@ -1,0 +1,85 @@
+{
+  "request": {
+    "mode": "verify",
+    "strict": true,
+    "freq_log": "ts/ts_0001/jobs/declaration_0007/frequency/.cloudra/calc-835.out.log",
+    "irc_log": "ts/ts_0001/jobs/declaration_0007/irc/.cloudra/calc-836.out.log",
+    "reactant_path": "gold_compute/queue_20261018/results/IA8/endpoint_strict_review/reactant_optfreq.xyz",
+    "product_path": "gold_compute/queue_20261018/results/IA8/endpoint_strict_review/product_optfreq.xyz",
+    "engine": "orca",
+    "watch_pairs": [
+      [
+        0,
+        2
+      ],
+      [
+        0,
+        1
+      ]
+    ],
+    "output_dir": "gold_compute/queue_20261018/results/IA8/new_verification_review/strict"
+  },
+  "source_hashes": {
+    "freq_log": {
+      "path": "ts/ts_0001/jobs/declaration_0007/frequency/.cloudra/calc-835.out.log",
+      "sha256": "41d7979aca04cffa27c387e3f6e112233d5d7351ab04bbca2721b7ca73568e51"
+    },
+    "irc_log": {
+      "path": "ts/ts_0001/jobs/declaration_0007/irc/.cloudra/calc-836.out.log",
+      "sha256": "586836c00f35572c52b67ec6c28245f9cf76f62793e1ffadf47b1b56b1a6fbe5"
+    },
+    "reactant_path": {
+      "path": "gold_compute/queue_20261018/results/IA8/endpoint_strict_review/reactant_optfreq.xyz",
+      "sha256": "a6f97973190e05fcb92573cca2c101829953f31bed5d9c75bfddc65517f30992"
+    },
+    "product_path": {
+      "path": "gold_compute/queue_20261018/results/IA8/endpoint_strict_review/product_optfreq.xyz",
+      "sha256": "053a6c1b015990882fd640c296c70486231631a8876ea67363d8b84a3a44a262"
+    }
+  },
+  "response": {
+    "call_id": "tc_1d4a572782fc49d7",
+    "is_success": true,
+    "summary": "{\"is_success\": true, \"message\": \"TS verification complete: fail: the imaginary mode is inconsistent with the declared reaction coordinate.\", \"process\": null, \"diagnostics\": [], \"mapping_candidates\": [], \"calculation\": null, \"images_dir\": \"\", \"distance_table\": \"\", \"ts_candidate_index\": null, \"ts_candidate_path\": \"\", \"refinement_termination\": \"\", \"path_termination_reason\": null, \"path_kind\": \"\", \"input_file_path\": \"\", \"run_hint\": \"\", \"profile_table\": \"\", \"scan_has_internal_peak\": null, \"verdicts\": [], \"barrier_kcal\": null, \"candidate\": null, \"candidate_unavailable\": false, \"verdict\": \"fail: the imaginary mode is inconsistent with the declared reaction coordinate.\", \"verification_status\": \"fail\", \"n_imag\": 1, \"imag_freqs\": [-950.47], \"checks\": [\"Exactly 1 imaginary frequency (-950.5 cm⁻¹): the first-order saddle-point premise holds.\", \"Imaginary mode is inconsistent with the declared reaction coordinate: watch_pairs max relative displacement 0.368 < 0.50×global max 1.259 (dominant motion on atom pair (3,4)).\", \"Atom pair (0,2) relative displacement=0.351 (threshold 0.50×1.259=0.629)\", \"Atom pair (0,1) relative displacement=0.368 (threshold 0.50×1.259=0.629)\"], \"irc_end_a_path\": \"\", \"irc_end_b_path\": \"\", \"imag_mode_aligned\": false, \"imag_mode_alignment\": \"Imaginary mode is inconsistent with the declared reaction coordinate: watch_pairs max relative displacement 0.368 < 0.50×global max 1.259 (dominant motion on atom pair (3,4)).\"}",
+    "data": {
+      "is_success": true,
+      "message": "TS verification complete: fail: the imaginary mode is inconsistent with the declared reaction coordinate.",
+      "process": null,
+      "diagnostics": [],
+      "mapping_candidates": [],
+      "calculation": null,
+      "images_dir": "",
+      "distance_table": "",
+      "ts_candidate_index": null,
+      "ts_candidate_path": "",
+      "refinement_termination": "",
+      "path_termination_reason": null,
+      "path_kind": "",
+      "input_file_path": "",
+      "run_hint": "",
+      "profile_table": "",
+      "scan_has_internal_peak": null,
+      "verdicts": [],
+      "barrier_kcal": null,
+      "candidate": null,
+      "candidate_unavailable": false,
+      "verdict": "fail: the imaginary mode is inconsistent with the declared reaction coordinate.",
+      "verification_status": "fail",
+      "n_imag": 1,
+      "imag_freqs": [
+        -950.47
+      ],
+      "checks": [
+        "Exactly 1 imaginary frequency (-950.5 cm⁻¹): the first-order saddle-point premise holds.",
+        "Imaginary mode is inconsistent with the declared reaction coordinate: watch_pairs max relative displacement 0.368 < 0.50×global max 1.259 (dominant motion on atom pair (3,4)).",
+        "Atom pair (0,2) relative displacement=0.351 (threshold 0.50×1.259=0.629)",
+        "Atom pair (0,1) relative displacement=0.368 (threshold 0.50×1.259=0.629)"
+      ],
+      "irc_end_a_path": "",
+      "irc_end_b_path": "",
+      "imag_mode_aligned": false,
+      "imag_mode_alignment": "Imaginary mode is inconsistent with the declared reaction coordinate: watch_pairs max relative displacement 0.368 < 0.50×global max 1.259 (dominant motion on atom pair (3,4))."
+    },
+    "duration_ms": 6
+  }
+}

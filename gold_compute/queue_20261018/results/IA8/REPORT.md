@@ -67,6 +67,12 @@ Tight后仍[ts_guess strict fail完整返回](gold_compute/queue_20261018/result
 唯一规范strict调用 **tc_8b3a7df380064bda**：835频率/836 IRC原日志，reactant/product为上述两新原生final XYZ，engine=orca、strict=true、原watch[[0,2],[0,1]]；[完整args/results](endpoint_strict_review/strict_own_endpoints.json)。返回verification_status=fail，checks仅唯一负频−950.47与mode misalignment，irc_end_a/b为空，没有端点匹配数值/通过判断。本次实际工具未兑现用户所述‘端点一致优先通过’行为；不从此次返回推断永久算法机制，也不将未执行的端点比较说成fail。公开合同没有另一个endpoint-priority开关或单独endpoint-match验收入口。
 **当前**：两侧真正同轮IRC-own优化零虚频链已具备，strict仍未pass；方向科学证据较强但电子态/方法精度风险仍在。不删watch、不改阈值、不重试/追加QM，不回填Gold。无后台作业。
 
+
+**新机制一次实测（最新）**：沿用835/836+同轮841/840原生final+原watch[[0,2],[0,1]]、strict=true、engine=orca，仅换output_dir，一次调用tc_1d4a572782fc49d7仍verification_status=fail，checks仍为唯一负频与mode失配、无endpoint比较返回。当前实际工具未体现所述修复生效；不循环、不新QM。完整request/response/四源SHA见[新验收记录](gold_compute/queue_20261018/results/IA8/new_verification_review/result.json)。不能回填已验收边，能量仍限同级GFN2纯模型电子能（无热/ZPE混入），不是PM7 Hf或物理高精Gold。
+
+
+**CURRENT e5b2d829新合同一次验收**：重新读取ts_guess revision e5b2d829f19266162378471a6388a20d983b299ce5de48ddc696bd93fb706451，正式新增reactant_logs/product_logs已分别绑定同轮841/840原生组合OptFreq日志；835/836、两native finals、原watch/strict均保持。实际call **tc_58fab4b3a3644b26**仍verification_status=fail，checks只有唯一负频−950.47和mode misalignment，端点路径空，无端点证明覆盖warning的返回；不是沿用旧调用。完整新合同版本/request/response/六源SHA：[e5b2d829结果](gold_compute/queue_20261018/results/IA8/new_verification_review/e5b2d829/result.json)。一次结束，无QM/循环，不改Gold或图；当前仍不能声称工具验收pass。
+
 ## 上轮tight收口结论（历史，端点缺口由上节补齐）
 一次TightOpt定向复查完成，无后台作业。当前已实际有834 TS优化、835唯一负频、836双向IRC与837/838反应物外端Opt/Freq；仍因几何校验和strict模式fail未通过，产品外端链未完成，不追加QM。
 直接前后负模比较：[mode_overlap.json](tight_mode_review/mode_overlap.json)、[脚本](tight_mode_review/overlap.py)。两原生.hess各自唯一负频均为normal_modes列6；质量加权Kabsch旋转后，在同一旧TS刚体补空间投影、单位化并取±无关绝对cos：full=0.9999999934，heavy=0.9999999990；几何质量RMSD=0.0000526945Å。故本模型内模式对几何tight稳健，并非仅频率数值相似。

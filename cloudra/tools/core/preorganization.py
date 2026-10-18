@@ -67,17 +67,9 @@ def _bad(prepared: PreparedStructure, detail: str, *, index_base: int = 1) -> Va
     return ValueError(f"{detail}. Resolved atoms ({index_base}-based): {_numbering(prepared, index_base)}")
 
 
-def load_resolved_graph(prepared: PreparedStructure, *, index_base: int = 1, allow_unoptimized: bool = False) -> Chem.Mol:
+def load_resolved_graph(prepared: PreparedStructure, *, index_base: int = 1) -> Chem.Mol:
     """Load the builder's resolved, explicit-H graph without inventing coordinates."""
-    graph_only_multi = (
-        prepared.status == "assembly_failed"
-        and len(prepared.components) > 1
-        and all(not component.xyz_path for component in prepared.components)
-    )
     bad = partial(_bad, prepared, index_base=index_base)
-    explicitly_unoptimized = allow_unoptimized and all(c.embed_status in ("embedded","not_required") and c.optimization_status=="not_required" for c in prepared.components)
-    if prepared.status != "ok" and not graph_only_multi and not explicitly_unoptimized:
-        raise bad(f"builder status {prepared.status!r} has no usable resolved graph")
     if not prepared.components or not prepared.atom_identities:
         raise bad( "builder returned no components or atom identities")
 

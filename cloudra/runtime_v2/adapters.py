@@ -14,6 +14,7 @@ import inspect
 import json
 import logging
 import math
+from pathlib import Path
 from typing import Any, Iterable
 
 from pydantic import ValidationError
@@ -978,7 +979,7 @@ async def _close_stream(response: Any) -> None:
 class _LegacyAgentBridge:
     """Duck-typed old-Agent surface required by existing tool classes."""
 
-    def __init__(self, agent: AgentSession, workspace_dir: str | None) -> None:
+    def __init__(self, agent: AgentSession, workspace_dir: str | None, event_log=None) -> None:
         self._runtime_agent = agent
         self.id = agent.id
         self.name = agent.role_id
@@ -999,6 +1000,16 @@ class _LegacyAgentBridge:
         self.orchestration_mode = agent.settings.orchestration_mode.value
         self.session_id = agent.id
         self._permissions = agent.capabilities.permissions
+        self._event_log = event_log
+
+    def known_file_sha256(self, absolute_path: str) -> str | None:
+        """Internal known-version binding; tool arguments carry no concurrency hash."""
+        if self._event_log is None:
+            return None
+        root = Path(self.working_directory).resolve()
+        target = Path(absolute_path).resolve()
+        relative = target.relative_to(root).as_posix()
+        return self._event_log.known_file_sha256(self.conversation_id, self.id, relative, str(target))
 
     def permission_all(self):
         """Legacy IntFlag projection of the v2 capability permission set."""
@@ -1057,7 +1068,7 @@ class LegacyToolExecutor:
             artifact_root=str(data_dir() / "artifacts"),
         )
         executor.bind_run(
-            agent=_LegacyAgentBridge(agent, workspace),
+            agent=_LegacyAgentBridge(agent, workspace, self.core.event_log),
             session=Session(id=agent.id, path=""),
         )
         payload = await executor.execute(call.name, call.arguments, session_id=agent.id)
@@ -1113,7 +1124,7 @@ class LegacyToolExecutor:
         # 经构造器拿到调用者身份（不再需要 object.__setattr__ 绕过 pydantic 校验）；
         # 不声明它的工具（log_parser 等无状态工具）按原样构造。
         if "subagent" in getattr(entry.cls, "model_fields", {}):
-            actor = _LegacyAgentBridge(agent, project.workspace_dir)
+            actor = _LegacyAgentBridge(agent, project.workspace_dir, self.core.event_log)
             tool = entry.instantiate(subagent=actor)
         else:
             tool = entry.instantiate()

@@ -6,4 +6,4 @@ Load `first-principles-calculation` for the relevant modeling and analysis workf
 
 Submit engine jobs through `submit_compute_job` with `job_type="vasp"` or `job_type="cp2k"` and the engine input file. Inspect the resulting output and calculations before reporting structural or energetic findings. Share useful results and blockers with the Coordinator or the relevant specialist through `agent_hub`.
 
-For an existing text file, read its SHA-256 before calling `edit(path="...", expected_sha256="<sha256>", edits=[{"old_string":"...", "new_string":"..."}])`. Use `write(path="...", content="...", expected_sha256="missing")` for a new text file.
+Use `write(path="...", content="...")` for a new text file or a whole-file replacement. Read an existing file before changing it unless you just wrote or edited it, then call `edit(path="...", edits=[{"old_string":"...", "new_string":"..."}])` for a local edit. The runtime tracks the known version from successful reads, writes and edits automatically.

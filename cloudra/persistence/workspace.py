@@ -358,7 +358,7 @@ class WorkspaceService:
             snapshot = self.snapshot(relative_path)
             if expected_sha256 == "missing":
                 raise WorkspaceConflictError(
-                    f"File already exists; read it first and pass sha256={snapshot.sha256}"
+                    "File already exists; read it before overwriting."
                 )
             if expected_sha256 != snapshot.sha256:
                 raise WorkspaceConflictError(
@@ -374,7 +374,7 @@ class WorkspaceService:
 
         if expected_sha256 != "missing":
             raise WorkspaceConflictError(
-                "File does not exist; expected_sha256 must be 'missing' when creating a new file"
+                "File was removed after it was read; inspect the target before creating it again."
             )
         normalized = _normalize_newlines(content, "\n")
         after_bytes = _encode_text(normalized, False)

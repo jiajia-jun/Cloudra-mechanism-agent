@@ -3343,7 +3343,7 @@ def _separated_product_proof(record, irc_log, freq_step, reactant, expected_orig
     except (OSError, ValueError) as exc:
         return False, f'Component evidence could not be bound: {exc}'
     minima = _usable_minimum_geometries(component_logs, side='separated products',
-        max_scan_bytes=None, details=details)
+        details=details)
     if not minima:
         return False, ('Supply verification.product_endpoint.component_logs with normally terminated '
                        'zero-imaginary-frequency logs for every separated product. ' + '; '.join(details))

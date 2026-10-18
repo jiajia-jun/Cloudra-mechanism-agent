@@ -275,7 +275,7 @@ def query_job(job_id: str) -> tuple[str, str]:
 def _engine_success_from_log(
     job_type: str | None, input_path: str | None, task_id: int | None = None
 ) -> bool | None:
-    """本地 guard 同款文本标记。None = 没有可判定的引擎日志，调用方保持 sacct。"""
+    """本地 guard 同款文本标记。None 表示缺少可判定的原生日志，不能认定成功。"""
     if not input_path:
         return None
     if job_type == 'chem_task':
@@ -449,9 +449,10 @@ async def run_slurm_compute(
                         current["path"] if current else row["path"],
                         task_id,
                     )
-                    if engine_ok is False:
+                    if engine_ok is not True:
                         final = "failed"
-                        last_error = "engine error termination (Slurm COMPLETED)"
+                        last_error = ("native termination log unavailable" if engine_ok is None
+                                      else "engine error termination (Slurm COMPLETED)")
             wrote = await afinalize_compute_job(
                 db,
                 task_id,

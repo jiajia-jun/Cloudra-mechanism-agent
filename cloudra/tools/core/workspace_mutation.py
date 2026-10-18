@@ -48,6 +48,17 @@ def workspace_for_tool(tool: Tool) -> WorkspaceService:
     return WorkspaceService(root)
 
 
+def known_version_for_tool(tool: Tool, service: WorkspaceService, path: str) -> str:
+    """Bind the last version the session read or wrote; keep hashes internal."""
+    target = service.resolve_path(path)
+    digest = tool.subagent.known_file_sha256(str(target)) if tool.subagent is not None else None
+    if digest:
+        return digest
+    if not target.exists():
+        return "missing"
+    raise WorkspaceConflictError("Read the target file before changing it.")
+
+
 def _approval_details(action: str, change: PreparedFileChange) -> str:
     diff_preview = change.diff
     if len(diff_preview) > 12_000:

@@ -198,7 +198,7 @@
 2. **结构**：`C=[N+]=[N-].C=C → C1CN=NC1 → C1CC1.N#N`，净电荷 0，单重态整体反应。
 3. **多参考性质**：脱氮需断两根 C–N σ 键，协同与分步路径都可能进入双自由基区域；“协同”本身不保证单参考可描述。旧 normal 图强定单步螯变且以 B3LYP 扫描补垒，不能作为可信 gold。
 4. **诊断证据**：Pradhan & Lourderaj, Phys. Chem. Chem. Phys. 2017, 19, 27468–27477, DOI 10.1039/C7CP05320G，以 CASSCF/CASPT2 比较同步、异步协同和异步分步脱氮路径，并指出常规 DFT/MP2 未正确描述双自由基区域。旧 NU8 第二步只有受限 B3LYP 扫描，没有通过 TS/IRC 验证。
-5. **判分口径**：IMP 仅允许 xTB、PM7；首步环加成的历史 DFT 参考 ΔE‡ = 14.74 kcal/mol（气相 ORCA 5.0.2 B3LYP-D3(BJ)/def2-SVP，相对预反应络合物；gold 工作区 NU8/REPORT.md）。脱氮 TS 标 `accessible=false`，第二步能垒保持缺测；环加成部分按常规证据要求交付。
+5. **判分口径**：IMP 仅允许 xTB、PM7；首步环加成参考已按用户确认更新为 GFN2-xTB 纯电子垒 ΔE‡ = 5.65 kcal/mol（气相 ORCA 6.1.1 / xTB 6.7.1，TS794 相对原料接触体839；不含 ZPE/热校正）。接触体仍有 −29.79/−4.49 cm⁻¹ 两个组分间软模，本次按人工确认接纳，未改写为零虚频或 strict pass；相对零虚频分离单体742+745的能差4.37 kcal/mol另列于 `gold_compute/queue_20261018/results/IB9/GOLD_BACKFILL_20261018.md`。历史 B3LYP 14.74 不再作为当前 Gold。脱氮 TS 标 `accessible=false`，第二步能垒保持缺测；首步回填不代表全题速控步已确定。
 
 ---
 

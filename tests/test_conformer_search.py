@@ -130,6 +130,16 @@ def test_sniff_plain_xyz_and_v3000_mol():
     assert conformer_mod._sniff_structure_text(v3000) == "mol_block"
 
 
+def test_rdkit_blank_title_mol_block_text_is_read(tool, tmp_path):
+    from rdkit import Chem
+
+    text = Chem.MolToMolBlock(Chem.MolFromSmiles("CCO"))
+    assert text.splitlines()[0] == ""
+    result = tool._run_rdkit(ConformerSearch_input_schema(input_text=text, num_confs=1), str(tmp_path))
+    assert result.is_success, result.message
+    assert result.counts["generated"] == 1
+
+
 def test_sniff_unparseable_text_is_invalid_not_guessed():
     with pytest.raises(ValueError, match="neither a mol block"):
         conformer_mod._sniff_structure_text("CCO ethanol smiles-ish text")
@@ -499,6 +509,130 @@ async def test_missing_mmff_params_fails_loud(tool, mock_session, tmp_path, monk
     )
     assert result.is_success is False
     assert "MMFF" in result.message
+
+
+@pytest.mark.parametrize("failure", ["missing_parameters", "not_converged"])
+def test_crest_can_optimize_a_seed_without_force_field_qualification(tool, tmp_path, monkeypatch, failure):
+    import cloudra.tools.core.structure_builder as builder
+    from cloudra.tools.core.crest_runner import CrestConformer, CrestRunResult
+    from cloudra.tools.core.irc_path import parse_xyz
+
+    if failure == "missing_parameters":
+        monkeypatch.setattr(builder, "_select_engine", lambda _mol: None)
+    else:
+        optimize = builder._optimize_component
+
+        def unfinished(*args, **kwargs):
+            record = optimize(*args, **kwargs)
+            return record.model_copy(update={"status": "not_converged"})
+
+        monkeypatch.setattr(builder, "_optimize_component", unfinished)
+    received = []
+
+    def crest(request):
+        received.append(request)
+        symbols, positions = parse_xyz(request.xyz_text)
+        return CrestRunResult(
+            run_dir=str(tmp_path / "crest"), scientific_success=True,
+            conformers=[CrestConformer(frame_index=0, energy_eh=-1.0, symbols=symbols, positions=positions)],
+        )
+
+    monkeypatch.setattr(conformer_mod, "run_crest", crest)
+    result = tool._run_crest(ConformerSearch_input_schema(smiles="CCO", backend="crest"), str(tmp_path))
+    assert result.is_success, result.message
+    assert len(received) == 1
+    assert "warning" in result.message.lower()
+    assert "force-field" in result.message.lower()
+
+
+def test_default_rdkit_returns_existing_complex_seed_without_fake_assembly(tool, tmp_path, monkeypatch):
+    from rdkit import Chem
+
+    import cloudra.tools.core.structure_builder as builder
+    from cloudra.tools.core.irc_path import parse_xyz
+    from cloudra.tools.core.molecule import to_xyz
+
+    source = Chem.AddHs(Chem.MolFromSmiles("O.O"))
+    conf = Chem.Conformer(source.GetNumAtoms())
+    positions = [(0, 0, 0), (3, 0, 0), (-.75, .58, 0), (.75, .58, 0),
+                 (2.25, -.58, 0), (3.75, -.58, 0)]
+    for index, position in enumerate(positions):
+        conf.SetAtomPosition(index, position)
+    source.AddConformer(conf)
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("returning an existing seed must not run embedding, assembly or force-field calculations")
+
+    monkeypatch.setattr(builder.AllChem, "EmbedMolecule", forbidden)
+    monkeypatch.setattr(builder.AllChem, "EmbedMultipleConfs", forbidden)
+    monkeypatch.setattr(builder, "_optimize_component", forbidden)
+    monkeypatch.setattr(builder, "assemble", forbidden)
+    monkeypatch.setattr(ConformerSearch, "_mmff_single_point_energy", forbidden)
+    result = tool._run_rdkit(ConformerSearch_input_schema(input_text=to_xyz(source)), str(tmp_path))
+
+    assert result.is_success, result.message
+    assert result.counts["retained"] == 1
+    assert result.counts["optimized"] == 0
+    assert "not reassembled" in result.message.lower()
+    assert "minimum" in result.message.lower()
+    assert "rel_energy_kcal" not in result.conformers[0]
+    symbols, delivered = parse_xyz(Path(result.ensemble_path).read_text())
+    assert symbols == [atom.GetSymbol() for atom in source.GetAtoms()]
+    assert delivered == pytest.approx(source.GetConformer().GetPositions())
+
+
+def test_rdkit_samples_from_existing_molecule_without_clearing_its_seed(tool, tmp_path, monkeypatch):
+    import numpy as np
+
+    from cloudra.tools.core.irc_path import parse_xyz
+
+    original_symbols, original_positions = parse_xyz(ETHANOL_XYZ)
+    embed = conformer_mod.AllChem.EmbedMultipleConfs
+    optimize = conformer_mod.AllChem.MMFFOptimizeMoleculeConfs
+    sampled = []
+    optimized = []
+
+    def record_sampling(mol, *, numConfs, params):
+        sampled.append((numConfs, params.clearConfs, mol.GetConformer().GetId()))
+        assert [atom.GetSymbol() for atom in mol.GetAtoms()] == original_symbols
+        assert mol.GetConformer().GetPositions() == pytest.approx(np.asarray(original_positions))
+        return embed(mol, numConfs=numConfs, params=params)
+
+    def record_optimization(mol, *args, **kwargs):
+        optimized.extend(conf.GetId() for conf in mol.GetConformers())
+        return optimize(mol, *args, **kwargs)
+
+    monkeypatch.setattr(conformer_mod.AllChem, "EmbedMultipleConfs", record_sampling)
+    monkeypatch.setattr(conformer_mod.AllChem, "MMFFOptimizeMoleculeConfs", record_optimization)
+    result = tool._run_rdkit(ConformerSearch_input_schema(input_text=ETHANOL_XYZ, num_confs=4), str(tmp_path))
+
+    assert result.is_success, result.message
+    assert len(sampled) == 1
+    assert sampled[0][:2] == (4, False)
+    assert sampled[0][2] in optimized
+    assert result.counts["generated"] == 5
+    assert result.counts["optimized"] >= 1
+
+
+def test_rdkit_2d_drawing_is_not_retained_as_a_3d_seed(tool, tmp_path, monkeypatch):
+    from rdkit import Chem
+
+    source = Chem.AddHs(Chem.MolFromSmiles("CCO"))
+    conformer_mod.AllChem.Compute2DCoords(source)
+    input_file = tmp_path / "drawing.mol"
+    input_file.write_text(Chem.MolToMolBlock(source))
+    embed = conformer_mod.AllChem.EmbedMultipleConfs
+    sampled = []
+
+    def record_sampling(mol, *, numConfs, params):
+        sampled.append(mol.GetNumConformers())
+        return embed(mol, numConfs=numConfs, params=params)
+
+    monkeypatch.setattr(conformer_mod.AllChem, "EmbedMultipleConfs", record_sampling)
+    result = tool._run_rdkit(ConformerSearch_input_schema(input_path=str(input_file), num_confs=4), str(tmp_path))
+    assert result.is_success, result.message
+    assert sampled == [0]
+    assert result.counts["generated"] == 4
 
 
 # ---------- C2：CREST multiplicity 透传 + temperature 校验 ----------

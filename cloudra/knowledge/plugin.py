@@ -25,7 +25,10 @@ class ChemKBPlugin:
     def search(self, query: str, *, limit: int = 5) -> list[KnowledgeEntry]:
         if limit < 1:
             return []
-        matches = store.search_sources(knowledge_graph_db_path(), query)
+        graph = knowledge_graph_db_path()
+        if not graph.is_file():
+            raise FileNotFoundError(f'Knowledge graph is missing: {graph}')
+        matches = store.search_sources(graph, query)
         if not matches:
             return []
         sources = content.load_sources()
