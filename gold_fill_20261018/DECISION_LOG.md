@@ -1114,3 +1114,25 @@ reverse or establish any ...
 **e1 的状态更新（报告 §9）**：`(a) 1 imaginary frequency −940.1938`；`(c) reactant end VERIFIED（0 虚频，身份已核），product end still pending`。
 ⇒ e1 从「两端都待验」推进到「反应物端已验、产物端待验」，**仍未达完整 (c)**，报告如实写明。
 **我不判断**：16.62 / 15.85 是否合格、e3 何时补、用 IRC 连到的极小值还是 guess 构象当分母更合适。
+
+## D90 **用户裁决：分母统一按「稳定中间体」；工作区已提交并推送**（2026-10-18 08:2x）
+**用户指令原文**：「按稳定中间体为分母」。
+⇒ 每一步的 ΔE‡ 分母取**该步的稳定中间体**（已验证、0 虚频、该物种该步对应的最低构象），不用「TS guess 所长在的那个构象」当分母。
+**我机械核对到的现状（只报观察，不下结论）**：
+| 题 | 分母写法（从 `mechanism_graph.json` 的 `note` 抄）| 是否符合「稳定中间体」|
+|---|---|---|
+| HI1 e1/e2 | `barrier = E(TS) − E(lowest verified minimum of this substrate)` | **字面符合** |
+| NY3 e1 | `BARRIER DENOMINATOR: RC (job 1152, −244.935406907) = this step's own starting minimum`，并注明 TS 直连的 rotamer 比 RC 高 5.78 | **RC 更低（更稳定）⇒ 符合** |
+| NY3 e2/e3 | `E(TS) − E(this step's own starting minimum …)`，起点为 I_syn（−244.966495972，比 I_anti 低）| **符合** |
+| NR1 e1–e4 | `note` 为空 | **无法从字段核对**，需 agent 在 REPORT 里写明分母取的是哪一个 |
+| HL1 e_exo/e_endo | `note` 为空，但 REPORT §8.1 写「统一参考 E_ref」 | **REPORT 有据，字段无 note** |
+⇒ **待办（交给 agent）**：把 NR1 四边与 HL1 两边的分母**在 `note` 字段里写明是哪个驻点（job 号 + E 值）**，这样「稳定中间体」这条口径可被机械核对。
+**② 推送结果**（本条独立于科学内容）：
+```
+commit c6b5f71c  15 files, +3264 行
+push  04216db7..c6b5f71c  gold-finish-artifacts -> gold-finish-artifacts
+ls-remote 确认 c6b5f71ced52e8e14eb05cf80dd45de5ff69f573
+本地领先 0 / 落后 0
+```
+只提交了文字交付物（REPORT.txt / mechanism_graph.json / CURRENT_STATE.md / 看板 / 台账），
+`.log`/`.chk` 由既有 `.gitignore` 覆盖，大体积轨迹 `.xyz` 与 `jobs/` 留本地。
